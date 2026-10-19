@@ -1,6 +1,41 @@
 Changelog — web-monitor.py
 (newest version first; entries up to 2.62 are still in French: their translation is a later stage of the migration)
 
+## 2.71.20261019.115217 — Fix: keys of the options shown in English in every language; French field names accepted
+
+Reason:
+  « Dans web-monitor.py v2.70.20261019.012211, s'assurer que toutes options soient en anglais : navigateurs -> browsers. Et lorsque je change la config /etc/default/web-monitor.conf pour TABLE_FIELDS=…,systems,navigateurs,read,written,received,sent, j'ai cette erreur : […] ATTENTION : valeur de configuration ignorée : TABLE_FIELDS=… (inconnu field(s) « navigateurs » (fields: num, …, systems, navigateurs, read, written, received, envoyé(s), email, or all)) »
+
+Changes:
+  - New literal() and _keeping_literals(): TR wraps the translator; the parts marked literal() are set aside during the translation and put back
+    unchanged (private-use markers U+E001 / U+E002, removed before display).
+  - Marked literal: the field list of --table-fields (help and error), the sort keys of the --sort error, « Fields: … » above the table, the values
+    of the « Options : » start line (lists shown « a,b,c », no longer « ['a', 'b'] »), and every « --option » name in the argparse errors.
+  - table_fields: FIELD_ALIASES — the French names (navigateurs, systèmes, envoyé(s), reçus, lues, écrites, pays, ville, groupes, étiquettes,
+    téléphone, événements, sondages, courriel, nom, identifiant, connexions, première, dernière, créé, ip-vue, pays-ip) are accepted for the English
+    key, accents and case ignored.
+  - lang/web-monitor.fr.po: « unknown field(s) », « (fields: », « , or all) » translated (the message was half French, half English).
+
+Bugs fixed:
+  - Symptom: the French help listed « navigateurs » and « envoyé(s) » among the fields; copied into TABLE_FIELDS, the value was refused and the
+    whole setting ignored. Diagnosis: the translator replaces English fragments by whole words everywhere in a line, the keys included (« Browsers »
+    of the column title gives « browsers » → « navigateurs »; « sent » → « envoyé(s) » of another catalog). Fix: keys displayed with literal(),
+    never translated; the French names accepted in case they are already in a configuration file.
+  - Symptom: « argument --tri : clé de tri inconnue » — the option name --sort translated in the error. Same diagnosis, same fix (option names literal).
+
+Safeguards and edge cases:
+  - A translator result that lost a marker gives the original text without markers (never a stray invisible character).
+  - The descriptive texts of the help (« systèmes, navigateurs » of --stats) stay translated: only keys, values and option names are literal.
+
+Checks:
+  - French: --help (field list: browsers, sent), --table-fields browsers,zzz and --sort zzz errors (keys and « --sort » in English, message fully
+    French), -c with TABLE_FIELDS=…,navigateurs,… (accepted, « Options : --table-fields …,systems,browsers,… »), wrong key in the file (warning in
+    French, keys in English); English: the same errors; --days abc (French argparse message still translated).
+  - table_fields('num,navigateurs,Envoyé(s),pays-ip,systèmes') → num, browsers, sent, ipcountry, systems.
+
+Action required:
+  none — optional: write « browsers » instead of « navigateurs » in TABLE_FIELDS of /etc/default/web-monitor.conf (both are accepted).
+
 ## 2.70.20261019.012211 — --table: every 5th line underlined; « Account created », « IP country » (RDAP / whois) and « VPN » columns
 
 Reason:
