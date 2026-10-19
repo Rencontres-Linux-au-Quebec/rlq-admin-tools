@@ -1744,8 +1744,8 @@ msgstr "HAUTE"
 msgid "Application behind nginx (profile apps/NAME.conf: odoo, bbb…) — detected automatically by default"
 msgstr "Application derrière nginx (profil apps/NAME.conf : odoo, bbb…) — détectée automatiquement par défaut"
 
-msgid "With --list-users: sort order — name (default), login, uid, ip, first, last, logins, minutes, type, os, pages, written, received, sent, events, surveys, seen; name, login, ip, uid, first, os: ascending; the others: descending"
-msgstr "Avec --list-users : ordre de tri — name (défaut), login, uid, ip, first, last, logins, minutes, type, os, pages, written, received, sent, events, surveys, seen ; name, login, ip, uid, first, os : croissant ; les autres : décroissant"
+msgid "With --list-users: sort order — name (default), login, uid, ip, created, first, last, logins, minutes, type, os, pages, written, received, sent, events, surveys, seen, vpn; name, login, ip, uid, first, os: ascending; the others: descending"
+msgstr "Avec --list-users : ordre de tri — name (défaut), login, uid, ip, created, first, last, logins, minutes, type, os, pages, written, received, sent, events, surveys, seen, vpn ; name, login, ip, uid, first, os : croissant ; les autres : décroissant"
 
 msgid " ; synonyms: name, latest, first, logins, duration…)"
 msgstr " ; synonymes : nom, latest, first, connexions, durée…)"
@@ -2691,3 +2691,62 @@ msgstr "  (IP vue : l'adresse du compte qui a fait la requête la plus récente 
 
 msgid "last seen on the site"
 msgstr "dernière visite sur le site"
+
+# 2.70: account created, IP country (RDAP / whois), VPN
+msgid "account creation"
+msgstr "création du compte"
+
+msgid "VPN, Tor, relay, hosting"
+msgstr "VPN, Tor, relais, hébergeur"
+
+msgid "Relay"
+msgstr "Relais"
+
+msgid "Hosting"
+msgstr "Hébergeur"
+
+msgid "Countries (main IP address, RDAP/whois)"
+msgstr "Pays (adresse IP principale, RDAP/whois)"
+
+msgid "  (account created: date of creation of the Odoo account; cyan: less than "
+msgstr "  (compte créé : date de création du compte Odoo ; cyan : moins de "
+
+msgid "  (IP country: country of the owner of the address block according to RDAP / whois — the registry, not a geolocation; main address first;"
+msgstr "  (pays IP : pays du propriétaire du bloc d'adresses d'après RDAP / whois — le registre, pas une géolocalisation ; l'adresse principale d'abord ;"
+
+msgid "   yellow: differs from the country of the Odoo contact; ?: owner unknown)"
+msgstr "   jaune : différent du pays du contact Odoo ; ? : propriétaire inconnu)"
+
+msgid "  (VPN: the owner of the block of one of the account's addresses is a known VPN, Tor, a relay (iCloud Private Relay, Cloudflare WARP)"
+msgstr "  (VPN : le propriétaire du bloc d'une des adresses du compte est un VPN connu, Tor, un relais (iCloud Private Relay, Cloudflare WARP)"
+
+msgid "   or a hosting company (data center: the exit of most VPNs and proxies) — a guess from the owner's name, not a proof:"
+msgstr "   ou un hébergeur (centre de données : la sortie de la plupart des VPN et des mandataires) — une déduction d'après le nom du propriétaire, pas une preuve :"
+
+msgid "   a VPN on a network of unknown name is not seen, a company or a school may go out through a data center)"
+msgstr "   un VPN sur un réseau au nom inconnu n'est pas vu, une entreprise ou une école peut sortir par un centre de données)"
+
+msgid "Owner of the address blocks: component apps/_reseau.py missing or unreadable — IP country and VPN unknown"
+msgstr "Propriétaire des blocs d'adresses : composant apps/_reseau.py absent ou illisible — pays IP et VPN inconnus"
+
+msgid "Owner of the address blocks: "
+msgstr "Propriétaire des blocs d'adresses : "
+
+msgid " address(es) not in the cache, not looked up (NGINX_TOOLS_INTERNET=off) — « ? » in the table"
+msgstr " adresse(s) absente(s) du cache, non cherchée(s) (NGINX_TOOLS_INTERNET=off) — « ? » dans le tableau"
+
+msgid "Owner of the address blocks (RDAP, otherwise whois): "
+msgstr "Propriétaire des blocs d'adresses (RDAP, sinon whois) : "
+
+msgid " address(es) to look up on the Internet, "
+msgstr " adresse(s) à chercher sur Internet, "
+
+msgid " in the cache …"
+msgstr " dans le cache …"
+
+msgid "  … done in "
+msgstr "  … terminé en "
+
+msgid " unknown: rdap.org unreachable and no whois command?)"
+msgstr " inconnue(s) : rdap.org injoignable et pas de commande whois ?)"
+
