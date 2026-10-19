@@ -37,15 +37,17 @@
 #REPEAT_HEADER=non
 # --reverse
 #REVERSE=non
-# --sort : tri (uid, ip, name, login, first, last, logins, minutes, type, os, pages, written, received, sent, events, surveys, seen) (défaut : name)
+# --sort : tri (uid, ip, name, login, created, first, last, logins, minutes, type, os, pages, written, received, sent, events, surveys, seen, vpn) (défaut : name)
 #SORT=name
 # --stats : avec --list-users, statistiques à la fin (membres par groupe et étiquette, interne / portail, pays, domaines de courriel, systèmes,
 # navigateurs, les 10 comptes les plus actifs)
 #STATS=non
 # --table : tableau compact
 #TABLE=non
-# --table-fields : champs du tableau, dans cet ordre, séparés par des virgules (all : tous) — num,uid,ip,ipseen,name,login,first,last,logins,minutes,type,
-# events,surveys,phone,country,city,groups,tags,systems,browsers,read,written,received,sent,email (vide : tous sauf tags et email)
+# --table-fields : champs du tableau, dans cet ordre, séparés par des virgules (all : tous) — num,uid,ip,ipseen,ipcountry,vpn,name,login,created,first,last,logins,
+# minutes,type,events,surveys,phone,country,city,groups,tags,systems,browsers,read,written,received,sent,email (vide : tous sauf tags et email)
+# ipcountry et vpn : propriétaire du bloc de chaque adresse cherché UNE fois sur Internet (rdap.org, sinon whois), puis mis en cache 90 jours ;
+# NGINX_TOOLS_INTERNET=off : le cache seulement. Les retirer de la liste évite toute recherche.
 # Exemple : TABLE_FIELDS=num,name,login,last,ipseen,logins,minutes,groups,read,written
 #TABLE_FIELDS=
 # --group : avec --list-users, seulement les membres de ce groupe Odoo (n'active pas --list-users à lui seul : le timer continue de surveiller)

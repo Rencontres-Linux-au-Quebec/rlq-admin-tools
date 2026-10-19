@@ -1,6 +1,55 @@
 Changelog — web-monitor.py
 (newest version first; entries up to 2.62 are still in French: their translation is a later stage of the migration)
 
+## 2.70.20261019.012211 — --table: every 5th line underlined; « Account created », « IP country » (RDAP / whois) and « VPN » columns
+
+Reason:
+  « Dans web-monitor.py --list-users --table, Afin que ce soit plus lisible dans le tableau, souligne les lignes à tous les modulo 5. et rajoute une colonne afin d'indiquer depuis quand un utilisateur a créé son compte. Indique le pays selon whois et peux-tu indiquer si l'utilisateur utilise un VPN ? »
+
+Changes:
+  - compact_table: every 5th data line (5, 10, 15…) underlined across the whole width (UNDERLINE_EVERY = 5; 0 = never); new underline() keeps the
+    underline through the colored cells (each « ESC[…m » gets « ;4 »); the last line is not underlined (the separator follows). New colors_on(),
+    shared by color_code and underline.
+  - New field « created » (« Compte créé » / « Account created »): creation date of the Odoo account (res_users.create_date, local time), cyan when
+    less than NEW_ACCOUNT_DAYS (7) days; CSV: date and time; --sort created (newest first; synonyms créé, creation, new).
+  - New field « ipcountry » (« Pays IP » / « IP ctry », --table-fields ipcountry or ip-country): country of the OWNER of the address block according to
+    RDAP, otherwise whois (apps/_reseau.py fournisseur) for the account's addresses — its IP_LOOKUPS_PER_ACCOUNT (5) most used ones, the main one first,
+    plus the latest seen; distinct countries « CA,FR »; yellow when the main one differs from the country of the Odoo contact; « ? » owner unknown.
+    CSV: every address with its country and owner.
+  - New field « vpn » (« VPN »): the most telling kind among the account's addresses — VPN (NordVPN, Mullvad, Proton, Surfshark, ExpressVPN, PIA…),
+    Tor, Relay (iCloud Private Relay, Cloudflare WARP, Fastly), Hosting (data center: M247, DataCamp, OVH, Hetzner, DigitalOcean, AWS, Azure…, or a
+    name with hosting / datacenter / server / vps) — from the owner's organisation and network name (VPN_OWNERS, vpn_kind); bold yellow for VPN and
+    Tor, yellow for relay and hosting; CSV: every flagged address; --sort vpn.
+  - ip_owners(): each public address asked ONCE (8 in parallel, 8 s each), then served by the permanent address cache (apps/_cache_ip.py, 90 days);
+    NGINX_TOOLS_INTERNET=off: cache only; progress and elapsed time on stderr (terminal or --verbose only). The lookups only run when the table, the
+    CSV or the sort needs ipcountry or vpn.
+  - --stats: « Countries (main IP address, RDAP/whois) » and « VPN, Tor, relay, hosting » sections when the owners were looked up.
+  - Footnotes of the table for the three columns; --sort help; lang/web-monitor.fr.po (French translations); doc/web-monitor.conf.example;
+    docs/en|fr/04-web-monitor.md.
+  - apps/_odoo_db.py 1.17: user_profiles returns « created ».
+
+Bugs fixed:
+  none.
+
+Safeguards and edge cases:
+  - Private, loopback and documentation addresses are never sent to RDAP (no owner: « - »).
+  - A lookup failure is never cached (retried next run); component apps/_reseau.py missing: one message, the columns show « ? », the table still prints.
+  - The VPN column is a GUESS from the owner's name, written as such under the table: a VPN on a network of unknown name is not detected, a company
+    or a school may go out through a data center; « Google Fiber » (home access) is not counted as Google hosting.
+  - « IP country » is the country of the registry entry, not a geolocation (a multinational access provider may be registered elsewhere).
+  - Underline and colors only in a terminal (never in a pipe, a report or with NO_COLOR); the columns never shift (codes added after the padding).
+  - Python 3.8 compatible (BigBlueButton server, Ubuntu 20.04).
+
+Checks:
+  - vpn_kind on sample owners (Mullvad / 31173 Services, M247, Bell Canada, Cloudflare, Vidéotron, OVH, Google Fiber, Proton AG).
+  - compact_table with 11 lines in a forced terminal: lines 5 and 10 underlined, colored cells keep the underline, widths unchanged.
+  - users_table with sample accounts: table, footnotes, CSV and --stats in French and English (NGINX_TOOLS_I18N_DEBUG: no line left half-translated).
+  - --help (options still sorted), --version, --sort with an unknown key, Python 3.8 syntax (ast feature_version).
+  - Not run here: the nginx-tools-tests suite (not in this repository) and a real RDAP lookup (network of the build environment closed).
+
+Action required:
+  none — optional: TABLE_FIELDS without ipcountry,vpn in /etc/default/web-monitor.conf to avoid any Internet lookup.
+
 ## 2.69.20261017.214019 — --table: « IP seen », sorted column highlighted, tags off by default; every setting in the configuration file
 
 Reason:
