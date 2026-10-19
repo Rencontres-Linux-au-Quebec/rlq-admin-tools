@@ -1,8 +1,12 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 # ========================================================================================================================
-# Copyright (C) 2026  Services-Conseils Linux
-# Licence : GNU Affero General Public License, version 3 ou ultérieure — https://www.gnu.org/licenses/agpl-3.0.html
+# Copyright (C) 2026 Services-Conseils Linux
+# Copyright (C) 2026 Rencontres Linux au Québec contributors
+#
+# This program is free software: you can redistribute it and/or modify it under the terms of the GNU Affero General Public
+# License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
+# Full text: https://www.gnu.org/licenses/agpl-3.0.html
 # ========================================================================================================================
 """Rapport d'erreurs commun des programmes : option --report-err.
 
@@ -16,6 +20,7 @@ les ÉCHECS, AVERTISSEMENTS et RECOMMANDATIONS à traiter avec leurs lignes de d
     commande (python3 apps/_rapport.py --programme … --sortie FICHIER).
 
 HISTORIQUE (résumé ; détail : doc/_rapport.changelog.txt)
+#   1.12.20261019.150215 — New copyright: Services-Conseils Linux and Rencontres Linux au Québec contributors (AGPL-3.0-or-later).
 #   1.11.20261016.173838 — Copyright holder: Services-Linux Conseils Inc
 #   1.10.20261013.103000 — apps/_courriel.py dans la ligne « Suite ».
 #   1.9.20261008.120306 — _rapport.sh : REPORT_ERR_COULEUR (couleurs conservees avec --report-err).
@@ -40,7 +45,7 @@ import sys
 import time
 import traceback
 
-__version__ = "1.11.20261016.173838"
+__version__ = "1.12.20261019.150215"
 
 # Programmes de la suite dont la version est relevée (détecte un déploiement incomplet : fichiers d'âges différents).
 FICHIERS_SUITE = ["nginx-hardening.sh", "nginx-log-audit.sh", "sync-crowdsec-blocklist.sh", "odoo-backup.sh",

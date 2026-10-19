@@ -1,6 +1,40 @@
 Changelog — app-log-live.py
 (newest version first; entries up to 1.79 are still in French: their translation is a later stage of the migration)
 
+## 1.86.20261019.150215 — --diagnose: versions of the nginx configuration and their dates; new copyright
+
+Reason:
+  « [1] Dans une option de app-log-live.py, rajouter les dates des version de la config NGINX »
+  « [4] Mettre à jour le copywrite dans tous les programmes Python et BASH, mais pas dans les fichiers de config, sur peut enlever les lignes ce copywrite, je ne pense pas que c'est pertinent, les gens peuvent copier les fichiers de config sans suivre les restrictions d'une licence. Copyright (C) 2026 Services-Conseils Linux / Copyright (C) 2026 Rencontres Linux au Québec contributors / This program is free software: you can redistribute it and/or modify it under the terms of the GNU Affero General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version. »
+
+Changes:
+  - New section « nginx configuration: versions and dates » at the end of --diagnose (and of the D key): nginx_config_versions(),
+    nginx_config_archive(), version_text(), file_date(), nginx_reloaded_at().
+      * version of the nginx-odoo-config archive unpacked next to the programs (nginx-odoo/VERSION), its date when the version carries one,
+        and the modification date of the VERSION file;
+      * the 5 latest DATED lines of its journal (nginx-odoo/README.md: one dated line per modification);
+      * every file of conf.d/, sites-available/, snippets/, fail2ban/ of the archive compared with /etc/nginx (identical, different, absent),
+        the 5 most recently modified deployed files with their date, the list of the different ones with what to do;
+      * without the archive: the most recently modified files of /etc/nginx (version unknown);
+      * last reload of nginx (start of the current worker processes), with a warning when a deployed file is newer.
+  - --diagnose help mentions it; lang/app-log-live.fr.po: French texts. APP_LOG_LIVE_NGINX_ETC: other folder than /etc/nginx (tests).
+  - Header: « Copyright (C) 2026 Services-Conseils Linux » and « Copyright (C) 2026 Rencontres Linux au Québec contributors », with the AGPL-3.0-or-later
+    notice (was: Services-Linux Conseils Inc and its e-mail addresses). No change of behavior.
+
+Bugs fixed:
+  none.
+
+Safeguards and edge cases:
+  - Read-only: nothing is copied nor reloaded. Unreadable files (not root) are counted as « unreadable ».
+  - The archive is looked for in the folder of the programs and its parent (deployment: « unzip nginx-odoo-config.X.Y.zip » there).
+
+Checks:
+  - Sample archive (VERSION, README.md journal, 3 files) and sample /etc/nginx: identical / different / absent, journal sorted newest first, without
+    archive (deployed files only); French display checked with NGINX_TOOLS_I18N_DEBUG (no line left half translated); --help.
+
+Action required:
+  none — to see the version on a server, keep the nginx-odoo/ folder unpacked next to the programs.
+
 ## 1.85.20261017.200717 — RLQ* groups: « RLQ23-Bénévole = 11 »
 
 Reason:

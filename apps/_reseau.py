@@ -1,7 +1,11 @@
 #!/usr/bin/env python3
 # ========================================================================================================================
-# Copyright (C) 2026  Services-Conseils Linux
-# Licence : GNU Affero General Public License, version 3 ou ultérieure — https://www.gnu.org/licenses/agpl-3.0.html
+# Copyright (C) 2026 Services-Conseils Linux
+# Copyright (C) 2026 Rencontres Linux au Québec contributors
+#
+# This program is free software: you can redistribute it and/or modify it under the terms of the GNU Affero General Public
+# License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
+# Full text: https://www.gnu.org/licenses/agpl-3.0.html
 # ========================================================================================================================
 #
 # _reseau.py — PROPRIÉTAIRE du bloc d'adresses d'une IP (RDAP, sinon whois) : organisation enregistrée ou nom du réseau, plage, pays, adresse de
@@ -11,6 +15,7 @@
 # Utilisé par nginx-log-audit.sh (--investigate) et app-log-live.py.
 #
 # HISTORIQUE DE VERSION (resume — voir doc/_reseau.changelog.txt pour le detail complet) :
+#   1.3.20261019.150215 — New copyright: Services-Conseils Linux and Rencontres Linux au Québec contributors (AGPL-3.0-or-later).
 #   1.2.20261016.173838 — Copyright holder: Services-Linux Conseils Inc
 #   1.1.20261007.171721 — Cache permanent (apps/_cache_ip.py) ; --no-cache ; proprietaire du bloc d'adresses.
 #   1.0.20261002.073514 — Premiere version : code RDAP/whois partage (auparavant integre a nginx-log-audit.sh 2.19).
@@ -29,7 +34,7 @@ import shutil
 import subprocess
 import sys
 
-__version__ = "1.2.20261016.173838"
+__version__ = "1.3.20261019.150215"
 
 VERBOSE = False     # --verbose : chaque commande externe (curl, wget, whois) est affichee avant son execution
 SEP = "\x1f"

@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 # ========================================================================================================================
-# Copyright (C) 2026  Services-Conseils Linux
+# Copyright (C) 2026 Services-Conseils Linux
+# Copyright (C) 2026 Rencontres Linux au Québec contributors
 #
-# Ce fichier fait partie de la configuration nginx de Rencontres Linux Quebec. Logiciel libre : vous pouvez le
-# redistribuer et/ou le modifier selon les termes de la GNU Affero General Public License publiee par la Free
-# Software Foundation, soit la version 3 de la licence, soit (a votre choix) toute version ulterieure.
-# Texte complet : https://www.gnu.org/licenses/agpl-3.0.html
+# This program is free software: you can redistribute it and/or modify it under the terms of the GNU Affero General Public
+# License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
+# Full text: https://www.gnu.org/licenses/agpl-3.0.html
 # ========================================================================================================================
 #
 # odoo-update-module.sh — met à jour des modules Odoo (par défaut ceux de Rencontres Linux Québec : rlq_*) puis redémarre Odoo par systemd.
@@ -76,6 +76,7 @@
 #   WAIT_QUIET=15                 attente maximale d'un site calme avant l'arrêt d'Odoo, en minutes (0 = ne pas attendre)
 #
 # HISTORIQUE (résumé ; détail : doc/odoo-update-module.changelog.txt)
+#   1.12.20261019.150215 — New copyright: Services-Conseils Linux and Rencontres Linux au Québec contributors (AGPL-3.0-or-later).
 #   1.11.20261016.173838 — Quiet site before stopping Odoo, copy of the modules, check after the start, automatic rollback, Ctrl+C at once
 #   1.10.20261015.170611 — ShellCheck : variable locale « c » inutilisée retirée de trouver_conf (SC2034).
 #   1.9.20261015.143436 — --anonymize : affichage anonymisé (pseudonymes stables).
@@ -94,7 +95,7 @@ set -euo pipefail
 for _d in /usr/local/sbin /usr/sbin /sbin; do [[ -n "${NGINX_TOOLS_TESTS:-}" ]] && break; case ":$PATH:" in *":$_d:"*) ;; *) PATH="$PATH:$_d" ;; esac; done
 export PATH
 
-readonly SCRIPT_VERSION="1.11.20261016.173838"
+readonly SCRIPT_VERSION="1.12.20261019.150215"
 SCRIPT_NAME="$(basename "${BASH_SOURCE[0]}" .sh)"; readonly SCRIPT_NAME
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
 SCRIPT_PATH="$SCRIPT_DIR/$(basename "${BASH_SOURCE[0]}")"; readonly SCRIPT_PATH

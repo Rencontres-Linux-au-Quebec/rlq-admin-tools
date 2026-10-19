@@ -24,6 +24,13 @@
 
 Shared components live in `apps/` (profile detection, report generator, i18n, anonymizer, RDAP/whois, IP cache, mail…). They are internal: do not run them directly except `apps/_anonymiser.py` (a filter).
 
+## Folders `doc/` and `docs/`
+
+The two folders have different readers:
+
+* **`doc/`** — files that **the programs themselves use** and that are installed with them: the change logs `NAME.changelog.txt` (shown by `--changelog`), the configuration templates `NAME.conf.example` (copied to `/etc/default/NAME.conf` on first run, and again while that file has no active option), `nginx-tools.version` (version of the archive, checked by `zip-versions.py`), and the maintainers' technical notes (`CONTEXTE.md`, `DROITS.md`, e-mail and BigBlueButton notes). Deleting it breaks `--changelog` and the creation of the configuration files.
+* **`docs/`** — the **administrator manual**, bilingual Markdown sources (`docs/en/`, `docs/fr/`, same file names) and `build_docs.py`, which inserts each program's real `--help` and builds the GitHub pages and the Odoo website module `rlq_tools_docs`. No program reads it: it is not needed on a server.
+
 ## Requirements
 
 * Debian/Ubuntu-like system with systemd. BigBlueButton 2.7 on Ubuntu 20.04 means **Python 3.8** — the code avoids newer syntax.
@@ -48,7 +55,7 @@ Always deploy the program archive and the test archive **together** (same MAJOR.
 
 **Versions.** `MAJOR.MINOR.YYYYMMDD.HHMMSS` (local time). `--version` prints it; `--changelog` shows `doc/NAME.changelog.txt`, newest first, with version numbers colored on a terminal only.
 
-**Configuration layering.** `/etc/default/NAME.conf` is read first, then `~/.NAME.cfg` if it exists (the last one wins), then the command line (highest priority). `-c/--config FILE` reads that file **alone** and it must exist. Files are *parsed, never executed*; only known keys are kept. At start-up each program prints which files it read, with their modification date and a one-line summary of the important options. A default file is created on first run from `doc/NAME.conf.example`. Shared keys (`ANONYMIZE`, `LOG_KEEP_DAYS`, language…) live in `/etc/default/app-default.conf`.
+**Configuration layering.** `/etc/default/NAME.conf` is read first, then `~/.NAME.cfg` if it exists (the last one wins), then the command line (highest priority). `-c/--config FILE` reads that file **alone** and it must exist. Files are *parsed, never executed*; only known keys are kept. At start-up each program prints which files it read, with their modification date and a one-line summary of the important options. A default file is created on first run from `doc/NAME.conf.example`. A file in which **no option is active** (everything still in comments: never changed) is rewritten from the current template at the next run when the template changed (new keys, new comments); a file with at least one active `KEY=value` line is never touched (`NGINX_TOOLS_CONFIG_MAJ_AUTO=0`: never rewrite). Shared keys (`ANONYMIZE`, `LOG_KEEP_DAYS`, language…) live in `/etc/default/app-default.conf`.
 
 **Language.** Programs speak English and French (other languages: add `lang/NAME.XX.po`, see *Translation*). Priority: `--lang` > `NGINX_TOOLS_LANG` > the program's variable (`WEB_MONITOR_LANG`…) > `LANGUAGE=` in the file > the environment as gettext: GNU `LANGUAGE` (`fr_CA:fr:en`, ignored under the `C` locale), then `LC_ALL`, `LC_MESSAGES`, `LANG` — the first defined wins, so a forgotten `LC_ALL` hides `LANG`. The *Options* line at start-up says which setting decided: `--lang en (LC_ALL=C.UTF-8 ; LANG=fr_CA.UTF-8 ignored)`.
 

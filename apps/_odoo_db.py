@@ -1,7 +1,11 @@
 #!/usr/bin/env python3
 # ========================================================================================================================
-# Copyright (C) 2026  Services-Conseils Linux
-# Licence : GNU Affero General Public License, version 3 ou ultérieure — https://www.gnu.org/licenses/agpl-3.0.html
+# Copyright (C) 2026 Services-Conseils Linux
+# Copyright (C) 2026 Rencontres Linux au Québec contributors
+#
+# This program is free software: you can redistribute it and/or modify it under the terms of the GNU Affero General Public
+# License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
+# Full text: https://www.gnu.org/licenses/agpl-3.0.html
 # ========================================================================================================================
 #
 # _odoo_db.py — utilisateurs d'une base Odoo (identifiant de connexion, UID, nom, interne ou portail/public), lus en
@@ -12,6 +16,7 @@
 # --unban-odoo-user : compte archivé ou rétabli) et fix_registration_email (odoo-mail-retry.py : adresse corrigée d'une inscription).
 #
 # HISTORIQUE DE VERSION (resume — voir doc/_odoo_db.changelog.txt pour le detail complet) :
+#   1.18.20261019.150215 — New copyright: Services-Conseils Linux and Rencontres Linux au Québec contributors (AGPL-3.0-or-later).
 #   1.17.20261019.012211 — user_profiles: creation date of each Odoo account (« created », web-monitor.py « Account created » column).
 #   1.16.20261017.105442 — user_profiles: phone, country, city, groups, tags, events and surveys of each Odoo account (web-monitor.py --table / --csv).
 #   1.15.20261016.173838 — registrations_by_ticket (survey of the TICKET, answer to another survey apart), mail_detail (recipients and subject of a sent e-mail).
@@ -42,7 +47,7 @@ import re
 import subprocess
 import sys
 
-__version__ = "1.17.20261019.012211"
+__version__ = "1.18.20261019.150215"
 
 VERBOSE = False     # --verbose : la commande psql est affichee avant son execution
 SEP = "\x1f"

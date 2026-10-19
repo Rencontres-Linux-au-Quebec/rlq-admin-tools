@@ -1,6 +1,35 @@
 Changelog — apps/_config.py
 (version la plus récente en premier)
 
+## 1.7.20261019.150215 — Untouched configuration files follow the current template; new copyright
+
+Reason:
+  « [2] Mettre à jour les fichiers de configuration dans /etc/default à la prochaine exécution de chacun des programme (s'il n'y a pas eu de changement dans le fichier, comme si tout es en commentaires) »
+  « [4] Mettre à jour le copywrite dans tous les programmes Python et BASH, mais pas dans les fichiers de config, sur peut enlever les lignes ce copywrite, je ne pense pas que c'est pertinent, les gens peuvent copier les fichiers de config sans suivre les restrictions d'une licence. Copyright (C) 2026 Services-Conseils Linux / Copyright (C) 2026 Rencontres Linux au Québec contributors / This program is free software: you can redistribute it and/or modify it under the terms of the GNU Affero General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version. »
+
+Changes:
+  - New rafraichir(chemin, nom, dossier_doc), options_actives(texte): called by creer_par_defaut for the common file (app-default) and the program's
+    files. A file whose lines are ALL comments (no KEY=VALUE) and that does not end with the current doc/NAME.conf.example is rewritten: header
+    « Fichier mis à jour automatiquement le … » then the template. A file with at least one active option is never touched.
+  - ligne_configuration: « (NAME.conf mis à jour à l'instant d'après le nouveau modèle : aucune option n'y était active) »; lang/_config.en.po.
+  - Header: « Copyright (C) 2026 Services-Conseils Linux » and « Copyright (C) 2026 Rencontres Linux au Québec contributors », with the AGPL-3.0-or-later
+    notice (was: Services-Linux Conseils Inc and its e-mail addresses). No change of behavior.
+
+Bugs fixed:
+  none.
+
+Safeguards and edge cases:
+  - Safe write: temporary file in the same folder, same permissions and owner (root), then rename; any error leaves the file as it was.
+  - Nothing with -c/--config, --help, --version, --changelog; NGINX_TOOLS_CONFIG_MAJ_AUTO=0: never rewritten.
+  - Comments added by hand to an all-comment file are lost (as requested: « comme si tout est en commentaires »).
+
+Checks:
+  - Sample /etc/default: all-comment web-monitor.conf rewritten (mode 640 kept), app-default.conf with LANGUAGE=en untouched, second run: no rewrite;
+    message in French and English.
+
+Action required:
+  none.
+
 ## 1.6.20261015.143436 — Clé commune ANONYMIZE
 
 Motif de la demande :

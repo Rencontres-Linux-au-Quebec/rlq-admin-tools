@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 # ========================================================================================================================
-# Copyright (C) 2026  Services-Conseils Linux
+# Copyright (C) 2026 Services-Conseils Linux
+# Copyright (C) 2026 Rencontres Linux au Québec contributors
 #
-# Ce fichier fait partie de la configuration nginx de Rencontres Linux Quebec. Logiciel libre : vous pouvez le
-# redistribuer et/ou le modifier selon les termes de la GNU Affero General Public License publiee par la Free
-# Software Foundation, soit la version 3 de la licence, soit (a votre choix) toute version ulterieure.
-# Texte complet : https://www.gnu.org/licenses/agpl-3.0.html
+# This program is free software: you can redistribute it and/or modify it under the terms of the GNU Affero General Public
+# License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
+# Full text: https://www.gnu.org/licenses/agpl-3.0.html
 # ========================================================================================================================
 #
 # odoo-backup.sh — sauvegarde et restauration de la base PostgreSQL et du filestore d'Odoo, au FORMAT D'ODOO.
@@ -59,6 +59,7 @@
 #   TIMER_TIME=02:30              heure(s) de la sauvegarde automatique : une ou plusieurs HH:MM (ex. TIMER_TIME=09:00 16:00 23:00)
 #
 # HISTORIQUE (résumé ; détail : doc/odoo-backup.changelog.txt)
+#   1.18.20261019.150215 — New copyright: Services-Conseils Linux and Rencontres Linux au Québec contributors (AGPL-3.0-or-later).
 #   1.17.20261016.173838 — Ctrl+C answered at once during pg_dump, tar and rsync
 #   1.16.20261015.143436 — --anonymize : affichage anonymisé (pseudonymes stables).
 #   1.15.20261015.073057 — Date de modification des fichiers de configuration lus.
@@ -89,7 +90,7 @@ for _d in /usr/local/sbin /usr/sbin /sbin; do [[ -n "${NGINX_TOOLS_TESTS:-}" ]] 
 # (Pendant la suite de tests, NGINX_TOOLS_TESTS désactive cet ajout : /usr/sbin/ufw & co resteraient sinon joignables.)
 export PATH
 
-readonly SCRIPT_VERSION="1.17.20261016.173838"
+readonly SCRIPT_VERSION="1.18.20261019.150215"
 SCRIPT_NAME="$(basename "${BASH_SOURCE[0]}" .sh)"; readonly SCRIPT_NAME
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
 SCRIPT_PATH="$SCRIPT_DIR/$(basename "${BASH_SOURCE[0]}")"; readonly SCRIPT_PATH

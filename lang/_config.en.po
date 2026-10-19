@@ -74,3 +74,6 @@ msgstr "Limited rights (not root): "
 
 msgid " — relancer avec sudo pour une vue complète."
 msgstr " — rerun with sudo for a complete view."
+
+msgid " mis à jour à l'instant d'après le nouveau modèle : aucune option n'y était active)"
+msgstr " updated just now from the new template: no option was active in it)"

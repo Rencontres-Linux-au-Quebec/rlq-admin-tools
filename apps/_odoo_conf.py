@@ -1,6 +1,10 @@
 # ========================================================================================================================
-# Copyright (C) 2026  Services-Conseils Linux
-# Licence : GNU Affero General Public License, version 3 ou ultérieure — https://www.gnu.org/licenses/agpl-3.0.html
+# Copyright (C) 2026 Services-Conseils Linux
+# Copyright (C) 2026 Rencontres Linux au Québec contributors
+#
+# This program is free software: you can redistribute it and/or modify it under the terms of the GNU Affero General Public
+# License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
+# Full text: https://www.gnu.org/licenses/agpl-3.0.html
 # ========================================================================================================================
 """Bibliothèque commune (programmes Python) : trouver la configuration d'Odoo et en lire les réglages — même logique que
 apps/_odoo_conf.sh. Candidats (premier trouvé gagne) : variable d'environnement ODOO_CONF_PATHS, ligne ODOO_CONF_PATHS="..." de
@@ -10,7 +14,7 @@ import glob
 import os
 import re
 
-__version__ = "1.1.20261016.173838"
+__version__ = "1.2.20261019.150215"
 
 CHEMINS_DEFAUT = ("/etc/odoo/odoo-linux_meetup.conf /opt/odoo/erplibre/config.conf /home/utilisateur/git/erplibre/config.conf /etc/odoo/odoo.conf "
                   "/etc/odoo/*.conf /home/*/git/erplibre/config.conf /opt/odoo/*/config.conf")

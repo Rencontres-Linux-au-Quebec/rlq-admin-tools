@@ -1,6 +1,31 @@
 Changelog — apps/_i18n.sh
 (version la plus récente en premier)
 
+## 1.14.20261019.150215 — Untouched configuration files follow the current template (bash); new copyright
+
+Reason:
+  « [2] Mettre à jour les fichiers de configuration dans /etc/default à la prochaine exécution de chacun des programme (s'il n'y a pas eu de changement dans le fichier, comme si tout es en commentaires) »
+  « [4] Mettre à jour le copywrite dans tous les programmes Python et BASH, mais pas dans les fichiers de config, sur peut enlever les lignes ce copywrite, je ne pense pas que c'est pertinent, les gens peuvent copier les fichiers de config sans suivre les restrictions d'une licence. Copyright (C) 2026 Services-Conseils Linux / Copyright (C) 2026 Rencontres Linux au Québec contributors / This program is free software: you can redistribute it and/or modify it under the terms of the GNU Affero General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version. »
+
+Changes:
+  - New config_rafraichir NAME FILE, called by config_creer_fichier when the file exists: same rule as apps/_config.py 1.7 (all lines in comment and
+    template changed → rewritten; one active KEY=VALUE → never touched); config_afficher adds « (NAME.conf mis à jour à l'instant … ) ».
+  - Header: « Copyright (C) 2026 Services-Conseils Linux » and « Copyright (C) 2026 Rencontres Linux au Québec contributors », with the AGPL-3.0-or-later
+    notice (was: Services-Linux Conseils Inc and its e-mail addresses). No change of behavior.
+
+Bugs fixed:
+  none.
+
+Safeguards and edge cases:
+  - mktemp in the same folder, chmod/chown --reference, mv; failure: temporary file removed, file unchanged. NGINX_TOOLS_CONFIG_MAJ_AUTO=0: never.
+
+Checks:
+  - bash -n; sample odoo-backup.conf (all comments, mode 600) rewritten and identical to the template after the header, nginx-log-audit.conf with an
+    active key untouched.
+
+Action required:
+  none.
+
 ## 1.13.20261017.200717 — A second Ctrl+C during « Interrompre le programme ? » stops the program
 
 Reason:

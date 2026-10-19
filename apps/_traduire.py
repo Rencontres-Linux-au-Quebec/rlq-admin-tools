@@ -1,7 +1,16 @@
 #!/usr/bin/env python3
+# ========================================================================================================================
+# Copyright (C) 2026 Services-Conseils Linux
+# Copyright (C) 2026 Rencontres Linux au Québec contributors
+#
+# This program is free software: you can redistribute it and/or modify it under the terms of the GNU Affero General Public
+# License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
+# Full text: https://www.gnu.org/licenses/agpl-3.0.html
+# ========================================================================================================================
 # _traduire.py — traduit la sortie d'un programme bash (module partagé, apps/) : lance la commande et passe ses lignes par le catalogue lang/PROGRAMME.XX.po.
 #
 # HISTORIQUE DE VERSION (résumé — voir doc/_traduire.changelog.txt pour le détail complet) :
+#   1.5.20261019.150215 — New copyright: Services-Conseils Linux and Rencontres Linux au Québec contributors (AGPL-3.0-or-later).
 #   1.4.20261017.105442 — Origin of the language passed to the bash programs (NGINX_TOOLS_I18N_ORIGINE).
 #   1.3.20261015.143436 — Anonymisation : mode --anonymiser-seul (programmes Python), --anonymize retiré des arguments bash, SIGWINCH transmis.
 #   1.2.20261011.144500 — demarrer(confirmer_ctrl_c=False) : la question de Ctrl+C est posée par la commande, pas par le traducteur.
@@ -26,7 +35,7 @@ import subprocess
 import sys
 import termios
 
-__version__ = "1.4.20261017.105442"
+__version__ = "1.5.20261019.150215"
 DOSSIER = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SUPPLEMENTAIRES = ("_listes", "_profile", "_rapport", "_bbb", "_reseau", "_cache_ip", "_odoo_db")
 # Programmes dont la sortie contient celle d'un autre programme (affichée telle quelle) : leur catalogue est complété par celui de l'autre.
