@@ -1,0 +1,49 @@
+Changelog — apps/_cache_ip.py
+(version la plus récente en premier)
+
+## 1.1.20261016.173838 — Copyright holder: Services-Linux Conseils Inc
+
+Reason:
+  « [1] Il faudrait changer le copywrite de RLQ à Services-Linux Conseils Inc, le courriel reste toujours Martial@Bigras.ca et tu peux rajouter Martial.Bigras@Services-Conseils-Linux.com »
+
+Changes:
+  - Header: « Copyright (C) 2026  Services-Linux Conseils Inc <Martial@Bigras.ca> <Martial.Bigras@Services-Conseils-Linux.com> » (was: Rencontres Linux Québec <info@rencontres-linux.quebec>). No change of behavior.
+
+Bugs fixed:
+  none.
+
+Safeguards and edge cases:
+  none.
+
+Checks:
+  - Test suite (run-all.sh), ruff / ShellCheck.
+
+Action required:
+  none.
+
+## 1.0.20261007.171721 — Première version : cache permanent des adresses
+
+Motif de la demande :
+  [1] « Afin d'améliorer l'efficacité des programmes, créer un cache permanent qui conserve les informations sur toutes les IP (surtout pratique pour app-log-live.py). »
+
+Détail des modifications :
+  - apps/_cache_ip.py : base SQLite (module standard de Python) /var/lib/nginx-tools/ip-cache.sqlite (root), sinon ~/.cache/nginx-tools/ ; droits 600 ; mode WAL (plusieurs fils et
+    plusieurs processus). Par adresse : nom DNS (PTR), propriétaire du bloc (organisation, nom du réseau, plage, adresse d'abus, registre), pays, première et dernière vue, nombre de passages.
+  - Validité : nom DNS trouvé 30 jours, « aucun nom » 3 jours, propriétaire du bloc et pays 90 jours. Une recherche en ÉCHEC (réseau injoignable) n'est JAMAIS mémorisée.
+  - Vie privée (une adresse IP est un renseignement personnel) : purge des adresses non revues depuis 180 jours au démarrage de app-log-live.py ; --no-cache ne lit ni n'écrit rien ;
+    « _cache_ip.py --clear » efface tout ; NGINX_TOOLS_IP_CACHE=off désactive (valeur des tests) ou donne un autre chemin.
+  - Ligne de commande : --stats, --show ADRESSE, --purge [JOURS], --clear, --version.
+
+Bugs corrigés :
+  Aucun (première version).
+
+Garde-fous et cas limites traités :
+  - Fichier abîmé, illisible ou dossier impossible à créer : cache désactivé avec la raison, jamais une exception ; deux processus qui écrivent en même temps : aucune perte.
+
+Vérifications effectuées :
+  - 12 tests (test_cache_ip.py) : durées de validité avec horloge simulée, écritures partielles, purge, fichier abîmé, 6 fils et 3 processus en parallèle, ligne de commande, échecs jamais mémorisés ;
+    ruff 0.16.9 sans défaut.
+
+Action requise de ma part (ou « aucune ») :
+  Aucune (le fichier se crée au premier passage de app-log-live.py ou de nginx-log-audit.sh --investigate).
+

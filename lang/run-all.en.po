@@ -1,0 +1,335 @@
+# Traduction en en des messages de ../nginx-tools-tests/run-all.sh (msgid = fragment français du code, msgstr = traduction).
+# Format PO standard : Poedit, Weblate, Crowdin… Un msgstr vide = non traduit ; identique au msgid = valable dans les deux langues.
+# Les fragments sont des morceaux de phrases : garder les espaces de début et de fin, et l'ordre des morceaux.
+msgid ""
+msgstr ""
+"Project-Id-Version: ../nginx-tools-tests/run-all.sh\n"
+"Language: en\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+msgid "*** ARRÊT INATTENDU DE run-all.sh (code "
+msgstr "*** UNEXPECTED STOP OF run-all.sh (code "
+
+msgid ") À LA LIGNE "
+msgstr ") AT LINE "
+
+msgid "--app attend un nom (odoo, bbb…)"
+msgstr "--app expects a name (odoo, bbb…)"
+
+msgid "Changelog introuvable : "
+msgstr "Changelog not found: "
+
+msgid "Usage : nginx-tools-tests/run-all.sh [OPTION]..."
+msgstr "Usage: nginx-tools-tests/run-all.sh [OPTION]..."
+
+msgid "Suite de validation : présence des programmes, syntaxe, ShellCheck, ruff, tests (un passage par awk), configuration."
+msgstr "Validation suite: presence of the programs, syntax, ShellCheck, ruff, tests (one pass per awk), configuration."
+
+msgid "Options (par ordre alphabétique) :"
+msgstr "Options (in alphabetical order):"
+
+msgid "  --all-environments           exécuter les tests de TOUS les environnements (Odoo et BigBlueButton), quel que soit le serveur"
+msgstr "  --all-environments           run the tests of ALL environments (Odoo and BigBlueButton), whatever the server"
+
+msgid "  --app NAME                   environnement à tester : odoo, bbb… (profil apps/NAME.conf ; défaut : détecté sur ce serveur)"
+msgstr "  --app NAME                   environment to test: odoo, bbb… (profile apps/NAME.conf; default: detected on this server)"
+
+msgid "  -c, --config FILE            fichier de configuration à lire SEUL (défaut : /etc/default/run-all.conf puis ~/.run-all.cfg)"
+msgstr "  -c, --config FILE            configuration file to read ALONE (default: /etc/default/run-all.conf then ~/.run-all.cfg)"
+
+msgid "  --changelog                  affiche le journal des modifications"
+msgstr "  --changelog                  show the change log"
+
+msgid "  -h, --help                   affiche cette aide et quitte"
+msgstr "  -h, --help                   show this help and exit"
+
+msgid "  --lang LANG                  langue d'affichage : en ou fr (défaut : selon LC_ALL / LC_MESSAGES / LANG)"
+msgstr "  --lang LANG                  display language: en or fr (default: from LC_ALL / LC_MESSAGES / LANG)"
+
+msgid "  --list                       affiche l'environnement détecté et les modules de test retenus, sans rien exécuter"
+msgstr "  --list                       show the detected environment and the selected test modules, running nothing"
+
+msgid "  --report-err                 afficher à la fin un rapport d'erreurs à copier-coller (programme, version, serveur,"
+msgstr "  --report-err                 print at the end an error report to copy and paste (program, version, server,"
+
+msgid "                               échecs, avertissements) ; désactive couleurs et questions interactives"
+msgstr "                               failures, warnings); disables colours and interactive questions"
+
+msgid "  -v, --verbose                détail de chaque vérification"
+msgstr "  -v, --verbose                detail of each check"
+
+msgid "  --version                    affiche la version et quitte"
+msgstr "  --version                    show the version and exit"
+
+msgid "Argument inconnu : "
+msgstr "Unknown argument: "
+
+msgid "[ÉCHEC]"
+msgstr "[FAILED]"
+
+msgid "[IGNORÉ]"
+msgstr "[SKIPPED]"
+
+msgid "forcé (--app)"
+msgstr "forced (--app)"
+
+msgid "ERREUR : profil d'application inconnu : "
+msgstr "ERROR: unknown application profile: "
+
+msgid "détecté automatiquement"
+msgstr "automatically detected"
+
+msgid "tous les environnements demandés (--all-environments)"
+msgstr "all requested environments (--all-environments)"
+
+msgid "Modules écartés ("
+msgstr "Modules set aside ("
+
+msgid "  Tests propres à un autre environnement ("
+msgstr "  Tests specific to another environment ("
+
+msgid ") non exécutés ici : "
+msgstr ") not run here: "
+
+msgid " — --all-environments pour tout exécuter"
+msgstr " — --all-environments to run everything"
+
+msgid "0) Programmes présents dans "
+msgstr "0) Programs present in "
+
+msgid " absent"
+msgstr " missing"
+
+msgid "tous les programmes et le dossier apps/ sont présents"
+msgstr "all programs and the apps/ folder are present"
+
+msgid "L'archive a été extraite dans "
+msgstr "The archive was extracted in "
+
+msgid "/nginx-tools/ sans être copiée à sa place :"
+msgstr "/nginx-tools/ without being copied into place:"
+
+msgid "Déployer l'archive : cd "
+msgstr "Deploy the archive: cd "
+
+msgid "  ancienne copie de cette suite dans "
+msgstr "  old copy of this suite in "
+
+msgid ") : la suite est"
+msgstr ") : the suite is"
+
+msgid "          maintenant dans "
+msgstr "          now in "
+
+msgid "/ — à retirer de tests/ ("
+msgstr "/ — to remove from tests/ ("
+
+msgid " nom(s) en commun : "
+msgstr " name(s) in common: "
+
+msgid "  fichier(s) résiduel(s) d'une ancienne version (plus livrés, lus par aucun programme) :"
+msgstr "  leftover file(s) from an old version (no longer shipped, read by no program):"
+
+msgid "          Ils peuvent être retirés sans risque : rm -f "
+msgstr "          They can be removed safely: rm -f "
+
+
+
+
+msgid "[ARRÊT]"
+msgstr "[STOPPED]"
+
+
+msgid "ShellCheck non installé (apt install shellcheck, ou exécutable statique dans nginx-tools-tests/tools/)"
+msgstr "ShellCheck not installed (apt install shellcheck, or static executable in nginx-tools-tests/tools/)"
+
+msgid "3) ruff (analyse du Python)"
+msgstr "3) ruff (Python analysis)"
+
+msgid "ruff : aucun défaut"
+msgstr "ruff: no defect"
+
+msgid "ruff : défauts trouvés"
+msgstr "ruff: defects found"
+
+msgid "ruff non installé (pipx install ruff, ou exécutable statique dans nginx-tools-tests/tools/)"
+msgstr "ruff not installed (pipx install ruff, or static executable in nginx-tools-tests/tools/)"
+
+msgid "4) Suite de tests (une fois par awk disponible) — "
+msgstr "4) Test suite (once per available awk) — "
+
+msgid "absent  "
+msgstr "absent  "
+
+msgid " : tous réussis une fois relancés seuls"
+msgstr " : all passed when rerun alone"
+
+msgid " — run-all.sh v"
+msgstr " — run-all.sh v"
+
+msgid " — awk : "
+msgstr " — awk: "
+
+msgid " : a échoué dans la suite, réussi seul — détail : "
+msgstr " : failed in the suite, passed alone — detail: "
+
+msgid "s/^ *([0-9]+) (.*)$/\\1 test(s) désactivé(s) : \\2/"
+msgstr "s/^ *([0-9]+) (.*)$/\\1 test(s) disabled: \\2/"
+
+msgid "la suite de tests a MODIFIÉ un fichier de configuration réel (elle doit tout rediriger vers un dossier temporaire) :"
+msgstr "the test suite MODIFIED a real configuration file (it must redirect everything to a temporary folder):"
+
+msgid "      Cause la plus probable : un programme réel (ex. nginx-hardening.sh --update) lancé PENDANT la suite, dans un autre terminal. Aucun test n'écrit ces fichiers (vérifié avec strace) : relancer la suite sans rien d'autre."
+msgstr "      Most likely cause: a real program (e.g. nginx-hardening.sh --update) run DURING the suite, in another terminal. No test writes these files (checked with strace): rerun the suite with nothing else running."
+
+msgid "[NETTOYÉ]"
+msgstr "[CLEANED]"
+
+msgid " répertoire(s) temporaire(s) de test laissé(s) dans /tmp — supprimé(s)"
+msgstr " temporary test folder(s) left in /tmp — removed"
+
+msgid " absent : les différences d'interprétation awk ne sont pas couvertes (apt install "
+msgstr " missing: awk interpretation differences are not covered (apt install "
+
+msgid "5) Configuration déployée comparée à la version testée (nginx-tools-tests/nginx-odoo/)"
+msgstr "5) Deployed configuration compared with the tested version (nginx-tools-tests/nginx-odoo/)"
+
+msgid "  [INFO]  sans objet pour "
+msgstr "  [INFO]  not applicable for "
+
+msgid " : cette configuration nginx est celle des serveurs Odoo"
+msgstr " : this nginx configuration is that of the Odoo servers"
+
+msgid "  [INFO]  pas de /etc/nginx sur cette machine — comparaison sans objet"
+msgstr "  [INFO]  no /etc/nginx on this machine — comparison not applicable"
+
+msgid " absent — comparaison impossible"
+msgstr " missing — comparison impossible"
+
+msgid "  différent de la version testée : "
+msgstr "  different from the tested version: "
+
+msgid " fichier(s) identique(s), "
+msgstr " identical file(s), "
+
+msgid " différent(s), "
+msgstr " different, "
+
+msgid " absent(s) de ce serveur (normal pour ceux d'un autre environnement)"
+msgstr " missing from this server (normal for those of another environment)"
+
+msgid "          Voir une différence : diff <fichier testé> <fichier déployé> ; déployer : voir nginx-tools-tests/nginx-odoo/README.md"
+msgstr "          See a difference: diff <tested file> <deployed file>; deploy: see nginx-tools-tests/nginx-odoo/README.md"
+
+msgid "6) Contrôles du serveur réel, en lecture seule ("
+msgstr "6) Real server checks, read-only ("
+
+msgid "^\\s*(\\x1b\\[[0-9;]*m)?\\[(FAIL|ÉCHEC)\\]"
+msgstr "^\\s*(\\x1b\\[[0-9;]*m)?\\[(FAIL|ÉCHEC)\\]"
+
+msgid " échec(s), "
+msgstr " failure(s), "
+
+msgid " avertissement(s) sur ce serveur"
+msgstr " warning(s) on this server"
+
+msgid "^\\s*(\\x1b\\[[0-9;]*m)?\\[(FAIL|ÉCHEC|ATTN)\\]"
+msgstr "^\\s*(\\x1b\\[[0-9;]*m)?\\[(FAIL|ÉCHEC|ATTN)\\]"
+
+msgid "BigBlueButton : versions, nos règles chargées, API, client HTML5, HSTS (apps/_bbb.py --summary)"
+msgstr "BigBlueButton: versions, our rules loaded, API, HTML5 client, HSTS (apps/_bbb.py --summary)"
+
+msgid "  [INFO]  apps/_bbb.py absent : contrôles de BigBlueButton impossibles"
+msgstr "  [INFO]  apps/_bbb.py missing: BigBlueButton checks impossible"
+
+msgid "Odoo : nginx et application (app-health-check.py --target local)"
+msgstr "Odoo: nginx and application (app-health-check.py --target local)"
+
+msgid "  [INFO]  app-health-check.py absent : contrôles d'Odoo impossibles"
+msgstr "  [INFO]  app-health-check.py missing: Odoo checks impossible"
+
+msgid "  [INFO]  environnement non reconnu : aucun contrôle de serveur réel (--app NOM pour en choisir un)"
+msgstr "  [INFO]  environment not recognised: no real server check (--app NAME to choose one)"
+
+msgid " ÉCHEC(S) — ne pas déployer."
+msgstr " FAILURE(S) — do not deploy."
+
+msgid " VERDICT : tout ce qui a été exécuté réussit — mais "
+msgstr " VERDICT: everything that was run passes — but "
+
+msgid " point(s) NON vérifié(s) (voir [IGNORÉ])."
+msgstr " point(s) NOT verified (see [SKIPPED])."
+
+msgid " VERDICT : TOUT PASSE — validation complète."
+msgstr " VERDICT: EVERYTHING PASSES — complete validation."
+
+msgid "aucun"
+msgstr "none"
+
+msgid "non reconnu (tous les modules sont retenus)"
+msgstr "not recognised (all modules are retained)"
+
+msgid "non reconnu"
+msgstr "not recognised"
+
+msgid "environnement non reconnu"
+msgstr "environment not recognised"
+
+msgid "Environnement : "
+msgstr "Environment: "
+
+msgid "Modules retenus ("
+msgstr "Modules retained ("
+
+msgid "Programmes : "
+msgstr "Programs: "
+
+msgid " module(s) : commun"
+msgstr " module(s): common"
+
+msgid "tests sous "
+msgstr "tests under "
+
+msgid " test(s) désactivé(s) : "
+msgstr " test(s) disabled: "
+
+msgid "fail2ban-regex absent (installé sur les serveurs : test réel là-bas)"
+msgstr "fail2ban-regex missing (installed on the servers: real test there)"
+
+msgid "Interrompu (Ctrl+C) : arrêt de run-all.sh."
+msgstr "Interrupted (Ctrl+C): run-all.sh stopped."
+
+msgid "  --install-missing            installer les logiciels de validation absents (ShellCheck par apt-get, ruff par apt-get ou pip) ; il faut être root"
+msgstr "  --install-missing            install the missing validation software (ShellCheck with apt-get, ruff with apt-get or pip); root required"
+
+msgid " absent : --install-missing demande les droits root (sudo)."
+msgstr " missing: --install-missing needs root rights (sudo)."
+
+msgid " installé (paquet "
+msgstr " installed (package "
+
+msgid " installé (pip "
+msgstr " installed (pip "
+
+msgid "  Installation de "
+msgstr "  Installation of "
+
+msgid " en échec : apt-get install "
+msgstr " failed: apt-get install "
+
+msgid " (ou pip3 install "
+msgstr " (or pip3 install "
+
+msgid " et lire l'erreur."
+msgstr " and read the error."
+
+msgid "ShellCheck non installé (relancer avec --install-missing, ou apt install shellcheck, ou exécutable statique dans nginx-tools-tests/tools/)"
+msgstr "ShellCheck not installed (rerun with --install-missing, or apt install shellcheck, or static executable in nginx-tools-tests/tools/)"
+
+msgid "ruff non installé (relancer avec --install-missing, ou pipx install ruff, ou exécutable statique dans nginx-tools-tests/tools/)"
+msgstr "ruff not installed (rerun with --install-missing, or pipx install ruff, or static executable in nginx-tools-tests/tools/)"
+
+msgid "          (un lang/PROG.en.po date de l'époque où PROG était écrit en français ; PROG est écrit en anglais et lit lang/PROG.fr.po ; aucun autre programme ne le lit)"
+msgstr "          (a lang/PROG.en.po dates from when PROG was written in French; PROG is written in English and reads lang/PROG.fr.po; no other program reads it)"

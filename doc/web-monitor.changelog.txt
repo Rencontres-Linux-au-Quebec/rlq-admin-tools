@@ -1,0 +1,2091 @@
+Changelog — web-monitor.py
+(newest version first; entries up to 2.62 are still in French: their translation is a later stage of the migration)
+
+## 2.69.20261017.214019 — --table: « IP seen », sorted column highlighted, tags off by default; every setting in the configuration file
+
+Reason:
+  « [1] Dans web-monitor.py, affiche l'entête en couleur sur la colonne qui est triée. Et ne pas afficher le champ étiquettes par défaut puisqu'il est pareil comme la colonne « Groupes ». Il faut être en mesure de sauvegarder toutes les options dans une variable d'un fichier de config, comme --table-fields [2] Rajoute une colonne IP-seen, afin d'indiquer les dernières IP vues dernièrement (qui sont reliées à un compte Odoo) même s'il n'est pas loggé à Odoo »
+
+Changes:
+  - New field « ipseen » (« IP vue » / « IP seen », --table-fields ipseen or ip-seen, after « ip » by default): the account's address with the latest request
+    in the nginx logs — any page, even without a new login to Odoo — and its time (« 203.0.113.5 10-17 14:05 »), « +N » its other addresses seen; green
+    when seen today. CSV: « Adresses IP vues (dernière requête) », every address with its time, the most recent first. --sort seen (most recent first).
+  - The title of the sorted column (--sort) is in cyan, the others in bold (compact_table sorted_field, SORT_FIELD).
+  - « tags » no longer in the default fields (it often repeats « groups »); still available: --table-fields …,tags or all.
+  - Configuration file: new keys CSV, GROUP, INTERNET (with TABLE_FIELDS, STATS, REPEAT_HEADER, SORT, REVERSE, TABLE, DETAILS, DAYS, APP, INTERVAL_HOURS,
+    NO_PAGER, NO_PROMPT, VERBOSE, LANGUAGE): every SETTING has its key. The actions and modes (--apply, --yes, --ban-*, --list-users, --run, --dry-run…)
+    stay on the command line only: in a file they would run at each pass of the timer (doc/web-monitor.conf.example explains it).
+  - lang/web-monitor.fr.po: footnote of « IP seen », --sort help.
+
+Bugs fixed:
+  - TABLE_FIELDS (or STATS, REPEAT_HEADER) written in a configuration file started --list-users by itself (2.67): the timer, run without option, would
+    have listed the accounts instead of monitoring. Diagnosis: the « these options imply --list-users » rule looked at the values, which include the
+    file. Fix: only the options typed on the command line imply --list-users.
+
+Safeguards and edge cases:
+  - « IP seen » needs the nginx logs (the account's addresses known from its logins); « - » if none of them made a request in the period read.
+
+Checks:
+  - test_list_users_ip_vue_titre_trie_en_couleur_et_cles_de_configuration (column, CSV, --sort seen, color of the sorted title in a pseudo-terminal,
+    keys of the file without listing); former tests updated (column positions).
+
+Action required:
+  optional: TABLE_FIELDS=… (e.g. num,name,login,last,ipseen,logins,minutes,groups,read,written) in /etc/default/web-monitor.conf.
+
+## 2.68.20261017.200717 — Fix: --list-users --table crashed when nginx-log-audit.sh had recorded bans
+
+Reason:
+  « ERREUR : web-monitor.py --list-users --table --sort=last […] File "/root/scripts/web-monitor.py", line 2675, in users_table rows.append([shown[k] for k in fields]) KeyError: '2026-10-12 08:55' »
+
+Changes:
+  - list_users: the loop that reads bans.tsv uses « cols », no longer « fields ».
+
+Bugs fixed:
+  - Symptom: « KeyError: '2026-10-12 08:55' » in users_table as soon as --table (2.67) ran on a server with bans. Diagnosis: the loop that reads
+    ~/.local/state/nginx-log-audit/bans.tsv assigned each line to « fields », the name of the --table-fields list: the columns became « date, banni, IP… ».
+    The tests had no bans.tsv. Fix: own variable name; new test with a bans.tsv.
+
+Safeguards and edge cases:
+  none.
+
+Checks:
+  - test_list_users_table_avec_bannissements_enregistres (fails with 2.67, passes now); test_web_monitor.
+
+Action required:
+  none.
+
+## 2.67.20261017.105442 — --list-users: compact table with Odoo profile fields and colors, --table-fields, --group, --csv, --repeat-header, --stats
+
+Reason:
+  « [1] Dans web-monitor.py --list-users --table, peux-tu rajouter le nombre d'événement et de sondages qu'un utilisateur a rempli, et un autre champs pour le téléphone, pays, ville, dans quel groupe et Étiquettes, ils font parties [2] Rajoute ces options : --group zzz, --csv, --table-fields field1,field2 [3] afin de minimiser la largeur des colonnes, il faut enlever les espaces avant et après les mots […] tronquer l'entête au maximum de la largeur des données et pour un minimum de 4 caractères. Utilise deux lignes pour les entêtes si deux mots […] [4] Dans les CSV, il faut conserver toute l'information et probablement utiliser « ; » comme séparateur [5] Mettre en couleur certaines informations […] [6] Le « Mo envoyés » est toujours à « ? », pourquoi. [7] Peux-tu t'assurer que tous les programmes lisent les variables d'environnement en Linux qui déterminent la langue, cela n'a pas fonctionné si je change la variable LANG à fr, fr_CA, C, en [8] rajoute une option afin d'afficher une entête aussi à la fin [9] à la fin, rajoute une option qui indique des stats de membres par groupes, navigateurs, systèmes, par pays, par domaine de courriel, % interne ou portail, top 10 des utilisateurs actifs (selon plusieurs métriques) »
+
+Changes:
+  - Table (compact_table): NO space around the cells (« |Conn| »); each column as wide as its longest value (at least 4, at most the field's maximum, « … »
+    beyond); the title is cut to that width and written on TWO lines when it has two words (« Première » / « connexion »); numbers on the right.
+    IP: « 203.0.113.5 +1 » (no parentheses); systems, browsers, groups, tags: « Linux,Windows,Android,+1 » (no space); type « portail » (not « portail/public »).
+  - New fields (apps/_odoo_db.py 1.16 user_profiles, read-only): events (registrations not cancelled), surveys (completed, tests excluded), phone (mobile
+    if no phone), country (ISO code), city, groups (created in Odoo or by an rlq_* module — not the technical groups), tags of the contact, e-mail.
+  - --table-fields num,uid,ip,name,login,first,last,logins,minutes,type,events,surveys,phone,country,city,groups,tags,systems,browsers,read,written,received,sent,
+    email (or all): the columns and their order (key TABLE_FIELDS); unknown field: refused with the list.
+  - --group NAME: only the members of that Odoo group (exact name, otherwise part of it; accents and case ignored); the members WITHOUT any login are listed
+    too; unknown group: the known RLQ* groups are proposed.
+  - --csv FILE (« - »: standard output): every value, never cut — all IP addresses with their logins, all groups and tags, systems and browsers with their
+    requests, country name, MB with 3 decimals; « ; » separator, UTF-8 with BOM, CRLF, decimal comma in French: Excel opens it directly. Columns: all,
+    or those of --table-fields. --csv alone: the file only (no table).
+  - Colors (terminal only): last login today in bold green, account created today in cyan, the busiest accounts in yellow (bold: top 10 %, then the next
+    15 %) for logins, minutes, pages read / written, MB received / sent, events, surveys; 0 in grey; banned address in magenta.
+  - --repeat-header (key REPEAT_HEADER): the titles also under the table. --stats (key STATS): members per group and per tag, internal / portal,
+    countries, e-mail domains, operating systems, browsers (accounts and %), top 10 of the most active accounts by logins, minutes, pages read and
+    written, MB received, events, surveys. --group, --csv, --stats, --table-fields, --repeat-header imply --list-users.
+  - --sort events | surveys; plain_text(): accents ignored everywhere (--sort, --group).
+  - « MB sent »: when NO line of the nginx logs read has « rl= », the reason is printed under the table (deploy nginx-odoo-config 1.11, nginx -t, reload).
+  - Language: « Options: --lang xx (origin) » (apps/_i18n.py 1.17, GNU LANGUAGE supported).
+  - lang/web-monitor.fr.po, doc/web-monitor.conf.example (REPEAT_HEADER, STATS, TABLE_FIELDS).
+
+Bugs fixed:
+  - [6] « MB sent » always « ? »: not a bug of the program — the nginx log of the server has no « rl= » field yet: the field comes with
+    nginx-odoo-config 1.11 (log_format combined_host … rl=$request_length) which must be deployed, then nginx reloaded; only the requests logged
+    after that count. The program now says so under the table when it is the case.
+
+Safeguards and edge cases:
+  - Profile columns « - » when PostgreSQL is unreadable (not root): the table never fails; the CSV keeps empty cells.
+  - Titles of the columns written in both languages (no translation by fragments of a cell).
+
+Checks:
+  - New tests: compact table (widths, two-line titles, alignment), profile fields with a simulated PostgreSQL, --group / --csv (BOM, CRLF, « ; »,
+    decimal comma, values never cut) / --repeat-header / --stats, colors in a pseudo-terminal; former table tests rewritten for the compact layout.
+
+Action required:
+  deploy nginx-odoo-config 1.11 then reload nginx (for « MB sent »); optional: TABLE_FIELDS, STATS, REPEAT_HEADER in /etc/default/web-monitor.conf.
+
+## 2.66.20261016.173838 — --list-users --table: pages read / written, MB received / sent; Ctrl-C of the child programs
+
+Reason:
+  --table: pages read and written, MB received and sent per account.
+
+Changes:
+  - New columns « Pages written » (POST / PUT / PATCH / DELETE that change something: forms, records — not the reads of the Odoo web client
+    (search_read, read, onchange…), the chat or the websocket; refused requests not counted), « MB received » (body sent by nginx,
+    $body_bytes_sent) and « MB sent » (« rl=$request_length » of nginx-odoo-config 1.11, « ? » without it); « Pages viewed » is now
+    « Pages read ». --sort written | received | sent; sort keys accent-insensitive (« reçus » = « recus »). ACCESS_RE reads « rl= ».
+  - Ctrl-C: the programs that own the terminal (nginx-log-audit.sh --ban one by one, --unban-check, programs run by the menu) run inside
+    foreground_child(): one question, the child's; nginx-log-audit.sh --ban --yes (captured) runs in its own session.
+  - Header: « Copyright (C) 2026  Services-Linux Conseils Inc <Martial@Bigras.ca> <Martial.Bigras@Services-Conseils-Linux.com> » (was: Rencontres Linux Québec <info@rencontres-linux.quebec>).
+
+Bugs fixed:
+  none.
+
+Safeguards and edge cases:
+  - A log without « rl= » (other sites, old lines): « ? », never a wrong 0.
+
+Checks:
+  - New test test_list_users_table_pages_ecrites_et_mo_recus_envoyes; test_list_users_table_systemes_navigateurs_et_pages updated.
+
+Action required:
+  deploy nginx-odoo-config 1.11 (log format with rl=), nginx -t, reload nginx: « MB sent » fills from then on.
+
+## 2.65.20261016.114848 — Suspicious logged-in users, account investigation and ban; wide characters aligned
+
+Reason:
+  "[0] When registering for an event in Odoo, validate that people wrote a valid e-mail (example: mariebc33@gmail'com); add a menu option to list the e-mail errors caused by a wrong address, fix the user's contact and resend the e-mail. [1] In app-log-live.py, show what causes the most latency (SATA, not SSD, with ZFS on Proxmox): % used for I/O over several hours, to decide whether SSD are justified. [2] A program to run on the Proxmox server that details what causes performance problems (CPU, MEM, IO, NET) and suggests settings (ZFS…), light on resources. [3] Alignment problem with Chinese characters in web-monitor.py --list-users --table; a new account (Chinese name) may be a hacker: add a section for suspicious activity of a logged-in Odoo user — do not always trust them. [4] List the suspicious users, offer to investigate all the IPs of a user and blacklist them so they cannot log in to Odoo any more: --ban-odoo-user and --unban-odoo-user, but investigate more before banning (search the e-mail on the Internet, etc.)."
+
+Changes:
+  - Summary: new section SUSPICIOUS ACTIVITY OF LOGGED-IN USERS (show_suspects, suspects_list, suspicion): a score per account from signs that each
+    have an innocent explanation, so only their sum matters — malicious URLs (+3), burst of pages (+2: BURST_PAGES distinct pages within BURST_WINDOW_S
+    seconds), scripting tool User-Agent (+2), Odoo access refused for its UID (+2: "Access Denied by ACLs / record rules" lines), forms submitted in bulk
+    (+2: registration, signup, password reset, website form, chatter, survey), address shared by several portal accounts (+2), banned address (+2),
+    disposable e-mail (+2), failed logins (+1), password resets (+1), many IP addresses (+1), 4xx rate (+1), new account (+1), e-mail typo (+1).
+    2-3 = to watch, 4+ = suspicious; watched accounts always listed. The investigation is offered as a fix at the end of the summary.
+  - accumulate_ip / aggregate_ips: form submissions, malicious URLs, tools, User-Agents and the largest burst per address (request_second()).
+  - collect_summary: the Odoo journal is also read for "Access Denied by" and "Password reset attempt" (same journalctl call); account databases kept.
+  - New options (alphabetical in --help): --ban-odoo-user LOGIN, --internet, --investigate-user LOGIN, --suspect-users, --unban-odoo-user LOGIN,
+    --unwatch-odoo-user LOGIN, --watch-odoo-user LOGIN; --yes extended to the ban options.
+  - investigate_user: the account in Odoo (apps/_odoo_db.py user_detail: creation, OAuth, logins, registrations, messages, surveys), ALL its IP addresses
+    (nginx-log-audit.sh --investigate each, other accounts on them), its activity (account_activity: nginx logs + journal over the whole history), its
+    e-mail (apps/_email_check.py: syntax, typo, disposable, DNS MX) and, with consent, the Internet (StopForumSpam, Gravatar, DuckDuckGo); verdict; offer
+    to ban or watch.
+  - ban_user / unban_user: the Odoo account ARCHIVED (apps/_odoo_db.py set_user_active: no more login, sessions ended, the e-mail stays taken) and the
+    addresses used by no other account banned (nginx-log-audit.sh --ban); register apps/_odoo_users.py; --unban-odoo-user restores both.
+  - watch_user: register; the account is always listed in the summary and marked [watched] in app-log-live.py.
+  - logged_in_ips: logins of BANNED accounts no longer make an address "known user" (otherwise "BANNED IPs THAT LOOK VALID" would offer to unban them).
+  - --list-users --table: char_width(), display_width(), truncate_column() count terminal COLUMNS (a Chinese character takes 2): the columns of a line
+    with a Chinese name were shifted.
+  - lang/web-monitor.fr.po (French of every new message), lang/_email_check.fr.po loaded; doc/web-monitor.conf.example: new options.
+
+Bugs fixed:
+  - --list-users --table misaligned. Symptom: the line of « 令狐青空 » was 4 columns shorter, every following bar shifted. Diagnosis: the width was
+    len() (characters), but East Asian wide characters take two terminal columns. Fix: display_width() (unicodedata.east_asian_width; combining marks 0).
+
+Safeguards and edge cases:
+  - No account is ever banned without a person: --suspect-users --yes investigates and bans nothing; --ban-odoo-user asks unless --yes.
+  - INTERNAL accounts, the superuser, admin and the public user are never archived (refused in the program AND in the SQL itself).
+  - Addresses also used by another account, whitelisted or in a place are never banned with the account; home addresses can be reassigned (said).
+  - Internet lookups send the e-mail and the IP addresses to third parties: only on a terminal answer or --internet, never with --yes alone;
+    NGINX_TOOLS_INTERNET=off disables them; every network failure gives "unreachable", never a false "clean".
+  - A burst counts only pages (assets excluded) and resets when a rotation is read out of order; scores are documented under the section.
+  - Register not writable: said, nothing pretended. Python 3.8 compatible.
+
+Checks:
+  new test_odoo_users.py (17 tests: section, scores, English, watch, ban and unban with a simulated PostgreSQL and nginx-log-audit.sh, internal account
+  refused, Chinese names aligned, register, e-mail checks with simulated DNS and network); test_web_monitor, test_i18n, test_conventions; run-all.sh.
+
+Action required:
+  - deploy nginx-tools 1.122 and nginx-tools-tests 1.181 together; run web-monitor.py --summary and read the new section;
+  - for the account of the message: sudo web-monitor.py --investigate-user localghost5075@gmail.com (answer y to the Internet search), then decide:
+    --watch-odoo-user (recommended while the score stays at 3) or --ban-odoo-user.
+
+## 2.64.20261016.084003 — --list-users --table: operating systems, browsers, pages viewed
+
+Reason:
+  "In web-monitor.py --list-users --table, what other information could you add about a user? Could you add the operating systems used?"
+
+Changes:
+  - web-monitor.py: three new columns after "Type": Systems (Windows, macOS, Linux, Android, iOS, ChromeOS), Browsers (Edge, Opera, Firefox,
+    Chrome, Safari, Samsung Internet) and Pages viewed. Source: User-Agent and pages (GET 2xx, assets excluded) of the account's IP
+    addresses in the nginx logs, read in the same pass as the login minutes. BigBlueButton: systems and browsers of the join link.
+    New functions os_name(), browser_name(), top_names(), tally_agent(). New --sort keys: os (ascending), pages (descending).
+  - lang/web-monitor.fr.po: help of --table and --sort, two legend lines. doc/web-monitor.conf.example: SORT values.
+  - nginx-tools-tests/test_web_monitor.py: test_list_users_table_systemes_navigateurs_et_pages.
+
+Bugs fixed:
+  none.
+
+Safeguards and edge cases:
+  - Robots, tools (curl...) and our own tests (SERVER_TESTS) count for neither system nor browser; a request without User-Agent too.
+  - Up to 3 names per cell, "(+N)" for the others, "-" when unknown. Windows 10 and 11 are indistinguishable (same User-Agent).
+  - An address shared by several people mixes their systems (same limit as the login minutes; stated under the table).
+  - A recent iPad presents itself as a Mac (known limit, as for the device family of the summary).
+
+Checks:
+  new test, test_web_monitor, run-all.sh.
+
+Action required:
+  none.
+
+## 2.63.20261015.225229 — Source code, comments and changelog in English
+
+Reason:
+  Open-source publication (Rencontres Linux Québec): code, comments, docstrings and developer documentation are now in English,
+  migrated program by program. Everything the user sees stays bilingual French/English.
+
+Changes:
+  - All identifiers (functions, variables, constants, dict keys), comments and docstrings translated to English; program name,
+    options and their order unchanged (options still alphabetical).
+  - The messages of the program are now English in the source; lang/web-monitor.fr.po (Source-Language: en) provides the French
+    display. lang/web-monitor.en.po is removed. Multi-piece sentences whose word order differs use TR("… {name} …").format(…)
+    templates (journal of …, "all N from today predate the rules…", workers advice).
+  - _load_i18n: fallback language is now "en" when apps/_i18n.py is missing; shared catalogs _listes, _odoo_db and _profile are
+    also loaded, so the data they return is translated in English mode (new lang/_odoo_db.en.po: internal, portal/public).
+  - Systemd unit text written by --install-timer is now generated from English source (same file content in French mode).
+  - Reasons stored in the recommended-bans file (investigation, repeat offender, 403 refusals) go through TR() when stored.
+  - Summary label "Most active IPs" realigned (French rendering unchanged).
+
+Bugs fixed:
+  - Literals used as data (not display) must not be translated: "banni" (bans.tsv), "tablette"/"cellulaire"/"ordinateur"
+    (device keys), the French lines parsed from the other tools. Symptom seen during migration: counts stuck at 0, manual bans
+    at 0. Diagnosis: the catalog translated them. Fix: PROTECT list in the migration tool; browser-robot keys now "browser (…)"
+    on both the producing and the consuming side.
+  - The generic fragment "all" -> "tous les" turned "catch-all" into "catch-tous les" in French: entry removed.
+
+Safeguards and edge cases:
+  - French argparse messages and the "erreur :" prefix kept in French mode; English mode unchanged.
+  - apps/_i18n.py 1.14: in the source language of a program, module-catalog keys that are whole words of the program's own
+    messages are ignored (avoids "systemd journal of" becoming "systemd log of").
+
+Checks:
+  - test_web_monitor (77 tests) green; tests updated for the new names (wm.<english_name>) and wm.TR() on texts returned by
+    internal functions; full suite (see run-all.sh) with ShellCheck, ruff and three awk implementations.
+
+Action required:
+  - none
+
+## 2.62.20261015.143436 — Option --anonymize
+
+Motif de la demande :
+  « [1] Il faudrait avoir une nouvelle option afin d'anonymiser les données affichées par chacun des programmes » (choix : pseudonymes stables ; IP, courriels et identifiants Odoo, jetons dans les URL/journaux ; tous les programmes)
+
+Détail des modifications :
+  - Option --anonymize, relance derrière le filtre au démarrage (échec fermé), aide et catalogue.
+
+Bugs corrigés :
+  - Aucun bug corrigé.
+
+Garde-fous et cas limites traités :
+  - Échoue FERMÉ : si le filtre (apps/_traduire.py, apps/_anonymiser.py) manque, le programme s'arrête au lieu d'afficher des données en clair.
+  - Pas de double filtrage (NGINX_TOOLS_ANON_ACTIF posé pour tout ce qui est lancé derrière le filtre) ; --help / --version / --changelog jamais filtrés.
+  - ANONYMIZE du fichier de configuration : seulement si la sortie est un terminal (un tube ou cron ne reçoit jamais un texte modifié d'après la configuration seule ; --anonymize ou NGINX_TOOLS_ANONYMIZE=1 le force).
+
+Vérifications effectuées :
+  - test_anonymiser (15 tests), test_i18n, test_conventions, test_config_defaut, suite complète.
+
+Action requise de ma part :
+  - aucune
+
+## 2.61.20261015.080630 — Root exigé au début ; durée des journaux commune
+
+Motif de la demande :
+  « [1] Conserve les logs plus longtemps pour tous les scripts (dont app-log-live.py) en lisant une variable de config dans un fichier comme /etc/default/app-default.conf [2] dans app-log-live.py, je ne vois pas les versions des modules rlq*, tu dois toujours faire apparaître ces versions et après les derniers modules [3] Pourquoi indiques-tu cela ? J'étais root. Peux-tu rajouter une validation au début afin de s'assurer que l'on est root, mais seulement pour les scripts qui demandent plus d'accès. Peux-tu me faire la liste des scripts afin de savoir quels scripts ont vraiment besoin d'être root ? »
+
+Détail des modifications :
+  - Après l'analyse des options : passage normal, --apply, --ban-recommended, --install-timer, --uninstall-timer refusés dès le début sans root (code 2) ; --summary, --list-users, --status, --dry-run, --unban-check fonctionnent et affichent « Droits limités (pas root) : … ».
+  - purge_old_logs : rapports gardés LOG_KEEP_DAYS jours (180 par défaut), 0 = jamais.
+  - LOG_KEEP_DAYS (fichier commun /etc/default/app-default.conf, ou fichier du programme) : jours de conservation des journaux propres aux programmes, 180 par défaut (30 avant), 0 = jamais effacés ; exporté dans NGINX_TOOLS_LOG_KEEP_DAYS.
+
+Bugs corrigés :
+  - Aucun bug corrigé (la question « root requis » s'appuyait à tort sur un rapport de la version 2.58, sans la logique de débannissement).
+
+Garde-fous et cas limites traités :
+  - Root n'est pas exigé pour lire ; l'avis se désactive avec NGINX_TOOLS_AVIS_ROOT=0.
+
+Vérifications effectuées :
+  - test_droits_journaux, test_i18n, test_config_defaut, test_conventions, suite complète.
+
+Action requise de ma part : aucune
+
+## 2.60.20261015.073057 — Colonnes alignées ; corrections via sudo ; date des fichiers de config
+
+Motif de la demande :
+  « [1] Rajoute une option dans les événements avoir de recevoir un courriel à tous les N inscriptions [2] … stats sommaires à toutes les N minutes (sockets réseau utilisés par Odoo, ports 10000 et 10002) ; suggérer des IP à unban dans les recommandations en appelant les programmes et confirmer l'action ; afficher la date de dernière modification des fichiers de config lus au démarrage ; toutes les dates à l'heure locale ; l'alignement des colonnes n'est pas OK avec --summary »
+
+Détail des modifications :
+  - show_summary : les étiquettes de période (Aujourd'hui, J-1, 7 jours…) sont traduites AVANT le calcul des largeurs et commencent au-dessus de leurs chiffres (décalage de 8 caractères et « 30 day » coupé en anglais corrigés).
+  - proposer_corrections : sans les droits root, dans un terminal, propose « Relancer maintenant avec sudo ? » puis relance web-monitor.py --apply (une question par correction : débannir les IP valides, installer le timer, rétention…).
+  - raison_valide : pages vues par adresse (faits['pages_ip']) — un visiteur humain bannir est vraiment détecté.
+  - La ligne « Configuration lue : » donne la date et l'heure LOCALES de dernière modification de chaque fichier (« (modifié le AAAA-MM-JJ HH:MM) »).
+
+Bugs corrigés :
+  - Colonnes du sommaire décalées de 8 caractères par rapport aux chiffres : l'étiquette était alignée sur la fin de la cellule « chiffre + (12 %) ». Correction : alignement sur le début des chiffres.
+  - Visiteurs humains bannis jamais listés : le compteur de pages ne couvrait que les comptes connus. Correction : compteur par adresse.
+
+Garde-fous et cas limites traités :
+  - Pas de terminal ou --no-prompt : aucune question, la commande est affichée ; sudo absent : rien.
+  - Fichier illisible : « ? » ; heure locale de la machine (jamais UTC).
+
+Vérifications effectuées :
+  - test_debannir_connexions (ConfigDateModification), test_config_defaut, test_i18n, suite complète.
+
+Action requise de ma part : aucune
+
+## 2.59.20261015.065821 — IP valides bannies à débannir ; limites de connexions ; anglais sans français
+
+Motif de la demande :
+  « [1] oui fait les corrections et le plus importants est de ne pas avoir bannie de IP valides, peux-tu rajouter une logique qui sortir les IP qui devraient être débannie ? [2] Rajoute une vérification à toutes les minutes du nombre de connexion à Odoo afin de voir si on est à veille d'atteindre une limite comme pour le chat d'Odoo (avec les websockets, indique le paramètres à changer dans la config d'Odoo si on atteint une limite) [3] Je remarque dans le texte en anglais, il y a des mots en francais (MOYENNE, Mo, Go, etc) et l'enlignement n'est pas OK [4] Il faudrait que tu crée le fichier de config général s'il n'existe pas (/etc/default/app-default.conf) »
+
+Détail des modifications :
+  - bans_en_cours(), raison_valide(), ips_a_debannir(), commande_debannir(), debannir(), afficher_debannissements() : toutes les IP actuellement bannies (fail2ban : chaque jail, bannissements manuels, liste CrowdSec via ipset) comparées aux IP de la liste blanche, aux utilisateurs connus (connexion réussie) et aux visiteurs humains probables (CSS/JS chargés, au moins 2 pages, aucune URL malveillante) ; section « IP bannies qui semblent valides (à débannir) » avec la certitude, la raison et la commande de levée ; recommandation HAUTE ; correction proposée (« Débannir N IP valide(s) », --apply [--yes]).
+  - afficher_connexions() + apps/_connexions.py : connexions à Odoo (chat / websocket, HTTP, PostgreSQL, nginx) contre leurs limites dans le sommaire, avec le paramètre à changer.
+  - faits['ips_mal'], faits['pages_ip'] : adresses ayant demandé une URL malveillante, pages vues par adresse.
+  - Journal des refus : une URL inoffensive (/robots.txt, /.well-known/…) refusée en 403 n'est plus classée « malveillante » (seule la forme de l'URL compte, malveillante()).
+  - Colonne « 7 jours » supprimée quand la période demandée est de 7 jours ou moins (doublon) ; catalogues lang/web-monitor.en.po et lang/_connexions.en.po complétés.
+  - Fichiers : web-monitor.py, lang/web-monitor.en.po, lang/_connexions.en.po, test_debannir_connexions.py.
+
+Bugs corrigés :
+  - Une IP valide bannie n'était jamais signalée. Correction : section + recommandation + correction automatique.
+  - [MOYENNE] / [FAIBLE], Mo / Go / Ko et virgules décimales en anglais : voir apps/_i18n.py 1.10.
+  - « URL malveillantes » listait /robots.txt refusé : correction (voir ci-dessus).
+
+Garde-fous et cas limites traités :
+  - Bannissement de la liste communautaire CrowdSec : levé pour la session seulement, il revient à la synchronisation suivante — le programme le dit et conseille la liste blanche (/etc/default/nginx-tools-white-list.conf).
+  - fail2ban-client ou ipset absent / sans droits : IP non listées, aucune erreur. Une IP valide qui a aussi demandé une URL malveillante reste « certaine » mais la raison le précise ; un visiteur « probable » exige l'absence de toute URL malveillante.
+
+Vérifications effectuées :
+  - test_debannir_connexions (IP à débannir, anglais sans français, colonne 7 jours, URL inoffensive), test_i18n, test_web_monitor, suite complète.
+
+Action requise de ma part : aucune
+
+## 2.58.20261014.175821 — Fichier commun app-default.conf
+
+Motif de la demande :
+  « [1] Il faudrait créer un fichier de config qui pourrait définir des config communes à tous nos programmes app-default.conf, afin de définir des config comme la langue par défaut, verbose, debug_level, etc ».
+
+Détail des modifications :
+  - SCHEMA_CONFIG : clé VERBOSE (--verbose) ; le fichier commun est lu par apps/_config.py.
+  - Ordre de lecture : /etc/default/app-default.conf, ~/.app-default.cfg, puis les fichiers du programme (le dernier l'emporte) ; la ligne de commande est prioritaire ; -c/--config : ce fichier seul.
+  - doc/web-monitor.conf.example.
+
+Bugs corrigés :
+  - Aucun bug corrigé.
+
+Garde-fous et cas limites traités :
+  - Seules les clés LANGUAGE, VERBOSE et DEBUG_LEVEL sont lues dans le fichier commun (les autres sont ignorées sans avertissement) ; une clé du fichier du programme l'emporte ; DEBUG_LEVEL ≥ 1 vaut VERBOSE=oui sauf si VERBOSE est écrit ; le niveau est exporté dans NGINX_TOOLS_DEBUG_LEVEL ; app-default.conf n'est jamais créé automatiquement.
+
+Vérifications effectuées :
+  - test_config_commune, test_web_monitor, test_config_defaut, suite complète.
+
+Action requise de ma part : aucune
+
+## 2.57.20261013.153500 — Écriture atomique de recommended-bans.json
+
+Motif de la demande :
+  « L'option --watch ne filtre pas, elle affiche tout. Est-ce que je peux exécuter plusieurs fois le programme, est-ce qu'il y a des fichiers temporaires qui vont être écrasés ? »
+
+Détail des modifications :
+  - memoriser_recommandations() : le fichier est écrit sous un nom temporaire (…json.PID.tmp) puis renommé (os.replace).
+
+Bugs corrigés :
+  - Lecture d'un fichier à moitié écrit. Risque : app-log-live.py (touche b, tableau de bord) lisait recommended-bans.json pendant qu'un passage de web-monitor.py ou une autre fenêtre le réécrivait. Correction : écriture atomique.
+
+Garde-fous et cas limites traités :
+  - Échec d'écriture : ignoré comme avant (OSError). Le nom temporaire contient le numéro du processus : deux passages simultanés ne se marchent pas dessus.
+
+Vérifications effectuées :
+  - ruff E9,F ; test_web_monitor, suite complète.
+
+Action requise de ma part : aucune
+
+## 2.56.20261013.105200 — Recommandations de bannissement conservées 48 h
+
+Motif de la demande :
+  « Dans app-log-live.py, s'il affiche déjà des adresses à bannir, ne pas faire « Mise à jour des recommandations de web-monitor.py » ; le faire seulement s'il n'y en a pas. app-log-live.py annonçait 2 adresses à bannir (8.228.67.32 et 20.239.176.5 (web-monitor)) et web-monitor.py seulement une : pourquoi ? »
+
+Détail des modifications :
+  - memoriser_recommandations() : recommended-bans.json garde les adresses recommandées par un passage précédent qui ne le sont plus par le passage en cours (champ « vu » = dernière recommandation), pendant RECO_DUREE_S (48 h) ; une adresse revue reprend la raison du passage en cours.
+
+Bugs corrigés :
+  - Recommandation perdue. Symptôme : app-log-live.py annonçait 2 adresses, web-monitor.py 1. Diagnostic : chaque passage (timer, ou relance par la touche b) ne lit que les lignes nouvelles des journaux et écrasait le fichier avec ses seules adresses. Correction : fusion avec les recommandations de moins de 48 h.
+
+Garde-fous et cas limites traités :
+  - Fichier précédent absent, illisible ou sans champ « vu » : l'heure du fichier sert de repli. Une adresse déjà bannie reste exclue côté app-log-live.py (liste des bannies).
+
+Vérifications effectuées :
+  - ruff E9,F ; test_web_monitor (fusion, expiration à 48 h, raison du passage en cours).
+
+Action requise de ma part : aucune
+
+## 2.55.20261013.091500 — BigBlueButton : tout CMS sensible
+
+Motif de la demande :
+  « [1] Sur un serveur BigBlueButton, tout ce qui a rapport à un CMS doit être suspect. [2] Page de maintenance toujours affichée sur le site Odoo malgré le redémarrage d'Odoo : pourquoi, quel programme l'indique, que faire ; ajouter au menu un diagnostic pour vérifier que tout est OK. HSTS : « Quoi faire » resté en français. [3] Ctrl-C deux fois : le programme ne sort pas proprement (trace d'appels). »
+
+Détail des modifications :
+  - SENSIBLE_CMS_BBB ajouté à SENSITIVE_RE quand le profil est bbb (regler_cms() appelé une fois le profil chargé).
+
+Bugs corrigés :
+  - Aucun.
+
+Garde-fous et cas limites traités :
+  - Profil odoo : inchangé.
+
+Vérifications effectuées :
+  - ruff E9,F ; test_web_monitor, test_i18n.
+
+Action requise de ma part : aucune
+
+## 2.54.20261013.084000 — CMS WordPress ; règles de refus 403 propres
+
+Motif de la demande :
+  « [1] Les URL suspectes dépendent du CMS : sous WordPress elles ne sont pas suspectes, seulement sur un site Odoo seul. [2] Recommandation « 1158 refus 403 » : règles de refus parasites et texte moitié anglais, moitié français. [3] app-health-check : ne pas afficher une image en base64 (lignes très longues) dans les tracebacks. »
+
+Détail des modifications :
+  - SENSITIVE_RE = SENSIBLE_BASE + SENSIBLE_WP ; regler_cms() retire SENSIBLE_WP sur un site WordPress (apps/_profile.py cms(), NGINX_TOOLS_CMS, /etc/default/nginx-tools-cms.conf).
+  - regles_refus() : ignore les déclarations log_format (lignes de continuation avec « $http_user_agent » entre guillemets) — elles apparaissaient comme « règles de refus » (/etc/nginx/conf.d/odoo-global.conf:83 et :90).
+
+Bugs corrigés :
+  - Recommandation 403 : règles de refus fausses (log_format) dans la liste ; texte français malgré --lang en (voir _i18n 1.8).
+
+Garde-fous et cas limites traités :
+  - Une règle réelle (return 403, deny, map $http_user_agent) reste listée.
+
+Vérifications effectuées :
+  - ruff E9,F ; test_web_monitor (test_regles_de_refus_ignorent_les_log_format), test_i18n.
+
+Action requise de ma part : aucune
+
+## 2.53.20261013.081500 — --save-recommended ; sondes WordPress / debug
+
+Motif de la demande :
+  « [3] Pourquoi l'adresse 201.79.56.30 (un POST sur /en_CA et plusieurs 404) n'est pas encore bannie ? [4] Avec la touche b : « aucune adresse à bannir », alors que web-monitor.py en trouve une (208.122.8.18) : que faire sans lancer un autre programme à la main ? »
+
+Détail des modifications :
+  - Option --save-recommended : avec --dry-run, enregistre quand même recommended-bans.json (appelée par la touche b d'app-log-live.py) ; SAUVER_RECO.
+  - SENSITIVE_RE : /_ignition, /debug/default, /wp, /wordpress.
+
+Bugs corrigés :
+  - Recommandations périmées dans app-log-live.py (voir 1.37).
+
+Garde-fous et cas limites traités :
+  - Sans --dry-run, --save-recommended est sans effet (le passage normal enregistre déjà).
+
+Vérifications effectuées :
+  - ruff E9,F ; test_web_monitor, test_i18n, test_config_defaut.
+
+Action requise de ma part : aucune
+
+## 2.52.20261012.164500 — Nombres sans séparateur de milliers, effacement
+
+Motif de la demande :
+  « [1] enlever les espaces des milliers, tronquer par défaut la colonne du nom DNS, pouvoir effacer dans les saisies [2] touches 1 à 9 d'app-log-live [3] sondage Odoo. »
+
+Détail des modifications :
+  - fmt(n) retourne le nombre brut (3403 au lieu de « 3 403 »).
+
+Bugs corrigés :
+  - Saisie : ^H s'affichait au lieu d'effacer. Diagnostic : le terminal n'avait pas readline/édition de ligne. Correction : import de readline (Python), « read -e » (bash).
+
+Garde-fous et cas limites traités :
+  - Sans readline disponible, le programme démarre quand même (import protégé).
+
+Vérifications effectuées :
+  - ruff E9,F ; ShellCheck ; tests test_app_log_live, test_web_monitor, test_i18n, test_saisie.
+
+Action requise de ma part : aucune
+
+## 2.51.20261012.103600 — Fichier de configuration créé au premier démarrage
+
+Motif de la demande :
+  « Il faudrait que tu crées les fichiers de config par défaut lorsqu'ils n'existent pas au démarrage. Rajoute en commentaire toutes les options que l'on peut avoir avec chacun des programmes. »
+
+Détail des modifications :
+  - Si aucun fichier de configuration n'existe (/etc/default/web-monitor.conf ou ~/.web-monitor.cfg), il est créé au démarrage, copie de doc/web-monitor.conf.example : toutes les options y sont en commentaire (valeur par défaut). La ligne « Configuration lue » l'indique.
+  - Modèle doc/web-monitor.conf.example : ajout, en fin de fichier, de toutes les options de la ligne de commande qui ne se configurent pas (actions, réglages ponctuels), avec leur description.
+
+Bugs corrigés :
+  - Aucun.
+
+Garde-fous et cas limites traités :
+  - Rien n'est créé avec --help, --version, --changelog ou -c/--config, ni si un fichier existe déjà (voir doc/_config.changelog.txt).
+
+Vérifications effectuées :
+  - test_config_defaut.py (création, absence de création, modèles complets), suite complète.
+
+Action requise de ma part :
+  Aucune.
+
+## 2.50.20261012.094953 — Sommaire : colonnes de chiffres alignées
+
+Motif de la demande :
+  « Il y a un problème avec l'alignement des chiffres » dans web-monitor.py --summary (capture en anglais).
+
+Détail des modifications :
+  - show_summary : les chiffres s'alignent à droite dans une colonne par période ; le « (12 %) » a sa propre colonne de 8 caractères (avant, « 520 (20 %) » et « 2 574 » finissaient au même endroit et décalaient les unités).
+  - Libellés et en-têtes de période traduits AVANT le remplissage (TR), donc « Manual bans », « Today »… restent alignés.
+  - Utilisation par la liste blanche : même principe (chiffres + pourcentage), en-têtes traduits, colonne « Pages 4 j » traduite.
+  - Catalogue anglais : « Pages 4 j ».
+
+Bugs corrigés :
+  - Symptôme : colonnes décalées (lignes « Manual bans », « Active CrowdSec list IPs », « Forwarded to Odoo » ; en-têtes « Today / J-1 / 4 days »). Diagnostic : (1) le traducteur remplaçait un libellé par un texte de longueur différente après son remplissage ; (2) la partie « (N %) » rendait la largeur des cellules variable. Correction : traduction avant alignement dans le programme ET compensation du remplissage dans apps/_i18n.py 1.5.
+
+Garde-fous et cas limites traités :
+  - Largeur de colonne calculée sur les plus grands nombres du tableau ; cellules sans pourcentage complétées par des espaces.
+  - Français inchangé en dehors de l'alignement.
+
+Vérifications effectuées :
+  - Nouveau test test_sommaire_chiffres_alignes_a_droite_avec_les_pourcentages_a_part (français et anglais), test_entonnoir_valeurs_exactes, test_valeurs_exactes, suite complète.
+
+Action requise de ma part :
+  Aucune.
+
+## 2.49.20261011.144500 — Ctrl+C demande toujours confirmation
+
+Motif de la demande :
+  « Le <Ctrl>+<c> doit toujours demander une confirmation avant de sortir des scripts ou programme. »
+
+Détail des modifications :
+  - Installation de apps/_i18n.py installer_confirmation_ctrl_c(TR) au démarrage (ce programme a son propre chargeur).
+
+Bugs corrigés :
+  Aucun.
+
+Garde-fous et cas limites traités :
+  - Hors terminal interactif (cron, timer, tube, tests) : aucun gestionnaire, comportement inchangé.
+  - NGINX_TOOLS_CTRL_C=0 désactive la confirmation.
+  - Limite : le Ctrl+C du terminal part aussi aux commandes en cours (même groupe de processus) ; une commande courte lancée par le programme s'arrête quand même, le programme, lui, reprend après un « non ».
+
+Vérifications effectuées :
+  - test_ctrl_c (10 tests en vrai terminal : Python et bash, français et anglais, non / oui / second Ctrl+C / désactivation / hors terminal) ; tests existants de Ctrl+C (réponse automatique à la question dans helpers.run_pty) ; ShellCheck ; ruff ; suite complète sous mawk et gawk.
+
+Action requise de ma part :
+  Aucune.
+
+## 2.48.20261010.215000 — Fichier de configuration, catalogues PO, colonnes du tableau plus larges
+
+Motif de la demande :
+  « Il faudrait que tous les autres programmes soient bilingues. Dans les fichiers de config des programmes, il faudrait que certaines options soient définies aussi, dont la langue. »
+
+Détail des modifications :
+  - Fichier de configuration : /etc/default/web-monitor.conf PUIS ~/.web-monitor.cfg, -c/--config FICHIER (ce fichier seul), ligne de commande prioritaire ; clés : APP, DAYS, DETAILS, INTERVAL_HOURS, LANGUAGE, NO_PAGER, NO_PROMPT, REVERSE, SORT, TABLE ; « Configuration lue : … » et « Options : … » affichées au départ.
+  - Catalogues de traduction au format PO (lang/web-monitor.en.po, 662 entrées ; lang/_bbb.en.po, lang/_config.en.po…) à la place des fichiers TSV : format standard, outils de traduction courants, ajout d'une langue = ajout d'un fichier.
+  - Tableau --list-users --table : chaque colonne est 1 caractère plus large (LARGEUR_SUPPLEMENT).
+  - Les sorties analysées (nginx-log-audit.sh, sync-crowdsec-blocklist.sh, odoo-backup.sh) sont demandées en français (NGINX_TOOLS_LANG=fr) puis traduites à l'affichage.
+  - Exemple documenté : doc/web-monitor.conf.example.
+
+Bugs corrigés :
+  Aucun.
+
+Garde-fous et cas limites traités :
+  - Un message sans traduction reste en français (jamais d'erreur) ; une ligne à moitié traduite est rendue intacte ; langue inconnue : anglais (locale inconnue) ou français (aucune variable).
+  - Valeur invalide dans le fichier de configuration (entier ou oui/non attendu) : signalée par « ATTENTION : valeur de configuration ignorée », jamais fatale ; le fichier est lu, jamais exécuté.
+  - Les programmes qui analysent la sortie d'un autre lui imposent le français (NGINX_TOOLS_LANG=fr) : l'analyse ne dépend pas de la langue d'affichage.
+
+Vérifications effectuées :
+  - test_i18n.py (choix de la langue, lecture PO, catalogue complet de chaque programme, aucune traduction avec du français, aide identique par --lang en et par LANGUAGE=en du fichier de configuration) ; module de test du programme ; ruff, ShellCheck ; suite complète sous mawk et gawk.
+
+Action requise de ma part :
+  déployer web-monitor.py 2.48 avec apps/_i18n.py, apps/_config.py et le dossier lang/ ; essayer web-monitor.py --lang en --help, puis mettre LANGUAGE=en dans /etc/default/web-monitor.conf.
+
+## 2.47.20261010.200927 — Affichage en français ou en anglais, options en anglais, tableau numéroté
+
+Motif de la demande :
+  « Toutes les options et arguments en anglais ; affichage dans la langue de LANG ou --lang=en/fr ; sortie en français ou en anglais (fichier de config par programme ou intégré ?) ; --table : colonne de numéro au début et colonnes UID -2, IP -1, Nom -9, Identifiant -7. »
+
+Détail des modifications :
+  - Option --lang en|fr. Ordre de choix : --lang, WEB_MONITOR_LANG, LC_ALL, LC_MESSAGES, LANG (première définie ; « fr… » = français, toute autre locale = anglais) ; aucune variable (service systemd sans environnement) : français, comme avant.
+  - Traduction : nouveau module partagé apps/_i18n.py (choix de la langue, Traducteur) et catalogues lang/web-monitor.en.tsv et lang/_bbb.en.tsv (« fragment français TAB anglais »). Le programme garde ses messages en français ; en anglais, print(), input(), l'aide d'argparse, les erreurs d'argparse, le rapport écrit dans /var/log/web-monitor, le courriel d'alerte et le journal système passent par le Traducteur.
+  - Options et arguments en anglais : --sort accepte name, login, uid, ip, first, last, logins, minutes, type (les clés françaises nom, identifiant, premiere, derniere, connexions, durée… restent acceptées comme synonymes) ; métavariables KEY et NAME (au lieu de CLÉ et NOM).
+  - --table : première colonne N° (« # » en anglais) ; plafonds de largeur par colonne : N° 5, UID 3, IP 17, Nom 21, Identifiant 23, Première/Dernière connexion, Connexions, Minutes, Type 30 ; chaque colonne s'ajuste à son contenu (jamais sous 5, sauf plafond plus petit) ; en-tête « Minutes » (au lieu de « Minutes de connexion »). Constantes PLAFONDS_COLONNES et EN_TETES_TABLEAU.
+  - _age() : « 5 min ago » en anglais.
+
+Bugs corrigés :
+  - Aucun (nouvelle fonctionnalité).
+
+Garde-fous et cas limites traités :
+  - Module ou catalogue absent : français, sans erreur. Traduction ligne par ligne : une ligne encore à moitié française après traduction (message d'un autre programme, fragment absent du catalogue) est rendue intacte en français, jamais mélangée ; NGINX_TOOLS_I18N_DEBUG=FICHIER y note ces lignes pour compléter le catalogue.
+  - Fragment qui commence ou finit par une lettre : remplacé en mot entier seulement. Les réponses « y / yes / choose » sont acceptées en plus de « o / oui / choisir ».
+  - Limites : la sortie des autres programmes lancés (nginx-log-audit.sh, app-health-check.py, app-log-check.py, odoo-backup.sh) reste en français tant qu'ils n'ont pas leur propre traduction ; un nom de compte contenant un fragment français courant (« pour »…) peut être traduit.
+
+Vérifications effectuées :
+  - test_i18n.py (choix de la langue, traducteur, catalogues complets : chaque message de web-monitor.py et de apps/_bbb.py y figure, aucune traduction ne contient de français, options en anglais) ; test_langue_anglaise_aide_tableau_et_statut ; suite complète sous mawk et gawk.
+
+Action requise de ma part :
+  déployer web-monitor.py 2.47 avec apps/_i18n.py, apps/_bbb.py et le dossier lang/ ; essayer web-monitor.py --list-users --table --lang=en puis LANG=en_US.UTF-8 web-monitor.py --status.
+
+## 2.46.20261010.173051 — --table : minutes de connexion enfin calculées, colonnes ajustées, journaux lus affichés
+
+Motif de la demande :
+  « Le nombre de minutes est toujours à 0 ; colonnes moins larges (de 5 à 30 caractères) ; au démarrage, afficher l'endroit du fichier de log. »
+
+Détail des modifications :
+  - Nouvelle fonction minute_journal() : lit l'horodatage de « journalctl -o short-iso » avec fuseau « -0400 », « -04:00 » ou « Z », secondes décimales tolérées.
+  - Nouvelles fonctions largeurs_colonnes() ; tableau_texte() : chaque colonne prend la largeur de son contenu le plus long (en-tête compris), entre 5 et 30 caractères ; plus long : tronqué par « … ».
+  - list_users() : affiche « Journaux d'accès nginx lus (N fichier(s), rotations comprises) : chemins » (ou dit qu'aucun n'a été lu) sous l'entête.
+
+Bugs corrigés :
+  - Symptôme : 0 minute pour les 83 comptes. Diagnostic : l'heure était lue par tranche fixe de 24 caractères ; le journal du serveur écrit « -04:00 » (25 caractères), donc l'analyse échouait et AUCUNE connexion n'était comptée. Correction : minute_journal() (expression régulière).
+
+Garde-fous et cas limites traités :
+  - Horodatage illisible : la connexion reste comptée dans le tableau, sans minutes (jamais d'exception) ; une connexion seule vaut au moins 1 minute.
+
+Vérifications effectuées :
+  - Nouveau test test_list_users_minutes_avec_fuseau_a_deux_points (-04:00 et Z) ; test du tableau (largeurs 5 à 30) ; suite complète.
+
+Action requise de ma part :
+  déployer web-monitor.py 2.46 puis relancer web-monitor.py --list-users --table --sort=minutes.
+
+## 2.45.20261010.143016 — --list-users : tableau (--table) et tri (--sort, --reverse)
+
+Motif de la demande :
+  « Une option pour avoir un tableau des utilisateurs connectés à Odoo (UID, IP, nom, première et dernière connexions, minutes totales de connexion…), colonnes de 30 caractères » et « des options de tri (--sort=name, latest, UID, nom, minutes…) ».
+
+Détail des modifications :
+  - --table (avec --list-users) : tableau à barres verticales et lignes de séparation, 9 colonnes de 30 caractères (texte plus long tronqué par « … ») : UID, IP (la plus utilisée, « (+N) » s'il y en a d'autres),
+    Nom (celui d'Odoo), Identifiant, Première connexion, Dernière connexion, Connexions, Minutes de connexion, Type (interne / portail) ; ligne de total dessous.
+  - Minutes de connexion = ESTIMATION : le journal d'Odoo n'enregistre pas les déconnexions. Pour chaque connexion, la session dure tant que l'adresse IP du compte fait une requête au moins toutes les 30 minutes
+    (journaux nginx et rotations) ; les sessions qui se chevauchent comptent une fois ; une connexion sans activité compte 1 minute.
+  - --sort CLÉ : nom (défaut), identifiant, uid, ip, premiere, derniere, connexions, minutes, type ; synonymes acceptés : name, login, latest, last, first, logins, count, duree… (sans égard à la casse).
+    Sens par défaut : croissant pour nom, identifiant, uid, ip, première, type ; décroissant pour dernière, connexions, minutes. --reverse inverse le sens. Le tri vaut aussi sans --table (liste par compte).
+  - UID et type : lus en lecture seule dans PostgreSQL (comme --details) dès que --table, --sort uid ou --sort type est demandé.
+
+Bugs corrigés :
+  - Aucun.
+
+Garde-fous et cas limites traités :
+  - Clé de tri inconnue : message d'erreur qui liste les clés. UID illisible (pas root, base inaccessible) : « - » dans le tableau. BigBlueButton : tableau sans UID ni minutes.
+  - Les journaux nginx ne sont lus qu'une fois, et seulement pour les adresses des comptes connectés.
+  - Adresse partagée par plusieurs personnes (bureau, NAT) : l'estimation des minutes est gonflée ; dit dans la note sous le tableau.
+
+Vérifications effectuées :
+  - Tests : largeur identique de toutes les lignes, troncature, minutes (deux sessions, requête trop tardive, connexion seule), chaque clé de tri et --reverse, clé inconnue ; suite complète sous mawk et gawk.
+
+Action requise de ma part (ou « aucune ») :
+  aucune. Pour un tableau complet (UID, type) : lancer en root. Comparer les minutes d'un compte connu avec la réalité avant de s'y fier.
+
+
+## 2.44.20261007.171721 — --list-users --details : les 5 jours les plus actifs
+
+Motif de la demande :
+  [3] « Dans web-monitor.py --list-users --details, indiquer les 5 jours les plus actifs par utilisateur (triés par la plus active). »
+
+Détail des modifications :
+  - lignes_details(a, nb_jours) : avec --list-users --details, « Jours + actifs : 2026-09-21 (11 req.), 2026-09-23 (9 req.), … » — les 5 jours les plus actifs du compte (toutes ses adresses),
+    du plus actif au moins actif (requêtes par jour) ; moins de 5 jours : tous. Le sommaire garde « Jour le + actif » (un seul jour).
+
+Bugs corrigés :
+  Aucun.
+
+Garde-fous et cas limites traités :
+  - À égalité de requêtes, le jour le plus ancien d'abord ; une autre adresse que celles du compte n'est jamais comptée.
+
+Vérifications effectuées :
+  - Nouveau test d'intégration (7 jours de journaux nginx, deux adresses du compte, un autre visiteur) ; échoue sur la 2.43.
+
+Action requise de ma part (ou « aucune ») :
+  Aucune.
+
+## 2.43.20261007.093208 — Liste blanche et lieux dans /etc/default
+
+Motif de la demande :
+  « Il faudrait sortir certains fichiers de configuration personnels reliés à mon setup des .ZIP puisque je veux mettre cela sur GITHUB. Par exemple la liste des
+  IP définies dans apps/team-ips.list : dans /etc/default, avec le début de nom « nginx-tools » (nginx-tools-white-list.conf…), et un autre fichier
+  nginx-tools-ip-location.conf pour indiquer le lieu d'une plage d'adresses (université : plusieurs personnes derrière la même adresse). » Décisions : tirets
+  partout ; liste blanche lue seulement dans /etc/default ; profils gardés avec surcharge facultative (phase C) ; syntaxe « # Lieu [partagée] [protégée] ».
+
+Détail des modifications :
+  - equipe() : liste blanche + lieux [protégée] (apps/_listes.py) ; marque_partage : l'adresse d'un lieu [partagée] affiche le NOM DU LIEU (« partagée : ETS - Université ») à la place
+    de « partagée : 4 comptes » (même avec un seul compte) ; ligne « Listes : … » sur la sortie d'erreur ; ancien emplacement signalé.
+
+Bugs corrigés :
+  Aucun.
+
+Garde-fous et cas limites traités :
+  - Composant absent : listes vides, jamais d'arrêt.
+
+Vérifications effectuées :
+  - Nouveau test (sommaire des comptes avec lieu partagé, nombre de comptes, equipe()) ; test de la liste blanche adapté.
+
+Action requise de ma part (ou « aucune ») :
+  Aucune.
+
+## 2.42.20261002.214327 — Recommandation geoip-bin avec installation proposée
+
+Motif de la demande :
+  geoip-bin recommandé, pas facultatif. « À toutes les fois qu'un programme est exécuté, la première ligne doit afficher la version du programme (même avec le --help). »
+
+Détail des modifications :
+  - Nouvelles fonctions candidat_paquet (apt-cache policy) et installer_geoip : si geoiplookup est absent ET que geoip-bin existe dans les dépôts, recommandation
+    MOYENNE et installation proposée en fin de sommaire (confirmation, ou --apply --yes) : apt-get install -y geoip-bin geoip-database.
+  - Première ligne de TOUTE exécution, même --help, --changelog ou une option inconnue : « NOM vVERSION ». --version n'affiche que la version
+    (une seule ligne). Imprimée après le hook --report-err (qui relance le programme), donc une seule fois dans le rapport. Les anciennes lignes
+    qui répétaient « NOM vVERSION » plus loin sont retirées ou ne gardent que leurs informations propres.
+
+Bugs corrigés :
+  Aucun.
+
+Garde-fous et cas limites traités :
+  - Paquet introuvable ou déjà installé : aucune recommandation inutile ; apt-cache absent : rien.
+  - Composants apps/ non concernés (leur sortie est lue par d'autres programmes) ; sortie de données redirigeable : version sur la sortie d'erreur.
+
+Vérifications effectuées :
+  - Nouveau test (recommandation, action, paquet introuvable, déjà installé).
+- Test de convention pour les dix programmes : --help, --changelog, option inconnue (première ligne, une seule fois) et --version (une ligne) ; il échoue quand un en-tête est retiré.
+
+Action requise de ma part (ou « aucune ») :
+  Aucune.
+
+## 2.41.20261002.165312 — Invites : retour arrière ; sommaire : toutes les adresses IP
+
+Motif de la demande :
+  (1) « Bannir maintenant ? … : v^Hc^H^H^H^H^C » : le retour arrière affiche ^H au lieu d'effacer.
+  (4) « Adresses IP : 142.126.46.49 (partagée : 4 comptes), 69.157.88.180, 204.48.77.194 (+1) » : mettre toutes les adresses.
+
+Détail des modifications :
+  - readline est chargé (try/except) : input() gère alors le retour arrière (^H et ^?) et les flèches dans toutes les invites du programme
+    (« Bannir maintenant ? », corrections proposées, ouverture du rapport).
+  - Sommaire, section des comptes (afficher_comptes) : toutes les adresses IP de chaque compte, jamais « (+N) » (--list-users les montrait déjà toutes).
+
+Bugs corrigés :
+  - Symptôme : « ^H » affiché dans l'invite (terminaux dont la touche de retour arrière envoie ^H, ssh depuis Windows…). Diagnostic : l'invite
+    est celle de web-monitor.py (input() de Python sans readline), pas de nginx-log-audit.sh dont les invites utilisent déjà « read -e ».
+    Correction : readline.
+
+Garde-fous et cas limites traités :
+  - Python sans le module readline : invites inchangées (import protégé). Aucun changement hors d'un terminal.
+
+Vérifications effectuées :
+  - Test dans un vrai pseudo-terminal : « v », retour arrière (^H ou ^?), « c » donne « c » (échoue sans readline : témoin) ; test des adresses
+    avec 6 adresses dont une partagée et une bannie ; échoue sur la 2.40.
+
+Action requise de ma part (ou « aucune ») :
+  Aucune.
+
+## 2.40.20261002.120134 — Fuites vers Odoo : règle manquante distinguée d'un bloc mal inclus
+
+Motif de la demande :
+  Rapport d'odoo18 : « 145 requêtes malveillantes … nginx laisse encore passer /wp-admin/ → 303 (219 o), /en_CA/wp-admin/ → 301 (217 o),
+  /en_CA/wp-admin → 404 (32752 o) — le bloc server doit inclure snippets/securite-commune.conf ». Le bloc était correct : c'est la règle
+  qui manquait. Le conseil envoyait chercher au mauvais endroit.
+
+Détail des modifications :
+  - Nouvelles fonctions locations_regex et cause_des_fuites : le programme ÉVALUE lui-même les « location ~ / ~* EXPRESSION » de
+    nginx -T sur chaque chemin qui traverse nginx et dit pourquoi, parmi quatre cas : une location « = » ou « ^~ » prioritaire les capte
+    (fichier:ligne) ; AUCUNE règle ne vise ces chemins (« le bloc server est correct, il MANQUE une règle », avec la liste des chemins
+    non visés) ; des règles les visent mais nginx répond quand même (bloc server sans ces règles, ou règle précédente) ; nginx -T
+    illisible (« cause non déterminée », jamais une cause inventée).
+  - Même diagnostic pour les serveurs Odoo (avec ou sans requêtes aujourd'hui) et pour BigBlueButton.
+
+Bugs corrigés :
+  - Symptôme : conseil erroné « le bloc server doit inclure securite-commune.conf » alors que le bloc l'incluait. Diagnostic : la
+    règle wp-admin n'existait pas (wp-content, wp-json et les .php étaient refusés, pas /wp-admin/, qui est un répertoire). Correction :
+    diagnostic ci-dessus ; la règle est ajoutée à nginx-odoo-config 1.0.
+
+Garde-fous et cas limites traités :
+  - Seuls les chemins qui traversent réellement nginx (essai réel) sont évalués ; expressions invalides ignorées ; un chemin couvert
+    n'est jamais cité comme manquant (le message ne nomme que les chemins non visés).
+
+Vérifications effectuées :
+  - Nouveau test : trois situations (aucune règle ; règle wp-admin SANS préfixe de langue : /en_CA/wp-admin/ reste non visé et est
+    nommé ; règle livrée : tout est visé) et nginx -T illisible. Module web-monitor complet (63 tests).
+
+Action requise de ma part (ou « aucune ») :
+  Déployer nginx-odoo-config.1.0.zip (règle wp-admin), puis nginx -t && systemctl reload nginx.
+
+## 2.39.20261002.073514 — --verbose transmis aux programmes lancés ; UID Odoo
+
+Motif de la demande :
+  « L'option --verbose devrait être passée à tous les programmes appelés par un programme. »
+  « Dans web-monitor.py --list-users --details, afficher le UID de l'utilisateur d'Odoo. »
+
+Détail des modifications :
+  - verbeux() : « --verbose » de web-monitor.py est ajouté à TOUS les programmes de la suite qu'il lance (app-health-check.py,
+    app-log-check.py, nginx-log-audit.sh --fail2ban / --investigate / --ban / --unban-check, sync-crowdsec-blocklist.sh,
+    odoo-backup.sh, nginx-hardening.sh, lancer_outil) et aux composants (_bbb.py, _odoo_db.py) ; la sortie d'erreur de chaque
+    programme lancé (ses commandes « + … ») est reprise à l'écran.
+  - --list-users --details : « UID Odoo : 506 — Nom (interne|portail/public), base X » par compte (lecture seule dans
+    PostgreSQL, apps/_odoo_db.py) ; la base est celle de la connexion du journal (db:…).
+
+Bugs corrigés :
+  - Symptôme : « web-monitor.py --verbose » n'affichait que ses propres commandes (systemctl, app-health-check.py…) : les
+    programmes appelés ne recevaient pas --verbose. Diagnostic : les listes de commandes ne le transmettaient pas. Correction : verbeux().
+
+Garde-fous et cas limites traités :
+  - Sans --verbose, aucun argument ajouté (sortie inchangée) ; --list-users sans --details : aucune requête à PostgreSQL ;
+    base illisible ou compte supprimé : la raison est écrite à la place de l'UID ; une seule requête par base.
+
+Vérifications effectuées :
+  - Tests : --verbose reçu par app-health-check.py, app-log-check.py, nginx-log-audit.sh, sync-crowdsec-blocklist.sh (et absent sans
+    l'option) ; UID, base illisible, compte disparu, lecture seule, commande psql en --verbose. Les tests échouent sur la 2.38 (mutation).
+
+Action requise de ma part (ou « aucune ») :
+  Aucune.
+
+## 2.38.20261001.143624 — Sommaire : section BigBlueButton
+
+Motif de la demande :
+  Mettre à jour BBB 2.7 et 3.0 en s'assurant que notre durcissement nginx ne pose pas de problème à BBB et qu'une mise à
+  jour de BBB n'écrase pas notre configuration ; voir les versions et la configuration de BBB avant et après.
+
+Détail des modifications :
+  - afficher_etat_bbb (profil bbb) : section « BIGBLUEBUTTON — VERSIONS, CONFIGURATION ET COMPATIBILITÉ AVEC NOS RÈGLES »
+    (apps/_bbb.py, mode summary : rien d'écrit) avant les recommandations.
+  - Recommandations : problèmes de cette section (BBB mis à jour depuis le dernier --update, nos règles absentes ou non
+    chargées, HSTS retiré, API injoignable…) ; nginx-hardening.sh --update proposé en fin de sommaire quand il corrige.
+
+Bugs corrigés :
+  Aucun.
+
+Garde-fous et cas limites traités :
+  - Erreur du composant : une ligne, jamais d'arrêt du sommaire. Autre application : aucune section.
+
+Vérifications effectuées :
+  - test_bbb.py (section, recommandation, correction proposée, profil odoo sans section).
+
+Action requise de ma part (ou « aucune ») :
+  Aucune.
+
+## 2.37.20261001.090925 — Redirection de nginx à une URL malveillante : rejetée, plus « non filtrée »
+
+Motif de la demande :
+  Rapport --report-err d'odoo18 : « 670 requêtes malveillantes … ont atteint Odoo … Noms concernés : rencontres-linux.quebec
+  (99), odoo18.rencontres-linux.quebec (6) », avec des commandes à lancer à la main ; demande que les commandes soient faites
+  à la place de l'utilisateur.
+
+Détail des modifications :
+  - Collecte du sommaire (collect_summary) : une réponse 3xx de 200 octets au plus à une URL malveillante est la redirection de
+    nginx lui-même (page « 301 Moved Permanently », 162 à 169 octets) : comptée comme rejetée par nginx, plus comme transmise
+    (nouvelle constante TAILLE_3XX_NGINX). La redirection d'Odoo (Werkzeug, plus de 200 octets) reste transmise.
+  - Note sous le tableau : « 404 et redirections (3xx) de nginx lui-même ».
+
+Bugs corrigés :
+  - Symptôme : requêtes /.env, /.git/config… de rencontres-linux.quebec et odoo18.rencontres-linux.quebec comptées « non filtrées
+    par nginx » et recommandation MOYENNE. Diagnostic (analyse de nginx-odoo-config.zip) : le bloc https de ces noms faisait
+    « return 301 » vers www au niveau du server et écrivait dans le journal du site de PROD : nginx répondait lui-même, Odoo
+    n'était pas atteint, mais un 301 n'était pas reconnu comme un rejet. Correction : ci-dessus ; la configuration est aussi
+    corrigée (nginx-odoo-config.zip du 2026-10-01 : règles de sécurité avant la redirection).
+
+Garde-fous et cas limites traités :
+  - Seulement les URL malveillantes (par leur forme) : les redirections ordinaires de ces noms ne changent pas de colonne.
+  - Seuil de taille, comme pour les 404 de nginx : une redirection d'Odoo n'est jamais prise pour celle de nginx.
+
+Vérifications effectuées :
+  - Nouveau test (301 de 162 et 169 octets rejetés, 303 de 289 octets transmis ; il échoue sur la 2.36). Suite de web-monitor.
+
+Action requise de ma part (ou « aucune ») :
+  Déployer avec nginx-odoo-config.zip (voir son README, 2026-10-01).
+
+## 2.36.20260930.225745 — Recommandations : le programme fait lui-même les vérifications et les corrections
+
+Motif de la demande :
+  Les recommandations du sommaire affichaient des commandes à taper à la main (nginx -T | grep …, nginx-hardening.sh --check,
+  nginx-log-audit.sh --investigate IP puis --ban IP, app-health-check.py --target local, curl …/robots.txt, fail2ban-client
+  status …). Ces commandes doivent être faites par le programme, pas par l'administrateur.
+
+Détail des modifications :
+  - Vérifications SANS effet faites pendant le sommaire, résultat écrit dans la recommandation (« vérifié par le programme ») :
+    - requêtes malveillantes transmises, BigBlueButton (diagnostic_fuites_bbb) : nginx rechargé depuis l'installation des règles ?
+      (heure de démarrage des workers, nginx_charge_depuis) ; fichier de règles présent dans nginx -T ? requêtes d'aujourd'hui
+      antérieures ou postérieures à l'entrée en vigueur (heure exacte relevée dans le journal, heure_nginx) ; essai réel des URL
+      à travers nginx (lire_page, sonder) ; blocs « location = » ou « ^~ » qui les captent avant nos règles, avec fichier:ligne
+      (locations_prioritaires). Toutes antérieures et refusées maintenant : FAIBLE, « Rien à faire ».
+    - même recommandation, Odoo (diagnostic_fuites_odoo) : l'essai de /.env, /en_CA/.env, /.git/config (ou des URL d'aujourd'hui,
+      avec leur nom demandé) remplace « Confirmer avec app-health-check.py --target local ».
+    - refus 403 de navigateurs : enquête nginx-log-audit.sh --investigate faite par le programme sur l'adresse dominante (ou les
+      3 plus actives) — bannissement recommandé → proposé en fin de sommaire ; adresses déjà bannies, de l'équipe ou du serveur
+      ignorées (enquete_403) ; règles de refus relevées dans nginx -T avec fichier:ligne (regles_refus, texte_regles_refus) ;
+      parmi les autres adresses, celles qui ont AUSSI obtenu des pages normales (autres_adresses, nouvel ensemble ips_2xx).
+      « Détail : nginx-log-audit.sh --stats --details » retiré.
+    - Googlebot sur BigBlueButton : robots.txt lu par le programme (etat_robots) au lieu de « curl -s … ».
+    - certificat TLS en échec : certbot renew --dry-run lancé par le programme, erreurs citées.
+    - erreurs 5xx : app-log-check.py lancé par le programme (position de lecture temporaire), ligne RÉSUMÉ citée.
+    - échecs de connexion : jail odoo-auth vérifiée (FAIBLE si active).
+    - sauvegarde trop ancienne : odoo-backup.sh --status lancé par le programme, lignes utiles citées.
+    - nginx -T lu une seule fois par sommaire (nginx_T), aussi pour HSTS.
+  - Corrections QUI MODIFIENT le serveur, proposées en fin de sommaire (section « CORRECTIONS QUE LE PROGRAMME PEUT FAIRE
+    LUI-MÊME », puis proposer_corrections) : bannissements recommandés, rechargement de nginx (nginx -t d'abord, recharger_nginx),
+    démarrage de fail2ban, nginx-hardening.sh --update (règles BBB, jails, rétention : un seul lancement, libellés réunis),
+    installation du timer. Une question par correction dans un terminal (root) ; Ctrl-C = arrêt sans trace.
+  - Nouvelle option --apply : sommaire puis corrections (implique --summary) ; avec --yes, toutes sans question. --yes vaut
+    désormais pour --apply et --ban-recommended. Sans terminal ou avec --report-err : la commande --apply est affichée.
+  - Fichiers touchés : web-monitor.py ; tests/test_web_monitor.py.
+
+Bugs corrigés :
+  - Symptôme : « 306 requêtes malveillantes … 17 encore aujourd'hui » sur bbb30 alors que les règles étaient installées, avec
+    une vérification manuelle à faire. Diagnostic : le sommaire ne savait pas distinguer les requêtes passées AVANT l'installation
+    ou le rechargement de nginx de celles qui passent encore. Correction : heure exacte des requêtes comparée à l'entrée en
+    vigueur des règles, puis essai réel.
+
+Garde-fous et cas limites traités :
+  - Les essais à travers nginx portent le User-Agent de nos tests : exclus de tous les chiffres. Connexion fermée sans réponse
+    = 444 (refus). app-health-check.py absent : « essai impossible », jamais une conclusion inventée.
+  - Aucune modification de fichier de BigBlueButton (décision maintenue) ; rechargement seulement si nginx -t réussit.
+  - Corrections jamais faites sans root ni sans confirmation (sauf --apply --yes) ; --report-err n'en fait aucune.
+  - Une même commande n'est proposée qu'une fois ; liste des corrections remise à zéro à chaque sommaire.
+  - Python 3.8 : syntaxe vérifiée (aucune f-string avec barre oblique inverse dans l'expression).
+
+Vérifications effectuées :
+  - Nouveaux tests : BBB (nginx non rechargé → correction, fichier absent de nginx -T, toutes antérieures → FAIBLE, location
+    prioritaire citée), Odoo (refusées → FAIBLE, captées par « ^~ » → citée), 403 (enquête, bannissement proposé, adresse déjà
+    bannie, règles relevées, part des vrais visiteurs), robots.txt présent/absent, --apply --yes, sans terminal, sans root.
+  - Tests existants mis à jour (plus de commandes manuelles attendues). Suite de web-monitor ; ruff (E9, F) ; analyse 3.8.
+
+Action requise de ma part (ou « aucune ») :
+  Déployer, puis lancer « web-monitor.py --summary » (ou « web-monitor.py --apply ») dans un terminal en root et répondre aux
+  questions. Pour un diagnostic, le rapport --report-err reste sans question.
+
+## 2.35.20260930.163902 — Option --report-err
+
+Motif de la demande :
+  Une option --report-err dans chaque programme : un sommaire des erreurs en fin d'exécution, avec le nom et la version du
+  programme, le nom du serveur et le contexte, à coller dans la discussion à la place de la sortie complète (économie de jetons).
+
+Détail des modifications :
+  - Option --report-err (composant commun apps/_rapport.py) : le programme s'exécute normalement (sortie affichée, code de sortie
+    conservé), puis un bloc « RAPPORT D'ERREURS » à copier-coller : programme, version, commande, serveur (nom, système, noyau,
+    utilisateur, interpréteur), date, durée, code de sortie, contexte lu dans la sortie (application, fichiers de configuration,
+    options), versions de toute la suite, puis ÉCHECS, AVERTISSEMENTS, RECOMMANDATIONS HAUTE/MOYENNE (avec leurs lignes de détail),
+    vérifications ignorées ; mots de passe masqués ; la sortie est copiée au fil de l'eau (le terminal est conservé : couleurs intactes).
+  - Option reconnue par l'analyseur d'options et présente dans l'aide, à sa place alphabétique.
+  - --report-err implique --no-prompt et --no-pager (un rapport à copier-coller ne s'interrompt jamais).
+
+Bugs corrigés :
+  Aucun.
+
+Vérifications effectuées :
+  - Rapport sur un cas réel du programme (code de sortie conservé, sortie affichée avant le rapport), --help et --version avec
+    --report-err sans rapport, composant absent (message clair, exécution normale). Suite complète ; ShellCheck ; ruff.
+
+Action requise de ma part (ou « aucune ») :
+  Aucune. Pour un diagnostic : lancer le programme avec --report-err et coller le bloc final.
+
+## 2.34.20260930.132809 — Seuil d'âge de la sauvegarde
+
+Motif de la demande :
+  odoo-backup.sh 1.7 : plusieurs sauvegardes par jour.
+
+Détail des modifications :
+  - Recommandation « dernière sauvegarde d'Odoo réussie il y a N h » : seuil lu dans l'état écrit par odoo-backup.sh
+    (max-age-hours : écart maximal entre deux sauvegardes + 2 h), 26 h tant qu'il n'existe pas ou s'il est illisible.
+
+Bugs corrigés :
+  Aucun.
+
+Vérifications effectuées :
+  - 20 h sans fichier (acceptable), avec seuil 12 h (signalé), fichier illisible (26 h). Suite complète ; ruff.
+
+Action requise de ma part (ou « aucune ») :
+  Aucune.
+
+## 2.33.20260930.123230 — Timers vers un fichier inexistant ; configuration en couches
+
+Motif de la demande :
+  (1) Renommer les anciens fichiers de configuration AVANT d'arrêter le timer actuel ; vérifier s'il existe un timer configuré
+  qui utilise un fichier inexistant. (2) Règle des fichiers de configuration : lire /etc/default/<programme>.conf, puis
+  ~/.<programme>.cfg s'il existe ; la ligne de commande est prioritaire ; indiquer quel fichier est lu exactement, avec un
+  sommaire d'une ou deux lignes des options importantes.
+
+Détail des modifications :
+  - Nouvelles fonctions timers_fichiers_absents et analyze_timers : unités systemd (web-monitor, odoo-backup) et cron
+    (sync-crowdsec-blocklist) de nos outils dont la commande lance un SCRIPT absent ou lit une configuration absente (--config
+    X, --config=X, -c X). Alerte à chaque passage (avec la commande qui corrige), et ligne « ⚠ » dans --status.
+  - Lecture de la configuration d'app-health-check (courriel) avec la même règle en couches (resolve_config_paths).
+
+Bugs corrigés :
+  - Un timer pointant vers un fichier inexistant n'était signalé nulle part (la sauvegarde tournait même avec ses valeurs par
+    défaut avant odoo-backup.sh 1.5).
+
+Vérifications effectuées :
+  - Tout existe (aucune alerte) ; configuration, script systemd et script cron absents, dont -c et --config= ; --status. Suite
+    complète ; ruff.
+
+Action requise de ma part (ou « aucune ») :
+  Aucune.
+
+## 2.32.20260930.093133 — Emplacement de la configuration de la sauvegarde
+
+Motif de la demande :
+  Configurations regroupées dans /etc/default (odoo-backup.sh 1.5).
+
+Détail des modifications :
+  - Recommandation « aucune sauvegarde automatique d'Odoo » : renvoie vers /etc/default/odoo-backup.conf (créé au premier
+    lancement) au lieu de ~/.odoo-backup.cfg.
+
+Bugs corrigés :
+  Aucun.
+
+Vérifications effectuées :
+  - Suite complète ; ruff.
+
+Action requise de ma part (ou « aucune ») :
+  Aucune.
+
+## 2.31.20260930.090527 — Googlebot sur BBB ; 403 de navigateurs : une adresse domine
+
+Motif de la demande :
+  Sommaire du BBB de PROD : (1) « Googlebot reçoit des refus 403 (3 598 en 30 jours) … peut retirer le site de ses
+  résultats » ; (2) « 2 223 refus 403 … Concentrées sur 233 adresse(s) … probablement des robots ».
+
+Détail des modifications :
+  - Googlebot et les autres moteurs refusés en 403, serveur BigBlueButton : un serveur de réunions (liens de salles
+    /rooms/…/join) n'a aucune raison d'être indexé, le refus est voulu — recommandation FAIBLE « essaie d'indexer ce
+    serveur BigBlueButton », sans la phrase sur le retrait des résultats ; marche à suivre : vérifier le robots.txt
+    (curl -s https://<serveur>/robots.txt, qui doit contenir « Disallow: / »). Odoo : avertissement d'origine.
+  - Dans les deux cas, les PAGES DEMANDÉES par le robot (nouveau compteur refus_robots_chemins : trois pages les plus
+    demandées, scanners exclus, 300 chemins au plus par famille).
+  - Refus 403 de navigateurs, trois cas selon les adresses : moins de 20 adresses → « Concentrées » (robots) ; 20 ou plus
+    et aucune au-dessus de 30 % → « Réparties … RÈGLE » ; 20 ou plus dont UNE à 30 % ou plus → « Réparties sur N
+    adresses, mais une seule (IP) en représente X % : probablement un robot (--investigate IP puis --ban IP) ; les N-1
+    autres … chercher une règle ».
+
+Bugs corrigés :
+  - « Concentrées sur 233 adresse(s) » : libellé faux — 233 adresses ne sont pas concentrées ; la décision ne regardait
+    que la part de l'adresse la plus active.
+  - Recommandation Googlebot trompeuse sur BBB (retrait des résultats de recherche : sans objet pour un serveur de
+    réunions).
+
+Garde-fous et cas limites traités :
+  - Ces indications restent des indices : la cause exacte d'un 403 est dans la configuration du serveur.
+
+Vérifications effectuées :
+  - Cas réel du BBB de PROD (233 adresses, une à 34 %, 1 261 pages ordinaires) ; Googlebot sur BBB et sur Odoo ; pages
+    demandées lues dans de vrais journaux (scanners exclus). Suite complète ; ruff.
+
+Action requise de ma part (ou « aucune ») :
+  Sur BBB : curl -s https://<serveur>/robots.txt ; s'il n'interdit pas tout, décider d'ajouter un « Disallow: / ».
+
+## 2.30.20260930.084200 — Ctrl-C sans trace d'appels
+
+Motif de la demande :
+  Ctrl-C à la fin d'un passage (rapport proposé dans less) : traceback « KeyboardInterrupt » dans proposer_less.
+
+Détail des modifications :
+  - proposer_less : gestionnaire de SIGINT neutre pendant less (puis restauré). Ctrl-C dans less est destiné à less ; le
+    signal part aussi à ce programme (même groupe de processus), qui levait KeyboardInterrupt. Gestionnaire Python et non
+    SIG_IGN : il est réinitialisé à l'exec, donc less garde le comportement par défaut.
+  - Nouvelle fonction executer : Ctrl-C n'importe où (même à la question de bannissement) termine avec « Interrompu
+    (Ctrl-C). » et le code 130, sans trace d'appels.
+
+Bugs corrigés :
+  - Trace d'appels Python après Ctrl-C dans less.
+
+Vérifications effectuées :
+  - Un VRAI SIGINT envoyé pendant que less « tourne » (faux less) : aucune exception, gestionnaire restauré ; le même
+    test ÉCHOUE quand la correction est retirée. Ctrl-C dans main : code 130. Suite complète ; ruff.
+
+Action requise de ma part (ou « aucune ») :
+  Aucune.
+
+## 2.29.20260930.081347 — Refus 403 : robot ou règle trop stricte ?
+
+Motif de la demande :
+  Recommandation sur BBB : « 1 909 refus 403 visent des navigateurs ordinaires … chemins les plus refusés : / (519),
+  /signin (44), /.env (41), /login (33) » — comment savoir s'il s'agit de robots ou de vrais visiteurs refusés ?
+
+Détail des modifications :
+  - Refus 403 de navigateurs séparés en pages ordinaires (/, /signin, /login…) et URL de scanners (/.env, .php…, refus
+    normal) — les scanners ne se mélangent plus aux vraies pages.
+  - Adresses distinctes derrière les refus de pages ordinaires : 20 adresses ou plus et aucune ne dépassant 30 % →
+    « probablement une RÈGLE qui refuse de vrais visiteurs » avec la commande pour la trouver (nginx -T | grep -nE
+    'return 403|deny |http_user_agent') ; sinon « concentrées sur N adresse(s) (les plus actives : …) : probablement
+    des robots » avec nginx-log-audit.sh --investigate IP puis --ban IP.
+  - Taille de la réponse : très courte (≤ 600 octets pour 80 % ou plus des refus) — typique d'un refus de nginx
+    lui-même ; longue (20 % ou moins) — plutôt l'application.
+
+Bugs corrigés :
+  Aucun.
+
+Garde-fous et cas limites traités :
+  - Ces indications sont des indices, pas une preuve : la cause exacte est dans la configuration du serveur (règle
+    nginx, filtre sur le User-Agent ou l'adresse, application) ; le texte donne la commande pour la trouver.
+
+Vérifications effectuées :
+  - Cas de BBB de PROD (596 pages ordinaires sur 3 adresses, 41 scanners) → robots, réponses très courtes ; 600 refus
+    sur 300 adresses, réponses longues → règle, application ; lecture de vrais journaux (250 adresses, pages
+    ordinaires et scanners). Suite complète ; ruff.
+
+Action requise de ma part (ou « aucune ») :
+  Aucune.
+
+## 2.28.20260930.072401 — Connexions plus lisibles ; recommandations BBB corrigées
+
+Motif de la demande :
+  (1) Sur BBB 3.0, que faire pour les recommandations « requêtes malveillantes », « refus 403 de navigateurs » et
+  « capteur catch-all » ? (2) Sortie difficile à lire, trop d'information : structurer, ajouter une ligne avant
+  chaque utilisateur et de la couleur sur certains chiffres.
+
+Détail des modifications :
+  - Connexions (sommaire et --list-users) : une ligne vide puis le nom du compte (en gras) avant chaque utilisateur,
+    puis une information par ligne étiquetée — « Connexions » (aujourd'hui, 7 j, N j, dernière), « Adresses IP »,
+    « Trafic » (pages vues, requêtes, erreurs avec leurs codes), « Jour le + actif », « Modules Odoo », « Pages + vues ».
+    Étiquette « 7 j » retirée quand --days N ≤ 7 (colonne identique à la période).
+  - Couleurs (nouvelle fonction coul, terminal SEULEMENT, jamais dans un rapport capturé ; NO_COLOR respecté) :
+    connexions du jour en vert, erreurs en rouge (5xx) ou jaune (429, 4xx), adresse bannie en magenta.
+  - Recommandation « requêtes malveillantes » sur BBB : règles absentes → nginx-hardening.sh --update (fichier
+    zz-nginx-hardening-security.nginx, jamais d'écriture à la main) ; règles installées et aucune requête aujourd'hui
+    → recommandation retirée (elles datent d'avant l'installation) ; règles installées mais des requêtes encore
+    aujourd'hui → vérifier l'inclusion de /etc/bigbluebutton/nginx/*.nginx.
+  - Recommandation « capteur catch-all » : sans objet sur BBB (HAProxy reçoit le port 443), plus affichée.
+  - Recommandation « refus 403 de navigateurs » : affiche les chemins les plus refusés (nouveau compteur
+    refus_navigateurs) pour distinguer une règle trop stricte d'un robot déguisé.
+
+Bugs corrigés :
+  - Recommandations de BBB périmées : texte de règles à écrire à la main (nom de fichier différent de celui installé
+    par nginx-hardening.sh), renvoi vers un « chantier durcissement BBB » déjà réalisé, capteur inapplicable.
+
+Vérifications effectuées :
+  - Nouvelle mise en page sur des données simulées (trois comptes, adresse partagée, adresse bannie) ; couleurs en
+    terminal, rapport capturé, NO_COLOR, --days 3 ; recommandations BBB (règles absentes, installées sans requête
+    aujourd'hui, installées avec requêtes). Suite complète ; ruff.
+
+Action requise de ma part (ou « aucune ») :
+  Sur les serveurs BBB : nginx-hardening.sh --update (règles et jail), puis une réunion de test.
+
+## 2.27.20260929.195459 — Aide triée ; recommandation des jails web corrigée
+
+Motif de la demande :
+  Options de l'aide par ordre alphabétique. Recommandation sur BBB « aucune jail fail2ban ne bannit les scanners
+  web … installer les jails de nginx-odoo-config.zip … prochain chantier durcissement BBB » : quel fichier copier sans
+  casser la configuration nginx de BBB ?
+
+Détail des modifications :
+  - Nouveau formateur AideTriee : options de --help par ordre alphabétique (nom long, sans les tirets : « -h,
+    --help » se range à « help »), dans la liste comme dans la ligne « usage ».
+  - Recommandation des jails web : jails CHARGÉES lues par fail2ban-client status (et non seulement celles qui ont
+    déjà banni, d'après fail2ban.log) ; fail2ban qui ne répond pas : recommandation HAUTE « fail2ban ne répond pas
+    (arrêté ?) » et commande de démarrage ; marche à suivre : nginx-hardening.sh --update (jail nginx-blocked-probes ;
+    sur BBB, règles zz-nginx-hardening-security.nginx, fichiers de BBB intacts) — plus de renvoi vers les fichiers de
+    nginx-odoo-config.zip, inadaptés à BBB.
+  - Description de --summary : J-1, J-2 et --days.
+
+Bugs corrigés :
+  - Jail neuve (aucun bannissement encore) ou fail2ban arrêté : « aucune jail fail2ban » à tort, avec une marche à
+    suivre périmée (le durcissement de BBB est fait par nginx-hardening.sh 2.10).
+
+Vérifications effectuées :
+  - Jail chargée sans bannissement : pas de recommandation ; aucune jail web : recommandation et texte à jour ;
+    fail2ban injoignable : signalé. Test d'aide triée. Suite complète ; ruff.
+
+Action requise de ma part (ou « aucune ») :
+  Aucune.
+
+## 2.26.20260929.193615 — Option --days N ; vocabulaire
+
+Motif de la demande :
+  Option pour limiter le nombre de jours (--days N), afin d'afficher seulement les informations de ces N jours ; ne
+  plus utiliser « sondage ».
+
+Détail des modifications :
+  - Nouvelle option --days N (1 à 366) : sommaire — période longue de N jours (colonne, faits marquants, connexions,
+    liste blanche, workers, recommandations, journal d'Odoo lu depuis N jours) ; colonnes sans objet retirées
+    (« 7 jours » si N ≤ 7, J-1 si N < 2, J-2 si N < 3) ; --list-users limité aux N derniers jours (journal d'Odoo
+    --since, journaux nginx filtrés). Nouvelle fonction duree (« 1 jour », « N jours »).
+  - Vocabulaire : ligne « Accès à des fichiers sensibles (.env, .git…) » ; noms internes renommés.
+
+Bugs corrigés :
+  Aucun.
+
+Vérifications effectuées :
+  - --days 3 (colonnes Aujourd'hui, J-1, J-2, 3 jours), --days 1 (« 1 jour »), --days 0 refusé ; --list-users --days
+    10 : --since et source indiquée. Suite complète ; ruff.
+
+Action requise de ma part (ou « aucune ») :
+  Aucune.
+
+## 2.25.20260929.192148 — Colonnes J-1 et J-2 ; vraies options d'Odoo
+
+Motif de la demande :
+  (1) Ajouter J-1 et J-2 dans les statistiques du sommaire. (2) Recommandation inexacte : en DEV, le script de
+  démarrage lance « odoo_bin.sh -c ./config.conf --limit-time-real 1200 --limit-time-cpu 1200
+  --limit-memory-soft=4631560192 --limit-memory-hard=5449449472 », prioritaire sur config.conf ; le sommaire affichait
+  pourtant limit_memory_hard=0 (« AUCUNE limite ») et une recommandation HAUTE.
+
+Détail des modifications :
+  - Periodes : J-1 (hier) et J-2 (avant-hier), journées entières, ajoutées aux indices existants (aujourd'hui, 7 et
+    30 jours, inchangés partout) ; ordre d'affichage : Aujourd'hui, J-1, J-2, 7 jours, 30 jours ; colonnes resserrées.
+  - config_odoo : valeurs lues par ordre de priorité — processus EN COURS du service et ses descendants
+    (/proc/PID/cmdline, nouvelle fonction _processus_odoo : les valeurs réellement appliquées), puis script de
+    démarrage de ExecStart (nouvelle fonction _options_script, ex. run.sh qui appelle odoo_bin.sh), puis ExecStart,
+    puis fichier de configuration (« -c ./config.conf » résolu par rapport au script), puis défauts d'Odoo.
+    Nouvelle fonction _options_ligne : formes « --opt=val » ET « --opt val ». Source des valeurs prioritaires
+    affichée (« prioritaires, processus en cours : … »).
+
+Bugs corrigés :
+  - Symptôme : « limit_memory_hard=0 o » et recommandation HAUTE « Odoo sans limite mémoire » alors que le script de
+    démarrage passe --limit-memory-hard=5449449472. Diagnostic : seuls ExecStart et le fichier de configuration
+    étaient lus ; chez ERPLibre, ExecStart lance run.sh, qui passe les options à odoo_bin.sh, et la forme « --opt val »
+    n'était pas comprise. Correction : processus en cours, puis script de démarrage.
+  - Trouvé par le nouveau test des colonnes : une liste de taille fixe (3) dans la collecte des appareils aurait fait
+    PLANTER le sommaire dès la première visite datée d'hier.
+
+Vérifications effectuées :
+  - Faux /proc (run.sh puis son fils python3 avec ses options) : valeurs du processus prioritaires, puis du script,
+    puis du fichier ; sans processus lisible : valeurs du script (jamais « 0 = illimité » du fichier). Visites d'hier
+    et d'avant-hier dans J-1 et J-2 et incluses dans 7 et 30 jours. Suite complète ; ruff.
+
+Action requise de ma part (ou « aucune ») :
+  Aucune.
+
+## 2.24.20260929.151644 — Surveillance de la sauvegarde d'Odoo
+
+Motif de la demande :
+  Sauvegarde de la base et du filestore d'Odoo (nouveau programme odoo-backup.sh) : la surveiller.
+
+Détail des modifications :
+  - Passage : odoo-backup.sh --status lancé comme les autres outils (serveurs Odoo) ; nouvelle fonction
+    analyze_sauvegarde : ALERTE si une sauvegarde a déjà réussi (état last-success) et que la dernière a plus de 26 h
+    ou qu'un échec est signalé ; jamais configurée : pas d'alerte à chaque passage.
+  - Recommandations : HAUTE « aucune sauvegarde automatique d'Odoo » (marche à suivre), ou « dernière sauvegarde
+    réussie il y a N h » au-delà de 26 h.
+
+Bugs corrigés :
+  Aucun.
+
+Vérifications effectuées :
+  - Recommandation sans sauvegarde ; pas d'alerte si jamais configurée ; alerte si la sauvegarde a 50 h. Suite complète.
+
+Action requise de ma part (ou « aucune ») :
+  Aucune.
+
+## 2.23.20260929.145745 — Utilisateurs connus sur tout l'historique
+
+Motif de la demande :
+  Pourcentage à part des visites faites par les IP des utilisateurs qui se sont DÉJÀ connectés à Odoo, même s'ils
+  ne sont pas connectés actuellement.
+
+Détail des modifications :
+  - « dont des IP d'utilisateurs connus » : adresses ayant servi à au moins une connexion réussie sur TOUT
+    l'historique du journal d'Odoo (avant : 30 derniers jours) ; nouvelle ligne « dont hors équipe (liste blanche) »
+    ; note explicative sous le tableau ; « pages vues par des utilisateurs connus ».
+  - Recommandation « alertes par courriel non configurées » : renvoi vers doc/email-setup.md, --check-email-dns et
+    --test-email.
+
+Bugs corrigés :
+  Aucun.
+
+Vérifications effectuées :
+  - Deux adresses connues dont une de l'équipe : total et part hors équipe exacts. Suite complète ; ruff.
+
+Action requise de ma part (ou « aucune ») :
+  Aucune.
+
+## 2.22.20260929.144332 — Garde de longueur des lignes
+
+Motif de la demande :
+  Recommandations d'un expert externe retenues : sonde légère (/web/health) avant les vérifications complètes ; garde
+  de longueur des lignes de journal avant les expressions régulières.
+
+Détail des modifications :
+  - Garde de longueur : chaque ligne de journal est tronquée à 65 536 caractères (LIGNE_MAX) AVANT toute expression
+    régulière — une ligne anormalement longue (attaque, trace énorme) ne peut pas faire exploser le temps de calcul.
+    Les expressions ont aussi été relues : aucune répétition imbriquée à risque de retour en arrière catastrophique.
+  - Nouvelle fonction tronquer, appliquée aux dix boucles de lecture (journaux nginx et leurs rotations, journal
+    systemd, blocked-probes.log, --list-users).
+
+Bugs corrigés :
+  Aucun.
+
+Vérifications effectuées :
+  - Ligne de 4,9 Mo dans le journal du site : sommaire produit sans erreur. Suite complète ; ruff.
+
+Action requise de ma part (ou « aucune ») :
+  Aucune.
+
+## 2.21.20260929.134422 — Verrou contre les exécutions concurrentes
+
+Motif de la demande :
+  Recommandations d'un expert externe retenues : (3) une seule source pour les adresses de l'équipe ; (4) verrou
+  contre les exécutions concurrentes.
+
+Détail des modifications :
+  - Nouvelle fonction prendre_verrou (fcntl.flock, non bloquant) : passage de surveillance, --ban-recommended,
+    --install-timer, --uninstall-timer ; code 75 et message si une autre exécution tient le verrou. Sans verrou :
+    --summary, --status, --list-users, --unban-check, --dry-run.
+
+Bugs corrigés :
+  Aucun.
+
+Vérifications effectuées :
+  - Verrou tenu par un autre processus : abandon (code 75, message) ; modes en lecture seule non bloqués.
+  - ShellCheck 0 ; ruff sans défaut ; suite complète sous mawk et gawk.
+
+Action requise de ma part (ou « aucune ») :
+  Aucune.
+
+## 2.20.20260929.130357 — --details ; adresses partagées ; mémoire illimitée d'Odoo
+
+Motif de la demande :
+  --list-users : n'afficher le détail du trafic des comptes qu'avec une option --details (pas par défaut). Revue du
+  sommaire de PROD.
+
+Détail des modifications :
+  - Nouvelle option --details (avec --list-users) : trafic de chaque compte ; sans elle, liste seule, et les journaux
+    nginx ne sont relus que pour les participants de BigBlueButton.
+  - Nouvelle fonction marque_partage : une adresse utilisée par plusieurs comptes est marquée « (partagée : N
+    comptes) » dans le sommaire et dans --list-users — le trafic détaillé d'une telle adresse compte pour chaque compte
+    (ex. PROD : 142.126.46.49 pour trois comptes).
+  - Analyse des workers : limit_memory_hard=0 = AUCUNE limite (« pire cas : ILLIMITÉ ») avec l'avis correspondant,
+    au lieu de « pire cas : 0 o » et « aucun signe de saturation ». Nouvelle recommandation HAUTE « Odoo sans limite
+    mémoire ».
+
+Bugs corrigés :
+  - Symptôme (sommaire de PROD) : « pire cas (limit_memory_hard × 15 workers et crons) : 0 o pour 16,0 Go de RAM » et
+    « aucun signe de saturation », alors que nginx-hardening.sh signalait l'absence de limite en échec. Diagnostic :
+    0 était traité comme 0 octet ; pour Odoo, 0 désactive la limite. Correction : cas illimité traité à part.
+  - Détails par compte trompeurs pour les adresses partagées (tout le trafic de l'adresse attribué à chaque compte) :
+    désormais signalées.
+
+Vérifications effectuées :
+  - --list-users sans et avec --details ; adresse partagée par deux comptes ; limit_memory_hard=0. Suite complète ; ruff.
+
+Action requise de ma part (ou « aucune ») :
+  Aucune.
+
+## 2.19.20260929.123856 — Utilisation par la liste blanche
+
+Motif de la demande :
+  Machines Tailscale de Martial plus permissives pour Odoo ET pour BBB ; pourcentage d'utilisation d'Odoo et de BBB
+  par chaque machine de la liste blanche.
+
+Détail des modifications :
+  - Liste UNIQUE des adresses de l'équipe : apps/team-ips.list (livrée avec les outils, identique sur tous les
+    serveurs, une adresse ou plage par ligne avec son libellé). Nom en .list : tout fichier apps/*.conf est chargé
+    comme profil d'application.
+  - Nouvelles fonctions equipe, libelles_blanche, afficher_liste_blanche : section « UTILISATION PAR LA LISTE
+    BLANCHE (équipe) » — pour chaque adresse, son libellé, les requêtes et la part du trafic du site aujourd'hui, sur
+    7 et 30 jours, les pages vues sur 30 jours, la dernière activité ; total de toute la liste. Libellés : liste de
+    l'équipe, complétée par les commentaires des règles « allow » de nginx.
+  - Liste blanche du sommaire = règles « allow » de nginx + liste de l'équipe (vaut aussi pour BigBlueButton).
+
+Bugs corrigés :
+  - Trouvé avant livraison : libellés de plus de 38 caractères tronqués (colonne élargie).
+
+Vérifications effectuées :
+  - Deux adresses actives et une inactive : parts par période, dernière activité, total. Suite complète ; ruff.
+
+Action requise de ma part (ou « aucune ») :
+  Aucune.
+
+## 2.18.20260929.083206 — Refus des règles de sécurité dans le sommaire
+
+Motif de la demande :
+  Les refus des règles de sécurité de nginx (/.env, /.git, .php…) étaient faits avec « access_log off » : invisibles
+  de fail2ban (jail nginx-sensitive-files : 0 correspondance sur 754 lignes). Journal dédié, jail qui le lit, et
+  vérification de l'ignoreip de fail2ban (indépendant des listes « allow » de nginx).
+
+Détail des modifications :
+  - Lecture de blocked-probes.log et de ses rotations : ligne « Refus des règles de sécurité (journal dédié) » par
+    période, URL ajoutées aux URL malveillantes, journal ajouté à la couverture et à l'espace disque ; adresses de ce
+    serveur exclues.
+
+Bugs corrigés :
+  Aucun.
+
+Vérifications effectuées :
+  - Trois refus du jour comptés dans les trois périodes ; suite complète ; ruff.
+
+Action requise de ma part (ou « aucune ») :
+  Aucune.
+
+## 2.17.20260929.080620 — Nom de domaine demandé
+
+Motif de la demande :
+  Ajouter $host au format du journal nginx, pour savoir par quel nom arrivent les requêtes — ce qui aurait tranché
+  le cas des 895 requêtes malveillantes sur /.env qui ont atteint Odoo.
+
+Détail des modifications :
+  - ACCESS_RE : groupe 8, nom de domaine demandé (host="…" en fin de ligne, format combined_host de
+    nginx-odoo-config.zip) ; facultatif — les lignes antérieures, sans nom, restent lues comme avant.
+  - Faits marquants : « Noms demandés (Host) » (les plus fréquents) et, pour les requêtes malveillantes non filtrées,
+    les noms par lesquels elles sont arrivées (bloc server qui les a laissées passer).
+  - Recommandation « requêtes malveillantes » : noms concernés, et le bloc server de ce nom à corriger.
+
+Bugs corrigés :
+  Aucun.
+
+Vérifications effectuées :
+  - Ligne au nouveau format (nom, User-Agent, taille) et ligne ancienne (sans nom) ; recommandation avec les noms
+    concernés. Suite complète ; ruff.
+
+Action requise de ma part (ou « aucune ») :
+  Déployer nginx-odoo-config.zip (format du journal) ; les noms apparaissent pour les requêtes reçues ensuite.
+
+## 2.16.20260928.231233 — Trafic des utilisateurs connectés
+
+Motif de la demande :
+  (1) Indiquer le % des visites et requêtes faites par les adresses IP des utilisateurs qui se sont déjà connectés,
+  par rapport aux autres. (2) Dans l'affichage des connexions, ajouter d'autres statistiques : pages visitées,
+  erreurs, modules Odoo utilisés, journée la plus active, etc.
+
+Détail des modifications :
+  - Sommaire, section TRAFIC : « dont des IP d'utilisateurs connectés » (requêtes) et « dont par des utilisateurs
+    connectés » (pages vues), en nombre et en % par période. Odoo : adresses des connexions réussies des 30 derniers
+    jours, lues dans le journal AVANT le journal nginx (nouvelle fonction ips_connectees), pour ne suivre en détail
+    que ces adresses ; BigBlueButton : adresses des participants (liens de participation).
+  - Nouvelles fonctions accumuler_ip, agreger_ips, lignes_details, parts_connectes : pour chaque compte (sommaire :
+    30 jours ; --list-users : tous les journaux nginx conservés), pages vues, requêtes, erreurs par code, jour le plus
+    actif, modules Odoo utilisés (préfixe du modèle des appels /web/dataset/call_kw|call_button/<modèle>/… ; res.* et
+    ir.* regroupés sous « base »), pages les plus vues.
+  - Note affichée : statistiques par adresse IP — une adresse partagée (bureau, cellulaire) compte pour chaque
+    compte qui l'utilise.
+
+Bugs corrigés :
+  Aucun.
+
+Garde-fous et cas limites traités :
+  - --list-users ne relit les journaux nginx que s'il y a des comptes ou des participants à détailler.
+
+Vérifications effectuées :
+  - Compte à deux adresses : 7 requêtes, 2 pages, une erreur 429, jour le plus actif, modules mail (3) et base (2),
+    visiteur anonyme exclu de la part des connectés ; --list-users : détails d'un compte à partir d'un journal nginx.
+    Suite complète ; ruff.
+
+Action requise de ma part (ou « aucune ») :
+  Aucune.
+
+## 2.15.20260928.224616 — --list-users ; recommandation reformulée
+
+Motif de la demande :
+  Option --list-users : liste par ordre alphabétique de toutes les connexions à Odoo ou BBB. Recommandation « 895
+  sondages … ont atteint Odoo » : utiliser un autre mot que « sondage », et dire quoi faire pour résoudre le problème.
+
+Détail des modifications :
+  - Nouvelle option --list-users (fonction list_users) : tout l'historique disponible — Odoo : connexions réussies
+    du journal systemd complet ; BigBlueButton : liens de participation des journaux nginx et de leurs rotations —,
+    par ordre alphabétique sans égard à la casse ; par compte : nombre de connexions, première, dernière, adresses
+    IP ; IP bannie marquée, avec renvoi vers nginx-log-audit.sh --unban-check.
+  - Recommandation : « requêtes malveillantes » (au lieu de « sondages ») et « scanners web » (au lieu de
+    « sondeurs ») ; date de la dernière requête et nombre d'aujourd'hui ; marche à suivre selon le cas — aucune
+    aujourd'hui : probablement antérieures aux règles actuelles, à confirmer par app-health-check.py (rien à faire
+    s'il réussit) ; encore aujourd'hui : app-health-check.py, comparaison de la configuration déployée à la version
+    testée (run-all.sh, étape 5), inclusion de securite-commune.conf sans location regex placée avant.
+
+Bugs corrigés :
+  Aucun.
+
+Vérifications effectuées :
+  - --list-users sur Odoo (ordre, cumul, IP bannie, date du journal) et BBB (nom décodé) ; recommandation dans les
+    deux cas. Suite complète ; ruff.
+
+Action requise de ma part (ou « aucune ») :
+  Aucune.
+
+## 2.14.20260928.220753 — Plages dans la liste blanche
+
+Motif de la demande :
+  Cellulaire Vidéotron de Martial à adresse dynamique (204.48.77.105, puis 204.48.77.5) : l'autoriser sans modifier
+  la configuration à chaque changement d'adresse.
+
+Détail des modifications :
+  - liste_blanche_nginx lit aussi les plages (allow a.b.c.d/n) ; nouvelle fonction dans_blanche (module ipaddress) :
+    appartenance exacte ou par plage — marque « liste blanche » des IP actives, exclusion de l'équipe dans les
+    appareils des visiteurs.
+
+Bugs corrigés :
+  - Une plage « allow » n'était pas reconnue (égalité exacte seulement).
+
+Vérifications effectuées :
+  - Adresses dans et hors plage, IPv6, valeur invalide ; suite complète ; ruff.
+
+Action requise de ma part (ou « aucune ») :
+  Aucune.
+
+## 2.13.20260928.215040 — Qui s'est connecté ?
+
+Motif de la demande :
+  Ajouter au sommaire une section pour ceux qui se sont connectés à Odoo (ou à BBB), d'après les journaux.
+
+Détail des modifications :
+  - Nouvelles fonctions noter_compte et afficher_comptes. Odoo : connexions réussies lues dans le journal
+    (« Login successful for … login:COMPTE from IP ») ; BigBlueButton : liens de participation
+    /bigbluebutton/api/join?fullName=… du journal nginx (nom saisi et IP du participant). Par compte : connexions
+    aujourd'hui, 7 jours, 30 jours, dernière, adresses IP (3 plus fréquentes) ; 20 comptes au plus.
+  - Adresse IP bannie d'un utilisateur connecté : marquée « (bannie) », avec un avertissement et la commande de levée.
+
+Bugs corrigés :
+  Aucun.
+
+Vérifications effectuées :
+  - Comptes Odoo et participants BBB, IP bannie signalée ; suite complète ; ruff.
+
+Action requise de ma part (ou « aucune ») :
+  Aucune.
+
+## 2.12.20260928.211633 — Isolation des tests ; exemple de configuration dans doc/
+
+Motif de la demande :
+  Exemple de configuration déplacé dans doc/ ; échecs de la suite de tests sur le serveur BigBlueButton.
+
+Détail des modifications :
+  - Ajout de /usr/sbin, /sbin au PATH désactivé pendant la suite de tests (variable NGINX_TOOLS_TESTS) : sans quoi
+    les vraies commandes système (ufw, nginx…) restaient joignables depuis un test.
+  - Message de --status : doc/app-health-check.conf.example.
+
+Bugs corrigés :
+  Un test a modifié le VRAI pare-feu ufw d'un serveur BigBlueButton (règle « deny from 18.226.62.38 ») : ufw, actif
+  sur ce serveur et non simulé par le test, était trouvé dans /usr/sbin. Voir le changelog de run-all.sh 1.23.
+
+Vérifications effectuées :
+  - Suite complète avec sentinelles : aucun appel réel ; ruff sans défaut.
+
+Action requise de ma part (ou « aucune ») :
+  Aucune.
+
+## 2.11.20260928.141712 — Recommandations ; compatibilité Python 3.8
+
+Motif de la demande :
+  Ajouter au sommaire une section « recommandations » : ce qui est le plus important à faire pour améliorer ces
+  chiffres. Plantage du sommaire sur le serveur BigBlueButton de PROD (Ubuntu 20.04, Python 3.8) :
+  « AttributeError: 'str' object has no attribute 'removesuffix' ».
+
+Détail des modifications :
+  - Nouvelle fonction recommandations : section « RECOMMANDATIONS (par ordre d'importance) » en fin de sommaire ;
+    chaque entrée donne la priorité (HAUTE, MOYENNE, FAIBLE), le constat chiffré (7 jours), le pourquoi et le
+    comment. Règles : sondages non filtrés par nginx (HAUTE au-delà de 5 % du trafic transmis ; pour BigBlueButton,
+    fichier /etc/bigbluebutton/nginx/zz-security.nginx proposé, jamais écrasé par ses mises à jour) ; aucune jail
+    fail2ban web face aux sondages ; certificat TLS en échec (via app-health-check.py 2.4) ; disque sous 15 % ;
+    moteur de recherche refusé en 403 ; refus 403 visant surtout des navigateurs ordinaires ; erreurs 5xx ; échecs de
+    connexion ; pas de capteur catch-all ; surveillance automatique non installée ; courriel non configuré ;
+    journaux conservés moins de 3 mois ; HSTS trop court.
+
+Bugs corrigés :
+  - Symptôme : traceback « 'str' object has no attribute 'removesuffix' » dans le bloc RESSOURCES. Diagnostic :
+    str.removesuffix n'existe qu'à partir de Python 3.9 ; Ubuntu 20.04 fournit 3.8. Correction : découpage
+    compatible ; nouveau test qui refuse dans tous les programmes Python les fonctions et syntaxes postérieures à 3.8.
+
+Vérifications effectuées :
+  - Recommandations sur les chiffres réels du sommaire BBB de PROD : ordre HAUTE → FAIBLE, sondages (24 %), fichier
+    zz-security.nginx, jails absentes, Googlebot, navigateurs, capteur, rétention. Suite complète ; ruff.
+
+Action requise de ma part (ou « aucune ») :
+  Aucune.
+
+## 2.10.20260928.103708 — Espace des journaux ; nos programmes exclus ; workers d'Odoo ; --unban-check
+
+Motif de la demande :
+  (1) Conserver plusieurs mois de journaux : afficher l'espace disque que cela prend. (2) Exclure des visites et des
+  erreurs le trafic de nos programmes (127.0.0.1, etc.). (4) Faut-il réviser les limites des workers d'Odoo, qui
+  consomme peu de RAM ? (5) Où est passée l'option --unban-check ?
+
+Détail des modifications :
+  - Nouvelle section « ESPACE DISQUE DES JOURNAUX » : taille par journal (site, capteur, fail2ban, journal systemd de
+    l'application — namespace s'il existe), rythme quotidien, total, projection à 3, 6 et 12 mois à rythme constant,
+    espace libre de la partition de /var/log ; avertissement si 12 mois dépasseraient 80 % de l'espace libre ; renvoi
+    vers nginx-hardening.sh --log-retention-months. Source : Source.compter (taille de chaque fichier lu).
+  - Requêtes de NOS programmes (boucle locale, adresses de ce serveur, User-Agent app-health-check) exclues de TOUS
+    les chiffres — visites, rejets, erreurs 5xx, sondages, capteur — et comptées sur une ligne « Requêtes de nos
+    programmes (exclues ci-dessus) ».
+  - Analyse des workers d'Odoo (bloc RESSOURCES) : configuration lue dans le fichier donné par -c/--config
+    (ExecStart du service) ou aux emplacements connus d'ERPLibre, options de la ligne de commande prioritaires ;
+    mémoire mesurée par processus ; pire cas (limit_memory_hard × workers et crons) comparé à la RAM ; signes de
+    saturation sur 30 jours lus dans le journal (recyclages pour mémoire, arrêts pour temps processeur et temps réel)
+    et erreurs 5xx ; avis : mode multithread, risque OOM, requêtes trop longues, recyclages fréquents, workers au-delà
+    de 2 × cœurs + 1, ou « aucun signe de saturation ».
+  - Nouvelle option --unban-check : lance nginx-log-audit.sh --unban-check (option de chk-nginx-logs.sh avant le
+    renommage ; elle n'a jamais appartenu à surveillance-odoo.py).
+
+Bugs corrigés :
+  - Tailles de moins de 1 Ko affichées avec toutes leurs décimales (« 37.1219512195122 o/jour »).
+
+Vérifications effectuées :
+  - Requêtes de 127.0.0.1 (traversée, curl, 502), d'une IP marquée app-health-check et du capteur : aucun indicateur
+    ne bouge, « nos programmes » +5. Espace des journaux et projection affichés. Workers : ligne de commande
+    prioritaire, pire cas 24 Go pour 16 Go (avis OOM), arrêts pour temps réel, mode multithread (suggestion),
+    configuration saine. --unban-check transmis avec --app. Suite complète ; ruff.
+
+Action requise de ma part (ou « aucune ») :
+  Aucune. Lire le bloc « Odoo (workers) » du sommaire en PROD pour l'avis sur les workers.
+
+## 2.9.20260928.094028 — Appareils des visiteurs ; 404 de nginx ; version affichée
+
+Motif de la demande :
+  Savoir si le site est vu davantage sur cellulaire, tablette ou ordinateur (peu de cellulaires dans les statistiques
+  consultées : anormal ?) ; afficher la version du programme à l'exécution ; sommaires réels de DEV et de PROD.
+
+Détail des modifications :
+  - Nouvelle section « APPAREILS DES VISITEURS (humains probables) » : ordinateur, cellulaire, tablette, en nombre
+    et en % par période. Visiteur = adresse IP + navigateur (et non l'IP seule : sur réseau cellulaire, beaucoup
+    d'abonnés partagent une même IP) ; « humain probable » s'il a vu une page ET chargé les CSS/JS (les robots et
+    scrapers, souvent déguisés en navigateur d'ordinateur, lisent le HTML sans les charger) ; robots, outils,
+    User-Agent vide, équipe (liste blanche nginx) et ce serveur exclus. Nouvelle fonction famille_appareil ;
+    limite connue affichée : un iPad récent se présente comme un Mac (compté comme ordinateur).
+  - Entonnoir : les 404 produits par nginx LUI-MÊME aux URL malveillantes (règles « return 404 » : .env, .php, ../…)
+    comptent comme rejets de nginx, et non plus comme requêtes transmises à l'application — distingués par la taille
+    de la réponse (page 404 de nginx : quelques centaines d'octets ; celle d'Odoo : des dizaines de Ko). Libellé
+    « Rejetées par nginx (codes de ses règles*) » avec une note détaillant les codes.
+  - Ligne du tableau « Refus 403 (robots, outils, accès restreint) » (au lieu de « Robots et outils bloqués »).
+  - Version affichée : première ligne d'un passage (« web-monitor.py vX — serveur — date ») et en-tête du sommaire.
+
+Bugs corrigés :
+  - « dont URL malveillantes non filtrées par nginx » gonflé : /.env, /.git/config… comptés comme parvenus à Odoo
+    alors que nginx y répondait lui-même par un 404 (volontaire, pour ne rien révéler).
+
+Garde-fous et cas limites traités :
+  - Liste blanche nginx lue une seule fois par sommaire (réutilisée pour les marques d'IP).
+
+Vérifications effectuées :
+  - Jeu réaliste : iPhone, Android, iPad, ordinateur humains (CSS/JS chargés) ; scraper « ordinateur » sans CSS/JS ;
+    Googlebot ; curl ; ordinateur de l'équipe → +1 ordinateur, +2 cellulaires, +1 tablette. /.env en 404 de nginx
+    (162 octets) : rejeté ; /.env en 404 d'Odoo (48 Ko) : seul compté « non filtré ». Suite complète ; ruff.
+
+Action requise de ma part (ou « aucune ») :
+  Aucune.
+
+## 2.8.20260928.091309 — Échec de la synchronisation CrowdSec signalé
+
+Motif de la demande :
+  Échecs répétés de sync-crowdsec-blocklist.sh découverts par hasard dans son journal : « faire ressortir ce
+  problème avant ».
+
+Détail des modifications :
+  - Nouvelle alerte « sync-crowdsec-blocklist.sh : synchronisation en échec » (clé crowdsec:echec), à partir de la
+    ligne « ÉCHEC EN COURS » de sync-crowdsec-blocklist.sh --status (nombre de tentatives, depuis quand, message).
+  - PATH complété (lancement par cron).
+  - Tests du serveur reconnus au marqueur « app-health-check/ » n'importe où dans le User-Agent (app-health-check.py
+    2.3 l'ajoute à la fin de son User-Agent de navigateur).
+
+Bugs corrigés :
+  Aucun.
+
+Vérifications effectuées :
+  - Alerte vérifiée sur une sortie --status en échec ; suite complète ; ruff sans défaut.
+
+Action requise de ma part (ou « aucune ») :
+  Aucune.
+
+## 2.7.20260928.083340 — Raisons des récidivistes ; URL malveillantes non filtrées
+
+Motif de la demande :
+  « récidiviste : bannie plusieurs jours par fail2ban » ne rassurait pas ; question sur la ligne « dont suspectes
+  (sondages parvenus à l'application) ».
+
+Détail des modifications :
+  - IP recommandées : la raison d'un récidiviste reprend les jours et la jail (« récidiviste : 2 jours (23/Sep,
+    28/Sep), jail nginx-catchall — bannissements temporaires répétés »). Le choix [c] affiche désormais les preuves
+    complètes de nginx-log-audit.sh 2.5.
+  - Entonnoir : « dont URL malveillantes non filtrées par nginx » (au lieu de « dont suspectes ») : requêtes dont
+    l'URL est malveillante par sa forme, que nginx a laissé passer jusqu'à l'application (qui répond le plus souvent
+    404).
+  - Faits marquants : nouvelle ligne « Non filtrées par nginx » avec ces URL, pour repérer ce que nginx pourrait
+    bloquer.
+
+Bugs corrigés :
+  Aucun.
+
+Vérifications effectuées :
+  - Raison détaillée vérifiée sur la ligne réelle du rapport ; libellé et ligne des faits vérifiés ; suite complète.
+
+Action requise de ma part (ou « aucune ») :
+  Aucune.
+
+## 2.6.20260927.224845 — Sommaire : classification corrigée sur les cas réels de PROD et DEV
+
+Motif de la demande :
+  Sommaires réels de DEV et de PROD. En PROD, « URL malveillantes » listait des pages légitimes
+  (/event/rencontre-linux-octobre-2025-24/track — présente aussi dans les pages valides —, /robots.txt, /sitemap.xml,
+  /). En DEV : « Robots bloqués » montrait des User-Agents de navigateurs tronqués et « sanity-check-odoo/1.0 » ;
+  mémoire de postgresql « n/d » ; colonne des lectures/écritures « n/d » partout.
+
+Détail des modifications :
+  - URL malveillantes : désormais par leur FORME, quel que soit le code de réponse — fichiers sensibles, remontée de
+    répertoires (../, %2e%2e), scripts PHP et CGI (Odoo n'en sert aucun), injection SQL ou de script, tentatives
+    d'utiliser le serveur comme proxy (URL absolue, « hôte:port » d'une requête CONNECT, ex. www.instagram.com:443) ;
+    capteur catch-all inclus. « dont suspectes » (entonnoir) et « pages valides » utilisent la même définition.
+  - « Clients bloqués (403) » (au lieu de « Robots bloqués ») : famille lisible — robot par son nom, outil (curl,
+    python-requests, poc-suite…), « navigateur (Windows/macOS/Android/iOS/Linux) », « (User-Agent vide) ».
+  - Tests du serveur exclus des URL malveillantes et des clients bloqués (User-Agents app-health-check/ et
+    sanity-check-odoo/, adresses de ce serveur) : ce sont des requêtes volontairement bloquées.
+  - IP les plus actives marquées « liste blanche » (règles allow de nginx), « ce serveur » ou « bannie ».
+  - Ressources : services du type postgresql@*.service développés en instances réelles (sous Debian,
+    postgresql.service est une unité vide, d'où « n/d ») — profils apps/odoo.conf et apps/bbb.conf mis à jour ;
+    colonne des lectures/écritures masquée quand elle est indisponible partout, avec une note (comptabilité des E/S
+    désactivée, fréquent en LXC).
+
+Bugs corrigés :
+  - Un 403 ou un 444 comptait l'URL comme malveillante : or ces codes refusent un CLIENT (robot bloqué par le filtre,
+    domaine inconnu au capteur), souvent sur une page légitime.
+  - User-Agents de navigateurs tronqués et présentés comme des robots (accès restreint de DEV).
+  - Mémoire de PostgreSQL non mesurée (mauvaise unité).
+
+Vérifications effectuées :
+  - Classification de 16 URL (dont la page d'événement, /, robots.txt, les sondages .env, le proxy instagram, PHP,
+    CGI, UNION SELECT, ../ et le piège /shop/product/php-tshirt-12, légitime) et de 9 User-Agents.
+  - Nouveau test reprenant les cas réels (PetalBot sur la page d'événement, proxy, tests du serveur, IP de l'équipe)
+    et test de la colonne E/S masquée ; suite complète ; ruff sans défaut.
+
+Action requise de ma part (ou « aucune ») :
+  Déployer aussi le dossier apps/ (profils mis à jour pour postgresql@*).
+
+## 2.5.20260927.220922 — Bannir les IP recommandées sans étape manuelle
+
+Motif de la demande :
+  Quand web-monitor.py indique des IP à bannir, les bannir à la fin du programme : réduire les étapes manuelles pour
+  simplifier la vérification faite 2 ou 3 fois par jour sur chaque serveur.
+
+Détail des modifications :
+  - Fin d'un passage lancé à la main (terminal, root) : liste des IP recommandées avec leur raison (score et signes
+    d'hostilité, ou « récidiviste »), puis UNE question : [o] toutes (nginx-log-audit.sh --ban IP --yes, résultat
+    par IP), [c] une par une (nginx-log-audit.sh --ban IP : enquête détaillée et confirmation pour chacune), [N]
+    aucune (Entrée, Ctrl-C ou Ctrl-D). Nouvelle option --no-prompt pour ne pas poser la question.
+  - Nouvelle option --ban-recommended : les IP recommandées par le DERNIER passage (ex. celui du timer, sans terminal)
+    sont mémorisées (recommended-bans.json) ; même question, ou --yes pour bannir sans question ; avertissement si la
+    liste a plus de 24 h ; liste vidée une fois traitée avec --yes. Sans terminal ni --yes : refus explicite.
+  - Courriel et journal système : « Pour bannir les N IP recommandée(s) en une commande : web-monitor.py
+    --ban-recommended ».
+
+Bugs corrigés :
+  - Section [10] : dès qu'UNE enquête concluait « bannissement recommandé », TOUTES les IP de la section étaient
+    retenues (clés d'alerte), y compris les robots « à surveiller » ou « probablement inoffensifs ». Imprécis pour une
+    alerte, ce défaut serait devenu dangereux avec le bannissement en un clic. Section désormais parcourue enquête par
+    enquête : seule une IP dont la PROPRE enquête recommande le bannissement est retenue.
+
+Garde-fous et cas limites traités :
+  - Seules les IP « bannissement recommandé » (au moins un signe d'hostilité) et les récidivistes sont proposées ; les
+    IP protégées restent refusées par nginx-log-audit.sh --ban.
+  - Jamais de question sans terminal (timer) ; root requis.
+
+Vérifications effectuées :
+  - Section [10] à deux enquêtes (une recommandée, un robot inoffensif) : seule la première est retenue et proposée.
+  - Vrai terminal : « o » bannit (--ban --yes), Entrée n'en bannit aucune, « c » passe par --ban interactif.
+  - --ban-recommended après un passage sans terminal : refus sans --yes, bannissement avec --yes, liste vidée ensuite.
+  - Commande présente dans le courriel ; nouveaux tests permanents ; ruff sans défaut ; suite complète.
+
+Action requise de ma part (ou « aucune ») :
+  Aucune. Vérification quotidienne : web-monitor.py, lire le sommaire, répondre « o ».
+
+## 2.4.20260927.215447 — --status : un vrai bilan de la surveillance
+
+Motif de la demande :
+  « web-monitor.py --status » ne donnait pas grand-chose : « Timer web-monitor.timer : inactive » suivi de la sortie
+  brute de systemctl (« 0 timers listed. Pass --all… »), sans dire que le timer n'était pas installé.
+
+Détail des modifications :
+  - En-tête : version, serveur, application (détectée ou non, sans échec).
+  - TIMER : « NON INSTALLÉ : la surveillance ne tourne pas automatiquement » avec la commande d'installation ; ou
+    état (actif, activé au démarrage), intervalle lu dans le fichier du timer, prochain passage, dernier lancement,
+    dernier résultat (code 0 sain, 1 alerte(s), 2 erreur de l'outil) ; commande de réactivation si nécessaire ;
+    ancien timer surveillance-odoo signalé.
+  - DERNIER PASSAGE : texte, âge (« il y a 5 h »), avertissement « en retard » au-delà de deux intervalles ; mention
+    quand le message a été écrit par une version antérieure au renommage (anciens noms).
+  - DERNIÈRE ALERTE ENVOYÉE : date, âge, un élément par ligne, date à partir de laquelle un nouveau courriel est
+    possible pour la même situation.
+  - COURRIEL : configuré (destinataire, serveur) ou NON configuré, avec le fichier et les clés à renseigner.
+  - RAPPORTS : nombre, dernier rapport, commande du journal système.
+
+Bugs corrigés :
+  - Timer non installé présenté comme un simple « inactive » ; sortie brute de systemctl recopiée.
+
+Vérifications effectuées :
+  - Situation du serveur DEV reproduite (timer absent, dernier passage de l'ancienne version, dernière alerte, SMTP
+    non configuré) ; timer actif toutes les 2 h avec passage vieux de 6 h (« en retard ») ; courriel configuré.
+    Nouveaux tests permanents ; ruff sans défaut.
+
+Action requise de ma part (ou « aucune ») :
+  Installer le timer, qui n'est pas en place sur le serveur DEV : web-monitor.py --install-timer
+
+## 2.3.20260927.202645 — Changelog dans doc/ ; --changelog sans application détectable
+
+Motif de la demande :
+  Ne plus mettre la version dans le nom des archives .zip ; ranger les fichiers changelog dans un sous-répertoire doc/.
+
+Détail des modifications :
+  - --changelog : changelog cherché dans le sous-répertoire doc/ à côté du programme, avec repli sur l'ancien
+    emplacement (à côté du programme) tant que l'installation n'a pas été réorganisée.
+  - Livraison : changelogs dans doc/ ; archive nginx-tools.zip, sans version dans le nom (la version reste dans
+    --version et dans le changelog).
+
+Bugs corrigés :
+  - --changelog échouait sur une machine sans application détectable (ex. un poste de travail) : « aucune
+    application reconnue ». Le profil d'application était chargé avant --changelog (versions 2.0 à 2.2). Désormais
+    --changelog, --status, --install-timer et --uninstall-timer fonctionnent sans application ; le profil n'est
+    chargé que pour --summary et le passage de surveillance.
+
+Vérifications effectuées :
+  - Nouveaux tests : --version et --changelog des 7 programmes sur une machine sans application détectable ; repli
+    sur l'ancien emplacement du changelog (un programme Bash, un programme Python).
+  - Suite complète sous mawk et gawk ; ShellCheck 0 ; ruff sans défaut.
+
+Action requise de ma part (ou « aucune ») :
+  Après déploiement, supprimer les anciens changelogs à côté des programmes : rm -f /root/scripts/*.changelog.txt
+
+## 2.2.20260927.200712 — Noms de fichiers en anglais
+
+Motif de la demande :
+  Tous les noms doivent être en anglais : l'archive « outils-nginx » devient « nginx-tools », et, au-delà des noms
+  de programmes et d'options, les noms des fichiers créés sur les serveurs (états, sauvegardes). Les messages et la
+  documentation restent en français (convention).
+
+Détail des modifications :
+  - Anti-rafale : derniere-alerte.json → last-alert.json ; dernier passage : dernier-passage → last-run (oublié par
+    l'inventaire, trouvé par le nouveau test).
+  - --summary lit bans.tsv (nginx-log-audit.sh) et blocked-ips.tsv (sync-crowdsec-blocklist.sh), et les anciens noms
+    tant que ces outils n'ont pas encore été relancés (et donc migrés).
+
+Bugs corrigés :
+  Aucun.
+
+Garde-fous et cas limites traités :
+  - Migration automatique au premier lancement : chaque ancien fichier est renommé seulement si le nouveau n'existe
+    pas encore (jamais d'écrasement), avec le message « Migration … : ancien → nouveau ».
+
+Vérifications effectuées :
+  - Nouveaux tests de migration (contenu conservé) ; nouveau test de conventions qui refuse tout nom de fichier en
+    français, livré ou créé par un programme (il a trouvé un fichier oublié par l'inventaire : dernier-passage) ;
+    vérification par mutation (ancien nom réintroduit : test en échec).
+  - Suite complète : 92 tests sous mawk et gawk ; ShellCheck 0 ; ruff sans défaut.
+
+Action requise de ma part (ou « aucune ») :
+  Aucune : les fichiers existants sont renommés automatiquement.
+
+## 2.1.20260927.192332 — Entonnoir du trafic, URL malveillantes et valides, rapport dans less
+
+Motif de la demande :
+  Phase 2 de la refonte, demandée : [4] savoir si les requêtes comptées atteignent l'application ou sont arrêtées
+  avant, avec les pourcentages de requêtes valides et non valides, et les URL malveillantes séparées des valides ;
+  [5] afficher le raisonnement avant un bannissement manuel ; [6] proposer d'ouvrir le rapport complet dans less ;
+  [7] afficher les informations malveillantes dans une autre couleur (magenta) ; [8] une sortie aérée.
+
+Détail des modifications :
+  - [4] Réponse à la question : « Requêtes sur le site » compte ce qui ATTEINT nginx (après le pare-feu) mais AVANT
+    l'application — y compris ce que nginx refuse lui-même. Nouveau bloc en tête de --summary, « ENTONNOIR » :
+    arrivées à nginx (site + capteur catch-all), rejetées par nginx (codes produits par nginx lui-même : 400, 403,
+    405, 413, 429, 444 — plus tout le capteur) en % des arrivées, transmises à l'application en % des arrivées, dont
+    suspectes (sondages de fichiers sensibles parvenus à l'application) en % des transmises (en magenta si non nul).
+  - [4] Pare-feu : paquets bloqués AVANT nginx par origine (CrowdSec, fail2ban, bannissements manuels), lus dans les
+    compteurs d'iptables — sur une ligne à part : compteurs CUMULÉS depuis le chargement des règles, en paquets et non
+    en requêtes, donc non répartis par période (dit explicitement). Les règles de ports de nginx-hardening.sh ne sont
+    pas comptées comme bannissements. Root requis (sinon indiqué).
+  - [4] Faits marquants : « URL malveillantes » (fichiers sensibles, refus 403/444 — en magenta) et « Pages valides
+    les + vues » (GET réussis, hors images, CSS, JS et fichiers sensibles), au lieu d'une seule liste.
+  - [6] Fin d'un passage lancé dans un terminal : « Appuyez sur Entrée pour ouvrir le rapport complet dans less (q
+    pour quitter), ou Ctrl-C pour terminer ». Jamais dans le timer (pas de terminal). Nouvelle option --no-pager.
+  - [7] Alertes du bloc RESSOURCES et éléments malveillants en magenta (terminal seulement).
+  - Colonnes élargies (pourcentages) ; « Journal d'Odoo » (élision devant une voyelle).
+
+Bugs corrigés :
+  Aucun.
+
+Vérifications effectuées :
+  - Entonnoir calculé à la main sur le jeu de données de test (aujourd'hui : 12 arrivées, 4 rejetées = 33 %, 8
+    transmises = 66 %, 0 suspecte car le /.env était refusé ; 7 jours : le /.git/config en 404 est parvenu à Odoo,
+    1 suspecte) : valeurs exactes. Pare-feu : 150 CrowdSec + 10 fail2ban + 7 manuels = 167, règle de port exclue.
+    less : ouvert après Entrée dans un vrai terminal ; jamais avec --no-pager.
+  - ruff sans défaut ; suite complète sous mawk et gawk.
+
+Action requise de ma part (ou « aucune ») :
+  Aucune.
+
+## 2.0.20260927.145909 — Renommé (ancien nom : surveillance-odoo.py) ; multi-application (Odoo, BigBlueButton)
+
+Motif de la demande :
+  (1) Noms des programmes en anglais ; (2) utiliser les mêmes outils avec le nginx de BigBlueButton (et plus tard
+  d'autres applications) : retirer « odoo » des noms, détecter automatiquement l'application installée, option
+  --app=NOM pour forcer, différences isolées dans des fichiers de configuration à part ; (3) renommer
+  automatiquement les anciens fichiers de configuration et d'état.
+
+Version MAJEURE (2.0) : rupture de compatibilité — le nom de la commande change (convention : majeure en cas de
+rupture). Historique complet de l'ancien nom : ce même fichier, entrées précédentes.
+
+Détail des modifications — commun aux cinq programmes renommés :
+  - Profils d'application (nouveau dossier apps/ à côté des programmes) : apps/odoo.conf, apps/bbb.conf (établi sur une
+    vraie installation BigBlueButton 3.0.37), et les bibliothèques de détection apps/_profile.sh et apps/_profile.py.
+    Détection automatique (unités systemd ou fichiers caractéristiques) ; --app=NOM (ou --app NOM, ou variable
+    APP_PROFILE) pour forcer ; aucune application, plusieurs, nom inconnu ou profil invalide : message clair et arrêt.
+    Sans dossier apps/ : comportement Odoo par défaut (compatibilité).
+  - Migration automatique des anciens chemins au premier lancement : renommage seulement si le nouveau n'existe pas
+    encore (jamais d'écrasement), message « Migration (renommage des programmes, version 2.0) : ancien → nouveau ».
+  - Variables d'environnement renommées (tests) : NGINX_LOG_AUDIT_STATE_DIR, APP_LOG_CHECK_STATE_DIR, WEB_MONITOR_*.
+
+Détail des modifications — propre à ce programme :
+  - --app=NOM, et application transmise aux trois outils lancés (ils analysent tous la même application).
+  - --summary selon le profil : journaux du site (BBB : bigbluebutton.access.log), capteur seulement s'il existe,
+    journal de l'application (systemd pour Odoo ; fichiers pour BBB — erreurs par jour), groupe au nom de
+    l'application, ligne « Échecs de connexion » seulement quand une source existe.
+  - NOUVEAU bloc RESSOURCES : type de virtualisation (lxc, kvm…) ; mémoire DISPONIBLE sur le total (et échange) ;
+    charge 1/5/15 min rapportée au nombre de cœurs ; disque libre par volume (/, /var/log, /var/lib/postgresql,
+    /opt) ; pour nginx et chaque service du profil présent : processeur ACTUEL (deux mesures à une seconde), mémoire,
+    limite (MemoryMax) et pourcentage, lectures/écritures ; « n/d » si la comptabilité est désactivée. Alertes :
+    mémoire < 10 %, disque < 15 %, charge sur 5 min ≥ nombre de cœurs, service à ≥ 90 % de sa limite, service inactif.
+  - Alertes du journal en fichiers reconnues (« N erreur(s) à examiner »).
+  - Migration : /var/lib/surveillance-odoo → /var/lib/web-monitor (et ses sous-répertoires d'outils),
+    /var/log/surveillance-odoo → /var/log/web-monitor, timer surveillance-odoo retiré et remplacé par web-monitor avec
+    le MÊME intervalle et le nouveau chemin du programme (root).
+
+Garde-fous et cas limites traités :
+  - Dans un LXC de Proxmox, mémoire et charge reflètent les limites du conteneur (lxcfs).
+Vérifications effectuées :
+  - Suite complète (81 tests) sous mawk et gawk : renommage seul d'abord (67 tests inchangés, tous réussis), puis
+    nouveaux tests test_multi_app (détection identique bash/Python, --app, profil vide refusé, migrations sans
+    écrasement, chaque programme en mode BBB, ressources) ; ShellCheck 0 ; ruff sans défaut.
+
+Action requise de ma part (ou « aucune ») :
+  Déployer le programme sous son nouveau nom ET le dossier apps/ à côté ; supprimer l'ancien fichier. Les anciens
+  fichiers de configuration et d'état sont renommés automatiquement au premier lancement.
+
+## 1.4.20260927.101228 — --summary : faits marquants, couverture exacte des journaux, conserver 3 mois
+
+Motif de la demande :
+  (1) Toutes les options des programmes doivent être en anglais (--bilan). (2) Indiquer de quels journaux exactement
+  proviennent les dates (« Période partielle : les journaux disponibles ne remontent qu'au… »), et comment conserver
+  3 mois. (3) Ajouter plus de détails au sommaire.
+
+Détail des modifications :
+  - Option renommée --bilan → --summary (les messages restent en français). Un test de conventions vérifie désormais
+    que TOUS les noms d'options de tous les programmes sont en anglais.
+  - Nouveau bloc « FAITS MARQUANTS (30 jours) » : jour le plus chargé, IP les plus actives (mention « bannie » pour
+    les bannissements manuels en place), URL les plus sondées, robots et outils bloqués les plus fréquents (nom du
+    robot extrait du User-Agent), IP bannies par fail2ban par jail.
+  - Nouveau bloc « COUVERTURE DES JOURNAUX » : pour chaque source (journaux du site, capteur catch-all, fail2ban.log,
+    journal d'Odoo), date la plus ancienne disponible, nombre de fichiers lus, et politique de rotation actuelle lue
+    dans /etc/logrotate.d/ (fréquence, nombre conservé, jours couverts). La note de période partielle précise
+    qu'elle porte sur les journaux du site.
+  - Nouveau bloc « CONSERVER 3 MOIS » (seulement si la rotation actuelle couvre moins de 92 jours) : modification
+    EXACTE à faire (ex. « dans /etc/logrotate.d/nginx, remplacer « rotate 14 » par « rotate 92 » »), calculée selon la
+    fréquence de rotation ; pour le journal d'Odoo, MaxRetentionSec=3month et SystemMaxUse — dans
+    /etc/systemd/journald@<namespace>.conf si le journal est isolé (LogNamespace), sinon dans journald.conf.d/.
+
+Bugs corrigés :
+  Aucun — évolution demandée.
+
+Garde-fous et cas limites traités :
+  - Égalités dans les classements : ordre stable (valeur, puis nom).
+  - Rotation déjà suffisante : aucun conseil affiché.
+
+Vérifications effectuées :
+  - Jeu de données calculé à la main : faits marquants exacts (jour, IP à égalité, URL, robots, jails), couverture
+    exacte par source (dates, nombre de fichiers, rotation quotidienne 14 / hebdomadaire 4), conseils « rotate 92 »
+    (quotidien) et « rotate 14 » (hebdomadaire) ; aucun conseil avec rotate 92 / rotate 14.
+  - ruff sans défaut ; suite complète sous mawk et gawk.
+
+Action requise de ma part (ou « aucune ») :
+  Utiliser « surveillance-odoo.py --summary » (--bilan n'existe plus) ; appliquer les conseils « CONSERVER 3 MOIS »
+  affichés.
+
+## 1.3.20260927.094449 — Nouvelle option --bilan : sommaire chiffré par jour, semaine et mois
+
+Motif de la demande :
+  Demande d'un statut complet mais SOMMAIRE (par jour, semaine, mois) du nombre d'attaques, d'erreurs, de visites,
+  d'IP bloquées… sur Odoo ; une option plus détaillée pourra s'ajouter ensuite.
+
+Détail des modifications :
+  - Nouvelle option --bilan : un tableau, trois colonnes (aujourd'hui depuis minuit, 7 jours, 30 jours — aujourd'hui
+    compris), trois groupes :
+      * TRAFIC : requêtes sur le site, visiteurs distincts (adresses IP), pages vues (GET réussis hors images, CSS,
+        JS, websocket — les POST ne sont pas des pages vues) ;
+      * BLOCAGES ET ATTAQUES : robots et outils bloqués (403), tentatives sur le capteur catch-all (444), requêtes
+        freinées (429), sondages de fichiers sensibles, IP bannies par fail2ban (distinctes, « Unban » ignoré),
+        bannissements manuels (journal de chk-nginx-logs.sh 1.34, « leve » ignoré), IP de la liste CrowdSec actives
+        (dernière activité dans la période) ;
+      * ODOO : échecs de connexion et erreurs Odoo (ERROR/CRITICAL) dans le journal systemd d'Odoo, erreurs serveur
+        5xx dans nginx.
+  - Sources : tous les journaux « *-access.log » du site et le capteur catch-all (rotations et .gz compris),
+    /var/log/fail2ban.log et ses rotations, journal d'Odoo (service et namespace détectés), états de
+    sync-crowdsec-blocklist.sh et de chk-nginx-logs.sh.
+  - Couverture honnête : colonne marquée « * » et note « Période partielle : les journaux disponibles ne remontent
+    qu'au … » quand la rotation ne couvre pas toute la période. Fichiers illisibles signalés (relancer en root).
+  - Rapidité : chaque date convertie une seule fois (cache) ; journal d'Odoo filtré à la source (journalctl --grep),
+    avec repli sur un filtrage interne si journalctl est compilé sans cette fonction.
+  - Pistes de détail affichées en fin de bilan (chk-nginx-logs.sh --stats, --fail2ban, chk-odoo-logs.py).
+
+Bugs corrigés :
+  Aucun — nouvelle fonctionnalité.
+
+Garde-fous et cas limites traités :
+  - Le journal nginx par défaut (access.log, autres vhosts) est exclu : seuls les « *-access.log » du site comptent.
+  - Visiteurs, IP fail2ban, bannissements et IP CrowdSec comptés en DISTINCTS par période.
+
+Vérifications effectuées :
+  - Jeu de données calculé à la main (aujourd'hui, 3 jours en rotation .1, 20 et 40 jours en .gz, catch-all,
+    fail2ban.log, journal d'Odoo, états) : les 39 valeurs exactes ; ligne de 40 jours exclue ; sans elle, colonne
+    « 30 jours* » et date de couverture affichées. Tests permanents ajoutés.
+  - 500 000 lignes sur 30 jours : 1,5 seconde.
+  - ruff sans défaut ; suite complète sous mawk et gawk.
+
+Action requise de ma part (ou « aucune ») :
+  Aucune. Essayer : surveillance-odoo.py --bilan (en root, pour lire tous les journaux).
+
+## 1.2.20260926.211237 — Sommaire en fin de passage, détail dans le journal système
+
+Motif de la demande :
+  (1) « surveillance-odoo.py --run » n'affichait que « Résultat : 4 alerte(s) » : afficher un sommaire des points
+  importants. (2) « journalctl -t surveillance-odoo » ne montrait qu'une ligne (le sujet du courriel), inutile
+  quand SMTP n'est pas configuré.
+
+Détail des modifications :
+  - Fin de passage : « Points à examiner (N) : », chaque alerte avec ses 6 premières lignes (IP, vérifications en
+    échec, traces…), puis le chemin du rapport complet. Affiché à chaque passage qui a des alertes, même déjà
+    signalées.
+  - Journal système (nouvelle fonction journal, une entrée par ligne) : le CONTENU COMPLET de l'alerte (sujet, titres,
+    lignes d'extrait) chaque fois qu'elle est émise, et une ligne d'état à CHAQUE passage (« rien à signaler »,
+    « alertes déjà signalées… ») — historique des passages visible avec journalctl.
+  - --changelog : SIGPIPE remis à son comportement par défaut (signal.SIG_DFL, comme cat ou grep). Le processus
+    s'arrête en silence si le lecteur se ferme plus tôt (« | head »). Python ignore sinon SIGPIPE, et un
+    BrokenPipeError peut survenir jusqu'à la vidange finale des tampons, hors de portée de tout try/except.
+
+Bugs corrigés :
+  - Journal système quasi vide : seul canal d'alerte sans SMTP, il ne contenait que le nombre d'alertes.
+
+Garde-fous et cas limites traités :
+  - Le détail d'une alerte déjà signalée n'est pas répété dans le journal (anti-rafale, comme le courriel) ; seule la
+    ligne d'état l'est. Journal limité à 120 lignes par envoi (rapport complet dans /var/log/surveillance-odoo/).
+
+Vérifications effectuées :
+  - Nouveaux tests : sommaire (titres et lignes clés avant « Rapport complet ») ; journal (détail présent, non répété
+    au passage suivant, ligne d'état « déjà signalées »). Suite complète sous mawk et gawk ; ruff sans défaut.
+
+Action requise de ma part (ou « aucune ») :
+  Aucune. Détail des alertes : journalctl -t surveillance-odoo
+
+## 1.1.20260926.165635 — Variable inutilisée retirée (trouvée par ruff)
+
+Motif de la demande :
+  Exécutables statiques de gawk (5.3.2) et ruff (0.16.9) fournis pour compléter la suite de tests. ruff, lancé pour
+  la première fois par tests/run-all.sh, a trouvé 7 défauts réels (2 dans les programmes livrés, 5 dans les tests).
+
+Détail des modifications :
+  - Variable « new_titles » retirée : reste de la première version de l'anti-rafale (comparaison par titres),
+    remplacée avant livraison par la comparaison élément par élément (new_keys). Aucun changement de comportement.
+
+Bugs corrigés :
+  Aucun (code mort).
+
+Vérifications effectuées :
+  - tests/run-all.sh : ruff sans défaut ; test_surveillance (anti-rafale élément par élément) sous mawk et gawk.
+
+Action requise de ma part (ou « aucune ») :
+  Aucune.
+
+## 1.0.20260926.075538 — Version initiale : surveillance automatique avec alerte seulement si une action est nécessaire
+
+Motif de la demande :
+  Recommandation n° 3 : aucun rapport ne tournait tout seul, et les notifications de sanity-check-odoo.py n'étaient
+  pas configurées — la surveillance dépendait entièrement de lancements manuels.
+
+Détail des modifications :
+  - Orchestrateur qui lance, sans interaction, les outils présents dans son répertoire : sanity-check-odoo.py
+    --target local, chk-odoo-logs.py (service et namespace de journal détectés), chk-nginx-logs.sh --fail2ban
+    --no-prompt, sync-crowdsec-blocklist.sh --status. Un outil absent est simplement ignoré (et signalé).
+  - Alerte seulement sur ce qui demande une action : [FAIL] de sanity-check ; entrées « à examiner » du journal
+    d'Odoo (le bruit connu n'alerte jamais) ; erreurs 5xx, upstream Odoo en panne, bannissement recommandé ou
+    récidiviste dans chk-nginx-logs ; liste CrowdSec périmée. Jamais sur les attaques déjà bloquées (405, 444,
+    traversée) ni sur les « access forbidden » du journal d'erreurs, qui comprennent les propres tests du serveur.
+  - Un seul courriel groupé, via la configuration SMTP de sanity-check-odoo.py (même fichier, même fonction
+    d'envoi) ; sans SMTP : alerte dans le journal système (journalctl -t surveillance-odoo). Rapport complet toujours
+    écrit dans /var/log/surveillance-odoo/ (permissions 640, 30 jours conservés).
+  - Anti-rafale élément par élément : chaque alerte est identifiée par des clés stables (vérification en échec, IP
+    proposée, type de trace Python — sans compteurs ni heures). Nouveau courriel seulement si une clé NOUVELLE apparaît
+    (le courriel indique « NOUVEAU depuis le courriel du … : … ») ou 24 h après le précédent ; un problème qui
+    disparaît (résolu) ne déclenche rien.
+  - Répertoires d'état SÉPARÉS pour chk-nginx-logs.sh et chk-odoo-logs.py (/var/lib/surveillance-odoo/…) : les
+    lancements manuels gardent leurs propres positions de lecture et continuent de montrer les nouveautés.
+  - --install-timer [--interval-hours N] : service + timer systemd (fichiers neufs), toutes les N heures à la minute
+    5, Persistent=true (rattrape un passage manqué), priorité basse (Nice=10, E/S au repos), SuccessExitStatus=1 (une
+    alerte n'est pas une panne du service). --uninstall-timer, --status, --dry-run (aucun courriel, aucune position
+    de lecture modifiée), -v/--verbose.
+  - Codes de sortie : 0 rien à signaler, 1 alerte levée, 2 erreur d'utilisation.
+
+Bugs corrigés (trouvés en test, avant livraison) :
+  - Identification des alertes par titre : un nouvel échec (certificat TLS) ressemblait à l'ancien (HSTS), car les
+    deux portent le titre « sanity-check-odoo.py : vérification(s) en échec » — remplacé par des clés par élément.
+  - Un problème résolu déclenchait un courriel pour les problèmes restants, déjà signalés.
+  - Deux passages dans la même seconde écrasaient le même rapport (suffixe ajouté).
+  - BrokenPipeError (trace Python) quand la sortie était coupée (ex. « | head ») : sortie désormais silencieuse.
+  - Messages d'argparse en anglais : francisés (même approche que sanity-check-odoo.py).
+
+Garde-fous et cas limites traités :
+  - Chaque outil a un délai maximal (15 min) ; un outil qui échoue ou dépasse le délai devient une alerte, jamais un
+    arrêt de la surveillance.
+  - Root requis pour --run, --install-timer et --uninstall-timer ; --dry-run et --status sans privilège.
+  - --interval-hours validé (1 à 24).
+
+Vérifications effectuées (faux outils imprimant des sorties réelles du projet) :
+  - Situation saine : « rien à signaler », code 0, rapport écrit.
+  - Cinq vrais problèmes mêlés au bruit habituel : 5 alertes, un seul courriel ; traversée bloquée et « access
+    forbidden » ignorés.
+  - Même situation relancée : pas de courriel ; problème résolu : pas de courriel ; nouveau problème (TLS) ou
+    nouvelle IP à bannir : courriel avec la ligne « NOUVEAU ».
+  - Outils lancés avec leurs répertoires d'état séparés ; journal système alimenté ; --dry-run sans effet sur l'état ;
+    timer généré (OnCalendar=*-*-* 00/2:05:00 pour 2 h), activé puis retiré ; --status ; validations.
+  - python3 -m py_compile sur le fichier final.
+
+Action requise de ma part (ou « aucune ») :
+  1. Déployer surveillance-odoo.py à côté des autres outils (même répertoire).
+  2. Renseigner SMTP_HOST, SMTP_USER, SMTP_PASSWORD, NOTIFY_EMAIL_FROM et NOTIFY_EMAIL_TO dans la configuration de
+     sanity-check-odoo.py (sinon alertes dans le journal système seulement).
+  3. Tester : surveillance-odoo.py --dry-run ; puis installer : surveillance-odoo.py --install-timer

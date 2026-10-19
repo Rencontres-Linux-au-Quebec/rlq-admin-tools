@@ -1,0 +1,221 @@
+# French translation of the messages of odoo-docs (msgid = English text of the code, msgstr = French translation).
+# Standard PO format (Poedit, Weblate, Crowdin...). Empty msgstr = untranslated (English stays); identical to the msgid = valid in both languages.
+# Messages are sentence FRAGMENTS (the code assembles sentences with variables): keep leading/trailing spaces and the order of the pieces.
+msgid ""
+msgstr ""
+"Project-Id-Version: odoo-docs\n"
+"Language: fr\n"
+"Source-Language: en\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+msgid "Français"
+msgstr "Français"
+
+msgid "cannot connect to Odoo ("
+msgstr "connexion à Odoo impossible ("
+
+msgid "authentication refused (database "
+msgstr "authentification refusée (base "
+
+msgid "): check the API key and the database name"
+msgstr ") : vérifier la clé API et le nom de la base"
+
+msgid "Odoo refused "
+msgstr "Odoo a refusé "
+
+msgid "call to Odoo failed ("
+msgstr "appel à Odoo impossible ("
+
+msgid "the module « "
+msgstr "le module « "
+
+msgid ") is not found in this database: update the apps list, then install it"
+msgstr ") est introuvable dans cette base : mettre à jour la liste des applications, puis l'installer"
+
+msgid ") is not installed (state: "
+msgstr ") n'est pas installé (état : "
+
+msgid "): install it from Apps"
+msgstr ") : l'installer dans Applications"
+
+msgid " installed (version "
+msgstr " installé (version "
+
+msgid "the model « "
+msgstr "le modèle « "
+
+msgid " » does not exist: the module "
+msgstr " » n'existe pas : le module "
+
+msgid " is incomplete or of an incompatible version"
+msgstr " est incomplet ou d'une version incompatible"
+
+msgid " lacks the field(s) "
+msgstr " n'a pas le(s) champ(s) "
+
+msgid ": module version incompatible with odoo-docs.py"
+msgstr " : version du module incompatible avec odoo-docs.py"
+
+msgid "the content field of "
+msgstr "le champ content de "
+
+msgid " is read-only: module version incompatible with odoo-docs.py"
+msgstr " est en lecture seule : version du module incompatible avec odoo-docs.py"
+
+msgid "models and fields present (name, type, parent_id, content)"
+msgstr "modèles et champs présents (name, type, parent_id, content)"
+
+msgid "the account "
+msgstr "le compte "
+
+msgid " does not have the « "
+msgstr " n'a pas le droit « "
+
+msgid " » right on "
+msgstr " » sur "
+
+msgid ": add the « Document Page / Editor » group or make it administrator"
+msgstr " : ajouter le groupe « Document Page / Éditeur » ou administrateur"
+
+msgid "create, write and delete rights for "
+msgstr "droits de création, d'écriture et de suppression pour "
+
+msgid "write test not done (--dry-run)"
+msgstr "essai d'écriture non fait (--dry-run)"
+
+msgid "write test: the content read back does not match what was written (the module does not work as expected)"
+msgstr "essai d'écriture : le contenu relu ne correspond pas à ce qui a été écrit (le module ne fonctionne pas comme attendu)"
+
+msgid "write test succeeded: creation, edit, read back, history ("
+msgstr "essai d'écriture réussi : création, modification, relecture, historique ("
+
+msgid " not deleted ("
+msgstr " non supprimée ("
+
+msgid "): delete it by hand in the wiki."
+msgstr ") : la supprimer à la main dans le wiki."
+
+msgid "module website installed (version "
+msgstr "module website installé (version "
+
+msgid " is not allowed to create "
+msgstr " n'a pas le droit de créer "
+
+msgid ": use a website administrator account"
+msgstr " : utiliser un compte administrateur du site"
+
+msgid "right to create pages and views for "
+msgstr "droit de créer des pages et des vues pour "
+
+msgid "documentation builder not found: "
+msgstr "générateur de documentation introuvable : "
+
+msgid "created"
+msgstr "créée"
+
+msgid "present"
+msgstr "présente"
+
+msgid ": category « "
+msgstr " : catégorie « "
+
+msgid "unchanged: "
+msgstr "inchangée : "
+
+msgid "updated: "
+msgstr "mise à jour : "
+
+msgid "created: "
+msgstr "créée : "
+
+msgid "--target must be wiki or website"
+msgstr "--target doit valoir wiki ou website"
+
+msgid "choose where to write the documentation: --target wiki (document_page module) or --target website (website pages), or --check"
+msgstr "choisir où écrire la documentation : --target wiki (module document_page) ou --target website (pages du site), ou --check"
+
+msgid " contains the API key and is readable by other accounts: chmod 600 "
+msgstr " contient la clé API et est lisible par d'autres comptes : chmod 600 "
+
+msgid "API_KEY (or the ODOO_API_KEY variable)"
+msgstr "API_KEY (ou la variable ODOO_API_KEY)"
+
+msgid " — write them in /etc/default/odoo-docs.conf (see doc/odoo-docs.conf.example)."
+msgstr " — les écrire dans /etc/default/odoo-docs.conf (voir doc/odoo-docs.conf.example)."
+
+msgid "ERROR: missing settings: "
+msgstr "ERREUR : réglages manquants : "
+
+msgid "Connected to "
+msgstr "Connecté à "
+
+msgid "Validation — "
+msgstr "Validation — "
+
+msgid "Publishing "
+msgstr "Publication de "
+
+msgid ") — target: "
+msgstr ") — cible : "
+
+msgid "Publishes the suite's documentation (docs/en, docs/fr) into Odoo: wiki of the document_page module (OCA) or website pages."
+msgstr "Publie la documentation de la suite (docs/en, docs/fr) dans Odoo : wiki du module document_page (OCA) ou pages du site web."
+
+msgid "Odoo address (e.g. https://erp.example.org); URL key of the configuration file"
+msgstr "Adresse d'Odoo (ex. https://erp.exemple.org) ; clé URL du fichier de configuration"
+
+msgid "Show the change log"
+msgstr "Affiche le journal des modifications"
+
+msgid "Validate only: connection, module installed and WORKING (real test: create, read back and delete a temporary page), publishes nothing"
+msgstr "Valide seulement : connexion, module installé et FONCTIONNEL (essai réel de création, relecture et suppression d'une page temporaire), sans rien publier"
+
+msgid "Configuration file to read ALONE (otherwise: /etc/default/odoo-docs.conf, then the personal file .odoo-docs.cfg; UPPERCASE options: API_KEY, DB, DOCS_DIR, LANGUAGE, LOGIN, ROOT, TARGET, URL)"
+msgstr "Fichier de configuration à lire SEUL (sinon : /etc/default/odoo-docs.conf, puis le fichier personnel .odoo-docs.cfg ; options en MAJUSCULES : API_KEY, DB, DOCS_DIR, LANGUAGE, LOGIN, ROOT, TARGET, URL)"
+
+msgid "Odoo database"
+msgstr "Base de données d'Odoo"
+
+msgid "Folder of the documentation sources (default: "
+msgstr "Dossier des sources de la documentation (défaut : "
+
+msgid "Validate and show what would be created or updated, writing nothing (no write test)"
+msgstr "Valide et montre ce qui serait créé ou mis à jour, sans rien écrire (pas d'essai d'écriture)"
+
+msgid "Display language: en or fr (default: from LC_ALL / LC_MESSAGES / LANG)"
+msgstr "Langue d'affichage : en ou fr (défaut : selon LC_ALL / LC_MESSAGES / LANG)"
+
+msgid "Odoo account owning the API key"
+msgstr "Compte Odoo propriétaire de la clé API"
+
+msgid "Print at the end an error report to copy and paste (program, version, server, failures, warnings)"
+msgstr "Afficher à la fin un rapport d'erreurs à copier-coller (programme, version, serveur, échecs, avertissements)"
+
+msgid "With --target wiki: root category of the wiki (default: "
+msgstr "Avec --target wiki : catégorie racine du wiki (défaut : "
+
+msgid "Where to write: wiki (pages of the document_page module, OCA knowledge) or website (website pages, /docs/<lang>/<page>)"
+msgstr "Où écrire : wiki (pages du module document_page, OCA knowledge) ou website (pages du site web, /docs/<langue>/<page>)"
+
+msgid "configuration file not found: "
+msgstr "fichier de configuration introuvable : "
+
+msgid ") — normal run."
+msgstr ") — exécution normale."
+
+msgid "Changelog not found: "
+msgstr "Journal introuvable : "
+
+msgid "ERROR: "
+msgstr "ERREUR : "
+
+msgid ", account "
+msgstr ", compte "
+
+msgid "WARNING: test page "
+msgstr "ATTENTION : page d'essai "
+
+msgid "WARNING: "
+msgstr "ATTENTION : "

@@ -1,0 +1,730 @@
+# Traduction en en des messages de odoo-update-module.sh (msgid = fragment français du code, msgstr = traduction).
+# Format PO standard : Poedit, Weblate, Crowdin… Un msgstr vide = non traduit ; identique au msgid = valable dans les deux langues.
+# Les fragments sont des morceaux de phrases : garder les espaces de début et de fin, et l'ordre des morceaux.
+msgid ""
+msgstr ""
+"Project-Id-Version: odoo-update-module.sh\n"
+"Language: en\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+msgid "Usage : odoo-update-module.sh [OPTION]...   (sans option : mettre à jour les modules rlq_* de la base du service, puis redémarrer)"
+msgstr "Usage : odoo-update-module.sh [OPTION]...   (no option: update the rlq_* modules of the service's database, then restart)"
+
+msgid "Options (par ordre alphabétique) :"
+msgstr "Options (in alphabetical order):"
+
+msgid "  --backup                     sauvegarder la base avant (odoo-backup.sh --db BASE) ; échec = abandon, rien n'est arrêté"
+msgstr "  --backup                     back up the database first (odoo-backup.sh --db DB); failure = abort, nothing is stopped"
+
+msgid "  --changelog                  affiche le journal des modifications"
+msgstr "  --changelog                  show the change log"
+
+msgid "  -c, --config FILE            ce fichier de configuration SEUL (défaut : /etc/default/odoo-update-module.conf, puis"
+msgstr "  -c, --config FILE            this configuration file ONLY (default: /etc/default/odoo-update-module.conf, then"
+
+msgid "                               ~/.odoo-update-module.cfg s'il existe ; la ligne de commande est prioritaire)"
+msgstr "                               ~/.odoo-update-module.cfg if it exists; the command line has priority)"
+
+msgid "  --db NAME                    base à mettre à jour (défaut : « -d » de la commande du service, sinon db_name d'Odoo)"
+msgstr "  --db NAME                    database to update (default: the « -d » of the service command, else Odoo's db_name)"
+
+msgid "  --dry-run                    montrer ce qui serait fait (service, base, modules, commandes), sans rien arrêter ni écrire"
+msgstr "  --dry-run                    show what would be done (service, database, modules, commands), without stopping or writing anything"
+
+msgid "  --force                      continuer malgré un Odoo lancé à la main (il est alors ignoré, pas arrêté)"
+msgstr "  --force                      carry on despite an Odoo started by hand (it is then ignored, not stopped)"
+
+msgid "  -h, --help                   affiche cette aide et quitte"
+msgstr "  -h, --help                   show this help and quit"
+
+msgid "  --lang LANG                  langue d'affichage : en ou fr (défaut : LANGUAGE du fichier de configuration, sinon LC_ALL / LC_MESSAGES / LANG)"
+msgstr "  --lang LANG                  display language: en or fr (default: LANGUAGE of the configuration file, else LC_ALL / LC_MESSAGES / LANG)"
+
+msgid "  --module PATTERN             module à mettre à jour ; motif accepté (« rlq_* »), option répétable (défaut : MODULES, soit rlq_*)"
+msgstr "  --module PATTERN             module to update; pattern accepted (« rlq_* »), repeatable option (default: MODULES, i.e. rlq_*)"
+
+msgid "  --odoo-conf FILE             configuration d'Odoo (défaut : ODOO_CONF, sinon config.conf du dossier du service, sinon emplacements connus)"
+msgstr "  --odoo-conf FILE             Odoo configuration (default: ODOO_CONF, else config.conf of the service folder, else known locations)"
+
+msgid "  --report-err                 afficher à la fin un rapport d'erreurs à copier-coller (programme, version, serveur,"
+msgstr "  --report-err                 show an error report to copy-paste at the end (program, version, server,"
+
+msgid "                               échecs, avertissements) ; désactive couleurs et questions interactives"
+msgstr "                               failures, warnings); disables colours and interactive questions"
+
+msgid "  --service NAME               service systemd d'Odoo (défaut : SERVICE, sinon détection automatique : erplibre* ou odoo*)"
+msgstr "  --service NAME               Odoo systemd service (default: SERVICE, otherwise auto-detected: erplibre* or odoo*)"
+
+msgid "  --timeout SECONDS            durée maximale de la mise à jour (défaut : TIMEOUT, soit 1800)"
+msgstr "  --timeout SECONDS            maximum duration of the update (default: TIMEOUT, i.e. 1800)"
+
+msgid "  --user NAME                  compte sous lequel la mise à jour s'exécute (défaut : User= du service)"
+msgstr "  --user NAME                  account the update runs under (default: User= of the service)"
+
+msgid "  -v, --verbose                afficher chaque commande externe exécutée (systemctl, runuser, odoo, ss)"
+msgstr "  -v, --verbose                show every external command run (systemctl, runuser, odoo, ss)"
+
+msgid "  --version                    affiche la version et quitte"
+msgstr "  --version                    show the version and quit"
+
+msgid "Configuration (/etc/default/odoo-update-module.conf, créée au premier lancement, PUIS ~/.odoo-update-module.cfg s'il existe ; lue sans être"
+msgstr "Configuration (/etc/default/odoo-update-module.conf, created on first run, THEN ~/.odoo-update-module.cfg if it exists; read without being"
+
+msgid "exécutée ; la ligne de commande l'emporte sur les fichiers) :"
+msgstr "executed; the command line overrides the files):"
+
+msgid "  BACKUP=non                    sauvegarder avant (oui / non)"
+msgstr "  BACKUP=non                    back up first (oui / non)"
+
+msgid "  COMMAND=                      commande d'Odoo (vide : ./odoo_bin.sh du dossier du service, sinon odoo-bin)"
+msgstr "  COMMAND=                      Odoo command (empty: ./odoo_bin.sh of the service folder, else odoo-bin)"
+
+msgid "  DATABASE=                     base (vide : « -d » du service, sinon db_name d'Odoo)"
+msgstr "  DATABASE=                     database (empty: the « -d » of the service, else Odoo's db_name)"
+
+msgid "  LANGUAGE=auto                 langue d'affichage : en, fr ou auto (suivre LC_ALL / LANG)"
+msgstr "  LANGUAGE=auto                 display language: en, fr or auto (follow LC_ALL / LANG)"
+
+msgid "  MODULES=rlq_*                 modules à mettre à jour, séparés par des espaces (motifs acceptés)"
+msgstr "  MODULES=rlq_*                 modules to update, separated by spaces (patterns accepted)"
+
+msgid "  ODOO_CONF=                    configuration d'Odoo (vide : config.conf du dossier du service, sinon emplacements connus)"
+msgstr "  ODOO_CONF=                    Odoo configuration (empty: config.conf of the service folder, else known locations)"
+
+msgid "  ODOO_DIR=                     dossier d'Odoo (vide : WorkingDirectory= du service)"
+msgstr "  ODOO_DIR=                     Odoo folder (empty: WorkingDirectory= of the service)"
+
+msgid "  RUN_USER=                     compte de la mise à jour (vide : User= du service)"
+msgstr "  RUN_USER=                     account of the update (empty: User= of the service)"
+
+msgid "  SERVICE=                      service systemd d'Odoo (vide : détection automatique parmi erplibre* et odoo*, sinon erplibre_erplibre.service)"
+msgstr "  SERVICE=                      Odoo systemd service (empty: auto-detected among erplibre* and odoo*, otherwise erplibre_erplibre.service)"
+
+msgid "  TIMEOUT=1800                  durée maximale de la mise à jour, en secondes"
+msgstr "  TIMEOUT=1800                  maximum duration of the update, in seconds"
+
+msgid "  WAIT=90                       attente maximale du démarrage (service actif, puis port à l'écoute), en secondes"
+msgstr "  WAIT=90                       maximum wait for startup (service active, then port listening), in seconds"
+
+msgid "/var/log/odoo-update-module"
+msgstr "/var/log/odoo-update-module"
+
+msgid "odoo-update-module.sh v"
+msgstr "odoo-update-module.sh v"
+
+msgid "Changelog introuvable : "
+msgstr "Changelog not found: "
+
+msgid "odoo-update-module.sh version "
+msgstr "odoo-update-module.sh version "
+
+msgid "Argument inconnu: "
+msgstr "Unknown argument: "
+
+msgid "ERREUR: --timeout attend un nombre de secondes (reçu : « "
+msgstr "ERROR: --timeout expects a number of seconds (got: « "
+
+msgid "ERREUR: WAIT attend un nombre de secondes (reçu : « "
+msgstr "ERROR: WAIT expects a number of seconds (got: « "
+
+msgid "ERREUR: nom de service invalide : « "
+msgstr "ERROR: invalid service name: « "
+
+msgid "/odoo-update-module.lock"
+msgstr "/odoo-update-module.lock"
+
+msgid "ERREUR: une autre exécution de odoo-update-module est en cours (verrou "
+msgstr "ERROR: another run of odoo-update-module is in progress (lock "
+
+msgid "/odoo-update-module.lock) — abandon."
+msgstr "/odoo-update-module.lock) — aborting."
+
+msgid "service « "
+msgstr "service « "
+
+msgid " » introuvable (systemctl) — voir --service ou SERVICE dans la configuration"
+msgstr " » not found (systemctl) — see --service or SERVICE in the configuration"
+
+msgid "configuration d'Odoo illisible : "
+msgstr "Odoo configuration unreadable: "
+
+msgid "configuration d'Odoo introuvable (voir --odoo-conf ou ODOO_CONF)"
+msgstr "Odoo configuration not found (see --odoo-conf or ODOO_CONF)"
+
+msgid "base introuvable : ni --db, ni « -d » dans la commande du service, ni db_name dans la configuration d'Odoo"
+msgstr "database not found: neither --db, nor « -d » in the service command, nor db_name in the Odoo configuration"
+
+msgid "nom de base invalide : « "
+msgstr "invalid database name: « "
+
+msgid "motif de module invalide : « "
+msgstr "invalid module pattern: « "
+
+msgid " » (lettres minuscules, chiffres, _ * ?)"
+msgstr " » (lowercase letters, digits, _ * ?)"
+
+msgid "aucun module trouvé pour « "
+msgstr "no module found for « "
+
+msgid " » dans addons_path de "
+msgstr " » in addons_path of "
+
+msgid "commande d'Odoo introuvable : ./odoo_bin.sh absent de « "
+msgstr "Odoo command not found: ./odoo_bin.sh absent from « "
+
+msgid " » et odoo-bin absent du PATH (voir COMMAND)"
+msgstr " » and odoo-bin absent from PATH (see COMMAND)"
+
+msgid "odoo-update-module"
+msgstr "odoo-update-module"
+
+msgid "vérification qu'aucun Odoo ne tourne hors systemd (après l'arrêt du service)"
+msgstr "checking that no Odoo runs outside systemd (after the service is stopped)"
+
+msgid "un Odoo tourne HORS systemd (lancé à la main ?) — même base, mêmes ports :"
+msgstr "an Odoo is running OUTSIDE systemd (started by hand?) — same database, same ports:"
+
+msgid "--force : on continue ; ce processus n'est ni arrêté ni contrôlé"
+msgstr "--force: carrying on; that process is neither stopped nor checked"
+
+msgid "  Arrêtez-le (Ctrl+C dans son terminal, ou kill PID), puis relancez ; --force pour passer outre."
+msgstr "  Stop it (Ctrl+C in its terminal, or kill PID), then run again; --force to override."
+
+msgid " redémarré : il était actif avant"
+msgstr " restarted: it was active before"
+
+msgid "odoo-backup.sh introuvable à côté de ce programme"
+msgstr "odoo-backup.sh not found next to this program"
+
+msgid "sauvegarde de "
+msgstr "backup of "
+
+msgid " terminée"
+msgstr " finished"
+
+msgid " en échec — rien n'a été arrêté"
+msgstr " failed — nothing was stopped"
+
+msgid "le service "
+msgstr "the service "
+
+msgid " est toujours actif après « systemctl stop »"
+msgstr " is still active after « systemctl stop »"
+
+msgid " arrêté"
+msgstr " stopped"
+
+msgid "  Mise à jour de "
+msgstr "  Updating "
+
+msgid " module(s) : "
+msgstr " module(s): "
+
+msgid ", délai maximal "
+msgstr ", maximum delay "
+
+msgid " s) — journal : "
+msgstr " s) — log: "
+
+msgid "la mise à jour ne s'est pas terminée en "
+msgstr "the update did not finish within "
+
+msgid " s : processus tué (code "
+msgstr " s: process killed (code "
+
+msgid "la mise à jour d'Odoo s'est terminée avec le code "
+msgstr "the Odoo update ended with code "
+
+msgid "Odoo s'est arrêté de lui-même après "
+msgstr "Odoo stopped by itself after "
+
+msgid " ligne(s) ERROR/CRITICAL dans le journal de la mise à jour ("
+msgstr " ERROR/CRITICAL line(s) in the update log ("
+
+msgid " CRITICAL) — premières :"
+msgstr " CRITICAL) — first ones:"
+
+msgid "journal de la mise à jour sans ERROR ni CRITICAL ("
+msgstr "update log without ERROR or CRITICAL ("
+
+msgid " lignes)"
+msgstr " lines)"
+
+msgid " (puis vérification : service actif, port "
+msgstr " (then check: service active, port "
+
+msgid " à l'écoute, "
+msgstr " listening, "
+
+msgid " s au plus)"
+msgstr " s at most)"
+
+msgid "« systemctl start "
+msgstr "« systemctl start "
+
+msgid " » a échoué (journalctl -u "
+msgstr " » failed (journalctl -u "
+
+msgid " à l'écoute (après "
+msgstr " listening (after "
+
+msgid " n'est pas actif après "
+msgstr " is not active after "
+
+msgid " est actif mais rien n'écoute sur le port "
+msgstr " is active but nothing listens on port "
+
+msgid " après "
+msgstr " after "
+
+msgid "ERREUR: root requis (systemctl stop/start, mise à jour sous le compte du service) — ou --dry-run pour simuler."
+msgstr "ERROR: root required (systemctl stop/start, update under the service account) — or --dry-run to simulate."
+
+msgid " — service : "
+msgstr " — service: "
+
+msgid " · configuration d'Odoo : "
+msgstr " · Odoo configuration: "
+
+msgid "  Modules : "
+msgstr "  Modules: "
+
+msgid "  Mode simulation : rien n'est arrêté, écrit ni démarré."
+msgstr "  Simulation mode: nothing is stopped, written or started."
+
+msgid "terminé avec "
+msgstr "finished with "
+
+msgid " échec(s)"
+msgstr " failure(s)"
+
+msgid "  Simulation terminée."
+msgstr "  Simulation finished."
+
+msgid "mise à jour terminée : "
+msgstr "update finished: "
+
+msgid "  Compte : "
+msgstr "  Account: "
+
+msgid " · dossier : "
+msgstr " · folder: "
+
+msgid " · base : "
+msgstr " · database: "
+
+msgid ", compte "
+msgstr ", account "
+
+msgid " actif, port "
+msgstr " active, port "
+
+msgid "(voir "
+msgstr "(see "
+
+msgid "Sauvegarde de la base "
+msgstr "Database backup: "
+
+msgid "Arrêt du service"
+msgstr "Stopping the service"
+
+msgid "Mise à jour des modules dans la base "
+msgstr "Updating the modules in database "
+
+msgid " module(s), compte "
+msgstr " module(s), account "
+
+msgid " s — en cours…"
+msgstr " s — running…"
+
+msgid "journal : "
+msgstr "log: "
+
+msgid "journal de la mise à jour sans ERROR ni CRITICAL "
+msgstr "update log without ERROR or CRITICAL "
+
+msgid "Redémarrage du service"
+msgstr "Restarting the service"
+
+msgid "Mise à jour des modules Odoo"
+msgstr "Odoo module update"
+
+msgid "Modules :"
+msgstr "Modules:"
+
+msgid "Mode simulation : rien n'est arrêté, écrit ni démarré."
+msgstr "Simulation mode: nothing is stopped, written or started."
+
+msgid "Simulation terminée."
+msgstr "Simulation finished."
+
+msgid "mise à jour terminée"
+msgstr "update finished"
+
+msgid "Service :"
+msgstr "Service:"
+
+msgid "Base :"
+msgstr "Database:"
+
+msgid "Compte :"
+msgstr "Account:"
+
+msgid "Dossier :"
+msgstr "Folder:"
+
+msgid "Config Odoo :"
+msgstr "Odoo config:"
+
+msgid "  --no-warmup                  ne pas préchauffer le cache d'Odoo après le redémarrage (clé WARMUP=non) ; sinon odoo-warmup.py charge les pages publiques,"
+msgstr "  --no-warmup                  do not warm up Odoo's cache after the restart (key WARMUP=non); otherwise odoo-warmup.py loads the public pages,"
+
+msgid "                               les derniers événements et sondages, les écrans d'administration (réglages : /etc/default/odoo-warmup.conf)"
+msgstr "                               the latest events and surveys, the administration screens (settings: /etc/default/odoo-warmup.conf)"
+
+msgid "  WARMUP=oui                    préchauffer le cache d'Odoo après le redémarrage (odoo-warmup.py) ; non = comme --no-warmup"
+msgstr "  WARMUP=oui                    warm up Odoo's cache after the restart (odoo-warmup.py); non = same as --no-warmup"
+
+msgid "Préchauffage du cache"
+msgstr "Warming up the cache"
+
+msgid "odoo-warmup.py (ou python3) introuvable : cache non préchauffé — les premiers visiteurs attendront la construction des pages"
+msgstr "odoo-warmup.py (or python3) not found: cache not warmed up — the first visitors will wait for the pages to be built"
+
+msgid "pages publiques, derniers événements et sondages, administration — en cours…"
+msgstr "public pages, latest events and surveys, administration — running…"
+
+msgid "préchauffage interrompu (code "
+msgstr "warm-up interrupted (code "
+
+msgid "préchauffage terminé avec des échecs ("
+msgstr "warm-up finished with failures ("
+
+msgid "cache préchauffé en "
+msgstr "cache warmed up in "
+
+msgid "administration non pr.chauff.e"
+msgstr "administration not warmed up"
+
+msgid "administration non préchauffée : LOGIN et KEY_FILE à définir dans /etc/default/odoo-warmup.conf (derniers événements et sondages, écrans d'administration)"
+msgstr "administration not warmed up: set LOGIN and KEY_FILE in /etc/default/odoo-warmup.conf (latest events and surveys, administration screens)"
+
+msgid "détail : "
+msgstr "details: "
+
+msgid " appel(s)) :"
+msgstr " call(s)):"
+
+msgid "  --addons-dir DIR             dossier où décompresser l'archive .zip des modules (souvent un dossier d'addons) ; défaut : ADDONS_DIR, sinon le dossier de"
+msgstr "  --addons-dir DIR             folder where the modules' .zip archive is unpacked (often an addons folder); default: ADDONS_DIR, else the addons_path folder"
+
+msgid "                               addons_path qui contient déjà ces modules"
+msgstr "                               that already holds these modules"
+
+msgid "  --zip FILE                   archive .zip des modules à décompresser avant la mise à jour (fichier, ou dossier : la plus récente) ; défaut : ZIP, sinon la plus"
+msgstr "  --zip FILE                   modules' .zip archive to unpack before the update (a file, or a folder: the newest one); default: ZIP, else the newest"
+
+msgid "                               récente « MODULE*.zip » du dossier courant ; « non » : ne rien décompresser"
+msgstr "                               « MODULE*.zip » of the current folder; « non »: unpack nothing"
+
+msgid "  ADDONS_DIR=                   dossier de décompression de l'archive .zip (vide : celui de addons_path qui contient déjà les modules)"
+msgstr "  ADDONS_DIR=                   folder to unpack the .zip archive into (empty: the addons_path folder that already holds the modules)"
+
+msgid "  ZIP=                          archive .zip des modules (fichier ou dossier ; vide : « MODULE*.zip » le plus récent du dossier courant ; non : aucune)"
+msgstr "  ZIP=                          modules' .zip archive (file or folder; empty: newest « MODULE*.zip » of the current folder; non: none)"
+
+msgid "archive introuvable : « "
+msgstr "archive not found: « "
+
+msgid " » (--zip ou ZIP)"
+msgstr " » (--zip or ZIP)"
+
+msgid "aucune archive « "
+msgstr "no archive « "
+
+msgid "*.zip » dans "
+msgstr "*.zip » in "
+
+msgid "archive refusée : "
+msgstr "archive refused: "
+
+msgid " contient un chemin qui sort du dossier de destination (/ ou ..)"
+msgstr " contains a path that leaves the destination folder (/ or ..)"
+
+msgid "archive illisible (zip invalide ?) : "
+msgstr "archive unreadable (invalid zip?): "
+
+msgid "archive sans module : aucun dossier avec __manifest__.py à la racine de "
+msgstr "archive without module: no folder with __manifest__.py at the root of "
+
+msgid "dossier de décompression introuvable : aucun dossier de addons_path ne contient déjà "
+msgstr "unpack folder not found: no addons_path folder already holds "
+
+msgid " — préciser --addons-dir (ou ADDONS_DIR)"
+msgstr " — specify --addons-dir (or ADDONS_DIR)"
+
+msgid "dossier de décompression introuvable : "
+msgstr "unpack folder not found: "
+
+msgid " (--addons-dir ou ADDONS_DIR)"
+msgstr " (--addons-dir or ADDONS_DIR)"
+
+msgid "Décompression de "
+msgstr "Unpacking "
+
+msgid "(manifeste de l'archive)"
+msgstr "(archive manifest)"
+
+msgid " (propriétaire : celui du dossier)"
+msgstr " (owner: that of the folder)"
+
+msgid " décompressé dans "
+msgstr " unpacked into "
+
+msgid " module(s), fichiers existants remplacés)"
+msgstr " module(s), existing files replaced)"
+
+msgid "versions des modules illisibles (PostgreSQL : root requis ?)"
+msgstr "module versions unreadable (PostgreSQL: root required?)"
+
+msgid "mise à jour des modules annulée : l'archive n'a pas été décompressée"
+msgstr "module update cancelled: the archive was not unpacked"
+
+msgid "versions des modules installés avant / après la mise à jour (PostgreSQL, lecture seule)"
+msgstr "installed module versions before / after the update (PostgreSQL, read-only)"
+
+msgid "Versions des modules installés (base "
+msgstr "Installed module versions (database "
+
+msgid " (avant : "
+msgstr " (before: "
+
+msgid "Archive :"
+msgstr "Archive:"
+
+msgid "décompression de "
+msgstr "unpacking of "
+
+msgid " vers "
+msgstr " to "
+
+msgid "(mis à jour)"
+msgstr "(updated)"
+
+msgid "(nouveau)"
+msgstr "(new)"
+
+msgid "(inchangé)"
+msgstr "(unchanged)"
+
+msgid "\" + modules[nom])"
+msgstr "\" + modules[nom])"
+
+msgid " dans "
+msgstr " dans "
+
+msgid "noms = sorted(set(recents) | {n for n in mis if n in apres}, key=lambda n: (apres[n][\"maj\"], n), reverse=True)"
+msgstr "noms = sorted(set(recents) | {n for n in mis if n in apres}, key=lambda n: (apres[n][\"maj\"], n), reverse=True)"
+
+msgid "print(f\"  {e['CD']}Versions des modules installés (base {e['BASE']}) — Odoo {e['CR']}{e['CC']}{vb}{e['CR']}\" + (f\"{e['CD']} (avant : {va}){e['CR']}\" if va != vb else \"\"))"
+msgstr "print(f\"  {e['CD']}Versions des modules installés (base {e['BASE']}) — Odoo {e['CR']}{e['CC']}{vb}{e['CR']}\" + (f\"{e['CD']} (avant : {va}){e['CR']}\" if va != vb else \"\"))"
+
+msgid "largeur = max((len(n) for n in noms), default=0)"
+msgstr "largeur = max((len(n) for n in noms), default=0)"
+
+msgid "for n in noms:"
+msgstr "for n in noms:"
+
+msgid "        couleur, mot, texte = e[\"CC\"], \"nouveau\", f\"{b or '?'}\""
+msgstr "        couleur, mot, texte = e[\"CC\"], \"nouveau\", f\"{b or '?'}\""
+
+msgid "        couleur, mot, texte = e[\"CG\"], \"mis à jour\", f\"{a or '?'} → {b or '?'}\""
+msgstr "        couleur, mot, texte = e[\"CG\"], \"mis à jour\", f\"{a or '?'} → {b or '?'}\""
+
+msgid "        couleur, mot, texte = e[\"CD\"], \"inchangé\", f\"{b or '?'}\""
+msgstr "        couleur, mot, texte = e[\"CD\"], \"inchangé\", f\"{b or '?'}\""
+
+msgid "        couleur, mot, texte = e[\"CD\"], \"\", f\"{b or '?'}\""
+msgstr "        couleur, mot, texte = e[\"CD\"], \"\", f\"{b or '?'}\""
+
+msgid "    print(f\"      {e['CB']}{n.ljust(largeur)}{e['CR']}  {texte.ljust(34)} {couleur}{(f\"({mot})\" if mot else \"\").ljust(13)}{e['CR']} {e['CD']}{locale(apres[n]['maj'])}{e['CR']}\")"
+msgstr "    print(f\"      {e['CB']}{n.ljust(largeur)}{e['CR']}  {texte.ljust(34)} {couleur}{(f\"({mot})\" if mot else \"\").ljust(13)}{e['CR']} {e['CD']}{locale(apres[n]['maj'])}{e['CR']}\")"
+
+msgid "ERREUR: plusieurs services Odoo possibles ("
+msgstr "ERROR: several possible Odoo services ("
+
+msgid ") : précisez --service ou SERVICE dans la configuration."
+msgstr ") : specify --service or SERVICE in the configuration."
+
+msgid " (détecté)"
+msgstr " (detected)"
+
+msgid "  --anonymize                  anonymise ce qui est affiché (adresses IP, courriels, identifiants, jetons) par des pseudonymes stables ; clé ANONYMIZE"
+msgstr "  --anonymize                  anonymizes what is displayed (IP addresses, emails, identifiers, tokens) with stable pseudonyms; key ANONYMIZE"
+
+msgid "  --busy-visitors N            site occupé à partir de N visiteurs actifs (requête dans les 5 dernières minutes, robots exclus) ; défaut : BUSY_VISITORS, soit 3"
+msgstr "  --busy-visitors N            site busy from N active visitors (a request in the last 5 minutes, robots excluded); default: BUSY_VISITORS, i.e. 3"
+
+msgid "  --no-rollback                jamais de retour arrière automatique (clé ROLLBACK=non) ; sinon, après des erreurs (mise à jour, démarrage, journal du service),"
+msgstr "  --no-rollback                never an automatic rollback (key ROLLBACK=no); otherwise, after errors (update, start, service log),"
+
+msgid "                               les modules sont remis dans leur version d'avant (copie prise avant la décompression), mis à jour de nouveau, et Odoo redémarré"
+msgstr "                               the modules are put back in their previous version (copy taken before unpacking), updated again, and Odoo restarted"
+
+msgid "  --wait-quiet MIN             attendre au plus MIN minutes que le site soit calme avant d'arrêter Odoo (défaut : WAIT_QUIET, soit 15 ; 0 = ne pas attendre) ;"
+msgstr "  --wait-quiet MIN             wait at most MIN minutes for a quiet site before stopping Odoo (default: WAIT_QUIET, i.e. 15; 0 = do not wait);"
+
+msgid "                               au bout du délai, la mise à jour se fait quand même"
+msgstr "                               after that delay, the update runs anyway"
+
+msgid "  BUSY_VISITORS=3               site occupé à partir de ce nombre de visiteurs actifs (5 dernières minutes, robots exclus)"
+msgstr "  BUSY_VISITORS=3               site busy from this number of active visitors (last 5 minutes, robots excluded)"
+
+msgid "  MODULES_BACKUP_DIR=/var/backups/odoo-update-module   copies des modules AVANT la mise à jour (.tar.gz, les 10 dernières gardées) : base du retour arrière"
+msgstr "  MODULES_BACKUP_DIR=/var/backups/odoo-update-module   copies of the modules BEFORE the update (.tar.gz, the last 10 kept): basis of the rollback"
+
+msgid "  ROLLBACK=oui                  retour arrière des modules après des erreurs (oui / non) ; question sur un terminal, automatique sinon"
+msgstr "  ROLLBACK=oui                  rollback of the modules after errors (yes / no); a question on a terminal, automatic otherwise"
+
+msgid "  WAIT_QUIET=15                 attente maximale d'un site calme avant l'arrêt d'Odoo, en minutes (0 = ne pas attendre)"
+msgstr "  WAIT_QUIET=15                 longest wait for a quiet site before stopping Odoo, in minutes (0 = do not wait)"
+
+msgid "/var/backups/odoo-update-module"
+msgstr "/var/backups/odoo-update-module"
+
+msgid "Attente d'un site calme (au plus "
+msgstr "Waiting for a quiet site (at most "
+
+msgid " min, occupé à partir de "
+msgstr " min, busy from "
+
+msgid "journaux d'accès de nginx illisibles dans "
+msgstr "nginx access logs unreadable in "
+
+msgid " : affluence inconnue, pas d'attente"
+msgstr ": traffic unknown, no wait"
+
+msgid " visiteur(s) actif(s) dans les 5 dernières minutes — "
+msgstr " active visitor(s) in the last 5 minutes — "
+
+msgid "site calme, pas d'attente"
+msgstr "quiet site, no wait"
+
+msgid "site occupé : attente d'au plus "
+msgstr "busy site: waiting at most "
+
+msgid " visiteur(s) actif(s) dans les 5 dernières minutes"
+msgstr " active visitor(s) in the last 5 minutes"
+
+msgid " visiteur(s) actif(s) après "
+msgstr " active visitor(s) after "
+
+msgid " min : mise à jour quand même"
+msgstr " min: update anyway"
+
+msgid "site occupé : "
+msgstr "busy site: "
+
+msgid "— nouvel essai dans "
+msgstr "— next try in "
+
+msgid " s (Ctrl+C pour arrêter)"
+msgstr " s (Ctrl+C to stop)"
+
+msgid "Copie des modules avant la mise à jour (base du retour arrière)"
+msgstr "Copy of the modules before the update (basis of the rollback)"
+
+msgid "aucun module déjà présent sur le disque : rien à copier (nouveaux modules)"
+msgstr "no module already on disk: nothing to copy (new modules)"
+
+msgid "/modules-"
+msgstr "/modules-"
+
+msgid "dossier des copies inaccessible : "
+msgstr "copies folder unreachable: "
+
+msgid " (MODULES_BACKUP_DIR) — rien n'a été arrêté"
+msgstr " (MODULES_BACKUP_DIR) — nothing was stopped"
+
+msgid "copie des modules impossible (espace disque ?) — rien n'a été arrêté"
+msgstr "copy of the modules impossible (disk space?) — nothing was stopped"
+
+msgid " module(s) copié(s) : "
+msgstr " module(s) copied: "
+
+msgid "aucune copie des modules : retour arrière impossible"
+msgstr "no copy of the modules: rollback impossible"
+
+msgid "modules remis dans leur version d'avant (copie "
+msgstr "modules put back in their previous version (copy "
+
+msgid "restauration de "
+msgstr "restoring "
+
+msgid "Contrôle du journal d'Odoo depuis le démarrage"
+msgstr "Check of Odoo's log since the start"
+
+msgid " --since @DÉMARRAGE : lignes ERROR / CRITICAL (et le fichier logfile d'Odoo)"
+msgstr " --since @START: ERROR / CRITICAL lines (and Odoo's logfile)"
+
+msgid "aucune erreur (ERROR / CRITICAL) dans le journal d'Odoo depuis le démarrage"
+msgstr "no error (ERROR / CRITICAL) in Odoo's log since the start"
+
+msgid " ligne(s) ERROR/CRITICAL dans le journal d'Odoo depuis le démarrage — premières :"
+msgstr " ERROR/CRITICAL line(s) in Odoo's log since the start — first ones:"
+
+msgid "en cas d'erreur : retour arrière des modules (copie d'avant, nouvelle mise à jour, redémarrage)"
+msgstr "on error: rollback of the modules (previous copy, new update, restart)"
+
+msgid "retour arrière désactivé (--no-rollback / ROLLBACK=non) : copie d'avant disponible : "
+msgstr "rollback disabled (--no-rollback / ROLLBACK=no): previous copy available: "
+
+msgid "aucune"
+msgstr "none"
+
+msgid "pas de retour arrière : ce programme n'a pas remplacé le code des modules (pas d'archive .zip) ; copie : "
+msgstr "no rollback: this program did not replace the code of the modules (no .zip archive); copy: "
+
+msgid "pas de retour arrière : aucune copie des modules d'avant (nouveaux modules seulement)"
+msgstr "no rollback: no copy of the previous modules (new modules only)"
+
+msgid "  Retour arrière vers les versions d'avant (copie "
+msgstr "  Roll back to the previous versions (copy "
+
+msgid "pas de retour arrière : copie d'avant disponible : "
+msgstr "no rollback: previous copy available: "
+
+msgid " (tar -xzPf, puis mise à jour)"
+msgstr " (tar -xzPf, then update)"
+
+msgid "Retour arrière des modules"
+msgstr "Rollback of the modules"
+
+msgid "Remise en place des modules d'avant"
+msgstr "Putting the previous modules back"
+
+msgid "la mise à jour avec les modules d'avant a échoué aussi : voir "
+msgstr "the update with the previous modules failed too: see "
+
+msgid "erreurs aussi après le retour arrière"
+msgstr "errors after the rollback too"
+
+msgid "retour arrière réussi"
+msgstr "rollback succeeded"
+
+msgid " : modules d'avant en service"
+msgstr ": previous modules in service"
+
+msgid "  Interruption : redémarrage du service "
+msgstr "  Interruption: restarting the service "
+
+msgid " (il était actif)…"
+msgstr " (it was active)…"
+
+msgid "mise à jour terminée avec "
+msgstr "update finished with "
+
+msgid "mise à jour ANNULÉE : les modules d'avant sont en service (journal de l'échec : "
+msgstr "update CANCELLED: the previous modules are in service (log of the failure: "

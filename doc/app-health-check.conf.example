@@ -1,0 +1,91 @@
+# ========================================================================================================================
+# Copyright (C) 2026  Services-Linux Conseils Inc <Martial@Bigras.ca> <Martial.Bigras@Services-Conseils-Linux.com>
+# AGPL-3.0-or-later — voir app-health-check.py pour le texte complet de la licence.
+# ========================================================================================================================
+#
+# RECOMMANDÉ : plutôt que de copier ce fichier, générez la configuration de CE serveur avec :
+#   python3 app-health-check.py --create-config
+# qui détecte les noms publics, l'instance non publique, la base de données et l'état de la connexion Google, et
+# crée /etc/default/app-health-check.conf en permissions 600. Ce fichier-ci reste la référence de toutes les clés.
+#
+# Copie manuelle : les fichiers suivants sont LUS DANS CET ORDRE et fusionnés (le dernier l'emporte ; sans -c) :
+#   1. /etc/default/app-health-check.conf   (fichier du système)
+#   2. ~/.app-health-check.cfg              (s'il existe : réglages de l'utilisateur)
+# Le répertoire courant n'est PAS lu (le résultat dépendrait d'où le programme est lancé). -c/--config FICHIER : ce fichier SEUL. Le programme affiche toujours quels fichiers il lit, et les options importantes.
+# Sur un serveur qui n'a qu'un seul environnement (DEV ou PROD), le fichier 1 suffit généralement. Puis :
+#   chmod 600 /etc/default/app-health-check.conf
+#   chown root:root /etc/default/app-health-check.conf   (ou l'utilisateur qui lance le cron)
+#
+# Ne JAMAIS coller le contenu rempli de ce fichier dans une conversation, un ticket, ou un dépôt Git.
+
+# --- Langue et options de la ligne de commande (la ligne de commande a priorité) ---
+# LANGUAGE : en, fr ou auto (suivre LC_ALL / LANG) ; TARGET : local ou external (--target) ; APP : profil d'application (--app) ; VERBOSE : true ou false.
+#LANGUAGE=auto (défaut : aucun : à donner sur la ligne de commande)
+#TARGET= (défaut : détectée automatiquement)
+#APP=
+#VERBOSE=false
+
+# --- Cible ---
+ODOO_PUBLIC_HOST=www.rencontres-linux.quebec
+# Pour DEV : ODOO_PUBLIC_HOST=odoo-dev.rencontres-linux.quebec
+
+# Autres noms publics qui doivent REDIRIGER vers ODOO_PUBLIC_HOST (séparés par des virgules, sans espace) — vérifié
+# en plus : présence de HSTS sur la redirection elle-même (pas seulement sur la réponse finale), et qu'un seul saut
+# suffit pour atteindre ODOO_PUBLIC_HOST. Laisser vide si cette instance n'a qu'un seul nom public (cas normal pour
+# DEV/LAB). Pour PROD :
+ADDITIONAL_PUBLIC_HOSTS=rencontres-linux.quebec,odoo18.rencontres-linux.quebec
+
+# Mettre à "true" UNIQUEMENT sur une instance de développement (DEV/LAB : accès restreint par IP, non publique), et
+# JAMAIS en PROD : cette option fait ATTENDRE un robots.txt « Disallow: / » — en PROD, elle masquerait donc la pire
+# panne possible pour un site public, sa désindexation complète. Le script vérifie la cohérence avec le nom de
+# domaine (ODOO_PUBLIC_HOST et ADDITIONAL_PUBLIC_HOSTS) : il SUGGÈRE l'option si un nom contient « -dev. » ou
+# « .dev. » (ou commence par « dev. »), ex. odoo-dev.rencontres-linux.quebec, et ÉCHOUE si elle est active alors
+# qu'aucun nom ne le contient. Détection stricte : « devis », « device », « dev2 » ou le domaine « .dev » ne comptent
+# pas. Une DEV volontairement publique : EXPECT_RESTRICTED_ACCESS=false explicite fait taire la suggestion.
+# Mettre à "true" pour DEV/LAB (accès restreint par IP, non public) — active la vérification de X-Robots-Tag et
+# une note explicative sur l'interprétation du status obtenu pour /web/database/manager et /. Les vérifications de
+# robots.txt attendent alors « Disallow: / » (servi par nginx pour les instances non publiques, voir le map
+# $robots_disallow_all dans conf.d/odoo-global.conf) au lieu du robots.txt d'Odoo. Laisser à false pour PROD.
+EXPECT_RESTRICTED_ACCESS=false
+
+# --- Tests fonctionnels Odoo (JSON-RPC) — laisser vide pour ne faire QUE les tests HTTP/nginx ---
+ODOO_DB=linux_meetup_odoo_18_2026-08-06_dev
+ODOO_TEST_USER=sanity.check@rencontres-linux.quebec
+ODOO_TEST_PASSWORD=
+# Modèles à lire en lecture seule (search_read, limit 1) pour détecter un module cassé. Garder une liste courte et
+# non sensible — le compte de test ne devrait de toute façon avoir accès qu'à ce qui est nécessaire au test.
+ODOO_SMOKE_MODELS=res.partner,event.event
+
+# --- Cas particuliers ---
+# Gestionnaire de bases (/web/database/manager) : NE PAS renseigner en temps normal. L'attente dépend du mode :
+# « ouvert » en --target local (127.0.0.1 est dans la liste blanche nginx : 200 est normal), « fermé » en --target
+# external (la vraie vérification de la protection). Une valeur ici s'appliquerait aux DEUX modes — avec
+# EXPECT_DB_MANAGER_OPEN=false, le test local échouait à tort (200 depuis 127.0.0.1). (défaut : true en --target local, false en --target external)
+#EXPECT_DB_MANAGER_OPEN=
+# Mettre à "true" si l'authentification Google doit TOUJOURS être active sur cette instance — son absence devient
+# alors un échec plutôt qu'une simple information. Laisser à false si Google OAuth est optionnel/pas encore activé.
+EXPECT_GOOGLE_OAUTH=false
+
+# --- Notification email (optionnel — laisser SMTP_HOST vide pour désactiver) ---
+SMTP_HOST=
+SMTP_PORT=587
+SMTP_USER=
+SMTP_PASSWORD=
+NOTIFY_EMAIL_FROM=alertes@rencontres-linux.quebec
+NOTIFY_EMAIL_TO=info@rencontres-linux.quebec
+# starttls (587, défaut), ssl (465) ou none (relais local sans TLS : Postfix sur 127.0.0.1:25)
+SMTP_SECURITY=
+# Sélecteur DKIM fourni par le relais SMTP (vérifié par app-health-check.py --check-email-dns)
+DKIM_SELECTOR=
+# Guide complet (relais, enregistrements DNS SPF / DKIM / DMARC, test) : doc/email-setup.md
+
+# --- Notification Odoo Discuss (optionnel — laisser ODOO_DISCUSS_CHANNEL vide pour désactiver) ---
+# Nécessite ODOO_TEST_USER ci-dessus (le message est posté en son nom). Le canal doit déjà exister dans Odoo.
+ODOO_DISCUSS_CHANNEL=Sanity Check
+# discuss.channel sur Odoo 17+ ; mettre "mail.channel" si votre version est antérieure.
+ODOO_DISCUSS_MODEL=discuss.channel
+
+# --- Anonymisation de l'affichage ---
+# --anonymize : anonymiser ce que le programme affiche (adresses IP, courriels, identifiants, jetons) par des pseudonymes stables (IP-4f2a9c, usager-9c1e03@anonyme.invalid) ; clé ANONYMIZE
+# (la même clé dans app-default.conf vaut pour tous les programmes ; appliquée seulement quand la sortie est un terminal ; pour cron : --anonymize ou NGINX_TOOLS_ANONYMIZE=1).
+#ANONYMIZE=non

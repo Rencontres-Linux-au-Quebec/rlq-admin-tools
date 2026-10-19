@@ -1,0 +1,4 @@
+# Fichier créé automatiquement le {DATE} par {NOM} : aucun fichier de configuration n’existait.
+# Toutes les options sont en commentaire (valeur par défaut) : enlever le # d’une ligne pour la changer.
+# Modèle d’origine : doc/{NOM}.conf.example
+#

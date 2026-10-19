@@ -1,0 +1,89 @@
+{
+  "canaux": [
+    {
+      "nom": "Odoo-Erreurs",
+      "raison": "Centraliser les erreurs du serveur pour que toute l'équipe les voie, même sans accès à la console Linux. Chaque fil reçoit un type d'erreur ; un message = un problème à regarder.",
+      "alimente": "web-monitor.py, app-log-live.py (alertes de santé), app-log-check.py, app-health-check.py",
+      "fils": [
+        {"nom": "HTTP 4xx", "raison": "Requêtes refusées ou introuvables (403, 404, 429 …) : liens brisés, robots bloqués, visiteurs freinés par la limitation de débit. À regarder si un VRAI visiteur est touché (429 répétés sur la même adresse)."},
+        {"nom": "HTTP 5xx", "raison": "Erreurs du serveur (500, 502, 503, 504) : une page ou une action a échoué chez un visiteur, ou la page de maintenance s'est affichée. Prioritaire : prévenir la personne qui administre le serveur."},
+        {"nom": "Linux", "raison": "Le système : disque presque plein, mémoire, services arrêtés, certificats SSL qui expirent, limites de fichiers ouverts."},
+        {"nom": "Postgres", "raison": "La base de données : trop de connexions, requêtes lentes, conflits d'écriture (« could not serialize »), base inaccessible."},
+        {"nom": "NGINX", "raison": "Le serveur web : configuration invalide, rechargement raté, pics de refus (429, 444), amont (Odoo) injoignable."},
+        {"nom": "BBB", "raison": "BigBlueButton (visioconférences) : service arrêté, salle qui ne s'ouvre pas, enregistrement en échec, certificat."},
+        {"nom": "Autres", "raison": "Tout ce qui ne rentre pas ailleurs : erreurs d'Odoo (ERROR, CRITICAL), courriels en échec, tâches planifiées."}
+      ]
+    },
+    {
+      "nom": "Odoo-Stats",
+      "raison": "Un portrait régulier de l'activité du site (toutes les N heures, N est réglé dans la configuration du programme qui publie), pour voir venir un pic ou une baisse sans ouvrir la console.",
+      "alimente": "web-monitor.py --summary (tâche planifiée)",
+      "fils": [
+        {"nom": "Sommaire", "raison": "Le sommaire : visites réelles, personnes connectées, erreurs, refus, connexions réseau d'Odoo, comparaison avec la période précédente."},
+        {"nom": "Pages les plus visitées", "raison": "Les pages les plus vues depuis le dernier message, avec leur nombre de visiteurs : utile pendant la promotion d'un événement."}
+      ]
+    },
+    {
+      "nom": "Évent-Inscriptions",
+      "raison": "Suivre les inscriptions et les sondages de confirmation de chaque événement, pour voir venir les problèmes pendant l'organisation (inscriptions qui n'arrivent pas, sondages non terminés).",
+      "alimente": "module rlq_survey_report (alerte tous les N inscriptions), app-log-live.py (touches S et I), web-monitor.py",
+      "par_evenement": true,
+      "fils": [
+        {"nom": "{EVENT}-Inscriptions", "raison": "Chaque palier d'inscriptions de {EVENT} (tous les N inscrits), les erreurs d'inscription et les inscriptions sans confirmation."},
+        {"nom": "{EVENT}-Sondages", "raison": "Les sondages de {EVENT} : sondage de confirmation non terminé, erreurs d'envoi ou d'accès, réponses reçues."}
+      ]
+    },
+    {
+      "nom": "Odoo-Sécurité",
+      "suggere": true,
+      "raison": "Ce qui touche la sécurité : adresses bannies ou à débannir, attaques détectées, certificats. Pour que l'équipe sache pourquoi une personne légitime est bloquée.",
+      "alimente": "web-monitor.py, nginx-log-audit.sh, sync-crowdsec-blocklist.sh",
+      "fils": [
+        {"nom": "Bannissements", "raison": "Adresses bannies ou débannies (qui, pourquoi, par quel programme) et adresses valides à débannir."},
+        {"nom": "Attaques", "raison": "Sondes (WordPress, .env …), pics de 429/444, bourrage d'identifiants sur la page de connexion."},
+        {"nom": "Certificats SSL", "raison": "Certificats qui expirent bientôt ou renouvellement en échec."}
+      ]
+    },
+    {
+      "nom": "Odoo-Courriels",
+      "suggere": true,
+      "raison": "Les courriels d'Odoo : échecs d'envoi, limite de messages par connexion, file d'attente. Un courriel d'inscription non envoyé est un problème pour la personne inscrite.",
+      "alimente": "odoo-mail-retry.py, app-log-check.py",
+      "fils": [
+        {"nom": "Échecs d'envoi", "raison": "Courriels à l'état « Échec d'envoi » et leur cause (transitoire ou permanente)."},
+        {"nom": "File d'attente", "raison": "Courriels en attente depuis trop longtemps (tâche planifiée arrêtée)."}
+      ]
+    },
+    {
+      "nom": "Odoo-Sauvegardes",
+      "suggere": true,
+      "raison": "Les sauvegardes : réussite ou échec, taille, âge de la dernière copie, espace disque restant. Une sauvegarde silencieusement en panne se découvre trop tard.",
+      "alimente": "odoo-backup.sh",
+      "fils": [
+        {"nom": "Résultats", "raison": "Résultat de chaque sauvegarde (heure locale, taille, durée)."},
+        {"nom": "Espace disque", "raison": "Espace libre sur la partition des sauvegardes et des journaux."}
+      ]
+    },
+    {
+      "nom": "Odoo-Mises-à-jour",
+      "suggere": true,
+      "raison": "Les mises à jour de modules et de la configuration : qui a mis à jour quoi, quelle version, avec quel résultat (modules rlq*, configuration nginx).",
+      "alimente": "odoo-update-module.sh, zip-versions.py",
+      "fils": [
+        {"nom": "Modules", "raison": "Mise à jour d'un module (version avant/après, erreurs au chargement)."},
+        {"nom": "Configuration nginx", "raison": "Nouvelle version de la configuration nginx déployée ou rechargement refusé."}
+      ]
+    },
+    {
+      "nom": "Évent-Jour-J",
+      "suggere": true,
+      "raison": "Le jour de l'événement : affluence en direct, problèmes d'accueil ou de visioconférence, incidents à régler tout de suite.",
+      "alimente": "app-log-live.py, web-monitor.py, BigBlueButton",
+      "par_evenement": true,
+      "fils": [
+        {"nom": "{EVENT}-Affluence", "raison": "Visiteurs en direct de {EVENT} et pointes de charge."},
+        {"nom": "{EVENT}-Incidents", "raison": "Incidents pendant {EVENT} : à régler tout de suite, avec qui s'en occupe."}
+      ]
+    }
+  ]
+}

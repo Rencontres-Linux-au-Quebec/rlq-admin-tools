@@ -1,0 +1,16 @@
+# ========================================================================================================================
+# Copyright (C) 2026  Services-Linux Conseils Inc <Martial@Bigras.ca> <Martial.Bigras@Services-Conseils-Linux.com>
+# AGPL-3.0-or-later — voir odoo-mail-retry.py pour le texte complet de la licence.
+# ========================================================================================================================
+#
+# Pages publiques supplémentaires que odoo-warmup.py charge à chaque préchauffage (/etc/default/odoo-warmup-pages.conf).
+# Une page par ligne : le chemin commence par « / » (sans le nom de domaine) ; # = commentaire ; lignes vides ignorées.
+# Pour ajouter une page : ajouter une ligne ici. Ce fichier s'AJOUTE à la clé PAGES du fichier odoo-warmup.conf.
+# Chaque page est aussi chargée dans les langues de la clé LANGS (défaut fr,en,es) quand le site les propose.
+# Fichier créé au premier lancement (sauf avec -c/--config) ; un autre fichier : clé PAGES_FILE ou option --pages-file.
+
+/blog
+/event/journee-portes-ouvertes-sur-linux-2026-125/
+/event/journee-portes-ouvertes-sur-linux-2026-125/agenda
+/a-propos/collaborateurs-jpol-2026
+/contactus

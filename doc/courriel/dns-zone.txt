@@ -1,0 +1,37 @@
+; Enregistrements DNS du domaine rencontres-linux.quebec pour un envoi sécurisé — à créer chez le fournisseur DNS du domaine.
+; Remplacer 203.0.113.10 par l'adresse IPv4 PUBLIQUE du serveur (MODE B) et mail.rencontres-linux.quebec par le nom du serveur.
+; Valeurs « p= » : celles des fichiers fournis par le relais (MODE A) ou de /etc/opendkim/keys/…/2026a.txt (MODE B).
+
+; --- Serveur d'envoi ---------------------------------------------------------------------------------------------------------
+mail.rencontres-linux.quebec.                 IN A      203.0.113.10
+; PTR (DNS inverse de 203.0.113.10 → mail.rencontres-linux.quebec.) : se demande à l'HÉBERGEUR de l'adresse IP, pas dans cette zone.
+
+; --- SPF : qui a le droit d'envoyer pour le domaine (UN SEUL enregistrement SPF par nom) ----------------------------------------
+; MODE B (envoi direct) :
+rencontres-linux.quebec.                      IN TXT    "v=spf1 ip4:203.0.113.10 -all"
+; MODE A (relais) : remplacer par l'« include » donné par le relais, ex. :
+; rencontres-linux.quebec.                    IN TXT    "v=spf1 include:_spf.fournisseur.exemple -all"
+; Si le domaine reçoit déjà du courrier chez un fournisseur (MX), AJOUTER son include dans le MÊME enregistrement : "v=spf1 include:... ip4:203.0.113.10 -all"
+
+; --- DKIM : clé publique de signature (MODE B : contenu de 2026a.txt ; MODE A : fourni par le relais) -----------------------------
+2026a._domainkey.rencontres-linux.quebec.     IN TXT    ( "v=DKIM1; h=sha256; k=rsa; "
+                                                          "p=MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA…collez la clé publique ici…" )
+
+; --- DMARC : politique si SPF et DKIM échouent + rapports -------------------------------------------------------------------------
+; Étape 1 (2 à 4 semaines) : observer. Étape 2 : p=quarantine ; étape 3 : p=reject. Le dossier de rapports (rua) doit exister (boîte ou alias).
+_dmarc.rencontres-linux.quebec.               IN TXT    "v=DMARC1; p=none; sp=reject; rua=mailto:dmarc@rencontres-linux.quebec; fo=1; adkim=s; aspf=s; pct=100"
+; Après observation :
+; _dmarc.rencontres-linux.quebec.             IN TXT    "v=DMARC1; p=reject; sp=reject; rua=mailto:dmarc@rencontres-linux.quebec; fo=1; adkim=s; aspf=s; pct=100"
+
+; --- TLS-RPT : rapports d'échecs de TLS (recommandé, sans risque) ---------------------------------------------------------------------
+_smtp._tls.rencontres-linux.quebec.           IN TXT    "v=TLSRPTv1; rua=mailto:tlsrpt@rencontres-linux.quebec"
+
+; --- MTA-STS (seulement si le domaine REÇOIT du courrier ; publie les serveurs MX et exige TLS pour les atteindre) ----------------------
+; _mta-sts.rencontres-linux.quebec.           IN TXT    "v=STSv1; id=20261013000000"
+; mta-sts.rencontres-linux.quebec.            IN A      203.0.113.10          ; sert https://mta-sts.rencontres-linux.quebec/.well-known/mta-sts.txt (voir courriel-securise.md)
+
+; --- Sous-domaines qui n'envoient jamais de courrier ----------------------------------------------------------------------------------
+; *.rencontres-linux.quebec.                  IN TXT    "v=spf1 -all"          ; (ou un enregistrement par sous-domaine utilisé : www, odoo…)
+
+; --- CAA : seule l'autorité de certification voulue peut émettre des certificats du domaine --------------------------------------------
+rencontres-linux.quebec.                      IN CAA    0 issue "letsencrypt.org"

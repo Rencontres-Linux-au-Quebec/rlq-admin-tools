@@ -1,0 +1,49 @@
+# /etc/postfix/main.cf — MODE B : Postfix qui ENVOIE DIRECTEMENT aux serveurs des destinataires (sans relais), signature DKIM par OpenDKIM.
+# Prérequis : port 25 SORTANT ouvert chez l'hébergeur, PTR (DNS inverse) de l'adresse IP = mail.rencontres-linux.quebec, SPF/DKIM/DMARC publiés.
+# Remplacer rencontres-linux.quebec et mail.rencontres-linux.quebec. Appliquer : postfix check && systemctl reload postfix
+
+# --- Identité (HELO = nom du PTR) -------------------------------------------------------------------------------------------
+myhostname = mail.rencontres-linux.quebec
+mydomain = rencontres-linux.quebec
+myorigin = $mydomain
+mydestination = $myhostname, localhost.$mydomain, localhost
+append_dot_mydomain = no
+biff = no
+compatibility_level = 3.6
+smtp_helo_name = $myhostname
+
+# --- Écoute : boucle locale SEULEMENT (envoi seulement : aucun port 25 entrant) -----------------------------------------------
+inet_interfaces = loopback-only
+inet_protocols = ipv4
+mynetworks = 127.0.0.0/8 [::1]/128
+smtpd_relay_restrictions = permit_mynetworks, reject
+disable_vrfy_command = yes
+smtpd_helo_required = yes
+smtpd_banner = $myhostname ESMTP
+
+# --- TLS à l'envoi : opportuniste (les serveurs de réception qui ne l'offrent pas restent joignables) mais jamais en dessous de TLS 1.2 ---
+smtp_tls_security_level = may
+smtp_tls_CAfile = /etc/ssl/certs/ca-certificates.crt
+smtp_tls_protocols = >=TLSv1.2
+smtp_tls_mandatory_protocols = >=TLSv1.2
+smtp_tls_ciphers = medium
+smtp_tls_loglevel = 1
+# Certificat de CE serveur (présenté si un correspondant l'exige) : celui de Let's Encrypt de mail.rencontres-linux.quebec.
+# smtp_tls_cert_file = /etc/letsencrypt/live/mail.rencontres-linux.quebec/fullchain.pem
+# smtp_tls_key_file = /etc/letsencrypt/live/mail.rencontres-linux.quebec/privkey.pem
+# Vérification DANE (DNSSEC) des destinataires qui la publient — nécessite un résolveur DNSSEC local (unbound) :
+# smtp_dns_support_level = dnssec
+# smtp_tls_security_level = dane
+
+# --- Limites et file d'attente -----------------------------------------------------------------------------------------------
+message_size_limit = 26214400
+maximal_queue_lifetime = 2d
+bounce_queue_lifetime = 2d
+smtp_destination_concurrency_limit = 3
+default_destination_rate_delay = 2s
+
+# --- Signature DKIM (OpenDKIM écoute sur 127.0.0.1:8891) -----------------------------------------------------------------------
+milter_default_action = accept
+milter_protocol = 6
+smtpd_milters = inet:127.0.0.1:8891
+non_smtpd_milters = $smtpd_milters

@@ -1,0 +1,49 @@
+# /etc/postfix/main.cf — MODE A : Postfix « envoi seulement » qui passe par un RELAIS SMTP authentifié (recommandé).
+# Remplacer rencontres-linux.quebec, mail.rencontres-linux.quebec et smtp.fournisseur.exemple. Appliquer : postfix check && systemctl reload postfix
+# Les mots de passe vont dans /etc/postfix/sasl_passwd (voir courriel-securise.md), jamais ici.
+
+# --- Identité --------------------------------------------------------------------------------------------------------
+myhostname = mail.rencontres-linux.quebec
+mydomain = rencontres-linux.quebec
+myorigin = $mydomain
+mydestination = $myhostname, localhost.$mydomain, localhost
+append_dot_mydomain = no
+biff = no
+compatibility_level = 3.6
+
+# --- Écoute : boucle locale SEULEMENT (aucun relais ouvert, aucun port 25 exposé) -------------------------------------
+inet_interfaces = loopback-only
+inet_protocols = ipv4
+mynetworks = 127.0.0.0/8 [::1]/128
+smtpd_relay_restrictions = permit_mynetworks, reject
+disable_vrfy_command = yes
+smtpd_helo_required = yes
+smtpd_banner = $myhostname ESMTP
+
+# --- Envoi : relais, authentification, TLS OBLIGATOIRE ------------------------------------------------------------------
+relayhost = [smtp.fournisseur.exemple]:587
+smtp_sasl_auth_enable = yes
+smtp_sasl_password_maps = hash:/etc/postfix/sasl_passwd
+smtp_sasl_security_options = noanonymous
+smtp_sasl_tls_security_options = noanonymous
+smtp_tls_security_level = verify
+smtp_tls_CAfile = /etc/ssl/certs/ca-certificates.crt
+smtp_tls_protocols = >=TLSv1.2
+smtp_tls_mandatory_protocols = >=TLSv1.2
+smtp_tls_mandatory_ciphers = medium
+smtp_tls_loglevel = 1
+# Le certificat du relais doit correspondre à son nom ; si le fournisseur ne le permet pas, remplacer « verify » par « encrypt » (chiffré, nom non vérifié).
+
+# --- Limites raisonnables -------------------------------------------------------------------------------------------------
+message_size_limit = 26214400
+maximal_queue_lifetime = 2d
+bounce_queue_lifetime = 2d
+smtp_destination_concurrency_limit = 5
+default_destination_rate_delay = 1s
+
+# --- Signature DKIM par OpenDKIM : INUTILE ici si le relais signe lui-même (la plupart le font avec le DKIM du domaine) -----
+# Si le relais ne signe pas, ajouter :
+# milter_default_action = accept
+# milter_protocol = 6
+# smtpd_milters = inet:127.0.0.1:8891
+# non_smtpd_milters = $smtpd_milters

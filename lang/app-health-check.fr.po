@@ -1,0 +1,815 @@
+# French translation of the messages of app-health-check (msgid = English text of the code, msgstr = French translation).
+# Standard PO format (Poedit, Weblate, Crowdin...). Empty msgstr = untranslated (English stays); identical to the msgid = valid in both languages.
+# Messages are sentence FRAGMENTS (the code assembles sentences with variables): keep leading/trailing spaces and the order of the pieces.
+msgid ""
+msgstr ""
+"Project-Id-Version: app-health-check\n"
+"Language: fr\n"
+"Source-Language: en\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+msgid "local or external"
+msgstr "local ou external"
+
+msgid "Migration (programs renamed, version 2.0): "
+msgstr "Migration (renommage des programmes, version 2.0) : "
+
+msgid "configuration file not found: "
+msgstr "fichier de config introuvable : "
+
+msgid " exists but is NO LONGER read (read: /etc/default/app-health-check.conf, then ~/.app-health-check.cfg) — its settings have no effect; move it: mv "
+msgstr " existe mais n'est PLUS lu (lus : /etc/default/app-health-check.conf, puis ~/.app-health-check.cfg) — ses réglages n'ont aucun effet ; le déplacer : mv "
+
+msgid "no configuration file found. Searched: explicit -c/--config, "
+msgstr "aucun fichier de config trouve. Cherche : -c/--config explicite, "
+
+msgid " (requested by -c/--config: no other file is read)"
+msgstr " (demandé par -c/--config : aucun autre fichier n'est lu)"
+
+msgid " (the last one wins)"
+msgstr " (le dernier l'emporte)"
+
+msgid "(not set)"
+msgstr "(non défini)"
+
+msgid "not configured"
+msgstr "non configuré"
+
+msgid "credentials configured"
+msgstr "identifiants configurés"
+
+msgid "credentials missing (ignored)"
+msgstr "identifiants absents (ignorés)"
+
+msgid "Configuration read: "
+msgstr "Configuration lue : "
+
+msgid "  Options: --lang "
+msgstr "  Options : --lang "
+
+msgid " other name(s)"
+msgstr " autre(s) nom(s)"
+
+msgid " · Google sign-in expected: "
+msgstr " · connexion Google attendue : "
+
+msgid " · e-mail: "
+msgstr " · courriel : "
+
+msgid " (actual connection: "
+msgstr " (connexion reelle : "
+
+msgid "unknown"
+msgstr "inconnue"
+
+msgid "Configured database: "
+msgstr "Base de données configurée : "
+
+msgid "default (apps/ folder missing next to the program)"
+msgstr "par défaut (dossier apps/ absent à côté du programme)"
+
+msgid " — expected answer: <returncode>SUCCESS</returncode> (bbb-web stopped? see bbb-conf --status)"
+msgstr " — réponse attendue : <returncode>SUCCESS</returncode> (bbb-web arrêté ? voir bbb-conf --status)"
+
+msgid "Light probe /web/health (application and database)"
+msgstr "Sonde légère /web/health (application et base de données)"
+
+msgid "Odoo and PostgreSQL respond (status: pass)"
+msgstr "Odoo et PostgreSQL répondent (status: pass)"
+
+msgid "route missing (Odoo older than 16) — the following checks are enough"
+msgstr "route absente (Odoo antérieur à 16) — les vérifications suivantes suffisent"
+
+msgid " — Odoo or its database is not responding correctly: "
+msgstr " — Odoo ou sa base de données ne répond pas correctement : "
+
+msgid "Light probe /web/health"
+msgstr "Sonde légère /web/health"
+
+msgid "X-Frame-Options"
+msgstr "X-Frame-Options"
+
+msgid "X-Content-Type-Options"
+msgstr "X-Content-Type-Options"
+
+msgid "Security headers present"
+msgstr "En-têtes de sécurité présents"
+
+msgid "« Disallow: / » (non-public instance)"
+msgstr "« Disallow: / » (instance non publique)"
+
+msgid "« Sitemap » (Odoo's robots.txt)"
+msgstr "« Sitemap » (robots.txt d'Odoo)"
+
+msgid ", expected: "
+msgstr ", attendu : "
+
+msgid ">>> /web/login response saved in "
+msgstr ">>> Réponse /web/login sauvegardée dans "
+
+msgid " (equivalent of the manual curl)"
+msgstr " (equivalent du curl manuel)"
+
+msgid "Google authentication ACTIVE and working — redirect_uri correct: "
+msgstr "Authentification Google ACTIVE et fonctionnelle — redirect_uri correct : "
+
+msgid "Google authentication ACTIVE but BROKEN — redirect_uri obtained "
+msgstr "Authentification Google ACTIVE mais CASSÉE — redirect_uri obtenu "
+
+msgid "EXPECTED (EXPECT_GOOGLE_OAUTH=true) but Google link ABSENT from /web/login "
+msgstr "ATTENDUE (EXPECT_GOOGLE_OAUTH=true) mais lien Google ABSENT de /web/login "
+
+msgid "INACTIVE on this instance (no Google link on /web/login) "
+msgstr "INACTIVE sur cette instance (aucun lien Google sur /web/login) "
+
+msgid " — normal if intended; set EXPECT_GOOGLE_OAUTH=true in the configuration if it must always be active. Run again with -v/--verbose to save the full response and inspect it yourself."
+msgstr " — normal si volontaire ; mettez EXPECT_GOOGLE_OAUTH=true dans la config si elle doit toujours être active. Relancez avec -v/--verbose pour sauvegarder la réponse complète et l'inspecter vous-même."
+
+msgid " (open expected: "
+msgstr " (ouvert attendu: "
+
+msgid ", default for this mode: "
+msgstr ", défaut pour ce mode: "
+
+msgid " — locally, 127.0.0.1 is on the nginx allow list: 200 is NORMAL. Remove (or comment out) EXPECT_DB_MANAGER_OPEN from the configuration file: the default expectation depends on the mode (closed with --target external, the real check of the protection)."
+msgstr " — en local, 127.0.0.1 est dans la liste blanche nginx : 200 est NORMAL. Retirez (ou mettez en commentaire) EXPECT_DB_MANAGER_OPEN du fichier de configuration : l'attente par défaut dépend du mode (fermé en --target external, la vraie vérification de la protection)."
+
+msgid "Bad-bot blocking (external, must be 403)"
+msgstr "Blocage bad-bot (externe, doit être 403)"
+
+msgid "Local exemption from bad-bot blocking"
+msgstr "Exemption locale du blocage bad-bot"
+
+msgid "no JS asset found in the home page"
+msgstr "aucun asset JS trouve dans la page d'accueil"
+
+msgid "test not applicable in local mode ($is_internal_client exempts all blocking by UA) — run again with --target external"
+msgstr "test sans objet en mode local ($is_internal_client exempte tout blocage par UA) — relancer avec --target external"
+
+msgid "/robots.txt exempt from bad-bot blocking"
+msgstr "/robots.txt exempte du blocage bad-bot"
+
+msgid "Traversal in the query string blocked by nginx"
+msgstr "Traversée dans la query string bloquée par nginx"
+
+msgid " byte(s) — "
+msgstr " octet(s) — "
+
+msgid "probably Odoo (page too large to be nginx's minimal 404 page)"
+msgstr "probablement Odoo (page trop volumineuse pour être la page 404 minimale de nginx)"
+
+msgid "Sensitive files denied by nginx (/.env, /en_CA/.env, /.git/config)"
+msgstr "Fichiers sensibles refusés par nginx (/.env, /en_CA/.env, /.git/config)"
+
+msgid "OK — minimal nginx response"
+msgstr "OK — réponse minimale de nginx"
+
+msgid " — check that the server block includes snippets/securite-commune.conf, with no regex location placed before it"
+msgstr " — vérifier que le bloc server inclut snippets/securite-commune.conf, sans location regex placée avant"
+
+msgid "passed to the application: "
+msgstr "transmis à l'application : "
+
+msgid "Sensitive files denied by nginx"
+msgstr "Fichiers sensibles refusés par nginx"
+
+msgid "X-Robots-Tag present (DEV/LAB)"
+msgstr "X-Robots-Tag présent (DEV/LAB)"
+
+msgid "value: "
+msgstr "valeur: "
+
+msgid "(absent)"
+msgstr "(absent)"
+
+msgid "status not meaningful in local mode (127.0.0.1 is always on the allow list)."
+msgstr "status non significatif en mode local (127.0.0.1 est toujours sur la liste blanche)."
+
+msgid "DEV/LAB restricted access (to be interpreted manually)"
+msgstr "Accès restreint DEV/LAB (à interpréter manuellement)"
+
+msgid "robots.txt: facet trap /*?tags= blocked"
+msgstr "robots.txt : piège à facettes /*?tags= bloqué"
+
+msgid "not applicable on a non-public instance (robots.txt « Disallow: / » served by nginx)"
+msgstr "sans objet sur une instance non publique (robots.txt « Disallow: / » servi par nginx)"
+
+msgid "not applicable: robots.txt already forbids the whole site (see the /robots.txt line above)"
+msgstr "sans objet : robots.txt interdit déjà tout le site (voir la ligne /robots.txt ci-dessus)"
+
+msgid "to configure in Odoo: Website → Configuration → Settings → Robots.txt (add Disallow: /*?tags= and Disallow: /*&tags=)"
+msgstr "à configurer dans Odoo : Site web → Configuration → Paramètres → Robots.txt (ajouter Disallow: /*?tags= et Disallow: /*&tags=)"
+
+msgid "TLS certificate — "
+msgstr "Certificat TLS — "
+
+msgid "TLS connection impossible ("
+msgstr "connexion TLS impossible ("
+
+msgid "certificate REFUSED: "
+msgstr "certificat REFUSÉ : "
+
+msgid ", issuer: "
+msgstr ", émetteur : "
+
+msgid "EXPIRED since "
+msgstr "EXPIRÉ depuis "
+
+msgid " day(s) (on "
+msgstr " jour(s) (le "
+
+msgid "expires in "
+msgstr "expire dans "
+
+msgid " day(s), on "
+msgstr " jour(s), le "
+
+msgid "still valid for "
+msgstr "valide encore "
+
+msgid " days (until "
+msgstr " jours (jusqu'au "
+
+msgid "), issued by "
+msgstr "), émis par "
+
+msgid "Automatic certificate renewal"
+msgstr "Renouvellement automatique du certificat"
+
+msgid "none found (certbot.timer, snap.certbot.renew.timer, /etc/cron.d/certbot) — check how the certificate is renewed"
+msgstr "aucun trouvé (certbot.timer, snap.certbot.renew.timer, /etc/cron.d/certbot) — vérifier comment le certificat est renouvelé"
+
+msgid "HSTS present — "
+msgstr "HSTS présent — "
+
+msgid "absent"
+msgstr "absent"
+
+msgid "HSTS max-age sufficient — "
+msgstr "HSTS max-age suffisant — "
+
+msgid "Direct access "
+msgstr "Accès direct "
+
+msgid " → https://"
+msgstr " → https://"
+
+msgid "/ in one hop"
+msgstr "/ en un saut"
+
+msgid " » in the domain name"
+msgstr " » dans le nom de domaine"
+
+msgid "Consistency of instance name / EXPECT_RESTRICTED_ACCESS"
+msgstr "Cohérence nom de l'instance / EXPECT_RESTRICTED_ACCESS"
+
+msgid "), option enabled — consistent"
+msgstr "), option active — cohérent"
+
+msgid " looks like a development instance ("
+msgstr " ressemble à une instance de développement ("
+
+msgid "). Add EXPECT_RESTRICTED_ACCESS=true to "
+msgstr "). Ajoutez EXPECT_RESTRICTED_ACCESS=true dans "
+
+msgid ") contains neither « -dev. » nor « .dev. ». If this is PROD: remove this option IMMEDIATELY — it makes the script expect a robots.txt « Disallow: / », which would hide a complete de-indexing of the site. If this really is a non-public instance, its domain name must contain « -dev. » or « .dev. » (e.g. odoo-dev.example.org) to make this failure disappear."
+msgstr ") ne contient « -dev. » ni « .dev. ». Si c'est la PROD : retirez cette option IMMÉDIATEMENT — elle fait attendre un robots.txt « Disallow: / », ce qui masquerait la désindexation complète du site. Si c'est vraiment une instance non publique, son nom de domaine doit contenir « -dev. » ou « .dev. » (ex. odoo-dev.exemple.org) pour faire disparaître cet échec."
+
+msgid "EXPECT_RESTRICTED_ACCESS=true although no domain name ("
+msgstr "EXPECT_RESTRICTED_ACCESS=true alors qu'aucun nom de domaine ("
+
+msgid "public instance, option disabled — consistent"
+msgstr "instance publique, option désactivée — cohérent"
+
+msgid "exception while running nginx-hardening.sh: "
+msgstr "exception en lançant nginx-hardening.sh: "
+
+msgid "see nginx-hardening.sh --check for details"
+msgstr "voir nginx-hardening.sh --check pour le détail"
+
+msgid "fix with: nginx-hardening.sh --update"
+msgstr "corriger avec: nginx-hardening.sh --update"
+
+msgid "non-blocking warning — see nginx-hardening.sh --check"
+msgstr "avertissement non bloquant — voir nginx-hardening.sh --check"
+
+msgid "Initial setup (directories, firewall)"
+msgstr "Setup initial (répertoires, pare-feu)"
+
+msgid "nginx-hardening.sh --check produced no recognized line"
+msgstr "nginx-hardening.sh --check n'a produit aucune ligne reconnue"
+
+msgid "credentials not configured — ignored"
+msgstr "identifiants non configures — ignore"
+
+msgid "Test user authentication"
+msgstr "Authentification utilisateur de test"
+
+msgid "res.users read (self)"
+msgstr "Lecture res.users (soi-même)"
+
+msgid " record(s) read without error"
+msgstr " enregistrement(s) lu(s) sans erreur"
+
+msgid ") — target: "
+msgstr ") — cible : "
+
+msgid "Summary: "
+msgstr "Résumé : "
+
+msgid " failure(s) out of "
+msgstr " échec(s) sur "
+
+msgid " check(s)."
+msgstr " vérification(s)."
+
+msgid "SMTP_HOST not configured"
+msgstr "SMTP_HOST non configuré"
+
+msgid "e-mail not configured (SMTP_HOST and NOTIFY_EMAIL_TO empty)"
+msgstr "courriel non configuré (SMTP_HOST et NOTIFY_EMAIL_TO vides)"
+
+msgid "see doc/email-setup.md: choose an SMTP relay, fill in the configuration, then run this test again"
+msgstr "voir doc/email-setup.md : choisir un relais SMTP, remplir la configuration, puis relancer ce test"
+
+msgid "no DNS tool (dig or host): DNS checks impossible"
+msgstr "aucun outil DNS (dig ou host) : vérifications DNS impossibles"
+
+msgid "port blocked by the hosting provider or the firewall? try 587 (STARTTLS) or 465 (SSL)"
+msgstr "port bloqué par l'hébergeur ou le pare-feu ? essayer 587 (STARTTLS) ou 465 (SSL)"
+
+msgid "MX of the recipient "
+msgstr "MX du destinataire "
+
+msgid "no MX for the recipient domain "
+msgstr "aucun MX pour le domaine destinataire "
+
+msgid " : alerts cannot be delivered"
+msgstr " : les alertes ne peuvent pas être livrées"
+
+msgid "NOTIFY_EMAIL_FROM missing or invalid: the sender must be an address of YOUR domain"
+msgstr "NOTIFY_EMAIL_FROM absent ou invalide : l'expéditeur doit être une adresse de VOTRE domaine"
+
+msgid "MX of the sender "
+msgstr "MX de l'expéditeur "
+
+msgid "no MX for the sender domain "
+msgstr "aucun MX pour le domaine expéditeur "
+
+msgid " : e-mails often refused, bounces lost"
+msgstr " : courriels souvent refusés, retours perdus"
+
+msgid ". MX 10 <mail server of your provider>."
+msgstr ". MX 10 <serveur de courriel de votre fournisseur>."
+
+msgid "no SPF for "
+msgstr "aucun SPF pour "
+
+msgid " : Gmail and Outlook refuse or classify as spam"
+msgstr " : Gmail et Outlook refusent ou classent en pourriel"
+
+msgid " SPF records for "
+msgstr " enregistrements SPF pour "
+
+msgid " : invalid (only one allowed) — merge them"
+msgstr " : invalide (un seul permis) — les fusionner"
+
+msgid "SPF of "
+msgstr "SPF de "
+
+msgid " ends in « +all »: any server in the world can send on your behalf"
+msgstr " en « +all » : tout serveur du monde peut envoyer en votre nom"
+
+msgid "check that this SPF authorizes the relay "
+msgstr "vérifier que ce SPF autorise le relais "
+
+msgid " (include: of your provider)"
+msgstr " (include: de votre fournisseur)"
+
+msgid " present"
+msgstr " présent"
+
+msgid "no DMARC for "
+msgstr "aucun DMARC pour "
+
+msgid " : recommended (required by Gmail and Yahoo above small volumes)"
+msgstr " : recommandé (exigé par Gmail et Yahoo au-delà de petits volumes)"
+
+msgid "then, after a few weeks of uneventful reports: p=quarantine, and finally p=reject"
+msgstr "puis, après quelques semaines de rapports sans surprise : p=quarantine, et enfin p=reject"
+
+msgid "DMARC of "
+msgstr "DMARC de "
+
+msgid " published"
+msgstr " publié"
+
+msgid "DKIM absent: "
+msgstr "DKIM absent : "
+
+msgid "publish the TXT record provided by your SMTP relay"
+msgstr "publier l'enregistrement TXT fourni par votre relais SMTP"
+
+msgid "DKIM not verified (DKIM_SELECTOR not set)"
+msgstr "DKIM non vérifié (DKIM_SELECTOR non renseigné)"
+
+msgid "[app-health-check] Send test — "
+msgstr "[app-health-check] Test d'envoi — "
+
+msgid " from "
+msgstr " depuis "
+
+msgid "[OK] test e-mail sent to "
+msgstr "[OK] courriel de test envoyé à "
+
+msgid " — check it was received, and that it is NOT classified as spam"
+msgstr " — vérifier sa réception, et qu'il n'est PAS classé en pourriel"
+
+msgid "[FAIL] authentication refused by the relay (SMTP_USER / SMTP_PASSWORD) — application password?"
+msgstr "[FAIL] identification refusée par le relais (SMTP_USER / SMTP_PASSWORD) — mot de passe d'application ?"
+
+msgid "[FAIL] recipient refused by the relay: "
+msgstr "[FAIL] destinataire refusé par le relais : "
+
+msgid "[FAIL] sender refused by the relay (NOTIFY_EMAIL_FROM must be an authorized address): "
+msgstr "[FAIL] expéditeur refusé par le relais (NOTIFY_EMAIL_FROM doit être une adresse autorisée) : "
+
+msgid "[FAIL] TLS negotiation impossible ("
+msgstr "[FAIL] négociation TLS impossible ("
+
+msgid ") — check SMTP_PORT and SMTP_SECURITY (starttls, ssl or none)"
+msgstr ") — vérifier SMTP_PORT et SMTP_SECURITY (starttls, ssl ou none)"
+
+msgid "[FAIL] sending impossible: "
+msgstr "[FAIL] envoi impossible : "
+
+msgid "systemd unit "
+msgstr "unité systemd "
+
+msgid " (ExecStart … -d)"
+msgstr " (ExecStart … -d)"
+
+msgid "Creating the configuration file: "
+msgstr "Création du fichier de configuration : "
+
+msgid "ERROR: "
+msgstr "ERREUR : "
+
+msgid "NOT DETECTED"
+msgstr "NON DÉTECTÉ"
+
+msgid "« nginx -T » returned nothing (nginx missing, or not root?)"
+msgstr "« nginx -T » n'a rien retourné (nginx absent, ou pas root ?)"
+
+msgid "Several names serve a site on this server:"
+msgstr "Plusieurs noms servent un site sur ce serveur :"
+
+msgid "Which one is the instance to check? [1-"
+msgstr "Lequel est l'instance à vérifier ? [1-"
+
+msgid ", default 1] "
+msgstr ", défaut 1] "
+
+msgid "only name that serves the site"
+msgstr "seul nom qui sert le site"
+
+msgid "nginx -T + local HTTPS request ("
+msgstr "nginx -T + requête HTTPS locale ("
+
+msgid "(none)"
+msgstr "(aucun)"
+
+msgid "names that redirect to the main name"
+msgstr "noms qui redirigent vers le nom principal"
+
+msgid "development instance: "
+msgstr "instance de développement : "
+
+msgid "no name contains « -dev. » or « .dev. »: public instance"
+msgstr "aucun nom ne contient « -dev. » ni « .dev. » : instance publique"
+
+msgid "neither a systemd unit (-d), nor db_name in odoo.conf"
+msgstr "ni unité systemd (-d), ni db_name dans odoo.conf"
+
+msgid "Google link present on /web/login today"
+msgstr "lien Google présent sur /web/login aujourd'hui"
+
+msgid "Google link absent from /web/login"
+msgstr "lien Google absent de /web/login"
+
+msgid "not applicable"
+msgstr "sans objet"
+
+msgid " : no Odoo database"
+msgstr " : pas de base Odoo"
+
+msgid "# ==================================================================================================================\n# Configuration of app-health-check.py — generated on "
+msgstr "# ==================================================================================================================\n# Configuration de app-health-check.py — générée le "
+
+msgid " by: app-health-check.py --create-config\n# (version "
+msgstr " par : app-health-check.py --create-config\n# (version "
+
+msgid "). Values marked « detected »: verified on this server at generation time.\n# Permissions 600: this file will hold passwords. See doc/app-health-check.conf.example for details.\n# ==================================================================================================================\n\n# --- Language and command-line options (the command line takes precedence) ---\n# LANGUAGE: en, fr or auto (follow LC_ALL / LANG); TARGET: local or external (--target); APP: application profile (--app); VERBOSE: true or false.\n#LANGUAGE=auto\n#TARGET=\n#APP=\n#VERBOSE=false\n\n# --- Target (detected: nginx -T + local HTTPS request on each name) ---\nODOO_PUBLIC_HOST="
+msgstr "). Valeurs marquées « détecté » : vérifiées sur ce serveur au moment de la génération.\n# Permissions 600 : ce fichier contiendra des mots de passe. Voir doc/app-health-check.conf.example pour le détail.\n# ==================================================================================================================\n\n# --- Langue et options de la ligne de commande (la ligne de commande a priorité) ---\n# LANGUAGE : en, fr ou auto (suivre LC_ALL / LANG) ; TARGET : local ou external (--target) ; APP : profil d'application (--app) ; VERBOSE : true ou false.\n#LANGUAGE=auto\n#TARGET=\n#APP=\n#VERBOSE=false\n\n# --- Cible (détecté : nginx -T + requête HTTPS locale sur chaque nom) ---\nODOO_PUBLIC_HOST="
+
+msgid "\n# Names that redirect to ODOO_PUBLIC_HOST (checked: HSTS from the redirect, a single hop).\nADDITIONAL_PUBLIC_HOSTS="
+msgstr "\n# Noms qui redirigent vers ODOO_PUBLIC_HOST (vérifiés : HSTS dès la redirection, un seul saut).\nADDITIONAL_PUBLIC_HOSTS="
+
+msgid "\n\n# --- Non-public instance? (detected: « -dev. » or « .dev. » in a domain name) ---\n# true ONLY on a development instance (robots.txt « Disallow: / », X-Robots-Tag, access restricted by\n# IP); NEVER in PROD, where it would hide a complete de-indexing of the site.\nEXPECT_RESTRICTED_ACCESS="
+msgstr "\n\n# --- Instance non publique ? (détecté : « -dev. » ou « .dev. » dans un nom de domaine) ---\n# true UNIQUEMENT sur une instance de développement (robots.txt « Disallow: / », X-Robots-Tag, accès restreint par\n# IP) ; JAMAIS en PROD, où elle masquerait une désindexation complète du site.\nEXPECT_RESTRICTED_ACCESS="
+
+msgid "\n\n# --- Odoo (detected: "
+msgstr "\n\n# --- Odoo (détecté : "
+
+msgid "NOT DETECTED — to fill in"
+msgstr "NON DÉTECTÉ — à renseigner"
+
+msgid "\n# DEDICATED test user, minimal rights (read-only) — to create in Odoo, never an administrator account.\n# Without these two values, the JSON-RPC functional tests are simply ignored.\n#ODOO_TEST_USER=sanity.check@example.org\n#ODOO_TEST_PASSWORD=\nODOO_SMOKE_MODELS=res.partner,event.event\n\n# --- Expected behaviors ---\n# Database manager: do NOT set in normal times. The expectation depends on the mode: open locally (127.0.0.1 is\n# on the nginx allow list), closed in external. A value here would apply to BOTH modes (false failure locally).\n#EXPECT_DB_MANAGER_OPEN=\n# Detected: "
+msgstr "\n# Utilisateur DÉDIÉ aux tests, droits minimaux (lecture seule) — à créer dans Odoo, jamais un compte administrateur.\n# Sans ces deux valeurs, les tests fonctionnels JSON-RPC sont simplement ignorés.\n#ODOO_TEST_USER=sanity.check@exemple.org\n#ODOO_TEST_PASSWORD=\nODOO_SMOKE_MODELS=res.partner,event.event\n\n# --- Comportements attendus ---\n# Gestionnaire de bases : NE PAS renseigner en temps normal. L'attente dépend du mode : ouvert en local (127.0.0.1 est\n# dans la liste blanche nginx), fermé en external. Une valeur ici s'appliquerait aux DEUX modes (faux échec en local).\n#EXPECT_DB_MANAGER_OPEN=\n# Détecté : "
+
+msgid "Google link present today — its disappearance will be reported"
+msgstr "lien Google présent aujourd'hui — sa disparition sera signalée"
+
+msgid "Google link absent today"
+msgstr "lien Google absent aujourd'hui"
+
+msgid "\n\n# --- E-mail notification (optional — never guessed) ---\n#SMTP_HOST=\n#SMTP_PORT=587\n#SMTP_USER=\n#SMTP_PASSWORD=\n#NOTIFY_EMAIL_FROM=\n#NOTIFY_EMAIL_TO=\n#SMTP_SECURITY=        # starttls (587, default), ssl (465) or none (local relay without TLS) — see doc/email-setup.md\n#DKIM_SELECTOR=        # DKIM selector provided by the relay (checked by --check-email-dns)\n\n# --- Notification in Odoo Discuss (optional) ---\n#ODOO_DISCUSS_CHANNEL=Sanity Check\n#ODOO_DISCUSS_MODEL=discuss.channel\n"
+msgstr "\n\n# --- Notification par courriel (optionnelle — jamais devinée) ---\n#SMTP_HOST=\n#SMTP_PORT=587\n#SMTP_USER=\n#SMTP_PASSWORD=\n#NOTIFY_EMAIL_FROM=\n#NOTIFY_EMAIL_TO=\n#SMTP_SECURITY=        # starttls (587, défaut), ssl (465) ou none (relais local sans TLS) — voir doc/email-setup.md\n#DKIM_SELECTOR=        # sélecteur DKIM fourni par le relais (vérifié par --check-email-dns)\n\n# --- Notification dans Discuss d'Odoo (optionnelle) ---\n#ODOO_DISCUSS_CHANNEL=Sanity Check\n#ODOO_DISCUSS_MODEL=discuss.channel\n"
+
+msgid "Backup copy of the old file: "
+msgstr "Copie de sauvegarde de l'ancien fichier : "
+
+msgid "Detected values:"
+msgstr "Valeurs détectées :"
+
+msgid "  (no local HTTPS answer, ignored: "
+msgstr "  (sans réponse HTTPS locale, ignorés : "
+
+msgid "File written: "
+msgstr "Fichier écrit : "
+
+msgid "To do next:"
+msgstr "À faire ensuite :"
+
+msgid "  - Fill in the values marked NOT DETECTED."
+msgstr "  - Renseigner les valeurs marquées NON DÉTECTÉ."
+
+msgid "  - (optional) Create a dedicated read-only Odoo user and fill in ODOO_TEST_USER/ODOO_TEST_PASSWORD."
+msgstr "  - (optionnel) Créer un utilisateur Odoo dédié en lecture seule et renseigner ODOO_TEST_USER/ODOO_TEST_PASSWORD."
+
+msgid "  - (optional) Uncomment the SMTP section to receive the report by e-mail."
+msgstr "  - (optionnel) Décommenter la section SMTP pour recevoir le rapport par courriel."
+
+msgid "  - Run: app-health-check.py --target local   (then --target external from another machine)"
+msgstr "  - Lancer : app-health-check.py --target local   (puis --target external depuis une autre machine)"
+
+msgid "Changelog not found: "
+msgstr "Changelog introuvable : "
+
+msgid "Health check of nginx + Odoo"
+msgstr "Vérification de santé nginx + Odoo"
+
+msgid "Connection mode (required, except with --create-config)"
+msgstr "Mode de connexion (obligatoire, sauf avec --create-config)"
+
+msgid "Check the alert e-mail: SMTP relay, MX, SPF, DMARC, DKIM (records to add)"
+msgstr "Vérifier le courriel des alertes : relais SMTP, MX, SPF, DMARC, DKIM (enregistrements à ajouter)"
+
+msgid "DNS checks of the e-mail, then actually send a test e-mail"
+msgstr "Vérifications DNS du courriel, puis envoi réel d'un courriel de test"
+
+msgid "Create the configuration file by detecting the values on this server (default: "
+msgstr "Crée le fichier de configuration en détectant les valeurs sur ce serveur (défaut : "
+
+msgid "Show the change log (version numbers in color on a terminal)"
+msgstr "Affiche le journal des modifications (numéros de version en couleur dans un terminal)"
+
+msgid "Application behind nginx (profile apps/NAME.conf: odoo, bbb…) — detected automatically by default"
+msgstr "Application derrière nginx (profil apps/NOM.conf : odoo, bbb…) — détectée automatiquement par défaut"
+
+msgid "With --create-config: replace an existing file (backup copy made)"
+msgstr "Avec --create-config : remplace un fichier existant (copie de sauvegarde faite)"
+
+msgid "This configuration file ALONE (default: /etc/default/app-health-check.conf, then ~/.app-health-check.cfg; command-line options in the file: APP, LANGUAGE, TARGET, VERBOSE)"
+msgstr "Ce fichier de config SEUL (defaut : /etc/default/app-health-check.conf, puis ~/.app-health-check.cfg ; options de la ligne de commande dans le fichier : APP, LANGUAGE, TARGET, VERBOSE)"
+
+msgid "Display language: en or fr (default: from LC_ALL / LC_MESSAGES / LANG)"
+msgstr "Langue d'affichage : en ou fr (défaut : selon LC_ALL / LC_MESSAGES / LANG)"
+
+msgid "Show the Odoo version, the database, and each HTTP request"
+msgstr "Affiche la version Odoo, la base de données, et chaque requête HTTP"
+
+msgid "Print at the end an error report to copy and paste (program, version, server, failures, warnings)"
+msgstr "Afficher à la fin un rapport d'erreurs à copier-coller (programme, version, serveur, échecs, avertissements)"
+
+msgid "  WARNING: configuration value ignored: "
+msgstr "  ATTENTION : valeur de configuration ignorée : "
+
+msgid "no application detected"
+msgstr "aucune application détectée"
+
+msgid "not applicable for e-mail"
+msgstr "sans objet pour le courriel"
+
+msgid "argument --target required (local or external), except with --create-config, --check-email-dns or --test-email"
+msgstr "argument --target requis (local ou external), sauf avec --create-config, --check-email-dns ou --test-email"
+
+msgid "  To create it: app-health-check.py --create-config (as root: "
+msgstr "  Pour la créer : app-health-check.py --create-config (en root : "
+
+msgid "No configuration: creating "
+msgstr "Aucune configuration : création de "
+
+msgid " with the detected values (to check afterwards)."
+msgstr " avec les valeurs détectées (à vérifier ensuite)."
+
+msgid "ERROR: creating "
+msgstr "ERREUR : création de "
+
+msgid " impossible — app-health-check.py --create-config"
+msgstr " impossible — app-health-check.py --create-config"
+
+msgid "] Health check "
+msgstr "] Vérification de santé "
+
+msgid " failure(s)"
+msgstr " échec(s)"
+
+msgid "ERROR"
+msgstr "ERREUR"
+
+msgid "[FAIL] sending the report by e-mail impossible: "
+msgstr "[FAIL] envoi du rapport par courriel impossible : "
+
+msgid " — diagnosis: app-health-check.py --test-email"
+msgstr " — diagnostic : app-health-check.py --test-email"
+
+msgid "[FAIL] publishing the report in Discuss impossible: "
+msgstr "[FAIL] publication du rapport dans Discuss impossible : "
+
+msgid ") — normal run."
+msgstr ") — exécution normale."
+
+msgid " · non-public instance: "
+msgstr " · instance non publique : "
+
+msgid "(not configured)"
+msgstr "(non configuree)"
+
+msgid "non-public instance ("
+msgstr "instance non publique ("
+
+msgid " (common configuration nginx-tools-mail.conf)"
+msgstr " (configuration commune nginx-tools-mail.conf)"
+
+msgid ", then "
+msgstr ", puis "
+
+msgid " (modified on "
+msgstr " (modifié le "
+
+msgid " exists but is NO LONGER read (read: /etc/default/app-health-check.conf, then "
+msgstr " existe mais n'est PLUS lu (lus : /etc/default/app-health-check.conf, puis "
+
+msgid "~/.app-health-check.cfg) — its settings have no effect; move it: mv "
+msgstr "~/.app-health-check.cfg) — ses réglages n'ont aucun effet ; le déplacer : mv "
+
+msgid " · functional tests (JSON-RPC): "
+msgstr " · tests fonctionnels (JSON-RPC) : "
+
+msgid "cannot be determined ("
+msgstr "impossible a determiner ("
+
+msgid " — robots.txt FORBIDS THE WHOLE SITE (« Disallow: / »). Non-public instance "
+msgstr " — robots.txt INTERDIT TOUT LE SITE (« Disallow: / »). Instance non publique "
+
+msgid "(DEV/LAB): normal, add EXPECT_RESTRICTED_ACCESS=true to the configuration file "
+msgstr "(DEV/LAB) : normal, ajoutez EXPECT_RESTRICTED_ACCESS=true dans le fichier de configuration "
+
+msgid "shown at the top. PROD: SERIOUS, the whole site drops out of the search engines — check the map "
+msgstr "affiché en tête. PROD : GRAVE, le site entier sort des moteurs de recherche — vérifier le map "
+
+msgid "$robots_disallow_all (conf.d/odoo-global.conf) and the robots.txt configured in Odoo."
+msgstr "$robots_disallow_all (conf.d/odoo-global.conf) et le robots.txt configuré dans Odoo."
+
+msgid "Check, in this order: "
+msgstr "A verifier, dans l'ordre : "
+
+msgid "(1) Settings > General Settings > 'Integrations' section > 'OAuth Authentication' box checked; "
+msgstr "(1) Réglages > Paramètres généraux > section 'Integrations' > case 'Authentification OAuth' cochée ; "
+
+msgid "(2) developer mode active, then Settings > Users & Companies > OAuth Authentication > "
+msgstr "(2) mode developpeur actif, puis Reglages > Utilisateurs et compagnies > Authentification OAuth > "
+
+msgid "provider 'Google' > 'Active' box checked AND a Client ID filled in. If this is intended (Google "
+msgstr "fournisseur 'Google' > case 'Actif' cochée ET un Client ID renseigné. Si c'est volontaire (Google "
+
+msgid "deliberately disabled), set EXPECT_GOOGLE_OAUTH=false in the configuration to stop this alert. "
+msgstr "désactivé exprès), mettez EXPECT_GOOGLE_OAUTH=false dans la config pour arrêter cette alerte. "
+
+msgid "Run again with -v/--verbose to save the full response and inspect it yourself."
+msgstr "Relancez avec -v/--verbose pour sauvegarder la réponse complète et l'inspecter vous-même."
+
+msgid " — normal if "
+msgstr " — normal si "
+
+msgid "intended; set EXPECT_GOOGLE_OAUTH=true in the configuration if it must always be active. "
+msgstr "volontaire ; mettez EXPECT_GOOGLE_OAUTH=true dans la config si elle doit toujours être active. "
+
+msgid "/web/database/manager stays protected"
+msgstr "/web/database/manager reste protege"
+
+msgid "status obtained: "
+msgstr "status obtenu: "
+
+msgid " — 200 means that THIS machine's IP is on the whitelist "
+msgstr " — 200 signifie que l'IP de CETTE machine est sur la liste blanche "
+
+msgid "(normal if you run this script from a team workstation); 403 confirms that access is "
+msgstr "(normal si vous lancez ce script depuis un poste de l'équipe) ; 403 confirme que l'accès est "
+
+msgid "properly restricted for an unauthorized IP. This script cannot automatically know "
+msgstr "bien restreint pour une IP non autorisée. Ce script ne peut pas savoir automatiquement de "
+
+msgid "which of the two situations applies — read the status above to decide for yourself."
+msgstr "laquelle des deux situations il s'agit — lisez le status ci-dessus pour trancher vous-même."
+
+msgid " — the automatic renewal (at 30 days) "
+msgstr " — le renouvellement automatique (à 30 jours) "
+
+msgid "seems to be failing: certbot renew --dry-run"
+msgstr "semble en échec : certbot renew --dry-run"
+
+msgid "s, still short — normal just after an initial deployment; "
+msgstr "s, encore court — normal juste après un déploiement initial ; "
+
+msgid "raise it to 31536000 after a few trouble-free days."
+msgstr "remonter à 31536000 après quelques jours sans problème."
+
+msgid "EXPECT_RESTRICTED_ACCESS=true to "
+msgstr "EXPECT_RESTRICTED_ACCESS=true dans "
+
+msgid ". Why: a development instance must not "
+msgstr ". Pourquoi : une instance de développement ne doit pas "
+
+msgid "be indexed or probed by robots — nginx serves a « Disallow: / » robots.txt there, an "
+msgstr "être indexée ni sondée par les robots — nginx y sert un robots.txt « Disallow: / », un en-tête "
+
+msgid "X-Robots-Tag noindex header and restricts access by IP; this option tells the script to CHECK these "
+msgstr "X-Robots-Tag noindex et restreint l'accès par IP ; cette option indique au script de VÉRIFIER ces "
+
+msgid "protections (without it, it expects Odoo's public robots.txt and reports false failures). If this "
+msgstr "protections (sans elle, il attend le robots.txt public d'Odoo et signale de faux échecs). Si cette "
+
+msgid "instance is deliberately public, set EXPECT_RESTRICTED_ACCESS=false explicitly to no "
+msgstr "instance est volontairement publique, mettez EXPECT_RESTRICTED_ACCESS=false explicitement pour ne "
+
+msgid "longer see this suggestion."
+msgstr "plus voir cette suggestion."
+
+msgid "), but it is declared "
+msgstr "), mais elle est déclarée "
+
+msgid "deliberately public (explicit EXPECT_RESTRICTED_ACCESS=false). Make sure this is intended: "
+msgstr "publique volontairement (EXPECT_RESTRICTED_ACCESS=false explicite). Assurez-vous que c'est voulu : "
+
+msgid "a public development instance is indexable and probed by robots."
+msgstr "une instance de développement publique est indexable et sondée par les robots."
+
+msgid "SMTP relay reachable: "
+msgstr "relais SMTP joignable : "
+
+msgid "SMTP relay unreachable: "
+msgstr "relais SMTP injoignable : "
+
+msgid "add to DNS: "
+msgstr "ajouter au DNS : "
+
+msgid "enable DKIM at your SMTP relay (it generates the key and gives the selector), then publish: "
+msgstr "activer DKIM chez votre relais SMTP (il génère la clé et donne le sélecteur), puis publier : "
+
+msgid "SELECTOR._domainkey."
+msgstr "SELECTEUR._domainkey."
+
+msgid ". TXT \"v=DKIM1; k=rsa; p=RELAY_PUBLIC_KEY\" ; then set DKIM_SELECTOR=SELECTOR"
+msgstr ". TXT \"v=DKIM1; k=rsa; p=CLÉ_PUBLIQUE_DU_RELAIS\" ; then set DKIM_SELECTOR=SELECTEUR"
+
+msgid "If it arrives in the inbox (not in the spam folder), the alerts will arrive too.\n"
+msgstr "S'il arrive dans la boîte de réception (pas dans les pourriels), les alertes arriveront aussi.\n"
+
+msgid "Create the configuration file by detecting the values on this server "
+msgstr "Crée le fichier de configuration en détectant les valeurs sur ce serveur "
+
+msgid "Report app-health-check.py "
+msgstr "Rapport app-health-check.py "
+
+msgid "Test e-mail sent by app-health-check.py "
+msgstr "Courriel de test envoyé par app-health-check.py "
+
+msgid " already exists — nothing was modified. Run again with --force to replace it (a backup copy "
+msgstr " existe déjà — rien n'a été modifié. Relancez avec --force pour le remplacer (une copie de sauvegarde "
+
+msgid ".before-create-config will be made)."
+msgstr ".before-create-config sera faite)."

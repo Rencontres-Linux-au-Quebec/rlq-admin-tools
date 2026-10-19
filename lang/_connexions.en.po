@@ -1,0 +1,75 @@
+# English translation of apps/_connexions.py messages (shared module).
+msgid ""
+msgstr ""
+"Language: en\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+
+msgid "systemd : « systemctl edit "
+msgstr "systemd: «systemctl edit "
+
+msgid " » puis, sous [Service], LimitNOFILE=65535, « systemctl restart "
+msgstr "» then, under [Service], LimitNOFILE=65535, «systemctl restart "
+
+msgid " » ; nginx : worker_rlimit_nofile (nginx.conf) au moins égal"
+msgstr "»; nginx: worker_rlimit_nofile (nginx.conf) at least equal"
+
+msgid "processus du chat d'Odoo (websocket, port "
+msgstr "Odoo chat process (websocket, port "
+
+msgid " descripteurs de fichiers sur "
+msgstr " file descriptors out of "
+
+msgid " connexion(s) établie(s))"
+msgstr " established connection(s))"
+
+msgid "chaque connexion du chat en utilise un : augmenter la limite — "
+msgstr "each chat connection uses one: raise the limit — "
+
+msgid "processus HTTP d'Odoo (port "
+msgstr "Odoo HTTP process (port "
+
+msgid "augmenter la limite — "
+msgstr "raise the limit — "
+
+msgid " connexions sur max_connections = "
+msgstr " connections out of max_connections = "
+
+msgid "postgresql.conf : max_connections (redémarrage de PostgreSQL) ; ou, dans la configuration d'Odoo, réduire db_maxconn (par processus) / db_maxconn_gevent (processus du chat)"
+msgstr "postgresql.conf: max_connections (PostgreSQL restart); or, in the Odoo configuration, lower db_maxconn (per process) / db_maxconn_gevent (chat process)"
+
+msgid "Odoo peut ouvrir jusqu'à "
+msgstr "Odoo can open up to "
+
+msgid " connexions ((workers "
+msgstr " connections ((workers "
+
+msgid " + crons "
+msgstr " + crons "
+
+msgid " + chat) × db_maxconn "
+msgstr " + chat) × db_maxconn "
+
+msgid ") pour max_connections = "
+msgstr ") for max_connections = "
+
+msgid "configuration d'Odoo : db_maxconn plus bas, ou max_connections plus haut dans postgresql.conf"
+msgstr "Odoo configuration: lower db_maxconn, or raise max_connections in postgresql.conf"
+
+msgid "nginx : "
+msgstr "nginx: "
+
+msgid " connexions clientes établies pour worker_connections = "
+msgstr " client connections established for worker_connections = "
+
+msgid " par processus"
+msgstr " per process"
+
+msgid "nginx.conf, bloc events { worker_connections 4096; } (et worker_rlimit_nofile), puis « nginx -t && systemctl reload nginx »"
+msgstr "nginx.conf, events { worker_connections 4096; } block (and worker_rlimit_nofile), then «nginx -t && systemctl reload nginx»"
+
+msgid "chat (websocket, port "
+msgstr "chat (websocket, port "
+
+msgid "HTTP (port "
+msgstr "HTTP (port "
+

@@ -1,0 +1,173 @@
+Changelog — odoo-chat-post.py
+(most recent version first)
+
+## 1.6.20261016.173838 — Copyright holder: Services-Linux Conseils Inc
+
+Reason:
+  « [1] Il faudrait changer le copywrite de RLQ à Services-Linux Conseils Inc, le courriel reste toujours Martial@Bigras.ca et tu peux rajouter Martial.Bigras@Services-Conseils-Linux.com »
+
+Changes:
+  - Header: « Copyright (C) 2026  Services-Linux Conseils Inc <Martial@Bigras.ca> <Martial.Bigras@Services-Conseils-Linux.com> » (was: Rencontres Linux Québec <info@rencontres-linux.quebec>). No change of behavior.
+
+Bugs fixed:
+  none.
+
+Safeguards and edge cases:
+  none.
+
+Checks:
+  - Test suite (run-all.sh), ruff / ShellCheck.
+
+Action required:
+  none.
+
+## 1.5.20261015.205140 — Program renamed odoo-canaux.py -> odoo-chat-post.py
+
+Reason for the request:
+  « odoo-canaux.py is in French, it would be better in English: odoo-chat-post.py »
+
+Changes:
+  - New name odoo-chat-post.py; all derived names follow: /etc/default/odoo-chat-post.conf, ~/.odoo-chat-post.cfg, ODOO_CHAT_POST_LANG, doc/odoo-chat-post.{changelog.txt,conf.example,catalogue.json}, lang/odoo-chat-post.fr.po, docs/{en,fr}/12-odoo-chat-post.md, tests/test_odoo_chat_post.py; the Odoo group created by --members is now « Alertes équipe (odoo-chat-post) ».
+  - References updated in the other documents, the tests and run-all.sh.
+
+Bugs fixed:
+  - None.
+
+Safeguards and edge cases:
+  - The program had never run on a real Odoo, so no existing group, key or configuration file needs migrating. If you already created /etc/default/odoo-canaux.conf or ~/.odoo-canaux.cfg, rename it (mv) to the new name.
+
+Checks performed:
+  - test_odoo_chat_post, test_i18n, test_conventions, test_config_defaut, test_docs, full suite.
+
+Action required from me:
+  - If a configuration file with the old name exists: mv /etc/default/odoo-canaux.conf /etc/default/odoo-chat-post.conf (and ~/.odoo-canaux.cfg -> ~/.odoo-chat-post.cfg).
+
+## 1.4.20261015.203803 — Code, comments and changelog in English
+
+Reason for the request:
+  Open-source preparation: everything a programmer sees must be in English (variable and function names, developer documentation, changelog); what the user sees stays French and English.
+
+Changes:
+  - Identifiers, comments, docstrings, header and this changelog translated to English (e.g. Canaux -> Channels, SessionWeb -> WebSession, ErreurCanaux -> ChannelsError, creer_robot -> make_bot, ecrire_cle_config -> write_key_config, verifier_ecriture -> check_writable, premier_message -> first_message).
+  - The messages in the code are now the English texts; the French display comes from lang/odoo-chat-post.fr.po (header « Source-Language: en »); lang/odoo-chat-post.en.po is removed.
+  - The first message posted in a channel or thread now follows the display language (French display: same text as before; English display: English text instead of French).
+  - Names of the shared components' functions (apps/_odoo_db.py, apps/_config.py) are unchanged for now; they will be renamed when those components are migrated.
+  - Fallback argument parser (used only when apps/_i18n.py is missing) is now plain English argparse.
+  - Files: odoo-chat-post.py, lang/odoo-chat-post.fr.po, doc/odoo-chat-post.changelog.txt.
+
+Bugs fixed:
+  - Symptom: a few messages stayed in French when the display language was English (« session web impossible », « Compte … », « ATTENTION : », « --report-err indisponible », « Canal : » and « heure locale » in the first message). Diagnosis: those fragments had no entry in the English catalog. Correction: they are now English in the code, with a French entry in the catalog.
+
+Safeguards and edge cases:
+  - Before/after comparison with --lang fr and --lang en over ten scenarios (help, unknown option, no action, no URL, unreachable server, --create and --create-bot with --dry-run, --post without message, missing configuration file, --changelog): same text.
+  - The tests with the fake XML-RPC server cover the behaviour (31 tests).
+
+Checks performed:
+  - py_compile, ruff, test_odoo_chat_post, test_i18n, test_conventions, test_config_defaut, full suite.
+
+Action required from me:
+  - none
+
+## 1.3.20261015.105354 — Automatic creation of the robot's API key and writing it in the configuration
+
+Reason for the request:
+  « On the first run, create the API key (with a one-year expiry?) and fill in all the configuration files that need it. »
+
+Changes:
+  - --create-bot now also creates the robot's API key: random temporary password set by the administrator, web session like a browser (class WebSession: login, identity check, key wizard), key requested for 365 days, then 180, 90, 30, 7 if Odoo refuses (maximum duration of non-administrator accounts); the password is then replaced by another random password that is thrown away (web login impossible). Functions generate_api_key, make_bot.
+  - The key is never displayed: it is written with LOGIN in /etc/default/odoo-chat-post.conf (or NGINX_TOOLS_ETC_DEFAULT; --bot-config FILE, repeatable) with mode 600; the old version of the file is saved (.YYYYMMDD-HHMMSS.bak, 600); the robot is added to MEMBERS if it exists; a comment notes the creation and expiry dates. Functions write_key_config, check_writable.
+  - --renew-key: new key for an existing robot (the old one stays valid until it expires). Without it, an existing robot is not touched.
+  - The administrator gives HIS key through ODOO_API_KEY and --login ADMIN: it is written nowhere. The other programs (app-health-check, web-monitor, app-log-live) do not need the key: when they send alerts, they will call odoo-chat-post.py --post, which reads this single file (one place to protect and renew).
+  - Files: odoo-chat-post.py, doc/odoo-chat-post.conf.example, doc/odoo-chat-post.changelog.txt, lang/odoo-chat-post.en.po.
+
+Bugs fixed:
+  - None.
+
+Safeguards and edge cases:
+  - The files to write are checked BEFORE any creation: if not writable (not root), nothing is created (a key that is not recorded would be lost).
+  - Odoo refusal (two-factor authentication, different version, web session impossible): warning, the password is still made unusable (finally block), configuration untouched, manual steps displayed.
+  - --login equal to the robot: refused (use the administrator account). --dry-run writes nothing.
+  - NOT TESTED on a real Odoo: Odoo does not allow creating a key through the external API; the route used (web session, res.users.identitycheck, res.users.apikeys.description.make_key) imitates the browser and may differ by version (18.0) or be blocked by two-factor authentication; the tests use a fake server. Try --create-bot --dry-run first.
+
+Checks performed:
+  - test_odoo_chat_post: 31 tests including 6 new ones (key written with mode 600 with backup and MEMBERS, duration reduced to 90 days, web session refused, non-writable file, --renew-key, administrator --login), test_i18n, test_conventions, test_config_defaut.
+
+Action required from me:
+  - As root: ODOO_API_KEY=<administrator key> odoo-chat-post.py --login ADMIN --create-bot --dry-run, then without --dry-run; check with --list; if Odoo refuses, follow the manual steps displayed. Note the expiry date (renew with --renew-key).
+
+## 1.2.20261015.103039 — Tux-Bot robot account with minimal rights (--create-bot)
+
+Reason for the request:
+  « Can you create a local "tux-bot" account for me, securely, with only the rights needed to write in the discussion channels. »
+
+Changes:
+  - --create-bot [--bot-login LOGIN] [--dry-run] (default tux-bot): creates in Odoo, with the administrator's key, an INTERNAL user whose only group is « internal user » (base.group_user), without password (web login impossible), without invitation e-mail (no_reset_password), notifications in Odoo. Functions make_bot, make_bot_next, Channels.group_id(xmlid).
+  - Displays the next steps: temporary password, one login, creation of the API key (an API key can only be created by the account itself), new random password, addition to MEMBERS, run --create again.
+  - Files: odoo-chat-post.py, doc/odoo-chat-post.conf.example, doc/odoo-chat-post.changelog.txt, lang/odoo-chat-post.en.po.
+
+Bugs fixed:
+  - None.
+
+Safeguards and edge cases:
+  - An existing account is never modified; warning if it has administration rights (base.group_system, base.group_erp_manager) that are useless for posting. --dry-run writes nothing.
+  - The robot only has access to what it is a member of: with --members, it only sees the alert channels.
+  - On Odoo Enterprise, an internal user counts as a billable user; on Community, not.
+  - Not tested on a real Odoo (fake XML-RPC server).
+
+Checks performed:
+  - test_odoo_chat_post (3 new tests: minimal rights, existing account, dry run), test_i18n, test_conventions, test_config_defaut.
+
+Action required from me:
+  - odoo-chat-post.py --create-bot --dry-run, then --create-bot; generate the robot's API key (displayed steps); MEMBERS=martial.bigras.ing@gmail.com,tux-bot; run --create again.
+
+## 1.1.20261015.095427 — Restricted access to specific accounts (--members) and suggested channels created
+
+Reason for the request:
+  « Yes to your recommendations and I will create an account called Tux-Bot that can write in these channels. For now, only my Odoo account must be able to see these channels: Martial.Bigras.ing@gmail.com » (following the five suggested channels: Odoo-Sécurité, Odoo-Courriels, Odoo-Sauvegardes, Odoo-Mises-à-jour, Évent-Jour-J)
+
+Changes:
+  - New option --members LOGINS (key MEMBERS): the Odoo logins (comma = several, case ignored) that see the channels. Channels class: resolve_accounts, restricted_group_id, sync_members, channel_group; create_all adapted.
+  - The channels are reserved for the group « Team alerts (odoo-chat-post) » (res.groups, created if needed); these accounts are added to it; they (and only they) become members of each channel and thread created.
+  - Configuration key SUGGESTED (equivalent of --suggested): the suggested channels are therefore created with a single --create.
+  - Files: odoo-chat-post.py, doc/odoo-chat-post.conf.example (MEMBERS, SUGGESTED), doc/odoo-chat-post.changelog.txt, lang/odoo-chat-post.en.po.
+
+Bugs fixed:
+  - None.
+
+Safeguards and edge cases:
+  - A requested account that does not exist yet (e.g. Tux-Bot) is reported by a warning, never fatal: create it in Odoo, then run --create again to add the missing members to the channels and threads already present; the group is reused, not recreated.
+  - An existing channel created for all internal users is NOT modified: warning telling to change its group in Odoo (Discuss → channel settings).
+  - Nobody is ever removed from a channel. --dry-run writes nothing (no group, no member, no channel).
+  - Not tested on a real Odoo (fake XML-RPC server): the groups_id field of res.users, the visibility of sub-channels and the robot's right to post in a sub-channel must be checked with --create --dry-run, --list, then a test --post.
+
+Checks performed:
+  - test_odoo_chat_post (22 tests including 5 new ones: group and members, robot added at the next run, too-open channel reported, suggested + configuration, dry run), test_i18n, test_conventions, test_config_defaut, full suite.
+
+Action required from me:
+  - Create the Tux-Bot account in Odoo (internal user) and its API key; in the configuration file: MEMBERS=martial.bigras.ing@gmail.com,tux-bot and SUGGESTED=oui; run with Martial's key odoo-chat-post.py --create --dry-run then --create (run again after Tux-Bot is created); use Tux-Bot's key (ODOO_API_KEY or a dedicated ~/.odoo-chat-post.cfg) for --post.
+
+## 1.0.20261015.085700 — First version: alert channels and threads in Odoo (Discuss)
+
+Reason for the request:
+  « [1] Alerts should be sent to Odoo discussion channels to centralize the problems and warn the team (who have no access to the Linux console). Create these discussion channels and write a first message giving the reason for each: Odoo-Erreurs (HTTP 4xx, HTTP 5xx, Linux, Postgres, NGINX, BBB, Autres), Odoo Stats (Sommaire, Pages les plus visitées), Évent-Inscriptons (JPOL26-Inscriptions, JPOL26-Sondages) [2] if you have other recommendations, do not hesitate: the goal is to keep everybody informed of the important things while organizing events. Which other discussion channels do you suggest? »
+
+Changes:
+  - --create [--dry-run] [--suggested] [--event NAME]: creates in Odoo (XML-RPC, API key) the channels and threads (Odoo 18 sub-channels, field parent_channel_id) of the catalog doc/odoo-chat-post.catalogue.json, with a first message (reason, source, local date); the accounts of the group (--group, default base.group_user) become members of the channels (--no-members to avoid it).
+  - --post CHANNEL/THREAD --message TEXT (« - »: standard input): posts an alert in a thread; --list: state of each channel and thread.
+  - Catalog: Odoo-Erreurs (HTTP 4xx, HTTP 5xx, Linux, Postgres, NGINX, BBB, Autres), Odoo-Stats (Sommaire, Pages les plus visitées), Évent-Inscriptions (EVENT-Inscriptions, EVENT-Sondages); suggested channels (--suggested): Odoo-Sécurité, Odoo-Courriels, Odoo-Sauvegardes, Odoo-Mises-à-jour, Évent-Jour-J.
+  - Files: odoo-chat-post.py, doc/odoo-chat-post.catalogue.json, doc/odoo-chat-post.conf.example, doc/odoo-chat-post.changelog.txt, lang/odoo-chat-post.en.po; configuration /etc/default/odoo-chat-post.conf then ~/.odoo-chat-post.cfg (keys API_KEY, DB, EVENTS, GROUP, LANGUAGE, LOGIN, NO_MEMBERS, URL).
+
+Bugs fixed:
+  - None.
+
+Safeguards and edge cases:
+  - An existing channel or thread is never modified or repeated (no second first message); --dry-run writes nothing.
+  - The API key is never displayed or passed on the command line; warning if the file that holds it is readable by other accounts.
+  - Odoo without sub-channels: each thread becomes a « Channel — Thread » channel. Unknown group, authentication refused, empty message, thread not found: clear message, non-zero exit code.
+  - Not tested on a real Odoo: the tests use a fake XML-RPC server; check first with --create --dry-run then --list.
+
+Checks performed:
+  - test_odoo_chat_post (fake XML-RPC server), test_conventions, test_i18n, test_config_defaut.
+
+Action required from me:
+  - Create a service account and its API key in Odoo, write URL, DB, LOGIN and API_KEY in /etc/default/odoo-chat-post.conf (chmod 600), then run odoo-chat-post.py --create --dry-run, then --create.

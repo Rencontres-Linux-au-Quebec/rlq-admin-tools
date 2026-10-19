@@ -1,0 +1,21 @@
+Changelog — apps/_connexions.py
+(version la plus récente en premier)
+
+## 1.0.20261015.065821 — Création : connexions à Odoo et limites proches
+
+Motif de la demande :
+  « [1] oui fait les corrections et le plus importants est de ne pas avoir bannie de IP valides, peux-tu rajouter une logique qui sortir les IP qui devraient être débannie ? [2] Rajoute une vérification à toutes les minutes du nombre de connexion à Odoo afin de voir si on est à veille d'atteindre une limite comme pour le chat d'Odoo (avec les websockets, indique le paramètres à changer dans la config d'Odoo si on atteint une limite) [3] Je remarque dans le texte en anglais, il y a des mots en francais (MOYENNE, Mo, Go, etc) et l'enlignement n'est pas OK [4] Il faudrait que tu crée le fichier de config général s'il n'existe pas (/etc/default/app-default.conf) »
+
+Détail des modifications :
+  - etablies, pid_ecoute, descripteurs, postgres, worker_connections_nginx, mesurer, diagnostiquer, resume : mesures en lecture seule (ss, /proc, psql, nginx -T) ; seuils 80 % (WARNING) et 95 % (CRITIQUE) ; chaque constat dit le paramètre à changer (LimitNOFILE, max_connections, db_maxconn, db_maxconn_gevent, gevent_port, worker_connections, worker_rlimit_nofile).
+
+Bugs corrigés :
+  - Aucun bug corrigé.
+
+Garde-fous et cas limites traités :
+  - Mesure impossible : ignorée ; aucune écriture, aucun redémarrage.
+
+Vérifications effectuées :
+  - test_debannir_connexions (Connexions).
+
+Action requise de ma part : aucune

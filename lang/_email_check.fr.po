@@ -1,0 +1,55 @@
+# French translation of the messages of apps/_email_check.py (shared module; msgid = English text of the code, msgstr = French translation).
+# Standard PO format (Poedit, Weblate, Crowdin...). Empty msgstr = untranslated (English stays); identical to the msgid = valid in both languages.
+msgid ""
+msgstr ""
+"Project-Id-Version: _email_check\n"
+"Language: fr\n"
+"Source-Language: en\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+msgid "empty address"
+msgstr "adresse vide"
+
+msgid "space in the address"
+msgstr "espace dans l'adresse"
+
+msgid "no @ sign"
+msgstr "pas de signe @"
+
+msgid "several @ signs"
+msgstr "plusieurs signes @"
+
+msgid "nothing before the @ sign"
+msgstr "rien avant le signe @"
+
+msgid "part before the @ sign too long (over 64 characters)"
+msgstr "partie avant le signe @ trop longue (plus de 64 caractères)"
+
+msgid "invalid character or dot placement before the @ sign"
+msgstr "caractère invalide ou point mal placé avant le signe @"
+
+msgid "nothing after the @ sign"
+msgstr "rien après le signe @"
+
+msgid "invalid domain name"
+msgstr "nom de domaine invalide"
+
+msgid "domain name too long"
+msgstr "nom de domaine trop long"
+
+msgid "invalid character in the domain name: "
+msgstr "caractère invalide dans le nom de domaine : "
+
+msgid "domain without a dot (e.g. gmail.com)"
+msgstr "domaine sans point (ex. gmail.com)"
+
+msgid "invalid character in the domain name"
+msgstr "caractère invalide dans le nom de domaine"
+
+msgid "invalid top-level domain"
+msgstr "domaine de premier niveau invalide"
+
+msgid "probable typo in the domain ("
+msgstr "faute de frappe probable dans le domaine ("

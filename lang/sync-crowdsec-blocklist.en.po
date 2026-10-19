@@ -1,0 +1,595 @@
+# Traduction en en des messages de sync-crowdsec-blocklist.sh (msgid = fragment français du code, msgstr = traduction).
+# Format PO standard : Poedit, Weblate, Crowdin… Un msgstr vide = non traduit ; identique au msgid = valable dans les deux langues.
+# Les fragments sont des morceaux de phrases : garder les espaces de début et de fin, et l'ordre des morceaux.
+msgid ""
+msgstr ""
+"Project-Id-Version: sync-crowdsec-blocklist.sh\n"
+"Language: en\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+msgid "*** ARRÊT INATTENDU DU SCRIPT (code "
+msgstr "*** UNEXPECTED SCRIPT STOP (code "
+
+msgid ") À LA LIGNE "
+msgstr ") AT LINE "
+
+msgid "Migration (noms de fichiers en anglais) : "
+msgstr "Migration (file names in English): "
+
+msgid "derniere-liste.txt:last-list.txt"
+msgstr "derniere-liste.txt:last-list.txt"
+
+msgid "derniere-liste.sha256:last-list.sha256"
+msgstr "derniere-liste.sha256:last-list.sha256"
+
+msgid "dernier-changement-liste:last-list-change"
+msgstr "dernier-changement-liste:last-list-change"
+
+msgid "# BEGIN sync-crowdsec-blocklist (ajouté par sync-crowdsec-blocklist.sh --ufw-hook ; retirer avec --ufw-hook-remove)"
+msgstr "# BEGIN sync-crowdsec-blocklist (added by sync-crowdsec-blocklist.sh --ufw-hook; remove with --ufw-hook-remove)"
+
+msgid "Changelog introuvable : "
+msgstr "Changelog not found: "
+
+msgid "Usage : sync-crowdsec-blocklist.sh [OPTION]..."
+msgstr "Usage: sync-crowdsec-blocklist.sh [OPTION]..."
+
+msgid "Importe la liste communautaire de CrowdSec dans deux ipsets (IPv4, IPv6) bloqués au pare-feu."
+msgstr "Imports the CrowdSec community list into two ipsets (IPv4, IPv6) blocked at the firewall."
+
+msgid "Options (par ordre alphabétique) :"
+msgstr "Options (in alphabetical order):"
+
+msgid "  --blocked                    IP de la liste effectivement bloquées (compteurs du pare-feu)"
+msgstr "  --blocked                    list IPs actually blocked (firewall counters)"
+
+msgid "  --changelog                  affiche le journal des modifications"
+msgstr "  --changelog                  show the change log"
+
+msgid "  -c, --config FILE            fichier de configuration à lire SEUL (sinon : /etc/default/sync-crowdsec-blocklist.conf, puis ~/.sync-crowdsec-blocklist.cfg ;"
+msgstr "  -c, --config FILE            configuration file to read ALONE (otherwise: /etc/default/sync-crowdsec-blocklist.conf, then ~/.sync-crowdsec-blocklist.cfg;"
+
+msgid "                               clés : CRON_HOURS, LANGUAGE, MIN_IPS, SOURCE, STALE_DAYS, TOP, VERBOSE)"
+msgstr "                               keys: CRON_HOURS, LANGUAGE, MIN_IPS, SOURCE, STALE_DAYS, TOP, VERBOSE)"
+
+msgid "  --cron-hours N               avec --install-cron : intervalle en heures"
+msgstr "  --cron-hours N               with --install-cron: interval in hours"
+
+msgid "  --dry-run                    télécharger et analyser la liste, sans rien modifier"
+msgstr "  --dry-run                    download and analyse the list, change nothing"
+
+msgid "  -h, --help                   affiche cette aide et quitte"
+msgstr "  -h, --help                   show this help and exit"
+
+msgid "  --install-cron               synchronisation automatique (fichier cron)"
+msgstr "  --install-cron               automatic synchronisation (cron file)"
+
+msgid "  --lang LANG                  langue d'affichage : en ou fr (défaut : selon LC_ALL / LC_MESSAGES / LANG)"
+msgstr "  --lang LANG                  display language: en or fr (default: from LC_ALL / LC_MESSAGES / LANG)"
+
+msgid "  --min-ips N                  taille minimale acceptée de la liste (protection contre une liste tronquée)"
+msgstr "  --min-ips N                  minimum accepted list size (protection against a truncated list)"
+
+msgid "  --report-err                 afficher à la fin un rapport d'erreurs à copier-coller (programme, version, serveur,"
+msgstr "  --report-err                 print at the end an error report to copy and paste (program, version, server,"
+
+msgid "                               échecs, avertissements) ; désactive couleurs et questions interactives"
+msgstr "                               failures, warnings); disables colours and interactive questions"
+
+msgid "  --source URL                 autre source de la liste"
+msgstr "  --source URL                 alternative list source"
+
+msgid "  --stale-days N               âge au-delà duquel la liste est signalée périmée"
+msgstr "  --stale-days N               age beyond which the list is reported as stale"
+
+msgid "  --status                     état : dernière synchronisation, échec en cours, taille, IP protégées"
+msgstr "  --status                     status: last synchronisation, current failure, size, protected IPs"
+
+msgid "  --top N                      avec --blocked : nombre d'IP affichées"
+msgstr "  --top N                      with --blocked: number of IPs shown"
+
+msgid "  --ufw-hook                   installer le crochet ufw (règles réinsérées à chaque rechargement d'ufw)"
+msgstr "  --ufw-hook                   install the ufw hook (rules reinserted at every ufw reload)"
+
+msgid "  --ufw-hook-remove            retirer le crochet ufw"
+msgstr "  --ufw-hook-remove            remove the ufw hook"
+
+msgid "  --ufw-start                  (interne) appelé par le crochet ufw"
+msgstr "  --ufw-start                  (internal) called by the ufw hook"
+
+msgid "  --uninstall                  retirer cron, règles et ipsets"
+msgstr "  --uninstall                  remove cron, rules and ipsets"
+
+msgid "  -v, --verbose                affiche chaque commande lancée"
+msgstr "  -v, --verbose                show every command run"
+
+msgid "  --version                    affiche la version et quitte"
+msgstr "  --version                    show the version and exit"
+
+msgid "Argument inconnu: "
+msgstr "Unknown argument: "
+
+msgid "ERREUR: une autre exécution de "
+msgstr "ERROR: another run of "
+
+msgid " est en cours (verrou "
+msgstr " is in progress (lock "
+
+msgid ") — abandon."
+msgstr ") — aborting."
+
+msgid "ERREUR: "
+msgstr "ERROR: "
+
+msgid " attend un entier positif (reçu: '"
+msgstr " expects a positive integer (got: '"
+
+msgid "ERREUR: --cron-hours attend une valeur entre 1 et 24 (reçu: "
+msgstr "ERROR: --cron-hours expects a value between 1 and 24 (got: "
+
+msgid " nécessite root (sudo)."
+msgstr " requires root (sudo)."
+
+msgid "      ufw installé : pas de netfilter-persistent (conflit) — le crochet ufw (--ufw-hook) restaure ipsets"
+msgstr "      ufw installed: no netfilter-persistent (conflict) — the ufw hook (--ufw-hook) restores ipsets"
+
+msgid "      et règles à chaque démarrage de ufw, depuis la dernière liste en cache."
+msgstr "      and rules at every ufw start, from the last cached list."
+
+msgid "      ufw installé : pas de netfilter-persistent (conflit) — l'entrée @reboot du cron (--install-cron)"
+msgstr "      ufw installed: no netfilter-persistent (conflict) — the cron @reboot entry (--install-cron)"
+
+msgid "      recrée ipsets et règles ~60 s après le démarrage. Plus tôt et plus fiable : --ufw-hook."
+msgstr "      recreates ipsets and rules ~60 s after boot. Earlier and more reliable: --ufw-hook."
+
+msgid "netfilter-persistent introuvable — état NON sauvegardé pour le redémarrage."
+msgstr "netfilter-persistent not found — state NOT saved for the reboot."
+
+msgid "État sauvegardé (netfilter-persistent save, chaînes fail2ban exclues de la sauvegarde)."
+msgstr "State saved (netfilter-persistent save, fail2ban chains excluded from the backup)."
+
+msgid "Échec de netfilter-persistent save — état NON sauvegardé pour le redémarrage."
+msgstr "netfilter-persistent save failed — state NOT saved for the reboot."
+
+msgid "commande ipset introuvable (PATH : "
+msgstr "ipset command not found (PATH: "
+
+msgid ") — paquet ipset absent ?"
+msgstr ") — ipset package missing?"
+
+msgid "droits insuffisants pour ipset ("
+msgstr "insufficient rights for ipset ("
+
+msgid ") — conteneur LXC non privilégié : autoriser ipset dans le conteneur"
+msgstr ") — unprivileged LXC container: allow ipset in the container"
+
+msgid "(Proxmox : conteneur privilégié, ou nesting/keyctl selon la version) ; sur l'hôte : lsmod | grep ip_set"
+msgstr "(Proxmox: privileged container, or nesting/keyctl depending on the version); on the host: lsmod | grep ip_set"
+
+msgid "module noyau ip_set non disponible ("
+msgstr "kernel module ip_set not available ("
+
+msgid ") — dans un conteneur LXC, le charger sur l'HÔTE Proxmox :"
+msgstr ") — in an LXC container, load it on the Proxmox HOST:"
+
+msgid "modprobe ip_set ip_set_hash_net xt_set, et l'ajouter à /etc/modules-load.d/ sur l'hôte (permanent)"
+msgstr "modprobe ip_set ip_set_hash_net xt_set, and add it to /etc/modules-load.d/ on the host (permanent)"
+
+msgid "ipset a répondu : "
+msgstr "ipset answered: "
+
+msgid "ERREUR: /; s/$/"
+msgstr "ERROR: /; s/$/"
+
+msgid "inconnue"
+msgstr "unknown"
+
+msgid "ÉCHEC n° "
+msgstr "FAILURE no. "
+
+msgid " consécutif, depuis le "
+msgstr " in a row, since "
+
+msgid " — dernière synchronisation réussie : "
+msgstr " — last successful synchronisation: "
+
+msgid "      ufw est installé : ipset-persistent/iptables-persistent volontairement NON installés (apt"
+msgstr "      ufw is installed: ipset-persistent/iptables-persistent deliberately NOT installed (apt"
+
+msgid "      supprimerait ufw pour résoudre un conflit de paquets)."
+msgstr "      would remove ufw to resolve a package conflict)."
+
+msgid "      Tous les paquets requis sont déjà installés."
+msgstr "      All required packages are already installed."
+
+msgid "ERREUR: apt-get introuvable — installez vous-même : "
+msgstr "ERROR: apt-get not found — install yourself: "
+
+msgid "apt-get update a échoué — tentative d'installation quand même."
+msgstr "apt-get update failed — trying the installation anyway."
+
+msgid "ERREUR: échec de l'installation de : "
+msgstr "ERROR: installation failed for: "
+
+msgid " (relancez avec --verbose, ou installez-les vous-même)."
+msgstr " (rerun with --verbose, or install them yourself)."
+
+msgid "Installé : "
+msgstr "Installed: "
+
+msgid "ipset restore -exist  (lot de "
+msgstr "ipset restore -exist  (batch of "
+
+msgid " entrées vers "
+msgstr " entries to "
+
+msgid "Échange impossible pour "
+msgstr "Swap impossible for "
+
+msgid " (ipset incompatible, probablement créé sans compteurs) — remplacement complet."
+msgstr " (incompatible ipset, probably created without counters) — full replacement."
+
+msgid "ATTENTION : la liste n'a pas changé depuis "
+msgstr "WARNING: the list has not changed for "
+
+msgid " jour(s) (dernier changement : "
+msgstr " day(s) (last change: "
+
+msgid "la source se met normalement à jour environ toutes les 2 h. Le dépôt qui la republie n'est probablement"
+msgstr "the source normally updates about every 2 h. The repository that republishes it is probably"
+
+msgid "plus alimenté — vérifiez ses derniers commits : https://github.com/Y3ll0w/CrowdSec-CAPI-Decisions/commits/main"
+msgstr "no longer fed — check its latest commits: https://github.com/Y3ll0w/CrowdSec-CAPI-Decisions/commits/main"
+
+msgid "Les ipsets restent chargés avec cette liste de plus en plus périmée (aucune IP retirée ni ajoutée)."
+msgstr "The ipsets stay loaded with this increasingly stale list (no IP removed or added)."
+
+msgid "Solutions : une autre source (--source URL), ou le vrai agent CrowdSec. Seuil réglable : --stale-days N."
+msgstr "Solutions: another source (--source URL), or the real CrowdSec agent. Adjustable threshold: --stale-days N."
+
+msgid "sans-journal"
+msgstr "no-log"
+
+msgid "Liste CrowdSec inchangee depuis "
+msgstr "CrowdSec list unchanged for "
+
+msgid " jour(s) (depuis "
+msgstr " day(s) (since "
+
+msgid ") : source probablement plus alimentee ("
+msgstr "): source probably no longer fed ("
+
+msgid " (IP protégée) figurait dans la liste communautaire — exclue, jamais bloquée."
+msgstr " (protected IP) was in the community list — excluded, never blocked."
+
+msgid " IP protégée(s) (liste blanche nginx, adresses du serveur, "
+msgstr " protected IP(s) (nginx white list, server addresses, "
+
+msgid ") : jamais bloquée(s)"
+msgstr "): never blocked"
+
+msgid " — dont "
+msgstr " — of which "
+
+msgid " présente(s) dans la liste communautaire"
+msgstr " present in the community list"
+
+msgid "# after.init : si exécutable, appelé par ufw-init. Voir « man ufw-framework »."
+msgstr "# after.init: if executable, called by ufw-init. See « man ufw-framework »."
+
+msgid " absent — fichier minimal créé."
+msgstr " missing — minimal file created."
+
+msgid "      Copie de sauvegarde : "
+msgstr "      Backup copy: "
+
+msgid "Crochet installé dans "
+msgstr "Hook installed in "
+
+msgid "      Aucun crochet sync-crowdsec-blocklist dans "
+msgstr "      No sync-crowdsec-blocklist hook in "
+
+msgid " — rien à retirer."
+msgstr " — nothing to remove."
+
+msgid " remis non exécutable (son état d'origine)."
+msgstr " made non-executable again (its original state)."
+
+msgid "Crochet retiré de "
+msgstr "Hook removed from "
+
+msgid " (reste du fichier inchangé)."
+msgstr " (rest of the file unchanged)."
+
+msgid "Démarrage de ufw : ipsets et règles CrowdSec restaurés (liste en cache)"
+msgstr "ufw start: CrowdSec ipsets and rules restored (cached list)"
+
+msgid " INTÉGRATION UFW (/etc/ufw/after.init)"
+msgstr " UFW INTEGRATION (/etc/ufw/after.init)"
+
+msgid "ufw n'est pas installé — crochet inutile (netfilter-persistent assure déjà la persistance)."
+msgstr "ufw is not installed — hook useless (netfilter-persistent already provides persistence)."
+
+msgid "Aucune liste en cache : lancez d'abord une synchronisation (sans option), sinon le crochet"
+msgstr "No cached list: run a synchronisation first (no option), otherwise the hook"
+
+msgid "n'aurait rien à restaurer au démarrage de ufw. Le crochet est quand même installé."
+msgstr "would have nothing to restore at ufw start. The hook is installed anyway."
+
+msgid "      Effet : au démarrage de ufw (boot, et rechargements qui vident les chaînes si MANAGE_BUILTINS=yes),"
+msgstr "      Effect: at ufw start (boot, and reloads that flush the chains if MANAGE_BUILTINS=yes),"
+
+msgid "      les ipsets sont restaurés depuis la liste en cache et les règles remises en tête de INPUT."
+msgstr "      the ipsets are restored from the cached list and the rules put back at the top of INPUT."
+
+msgid "      Tester sans redémarrer : ufw reload && "
+msgstr "      Test without rebooting: ufw reload && "
+
+msgid " ÉTAT ACTUEL"
+msgstr " CURRENT STATE"
+
+msgid "ipset n'est pas installé — lancez ce script sans option pour l'installer."
+msgstr "ipset is not installed — run this script with no option to install it."
+
+msgid "présent"
+msgstr "present"
+
+msgid " entrée(s)"
+msgstr " entry(ies)"
+
+msgid "absent"
+msgstr "absent"
+
+msgid "Règle "
+msgstr "Rule "
+
+msgid "présente"
+msgstr "present"
+
+msgid "absente"
+msgstr "absent"
+
+msgid "Persistance : via l'entrée @reboot du cron (ufw installé, netfilter-persistent volontairement absent)"
+msgstr "Persistence: via the cron @reboot entry (ufw installed, netfilter-persistent deliberately absent)"
+
+msgid "netfilter-persistent présent"
+msgstr "netfilter-persistent present"
+
+msgid "aucune"
+msgstr "none"
+
+msgid " (relancez sans option pour installer ipset-persistent)"
+msgstr " (rerun with no option to install ipset-persistent)"
+
+msgid "installé"
+msgstr "installed"
+
+msgid " (--ufw-hook : restauration au démarrage de ufw, sans attendre le cron)"
+msgstr " (--ufw-hook: restore at ufw start, without waiting for cron)"
+
+msgid "Dernière synchronisation : "
+msgstr "Last synchronisation: "
+
+msgid "ÉCHEC EN COURS : "
+msgstr "CURRENT FAILURE: "
+
+msgid " tentative(s) consécutive(s) depuis le "
+msgstr " consecutive attempt(s) since "
+
+msgid " (dernière : "
+msgstr " (last: "
+
+msgid "  Détail : tail -n 40 /var/log/sync-crowdsec-blocklist.log"
+msgstr "  Details: tail -n 40 /var/log/sync-crowdsec-blocklist.log"
+
+msgid "IP protégées (jamais bloquées) : "
+msgstr "Protected IPs (never blocked): "
+
+msgid "Âge de la liste : "
+msgstr "List age: "
+
+msgid "inchangée depuis "
+msgstr "unchanged for "
+
+msgid " jour(s)"
+msgstr " day(s)"
+
+msgid "Âge de la liste : dernier changement il y a "
+msgstr "List age: last change "
+
+msgid " jour(s) (seuil d'alerte : "
+msgstr " day(s) ago (alert threshold: "
+
+msgid " IP RÉELLEMENT BLOQUÉES PAR LA LISTE CROWDSEC"
+msgstr " IPs ACTUALLY BLOCKED BY THE CROWDSEC LIST"
+
+msgid "ipset n'est pas installé — rien à afficher."
+msgstr "ipset is not installed — nothing to show."
+
+msgid "(inconnue)"
+msgstr "(unknown)"
+
+msgid "Aucune IP de la liste n'a encore tenté de se connecter à ce serveur (ou les ipsets viennent d'être créés)."
+msgstr "No IP from the list has tried to connect to this server yet (or the ipsets were just created)."
+
+msgid "depuis la synchro du "
+msgstr "since the sync of "
+
+msgid " IP distincte(s) bloquée(s) à ce jour. Dernière synchronisation : "
+msgstr " distinct IP(s) blocked so far. Last synchronisation: "
+
+msgid "PREMIÈRE DÉTECTION"
+msgstr "FIRST DETECTION"
+
+msgid "DERNIÈRE DÉTECTION"
+msgstr "LAST DETECTION"
+
+msgid " autre(s) — --top 0 pour tout afficher)"
+msgstr " other(s) — --top 0 to show all)"
+
+msgid "Note : les dates sont celles de la synchronisation qui a constaté l'activité (un compteur ipset ne"
+msgstr "Note: dates are those of the synchronisation that noticed the activity (an ipset counter does not"
+
+msgid "donne pas l'heure exacte de chaque paquet). Une IP bloquée n'atteint jamais nginx : elle n'apparaît"
+msgstr "give the exact time of each packet). A blocked IP never reaches nginx: it therefore appears"
+
+msgid "donc dans AUCUN journal nginx — ce rapport est la seule trace de ces blocages."
+msgstr "in NO nginx log — this report is the only trace of these blocks."
+
+msgid " DÉSINSTALLATION"
+msgstr " UNINSTALL"
+
+msgid " retirée ("
+msgstr " removed ("
+
+msgid " détruit."
+msgstr " destroyed."
+
+msgid "Impossible de détruire "
+msgstr "Cannot destroy "
+
+msgid " (encore référencé par une autre règle ?)."
+msgstr " (still referenced by another rule?)."
+
+msgid " retiré."
+msgstr " removed."
+
+msgid " (cache + historique des IP bloquées) retiré."
+msgstr " (cache + history of blocked IPs) removed."
+
+msgid "Aucun paquet n'a été désinstallé (ipset, iptables-persistent, ipset-persistent restent en place)."
+msgstr "No package was uninstalled (ipset, iptables-persistent, ipset-persistent stay in place)."
+
+msgid "# Généré par sync-crowdsec-blocklist.sh --install-cron — ne pas éditer à la main."
+msgstr "# Generated by sync-crowdsec-blocklist.sh --install-cron — do not edit by hand."
+
+msgid "# PATH explicite : celui de cron (/usr/bin:/bin) ne contient ni ipset ni iptables (dans /usr/sbin)."
+msgstr "# Explicit PATH: cron's (/usr/bin:/bin) contains neither ipset nor iptables (in /usr/sbin)."
+
+msgid "# Synchronisation toutes les "
+msgstr "# Synchronisation every "
+
+msgid " heure(s), minute 17 (évite l'heure pile, où tout le monde tape la même source)."
+msgstr " hour(s), minute 17 (avoids the top of the hour, when everyone hits the same source)."
+
+msgid "# Au démarrage : recrée ipsets et règles (depuis la dernière liste en cache si le réseau n'est pas encore prêt)."
+msgstr "# At boot: recreates ipsets and rules (from the last cached list if the network is not ready yet)."
+
+msgid "Cron installé : "
+msgstr "Cron installed: "
+
+msgid " (toutes les "
+msgstr " (every "
+
+msgid " heure(s) + au démarrage ; sortie dans /var/log/sync-crowdsec-blocklist.log)."
+msgstr " hour(s) + at boot; output in /var/log/sync-crowdsec-blocklist.log)."
+
+msgid "La synchronisation"
+msgstr "The synchronisation"
+
+msgid "Utilisez --dry-run pour tester sans privilège."
+msgstr "Use --dry-run to test without privileges."
+
+msgid " SYNCHRONISATION DE LA LISTE CROWDSEC (--dry-run : rien n'est modifié)"
+msgstr " CROWDSEC LIST SYNCHRONISATION (--dry-run: nothing is changed)"
+
+msgid " SYNCHRONISATION DE LA LISTE CROWDSEC"
+msgstr " CROWDSEC LIST SYNCHRONISATION"
+
+msgid "1a # PATH explicite : celui de cron (/usr/bin:/bin) ne contient ni ipset ni iptables (dans /usr/sbin)."
+msgstr "1a # Explicit PATH: cron's (/usr/bin:/bin) contains neither ipset nor iptables (in /usr/sbin)."
+
+msgid " complété : PATH explicite (cause des échecs sous cron)."
+msgstr " completed: explicit PATH (cause of failures under cron)."
+
+msgid "Vérification des paquets requis"
+msgstr "Checking required packages"
+
+msgid "Téléchargement de "
+msgstr "Downloading "
+
+msgid "Téléchargement impossible — ipsets absents, restauration depuis la dernière liste en cache."
+msgstr "Download impossible — ipsets missing, restoring from the last cached list."
+
+msgid "ERREUR: échec du téléchargement depuis "
+msgstr "ERROR: download failed from "
+
+msgid " — ipsets actuels conservés tels quels."
+msgstr " — current ipsets kept as they are."
+
+msgid "Analyse de la liste"
+msgstr "Analysing the list"
+
+msgid " entrée(s) valide(s) ("
+msgstr " valid entry(ies) ("
+
+msgid "ERREUR: seulement "
+msgstr "ERROR: only "
+
+msgid " entrée(s) valide(s), en dessous du minimum attendu ("
+msgstr " valid entry(ies), below the expected minimum ("
+
+msgid " — voir --min-ips)."
+msgstr " — see --min-ips)."
+
+msgid "Symptôme typique d'un téléchargement raté silencieusement — mise à jour ANNULÉE pour ne pas"
+msgstr "Typical symptom of a silently failed download — update CANCELLED so as not to"
+
+msgid "débannir tout le monde par erreur. Aucun ipset n'a été modifié."
+msgstr "unban everyone by mistake. No ipset was changed."
+
+msgid "Exemples (5 premières entrées de chaque famille) :"
+msgstr "Examples (first 5 entries of each family):"
+
+msgid "Mise à jour des ipsets"
+msgstr "Updating the ipsets"
+
+msgid "      Liste identique à la précédente synchronisation — ipsets inchangés (compteurs conservés)."
+msgstr "      List identical to the previous synchronisation — ipsets unchanged (counters kept)."
+
+msgid "impossible de créer les ipsets : "
+msgstr "cannot create the ipsets: "
+
+msgid "Ipsets à jour : "
+msgstr "Ipsets up to date: "
+
+msgid "Règles iptables/ip6tables"
+msgstr "iptables/ip6tables rules"
+
+msgid " introuvable — règle "
+msgstr " not found — rule "
+
+msgid " non appliquée."
+msgstr " not applied."
+
+msgid "      Règle "
+msgstr "      Rule "
+
+msgid ") déjà présente."
+msgstr ") already present."
+
+msgid ") ajoutée."
+msgstr ") added."
+
+msgid "Sauvegarde pour le redémarrage"
+msgstr "Saving for the reboot"
+
+msgid "      Rien n'a changé — sauvegarde inutile."
+msgstr "      Nothing changed — saving is pointless."
+
+msgid "Synchronisation terminée."
+msgstr "Synchronisation finished."
+
+msgid " Voir les IP réellement bloquées : "
+msgstr " See the IPs actually blocked: "
+
+msgid "aucun message"
+msgstr "no message"
+
+msgid "arrêt avec le code "
+msgstr "stopped with code "
+
+msgid "  --anonymize                  anonymise ce qui est affiché (adresses IP, courriels, identifiants, jetons) par des pseudonymes stables ; clé ANONYMIZE"
+msgstr "  --anonymize                  anonymizes what is displayed (IP addresses, emails, identifiers, tokens) with stable pseudonyms; key ANONYMIZE"

@@ -1,0 +1,8 @@
+# English translation of apps/_anonymiser.py messages (shared module).
+msgid ""
+msgstr ""
+"Language: en\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+
+msgid "ERREUR : anonymisation demandée mais apps/_traduire.py est introuvable : rien n'est affiché."
+msgstr "ERROR: anonymization requested but apps/_traduire.py is missing: nothing is displayed."

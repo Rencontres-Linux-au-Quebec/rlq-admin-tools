@@ -1,0 +1,44 @@
+Changelog — apps/_courriel.py
+(version la plus récente en premier)
+
+## 1.1.20261016.173838 — Copyright holder: Services-Linux Conseils Inc
+
+Reason:
+  « [1] Il faudrait changer le copywrite de RLQ à Services-Linux Conseils Inc, le courriel reste toujours Martial@Bigras.ca et tu peux rajouter Martial.Bigras@Services-Conseils-Linux.com »
+
+Changes:
+  - Header: « Copyright (C) 2026  Services-Linux Conseils Inc <Martial@Bigras.ca> <Martial.Bigras@Services-Conseils-Linux.com> » (was: Rencontres Linux Québec <info@rencontres-linux.quebec>). No change of behavior.
+
+Bugs fixed:
+  none.
+
+Safeguards and edge cases:
+  none.
+
+Checks:
+  - Test suite (run-all.sh), ruff / ShellCheck.
+
+Action required:
+  none.
+
+## 1.0.20261013.103000 — Première version : envoi de courriels commun
+
+Motif de la demande :
+  « [1] Installer les logiciels manquants au setup (ShellCheck ignoré dans run-all.sh). [2] Dans le menu d'aide, afficher la version (avec la date). [3] Que les programmes Python et Bash puissent envoyer des courriels : installer les logiciels, configurer Linux pour l'envoi ; le setup demande UNE fois le serveur SMTP, le port, l'utilisateur, le chiffrement (STARTTLS), demande le mot de passe, sauvegarde dans /etc/default, convertit les pièces jointes de plus de 100 Mo en liens, indique exactement quoi mettre dans le DNS, sans sauvegarder de données importantes. »
+
+Détail des modifications :
+  - Nouveau composant apps/_courriel.py : lire_config() (/etc/default/nginx-tools-mail.conf puis ~/.nginx-tools-mail.cfg), lire_mot_de_passe() (variable NGINX_TOOLS_MAIL_PASSWORD ou fichier à part), securite(), verifier_droits(), envoyer() (smtplib, STARTTLS / SSL / aucun), pieces_ou_liens() et nettoyer_liens().
+  - Ligne de commande : --send SUJET [--body-file F] [--attach F] [--to A], --test, --show-config (sans mot de passe), --version, --changelog.
+  - Pièce jointe plus grosse que MAIL_ATTACH_MAX_MB (100 Mo) : copiée dans MAIL_LINK_DIR sous un jeton secret, remplacée dans le courriel par un lien (MAIL_LINK_URL) ou, sans URL, par le chemin sur le serveur ; copies de plus de MAIL_LINK_DAYS jours supprimées.
+
+Bugs corrigés :
+  - Aucun (nouveau composant).
+
+Garde-fous et cas limites traités :
+  - Le mot de passe n'est jamais dans le fichier de configuration (fichier à part, mode 0600, root), jamais affiché ni journalisé ni dans un rapport ; aucune adresse ni aucun serveur réels dans le code, les tests ou la documentation.
+  - Erreurs d'envoi (identification, destinataire, expéditeur, TLS, réseau) : message lisible sans trace ni secret, code de sortie 1.
+
+Vérifications effectuées :
+  - ruff E9,F ; test_courriel (faux serveur SMTP : envoi, configuration, pièces jointes, lien, droits, ligne de commande), test_conventions (Python 3.8).
+
+Action requise de ma part : aucune

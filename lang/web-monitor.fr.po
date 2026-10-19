@@ -1,0 +1,2693 @@
+# French translation of the messages of web-monitor (msgid = English text of the code, msgstr = French translation).
+# Standard PO format (Poedit, Weblate, Crowdin...). Empty msgstr = untranslated (English stays); identical to the msgid = valid in both languages.
+# Messages are sentence FRAGMENTS (the code assembles sentences with variables): keep leading/trailing spaces and the order of the pieces.
+msgid ""
+msgstr ""
+"Project-Id-Version: web-monitor\n"
+"Language: fr\n"
+"Source-Language: en\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+msgid "Migration (programs renamed, version 2.0): "
+msgstr "Migration (renommage des programmes, version 2.0) : "
+
+msgid "Migration: timer surveillance-odoo removed, replaced by "
+msgstr "Migration : timer surveillance-odoo retiré, remplacé par "
+
+msgid " (every "
+msgstr " (toutes les "
+
+msgid "(timed out: "
+msgstr "(délai dépassé : "
+
+msgid "(cannot start: "
+msgstr "(impossible de lancer : "
+
+msgid "default (apps/ folder missing next to the program)"
+msgstr "par défaut (dossier apps/ absent à côté du programme)"
+
+msgid "app-health-check.py: failing check(s)"
+msgstr "app-health-check.py : vérification(s) en échec"
+
+msgid "app-health-check.py: the tool itself failed"
+msgstr "app-health-check.py : l'outil lui-même a échoué"
+
+msgid "app-log-check.py: item(s) to examine in the journal of "
+msgstr "app-log-check.py : entrée(s) à examiner dans le journal de "
+
+msgid "RÉSUMÉ"
+msgstr "RÉSUMÉ"
+
+msgid "app-log-check.py: the tool itself failed"
+msgstr "app-log-check.py : l'outil lui-même a échoué"
+
+msgid "nginx-log-audit.sh: Odoo unreachable from nginx (upstream errors)"
+msgstr "nginx-log-audit.sh : Odoo injoignable depuis nginx (erreurs upstream)"
+
+msgid " : ban recommended ("
+msgstr " : bannissement recommandé ("
+
+msgid " sign(s) of hostility)"
+msgstr " signe(s) d'hostilité)"
+
+msgid "investigation: "
+msgstr "enquête : "
+
+msgid " sign(s) of hostility"
+msgstr " signe(s) d'hostilité"
+
+msgid "nginx-log-audit.sh: ban recommended (investigation, section [10])"
+msgstr "nginx-log-audit.sh : bannissement recommandé (enquête section [10])"
+
+msgid "repeat offender: "
+msgstr "récidiviste : "
+
+msgid " — repeated temporary bans"
+msgstr " — bannissements temporaires répétés"
+
+msgid "nginx-log-audit.sh: repeat offender(s) to ban permanently"
+msgstr "nginx-log-audit.sh : récidiviste(s) à bannir de façon permanente"
+
+msgid "nginx-log-audit.sh: the tool itself failed"
+msgstr "nginx-log-audit.sh : l'outil lui-même a échoué"
+
+msgid "reads a configuration file"
+msgstr "lit un fichier de configuration"
+
+msgid "runs a script"
+msgstr "lance un script"
+
+msgid " : the timer "
+msgstr " : le timer "
+
+msgid " which does not exist ("
+msgstr " qui n'existe pas ("
+
+msgid "the automatic task fails, or runs without its settings (default values) — fix it: "
+msgstr "la tâche automatique échoue, ou s'exécute sans ses réglages (valeurs par défaut) — la corriger : "
+
+msgid " (without --config: the program finds its own file in /etc/default)"
+msgstr " (sans --config : le programme retrouve seul son fichier dans /etc/default)"
+
+msgid "odoo-backup.sh: Odoo backup too old or failing"
+msgstr "odoo-backup.sh : sauvegarde d'Odoo trop ancienne ou en échec"
+
+msgid "sync-crowdsec-blocklist.sh: synchronization failing"
+msgstr "sync-crowdsec-blocklist.sh : synchronisation en échec"
+
+msgid "sync-crowdsec-blocklist.sh: community list outdated"
+msgstr "sync-crowdsec-blocklist.sh : liste communautaire périmée"
+
+msgid "ban recommended for "
+msgstr "bannissement recommandé pour "
+
+msgid "repeat offender to ban: "
+msgstr "récidiviste à bannir : "
+
+msgid "check failing: "
+msgstr "vérification en échec : "
+
+msgid "Odoo unreachable from nginx"
+msgstr "Odoo injoignable depuis nginx"
+
+msgid "CrowdSec list outdated"
+msgstr "liste CrowdSec périmée"
+
+msgid "not sent (--dry-run)"
+msgstr "non envoyé (--dry-run)"
+
+msgid "not sent: app-health-check.py not found next to this script (system journal only)"
+msgstr "non envoyé : app-health-check.py introuvable à côté de ce script (journal système seulement)"
+
+msgid "not sent: app-health-check.py configuration unreadable ("
+msgstr "non envoyé : configuration de app-health-check.py illisible ("
+
+msgid ") — system journal only"
+msgstr ") — journal système seulement"
+
+msgid "not sent: SMTP_HOST / NOTIFY_EMAIL_TO missing from the app-health-check.py configuration (system journal only: journalctl -t web-monitor)"
+msgstr "non envoyé : SMTP_HOST / NOTIFY_EMAIL_TO absents de la configuration de app-health-check.py (journal système seulement : journalctl -t web-monitor)"
+
+msgid "sent to "
+msgstr "envoyé à "
+
+msgid "FAILED to send ("
+msgstr "ÉCHEC de l'envoi ("
+
+msgid "(--dry-run: log reading positions NOT modified, no e-mail)"
+msgstr "(--dry-run : positions de lecture des journaux NON modifiées, aucun courriel)"
+
+msgid " — code "
+msgstr " — code "
+
+msgid " timers of our tools — "
+msgstr " timers de nos outils — "
+
+msgid "Tools missing from "
+msgstr "Outils absents de "
+
+msgid " (ignored): "
+msgstr " (ignorés) : "
+
+msgid "nothing to report"
+msgstr "rien à signaler"
+
+msgid " item(s) to examine:"
+msgstr " point(s) à examiner :"
+
+msgid "To ban the "
+msgstr "Pour bannir les "
+
+msgid " recommended IP(s) in one command (root, with confirmation):"
+msgstr " IP recommandée(s) en une commande (root, avec confirmation) :"
+
+msgid " item(s) to examine"
+msgstr " point(s) à examiner"
+
+msgid " alert(s), all already reported on "
+msgstr " alerte(s), toutes déjà signalées le "
+
+msgid "NEW since the e-mail of "
+msgstr "NOUVEAU depuis le courriel du "
+
+msgid "Full report on the server: "
+msgstr "Rapport complet sur le serveur : "
+
+msgid " alert(s) — e-mail "
+msgstr " alerte(s) — courriel "
+
+msgid "Result: "
+msgstr "Résultat : "
+
+msgid "Items to examine ("
+msgstr "Points à examiner ("
+
+msgid " more line(s) in the full report)"
+msgstr " ligne(s) de plus dans le rapport complet)"
+
+msgid "team"
+msgstr "équipe"
+
+msgid "protected location"
+msgstr "lieu protégé"
+
+msgid " days"
+msgstr " jours"
+
+msgid "LOG DISK SPACE"
+msgstr "ESPACE DISQUE DES JOURNAUX"
+
+msgid "/day on "
+msgstr "/jour sur "
+
+msgid "  no measurable log"
+msgstr "  aucun journal mesurable"
+
+msgid " — /var/log partition: "
+msgstr " — partition de /var/log : "
+
+msgid " free of "
+msgstr " libres sur "
+
+msgid "  Projection at a constant rate: "
+msgstr "  Projection à rythme constant : "
+
+msgid "⚠ 12 months would exceed 80 % of the free space in /var/log."
+msgstr "⚠ 12 mois dépasseraient 80 % de l'espace libre de /var/log."
+
+msgid "  Retention period: nginx-hardening.sh --update --log-retention-months N (3 by default)."
+msgstr "  Durée conservée : nginx-hardening.sh --update --log-retention-months N (3 par défaut)."
+
+msgid "startup script"
+msgstr "script de démarrage"
+
+msgid "command line"
+msgstr "ligne de commande"
+
+msgid "  Odoo (workers) — "
+msgstr "  Odoo (workers) — "
+
+msgid "configuration not found: Odoo default values"
+msgstr "configuration introuvable : valeurs par défaut d’Odoo"
+
+msgid "file"
+msgstr "fichier"
+
+msgid "    Signs of saturation ("
+msgstr "    Signes de saturation ("
+
+msgid " days): "
+msgstr " jours) : "
+
+msgid " recycling(s) for memory · "
+msgstr " recyclage(s) pour mémoire · "
+
+msgid " stop(s) for real time · "
+msgstr " arrêt(s) pour temps réel · "
+
+msgid " 5xx error(s)"
+msgstr " erreur(s) 5xx"
+
+msgid "), with proxy_mode = True behind nginx."
+msgstr "), avec proxy_mode = True derrière nginx."
+
+msgid "    Measured memory: "
+msgstr "    Mémoire mesurée : "
+
+msgid " for ≈ "
+msgstr " pour ≈ "
+
+msgid " ; worst case: UNLIMITED (limit_memory_hard=0)"
+msgstr " ; pire cas : ILLIMITÉ (limit_memory_hard=0)"
+
+msgid " workers and crons): "
+msgstr " workers et crons) : "
+
+msgid " for "
+msgstr " pour "
+
+msgid " of RAM"
+msgstr " de RAM"
+
+msgid "limit_memory_hard=0: NO memory limit — a single runaway worker (report, import, loop) can use all of the server's RAM and get random processes killed (OOM), PostgreSQL included. Apply the value suggested by nginx-hardening.sh --check (step 6), in run.sh if it passes --limit-memory-hard on the command line."
+msgstr "limit_memory_hard=0 : AUCUNE limite mémoire — un seul worker qui s'emballe (rapport, import, boucle) peut consommer toute la RAM du serveur et faire tuer des processus au hasard (OOM), PostgreSQL compris. Appliquer la valeur proposée par nginx-hardening.sh --check (étape 6), dans run.sh s'il passe --limit-memory-hard en ligne de commande."
+
+msgid "requests exceed limit_time_real / limit_time_cpu: find which ones in the journal (reports, exports, heavy imports) before raising these limits."
+msgstr "des requêtes dépassent limit_time_real / limit_time_cpu : repérer lesquelles dans le journal (rapports, exports, imports lourds) avant d'augmenter ces limites."
+
+msgid "workers often recycled for memory ("
+msgstr "workers souvent recyclés pour mémoire ("
+
+msgid "more workers ("
+msgstr "plus de workers ("
+
+msgid ") than Odoo's formula (2 × "
+msgstr ") que la formule d'Odoo (2 × "
+
+msgid " cores + 1 = "
+msgstr " cœurs + 1 = "
+
+msgid "): no gain, the processes compete for the CPU."
+msgstr ") : sans gain, les processus se disputent le processeur."
+
+msgid "no sign of saturation: the current limits do not hinder Odoo. Low RAM usage does not call for raising the limits — they cost nothing until they are reached. Add workers only if slowness or 502/504 errors appear at peak hours (e.g. during an event)."
+msgstr "aucun signe de saturation : les limites actuelles ne gênent pas Odoo. Une faible consommation de RAM ne demande pas de relever les limites — elles ne coûtent rien tant qu'elles ne sont pas atteintes. Ajouter des workers seulement si des lenteurs ou des 502/504 apparaissent aux heures de pointe (ex. pendant un événement)."
+
+msgid " « location "
+msgstr " « location "
+
+msgid " — caught before the rules by: "
+msgstr " — capté(es) avant les règles par : "
+
+msgid " — nginx configuration unreadable (nginx -T): cause undetermined"
+msgstr " — configuration de nginx illisible (nginx -T) : cause non déterminée"
+
+msgid " — NO rule in nginx -T targets "
+msgstr " — AUCUNE règle de nginx -T ne vise "
+
+msgid " : the server block is correct, a rule is MISSING (e.g. wp-admin / wp-login in a « return 404 » rule of snippets/securite-commune.conf, shipped in nginx-odoo-config)"
+msgstr " : le bloc server est correct, il MANQUE une règle (ex. wp-admin / wp-login dans une règle « return 404 » de snippets/securite-commune.conf, livrée dans nginx-odoo-config)"
+
+msgid ") but nginx still responds: the server block serving this name does not include them, or another location comes first"
+msgstr ") mais nginx répond quand même : le bloc server qui sert ce nom ne les inclut pas, ou une autre location les précède"
+
+msgid " — rules target them ("
+msgstr " — des règles les visent ("
+
+msgid "no response"
+msgstr "sans réponse"
+
+msgid "→ Score"
+msgstr "→ Score"
+
+msgid "ban recommended"
+msgstr "bannissement recommandé"
+
+msgid " not found next to this program."
+msgstr " introuvable à côté de ce programme."
+
+msgid "nginx -t rejects the configuration: nginx NOT reloaded."
+msgstr "nginx -t refuse la configuration : nginx NON rechargé."
+
+msgid "nginx reloaded (nginx -t succeeded)."
+msgstr "nginx rechargé (nginx -t réussi)."
+
+msgid "nginx reload failed:"
+msgstr "Rechargement de nginx en échec :"
+
+msgid "fail2ban enabled and started."
+msgstr "fail2ban activé et démarré."
+
+msgid "fail2ban start failed:"
+msgstr "Démarrage de fail2ban en échec :"
+
+msgid "Reload nginx to apply the BigBlueButton security rules"
+msgstr "Recharger nginx pour appliquer les règles de sécurité de BigBlueButton"
+
+msgid "checked by the program: rules installed at "
+msgstr "vérifié par le programme : règles installées à "
+
+msgid ", and nginx now refuses "
+msgstr ", et nginx refuse maintenant "
+
+msgid " from today predate the rules taking effect ("
+msgstr " d'aujourd'hui datent d'avant l'entrée en vigueur des règles ("
+
+msgid " (program test)"
+msgstr " (essai du programme)"
+
+msgid "checked by the program: the "
+msgstr "vérifié par le programme : les "
+
+msgid "); none since"
+msgstr ") ; aucune depuis"
+
+msgid ". Nothing to do: the counter will drop back to zero within 7 days"
+msgstr ". Rien à faire : le compteur retombera à zéro d'ici 7 jours"
+
+msgid " since the rules took effect ("
+msgstr " depuis l'entrée en vigueur des règles ("
+
+msgid " — test through nginx impossible (app-health-check.py missing next to this program)"
+msgstr " — essai à travers nginx impossible (app-health-check.py absent à côté de ce programme)"
+
+msgid ", and nginx still lets through "
+msgstr ", et nginx laisse encore passer "
+
+msgid "): passed through another path (requested name: "
+msgstr ") : passées par un autre chemin (nom demandé : "
+
+msgid "); to watch"
+msgstr ") ; à surveiller"
+
+msgid "); checked by the program: nginx now refuses "
+msgstr ") ; vérifié par le programme : nginx refuse maintenant "
+
+msgid " (minimal nginx response). Nothing to do: the counter will drop back to zero within 7 days"
+msgstr " (réponse minimale de nginx). Rien à faire : le compteur retombera à zéro en 7 jours"
+
+msgid "none today (last on "
+msgstr "aucune aujourd'hui (dernière le "
+
+msgid " still today — test through nginx impossible (app-health-check.py missing)."
+msgstr " encore aujourd'hui — essai à travers nginx impossible (app-health-check.py absent)."
+
+msgid "): predate the current configuration or went through another name."
+msgstr ") : antérieures à la configuration actuelle ou passées par un autre nom."
+
+msgid " still today; checked by the program: nginx still lets through "
+msgstr " encore aujourd'hui ; vérifié par le programme : nginx laisse encore passer "
+
+msgid " already banned, nothing to do"
+msgstr " déjà bannie, rien à faire"
+
+msgid " : team or this server's address, never banned"
+msgstr " : adresse de l'équipe ou de ce serveur, jamais bannie"
+
+msgid " : investigation impossible (nginx-log-audit.sh missing or inconclusive)"
+msgstr " : enquête impossible (nginx-log-audit.sh absent ou sans conclusion)"
+
+msgid " browser 403 refusals in "
+msgstr " refus 403 de navigateur en "
+
+msgid " days; investigation: "
+msgstr " jours ; enquête : "
+
+msgid " — ban offered at the end of the summary"
+msgstr " — bannissement proposé en fin de sommaire"
+
+msgid "checked by the program: "
+msgstr "vérifié par le programme : "
+
+msgid " received only refusals (probably robots). "
+msgstr " n'ont reçu que des refus (robots probables). "
+
+msgid "nginx configuration unreadable (nginx -T): deny rules not collected."
+msgstr "Configuration de nginx illisible (nginx -T) : règles de refus non relevées."
+
+msgid "No « return 403 », « deny » rule or User-Agent test in nginx -T: the refusal comes from the application."
+msgstr "Aucune règle « return 403 », « deny » ni test du User-Agent dans nginx -T : le refus vient de l'application."
+
+msgid "Deny rules found in nginx -T: "
+msgstr "Règles de refus relevées dans nginx -T : "
+
+msgid " … (+"
+msgstr " … (+"
+
+msgid "robots.txt not checked (app-health-check.py missing next to this program)"
+msgstr "robots.txt non vérifié (app-health-check.py absent à côté de ce programme)"
+
+msgid "robots.txt checked by the program: « Disallow: / » present — nothing to do, the robot will space out its visits"
+msgstr "robots.txt vérifié par le programme : « Disallow: / » présent — rien à faire, le robot espacera ses visites"
+
+msgid "robots.txt checked by the program: status "
+msgstr "robots.txt vérifié par le programme : statut "
+
+msgid ", « Disallow: / » ABSENT"
+msgstr ", « Disallow: / » ABSENT"
+
+msgid " — put « User-agent: * » then « Disallow: / » in it so that it stops coming back"
+msgstr " — y mettre « User-agent: * » puis « Disallow: / » pour qu'il cesse de revenir"
+
+msgid "app-log-check.py missing next to this program: application-side causes not collected"
+msgstr "app-log-check.py absent à côté de ce programme : causes côté application non relevées"
+
+msgid "app-log-check.py run by the program: "
+msgstr "app-log-check.py lancé par le programme : "
+
+msgid "no summary"
+msgstr "aucun résumé"
+
+msgid "odoo-backup.sh missing next to this program"
+msgstr "odoo-backup.sh absent à côté de ce programme"
+
+msgid "odoo-backup.sh --status run by the program: "
+msgstr "odoo-backup.sh --status lancé par le programme : "
+
+msgid "\nFor the program to make these fixes: web-monitor.py --apply (one question per fix) or web-monitor.py --apply --yes (no questions)."
+msgstr "\nPour que le programme fasse ces corrections : web-monitor.py --apply (une question par correction) ou web-monitor.py --apply --yes (sans question)."
+
+msgid ") — do it now? [y/N]: "
+msgstr ") — faire maintenant ? [o/N] : "
+
+msgid "geoip-bin and geoip-database installed: the country of IP addresses is read locally."
+msgstr "geoip-bin et geoip-database installés : le pays des adresses IP est lu localement."
+
+msgid "geoip-bin installation failed (code "
+msgstr "Installation de geoip-bin en échec (code "
+
+msgid " Names concerned: "
+msgstr " Noms concernés : "
+
+msgid " — this is the server block of that name that needs fixing."
+msgstr " — c'est le bloc server de ce nom qu'il faut corriger."
+
+msgid "Install the BigBlueButton security rules and the nginx-blocked-probes jail"
+msgstr "Installer les règles de sécurité de BigBlueButton et la jail nginx-blocked-probes"
+
+msgid "fix offered at the end of the summary — nginx-hardening.sh --update: it installs "
+msgstr "correction proposée en fin de sommaire — nginx-hardening.sh --update : il installe "
+
+msgid " (our own file, included by BigBlueButton in its server block, never overwritten by its updates; BBB files untouched) and the nginx-blocked-probes jail"
+msgstr " (fichier à nous, inclus par BigBlueButton dans son bloc server, jamais écrasé par ses mises à jour ; fichiers de BBB intacts) et la jail nginx-blocked-probes"
+
+msgid " malicious requests ("
+msgstr " requêtes malveillantes ("
+
+msgid "…) reached "
+msgstr "…) ont atteint "
+
+msgid " % of the forwarded traffic)"
+msgstr " % du trafic transmis)"
+
+msgid "nginx should refuse them itself: each one needlessly ties up "
+msgstr "nginx devrait les refuser lui-même : chacune occupe "
+
+msgid " and tells the attacker what exists"
+msgstr " inutilement et renseigne l'attaquant sur ce qui existe"
+
+msgid "Enable and start fail2ban"
+msgstr "Activer et démarrer fail2ban"
+
+msgid "fail2ban does not respond (stopped?): no jail is active"
+msgstr "fail2ban ne répond pas (arrêté ?) : aucune jail n'est active"
+
+msgid "without fail2ban, no scanner or password attempt is banned"
+msgstr "sans fail2ban, aucun scanner ni essai de mot de passe n'est banni"
+
+msgid "start offered at the end of the summary (systemctl enable --now fail2ban)"
+msgstr "démarrage proposé en fin de sommaire (systemctl enable --now fail2ban)"
+
+msgid "Install the nginx-blocked-probes jail (and the security rules)"
+msgstr "Installer la jail nginx-blocked-probes (et les règles de sécurité)"
+
+msgid "no fail2ban jail bans web scanners ("
+msgstr "aucune jail fail2ban ne bannit les scanners web ("
+
+msgid " requests for sensitive files in 7 days)"
+msgstr " requêtes vers des fichiers sensibles en 7 jours)"
+
+msgid "a scanner can try hundreds of URLs without ever being blocked"
+msgstr "un scanner peut essayer des centaines d'URL sans jamais être bloqué"
+
+msgid "fix offered at the end of the summary — nginx-hardening.sh --update: it installs the nginx-blocked-probes jail"
+msgstr "correction proposée en fin de sommaire — nginx-hardening.sh --update : il installe la jail nginx-blocked-probes"
+
+msgid " and the rules /etc/bigbluebutton/nginx/zz-nginx-hardening-security.nginx (BBB files untouched)"
+msgstr " et les règles /etc/bigbluebutton/nginx/zz-nginx-hardening-security.nginx (fichiers de BBB intacts)"
+
+msgid " (with the rules of securite-commune.conf from nginx-odoo-config.zip)"
+msgstr " (avec les règles de securite-commune.conf de nginx-odoo-config.zip)"
+
+msgid "certbot missing: check renewal according to the tool in use"
+msgstr "certbot absent : renouvellement à vérifier selon l'outil utilisé"
+
+msgid "renewal test succeeded (certbot renew --dry-run, run by the program): the next automatic renewal should go through; check that the certbot timer is active"
+msgstr "essai de renouvellement réussi (certbot renew --dry-run, lancé par le programme) : le prochain renouvellement automatique devrait passer ; vérifier que le minuteur de certbot est actif"
+
+msgid "renewal test failed (certbot renew --dry-run, run by the program): "
+msgstr "essai de renouvellement en échec (certbot renew --dry-run, lancé par le programme) : "
+
+msgid " — fix the cause (DNS, port 80, firewall)"
+msgstr " — corriger la cause (DNS, port 80, pare-feu)"
+
+msgid "when it expires, all browsers refuse the site"
+msgstr "à l'expiration, tous les navigateurs refusent le site"
+
+msgid "a full partition stops the database and the logs"
+msgstr "une partition pleine arrête la base de données et les journaux"
+
+msgid "free up space or enlarge the disk"
+msgstr "libérer de l'espace ou agrandir le disque"
+
+msgid "Pages requested: "
+msgstr "Pages demandées : "
+
+msgid " is trying to index this BigBlueButton server: "
+msgstr " essaie d'indexer ce serveur BigBlueButton : "
+
+msgid "a meeting server has no reason to be indexed (room links): the refusal is intended; the only cost is that the robot keeps coming back"
+msgstr "un serveur de réunions n'a aucune raison d'être indexé (liens de salles) : le refus est voulu ; seul coût, le robot revient sans cesse"
+
+msgid " receives 403 refusals ("
+msgstr " reçoit des refus 403 ("
+
+msgid "a search engine refused with a 403 retries endlessly and may drop the site from its results"
+msgstr "un moteur de recherche refusé en 403 réessaie sans fin et peut retirer le site de ses résultats"
+
+msgid " target ordinary pages ("
+msgstr " visent des pages ordinaires ("
+
+msgid " target scanner URLs (.env, .php…): normal refusal"
+msgstr " visent des URL de scanners (.env, .php…) : refus normal"
+
+msgid "Concentrated on "
+msgstr "Concentrées sur "
+
+msgid " address(es) (most active: "
+msgstr " adresse(s) (les plus actives : "
+
+msgid "): probably robots. Program investigation: "
+msgstr ") : probablement des robots. Enquête du programme : "
+
+msgid "Spread over "
+msgstr "Réparties sur "
+
+msgid " addresses, but a single one ("
+msgstr " adresses, mais une seule ("
+
+msgid ") accounts for "
+msgstr ") en représente "
+
+msgid "): probably a robot. Program investigation: "
+msgstr ") : probablement un robot. Enquête du programme : "
+
+msgid "Very short responses: typical of a refusal by nginx itself. "
+msgstr "Réponses très courtes : typique d'un refus de nginx lui-même. "
+
+msgid "Long responses: more likely the application than nginx. "
+msgstr "Réponses longues : plutôt l'application que nginx. "
+
+msgid " 403 refusals target ordinary browsers ("
+msgstr " refus 403 visent des navigateurs ordinaires ("
+
+msgid "these are often disguised robots, but they may be real visitors being refused"
+msgstr "ce sont souvent des robots déguisés, mais il peut s'agir de vrais visiteurs refusés"
+
+msgid "visitors received an error page"
+msgstr "des visiteurs ont reçu une page d'erreur"
+
+msgid " server errors (5xx) in 7 days"
+msgstr " erreurs serveur (5xx) en 7 jours"
+
+msgid "possible password-guessing attack"
+msgstr "possible attaque par essais de mots de passe"
+
+msgid " login failures in 7 days"
+msgstr " échecs de connexion en 7 jours"
+
+msgid "checked by the program: the odoo-auth jail is active ("
+msgstr "vérifié par le programme : la jail odoo-auth est active ("
+
+msgid "Install the odoo-auth jail"
+msgstr "Installer la jail odoo-auth"
+
+msgid "checked by the program: the odoo-auth jail is not loaded"
+msgstr "vérifié par le programme : la jail odoo-auth n'est pas chargée"
+
+msgid " (fail2ban does not respond)"
+msgstr " (fail2ban ne répond pas)"
+
+msgid " ; installation offered at the end of the summary (nginx-hardening.sh --update)"
+msgstr " ; installation proposée en fin de sommaire (nginx-hardening.sh --update)"
+
+msgid "no catch-all sensor (requests by raw IP address or unknown domain)"
+msgstr "pas de capteur catch-all (requêtes par adresse IP brute ou domaine inconnu)"
+
+msgid "these requests, almost always sweeps, reach the site instead of being refused with 444"
+msgstr "ces requêtes, presque toujours des balayages, atteignent le site au lieu d'être refusées en 444"
+
+msgid "default server block that answers 444 and logs separately"
+msgstr "bloc server par défaut qui répond 444 et journalise à part"
+
+msgid "Install automatic monitoring (every hour)"
+msgstr "Installer la surveillance automatique (toutes les heures)"
+
+msgid "automatic monitoring not installed"
+msgstr "surveillance automatique non installée"
+
+msgid "problems are only seen when you run the check"
+msgstr "les problèmes ne sont vus que lorsque vous lancez la vérification"
+
+msgid "installation offered at the end of the summary (web-monitor.py --install-timer: every hour)"
+msgstr "installation proposée en fin de sommaire (web-monitor.py --install-timer : toutes les heures)"
+
+msgid "e-mail alerts not configured"
+msgstr "alertes par courriel non configurées"
+
+msgid "alerts stay in the system journal, where nobody sees them"
+msgstr "les alertes restent dans le journal système, où personne ne les voit"
+
+msgid "follow doc/email-setup.md (SMTP relay, DNS records), then app-health-check.py --check-email-dns and --test-email"
+msgstr "suivre doc/email-setup.md (relais SMTP, enregistrements DNS), puis app-health-check.py --check-email-dns et --test-email"
+
+msgid " days)"
+msgstr " jours)"
+
+msgid "Keep 3 months of logs (rotation)"
+msgstr "Conserver 3 mois de journaux (rotation)"
+
+msgid "logs kept for less than 3 months: "
+msgstr "journaux conservés moins de 3 mois : "
+
+msgid "impossible to trace an attack or a trend beyond that"
+msgstr "impossible de remonter une attaque ou une tendance au-delà"
+
+msgid "fix offered at the end of the summary — nginx-hardening.sh --update (step 11; --log-retention-months N for another duration)"
+msgstr "correction proposée en fin de sommaire — nginx-hardening.sh --update (étape 11 ; --log-retention-months N pour une autre durée)"
+
+msgid "no automatic Odoo backup (database and filestore)"
+msgstr "aucune sauvegarde automatique d'Odoo (base et filestore)"
+
+msgid "a disk failure, a handling mistake or ransomware would lose all the data"
+msgstr "une panne de disque, une erreur de manipulation ou un rançongiciel ferait perdre toutes les données"
+
+msgid "run odoo-backup.sh (creates /etc/default/odoo-backup.conf: set REMOTE there, the off-server copy), then odoo-backup.sh --test-restore and odoo-backup.sh --install-timer"
+msgstr "lancer odoo-backup.sh (crée /etc/default/odoo-backup.conf : y renseigner REMOTE, la copie hors du serveur), puis odoo-backup.sh --test-restore et odoo-backup.sh --install-timer"
+
+msgid "last successful Odoo backup was "
+msgstr "dernière sauvegarde d'Odoo réussie il y a "
+
+msgid "beyond that delay, a failure would lose the work done since the last backup"
+msgstr "au-delà de ce délai, une panne ferait perdre le travail depuis la dernière sauvegarde"
+
+msgid "Odoo without a memory limit (limit_memory_hard=0)"
+msgstr "Odoo sans limite mémoire (limit_memory_hard=0)"
+
+msgid "a runaway worker can exhaust the RAM and get PostgreSQL or Odoo killed by the kernel"
+msgstr "un worker qui s'emballe peut épuiser la RAM et faire tuer PostgreSQL ou Odoo par le noyau"
+
+msgid "apply the value from nginx-hardening.sh --check (step 6) — in run.sh if it passes it on the command line"
+msgstr "appliquer la valeur de nginx-hardening.sh --check (étape 6) — dans run.sh s'il la passe en ligne de commande"
+
+msgid "too short to really protect visitors against a downgrade to HTTP"
+msgstr "trop court pour protéger réellement les visiteurs contre un détournement vers HTTP"
+
+msgid "move to max-age=31536000 once the configuration is judged stable"
+msgstr "passer à max-age=31536000 une fois la configuration jugée stable"
+
+msgid "Install geoip-bin (country of IP addresses read locally, without Internet)"
+msgstr "Installer geoip-bin (pays des adresses IP lu localement, sans Internet)"
+
+msgid "geoip-bin missing (recommended, not optional)"
+msgstr "geoip-bin absent (recommandé, pas facultatif)"
+
+msgid "without it, app-log-live.py looks up the country of EVERY address on the Internet (rdap.org): slow, and dependent on an outside service"
+msgstr "sans lui, app-log-live.py cherche le pays de CHAQUE adresse sur Internet (rdap.org) : lent, et dépendant d'un service extérieur"
+
+msgid "installation offered at the end of the summary (apt-get install -y geoip-bin geoip-database); nginx-hardening.sh --update installs it too"
+msgstr "installation proposée en fin de sommaire (apt-get install -y geoip-bin geoip-database) ; nginx-hardening.sh --update l'installe aussi"
+
+msgid "Check and reapply the BigBlueButton hardening (then record its state)"
+msgstr "Vérifier et réappliquer le durcissement de BigBlueButton (puis enregistrer son état)"
+
+msgid "nginx-hardening.sh --update, offered at the end of the summary"
+msgstr "nginx-hardening.sh --update, proposé en fin de sommaire"
+
+msgid "our rules must stay in place and compatible with BBB after each of its updates"
+msgstr "nos règles doivent rester en place et compatibles avec BBB après chacune de ses mises à jour"
+
+msgid "RECOMMENDATIONS (in order of importance, based on these figures)"
+msgstr "RECOMMANDATIONS (par ordre d'importance, d'après ces chiffres)"
+
+msgid "  None: nothing important to improve based on these figures."
+msgstr "  Aucune : rien d'important à améliorer d'après ces chiffres."
+
+msgid "FIXES THE PROGRAM CAN MAKE ITSELF (offered below, with confirmation):"
+msgstr "CORRECTIONS QUE LE PROGRAMME PEUT FAIRE LUI-MÊME (proposées ci-dessous, avec confirmation) :"
+
+msgid "days"
+msgstr "jours"
+
+msgid "Traffic         : no request from these addresses in the nginx logs kept"
+msgstr "Trafic          : aucune requête de ces adresses dans les journaux nginx conservés"
+
+msgid "0 errors"
+msgstr "0 erreur"
+
+msgid " error(s)"
+msgstr " erreur(s)"
+
+msgid " requests · "
+msgstr " requêtes · "
+
+msgid "Busiest day     : "
+msgstr "Jour le + actif : "
+
+msgid " requests)"
+msgstr " requêtes)"
+
+msgid "Busiest days: "
+msgstr "Jours + actifs  : "
+
+msgid "WHITELIST USAGE (team) — requests, and share of the traffic of "
+msgstr "UTILISATION PAR LA LISTE BLANCHE (équipe) — requêtes, et part du trafic de "
+
+msgid "  Last"
+msgstr "  Dernière"
+
+msgid "Address"
+msgstr "Adresse"
+
+msgid "Label"
+msgstr "Libellé"
+
+msgid "7 days"
+msgstr "7 jours"
+
+msgid "Whole whitelist"
+msgstr "Toute la liste blanche"
+
+msgid "  (whitelist: /etc/default/nginx-tools-white-list.conf, completed by the locations [protected] and nginx « allow » rules; our own tests excluded)"
+msgstr "  (liste blanche : /etc/default/nginx-tools-white-list.conf, complétée par les lieux [protégée] et les règles « allow » de nginx ; nos propres tests exclus)"
+
+msgid "BIGBLUEBUTTON PARTICIPANTS (join links, nginx log)"
+msgstr "PARTICIPANTS BIGBLUEBUTTON (liens de participation, journal nginx)"
+
+msgid "CONNECTIONS TO "
+msgstr "CONNEXIONS À "
+
+msgid " (successful logins, log)"
+msgstr " (connexions réussies, journal)"
+
+msgid "  none in the logs kept"
+msgstr "  aucune dans les journaux conservés"
+
+msgid " (shared: "
+msgstr " (partagée : "
+
+msgid " — last "
+msgstr " — dernière "
+
+msgid " other(s) — full list: web-monitor.py --list-users)"
+msgstr " autre(s) — liste complète : web-monitor.py --list-users)"
+
+msgid "  (traffic of the account's IP addresses over "
+msgstr "  (trafic des adresses IP du compte sur "
+
+msgid " days — a shared address counts for each account)"
+msgstr " jours — une adresse partagée compte pour chaque compte)"
+
+msgid " banned address(es) of logged-in users: "
+msgstr " adresse(s) d'utilisateurs connectés bannie(s) : "
+
+msgid " — bans to lift:"
+msgstr " — bannissement à lever :"
+
+msgid "  nginx-log-audit.sh --unban-check (or --unban IP)"
+msgstr "  nginx-log-audit.sh --unban-check (ou --unban IP)"
+
+msgid " : PostgreSQL unreachable, or root required)"
+msgstr " : PostgreSQL inaccessible, ou root requis)"
+
+msgid " : account deleted or renamed since)"
+msgstr " : compte supprimé ou renommé depuis)"
+
+msgid "number of logins"
+msgstr "nombre de connexions"
+
+msgid "connexion"
+msgstr "connexion"
+
+msgid "last login"
+msgstr "dernière connexion"
+
+msgid "dernière"
+msgstr "dernière"
+
+msgid "récent"
+msgstr "récent"
+
+msgid "IP address"
+msgstr "adresse IP"
+
+msgid "adresse"
+msgstr "adresse"
+
+msgid "login minutes"
+msgstr "minutes de connexion"
+
+msgid "durée"
+msgstr "durée"
+
+msgid "first login"
+msgstr "première connexion"
+
+msgid "première"
+msgstr "première"
+
+msgid "account type"
+msgstr "type de compte"
+
+msgid "unknown sort key « "
+msgstr "clé de tri inconnue « "
+
+msgid " » (values: "
+msgstr " » (valeurs : "
+
+msgid "ERROR: application service not found (systemd journal)."
+msgstr "ERREUR : service de l'application introuvable (journal systemd)."
+
+msgid "systemd journal of "
+msgstr "journal systemd de "
+
+msgid " last days"
+msgstr " derniers jours"
+
+msgid " (since "
+msgstr " (depuis le "
+
+msgid "join links from the nginx logs and their rotations"
+msgstr "liens de participation des journaux nginx et de leurs rotations"
+
+msgid "BigBlueButton participants"
+msgstr "Participants de BigBlueButton"
+
+msgid "Connections to "
+msgstr "Connexions à "
+
+msgid "in alphabetical order"
+msgstr "par ordre alphabétique"
+
+msgid "sorted by "
+msgstr "triés par "
+
+msgid "nginx access logs read ("
+msgstr "Journaux d'accès nginx lus ("
+
+msgid " file(s), rotations included): "
+msgstr " fichier(s), rotations comprises) : "
+
+msgid "nginx access logs: no file read in "
+msgstr "Journaux d'accès nginx : aucun fichier lu dans "
+
+msgid ") — login minutes = 1 per login at minimum"
+msgstr ") — minutes de connexion = 1 par connexion au minimum"
+
+msgid "  no login in the available history"
+msgstr "  aucune connexion dans l'historique disponible"
+
+msgid "First login"
+msgstr "Première connexion"
+
+msgid "Last login"
+msgstr "Dernière connexion"
+
+msgid " (reversed order)"
+msgstr " (ordre inversé)"
+
+msgid " login(s)"
+msgstr " connexion(s)"
+
+msgid " login minute(s) (≈ "
+msgstr " minute(s) de connexion (≈ "
+
+msgid "  (estimated minutes: a login lasts as long as its IP address makes a request at least every "
+msgstr "  (minutes estimées : une connexion dure tant que son adresse IP fait une requête au moins toutes les "
+
+msgid " minutes according to the nginx logs;"
+msgstr " minutes d'après les journaux nginx ;"
+
+msgid "  (systems, browsers and pages viewed: User-Agent and pages of the account's IP addresses in the nginx logs; Windows 10 and 11 look the same;"
+msgstr "  (systèmes, navigateurs et pages vues : User-Agent et pages des adresses IP du compte dans les journaux nginx ; Windows 10 et 11 sont indiscernables ;"
+
+msgid "   robots and tools are not counted; an address shared by several people mixes their systems)"
+msgstr "   les robots et outils ne comptent pas ; une adresse partagée par plusieurs personnes mélange leurs systèmes)"
+
+msgid "   overlapping logins count once; an address shared by several people inflates the estimate)"
+msgstr "   les connexions qui se chevauchent comptent une fois ; une adresse partagée par plusieurs personnes gonfle l'estimation)"
+
+msgid " (first "
+msgstr " (première "
+
+msgid ", last "
+msgstr ", dernière "
+
+msgid "  (details: traffic of the account's IP addresses in all the nginx logs kept — an address shared"
+msgstr "  (détails : trafic des adresses IP du compte dans tous les journaux nginx conservés — une adresse partagée"
+
+msgid "   by several accounts counts in full for each)"
+msgstr "   par plusieurs comptes compte en entier pour chacun)"
+
+msgid "  (traffic of each account — pages, errors, modules, busiest day: web-monitor.py --list-users --details)"
+msgstr "  (trafic de chaque compte — pages, erreurs, modules, jour le plus actif : web-monitor.py --list-users --details)"
+
+msgid "⚠ banned address(es) of logged-in users: "
+msgstr "⚠ adresse(s) bannie(s) d'utilisateurs connectés : "
+
+msgid " — nginx-log-audit.sh --unban-check"
+msgstr " — nginx-log-audit.sh --unban-check"
+
+msgid "   (first line only)"
+msgstr "   (première ligne seulement)"
+
+msgid "Site logs (nginx)"
+msgstr "Journaux du site (nginx)"
+
+msgid "(no name)"
+msgstr "(sans nom)"
+
+msgid "Rule refusals (nginx)"
+msgstr "Refus des règles (nginx)"
+
+msgid "  Memory       : "
+msgstr "  Mémoire      : "
+
+msgid " available out of "
+msgstr " disponibles sur "
+
+msgid " — swap: "
+msgstr " — échange : "
+
+msgid " used out of "
+msgstr " utilisés sur "
+
+msgid "low available memory ("
+msgstr "mémoire disponible faible ("
+
+msgid " (1/5/15 min) for "
+msgstr " (1/5/15 min) pour "
+
+msgid " core(s) — "
+msgstr " cœur(s) — "
+
+msgid " % of capacity"
+msgstr " % de la capacité"
+
+msgid "5-min load ("
+msgstr "charge sur 5 min ("
+
+msgid ") higher than the number of cores ("
+msgstr ") supérieure au nombre de cœurs ("
+
+msgid "no limit"
+msgstr "sans limite"
+
+msgid " close to its memory limit ("
+msgstr " proche de sa limite mémoire ("
+
+msgid " is not active ("
+msgstr " n'est pas actif ("
+
+msgid "  read / written (since startup)"
+msgstr "  lu / écrit (depuis le démarrage)"
+
+msgid "memory"
+msgstr "mémoire"
+
+msgid "  (reads/writes not measured: I/O accounting disabled for these services, common in LXC)"
+msgstr "  (lectures/écritures non mesurées : comptabilité des E/S désactivée pour ces services, fréquent en LXC)"
+
+msgid "nginx-log-audit.sh not found next to this program: banning impossible."
+msgstr "nginx-log-audit.sh introuvable à côté de ce programme : bannissement impossible."
+
+msgid " IP(s) banned (reversible: nginx-log-audit.sh --unban IP)."
+msgstr " IP bannie(s) (réversible : nginx-log-audit.sh --unban IP)."
+
+msgid " IP(s) recommended for banning:"
+msgstr " IP recommandée(s) au bannissement :"
+
+msgid "\nBan now? [y] all  [c] choose one by one (detailed investigation)  [N] none: "
+msgstr "\nBannir maintenant ? [o] toutes  [c] choisir une par une (enquête détaillée)  [N] aucune : "
+
+msgid "No IP banned. Later: web-monitor.py --ban-recommended"
+msgstr "Aucune IP bannie. Plus tard : web-monitor.py --ban-recommended"
+
+msgid "ERROR: root required (sudo) to ban."
+msgstr "ERREUR : root requis (sudo) pour bannir."
+
+msgid "No recommendation recorded: run a pass first (web-monitor.py)."
+msgstr "Aucune recommandation enregistrée : lancer d'abord un passage (web-monitor.py)."
+
+msgid "Recommendations of the pass of "
+msgstr "Recommandations du passage du "
+
+msgid "⚠ more than 24 h old: run a pass again (web-monitor.py) to get an up-to-date list."
+msgstr "⚠ plus de 24 h : relancer un passage (web-monitor.py) donne une liste à jour."
+
+msgid "No IP recommended for banning."
+msgstr "Aucune IP recommandée au bannissement."
+
+msgid "ERROR: no terminal to confirm — add --yes to ban without questions."
+msgstr "ERREUR : pas de terminal pour confirmer — ajouter --yes pour bannir sans question."
+
+msgid "\nPress Enter to open the full report in less (q to quit), or Ctrl-C to finish: "
+msgstr "\nAppuyez sur Entrée pour ouvrir le rapport complet dans less (q pour quitter), ou Ctrl-C pour terminer : "
+
+msgid "BIGBLUEBUTTON: state not collected ("
+msgstr "BIGBLUEBUTTON : état non relevé ("
+
+msgid "BIGBLUEBUTTON — VERSIONS, CONFIGURATION AND COMPATIBILITY WITH OUR RULES"
+msgstr "BIGBLUEBUTTON — VERSIONS, CONFIGURATION ET COMPATIBILITÉ AVEC NOS RÈGLES"
+
+msgid "FUNNEL: WHO ARRIVES, WHO IS STOPPED, WHO REACHES THE APPLICATION"
+msgstr "ENTONNOIR : QUI ARRIVE, QUI EST ARRÊTÉ, QUI ATTEINT L'APPLICATION"
+
+msgid "Arrived at nginx (site + catch-all sensor)"
+msgstr "Arrivées à nginx (site + capteur catch-all)"
+
+msgid "Rejected by nginx (codes of its rules*)"
+msgstr "Rejetées par nginx (codes de ses règles*)"
+
+msgid "Forwarded to "
+msgstr "Transmises à "
+
+msgid "  of which malicious URLs not filtered by nginx"
+msgstr "  dont URL malveillantes non filtrées par nginx"
+
+msgid "Requests on the site"
+msgstr "Requêtes sur le site"
+
+msgid "  of which from known users' IPs"
+msgstr "  dont des IP d'utilisateurs connus"
+
+msgid "    of which outside the team (whitelist)"
+msgstr "    dont hors équipe (liste blanche)"
+
+msgid "  of which by known users"
+msgstr "  dont par des utilisateurs connus"
+
+msgid "Requests from our programs (excluded above)"
+msgstr "Requêtes de nos programmes (exclues ci-dessus)"
+
+msgid "VISITORS' DEVICES (probable humans)"
+msgstr "APPAREILS DES VISITEURS (humains probables)"
+
+msgid "BLOCKS AND ATTACKS"
+msgstr "BLOCAGES ET ATTAQUES"
+
+msgid "403 refusals (robots, tools, restricted access)"
+msgstr "Refus 403 (robots, outils, accès restreint)"
+
+msgid "Attempts on the catch-all sensor (444)"
+msgstr "Tentatives sur le capteur catch-all (444)"
+
+msgid "Security rule refusals (dedicated log)"
+msgstr "Refus des règles de sécurité (journal dédié)"
+
+msgid "Throttled requests (rate limiting, 429)"
+msgstr "Requêtes freinées (limitation de débit, 429)"
+
+msgid "Access to sensitive files (.env, .git…)"
+msgstr "Accès à des fichiers sensibles (.env, .git…)"
+
+msgid "IPs banned by fail2ban (distinct)"
+msgstr "IP bannies par fail2ban (distinctes)"
+
+msgid "Active CrowdSec list IPs (blocked)"
+msgstr "IP de la liste CrowdSec actives (bloquées)"
+
+msgid "Login failures"
+msgstr "Échecs de connexion"
+
+msgid "Summary — "
+msgstr "Sommaire — "
+
+msgid " — web-monitor.py v"
+msgstr " — web-monitor.py v"
+
+msgid "  * 400, 403, 405, 413, 429, 444, and the 404s and redirects (3xx) from nginx itself on malicious URLs"
+msgstr "  * 400, 403, 405, 413, 429, 444, et les 404 et redirections (3xx) de nginx lui-même aux URL malveillantes"
+
+msgid "    (.env, .php, ../…): small response page; the application's are much heavier."
+msgstr "    (.env, .php, ../…) : petite page de réponse ; celles de l'application sont bien plus lourdes."
+
+msgid "  (known users: IP addresses used for at least one successful login, over the whole history"
+msgstr "  (utilisateurs connus : adresses IP ayant servi à au moins une connexion réussie, sur tout l'historique"
+
+msgid "   of the journal — even without an open session today)"
+msgstr "   du journal — même sans session ouverte aujourd'hui)"
+
+msgid "  Visitor = IP address + browser that loaded the CSS/JS of a page (robots read the HTML without"
+msgstr "  Visiteur = adresse IP + navigateur ayant chargé les CSS/JS d'une page (les robots lisent le HTML sans"
+
+msgid "  loading them); robots, tools, team (whitelist) and this server excluded. A recent iPad presents"
+msgstr "  les charger) ; robots, outils, équipe (liste blanche) et ce serveur exclus. Un iPad récent se présente"
+
+msgid "  itself as a Mac: it counts as a computer."
+msgstr "  comme un Mac : il compte comme ordinateur."
+
+msgid "  Firewall: counters inaccessible (root required) — packets blocked before nginx not counted."
+msgstr "  Pare-feu : compteurs inaccessibles (root requis) — paquets bloqués avant nginx non comptés."
+
+msgid " packets blocked BEFORE nginx since the rules were loaded ("
+msgstr " paquets bloqués AVANT nginx depuis le chargement des règles ("
+
+msgid "             cumulative iptables counters, in packets (not requests): not split by period."
+msgstr "             compteurs cumulés d'iptables, en paquets (pas en requêtes) : non répartis par période."
+
+msgid "  Busiest day              : "
+msgstr "  Jour le plus chargé      : "
+
+msgid ", this server"
+msgstr ", ce serveur"
+
+msgid ", whitelist"
+msgstr ", liste blanche"
+
+msgid "   (by their shape: sensitive files, traversal, injections, PHP, proxy)"
+msgstr "   (par leur forme : fichiers sensibles, traversée, injections, PHP, proxy)"
+
+msgid "  Not filtered by nginx    : "
+msgstr "  Non filtrées par nginx   : "
+
+msgid " answered, often 404)"
+msgstr " a répondu, souvent 404)"
+
+msgid "  Names requested (Host)   : "
+msgstr "  Noms demandés (Host)     : "
+
+msgid "    … of the unfiltered    : "
+msgstr "    … des non filtrées     : "
+
+msgid "   (server block that let them through)"
+msgstr "   (bloc server qui les a laissées passer)"
+
+msgid "  Most viewed valid pages  : "
+msgstr "  Pages valides les + vues : "
+
+msgid "none"
+msgstr "aucune"
+
+msgid "  Clients blocked (403)    : "
+msgstr "  Clients bloqués (403)    : "
+
+msgid "   (excluding this server's tests)"
+msgstr "   (hors tests de ce serveur)"
+
+msgid "  fail2ban, IPs per jail   : "
+msgstr "  fail2ban, IP par jail    : "
+
+msgid "LOG COVERAGE (oldest date available)"
+msgstr "COUVERTURE DES JOURNAUX (date la plus ancienne disponible)"
+
+msgid " file(s)"
+msgstr " fichier(s)"
+
+msgid " kept ≈ "
+msgstr " conservé(s) ≈ "
+
+msgid " not detected"
+msgstr " non détecté"
+
+msgid "* Partial period: the site logs only go back to "
+msgstr "* Période partielle : les journaux du site ne remontent qu'au "
+
+msgid " : in "
+msgstr " : dans "
+
+msgid ", replace « rotate "
+msgstr ", remplacer « rotate "
+
+msgid " » with « rotate "
+msgstr " » par « rotate "
+
+msgid "KEEP 3 MONTHS (instead of the current rotation):"
+msgstr "CONSERVER 3 MOIS (au lieu de la rotation actuelle) :"
+
+msgid "  Odoo journal (namespace « "
+msgstr "  journal d'Odoo (namespace « "
+
+msgid " ») : in /etc/systemd/journald@"
+msgstr " ») : dans /etc/systemd/journald@"
+
+msgid ".conf, section « [Journal] »,"
+msgstr ".conf, section « [Journal] »,"
+
+msgid "    « MaxRetentionSec=3month » and « SystemMaxUse=2G », then systemctl restart systemd-journald@"
+msgstr "    « MaxRetentionSec=3month » et « SystemMaxUse=2G », puis systemctl restart systemd-journald@"
+
+msgid "  Odoo journal: file /etc/systemd/journald.conf.d/retention.conf containing « [Journal] » then"
+msgstr "  journal d'Odoo : fichier /etc/systemd/journald.conf.d/retention.conf contenant « [Journal] » puis"
+
+msgid "    « MaxRetentionSec=3month » and « SystemMaxUse=2G », then systemctl restart systemd-journald"
+msgstr "    « MaxRetentionSec=3month » et « SystemMaxUse=2G », puis systemctl restart systemd-journald"
+
+msgid "  (little space needed: the rotations are compressed)"
+msgstr "  (espace requis faible : les rotations sont compressées)"
+
+msgid " unreadable file(s) (run again as root): "
+msgstr " fichier(s) illisible(s) (relancer en root) : "
+
+msgid "No log read in "
+msgstr "Aucun journal lu dans "
+
+msgid " — is this really the nginx + Odoo server?"
+msgstr " — est-ce bien le serveur nginx + Odoo ?"
+
+msgid "Detail of an indicator: nginx-log-audit.sh --stats (traffic), --fail2ban (bans), app-log-check.py (application)."
+msgstr "Détail d'un indicateur : nginx-log-audit.sh --stats (trafic), --fail2ban (bannissements), app-log-check.py (application)."
+
+msgid "ERROR: "
+msgstr "ERREUR : "
+
+msgid " failed: "
+msgstr " a échoué : "
+
+msgid "Timer installed and active: "
+msgstr "Timer installé et actif : "
+
+msgid ".timer (every "
+msgstr ".timer (toutes les "
+
+msgid " hour(s), at minute 5)."
+msgstr " heure(s), à la minute 5)."
+
+msgid "Remember to set SMTP_HOST and NOTIFY_EMAIL_TO in the app-health-check.py configuration to receive alerts by e-mail."
+msgstr "Pensez à renseigner SMTP_HOST et NOTIFY_EMAIL_TO dans la configuration de app-health-check.py pour recevoir les alertes par courriel."
+
+msgid "Timer removed. Reports and state kept in"
+msgstr "Timer retiré. Rapports et état conservés dans"
+
+msgid "just now"
+msgstr "à l'instant"
+
+msgid "not detected ("
+msgstr "non détectée ("
+
+msgid "NOT INSTALLED: monitoring does not run automatically"
+msgstr "NON INSTALLÉ : la surveillance ne tourne pas automatiquement"
+
+msgid " (only when you run it)."
+msgstr " (seulement quand vous la lancez)."
+
+msgid "  Old surveillance-odoo timer present: run web-monitor.py (as root) to migrate it automatically."
+msgstr "  Ancien timer surveillance-odoo présent : lancez web-monitor.py (en root) pour le migrer automatiquement."
+
+msgid "  To install it (root): web-monitor.py --install-timer          (every hour; --interval-hours N)"
+msgstr "  Pour l'installer (root) : web-monitor.py --install-timer          (toutes les heures ; --interval-hours N)"
+
+msgid "enabled at boot"
+msgstr "activé au démarrage"
+
+msgid "NOT enabled at boot"
+msgstr "NON activé au démarrage"
+
+msgid "  State             : "
+msgstr "  État              : "
+
+msgid "  Interval          : every "
+msgstr "  Intervalle        : toutes les "
+
+msgid " hour(s) (at the 5th minute)"
+msgstr " heure(s) (à la 5e minute)"
+
+msgid "none (timer stopped)"
+msgstr "aucun (timer arrêté)"
+
+msgid "tool ERROR"
+msgstr "ERREUR de l'outil"
+
+msgid "  Last result       : code "
+msgstr "  Dernier résultat  : code "
+
+msgid "  To (re)enable it: systemctl enable --now web-monitor.timer"
+msgstr "  Pour le (ré)activer : systemctl enable --now web-monitor.timer"
+
+msgid "⚠ late: no pass for more than two intervals — is the timer running?"
+msgstr "⚠ en retard : aucun passage depuis plus de deux intervalles — le timer tourne-t-il ?"
+
+msgid "  (message written by a version older than the program renaming)"
+msgstr "  (message écrit par une version antérieure au renommage des programmes)"
+
+msgid "  no pass recorded"
+msgstr "  aucun passage enregistré"
+
+msgid "LAST ALERT SENT"
+msgstr "DERNIÈRE ALERTE ENVOYÉE"
+
+msgid "  Same situation: no new e-mail before "
+msgstr "  Même situation : pas de nouveau courriel avant le "
+
+msgid "  none"
+msgstr "  aucune"
+
+msgid "  Configured: alerts sent to "
+msgstr "  Configuré : alertes envoyées à "
+
+msgid "NOT configured: alerts only go to the system journal"
+msgstr "NON configuré : les alertes vont seulement dans le journal système"
+
+msgid "  To enable it: set SMTP_HOST and NOTIFY_EMAIL_TO in "
+msgstr "  Pour l'activer : renseigner SMTP_HOST et NOTIFY_EMAIL_TO dans "
+
+msgid "  (see doc/app-health-check.conf.example for the other SMTP keys)."
+msgstr "  (voir doc/app-health-check.conf.example pour les autres clés SMTP)."
+
+msgid " report(s) in "
+msgstr " rapport(s) dans "
+
+msgid "  no report in "
+msgstr "  aucun rapport dans "
+
+msgid "  System journal: journalctl -t web-monitor -n 50"
+msgstr "  Journal système : journalctl -t web-monitor -n 50"
+
+msgid "ERROR: another run of web-monitor.py is in progress (lock "
+msgstr "ERREUR: une autre exécution de web-monitor.py est en cours (verrou "
+
+msgid ") — aborting."
+msgstr ") — abandon."
+
+msgid ") — normal run."
+msgstr ") — exécution normale."
+
+msgid "Automatic nginx + Odoo monitoring: runs the project's tools, alerts only if action is needed."
+msgstr "Surveillance automatique nginx + Odoo : lance les outils du projet, alerte seulement si une action est nécessaire."
+
+msgid "Run the monitoring (default behavior)"
+msgstr "Lance la surveillance (comportement par défaut)"
+
+msgid "Run the tools and show the decision, without e-mail or changing the log reading positions"
+msgstr "Lance les outils et affiche la décision, sans courriel ni modification des positions de lecture"
+
+msgid "Install and enable the systemd timer"
+msgstr "Installe et active le timer systemd"
+
+msgid "With --install-timer: interval in hours, 1 to 24 (default: 1)"
+msgstr "Avec --install-timer : intervalle en heures, 1 à 24 (défaut : 1)"
+
+msgid "Remove the systemd timer"
+msgstr "Retire le timer systemd"
+
+msgid "Timer state, last pass, last alert"
+msgstr "État du timer, dernier passage, dernière alerte"
+
+msgid "List all Odoo logins (or BigBlueButton participants) in alphabetical order"
+msgstr "Lister par ordre alphabétique toutes les connexions à Odoo (ou les participants BigBlueButton)"
+
+msgid "With --summary or --list-users: limit to the last N days (1 to 366; summary: 30 by default)"
+msgstr "Avec --summary ou --list-users : limiter aux N derniers jours (1 à 366 ; sommaire : 30 par défaut)"
+
+msgid "With --list-users: add each account's traffic (slower to compute)"
+msgstr "Avec --list-users : ajouter le trafic de chaque compte (plus long à calculer)"
+
+msgid "With --sort: reverse the sort order"
+msgstr "Avec --sort : inverser l'ordre du tri"
+
+msgid "Re-evaluate manual bans (runs nginx-log-audit.sh --unban-check)"
+msgstr "Réévaluer les bannissements manuels (lance nginx-log-audit.sh --unban-check)"
+
+msgid "Ban the IPs recommended by the last pass (e.g. the timer's), with confirmation"
+msgstr "Bannir les IP recommandées par le dernier passage (ex. celui du timer), avec confirmation"
+
+msgid "Summary, then the program makes the recommended fixes itself (bans, nginx reload, nginx-hardening.sh --update, timer…): one question per fix, --yes without questions"
+msgstr "Sommaire, puis le programme fait lui-même les corrections recommandées (bannissements, rechargement de nginx, nginx-hardening.sh --update, timer…) : une question par correction, --yes sans question"
+
+msgid "Do not offer to ban the recommended IPs at the end of a pass"
+msgstr "Ne pas proposer de bannir les IP recommandées en fin de passage"
+
+msgid "At the end, show an error report to copy and paste (program, version, server, failures, warnings); without ban questions or pager"
+msgstr "Afficher à la fin un rapport d'erreurs à copier-coller (programme, version, serveur, échecs, avertissements) ; sans questions de bannissement ni pager"
+
+msgid "Do not offer to open the full report in less at the end of a pass"
+msgstr "Ne pas proposer d'ouvrir le rapport complet dans less en fin de passage"
+
+msgid "Numbered summary (today, D-1, D-2, 7 days, 30 days or --days N): traffic, blocks and attacks, errors, highlights, log coverage"
+msgstr "Sommaire chiffré (aujourd'hui, J-1, J-2, 7 jours, 30 jours ou --days N) : trafic, blocages et attaques, erreurs, faits marquants, couverture des journaux"
+
+msgid "Show each command run"
+msgstr "Affiche chaque commande lancée"
+
+msgid "Show the changelog"
+msgstr "Affiche le journal des modifications"
+
+msgid "--days expects a number of days between 1 and 366"
+msgstr "--days attend un nombre de jours entre 1 et 366"
+
+msgid "ERROR: root required (sudo) — only --dry-run and --status work without privileges."
+msgstr "ERREUR : root requis (sudo) — seul --dry-run et --status fonctionnent sans privilège."
+
+msgid "--interval-hours expects a value between 1 and 24"
+msgstr "--interval-hours attend une valeur entre 1 et 24"
+
+msgid " hour(s))."
+msgstr " heure(s))."
+
+msgid " line(s))"
+msgstr " ligne(s))"
+
+msgid "Full report: "
+msgstr "Rapport complet : "
+
+msgid "  WARNING "
+msgstr "  ATTENTION "
+
+msgid " day(s)"
+msgstr " jour(s)"
+
+msgid "/day"
+msgstr "/jour"
+
+msgid "    (priority, "
+msgstr "    (prioritaires, "
+
+msgid " processes"
+msgstr " processus"
+
+msgid " each)"
+msgstr " chacun)"
+
+msgid " ; worst case (limit_memory_hard × "
+msgstr " ; pire cas (limit_memory_hard × "
+
+msgid "\nFixes not made: root required (sudo web-monitor.py --apply)."
+msgstr "\nCorrections non faites : root requis (sudo web-monitor.py --apply)."
+
+msgid "\nRemaining fixes not made."
+msgstr "\nCorrections restantes non faites."
+
+msgid "Not done."
+msgstr "Non fait."
+
+msgid "     Why      : "
+msgstr "     Pourquoi : "
+
+msgid "     How      : "
+msgstr "     Comment  : "
+
+msgid "  ▶ ban "
+msgstr "  ▶ bannir "
+
+msgid "    Logins          : today "
+msgstr "    Connexions      : aujourd'hui "
+
+msgid "    IP addresses    : "
+msgstr "    Adresses IP     : "
+
+msgid "account(s)"
+msgstr "compte(s)"
+
+msgid "  Total: "
+msgstr "  Total : "
+
+msgid "    Logins          : "
+msgstr "    Connexions      : "
+
+msgid "RESOURCES (virtualization: "
+msgstr "RESSOURCES (virtualisation : "
+
+msgid "  Disk "
+msgstr "  Disque "
+
+msgid "limit"
+msgstr "limite"
+
+msgid "NOT banned"
+msgstr "NON banni"
+
+msgid "  Firewall: "
+msgstr "  Pare-feu : "
+
+msgid "HIGHLIGHTS ("
+msgstr "FAITS MARQUANTS ("
+
+msgid "  Malicious URLs           : "
+msgstr "  URL malveillantes        : "
+
+msgid "Next run: systemctl list-timers "
+msgstr "Prochain passage : systemctl list-timers "
+
+msgid ".timer; journal: journalctl -u "
+msgstr ".timer ; journal : journalctl -u "
+
+msgid "Application: "
+msgstr "Application : "
+
+msgid "TIMER (automatic monitoring)"
+msgstr "TIMER (surveillance automatique)"
+
+msgid "  Next run          : "
+msgstr "  Prochain passage  : "
+
+msgid "  Last start        : "
+msgstr "  Dernier lancement : "
+
+msgid "never"
+msgstr "jamais"
+
+msgid "LAST PASS"
+msgstr "DERNIER PASSAGE"
+
+msgid "E-MAIL"
+msgstr "COURRIEL"
+
+msgid " (server "
+msgstr " (serveur "
+
+msgid "REPORTS"
+msgstr "RAPPORTS"
+
+msgid "Changelog not found: "
+msgstr "Changelog introuvable : "
+
+msgid "--report-err unavailable ("
+msgstr "--report-err indisponible ("
+
+msgid "\nInterrupted (Ctrl-C)."
+msgstr "\nInterrompu (Ctrl-C)."
+
+msgid "Display language: en or fr (default: from LC_ALL / LC_MESSAGES / LANG)"
+msgstr "Langue d'affichage : en ou fr (défaut : selon LC_ALL / LC_MESSAGES / LANG)"
+
+msgid "nginx-log-audit.sh: server errors 5xx"
+msgstr "nginx-log-audit.sh : erreurs serveur 5xx"
+
+msgid "Odoo journal: "
+msgstr "journal d'Odoo : "
+
+msgid "5xx errors"
+msgstr "erreurs 5xx"
+
+msgid "(empty User-Agent)"
+msgstr "(User-Agent vide)"
+
+msgid "browser ("
+msgstr "navigateur ("
+
+msgid "browser (other)"
+msgstr "navigateur (autre)"
+
+msgid "Lists: component apps/_listes.py missing"
+msgstr "Listes : composant apps/_listes.py absent"
+
+msgid "full systemd, all services"
+msgstr "systemd complet, tous services"
+
+msgid " months ≈ "
+msgstr " mois ≈ "
+
+msgid "running processes"
+msgstr "processus en cours"
+
+msgid "), BUT nginx still lets through "
+msgstr "), MAIS nginx laisse encore passer "
+
+msgid "), but nginx still lets through "
+msgstr "), mais nginx laisse encore passer "
+
+msgid " (content: "
+msgstr " (contenu : "
+
+msgid "TLS certificate: "
+msgstr "certificat TLS : "
+
+msgid " 403 refusals in "
+msgstr " refus 403 en "
+
+msgid "nothing urgent. "
+msgstr "rien d'urgent. "
+
+msgid " h (threshold: "
+msgstr " h (seuil : "
+
+msgid " s only"
+msgstr " s seulement"
+
+msgid "BigBlueButton: "
+msgstr "BigBlueButton : "
+
+msgid "Traffic         : "
+msgstr "Trafic          : "
+
+msgid " pages viewed · "
+msgstr " pages vues · "
+
+msgid "Odoo modules    : "
+msgstr "Modules Odoo    : "
+
+msgid "Top pages       : "
+msgstr "Pages + vues    : "
+
+msgid "Odoo UID        : "
+msgstr "UID Odoo        : "
+
+msgid "), database "
+msgstr "), base "
+
+msgid "Odoo UID        : unreadable (database "
+msgstr "UID Odoo        : illisible (base "
+
+msgid "Odoo UID        : not found (database "
+msgstr "UID Odoo        : introuvable (base "
+
+msgid "Catch-all sensor (nginx)"
+msgstr "Capteur catch-all (nginx)"
+
+msgid " % free)"
+msgstr " % libres)"
+
+msgid "  Load         : "
+msgstr "  Charge       : "
+
+msgid " almost full ("
+msgstr " presque plein ("
+
+msgid "Distinct visitors (IP addresses)"
+msgstr "Visiteurs distincts (adresses IP)"
+
+msgid "Page views (excluding images, CSS, JS)"
+msgstr "Pages vues (hors images, CSS, JS)"
+
+msgid "Manual bans"
+msgstr "Bannissements manuels"
+
+msgid "Server errors (5xx)"
+msgstr "Erreurs serveur (5xx)"
+
+msgid ", banned"
+msgstr ", bannie"
+
+msgid " alert(s)"
+msgstr " alerte(s)"
+
+msgid "Monitoring "
+msgstr "Surveillance "
+
+msgid "Pass "
+msgstr "Passage "
+
+msgid " day"
+msgstr " jour"
+
+msgid "Today"
+msgstr "Aujourd'hui"
+
+msgid " today"
+msgstr " aujourd'hui"
+
+msgid " accounts"
+msgstr " comptes"
+
+msgid " (banned)"
+msgstr " (bannie)"
+
+msgid "disk "
+msgstr "disque "
+
+msgid "CPU"
+msgstr "processeur"
+
+msgid "TRAFFIC"
+msgstr "TRAFIC"
+
+msgid "Computer"
+msgstr "Ordinateur"
+
+msgid "Cell phone"
+msgstr "Cellulaire"
+
+msgid "Tablet"
+msgstr "Tablette"
+
+msgid "Errors "
+msgstr "Erreurs "
+
+msgid "day(s)"
+msgstr "jour(s)"
+
+msgid "HIGH"
+msgstr "HAUTE"
+
+msgid "Application behind nginx (profile apps/NAME.conf: odoo, bbb…) — detected automatically by default"
+msgstr "Application derrière nginx (profil apps/NAME.conf : odoo, bbb…) — détectée automatiquement par défaut"
+
+msgid "With --list-users: sort order — name (default), login, uid, ip, first, last, logins, minutes, type, os, pages, written, received, sent, events, surveys, seen; name, login, ip, uid, first, os: ascending; the others: descending"
+msgstr "Avec --list-users : ordre de tri — name (défaut), login, uid, ip, first, last, logins, minutes, type, os, pages, written, received, sent, events, surveys, seen ; name, login, ip, uid, first, os : croissant ; les autres : décroissant"
+
+msgid " ; synonyms: name, latest, first, logins, duration…)"
+msgstr " ; synonymes : nom, latest, first, connexions, durée…)"
+
+msgid "Sort: "
+msgstr "Tri : "
+
+msgid " (journal "
+msgstr " (journal "
+
+msgid " (command line takes precedence)"
+msgstr " (ligne de commande prioritaire)"
+
+msgid "  Options: "
+msgstr "  Options : "
+
+msgid "  WARNING: configuration value ignored: "
+msgstr "  ATTENTION : valeur de configuration ignorée : "
+
+msgid "Configuration file to read ALONE (otherwise: /etc/default/web-monitor.conf, then the personal file .web-monitor.cfg; UPPERCASE options: APP, DAYS, DETAILS, INTERVAL_HOURS, LANGUAGE, NO_PAGER, NO_PROMPT, REVERSE, SORT, TABLE)"
+msgstr "Fichier de configuration à lire SEUL (sinon : /etc/default/web-monitor.conf, puis le fichier personnel .web-monitor.cfg ; options en MAJUSCULES : APP, DAYS, DETAILS, INTERVAL_HOURS, LANGUAGE, NO_PAGER, NO_PROMPT, REVERSE, SORT, TABLE)"
+
+msgid "configuration file not found: "
+msgstr "fichier de configuration introuvable : "
+
+msgid "dernier-passage"
+msgstr "dernier-passage"
+
+msgid "sauvegarde:echec"
+msgstr "sauvegarde:echec"
+
+msgid "options"
+msgstr "options"
+
+msgid "# configuration file "
+msgstr "# configuration file "
+
+msgid "journal"
+msgstr "journal"
+
+msgid "\noptions:\n"
+msgstr "\noptions:\n"
+
+msgid "\noptions :\n"
+msgstr "\noptions :\n"
+
+msgid "With --dry-run: still saves the recommended IPs (used by the b key of app-log-live.py)"
+msgstr "Avec --dry-run : enregistre quand même les IP recommandées (utilisé par la touche b d'app-log-live.py)"
+
+msgid "MEDIUM"
+msgstr "MOYENNE"
+
+msgid "LOW"
+msgstr "FAIBLE"
+
+msgid "no activity"
+msgstr "aucune activité"
+
+msgid "allowlist (team)"
+msgstr "liste blanche (équipe)"
+
+msgid " — also requested malicious URLs"
+msgstr " — a aussi demandé des URL malveillantes"
+
+msgid "known user (successful Odoo login)"
+msgstr "utilisateur connu (connexion réussie à Odoo)"
+
+msgid " page(s) viewed, CSS/JS loaded, no malicious URL"
+msgstr " page(s) vue(s), CSS/JS chargés, aucune URL malveillante"
+
+msgid "probable human visitor: "
+msgstr "visiteur humain probable : "
+
+msgid "unbanned"
+msgstr "débannie"
+
+msgid "NOT lifted"
+msgstr "NON levée"
+
+msgid "A ban from the CrowdSec community list comes back at the next synchronization: for a valid visitor, add the address to "
+msgstr "Un bannissement de la liste communautaire de CrowdSec revient à la prochaine synchronisation : pour un visiteur valide, ajouter l'adresse à "
+
+msgid "BANNED IPs THAT LOOK VALID (to unban)"
+msgstr "IP BANNIES QUI SEMBLENT VALIDES (à débannir)"
+
+msgid "  none: every banned IP is unknown to the allowlist, to known users and to human visitors"
+msgstr "  aucune : toutes les IP bannies sont inconnues de la liste blanche, des utilisateurs connus et des visiteurs humains"
+
+msgid "      banned by "
+msgstr "      bannie par "
+
+msgid " — lift with: "
+msgstr " — levée : "
+
+msgid "beyond the limit, new connections (Odoo chat, pages, database) are refused"
+msgstr "au-delà de la limite, de nouvelles connexions (chat d'Odoo, pages, base de données) sont refusées"
+
+msgid "connection limit close: "
+msgstr "limite de connexions proche : "
+
+msgid "setting to change: "
+msgstr "paramètre à changer : "
+
+msgid "Unban "
+msgstr "Débannir "
+
+msgid " valid IP(s)"
+msgstr " IP valide(s)"
+
+msgid " certain: team or known user): "
+msgstr " certaine(s) : équipe ou utilisateur connu) : "
+
+msgid "a person who can no longer reach the site is a costlier false positive than one more robot"
+msgstr "une personne qui ne peut plus entrer sur le site est un faux positif plus coûteux qu'un robot de plus"
+
+msgid "lifting offered at the end of the summary (commands in the « Banned IPs that look valid » section)"
+msgstr "levée proposée en fin de sommaire (commandes dans la section « IP bannies qui semblent valides »)"
+
+msgid "  Connections  : "
+msgstr "  Connexions   : "
+
+msgid "certain"
+msgstr "certaine"
+
+msgid "probable"
+msgstr "probable"
+
+msgid "A ban from the CrowdSec community list comes back at the next synchronization: for a valid visitor, add the address to /etc/default/nginx-tools-white-list.conf."
+msgstr "Un bannissement de la liste communautaire de CrowdSec revient à la prochaine synchronisation : pour un visiteur valide, ajouter l'adresse à /etc/default/nginx-tools-white-list.conf."
+
+msgid " banned IP(s) look valid ("
+msgstr " IP bannie(s) semblent valides ("
+
+msgid "Relaunch now with sudo to make these fixes (one question per fix)? [y/N]: "
+msgstr "Relancer maintenant avec sudo pour faire ces corrections (une question par correction) ? [o/N] : "
+
+msgid "fail2ban logs, PostgreSQL (accounts, e-mails), firewall and nginx -T incomplete or unreadable"
+msgstr "journaux de fail2ban, PostgreSQL (comptes, courriels), pare-feu et nginx -T incomplets ou illisibles"
+
+msgid "ERROR: root required (sudo) to change anything (run, bans, timer, fixes) — only --dry-run, --list-users, --status, --summary and --unban-check work without privileges."
+msgstr "ERREUR : root requis (sudo) pour modifier quoi que ce soit (passage, bannissements, minuterie, corrections) — seuls --dry-run, --list-users, --status, --summary et --unban-check fonctionnent sans privilège."
+
+msgid " days kept); latest: "
+msgstr " jours conservés) ; dernier : "
+
+msgid "ERROR: anonymization requested but apps/_anonymiser.py is unreadable: nothing is displayed."
+msgstr "ERREUR : anonymisation demandée mais apps/_anonymiser.py est illisible : rien n'est affiché."
+
+msgid "Anonymizes what is displayed (IP addresses, emails, identifiers, tokens) with stable pseudonyms; key ANONYMIZE"
+msgstr "Anonymise ce qui est affiché (adresses IP, courriels, identifiants, jetons) par des pseudonymes stables ; clé ANONYMIZE"
+
+msgid "e-mail before 24 h (unless a new problem)"
+msgstr "courriel avant 24 h (sauf nouveau problème)"
+
+msgid "(unless a new problem)."
+msgstr "(sauf nouveau problème)."
+
+msgid " stop(s) for CPU time"
+msgstr " arrêt(s) pour temps processeur"
+
+msgid "multithread mode (workers=0): a single process serves the whole site. In production, Odoo recommends "
+msgstr "mode multithread (workers=0) : un seul processus sert tout le site. En production, Odoo recommande "
+
+msgid "multiprocess mode: try workers="
+msgstr "le mode multiprocessus : essayer workers="
+
+msgid " (≈ 400 MB per worker; Odoo's formula: "
+msgstr " (≈ 400 Mo par worker ; formule d'Odoo : "
+
+msgid "worst-case memory exceeds the RAM: if several workers grew together, the kernel would kill "
+msgstr "pire cas mémoire au-delà de la RAM : si plusieurs workers grossissaient ensemble, le noyau tuerait "
+
+msgid "processes (OOM). Lower limit_memory_hard to "
+msgstr "des processus (OOM). Abaisser limit_memory_hard vers "
+
+msgid " (and limit_memory_soft to ≈ 80% "
+msgstr " (et limit_memory_soft à ≈ 80 % "
+
+msgid "of that value) — see also nginx-hardening.sh, step 6."
+msgstr "de cette valeur) — voir aussi nginx-hardening.sh, étape 6."
+
+msgid ", but nginx has not been reloaded since "
+msgstr ", mais nginx n'a pas été rechargé depuis "
+
+msgid "(configuration loaded at "
+msgstr "(configuration chargée à "
+
+msgid ") — they do not apply yet; reload offered "
+msgstr ") — elles ne s'appliquent pas encore ; rechargement proposé "
+
+msgid "at the end of the summary"
+msgstr "en fin de sommaire"
+
+msgid " is missing from nginx -T — the BigBlueButton configuration does not include "
+msgstr " est absent de nginx -T — la configuration de BigBlueButton n'inclut "
+
+msgid "/etc/bigbluebutton/nginx/*.nginx, so the rules do not apply (BBB server block to examine; its files are never modified by our tools)"
+msgstr "pas /etc/bigbluebutton/nginx/*.nginx, les règles ne s'appliquent pas (bloc server de BBB à examiner ; ses fichiers ne sont jamais modifiés par nos outils)"
+
+msgid "), but nginx refuses them when the program tries them "
+msgstr "), mais nginx les refuse quand le programme les essaie "
+
+msgid "): probably predate the current nginx rules "
+msgstr ") : probablement antérieures aux règles nginx actuelles "
+
+msgid "(test through nginx impossible: app-health-check.py missing)"
+msgstr "(essai à travers nginx impossible : app-health-check.py absent)"
+
+msgid " still today, but nginx now refuses these URLs when the program "
+msgstr " encore aujourd'hui, mais nginx refuse maintenant ces URL quand le programme les "
+
+msgid " also got normal pages (real visitors refused at times, "
+msgstr " ont aussi obtenu des pages normales (vrais visiteurs refusés par moments, "
+
+msgid "to examine) and "
+msgstr "à examiner) et "
+
+msgid "if these pages should not be indexed, say so in robots.txt (Disallow) rather than with a 403; "
+msgstr "si ces pages ne doivent pas être indexées, le dire dans robots.txt (Disallow) plutôt que par un 403 ; "
+
+msgid "otherwise find the rule that blocks it (nginx-log-audit.sh --stats --details)"
+msgstr "sinon trouver la règle qui le bloque (nginx-log-audit.sh --stats --details)"
+
+msgid " different addresses: probably a RULE that refuses real "
+msgstr " adresses différentes : probablement une RÈGLE qui refuse de vrais "
+
+msgid "banned by it over the period); nothing to do"
+msgstr "bannie(s) par elle sur la période) ; rien à faire"
+
+msgid "manual bans"
+msgstr "bannissements manuels"
+
+msgid "no client"
+msgstr "aucun"
+
+msgid "daily"
+msgstr "quotidienne"
+
+msgid "weekly"
+msgstr "hebdomadaire"
+
+msgid "monthly"
+msgstr "mensuelle"
+
+msgid "apps/_config.py unreadable ("
+msgstr "apps/_config.py illisible ("
+
+msgid "unknown"
+msgstr "inconnu"
+
+msgid "healthy"
+msgstr "sain"
+
+msgid "alert(s)"
+msgstr "alerte(s)"
+
+msgid "unexpected"
+msgstr "inattendu"
+
+msgid "Journal of {name}"
+msgstr "Journal de {name}"
+
+msgid "Journal of {vowel_name}"
+msgstr "Journal d'{vowel_name}"
+
+msgid "  Most active IPs          : "
+msgstr "  IP les plus actives      : "
+
+msgid "the {count} from today predate the rules taking effect ({time}), BUT nginx still lets through {probes} (program test)"
+msgstr "les {count} d'aujourd'hui datent d'avant l'entrée en vigueur des règles ({time}), MAIS nginx laisse encore passer {probes} (essai du programme)"
+
+msgid "workers often recycled for memory ({rec} in {days} days): raise limit_memory_soft by about 25% if the RAM allows it."
+msgstr "workers souvent recyclés pour mémoire ({rec} en {days} jours) : relever limit_memory_soft d'environ 25 % si la RAM le permet."
+
+msgid "more workers ({w}) than Odoo's formula (2 × {cores} cores + 1 = {formula}): no gain, the processes compete for the CPU."
+msgstr "plus de workers ({w}) que la formule d'Odoo (2 × {cores} cœurs + 1 = {formula}) : sans gain, les processus se disputent le processeur."
+
+msgid "The {count} other addresses share the rest: {others}"
+msgstr "Les {count} autres adresses se partagent le reste : {others}"
+
+msgid "SUSPICIOUS"
+msgstr "SUSPECT"
+
+msgid "to watch"
+msgstr "à surveiller"
+
+msgid "[1] The account in Odoo"
+msgstr "[1] Le compte dans Odoo"
+
+msgid "[3] Its e-mail address"
+msgstr "[3] Son adresse courriel"
+
+msgid "[5] Verdict"
+msgstr "[5] Verdict"
+
+msgid "ban justified"
+msgstr "bannissement justifié"
+
+msgid "  1. account ARCHIVED in Odoo: no more login, open sessions ended, the e-mail cannot be used for a new account"
+msgstr "  1. compte ARCHIVÉ dans Odoo : plus de connexion, sessions ouvertes terminées, le courriel ne peut plus servir à créer un compte"
+
+msgid "SUSPICIOUS ACTIVITY OF LOGGED-IN USERS — an account is not a proof of good faith ("
+msgstr "ACTIVITÉ SUSPECTE D'UTILISATEURS CONNECTÉS — un compte n'est pas une preuve de bonne foi ("
+
+msgid "  none: no logged-in account shows signs of misuse (burst, tools, refused accesses, forms in bulk, malicious URLs…)"
+msgstr "  aucune : aucun compte connecté ne montre de signe d'abus (rafale, outils, accès refusés, formulaires en masse, URL malveillantes…)"
+
+msgid " [watched]"
+msgstr " [surveillé]"
+
+msgid "  (score = sum of the signs; "
+msgstr "  (score = somme des indices ; "
+
+msgid ": to watch, "
+msgstr " : à surveiller, "
+
+msgid " and more: suspicious. Each sign alone can be innocent: investigate before banning.)"
+msgstr " et plus : suspect. Chaque indice seul peut être innocent : enquêter avant de bannir.)"
+
+msgid "  Investigation of an account (all its addresses, e-mail, Internet), then ban or watch: web-monitor.py --suspect-users"
+msgstr "  Enquête sur un compte (toutes ses adresses, courriel, Internet), puis bannir ou surveiller : web-monitor.py --suspect-users"
+
+msgid "Odoo accounts only: nothing to examine on this server."
+msgstr "Comptes Odoo seulement : rien à examiner sur ce serveur."
+
+msgid "\nNo account banned without a question: web-monitor.py --ban-odoo-user LOGIN (investigation, then confirmation)."
+msgstr "\nAucun compte banni sans question : web-monitor.py --ban-odoo-user IDENTIFIANT (enquête, puis confirmation)."
+
+msgid " INVESTIGATION OF THE ODOO ACCOUNT "
+msgstr " ENQUÊTE SUR LE COMPTE ODOO "
+
+msgid "  PostgreSQL unreadable (root required, or database unreachable): account details unknown."
+msgstr "  PostgreSQL illisible (root requis, ou base inaccessible) : détails du compte inconnus."
+
+msgid "[2] Its IP addresses ("
+msgstr "[2] Ses adresses IP ("
+
+msgid " in the whole journal)"
+msgstr " dans tout le journal)"
+
+msgid " (whitelist)"
+msgstr " (liste blanche)"
+
+msgid "[4] Internet (the e-mail address and the IP addresses are sent to StopForumSpam, Gravatar and DuckDuckGo)"
+msgstr "[4] Internet (le courriel et les adresses IP sont envoyés à StopForumSpam, Gravatar et DuckDuckGo)"
+
+msgid "no sign of misuse"
+msgstr "aucun signe d'abus"
+
+msgid "ERROR: root required (sudo) to ban an account."
+msgstr "ERREUR : root requis (sudo) pour bannir un compte."
+
+msgid "BAN OF THE ODOO ACCOUNT "
+msgstr "BANNISSEMENT DU COMPTE ODOO "
+
+msgid ", database "
+msgstr ", base "
+
+msgid ") — investigation verdict: "
+msgstr ") — verdict de l'enquête : "
+
+msgid "     (a home address can be reassigned to someone else later: lift with --unban-odoo-user after a few weeks)"
+msgstr "     (une adresse résidentielle peut être réattribuée plus tard à quelqu'un d'autre : lever avec --unban-odoo-user après quelques semaines)"
+
+msgid "  Odoo account: "
+msgstr "  Compte Odoo : "
+
+msgid "Undo: web-monitor.py --unban-odoo-user "
+msgstr "Pour annuler : web-monitor.py --unban-odoo-user "
+
+msgid "ERROR: root required (sudo) to lift a ban."
+msgstr "ERREUR : root requis (sudo) pour lever un bannissement."
+
+msgid "Ban of "
+msgstr "Bannissement de "
+
+msgid " (database "
+msgstr " (base "
+
+msgid ", addresses: "
+msgstr ", adresses : "
+
+msgid "Logged-in Odoo accounts whose activity is suspicious (score: bursts, tools, refused accesses, forms in bulk, malicious URLs, disposable e-mail…) and watched accounts, then investigation of each one (all its IP addresses, e-mail, Internet) with the offer to ban or watch it"
+msgstr "Comptes Odoo connectés dont l'activité est suspecte (score : rafales, outils, accès refusés, formulaires en masse, URL malveillantes, courriel jetable…) et comptes surveillés, puis enquête sur chacun (toutes ses adresses IP, courriel, Internet) avec l'offre de le bannir ou de le surveiller"
+
+msgid "Investigation of ONE Odoo account (all its IP addresses, other accounts on them, e-mail, Internet with consent), then the offer to ban or watch it"
+msgstr "Enquête sur UN compte Odoo (toutes ses adresses IP, autres comptes sur ces adresses, courriel, Internet avec accord), puis l'offre de le bannir ou de le surveiller"
+
+msgid "Ban an Odoo account after its investigation: account archived (no more login, sessions ended), IP addresses used by no other account banned at the firewall; with confirmation (--yes: without)"
+msgstr "Bannir un compte Odoo après enquête : compte archivé (plus de connexion, sessions terminées), adresses IP utilisées par aucun autre compte bannies au pare-feu ; avec confirmation (--yes : sans)"
+
+msgid "Lift the ban of an Odoo account: account restored and the IP addresses banned with it unbanned"
+msgstr "Lever le bannissement d'un compte Odoo : compte rétabli et adresses IP bannies avec lui débannies"
+
+msgid "Watch an Odoo account: always listed in the summary (SUSPICIOUS ACTIVITY section) and marked in app-log-live.py"
+msgstr "Surveiller un compte Odoo : toujours listé dans le sommaire (section ACTIVITÉ SUSPECTE) et marqué dans app-log-live.py"
+
+msgid "Stop watching an Odoo account"
+msgstr "Ne plus surveiller un compte Odoo"
+
+msgid "With --suspect-users, --investigate-user, --ban-odoo-user: search the e-mail and the IP addresses on the Internet (StopForumSpam, Gravatar, DuckDuckGo) without asking — they are sent to these services"
+msgstr "Avec --suspect-users, --investigate-user, --ban-odoo-user : chercher le courriel et les adresses IP sur Internet (StopForumSpam, Gravatar, DuckDuckGo) sans demander — ils sont envoyés à ces services"
+
+msgid "With --apply, --ban-recommended, --ban-odoo-user, --unban-odoo-user: without questions (--suspect-users: every account investigated, none banned)"
+msgstr "Avec --apply, --ban-recommended, --ban-odoo-user, --unban-odoo-user : sans question (--suspect-users : chaque compte examiné, aucun banni)"
+
+msgid "malicious URLs requested: "
+msgstr "URL malveillantes demandées : "
+
+msgid " (sensitive files, injections, PHP…)"
+msgstr " (fichiers sensibles, injections, PHP…)"
+
+msgid "burst: "
+msgstr "rafale : "
+
+msgid " pages in "
+msgstr " pages en "
+
+msgid ") — a person reads one page at a time"
+msgstr ") — une personne lit une page à la fois"
+
+msgid "scripting tool in the User-Agent: "
+msgstr "outil de script dans le User-Agent : "
+
+msgid " request(s) (curl, python-requests…)"
+msgstr " requête(s) (curl, python-requests…)"
+
+msgid "Odoo access refused: "
+msgstr "accès refusés par Odoo : "
+
+msgid " time(s) ("
+msgstr " fois ("
+
+msgid ") — tries to read what it may not"
+msgstr ") — essaie de lire ce qui lui est interdit"
+
+msgid "forms submitted: "
+msgstr "formulaires soumis : "
+
+msgid "failed logins with this login: "
+msgstr "connexions échouées avec cet identifiant : "
+
+msgid "password reset requests: "
+msgstr "demandes de réinitialisation du mot de passe : "
+
+msgid " different IP addresses"
+msgstr " adresses IP différentes"
+
+msgid "uses banned address(es): "
+msgstr "utilise une ou des adresses bannies : "
+
+msgid " client errors (4xx) out of "
+msgstr " erreurs client (4xx) sur "
+
+msgid "new account: first login "
+msgstr "nouveau compte : première connexion "
+
+msgid "      no sign over the period (account watched: its activity is listed here at every summary)"
+msgstr "      aucun indice sur la période (compte surveillé : son activité est listée ici à chaque sommaire)"
+
+msgid " other(s): web-monitor.py --suspect-users)"
+msgstr " autre(s) : web-monitor.py --suspect-users)"
+
+msgid "Investigate the "
+msgstr "Enquêter sur les "
+
+msgid " account(s) to watch or suspicious (all their addresses, their e-mail; ban or watch each one)"
+msgstr " compte(s) à surveiller ou suspects (toutes leurs adresses, leur courriel ; bannir ou surveiller chacun)"
+
+msgid "Unknown choice."
+msgstr "Choix inconnu."
+
+msgid " other address(es) not investigated)"
+msgstr " autre(s) adresse(s) non examinée(s))"
+
+msgid "  no e-mail address to check"
+msgstr "  aucune adresse courriel à vérifier"
+
+msgid "  component apps/_email_check.py missing"
+msgstr "  composant apps/_email_check.py absent"
+
+msgid "  not searched (--internet to allow it without a question)"
+msgstr "  non cherché (--internet pour l'autoriser sans question)"
+
+msgid " (the account behaves like a normal user)"
+msgstr " (le compte se comporte comme un utilisateur normal)"
+
+msgid " is already watched (since "
+msgstr " est déjà surveillé (depuis "
+
+msgid " is not watched."
+msgstr " n'est pas surveillé."
+
+msgid "Register not writable (root required): nothing recorded."
+msgstr "Registre non modifiable (root requis) : rien n'est enregistré."
+
+msgid " is already banned (since "
+msgstr " est déjà banni (depuis "
+
+msgid " to lift it."
+msgstr " pour le lever."
+
+msgid " unknown: nothing banned."
+msgstr " inconnu : rien n'est banni."
+
+msgid "REFUSED: "
+msgstr "REFUSÉ : "
+
+msgid " is an INTERNAL account (back-office access): archive it in Odoo itself (Settings > Users) after checking with the team."
+msgstr " est un compte INTERNE (accès au back-office) : l'archiver dans Odoo lui-même (Paramètres > Utilisateurs) après vérification avec l'équipe."
+
+msgid "Odoo account unreadable (PostgreSQL, root): nothing banned."
+msgstr "Compte Odoo illisible (PostgreSQL, root) : rien n'est banni."
+
+msgid "  2. IP address(es) banned at the firewall: "
+msgstr "  2. adresse(s) IP bannie(s) au pare-feu : "
+
+msgid "     not banned: "
+msgstr "     non bannie : "
+
+msgid "ERROR: no terminal to confirm — add --yes to ban without a question."
+msgstr "ERREUR : aucun terminal pour confirmer — ajouter --yes pour bannir sans question."
+
+msgid "Odoo account NOT archived (PostgreSQL write failed): nothing else done."
+msgstr "Compte Odoo NON archivé (échec de l'écriture dans PostgreSQL) : rien d'autre n'est fait."
+
+msgid "  Recorded in "
+msgstr "  Enregistré dans "
+
+msgid "Register not writable: the ban is not recorded (--unban-odoo-user will not know the addresses)."
+msgstr "Registre non modifiable : le bannissement n'est pas enregistré (--unban-odoo-user ne connaîtra pas les adresses)."
+
+msgid " is not banned by this program (register apps/_odoo_users.py): nothing to lift."
+msgstr " n'est pas banni par ce programme (registre apps/_odoo_users.py) : rien à lever."
+
+msgid "ERROR: no terminal to confirm — add --yes to lift without a question."
+msgstr "ERREUR : aucun terminal pour confirmer — ajouter --yes pour lever sans question."
+
+msgid "restored"
+msgstr "rétabli"
+
+msgid "address shared with "
+msgstr "adresse partagée avec "
+
+msgid " other account(s): "
+msgstr " autre(s) compte(s) : "
+
+msgid " (several accounts from one place)"
+msgstr " (plusieurs comptes depuis un même endroit)"
+
+msgid "disposable e-mail address ("
+msgstr "adresse courriel jetable ("
+
+msgid "      first login "
+msgstr "      première connexion "
+
+msgid " login(s) · IP: "
+msgstr " connexion(s) · IP : "
+
+msgid "  no account with the login « "
+msgstr "  aucun compte avec l'identifiant « "
+
+msgid " » in "
+msgstr " » dans "
+
+msgid " — also used by: "
+msgstr " — aussi utilisée par : "
+
+msgid ": ban recommended by the investigation of the address"
+msgstr " : bannissement recommandé par l'enquête sur l'adresse"
+
+msgid " accounts on the same address"
+msgstr " comptes sur la même adresse"
+
+msgid "  mail server of "
+msgstr "  serveur de courriel de "
+
+msgid "the domain "
+msgstr "le domaine "
+
+msgid " receives no mail"
+msgstr " ne reçoit aucun courriel"
+
+msgid "  disabled on this server (NGINX_TOOLS_INTERNET=off)"
+msgstr "  désactivé sur ce serveur (NGINX_TOOLS_INTERNET=off)"
+
+msgid "[w] watch"
+msgstr "[w] surveiller"
+
+msgid "[u] stop watching"
+msgstr "[u] ne plus surveiller"
+
+msgid "watched — listed in every summary (section SUSPICIOUS ACTIVITY) and marked in app-log-live.py"
+msgstr "surveillé — listé dans chaque sommaire (section ACTIVITÉ SUSPECTE) et marqué dans app-log-live.py"
+
+msgid "no longer watched"
+msgstr "n'est plus surveillé"
+
+msgid "whitelist or place"
+msgstr "liste blanche ou lieu"
+
+msgid "Nothing banned."
+msgstr "Rien n'est banni."
+
+msgid "already archived (or protected): unchanged"
+msgstr "déjà archivé (ou protégé) : inchangé"
+
+msgid "Nothing changed."
+msgstr "Rien n'est changé."
+
+msgid "already active: unchanged"
+msgstr "déjà actif : inchangé"
+
+msgid "login e-mail address: "
+msgstr "adresse courriel de l'identifiant : "
+
+msgid " login(s) recorded by Odoo, last "
+msgstr " connexion(s) enregistrée(s) par Odoo, dernière "
+
+msgid "  contact e-mail: "
+msgstr "  courriel du contact : "
+
+msgid " (different from the login)"
+msgstr " (différent de l'identifiant)"
+
+msgid "  event registrations: "
+msgstr "  inscriptions aux événements : "
+
+msgid "  survey answers: "
+msgstr "  réponses aux sondages : "
+
+msgid "account created less than "
+msgstr "compte créé il y a moins de "
+
+msgid " days ago"
+msgstr " jours"
+
+msgid "  INTERNAL account (employee, volunteer with back-office access): never banned by this program — archive it in Odoo itself if needed."
+msgstr "  Compte INTERNE (employé, bénévole avec accès au back-office) : jamais banni par ce programme — l'archiver dans Odoo lui-même au besoin."
+
+msgid " — syntax "
+msgstr " — syntaxe "
+
+msgid " — suggested correction: "
+msgstr " — correction suggérée : "
+
+msgid "yes (MX record)"
+msgstr "oui (enregistrement MX)"
+
+msgid "no MX record, address only (mail possible)"
+msgstr "aucun enregistrement MX, adresse seulement (courriel possible)"
+
+msgid "unknown (DNS tool missing or no Internet)"
+msgstr "inconnu (outil DNS absent ou pas d'Internet)"
+
+msgid "  StopForumSpam: unreachable"
+msgstr "  StopForumSpam : injoignable"
+
+msgid "the Odoo databases"
+msgstr "les bases Odoo"
+
+msgid "  created "
+msgstr "  créé le "
+
+msgid "  messages posted (30 days): "
+msgstr "  messages publiés (30 jours) : "
+
+msgid "  ⚠ many"
+msgstr "  ⚠ beaucoup"
+
+msgid " messages posted in 30 days"
+msgstr " messages publiés en 30 jours"
+
+msgid "NONE — this domain receives no mail"
+msgstr "AUCUN — ce domaine ne reçoit aucun courriel"
+
+msgid "  StopForumSpam, IP addresses: never reported"
+msgstr "  StopForumSpam, adresses IP : jamais signalées"
+
+msgid "profile picture found (address used elsewhere, often for years)"
+msgstr "photo de profil trouvée (adresse utilisée ailleurs, souvent depuis des années)"
+
+msgid "  Web search: not available (search engine refused or unreachable) — to open in a browser: "
+msgstr "  Recherche Web : indisponible (moteur de recherche qui refuse ou injoignable) — à ouvrir dans un navigateur : "
+
+msgid "      (all the results: "
+msgstr "      (tous les résultats : "
+
+msgid "also used by "
+msgstr "aussi utilisée par "
+
+msgid "NOT restored (PostgreSQL write failed)"
+msgstr "NON rétabli (échec de l'écriture dans PostgreSQL)"
+
+msgid "Investigate which account? [number]  [a] all  [Enter] quit: "
+msgstr "Enquêter sur quel compte ? [numéro]  [a] tous  [Entrée] quitter : "
+
+msgid "ARCHIVED (cannot log in)"
+msgstr "ARCHIVÉ (ne peut plus se connecter)"
+
+msgid " through "
+msgstr " par "
+
+msgid "  StopForumSpam, e-mail: "
+msgstr "  StopForumSpam, courriel : "
+
+msgid "never reported"
+msgstr "jamais signalé"
+
+msgid "e-mail reported "
+msgstr "courriel signalé "
+
+msgid " time(s) to StopForumSpam"
+msgstr " fois à StopForumSpam"
+
+msgid "unreachable"
+msgstr "injoignable"
+
+msgid "  Web search of « "
+msgstr "  Recherche Web de « "
+
+msgid " result(s)"
+msgstr " résultat(s)"
+
+msgid " (an address never published anywhere: common for a recent or private address)"
+msgstr " (adresse publiée nulle part : courant pour une adresse récente ou privée)"
+
+msgid "Ban? [y] account and addresses  [a] account only  [N] nothing: "
+msgstr "Bannir ? [y] compte et adresses  [a] compte seulement  [N] rien : "
+
+msgid "NOT unbanned"
+msgstr "NON débannie"
+
+msgid "INVALID"
+msgstr "INVALIDE"
+
+msgid "Restore the account and unban its addresses? [y/N]: "
+msgstr "Rétablir le compte et débannir ses adresses ? [y/N] : "
+
+msgid "REPORTED "
+msgstr "SIGNALÉ "
+
+msgid " time(s), last "
+msgstr " fois, dernier "
+
+msgid ", confidence "
+msgstr ", confiance "
+
+msgid " reported to StopForumSpam"
+msgstr " signalée à StopForumSpam"
+
+msgid "  Search the Internet for this e-mail and these addresses? [Y/n]: "
+msgstr "  Chercher ce courriel et ces adresses sur Internet ? [Y/n] : "
+
+msgid "portal/public"
+msgstr "portail/public"
+
+msgid "archived"
+msgstr "archivé"
+
+msgid "score "
+msgstr "score "
+
+msgid "banned"
+msgstr "bannie"
+
+msgid "account active"
+msgstr "compte actif"
+
+msgid "internal"
+msgstr "interne"
+
+msgid "valid"
+msgstr "valide"
+
+msgid " — UID "
+msgstr " — UID "
+
+msgid "[2b] Its activity on the site (nginx logs and Odoo journal, whole history kept)"
+msgstr "[2b] Son activité sur le site (journaux nginx et journal d'Odoo, tout l'historique conservé)"
+
+msgid "  no sign of misuse in its requests"
+msgstr "  aucun signe d'abus dans ses requêtes"
+
+msgid "[b] ban"
+msgstr "[b] bannir"
+
+msgid "[Enter] nothing: "
+msgstr "[Entrée] rien : "
+
+msgid "  (pages written: forms and records sent (POST, PUT, DELETE), not the reads of the Odoo web client nor the chat;"
+msgstr "  (pages écrites : formulaires et enregistrements envoyés (POST, PUT, DELETE), pas les lectures du client web d'Odoo ni le clavardage ;"
+
+msgid "   MB received: what nginx sent to the account; MB sent: size of its requests — « ? » if the nginx log has no « rl= » field (nginx-odoo-config 1.11))"
+msgstr "   Mo reçus : ce que nginx a transmis au compte ; Mo envoyés : taille de ses requêtes — « ? » si le journal nginx n'a pas le champ « rl= » (nginx-odoo-config 1.11))"
+
+msgid "MB received"
+msgstr "Mo reçus"
+
+msgid "MB sent"
+msgstr "Mo envoyés"
+
+msgid "pages written"
+msgstr "pages écrites"
+
+msgid ". Fields: "
+msgstr ". Champs : "
+
+msgid " (--table-fields to choose; all: every field)."
+msgstr " (--table-fields pour choisir ; all : tous les champs)."
+
+msgid "  (colors: last login today in green, account created today in cyan, the busiest accounts in yellow — bold: top 10 %; 0 in grey)"
+msgstr "  (couleurs : dernière connexion aujourd'hui en vert, compte créé aujourd'hui en cyan, les comptes les plus actifs en jaune — gras : les 10 % du haut ; 0 en gris)"
+
+msgid "──── Statistics of the "
+msgstr "──── Statistiques des "
+
+msgid " listed ────"
+msgstr " de la liste ────"
+
+msgid "Members per group"
+msgstr "Membres par groupe"
+
+msgid "Members per tag"
+msgstr "Membres par étiquette"
+
+msgid "Internal / portal"
+msgstr "Interne / portail"
+
+msgid "Countries (Odoo contact)"
+msgstr "Pays (contact Odoo)"
+
+msgid "E-mail domains"
+msgstr "Domaines de courriel"
+
+msgid "Operating systems"
+msgstr "Systèmes d'exploitation"
+
+msgid "Top 10 of the most active accounts"
+msgstr "Les 10 comptes les plus actifs"
+
+
+msgid "pages read"
+msgstr "pages lues"
+
+
+
+msgid "CSV written: "
+msgstr "CSV écrit : "
+
+msgid " column(s), separator « ; » (Excel: open it directly)"
+msgstr " colonne(s), séparateur « ; » (Excel : l'ouvrir directement)"
+
+msgid "ERROR: CSV file not writable: "
+msgstr "ERREUR : fichier CSV impossible à écrire : "
+
+msgid "No Odoo group named « "
+msgstr "Aucun groupe Odoo nommé « "
+
+msgid " (groups: "
+msgstr " (groupes : "
+
+msgid " (PostgreSQL unreadable: root required?)"
+msgstr " (PostgreSQL illisible : root requis ?)"
+
+msgid " member(s) with a login in the history"
+msgstr " membre(s) avec une connexion dans l'historique"
+
+msgid " member(s) without any login: "
+msgstr " membre(s) sans aucune connexion : "
+
+msgid "With --list-users: compact numbered table, one column per field (--table-fields), each as narrow as its content (titles cut, on two lines), colors for today's logins and the busiest accounts"
+msgstr "Avec --list-users : tableau numéroté compact, une colonne par champ (--table-fields), chacune aussi étroite que son contenu (titres coupés, sur deux lignes), couleurs pour les connexions d'aujourd'hui et les comptes les plus actifs"
+
+msgid "With --table or --csv: the fields to show, in that order, separated by commas (all: every field) — "
+msgstr "Avec --table ou --csv : les champs à afficher, dans cet ordre, séparés par des virgules (all : tous les champs) — "
+
+msgid " (implies --list-users --table)"
+msgstr " (implique --list-users --table)"
+
+msgid "With --list-users: also write every value, never cut, in a CSV file (« ; » separator, decimal comma in French: Excel opens it directly; - = standard output)"
+msgstr "Avec --list-users : écrire aussi toutes les valeurs, jamais coupées, dans un fichier CSV (séparateur « ; », virgule décimale en français : Excel l'ouvre directement ; - = sortie standard)"
+
+msgid "With --list-users: only the members of this Odoo group (exact name, otherwise part of the name; accents and case ignored)"
+msgstr "Avec --list-users : seulement les membres de ce groupe Odoo (nom exact, sinon une partie du nom ; accents et majuscules ignorés)"
+
+msgid "With --table: the column titles also at the bottom of the table"
+msgstr "Avec --table : les titres des colonnes aussi au bas du tableau"
+
+msgid "With --list-users: statistics at the end — members per group and tag, internal / portal, countries, e-mail domains, systems, browsers, top 10 of the most active accounts (logins, minutes, pages read and written, MB, events, surveys)"
+msgstr "Avec --list-users : statistiques à la fin — membres par groupe et par étiquette, interne / portail, pays, domaines de courriel, systèmes, navigateurs, les 10 comptes les plus actifs (connexions, minutes, pages lues et écrites, Mo, événements, sondages)"
+
+msgid "event registrations"
+msgstr "inscriptions aux événements"
+
+msgid "surveys completed"
+msgstr "sondages complétés"
+
+msgid "^--- \\[|^=====|^RÉSUMÉ"
+msgstr "^--- \\[|^=====|^RÉSUMÉ"
+
+msgid " stop(s) for CPU time · "
+msgstr " arrêt(s) pour temps processeur · "
+
+msgid ", but nginx has not been reloaded since (configuration loaded at "
+msgstr ", mais nginx n'a pas été rechargé depuis (configuration chargée à "
+
+msgid ") — they do not apply yet; reload offered at the end of the summary"
+msgstr ") — elles ne s'appliquent pas encore ; rechargement proposé en fin de sommaire"
+
+msgid "), but nginx refuses them when the program tries them ("
+msgstr "), mais nginx les refuse quand le programme les essaie ("
+
+msgid "): probably predate the current nginx rules (test through nginx impossible: app-health-check.py missing)"
+msgstr ") : probablement antérieures aux règles nginx actuelles (essai à travers nginx impossible : app-health-check.py absent)"
+
+msgid " also got normal pages (real visitors refused at times, to examine) and "
+msgstr " ont aussi obtenu des pages normales (vrais visiteurs refusés par moments, à examiner) et "
+
+msgid " in 7 days ("
+msgstr " en 7 jours ("
+
+msgid "checked by the program: all {count} from today predate the rules taking effect ({time}); none since{confirmed}. Nothing to do: the counter will drop back to zero within 7 days"
+msgstr "vérifié par le programme : les {count} d'aujourd'hui datent toutes d'avant l'entrée en vigueur des règles ({time}) ; aucune depuis{confirmed}. Rien à faire : le compteur retombera à zéro d'ici 7 jours"
+
+msgid " different addresses: probably a RULE that refuses real visitors. "
+msgstr " adresses différentes : probablement une RÈGLE qui refuse de vrais visiteurs. "
+
+msgid "MB sent: « ? » because NO line of the nginx logs read has the « rl= » field: deploy nginx-odoo-config 1.11 (log_format combined_host with "
+msgstr "Mo envoyés : « ? » parce qu'AUCUNE ligne des journaux nginx lus n'a le champ « rl= » : déployer nginx-odoo-config 1.11 (log_format combined_host avec "
+
+msgid "rl=$request_length), then nginx -t and systemctl reload nginx — only the requests logged after that count"
+msgstr "rl=$request_length), puis nginx -t et systemctl reload nginx — seules les requêtes journalisées ensuite comptent"
+
+msgid "Group "
+msgstr "Groupe "
+
+msgid "Browsers"
+msgstr "Navigateurs"
+
+msgid "  (IP seen: the account's address with the latest request in the nginx logs, even without a new login to Odoo; green: today; +N: its other addresses seen)"
+msgstr "  (IP vue : l'adresse du compte qui a fait la requête la plus récente dans les journaux nginx, même sans nouvelle connexion à Odoo ; vert : aujourd'hui ; +N : ses autres adresses vues)"
+
+msgid "last seen on the site"
+msgstr "dernière visite sur le site"

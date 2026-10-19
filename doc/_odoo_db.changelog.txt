@@ -1,0 +1,367 @@
+Changelog — apps/_odoo_db.py
+(version la plus récente en premier)
+
+## 1.16.20261017.105442 — user_profiles: phone, country, city, groups, tags, events and surveys of each Odoo account
+
+Reason:
+  « [1] Dans web-monitor.py --list-users --table, peux-tu rajouter le nombre d'événement et de sondages qu'un utilisateur a rempli, et un autre champs pour le téléphone, pays, ville, dans quel groupe et Étiquettes, ils font parties [2] Rajoute ces options : --group zzz, --csv, --table-fields field1,field2 [3] afin de minimiser la largeur des colonnes, il faut enlever les espaces avant et après les mots […] tronquer l'entête au maximum de la largeur des données et pour un minimum de 4 caractères. Utilise deux lignes pour les entêtes si deux mots […] [4] Dans les CSV, il faut conserver toute l'information et probablement utiliser « ; » comme séparateur [5] Mettre en couleur certaines informations […] [6] Le « Mo envoyés » est toujours à « ? », pourquoi. [7] Peux-tu t'assurer que tous les programmes lisent les variables d'environnement en Linux qui déterminent la langue, cela n'a pas fonctionné si je change la variable LANG à fr, fr_CA, C, en [8] rajoute une option afin d'afficher une entête aussi à la fin [9] à la fin, rajoute une option qui indique des stats de membres par groupes, navigateurs, systèmes, par pays, par domaine de courriel, % interne ou portail, top 10 des utilisateurs actifs (selon plusieurs métriques) »
+
+Changes:
+  - user_profiles(base) READ-ONLY: {login: {email, phone (or mobile), country (code), country_name, city, groups (custom: no module, rlq_*, __export__,
+    __custom__), all_groups (for --group), tags, events (registrations not cancelled), surveys (completed, tests excluded)}}; tables of modules not
+    installed (event, survey, contact tags) count 0; inner separators chr(2) / chr(3) (Python splitlines() also cuts at chr(28) to chr(30)).
+
+Bugs fixed:
+  none.
+
+Safeguards and edge cases:
+  none.
+
+Checks:
+  - Run on PostgreSQL 16 (accounts, groups with and without module, tags, registrations cancelled, test surveys); web-monitor tests with a simulated psql.
+
+Action required:
+  none.
+
+## 1.15.20261016.173838 — registrations_by_ticket (the survey of the TICKET), mail_detail (recipients and subject of a sent e-mail)
+
+Reason:
+  « [1] copyright → Services-Linux Conseils Inc […] [2] app-log-live.py : faire un lien entre un événement spécifique et ses sondages par billets […] [3] odoo-update-module.sh : avant d'arrêter le service Odoo, vérifier s'il y a beaucoup de gens qui visitent le site et attendre jusqu'à 15 min […] s'il y a des erreurs, faire un retour-arrière avec les versions précédentes des modules (faire une sauvegarde des modules) [4] web-monitor.py --list-users --table : nombre de pages lues et écrites et transmission / réception (en Mo) [5] indiquer le nom de la personne à qui on a envoyé un courriel ainsi que le titre […] [5] Le Ctrl+C ne fonctionne pas lorsque le programme est en cours nginx-log-audit.sh v2.37 (lorsqu'appelé par app-log-live.py) […] il faudrait le trapper dans tous les programmes Python ou BASH, avec une confirmation. Cela fait plusieurs fois que je fais cette demande »
+
+Changes:
+  - registrations_by_ticket(base, days, limit) READ-ONLY: registrations with the survey expected for each (event_event_ticket.rlq_survey_id, otherwise
+    event_event.survey_id when that column exists), the person's answer IN THAT SURVEY only (contact, otherwise e-mail compared, never returned), and,
+    when it is missing, the person's most recent answer to another survey (`other`, to be pointed out); sorted by event, ticket, registration.
+    None without any survey column (the caller keeps inscriptions_avec_sondage).
+  - mail_detail(base, mail_id, message_id) READ-ONLY: subject, recipients (contacts, otherwise e-mail_to names), record (« registration NAME — EVENT »);
+    {} if the Message-Id does not match (another database).
+  - Header: « Copyright (C) 2026  Services-Linux Conseils Inc <Martial@Bigras.ca> <Martial.Bigras@Services-Conseils-Linux.com> » (was: Rencontres Linux Québec <info@rencontres-linux.quebec>).
+
+Bugs fixed:
+  - inscriptions_avec_sondage took the most advanced answer to ANY survey whose title contains « portes ouvertes »: last year's survey or a TEST
+    counted as the confirmation of this year's ticket. Kept only as the fallback without the module.
+
+Safeguards and edge cases:
+  - Columns checked in information_schema before use; values from Odoo quoted (_sql_text); default_transaction_read_only as before.
+
+Checks:
+  - Run on PostgreSQL 16 with a scenario (tickets with and without survey, survey of 2025, TEST survey, answer under another name); unit tests.
+
+Action required:
+  none.
+
+## 1.14.20261016.114848 — Odoo accounts (investigation, archive / restore) and registration addresses (fix)
+
+Reason:
+  "[0] When registering for an event in Odoo, validate that people wrote a valid e-mail (example: mariebc33@gmail'com); add a menu option to list the e-mail errors caused by a wrong address, fix the user's contact and resend the e-mail. [1] In app-log-live.py, show what causes the most latency (SATA, not SSD, with ZFS on Proxmox): % used for I/O over several hours, to decide whether SSD are justified. [2] A program to run on the Proxmox server that details what causes performance problems (CPU, MEM, IO, NET) and suggests settings (ZFS…), light on resources. [3] Alignment problem with Chinese characters in web-monitor.py --list-users --table; a new account (Chinese name) may be a hacker: add a section for suspicious activity of a logged-in Odoo user — do not always trust them. [4] List the suspicious users, offer to investigate all the IPs of a user and blacklist them so they cannot log in to Odoo any more: --ban-odoo-user and --unban-odoo-user, but investigate more before banning (search the e-mail on the Internet, etc.)."
+
+Changes:
+  - user_detail (read-only): account of a login — UID, name, e-mail, active, portal or internal, creation, OAuth provider, logins (res_users_log),
+    registrations, messages of the last 30 days, survey answers.
+  - set_user_active (WRITE after confirmation, web-monitor.py): archives / restores an account; guards in the SQL itself (uid > 2, never base.user_root,
+    user_admin, public_user; archiving only a portal account that is active, restoring only an archived one).
+  - registration_emails (read-only), failed_mails_for (read-only), fix_registration_email (WRITE after confirmation, odoo-mail-retry.py: registration,
+    contact, failed e-mails re-addressed and put back in "Outgoing", ONE transaction with psql -1).
+  - _sql_text: SQL literal of a text typed by a visitor (quotes doubled, NUL removed); _column_exists.
+
+Bugs fixed:
+  none.
+
+Safeguards and edge cases:
+  - Every UPDATE re-checks the old value or state in its WHERE clause; the login of an account is never changed; translated OAuth names (jsonb) read.
+
+Checks:
+  SQL run against a real PostgreSQL 16 with Odoo 18 tables (users, partners, registrations, mails): guards, idempotence, one transaction.
+
+Action required:
+  none.
+
+## 1.13.20261015.172851 — groupes_rlq : membres des groupes RLQ*
+
+Motif de la demande :
+  « [3] … écrire dans app-log-live.py le nombre de membres des groupes RLQ* (dans le menu et résumé avec Ctrl-C) » et « [2] ShellCheck (binaire fourni) »
+
+Détail des modifications :
+  - groupes_rlq(base, prefixe='RLQ') : [{nom, membres}] triés ; nom traduisible (JSON par langue) lu en fr_CA, fr_FR puis en_US ; préfixe validé (lettres, chiffres, tiret) avant d'entrer dans la requête.
+
+Bugs corrigés :
+  - Aucun bug corrigé.
+
+Garde-fous et cas limites traités :
+  - Lecture seule ; None si impossible ; lignes invalides ignorées ; groupes dont le nom ne commence pas par le préfixe écartés.
+
+Vérifications effectuées :
+  - Test avec _requete simulée (JSON, préfixe malveillant, base illisible).
+
+Action requise de ma part :
+  - aucune
+
+## 1.12.20261015.073057 — Jours locaux pour les échecs de courriels
+
+Motif de la demande :
+  « [1] Rajoute une option dans les événements avoir de recevoir un courriel à tous les N inscriptions [2] … stats sommaires à toutes les N minutes (sockets réseau utilisés par Odoo, ports 10000 et 10002) ; suggérer des IP à unban dans les recommandations en appelant les programmes et confirmer l'action ; afficher la date de dernière modification des fichiers de config lus au démarrage ; toutes les dates à l'heure locale ; l'alignement des colonnes n'est pas OK avec --summary »
+
+Détail des modifications :
+  - decalage_local_sql() ; courriels() groupe les échecs par jour de l'heure locale de la machine (PostgreSQL enregistre en UTC).
+
+Bugs corrigés :
+  - Un échec à 21 h locale était compté au jour suivant (UTC). Correction : décalage local.
+
+Garde-fous et cas limites traités :
+  - Heure d'été : décalage de l'instant présent.
+
+Vérifications effectuées :
+  - suite complète.
+
+Action requise de ma part : aucune
+
+## 1.11.20261014.190654 — Ligne de commande --modules BASE
+
+Motif de la demande :
+  « [1] Dans odoo-update-module.sh, il faudrait que tu affiches les dernières versions des modules installés (comme dans le programme live). Tu peux afficher les versions avant et après afin de voir les mises à jour [2] Il faudrait que tu rajoutes une option pour spécifier le répertoire de destination pour décompresser les modules (souvent dans les addons). Ainsi tu peux lire directement le fichier .zip (dans le répertoire courant, ou spécifié dans la config ou par des options) ».
+
+Détail des modifications :
+  - python3 apps/_odoo_db.py --modules BASE : nom, état, version, date de modification (UTC), auteur, séparés par des tabulations (lecture seule).
+
+Bugs corrigés :
+  - Aucun bug corrigé.
+
+Garde-fous et cas limites traités :
+  - Base invalide ou PostgreSQL inaccessible : code 1 et message.
+
+Vérifications effectuées :
+  - test_odoo_update_module (versions avant / après), suite complète.
+
+Action requise de ma part : aucune
+
+## 1.10.20261013.163324 — modules_etat
+
+Motif de la demande :
+  « [1] Dans zip-versions.py, fais apparaître en couleur les programmes dont la date est aujourd'hui, pour valider plus vite que j'ai la dernière version. [2] Dans nginx-hardening.sh, vérifie si NGINX a un problème avant de faire tes changements et aide-moi à les résoudre. [3] Indique la version dans cela et donne plus de détails sur les erreurs (heure, IP, utilisateur si connecté). [4] Indique si tous les modules d'Odoo sont bien disponibles avec leurs versions au démarrage du tableau de bord »
+
+Détail des modifications :
+  - modules_etat(base) : nom, état, version installée et auteur des modules non désinstallés (lecture seule).
+
+Bugs corrigés :
+  - Aucun.
+
+Garde-fous et cas limites traités :
+  - None si psql ou la base est inaccessible.
+
+Vérifications effectuées :
+  - test_app_log_live (verifier_modules avec une base simulée).
+
+Action requise de ma part : aucune
+
+## 1.9.20261013.141500 — jetons_sondages
+
+Motif de la demande :
+  « [3] Est-ce possible de savoir pourquoi Python prend trop de temps (5 à 10 s) pour une requête ? [4] Est-ce la config d'Odoo, trop de modules, le nombre d'addons ? [5] Plus de stats sur l'accès à certaines pages web liées à notre événement annuel (JPOL) et à ses sondages associés par tickets. »
+
+Détail des modifications :
+  - jetons_sondages(base) : {jeton d'accès: titre (— billet X)} des sondages.
+
+Bugs corrigés :
+  - Aucun.
+
+Garde-fous et cas limites traités :
+  - Repli sans module rlq_survey_report ; base illisible : None.
+
+Vérifications effectuées :
+  - test_app_log_live.
+
+Action requise de ma part : aucune
+
+## 1.8.20261013.081500 — courriels_envoyes
+
+Motif de la demande :
+  Voir odoo-mail-retry.py 1.4.
+
+Détail des modifications :
+  - courriels_envoyes(base, limite=10) : derniers courriels à l'état « sent ».
+
+Bugs corrigés :
+  - Aucun.
+
+Garde-fous et cas limites traités :
+  - Limite entière ≥ 1.
+
+Vérifications effectuées :
+  - test_odoo_mail_retry.
+
+Action requise de ma part : aucune
+
+## 1.7.20261009.230224 — Inscriptions avec le sondage de confirmation
+
+Motif de la demande :
+  Voir app-log-live.py 1.23.
+
+Détail des modifications :
+  - inscriptions_avec_sondage(base, jours, limite, motif) : inscriptions_evenements() plus, pour les événements dont le titre contient MOTIF, le sondage (survey_user_input) de la même personne dont le titre contient MOTIF.
+
+Bugs corrigés :
+  - Aucun.
+
+Garde-fous et cas limites traités :
+  - Motif nettoyé (lettres, chiffres, espaces, tirets) ; vide : repli sur inscriptions_evenements(). Lecture seule ; courriel comparé, jamais renvoyé ; essais exclus.
+
+Vérifications effectuées :
+  - Requête exécutée sur PostgreSQL 16 réel (schéma minimal) et test d'analyse avec requête simulée.
+
+Action requise de ma part (ou « aucune ») :
+  aucune
+
+
+## 1.6.20261009.150500 — Billet (ticket) des inscriptions aux événements
+
+Motif de la demande :
+  « Indique le nom du ticket » (touche I de app-log-live.py).
+
+Détail des modifications :
+  - inscriptions_evenements() : LEFT JOIN event_event_ticket (r.event_ticket_id) ; nouvelle clé « ticket » (nom traduit, 40 caractères) ; _inscriptions() la lit si la 5e colonne existe
+    (sondages inchangés : ticket vide).
+
+Bugs corrigés :
+  - Aucun.
+
+Garde-fous et cas limites traités :
+  - LEFT JOIN : une inscription sans billet reste listée (ticket vide). Lecture seule. Aucun courriel ni téléphone.
+
+Vérifications effectuées :
+  - Test de app-log-live.py avec un faux psql (requête contenant event_event_ticket).
+
+Action requise de ma part (ou « aucune ») :
+  aucune
+
+
+## 1.5.20261008.173412 — Étiquettes de contact (groupes de contacts)
+
+Motif de la demande :
+  --accentuate-group de app-log-live.py : vérifier que le groupe existe et connaître ses comptes.
+
+Détail des modifications :
+  - groupe_existe(base, nom), groupes_contacts(base), membres_groupe(base, nom) : lectures SEULES de res_partner_category et res_users.
+
+Bugs corrigés :
+  - Aucun.
+
+Garde-fous et cas limites traités :
+  - Nom échappé (apostrophes doublées, caractères de contrôle retirés) ; nom traduit (jsonb) comparé dans toutes les langues, nom simple en repli ; None si illisible.
+
+Vérifications effectuées :
+  - Tests de app-log-live.py avec un faux psql.
+
+Action requise de ma part (ou « aucune ») :
+  aucune
+
+## 1.4.20261008.124728 — Inscriptions aux événements et participations aux sondages
+
+Motif de la demande :
+  Touches S et I de app-log-live.py : afficher les inscriptions à des sondages (surveys) et à des événements.
+
+Détail des modifications :
+  - inscriptions_evenements(base, jours, limite) et reponses_sondages(base, jours, limite) : lectures SEULES (transaction forcée en lecture seule), plus récentes d'abord.
+
+Bugs corrigés :
+  - Aucun.
+
+Garde-fous et cas limites traités :
+  - Ni courriel, ni téléphone, ni réponse lue ; essais de sondage exclus ; None si la table est absente ou PostgreSQL inaccessible.
+
+Vérifications effectuées :
+  - Test avec un faux psql (app-log-live.py, touches S et I) : requête lue en lecture seule.
+
+Action requise de ma part (ou « aucune ») :
+  aucune
+
+## 1.3.20261007.175327 — Correction du sujet ; liste et remise en attente des courriels en échec
+
+Motif de la demande :
+  « Un programme qui indique la liste des courriels non envoyés et me propose de les renvoyer ; indique-moi le titre des courriels non envoyés. »
+
+Détail des modifications :
+  - bases_odoo() : bases PostgreSQL qui ont la table mail_mail. courriels_en_echec(base, jours) : numéro, instant, SUJET, destinataires (email_to, sinon adresses des contacts), cause.
+  - remettre_en_attente(base, ids) : la SEULE écriture du composant — état « outgoing » comme le bouton « Réessayer » d'Odoo, seulement pour les courriels ENCORE en échec ; retourne les
+    numéros réellement remis en attente.
+
+Bugs corrigés :
+  - courriels() lisait le sujet dans mail_mail.subject : colonne inexistante (mail.mail hérite de mail.message, le sujet est dans mail_message). Sur une vraie base la requête échouait et
+    « Sujets en échec » de app-log-check.py restait vide sans message (le simulateur de test ne pouvait pas le voir). Corrigé par une jointure sur mail_message ; test de non-régression.
+
+Garde-fous et cas limites traités :
+  - Écriture : numéros validés comme entiers, base validée, garde AND state = 'exception', aucune autre colonne que l'état et la date de modification ; lectures : transaction forcée en lecture seule.
+
+Vérifications effectuées :
+  - Tests de test_odoo_mail_retry.py et test_app_log_check.py ; mutation : sans la garde « exception » le test d'écriture échoue.
+
+Action requise de ma part (ou « aucune ») :
+  Aucune.
+
+## 1.2.20261007.171721 — Lectures en lecture seule : paramètres mail.*, serveurs sortants, courriels
+
+Motif de la demande :
+  [4] « Faire ressortir dans un sommaire les erreurs d'Odoo : hier les gens n'ont pas reçu leur courriel d'inscription ; comprendre pourquoi et trouver une solution :
+  app-log-check.py » (MailDeliveryException : SMTPDataError 452 « Maximum number of messages per session exceeded », SMTPSenderRefused 503 « Multiple MAIL commands not
+  allowed », SMTPDataError 550 « You are not allowed to send emails as … (header From) while using … as envelope sender »).
+
+Détail des modifications :
+  - parametres(base, prefixe) : paramètres système (ir_config_parameter) dont la clé commence par le préfixe, sans les clés qui évoquent un secret.
+  - serveurs_courriel(base) : serveurs de courrier sortant enregistrés (nom, hôte, port, chiffrement, filtre De, actif) — jamais d'identifiant ni de mot de passe.
+  - courriels(base, jours) : courriels par état (envoyé, échec d'envoi, en attente), échecs par jour, sujets et raisons des échecs — jamais d'adresse de destinataire.
+  - Toutes passent par _requete : la transaction est forcée en LECTURE SEULE par PostgreSQL lui-même (PGOPTIONS=-c default_transaction_read_only=on).
+
+Bugs corrigés :
+  Aucun.
+
+Garde-fous et cas limites traités :
+  - Base validée, préfixe limité à lettres, point et soulignement, entiers pour les jours ; psql absent, base inaccessible ou pas root : None, jamais d'arrêt.
+
+Vérifications effectuées :
+  - Couvert par test_app_log_check.py (requêtes de lecture seule, aucune colonne de secret, aucune écriture).
+
+Action requise de ma part (ou « aucune ») :
+  Aucune.
+
+## 1.1.20261002.214327 — Modules installés dont le nom évoque les sessions
+
+Motif de la demande :
+  Savoir si un module limite les sessions par compte (--by-hour).
+
+Détail des modifications :
+  - Nouvelle fonction modules_installes(base, motifs) : noms des modules INSTALLÉS (ir_module_module) correspondant à des motifs fixes ; lecture seule ; --verbose affiche la commande.
+
+Bugs corrigés :
+  Aucun.
+
+Garde-fous et cas limites traités :
+  - Base validée, motifs limités à « % », lettres, chiffres et « _ » ; délai 20 s ; psql absent, base inaccessible ou pas root : None.
+
+Vérifications effectuées :
+  - Couvert par test_app_log_check.py (liste, aucun, illisibles, requête de lecture seule).
+
+Action requise de ma part (ou « aucune ») :
+  Aucune.
+
+## 1.0.20261002.073514 — Première version : utilisateurs d'une base Odoo
+
+Motif de la demande :
+  UID Odoo dans web-monitor.py --list-users --details ; nom de la personne dans app-log-live.py.
+
+Détail des modifications :
+  - Nouveau composant apps/_odoo_db.py : identifiant de connexion, UID, nom et type (interne, portail/public) des utilisateurs
+    d'une base, par UNE requête en lecture seule (runuser -u postgres -- psql -d BASE) sur res_users et res_partner.
+  - Usage : « _odoo_db.py BASE » ; --verbose affiche la commande ; --version.
+
+Bugs corrigés :
+  Aucun.
+
+Garde-fous et cas limites traités :
+  - Nom de base validé (lettres, chiffres, point, tiret, souligné) ; délai de 20 s ; psql absent, base inaccessible ou pas
+    root : None, jamais d'arrêt. Aucune écriture, aucun mot de passe lu ; saut de ligne des noms retiré (une ligne par compte).
+
+Vérifications effectuées :
+  Couvert par test_web_monitor.py (UID Odoo, requête de lecture seule, une requête par base) et test_app_log_live.py.
+
+Action requise de ma part (ou « aucune ») :
+  Aucune.
+

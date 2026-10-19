@@ -1,0 +1,355 @@
+Changelog — zip-versions.py
+(most recent version first)
+
+## 1.13.20261016.173838 — Copyright holder: Services-Linux Conseils Inc
+
+Reason:
+  « [1] Il faudrait changer le copywrite de RLQ à Services-Linux Conseils Inc, le courriel reste toujours Martial@Bigras.ca et tu peux rajouter Martial.Bigras@Services-Conseils-Linux.com »
+
+Changes:
+  - Header: « Copyright (C) 2026  Services-Linux Conseils Inc <Martial@Bigras.ca> <Martial.Bigras@Services-Conseils-Linux.com> » (was: Rencontres Linux Québec <info@rencontres-linux.quebec>). No change of behavior.
+
+Bugs fixed:
+  none.
+
+Safeguards and edge cases:
+  none.
+
+Checks:
+  - Test suite (run-all.sh), ruff / ShellCheck.
+
+Action required:
+  none.
+
+## 1.12.20261015.194752 — Code, comments and changelog in English
+
+Reason for the request:
+  « Si je veux mettre tous ces programmes sur GitHub en open source, il est important de s'assurer que tout ce que les programmeurs vont voir soit écrit en anglais (noms de variables, fonctions, doc programmeur, changelog, etc). » — first program migrated (stage 2 of the migration plan).
+
+Changes:
+  - Identifiers, comments, docstrings, header and this changelog translated to English (functions such as colorier_versions -> colorize_versions, est_aujourdhui -> is_today, version_coloree -> colored_version; constants COULEUR -> COLOR, VUES -> VIEWS...).
+  - The messages in the code are now the English texts; the French display comes from lang/zip-versions.fr.po (header « Source-Language: en »); lang/zip-versions.en.po is removed. Output is unchanged in French; in English only the kind labels differ: « (manifest) », « (changelog) » instead of « (manifeste) », « (log) ».
+  - Internal result keys renamed (name, path, programs, config_log, config_files, log_date, old_name, archive_version).
+  - The fallback argument parser (used only when apps/_i18n.py is missing) is now plain English argparse.
+  - Files: zip-versions.py, lang/zip-versions.fr.po, doc/zip-versions.changelog.txt, test_zip_versions.py, test_conventions.py, test_i18n.py.
+
+Bugs fixed:
+  - None. (English display: the kind labels « manifeste » and « log » were not translated before.)
+
+Safeguards and edge cases:
+  - The same program, run before and after the migration with --lang fr and --lang en over six scenarios (archive folder, --installed, --help, unknown option, missing file, empty folder), gives the same text.
+  - Words of the English source that also occur in file names (« log ») are not used as translatable messages: kind labels are « (changelog) », « (manifest) ».
+
+Checks performed:
+  - Before/after comparison described above; test_zip_versions, test_i18n, test_conventions, test_config_defaut, ruff, full suite.
+
+Action required from me:
+  - None.
+
+## 1.11.20261015.183428 — « Today » color also for ISO dates and versions without a date
+
+Reason for the request:
+  « [1] zip-versions.py : only the first .ZIP files were in color, not the others (although dated 2026-10-15) »
+
+Changes:
+  - colorize_versions: new expression DATE_ISO_RE (YYYY-MM-DD [HH:MM[:SS]]); a date equal to today is shown in green, like versions dated today.
+  - Already colored segments are not recolored (the current color is tracked between ANSI sequences): the function stays idempotent.
+  - Legend: « green = version or file dated today ». Files: zip-versions.py, lang/zip-versions.en.po, test_zip_versions.py.
+
+Bugs fixed:
+  - Symptom: only the first archives (nginx-tools...) were green, not rlq_survey_report (« version 18.0.1.107.0, most recent file 2026-10-15 17:28 »).
+  - Diagnosis: only the form X.Y.YYYYMMDD.HHMMSS was recognized; an Odoo module version has no date, and today's date only appeared in the file date, never colored.
+  - Fix: today's ISO dates are colored too.
+
+Safeguards and edge cases:
+  - Old date, date without time, already colored text, redirected output: unchanged or not recolored (no ANSI code in a pipe).
+
+Checks performed:
+  - test_zip_versions (new test: version without a date + today's date, old date, idempotence), test_i18n.
+
+Action required from me:
+  - None.
+
+## 1.10.20261015.092124 — Today's versions in green in all sections
+
+Reason for the request:
+  « [1] In zip-versions.py, color the recent versions in all sections including ARCHIVES TO ATTACH TO THE DISCUSSION » (message of 2026-10-15 09:18, together with other items).
+
+Changes:
+  - colorize_versions() + wrapped print: any version dated today turns bold green in every displayed line (archives, comparison with the installation, « ARCHIVES TO ATTACH TO THE DISCUSSION »); legend added at the end of that section.
+
+Bugs fixed:
+  - None (only the list of programs of an archive was colored).
+
+Safeguards and edge cases:
+  - No color if the output is not a terminal or NO_COLOR is set; never a double color; an archive name (nginx-tools.1.104.zip) is not touched.
+
+Checks performed:
+  - test_zip_versions (test_couleur_des_versions_du_jour_dans_toutes_les_sections), full suite.
+
+Action required from me: none
+
+## 1.9.20261013.163324 — Today's versions in color
+
+Reason for the request:
+  « [1] In zip-versions.py, show in color the programs whose date is today, to confirm faster that I have the latest version. » (together with other items)
+
+Changes:
+  - is_today(), colored_version(): a program version (archive list and comparison with the installation) is bold green when its date is today's (local time); legend line « green = version dated today » when there is one.
+
+Bugs fixed:
+  - None.
+
+Safeguards and edge cases:
+  - Without a terminal or with NO_COLOR: identical text, no color; the legend is still shown.
+
+Checks performed:
+  - ruff E9,F; test_zip_versions (today's version in green, other date unchanged), test_i18n, test_config_defaut.
+
+Action required from me: none
+
+## 1.8.20261012.103600 — Configuration file created at first start
+
+Reason for the request:
+  « Create the default configuration files when they do not exist at startup. Add as comments all the options each program can have. »
+
+Changes:
+  - If no configuration file exists (/etc/default/zip-versions.conf or ~/.zip-versions.cfg), one is created at startup as a copy of doc/zip-versions.conf.example: all options are in it as comments (default value). The « Configuration read » line says so.
+  - Template doc/zip-versions.conf.example: added, at the end, all the command-line options that cannot be configured (actions, one-off settings), with their description.
+
+Bugs fixed:
+  - None.
+
+Safeguards and edge cases:
+  - Nothing is created with --help, --version, --changelog or -c/--config, nor if a file already exists (see doc/_config.changelog.txt).
+
+Checks performed:
+  - test_config_defaut.py (creation, no creation, complete templates), full suite.
+
+Action required from me:
+  None.
+
+## 1.7.20261010.215000 — Bilingual display (French / English) and configuration file
+
+Reason for the request:
+  « All the other programs should be bilingual. In the programs' configuration files, some options should be defined too, including the language. »
+
+Changes:
+  - Display in French (language of the code, nothing changes) or English: --lang en|fr, variable ZIP_VERSIONS_LANG, key LANGUAGE of the configuration file (auto = follow the environment), NGINX_TOOLS_LANG (language imposed on all tools), then LC_ALL / LC_MESSAGES / LANG.
+  - Catalog lang/zip-versions.en.po (75 entries, standard PO format: Poedit, Weblate, Crowdin...); adding a language = adding lang/zip-versions.XX.po, without touching the code.
+  - Configuration file: /etc/default/zip-versions.conf THEN ~/.zip-versions.cfg (the last one wins), -c/--config FILE for that file ALONE, command line takes priority. Keys: INSTALLED, LANGUAGE, NGINX_DIR.
+  - At start, two lines: « Configuration read: ... » (exactly which file(s)) and « Options: ... » (summary of the important options).
+  - Documented example: doc/zip-versions.conf.example.
+
+Bugs fixed:
+  None.
+
+Safeguards and edge cases:
+  - A message without translation stays in the source language (never an error); a half-translated line is rendered intact; unknown language: English (unknown locale) or French (no variable).
+  - Invalid value in the configuration file (integer or yes/no expected): reported by « WARNING: configuration value ignored », never fatal; the file is read, never executed.
+  - Programs that parse another program's output impose French on it (NGINX_TOOLS_LANG=fr): parsing does not depend on the display language.
+
+Checks performed:
+  - test_i18n.py (language choice, PO reading, complete catalog of each program, no translation containing French, identical help by --lang en and by LANGUAGE=en of the configuration file); the program's test module; ruff, ShellCheck; full suite under mawk and gawk.
+
+Action required from me:
+  deploy zip-versions.py 1.7 with apps/_i18n.py, apps/_config.py and the lang/ folder; try zip-versions.py --lang en --help, then put LANGUAGE=en in /etc/default/zip-versions.conf.
+
+## 1.6.20261002.214327 — First line: program name and version
+
+Reason for the request:
+  « Every time a program is run, the first line must show the program version (even with --help). »
+
+Changes:
+  - First line of EVERY run, even --help, --changelog or an unknown option: « NAME vVERSION ». --version prints only the version
+    (a single line). Printed after the --report-err hook (which relaunches the program), so only once in the report. The old lines
+    that repeated « NAME vVERSION » further down are removed or keep only their own information.
+
+Bugs fixed:
+  None.
+
+Safeguards and edge cases:
+  - apps/ components not concerned (their output is read by other programs); redirectable data output: version on the error output.
+
+Checks performed:
+  - Convention test for the ten programs: --help, --changelog, unknown option (first line, only once) and --version (one line); it fails when a header is removed.
+
+Action required from me (or « none »):
+  None.
+
+## 1.5.20261002.120134 — Versioned nginx configuration
+
+Reason for the request:
+  The nginx configuration is delivered in an archive: it carries a version number, like the others (name without the date).
+
+Changes:
+  - nginx-odoo-config carries its version in the VERSION file (at the root of nginx-odoo/); the archive is named nginx-odoo-config.1.0.zip;
+    name and content compared on MAJOR.MINOR like the other archives; « ARCHIVES TO ATTACH » shows the version.
+  - VERSION_FILES: version file per archive type (nginx-tools: doc/nginx-tools.version; nginx-odoo-config: VERSION).
+
+Bugs fixed:
+  None.
+
+Safeguards and edge cases:
+  - VERSION is not counted among the configuration files; the tested copy of the configuration (nginx-tools-tests) is also compared on this file.
+
+Checks performed:
+  - New test: version read, matching name, mismatching name (« nginx-odoo-config.2.0.zip ») reported with the expected name.
+
+Action required from me (or « none »):
+  None.
+
+## 1.4.20261002.073514 — Archive names: version without the date
+
+Reason for the request:
+  « Put only the version without the date in the .ZIP file name. »
+
+Changes:
+  - Delivered archives are named nginx-tools.1.1.zip, nginx-tools-tests.1.60.zip (MAJOR.MINOR); the name is compared with the content
+    on these two numbers (short_version, name_matches); the old full form (with the date) is still accepted.
+  - « expected name » and « name without version: the archive would be ... » messages: version without the date.
+
+Bugs fixed:
+  None.
+
+Safeguards and edge cases:
+  - A name « 1.1 » does not match « 1.10.... » (comparison down to the dot).
+
+Checks performed:
+  - Test updated: 1.1 / 1.60 matching, 1.59 refused with the expected name, full form accepted, installation.
+
+Action required from me (or « none »):
+  None.
+
+## 1.3.20261002.064915 — Version in the archive name
+
+Reason for the request:
+  Delivered archives carry their version in their name (e.g. nginx-tools.1.0.20261002.064915.zip, like rlq_survey_report.18.0.1.90.0.zip).
+
+Changes:
+  - version_from_name: version read from the file name; compared with the archive version (ATTN if different, code 1).
+  - nginx-tools archive version: new file doc/nginx-tools.version (own name, so as not to overwrite anything in the
+    programs directory); nginx-tools-tests: version of run-all.sh; other programs: as in 1.2.
+  - Archive of our types without a version in the name: expected name shown; nginx-tools archive from before the numbering
+    reported as such.
+  - --installed: version of the deployed nginx-tools archive compared with the archive's.
+  - « ARCHIVES TO ATTACH »: archive version shown.
+
+Bugs fixed:
+  None.
+
+Safeguards and edge cases:
+  - The type is still determined by the top-level directory (without version): old and new names compared with each other.
+  - Malformed doc/nginx-tools.version: ignored.
+
+Checks performed:
+  - New test (name and content matching or not, old archive, installation up to date or not).
+
+Action required from me (or « none »):
+  None.
+
+## 1.2.20261001.202502 — Any recognized archive (CHANGELOG, manifest...) and consistency of the tests archives
+
+Reason for the request:
+  rlq_survey_report.zip and rlq_survey_report_tests.zip showed « (no versioned program recognized) »: recognize
+  any archive that contains files such as CHANGELOG.md.
+
+Changes:
+  - archive_type: an archive of another program has its top-level directory as type (e.g. rlq_survey_report).
+  - New functions should_read_generic, parse_generic, main_version, generic_key: version read from
+    __manifest__.py / __openerp__.py (Odoo), CHANGELOG / CHANGES / HISTORY / HISTORIQUE / NEWS (.md, .txt, .rst) and
+    *.changelog.txt (highest version of the titles, most recent date), package.json, pyproject.toml, VERSION file,
+    __version__ / SCRIPT_VERSION / VERSION of the code (outside test folders and files). Main version of the archive:
+    manifest, then package, then VERSION, then changelog, then code.
+  - Comparison of two archives of the same type: main version, then changelog date, then most recent file
+    (« version 18.0.1.6.0 < 18.0.1.7.0 »).
+  - New section « CONSISTENCY OF THE TESTS ARCHIVES WITH THEIR PROGRAM » (function consistency): « X_tests » or
+    « X-tests » <-> « X », and tested copy of the configuration (nginx-tools-tests/nginx-odoo/) <-> nginx-odoo-config.zip:
+    common files compared by CRC, without extraction. A tests archive without a version that is identical to its program is
+    shown as « common files identical to X version ».
+  - « ARCHIVES TO ATTACH »: all archive families, ours first; « missing » only if one of our archives is present.
+
+Bugs fixed:
+  - Symptom: « (no versioned program recognized) » for an Odoo module with doc/CHANGELOG.md and __manifest__.py.
+    Diagnosis: only our three archive types and our version variables were read. Fix: above.
+
+Safeguards and edge cases:
+  - Fake versions of the test modules (data) ignored; same version repeated in several modules: one line.
+  - Archive without any version: compared by the date of its files, with an explicit message.
+  - Exit code 1 if a tests archive does not match its program.
+
+Checks performed:
+  - New tests: Odoo module (manifest, CHANGELOG), older archive, package.json, pyproject.toml, consistent then inconsistent
+    tests archive, different tested copy of the configuration. Tried on archives in the format of
+    rlq_survey_report.zip and rlq_survey_report_tests.zip.
+
+Action required from me (or « none »):
+  None.
+
+## 1.1.20261001.094048 — Test suite: nginx-tools-tests.zip
+
+Reason for the request:
+  Other programs also deliver a tests.zip that extracts into tests/: the suite's archives and directory must
+  carry the program name (nginx-tools-tests.zip, folder nginx-tools-tests/) so that nothing is overwritten.
+
+Changes:
+  - archive_type: type « nginx-tools-tests » (folder nginx-tools-tests/). A « tests/ » folder is our suite (old name)
+    only if it contains test_web_monitor.py (SUITE_SIGNATURE): reported « old name », compared normally; tests.zip
+    of other programs are « other » and ignored (one line).
+  - read_installation: nginx-tools-tests/run-all.sh, and the old tests/run-all.sh if it carries the signature; --installed
+    reports the old copy (to remove) and compares the suite deployed under either name.
+  - Messages: « always attach nginx-tools.zip and nginx-tools-tests.zip »; warning if the selected archive has the old name.
+
+Bugs fixed:
+  None.
+
+Safeguards and edge cases:
+  - A foreign tests.zip is never taken for ours (even with a versioned run-all.sh); with equal versions, the new
+    name is not favored by the name but by the content, as before.
+
+Checks performed:
+  - New test (archive of another program, old tests.zip, new name selected, installation with old copy then
+    new one); existing tests adapted to the new name.
+
+Action required from me (or « none »):
+  None.
+
+## 1.0.20261001.092458 — Initial version: versions contained in the archives
+
+Reason for the request:
+  Before attaching the archives to a discussion, know which is the latest version of each program and of the
+  configuration contained in each .zip — and therefore which archive to send (2.35 had been sent instead of 2.36).
+
+Changes:
+  - New program zip-versions.py. Reads the archives WITHOUT extracting them (zipfile): type (nginx-tools, tests,
+    nginx-odoo-config, from the top-level directory), most recent file, version of each program
+    (__version__ or SCRIPT_VERSION of the .sh and .py, apps/ and tests/run-all.sh included), and for the nginx configuration the
+    last date of the README.md log and the number of files.
+  - Arguments: .zip archives or directories (their .zip; a directory containing an installation is also examined);
+    default: current directory.
+  - Several archives of the same type (e.g. « nginx-tools (2).zip »): the most recent is designated (highest version, then
+    configuration log, then date of the most recent file); for the others, the older programs.
+  - Final section « ARCHIVES TO ATTACH TO THE DISCUSSION »: the most recent archive of each type, with its path;
+    missing nginx-tools or tests reported.
+  - Option --installed [FOLDER]: compares the selected archives with the installation (default /root/scripts) — « to deploy »,
+    « outdated archive, do not send it » or [OK] — and the nginx configuration with the content of --nginx-dir (default /etc/nginx):
+    identical, different, missing files (fail2ban/ excluded: copied elsewhere by nginx-hardening.sh).
+  - Usual options: --changelog, --report-err, --version; help in alphabetical order.
+  - Exit code: 0 without warning, 1 otherwise (unreadable archive, source not found, difference with the installation).
+
+Bugs fixed:
+  None (first version).
+
+Safeguards and edge cases:
+  - No extraction or write; members over 4 MB and __pycache__ ignored; corrupted archive reported without stopping.
+  - The tested copy of the configuration (tests/nginx-odoo/) is not counted among the programs of tests.zip.
+  - Same archive given twice: examined only once. Python 3.8; no configuration (nothing to set).
+
+Checks performed:
+  - Tests (test_zip_versions.py): versions read in the three archive types, most recent archive designated,
+    corrupted archive, comparison with an installation (to deploy, outdated, identical), different configuration.
+  - Conventions (version, changelog, sorted help, --report-err, Ctrl-C, Python 3.8). Full suite.
+
+Action required from me (or « none »):
+  Before sending the archives: « zip-versions.py ~/Downloads » (or the folder where they are), attach those of the
+  « ARCHIVES TO ATTACH » section. On a server: « zip-versions.py --installed » to see what is left to deploy.

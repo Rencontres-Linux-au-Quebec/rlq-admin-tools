@@ -1,0 +1,50 @@
+# ========================================================================================================================
+# Copyright (C) 2026  Services-Linux Conseils Inc <Martial@Bigras.ca> <Martial.Bigras@Services-Conseils-Linux.com>
+# AGPL-3.0-or-later — voir odoo-mail-retry.py pour le texte complet de la licence.
+# ========================================================================================================================
+#
+# Fichier de configuration de odoo-mail-retry.py (exemple : toutes les clés, en commentaire = valeur par défaut).
+# Les fichiers suivants sont LUS DANS CET ORDRE (le dernier l'emporte) ; la ligne de commande est prioritaire sur les fichiers :
+#   1. /etc/default/odoo-mail-retry.conf    (fichier du système)
+#   2. ~/.odoo-mail-retry.cfg               (s'il existe : réglages de l'utilisateur)
+# -c/--config FICHIER : ce fichier SEUL. Le répertoire courant n'est PAS lu. Le programme affiche toujours quel(s) fichier(s) il lit,
+# puis une ligne résumant les options importantes. Format : CLÉ=valeur, une par ligne ; # = commentaire ; guillemets facultatifs ;
+# booléens : oui / non (true / false, 1 / 0). Ce fichier est LU, jamais exécuté.
+
+# --- Langue d'affichage ---
+# en, fr ou auto (suivre LC_ALL / LC_MESSAGES / LANG). Ordre de choix : --lang, NGINX_TOOLS_LANG, ODOO_MAIL_RETRY_LANG, cette clé, LC_ALL, LC_MESSAGES, LANG.
+# Ajouter une langue = ajouter le fichier lang/odoo-mail-retry.XX.po (format PO : Poedit, Weblate…) — voir lang/README.md.
+#LANGUAGE=auto
+
+# --- Mode bavard ---
+# oui : afficher chaque commande externe exécutée (équivalent de --verbose). Peut aussi venir du fichier commun app-default.conf (clés VERBOSE et DEBUG_LEVEL).
+#VERBOSE=non
+
+# --- Options (équivalents de la ligne de commande) ---
+# --batch : taille du lot (nombre positif) (défaut : 10)
+#BATCH=10
+# --days : jours examinés (défaut : 30)
+#DAYS=30
+# --db : base de données (défaut : toutes les bases qui ont des courriels)
+#DB=
+# --details
+#DETAILS=non
+# --no-prompt
+#NO_PROMPT=non
+
+# --- Options de la ligne de commande SEULEMENT (actions ou réglages ponctuels : aucune clé ici) ---
+# Les voici, pour mémoire (« odoo-mail-retry --help » donne le détail). Elles se donnent sur la ligne de commande, jamais dans ce fichier.
+#   --changelog   Affiche le journal des modifications
+#   --fix         Avec --yes : corriger les adresses invalides des inscriptions avec la correction SUGGÉRÉE et renvoyer leurs courriels
+#   --invalid-emails  Seulement les inscriptions dont l'adresse courriel est invalide, avec la correction suggérée, puis l'offre de corriger
+#   --report-err  Afficher à la fin un rapport d'erreurs à copier-coller (programme, version, serveur, échecs, avertissements)
+#   --resend      Avec --yes : renvoie sans poser de question
+#   --sent        Affiche les N derniers courriels ENVOYÉS (titre, date, destinataires) et quitte, sans la liste des échecs
+#   --verbose     Affiche chaque commande externe exécutée
+#   --version     affiche la version et quitte
+#   --yes         Avec --resend : confirme le renvoi (sans cela, jamais de renvoi sans terminal)
+
+# --- Anonymisation de l'affichage ---
+# --anonymize : anonymiser ce que le programme affiche (adresses IP, courriels, identifiants, jetons) par des pseudonymes stables (IP-4f2a9c, usager-9c1e03@anonyme.invalid) ; clé ANONYMIZE
+# (la même clé dans app-default.conf vaut pour tous les programmes ; appliquée seulement quand la sortie est un terminal ; pour cron : --anonymize ou NGINX_TOOLS_ANONYMIZE=1).
+#ANONYMIZE=non

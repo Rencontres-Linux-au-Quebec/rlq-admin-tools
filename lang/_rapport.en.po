@@ -1,0 +1,16 @@
+# Traduction en en des messages de _rapport.sh (msgid = fragment français du code, msgstr = traduction).
+# Format PO standard : Poedit, Weblate, Crowdin… Un msgstr vide = non traduit ; identique au msgid = valable dans les deux langues.
+# Les fragments sont des morceaux de phrases : garder les espaces de début et de fin, et l'ordre des morceaux.
+msgid ""
+msgstr ""
+"Project-Id-Version: _rapport.sh\n"
+"Language: en\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+msgid "--report-err indisponible : python3 ou "
+msgstr "--report-err unavailable: python3 or "
+
+msgid "/apps/_rapport.py introuvable — exécution normale."
+msgstr "/apps/_rapport.py not found — normal run."

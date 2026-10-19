@@ -1,0 +1,49 @@
+Changelog — apps/_email_check.py
+(newest version first)
+
+## 1.1.20261016.173838 — Copyright holder: Services-Linux Conseils Inc
+
+Reason:
+  « [1] Il faudrait changer le copywrite de RLQ à Services-Linux Conseils Inc, le courriel reste toujours Martial@Bigras.ca et tu peux rajouter Martial.Bigras@Services-Conseils-Linux.com »
+
+Changes:
+  - Header: « Copyright (C) 2026  Services-Linux Conseils Inc <Martial@Bigras.ca> <Martial.Bigras@Services-Conseils-Linux.com> » (was: Rencontres Linux Québec <info@rencontres-linux.quebec>). No change of behavior.
+
+Bugs fixed:
+  none.
+
+Safeguards and edge cases:
+  none.
+
+Checks:
+  - Test suite (run-all.sh), ruff / ShellCheck.
+
+Action required:
+  none.
+
+## 1.0.20261016.114848 — First version: e-mail address checks
+
+Reason:
+  "[0] When registering for an event in Odoo, validate that people wrote a valid e-mail (example: mariebc33@gmail'com); add a menu option to list the e-mail errors caused by a wrong address, fix the user's contact and resend the e-mail. [1] In app-log-live.py, show what causes the most latency (SATA, not SSD, with ZFS on Proxmox): % used for I/O over several hours, to decide whether SSD are justified. [2] A program to run on the Proxmox server that details what causes performance problems (CPU, MEM, IO, NET) and suggests settings (ZFS…), light on resources. [3] Alignment problem with Chinese characters in web-monitor.py --list-users --table; a new account (Chinese name) may be a hacker: add a section for suspicious activity of a logged-in Odoo user — do not always trust them. [4] List the suspicious users, offer to investigate all the IPs of a user and blacklist them so they cannot log in to Odoo any more: --ban-odoo-user and --unban-odoo-user, but investigate more before banning (search the e-mail on the Internet, etc.)."
+
+Changes:
+  - check(), suggest(): syntax (practical RFC 5321 / 5322 rules), suggested correction of a typo that does not need the person (punctuation in the domain,
+    spaces, doubled @ or dots, known misspellings of popular domains, distance 1-2 to a popular domain), disposable domains (built-in list +
+    /etc/default/nginx-tools-disposable-domains.conf).
+  - mx_status(): mail server of the domain (dig, host, getent): mx / a-only / none / unknown; "0 ." (null MX) = none.
+  - stopforumspam(), gravatar(), web_search(), internet_lookups(): Internet lookups, ONLY when the caller asks (web-monitor.py asks the person first);
+    NGINX_TOOLS_INTERNET=off disables them; every failure gives None (unreachable), never a false "clean".
+
+Bugs fixed:
+  none.
+
+Safeguards and edge cases:
+  - A suggestion never changes a valid address; distance 2 only for long domain names (a short real domain is often 2 edits from a popular one).
+  - Network: 8 s timeout per request, 400 KB read at most; _fetch is replaceable by the tests (no real network in the suite).
+
+Checks:
+  test_odoo_users.VerificationCourriel (reported case, suggestions, valid addresses, disposable, simulated dig, simulated StopForumSpam / Gravatar /
+  DuckDuckGo, Internet off); test_odoo_mail_retry; Python 3.8 syntax (ruff --target-version py38).
+
+Action required:
+  none.

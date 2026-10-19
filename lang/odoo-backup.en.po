@@ -1,0 +1,520 @@
+# Traduction en en des messages de odoo-backup.sh (msgid = fragment français du code, msgstr = traduction).
+# Format PO standard : Poedit, Weblate, Crowdin… Un msgstr vide = non traduit ; identique au msgid = valable dans les deux langues.
+# Les fragments sont des morceaux de phrases : garder les espaces de début et de fin, et l'ordre des morceaux.
+msgid ""
+msgstr ""
+"Project-Id-Version: odoo-backup.sh\n"
+"Language: en\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+msgid "Changelog introuvable : "
+msgstr "Changelog not found: "
+
+msgid "Argument inconnu: "
+msgstr "Unknown argument: "
+
+msgid "Timer : chemin de l'ancien fichier retiré du service (il retrouve seul "
+msgstr "Timer: path of the old file removed from the service (it finds it by itself "
+
+msgid ") ; le timer n'a PAS été arrêté."
+msgstr ") ; the timer was NOT stopped."
+
+msgid "Migration : configuration renommée "
+msgstr "Migration: configuration renamed "
+
+msgid "# Configuration de odoo-backup.sh — créée automatiquement au premier lancement. Lue sans être exécutée : seules les clés"
+msgstr "# Configuration of odoo-backup.sh — created automatically on first run. Read without being executed: only the keys"
+
+msgid "# ci-dessous sont retenues (les lignes commencent par # : valeurs par défaut). Enlever le # pour changer une valeur."
+msgstr "# below are kept (lines starting with # : default values). Remove the # to change a value."
+
+msgid "# Ordre de lecture : ce fichier, PUIS ~/.odoo-backup.cfg s'il existe (prioritaire), PUIS la ligne de commande (--dest,"
+msgstr "# Reading order: this file, THEN ~/.odoo-backup.cfg if it exists (takes precedence), THEN the command line (--dest,"
+
+msgid "# --format, --db), prioritaire sur les fichiers."
+msgstr "# --format, --db), which takes precedence over the files."
+
+msgid "# Copie hors du serveur (rsync), ex. vers un autre serveur par Tailscale : INDISPENSABLE — une sauvegarde sur le même"
+msgstr "# Copy off the server (rsync), e.g. to another server over Tailscale: ESSENTIAL — a backup on the same"
+
+msgid "# serveur ne protège ni d'une panne du serveur ni d'un rançongiciel."
+msgstr "# server protects neither against a server failure nor against ransomware."
+
+msgid "#REMOTE=root@serveur-de-sauvegarde.exemple:/srv/sauvegardes/odoo"
+msgstr "#REMOTE=root@backup-server.example:/srv/backups/odoo"
+
+msgid "#DEST=/var/backups/odoo            # dossier des sauvegardes (droits 700)"
+msgstr "#DEST=/var/backups/odoo            # backup folder (mode 700)"
+
+msgid "#FORMAT=zip                        # zip (importable par la page d'Odoo) ou tar.xz"
+msgstr "#FORMAT=zip                        # zip (importable by the Odoo page) or tar.xz"
+
+msgid "#DATABASES=                        # vide : db_name d'Odoo, sinon toutes les bases"
+msgstr "#DATABASES=                        # empty: Odoo db_name, otherwise all databases"
+
+msgid "#LANGUAGE=auto                     # langue d'affichage : en, fr ou auto (suivre LC_ALL / LANG)"
+msgstr "#LANGUAGE=auto                     # display language: en, fr or auto (follow LC_ALL / LANG)"
+
+msgid "#PG_USER=postgres                  # compte système de pg_dump (vide : l'utilisateur courant)"
+msgstr "#PG_USER=postgres                  # system account for pg_dump (empty: the current user)"
+
+msgid "#KEEP_RECENT_DAYS=2               # garder TOUTES les sauvegardes des N derniers jours (plusieurs par jour)"
+msgstr "#KEEP_RECENT_DAYS=2               # keep ALL backups of the last N days (several per day)"
+
+msgid "#KEEP_DAILY=7                      # ensuite : la dernière de chaque jour pendant N jours,"
+msgstr "#KEEP_DAILY=7                      # then: the last one of each day for N days,"
+
+msgid "#KEEP_WEEKLY=4                     #           la dernière de chaque semaine pendant N semaines,"
+msgstr "#KEEP_WEEKLY=4                     #       the last one of each week for N weeks,"
+
+msgid "#KEEP_MONTHLY=6                    #           la dernière de chaque mois pendant N mois"
+msgstr "#KEEP_MONTHLY=6                    #       the last one of each month for N months"
+
+msgid "#TIMER_TIME=02:30                  # heure(s) de la sauvegarde automatique, une ou plusieurs : TIMER_TIME=09:00 16:00 23:00"
+msgstr "#TIMER_TIME=02:30                  # time(s) of the automatic backup, one or more: TIMER_TIME=09:00 16:00 23:00"
+
+msgid "Configuration créée : "
+msgstr "Configuration created: "
+
+msgid " (modèle commenté ; à compléter, surtout REMOTE : copie hors du serveur)."
+msgstr " (commented template; to complete, especially REMOTE: copy off the server)."
+
+msgid "ERREUR: configuration introuvable : "
+msgstr "ERROR: configuration not found: "
+
+msgid "ERREUR: configuration illisible (droits) : "
+msgstr "ERROR: configuration unreadable (permissions): "
+
+msgid "ERREUR: format « "
+msgstr "ERROR: format « "
+
+msgid " » inconnu (zip ou tar.xz)."
+msgstr " » unknown (zip or tar.xz)."
+
+msgid "ERREUR: "
+msgstr "ERROR: "
+
+msgid " doit être un entier (reçu : « "
+msgstr " must be an integer (got: « "
+
+msgid "ERREUR: TIMER_TIME attend une ou plusieurs heures HH:MM, ex. « 09:00 16:00 23:00 » (reçu : « "
+msgstr "ERROR: TIMER_TIME expects one or more times HH:MM, e.g. « 09:00 16:00 23:00 » (got: « "
+
+msgid " (demandé par --config : ni /etc/default ni ~ ne sont lus)"
+msgstr " (requested by --config: neither /etc/default nor ~ are read)"
+
+msgid "aucune (valeurs par défaut) — créée au premier lancement : "
+msgstr "none (default values) — created on first run: "
+
+msgid " (le dernier l'emporte)"
+msgstr " (the last one wins)"
+
+msgid "AUCUNE"
+msgstr "NONE"
+
+msgid " · ligne de commande (prioritaire) :"
+msgstr " · command line (takes precedence):"
+
+msgid "  Configuration lue : "
+msgstr "  Configuration read: "
+
+msgid "  Options : --lang "
+msgstr "  Options: --lang "
+
+msgid " · sauvegardes dans "
+msgstr " · backups in "
+
+msgid ") aux heures : "
+msgstr ") at times: "
+
+msgid " · copie hors du serveur : "
+msgstr " · copy off the server: "
+
+msgid " · rétention : tout sur "
+msgstr " · retention: everything over "
+
+msgid " mois"
+msgstr " months"
+
+msgid "ERREUR: une autre exécution de "
+msgstr "ERROR: another run of "
+
+msgid " est en cours (verrou "
+msgstr " is in progress (lock "
+
+msgid ") — abandon."
+msgstr ") — aborting."
+
+msgid "archive tar.xz illisible ou incomplète"
+msgstr "tar.xz archive unreadable or incomplete"
+
+msgid " — base "
+msgstr " — database "
+
+msgid " fichier(s)) — format "
+msgstr " file(s)) — format "
+
+msgid "  (--dry-run) écrirait "
+msgstr "  (--dry-run) would write "
+
+msgid " (dump.sql, manifest.json, filestore/) et "
+msgstr " (dump.sql, manifest.json, filestore/) and "
+
+msgid "espace insuffisant dans "
+msgstr "insufficient space in "
+
+msgid " nécessaires — sauvegarde de "
+msgstr " needed — backup of "
+
+msgid " ANNULÉE."
+msgstr " CANCELLED."
+
+msgid "pg_dump de "
+msgstr "pg_dump of "
+
+msgid " en échec : "
+msgstr " failed: "
+
+msgid "dump de "
+msgstr "dump of "
+
+msgid " incomplet (marque de fin de pg_dump absente) — sauvegarde rejetée."
+msgstr " incomplete (pg_dump end marker missing) — backup rejected."
+
+msgid "manifest.json de "
+msgstr "manifest.json of "
+
+msgid " impossible à produire : "
+msgstr " cannot be produced: "
+
+msgid "archive de "
+msgstr "archive of "
+
+msgid " ; dump, manifest et filestore vérifiés)"
+msgstr "; dump, manifest and filestore verified)"
+
+msgid ") — FILESTORE INTROUVABLE : pièces jointes non sauvegardées (FILESTORE_DIR)"
+msgstr ") — FILESTORE NOT FOUND: attachments not backed up (FILESTORE_DIR)"
+
+msgid "copie hors du serveur : "
+msgstr "copy off the server: "
+
+msgid " en échec ("
+msgstr " failed ("
+
+msgid ") — la sauvegarde locale reste valable."
+msgstr ") — the local backup remains valid."
+
+msgid " en échec"
+msgstr " failed"
+
+msgid "  rétention : "
+msgstr "  retention: "
+
+msgid " supprimée"
+msgstr " deleted"
+
+msgid " — sauvegardes dans "
+msgstr " — backups in "
+
+msgid "le timer lance "
+msgstr "the timer runs "
+
+msgid ", qui N'EXISTE PAS — la sauvegarde automatique échoue : "
+msgstr ", which DOES NOT EXIST — the automatic backup fails: "
+
+msgid "le timer lit --config "
+msgstr "the timer reads --config "
+
+msgid ", qui N'EXISTE PAS — chaque sauvegarde automatique échoue (avant la 1.5 elle s'exécutait sans REMOTE, en silence) : "
+msgstr ", which DOES NOT EXIST — every automatic backup fails (before 1.5 it ran without REMOTE, silently): "
+
+msgid "le timer lit seulement --config "
+msgstr "the timer only reads --config "
+
+msgid ", pas la configuration par défaut — relancer : "
+msgstr ", not the default configuration — rerun: "
+
+msgid " : AUCUNE sauvegarde"
+msgstr " : NO backup"
+
+msgid " : dernière sauvegarde il y a "
+msgstr " : last backup "
+
+msgid " h pour les heures "
+msgstr " h ago for databases "
+
+msgid " conservée(s)"
+msgstr " kept"
+
+msgid " conservée(s), "
+msgstr " kept, "
+
+msgid "dernier échec : "
+msgstr "last failure: "
+
+msgid ", chaque jour à "
+msgstr ", every day at "
+
+msgid "le timer installé ("
+msgstr "the installed timer ("
+
+msgid ") ne correspond pas aux heures configurées ("
+msgstr ") does not match the configured times ("
+
+msgid ") — relancer : "
+msgstr ") — rerun: "
+
+msgid "Timer : NON INSTALLÉ — sauvegarde automatique : odoo-backup.sh --install-timer"
+msgstr "Timer: NOT INSTALLED — automatic backup: odoo-backup.sh --install-timer"
+
+msgid "  Copie hors du serveur : "
+msgstr "  Copy off the server: "
+
+msgid "Copie hors du serveur : aucune (REMOTE) — une sauvegarde sur le même serveur ne protège pas d'une perte du serveur"
+msgstr "Copy off the server: none (REMOTE) — a backup on the same server does not protect against losing the server"
+
+msgid "archive introuvable : "
+msgstr "archive not found: "
+
+msgid "format non reconnu (attendu : .zip ou .tar.xz) : "
+msgstr "unrecognised format (expected: .zip or .tar.xz): "
+
+msgid "empreinte SHA-256 incorrecte : archive altérée ("
+msgstr "incorrect SHA-256 fingerprint: archive altered ("
+
+msgid "archive ZIP refusée ou illisible : "
+msgstr "ZIP archive refused or unreadable: "
+
+msgid "archive tar.xz refusée : chemin dangereux (absolu ou « .. »)"
+msgstr "tar.xz archive refused: dangerous path (absolute or « .. »)"
+
+msgid "dump.sql absent de l'archive : ce n'est pas une sauvegarde d'Odoo"
+msgstr "dump.sql missing from the archive: this is not an Odoo backup"
+
+msgid "nom de base cible invalide ou absent (« "
+msgstr "target database name invalid or missing (« "
+
+msgid " ») : préciser --db NOM"
+msgstr " ») : specify --db NAME"
+
+msgid "la base "
+msgstr "the database "
+
+msgid " existe déjà — jamais d'écrasement : choisir --db AUTRE_NOM (ou dropdb "
+msgstr " already exists — never overwritten: choose --db OTHER_NAME (or dropdb "
+
+msgid "le filestore "
+msgstr "the filestore "
+
+msgid " existe déjà et n'est pas vide — jamais d'écrasement"
+msgstr " already exists and is not empty — never overwritten"
+
+msgid "  Restauration dans la base "
+msgstr "  Restoring into database "
+
+msgid "restauration de "
+msgstr "restoration of "
+
+msgid " en ÉCHEC : "
+msgstr " FAILED: "
+
+msgid "dossier des filestores introuvable (FILESTORE_DIR, data_dir d'Odoo) : filestore NON restauré"
+msgstr "filestores folder not found (FILESTORE_DIR, Odoo data_dir): filestore NOT restored"
+
+msgid " restaurée — "
+msgstr " restored — "
+
+msgid " module(s) installé(s), "
+msgstr " installed module(s), "
+
+msgid " fichier(s) de filestore"
+msgstr " filestore file(s)"
+
+msgid " erreur(s) SQL à examiner"
+msgstr " SQL error(s) to examine"
+
+msgid "  Copie d'une base de production : avant de démarrer Odoo dessus, la NEUTRALISER (courriels sortants, tâches"
+msgstr "  Copy of a production database: before starting Odoo on it, NEUTRALISE it (outgoing e-mails, scheduled"
+
+msgid "  planifiées, connecteurs) : odoo-bin neutralize -c <configuration> -d "
+msgstr "  jobs, connectors): odoo-bin neutralize -c <configuration> -d "
+
+msgid " (Odoo 16 et suivants)."
+msgstr " (Odoo 16 and later)."
+
+msgid " : aucune sauvegarde à restaurer"
+msgstr " : no backup to restore"
+
+msgid "Essai de restauration de "
+msgstr "Restoration test of "
+
+msgid " dans la base temporaire "
+msgstr " into the temporary database "
+
+msgid " à supprimer à la main (dropdb "
+msgstr " to delete by hand (dropdb "
+
+msgid "ERREUR: root requis pour --install-timer."
+msgstr "ERROR: root required for --install-timer."
+
+msgid "Description=Sauvegarde de la base et du filestore d'Odoo (odoo-backup.sh)"
+msgstr "Description=Backup of the Odoo database and filestore (odoo-backup.sh)"
+
+msgid "Description=Sauvegarde quotidienne d'Odoo"
+msgstr "Description=Daily Odoo backup"
+
+msgid "Timer installé (arrêté puis relancé) : "
+msgstr "Timer installed (stopped then restarted): "
+
+msgid " sauvegarde(s) par jour, à "
+msgstr " backup(s) per day, at "
+
+msgid " (rattrapées au démarrage si le serveur était éteint). État : odoo-backup.sh --status"
+msgstr " (caught up at boot if the server was off). Status: odoo-backup.sh --status"
+
+msgid "ERREUR: root requis pour --uninstall-timer."
+msgstr "ERROR: root required for --uninstall-timer."
+
+msgid "Timer retiré (les sauvegardes existantes sont conservées dans "
+msgstr "Timer removed (existing backups are kept in "
+
+msgid "ERREUR: root requis (pg_dump sous le compte "
+msgstr "ERROR: root required (pg_dump under account "
+
+msgid " — destination : "
+msgstr " — destination: "
+
+msgid "aucune base trouvée (DATABASES, db_name d'Odoo ou PostgreSQL injoignable)"
+msgstr "no database found (DATABASES, Odoo db_name or PostgreSQL unreachable)"
+
+msgid "aucune base trouvée"
+msgstr "no database found"
+
+msgid "sauvegarde de "
+msgstr "backup of "
+
+msgid "INTROUVABLE"
+msgstr "NOT FOUND"
+
+msgid "inconnu"
+msgstr "unknown"
+
+msgid " (propriétaire : "
+msgstr " (owner: "
+
+msgid "Usage : odoo-backup.sh [OPTION]...   (sans option : sauvegarder toutes les bases configurées ou détectées)"
+msgstr "Usage: odoo-backup.sh [OPTION]...   (without option: back up all configured or detected databases)"
+
+msgid "Options (par ordre alphabétique) :"
+msgstr "Options (in alphabetical order):"
+
+msgid "  --changelog                  affiche le journal des modifications"
+msgstr "  --changelog                  show the change log"
+
+msgid "  -c, --config FILE            ce fichier de configuration SEUL (défaut : /etc/default/odoo-backup.conf, puis"
+msgstr "  -c, --config FILE            this configuration file ALONE (default: /etc/default/odoo-backup.conf, then"
+
+msgid "                               ~/.odoo-backup.cfg s'il existe ; la ligne de commande est prioritaire)"
+msgstr "                               ~/.odoo-backup.cfg if it exists; the command line takes precedence)"
+
+msgid "  --db NAME                    une seule base (avec --restore : nom de la base créée)"
+msgstr "  --db NAME                    a single database (with --restore: name of the created database)"
+
+msgid "  --dest DIR                   autre dossier des sauvegardes (DEST= dans la configuration)"
+msgstr "  --dest DIR                   another backup folder (DEST= in the configuration)"
+
+msgid "  --dry-run                    montrer ce qui serait fait, sans rien écrire"
+msgstr "  --dry-run                    show what would be done, writing nothing"
+
+msgid "  --format zip|tar.xz          format de l'archive (défaut : zip, importable par la page d'Odoo)"
+msgstr "  --format zip|tar.xz          archive format (default: zip, importable by the Odoo page)"
+
+msgid "  -h, --help                   affiche cette aide et quitte"
+msgstr "  -h, --help                   show this help and exit"
+
+msgid "  --install-timer              sauvegardes automatiques aux heures TIMER_TIME (systemd), une ou plusieurs fois par jour"
+msgstr "  --install-timer              automatic backups at the TIMER_TIME times (systemd), once or several times a day"
+
+msgid "  --lang LANG                  langue d'affichage : en ou fr (défaut : LANGUAGE du fichier de configuration, sinon LC_ALL / LC_MESSAGES / LANG)"
+msgstr "  --lang LANG                  display language: en or fr (default: LANGUAGE of the configuration file, otherwise LC_ALL / LC_MESSAGES / LANG)"
+
+msgid "  --report-err                 afficher à la fin un rapport d'erreurs à copier-coller (programme, version, serveur,"
+msgstr "  --report-err                 print at the end an error report to copy and paste (program, version, server,"
+
+msgid "                               échecs, avertissements) ; désactive couleurs et questions interactives"
+msgstr "                               failures, warnings); disables colours and interactive questions"
+
+msgid "  --restore FILE               restaurer une archive .zip ou .tar.xz (jamais d'écrasement : base ou filestore"
+msgstr "  --restore FILE               restore a .zip or .tar.xz archive (never overwrites: an existing database or filestore"
+
+msgid "                               existant = refus)"
+msgstr "                               = refusal)"
+
+msgid "  --status                     sauvegardes présentes, âge de la dernière, timer, copie hors du serveur"
+msgstr "  --status                     backups present, age of the latest, timer, copy off the server"
+
+msgid "  --test-restore               restaurer la dernière sauvegarde dans une base temporaire, contrôler, supprimer"
+msgstr "  --test-restore               restore the latest backup into a temporary database, check, delete"
+
+msgid "  --times \"HH:MM ...\"          heures des sauvegardes automatiques, une ou plusieurs par jour (ex. --times \"09:00 16:00 23:00\" ;"
+msgstr "  --times \"HH:MM ...\"          times of the automatic backups, one or more per day (e.g. --times \"09:00 16:00 23:00\";"
+
+msgid "                               défaut : TIMER_TIME du fichier) — à utiliser avec --install-timer"
+msgstr "                               default: TIMER_TIME of the file) — to be used with --install-timer"
+
+msgid "  --uninstall-timer            retirer la sauvegarde automatique"
+msgstr "  --uninstall-timer            remove the automatic backup"
+
+msgid "  -v, --verbose                afficher chaque commande externe exécutée (psql, pg_dump, tar, rsync, systemctl)"
+msgstr "  -v, --verbose                show every external command run (psql, pg_dump, tar, rsync, systemctl)"
+
+msgid "  --version                    affiche la version et quitte"
+msgstr "  --version                    show the version and exit"
+
+msgid "Configuration (/etc/default/odoo-backup.conf, créée au premier lancement, PUIS ~/.odoo-backup.cfg s'il existe ; lue sans être"
+msgstr "Configuration (/etc/default/odoo-backup.conf, created on first run, THEN ~/.odoo-backup.cfg if it exists; read without being"
+
+msgid "exécutée : seules les clés ci-dessous sont retenues ; --dest, --format et --db l'emportent sur les fichiers) :"
+msgstr "executed: only the keys below are kept; --dest, --format and --db take precedence over the files):"
+
+msgid "  DEST=/var/backups/odoo        dossier des sauvegardes (droits 700)"
+msgstr "  DEST=/var/backups/odoo        backup folder (mode 700)"
+
+msgid "  FORMAT=zip                    zip (importable par la page d'Odoo) ou tar.xz"
+msgstr "  FORMAT=zip                    zip (importable by the Odoo page) or tar.xz"
+
+msgid "  DATABASES=                    bases à sauvegarder, séparées par des espaces (vide : db_name d'Odoo, sinon toutes)"
+msgstr "  DATABASES=                    databases to back up, separated by spaces (empty: Odoo db_name, otherwise all)"
+
+msgid "  ODOO_CONF=                    configuration d'Odoo (vide : emplacements connus d'ERPLibre)"
+msgstr "  ODOO_CONF=                    Odoo configuration (empty: known ERPLibre locations)"
+
+msgid "  LANGUAGE=auto                 langue d'affichage : en, fr ou auto (suivre LC_ALL / LANG)"
+msgstr "  LANGUAGE=auto                 display language: en, fr or auto (follow LC_ALL / LANG)"
+
+msgid "  FILESTORE_DIR=                dossier contenant les filestores (vide : data_dir d'Odoo, puis emplacements connus)"
+msgstr "  FILESTORE_DIR=                folder containing the filestores (empty: Odoo data_dir, then known locations)"
+
+msgid "  PG_USER=postgres              compte système utilisé pour pg_dump (vide : l'utilisateur courant)"
+msgstr "  PG_USER=postgres              system account used for pg_dump (empty: the current user)"
+
+msgid "  KEEP_RECENT_DAYS=2            garder TOUTES les sauvegardes des N derniers jours (utile avec plusieurs sauvegardes par jour)"
+msgstr "  KEEP_RECENT_DAYS=2            keep ALL backups of the last N days (useful with several backups per day)"
+
+msgid "  KEEP_DAILY=7 KEEP_WEEKLY=4 KEEP_MONTHLY=6   rétention : ensuite la dernière de chaque jour, semaine ISO, mois"
+msgstr "  KEEP_DAILY=7 KEEP_WEEKLY=4 KEEP_MONTHLY=6   retention: then the last one of each day, ISO week, month"
+
+msgid "  REMOTE=                       copie rsync facultative, ex. root@serveur-de-sauvegarde.exemple:/srv/sauvegardes/odoo"
+msgstr "  REMOTE=                       optional rsync copy, e.g. root@backup-server.example:/srv/backups/odoo"
+
+msgid "  TIMER_TIME=02:30              heure(s) de la sauvegarde automatique : une ou plusieurs HH:MM (ex. TIMER_TIME=09:00 16:00 23:00)"
+msgstr "  TIMER_TIME=02:30              time(s) of the automatic backup: one or more HH:MM (e.g. TIMER_TIME=09:00 16:00 23:00)"
+
+msgid ") (demandé par --config : ni /etc/default ni ~ ne sont lus)"
+msgstr ") (requested by --config: neither /etc/default nor ~ are read)"
+
+msgid "  --anonymize                  anonymise ce qui est affiché (adresses IP, courriels, identifiants, jetons) par des pseudonymes stables ; clé ANONYMIZE"
+msgstr "  --anonymize                  anonymizes what is displayed (IP addresses, emails, identifiers, tokens) with stable pseudonyms; key ANONYMIZE"

@@ -1,0 +1,315 @@
+Changelog — apps/_i18n.sh
+(version la plus récente en premier)
+
+## 1.13.20261017.200717 — A second Ctrl+C during « Interrompre le programme ? » stops the program
+
+Reason:
+  « [3] Pourquoi le script de test veut effacer des fichiers à l'extérieur de son répertoire (ça va effacer les fichiers de langue qui sont utilisés par mes autres programmes). Et le Ctrl+C affiche ^C et ne pose pas de question de confirmation : […] Effacer ce(s) 7 fichier(s) maintenant ? [o/N] ^C / Interrompre le programme ? [o/N] ^C^C^C^C^C^C^C »
+
+Changes:
+  - _ctrl_c_demande: the answer is read in a subshell where Ctrl+C has its normal effect (interrupted subshell or end of input = yes); this shell
+    ignores Ctrl+C during the question, then puts its trap back.
+
+Bugs fixed:
+  - Symptom: Ctrl+C during a question (« Effacer … ? [o/N] ^C »), then « Interrompre le programme ? [o/N] ^C^C^C… »: nothing happened.
+    Diagnosis: bash does not run an INT trap that is already running: the second Ctrl+C was lost and the read went on. Reproduced in a
+    pseudo-terminal. A first fix let bash receive the signal during its own trap: « trap_handler: bad signal 2 … Aborting ». Fix: see Changes.
+
+Safeguards and edge cases:
+  none.
+
+Checks:
+  - test_ctrl_c.test_bash_ctrl_c_pendant_une_question_sans_erreur: Ctrl+C then Ctrl+C (stops, no bash error), Ctrl+C then n (resumes), Ctrl+C then o.
+
+Action required:
+  none.
+
+## 1.12.20261017.105442 — Language: GNU LANGUAGE, origin shown in the Options line
+
+Reason:
+  « [7] Peux-tu t'assurer que tous les programmes lisent les variables d'environnement en Linux qui déterminent la langue, cela n'a pas fonctionné si je change la variable LANG à fr, fr_CA, C, en »
+
+Changes:
+  - _i18n_relancer: LANGUAGE (GNU) counts like LC_ALL / LC_MESSAGES / LANG to decide on the translator.
+  - config_afficher: « Options : --lang xx (NGINX_TOOLS_I18N_ORIGINE) » (set by apps/_traduire.py 1.4).
+
+Bugs fixed:
+  none.
+
+Safeguards and edge cases:
+  none.
+
+Checks:
+  - test_i18n.LangueDeLEnvironnement; tests of the program (Options line compared without the origin: helpers.sans_origine).
+
+Action required:
+  none.
+
+## 1.11.20261016.173838 — run_interruptible and ctrl_c_child: Ctrl+C answered at once, one question between programs
+
+Reason:
+  « [1] copyright → Services-Linux Conseils Inc […] [2] app-log-live.py : faire un lien entre un événement spécifique et ses sondages par billets […] [3] odoo-update-module.sh : avant d'arrêter le service Odoo, vérifier s'il y a beaucoup de gens qui visitent le site et attendre jusqu'à 15 min […] s'il y a des erreurs, faire un retour-arrière avec les versions précédentes des modules (faire une sauvegarde des modules) [4] web-monitor.py --list-users --table : nombre de pages lues et écrites et transmission / réception (en Mo) [5] indiquer le nom de la personne à qui on a envoyé un courriel ainsi que le titre […] [5] Le Ctrl+C ne fonctionne pas lorsque le programme est en cours nginx-log-audit.sh v2.37 (lorsqu'appelé par app-log-live.py) […] il faudrait le trapper dans tous les programmes Python ou BASH, avec une confirmation. Cela fait plusieurs fois que je fais cette demande »
+
+Changes:
+  - run_interruptible CMD…: the command runs in the background (SIGINT ignored for it) and bash waits with « wait », which the INT trap interrupts:
+    the question comes at once; « no » goes back to waiting and returns the command's real code; « yes » stops it (TERM, CTRL_C_PID) then the program.
+  - ctrl_c_child CMD…: runs a program that owns the terminal with a do-nothing trap: the child asks, this program does not ask again.
+  - _ctrl_c_arret: stops the command of run_interruptible before the cleanup function.
+  - Header: « Copyright (C) 2026  Services-Linux Conseils Inc <Martial@Bigras.ca> <Martial.Bigras@Services-Conseils-Linux.com> » (was: Rencontres Linux Québec <info@rencontres-linux.quebec>).
+
+Bugs fixed:
+  - Symptom: Ctrl+C seemed dead during a long command (bash runs a trap only when the foreground command ends). Fix: run_interruptible.
+
+Safeguards and edge cases:
+  - Not for a command that reads the keyboard (it runs in the background); the code of a command that ends during the question is still returned.
+
+Checks:
+  - test_ctrl_c: test_bash_run_interruptible_non_puis_oui, test_bash_parent_et_enfant_une_seule_question; ShellCheck.
+
+Action required:
+  none.
+
+## 1.10.20261015.172851 — ShellCheck : classes de caractères
+
+Motif de la demande :
+  « [2] ShellCheck (binaire fourni) »
+
+Détail des modifications :
+  - _i18n_anonymize_configure : conversion en minuscules par classes POSIX.
+
+Bugs corrigés :
+  - Symptôme : notes SC2018 / SC2019 d'apps/_i18n.sh:45 avec shellcheck 0.11.0. Diagnostic : plages A-Z / a-z dépendantes de la langue. Correction : [:upper:] / [:lower:].
+
+Garde-fous et cas limites traités :
+  - Même résultat pour les valeurs ASCII (oui, true…).
+
+Vérifications effectuées :
+  - shellcheck 0.11.0 sur tous les scripts bash : 0 signalement.
+
+Action requise de ma part :
+  - aucune
+
+## 1.9.20261015.143436 — --anonymize pour les programmes bash
+
+Motif de la demande :
+  « [1] Il faudrait avoir une nouvelle option afin d'anonymiser les données affichées par chacun des programmes » (choix : pseudonymes stables ; IP, courriels et identifiants Odoo, jetons dans les URL/journaux ; tous les programmes)
+
+Détail des modifications :
+  - i18n_relancer : --anonymize (et ses abréviations), NGINX_TOOLS_ANONYMIZE ou ANONYMIZE du fichier de configuration (_i18n_anonymize_configure, terminal seulement) relancent le programme derrière apps/_traduire.py.
+  - Clé commune ANONYMIZE lue dans le fichier commun.
+
+Bugs corrigés :
+  - Aucun bug corrigé.
+
+Garde-fous et cas limites traités :
+  - Échoue FERMÉ : si le filtre (apps/_traduire.py, apps/_anonymiser.py) manque, le programme s'arrête au lieu d'afficher des données en clair.
+  - Pas de double filtrage (NGINX_TOOLS_ANON_ACTIF posé pour tout ce qui est lancé derrière le filtre) ; --help / --version / --changelog jamais filtrés.
+  - ANONYMIZE du fichier de configuration : seulement si la sortie est un terminal (un tube ou cron ne reçoit jamais un texte modifié d'après la configuration seule ; --anonymize ou NGINX_TOOLS_ANONYMIZE=1 le force).
+
+Vérifications effectuées :
+  - test_anonymiser, test_i18n.
+
+Action requise de ma part :
+  - aucune
+
+## 1.8.20261015.092124 — ShellCheck SC2004
+
+Motif de la demande :
+  « [1] Dans zip-versions.py, met en couleur les versions récentes dans toutes les sections dont ARCHIVES TO ATTACH TO THE DISCUSSION [run-all : échecs shellcheck _i18n.sh (SC2004) et odoo-update-module.sh (5 signalements), 2 tests d'aide « rapport d'erreurs à copier-coller » en --lang en] [3] Au démarrage de app-log-live.py, affiche cela seulement avec une option, où on peut trier les colonnes : « Suivi des modules customs non-standard à Odoo… » [4] Le warmup est bloqué par une règle : … 127.0.0.1 … [banni : pare-feu] »
+
+Détail des modifications :
+  - config : « (( ${CFG[DEBUG_LEVEL]} >= 1 )) » devient « (( CFG[DEBUG_LEVEL] >= 1 )) ».
+
+Bugs corrigés :
+  - run-all.sh : 1 signalement SC2004 (ligne 194). Aucun changement de comportement.
+
+Garde-fous et cas limites traités :
+  - Testé en bash avec un tableau associatif : même résultat.
+
+Vérifications effectuées :
+  - bash -n, test_i18n, suite complète.
+
+Action requise de ma part : aucune
+
+## 1.7.20261015.080630 — LOG_KEEP_DAYS (bash)
+
+Motif de la demande :
+  « [1] Conserve les logs plus longtemps pour tous les scripts (dont app-log-live.py) en lisant une variable de config dans un fichier comme /etc/default/app-default.conf [2] dans app-log-live.py, je ne vois pas les versions des modules rlq*, tu dois toujours faire apparaître ces versions et après les derniers modules [3] Pourquoi indiques-tu cela ? J'étais root. Peux-tu rajouter une validation au début afin de s'assurer que l'on est root, mais seulement pour les scripts qui demandent plus d'accès. Peux-tu me faire la liste des scripts afin de savoir quels scripts ont vraiment besoin d'être root ? »
+
+Détail des modifications :
+  - LOG_KEEP_DAYS (fichier commun /etc/default/app-default.conf, ou fichier du programme) : jours de conservation des journaux propres aux programmes, 180 par défaut (30 avant), 0 = jamais effacés ; exporté dans NGINX_TOOLS_LOG_KEEP_DAYS.
+
+Bugs corrigés :
+  - Aucun bug corrigé.
+
+Garde-fous et cas limites traités :
+  - Valeur non numérique ignorée.
+
+Vérifications effectuées :
+  - test_droits_journaux, test_i18n, test_config_defaut, test_conventions, suite complète.
+
+Action requise de ma part : aucune
+
+## 1.6.20261015.073057 — Date de modification des fichiers de configuration (bash)
+
+Motif de la demande :
+  « [1] Rajoute une option dans les événements avoir de recevoir un courriel à tous les N inscriptions [2] … stats sommaires à toutes les N minutes (sockets réseau utilisés par Odoo, ports 10000 et 10002) ; suggérer des IP à unban dans les recommandations en appelant les programmes et confirmer l'action ; afficher la date de dernière modification des fichiers de config lus au démarrage ; toutes les dates à l'heure locale ; l'alignement des colonnes n'est pas OK avec --summary »
+
+Détail des modifications :
+  - config_date_modif FICHIER ; config_afficher l'ajoute à chaque fichier lu.
+  - La ligne « Configuration lue : » donne la date et l'heure LOCALES de dernière modification de chaque fichier (« (modifié le AAAA-MM-JJ HH:MM) »).
+
+Bugs corrigés :
+  - Aucun bug corrigé.
+
+Garde-fous et cas limites traités :
+  - Fichier illisible : « ? » ; heure locale de la machine (jamais UTC).
+
+Vérifications effectuées :
+  - test_debannir_connexions (ConfigDateModification), test_config_defaut, test_i18n, suite complète.
+
+Action requise de ma part : aucune
+
+## 1.5.20261015.065821 — Création du fichier commun app-default.conf (bash)
+
+Motif de la demande :
+  « [1] oui fait les corrections et le plus importants est de ne pas avoir bannie de IP valides, peux-tu rajouter une logique qui sortir les IP qui devraient être débannie ? [2] Rajoute une vérification à toutes les minutes du nombre de connexion à Odoo afin de voir si on est à veille d'atteindre une limite comme pour le chat d'Odoo (avec les websockets, indique le paramètres à changer dans la config d'Odoo si on atteint une limite) [3] Je remarque dans le texte en anglais, il y a des mots en francais (MOYENNE, Mo, Go, etc) et l'enlignement n'est pas OK [4] Il faudrait que tu crée le fichier de config général s'il n'existe pas (/etc/default/app-default.conf) »
+
+Détail des modifications :
+  - config_creer_defaut crée d'abord /etc/default/app-default.conf (sinon ~/.app-default.cfg) depuis doc/app-default.conf.example, même si le fichier du programme existe.
+
+Bugs corrigés :
+  - Aucun bug corrigé.
+
+Garde-fous et cas limites traités :
+  - Jamais écrasé ; sans droits : fichier personnel ; rien avec --help / --version / --changelog.
+
+Vérifications effectuées :
+  - test_config_defaut (bibliothèque bash).
+
+Action requise de ma part : aucune
+
+## 1.4.20261014.175821 — Fichier commun app-default.conf (bash)
+
+Motif de la demande :
+  « [1] Il faudrait créer un fichier de config qui pourrait définir des config communes à tous nos programmes app-default.conf, afin de définir des config comme la langue par défaut, verbose, debug_level, etc ».
+
+Détail des modifications :
+  - config_lire : lit /etc/default/app-default.conf puis ~/.app-default.cfg AVANT les fichiers du programme (clés LANGUAGE, VERBOSE, DEBUG_LEVEL seulement) ; DEBUG_LEVEL ≥ 1 ⇒ CFG[VERBOSE]=oui si absent, et export de NGINX_TOOLS_DEBUG_LEVEL.
+  - Ordre de lecture : /etc/default/app-default.conf, ~/.app-default.cfg, puis les fichiers du programme (le dernier l'emporte) ; la ligne de commande est prioritaire ; -c/--config : ce fichier seul.
+
+Bugs corrigés :
+  - Aucun bug corrigé.
+
+Garde-fous et cas limites traités :
+  - Seules les clés LANGUAGE, VERBOSE et DEBUG_LEVEL sont lues dans le fichier commun (les autres sont ignorées sans avertissement) ; une clé du fichier du programme l'emporte ; DEBUG_LEVEL ≥ 1 vaut VERBOSE=oui sauf si VERBOSE est écrit ; le niveau est exporté dans NGINX_TOOLS_DEBUG_LEVEL ; app-default.conf n'est jamais créé automatiquement.
+
+Vérifications effectuées :
+  - test_config_commune (bash), test_config_defaut, test_i18n, suite complète.
+
+Action requise de ma part : aucune
+
+## 1.3.20261014.154520 — Ctrl+C pendant une question : réponse lue hors readline
+
+Motif de la demande :
+  « Dans odoo-mail-retry.py, lorsque j'appuie sur Ctrl+C j'ai cette erreur (RuntimeError: can't re-enter readline) pendant la question [t] tous… Il faut s'assurer que tous les programmes ne donnent pas d'erreurs et demander une confirmation avant de sortir ».
+
+Détail des modifications :
+  - _i18n.sh : _ctrl_c_demande() lit la réponse avec « read -r » (stty icanon echo, état restauré) au lieu de « read -e ».
+
+Bugs corrigés :
+  - Bash (même scénario) : pas d'erreur, mais la réponse « n » se mêlait à la ligne de la question en cours (« nt » au lieu de « t »). Corrigé par la même lecture hors readline.
+
+Garde-fous et cas limites traités :
+  - Fin de fichier pendant la question : oui (arrêt) ; second Ctrl+C : oui ; pas de termios (ou stdin sans descripteur) : lecture simple ; terminal toujours restauré (finally).
+
+Vérifications effectuées :
+  - test_python_ctrl_c_pendant_une_question_sans_trace (fr + en, non/oui), test_bash_ctrl_c_pendant_une_question_sans_erreur, test_ctrl_c complet, suite complète.
+
+Action requise de ma part : aucune
+
+## (sans nouvelle version) — Édition de ligne (read -e)
+
+Motif de la demande :
+  « [1] enlever les espaces des milliers, tronquer par défaut la colonne du nom DNS, pouvoir effacer dans les saisies [2] touches 1 à 9 d'app-log-live [3] sondage Odoo. »
+
+Détail des modifications :
+  - _ctrl_c_demande : read -e -r.
+
+Bugs corrigés :
+  - Saisie : ^H s'affichait au lieu d'effacer. Diagnostic : le terminal n'avait pas readline/édition de ligne. Correction : import de readline (Python), « read -e » (bash).
+
+Garde-fous et cas limites traités :
+  - Sans readline disponible, le programme démarre quand même (import protégé).
+
+Vérifications effectuées :
+  - ruff E9,F ; ShellCheck ; tests test_app_log_live, test_web_monitor, test_i18n, test_saisie.
+
+Action requise de ma part : aucune
+
+## 1.2.20261012.103600 — config_creer_defaut : fichier de configuration créé au premier démarrage
+
+Motif de la demande :
+  « Il faudrait que tu crées les fichiers de config par défaut lorsqu'ils n'existent pas au démarrage. Rajoute en commentaire toutes les options que l'on peut avoir avec chacun des programmes. »
+
+Détail des modifications :
+  - Texte d'origine (3 lignes) dans apps/config-entete.txt, partagé par Python et bash.
+  - config_creer_defaut PROGRAMME ARGUMENTS… (appelée par config_lire) : mêmes règles que apps/_config.py creer_par_defaut ; modèle dans CFG_DOSSIER_DOC (défaut : doc/ du programme) ; chemin créé dans CFG_CREE et NGINX_TOOLS_CONFIG_CREE.
+  - config_afficher ajoute « (fichier créé à l'instant : … ) » à la ligne « Configuration lue ».
+
+Bugs corrigés :
+  - Aucun.
+
+Garde-fous et cas limites traités :
+  - Création exclusive (noclobber), droits 644 (système) ou 600 (personnel) ; rien avec --help, --version, --changelog, -c/--config ou NGINX_TOOLS_CONFIG_CREER=0.
+
+Vérifications effectuées :
+  - ShellCheck, test_config_defaut.py (config_lire de nginx-log-audit avec et sans --help), suite complète.
+
+Action requise de ma part :
+  Aucune.
+
+## 1.1.20261011.144500 — Ctrl+C demande toujours confirmation
+
+Motif de la demande :
+  « Le <Ctrl>+<c> doit toujours demander une confirmation avant de sortir des scripts ou programme. »
+
+Détail des modifications :
+  - ctrl_c_installer : piège INT « Interrompre le programme ? [o/N] » ; appelée par i18n_relancer (donc par les quatre programmes bash et run-all.sh).
+  - CTRL_C_NETTOYAGE : fonction du programme appelée avant l'arrêt (run-all.sh y arrête la passe de tests).
+
+Bugs corrigés :
+  Aucun.
+
+Garde-fous et cas limites traités :
+  - Hors terminal interactif (cron, timer, tube, tests) : aucun gestionnaire, comportement inchangé.
+  - NGINX_TOOLS_CTRL_C=0 désactive la confirmation.
+  - Limite : le Ctrl+C du terminal part aussi aux commandes en cours (même groupe de processus) ; une commande courte lancée par le programme s'arrête quand même, le programme, lui, reprend après un « non ».
+
+Vérifications effectuées :
+  - test_ctrl_c (10 tests en vrai terminal : Python et bash, français et anglais, non / oui / second Ctrl+C / désactivation / hors terminal) ; tests existants de Ctrl+C (réponse automatique à la question dans helpers.run_pty) ; ShellCheck ; ruff ; suite complète sous mawk et gawk.
+
+Action requise de ma part :
+  Aucune.
+
+## 1.0.20261010.221500 — Création : langue et fichier de configuration des programmes bash
+
+Motif de la demande :
+  « Il faudrait que tous les autres programmes soient bilingues » et « … que certaines options soient définies aussi [dans les fichiers de config], dont la langue ».
+
+Détail des modifications :
+  - i18n_relancer PROGRAMME VARIABLE SCRIPT ARGS… : relance le programme derrière apps/_traduire.py seulement si un signal d'une autre langue existe (--lang, -c/--config, variable du programme non française, fichier de configuration présent, LC_*/LANG définis).
+  - config_lire / config_defaut / config_afficher : règle commune /etc/default/PROGRAMME.conf PUIS ~/.PROGRAMME.cfg, -c/--config (ce fichier seul), types texte / nombre / booléen, affichage « Configuration lue : … » et « Options : … ».
+
+Bugs corrigés :
+  Aucun.
+
+Garde-fous et cas limites traités :
+  - Fichier jamais exécuté (lecture ligne à ligne) ; valeur invalide signalée sur la sortie d'erreur, jamais fatale ; python3 ou _traduire.py absents : le programme tourne en français ; bash >= 4.2 requis (declare -gA).
+
+Vérifications effectuées :
+  - test_i18n.py (ConfigurationBash, MecanismeTraduire) ; tests des programmes bash.
+
+Action requise de ma part :
+  aucune.
+

@@ -1,0 +1,131 @@
+Changelog — docs/build_docs.py
+(newest version first)
+
+## 1.5.20261017.214019 — rlq_tools_docs 18.0.1.6.0
+
+Reason:
+  « [1] Dans web-monitor.py, affiche l'entête en couleur sur la colonne qui est triée. Et ne pas afficher le champ étiquettes par défaut puisqu'il est pareil comme la colonne « Groupes ». Il faut être en mesure de sauvegarder toutes les options dans une variable d'un fichier de config, comme --table-fields [2] Rajoute une colonne IP-seen, afin d'indiquer les dernières IP vues dernièrement (qui sont reliées à un compte Odoo) même s'il n'est pas loggé à Odoo »
+
+Changes:
+  - Page 04-web-monitor (en, fr): « IP seen », sorted column, tags not by default, configuration keys.
+
+Bugs fixed:
+  none.
+
+Safeguards and edge cases:
+  none.
+
+Checks:
+  - build_docs.py --check; test_docs.
+
+Action required:
+  update the module rlq_tools_docs (Apps > Upgrade).
+
+## 1.4.20261017.105442 — rlq_tools_docs 18.0.1.5.0
+
+Reason:
+  « [1] Dans web-monitor.py --list-users --table, peux-tu rajouter le nombre d'événement et de sondages qu'un utilisateur a rempli, et un autre champs pour le téléphone, pays, ville, dans quel groupe et Étiquettes, ils font parties [2] Rajoute ces options : --group zzz, --csv, --table-fields field1,field2 [3] afin de minimiser la largeur des colonnes, il faut enlever les espaces avant et après les mots […] tronquer l'entête au maximum de la largeur des données et pour un minimum de 4 caractères. Utilise deux lignes pour les entêtes si deux mots […] [4] Dans les CSV, il faut conserver toute l'information et probablement utiliser « ; » comme séparateur [5] Mettre en couleur certaines informations […] [6] Le « Mo envoyés » est toujours à « ? », pourquoi. [7] Peux-tu t'assurer que tous les programmes lisent les variables d'environnement en Linux qui déterminent la langue, cela n'a pas fonctionné si je change la variable LANG à fr, fr_CA, C, en [8] rajoute une option afin d'afficher une entête aussi à la fin [9] à la fin, rajoute une option qui indique des stats de membres par groupes, navigateurs, systèmes, par pays, par domaine de courriel, % interne ou portail, top 10 des utilisateurs actifs (selon plusieurs métriques) »
+
+Changes:
+  - Generated module 18.0.1.4.0 -> 18.0.1.5.0; pages 04-web-monitor (compact table, fields, --table-fields, --group, --csv, --stats, colors) and
+    00-overview (language: GNU LANGUAGE, the origin in the Options line), en and fr.
+
+Bugs fixed:
+  none.
+
+Safeguards and edge cases:
+  none.
+
+Checks:
+  - build_docs.py --check; test_docs, test_odoo_docs.
+
+Action required:
+  update the module rlq_tools_docs (Apps > Upgrade).
+
+## 1.3.20261016.173838 — rlq_tools_docs 18.0.1.4.0: pages updated, author Services-Linux Conseils Inc
+
+Reason:
+  « [1] copyright → Services-Linux Conseils Inc […] [2] app-log-live.py : faire un lien entre un événement spécifique et ses sondages par billets […] [3] odoo-update-module.sh : avant d'arrêter le service Odoo, vérifier s'il y a beaucoup de gens qui visitent le site et attendre jusqu'à 15 min […] s'il y a des erreurs, faire un retour-arrière avec les versions précédentes des modules (faire une sauvegarde des modules) [4] web-monitor.py --list-users --table : nombre de pages lues et écrites et transmission / réception (en Mo) [5] indiquer le nom de la personne à qui on a envoyé un courriel ainsi que le titre […] [5] Le Ctrl+C ne fonctionne pas lorsque le programme est en cours nginx-log-audit.sh v2.37 (lorsqu'appelé par app-log-live.py) […] il faudrait le trapper dans tous les programmes Python ou BASH, avec une confirmation. Cela fait plusieurs fois que je fais cette demande »
+
+Changes:
+  - Version of the generated module 18.0.1.3.0 -> 18.0.1.4.0; manifest author « Services-Linux Conseils Inc » (no e-mail address: the published pages never carry personal data, test_docs).
+  - Pages docs/en|fr: 07-app-log-live (registrations per ticket, sent e-mails, Ctrl-C), 04-web-monitor (new columns), 09-odoo-update-module (quiet site,
+    copy, rollback), 15-permissions-and-security (Ctrl+C everywhere).
+
+Bugs fixed:
+  none.
+
+Safeguards and edge cases:
+  none.
+
+Checks:
+  - build_docs.py --check; test_docs, test_odoo_docs.
+
+Action required:
+  update the module rlq_tools_docs (Apps > Upgrade).
+
+## 1.2.20261016.160728 — rlq_tools_docs 18.0.1.3.0: app-log-live page updated
+
+Reason:
+  « [1] Dans app-log-live.py, rajouter une option pour tronquer la sortie afin d'avoir un maximum de lignes (2 * $COLUMNS) [2] indiquer le nom de l'utilisateur avec le nombre de connexion SSH . et met les groupes RLQ sur 2 ou 4 colonnes (selon la largeur du teminal). Est-ce que tout es OK dans la sortie : […] »
+
+Changes:
+  - Version of the generated module rlq_tools_docs 18.0.1.2.0 -> 18.0.1.3.0; docs/en|fr/07-app-log-live.md (--truncate, SSH accounts, RLQ* columns) and its
+    --help (new option --truncate).
+
+Bugs fixed:
+  none.
+
+Safeguards and edge cases:
+  none new.
+
+Checks:
+  - build_docs.py --check; test_docs, test_odoo_docs.
+
+Action required:
+  update the module rlq_tools_docs (Apps > Upgrade).
+
+## 1.1.20261016.151148 — Website pages of every program, rlq_tools_docs 18.0.1.2.0
+
+Reason:
+  "Génère une page web aussi pour tous les autres programmes que tu m'as généré"
+
+Changes:
+  - docs/build_docs.py: version of the generated module rlq_tools_docs 18.0.1.1.0 -> 18.0.1.2.0 (so that Odoo sees the update of the pages).
+  - The pages come from docs/en and docs/fr: new 18-host-perf-audit.md; 00-overview, 04-web-monitor, 07-app-log-live, 11-odoo-mail-retry and
+    14-rlq_survey_report updated (nginx-tools 1.122); the option lists are the real --help of each program.
+
+Bugs fixed:
+  none.
+
+Safeguards and edge cases:
+  - Unchanged: the build stops if a page exists in only one language or if the XML is not well-formed.
+
+Checks:
+  - build_docs.py --check; module built, zipped and its XML parsed; test_docs, test_odoo_docs.
+
+Action required:
+  install or update the module rlq_tools_docs (Apps > Update the apps list, then Upgrade); pages at /docs/en and /docs/fr.
+
+## 1.0.20261015.180000 — Creation: bilingual documentation builder
+
+Reason for the request:
+  « If I put all these programs on GitHub as open source ... create documentation that an Odoo and Linux expert can use ... in web pages or a wiki on our website, so that the documentation is always up to date. »
+
+Changes:
+  - docs/en and docs/fr: 17 Markdown pages (overview, one page per program, rlq_survey_report, permissions, testing/translation).
+  - docs/build_docs.py: inserts each program's real --help (per language) at the {{HELP}} placeholder; writes Markdown (docs/build/<lang>) and an Odoo 18 module rlq_tools_docs (website pages /docs/<lang>/<page>, redirect /docs/<lang>, language switch and page menu on every page).
+  - Personal data still present in two help texts is masked by the builder (SCRUB) until the sources are cleaned.
+
+Bugs fixed:
+  - None.
+
+Guards and edge cases:
+  - The two languages must have exactly the same pages (build stops otherwise); the generated XML is parsed before writing; a {{HELP}} placeholder without a matching program stops the build.
+  - Knowledge (Enterprise-only) is not required: plain website pages.
+
+Checks performed:
+  - tests/test_docs.py (parity, real help in the right language, valid XML, no personal data); module never installed in a real Odoo (NOT TESTED).
+
+Action required from me:
+  - Install rlq_tools_docs on a development Odoo first and check the pages render and the menu links work.

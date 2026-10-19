@@ -1,0 +1,259 @@
+## 1.11.20261016.173838 — Copyright holder: Services-Linux Conseils Inc
+
+Reason:
+  « [1] Il faudrait changer le copywrite de RLQ à Services-Linux Conseils Inc, le courriel reste toujours Martial@Bigras.ca et tu peux rajouter Martial.Bigras@Services-Conseils-Linux.com »
+
+Changes:
+  - Header: « Copyright (C) 2026  Services-Linux Conseils Inc <Martial@Bigras.ca> <Martial.Bigras@Services-Conseils-Linux.com> » (was: Rencontres Linux Québec <info@rencontres-linux.quebec>). No change of behavior.
+
+Bugs fixed:
+  none.
+
+Safeguards and edge cases:
+  none.
+
+Checks:
+  - Test suite (run-all.sh), ruff / ShellCheck.
+
+Action required:
+  none.
+
+## 1.10.20261013.103000 — apps/_courriel.py dans la ligne « Suite »
+
+Motif de la demande :
+  « [1] Installer les logiciels manquants au setup (ShellCheck ignoré dans run-all.sh). [2] Dans le menu d'aide, afficher la version (avec la date). [3] Que les programmes Python et Bash puissent envoyer des courriels : installer les logiciels, configurer Linux pour l'envoi ; le setup demande UNE fois le serveur SMTP, le port, l'utilisateur, le chiffrement (STARTTLS), demande le mot de passe, sauvegarde dans /etc/default, convertit les pièces jointes de plus de 100 Mo en liens, indique exactement quoi mettre dans le DNS, sans sauvegarder de données importantes. »
+
+Détail des modifications :
+  - FICHIERS_SUITE : apps/_courriel.py.
+
+Bugs corrigés :
+  - Aucun.
+
+Garde-fous et cas limites traités :
+  - Aucun.
+
+Vérifications effectuées :
+  - test_rapport.
+
+Action requise de ma part : aucune
+
+## 1.9.20261008.120306 — Couleurs conservées avec --report-err
+
+Motif de la demande :
+  Demande : « nginx-hardening.sh --report-err --update doit afficher les couleurs ».
+
+Détail des modifications :
+  - apps/_rapport.sh : la sortie du programme passe par tee (donc n'est plus un terminal) ; _rapport.sh exporte REPORT_ERR_COULEUR=1 quand NOTRE sortie est un terminal
+    (sauf NO_COLOR ou TERM=dumb) et le programme garde ses couleurs. Le rapport copiable est nettoyé des séquences ANSI (inchangé : _rapport.py).
+
+Bugs corrigés :
+  - Symptôme : couleurs perdues. Diagnostic : tee fait de la sortie du programme un tube. Correction : REPORT_ERR_COULEUR.
+
+Garde-fous et cas limites traités :
+  - NO_COLOR, TERM=dumb et sortie non terminale : pas de couleur.
+
+Vérifications effectuées :
+  - Test en pseudo-terminal ; suite complète.
+
+Action requise de ma part (ou « aucune ») :
+  aucune
+
+## 1.8.20261007.175327 — odoo-mail-retry.py dans la ligne « Suite »
+
+Motif de la demande :
+  Nouveau programme.
+
+Détail des modifications :
+  - FICHIERS_SUITE : odoo-mail-retry.py.
+
+Bugs corrigés :
+  Aucun.
+
+Garde-fous et cas limites traités :
+  - Format du rapport inchangé.
+
+Vérifications effectuées :
+  - Suite test_rapport.
+
+Action requise de ma part (ou « aucune ») :
+  Aucune.
+
+## 1.7.20261007.171721 — apps/_cache_ip.py dans la ligne « Suite »
+
+Motif de la demande :
+  Nouveau composant.
+
+Détail des modifications :
+  - FICHIERS_SUITE : apps/_cache_ip.py.
+
+Bugs corrigés :
+  Aucun.
+
+Garde-fous et cas limites traités :
+  - Format du rapport inchangé.
+
+Vérifications effectuées :
+  - Suite test_rapport.
+
+Action requise de ma part (ou « aucune ») :
+  Aucune.
+
+## 1.6.20261007.093208 — apps/_listes.py dans la ligne « Suite »
+
+Motif de la demande :
+  Nouveau composant.
+
+Détail des modifications :
+  - FICHIERS_SUITE : apps/_listes.py.
+
+Bugs corrigés :
+  Aucun.
+
+Garde-fous et cas limites traités :
+  - Format du rapport inchangé.
+
+Vérifications effectuées :
+  - Suite test_rapport.
+
+Action requise de ma part (ou « aucune ») :
+  Aucune.
+
+## 1.5.20261002.073514 — Nouveaux fichiers dans la ligne « Suite »
+
+Motif de la demande :
+  app-log-live.py, apps/_reseau.py et apps/_odoo_db.py.
+
+Détail des modifications :
+  - FICHIERS_SUITE : app-log-live.py, apps/_reseau.py, apps/_odoo_db.py.
+
+Bugs corrigés :
+  Aucun.
+
+Garde-fous et cas limites traités :
+  - Format du rapport inchangé.
+
+Vérifications effectuées :
+  - Suite test_rapport.
+
+Action requise de ma part (ou « aucune ») :
+  Aucune.
+
+## 1.4.20261001.143624 — apps/_bbb.py dans la ligne « Suite »
+
+Motif de la demande :
+  Nouveau composant apps/_bbb.py (état de BigBlueButton).
+
+Détail des modifications :
+  - FICHIERS_SUITE : apps/_bbb.py ajouté.
+
+Bugs corrigés :
+  Aucun.
+
+Garde-fous et cas limites traités :
+  - Format du rapport inchangé.
+
+Vérifications effectuées :
+  - Suite test_rapport.
+
+Action requise de ma part (ou « aucune ») :
+  Aucune.
+
+## 1.3.20261001.094048 — Suite de tests dans nginx-tools-tests/
+
+Motif de la demande :
+  Archive et dossier de la suite renommés nginx-tools-tests (le nom tests/ est partagé avec d'autres programmes).
+
+Détail des modifications :
+  - FICHIERS_SUITE : nginx-tools-tests/run-all.sh ; si absent, l'ancien tests/run-all.sh est lu (transition).
+  - Suite absente : toujours pas signalée comme ABSENTE (serveur sans les tests).
+
+Bugs corrigés :
+  Aucun.
+
+Garde-fous et cas limites traités :
+  - Les deux présents : le nouveau l'emporte.
+
+Vérifications effectuées :
+  - Nouveau test DossierDeLaSuite ; suite test_rapport.
+
+Action requise de ma part (ou « aucune ») :
+  Aucune.
+
+## 1.2.20261001.092458 — zip-versions.py dans la ligne « Suite »
+
+Motif de la demande :
+  Nouveau programme zip-versions.py (versions contenues dans les archives).
+
+Détail des modifications :
+  - FICHIERS_SUITE : zip-versions.py ajouté (sa version figure dans la ligne « Suite » du rapport ; absent = signalé).
+
+Bugs corrigés :
+  Aucun.
+
+Garde-fous et cas limites traités :
+  - Aucun changement de format du rapport.
+
+Vérifications effectuées :
+  - Suite test_rapport ; suite complète.
+
+Action requise de ma part (ou « aucune ») :
+  Aucune.
+
+## 1.1.20260930.225745 — Recommandations numérotées une seule fois
+
+Motif de la demande :
+  Rapport de web-monitor.py --summary --report-err : « 1. 1. [MOYENNE] … ».
+
+Détail des modifications :
+  - construire_rapport : le numéro que le programme met lui-même devant un élément (« 1. [MOYENNE] ») est retiré avant celui du
+    rapport (expression DEJA_NUMEROTE).
+
+Bugs corrigés :
+  - Symptôme : « 1. 1. », « 2. 2. » dans la section RECOMMANDATIONS. Diagnostic : la ligne du programme, déjà numérotée, était
+    numérotée une seconde fois. Correction : numéro d'origine retiré.
+
+Garde-fous et cas limites traités :
+  - Seul un numéro en tête de ligne suivi d'un point et d'un espace est retiré ; compatible Python 3.8.
+
+Vérifications effectuées :
+  - Nouveau test Numerotation ; suite test_rapport.
+
+Action requise de ma part (ou « aucune ») :
+  Aucune.
+
+## 1.0.20260930.163902 — Première version : rapport d'erreurs commun (--report-err)
+
+Motif de la demande :
+  Une option --report-err dans chaque programme : un sommaire des erreurs en fin d'exécution, avec le nom et la version du
+  programme, le nom du serveur et le contexte, à coller dans la discussion à la place de la sortie complète (économie de jetons).
+
+Détail des modifications :
+  - apps/_rapport.py : classement de la sortie d'un programme (nettoyage des couleurs, masquage des mots de passe, échecs,
+    avertissements, recommandations HAUTE/MOYENNE, vérifications ignorées, traces d'appels Python) et construction du rapport :
+    programme, version, commande, serveur (nom et nom complet, système, noyau, utilisateur, interpréteur, Python), date, durée,
+    code de sortie, contexte lu dans la sortie, versions de toute la suite (fichiers absents signalés), limite de 30 éléments par
+    catégorie. Sans échec reconnu mais avec un code de sortie non nul : les 12 dernières lignes.
+  - lancer(fonction, programme, version, dossier) : pour les programmes Python — copie stdout et stderr au fil de l'eau (terminal
+    conservé), capture SystemExit, Ctrl-C (130) et exceptions (trace dans le rapport, code 1), restaure les flux.
+  - Ligne de commande (programmes bash) : python3 apps/_rapport.py --programme … --sortie FICHIER ; --version, --changelog, aide en
+    français par ordre alphabétique.
+  - apps/_rapport.sh : fonction rapport_si_demande — relance le programme SANS --report-err en copiant sa sortie (tee), conserve le
+    code de sortie (PIPESTATUS), appelle _rapport.py, supprime le fichier temporaire ; sans effet avec --help, --version,
+    --changelog ; composant ou python3 absent : message clair et exécution normale.
+
+Bugs corrigés :
+  - Trouvés par les tests avant livraison : une recommandation FAIBLE avalait la suivante ; le détail d'un échec absorbait une
+    ligne « ⚠ » ou une trace d'appels qui le suivait.
+
+Garde-fous et cas limites traités :
+  - Une ligne étiquetée ([FAIL], [ATTN], ⚠, [SKIP], recommandation) n'est jamais le détail d'une autre ; l'étiquette explicite l'emporte
+    sur les expressions génériques (« [ATTN] … Permission denied » est un avertissement). Une ligne comme « Erreurs Odoo : 0 » n'est pas
+    une erreur (les expressions génériques s'ancrent au début de la ligne).
+  - Limites connues : seuls les messages étiquetés ou reconnus par une expression connue sont classés ; ce que les sous-processus
+    écrivent directement sur le terminal (et non par le programme) n'est pas capturé par les programmes Python.
+
+Vérifications effectuées :
+  - 20 tests unitaires (classement, masquage, contenu, exécution Python, ligne de commande) et un test d'intégration par programme.
+
+Action requise de ma part (ou « aucune ») :
+  Déployer apps/_rapport.py et apps/_rapport.sh avec le reste de nginx-tools.zip (dossier apps/).
