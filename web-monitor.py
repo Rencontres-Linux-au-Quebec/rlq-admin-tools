@@ -34,6 +34,7 @@
 # the complete report /var/log/web-monitor/, always written (30 days kept).
 #
 # VERSION HISTORY (summary — see web-monitor.changelog.txt for the full detail):
+#   2.71.20261019.115217 — Fix: field and sort keys, option names shown in English in every language (« browsers », not « navigateurs »); French field names accepted.
 #   2.70.20261019.012211 — --table: every 5th line underlined; « Account created », « IP country » (RDAP / whois) and « VPN » (VPN, Tor, relay, hosting) columns; --sort created|vpn.
 #   2.69.20261017.214019 — --table: « IP seen » column, title of the sorted column in color, tags off by default; keys CSV, GROUP, INTERNET; config keys never start --list-users.
 #   2.68.20261017.200717 — Fix: --list-users --table crashed (KeyError on a date) when bans.tsv exists.
@@ -186,7 +187,7 @@ import time
 import unicodedata
 import urllib.parse
 
-__version__ = "2.70.20261019.012211"
+__version__ = "2.71.20261019.115217"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
@@ -266,6 +267,31 @@ def _load_i18n():
 
 LANGUAGE_ORIGIN = ""
 LANGUAGE, TR, AVAILABLE_LANGUAGES, CONFIG, CONFIG_FILES = _load_i18n()
+LITERAL_START, LITERAL_END, LITERAL_SLOT = "\ue001", "\ue002", "\ue003"     # 2.71: private-use characters, never in a real text
+LITERAL_RE = re.compile(LITERAL_START + "(.*?)" + LITERAL_END, re.S)
+
+
+def literal(text_value):
+    """2.71: text displayed AS IS in every language — option values, field and sort keys (« browsers », « sent »): the translator replaced them by
+    French words (« navigateurs », « envoyé(s) ») that the program then refused. Only for texts that are displayed through TR (print, argparse)."""
+    return LITERAL_START + str(text_value) + LITERAL_END
+
+
+def _keeping_literals(translate):
+    """The translator, with the literal() parts set aside during the translation, then put back unchanged and without their markers."""
+    def tr(text_value):
+        if not isinstance(text_value, str) or LITERAL_START not in text_value:
+            return translate(text_value)
+        kept = LITERAL_RE.findall(text_value)
+        res = translate(LITERAL_RE.sub(LITERAL_SLOT, text_value))
+        if not isinstance(res, str) or res.count(LITERAL_SLOT) != len(kept):
+            return text_value.replace(LITERAL_START, "").replace(LITERAL_END, "")
+        it = iter(kept)
+        return re.sub(LITERAL_SLOT, lambda _m: next(it), res)
+    return tr
+
+
+TR = _keeping_literals(TR)
 try:
     _load_module("_i18n").installer_confirmation_ctrl_c(TR)       # Ctrl+C asks for confirmation (interactive terminal only)
 except Exception:
@@ -2463,7 +2489,7 @@ def sort_key(value):
     for key_value, (_, _, synonyms) in USER_SORTS.items():
         if v == key_value or v in {plain_text(x) for x in synonyms}:
             return key_value
-    raise argparse.ArgumentTypeError(f"unknown sort key « {value} » (values: {', '.join(sorted(USER_SORTS))} ; synonyms: name, latest, first, logins, duration…)")
+    raise argparse.ArgumentTypeError(f"unknown sort key « {value} » (values: {literal(', '.join(sorted(USER_SORTS)))} ; synonyms: name, latest, first, logins, duration…)")
 
 
 def char_width(ch):
@@ -2508,17 +2534,23 @@ TABLE_FIELDS = (
 FIELD_KEYS = [f[0] for f in TABLE_FIELDS]
 DEFAULT_TABLE_FIELDS = [k for k in FIELD_KEYS if k not in ("email", "tags")]     # the login is already the e-mail of most accounts; 2.69: tags often repeat the groups
 PROFILE_FIELDS = {"events", "surveys", "phone", "country", "city", "groups", "tags", "email", "created"}      # read in PostgreSQL (apps/_odoo_db.py user_profiles)
+# 2.71: French names of the fields, accepted for the English keys (until 2.70 the French help displayed « navigateurs », « envoyé(s) »… instead of the keys)
+FIELD_ALIASES = {"navigateurs": "browsers", "systemes": "systems", "envoye(s)": "sent", "envoyes": "sent", "recus": "received", "lues": "read",
+                 "ecrites": "written", "pays": "country", "ville": "city", "groupes": "groups", "etiquettes": "tags", "telephone": "phone",
+                 "evenements": "events", "sondages": "surveys", "courriel": "email", "nom": "name", "identifiant": "login", "connexions": "logins",
+                 "premiere": "first", "derniere": "last", "cree": "created", "ip-vue": "ipseen", "pays-ip": "ipcountry"}
 MIN_HEADER_WIDTH = 4                  # a column is never narrower: its title stays readable (« Conn », « Mint »)
 
 
 def table_fields(value):
     """--table-fields name,login,logins…: the fields to show, in the order given (« all » = every field, e-mail included); otherwise an error that lists them."""
     keys = [k.strip().lower().replace("ip-seen", "ipseen").replace("ip-country", "ipcountry") for k in (value or "").split(",") if k.strip()]
+    keys = [FIELD_ALIASES.get(plain_text(k), k) for k in keys]                     # 2.71: the French names once shown by the help (« navigateurs »)
     if keys == ["all"]:
         return list(FIELD_KEYS)
     wrong = [k for k in keys if k not in FIELD_KEYS]
     if wrong or not keys:
-        raise argparse.ArgumentTypeError(f"unknown field(s) « {', '.join(wrong) or value} » (fields: {', '.join(FIELD_KEYS)}, or all)")
+        raise argparse.ArgumentTypeError(f"unknown field(s) « {literal(', '.join(wrong) or value)} » (fields: {literal(', '.join(FIELD_KEYS))}, or all)")
     return list(dict.fromkeys(keys))
 
 
@@ -2838,7 +2870,7 @@ def users_table(order, accounts, infos, fields, bbb, compute_minutes, banned, so
                  "vpn": None if not record["vpn"] else "33" if VPN_PRIORITY[record["vpn"][0]] >= 4 else "0;33"}
         styles.append([style.get(k) for k in fields])
     if table_rows:
-        print(f"Sort: {sort_caption}{' (reversed order)' if invert else ''}. Fields: {','.join(fields)} (--table-fields to choose; all: every field).")
+        print(f"Sort: {sort_caption}{' (reversed order)' if invert else ''}. Fields: {literal(','.join(fields))} (--table-fields to choose; all: every field).")
         print()
         for l in compact_table(fields, rows, styles, repeat_header, sorted_field):
             print(l)
@@ -4856,7 +4888,7 @@ class LocalizedArgumentParser(argparse.ArgumentParser):
         return super().add_argument(*args, **kwargs)
 
     def error(self, message):
-        message = TR(message)
+        message = TR(re.sub(r"(?<![\w-])--[a-z][\w-]*", lambda m: literal(m.group(0)), message))      # 2.71: option names never translated (« --sort » became « --tri »)
         if LANGUAGE == "fr":
             message = re.sub(r"^unrecognized arguments: (.+)$", r"argument(s) non reconnu(s) : \1", message)
             message = re.sub(r"^argument (\S+): invalid int value: (.+)$", r"argument \1 : entier invalide : \2", message)
@@ -4899,7 +4931,7 @@ def show_configuration(defaults, problems):
         print(_load_module("_config").ligne_configuration(CONFIG_FILES, EXPLICIT_CONFIG, SCRIPT_NAME))
     except Exception:
         return
-    options = [f"--lang {LANGUAGE}" + (f" ({LANGUAGE_ORIGIN})" if LANGUAGE_ORIGIN else "")] + [f"--{o.replace('_', '-')} {('yes' if LANGUAGE != 'fr' else 'oui') if v is True else ('no' if LANGUAGE != 'fr' else 'non') if v is False else v}" for o, v in sorted(defaults.items())]
+    options = [f"--lang {LANGUAGE}" + (f" ({LANGUAGE_ORIGIN})" if LANGUAGE_ORIGIN else "")] + [f"--{o.replace('_', '-')} {('yes' if LANGUAGE != 'fr' else 'oui') if v is True else ('no' if LANGUAGE != 'fr' else 'non') if v is False else literal(','.join(v) if isinstance(v, list) else v)}" for o, v in sorted(defaults.items())]
     print("  Options: " + " · ".join(options) + " (command line takes precedence)")
     for p in problems:
         eprint(f"  WARNING: configuration value ignored: {p}")
@@ -4938,7 +4970,7 @@ def main():
     parser.add_argument("--table", action="store_true",
                         help="With --list-users: compact numbered table, one column per field (--table-fields), each as narrow as its content (titles cut, on two lines), colors for today's logins and the busiest accounts")
     parser.add_argument("--table-fields", type=table_fields, metavar="FIELDS",
-                        help="With --table or --csv: the fields to show, in that order, separated by commas (all: every field) — " + ",".join(FIELD_KEYS) + " (implies --list-users --table)")
+                        help="With --table or --csv: the fields to show, in that order, separated by commas (all: every field) — " + literal(",".join(FIELD_KEYS)) + " (implies --list-users --table)")
     parser.add_argument("--csv", metavar="FILE",
                         help="With --list-users: also write every value, never cut, in a CSV file (« ; » separator, decimal comma in French: Excel opens it directly; - = standard output)")
     parser.add_argument("--group", metavar="NAME",

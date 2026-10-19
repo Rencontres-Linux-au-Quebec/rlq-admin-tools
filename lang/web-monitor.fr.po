@@ -2750,3 +2750,12 @@ msgstr "  … terminé en "
 msgid " unknown: rdap.org unreachable and no whois command?)"
 msgstr " inconnue(s) : rdap.org injoignable et pas de commande whois ?)"
 
+# 2.71: message of --table-fields (keys kept in English)
+msgid "unknown field(s) « "
+msgstr "champ(s) inconnu(s) « "
+
+msgid " » (fields: "
+msgstr " » (champs : "
+
+msgid ", or all)"
+msgstr ", ou all)"
