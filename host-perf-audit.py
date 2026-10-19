@@ -1,7 +1,11 @@
 #!/usr/bin/env python3
 # ========================================================================================================================
-# Copyright (C) 2026  Services-Linux Conseils Inc <Martial@Bigras.ca> <Martial.Bigras@Services-Conseils-Linux.com>
-# License: GNU Affero General Public License, version 3 or later — https://www.gnu.org/licenses/agpl-3.0.html
+# Copyright (C) 2026 Services-Conseils Linux
+# Copyright (C) 2026 Rencontres Linux au Québec contributors
+#
+# This program is free software: you can redistribute it and/or modify it under the terms of the GNU Affero General Public
+# License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
+# Full text: https://www.gnu.org/licenses/agpl-3.0.html
 # ========================================================================================================================
 #
 # host-perf-audit.py — WHAT LIMITS THE PERFORMANCE of a hypervisor (Proxmox VE) or of any Linux server: processor, memory, disks, network, ZFS,
@@ -18,6 +22,7 @@
 # NO_GUESTS, TOP, VERBOSE); -c/--config: that file ALONE; the command line takes priority.
 #
 # VERSION HISTORY (summary — see doc/host-perf-audit.changelog.txt for the full detail):
+#   1.3.20261019.150215 — New copyright: Services-Conseils Linux and Rencontres Linux au Québec contributors (AGPL-3.0-or-later).
 #   1.2.20261016.173838 — Copyright holder: Services-Linux Conseils Inc
 #   1.1.20261016.151148 — Number of logical cores read from /proc/stat (the one measured), not from the machine running the program.
 #   1.0.20261016.114848 — First version: CPU, memory, disks, PSI, network, ZFS (pools, ARC, latency, datasets), guests; verdict, SSD question, --apply.
@@ -40,7 +45,7 @@ import subprocess
 import sys
 import time
 
-__version__ = "1.2.20261016.173838"
+__version__ = "1.3.20261019.150215"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]

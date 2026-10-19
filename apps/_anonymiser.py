@@ -1,7 +1,16 @@
 #!/usr/bin/env python3
+# ========================================================================================================================
+# Copyright (C) 2026 Services-Conseils Linux
+# Copyright (C) 2026 Rencontres Linux au Québec contributors
+#
+# This program is free software: you can redistribute it and/or modify it under the terms of the GNU Affero General Public
+# License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
+# Full text: https://www.gnu.org/licenses/agpl-3.0.html
+# ========================================================================================================================
 # _anonymiser.py — anonymise ce qu'affichent les programmes (option --anonymize) : pseudonymes STABLES (module partagé, apps/).
 #
 # HISTORIQUE DE VERSION (résumé — voir doc/_anonymiser.changelog.txt pour le détail complet) :
+#   1.1.20261019.150215 — New copyright: Services-Conseils Linux and Rencontres Linux au Québec contributors (AGPL-3.0-or-later).
 #   1.0.20261015.143436 — Création : adresses IP (v4, v6), courriels, identifiants (login, user), jetons / mots de passe / cookies, paramètres d'URL ; filtre de lignes ; sel secret par machine.
 """Remplace, dans le texte affiché, les données qui identifient quelqu'un par des PSEUDONYMES STABLES : une même valeur donne toujours le même pseudonyme (on suit « la même
 personne » d'un rapport à l'autre sans pouvoir l'identifier). Le pseudonyme est un HMAC-SHA256 de la valeur avec un SEL SECRET propre à la machine (jamais affiché) : sans le sel,
@@ -23,7 +32,7 @@ import re
 import secrets
 import sys
 
-__version__ = "1.0.20261015.143436"
+__version__ = "1.1.20261019.150215"
 SEL_ENV = "NGINX_TOOLS_ANON_SEL"
 ACTIF_ENV = "NGINX_TOOLS_ANON_ACTIF"          # posé pour tout ce qui est lancé derrière le filtre : rien n'est filtré deux fois
 DEMANDE_ENV = "NGINX_TOOLS_ANONYMIZE"          # 1 : anonymiser (même sans terminal, ex. cron) ; 0 : ne jamais le faire d'après la configuration

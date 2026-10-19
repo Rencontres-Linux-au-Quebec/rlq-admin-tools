@@ -1,7 +1,11 @@
 #!/usr/bin/env python3
 # ========================================================================================================================
-# Copyright (C) 2026  Services-Linux Conseils Inc <Martial@Bigras.ca> <Martial.Bigras@Services-Conseils-Linux.com>
-# Licence : GNU Affero General Public License, version 3 ou ultérieure — https://www.gnu.org/licenses/agpl-3.0.html
+# Copyright (C) 2026 Services-Conseils Linux
+# Copyright (C) 2026 Rencontres Linux au Québec contributors
+#
+# This program is free software: you can redistribute it and/or modify it under the terms of the GNU Affero General Public
+# License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
+# Full text: https://www.gnu.org/licenses/agpl-3.0.html
 # ========================================================================================================================
 #
 # _listes.py — les DEUX listes d'adresses propres à une installation, lues hors des archives (jamais livrées) :
@@ -16,6 +20,7 @@
 # nginx-hardening.sh --update la migre. Variables d'environnement (tests) : NGINX_TOOLS_WHITE_LIST, NGINX_TOOLS_IP_LOCATION (fichier unique).
 #
 # HISTORIQUE DE VERSION (resume — voir doc/_listes.changelog.txt pour le detail complet) :
+#   1.2.20261019.150215 — New copyright: Services-Conseils Linux and Rencontres Linux au Québec contributors (AGPL-3.0-or-later).
 #   1.1.20261016.173838 — Copyright holder: Services-Linux Conseils Inc
 #   1.0.20261007.093208 — Premiere version : liste blanche et lieux, lecteur commun (remplace six analyseurs).
 #
@@ -29,7 +34,7 @@ import os
 import re
 import sys
 
-__version__ = "1.1.20261016.173838"
+__version__ = "1.2.20261019.150215"
 
 BLANCHE_DEFAUT = "/etc/default/nginx-tools-white-list.conf"
 LIEUX_DEFAUT = "/etc/default/nginx-tools-ip-location.conf"

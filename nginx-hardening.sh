@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 # ========================================================================================================================
-# Copyright (C) 2026  Services-Linux Conseils Inc <Martial@Bigras.ca> <Martial.Bigras@Services-Conseils-Linux.com>
+# Copyright (C) 2026 Services-Conseils Linux
+# Copyright (C) 2026 Rencontres Linux au Québec contributors
 #
-# Ce fichier fait partie de la configuration nginx de Rencontres Linux Quebec. Logiciel libre : vous pouvez le
-# redistribuer et/ou le modifier selon les termes de la GNU Affero General Public License publiee par la Free
-# Software Foundation, soit la version 3 de la licence, soit (a votre choix) toute version ulterieure.
-# Texte complet : https://www.gnu.org/licenses/agpl-3.0.html
+# This program is free software: you can redistribute it and/or modify it under the terms of the GNU Affero General Public
+# License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
+# Full text: https://www.gnu.org/licenses/agpl-3.0.html
 # ========================================================================================================================
 #
 # nginx-hardening.sh — installation initiale idempotente : répertoires (ACME, journal catch-all, page de
@@ -16,6 +16,7 @@
 # format et des commentaires propres à chaque installation, trop risqué à éditer à l'aveugle.
 #
 # HISTORIQUE DE VERSION (résumé — voir nginx-hardening.changelog.txt pour le détail complet de chaque version) :
+#   2.50.20261019.150215 — New copyright: Services-Conseils Linux and Rencontres Linux au Québec contributors (AGPL-3.0-or-later).
 #   2.49.20261016.173838 — Ctrl+C works during the e-mail and BBB checks (timeout --foreground)
 #   2.48.20261015.143436 — --anonymize : affichage anonymisé (pseudonymes stables).
 #   2.47.20261015.080630 — Le refus sans root (--update) précède le verrou.
@@ -256,7 +257,7 @@ run() {
     "$@"
 }
 
-readonly SCRIPT_VERSION="2.49.20261016.173838"
+readonly SCRIPT_VERSION="2.50.20261019.150215"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
 SCRIPT_NAME="$(basename "${BASH_SOURCE[0]}" .sh)"; readonly SCRIPT_NAME
 # Langue d'affichage (en ou fr) : --lang, NGINX_HARDENING_LANG, LANGUAGE du fichier de configuration, LC_ALL / LANG — apps/_i18n.sh traduit la sortie (rien ne change en français).

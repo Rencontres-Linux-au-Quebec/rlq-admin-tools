@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 # ========================================================================================================================
-# Copyright (C) 2026  Services-Linux Conseils Inc <Martial@Bigras.ca> <Martial.Bigras@Services-Conseils-Linux.com>
+# Copyright (C) 2026 Services-Conseils Linux
+# Copyright (C) 2026 Rencontres Linux au Québec contributors
 #
-# This file is part of the nginx configuration of Rencontres Linux Québec. Free software: you can
-# redistribute it and/or modify it under the terms of the GNU Affero General Public License published by the Free
-# Software Foundation, either version 3 of the License, or (at your option) any later version.
+# This program is free software: you can redistribute it and/or modify it under the terms of the GNU Affero General Public
+# License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
 # Full text: https://www.gnu.org/licenses/agpl-3.0.html
 # ========================================================================================================================
 #
@@ -61,6 +61,7 @@
 # BigBlueButton (file journals): the nginx and bbb-web journals are followed (tail -F), without names of people or presence.
 #
 # VERSION HISTORY (summary — see doc/app-log-live.changelog.txt for the full detail):
+#   1.86.20261019.150215 — --diagnose / D key: nginx configuration versions with their dates (archive, README journal, deployed files, last reload); new copyright.
 #   1.85.20261017.200717 — RLQ* groups shown as « RLQ23-Bénévole = 11 » (no « member(s) »), columns narrower.
 #   1.84.20261016.173838 — I key: registrations per event and ticket with THE survey of the ticket; sent e-mails named; Ctrl-C of the child programs
 #   1.83.20261016.160728 — --truncate [N] (lines cut to 2 × $COLUMNS); SSH accounts with their number of sessions; RLQ* groups on 4 / 2 columns; colored numbers no longer leave English in the French display.
@@ -187,7 +188,7 @@ from urllib.parse import unquote
 from collections import Counter, OrderedDict
 from concurrent.futures import Future
 
-__version__ = "1.85.20261017.200717"
+__version__ = "1.86.20261019.150215"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
@@ -2082,6 +2083,132 @@ def site_diagnostic(profile, service, extra_hosts=()):
     return res + public_certificates(list(names[:6]) + list(extra_hosts))
 
 
+# --- 1.86: versions of the nginx configuration and their dates (--diagnose, D key) -------------------------------------------------------------------
+NGINX_ETC = os.environ.get("APP_LOG_LIVE_NGINX_ETC", "/etc/nginx")
+NGINX_CONFIG_PARTS = ("conf.d", "sites-available", "snippets", "fail2ban")          # parts of nginx-odoo-config.zip copied under /etc/nginx
+JOURNAL_DATE_RE = re.compile(r"(\d{4}-\d{2}-\d{2})(?:[ T](\d{2}:\d{2}))?")
+VERSION_DATE_RE = re.compile(r"^(\d+\.\d+)(?:\.(\d{4})(\d{2})(\d{2})(?:\.(\d{2})(\d{2})\d{2})?)?$")
+
+
+def file_date(path):
+    """Local date and time of the last modification of a file (« 2026-10-17 09:12 »), None if unreadable."""
+    try:
+        return time.strftime("%Y-%m-%d %H:%M", time.localtime(os.path.getmtime(path)))
+    except OSError:
+        return None
+
+
+def nginx_reloaded_at():
+    """Local date and time of the last load of the nginx configuration: start of the oldest CURRENT worker (a reload replaces them all); None if unknown."""
+    try:
+        with open("/proc/stat") as f:
+            btime = next(int(l.split()[1]) for l in f if l.startswith("btime"))
+        tck = os.sysconf("SC_CLK_TCK")
+        starts = []
+        for pid in (x for x in os.listdir("/proc") if x.isdigit()):
+            try:
+                with open(f"/proc/{pid}/cmdline", "rb") as f:
+                    if f.read().replace(b"\0", b" ").strip() != b"nginx: worker process":
+                        continue
+                with open(f"/proc/{pid}/stat") as f:
+                    starts.append(btime + int(f.read().rsplit(")", 1)[1].split()[19]) / tck)
+            except (OSError, ValueError, IndexError):
+                continue
+    except (OSError, StopIteration, ValueError):
+        return None
+    return time.strftime("%Y-%m-%d %H:%M", time.localtime(min(starts))) if starts else None
+
+
+def nginx_config_archive():
+    """Folder nginx-odoo/ of the last nginx-odoo-config.zip unpacked next to the programs (deployment: « unzip nginx-odoo-config.X.Y.zip » in the folder of
+    the programs), or None."""
+    for folder in (os.path.join(SCRIPT_DIR, "nginx-odoo"), os.path.join(os.path.dirname(SCRIPT_DIR), "nginx-odoo")):
+        if os.path.isfile(os.path.join(folder, "VERSION")):
+            return folder
+    return None
+
+
+def version_text(version):
+    """« 1.11 » or « 1.11.20261016.173838 » -> « 1.11 (2026-10-16 17:38) » when the version carries its date; as is otherwise."""
+    m = VERSION_DATE_RE.match(version.strip())
+    if m and m.group(2):
+        return f"{m.group(1)} ({m.group(2)}-{m.group(3)}-{m.group(4)}" + (f" {m.group(5)}:{m.group(6)}" if m.group(5) else "") + ")"
+    return version.strip() or "?"
+
+
+def nginx_config_versions(limit=5):
+    """1.86: lines « nginx configuration »: version of the nginx-odoo-config archive unpacked next to the programs (VERSION) and the date of its file, the
+    latest DATED lines of its journal (README.md: one line per modification), then the files deployed under /etc/nginx compared with the archive (identical,
+    different, absent) with their modification date, and the last reload of nginx. Without the archive: the most recently modified files of /etc/nginx."""
+    lines = []
+    archive = nginx_config_archive()
+    deployed = []                                       # (date, relative path, state)
+    if archive:
+        try:
+            with open(os.path.join(archive, "VERSION"), encoding="utf-8", errors="replace") as f:
+                version = f.read().strip()
+        except OSError:
+            version = "?"
+        lines.append(f"  Archive nginx-odoo-config: version {color_code('1;36', version_text(version))}"
+                     + color_code("90", f" — {archive} (VERSION modified {file_date(os.path.join(archive, 'VERSION')) or '?'})"))
+        journal = []
+        try:
+            with open(os.path.join(archive, "README.md"), encoding="utf-8", errors="replace") as f:
+                for text_line in f:
+                    m = JOURNAL_DATE_RE.search(text_line)
+                    if m and text_line.lstrip()[:1] in "-*|#0123456789":
+                        rest = (text_line[:m.start()] + text_line[m.end():]).strip(" -*|#:—\t\n")
+                        journal.append((m.group(1) + (" " + m.group(2) if m.group(2) else ""), " ".join(rest.split())))
+        except OSError:
+            pass
+        if journal:
+            lines.append(f"  Latest changes of the nginx configuration (README.md journal, {len(journal)} dated line(s)):")
+            for when, text_value in sorted(journal, key=lambda j: j[0], reverse=True)[:limit]:
+                lines.append(f"    {color_code('36', when)}  {text_value[:150]}")
+        for part in NGINX_CONFIG_PARTS:
+            for root, _dirs, files in os.walk(os.path.join(archive, part)):
+                for name in sorted(files):
+                    rel = os.path.relpath(os.path.join(root, name), archive)
+                    target = os.path.join(NGINX_ETC, rel)
+                    if not os.path.isfile(target):
+                        deployed.append((None, rel, "absent"))
+                        continue
+                    try:
+                        with open(os.path.join(root, name), "rb") as a, open(target, "rb") as b:
+                            state = "identical" if a.read() == b.read() else "different"
+                    except OSError:
+                        state = "unreadable"
+                    deployed.append((file_date(target), rel, state))
+        counts = collections.Counter(st for _, _, st in deployed)
+        lines.append(f"  Deployed under {NGINX_ETC}: " + (" · ".join(f"{counts[k]} {k}" for k in ("identical", "different", "absent", "unreadable") if counts[k]) or "nothing to compare")
+                     + color_code("90", " (files of the archive compared with the deployed ones; absent: not used on this server, or not yet deployed)"))
+        for when, rel, state in sorted((d for d in deployed if d[2] != "absent"), key=lambda d: d[0] or "", reverse=True)[:limit]:
+            style = "1;32" if state == "identical" else ORANGE
+            lines.append(f"    {color_code('36', when or '?')}  {rel}  {color_code(style, state)}")
+        if counts["different"]:
+            lines.append("    " + color_code(ORANGE, "⚠ files different from the archive: ") + ", ".join(rel for _, rel, st in deployed if st == "different")[:300]
+                         + color_code("90", " — copy them from nginx-odoo/ (doc/CONTEXTE.md section 5), then nginx -t && systemctl reload nginx"))
+    else:
+        files = []
+        for part in NGINX_CONFIG_PARTS + ("sites-enabled",):
+            for root, _dirs, names in os.walk(os.path.join(NGINX_ETC, part)):
+                files += [(file_date(os.path.join(root, n)), os.path.relpath(os.path.join(root, n), NGINX_ETC)) for n in names]
+        files.append((file_date(os.path.join(NGINX_ETC, "nginx.conf")), "nginx.conf"))
+        files = [f for f in files if f[0]]
+        lines.append(f"  Archive nginx-odoo-config: not found next to the programs ({os.path.join(SCRIPT_DIR, 'nginx-odoo')}/VERSION) — version unknown")
+        if files:
+            lines.append(f"  Most recently modified files of {NGINX_ETC} ({len(files)} file(s)):")
+            for when, rel in sorted(files, reverse=True)[:limit]:
+                lines.append(f"    {color_code('36', when)}  {rel}")
+        else:
+            lines.append(f"  {NGINX_ETC}: no configuration file readable (root required?)")
+    reloaded = nginx_reloaded_at()
+    newest = max([d[0] for d in deployed if d[0]] or [""])
+    lines.append("  Last reload of nginx: " + (color_code("36", reloaded) if reloaded else "unknown (no worker process visible)")
+                 + (color_code(ORANGE, f" — ⚠ older than a deployed file ({newest}): nginx -t && systemctl reload nginx") if reloaded and newest and newest > reloaded else ""))
+    return lines
+
+
 def show_diagnostic(profile, service, write_line=print, color=True, extra_hosts=()):
     """Writes the diagnostic; code 1 if there is a FAIL, otherwise 0."""
     codes = {"OK": "1;32", "WARN": ORANGE, "FAIL": "1;31"}
@@ -2097,6 +2224,9 @@ def show_diagnostic(profile, service, write_line=print, color=True, extra_hosts=
         write_line(f"  ⇒ {len(failures)} problem(s): fix them in the order above (the first is the most likely), then press the D key again.")
     else:
         write_line("  ⇒ Everything answers. If your browser still shows the maintenance page: Ctrl+Shift+R (cache), or purge the cache of the CDN / proxy in front of the site. A certificate error in the browser (net::ERR_CERT_…) is read in the « Certificate » lines above.")
+    write_line("──── nginx configuration: versions and dates ────")          # 1.86
+    for text_line in nginx_config_versions():
+        write_line(text_line if color else ANSI_RE.sub("", text_line))
     return 1 if failures else 0
 
 
@@ -5024,7 +5154,7 @@ def main():
     parser.add_argument("--days", type=int, default=DAYS_DEFAULT, metavar="N",
                         help="Days of sign-in history read from the log (default: 0 = the whole history of the log)")
     parser.add_argument("--diagnose", action="store_true",
-                        help="Site diagnosis (why the maintenance page shows: service, Odoo ports, nginx upstream, firewall) then exits; code 1 if there is a problem")
+                        help="Site diagnosis (why the maintenance page shows: service, Odoo ports, nginx upstream, firewall) and the versions of the nginx configuration with their dates, then exits; code 1 if there is a problem")
     parser.add_argument("--diagnose-host", action="append", default=[], metavar="NOM",
                         help="With --diagnose (or the D key): also check the certificate seen by the Internet for this name (repeatable), even if it is served by ANOTHER server")
     parser.add_argument("--disk-min", type=float, default=DISK_MIN_DEFAULT, metavar="GB",

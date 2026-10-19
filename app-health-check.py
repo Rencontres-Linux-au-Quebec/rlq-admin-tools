@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 # ========================================================================================================================
-# Copyright (C) 2026  Services-Linux Conseils Inc <Martial@Bigras.ca> <Martial.Bigras@Services-Conseils-Linux.com>
+# Copyright (C) 2026 Services-Conseils Linux
+# Copyright (C) 2026 Rencontres Linux au Québec contributors
 #
-# This file is part of the nginx configuration of Rencontres Linux Québec. Free software: you can
-# redistribute it and/or modify it under the terms of the GNU Affero General Public License published by the Free
-# Software Foundation, either version 3 of the License, or (at your option) any later version.
+# This program is free software: you can redistribute it and/or modify it under the terms of the GNU Affero General Public
+# License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
 # Full text: https://www.gnu.org/licenses/agpl-3.0.html
 # ========================================================================================================================
 #
@@ -12,6 +12,7 @@
 # cron (2-3 times a day recommended). No external dependency: only the Python 3 standard library.
 #
 # VERSION HISTORY (summary — see doc/app-health-check.changelog.txt for the full detail):
+#   2.25.20261019.150215 — New copyright: Services-Conseils Linux and Rencontres Linux au Québec contributors (AGPL-3.0-or-later).
 #   2.24.20261017.105442 — Options line: which setting decided the display language (apps/_i18n.py 1.17).
 #   2.23.20261016.173838 — Copyright holder: Services-Linux Conseils Inc
 #   2.22.20261015.211324 — Source code, comments and changelog in English (display stays French/English via lang/app-health-check.fr.po).
@@ -112,7 +113,7 @@ import sys
 import time
 from urllib.parse import urlparse, parse_qs, unquote
 
-__version__ = "2.24.20261017.105442"
+__version__ = "2.25.20261019.150215"
 # Marker added at the END of the « browser » User-Agent (2.2): our test requests are recognizable in all the
 # logs (nginx, Odoo) and excluded from the statistics by web-monitor.py. Matches no pattern of the bot filter.
 UA_MARKER = " app-health-check/" + ".".join(__version__.split(".")[:2])

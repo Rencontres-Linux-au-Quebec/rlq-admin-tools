@@ -1,8 +1,3 @@
-# ========================================================================================================================
-# Copyright (C) 2026  Services-Linux Conseils Inc <Martial@Bigras.ca> <Martial.Bigras@Services-Conseils-Linux.com>
-# AGPL-3.0-or-later — voir nginx-hardening.sh pour le texte complet de la licence.
-# ========================================================================================================================
-#
 # Fichier de configuration de nginx-hardening.sh (exemple : toutes les clés, en commentaire = valeur par défaut).
 # Les fichiers suivants sont LUS DANS CET ORDRE (le dernier l'emporte) ; la ligne de commande est prioritaire sur les fichiers :
 #   1. /etc/default/nginx-hardening.conf    (fichier du système)

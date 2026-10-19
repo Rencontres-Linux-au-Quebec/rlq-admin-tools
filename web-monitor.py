@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 # ========================================================================================================================
-# Copyright (C) 2026  Services-Linux Conseils Inc <Martial@Bigras.ca> <Martial.Bigras@Services-Conseils-Linux.com>
+# Copyright (C) 2026 Services-Conseils Linux
+# Copyright (C) 2026 Rencontres Linux au Québec contributors
 #
-# This file is part of the nginx configuration of Rencontres Linux Québec. Free software: you can
-# redistribute it and/or modify it under the terms of the GNU Affero General Public License published by the Free
-# Software Foundation, either version 3 of the License, or (at your option) any later version.
+# This program is free software: you can redistribute it and/or modify it under the terms of the GNU Affero General Public
+# License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
 # Full text: https://www.gnu.org/licenses/agpl-3.0.html
 # ========================================================================================================================
 #
@@ -34,6 +34,7 @@
 # the complete report /var/log/web-monitor/, always written (30 days kept).
 #
 # VERSION HISTORY (summary — see web-monitor.changelog.txt for the full detail):
+#   2.72.20261019.150215 — New copyright: Services-Conseils Linux and Rencontres Linux au Québec contributors (AGPL-3.0-or-later).
 #   2.71.20261019.115217 — Fix: field and sort keys, option names shown in English in every language (« browsers », not « navigateurs »); French field names accepted.
 #   2.70.20261019.012211 — --table: every 5th line underlined; « Account created », « IP country » (RDAP / whois) and « VPN » (VPN, Tor, relay, hosting) columns; --sort created|vpn.
 #   2.69.20261017.214019 — --table: « IP seen » column, title of the sorted column in color, tags off by default; keys CSV, GROUP, INTERNET; config keys never start --list-users.
@@ -187,7 +188,7 @@ import time
 import unicodedata
 import urllib.parse
 
-__version__ = "2.71.20261019.115217"
+__version__ = "2.72.20261019.150215"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]

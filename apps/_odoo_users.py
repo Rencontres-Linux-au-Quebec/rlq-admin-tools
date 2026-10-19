@@ -1,7 +1,11 @@
 #!/usr/bin/env python3
 # ========================================================================================================================
-# Copyright (C) 2026  Services-Linux Conseils Inc <Martial@Bigras.ca> <Martial.Bigras@Services-Conseils-Linux.com>
-# License: GNU Affero General Public License, version 3 or later — https://www.gnu.org/licenses/agpl-3.0.html
+# Copyright (C) 2026 Services-Conseils Linux
+# Copyright (C) 2026 Rencontres Linux au Québec contributors
+#
+# This program is free software: you can redistribute it and/or modify it under the terms of the GNU Affero General Public
+# License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
+# Full text: https://www.gnu.org/licenses/agpl-3.0.html
 # ========================================================================================================================
 #
 # _odoo_users.py — register of the Odoo accounts BANNED or WATCHED by web-monitor.py (--ban-odoo-user, --watch-odoo-user) (shared module, apps/).
@@ -10,6 +14,7 @@
 # and app-log-live.py (mark of a watched or banned account).
 #
 # VERSION HISTORY (summary — see doc/_odoo_users.changelog.txt for the full detail):
+#   1.2.20261019.150215 — New copyright: Services-Conseils Linux and Rencontres Linux au Québec contributors (AGPL-3.0-or-later).
 #   1.1.20261016.173838 — Copyright holder: Services-Linux Conseils Inc
 #   1.0.20261016.114848 — First version: register of banned and watched Odoo accounts.
 """Register of banned / watched Odoo accounts.
@@ -20,7 +25,7 @@ events: banned, unbanned (ban state), watched, unwatched (watch state). The form
 import datetime
 import os
 
-__version__ = "1.1.20261016.173838"
+__version__ = "1.2.20261019.150215"
 
 DEFAULT_PATH = "/var/lib/nginx-tools/odoo-users.tsv"
 BAN_EVENTS = ("banned", "unbanned")

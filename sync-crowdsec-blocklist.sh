@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 # ========================================================================================================================
-# Copyright (C) 2026  Services-Linux Conseils Inc <Martial@Bigras.ca> <Martial.Bigras@Services-Conseils-Linux.com>
+# Copyright (C) 2026 Services-Conseils Linux
+# Copyright (C) 2026 Rencontres Linux au Québec contributors
 #
-# Ce fichier fait partie de la configuration nginx de Rencontres Linux Quebec. Logiciel libre : vous pouvez le
-# redistribuer et/ou le modifier selon les termes de la GNU Affero General Public License publiee par la Free
-# Software Foundation, soit la version 3 de la licence, soit (a votre choix) toute version ulterieure.
-# Texte complet : https://www.gnu.org/licenses/agpl-3.0.html
+# This program is free software: you can redistribute it and/or modify it under the terms of the GNU Affero General Public
+# License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
+# Full text: https://www.gnu.org/licenses/agpl-3.0.html
 # ========================================================================================================================
 #
 # sync-crowdsec-blocklist.sh — importe la liste communautaire de CrowdSec (CAPI) dans deux ipsets dedies (IPv4 et
@@ -29,6 +29,7 @@
 # CrowdSec, ~toutes les 2h, sans compte CrowdSec). Projet tiers, pas un service officiel de CrowdSec.
 #
 # HISTORIQUE DE VERSION (resume — voir sync-crowdsec-blocklist.changelog.txt pour le detail complet) :
+#   1.24.20261019.150215 — New copyright: Services-Conseils Linux and Rencontres Linux au Québec contributors (AGPL-3.0-or-later).
 #   1.23.20261016.173838 — Copyright holder: Services-Linux Conseils Inc
 #   1.22.20261015.143436 — --anonymize : affichage anonymisé (pseudonymes stables).
 #   1.21.20261012.103600 — Fichier de configuration créé au premier démarrage (toutes les options en commentaire) ; modèle doc/sync-crowdsec-blocklist.conf.example complété.
@@ -120,7 +121,7 @@ grep_q() { grep "$@" >/dev/null; }
 #                              ne peut pas le voir, le texte etant entre apostrophes (faux positif).
 trap 'ec=$?; echo "" >&2; echo "*** ARRÊT INATTENDU DU SCRIPT (code $ec) À LA LIGNE $LINENO ***" >&2; echo "*** Commande fautive : $BASH_COMMAND" >&2' ERR
 
-readonly SCRIPT_VERSION="1.23.20261016.173838"
+readonly SCRIPT_VERSION="1.24.20261019.150215"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
 SCRIPT_NAME="$(basename "${BASH_SOURCE[0]}" .sh)"; readonly SCRIPT_NAME
 # Changelog dans le sous-repertoire doc/ ; repli sur l'ancien emplacement (a cote du programme) tant que

@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 # ========================================================================================================================
-# Copyright (C) 2026  Services-Linux Conseils Inc <Martial@Bigras.ca> <Martial.Bigras@Services-Conseils-Linux.com>
+# Copyright (C) 2026 Services-Conseils Linux
+# Copyright (C) 2026 Rencontres Linux au Québec contributors
 #
-# This file is part of the nginx configuration of Rencontres Linux Québec. Free software: you can
-# redistribute it and/or modify it under the terms of the GNU Affero General Public License published by the Free
-# Software Foundation, either version 3 of the License, or (at your option) any later version.
+# This program is free software: you can redistribute it and/or modify it under the terms of the GNU Affero General Public
+# License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
 # Full text: https://www.gnu.org/licenses/agpl-3.0.html
 # ========================================================================================================================
 #
@@ -15,6 +15,7 @@
 # final message to spot a recurring bug at a glance.
 #
 # VERSION HISTORY (summary — see app-log-check.changelog.txt for full detail):
+#   2.22.20261019.150215 — New copyright: Services-Conseils Linux and Rencontres Linux au Québec contributors (AGPL-3.0-or-later).
 #   2.21.20261016.173838 — Copyright holder: Services-Linux Conseils Inc
 #   2.20.20261015.215241 — Source code, comments and changelog in English (display stays French/English via lang/app-log-check.fr.po).
 #   2.19.20261015.080630 — « Limited rights (not root) » notice at startup.
@@ -106,7 +107,7 @@ import urllib.parse
 from collections import Counter, OrderedDict
 from datetime import datetime, timedelta
 
-__version__ = "2.21.20261016.173838"
+__version__ = "2.22.20261019.150215"
 
 DEFAULT_SERVICE = "erplibre_erplibre.service"
 STATE_DIR = os.environ.get("APP_LOG_CHECK_STATE_DIR") or os.path.expanduser("~/.local/state/app-log-check")

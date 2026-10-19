@@ -1,7 +1,11 @@
 #!/usr/bin/env python3
 # ========================================================================================================================
-# Copyright (C) 2026  Services-Linux Conseils Inc <Martial@Bigras.ca> <Martial.Bigras@Services-Conseils-Linux.com>
-# License: GNU Affero General Public License, version 3 or later — https://www.gnu.org/licenses/agpl-3.0.html
+# Copyright (C) 2026 Services-Conseils Linux
+# Copyright (C) 2026 Rencontres Linux au Québec contributors
+#
+# This program is free software: you can redistribute it and/or modify it under the terms of the GNU Affero General Public
+# License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
+# Full text: https://www.gnu.org/licenses/agpl-3.0.html
 # ========================================================================================================================
 #
 # _sysperf.py — performance counters of the machine read from /proc and /sys, WITHOUT any external command (shared module, apps/):
@@ -10,6 +14,7 @@
 # host-perf-audit.py (Proxmox host: what limits the performance).
 #
 # VERSION HISTORY (summary — see doc/_sysperf.changelog.txt for the full detail):
+#   1.2.20261019.150215 — New copyright: Services-Conseils Linux and Rencontres Linux au Québec contributors (AGPL-3.0-or-later).
 #   1.1.20261016.173838 — Copyright holder: Services-Linux Conseils Inc
 #   1.0.20261016.114848 — First version: snapshot() and rates() over /proc/stat, /proc/pressure, cgroup v2, /proc/diskstats, /proc/meminfo,
 #                         /proc/net/dev, ZFS arcstats.
@@ -26,7 +31,7 @@ import os
 import re
 import time
 
-__version__ = "1.1.20261016.173838"
+__version__ = "1.2.20261019.150215"
 
 ROOT = os.environ.get("NGINX_TOOLS_PROC_ROOT", "")
 SKIP_DEVICES = ("loop", "ram", "zram", "sr", "fd", "nbd")

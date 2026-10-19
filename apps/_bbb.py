@@ -1,7 +1,11 @@
 #!/usr/bin/env python3
 # ========================================================================================================================
-# Copyright (C) 2026  Services-Linux Conseils Inc <Martial@Bigras.ca> <Martial.Bigras@Services-Conseils-Linux.com>
-# Licence : GNU Affero General Public License, version 3 ou ultérieure — https://www.gnu.org/licenses/agpl-3.0.html
+# Copyright (C) 2026 Services-Conseils Linux
+# Copyright (C) 2026 Rencontres Linux au Québec contributors
+#
+# This program is free software: you can redistribute it and/or modify it under the terms of the GNU Affero General Public
+# License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
+# Full text: https://www.gnu.org/licenses/agpl-3.0.html
 # ========================================================================================================================
 #
 # _bbb.py — état de BigBlueButton : versions (paquets, Greenlight), empreinte des fichiers de configuration GÉRÉS PAR BBB
@@ -10,6 +14,7 @@
 # Utilisé par nginx-hardening.sh (--before au début, --after à la fin) et par web-monitor.py --summary (fonction resume).
 #
 # HISTORIQUE DE VERSION (resume — voir doc/_bbb.changelog.txt pour le detail complet) :
+#   1.3.20261019.150215 — New copyright: Services-Conseils Linux and Rencontres Linux au Québec contributors (AGPL-3.0-or-later).
 #   1.2.20261016.173838 — Copyright holder: Services-Linux Conseils Inc
 #   1.1.20261002.073514 — Instantane d'un autre emplacement ignore ; jamais d'ecriture du vrai instantane sous les tests ; --verbose.
 #   1.0.20261001.143624 — Premiere version : versions, fichiers de BBB et les notres, compatibilite, instantane avant/apres.
@@ -32,7 +37,7 @@ import ssl
 import subprocess
 import sys
 
-__version__ = "1.2.20261016.173838"
+__version__ = "1.3.20261019.150215"
 
 ETC_BBB = os.environ.get("NGINX_TOOLS_BBB_ETC", "/etc/bigbluebutton")
 NGINX_BBB = os.environ.get("NGINX_HARDENING_BBB_NGINX_DIR", os.path.join(ETC_BBB, "nginx"))
