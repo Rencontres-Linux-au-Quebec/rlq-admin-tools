@@ -1,0 +1,37 @@
+# Traduction en en des messages de _listes.sh (msgid = fragment français du code, msgstr = traduction).
+# Format PO standard : Poedit, Weblate, Crowdin… Un msgstr vide = non traduit ; identique au msgid = valable dans les deux langues.
+# Les fragments sont des morceaux de phrases : garder les espaces de début et de fin, et l'ordre des morceaux.
+msgid ""
+msgstr ""
+"Project-Id-Version: _listes.sh\n"
+"Language: en\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+msgid "inconnue:"
+msgstr "unknown:"
+
+msgid "liste blanche "
+msgstr "white list "
+
+msgid " adresse(s))"
+msgstr " address(es))"
+
+msgid " — ANCIEN emplacement, à migrer : nginx-hardening.sh --update"
+msgstr " — OLD location, to be migrated: nginx-hardening.sh --update"
+
+msgid "liste blanche : aucun fichier"
+msgstr "white list: no file"
+
+msgid "lieux : aucun fichier"
+msgstr "places: no file"
+
+msgid "Listes : "
+msgstr "Lists: "
+
+msgid "lieux "
+msgstr "places "
+
+msgid " plage(s))"
+msgstr " range(s))"

@@ -1,0 +1,45 @@
+Changelog — apps/_odoo_users.py
+(newest version first)
+
+## 1.1.20261016.173838 — Copyright holder: Services-Linux Conseils Inc
+
+Reason:
+  « [1] Il faudrait changer le copywrite de RLQ à Services-Linux Conseils Inc, le courriel reste toujours contact@exemple.org et tu peux rajouter contact@exemple.org »
+
+Changes:
+  - Header: « Copyright (C) 2026  Services-Conseils Linux » (was: Rencontres Linux Québec <info@rencontres-linux.quebec>). No change of behavior.
+
+Bugs fixed:
+  none.
+
+Safeguards and edge cases:
+  none.
+
+Checks:
+  - Test suite (run-all.sh), ruff / ShellCheck.
+
+Action required:
+  none.
+
+## 1.0.20261016.114848 — First version: register of banned and watched Odoo accounts
+
+Reason:
+  "[0] When registering for an event in Odoo, validate that people wrote a valid e-mail (example: marieb.essai@gmail'com); add a menu option to list the e-mail errors caused by a wrong address, fix the user's contact and resend the e-mail. [1] In app-log-live.py, show what causes the most latency (SATA, not SSD, with ZFS on Proxmox): % used for I/O over several hours, to decide whether SSD are justified. [2] A program to run on the Proxmox server that details what causes performance problems (CPU, MEM, IO, NET) and suggests settings (ZFS…), light on resources. [3] Alignment problem with Chinese characters in web-monitor.py --list-users --table; a new account (Chinese name) may be a hacker: add a section for suspicious activity of a logged-in Odoo user — do not always trust them. [4] List the suspicious users, offer to investigate all the IPs of a user and blacklist them so they cannot log in to Odoo any more: --ban-odoo-user and --unban-odoo-user, but investigate more before banning (search the e-mail on the Internet, etc.)."
+
+Changes:
+  - record(), events(), state(), banned_logins(), watched_logins(): one tab-separated line per event (date, banned / unbanned / watched / unwatched,
+    database, UID, login, addresses, reason) in /var/lib/nginx-tools/odoo-users.tsv (NGINX_TOOLS_ODOO_USERS; "off" disables it); the LAST event of an
+    account decides its state; the history is never rewritten.
+  - Read by web-monitor.py (summary, ban, watch), nginx-log-audit.sh (awk) and app-log-live.py (marks).
+
+Bugs fixed:
+  none.
+
+Safeguards and edge cases:
+  - Directory 700, file 600 (an Odoo login is personal data); tabs and line breaks removed from the fields; unknown event refused.
+
+Checks:
+  test_odoo_users.Registre; the run-all.sh sentinel watches the real file (never written by the tests).
+
+Action required:
+  none.

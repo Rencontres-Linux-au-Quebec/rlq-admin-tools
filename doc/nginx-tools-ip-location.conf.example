@@ -1,0 +1,13 @@
+# nginx-tools-ip-location.conf — LIEUX : un nom pour une adresse ou une plage. Descriptif : ne donne AUCUN accès (c'est la liste blanche).
+# Lu dans /etc/default/nginx-tools-ip-location.conf puis ~/.nginx-tools-ip-location.cfg (les deux comptent ; la plage la plus précise gagne).
+# Syntaxe :   ADRESSE-OU-PLAGE   # libellé   [option] [option]
+#   [partagée]  plusieurs personnes derrière la même adresse : les programmes affichent le LIEU, jamais un nom de personne
+#               (app-log-live.py : « Université exemple » au lieu de « Étienne +3 autre(s) compte(s) »)
+#               nginx (nginx-odoo-config 1.9) leur applique des limites de débit PLUS LARGES (3 fois le débit général, 5 fois les tentatives de connexion) :
+#               une salle qui se connecte ou s'inscrit en même temps ne reçoit pas de 429. Fichier généré par nginx-hardening.sh --update (shared-ips-geo.conf).
+#   [protégée]  jamais bannie, ni recommandée au bannissement (sans donner d'accès) ; fail2ban l'ignore aussi (échecs de mot de passe compris).
+#               Un réseau [partagée] DOIT aussi être [protégée] pour que quelques mots de passe erronés dans la salle ne bannissent pas toute l'université.
+# Exemples :
+#   192.0.2.0/24       # Université exemple     [partagée]
+#   198.51.100.7       # Bureau de Montréal     [partagée] [protégée]
+#   203.0.113.0/28     # Maison de Étienne

@@ -1,0 +1,1921 @@
+# Traduction en en des messages de nginx-hardening.sh (msgid = fragment français du code, msgstr = traduction).
+# Format PO standard : Poedit, Weblate, Crowdin… Un msgstr vide = non traduit ; identique au msgid = valable dans les deux langues.
+# Les fragments sont des morceaux de phrases : garder les espaces de début et de fin, et l'ordre des morceaux.
+msgid ""
+msgstr ""
+"Project-Id-Version: nginx-hardening.sh\n"
+"Language: en\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+msgid "*** ARRÊT INATTENDU DU SCRIPT (code "
+msgstr "*** UNEXPECTED SCRIPT STOP (code "
+
+msgid ") À LA LIGNE "
+msgstr ") AT LINE "
+
+msgid "Migration (renommage des programmes, version 2.0) : "
+msgstr "Migration (program renaming, version 2.0): "
+
+msgid "Changelog introuvable : "
+msgstr "Changelog not found: "
+
+msgid "Usage : nginx-hardening.sh [OPTION]..."
+msgstr "Usage: nginx-hardening.sh [OPTION]..."
+
+msgid "Setup initial et audit du serveur (nginx, pare-feu, Odoo, fail2ban, journaux, courriel). Par défaut (sans --update) :"
+msgstr "Initial setup and audit of the server (nginx, firewall, Odoo, fail2ban, logs, e-mail). By default (without --update):"
+
+msgid "vérification seule, rien n'est modifié."
+msgstr "check only, nothing is changed."
+
+msgid "Options (par ordre alphabétique) :"
+msgstr "Options (in alphabetical order):"
+
+msgid "  --app NAME                   application derrière nginx (profil apps/NAME.conf : odoo, bbb…) ; détectée par défaut"
+msgstr "  --app NAME                   application behind nginx (profile apps/NAME.conf: odoo, bbb…); detected by default"
+
+msgid "  -c, --config FILE            fichier de configuration à lire SEUL (défaut : /etc/default/nginx-hardening.conf puis ~/.nginx-hardening.cfg)"
+msgstr "  -c, --config FILE            configuration file to read ALONE (default: /etc/default/nginx-hardening.conf then ~/.nginx-hardening.cfg)"
+
+msgid "  --changelog                  affiche le journal des modifications"
+msgstr "  --changelog                  show the change log"
+
+msgid "  --check                      vérification seule (comportement par défaut)"
+msgstr "  --check                      check only (default behaviour)"
+
+msgid "  -h, --help                   affiche cette aide et quitte"
+msgstr "  -h, --help                   show this help and exit"
+
+msgid "  --lang LANG                  langue d'affichage : en ou fr (défaut : selon LC_ALL / LC_MESSAGES / LANG)"
+msgstr "  --lang LANG                  display language: en or fr (default: from LC_ALL / LC_MESSAGES / LANG)"
+
+msgid "  --log-retention-months N     durée de conservation des journaux visée par l'étape 11 (1 à 24 mois, défaut : 3)"
+msgstr "  --log-retention-months N     log retention targeted by step 11 (1 to 24 months, default: 3)"
+
+msgid "  --odoo-conf FILE            configuration d'Odoo (défaut : emplacements connus d'ERPLibre)"
+msgstr "  --odoo-conf FILE            Odoo configuration (default: known ERPLibre locations)"
+
+msgid "  --odoo-gevent-port PORT      port gevent (websocket) d'Odoo à vérifier (défaut : celui du profil)"
+msgstr "  --odoo-gevent-port PORT      Odoo gevent (websocket) port to check (default: that of the profile)"
+
+msgid "  --odoo-http-port PORT        port HTTP d'Odoo à vérifier (défaut : celui du profil)"
+msgstr "  --odoo-http-port PORT        Odoo HTTP port to check (default: that of the profile)"
+
+msgid "  --odoo-service NAME         unité systemd d'Odoo (défaut : détectée)"
+msgstr "  --odoo-service NAME         Odoo systemd unit (default: detected)"
+
+msgid "  --report-err                 afficher à la fin un rapport d'erreurs à copier-coller (programme, version, serveur,"
+msgstr "  --report-err                 print at the end an error report to copy and paste (program, version, server,"
+
+msgid "                               échecs, avertissements) ; désactive couleurs et questions interactives"
+msgstr "                               failures, warnings); disables colours and interactive questions"
+
+msgid "  --update                     installer ou mettre à jour ce qui manque (sauvegarde des fichiers modifiés)"
+msgstr "  --update                     install or update what is missing (modified files are backed up)"
+
+msgid "  -v, --verbose                affiche chaque commande lancée"
+msgstr "  -v, --verbose                show every command run"
+
+msgid "  --version                    affiche la version et quitte"
+msgstr "  --version                    show the version and exit"
+
+msgid "  --workers N                  nombre de workers pour la suggestion de limites mémoire (étape 6)"
+msgstr "  --workers N                  number of workers for the memory-limit suggestion (step 6)"
+
+msgid "Argument inconnu: "
+msgstr "Unknown argument: "
+
+msgid "ERREUR: une autre exécution de "
+msgstr "ERROR: another run of "
+
+msgid " est en cours (verrou "
+msgstr " is in progress (lock "
+
+msgid ") — abandon."
+msgstr ") — aborting."
+
+msgid "ERREUR: ce script doit être exécuté en root (sudo) pour --update."
+msgstr "ERROR: this script must be run as root (sudo) for --update."
+
+msgid " VÉRIFICATION DU SETUP INITIAL (rien n'est modifié — relancer avec --update pour appliquer)"
+msgstr " INITIAL SETUP CHECK (nothing is changed — rerun with --update to apply)"
+
+msgid " INSTALLATION / MISE À JOUR DU SETUP INITIAL (--update)"
+msgstr " INITIAL SETUP INSTALLATION / UPDATE (--update)"
+
+msgid "par défaut (dossier apps/ absent à côté du programme)"
+msgstr "default (apps/ folder missing next to the program)"
+
+msgid "  [--]   Sans objet pour "
+msgstr "  [--]   Not applicable for "
+
+msgid "# GÉNÉRÉ par nginx-hardening.sh à partir de la liste blanche (/etc/default/nginx-tools-white-list.conf) — NE PAS MODIFIER À LA MAIN."
+msgstr "# GENERATED by nginx-hardening.sh from the white list (/etc/default/nginx-tools-white-list.conf) — DO NOT EDIT BY HAND."
+
+msgid "# Pour ajouter ou retirer une adresse : modifier la liste blanche, puis nginx-hardening.sh --update."
+msgstr "# To add or remove an address: edit the white list, then nginx-hardening.sh --update."
+
+msgid " ligne "
+msgstr " line "
+
+msgid " — voir doc/"
+msgstr " — see doc/"
+
+msgid "Liste blanche : "
+msgstr "White list: "
+
+msgid " adresse(s))."
+msgstr " address(es))."
+
+msgid "Liste blanche : ANCIEN emplacement "
+msgstr "White list: OLD location "
+
+msgid " — --update la migre vers "
+msgstr " — --update migrates it to "
+
+msgid "Liste blanche absente ("
+msgstr "White list missing ("
+
+msgid ") — --update crée un modèle à remplir (sans elle, aucune adresse n'a accès à la gestion des bases de DEV ni à LAB)."
+msgstr ") — --update creates a template to fill in (without it, no address has access to the DEV database manager or to LAB)."
+
+msgid "Liste blanche migrée : "
+msgstr "White list migrated: "
+
+msgid " (l'ancien fichier est renommé .migre : il peut être supprimé)."
+msgstr " (the old file is renamed .migre: it can be deleted)."
+
+msgid "Migration de "
+msgstr "Migration of "
+
+msgid " impossible (droits ?) : la copier à la main."
+msgstr " impossible (permissions?): copy it by hand."
+
+msgid "Liste blanche créée VIDE ("
+msgstr "White list created EMPTY ("
+
+msgid ") : y mettre les adresses de confiance (équipe), puis relancer --update."
+msgstr "): put the trusted addresses (team) in it, then rerun --update."
+
+msgid "Liste blanche : impossible de créer "
+msgstr "White list: cannot create "
+
+msgid "Lieux : aucun fichier ("
+msgstr "Places: no file ("
+
+msgid ") — facultatif ; --update crée un modèle (université, bureau : nom d'une plage, affiché par app-log-live.py)."
+msgstr ") — optional; --update creates a template (university, office: name of a range, shown by app-log-live.py)."
+
+msgid "Lieux : modèle créé ("
+msgstr "Places: template created ("
+
+msgid ") : y décrire vos plages partagées (université…) — facultatif."
+msgstr "): describe your shared ranges in it (university…) — optional."
+
+msgid "# GÉNÉRÉ par nginx-hardening.sh — NE PAS MODIFIER À LA MAIN (relancer nginx-hardening.sh --update)."
+msgstr "# GENERATED by nginx-hardening.sh — DO NOT EDIT BY HAND (rerun nginx-hardening.sh --update)."
+
+msgid "# Règles de sécurité pour BigBlueButton : URL que BBB ne sert jamais (fichiers cachés, scripts PHP/CGI, WordPress…),"
+msgstr "# Security rules for BigBlueButton: URLs that BBB never serves (hidden files, PHP/CGI scripts, WordPress…),"
+
+msgid "# refusées en 404 par nginx et journalisées dans blocked-probes.log (jail fail2ban nginx-blocked-probes)."
+msgstr "# refused with 404 by nginx and logged in blocked-probes.log (fail2ban jail nginx-blocked-probes)."
+
+msgid "# Filtre fail2ban : refus des règles de sécurité de nginx (securite-commune.conf : fichiers sensibles, .php, cadriciels,"
+msgstr "# fail2ban filter: refusals by the nginx security rules (securite-commune.conf: sensitive files, .php, frameworks,"
+
+msgid "# objets connectés, wp-*, graphql…), journalisés à part dans blocked-probes.log. Chaque ligne de ce journal est un"
+msgstr "# connected objects, wp-*, graphql…), logged separately in blocked-probes.log. Each line of this log is a"
+
+msgid "# refus CERTAIN : toute ligne compte (format combined_host, adresse en tête de ligne)."
+msgstr "# CERTAIN refusal: every line counts (combined_host format, address at the start of the line)."
+
+msgid "# Jail : un client qui accumule les refus des règles de sécurité (scanner de fichiers sensibles, de failles connues)"
+msgstr "# Jail: a client that accumulates refusals by the security rules (scanner for sensitive files, known vulnerabilities)"
+
+msgid "# est banni. Ces refus étaient invisibles de fail2ban (access_log off) jusqu'au journal dédié blocked-probes.log."
+msgstr "# is banned. These refusals were invisible to fail2ban (access_log off) until the dedicated blocked-probes.log log."
+
+msgid "nginx introuvable — règles de sécurité BBB non vérifiées."
+msgstr "nginx not found — BBB security rules not checked."
+
+msgid "La configuration nginx de BBB n'inclut pas /etc/bigbluebutton/nginx/*.nginx — règles de sécurité non installées (à examiner)."
+msgstr "The BBB nginx configuration does not include /etc/bigbluebutton/nginx/*.nginx — security rules not installed (to examine)."
+
+msgid "Règles de sécurité BBB à jour ("
+msgstr "BBB security rules up to date ("
+
+msgid "Règles de sécurité BBB "
+msgstr "BBB security rules "
+
+msgid " — --update les installera ("
+msgstr " — --update will install them ("
+
+msgid " : fichiers cachés, PHP/CGI, WordPress refusés en 404)."
+msgstr " : hidden files, PHP/CGI, WordPress refused with 404)."
+
+msgid "Règles de sécurité BBB installées ("
+msgstr "BBB security rules installed ("
+
+msgid ") ; nginx -t réussi, nginx rechargé."
+msgstr "); nginx -t succeeded, nginx reloaded."
+
+msgid "nginx -t refuse les règles de sécurité BBB — ancienne version restaurée, nginx NON rechargé (nginx -t pour le détail)."
+msgstr "nginx -t rejects the BBB security rules — old version restored, nginx NOT reloaded (nginx -t for details)."
+
+msgid "Jail nginx-blocked-probes : fichiers présents."
+msgstr "Jail nginx-blocked-probes: files present."
+
+msgid "Jail nginx-blocked-probes absente — --update l'installera (bannit les clients qui accumulent les refus)."
+msgstr "Jail nginx-blocked-probes missing — --update will install it (bans clients that accumulate refusals)."
+
+msgid "Jail nginx-blocked-probes installée (5 refus en 10 min → banni 24 h)."
+msgstr "Jail nginx-blocked-probes installed (5 refusals in 10 min → banned 24 h)."
+
+msgid "fail2ban : les "
+msgstr "fail2ban: the "
+
+msgid " adresses de l'équipe (table $is_trusted_ip de nginx) sont ignorées par toutes les jails."
+msgstr " team addresses (nginx $is_trusted_ip table) are ignored by all jails."
+
+msgid "fail2ban : adresses de l'équipe NON ignorées (jails : "
+msgstr "fail2ban: team addresses NOT ignored (jails: "
+
+msgid " — --update les ajoutera (jail.d/zz-nginx-hardening-ignoreip.local)."
+msgstr " — --update will add them (jail.d/zz-nginx-hardening-ignoreip.local)."
+
+msgid "# Généré par nginx-hardening.sh : adresses de l'équipe (table $is_trusted_ip de nginx) jamais bannies,"
+msgstr "# Generated by nginx-hardening.sh: team addresses (nginx $is_trusted_ip table) never banned,"
+
+msgid "# plus les adresses déjà ignorées. Lu en dernier (jail.d/*.local) : complète jail.local sans le modifier."
+msgstr "# plus the addresses already ignored. Read last (jail.d/*.local): completes jail.local without changing it."
+
+msgid "fail2ban : ignoreip complété ("
+msgstr "fail2ban: ignoreip completed ("
+
+msgid ") dans /etc/fail2ban/jail.d/zz-nginx-hardening-ignoreip.local — une jail qui définit son propre ignoreip reste à compléter à la main."
+msgstr ") in /etc/fail2ban/jail.d/zz-nginx-hardening-ignoreip.local — a jail that defines its own ignoreip still has to be completed by hand."
+
+msgid "--- BigBlueButton AVANT ce passage : versions et configuration, changements depuis le dernier --update ---"
+msgstr "--- BigBlueButton BEFORE this run: versions and configuration, changes since the last --update ---"
+
+msgid "--- 1) Répertoire ACME (/var/www/letsencrypt) ---"
+msgstr "--- 1) ACME directory (/var/www/letsencrypt) ---"
+
+msgid "/var/www/letsencrypt existe déjà."
+msgstr "/var/www/letsencrypt already exists."
+
+msgid "/var/www/letsencrypt n'existe pas (relancer avec --update pour le créer)."
+msgstr "/var/www/letsencrypt does not exist (rerun with --update to create it)."
+
+msgid "/var/www/letsencrypt créé."
+msgstr "/var/www/letsencrypt created."
+
+msgid "Impossible de créer /var/www/letsencrypt (permissions ? /var/www absent ou non accessible ?) — à faire manuellement si nécessaire."
+msgstr "Cannot create /var/www/letsencrypt (permissions? /var/www missing or inaccessible?) — do it manually if needed."
+
+msgid "pas de configuration de durcissement nginx livrée pour cette application (répertoire ACME de la configuration nginx-odoo)"
+msgstr "no hardening configuration shipped for this application (ACME directory of the nginx-odoo configuration)"
+
+msgid "--- 2) Journal catch-all (/var/log/nginx/odoo-catchall-444.log) ---"
+msgstr "--- 2) Catch-all log (/var/log/nginx/odoo-catchall-444.log) ---"
+
+msgid " existe déjà, propriétaire correct (www-data:adm)."
+msgstr " already exists, correct owner (www-data:adm)."
+
+msgid " existe mais son propriétaire est '"
+msgstr " exists but its owner is '"
+
+msgid "' (attendu www-data:adm)."
+msgstr "' (expected www-data:adm)."
+
+msgid " : propriétaire corrigé (www-data:adm)."
+msgstr " : owner corrected (www-data:adm)."
+
+msgid " : impossible de définir le propriétaire www-data:adm (utilisateur ou groupe absent sur ce système ?) — à corriger manuellement si nécessaire."
+msgstr " : cannot set owner www-data:adm (user or group missing on this system?) — fix manually if needed."
+
+msgid " n'existe pas (relancer avec --update pour le créer)."
+msgstr " does not exist (rerun with --update to create it)."
+
+msgid " n'existe pas — nginx est-il installé ? (le paquet nginx crée normalement ce répertoire). Impossible de créer le journal catch-all tant que ce répertoire n'existe pas."
+msgstr " does not exist — is nginx installed? (the nginx package normally creates this directory). Cannot create the catch-all log while this directory does not exist."
+
+msgid " créé, propriétaire www-data:adm."
+msgstr " created, owner www-data:adm."
+
+msgid " créé mais impossible de définir le propriétaire www-data:adm (utilisateur ou groupe absent sur ce système ?) — à corriger manuellement si nécessaire."
+msgstr " created but cannot set owner www-data:adm (user or group missing on this system?) — fix manually if needed."
+
+msgid "pas de capteur catch-all dans sa configuration nginx"
+msgstr "no catch-all sensor in its nginx configuration"
+
+msgid "--- 3) Page de maintenance (/var/www/maintenance/index.html) ---"
+msgstr "--- 3) Maintenance page (/var/www/maintenance/index.html) ---"
+
+msgid " existe déjà."
+msgstr " already exists."
+
+msgid " n'existe pas — nginx affichera l'erreur brute d'Odoo plutôt que la page de maintenance."
+msgstr " does not exist — nginx will show Odoo's raw error instead of the maintenance page."
+
+msgid "Fichier source introuvable ("
+msgstr "Source file not found ("
+
+msgid ") — impossible de copier automatiquement. Copiez-le vous-même vers "
+msgstr ") — cannot copy automatically. Copy it yourself to "
+
+msgid " installé depuis "
+msgstr " installed from "
+
+msgid "Impossible de créer "
+msgstr "Cannot create "
+
+msgid " ou d'y copier "
+msgstr " or copy to it "
+
+msgid " (permissions ? /var/www absent ou non accessible ?) — à faire manuellement si nécessaire."
+msgstr " (permissions? /var/www missing or inaccessible?) — do it manually if needed."
+
+msgid "pas de page de maintenance de la configuration nginx-odoo"
+msgstr "no maintenance page in the nginx-odoo configuration"
+
+msgid "--- 4) Interface d'écoute d'Odoo (diagnostic — ports "
+msgstr "--- 4) Odoo listening interface (diagnostic — ports "
+
+msgid "Commande 'ss' introuvable — impossible de vérifier l'interface d'écoute d'Odoo automatiquement."
+msgstr "'ss' command not found — cannot check Odoo's listening interface automatically."
+
+msgid "Rien n'écoute sur le port "
+msgstr "Nothing is listening on port "
+
+msgid " actuellement (Odoo est-il démarré ?) — impossible de vérifier."
+msgstr " at the moment (is Odoo started?) — cannot check."
+
+msgid " : écoute sur "
+msgstr " : listening on "
+
+msgid " (local seulement — correct)."
+msgstr " (local only — correct)."
+
+msgid " (accessible depuis l'EXTÉRIEUR) — voir la recommandation ci-dessous."
+msgstr " (reachable from OUTSIDE) — see the recommendation below."
+
+msgid "ports du serveur d'application Odoo"
+msgstr "Odoo application server ports"
+
+msgid " bloqués depuis l'extérieur) ---"
+msgstr " blocked from outside) ---"
+
+msgid "ufw : règle DENY déjà présente pour le port "
+msgstr "ufw: DENY rule already present for port "
+
+msgid "ufw : aucune règle DENY pour le port "
+msgstr "ufw: no DENY rule for port "
+
+msgid "/tcp (relancer avec --update pour l'ajouter)."
+msgstr "/tcp (rerun with --update to add it)."
+
+msgid "ufw : règle DENY ajoutée pour le port "
+msgstr "ufw: DENY rule added for port "
+
+msgid "iptables : règle DROP déjà présente pour le port "
+msgstr "iptables: DROP rule already present for port "
+
+msgid "iptables : aucune règle DROP pour le port "
+msgstr "iptables: no DROP rule for port "
+
+msgid "iptables : règle DROP ajoutée pour le port "
+msgstr "iptables: DROP rule added for port "
+
+msgid "iptables : règle ajoutée en mémoire seulement — installez iptables-persistent (ou équivalent) pour qu'elle survive à un redémarrage."
+msgstr "iptables: rule added in memory only — install iptables-persistent (or equivalent) so that it survives a reboot."
+
+msgid "Ni ufw ni iptables trouvés — impossible de vérifier/ajouter les règles de pare-feu automatiquement."
+msgstr "Neither ufw nor iptables found — cannot check/add the firewall rules automatically."
+
+msgid "ports du serveur d'application Odoo (pare-feu de BBB : ufw, géré par son installateur)"
+msgstr "Odoo application server ports (BBB firewall: ufw, managed by its installer)"
+
+msgid "--- 6) Suggestion de limites mémoire Odoo (workers × RAM disponible) ---"
+msgstr "--- 6) Odoo memory limit suggestion (workers × available RAM) ---"
+
+msgid "Aucun service Odoo connu trouvé (erplibre.service / erplibre_erplibre.service) — précisez --odoo-service NOM pour activer ce calcul."
+msgstr "No known Odoo service found (erplibre.service / erplibre_erplibre.service) — specify --odoo-service NAME to enable this calculation."
+
+msgid "Nombre de workers introuvable dans "
+msgstr "Number of workers not found in "
+
+msgid " — utilise la formule officielle Odoo ((cœurs × 2) + 1 = "
+msgstr " — using the official Odoo formula ((cores × 2) + 1 = "
+
+msgid ") à titre indicatif. Précisez --workers N pour une valeur exacte si elle est définie ailleurs (ex. run.sh)."
+msgstr ") as a guide. Specify --workers N for an exact value if it is defined elsewhere (e.g. run.sh)."
+
+msgid "Données insuffisantes (workers ou RAM totale introuvable) — calcul impossible."
+msgstr "Insufficient data (workers or total RAM not found) — calculation impossible."
+
+msgid "  Utilisé hors Odoo (estimé)  : "
+msgstr "  Used outside Odoo (estimated): "
+
+msgid " (PostgreSQL, OS, nginx, etc. — via free -m moins"
+msgstr " (PostgreSQL, OS, nginx, etc. — via free -m minus"
+
+msgid "                                l'usage actuel du cgroup d'Odoo, MemoryCurrent)"
+msgstr "                                the current usage of the Odoo cgroup, MemoryCurrent)"
+
+msgid "  Disponible pour Odoo        : "
+msgstr "  Available for Odoo          : "
+
+msgid "  Suggestion (par worker — à valider par un test réel en DEV avant PROD) :"
+msgstr "  Suggestion (per worker — to validate with a real test in DEV before PROD):"
+
+msgid "  Pire cas (tous les workers à la limite dure en même temps) : "
+msgstr "  Worst case (all workers at the hard limit at the same time): "
+
+msgid " (ligne de commande, priorité sur odoo.conf)"
+msgstr " (command line, takes precedence over odoo.conf)"
+
+msgid "limit_memory_hard actuel = 0 (illimité) — source : "
+msgstr "current limit_memory_hard = 0 (unlimited) — source: "
+
+msgid " — aucune protection contre l'épuisement mémoire."
+msgstr " — no protection against memory exhaustion."
+
+msgid ") — risque réel d'épuisement mémoire si plusieurs workers culminent en même temps."
+msgstr ") — real risk of memory exhaustion if several workers peak at the same time."
+
+msgid ") cohérent avec la RAM disponible."
+msgstr ") consistent with the available RAM."
+
+msgid "  (limit_memory_hard non trouvé dans "
+msgstr "  (limit_memory_hard not found in "
+
+msgid " ni dans la ligne de production de run.sh)"
+msgstr " nor in the production line of run.sh)"
+
+msgid "limites mémoire des workers Odoo"
+msgstr "Odoo workers memory limits"
+
+msgid "--- 7) Audit du service Odoo (unité systemd + run.sh) ---"
+msgstr "--- 7) Odoo service audit (systemd unit + run.sh) ---"
+
+msgid "Service Odoo non déterminé — audit ignoré (voir étape 6)."
+msgstr "Odoo service not determined — audit skipped (see step 6)."
+
+msgid "Impossible de lire l'unité "
+msgstr "Cannot read the unit "
+
+msgid "Wants=network-online.target présent."
+msgstr "Wants=network-online.target present."
+
+msgid "Wants=network-online.target absent — After= seul ne garantit pas que le réseau soit prêt avant le démarrage d'Odoo."
+msgstr "Wants=network-online.target missing — After= alone does not guarantee that the network is ready before Odoo starts."
+
+msgid "Limite anti-boucle-de-redémarrage (StartLimitIntervalSec/Burst) configurée."
+msgstr "Restart-loop limit (StartLimitIntervalSec/Burst) configured."
+
+msgid "Aucune limite anti-boucle-de-redémarrage — Restart=always peut retenter indéfiniment si le service plante en boucle, sans jamais passer en état 'failed' pour alerter."
+msgstr "No restart-loop limit — Restart=always may retry indefinitely if the service crashes in a loop, without ever reaching the 'failed' state to alert."
+
+msgid "NoNewPrivileges=true présent."
+msgstr "NoNewPrivileges=true present."
+
+msgid "NoNewPrivileges=true absent — durcissement simple et sans risque connu à ajouter."
+msgstr "NoNewPrivileges=true missing — simple hardening with no known risk, to be added."
+
+msgid "PIDFile= présent avec Type=simple — sans effet réel (PIDFile n'est utile qu'avec Type=forking), nettoyage possible."
+msgstr "PIDFile= present with Type=simple — no real effect (PIDFile is only useful with Type=forking), cleanup possible."
+
+msgid " utilise 'exec' avant de lancer odoo_bin.sh — suivi de PID le plus propre possible."
+msgstr " uses 'exec' before launching odoo_bin.sh — cleanest possible PID tracking."
+
+msgid " n'utilise pas 'exec' avant odoo_bin.sh — sans danger avec KillMode=control-group (le défaut, qui envoie SIGTERM à tout le groupe de processus), mais 'exec' reste plus propre."
+msgstr " does not use 'exec' before odoo_bin.sh — harmless with KillMode=control-group (the default, which sends SIGTERM to the whole process group), but 'exec' is still cleaner."
+
+msgid " contient 'ORIGIN_CONFIG_PATH=CONFIG_PATH' (sans $) — coquille cosmétique, le message d'erreur affichera le mauvais texte si la config est introuvable."
+msgstr " contains 'ORIGIN_CONFIG_PATH=CONFIG_PATH' (without $) — cosmetic typo, the error message will show the wrong text if the config is not found."
+
+msgid " contient encore --limit-memory-hard=0 (illimité) sur la ligne de production — voir l'étape 6 pour une valeur suggérée."
+msgstr " still contains --limit-memory-hard=0 (unlimited) on the production line — see step 6 for a suggested value."
+
+msgid "Impossible de lire le script de démarrage réel ("
+msgstr "Cannot read the actual start script ("
+
+msgid ") pour vérifier exec/coquilles connues."
+msgstr ") to check exec/known typos."
+
+msgid "unité systemd et run.sh d'Odoo"
+msgstr "Odoo systemd unit and run.sh"
+
+msgid " introuvable ou illisible — précisez --odoo-conf CHEMIN si ce n'est pas le bon fichier."
+msgstr " not found or unreadable — specify --odoo-conf PATH if this is not the right file."
+
+msgid "proxy_mode activé — Odoo fait confiance aux en-têtes X-Forwarded-* de nginx (IP client réelle, HTTPS détecté correctement)."
+msgstr "proxy_mode enabled — Odoo trusts the nginx X-Forwarded-* headers (real client IP, HTTPS correctly detected)."
+
+msgid "proxy_mode absent ou non activé dans "
+msgstr "proxy_mode missing or not enabled in "
+
+msgid " — derrière nginx, Odoo verrait 127.0.0.1 comme IP de TOUTES les requêtes dans ses propres journaux, et pourrait mal détecter HTTPS."
+msgstr " — behind nginx, Odoo would see 127.0.0.1 as the IP of ALL requests in its own logs, and might misdetect HTTPS."
+
+msgid "list_db désactivé — la liste des bases n'est renvoyée par AUCUNE route, pas même /jsonrpc (service « db », méthode « list »), que nginx ne peut pas filtrer. (Effet voulu : le gestionnaire de bases d'Odoo est aussi désactivé, y compris pour les IP autorisées.)"
+msgstr "list_db disabled — the list of databases is returned by NO route, not even /jsonrpc (service « db », method « list »), which nginx cannot filter. (Intended effect: the Odoo database manager is also disabled, including for allowed IPs.)"
+
+msgid "list_db absent ou actif dans "
+msgstr "list_db missing or active in "
+
+msgid " (actif par défaut dans Odoo) : la liste des bases peut être demandée."
+msgstr " (active by default in Odoo): the list of databases can be requested."
+
+msgid "         Réservées par nginx aux IP autorisées (allow) : toutes les routes /web/database/* (manager, selector, list,"
+msgstr "         Reserved by nginx for allowed IPs (allow): all /web/database/* routes (manager, selector, list,"
+
+msgid "         backup, drop, restore, duplicate, create, change_password), /xmlrpc/db et /xmlrpc/2/db."
+msgstr "         backup, drop, restore, duplicate, create, change_password), /xmlrpc/db and /xmlrpc/2/db."
+
+msgid "         Réservées par nginx aux IP autorisées (allow) : /web/database/manager, /web/database/selector, /xmlrpc/db"
+msgstr "         Reserved by nginx for allowed IPs (allow): /web/database/manager, /web/database/selector, /xmlrpc/db"
+
+msgid "         et /xmlrpc/2/db SEULEMENT. /web/database/list (liste des bases en JSON) reste joignable par TOUS :"
+msgstr "         and /xmlrpc/2/db ONLY. /web/database/list (list of databases in JSON) remains reachable by EVERYONE:"
+
+msgid "         déployez la dernière config nginx (règle des env-*.conf étendue à toutes les routes /web/database/*)."
+msgstr "         deploy the latest nginx config (env-*.conf rule extended to all /web/database/* routes)."
+
+msgid "         Joignable par TOUS malgré nginx : /jsonrpc (service « db », méthode « list ») — point d'entrée général de"
+msgstr "         Reachable by EVERYONE despite nginx: /jsonrpc (service « db », method « list ») — general entry point of"
+
+msgid "         l'API, impossible à filtrer sans casser les intégrations ; seul list_db = False le ferme."
+msgstr "         the API, impossible to filter without breaking integrations; only list_db = False closes it."
+
+msgid "         Quoi faire : en PROD, list_db = False dans "
+msgstr "         What to do: in PROD, list_db = False in "
+
+msgid " puis redémarrer Odoo (le gestionnaire de bases est"
+msgstr " then restart Odoo (the database manager is"
+
+msgid "         alors désactivé pour tous : le réactiver le temps d'une opération). Sur une DEV entièrement restreinte par"
+msgstr "         then disabled for everyone: re-enable it for the duration of an operation). On a DEV fully restricted by"
+
+msgid "         IP (deny all dans env-dev.conf), acceptable tel quel : aucune de ces routes n'y est joignable d'Internet."
+msgstr "         IP (deny all in env-dev.conf), acceptable as is: none of these routes is reachable from the Internet."
+
+msgid "admin_passwd vide ou absent dans "
+msgstr "admin_passwd empty or missing in "
+
+msgid " — vérifiez manuellement (jamais affiché ici par précaution)."
+msgstr " — check manually (never displayed here as a precaution)."
+
+msgid "admin_passwd semble faible (valeur courante ou trop courte) — protège /web/database/manager, même restreint par IP. À vérifier manuellement."
+msgstr "admin_passwd looks weak (common value or too short) — protects /web/database/manager, even IP-restricted. To check manually."
+
+msgid "admin_passwd défini et de longueur raisonnable (valeur elle-même jamais affichée)."
+msgstr "admin_passwd set and of reasonable length (the value itself is never displayed)."
+
+msgid "--- 9) Jails fail2ban (capteur catch-all, échecs de connexion Odoo) ---"
+msgstr "--- 9) fail2ban jails (catch-all sensor, Odoo login failures) ---"
+
+msgid "fail2ban-client introuvable — fail2ban n'est peut-être pas installé, étape ignorée."
+msgstr "fail2ban-client not found — fail2ban may not be installed, step skipped."
+
+msgid " : fichiers présents ("
+msgstr " : files present ("
+
+msgid " absent — "
+msgstr " missing — "
+
+msgid " (relancer avec --update pour l'installer)."
+msgstr " (rerun with --update to install it)."
+
+msgid "Fichiers source de "
+msgstr "Source files of "
+
+msgid " introuvables (cherché dans /etc/nginx/fail2ban/ et "
+msgstr " not found (looked in /etc/nginx/fail2ban/ and "
+
+msgid "/fail2ban/) — copiez le dossier fail2ban/ du zip vers /etc/nginx/fail2ban/."
+msgstr "/fail2ban/) — copy the fail2ban/ folder of the zip to /etc/nginx/fail2ban/."
+
+msgid " installé ("
+msgstr " installed ("
+
+msgid ", depuis "
+msgstr ", from "
+
+msgid "Impossible de copier les fichiers du jail "
+msgstr "Cannot copy the files of the jail "
+
+msgid " (permissions ?) — à faire manuellement."
+msgstr " (permissions?) — do it manually."
+
+msgid "le capteur catch-all reste invisible de fail2ban"
+msgstr "the catch-all sensor remains invisible to fail2ban"
+
+msgid "les refus des règles de sécurité (blocked-probes.log) ne sont jamais sanctionnés"
+msgstr "the refusals by the security rules (blocked-probes.log) are never sanctioned"
+
+msgid "Jail odoo-auth : service Odoo non déterminé (voir étape 6) — impossible de générer le jail (--odoo-service NOM)."
+msgstr "Jail odoo-auth: Odoo service not determined (see step 6) — cannot generate the jail (--odoo-service NAME)."
+
+msgid "Jail odoo-auth : fichiers présents ("
+msgstr "Jail odoo-auth: files present ("
+
+msgid ") — modèle introuvable, contenu non revérifié."
+msgstr ") — template not found, content not rechecked."
+
+msgid "Jail odoo-auth : modèle introuvable (odoo-auth.*.conf dans /etc/nginx/fail2ban/) — déployez le dossier fail2ban/ du zip."
+msgstr "Jail odoo-auth: template not found (odoo-auth.*.conf in /etc/nginx/fail2ban/) — deploy the fail2ban/ folder of the zip."
+
+msgid "systemd[journalpath=/var/log/journal/"
+msgstr "systemd[journalpath=/var/log/journal/"
+
+msgid "/^# MODÈLE — ne pas copier tel quel/,/jail\\.d\\/odoo-auth\\.conf\\.$/c\\# GÉNÉRÉ par nginx-hardening.sh --update pour ce serveur — ne pas éditer à la main (sera régénéré)."
+msgstr "/^# MODÈLE — ne pas copier tel quel/,/jail\\.d\\/odoo-auth\\.conf\\.$/c\\# GÉNÉRÉ par nginx-hardening.sh --update pour ce serveur — ne pas éditer à la main (sera régénéré)."
+
+msgid "absent"
+msgstr "missing"
+
+msgid "à jour"
+msgstr "up to date"
+
+msgid "différent"
+msgstr "different"
+
+msgid "Jail odoo-auth à jour (service "
+msgstr "Jail odoo-auth up to date (service "
+
+msgid "Jail odoo-auth absent — la force brute sur la page de connexion d'Odoo n'est détectée par rien (relancer avec --update)."
+msgstr "Jail odoo-auth missing — brute force on the Odoo login page is detected by nothing (rerun with --update)."
+
+msgid "Jail odoo-auth différent de ce qui serait généré aujourd'hui (service, liste blanche nginx ou filtre modifiés) — relancer avec --update pour le régénérer."
+msgstr "Jail odoo-auth differs from what would be generated today (service, nginx white list or filter changed) — rerun with --update to regenerate it."
+
+msgid "installé"
+msgstr "installed"
+
+msgid "régénéré"
+msgstr "regenerated"
+
+msgid "Impossible d'écrire le jail odoo-auth (permissions ?)."
+msgstr "Cannot write the odoo-auth jail (permissions?)."
+
+msgid " chargé et actif dans fail2ban."
+msgstr " loaded and active in fail2ban."
+
+msgid " : fichiers présents mais jail NON chargé par fail2ban — voir « fail2ban-client reload » puis « journalctl -u fail2ban -n 30 » (erreur de syntaxe, journal introuvable ?)."
+msgstr " : files present but jail NOT loaded by fail2ban — see « fail2ban-client reload » then « journalctl -u fail2ban -n 30 » (syntax error, log not found?)."
+
+msgid "jails du capteur catch-all et des connexions Odoo (capteur : HAProxy aiguille le port 443 de BBB)"
+msgstr "catch-all sensor and Odoo login jails (sensor: HAProxy routes BBB port 443)"
+
+msgid "--- 10) HSTS réellement envoyé par chaque nom servi en HTTPS ---"
+msgstr "--- 10) HSTS actually sent by each name served over HTTPS ---"
+
+msgid "nginx introuvable — étape ignorée."
+msgstr "nginx not found — step skipped."
+
+msgid "curl introuvable — impossible de tester HSTS réellement (apt install curl)."
+msgstr "curl not found — cannot really test HSTS (apt install curl)."
+
+msgid "Aucun server_name testable trouvé dans \"nginx -T\" — nginx est-il installé et configuré ?"
+msgstr "No testable server_name found in \"nginx -T\" — is nginx installed and configured?"
+
+msgid " : aucune réponse HTTPS en local (nom servi seulement en HTTP, ou certificat/bloc 443 absent) — HSTS non applicable."
+msgstr " : no local HTTPS answer (name served over HTTP only, or certificate/443 block missing) — HSTS not applicable."
+
+msgid "HSTS présent — "
+msgstr "HSTS present — "
+
+msgid "s : encore court — normal après un déploiement initial, à remonter à 31536000 après quelques jours sans problème)"
+msgstr "s : still short — normal after an initial deployment, to be raised to 31536000 after a few days without problems)"
+
+msgid " (la redirection HTTP "
+msgstr " (the HTTP redirect "
+
+msgid " n'en porte pas, mais la page d'arrivée "
+msgstr " does not carry one, but the landing page "
+
+msgid " ; le navigateur l'enregistre)"
+msgstr " ; the browser records it)"
+
+msgid "dans /etc/haproxy/haproxy.cfg, section « frontend » du 443, ajoutez « http-after-response set-header Strict-Transport-Security \"max-age=300; includeSubDomains\" » (HAProxy 2.2 et suivants ; contrairement à http-response, s'applique AUSSI aux redirections produites par HAProxy), puis haproxy -c -f /etc/haproxy/haproxy.cfg && systemctl reload haproxy ; max-age à remonter à 31536000 après quelques jours sans problème. Attention : bbb-install peut régénérer ce fichier lors d'une mise à jour."
+msgstr "in /etc/haproxy/haproxy.cfg, « frontend » section of 443, add « http-after-response set-header Strict-Transport-Security \"max-age=300; includeSubDomains\" » (HAProxy 2.2 and later; unlike http-response, it ALSO applies to redirects produced by HAProxy), then haproxy -c -f /etc/haproxy/haproxy.cfg && systemctl reload haproxy; max-age to be raised to 31536000 after a few days without problems. Note: bbb-install may regenerate this file during an update."
+
+msgid "dans le fichier sites-available/ du bloc server 443 qui sert ce nom, ajoutez « include /etc/nginx/snippets/odoo/hsts.conf; » au niveau server (un bloc de redirection), ou vérifiez qu'il inclut bien _odoo-common.conf (un bloc qui sert Odoo) ; add_header … always pour qu'il s'applique aussi aux redirections et erreurs ; puis nginx -t && systemctl reload nginx. Pour trouver le fichier : grep -rln \""
+msgstr "in the sites-available/ file of the server 443 block that serves this name, add « include /etc/nginx/snippets/odoo/hsts.conf; » at server level (a redirect block), or check that it does include _odoo-common.conf (a block that serves Odoo); add_header … always so that it also applies to redirects and errors; then nginx -t && systemctl reload nginx. To find the file: grep -rln \""
+
+msgid ", et sur la page d'arrivée "
+msgstr ", and on the landing page "
+
+msgid "HSTS ABSENT — "
+msgstr "HSTS MISSING — "
+
+msgid "ERREUR: --log-retention-months attend un nombre de mois entre 1 et 24 (reçu : "
+msgstr "ERROR: --log-retention-months expects a number of months between 1 and 24 (got: "
+
+msgid "--- 11) Rétention des journaux (cible : "
+msgstr "--- 11) Log retention (target: "
+
+msgid " mois) ---"
+msgstr " months) ---"
+
+msgid " absent ou illisible — rotation de "
+msgstr " missing or unreadable — rotation of "
+
+msgid " non vérifiable."
+msgstr " cannot be checked."
+
+msgid " conservés ≈ "
+msgstr " kept ≈ "
+
+msgid " jours ("
+msgstr " days ("
+
+msgid " : NE TOURNE PAS — logrotate refuse ("
+msgstr " : DOES NOT ROTATE — logrotate refuses ("
+
+msgid ") ; --update ajoutera la directive « su » à "
+msgstr ") ; --update will add the « su » directive to "
+
+msgid " jours seulement (rotation "
+msgstr " days only (rotation "
+
+msgid ") — --update passera à « rotate "
+msgstr ") — --update will switch to « rotate "
+
+msgid " » (≈ "
+msgstr " » (≈ "
+
+msgid " mois)."
+msgstr " months)."
+
+msgid "« rotate "
+msgstr "« rotate "
+
+msgid " » → « rotate "
+msgstr " » → « rotate "
+
+msgid " mois)"
+msgstr " months)"
+
+msgid "directive « su "
+msgstr "directive « su "
+
+msgid " » ajoutée (le journal ne tournait pas : "
+msgstr " » added (the log was not rotating: "
+
+msgid " : aucune ligne « rotate » modifiable dans "
+msgstr " : no editable « rotate » line in "
+
+msgid " — ajoutez « rotate "
+msgstr " — add « rotate "
+
+msgid " » à la main."
+msgstr " » by hand."
+
+msgid " refusé par logrotate après modification ("
+msgstr " rejected by logrotate after modification ("
+
+msgid ") — copie d'origine restaurée."
+msgstr ") — original copy restored."
+
+msgid " dans "
+msgstr " in "
+
+msgid "Journal systemd"
+msgstr "systemd journal"
+
+msgid " : durée de conservation déjà fixée ("
+msgstr " : retention already set ("
+
+msgid "Journal systemd : "
+msgstr "systemd journal: "
+
+msgid " est fixé hors de "
+msgstr " is set outside "
+
+msgid " — à remplacer à la main par MaxRetentionSec="
+msgstr " — replace by hand with MaxRetentionSec="
+
+msgid " — --update passera à MaxRetentionSec="
+msgstr " — --update will switch to MaxRetentionSec="
+
+msgid "month dans "
+msgstr "month in "
+
+msgid " → MaxRetentionSec="
+msgstr " → MaxRetentionSec="
+
+msgid " redémarré."
+msgstr " restarted."
+
+msgid "Journal systemd : MaxRetentionSec="
+msgstr "systemd journal: MaxRetentionSec="
+
+msgid "month écrit dans "
+msgstr "month written in "
+
+msgid ", mais redémarrage de "
+msgstr ", but restart of "
+
+msgid " impossible — à faire à la main."
+msgstr " impossible — do it by hand."
+
+msgid " : aucune durée fixée (limité seulement par la taille) — --update ajoutera MaxRetentionSec="
+msgstr " : no duration set (limited by size only) — --update will add MaxRetentionSec="
+
+msgid "^\\[Journal\\]"
+msgstr "^\\[Journal\\]"
+
+msgid "/^\\[Journal\\]/a MaxRetentionSec="
+msgstr "/^\\[Journal\\]/a MaxRetentionSec="
+
+msgid "# Ajouté par nginx-hardening.sh : conservation des journaux ("
+msgstr "# Added by nginx-hardening.sh: log retention ("
+
+msgid " mois au plus)."
+msgstr " months at most)."
+
+msgid "[Journal]"
+msgstr "[Journal]"
+
+msgid "month ajouté dans "
+msgstr "month added in "
+
+msgid "--- 12) Listes d'adresses : liste blanche et lieux (/etc/default/nginx-tools-*.conf) → nginx ---"
+msgstr "--- 12) Address lists: white list and places (/etc/default/nginx-tools-*.conf) → nginx ---"
+
+msgid "fichiers team-ips-*.conf de la configuration nginx-odoo (les listes restent lues par les outils)"
+msgstr "team-ips-*.conf files of the nginx-odoo configuration (the lists are still read by the tools)"
+
+msgid "# vide — liste blanche introuvable (nginx refuse un include sans fichier)"
+msgstr "# empty — white list not found (nginx refuses an include without a file)"
+
+msgid ".conf créé (vide) pour que nginx -t réussisse."
+msgstr ".conf created (empty) so that nginx -t succeeds."
+
+msgid "Liste blanche introuvable : aucune adresse n'est générée dans team-ips-*.conf (la gestion des bases de DEV et tout LAB resteraient fermés à tous) — remplir /etc/default/nginx-tools-white-list.conf puis relancer --update."
+msgstr "White list not found: no address is generated in team-ips-*.conf (the DEV database manager and all of LAB would stay closed to everyone) — fill in /etc/default/nginx-tools-white-list.conf then rerun --update."
+
+msgid "liste blanche : entrée(s) invalide(s) —"
+msgstr "white list: invalid entry(ies) —"
+
+msgid " — rien n'est écrit dans nginx tant qu'elles ne sont pas corrigées."
+msgstr " — nothing is written to nginx until they are corrected."
+
+msgid " à jour ("
+msgstr " up to date ("
+
+msgid "différent de la liste blanche"
+msgstr "different from the white list"
+
+msgid " — --update le régénérera."
+msgstr " — --update will regenerate it."
+
+msgid "Adresses de l'équipe régénérées depuis la liste blanche ; nginx -t réussi, nginx rechargé."
+msgstr "Team addresses regenerated from the white list; nginx -t succeeded, nginx reloaded."
+
+msgid "Adresses de l'équipe régénérées et nginx -t réussi, mais rechargement impossible — systemctl reload nginx à la main."
+msgstr "Team addresses regenerated and nginx -t succeeded, but reload impossible — systemctl reload nginx by hand."
+
+msgid "# vide — restauré après refus de nginx -t"
+msgstr "# empty — restored after nginx -t refusal"
+
+msgid "nginx -t refuse la configuration avec les adresses régénérées — ancienne version restaurée, nginx NON rechargé (nginx -t pour le détail)."
+msgstr "nginx -t rejects the configuration with the regenerated addresses — old version restored, nginx NOT reloaded (nginx -t for details)."
+
+msgid "        Fichiers présents (dossier "
+msgstr "        Files present (folder "
+
+msgid "        nginx -t refuse AUSSI la version d'avant : la configuration nginx est DÉJÀ invalide, indépendamment des adresses de l'équipe."
+msgstr "        nginx -t ALSO rejects the previous version: the nginx configuration is ALREADY invalid, independently of the team addresses."
+
+msgid "        Corriger d'abord la cause ci-dessus (souvent un fichier de nginx-odoo-config.zip déployé à moitié : include ou variable absente)."
+msgstr "        Fix the cause above first (often a half-deployed nginx-odoo-config.zip file: missing include or variable)."
+
+msgid "La configuration nginx active n'inclut pas encore team-ips-*.conf — déployer nginx-odoo-config.zip (odoo-global.conf, env-*.conf)."
+msgstr "The active nginx configuration does not include team-ips-*.conf yet — deploy nginx-odoo-config.zip (odoo-global.conf, env-*.conf)."
+
+msgid "--- 13) Courriel des alertes (relais SMTP, MX, SPF, DMARC, DKIM) ---"
+msgstr "--- 13) Alert e-mail (SMTP relay, MX, SPF, DMARC, DKIM) ---"
+
+msgid "app-health-check.py introuvable à côté de ce script — vérification du courriel impossible."
+msgstr "app-health-check.py not found next to this script — e-mail check impossible."
+
+msgid "vérification du courriel impossible : app-health-check.py n'a produit aucun résultat reconnu"
+msgstr "e-mail check impossible: app-health-check.py produced no recognised result"
+
+msgid "  Envoi réel d'un courriel de test : "
+msgstr "  Real test e-mail sent: "
+
+msgid "--- 14) Pays des adresses IP : geoip-bin (base locale) ---"
+msgstr "--- 14) Country of IP addresses: geoip-bin (local database) ---"
+
+msgid "geoip-bin installé et sa base répond : le pays des adresses IP est lu localement (aucune requête Internet)."
+msgstr "geoip-bin installed and its database answers: the country of IP addresses is read locally (no Internet request)."
+
+msgid "geoip-bin est installé mais sa base de pays est introuvable (paquet geoip-database absent ?) : le pays est cherché sur Internet. --update installe geoip-database."
+msgstr "geoip-bin is installed but its country database is missing (geoip-database package absent?): the country is looked up on the Internet. --update installs geoip-database."
+
+msgid "geoip-database installé : le pays des adresses IP est lu localement."
+msgstr "geoip-database installed: the country of IP addresses is read locally."
+
+msgid "installation de geoip-database en échec : lancer « apt-get install geoip-database » et lire l'erreur."
+msgstr "geoip-database installation failed: run « apt-get install geoip-database » and read the error."
+
+msgid "geoip-bin est introuvable dans les dépôts de cette distribution (apt-cache policy) : le pays de chaque adresse est cherché sur Internet (rdap.org)."
+msgstr "geoip-bin is not in this distribution's repositories (apt-cache policy): the country of each address is looked up on the Internet (rdap.org)."
+
+msgid "geoip-bin absent — RECOMMANDÉ (pas facultatif) : sans lui le pays de chaque adresse est cherché sur Internet. --update l'installe (apt-get install geoip-bin geoip-database)."
+msgstr "geoip-bin missing — RECOMMENDED (not optional): without it the country of each address is looked up on the Internet. --update installs it (apt-get install geoip-bin geoip-database)."
+
+msgid "geoip-bin et geoip-database installés : le pays des adresses IP est lu localement (aucune requête Internet)."
+msgstr "geoip-bin and geoip-database installed: the country of IP addresses is read locally (no Internet request)."
+
+msgid "installation de geoip-bin en échec : lancer « apt-get install geoip-bin geoip-database » et lire l'erreur."
+msgstr "geoip-bin installation failed: run « apt-get install geoip-bin geoip-database » and read the error."
+
+msgid "--- 15) Bip d'app-log-live.py (--chime) dans byobu / tmux ---"
+msgstr "--- 15) app-log-live.py beep (--chime) in byobu / tmux ---"
+
+msgid "byobu/tmux laisse passer le bip (bell-action any, visual-bell off, allow-passthrough on)."
+msgstr "byobu/tmux lets the beep through (bell-action any, visual-bell off, allow-passthrough on)."
+
+msgid "  [INFO] byobu/tmux peut avaler le bip de « app-log-live.py --chime ». Pour l'entendre, ajouter ces lignes à la configuration PERSONNELLE de byobu"
+msgstr "  [INFO] byobu/tmux may swallow the beep of « app-log-live.py --chime ». To hear it, add these lines to your PERSONAL byobu configuration"
+
+msgid "         (fichier ~/.byobu/.tmux.conf, à créer au besoin ; pas de fichier système à toucher), puis recharger (touche F5 de byobu, ou « tmux source-file ~/.byobu/.tmux.conf ») :"
+msgstr "         (file ~/.byobu/.tmux.conf, to be created if needed; no system file to touch), then reload (byobu F5 key, or « tmux source-file ~/.byobu/.tmux.conf »):"
+
+msgid "         Essai immédiat, sans fichier (perdu à la fermeture de tmux) : tmux set -g bell-action any ; tmux set -g visual-bell off ; tmux set -g allow-passthrough on (tmux 3.3+)."
+msgstr "         Immediate trial, without a file (lost when tmux closes): tmux set -g bell-action any ; tmux set -g visual-bell off ; tmux set -g allow-passthrough on (tmux 3.3+)."
+
+msgid "         Hors byobu/tmux, rien à changer. Le terminal (client SSH) doit aussi avoir le son actif pour la cloche."
+msgstr "         Outside byobu/tmux, nothing to change. The terminal (SSH client) must also have sound enabled for the bell."
+
+msgid "--- 16) Appels d'Odoo vers son propre nom public (User-Agent python-requests, page /mass_mailing_themes) ---"
+msgstr "--- 16) Odoo calls to its own public name (User-Agent python-requests, page /mass_mailing_themes) ---"
+
+msgid " : pas de réponse depuis ce serveur (nom non joignable d'ici) — non testé."
+msgstr " : no answer from this server (name not reachable from here) — not tested."
+
+msgid " : HTTP 403 pour python-requests mais HTTP "
+msgstr " : HTTP 403 for python-requests but HTTP "
+
+msgid " pour un navigateur — le filtre anti-robots bloque les appels d'Odoo vers lui-même (mass_mailing, aperçu des thèmes, rapports). Quoi faire : déployer nginx-odoo-config 1.5 ou plus récent (snippets/securite-commune.conf : exemption de l'adresse du serveur), nginx -t && systemctl reload nginx, puis relancer ce script. Si le serveur est derrière un NAT, l'adresse publique n'est pas celle de l'interface : ajoutez-la à la liste blanche (/etc/default/nginx-tools-white-list.conf)."
+msgstr " for a browser — the anti-robot filter blocks Odoo's calls to itself (mass_mailing, theme preview, reports). What to do: deploy nginx-odoo-config 1.5 or later (snippets/securite-commune.conf: exemption of the server address), nginx -t && systemctl reload nginx, then rerun this script. If the server is behind a NAT, the public address is not that of the interface: add it to the white list (/etc/default/nginx-tools-white-list.conf)."
+
+msgid " : HTTP 403 aussi pour un navigateur sur /mass_mailing_themes — ce n'est pas le filtre anti-robots (autre règle : liste blanche, page protégée, module mass_mailing non installé…). À examiner : nginx-log-audit.sh --evidence <adresse du serveur>."
+msgstr " : HTTP 403 also for a browser on /mass_mailing_themes — this is not the anti-robot filter (another rule: white list, protected page, mass_mailing module not installed…). To examine: nginx-log-audit.sh --evidence <server address>."
+
+msgid ") — les appels d'Odoo vers son nom public ne sont pas bloqués."
+msgstr ") — Odoo's calls to its public name are not blocked."
+
+msgid "  [INFO] Aucun nom joignable depuis ce serveur : test impossible ici (refaire à la main : curl -sI -A python-requests/2.31 https://NOM/mass_mailing_themes)."
+msgstr "  [INFO] No name reachable from this server: test impossible here (redo by hand: curl -sI -A python-requests/2.31 https://NAME/mass_mailing_themes)."
+
+msgid "--- BigBlueButton APRÈS ce passage : compatibilité avec nos règles, changements faits par ce passage ---"
+msgstr "--- BigBlueButton AFTER this run: compatibility with our rules, changes made by this run ---"
+
+msgid "RÉSUMÉ : "
+msgstr "SUMMARY: "
+
+msgid " échec(s)."
+msgstr " failure(s)."
+
+msgid " avertissement(s), aucun échec."
+msgstr " warning(s), no failure."
+
+msgid "RÉSUMÉ : tout est en ordre ("
+msgstr "SUMMARY: everything is in order ("
+
+msgid " vérifications)."
+msgstr " checks)."
+
+msgid "^(SETUP_(VERSION|DATE|LAST_RESULT_(PASS|WARN|FAIL))=|# Généré par nginx-hardening\\.sh)"
+msgstr "^(SETUP_(VERSION|DATE|LAST_RESULT_(PASS|WARN|FAIL))=|# Généré par nginx-hardening\\.sh)"
+
+msgid "# Généré par nginx-hardening.sh — les lignes SETUP_* sont réécrites à chaque --update ; les autres lignes (options, LANGUAGE) sont conservées."
+msgstr "# Generated by nginx-hardening.sh — the SETUP_* lines are rewritten at every --update; the other lines (options, LANGUAGE) are kept."
+
+msgid "État écrit dans "
+msgstr "State written to "
+
+msgid "Recommandation pour un port encore ouvert à l'extérieur (étape 4) : ajoutez dans odoo.conf —"
+msgstr "Recommendation for a port still open to the outside (step 4): add to odoo.conf —"
+
+msgid "    [options]"
+msgstr "    [options]"
+
+msgid "— puis redémarrez Odoo (pas un simple reload) et relancez ce script pour confirmer."
+msgstr "— then restart Odoo (not a simple reload) and rerun this script to confirm."
+
+msgid "Jails fail2ban installés ou régénérés : fail2ban rechargé (fail2ban-client reload)."
+msgstr "fail2ban jails installed or regenerated: fail2ban reloaded (fail2ban-client reload)."
+
+msgid " : chargé et actif."
+msgstr " : loaded and active."
+
+msgid " : NON chargé — voir « journalctl -u fail2ban -n 30 » (erreur de syntaxe, journal introuvable ?)."
+msgstr " : NOT loaded — see « journalctl -u fail2ban -n 30 » (syntax error, log not found?)."
+
+msgid "    Vérification ponctuelle (une fois) : fail2ban voit-il les échecs de connexion dans le VRAI journal d'Odoo ?"
+msgstr "    One-off check (once): does fail2ban see the login failures in Odoo's REAL log?"
+
+msgid "    1) Depuis un navigateur, se connecter au site avec un MAUVAIS mot de passe (une fois suffit) ;"
+msgstr "    1) From a browser, log in to the site with a WRONG password (once is enough);"
+
+msgid " --since \"10 min ago\" --no-pager > /tmp/odoo-journal.txt"
+msgstr " --since \"10 min ago\" --no-pager > /tmp/odoo-journal.txt"
+
+msgid "      fail2ban-regex /tmp/odoo-journal.txt /etc/fail2ban/filter.d/odoo-auth.conf"
+msgstr "      fail2ban-regex /tmp/odoo-journal.txt /etc/fail2ban/filter.d/odoo-auth.conf"
+
+msgid "    3) Attendu : « Lines: … N matched » avec N ≥ 1 (les lignes « missed » sont normales : tout le reste du journal d'Odoo)."
+msgstr "    3) Expected: « Lines: … N matched » with N ≥ 1 (« missed » lines are normal: all the rest of the Odoo log)."
+
+msgid " » = 0 → Odoo n'a pas écrit l'échec (mot de passe pas encore essayé, ou niveau de journal d'Odoo au-dessus de INFO) ;"
+msgstr " » = 0 → Odoo did not write the failure (password not tried yet, or Odoo log level above INFO);"
+
+msgid "       sinon, vérifier que la ligne se termine par l'adresse (« … from 203.0.113.9 »). Adresse 127.0.0.1 partout : proxy_mode inactif (étape 8) — fail2ban bannirait nginx lui-même."
+msgstr "       otherwise, check that the line ends with the address (« … from 203.0.113.9 »). Address 127.0.0.1 everywhere: proxy_mode inactive (step 8) — fail2ban would ban nginx itself."
+
+msgid "    4) La jail elle-même : « fail2ban-client status odoo-auth » (Total failed ≥ 1 après l'essai). ATTENTION : une adresse de la liste blanche de l'équipe est IGNORÉE par fail2ban"
+msgstr "    4) The jail itself: « fail2ban-client status odoo-auth » (Total failed ≥ 1 after the attempt). WARNING: an address of the team white list is IGNORED by fail2ban"
+
+msgid "       (ignoreip) : depuis votre poste d'équipe, « Total failed » reste à 0, c'est NORMAL. Pour voir la jail compter, essayer depuis une adresse hors liste (cellulaire, autre réseau)."
+msgstr "       (ignoreip): from your team workstation, « Total failed » stays at 0, which is NORMAL. To see the jail count, try from an address outside the list (cellular, other network)."
+
+msgid "Jails fail2ban installés, mais fail2ban n'est PAS démarré ("
+msgstr "fail2ban jails installed, but fail2ban is NOT started ("
+
+msgid ") : aucune jail n'est active."
+msgstr ") : no jail is active."
+
+msgid "    Démarrer et activer au démarrage : systemctl enable --now fail2ban"
+msgstr "    Start and enable at boot : systemctl enable --now fail2ban"
+
+msgid "    Puis vérifier                    : fail2ban-client status"
+msgstr "    Then check               : fail2ban-client status"
+
+msgid "Jails fail2ban installés, mais le rechargement a échoué."
+msgstr "fail2ban jails installed, but the reload failed."
+
+msgid "error|erreur|fail|not found|No such|unable"
+msgstr "error|erreur|fail|not found|No such|unable"
+
+msgid "Test de la configuration (fail2ban-client -t) :"
+msgstr "Configuration test (fail2ban-client -t):"
+
+msgid "    Détail : journalctl -u fail2ban -n 30 ; puis fail2ban-client reload"
+msgstr "    Details: journalctl -u fail2ban -n 30 ; then fail2ban-client reload"
+
+msgid "équipe"
+msgstr "team"
+
+msgid "introuvable"
+msgstr "not found"
+
+msgid "Les fichiers team-ips-*.conf sont plus récents que la configuration chargée par nginx : les adresses récentes sont refusées (403) tant que nginx n'est pas rechargé — --update le recharge (ou systemctl reload nginx)."
+msgstr "The team-ips-*.conf files are newer than the configuration loaded by nginx: recent addresses are refused (403) until nginx is reloaded — --update reloads it (or systemctl reload nginx)."
+
+msgid "nginx rechargé : team-ips-*.conf étaient plus récents que la configuration chargée."
+msgstr "nginx reloaded: team-ips-*.conf were newer than the loaded configuration."
+
+msgid "team-ips-*.conf plus récents que la configuration chargée, nginx -t réussi, mais rechargement impossible — systemctl reload nginx à la main."
+msgstr "team-ips-*.conf newer than the loaded configuration, nginx -t succeeded, but reload failed — run systemctl reload nginx by hand."
+
+msgid "team-ips-*.conf plus récents que la configuration chargée, mais nginx -t refuse la configuration — nginx NON rechargé."
+msgstr "team-ips-*.conf newer than the loaded configuration, but nginx -t rejects the configuration — nginx NOT reloaded."
+
+msgid "# GÉNÉRÉ par nginx-hardening.sh à partir des lieux [partagée] (/etc/default/nginx-tools-ip-location.conf) — NE PAS MODIFIER À LA MAIN."
+msgstr "# GENERATED by nginx-hardening.sh from the [shared] places (/etc/default/nginx-tools-ip-location.conf) — DO NOT EDIT BY HAND."
+
+msgid "# Adresses derrière lesquelles plusieurs personnes travaillent : limites de débit plus larges (odoo-global.conf, zones *_partage)."
+msgstr "# Addresses behind which several people work: wider rate limits (odoo-global.conf, *_partage zones)."
+
+msgid "réseau partagé"
+msgstr "shared network"
+
+msgid " réseau(x) partagé(s))."
+msgstr " shared network(s))."
+
+msgid "différent des lieux [partagée]"
+msgstr "different from the [shared] places"
+
+msgid " — --update le régénérera (nginx refuse l'include de odoo-global.conf sans ce fichier)."
+msgstr " — --update will regenerate it (nginx refuses the include in odoo-global.conf without this file)."
+
+msgid "Réseaux partagés régénérés ("
+msgstr "Shared networks regenerated ("
+
+msgid ") dans "
+msgstr ") in "
+
+msgid " ; nginx -t réussi, nginx rechargé."
+msgstr " ; nginx -t succeeded, nginx reloaded."
+
+msgid ") et nginx -t réussi, mais rechargement impossible — systemctl reload nginx à la main."
+msgstr ") and nginx -t succeeded, but reload failed — run systemctl reload nginx by hand."
+
+msgid "nginx -t refuse la configuration avec les réseaux partagés régénérés — ancienne version restaurée, nginx NON rechargé."
+msgstr "nginx -t refuses the configuration with the regenerated shared networks — previous version restored, nginx NOT reloaded."
+
+msgid "  --odoo-conf FILE            configuration d'Odoo (défaut : premier fichier trouvé parmi --odoo-conf-paths)"
+msgstr "  --odoo-conf FILE            Odoo configuration (default: first file found among --odoo-conf-paths)"
+
+msgid "  --odoo-conf-paths LIST       chemins (espaces ; motifs * permis) où chercher la configuration d'Odoo (défaut : /etc/odoo/odoo-linux_meetup.conf"
+msgstr "  --odoo-conf-paths LIST       paths (space-separated; * patterns allowed) where to look for the Odoo configuration (default: /etc/odoo/odoo-linux_meetup.conf"
+
+msgid "                               /opt/odoo/erplibre/config.conf /home/utilisateur/git/erplibre/config.conf /etc/odoo/*.conf…)"
+msgstr "                               /opt/odoo/erplibre/config.conf /home/utilisateur/git/erplibre/config.conf /etc/odoo/*.conf…)"
+
+msgid "  --odoo-gevent-port PORT      port gevent (websocket) d'Odoo à vérifier (défaut : celui de la configuration d'Odoo)"
+msgstr "  --odoo-gevent-port PORT      Odoo gevent (websocket) port to check (default: the one in the Odoo configuration)"
+
+msgid "  --odoo-http-port PORT        port HTTP d'Odoo à vérifier (défaut : celui de la configuration d'Odoo)"
+msgstr "  --odoo-http-port PORT        Odoo HTTP port to check (default: the one in the Odoo configuration)"
+
+msgid "défaut historique (aucune configuration d'Odoo trouvée)"
+msgstr "historical default (no Odoo configuration found)"
+
+msgid "lus dans "
+msgstr "read from "
+
+msgid "Configuration d'Odoo : "
+msgstr "Odoo configuration: "
+
+msgid "  [!] http_port absent de la configuration : port par défaut d'Odoo (8069) retenu. Si Odoo est lancé avec --http-port en ligne de commande, précisez --odoo-http-port."
+msgstr "  [!] http_port missing from the configuration: Odoo's default port (8069) used. If Odoo is started with --http-port on the command line, pass --odoo-http-port."
+
+msgid "  Journal d'Odoo : fichier "
+msgstr "  Odoo log: file "
+
+msgid " (logfile)"
+msgstr " (logfile)"
+
+msgid "  Journal d'Odoo : journal systemd (pas de logfile dans la configuration)"
+msgstr "  Odoo log: systemd journal (no logfile in the configuration)"
+
+msgid "--- 11b) Journal d'Odoo en fichier ("
+msgstr "--- 11b) Odoo log as a file ("
+
+msgid "Le fichier "
+msgstr "The file "
+
+msgid " (logfile de la configuration d'Odoo) n'existe pas encore — Odoo n'a pas démarré, ou le dossier n'est pas accessible en écriture."
+msgstr " (logfile from the Odoo configuration) does not exist yet — Odoo has not started, or the folder is not writable."
+
+msgid " est couvert par logrotate."
+msgstr " is covered by logrotate."
+
+msgid "Rotation : "
+msgstr "Rotation: "
+
+msgid "Aucune règle logrotate ne mentionne "
+msgstr "No logrotate rule mentions "
+
+msgid " : il grossira sans fin. Créez /etc/logrotate.d/odoo (weekly, rotate 13, compress, copytruncate, missingok, notifempty)."
+msgstr " : it will grow without bound. Create /etc/logrotate.d/odoo (weekly, rotate 13, compress, copytruncate, missingok, notifempty)."
+
+msgid "  Note : app-log-live.py lit ce fichier ; app-log-check.py et web-monitor.py ne lisent que le journal systemd d'Odoo (ils ne verront pas ses lignes)."
+msgstr "  Note: app-log-live.py reads this file; app-log-check.py and web-monitor.py only read Odoo's systemd journal (they will not see its lines)."
+
+msgid " présent (paquet "
+msgstr " present (package "
+
+msgid " absent (paquet "
+msgstr " missing (package "
+
+msgid ") — relancer avec --update pour l'installer."
+msgstr ") — rerun with --update to install it."
+
+msgid " absent et apt-get introuvable — installez le paquet "
+msgstr " missing and apt-get not found — install the package "
+
+msgid " avec le gestionnaire de paquets de cette distribution."
+msgstr " with this distribution's package manager."
+
+msgid " installé (paquet "
+msgstr " installed (package "
+
+msgid "installation du paquet "
+msgstr "installation of package "
+
+msgid " en échec — lancer « apt-get install "
+msgstr " failed — run « apt-get install "
+
+msgid " » et lire l'erreur."
+msgstr " » and read the error."
+
+msgid "--- 0) Programmes requis (ss, curl, logrotate, fail2ban) ---"
+msgstr "--- 0) Required programs (ss, curl, logrotate, fail2ban) ---"
+
+msgid "iptables : règles enregistrées (netfilter-persistent) — elles survivent à un redémarrage."
+msgstr "iptables: rules saved (netfilter-persistent) — they survive a reboot."
+
+msgid "iptables : « netfilter-persistent save » en échec — les règles sont en mémoire seulement."
+msgstr "iptables: « netfilter-persistent save » failed — the rules are in memory only."
+
+msgid "iptables-persistent installé et règles enregistrées — elles survivent à un redémarrage."
+msgstr "iptables-persistent installed and rules saved — they survive a reboot."
+
+msgid "Aucun service Odoo connu trouvé (db_user de la configuration, erplibre.service / erplibre_erplibre.service) — précisez --odoo-service NOM pour activer ce calcul."
+msgstr "No known Odoo service found (db_user from the configuration, erplibre.service / erplibre_erplibre.service) — specify --odoo-service NAME to enable this calculation."
+
+msgid "fuseau horaire laissé tel quel (TIMEZONE=none)"
+msgstr "time zone left as is (TIMEZONE=none)"
+
+msgid "timedatectl introuvable — fuseau horaire non vérifié (souhaité : "
+msgstr "timedatectl not found — time zone not checked (wanted: "
+
+msgid "Fuseau horaire « "
+msgstr "Time zone « "
+
+msgid " » inconnu de ce système (/usr/share/zoneinfo) — précisez --timezone ZONE (liste : timedatectl list-timezones)."
+msgstr " » unknown to this system (/usr/share/zoneinfo) — specify --timezone ZONE (list: timedatectl list-timezones)."
+
+msgid " (souhaité : "
+msgstr " (wanted: "
+
+msgid ") — relancer avec --update pour le régler."
+msgstr ") — rerun with --update to set it."
+
+msgid "Fuseau horaire : "
+msgstr "Time zone: "
+
+msgid "  Régler le fuseau horaire du serveur à "
+msgstr "  Set the server time zone to "
+
+msgid " (actuel : "
+msgstr " (current: "
+
+msgid "inconnu"
+msgstr "unknown"
+
+msgid " ? [O/n/autre zone] "
+msgstr " ? [Y/n/other zone] "
+
+msgid "Fuseau horaire laissé à "
+msgstr "Time zone left at "
+
+msgid " (choix mémorisé : TIMEZONE=none)."
+msgstr " (choice remembered: TIMEZONE=none)."
+
+msgid "Fuseau horaire réglé à "
+msgstr "Time zone set to "
+
+msgid " (avant : "
+msgstr " (before: "
+
+msgid "Réglage du fuseau horaire à "
+msgstr "Setting the time zone to "
+
+msgid " en échec — lancer « timedatectl set-timezone "
+msgstr " failed — run « timedatectl set-timezone "
+
+msgid "--- 0b) Fuseau horaire ---"
+msgstr "--- 0b) Time zone ---"
+
+msgid "--- 0c) Dossiers de cache nginx (proxy_cache_path) ---"
+msgstr "--- 0c) nginx cache directories (proxy_cache_path) ---"
+
+msgid "nginx absent"
+msgstr "nginx not installed"
+
+msgid "Aucun proxy_cache_path dans la configuration nginx."
+msgstr "No proxy_cache_path in the nginx configuration."
+
+msgid " n'existe pas : nginx -t refuse la configuration (relancer avec --update pour le créer)."
+msgstr " does not exist: nginx -t rejects the configuration (rerun with --update to create it)."
+
+msgid " créé (propriétaire "
+msgstr " created (owner "
+
+msgid " (propriétaire "
+msgstr " (owner "
+
+msgid ") — à faire à la main : install -d -o "
+msgstr ") — do it by hand: install -d -o "
+
+msgid " (pas de script run.sh) : les options d'Odoo sont lues sur cette ligne de commande."
+msgstr " (no run.sh script): Odoo's options are read from this command line."
+
+msgid "ExecStart lance directement "
+msgstr "ExecStart runs "
+
+msgid "ExecStart contient --limit-memory-hard=0 (illimité) — voir l'étape 6 pour une valeur suggérée."
+msgstr "ExecStart contains --limit-memory-hard=0 (unlimited) — see step 6 for a suggested value."
+
+msgid " : il grossira sans fin — --update crée /etc/logrotate.d/odoo (weekly, rotate 13, compress, copytruncate, missingok, notifempty)."
+msgstr " : it will grow without bound — --update creates /etc/logrotate.d/odoo (weekly, rotate 13, compress, copytruncate, missingok, notifempty)."
+
+msgid "# Généré par nginx-hardening.sh : rotation du journal d'Odoo (logfile de sa configuration)."
+msgstr "# Generated by nginx-hardening.sh: rotation of the Odoo log (logfile from its configuration)."
+
+msgid " créé mais logrotate -d signale : "
+msgstr " created but logrotate -d reports: "
+
+msgid " créé : "
+msgstr " created: "
+
+msgid " tourné chaque semaine, 13 copies compressées conservées (≈ 3 mois)."
+msgstr " rotated weekly, 13 compressed copies kept (≈ 3 months)."
+
+msgid " — à faire à la main (weekly, rotate 13, compress, copytruncate, missingok, notifempty)."
+msgstr " — do it by hand (weekly, rotate 13, compress, copytruncate, missingok, notifempty)."
+
+msgid "       0 matched : « grep -c 'Login failed' "
+msgstr "       0 matched : « grep -c 'Login failed' "
+
+msgid "  --timezone ZONE              fuseau horaire du serveur (défaut : America/Montreal, demandé la première fois ; none = ne pas toucher)"
+msgstr "  --timezone ZONE              server time zone (default: America/Montreal, asked the first time; none = leave untouched)"
+
+msgid "Lieux : "
+msgstr "Places: "
+
+msgid " plage(s))."
+msgstr " range(s))."
+
+msgid " (service "
+msgstr " (service "
+
+msgid ", backend "
+msgstr ", backend "
+
+msgid ", IP jamais bannies : "
+msgstr ", addresses never banned: "
+
+msgid " IP jamais bannies)."
+msgstr " addresses never banned)."
+
+msgid "Jail odoo-auth "
+msgstr "Jail odoo-auth "
+
+msgid " et "
+msgstr " and "
+
+msgid "--- 5) Pare-feu (ports "
+msgstr "--- 5) Firewall (ports "
+
+msgid "  Service Odoo               : "
+msgstr "  Odoo service               : "
+
+msgid "  RAM totale                  : "
+msgstr "  Total RAM                   : "
+
+msgid "limit_memory_hard actuel ("
+msgstr "current limit_memory_hard ("
+
+msgid ", source : "
+msgstr ", source: "
+
+msgid " > RAM totale ("
+msgstr " > total RAM ("
+
+msgid "  dev | lab | prod             environnement (journal du site) ; défaut : celui du profil détecté"
+msgstr "  dev | lab | prod             environment (site log); default: that of the detected profile"
+
+msgid "iptables : netfilter-persistent absent — les règles disparaîtront au redémarrage (relancer avec --update pour installer iptables-persistent)."
+msgstr "iptables: netfilter-persistent missing — the rules will disappear at reboot (rerun with --update to install iptables-persistent)."
+
+msgid ". Quoi faire : "
+msgstr ". What to do: "
+
+msgid "nginx : l'amont « "
+msgstr "nginx: the upstream « "
+
+msgid ") vise le port "
+msgstr ") points to port "
+
+msgid ", mais Odoo ("
+msgstr ", but Odoo ("
+
+msgid ") est configuré sur "
+msgstr ") is configured on "
+
+msgid ") — page de maintenance probable. Relancer avec --update pour corriger la configuration nginx."
+msgstr ") — maintenance page likely. Rerun with --update to fix the nginx configuration."
+
+msgid "nginx : copie de sauvegarde de "
+msgstr "nginx: backup copy of "
+
+msgid " impossible — fichier non modifié."
+msgstr " impossible — file not modified."
+
+msgid ") passe du port "
+msgstr ") changes from port "
+
+msgid ") ; nginx -t réussi, nginx rechargé. Sauvegarde : "
+msgstr ") ; nginx -t succeeded, nginx reloaded. Backup: "
+
+msgid "nginx : le port "
+msgstr "nginx: port "
+
+msgid " de l'amont « "
+msgstr " of the upstream « "
+
+msgid " » est refusé par nginx -t — ancienne version restaurée ("
+msgstr " » is refused by nginx -t — previous version restored ("
+
+msgid "), nginx NON rechargé."
+msgstr "), nginx NOT reloaded."
+
+msgid "  [--]   nginx : aucun amont « odoo » sur 127.0.0.1 trouvé dans sites-enabled/ ni conf.d/ (vérification des ports ignorée)."
+msgstr "  [--]   nginx: no « odoo » upstream on 127.0.0.1 found in sites-enabled/ or conf.d/ (port check skipped)."
+
+msgid "  --mail-from ADDRESS          expéditeur des courriels de la suite (défaut : l'identifiant du relais)"
+msgstr "  --mail-from ADDRESS          sender of the suite's emails (default: the relay user name)"
+
+msgid "  --mail-host HOST             relais SMTP des courriels des programmes Python et Bash (étape 0d ; demandé la première fois avec --update)"
+msgstr "  --mail-host HOST             SMTP relay for the Python and Bash programs' emails (step 0d; asked the first time with --update)"
+
+msgid "  --mail-port PORT             port du relais SMTP (défaut : 587)"
+msgstr "  --mail-port PORT             SMTP relay port (default: 587)"
+
+msgid "  --mail-security MODE         chiffrement : starttls (défaut), ssl ou none"
+msgstr "  --mail-security MODE         encryption: starttls (default), ssl or none"
+
+msgid "  --mail-setup                 redemander la configuration du courriel (avec --update)"
+msgstr "  --mail-setup                 ask the email configuration again (with --update)"
+
+msgid "  --mail-to ADDRESS            destinataire des courriels de la suite (alertes, rapports)"
+msgstr "  --mail-to ADDRESS            recipient of the suite's emails (alerts, reports)"
+
+msgid "  --mail-user NAME             identifiant du relais SMTP (le mot de passe est demandé, jamais passé en option)"
+msgstr "  --mail-user NAME             SMTP relay user name (the password is asked for, never passed as an option)"
+
+msgid "--- 0d) Courriel des programmes (relais SMTP, msmtp, configuration commune) ---"
+msgstr "--- 0d) Programs' email (SMTP relay, msmtp, common configuration) ---"
+
+msgid "sendmail présent (commande sendmail des programmes Bash)."
+msgstr "sendmail present (sendmail command of the Bash programs)."
+
+msgid "sendmail absent (paquet msmtp-mta) — relancer avec --update pour l'installer."
+msgstr "sendmail missing (package msmtp-mta) — rerun with --update to install it."
+
+msgid "msmtp-mta installé (commande sendmail)."
+msgstr "msmtp-mta installed (sendmail command)."
+
+msgid "installation du paquet msmtp-mta en échec — lancer « apt-get install msmtp-mta » et lire l'erreur."
+msgstr "installation of package msmtp-mta failed — run « apt-get install msmtp-mta » and read the error."
+
+msgid "Courriel configuré : "
+msgstr "Email configured: "
+
+msgid "), expéditeur "
+msgstr "), sender "
+
+msgid "non défini"
+msgstr "not set"
+
+msgid "Courriel non configuré ("
+msgstr "Email not configured ("
+
+msgid ") — relancer avec --update dans un terminal : le relais SMTP et le mot de passe sont demandés une fois."
+msgstr ") — rerun with --update in a terminal: the SMTP relay and the password are asked for once."
+
+msgid "Courriel déjà configuré : "
+msgstr "Email already configured: "
+
+msgid " (--mail-setup pour le redemander)."
+msgstr " (--mail-setup to ask again)."
+
+msgid "Serveur SMTP (relais)"
+msgstr "SMTP server (relay)"
+
+msgid "Chiffrement (starttls, ssl ou none)"
+msgstr "Encryption (starttls, ssl or none)"
+
+msgid "Nom d'utilisateur"
+msgstr "User name"
+
+msgid "Adresse d'expéditeur"
+msgstr "Sender address"
+
+msgid "Adresse de destination des courriels de la suite"
+msgstr "Recipient address of the suite's emails"
+
+msgid "  Mot de passe de "
+msgstr "  Password of "
+
+msgid " (aucun écho, gardé dans "
+msgstr " (no echo, kept in "
+
+msgid " en mode 0600) : "
+msgstr " in mode 0600): "
+
+msgid "Courriel non configuré : serveur SMTP ou identifiant manquant — relancer avec --update dans un terminal (ou --mail-host et --mail-user)."
+msgstr "Email not configured: SMTP server or user name missing — rerun with --update in a terminal (or --mail-host and --mail-user)."
+
+msgid "Courriel non configuré : mot de passe manquant — relancer avec --update dans un terminal (ou variable NGINX_TOOLS_MAIL_PASSWORD)."
+msgstr "Email not configured: password missing — rerun with --update in a terminal (or variable NGINX_TOOLS_MAIL_PASSWORD)."
+
+msgid "Courriel : port numérique et chiffrement starttls, ssl ou none attendus (reçus : « "
+msgstr "Email: numeric port and encryption starttls, ssl or none expected (received: « "
+
+msgid " », « "
+msgstr " », « "
+
+msgid "Courriel : guillemets, $, accent grave, barre oblique inverse et retour à la ligne refusés dans les réponses (fichiers de configuration)."
+msgstr "Email: quotes, $, backtick, backslash and line break refused in the answers (configuration files)."
+
+msgid "Courriel : écriture impossible dans "
+msgstr "Email: cannot write in "
+
+msgid "# Généré par nginx-hardening.sh (étape 0d) — courriel des programmes Python et Bash. AUCUN mot de passe ici : il est dans "
+msgstr "# Generated by nginx-hardening.sh (step 0d) — email of the Python and Bash programs. NO password here: it is in "
+
+msgid "# Pièce jointe plus grosse que cette taille (Mo) : remplacée par un lien (copie dans MAIL_LINK_DIR ; MAIL_LINK_URL = adresse publique de ce dossier)."
+msgstr "# Attachment larger than this size (MB): replaced by a link (copy in MAIL_LINK_DIR; MAIL_LINK_URL = public address of this folder)."
+
+msgid " (sans mot de passe) et "
+msgstr " (without password) and "
+
+msgid " existe et n'a pas été créé par ce programme — laissé tel quel (copie de la configuration à y reporter : hôte "
+msgstr " exists and was not created by this program — left as is (configuration to copy there: host "
+
+msgid "# Généré par nginx-hardening.sh (étape 0d) — sans mot de passe : lu dans "
+msgstr "# Generated by nginx-hardening.sh (step 0d) — without password: read in "
+
+msgid " écrit (commandes sendmail et mail des programmes Bash)."
+msgstr " written (sendmail and mail commands of the Bash programs)."
+
+msgid "  Envoyer un courriel de test à "
+msgstr "  Send a test email to "
+
+msgid "Courriel de test envoyé à "
+msgstr "Test email sent to "
+
+msgid "Courriel de test refusé : "
+msgstr "Test email refused: "
+
+msgid "  Courriel de test : python3 "
+msgstr "  Test email: python3 "
+
+msgid "  Entrées DNS exactes à créer (SPF, DMARC, DKIM) : étape 13 ci-dessous ; guide : doc/courriel-securise.md."
+msgstr "  Exact DNS entries to create (SPF, DMARC, DKIM): step 13 below; guide: doc/courriel-securise.md."
+
+msgid "  --rename-from NAME           ancien nom DNS public à remplacer dans nginx (étape 0e ; avec --rename-to et --update)"
+msgstr "  --rename-from NAME           old public DNS name to replace in nginx (step 0e; with --rename-to and --update)"
+
+msgid "  --rename-to NAME             nouveau nom DNS public : nginx et certificat Let's Encrypt sont refaits pour ce nom (sans --rename-from, l'ancien nom est cherché dans nginx)"
+msgstr "  --rename-to NAME             new public DNS name: nginx and the Let's Encrypt certificate are redone for this name (without --rename-from, the old name is looked up in nginx)"
+
+msgid "--- 0e) Changement de nom DNS (nginx et Let's Encrypt) ---"
+msgstr "--- 0e) DNS name change (nginx and Let's Encrypt) ---"
+
+msgid "  [--]   Aucun changement de nom demandé (--rename-from ANCIEN --rename-to NOUVEAU, avec --update pour l'appliquer)."
+msgstr "  [--]   No name change requested (--rename-from OLD --rename-to NEW, with --update to apply it)."
+
+msgid "Changement de nom : deux noms de domaine complets sont attendus (reçus : « "
+msgstr "Name change: two fully qualified domain names are expected (received: « "
+
+msgid " » et « "
+msgstr " » and « "
+
+msgid "Changement de nom : l'ancien et le nouveau nom sont identiques ("
+msgstr "Name change: the old and the new name are identical ("
+
+msgid "Changement de nom : aucun fichier nginx (sites-enabled/, conf.d/) ne mentionne "
+msgstr "Name change: no nginx file (sites-enabled/, conf.d/) mentions "
+
+msgid " — rien à remplacer."
+msgstr " — nothing to replace."
+
+msgid "  Fichiers nginx qui mentionnent "
+msgstr "  nginx files that mention "
+
+msgid "Certificat de "
+msgstr "Certificate of "
+
+msgid " déjà présent et valide pour ce nom ("
+msgstr " already present and valid for this name ("
+
+msgid "Le nom "
+msgstr "The name "
+
+msgid " n'existe pas encore dans le DNS : Let's Encrypt refusera le certificat. Créer chez le fournisseur du domaine un enregistrement A (et AAAA si IPv6) "
+msgstr " does not exist in the DNS yet: Let's Encrypt will refuse the certificate. At the domain provider, create an A record (and AAAA if IPv6) "
+
+msgid " vers l'adresse IP de CE serveur, attendre la propagation, puis relancer."
+msgstr " to the IP address of THIS server, wait for propagation, then run again."
+
+msgid "  Le nom "
+msgstr "  The name "
+
+msgid " : vérifier que c'est bien l'adresse IP de CE serveur (sinon Let's Encrypt échouera)."
+msgstr " : check that it is the IP address of THIS server (otherwise Let's Encrypt will fail)."
+
+msgid "Changement de nom "
+msgstr "Name change "
+
+msgid " à faire : relancer avec --update (sauvegarde, remplacement dans nginx, certificat de "
+msgstr " to do: run again with --update (backup, replacement in nginx, certificate of "
+
+msgid " réutilisé s'il existe, sinon demandé à Let's Encrypt, nginx -t, rechargement)."
+msgstr " reused if it exists, otherwise requested from Let's Encrypt, nginx -t, reload)."
+
+msgid "Changement de nom : copie de sauvegarde de "
+msgstr "Name change: backup copy of "
+
+msgid " impossible — rien n'est modifié."
+msgstr " impossible — nothing is modified."
+
+msgid "Changement de nom : nginx -t refuse la nouvelle configuration — anciennes versions restaurées, nginx NON rechargé. Sauvegardes : "
+msgstr "Name change: nginx -t refuses the new configuration — old versions restored, nginx NOT reloaded. Backups: "
+
+msgid " remplacé par "
+msgstr " replaced by "
+
+msgid " fichier(s) ; nginx -t réussi, nginx rechargé. Sauvegardes : "
+msgstr " file(s); nginx -t succeeded, nginx reloaded. Backups: "
+
+msgid "Certificat Let's Encrypt obtenu pour "
+msgstr "Let's Encrypt certificate obtained for "
+
+msgid "certbot n'a pas pu obtenir le certificat de "
+msgstr "certbot could not obtain the certificate of "
+
+msgid " (le nom doit pointer vers CE serveur, port 80 ouvert, nginx servant /.well-known/acme-challenge/ depuis /var/www/letsencrypt) :"
+msgstr " (the name must point to THIS server, port 80 open, nginx serving /.well-known/acme-challenge/ from /var/www/letsencrypt):"
+
+msgid "Changement de nom : nginx -t refuse les chemins du nouveau certificat — anciennes versions restaurées, nginx NON rechargé."
+msgstr "Name change: nginx -t refuses the new certificate paths — old versions restored, nginx NOT reloaded."
+
+msgid "nginx : certificat de "
+msgstr "nginx: certificate of "
+
+msgid " en service ; nginx -t réussi, nginx rechargé."
+msgstr " in service; nginx -t succeeded, nginx reloaded."
+
+msgid "Les chemins du certificat de "
+msgstr "The certificate paths of "
+
+msgid " sont gardés tant que "
+msgstr " are kept as long as "
+
+msgid " n'a pas de certificat : les navigateurs refuseront "
+msgstr " has no certificate: browsers will refuse "
+
+msgid ". Corriger la cause ci-dessus puis relancer la même commande."
+msgstr ". Fix the cause above, then run the same command again."
+
+msgid "  À faire à la main pour "
+msgstr "  To do by hand for "
+
+msgid "    - DNS : enregistrement A (et AAAA) "
+msgstr "    - DNS: A (and AAAA) record "
+
+msgid " vers l'adresse IP de ce serveur ; retirer "
+msgstr " to the IP address of this server; remove "
+
+msgid " du DNS seulement quand plus personne ne l'utilise."
+msgstr " from the DNS only when nobody uses it any more."
+
+msgid "    - Odoo : Paramètres → Technique → Paramètres système → web.base.url = https://"
+msgstr "    - Odoo: Settings → Technical → System Parameters → web.base.url = https://"
+
+msgid " (et freeze.url si présent)."
+msgstr " (and freeze.url if present)."
+
+msgid " mentionne encore "
+msgstr " still mentions "
+
+msgid " (dbfilter ? ligne : "
+msgstr " (dbfilter? line: "
+
+msgid ") — à adapter, puis redémarrer Odoo."
+msgstr ") — to adapt, then restart Odoo."
+
+msgid "Fichiers de /etc/default qui mentionnent encore "
+msgstr "Files in /etc/default that still mention "
+
+msgid "— à adapter (programmes de surveillance, courriel…)."
+msgstr "— to adapt (monitoring programs, email…)."
+
+msgid "    - Anciens certificat et configuration : « certbot certificates » puis « certbot delete --cert-name "
+msgstr "    - Old certificate and configuration: « certbot certificates » then « certbot delete --cert-name "
+
+msgid " » quand "
+msgstr " » once "
+
+msgid " n'est plus servi."
+msgstr " is no longer served."
+
+msgid "    - HSTS : les navigateurs qui ont visité "
+msgstr "    - HSTS: browsers that visited "
+
+msgid " continueront d'exiger HTTPS pour lui ; garder "
+msgstr " will keep requiring HTTPS for it; keep "
+
+msgid " avec un certificat valide et une redirection 301 vers "
+msgstr " with a valid certificate and a 301 redirect to "
+
+msgid "    - Vérification : app-log-live.py --diagnose --diagnose-host "
+msgstr "    - Check: app-log-live.py --diagnose --diagnose-host "
+
+msgid " (certificat vu comme un navigateur)."
+msgstr " (certificate seen like a browser does)."
+
+msgid "  Configuration du courriel des programmes (demandée une seule fois) : Entrée garde la valeur entre crochets."
+msgstr "  Programs' email configuration (asked only once): Enter keeps the value in square brackets."
+
+msgid "  Les réponses vont dans "
+msgstr "  The answers go in "
+
+msgid " (sans mot de passe) ; le mot de passe va seul dans "
+msgstr " (without password); the password goes alone in "
+
+msgid " (mode 0600, jamais affiché)."
+msgstr " (mode 0600, never displayed)."
+
+msgid "  Aucun terminal pour poser les questions du courriel (entrée non interactive) : relancer dans un terminal, ou passer --mail-host et --mail-user (mot de passe : variable NGINX_TOOLS_MAIL_PASSWORD)."
+msgstr "  No terminal to ask the email questions (non-interactive input): run again in a terminal, or pass --mail-host and --mail-user (password: NGINX_TOOLS_MAIL_PASSWORD variable)."
+
+msgid "  Faire le setup du courriel (relais SMTP) maintenant ? [o/N] : "
+msgstr "  Set up e-mail (SMTP relay) now? [y/N] : "
+
+msgid "Courriel : setup reporté (réponse non) — relancer avec --update et répondre o, ou avec --mail-setup."
+msgstr "E-mail: setup postponed (answer no) — run again with --update and answer y, or with --mail-setup."
+
+msgid "  Ancien nom (--rename-from non donné) : "
+msgstr "  Old name (--rename-from not given): "
+
+msgid ", seul nom de domaine trouvé dans les server_name de nginx."
+msgstr ", the only domain name found in nginx server_name directives."
+
+msgid "  Noms trouvés dans les server_name de nginx : "
+msgstr "  Names found in nginx server_name directives: "
+
+msgid "  Ancien nom à remplacer par "
+msgstr "  Old name to replace with "
+
+msgid "Plusieurs anciens noms possibles : préciser lequel avec --rename-from NOM."
+msgstr "Several old names are possible: say which one with --rename-from NAME."
+
+msgid "Aucun nom de domaine trouvé dans les server_name de nginx : préciser l'ancien nom avec --rename-from NOM."
+msgstr "No domain name found in nginx server_name directives: give the old name with --rename-from NAME."
+
+msgid "Changement de nom : l'ancien nom est introuvable ou ambigu — relancer avec --rename-from ANCIEN --rename-to "
+msgstr "Name change: the old name was not found or is ambiguous — run again with --rename-from OLD --rename-to "
+
+msgid "        Que faire : un certificat ou une clé est introuvable ou illisible. Si le nom DNS a changé : "
+msgstr "        What to do: a certificate or key is missing or unreadable. If the DNS name changed: "
+
+msgid " --update --rename-to NOUVEAU_NOM (refait nginx et le certificat) ; sinon « certbot certificates » puis « certbot renew »."
+msgstr " --update --rename-to NEW_NAME (redoes nginx and the certificate); otherwise \"certbot certificates\" then \"certbot renew\"."
+
+msgid "        Que faire : un fichier ou un dossier mentionné par nginx n'existe pas (cache, journal, include). Les dossiers de cache sont créés par "
+msgstr "        What to do: a file or folder named by nginx does not exist (cache, log, include). The cache folders are created by "
+
+msgid " --update (étape 0c) ; sinon créer le fichier ou retirer la ligne."
+msgstr " --update (step 0c); otherwise create the file or remove the line."
+
+msgid "        Que faire : directive inconnue de cette installation de nginx : module absent (ex. GeoIP : apt install libnginx-mod-http-geoip) ou faute de frappe dans la ligne indiquée."
+msgstr "        What to do: directive unknown to this nginx installation: module missing (e.g. GeoIP: apt install libnginx-mod-http-geoip) or typo in the indicated line."
+
+msgid "        Que faire : un port est déjà pris par un autre programme : ss -ltnp | grep ':80\\|:443' (un autre nginx, Apache, Docker…), l'arrêter ou changer le port."
+msgstr "        What to do: a port is already taken by another program: ss -ltnp | grep ':80\\|:443' (another nginx, Apache, Docker…), stop it or change the port."
+
+msgid "        Que faire : le nom d'un serveur amont (upstream/proxy_pass) ne se résout pas : mettre 127.0.0.1 ou corriger le nom."
+msgstr "        What to do: the name of an upstream server (upstream/proxy_pass) does not resolve: use 127.0.0.1 or fix the name."
+
+msgid "        Que faire : définition en double (upstream, zone, location ou serveur par défaut) : garder une seule définition ; grep -rn le nom dans /etc/nginx/."
+msgstr "        What to do: duplicate definition (upstream, zone, location or default server): keep a single definition; grep -rn the name in /etc/nginx/."
+
+msgid "        Que faire : augmenter server_names_hash_bucket_size (64 puis 128) dans nginx.conf, bloc http."
+msgstr "        What to do: increase server_names_hash_bucket_size (64 then 128) in nginx.conf, http block."
+
+msgid "        Lignes en cause ("
+msgstr "        Lines concerned ("
+
+msgid ", ligne "
+msgstr ", line "
+
+msgid "--- 0a) nginx avant les changements (nginx -t, service) ---"
+msgstr "--- 0a) nginx before the changes (nginx -t, service) ---"
+
+msgid "nginx absent (commande introuvable) : le reste du setup ne peut pas vérifier ni recharger nginx."
+msgstr "nginx not found (command missing): the rest of the setup cannot check or reload nginx."
+
+msgid "nginx -t : la configuration est valide avant les changements de ce script."
+msgstr "nginx -t: the configuration is valid before this script's changes."
+
+msgid "nginx -t REFUSE la configuration AVANT tout changement de ce script (problème déjà présent, à corriger) :"
+msgstr "nginx -t REFUSES the configuration BEFORE any change by this script (existing problem, to be fixed):"
+
+msgid "        Après correction : nginx -t && systemctl reload nginx, puis relancer ce script. Les étapes qui modifient nginx restaurent leurs fichiers si nginx -t refuse, mais ne réparent pas ce problème."
+msgstr "        After the fix: nginx -t && systemctl reload nginx, then run this script again. The steps that modify nginx restore their files if nginx -t refuses, but do not repair this problem."
+
+msgid "Le service nginx n'est pas actif (état : "
+msgstr "The nginx service is not active (state: "
+
+msgid " ; après vérification : systemctl start nginx"
+msgstr " ; after checking: systemctl start nginx"
+
+msgid " — chaque websocket occupe 2 connexions (le navigateur et Odoo) ; avec une centaine de personnes connectées à la discussion (souvent 2 appareils chacune), prévoir au moins 2048."
+msgstr " — each websocket takes 2 connections (the browser and Odoo); with about a hundred people connected to the chat (often 2 devices each), allow at least 2048."
+
+msgid "nginx : le location « "
+msgstr "nginx: the location « "
+
+msgid ") vise le port HTTP d'Odoo ("
+msgstr ") points to Odoo's HTTP port ("
+
+msgid ") au lieu du port gevent ("
+msgstr ") instead of the gevent port ("
+
+msgid ") — les messages de la discussion n'arrivent pas en temps réel (Odoo avec workers : seul le processus gevent sert le websocket)."
+msgstr ") — chat messages do not arrive in real time (Odoo with workers: only the gevent process serves the websocket)."
+
+msgid ") n'a pas « proxy_http_version 1.1; » (défaut de nginx : 1.0) — les websockets échouent et les messages n'arrivent plus en direct. Relancer avec --update pour l'ajouter."
+msgstr ") has no « proxy_http_version 1.1; » (nginx default: 1.0) — websockets fail and messages no longer arrive live. Run again with --update to add it."
+
+msgid ") n'envoie pas « proxy_set_header Upgrade $http_upgrade; » — le websocket ne s'établit pas. À ajouter à la main (voir le modèle ci-dessous : ajouter une directive proxy_set_header à un location retire celles du niveau supérieur)."
+msgstr ") does not send « proxy_set_header Upgrade $http_upgrade; » — the websocket cannot be established. Add it by hand (see the template below: adding a proxy_set_header to a location removes the ones from the level above)."
+
+msgid ") n'envoie pas « proxy_set_header Connection \"upgrade\"; » (ni $connection_upgrade) — le websocket ne s'établit pas. À ajouter à la main (voir le modèle ci-dessous)."
+msgstr ") does not send « proxy_set_header Connection \"upgrade\"; » (nor $connection_upgrade) — the websocket cannot be established. Add it by hand (see the template below)."
+
+msgid ") coupe un websocket muet après "
+msgstr ") cuts a silent websocket after "
+
+msgid " s (proxy_read_timeout, défaut 60 s) ; Odoo envoie un ping toutes les 40 à 55 s : marge trop mince, les coupures répétées retardent les messages. Relancer avec --update pour passer à "
+msgstr " s (proxy_read_timeout, default 60 s); Odoo sends a ping every 40 to 55 s: too thin a margin, repeated disconnections delay the messages. Run again with --update to set "
+
+msgid ") vise le port gevent "
+msgstr ") points to gevent port "
+
+msgid ", HTTP 1.1, en-têtes Upgrade et Connection, délai de lecture "
+msgstr ", HTTP 1.1, Upgrade and Connection headers, read timeout "
+
+msgid " s — websocket (discussions en temps réel) bien configuré."
+msgstr " s — websocket (real-time chat) correctly configured."
+
+msgid "« proxy_http_version 1.1; » ajouté"
+msgstr "« proxy_http_version 1.1; » added"
+
+msgid "proxy_read_timeout modifié : "
+msgstr "proxy_read_timeout changed: "
+
+msgid "« proxy_read_timeout "
+msgstr "« proxy_read_timeout "
+
+msgid "s; » ajouté (défaut : 60 s)"
+msgstr "s; » added (default: 60 s)"
+
+msgid "nginx : location « "
+msgstr "nginx: location « "
+
+msgid " ; nginx -t réussi, nginx rechargé. Sauvegarde : "
+msgstr " ; nginx -t succeeded, nginx reloaded. Backup: "
+
+msgid "nginx : la modification du location « "
+msgstr "nginx: the change to location « "
+
+msgid ") est refusée par nginx -t — ancienne version restaurée, nginx NON rechargé."
+msgstr ") was refused by nginx -t — old version restored, nginx NOT reloaded."
+
+msgid "nginx : aucun location vers le port gevent d'Odoo ("
+msgstr "nginx: no location points to Odoo's gevent port ("
+
+msgid ") — le websocket (discussions en temps réel) ne peut pas fonctionner."
+msgstr ") — the websocket (real-time chat) cannot work."
+
+msgid "  [--]   nginx : aucun location /websocket vers Odoo trouvé (vérification du websocket ignorée)."
+msgstr "  [--]   nginx: no /websocket location to Odoo found (websocket check skipped)."
+
+msgid "  Modèle de location pour le websocket d'Odoo (à placer AVANT « location / ») :"
+msgstr "  Template location for Odoo's websocket (to place BEFORE « location / »):"
+
+msgid ", qui est celui d'Odoo ("
+msgstr ", which is Odoo's ("
+
+msgid "  [--]   nginx : le location « "
+msgstr "  [--]   nginx: the location « "
+
+msgid ") envoie vers une variable que ce script ne sait pas résoudre ("
+msgstr ") sends to a variable this script cannot resolve ("
+
+msgid ") — vérification de ce websocket ignorée."
+msgstr ") — check of this websocket skipped."
+
+msgid "/tcp (sauf depuis 127.0.0.1)."
+msgstr "/tcp (except from 127.0.0.1)."
+
+msgid "  [--]   nginx : l'amont « "
+msgstr "  [--]   nginx: upstream \""
+
+msgid ") est celui d'une autre version d'Odoo (port "
+msgstr ") belongs to another Odoo version (port "
+
+msgid ") : non vérifié, non modifié."
+msgstr "): not checked, not modified."
+
+msgid "  --anonymize                  anonymise ce qui est affiché (adresses IP, courriels, identifiants, jetons) par des pseudonymes stables ; clé ANONYMIZE"
+msgstr "  --anonymize                  anonymizes what is displayed (IP addresses, emails, identifiers, tokens) with stable pseudonyms; key ANONYMIZE"

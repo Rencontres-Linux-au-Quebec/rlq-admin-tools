@@ -1,0 +1,58 @@
+# ========================================================================================================================
+# Copyright (C) 2026  Services-Conseils Linux
+# AGPL-3.0-or-later — voir nginx-log-audit.sh pour le texte complet de la licence.
+# ========================================================================================================================
+#
+# Fichier de configuration de nginx-log-audit.sh (exemple : toutes les clés, en commentaire = valeur par défaut).
+# Les fichiers suivants sont LUS DANS CET ORDRE (le dernier l'emporte) ; la ligne de commande est prioritaire sur les fichiers :
+#   1. /etc/default/nginx-log-audit.conf    (fichier du système)
+#   2. ~/.nginx-log-audit.cfg               (s'il existe : réglages de l'utilisateur)
+# -c/--config FICHIER : ce fichier SEUL. Le répertoire courant n'est PAS lu. Le programme affiche toujours quel(s) fichier(s) il lit,
+# puis une ligne résumant les options importantes. Format : CLÉ=valeur, une par ligne ; # = commentaire ; guillemets facultatifs ;
+# booléens : oui / non (true / false, 1 / 0). Ce fichier est LU, jamais exécuté.
+
+# --- Langue d'affichage ---
+# en, fr ou auto (suivre LC_ALL / LC_MESSAGES / LANG). Ordre de choix : --lang, NGINX_TOOLS_LANG, NGINX_LOG_AUDIT_LANG, cette clé, LC_ALL, LC_MESSAGES, LANG.
+# Ajouter une langue = ajouter le fichier lang/nginx-log-audit.XX.po (format PO : Poedit, Weblate…) — voir lang/README.md.
+#LANGUAGE=auto
+
+# --- Options (équivalents de la ligne de commande) ---
+# --app (défaut : détectée automatiquement)
+#APP=
+# --ban-threshold
+#BAN_THRESHOLD=3
+# --no-prompt
+#NO_PROMPT=non
+# --page-burst (défaut : 8)
+#PAGE_BURST=8
+# --parallel-threshold (défaut : 5)
+#PARALLEL_THRESHOLD=5
+# --ua-rotation-threshold (défaut : 2)
+#UA_ROTATION_THRESHOLD=2
+# --verbose
+#VERBOSE=non
+
+# --- Options de la ligne de commande SEULEMENT (actions ou réglages ponctuels : aucune clé ici) ---
+# Les voici, pour mémoire (« nginx-log-audit --help » donne le détail). Elles se donnent sur la ligne de commande, jamais dans ce fichier.
+#   --changelog           affiche le journal des modifications
+#   --details             avec --stats : détail de chaque indicateur
+#   --evidence IP         preuves pour ou contre le bannissement d'une IP et verdict, sans rien demander ni bannir (lecture seule)
+#   --export-bans [FILE]  exporter les bannissements manuels (sortie standard par défaut)
+#   --fail2ban            état des jails et historique des bannissements de fail2ban
+#   --import-bans FILE|-  importer des bannissements (- : entrée standard)
+#   --init                analyser tout le fichier actif (et non seulement le nouveau depuis le dernier passage)
+#   --init-all            analyser tout l'historique, rotations comprises
+#   --investigate IP      enquête complète sur une IP (tout l'historique), avec le propriétaire de son bloc d'adresses (RDAP)
+#   --ip ADDRESS          limiter le rapport à une adresse
+#   --last HOURS          limiter toutes les sections aux HOURS dernières heures
+#   --report-err          afficher à la fin un rapport d'erreurs à copier-coller (programme, version, serveur, échecs, avertissements)
+#   --stats               statistiques du trafic (codes, IP, User-Agents, appareils des visiteurs)
+#   --unban IP            lever un bannissement manuel
+#   --unban-check         réévaluer chaque bannissement manuel (levée proposée si injustifié)
+#   --version             affiche la version et quitte
+#   --yes                 avec --ban : bannir sans question
+
+# --- Anonymisation de l'affichage ---
+# --anonymize : anonymiser ce que le programme affiche (adresses IP, courriels, identifiants, jetons) par des pseudonymes stables (IP-4f2a9c, usager-9c1e03@anonyme.invalid) ; clé ANONYMIZE
+# (la même clé dans app-default.conf vaut pour tous les programmes ; appliquée seulement quand la sortie est un terminal ; pour cron : --anonymize ou NGINX_TOOLS_ANONYMIZE=1).
+#ANONYMIZE=non

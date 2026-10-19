@@ -1,0 +1,122 @@
+# English translation of apps/_limites.py messages (shared module).
+msgid ""
+msgstr ""
+"Language: en\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+
+msgid "aucun 429 pour cette adresse dans les journaux lus"
+msgstr "no 429 for this address in the logs read"
+
+msgid "rien à changer"
+msgstr "nothing to change"
+
+msgid "la zone limit_req n'est pas connue : le journal d'accès ne la dit pas"
+msgstr "the limit_req zone is unknown: the access log does not say"
+
+msgid "ajouter dans nginx : limit_req_log_level warn; (défaut : error) ou lire error.log (« limiting requests, excess: … by zone »), et mettre $limit_req_status dans log_format"
+msgstr "in nginx add: limit_req_log_level warn; (default: error) or read error.log (\"limiting requests, excess: … by zone\"), and put $limit_req_status in log_format"
+
+msgid " refus sur "
+msgstr " refusals out of "
+
+msgid " requêtes (appel répété de la page, pas une personne qui clique)"
+msgstr " requests (a page calling repeatedly, not a person clicking)"
+
+msgid "regrouper ces appels dans un location séparé avec sa propre limit_req_zone (rate plus haut, burst 20+) plutôt que la zone générale ; ou espacer l'appel côté site"
+msgstr "move these calls to a separate location with its own limit_req_zone (higher rate, burst 20+) instead of the general zone; or space the calls out on the site side"
+
+msgid "pointe de "
+msgstr "peak of "
+
+msgid " requêtes en une seconde : typique d'un chargement de page avec beaucoup de ressources ou de plusieurs personnes derrière la même adresse (université, entreprise)"
+msgstr " requests in one second: typical of a page load with many resources or of several people behind the same address (university, company)"
+
+msgid "ajouter l'adresse à la liste blanche (nginx-tools-white-list.conf) si c'est un lieu connu, ou augmenter burst (ex. burst=100 nodelay) pour la zone odoo_general"
+msgstr "add the address to the white list (nginx-tools-white-list.conf) if it is a known place, or raise burst (e.g. burst=100 nodelay) for the odoo_general zone"
+
+msgid " action(s) POST refusée(s) : un formulaire ou une inscription a pu être perdu"
+msgstr " POST action(s) refused: a form or a registration may have been lost"
+
+msgid "ne jamais limiter les POST de formulaires de la même façon que les pages : zone séparée avec burst, ou exemption pour les adresses connues"
+msgstr "never limit form POSTs the same way as pages: separate zone with burst, or exemption for known addresses"
+
+msgid " ressource(s) (JS, CSS, images) refusée(s) : page mal affichée chez la personne"
+msgstr " resource(s) (JS, CSS, images) refused: page badly displayed for the person"
+
+msgid "exclure /web/static/, /web/assets/ et /website/static/ de limit_req (location avec limit_req off ; ou cache navigateur : expires 7d)"
+msgstr "exclude /web/static/, /web/assets/ and /website/static/ from limit_req (location with limit_req off; or browser cache: expires 7d)"
+
+msgid " refus sur la zone odoo_login (5 par minute) : plusieurs tentatives de connexion rapprochées"
+msgstr " refusals on the odoo_login zone (5 per minute): several login attempts close together"
+
+msgid "normal contre le bourrage d'identifiants ; si c'est une vraie personne, attendre une minute ; ne pas relâcher cette zone"
+msgstr "normal against credential stuffing; if it is a real person, wait a minute; do not relax this zone"
+
+msgid "relire les URL ci-dessus et les zones ; ajuster rate / burst de la zone concernée"
+msgstr "reread the URLs above and the zones; adjust rate / burst of the zone concerned"
+
+msgid " refus répartis sans cause évidente"
+msgstr " refusals spread out with no obvious cause"
+
+msgid "  Journaux nginx illisibles ou absents (root requis ? dossier "
+msgstr "  nginx logs unreadable or missing (root required? folder "
+
+msgid "Limitation de débit (429) pour "
+msgstr "Rate limiting (429) for "
+
+msgid " fichier(s) de journal lu(s)"
+msgstr " log file(s) read"
+
+msgid "  Aucune requête de cette adresse dans les journaux lus."
+msgstr "  No request from this address in the logs read."
+
+msgid "  Requêtes : "
+msgstr "  Requests: "
+
+msgid ", heure locale) ; refusées en 429 : "
+msgstr ", local time); refused with 429: "
+
+msgid "  URL les plus refusées (refus / requêtes de cette adresse sur cette URL) :"
+msgstr "  Most refused URLs (refusals / requests from this address on this URL):"
+
+msgid " ; dépassement maximal vu : "
+msgstr "; maximum excess seen: "
+
+msgid " requête(s)"
+msgstr " request(s)"
+
+msgid " requêtes en une seconde ("
+msgstr " requests in one second ("
+
+msgid ") ; jusqu'à "
+msgstr "); up to "
+
+msgid " refus en une seconde ; minute la plus refusée : "
+msgstr " refusals in one second; most refused minute: "
+
+msgid "  Par jour (requêtes) : "
+msgstr "  Per day (requests): "
+
+msgid "page refusée (la personne voit « Too Many Requests »)"
+msgstr "page refused (the person sees \"Too Many Requests\")"
+
+msgid "ressource refusée (JS / CSS / image : page mal affichée)"
+msgstr "resource refused (JS / CSS / image: page badly displayed)"
+
+msgid "appel de fond refusé (suivi, notifications, manifeste : fonction qui s'arrête sans message)"
+msgstr "background call refused (tracking, notifications, manifest: feature stops silently)"
+
+msgid "action POST refusée (formulaire ou inscription possiblement perdu)"
+msgstr "POST action refused (form or registration possibly lost)"
+
+msgid "aucun"
+msgstr "none"
+
+msgid " (limit_conn)"
+msgstr " (limit_conn)"
+
+msgid " refus par limit_conn : trop de connexions SIMULTANÉES de cette personne (plusieurs onglets, pages avec appels longs comme /track, /websocket, chargements parallèles)"
+msgstr " refusals by limit_conn: too many SIMULTANEOUS connections from this person (several tabs, pages with long calls like /track, /websocket, parallel loads)"
+
+msgid "augmenter la limite (limit_conn odoo_visiteur 16;) ou ne pas appliquer limit_conn aux appels longs (location /websocket et /longpolling) ; vérifier que les onglets ouverts ne se multiplient pas"
+msgstr "raise the limit (limit_conn odoo_visiteur 16;) or do not apply limit_conn to long calls (location /websocket and /longpolling); check that open tabs do not multiply"

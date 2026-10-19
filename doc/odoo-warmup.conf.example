@@ -1,0 +1,65 @@
+# ========================================================================================================================
+# Copyright (C) 2026  Services-Conseils Linux
+# AGPL-3.0-or-later — voir odoo-mail-retry.py pour le texte complet de la licence.
+# ========================================================================================================================
+#
+# Fichier de configuration de odoo-warmup.py (exemple : toutes les clés, en commentaire = valeur par défaut).
+# Les fichiers suivants sont LUS DANS CET ORDRE (le dernier l'emporte) ; la ligne de commande est prioritaire sur les fichiers :
+#   1. /etc/default/odoo-warmup.conf    (fichier du système)
+#   2. ~/.odoo-warmup.cfg               (s'il existe : réglages de l'utilisateur)
+# -c/--config FICHIER : ce fichier SEUL. Le répertoire courant n'est PAS lu. Le programme affiche toujours quel(s) fichier(s) il lit,
+# puis une ligne résumant les options importantes. Format : CLÉ=valeur, une par ligne ; # = commentaire ; guillemets facultatifs ;
+# listes : valeurs séparées par des virgules. Ce fichier est LU, jamais exécuté.
+
+# --- Langue d'affichage ---
+# en, fr ou auto (suivre LC_ALL / LC_MESSAGES / LANG). Ordre de choix : --lang, NGINX_TOOLS_LANG, ODOO_WARMUP_LANG, cette clé, LC_ALL, LC_MESSAGES, LANG.
+# Ajouter une langue = ajouter le fichier lang/odoo-warmup.XX.po (format PO : Poedit, Weblate…) — voir lang/README.md.
+#LANGUAGE=auto
+
+# --- Mode bavard ---
+# oui : afficher chaque commande externe exécutée (équivalent de --verbose). Peut aussi venir du fichier commun app-default.conf (clés VERBOSE et DEBUG_LEVEL).
+#VERBOSE=non
+
+# --- Options (équivalents de la ligne de commande) ---
+# --url : adresse d'Odoo (le port HTTP d'Odoo, sans passer par nginx)
+#URL=http://127.0.0.1:8069
+# --db : base pour l'administration (défaut : base unique d'Odoo, sinon à préciser)
+#DB=
+# --repeat : passages en parallèle de chaque appel d'administration (plusieurs processus d'Odoo)
+#REPEAT=4
+# --wait : secondes d'attente qu'Odoo réponde avant de préchauffer
+#WAIT=120
+# --links : pages liées trouvées dans les pages publiques (fiches d'événements, sondages…) à charger aussi ; 0 = aucune
+#LINKS=6
+# --latest : pages publiques des N derniers événements et sondages (lus avec la session d'administration LOGIN / KEY_FILE) ; 0 = aucun
+#LATEST=5
+# --pages-file : fichier des pages publiques supplémentaires, un chemin par ligne (modèle : doc/odoo-warmup-pages.conf.example ; ajouter une page = ajouter une ligne)
+#PAGES_FILE=/etc/default/odoo-warmup-pages.conf
+# --site-languages : langues du site chargées pour chaque page publique (versions trouvées dans les liens hreflang de la page) ; aucune = seulement la langue de l'adresse
+#LANGS=fr,en,es
+# --service : unité systemd d'Odoo (--systemd-install et --systemd-remove)
+#SERVICE=odoo.service
+
+# --- Réglages SANS option de ligne de commande ---
+# Pages publiques à charger (et leurs assets), séparées par des virgules : ajouter les pages populaires (ex. la page d'un événement).
+#PAGES=/,/web/login,/event,/survey
+# Administration : utilisateur Odoo DÉDIÉ (droits de lecture suffisent) et fichier contenant sa CLÉ D'API (Préférences > Sécurité du compte > Clés API ;
+# une ligne, mode 0600 : chmod 600). Sans ces deux clés, seules les pages publiques sont préchauffées. (défaut : aucun : pages publiques seulement)
+#LOGIN=
+#KEY_FILE=/etc/odoo-warmup.key
+# Modèles dont les vues (liste, formulaire, recherche, kanban) sont préchargées : les écrans que les administrateurs ouvrent.
+#MODELS=event.event,event.registration,event.event.ticket,survey.survey,survey.user_input,res.partner
+
+# --- Options de la ligne de commande SEULEMENT (actions ou réglages ponctuels : aucune clé ici) ---
+# Les voici, pour mémoire (« odoo-warmup --help » donne le détail). Elles se donnent sur la ligne de commande, jamais dans ce fichier.
+#   --changelog       Affiche le journal des modifications
+#   --report-err      Afficher à la fin un rapport d'erreurs à copier-coller (programme, version, serveur, échecs, avertissements)
+#   --systemd-install Lancer le préchauffage après chaque démarrage de l'unité d'Odoo (fichier .d systemd, root)
+#   --systemd-remove  Retirer le démarrage automatique installé par --systemd-install
+#   --verbose         Affiche chaque commande externe exécutée
+#   --version         affiche la version et quitte
+
+# --- Anonymisation de l'affichage ---
+# --anonymize : anonymiser ce que le programme affiche (adresses IP, courriels, identifiants, jetons) par des pseudonymes stables (IP-4f2a9c, usager-9c1e03@anonyme.invalid) ; clé ANONYMIZE
+# (la même clé dans app-default.conf vaut pour tous les programmes ; appliquée seulement quand la sortie est un terminal ; pour cron : --anonymize ou NGINX_TOOLS_ANONYMIZE=1).
+#ANONYMIZE=non

@@ -1,0 +1,647 @@
+# French translation of the messages of host-perf-audit (msgid = English text of the code, msgstr = French translation).
+# Standard PO format (Poedit, Weblate, Crowdin...). Empty msgstr = untranslated (English stays); identical to the msgid = valid in both languages.
+# Messages are sentence FRAGMENTS (the code assembles sentences with variables): keep leading/trailing spaces and the order of the pieces.
+msgid ""
+msgstr ""
+"Project-Id-Version: host-perf-audit\n"
+"Language: fr\n"
+"Source-Language: en\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+msgid "DISKS — % of the time busy (utilization), operations and throughput per second, wait per operation (ms)"
+msgstr "DISQUES — % du temps occupé (utilisation), opérations et débit par seconde, attente par opération (ms)"
+
+msgid "  (wait = 95th percentile of the samples with activity; « p95 » = 95 % of the samples under this value)"
+msgstr "  (attente = 95e centile des échantillons avec activité ; « p95 » = 95 % des échantillons sous cette valeur)"
+
+msgid "  (PostgreSQL / Odoo container: recordsize=16K on its dataset suits the 8 KiB pages of PostgreSQL; only for new files: set it before a restore)"
+msgstr "  (conteneur PostgreSQL / Odoo : recordsize=16K sur son dataset convient aux pages de 8 Kio de PostgreSQL ; seulement pour les nouveaux fichiers : le régler avant une restauration)"
+
+msgid "NETWORK"
+msgstr "RÉSEAU"
+
+msgid "  (CPU: 100 % = one full core; disk wait: % of the time the guest's tasks waited for the disk — the latency felt INSIDE it)"
+msgstr "  (CPU : 100 % = un cœur complet ; attente disque : % du temps où les tâches de l'invité ont attendu le disque — la latence ressentie À L'INTÉRIEUR)"
+
+msgid "ARE SSD DISKS JUSTIFIED?"
+msgstr "DES DISQUES SSD SONT-ILS JUSTIFIÉS ?"
+
+msgid "VERDICT — what limits the performance"
+msgstr "VERDICT — ce qui limite les performances"
+
+msgid "SUGGESTED SETTINGS"
+msgstr "RÉGLAGES SUGGÉRÉS"
+
+msgid "HIGH"
+msgstr "HAUTE"
+
+msgid "MEDIUM"
+msgstr "MOYENNE"
+
+msgid "LOW"
+msgstr "FAIBLE"
+
+msgid "PROCESSOR — "
+msgstr "PROCESSEUR — "
+
+msgid " logical core(s), governor "
+msgstr " cœur(s) logique(s), gouverneur "
+
+msgid "  busy: average "
+msgstr "  occupé : moyenne "
+
+msgid " %, 95 % of the time under "
+msgstr " %, 95 % du temps sous "
+
+msgid " %, peak "
+msgstr " %, pointe "
+
+msgid " % · load "
+msgstr " % · charge "
+
+msgid " (peak "
+msgstr " (pointe "
+
+msgid ") for "
+msgstr ") pour "
+
+msgid " core(s)"
+msgstr " cœur(s)"
+
+msgid "  ZFS ARC: "
+msgstr "  ARC de ZFS : "
+
+msgid " GiB used, maximum "
+msgstr " Gio utilisés, maximum "
+
+msgid " GiB ("
+msgstr " Gio ("
+
+msgid " % of the RAM) · hit ratio "
+msgstr " % de la RAM) · taux de réussite "
+
+msgid " % (95 % of the samples above "
+msgstr " % (95 % des échantillons au-dessus de "
+
+msgid "HDD pool without « special » device: two small mirrored SSD as special vdev hold the metadata and the small blocks (zfs set special_small_blocks=16K): most of the random reads of PostgreSQL then hit SSD — an intermediate step before replacing all the disks"
+msgstr "pool de disques HDD sans périphérique « special » : deux petits SSD en miroir comme vdev special gardent les métadonnées et les petits blocs (zfs set special_small_blocks=16K) : la plupart des lectures aléatoires de PostgreSQL vont alors sur SSD — une étape intermédiaire avant de remplacer tous les disques"
+
+msgid "GUESTS — the "
+msgstr "INVITÉS — les "
+
+msgid " busiest on the disks (cgroup of each running container / VM)"
+msgstr " plus actifs sur les disques (cgroup de chaque conteneur / VM en marche)"
+
+msgid "  no spinning disk (HDD) on this host: the question does not arise."
+msgstr "  aucun disque à plateaux (HDD) sur cet hôte : la question ne se pose pas."
+
+msgid "  In order: ARC larger if RAM allows, « special » mirrored SSD (metadata + small blocks), SLOG for synchronous writes, then SSD for the pool of the busiest guest."
+msgstr "  Dans l'ordre : ARC plus grand si la RAM le permet, SSD « special » en miroir (métadonnées + petits blocs), SLOG pour les écritures synchrones, puis SSD pour le pool de l'invité le plus actif."
+
+msgid "\nNothing to apply automatically (the remaining suggestions need a decision or a VM restart)."
+msgstr "\nRien à appliquer automatiquement (les autres suggestions demandent une décision ou un redémarrage de VM)."
+
+msgid "\nSettings not applied: root required."
+msgstr "\nRéglages non appliqués : root requis."
+
+msgid "\nNo terminal to confirm: add --yes to apply without questions."
+msgstr "\nAucun terminal pour confirmer : ajouter --yes pour appliquer sans question."
+
+msgid "No sample taken: nothing to analyze (interrupted too early)."
+msgstr "Aucun échantillon : rien à analyser (interrompu trop tôt)."
+
+msgid "PERFORMANCE OF "
+msgstr "PERFORMANCES DE "
+
+msgid " sample(s) from "
+msgstr " échantillon(s) depuis "
+
+msgid " over "
+msgstr " sur "
+
+msgid "  (waiting times from "
+msgstr "  (temps d'attente lus dans "
+
+msgid "; this program used "
+msgstr " ; ce programme a utilisé "
+
+msgid " s of processor in all)"
+msgstr " s de processeur en tout)"
+
+msgid "Processors"
+msgstr "Processeurs"
+
+msgid "RAM"
+msgstr "RAM"
+
+msgid "Disks"
+msgstr "Disques"
+
+msgid "  none: nothing to change according to these measurements."
+msgstr "  aucun : rien à changer d'après ces mesures."
+
+msgid "What limits the performance of a Proxmox host (or any Linux server): processor, memory, disks, network, ZFS, guests — measured over a chosen duration, with a verdict, the answer to « are SSD disks justified? » and the settings to change."
+msgstr "Ce qui limite les performances d'un hôte Proxmox (ou de tout serveur Linux) : processeur, mémoire, disques, réseau, ZFS, invités — mesuré sur une durée choisie, avec un verdict, la réponse à « des disques SSD sont-ils justifiés ? » et les réglages à changer."
+
+msgid "After the report, apply the SAFE settings one by one with confirmation (ZFS compression / atime of a dataset, ARC maximum, vm.swappiness); --yes: without questions"
+msgstr "Après le rapport, appliquer les réglages SANS RISQUE un par un avec confirmation (compression / atime d'un dataset ZFS, maximum de l'ARC, vm.swappiness) ; --yes : sans question"
+
+msgid "Show the change log"
+msgstr "Affiche le journal des modifications"
+
+msgid "FILE"
+msgstr "FICHIER"
+
+msgid "Configuration file to read ALONE (otherwise: /etc/default/host-perf-audit.conf, then the personal file .host-perf-audit.cfg; UPPERCASE options: CSV, DURATION, INTERVAL, LANGUAGE, NO_GUESTS, TOP, VERBOSE)"
+msgstr "Fichier de configuration à lire SEUL (sinon : /etc/default/host-perf-audit.conf, puis le fichier personnel .host-perf-audit.cfg ; options en MAJUSCULES : CSV, DURATION, INTERVAL, LANGUAGE, NO_GUESTS, TOP, VERBOSE)"
+
+msgid "Also write every sample to this CSV file (one line per interval: CPU, waits, memory, ARC, each disk)"
+msgstr "Écrire aussi chaque échantillon dans ce fichier CSV (une ligne par intervalle : CPU, attentes, mémoire, ARC, chaque disque)"
+
+msgid "TIME"
+msgstr "DURÉE"
+
+msgid "Length of the measurement: 90 (seconds), 10m, 4h, 1h30m… (default: 60 seconds)"
+msgstr "Durée de la mesure : 90 (secondes), 10m, 4h, 1h30m… (défaut : 60 secondes)"
+
+msgid "SECONDS"
+msgstr "SECONDES"
+
+msgid "Seconds between two samples (default: 5 up to 2 minutes of measurement, 15 up to 30 minutes, 60 beyond)"
+msgstr "Secondes entre deux échantillons (défaut : 5 jusqu'à 2 minutes de mesure, 15 jusqu'à 30 minutes, 60 au-delà)"
+
+msgid "LANG"
+msgstr "LANGUE"
+
+msgid "Display language: en or fr (default: from LC_ALL / LC_MESSAGES / LANG)"
+msgstr "Langue d'affichage : en ou fr (défaut : selon LC_ALL / LC_MESSAGES / LANG)"
+
+msgid "Do not measure each container / VM (cgroups)"
+msgstr "Ne pas mesurer chaque conteneur / VM (cgroups)"
+
+msgid "Print at the end an error report to copy and paste (program, version, server, failures, warnings)"
+msgstr "Afficher à la fin un rapport d'erreurs à copier-coller (programme, version, serveur, échecs, avertissements)"
+
+msgid "Number of guests shown, the busiest on the disks first (default: 8)"
+msgstr "Nombre d'invités affichés, les plus actifs sur les disques d'abord (défaut : 8)"
+
+msgid "Show each command run"
+msgstr "Affiche chaque commande lancée"
+
+msgid "With --apply: without questions"
+msgstr "Avec --apply : sans question"
+
+msgid "--duration expects between 5 seconds and 7 days"
+msgstr "--duration attend entre 5 secondes et 7 jours"
+
+msgid "ERROR: component apps/_sysperf.py missing: copy the whole nginx-tools folder (apps/ included)."
+msgstr "ERREUR : composant apps/_sysperf.py absent : copier tout le dossier nginx-tools (apps/ compris)."
+
+msgid "Limited rights: without root, smartctl, the ZFS commands and some counters are unreadable (sudo for a complete report)."
+msgstr "Droits limités : sans root, smartctl, les commandes ZFS et certains compteurs sont illisibles (sudo pour un rapport complet)."
+
+msgid "Note: not a Proxmox VE host (pveversion not found): guests are not named; the measurement of the machine itself stays valid."
+msgstr "Note : ce n'est pas un hôte Proxmox VE (pveversion introuvable) : les invités ne sont pas nommés ; la mesure de la machine elle-même reste valable."
+
+msgid "WARNING: this program runs inside a container: the disks shown are not the real ones — run it on the Proxmox host."
+msgstr "ATTENTION : ce programme tourne dans un conteneur : les disques affichés ne sont pas les vrais — le lancer sur l'hôte Proxmox."
+
+msgid ") — Ctrl-C stops early and still gives the report."
+msgstr ") — Ctrl-C arrête plus tôt et donne quand même le rapport."
+
+msgid "  waiting for a processor (PSI cpu some): average "
+msgstr "  attente d'un processeur (PSI cpu some) : moyenne "
+
+msgid "processor time stolen by another hypervisor (steal "
+msgstr "temps processeur volé par un autre hyperviseur (steal "
+
+msgid " %): this host is itself virtualized or overbooked — ask the provider or move it"
+msgstr " %) : cet hôte est lui-même virtualisé ou surréservé — demander au fournisseur ou le déplacer"
+
+msgid "processors are not a limit"
+msgstr "les processeurs ne sont pas une limite"
+
+msgid "processors are sometimes saturated (tasks wait for a core)"
+msgstr "les processeurs sont parfois saturés (des tâches attendent un cœur)"
+
+msgid "processors are the LIMIT: tasks wait for a core a large part of the time"
+msgstr "les processeurs sont la LIMITE : des tâches attendent un cœur une bonne partie du temps"
+
+msgid "CPU frequency governor « "
+msgstr "gouverneur de fréquence du processeur « "
+
+msgid " » while the processors are busy: « performance » keeps the frequency up (more power used) — echo performance | tee /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor (permanent: cpufrequtils or a systemd unit)"
+msgstr " » alors que les processeurs sont occupés : « performance » garde la fréquence haute (plus d'électricité) — echo performance | tee /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor (permanent : cpufrequtils ou une unité systemd)"
+
+msgid "MEMORY — "
+msgstr "MÉMOIRE — "
+
+msgid " total, available at least "
+msgstr " au total, disponible au moins "
+
+msgid " (average "
+msgstr " (moyenne "
+
+msgid ") · swap used "
+msgstr ") · swap utilisé "
+
+msgid "  waiting for memory (PSI memory): some "
+msgstr "  attente de mémoire (PSI memory) : some "
+
+msgid " % on average (reclaim, swap)"
+msgstr " % en moyenne (récupération, swap)"
+
+msgid "memory is not a limit"
+msgstr "la mémoire n'est pas une limite"
+
+msgid "memory is tight (reclaim or swap at times)"
+msgstr "la mémoire est juste (récupération ou swap par moments)"
+
+msgid "memory is the LIMIT: tasks wait for memory (reclaim, swap) a large part of the time"
+msgstr "la mémoire est la LIMITE : des tâches attendent la mémoire (récupération, swap) une bonne partie du temps"
+
+msgid "swap in use ("
+msgstr "swap utilisé ("
+
+msgid ") with vm.swappiness="
+msgstr ") avec vm.swappiness="
+
+msgid ": on a ZFS host, 10 (or 1) keeps the guests in RAM"
+msgstr " : sur un hôte ZFS, 10 (ou 1) garde les invités en RAM"
+
+msgid "vm.swappiness=10 now and in "
+msgstr "vm.swappiness=10 maintenant et dans "
+
+msgid "disk"
+msgstr "disque"
+
+msgid "util avg"
+msgstr "util moy"
+
+msgid "read/s"
+msgstr "lect/s"
+
+msgid "write/s"
+msgstr "écr/s"
+
+msgid "MB/s r"
+msgstr "Mo/s l"
+
+msgid "MB/s w"
+msgstr "Mo/s é"
+
+msgid "wait r"
+msgstr "att. l"
+
+msgid "wait w"
+msgstr "att. é"
+
+msgid "model"
+msgstr "modèle"
+
+msgid "  waiting for the disks (PSI io): some "
+msgstr "  attente des disques (PSI io) : some "
+
+msgid " % (95 % under "
+msgstr " % (95 % sous "
+
+msgid " %), full "
+msgstr " %), full "
+
+msgid " % — % of the time at least one task / all the tasks waited for the disk"
+msgstr " % — % du temps où au moins une tâche / toutes les tâches ont attendu le disque"
+
+msgid "disks are not a limit"
+msgstr "les disques ne sont pas une limite"
+
+msgid "disks are busy at times (waits during peaks)"
+msgstr "les disques sont occupés par moments (attentes pendant les pointes)"
+
+msgid "disks are the LIMIT: tasks wait for the disk a large part of the time"
+msgstr "les disques sont la LIMITE : des tâches attendent le disque une bonne partie du temps"
+
+msgid "  no traffic measured"
+msgstr "  aucun trafic mesuré"
+
+msgid "name"
+msgstr "nom"
+
+msgid "CPU avg"
+msgstr "CPU moy"
+
+msgid "peak"
+msgstr "pointe"
+
+msgid "memory"
+msgstr "mémoire"
+
+msgid "disk MB/s"
+msgstr "disque Mo/s"
+
+msgid "disk wait"
+msgstr "att. disque"
+
+msgid "  Guest that waited most for the disk: "
+msgstr "  Invité qui a le plus attendu le disque : "
+
+msgid " % of its time)."
+msgstr " % de son temps)."
+
+msgid "  permanent: "
+msgstr "  permanent : "
+
+msgid "  done: zfs_arc_max = "
+msgstr "  fait : zfs_arc_max = "
+
+msgid " GiB now"
+msgstr " Gio maintenant"
+
+msgid "  at boot: "
+msgstr "  au démarrage : "
+
+msgid " — root on ZFS: also « update-initramfs -u -k all » (the program runs it now)"
+msgstr " — racine sur ZFS : aussi « update-initramfs -u -k all » (le programme le lance maintenant)"
+
+msgid "  Short measurement ("
+msgstr "  Mesure courte ("
+
+msgid "): to see the daily peaks (backups, busy hours), run it for hours: host-perf-audit.py --duration 24h"
+msgstr ") : pour voir les pointes de la journée (sauvegardes, heures chargées), mesurer pendant des heures : host-perf-audit.py --duration 24h"
+
+msgid "configuration file not found: "
+msgstr "fichier de configuration introuvable : "
+
+msgid "\nSamples written to "
+msgstr "\nÉchantillons écrits dans "
+
+msgid "\nInterrupted (Ctrl-C)."
+msgstr "\nInterrompu (Ctrl-C)."
+
+msgid "\nMeasurement interrupted (Ctrl-C) after "
+msgstr "\nMesure interrompue (Ctrl-C) après "
+
+msgid " sample(s): report on what was measured."
+msgstr " échantillon(s) : rapport sur ce qui a été mesuré."
+
+msgid " MiB shared)"
+msgstr " Mio partagés)"
+
+msgid " ARC memory throttle: "
+msgstr " limitation mémoire de l'ARC : "
+
+msgid " time(s) — the ARC had to give memory back under pressure"
+msgstr " fois — l'ARC a dû rendre de la mémoire sous pression"
+
+msgid "memory short while the ZFS ARC may take up to "
+msgstr "mémoire juste alors que l'ARC de ZFS peut prendre jusqu'à "
+
+msgid " GiB: limit it to about "
+msgstr " Gio : la limiter à environ "
+
+msgid " GiB so the guests keep their memory"
+msgstr " Gio pour que les invités gardent leur mémoire"
+
+msgid " GiB (now and at boot)"
+msgstr " Gio (maintenant et au démarrage)"
+
+msgid ": SMART health FAILED — replace this disk (a failing disk retries and slows the whole pool)"
+msgstr " : santé SMART EN ÉCHEC — remplacer ce disque (un disque défaillant recommence ses lectures et ralentit tout le pool)"
+
+msgid ": SMART health FAILED — replace it before anything else"
+msgstr " : santé SMART EN ÉCHEC — le remplacer avant toute autre chose"
+
+msgid ") uses the « "
+msgstr ") utilise l'ordonnanceur « "
+
+msgid " » scheduler: « none » or « mq-deadline » suit SSD better"
+msgstr " » : « none » ou « mq-deadline » conviennent mieux aux SSD"
+
+msgid " TB, used "
+msgstr " To, utilisé à "
+
+msgid " %, fragmentation "
+msgstr " %, fragmentation "
+
+msgid ", no special / log / cache device"
+msgstr ", aucun périphérique special / log / cache"
+
+msgid "    average waits since the pool was imported: "
+msgstr "    attentes moyennes depuis l'importation du pool : "
+
+msgid " — a scrub / resilver in progress slows everything down: measure again after it"
+msgstr " — un scrub / resilver en cours ralentit tout : mesurer de nouveau après"
+
+msgid ": scrub or resilver in progress during the measurement — schedule scrubs at night (they are, by default, the second Sunday of the month)"
+msgstr " : scrub ou resilver en cours pendant la mesure — prévoir les scrubs la nuit (par défaut, le deuxième dimanche du mois)"
+
+msgid ": zpool status -x, replace the faulty disk first"
+msgstr " : zpool status -x, remplacer d'abord le disque défaillant"
+
+msgid ": fragmentation "
+msgstr " : fragmentation "
+
+msgid " % — the writes get slower; only a copy to a new pool (zfs send / receive) removes it"
+msgstr " % — les écritures ralentissent ; seule une copie vers un nouveau pool (zfs send / receive) l'enlève"
+
+msgid ": ashift=9 (512-byte sectors) on recent disks (4K sectors): each write costs a read-modify-write — only a new pool (ashift=12) fixes it"
+msgstr " : ashift=9 (secteurs de 512 octets) sur des disques récents (secteurs de 4K) : chaque écriture coûte une lecture-modification-écriture — seul un nouveau pool (ashift=12) corrige cela"
+
+msgid ": synchronous writes wait "
+msgstr " : les écritures synchrones attendent "
+
+msgid " ms on average (PostgreSQL commits, NFS…): a small mirrored SSD « log » device (SLOG) makes them fast without replacing the HDD"
+msgstr " ms en moyenne (validations de PostgreSQL, NFS…) : un petit périphérique « log » sur SSD en miroir (SLOG) les rend rapides sans remplacer les HDD"
+
+msgid ": compression off — lz4 (or zstd) is almost free in processor and reduces the disk reads and writes (new data only)"
+msgstr " : compression désactivée — lz4 (ou zstd) ne coûte presque rien en processeur et réduit les lectures et écritures sur disque (nouvelles données seulement)"
+
+msgid ": atime=on without relatime — every read writes the access time; atime=off removes these writes"
+msgstr " : atime=on sans relatime — chaque lecture écrit l'heure d'accès ; atime=off enlève ces écritures"
+
+msgid ": sync=disabled — fast but an outage can lose the last seconds of committed transactions (PostgreSQL!): « standard » unless deliberate"
+msgstr " : sync=disabled — rapide, mais une panne peut perdre les dernières secondes de transactions validées (PostgreSQL !) : « standard » sauf choix délibéré"
+
+msgid " MB/s (peak "
+msgstr " Mo/s (pointe "
+
+msgid ")  sent "
+msgstr ")  envoyé "
+
+msgid " GiB  "
+msgstr " Gio  "
+
+msgid "): CPU type kvm64 hides the instructions of the real processor — « host » (or x86-64-v2-AES) is faster when migration is not needed"
+msgstr ") : le type de CPU kvm64 cache les instructions du vrai processeur — « host » (ou x86-64-v2-AES) est plus rapide quand la migration n'est pas nécessaire"
+
+msgid "  FAILED to write "
+msgstr "  ÉCHEC de l'écriture de "
+
+msgid "  FAILED (now): "
+msgstr "  ÉCHEC (maintenant) : "
+
+msgid "  FAILED (at boot): "
+msgstr "  ÉCHEC (au démarrage) : "
+
+msgid "  not applied"
+msgstr "  non appliqué"
+
+msgid "Changelog not found: "
+msgstr "Changelog introuvable : "
+
+msgid "--duration: unreadable value « "
+msgstr "--duration : valeur illisible « "
+
+msgid " » (e.g. 90, 10m, 4h, 1h30m)"
+msgstr " » (ex. 90, 10m, 4h, 1h30m)"
+
+msgid "Measuring for "
+msgstr "Mesure pendant "
+
+msgid ", one sample every "
+msgstr ", un échantillon toutes les "
+
+msgid " disk(s), "
+msgstr " disque(s), "
+
+msgid " running guest(s)"
+msgstr " invité(s) en marche"
+
+msgid "WARNING: CSV file not writable ("
+msgstr "ATTENTION : fichier CSV non modifiable ("
+
+msgid "): samples not written."
+msgstr ") : échantillons non écrits."
+
+msgid "] sample "
+msgstr "] échantillon "
+
+msgid " % · busiest disk "
+msgstr " % · disque le plus occupé "
+
+msgid " % · I/O wait "
+msgstr " % · attente E-S "
+
+msgid " % · memory wait "
+msgstr " % · attente mémoire "
+
+msgid ", devices: "
+msgstr ", périphériques : "
+
+msgid "): disk on the "
+msgstr ") : disque sur le bus "
+
+msgid " bus (emulated, slow) — VirtIO SCSI single with iothread=1 (driver needed in the guest)"
+msgstr " (émulé, lent) — VirtIO SCSI single avec iothread=1 (pilote requis dans l'invité)"
+
+msgid "): SCSI disk without iothread=1 (with the « VirtIO SCSI single » controller, each disk gets its own I/O thread)"
+msgstr ") : disque SCSI sans iothread=1 (avec le contrôleur « VirtIO SCSI single », chaque disque a son propre fil d'E-S)"
+
+msgid "): disk cache « "
+msgstr ") : cache disque « "
+
+msgid " » on ZFS — double cache with the ARC; « none » is the usual choice"
+msgstr " » sur ZFS — double cache avec l'ARC ; « none » est le choix habituel"
+
+msgid "  NOT YET: the HDD slow things down only at peaks"
+msgstr "  PAS ENCORE : les HDD ne ralentissent qu'aux pointes"
+
+msgid " (disk wait "
+msgstr " (attente disque "
+
+msgid " % on average). Measure over a full day (--duration 24h) including the backups and the busiest hours; a larger ARC or a special SSD device would probably be enough."
+msgstr " % en moyenne). Mesurer sur une journée complète (--duration 24h) avec les sauvegardes et les heures chargées ; un ARC plus grand ou un SSD « special » suffirait probablement."
+
+msgid "  NO: the HDD are not a limit for this load"
+msgstr "  NON : les HDD ne sont pas une limite pour cette charge"
+
+msgid " % on average, no disk saturated). The slowness of the first page loads after a restart is the cold cache (empty ARC and page cache), not the disk type: SATA HDD with ZFS are enough here."
+msgstr " % en moyenne, aucun disque saturé). La lenteur des premiers chargements après un redémarrage vient du cache froid (ARC et cache de pages vides), pas du type de disque : des HDD SATA avec ZFS suffisent ici."
+
+msgid "\nRemaining settings not applied."
+msgstr "\nRéglages restants non appliqués."
+
+msgid ", ZFS pool(s): "
+msgstr ", pool(s) ZFS : "
+
+msgid "--report-err unavailable ("
+msgstr "--report-err indisponible ("
+
+msgid ") — normal run."
+msgstr ") — exécution normale."
+
+msgid "ARC hit ratio only "
+msgstr "taux de réussite de l'ARC de seulement "
+
+msgid " % while "
+msgstr " % alors que "
+
+msgid " of RAM stay free: a larger ARC ("
+msgstr " de RAM restent libres : un ARC plus grand ("
+
+msgid " GiB) serves more reads from RAM — the cheapest way to make HDD feel faster"
+msgstr " Gio) sert plus de lectures depuis la RAM — la façon la moins chère de rendre les HDD plus rapides"
+
+msgid "single disk(s)"
+msgstr "disque(s) seul(s)"
+
+msgid " — tasks waited for the disk "
+msgstr " — des tâches ont attendu le disque "
+
+msgid " % of the time (all tasks "
+msgstr " % du temps (toutes les tâches "
+
+msgid " busy "
+msgstr " occupé à "
+
+msgid " % with "
+msgstr " % avec "
+
+msgid " ms per operation"
+msgstr " ms par opération"
+
+msgid "  YES: the HDD ("
+msgstr "  OUI : les HDD ("
+
+msgid ") are a measured bottleneck"
+msgstr ") sont un goulot d'étranglement mesuré"
+
+msgid "…\nApply? [y/N]: "
+msgstr "…\nAppliquer ? [y/N] : "
+
+msgid " min "
+msgstr " min "
+
+msgid " received "
+msgstr " reçu "
+
+msgid "GiB"
+msgstr "Gio"
+
+msgid "     --apply: "
+msgstr "     --apply : "
+
+msgid ": used "
+msgstr " : utilisé à "
+
+msgid " % — ZFS slows down strongly beyond 80 % (block allocation) — free space or add disks"
+msgstr " % — ZFS ralentit fortement au-delà de 80 % (allocation des blocs) — libérer de l'espace ou ajouter des disques"
+
+msgid "total read"
+msgstr "total en lecture"
+
+msgid "total write"
+msgstr "total en écriture"
+
+msgid "disk read"
+msgstr "disque en lecture"
+
+msgid "disk write"
+msgstr "disque en écriture"
+
+msgid "sync queue write"
+msgstr "file synchrone en écriture"
+
+msgid "async queue write"
+msgstr "file asynchrone en écriture"

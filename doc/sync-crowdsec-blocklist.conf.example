@@ -1,0 +1,48 @@
+# ========================================================================================================================
+# Copyright (C) 2026  Services-Conseils Linux
+# AGPL-3.0-or-later — voir sync-crowdsec-blocklist.sh pour le texte complet de la licence.
+# ========================================================================================================================
+#
+# Fichier de configuration de sync-crowdsec-blocklist.sh (exemple : toutes les clés, en commentaire = valeur par défaut).
+# Les fichiers suivants sont LUS DANS CET ORDRE (le dernier l'emporte) ; la ligne de commande est prioritaire sur les fichiers :
+#   1. /etc/default/sync-crowdsec-blocklist.conf    (fichier du système)
+#   2. ~/.sync-crowdsec-blocklist.cfg               (s'il existe : réglages de l'utilisateur)
+# -c/--config FICHIER : ce fichier SEUL. Le répertoire courant n'est PAS lu. Le programme affiche toujours quel(s) fichier(s) il lit,
+# puis une ligne résumant les options importantes. Format : CLÉ=valeur, une par ligne ; # = commentaire ; guillemets facultatifs ;
+# booléens : oui / non (true / false, 1 / 0). Ce fichier est LU, jamais exécuté.
+
+# --- Langue d'affichage ---
+# en, fr ou auto (suivre LC_ALL / LC_MESSAGES / LANG). Ordre de choix : --lang, NGINX_TOOLS_LANG, SYNC_CROWDSEC_BLOCKLIST_LANG, cette clé, LC_ALL, LC_MESSAGES, LANG.
+# Ajouter une langue = ajouter le fichier lang/sync-crowdsec-blocklist.XX.po (format PO : Poedit, Weblate…) — voir lang/README.md.
+#LANGUAGE=auto
+
+# --- Options (équivalents de la ligne de commande) ---
+# --cron-hours : intervalle (1 à 24 h) de --install-cron (défaut : 1 heure)
+#CRON_HOURS=1
+# --min-ips : taille minimale acceptée de la liste (défaut : 50)
+#MIN_IPS=50
+# --source : autre source de la liste (défaut : source publique CrowdSec intégrée)
+#SOURCE=
+# --stale-days : âge à partir duquel la liste est périmée (défaut : 3 jours)
+#STALE_DAYS=3
+# --top : nombre d'IP affichées par --blocked (défaut : nombre d'IP par défaut de --blocked)
+#TOP=
+# --verbose
+#VERBOSE=non
+
+# --- Options de la ligne de commande SEULEMENT (actions ou réglages ponctuels : aucune clé ici) ---
+# Les voici, pour mémoire (« sync-crowdsec-blocklist --help » donne le détail). Elles se donnent sur la ligne de commande, jamais dans ce fichier.
+#   --changelog        affiche le journal des modifications
+#   --dry-run          télécharger et analyser la liste, sans rien modifier
+#   --report-err       afficher à la fin un rapport d'erreurs à copier-coller (programme, version, serveur, échecs, avertissements)
+#   --status           état : dernière synchronisation, échec en cours, taille, IP protégées
+#   --ufw-hook         installer le crochet ufw (règles réinsérées à chaque rechargement d'ufw)
+#   --ufw-hook-remove  retirer le crochet ufw
+#   --ufw-start        (interne) appelé par le crochet ufw
+#   --uninstall        retirer cron, règles et ipsets
+#   --version          affiche la version et quitte
+
+# --- Anonymisation de l'affichage ---
+# --anonymize : anonymiser ce que le programme affiche (adresses IP, courriels, identifiants, jetons) par des pseudonymes stables (IP-4f2a9c, usager-9c1e03@anonyme.invalid) ; clé ANONYMIZE
+# (la même clé dans app-default.conf vaut pour tous les programmes ; appliquée seulement quand la sortie est un terminal ; pour cron : --anonymize ou NGINX_TOOLS_ANONYMIZE=1).
+#ANONYMIZE=non

@@ -1,0 +1,36 @@
+# Traduction en des messages de apps/_i18n.py (msgid = fragment français du code, msgstr = traduction).
+# Format PO standard : Poedit, Weblate, Crowdin… Un msgstr vide = non traduit ; identique au msgid = valable dans les deux langues.
+msgid ""
+msgstr ""
+"Project-Id-Version: _i18n\n"
+"Language: en\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+msgid "  Options : "
+msgstr "  Options: "
+
+msgid " (ligne de commande prioritaire)"
+msgstr " (command line takes precedence)"
+
+msgid "  ATTENTION : valeur de configuration ignorée : "
+msgstr "  WARNING: configuration value ignored: "
+
+msgid "Interrompre le programme ? [o/N] "
+msgstr "Stop the program? [y/N] "
+
+msgid "  Reprise."
+msgstr "  Resuming."
+
+msgid "Anonymise ce qui est affiché (adresses IP, courriels, identifiants, jetons) par des pseudonymes stables ; clé ANONYMIZE"
+msgstr "Anonymizes what is displayed (IP addresses, emails, identifiers, tokens) with stable pseudonyms; key ANONYMIZE"
+
+msgid " du fichier de configuration"
+msgstr " from the configuration file"
+
+msgid " ignorée(s)"
+msgstr " ignored"
+
+msgid "défaut (aucune variable LANGUAGE, LC_ALL, LC_MESSAGES ni LANG)"
+msgstr "default (no LANGUAGE, LC_ALL, LC_MESSAGES or LANG variable)"

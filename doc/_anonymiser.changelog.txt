@@ -1,0 +1,27 @@
+Changelog — apps/_anonymiser.py
+(version la plus récente en premier)
+
+## 1.0.20261015.143436 — Création : anonymisation de l'affichage par pseudonymes stables
+
+Motif de la demande :
+  « [1] Il faudrait avoir une nouvelle option afin d'anonymiser les données affichées par chacun des programmes » (choix : pseudonymes stables ; IP, courriels et identifiants Odoo, jetons dans les URL/journaux ; tous les programmes)
+
+Détail des modifications :
+  - Anonymiseur : adresses IP v4 et v6 (IP-xxxxxx), courriels (usager-xxxxxx@anonyme.invalid, %40 compris), identifiants (--login, --bot-login, login=, user=, email=, name= dans une URL : ID-xxxxxx), jetons / mots de passe / clés / Authorization / Cookie (***). Pseudonyme = HMAC-SHA256 de la valeur avec un sel secret par machine (NGINX_TOOLS_ANON_SEL, /etc/default/nginx-tools-anon.salt ou ~/.nginx-tools-anon.salt, créé en 600).
+  - demande(), sans_option(), relancer_si_demande() ; filtre en ligne de commande (commande | _anonymiser.py) ; --pseudonyme VALEUR.
+  - Fichiers : apps/_anonymiser.py, lang/_anonymiser.en.po, doc/_anonymiser.changelog.txt, doc/app-default.conf.example (clé ANONYMIZE).
+
+Bugs corrigés :
+  - Aucun bug corrigé.
+
+Garde-fous et cas limites traités :
+  - Jamais anonymisés : 127.x, ::1, 0.0.0.0, masques 255.x, numéros de version (« Odoo 18.0.1.3 », « 1.108.20261015.095427 », noms de zip), heures (10:29:30), adresses MAC.
+  - Idempotent (un texte déjà anonymisé ne change plus) ; une même valeur donne le même pseudonyme (casse ignorée) ; changer ou supprimer le sel change tous les pseudonymes.
+  - Limite : seuls les motifs reconnus sont masqués (un nom de personne écrit en clair dans un texte libre ne l'est pas).
+
+Vérifications effectuées :
+  - test_anonymiser (motifs, stabilité, idempotence, demande(), sel en 600), test_i18n.
+
+Action requise de ma part :
+  - aucune
+

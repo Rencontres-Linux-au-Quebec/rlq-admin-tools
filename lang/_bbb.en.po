@@ -1,0 +1,202 @@
+# Traduction en en des messages de apps/_bbb.py (msgid = fragment français du code, msgstr = traduction).
+# Format PO standard : Poedit, Weblate, Crowdin… Un msgstr vide = non traduit ; identique au msgid = valable dans les deux langues.
+# Les fragments sont des morceaux de phrases : garder les espaces de début et de fin, et l'ordre des morceaux.
+msgid ""
+msgstr ""
+"Project-Id-Version: apps/_bbb.py\n"
+"Language: en\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+msgid "Mozilla/5.0 (verification de BigBlueButton) app-health-check/bbb"
+msgstr "Mozilla/5.0 (verification de BigBlueButton) app-health-check/bbb"
+
+msgid "nginx-hardening.sh --update les installe"
+msgstr "nginx-hardening.sh --update installs them"
+
+msgid "HSTS présent dans HAProxy (http-after-response)"
+msgstr "HSTS present in HAProxy (http-after-response)"
+
+msgid "       Instantané du "
+msgstr "       Snapshot of "
+
+msgid " ignoré : il décrit d'autres emplacements de fichiers (écrit par une exécution de test ou une ancienne installation) — il sera remplacé par le prochain --update"
+msgstr " ignored: it describes other file locations (written by a test run or an old installation) — it will be replaced by the next --update"
+
+msgid "État de BigBlueButton et compatibilité avec le durcissement nginx."
+msgstr "État de BigBlueButton et compatibilité avec le durcissement nginx."
+
+msgid "État, vérifications et changements faits par ce passage"
+msgstr "État, vérifications et changements faits par ce passage"
+
+msgid "État et changements depuis le dernier instantané"
+msgstr "État et changements depuis le dernier instantané"
+
+msgid "Avec --after : écrire l'instantané"
+msgstr "Avec --after : écrire l'instantané"
+
+msgid "État, vérifications et changements depuis l'instantané"
+msgstr "État, vérifications et changements depuis l'instantané"
+
+msgid "Affiche chaque commande externe exécutée"
+msgstr "Affiche chaque commande externe exécutée"
+
+msgid "nos règles de sécurité sont absentes ("
+msgstr "our security rules are missing ("
+
+msgid "nos règles ne sont pas chargées par nginx (absentes de nginx -T) : la configuration de BBB n'inclut plus /etc/bigbluebutton/nginx/*.nginx"
+msgstr "our rules are not loaded by nginx (absent from nginx -T): the BBB configuration no longer includes /etc/bigbluebutton/nginx/*.nginx"
+
+msgid "examiner le bloc server de BBB après sa mise à jour"
+msgstr "examine the BBB server block after its update"
+
+msgid "ne pas recharger nginx avant correction"
+msgstr "do not reload nginx before fixing"
+
+msgid "HSTS absent de HAProxy (http-after-response) — bbb-install.sh régénère haproxy.cfg à chaque passage"
+msgstr "HSTS absent from HAProxy (http-after-response) — bbb-install.sh regenerates haproxy.cfg on every run"
+
+msgid "nginx-hardening.sh --check indique la ligne à remettre dans la section « frontend » du 443"
+msgstr "nginx-hardening.sh --check shows the line to put back in the « frontend » section of 443"
+
+msgid " autre(s) paquet(s) bbb-* (détail : dpkg -l 'bbb-*')"
+msgstr " other bbb-* package(s) (detail: dpkg -l 'bbb-*')"
+
+msgid " présents"
+msgstr " present"
+
+msgid "[FAIL] HSTS retiré de HAProxy ("
+msgstr "[FAIL] HSTS removed from HAProxy ("
+
+msgid ") — bbb-install.sh a régénéré haproxy.cfg : remettre la ligne"
+msgstr ") — bbb-install.sh regenerated haproxy.cfg: put the line back"
+
+msgid " : une mise à jour de ce paquet l'écraserait"
+msgstr " : an update of this package would overwrite it"
+
+msgid "nos règles ("
+msgstr "our rules ("
+
+msgid ") n'appartiennent à aucun paquet : aucune mise à jour de BBB ne les écrase"
+msgstr ") belong to no package: no BBB update overwrites them"
+
+msgid "nos règles sont chargées par nginx (incluses par le bloc server de BBB)"
+msgstr "our rules are loaded by nginx (included by the BBB server block)"
+
+msgid "nginx -t refuse la configuration : "
+msgstr "nginx -t rejects the configuration: "
+
+msgid ") : essai impossible (rien n'écoute sur 127.0.0.1:443 ?)"
+msgstr ") : test impossible (nothing is listening on 127.0.0.1:443?)"
+
+msgid "vérifier bbb-conf --status ; si 404, une règle de sécurité capte l'URL"
+msgstr "check bbb-conf --status; if 404, a security rule catches the URL"
+
+msgid "comparer avec blocked-probes.log"
+msgstr "compare with blocked-probes.log"
+
+msgid "bbb-conf --check : aucun problème potentiel signalé"
+msgstr "bbb-conf --check: no potential problem reported"
+
+msgid " — Greenlight : "
+msgstr " — Greenlight: "
+
+msgid "       Configuration de BBB surveillée : "
+msgstr "       BBB configuration watched: "
+
+msgid " fichier(s)"
+msgstr " file(s)"
+
+msgid "       configuration de BBB modifiée ("
+msgstr "       BBB configuration modified ("
+
+msgid "[FAIL] notre fichier "
+msgstr "[FAIL] our file "
+
+msgid "depuis le passage du "
+msgstr "since the pass of "
+
+msgid "       Premier relevé : aucun instantané précédent (il sera écrit à la fin de --update)"
+msgstr "       First reading: no previous snapshot (it will be written at the end of --update)"
+
+msgid "par ce passage"
+msgstr "by this pass"
+
+msgid " de BBB répond (https://"
+msgstr " of BBB responds (https://"
+
+msgid " → 200 SUCCESS)"
+msgstr " → 200 SUCCESS)"
+
+msgid " de BBB : https://"
+msgstr " of BBB: https://"
+
+msgid " → 404 minimal (refus de nginx : nos règles captent-elles cette URL ?)"
+msgstr " → minimal 404 (nginx refusal: do our rules catch this URL?)"
+
+msgid " livré(s) par un paquet"
+msgstr " shipped by a package"
+
+msgid " paquet(s) changé(s) ("
+msgstr " package(s) changed ("
+
+msgid " … (+"
+msgstr " … (+"
+
+msgid "       notre fichier "
+msgstr "       our file "
+
+msgid "[OK] rien n'a changé depuis le passage du "
+msgstr "[OK] nothing has changed since the pass of "
+
+msgid " (versions et configuration)"
+msgstr " (versions and configuration)"
+
+msgid "       ce passage n'a modifié ni BBB ni nos fichiers"
+msgstr "       this pass modified neither BBB nor our files"
+
+msgid "depuis le dernier --update ("
+msgstr "since the last --update ("
+
+msgid "       Aucun instantané : nginx-hardening.sh --update en écrira un (référence pour la prochaine mise à jour de BBB)"
+msgstr "       No snapshot: nginx-hardening.sh --update will write one (reference for the next BBB update)"
+
+msgid "       Instantané écrit : "
+msgstr "       Snapshot written: "
+
+msgid "[ATTN] instantané non écrit ("
+msgstr "[WARN] snapshot not written ("
+
+msgid "BigBlueButton a été mis à jour depuis le dernier nginx-hardening.sh --update"
+msgstr "BigBlueButton was updated since the last nginx-hardening.sh --update"
+
+msgid "nginx-hardening.sh --update (vérifie et réapplique nos règles, puis enregistre l'état), puis une réunion de test"
+msgstr "nginx-hardening.sh --update (checks and reapplies our rules, then records the state), then a test meeting"
+
+msgid " problème(s) potentiel(s) : "
+msgstr " potential problem(s): "
+
+msgid "créé"
+msgstr "created"
+
+msgid "modifié"
+msgstr "modified"
+
+msgid "paquet(s) changé(s)"
+msgstr "package(s) changed"
+
+msgid "# configuration file "
+msgstr "# configuration file "
+
+msgid "nginx -t : configuration valide"
+msgstr "nginx -t: configuration valid"
+
+msgid " (attendu 200 SUCCESS)"
+msgstr " (expected 200 SUCCESS)"
+
+msgid "(version inconnue : bigbluebutton-release absent)"
+msgstr "(unknown version: bigbluebutton-release missing)"
+
+msgid " ; nos fichiers : "
+msgstr "; our files: "

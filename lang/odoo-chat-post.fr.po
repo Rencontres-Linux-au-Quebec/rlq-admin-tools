@@ -1,0 +1,377 @@
+# French translation of the messages of odoo-chat-post (msgid = English text of the code, msgstr = French translation).
+# Standard PO format (Poedit, Weblate, Crowdin...). Empty msgstr = untranslated (English stays); identical to the msgid = valid in both languages.
+# Messages are sentence FRAGMENTS (the code assembles sentences with variables): keep leading/trailing spaces and the order of the pieces.
+msgid ""
+msgstr ""
+"Project-Id-Version: odoo-chat-post\n"
+"Language: fr\n"
+"Source-Language: en\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+msgid "Reason for this thread"
+msgstr "Raison de ce fil"
+
+msgid "Reason for this channel"
+msgstr "Raison de ce canal"
+
+msgid "Created on"
+msgstr "Créé le"
+
+msgid "cannot connect to Odoo ("
+msgstr "connexion à Odoo impossible ("
+
+msgid "authentication refused (database "
+msgstr "authentification refusée (base "
+
+msgid "): check the API key and the database name"
+msgstr ") : vérifier la clé API et le nom de la base"
+
+msgid "Odoo refused "
+msgstr "Odoo a refusé "
+
+msgid "group not found: "
+msgstr "groupe introuvable : "
+
+msgid " (--group option)"
+msgstr " (option --group)"
+
+msgid "thread not found: "
+msgstr "fil introuvable : "
+
+msgid "channel not found: "
+msgstr "canal introuvable : "
+
+msgid " (create it with --create)"
+msgstr " (le créer avec --create)"
+
+msgid "  (suggested)"
+msgstr "  (suggéré)"
+
+msgid "present"
+msgstr "présent"
+
+msgid "absent "
+msgstr "absent "
+
+msgid "  Channel already present: "
+msgstr "  Canal déjà présent : "
+
+msgid " (unchanged)"
+msgstr " (inchangé)"
+
+msgid "  To create: channel "
+msgstr "  À créer : canal "
+
+msgid "  Channel created: "
+msgstr "  Canal créé : "
+
+msgid ", first message written, "
+msgstr ", premier message écrit, "
+
+msgid " member(s) added)"
+msgstr " membre(s) ajouté(s))"
+
+msgid "    Thread already present: "
+msgstr "    Fil déjà présent : "
+
+msgid "    To create: thread "
+msgstr "    À créer : fil "
+
+msgid "    Thread created: "
+msgstr "    Fil créé : "
+
+msgid ", first message written)"
+msgstr ", premier message écrit)"
+
+msgid "  Dry run: nothing was written to Odoo."
+msgstr "  À blanc : rien n'a été écrit dans Odoo."
+
+msgid " channel(s) / thread(s) created."
+msgstr " canal(aux) / fil(s) créé(s)."
+
+msgid "  This Odoo version has no sub-channels: each thread is a channel named \"Channel — Thread\"."
+msgstr "  Cette version d'Odoo n'a pas de sous-canaux : chaque fil est un canal nommé « Canal — Fil »."
+
+msgid "Changelog not found: "
+msgstr "Changelog introuvable : "
+
+msgid "choose an action: --create, --create-bot, --list or --post CHANNEL/THREAD"
+msgstr "choisir une action : --create, --create-bot, --list ou --post CANAL/FIL"
+
+msgid "--post needs --message TEXT (\"-\": read standard input)"
+msgstr "--post demande --message TEXTE (« - » : lire l'entrée standard)"
+
+msgid " contains the API key and is readable by other accounts: chmod 600 "
+msgstr " contient la clé API et est lisible par d'autres comptes : chmod 600 "
+
+msgid "API_KEY (or the ODOO_API_KEY variable)"
+msgstr "API_KEY (ou la variable ODOO_API_KEY)"
+
+msgid " — write them in /etc/default/odoo-chat-post.conf (see doc/odoo-chat-post.conf.example)."
+msgstr " — les écrire dans /etc/default/odoo-chat-post.conf (voir doc/odoo-chat-post.conf.example)."
+
+msgid "ERROR: missing settings: "
+msgstr "ERREUR : réglages manquants : "
+
+msgid "Channels and threads of the catalog:"
+msgstr "Canaux et fils du catalogue :"
+
+msgid "ERROR: empty message, nothing is published."
+msgstr "ERREUR : message vide, rien n'est publié."
+
+msgid "Message published in "
+msgstr "Message publié dans "
+
+msgid "Creates in Odoo (Discuss) the team's alert channels and threads, with a first message giving the reason for each, and publishes alerts in them."
+msgstr "Crée dans Odoo (Discuss) les canaux et fils d'alertes de l'équipe, avec un premier message qui dit la raison de chacun, et y publie des alertes."
+
+msgid "Odoo address (e.g. https://erp.example.org); URL key of the configuration file"
+msgstr "Adresse d'Odoo (ex. https://erp.exemple.org) ; clé URL du fichier de configuration"
+
+msgid "Catalog of channels and threads (JSON) (default: doc/odoo-chat-post.catalogue.json)"
+msgstr "Catalogue des canaux et fils (JSON) (défaut : doc/odoo-chat-post.catalogue.json)"
+
+msgid "Show the change log"
+msgstr "Affiche le journal des modifications"
+
+msgid "Configuration file to read ALONE (otherwise: /etc/default/odoo-chat-post.conf, then the personal file .odoo-chat-post.cfg; UPPERCASE options: API_KEY, DB, EVENTS, GROUP, LANGUAGE, LOGIN, MEMBERS, NO_MEMBERS, SUGGESTED, URL)"
+msgstr "Fichier de configuration à lire SEUL (sinon : /etc/default/odoo-chat-post.conf, puis le fichier personnel .odoo-chat-post.cfg ; options en MAJUSCULES : API_KEY, DB, EVENTS, GROUP, LANGUAGE, LOGIN, MEMBERS, NO_MEMBERS, SUGGESTED, URL)"
+
+msgid "Creates the missing channels and threads, with their first message (never modifies an existing channel)"
+msgstr "Crée les canaux et fils qui manquent, avec leur premier message (ne modifie jamais un canal existant)"
+
+msgid "Odoo database"
+msgstr "Base de données d'Odoo"
+
+msgid "With --create: shows what would be created, without writing anything"
+msgstr "Avec --create : montre ce qui serait créé, sans rien écrire"
+
+msgid "Event whose threads are created (e.g. JPOL26: JPOL26-Inscriptions, JPOL26-Sondages); repeatable; EVENTS key; default: "
+msgstr "Événement dont les fils sont créés (ex. JPOL26 : JPOL26-Inscriptions, JPOL26-Sondages) ; répétable ; clé EVENTS ; défaut : "
+
+msgid "Group that sees the channels and becomes a member (default: "
+msgstr "Groupe qui voit les canaux et en devient membre (défaut : "
+
+msgid ", the internal users)"
+msgstr ", les utilisateurs internes)"
+
+msgid "Display language: en or fr (default: from LC_ALL / LC_MESSAGES / LANG)"
+msgstr "Langue d'affichage : en ou fr (défaut : selon LC_ALL / LC_MESSAGES / LANG)"
+
+msgid "Lists the catalog channels and threads (present or absent), then exits"
+msgstr "Liste les canaux et fils du catalogue (présent ou absent), puis quitte"
+
+msgid "Odoo account that owns the API key"
+msgstr "Compte Odoo propriétaire de la clé API"
+
+msgid "With --post: the text to publish (\"-\": read standard input)"
+msgstr "Avec --post : le texte à publier (« - » : lire l'entrée standard)"
+
+msgid "Do not add the group accounts as members of the new channels"
+msgstr "Ne pas ajouter les comptes du groupe comme membres des nouveaux canaux"
+
+msgid "Publishes --message in this channel or thread (e.g. \"Odoo-Erreurs/HTTP 5xx\")"
+msgstr "Publie --message dans ce canal ou fil (ex. « Odoo-Erreurs/HTTP 5xx »)"
+
+msgid "Print at the end an error report to copy and paste (program, version, server, failures, warnings)"
+msgstr "Afficher à la fin un rapport d'erreurs à copier-coller (programme, version, serveur, échecs, avertissements)"
+
+msgid "Also includes the suggested catalog channels (security, emails, backups, updates, event day)"
+msgstr "Inclut aussi les canaux suggérés du catalogue (sécurité, courriels, sauvegardes, mises à jour, jour J)"
+
+msgid "configuration file not found: "
+msgstr "fichier de configuration introuvable : "
+
+msgid ") — normal run."
+msgstr ") — exécution normale."
+
+msgid "Team alerts (odoo-chat-post)"
+msgstr "Alertes équipe (odoo-chat-post)"
+
+msgid "  WARNING: the account "
+msgstr "  ATTENTION : le compte "
+
+msgid " does not exist in Odoo yet: it is not a member; create it, then rerun --create"
+msgstr " n'existe pas encore dans Odoo : il n'est pas membre ; le créer puis relancer --create"
+
+msgid "  Access restricted to: "
+msgstr "  Accès restreint à : "
+
+msgid " (group \""
+msgstr " (groupe « "
+
+msgid "(no account found)"
+msgstr "(aucun compte trouvé)"
+
+msgid " member(s) added to "
+msgstr " membre(s) ajouté(s) à "
+
+msgid " is visible to another group than \""
+msgstr " est visible par un autre groupe que « "
+
+msgid "\" (unchanged: change it in Odoo, Discuss → channel settings)"
+msgstr " » (non modifié : le changer dans Odoo, Discuter → Paramètres du canal)"
+
+msgid "RESTRICTED access: Odoo accounts (logins separated by commas) that see the channels and are their members, and nobody else (e.g. etienne.berube.ing@exemple.org,tux-bot); key MEMBERS"
+msgstr "Accès RESTREINT : comptes Odoo (identifiants séparés par des virgules) qui voient les canaux et en sont membres, eux seuls (ex. etienne.berube.ing@exemple.org,tux-bot) ; clé MEMBERS"
+
+msgid " already present (id "
+msgstr " déjà présent (id "
+
+msgid ", unchanged)"
+msgstr ", inchangé)"
+
+msgid " has administration rights ("
+msgstr " a des droits d'administration ("
+
+msgid "): not needed to post, remove them in Odoo (Settings → Users)"
+msgstr ") : inutiles pour publier, les retirer dans Odoo (Paramètres → Utilisateurs)"
+
+msgid "  To create: account "
+msgstr "  À créer : compte "
+
+msgid " created (id "
+msgstr " créé (id "
+
+msgid "With --create-bot: login of the bot account (default: tux-bot)"
+msgstr "Avec --create-bot : identifiant du compte du robot (défaut : tux-bot)"
+
+msgid "Odoo error"
+msgstr "erreur Odoo"
+
+msgid "web login refused for "
+msgstr "connexion web refusée pour "
+
+msgid " (temporary password not accepted, or two-factor authentication enabled)"
+msgstr " (mot de passe temporaire non accepté, ou double authentification activée)"
+
+msgid "no duration tried"
+msgstr "aucune durée essayée"
+
+msgid "Odoo did not return the key (different version or wizard)"
+msgstr "Odoo n'a pas retourné la clé (version ou assistant différent)"
+
+msgid "API key creation refused by Odoo: "
+msgstr "création de la clé API refusée par Odoo : "
+
+msgid " cannot be modified by this account (run as root?)"
+msgstr " n'est pas modifiable par ce compte (lancer en root ?)"
+
+msgid " added to MEMBERS"
+msgstr " ajouté à MEMBERS"
+
+msgid "# API key of "
+msgstr "# Clé API de "
+
+msgid " created on "
+msgstr " créée le "
+
+msgid ", expires on "
+msgstr ", expire le "
+
+msgid "LOGIN and API_KEY written to "
+msgstr "LOGIN et API_KEY écrits dans "
+
+msgid ": nothing is created; rerun as root or choose --bot-config FILE"
+msgstr " : rien n'est créé ; relancer en root ou choisir --bot-config FICHIER"
+
+msgid " (the real run would stop here)"
+msgstr " (la vraie exécution s'arrêterait ici)"
+
+msgid "  No new key created (--renew-key to create a new one; the old one stays valid until it expires or is revoked in Odoo)"
+msgstr "  Aucune nouvelle clé créée (--renew-key pour en créer une nouvelle ; l'ancienne reste valable jusqu'à son expiration ou sa révocation dans Odoo)"
+
+msgid " (internal user, no usable password)"
+msgstr " (utilisateur interne, sans mot de passe utilisable)"
+
+msgid "): internal user, no other right, no email sent"
+msgstr ") : utilisateur interne, aucun autre droit, aucun courriel envoyé"
+
+msgid "  To create: API key of "
+msgstr "  À créer : clé API de "
+
+msgid " (duration tried: "
+msgstr " (durée essayée : "
+
+msgid " days, otherwise the longest Odoo allows); to be written to: "
+msgstr " jours, sinon la plus longue permise par Odoo) ; à écrire dans : "
+
+msgid "  WARNING: API key not created automatically: "
+msgstr "  ATTENTION : clé API non créée automatiquement : "
+
+msgid "  API key created for "
+msgstr "  Clé API créée pour "
+
+msgid " day(s), until "
+msgstr " jour(s), jusqu'au "
+
+msgid " (longest duration Odoo accepts for this account)"
+msgstr " (durée maximale acceptée par Odoo pour ce compte)"
+
+msgid "  The account password was replaced by a discarded random password; the key is not displayed. Renew before "
+msgstr "  Le mot de passe du compte a été remplacé par un mot de passe aléatoire jeté ; la clé n'est pas affichée. Renouveler avant le "
+
+msgid "  Manual creation: Settings → Users → Actions → Change password (temporary), log in ONCE as this account,"
+msgstr "  Création manuelle : Paramètres → Utilisateurs → Actions → Changer le mot de passe (temporaire), se connecter UNE fois comme ce compte,"
+
+msgid " (API_KEY=…, LOGIN="
+msgstr " (API_KEY=…, LOGIN="
+
+msgid "    Preferences → Account Security → New API key (name \"odoo-chat-post\"), copy it into "
+msgstr "    Préférences → Sécurité du compte → Nouvelle clé API (nom « odoo-chat-post »), la copier dans "
+
+msgid "    then set a random password again; add "
+msgstr "    puis remettre un mot de passe aléatoire ; ajouter "
+
+msgid " to MEMBERS and rerun --create so that it becomes a member of the channels."
+msgstr " à MEMBERS et relancer --create pour qu'il soit membre des canaux."
+
+msgid "ERROR: --login is the bot account ("
+msgstr "ERREUR : --login est le compte du robot ("
+
+msgid "): use the ADMINISTRATOR account (--login ADMIN, its key in ODOO_API_KEY)."
+msgstr ") : utiliser le compte ADMINISTRATEUR (--login ADMIN, sa clé dans ODOO_API_KEY)."
+
+msgid "With --create-bot: file that receives the bot's LOGIN and API_KEY (mode 600, previous version backed up); repeatable; default: "
+msgstr "Avec --create-bot : fichier qui reçoit LOGIN et API_KEY du robot (droits 600, ancienne version sauvegardée) ; répétable ; défaut : "
+
+msgid "With --create-bot: creates a NEW API key for an existing bot (the old one stays valid until it expires)"
+msgstr "Avec --create-bot : crée une NOUVELLE clé API pour un robot déjà présent (l'ancienne reste valable jusqu'à son expiration)"
+
+msgid "Creates the bot account (--bot-login): internal user with NO other right; on the first run it also creates its API key (one year if Odoo allows it) and writes it to --bot-config; an existing account is not modified"
+msgstr "Crée le compte du robot (--bot-login) : utilisateur interne SANS autre droit ; à la première exécution crée aussi sa clé API (un an si Odoo le permet) et l'écrit dans --bot-config ; un compte existant n'est pas modifié"
+
+msgid "ERROR: "
+msgstr "ERREUR : "
+
+msgid ", account "
+msgstr ", compte "
+
+msgid "call to Odoo failed ("
+msgstr "appel à Odoo impossible ("
+
+msgid "web session failed ("
+msgstr "session web impossible ("
+
+msgid "  WARNING: "
+msgstr "  ATTENTION : "
+
+msgid "WARNING: "
+msgstr "ATTENTION : "
+
+msgid "  Account "
+msgstr "  Compte "
+
+msgid "--report-err unavailable ("
+msgstr "--report-err indisponible ("
+
+msgid "Channel:"
+msgstr "Canal :"
+
+msgid "Fed by:"
+msgstr "Alimenté par :"
+
+msgid " (local time) by odoo-chat-post.py"
+msgstr " (heure locale) par odoo-chat-post.py"

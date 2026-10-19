@@ -1,0 +1,43 @@
+# Traduction en en des messages de _profile.sh (msgid = fragment français du code, msgstr = traduction).
+# Format PO standard : Poedit, Weblate, Crowdin… Un msgstr vide = non traduit ; identique au msgid = valable dans les deux langues.
+# Les fragments sont des morceaux de phrases : garder les espaces de début et de fin, et l'ordre des morceaux.
+msgid ""
+msgstr ""
+"Project-Id-Version: _profile.sh\n"
+"Language: en\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+msgid "ERREUR: profil d'application inconnu : "
+msgstr "ERROR: unknown application profile: "
+
+msgid "aucun"
+msgstr "none"
+
+msgid "forcée (--app="
+msgstr "forced (--app="
+
+msgid "ERREUR: aucune application reconnue sur ce serveur (profils : "
+msgstr "ERROR: no application recognised on this server (profiles: "
+
+msgid "/*.conf) — précisez --app=NOM."
+msgstr "/*.conf) — specify --app=NAME."
+
+msgid "ERREUR: plusieurs applications détectées ("
+msgstr "ERROR: several applications detected ("
+
+msgid ") — précisez --app=NOM."
+msgstr ") — specify --app=NAME."
+
+msgid "détectée automatiquement"
+msgstr "automatically detected"
+
+msgid "ERREUR: profil invalide : "
+msgstr "ERROR: invalid profile: "
+
+msgid " (clé APP_NAME absente — fichier vide ou tronqué ?)"
+msgstr " (APP_NAME key missing — empty or truncated file?)"
+
+msgid "détectée automatiquement ; configuration d'Odoo : "
+msgstr "automatically detected; Odoo configuration: "

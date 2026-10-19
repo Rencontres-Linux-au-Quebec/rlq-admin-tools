@@ -1,0 +1,73 @@
+# ========================================================================================================================
+# Copyright (C) 2026  Services-Conseils Linux
+# AGPL-3.0-or-later — voir odoo-update-module.sh pour le texte complet de la licence.
+# ========================================================================================================================
+#
+# Fichier de configuration de odoo-update-module.sh (exemple : toutes les clés, en commentaire = valeur par défaut).
+# Les fichiers suivants sont LUS DANS CET ORDRE (le dernier l'emporte) ; la ligne de commande est prioritaire sur les fichiers :
+#   1. /etc/default/odoo-update-module.conf    (fichier du système)
+#   2. ~/.odoo-update-module.cfg               (s'il existe : réglages de l'utilisateur)
+# -c/--config FICHIER : ce fichier SEUL. Le répertoire courant n'est PAS lu. Le programme affiche toujours quel(s) fichier(s) il lit,
+# puis une ligne résumant les options importantes. Format : CLÉ=valeur, une par ligne ; # = commentaire ; guillemets facultatifs ;
+# booléens : oui / non (true / false, 1 / 0). Ce fichier est LU, jamais exécuté.
+
+# --- Langue d'affichage ---
+# en, fr ou auto (suivre LC_ALL / LC_MESSAGES / LANG). Ordre de choix : --lang, NGINX_TOOLS_LANG, ODOO_UPDATE_MODULE_LANG, cette clé, LC_ALL, LC_MESSAGES, LANG.
+# Ajouter une langue = ajouter le fichier lang/odoo-update-module.XX.po (format PO : Poedit, Weblate…) — voir lang/README.md.
+#LANGUAGE=auto
+
+# --- Mode bavard ---
+# oui : afficher chaque commande externe exécutée (équivalent de --verbose). Peut aussi venir du fichier commun app-default.conf (clés VERBOSE et DEBUG_LEVEL).
+#VERBOSE=non
+
+# --- Options (équivalents de la ligne de commande) ---
+# service systemd d'Odoo (--service) ; vide (défaut) : détection automatique parmi les unités erplibre* et odoo*, sinon erplibre_erplibre.service
+#SERVICE=
+# modules à mettre à jour, séparés par des espaces ; motifs acceptés (--module, répétable)
+#MODULES=rlq_*
+# base (--db) ; vide : « -d » de la commande du service, sinon db_name d'Odoo (défaut : « -d » du service, sinon db_name d'Odoo)
+#DATABASE=
+# configuration d'Odoo (--odoo-conf) ; vide : config.conf du dossier du service, sinon emplacements connus (défaut : config.conf du dossier du service)
+#ODOO_CONF=
+# compte de la mise à jour (--user) ; vide : User= du service (défaut : User= du service)
+#RUN_USER=
+# durée maximale de la mise à jour, en secondes (--timeout) ; au-delà, le processus est tué
+#TIMEOUT=1800
+# archive .zip des modules à décompresser avant la mise à jour (--zip) : un fichier, ou un dossier (la plus récente) ; vide : la plus récente « MODULE*.zip »
+# du dossier courant (ex. rlq_survey_report.zip) ; non : ne rien décompresser (défaut : « MODULE*.zip » le plus récent du dossier courant)
+#ZIP=
+# dossier où décompresser l'archive (--addons-dir), souvent un dossier d'addons ; vide : celui de addons_path qui contient déjà ces modules (défaut : dossier d'addons contenant déjà les modules)
+#ADDONS_DIR=
+# sauvegarder la base avant (--backup)
+#BACKUP=non
+# dossier d'Odoo ; vide : WorkingDirectory= du service (défaut : WorkingDirectory= du service)
+#ODOO_DIR=
+# commande d'Odoo ; vide : ./odoo_bin.sh du dossier du service, sinon odoo-bin (défaut : ./odoo_bin.sh du dossier du service, sinon odoo-bin)
+#COMMAND=
+# préchauffer le cache d'Odoo après le redémarrage (odoo-warmup.py : pages publiques, derniers événements et sondages, administration) ; non = --no-warmup
+#WARMUP=oui
+# attente maximale du démarrage après la mise à jour (service actif, puis port à l'écoute), en secondes
+#WAIT=90
+# --wait-quiet : attendre au plus N minutes que le site soit calme avant d'arrêter Odoo (0 = ne pas attendre ; au bout du délai, mise à jour quand même)
+#WAIT_QUIET=15
+# --busy-visitors : site occupé à partir de N visiteurs actifs (requête dans les 5 dernières minutes, robots exclus)
+#BUSY_VISITORS=3
+# --no-rollback : ROLLBACK=non — jamais de retour arrière ; oui : après des erreurs (mise à jour, démarrage, journal d'Odoo), modules d'avant remis en place
+# (question sur un terminal, automatique sinon), nouvelle mise à jour, redémarrage
+#ROLLBACK=oui
+# Copies des modules AVANT chaque mise à jour (.tar.gz, droits 700, les 10 dernières gardées) : base du retour arrière
+#MODULES_BACKUP_DIR=/var/backups/odoo-update-module
+
+# --- Options de la ligne de commande SEULEMENT (actions ou réglages ponctuels : aucune clé ici) ---
+# Les voici, pour mémoire (« odoo-update-module.sh --help » donne le détail). Elles se donnent sur la ligne de commande, jamais dans ce fichier.
+#   --changelog          affiche le journal des modifications
+#   --dry-run            montrer ce qui serait fait (service, base, modules, commandes), sans rien arrêter ni écrire
+#   --force              continuer malgré un Odoo lancé à la main (il est alors ignoré, pas arrêté)
+#   --report-err         afficher à la fin un rapport d'erreurs à copier-coller (programme, version, serveur, échecs, avertissements)
+#   --verbose            afficher chaque commande externe exécutée (systemctl, runuser, odoo, ss)
+#   --version            affiche la version et quitte
+
+# --- Anonymisation de l'affichage ---
+# --anonymize : anonymiser ce que le programme affiche (adresses IP, courriels, identifiants, jetons) par des pseudonymes stables (IP-4f2a9c, usager-9c1e03@anonyme.invalid) ; clé ANONYMIZE
+# (la même clé dans app-default.conf vaut pour tous les programmes ; appliquée seulement quand la sortie est un terminal ; pour cron : --anonymize ou NGINX_TOOLS_ANONYMIZE=1).
+#ANONYMIZE=non

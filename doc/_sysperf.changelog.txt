@@ -1,0 +1,46 @@
+Changelog — apps/_sysperf.py
+(newest version first)
+
+## 1.1.20261016.173838 — Copyright holder: Services-Linux Conseils Inc
+
+Reason:
+  « [1] Il faudrait changer le copywrite de RLQ à Services-Linux Conseils Inc, le courriel reste toujours contact@exemple.org et tu peux rajouter contact@exemple.org »
+
+Changes:
+  - Header: « Copyright (C) 2026  Services-Conseils Linux » (was: Rencontres Linux Québec <info@rencontres-linux.quebec>). No change of behavior.
+
+Bugs fixed:
+  none.
+
+Safeguards and edge cases:
+  none.
+
+Checks:
+  - Test suite (run-all.sh), ruff / ShellCheck.
+
+Action required:
+  none.
+
+## 1.0.20261016.114848 — First version: performance counters from /proc and /sys
+
+Reason:
+  "[0] When registering for an event in Odoo, validate that people wrote a valid e-mail (example: marieb.essai@gmail'com); add a menu option to list the e-mail errors caused by a wrong address, fix the user's contact and resend the e-mail. [1] In app-log-live.py, show what causes the most latency (SATA, not SSD, with ZFS on Proxmox): % used for I/O over several hours, to decide whether SSD are justified. [2] A program to run on the Proxmox server that details what causes performance problems (CPU, MEM, IO, NET) and suggests settings (ZFS…), light on resources. [3] Alignment problem with Chinese characters in web-monitor.py --list-users --table; a new account (Chinese name) may be a hacker: add a section for suspicious activity of a logged-in Odoo user — do not always trust them. [4] List the suspicious users, offer to investigate all the IPs of a user and blacklist them so they cannot log in to Odoo any more: --ban-odoo-user and --unban-odoo-user, but investigate more before banning (search the e-mail on the Internet, etc.)."
+
+Changes:
+  - snapshot(), rates(): processor (busy, user, system, iowait, steal), PSI cpu / io / memory (container cgroup v2 when it exists, else /proc/pressure;
+    exact percentages from the cumulative "total" counters), whole disks of /proc/diskstats (% busy, operations, KB/s, wait per read / write, queue),
+    memory, network (/proc/net/dev), ZFS ARC (hit ratio, size, maximum, throttle, L2ARC).
+  - Helpers: cgroup_root, psi, diskstats, rotational, disk_model, busiest_disk, loadavg. No external command.
+
+Bugs fixed:
+  none.
+
+Safeguards and edge cases:
+  - Unreadable source: simply absent (container without PSI, no ZFS); partitions, loops, RAM disks, CD-ROM and network block devices ignored.
+  - NGINX_TOOLS_PROC_ROOT prefixes every path (tests: fake /proc and /sys).
+
+Checks:
+  test_host_perf_audit (fake /proc: two snapshots and their rates), test_app_log_live (latency).
+
+Action required:
+  none.

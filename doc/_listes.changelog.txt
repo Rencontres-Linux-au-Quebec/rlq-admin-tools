@@ -1,0 +1,57 @@
+Changelog — apps/_listes.py et apps/_listes.sh
+(version la plus récente en premier)
+
+## 1.1.20261016.173838 — Copyright holder: Services-Linux Conseils Inc
+
+Reason:
+  « [1] Il faudrait changer le copywrite de RLQ à Services-Linux Conseils Inc, le courriel reste toujours contact@exemple.org et tu peux rajouter contact@exemple.org »
+
+Changes:
+  - Header: « Copyright (C) 2026  Services-Conseils Linux » (was: Rencontres Linux Québec <info@rencontres-linux.quebec>). No change of behavior.
+
+Bugs fixed:
+  none.
+
+Safeguards and edge cases:
+  none.
+
+Checks:
+  - Test suite (run-all.sh), ruff / ShellCheck.
+
+Action required:
+  none.
+
+## 1.0.20261007.093208 — Première version : liste blanche et lieux, lecteur commun
+
+Motif de la demande :
+  « Il faudrait sortir certains fichiers de configuration personnels reliés à mon setup des .ZIP puisque je veux mettre cela sur GITHUB. Par exemple la liste des
+  IP définies dans apps/team-ips.list : dans /etc/default, avec le début de nom « nginx-tools » (nginx-tools-white-list.conf…), et un autre fichier
+  nginx-tools-ip-location.conf pour indiquer le lieu d'une plage d'adresses (université : plusieurs personnes derrière la même adresse). » Décisions : tirets
+  partout ; liste blanche lue seulement dans /etc/default ; profils gardés avec surcharge facultative (phase C) ; syntaxe « # Lieu [partagée] [protégée] ».
+
+Détail des modifications :
+  - apps/_listes.py (Python) et apps/_listes.sh (bash) : UN lecteur pour les six programmes (app-log-check, app-log-live, nginx-hardening, nginx-log-audit,
+    sync-crowdsec, web-monitor), qui avaient chacun leur analyseur de apps/team-ips.list.
+  - Liste blanche : /etc/default/nginx-tools-white-list.conf, lue SEULEMENT là (jamais dans ~ : elle donne accès aux sites DEV et LAB). Lieux :
+    /etc/default/nginx-tools-ip-location.conf puis ~/.nginx-tools-ip-location.cfg (descriptif : aucun accès ; la plage la plus précise gagne).
+  - Syntaxe commune : « ADRESSE-OU-PLAGE  # libellé  [option] [option] » ; options [partagée] (plusieurs personnes : on affiche le lieu, jamais une personne) et
+    [protégée] (jamais bannie ni recommandée au bannissement, sans accès) ; casse et accents indifférents ; IPv4 et IPv6 ; option inconnue ou adresse invalide
+    signalées avec fichier:ligne, sans jamais arrêter le programme.
+  - Transition : tant que le nouveau fichier n'existe pas, l'ancienne liste apps/team-ips.list est lue, avec « ANCIEN emplacement, à migrer ». Variables
+    d'environnement NGINX_TOOLS_WHITE_LIST et NGINX_TOOLS_IP_LOCATION (fichier unique, sans repli) pour les tests.
+  - Fonctions bash : listes_blanche, listes_lieux, listes_valides, listes_ne_pas_bannir (liste blanche + lieux [protégée]), listes_resume (la ligne « Listes : … »).
+
+Bugs corrigés :
+  - Défaut trouvé par un test avant livraison : listes_lire séparait les champs par une tabulation ; « read » avec une tabulation fusionne les champs vides, donc une
+    entrée sans options décalait les champs (« ligne  : pas-une-adresse », numéro perdu). Séparateur : le caractère 037 (jamais un blanc).
+
+Garde-fous et cas limites traités :
+  - Fichier absent ou illisible : liste vide ; deux fichiers de lieux : les deux comptent ; une adresse invalide n'est jamais écrite dans nginx ni comptée.
+
+Vérifications effectuées :
+  - 9 tests (test_listes.py) : syntaxe, options, priorités, plage la plus précise, ~ pour les lieux seulement, repli transitoire, CLI ; lecteur bash identique au lecteur Python ;
+    champs vides conservés ; ShellCheck 0.11.0 et ruff 0.16.9 sans signalement.
+
+Action requise de ma part (ou « aucune ») :
+  Aucune (nginx-hardening.sh --update crée ou migre les fichiers).
+

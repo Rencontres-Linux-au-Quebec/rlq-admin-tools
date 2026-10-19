@@ -1,0 +1,70 @@
+Changelog — apps/_reseau.py
+(version la plus récente en premier)
+
+## 1.2.20261016.173838 — Copyright holder: Services-Linux Conseils Inc
+
+Reason:
+  « [1] Il faudrait changer le copywrite de RLQ à Services-Linux Conseils Inc, le courriel reste toujours contact@exemple.org et tu peux rajouter contact@exemple.org »
+
+Changes:
+  - Header: « Copyright (C) 2026  Services-Conseils Linux » (was: Rencontres Linux Québec <info@rencontres-linux.quebec>). No change of behavior.
+
+Bugs fixed:
+  none.
+
+Safeguards and edge cases:
+  none.
+
+Checks:
+  - Test suite (run-all.sh), ruff / ShellCheck.
+
+Action required:
+  none.
+
+## 1.1.20261007.171721 — Cache permanent ; propriétaire du bloc d'adresses
+
+Motif de la demande :
+  [1] « Afin d'améliorer l'efficacité des programmes, créer un cache permanent qui conserve les informations sur toutes les IP (surtout pratique pour app-log-live.py). »
+  [2] « Lorsque tu indiques ISP, c'est vraiment une entreprise d'où peuvent provenir plusieurs IP ? »
+
+Détail des modifications :
+  - fournisseur(ip, cache="auto") : le résultat RDAP (ou whois) est lu dans le cache avant toute requête et mémorisé 90 jours après un succès ; --no-cache ; --verbose indique « (cache des adresses) ».
+  - Vocabulaire : « Propriétaire du bloc d'adresses : X (organisation) » ou « (nom du réseau) » à la place de « Fournisseur d'accès » : c'est le titulaire enregistré du bloc
+    (RDAP « registrant »), sinon le nom technique du réseau ; pas forcément un fournisseur d'accès.
+
+Bugs corrigés :
+  Aucun.
+
+Garde-fous et cas limites traités :
+  - Un échec n'est jamais mémorisé ; composant de cache absent ou inutilisable : comportement d'avant.
+
+Vérifications effectuées :
+  - 4 tests (test_cache_ip.py, CacheEtReseau) : une seule requête puis le cache, --no-cache, échec jamais mémorisé, entrée périmée après 90 jours.
+
+Action requise de ma part (ou « aucune ») :
+  Aucune.
+
+## 1.0.20261002.073514 — Première version : fournisseur d'accès d'une IP (RDAP, whois)
+
+Motif de la demande :
+  Le fournisseur d'accès d'une IP est affiché par nginx-log-audit.sh --investigate et remplace l'IP dans app-log-live.py : un seul code.
+
+Détail des modifications :
+  - Nouveau composant apps/_reseau.py : RDAP par https://rdap.org (qui redirige vers ARIN, RIPE, LACNIC, APNIC, AFRINIC) avec
+    curl ou wget, à défaut la commande whois ; titulaire, nom du réseau, plage (CIDR), pays, adresse de signalement d'abus.
+  - Usage : « _reseau.py IP » (lisible) ou « --raw IP » (une ligne, champs séparés par 0x1f, pour bash) ; --verbose, --version.
+  - Remplace le code RDAP intégré à nginx-log-audit.sh 2.19.
+
+Bugs corrigés :
+  Aucun.
+
+Garde-fous et cas limites traités :
+  - Seule l'adresse demandée est envoyée ; délai maximal de 10 s par source ; réponse illisible ou vide : « inconnu », jamais d'arrêt.
+  - Adresse validée (chiffres, lettres a-f, « : » et « . » seulement) avant tout appel ; Python 3.8.
+
+Vérifications effectuées :
+  Couvert par test_nginx_log_audit.py (RDAP, repli sur whois, aucune source, --verbose) et test_app_log_live.py.
+
+Action requise de ma part (ou « aucune ») :
+  Aucune.
+

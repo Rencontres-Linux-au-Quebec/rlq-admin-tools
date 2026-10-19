@@ -1,0 +1,24 @@
+Changelog — apps/_limites.py
+(version la plus récente en premier)
+
+## 1.0.20261015.083721 — Création : détail des 429 d'une adresse
+
+Motif de la demande :
+  « [2] Comment avoir plus détails pour savoir pourquoi mon IP chez moi a eu des code d'erreur 429 et quels ont été les effets secondaires ? quoi faire pour améliorer cela ? »
+
+Détail des modifications :
+  - analyser(ip, dossier) : lit access.log, access.log.N, *.gz et error.log (« limiting requests, excess: … by zone ») ; faits : requêtes, codes, 429 par URL, zones limit_req, pointes par seconde et par minute, effets (page, ressource, appel de fond, action POST).
+  - lignes(faits) : rapport en français, heures locales ; recommandations(faits) : constat + réglage nginx à envisager (zone séparée pour les appels répétés, burst, liste blanche, exclusion de /web/static/, limit_req_log_level).
+  - limit_conn : les lignes « limiting connections by zone » (trop de connexions SIMULTANÉES, ex. odoo_visiteur) sont comptées à part, avec leur recommandation (limit_conn odoo_visiteur 16;).
+  - Appelé par app-log-live.py --rate-limit IP.
+
+Bugs corrigés :
+  - Aucun bug corrigé.
+
+Garde-fous et cas limites traités :
+  - Aucun journal lisible : None (message « root requis ? ») ; une autre adresse n'est jamais mélangée ; journaux compressés lus ; heures converties en heure locale ; lecture seule.
+
+Vérifications effectuées :
+  - test_reglages_bannis_limites (Limites429), test_i18n (catalogue _limites).
+
+Action requise de ma part : aucune

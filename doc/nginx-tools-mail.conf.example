@@ -1,0 +1,21 @@
+# Courriel commun des programmes Python et Bash (apps/_courriel.py, msmtp).
+# Fichier réel : /etc/default/nginx-tools-mail.conf (créé par « nginx-hardening.sh --update », étape 0d) puis ~/.nginx-tools-mail.cfg (le dernier lu l'emporte).
+# Ce fichier ne contient JAMAIS le mot de passe : il est dans MAIL_PASSWORD_FILE (mode 0600, propriétaire root), créé par le setup (réponse sans écho).
+# Exemple avec des valeurs fictives — remplacez-les par les vôtres (ou laissez le setup les demander).
+
+MAIL_HOST="smtp.exemple.org"
+MAIL_PORT="587"
+# starttls (port 587), ssl (port 465) ou none (relais local sans chiffrement)
+MAIL_SECURITY="starttls"
+MAIL_USER="alertes@exemple.org"
+MAIL_FROM="alertes@exemple.org"
+MAIL_TO="equipe@exemple.org"
+MAIL_PASSWORD_FILE="/etc/default/nginx-tools-mail.pass"
+
+# Pièce jointe plus grosse que cette taille (Mo) : remplacée par un LIEN. Le fichier est copié dans MAIL_LINK_DIR/<jeton secret>/ ;
+# MAIL_LINK_URL est l'adresse publique de ce dossier (à servir par nginx : location /pj/ { alias /var/lib/nginx-tools/pieces-jointes/; autoindex off; }).
+# Sans MAIL_LINK_URL, le courriel indique seulement le chemin sur le serveur. Les copies de plus de MAIL_LINK_DAYS jours sont supprimées.
+MAIL_ATTACH_MAX_MB="100"
+MAIL_LINK_DIR="/var/lib/nginx-tools/pieces-jointes"
+MAIL_LINK_URL=""
+MAIL_LINK_DAYS="30"

@@ -1,0 +1,791 @@
+# French translation of the messages of app-log-check (msgid = English text of the code, msgstr = French translation).
+# Standard PO format (Poedit, Weblate, Crowdin...). Empty msgstr = untranslated (English stays); identical to the msgid = valid in both languages.
+# Messages are sentence FRAGMENTS (the code assembles sentences with variables): keep leading/trailing spaces and the order of the pieces.
+msgid ""
+msgstr ""
+"Project-Id-Version: app-log-check\n"
+"Language: fr\n"
+"Source-Language: en\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+msgid "Changelog not found: "
+msgstr "Changelog introuvable : "
+
+msgid "Migration (programs renamed, version 2.0): "
+msgstr "Migration (renommage des programmes, version 2.0) : "
+
+msgid "ERROR: 'journalctl' command not found on this system."
+msgstr "ERREUR : commande 'journalctl' introuvable sur ce systeme."
+
+msgid "ERROR: journalctl took more than 60s to answer — try --last with a shorter window."
+msgstr "ERREUR : journalctl a mis plus de 60s a repondre — essayez --last avec une fenetre plus courte."
+
+msgid "WARNING: journalctl returned code "
+msgstr "ATTENTION : journalctl a retourne le code "
+
+msgid "(unknown unit, or insufficient rights — root or member of the 'systemd-journal' group required)"
+msgstr "(unite inconnue, ou droits insuffisants — root ou membre du groupe 'systemd-journal' requis)"
+
+msgid "odoo.sql_db: failed SQL query on « "
+msgstr "odoo.sql_db: requête SQL en échec sur « "
+
+msgid "PostgreSQL reason missing from the entry (see --full-trace)"
+msgstr "raison PostgreSQL absente de l'entrée (voir --full-trace)"
+
+msgid "Access rights check refused (Access Denied by ACLs, INFO level) — page served normally"
+msgstr "Vérification de droits refusée (Access Denied by ACLs, niveau INFO) — page servie normalement"
+
+msgid "Source map (.map) of an old JavaScript asset bundle"
+msgstr "Carte de source (.map) d'un ancien paquet d'assets JavaScript"
+
+msgid "A browser with developer tools open (or a robot) requested the source map of an asset bundle whose version no longer exists (« most likely outdated ») — typically a page loaded before assets were regenerated (module update, restart). Odoo only generates these maps in debug=assets mode and simply answers 404. No action required."
+msgstr "Un navigateur avec les outils de développement ouverts (ou un robot) a demandé la carte de source d'un paquet d'assets dont la version n'existe plus (« most likely outdated ») — typiquement une page chargée avant une régénération des assets (mise à jour de module, redémarrage). Odoo ne génère ces cartes qu'en mode debug=assets et répond simplement 404. Aucune action requise."
+
+msgid "Concurrent update conflict (transaction replayed automatically by Odoo)"
+msgstr "Conflit de mise à jour simultanée (transaction rejouée automatiquement par Odoo)"
+
+msgid "Two requests handled in parallel by different workers modified the same row at the same time (typical case: website_visitor, when the same visitor — often a robot — loads several pages at once); PostgreSQL fails one of the two transactions, which Odoo replays automatically (« retrying » mechanism of the HTTP service, several attempts). The visitor sees nothing. Recognized ONLY when the PostgreSQL reason appears in the log. Look into it only if it is massive and continuous."
+msgstr "Deux requêtes traitées en parallèle par des workers différents ont modifié la même ligne au même moment (cas typique : website_visitor, quand un même visiteur — souvent un robot — charge plusieurs pages à la fois) ; PostgreSQL fait échouer l'une des deux transactions, qu'Odoo rejoue automatiquement (mécanisme « retrying » du service HTTP, plusieurs tentatives). Le visiteur ne voit rien. Reconnu UNIQUEMENT quand la raison PostgreSQL figure dans le journal. À examiner seulement si c'est massif et continu."
+
+msgid "OAuth (Google) sign-in refused: invalid token"
+msgstr "Connexion OAuth (Google) refusée : jeton invalide"
+
+msgid "Validation of the OAuth token with the provider returned « invalid_request »: token missing, expired or forged — typically an old sign-in return URL reloaded or bookmarked, or a robot calling /auth_oauth/signin. Isolated: harmless. Repeated for real users: check the OAuth configuration in Odoo (client ID, redirect URL authorized at Google)."
+msgstr "La validation du jeton OAuth auprès du fournisseur a renvoyé « invalid_request » : jeton absent, expiré ou forgé — typiquement une ancienne URL de retour de connexion rechargée ou mise en favori, ou un robot qui appelle /auth_oauth/signin. Isolé : sans gravité. Répété pour de vrais utilisateurs : vérifier la configuration OAuth dans Odoo (identifiant client, URL de redirection autorisée chez Google)."
+
+msgid "Websocket subscription refused by web_editor (known Odoo 18 bug, fixed upstream)"
+msgstr "Abonnement websocket refusé par web_editor (bug Odoo 18 connu, corrigé en amont)"
+
+msgid "A browser asks to subscribe, through the websocket, to an editor channel (collaboration on a record) the user has no right to — typically a tab left open after a sign-out or a change of rights. Odoo 18 bug: the function raises an error instead of ignoring that channel, so the browser subscribes to NO channel (real-time notifications lost until the page is reloaded). Not an attack. Fixed upstream (« [FIX] web_editor: don't raise when subscribing », task 6545047): update the Odoo 18 sources (ERPLibre) to include it."
+msgstr "Un navigateur demande à s'abonner, par le websocket, à un canal de l'éditeur (collaboration sur un enregistrement) auquel l'utilisateur n'a pas droit — typiquement un onglet resté ouvert après une déconnexion ou un changement de droits. Bug d'Odoo 18 : la fonction lève une erreur au lieu d'ignorer ce canal, si bien que le navigateur ne s'abonne à AUCUN canal (notifications en temps réel perdues jusqu'au prochain rechargement de la page). Pas une attaque. Corrigé en amont (« [FIX] web_editor: don't raise when subscribing », tâche 6545047) : mettre à jour les sources d'Odoo 18 (ERPLibre) pour l'intégrer."
+
+msgid "Odoo checked whether a user had the right to perform an operation (most often « write », modify) on a model, the answer was no, and Odoo logs this refusal at INFO level. This is not a modification attempted by the visitor nor an attack: most often, the website checks while displaying a page whether the signed-in person can edit it (« Edit » button, editable fields), and the page is served normally — the werkzeug « 200 » line of the same process follows immediately. Harmless. Look into it only if the user SHOULD have this right (rights missing from their group), or if the operation is create/unlink in large numbers from an unknown account. Details per user below."
+msgstr "Odoo a vérifié si un utilisateur avait le droit de faire une opération (le plus souvent « write », modifier) sur un modèle, la réponse a été non, et Odoo note ce refus au niveau INFO. Ce n'est pas une modification tentée par le visiteur ni une attaque : le plus souvent, le site web vérifie en affichant une page si la personne connectée peut l'éditer (bouton « Modifier », champs éditables), et la page est servie normalement — la ligne werkzeug « 200 » du même processus suit immédiatement. Sans gravité. À examiner seulement si l'utilisateur DEVRAIT avoir ce droit (droits manquants dans son groupe), ou si l'opération est create/unlink en grand nombre depuis un compte inconnu. Détail par utilisateur ci-dessous."
+
+msgid "Subscription to push notifications with an old VAPID key"
+msgstr "Abonnement aux notifications push avec une ancienne clé VAPID"
+
+msgid "A browser retries to subscribe to push notifications with the public VAPID key from before a regeneration; Odoo simply compares this key to the one in the database (mail.push.device) and refuses. The server's keys are valid; the browser will subscribe again with the right key. No action required, unless the message repeats in large numbers from the same user."
+msgstr "Un navigateur réessaie de s'abonner aux notifications push avec la clé publique VAPID d'avant une régénération ; Odoo compare simplement cette clé à celle en base (mail.push.device) et refuse. Les clés du serveur sont valides ; le navigateur se réabonnera avec la bonne clé. Aucune action requise, sauf si le message se répète en grand nombre depuis un même utilisateur."
+
+msgid "sender refused (550)"
+msgstr "expéditeur refusé (550)"
+
+msgid "E-mails refused: the « From » address is not the sender authorized by the mail server (550)"
+msgstr "Courriels refusés : l'adresse « De » n'est pas celle de l'expéditeur autorisé par le serveur de courriel (550)"
+
+msgid "The mail server requires the « From » address (From header) to be that of the authorized sender: the SMTP account, or one of its aliases. Odoo sets as « From » the address of the person who triggers the sending (here a personal address), while the envelope sender is the SMTP account address: the server refuses each e-mail, which stays in « Delivery Failed ». « SMTP server 'None' » in the error means no outgoing server is registered in Odoo: it uses the smtp_* settings of odoo.conf."
+msgstr "Le serveur de courriel exige que l'adresse « De » (en-tête From) soit celle de l'expéditeur autorisé : le compte SMTP, ou un de ses alias. Odoo met comme « De » l'adresse de la personne qui déclenche l'envoi (ici une adresse personnelle), alors que l'expéditeur de l'enveloppe est l'adresse du compte SMTP : le serveur refuse chaque courriel, qui reste en « Échec d'envoi ». « Serveur SMTP 'None' » dans l'erreur veut dire qu'aucun serveur sortant n'est enregistré dans Odoo : il utilise les réglages smtp_* de odoo.conf."
+
+msgid "Settings ▸ Technical ▸ Outgoing Mail Servers: register the server (host, port, encryption, login) instead of relying only on odoo.conf, and fill in its « From Filter » with the authorized address (e.g. admin@your-domain) or the domain."
+msgstr "Paramètres ▸ Technique ▸ Serveurs de courrier sortant : enregistrer le serveur (hôte, port, chiffrement, identifiant) au lieu de se fier seulement à odoo.conf, et renseigner son « Filtre De » (From filter) avec l'adresse autorisée (ex. admin@votre-domaine) ou le domaine."
+
+msgid "Settings ▸ Technical ▸ System Parameters: « mail.default.from » = the local part of the authorized address and « mail.catchall.domain » = the domain (depending on the version: Technical ▸ Email ▸ Alias Domains). Odoo then replaces the « From » of unauthorized authors with this address, keeping the person's name."
+msgstr "Paramètres ▸ Technique ▸ Paramètres système : « mail.default.from » = la partie locale de l'adresse autorisée et « mail.catchall.domain » = le domaine (selon la version : Technique ▸ Courriel ▸ Domaines d'alias). Odoo remplace alors le « De » des auteurs non autorisés par cette adresse, en gardant le nom de la personne."
+
+msgid "Or, at the mail provider: allow this account to send « as » the other addresses of the domain (aliases, send-as identities)."
+msgstr "Ou, chez l'hébergeur du courriel : autoriser ce compte à envoyer « en tant que » les autres adresses du domaine (alias, identités d'envoi)."
+
+msgid "Then resend the failed e-mails (see « E-mail status » below): they do not leave by themselves."
+msgstr "Puis renvoyer les courriels en échec (voir « État des courriels » ci-dessous) : ils ne repartent pas tout seuls."
+
+msgid "per-connection message limit (452)"
+msgstr "limite de messages par connexion (452)"
+
+msgid "E-mails not sent: the SMTP server limits the number of messages per connection (452 4.4.5)"
+msgstr "Courriels non envoyés : le serveur SMTP limite le nombre de messages par connexion (452 4.4.5)"
+
+msgid "Odoo sends queued e-mails in batches, reusing ONE SMTP connection for the whole batch (up to 1000 e-mails per connection by default). The mail server limits the number of messages accepted per connection: beyond it, it answers 452 « Maximum number of messages per session exceeded » and the remaining e-mails of the batch go to « Delivery Failed ». This happens mostly in bursts: several registrations at the same time produce as many confirmation e-mails at once."
+msgstr "Odoo envoie les courriels en attente par lots, en réutilisant UNE connexion SMTP pour tout le lot (jusqu'à 1000 courriels par connexion par défaut). Le serveur de courriel limite le nombre de messages acceptés par connexion : au-delà il répond 452 « Maximum number of messages per session exceeded » et les courriels restants du lot passent à « Échec d'envoi ». Cela arrive surtout en rafale : plusieurs inscriptions en même temps produisent autant de courriels de confirmation d'un coup."
+
+msgid "Settings ▸ Technical ▸ System Parameters (developer mode): create or edit the key « "
+msgstr "Paramètres ▸ Technique ▸ Paramètres système (mode développeur) : créer ou modifier la clé « "
+
+msgid " » with a value LOWER than the mail server's limit (try 10; ask the provider for the exact limit). Odoo then opens a new connection every N e-mails."
+msgstr " » avec une valeur INFÉRIEURE à la limite du serveur de courriel (essayer 10 ; demander la limite exacte à l'hébergeur). Odoo ouvre alors une nouvelle connexion tous les N courriels."
+
+msgid "Resend the e-mails already failed: Settings ▸ Technical ▸ Emails ▸ Emails, filter « Delivery Failed », then « Retry » on each (depending on the version, on the e-mail form): without this, the registered people will never receive it."
+msgstr "Renvoyer les courriels déjà en échec : Paramètres ▸ Technique ▸ Courriels ▸ Courriels, filtrer « Échec d'envoi », puis « Réessayer » sur chacun (selon la version, sur la fiche du courriel) : sans cela les personnes inscrites ne le recevront jamais."
+
+msgid "Also check the provider's sending cap per hour and per day: a burst of registrations may reach it."
+msgstr "Vérifier aussi chez l'hébergeur le plafond d'envoi par heure et par jour : une rafale d'inscriptions peut l'atteindre."
+
+msgid "« Multiple MAIL » (503)"
+msgstr "« MAIL multiple » (503)"
+
+msgid "E-mails not sent: « Multiple MAIL commands not allowed » (503), cascading after another failure"
+msgstr "Courriels non envoyés : « Multiple MAIL commands not allowed » (503), en cascade après un autre échec"
+
+msgid "Consequence of the 452 refusal (per-connection message limit), in the same connection: after one message fails (typically the 452), Odoo reuses the SMTP connection for the next e-mails of the batch, but the server considers a transaction is already open and refuses each new MAIL command (503). These failures arrive within the same second as those of the first problem."
+msgstr "Conséquence du refus 452 (limite de messages par connexion), dans la même connexion : après l'échec d'un message (typiquement le 452), Odoo réutilise la connexion SMTP pour les courriels suivants du lot, mais le serveur considère qu'une transaction est déjà ouverte et refuse chaque nouvelle commande MAIL (503). Ces échecs arrivent dans la même seconde que ceux du premier problème."
+
+msgid "Same solution as for the 452 (per-connection message limit): a smaller « "
+msgstr "Même solution que pour le 452 (limite de messages par connexion) : « "
+
+msgid " ». Without the first failure, the cascade does not happen."
+msgstr " » plus petit. Sans le premier échec, la cascade n'a pas lieu."
+
+msgid "If these 503s appear WITHOUT a 452 failure before, the problem lies elsewhere: check the outgoing server (a single connection per batch, authentication) and the mail server."
+msgstr "Si ces 503 apparaissent SANS échec 452 avant, le problème est ailleurs : vérifier le serveur sortant (une seule connexion par lot, authentification) et le serveur de courriel."
+
+msgid "Then resend the failed e-mails (see « E-mail status » below)."
+msgstr "Renvoyer ensuite les courriels en échec (voir « État des courriels » ci-dessous)."
+
+msgid "authentication refused (535)"
+msgstr "authentification refusée (535)"
+
+msgid "E-mails not sent: the SMTP server refuses the login or password (535)"
+msgstr "Courriels non envoyés : le serveur SMTP refuse l'identifiant ou le mot de passe (535)"
+
+msgid "Odoo cannot authenticate: password changed or expired, application password required by the provider, or two-factor authentication."
+msgstr "Odoo n'arrive pas à s'authentifier : mot de passe changé ou expiré, mot de passe d'application exigé par le fournisseur, ou authentification à deux facteurs."
+
+msgid "Check or renew the login and password in the outgoing server (Technical ▸ Outgoing Mail Servers ▸ « Test Connection »), or smtp_user / smtp_password in odoo.conf (then restart the service)."
+msgstr "Vérifier ou renouveler l'identifiant et le mot de passe dans le serveur sortant (Technique ▸ Serveurs de courrier sortant ▸ « Tester la connexion »), ou smtp_user / smtp_password dans odoo.conf (puis redémarrer le service)."
+
+msgid "At Google, Microsoft and others: use an application password."
+msgstr "Chez Google, Microsoft et d'autres : utiliser un mot de passe d'application."
+
+msgid "relay refused"
+msgstr "relais refusé"
+
+msgid "E-mails not sent: the SMTP server refuses to relay"
+msgstr "Courriels non envoyés : le serveur SMTP refuse de relayer"
+
+msgid "The connection is not authenticated, or the sender does not belong to a domain this server agrees to relay."
+msgstr "La connexion n'est pas authentifiée, ou l'expéditeur n'appartient pas à un domaine que ce serveur accepte de relayer."
+
+msgid "Enable authentication (login and password) on the outgoing server; use the right port and the right encryption (587 with STARTTLS, 465 with SSL)."
+msgstr "Activer l'authentification (identifiant et mot de passe) sur le serveur sortant ; utiliser le bon port et le bon chiffrement (587 avec STARTTLS, 465 avec SSL)."
+
+msgid "Use a « From » address of the domain managed by this server (see the sender diagnosis)."
+msgstr "Utiliser une adresse « De » du domaine géré par ce serveur (voir le diagnostic de l'expéditeur)."
+
+msgid "smtp-connection"
+msgstr "smtp-connexion"
+
+msgid "SMTP server unreachable"
+msgstr "serveur SMTP injoignable"
+
+msgid "E-mails not sent: the SMTP server is unreachable"
+msgstr "Courriels non envoyés : le serveur SMTP est injoignable"
+
+msgid "Odoo cannot reach the mail server (wrong address or port, outgoing firewall, server stopped or overloaded, DNS)."
+msgstr "Odoo ne parvient pas à joindre le serveur de courriel (adresse ou port faux, pare-feu sortant, serveur arrêté ou surchargé, DNS)."
+
+msgid "Check the host, port and encryption (Technical ▸ Outgoing Mail Servers ▸ « Test Connection », or smtp_server / smtp_port / smtp_ssl in odoo.conf)."
+msgstr "Vérifier l'hôte, le port et le chiffrement (Technique ▸ Serveurs de courrier sortant ▸ « Tester la connexion », ou smtp_server / smtp_port / smtp_ssl dans odoo.conf)."
+
+msgid "Check that this server's firewall lets this port out, and the state of the mail server at the provider."
+msgstr "Vérifier que le pare-feu de ce serveur laisse sortir ce port, et l'état du serveur de courriel chez l'hébergeur."
+
+msgid "From: "
+msgstr "De : "
+
+msgid " ; envelope sender (SMTP account): "
+msgstr " ; expéditeur de l'enveloppe (compte SMTP) : "
+
+msgid " sending failure(s)"
+msgstr " échec(s) d'envoi"
+
+msgid " distinct e-mail(s))"
+msgstr " courriel(s) distinct(s))"
+
+msgid "→ people did NOT receive their e-mail (registration, invitation…): cause and solution in [5]"
+msgstr "→ des personnes n'ont PAS reçu leur courriel (inscription, invitation…) : cause et solution en [5]"
+
+msgid " → cause and solution in [5]"
+msgstr " → cause et solution en [5]"
+
+msgid " → [2]"
+msgstr " → [2]"
+
+msgid " occurrence(s) in "
+msgstr " occurrence(s) en "
+
+msgid " related to e-mails"
+msgstr " liée(s) aux courriels"
+
+msgid " anomaly(ies) → [1]"
+msgstr " anomalie(s) → [1]"
+
+msgid " occurrence(s) → [3]"
+msgstr " occurrence(s) → [3]"
+
+msgid " harmless message(s) → [4]"
+msgstr " message(s) sans gravité → [4]"
+
+msgid "  E-mail status in Odoo (read-only, database "
+msgstr "  État des courriels dans Odoo (lecture seule, base "
+
+msgid " last days):"
+msgstr " derniers jours) :"
+
+msgid "    unreadable (component apps/_odoo_db.py missing or unknown database)"
+msgstr "    illisible (composant apps/_odoo_db.py absent ou base inconnue)"
+
+msgid "    unreadable (PostgreSQL unreachable, or root required)"
+msgstr "    illisible (PostgreSQL inaccessible, ou root requis)"
+
+msgid "    Outgoing mail servers: NONE registered — Odoo uses the smtp_* settings of odoo.conf (« SMTP server 'None' » in the errors)"
+msgstr "    Serveurs de courrier sortant : AUCUN enregistré — Odoo utilise les réglages smtp_* de odoo.conf (« serveur SMTP 'None' » dans les erreurs)"
+
+msgid "    Outgoing server: « "
+msgstr "    Serveur sortant : « "
+
+msgid "without encryption"
+msgstr "sans chiffrement"
+
+msgid " — INACTIVE"
+msgstr " — INACTIF"
+
+msgid ", WITHOUT From filter"
+msgstr ", SANS filtre De"
+
+msgid ", From filter « "
+msgstr ", filtre De « "
+
+msgid " (if the 452 errors continue, choose a smaller value)"
+msgstr " (si les erreurs 452 continuent, choisir une valeur plus petite)"
+
+msgid "not set — Odoo sends up to 1000 e-mails per SMTP connection"
+msgstr "non défini — Odoo envoie jusqu'à 1000 courriels par connexion SMTP"
+
+msgid "    Other mail.* parameters: "
+msgstr "    Autres paramètres mail.* : "
+
+msgid "    E-mails: "
+msgstr "    Courriels : "
+
+msgid " sent, "
+msgstr " envoyé(s), "
+
+msgid " FAILED TO SEND (to resend), "
+msgstr " en ÉCHEC D'ENVOI (à renvoyer), "
+
+msgid " queued"
+msgstr " en attente"
+
+msgid " cancelled"
+msgstr " annulé(s)"
+
+msgid "    Failures per day: "
+msgstr "    Échecs par jour : "
+
+msgid "    Failed subjects: "
+msgstr "    Sujets en échec : "
+
+msgid "[5] Diagnostics: probable cause and solution"
+msgstr "[5] Diagnostics : cause probable et solution"
+
+msgid " ; e-mails (id): "
+msgstr " ; courriels (id) : "
+
+msgid " … (+"
+msgstr " … (+"
+
+msgid "Observed: "
+msgstr "Constaté : "
+
+msgid "default (apps/ folder missing next to the program)"
+msgstr "par défaut (dossier apps/ absent à côté du programme)"
+
+msgid " Log analysis — "
+msgstr " Analyse du journal — "
+
+msgid "no file"
+msgstr "aucun fichier"
+
+msgid " Window: last "
+msgstr " Fenêtre : dernieres "
+
+msgid "h (--last) — saved position not modified."
+msgstr "h (--last) — position memorisee non modifiee."
+
+msgid " Window: the whole active file (--init)."
+msgstr " Fenêtre : tout le fichier actif (--init)."
+
+msgid ") — run again as root."
+msgstr ") — relancer en root."
+
+msgid " line(s), "
+msgstr " ligne(s), "
+
+msgid "        last: "
+msgstr "        dernière : "
+
+msgid " SUMMARY: "
+msgstr " RÉSUMÉ : "
+
+msgid "nothing suspicious in this window."
+msgstr "rien de suspect dans cette fenêtre."
+
+msgid " error(s) to examine (section [1])."
+msgstr " erreur(s) à examiner (section [1])."
+
+msgid " (harmless)"
+msgstr " (sans gravité)"
+
+msgid "(unknown page)"
+msgstr "(page inconnue)"
+
+msgid "Lists: component apps/_listes.py missing"
+msgstr "Listes : composant apps/_listes.py absent"
+
+msgid "  Hours without problems: "
+msgstr "  Heures sans problème : "
+
+msgid " last days shown out of "
+msgstr " derniers jours affichés sur "
+
+msgid " ; the Total column covers the "
+msgstr " ; la colonne Total couvre les "
+
+msgid " days)"
+msgstr " jours)"
+
+msgid "REPORT OF PROBLEMS BY HOUR AND BY DAY — "
+msgstr "RAPPORT DES PROBLÈMES PAR HEURE ET PAR JOUR — "
+
+msgid " last days — local time of the machine"
+msgstr " derniers jours — heure locale de la machine"
+
+msgid " No problem in the window (no error, warning, error page or « Session expired »)."
+msgstr " Aucun problème dans la fenêtre (aucune erreur, avertissement, page en erreur ni « Session expired »)."
+
+msgid " Count: errors (ERROR, CRITICAL), warnings (WARNING), error pages (HTTP 400 and above), « Session expired »."
+msgstr " Compte : erreurs (ERROR, CRITICAL), avertissements (WARNING), pages en erreur (HTTP 400 et plus), « Session expired »."
+
+msgid " Log: "
+msgstr " Journal : "
+
+msgid " lines (≈ "
+msgstr " lignes (≈ "
+
+msgid " MB) over "
+msgstr " Mo) sur "
+
+msgid " days; « Session expired » and their requests: ≈ "
+msgstr " jours ; « Session expired » et leurs requêtes : ≈ "
+
+msgid " lines ("
+msgstr " lignes ("
+
+msgid "--- [1] All problems, by hour (rows) and by day (columns) ---"
+msgstr "--- [1] Tous les problèmes, par heure (lignes) et par jour (colonnes) ---"
+
+msgid "\n Busiest hours: "
+msgstr "\n Heures les plus chargées : "
+
+msgid "--- [2] Error pages (HTTP 400 and above, « Session expired »: page requested) — the "
+msgstr "--- [2] Pages en erreur (HTTP 400 et plus, « Session expired » : page demandée) — les "
+
+msgid " first ---"
+msgstr " premières ---"
+
+msgid "Session expired"
+msgstr "Session expirée"
+
+msgid "           per day: "
+msgstr "           par jour : "
+
+msgid "--- [3] Error and warning messages — the "
+msgstr "--- [3] Messages d'erreur et d'avertissement — les "
+
+msgid " event(s)) ← "
+msgstr " événement(s)) ← "
+
+msgid " signed in from "
+msgstr " connecté depuis "
+
+msgid "--- [4] « Session expired »: "
+msgstr "--- [4] « Session expired » : "
+
+msgid " times — who, and why ---"
+msgstr " fois — qui, et pourquoi ---"
+
+msgid "  Peak hours: "
+msgstr "  Heures de pointe : "
+
+msgid "  Service restarts in the period: "
+msgstr "  Redémarrages du service dans la période : "
+
+msgid " % of the « Session expired » happen within the hour following one of them."
+msgstr " % des « Session expired » surviennent dans l'heure qui suit l'un d'eux."
+
+msgid "  Bursts (series less than 10 min apart): "
+msgstr "  Rafales (séries espacées de moins de 10 min) : "
+
+msgid "  Installed modules suggesting sessions or sign-in: unreadable (PostgreSQL unreachable, or root required)."
+msgstr "  Modules installés évoquant les sessions ou la connexion : illisibles (PostgreSQL inaccessible, ou root requis)."
+
+msgid "  Installed modules whose name suggests a session limit: none (Odoo CE normally allows several simultaneous sessions for the same account)."
+msgstr "  Modules installés dont le nom évoque une limite de sessions : aucun (Odoo CE autorise normalement plusieurs sessions simultanées pour un même compte)."
+
+msgid " — to examine: a module may limit sessions per account."
+msgstr " — à examiner : un module peut limiter les sessions par compte."
+
+msgid "  Installed modules whose name suggests sessions or sign-in: "
+msgstr "  Modules installés dont le nom évoque les sessions ou la connexion : "
+
+msgid " burst(s) out of "
+msgstr " rafale(s) sur "
+
+msgid " The bursts do not follow a sign-in from another address: this is not a single session per account."
+msgstr " Les rafales ne suivent pas une connexion depuis une autre adresse : ce n'est pas une session unique par compte."
+
+msgid "SHARED ADDRESS ("
+msgstr "ADRESSE PARTAGÉE ("
+
+msgid "A SINGLE CLIENT ("
+msgstr "UN SEUL CLIENT ("
+
+msgid "A SINGLE ACCOUNT ("
+msgstr "UN SEUL COMPTE ("
+
+msgid ") out of "
+msgstr ") sur "
+
+msgid "SEVERAL CLIENTS, especially right after a restart: sessions do not survive a restart. Check that the sessions folder (data_dir/sessions) is kept between two starts and is writable by the service user."
+msgstr "PLUSIEURS CLIENTS, surtout juste après un redémarrage : les sessions ne survivent pas au redémarrage. Vérifier que le dossier des sessions (data_dir/sessions) est conservé entre deux démarrages et accessible en écriture par l'utilisateur du service."
+
+msgid "SEVERAL CLIENTS, unrelated to a restart: sessions lost on the server side. Check for a database change (restore, dbfilter), a password changed for several accounts, and cookies (www or not, HTTP or HTTPS); compare the peaks above with these events."
+msgstr "PLUSIEURS CLIENTS, sans lien avec un redémarrage : sessions perdues côté serveur. Vérifier un changement de base (restauration, dbfilter), un mot de passe changé pour plusieurs comptes, et les cookies (www ou non, HTTP ou HTTPS) ; comparer les pics ci-dessus à ces événements."
+
+msgid "Reading the log of "
+msgstr "Lecture du journal de "
+
+msgid " days): several minutes if the log is large…"
+msgstr " jours) : plusieurs minutes si le journal est volumineux…"
+
+msgid " lines read ("
+msgstr " lignes lues ("
+
+msgid "ERROR: journalctl returned code "
+msgstr "ERREUR : journalctl a retourné le code "
+
+msgid " lines read in "
+msgstr " lignes lues en "
+
+msgid "Analyzes Odoo's systemd log for protocol attacks and Python tracebacks."
+msgstr "Analyse le journal systemd d'Odoo pour attaques protocole et traces Python."
+
+msgid "Configuration file to read ALONE (otherwise: /etc/default/app-log-check.conf, then the personal file .app-log-check.cfg; options in UPPERCASE: APP, DAYS, ERRORS_ONLY, FULL_TRACE, LANGUAGE, NAMESPACE, SERVICE, TOP, VERBOSE)"
+msgstr "Fichier de configuration à lire SEUL (sinon : /etc/default/app-log-check.conf, puis le fichier personnel .app-log-check.cfg ; options en MAJUSCULES : APP, DAYS, ERRORS_ONLY, FULL_TRACE, LANGUAGE, NAMESPACE, SERVICE, TOP, VERBOSE)"
+
+msgid "Display language: en or fr (default: from LC_ALL / LC_MESSAGES / LANG)"
+msgstr "Langue d'affichage : en ou fr (défaut : selon LC_ALL / LC_MESSAGES / LANG)"
+
+msgid "Journal namespace to query (e.g. 'odoo' if the service was isolated via LogNamespace=). Without this option: default namespace (behavior from before any isolation)."
+msgstr "Namespace de journal a interroger (ex. 'odoo' si le service a ete isole via LogNamespace=). Sans cette option : namespace par defaut (comportement d'avant toute isolation)."
+
+msgid "Report of problems BY HOUR AND BY DAY (errors, error pages, « Session expired » and their peaks) over the last --days days; neither uses nor modifies the saved position"
+msgstr "Rapport des problèmes PAR HEURE ET PAR JOUR (erreurs, pages en erreur, « Session expired » et leurs pics) sur les --days derniers jours ; n'utilise ni ne modifie la position mémorisée"
+
+msgid "With --by-hour: days analyzed (default: 7)"
+msgstr "Avec --by-hour : jours analysés (défaut : 7)"
+
+msgid "With --by-hour: pages and messages shown (default: 15)"
+msgstr "Avec --by-hour : pages et messages affichés (défaut : 15)"
+
+msgid "Analyze the whole available history of the log"
+msgstr "Analyse tout l'historique disponible du journal"
+
+msgid "Restrict to the last HOURS hours"
+msgstr "Restreint aux HEURES dernieres heures"
+
+msgid "Only the DETAIL of the errors: Python tracebacks [2], other errors [3] and diagnostics [5] (no protocol attacks, no known noise, no summary)"
+msgstr "Seulement le DÉTAIL des erreurs : traces Python [2], autres erreurs [3] et diagnostics [5] (ni attaques protocole, ni bruit connu, ni sommaire)"
+
+msgid "Show the full traceback for each group (not just an example)"
+msgstr "Affiche la trace complete pour chaque groupe (pas juste un exemple)"
+
+msgid "Show each external command run (journalctl, systemctl)"
+msgstr "Affiche chaque commande externe executee (journalctl, systemctl)"
+
+msgid "Print at the end an error report to copy and paste (program, version, server, failures, warnings)"
+msgstr "Afficher à la fin un rapport d'erreurs à copier-coller (programme, version, serveur, échecs, avertissements)"
+
+msgid "Show the changelog"
+msgstr "Affiche le changelog"
+
+msgid "Application behind nginx (profile apps/NAME.conf: odoo, bbb…) — detected automatically by default"
+msgstr "Application derrière nginx (profil apps/NOM.conf : odoo, bbb…) — détectée automatiquement par défaut"
+
+msgid "configuration file not found: "
+msgstr "fichier de configuration introuvable : "
+
+msgid "--days must be between 1 and 3650"
+msgstr "--days doit être compris entre 1 et 3650"
+
+msgid "--by-hour: available for Odoo's journal (systemd). For nginx: nginx-log-audit.sh --stats (traffic per day)."
+msgstr "--by-hour : disponible pour le journal d'Odoo (systemd). Pour nginx : nginx-log-audit.sh --stats (trafic par jour)."
+
+msgid "WARNING: no unit among "
+msgstr "ATTENTION : aucune unité parmi "
+
+msgid " found by 'systemctl list-unit-files' — using the default '"
+msgstr " trouvée par 'systemctl list-unit-files' — utilisation du défaut '"
+
+msgid "'. Specify --service NAME if it is not the right one."
+msgstr "'. Précisez --service NOM si ce n'est pas le bon."
+
+msgid " Log analysis — service: "
+msgstr " Analyse du journal — service : "
+
+msgid " (auto-detected)"
+msgstr " (auto-détecté)"
+
+msgid " Window: the whole history available in the journal (--init)."
+msgstr " Fenêtre : tout l'historique disponible dans le journal (--init)."
+
+msgid " Window: since the last run ("
+msgstr " Fenêtre : depuis le dernier passage ("
+
+msgid " Window: no previous run found — analyzing the whole available history."
+msgstr " Fenêtre : aucune execution precedente trouvee — analyse tout l'historique disponible."
+
+msgid " (the next calls, without --init/--last, will become incremental from now on)"
+msgstr " (les appels suivants, sans --init/--last, deviendront incrementaux a partir de maintenant)"
+
+msgid "No entry found in this window."
+msgstr "Aucune entree trouvee dans cette fenetre."
+
+msgid "[1] Protocol attacks / anomalies detected ("
+msgstr "[1] Attaques / anomalies protocole détectées ("
+
+msgid "These are connections that did NOT EVEN reach nginx properly formed — often a direct connection"
+msgstr "Ce sont des connexions qui n'ont MÊME PAS atteint nginx correctement formé — souvent une connexion"
+
+msgid "to Odoo's gevent/longpolling port, bypassing nginx. See also nginx-hardening.sh"
+msgstr "directe au port gevent/longpolling d'Odoo, en contournant nginx. Voir aussi nginx-hardening.sh"
+
+msgid "to check that this port is indeed blocked from the outside."
+msgstr "pour vérifier que ce port est bien bloqué depuis l'extérieur."
+
+msgid "[2] Python tracebacks — "
+msgstr "[2] Traces Python (tracebacks) — "
+
+msgid "Grouped by final message (the most specific exception) — a recurring bug appears only once"
+msgstr "Groupées par message final (l'exception la plus spécifique) — un bug récurrent apparaît une seule"
+
+msgid "here, with its count, rather than drowned in as many identical blocks as occurrences."
+msgstr "fois ici, avec son compte, plutôt que noyé dans autant de blocs identiques que d'occurrences."
+
+msgid "      Triggered by: "
+msgstr "      Déclenchée par : "
+
+msgid "      Full traceback:"
+msgstr "      Trace complète :"
+
+msgid "      (run again with --full-trace for the full traceback of each group)"
+msgstr "      (relancer avec --full-trace pour la trace complète de chaque groupe)"
+
+msgid "[3] Other uncategorized errors (ERROR/CRITICAL) — "
+msgstr "[3] Autres erreurs (ERROR/CRITICAL) non catégorisées — "
+
+msgid "      First: "
+msgstr "      Première : "
+
+msgid " — last: "
+msgstr " — dernière : "
+
+msgid "      (run again with --full-trace for the full entry of each group)"
+msgstr "      (relancer avec --full-trace pour l'entrée complète de chaque groupe)"
+
+msgid "[4] Known noise, harmless ("
+msgstr "[4] Bruit connu, sans gravité ("
+
+msgid " — user uid "
+msgstr " — utilisateur uid "
+
+msgid " — database "
+msgstr " — base "
+
+msgid "SUMMARY: nothing suspicious in this window."
+msgstr "RÉSUMÉ : rien de suspect dans cette fenêtre."
+
+msgid " message(s) of known noise, see [4].)"
+msgstr " message(s) de bruit connu, voir [4].)"
+
+msgid "SUMMARY: "
+msgstr "RÉSUMÉ : "
+
+msgid " entry(ies) to examine ("
+msgstr " entrée(s) à examiner ("
+
+msgid " — plus "
+msgstr " — plus "
+
+msgid " message(s) of known harmless noise (see [4])."
+msgstr " message(s) de bruit connu, sans gravité (voir [4])."
+
+msgid " Causes and solutions: section [5]."
+msgstr " Causes et solutions : section [5]."
+
+msgid ") — normal run."
+msgstr ") — exécution normale."
+
+msgid "[data: "
+msgstr "[données : "
+
+msgid " chars]"
+msgstr " car.]"
+
+msgid "PostgreSQL (modules, users), fail2ban and some logs unreadable"
+msgstr "PostgreSQL (modules, utilisateurs), fail2ban et certains journaux illisibles"
+
+msgid "» with a value LOWER than the mail server's limit (try 10; ask the provider for the exact limit). Odoo then opens a new connection every N e-mails."
+msgstr "» avec une valeur INFÉRIEURE à la limite du serveur de courriel (essayer 10 ; demander la limite exacte à l'hébergeur). Odoo ouvre alors une nouvelle connexion tous les N courriels."
+
+msgid " days; « Session expired » and their requests: "
+msgstr " jours ; « Session expired » et leurs requêtes : "
+
+msgid "  [account: "
+msgstr "  [compte : "
+
+msgid " start less than 5 min after a login of the same account from another address."
+msgstr " commencent moins de 5 min après une connexion du même compte depuis une autre adresse."
+
+msgid " start right after a login of the same account from another address: logging in on one workstation seems to INVALIDATE the other's session (a single session per account). Odoo CE does not impose this: see the modules above, then the security settings (Preferences ▸ Security ▸ Devices)."
+msgstr " commencent juste après une connexion du même compte depuis une autre adresse : se connecter sur un poste semble INVALIDER la session de l'autre (une seule session par compte). Odoo CE n'impose pas cela : voir les modules ci-dessus, puis les réglages de sécurité (Préférences ▸ Sécurité ▸ Appareils)."
+
+msgid " %). Several people are behind this address: it is not necessarily a single tab. Look among them for the person(s) whose session became invalid (logout in another tab, password changed, database restored) and ask them to reload (Ctrl+F5) or to sign in again."
+msgstr " %). Plusieurs personnes se trouvent derrière cette adresse : ce n'est pas forcément un seul onglet. Chercher parmi elles la ou les personnes dont la session est devenue invalide (déconnexion dans un autre onglet, mot de passe changé, base restaurée) et leur demander de recharger (Ctrl+F5) ou de se reconnecter."
+
+msgid " %). A tab or application left open with a session that became invalid (logout in another tab, session expired or deleted, password changed, database restored) keeps requesting pages the server refuses. This is NOT a server defect: closing or reloading (Ctrl+F5) the Odoo tabs open from this address, or signing in again, stops the flood."
+msgstr " %). Un onglet ou une application resté(e) ouvert(e) avec une session devenue invalide (déconnexion dans un autre onglet, session expirée ou supprimée, mot de passe changé, base restaurée) redemande en boucle des pages que le serveur refuse. Ce n'est PAS un défaut du serveur : fermer ou recharger (Ctrl+F5) les onglets Odoo ouverts depuis cette adresse, ou s'y reconnecter, arrête le flot."
+
+msgid " addresses ("
+msgstr " adresses ("
+
+msgid "): its different workstations. A tab left open on one workstation, with a session that became invalid, keeps requesting pages the server refuses."
+msgstr ") : ses différents postes. Un onglet resté ouvert sur un poste, avec une session devenue invalide, redemande en boucle des pages que le serveur refuse."
+
+msgid "Systemd unit to query (default: auto-detection among "
+msgstr "Unité systemd à interroger (défaut : auto-détection parmi "
+
+msgid "PYTHON TRACES"
+msgstr "TRACES PYTHON"
+
+msgid "PROTOCOL "
+msgstr "PROTOCOLE"
+
+msgid "OTHER ERRORS  "
+msgstr "AUTRES ERREURS"
+
+msgid "E-MAIL  "
+msgstr "COURRIEL"
+
+msgid "nothing"
+msgstr "rien"
+
+msgid "NOTHING"
+msgstr "RIEN"
+
+msgid " group(s)"
+msgstr " groupe(s)"
+
+msgid ", including "
+msgstr ", dont "
+
+msgid ", database "
+msgstr " ; base "
+
+msgid "from {first} to {last}"
+msgstr "du {first} au {last}"
+
+msgid "[1] Errors (ERROR / FATAL)"
+msgstr "[1] Erreurs (ERROR / FATAL)"
+
+msgid "[2] Warnings (WARN)"
+msgstr "[2] Avertissements (WARN)"
+
+msgid " distinct"
+msgstr " distincte(s)"
+
+msgid "  Addresses (clients):"
+msgstr "  Adresses (clients) :"
+
+msgid "{operation} on {model}"
+msgstr "{operation} sur {model}"
+
+msgid "(form: /web#id="
+msgstr "(fiche : /web#id="
+
+msgid " protocol, "
+msgstr " protocole, "
+
+msgid " Python trace(s), "
+msgstr " trace(s) Python, "
+
+msgid " other(s))"
+msgstr " autre(s))"
+
+msgid "WARNING: {path} not found."
+msgstr "ATTENTION : {path} introuvable."
+
+msgid "WARNING: {path} unreadable ({e}) — run again as root."
+msgstr "ATTENTION : {path} illisible ({e}) — relancer en root."
+
+msgid "  WARNING {problem}"
+msgstr "  ATTENTION {problem}"
+
+msgid "ERROR: {message}"
+msgstr "ERREUR : {message}"
+
+msgid "KNOWN NOISE"
+msgstr "BRUIT CONNU"
+
+msgid "When: "
+msgstr "Quand : "
+
+msgid "Why: "
+msgstr "Pourquoi : "
+
+msgid "     Solution:"
+msgstr "     Solution :"
+
+msgid "  VERDICT: "
+msgstr "  VERDICT : "
+
+msgid "   |   peaks: "
+msgstr "   |   pics : "
+
+msgid " first ones ---"
+msgstr " premiers ---"
+
+msgid "ERR."
+msgstr "ERREUR"
+
+msgid "WARN."
+msgstr "AVERT."
+
+msgid "      Full example:"
+msgstr "      Exemple complet :"
+
+msgid "      Example: "
+msgstr "      Exemple : "
+
+msgid " Namespace: "
+msgstr " Namespace : "
+
+msgid "--report-err unavailable ("
+msgstr "--report-err indisponible ("
+
+msgid "Interrupted (Ctrl-C)."
+msgstr "Interrompu (Ctrl-C)."
+
+msgid "  no page"
+msgstr "  aucune"
+
+msgid "  no message"
+msgstr "  aucun"
+
+msgid "  Hour  |"
+msgstr "  Heure |"
+
+msgid " Busiest days : "
+msgstr " Jours les plus chargés   : "

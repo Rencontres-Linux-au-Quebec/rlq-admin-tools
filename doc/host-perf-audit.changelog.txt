@@ -1,0 +1,82 @@
+Changelog — host-perf-audit.py
+(newest version first)
+
+## 1.2.20261016.173838 — Copyright holder: Services-Linux Conseils Inc
+
+Reason:
+  « [1] Il faudrait changer le copywrite de RLQ à Services-Linux Conseils Inc, le courriel reste toujours contact@exemple.org et tu peux rajouter contact@exemple.org »
+
+Changes:
+  - Header: « Copyright (C) 2026  Services-Conseils Linux » (was: Rencontres Linux Québec <info@rencontres-linux.quebec>). No change of behavior.
+
+Bugs fixed:
+  none.
+
+Safeguards and edge cases:
+  none.
+
+Checks:
+  - Test suite (run-all.sh), ruff / ShellCheck.
+
+Action required:
+  none.
+
+## 1.1.20261016.151148 — Number of logical cores taken from the measured /proc/stat
+
+Reason:
+  "[1] avec run-all.sh v1.181.20261016.114848, il y a des erreurs" — test_execution_complete_en_francais_avec_csv expected « 2 cœur(s) logique(s) »
+  (the fake /proc/stat of the test) and got 6 (the processors of the server running the tests).
+
+Changes:
+  - host-perf-audit.py, facts(): « cores » = number of cpuN lines of the /proc/stat actually measured (apps/_sysperf.py cpu_times()["n"]),
+    os.cpu_count() only when /proc/stat is unreadable.
+
+Bugs fixed:
+  - Symptom: wrong number of logical cores (and load per core) when NGINX_TOOLS_PROC_ROOT points to another /proc (tests), or inside a container whose
+    os.cpu_count() differs from /proc/stat. Diagnosis: os.cpu_count() reads the CPUs of the running process, not the measured /proc. Fix: above.
+  - Symptom: « Permission denied » when run as ./host-perf-audit.py. Diagnosis: the file was shipped without the executable bit (also odoo-docs.py and
+    odoo-update-module.sh). Fix: chmod +x in the archive.
+
+Safeguards and edge cases:
+  - /proc/stat unreadable or without cpuN lines: os.cpu_count(), then 1 (never a division by zero in the load per core).
+
+Checks:
+  - test_host_perf_audit (all), ruff, py38 target.
+
+Action required:
+  none.
+
+## 1.0.20261016.114848 — First version: what limits the performance of a Proxmox host
+
+Reason:
+  "[0] When registering for an event in Odoo, validate that people wrote a valid e-mail (example: marieb.essai@gmail'com); add a menu option to list the e-mail errors caused by a wrong address, fix the user's contact and resend the e-mail. [1] In app-log-live.py, show what causes the most latency (SATA, not SSD, with ZFS on Proxmox): % used for I/O over several hours, to decide whether SSD are justified. [2] A program to run on the Proxmox server that details what causes performance problems (CPU, MEM, IO, NET) and suggests settings (ZFS…), light on resources. [3] Alignment problem with Chinese characters in web-monitor.py --list-users --table; a new account (Chinese name) may be a hacker: add a section for suspicious activity of a logged-in Odoo user — do not always trust them. [4] List the suspicious users, offer to investigate all the IPs of a user and blacklist them so they cannot log in to Odoo any more: --ban-odoo-user and --unban-odoo-user, but investigate more before banning (search the e-mail on the Internet, etc.)."
+
+Changes:
+  - New program host-perf-audit.py (to run ON the Proxmox host): measurement over --duration (60 s by default; 10m, 4h, 24h…), one sample every --interval
+    seconds (5 / 15 / 60 by default depending on the duration) from /proc and /sys (apps/_sysperf.py): processor, PSI, disks, memory, network, ZFS ARC;
+    per guest (LXC and VM cgroups, named from /etc/pve): processor, memory, disk throughput, disk waiting time.
+  - One-time facts: Proxmox version, processor model, governor, swappiness, KSM, THP, disks (HDD / SSD / NVMe, model, scheduler), SMART health
+    (smartctl -H if installed), ZFS pools (used %, fragmentation, health, scrub / resilver, special / log / cache devices, ashift, average waits since
+    import with zpool iostat -l), dataset properties (compression, atime, sync, recordsize…), VM disk options.
+  - Report: per resource (processor, memory, disks, ZFS, network, guests), VERDICT (OK / WARN / FAIL), « ARE SSD DISKS JUSTIFIED? » (yes / not yet / no,
+    with the intermediate steps: bigger ARC, special SSD, SLOG), SUGGESTED SETTINGS (HIGH / MEDIUM / LOW).
+  - --apply: the SAFE settings one by one with confirmation (--yes without): ZFS compression=lz4 / atime=off of a dataset, zfs_arc_max (now + modprobe
+    file + initramfs), vm.swappiness (now + sysctl file). --csv FILE: every sample in a CSV file. Ctrl-C: the report on the samples already taken.
+  - Conventions of the suite: configuration /etc/default/host-perf-audit.conf then ~/.host-perf-audit.cfg (doc/host-perf-audit.conf.example), French /
+    English (lang/host-perf-audit.fr.po), --report-err, --changelog, first line « name vVERSION », options in alphabetical order.
+
+Bugs fixed:
+  none.
+
+Safeguards and edge cases:
+  - Light: nice 10 and idle I/O class for itself; the commands run once; the cost of the run (processor seconds) is printed.
+  - Inside a container, or without Proxmox: said (disks not the real ones / guests not named); without root: what is unreadable is said.
+  - Hardware and VM disk options are advice only (a restart is needed): never changed by --apply.
+
+Checks:
+  test_host_perf_audit (fake /proc, /sys, /etc/pve and zpool / zfs: verdicts, SSD answer, suggestions, --csv, French and English, Ctrl-C), test_conventions,
+  test_i18n, test_config_defaut, test_docs; run on a real Linux machine (12 s).
+
+Action required:
+  - copy nginx-tools to the Proxmox host (apps/ included), then: sudo ./host-perf-audit.py --duration 24h --csv /root/perf.csv (or 4h during the busiest
+    hours) and read « ARE SSD DISKS JUSTIFIED? ».

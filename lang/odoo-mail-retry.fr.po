@@ -1,0 +1,395 @@
+# French translation of the messages of odoo-mail-retry (msgid = English text of the code, msgstr = French translation).
+# Standard PO format (Poedit, Weblate, Crowdin...). Empty msgstr = untranslated (English stays); identical to the msgid = valid in both languages.
+# Messages are sentence FRAGMENTS (the code assembles sentences with variables): keep leading/trailing spaces and the order of the pieces.
+msgid ""
+msgstr ""
+"Project-Id-Version: odoo-mail-retry\n"
+"Language: fr\n"
+"Source-Language: en\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+msgid "configuration file not found: "
+msgstr "fichier de config introuvable : "
+
+msgid " : line ignored « "
+msgstr " : ligne ignorée « "
+
+msgid " » (keys: BATCH=batch, DAYS=days: positive numbers; DB=database; DETAILS and NO_PROMPT: yes/no; LANGUAGE: en, fr, auto)"
+msgstr " » (clés : BATCH=lot, DAYS=jours : nombres positifs ; DB=base ; DETAILS et NO_PROMPT : oui/non ; LANGUAGE : en, fr, auto)"
+
+msgid "unknown cause"
+msgstr "cause inconnue"
+
+msgid " Unsent e-mails — database "
+msgstr " Courriels non envoyés — base "
+
+msgid " days: "
+msgstr " derniers jours : "
+
+msgid " failed to send"
+msgstr " en échec d'envoi"
+
+msgid " sent"
+msgstr " envoyés"
+
+msgid " (addresses masked; --details to see them in full)"
+msgstr " (adresses masquées ; --details pour les voir en entier)"
+
+msgid "\n  No e-mail failed to send."
+msgstr "\n  Aucun courriel en échec d'envoi."
+
+msgid " — cause: "
+msgstr " — cause : "
+
+msgid " — PERMANENT"
+msgstr " — PERMANENTE"
+
+msgid " — transient"
+msgstr " — transitoire"
+
+msgid "(no title)"
+msgstr "(sans titre)"
+
+msgid "By title: "
+msgstr "Par titre : "
+
+msgid "By cause: "
+msgstr "Par cause : "
+
+msgid "By day  : "
+msgstr "Par jour  : "
+
+msgid " e-mail(s) have a PERMANENT cause ("
+msgstr " courriel(s) ont une cause PERMANENTE ("
+
+msgid "): they will fail again until the setting is fixed — see app-log-check.py, section [5] (cause and solution)."
+msgstr ") : ils échoueront de nouveau tant que le réglage n'est pas corrigé — voir app-log-check.py, section [5] (cause et solution)."
+
+msgid "[ATTN] mail.session.batch.size is "
+msgstr "[ATTN] mail.session.batch.size est "
+
+msgid " e-mails over ONE single SMTP connection and may hit the per-connection message limit (error 452). Set this parameter first (app-log-check.py, section [5]) or resend in batches (choice « l »)."
+msgstr " courriels sur UNE seule connexion SMTP et risque de retomber sur la limite de messages par connexion (erreur 452). Régler d'abord ce paramètre (app-log-check.py, section [5]) ou renvoyer par lots (choix « l »)."
+
+msgid "not set"
+msgstr "non défini"
+
+msgid "set to "
+msgstr "défini à "
+
+msgid " e-mail(s)?"
+msgstr " courriel(s) ?"
+
+msgid ")   [l] the "
+msgstr ")   [l] les "
+
+msgid " oldest   [c] choose one by one   [N] none: "
+msgstr " plus anciens   [c] choisir un par un   [N] aucun : "
+
+msgid "(no recipient recorded)"
+msgstr "(aucun destinataire noté)"
+
+msgid " » → to: "
+msgstr " » → à : "
+
+msgid " — resend? [y/N/q]: "
+msgstr " — renvoyer ? [o/N/q] : "
+
+msgid "ERROR: unable to put the e-mails back in the queue (database "
+msgstr "ERREUR : impossible de remettre les courriels en attente (base "
+
+msgid " : PostgreSQL unreachable, or root required)."
+msgstr " : PostgreSQL inaccessible, ou root requis)."
+
+msgid " e-mail(s) put back in the « Outgoing » state: "
+msgstr " courriel(s) remis à l'état « En attente » : "
+
+msgid "none"
+msgstr "aucun"
+
+msgid " ignored: no longer failed (already resent or deleted): "
+msgstr " ignoré(s) : plus en échec d'envoi (déjà renvoyés ou supprimés) : "
+
+msgid "Odoo will send them at the next run of the scheduled action « Mail: Email Queue Manager »; to do it right now: Settings ▸ Technical ▸ Scheduled Actions ▸ « Mail: Email Queue Manager » ▸ Run Manually. Then run odoo-mail-retry.py again: those that left are no longer in the list; those that fail again come back with their cause."
+msgstr "Odoo les enverra au prochain passage de la tâche planifiée « Mail: Email Queue Manager » ; pour tout de suite : Paramètres ▸ Technique ▸ Tâches planifiées ▸ « Mail: Email Queue Manager » ▸ Exécuter manuellement. Relancer ensuite odoo-mail-retry.py : ceux qui sont partis ne figurent plus dans la liste ; ceux qui échouent encore y reviennent avec leur cause."
+
+msgid "Changelog not found: "
+msgstr "Changelog introuvable : "
+
+msgid "List of the Odoo e-mails not sent (title, date, recipients, cause), then offer to resend them."
+msgstr "Liste des courriels d'Odoo non envoyés (titre, date, destinataires, cause), puis proposition de les renvoyer."
+
+msgid "Size of a resend batch (choice « l » of the menu: the N oldest; default "
+msgstr "Taille d'un lot de renvoi (choix « l » du menu : les N plus anciens ; défaut "
+
+msgid "); with --resend --yes: resends only the N oldest"
+msgstr ") ; avec --resend --yes : renvoie seulement les N plus anciens"
+
+msgid "This configuration file ALONE (default: "
+msgstr "Ce fichier de configuration SEUL (défaut : "
+
+msgid "; keys BATCH, DAYS, DB, DETAILS, LANGUAGE, NO_PROMPT)"
+msgstr " ; clés BATCH, DAYS, DB, DETAILS, LANGUAGE, NO_PROMPT)"
+
+msgid "Show the change log"
+msgstr "Affiche le journal des modifications"
+
+msgid "E-mails of the last N days (default: "
+msgstr "Courriels des N derniers jours (défaut : "
+
+msgid "Odoo database (default: all databases that have e-mails)"
+msgstr "Base Odoo (défaut : toutes les bases qui ont des courriels)"
+
+msgid "Full recipient addresses (masked by default)"
+msgstr "Adresses des destinataires en entier (masquées par défaut)"
+
+msgid "Display language: en or fr (default: from LC_ALL / LC_MESSAGES / LANG)"
+msgstr "Langue d'affichage : en ou fr (défaut : selon LC_ALL / LC_MESSAGES / LANG)"
+
+msgid "List only: no question, even on a terminal"
+msgstr "Liste seulement : aucune question, même sur un terminal"
+
+msgid "Print at the end an error report to copy and paste (program, version, server, failures, warnings)"
+msgstr "Afficher à la fin un rapport d'erreurs à copier-coller (programme, version, serveur, échecs, avertissements)"
+
+msgid "With --yes: resend without asking"
+msgstr "Avec --yes : renvoie sans poser de question"
+
+msgid "Show each external command run"
+msgstr "Affiche chaque commande externe exécutée"
+
+msgid "With --resend: confirm the resend (without it, never resend without a terminal)"
+msgstr "Avec --resend : confirme le renvoi (sans cela, jamais de renvoi sans terminal)"
+
+msgid "ERROR: "
+msgstr "ERREUR : "
+
+msgid " (requested by -c/--config: no other file is read)"
+msgstr " (demandé par -c/--config : aucun autre fichier n'est lu)"
+
+msgid "no file (default values)"
+msgstr "aucun fichier (valeurs par défaut)"
+
+msgid " (the last one wins)"
+msgstr " (le dernier l'emporte)"
+
+msgid "Configuration read: "
+msgstr "Configuration lue : "
+
+msgid "  Options: --lang "
+msgstr "  Options : --lang "
+
+msgid " · e-mails of the last "
+msgstr " · courriels des "
+
+msgid " days · resend batch: "
+msgstr " derniers jours · lot de renvoi : "
+
+msgid " · no questions"
+msgstr " · sans questions"
+
+msgid "ERROR: component apps/_odoo_db.py missing — deploy the complete nginx-tools.zip."
+msgstr "ERREUR : composant apps/_odoo_db.py absent — déployer nginx-tools.zip complet."
+
+msgid "ERROR: PostgreSQL unreachable (psql command missing, or root required: run again as root)."
+msgstr "ERREUR : PostgreSQL inaccessible (commande psql absente, ou root requis : relancer en root)."
+
+msgid "No Odoo database (mail_mail table) found in PostgreSQL — specify --db NAME."
+msgstr "Aucune base Odoo (table des courriels mail_mail) trouvée dans PostgreSQL — préciser --db NOM."
+
+msgid "ERROR: several databases ("
+msgstr "ERREUR : plusieurs bases ("
+
+msgid "): specify --db NAME for a resend without questions."
+msgstr ") : préciser --db NOM pour un renvoi sans question."
+
+msgid "ERROR: database "
+msgstr "ERREUR : base "
+
+msgid " unreadable (PostgreSQL unreachable, unknown database, or root required)."
+msgstr " illisible (PostgreSQL inaccessible, base inconnue, ou root requis)."
+
+msgid "To resend them: run again on a terminal (menu), or with --resend --yes (--batch N: only the N oldest)."
+msgstr "Pour les renvoyer : relancer sur un terminal (menu), ou avec --resend --yes (--batch N : seulement les N plus anciens)."
+
+msgid "No e-mail resent."
+msgstr "Aucun courriel renvoyé."
+
+msgid "--report-err unavailable (apps/_rapport.py missing) — normal run."
+msgstr "--report-err indisponible (apps/_rapport.py absent) — exécution normale."
+
+msgid " e-mails"
+msgstr " courriels"
+
+msgid " queued for sending"
+msgstr " en attente d'envoi"
+
+msgid "  [a] all ("
+msgstr "  [t] tous ("
+
+msgid "tous"
+msgstr "tous"
+
+msgid " · full recipient addresses"
+msgstr " · destinataires en entier"
+
+msgid " · database "
+msgstr " · base "
+
+msgid " latest sent e-mails — database "
+msgstr " derniers courriels envoyés — base "
+
+msgid "\n  No e-mail sent."
+msgstr "\n  Aucun courriel envoyé."
+
+msgid "Shows the N latest SENT e-mails (title, date, recipients) and exits, without the list of failures"
+msgstr "Affiche les N derniers courriels ENVOYÉS (titre, date, destinataires) et quitte, sans la liste des échecs"
+
+msgid "--days, --batch and --sent must be positive numbers"
+msgstr "--days, --batch et --sent doivent être des nombres positifs"
+
+msgid " » (VERBOSE: yes/no; DEBUG_LEVEL: number)"
+msgstr " » (VERBOSE : oui/non ; DEBUG_LEVEL : nombre)"
+
+msgid "every reading or re-queuing of e-mails goes through PostgreSQL (postgres account)"
+msgstr "toute lecture ou remise en attente des courriels passe par PostgreSQL (compte postgres)"
+
+msgid ", then "
+msgstr ", puis "
+
+msgid " (file just created: every option is in a comment, default values)"
+msgstr " (fichier créé à l'instant : toutes les options y sont en commentaire, valeurs par défaut)"
+
+msgid " : Odoo will send these "
+msgstr " : Odoo enverra ces "
+
+msgid " Invalid e-mail addresses of event registrations — database "
+msgstr " Adresses courriel invalides des inscriptions aux événements — base "
+
+msgid " (addresses masked; --details to see them in full — the correction menu shows them in full)"
+msgstr " (adresses masquées ; --details pour les voir en entier — le menu de correction les montre en entier)"
+
+msgid "\n  No registration with an invalid e-mail address."
+msgstr "\n  Aucune inscription avec une adresse courriel invalide."
+
+msgid "    (the confirmation e-mail was never created with this address: resend it from Odoo — Events ▸ registration ▸ « Send by e-mail », or the « Invalid e-mails » menu of the rlq_survey_report module)"
+msgstr "    (le courriel de confirmation n'a jamais été créé avec cette adresse : le renvoyer depuis Odoo — Événements ▸ inscription ▸ « Envoyer par courriel », ou le menu « Courriels invalides » du module rlq_survey_report)"
+
+msgid "Fix these addresses?  [a] the "
+msgstr "Corriger ces adresses ?  [a] les "
+
+msgid " suggested correction(s)   [c] one by one   [N] none: "
+msgstr " correction(s) suggérée(s)   [c] une par une   [N] aucune : "
+
+msgid "With --yes: fix the invalid addresses of the registrations with the SUGGESTED correction and resend their e-mails, without questions"
+msgstr "Avec --yes : corriger les adresses invalides des inscriptions avec la correction SUGGÉRÉE et renvoyer leurs courriels, sans question"
+
+msgid "Only the event registrations whose e-mail address is invalid (marieb.essai@gmail'com, gmial.com…) with the suggested correction, then the offer to fix the registration and its contact and to resend the e-mail"
+msgstr "Seulement les inscriptions aux événements dont l'adresse courriel est invalide (marieb.essai@gmail'com, gmial.com…) avec la correction suggérée, puis l'offre de corriger l'inscription et son contact et de renvoyer le courriel"
+
+msgid "invalid address"
+msgstr "adresse invalide"
+
+msgid " e-mail(s) addressed to an INVALID address: resent as is, they fail again — fix the address first (menu of the invalid addresses above, odoo-mail-retry.py --invalid-emails, or the contact in Odoo)."
+msgstr " courriel(s) adressé(s) à une adresse INVALIDE : renvoyés tels quels, ils échoueront de nouveau — corriger d'abord l'adresse (menu des adresses invalides ci-dessus, odoo-mail-retry.py --invalid-emails, ou le contact dans Odoo)."
+
+msgid " » is not a valid address either ("
+msgstr " » n'est pas non plus une adresse valide ("
+
+msgid "): nothing changed."
+msgstr ") : rien n'est changé."
+
+msgid "ERROR: registration #"
+msgstr "ERREUR : inscription #"
+
+msgid " not fixed (PostgreSQL write failed, root required): nothing changed."
+msgstr " non corrigée (échec de l'écriture dans PostgreSQL, root requis) : rien n'est changé."
+
+msgid ", no failed e-mail to resend"
+msgstr ", aucun courriel en échec à renvoyer"
+
+msgid "    The Odoo account keeps its login « "
+msgstr "    Le compte Odoo garde son identifiant « "
+
+msgid " » (the person logs in with it): change it in Odoo if needed (Settings ▸ Users)."
+msgstr " » (la personne se connecte avec) : le changer dans Odoo au besoin (Paramètres ▸ Utilisateurs)."
+
+msgid " address(es) fixed; "
+msgstr " adresse(s) corrigée(s) ; "
+
+msgid " without automatic correction (to fix in the menu or in Odoo)."
+msgstr " sans correction automatique (à corriger dans le menu ou dans Odoo)."
+
+msgid " address(es) fixed."
+msgstr " adresse(s) corrigée(s)."
+
+msgid "No address fixed."
+msgstr "Aucune adresse corrigée."
+
+msgid "invalid address ("
+msgstr "adresse invalide ("
+
+msgid "Registration #"
+msgstr "Inscription #"
+
+msgid "  Registration #"
+msgstr "  Inscription #"
+
+msgid " — registration "
+msgstr " — inscription "
+
+msgid " failed e-mail(s) put back in « Outgoing » (sent to the new address)"
+msgstr " courriel(s) en échec remis « En attente » (envoyé(s) à la nouvelle adresse)"
+
+msgid ", suggested: "
+msgstr ", suggérée : "
+
+msgid ", contact "
+msgstr ", contact "
+
+msgid "[another address]  [Enter] skip  [q] quit: "
+msgstr "[autre adresse]  [Entrée] passer  [q] quitter : "
+
+msgid "(no event)"
+msgstr "(aucun événement)"
+
+msgid "(no name)"
+msgstr "(aucun nom)"
+
+msgid "Address: "
+msgstr "Adresse : "
+
+msgid " — no automatic correction: to type"
+msgstr " — aucune correction automatique : à saisir"
+
+msgid " — Odoo account: "
+msgstr " — compte Odoo : "
+
+msgid " (login not changed)"
+msgstr " (identifiant non modifié)"
+
+msgid "fixed"
+msgstr "corrigée"
+
+msgid "unchanged (address already modified)"
+msgstr "inchangée (adresse déjà modifiée)"
+
+msgid "[Enter] "
+msgstr "[Entrée] "
+
+msgid "  [another address]  [s] skip  [q] quit: "
+msgstr "  [autre adresse]  [s] passer  [q] quitter : "
+
+msgid "To fix them: run again on a terminal (menu), or with --fix --yes (suggested corrections only)."
+msgstr "Pour les corriger : relancer sur un terminal (menu), ou avec --fix --yes (corrections suggérées seulement)."
+
+msgid " — suggested correction: "
+msgstr " — correction suggérée : "
+
+msgid "unchanged"
+msgstr "inchangé"
+
+msgid " registration(s)"
+msgstr " inscription(s)"
