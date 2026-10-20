@@ -1,6 +1,124 @@
 Changelog — app-log-live.py
 (newest version first; entries up to 1.79 are still in French: their translation is a later stage of the migration)
 
+## 1.90.20261020.164846 — Merge: 1.87 (ban reason, main) + 1.88 / 1.89 (this branch)
+
+Reason:
+  « oui et aide-moi à résoudre des conflits avec ce PR. Claude a fait des changements au même moment dans un autre PR »
+
+Changes:
+  - Two branches had both numbered their change 1.87: the 1.87 of main (bans: the reason is passed to nginx-log-audit.sh --reason) keeps its number;
+    the versions of the other branch become 1.88 (was 1.87.20261020.103939) and 1.89 (was 1.88.20261020.112434), with their dates. Both sets of changes
+    are in this version.
+
+Bugs fixed:
+  none.
+
+Safeguards and edge cases:
+  - Version numbers unique again (one number = one change); the dates of each change are kept.
+
+Checks:
+  - Test suite (run-all.sh) on the merged code.
+
+Action required:
+  none.
+
+## 1.89.20261020.112434 — --truncate / --anonymize by default only on a terminal; --no-underline
+
+Reason:
+  « fais le nettoyage des données personnelles et rajoute des exemples de données en français (avec accents) et en anglais. Assures-tu que l'affichage des programmes soient bien enligné indépendamment du français et anglais. à la fin des tests, indique des stats du tests (durée, ressources utilisées, nombre de tests par programmes, si tests unitaires, fonctionnels ou autres) »
+  (found while adding the tests: 1.88 applied both defaults to a PIPE too.)
+
+Changes:
+  - main(): --truncate not given (new constant TRUNCATE_AUTO = -2) and --anonymize / ANONYMIZE not refused: applied only when the output is a TERMINAL.
+    A program that reads this output (pipe, redirection, the test suite, cron) gets the real, whole lines — the rule of the suite for ANONYMIZE
+    (apps/_anonymiser.py demande()). An explicit --anonymize or --truncate [N] on the command line always applies; --no-anonymize / --no-truncate always win.
+  - Help of --truncate and --anonymize: « By default on a terminal »; lang/app-log-live.fr.po.
+  - New --no-underline (UNDERLINE key, doc/app-log-live.conf.example): no underlined line (Output.underline); the startup line says how to remove it.
+    Needed by the tests that compare the exact colors in a real terminal, and by anyone who prefers it.
+
+Bugs fixed:
+  - Symptom (1.88): « app-log-live.py --no-follow | grep … » or a program reading the stream got IP-xxxxxx pseudonyms and lines cut at $COLUMNS - 10
+    (100 - 10 without a terminal). Diagnosis: the defaults did not look at the output. Fix: terminal only.
+  - Symptom (during the change): « argument --truncate: invalid int value: 'auto' ». Diagnosis: argparse applies type=int to a TEXT default. Fix: numeric
+    sentinel TRUNCATE_AUTO.
+
+Safeguards and edge cases:
+  - TRUNCATE=N or TRUNCATE=oui in the configuration file is explicit: applied even without a terminal (like --truncate).
+
+Checks:
+  - Whole suite (run-all.sh 1.188, see its changelog), including the new test_colonnes_alignees_en_francais_et_en_anglais_avec_accents_nfd_et_chinois.
+
+Action required:
+  none.
+
+## 1.88.20261020.103939 — One line out of 5 underlined; --truncate / --anonymize by default; sent e-mails named again; « -2026- » highlighted
+
+Reason:
+  « [1] Dans app-log-live.py, afin d'aider à bien lire toute l'information, mettre une ligne en souligné à toutes les 5 lignes (modulo 5)  [2]  Si les URL affichées sont trop longues, tronquer les lignes à la largeur de la variable COLUMNS-10, en rajoutant "..." suivi des 2  derniers mots [3]  Lors d'une demande précédentes, j'avais demandé de voir le titre du courriel qui avant été envoyé (et autres choses) ,mais le texte n'a pas changé "… Mail (mail.mail) with ID 7624 and Message-Id '<…-erplibre-message-notify@odoo18>' from 'admin@rencontres-linux.quebec' to (redacted) 'b****ss@exemple.org' successfully sent … User #1 deleted mail.mail records with IDs: [7624] … Sent batch 1 emails via mail server ID #2 "  [4] Met ces options par défaut : --truncate, --anonymize (rajoute l'inverse --no-anonymize ?) [5] Rajoute dans la liste des mots à highlighter "-2026-" »
+
+Changes:
+  - [1] One log line out of 5 is underlined (emit(): counter state["emitted"]; new underline_line(): each color reset is followed by the underline again, so
+    the whole line stays underlined). Only the lines of the journal (not the menus, reports, presence lines).
+  - [2] New shorten_line(), colored_prefix(), colored_suffix(), TAIL_RE, ELLIPSIS: a log line wider than the limit becomes « start ... last two words »
+    (colors kept on both sides, wide characters count 2). Limit: $COLUMNS - 10 (terminal_columns(), read again at each line: a resized window is followed),
+    or N with --truncate N. « [banned: CrowdSec] » counts as ONE word (otherwise it was the two last words and the URL disappeared); last two words wider
+    than a third of the line (a very long URL): only their end is kept. BEFORE cutting, new squeeze_padding() reduces the padding of the aligned columns
+    (an Odoo logger column of ~80 spaces), the longest runs of spaces first and only by the excess: a line that then fits is not cut at all (found in the
+    test run: without it, « rlq odoo.addons.mai ... successfully sent » lost the whole message).
+    Output.write(text, stream=False, underline=False): the shortening applies only to the journal lines (stream=True); menus and reports (Ctrl-G, ? …) are
+    never cut any more (1.83 cut every screen line at 2 × the width). truncate_text() / truncate_line() kept (fallback for very narrow limits).
+  - [3] Sent e-mails: see Bugs fixed. Also: « User #1 deleted mail.mail records with IDs: [7624] » right after « E-mail #7624 sent to … » is no longer shown
+    (MAIL_DELETED_RE, only when ALL its IDs were just reported as sent); « Sent batch 1 emails via mail server ID #2 » stays (it names the server).
+    mail_sent_text(): passes the masked address to apps/_odoo_db.py mail_detail() (1.19) and tries a second time 0.5 s later when nothing is found.
+  - [4] --truncate is on by default (default 0 = $COLUMNS - 10); new --no-truncate. TRUNCATE key: a number, oui/yes (= 0) or non/no (new _truncate_config()).
+    --anonymize is on by default and now WORKS in this program (the option was added by apps/_i18n.py but never applied here): Output.anonymize =
+    apps/_anonymiser.py Anonymiseur(fixed_width=True), applied to the SCREEN text piece by piece between color codes (an address in color is recognized), and to
+    the buffer of the r key (report to paste); the daily journal keeps the real values. New --no-anonymize. ANONYMIZE key (also from app-default.conf).
+    Not applied when the program already runs behind the filter of a parent (NGINX_TOOLS_ANON_ACTIF). Closed failure: --anonymize and apps/_anonymiser.py
+    unreadable = stop (code 2), nothing shown in clear.
+    New startup line « Screen: log lines shortened to $COLUMNS - 10 … · addresses and e-mails anonymized … · one line out of 5 underlined ».
+  - [5] HIGHLIGHT_DEFAULT: « -2026- » added. read_highlight(None) returns the default list directly; modify_highlight(): a word that starts AND ends with « - »
+    (« -2026- ») is a word, not a removal (« --2026- » removes it).
+  - lang/app-log-live.fr.po: new texts (help of --truncate, --no-truncate, --anonymize, --no-anonymize; startup line; error); old --truncate help removed.
+  - doc/app-log-live.conf.example (TRUNCATE, ANONYMIZE=oui), docs/en|fr/07-app-log-live.md.
+  - Files: app-log-live.py, apps/_odoo_db.py (1.19), apps/_anonymiser.py (1.2), lang/app-log-live.fr.po, doc/app-log-live.conf.example, docs/*/07-app-log-live.md.
+
+Bugs fixed:
+  - Symptom: « Mail (mail.mail) with ID 7624 and Message-Id … to (redacted) 'b****ss@exemple.org' successfully sent » shown raw instead of « E-mail #7624 sent
+    to NAME — « subject » » (1.84). Diagnosis: mail_detail() read the mail.mail row (JOIN mail_message); Odoo deletes it a few milliseconds after sending
+    (auto_delete: « deleted mail.mail records with IDs: [7624] » 20 ms later), and for the history lines it is long gone: nothing found, the raw line stays.
+    Fix: apps/_odoo_db.py 1.19 falls back on the mail.message with the same Message-Id (it is never deleted); recipient = partner notified by e-mail whose
+    address matches the masked one, otherwise all the notified partners, otherwise the partners of the message.
+  - Symptom: --anonymize accepted but without effect in app-log-live.py. Diagnosis: the option came from apps/_i18n.py; this program never called the filter.
+    Fix: applied in Output (see [4]).
+
+Safeguards and edge cases:
+  - Shortening: a line that fits, or whose text fits once the padding spaces are removed, is unchanged; limit < 24 or a line of fewer than 3 words: former cut
+    with « … ». The daily journal always keeps the whole lines.
+  - Underline: without color (pipe, NO_COLOR), nothing is added.
+  - Anonymized IP pseudonyms padded to the width of the address (IPv4 of 11 to 15 characters, IPv6): the columns stay aligned; masked e-mails
+    (« b****ss@exemple.org ») replaced whole (apps/_anonymiser.py 1.2). Names of people are NOT anonymized (limit of the anonymizer, documented).
+  - E-mail lookup: READ-ONLY, the Message-Id must match (never another database's e-mail); older apps/_odoo_db.py without the address argument still works
+    (TypeError caught); the 0.5 s retry happens once per e-mail (result cached).
+  - « -2026- » in a saved HIGHLIGHT (C key) is read back as a word, not as « remove 2026- ».
+
+Checks:
+  - python3 -m py_compile on the 3 Python files; --help in French and English (options sorted, French help texts, no English left); --version.
+  - shorten_line(): 80, 120 and 300 columns on a werkzeug line with a 140-character URL and [banned: CrowdSec] (exact width, URL end and label kept); URL of
+    300 characters; underline_line() with colors; read_highlight() (default, +odoo,-POST, webclient,-2026-, --2026-); highlight of « rlq-2026-x »;
+    _truncate_config (non, oui, 120); Output.write(stream=True, underline=True) with anonymization (IP-… padded, line shortened, menu line not cut);
+    mail_sent_text() with a fake database (masked address passed, French text « Courriel no 7624 envoyé à … — « Confirmation » — Inscription : … »);
+    MAIL_DELETED_RE on the line of the request.
+  - Run with a fake journalctl (the lines of the request + a werkzeug request with a 200-character URL), COLUMNS=110, 160, 220: every line at most
+    COLUMNS - 10 wide, messages visible, « deleted mail.mail records » hidden, « Sent batch » kept, IP and e-mails anonymized; --no-truncate
+    --no-anonymize: former display.
+  - Not checked here: the SQL fallback on a real Odoo 18 database (no PostgreSQL in this environment).
+
+Action required:
+  - Deploy app-log-live.py, apps/_odoo_db.py, apps/_anonymiser.py and lang/app-log-live.fr.po together.
+  - To see the real addresses: --no-anonymize (or ANONYMIZE=non in /etc/default/app-log-live.conf). Note: ANONYMIZE=non in app-default.conf also disables it.
+  - If « E-mail #N sent to … » still does not appear: run as root (PostgreSQL read through runuser -u postgres) and send the --report-err.
 ## 1.87.20261020.161238 — Bans: the reason is passed to nginx-log-audit.sh (--reason) and kept in the ban journal
 
 Reason:

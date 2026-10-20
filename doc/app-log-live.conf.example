@@ -94,9 +94,11 @@
 #SUSPECT=non
 # --time-report : minutes entre deux rapports comme Ctrl-T (0 = jamais ; touche T à la volée : sauvegardé par la touche C)
 #TIME_REPORT=0
-# --truncate : couper chaque ligne affichée à N colonnes, avec « … » (0 = 2 × la largeur du terminal, $COLUMNS : une ligne prend au plus 2 lignes à l'écran ;
-# vide = lignes entières). Le journal quotidien garde toujours les lignes entières.
+# --truncate (par défaut depuis 1.88) : une ligne du journal plus large que N colonnes est raccourcie en « début ... deux derniers mots » (0 ou oui = $COLUMNS - 10 ;
+# non = lignes entières, comme --no-truncate). Les menus et rapports ne sont jamais coupés ; le journal quotidien garde toujours les lignes entières.
 #TRUNCATE=0
+# --no-underline (1.89) : aucune ligne soulignée (par défaut, une ligne du journal sur 5 est soulignée à l'écran ; non = aucune).
+#UNDERLINE=oui
 # --watch : surveiller les requêtes dont l'URL contient ce texte (virgule = plusieurs ; touche w à la volée)
 #WATCH=
 
@@ -121,6 +123,7 @@
 #   --watch [TEXT]           Surveille les requêtes dont l'URL contient TEXTE (virgule = plusieurs
 
 # --- Anonymisation de l'affichage ---
-# --anonymize : anonymiser ce que le programme affiche (adresses IP, courriels, identifiants, jetons) par des pseudonymes stables (IP-4f2a9c, usager-9c1e03@anonyme.invalid) ; clé ANONYMIZE
-# (la même clé dans app-default.conf vaut pour tous les programmes ; appliquée seulement quand la sortie est un terminal ; pour cron : --anonymize ou NGINX_TOOLS_ANONYMIZE=1).
-#ANONYMIZE=non
+# --anonymize (par défaut depuis 1.88 pour app-log-live) : anonymiser ce que le programme affiche à l'écran (adresses IP, courriels, identifiants, jetons) par des pseudonymes
+# stables (IP-4f2a9c, usager-9c1e03@anonyme.invalid) ; les noms des personnes restent ; le journal quotidien garde tout. non = vraies valeurs (comme --no-anonymize).
+# (la même clé dans app-default.conf vaut pour tous les programmes : ANONYMIZE=non là-bas désactive aussi celle-ci).
+#ANONYMIZE=oui

@@ -1,25 +1,3 @@
-## 1.17.20261016.173838 — Ctrl+C answered at once during pg_dump, tar and rsync
-
-Reason:
-  « [1] copyright → Services-Linux Conseils Inc […] [2] app-log-live.py : faire un lien entre un événement spécifique et ses sondages par billets […] [3] odoo-update-module.sh : avant d'arrêter le service Odoo, vérifier s'il y a beaucoup de gens qui visitent le site et attendre jusqu'à 15 min […] s'il y a des erreurs, faire un retour-arrière avec les versions précédentes des modules (faire une sauvegarde des modules) [4] web-monitor.py --list-users --table : nombre de pages lues et écrites et transmission / réception (en Mo) [5] indiquer le nom de la personne à qui on a envoyé un courriel ainsi que le titre […] [5] Le Ctrl+C ne fonctionne pas lorsque le programme est en cours nginx-log-audit.sh v2.37 (lorsqu'appelé par app-log-live.py) […] il faudrait le trapper dans tous les programmes Python ou BASH, avec une confirmation. Cela fait plusieurs fois que je fais cette demande »
-
-Changes:
-  - pg_dump, tar -cJf and rsync run through run_interruptible (apps/_i18n.sh 1.11): question at once; « no » lets them finish (before,
-    Ctrl+C killed pg_dump even with « no » — the backup was then rejected).
-  - Header: « Copyright (C) 2026  Services-Conseils Linux » (was: Rencontres Linux Québec <info@rencontres-linux.quebec>).
-
-Bugs fixed:
-  none.
-
-Safeguards and edge cases:
-  none.
-
-Checks:
-  - Test suite (run-all.sh), ruff / ShellCheck.
-
-Action required:
-  none.
-
 ## 1.18.20261019.150215 — New copyright: Services-Conseils Linux and Rencontres Linux au Québec contributors
 
 Reason:
@@ -38,6 +16,28 @@ Safeguards and edge cases:
 Checks:
   - New header in every Python and bash program (python3 -m py_compile, bash -n on all of them); no copyright line left in the
     configuration templates (doc/*.conf.example, apps/*.conf).
+
+Action required:
+  none.
+
+## 1.17.20261016.173838 — Ctrl+C answered at once during pg_dump, tar and rsync
+
+Reason:
+  « [1] copyright → Services-Linux Conseils Inc […] [2] app-log-live.py : faire un lien entre un événement spécifique et ses sondages par billets […] [3] odoo-update-module.sh : avant d'arrêter le service Odoo, vérifier s'il y a beaucoup de gens qui visitent le site et attendre jusqu'à 15 min […] s'il y a des erreurs, faire un retour-arrière avec les versions précédentes des modules (faire une sauvegarde des modules) [4] web-monitor.py --list-users --table : nombre de pages lues et écrites et transmission / réception (en Mo) [5] indiquer le nom de la personne à qui on a envoyé un courriel ainsi que le titre […] [5] Le Ctrl+C ne fonctionne pas lorsque le programme est en cours nginx-log-audit.sh v2.37 (lorsqu'appelé par app-log-live.py) […] il faudrait le trapper dans tous les programmes Python ou BASH, avec une confirmation. Cela fait plusieurs fois que je fais cette demande »
+
+Changes:
+  - pg_dump, tar -cJf and rsync run through run_interruptible (apps/_i18n.sh 1.11): question at once; « no » lets them finish (before,
+    Ctrl+C killed pg_dump even with « no » — the backup was then rejected).
+  - Header: « Copyright (C) 2026  Services-Conseils Linux » (was: Rencontres Linux Québec <info@rencontres-linux.quebec>).
+
+Bugs fixed:
+  none.
+
+Safeguards and edge cases:
+  none.
+
+Checks:
+  - Test suite (run-all.sh), ruff / ShellCheck.
 
 Action required:
   none.

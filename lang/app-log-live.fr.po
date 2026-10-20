@@ -1357,9 +1357,6 @@ msgstr "diagnostic du site : pourquoi la page de maintenance s'affiche (service,
 msgid "Checking the site (a few seconds)…"
 msgstr "Vérification du site (quelques secondes)…"
 
-msgid "Site diagnosis (why the maintenance page shows: service, Odoo ports, nginx upstream, firewall) then exits; code 1 if there is a problem"
-msgstr "Diagnostic du site (pourquoi la page de maintenance s'affiche : service, ports d'Odoo, upstream nginx, pare-feu) puis quitte ; code 1 s'il y a un problème"
-
 msgid "WARNING the external IP address of this server has changed: "
 msgstr "WARNING l'adresse IP externe de ce serveur a changé : "
 
@@ -2320,9 +2317,6 @@ msgstr "descripteurs HTTP : "
 msgid "ZFS volume"
 msgstr "volume ZFS"
 
-msgid "Cut each displayed line to N columns, ending with « … » (without N: 2 × the terminal width, $COLUMNS — a line then takes at most 2 screen lines); the daily log keeps the whole lines"
-msgstr "Couper chaque ligne affichée à N colonnes, terminée par « … » (sans N : 2 × la largeur du terminal, $COLUMNS — une ligne prend alors au plus 2 lignes à l'écran) ; le journal quotidien garde les lignes entières"
-
 msgid "(opened "
 msgstr "(ouverte le "
 
@@ -2447,3 +2441,44 @@ msgstr " — ⚠ plus ancien qu'un fichier déployé ("
 msgid "): nginx -t && systemctl reload nginx"
 msgstr ") : nginx -t && systemctl reload nginx"
 
+msgid "By default on a terminal: a log line wider than N columns (without N: $COLUMNS - 10) is shortened to « start ... last two words » (long URLs); menus and reports are never cut; the daily log keeps the whole lines. TRUNCATE key; --no-truncate: whole lines"
+msgstr "Par défaut dans un terminal : une ligne du journal plus large que N colonnes (sans N : $COLUMNS - 10) est raccourcie en « début ... deux derniers mots » (URL longues) ; les menus et les rapports ne sont jamais coupés ; le journal quotidien garde les lignes entières. Clé TRUNCATE ; --no-truncate : lignes entières"
+
+msgid "Whole log lines on screen, even very long ones (cancels --truncate)"
+msgstr "Lignes du journal entières à l'écran, même très longues (annule --truncate)"
+
+msgid "By default on a terminal: IP addresses, e-mails, identifiers and tokens shown on screen replaced by stable pseudonyms (IP-4f2a9c, usager-9c1e03@anonyme.invalid; names of people stay); the daily log keeps everything. ANONYMIZE key; --no-anonymize: real values"
+msgstr "Par défaut dans un terminal : adresses IP, courriels, identifiants et jetons affichés à l'écran remplacés par des pseudonymes stables (IP-4f2a9c, usager-9c1e03@anonyme.invalid ; les noms des personnes restent) ; le journal quotidien garde tout. Clé ANONYMIZE ; --no-anonymize : vraies valeurs"
+
+msgid "Show the real IP addresses and e-mails (cancels --anonymize)"
+msgstr "Affiche les vraies adresses IP et les vrais courriels (annule --anonymize)"
+
+msgid "ERROR: anonymization requested but apps/_anonymiser.py is unreadable: nothing is displayed (--no-anonymize: real values)."
+msgstr "ERREUR : anonymisation demandée mais apps/_anonymiser.py est illisible : rien n'est affiché (--no-anonymize : vraies valeurs)."
+
+msgid "Screen: "
+msgstr "Écran : "
+
+msgid "log lines shortened to "
+msgstr "lignes du journal raccourcies à "
+
+msgid " columns (« start ... last two words »; --no-truncate: whole lines)"
+msgstr " colonnes (« début ... deux derniers mots » ; --no-truncate : lignes entières)"
+
+msgid " (« start ... last two words »; --no-truncate: whole lines)"
+msgstr " (« début ... deux derniers mots » ; --no-truncate : lignes entières)"
+
+msgid "whole log lines (--truncate: shortened)"
+msgstr "lignes du journal entières (--truncate : raccourcies)"
+
+msgid "addresses and e-mails anonymized (--no-anonymize: real values)"
+msgstr "adresses et courriels anonymisés (--no-anonymize : vraies valeurs)"
+
+msgid "real addresses and e-mails (--anonymize: pseudonyms)"
+msgstr "vraies adresses et vrais courriels (--anonymize : pseudonymes)"
+
+msgid " · one line out of 5 underlined (--no-underline: none)"
+msgstr " · une ligne sur 5 soulignée (--no-underline : aucune)"
+
+msgid "No underlined line (by default one log line out of 5 is underlined on screen); UNDERLINE key"
+msgstr "Aucune ligne soulignée (par défaut, une ligne du journal sur 5 est soulignée à l'écran) ; clé UNDERLINE"
