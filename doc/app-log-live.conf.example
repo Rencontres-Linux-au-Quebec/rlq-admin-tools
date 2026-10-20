@@ -97,6 +97,8 @@
 # --truncate (par défaut depuis 1.87) : une ligne du journal plus large que N colonnes est raccourcie en « début ... deux derniers mots » (0 ou oui = $COLUMNS - 10 ;
 # non = lignes entières, comme --no-truncate). Les menus et rapports ne sont jamais coupés ; le journal quotidien garde toujours les lignes entières.
 #TRUNCATE=0
+# --no-underline (1.88) : aucune ligne soulignée (par défaut, une ligne du journal sur 5 est soulignée à l'écran ; non = aucune).
+#UNDERLINE=oui
 # --watch : surveiller les requêtes dont l'URL contient ce texte (virgule = plusieurs ; touche w à la volée)
 #WATCH=
 

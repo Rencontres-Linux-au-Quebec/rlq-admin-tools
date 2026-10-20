@@ -1,6 +1,26 @@
 Changelog — sync-crowdsec-blocklist.sh
 (version la plus récente en premier)
 
+## 1.25.20261020.112434 — --stats: header aligned over its columns
+
+Reason:
+  « fais le nettoyage des données personnelles et rajoute des exemples de données en français (avec accents) et en anglais. Assures-tu que l'affichage des programmes soient bien enligné indépendamment du français et anglais. à la fin des tests, indique des stats du tests (durée, ressources utilisées, nombre de tests par programmes, si tests unitaires, fonctionnels ou autres) »
+
+Changes:
+  - Header of the blocked addresses table: « PREMIÈRE DÉTECTION » padded with pad_cols (apps/_i18n.sh 1.15); fallback without apps/_i18n.sh: former printf.
+
+Bugs fixed:
+  - Symptom: « DERNIÈRE DÉTECTION » 2 columns left of its dates. Diagnosis: printf '%-38s' counts bytes, the header has 2 accented letters. Fix: pad_cols.
+
+Safeguards and edge cases:
+  - Data rows unchanged (addresses and dates: ASCII).
+
+Checks:
+  - test_alignement.EnTetesBash.test_sync_crowdsec_en_tete_de_stats_au_dessus_des_colonnes.
+
+Action required:
+  none.
+
 ## 1.24.20261019.150215 — New copyright: Services-Conseils Linux and Rencontres Linux au Québec contributors
 
 Reason:

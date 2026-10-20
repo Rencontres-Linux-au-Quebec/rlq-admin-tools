@@ -76,6 +76,7 @@
 #   WAIT_QUIET=15                 attente maximale d'un site calme avant l'arrêt d'Odoo, en minutes (0 = ne pas attendre)
 #
 # HISTORIQUE (résumé ; détail : doc/odoo-update-module.changelog.txt)
+#   1.13.20261020.112434 — Header fields padded in columns (pad_cols): an accented label no longer shifts its value.
 #   1.12.20261019.150215 — New copyright: Services-Conseils Linux and Rencontres Linux au Québec contributors (AGPL-3.0-or-later).
 #   1.11.20261016.173838 — Quiet site before stopping Odoo, copy of the modules, check after the start, automatic rollback, Ctrl+C at once
 #   1.10.20261015.170611 — ShellCheck : variable locale « c » inutilisée retirée de trouver_conf (SC2034).
@@ -95,7 +96,7 @@ set -euo pipefail
 for _d in /usr/local/sbin /usr/sbin /sbin; do [[ -n "${NGINX_TOOLS_TESTS:-}" ]] && break; case ":$PATH:" in *":$_d:"*) ;; *) PATH="$PATH:$_d" ;; esac; done
 export PATH
 
-readonly SCRIPT_VERSION="1.12.20261019.150215"
+readonly SCRIPT_VERSION="1.13.20261020.112434"
 SCRIPT_NAME="$(basename "${BASH_SOURCE[0]}" .sh)"; readonly SCRIPT_NAME
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
 SCRIPT_PATH="$SCRIPT_DIR/$(basename "${BASH_SOURCE[0]}")"; readonly SCRIPT_PATH
@@ -109,6 +110,7 @@ if [[ -r "$SCRIPT_DIR/apps/_i18n.sh" ]]; then
     i18n_relancer "$SCRIPT_NAME" ODOO_UPDATE_MODULE_LANG "$0" "$@"
 fi
 # 1.11: without apps/_i18n.sh, plain execution (no Ctrl+C question).
+declare -F pad_cols >/dev/null || pad_cols() { printf '%-*s' "$2" "$1"; }     # 1.13 : sans apps/_i18n.sh, remplissage en octets (comme avant)
 declare -F run_interruptible >/dev/null || run_interruptible() { "$@"; }
 declare -F ctrl_c_child >/dev/null || ctrl_c_child() { "$@"; }
 # Bibliothèque commune : configuration d'Odoo (ports, db_name…).
@@ -212,7 +214,7 @@ ko()   { echo "  ${C_RED}✖ [FAIL]${C_RESET} ${C_RED}$*${C_RESET}"; }
 sim()  { echo "  ${C_DIM}(simulation)${C_RESET} $*"; }
 detail() { echo "    ${C_DIM}$*${C_RESET}"; }
 en_retrait() { local l; while IFS= read -r l; do printf '        %s%s%s\n' "$1" "$l" "$C_RESET"; done; }       # lignes lues sur l'entrée, en retrait, dans la couleur donnée
-champ() { printf '  %s%-13s%s %s\n' "$C_DIM" "$1" "$C_RESET" "$2"; }         # champ "Base :" "valeur"
+champ() { printf '  %s%s%s %s\n' "$C_DIM" "$(pad_cols "$1" 13)" "$C_RESET" "$2"; }         # champ "Base :" "valeur" ; 1.13 : largeur en colonnes (étiquette accentuée)
 ETAPE=0; ETAPES=0
 etape() { ETAPE=$((ETAPE + 1)); echo; echo "${C_CYAN}▶ [${ETAPE}/${ETAPES}] $*${C_RESET}"; }
 exec 3>&2

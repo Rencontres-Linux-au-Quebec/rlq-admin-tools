@@ -1,6 +1,28 @@
 Changelog — apps/_i18n.sh
 (version la plus récente en premier)
 
+## 1.15.20261020.112434 — pad_cols: padding in screen columns
+
+Reason:
+  « fais le nettoyage des données personnelles et rajoute des exemples de données en français (avec accents) et en anglais. Assures-tu que l'affichage des programmes soient bien enligné indépendamment du français et anglais. à la fin des tests, indique des stats du tests (durée, ressources utilisées, nombre de tests par programmes, si tests unitaires, fonctionnels ou autres) »
+
+Changes:
+  - New function pad_cols TEXT WIDTH: TEXT followed by spaces up to WIDTH COLUMNS, characters counted in UTF-8 (local LC_ALL=C.UTF-8) whatever the locale
+    of the caller (cron: LANG=C); never cuts, never a negative padding.
+
+Bugs fixed:
+  - Symptom: an accented label padded with printf '%-Ns' was one column short per accented letter (« PREMIÈRE DÉTECTION »: 2). Diagnosis: the printf of
+    bash counts BYTES (« é » = 2 bytes). Fix: pad_cols, used by sync-crowdsec-blocklist.sh 1.25 and odoo-update-module.sh 1.13.
+
+Safeguards and edge cases:
+  - A Chinese character counts 1 column here (bash cannot measure the East Asian width); the Python programs count 2.
+
+Checks:
+  - test_alignement.PadColsBash (accents under LANG=C, empty text, text longer than the width; the byte-counting defect itself is shown).
+
+Action required:
+  none.
+
 ## 1.14.20261019.150215 — Untouched configuration files follow the current template (bash); new copyright
 
 Reason:

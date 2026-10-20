@@ -29,6 +29,7 @@
 # CrowdSec, ~toutes les 2h, sans compte CrowdSec). Projet tiers, pas un service officiel de CrowdSec.
 #
 # HISTORIQUE DE VERSION (resume — voir sync-crowdsec-blocklist.changelog.txt pour le detail complet) :
+#   1.25.20261020.112434 — --stats: header columns aligned (« PREMIÈRE DÉTECTION » padded in bytes was 2 columns short).
 #   1.24.20261019.150215 — New copyright: Services-Conseils Linux and Rencontres Linux au Québec contributors (AGPL-3.0-or-later).
 #   1.23.20261016.173838 — Copyright holder: Services-Linux Conseils Inc
 #   1.22.20261015.143436 — --anonymize : affichage anonymisé (pseudonymes stables).
@@ -121,7 +122,7 @@ grep_q() { grep "$@" >/dev/null; }
 #                              ne peut pas le voir, le texte etant entre apostrophes (faux positif).
 trap 'ec=$?; echo "" >&2; echo "*** ARRÊT INATTENDU DU SCRIPT (code $ec) À LA LIGNE $LINENO ***" >&2; echo "*** Commande fautive : $BASH_COMMAND" >&2' ERR
 
-readonly SCRIPT_VERSION="1.24.20261019.150215"
+readonly SCRIPT_VERSION="1.25.20261020.112434"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
 SCRIPT_NAME="$(basename "${BASH_SOURCE[0]}" .sh)"; readonly SCRIPT_NAME
 # Changelog dans le sous-repertoire doc/ ; repli sur l'ancien emplacement (a cote du programme) tant que
@@ -197,6 +198,7 @@ case " $* " in *" --version "*) ;; *) echo "sync-crowdsec-blocklist.sh v$SCRIPT_
 [[ -r "$SCRIPT_DIR/apps/_listes.sh" ]] && . "$SCRIPT_DIR/apps/_listes.sh"
 # Configuration (/etc/default/sync-crowdsec-blocklist.conf, puis ~/.sync-crowdsec-blocklist.cfg ; -c/--config : ce fichier SEUL) : valeurs par défaut des options, la ligne de commande l'emporte.
 # Clés : CRON_HOURS, LANGUAGE, MIN_IPS, SOURCE, STALE_DAYS, TOP, VERBOSE.
+declare -F pad_cols >/dev/null || pad_cols() { printf '%-*s' "$2" "$1"; }     # 1.25 : sans apps/_i18n.sh, remplissage en octets (comme avant)
 if declare -F config_lire >/dev/null; then
     config_lire "$SCRIPT_NAME" "$@"
     config_defaut CRON_HOURS CRON_HOURS --cron-hours nombre
@@ -896,7 +898,8 @@ if [[ "$DO_BLOCKED" == "1" ]]; then
     n_total=$(printf '%s\n' "$merged" | grep -c . || true)
     echo "$n_total IP distincte(s) bloquée(s) à ce jour. Dernière synchronisation : $last_sync"
     echo
-    printf '%-40s %10s %12s  %-38s %s\n' "IP" "PAQUETS" "OCTETS" "PREMIÈRE DÉTECTION" "DERNIÈRE DÉTECTION"
+    # 1.25 : en-tête accentué complété en COLONNES (printf de bash compte des octets : « PREMIÈRE DÉTECTION » était 2 colonnes trop court)
+    printf '%-40s %10s %12s  %s %s\n' "IP" "PAQUETS" "OCTETS" "$(pad_cols "PREMIÈRE DÉTECTION" 38)" "DERNIÈRE DÉTECTION"
     if [[ "$TOP_N" -gt 0 ]]; then
         shown=$(printf '%s\n' "$merged" | head -n "$TOP_N") || true
     else

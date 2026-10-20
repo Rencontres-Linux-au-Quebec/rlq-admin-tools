@@ -61,6 +61,7 @@
 # BigBlueButton (file journals): the nginx and bbb-web journals are followed (tail -F), without names of people or presence.
 #
 # VERSION HISTORY (summary — see doc/app-log-live.changelog.txt for the full detail):
+#   1.88.20261020.112434 — --truncate / --anonymize by default only on a TERMINAL (a pipe, another program, the tests: real whole lines); explicit options always apply; --no-underline.
 #   1.87.20261020.103939 — One line out of 5 underlined; --truncate and --anonymize by default (--no-truncate, --no-anonymize), long lines « start ... last two words » at $COLUMNS - 10; sent e-mails named even once deleted by Odoo; « -2026- » highlighted.
 #   1.86.20261019.150215 — --diagnose / D key: nginx configuration versions with their dates (archive, README journal, deployed files, last reload); new copyright.
 #   1.85.20261017.200717 — RLQ* groups shown as « RLQ23-Bénévole = 11 » (no « member(s) »), columns narrower.
@@ -190,7 +191,7 @@ from urllib.parse import unquote
 from collections import Counter, OrderedDict
 from concurrent.futures import Future
 
-__version__ = "1.87.20261020.103939"
+__version__ = "1.88.20261020.112434"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
@@ -261,7 +262,7 @@ def _truncate_config(value):
 
 
 SCHEMA_CONFIG = {"ACCENTUATE_GROUP": ("accentuate_group", str), "CHIME": ("chime", _chime_config), "DNS_MAX_TRUNCATE": ("dns_max_truncate", int), "EXCLUDE_IP": ("exclude_ip", _comma_list),
-                 "ONLY": ("only", _comma_list), "SUSPECT": ("suspect", bool), "TIME_REPORT": ("time_report", float), "TRUNCATE": ("truncate", _truncate_config), "WATCH": ("watch", str), "ANONYMIZE": ("anonymize", bool),
+                 "ONLY": ("only", _comma_list), "SUSPECT": ("suspect", bool), "TIME_REPORT": ("time_report", float), "TRUNCATE": ("truncate", _truncate_config), "WATCH": ("watch", str), "ANONYMIZE": ("anonymize", bool), "UNDERLINE": ("underline", bool),
                  "APP": ("app", str), "CMS": ("cms", str), "CONNECTIONS": ("connections", float), "DAYS": ("days", int), "DISK_MIN": ("disk_min", float), "DNS_MAX": ("dns_max", int), "HEALTH": ("health", float), "HIDE_IP": ("hide_ip", bool), "HIGHLIGHT": ("highlight", str), "IDLE": ("idle", float),
                  "LINES": ("lines", int), "LOG_DIR": ("log_dir", str), "LOG_KEEP_DAYS": ("log_keep_days", int), "MIN": ("min", bool), "MODULES_CUSTOM": ("modules_custom", bool), "MODULES_SORT": ("modules_sort", str), "MODULES_STARTUP": ("modules_startup", bool), "NAMESPACE": ("namespace", str),
                  "NO_BANNED": ("no_banned", bool), "NOT_FOUND": ("not_found", bool), "NO_BAN_PROMPT": ("no_ban_prompt", bool), "NO_CACHE": ("no_cache", bool), "NO_HISTORY": ("no_history", bool),
@@ -2523,6 +2524,7 @@ def truncate_line(text_line, limit):
 
 
 TAIL_RE = re.compile(r"(?:\[[^\]]*\]|\S+)\s+(?:\[[^\]]*\]|\S+)\s*$")      # last two words; « [banned: CrowdSec] » counts as ONE word (the URL stays visible)
+TRUNCATE_AUTO = -2                                      # --truncate not given: on a terminal only (argparse would apply type=int to a text default)
 ELLIPSIS = "..."                                        # 1.87: marker between the start of a shortened line and its last two words
 
 
@@ -4027,6 +4029,7 @@ class Output:
         self.buffer = collections.deque(maxlen=4000)      # last chunks displayed, without colors: error report of the r key
         self.truncate = None                              # --truncate (1.83, by default since 1.87): None = whole lines; 0 = $COLUMNS - 10; N = N columns (stream lines, screen only, not the journal)
         self.anonymize = None                             # --anonymize (1.87, by default): Anonymiseur of apps/_anonymiser.py applied to the screen (the daily journal keeps everything)
+        self.underline = True                             # 1.88: --no-underline / UNDERLINE=non: no line underlined
 
     def _open(self, day):
         os.makedirs(self.folder, mode=0o700, exist_ok=True)
@@ -4077,7 +4080,7 @@ class Output:
         if stream and self.truncate is not None:
             width = self.truncate if self.truncate > 0 else max(20, terminal_columns() - 10)
             shown = "\n".join(shorten_line(l, width) if l else l for l in shown.split("\n"))
-        if underline:
+        if underline and self.underline:
             shown = "\n".join(underline_line(l) for l in shown.split("\n"))
         self.screen.write(shown if self.screen_color else ANSI_RE.sub("", shown))
 
@@ -5369,15 +5372,16 @@ def main():
     parser.add_argument("--time-report", type=float, nargs="?", const=REPORT_DEFAULT, default=None, metavar="MIN",
                         help=f"Every MIN minutes, the same report as Ctrl-T (what changed since the last display) ({REPORT_DEFAULT:g} without value)")
     parser.add_argument("-v", "--verbose", action="store_true", help="Show each external command run")
-    parser.add_argument("--truncate", type=int, nargs="?", const=0, default=0, metavar="N",
-                        help="By default: a log line wider than N columns (without N: $COLUMNS - 10) is shortened to « start ... last two words » (long URLs); menus and reports are never cut; the daily log keeps the whole lines. TRUNCATE key; --no-truncate: whole lines")
+    parser.add_argument("--truncate", type=int, nargs="?", const=0, default=TRUNCATE_AUTO, metavar="N",
+                        help="By default on a terminal: a log line wider than N columns (without N: $COLUMNS - 10) is shortened to « start ... last two words » (long URLs); menus and reports are never cut; the daily log keeps the whole lines. TRUNCATE key; --no-truncate: whole lines")
     parser.add_argument("--no-truncate", dest="truncate", action="store_const", const=None, help="Whole log lines on screen, even very long ones (cancels --truncate)")
     if "--anonymize" not in parser._option_string_actions:       # added by apps/_i18n.py; fallback parser: added here
         parser.add_argument("--anonymize", action="store_true")
-    parser._option_string_actions["--anonymize"].help = TR("By default: IP addresses, e-mails, identifiers and tokens shown on screen replaced by stable pseudonyms (IP-4f2a9c, usager-9c1e03@anonyme.invalid; "
+    parser._option_string_actions["--anonymize"].help = TR("By default on a terminal: IP addresses, e-mails, identifiers and tokens shown on screen replaced by stable pseudonyms (IP-4f2a9c, usager-9c1e03@anonyme.invalid; "
                                                           "names of people stay); the daily log keeps everything. ANONYMIZE key; --no-anonymize: real values")
     parser.add_argument("--no-anonymize", dest="anonymize", action="store_false", help="Show the real IP addresses and e-mails (cancels --anonymize)")
-    parser.set_defaults(anonymize=True)
+    parser.add_argument("--no-underline", dest="underline", action="store_false", help="No underlined line (by default one log line out of 5 is underlined on screen); UNDERLINE key")
+    parser.set_defaults(anonymize=None)                         # None: on a terminal only (a pipe, another program, a test: real values)
     parser.add_argument("--version", action="version", version=f"app-log-live.py version {__version__}")
     if "--version" not in sys.argv[1:]:       # first line of EVERY run, even --help: name and version (--version displays it itself)
         eprint(f"app-log-live.py v{__version__}")
@@ -5530,8 +5534,16 @@ def main():
                "report_min": args.time_report or 0.0, "level": args.level, "modules_sort": modules_sort_state}
     folder = None if args.no_follow else journal_folder(args.log_dir, args.no_log_file)
     output = Output(sys.stdout, folder, args.log_keep_days, COLOR, "-filter" if args.only else "")        # a filtered launch (--only) has its own journal: several simultaneous launches do not mix their lines
+    # 1.87: by default (and from the configuration file) only on a TERMINAL — a program that reads this output (pipe, tests) gets the real lines; an explicit
+    # --truncate / --anonymize on the command line always applies
+    on_terminal = sys.stdout.isatty()
+    if args.truncate == TRUNCATE_AUTO:
+        args.truncate = 0 if on_terminal else None
+    output.underline = args.underline is not False
     output.truncate = None if args.truncate is None or args.truncate is False or args.truncate < 0 else args.truncate
-    if args.anonymize and not os.environ.get("NGINX_TOOLS_ANON_ACTIF"):     # already filtered by a parent program: never twice
+    asked = any(a.startswith("--anon") and "--anonymize".startswith(a) for a in sys.argv[1:])
+    anonymize = asked or (args.anonymize is not False and on_terminal)
+    if anonymize and not os.environ.get("NGINX_TOOLS_ANON_ACTIF"):     # already filtered by a parent program: never twice
         anonymiser = load_module("_anonymiser")
         if anonymiser is None:
             eprint("ERROR: anonymization requested but apps/_anonymiser.py is unreadable: nothing is displayed (--no-anonymize: real values).")
@@ -5541,7 +5553,7 @@ def main():
                                                        else "$COLUMNS - 10 (« start ... last two words »; --no-truncate: whole lines)")
                          if output.truncate is not None else "whole log lines (--truncate: shortened)")
            + " · " + ("addresses and e-mails anonymized (--no-anonymize: real values)" if output.anonymize else "real addresses and e-mails (--anonymize: pseudonyms)")
-           + " · one line out of 5 underlined")
+           + (" · one line out of 5 underlined (--no-underline: none)" if output.underline else ""))
     if folder:
         COLOR = True                                  # the daily journal keeps the colors; the screen removes them if it is not a terminal (Output.write)
         eprint(f"Daily log (colors kept, permissions 600, {args.log_keep_days or 'all the'} days kept): {folder}/{SCRIPT_NAME}-YYYY-MM-DD{'-filter' if args.only else ''}.log — "

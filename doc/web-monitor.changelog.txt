@@ -1,6 +1,34 @@
 Changelog — web-monitor.py
 (newest version first; entries up to 2.62 are still in French: their translation is a later stage of the migration)
 
+## 2.73.20261020.112434 — Error messages that start with an option translated whole again; --stats e-mail domains again
+
+Reason:
+  « fais le nettoyage des données personnelles et rajoute des exemples de données en français (avec accents) et en anglais. Assures-tu que l'affichage des programmes soient bien enligné indépendamment du français et anglais. à la fin des tests, indique des stats du tests (durée, ressources utilisées, nombre de tests par programmes, si tests unitaires, fonctionnels ou autres) »
+  (found by the test suite, test_web_monitor.Bilan.test_option_days, failing since 2.71.)
+
+Changes:
+  - LocalizedArgumentParser.error(): the message is first translated WHOLE; that translation is kept when it changed something and every option name of the
+    message (--days, --sort…) is still in it unchanged; otherwise the former way (option names set aside as literals, the rest translated by fragments).
+
+Bugs fixed:
+  - Symptom: --list-users --stats without « E-mail domains » (test_list_users_group_csv_repeat_header_et_stats failing since 2.70). Diagnosis:
+    2.70 indented that section under « if any(r["owners"]) » (RDAP lookups of the address owners): shown only when the owners were looked up. Fix: shown
+    in every case again, like 2.67.
+  - Symptom: « web-monitor.py : erreur : --days expects a number of jours between 1 and 366 » (half English). Diagnosis: 2.71 set the option names aside
+    BEFORE translating, so the catalogue entry « --days expects a number of days between 1 and 366 » (msgid with the option) never matched; only the
+    fragment « days » was translated. Fix: whole translation first, kept only if the options are intact (the 2.71 protection stays: « --sort » never
+    becomes « --tri »).
+
+Safeguards and edge cases:
+  - A whole translation that would rename an option is refused (fallback to the 2.71 way).
+
+Checks:
+  - test_web_monitor.Bilan.test_option_days; whole suite (run-all.sh 1.188).
+
+Action required:
+  none.
+
 ## 2.72.20261019.150215 — New copyright: Services-Conseils Linux and Rencontres Linux au Québec contributors
 
 Reason:

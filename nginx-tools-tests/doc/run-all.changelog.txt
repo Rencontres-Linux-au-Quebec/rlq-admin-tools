@@ -1,0 +1,4041 @@
+Changelog — run-all.sh (suite de tests)
+(version la plus récente en premier)
+
+## 1.188.20261020.112434 — Statistics at the end; personal data removed; FR/EN sample data and alignment tests; suite in the Git repository
+
+Reason:
+  « fais le nettoyage des données personnelles et rajoute des exemples de données en français (avec accents) et en anglais. Assures-tu que l'affichage des programmes soient bien enligné indépendamment du français et anglais. à la fin des tests, indique des stats du tests (durée, ressources utilisées, nombre de tests par programmes, si tests unitaires, fonctionnels ou autres) »
+  (and the question before: tests in a sub-folder of the existing repository rather than a new one: nginx-tools-tests/ of rlq-admin-tools)
+
+Changes:
+  - New stats_runner.py (component of the suite, like helpers.py): runs the modules like « python3 -m unittest -v » (same output, read by run-all.sh) and records, per test, its module, the
+    program tested (PROGRAMME = "…" of the module, otherwise derived from its name: test_app_log_live -> app-log-live.py, test_cache_ip -> apps/_cache_ip.py),
+    its KIND — measured while it runs: unit (nothing launched), functional (a program launched: subprocess), interactive (pseudo-terminal: pty.fork,
+    os.forkpty), conformity (module with NATURE_TESTS = "conformité", nothing launched) — its duration and result; and the resources of the pass: CPU
+    user / system (with the children), max memory of one process, disk read / written, programs launched.
+  - run-all.sh: each awk pass runs through stats_runner.py (fallback: unittest, without statistics); at the end, before the verdict, « Statistiques des
+    tests »: total duration of run-all.sh, test duration per awk pass, CPU, memory, disk, programs launched, then a table per program (tests, unit,
+    functional, interactive, conformity, skipped, failed, duration) with a TOTAL line, the legend of the kinds and the 5 slowest tests. The table is
+    written in the display language by stats_runner.py itself, widths computed in screen COLUMNS after the translation: aligned in French and English.
+  - Personal data removed from the whole suite (tests, helpers, README, changelog, configuration template): names and e-mails of real people (the
+    maintainers, a visitor, a registrant), user names in paths, the copyright line with e-mail addresses (new header « Services-Conseils Linux » /
+    « Rencontres Linux au Québec contributors »), and 61 real public IPv4 addresses (home connections, scanners, clouds) replaced by addresses of the US DoD
+    blocks (11.x: never given to a person) keeping their /24, /16 and /14 relationships and their reverse-DNS forms (escaped forms in regexes included).
+    Kept: documentation addresses (RFC 5737), placeholders (1.2.3.4, 7.7.7.7…), public infrastructure (8.8.8.8, 1.1.1.1, Googlebot 66.249.66.x,
+    example.com, scanme.nmap.org), the organisation's public domain, 555-01xx phone numbers (reserved for fiction).
+  - test_docs: the personal terms searched in the published pages are no longer written in the suite: generic terms + NGINX_TOOLS_PERSONAL_TERMS (commas)
+    or /etc/default/nginx-tools-personal-terms.conf (one term per line), kept OUT of the repository.
+  - nginx configuration (private) out of the Git repository: helpers.CONFIG_DIR = $NGINX_ODOO_DIR, then nginx-tools-tests/nginx-odoo/ (shipped in the
+    archive of the suite), then nginx-odoo/ next to the programs; test_config_nginx, test_nginx_hardening, test_conventions and section 5 of run-all.sh use
+    it. .gitignore: nginx-tools-tests/nginx-odoo/, nginx-tools-tests/tools/ (static ruff and gawk, 25 MB, still shipped in the archive), last-*.log.
+  - New donnees_exemples.py: FICTITIOUS sample data — French people (accents, hyphen, apostrophe), English people, a name with a COMBINING accent (NFD: 2
+    characters, 1 column), a Chinese name (1 character, 2 columns), events, places, organisations, documentation and public fictitious addresses; helpers
+    largeur(), bornes(), debuts_de_colonnes().
+  - New test_alignement.py (commun): pad_cols of apps/_i18n.sh 1.15 (accents under LANG=C; the byte-counting defect of bash printf shown), header of
+    sync-crowdsec-blocklist.sh --stats (1.25), fields of odoo-update-module.sh (1.13), RLQ* groups and registrations per ticket of app-log-live.py in French
+    AND English, statistics table in French AND English, kinds measured by the probe (3 mini-tests).
+  - test_app_log_live: test_colonnes_alignees_en_francais_et_en_anglais_avec_accents_nfd_et_chinois (stream: « base werkzeug » and « HTTP/1.1 » at the same
+    screen column for every name, both languages). test_odoo_users: test_list_users_table_alignee_en_francais_et_en_anglais_avec_donnees_d_exemple (every
+    « | » of web-monitor --list-users --table under its header, both languages).
+  - NATURE_TESTS = "conformité" in test_conventions and test_config_nginx.
+  - README: Git repository and NGINX_ODOO_DIR, fictitious data, statistics.
+
+Bugs fixed:
+  - 16 failures of the suite 1.187 against the programs of 2026-10-19 (same in the mawk and gawk passes, measured before any change of this version):
+      * test drift after web-monitor 2.70: « Minutes » column found by its header (a « Compte créé » column was added before it); --sort keys « created »
+        and « vpn »; French sort synonyms « créé », « création », « hébergeur » and column titles « Compte créé », « Pays des adresses IP » declared intended;
+      * test drift after _config 1.7 / _i18n.sh 1.14: a configuration file with NO active option now follows the template — the « never touched » test
+        writes an active option;
+      * real defects of the programs, fixed: web-monitor 2.73 (« --days expects a number of jours », half translated since 2.71); changelogs of
+        odoo-backup.sh 1.18 and odoo-update-module.sh 1.12 entries misplaced (after the first entry) — sorted; lang/app-log-live.fr.po: stale entry of the
+        former --diagnose help removed; lang/_config.en.po: header line written by config_rafraichir (_i18n.sh 1.14) added;
+      * environment: test_odoo_users expected the time in Eastern time on a server in UTC — TZ=America/Toronto for those tests; test_odoo_docs needs the
+        Python module markdown (docs/build_docs.py) — skipped with its reason when it is missing, like the other optional tools.
+  - app-log-live.py 1.87 applied --truncate / --anonymize to a pipe too: fixed in 1.88 (terminal only).
+
+Safeguards and edge cases:
+  - Statistics never change the verdict; a pass interrupted or without stats_runner.py: « aucune statistique » (or nothing), the tests still run.
+  - « -v » given to stats_runner.py is ignored (the output is always verbose); Python 3.8 compatible (BigBlueButton servers): ruff --target-version py38.
+  - Fictitious public addresses: a second run of the replacement keeps the same replacement for the same original (saved map, never in the repository).
+
+Checks:
+  - Baseline: suite 1.187 + programs of origin/main in a separate copy: 839 tests × 2 awk passes, 16 failures (the ones above), 32 min 27 s.
+  - Whole suite 1.188 with the programs of this version (run-all.sh, mawk + gawk): 851 tests OK in each pass, 11 skipped (fail2ban-regex, Python markdown,
+    a test without root), 0 failure; 32 min 05 s; 914 s CPU user, 155 s system; 98.9 MiB max; 3316 programs launched; per kind: 238 unit,
+    501 functional, 67 interactive, 45 conformity. Verdict « tout ce qui a été exécuté réussit — mais 5 point(s) NON vérifié(s) » (ShellCheck absent here).
+  - After that run (small changes, the modules concerned run again): skip reason of test_odoo_docs worded like the others, PROGRAMME of
+    test_sync_crowdsec, failed subTest() counted as a failure in the table (StatsResult.addSubTest + test_echec_d_un_sous_test_compte).
+  - English table checked (NGINX_TOOLS_I18N_LANGUE=en): same column alignment.
+  - Scan of the suite after the replacement: no real public address, name, e-mail or user name left (nginx-odoo/ excluded: private configuration).
+
+Action required:
+  - On each server: keep nginx-tools-tests/nginx-odoo/ (from the archive) or set NGINX_ODOO_DIR; optional: /etc/default/nginx-tools-personal-terms.conf
+    with your real names and user names (one per line) for test_docs.
+  - The public repository still holds personal data in its history and in some changelogs of the programs (see the report of this delivery).
+
+## 1.187.20261017.214019 — Tests of web-monitor 2.69
+
+Reason:
+  « [1] Dans web-monitor.py, affiche l'entête en couleur sur la colonne qui est triée. Et ne pas afficher le champ étiquettes par défaut puisqu'il est pareil comme la colonne « Groupes ». Il faut être en mesure de sauvegarder toutes les options dans une variable d'un fichier de config, comme --table-fields [2] Rajoute une colonne IP-seen, afin d'indiquer les dernières IP vues dernièrement (qui sont reliées à un compte Odoo) même s'il n'est pas loggé à Odoo »
+
+Changes:
+  - test_web_monitor: test_list_users_ip_vue_titre_trie_en_couleur_et_cles_de_configuration; column positions of the former tests (new « ipseen », no « tags »).
+  - test_i18n: sort key « seen », French CSV title allowed.
+
+Bugs fixed:
+  none.
+
+Safeguards and edge cases:
+  none.
+
+Checks:
+  - Whole suite.
+
+Action required:
+  none.
+
+## 1.186.20261017.200717 — The test suite never changes the programs folder; residual files only reported
+
+Reason:
+  « [3] Pourquoi le script de test veut effacer des fichiers à l'extérieur de son répertoire (ça va effacer les fichiers de langue qui sont utilisés par mes autres programmes). Et le Ctrl+C affiche ^C et ne pose pas de question de confirmation : […] Effacer ce(s) 7 fichier(s) maintenant ? [o/N] ^C / Interrompre le programme ? [o/N] ^C^C^C^C^C^C^C »
+
+Changes:
+  - Residual files (old lang/PROG.en.po, former team-ips files): reported with the command to remove them, never deleted, no question, the tests go on.
+  - test_i18n: an old lang/PROG.en.po is no longer a failure (it is not read any more: apps/_i18n.py 1.15).
+  - test_web_monitor: test_list_users_table_avec_bannissements_enregistres; test_app_log_live: RLQ* groups « NAME = N »; test_ctrl_c: second Ctrl+C.
+
+Bugs fixed:
+  - Symptom: run-all.sh offered to delete files OUTSIDE its folder (lang/*.en.po of the programs) and stopped on « no ». Fix: report only.
+  - The Ctrl+C of that question: fixed in apps/_i18n.sh 1.13.
+
+Safeguards and edge cases:
+  - Why these files exist: they were shipped when those programs were written in French (French → English catalogs). Since the programs are written
+    in English they read lang/PROG.fr.po; unzipping a new archive never deletes the old files. No other program reads PROG.en.po (a catalog belongs to
+    its program, and since apps/_i18n.py 1.15 the old one is ignored even by its own program).
+
+Checks:
+  - Whole suite; ShellCheck.
+
+Action required:
+  optional: remove the files listed by run-all.sh (rm -f …) — no effect on the programs.
+
+## 1.185.20261017.105442 — Tests of web-monitor 2.67 and of the language origin
+
+Reason:
+  « [1] Dans web-monitor.py --list-users --table, peux-tu rajouter le nombre d'événement et de sondages qu'un utilisateur a rempli, et un autre champs pour le téléphone, pays, ville, dans quel groupe et Étiquettes, ils font parties [2] Rajoute ces options : --group zzz, --csv, --table-fields field1,field2 [3] afin de minimiser la largeur des colonnes, il faut enlever les espaces avant et après les mots […] tronquer l'entête au maximum de la largeur des données et pour un minimum de 4 caractères. Utilise deux lignes pour les entêtes si deux mots […] [4] Dans les CSV, il faut conserver toute l'information et probablement utiliser « ; » comme séparateur [5] Mettre en couleur certaines informations […] [6] Le « Mo envoyés » est toujours à « ? », pourquoi. [7] Peux-tu t'assurer que tous les programmes lisent les variables d'environnement en Linux qui déterminent la langue, cela n'a pas fonctionné si je change la variable LANG à fr, fr_CA, C, en [8] rajoute une option afin d'afficher une entête aussi à la fin [9] à la fin, rajoute une option qui indique des stats de membres par groupes, navigateurs, systèmes, par pays, par domaine de courriel, % interne ou portail, top 10 des utilisateurs actifs (selon plusieurs métriques) »
+
+Changes:
+  - test_web_monitor.py: compact table, profile fields (simulated PostgreSQL), --group, --csv, --repeat-header, --stats, colors (pseudo-terminal); former
+    table tests rewritten for the compact layout.
+  - test_i18n.py: LangueDeLEnvironnement (LANG fr / fr_CA / C / en, LC_ALL over LANG, LC_MESSAGES, GNU LANGUAGE, locale C, origin shown); French titles of
+    the columns allowed; --sort events / surveys.
+  - helpers.py: sans_origine() — the Options lines compared without the origin of the language (test_app_health_check, test_odoo_backup,
+    test_odoo_mail_retry, test_web_monitor, test_i18n).
+  - test_app_log_live.test_plus_d_activite_en_direct_puis_retour: idle of 2.4 s (was 0.6 s) and stream kept 6 s: it failed now and then on a loaded machine
+    (the start-up summary came after the end of the idle delay).
+
+Bugs fixed:
+  none.
+
+Safeguards and edge cases:
+  none.
+
+Checks:
+  - Whole suite.
+
+Action required:
+  none.
+
+## 1.184.20261016.173838 — Tests of nginx-tools 1.125; Ctrl+C during a test module
+
+Reason:
+  « [1] copyright → Services-Linux Conseils Inc […] [2] app-log-live.py : faire un lien entre un événement spécifique et ses sondages par billets […] [3] odoo-update-module.sh : avant d'arrêter le service Odoo, vérifier s'il y a beaucoup de gens qui visitent le site et attendre jusqu'à 15 min […] s'il y a des erreurs, faire un retour-arrière avec les versions précédentes des modules (faire une sauvegarde des modules) [4] web-monitor.py --list-users --table : nombre de pages lues et écrites et transmission / réception (en Mo) [5] indiquer le nom de la personne à qui on a envoyé un courriel ainsi que le titre […] [5] Le Ctrl+C ne fonctionne pas lorsque le programme est en cours nginx-log-audit.sh v2.37 (lorsqu'appelé par app-log-live.py) […] il faudrait le trapper dans tous les programmes Python ou BASH, avec une confirmation. Cela fait plusieurs fois que je fais cette demande »
+
+Changes:
+  - run-all.sh: ruff with --target-version py38 (the programs must run on Python 3.8: a backslash in an f-string of app-health-check.py went unseen).
+  - run-all.sh: each test module runs under « timeout --foreground 300 »: Ctrl+C reaches it (without --foreground, nothing happened before 300 s).
+  - test_ctrl_c.py: Ctrl+C during « timeout --foreground » (question at once), run_interruptible (no, then yes), parent and child bash (one question),
+    Python parent with foreground_child (one question), no « timeout » without --foreground in any bash program.
+  - test_odoo_update_module.py: busy / quiet site, copy of the modules, automatic rollback, rollback after a failed update, no rollback without
+    archive or with --no-rollback, alphabetical help; journalctl simulated; step numbers of the former tests; copies and logs in the test folder.
+  - test_app_log_live.py: registrations per event and ticket, registrations_by_ticket SQL, sent e-mail named.
+  - test_web_monitor.py: pages written, MB received / sent (rl=), --sort written; test_i18n.py: sort keys and French table headers.
+  - Header: « Copyright (C) 2026  Services-Conseils Linux <adresses retirées> » (was: Rencontres Linux Québec <info@rencontres-linux.quebec>).
+
+Bugs fixed:
+  none.
+
+Safeguards and edge cases:
+  none.
+
+Checks:
+  - Whole suite run; ShellCheck.
+
+Action required:
+  none.
+
+## 1.183.20261016.160728 — Tests of app-log-live 1.83
+
+Reason:
+  « [1] Dans app-log-live.py, rajouter une option pour tronquer la sortie afin d'avoir un maximum de lignes (2 * $COLUMNS) [2] indiquer le nom de l'utilisateur avec le nombre de connexion SSH . et met les groupes RLQ sur 2 ou 4 colonnes (selon la largeur du teminal). Est-ce que tout es OK dans la sortie : […] »
+
+Changes:
+  - test_app_log_live.py: test_ecran_sans_anglais_dans_les_lignes_colorees, test_utilisateurs_ssh_et_nombre_de_sessions, test_groupes_rlq_sur_2_ou_4_colonnes,
+    test_troncature_des_lignes (new); test_latence_disque_coupable_ou_innocent: « types : sda HDD ».
+
+Bugs fixed:
+  none.
+
+Safeguards and edge cases:
+  - The screen test goes through translate_protected on the COLORED text (the path of Output.write): translating the text without colors hid the bug.
+
+Checks:
+  - test_app_log_live, test_i18n, test_config_defaut, test_conventions.
+
+Action required:
+  none.
+
+## 1.182.20261016.151148 — Residual en.po catalogs detected, docs page count no longer fixed
+
+Reason:
+  "[1] avec run-all.sh v1.181.20261016.114848, il y a des erreurs" — 12 failures under mawk.
+
+Changes:
+  - run-all.sh, detection of residual files: a lang/PROG.en.po next to a lang/PROG.fr.po whose header says « Source-Language: en » is an OLD catalog
+    (from when the program was written in French); it is listed with the other residual files and the usual question offers to delete it.
+  - test_odoo_docs.py: pages_attendues() counts docs/en/NN-*.md + docs/fr/NN-*.md instead of the fixed 38 (test_website_target,
+    test_wiki_publication_is_idempotent).
+
+Bugs fixed:
+  - test_i18n (7 programs: « ancien catalogue en.po à supprimer ») and the two English tests (test_app_log_live « Listes … », test_web_monitor
+    « portal/public »): diagnosis — the old app-log-live.en.po, web-monitor.en.po… of earlier versions were still on the server (a zip never deletes
+    files) and were loaded for --lang en, turning English back into French. Fix: run-all now finds them and offers to delete them.
+  - test_odoo_docs « 40 != 38 »: the new page host-perf-audit (en + fr) was not counted. Fix: count computed.
+  - test_host_perf_audit « 2 cœur(s) »: fixed in host-perf-audit.py 1.1 (cores from the measured /proc/stat).
+
+Safeguards and edge cases:
+  - General rule: lang/PROG.XX.po is listed only when lang/PROG.fr.po declares « Source-Language: XX » (a catalog in the program's own language):
+    French-source programs (nginx-log-audit.sh…) keep their en.po.
+  - Even before deletion, the English output is right again: apps/_i18n.py 1.15 ignores such a catalog.
+
+Checks:
+  - bash -n, shellcheck 0.11 (-S warning); the detection loop tried on a folder with web-monitor.en.po (listed) and nginx-log-audit.en.po (kept); test_i18n, test_odoo_docs, test_host_perf_audit, test_conventions, test_docs.
+
+Action required:
+  run run-all.sh and answer yes to the deletion of the residual files (or delete lang/*.en.po of the English-source programs by hand).
+
+## 1.181.20261016.114848 — Tests: suspicious Odoo accounts, host-perf-audit, latency, invalid e-mails
+
+Reason:
+  Five requests of the same message: invalid e-mail addresses of registrations, latency of app-log-live (SATA vs SSD), a performance program for the Proxmox
+  host, Chinese names misaligned and suspicious activity of logged-in users in web-monitor, ban / unban of an Odoo account after investigation.
+
+Changes:
+  - test_odoo_users.py (new, odoo): SUSPICIOUS ACTIVITY section (new account + burst = 3, refused accesses + forms in bulk = SUSPICIOUS, English), watch /
+    unwatch, ban and unban of a portal account (simulated PostgreSQL and nginx-log-audit.sh: guarded UPDATE, shared address spared, register), internal
+    account refused, Chinese names aligned in --list-users --table, nginx-log-audit.sh ignoring a banned account and flagging a watched one, register
+    apps/_odoo_users.py, e-mail checks apps/_email_check.py (simulated dig, StopForumSpam, Gravatar, DuckDuckGo; Internet off).
+  - test_host_perf_audit.py (new, commun): apps/_sysperf.py rates on a fake /proc; verdicts « YES / NO » on synthetic samples; complete 5 s run on a fake host
+    (zpool, zfs, /etc/pve, cgroups) in French with --csv; English, help, --duration bounds; Ctrl-C still gives the report (real terminal).
+  - test_app_log_live: latency verdicts and per-hour table with a simulated sampler; keys G and P bound; marks [watched] / [banned account].
+  - test_odoo_mail_retry: class _Base (helpers without tests); AdressesInvalides: list with suggestions, failed e-mail to an invalid address, --fix --yes
+    (one transaction, old value re-checked, contact only when it holds the same address), menu one by one on a real terminal.
+  - test_nginx_log_audit: new wording of the verdict of an address connected to Odoo.
+  - helpers.py: NGINX_TOOLS_ODOO_USERS (register of the test, « off » at process level) and NGINX_TOOLS_INTERNET=off; HOST_PERF_AUDIT_LANG isolated.
+  - run-all.sh: host-perf-audit.py, apps/_email_check.py, apps/_odoo_users.py, apps/_sysperf.py required; sentinel on /var/lib/nginx-tools/odoo-users.tsv.
+  - test_conventions, test_i18n, test_config_defaut, test_anonymiser, test_docs: host-perf-audit.py in their lists.
+
+Bugs fixed:
+  none in the suite.
+
+Safeguards and edge cases:
+  - No test touches the real register, the network (NGINX_TOOLS_INTERNET=off, _fetch replaced) or the real /proc of the machine for host-perf-audit
+    (NGINX_TOOLS_PROC_ROOT).
+
+Checks:
+  complete run of run-all.sh (all environments).
+
+Action required:
+  - deploy with nginx-tools 1.122.
+
+## 1.180.20261016.085519 — Tests : colonnes systèmes de web-monitor, port SSH d'app-log-live
+
+Motif de la demande :
+  Trois demandes du même message : port SSH réel dans app-log-live, informations supplémentaires (systèmes d'exploitation) dans web-monitor --list-users --table, tâche planifiée du module rlq_survey_report.
+
+Détail des modifications :
+  - test_web_monitor : test_list_users_table_systemes_navigateurs_et_pages (colonnes Systèmes, Navigateurs, Pages vues ; robots et outils ignorés ; --sort pages / os).
+  - test_app_log_live : test_port_ssh_lu_dans_sshd_et_non_fixe_a_22 (ss -p, sshd -T, sshd_config, repli sur 22) ; recommandations de web-monitor groupées par raison.
+  - test_reglages_bannis_limites : test_odoo_et_ssh attend « connexions TCP établies : 1 (port SSH 2222) » (ss simulé avec sshd sur 2222, indépendant de /etc/ssh de la machine).
+  - test_i18n : clés de --sort os et pages ; « Systèmes » et « système » acceptés comme français voulu.
+
+Bugs corrigés :
+  - Aucun bug de la suite elle-même.
+
+Garde-fous et cas limites traités :
+  - Le port SSH est testé avec ss sans les droits root (repli sur sshd -T puis sur les fichiers de configuration) et avec deux ports.
+
+Vérifications effectuées :
+  run-all.sh complet (ShellCheck, ruff, tests sous mawk et gawk).
+
+Action requise de ma part :
+  aucune.
+
+## 1.179.20261016.065618 — Tests : app-log-live migré en anglais
+
+Motif de la demande :
+  Migration du code en anglais, étape 4 (« continue »).
+
+Détail des modifications :
+  - test_config_commune et test_reglages_bannis_limites (qui chargent app-log-live) : mêmes noms anglais ; valeurs de configuration écrites « yes » / « none » (lues aussi en « oui » / « aucun »).
+  - test_app_log_live : noms anglais (live.<nom>), assistant T() qui traduit avec le TR() du programme les textes renvoyés directement par les fonctions internes (les sorties du programme lancé sont déjà dans la langue du test), clés de données conservées (nom, etat, quand, titre…), test du tableau de bord traduit réécrit pour la source anglaise ; test_conventions : PROGRAMMES_ANGLAIS += app-log-live.py ; test_i18n : SOURCE_ANGLAISE += app-log-live et trois textes français voulus (lus chez d'autres outils).
+
+Bugs corrigés :
+  - Aucun bug de la suite elle-même (les défauts trouvés sont dans le changelog d'app-log-live 1.80).
+
+Garde-fous et cas limites traités :
+  - Aucun.
+
+Vérifications effectuées :
+  - test_app_log_live (129 tests) et suite complète.
+
+Action requise de ma part : aucune
+
+## 1.178.20261015.231203 — Tests : web-monitor migré en anglais
+
+Motif de la demande :
+  Migration du code en anglais, étape 3 (« continue »).
+
+Détail des modifications :
+  - test_web_monitor : noms anglais (wm.<nom>), wm.TR() sur les textes renvoyés par les fonctions internes, clés de données (« days », « browser (…) ») ; test_bbb idem ; test_i18n : SOURCE_ANGLAISE inclut web-monitor ; test_conventions : PROGRAMMES_ANGLAIS idem ; aligné sur nginx-tools 1.119 (apps/_i18n.py 1.14).
+
+Bugs corrigés :
+  - ShellCheck « non installé » : le binaire fourni est dans /home/claude/bin ; à placer dans le PATH (ou dans tools/) pour la suite complète.
+
+Garde-fous et cas limites traités :
+  - Aucun.
+
+Vérifications effectuées :
+  - test_web_monitor (77 tests) et suite complète.
+
+Action requise de ma part : aucune
+
+## 1.177.20261015.220452 — Tests : app-log-check migré en anglais
+
+Motif de la demande :
+  Migration du code en anglais, étape 2 (« continue »).
+
+Détail des modifications :
+  - test_app_log_check : noms anglais (abbreviate…) ; test_i18n : SOURCE_ANGLAISE inclut app-log-check, nouveau test d'un module partagé écrit en anglais (apps/_i18n.py 1.13), le mot « journal » n'est plus tenu pour du français ; test_conventions : PROGRAMMES_ANGLAIS idem ; aligné sur nginx-tools 1.118.
+
+Bugs corrigés :
+  - Aucun bug corrigé.
+
+Garde-fous et cas limites traités :
+  - Voir app-log-check 2.20 et apps/_i18n.py 1.13.
+
+Vérifications effectuées :
+  - Suite complète.
+
+Action requise de ma part :
+  - aucune
+
+## 1.176.20261015.212130 — Tests : app-health-check migré en anglais
+
+Motif de la demande :
+  Migration du code en anglais, étape 2 (« continue »).
+
+Détail des modifications :
+  - test_app_health_check : noms et messages anglais ; test_config_commune / test_config_defaut : read_config ; test_i18n : SOURCE_ANGLAISE inclut app-health-check (correspondance par sous-chaîne, autonyme « Français » exclu) ; test_conventions : PROGRAMMES_ANGLAIS idem ; aligné sur nginx-tools 1.117.
+
+Bugs corrigés :
+  - Aucun bug corrigé.
+
+Garde-fous et cas limites traités :
+  - Voir app-health-check 2.22.
+
+Vérifications effectuées :
+  - Suite complète.
+
+Action requise de ma part :
+  - aucune
+
+## 1.175.20261015.201400 — Tests : odoo-mail-retry, odoo-chat-post et odoo-docs migrés en anglais
+
+Motif de la demande :
+  Migration du code en anglais, étape 2 (« continue »).
+
+Détail des modifications :
+  - test_i18n : SOURCE_ANGLAISE inclut odoo-warmup, odoo-mail-retry, odoo-chat-post et odoo-docs ; test_conventions : PROGRAMMES_ANGLAIS idem ; aligné sur nginx-tools 1.116.
+
+Bugs corrigés :
+  - Aucun bug corrigé.
+
+Garde-fous et cas limites traités :
+  - Voir odoo-warmup 1.5 et odoo-mail-retry 1.8.
+
+Vérifications effectuées :
+  - Suite complète.
+
+Action requise de ma part :
+  - aucune
+
+## 1.174.20261015.195053 — Tests : premier programme migré en anglais (zip-versions)
+
+Motif de la demande :
+  Migration du code en anglais, étape 2 (« continue »).
+
+Détail des modifications :
+  - test_zip_versions : noms anglais ; test_i18n : catalogue d'un programme à source anglaise (aucun français restant, pas d'entrée périmée, pas d'ancien en.po) ; test_conventions : PROGRAMMES_ANGLAIS accepte protected_main / launch_with_report ; aligné sur nginx-tools 1.115.
+
+Bugs corrigés :
+  - Aucun bug corrigé.
+
+Garde-fous et cas limites traités :
+  - Voir zip-versions 1.12.
+
+Vérifications effectuées :
+  - Suite complète.
+
+Action requise de ma part :
+  - aucune
+
+## 1.173.20261015.191427 — Tests : langue source par programme (i18n)
+
+Motif de la demande :
+  Migration du code en anglais, étape 1.
+
+Détail des modifications :
+  - test_i18n : nouveau test ; aligné sur nginx-tools 1.114.
+
+Bugs corrigés :
+  - Aucun bug corrigé.
+
+Garde-fous et cas limites traités :
+  - Voir _i18n 1.12.
+
+Vérifications effectuées :
+  - Suite complète.
+
+Action requise de ma part :
+  - aucune
+
+## 1.172.20261015.183524 — Tests : odoo-docs.py et couleur des dates du jour
+
+Motif de la demande :
+  « Une option pour écrire la doc dans un wiki document_page ou une page web, avec validation » et « zip-versions : seulement les premiers .ZIP en couleurs ».
+
+Détail des modifications :
+  - Suite : nouveau test_odoo_docs.py (10 tests) ; odoo-docs ajouté aux listes de test_conventions, test_anonymiser, test_config_defaut, test_i18n, test_docs ; test zip-versions ; aligné sur nginx-tools 1.113.
+
+Bugs corrigés :
+  - Aucun bug corrigé.
+
+Garde-fous et cas limites traités :
+  - Voir zip-versions 1.11 et odoo-docs 1.0.
+
+Vérifications effectuées :
+  - Suite complète.
+
+Action requise de ma part :
+  - aucune
+
+## 1.171.20261015.175527 — Tests : documentation bilingue (test_docs)
+
+Motif de la demande :
+  « documentation experte FR/EN en pages Site web (Knowledge est réservé à Enterprise) pour une publication GitHub »
+
+Détail des modifications :
+  - Nouveau test_docs.py (5 tests) pour docs/build_docs.py ; version de la suite alignée sur nginx-tools 1.112.
+
+Bugs corrigés :
+  - Aucun bug corrigé.
+
+Garde-fous et cas limites traités :
+  - Sauté si le module Python « markdown » est absent.
+
+Vérifications effectuées :
+  - Suite complète.
+
+Action requise de ma part :
+  - aucune
+
+## 1.170.20261015.172851 — Tests : groupes RLQ* d'app-log-live
+
+Motif de la demande :
+  « [3] … écrire dans app-log-live.py le nombre de membres des groupes RLQ* (dans le menu et résumé avec Ctrl-C) » et « [2] ShellCheck (binaire fourni) »
+
+Détail des modifications :
+  - Nouveau test test_groupes_rlq_membres_dans_le_menu_et_le_resume ; version de la suite alignée sur nginx-tools 1.111.
+
+Bugs corrigés :
+  - Aucun bug corrigé.
+
+Garde-fous et cas limites traités :
+  - Voir app-log-live 1.79, _odoo_db 1.13, _i18n.sh 1.10.
+
+Vérifications effectuées :
+  - Suite complète.
+
+Action requise de ma part :
+  - aucune
+
+## 1.169.20261015.170611 — Tests : modules rlq* au démarrage de app-log-live
+
+Motif de la demande :
+  « [1] Pourquoi les modules rlq* ne sont pas affichés au démarrage de app-log-live.py » et « [2] run-all.sh : ShellCheck odoo-update-module.sh:254:11 warning: c appears unused [SC2034] »
+
+Détail des modifications :
+  - Suite : nouveau test_modules_rlq_toujours_affiches_meme_plus_anciens_que_les_autres ; version de la suite alignée sur nginx-tools 1.110.
+
+Bugs corrigés :
+  - Aucun bug corrigé.
+
+Garde-fous et cas limites traités :
+  - Voir app-log-live 1.78 et odoo-update-module 1.10.
+
+Vérifications effectuées :
+  - Suite complète.
+
+Action requise de ma part :
+  - aucune
+
+## 1.168.20261015.143436 — Tests : --anonymize
+
+Motif de la demande :
+  « [1] Il faudrait avoir une nouvelle option afin d'anonymiser les données affichées par chacun des programmes »
+
+Détail des modifications :
+  - test_anonymiser.py (15 tests) : motifs (IP v4/v6, courriels, identifiants, jetons, cookies), exceptions (127.x, versions, heures), stabilité et sel, demande(), exécutions réelles (filtre, programme Python, programme bash, échec fermé, aide de chacun des 13 programmes) ; test_i18n : catalogue d'apps/_anonymiser.py.
+
+Bugs corrigés :
+  - Aucun bug corrigé.
+
+Garde-fous et cas limites traités :
+  - Échec fermé sans filtre, configuration seulement au terminal, aucun double filtrage, code de retour conservé.
+
+Vérifications effectuées :
+  - Suite complète.
+
+Action requise de ma part :
+  - aucune
+
+## 1.167.20261015.105354 — Tests : odoo-chat-post, clé API du robot
+
+Motif de la demande :
+  « Lors de la première exécution, crée la clé API (expiration d'un an ?) et remplis les fichiers de config. »
+
+Détail des modifications :
+  - test_odoo_chat_post.py : faux Odoo avec session web JSON-RPC (identité, assistant de clé, durée maximale) ; 6 nouveaux tests.
+
+Bugs corrigés :
+  - Aucun bug corrigé.
+
+Garde-fous et cas limites traités :
+  - Droits 600, sauvegarde, clé jamais affichée, durée réduite, refus web, fichier non inscriptible.
+
+Vérifications effectuées :
+  - Suite complète.
+
+Action requise de ma part :
+  - aucune
+
+## 1.166.20261015.103039 — Tests : odoo-chat-post --create-bot
+
+Motif de la demande :
+  « Peux-tu me créer un compte local "tux-bot" de façon sécuritaire, avec seulement les droits nécessaires… »
+
+Détail des modifications :
+  - test_odoo_chat_post.py : faux Odoo étendu (création d'utilisateur, groupes) ; 3 tests du compte robot.
+
+Bugs corrigés :
+  - Aucun bug corrigé.
+
+Garde-fous et cas limites traités :
+  - Groupe unique, aucun mot de passe, compte existant inchangé, à blanc.
+
+Vérifications effectuées :
+  - Suite complète.
+
+Action requise de ma part :
+  - aucune
+
+## 1.165.20261015.095427 — Tests : odoo-chat-post accès restreint
+
+Motif de la demande :
+  « Pour l'instant, il faut que ce soit seulement mon compte sur Odoo qui puisse voir ces canaux : Etienne.Berube.ing@exemple.org » (+ compte Tux-Bot qui écrit)
+
+Détail des modifications :
+  - test_odoo_chat_post.py : faux Odoo étendu (res.groups, res.users par identifiant, écriture de groupes, lecture de group_public_id) ; 5 nouveaux tests d'accès restreint.
+
+Bugs corrigés :
+  - Aucun bug corrigé.
+
+Garde-fous et cas limites traités :
+  - Robot absent puis créé, canal existant trop ouvert, à blanc, suggérés par configuration.
+
+Vérifications effectuées :
+  - Suite complète.
+
+Action requise de ma part :
+  - aucune
+
+## 1.164.20261015.092124 — Tests : langue forcée, couleur, pare-feu, tri
+
+Motif de la demande :
+  « [1] Dans zip-versions.py, met en couleur les versions récentes dans toutes les sections dont ARCHIVES TO ATTACH TO THE DISCUSSION [run-all : échecs shellcheck _i18n.sh (SC2004) et odoo-update-module.sh (5 signalements), 2 tests d'aide « rapport d'erreurs à copier-coller » en --lang en] [3] Au démarrage de app-log-live.py, affiche cela seulement avec une option, où on peut trier les colonnes : « Suivi des modules customs non-standard à Odoo… » [4] Le warmup est bloqué par une règle : … 127.0.0.1 … [banni : pare-feu] »
+
+Détail des modifications :
+  - test_conventions (RapportErreurs) force NGINX_TOOLS_LANG=fr ; nouveaux tests dans test_zip_versions et test_reglages_bannis_limites.
+
+Bugs corrigés :
+  - test_dans_l_aide_et_sans_effet_avec_version échouait pour odoo-update-module.sh et odoo-warmup.py quand run-all.sh tournait avec --lang en (aide traduite, test écrit en français).
+
+Garde-fous et cas limites traités :
+  - Le test ne dépend plus de la langue de l'utilisateur.
+
+Vérifications effectuées :
+  - suite complète.
+
+Action requise de ma part : aucune
+
+## 1.163.20261015.090500 — Tests : odoo-chat-post.py
+
+Motif de la demande :
+  « Il faudrait envoyer des alertes dans les canaux de discussions d'Odoo afin de centraliser les problèmes pour aviser l'équipe … Créer ces canaux de discussions et écris un premier message pour indiquer la raison de chacun »
+
+Détail des modifications :
+  - Nouveau fichier test_odoo_chat_post.py (17 tests, faux serveur XML-RPC) ; odoo-chat-post.py ajouté aux listes de test_conventions, test_i18n, test_config_defaut et à l'étape 0 de run-all.sh.
+
+Bugs corrigés :
+  - Aucun bug corrigé.
+
+Garde-fous et cas limites traités :
+  - Idempotence, --dry-run, Odoo sans sous-canaux, clé API jamais affichée, fichier de clé trop ouvert, texte d'alerte échappé.
+
+Vérifications effectuées :
+  - suite complète.
+
+Action requise de ma part : aucune
+
+## 1.162.20261015.083721 — Tests : réglages sauvegardés, bannis, customs, connectés, 429
+
+Motif de la demande :
+  « [1] stats toutes les N minutes dont les connectés Odoo et SSH [2] détail des 429 [3] Déjà présent dans iptables [4] réglages non sauvegardés (--time-report) [5] modules rlq* au démarrage »
+
+Détail des modifications :
+  - Nouveau fichier test_reglages_bannis_limites.py (20 tests) ; test_i18n.py : catalogue de apps/_limites.py.
+
+Bugs corrigés :
+  - Aucun bug corrigé.
+
+Garde-fous et cas limites traités :
+  - Test d'exhaustivité : toute option changée par le menu doit être lue par valeurs_config.
+
+Vérifications effectuées :
+  - suite complète.
+
+Action requise de ma part : aucune
+
+## 1.161.20261015.080630 — Tests : droits, durée des journaux, modules rlq*
+
+Motif de la demande :
+  « [1] Conserve les logs plus longtemps pour tous les scripts (dont app-log-live.py) en lisant une variable de config dans un fichier comme /etc/default/app-default.conf [2] dans app-log-live.py, je ne vois pas les versions des modules rlq*, tu dois toujours faire apparaître ces versions et après les derniers modules [3] Pourquoi indiques-tu cela ? J'étais root. Peux-tu rajouter une validation au début afin de s'assurer que l'on est root, mais seulement pour les scripts qui demandent plus d'accès. Peux-tu me faire la liste des scripts afin de savoir quels scripts ont vraiment besoin d'être root ? »
+
+Détail des modifications :
+  - Nouveau test_droits_journaux.py (dont vrais appels sans root via setpriv) ; test_app_log_live adapté.
+
+Bugs corrigés :
+  - Aucun.
+
+Garde-fous et cas limites traités :
+  - Aucun.
+
+Vérifications effectuées :
+  - Suite complète.
+
+Action requise de ma part : aucune
+
+## 1.160.20261015.073057 — Tests : colonnes alignées, date des fichiers de config
+
+Motif de la demande :
+  « [1] Rajoute une option dans les événements avoir de recevoir un courriel à tous les N inscriptions [2] … stats sommaires à toutes les N minutes (sockets réseau utilisés par Odoo, ports 10000 et 10002) ; suggérer des IP à unban dans les recommandations en appelant les programmes et confirmer l'action ; afficher la date de dernière modification des fichiers de config lus au démarrage ; toutes les dates à l'heure locale ; l'alignement des colonnes n'est pas OK avec --summary »
+
+Détail des modifications :
+  - test_debannir_connexions : en-têtes de colonnes, ConfigDateModification ; test_config_defaut et test_i18n adaptés.
+
+Bugs corrigés :
+  - Aucun.
+
+Garde-fous et cas limites traités :
+  - Aucun.
+
+Vérifications effectuées :
+  - Suite complète.
+
+Action requise de ma part : aucune
+
+## 1.159.20261015.065821 — Tests : IP à débannir, connexions, anglais, fichier commun
+
+Motif de la demande :
+  « [1] oui fait les corrections et le plus importants est de ne pas avoir bannie de IP valides, peux-tu rajouter une logique qui sortir les IP qui devraient être débannie ? [2] Rajoute une vérification à toutes les minutes du nombre de connexion à Odoo afin de voir si on est à veille d'atteindre une limite comme pour le chat d'Odoo (avec les websockets, indique le paramètres à changer dans la config d'Odoo si on atteint une limite) [3] Je remarque dans le texte en anglais, il y a des mots en francais (MOYENNE, Mo, Go, etc) et l'enlignement n'est pas OK [4] Il faudrait que tu crée le fichier de config général s'il n'existe pas (/etc/default/app-default.conf) »
+
+Détail des modifications :
+  - Nouveau test_debannir_connexions.py ; test_i18n et test_config_defaut adaptés.
+
+Bugs corrigés :
+  - Aucun.
+
+Garde-fous et cas limites traités :
+  - Aucun.
+
+Vérifications effectuées :
+  - Suite complète.
+
+Action requise de ma part : aucune
+
+## 1.158.20261014.214019 — Tests : customs d'abord, version du .zip
+
+Motif de la demande :
+  « [1] dans app-log-live.py, avec la commande « L » il est important d'afficher les versions des modules customs (comme rlq*) avant les autres [2] En lisant le .ZIP, il faut afficher la version (avec le manifest) ».
+
+Détail des modifications :
+  - Un test ajouté dans test_app_log_live, assertions ajoutées dans test_odoo_update_module.
+
+Bugs corrigés :
+  - Aucun.
+
+Garde-fous et cas limites traités :
+  - Aucun.
+
+Vérifications effectuées :
+  - Suite complète.
+
+Action requise de ma part : aucune
+
+## 1.157.20261014.203136 — Tests : détection du service, --lines 50
+
+Motif de la demande :
+  « [2] Dans app-log-live.py, utilise --lines 50 par défaut. Dans les fichiers de config par défaut, indique la valeur par défaut en commentaire. [3] Dans odoo-update-module.sh, fait de la détection automatique du nom du service odoo (tu peux vérifier avec systemctl status), en prod, tu devrais voir erplibre ou odoo ».
+
+Détail des modifications :
+  - Quatre tests dans test_odoo_update_module ; test_app_log_live adapté à 50.
+
+Bugs corrigés :
+  - Aucun.
+
+Garde-fous et cas limites traités :
+  - Aucun.
+
+Vérifications effectuées :
+  - Suite complète.
+
+Action requise de ma part : aucune
+
+## 1.156.20261014.190654 — Tests : archive .zip, versions, derniers modules
+
+Motif de la demande :
+  « [1] Dans odoo-update-module.sh, il faudrait que tu affiches les dernières versions des modules installés (comme dans le programme live). Tu peux afficher les versions avant et après afin de voir les mises à jour [2] Il faudrait que tu rajoutes une option pour spécifier le répertoire de destination pour décompresser les modules (souvent dans les addons). Ainsi tu peux lire directement le fichier .zip (dans le répertoire courant, ou spécifié dans la config ou par des options) ». « [3] Dans app-log-live.py, rajoute une option afin d'avoir les 10 derniers modules installés avec la version actuelle d'Odoo ».
+
+Détail des modifications :
+  - Nouveaux tests dans test_odoo_update_module et test_app_log_live.
+
+Bugs corrigés :
+  - Aucun.
+
+Garde-fous et cas limites traités :
+  - Aucun.
+
+Vérifications effectuées :
+  - Suite complète.
+
+Action requise de ma part : aucune
+
+## 1.155.20261014.182101 — Tests : warm-up, pages, langues, sondages optionnels
+
+Motif de la demande :
+  « [1] Pourquoi une erreur au warm-up ? les pages de sondages sont optionnelles et rajoute les pages /blog, event/journee-portes-ouvertes-sur-linux-2026-125/ et …/agenda, /a-propos/collaborateurs-jpol-2026, /contactus (mettre tous ces liens dans un fichier de config /etc/default, ainsi on pourra rajouter d'autres liens) [2] Il faut charger les pages dans les 3 langues FR/EN/ES ».
+
+Détail des modifications :
+  - Quatre nouveaux tests dans test_odoo_warmup.
+
+Bugs corrigés :
+  - Aucun.
+
+Garde-fous et cas limites traités :
+  - Aucun.
+
+Vérifications effectuées :
+  - Suite complète.
+
+Action requise de ma part : aucune
+
+## 1.154.20261014.175821 — Tests : fichier commun et sauvegarde des réglages
+
+Motif de la demande :
+  « [1] Il faudrait créer un fichier de config qui pourrait définir des config communes à tous nos programmes app-default.conf, afin de définir des config comme la langue par défaut, verbose, debug_level, etc ». « [2] dans le menu app-log-live.py, rajoute une option pour sauvegarder la config actuelle dans /etc/default (que l'on aurait changé) ».
+
+Détail des modifications :
+  - Nouveau test_config_commune.py.
+
+Bugs corrigés :
+  - Aucun.
+
+Garde-fous et cas limites traités :
+  - Aucun.
+
+Vérifications effectuées :
+  - Suite complète.
+
+Action requise de ma part : aucune
+
+## 1.153.20261014.174013 — Tests : préchauffage et heure locale des modules
+
+Motif de la demande :
+  « [1] L'heure que tu indiques pour les modules Odoo installés n'est pas locale [2] Mets certaines choses en couleur (tout est gris), comme le nom des BD ». « [3] Dans odoo-update-module.sh, il faut que tu fasses un warm-up afin de rentrer dans le cache plusieurs pages (derniers sondages, événements, page web, etc.) ».
+
+Détail des modifications :
+  - Nouveaux tests dans test_odoo_update_module, test_odoo_warmup et test_app_log_live.
+
+Bugs corrigés :
+  - Aucun.
+
+Garde-fous et cas limites traités :
+  - Aucun.
+
+Vérifications effectuées :
+  - Suite complète.
+
+Action requise de ma part : aucune
+
+## 1.152.20261014.170802 — Tests : surlignage +mot / -mot
+
+Motif de la demande :
+  « Il faut être capable de rajouter avec un « + » des mots à surligner ou à enlever avec un « - » dans le tableau de bord live d'Odoo ».
+
+Détail des modifications :
+  - Un nouveau test dans test_app_log_live.
+
+Bugs corrigés :
+  - Aucun.
+
+Garde-fous et cas limites traités :
+  - Aucun.
+
+Vérifications effectuées :
+  - Suite complète.
+
+Action requise de ma part : aucune
+
+## 1.151.20261014.164721 — Tests : bloc de démarrage d'app-log-live
+
+Motif de la demande :
+  « Met de la couleur dans le texte et arrange le formattage, il y a trop d'information, on ne sait pas où regarder » (bloc de démarrage d'app-log-live.py : modules d'Odoo, historique, listes, cache).
+
+Détail des modifications :
+  - Test des modules d'Odoo adapté à la nouvelle présentation.
+
+Bugs corrigés :
+  - Aucun.
+
+Garde-fous et cas limites traités :
+  - Aucun.
+
+Vérifications effectuées :
+  - Suite complète.
+
+Action requise de ma part : aucune
+
+## 1.150.20261014.161550 — Tests : sortie lisible de odoo-update-module.sh
+
+Motif de la demande :
+  « Met de la couleur dans le texte et arrange le formattage, il y a trop d'information, on ne sait pas où regarder » (sortie de odoo-update-module.sh).
+
+Détail des modifications :
+  - Un nouveau test, un test de sauvegarde complété.
+
+Bugs corrigés :
+  - Aucun.
+
+Garde-fous et cas limites traités :
+  - Aucun.
+
+Vérifications effectuées :
+  - Suite complète.
+
+Action requise de ma part : aucune
+
+## 1.149.20261014.154520 — Tests : Ctrl+C pendant une question
+
+Motif de la demande :
+  « Dans odoo-mail-retry.py, lorsque j'appuie sur Ctrl+C j'ai cette erreur (RuntimeError: can't re-enter readline) pendant la question [t] tous… Il faut s'assurer que tous les programmes ne donnent pas d'erreurs et demander une confirmation avant de sortir ».
+
+Détail des modifications :
+  - Deux nouveaux tests dans test_ctrl_c (Python et bash).
+
+Bugs corrigés :
+  - Aucun.
+
+Garde-fous et cas limites traités :
+  - Aucun.
+
+Vérifications effectuées :
+  - Suite complète.
+
+Action requise de ma part : aucune
+
+## 1.148.20261014.151232 — Tests : tableau des modules et chiffres en couleurs
+
+Motif de la demande :
+  « Dans app-log-live.py, rajoute une option dans le menu et en options pour voir un tableau des modules Odoo d'installés avec des options de tri (par nom, par date de modification, etc) » et « rajoute les chiffres en couleurs » dans le bloc « Efficacité du programme ».
+
+Détail des modifications :
+  - Trois nouveaux tests dans test_app_log_live.
+
+Bugs corrigés :
+  - Aucun.
+
+Garde-fous et cas limites traités :
+  - Aucun.
+
+Vérifications effectuées :
+  - Suite complète.
+
+Action requise de ma part : aucune
+
+## 1.147.20261014.114859 — Tests : chien de garde pendant une question
+
+Motif de la demande :
+  « Aussi, j'ai une erreur dans : » (suivi d'une sortie où, pendant « Confirmer le bannissement de 11.44.15.229 ? [o/N] », app-log-live affiche « Chien de garde : aucun progrès depuis 8 s » avec une pile).
+
+Détail des modifications :
+  - Nouveau test dans test_app_log_live.
+
+Bugs corrigés :
+  - Aucun.
+
+Garde-fous et cas limites traités :
+  - Aucun.
+
+Vérifications effectuées :
+  - Suite complète.
+
+Action requise de ma part : aucune
+
+## 1.146.20261014.110643 — Tests : odoo-update-module.sh et étiquette sans doublon
+
+Motif de la demande :
+  « [1] Il y a des doublons dans l'affichage live « ÉtienneB+JoséR+Administrateur+etienne.berube.ing+admin », on aurait dû voir seulement « ÉtienneB+JoséR+Administrateur ». [3] Peux-tu me faire un script pour mettre à jour le module RLQ* et redémarrer Odoo avec systemd ? »
+
+Détail des modifications :
+  - Nouveau test_odoo_update_module.py (13 tests) ; odoo-update-module.sh ajouté aux listes de conventions, de traductions, de modèles de configuration et de programmes attendus ; test d'étiquette sans doublon.
+
+Bugs corrigés :
+  - Aucun.
+
+Garde-fous et cas limites traités :
+  - Aucun.
+
+Vérifications effectuées :
+  - Suite complète.
+
+Action requise de ma part : aucune
+
+## 1.145.20261014.103454 — Tests : derniers modules installés avec leur date
+
+Motif de la demande :
+  « Il faudrait afficher tous les derniers modules Odoo qui ont été installés et activés (par rapport à une installation de base d'Odoo 18.0). Peut-on afficher la date du module ou seulement sa version ? »
+
+Détail des modifications :
+  - test des modules : dates et ordre.
+
+Bugs corrigés :
+  - Aucun.
+
+Garde-fous et cas limites traités :
+  - Aucun.
+
+Vérifications effectuées :
+  - Suite complète.
+
+Action requise de ma part : aucune
+
+## 1.144.20261013.231736 — Tests : alerte du service arrêté
+
+Motif de la demande :
+  « Toujours figé » — pile du kill -USR1 (fil de lecture en attente de journalctl, boucle d'affichage au repos) ; systemctl : erplibre_erplibre.service inactive (dead) depuis 21:25:48 ; Odoo tourne via odoo_bin.sh -c ./config.conf lancé à la main (utilisateur utilisateur).
+
+Détail des modifications :
+  - test_service_arrete_avertit_au_lieu_de_sembler_fige.
+
+Bugs corrigés :
+  - Aucun.
+
+Garde-fous et cas limites traités :
+  - Aucun.
+
+Vérifications effectuées :
+  - Suite complète.
+
+Action requise de ma part : aucune
+
+## 1.143.20261013.224353 — Tests : chien de garde du direct
+
+Motif de la demande :
+  « Non cela n'a pas arrangé le problème [affichage pas en temps réel] ; processus : python3 app-log-live.py --keep-ip --min, journalctl --lines 222 --follow …, tail -n 200000 -F …dev-access.log ; journalctl voit bien toutes les lignes qui changent »
+
+Détail des modifications :
+  - test_chien_de_garde_signale_un_fil_de_lecture_bloque_avec_sa_pile.
+
+Bugs corrigés :
+  - Aucun.
+
+Garde-fous et cas limites traités :
+  - Aucun.
+
+Vérifications effectuées :
+  - test_app_log_live, test_i18n.
+
+Action requise de ma part : aucune
+
+## 1.142.20261013.220907 — Tests : l'IP externe ne retient pas l'affichage
+
+Motif de la demande :
+  « Non, l'affichage ne se fait pas en temps réel encore avec app-log-live.py v1.57 »
+
+Détail des modifications :
+  - test_recherche_de_l_ip_externe_ne_retient_pas_l_affichage.
+
+Bugs corrigés :
+  - Aucun.
+
+Garde-fous et cas limites traités :
+  - Aucun.
+
+Vérifications effectuées :
+  - Suite complète.
+
+Action requise de ma part : aucune
+
+## 1.141.20261013.215347 — Tests : surlignage des mots
+
+Motif de la demande :
+  « Rajoute une option dans le menu, variables dans la config (/etc/default) afin de « highlighter » en cyan certains mots : POST, webclient, discuss, avatar, 20-ans, 21-ans, portes, ouvertes. Je vais pouvoir en rajouter d'autres plus tard »
+
+Détail des modifications :
+  - test_surlignage_des_mots_en_cyan, test_surlignage_cle_de_configuration_et_ligne_de_commande.
+
+Bugs corrigés :
+  - Aucun.
+
+Garde-fous et cas limites traités :
+  - Aucun.
+
+Vérifications effectuées :
+  - Suite complète.
+
+Action requise de ma part : aucune
+
+## 1.140.20261013.214058 — Tests : masquage des secrets en temps linéaire
+
+Motif de la demande :
+  « la version app-log-live.py v1.55 (et v1.56) n'affiche plus en temps réel (par rapport à la commande journalctl qui affiche toutes les lignes) »
+
+Détail des modifications :
+  - test_masquage_des_secrets_reste_rapide_sur_les_longues_lignes.
+
+Bugs corrigés :
+  - Aucun.
+
+Garde-fous et cas limites traités :
+  - Aucun.
+
+Vérifications effectuées :
+  - Suite complète.
+
+Action requise de ma part : aucune
+
+## 1.139.20261013.205851 — Tests : amonts d'Odoo 17
+
+Motif de la demande :
+  « Peux-tu rajouter un autre serveur dans la config Odoo/NGINX : odoo17.rencontres-linux.quebec (avec les DEV, LAB et prod) » — ports 8069 et 8072, fichiers 40/50/60 qui cohabitent.
+
+Détail des modifications :
+  - Nouveau test nginx-hardening (amonts odoo17 intacts) ; test app-log-live étendu ; nginx-tools-tests/nginx-odoo/ resynchronisé (identique à nginx-odoo/).
+
+Bugs corrigés :
+  - Aucun.
+
+Garde-fous et cas limites traités :
+  - Aucun.
+
+Vérifications effectuées :
+  - Suite complète.
+
+Action requise de ma part : aucune
+
+## 1.138.20261013.203700 — Tests : websocket sur la configuration livrée
+
+Motif de la demande :
+  « J'ai cette erreur qui a rapport au port 10002 : [FAIL] nginx: no location points to Odoo's gevent port (10002) — the websocket (real-time chat) cannot work. [2] Pourtant, tout est OK (diagnostic du site). »
+
+Détail des modifications :
+  - test_etape4_websocket_vraie_configuration_avec_variable_proxy_pass.
+
+Bugs corrigés :
+  - Aucun.
+
+Garde-fous et cas limites traités :
+  - Aucun.
+
+Vérifications effectuées :
+  - Suite complète.
+
+Action requise de ma part : aucune
+
+## 1.137.20261013.201708 — Tests : secrets masqués (app-log-live)
+
+Motif de la demande :
+  « Masque dans app-log-live les valeurs de access_token=, password= et token= à l'affichage (le jeton d'accès Google apparaissait en clair dans /auth_oauth/signin?…). Le journal d'Odoo lui-même n'est pas modifié. »
+
+Détail des modifications :
+  - test_secrets_masques_a_l_affichage.
+
+Bugs corrigés :
+  - Aucun.
+
+Garde-fous et cas limites traités :
+  - Aucun.
+
+Vérifications effectuées :
+  - Suite ciblée.
+
+Action requise de ma part : aucune
+
+## 1.136.20261013.195358 — Tests : websocket d'Odoo (nginx-hardening.sh)
+
+Motif de la demande :
+  « Il est très important d'arranger ce problème (messages de discussion non envoyés en temps réel), puisque l'on peut avoir 100 personnes connectées sur les discussions d'Odoo : ajoute cette vérification à nginx-hardening.sh. »
+
+Détail des modifications :
+  - 6 tests test_etape4_websocket_*.
+
+Bugs corrigés :
+  - Aucun.
+
+Garde-fous et cas limites traités :
+  - Aucun.
+
+Vérifications effectuées :
+  - Suite complète.
+
+Action requise de ma part : aucune
+
+## 1.135.20261013.191845 — Tests : conflits réessayés et échecs définitifs
+
+Motif de la demande :
+  « Compte ces conflits à app-log-live séparément des vraies erreurs, avec un compteur « conflits réessayés » et un autre « échecs définitifs ». Le problème arrive souvent lorsque les gens sont connectés sur leur cell et leur ordi (ou 2 ordi). »
+
+Détail des modifications :
+  - test_conflits_reessayes_et_echecs_definitifs_comptes_a_part_des_erreurs, test_conflits_comptes_de_bout_en_bout_dans_le_resume.
+
+Bugs corrigés :
+  - Aucun.
+
+Garde-fous et cas limites traités :
+  - Aucun.
+
+Vérifications effectuées :
+  - Suite complète.
+
+Action requise de ma part : aucune
+
+## 1.134.20261013.163324 — Tests : versions du jour, étape 0a, erreurs détaillées, modules
+
+Motif de la demande :
+  « [1] Dans zip-versions.py, fais apparaître en couleur les programmes dont la date est aujourd'hui, pour valider plus vite que j'ai la dernière version. [2] Dans nginx-hardening.sh, vérifie si NGINX a un problème avant de faire tes changements et aide-moi à les résoudre. [3] Indique la version dans cela et donne plus de détails sur les erreurs (heure, IP, utilisateur si connecté). [4] Indique si tous les modules d'Odoo sont bien disponibles avec leurs versions au démarrage du tableau de bord »
+
+Détail des modifications :
+  - test_versions_datees_d_aujourd_hui_en_vert, test_etape0a_nginx_avant_les_changements_valide_ou_refuse_avec_aide, test_details_des_erreurs_heure_adresse_utilisateur_et_version_de_l_alerte, test_modules_d_odoo_presents_sur_le_disque_versions_et_mises_a_jour.
+
+Bugs corrigés :
+  - Aucun.
+
+Garde-fous et cas limites traités :
+  - Aucun.
+
+Vérifications effectuées :
+  - Suite complète.
+
+Action requise de ma part : aucune
+
+## 1.133.20261013.161254 — Test : ancien nom trouvé dans nginx
+
+Motif de la demande :
+  « J'ai toujours une page avec ERR_EMPTY_RESPONSE (odoo.rencontres-linux.quebec) ; étape 0e : [FAIL] deux noms attendus (reçus : «  » et « odoo.rencontres-linux.quebec ») ; je m'attends à ce que le script de setup m'aide à résoudre mon problème : passer de odoo-lab à odoo »
+
+Détail des modifications :
+  - test_etape0e_ancien_nom_trouve_dans_nginx_quand_seul_le_nouveau_est_donne.
+
+Bugs corrigés :
+  - Aucun.
+
+Garde-fous et cas limites traités :
+  - Aucun.
+
+Vérifications effectuées :
+  - Suite complète.
+
+Action requise de ma part : aucune
+
+## 1.132.20261013.155822 — Test : couleurs du sommaire
+
+Motif de la demande :
+  « Dans le sommaire (Depuis le dernier affichage), il y a des lignes qui n'ont pas de couleurs : rajoute des couleurs sur les chiffres afin de mieux voir s'il y a des enjeux »
+
+Détail des modifications :
+  - test_sommaire_en_couleurs_compteurs_aucune_et_codes_http.
+
+Bugs corrigés :
+  - Aucun.
+
+Garde-fous et cas limites traités :
+  - Aucun.
+
+Vérifications effectuées :
+  - Suite partielle (app-log-live, i18n, conventions).
+
+Action requise de ma part : aucune
+
+## 1.131.20261013.155051 — Test : adresse non répétée (touche b)
+
+Motif de la demande :
+  « [1] Tu répètes deux fois l'IP lorsque j'appuie sur b (11.0.67.32  11.0.67.32 — recommandée par web-monitor.py…) [2] L'heure n'est pas l'heure locale dans la version des programmes comme app-log-live.py v1.48.20261013.160500 »
+
+Détail des modifications :
+  - Assertion dans test_adresses_a_bannir_dans_le_sommaire_et_touche_b.
+
+Bugs corrigés :
+  - Aucun.
+
+Garde-fous et cas limites traités :
+  - Aucun.
+
+Vérifications effectuées :
+  - Suite complète.
+
+Action requise de ma part : aucune
+
+## 1.130.20261013.153600 — Tests de odoo-warmup.py et de la question du courriel
+
+Motif de la demande :
+  « Lorsque j'exécute nginx-hardening.sh --update, il faut demander si je veux faire le setup SMTP, Oui ou NON (par défaut, parce que je ne peux faire le setup actuellement) » ; « [1] charger plusieurs URL populaires après un redémarrage d'Odoo »
+
+Détail des modifications :
+  - test_odoo_warmup.py (faux serveur Odoo : 8 tests) ; test_etape0d_question_oui_non_reponse_non_par_defaut ; programme ajouté aux listes de test_conventions, test_i18n, test_config_defaut, run-all.sh.
+
+Bugs corrigés :
+  - Aucun.
+
+Garde-fous et cas limites traités :
+  - Aucun.
+
+Vérifications effectuées :
+  - Suite complète.
+
+Action requise de ma part : aucune
+
+## 1.129.20261013.160500 — Test des requêtes lentes à cache froid
+
+Motif de la demande :
+  Alerte santé du 14:47 : 14 requêtes lentes, 100 % Python, SQL à 0 s, attente disque 0 % (assets_frontend_lazy.min.js 7,9 s, get_views 8 s, pages /track 10,8 s), sept dans la même minute.
+
+Détail des modifications :
+  - test_requetes_lentes_assets_et_vues_cache_a_froid.
+
+Bugs corrigés :
+  - Aucun.
+
+Garde-fous et cas limites traités :
+  - Aucun.
+
+Vérifications effectuées :
+  - Suite complète.
+
+Action requise de ma part : aucune
+
+## 1.128.20261013.153500 — Test du journal d'un lancement filtré
+
+Motif de la demande :
+  « L'option --watch ne filtre pas, elle affiche tout. Est-ce que je peux exécuter plusieurs fois le programme, est-ce qu'il y a des fichiers temporaires qui vont être écrasés ? »
+
+Détail des modifications :
+  - test_lancement_filtre_a_son_propre_journal_quotidien.
+
+Bugs corrigés :
+  - Aucun.
+
+Garde-fous et cas limites traités :
+  - Aucun.
+
+Vérifications effectuées :
+  - Suite complète.
+
+Action requise de ma part : aucune
+
+## 1.127.20261013.150500 — Test des questions du courriel avec sortie redirigée
+
+Motif de la demande :
+  « Pose la question pour faire le setup de l'envoi de courriel » (le setup affichait « SMTP server (relay) » sans que les questions soient clairement posées).
+
+Détail des modifications :
+  - test_etape0d_questions_posees_meme_si_la_sortie_est_redirigee.
+
+Bugs corrigés :
+  - Aucun.
+
+Garde-fous et cas limites traités :
+  - Aucun.
+
+Vérifications effectuées :
+  - Suite complète.
+
+Action requise de ma part : aucune
+
+## 1.126.20261013.143500 — Test de l'attente disque et du type de disques
+
+Motif de la demande :
+  « Est-ce que les délais de Python seraient reliés à ce que j'ai des disques SATA moins rapides que les SSD ? Rajouter les délais ou % reliés au I/O. »
+
+Détail des modifications :
+  - test_attente_disque_et_type_de_disques_dans_l_etat_du_serveur.
+
+Bugs corrigés :
+  - Aucun.
+
+Garde-fous et cas limites traités :
+  - Aucun.
+
+Vérifications effectuées :
+  - Suite complète.
+
+Action requise de ma part : aucune
+
+## 1.125.20261013.141500 — Tests de --watch (pages, sondages) et des requêtes lentes en Python
+
+Motif de la demande :
+  « [3] Est-ce possible de savoir pourquoi Python prend trop de temps (5 à 10 s) pour une requête ? [4] Est-ce la config d'Odoo, trop de modules, le nombre d'addons ? [5] Plus de stats sur l'accès à certaines pages web liées à notre événement annuel (JPOL) et à ses sondages associés par tickets. »
+
+Détail des modifications :
+  - test_watch_pages_visiteurs_et_sondages_par_billet et test_requete_lente_tout_en_python_indique_l_etat_du_serveur.
+  - test_courriel : test_piece_jointe… décode le message avec le module email (quopri prenait parfois « =86 » d'une frontière MIME pour un octet : échec aléatoire).
+
+Bugs corrigés :
+  - Aucun.
+
+Garde-fous et cas limites traités :
+  - Aucun.
+
+Vérifications effectuées :
+  - Suite complète.
+
+Action requise de ma part : aucune
+
+## 1.124.20261013.123500 — Tests de l'étape 0e (changement de nom DNS)
+
+Motif de la demande :
+  « Il faudrait avoir une option dans le setup afin de faire les fichiers de config (NGINX et Let's Encrypt) lorsque l'on change de nom du DNS : de odoo-lab.rencontres-linux.quebec à odoo.rencontres-linux.quebec ».
+
+Détail des modifications :
+  - test_etape0e_changement_de_nom_dns et test_etape0e_certificat_existant_refus_de_nginx_et_echec_de_certbot.
+
+Bugs corrigés :
+  - Aucun.
+
+Garde-fous et cas limites traités :
+  - Aucun.
+
+Vérifications effectuées :
+  - Suite complète.
+
+Action requise de ma part : aucune
+
+## 1.123.20261013.121500 — Test du diagnostic du certificat SSL
+
+Motif de la demande :
+  « Le diagnostic ne donne aucune erreur, mais le navigateur affiche ERR_CERT_AUTHORITY_INVALID (HSTS) pour odoo.rencontres-linux.quebec » : le diagnostic ne vérifiait pas le certificat SSL et ne testait que les noms présents dans le nginx du serveur.
+
+Détail des modifications :
+  - test_diagnostic_du_certificat_comme_un_navigateur.
+
+Bugs corrigés :
+  - Aucun.
+
+Garde-fous et cas limites traités :
+  - Aucun.
+
+Vérifications effectuées :
+  - Suite complète.
+
+Action requise de ma part : aucune
+
+## 1.122.20261013.112000 — Test de l'URL avec guillemets
+
+Motif de la demande :
+  « L'alignement n'est pas OK » (ligne d'un robot dont l'URL contient des guillemets : le bloc des chiffres restait après la requête, brut, et le nom n'était pas aligné).
+
+Détail des modifications :
+  - test_url_avec_guillemets_reste_alignee.
+
+Bugs corrigés :
+  - Aucun.
+
+Garde-fous et cas limites traités :
+  - Aucun.
+
+Vérifications effectuées :
+  - Suite complète.
+
+Action requise de ma part : aucune
+
+## 1.121.20261013.105200 — Tests de la touche b et des recommandations conservées
+
+Motif de la demande :
+  « Dans app-log-live.py, s'il affiche déjà des adresses à bannir, ne pas faire « Mise à jour des recommandations de web-monitor.py » ; le faire seulement s'il n'y en a pas. app-log-live.py annonçait 2 adresses à bannir (11.0.67.32 et 11.35.176.5 (web-monitor)) et web-monitor.py seulement une : pourquoi ? »
+
+Détail des modifications :
+  - Test de la touche b (faux web-monitor.py) et test de fusion des recommandations.
+
+Bugs corrigés :
+  - Aucun.
+
+Garde-fous et cas limites traités :
+  - Aucun.
+
+Vérifications effectuées :
+  - Suite complète.
+
+Action requise de ma part : aucune
+
+## 1.120.20261013.103000 — --install-missing ; tests du courriel
+
+Motif de la demande :
+  « [1] Installer les logiciels manquants au setup (ShellCheck ignoré dans run-all.sh). [2] Dans le menu d'aide, afficher la version (avec la date). [3] Que les programmes Python et Bash puissent envoyer des courriels : installer les logiciels, configurer Linux pour l'envoi ; le setup demande UNE fois le serveur SMTP, le port, l'utilisateur, le chiffrement (STARTTLS), demande le mot de passe, sauvegarde dans /etc/default, convertit les pièces jointes de plus de 100 Mo en liens, indique exactement quoi mettre dans le DNS, sans sauvegarder de données importantes. »
+
+Détail des modifications :
+  - Option --install-missing (clé INSTALL_MISSING) : installe ShellCheck (apt-get) et ruff (apt-get ou pip) absents, en root ; les messages d'ignorance des étapes 2 et 3 la mentionnent.
+  - apps/_courriel.py ajouté aux fichiers attendus ; fichiers de courriel ajoutés à la sentinelle des configurations réelles.
+  - Nouveaux tests : test_courriel, étape 0d, SPF exact, configuration commune, menu avec version.
+
+Bugs corrigés :
+  - Aucun.
+
+Garde-fous et cas limites traités :
+  - Sans root : message clair, aucune installation tentée.
+
+Vérifications effectuées :
+  - Suite complète.
+
+Action requise de ma part : aucune
+
+## 1.119.20261013.100000 — Tests des amonts nginx, de l'IP externe et de l'alignement websocket
+
+Motif de la demande :
+  « [2] Dans app-log-live.py, si l'IP externe change, l'afficher (curl ifconfig.me) et indiquer qu'il faut changer les fichiers de config dans /etc/default. [3] Il faut détecter (dans le programme de setup) que le port de la config nginx (10000, /etc/nginx/sites-enabled/30-rencontres-linux-quebec-lab.conf) n'est pas celui d'Odoo ; selon la config d'Odoo, il faudrait changer la config nginx. [4] Aligner les valeurs de longpolling dans les colonnes. »
+
+Détail des modifications :
+  - Nouveaux tests dans test_nginx_hardening et test_app_log_live ; test d'alignement websocket mis à jour.
+
+Bugs corrigés :
+  - Aucun.
+
+Garde-fous et cas limites traités :
+  - Aucun.
+
+Vérifications effectuées :
+  - Suite complète.
+
+Action requise de ma part : aucune
+
+## 1.118.20261013.091500 — Tests du diagnostic, de BBB et de Ctrl-C
+
+Motif de la demande :
+  « [1] Sur un serveur BigBlueButton, tout ce qui a rapport à un CMS doit être suspect. [2] Page de maintenance toujours affichée sur le site Odoo malgré le redémarrage d'Odoo : pourquoi, quel programme l'indique, que faire ; ajouter au menu un diagnostic pour vérifier que tout est OK. HSTS : « Quoi faire » resté en français. [3] Ctrl-C deux fois : le programme ne sort pas proprement (trace d'appels). »
+
+Détail des modifications :
+  - Nouveaux tests dans test_app_log_live.
+
+Bugs corrigés :
+  - Aucun.
+
+Garde-fous et cas limites traités :
+  - Aucun.
+
+Vérifications effectuées :
+  - Suite complète.
+
+Action requise de ma part : aucune
+
+## 1.117.20261013.084000 — Tests CMS, log_format, base64, traduction
+
+Motif de la demande :
+  « [1] Les URL suspectes dépendent du CMS : sous WordPress elles ne sont pas suspectes, seulement sur un site Odoo seul. [2] Recommandation « 1158 refus 403 » : règles de refus parasites et texte moitié anglais, moitié français. [3] app-health-check : ne pas afficher une image en base64 (lignes très longues) dans les tracebacks. »
+
+Détail des modifications :
+  - Nouveaux tests : test_app_log_live, test_web_monitor, test_app_log_check, test_i18n.
+
+Bugs corrigés :
+  - Aucun.
+
+Garde-fous et cas limites traités :
+  - Aucun.
+
+Vérifications effectuées :
+  - Suite complète.
+
+Action requise de ma part : aucune
+
+## 1.116.20261013.081500 — Tests des sondes, du balayage de 404, de la touche b et de --sent
+
+Motif de la demande :
+  « [3] Pourquoi l'adresse 11.147.56.30 (un POST sur /en_CA et plusieurs 404) n'est pas encore bannie ? [4] Avec la touche b : « aucune adresse à bannir », alors que web-monitor.py en trouve une (11.154.8.18) : que faire sans lancer un autre programme à la main ? »
+
+Détail des modifications :
+  - Nouveaux tests dans test_app_log_live et test_odoo_mail_retry.
+
+Bugs corrigés :
+  - Aucun.
+
+Garde-fous et cas limites traités :
+  - Aucun.
+
+Vérifications effectuées :
+  - Suite complète.
+
+Action requise de ma part : aucune
+
+## 1.115.20261012.231200 — Tests des pages 404, de l'espace disque et du site lab
+
+Motif de la demande :
+  « Option 404, installation du paquet de persistance, site lab, espace disque. »
+
+Détail des modifications :
+  - test_app_log_live : test_option_pages_introuvables_404, test_avertissement_espace_disque_des_journaux.
+  - test_nginx_log_audit : test_ban_installe_iptables_persistent_s_il_manque, test_environnement_lab_detecte.
+  - test_odoo_conf : page de maintenance depuis /etc/nginx/maintenance, iptables-persistent à l'étape 5.
+
+Bugs corrigés :
+  - Aucun.
+
+Garde-fous et cas limites traités :
+  - Installation de paquets simulée (apt-get factice) ; test d'installation ignoré hors root.
+
+Vérifications effectuées :
+  - Suite complète.
+
+Action requise de ma part : aucune
+
+## 1.114.20261012.220800 — Tests de l'alignement, de la période et de la mise en place
+
+Motif de la demande :
+  « Alignement des messages d'Odoo, période des statistiques, fuseau horaire, logrotate, cache nginx. »
+
+Détail des modifications :
+  - test_app_log_live : test_messages_d_odoo_alignes_sur_le_get_des_requetes, période dans le résumé ; tests existants adaptés à la nouvelle colonne.
+  - test_odoo_conf : classe MiseEnPlace (fuseau horaire, dossier de cache nginx, logrotate, sortie anglaise sans français).
+
+Bugs corrigés :
+  - Aucun.
+
+Garde-fous et cas limites traités :
+  - timedatectl, nginx, logrotate et install simulés ; chemins système redirigés vers le répertoire du test.
+
+Vérifications effectuées :
+  - Suite complète.
+
+Action requise de ma part : aucune
+
+## 1.113.20261012.213000 — Tests du service d'après db_user et des programmes manquants
+
+Motif de la demande :
+  « Installer les programmes qui manquent ; service basé sur db_user. »
+
+Détail des modifications :
+  - test_odoo_conf.py : test_service_deduit_de_db_user_et_du_nom_du_fichier, test_service_odoo_trouve_par_db_user, test_programme_manquant_installe_par_update_seulement.
+
+Bugs corrigés :
+  - Aucun.
+
+Garde-fous et cas limites traités :
+  - apt-get simulé ; rien n'est installé pour de vrai.
+
+Vérifications effectuées :
+  - Suite complète.
+
+Action requise de ma part : aucune
+
+## 1.112.20261012.195500 — Tests de la détection de la configuration d'Odoo
+
+Motif de la demande :
+  « Détecter le fichier de config d'Odoo, en déduire l'application, les ports et le journal. »
+
+Détail des modifications :
+  - Nouveau test_odoo_conf.py ; ajouts dans test_nginx_hardening (ports, 11b, jail), test_app_log_live (logfile), test_multi_app.
+
+Bugs corrigés :
+  - Aucun.
+
+Garde-fous et cas limites traités :
+  - Environnement isolé (APP_DETECT_ROOT, NGINX_TOOLS_ETC_DEFAULT).
+
+Vérifications effectuées :
+  - Suite complète.
+
+Action requise de ma part : aucune
+
+## 1.111.20261012.183000 — Tests des messages anglais et des causes de lenteur
+
+Motif de la demande :
+  « Messages en français avec --lang en ; test_saisie sans ENVIRONNEMENT ; causes des requêtes lentes. »
+
+Détail des modifications :
+  - test_saisie.py : ENVIRONNEMENT = "commun". test_i18n : couleurs et fragment le plus long. test_app_log_live : démarrage en anglais, causes des requêtes lentes.
+
+Bugs corrigés :
+  - test_chaque_module_declare_son_environnement échouait pour test_saisie (ligne ENVIRONNEMENT absente).
+
+Garde-fous et cas limites traités :
+  - Aucun.
+
+Vérifications effectuées :
+  - Voir ci-dessous (suite complète).
+
+Action requise de ma part : aucune
+
+## 1.110.20261012.164500 — Saisie avec effacement, tests de la coupure par défaut
+
+Motif de la demande :
+  « Assure-toi que tous les programmes où l'on peut entrer de l'info puissent effacer. »
+
+Détail des modifications :
+  - run-all.sh : read -e -r -p (^H efface). Nouveau test_saisie.py. Tests app-log-live adaptés (coupure à 45 par défaut).
+
+Bugs corrigés :
+  - ^H affiché au lieu d'effacer dans les questions de run-all.sh.
+
+Garde-fous et cas limites traités :
+  - Aucun.
+
+Vérifications effectuées :
+  - ShellCheck ; test_saisie, test_app_log_live, test_web_monitor, test_i18n (185 + 4 tests OK).
+
+Action requise de ma part : aucune
+
+## 1.109.20261012.103600 — Fichier de configuration créé au premier démarrage
+
+Motif de la demande :
+  « Il faudrait que tu crées les fichiers de config par défaut lorsqu'ils n'existent pas au démarrage. Rajoute en commentaire toutes les options que l'on peut avoir avec chacun des programmes. »
+
+Détail des modifications :
+  - run-all.sh crée /etc/default/run-all.conf (ou ~/.run-all.cfg) au premier démarrage, copie de doc/run-all.conf.example (CFG_DOSSIER_DOC) ; les programmes testés, eux, ne créent rien (NGINX_TOOLS_CONFIG_CREER=0 exporté).
+  - doc/run-all.conf.example : options de la ligne de commande seulement ajoutées.
+  - Nouveau test_config_defaut.py ; helpers.py : NGINX_TOOLS_CONFIG_CREER=0 par défaut dans les tests.
+
+Bugs corrigés :
+  - Aucun.
+
+Garde-fous et cas limites traités :
+  - Les tests ne créent jamais de fichier dans le vrai /etc/default ni dans le vrai répertoire personnel.
+
+Vérifications effectuées :
+  - ShellCheck, suite complète.
+
+Action requise de ma part :
+  Aucune.
+
+## 1.108.20261012.094953 — Isolation de l'état de web-monitor et tests d'alignement
+
+Motif de la demande :
+  « Il y a des erreurs dans les tests » (test_a_bannir_jamais_le_serveur_lui_meme sur le serveur) et alignement des chiffres du sommaire.
+
+Détail des modifications :
+  - helpers.py : WEB_MONITOR_STATE_DIR pointe vers un dossier temporaire vide pour tout le processus de test.
+  - test_web_monitor.py : test_sommaire_chiffres_alignes_a_droite_avec_les_pourcentages_a_part ; test_i18n.py : test_colonnes_alignees_apres_traduction.
+
+Bugs corrigés :
+  - Symptôme : sur le serveur, la liste des adresses à bannir contenait une adresse en trop (11.44.15.229). Diagnostic : le test lisait le VRAI /var/lib/web-monitor/recommended-bans.json (recommandations réelles de web-monitor.py), absent de la machine de développement. Correction : état isolé dans les tests.
+
+Garde-fous et cas limites traités :
+  - Un test qui veut un état précis donne son propre WEB_MONITOR_STATE_DIR.
+
+Vérifications effectuées :
+  - Suite complète sous mawk.
+
+Action requise de ma part :
+  Aucune.
+
+## 1.107.20261012.084701 — Tests de app-log-live.py 1.29
+
+Motif de la demande :
+  Expliquer pourquoi la touche b ne propose aucune adresse malgré les recommandations de web-monitor.py.
+
+Détail des modifications :
+  - test_app_log_live.py : test_diagnostic_des_recommandations_de_web_monitor.
+
+Bugs corrigés :
+  - Aucun.
+
+Garde-fous et cas limites traités :
+  - Fichier absent, trop ancien, adresses écartées.
+
+Vérifications effectuées :
+  - Suite complète sous mawk.
+
+Action requise de ma part :
+  Aucune.
+
+## 1.106.20261011.231758 — Tests de app-log-live.py 1.28
+
+Motif de la demande :
+  Tableau de bord à 9 niveaux de détail (touches 1 à 9, --level).
+
+Détail des modifications :
+  - test_app_log_live.py : test_niveaux_du_tableau_de_bord_de_1_a_9 (contenu croissant par niveau), test_option_level_et_touches_1_a_9 (--level invalide, touches en terminal) ; test de traduction anglaise étendu aux lignes de niveau.
+
+Bugs corrigés :
+  - Aucun.
+
+Garde-fous et cas limites traités :
+  - Le niveau 9 reste identique à l'ancien tableau de bord (aucune régression pour les tests existants).
+
+Vérifications effectuées :
+  - Suite complète sous mawk et gawk.
+
+Action requise de ma part :
+  Aucune.
+
+## 1.105.20261011.211500 — Tests de app-log-live.py 1.27
+
+Motif de la demande :
+  Livraison de app-log-live.py 1.27.
+
+Détail des modifications :
+  - Nouveaux tests : espace avant HTTP/1.1, tableau de bord entièrement traduit en anglais.
+
+Bugs corrigés :
+  Aucun.
+
+Garde-fous et cas limites traités :
+  - Aucun nouveau garde-fou dans run-all.sh lui-même.
+
+Vérifications effectuées :
+  - Suite complète sous mawk et gawk.
+
+Action requise de ma part :
+  Aucune.
+
+## 1.104.20261011.180500 — ShellCheck SC2317 sur run_all_nettoyer
+
+Motif de la demande :
+  « [FAILED] shellcheck run-all.sh : 6 signalement(s) … Command appears to be unreachable [SC2317] » (lignes 151-152).
+
+Détail des modifications :
+  - Directive « disable=SC2317,SC2329 » devant run_all_nettoyer.
+
+Bugs corrigés :
+  - Symptôme : 6 notes SC2317 sur le corps de la fonction. Diagnostic : un ShellCheck récent juge inatteignable une fonction appelée seulement indirectement (CTRL_C_NETTOYAGE, piège TERM). Correction : directive explicite.
+
+Garde-fous et cas limites traités :
+  - Aucun changement de comportement.
+
+Vérifications effectuées :
+  - ShellCheck local, test_conventions.
+
+Action requise de ma part :
+  Aucune.
+
+## 1.103.20261011.183500 — Tests des réseaux partagés
+
+Motif de la demande :
+  Livraison de nginx-hardening.sh 2.30 et de nginx-odoo-config 1.9.
+
+Détail des modifications :
+  - Nouveaux tests : étape 12b (test_nginx_hardening) et zones des réseaux partagés (test_config_nginx).
+
+Bugs corrigés :
+  Aucun.
+
+Garde-fous et cas limites traités :
+  - Aucun nouveau garde-fou dans run-all.sh lui-même.
+
+Vérifications effectuées :
+  - Suite complète sous mawk et gawk.
+
+Action requise de ma part :
+  Aucune.
+
+## 1.102.20261011.172500 — Test de la section [11] : réseaux partagés
+
+Motif de la demande :
+  Plusieurs personnes derrière une même adresse (université) ne doivent déclencher aucune alerte.
+
+Détail des modifications :
+  - test_section11 : cas « 9 requêtes par seconde sans erreur » et « lieu partagé » ajoutés ; copie de nginx-odoo-config 1.8.
+
+Bugs corrigés :
+  Aucun.
+
+Garde-fous et cas limites traités :
+  - Aucun nouveau garde-fou dans run-all.sh lui-même.
+
+Vérifications effectuées :
+  - Suite complète sous mawk et gawk.
+
+Action requise de ma part :
+  Aucune.
+
+## 1.101.20261011.170500 — Tests de la section [11] et de la limite par cookie
+
+Motif de la demande :
+  Livraison de nginx-log-audit.sh 2.29 et de nginx-odoo-config 1.7.
+
+Détail des modifications :
+  - Nouveaux tests : section [11] (test_nginx_log_audit) et limite par cookie (test_config_nginx).
+  - Copie de nginx-odoo-config 1.7 dans nginx-tools-tests/nginx-odoo/.
+
+Bugs corrigés :
+  Aucun.
+
+Garde-fous et cas limites traités :
+  - Aucun nouveau garde-fou dans run-all.sh lui-même.
+
+Vérifications effectuées :
+  - Suite complète sous mawk et gawk.
+
+Action requise de ma part :
+  Déployer nginx-odoo-config 1.7 sur DEV : nginx -t, rechargement, puis surveiller les 429 dans le journal nginx.
+
+## 1.100.20261011.144500 — Ctrl+C avec confirmation, passe de tests isolée
+
+Motif de la demande :
+  « Le <Ctrl>+<c> doit toujours demander une confirmation avant de sortir des scripts ou programme. »
+
+Détail des modifications :
+  - Ctrl+C : « Interrompre le programme ? [o/N] » ; oui -> run_all_nettoyer arrête la passe de tests (son groupe de processus, par PID) puis run-all.sh ; non -> tout continue.
+  - La passe de tests unittest tourne dans sa propre session (setsid, sortie dans un fichier temporaire) : le Ctrl+C du terminal ne l'atteint pas, donc un « non » ne fausse aucun test.
+  - Nouveau module test_ctrl_c.py (10 tests en vrai terminal) ; helpers.run_pty répond automatiquement à la question de Ctrl+C (français et anglais) pour les tests existants.
+
+Bugs corrigés :
+  Aucun.
+
+Garde-fous et cas limites traités :
+  - Hors terminal interactif (cron, timer, tube, tests) : aucun gestionnaire, comportement inchangé.
+  - NGINX_TOOLS_CTRL_C=0 désactive la confirmation.
+  - Limite : le Ctrl+C du terminal part aussi aux commandes en cours (même groupe de processus) ; une commande courte lancée par le programme s'arrête quand même, le programme, lui, reprend après un « non ».
+  - Les commandes courtes de run-all (ShellCheck, ruff…) interrompues pendant la question s'arrêtent avec le terminal : leur étape peut s'afficher en échec après un « non ».
+
+Vérifications effectuées :
+  - test_ctrl_c (10 tests en vrai terminal : Python et bash, français et anglais, non / oui / second Ctrl+C / désactivation / hors terminal) ; tests existants de Ctrl+C (réponse automatique à la question dans helpers.run_pty) ; ShellCheck ; ruff ; suite complète sous mawk et gawk.
+
+Action requise de ma part :
+  Aucune.
+
+## 1.99.20261011.133251 — Test du rechargement de nginx (étape 12) et copie de nginx-odoo-config 1.6
+
+Motif de la demande :
+  Livraison de nginx-hardening.sh 2.28 et de env-dev.conf ouvert.
+
+Détail des modifications :
+  - test_nginx_hardening.py : test_etape12_recharge_si_les_fichiers_sont_plus_recents_que_la_configuration_chargee.
+  - nginx-odoo/ : copie testée de nginx-odoo-config 1.6.
+
+Bugs corrigés :
+  aucun.
+
+Garde-fous et cas limites traités :
+  - voir doc/nginx-hardening.changelog.txt.
+
+Vérifications effectuées :
+  - suite complète (mawk et gawk).
+
+Action requise de ma part :
+  aucune.
+
+## 1.98.20261011.093635 — Ctrl+C arrête la suite de tests
+
+Motif de la demande :
+  « Pour les tests, on ne peut les arrêter avec Ctrl+C. »
+
+Détail des modifications :
+  - trap INT/TERM : message « Interrompu (Ctrl+C) » puis sortie avec le code 130 (ni passe suivante, ni rapport partiel). Entrée ajoutée à lang/run-all.en.po.
+  - apps/_traduire.py 1.1 (livré avec nginx-tools 1.39) : cause principale en anglais.
+
+Bugs corrigés :
+  - Symptôme : Ctrl+C sans effet. Diagnostic : en anglais, le traducteur plaçait SIGINT sur « ignoré », réglage hérité par run-all.sh, Python et les tests ; en français, la passe suivante repartait après l'interruption d'une passe. Correction : gestionnaire dans le traducteur et trap dans run-all.sh.
+
+Garde-fous et cas limites traités :
+  - Le trap n'affiche pas le message « ARRÊT INATTENDU » (il sort avec 130 avant).
+
+Vérifications effectuées :
+  - SIGINT envoyé au groupe de processus 75 s après le lancement (passe des tests) : arrêt en moins d'une seconde, code 130, en français et en anglais.
+
+Action requise de ma part :
+  remplacer run-all.sh et apps/_traduire.py.
+
+## 1.97.20261010.225415 — Tests isolés de la langue du lancement
+
+Motif de la demande :
+  « On a maintenant des erreurs avec les tests » : 9 échecs (test_i18n, test_odoo_backup, test_web_monitor) quand run-all.sh est lancé avec un environnement anglais (LANG=en_CA…).
+
+Détail des modifications :
+  - lang/run-all.en.po : trois fragments ajoutés (« tests sous », « test(s) désactivé(s) », raison du test ignoré) : ces lignes restaient en français en anglais.
+  - helpers.py : retire NGINX_TOOLS_I18N, NGINX_TOOLS_I18N_LANGUE et NGINX_TOOLS_LANG de l'environnement dès l'import.
+
+Bugs corrigés :
+  - Symptôme : « Options: --lang en » au lieu de « --lang fr », « par ordre alphabétique » dans une aide attendue en anglais, flux non traduits. Diagnostic : lancé en anglais, run-all.sh passe par le traducteur, qui exporte NGINX_TOOLS_I18N=1 et NGINX_TOOLS_I18N_LANGUE=en ; les tests héritaient de ces variables, donc les programmes se croyaient déjà derrière le traducteur (aucune traduction) et affichaient la langue du lancement. Mes essais précédents étaient lancés en français : le défaut n'apparaissait pas. Correction : les tests partent d'un environnement sans ces variables.
+
+Garde-fous et cas limites traités :
+  - Les tests qui veulent l'anglais continuent de passer --lang en ; la langue du lancement ne change plus leur résultat.
+
+Vérifications effectuées :
+  - test_i18n, test_odoo_backup, test_web_monitor avec les variables du traducteur et LANG=en_CA.UTF-8 : 117 tests OK ; suite complète lancée avec --lang en.
+
+Action requise de ma part :
+  remplacer les fichiers de tests par ceux de nginx-tools-tests.1.97.zip.
+
+## 1.96.20261010.215000 — Affichage bilingue, fichier de configuration, tests i18n
+
+Motif de la demande :
+  « Il faudrait que tous les autres programmes soient bilingues. Dans les fichiers de config des programmes, il faudrait que certaines options soient définies aussi, dont la langue. »
+
+Détail des modifications :
+  - Affichage en français (langue du code, rien ne change) ou en anglais : --lang en|fr, variable RUN_ALL_LANG, clé LANGUAGE du fichier de configuration (auto = suivre l'environnement), NGINX_TOOLS_LANG (langue imposée à tous les outils), puis LC_ALL / LC_MESSAGES / LANG.
+  - Mécanisme bash : apps/_i18n.sh (fonction i18n_relancer, tout au début du programme) relance le programme derrière apps/_traduire.py, qui traduit sa sortie ligne par ligne (invites sans fin de ligne comprises, couleurs et largeur du terminal conservées, code de retour conservé). En français : aucun processus de plus.
+  - Catalogue lang/run-all.en.po (96 entrées, format PO standard : Poedit, Weblate, Crowdin…) ; ajouter une langue = ajouter lang/run-all.XX.po, sans toucher au code.
+  - Fichier de configuration : /etc/default/run-all.conf PUIS ~/.run-all.cfg (le dernier l'emporte), -c/--config FICHIER pour ce fichier SEUL, ligne de commande prioritaire. Clés : ALL_ENVIRONMENTS, APP, LANGUAGE, VERBOSE.
+  - Au départ, deux lignes : « Configuration lue : … » (quel(s) fichier(s) exactement) et « Options : … » (résumé des options importantes).
+  - Exemple documenté : doc/run-all.conf.example.
+  - Tests : test_i18n.py réécrit pour les catalogues PO (langue, PO multilignes / fuzzy, ajout d'une langue, catalogue complet de chaque programme Python et bash et des bibliothèques, aucun français dans les traductions, mécanisme apps/_traduire.py, apps/_i18n.sh, LANGUAGE du fichier de configuration de chaque programme) ; i18n_tools_sh.py (extraction des messages des programmes bash, y compris textes par défaut ${VAR:-texte} et aide tirée de l'en-tête) ; test_conventions.py (règle des configurations étendue à tous les programmes, exemple de configuration pour chacun) ; tests des programmes bash adaptés aux lignes « Configuration… / Options… » ; helpers.py (variables de langue à fr).
+  - Les programmes lancés par la suite (dont la sortie est analysée) restent en français (NGINX_TOOLS_LANG=fr) ; apps/_i18n.py, _i18n.sh, _config.py et _traduire.py ajoutés à la liste des fichiers attendus (étape 0).
+
+Bugs corrigés :
+  Aucun.
+
+Garde-fous et cas limites traités :
+  - Un message sans traduction reste en français (jamais d'erreur) ; une ligne à moitié traduite est rendue intacte ; langue inconnue : anglais (locale inconnue) ou français (aucune variable).
+  - Valeur invalide dans le fichier de configuration (entier ou oui/non attendu) : signalée par « ATTENTION : valeur de configuration ignorée », jamais fatale ; le fichier est lu, jamais exécuté.
+  - Les programmes qui analysent la sortie d'un autre lui imposent le français (NGINX_TOOLS_LANG=fr) : l'analyse ne dépend pas de la langue d'affichage.
+
+Vérifications effectuées :
+  - test_i18n.py (choix de la langue, lecture PO, catalogue complet de chaque programme, aucune traduction avec du français, aide identique par --lang en et par LANGUAGE=en du fichier de configuration) ; module de test du programme ; ruff, ShellCheck ; suite complète sous mawk et gawk.
+
+Action requise de ma part :
+  déployer run-all.sh 1.96 avec apps/_i18n.py, apps/_config.py, apps/_i18n.sh, apps/_traduire.py et le dossier lang/ ; essayer run-all.sh --lang en --help, puis mettre LANGUAGE=en dans /etc/default/run-all.conf.
+
+## 1.95.20261010.200936 — Tests : web-monitor.py 2.47 et apps/_i18n.py
+
+Motif de la demande :
+  Voir web-monitor.py 2.47 (affichage en français ou en anglais).
+
+Détail des modifications :
+  - Nouveau module test_i18n.py : choix de la langue, traducteur, catalogues lang/*.tsv complets (chaque message du programme y figure) et sans français dans les traductions, options en anglais.
+  - test_web_monitor.py : --lang=en (aide, tableau, statut, erreurs), variables d'environnement, clés de --sort anglaises et synonymes français, tableau numéroté (colonnes plafonnées).
+  - helpers.py : WEB_MONITOR_LANG=fr dans l'environnement des tests (les tests vérifient les messages français) ; prepare() copie aussi le dossier lang/.
+
+Garde-fous et cas limites traités :
+  - Un message ajouté à web-monitor.py sans traduction fait échouer test_catalogue_couvre_tous_les_messages_de_web_monitor (la liste des lignes manquantes est affichée).
+
+Vérifications effectuées :
+  - Suite complète sous mawk et gawk.
+
+Action requise de ma part :
+  aucune.
+
+## 1.94.20261010.173057 — Tests : web-monitor.py 2.46
+
+Motif de la demande :
+  Voir web-monitor.py 2.46.
+
+Détail des modifications :
+  - test_web_monitor.py : largeurs de colonnes 5 à 30, journaux lus affichés, nouveau test du fuseau « -04:00 » / « Z ».
+
+Vérifications effectuées :
+  - Suite complète sous mawk et gawk.
+
+Action requise de ma part :
+  aucune.
+
+## 1.93.20261010.164501 — Tests : app-log-live.py 1.24
+
+Motif de la demande :
+  Voir app-log-live.py 1.24 (touche b) ; enquête sur « la suite de tests a MODIFIÉ /etc/default/nginx-hardening.conf ».
+
+Détail des modifications :
+  - helpers.py : WEB_MONITOR_STATE_DIR isolé ; nouveau test des adresses recommandées.
+
+Garde-fous et cas limites traités :
+  - Enquête « MODIFIÉ /etc/default/nginx-hardening.conf » : strace de toute la suite (openat/rename/unlink) = aucune écriture dans le vrai /etc/default ; tous les tests qui lancent nginx-hardening.sh substituent /etc/default/. Cause probable : nginx-hardening.sh --update lancé en parallèle. Le message de la sentinelle le dit maintenant.
+
+Vérifications effectuées :
+  - Suite complète sous mawk et gawk.
+
+Action requise de ma part :
+  aucune.
+
+## 1.92.20261010.143016 — Tests : web-monitor.py 2.45
+
+Motif de la demande :
+  Voir web-monitor.py 2.45.
+
+Détail des modifications :
+  - test_web_monitor.py : --list-users --table (largeur des colonnes, troncature, minutes) et --sort / --reverse.
+
+Bugs corrigés :
+  - Aucun.
+
+Garde-fous et cas limites traités :
+  - Aucun changement de la logique de run-all.sh.
+
+Vérifications effectuées :
+  - Suite complète sous mawk et gawk.
+
+Action requise de ma part (ou « aucune ») :
+  aucune
+
+
+## 1.91.20261009.230224 — Tests : app-log-live.py 1.23
+
+Motif de la demande :
+  Voir app-log-live.py 1.23.
+
+Détail des modifications :
+  - test_app_log_live.py : touche I avec sondage (complété, absent, événement sans sondage) ; requête et analyse de inscriptions_avec_sondage.
+
+Bugs corrigés :
+  - Aucun.
+
+Garde-fous et cas limites traités :
+  - Aucun changement de la logique de run-all.sh.
+
+Vérifications effectuées :
+  - Suite complète sous mawk et gawk.
+
+Action requise de ma part (ou « aucune ») :
+  aucune
+
+
+## 1.90.20261009.170830 — Tests : nginx-hardening.sh 2.26
+
+Motif de la demande :
+  Voir nginx-hardening.sh 2.26.
+
+Détail des modifications :
+  - test_nginx_hardening.py : marche à suivre odoo-auth (test sur texte, avertissement ignoreip).
+
+Bugs corrigés :
+  - Aucun.
+
+Garde-fous et cas limites traités :
+  - Aucun changement de la logique de run-all.sh.
+
+Vérifications effectuées :
+  - Suite complète sous mawk et gawk.
+
+Action requise de ma part (ou « aucune ») :
+  aucune
+
+
+## 1.89.20261009.153721 — Tests : app-log-live.py 1.22
+
+Motif de la demande :
+  Voir app-log-live.py 1.22.
+
+Détail des modifications :
+  - test_app_log_live.py : images base64 résumées.
+
+Bugs corrigés :
+  - Aucun.
+
+Garde-fous et cas limites traités :
+  - Aucun changement de la logique de run-all.sh.
+
+Vérifications effectuées :
+  - Suite complète sous mawk et gawk.
+
+Action requise de ma part (ou « aucune ») :
+  aucune
+
+
+## 1.88.20261009.150500 — Tests : app-log-live.py 1.21 et nginx-hardening.sh 2.25
+
+Motif de la demande :
+  Voir app-log-live.py 1.21 et nginx-hardening.sh 2.25.
+
+Détail des modifications :
+  - test_app_log_live.py : billet dans I ; adresses des courriels à renvoyer (tableau de bord) ; plafond de 10 lignes.
+  - test_nginx_hardening.py : étape 16 (quatre cas).
+
+Bugs corrigés :
+  - Aucun.
+
+Garde-fous et cas limites traités :
+  - Aucun changement de la logique de run-all.sh.
+
+Vérifications effectuées :
+  - Suite complète sous mawk et gawk.
+
+Action requise de ma part (ou « aucune ») :
+  aucune
+
+
+## 1.87.20261009.142644 — Tests : app-log-live.py 1.20 et nginx-odoo-config 1.5
+
+Motif de la demande :
+  Voir app-log-live.py 1.20.
+
+Détail des modifications :
+  - test_app_log_live.py : User-Agent du journal d'accès et robots, --watch.
+  - test_config_nginx.py : exception $remote_addr = $server_addr avant le refus 403.
+
+Bugs corrigés :
+  - Aucun.
+
+Garde-fous et cas limites traités :
+  - Pas de nginx ici : vérification de présence et d'ordre dans le fichier, nginx -t sur DEV.
+
+Vérifications effectuées :
+  - Suite complète sous mawk et gawk.
+
+Action requise de ma part (ou « aucune ») :
+  aucune
+
+## 1.86.20261009.114822 — Tests : app-log-live.py 1.19 et nginx-log-audit.sh 2.26
+
+Motif de la demande :
+  Voir app-log-live.py 1.19.
+
+Détail des modifications :
+  - test_app_log_live.py : proposition de bannissement (oui, sans réponse, verdict différent, une seule récidive, --no-ban-prompt).
+  - test_nginx_log_audit.py : --evidence.
+
+Bugs corrigés :
+  - Aucun.
+
+Garde-fous et cas limites traités :
+  - Aucune proposition hors des cas voulus.
+
+Vérifications effectuées :
+  - Suite complète sous mawk et gawk.
+
+Action requise de ma part (ou « aucune ») :
+  aucune
+
+## 1.85.20261009.112443 — Tests : app-log-live.py 1.18 et app-log-check.py 2.14
+
+Motif de la demande :
+  Voir app-log-live.py 1.18.
+
+Détail des modifications :
+  - helpers.py run_pty : répond automatiquement aux questions de fin de Ctrl-C (« Quitter ? » : o ; « Plus de détails ? » : Entrée) sauf si le test les attend lui-même.
+  - test_app_log_live.py : confirmation du Ctrl-C, détail des erreurs, version dans le sommaire ; test_app_log_check.py : --errors-only.
+
+Bugs corrigés :
+  - Aucun.
+
+Garde-fous et cas limites traités :
+  - Les anciens tests de Ctrl-C voient toujours le résumé.
+
+Vérifications effectuées :
+  - Suite complète sous mawk et gawk.
+
+Action requise de ma part (ou « aucune ») :
+  aucune
+
+## 1.84.20261009.105804 — Tests : app-log-live.py 1.17
+
+Motif de la demande :
+  Voir app-log-live.py 1.17.
+
+Détail des modifications :
+  - test_app_log_live.py : test_robots_et_vrais_visiteurs.
+
+Bugs corrigés :
+  - Aucun.
+
+Garde-fous et cas limites traités :
+  - Plan de site en 404, nom de robot, personne connue.
+
+Vérifications effectuées :
+  - Suite complète sous mawk et gawk.
+
+Action requise de ma part (ou « aucune ») :
+  aucune
+
+## 1.83.20261009.104326 — Fichiers résiduels : proposition de les effacer
+
+Motif de la demande :
+  « Il faudrait demander pour effacer les anciens fichiers sinon les tests échouent (sortir du programme sinon) ».
+
+Détail des modifications :
+  - Étape 0 : après la liste des fichiers résiduels d'anciennes versions (apps/team-ips.list, team-ips-geo.conf, team-ips-allow.conf), la question « Effacer ce(s) N fichier(s) maintenant ? [o/N] » ;
+    « o » : effacés, la suite continue ; toute autre réponse, ou aucun terminal (stdin non interactif, --report-err) : message [ARRÊT] et sortie avec le code 1.
+  - test_nginx_hardening.py : test de l'étape 15 du setup 2.24.
+
+Bugs corrigés :
+  - Symptôme : 3 échecs de tests (test_listes, test_locks, test_multi_app) après avoir seulement affiché un [ATTN] pour apps/team-ips.list.
+    Diagnostic : le fichier résiduel d'une ancienne archive faisait échouer des tests sans défaut du code. Correction : question, puis arrêt si refus.
+
+Garde-fous et cas limites traités :
+  - Jamais d'effacement sans réponse positive explicite ; seuls les fichiers nommés dans la liste sont touchés.
+
+Vérifications effectuées :
+  - Essais réels : sans terminal (arrêt, code 1, fichier conservé) et avec pseudo-terminal répondant « o » (fichier effacé) ; suite complète sous mawk et gawk.
+
+Action requise de ma part (ou « aucune ») :
+  aucune
+
+## 1.82.20261009.085618 — Tests : app-log-live.py 1.16
+
+Motif de la demande :
+  Voir app-log-live.py 1.16.
+
+Détail des modifications :
+  - test_app_log_live.py : test_sondes_locales_et_urls_raccourcies_au_milieu.
+
+Bugs corrigés :
+  - Aucun.
+
+Garde-fous et cas limites traités :
+  - Sonde locale exclue des suspects ; URL courte inchangée.
+
+Vérifications effectuées :
+  - Suite complète sous mawk et gawk.
+
+Action requise de ma part (ou « aucune ») :
+  aucune
+
+## 1.81.20261008.235744 — Tests : app-log-live.py 1.15
+
+Motif de la demande :
+  Voir app-log-live.py 1.15.
+
+Détail des modifications :
+  - test_app_log_live.py : test_a_bannir_jamais_le_serveur_lui_meme.
+
+Bugs corrigés :
+  - Aucun.
+
+Garde-fous et cas limites traités :
+  - Bouclage IPv4 et IPv6, adresse du serveur.
+
+Vérifications effectuées :
+  - Suite complète sous mawk et gawk, ruff, ShellCheck.
+
+Action requise de ma part (ou « aucune ») :
+  aucune
+
+## 1.80.20261008.191922 — Tests : app-log-live.py 1.14
+
+Motif de la demande :
+  Voir app-log-live.py 1.14.
+
+Détail des modifications :
+  - test_app_log_live.py : statistiques des visites (calcul, nouvelle visite, différence de période) et ligne dans Ctrl-G.
+
+Bugs corrigés :
+  - Aucun.
+
+Garde-fous et cas limites traités :
+  - Fichiers, erreurs et requêtes suspectes exclus des pages vues.
+
+Vérifications effectuées :
+  - Suite complète sous mawk et gawk, ruff, ShellCheck.
+
+Action requise de ma part (ou « aucune ») :
+  aucune
+
+## 1.79.20261008.173412 — Tests : app-log-live.py 1.13
+
+Motif de la demande :
+  Voir app-log-live.py 1.13.
+
+Détail des modifications :
+  - test_app_log_live.py : exclusion d'adresses, groupe de contacts, bip (niveaux, tmux), rapport périodique, touches e, a, c, T.
+
+Bugs corrigés :
+  - Aucun.
+
+Garde-fous et cas limites traités :
+  - Faux psql, faux tmux : jamais le vrai serveur.
+
+Vérifications effectuées :
+  - Suite complète sous mawk et gawk, ruff, ShellCheck.
+
+Action requise de ma part (ou « aucune ») :
+  aucune
+
+## 1.78.20261008.124728 — Tests : app-log-live.py 1.12 et inclusions par nom exact
+
+Motif de la demande :
+  Voir app-log-live.py 1.12 et nginx-odoo-config 1.4.
+
+Détail des modifications :
+  - test_app_log_live.py : tri de la présence, comptes résumés, chiffres en couleur, menu des touches (pseudo-terminal), sondages et événements, bannissement, rapport.
+  - test_locks.py : inclusions de team-ips-geo.conf et team-ips-allow.conf par NOM EXACT.
+
+Bugs corrigés :
+  - Aucun.
+
+Garde-fous et cas limites traités :
+  - Le faux nginx-log-audit.sh du test n'est jamais le vrai ; PostgreSQL simulé.
+
+Vérifications effectuées :
+  - Suite complète sous mawk et gawk, ruff, ShellCheck.
+
+Action requise de ma part (ou « aucune ») :
+  aucune
+
+## 1.77.20261008.120306 — Test : couleurs avec --report-err
+
+Motif de la demande :
+  Voir nginx-hardening.sh 2.23.
+
+Détail des modifications :
+  - test_rapport.py : CouleursAvecReportErr (pseudo-terminal).
+
+Bugs corrigés :
+  - Aucun.
+
+Garde-fous et cas limites traités :
+  - Rapport copiable sans séquence ANSI ; sortie redirigée sans couleur.
+
+Vérifications effectuées :
+  - Suite complète sous mawk et gawk, ruff, ShellCheck.
+
+Action requise de ma part (ou « aucune ») :
+  aucune
+
+## 1.76.20261008.112757 — Tests : nginx-hardening.sh 2.22
+
+Motif de la demande :
+  Voir nginx-hardening.sh 2.22 (joker d'include sans fichier : nginx -t échoue).
+
+Détail des modifications :
+  - test_nginx_hardening.py : test_etape12_les_fichiers_existent_toujours ; test_locks.py : docstrings corrigées.
+
+Bugs corrigés :
+  - Aucun (hypothèse fausse dans les docstrings corrigée).
+
+Garde-fous et cas limites traités :
+  - --check n'écrit rien ; absence de liste blanche ; refus de nginx -t sans ancienne version.
+
+Vérifications effectuées :
+  - Suite complète sous mawk et gawk, ruff, ShellCheck.
+
+Action requise de ma part (ou « aucune ») :
+  aucune
+
+## 1.75.20261008.113500 — Tests : nginx-hardening.sh 2.21
+
+Motif de la demande :
+  Voir nginx-hardening.sh 2.21.
+
+Détail des modifications :
+  - test_nginx_hardening.py : message de nginx -t affiché et configuration « déjà invalide » détectée.
+
+Bugs corrigés :
+  Aucun.
+
+Garde-fous et cas limites traités :
+  - Voir nginx-hardening.sh 2.21.
+
+Vérifications effectuées :
+  - Suite complète sous mawk et gawk ; ShellCheck 0.11.0 ; ruff 0.16.9.
+
+Action requise de ma part (ou « aucune ») :
+  Aucune.
+
+## 1.74.20261008.103818 — Tests : app-log-live.py 1.11
+
+Motif de la demande :
+  Voir app-log-live.py 1.11.
+
+Détail des modifications :
+  - test_app_log_live.py : largeurs (45), présence en colonnes avec date, « Personne | Lieu » ; nouveaux : date ISO du websocket, légende et couleurs des chiffres, --dns-max / --dns-max-truncate, lieu et
+    personne, pays de l'équipe, tableau de bord par Ctrl-G / Ctrl-T dans un vrai pseudo-terminal, alerte de santé, journal quotidien.
+  - helpers.py : APP_LOG_LIVE_LOG_DIR=off par défaut (un test n'écrit jamais dans /var/log ni dans le répertoire personnel).
+
+Bugs corrigés :
+  Aucun.
+
+Garde-fous et cas limites traités :
+  - Les touches sont envoyées dans un VRAI pseudo-terminal (le programme ne les écoute que sur un terminal) ; durées d'attente par motif, pas de pause fixe.
+
+Vérifications effectuées :
+  - Suite complète sous mawk et gawk ; ShellCheck 0.11.0 ; ruff 0.16.9.
+
+Action requise de ma part (ou « aucune ») :
+  Aucune.
+
+## 1.73.20261008.084031 — Tests : isolation des vrais fichiers du serveur ; fichiers résiduels signalés ; app-log-live.py 1.10
+
+Motif de la demande :
+  [4] Sur le serveur, 8 échecs à l'étape 4 (sous mawk, gawk et BusyBox) : test_ancien_emplacement_en_bash, test_chaque_conf_de_apps_est_un_profil, etc. Voir aussi app-log-live.py 1.10.
+
+Détail des modifications :
+  - Diagnostic. Deux causes, aucune n'est un défaut du code livré :
+      a) FICHIERS RÉSIDUELS : une archive extraite par-dessus un ancien dossier n'en retire rien. apps/team-ips.list et nginx-tools-tests/nginx-odoo/snippets/team-ips-geo.conf / team-ips-allow.conf
+         (listes d'adresses, ne sont plus livrés depuis longtemps) restaient sur le serveur : test_chaque_conf_de_apps_est_un_profil et SourceUniqueEquipe les détectent à juste titre.
+      b) VRAIS FICHIERS DU SERVEUR : test_listes.py appelait apps/_listes.py et _listes.sh « sans surcharge » ; ils lisaient alors le vrai /etc/default/nginx-tools-white-list.conf et
+         nginx-tools-ip-location.conf (inexistants dans le bac à sable, présents sur un serveur configuré), d'où des résultats différents (8 adresses au lieu de 1…).
+  - test_listes.py : module() pointe BLANCHE_DEFAUT / LIEUX_DEFAUT vers un chemin absent (sauf le test qui vérifie les chemins par défaut eux-mêmes) ; listes_sh() fournit une copie de
+    _listes.sh dont les emplacements par défaut sont absents. Aucun test ne lit plus /etc/default.
+  - run-all.sh : après l'étape 0, avertissement [ATTN] listant les fichiers résiduels trouvés, avec la commande « rm -f … » exacte (jamais supprimés par la suite).
+  - test_app_log_live.py : largeurs (42, 18), ordre pays/adresse, double espace après GET, test_url_de_get_et_de_post_alignes.
+
+Bugs corrigés :
+  - Symptôme : échecs de test_listes / test_locks / test_multi_app sur un serveur réel seulement. Diagnostic : voir ci-dessus. Correction : isolation des tests (b) et avertissement explicite (a).
+
+Garde-fous et cas limites traités :
+  - Reproduit ici : liste blanche, lieux et ~/.nginx-tools-ip-location.cfg réels créés, suite relancée -> passe ; fichiers retirés ensuite.
+
+Vérifications effectuées :
+  - Suite complète sous mawk et gawk ; ShellCheck 0.11.0 ; ruff 0.16.9.
+
+Action requise de ma part (ou « aucune ») :
+  Sur le serveur, retirer les fichiers résiduels (la commande exacte est affichée par run-all.sh) :
+    rm -f apps/team-ips.list nginx-tools-tests/nginx-odoo/snippets/team-ips-geo.conf nginx-tools-tests/nginx-odoo/snippets/team-ips-allow.conf
+  Idéalement, extraire chaque archive dans un dossier VIDE ou retirer l'ancien dossier d'abord.
+
+## 1.72.20261007.232518 — Tests : couleurs explicites ; règle apple-touch-icon
+
+Motif de la demande :
+  Voir app-log-live.py 1.9 et nginx-odoo-config 1.2.
+
+Détail des modifications :
+  - test_app_log_live.py : séquences de la liste blanche et des lieux, test de style. test_config_nginx.py : classe IconeEcranDAccueil (4 tests).
+
+Bugs corrigés :
+  Aucun.
+
+Garde-fous et cas limites traités :
+  - Expression de la règle évaluée par Python (même syntaxe PCRE) : captée, jamais une pièce jointe ni une autre route ; aucune règle de refus ne la capte ; aucun proxy_set_header.
+
+Vérifications effectuées :
+  - Suite complète sous mawk et gawk ; ShellCheck 0.11.0 ; ruff 0.16.9. NON vérifié ici : nginx lui-même (absent du bac à sable) — nginx -t sur DEV d'abord.
+
+Action requise de ma part (ou « aucune ») :
+  Aucune.
+
+## 1.71.20261007.231352 — Tests : présentation compacte de app-log-live.py
+
+Motif de la demande :
+  Voir app-log-live.py 1.8.
+
+Détail des modifications :
+  - test_app_log_live.py : colonne sans crochets (19), « : » et « - - » retirés, largeur 38 ; test_presentation_compacte_sans_deux_points_crochets_ni_tirets ajouté.
+
+Bugs corrigés :
+  Aucun.
+
+Garde-fous et cas limites traités :
+  - Utilisateur HTTP réel conservé (BigBlueButton).
+
+Vérifications effectuées :
+  - Suite complète sous mawk et gawk ; ShellCheck 0.11.0 ; ruff 0.16.9.
+
+Action requise de ma part (ou « aucune ») :
+  Aucune.
+
+## 1.70.20261007.223004 — Tests : [banni], requêtes lentes, filtres et résumé de app-log-live.py
+
+Motif de la demande :
+  Voir app-log-live.py 1.7.
+
+Détail des modifications :
+  - test_app_log_live.py : 7 tests ajoutés ; setUp simule fail2ban-client et ipset (« illisibles » par défaut : jamais les vrais bannissements du serveur de test).
+
+Bugs corrigés :
+  - helpers.run_pty : lancée en arrière-plan (« & », nohup), la suite héritait de SIGINT IGNORÉ et le pseudo-terminal le transmettait aux programmes testés : un « Ctrl-C » envoyé par
+    un test ne faisait rien (le test échouait seulement dans ce mode de lancement). Diagnostic : reproduit avec un parent qui ignore SIGINT (échec avec l'ancien helper, succès avec le
+    nouveau). Correction : SIGINT remis par défaut dans l'enfant avant exec.
+
+Garde-fous et cas limites traités :
+  - Vrai Ctrl-C dans un pseudo-terminal avec un flux qui reste ouvert, quel que soit le mode de lancement de la suite.
+
+Vérifications effectuées :
+  - Suite complète sous mawk et gawk ; ShellCheck 0.11.0 ; ruff 0.16.9.
+
+Action requise de ma part (ou « aucune ») :
+  Aucune.
+
+## 1.69.20261007.221217 — Tests : alignement, requêtes suspectes et vidéo inverse de app-log-live.py
+
+Motif de la demande :
+  Voir app-log-live.py 1.6.
+
+Détail des modifications :
+  - test_app_log_live.py : 5 tests ajoutés ; 31 assertions adaptées à la colonne du nom sur 40 caractères.
+
+Bugs corrigés :
+  Aucun.
+
+Garde-fous et cas limites traités :
+  - Les tests de couleur utilisent un vrai pseudo-terminal ; dans un tube : aucune séquence.
+
+Vérifications effectuées :
+  - Suite complète sous mawk et gawk ; ShellCheck 0.11.0 ; ruff 0.16.9.
+
+Action requise de ma part (ou « aucune ») :
+  Aucune.
+
+## 1.68.20261007.200504 — Tests : destinataire dans le menu de odoo-mail-retry.py
+
+Motif de la demande :
+  Voir odoo-mail-retry.py 1.1.
+
+Détail des modifications :
+  - test_odoo_mail_retry.py : test_menu_un_par_un_dit_a_qui_est_destine_chaque_courriel.
+
+Bugs corrigés :
+  Aucun.
+
+Garde-fous et cas limites traités :
+  - Masquage par défaut, --details, plusieurs destinataires, aucun destinataire.
+
+Vérifications effectuées :
+  - Suite complète sous mawk et gawk ; ShellCheck 0.11.0 ; ruff 0.16.9.
+
+Action requise de ma part (ou « aucune ») :
+  Aucune.
+
+## 1.67.20261007.175327 — Tests : odoo-mail-retry.py
+
+Motif de la demande :
+  « Un programme qui indique la liste des courriels non envoyés et me propose de les renvoyer ; indique-moi le titre des courriels non envoyés. »
+
+Détail des modifications :
+  - Nouveau module test_odoo_mail_retry.py (17 tests : liste, titres, masquage, causes, menus t / l / c / aucun avec de vrais pseudo-terminaux, --resend --yes, avertissements, lecture seule et écriture gardée, configuration, plusieurs bases) ; odoo-mail-retry.py dans les listes de conventions et la vérification des fichiers.
+
+Bugs corrigés :
+  Voir apps/_odoo_db.py 1.3.
+
+Garde-fous et cas limites traités :
+  - PostgreSQL simulé (runuser) : il n'applique pas lui-même la garde « exception » mais la reproduit ; vérifiée séparément par le texte de la requête.
+
+Vérifications effectuées :
+  - Suite complète sous mawk et gawk ; ShellCheck 0.11.0 ; ruff 0.16.9.
+
+Action requise de ma part (ou « aucune ») :
+  Aucune.
+
+## 1.66.20261007.171721 — Tests : cache des adresses, courriels, 5 jours
+
+Motif de la demande :
+  [1] « Afin d'améliorer l'efficacité des programmes, créer un cache permanent qui conserve les informations sur toutes les IP (surtout pratique pour app-log-live.py). »
+  [4] « Faire ressortir dans un sommaire les erreurs d'Odoo : hier les gens n'ont pas reçu leur courriel d'inscription ; comprendre pourquoi et trouver une solution :
+  app-log-check.py » (MailDeliveryException : SMTPDataError 452 « Maximum number of messages per session exceeded », SMTPSenderRefused 503 « Multiple MAIL commands not
+  allowed », SMTPDataError 550 « You are not allowed to send emails as … (header From) while using … as envelope sender »).
+
+Détail des modifications :
+  - helpers.py : NGINX_TOOLS_IP_CACHE=off par défaut (jamais le vrai cache ; aucune réponse mémorisée ne fausse un test qui lance un programme plusieurs fois) ; sentinelle de run-all.sh sur
+    /var/lib/nginx-tools/ip-cache.sqlite ; vérification de apps/_cache_ip.py.
+  - Nouveau module test_cache_ip.py ; tests ajoutés dans test_app_log_live, test_app_log_check, test_web_monitor.
+
+Bugs corrigés :
+  - Un échec de test a révélé que mon contrôle « aucun mot de passe lu » se déclenchait sur le mot password de la requête d'exclusion des secrets : contrôle rendu précis.
+
+Garde-fous et cas limites traités :
+  - Les tests ne lisent ni n'écrivent jamais le vrai cache.
+
+Vérifications effectuées :
+  - Suite complète sous mawk et gawk ; ShellCheck 0.11.0 et ruff 0.16.9 (binaires fournis).
+
+Action requise de ma part (ou « aucune ») :
+  Aucune.
+
+## 1.65.20261007.093208 — Tests : listes d'adresses hors des archives
+
+Motif de la demande :
+  « Il faudrait sortir certains fichiers de configuration personnels reliés à mon setup des .ZIP puisque je veux mettre cela sur GITHUB. Par exemple la liste des
+  IP définies dans apps/team-ips.list : dans /etc/default, avec le début de nom « nginx-tools » (nginx-tools-white-list.conf…), et un autre fichier
+  nginx-tools-ip-location.conf pour indiquer le lieu d'une plage d'adresses (université : plusieurs personnes derrière la même adresse). » Décisions : tirets
+  partout ; liste blanche lue seulement dans /etc/default ; profils gardés avec surcharge facultative (phase C) ; syntaxe « # Lieu [partagée] [protégée] ».
+
+Détail des modifications :
+  - helpers.py : NGINX_TOOLS_WHITE_LIST et NGINX_TOOLS_IP_LOCATION isolés pour tout le processus (dossier temporaire vide), assistants liste_blanche() et lieux(), LISTE_EXEMPLE (adresses FICTIVES).
+  - Sentinelle de run-all.sh : /etc/default/nginx-tools-white-list.conf et nginx-tools-ip-location.conf ; vérification des fichiers apps/_listes.py et _listes.sh.
+  - Nouveau module test_listes.py ; tests adaptés (locks, multi_app, hardening, audit, sync-crowdsec, web-monitor, app-log-check, app-log-live) ; test_locks : plus de fichiers générés dans la configuration.
+  - nginx-odoo/ : copie testée identique à la configuration 1.1 (inclusions à joker, sans team-ips-*.conf).
+
+Bugs corrigés :
+  Aucun autre que ceux notés dans apps/_listes.
+
+Garde-fous et cas limites traités :
+  - Les tests ne lisent jamais les vrais fichiers de /etc/default.
+
+Vérifications effectuées :
+  - Suite complète sous mawk et gawk ; ShellCheck 0.11.0 et ruff 0.16.9 (binaires fournis).
+
+Action requise de ma part (ou « aucune ») :
+  Aucune.
+
+## 1.64.20261002.214327 — Tests : preuves, geoip-bin, en-têtes, rapport par heure
+
+Motif de la demande :
+  Retours d'essai : preuves de bannissement, geoip-bin, version en première ligne, rapport par heure.
+
+Détail des modifications :
+  - test_nginx_log_audit.py (preuves, récidiviste), test_nginx_hardening.py (étape 14), test_web_monitor.py (geoip-bin), test_app_log_live.py (rappel),
+    test_app_log_check.py (4 tests du rapport), test_conventions.py (classe EnTeteDeVersion : dix programmes), test_sync_crowdsec.py (deuxième ligne = date).
+  - helpers.py : apt-cache retiré du PATH des tests ; les tests de app-log-check contrôlent la liste d'équipe (apps/team-ips.list vide).
+  - Première ligne de TOUTE exécution, même --help, --changelog ou une option inconnue : « NOM vVERSION ». --version n'affiche que la version
+    (une seule ligne). Imprimée après le hook --report-err (qui relance le programme), donc une seule fois dans le rapport. Les anciennes lignes
+    qui répétaient « NOM vVERSION » plus loin sont retirées ou ne gardent que leurs informations propres.
+
+Bugs corrigés :
+  - test_export_puis_import… a révélé que l'en-tête s'écrivait dans la liste exportée (--export-bans) : version sur stderr pour ce mode.
+
+Garde-fous et cas limites traités :
+  - Plus de dépendance à la vraie liste d'équipe dans les tests d'app-log-check.
+
+Vérifications effectuées :
+  - Suite complète sous mawk et gawk ; ShellCheck 0.11.0 et ruff 0.16.9 (binaires fournis).
+
+Action requise de ma part (ou « aucune ») :
+  Aucune.
+
+## 1.63.20261002.201545 — Tests : app-log-check.py --by-hour
+
+Motif de la demande :
+  Nouveau rapport par heure et par jour.
+
+Détail des modifications :
+  - test_app_log_check.py : trois tests (table et pics, diagnostic de « Session expired », cas limites).
+
+Bugs corrigés :
+  Aucun.
+
+Garde-fous et cas limites traités :
+  - Journal « -o short-iso » reconstitué sur le modèle du journal réel (rafale de « Session expired » suivis de leur requête).
+
+Vérifications effectuées :
+  - Suite complète sous mawk et gawk ; ShellCheck 0.11.0 et ruff 0.16.9.
+
+Action requise de ma part (ou « aucune ») :
+  Aucune.
+
+## 1.62.20261002.165312 — Tests : retour arrière, adresses du sommaire, lecture --details, app-log-live 1.2
+
+Motif de la demande :
+  Retour d'essais : invites, adresses des comptes, « lecture de… », app-log-live (pays, nom après connexion, 127.0.0.1, erreurs de chat).
+
+Détail des modifications :
+  - test_web_monitor.py : retour arrière en pseudo-terminal (web-monitor.py et app-health-check.py, ^H et ^?, avec témoin sans readline) ;
+    adresses du sommaire (afficher_comptes).
+  - test_nginx_log_audit.py : « lecture de… » sans puis avec --details.
+  - test_app_log_live.py : pays, programme local, saturation des recherches lentes, rappel, conflit SQL ; la liste d'équipe est CONTRÔLÉE
+    (le test ne dépend plus de la vraie liste, où se trouve 11.97.88.180).
+  - helpers.py : geoiplookup retiré du PATH des tests.
+
+Bugs corrigés :
+  - Mon premier test des adresses visait --list-users, qui montre déjà toutes les adresses : il passait même sans correctif. Il vise maintenant
+    afficher_comptes (sommaire) et échoue sans le correctif (vérifié par mutation).
+
+Garde-fous et cas limites traités :
+  - Les tests ne dépendent plus de la liste d'équipe réelle.
+
+Vérifications effectuées :
+  - Suite complète sous mawk et gawk ; ShellCheck 0.11.0 et ruff 0.16.9 (binaires fournis).
+
+Action requise de ma part (ou « aucune ») :
+  Aucune.
+
+## 1.61.20261002.120134 — Tests : règle wp-admin, règle manquante, app-log-live 1.1, version de la configuration
+
+Motif de la demande :
+  Rapport d'odoo18 (wp-admin), nouvelles demandes sur app-log-live.py.
+
+Détail des modifications :
+  - test_config_nginx.py : classe RegleWordPress — wp-admin, wp-login et wp-includes refusés avec ou sans préfixe de langue, vraies routes
+    d'Odoo (tirées du journal) jamais refusées, expressions à accolades entre guillemets (nginx refuse « {2} » non protégé).
+  - test_web_monitor.py : règle manquante, règle partielle, règle livrée, nginx -T illisible.
+  - test_app_log_live.py réécrit (18 tests) ; test_zip_versions.py : version de la configuration.
+  - nginx-odoo/ : copie testée identique à la nouvelle configuration (règle wp-admin, VERSION, README).
+
+Bugs corrigés :
+  - Le test de syntaxe de la configuration a détecté une accolade non protégée dans la nouvelle règle (« {2} ») : nginx -t aurait refusé la
+    configuration. Corrigé avant livraison (expression entre guillemets).
+
+Garde-fous et cas limites traités :
+  - Le nouveau test de la règle WordPress échoue avec l'ancienne configuration (vérifié).
+
+Vérifications effectuées :
+  - Suite complète sous mawk et gawk ; ShellCheck 0.11.0 et ruff 0.16.9 (binaires fournis).
+
+Action requise de ma part (ou « aucune ») :
+  Aucune.
+
+## 1.60.20261002.073514 — Tests par environnement ; contrôles du serveur réel ; isolation
+
+Motif de la demande :
+  « Les scripts de test devraient vérifier si on est sur un serveur Odoo ou BBB afin de faire des tests dédiés à un environnement. Si
+  j'exécute des tests d'Odoo sur un serveur BBB, j'obtiens ces messages. » Échec du même test sur les trois awk d'un serveur Odoo.
+  Utiliser les deux binaires fournis (ShellCheck 0.11.0, ruff 0.16.9).
+
+Détail des modifications :
+  - Environnement détecté au départ (apps/_profile.py) ou forcé : --app NOM ; affiché en tête. Chaque module de test porte
+    « ENVIRONNEMENT = "commun" | "odoo" | "bbb" » ; seuls les modules communs et ceux de l'environnement tournent
+    (test_bbb : BigBlueButton ; test_config_nginx et test_odoo_backup : Odoo). --all-environments : tous. --list : l'environnement et
+    les modules retenus, sans rien exécuter. Serveur non reconnu : tous les modules.
+  - Étape 5 (configuration nginx-odoo) : sans objet sur BigBlueButton.
+  - Étape 6 (nouvelle) : contrôles du serveur RÉEL en lecture seule, hors verdict — BigBlueButton : apps/_bbb.py --summary ;
+    Odoo : app-health-check.py --target local.
+  - Sentinelle : le vrai instantané BBB (/var/lib/nginx-tools/bbb-state.json et .before) est surveillé comme les fichiers de configuration.
+  - helpers.py : /proc isolé pour TOUT le processus de test (dossier vide) ; test_bbb.py restaure os.environ.
+  - Nouveau module test_app_log_live.py ; tests --verbose (web-monitor, odoo-backup, hardening, audit, live) ; test_conventions.py :
+    étiquettes d'environnement et sélection ; nouveaux fichiers inscrits partout.
+
+Bugs corrigés :
+  - Symptôme : « test_recommandations_cas_bbb_prod » en échec sur un serveur Odoo (3 awk). Diagnostic : web-monitor.py lit
+    /proc pour savoir quand nginx a été rechargé ; sur un serveur où nginx tourne, le test dépendait de la vraie heure. Les tests
+    qui chargent web-monitor.py DANS le processus n'utilisaient pas self.env : isolation au niveau du processus. Vérifié avec un
+    faux /proc contenant des processus nginx : toute la classe passe (échouait avant).
+  - Symptôme : faux « DISPARU » sur bbb30 (voir apps/_bbb.py 1.1) : l'ancienne suite 1.52 lancée contre les nouveaux programmes
+    écrivait le vrai instantané. Nouveaux garde-fous dans _bbb.py et sentinelle ici.
+  - test_bbb.py ne restaurait pas os.environ (copie prise APRÈS les modifications) : corrigé.
+
+Garde-fous et cas limites traités :
+  - ShellCheck : 0 signalement (note SC2012 corrigée : plus de ls dans une substitution) ; fonction sans accent (controle_reel).
+
+Vérifications effectuées :
+  - Suite complète sous mawk, gawk et busybox ; ShellCheck 0.11.0 sur tous les scripts bash et ruff 0.16.9 sur tout le Python (binaires
+    fournis). Tests de non-régression vérifiés par mutation : ils échouent sans les correctifs.
+
+Action requise de ma part (ou « aucune ») :
+  Déployer, retirer de /home/utilisateur/scripts les anciens fichiers de la suite 1.52 (run-all.sh, test_*.py à la racine) puis lancer
+  nginx-tools-tests/run-all.sh ; « --list » pour voir l'environnement détecté.
+
+## 1.59.20261002.064915 — Tests : fournisseur d'accès, refus ACL, version des archives
+
+Motif de la demande :
+  nginx-log-audit.sh 2.19, app-log-check.py 2.8, zip-versions.py 1.3 ; archives livrées avec leur version dans le nom.
+
+Détail des modifications :
+  - Nouveaux tests dans test_nginx_log_audit.py, test_app_log_check.py, test_zip_versions.py.
+  - helpers.py : whois, psql et runuser retirés du PATH des tests (aucune requête réseau ni base réelle).
+  - Message de déploiement : nginx-tools.<version>.zip.
+
+Bugs corrigés :
+  Aucun.
+
+Garde-fous et cas limites traités :
+  - Aucun test n'interroge rdap.org ni PostgreSQL.
+
+Vérifications effectuées :
+  - Suite complète.
+
+Action requise de ma part (ou « aucune ») :
+  Aucune.
+
+## 1.58.20261001.202502 — Tests de zip-versions.py 1.2
+
+Motif de la demande :
+  zip-versions.py reconnaît toute archive (CHANGELOG, manifeste…) et vérifie la cohérence des archives de tests.
+
+Détail des modifications :
+  - test_zip_versions.py : deux nouveaux tests ; données du premier test rendues cohérentes (copie testée de la
+    configuration identique à nginx-odoo-config.zip, désormais vérifiée).
+
+Bugs corrigés :
+  Aucun.
+
+Garde-fous et cas limites traités :
+  - Archives créées dans le dossier temporaire du test.
+
+Vérifications effectuées :
+  - Suite complète.
+
+Action requise de ma part (ou « aucune ») :
+  Aucune.
+
+## 1.57.20261001.143624 — Composant apps/_bbb.py
+
+Motif de la demande :
+  État de BigBlueButton avant / après dans nginx-hardening.sh et web-monitor.py --summary.
+
+Détail des modifications :
+  - run-all.sh : apps/_bbb.py dans les fichiers attendus.
+  - helpers.py : dpkg, dpkg-query et docker retirés du PATH des tests ; chemins de apps/_bbb.py (instantané, /etc de BBB,
+    nginx, HAProxy, fail2ban) redirigés vers le dossier du test ; port des essais HTTP sans service.
+  - Nouveau module test_bbb.py.
+
+Bugs corrigés :
+  Aucun.
+
+Garde-fous et cas limites traités :
+  - Aucun test ne lit ni n'écrit /var/lib/nginx-tools ni ne se connecte au vrai port 443.
+
+Vérifications effectuées :
+  - Suite complète.
+
+Action requise de ma part (ou « aucune ») :
+  Aucune.
+
+## 1.56.20261001.094048 — Suite renommée nginx-tools-tests
+
+Motif de la demande :
+  D'autres programmes livrent aussi un tests.zip extrait dans tests/ : la suite doit porter le nom du programme pour ne pas
+  écraser leurs fichiers (et réciproquement).
+
+Détail des modifications :
+  - Archive nginx-tools-tests.zip, dossier nginx-tools-tests/ (changelog : nginx-tools-tests/doc/run-all.changelog.txt). Les
+    chemins sont relatifs au dossier de la suite : rien d'autre à changer pour le lancer.
+  - Étape 0 : ancienne copie de cette suite dans tests/ (signature test_web_monitor.py) signalée [ATTN], avec la version et les
+    noms de nos fichiers qui s'y trouvent ; jamais supprimée automatiquement (tests/ peut contenir ceux d'autres programmes,
+    parfois sous les mêmes noms). Sans effet sur le verdict.
+  - Aide, messages et commentaires : nginx-tools-tests/run-all.sh, nginx-tools-tests/nginx-odoo/, nginx-tools-tests/tools/.
+  - test_conventions.py : nom du dossier de la suite lu dynamiquement (NOM_SUITE) ; test_rapport.py, test_zip_versions.py :
+    nouveaux tests ; README de la suite et de la copie de configuration mis à jour.
+
+Bugs corrigés :
+  Aucun.
+
+Garde-fous et cas limites traités :
+  - Dossier encore nommé tests/ (extraction d'une ancienne archive) : pas d'avertissement contre lui-même.
+
+Vérifications effectuées :
+  - Suite complète depuis nginx-tools-tests/ ; bloc de l'étape 0 essayé avec une ancienne copie.
+
+Action requise de ma part (ou « aucune ») :
+  Déployer nginx-tools-tests.zip (unzip -o nginx-tools-tests.zip && nginx-tools-tests/run-all.sh), puis retirer de tests/ les
+  fichiers de notre ancienne suite listés par l'avertissement (seulement ceux-là).
+
+## 1.55.20261001.092458 — Nouveau programme zip-versions.py
+
+Motif de la demande :
+  Script qui affiche la dernière version des programmes et de la configuration contenus dans les archives .zip.
+
+Détail des modifications :
+  - run-all.sh : zip-versions.py dans la liste des fichiers attendus (étape 0) ; syntaxe et ruff le couvrent d'office.
+  - test_conventions.py : zip-versions.py soumis à toutes les conventions (version, changelog, aide triée, --report-err,
+    Python 3.8, Ctrl-C).
+  - Nouveau module test_zip_versions.py : trois types d'archive, archive la plus récente, fausses versions des modules de test
+    ignorées, archive corrompue, source absente, comparaison avec l'installation et la configuration, aucune archive.
+
+Bugs corrigés :
+  Aucun.
+
+Garde-fous et cas limites traités :
+  - Archives de test créées dans le dossier temporaire du test ; rien lu ni écrit ailleurs.
+
+Vérifications effectuées :
+  - Suite complète.
+
+Action requise de ma part (ou « aucune ») :
+  Aucune.
+
+## 1.54.20261001.090925 — Tests : redirections de nginx
+
+Motif de la demande :
+  web-monitor.py 2.37 ; configuration nginx du 2026-10-01 (bloc https des noms non canoniques).
+
+Détail des modifications :
+  - test_web_monitor.py : redirection de nginx (3xx, petite page) à une URL malveillante comptée comme rejetée.
+  - test_config_nginx.py : classe BlocsDeRedirection — tout bloc qui ne sert pas Odoo inclut securite-commune.conf, sans
+    « return » au niveau du server, redirection dans « location / » ; robots.txt redirigé avant la règle « .txt ».
+    Fonction blocs_server (lecture des blocs server avec l'analyseur lexical existant).
+  - tests/nginx-odoo/ : copie identique de la nouvelle configuration.
+
+Bugs corrigés :
+  Aucun.
+
+Garde-fous et cas limites traités :
+  - Les deux nouveaux tests de configuration échouent sur l'ancien fichier 10-rencontres-linux-quebec-prod.conf (vérifié).
+
+Vérifications effectuées :
+  - Suite complète.
+
+Action requise de ma part (ou « aucune ») :
+  Aucune.
+
+## 1.53.20260930.225745 — Tests : diagnostics et corrections faits par web-monitor.py
+
+Motif de la demande :
+  web-monitor.py 2.36 fait lui-même les vérifications et les corrections recommandées ; _rapport.py 1.1 (numérotation).
+
+Détail des modifications :
+  - test_web_monitor.py : nouveaux tests (fuites BBB et Odoo diagnostiquées, enquête 403 et règles relevées, robots.txt lu,
+    corrections en fin de sommaire, --apply) ; tests existants adaptés (plus de commandes à taper attendues).
+  - test_rapport.py : test Numerotation (« 1. 1. »).
+
+Bugs corrigés :
+  Aucun.
+
+Garde-fous et cas limites traités :
+  - Commandes système simulées (nginx -T, enquête, essais HTTP) ; aucun appel réel à nginx, systemctl ni au réseau.
+
+Vérifications effectuées :
+  - Suite complète.
+
+Action requise de ma part (ou « aucune ») :
+  Aucune.
+
+## 1.52.20260930.163902 — Option --report-err ; tests du rapport d'erreurs
+
+Motif de la demande :
+  Une option --report-err dans chaque programme : un sommaire des erreurs en fin d'exécution, avec le nom et la version du
+  programme, le nom du serveur et le contexte, à coller dans la discussion à la place de la sortie complète (économie de jetons).
+
+Détail des modifications :
+  - Option --report-err (composant commun apps/_rapport.sh) : le programme s'exécute normalement (sortie affichée, code de sortie
+    conservé), puis un bloc « RAPPORT D'ERREURS » à copier-coller : programme, version, commande, serveur (nom, système, noyau,
+    utilisateur, interpréteur), date, durée, code de sortie, contexte lu dans la sortie (application, fichiers de configuration,
+    options), versions de toute la suite, puis ÉCHECS, AVERTISSEMENTS, RECOMMANDATIONS HAUTE/MOYENNE (avec leurs lignes de détail),
+    vérifications ignorées ; mots de passe masqués ; la sortie du programme n'étant plus un terminal, couleurs et questions interactives sont désactivées.
+  - Option reconnue par l'analyseur d'options et présente dans l'aide, à sa place alphabétique.
+  - Étape 0 : apps/_rapport.sh et apps/_rapport.py ajoutés aux fichiers attendus (les étapes de syntaxe, ShellCheck et ruff les
+    couvrent déjà par apps/*.sh et apps/*.py).
+  - Nouveau module test_rapport (classement, masquage, contenu du rapport, exécution Python, ligne de commande) ; un test
+    d'intégration par programme ; test de conventions (--report-err dans l'aide de chacun, sans effet avec --version, appel du
+    composant commun).
+
+Bugs corrigés :
+  - Trouvés par ces tests avant livraison : une recommandation FAIBLE avalait la recommandation suivante ; le détail d'un échec
+    pouvait absorber une ligne « ⚠ » ou le début d'une trace d'appels qui le suivait.
+
+Vérifications effectuées :
+  - Validation complète (voir la réponse en chat).
+
+Action requise de ma part (ou « aucune ») :
+  Aucune.
+
+## 1.51.20260930.132809 — Sentinelle des fichiers de configuration réels
+
+Motif de la demande :
+  odoo-backup.sh 1.7, app-health-check.py 2.15, web-monitor.py 2.34.
+
+Détail des modifications :
+  - Étape 4 : empreinte avant/après de /etc/default/{app-health-check,odoo-backup,nginx-hardening,sanity-check-odoo}.conf et de
+    ~/.app-health-check.cfg, ~/.odoo-backup.cfg : [ÉCHEC] si la suite modifie un fichier de configuration RÉEL (sur un serveur ces
+    fichiers existent : seul un changement pendant la suite est une faute).
+  - Tests : heures multiples, --times prioritaire, seuil d'alerte, rétention KEEP_RECENT_DAYS ; répertoire courant ignoré et
+    renommé vers /etc/default ; seuil lu par web-monitor.py.
+
+Bugs corrigés :
+  - Un test de développement appelait resolve_config_paths SANS redirection de chemins : la migration a renommé un fichier de test
+    vers le vrai /etc/default du bac à sable. Jamais livré (aucun serveur touché) ; test corrigé (chemins redirigés) et sentinelle
+    ajoutée — vérifiée avec un faux test qui écrit dans /etc/default : l'échec est signalé.
+
+Vérifications effectuées :
+  - Validation complète (voir la réponse en chat).
+
+Action requise de ma part (ou « aucune ») :
+  Aucune.
+
+## 1.50.20260930.123230 — Tests de la configuration en couches et des timers
+
+Motif de la demande :
+  (1) Renommer les anciens fichiers de configuration AVANT d'arrêter le timer actuel ; vérifier s'il existe un timer configuré
+  qui utilise un fichier inexistant. (2) Règle des fichiers de configuration : lire /etc/default/<programme>.conf, puis
+  ~/.<programme>.cfg s'il existe ; la ligne de commande est prioritaire ; indiquer quel fichier est lu exactement, avec un
+  sommaire d'une ou deux lignes des options importantes.
+
+Détail des modifications :
+  - test_odoo_backup (EmplacementConfiguration réécrit) : couches, priorité de la ligne de commande, renommage AVANT toute
+    opération sur le timer (chaque appel à systemctl note l'état du nouveau fichier), création, --status d'un timer vers un
+    fichier ou un script absent. test_app_health_check (ConfigurationEnCouches). test_web_monitor : timers vers un fichier
+    absent, --status. test_conventions (RegleDesConfigurations) remplace le test « rien dans ~ ».
+  - helpers : HOME isolé dans chaque test (jamais le vrai ~/.programme.cfg de la machine de test).
+
+Bugs corrigés :
+  Aucun dans ce programme.
+
+Vérifications effectuées :
+  - Validation complète (voir la réponse en chat).
+
+Action requise de ma part (ou « aucune ») :
+  Aucune.
+
+## 1.49.20260930.093133 — Tests de l'emplacement de la configuration
+
+Motif de la demande :
+  odoo-backup.sh 1.5 ; web-monitor.py 2.32.
+
+Détail des modifications :
+  - test_odoo_backup (EmplacementConfiguration) : ordre de recherche, ancien emplacement, --config introuvable, création
+    au premier lancement, timer sans chemin en dur, --status d'un timer incohérent.
+  - test_conventions (ConfigurationsDansEtcDefault) : aucun programme ne lit une configuration dans le répertoire personnel
+    (seul l'ancien emplacement de odoo-backup.sh, en repli).
+
+Bugs corrigés :
+  Aucun dans ce programme.
+
+Vérifications effectuées :
+  - Validation complète (voir la réponse en chat).
+
+Action requise de ma part (ou « aucune ») :
+  Aucune.
+
+## 1.48.20260930.090527 — Tests Googlebot et 403 de navigateurs
+
+Motif de la demande :
+  web-monitor.py 2.31.
+
+Détail des modifications :
+  - test_web_monitor : Googlebot sur BBB (FAIBLE, robots.txt) et sur Odoo, pages demandées lues dans de vrais journaux,
+    cas « 233 adresses dont une à 34 % » ; ancienne attente du libellé Googlebot sur BBB adaptée.
+
+Bugs corrigés :
+  Aucun dans ce programme.
+
+Vérifications effectuées :
+  - Validation complète (voir la réponse en chat).
+
+Action requise de ma part (ou « aucune ») :
+  Aucune.
+
+## 1.47.20260930.084200 — Tests rendus indépendants de l'environnement ; nouveaux cas
+
+Motif de la demande :
+  Sur le BBB de DEV : [ÉCHEC] test_envoi_reel_vers_un_faux_relais (mawk et busybox) — « Message-ID: » attendu sur une
+  seule ligne ; le test réussissait en développement.
+
+Détail des modifications :
+  - test_app_health_check : en-têtes lus par un analyseur de courriel (email.message_from_string), plus par expression
+    régulière sur le texte brut ; test du message réellement reçu (Message-ID replié).
+  - test_config_nginx : filtre et jail écrits sur BBB identiques aux fichiers livrés. test_nginx_log_audit : section [7].
+    test_web_monitor : Ctrl-C (vrai SIGINT). test_conventions (CtrlC). test_multi_app : HSTS conforme.
+
+Bugs corrigés :
+  - Test dépendant de l'environnement : Python replie un en-tête de plus de 78 caractères, et la longueur du
+    Message-ID dépend du PID (7 chiffres sur ce serveur) — le test échouait selon le PID, donc selon l'awk lancé.
+
+Vérifications effectuées :
+  - Validation complète (voir la réponse en chat).
+
+Action requise de ma part (ou « aucune ») :
+  Aucune.
+
+## 1.46.20260930.081347 — Motif « A && B || C » ; refus 403
+
+Motif de la demande :
+  ./run-all.sh sur le serveur BBB : [ÉCHEC] shellcheck nginx-hardening.sh et odoo-backup.sh — « A && B || C is not
+  if-then-else » (SC2015). Le même contrôle réussissait en développement.
+
+Détail des modifications :
+  - test_conventions (MotifEtOu) : cherche le motif « A && B || C » (B pouvant échouer) dans tous les scripts Bash,
+    sans dépendre de la version de ShellCheck ; vérifié contre les lignes d'origine (fonctions d'une ligne comprises).
+  - test_web_monitor : refus 403 de navigateurs (robots / règle, taille, lecture de vrais journaux).
+
+Bugs corrigés :
+  - Trou de couverture : ShellCheck 0.11 (développement) ne signale pas SC2015 que la version de Debian/Ubuntu signale ;
+    l'étape 2 de run-all.sh pouvait échouer sur le serveur alors que tout réussissait ici.
+
+Vérifications effectuées :
+  - Validation complète (voir la réponse en chat).
+
+Action requise de ma part (ou « aucune ») :
+  Aucune.
+
+## 1.45.20260930.072401 — Tests des connexions structurées et des recommandations BBB
+
+Motif de la demande :
+  web-monitor.py 2.28.
+
+Détail des modifications :
+  - test_web_monitor : nouvelle mise en page (connexions, --list-users, détails) ; couleurs en terminal / capturé /
+    NO_COLOR ; recommandations BBB (règles absentes, installées sans et avec requêtes aujourd'hui, chemins des refus
+    403, plus de capteur catch-all). Le dossier de BBB est redirigé vers un dossier de test.
+
+Bugs corrigés :
+  Aucun dans ce programme.
+
+Vérifications effectuées :
+  - Validation complète (voir la réponse en chat).
+
+Action requise de ma part (ou « aucune ») :
+  Aucune.
+
+## 1.44.20260929.235632 — Tests HSTS avec redirection
+
+Motif de la demande :
+  nginx-hardening.sh 2.13 (étape 10).
+
+Détail des modifications :
+  - test_multi_app (HstsRedirection) : « / » → 301 vers « /b » ; HSTS à l'arrivée (avertissement) ou absent partout
+    (échec, conseil http-after-response).
+
+Bugs corrigés :
+  Aucun dans ce programme.
+
+Vérifications effectuées :
+  - Validation complète (voir la réponse en chat).
+
+Action requise de ma part (ou « aucune ») :
+  Aucune.
+
+## 1.43.20260929.195459 — Aide triée ; test de l'ordre des options
+
+Motif de la demande :
+  Dans tous les programmes, mettre toutes les options de l'aide par ordre alphabétique.
+
+Détail des modifications :
+  - Aide (-h, --help) réécrite : une option par ligne avec sa description, par ordre alphabétique (au lieu d'une
+    ligne de syntaxe compacte sans description).
+  - test_conventions (AideTriee) : --help de chaque programme par ordre alphabétique. test_web_monitor :
+    recommandation des jails web selon fail2ban.
+
+Bugs corrigés :
+  Aucun dans ce programme.
+
+Vérifications effectuées :
+  - Validation complète (voir la réponse en chat).
+
+Action requise de ma part (ou « aucune ») :
+  Aucune.
+
+## 1.42.20260929.193615 — Tests de --days et de la configuration automatique
+
+Motif de la demande :
+  web-monitor.py 2.26, app-health-check.py 2.11, nginx-log-audit.sh 2.15.
+
+Détail des modifications :
+  - test_web_monitor : --days (colonnes, libellés, refus), --list-users --days. test_app_health_check : première
+    exécution. Vocabulaire des tests aligné (plus « sondage »). tests/nginx-odoo/ : commentaire de
+    securite-commune.conf, identique à nginx-odoo-config.zip.
+
+Bugs corrigés :
+  Aucun dans ce programme.
+
+Vérifications effectuées :
+  - Validation complète (voir la réponse en chat).
+
+Action requise de ma part (ou « aucune ») :
+  Aucune.
+
+## 1.41.20260929.192148 — Tests des colonnes J-1/J-2 et des options d'Odoo
+
+Motif de la demande :
+  web-monitor.py 2.25.
+
+Détail des modifications :
+  - test_web_monitor : colonnes J-1 et J-2 ; options d'Odoo (faux /proc, script de démarrage) ; lectures des colonnes
+    adaptées (aujourd'hui, 7 et 30 jours). test_multi_app : lectures des colonnes adaptées.
+
+Bugs corrigés :
+  Aucun dans ce programme.
+
+Vérifications effectuées :
+  - Validation complète (voir la réponse en chat).
+
+Action requise de ma part (ou « aucune ») :
+  Aucune.
+
+## 1.40.20260929.185720 — Tests de l'étape 13 et du rechargement de fail2ban
+
+Motif de la demande :
+  nginx-hardening.sh --update sur le serveur BBB de DEV : étape 13 affichant l'aide de app-health-check.py (« argument
+  --target requis ») puis « RÉSUMÉ : tout est en ordre » ; « le rechargement automatique a échoué » sans cause.
+
+Détail des modifications :
+  - test_app_health_check : --check-email-dns sans --target ni application.
+  - test_nginx_hardening : étape 13 sans résultat reconnu. test_multi_app : fail2ban arrêté sur BBB.
+
+Bugs corrigés :
+  Aucun dans ce programme.
+
+Vérifications effectuées :
+  - Validation complète (voir la réponse en chat).
+
+Action requise de ma part (ou « aucune ») :
+  Aucune.
+
+## 1.39.20260929.182259 — Tests du programme complet app-health-check.py
+
+Motif de la demande :
+  Traceback en fin de passage de app-health-check.py v2.8, non détecté par la suite.
+
+Détail des modifications :
+  - test_app_health_check (ProgrammeComplet) : le programme lancé en entier, sans SMTP puis avec un relais
+    injoignable ; couleurs des étiquettes en terminal seulement.
+
+Bugs corrigés :
+  Aucun dans ce programme. Trou de couverture comblé : la fin du programme principal n'était jamais exécutée.
+
+Vérifications effectuées :
+  - Validation complète (voir la réponse en chat).
+
+Action requise de ma part (ou « aucune ») :
+  Aucune.
+
+## 1.38.20260929.180340 — Tests de la sauvegarde au format d'Odoo
+
+Motif de la demande :
+  odoo-backup.sh 1.1 : archives au format d'Odoo (.zip, .tar.xz) et restauration.
+
+Détail des modifications :
+  - test_odoo_backup réécrit : ZIP et manifest au format d'Odoo, tar.xz, restauration des deux formats sans
+    écrasement, archive piégée refusée, dump incomplet, rétention (dont indépendance des formats), --dry-run.
+
+Bugs corrigés :
+  Aucun dans ce programme.
+
+Vérifications effectuées :
+  - Validation complète (voir la réponse en chat).
+
+Action requise de ma part (ou « aucune ») :
+  Aucune.
+
+## 1.37.20260929.151644 — Tests de la sauvegarde et du durcissement BBB
+
+Motif de la demande :
+  Nouveau programme odoo-backup.sh ; nginx-hardening.sh 2.10 (BBB) ; web-monitor.py 2.24.
+
+Détail des modifications :
+  - Nouveau module test_odoo_backup : sauvegarde complète (fichiers, empreintes, droits, --status, --test-restore),
+    échec de pg_dump sans dossier laissé, filestore introuvable, rétention sur 60 jours, --dry-run.
+  - test_multi_app (DurcissementBBB) ; test_web_monitor (sauvegarde) ; odoo-backup.sh ajouté aux tests de conventions
+    et à l'étape 0 (présence des programmes).
+
+Bugs corrigés :
+  Aucun dans ce programme.
+
+Vérifications effectuées :
+  - Validation complète (voir la réponse en chat).
+
+Action requise de ma part (ou « aucune ») :
+  Aucune.
+
+## 1.36.20260929.145745 — Tests du courriel des alertes
+
+Motif de la demande :
+  Configurer le courriel sous Linux pour l'envoi des alertes, en indiquant les changements à faire dans le DNS
+  (DMARC, etc.) ; l'ajouter au script de setup, avec un test qui s'assure que le DNS (MX) est bien configuré.
+
+Détail des modifications :
+  - test_app_health_check (Courriel) : DNS simulé (complet, puis défauts), envoi réel vers un faux relais SMTP lancé
+    dans un processus séparé, modes de sécurité.
+  - test_nginx_hardening : étape 13. test_web_monitor : utilisateurs connus hors équipe.
+
+Bugs corrigés :
+  Aucun dans ce programme.
+
+Vérifications effectuées :
+  - Validation complète (voir la réponse en chat).
+
+Action requise de ma part (ou « aucune ») :
+  Aucune.
+
+## 1.35.20260929.144332 — Tests de la sonde légère et de la garde de longueur
+
+Motif de la demande :
+  Recommandations d'un expert externe retenues : sonde légère (/web/health) avant les vérifications complètes ; garde
+  de longueur des lignes de journal avant les expressions régulières.
+
+Détail des modifications :
+  - test_app_health_check : faux serveur avec /web/health ; réussite, première place, échec si la base est en panne.
+  - test_web_monitor : ligne de journal de plusieurs Mo.
+
+Bugs corrigés :
+  Aucun dans ce programme.
+
+Vérifications effectuées :
+  - Validation complète (voir la réponse en chat).
+
+Action requise de ma part (ou « aucune ») :
+  Aucune.
+
+## 1.34.20260929.134422 — Tests des verrous et de la source unique
+
+Motif de la demande :
+  Recommandations d'un expert externe retenues : (3) une seule source pour les adresses de l'équipe ; (4) verrou
+  contre les exécutions concurrentes.
+
+Détail des modifications :
+  - Nouveau module test_locks : verrous de sync-crowdsec-blocklist.sh, nginx-log-audit.sh et web-monitor.py (lecture
+    seule non bloquée) ; fichiers team-ips-*.conf livrés identiques au générateur ; aucune adresse de l'équipe en dur
+    dans la configuration nginx.
+  - test_nginx_hardening : étape 12 (génération, nginx -t, restauration, entrée invalide).
+  - helpers : NGINX_TOOLS_LOCK_DIR propre à chaque test, NGINX_TOOLS_LOCK_WAIT=2.
+  - tests/nginx-odoo/ : copie identique à nginx-odoo-config.zip.
+
+Bugs corrigés :
+  Aucun dans ce programme.
+
+Vérifications effectuées :
+  - Validation complète (voir la réponse en chat).
+
+Action requise de ma part (ou « aucune ») :
+  Aucune.
+
+## 1.33.20260929.130357 — Tests de --details et de la mémoire illimitée
+
+Motif de la demande :
+  web-monitor.py 2.20.
+
+Détail des modifications :
+  - test_web_monitor : --list-users sans détails par défaut et avec --details ; adresse partagée ; limit_memory_hard=0.
+
+Bugs corrigés :
+  Aucun dans ce programme.
+
+Vérifications effectuées :
+  - Validation complète (voir la réponse en chat).
+
+Action requise de ma part (ou « aucune ») :
+  Aucune.
+
+## 1.32.20260929.123856 — Tests de la liste unique de l'équipe
+
+Motif de la demande :
+  Machines Tailscale de Étienne plus permissives pour Odoo ET pour BBB ; pourcentage d'utilisation d'Odoo et de BBB
+  par chaque machine de la liste blanche.
+
+Détail des modifications :
+  - Tests : liste unique lue par nginx-log-audit.sh, sync-crowdsec-blocklist.sh, nginx-hardening.sh (Odoo et BBB) et
+    web-monitor.py (section d'utilisation) ; test de garde ProfilsLivres (tout apps/*.conf doit être un profil).
+
+Bugs corrigés :
+  Aucun dans ce programme (faux fail2ban-client d'abord mal écrit, accents graves interprétés par Bash).
+
+Vérifications effectuées :
+  - Validation complète (voir la réponse en chat).
+
+Action requise de ma part (ou « aucune ») :
+  Aucune.
+
+## 1.31.20260929.084225 — Diagnostic des échecs intermittents
+
+Motif de la demande :
+  Un échec intermittent sous gawk, vu lors de la validation de la 1.30, n'a pas été reproduit en cinq passages ; son
+  message n'avait pas été conservé (troisième cas de ce genre). Rendre ces échecs diagnostiquables là où ils
+  surviennent, y compris sur les serveurs.
+
+Détail des modifications :
+  - Étape 4 : chaque test en échec est relancé SEUL (formats de nom de Python 3.8 et récents). Échec confirmé :
+    bloquant, comme avant. Réussite seul : [INSTABLE] (dépendance à l'ordre des tests ou au moment), non bloquant,
+    avec la trace complète de l'échec d'origine ajoutée à tests/last-instable.log (date, version, awk, serveur).
+
+Bugs corrigés :
+  Aucun dans les programmes.
+
+Garde-fous et cas limites traités :
+  - Un vrai échec n'est jamais masqué : seul un test qui réussit seul est déclassé en [INSTABLE].
+
+Vérifications effectuées :
+  - Deux faux tests temporaires : un échec permanent (confirmé, verdict en échec) et un échec de première exécution
+    ([INSTABLE], trace conservée) ; retirés ensuite. ShellCheck 0.
+
+Action requise de ma part (ou « aucune ») :
+  Si run-all.sh affiche [INSTABLE], transmettre le contenu de tests/last-instable.log.
+
+## 1.30.20260929.083206 — Tests des refus journalisés et de l'ignoreip
+
+Motif de la demande :
+  Les refus des règles de sécurité de nginx (/.env, /.git, .php…) étaient faits avec « access_log off » : invisibles
+  de fail2ban (jail nginx-sensitive-files : 0 correspondance sur 754 lignes). Journal dédié, jail qui le lit, et
+  vérification de l'ignoreip de fail2ban (indépendant des listes « allow » de nginx).
+
+Détail des modifications :
+  - test_config_nginx (RefusJournalises) : aucune règle en « access_log off », 8 refus journalisés dans
+    blocked-probes.log ; filtre et jail ; vrai fail2ban-regex sur les serveurs.
+  - test_nginx_hardening : installation de la jail, ignoreip signalé puis complété (adresses existantes conservées).
+  - test_web_monitor : refus du journal dédié comptés.
+  - tests/nginx-odoo/ : copie identique à nginx-odoo-config.zip.
+
+Bugs corrigés :
+  Aucun dans ce programme (faux fail2ban-client d'abord mal écrit : accents graves interprétés par Bash).
+
+Vérifications effectuées :
+  - Validation complète (voir la réponse en chat).
+
+Action requise de ma part (ou « aucune ») :
+  Aucune.
+
+## 1.29.20260929.080620 — Tests du format des journaux
+
+Motif de la demande :
+  Nom de domaine ($host) ajouté au journal des sites Odoo ; web-monitor.py 2.17.
+
+Détail des modifications :
+  - test_config_nginx (FormatDesJournaux) : log_format combined_host = combined + host="$host" en fin de ligne ;
+    utilisé par les trois sites ; une ligne produite reste lisible par awk (User-Agent en 6e champ entre guillemets,
+    code HTTP, taille et URL aux mêmes positions).
+  - test_web_monitor : noms concernés dans la recommandation.
+  - tests/nginx-odoo/ : copie de la configuration mise à jour, identique à nginx-odoo-config.zip.
+
+Bugs corrigés :
+  Aucun dans ce programme.
+
+Vérifications effectuées :
+  - Validation complète (voir la réponse en chat).
+
+Action requise de ma part (ou « aucune ») :
+  Aucune.
+
+## 1.28.20260928.231233 — Tests du trafic des utilisateurs connectés
+
+Motif de la demande :
+  web-monitor.py 2.16.
+
+Détail des modifications :
+  - test_web_monitor : statistiques par compte, part des utilisateurs connectés, détails dans --list-users.
+
+Bugs corrigés :
+  Aucun dans ce programme.
+
+Vérifications effectuées :
+  - Validation complète (voir la réponse en chat).
+
+Action requise de ma part (ou « aucune ») :
+  Aucune.
+
+## 1.27.20260928.224616 — Tests de --list-users et de la recommandation
+
+Motif de la demande :
+  web-monitor.py 2.15, app-health-check.py 2.6, nginx-log-audit.sh 2.12 ; configuration nginx mise à jour.
+
+Détail des modifications :
+  - test_web_monitor : --list-users (Odoo, BBB) ; recommandation « requêtes malveillantes » dans ses deux cas ;
+    libellés mis à jour.
+  - tests/nginx-odoo/ : 11.148.77.5 (au lieu de la plage) et quatre adresses Tailscale, identique à
+    nginx-odoo-config.zip.
+
+Bugs corrigés :
+  Aucun dans ce programme.
+
+Vérifications effectuées :
+  - Validation complète (voir la réponse en chat).
+
+Action requise de ma part (ou « aucune ») :
+  Aucune.
+
+## 1.26.20260928.220753 — Tests des plages d'adresses
+
+Motif de la demande :
+  Cellulaire Vidéotron de Étienne à adresse dynamique (11.148.77.105, puis 11.148.77.5) : l'autoriser sans modifier
+  la configuration à chaque changement d'adresse.
+
+Détail des modifications :
+  - test_nginx_log_audit : 11.148.77.5 protégée par la plage de l'équipe ; plage « allow » de nginx reconnue.
+  - test_web_monitor : dans_blanche.
+  - tests/nginx-odoo/ : 11.148.77.0/24 à la place de 11.148.77.105 (table de l'équipe, listes allow des trois
+    environnements), identique à nginx-odoo-config.zip.
+
+Bugs corrigés :
+  Aucun dans ce programme.
+
+Vérifications effectuées :
+  - Validation complète (voir la réponse en chat).
+
+Action requise de ma part (ou « aucune ») :
+  Aucune.
+
+## 1.25.20260928.215040 — Tests des connexions à Odoo
+
+Motif de la demande :
+  nginx-log-audit.sh 2.10, web-monitor.py 2.13 ; 11.97.88.180 ajoutée à la configuration nginx.
+
+Détail des modifications :
+  - test_nginx_log_audit : IP hostile connectée à Odoo (enquête et --ban).
+  - test_web_monitor : section des connexions (Odoo, BBB, IP bannie).
+  - tests/nginx-odoo/ : copie de la configuration mise à jour (11.97.88.180 dans la table de l'équipe et les listes
+    allow des trois environnements).
+
+Bugs corrigés :
+  Aucun dans ce programme.
+
+Vérifications effectuées :
+  - Validation complète (voir la réponse en chat).
+
+Action requise de ma part (ou « aucune ») :
+  Aucune.
+
+## 1.24.20260928.212833 — Tests de l'étape 11 sur BigBlueButton et de l'enquête
+
+Motif de la demande :
+  nginx-hardening.sh 2.5 et nginx-log-audit.sh 2.9.
+
+Détail des modifications :
+  - test_multi_app (BigBlueButton) : aucune « unbound variable » ; logrotate refusant tout fichier sans su : --check,
+    --update, validation ensuite.
+  - test_nginx_log_audit : login Odoo affiché dans l'enquête.
+
+Bugs corrigés :
+  Aucun dans ce programme. Le test BBB ne vérifiait pas l'absence de variable non initialisée (plantage final non
+  détecté) : vérifié désormais.
+
+Vérifications effectuées :
+  - Validation complète (voir la réponse en chat).
+
+Action requise de ma part (ou « aucune ») :
+  Aucune.
+
+## 1.23.20260928.211633 — Tests isolés de la machine qui les exécute
+
+Motif de la demande :
+  Suite lancée sur le serveur BigBlueButton de DEV : 7 échecs, et « Règle ufw ajoutée : deny from 11.22.62.38 »
+  dans la sortie d'un test.
+
+Détail des modifications :
+  - helpers : chaque test tourne avec un PATH SANS les commandes système sensibles (COMMANDES_SYSTEME : ufw,
+    iptables, ipset, nft, fail2ban-client, systemctl, journalctl, nginx, logrotate, apt-get, curl, host, bbb-conf…) —
+    dossier de liens vers les autres exécutables, construit une fois par session ; NGINX_TOOLS_TESTS=1 (les programmes
+    ne rajoutent pas /usr/sbin) ; APP_DETECT_ROOT vers un dossier vide (détection par fichiers isolée).
+  - test_conventions : aucune commande système joignable depuis les tests ; PATH inchangé sous NGINX_TOOLS_TESTS.
+  - test_nginx_log_audit : utilisateur connecté au back-office (cas réel 11.97.88.180).
+
+Bugs corrigés :
+  - Symptôme : sur le serveur BBB, 7 échecs (détection « bbb » au lieu de « aucune application », 7 bannissements
+    exportés au lieu de 5, confirmations de --ban…) et une VRAIE règle ufw ajoutée. Diagnostic : les tests simulaient
+    iptables mais pas ufw ; depuis la 1.19 (PATH complété par les programmes), /usr/sbin/ufw — actif sur ce serveur —
+    était trouvé et exécuté ; de même, la détection par fichiers lisait les vrais /usr/bin/bbb-conf et
+    /etc/bigbluebutton/. Correction : isolation complète décrite ci-dessus.
+
+Garde-fous et cas limites traités :
+  - Un outil non simulé par un test est ABSENT, comme dans l'environnement où les tests ont été écrits — jamais la
+    vraie commande de la machine.
+
+Vérifications effectuées :
+  - Situation du serveur BBB reproduite avec des sentinelles (faux ufw ACTIF, fail2ban-client, nginx, ipset, nft,
+    logrotate… notant chaque appel, et fichiers de BigBlueButton) : avant, 12 échecs et 194 appels réels ; après,
+    aucun échec et AUCUN appel réel.
+
+Action requise de ma part (ou « aucune ») :
+  Sur le serveur BBB de DEV : retirer les règles ufw ajoutées par les tests (commande dans la réponse en chat).
+
+## 1.22.20260928.141712 — Tests du certificat TLS, des recommandations et de Python 3.8
+
+Motif de la demande :
+  app-health-check.py 2.4 (certificat TLS), web-monitor.py 2.11 (recommandations, Python 3.8).
+
+Détail des modifications :
+  - test_app_health_check (CertificatTLS) : serveurs TLS dans des PROCESSUS séparés (openssl s_server).
+  - test_web_monitor : recommandations sur les chiffres réels de BBB PROD.
+  - test_conventions (CompatibilitePython38) : fonctions et syntaxes postérieures à Python 3.8 refusées.
+
+Bugs corrigés :
+  - Instabilité trouvée en écrivant ces tests : des serveurs TLS lancés dans des fils d'exécution survivaient à la
+    fermeture de leur socket (un fil bloqué dans accept() n'est pas réveillé) et faisaient échouer par intermittence
+    test_create_config_detecte_et_protege. Remplacés par des processus arrêtés en fin de test : 6 passages sur 6.
+
+Vérifications effectuées :
+  - Validation complète (voir la réponse en chat).
+
+Action requise de ma part (ou « aucune ») :
+  Aucune.
+
+## 1.21.20260928.103708 — Tests des nouveautés de web-monitor 2.10, nginx-log-audit 2.7, nginx-hardening 2.3
+
+Motif de la demande :
+  Espace des journaux, exclusion de nos programmes, workers d'Odoo, --unban-check, rétention réglable, appareils.
+
+Détail des modifications :
+  - test_web_monitor : nos programmes exclus de tous les indicateurs ; espace des journaux et projection ; conseil
+    sur les workers (RAM fixée à 16 Go dans le test, cas sain valable quel que soit le nombre de cœurs) ;
+    --unban-check.
+  - test_nginx_log_audit : nos programmes exclus du rapport et de --stats ; appareils dans --stats.
+  - test_multi_app : --log-retention-months 6 (rotate, journald sans doublon), valeur invalide refusée.
+
+Bugs corrigés :
+  Aucun dans ce programme. Un échec isolé de test_echec_ipset_diagnostic_suivi_puis_efface, vu une fois sous gawk
+  dans une suite complète, n'a pas été reproduit en une vingtaine de passages (test seul, module, suite entière) ; son
+  message n'avait pas été conservé — à surveiller.
+
+Vérifications effectuées :
+  - Validation complète (voir la réponse en chat).
+
+Action requise de ma part (ou « aucune ») :
+  Si ce test échoue sur un serveur, transmettre la ligne « AssertionError » affichée par run-all.sh.
+
+## 1.20.20260928.094028 — Tests des appareils des visiteurs
+
+Motif de la demande :
+  web-monitor.py 2.9 : répartition des appareils, 404 de nginx, version affichée.
+
+Détail des modifications :
+  - test_web_monitor : jeu de visiteurs réaliste (humains, scraper, robot, outil, équipe) et deux /.env en 404 (nginx,
+    Odoo) ; valeurs de l'entonnoir mises à jour (un 404 de nginx est un rejet) ; libellés.
+
+Bugs corrigés :
+  Aucun dans ce programme.
+
+Vérifications effectuées :
+  - Validation complète (voir la réponse en chat).
+
+Action requise de ma part (ou « aucune ») :
+  Aucune.
+
+## 1.19.20260928.091309 — Tests des échecs de synchronisation et du PATH sous cron
+
+Motif de la demande :
+  sync-crowdsec-blocklist.sh 1.10, web-monitor.py 2.8, PATH complété dans les scripts Bash.
+
+Détail des modifications :
+  - test_sync_crowdsec : échec d'ipset (diagnostic, arrêt avant téléchargement, compteur, --status, effacement) ;
+    fichier cron complété ; passage daté.
+  - test_conventions (CheminSousCron) : PATH complété, sbin à la fin, commande existante jamais masquée.
+  - test_web_monitor : alerte « synchronisation en échec ».
+
+Bugs corrigés :
+  Aucun dans ce programme.
+
+Vérifications effectuées :
+  - Validation complète (voir la réponse en chat).
+
+Action requise de ma part (ou « aucune ») :
+  Aucune.
+
+## 1.18.20260928.083340 — Tests des preuves avant bannissement
+
+Motif de la demande :
+  nginx-log-audit.sh 2.5 (preuves de toutes les sources) et web-monitor.py 2.7.
+
+Détail des modifications :
+  - test_nginx_log_audit : scanner banni par le capteur (cas DEV réel), jail sshd sans PTR avec journal, DNS
+    injoignable, absence de PTR seule jamais suffisante, vrai Googlebot (« ne pas bannir »), PTR cohérent avec
+    l'enquête.
+  - test_web_monitor : raison détaillée d'un récidiviste, libellé et ligne des URL non filtrées.
+
+Bugs corrigés :
+  Aucun dans ce programme.
+
+Vérifications effectuées :
+  - Validation complète (voir la réponse en chat).
+
+Action requise de ma part (ou « aucune ») :
+  Aucune.
+
+## 1.17.20260927.224845 — Tests de la classification du sommaire
+
+Motif de la demande :
+  web-monitor.py 2.6 : classification corrigée à partir des sommaires réels de PROD et DEV.
+
+Détail des modifications :
+  - test_web_monitor : cas réels (PetalBot bloqué sur une page d'événement : pas une URL malveillante ; proxy
+    www.instagram.com:443 : malveillante ; tests du serveur exclus ; IP de l'équipe « liste blanche ») ; libellé
+    « Clients bloqués (403) ».
+  - test_multi_app : colonne des lectures/écritures masquée quand elle est indisponible.
+
+Bugs corrigés :
+  Aucun dans ce programme.
+
+Vérifications effectuées :
+  - Validation complète (voir la réponse en chat).
+
+Action requise de ma part (ou « aucune ») :
+  Aucune.
+
+## 1.16.20260927.220922 — Tests du bannissement en fin de passage
+
+Motif de la demande :
+  web-monitor.py 2.5 : bannir les IP recommandées à la fin du passage, ou par --ban-recommended.
+
+Détail des modifications :
+  - test_web_monitor : faux nginx-log-audit.sh à deux enquêtes (une recommandée, un robot inoffensif) et enregistrant
+    les appels --ban ; seules les IP recommandées retenues ; commande dans le courriel ; question de fin en vrai
+    terminal ([o], Entrée, [c]) ; --ban-recommended avec et sans --yes, liste vidée ensuite.
+
+Bugs corrigés :
+  Aucun dans ce programme (un défaut de syntaxe dans le faux script de test, trouvé et corrigé en l'écrivant).
+
+Vérifications effectuées :
+  - Validation complète (voir la réponse en chat).
+
+Action requise de ma part (ou « aucune ») :
+  Aucune.
+
+## 1.15.20260927.215447 — Tests de l'export/import des bannissements et de --status
+
+Motif de la demande :
+  Nouvelles fonctions nginx-log-audit.sh 2.4 (--export-bans, --import-bans) et web-monitor.py 2.4 (--status).
+
+Détail des modifications :
+  - test_nginx_log_audit : export (règles non manuelles exclues, dates), import classé (protégées ici, invalide,
+    déjà bannie, doublon), rien sans confirmation, --yes en tube, origine en 4e colonne du journal.
+  - test_web_monitor : --status avec timer absent (commande d'installation, ancien message signalé), courriel
+    configuré puis non configuré, timer actif avec passage en retard.
+
+Bugs corrigés :
+  Aucun dans ce programme.
+
+Vérifications effectuées :
+  - Validation complète (voir la réponse en chat).
+
+Action requise de ma part (ou « aucune ») :
+  Aucune.
+
+## 1.14.20260927.212124 — Installation incomplète signalée clairement
+
+Motif de la demande :
+  Passage sur le serveur DEV : sections « Syntaxe » et « ShellCheck » vides, 67 tests désactivés un par un
+  (« nginx-log-audit.sh absent de /root/scripts »…), et un test en ERREUR (FileNotFoundError sur /root/scripts/apps).
+  Cause : programmes absents de /root/scripts (nginx-tools.zip extrait sans copie, ou pas extrait).
+
+Détail des modifications :
+  - Nouvelle étape 0 « Programmes présents » : les 6 programmes et les 4 fichiers de apps/ sont vérifiés ; chaque
+    absence est un ÉCHEC. Si l'archive a été extraite dans nginx-tools/ sans être copiée, la commande exacte est
+    affichée (cp -r nginx-tools/* . && rm -rf nginx-tools) ; sinon, la commande de déploiement complète.
+  - test_conventions (noms de fichiers livrés) : un dossier absent n'est plus une erreur Python.
+
+Bugs corrigés :
+  - Test en erreur (FileNotFoundError) quand le dossier apps/ manque.
+  - Installation incomplète noyée dans des sections vides et des dizaines de tests désactivés.
+
+Vérifications effectuées :
+  - Situation du serveur simulée (archive extraite dans nginx-tools/ sans copie) : 10 absences signalées, commande de
+    copie affichée, aucun plantage ; après la copie : 94 tests réussis sous mawk et gawk.
+  - ShellCheck : 0 signalement.
+
+Action requise de ma part (ou « aucune ») :
+  Copier les programmes à leur place : cd /root/scripts && cp -r nginx-tools/* . && rm -rf nginx-tools
+  (ou, si l'archive n'a pas été extraite : unzip -o nginx-tools.zip d'abord).
+
+## 1.13.20260927.202645 — Changelogs dans doc/
+
+Motif de la demande :
+  Ne plus mettre la version dans le nom des archives .zip ; ranger les fichiers changelog dans un sous-répertoire doc/.
+
+Détail des modifications :
+  - Changelog de ce lanceur dans tests/doc/ (repli sur l'ancien emplacement) ; helpers : changelog copié dans doc/
+    avec chaque programme testé ; test de conventions : changelog attendu dans doc/.
+  - Nouveaux tests (test_conventions, SansApplication) : --version et --changelog des 7 programmes sans application
+    détectable ; repli sur l'ancien emplacement du changelog.
+
+Bugs corrigés :
+  Aucun dans ce programme. Le nouveau test « sans application » a révélé que web-monitor.py --changelog échouait sur
+  une machine sans Odoo ni BBB (corrigé en 2.3) ; il échoue bien si l'ancien ordre est réintroduit.
+
+Vérifications effectuées :
+  - Nouveaux tests : --version et --changelog des 7 programmes sur une machine sans application détectable ; repli
+    sur l'ancien emplacement du changelog (un programme Bash, un programme Python).
+  - Suite complète sous mawk et gawk ; ShellCheck 0 ; ruff sans défaut.
+
+Action requise de ma part (ou « aucune ») :
+  Après déploiement, supprimer les anciens changelogs à côté des programmes : rm -f /root/scripts/*.changelog.txt
+
+## 1.12.20260927.200712 — Noms en anglais dans la suite
+
+Motif de la demande :
+  Tous les noms doivent être en anglais : l'archive « outils-nginx » devient « nginx-tools », et, au-delà des noms
+  de programmes et d'options, les noms des fichiers créés sur les serveurs (états, sauvegardes). Les messages et la
+  documentation restent en français (convention).
+
+Détail des modifications :
+  - tests/LISEZMOI.md → tests/README.md ; tests/aide_tests.py → tests/helpers.py (hors du motif test_*.py) ;
+    tests/outils/ → tests/tools/ (outils statiques gawk et ruff, cherchés là par ce lanceur).
+  - Archives livrées : outils-nginx-X.zip → nginx-tools-X.zip (dossier nginx-tools/) ; nginx-odoo-normalise.zip →
+    nginx-odoo-config.zip.
+  - test_conventions, NomsDeFichiersEnAnglais : noms des fichiers livrés et des fichiers créés par les programmes
+    (commentaires et lignes de migration tolérés ; les messages restent en français).
+  - test_multi_app : migrations des fichiers d'état (nginx-log-audit, sync-crowdsec-blocklist, web-monitor).
+
+Bugs corrigés :
+  Aucun dans ce programme.
+
+Vérifications effectuées :
+  - 92 tests sous mawk et gawk ; ShellCheck 0 ; ruff sans défaut.
+
+Action requise de ma part (ou « aucune ») :
+  Remplacer l'ancien dossier tests/outils/ par tests/tools/ (fourni dans tests.zip).
+
+## 1.11.20260927.192332 — Tests de la phase 2
+
+Motif de la demande :
+  Phase 2 de la refonte, demandée : [4] savoir si les requêtes comptées atteignent l'application ou sont arrêtées
+  avant, avec les pourcentages de requêtes valides et non valides, et les URL malveillantes séparées des valides ;
+  [5] afficher le raisonnement avant un bannissement manuel ; [6] proposer d'ouvrir le rapport complet dans less ;
+  [7] afficher les informations malveillantes dans une autre couleur (magenta) ; [8] une sortie aérée.
+
+Détail des modifications :
+  - test_nginx_log_audit : raisonnement avant --ban (robot inoffensif : avertissement ; scanner : sans), verdict non
+    tronqué, enquête aérée, magenta en terminal et jamais dans un tube.
+  - test_web_monitor : entonnoir aux valeurs exactes, paquets bloqués par origine, URL malveillantes et pages
+    valides, proposition less (et --no-pager).
+
+Bugs corrigés :
+  Aucun dans ce programme.
+
+Vérifications effectuées :
+  - Validation complète (voir la réponse en chat).
+
+Action requise de ma part (ou « aucune ») :
+  Aucune.
+
+## 1.10.20260927.145909 — Programmes renommés, multi-application
+
+Motif de la demande :
+  Renommage des programmes et profils d'application (voir les changelogs des programmes, version 2.0).
+
+Détail des modifications :
+  - Modules de tests renommés comme les programmes (test_nginx_hardening, test_nginx_log_audit, test_app_health_check,
+    test_app_log_check, test_web_monitor).
+  - apps/_profile.sh (ShellCheck) et apps/_profile.py (py_compile, ruff) validés avec les programmes.
+  - aide_tests : dossier apps/ copié avec chaque programme testé ; APP_PROFILE=odoo par défaut (les tests ne dépendent
+    pas de ce qui est installé sur la machine).
+  - Nouveau module test_multi_app (14 tests) : profils, migration, BigBlueButton, ressources.
+
+Bugs corrigés :
+  - Trouvés en écrivant les tests : copie de apps/ jamais faite (la condition créait le répertoire qu'elle testait) ;
+    fichier de profil vidé par le test lui-même (ouverture en écriture avant la lecture) — ce qui a révélé qu'un profil
+    vide était accepté sans erreur (désormais refusé).
+
+Garde-fous et cas limites traités :
+  - Tests de nginx-hardening.sh : logrotate et journald redirigés vers le répertoire du test (jamais la vraie
+    configuration du serveur, même en root).
+
+Vérifications effectuées :
+  - 81 tests sous mawk et gawk ; ShellCheck 0 ; ruff sans défaut.
+
+Action requise de ma part (ou « aucune ») :
+  Déployer la nouvelle suite (tests.zip) avec les programmes renommés et le dossier apps/.
+
+## 1.9.20260927.101228 — Options en anglais vérifiées ; tests du sommaire enrichis
+
+Motif de la demande :
+  Noms d'options en anglais dans tous les programmes ; sommaire enrichi (surveillance-odoo.py 1.4).
+
+Détail des modifications :
+  - test_conventions, OptionsEnAnglais : tous les noms d'options des 7 programmes en ASCII et sans mot français
+    courant (liste ; « details », mot anglais aussi, n'y figure pas).
+  - test_surveillance : --summary ; faits marquants, couverture exacte et conseils de rétention ; aucun conseil
+    quand la rotation couvre déjà 3 mois.
+
+Bugs corrigés :
+  Aucun dans ce programme.
+
+Vérifications effectuées :
+  - Le test des options échoue quand « --bilan » est réintroduite (vérification par mutation).
+
+Action requise de ma part (ou « aucune ») :
+  Aucune.
+
+## 1.8.20260927.094449 — Tests de --bilan
+
+Motif de la demande :
+  Nouvelle option surveillance-odoo.py --bilan (1.3).
+
+Détail des modifications :
+  - test_surveillance, classe Bilan : valeurs EXACTES des 13 indicateurs sur les trois périodes (jeu de données
+    calculé à la main, dates relatives à aujourd'hui) ; colonne partielle signalée quand la rotation ne couvre pas
+    30 jours.
+
+Bugs corrigés :
+  Aucun dans ce programme.
+
+Vérifications effectuées :
+  - Validation complète (voir la réponse en chat).
+
+Action requise de ma part (ou « aucune ») :
+  Aucune.
+
+## 1.7.20260927.093411 — Tests de --unban-check
+
+Motif de la demande :
+  Nouvelle option chk-nginx-logs.sh --unban-check (1.34).
+
+Détail des modifications :
+  - test_chk_nginx_logs : verdicts de la réévaluation sur six situations (dont règles non manuelles écartées) ;
+    levée depuis la question avec un fichier NON exécutable (bug corrigé en 1.34).
+
+Bugs corrigés :
+  Aucun dans ce programme.
+
+Vérifications effectuées :
+  - Le test du fichier non exécutable échoue si la relance directe est réintroduite (vérification par mutation).
+
+Action requise de ma part (ou « aucune ») :
+  Aucune.
+
+## 1.6.20260927.092739 — Tests du faux positif « robot inoffensif »
+
+Motif de la demande :
+  Faux positif réel en PROD (11.68.110.86, 3 visites de /events proposées au bannissement), corrigé dans
+  chk-nginx-logs.sh 1.33.
+
+Détail des modifications :
+  - test_chk_nginx_logs : robot inoffensif (les 5 lignes réelles) jamais proposé, URL demandées affichées ; vrai
+    scanner (sondages, erreurs) toujours proposé.
+
+Bugs corrigés :
+  Aucun dans ce programme.
+
+Vérifications effectuées :
+  - Le test du faux positif échoue sur chk-nginx-logs.sh 1.32 et réussit sur la 1.33 (vérification par mutation).
+
+Action requise de ma part (ou « aucune ») :
+  Aucune.
+
+## 1.5.20260926.230736 — Test adapté au setup 1.21
+
+Motif de la demande :
+  setup-nginx-odoo.sh 1.21 explique la vérification fail2ban-regex et ajoute --print-all-matched à la commande.
+
+Détail des modifications :
+  - test_setup_nginx_odoo : la commande attendue contient --print-all-matched, et la marche à suivre est vérifiée.
+
+Bugs corrigés :
+  Aucun.
+
+Vérifications effectuées :
+  - Validation complète (voir la réponse en chat).
+
+Action requise de ma part (ou « aucune ») :
+  Déployer cette version de la suite (la 1.3 était encore utilisée sur le serveur DEV).
+
+## 1.4.20260926.225500 — Plus de faux « point non vérifié » sur les serveurs
+
+Motif de la demande :
+  Premier passage complet sur le serveur DEV : verdict « 1 point NON vérifié » à cause de
+  « 1 test(s) désactivé(s) : une seule des deux copies présente — rien à comparer ».
+
+Détail des modifications :
+  - test_conventions, test de synchronisation de tests/nginx-odoo/ avec nginx-odoo/ : quand une seule des deux
+    copies existe (cas normal sur un serveur, qui n'a que la copie livrée avec la suite), il n'y a rien à comparer
+    donc rien de non vérifié — le test réussit au lieu de se désactiver. La comparaison reste faite là où les deux
+    copies coexistent (préparation des livraisons).
+
+Bugs corrigés :
+  - Faux « point NON vérifié » dans le verdict sur tous les serveurs.
+
+Vérifications effectuées :
+  - Situation du serveur simulée (programmes + tests, sans nginx-odoo/ à côté) : test réussi, aucun test désactivé.
+  - Sur le serveur DEV, ce même passage a exécuté le VRAI fail2ban-regex sur les deux filtres : réussi.
+
+Action requise de ma part (ou « aucune ») :
+  Aucune.
+
+## 1.3.20260926.223504 — Configuration dans tests/nginx-odoo/, tests de configuration, comparaison avec le déployé
+
+Motif de la demande :
+  Mettre toute la configuration nginx-odoo dans tests/nginx-odoo/ : plus de tests désactivés faute de modèles
+  (« 3 test(s) désactivé(s) : modèles fail2ban absents »), et davantage de tests possibles avec tous les fichiers.
+
+Détail des modifications :
+  - tests/nginx-odoo/ : copie complète de la configuration livrée (26 fichiers) ; les tests la cherchent là en
+    priorité (repli sur nginx-odoo/ à côté des programmes).
+  - Nouveau module test_config_nginx.py (12 tests), sans nginx : syntaxe (accolades équilibrées, directives
+    terminées par « ; », chaînes et commentaires gérés comme nginx) ; include pointant vers des fichiers existants
+    (snippets Debian comme snakeoil.conf reconnus) ; une seule « location = /robots.txt » ; en-têtes HSTS au format
+    RFC 6797 ; filtre à robots (outils bloqués, vrais navigateurs laissés) ; limite de connexion ; règle
+    /web/database/* dans chaque environnement ; robots.txt « tout interdit » pour DEV seulement ; filtres fail2ban
+    sur des lignes réelles (dont une tentative d'injection d'IP) ; modèle du jail odoo-auth ; et le VRAI
+    fail2ban-regex sur les deux filtres quand il est installé (serveurs).
+  - Test de conventions : tests/nginx-odoo/ doit rester IDENTIQUE à nginx-odoo/ quand les deux existent.
+  - Nouvelle étape 5 du lanceur : configuration déployée (/etc/nginx, /etc/fail2ban, page de maintenance) comparée
+    à la version testée — fichiers différents signalés [ATTN], sans entrer dans le verdict (une différence peut être
+    voulue) ; sautée sur une machine sans /etc/nginx.
+
+Bugs corrigés :
+  Aucun dans ce programme. Les nouveaux tests ont révélé deux défauts de MES tests (extraction d'un motif à espaces
+  protégées, snippet Debian inconnu) et une lacune : un « ; » manquant DANS la valeur HSTS passe nginx -t mais rend
+  l'en-tête invalide — désormais vérifié.
+
+Vérifications effectuées :
+  - Vérification par mutation de la configuration : accolade retirée, « ; » final retiré, « ; » retiré dans la valeur
+    HSTS, deuxième location robots.txt, snippet inclus renommé, python-httpx retiré du filtre, motif bloquant tous les
+    navigateurs : tous détectés ; configuration intacte : tout passe.
+  - Étape 5 sur un faux /etc : fichier modifié à la main signalé, fichiers d'un autre environnement comptés comme
+    absents sans alerte.
+  - Validation complète (voir la réponse en chat).
+
+Action requise de ma part (ou « aucune ») :
+  Aucune : tests/nginx-odoo/ est livré dans le zip. Sur le serveur DEV, le test du vrai fail2ban-regex s'exécutera.
+
+## 1.2.20260926.211237 — Raison des tests désactivés, nettoyage de /tmp, gawk et ruff fournis
+
+Motif de la demande :
+  Retour d'exécution sur le serveur : répertoires temporaires laissés dans /tmp (test-rlq-…), message trompeur
+  « 3 test(s) désactivé(s) (root requis, ou programme absent) » alors que la cause réelle était l'absence des modèles
+  fail2ban ; demande d'inclure les exécutables gawk et ruff dans le zip.
+
+Détail des modifications :
+  - Tests désactivés : la RAISON réelle, donnée par chaque test (unittest -v), affichée une fois par raison.
+  - Filet de sécurité : les répertoires test-rlq-* créés PENDANT le passage et restés dans /tmp sont supprimés
+    (jamais ceux d'un autre passage), avec le message « [NETTOYÉ] ».
+  - Causes corrigées dans les tests : répertoire de test supprimé par addCleanup, enregistré aussitôt sa création
+    (tearDown n'est pas appelé si setUp échoue) ; en pseudo-terminal, tout le GROUPE de processus est tué puis
+    attendu (des processus enfants restés actifs pouvaient recréer des fichiers pendant la suppression) ; certificat
+    et CLÉ PRIVÉE de test du serveur HTTPS (test_sanity_check) supprimés en fin de classe — 13 répertoires /tmp/tmp*
+    en restaient dans l'environnement de développement.
+  - Fonction grep_q retirée de ce lanceur (son seul appel a été remplacé ; ShellCheck SC2329).
+  - tests/outils/ fourni avec gawk 5.3.2 (statique, GPL-3.0) et ruff 0.16.9 (statique, MIT) : validation complète sans
+    installation.
+  - Nouveaux tests : réponse corrigée avec effacement (chk-nginx-logs), sommaire et journal (surveillance-odoo).
+
+Bugs corrigés :
+  - Répertoires temporaires et clés de test laissés dans /tmp.
+  - Raison trompeuse des tests désactivés.
+
+Vérifications effectuées :
+  - Validation complète : « TOUT PASSE », 45 tests sous mawk et gawk ; ShellCheck 0 ; ruff sans défaut.
+  - Filet de sécurité : un répertoire créé pendant le passage est supprimé, un répertoire antérieur est conservé.
+  - Situation du serveur simulée (modèles absents) : « 3 test(s) désactivé(s) : modèles fail2ban absents (…) —
+    extraire nginx-odoo-normalise.zip à côté des programmes ».
+
+Action requise de ma part (ou « aucune ») :
+  Extraire nginx-odoo-normalise.zip à côté des programmes (/root/scripts/nginx-odoo/) pour activer les 3 tests du jail.
+
+## 1.1.20260926.165635 — Code de sortie d'échec propre, sortie de ruff compacte ; gawk et ruff pris en charge
+
+Motif de la demande :
+  Exécutables statiques de gawk (5.3.2) et ruff (0.16.9) fournis pour compléter la suite de tests. ruff, lancé pour
+  la première fois par tests/run-all.sh, a trouvé 7 défauts réels (2 dans les programmes livrés, 5 dans les tests).
+
+Détail des modifications :
+  - Fin du lanceur : « exit 1 » explicite en cas d'échec, au lieu d'un « (( ECHECS == 0 )) » final.
+  - ruff lancé avec --output-format concise : une ligne par défaut (fichier:ligne:colonne, code, message) au lieu
+    d'extraits de code de plusieurs lignes.
+  - Tests : 5 défauts trouvés par ruff corrigés (imports inutilisés dans aide_tests.py et test_surveillance.py,
+    variable inutilisée, f-string sans variable) ; tests du jail odoo-auth DÉSACTIVÉS et signalés (au lieu
+    d'échouer avec FileNotFoundError) quand les modèles nginx-odoo/fail2ban/ sont absents.
+
+Bugs corrigés :
+  - En cas d'échec, le test final faux déclenchait le piège ERR du lanceur : faux « ARRÊT INATTENDU DE run-all.sh
+    (code 1) » en plus du verdict.
+
+Vérifications effectuées :
+  - Validation complète avec ShellCheck 0.11.0, ruff 0.16.9, mawk 1.3.4 et gawk 5.3.2 : « TOUT PASSE — validation
+    complète », 42 tests sous chaque awk.
+  - Vérification par mutation sous gawk : le bug « awk -v » de chk-nginx-logs.sh 1.24, réintroduit, fait échouer
+    son test sous gawk (il passait inaperçu sous mawk) ; défaut ruff réintroduit : code 1, défaut affiché en une
+    ligne, aucun faux arrêt.
+
+Action requise de ma part (ou « aucune ») :
+  Installer gawk et ruff sur la machine de validation (ou déposer les exécutables statiques dans tests/outils/).
+
+## 1.0.20260926.132022 — Version initiale : validation complète en une commande
+
+Motif de la demande :
+  Recommandation n° 4 : la plupart des bugs de la session (SIGPIPE, champs vides avec read, « awk -v », Ctrl-C,
+  course « grep -q ») n'ont été vus qu'après déploiement. Accord pour construire une suite de tests permanente.
+
+Détail des modifications :
+  - Lanceur unique : syntaxe (bash -n, py_compile) ; ShellCheck sur tous les scripts Bash ; ruff (défauts réels
+    E9/F) sur le Python ; suite unittest lancée une fois par awk disponible (mawk, gawk, original-awk, BusyBox).
+  - Outils cherchés dans le PATH puis dans tests/outils/ (exécutables statiques).
+  - Verdict explicite : échecs, et points NON vérifiés (outil absent, tests exigeant root) — jamais de silence.
+  - Modules de tests (un test par bug trouvé en session) : test_conventions (versionnage et changelog de tous les
+    programmes), test_chk_nginx_logs, test_sync_crowdsec, test_setup_nginx_odoo, test_chk_odoo_logs,
+    test_sanity_check, test_surveillance ; outils communs dans aide_tests.py (faux outils, vrai pseudo-terminal).
+
+Bugs corrigés :
+  Aucun dans ce programme (version initiale). La suite a trouvé, dès sa construction, trois défauts dans les
+  programmes testés (voir leurs changelogs) : trace Python de chk-odoo-logs.py --changelog | head, phrase orpheline
+  dans le jail odoo-auth généré par setup-nginx-odoo.sh.
+
+Garde-fous et cas limites traités :
+  - Tests interactifs (Ctrl-C, réponse lente) et du mode normal de surveillance-odoo.py désactivés hors root, et
+    signalés comme tels dans le verdict.
+  - Tests de concurrence répétés (5 à 10 fois) : un bug de course peut passer un essai isolé.
+
+Vérifications effectuées :
+  - ShellCheck 0.11.0 : 0 signalement sur run-all.sh.
+  - Vérification par mutation : la course « grep -q » et le SIGPIPE réintroduits dans des copies des scripts font
+    échouer les tests correspondants ; le bug « awk -v » n'est détectable que sous gawk (absent de l'environnement
+    de développement — d'où la recommandation de l'installer).
+
+Action requise de ma part (ou « aucune ») :
+  Installer au moins gawk (et idéalement ruff, busybox) puis lancer tests/run-all.sh en root avant chaque
+  déploiement.

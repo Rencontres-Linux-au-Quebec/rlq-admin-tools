@@ -1,6 +1,35 @@
 Changelog — app-log-live.py
 (newest version first; entries up to 1.79 are still in French: their translation is a later stage of the migration)
 
+## 1.88.20261020.112434 — --truncate / --anonymize by default only on a terminal; --no-underline
+
+Reason:
+  « fais le nettoyage des données personnelles et rajoute des exemples de données en français (avec accents) et en anglais. Assures-tu que l'affichage des programmes soient bien enligné indépendamment du français et anglais. à la fin des tests, indique des stats du tests (durée, ressources utilisées, nombre de tests par programmes, si tests unitaires, fonctionnels ou autres) »
+  (found while adding the tests: 1.87 applied both defaults to a PIPE too.)
+
+Changes:
+  - main(): --truncate not given (new constant TRUNCATE_AUTO = -2) and --anonymize / ANONYMIZE not refused: applied only when the output is a TERMINAL.
+    A program that reads this output (pipe, redirection, the test suite, cron) gets the real, whole lines — the rule of the suite for ANONYMIZE
+    (apps/_anonymiser.py demande()). An explicit --anonymize or --truncate [N] on the command line always applies; --no-anonymize / --no-truncate always win.
+  - Help of --truncate and --anonymize: « By default on a terminal »; lang/app-log-live.fr.po.
+  - New --no-underline (UNDERLINE key, doc/app-log-live.conf.example): no underlined line (Output.underline); the startup line says how to remove it.
+    Needed by the tests that compare the exact colors in a real terminal, and by anyone who prefers it.
+
+Bugs fixed:
+  - Symptom (1.87): « app-log-live.py --no-follow | grep … » or a program reading the stream got IP-xxxxxx pseudonyms and lines cut at $COLUMNS - 10
+    (100 - 10 without a terminal). Diagnosis: the defaults did not look at the output. Fix: terminal only.
+  - Symptom (during the change): « argument --truncate: invalid int value: 'auto' ». Diagnosis: argparse applies type=int to a TEXT default. Fix: numeric
+    sentinel TRUNCATE_AUTO.
+
+Safeguards and edge cases:
+  - TRUNCATE=N or TRUNCATE=oui in the configuration file is explicit: applied even without a terminal (like --truncate).
+
+Checks:
+  - Whole suite (run-all.sh 1.188, see its changelog), including the new test_colonnes_alignees_en_francais_et_en_anglais_avec_accents_nfd_et_chinois.
+
+Action required:
+  none.
+
 ## 1.87.20261020.103939 — One line out of 5 underlined; --truncate / --anonymize by default; sent e-mails named again; « -2026- » highlighted
 
 Reason:
