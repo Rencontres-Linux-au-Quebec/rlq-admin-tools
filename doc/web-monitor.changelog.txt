@@ -1,6 +1,31 @@
 Changelog — web-monitor.py
 (newest version first; entries up to 2.62 are still in French: their translation is a later stage of the migration)
 
+## 2.73.20261020.161238 — Bans: the reason is passed to nginx-log-audit.sh (--reason) and kept in the ban journal
+
+Reason:
+  « Il y a eu une IP qui a été bannie mais je ne trouve pas la justification. Il faudrait indiquer l'heure et la raison qu'elle a été bannie (et toutes autres raisons). Peut-être rajouter un champ texte afin de pouvoir rajouter un texte justificatif lors du ban. » (--investigate showed one request, score 1/7, and --unban-check | grep found nothing)
+
+Changes:
+  - ban() (--ban-recommended, --apply): each IP is banned with --reason "web-monitor.py: <reason of the recommendation>" (one by one
+    or with --yes).
+  - --ban-odoo-user: --reason "web-monitor.py --ban-odoo-user: Odoo account <login> banned (score N: verdict)";
+    --unban-odoo-user: --reason "web-monitor.py --unban-odoo-user: Odoo account <login> restored".
+  - Reading of nginx-log-audit.sh's bans.tsv (--summary, --list-users): only the « banni » and « leve » events count; the new
+    « justifie » event (justification added later) is ignored.
+
+Bugs fixed:
+  - Prevented: without the bans.tsv change, a « justifie » line would have removed the address from the banned set of --list-users.
+
+Safeguards and edge cases:
+  - Needs nginx-log-audit.sh 2.40 or later (older versions refuse the unknown option --reason): deliver both together.
+
+Checks:
+  - python3 -m py_compile.
+
+Action required:
+  none (install with nginx-log-audit.sh 2.40).
+
 ## 2.72.20261019.150215 — New copyright: Services-Conseils Linux and Rencontres Linux au Québec contributors
 
 Reason:
