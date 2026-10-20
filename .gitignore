@@ -27,8 +27,7 @@ env/
 *.conf.local
 *.secret
 
-# Suite de tests (nginx-tools-tests/) : configuration nginx PRIVÉE (copie locale ou NGINX_ODOO_DIR), exécutables statiques fournis
-# dans l'archive (ruff, gawk : 25 Mo), journaux locaux des passages
+# Suite de tests (nginx-tools-tests/) : configuration nginx PRIVÉE (copie locale ou NGINX_ODOO_DIR), journaux locaux des passages
+# (les exécutables de nginx-tools-tests/tools/ sont dans le dépôt depuis run-all 1.189)
 nginx-tools-tests/nginx-odoo/
-nginx-tools-tests/tools/
 nginx-tools-tests/last-*.log

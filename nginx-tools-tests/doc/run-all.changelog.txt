@@ -1,6 +1,29 @@
 Changelog — run-all.sh (suite de tests)
 (version la plus récente en premier)
 
+## 1.189.20261020.163255 — tools/ in the Git repository
+
+Reason:
+  « oui ouvre un PR et rajoute les fichiers dans "tools" »
+
+Changes:
+  - nginx-tools-tests/tools/gawk (GNU Awk 5.3.2, static) and nginx-tools-tests/tools/ruff (0.16.9, static-pie) added to the repository (they were only in
+    the archive of the suite); new tools/LISEZMOI.md: version, licence (GPL-3.0-or-later, MIT), source address and SHA-256 of each.
+  - .gitignore: nginx-tools-tests/tools/ no longer ignored (nginx-tools-tests/nginx-odoo/, private, still is). README: Git repository paragraph.
+
+Bugs fixed:
+  none.
+
+Safeguards and edge cases:
+  - Same files as in nginx-tools-tests.1.187.zip (checked: gawk --version, ruff --version, sha256sum). ruff is 25 MB: under the 50 MB GitHub warning.
+  - GPL-3.0 of gawk: the source address is given next to the executable.
+
+Checks:
+  - gawk --version, ruff --version, sha256sum; bash -n run-all.sh; run-all.sh --version.
+
+Action required:
+  none.
+
 ## 1.188.20261020.112434 — Statistics at the end; personal data removed; FR/EN sample data and alignment tests; suite in the Git repository
 
 Reason:

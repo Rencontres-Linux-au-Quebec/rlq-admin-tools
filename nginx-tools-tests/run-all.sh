@@ -31,6 +31,7 @@
 # unitaires, fonctionnels, interactifs et de conformite (nature MESUREE pendant chaque test), desactives et en echec, et les tests les plus lents.
 #
 # HISTORIQUE DE VERSION (resume — voir run-all.changelog.txt pour le detail complet) :
+#   1.189.20261020.163255 — tools/ (static gawk 5.3.2 and ruff 0.16.9) now in the Git repository, with tools/LISEZMOI.md (versions, licences, sources, SHA-256).
 #   1.188.20261020.112434 — Statistics at the end (duration, CPU, memory, disk, tests per program: unit / functional / interactive / conformity); personal data removed from the tests; FR/EN sample data and alignment tests; nginx-odoo/ read from NGINX_ODOO_DIR (not in git) (nginx-tools 1.133).
 #   1.187.20261017.214019 — Tests of web-monitor 2.69 (IP seen, sorted title, configuration keys) (nginx-tools 1.128).
 #   1.186.20261017.200717 — Residual files of the programs folder only reported (never deleted, the tests go on); test of a second Ctrl+C; web-monitor 2.68, app-log-live 1.85.
@@ -243,7 +244,7 @@ run_all_nettoyer() {
 CTRL_C_NETTOYAGE=run_all_nettoyer
 trap 'run_all_nettoyer; exit 143' TERM
 
-readonly SCRIPT_VERSION="1.188.20261020.112434"
+readonly SCRIPT_VERSION="1.189.20261020.163255"
 RUN_ALL_DEBUT=$(date +%s)
 TESTS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly TESTS_DIR
 PROG_DIR="${TEST_SCRIPTS_DIR:-$(dirname "$TESTS_DIR")}"; readonly PROG_DIR
