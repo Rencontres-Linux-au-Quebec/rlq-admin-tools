@@ -1,6 +1,27 @@
 Changelog — app-log-live.py
 (newest version first; entries up to 1.79 are still in French: their translation is a later stage of the migration)
 
+## 1.87.20261020.161238 — Bans: the reason is passed to nginx-log-audit.sh (--reason) and kept in the ban journal
+
+Reason:
+  « Il y a eu une IP qui a été bannie mais je ne trouve pas la justification. Il faudrait indiquer l'heure et la raison qu'elle a été bannie (et toutes autres raisons). Peut-être rajouter un champ texte afin de pouvoir rajouter un texte justificatif lors du ban. » (--investigate showed one request, score 1/7, and --unban-check | grep found nothing)
+
+Changes:
+  - propose_ban (address often banned): --reason "app-log-live.py: address often banned (N fail2ban bans), verdict: ban justified".
+  - Ban of the candidates (one by one or all): --reason "app-log-live.py: <ban_reason of the address>".
+
+Bugs fixed:
+  none.
+
+Safeguards and edge cases:
+  - Needs nginx-log-audit.sh 2.40 or later (older versions refuse the unknown option --reason): deliver both together.
+
+Checks:
+  - python3 -m py_compile.
+
+Action required:
+  none (install with nginx-log-audit.sh 2.40).
+
 ## 1.86.20261019.150215 — --diagnose: versions of the nginx configuration and their dates; new copyright
 
 Reason:
