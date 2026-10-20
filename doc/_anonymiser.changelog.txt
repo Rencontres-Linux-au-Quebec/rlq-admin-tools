@@ -1,6 +1,28 @@
 Changelog — apps/_anonymiser.py
 (version la plus récente en premier)
 
+## 1.2.20261020.103939 — Masked e-mails replaced whole; fixed_width for aligned columns
+
+Reason:
+  app-log-live.py 1.88 [4]: « Met ces options par défaut : --truncate, --anonymize (rajoute l'inverse --no-anonymize ?) ».
+
+Changes:
+  - COURRIEL: « * » accepted in the local part: Odoo's masked address « b****ss@exemple.org » becomes usager-xxxxxx@anonyme.invalid (was « b****usager-…@… »).
+  - Anonymiseur(sel=None, fixed_width=False): fixed_width=True pads the IP pseudonym with spaces to the width of the address it replaces (columns of
+    app-log-live.py stay aligned).
+
+Bugs fixed:
+  - Symptom: masked e-mail half replaced (« b****usager-5db69d@anonyme.invalid »). Diagnosis: « * » not in the e-mail pattern. Fix: added.
+
+Safeguards and edge cases:
+  - Default behavior unchanged for the other programs (fixed_width False).
+
+Checks:
+  - « CA 11.191.124.32    name to (b****ss@exemple.org) x 10.0.0.1 y » → « CA IP-430c66       name to (usager-5db69d@anonyme.invalid) x IP-a939f2 y ».
+
+Action required:
+  none.
+
 ## 1.1.20261019.150215 — New copyright: Services-Conseils Linux and Rencontres Linux au Québec contributors
 
 Reason:

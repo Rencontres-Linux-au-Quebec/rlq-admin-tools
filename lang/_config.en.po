@@ -77,3 +77,6 @@ msgstr " — rerun with sudo for a complete view."
 
 msgid " mis à jour à l'instant d'après le nouveau modèle : aucune option n'y était active)"
 msgstr " updated just now from the new template: no option was active in it)"
+
+msgid "# Fichier mis à jour automatiquement le {DATE} par {NOM} : aucune option n’y était active, il suit le modèle actuel."
+msgstr "# File updated automatically on {DATE} by {NOM}: no option was active in it, it follows the current template."

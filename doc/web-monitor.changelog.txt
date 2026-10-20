@@ -1,6 +1,54 @@
 Changelog — web-monitor.py
 (newest version first; entries up to 2.62 are still in French: their translation is a later stage of the migration)
 
+## 2.75.20261020.164846 — Merge: 2.73 (ban reason, main) + 2.74 (this branch)
+
+Reason:
+  « oui et aide-moi à résoudre des conflits avec ce PR. Claude a fait des changements au même moment dans un autre PR »
+
+Changes:
+  - Two branches had both numbered their change 2.73: the 2.73 of main (bans: --reason passed to nginx-log-audit.sh) keeps its number; the version of
+    the other branch becomes 2.74 (was 2.73.20261020.112434), with its date. Both sets of changes are in this version.
+
+Bugs fixed:
+  none.
+
+Safeguards and edge cases:
+  - Version numbers unique again; dates kept.
+
+Checks:
+  - Test suite (run-all.sh) on the merged code.
+
+Action required:
+  none.
+
+## 2.74.20261020.112434 — Error messages that start with an option translated whole again; --stats e-mail domains again
+
+Reason:
+  « fais le nettoyage des données personnelles et rajoute des exemples de données en français (avec accents) et en anglais. Assures-tu que l'affichage des programmes soient bien enligné indépendamment du français et anglais. à la fin des tests, indique des stats du tests (durée, ressources utilisées, nombre de tests par programmes, si tests unitaires, fonctionnels ou autres) »
+  (found by the test suite, test_web_monitor.Bilan.test_option_days, failing since 2.71.)
+
+Changes:
+  - LocalizedArgumentParser.error(): the message is first translated WHOLE; that translation is kept when it changed something and every option name of the
+    message (--days, --sort…) is still in it unchanged; otherwise the former way (option names set aside as literals, the rest translated by fragments).
+
+Bugs fixed:
+  - Symptom: --list-users --stats without « E-mail domains » (test_list_users_group_csv_repeat_header_et_stats failing since 2.70). Diagnosis:
+    2.70 indented that section under « if any(r["owners"]) » (RDAP lookups of the address owners): shown only when the owners were looked up. Fix: shown
+    in every case again, like 2.67.
+  - Symptom: « web-monitor.py : erreur : --days expects a number of jours between 1 and 366 » (half English). Diagnosis: 2.71 set the option names aside
+    BEFORE translating, so the catalogue entry « --days expects a number of days between 1 and 366 » (msgid with the option) never matched; only the
+    fragment « days » was translated. Fix: whole translation first, kept only if the options are intact (the 2.71 protection stays: « --sort » never
+    becomes « --tri »).
+
+Safeguards and edge cases:
+  - A whole translation that would rename an option is refused (fallback to the 2.71 way).
+
+Checks:
+  - test_web_monitor.Bilan.test_option_days; whole suite (run-all.sh 1.188).
+
+Action required:
+  none.
 ## 2.73.20261020.161238 — Bans: the reason is passed to nginx-log-audit.sh (--reason) and kept in the ban journal
 
 Reason:

@@ -10,6 +10,7 @@
 # _anonymiser.py — anonymise ce qu'affichent les programmes (option --anonymize) : pseudonymes STABLES (module partagé, apps/).
 #
 # HISTORIQUE DE VERSION (résumé — voir doc/_anonymiser.changelog.txt pour le détail complet) :
+#   1.2.20261020.103939 — Masked e-mails (« b****ss@exemple.org ») replaced whole; fixed_width: IP pseudonyms padded to the width of the address (aligned columns).
 #   1.1.20261019.150215 — New copyright: Services-Conseils Linux and Rencontres Linux au Québec contributors (AGPL-3.0-or-later).
 #   1.0.20261015.143436 — Création : adresses IP (v4, v6), courriels, identifiants (login, user), jetons / mots de passe / cookies, paramètres d'URL ; filtre de lignes ; sel secret par machine.
 """Remplace, dans le texte affiché, les données qui identifient quelqu'un par des PSEUDONYMES STABLES : une même valeur donne toujours le même pseudonyme (on suit « la même
@@ -32,7 +33,7 @@ import re
 import secrets
 import sys
 
-__version__ = "1.1.20261019.150215"
+__version__ = "1.2.20261020.103939"
 SEL_ENV = "NGINX_TOOLS_ANON_SEL"
 ACTIF_ENV = "NGINX_TOOLS_ANON_ACTIF"          # posé pour tout ce qui est lancé derrière le filtre : rien n'est filtré deux fois
 DEMANDE_ENV = "NGINX_TOOLS_ANONYMIZE"          # 1 : anonymiser (même sans terminal, ex. cron) ; 0 : ne jamais le faire d'après la configuration
@@ -42,7 +43,7 @@ OUI = ("1", "oui", "yes", "true", "on", "vrai", "o", "y")
 IPV4 = re.compile(r"(?<![\w.])(?:(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)\.){3}(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(?!\w|\.\d)")
 H = r"[0-9A-Fa-f]{1,4}"
 IPV6 = re.compile(rf"(?<![\w:.])(?:(?:{H}:){{7}}{H}|(?:{H}:){{1,7}}:(?:{H}(?::{H}){{0,6}})?|::{H}(?::{H}){{0,6}})(?![\w:.])")
-COURRIEL = re.compile(r"[A-Za-z0-9._+-]+(?:@|%40)[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}")
+COURRIEL = re.compile(r"[A-Za-z0-9._+*-]+(?:@|%40)[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}")
 SECRET = re.compile(r"(?i)(?<![\w-])((?:[\w-]*(?:token|secret|passw(?:or)?d|pwd|api[_-]?key|apikey|session[_-]?id|signature|authorization))[\"']?\s*[=:]\s*(?:(?:Bearer|Basic)\s+)?)"
                     r"(\"[^\"]*\"|'[^']*'|[^\s&;,\"')]+)")
 COOKIE = re.compile(r"(?im)\b(cookie:\s*)(.+)$")
@@ -81,9 +82,10 @@ def _lire_sel():
 class Anonymiseur:
     """Callable : Anonymiseur()(texte) -> texte anonymisé. Un même sel donne les mêmes pseudonymes d'une exécution à l'autre."""
 
-    def __init__(self, sel=None):
+    def __init__(self, sel=None, fixed_width=False):
         self.sel = sel if sel is not None else _lire_sel()
         self.cache = {}
+        self.fixed_width = fixed_width             # 1.2: « IP-4f2a9c » padded with spaces to the width of the address it replaces (columns stay aligned)
 
     def pseudonyme(self, genre, valeur):
         cle = (genre, valeur.lower())
@@ -99,7 +101,8 @@ class Anonymiseur:
             return texte
         if adresse.is_loopback or adresse.is_unspecified or texte.startswith("255.") or (adresse.version == 4 and re.fullmatch(r"1[5-9]\.0\.\d+\.\d+", texte)):
             return texte                                                  # boucle locale, masque, version « 18.0.1.3 » d'un module Odoo
-        return "IP-" + self.pseudonyme("ip", str(adresse))
+        res = "IP-" + self.pseudonyme("ip", str(adresse))
+        return res.ljust(len(texte)) if self.fixed_width else res
 
     def _courriel(self, m):
         texte = m.group(0)

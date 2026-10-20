@@ -9,6 +9,7 @@
 # _i18n.sh — langue d'affichage (fr / en…) et fichier de configuration des programmes bash (bibliothèque commune sourcée, apps/).
 #
 # HISTORIQUE DE VERSION (résumé — voir doc/_i18n.sh.changelog.txt pour le détail complet) :
+#   1.15.20261020.112434 — pad_cols: padding in COLUMNS (bash printf %-Ns counts bytes: « é » shifted the columns).
 #   1.14.20261019.150215 — config_rafraichir: configuration files with no active option rewritten from the current template; new copyright.
 #   1.13.20261017.200717 — Ctrl+C: a second Ctrl+C during the « Interrupt? » question stops the program (it was ignored after a Ctrl+C in a question).
 #   1.12.20261017.105442 — Language: LANGUAGE (GNU) also starts the translator; « Options : --lang xx (origine) » for the bash programs.
@@ -33,6 +34,15 @@
 # Langue : --lang, NGINX_TOOLS_LANG, la variable du programme, LANGUAGE du fichier de configuration, LC_ALL / LC_MESSAGES / LANG (voir apps/_i18n.py). En français
 # (cas courant) rien ne change : aucun processus de plus. Dans une autre langue, apps/_traduire.py lance le programme et traduit sa sortie ligne par ligne.
 # shellcheck shell=bash
+
+# pad_cols TEXTE LARGEUR : TEXTE suivi d'espaces jusqu'à LARGEUR COLONNES (1.15). « printf '%-20s' » de bash compte des OCTETS : « Première » (9 octets, 8 colonnes)
+# décalait la colonne suivante d'un cran par lettre accentuée. Les caractères sont comptés en UTF-8 quelle que soit la locale de l'appelant (cron : LANG=C).
+pad_cols() {
+    local LC_ALL=C.UTF-8 texte="$1" n
+    n=$(( $2 - ${#texte} ))
+    (( n > 0 )) || n=0
+    printf '%s%*s' "$texte" "$n" ""
+}
 
 _I18N_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 

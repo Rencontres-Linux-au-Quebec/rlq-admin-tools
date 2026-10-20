@@ -34,6 +34,8 @@
 # the complete report /var/log/web-monitor/, always written (30 days kept).
 #
 # VERSION HISTORY (summary — see web-monitor.changelog.txt for the full detail):
+#   2.75.20261020.164846 — Merge of 2.73 (bans: --reason passed to nginx-log-audit.sh) with 2.74 (error messages translated whole, --stats e-mail domains).
+#   2.74.20261020.112434 — Error messages that start with an option (« --days expects … ») translated whole again (« … a number of jours … »).
 #   2.73.20261020.161238 — Bans: the reason is passed to nginx-log-audit.sh (--reason) and kept in the ban journal.
 #   2.72.20261019.150215 — New copyright: Services-Conseils Linux and Rencontres Linux au Québec contributors (AGPL-3.0-or-later).
 #   2.71.20261019.115217 — Fix: field and sort keys, option names shown in English in every language (« browsers », not « navigateurs »); French field names accepted.
@@ -189,7 +191,7 @@ import time
 import unicodedata
 import urllib.parse
 
-__version__ = "2.73.20261020.161238"
+__version__ = "2.75.20261020.164846"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
@@ -3010,7 +3012,7 @@ def print_user_stats(records, bbb):
     if any(r["owners"] for r in records):                                   # 2.70: owners of the address blocks looked up
         section("Countries (main IP address, RDAP/whois)", collections.Counter((r["ipcountry"] or ["?"])[0] for r in records))
         section("VPN, Tor, relay, hosting", collections.Counter(f"{TR(r['vpn'][0])} {r['vpn'][1]}" for r in records if r["vpn"]))
-        section("E-mail domains", collections.Counter(((r["email"] or r["login"]).rpartition("@")[2].lower() or "?") for r in records))
+    section("E-mail domains", collections.Counter(((r["email"] or r["login"]).rpartition("@")[2].lower() or "?") for r in records))
     section("Operating systems", collections.Counter(s for r in records for s in r["os"]))
     section("Browsers", collections.Counter(b for r in records for b in r["nav"]))
     print(f"  {color_code('1', 'Top 10 of the most active accounts')}")
@@ -4893,7 +4895,12 @@ class LocalizedArgumentParser(argparse.ArgumentParser):
         return super().add_argument(*args, **kwargs)
 
     def error(self, message):
-        message = TR(re.sub(r"(?<![\w-])--[a-z][\w-]*", lambda m: literal(m.group(0)), message))      # 2.71: option names never translated (« --sort » became « --tri »)
+        # 2.71: option names never translated (« --sort » became « --tri »). 2.74: a message translated WHOLE by the catalogue (its msgid includes the option:
+        # « --days expects a number of days … ») keeps that translation when every option name is still there; otherwise the options are set aside
+        options = re.findall(r"(?<![\w-])--[a-z][\w-]*", message)
+        whole = TR(message)
+        message = whole if whole != message and all(re.search(rf"(?<![\w-]){re.escape(o)}(?![\w-])", whole) for o in options) else \
+            TR(re.sub(r"(?<![\w-])--[a-z][\w-]*", lambda m: literal(m.group(0)), message))
         if LANGUAGE == "fr":
             message = re.sub(r"^unrecognized arguments: (.+)$", r"argument(s) non reconnu(s) : \1", message)
             message = re.sub(r"^argument (\S+): invalid int value: (.+)$", r"argument \1 : entier invalide : \2", message)
