@@ -110,14 +110,14 @@ class AppLogLive(EnvTest):
         return rc, out, err
 
     def run_pty(self, cmd, *args, **kwargs):
-        """Dans un vrai terminal, app-log-live 1.87-1.88 anonymise, raccourcit et souligne une ligne sur 5 PAR DÉFAUT : les tests qui comparent les couleurs et
+        """Dans un vrai terminal, app-log-live 1.88-1.89 anonymise, raccourcit et souligne une ligne sur 5 PAR DÉFAUT : les tests qui comparent les couleurs et
         les adresses exactes demandent l'affichage brut (sauf un test qui passe lui-même une de ces options)."""
         if len(cmd) > 1 and cmd[1] == self.prog and not any(o in cmd for o in ("--anonymize", "--no-anonymize", "--truncate", "--no-truncate", "--no-underline")):
             cmd = cmd[:2] + ["--no-anonymize", "--no-truncate", "--no-underline"] + cmd[2:]
         return super().run_pty(cmd, *args, **kwargs)
 
     def test_terminal_par_defaut_soulignee_anonymisee_et_raccourcie_mais_jamais_dans_un_tube(self):
-        """1.87-1.88 : dans un terminal, par défaut : une ligne sur 5 soulignée, adresses en pseudonymes (IP-xxxxxx), ligne trop large raccourcie en
+        """1.88-1.89 : dans un terminal, par défaut : une ligne sur 5 soulignée, adresses en pseudonymes (IP-xxxxxx), ligne trop large raccourcie en
         « début ... deux derniers mots » à $COLUMNS - 10 ; dans un tube (un autre programme lit la sortie) : lignes entières, vraies adresses, rien de souligné."""
         longue = "/event/journee-portes-ouvertes-2026/registration/confirm?ticket=12&utm_source=infolettre-octobre&utm_campaign=rappel-final-de-la-journee"
         self.journal([werkzeug(DNS, f"/page-{i}") for i in range(4)] + [werkzeug(DNS, longue), werkzeug(DNS, "/fin")])
@@ -530,8 +530,8 @@ class AppLogLive(EnvTest):
     def test_surlignage_des_mots_en_cyan(self):
         """1.58 : --highlight / HIGHLIGHT / touche l. Mots surlignés (noir sur fond cyan) sans casser les couleurs de la ligne ; POST (tout en majuscules) sensible à la casse ; rien sans couleur."""
         live = self.module_live()
-        self.assertEqual(live.read_highlight(None), ["POST", "webclient", "discuss", "avatar", "20-ans", "21-ans", "portes", "ouvertes", "-2026-"])      # 1.87 : « -2026- »
-        self.assertEqual(live.read_highlight("webclient,-2026-"), ["webclient", "-2026-"])          # 1.87 : « -2026- » est un MOT (début ET fin « - »), pas « retirer 2026- »
+        self.assertEqual(live.read_highlight(None), ["POST", "webclient", "discuss", "avatar", "20-ans", "21-ans", "portes", "ouvertes", "-2026-"])      # 1.88 : « -2026- »
+        self.assertEqual(live.read_highlight("webclient,-2026-"), ["webclient", "-2026-"])          # 1.88 : « -2026- » est un MOT (début ET fin « - »), pas « retirer 2026- »
         self.assertNotIn("-2026-", live.read_highlight("--2026-"))                                  # « --2026- » le retire
         self.assertEqual(live.read_highlight(" a , b,,"), ["a", "b"])
         self.assertEqual(live.read_highlight("none"), [])
@@ -2997,7 +2997,7 @@ class AppLogLive(EnvTest):
         self.assertEqual(len(live.rlq_group_columns(g[:1], 200)), 1)
 
     def test_ligne_raccourcie_debut_points_et_deux_derniers_mots(self):
-        """1.87 : ligne plus large que la limite = « début ... deux derniers mots » ; « [banned: …] » compte pour UN mot (la fin de l'URL reste) ; le
+        """1.88 : ligne plus large que la limite = « début ... deux derniers mots » ; « [banned: …] » compte pour UN mot (la fin de l'URL reste) ; le
         remplissage des colonnes est réduit d'abord (une ligne qui tient alors n'est pas coupée) ; couleurs gardées des deux côtés."""
         live = self.module_live()
         live.COLOR = True
@@ -3031,7 +3031,7 @@ class AppLogLive(EnvTest):
         ecran = io.StringIO()
         out = live.Output(ecran, self.path("journaux-tronques"), 30, True)
         out.active, out.truncate = True, 30
-        out.write("z" * 100 + "\n", stream=True)                                     # 1.87 : seules les lignes du JOURNAL sont raccourcies
+        out.write("z" * 100 + "\n", stream=True)                                     # 1.88 : seules les lignes du JOURNAL sont raccourcies
         self.assertEqual(ecran.getvalue(), "z" * 29 + "…\n")
         out.write("menu " * 30 + "\n")                                               # menus et rapports : jamais coupés
         self.assertIn("menu " * 30, ecran.getvalue())
@@ -3040,7 +3040,7 @@ class AppLogLive(EnvTest):
             self.assertIn("z" * 100, f.read())
         rc, aide, err = self.run_cmd(["python3", self.prog, "--help"], {"APP_LOG_LIVE_LANG": "fr"})
         self.assertIn("--truncate [N]", aide)
-        self.assertIn("début ... deux derniers mots", " ".join(aide.split()))          # 1.87 : $COLUMNS - 10, « début ... deux derniers mots »
+        self.assertIn("début ... deux derniers mots", " ".join(aide.split()))          # 1.88 : $COLUMNS - 10, « début ... deux derniers mots »
 
     def test_inscriptions_par_evenement_billet_et_sondage_du_billet(self):
         """1.84 (touche I) : regroupement événement -> billet -> LE sondage de ce billet ; une réponse au sondage de l'an dernier ou d'un autre billet n'est
