@@ -1,6 +1,48 @@
 Changelog — apps/_odoo_db.py
 (version la plus récente en premier)
 
+## 1.18.20261019.150215 — New copyright: Services-Conseils Linux and Rencontres Linux au Québec contributors
+
+Reason:
+  « [4] Mettre à jour le copywrite dans tous les programmes Python et BASH, mais pas dans les fichiers de config, sur peut enlever les lignes ce copywrite, je ne pense pas que c'est pertinent, les gens peuvent copier les fichiers de config sans suivre les restrictions d'une licence. Copyright (C) 2026 Services-Conseils Linux / Copyright (C) 2026 Rencontres Linux au Québec contributors / This program is free software: you can redistribute it and/or modify it under the terms of the GNU Affero General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version. »
+
+Changes:
+  - Header: « Copyright (C) 2026 Services-Conseils Linux » and « Copyright (C) 2026 Rencontres Linux au Québec contributors », with the AGPL-3.0-or-later
+    notice (was: Services-Linux Conseils Inc and its e-mail addresses). No change of behavior.
+
+Bugs fixed:
+  none.
+
+Safeguards and edge cases:
+  none.
+
+Checks:
+  - New header in every Python and bash program (python3 -m py_compile, bash -n on all of them); no copyright line left in the
+    configuration templates (doc/*.conf.example, apps/*.conf).
+
+Action required:
+  none.
+
+## 1.17.20261019.012211 — user_profiles: creation date of each Odoo account
+
+Reason:
+  « […] rajoute une colonne afin d'indiquer depuis quand un utilisateur a créé son compte […] » (web-monitor.py 2.70, « Account created » column)
+
+Changes:
+  - user_profiles(base): new key « created » (epoch of res_users.create_date, stored in UTC by Odoo; None if empty). Still READ-ONLY.
+
+Bugs fixed:
+  none.
+
+Safeguards and edge cases:
+  - Older callers ignore the new key; a row without the column (shorter result) gives created = None.
+
+Checks:
+  - Python syntax; web-monitor.py --table with sample profiles.
+
+Action required:
+  none.
+
 ## 1.16.20261017.105442 — user_profiles: phone, country, city, groups, tags, events and surveys of each Odoo account
 
 Reason:

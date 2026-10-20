@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 # ========================================================================================================================
-# Copyright (C) 2026  Services-Conseils Linux
+# Copyright (C) 2026 Services-Conseils Linux
+# Copyright (C) 2026 Rencontres Linux au Québec contributors
 #
-# This file is part of the nginx configuration of Rencontres Linux Québec. Free software: you can
-# redistribute it and/or modify it under the terms of the GNU Affero General Public License published by the Free
-# Software Foundation, either version 3 of the License, or (at your option) any later version.
-# Texte complet : https://www.gnu.org/licenses/agpl-3.0.html
+# This program is free software: you can redistribute it and/or modify it under the terms of the GNU Affero General Public
+# License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
+# Full text: https://www.gnu.org/licenses/agpl-3.0.html
 # ========================================================================================================================
 #
 # zip-versions.py — versions contained in the project archives (nginx-tools.zip, nginx-tools-tests.zip, nginx-odoo-config.zip),
@@ -15,6 +15,7 @@
 # the one to attach to the discussion. --installed: comparison with what is deployed on the server.
 #
 # VERSION HISTORY (summary — see doc/zip-versions.changelog.txt for full detail):
+#   1.14.20261019.150215 — New copyright: Services-Conseils Linux and Rencontres Linux au Québec contributors (AGPL-3.0-or-later).
 #   1.13.20261016.173838 — Copyright holder: Services-Linux Conseils Inc
 #   1.12.20261015.194752 — Source code, comments and changelog now in English (display stays French/English through lang/zip-versions.fr.po).
 #   1.11.20261015.183428 — Green also for today's files/ISO dates and for module versions without a date (e.g. 18.0.1.107.0).
@@ -53,7 +54,7 @@ import signal
 import sys
 import zipfile
 
-__version__ = "1.13.20261016.173838"
+__version__ = "1.14.20261019.150215"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]

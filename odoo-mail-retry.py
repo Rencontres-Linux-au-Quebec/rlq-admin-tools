@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 # ========================================================================================================================
-# Copyright (C) 2026  Services-Conseils Linux
+# Copyright (C) 2026 Services-Conseils Linux
+# Copyright (C) 2026 Rencontres Linux au Québec contributors
 #
-# This file is part of the nginx configuration of Rencontres Linux Québec. Free software: you can
-# redistribute it and/or modify it under the terms of the GNU Affero General Public License published by the Free
-# Software Foundation, either version 3 of the License, or (at your option) any later version.
+# This program is free software: you can redistribute it and/or modify it under the terms of the GNU Affero General Public
+# License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
 # Full text: https://www.gnu.org/licenses/agpl-3.0.html
 # ========================================================================================================================
 #
@@ -24,6 +24,7 @@
 # the command line takes priority. The files read are always displayed, with the important options.
 #
 # VERSION HISTORY (summary — see doc/odoo-mail-retry.changelog.txt for full detail):
+#   1.13.20261019.150215 — New copyright: Services-Conseils Linux and Rencontres Linux au Québec contributors (AGPL-3.0-or-later).
 #   1.12.20261017.105442 — Options line: which setting decided the display language (apps/_i18n.py 1.17).
 #   1.11.20261016.173838 — Copyright holder: Services-Linux Conseils Inc
 #   1.10.20261016.114848 — Invalid e-mail addresses of event registrations (--invalid-emails): suggested correction, registration and contact fixed, failed e-mails resent (--fix --yes).
@@ -61,7 +62,7 @@ try:                    # line editing in prompts (backspace ^H or ^?, arrows)
 except ImportError:
     pass
 
-__version__ = "1.12.20261017.105442"
+__version__ = "1.13.20261019.150215"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]

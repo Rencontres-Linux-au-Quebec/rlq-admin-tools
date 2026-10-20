@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 # ========================================================================================================================
-# Copyright (C) 2026  Services-Conseils Linux
+# Copyright (C) 2026 Services-Conseils Linux
+# Copyright (C) 2026 Rencontres Linux au Québec contributors
 #
-# This file is part of the nginx configuration of Rencontres Linux Québec. Free software: you can
-# redistribute it and/or modify it under the terms of the GNU Affero General Public License published by the Free
-# Software Foundation, either version 3 of the License, or (at your option) any later version.
+# This program is free software: you can redistribute it and/or modify it under the terms of the GNU Affero General Public
+# License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
 # Full text: https://www.gnu.org/licenses/agpl-3.0.html
 # ========================================================================================================================
 #
@@ -34,6 +34,9 @@
 # the complete report /var/log/web-monitor/, always written (30 days kept).
 #
 # VERSION HISTORY (summary — see web-monitor.changelog.txt for the full detail):
+#   2.72.20261019.150215 — New copyright: Services-Conseils Linux and Rencontres Linux au Québec contributors (AGPL-3.0-or-later).
+#   2.71.20261019.115217 — Fix: field and sort keys, option names shown in English in every language (« browsers », not « navigateurs »); French field names accepted.
+#   2.70.20261019.012211 — --table: every 5th line underlined; « Account created », « IP country » (RDAP / whois) and « VPN » (VPN, Tor, relay, hosting) columns; --sort created|vpn.
 #   2.69.20261017.214019 — --table: « IP seen » column, title of the sorted column in color, tags off by default; keys CSV, GROUP, INTERNET; config keys never start --list-users.
 #   2.68.20261017.200717 — Fix: --list-users --table crashed (KeyError on a date) when bans.tsv exists.
 #   2.67.20261017.105442 — --list-users --table: compact table (events, surveys, phone, country, city, groups, tags), colors; --table-fields, --group, --csv, --repeat-header, --stats; language origin.
@@ -154,6 +157,7 @@
 
 import argparse
 import collections
+import concurrent.futures
 import contextlib
 import bisect
 import datetime
@@ -184,7 +188,7 @@ import time
 import unicodedata
 import urllib.parse
 
-__version__ = "2.69.20261017.214019"
+__version__ = "2.72.20261019.150215"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
@@ -264,6 +268,31 @@ def _load_i18n():
 
 LANGUAGE_ORIGIN = ""
 LANGUAGE, TR, AVAILABLE_LANGUAGES, CONFIG, CONFIG_FILES = _load_i18n()
+LITERAL_START, LITERAL_END, LITERAL_SLOT = "\ue001", "\ue002", "\ue003"     # 2.71: private-use characters, never in a real text
+LITERAL_RE = re.compile(LITERAL_START + "(.*?)" + LITERAL_END, re.S)
+
+
+def literal(text_value):
+    """2.71: text displayed AS IS in every language — option values, field and sort keys (« browsers », « sent »): the translator replaced them by
+    French words (« navigateurs », « envoyé(s) ») that the program then refused. Only for texts that are displayed through TR (print, argparse)."""
+    return LITERAL_START + str(text_value) + LITERAL_END
+
+
+def _keeping_literals(translate):
+    """The translator, with the literal() parts set aside during the translation, then put back unchanged and without their markers."""
+    def tr(text_value):
+        if not isinstance(text_value, str) or LITERAL_START not in text_value:
+            return translate(text_value)
+        kept = LITERAL_RE.findall(text_value)
+        res = translate(LITERAL_RE.sub(LITERAL_SLOT, text_value))
+        if not isinstance(res, str) or res.count(LITERAL_SLOT) != len(kept):
+            return text_value.replace(LITERAL_START, "").replace(LITERAL_END, "")
+        it = iter(kept)
+        return re.sub(LITERAL_SLOT, lambda _m: next(it), res)
+    return tr
+
+
+TR = _keeping_literals(TR)
 try:
     _load_module("_i18n").installer_confirmation_ctrl_c(TR)       # Ctrl+C asks for confirmation (interactive terminal only)
 except Exception:
@@ -818,10 +847,15 @@ TARGET_RETENTION_DAYS = 92
 BAD, END_BAD = ("\x1b[1;35m", "\x1b[0m") if sys.stdout.isatty() else ("", "")
 
 
+def colors_on():
+    """ANSI codes allowed: the output is a terminal at display time (never in a captured report or one sent by e-mail), without NO_COLOR nor TERM=dumb."""
+    return sys.stdout.isatty() and not os.environ.get("NO_COLOR") and os.environ.get("TERM") != "dumb"
+
+
 def color_code(code, text_value):
     """Colored text ONLY if the output is a terminal at display time (never in a captured report
     or one sent by e-mail, nor with NO_COLOR). code: 32 green, 33 yellow, 31 red, 1 bold, 35 magenta."""
-    if not sys.stdout.isatty() or os.environ.get("NO_COLOR") or os.environ.get("TERM") == "dumb":
+    if not colors_on():
         return str(text_value)
     return f"\x1b[1;{code}m{text_value}\x1b[0m" if code != "1" else f"\x1b[1m{text_value}\x1b[0m"
 # Group 8: requested domain name (nginx combined_host format: host="…" at the end of the line; absent from old lines).
@@ -2420,6 +2454,7 @@ def top_names(counter, limit=3):
 SESSION_PAUSE = 30                    # minutes without a request from the address after which a login is considered ended
 # Canonical key -> (label, default direction: 1 ascending, -1 descending, synonyms accepted)
 USER_SORTS = {
+    "created": ("account creation", -1, ("cree", "créé", "creation", "création", "new", "nouveau")),
     "first": ("first login", 1, ("premiere", "première", "oldest")),
     "ip": ("IP address", 1, ("adresse",)),
     "last": ("last login", -1, ("latest", "derniere", "dernière", "recent", "récent")),
@@ -2434,13 +2469,14 @@ USER_SORTS = {
     "written": ("pages written", -1, ("ecrites", "writes", "post")),
     "type": ("account type", 1, ("kind",)),
     "uid": ("UID", 1, ()),
+    "vpn": ("VPN, Tor, relay, hosting", -1, ("proxy", "hebergeur", "hébergeur", "tor")),
     "events": ("event registrations", -1, ("evenements", "inscriptions", "registrations")),
     "surveys": ("surveys completed", -1, ("sondages",)),
     "seen": ("last seen on the site", -1, ("ipseen", "ip-seen", "vue", "vu")),
 }
 SORT_FIELD = {"name": "name", "login": "login", "uid": "uid", "ip": "ip", "first": "first", "last": "last", "logins": "logins", "minutes": "minutes",
               "type": "type", "os": "systems", "pages": "read", "written": "written", "received": "received", "sent": "sent", "events": "events",
-              "surveys": "surveys", "seen": "ipseen"}           # 2.69: --sort KEY -> column whose title is colored
+              "surveys": "surveys", "seen": "ipseen", "created": "created", "vpn": "vpn"}           # 2.69: --sort KEY -> column whose title is colored
 
 
 def plain_text(text):
@@ -2454,7 +2490,7 @@ def sort_key(value):
     for key_value, (_, _, synonyms) in USER_SORTS.items():
         if v == key_value or v in {plain_text(x) for x in synonyms}:
             return key_value
-    raise argparse.ArgumentTypeError(f"unknown sort key « {value} » (values: {', '.join(sorted(USER_SORTS))} ; synonyms: name, latest, first, logins, duration…)")
+    raise argparse.ArgumentTypeError(f"unknown sort key « {value} » (values: {literal(', '.join(sorted(USER_SORTS)))} ; synonyms: name, latest, first, logins, duration…)")
 
 
 def char_width(ch):
@@ -2489,7 +2525,8 @@ def truncate_column(text_value, width=COLUMN_WIDTH):
 # The headers are written in both languages here (a column title is not a sentence to translate by fragments: « Type », « Name » would change elsewhere).
 TABLE_FIELDS = (
     ("num", "N°", "#", "r", 5), ("uid", "UID", "UID", "r", 6), ("ip", "IP", "IP", "l", 20), ("ipseen", "IP vue", "IP seen", "l", 27), ("name", "Nom", "Name", "l", 21), ("login", "Identifiant", "Login", "l", 23),
-    ("first", "Première connexion", "First login", "l", 16), ("last", "Dernière connexion", "Last login", "l", 16), ("logins", "Connexions", "Logins", "r", 6),
+    ("ipcountry", "Pays IP", "IP ctry", "l", 8), ("vpn", "VPN", "VPN", "l", 14),
+    ("created", "Compte créé", "Account created", "l", 10), ("first", "Première connexion", "First login", "l", 16), ("last", "Dernière connexion", "Last login", "l", 16), ("logins", "Connexions", "Logins", "r", 6),
     ("minutes", "Minutes", "Minutes", "r", 7), ("type", "Type", "Type", "l", 8), ("events", "Événements", "Events", "r", 5), ("surveys", "Sondages", "Surveys", "r", 5),
     ("phone", "Téléphone", "Phone", "l", 17), ("country", "Pays", "Country", "l", 4), ("city", "Ville", "City", "l", 15), ("groups", "Groupes", "Groups", "l", 30),
     ("tags", "Étiquettes", "Tags", "l", 30), ("systems", "Systèmes", "Systems", "l", 24), ("browsers", "Navigateurs", "Browsers", "l", 24),
@@ -2497,18 +2534,24 @@ TABLE_FIELDS = (
     ("sent", "Mo envoyés", "MB sent", "r", 7), ("email", "Courriel", "E-mail", "l", 30))
 FIELD_KEYS = [f[0] for f in TABLE_FIELDS]
 DEFAULT_TABLE_FIELDS = [k for k in FIELD_KEYS if k not in ("email", "tags")]     # the login is already the e-mail of most accounts; 2.69: tags often repeat the groups
-PROFILE_FIELDS = {"events", "surveys", "phone", "country", "city", "groups", "tags", "email"}      # read in PostgreSQL (apps/_odoo_db.py user_profiles)
+PROFILE_FIELDS = {"events", "surveys", "phone", "country", "city", "groups", "tags", "email", "created"}      # read in PostgreSQL (apps/_odoo_db.py user_profiles)
+# 2.71: French names of the fields, accepted for the English keys (until 2.70 the French help displayed « navigateurs », « envoyé(s) »… instead of the keys)
+FIELD_ALIASES = {"navigateurs": "browsers", "systemes": "systems", "envoye(s)": "sent", "envoyes": "sent", "recus": "received", "lues": "read",
+                 "ecrites": "written", "pays": "country", "ville": "city", "groupes": "groups", "etiquettes": "tags", "telephone": "phone",
+                 "evenements": "events", "sondages": "surveys", "courriel": "email", "nom": "name", "identifiant": "login", "connexions": "logins",
+                 "premiere": "first", "derniere": "last", "cree": "created", "ip-vue": "ipseen", "pays-ip": "ipcountry"}
 MIN_HEADER_WIDTH = 4                  # a column is never narrower: its title stays readable (« Conn », « Mint »)
 
 
 def table_fields(value):
     """--table-fields name,login,logins…: the fields to show, in the order given (« all » = every field, e-mail included); otherwise an error that lists them."""
-    keys = [k.strip().lower().replace("ip-seen", "ipseen") for k in (value or "").split(",") if k.strip()]
+    keys = [k.strip().lower().replace("ip-seen", "ipseen").replace("ip-country", "ipcountry") for k in (value or "").split(",") if k.strip()]
+    keys = [FIELD_ALIASES.get(plain_text(k), k) for k in keys]                     # 2.71: the French names once shown by the help (« navigateurs »)
     if keys == ["all"]:
         return list(FIELD_KEYS)
     wrong = [k for k in keys if k not in FIELD_KEYS]
     if wrong or not keys:
-        raise argparse.ArgumentTypeError(f"unknown field(s) « {', '.join(wrong) or value} » (fields: {', '.join(FIELD_KEYS)}, or all)")
+        raise argparse.ArgumentTypeError(f"unknown field(s) « {literal(', '.join(wrong) or value)} » (fields: {literal(', '.join(FIELD_KEYS))}, or all)")
     return list(dict.fromkeys(keys))
 
 
@@ -2532,7 +2575,8 @@ def compact_table(fields, rows, styles=None, repeat_header=False, sorted_field=N
     """2.67: table without spaces around the cells (« |Conn| »): each column as wide as its longest value (at least MIN_HEADER_WIDTH, at most the field's
     maximum, longer values cut with « … »); the title is cut to that width, on TWO lines when it has two words or more (« Première » / « connexion »);
     numbers aligned on the right. `rows`: lists of texts (one per field); `styles`: same shape, color code of each cell or None (applied AFTER the
-    padding: colors never shift the columns). repeat_header: the titles again under the last line. sorted_field (2.69): its title in cyan."""
+    padding: colors never shift the columns). repeat_header: the titles again under the last line. sorted_field (2.69): its title in cyan.
+    2.70: every UNDERLINE_EVERY-th line underlined."""
     spec = {f[0]: f for f in TABLE_FIELDS}
     titles = [spec[k][1] if LANGUAGE != "en" else spec[k][2] for k in fields]
     widths = []
@@ -2558,11 +2602,22 @@ def compact_table(fields, rows, styles=None, repeat_header=False, sorted_field=N
             cell = pad + text_value if spec[k][3] == "r" else text_value + pad
             style = styles[r_i][i] if styles else None
             cells.append(color_code(style, cell) if style else cell)
-        out.append("|" + "|".join(cells) + "|")
+        line = "|" + "|".join(cells) + "|"
+        out.append(underline(line) if UNDERLINE_EVERY and (r_i + 1) % UNDERLINE_EVERY == 0 and r_i + 1 < len(rows) else line)
     out.append(sep)
     if repeat_header:
         out += header_lines() + [sep]
     return out
+
+
+UNDERLINE_EVERY = 5                   # 2.70: --table: every 5th line underlined (easier to follow a line across a wide table); 0 = never
+
+
+def underline(line):
+    """2.70: the whole line underlined, colored cells included (each « ESC[…m » of a cell keeps the underline: « 0 » would remove it); unchanged without colors."""
+    if not colors_on():
+        return line
+    return "\x1b[4m" + ANSI_RE.sub(lambda m: m.group(0)[:-1] + ";4m", line) + "\x1b[0m"
 
 
 def level_styles(values):
@@ -2652,6 +2707,112 @@ def seen_text(minute, short=True):
     return time.strftime("%m-%d %H:%M" if short else "%Y-%m-%d %H:%M", time.localtime(minute * 60))
 
 
+# --- 2.70: country and owner of the address block (RDAP, otherwise whois: apps/_reseau.py, permanent cache apps/_cache_ip.py), VPN detection ---------
+IP_LOOKUPS_PER_ACCOUNT = 5            # addresses of an account looked up: its most used ones (logins) and the latest seen
+IP_LOOKUP_TIMEOUT_S = 8
+IP_LOOKUP_THREADS = 8
+# Owner of the block (RDAP organisation and network name) -> (kind, short name; empty: the owner's first word). The first match wins.
+# Kinds: VPN, Tor, Relay (iCloud Private Relay, Cloudflare WARP: the user's real address is hidden too), Hosting (data center: the exit of most VPNs
+# and proxies — a person does not browse from a data center, a VPN does).
+VPN_OWNERS = (
+    (r"nordvpn|tefincom", "VPN", "NordVPN"), (r"surfshark", "VPN", "Surfshark"), (r"expressvpn|express vpn", "VPN", "ExpressVPN"),
+    (r"proton ?(ag|vpn|technologies)", "VPN", "Proton"), (r"mullvad|31173 services", "VPN", "Mullvad"), (r"private internet access", "VPN", "PIA"),
+    (r"cyberghost", "VPN", "CyberGhost"), (r"ipvanish", "VPN", "IPVanish"), (r"windscribe", "VPN", "Windscribe"), (r"hide\.?me\b|eventure", "VPN", "hide.me"),
+    (r"purevpn|gz systems", "VPN", "PureVPN"), (r"torguard|vpnetworks", "VPN", "TorGuard"), (r"vyprvpn|golden frog", "VPN", "VyprVPN"),
+    (r"hotspot shield|\bpango\b", "VPN", "HotspotShield"), (r"tunnelbear", "VPN", "TunnelBear"), (r"astrill", "VPN", "Astrill"), (r"airvpn", "VPN", "AirVPN"),
+    (r"\bivpn\b|privatus", "VPN", "IVPN"), (r"perfect privacy", "VPN", "PerfectPrivacy"), (r"\bovpn\b", "VPN", "OVPN"), (r"privado", "VPN", "Privado"),
+    (r"strongvpn", "VPN", "StrongVPN"), (r"vpn", "VPN", ""),
+    (r"torservers|tor[-_ ]?exit|emerald onion|applied privacy|calyx institute|tor project", "Tor", ""),
+    (r"private[-_ ]?relay", "Relay", "iCloud"), (r"cloudflare", "Relay", "Cloudflare"), (r"fastly", "Relay", "Fastly"),
+    (r"m247", "Hosting", "M247"), (r"datacamp|cdn77", "Hosting", "DataCamp"), (r"packethub", "Hosting", "PacketHub"), (r"clouvider", "Hosting", "Clouvider"),
+    (r"zenlayer", "Hosting", "Zenlayer"), (r"leaseweb", "Hosting", "Leaseweb"), (r"\bovh", "Hosting", "OVH"), (r"hetzner", "Hosting", "Hetzner"),
+    (r"digitalocean|digital ocean", "Hosting", "DigitalOcean"), (r"amazon|\baws\b", "Hosting", "Amazon"), (r"google (llc|cloud)|google-cloud|googlecloud", "Hosting", "Google"),
+    (r"microsoft|azure", "Hosting", "Microsoft"), (r"linode|akamai", "Hosting", "Akamai"), (r"vultr|choopa|constant company", "Hosting", "Vultr"),
+    (r"contabo", "Hosting", "Contabo"), (r"scaleway|online s\.?a\.?s", "Hosting", "Scaleway"), (r"hostinger", "Hosting", "Hostinger"), (r"psychz", "Hosting", "Psychz"),
+    (r"xtom", "Hosting", "xTom"), (r"tzulo", "Hosting", "Tzulo"), (r"performive", "Hosting", "Performive"), (r"gsl networks", "Hosting", "GSL"),
+    (r"datapacket", "Hosting", "DataPacket"), (r"quadranet", "Hosting", "QuadraNet"), (r"colocrossing", "Hosting", "ColoCrossing"), (r"worldstream", "Hosting", "WorldStream"),
+    (r"frantech|buyvm|ponynet", "Hosting", "BuyVM"), (r"g-?core", "Hosting", "G-Core"), (r"stark industries", "Hosting", "Stark"), (r"\baeza\b", "Hosting", "Aeza"),
+    (r"alibaba|aliyun", "Hosting", "Alibaba"), (r"tencent", "Hosting", "Tencent"), (r"oracle", "Hosting", "Oracle"), (r"ionos|1&1", "Hosting", "IONOS"),
+    (r"netcup", "Hosting", "netcup"), (r"hivelocity", "Hosting", "Hivelocity"),
+    (r"hosting|hoster|data ?cent(er|re)|datacent|\bvps\b|colocation|server", "Hosting", ""))
+VPN_OWNERS_RE = [(re.compile(pattern), kind, name) for pattern, kind, name in VPN_OWNERS]
+VPN_PRIORITY = {"VPN": 4, "Tor": 4, "Relay": 2, "Hosting": 1}
+
+
+def public_address(ip):
+    """True for an address of the Internet (not private, loopback, link-local, documentation…): only those have an owner in RDAP / whois."""
+    try:
+        return ipaddress.ip_address(ip).is_global
+    except ValueError:
+        return False
+
+
+def ip_owners(ips):
+    """{address: owner of its block (apps/_reseau.py fournisseur: organisation, reseau, plage, pays…) or None if unknown}. Public addresses only. Each address
+    is asked ONCE on the Internet (rdap.org, otherwise the whois command; only the address is sent), then served by the permanent cache of the addresses
+    (apps/_cache_ip.py, 90 days; a failure is never remembered). NGINX_TOOLS_INTERNET=off: the cache only."""
+    res = {ip: None for ip in ips}
+    public = sorted(ip for ip in res if public_address(ip))
+    if not public:
+        return res
+    try:
+        net = _load_module("_reseau")
+    except Exception:  # noqa: BLE001 - component missing or broken: country and VPN unknown, the table is still shown
+        eprint("Owner of the address blocks: component apps/_reseau.py missing or unreadable — IP country and VPN unknown")
+        return res
+    net.VERBOSE = VERBOSE
+    cache = net.ouvrir_cache("auto")
+    todo = []
+    for ip in public:
+        known = cache.rdap(ip) if cache is not None else None
+        if known:
+            res[ip] = known
+        else:
+            todo.append(ip)
+    if not todo:
+        return res
+    if os.environ.get("NGINX_TOOLS_INTERNET", "").lower() in ("off", "0", "no", "non"):
+        eprint(f"Owner of the address blocks: {len(todo)} address(es) not in the cache, not looked up (NGINX_TOOLS_INTERNET=off) — « ? » in the table")
+        return res
+    show = sys.stderr.isatty() or VERBOSE                 # a long step says what it does (never in a pipe nor a timer)
+    start = time.time()
+    if show:
+        eprint(f"Owner of the address blocks (RDAP, otherwise whois): {len(todo)} address(es) to look up on the Internet, {len(public) - len(todo)} in the cache …")
+    with concurrent.futures.ThreadPoolExecutor(IP_LOOKUP_THREADS) as pool:
+        for ip, r in zip(todo, pool.map(lambda i: net.fournisseur(i, IP_LOOKUP_TIMEOUT_S, cache=cache), todo)):
+            res[ip] = r
+    if show:
+        unknown = sum(1 for ip in todo if res[ip] is None)
+        eprint(f"  … done in {time.time() - start:.0f} s" + (f" ({unknown} unknown: rdap.org unreachable and no whois command?)" if unknown else ""))
+    return res
+
+
+def owner_name(owner):
+    """Short name of a block owner: first word of the organisation (otherwise of the network name), 12 characters at most."""
+    text_value = (owner.get("organisation") or owner.get("reseau") or "?").replace(",", " ").split()
+    return (text_value[0] if text_value else "?")[:12]
+
+
+def vpn_kind(owner):
+    """(kind, short name) of the owner of an address block — VPN, Tor, Relay, Hosting (see VPN_OWNERS) — or None: an access provider (home, mobile),
+    a company, a school… A guess from the NAME of the owner, not a proof: a VPN on a network of unknown name is not seen."""
+    if not owner:
+        return None
+    text_value = " ".join(owner.get(k) or "" for k in ("organisation", "reseau")).lower()
+    for pattern, kind, name in VPN_OWNERS_RE:
+        if pattern.search(text_value):
+            return kind, name or owner_name(owner)
+    return None
+
+
+def account_lookups(v, seen):
+    """Addresses of an account to look up (2.70): its IP_LOOKUPS_PER_ACCOUNT most used ones (logins), the main one first, then the latest seen."""
+    ips = sorted(v["ips"], key=lambda i: (-v["ips"][i], i))[:IP_LOOKUPS_PER_ACCOUNT]
+    if seen and seen[0][1] not in ips:
+        ips.append(seen[0][1])
+    return ips
+
+
 def users_table(order, accounts, infos, fields, bbb, compute_minutes, banned, sort_caption, invert, table_rows, csv_path, repeat_header, show_stats,
                 rl_lines, logs_read, sorted_field=None):
     """2.67: --table (compact table, colors), --csv FILE (every field, every value, « ; » separator for Excel), --stats (members per group, systems,
@@ -2675,7 +2836,8 @@ def users_table(order, accounts, infos, fields, bbb, compute_minutes, banned, so
                   "surveys": p.get("surveys"), "phone": p.get("phone", ""), "country": p.get("country", ""), "country_name": p.get("country_name", ""),
                   "city": p.get("city", ""), "groups": p.get("groups", []), "tags": p.get("tags", []), "os": f["os"], "nav": f["nav"],
                   "read": None if bbb else f["pages"], "written": None if bbb else f["written"], "received": None if bbb else f["received"],
-                  "sent": None if bbb else f["sent"], "email": p.get("email", ""), "seen": f.get("seen", [])}
+                  "sent": None if bbb else f["sent"], "email": p.get("email", ""), "seen": f.get("seen", []), "created": p.get("created"),
+                  "owners": f.get("owners", []), "ipcountry": f.get("countries", []), "vpn": f.get("vpn")}
         records.append(record)
         for k in number_columns:
             number_columns[k].append(record[k] or 0)
@@ -2687,6 +2849,9 @@ def users_table(order, accounts, infos, fields, bbb, compute_minutes, banned, so
                  "systems": compact_names(f["os"]), "browsers": compact_names(f["nav"]), "read": "-" if bbb else f["pages"], "written": "-" if bbb else f["written"],
                  "received": "-" if bbb else megabytes(f["received"]), "sent": "-" if bbb else ("?" if f["sent"] is None else megabytes(f["sent"])),
                  "email": record["email"] or "-",
+                 "created": time.strftime("%Y-%m-%d", time.localtime(record["created"])) if record["created"] else "-",
+                 "ipcountry": ",".join(record["ipcountry"]) or ("?" if any(public_address(ip) for ip, _ in record["owners"]) else "-"),
+                 "vpn": f"{TR(record['vpn'][0])} {record['vpn'][1]}" if record["vpn"] else "-",
                  "ipseen": (f"{record['seen'][0][1]} {seen_text(record['seen'][0][0])}" + (f" +{len(record['seen']) - 1}" if len(record["seen"]) > 1 else ""))
                            if record["seen"] else "-"}
         rows.append([shown[k] for k in fields])
@@ -2700,10 +2865,13 @@ def users_table(order, accounts, infos, fields, bbb, compute_minutes, banned, so
                  "first": "36" if record["first"].startswith(today) else None,                 # new account today (bold cyan)
                  "ip": "35" if record["ip"] in banned else None,
                  "ipseen": "32" if record["seen"] and seen_text(record["seen"][0][0], False).startswith(today) else None,      # seen today on the site
-                 "type": "36" if record["type"] and record["type"] != TR("interne") else None}
+                 "type": "36" if record["type"] and record["type"] != TR("interne") else None,
+                 "created": "36" if record["created"] and time.time() - record["created"] < NEW_ACCOUNT_DAYS * 86400 else None,     # 2.70: new account
+                 "ipcountry": "0;33" if record["country"] and record["ipcountry"] and record["ipcountry"][0] != record["country"].upper() else None,
+                 "vpn": None if not record["vpn"] else "33" if VPN_PRIORITY[record["vpn"][0]] >= 4 else "0;33"}
         styles.append([style.get(k) for k in fields])
     if table_rows:
-        print(f"Sort: {sort_caption}{' (reversed order)' if invert else ''}. Fields: {','.join(fields)} (--table-fields to choose; all: every field).")
+        print(f"Sort: {sort_caption}{' (reversed order)' if invert else ''}. Fields: {literal(','.join(fields))} (--table-fields to choose; all: every field).")
         print()
         for l in compact_table(fields, rows, styles, repeat_header, sorted_field):
             print(l)
@@ -2712,6 +2880,15 @@ def users_table(order, accounts, infos, fields, bbb, compute_minutes, banned, so
         print(f"  Total: {len(records)} {'participant(s)' if bbb else 'account(s)'}, {sum(r['logins'] for r in records)} login(s)"
               + (f", {total_minutes} login minute(s) (≈ {total_minutes / 60:.1f} h)" if compute_minutes else ""))
         print("  (colors: last login today in green, account created today in cyan, the busiest accounts in yellow — bold: top 10 %; 0 in grey)")
+        if "created" in fields:
+            print(f"  (account created: date of creation of the Odoo account; cyan: less than {NEW_ACCOUNT_DAYS} days)")
+        if "ipcountry" in fields:
+            print("  (IP country: country of the owner of the address block according to RDAP / whois — the registry, not a geolocation; main address first;")
+            print("   yellow: differs from the country of the Odoo contact; ?: owner unknown)")
+        if "vpn" in fields:
+            print("  (VPN: the owner of the block of one of the account's addresses is a known VPN, Tor, a relay (iCloud Private Relay, Cloudflare WARP)")
+            print("   or a hosting company (data center: the exit of most VPNs and proxies) — a guess from the owner's name, not a proof:")
+            print("   a VPN on a network of unknown name is not seen, a company or a school may go out through a data center)")
         if "ipseen" in fields:
             print("  (IP seen: the account's address with the latest request in the nginx logs, even without a new login to Odoo; green: today; +N: its other addresses seen)")
         if compute_minutes:
@@ -2739,7 +2916,9 @@ def users_table(order, accounts, infos, fields, bbb, compute_minutes, banned, so
 CSV_FIELDS = (("num", "N°", "#"), ("uid", "UID", "UID"), ("login", "Identifiant", "Login"), ("name", "Nom", "Name"), ("email", "Courriel", "E-mail"),
               ("type", "Type", "Type"), ("ip", "Adresse IP principale", "Main IP address"), ("ips", "Adresses IP (connexions)", "IP addresses (logins)"),
               ("ipseen", "Adresses IP vues (dernière requête)", "IP addresses seen (last request)"),
-              ("first", "Première connexion", "First login"), ("last", "Dernière connexion", "Last login"), ("logins", "Connexions", "Logins"),
+              ("ipcountry", "Pays des adresses IP (RDAP/whois)", "Country of the IP addresses (RDAP/whois)"), ("vpn", "VPN, Tor, relais, hébergeur", "VPN, Tor, relay, hosting"),
+              ("created", "Compte créé", "Account created"), ("first", "Première connexion", "First login"), ("last", "Dernière connexion", "Last login"),
+              ("logins", "Connexions", "Logins"),
               ("minutes", "Minutes", "Minutes"), ("events", "Événements", "Events"), ("surveys", "Sondages", "Surveys"), ("phone", "Téléphone", "Phone"),
               ("country", "Pays", "Country"), ("country_name", "Nom du pays", "Country name"), ("city", "Ville", "City"), ("groups", "Groupes", "Groups"),
               ("tags", "Étiquettes", "Tags"), ("systems", "Systèmes (requêtes)", "Systems (requests)"), ("browsers", "Navigateurs (requêtes)", "Browsers (requests)"),
@@ -2768,6 +2947,13 @@ def write_users_csv(path, records, fields):
             return ", ".join(f"{ip} ({seen_text(m, False)})" for m, ip in r["seen"])
         if k in ("groups", "tags"):
             return ", ".join(r[k])
+        if k == "created":
+            return time.strftime("%Y-%m-%d %H:%M", time.localtime(r["created"])) if r["created"] else ""
+        if k == "ipcountry":
+            return ", ".join(f"{ip} ({(o.get('pays') or '?').upper()} {o.get('organisation') or o.get('reseau') or ''})".replace(" )", ")") if o else f"{ip} (?)"
+                             for ip, o in r["owners"] if public_address(ip))
+        if k == "vpn":
+            return ", ".join(f"{ip} ({TR(kv[0])} {kv[1]})" for ip, o in r["owners"] for kv in [vpn_kind(o)] if kv)
         if k == "systems":
             return counts(r["os"])
         if k == "browsers":
@@ -2820,6 +3006,9 @@ def print_user_stats(records, bbb):
         section("Members per tag", collections.Counter(t for r in records for t in r["tags"]))
         section("Internal / portal", collections.Counter(r["type"] or "?" for r in records))
         section("Countries (Odoo contact)", collections.Counter(r["country"] or "?" for r in records))
+    if any(r["owners"] for r in records):                                   # 2.70: owners of the address blocks looked up
+        section("Countries (main IP address, RDAP/whois)", collections.Counter((r["ipcountry"] or ["?"])[0] for r in records))
+        section("VPN, Tor, relay, hosting", collections.Counter(f"{TR(r['vpn'][0])} {r['vpn'][1]}" for r in records if r["vpn"]))
         section("E-mail domains", collections.Counter(((r["email"] or r["login"]).rpartition("@")[2].lower() or "?") for r in records))
     section("Operating systems", collections.Counter(s for r in records for s in r["os"]))
     section("Browsers", collections.Counter(b for r in records for b in r["nav"]))
@@ -2938,9 +3127,9 @@ def list_users(details=False, table_rows=False, sort_order="name", invert=False,
         print("  no login in the available history")
         return 0
     shared = shared_mark(accounts)
-    needs_uid = (details or table_rows or csv_path or group or show_stats or sort_order in ("uid", "type", "events", "surveys")) and not bbb
+    needs_uid = (details or table_rows or csv_path or group or show_stats or sort_order in ("uid", "type", "events", "surveys", "created")) and not bbb
     odoo_users = read_odoo_users(accounts) if needs_uid else {}
-    profiles = read_profiles(accounts) if needs_uid and (table_rows or csv_path or group or show_stats or sort_order in ("events", "surveys")) else {}
+    profiles = read_profiles(accounts) if needs_uid and (table_rows or csv_path or group or show_stats or sort_order in ("events", "surveys", "created")) else {}
     active_ones = {ip: sorted(m) for ip, m in activity.items()}
     infos = {}
     for display_name, v in accounts.items():
@@ -2965,6 +3154,19 @@ def list_users(details=False, table_rows=False, sort_order="name", invert=False,
                 for name, n in a[kind].items():
                     infos[display_name][kind][name] = infos[display_name][kind].get(name, 0) + n
 
+    # 2.70: country and VPN from the owner of the address blocks (RDAP / whois), only when a column, the CSV or the sort needs them
+    wanted = set(fields or DEFAULT_TABLE_FIELDS)
+    csv_keys = set(FIELD_KEYS) if not fields or fields == DEFAULT_TABLE_FIELDS else wanted
+    if (table_rows and wanted & {"ipcountry", "vpn"}) or (csv_path and csv_keys & {"ipcountry", "vpn"}) or sort_order == "vpn":
+        lookups = {n: account_lookups(v, infos[n]["seen"]) for n, v in accounts.items()}
+        owners = ip_owners({ip for ips in lookups.values() for ip in ips})
+        for n, ips in lookups.items():
+            f = infos[n]
+            f["owners"] = [(ip, owners.get(ip)) for ip in ips]
+            f["countries"] = list(dict.fromkeys((o.get("pays") or "").upper() for _, o in f["owners"] if o and o.get("pays")))
+            kinds = [k for k in (vpn_kind(o) for _, o in f["owners"]) if k]
+            f["vpn"] = max(kinds, key=lambda k: VPN_PRIORITY[k[0]]) if kinds else None
+
     def key_ip(ip):
         try:
             return (0, ipaddress.ip_address(ip).version, int(ipaddress.ip_address(ip)))
@@ -2979,7 +3181,8 @@ def list_users(details=False, table_rows=False, sort_order="name", invert=False,
             "os": lambda n: top_names(infos[n]["os"], 1).casefold(), "pages": lambda n: infos[n]["pages"], "written": lambda n: infos[n]["written"],
             "received": lambda n: infos[n]["received"], "sent": lambda n: infos[n]["sent"] or 0,
             "events": lambda n: infos[n]["profile"].get("events", 0), "surveys": lambda n: infos[n]["profile"].get("surveys", 0),
-            "seen": lambda n: infos[n]["seen"][0][0] if infos[n]["seen"] else 0}
+            "seen": lambda n: infos[n]["seen"][0][0] if infos[n]["seen"] else 0, "created": lambda n: infos[n]["profile"].get("created") or 0,
+            "vpn": lambda n: VPN_PRIORITY[infos[n]["vpn"][0]] if infos[n].get("vpn") else 0}
     if group:                                         # 2.67: --group NAME: only the members of that Odoo group (exact name, otherwise part of the name; accents ignored)
         wanted = plain_text(group)
         names = {g for f in infos.values() for g in f["profile"].get("all_groups", [])} | {g for p in profiles.values() for f in (p or {}).values() for g in f.get("all_groups", [])}
@@ -4686,7 +4889,7 @@ class LocalizedArgumentParser(argparse.ArgumentParser):
         return super().add_argument(*args, **kwargs)
 
     def error(self, message):
-        message = TR(message)
+        message = TR(re.sub(r"(?<![\w-])--[a-z][\w-]*", lambda m: literal(m.group(0)), message))      # 2.71: option names never translated (« --sort » became « --tri »)
         if LANGUAGE == "fr":
             message = re.sub(r"^unrecognized arguments: (.+)$", r"argument(s) non reconnu(s) : \1", message)
             message = re.sub(r"^argument (\S+): invalid int value: (.+)$", r"argument \1 : entier invalide : \2", message)
@@ -4729,7 +4932,7 @@ def show_configuration(defaults, problems):
         print(_load_module("_config").ligne_configuration(CONFIG_FILES, EXPLICIT_CONFIG, SCRIPT_NAME))
     except Exception:
         return
-    options = [f"--lang {LANGUAGE}" + (f" ({LANGUAGE_ORIGIN})" if LANGUAGE_ORIGIN else "")] + [f"--{o.replace('_', '-')} {('yes' if LANGUAGE != 'fr' else 'oui') if v is True else ('no' if LANGUAGE != 'fr' else 'non') if v is False else v}" for o, v in sorted(defaults.items())]
+    options = [f"--lang {LANGUAGE}" + (f" ({LANGUAGE_ORIGIN})" if LANGUAGE_ORIGIN else "")] + [f"--{o.replace('_', '-')} {('yes' if LANGUAGE != 'fr' else 'oui') if v is True else ('no' if LANGUAGE != 'fr' else 'non') if v is False else literal(','.join(v) if isinstance(v, list) else v)}" for o, v in sorted(defaults.items())]
     print("  Options: " + " · ".join(options) + " (command line takes precedence)")
     for p in problems:
         eprint(f"  WARNING: configuration value ignored: {p}")
@@ -4768,7 +4971,7 @@ def main():
     parser.add_argument("--table", action="store_true",
                         help="With --list-users: compact numbered table, one column per field (--table-fields), each as narrow as its content (titles cut, on two lines), colors for today's logins and the busiest accounts")
     parser.add_argument("--table-fields", type=table_fields, metavar="FIELDS",
-                        help="With --table or --csv: the fields to show, in that order, separated by commas (all: every field) — " + ",".join(FIELD_KEYS) + " (implies --list-users --table)")
+                        help="With --table or --csv: the fields to show, in that order, separated by commas (all: every field) — " + literal(",".join(FIELD_KEYS)) + " (implies --list-users --table)")
     parser.add_argument("--csv", metavar="FILE",
                         help="With --list-users: also write every value, never cut, in a CSV file (« ; » separator, decimal comma in French: Excel opens it directly; - = standard output)")
     parser.add_argument("--group", metavar="NAME",
@@ -4780,7 +4983,7 @@ def main():
     parser.add_argument("--save-recommended", action="store_true",
                         help="With --dry-run: still saves the recommended IPs (used by the b key of app-log-live.py)")
     parser.add_argument("--sort", type=sort_key, default="name", metavar="KEY",
-                        help="With --list-users: sort order — name (default), login, uid, ip, first, last, logins, minutes, type, os, pages, written, received, sent, events, surveys, seen; name, login, ip, uid, first, os: ascending; the others: descending")
+                        help="With --list-users: sort order — name (default), login, uid, ip, created, first, last, logins, minutes, type, os, pages, written, received, sent, events, surveys, seen, vpn; name, login, ip, uid, first, os: ascending; the others: descending")
     parser.add_argument("--reverse", action="store_true", help="With --sort: reverse the sort order")
     parser.add_argument("--suspect-users", action="store_true",
                         help="Logged-in Odoo accounts whose activity is suspicious (score: bursts, tools, refused accesses, forms in bulk, malicious URLs, disposable e-mail…) and watched accounts, then investigation of each one (all its IP addresses, e-mail, Internet) with the offer to ban or watch it")

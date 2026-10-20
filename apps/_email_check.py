@@ -1,7 +1,11 @@
 #!/usr/bin/env python3
 # ========================================================================================================================
-# Copyright (C) 2026  Services-Conseils Linux
-# License: GNU Affero General Public License, version 3 or later — https://www.gnu.org/licenses/agpl-3.0.html
+# Copyright (C) 2026 Services-Conseils Linux
+# Copyright (C) 2026 Rencontres Linux au Québec contributors
+#
+# This program is free software: you can redistribute it and/or modify it under the terms of the GNU Affero General Public
+# License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
+# Full text: https://www.gnu.org/licenses/agpl-3.0.html
 # ========================================================================================================================
 #
 # _email_check.py — e-mail address checks (shared module, apps/): syntax, suggested correction of a typo, disposable domain, mail
@@ -9,6 +13,7 @@
 # Used by web-monitor.py (investigation of an Odoo account) and odoo-mail-retry.py (invalid addresses of registrations and failed e-mails).
 #
 # VERSION HISTORY (summary — see doc/_email_check.changelog.txt for the full detail):
+#   1.2.20261019.150215 — New copyright: Services-Conseils Linux and Rencontres Linux au Québec contributors (AGPL-3.0-or-later).
 #   1.1.20261016.173838 — Copyright holder: Services-Linux Conseils Inc
 #   1.0.20261016.114848 — First version: syntax, typo suggestion, disposable domains, DNS MX, StopForumSpam, Gravatar, web search.
 """E-mail address checks, without any side effect.
@@ -31,7 +36,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
-__version__ = "1.1.20261016.173838"
+__version__ = "1.2.20261019.150215"
 
 TIMEOUT_S = 8
 USER_AGENT = "nginx-tools-email-check/1.0 (+https://www.rencontres-linux.quebec)"

@@ -1,6 +1,10 @@
 # ========================================================================================================================
-# Copyright (C) 2026  Services-Conseils Linux
-# Licence : GNU Affero General Public License, version 3 ou ultérieure — https://www.gnu.org/licenses/agpl-3.0.html
+# Copyright (C) 2026 Services-Conseils Linux
+# Copyright (C) 2026 Rencontres Linux au Québec contributors
+#
+# This program is free software: you can redistribute it and/or modify it under the terms of the GNU Affero General Public
+# License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
+# Full text: https://www.gnu.org/licenses/agpl-3.0.html
 # ========================================================================================================================
 # Bibliothèque commune (sourcée par les programmes bash) : option --report-err. Composant versionné avec apps/_rapport.py
 # (doc/_rapport.changelog.txt).

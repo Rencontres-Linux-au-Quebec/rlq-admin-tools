@@ -1,7 +1,16 @@
 #!/usr/bin/env python3
+# ========================================================================================================================
+# Copyright (C) 2026 Services-Conseils Linux
+# Copyright (C) 2026 Rencontres Linux au Québec contributors
+#
+# This program is free software: you can redistribute it and/or modify it under the terms of the GNU Affero General Public
+# License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
+# Full text: https://www.gnu.org/licenses/agpl-3.0.html
+# ========================================================================================================================
 # _i18n.py — langue d'affichage (fr / en) des programmes Python et traduction de leurs messages (module partagé, apps/).
 #
 # HISTORIQUE DE VERSION (résumé — voir doc/_i18n.changelog.txt pour le détail complet) :
+#   1.18.20261019.150215 — New copyright: Services-Conseils Linux and Rencontres Linux au Québec contributors (AGPL-3.0-or-later).
 #   1.17.20261017.105442 — Language: GNU LANGUAGE variable (as gettext); « Options : --lang xx (origin) » says which setting decided and which ones were ignored.
 #   1.16.20261016.173838 — foreground_child() / run_foreground(): Ctrl+C belongs to the child program that owns the terminal (no second question from the parent).
 #   1.15.20261016.151148 — Old catalog lang/PROGRAM.<source language>.po (left by an earlier version) ignored: it no longer cancels the translation of shared modules.
@@ -38,7 +47,7 @@ try:                    # édition de la ligne dans toutes les invites input() (
 except ImportError:     # Windows, Python sans readline
     pass
 
-__version__ = "1.17.20261017.105442"
+__version__ = "1.18.20261019.150215"
 LANGUE_SOURCE = "fr"          # langue des messages dans le code
 
 

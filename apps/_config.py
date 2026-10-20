@@ -1,8 +1,17 @@
 #!/usr/bin/env python3
+# ========================================================================================================================
+# Copyright (C) 2026 Services-Conseils Linux
+# Copyright (C) 2026 Rencontres Linux au Québec contributors
+#
+# This program is free software: you can redistribute it and/or modify it under the terms of the GNU Affero General Public
+# License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
+# Full text: https://www.gnu.org/licenses/agpl-3.0.html
+# ========================================================================================================================
 # _config.py — fichiers de configuration des programmes Python (module partagé, apps/) : règle commune /etc/default/PROGRAMME.conf, PUIS le fichier personnel
 # PROGRAMME.cfg (point devant, dans le répertoire personnel), PUIS la ligne de commande (prioritaire).
 #
 # HISTORIQUE DE VERSION (résumé — voir doc/_config.changelog.txt pour le détail complet) :
+#   1.7.20261019.150215 — Configuration files with no active option rewritten from the current template at the next run; new copyright.
 #   1.6.20261015.143436 — ANONYMIZE : clé commune (app-default.conf).
 #   1.5.20261015.080630 — est_root, refus_non_root, avis_non_root ; jours_journaux (LOG_KEEP_DAYS commun).
 #   1.4.20261015.073057 — Date de modification des fichiers lus (heure locale).
@@ -14,10 +23,12 @@
 déclare un SCHÉMA {CLÉ: (option argparse, type)} : les valeurs du fichier deviennent les valeurs par défaut des options, que la ligne de commande remplace.
 Variable NGINX_TOOLS_ETC_DEFAULT : autre dossier à la place de /etc/default (tests)."""
 import os
+import re
 import sys
+import tempfile
 import time
 
-__version__ = "1.6.20261015.143436"
+__version__ = "1.7.20261019.150215"
 OUI = ("1", "true", "yes", "oui", "on", "vrai")
 NON = ("0", "false", "no", "non", "off", "faux", "")
 
@@ -116,9 +127,69 @@ def creer_par_defaut(programme, dossier_doc=None, argv=None):
     dossier_doc = dossier_doc or os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "doc")
     _creer(chemins_communs(), COMMUN, dossier_doc, variable="NGINX_TOOLS_CONFIG_COMMUN_CREE")      # le fichier commun d'abord (1.3) : créé s'il n'existe pas, même si celui du programme existe
     chemins = chemins_regle(programme)
+    for nom, liste in ((COMMUN, chemins_communs()), (programme, chemins)):       # 1.7 : fichiers jamais modifiés (aucune option active) remis au modèle actuel
+        for chemin, existe in liste:
+            if existe:
+                rafraichir(chemin, nom, dossier_doc)
     if any(existe for _, existe in chemins):
         return None
     return _creer(chemins, programme, dossier_doc, variable="NGINX_TOOLS_CONFIG_CREE")
+
+
+ACTIVE_RE = re.compile(r"^\s*[A-Za-z_][A-Za-z0-9_]*\s*=")
+ENTETE_MAJ = "# Fichier mis à jour automatiquement le {DATE} par {NOM} : aucune option n’y était active, il suit le modèle actuel."
+
+
+def options_actives(texte):
+    """Vrai si le texte d'un fichier de configuration contient au moins une ligne CLÉ=VALEUR hors commentaire (l'utilisateur l'a modifié)."""
+    return any(ACTIVE_RE.match(ligne) for ligne in texte.splitlines())
+
+
+def rafraichir(chemin, nom, dossier_doc):
+    """1.7 : un fichier de configuration EXISTANT dont aucune option n'est active (tout en commentaire = jamais modifié) est réécrit à partir du modèle
+    doc/NOM.conf.example quand celui-ci a changé (nouvelles clés, nouveaux commentaires) : il montre toujours toutes les options du programme installé.
+    Un fichier avec au moins une option active n'est JAMAIS touché. Écriture sûre : fichier temporaire du même dossier, mêmes droits et propriétaire, puis
+    renommage. Retourne le chemin mis à jour ou None ; il est ajouté à la variable NGINX_TOOLS_CONFIG_MAJ (ligne « Configuration lue : … »)."""
+    if os.environ.get("NGINX_TOOLS_CONFIG_MAJ_AUTO") == "0":
+        return None
+    try:
+        with open(os.path.join(dossier_doc, f"{nom}.conf.example"), encoding="utf-8") as f:
+            modele = f.read()
+        with open(chemin, encoding="utf-8") as f:
+            actuel = f.read()
+    except (OSError, UnicodeDecodeError):
+        return None
+    if options_actives(actuel) or actuel.endswith(modele):
+        return None
+    try:
+        with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "config-entete.txt"), encoding="utf-8") as f:
+            lignes = f.read().splitlines(True)
+    except OSError:
+        lignes = []
+    entete = "".join([ENTETE_MAJ + "\n"] + lignes[1:]).replace("{DATE}", time.strftime("%Y-%m-%d %H:%M")).replace("{NOM}", nom)
+    dossier = os.path.dirname(os.path.abspath(chemin))
+    if not os.access(dossier, os.W_OK) or not os.access(chemin, os.W_OK):
+        return None
+    temporaire = None
+    try:
+        etat = os.stat(chemin)
+        fd, temporaire = tempfile.mkstemp(prefix=f".{os.path.basename(chemin)}.", dir=dossier)
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            f.write(entete + modele)
+        os.chmod(temporaire, etat.st_mode & 0o7777)
+        if est_root():
+            os.chown(temporaire, etat.st_uid, etat.st_gid)
+        os.replace(temporaire, chemin)
+    except OSError:
+        if temporaire and os.path.exists(temporaire):
+            try:
+                os.unlink(temporaire)
+            except OSError:
+                pass
+        return None
+    deja = [c for c in os.environ.get("NGINX_TOOLS_CONFIG_MAJ", "").split(os.pathsep) if c]
+    os.environ["NGINX_TOOLS_CONFIG_MAJ"] = os.pathsep.join(deja + [chemin])
+    return chemin
 
 
 def _creer(chemins, nom, dossier_doc, variable):
@@ -217,4 +288,8 @@ def ligne_configuration(fichiers, explicite=None, programme=""):
         return "Configuration : aucun fichier (cherchés : " + ", ".join(c for c, _ in chemins_regle(programme)) + ") — valeurs par défaut"
     cree = os.environ.get("NGINX_TOOLS_CONFIG_CREE")
     note = " (fichier créé à l'instant : toutes les options y sont en commentaire, valeurs par défaut)" if cree and cree in fichiers else ""
+    maj = [c for c in os.environ.get("NGINX_TOOLS_CONFIG_MAJ", "").split(os.pathsep) if c and c in fichiers]
+    if maj and not note:
+        note = (" (" + ", ".join(os.path.basename(c) for c in maj)
+                + " mis à jour à l'instant d'après le nouveau modèle : aucune option n'y était active)")
     return "Configuration lue : " + ", puis ".join(avec_date(c) for c in fichiers) + (" (le dernier l'emporte)" if len(fichiers) > 1 else "") + note

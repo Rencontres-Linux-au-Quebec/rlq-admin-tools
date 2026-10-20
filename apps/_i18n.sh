@@ -1,10 +1,15 @@
 # ========================================================================================================================
-# Copyright (C) 2026  Services-Conseils Linux
-# Licence : GNU Affero General Public License, version 3 ou ultérieure — https://www.gnu.org/licenses/agpl-3.0.html
+# Copyright (C) 2026 Services-Conseils Linux
+# Copyright (C) 2026 Rencontres Linux au Québec contributors
+#
+# This program is free software: you can redistribute it and/or modify it under the terms of the GNU Affero General Public
+# License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
+# Full text: https://www.gnu.org/licenses/agpl-3.0.html
 # ========================================================================================================================
 # _i18n.sh — langue d'affichage (fr / en…) et fichier de configuration des programmes bash (bibliothèque commune sourcée, apps/).
 #
 # HISTORIQUE DE VERSION (résumé — voir doc/_i18n.sh.changelog.txt pour le détail complet) :
+#   1.14.20261019.150215 — config_rafraichir: configuration files with no active option rewritten from the current template; new copyright.
 #   1.13.20261017.200717 — Ctrl+C: a second Ctrl+C during the « Interrupt? » question stops the program (it was ignored after a Ctrl+C in a question).
 #   1.12.20261017.105442 — Language: LANGUAGE (GNU) also starts the translator; « Options : --lang xx (origine) » for the bash programs.
 #   1.11.20261016.173838 — run_interruptible (Ctrl+C answered at once during a long command) and ctrl_c_child (the child program asks, not both); stop of the running command on « yes ».
@@ -186,7 +191,10 @@ config_creer_defaut() {
 # (seulement pour le fichier du programme : la ligne « Configuration lue » ne parle pas du fichier commun).
 config_creer_fichier() {
     local programme="$1" systeme="$2" perso="$3" a ligne modele chemin mode
-    [[ -e "$systeme" || -e "$perso" ]] && return 0
+    if [[ -e "$systeme" || -e "$perso" ]]; then
+        for chemin in "$systeme" "$perso"; do [[ -f "$chemin" ]] && config_rafraichir "$programme" "$chemin"; done
+        return 0
+    fi
     modele="${CFG_DOSSIER_DOC:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." 2>/dev/null && pwd)/doc}/$programme.conf.example"
     [[ -r "$modele" ]] || return 0
     for chemin in "$systeme" "$perso"; do
@@ -205,6 +213,36 @@ config_creer_fichier() {
             return 0
         fi
     done
+    return 0
+}
+
+# config_rafraichir NOM FICHIER (1.14) : un fichier EXISTANT dont aucune option n'est active (tout en commentaire = jamais modifié) est réécrit à partir du modèle
+# doc/NOM.conf.example quand celui-ci a changé ; un fichier avec au moins une ligne CLÉ=VALEUR n'est JAMAIS touché. Fichier temporaire du même dossier, mêmes droits et
+# propriétaire, puis renommage. NGINX_TOOLS_CONFIG_MAJ_AUTO=0 : jamais. Le chemin est ajouté à NGINX_TOOLS_CONFIG_MAJ (ligne « Configuration lue »).
+config_rafraichir() {
+    local programme="$1" chemin="$2" modele temporaire ligne premiere=1
+    [[ "${NGINX_TOOLS_CONFIG_MAJ_AUTO:-}" == "0" ]] && return 0
+    modele="${CFG_DOSSIER_DOC:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." 2>/dev/null && pwd)/doc}/$programme.conf.example"
+    [[ -r "$modele" && -r "$chemin" && -w "$chemin" && -w "$(dirname "$chemin")" ]] || return 0
+    grep -qE '^[[:space:]]*[A-Za-z_][A-Za-z0-9_]*[[:space:]]*=' "$chemin" && return 0          # une option active : fichier modifié par l'utilisateur
+    tail -c "$(wc -c < "$modele")" "$chemin" 2>/dev/null | cmp -s - "$modele" && return 0       # déjà au modèle actuel
+    temporaire="$(mktemp "$(dirname "$chemin")/.$(basename "$chemin").XXXXXX" 2>/dev/null)" || return 0
+    {
+        while IFS= read -r ligne; do
+            if (( premiere )); then
+                ligne="# Fichier mis à jour automatiquement le {DATE} par {NOM} : aucune option n’y était active, il suit le modèle actuel."; premiere=0
+            fi
+            ligne="${ligne//\{DATE\}/$(date +%F\ %H:%M)}"; printf '%s\n' "${ligne//\{NOM\}/$programme}"
+        done < "$(dirname "${BASH_SOURCE[0]}")/config-entete.txt"
+        cat "$modele"
+    } > "$temporaire" 2>/dev/null || { rm -f "$temporaire"; return 0; }
+    chmod --reference="$chemin" "$temporaire" 2>/dev/null
+    chown --reference="$chemin" "$temporaire" 2>/dev/null
+    if mv -f "$temporaire" "$chemin" 2>/dev/null; then
+        export NGINX_TOOLS_CONFIG_MAJ="${NGINX_TOOLS_CONFIG_MAJ:+$NGINX_TOOLS_CONFIG_MAJ:}$chemin"
+    else
+        rm -f "$temporaire"
+    fi
     return 0
 }
 
@@ -300,6 +338,14 @@ config_afficher() {
         (( ${#CFG_FICHIERS[@]} > 1 )) && lus+=" (le dernier l'emporte)"
         for f in "${CFG_FICHIERS[@]}"; do [[ "$f" == "${NGINX_TOOLS_CONFIG_CREE:-}" ]] && CFG_CREE="$f"; done
         [[ -n "$CFG_CREE" ]] && lus+=" (fichier créé à l'instant : toutes les options y sont en commentaire, valeurs par défaut)"
+        if [[ -z "$CFG_CREE" && -n "${NGINX_TOOLS_CONFIG_MAJ:-}" ]]; then         # 1.14 : fichiers remis au modèle actuel (config_rafraichir)
+            local maj="" m
+            for f in "${CFG_FICHIERS[@]}"; do
+                IFS=: read -ra m <<< "$NGINX_TOOLS_CONFIG_MAJ"
+                [[ " ${m[*]} " == *" $f "* ]] && maj+="${maj:+, }$(basename "$f")"
+            done
+            [[ -n "$maj" ]] && lus+=" ($maj mis à jour à l'instant d'après le nouveau modèle : aucune option n'y était active)"
+        fi
     fi
     echo "$lus"
     opts="--lang ${NGINX_TOOLS_I18N_LANGUE:-fr}${NGINX_TOOLS_I18N_ORIGINE:+ ($NGINX_TOOLS_I18N_ORIGINE)}"

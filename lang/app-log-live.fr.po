@@ -2379,3 +2379,71 @@ msgstr "  {name} interrompu (Ctrl-C)."
 
 msgid "  {name} continues."
 msgstr "  {name} continue."
+
+# 1.86: versions of the nginx configuration and their dates
+msgid "Site diagnosis (why the maintenance page shows: service, Odoo ports, nginx upstream, firewall) and the versions of the nginx configuration with their dates, then exits; code 1 if there is a problem"
+msgstr "Diagnostic du site (pourquoi la page de maintenance s'affiche : service, ports d'Odoo, upstream nginx, pare-feu) et les versions de la configuration nginx avec leurs dates, puis quitte ; code 1 s'il y a un problème"
+
+msgid "──── nginx configuration: versions and dates ────"
+msgstr "──── Configuration nginx : versions et dates ────"
+
+msgid "  Archive nginx-odoo-config: version "
+msgstr "  Archive nginx-odoo-config : version "
+
+msgid " (VERSION modified "
+msgstr " (VERSION modifié le "
+
+msgid "  Latest changes of the nginx configuration (README.md journal, "
+msgstr "  Dernières modifications de la configuration nginx (journal README.md, "
+
+msgid " dated line(s)):"
+msgstr " ligne(s) datée(s)) :"
+
+msgid "  Deployed under "
+msgstr "  Déployé sous "
+
+msgid "identical"
+msgstr "identique"
+
+msgid "different"
+msgstr "différent"
+
+msgid "nothing to compare"
+msgstr "rien à comparer"
+
+msgid " (files of the archive compared with the deployed ones; absent: not used on this server, or not yet deployed)"
+msgstr " (fichiers de l'archive comparés aux fichiers déployés ; absent : inutilisé sur ce serveur, ou pas encore déployé)"
+
+msgid "⚠ files different from the archive: "
+msgstr "⚠ fichiers différents de l'archive : "
+
+msgid " — copy them from nginx-odoo/ (doc/CONTEXTE.md section 5), then nginx -t && systemctl reload nginx"
+msgstr " — les copier depuis nginx-odoo/ (doc/CONTEXTE.md section 5), puis nginx -t && systemctl reload nginx"
+
+msgid "  Archive nginx-odoo-config: not found next to the programs ("
+msgstr "  Archive nginx-odoo-config : introuvable à côté des programmes ("
+
+msgid "/VERSION) — version unknown"
+msgstr "/VERSION) — version inconnue"
+
+msgid "  Most recently modified files of "
+msgstr "  Fichiers modifiés le plus récemment dans "
+
+msgid " file(s)):"
+msgstr " fichier(s)) :"
+
+msgid ": no configuration file readable (root required?)"
+msgstr " : aucun fichier de configuration lisible (root nécessaire ?)"
+
+msgid "  Last reload of nginx: "
+msgstr "  Dernier rechargement de nginx : "
+
+msgid "unknown (no worker process visible)"
+msgstr "inconnu (aucun processus worker visible)"
+
+msgid " — ⚠ older than a deployed file ("
+msgstr " — ⚠ plus ancien qu'un fichier déployé ("
+
+msgid "): nginx -t && systemctl reload nginx"
+msgstr ") : nginx -t && systemctl reload nginx"
+

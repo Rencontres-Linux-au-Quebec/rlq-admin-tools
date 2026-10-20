@@ -1,7 +1,11 @@
 #!/usr/bin/env python3
 # ========================================================================================================================
-# Copyright (C) 2026  Services-Conseils Linux
-# Licence : GNU Affero General Public License, version 3 ou ultérieure — https://www.gnu.org/licenses/agpl-3.0.html
+# Copyright (C) 2026 Services-Conseils Linux
+# Copyright (C) 2026 Rencontres Linux au Québec contributors
+#
+# This program is free software: you can redistribute it and/or modify it under the terms of the GNU Affero General Public
+# License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
+# Full text: https://www.gnu.org/licenses/agpl-3.0.html
 # ========================================================================================================================
 #
 # _odoo_db.py — utilisateurs d'une base Odoo (identifiant de connexion, UID, nom, interne ou portail/public), lus en
@@ -12,6 +16,8 @@
 # --unban-odoo-user : compte archivé ou rétabli) et fix_registration_email (odoo-mail-retry.py : adresse corrigée d'une inscription).
 #
 # HISTORIQUE DE VERSION (resume — voir doc/_odoo_db.changelog.txt pour le detail complet) :
+#   1.18.20261019.150215 — New copyright: Services-Conseils Linux and Rencontres Linux au Québec contributors (AGPL-3.0-or-later).
+#   1.17.20261019.012211 — user_profiles: creation date of each Odoo account (« created », web-monitor.py « Account created » column).
 #   1.16.20261017.105442 — user_profiles: phone, country, city, groups, tags, events and surveys of each Odoo account (web-monitor.py --table / --csv).
 #   1.15.20261016.173838 — registrations_by_ticket (survey of the TICKET, answer to another survey apart), mail_detail (recipients and subject of a sent e-mail).
 #   1.14.20261016.114848 — user_detail, set_user_active (account archived / restored), registration_emails, failed_mails_for, fix_registration_email.
@@ -41,7 +47,7 @@ import re
 import subprocess
 import sys
 
-__version__ = "1.16.20261017.105442"
+__version__ = "1.18.20261019.150215"
 
 VERBOSE = False     # --verbose : la commande psql est affichee avant son execution
 SEP = "\x1f"
@@ -354,7 +360,7 @@ def mail_detail(base, mail_id, message_id="", delai=10):
 def user_profiles(base, delai=60):
     """--list-users --table / --csv of web-monitor.py (1.16), READ-ONLY: {login: {email, phone, country (ISO code), country_name, city, groups: [custom groups:
     created in Odoo or by an rlq_* module], all_groups: [every group, for --group], tags: [contact tags], events: registrations not cancelled, surveys: surveys
-    completed (tests excluded)}}. Inner separators chr(2) / chr(3): Python splitlines() also cuts at chr(28) to chr(30). Tables of modules not installed (event, survey) count 0. None if PostgreSQL is unreachable."""
+    completed (tests excluded), created: creation of the account (epoch, 1.17)}}. Inner separators chr(2) / chr(3): Python splitlines() also cuts at chr(28) to chr(30). Tables of modules not installed (event, survey) count 0. None if PostgreSQL is unreachable."""
     regs = (_requete(base, "SELECT to_regclass('public.event_registration') IS NOT NULL, to_regclass('public.survey_user_input') IS NOT NULL, "
                            "to_regclass('public.res_partner_res_partner_category_rel') IS NOT NULL", delai) or [["", "", ""]])[0]
     has_event, has_survey, has_tags = (r in ("t", "true") for r in (regs + ["", "", ""])[:3])
@@ -368,7 +374,7 @@ def user_profiles(base, delai=60):
            f"COALESCE({_titre_sql('c.name')}, ''), replace(COALESCE(p.city, ''), E'\\n', ' '), "
            f"COALESCE((SELECT string_agg({_titre_sql('g.name')} || chr(2) || COALESCE(d.module, ''), chr(3) ORDER BY 1) FROM res_groups_users_rel r "
            "JOIN res_groups g ON g.id = r.gid LEFT JOIN ir_model_data d ON d.model = 'res.groups' AND d.res_id = g.id WHERE r.uid = u.id), ''), "
-           f"{tags}, {events}, {surveys} "
+           f"{tags}, {events}, {surveys}, COALESCE(extract(epoch FROM u.create_date)::bigint::text, '') "      # 1.17: Odoo stores UTC: epoch read as UTC
            "FROM res_users u JOIN res_partner p ON p.id = u.partner_id LEFT JOIN res_country c ON c.id = p.country_id")
     rows = _requete(base, sql, delai)
     if rows is None:
@@ -381,7 +387,8 @@ def user_profiles(base, delai=60):
         custom = sorted({n for n, *m in groups if not (m and m[0]) or m[0].startswith("rlq") or m[0] in ("__export__", "__custom__")})
         res[c[0]] = {"email": c[1], "phone": c[2], "country": c[3], "country_name": c[4], "city": c[5], "groups": custom,
                      "all_groups": sorted({n for n, *_ in groups}), "tags": [t for t in c[7].split("\x03") if t],
-                     "events": int(c[8]) if c[8].isdigit() else 0, "surveys": int(c[9]) if c[9].isdigit() else 0}
+                     "events": int(c[8]) if c[8].isdigit() else 0, "surveys": int(c[9]) if c[9].isdigit() else 0,
+                     "created": int(c[10]) if len(c) > 10 and c[10].isdigit() else None}
     return res
 
 
