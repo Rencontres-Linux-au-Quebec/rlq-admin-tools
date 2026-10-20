@@ -36,8 +36,11 @@ msgstr "Options (in alphabetical order):"
 msgid "  --app NAME                   application derrière nginx (profil apps/NAME.conf : odoo, bbb…) ; détectée par défaut"
 msgstr "  --app NAME                   application behind nginx (profile apps/NAME.conf: odoo, bbb…); detected by default"
 
-msgid "  --ban IP                     bannir IP au pare-feu (preuves affichées, confirmation demandée)"
-msgstr "  --ban IP                     ban IP at the firewall (evidence shown, confirmation asked)"
+msgid "  --ban IP                     bannir IP au pare-feu (preuves affichées, justification et confirmation demandées)"
+msgstr "  --ban IP                     ban IP at the firewall (evidence shown, justification and confirmation asked)"
+
+msgid "  --ban-history                journal des bannissements et levées manuels : date, heure, justification, origine (lecture seule)"
+msgstr "  --ban-history                journal of manual bans and lifts: date, time, justification, origin (read-only)"
 
 msgid "  --ban-threshold N            nombre d'indices à partir duquel le bannissement est proposé (défaut : 3)"
 msgstr "  --ban-threshold N            number of clues from which a ban is suggested (default: 3)"
@@ -105,8 +108,11 @@ msgstr "  --stats                      traffic statistics (codes, IPs, User-Agen
 msgid "  --ua-rotation-threshold N    identités de robots différentes pour l'indice « double identité »"
 msgstr "  --ua-rotation-threshold N    different robot identities for the « double identity » clue"
 
-msgid "  --unban IP                   lever un bannissement manuel"
-msgstr "  --unban IP                   lift a manual ban"
+msgid "  --unban IP                   lever un bannissement manuel (justification demandée)"
+msgstr "  --unban IP                   lift a manual ban (justification asked)"
+
+msgid "  --reason TEXT                avec --ban ou --unban : justification enregistrée dans le journal des bannissements"
+msgstr "  --reason TEXT                with --ban or --unban: justification recorded in the ban journal"
 
 msgid "  --unban-check                réévaluer chaque bannissement manuel (levée proposée si injustifié)"
 msgstr "  --unban-check                re-evaluate each manual ban (lifting suggested if unjustified)"
@@ -117,8 +123,8 @@ msgstr "  -v, --verbose                show every command run"
 msgid "  --version                    affiche la version et quitte"
 msgstr "  --version                    show the version and exit"
 
-msgid "  --yes                        avec --ban : bannir sans question"
-msgstr "  --yes                        with --ban: ban without asking"
+msgid "  --yes                        avec --ban ou --unban : sans question (justification : --reason, sinon automatique)"
+msgstr "  --yes                        with --ban or --unban: without asking (justification: --reason, otherwise automatic)"
 
 msgid "Argument inconnu: "
 msgstr "Unknown argument: "
@@ -1565,3 +1571,271 @@ msgstr "  but the address is never offered for a ban; activity of the account: w
 
 msgid ", SOUS SURVEILLANCE : jamais bannie automatiquement ;"
 msgstr ", UNDER WATCH: never banned automatically;"
+
+# 2.40 — ban justification and time
+msgid "Bannissements de "
+msgstr "Bans of "
+
+msgid " (quand, et pourquoi)"
+msgstr " (when, and why)"
+
+msgid " : pare-feu, fail2ban, liste CrowdSec, journal des bannissements manuels"
+msgstr ": firewall, fail2ban, CrowdSec list, journal of manual bans"
+
+msgid "  État actuel :"
+msgstr "  Current state:"
+
+msgid "    non lisible sans root (pare-feu, fail2ban, ipset) : relancer avec sudo"
+msgstr "    not readable without root (firewall, fail2ban, ipset): run again with sudo"
+
+msgid "règle ip6tables « DROP »"
+msgstr "ip6tables « DROP » rule"
+
+msgid "règle iptables « DROP »"
+msgstr "iptables « DROP » rule"
+
+msgid "règle ufw « deny from »"
+msgstr "ufw « deny from » rule"
+
+msgid "    Pare-feu : "
+msgstr "    Firewall: "
+
+msgid "BANNIE"
+msgstr "BANNED"
+
+msgid " (bannissement manuel, sans expiration ; levée : nginx-log-audit.sh --unban "
+msgstr " (manual ban, no expiry; to lift: nginx-log-audit.sh --unban "
+
+msgid "    Pare-feu : pas de bannissement manuel"
+msgstr "    Firewall: no manual ban"
+
+msgid "    fail2ban : "
+msgstr "    fail2ban: "
+
+msgid " par le jail "
+msgstr " by the jail "
+
+msgid "      début + durée = fin : "
+msgstr "      start + duration = end: "
+
+msgid "    fail2ban : pas bannie actuellement"
+msgstr "    fail2ban: not banned at the moment"
+
+msgid "    fail2ban : non installé ou arrêté"
+msgstr "    fail2ban: not installed or stopped"
+
+msgid "    Liste CrowdSec : "
+msgstr "    CrowdSec list: "
+
+msgid "BLOQUÉE"
+msgstr "BLOCKED"
+
+msgid " — adresse signalée comme agressive par d'autres serveurs du réseau"
+msgstr " — address reported as aggressive by other servers of the"
+
+msgid "      CrowdSec (liste communautaire, sync-crowdsec-blocklist.sh) : aucune justification locale"
+msgstr "      CrowdSec network (community list, sync-crowdsec-blocklist.sh): no local justification"
+
+msgid " ; liste mise à jour le "
+msgstr "; list updated on "
+
+msgid "    Liste CrowdSec : absente"
+msgstr "    CrowdSec list: absent"
+
+msgid "BANNIE au pare-feu"
+msgstr "BANNED at the firewall"
+
+msgid "bannissement LEVÉ"
+msgstr "ban LIFTED"
+
+msgid "justification : non enregistrée (avant la version 2.40)"
+msgstr "justification: not recorded (before version 2.40)"
+
+msgid "justification : "
+msgstr "justification: "
+
+msgid " — par "
+msgstr " — by "
+
+msgid "fail2ban : bannissement levé par le jail "
+msgstr "fail2ban: ban lifted by the jail "
+
+msgid " (fin de la durée, ou levée manuelle)"
+msgstr " (end of the duration, or lifted by hand)"
+
+msgid "fail2ban : BANNIE par le jail "
+msgstr "fail2ban: BANNED by the jail "
+
+msgid "fail2ban : bannissement rétabli au redémarrage (jail "
+msgstr "fail2ban: ban restored at restart (jail "
+
+msgid "  Historique (heure locale, du plus ancien au plus récent) :"
+msgstr "  History (local time, oldest first):"
+
+msgid "    aucun événement dans le journal des bannissements manuels ni dans les journaux de fail2ban conservés"
+msgstr "    no event in the journal of manual bans nor in the kept fail2ban logs"
+
+msgid " événement(s) plus ancien(s) non affiché(s))"
+msgstr " older event(s) not shown)"
+
+msgid "  Pourquoi le jail "
+msgstr "  Why the jail "
+
+msgid " l'a bannie : "
+msgstr " banned it: "
+
+msgid "    Pages demandées et refusées par nginx (blocked-probes.log) :"
+msgstr "    Pages requested and refused by nginx (blocked-probes.log):"
+
+msgid "    (blocked-probes.log ne contient plus ces requêtes : journal tourné depuis)"
+msgstr "    (blocked-probes.log no longer holds these requests: log rotated since)"
+
+msgid "    Dernières requêtes au capteur catch-all :"
+msgstr "    Last requests to the catch-all sensor:"
+
+msgid "    Détail : journalctl -g "
+msgstr "    Detail: journalctl -g "
+
+msgid "   (journal du service surveillé par ce jail)"
+msgstr "   (journal of the service watched by this jail)"
+
+msgid "Aucun bannissement trouvé"
+msgstr "No ban found"
+
+msgid " sur ce serveur : ni pare-feu, ni fail2ban (journaux conservés), ni liste CrowdSec,"
+msgstr " on this server: neither firewall, nor fail2ban (kept logs), nor CrowdSec list,"
+
+msgid "  ni journal des bannissements manuels ("
+msgstr "  nor journal of manual bans ("
+
+msgid "). Si elle est signalée bannie ailleurs, vérifier sur l'autre serveur."
+msgstr "). If it is reported banned elsewhere, check on the other server."
+
+msgid "requêtes REFUSÉES par nginx (fichiers sensibles, failles, outils d'attaque) — blocked-probes.log"
+msgstr "requests REFUSED by nginx (sensitive files, vulnerabilities, attack tools) — blocked-probes.log"
+
+msgid "accès par adresse IP brute ou domaine inconnu (capteur catch-all) — typique d'un scanner"
+msgstr "access by raw IP address or unknown domain (catch-all sensor) — typical of a scanner"
+
+msgid "échecs de connexion à Odoo (mot de passe) répétés"
+msgstr "repeated Odoo login failures (password)"
+
+msgid "échecs de connexion SSH répétés"
+msgstr "repeated SSH login failures"
+
+msgid "bannie à répétition par d'autres jails (récidive)"
+msgstr "banned repeatedly by other jails (repeat offender)"
+
+msgid "trop de requêtes (limite de débit de nginx dépassée)"
+msgstr "too many requests (nginx rate limit exceeded)"
+
+msgid "échecs d'authentification HTTP de nginx"
+msgstr "nginx HTTP authentication failures"
+
+msgid "recherche de pages d'administration ou de failles (robot)"
+msgstr "search for admin pages or vulnerabilities (robot)"
+
+msgid "requêtes HTTP malformées"
+msgstr "malformed HTTP requests"
+
+msgid "règle du jail "
+msgstr "rule of the jail "
+
+msgid " (filtre /etc/fail2ban/filter.d/"
+msgstr " (filter /etc/fail2ban/filter.d/"
+
+msgid "Justification du bannissement (enregistrée avec la date et l'heure ; Entrée accepte la proposition) :"
+msgstr "Justification of the ban (recorded with the date and time; Enter accepts the proposal):"
+
+msgid "Justification de la levée (enregistrée avec la date et l'heure ; Entrée accepte la proposition) :"
+msgstr "Justification of the lift (recorded with the date and time; Enter accepts the proposal):"
+
+msgid "      Justification (enregistrée avec la date et l'heure ; Entrée accepte la proposition) :"
+msgstr "      Justification (recorded with the date and time; Enter accepts the proposal):"
+
+msgid "automatique : aucune justification fournie"
+msgstr "automatic: no justification given"
+
+msgid "Justification enregistrée ("
+msgstr "Justification recorded ("
+
+msgid "preuves : "
+msgstr "evidence: "
+
+msgid "    Justification : "
+msgstr "    Justification: "
+
+msgid " — banni le "
+msgstr " — banned on "
+
+msgid "ligne de commande"
+msgstr "command line"
+
+msgid "(rapport)"
+msgstr "(report)"
+
+msgid " via "
+msgstr " via "
+
+msgid " dans l'historique disponible du site ("
+msgstr " in the available history of the site ("
+
+msgid ") : les requêtes refusées par nginx et"
+msgstr "): requests refused by nginx and"
+
+msgid "celles du capteur catch-all n'y sont pas — voir « Bannissements » ci-dessus, ou : nginx-log-audit.sh --evidence "
+msgstr "those of the catch-all sensor are not there — see « Bans » above, or: nginx-log-audit.sh --evidence "
+
+msgid " JOURNAL DES BANNISSEMENTS MANUELS ("
+msgstr " JOURNAL OF MANUAL BANS ("
+
+msgid "Aucun bannissement manuel enregistré (journal absent ou vide)."
+msgstr "No manual ban recorded (journal missing or empty)."
+
+msgid "Le journal est dans le dossier du compte qui bannit (root) : relancer avec sudo."
+msgstr "The journal is in the folder of the account that bans (root): run again with sudo."
+
+msgid "Du plus ancien au plus récent (heure locale) — bannissements de fail2ban et liste CrowdSec : nginx-log-audit.sh --investigate IP"
+msgstr "Oldest first (local time) — fail2ban bans and CrowdSec list: nginx-log-audit.sh --investigate IP"
+
+msgid "Justification — origine"
+msgstr "Justification — origin"
+
+msgid "banni"
+msgstr "banned"
+
+msgid "levé"
+msgstr "lifted"
+
+msgid "(non enregistrée : avant la version 2.40)"
+msgstr "(not recorded: before version 2.40)"
+
+msgid " signe(s) d'hostilité — "
+msgstr " sign(s) of hostility — "
+
+msgid "récidiviste fail2ban ("
+msgstr "fail2ban repeat offender ("
+
+msgid "réévaluation (--unban-check) : "
+msgstr "re-evaluation (--unban-check): "
+
+msgid " détection(s) par fail2ban (première : "
+msgstr " detection(s) by fail2ban (first: "
+
+msgid ", dernière : "
+msgstr ", last: "
+
+msgid "    Justification : non enregistrée (bannissement antérieur à la 2.40) ; pour l'ajouter : nginx-log-audit.sh --ban "
+msgstr "    Justification: not recorded (ban older than 2.40); to add it: nginx-log-audit.sh --ban "
+
+msgid "justification ajoutée"
+msgstr "justification added"
+
+msgid "justifié"
+msgstr "justified"
+
+msgid "Justification ajoutée au bannissement existant ("
+msgstr "Justification added to the existing ban ("
+
+msgid " (ajoutée le "
+msgstr " (added on "

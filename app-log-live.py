@@ -61,6 +61,7 @@
 # BigBlueButton (file journals): the nginx and bbb-web journals are followed (tail -F), without names of people or presence.
 #
 # VERSION HISTORY (summary — see doc/app-log-live.changelog.txt for the full detail):
+#   1.87.20261020.161238 — Bans: the reason is passed to nginx-log-audit.sh (--reason) and kept in the ban journal.
 #   1.86.20261019.150215 — --diagnose / D key: nginx configuration versions with their dates (archive, README journal, deployed files, last reload); new copyright.
 #   1.85.20261017.200717 — RLQ* groups shown as « RLQ23-Bénévole = 11 » (no « member(s) »), columns narrower.
 #   1.84.20261016.173838 — I key: registrations per event and ticket with THE survey of the ticket; sent e-mails named; Ctrl-C of the child programs
@@ -188,7 +189,7 @@ from urllib.parse import unquote
 from collections import Counter, OrderedDict
 from concurrent.futures import Future
 
-__version__ = "1.86.20261019.150215"
+__version__ = "1.87.20261020.161238"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
@@ -4289,7 +4290,8 @@ def follow(cmd, people, resolver, options, output):
             return
         nla = os.path.join(SCRIPT_DIR, "nginx-log-audit.sh")
         app = ["--app", options["app"]] if options.get("app") else []
-        r = run_captured(["bash", nla, "--ban", ip, "--yes"] + app, "nginx-log-audit.sh", env=dict(os.environ, NGINX_TOOLS_LANG="fr"))
+        why = ["--reason", f"app-log-live.py: address often banned ({n} fail2ban bans), verdict: ban justified"]   # 1.87: kept in the ban journal
+        r = run_captured(["bash", nla, "--ban", ip, "--yes"] + why + app, "nginx-log-audit.sh", env=dict(os.environ, NGINX_TOOLS_LANG="fr"))
         detail = next((l.strip() for l in r.stdout.splitlines() + r.stderr.splitlines() if re.search(r"Règle|Déjà|REFUSÉ|ÉCHEC", l)), "")
         write_out([f"  {ip} : {('already banned' if 'Déjà' in detail else 'now banned') if r.returncode == 0 else color_code(STYLES['error'], 'NOT banned')}{' — ' + detail if detail else ''}"])
         if r.returncode == 0:
@@ -4760,14 +4762,15 @@ def follow(cmd, people, resolver, options, output):
             return
         app = ["--app", options["app"]] if options.get("app") else []
         n_ok = 0
-        for ip, _ in candidates:
+        for ip, n_seen in candidates:
+            why = ["--reason", f"app-log-live.py: {stats.ban_reason(ip, n_seen)}"]   # 1.87: kept in the ban journal (date, time, justification)
             if rep in ("c", "choisir"):
                 with keys.interactive():
                     print(f"\n{'=' * 70}\n{ip}" + (f" — {stats.who(ip)}" if stats.who(ip) != ip else ""))
                     with foreground_child():                # 1.84: Ctrl-C goes to nginx-log-audit.sh, which asks its own confirmation
-                        code = subprocess.run(["bash", nla, "--ban", ip] + app).returncode
+                        code = subprocess.run(["bash", nla, "--ban", ip] + why + app).returncode
             else:
-                r = run_captured(["bash", nla, "--ban", ip, "--yes"] + app, "nginx-log-audit.sh", env=dict(os.environ, NGINX_TOOLS_LANG="fr"))
+                r = run_captured(["bash", nla, "--ban", ip, "--yes"] + why + app, "nginx-log-audit.sh", env=dict(os.environ, NGINX_TOOLS_LANG="fr"))
                 code = r.returncode
                 detail = next((l.strip() for l in r.stdout.splitlines() + r.stderr.splitlines() if re.search(r"Règle|Déjà|REFUSÉ|ÉCHEC", l)), "")
                 write_out([f"  {ip} : {('already banned' if 'Déjà' in detail else 'now banned') if code == 0 else color_code(STYLES['error'], 'NOT banned')}{' — ' + detail if detail else ''}"])
