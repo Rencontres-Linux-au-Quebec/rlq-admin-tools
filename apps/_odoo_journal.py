@@ -1,5 +1,5 @@
 # ========================================================================================================================
-# Copyright (C) 2026 Services-Conseils Linux
+# Copyright (C) 2026 Services-Conseils Linux Inc.
 # Copyright (C) 2026 Rencontres Linux au Québec contributors
 #
 # This program is free software: you can redistribute it and/or modify it under the terms of the GNU Affero General Public
