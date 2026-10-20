@@ -53,7 +53,7 @@ licence GPL-3.0) et `ruff` 0.16.9 (statique, licence MIT). D'autres exécutables
 `shellcheck`). Les programmes, et leur dossier `apps/` (profils d'application), doivent se trouver dans le répertoire parent de `nginx-tools-tests/`. La configuration nginx de référence est
 livrée AVEC l'archive de la suite, dans `nginx-tools-tests/nginx-odoo/` (copie identique de `nginx-odoo-config.zip`, vérifiée par un test).
 
-**Dépôt Git (public)** : la configuration nginx est PRIVÉE et n'est jamais dans le dépôt (`.gitignore`), ni les exécutables de `tools/`. Les tests la
+**Dépôt Git (public)** : la configuration nginx est PRIVÉE et n'est jamais dans le dépôt (`.gitignore`) ; les exécutables de `tools/` y sont (versions, licences, sources et empreintes : `tools/LISEZMOI.md`). Les tests la
 cherchent dans `$NGINX_ODOO_DIR`, puis `nginx-tools-tests/nginx-odoo/`, puis `nginx-odoo/` à côté des programmes ; absente, les tests qui en ont besoin
 sont désactivés (« configuration absente »), jamais en échec :
 
