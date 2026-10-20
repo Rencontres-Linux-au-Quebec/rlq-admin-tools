@@ -65,6 +65,7 @@ class SourceUniqueEquipe(unittest.TestCase):
                                capture_output=True, text=True, env=dict(os.environ, NGINX_TOOLS_WHITE_LIST=chemin))
         return r.stdout, r.stderr.strip()
 
+    @unittest.skipUnless(os.path.isdir(CONFIG_DIR), f"configuration nginx absente : {CONFIG_DIR} (privée, hors du dépôt : NGINX_ODOO_DIR ou nginx-tools-tests/nginx-odoo/)")
     def test_aucun_fichier_genere_dans_la_configuration_livree(self):
         """snippets/team-ips-geo.conf et team-ips-allow.conf contenaient de vraies adresses : générés sur chaque serveur, jamais livrés."""
         for type_ in ("geo", "allow"):
@@ -90,6 +91,7 @@ class SourceUniqueEquipe(unittest.TestCase):
         vide, _ = self.generer("allow", "")
         self.assertEqual([l for l in vide.splitlines() if not l.startswith("#")], [])
 
+    @unittest.skipUnless(os.path.isdir(CONFIG_DIR), f"configuration nginx absente : {CONFIG_DIR} (privée, hors du dépôt : NGINX_ODOO_DIR ou nginx-tools-tests/nginx-odoo/)")
     def test_inclusions_a_joker_et_aucune_adresse_de_l_equipe_en_dur(self):
         """Inclusions par NOM EXACT (team-ips-geo.conf) : un joker (team-ips-geo*.conf) a fait échouer nginx -t sur un serveur même avec les fichiers présents. Les fichiers doivent exister avant nginx -t (créés par nginx-hardening.sh --update). Seules les adresses propres à un
         environnement (localhost, IP publique du serveur) restent dans env-*.conf."""

@@ -2018,7 +2018,7 @@ class AppLogLive(EnvTest):
 
     def test_inscriptions_avec_sondage_requete_et_analyse(self):
         """1.23 : _odoo_db.inscriptions_avec_sondage : motif nettoyé (aucune injection), courriel comparé jamais renvoyé, sondage absent = None, lecture seule."""
-        spec = importlib.util.spec_from_file_location("odoo_db", os.path.join(os.environ["TEST_SCRIPTS_DIR"], "apps", "_odoo_db.py"))
+        spec = importlib.util.spec_from_file_location("odoo_db", os.path.join(SCRIPTS_DIR, "apps", "_odoo_db.py"))
         db = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(db)
         views = []
@@ -2452,7 +2452,7 @@ class AppLogLive(EnvTest):
         self.assertNotIn("absente", T(lines))
         self.assertIn("Sondage « Portes ouvertes (Bénévole) — billet Bénévole » : 2 accès · 2 visiteur(s) · 1 envoi(s) de réponses", T(lines))
         self.assertIn("Sondage « sondage ffffffff… » : 1 accès", T(lines))
-        spec = importlib.util.spec_from_file_location("odoo_db", os.path.join(os.environ["TEST_SCRIPTS_DIR"], "apps", "_odoo_db.py"))
+        spec = importlib.util.spec_from_file_location("odoo_db", os.path.join(SCRIPTS_DIR, "apps", "_odoo_db.py"))
         db = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(db)
         views = []
