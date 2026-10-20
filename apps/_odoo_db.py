@@ -16,6 +16,7 @@
 # --unban-odoo-user : compte archivé ou rétabli) et fix_registration_email (odoo-mail-retry.py : adresse corrigée d'une inscription).
 #
 # HISTORIQUE DE VERSION (resume — voir doc/_odoo_db.changelog.txt pour le detail complet) :
+#   1.19.20261020.103939 — mail_detail: e-mail already deleted by Odoo (auto_delete) found again through its mail.message (same Message-Id).
 #   1.18.20261019.150215 — New copyright: Services-Conseils Linux and Rencontres Linux au Québec contributors (AGPL-3.0-or-later).
 #   1.17.20261019.012211 — user_profiles: creation date of each Odoo account (« created », web-monitor.py « Account created » column).
 #   1.16.20261017.105442 — user_profiles: phone, country, city, groups, tags, events and surveys of each Odoo account (web-monitor.py --table / --csv).
@@ -47,7 +48,7 @@ import re
 import subprocess
 import sys
 
-__version__ = "1.18.20261019.150215"
+__version__ = "1.19.20261020.103939"
 
 VERBOSE = False     # --verbose : la commande psql est affichee avant son execution
 SEP = "\x1f"
@@ -328,10 +329,11 @@ def registrations_by_ticket(base, days=30, limit=200, delai=30):
     return res
 
 
-def mail_detail(base, mail_id, message_id="", delai=10):
+def mail_detail(base, mail_id, message_id="", delai=10, address=""):
     """Who an e-mail (mail.mail) was sent to and what it is, READ-ONLY: {subject, recipients: [names] (contacts, otherwise the e-mail_to addresses as written),
     record: name of the record it is about (« registration Ana Tremblay — Event title » for event.registration, otherwise the model)} ; {} if not found or if
-    the Message-Id does not match (another database) ; None if PostgreSQL is unreachable."""
+    the Message-Id does not match (another database) ; None if PostgreSQL is unreachable. `address`: the recipient as Odoo logs it, masked (« b****ss@exemple.org »):
+    picks the notified partner(s) whose e-mail matches it when the mail.mail is already deleted."""
     if not str(mail_id).isdigit():
         return {}
     check = f" AND g.message_id = {_sql_text(message_id)}" if message_id else ""
@@ -342,6 +344,21 @@ def mail_detail(base, mail_id, message_id="", delai=10):
         f"FROM mail_mail m JOIN mail_message g ON g.id = m.mail_message_id WHERE m.id = {int(mail_id)}{check}", delai)
     if rows is None:
         return None
+    if (not rows or len(rows[0]) < 5) and message_id:
+        # 1.19: Odoo deletes the mail.mail right after sending it (auto_delete: « deleted mail.mail records with IDs: [7624] », a few ms later): the
+        # mail.message stays, with the same Message-Id; recipients = the partner notified by e-mail whose address matches the masked one, otherwise all the
+        # partners notified by e-mail, otherwise the partners of the message
+        pattern = re.sub(r"\*+", "%", re.sub(r"([%_\\])", r"\\\1", address)) if address and "*" in address and "@" in address else ""
+        notified = ("(SELECT string_agg(DISTINCT left(replace(p.name, E'\\n', ' '), 40), '; ') FROM mail_notification n JOIN res_partner p ON p.id = n.res_partner_id "
+                    "WHERE n.mail_message_id = g.id AND n.notification_type = 'email'{})")
+        rows = _requete(base,
+            "SELECT left(replace(COALESCE(g.subject, ''), E'\\n', ' '), 160), "
+            "COALESCE(" + (notified.format(f" AND p.email ILIKE {_sql_text(pattern)}") + ", " if pattern else "") + notified.format("") + ", "
+            "(SELECT string_agg(DISTINCT left(replace(p.name, E'\\n', ' '), 40), '; ') FROM mail_message_res_partner_rel x JOIN res_partner p ON p.id = x.res_partner_id "
+            "WHERE x.mail_message_id = g.id), ''), '', COALESCE(g.model, ''), COALESCE(g.res_id, 0) "
+            f"FROM mail_message g WHERE g.message_id = {_sql_text(message_id)} ORDER BY g.id DESC LIMIT 1", delai)
+        if rows is None:
+            return None
     if not rows or len(rows[0]) < 5:
         return {}
     subject, partners, email_to, model, res_id = rows[0][:5]

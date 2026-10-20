@@ -26,7 +26,10 @@ Every 30 seconds a light sampler reads the kernel counters (no command): process
 * Odoo logs no session end: “connected” means active within `--idle` minutes.
 * The event time comes from the log line, never from the machine time zone.
 * Daily colored logs go to `/var/log/app-log-live/` (root) or `~/.local/state/app-log-live/` (mode 600, 30 days; `--log-dir`, `--log-keep-days`, `--no-log-file`).
-* `--truncate` cuts each displayed line to 2 × the terminal width (`$COLUMNS`), or to N columns with `--truncate N`, ending with “…”: a line takes at most two screen lines. The daily log keeps the whole lines.
+* By default, a log line wider than `$COLUMNS - 10` columns (`--truncate N`: N columns) is shortened to “start ... last two words”, so the end of a long URL (and a `[banned: …]` label) stays visible; `--no-truncate` shows whole lines. Menus and reports are never cut; the daily log keeps the whole lines.
+* One log line out of 5 is underlined, to follow a line across a wide screen.
+* By default, IP addresses and e-mails are shown as stable pseudonyms (`IP-4f2a9c`, `usager-9c1e03@anonyme.invalid`); `--no-anonymize` shows the real values. Names of people stay; the daily log keeps everything.
+* A sent e-mail is shown as “E-mail #N sent to NAME — « subject »”, even when Odoo deleted it right after sending (auto_delete).
 * “Who is connected now” gives each SSH account with its number of sessions (`ana ×2, root ×1`, sftp included); the RLQ* groups are shown on 4, 2 or 1 column(s) depending on the terminal width.
 * Key **I**: registrations grouped by event, then by ticket, with **the survey of each ticket** (counts: confirmed, unfinished, without survey); an answer to another survey (last year's, a test, another ticket) is pointed out, never counted.
 * A sent e-mail shows its recipient and subject: “E-mail #7573 sent to Ana Tremblay (a***n@…) — « subject » — registration …”.
