@@ -4,7 +4,7 @@ Changelog — apps/_odoo_db.py
 ## 1.19.20261020.103939 — mail_detail: e-mail already deleted by Odoo found again through its mail.message
 
 Reason:
-  app-log-live.py 1.87 [3]: « j'avais demandé de voir le titre du courriel qui avait été envoyé […] mais le texte n'a pas changé » (Mail (mail.mail) with ID 7624 … successfully sent, then « User #1 deleted mail.mail records with IDs: [7624] »).
+  app-log-live.py 1.88 [3]: « j'avais demandé de voir le titre du courriel qui avait été envoyé […] mais le texte n'a pas changé » (Mail (mail.mail) with ID 7624 … successfully sent, then « User #1 deleted mail.mail records with IDs: [7624] »).
 
 Changes:
   - mail_detail(base, mail_id, message_id="", delai=10, address=""): when the mail.mail row is gone (auto_delete right after sending), the mail.message with the

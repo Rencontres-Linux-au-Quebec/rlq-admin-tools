@@ -32,7 +32,7 @@
 #
 # HISTORIQUE DE VERSION (resume — voir run-all.changelog.txt pour le detail complet) :
 #   1.189.20261020.163255 — tools/ (static gawk 5.3.2 and ruff 0.16.9) now in the Git repository, with tools/LISEZMOI.md (versions, licences, sources, SHA-256).
-#   1.188.20261020.112434 — Statistics at the end (duration, CPU, memory, disk, tests per program: unit / functional / interactive / conformity); personal data removed from the tests; FR/EN sample data and alignment tests; nginx-odoo/ read from NGINX_ODOO_DIR (not in git) (nginx-tools 1.133).
+#   1.188.20261020.112434 — Statistics at the end (duration, CPU, memory, disk, tests per program: unit / functional / interactive / conformity); personal data removed from the tests; FR/EN sample data and alignment tests; nginx-odoo/ read from NGINX_ODOO_DIR (not in git) (nginx-tools 1.134).
 #   1.187.20261017.214019 — Tests of web-monitor 2.69 (IP seen, sorted title, configuration keys) (nginx-tools 1.128).
 #   1.186.20261017.200717 — Residual files of the programs folder only reported (never deleted, the tests go on); test of a second Ctrl+C; web-monitor 2.68, app-log-live 1.85.
 #   1.185.20261017.105442 — Tests of web-monitor 2.67 (compact table, profile fields, --group, --csv, --stats), language from the environment (nginx-tools 1.126).

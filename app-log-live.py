@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # ========================================================================================================================
-# Copyright (C) 2026 Services-Conseils Linux
+# Copyright (C) 2026 Services-Conseils Linux Inc.
 # Copyright (C) 2026 Rencontres Linux au Québec contributors
 #
 # This program is free software: you can redistribute it and/or modify it under the terms of the GNU Affero General Public
@@ -61,8 +61,10 @@
 # BigBlueButton (file journals): the nginx and bbb-web journals are followed (tail -F), without names of people or presence.
 #
 # VERSION HISTORY (summary — see doc/app-log-live.changelog.txt for the full detail):
-#   1.88.20261020.112434 — --truncate / --anonymize by default only on a TERMINAL (a pipe, another program, the tests: real whole lines); explicit options always apply; --no-underline.
-#   1.87.20261020.103939 — One line out of 5 underlined; --truncate and --anonymize by default (--no-truncate, --no-anonymize), long lines « start ... last two words » at $COLUMNS - 10; sent e-mails named even once deleted by Odoo; « -2026- » highlighted.
+#   1.90.20261020.164846 — Merge of 1.87 (bans: --reason passed to nginx-log-audit.sh) with 1.88 and 1.89 (underlined lines, --truncate, --anonymize, --no-underline).
+#   1.89.20261020.112434 — --truncate / --anonymize by default only on a TERMINAL (a pipe, another program, the tests: real whole lines); explicit options always apply; --no-underline.
+#   1.88.20261020.103939 — One line out of 5 underlined; --truncate and --anonymize by default (--no-truncate, --no-anonymize), long lines « start ... last two words » at $COLUMNS - 10; sent e-mails named even once deleted by Odoo; « -2026- » highlighted.
+#   1.87.20261020.161238 — Bans: the reason is passed to nginx-log-audit.sh (--reason) and kept in the ban journal.
 #   1.86.20261019.150215 — --diagnose / D key: nginx configuration versions with their dates (archive, README journal, deployed files, last reload); new copyright.
 #   1.85.20261017.200717 — RLQ* groups shown as « RLQ23-Bénévole = 11 » (no « member(s) »), columns narrower.
 #   1.84.20261016.173838 — I key: registrations per event and ticket with THE survey of the ticket; sent e-mails named; Ctrl-C of the child programs
@@ -191,7 +193,7 @@ from urllib.parse import unquote
 from collections import Counter, OrderedDict
 from concurrent.futures import Future
 
-__version__ = "1.88.20261020.112434"
+__version__ = "1.90.20261020.164846"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
@@ -252,7 +254,7 @@ def _chime_config(value):
 
 
 def _truncate_config(value):
-    """TRUNCATE (1.87): a number of columns (0 = $COLUMNS - 10), yes (= 0) or no (whole lines)."""
+    """TRUNCATE (1.88): a number of columns (0 = $COLUMNS - 10), yes (= 0) or no (whole lines)."""
     v = value.strip().lower()
     if v in ("no", "non", "n", "false", "off", "none", "aucun"):
         return False
@@ -607,7 +609,7 @@ SGR_RE = re.compile(r"\x1b\[([0-9;]*)m")
 def modify_highlight(database, text):
     """"+word" ADDS a word to the `base` list, "-word" REMOVES it (case-insensitive); several separated by a comma or a space ("+odoo -POST +20-ans").
     Words without a sign in an input that contains + or - are added. Returns the new list, or None if the input has neither "+" nor "-" at the start
-    (it is then a complete list that REPLACES the old one). 1.87: a word that starts AND ends with "-" (« -2026- ») is a word, not a removal: « --2026- » removes it."""
+    (it is then a complete list that REPLACES the old one). 1.88: a word that starts AND ends with "-" (« -2026- ») is a word, not a removal: « --2026- » removes it."""
     words = [m for m in re.split(r"[,\s]+", text.strip()) if m]
 
     def removal(m):
@@ -2525,7 +2527,7 @@ def truncate_line(text_line, limit):
 
 TAIL_RE = re.compile(r"(?:\[[^\]]*\]|\S+)\s+(?:\[[^\]]*\]|\S+)\s*$")      # last two words; « [banned: CrowdSec] » counts as ONE word (the URL stays visible)
 TRUNCATE_AUTO = -2                                      # --truncate not given: on a terminal only (argparse would apply type=int to a text default)
-ELLIPSIS = "..."                                        # 1.87: marker between the start of a shortened line and its last two words
+ELLIPSIS = "..."                                        # 1.88: marker between the start of a shortened line and its last two words
 
 
 def colored_suffix(text, start):
@@ -2587,7 +2589,7 @@ def squeeze_padding(text_line, excess):
 
 
 def shorten_line(text_line, limit):
-    """1.87 (--truncate, by default): a stream line longer than `limit` columns (a long URL…) becomes « start ... last two words », `limit` columns at most:
+    """1.88 (--truncate, by default): a stream line longer than `limit` columns (a long URL…) becomes « start ... last two words », `limit` columns at most:
     the end of the line (the URL's last part, [banned: …], « ← slow ») stays visible. Last two words wider than a third of the line: only their end is kept.
     The padding spaces of the columns are squeezed first: a line that then fits is only less aligned, nothing is cut."""
     if display_width(text_line) <= limit:
@@ -2612,7 +2614,7 @@ def shorten_line(text_line, limit):
 
 
 def underline_line(text_line):
-    """1.87: the line underlined (one line out of 5, to follow a line across the screen), colors kept: each color reset is followed by the underline again."""
+    """1.88: the line underlined (one line out of 5, to follow a line across the screen), colors kept: each color reset is followed by the underline again."""
     if not COLOR or not text_line:
         return text_line
     return "\x1b[4m" + re.sub(r"\x1b\[0?m", "\x1b[0;4m", text_line) + "\x1b[0m"
@@ -2731,7 +2733,7 @@ def logged_in_lines(presence, now_dt=None):
 
 MAIL_SENT_RE = re.compile(r"Mail \(mail\.mail\) with ID (\d+) and Message-Id '([^']*)' from '[^']*' to (?:\(redacted\) )?'([^']*)' successfully sent")
 MAIL_TOTAL_RE = re.compile(r"Total emails tried by SMTP: 1\s*$")
-MAIL_DELETED_RE = re.compile(r"User #\d+ deleted mail\.mail records with IDs: \[([\d, ]+)\]\s*$")      # 1.87: auto_delete right after the sending
+MAIL_DELETED_RE = re.compile(r"User #\d+ deleted mail\.mail records with IDs: \[([\d, ]+)\]\s*$")      # 1.88: auto_delete right after the sending
 MAIL_CACHE = {}
 
 
@@ -2753,7 +2755,7 @@ def mail_sent_text(L, people):
             MAIL_CACHE["databases"] = odoo_db.bases_odoo() or []
         databases = list(MAIL_CACHE["databases"])
     detail = {}
-    for attempt in range(2):                         # 1.87: not found = maybe not visible yet (other transaction): one more try 0.5 s later
+    for attempt in range(2):                         # 1.88: not found = maybe not visible yet (other transaction): one more try 0.5 s later
         for database in databases[:5]:
             try:
                 try:
@@ -4027,9 +4029,9 @@ class Output:
         self.active = False                               # true after the startup history
         self.file_path, self.day, self.path = None, None, None
         self.buffer = collections.deque(maxlen=4000)      # last chunks displayed, without colors: error report of the r key
-        self.truncate = None                              # --truncate (1.83, by default since 1.87): None = whole lines; 0 = $COLUMNS - 10; N = N columns (stream lines, screen only, not the journal)
-        self.anonymize = None                             # --anonymize (1.87, by default): Anonymiseur of apps/_anonymiser.py applied to the screen (the daily journal keeps everything)
-        self.underline = True                             # 1.88: --no-underline / UNDERLINE=non: no line underlined
+        self.truncate = None                              # --truncate (1.83, by default since 1.88): None = whole lines; 0 = $COLUMNS - 10; N = N columns (stream lines, screen only, not the journal)
+        self.anonymize = None                             # --anonymize (1.88, by default): Anonymiseur of apps/_anonymiser.py applied to the screen (the daily journal keeps everything)
+        self.underline = True                             # 1.89: --no-underline / UNDERLINE=non: no line underlined
 
     def _open(self, day):
         os.makedirs(self.folder, mode=0o700, exist_ok=True)
@@ -4071,7 +4073,7 @@ class Output:
         return "".join(part if ANSI_SPLIT_RE.fullmatch(part) else self.anonymize(part) for part in ANSI_SPLIT_RE.split(text))
 
     def write(self, text, stream=False, underline=False):
-        """`stream`: a line of the journal (1.87: shortened by --truncate, underlined if `underline`); other texts (menus, reports) are never cut."""
+        """`stream`: a line of the journal (1.88: shortened by --truncate, underlined if `underline`); other texts (menus, reports) are never cut."""
         text = translate_protected(text)
         self.buffer.append(ANSI_RE.sub("", self.screen_text(text)))
         if self.folder and self.active:
@@ -4321,7 +4323,7 @@ def follow(cmd, people, resolver, options, output):
                     continue                                    # « Total emails tried by SMTP: 1 » right after a sent e-mail: nothing more to say
                 deleted = MAIL_DELETED_RE.search(L.text)
                 if deleted and sent_ids and set(re.findall(r"\d+", deleted.group(1))) <= sent_ids:
-                    continue                                    # 1.87: Odoo deletes the e-mails it just sent (auto_delete): already said by « E-mail #N sent to … »
+                    continue                                    # 1.88: Odoo deletes the e-mails it just sent (auto_delete): already said by « E-mail #N sent to … »
                 sent = MAIL_SENT_RE.search(L.text)
                 detail = mail_sent_text(L, people) if sent else None
                 after_mail = sent is not None
@@ -4431,7 +4433,8 @@ def follow(cmd, people, resolver, options, output):
             return
         nla = os.path.join(SCRIPT_DIR, "nginx-log-audit.sh")
         app = ["--app", options["app"]] if options.get("app") else []
-        r = run_captured(["bash", nla, "--ban", ip, "--yes"] + app, "nginx-log-audit.sh", env=dict(os.environ, NGINX_TOOLS_LANG="fr"))
+        why = ["--reason", f"app-log-live.py: address often banned ({n} fail2ban bans), verdict: ban justified"]   # 1.87: kept in the ban journal
+        r = run_captured(["bash", nla, "--ban", ip, "--yes"] + why + app, "nginx-log-audit.sh", env=dict(os.environ, NGINX_TOOLS_LANG="fr"))
         detail = next((l.strip() for l in r.stdout.splitlines() + r.stderr.splitlines() if re.search(r"Règle|Déjà|REFUSÉ|ÉCHEC", l)), "")
         write_out([f"  {ip} : {('already banned' if 'Déjà' in detail else 'now banned') if r.returncode == 0 else color_code(STYLES['error'], 'NOT banned')}{' — ' + detail if detail else ''}"])
         if r.returncode == 0:
@@ -4450,7 +4453,7 @@ def follow(cmd, people, resolver, options, output):
         stats.ajouter(L, renderings, source, benign)
         watch_repeat(ips0[0][2] if ips0 else None, L)
         state["emitted"] = state.get("emitted", 0) + 1
-        output.write(highlight_text(text, options["highlight_pattern"]) + "\n", stream=True, underline=state["emitted"] % 5 == 0)       # 1.87: one line out of 5 underlined
+        output.write(highlight_text(text, options["highlight_pattern"]) + "\n", stream=True, underline=state["emitted"] % 5 == 0)       # 1.88: one line out of 5 underlined
         if options["chime"] is not None and is_reportable_error(L, options["chime"]) and time.time() - beep["last"] >= 2.0:       # at most one beep every 2 s
             beep["last"] = time.time()
             sonner(beep["mode"], output.screen)
@@ -4903,14 +4906,15 @@ def follow(cmd, people, resolver, options, output):
             return
         app = ["--app", options["app"]] if options.get("app") else []
         n_ok = 0
-        for ip, _ in candidates:
+        for ip, n_seen in candidates:
+            why = ["--reason", f"app-log-live.py: {stats.ban_reason(ip, n_seen)}"]   # 1.87: kept in the ban journal (date, time, justification)
             if rep in ("c", "choisir"):
                 with keys.interactive():
                     print(f"\n{'=' * 70}\n{ip}" + (f" — {stats.who(ip)}" if stats.who(ip) != ip else ""))
                     with foreground_child():                # 1.84: Ctrl-C goes to nginx-log-audit.sh, which asks its own confirmation
-                        code = subprocess.run(["bash", nla, "--ban", ip] + app).returncode
+                        code = subprocess.run(["bash", nla, "--ban", ip] + why + app).returncode
             else:
-                r = run_captured(["bash", nla, "--ban", ip, "--yes"] + app, "nginx-log-audit.sh", env=dict(os.environ, NGINX_TOOLS_LANG="fr"))
+                r = run_captured(["bash", nla, "--ban", ip, "--yes"] + why + app, "nginx-log-audit.sh", env=dict(os.environ, NGINX_TOOLS_LANG="fr"))
                 code = r.returncode
                 detail = next((l.strip() for l in r.stdout.splitlines() + r.stderr.splitlines() if re.search(r"Règle|Déjà|REFUSÉ|ÉCHEC", l)), "")
                 write_out([f"  {ip} : {('already banned' if 'Déjà' in detail else 'now banned') if code == 0 else color_code(STYLES['error'], 'NOT banned')}{' — ' + detail if detail else ''}"])
@@ -5534,7 +5538,7 @@ def main():
                "report_min": args.time_report or 0.0, "level": args.level, "modules_sort": modules_sort_state}
     folder = None if args.no_follow else journal_folder(args.log_dir, args.no_log_file)
     output = Output(sys.stdout, folder, args.log_keep_days, COLOR, "-filter" if args.only else "")        # a filtered launch (--only) has its own journal: several simultaneous launches do not mix their lines
-    # 1.87: by default (and from the configuration file) only on a TERMINAL — a program that reads this output (pipe, tests) gets the real lines; an explicit
+    # 1.88: by default (and from the configuration file) only on a TERMINAL — a program that reads this output (pipe, tests) gets the real lines; an explicit
     # --truncate / --anonymize on the command line always applies
     on_terminal = sys.stdout.isatty()
     if args.truncate == TRUNCATE_AUTO:

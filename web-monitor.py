@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # ========================================================================================================================
-# Copyright (C) 2026 Services-Conseils Linux
+# Copyright (C) 2026 Services-Conseils Linux Inc.
 # Copyright (C) 2026 Rencontres Linux au Québec contributors
 #
 # This program is free software: you can redistribute it and/or modify it under the terms of the GNU Affero General Public
@@ -34,7 +34,9 @@
 # the complete report /var/log/web-monitor/, always written (30 days kept).
 #
 # VERSION HISTORY (summary — see web-monitor.changelog.txt for the full detail):
-#   2.73.20261020.112434 — Error messages that start with an option (« --days expects … ») translated whole again (« … a number of jours … »).
+#   2.75.20261020.164846 — Merge of 2.73 (bans: --reason passed to nginx-log-audit.sh) with 2.74 (error messages translated whole, --stats e-mail domains).
+#   2.74.20261020.112434 — Error messages that start with an option (« --days expects … ») translated whole again (« … a number of jours … »).
+#   2.73.20261020.161238 — Bans: the reason is passed to nginx-log-audit.sh (--reason) and kept in the ban journal.
 #   2.72.20261019.150215 — New copyright: Services-Conseils Linux and Rencontres Linux au Québec contributors (AGPL-3.0-or-later).
 #   2.71.20261019.115217 — Fix: field and sort keys, option names shown in English in every language (« browsers », not « navigateurs »); French field names accepted.
 #   2.70.20261019.012211 — --table: every 5th line underlined; « Account created », « IP country » (RDAP / whois) and « VPN » (VPN, Tor, relay, hosting) columns; --sort created|vpn.
@@ -189,7 +191,7 @@ import time
 import unicodedata
 import urllib.parse
 
-__version__ = "2.73.20261020.112434"
+__version__ = "2.75.20261020.164846"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
@@ -3111,7 +3113,7 @@ def list_users(details=False, table_rows=False, sort_order="name", invert=False,
     try:
         for l in open(os.path.join(CHK_STATE, "bans.tsv"), encoding="utf-8"):
             cols = l.rstrip("\n").split("\t")              # 2.68: NOT « fields » (that name holds the --table-fields columns: KeyError on a date)
-            if len(cols) >= 3:
+            if len(cols) >= 3 and cols[1] in ("banni", "leve"):    # 2.73: other events (« justifie »: justification added later) change nothing
                 (banned.add if cols[1] == "banni" else banned.discard)(cols[2])
     except OSError:
         pass
@@ -3768,7 +3770,8 @@ def ban_user(login, yes=False, investigation=None, addresses=True):
         nla = os.path.join(SCRIPT_DIR, "nginx-log-audit.sh")
         app = ["--app", PROFILE["APP_NAME"]] if PROFILE.get("APP_NAME") else []
         for ip in to_ban:
-            r = subprocess.run(["bash", nla, "--ban", ip, "--yes"] + app + verbose_args(), capture_output=True, text=True, env=dict(os.environ, NGINX_TOOLS_LANG="fr"))
+            why = f"web-monitor.py --ban-odoo-user: Odoo account {login} banned (score {inv['points']}: {inv['verdict']})"   # 2.73: kept in the ban journal
+            r = subprocess.run(["bash", nla, "--ban", ip, "--yes", "--reason", why] + app + verbose_args(), capture_output=True, text=True, env=dict(os.environ, NGINX_TOOLS_LANG="fr"))
             print(f"  {ip} — {'banned' if r.returncode == 0 else BAD + 'NOT banned' + END_BAD}")
             if r.returncode == 0:
                 banned_ips.append(ip)
@@ -3804,7 +3807,8 @@ def unban_user(login, yes=False):
     nla = os.path.join(SCRIPT_DIR, "nginx-log-audit.sh")
     app = ["--app", PROFILE["APP_NAME"]] if PROFILE.get("APP_NAME") else []
     for ip in event["ips"]:
-        r = subprocess.run(["bash", nla, "--unban", ip, "--yes"] + app + verbose_args(), capture_output=True, text=True, env=dict(os.environ, NGINX_TOOLS_LANG="fr"))
+        r = subprocess.run(["bash", nla, "--unban", ip, "--yes", "--reason", f"web-monitor.py --unban-odoo-user: Odoo account {login} restored"] + app + verbose_args(),
+                           capture_output=True, text=True, env=dict(os.environ, NGINX_TOOLS_LANG="fr"))
         print(f"  {ip} — {'unbanned' if r.returncode == 0 else BAD + 'NOT unbanned' + END_BAD}")
     _load_module("_odoo_users").record("unbanned", event["db"], event["uid"], login, event["ips"], "web-monitor.py --unban-odoo-user")
     return 0 if changed is not None else 1
@@ -4065,8 +4069,8 @@ def collect_summary(periods):
                 fields = text_line.rstrip("\n").split("\t")
                 if len(fields) <= date_col:
                     continue
-                if key_value == "manuels" and len(fields) >= 3:
-                    banned[fields[2]] = fields[1]                   # last known event: banned / lifted
+                if key_value == "manuels" and len(fields) >= 3 and fields[1] in ("banni", "leve"):
+                    banned[fields[2]] = fields[1]                   # last known event: banned / lifted (2.73: « justifie » ignored)
                 if filter_text and filter_text not in fields:
                     continue
                 try:
@@ -4367,12 +4371,13 @@ def ban(items, choose):
     app = ["--app", PROFILE["APP_NAME"]] if PROFILE.get("APP_NAME") else []
     n_ok = 0
     for ip, reason in items:
+        why = ["--reason", f"web-monitor.py: {reason}"]          # 2.73: the reason is kept in the ban journal (date, time, justification)
         if choose:
             print(f"\n{'=' * 70}\n{ip} — {reason}")
             with foreground_child():
-                code = subprocess.run(["bash", nla, "--ban", ip] + app + verbose_args()).returncode
+                code = subprocess.run(["bash", nla, "--ban", ip] + why + app + verbose_args()).returncode
         else:                                      # 2.66: own session: Ctrl-C asks web-monitor's question and never kills a ban halfway
-            r = subprocess.run(["bash", nla, "--ban", ip, "--yes"] + app + verbose_args(), capture_output=True, text=True, env=dict(os.environ, NGINX_TOOLS_LANG="fr"),
+            r = subprocess.run(["bash", nla, "--ban", ip, "--yes"] + why + app + verbose_args(), capture_output=True, text=True, env=dict(os.environ, NGINX_TOOLS_LANG="fr"),
                                start_new_session=True)
             if VERBOSE and r.stderr:
                 sys.stderr.write(r.stderr)
@@ -4890,7 +4895,7 @@ class LocalizedArgumentParser(argparse.ArgumentParser):
         return super().add_argument(*args, **kwargs)
 
     def error(self, message):
-        # 2.71: option names never translated (« --sort » became « --tri »). 2.73: a message translated WHOLE by the catalogue (its msgid includes the option:
+        # 2.71: option names never translated (« --sort » became « --tri »). 2.74: a message translated WHOLE by the catalogue (its msgid includes the option:
         # « --days expects a number of days … ») keeps that translation when every option name is still there; otherwise the options are set aside
         options = re.findall(r"(?<![\w-])--[a-z][\w-]*", message)
         whole = TR(message)

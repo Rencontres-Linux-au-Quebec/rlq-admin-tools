@@ -69,12 +69,12 @@ Bugs fixed:
         and « vpn »; French sort synonyms « créé », « création », « hébergeur » and column titles « Compte créé », « Pays des adresses IP » declared intended;
       * test drift after _config 1.7 / _i18n.sh 1.14: a configuration file with NO active option now follows the template — the « never touched » test
         writes an active option;
-      * real defects of the programs, fixed: web-monitor 2.73 (« --days expects a number of jours », half translated since 2.71); changelogs of
+      * real defects of the programs, fixed: web-monitor 2.74 (« --days expects a number of jours », half translated since 2.71); changelogs of
         odoo-backup.sh 1.18 and odoo-update-module.sh 1.12 entries misplaced (after the first entry) — sorted; lang/app-log-live.fr.po: stale entry of the
         former --diagnose help removed; lang/_config.en.po: header line written by config_rafraichir (_i18n.sh 1.14) added;
       * environment: test_odoo_users expected the time in Eastern time on a server in UTC — TZ=America/Toronto for those tests; test_odoo_docs needs the
         Python module markdown (docs/build_docs.py) — skipped with its reason when it is missing, like the other optional tools.
-  - app-log-live.py 1.87 applied --truncate / --anonymize to a pipe too: fixed in 1.88 (terminal only).
+  - app-log-live.py 1.88 applied --truncate / --anonymize to a pipe too: fixed in 1.89 (terminal only).
 
 Safeguards and edge cases:
   - Statistics never change the verdict; a pass interrupted or without stats_runner.py: « aucune statistique » (or nothing), the tests still run.

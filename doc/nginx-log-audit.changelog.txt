@@ -3,6 +3,65 @@
 #
 # Version la plus récente en premier.
 
+## 2.40.20261020.161238 — Ban justification and time: --reason, --ban-history; --investigate shows when and why an address was banned
+
+Reason:
+  « Il y a eu une IP qui a été bannie mais je ne trouve pas la justification. Il faudrait indiquer l'heure et la raison qu'elle a été bannie (et toutes autres raisons). Peut-être rajouter un champ texte afin de pouvoir rajouter un texte justificatif lors du ban. » (--investigate showed one request, score 1/7, and --unban-check | grep found nothing)
+
+Changes:
+  - New option --reason TEXT (with --ban or --unban): justification recorded in the ban journal (bans.tsv) with the date and time.
+    Without --reason, --ban and --unban ask it at the keyboard after the confirmation (editable proposal: the « for » evidence of
+    preuves_ip, or the --reason given); with --yes and no --reason: « automatique : aucune justification fournie ».
+  - bans.tsv: 4th column = justification (BAN_NOTE of --import-bans kept in front of it), new 5th column = origin (account, sudo
+    included, and calling program with its main option: web-monitor.py --ban-recommended, app-log-live.py, nginx-log-audit.sh
+    --unban-check or « (rapport) », otherwise « ligne de commande »). The first 3 columns are unchanged (web-monitor.py reads them).
+  - New event « justifie »: --ban on an address ALREADY banned with a justification adds it to the journal without changing the ban
+    date (way to justify after the fact a ban older than 2.40).
+  - New option --ban-history: the journal, oldest first: date, action (banni / levé / justifié, in color), IP, justification, origin.
+    Read-only (no lock).
+  - --investigate IP starts with a « Bannissements » section (new function afficher_bannissements): current state (manual firewall
+    rule iptables/ip6tables/ufw; fail2ban jails holding the address, with start + duration = end from « banip --with-time »;
+    CrowdSec ipsets with the date of the last list), chronological history (bans.tsv + Ban / Unban / Restore Ban lines of fail2ban.log
+    and its rotations), then for each jail involved: its reason (new function raison_jail), the number and dates of fail2ban
+    detections, the refused pages (blocked-probes.log) or the catch-all requests. Shown even when the address made no request to the
+    site (it then said only « Aucune requête… »).
+  - --unban-check: each ban shows its origin and its justification (or how to add it).
+  - Report questions (section [10] and repeat offenders) and --unban-check pass a proposed justification (score, signs of hostility,
+    clues found, or the repeat-offender summary), editable before the ban (variable PROP_RAISON, array motifs in
+    investigate_and_propose, confirm_and_ban, decide_unban).
+  - New helpers: nettoyer_texte (one line, no TAB nor control code, 300 characters), origine_appel, demander_texte (one line at the
+    keyboard with an editable default, Ctrl+C = default), ajouter_justification. relancer_action also shows the « Justification » line.
+  - Help, header and docs/{fr,en}/02-nginx-log-audit.md updated; lang/nginx-log-audit.en.po: English for every new message.
+
+Bugs fixed:
+  - Symptom: an address shown as banned could not be explained: --investigate gave score 1/7 and --unban-check said nothing.
+    Diagnosis: --unban-check only lists MANUAL firewall bans; a ban by a fail2ban jail (e.g. nginx-blocked-probes, whose refused
+    requests are only in blocked-probes.log, not in the site log) or by the CrowdSec list was invisible to --investigate, and a
+    manual ban never kept its reason. Fix: the « Bannissements » section of --investigate and the justification of every ban.
+  - Symptom: « nginx-log-audit.sh --changelog | head » printed « cat: write error: Broken pipe ». Diagnosis: the error message of
+    cat / sed on the closed pipe was not silenced. Fix: 2>/dev/null on both (the « || true » was already there).
+
+Safeguards and edge cases:
+  - Justification cleaned (TAB, newlines and control codes removed, cut at 300 characters, never inside an accented letter).
+  - Old bans.tsv lines (3 or 4 columns) still read: « non enregistrée (avant la version 2.40) ».
+  - Without root: the current state is reported as not readable (history still shown from the readable logs).
+  - fail2ban missing or stopped, ipset missing, fail2ban older than 0.11 (no --with-time): reported, never an error.
+  - Origin detection skips the wrappers of the same call (sudo, timeout, bash running this --ban) and arguments containing spaces
+    (bash -c scripts).
+  - History limited to the last 30 events (count of hidden ones shown).
+
+Checks:
+  - shellcheck 0.11.0 -x: no warning; bash -n.
+  - Sample logs: --investigate on an address banned by nginx-blocked-probes with no site request (state, history, detections,
+    refused pages), in French and in English (--lang en); --ban --yes with and without --reason (TAB and newline cleaned);
+    --ban on an already banned address (event « justifie ») then --unban-check and --ban-history; --unban --reason; interactive
+    --ban through a pseudo-terminal (script): typed justification recorded; origin « web-monitor.py --ban-recommended » when
+    called from a Python parent.
+
+Action required:
+  To know why an address was banned: sudo nginx-log-audit.sh --investigate IP (section « Bannissements », on the server
+  where it is banned). To justify an existing manual ban: sudo nginx-log-audit.sh --ban IP --reason "…".
+
 ## 2.39.20261019.150215 — New copyright: Services-Conseils Linux and Rencontres Linux au Québec contributors
 
 Reason:

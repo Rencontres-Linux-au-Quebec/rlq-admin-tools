@@ -4,7 +4,7 @@ Changelog — apps/_anonymiser.py
 ## 1.2.20261020.103939 — Masked e-mails replaced whole; fixed_width for aligned columns
 
 Reason:
-  app-log-live.py 1.87 [4]: « Met ces options par défaut : --truncate, --anonymize (rajoute l'inverse --no-anonymize ?) ».
+  app-log-live.py 1.88 [4]: « Met ces options par défaut : --truncate, --anonymize (rajoute l'inverse --no-anonymize ?) ».
 
 Changes:
   - COURRIEL: « * » accepted in the local part: Odoo's masked address « b****ss@exemple.org » becomes usager-xxxxxx@anonyme.invalid (was « b****usager-…@… »).
