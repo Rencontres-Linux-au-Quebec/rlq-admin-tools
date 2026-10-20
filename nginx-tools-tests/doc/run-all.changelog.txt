@@ -1,6 +1,61 @@
 Changelog — run-all.sh (suite de tests)
 (version la plus récente en premier)
 
+## 1.190.20261020.175756 — Tests without root; never a real system file written; no stop on « Broken pipe »
+
+Reason:
+  « La version run-all.sh v1.189.20261020.16325 me donne ces erreurs (il ne faut pas être root pour faire les tests) : [...] sha256sum: /etc/default/odoo-backup.conf: Permission denied [...] [ÉCHEC] tests sous mawk : Ran 844 tests in 812.664s FAILED (failures=63, errors=18, skipped=83) [...] *** ARRÊT INATTENDU DE run-all.sh (code 2) À LA LIGNE 559 »
+
+Changes:
+  - helpers.py: outside root, the PREPARED copies of the programs (prepare(), and their apps/ components) read NGINX_TOOLS_TEST_EUID before $EUID,
+    $(id -u) and os.geteuid() (simuler_root): they behave as root INSIDE the test folder (simulated tools, redirected paths) without any real privilege.
+    The delivered programs are not changed. SANS_ROOT_SIMULE: for a test of the refusal without root (test_odoo_users).
+  - helpers.py isoler(): in every prepared copy, the system paths left as DEFAULT values (« ${VAR:-/etc/…} », « ${VAR:-/var/…} »,
+    « os.environ.get("VAR", "/etc/…") ») point to the test folder (systeme/…); a variable set by a test still wins. Same for the paths WRITTEN without a
+    variable: /etc/fail2ban (jail.d, filter.d), /var/log/nginx (blocked-probes.log), /var/www (letsencrypt), unless the test already redirected them.
+  - run-all.sh: every file of /etc or /var/backups modified during the suite is examined at the end: one that names a test folder (/tmp/test-rlq-…) is a
+    FAILURE with its path; the others (a service of the machine) are listed for information.
+  - run-all.sh: configuration fingerprints of unreadable files (mode 600, not root): size and modification date (stat) instead of « sha256sum: Permission
+    denied ».
+  - run-all.sh: failure details printed with « sed -n '1,40…p' » (reads the whole input) instead of « head -40 | sed ».
+  - Tests that need the private nginx configuration (test_config_nginx FormatDesJournaux, RefusJournalises; test_locks SourceUniqueEquipe): skipped with
+    the reason when it is absent (repository checkout without nginx-odoo/), instead of FileNotFoundError.
+  - test_app_log_live: SCRIPTS_DIR instead of os.environ["TEST_SCRIPTS_DIR"] (KeyError when a module is run alone).
+  - test_web_monitor.test_corrections_faites_par_le_programme_en_fin_de_sommaire: the simulated user (os.geteuid mocked to 1000) also clears
+    NGINX_TOOLS_TEST_EUID (the prepared copy reads it first).
+  - lang/run-all.en.po: the new messages of the end-of-run check.
+  - Tests adapted to nginx-log-audit.sh 2.40 (PR #4), visible only as root: justification question answered after « Bannir … maintenant ? »
+    (test_reponse_corrigee_avec_effacement_h_et_del, test_reponse_tapee_lentement_acceptee), new columns of the ban journal
+    (test_export_puis_import_classe_et_ne_bannit_que_les_nouvelles), « --reason … » passed by web-monitor.py (test_fin_de_passage_c_passe_par_l_enquete_de_ban).
+  - nginx-log-audit.sh 2.41 (template, English texts); nginx-hardening.sh 2.51 (Odoo logrotate rule in NGINX_HARDENING_LOGROTATE_DIR). nginx-tools 1.137.
+
+Bugs fixed:
+  - Symptom: as an ordinary user, 63 failures and 18 errors (« doit être lancé en root », « --ban nécessite root », mktemp in /etc/nginx/snippets: Permission
+    denied…). Diagnosis: the programs check root first; the suite had always been run with sudo. Fix: simulated root in the test copies.
+  - Symptom (found while fixing): tests run AS ROOT wrote real system files — /etc/nginx/snippets/shared-ips-geo.conf, /etc/logrotate.d/odoo,
+    /etc/logrotate.d/odoo-nginx-hardening, /etc/systemd/journald.conf.d/90-nginx-hardening-retention.conf (seen on the test machine, each naming a
+    /tmp/test-rlq-… folder), and /etc/fail2ban/jail.d/nginx-blocked-probes.conf, zz-nginx-hardening-ignoreip.local, filter.d/nginx-blocked-probes.conf
+    (BigBlueButton test, path written without a variable). Diagnosis: nginx-hardening.sh writes to ${NGINX_HARDENING_*_DIR:-/etc/…} and several tests did not set those variables; the
+    end-of-run check only watched a fixed list of files. Fix: defaults redirected in every test copy + check of all of /etc and /var/backups.
+  - Symptom: « *** ARRÊT INATTENDU DE run-all.sh (code 2/141) À LA LIGNE 559 » after « grep: write error: Broken pipe ». Diagnosis: « grep … | head -40 »
+    under set -o pipefail: head closes the pipe, grep gets SIGPIPE, the ERR trap stops the script (only when there are more than 40 lines). Fix: sed reads
+    everything (same at the line of the real-server checks).
+  - Symptom: « sha256sum: /etc/default/odoo-backup.conf: Permission denied ». Fix: stat when unreadable.
+
+Safeguards and edge cases:
+  - As root nothing changes for the root check (NGINX_TOOLS_TEST_EUID empty); the isolation of the system defaults applies in both cases.
+  - Tests marked « exige root » (real privileges: setpriv, real flock on /run…) stay skipped without root, with their reason, as before.
+
+Checks:
+  - run-all.sh as an ordinary user, from a checkout without nginx-odoo/ (like /opt/rlq-admin-tools): see the verdict in the delivery report.
+
+Action required:
+  - Remove from your servers the files the former suite may have written when run with sudo, if they exist and name /tmp/test-rlq-…:
+    /etc/nginx/snippets/shared-ips-geo.conf, /etc/logrotate.d/odoo, /etc/logrotate.d/odoo-nginx-hardening,
+    /etc/systemd/journald.conf.d/90-nginx-hardening-retention.conf, /etc/fail2ban/jail.d/zz-nginx-hardening-ignoreip.local,
+    /etc/fail2ban/jail.d/nginx-blocked-probes.conf, /etc/fail2ban/filter.d/nginx-blocked-probes.conf — ONLY those that name a test folder:
+    « grep -l test-rlq- FILE » (the real ones, written by nginx-hardening.sh --update itself, must stay).
+
 ## 1.189.20261020.163255 — tools/ in the Git repository
 
 Reason:

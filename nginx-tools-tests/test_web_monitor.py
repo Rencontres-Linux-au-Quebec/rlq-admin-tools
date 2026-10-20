@@ -1163,7 +1163,7 @@ class Surveillance(EnvTest):
             with contextlib.redirect_stdout(io.StringIO()):
                 wm.offer_fixes()
         self.assertEqual(faits_par, [("ban", ["203.0.113.9"], False), "reload", "timer"])
-        with unittest.mock.patch("os.geteuid", return_value=1000):
+        with unittest.mock.patch("os.geteuid", return_value=1000), unittest.mock.patch.dict(os.environ, {"NGINX_TOOLS_TEST_EUID": ""}):   # run-all 1.190 : sans root simulé
             f = io.StringIO()
             with contextlib.redirect_stdout(f):
                 wm.offer_fixes()
@@ -1583,7 +1583,7 @@ class Surveillance(EnvTest):
         self.write("fails.txt", "")
         self.env["TEST_BAN_IP"] = "45.9.8.7"
         self.run_pty(["python3", self.prog, "--no-pager"], [(b"[N] aucune", b"c\n", 0.2)])
-        self.assertIn("--ban 45.9.8.7 --app", self.bans())
+        self.assertRegex(self.bans(), r"--ban 45\.9\.8\.7 (--reason .* )?--app")         # nginx-log-audit 2.40 : --reason (justification) avant --app
         self.assertNotIn("--yes", self.bans())                              # --ban interactif : raisonnement et question
 
     @unittest.skipUnless(os.geteuid() == 0, "le mode normal exige root")

@@ -4,6 +4,29 @@ Copyright (C) 2026  Rencontres Linux Québec <info@rencontres-linux.quebec>
 Licence AGPL-3.0-or-later — voir le README du dépôt pour le texte complet.
 ========================================================================================================================
 
+## 2.51.20261020.194336 — Odoo logrotate rule in NGINX_HARDENING_LOGROTATE_DIR
+
+Reason:
+  « La version run-all.sh v1.189.20261020.16325 me donne ces erreurs (il ne faut pas être root pour faire les tests) […] » (found while making the tests run without root)
+
+Changes:
+  - --update: the logrotate rule of the Odoo log is written to $LOGROTATE_DIR/odoo (or odoo-nginx-hardening if « odoo » exists), like the other rules of
+    this program; the warning names that folder.
+
+Bugs fixed:
+  - Symptom: the test suite, run as root, wrote /etc/logrotate.d/odoo (with a /tmp/test-rlq-… path) on the machine. Diagnosis: the path was written
+    literally, so NGINX_HARDENING_LOGROTATE_DIR was ignored for this rule only. Fix: $LOGROTATE_DIR. On a server (variable not set): unchanged,
+    /etc/logrotate.d.
+
+Safeguards and edge cases:
+  - An existing « odoo » file is never overwritten (unchanged).
+
+Checks:
+  - test_odoo_conf, test_nginx_hardening, test_multi_app as root and as an ordinary user; no file written in /etc.
+
+Action required:
+  - If /etc/logrotate.d/odoo or /etc/logrotate.d/odoo-nginx-hardening names a /tmp/test-rlq-… folder (written by a former test run), delete it.
+
 ## 2.50.20261019.150215 — New copyright: Services-Conseils Linux and Rencontres Linux au Québec contributors
 
 Reason:

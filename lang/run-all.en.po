@@ -333,3 +333,14 @@ msgstr "ruff not installed (rerun with --install-missing, or pipx install ruff, 
 
 msgid "          (un lang/PROG.en.po date de l'époque où PROG était écrit en français ; PROG est écrit en anglais et lit lang/PROG.fr.po ; aucun autre programme ne le lit)"
 msgstr "          (a lang/PROG.en.po dates from when PROG was written in French; PROG is written in English and reads lang/PROG.fr.po; no other program reads it)"
+
+# run-all.sh 1.190 : fichiers système écrits pendant la suite
+
+msgid "la suite de tests a ÉCRIT "
+msgstr "the test suite WROTE "
+
+msgid " fichier(s) du système (ils nomment un dossier de test) — à supprimer :"
+msgstr " system file(s) (they name a test folder) — to delete:"
+
+msgid " fichier(s) de /etc ou /var/backups modifié(s) pendant la suite, sans lien avec un test (un service de la machine) : "
+msgstr " file(s) of /etc or /var/backups modified during the suite, not related to a test (a service of the machine): "
