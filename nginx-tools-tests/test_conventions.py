@@ -213,12 +213,12 @@ class RegleDesConfigurations(unittest.TestCase):
                 self.assertIn(".conf", texte)
 
     def test_exemple_de_configuration_pour_chaque_programme(self):
-        """doc/PROGRAMME.conf.example existe, cite la règle de lecture et la clé LANGUAGE."""
+        """doc/en/PROGRAMME.conf.example existe, cite la règle de lecture et la clé LANGUAGE."""
         for nom, (systeme, perso) in self.AVEC_CONFIGURATION.items():
             base = nom.rsplit(".", 1)[0]
             with self.subTest(programme=base):
-                chemin = script_path(f"doc/{base}.conf.example")
-                self.assertTrue(os.path.isfile(chemin), f"doc/{base}.conf.example absent")
+                chemin = script_path(f"doc/en/{base}.conf.example")
+                self.assertTrue(os.path.isfile(chemin), f"doc/en/{base}.conf.example absent")
                 texte = open(chemin, encoding="utf-8").read()
                 self.assertIn(f"/etc/default/{systeme}", texte)
                 self.assertIn(perso, texte)

@@ -396,11 +396,11 @@ def read_pages(path):
 
 
 def create_default_pages(path):
-    """First start: creates the pages file (copy of doc/odoo-warmup-pages.conf.example, mode 644) if it does not exist; silent failure."""
+    """First start: creates the pages file (copy of doc/en/odoo-warmup-pages.conf.example, mode 644) if it does not exist; silent failure."""
     if os.path.exists(path) or os.environ.get("NGINX_TOOLS_CONFIG_CREER") == "0":
         return
     try:
-        with open(os.path.join(SCRIPT_DIR, "doc", "odoo-warmup-pages.conf.example"), encoding="utf-8") as f:
+        with open(os.path.join(SCRIPT_DIR, "doc", "en", "odoo-warmup-pages.conf.example"), encoding="utf-8") as f:
             model = f.read()
         with open(path, "x", encoding="utf-8") as f:
             f.write(model)

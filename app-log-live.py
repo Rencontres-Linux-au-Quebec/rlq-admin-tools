@@ -703,7 +703,7 @@ def write_config(path, values):
             lines = f.read().splitlines()
         mode = os.stat(path).st_mode & 0o777
     except FileNotFoundError:
-        model = os.path.join(SCRIPT_DIR, "doc", f"{SCRIPT_NAME}.conf.example")
+        model = os.path.join(SCRIPT_DIR, "doc", "en", f"{SCRIPT_NAME}.conf.example")
         try:
             with open(model, encoding="utf-8") as f:
                 lines = f.read().splitlines()

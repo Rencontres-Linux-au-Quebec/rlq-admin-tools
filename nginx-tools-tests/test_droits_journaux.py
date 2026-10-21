@@ -67,7 +67,7 @@ class DureeDesJournaux(EnvTest):
         self.assertIn("[365]", r.stdout, r.stderr)
 
     def test_exemple_documente_la_cle(self):
-        with open(os.path.join(SCRIPTS_DIR, "doc", "app-default.conf.example"), encoding="utf-8") as f:
+        with open(os.path.join(SCRIPTS_DIR, "doc", "en", "app-default.conf.example"), encoding="utf-8") as f:
             texte = f.read()
         self.assertIn("#LOG_KEEP_DAYS=180", texte)
 
