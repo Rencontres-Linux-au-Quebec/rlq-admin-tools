@@ -4955,6 +4955,8 @@ def launch_with_report(func):
 
 def show_configuration(defaults, problems):
     """Two start lines: WHICH configuration file(s) were read, and the important options that result (as well as the display language)."""
+    if "--changelog" in sys.argv:          # --changelog shows only the journal
+        return
     try:
         print(_load_module("_config").ligne_configuration(CONFIG_FILES, EXPLICIT_CONFIG, SCRIPT_NAME))
     except Exception:
