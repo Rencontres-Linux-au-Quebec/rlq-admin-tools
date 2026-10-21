@@ -31,6 +31,7 @@
 # unitaires, fonctionnels, interactifs et de conformite (nature MESUREE pendant chaque test), desactives et en echec, et les tests les plus lents.
 #
 # HISTORIQUE DE VERSION (resume — voir run-all.changelog.txt pour le detail complet) :
+#   1.191.20261020.211944 — Personal configuration file ~/.run-all.conf (not .cfg); a legacy one with .cfg is renamed automatically.
 #   1.190.20261020.175756 — Runs WITHOUT root (simulated root in the test copies only); tests never write the real /etc or /var (system defaults redirected, checked at the end); no more stop on « Broken pipe » (nginx-tools 1.137).
 #   1.189.20261020.163255 — tools/ (static gawk 5.3.2 and ruff 0.16.9) now in the Git repository, with tools/LISEZMOI.md (versions, licences, sources, SHA-256).
 #   1.188.20261020.112434 — Statistics at the end (duration, CPU, memory, disk, tests per program: unit / functional / interactive / conformity); personal data removed from the tests; FR/EN sample data and alignment tests; nginx-odoo/ read from NGINX_ODOO_DIR (not in git) (nginx-tools 1.134).
@@ -245,7 +246,7 @@ run_all_nettoyer() {
 CTRL_C_NETTOYAGE=run_all_nettoyer
 trap 'run_all_nettoyer; exit 143' TERM
 
-readonly SCRIPT_VERSION="1.190.20261020.175756"
+readonly SCRIPT_VERSION="1.191.20261020.211944"
 RUN_ALL_DEBUT=$(date +%s)
 TESTS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly TESTS_DIR
 PROG_DIR="${TEST_SCRIPTS_DIR:-$(dirname "$TESTS_DIR")}"; readonly PROG_DIR
@@ -263,7 +264,7 @@ if [[ -r "$PROG_DIR/apps/_i18n.sh" ]]; then
     i18n_relancer run-all RUN_ALL_LANG "$0" "$@"
     # Les programmes lancés par la suite (et dont la sortie est analysée) restent en français : seule la sortie de run-all.sh est traduite.
     [[ -n "${NGINX_TOOLS_I18N:-}" ]] && export NGINX_TOOLS_LANG=fr
-    # Fichier de configuration (/etc/default/run-all.conf PUIS ~/.run-all.cfg ; -c/--config FICHIER : ce fichier seul) : valeurs par défaut des options.
+    # Fichier de configuration (/etc/default/run-all.conf PUIS ~/.run-all.conf ; -c/--config FICHIER : ce fichier seul) : valeurs par défaut des options.
     # shellcheck disable=SC2034  # lue par apps/_i18n.sh (config_creer_defaut)
     CFG_DOSSIER_DOC="$TESTS_DIR/doc"; config_lire run-all "$@"        # premier démarrage : crée le fichier de configuration (modèle : doc/run-all.conf.example)
     export NGINX_TOOLS_CONFIG_CREER=0                                  # les programmes testés, eux, ne créent jamais de fichier dans le vrai /etc/default
@@ -313,7 +314,7 @@ Options (par ordre alphabétique) :
   --all-environments           exécuter les tests de TOUS les environnements (Odoo et BigBlueButton), quel que soit le serveur
   --app NAME                   environnement à tester : odoo, bbb… (profil apps/NAME.conf ; défaut : détecté sur ce serveur)
   --changelog                  affiche le journal des modifications
-  -c, --config FILE            fichier de configuration à lire SEUL (défaut : /etc/default/run-all.conf puis ~/.run-all.cfg)
+  -c, --config FILE            fichier de configuration à lire SEUL (défaut : /etc/default/run-all.conf puis ~/.run-all.conf)
   -h, --help                   affiche cette aide et quitte
   --install-missing            installer les logiciels de validation absents (ShellCheck par apt-get, ruff par apt-get ou pip) ; il faut être root
   --lang LANG                  langue d'affichage : en ou fr (défaut : selon LC_ALL / LC_MESSAGES / LANG)
@@ -502,10 +503,13 @@ titre "4) Suite de tests (une fois par awk disponible) — ${#MODULES[@]} module
 TMP_AVANT=$(find "${TMPDIR:-/tmp}" -maxdepth 1 -name 'test-rlq-*' 2>/dev/null | sort) || true
 # Sentinelle : la suite ne doit JAMAIS créer ni modifier un fichier de configuration RÉEL (/etc/default, ~). Empreinte avant/après :
 # sur un serveur ces fichiers existent légitimement — seul un changement PENDANT la suite est une faute.
+# Legacy personal names (rule before 1.191: personal files ended with .cfg; the programs rename them .conf): a test must never rename a real one.
+ANCIENS_NOMS=("${HOME:-/root}/.app-health-check.cfg" "${HOME:-/root}/.odoo-backup.cfg" "${HOME:-/root}/.app-default.cfg")    # legacy names
 empreinte_configs() {
     local f
     for f in /etc/default/app-health-check.conf /etc/default/odoo-backup.conf /etc/default/nginx-hardening.conf \
-             /etc/default/sanity-check-odoo.conf "${HOME:-/root}/.app-health-check.cfg" "${HOME:-/root}/.odoo-backup.cfg" \
+             /etc/default/sanity-check-odoo.conf "${HOME:-/root}/.app-health-check.conf" "${HOME:-/root}/.odoo-backup.conf" \
+             ${ANCIENS_NOMS[@]+"${ANCIENS_NOMS[@]}"} \
              /var/lib/nginx-tools/bbb-state.json /var/lib/nginx-tools/bbb-state.json.before \
              /etc/default/nginx-tools-mail.conf /etc/default/nginx-tools-mail.pass /etc/msmtprc \
              /etc/default/nginx-tools-white-list.conf /etc/default/nginx-tools-ip-location.conf /var/lib/nginx-tools/ip-cache.sqlite \

@@ -172,8 +172,8 @@ msgstr "Affiche le journal des modifications"
 msgid "Validate only: connection, module installed and WORKING (real test: create, read back and delete a temporary page), publishes nothing"
 msgstr "Valide seulement : connexion, module installé et FONCTIONNEL (essai réel de création, relecture et suppression d'une page temporaire), sans rien publier"
 
-msgid "Configuration file to read ALONE (otherwise: /etc/default/odoo-docs.conf, then the personal file .odoo-docs.cfg; UPPERCASE options: API_KEY, DB, DOCS_DIR, LANGUAGE, LOGIN, ROOT, TARGET, URL)"
-msgstr "Fichier de configuration à lire SEUL (sinon : /etc/default/odoo-docs.conf, puis le fichier personnel .odoo-docs.cfg ; options en MAJUSCULES : API_KEY, DB, DOCS_DIR, LANGUAGE, LOGIN, ROOT, TARGET, URL)"
+msgid "Configuration file to read ALONE (otherwise: /etc/default/odoo-docs.conf, then the personal file .odoo-docs.conf; UPPERCASE options: API_KEY, DB, DOCS_DIR, LANGUAGE, LOGIN, ROOT, TARGET, URL)"
+msgstr "Fichier de configuration à lire SEUL (sinon : /etc/default/odoo-docs.conf, puis le fichier personnel .odoo-docs.conf ; options en MAJUSCULES : API_KEY, DB, DOCS_DIR, LANGUAGE, LOGIN, ROOT, TARGET, URL)"
 
 msgid "Odoo database"
 msgstr "Base de données d'Odoo"

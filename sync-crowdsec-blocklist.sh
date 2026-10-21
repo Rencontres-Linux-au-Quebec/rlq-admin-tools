@@ -29,6 +29,7 @@
 # CrowdSec, ~toutes les 2h, sans compte CrowdSec). Projet tiers, pas un service officiel de CrowdSec.
 #
 # HISTORIQUE DE VERSION (resume — voir sync-crowdsec-blocklist.changelog.txt pour le detail complet) :
+#   1.26.20261020.211944 — Personal configuration file ~/.sync-crowdsec-blocklist.conf (not .cfg); a legacy one with .cfg is renamed automatically.
 #   1.25.20261020.112434 — --stats: header columns aligned (« PREMIÈRE DÉTECTION » padded in bytes was 2 columns short).
 #   1.24.20261019.150215 — New copyright: Services-Conseils Linux and Rencontres Linux au Québec contributors (AGPL-3.0-or-later).
 #   1.23.20261016.173838 — Copyright holder: Services-Linux Conseils Inc
@@ -122,7 +123,7 @@ grep_q() { grep "$@" >/dev/null; }
 #                              ne peut pas le voir, le texte etant entre apostrophes (faux positif).
 trap 'ec=$?; echo "" >&2; echo "*** ARRÊT INATTENDU DU SCRIPT (code $ec) À LA LIGNE $LINENO ***" >&2; echo "*** Commande fautive : $BASH_COMMAND" >&2' ERR
 
-readonly SCRIPT_VERSION="1.25.20261020.112434"
+readonly SCRIPT_VERSION="1.26.20261020.211944"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
 SCRIPT_NAME="$(basename "${BASH_SOURCE[0]}" .sh)"; readonly SCRIPT_NAME
 # Changelog dans le sous-repertoire doc/ ; repli sur l'ancien emplacement (a cote du programme) tant que
@@ -196,7 +197,7 @@ case " $* " in *" --version "*) ;; *) echo "sync-crowdsec-blocklist.sh v$SCRIPT_
 # Listes d'adresses (liste blanche, lieux protégés) : /etc/default/nginx-tools-*.conf — lecteur commun apps/_listes.sh.
 # shellcheck source=/dev/null
 [[ -r "$SCRIPT_DIR/apps/_listes.sh" ]] && . "$SCRIPT_DIR/apps/_listes.sh"
-# Configuration (/etc/default/sync-crowdsec-blocklist.conf, puis ~/.sync-crowdsec-blocklist.cfg ; -c/--config : ce fichier SEUL) : valeurs par défaut des options, la ligne de commande l'emporte.
+# Configuration (/etc/default/sync-crowdsec-blocklist.conf, puis ~/.sync-crowdsec-blocklist.conf ; -c/--config : ce fichier SEUL) : valeurs par défaut des options, la ligne de commande l'emporte.
 # Clés : CRON_HOURS, LANGUAGE, MIN_IPS, SOURCE, STALE_DAYS, TOP, VERBOSE.
 declare -F pad_cols >/dev/null || pad_cols() { printf '%-*s' "$2" "$1"; }     # 1.25 : sans apps/_i18n.sh, remplissage en octets (comme avant)
 if declare -F config_lire >/dev/null; then
@@ -252,7 +253,7 @@ Options (par ordre alphabétique) :
   --anonymize                  anonymise ce qui est affiché (adresses IP, courriels, identifiants, jetons) par des pseudonymes stables ; clé ANONYMIZE
   --blocked                    IP de la liste effectivement bloquées (compteurs du pare-feu)
   --changelog                  affiche le journal des modifications
-  -c, --config FILE            fichier de configuration à lire SEUL (sinon : /etc/default/sync-crowdsec-blocklist.conf, puis ~/.sync-crowdsec-blocklist.cfg ;
+  -c, --config FILE            fichier de configuration à lire SEUL (sinon : /etc/default/sync-crowdsec-blocklist.conf, puis ~/.sync-crowdsec-blocklist.conf ;
                                clés : CRON_HOURS, LANGUAGE, MIN_IPS, SOURCE, STALE_DAYS, TOP, VERBOSE)
   --cron-hours N               avec --install-cron : intervalle en heures
   --dry-run                    télécharger et analyser la liste, sans rien modifier

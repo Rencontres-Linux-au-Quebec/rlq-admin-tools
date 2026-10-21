@@ -1,9 +1,9 @@
 # Fichier de configuration COMMUN à tous les programmes de la suite (exemple : toutes les clés, en commentaire = valeur par défaut).
 # Chaque programme lit, DANS CET ORDRE (le dernier l'emporte ; la ligne de commande est toujours prioritaire) :
 #   1. /etc/default/app-default.conf      (commun, système)
-#   2. ~/.app-default.cfg                 (commun, utilisateur)
+#   2. ~/.app-default.conf                 (commun, utilisateur)
 #   3. /etc/default/PROGRAMME.conf        (propre au programme)
-#   4. ~/.PROGRAMME.cfg                   (propre au programme, utilisateur)
+#   4. ~/.PROGRAMME.conf                   (propre au programme, utilisateur)
 # -c/--config FICHIER : ce fichier SEUL (le fichier commun n'est alors pas lu). Ce fichier est créé au premier lancement d'un programme s'il n'existe pas (toutes les clés en commentaire) :
 # il n'est jamais écrasé. Seules les clés ci-dessous sont lues ici ; les autres sont ignorées.
 # Format : CLÉ=valeur, une par ligne ; # = commentaire ; guillemets facultatifs. Ce fichier est LU, jamais exécuté.

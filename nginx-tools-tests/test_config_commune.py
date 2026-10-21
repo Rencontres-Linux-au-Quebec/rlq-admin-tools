@@ -57,7 +57,7 @@ class FichierCommun(EnvTest):
 
     def test_python_personnel_commun_apres_systeme_commun(self):
         self.write_out("app-default.conf", "LANGUAGE=en\n")
-        self.write_out(".app-default.cfg", "LANGUAGE=fr\n", self.home)
+        self.write_out(".app-default.conf", "LANGUAGE=fr\n", self.home)
         cfg, files_read, _ = self.lire_py()
         self.assertEqual(T(cfg["LANGUAGE"]), "fr")
         self.assertEqual(len(files_read), 2)
@@ -209,3 +209,113 @@ def T(texte):
         texte = "\n".join(str(x) for x in texte)
     return _LIVE_TR.TR(texte)
 
+
+
+class AncienNomPersonnel(EnvTest):
+    """2026-10-20 : le fichier personnel est ~/.PROGRAMME.conf (plus .cfg). Un ancien ~/.PROGRAMME.cfg seul est RENOMMÉ (contenu et droits gardés, un avis) ;
+    les deux présents : le .conf est lu, l'ancien est IGNORÉ et signalé (jamais fusionné ni supprimé) ; renommage impossible : l'ancien est lu tel quel.
+    Même règle et mêmes messages en Python (apps/_config.py migrer_ancien) et en bash (apps/_i18n.sh config_migrer_ancien)."""
+    def setUp(self):
+        super().setUp()
+        self.etc = os.path.join(self.d, "etc")
+        self.home = os.path.join(self.d, "home")
+        os.makedirs(self.etc)
+        os.makedirs(self.home)
+        self.env.update(NGINX_TOOLS_ETC_DEFAULT=self.etc, HOME=self.home, NGINX_TOOLS_CONFIG_CREER="0", NGINX_TOOLS_LANG="fr")
+        self.env.pop("NGINX_TOOLS_CONFIG_SIGNALES", None)
+        self.ancien = os.path.join(self.home, ".prog.cfg")
+        self.nouveau = os.path.join(self.home, ".prog.conf")
+
+    def ecrire(self, chemin, texte, mode=0o600):
+        with open(chemin, "w", encoding="utf-8") as f:
+            f.write(texte)
+        os.chmod(chemin, mode)
+
+    @staticmethod
+    def contenu(chemin):
+        with open(chemin, encoding="utf-8") as f:
+            return f.read()
+
+    def lire_py(self):
+        """(configuration, fichiers lus, sortie d'erreur) : apps/_config.py lire() dans un processus à part (stderr réel)."""
+        code = ("import sys, json, importlib.util\n"
+                f"spec = importlib.util.spec_from_file_location('c', {script_path('apps/_config.py')!r}); m = importlib.util.module_from_spec(spec); spec.loader.exec_module(m)\n"
+                "cfg, lus = m.lire('prog'); cfg2, lus2 = m.lire('prog'); print(json.dumps([cfg, lus]))\n")
+        r = subprocess.run(["python3", "-I", "-c", code], capture_output=True, text=True, env=dict(self.env), timeout=30)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        import json
+        cfg, lus = json.loads(r.stdout)
+        return cfg, lus, r.stderr
+
+    def lire_bash(self):
+        code = (f'SCRIPT_DIR="{script_path(".")}"; . "$SCRIPT_DIR/apps/_i18n.sh"; config_lire prog; config_lire prog; '
+                'echo "D=${CFG[DAYS]:-} F=${CFG_FICHIERS[*]:-}"')
+        r = subprocess.run(["bash", "-c", code], capture_output=True, text=True, env=dict(self.env), timeout=30)
+        return r.stdout.strip().splitlines()[-1], r.stderr
+
+    def test_ancien_seul_renomme(self):
+        for langage in ("python", "bash"):
+            with self.subTest(langage=langage):
+                for f in (self.ancien, self.nouveau):
+                    if os.path.exists(f):
+                        os.remove(f)
+                self.ecrire(self.ancien, "DAYS=4\n")
+                if langage == "python":
+                    cfg, lus, err = self.lire_py()
+                    self.assertEqual(cfg.get("DAYS"), "4")
+                    self.assertEqual(lus, [self.nouveau])
+                else:
+                    sortie, err = self.lire_bash()
+                    self.assertEqual(sortie, f"D=4 F={self.nouveau}")
+                self.assertFalse(os.path.exists(self.ancien))
+                self.assertEqual(self.contenu(self.nouveau), "DAYS=4\n")
+                self.assertEqual(stat.S_IMODE(os.stat(self.nouveau).st_mode), 0o600)                 # droits gardés (fichier personnel : souvent secret)
+                avis = f"Configuration : ancien fichier {self.ancien} renommé en {self.nouveau} (les fichiers personnels se terminent maintenant par .conf)"
+                self.assertEqual(err.count(avis), 1, err)                                           # lu deux fois : un seul avis
+
+    def test_les_deux_presents_conf_lu_ancien_ignore(self):
+        for langage in ("python", "bash"):
+            with self.subTest(langage=langage):
+                self.ecrire(self.ancien, "DAYS=4\n")
+                self.ecrire(self.nouveau, "DAYS=9\n")
+                if langage == "python":
+                    cfg, lus, err = self.lire_py()
+                    self.assertEqual((cfg.get("DAYS"), lus), ("9", [self.nouveau]))
+                else:
+                    sortie, err = self.lire_bash()
+                    self.assertEqual(sortie, f"D=9 F={self.nouveau}")
+                avis = f"Configuration : ancien fichier {self.ancien} IGNORÉ ({self.nouveau} existe et l'emporte) — reporter ses réglages dans {self.nouveau}, puis le supprimer"
+                self.assertEqual(err.count(avis), 1, err)
+                self.assertEqual(self.contenu(self.ancien), "DAYS=4\n")                              # jamais modifié ni supprimé
+
+    @unittest.skipIf(os.geteuid() == 0, "root renomme même dans un dossier sans droit d'écriture")
+    def test_renommage_impossible_ancien_lu_tel_quel(self):
+        for langage in ("python", "bash"):
+            with self.subTest(langage=langage):
+                self.ecrire(self.ancien, "DAYS=4\n")
+                os.chmod(self.home, 0o500)
+                try:
+                    if langage == "python":
+                        cfg, lus, err = self.lire_py()
+                        self.assertEqual((cfg.get("DAYS"), lus), ("4", [self.ancien]))
+                    else:
+                        sortie, err = self.lire_bash()
+                        self.assertEqual(sortie, f"D=4 F={self.ancien}")
+                finally:
+                    os.chmod(self.home, 0o700)
+                self.assertIn(f"Configuration : impossible de renommer {self.ancien} (", err)
+                self.assertIn(f") — l'ancien fichier est lu tel quel au lieu de {self.nouveau}", err)
+                self.assertEqual(err.count("impossible de renommer"), 1, err)
+
+    def test_avis_traduit_en_anglais(self):
+        self.ecrire(self.ancien, "DAYS=4\n")
+        self.env["NGINX_TOOLS_LANG"] = "en"
+        cfg, lus, err = self.lire_py()
+        self.assertIn(f"Configuration: legacy file {self.ancien} renamed to {self.nouveau} (personal files now end with .conf)", err)
+
+    def test_commun_ancien_nom_aussi(self):
+        """~/.app-default.cfg (fichier commun) suit la même règle."""
+        self.ecrire(os.path.join(self.home, ".app-default.cfg"), "LANGUAGE=fr\n")
+        cfg, lus, err = self.lire_py()
+        self.assertTrue(os.path.isfile(os.path.join(self.home, ".app-default.conf")))
+        self.assertIn(os.path.join(self.home, ".app-default.conf"), lus)

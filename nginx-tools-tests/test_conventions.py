@@ -181,13 +181,13 @@ class RapportErreurs(unittest.TestCase):
 
 
 class RegleDesConfigurations(unittest.TestCase):
-    """Règle commune des fichiers de configuration : /etc/default/<programme>.conf, PUIS ~/.<programme>.cfg s'il existe, PUIS
+    """Règle commune des fichiers de configuration : /etc/default/<programme>.conf, PUIS ~/.<programme>.conf s'il existe, PUIS
     la ligne de commande (prioritaire) ; -c/--config : ce fichier seul ; les fichiers lus sont TOUJOURS affichés."""
     PYTHON = ("web-monitor", "zip-versions", "odoo-mail-retry", "odoo-chat-post", "odoo-docs", "odoo-warmup", "app-health-check", "app-log-check", "app-log-live", "host-perf-audit")
     BASH = ("sync-crowdsec-blocklist", "odoo-backup", "odoo-update-module", "nginx-log-audit", "nginx-hardening")
     PROPRES = {"odoo-backup", "app-health-check", "odoo-mail-retry", "odoo-warmup"}        # programmes qui lisent eux-mêmes leurs fichiers (en plus de la règle commune)
-    AVEC_CONFIGURATION = {f"{n}.py": (f"{n}.conf", f".{n}.cfg") for n in PYTHON}
-    AVEC_CONFIGURATION.update({f"{n}.sh": (f"{n}.conf", f".{n}.cfg") for n in BASH})
+    AVEC_CONFIGURATION = {f"{n}.py": (f"{n}.conf", f".{n}.conf") for n in PYTHON}
+    AVEC_CONFIGURATION.update({f"{n}.sh": (f"{n}.conf", f".{n}.conf") for n in BASH})
 
     def test_les_deux_emplacements_et_l_affichage(self):
         """Chaque programme applique la règle (module partagé apps/_config.py ou apps/_i18n.sh, ou son propre code) et la bibliothèque affiche les fichiers lus."""
@@ -210,7 +210,7 @@ class RegleDesConfigurations(unittest.TestCase):
                 self.assertIn("Configuration lue : ", texte)
                 self.assertIn("le dernier l'emporte", texte)
                 self.assertIn("/etc/default", texte)
-                self.assertIn(".cfg", texte)
+                self.assertIn(".conf", texte)
 
     def test_exemple_de_configuration_pour_chaque_programme(self):
         """doc/PROGRAMME.conf.example existe, cite la règle de lecture et la clé LANGUAGE."""
@@ -225,13 +225,32 @@ class RegleDesConfigurations(unittest.TestCase):
                 self.assertRegex(texte, r"(?m)^#?LANGUAGE=")
 
     def test_aucune_autre_configuration_dans_le_repertoire_personnel(self):
-        """Seuls les fichiers de la règle (~/.<programme>.cfg) — pas de chemin personnel inventé ailleurs."""
-        permis = {perso for _, perso in self.AVEC_CONFIGURATION.values()} | {".run-all.cfg", ".app-default.cfg"}
+        """Seuls les fichiers de la règle (~/.<programme>.conf) — pas de chemin personnel inventé ailleurs."""
+        permis = {perso for _, perso in self.AVEC_CONFIGURATION.values()} | {".run-all.conf", ".app-default.conf"}
         for name in PROGRAMMES:
             with self.subTest(programme=name):
                 for n, ligne in enumerate(open(script_path(name), encoding="utf-8"), 1):
                     for m in re.finditer(r"(?:~|\$HOME|\$\{HOME[^}]*\}|/root)/(\.[A-Za-z0-9_-]+\.(?:cfg|conf))", ligne):
-                        self.assertIn(m.group(1), permis, f"{name}:{n}: {ligne.strip()[:100]}")
+                        if m.group(1).endswith(".cfg"):         # legacy name (rule before 2026-10-20): only on a line that handles the migration
+                            if re.match(r"^\s*#\s+\d+\.\d+\.\d{8}\.\d{6} — ", ligne):
+                                continue                            # summary line of a PAST version (history, never rewritten)
+                            self.assertRegex(ligne, r"(?i)ancien|legacy", f"{name}:{n}: ~/.NAME.cfg is the legacy name — the rule is ~/.NAME.conf")
+                            self.assertIn(m.group(1)[:-len(".cfg")] + ".conf", permis, f"{name}:{n}: {ligne.strip()[:100]}")
+                        else:
+                            self.assertIn(m.group(1), permis, f"{name}:{n}: {ligne.strip()[:100]}")
+
+    def test_extension_conf_et_jamais_cfg(self):
+        """2026-10-20 : le fichier personnel est ~/.PROGRAMME.conf, jamais .cfg — ni dans l'aide des programmes, ni dans les modèles doc/*.conf.example,
+        ni dans la documentation (docs/, doc/*.md) ; l'ancien nom n'apparaît que dans le code qui le renomme."""
+        motif = re.compile(r"~/\.[A-Za-z0-9_<>{}-]+\.cfg\b")
+        fichiers = [os.path.join("doc", f) for f in os.listdir(script_path("doc")) if f.endswith((".conf.example", ".md"))]
+        for langue in ("fr", "en"):
+            dossier = script_path(os.path.join("docs", langue))
+            if os.path.isdir(dossier):
+                fichiers += [os.path.join("docs", langue, f) for f in os.listdir(dossier) if f.endswith(".md")]
+        for f in sorted(fichiers):
+            with self.subTest(fichier=f):
+                self.assertIsNone(motif.search(open(script_path(f), encoding="utf-8").read()), f)
 
 
 class CtrlC(unittest.TestCase):

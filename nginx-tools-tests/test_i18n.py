@@ -415,13 +415,13 @@ class ConfigurationBash(EnvTest):
         self.assertIn("  Options : --lang fr (ligne de commande prioritaire)", sans_origine(out))
 
     def test_deux_fichiers_le_dernier_l_emporte_et_types(self):
-        """/etc/default/PROGRAMME.conf puis ~/.PROGRAMME.cfg ; guillemets facultatifs ; entier et booléen validés ; valeur invalide : signalée et ignorée."""
+        """/etc/default/PROGRAMME.conf puis ~/.PROGRAMME.conf ; guillemets facultatifs ; entier et booléen validés ; valeur invalide : signalée et ignorée."""
         self.ecrire(("etc", "demo.conf"), "# commentaire\nA=1\nB='deux mots'\nC=oui\nN=abc\n")
-        self.ecrire(("home", ".demo.cfg"), 'A=5   # note\nD="x"\n')
+        self.ecrire(("home", ".demo.conf"), 'A=5   # note\nD="x"\n')
         rc, out, err = self.lancer('config_lire demo; A=0; config_defaut A A --a nombre; config_defaut B B --b texte; config_defaut C C --c booleen; config_defaut N N --n nombre; '
                                    'config_afficher; echo "A=$A B=$B C=$C N=${N:-}"')
         self.assertEqual(rc, 0, err)
-        self.assertRegex(out, r"Configuration lue : .*/etc/demo\.conf \(modifié le [0-9: -]+\), puis .*/home/\.demo\.cfg \(modifié le [0-9: -]+\) \(le dernier l'emporte\)")
+        self.assertRegex(out, r"Configuration lue : .*/etc/demo\.conf \(modifié le [0-9: -]+\), puis .*/home/\.demo\.conf \(modifié le [0-9: -]+\) \(le dernier l'emporte\)")
         self.assertIn("--a 5 · --b deux mots · --c oui", out)
         self.assertIn("A=5 B=deux mots C=1 N=", out)
         self.assertIn("ATTENTION : valeur de configuration ignorée : N=abc (entier attendu)", err)

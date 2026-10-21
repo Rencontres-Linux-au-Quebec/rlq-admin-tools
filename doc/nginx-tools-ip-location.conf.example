@@ -1,5 +1,5 @@
 # nginx-tools-ip-location.conf — LIEUX : un nom pour une adresse ou une plage. Descriptif : ne donne AUCUN accès (c'est la liste blanche).
-# Lu dans /etc/default/nginx-tools-ip-location.conf puis ~/.nginx-tools-ip-location.cfg (les deux comptent ; la plage la plus précise gagne).
+# Lu dans /etc/default/nginx-tools-ip-location.conf puis ~/.nginx-tools-ip-location.conf (les deux comptent ; la plage la plus précise gagne).
 # Syntaxe :   ADRESSE-OU-PLAGE   # libellé   [option] [option]
 #   [partagée]  plusieurs personnes derrière la même adresse : les programmes affichent le LIEU, jamais un nom de personne
 #               (app-log-live.py : « Université exemple » au lieu de « Étienne +3 autre(s) compte(s) »)

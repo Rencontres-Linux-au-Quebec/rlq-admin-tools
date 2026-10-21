@@ -239,7 +239,7 @@ class EnvTest(unittest.TestCase):
                         HOME=os.path.join(self.d, "home-vide"), NGINX_TOOLS_ETC_DEFAULT=os.path.join(self.d, "etc-default-vide"),
                         NGINX_TOOLS_MAIL_CONF=os.path.join(self.d, "etc-default-vide", "nginx-tools-mail.conf"),          # courriel : jamais le vrai /etc/default, /etc/msmtprc de la machine de test
                         NGINX_TOOLS_MAIL_PASSWORD_FILE=os.path.join(self.d, "etc-default-vide", "nginx-tools-mail.pass"),
-                        NGINX_TOOLS_MSMTPRC=os.path.join(self.d, "etc-default-vide", "msmtprc"),          # jamais le vrai ~/.programme.cfg de la machine de test
+                        NGINX_TOOLS_MSMTPRC=os.path.join(self.d, "etc-default-vide", "msmtprc"),          # jamais le vrai ~/.programme.conf de la machine de test
                         # État de BigBlueButton (apps/_bbb.py) : instantané et fichiers lus dans le dossier du test
                         NGINX_TOOLS_BBB_STATE=os.path.join(self.d, "state", "bbb-state.json"),
                         NGINX_TOOLS_BBB_ETC=os.path.join(self.d, "bbb-etc"),

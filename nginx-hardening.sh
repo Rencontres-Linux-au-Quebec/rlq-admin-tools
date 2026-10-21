@@ -16,6 +16,7 @@
 # format et des commentaires propres à chaque installation, trop risqué à éditer à l'aveugle.
 #
 # HISTORIQUE DE VERSION (résumé — voir nginx-hardening.changelog.txt pour le détail complet de chaque version) :
+#   2.52.20261020.211944 — Personal configuration file ~/.nginx-hardening.conf (not .cfg); a legacy one with .cfg is renamed automatically.
 #   2.51.20261020.194336 — Odoo logrotate rule written in NGINX_HARDENING_LOGROTATE_DIR like the others (was /etc/logrotate.d/odoo in all cases).
 #   2.50.20261019.150215 — New copyright: Services-Conseils Linux and Rencontres Linux au Québec contributors (AGPL-3.0-or-later).
 #   2.49.20261016.173838 — Ctrl+C works during the e-mail and BBB checks (timeout --foreground)
@@ -210,7 +211,7 @@
 #                            reconnue comme Odoo et le journal (logfile, sinon journal systemd) est repéré. Lecture seule.
 #   - --odoo-conf-paths L  : chemins candidats (séparés par des espaces, motifs * permis). Défaut : /etc/odoo/odoo-linux_meetup.conf
 #                            /opt/odoo/erplibre/config.conf /home/utilisateur/git/erplibre/config.conf /etc/odoo/*.conf.
-#                            Clé ODOO_CONF_PATHS de /etc/default/nginx-hardening.conf ou ~/.nginx-hardening.cfg.
+#                            Clé ODOO_CONF_PATHS de /etc/default/nginx-hardening.conf ou ~/.nginx-hardening.conf.
 #   - --timezone ZONE      : fuseau horaire du serveur (étape 0b ; défaut America/Montreal, demandé au premier --update, mémorisé dans TIMEZONE ;
 #                            « none » : ne rien changer).
 #   - --mail-host/--mail-port/--mail-security/--mail-user/--mail-from/--mail-to, --mail-setup : courriel des programmes Python et Bash (étape 0d) ;
@@ -258,7 +259,7 @@ run() {
     "$@"
 }
 
-readonly SCRIPT_VERSION="2.51.20261020.194336"
+readonly SCRIPT_VERSION="2.52.20261020.211944"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
 SCRIPT_NAME="$(basename "${BASH_SOURCE[0]}" .sh)"; readonly SCRIPT_NAME
 # Langue d'affichage (en ou fr) : --lang, NGINX_HARDENING_LANG, LANGUAGE du fichier de configuration, LC_ALL / LANG — apps/_i18n.sh traduit la sortie (rien ne change en français).
@@ -317,7 +318,7 @@ NEED_FAIL2BAN_RESTART=0
 F2B_INSTALLED_JAILS=()
 LOG_RETENTION_MONTHS=3
 RETENTION_EXPLICITE=0
-# Fichier de configuration (/etc/default/nginx-hardening.conf PUIS ~/.nginx-hardening.cfg ; -c/--config FICHIER : ce fichier seul) : valeurs par défaut des options.
+# Fichier de configuration (/etc/default/nginx-hardening.conf PUIS ~/.nginx-hardening.conf ; -c/--config FICHIER : ce fichier seul) : valeurs par défaut des options.
 # /etc/default/nginx-hardening.conf sert AUSSI de fichier d'état (lignes SETUP_*, réécrites par --update) : les autres lignes y sont conservées.
 if declare -F config_lire >/dev/null; then
     config_lire nginx-hardening "$@"
@@ -410,7 +411,7 @@ Options (par ordre alphabétique) :
   --app NAME                   application derrière nginx (profil apps/NAME.conf : odoo, bbb…) ; détectée par défaut
   --changelog                  affiche le journal des modifications
   --check                      vérification seule (comportement par défaut)
-  -c, --config FILE            fichier de configuration à lire SEUL (défaut : /etc/default/nginx-hardening.conf puis ~/.nginx-hardening.cfg)
+  -c, --config FILE            fichier de configuration à lire SEUL (défaut : /etc/default/nginx-hardening.conf puis ~/.nginx-hardening.conf)
   -h, --help                   affiche cette aide et quitte
   --lang LANG                  langue d'affichage : en ou fr (défaut : selon LC_ALL / LC_MESSAGES / LANG)
   --log-retention-months N     durée de conservation des journaux visée par l'étape 11 (1 à 24 mois, défaut : 3)
