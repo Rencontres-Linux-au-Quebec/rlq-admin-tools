@@ -4,6 +4,47 @@ Copyright (C) 2026  Rencontres Linux Québec <info@rencontres-linux.quebec>
 Licence AGPL-3.0-or-later — voir le README du dépôt pour le texte complet.
 ========================================================================================================================
 
+## 2.53.20261021.130912 — Missing generated snippets created before any nginx -t; nginx started when it was stopped
+
+Reason:
+  « j'ai une erreur pour démarrer NGINX, il manque des fichiers » — nginx-hardening.sh --update on odoo-dev: nginx -t refused
+  « open() "/etc/nginx/snippets/team-ips-geo.conf" failed (2: No such file or directory) », then « shared-ips-geo.conf », and nginx stayed stopped.
+
+Changes:
+  - New function fragments_generes_assurer: with --update (Odoo only), each MISSING generated snippet — team-ips-geo.conf, team-ips-allow.conf,
+    shared-ips-geo.conf in NGINX_HARDENING_SNIPPETS_DIR — is created empty (one comment line, valid in a geo block and among allow lines); an existing
+    file is never touched. Called in step 0a BEFORE nginx -t, and again in step 12 just before its nginx -t.
+  - New function nginx_appliquer: after nginx -t succeeded, « systemctl reload nginx » if the service is active, otherwise « systemctl start nginx ».
+    Used by steps 12 and 12b (messages « nginx rechargé » / « nginx démarré (il était arrêté) ») and by the silent reloads of the BBB rules,
+    step 0e (DNS rename) and step 4 (upstream ports, websocket).
+  - Step 0a: when the missing file is a generated snippet, « Que faire » says that --update creates it (it used to suggest creating the file by hand
+    or removing the line); stopped nginx with a valid configuration: --check says --update starts it.
+  - Failure messages of steps 12 and 12b: « systemctl status nginx --no-pager ; journalctl -u nginx -n 30 --no-pager » instead of « reload by hand ».
+  - lang/nginx-hardening.en.po: 16 new entries.
+
+Bugs fixed:
+  - Symptom: nginx -t refused the configuration; step 12 then said « ancienne version restaurée » and team-ips-geo.conf / team-ips-allow.conf were left
+    with « # vide — restauré après refus de nginx -t »: the white list was LOST (403 for the team on DEV) although the addresses were valid.
+    Diagnosis: odoo-global.conf includes the three snippets by exact name; step 12 writes the first two and runs nginx -t, but shared-ips-geo.conf is only
+    written afterwards by step 12b: nginx -t could not succeed, so the team addresses were restored to the previous (absent) version, i.e. empty.
+    Fix: all missing snippets are created before the first nginx -t.
+  - Symptom: « Réseaux partagés régénérés (0) et nginx -t réussi, mais rechargement impossible » and nginx stayed down. Diagnosis: « systemctl reload »
+    fails on a stopped service. Fix: nginx_appliquer starts it.
+
+Safeguards and edge cases:
+  - --check never creates a file (unchanged); BigBlueButton: no snippet created (profile without these includes).
+  - nginx is started only after nginx -t accepted the configuration; if start fails, the warning points to systemctl status / journalctl.
+  - The empty snippets contain only a comment: no address is trusted until step 12 regenerates them from /etc/default/nginx-tools-white-list.conf.
+
+Checks:
+  - New test test_nginx_hardening.test_fragments_generes_absents_et_nginx_arrete (three snippets missing, nginx -t refusing until they exist, stopped
+    nginx: white list kept, « start nginx » and no « reload nginx », --check creates nothing).
+  - test_nginx_hardening, test_i18n, test_locks, test_conventions; ShellCheck 0.11.0 on nginx-hardening.sh (0 findings).
+
+Action required:
+  - On odoo-dev: install nginx-tools 1.141 and run « nginx-hardening.sh --update » again: the white list is regenerated in team-ips-*.conf
+    (currently empty) and nginx is started. Without the new version: see the immediate fix in the delivery message.
+
 ## 2.52.20261020.211944 — Personal configuration file ~/.nginx-hardening.conf (not .cfg)
 
 Reason:
