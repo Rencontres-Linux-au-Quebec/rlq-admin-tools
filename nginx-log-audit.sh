@@ -345,9 +345,13 @@ if [[ -r "$SCRIPT_DIR/apps/_i18n.sh" ]]; then
 fi
 # Changelog dans le sous-repertoire doc/ ; repli sur l'ancien emplacement (a cote du programme) tant que
 # l'installation n'a pas ete reorganisee.
-CHANGELOG_FILE="$SCRIPT_DIR/doc/nginx-log-audit.changelog.txt"
-if [[ ! -r "$CHANGELOG_FILE" && -r "$SCRIPT_DIR/nginx-log-audit.changelog.txt" ]]; then CHANGELOG_FILE="$SCRIPT_DIR/nginx-log-audit.changelog.txt"; fi
+CHANGELOG_FILE="$SCRIPT_DIR/CHANGELOG.md"
 readonly CHANGELOG_FILE
+
+# Section of this program in CHANGELOG.md (from its "## <file name>" heading to the next "## " heading).
+changelog_section() {
+    awk -v cle="${BASH_SOURCE[0]##*/}" '/^## /{dans=($0 == "## " cle); if (dans) print; next} dans' "$CHANGELOG_FILE"
+}
 
 # Force une locale UTF-8 si aucune n'est déjà definie (cron et certains services minimalistes tournent souvent
 # sans LANG/LC_ALL, ce qui peut degrader l'affichage des caracteres accentues) — ne remplace jamais une locale
@@ -447,9 +451,9 @@ while [[ $# -gt 0 ]]; do
             if [[ -t 1 ]]; then
                 # Numeros de version (X.Y.AAAAMMDD.HHMMSS) en cyan gras — couleurs standard ANSI, s'adaptent au
                 # theme clair/sombre du terminal plutot que d'imposer une couleur fixe potentiellement illisible.
-                sed -E $'s/([0-9]+\\.[0-9]+\\.[0-9]{8}\\.[0-9]{6})/\\x1b[1;36m\\1\\x1b[0m/' "$CHANGELOG_FILE" 2>/dev/null || true  # lecteur ferme plus tot (| head) : SIGPIPE attendu, pas une erreur
+                changelog_section | sed -E $'s/([0-9]+\\.[0-9]+\\.[0-9]{8}\\.[0-9]{6})/\\x1b[1;36m\\1\\x1b[0m/' 2>/dev/null || true  # lecteur ferme plus tot (| head) : SIGPIPE attendu, pas une erreur
             else
-                cat "$CHANGELOG_FILE" 2>/dev/null || true  # lecteur ferme plus tot (| head) : SIGPIPE attendu, pas une erreur
+                changelog_section 2>/dev/null || true  # lecteur ferme plus tot (| head) : SIGPIPE attendu, pas une erreur
             fi
             # « || true » : sans lui, le piege ERR du script prenait le SIGPIPE d'un lecteur ferme plus tot (ex.
 
