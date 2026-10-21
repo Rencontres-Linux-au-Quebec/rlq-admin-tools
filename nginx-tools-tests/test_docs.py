@@ -31,6 +31,19 @@ def _termes_personnels():
 
 PERSONNEL = re.compile("|".join([r"gmail\.com", r"rencontres-linux\.quebec", r"services-conseils"] + _termes_personnels()), re.I)
 
+# run-all 1.192 : le nom LÉGAL de l'entreprise est permis comme auteur du module Odoo (titulaire du droit d'auteur, champ exigé par Odoo), et SEULEMENT
+# là : clé « author » d'un __manifest__.py. Seul ce nom exact est retiré de la ligne avant la recherche ; le reste de la ligne reste vérifié (un courriel
+# ou un nom personnel ajouté à l'auteur échoue toujours) ; ailleurs (pages, XML, autres clés du manifeste) le terme reste interdit.
+AUTEUR_LEGAL = re.compile(r"Services-Conseils Linux Inc\.")
+CLE_AUTEUR = re.compile(r"""^\s*\{?\s*['"]author['"]\s*:""")
+
+
+def donnee_personnelle(fichier, ligne):
+    """Le terme personnel trouvé dans la ligne (re.Match), ou None ; le nom légal n'est toléré que dans la clé « author » d'un __manifest__.py."""
+    if os.path.basename(fichier) == "__manifest__.py" and CLE_AUTEUR.match(ligne):
+        ligne = AUTEUR_LEGAL.sub("", ligne)
+    return PERSONNEL.search(ligne)
+
 
 def charger():
     spec = importlib.util.spec_from_file_location("build_docs_t", script_path("docs/build_docs.py"))
@@ -87,7 +100,24 @@ class Documentation(unittest.TestCase):
                 chemin = os.path.join(racine, f)
                 for i, ligne in enumerate(open(chemin, encoding="utf-8"), 1):
                     with self.subTest(fichier=f, ligne=i):
-                        self.assertIsNone(PERSONNEL.search(ligne), ligne[:120])
+                        self.assertIsNone(donnee_personnelle(chemin, ligne), ligne[:120])
+
+    def test_auteur_du_manifeste_exception_etroite(self):
+        """run-all 1.192 : le nom légal passe dans la clé « author » d'un __manifest__.py, et nulle part ailleurs."""
+        auteur = "    'author': 'Services-Conseils Linux Inc., Rencontres Linux au Québec contributors',\n"
+        self.assertIsNone(donnee_personnelle("rlq_tools_docs/__manifest__.py", auteur))
+        self.assertIsNone(donnee_personnelle("__manifest__.py", "{'author': 'Services-Conseils Linux Inc.',\n"))
+        cas_refuses = (
+            ("__manifest__.py", "    'author': 'Services-Conseils Linux Inc., Jean Exemple <jean.exemple@gmail.com>',\n"),  # courriel ajouté à l'auteur
+            ("__manifest__.py", "    'author': 'services-conseils',\n"),                                       # pas le nom légal exact
+            ("__manifest__.py", "    'summary': 'Services-Conseils Linux Inc. documentation',\n"),             # autre clé du manifeste
+            ("__manifest__.py", "    'website': 'https://rencontres-linux.quebec',\n"),
+            ("08-odoo-backup.md", "Auteur : Services-Conseils Linux Inc.\n"),                                 # page de documentation
+            ("docs_pages.xml", "    'author': 'Services-Conseils Linux Inc.',\n"),                            # même ligne hors du manifeste
+        )
+        for fichier, ligne in cas_refuses:
+            with self.subTest(fichier=fichier, ligne=ligne.strip()):
+                self.assertIsNotNone(donnee_personnelle(fichier, ligne))
 
 
 if __name__ == "__main__":

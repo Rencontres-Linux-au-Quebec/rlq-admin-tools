@@ -1,6 +1,42 @@
 Changelog — run-all.sh (suite de tests)
 (version la plus récente en premier)
 
+## 1.192.20261020.222909 — test_docs: legal company name allowed as author of the Odoo module
+
+Reason:
+  run-all.sh 1.191 failed once in each awk pass (mawk, gawk, busybox): test_docs.Documentation.test_aucune_donnee_personnelle_dans_les_pages,
+  « fichier='__manifest__.py', ligne=8 … match='Services-Conseils' ». Decision: « Option B : si le nom légal doit apparaître comme auteur ou titulaire
+  du droit d'auteur (c'est légitime dans un manifeste Odoo) ».
+
+Changes:
+  - nginx-tools-tests/test_docs.py: new donnee_personnelle(fichier, ligne), used by test_aucune_donnee_personnelle_dans_les_pages. In a file named
+    __manifest__.py, on the line of the « author » key only, the exact legal name « Services-Conseils Linux Inc. » is removed before the search;
+    the rest of the line is still searched. Everywhere else (website pages, docs_pages.xml, other keys of the manifest) the term stays forbidden.
+  - nginx-tools-tests/test_docs.py: new test test_auteur_du_manifeste_exception_etroite (accepted and refused cases).
+  - docs/build_docs.py: unchanged (its author field, set in build_docs 1.6, is kept as is).
+
+Bugs fixed:
+  - Symptom: 1 failure repeated 3 times, verdict « 3 ÉCHEC(S) — ne pas déployer ».
+    Diagnosis: build_docs.py 1.6 writes the legal author (copyright holder) in rlq_tools_docs/__manifest__.py; the generic term « services-conseils »
+    of test_docs forbade it in every generated file, with no distinction between a legal author and personal data.
+    Fix: narrow exemption described above.
+
+Safeguards and edge cases:
+  - Only the EXACT legal name is tolerated (« services-conseils » alone, another spelling or another company still fails).
+  - An e-mail address, a personal name (NGINX_TOOLS_PERSONAL_TERMS, /etc/default/nginx-tools-personal-terms.conf) or the domain added to the author
+    line still fails: only the legal name is removed from the line, never the whole line.
+  - The same line in another file (page, XML) still fails; the « summary », « website » or any other key of the manifest still fails.
+  - Author key written on the first line of the dict (« {'author': … ») is recognized too.
+
+Checks:
+  - Original test reproduced first (FAILED, failures=1, same message); after the change: test_docs 6 tests OK (python3 -m unittest test_docs).
+  - test_conventions: 30 tests OK; ruff 0.16.9 (E9,F) on test_docs.py: no defect; bash -n run-all.sh: OK.
+  - Full suite run-all.sh not rerun (another session is working in the same folder; one run-all.sh at a time per machine).
+
+Action required:
+  - Review and merge the pull request yourself, then rerun run-all.sh: the expected verdict for this part is 0 failure.
+  - If another change also took version 1.192, renumber at merge time (version and changelog only).
+
 ## 1.191.20261020.211944 — Personal configuration file ~/.run-all.conf (not .cfg)
 
 Reason:
