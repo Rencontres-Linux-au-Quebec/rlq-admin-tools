@@ -1,0 +1,37 @@
+# Fichier de configuration COMMUN à tous les programmes de la suite (exemple : toutes les clés, en commentaire = valeur par défaut).
+# Chaque programme lit, DANS CET ORDRE (le dernier l'emporte ; la ligne de commande est toujours prioritaire) :
+#   1. /etc/default/app-default.conf      (commun, système)
+#   2. ~/.app-default.conf                 (commun, utilisateur)
+#   3. /etc/default/PROGRAMME.conf        (propre au programme)
+#   4. ~/.PROGRAMME.conf                   (propre au programme, utilisateur)
+# -c/--config FICHIER : ce fichier SEUL (le fichier commun n'est alors pas lu). Ce fichier est créé au premier lancement d'un programme s'il n'existe pas (toutes les clés en commentaire) :
+# il n'est jamais écrasé. Seules les clés ci-dessous sont lues ici ; les autres sont ignorées.
+# Format : CLÉ=valeur, une par ligne ; # = commentaire ; guillemets facultatifs. Ce fichier est LU, jamais exécuté.
+
+# --- Langue d'affichage par défaut ---
+# en, fr ou auto (suivre LC_ALL / LC_MESSAGES / LANG). Ordre de choix : --lang, NGINX_TOOLS_LANG, variable du programme, LANGUAGE du programme, cette clé, LC_ALL, LC_MESSAGES, LANG.
+#LANGUAGE=auto
+
+# --- Mode bavard ---
+# oui : afficher chaque commande externe exécutée (équivalent de --verbose pour tous les programmes).
+#VERBOSE=non
+
+# --- Niveau de débogage ---
+# Nombre entier ; 0 = aucun. 1 ou plus : active VERBOSE (sauf si VERBOSE est écrit dans un fichier) et exporte le niveau dans la variable
+# NGINX_TOOLS_DEBUG_LEVEL, que les programmes lancés par d'autres reçoivent.
+#DEBUG_LEVEL=0
+
+# --- Durée de conservation des journaux propres aux programmes ---
+# Nombre de jours gardés par les programmes qui écrivent leurs propres journaux : app-log-live.py (journaux quotidiens), web-monitor.py (rapports),
+# odoo-update-module.sh (journaux de mise à jour, en plus des 10 plus récents). Défaut : 180 jours ; 0 = ne jamais effacer. Un LOG_KEEP_DAYS écrit dans le fichier
+# d'un programme l'emporte. Les journaux d'nginx, de fail2ban et d'Odoo ont leur propre rotation (nginx-hardening.sh --log-retention-months N). Ces journaux contiennent
+# des adresses IP et des noms de personnes (Loi 25) : ne pas garder plus longtemps que nécessaire.
+#LOG_KEEP_DAYS=180
+
+# --- Anonymisation de l'affichage ---
+# oui : anonymiser ce que les programmes affichent (adresses IP, courriels, identifiants, jetons dans les URL) par des PSEUDONYMES STABLES (IP-4f2a9c, usager-9c1e03@anonyme.invalid,
+# ID-3b7d11) : une même valeur donne toujours le même pseudonyme, sans qu'on puisse la retrouver. Équivalent de --anonymize ; appliqué SEULEMENT quand la sortie est un terminal
+# (jamais dans un tube ni cron, pour ne pas fausser un programme qui en analyse un autre) : pour cron ou un courriel, écrire --anonymize ou NGINX_TOOLS_ANONYMIZE=1.
+# NGINX_TOOLS_ANONYMIZE=0 l'empêche. Le sel secret (jamais affiché) est dans /etc/default/nginx-tools-anon.salt ou ~/.nginx-tools-anon.salt (droits 600) : le supprimer change tous les pseudonymes.
+# Filtre à la main : commande | apps/_anonymiser.py ; pseudonyme d'une valeur connue : apps/_anonymiser.py --pseudonyme 203.0.113.9
+#ANONYMIZE=non
