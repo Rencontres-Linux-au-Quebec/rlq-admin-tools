@@ -16,6 +16,7 @@
 # format et des commentaires propres à chaque installation, trop risqué à éditer à l'aveugle.
 #
 # HISTORIQUE DE VERSION (résumé — voir nginx-hardening.changelog.txt pour le détail complet de chaque version) :
+#   2.53.20261021.130912 — Missing generated snippets (team-ips-*, shared-ips-geo) created before any nginx -t; nginx started when it was stopped.
 #   2.52.20261020.211944 — Personal configuration file ~/.nginx-hardening.conf (not .cfg); a legacy one with .cfg is renamed automatically.
 #   2.51.20261020.194336 — Odoo logrotate rule written in NGINX_HARDENING_LOGROTATE_DIR like the others (was /etc/logrotate.d/odoo in all cases).
 #   2.50.20261019.150215 — New copyright: Services-Conseils Linux and Rencontres Linux au Québec contributors (AGPL-3.0-or-later).
@@ -259,7 +260,7 @@ run() {
     "$@"
 }
 
-readonly SCRIPT_VERSION="2.52.20261020.211944"
+readonly SCRIPT_VERSION="2.53.20261021.130912"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
 SCRIPT_NAME="$(basename "${BASH_SOURCE[0]}" .sh)"; readonly SCRIPT_NAME
 # Langue d'affichage (en ou fr) : --lang, NGINX_HARDENING_LANG, LANGUAGE du fichier de configuration, LC_ALL / LANG — apps/_i18n.sh traduit la sortie (rien ne change en français).
@@ -576,6 +577,39 @@ generer_partages() {
     done < <(listes_lieux | listes_valides | awk -F'\037' '$3 ~ /partagee/ && !vu[$1]++')
 }
 
+# fragments_generes_assurer : les TROIS fragments générés (team-ips-geo.conf, team-ips-allow.conf, shared-ips-geo.conf) sont inclus par leur nom exact dans
+# odoo-global.conf et env-*.conf : il suffit qu'UN manque pour que nginx -t refuse TOUTE la configuration — y compris pendant l'étape 12, qui écrit les
+# deux premiers et teste nginx avant que l'étape 12b n'ait écrit le troisième (cas réel : nginx arrêté, liste blanche effacée par la restauration).
+# --update, Odoo seulement : chaque fragment ABSENT est créé vide (une ligne de commentaire, valide dans un bloc geo comme parmi des allow) ; un fichier
+# présent n'est jamais touché ; les étapes 12 et 12b les remplissent ensuite. Affiche une ligne par fichier créé ; retourne 0 s'il en a créé au moins un.
+fragments_generes_assurer() {
+    local snip="${NGINX_HARDENING_SNIPPETS_DIR:-/etc/nginx/snippets}" f cree=1
+    [[ "$CHECK_ONLY" == "1" || "$APP_NAME" != "odoo" ]] && return 1
+    for f in team-ips-geo.conf team-ips-allow.conf shared-ips-geo.conf; do
+        [[ -e "$snip/$f" ]] && continue
+        if mkdir -p "$snip" 2>/dev/null && printf '%s\n' "# vide — créé par nginx-hardening.sh --update (nginx refuse un include sans fichier) ; rempli aux étapes 12 et 12b" > "$snip/$f" 2>/dev/null; then
+            chmod 644 "$snip/$f" 2>/dev/null || true
+            echo "        $snip/$f était absent : créé vide pour que nginx -t réussisse (rempli à l'étape 12)."
+            cree=0
+        fi
+    done
+    return "$cree"
+}
+
+# nginx_appliquer : applique une configuration que nginx -t vient d'accepter. Service actif : rechargement ; service ARRÊTÉ (configuration
+# invalide au démarrage, arrêt manuel…) : démarrage — un « systemctl reload » échoue sur un service arrêté et le site restait hors ligne.
+# Retourne 0 si nginx tourne avec la nouvelle configuration. NGINX_APPLIQUE = « rechargé » ou « démarré » (pour le message).
+NGINX_APPLIQUE=""
+nginx_appliquer() {
+    if run systemctl is-active --quiet nginx 2>/dev/null; then
+        NGINX_APPLIQUE="rechargé"
+        run systemctl reload nginx >/dev/null 2>&1
+    else
+        NGINX_APPLIQUE="démarré (il était arrêté)"
+        run systemctl start nginx >/dev/null 2>&1
+    fi
+}
+
 # creer_modele DESTINATION MODELE : crée le fichier (droits 644) depuis doc/MODELE livré avec les programmes, à défaut un en-tête minimal.
 creer_modele() {
     local dest="$1" modele="$SCRIPT_DIR/doc/$2"
@@ -681,7 +715,7 @@ durcir_bbb() {
         mkdir -p "$dir"; tmp=$(mktemp "$dir/.zz-nginx-hardening.XXXXXX")
         printf '%s\n' "$contenu" > "$tmp" && chmod 644 "$tmp" && mv -f "$tmp" "$fichier"
         if run nginx -t >/dev/null 2>&1; then
-            run systemctl reload nginx >/dev/null 2>&1 || true
+            nginx_appliquer || true
             pass "Règles de sécurité BBB installées ($fichier) ; nginx -t réussi, nginx rechargé."
         else
             if [[ -n "$ancien" ]]; then printf '%s\n' "$ancien" > "$fichier"; else rm -f "$fichier"; fi
@@ -808,7 +842,11 @@ nginx_aide() {      # nginx_aide MESSAGE : conseils d'après le message de « ng
         echo "        Que faire : un certificat ou une clé est introuvable ou illisible. Si le nom DNS a changé : $0 --update --rename-to NOUVEAU_NOM (refait nginx et le certificat) ; sinon « certbot certificates » puis « certbot renew »."
     fi
     if grep -Eqi 'open\(\) .* failed \(2: No such file|No such file or directory' <<<"$m"; then
-        echo "        Que faire : un fichier ou un dossier mentionné par nginx n'existe pas (cache, journal, include). Les dossiers de cache sont créés par $0 --update (étape 0c) ; sinon créer le fichier ou retirer la ligne."
+        if grep -Eq '(team-ips-(geo|allow)|shared-ips-geo)\.conf' <<<"$m"; then
+            echo "        Que faire : ce fragment est GÉNÉRÉ par ce script depuis /etc/default/nginx-tools-*.conf : $0 --update le crée (vide au besoin), régénère les adresses et recharge (ou démarre) nginx."
+        else
+            echo "        Que faire : un fichier ou un dossier mentionné par nginx n'existe pas (cache, journal, include). Les dossiers de cache sont créés par $0 --update (étape 0c) ; sinon créer le fichier ou retirer la ligne."
+        fi
     fi
     if grep -Eqi 'unknown directive|unknown "' <<<"$m"; then
         echo "        Que faire : directive inconnue de cette installation de nginx : module absent (ex. GeoIP : apt install libnginx-mod-http-geoip) ou faute de frappe dans la ligne indiquée."
@@ -838,6 +876,8 @@ echo "--- 0a) nginx avant les changements (nginx -t, service) ---"
 if ! command -v nginx >/dev/null 2>&1; then
     warn "nginx absent (commande introuvable) : le reste du setup ne peut pas vérifier ni recharger nginx."
 else
+    # --update : les fragments GÉNÉRÉS par ce script (étapes 12 et 12b) ne sont pas un « problème déjà présent » : s'ils manquent, ils sont créés vides AVANT le test.
+    fragments_generes_assurer && pass "Fragments générés absents créés vides (remplis aux étapes 12 et 12b) : nginx -t peut tester le reste de la configuration."
     nx_code=0; nx_sortie=$(run nginx -t 2>&1) || nx_code=$?
     nx_actif=$(systemctl is-active nginx 2>/dev/null) || nx_actif="inconnu"
     if (( nx_code == 0 )); then
@@ -849,7 +889,7 @@ else
         echo "        Après correction : nginx -t && systemctl reload nginx, puis relancer ce script. Les étapes qui modifient nginx restaurent leurs fichiers si nginx -t refuse, mais ne réparent pas ce problème."
     fi
     if [[ "$nx_actif" != "active" ]]; then
-        warn "Le service nginx n'est pas actif (état : $nx_actif) : systemctl status nginx --no-pager ; journalctl -u nginx -n 30 --no-pager$( (( nx_code == 0 )) && echo " ; après vérification : systemctl start nginx" )."
+        warn "Le service nginx n'est pas actif (état : $nx_actif) : systemctl status nginx --no-pager ; journalctl -u nginx -n 30 --no-pager$( (( nx_code == 0 )) && { [[ "$CHECK_ONLY" == "1" ]] && echo " ; --update le démarre si nginx -t réussit" || echo " ; il sera démarré par la première étape qui applique la configuration (nginx -t d'abord)"; } )."
     fi
 fi
 
@@ -1176,7 +1216,7 @@ else
                 fail "Changement de nom : nginx -t refuse la nouvelle configuration — anciennes versions restaurées, nginx NON rechargé. Sauvegardes : $rn_sauv"
                 rn_ok=0
             else
-                run systemctl reload nginx >/dev/null 2>&1 || true
+                nginx_appliquer || true
                 pass "nginx : $RENAME_FROM remplacé par $RENAME_TO dans ${#rn_fichiers[@]} fichier(s) ; nginx -t réussi, nginx rechargé. Sauvegardes : $rn_sauv"
             fi
         fi
@@ -1203,7 +1243,7 @@ else
                 renom_restaurer
                 fail "Changement de nom : nginx -t refuse les chemins du nouveau certificat — anciennes versions restaurées, nginx NON rechargé."
             else
-                run systemctl reload nginx >/dev/null 2>&1 || true
+                nginx_appliquer || true
                 pass "nginx : certificat de $RENAME_TO en service ; nginx -t réussi, nginx rechargé."
             fi
         elif (( rn_ok )); then
@@ -1405,7 +1445,7 @@ while IFS=$'\t' read -r am_fic am_reel am_ligne am_nom am_srv; do
     cp -p "$am_reel" "$am_copie" 2>/dev/null || { fail "nginx : copie de sauvegarde de $am_reel impossible — fichier non modifié."; continue; }
     sed -i -E "${am_ligne}s/(server[[:space:]]+[^;[:space:]]*:)${am_port}([[:space:];])/\1${am_attendu}\2/" "$am_reel"
     if run nginx -t >/dev/null 2>&1; then
-        run systemctl reload nginx >/dev/null 2>&1 || true
+        nginx_appliquer || true
         pass "nginx : l'amont « $am_nom » ($am_fic:$am_ligne) passe du port $am_port à $am_attendu (Odoo, $am_genre) ; nginx -t réussi, nginx rechargé. Sauvegarde : $am_copie"
     else
         cp -p "$am_copie" "$am_reel" 2>/dev/null || true
@@ -1600,7 +1640,7 @@ ${ws_ind}proxy_read_timeout ${WS_DELAI_REGLE}s;" "$ws_reel"
                 ws_quoi="« proxy_read_timeout ${WS_DELAI_REGLE}s; » ajouté (défaut : 60 s)"
             fi
             if run nginx -t >/dev/null 2>&1; then
-                run systemctl reload nginx >/dev/null 2>&1 || true
+                nginx_appliquer || true
                 pass "nginx : location « $ws_chem » ($ws_fic) : $ws_quoi ; nginx -t réussi, nginx rechargé. Sauvegarde : $ws_copie"
             else
                 cp -p "$ws_copie" "$ws_reel" 2>/dev/null || true
@@ -2386,11 +2426,12 @@ else
             fi
         done
         if (( eq_change )); then
+            fragments_generes_assurer || true        # shared-ips-geo.conf (étape 12b) doit exister AVANT ce nginx -t, sinon les adresses de l'équipe seraient restaurées pour rien
             if eq_erreur=$(run nginx -t 2>&1); then
-                if run systemctl reload nginx >/dev/null 2>&1; then
-                    pass "Adresses de l'équipe régénérées depuis la liste blanche ; nginx -t réussi, nginx rechargé."
+                if nginx_appliquer; then
+                    pass "Adresses de l'équipe régénérées depuis la liste blanche ; nginx -t réussi, nginx $NGINX_APPLIQUE."
                 else
-                    warn "Adresses de l'équipe régénérées et nginx -t réussi, mais rechargement impossible — systemctl reload nginx à la main."
+                    warn "Adresses de l'équipe régénérées et nginx -t réussi, mais nginx n'a pas pu être $NGINX_APPLIQUE — systemctl status nginx --no-pager ; journalctl -u nginx -n 30 --no-pager."
                 fi
             else
                 for eq_type in geo allow; do
@@ -2417,10 +2458,10 @@ else
                 if [[ "$CHECK_ONLY" == "1" ]]; then
                     warn "Les fichiers team-ips-*.conf sont plus récents que la configuration chargée par nginx : les adresses récentes sont refusées (403) tant que nginx n'est pas rechargé — --update le recharge (ou systemctl reload nginx)."
                 elif eq_erreur=$(run nginx -t 2>&1); then
-                    if run systemctl reload nginx >/dev/null 2>&1; then
-                        pass "nginx rechargé : team-ips-*.conf étaient plus récents que la configuration chargée."
+                    if nginx_appliquer; then
+                        pass "nginx $NGINX_APPLIQUE : team-ips-*.conf étaient plus récents que la configuration chargée."
                     else
-                        warn "team-ips-*.conf plus récents que la configuration chargée, nginx -t réussi, mais rechargement impossible — systemctl reload nginx à la main."
+                        warn "team-ips-*.conf plus récents que la configuration chargée, nginx -t réussi, mais nginx n'a pas pu être $NGINX_APPLIQUE — systemctl status nginx --no-pager ; journalctl -u nginx -n 30 --no-pager."
                     fi
                 else
                     fail "team-ips-*.conf plus récents que la configuration chargée, mais nginx -t refuse la configuration — nginx NON rechargé."
@@ -2449,10 +2490,10 @@ if [[ "$APP_NAME" == "odoo" ]]; then
         part_tmp=$(mktemp "$snip/.shared-ips-geo.XXXXXX")
         printf '%s\n' "$part_nouveau" > "$part_tmp" && chmod 644 "$part_tmp" && mv -f "$part_tmp" "$part_dst"
         if part_erreur=$(run nginx -t 2>&1); then
-            if run systemctl reload nginx >/dev/null 2>&1; then
-                pass "Réseaux partagés régénérés ($part_n) dans $part_dst ; nginx -t réussi, nginx rechargé."
+            if nginx_appliquer; then
+                pass "Réseaux partagés régénérés ($part_n) dans $part_dst ; nginx -t réussi, nginx $NGINX_APPLIQUE."
             else
-                warn "Réseaux partagés régénérés ($part_n) et nginx -t réussi, mais rechargement impossible — systemctl reload nginx à la main."
+                warn "Réseaux partagés régénérés ($part_n) et nginx -t réussi, mais nginx n'a pas pu être $NGINX_APPLIQUE — systemctl status nginx --no-pager ; journalctl -u nginx -n 30 --no-pager."
             fi
         else
             if [[ -n "$part_ancien" ]]; then printf '%s\n' "$part_ancien" > "$part_dst"; else printf '%s\n' "# vide — restauré après refus de nginx -t" > "$part_dst"; fi

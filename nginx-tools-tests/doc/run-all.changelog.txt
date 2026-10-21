@@ -1,6 +1,28 @@
 Changelog — run-all.sh (suite de tests)
 (version la plus récente en premier)
 
+## 1.194.20261021.130912 — Test of nginx-hardening.sh 2.53: missing generated snippets and stopped nginx
+
+Reason:
+  nginx-hardening.sh 2.53 (team-ips-*.conf and shared-ips-geo.conf missing, nginx stopped on odoo-dev).
+
+Changes:
+  - test_nginx_hardening.py: new test test_fragments_generes_absents_et_nginx_arrete.
+  - run-all.sh header: the missing summary line of 1.193 added (test_conventions.test_resume_entete_contient_version_courante failed).
+
+Bugs fixed:
+  - Symptom: test_resume_entete_contient_version_courante failed for run-all.sh. Diagnosis: version 1.193 had no line in the header summary.
+    Fix: line added.
+
+Safeguards and edge cases:
+  - The new test writes only in its temporary folder (NGINX_HARDENING_SNIPPETS_DIR) and uses fake nginx and systemctl.
+
+Checks:
+  - test_nginx_hardening, test_i18n, test_locks, test_conventions.
+
+Action required:
+  none.
+
 ## 1.193.20261020.230008 — Test of the test recording (test_record.py) and of the 1.93 keys of app-log-live
 
 Reason:
