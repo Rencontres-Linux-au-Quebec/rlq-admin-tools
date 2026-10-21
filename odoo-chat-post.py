@@ -565,7 +565,7 @@ def run_main(args, parser):
         eprint(f"WARNING: {is_open} contains the API key and is readable by other accounts: chmod 600 {is_open}")
     if not (args.api_url and args.db and args.login and key_value):
         missing = [n for n, v in (("URL", args.api_url), ("DB", args.db), ("LOGIN", args.login), ("API_KEY (or the ODOO_API_KEY variable)", key_value)) if not v]
-        eprint("ERROR: missing settings: " + ", ".join(missing) + " — write them in /etc/default/odoo-chat-post.conf (see doc/odoo-chat-post.conf.example).")
+        eprint("ERROR: missing settings: " + ", ".join(missing) + " — write them in /etc/default/odoo-chat-post.conf (see doc/en/odoo-chat-post.conf.example).")
         return 2
     event_list = args.events or [DEFAULT_EVENT]
     try:

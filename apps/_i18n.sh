@@ -248,7 +248,7 @@ config_creer_fichier() {
         for chemin in "$systeme" "$perso"; do [[ -f "$chemin" ]] && config_rafraichir "$programme" "$chemin"; done
         return 0
     fi
-    modele="${CFG_DOSSIER_DOC:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." 2>/dev/null && pwd)/doc}/$programme.conf.example"
+    modele="${CFG_DOSSIER_DOC:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." 2>/dev/null && pwd)/doc/en}/$programme.conf.example"
     [[ -r "$modele" ]] || return 0
     for chemin in "$systeme" "$perso"; do
         [[ -d "$(dirname "$chemin")" && -w "$(dirname "$chemin")" ]] || continue
@@ -275,7 +275,7 @@ config_creer_fichier() {
 config_rafraichir() {
     local programme="$1" chemin="$2" modele temporaire ligne premiere=1
     [[ "${NGINX_TOOLS_CONFIG_MAJ_AUTO:-}" == "0" ]] && return 0
-    modele="${CFG_DOSSIER_DOC:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." 2>/dev/null && pwd)/doc}/$programme.conf.example"
+    modele="${CFG_DOSSIER_DOC:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." 2>/dev/null && pwd)/doc/en}/$programme.conf.example"
     [[ -r "$modele" && -r "$chemin" && -w "$chemin" && -w "$(dirname "$chemin")" ]] || return 0
     grep -qE '^[[:space:]]*[A-Za-z_][A-Za-z0-9_]*[[:space:]]*=' "$chemin" && return 0          # une option active : fichier modifié par l'utilisateur
     tail -c "$(wc -c < "$modele")" "$chemin" 2>/dev/null | cmp -s - "$modele" && return 0       # déjà au modèle actuel
