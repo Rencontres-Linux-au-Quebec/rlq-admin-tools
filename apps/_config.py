@@ -192,7 +192,7 @@ def creer_par_defaut(programme, dossier_doc=None, argv=None):
     argv = sys.argv[1:] if argv is None else argv
     if os.environ.get("NGINX_TOOLS_CONFIG_CREER") == "0" or any(a in SANS_CREATION or a == "-c" or a.startswith("--config") for a in argv):
         return None
-    dossier_doc = dossier_doc or os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "doc")
+    dossier_doc = dossier_doc or os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "doc", "en")
     _creer(chemins_communs(), COMMUN, dossier_doc, variable="NGINX_TOOLS_CONFIG_COMMUN_CREE")      # le fichier commun d'abord (1.3) : créé s'il n'existe pas, même si celui du programme existe
     chemins = chemins_regle(programme)
     for nom, liste in ((COMMUN, chemins_communs()), (programme, chemins)):       # 1.7 : fichiers jamais modifiés (aucune option active) remis au modèle actuel
