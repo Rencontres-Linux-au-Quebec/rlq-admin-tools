@@ -30,206 +30,6 @@
 # A la fin, STATISTIQUES (stats_runner.py) : duree totale et par passe, CPU, memoire, disque, programmes lances, et par programme le nombre de tests
 # unitaires, fonctionnels, interactifs et de conformite (nature MESUREE pendant chaque test), desactives et en echec, et les tests les plus lents.
 #
-# HISTORIQUE DE VERSION (resume — voir run-all.changelog.txt pour le detail complet) :
-#   1.194.20261021.130912 — Test of nginx-hardening.sh 2.53: missing generated snippets and stopped nginx (nginx-tools 1.141).
-#   1.193.20261020.230008 — Test of the test recording (test_record.py) and of the 1.93 keys of app-log-live.
-#   1.192.20261020.222909 — test_docs: the legal company name is allowed as author of the Odoo module (author key of __manifest__.py only).
-#   1.191.20261020.211944 — Personal configuration file ~/.run-all.conf (not .cfg); a legacy one with .cfg is renamed automatically.
-#   1.190.20261020.175756 — Runs WITHOUT root (simulated root in the test copies only); tests never write the real /etc or /var (system defaults redirected, checked at the end); no more stop on « Broken pipe » (nginx-tools 1.137).
-#   1.189.20261020.163255 — tools/ (static gawk 5.3.2 and ruff 0.16.9) now in the Git repository, with tools/LISEZMOI.md (versions, licences, sources, SHA-256).
-#   1.188.20261020.112434 — Statistics at the end (duration, CPU, memory, disk, tests per program: unit / functional / interactive / conformity); personal data removed from the tests; FR/EN sample data and alignment tests; nginx-odoo/ read from NGINX_ODOO_DIR (not in git) (nginx-tools 1.134).
-#   1.187.20261017.214019 — Tests of web-monitor 2.69 (IP seen, sorted title, configuration keys) (nginx-tools 1.128).
-#   1.186.20261017.200717 — Residual files of the programs folder only reported (never deleted, the tests go on); test of a second Ctrl+C; web-monitor 2.68, app-log-live 1.85.
-#   1.185.20261017.105442 — Tests of web-monitor 2.67 (compact table, profile fields, --group, --csv, --stats), language from the environment (nginx-tools 1.126).
-#   1.184.20261016.173838 — Ctrl+C: timeout --foreground for each test module; tests of the registrations per ticket, sent e-mails, odoo-update-module 1.11, web-monitor columns, Ctrl+C (nginx-tools 1.125).
-#   1.183.20261016.160728 — Tests: app-log-live --truncate, SSH accounts, RLQ* groups in columns, French screen without English (app-log-live 1.83, nginx-tools 1.124).
-#   1.182.20261016.151148 — Residual lang/*.en.po of English-source programs detected (offered for deletion); docs page count computed; host-perf-audit cores (nginx-tools 1.123).
-#   1.181.20261016.114848 — Tests: suspicious Odoo accounts, ban / watch, e-mail checks, host-perf-audit, app-log-live latency, invalid registration e-mails (web-monitor 2.65, app-log-live 1.82, odoo-mail-retry 1.10, nginx-log-audit 2.37, nginx-tools 1.122).
-#   1.180.20261016.085519 — Tests: web-monitor --table systems/browsers/pages columns, app-log-live SSH port, grouped recommendations (app-log-live 1.81, web-monitor 2.64, nginx-tools 1.121).
-#   1.179.20261016.065618 — Tests aligned with app-log-live 1.80 (code in English) and nginx-tools 1.120.
-#   1.178.20261015.231203 — Tests aligned with web-monitor 2.63 (code in English), apps/_i18n.py 1.14 and nginx-tools 1.119.
-#   1.177.20261015.220452 — Tests aligned with app-log-check 2.20 and odoo-mail-retry 1.9 (code in English), apps/_i18n.py 1.13 and nginx-tools 1.118.
-#   1.176.20261015.212130 — Tests aligned with app-health-check 2.22 (code in English) and nginx-tools 1.117.
-#   1.175.20261015.201400 — Tests aligned with odoo-mail-retry 1.8, odoo-chat-post 1.4 and odoo-docs 1.1 (code in English) and nginx-tools 1.116.
-#   1.174.20261015.195053 — Tests adaptés à zip-versions 1.12 (code en anglais, catalogue fr.po).
-#   1.173.20261015.191427 — Tests : nouveau test i18n (programme écrit en anglais).
-#   1.172.20261015.183524 — Tests : test_odoo_docs (faux Odoo), odoo-docs dans les listes de conventions, test zip-versions.
-#   1.171.20261015.175527 — Tests : documentation FR/EN (test_docs : parité, aide réelle, XML valide, aucune donnée personnelle).
-#   1.170.20261015.172851 — Tests : membres des groupes RLQ* ; ShellCheck 0.11.0 propre.
-#   1.169.20261015.170611 — Tests : modules rlq* toujours affichés au démarrage (test_app_log_live).
-#   1.168.20261015.143436 — Tests : --anonymize (test_anonymiser, 15 tests).
-#   1.167.20261015.105354 — Tests : odoo-chat-post, clé API du robot (6 tests).
-#   1.166.20261015.103039 — Tests : odoo-chat-post --create-bot, 3 tests.
-#   1.165.20261015.095427 — Tests : odoo-chat-post accès restreint (--members), 5 tests.
-#   1.164.20261015.092124 — Tests : aide testée en français (--lang en), couleur zip-versions, pare-feu, tri des customs.
-#   1.163.20261015.090500 — Tests : odoo-chat-post.py 1.0 (test_odoo_chat_post.py, faux serveur XML-RPC d'Odoo).
-#   1.162.20261015.083721 — Tests : réglages sauvegardés, bannis déjà bloqués, customs au démarrage, connectés, 429 (test_reglages_bannis_limites).
-#   1.161.20261015.080630 — Tests : root au début, LOG_KEEP_DAYS, modules rlq* toujours affichés.
-#   1.160.20261015.073057 — Tests : colonnes, date des fichiers de config, relance sudo.
-#   1.159.20261015.065821 — Tests : IP à débannir, connexions, anglais, fichier commun.
-#   1.158.20261014.214019 — Tests : modules customs d'abord, version du .zip.
-#   1.157.20261014.203136 — Tests : détection du service d'Odoo, --lines 50.
-#   1.156.20261014.190654 — Tests : archive .zip, versions avant / après, derniers modules.
-#   1.155.20261014.182101 — Tests : warm-up (pages, langues, sondages optionnels).
-#   1.154.20261014.175821 — Tests : fichier commun app-default.conf, sauvegarde des réglages.
-#   1.153.20261014.174013 — Tests : préchauffage, heure locale des modules.
-#   1.152.20261014.170802 — Tests : surlignage +mot / -mot.
-#   1.151.20261014.164721 — Tests : bloc de démarrage d'app-log-live condensé.
-#   1.150.20261014.161550 — Tests : sortie lisible de odoo-update-module.sh.
-#   1.149.20261014.154520 — Tests : Ctrl+C pendant une question (Python et bash).
-#   1.148.20261014.151232 — Tests : tableau des modules et chiffres en couleurs.
-#   1.147.20261014.114859 — Tests : chien de garde silencieux pendant une question.
-#   1.146.20261014.110643 — Tests : odoo-update-module.sh ; étiquette des personnes sans doublon.
-#   1.145.20261014.103454 — Tests : derniers modules installés avec leur date.
-#   1.144.20261013.231736 — Tests : alerte du service arrêté.
-#   1.143.20261013.224353 — Tests : chien de garde du direct.
-#   1.142.20261013.220907 — Tests : l'IP externe ne retient pas l'affichage.
-#   1.141.20261013.215347 — Tests : surlignage des mots (--highlight).
-#   1.140.20261013.214058 — Tests : masquage des secrets en temps linéaire.
-#   1.139.20261013.205851 — Tests : amonts d'Odoo 17 (nginx-hardening, app-log-live) ; nginx-odoo/ synchronisé.
-#   1.138.20261013.203700 — Tests : websocket sur la configuration livrée (variable proxy_pass).
-#   1.137.20261013.201708 — Tests : secrets masqués (app-log-live).
-#   1.136.20261013.195358 — Tests : websocket d'Odoo dans nginx-hardening.sh.
-#   1.135.20261013.191845 — Tests : conflits réessayés et échecs définitifs (app-log-live).
-#   1.134.20261013.163324 — Tests : versions du jour (zip-versions), étape 0a, détails des erreurs, modules d'Odoo.
-#   1.133.20261013.161254 — Test : ancien nom trouvé dans nginx (étape 0e).
-#   1.132.20261013.155822 — Test : couleurs du sommaire.
-#   1.131.20261013.155051 — Test : adresse non répétée avec la touche b.
-#   1.130.20261013.153600 — Tests : odoo-warmup.py ; question oui/non du courriel (étape 0d).
-#   1.129.20261013.160500 — Test : requêtes lentes d'assets et de vues (cache à froid).
-#   1.128.20261013.153500 — Test : journal quotidien d'un lancement filtré.
-#   1.127.20261013.150500 — Test : questions du courriel avec sortie redirigée.
-#   1.126.20261013.143500 — Test : attente disque et type de disques.
-#   1.125.20261013.141500 — Tests : --watch pages et sondages, requête lente en Python.
-#   1.124.20261013.123500 — Tests : étape 0e (changement de nom DNS).
-#   1.123.20261013.121500 — Test : diagnostic du certificat SSL.
-#   1.122.20261013.112000 — Test : URL avec guillemets alignée.
-#   1.121.20261013.105200 — Tests : relance de web-monitor.py par la touche b, recommandations gardées 48 h.
-#   1.120.20261013.103000 — --install-missing (ShellCheck, ruff) ; apps/_courriel.py ; tests du courriel.
-#   1.119.20261013.100000 — Tests : amonts nginx, IP externe, alignement websocket.
-#   1.118.20261013.091500 — Tests : diagnostic du site, serveur BBB, Ctrl-C répété.
-#   1.117.20261013.084000 — Tests : CMS WordPress, log_format, base64, chemins dans la traduction.
-#   1.116.20261013.081500 — Tests : sondes /wp, balayage de 404, touche b, --sent.
-#   1.115.20261012.231200 — Tests : --not-found, espace disque, site lab, iptables-persistent, page de maintenance.
-#   1.114.20261012.220800 — Tests : alignement des messages d'Odoo, période des statistiques, fuseau horaire, cache nginx, rotation du journal.
-#   1.113.20261012.213000 — Tests : service d'après db_user, installation des programmes manquants.
-#   1.112.20261012.195500 — Tests : détection de la configuration d'Odoo (test_odoo_conf.py), ports, logfile.
-#   1.111.20261012.183000 — Tests : démarrage en anglais sans français, couleurs et traduction, causes des requêtes lentes ; test_saisie déclare son environnement.
-#   1.111.20261012.183000 — Saisies avec édition (read -e) ; nouveau test_saisie.py ; tests adaptés à la coupure par défaut des noms.
-#   1.109.20261012.103600 — Fichier de configuration créé au premier démarrage ; tests test_config_defaut.py (création, modèles complets).
-#   1.108.20261012.094953 — Tests : état de web-monitor isolé (WEB_MONITOR_STATE_DIR), alignement du sommaire, colonnes après traduction.
-#   1.107.20261012.084701 — Tests de app-log-live.py 1.29 (diagnostic des recommandations de web-monitor.py).
-#   1.106.20261011.231758 — Tests de app-log-live.py 1.28 (niveaux 1 à 9 du tableau de bord, --level, touches 1 à 9).
-#   1.105.20261011.211500 — Tests de app-log-live.py 1.27 (espace avant HTTP, tableau de bord traduit).
-#   1.104.20261011.180500 — ShellCheck récent : SC2317 (corps de run_all_nettoyer, appelée indirectement) ignoré.
-#   1.103.20261011.183500 — Tests des réseaux partagés (nginx-hardening.sh 2.30, nginx-odoo-config 1.9).
-#   1.102.20261011.172500 — Test de la section [11] adapté (réseaux partagés sans alerte) ; nginx-odoo-config 1.8.
-#   1.101.20261011.170500 — Tests de la section [11] de nginx-log-audit.sh 2.29 et de la limite par cookie (nginx-odoo-config 1.7).
-#   1.100.20261011.144500 — Ctrl+C : confirmation (apps/_i18n.sh) ; passe de tests isolée (setsid) ; test_ctrl_c ; correction SC2002 de nginx-hardening.sh 2.29.
-#   1.99.20261011.133251 — Nouveau test de l'étape 12 de nginx-hardening.sh (rechargement de nginx) ; env-dev.conf ouvert (nginx-odoo-config 1.6).
-#   1.98.20261011.093635 — Ctrl+C arrête toute la suite (code 130), en français comme en anglais.
-#   1.97.20261010.225415 — Les tests n'héritent plus des variables du traducteur (NGINX_TOOLS_I18N, NGINX_TOOLS_I18N_LANGUE, NGINX_TOOLS_LANG) quand run-all.sh est lancé en anglais.
-#   1.96.20261010.215000 — Affichage francais ou anglais (--lang) ; fichier de configuration (LANGUAGE, ALL_ENVIRONMENTS, APP, VERBOSE) et -c/--config ; test_i18n.py reecrit pour les catalogues PO.
-#   1.95.20261010.200936 — Tests : web-monitor.py 2.47 (affichage fr/en, catalogues lang/, test_i18n.py).
-#   1.94.20261010.173057 — Tests : web-monitor.py 2.46 (minutes, largeur des colonnes).
-#   1.93.20261010.164501 — Tests : app-log-live.py 1.24 (adresses recommandees par web-monitor) ; WEB_MONITOR_STATE_DIR isole.
-#   1.92.20261010.143016 — Tests : web-monitor.py 2.45 (--table, --sort).
-#   1.91.20261009.230224 — Tests : app-log-live.py 1.23 (sondage de confirmation).
-#   1.90.20261009.170830 — Tests : nginx-hardening.sh 2.26 (verification odoo-auth).
-#   1.89.20261009.153721 — Tests : app-log-live.py 1.22 (images base64).
-#   1.88.20261009.150500 — Tests : app-log-live.py 1.21 (billet, courriels a renvoyer) et nginx-hardening.sh 2.25 (etape 16).
-#   1.87.20261009.142644 — Tests : app-log-live.py 1.20 (User-Agent, --watch) et nginx-odoo-config 1.5.
-#   1.86.20261009.114822 — Tests : app-log-live.py 1.19 (proposition de bannissement) et nginx-log-audit.sh 2.26 (--evidence).
-#   1.85.20261009.112443 — Tests : app-log-live.py 1.18 et app-log-check.py 2.14 ; run_pty repond aux questions de fin de Ctrl-C.
-#   1.84.20261009.105804 — Tests : app-log-live.py 1.17 (robots et vrais visiteurs).
-#   1.83.20261009.104326 — Fichiers residuels : propose de les effacer (o/N), sinon arret ; test de l'etape 15 du setup.
-#   1.82.20261009.085618 — Tests : app-log-live.py 1.16 (sondes locales, URL raccourcies).
-#   1.81.20261008.235744 — Tests : app-log-live.py 1.15 (la touche b n'inclut jamais le serveur).
-#   1.80.20261008.191922 — Tests : app-log-live.py 1.14 (statistiques des visites du site).
-#   1.79.20261008.173412 — Tests : app-log-live.py 1.13 (--exclude-ip, --accentuate-group, --chime, --time-report).
-#   1.78.20261008.124728 — Tests : app-log-live.py 1.12 (menu des touches, presence triee, comptes resumes) ; nginx-odoo-config 1.4 (inclusions par nom exact).
-#   1.77.20261008.120306 — Test : couleurs conservees avec --report-err (nginx-hardening.sh 2.23, _rapport 1.9).
-#   1.76.20261008.112757 — Tests : nginx-hardening.sh 2.22 (team-ips-*.conf existent toujours ; joker sans fichier = nginx -t en echec).
-#   1.75.20261008.113500 — Tests : nginx-hardening.sh 2.21 (message de nginx -t, configuration deja invalide).
-#   1.74.20261008.103818 — Tests : app-log-live.py 1.11 (tableau de bord, touches, sante, journal quotidien, largeurs).
-#   1.73.20261008.084031 — Tests : isolation des vrais /etc/default (listes), fichiers residuels signales ; app-log-live.py 1.10.
-#   1.72.20261007.232518 — Tests : couleurs explicites de app-log-live.py ; regle apple-touch-icon de la configuration nginx.
-#   1.71.20261007.231352 — Tests : presentation compacte de app-log-live.py.
-#   1.70.20261007.223004 — Tests : [banni], requetes lentes, filtres et resume de app-log-live.py.
-#   1.69.20261007.221217 — Tests : alignement, requetes suspectes et video inverse de app-log-live.py.
-#   1.68.20261007.200504 — Tests : destinataire dans le menu de odoo-mail-retry.py.
-#   1.67.20261007.175327 — Tests : odoo-mail-retry.py ; non-regression du sujet des courriels.
-#   1.66.20261007.171721 — Tests : cache des adresses, sommaire et diagnostics de courriel, 5 jours les plus actifs ; sentinelle sur le cache.
-#   1.65.20261007.093208 — Listes d'adresses hors des archives : sentinelle sur /etc/default/nginx-tools-*.conf, tests des listes et des lieux.
-#   1.64.20261002.214327 — Premiere ligne de TOUTE execution (meme --help) : nom et version. Tests : preuves de bannissement, geoip-bin, en-tetes, rapport par heure.
-#   1.63.20261002.201545 — Tests : rapport par heure et par jour (app-log-check.py --by-hour).
-#   1.62.20261002.165312 — Tests : retour arriere, adresses du sommaire, lecture --details, app-log-live 1.2 (pays, voie rapide, rappel, serveur local, conflit SQL).
-#   1.61.20261002.120134 — Tests : regle wp-admin (configuration), regle manquante (web-monitor), app-log-live 1.1, version de la configuration.
-#   1.60.20261002.073514 — Tests par environnement (Odoo ou BBB, detectes ; --app, --all-environments, --list) ; etape 6 : controles du serveur reel ; /proc isole.
-#   1.59.20261002.064915 — Tests : fournisseur d'acces, refus ACL, version dans le nom des archives.
-#   1.58.20261001.202502 — Tests de zip-versions.py 1.2 (archives d'autres programmes, coherence).
-#   1.57.20261001.143624 — apps/_bbb.py attendu ; tests test_bbb.py.
-#   1.56.20261001.094048 — Suite renommee nginx-tools-tests (archive et dossier) ; ancienne copie dans tests/ signalee.
-#   1.55.20261001.092458 — Nouveau programme zip-versions.py : attendu, conventions, tests (test_zip_versions.py).
-#   1.54.20261001.090925 — Tests : redirection de nginx rejetee ; blocs de redirection apres les regles de securite (configuration).
-#   1.53.20260930.225745 — Tests : diagnostics et corrections faits par web-monitor.py (--apply), numerotation du rapport.
-#   1.52.20260930.163902 — Option --report-err ; composant commun apps/_rapport.* ajoute a la liste des fichiers attendus ; tests du rapport.
-#   1.51.20260930.132809 — Sentinelle des fichiers de configuration reels ; tests des heures multiples, de --times, de la retention et de ./ ignore.
-#   1.50.20260930.123230 — Tests : configuration en couches (odoo-backup.sh, app-health-check.py), renommage avant le timer, timers vers un fichier absent.
-#   1.49.20260930.093133 — Tests : configuration de odoo-backup.sh dans /etc/default (ordre, ancien emplacement, creation, timer) ; regroupement.
-#   1.48.20260930.090527 — Tests : Googlebot sur BBB et Odoo, pages demandees, 403 de navigateurs (une adresse domine).
-#   1.47.20260930.084200 — Tests : en-tetes de courriel lus par un analyseur (plus de dependance au PID), filtre BBB identique, [7], Ctrl-C, HSTS.
-#   1.46.20260930.081347 — Tests : motif « A && B || C » (independant de la version de ShellCheck), refus 403 de navigateurs.
-#   1.45.20260930.072401 — Tests : connexions structurees et en couleur, recommandations BBB.
-#   1.44.20260929.235632 — Tests : HSTS avec redirection vers le meme nom (avertissement, echec et conseil HAProxy).
-#   1.43.20260929.195459 — Aide : options par ordre alphabetique ; test AideTriee (huit programmes).
-#   1.42.20260929.193615 — Tests : --days, configuration creee a la premiere execution ; vocabulaire des tests.
-#   1.41.20260929.192148 — Tests : colonnes J-1 et J-2, options d'Odoo du processus en cours et du script de demarrage.
-#   1.40.20260929.185720 — Tests : --check-email-dns sans --target, etape 13 sans resultat, fail2ban arrete.
-#   1.39.20260929.182259 — Tests : app-health-check.py complet sans SMTP, relais injoignable, couleurs.
-#   1.38.20260929.180340 — Tests de odoo-backup.sh 1.1 : format d'Odoo (.zip, .tar.xz), restauration, retention par format.
-#   1.37.20260929.151644 — Tests : odoo-backup.sh, durcissement BBB, surveillance de la sauvegarde.
-#   1.36.20260929.145745 — Tests : courriel (DNS, envoi reel, modes TLS), etape 13, utilisateurs connus hors equipe.
-#   1.35.20260929.144332 — Tests : sonde legere /web/health, ligne geante tronquee.
-#   1.34.20260929.134422 — Tests des verrous et de la source unique des adresses de l'equipe (test_locks, etape 12).
-#   1.33.20260929.130357 — Tests : --details, adresses partagees, limit_memory_hard=0.
-#   1.32.20260929.123856 — Tests de la liste unique de l'equipe (quatre outils) ; garde : tout apps/*.conf est un profil.
-#   1.31.20260929.084225 — Tests en echec relances seuls : echec confirme (bloquant) ou [INSTABLE] (last-instable.log).
-#   1.30.20260929.083206 — Tests : jail nginx-blocked-probes, ignoreip de fail2ban, refus journalises, sommaire.
-#   1.29.20260929.080620 — Tests du format combined_host (configuration, lecture awk) ; noms dans la recommandation.
-#   1.28.20260928.231233 — Tests : part du trafic des utilisateurs connectes et details par compte.
-#   1.27.20260928.224616 — Tests : --list-users, recommandation reformulee ; configuration testee a jour (equipe, Tailscale).
-#   1.26.20260928.220753 — Tests des plages d'adresses (equipe, liste blanche nginx, sommaire) ; configuration testee a jour.
-#   1.25.20260928.215040 — Tests : IP connectee a Odoo jamais proposee au bannissement ; section des connexions du sommaire.
-#   1.24.20260928.212833 — Tests : directive su (logrotate), variables non initialisees sur BBB, nom de l'utilisateur Odoo.
-#   1.23.20260928.211633 — Tests isoles de la machine : PATH sans commandes systeme sensibles, detection par fichiers isolee.
-#   1.22.20260928.141712 — Tests : certificat TLS (vrai serveur local), recommandations, compatibilite Python 3.8.
-#   1.21.20260928.103708 — Tests : espace des journaux, nos programmes exclus, workers d'Odoo, --unban-check, retention N mois, appareils (--stats).
-#   1.20.20260928.094028 — Tests des appareils des visiteurs et des 404 de nginx (web-monitor.py 2.9).
-#   1.19.20260928.091309 — Tests : echecs de synchronisation (diagnostic, suivi, cron), PATH sous cron, alerte web-monitor.
-#   1.18.20260928.083340 — Tests des preuves avant bannissement (nginx-log-audit.sh 2.5) et de web-monitor.py 2.7.
-#   1.17.20260927.224845 — Tests de la classification du sommaire sur les cas reels (web-monitor.py 2.6).
-#   1.16.20260927.220922 — Tests du bannissement en fin de passage et de --ban-recommended (web-monitor.py 2.5).
-#   1.15.20260927.215447 — Tests de --export-bans / --import-bans et du nouveau --status.
-#   1.14.20260927.212124 — Etape 0 : programmes presents (archive extraite sans copie reconnue) ; plus de plantage si apps/ manque.
-#   1.13.20260927.202645 — Changelogs dans doc/ ; tests --version/--changelog sans application et repli du changelog.
-#   1.12.20260927.200712 — Noms en anglais : tests/README.md, tests/helpers.py, tests/tools/ ; test des noms de fichiers.
-#   1.11.20260927.192332 — Tests de la phase 2 (raisonnement --ban, sortie aeree, magenta, entonnoir, pare-feu, less).
-#   1.10.20260927.145909 — Programmes renommes ; bibliotheques apps/ validees (ShellCheck, ruff) ; tests multi-application.
-#   1.9.20260927.101228 — Test des noms d'options en anglais (tous les programmes) ; tests de --summary enrichis.
-#   1.8.20260927.094449 — Tests de web-monitor.py --bilan (valeurs exactes, periode partielle).
-#   1.7.20260927.093411 — Tests de --unban-check (verdicts ; levee avec un fichier non executable).
-#   1.6.20260927.092739 — Tests : robot inoffensif jamais propose (faux positif reel), vrai scanner toujours propose.
-#   1.5.20260926.230736 — Test du setup adapte au message de verification fail2ban-regex explique (setup 1.21).
-#   1.4.20260926.225500 — Test de synchronisation de la copie de configuration : reussit (au lieu d'etre
-#                          « non verifie ») sur un serveur, ou seule la copie de la suite existe.
-#   1.3.20260926.223504 — Configuration nginx fournie dans tests/nginx-odoo/ (tests de configuration, plus de tests
-#                          desactives faute de modeles) ; nouvelle etape 5 : configuration deployee comparee a la testee.
-#   1.2.20260926.211237 — Raison reelle des tests desactives ; repertoires temporaires oublies supprimes (filet) ;
-#                          fonction grep_q devenue inutile retiree ; executables gawk et ruff fournis dans tests/tools/.
-#   1.1.20260926.165635 — Echec signale par un code de sortie 1 SANS faux « ARRET INATTENDU » (le test final
-#                          declenchait le piege ERR) ; sortie de ruff compacte (une ligne par defaut).
-#   1.0.20260926.132022 — Version initiale.
 #
 # Usage : nginx-tools-tests/run-all.sh [-v|--verbose] [--version] [--changelog]
 #   Code de sortie : 0 = tout ce qui a ete execute a reussi ; 1 = au moins un echec.
@@ -253,11 +53,14 @@ readonly SCRIPT_VERSION="1.194.20261021.130912"
 RUN_ALL_DEBUT=$(date +%s)
 TESTS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly TESTS_DIR
 PROG_DIR="${TEST_SCRIPTS_DIR:-$(dirname "$TESTS_DIR")}"; readonly PROG_DIR
-# Changelog dans le sous-repertoire doc/ ; repli sur l'ancien emplacement (a cote du programme) tant que
-# l'installation n'a pas ete reorganisee.
-CHANGELOG_FILE="$TESTS_DIR/doc/run-all.changelog.txt"
-if [[ ! -r "$CHANGELOG_FILE" && -r "$TESTS_DIR/run-all.changelog.txt" ]]; then CHANGELOG_FILE="$TESTS_DIR/run-all.changelog.txt"; fi
+# Journal : section de ce programme dans CHANGELOG.md (a la racine du depot).
+CHANGELOG_FILE="$TESTS_DIR/../CHANGELOG.md"
 readonly CHANGELOG_FILE
+
+# Section of this program in CHANGELOG.md (from its "## <file name>" heading to the next "## " heading).
+changelog_section() {
+    awk -v cle="${BASH_SOURCE[0]##*/}" '/^## /{dans=($0 == "## " cle); if (dans) print; next} dans' "$CHANGELOG_FILE"
+}
 VERBOSE=0; APP_FORCE=""; TOUS_ENVIRONNEMENTS=0; LISTE_SEULE=0; INSTALLER_MANQUANTS=0
 
 # Langue d'affichage (en ou fr) : --lang, RUN_ALL_LANG, LANGUAGE du fichier de configuration, LC_ALL / LANG — apps/_i18n.sh traduit la sortie (rien ne change en français).
@@ -303,9 +106,9 @@ while [[ $# -gt 0 ]]; do
         --changelog)
             if [[ ! -r "$CHANGELOG_FILE" ]]; then echo "Changelog introuvable : $CHANGELOG_FILE" >&2; exit 1; fi
             if [[ -t 1 ]]; then
-                sed -E $'s/([0-9]+\\.[0-9]+\\.[0-9]{8}\\.[0-9]{6})/\\x1b[1;36m\\1\\x1b[0m/' "$CHANGELOG_FILE" || true  # lecteur ferme plus tot : SIGPIPE attendu
+                changelog_section | sed -E $'s/([0-9]+\\.[0-9]+\\.[0-9]{8}\\.[0-9]{6})/\\x1b[1;36m\\1\\x1b[0m/' || true  # lecteur ferme plus tot : SIGPIPE attendu
             else
-                cat "$CHANGELOG_FILE" || true  # lecteur ferme plus tot (| head) : SIGPIPE attendu, pas une erreur
+                changelog_section || true  # lecteur ferme plus tot (| head) : SIGPIPE attendu, pas une erreur
             fi
             exit 0 ;;
         -h|--help)

@@ -58,30 +58,6 @@
 #   REMOTE=                       copie rsync facultative, ex. root@serveur-de-sauvegarde.exemple:/srv/sauvegardes/odoo
 #   TIMER_TIME=02:30              heure(s) de la sauvegarde automatique : une ou plusieurs HH:MM (ex. TIMER_TIME=09:00 16:00 23:00)
 #
-# HISTORIQUE (résumé ; détail : doc/odoo-backup.changelog.txt)
-#   1.19.20261020.211944 — Personal configuration file ~/.odoo-backup.conf (not .cfg); a legacy layer with .cfg is renamed automatically.
-#   1.18.20261019.150215 — New copyright: Services-Conseils Linux and Rencontres Linux au Québec contributors (AGPL-3.0-or-later).
-#   1.17.20261016.173838 — Ctrl+C answered at once during pg_dump, tar and rsync
-#   1.16.20261015.143436 — --anonymize : affichage anonymisé (pseudonymes stables).
-#   1.15.20261015.073057 — Date de modification des fichiers de configuration lus.
-#   1.14.20261014.175821 — Fichier commun app-default.conf (VERBOSE, DEBUG_LEVEL).
-#   1.13.20261012.103600 — Fichier de configuration créé au premier démarrage (toutes les options en commentaire) ; modèle doc/odoo-backup.conf.example complété.
-#   1.12.20261010.215000 — Affichage francais ou anglais (--lang, LANGUAGE du fichier de configuration) ; -c, synonyme de --config ; aide en anglais pour les arguments.
-#   1.11.20261008.120306 — Couleurs conservees avec --report-err.
-#   1.10.20261002.214327 — Premiere ligne de TOUTE execution (meme --help) : nom et version.
-#   1.9.20261002.073514 — Option --verbose : chaque commande externe (psql, pg_dump, tar, rsync, systemctl) est affichee.
-#   1.8.20260930.163902 — Option --report-err : rapport d'erreurs a copier-coller en fin d'execution.
-#   1.7.20260930.132809 — Plusieurs sauvegardes par jour (TIMER_TIME a plusieurs heures, --times) ; KEEP_RECENT_DAYS ; seuil d'alerte
-#                          calcule d'apres les heures.
-#   1.6.20260930.123230 — Configuration en couches (/etc/default puis ~), ligne de commande prioritaire, fichiers lus affiches ;
-#                          ancien fichier renomme AVANT toute operation sur le timer ; timer vers un fichier absent signale.
-#   1.5.20260930.093133 — Configuration dans /etc/default/odoo-backup.conf (creee au premier lancement) ; ancien emplacement lu en repli
-#                          avec avertissement ; --config introuvable = erreur ; timer sans chemin en dur.
-#   1.4.20260930.081347 — Motif « A && B || C » remplace par un « if » (ShellCheck SC2015).
-#   1.3.20260929.195459 — Aide : options par ordre alphabetique.
-#   1.2.20260929.185720 — --status : etat du timer lu correctement (systemctl is-active).
-#   1.1.20260929.180340 — Format d'Odoo (dump.sql, manifest.json, filestore/) en .zip ou .tar.xz ; --restore.
-#   1.0.20260929.150745 — Première version : pg_dump vérifié, filestore, SHA256SUMS, rétention, rsync, --test-restore, timer.
 # ========================================================================================================================
 
 set -euo pipefail
@@ -164,7 +140,7 @@ while [[ $# -gt 0 ]]; do
             fi
             exit 0
             ;;
-        -h|--help) sed -n '/^# Usage :/,/^# HISTORIQUE/p' "$SCRIPT_PATH" | sed '$d; s/^# \{0,1\}//'; exit 0 ;;
+        -h|--help) sed -n '/^# Usage :/,/^[^#]/p' "$SCRIPT_PATH" | sed '$d; s/^# \{0,1\}//'; exit 0 ;;
         --report-err) shift ;;                 # traité avant (apps/_rapport.sh) ; accepté ici avec --help, --version…
         *) echo "Argument inconnu: $1 (voir --help)" >&2; exit 1 ;;
     esac

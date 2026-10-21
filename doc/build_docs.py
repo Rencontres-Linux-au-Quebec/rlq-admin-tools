@@ -9,14 +9,6 @@
 # ========================================================================================================================
 # build_docs.py — builds the bilingual (en/fr) documentation of nginx-tools.
 #
-# VERSION HISTORY (summary — see doc/build_docs.changelog.txt for the full detail):
-#   1.6.20261019.150215 — Module rlq_tools_docs 18.0.1.7.0: overview (doc/ vs docs/, configuration refresh); author Services-Conseils Linux, RLQ contributors; new copyright.
-#   1.5.20261017.214019 — Module rlq_tools_docs 18.0.1.6.0: page web-monitor (IP seen, configuration keys).
-#   1.4.20261017.105442 — Module rlq_tools_docs 18.0.1.5.0: pages web-monitor (compact table, --csv, --group, --stats) and overview (language).
-#   1.3.20261016.173838 — Module rlq_tools_docs 18.0.1.4.0: pages app-log-live, web-monitor, odoo-update-module updated; author Services-Linux Conseils Inc.
-#   1.2.20261016.160728 — Module rlq_tools_docs 18.0.1.3.0: page app-log-live (--truncate, SSH accounts, RLQ* columns).
-#   1.1.20261016.151148 — Module rlq_tools_docs 18.0.1.2.0: new page host-perf-audit, updated pages (web-monitor, app-log-live, odoo-mail-retry, rlq_survey_report).
-#   1.0.20261015.180000 — Creation: Markdown sources + live --help of every program -> Markdown for GitHub, and an Odoo website module (rlq_tools_docs).
 """Documentation builder.
 
 Sources: doc/<lang>/NN-name.md. The placeholder {{HELP}} is replaced by the REAL `--help` output of the program of the same name (in that language), so the option lists

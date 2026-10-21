@@ -10,8 +10,6 @@
 # _record.py — test RECORDING for app-log-live.py (R key, --record-test-log): everything needed to analyze one test of the site,
 # gathered over the recording window and packed into one .tar.xz (shared module, apps/).
 #
-# VERSION HISTORY (summary — see doc/_record.changelog.txt for the full detail):
-#   1.0.20261020.230008 — Creation: filtered stream, raw log extracts, systemd journal window, network and PostgreSQL samples, database snapshots, README, .tar.xz.
 """One recording = one window of time [start, stop] and one archive `app-log-live-record-HOST-YYYYMMDD-HHMMSS[-label].tar.xz`:
 
   README.txt          what the archive holds (French and English): times (local and UTC), server, versions, label, filters, counts, missing sources
