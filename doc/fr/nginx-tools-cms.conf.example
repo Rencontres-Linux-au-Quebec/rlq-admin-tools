@@ -1,0 +1,6 @@
+# /etc/default/nginx-tools-cms.conf — CMS du site, pour savoir quelles URL sont SUSPECTES.
+# odoo      : site Odoo seul — /wp-login.php, /wp-admin, /wordpress, xmlrpc.php et les *.php sont des sondes de robots (suspects).
+# wordpress : site WordPress — ces URL sont des pages normales (jamais suspectes) ; .env, phpMyAdmin, sauvegardes… restent suspects.
+# auto      : (défaut) wordpress si un wp-config.php existe sous /var/www, /srv, /usr/share/nginx ou /opt, sinon odoo.
+# Ordre : --cms (app-log-live.py), variable NGINX_TOOLS_CMS, ce fichier, puis la détection. Lu par app-log-live.py, web-monitor.py et nginx-log-audit.sh.
+#CMS=auto
