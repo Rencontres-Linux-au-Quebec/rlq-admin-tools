@@ -271,9 +271,13 @@ if [[ -r "$SCRIPT_DIR/apps/_i18n.sh" ]]; then
 fi
 # Changelog dans le sous-repertoire doc/ ; repli sur l'ancien emplacement (a cote du programme) tant que
 # l'installation n'a pas ete reorganisee.
-CHANGELOG_FILE="$SCRIPT_DIR/doc/${SCRIPT_NAME}.changelog.txt"
-if [[ ! -r "$CHANGELOG_FILE" && -r "$SCRIPT_DIR/${SCRIPT_NAME}.changelog.txt" ]]; then CHANGELOG_FILE="$SCRIPT_DIR/${SCRIPT_NAME}.changelog.txt"; fi
+CHANGELOG_FILE="$SCRIPT_DIR/CHANGELOG.md"
 readonly CHANGELOG_FILE
+
+# Section of this program in CHANGELOG.md (from its "## <file name>" heading to the next "## " heading).
+changelog_section() {
+    awk -v cle="${BASH_SOURCE[0]##*/}" '/^## /{dans=($0 == "## " cle); if (dans) print; next} dans' "$CHANGELOG_FILE"
+}
 # migrer_chemin ANCIEN NOUVEAU : renommage des programmes en 2.0 — renomme un fichier ou repertoire de l'ancien nom
 # s'il existe et que le nouveau n'existe PAS encore (jamais d'ecrasement) ; silencieux si rien a faire ou si les
 # droits manquent (le programme continue avec le nouveau chemin).
@@ -395,9 +399,9 @@ while [[ $# -gt 0 ]]; do
                 exit 1
             fi
             if [[ -t 1 ]]; then
-                sed -E "s/^(## [0-9]+\.[0-9]+\.[0-9]{8}\.[0-9]{6}.*)$/$(printf '\x1b[1;36m')\1$(printf '\x1b[0m')/" "$CHANGELOG_FILE" | (trap '' PIPE; less -R 2>/dev/null || cat) || true  # lecteur ferme plus tot (| head) : SIGPIPE attendu, pas une erreur
+                changelog_section | sed -E "s/^(## [0-9]+\.[0-9]+\.[0-9]{8}\.[0-9]{6}.*)$/$(printf '\x1b[1;36m')\1$(printf '\x1b[0m')/" | (trap '' PIPE; less -R 2>/dev/null || cat) || true  # lecteur ferme plus tot (| head) : SIGPIPE attendu, pas une erreur
             else
-                cat "$CHANGELOG_FILE" || true  # lecteur ferme plus tot (| head) : SIGPIPE attendu, pas une erreur
+                changelog_section || true  # lecteur ferme plus tot (| head) : SIGPIPE attendu, pas une erreur
             fi
             exit 0
             ;;
