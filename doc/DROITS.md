@@ -10,7 +10,7 @@ La lecture de PostgreSQL passe par le compte `postgres` (`runuser`) : tout ce qu
 |---|---|---|
 | `zip-versions.py` | **Oui, entièrement** (lit des archives .zip) | Jamais |
 | `odoo-warmup.py` | **Oui** (requêtes HTTP vers le site) | Seulement pour écrire ou supprimer dans `/etc/default/odoo-warmup-pages` (sinon, fichier personnel) |
-| `app-health-check.py` | **Oui, en partie** (contrôles HTTP, certificats, services, disque) | `nginx -t`, PostgreSQL, fail2ban, journaux protégés ; `--create-config` dans `/etc/default` (sinon `~/.app-health-check.cfg`) |
+| `app-health-check.py` | **Oui, en partie** (contrôles HTTP, certificats, services, disque) | `nginx -t`, PostgreSQL, fail2ban, journaux protégés ; `--create-config` dans `/etc/default` (sinon `~/.app-health-check.conf`) |
 | `app-log-check.py` | **Oui, en partie** (lecture des journaux accessibles) — avis « Droits limités » | PostgreSQL (modules, utilisateurs), fail2ban, journaux illisibles |
 | `app-log-live.py` | **Oui, en partie** (flux des journaux lisibles) — avis « Droits limités » | Modules et inscriptions (PostgreSQL), fail2ban, pare-feu, `nginx -T`, bannir (touche b) |
 | `web-monitor.py` | **Oui pour lire** : `--summary`, `--list-users`, `--status`, `--dry-run`, `--unban-check` (résultats incomplets, avis « Droits limités ») | **Refusé dès le début** pour : passage normal, `--apply`, `--ban-recommended`, `--install-timer`, `--uninstall-timer` |
@@ -19,7 +19,7 @@ La lecture de PostgreSQL passe par le compte `postgres` (`runuser`) : tout ce qu
 | `odoo-update-module.sh` | **Oui** : `--dry-run` (simulation) | Mise à jour réelle (arrêt/démarrage du service, compte d'Odoo) |
 | `odoo-backup.sh` | **Oui** : `--dry-run` ; ou si l'on est déjà le compte PostgreSQL | Sauvegarde sous le compte PostgreSQL, `--install-timer`, `--uninstall-timer` |
 | `sync-crowdsec-blocklist.sh` | **Oui** : `--dry-run` | Synchronisation, `--status`, `--blocked`, `--install-cron`, `--uninstall`, `--ufw-hook` |
-| `odoo-chat-post.py` | **Oui, entièrement** (API externe d'Odoo avec une clé API ; aucune lecture de PostgreSQL) | Jamais ; seulement pour lire `/etc/default/odoo-chat-post.conf` (clé API, droits 600) : sinon `~/.odoo-chat-post.cfg` |
+| `odoo-chat-post.py` | **Oui, entièrement** (API externe d'Odoo avec une clé API ; aucune lecture de PostgreSQL) | Jamais ; seulement pour lire `/etc/default/odoo-chat-post.conf` (clé API, droits 600) : sinon `~/.odoo-chat-post.conf` |
 | `odoo-mail-retry.py` | **Non** | **Toujours** (tout passe par PostgreSQL) : refusé dès le début |
 
 Durée de conservation des journaux propres aux programmes (`app-log-live.py`, `web-monitor.py`, `odoo-update-module.sh`) : clé `LOG_KEEP_DAYS` de

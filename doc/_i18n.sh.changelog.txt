@@ -1,6 +1,35 @@
 Changelog — apps/_i18n.sh
 (version la plus récente en premier)
 
+## 1.16.20261020.211944 — Personal configuration file ~/.PROGRAM.conf (not .cfg)
+
+Reason:
+  « La règle de fichier de config est de lire avant dans /etc/default/programme.conf et si un fichier existe dans ~/.programme.conf ... pas .cfg »
+  « tous les programmes ainsi que la doc »
+
+Changes:
+  - New config_migrer_ancien CHEMIN.conf (result in CFG_A_LIRE) and _config_signaler: same rule and same messages as apps/_config.py.
+  - config_creer_defaut and config_lire: legacy ~/.app-default.cfg and ~/.PROGRAMME.cfg renamed BEFORE creation and reading.
+  - _i18n_relancer / _i18n_anonymize_configure: the legacy name still counts (LANGUAGE, ANONYMIZE) on the first run, before the rename.
+  - « Configuration : aucun fichier (cherchés : …) » shows ~/.PROGRAMME.conf.
+
+Bugs fixed:
+  none.
+
+Safeguards and edge cases:
+  - Legacy ~/.NAME.cfg alone: renamed to ~/.NAME.conf (same content, owner and permissions), one notice on stderr (French and English).
+  - Both files present: ~/.NAME.conf is read, ~/.NAME.cfg is IGNORED and reported once per run — never merged nor deleted (its settings may differ).
+  - Rename impossible (read-only home…): the legacy file is read as is, with a notice — settings never vanish silently.
+  - NGINX_TOOLS_CONFIG_MIGRER=0: no rename. One notice per file and per run, even across child programs (NGINX_TOOLS_CONFIG_SIGNALES).
+
+Checks:
+  - New tests test_config_commune.AncienNomPersonnel (Python and bash: rename, both files, read-only home as non-root, English notice, common file);
+  - test_conventions: no ~/.NAME.cfg in help, templates and documentation; full suite run-all.sh; ShellCheck 0.11.0 on the bash programs.
+
+Action required:
+  none — an existing ~/.PROGRAM.cfg is renamed ~/.PROGRAM.conf automatically at the next run. If both files exist, the program says so:
+  move the settings of the .cfg into the .conf, then delete the .cfg.
+
 ## 1.15.20261020.112434 — pad_cols: padding in screen columns
 
 Reason:

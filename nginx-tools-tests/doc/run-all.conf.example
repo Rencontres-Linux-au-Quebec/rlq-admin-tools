@@ -5,7 +5,7 @@
 # Fichier de configuration de run-all.sh (exemple : toutes les clés, en commentaire = valeur par défaut).
 # Les fichiers suivants sont LUS DANS CET ORDRE (le dernier l'emporte) ; la ligne de commande est prioritaire sur les fichiers :
 #   1. /etc/default/run-all.conf    (fichier du système)
-#   2. ~/.run-all.cfg               (s'il existe : réglages de l'utilisateur)
+#   2. ~/.run-all.conf               (s'il existe : réglages de l'utilisateur)
 # -c/--config FICHIER : ce fichier SEUL. Le programme affiche toujours quel(s) fichier(s) il lit, puis les options importantes.
 # Format : CLÉ=valeur, une par ligne ; # = commentaire ; booléens : oui / non. Ce fichier est LU, jamais exécuté.
 

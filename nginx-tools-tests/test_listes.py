@@ -90,9 +90,9 @@ class ListesPython(EnvTest):
 
     def test_liste_blanche_seulement_dans_etc_default_lieux_aussi_dans_home(self):
         home = os.path.dirname(self.path("home", "x"))
-        with open(os.path.join(home, ".nginx-tools-white-list.cfg"), "w") as f:
+        with open(os.path.join(home, ".nginx-tools-white-list.conf"), "w") as f:
             f.write("203.0.113.1  # caché dans ~\n")                                           # ne doit JAMAIS être lu : la liste blanche donne accès
-        with open(os.path.join(home, ".nginx-tools-ip-location.cfg"), "w") as f:
+        with open(os.path.join(home, ".nginx-tools-ip-location.conf"), "w") as f:
             f.write("192.0.2.0/24  # Lieu de l'utilisateur  [partagée]\n")
         ancien_home = os.environ.get("HOME")
         os.environ["HOME"] = home
@@ -105,7 +105,7 @@ class ListesPython(EnvTest):
             else:
                 os.environ["HOME"] = ancien_home
         self.assertEqual(blanche, "/etc/default/nginx-tools-white-list.conf")
-        self.assertEqual(lieux, ["/etc/default/nginx-tools-ip-location.conf", os.path.join(home, ".nginx-tools-ip-location.cfg")])
+        self.assertEqual(lieux, ["/etc/default/nginx-tools-ip-location.conf", os.path.join(home, ".nginx-tools-ip-location.conf")])
         self.assertEqual(L.blanche, [])
         self.assertEqual(L.lieu("192.0.2.9").libelle, "Lieu de l'utilisateur")
         self.assertIn("liste blanche : aucun fichier", L.resume())
@@ -184,12 +184,12 @@ class ListesBash(EnvTest):
         home = os.path.dirname(self.path("home", "x"))
         vide = self.bash("listes_resume", NGINX_TOOLS_WHITE_LIST=os.path.join(self.d, "absent"), NGINX_TOOLS_IP_LOCATION=os.path.join(self.d, "absent2"), HOME=home).strip()
         self.assertEqual(vide, "Listes : liste blanche : aucun fichier ; lieux : aucun fichier")
-        with open(os.path.join(home, ".nginx-tools-ip-location.cfg"), "w") as f:
+        with open(os.path.join(home, ".nginx-tools-ip-location.conf"), "w") as f:
             f.write("192.0.2.0/24  # Lieu\n")
         r = subprocess.run(["bash", "-c", f'. "{listes_sh(self.d)}"; listes_resume'], capture_output=True, text=True,
                            env={k: v for k, v in dict(os.environ, NGINX_TOOLS_WHITE_LIST=os.path.join(self.d, "absent"), HOME=home, SCRIPT_DIR=SCRIPTS_DIR).items()
                                 if k != "NGINX_TOOLS_IP_LOCATION"})
-        self.assertIn(f"lieux {home}/.nginx-tools-ip-location.cfg (1 plage(s))", r.stdout)
+        self.assertIn(f"lieux {home}/.nginx-tools-ip-location.conf (1 plage(s))", r.stdout)
 
     def test_ancien_emplacement_en_bash(self):
         dossier = os.path.dirname(self.write("scripts/apps/team-ips.list", "203.0.113.10  # ancienne\n"))

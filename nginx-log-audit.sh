@@ -12,6 +12,7 @@
 # catch-all) + statistiques de type goaccess + verification cible d'une IP.
 #
 # HISTORIQUE DE VERSION (resume — voir nginx-log-audit.changelog.txt pour le détail complet de chaque version) :
+#   2.42.20261020.211944 — Personal configuration file ~/.nginx-log-audit.conf (not .cfg); a legacy one with .cfg is renamed automatically.
 #   2.41.20261020.175756 — --ban-history and --reason in the configuration template; English texts of the 2.40 score clues.
 #   2.40.20261020.161238 — Ban justification and time: --reason, --ban-history; --investigate shows when and why an address was banned.
 #   2.39.20261019.150215 — New copyright: Services-Conseils Linux and Rencontres Linux au Québec contributors (AGPL-3.0-or-later).
@@ -332,7 +333,7 @@ grep_q() { grep "$@" >/dev/null; }
 #                              ne peut pas le voir, le texte etant entre apostrophes (faux positif).
 trap 'ec=$?; echo "" >&2; echo "*** ARRÊT INATTENDU DU SCRIPT (code $ec) À LA LIGNE $LINENO ***" >&2; echo "*** Commande fautive : $BASH_COMMAND" >&2; echo "*** Si le rapport ci-dessus semble incomplet (ex. sections Top 10 absentes), c'\''est probablement la cause." >&2' ERR
 
-readonly SCRIPT_VERSION="2.41.20261020.175756"
+readonly SCRIPT_VERSION="2.42.20261020.211944"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
 # Chemin de ce programme (relances --investigate, --ban, --unban) : defini ICI, avant le bloc --ban qui l'utilise.
 SELF_PATH="$SCRIPT_DIR/$(basename "${BASH_SOURCE[0]}")"
@@ -391,7 +392,7 @@ fi
 # Première ligne de TOUTE exécution, même avec --help : le nom et la version du programme (--version l'affiche lui-même).
 # --export-bans écrit une LISTE d'adresses destinée à être redirigée dans un fichier puis réimportée : la version va sur la sortie d'erreur.
 case " $* " in *" --version "*) ;; *" --export-bans "*) echo "nginx-log-audit.sh v$SCRIPT_VERSION" >&2 ;; *) echo "nginx-log-audit.sh v$SCRIPT_VERSION" ;; esac
-# Configuration (/etc/default/nginx-log-audit.conf, puis ~/.nginx-log-audit.cfg ; -c/--config : ce fichier SEUL) : valeurs par défaut des options, la ligne de commande l'emporte.
+# Configuration (/etc/default/nginx-log-audit.conf, puis ~/.nginx-log-audit.conf ; -c/--config : ce fichier SEUL) : valeurs par défaut des options, la ligne de commande l'emporte.
 # Clés : APP, BAN_THRESHOLD, LANGUAGE, NO_PROMPT, PAGE_BURST, PARALLEL_THRESHOLD, UA_ROTATION_THRESHOLD, VERBOSE.
 if declare -F config_lire >/dev/null; then
     config_lire nginx-log-audit "$@"
@@ -470,7 +471,7 @@ Options (par ordre alphabétique) :
   --ban-history                journal des bannissements et levées manuels : date, heure, justification, origine (lecture seule)
   --ban-threshold N            nombre d'indices à partir duquel le bannissement est proposé (défaut : 3)
   --changelog                  affiche le journal des modifications
-  -c, --config FILE            fichier de configuration à lire SEUL (sinon : /etc/default/nginx-log-audit.conf, puis ~/.nginx-log-audit.cfg ;
+  -c, --config FILE            fichier de configuration à lire SEUL (sinon : /etc/default/nginx-log-audit.conf, puis ~/.nginx-log-audit.conf ;
                                clés : APP, BAN_THRESHOLD, LANGUAGE, NO_PROMPT, PAGE_BURST, PARALLEL_THRESHOLD, UA_ROTATION_THRESHOLD, VERBOSE)
   --details                    avec --stats : détail de chaque indicateur
   --evidence IP                preuves pour ou contre le bannissement d'une IP et verdict, sans rien demander ni bannir (lecture seule)

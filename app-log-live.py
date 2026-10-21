@@ -61,6 +61,7 @@
 # BigBlueButton (file journals): the nginx and bbb-web journals are followed (tail -F), without names of people or presence.
 #
 # VERSION HISTORY (summary — see doc/app-log-live.changelog.txt for the full detail):
+#   1.92.20261020.211944 — Personal configuration file ~/.app-log-live.conf (not .cfg); a legacy one with .cfg is renamed automatically.
 #   1.91.20261020.203430 — Columns never squeezed by --truncate (the message is cut); country before every public address (this server too); names of people anonymized (membre-4f2a9c); underline to the end of the line; --underline [N]; A key toggles --anonymize.
 #   1.90.20261020.164846 — Merge of 1.87 (bans: --reason passed to nginx-log-audit.sh) with 1.88 and 1.89 (underlined lines, --truncate, --anonymize, --no-underline).
 #   1.89.20261020.112434 — --truncate / --anonymize by default only on a TERMINAL (a pipe, another program, the tests: real whole lines); explicit options always apply; --no-underline.
@@ -195,7 +196,7 @@ from urllib.parse import unquote
 from collections import Counter, OrderedDict
 from concurrent.futures import Future
 
-__version__ = "1.91.20261020.203430"
+__version__ = "1.92.20261020.211944"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
@@ -244,7 +245,7 @@ LANGUAGE = I18N.langue if I18N else "fr"
 TR = I18N.tr if I18N else (lambda text: text)
 if I18N:
     print, input = I18N.print, I18N.input          # noqa: A001 — all displayed text goes through the translator (no effect in French)
-# Configuration file options (/etc/default/app-log-live.conf, then the personal file .app-log-live.cfg): KEY -> (command-line option, type).
+# Configuration file options (/etc/default/app-log-live.conf, then the personal file .app-log-live.conf): KEY -> (command-line option, type).
 # LANGUAGE: en, fr or auto (follow LC_ALL / LANG).
 def _comma_list(value):
     """"a, b" -> ['a', 'b'] (configuration value with several items)."""
@@ -5132,10 +5133,10 @@ def follow(cmd, people, resolver, options, output):
                 write_out([f"  No setting changed since startup: nothing to save into {target}."])
             else:
                 write_out([f"  Settings changed since startup (to write into {target}):"] + [f"    {color_code('1;36', k)}={v}   (before: {config_at_start.get(k)})" for k, v in sorted(changes.items())])
-                rep = ask("Save? [o] yes  [p] in my personal file " + f"~/.{SCRIPT_NAME}.cfg" + "  [N] no: ")
+                rep = ask("Save? [o] yes  [p] in my personal file " + f"~/.{SCRIPT_NAME}.conf" + "  [N] no: ")
                 choice = (rep or "").strip().lower()
                 if choice in ("o", "oui", "y", "yes", "p"):
-                    target = os.path.join(os.path.expanduser("~"), f".{SCRIPT_NAME}.cfg") if choice == "p" else target
+                    target = os.path.join(os.path.expanduser("~"), f".{SCRIPT_NAME}.conf") if choice == "p" else target
                     try:
                         write_out([f"  {write_config(target, changes)} setting(s) written into {color_code('1;32', target)} (re-read at the next launch)."])
                         config_at_start.update(changes)
@@ -5366,7 +5367,7 @@ def main():
                         help=f"Every minute, WARNING in the stream when a connection limit (Odoo chat / websocket, HTTP, PostgreSQL, nginx) is used at PCT %% or more, "
                              f"with the setting to change (default: {CONNECTIONS_THRESHOLD_DEFAULT:g}; 0 = never)")
     parser.add_argument("-c", "--config", metavar="FILE",
-                        help="Configuration file to read ALONE (otherwise: /etc/default/app-log-live.conf, then the personal file .app-log-live.cfg; options in UPPERCASE: APP, CONNECTIONS, DAYS, DNS_MAX, HEALTH, HIDE_IP, IDLE, LANGUAGE, LINES, LOG_DIR, LOG_KEEP_DAYS, MIN, NAMESPACE, NO_BANNED, NO_BAN_PROMPT, NO_CACHE, NO_HISTORY, NO_ISP, NO_KEYS, NO_LOG_FILE, NO_PRESENCE, NO_USER_AGENT, RECAP, SERVICE, SLOW, VERBOSE)")
+                        help="Configuration file to read ALONE (otherwise: /etc/default/app-log-live.conf, then the personal file .app-log-live.conf; options in UPPERCASE: APP, CONNECTIONS, DAYS, DNS_MAX, HEALTH, HIDE_IP, IDLE, LANGUAGE, LINES, LOG_DIR, LOG_KEEP_DAYS, MIN, NAMESPACE, NO_BANNED, NO_BAN_PROMPT, NO_CACHE, NO_HISTORY, NO_ISP, NO_KEYS, NO_LOG_FILE, NO_PRESENCE, NO_USER_AGENT, RECAP, SERVICE, SLOW, VERBOSE)")
     parser.add_argument("--chime", type=int, nargs="?", const=0, default=None, choices=(0, 1, 2), metavar="N",
                         help="Beep (in byobu/tmux too: see the tips shown) when a displayed line is an error: 0 = any error (4xx, 5xx, Odoo ERROR), 1 = 4xx, 2 = 5xx and 4xx (0 without value)")
     parser.add_argument("--days", type=int, default=DAYS_DEFAULT, metavar="N",

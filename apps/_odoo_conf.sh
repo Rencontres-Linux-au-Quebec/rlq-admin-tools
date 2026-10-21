@@ -13,7 +13,7 @@
 #   odoo_conf_charger FICHIER    définit ODOO_CONF_HTTP_PORT, ODOO_CONF_GEVENT_PORT, ODOO_CONF_LOGFILE, ODOO_CONF_INTERFACE
 #                                (valeurs de la configuration ; ports par défaut d'Odoo 8069 / 8072 si absents)
 # Liste des candidats (premier trouvé gagne), par ordre de priorité : variable d'environnement ODOO_CONF_PATHS, puis ligne
-# ODOO_CONF_PATHS="..." de ~/.nginx-hardening.cfg, puis de /etc/default/nginx-hardening.conf, puis la liste ci-dessous.
+# ODOO_CONF_PATHS="..." de ~/.nginx-hardening.conf, puis de /etc/default/nginx-hardening.conf, puis la liste ci-dessous.
 # Séparateur : espace ; les motifs avec * sont développés. APP_DETECT_ROOT (tests) préfixe tous les chemins.
 # shellcheck shell=bash
 
@@ -32,7 +32,10 @@ _odoo_conf_reglage() {
 
 odoo_conf_chemins() {
     local liste="${ODOO_CONF_PATHS:-}" etc="${NGINX_TOOLS_ETC_DEFAULT:-/etc/default}"
-    [[ -n "$liste" ]] || liste=$(_odoo_conf_reglage "${HOME:-/nonexistent}/.nginx-hardening.cfg" ODOO_CONF_PATHS) || liste=""
+    local perso="${HOME:-/nonexistent}/.nginx-hardening.conf"
+    if declare -F config_migrer_ancien >/dev/null; then config_migrer_ancien "$perso"; perso="$CFG_A_LIRE"          # legacy ~/.nginx-hardening.cfg renamed
+    elif [[ ! -e "$perso" && -e "${perso%.conf}.cfg" ]]; then perso="${perso%.conf}.cfg"; fi
+    [[ -n "$liste" ]] || liste=$(_odoo_conf_reglage "$perso" ODOO_CONF_PATHS) || liste=""
     [[ -n "$liste" ]] || liste=$(_odoo_conf_reglage "$etc/nginx-hardening.conf" ODOO_CONF_PATHS) || liste=""
     [[ -n "$liste" ]] || liste="$ODOO_CONF_PATHS_DEFAUT"
     set -f   # séparation par espaces SANS développer les motifs (fait plus tard, sous APP_DETECT_ROOT)

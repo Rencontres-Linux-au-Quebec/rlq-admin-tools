@@ -20,7 +20,7 @@ The program refuses to write unless it has verified that `document_page` is **in
 
 ## Configuration
 
-`/etc/default/odoo-docs.conf`, then `~/.odoo-docs.cfg` (keys `API_KEY`, `DB`, `DOCS_DIR`, `LANGUAGE`, `LOGIN`, `ROOT`, `TARGET`, `URL`; model: `doc/odoo-docs.conf.example`). The API key (`chmod 600`) may also come from `ODOO_API_KEY`. Updates are idempotent: a page is found by name and parent and rewritten only when its content changed (revision summary `odoo-docs.py <version>`).
+`/etc/default/odoo-docs.conf`, then `~/.odoo-docs.conf` (keys `API_KEY`, `DB`, `DOCS_DIR`, `LANGUAGE`, `LOGIN`, `ROOT`, `TARGET`, `URL`; model: `doc/odoo-docs.conf.example`). The API key (`chmod 600`) may also come from `ODOO_API_KEY`. Updates are idempotent: a page is found by name and parent and rewritten only when its content changed (revision summary `odoo-docs.py <version>`).
 
 ## Options
 {{HELP}}

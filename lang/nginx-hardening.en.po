@@ -36,8 +36,8 @@ msgstr "Options (in alphabetical order):"
 msgid "  --app NAME                   application derrière nginx (profil apps/NAME.conf : odoo, bbb…) ; détectée par défaut"
 msgstr "  --app NAME                   application behind nginx (profile apps/NAME.conf: odoo, bbb…); detected by default"
 
-msgid "  -c, --config FILE            fichier de configuration à lire SEUL (défaut : /etc/default/nginx-hardening.conf puis ~/.nginx-hardening.cfg)"
-msgstr "  -c, --config FILE            configuration file to read ALONE (default: /etc/default/nginx-hardening.conf then ~/.nginx-hardening.cfg)"
+msgid "  -c, --config FILE            fichier de configuration à lire SEUL (défaut : /etc/default/nginx-hardening.conf puis ~/.nginx-hardening.conf)"
+msgstr "  -c, --config FILE            configuration file to read ALONE (default: /etc/default/nginx-hardening.conf then ~/.nginx-hardening.conf)"
 
 msgid "  --changelog                  affiche le journal des modifications"
 msgstr "  --changelog                  show the change log"

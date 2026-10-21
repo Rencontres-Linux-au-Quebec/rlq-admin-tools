@@ -5,7 +5,7 @@
 #
 # Copie manuelle : les fichiers suivants sont LUS DANS CET ORDRE et fusionnés (le dernier l'emporte ; sans -c) :
 #   1. /etc/default/app-health-check.conf   (fichier du système)
-#   2. ~/.app-health-check.cfg              (s'il existe : réglages de l'utilisateur)
+#   2. ~/.app-health-check.conf              (s'il existe : réglages de l'utilisateur)
 # Le répertoire courant n'est PAS lu (le résultat dépendrait d'où le programme est lancé). -c/--config FICHIER : ce fichier SEUL. Le programme affiche toujours quels fichiers il lit, et les options importantes.
 # Sur un serveur qui n'a qu'un seul environnement (DEV ou PROD), le fichier 1 suffit généralement. Puis :
 #   chmod 600 /etc/default/app-health-check.conf
