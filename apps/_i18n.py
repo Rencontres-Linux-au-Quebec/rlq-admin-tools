@@ -455,6 +455,8 @@ class Contexte:
     def afficher_configuration(self, defauts, problemes, sortie=None):
         """Deux lignes de départ : QUEL(S) fichier(s) de configuration ont été lus, et les options importantes qui en résultent (langue comprise)."""
         sortie = sortie or self.print
+        if "--changelog" in sys.argv:          # --changelog n'affiche que le journal : pas de bandeau de configuration
+            return
         if os.environ.get("NGINX_TOOLS_CONFIG_VUE"):          # déjà affichée par le programme appelant : pas de répétition dans les sorties qu'il analyse
             return
         os.environ["NGINX_TOOLS_CONFIG_VUE"] = "1"
