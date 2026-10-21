@@ -12,6 +12,7 @@
 # catch-all) + statistiques de type goaccess + verification cible d'une IP.
 #
 # HISTORIQUE DE VERSION (resume — voir nginx-log-audit.changelog.txt pour le détail complet de chaque version) :
+#   2.41.20261020.175756 — --ban-history and --reason in the configuration template; English texts of the 2.40 score clues.
 #   2.40.20261020.161238 — Ban justification and time: --reason, --ban-history; --investigate shows when and why an address was banned.
 #   2.39.20261019.150215 — New copyright: Services-Conseils Linux and Rencontres Linux au Québec contributors (AGPL-3.0-or-later).
 #   2.38.20261016.173838 — Ctrl+C works while the program is running (timeout --foreground)
@@ -331,7 +332,7 @@ grep_q() { grep "$@" >/dev/null; }
 #                              ne peut pas le voir, le texte etant entre apostrophes (faux positif).
 trap 'ec=$?; echo "" >&2; echo "*** ARRÊT INATTENDU DU SCRIPT (code $ec) À LA LIGNE $LINENO ***" >&2; echo "*** Commande fautive : $BASH_COMMAND" >&2; echo "*** Si le rapport ci-dessus semble incomplet (ex. sections Top 10 absentes), c'\''est probablement la cause." >&2' ERR
 
-readonly SCRIPT_VERSION="2.40.20261020.161238"
+readonly SCRIPT_VERSION="2.41.20261020.175756"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
 # Chemin de ce programme (relances --investigate, --ban, --unban) : defini ICI, avant le bloc --ban qui l'utilise.
 SELF_PATH="$SCRIPT_DIR/$(basename "${BASH_SOURCE[0]}")"

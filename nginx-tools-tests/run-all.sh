@@ -31,6 +31,7 @@
 # unitaires, fonctionnels, interactifs et de conformite (nature MESUREE pendant chaque test), desactives et en echec, et les tests les plus lents.
 #
 # HISTORIQUE DE VERSION (resume — voir run-all.changelog.txt pour le detail complet) :
+#   1.190.20261020.175756 — Runs WITHOUT root (simulated root in the test copies only); tests never write the real /etc or /var (system defaults redirected, checked at the end); no more stop on « Broken pipe » (nginx-tools 1.137).
 #   1.189.20261020.163255 — tools/ (static gawk 5.3.2 and ruff 0.16.9) now in the Git repository, with tools/LISEZMOI.md (versions, licences, sources, SHA-256).
 #   1.188.20261020.112434 — Statistics at the end (duration, CPU, memory, disk, tests per program: unit / functional / interactive / conformity); personal data removed from the tests; FR/EN sample data and alignment tests; nginx-odoo/ read from NGINX_ODOO_DIR (not in git) (nginx-tools 1.134).
 #   1.187.20261017.214019 — Tests of web-monitor 2.69 (IP seen, sorted title, configuration keys) (nginx-tools 1.128).
@@ -244,7 +245,7 @@ run_all_nettoyer() {
 CTRL_C_NETTOYAGE=run_all_nettoyer
 trap 'run_all_nettoyer; exit 143' TERM
 
-readonly SCRIPT_VERSION="1.189.20261020.163255"
+readonly SCRIPT_VERSION="1.190.20261020.175756"
 RUN_ALL_DEBUT=$(date +%s)
 TESTS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly TESTS_DIR
 PROG_DIR="${TEST_SCRIPTS_DIR:-$(dirname "$TESTS_DIR")}"; readonly PROG_DIR
@@ -509,10 +510,12 @@ empreinte_configs() {
              /etc/default/nginx-tools-mail.conf /etc/default/nginx-tools-mail.pass /etc/msmtprc \
              /etc/default/nginx-tools-white-list.conf /etc/default/nginx-tools-ip-location.conf /var/lib/nginx-tools/ip-cache.sqlite \
              /var/lib/nginx-tools/odoo-users.tsv; do
-        if [[ -e "$f" ]]; then sha256sum "$f"; else echo "absent  $f"; fi
+        # 1.190 : fichier illisible sans root (droits 600) : taille et date de modification (stat), qui changent aussi si un test l'écrit
+        if [[ -r "$f" ]]; then sha256sum "$f"; elif [[ -e "$f" ]]; then echo "illisible $(stat -c '%s %Y' "$f" 2>/dev/null)  $f"; else echo "absent  $f"; fi
     done
 }
 CONFIGS_AVANT=$(empreinte_configs)
+MARQUE_SYSTEME=$(mktemp)                                         # 1.190 : tout fichier de /etc ou /var/backups modifié APRÈS ce point est examiné à la fin
 AWKS=()
 for a in mawk gawk original-awk; do command -v "$a" >/dev/null 2>&1 && AWKS+=("$(command -v "$a")"); done
 BB_WRAP=""
@@ -556,7 +559,8 @@ for a in "${AWKS[@]}"; do
                  | awk '{ id = $2; if (id !~ ("\\." $1 "$")) id = id "." $1; print id }' | sort -u)
         if (( ${#confirmes[@]} > 0 || ${#instables[@]} == 0 )); then
             ko "tests sous $nom : $bilan"
-            printf '%s\n' "$res" | grep -E '^(FAIL|ERROR):|AssertionError|Error:' | head -40 | sed 's/^/      /'
+            # 1.190 : sed lit TOUTE l'entrée (pas de « head ») : sinon grep reçoit SIGPIPE et « set -o pipefail » + le piège ERR arrêtaient run-all.sh
+            printf '%s\n' "$res" | grep -E '^(FAIL|ERROR):|AssertionError|Error:' | sed -n '1,40s/^/      /p'
         else
             ok "tests sous $nom : tous réussis une fois relancés seuls"
         fi
@@ -587,6 +591,21 @@ done
 TMP_APRES=$(find "${TMPDIR:-/tmp}" -maxdepth 1 -name 'test-rlq-*' 2>/dev/null | sort) || true
 RESTES=$(comm -13 <(printf '%s\n' "$TMP_AVANT") <(printf '%s\n' "$TMP_APRES") | grep . || true)
 CONFIGS_APRES=$(empreinte_configs)
+# 1.190 : fichiers SYSTÈME modifiés pendant la suite. Un test ne doit JAMAIS écrire hors de son dossier : un fichier qui nomme un dossier de test
+# (/tmp/test-rlq-…) vient d'un test = échec ; les autres (un service de la machine a pu écrire pendant ce temps) = pour information.
+ECRITS_PAR_TESTS=(); ECRITS_AUTRES=()
+while IFS= read -r f; do
+    [[ -z "$f" ]] && continue
+    if grep -qs 'test-rlq-' "$f"; then ECRITS_PAR_TESTS+=("$f"); else ECRITS_AUTRES+=("$f"); fi
+done < <(find /etc /var/backups -xdev -type f -newer "$MARQUE_SYSTEME" 2>/dev/null | sort)
+rm -f "$MARQUE_SYSTEME"
+if (( ${#ECRITS_PAR_TESTS[@]} > 0 )); then
+    ko "la suite de tests a ÉCRIT ${#ECRITS_PAR_TESTS[@]} fichier(s) du système (ils nomment un dossier de test) — à supprimer :"
+    printf '      %s\n' "${ECRITS_PAR_TESTS[@]}"
+fi
+if (( ${#ECRITS_AUTRES[@]} > 0 )); then
+    echo "  [INFO]  ${#ECRITS_AUTRES[@]} fichier(s) de /etc ou /var/backups modifié(s) pendant la suite, sans lien avec un test (un service de la machine) : ${ECRITS_AUTRES[*]:0:5}"
+fi
 if [[ "$CONFIGS_AVANT" != "$CONFIGS_APRES" ]]; then
     ko "la suite de tests a MODIFIÉ un fichier de configuration réel (elle doit tout rediriger vers un dossier temporaire) :"
     diff <(printf '%s\n' "$CONFIGS_AVANT") <(printf '%s\n' "$CONFIGS_APRES") | grep '^[<>]' | sed 's/^/      /' || true
@@ -637,7 +656,7 @@ controle_reel() {          # controle_reel LIBELLÉ COMMANDE… : lignes [OK]/[A
     n_fail=$(printf '%s\n' "$sortie" | grep -cE '^\s*(\x1b\[[0-9;]*m)?\[(FAIL|ÉCHEC)\]' || true)
     n_attn=$(printf '%s\n' "$sortie" | grep -cE '^\s*(\x1b\[[0-9;]*m)?\[ATTN\]' || true)
     echo "  [INFO]  $libelle : $n_fail échec(s), $n_attn avertissement(s) sur ce serveur"
-    printf '%s\n' "$sortie" | grep -E '^\s*(\x1b\[[0-9;]*m)?\[(FAIL|ÉCHEC|ATTN)\]' | head -8 | sed 's/^/          /'
+    printf '%s\n' "$sortie" | grep -E '^\s*(\x1b\[[0-9;]*m)?\[(FAIL|ÉCHEC|ATTN)\]' | sed -n '1,8s/^/          /p'
 }
 case "$ENV_APP" in
     bbb)

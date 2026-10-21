@@ -550,7 +550,7 @@ class ChkNginxLogs(EnvTest):
             self.assertIn(ip, regles)
         self.assertNotIn("11.126.46.49", regles)
         journal = open(os.path.join(self.env["NGINX_LOG_AUDIT_STATE_DIR"], "bans.tsv")).read()
-        self.assertRegex(journal, r"\tbanni\t11\.55\.161\.77\timporté de \S+\n")          # origine en 4e colonne
+        self.assertRegex(journal, r"\tbanni\t11\.55\.161\.77\timporté de \S+( — [^\t\n]*)?(\t[^\n]*)?\n")          # origine en 4e colonne (2.40 : justification, qui)
 
     # --- --unban-check (1.34) ------------------------------------------------------------------------------------------
     def _bannissements(self):
@@ -635,14 +635,14 @@ class ChkNginxLogs(EnvTest):
                     pass
                 self._burst_aws()
                 text, _ = self.run_pty(["bash", self.prog, "prod", "--init"],
-                                       [(b"maintenant ? [o/N]", b"n" + effacement + b"o\n", 0.2)])
+                                       [(b"maintenant ? [o/N]", b"n" + effacement + b"o\n", 0.2), (b"> ", b"\n", 0.3)])
                 self.assertIn("Règle iptables ajoutée", text, "réponse « n », effacée, puis « o » : doit bannir")
 
     @unittest.skipUnless(os.geteuid() == 0, "la question de bannissement exige root")
     def test_reponse_tapee_lentement_acceptee(self):
         """1.26 : « $? » après un « if » sans « else » valait 0 — une réponse tapée en plus d'1 s était ignorée."""
         self._burst_aws()
-        text, _ = self.run_pty(["bash", self.prog, "prod", "--init"], [(b"maintenant ? [o/N]", b"o\n", 1.5)])
+        text, _ = self.run_pty(["bash", self.prog, "prod", "--init"], [(b"maintenant ? [o/N]", b"o\n", 1.5), (b"> ", b"\n", 0.3)])
         self.assertIn("Règle iptables ajoutée", text)
         self.assertIn("11.22.62.38", open(os.path.join(self.d, "rules")).read())
 

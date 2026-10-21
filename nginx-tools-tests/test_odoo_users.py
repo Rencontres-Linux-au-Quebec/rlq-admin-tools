@@ -9,7 +9,7 @@ import os
 import unicodedata
 import unittest
 
-from helpers import EnvTest, script_path
+from helpers import SANS_ROOT_SIMULE, EnvTest, script_path
 
 SEP = "\\037"
 MOIS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
@@ -212,7 +212,7 @@ esac''')
     def test_sans_root_le_bannissement_est_refuse(self):
         if os.geteuid() == 0:
             self.skipTest("test du refus sans root")
-        rc, out, err = self.lancer("--ban-odoo-user", "x@exemple.org", "--yes")
+        rc, out, err = self.lancer("--ban-odoo-user", "x@exemple.org", "--yes", env=dict(self.env, **SANS_ROOT_SIMULE))      # run-all 1.190 : vrai refus, sans root simulé
         self.assertEqual(rc, 2)
 
     # --- tableau : largeur des caractères chinois ----------------------------------------------------------------------

@@ -3,6 +3,29 @@
 #
 # Version la plus récente en premier.
 
+## 2.41.20261020.175756 — --ban-history and --reason in the template; English texts of the score clues
+
+Reason:
+  « La version run-all.sh v1.189.20261020.16325 me donne ces erreurs (il ne faut pas être root pour faire les tests) : [...] sha256sum: /etc/default/odoo-backup.conf: Permission denied [...] [ÉCHEC] tests sous mawk : Ran 844 tests in 812.664s FAILED (failures=63, errors=18, skipped=83) [...] *** ARRÊT INATTENDU DE run-all.sh (code 2) À LA LIGNE 559 »
+
+Changes:
+  - doc/nginx-log-audit.conf.example: --ban-history and --reason TEXT added to the list of command-line-only options (alphabetical order).
+  - lang/nginx-log-audit.en.po: the 19 texts of 2.40 without an English translation (score clues: burst, scripting tool, double identity, sensitive files,
+    errors, rented server, fake search engine; ban journal: « via the command line »…); duplicate entry « levé » removed.
+
+Bugs fixed:
+  - Symptom: test_config_defaut « ['--ban-history', '--reason'] != [] » and test_i18n (19 messages without translation, « msgid en double »). Diagnosis:
+    2.40 added the options and texts without the template and catalogue entries. Fix: entries added.
+
+Safeguards and edge cases:
+  - The sed pattern that reads the FRENCH output of the program keeps an identical entry (it is not displayed).
+
+Checks:
+  - test_config_defaut, test_i18n; whole suite (run-all.sh 1.190).
+
+Action required:
+  none.
+
 ## 2.40.20261020.161238 — Ban justification and time: --reason, --ban-history; --investigate shows when and why an address was banned
 
 Reason:
