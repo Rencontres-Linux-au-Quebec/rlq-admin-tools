@@ -1,6 +1,33 @@
 Changelog — apps/_anonymiser.py
 (version la plus récente en premier)
 
+## 1.3.20261020.203430 — Names of people (register given by the program); NGINX_TOOLS_ANON_SELF
+
+Reason:
+  app-log-live.py 1.91 [1]: « l'anonymisation n'a pas fonctionné pour le nom des membres qui se sont connecté sur le site web. Il faudrait probablement
+  indiquer membre-UID (le UID x un chiffre random) ».
+
+Changes:
+  - Anonymiseur(sel=None, fixed_width=False, names=None, names_lock=None): `names` = {name shown: (prefix, stable key)} filled by the program (app-log-live.py:
+    logged-in accounts and team labels); add_name(name, key, prefix). names_sub(text): each registered name (longest first, whole word, also right after a
+    color code) becomes « prefix-xxxxxx » = HMAC of the KEY (an account: its full name, short name and login get the same pseudonym); the spaces that pad
+    the column after it (even after color codes) are adjusted so the next column does not move. __call__ applies names_sub first.
+  - relancer_si_demande(): never relaunches behind the filter when NGINX_TOOLS_ANON_SELF is set (a program that anonymizes its own screen).
+
+Bugs fixed:
+  - Symptom: names of the people logged in to the site left in clear. Diagnosis: only patterns were known (addresses, e-mails, identifiers). Fix: register.
+
+Safeguards and edge cases:
+  - Names shorter than 3 characters ignored; never inside a URL or a longer word; the register is read under a lock (filled by other threads).
+  - Default behavior of the other programs unchanged (empty register).
+  - Idempotent: a pseudonym is never a registered name.
+
+Checks:
+  - test_noms_des_personnes_enregistres_et_colonnes_gardees (colored name in a padded column, same pseudonym for two forms of one account, URL untouched).
+
+Action required:
+  none.
+
 ## 1.2.20261020.103939 — Masked e-mails replaced whole; fixed_width for aligned columns
 
 Reason:
