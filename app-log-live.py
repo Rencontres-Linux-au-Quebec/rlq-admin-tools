@@ -299,7 +299,7 @@ SCHEMA_CONFIG = {"ACCENTUATE_GROUP": ("accentuate_group", str), "CHIME": ("chime
                  "NO_BANNED": ("no_banned", bool), "NOT_FOUND": ("not_found", bool), "NO_BAN_PROMPT": ("no_ban_prompt", bool), "NO_CACHE": ("no_cache", bool), "NO_HISTORY": ("no_history", bool),
                  "NO_ISP": ("no_isp", bool), "NO_KEYS": ("no_keys", bool), "NO_LOG_FILE": ("no_log_file", bool), "NO_PRESENCE": ("no_presence", bool),
                  "LEVEL": ("level", int), "NO_USER_AGENT": ("no_user_agent", bool), "RECAP": ("recap", float), "RECORD_MAX": ("record_max", float), "SERVICE": ("service", str), "SLOW": ("slow", float), "VERBOSE": ("verbose", bool)}
-CHANGELOG_FILE = os.path.join(SCRIPT_DIR, "doc", f"{SCRIPT_NAME}.changelog.txt")
+CHANGELOG_FILE = os.path.join(SCRIPT_DIR, "CHANGELOG.md")
 LINES_DEFAULT = 50
 DAYS_DEFAULT = 0                                                      # 0 = the whole journal history
 IDLE_DEFAULT = 15.0                                                 # minutes without activity before "no more activity"
@@ -5528,11 +5528,28 @@ def follow(cmd, people, resolver, options, output):
     return 0 if proc.returncode in (0, -signal.SIGTERM, None) else proc.returncode
 
 
+def changelog_section(path, key):
+    """This program's section of CHANGELOG.md: from its '## <key>' heading up to the next '## ' heading."""
+    with open(path, encoding="utf-8") as f:
+        lignes = f.read().splitlines()
+    section, dans = [], False
+    for ligne in lignes:
+        if ligne.startswith("## "):
+            if dans:
+                break
+            dans = ligne[3:].strip() == key
+            if dans:
+                section.append(ligne)
+        elif dans:
+            section.append(ligne)
+    return "\n".join(section) + "\n" if section else f"No changelog entry for {key} in {path}\n"
+
+
 def show_changelog():
     signal.signal(signal.SIGPIPE, signal.SIG_DFL)          # "| head": silent stop, like cat
     try:
         with open(CHANGELOG_FILE, encoding="utf-8") as f:
-            text = f.read()
+            text = changelog_section(CHANGELOG_FILE, "app-log-live.py")
     except OSError:
         eprint(f"Changelog not found: {CHANGELOG_FILE}")
         return 1

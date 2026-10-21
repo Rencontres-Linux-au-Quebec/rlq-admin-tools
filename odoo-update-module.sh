@@ -101,9 +101,13 @@ readonly SCRIPT_VERSION="1.14.20261020.211944"
 SCRIPT_NAME="$(basename "${BASH_SOURCE[0]}" .sh)"; readonly SCRIPT_NAME
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
 SCRIPT_PATH="$SCRIPT_DIR/$(basename "${BASH_SOURCE[0]}")"; readonly SCRIPT_PATH
-CHANGELOG_FILE="$SCRIPT_DIR/doc/${SCRIPT_NAME}.changelog.txt"
-if [[ ! -r "$CHANGELOG_FILE" && -r "$SCRIPT_DIR/${SCRIPT_NAME}.changelog.txt" ]]; then CHANGELOG_FILE="$SCRIPT_DIR/${SCRIPT_NAME}.changelog.txt"; fi
+CHANGELOG_FILE="$SCRIPT_DIR/CHANGELOG.md"
 readonly CHANGELOG_FILE
+
+# Section of this program in CHANGELOG.md (from its "## <file name>" heading to the next "## " heading).
+changelog_section() {
+    awk -v cle="${BASH_SOURCE[0]##*/}" '/^## /{dans=($0 == "## " cle); if (dans) print; next} dans' "$CHANGELOG_FILE"
+}
 # Langue d'affichage (en ou fr) : --lang, ODOO_UPDATE_MODULE_LANG, LANGUAGE du fichier de configuration, LC_ALL / LANG — apps/_i18n.sh traduit la sortie.
 if [[ -r "$SCRIPT_DIR/apps/_i18n.sh" ]]; then
     # shellcheck source=/dev/null  # bibliothèque livrée à côté du programme
@@ -161,7 +165,7 @@ if declare -F config_lire >/dev/null; then
     config_defaut DO_WARMUP WARMUP --no-warmup booleen
     config_defaut VERBOSE VERBOSE --verbose booleen
     config_defaut ZIP_ARG ZIP --zip texte
-    case " $* " in *" --version "*|*" --help "*|*" -h "*) ;; *) config_afficher ;; esac
+    case " $* " in *" --version "*|*" --help "*|*" -h "*|*" --changelog "*) ;; *) config_afficher ;; esac
 fi
 
 while [[ $# -gt 0 ]]; do
@@ -176,9 +180,9 @@ while [[ $# -gt 0 ]]; do
             fi
             if [[ -t 1 ]]; then
                 # Numeros de version en cyan gras ; SIGPIPE (ex. "| head") laisse terminer proprement par defaut.
-                sed -E $'s/([0-9]+\\.[0-9]+\\.[0-9]{8}\\.[0-9]{6})/\\x1b[1;36m\\1\\x1b[0m/' "$CHANGELOG_FILE" || true  # lecteur ferme plus tot (| head) : SIGPIPE attendu
+                changelog_section | sed -E $'s/([0-9]+\\.[0-9]+\\.[0-9]{8}\\.[0-9]{6})/\\x1b[1;36m\\1\\x1b[0m/' || true  # lecteur ferme plus tot (| head) : SIGPIPE attendu
             else
-                cat "$CHANGELOG_FILE" || true  # lecteur ferme plus tot (| head) : SIGPIPE attendu
+                changelog_section || true  # lecteur ferme plus tot (| head) : SIGPIPE attendu
             fi
             exit 0
             ;;

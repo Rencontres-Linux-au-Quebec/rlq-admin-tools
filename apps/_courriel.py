@@ -53,6 +53,23 @@ class ErreurCourriel(Exception):
     """Configuration incomplète ou envoi impossible (message lisible, sans secret)."""
 
 
+def changelog_section(path, key):
+    """This module's section of CHANGELOG.md: from its '## <key>' heading up to the next '## ' heading."""
+    with open(path, encoding="utf-8") as f:
+        lignes = f.read().splitlines()
+    section, dans = [], False
+    for ligne in lignes:
+        if ligne.startswith("## "):
+            if dans:
+                break
+            dans = ligne[3:].strip() == key
+            if dans:
+                section.append(ligne)
+        elif dans:
+            section.append(ligne)
+    return "\n".join(section) + "\n" if section else f"No changelog entry for {key} in {path}\n"
+
+
 def _personnel(chemin):
     """~/.NOM.conf à lire ; un ancien ~/.NOM.cfg est renommé d'abord (apps/_config.py migrer_ancien, mêmes avis que les programmes). Sans apps/_config.py :
     le .conf, ou l'ancien fichier s'il est seul (jamais d'exception)."""
@@ -226,10 +243,10 @@ def principal(argv=None):
         print(f"_courriel.py version {__version__}")
         return 0
     if a.changelog:
-        chemin = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "doc", "_courriel.changelog.txt")
+        chemin = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "CHANGELOG.md")
         try:
             with open(chemin, encoding="utf-8") as f:
-                sys.stdout.write(f.read())
+                sys.stdout.write(changelog_section(chemin, "apps/_courriel.py"))
         except OSError:
             print("journal introuvable : " + chemin, file=sys.stderr)
             return 1

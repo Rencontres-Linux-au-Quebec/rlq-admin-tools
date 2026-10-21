@@ -128,9 +128,13 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
 SCRIPT_NAME="$(basename "${BASH_SOURCE[0]}" .sh)"; readonly SCRIPT_NAME
 # Changelog dans le sous-repertoire doc/ ; repli sur l'ancien emplacement (a cote du programme) tant que
 # l'installation n'a pas ete reorganisee.
-CHANGELOG_FILE="$SCRIPT_DIR/doc/${SCRIPT_NAME}.changelog.txt"
-if [[ ! -r "$CHANGELOG_FILE" && -r "$SCRIPT_DIR/${SCRIPT_NAME}.changelog.txt" ]]; then CHANGELOG_FILE="$SCRIPT_DIR/${SCRIPT_NAME}.changelog.txt"; fi
+CHANGELOG_FILE="$SCRIPT_DIR/CHANGELOG.md"
 readonly CHANGELOG_FILE
+
+# Section of this program in CHANGELOG.md (from its "## <file name>" heading to the next "## " heading).
+changelog_section() {
+    awk -v cle="${BASH_SOURCE[0]##*/}" '/^## /{dans=($0 == "## " cle); if (dans) print; next} dans' "$CHANGELOG_FILE"
+}
 # Langue d'affichage (en ou fr) : --lang, SYNC_CROWDSEC_BLOCKLIST_LANG, LANGUAGE du fichier de configuration, LC_ALL / LANG — apps/_i18n.sh traduit la sortie (rien ne change en français).
 if [[ -r "$SCRIPT_DIR/apps/_i18n.sh" ]]; then
     # shellcheck source=/dev/null  # bibliothèque livrée à côté du programme
@@ -208,7 +212,7 @@ if declare -F config_lire >/dev/null; then
     config_defaut STALE_DAYS STALE_DAYS --stale-days nombre
     config_defaut TOP_N TOP --top nombre
     config_defaut VERBOSE VERBOSE --verbose booleen
-    case " $* " in *" --version "*|*" --help "*|*" -h "*) ;; *) config_afficher ;; esac
+    case " $* " in *" --version "*|*" --help "*|*" -h "*|*" --changelog "*) ;; *) config_afficher ;; esac
 fi
 
 while [[ $# -gt 0 ]]; do
@@ -238,9 +242,9 @@ while [[ $# -gt 0 ]]; do
             fi
             if [[ -t 1 ]]; then
                 # Numeros de version en cyan gras ; SIGPIPE (ex. "| head") laisse terminer proprement par defaut.
-                sed -E $'s/([0-9]+\\.[0-9]+\\.[0-9]{8}\\.[0-9]{6})/\\x1b[1;36m\\1\\x1b[0m/' "$CHANGELOG_FILE" || true  # lecteur ferme plus tot (| head) : SIGPIPE attendu, pas une erreur
+                changelog_section | sed -E $'s/([0-9]+\\.[0-9]+\\.[0-9]{8}\\.[0-9]{6})/\\x1b[1;36m\\1\\x1b[0m/' || true  # lecteur ferme plus tot (| head) : SIGPIPE attendu, pas une erreur
             else
-                cat "$CHANGELOG_FILE" || true  # lecteur ferme plus tot (| head) : SIGPIPE attendu, pas une erreur
+                changelog_section || true  # lecteur ferme plus tot (| head) : SIGPIPE attendu, pas une erreur
             fi
             exit 0
             ;;

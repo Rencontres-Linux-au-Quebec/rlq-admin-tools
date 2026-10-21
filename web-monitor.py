@@ -197,9 +197,7 @@ __version__ = "2.76.20261020.211944"
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
 # Changelog in the doc/ subdirectory; fallback on the old location as long as the installation is not reorganized.
-CHANGELOG_FILE = next((p for p in (os.path.join(SCRIPT_DIR, "doc", f"{SCRIPT_NAME}.changelog.txt"),
-                                   os.path.join(SCRIPT_DIR, f"{SCRIPT_NAME}.changelog.txt")) if os.path.isfile(p)),
-                      os.path.join(SCRIPT_DIR, "doc", f"{SCRIPT_NAME}.changelog.txt"))
+CHANGELOG_FILE = os.path.join(SCRIPT_DIR, "CHANGELOG.md")
 STATE_DIR = os.environ.get("WEB_MONITOR_STATE_DIR", "/var/lib/web-monitor")
 LOG_DIR = os.environ.get("WEB_MONITOR_LOG_DIR", "/var/log/web-monitor")
 SYSTEMD_DIR = os.environ.get("WEB_MONITOR_SYSTEMD_DIR", "/etc/systemd/system")
@@ -4843,13 +4841,30 @@ def take_lock():
     os.environ["VERROU_TENU_web_monitor"] = "1"
 
 
+def changelog_section(path, key):
+    """This program's section of CHANGELOG.md: from its '## <key>' heading up to the next '## ' heading."""
+    with open(path, encoding="utf-8") as f:
+        lignes = f.read().splitlines()
+    section, dans = [], False
+    for ligne in lignes:
+        if ligne.startswith("## "):
+            if dans:
+                break
+            dans = ligne[3:].strip() == key
+            if dans:
+                section.append(ligne)
+        elif dans:
+            section.append(ligne)
+    return "\n".join(section) + "\n" if section else f"No changelog entry for {key} in {path}\n"
+
+
 def show_changelog():
     # SIGPIPE has its default behavior (like cat or grep): if the reader closes early ("| head"), the
     # process stops silently. Python ignores it otherwise, and a BrokenPipeError can occur until the final
     # flush of the buffers ("Exception ignored on flushing sys.stdout"), out of reach of any try/except.
     signal.signal(signal.SIGPIPE, signal.SIG_DFL)
     try:
-        text = open(CHANGELOG_FILE, encoding="utf-8").read()
+        text = changelog_section(CHANGELOG_FILE, "web-monitor.py")
     except OSError:
         print(f"Changelog not found: {CHANGELOG_FILE}", file=sys.stderr)
         return 1
@@ -4940,6 +4955,8 @@ def launch_with_report(func):
 
 def show_configuration(defaults, problems):
     """Two start lines: WHICH configuration file(s) were read, and the important options that result (as well as the display language)."""
+    if "--changelog" in sys.argv:          # --changelog shows only the journal
+        return
     try:
         print(_load_module("_config").ligne_configuration(CONFIG_FILES, EXPLICIT_CONFIG, SCRIPT_NAME))
     except Exception:

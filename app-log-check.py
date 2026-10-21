@@ -170,12 +170,24 @@ def eprint(*args, **kwargs):
 
 
 def changelog_path(display_name):
-    """Changelog in the doc/ subfolder; fallback on the old location (next to the program) as long as
-    the installation has not been reorganized."""
-    folder = os.path.dirname(os.path.realpath(__file__))
-    new = os.path.join(folder, "doc", display_name)
-    old = os.path.join(folder, display_name)
-    return new if os.path.isfile(new) or not os.path.isfile(old) else old
+    """CHANGELOG.md at the root of the repository (next to the program)."""
+    return os.path.join(os.path.dirname(os.path.realpath(__file__)), "CHANGELOG.md")
+
+def changelog_section(path, key):
+    """This program's section of CHANGELOG.md: from its '## <key>' heading up to the next '## ' heading."""
+    with open(path, encoding="utf-8") as f:
+        lignes = f.read().splitlines()
+    section, dans = [], False
+    for ligne in lignes:
+        if ligne.startswith("## "):
+            if dans:
+                break
+            dans = ligne[3:].strip() == key
+            if dans:
+                section.append(ligne)
+        elif dans:
+            section.append(ligne)
+    return "\n".join(section) + "\n" if section else f"No changelog entry for {key} in {path}\n"
 
 
 def show_changelog():
@@ -188,7 +200,7 @@ def show_changelog():
         eprint(f"Changelog not found: {path}")
         sys.exit(1)
     with open(path, encoding="utf-8") as f:
-        content = f.read()
+        content = changelog_section(path, "app-log-check.py")
     if sys.stdout.isatty():
         content = re.sub(
             r"^(## [0-9]+\.[0-9]+\.[0-9]{8}\.[0-9]{6}.*)$",
