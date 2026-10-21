@@ -1,6 +1,37 @@
 Changelog — app-log-live.py
 (newest version first; entries up to 1.79 are still in French: their translation is a later stage of the migration)
 
+## 1.93.20261020.230008 — Test recording: R key and --record-test-log
+
+Reason:
+  « En prod, il faudrait avoir une option --record-test-log qui sauvegarderait les logs dont tu as besoin (nginx, Odoo, access, error, connexions réseau…) afin que tu puisses les analyser. Idéalement, dans le menu app-log-live, une touche R pour démarrer un enregistrement "record" : on enlève le bruit (robots…), et en appuyant de nouveau sur R, l'enregistrement s'arrête et crée un fichier compressé *.tar.xz qu'on m'enverra. Indiquer à la fin des lignes REC pour record (à $COLUMNS-4). »
+
+Changes:
+  - Key R (menu and key list): starts a recording (asks for a label, Enter = none); R again stops it. While recording, « REC » (bold white on red) is written at column $COLUMNS-4 of the last screen row of each stream line (rec_mark(): a line too wide is cut with « … » before the marker; the width is read again at each line). Screen only: the daily journal never carries the marker.
+  - --record-test-log MIN: records without the keyboard, from the start of the live stream, then writes the archive and exits (refused with --no-follow).
+  - --record-max MIN (key RECORD_MAX, default 30; 0 = no limit): a recording stops by itself at the limit, with a warning; a recording in progress is never lost by Ctrl-C (archive made before leaving).
+  - The archive is made in the background (the stream continues); its line « Recording stopped … Archive to send for analysis: PATH » appears when it is ready.
+  - Lines are recorded whatever the display filters (--only, --suspect, --not-found, --min): the analysis needs the whole test. Noise categories (stream-all.log only in the archive): local (this server, the team's servers), websocket, static (/web/assets, /web/static, images, fonts, robots.txt, sitemaps), robot (User-Agent or known robot name).
+  - Archive: NAME-HOST-AAAAMMJJ-HHMMSS-LABEL.tar.xz (README.txt, records.log, stream-all.log, raw/, network/, db/, context/). Folder: APP_LOG_LIVE_RECORD_DIR; under sudo, app-log-live-records in the home folder of the person who ran sudo (given to them); otherwise LOG_DIR/records. See apps/_record.py.
+  - Configuration: RECORD_MAX; doc/app-log-live.conf.example; lang/app-log-live.fr.po (new messages in French).
+
+Bugs fixed:
+  none (new feature).
+
+Safeguards and edge cases:
+  - The recording writes nothing to Odoo: PostgreSQL is read only (read-only transactions of apps/_odoo_db.py), no personal data read (counts, dates, identifiers, states; literals replaced by ?).
+  - Masking before writing, in this order: tokens (survey and ticket tokens, hash/token/key/sig/secret parameters, UUIDs, long hexadecimal strings), then addresses, e-mails and known names through the Anonymiseur (same pseudonyms as the screen), then SQL literals. A masking error drops the line (never a real value).
+  - Missing sources are noted in README.txt (never fatal): log file missing, rotated during the recording (end of the old file, then the new one), unreadable, cut at 50 MB per file; PostgreSQL unreachable (not root); ss absent.
+  - Less than 500 MB free in the folder: the recording does not start. A symbolic link as folder: refused. Archive written as .part then renamed; work folder removed afterwards.
+  - Pipes and non-terminals: no REC marker, no key (as before).
+
+Checks:
+  - Smoke test of apps/_record.py with fake sources (log files, ss, journalctl, PostgreSQL): archive created, masking of addresses, e-mails, tokens and SQL literals, noise categories, README in both languages.
+  - REC marker: unit check at 60 columns (short line, wrapped line, cut line, empty line: marker at column 56 of the last row).
+
+Action required:
+  none. To test: press R in the live stream, make the test, press R again; send the .tar.xz printed on the « Archive to send for analysis » line. With --record-test-log, the archive is written when the time is up.
+
 ## 1.92.20261020.211944 — Personal configuration file ~/.app-log-live.conf (not .cfg)
 
 Reason:
