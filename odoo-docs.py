@@ -34,7 +34,7 @@ __version__ = "1.4.20261020.211944"
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
 CHANGELOG_FILE = os.path.join(SCRIPT_DIR, "doc", f"{SCRIPT_NAME}.changelog.txt")
-DOCS_DIR_DEFAULT = os.path.join(SCRIPT_DIR, "docs")
+DOCS_DIR_DEFAULT = os.path.join(SCRIPT_DIR, "doc")
 WIKI_MODULE = "document_page"
 WIKI_MODEL = "document.page"
 HISTORY_MODEL = "document.page.history"
@@ -183,7 +183,7 @@ def check_website(odoo):
 
 # ---------------------------------------------------------------------------------------------------------------- documents
 def load_builder(docs_dir):
-    """docs/build_docs.py (Markdown -> HTML, real --help insertion)."""
+    """doc/build_docs.py (Markdown -> HTML, real --help insertion)."""
     path = os.path.join(docs_dir, "build_docs.py")
     if not os.path.isfile(path):
         raise DocsError(f"documentation builder not found: {path}")
@@ -316,7 +316,7 @@ def run(args, parser):
         eprint(f"WARNING: {open_file} contains the API key and is readable by other accounts: chmod 600 {open_file}")
     if not (args.api_url and args.db and args.login and key):
         missing = [n for n, v in (("URL", args.api_url), ("DB", args.db), ("LOGIN", args.login), ("API_KEY (or the ODOO_API_KEY variable)", key)) if not v]
-        eprint("ERROR: missing settings: " + ", ".join(missing) + " — write them in /etc/default/odoo-docs.conf (see doc/odoo-docs.conf.example).")
+        eprint("ERROR: missing settings: " + ", ".join(missing) + " — write them in /etc/default/odoo-docs.conf (see doc/en/odoo-docs.conf.example).")
         return 2
     try:
         odoo = Odoo(args.api_url, args.db, args.login, key)
@@ -349,7 +349,7 @@ def run(args, parser):
 
 def main():
     parser = (I18N.parser if I18N else LocalizedArgumentParser)(
-        description="Publishes the suite's documentation (docs/en, docs/fr) into Odoo: wiki of the document_page module (OCA) or website pages.")
+        description="Publishes the suite's documentation (doc/en, doc/fr) into Odoo: wiki of the document_page module (OCA) or website pages.")
     parser.add_argument("--api-url", default=None, metavar="URL", help="Odoo address (e.g. https://erp.example.org); URL key of the configuration file")
     parser.add_argument("--changelog", action="store_true", help="Show the change log")
     parser.add_argument("--check", action="store_true",
