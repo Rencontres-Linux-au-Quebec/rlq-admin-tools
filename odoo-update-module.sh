@@ -30,7 +30,7 @@
 #   --busy-visitors N            site occupé à partir de N visiteurs actifs (requête dans les 5 dernières minutes, robots exclus) ; défaut : BUSY_VISITORS, soit 3
 #   --changelog                  affiche le journal des modifications
 #   -c, --config FILE            ce fichier de configuration SEUL (défaut : /etc/default/odoo-update-module.conf, puis
-#                                ~/.odoo-update-module.cfg s'il existe ; la ligne de commande est prioritaire)
+#                                ~/.odoo-update-module.conf s'il existe ; la ligne de commande est prioritaire)
 #   --db NAME                    base à mettre à jour (défaut : « -d » de la commande du service, sinon db_name d'Odoo)
 #   --dry-run                    montrer ce qui serait fait (service, base, modules, commandes), sans rien arrêter ni écrire
 #   --force                      continuer malgré un Odoo lancé à la main (il est alors ignoré, pas arrêté)
@@ -54,7 +54,7 @@
 #   --zip FILE                   archive .zip des modules à décompresser avant la mise à jour (fichier, ou dossier : la plus récente) ; défaut : ZIP, sinon la plus
 #                                récente « MODULE*.zip » du dossier courant ; « non » : ne rien décompresser
 #
-# Configuration (/etc/default/odoo-update-module.conf, créée au premier lancement, PUIS ~/.odoo-update-module.cfg s'il existe ; lue sans être
+# Configuration (/etc/default/odoo-update-module.conf, créée au premier lancement, PUIS ~/.odoo-update-module.conf s'il existe ; lue sans être
 # exécutée ; la ligne de commande l'emporte sur les fichiers) :
 #   ADDONS_DIR=                   dossier de décompression de l'archive .zip (vide : celui de addons_path qui contient déjà les modules)
 #   BACKUP=non                    sauvegarder avant (oui / non)
@@ -76,6 +76,7 @@
 #   WAIT_QUIET=15                 attente maximale d'un site calme avant l'arrêt d'Odoo, en minutes (0 = ne pas attendre)
 #
 # HISTORIQUE (résumé ; détail : doc/odoo-update-module.changelog.txt)
+#   1.14.20261020.211944 — Personal configuration file ~/.odoo-update-module.conf (not .cfg); a legacy one with .cfg is renamed automatically.
 #   1.13.20261020.112434 — Header fields padded in columns (pad_cols): an accented label no longer shifts its value.
 #   1.12.20261019.150215 — New copyright: Services-Conseils Linux and Rencontres Linux au Québec contributors (AGPL-3.0-or-later).
 #   1.11.20261016.173838 — Quiet site before stopping Odoo, copy of the modules, check after the start, automatic rollback, Ctrl+C at once
@@ -96,7 +97,7 @@ set -euo pipefail
 for _d in /usr/local/sbin /usr/sbin /sbin; do [[ -n "${NGINX_TOOLS_TESTS:-}" ]] && break; case ":$PATH:" in *":$_d:"*) ;; *) PATH="$PATH:$_d" ;; esac; done
 export PATH
 
-readonly SCRIPT_VERSION="1.13.20261020.112434"
+readonly SCRIPT_VERSION="1.14.20261020.211944"
 SCRIPT_NAME="$(basename "${BASH_SOURCE[0]}" .sh)"; readonly SCRIPT_NAME
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
 SCRIPT_PATH="$SCRIPT_DIR/$(basename "${BASH_SOURCE[0]}")"; readonly SCRIPT_PATH
@@ -139,7 +140,7 @@ if [[ -r "$SCRIPT_DIR/apps/_rapport.sh" ]]; then
 fi
 # Première ligne de TOUTE exécution, même avec --help : le nom et la version du programme (--version l'affiche lui-même).
 case " $* " in *" --version "*) ;; *) echo "odoo-update-module.sh v$SCRIPT_VERSION" ;; esac
-# Configuration (/etc/default/odoo-update-module.conf, puis ~/.odoo-update-module.cfg ; -c/--config : ce fichier SEUL) : valeurs par défaut des options, la ligne de commande l'emporte.
+# Configuration (/etc/default/odoo-update-module.conf, puis ~/.odoo-update-module.conf ; -c/--config : ce fichier SEUL) : valeurs par défaut des options, la ligne de commande l'emporte.
 if declare -F config_lire >/dev/null; then
     config_lire "$SCRIPT_NAME" "$@"
     config_defaut ADDONS_DIR ADDONS_DIR --addons-dir texte

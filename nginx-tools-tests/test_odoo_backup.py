@@ -36,7 +36,7 @@ class OdooBackup(EnvTest):
         for i in range(3):
             self.write(f"filestores/base1/ab/fichier{i}", f"contenu {i}\n")
         conf = self.write("odoo.conf", "[options]\ndb_user = odoo18\n")
-        self.cfg = self.write("odoo-backup.cfg", f"DEST={self.dest}\nDATABASES=base1\nFILESTORE_DIR={os.path.dirname(self.fsdir)}\n"
+        self.cfg = self.write("odoo-backup.conf", f"DEST={self.dest}\nDATABASES=base1\nFILESTORE_DIR={os.path.dirname(self.fsdir)}\n"
                                                  f"ODOO_CONF={conf}\nPG_USER=\n# commentaire\nINCONNUE=ignorée\n")
         self.env.update(ODOO_BACKUP_STATE_DIR=os.path.dirname(self.path("etat", "x")), D=self.d, TMPDIR=self.d)
         self.mock("pg_dump", 'echo "CREATE TABLE ir_module_module (id integer);"; echo "-- PostgreSQL database dump complete"')
@@ -188,7 +188,7 @@ class OdooBackup(EnvTest):
 
 
 class EmplacementConfiguration(EnvTest):
-    """1.6 : règle des fichiers de configuration — /etc/default/odoo-backup.conf, PUIS ~/.odoo-backup.cfg s'il existe, PUIS la
+    """1.6 : règle des fichiers de configuration — /etc/default/odoo-backup.conf, PUIS ~/.odoo-backup.conf s'il existe, PUIS la
     ligne de commande (prioritaire) ; fichiers lus toujours affichés ; ancien fichier renommé AVANT toute opération sur le
     timer ; timer référençant un fichier absent signalé ; --config introuvable = erreur."""
     def setUp(self):
@@ -206,7 +206,8 @@ class EmplacementConfiguration(EnvTest):
         # systemctl : chaque appel est noté AVEC l'état du nouveau fichier de configuration à cet instant
         self.mock("systemctl", 'echo "$*|conf=$([ -e "$ODOO_BACKUP_DEFAULT_DIR/odoo-backup.conf" ] && echo oui || echo non)" >> "$D/systemctl.log"')
         self.conf = os.path.join(self.etc, "odoo-backup.conf")
-        self.perso = os.path.join(self.home, ".odoo-backup.cfg")
+        self.perso = os.path.join(self.home, ".odoo-backup.conf")
+        self.ancien = os.path.join(self.home, ".odoo-backup.cfg")            # 1.19: legacy personal name (renamed to .conf)
 
     def dry(self, *args):
         return self.run_cmd(["bash", self.prog, "--dry-run"] + list(args))
@@ -217,7 +218,7 @@ class EmplacementConfiguration(EnvTest):
 
     def test_couches_ordre_priorite_et_affichage(self):
         self.write("etc-default/odoo-backup.conf", "DEST=/etc/dest\nDATABASES=base1\nKEEP_DAILY=5\nREMOTE=root@h:/x\nFORMAT=zip\n")
-        self.write("home/.odoo-backup.cfg", "DEST=/home/dest\nFORMAT=tar.xz\n")
+        self.write("home/.odoo-backup.conf", "DEST=/home/dest\nFORMAT=tar.xz\n")
         rc, out, err = self.dry()
         self.assertEqual(rc, 0, out + err)
         self.assertIn(f"Configuration lue : {self.conf}, puis {self.perso} (le dernier l'emporte)", sans_date(out))
@@ -252,18 +253,19 @@ class EmplacementConfiguration(EnvTest):
 
     @unittest.skipUnless(os.geteuid() == 0, "exige root")
     def test_ancien_fichier_renomme_avant_toute_operation_sur_le_timer(self):
-        """L'ancien ~/.odoo-backup.cfg est RENOMMÉ d'abord ; le service (ancien chemin en dur) est corrigé sans arrêter le timer ;
-        --install-timer n'arrête le timer qu'ENSUITE. Chaque appel à systemctl voit déjà le nouveau fichier."""
+        """L'ancien ~/.odoo-backup.cfg (avant la 1.5 : seule configuration) est RENOMMÉ en /etc/default d'abord ; le service (ancien chemin en dur)
+        est corrigé sans arrêter le timer ; --install-timer n'arrête le timer qu'ENSUITE. Chaque appel à systemctl voit déjà le nouveau fichier."""
         self.write("home/.odoo-backup.cfg", "DATABASES=base1\nREMOTE=root@h:/x\n")
         unite = os.path.join(self.systemd, "odoo-backup.service")
         self.write("systemd/odoo-backup.service",
-                   f"[Service]\nType=oneshot\nExecStart={self.prog} --config {self.perso}\nNice=10\n")
+                   f"[Service]\nType=oneshot\nExecStart={self.prog} --config {self.ancien}\nNice=10\n")
         rc, out, err = self.run_cmd(["bash", self.prog, "--install-timer"])
         self.assertEqual(rc, 0, out + err)
-        self.assertFalse(os.path.exists(self.perso), "l'ancien fichier aurait dû être renommé")
+        self.assertFalse(os.path.exists(self.ancien), "l'ancien fichier aurait dû être renommé")
+        self.assertFalse(os.path.exists(self.perso), "l'ancien fichier va dans /etc/default, pas dans ~/.odoo-backup.conf")
         self.assertEqual(oct(os.stat(self.conf).st_mode & 0o777), "0o600")
         self.assertIn("REMOTE=root@h:/x", open(self.conf).read())                # contenu conservé
-        self.assertIn(f"Migration : configuration renommée {self.perso} → {self.conf}", err)
+        self.assertIn(f"Migration : configuration renommée {self.ancien} → {self.conf}", err)
         self.assertIn("Timer : chemin de l'ancien fichier retiré du service", err)
         self.assertIn("le timer n'a PAS été arrêté", err)
         self.assertNotIn("--config", open(unite).read())
@@ -271,12 +273,36 @@ class EmplacementConfiguration(EnvTest):
         self.assertEqual([a.split("|")[0] for a in appels],
                          ["daemon-reload", "daemon-reload", "enable odoo-backup.timer", "restart odoo-backup.timer"])
         self.assertTrue(all(a.endswith("|conf=oui") for a in appels), appels)    # jamais un appel avant le renommage
-        # Déjà un fichier système : ~/.odoo-backup.cfg est une COUCHE voulue, jamais déplacé
+        # Déjà un fichier système : l'ancien ~/.odoo-backup.cfg est une COUCHE voulue : jamais déplacé vers /etc/default, renommé ~/.odoo-backup.conf (1.19)
         self.write("home/.odoo-backup.cfg", "KEEP_DAILY=3\n")
         rc, out, err = self.run_cmd(["bash", self.prog, "--install-timer"])
         self.assertTrue(os.path.exists(self.perso))
+        self.assertFalse(os.path.exists(self.ancien))
         self.assertNotIn("Migration", err)
+        self.assertIn(f"Configuration : ancien fichier {self.ancien} renommé en {self.perso}", err)
         self.assertIn(f"Configuration lue : {self.conf}, puis {self.perso}", sans_date(out))
+
+    def test_ancien_nom_personnel_renomme_en_conf(self):
+        """1.19 : un ~/.odoo-backup.cfg à côté d'un fichier système (couche) devient ~/.odoo-backup.conf, contenu et droits gardés, avis une fois ;
+        les deux présents : le .conf est lu, l'ancien est signalé et IGNORÉ (jamais fusionné ni supprimé)."""
+        self.write("etc-default/odoo-backup.conf", "DEST=/etc/dest\nDATABASES=base1\nREMOTE=root@h:/x\n")
+        self.write("home/.odoo-backup.cfg", "DEST=/home/dest\n")
+        os.chmod(self.ancien, 0o600)
+        rc, out, err = self.dry()
+        self.assertEqual(rc, 0, out + err)
+        self.assertFalse(os.path.exists(self.ancien))
+        self.assertEqual(open(self.perso).read(), "DEST=/home/dest\n")
+        self.assertEqual(oct(os.stat(self.perso).st_mode & 0o777), "0o600")
+        self.assertIn(f"Configuration : ancien fichier {self.ancien} renommé en {self.perso} (les fichiers personnels se terminent maintenant par .conf)", err)
+        self.assertIn(f"Configuration lue : {self.conf}, puis {self.perso} (le dernier l'emporte)", sans_date(out))
+        self.assertIn("sauvegardes dans /home/dest", out)
+        rc, out, err = self.dry()
+        self.assertNotIn("ancien fichier", err)                                   # une seule fois : il n'y a plus rien à renommer
+        self.write("home/.odoo-backup.cfg", "DEST=/autre/dest\n")
+        rc, out, err = self.dry()
+        self.assertIn(f"Configuration : ancien fichier {self.ancien} IGNORÉ ({self.perso} existe et l'emporte)", err)
+        self.assertIn("sauvegardes dans /home/dest", out)
+        self.assertTrue(os.path.exists(self.ancien))                              # jamais supprimé
 
     @unittest.skipUnless(os.geteuid() == 0, "exige root")
     def test_creation_au_premier_lancement(self):
@@ -288,7 +314,7 @@ class EmplacementConfiguration(EnvTest):
                     "KEEP_MONTHLY", "TIMER_TIME"):
             self.assertIn(f"#{cle}=", texte)                                    # modèle entièrement commenté
         self.assertNotRegex(texte, r"(?m)^[A-Z_]+=")                            # aucune valeur active : comportement inchangé
-        self.assertIn("PUIS ~/.odoo-backup.cfg s'il existe", texte)
+        self.assertIn("PUIS ~/.odoo-backup.conf s'il existe", texte)
         self.assertIn(f"Configuration créée : {self.conf}", err)
         rc, out, err = self.run_cmd(["bash", self.prog, "--dest", self.dest])
         self.assertNotIn("Configuration créée", err)                            # une seule fois
@@ -317,9 +343,9 @@ class EmplacementConfiguration(EnvTest):
         défaut, sans REMOTE) : échec signalé ; fichier existant mais unique : avertissement."""
         self.write("etc-default/odoo-backup.conf", "DATABASES=base1\n")
         unite = "systemd/odoo-backup.service"
-        self.write(unite, f"[Service]\nExecStart={self.prog} --config /nulle/part/odoo-backup.cfg\n")
+        self.write(unite, f"[Service]\nExecStart={self.prog} --config /nulle/part/odoo-backup.conf\n")
         rc, out, err = self.run_cmd(["bash", self.prog, "--status", "--dest", self.dest])
-        self.assertRegex(out, r"\[FAIL\] le timer lit --config /nulle/part/odoo-backup\.cfg, qui N'EXISTE PAS — chaque sauvegarde automatique échoue")
+        self.assertRegex(out, r"\[FAIL\] le timer lit --config /nulle/part/odoo-backup\.conf, qui N'EXISTE PAS — chaque sauvegarde automatique échoue")
         self.assertEqual(rc, 1)
         self.write(unite, "[Service]\nExecStart=/nulle/part/odoo-backup.sh\n")
         rc, out, err = self.run_cmd(["bash", self.prog, "--status", "--dest", self.dest])

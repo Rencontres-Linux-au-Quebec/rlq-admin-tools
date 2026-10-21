@@ -12,6 +12,7 @@
 # cron (2-3 times a day recommended). No external dependency: only the Python 3 standard library.
 #
 # VERSION HISTORY (summary — see doc/app-health-check.changelog.txt for the full detail):
+#   2.26.20261020.211944 — Personal configuration file ~/.app-health-check.conf (not .cfg); a legacy one with .cfg is renamed automatically.
 #   2.25.20261019.150215 — New copyright: Services-Conseils Linux and Rencontres Linux au Québec contributors (AGPL-3.0-or-later).
 #   2.24.20261017.105442 — Options line: which setting decided the display language (apps/_i18n.py 1.17).
 #   2.23.20261016.173838 — Copyright holder: Services-Linux Conseils Inc
@@ -84,7 +85,7 @@
 #                        name, as well as every HTTP request made during the checks.
 #
 # Configuration files (KEY=VALUE, one per line, # for a comment) — see doc/app-health-check.conf.example. READ IN THIS
-# ORDER and merged (the last one wins): (1) /etc/default/app-health-check.conf, (2) ~/.app-health-check.cfg if it exists;
+# ORDER and merged (the last one wins): (1) /etc/default/app-health-check.conf, (2) ~/.app-health-check.conf if it exists;
 # the current directory is no longer read; -c/--config: that file ALONE. The files read and the important options are always
 # displayed. Recommended permissions: chmod 600, owner root or the user who runs the cron job.
 #
@@ -113,7 +114,7 @@ import sys
 import time
 from urllib.parse import urlparse, parse_qs, unquote
 
-__version__ = "2.25.20261019.150215"
+__version__ = "2.26.20261020.211944"
 # Marker added at the END of the « browser » User-Agent (2.2): our test requests are recognizable in all the
 # logs (nginx, Odoo) and excluded from the statistics by web-monitor.py. Matches no pattern of the bot filter.
 UA_MARKER = " app-health-check/" + ".".join(__version__.split(".")[:2])
@@ -180,9 +181,21 @@ def migrate_path(old, new):
             pass
 
 
+def personal_config_path():
+    """~/.app-health-check.conf (2.x common rule); a legacy ~/.app-health-check.cfg is renamed to it first (apps/_config.py migrer_ancien)."""
+    path = os.path.join(os.path.expanduser("~"), ".app-health-check.conf")
+    try:
+        spec = importlib.util.spec_from_file_location("_config", os.path.join(SCRIPT_DIR, "apps", "_config.py"))
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        return module.migrer_ancien(path)
+    except Exception:                                    # noqa: BLE001 — apps/_config.py missing or unreadable: the rule without migration
+        return path
+
+
 def resolve_config_paths(explicit_path):
     """Configuration files to read, IN ORDER (the last one wins) — common rule of the programs:
-    /etc/default/app-health-check.conf, THEN ~/.app-health-check.cfg if it exists. The current directory is NO LONGER read (2.15):
+    /etc/default/app-health-check.conf, THEN ~/.app-health-check.conf if it exists. The current directory is NO LONGER read (2.15):
     the result depended on where the program was started (~/scripts by hand, « / » under systemd). -c/--config: that file
     ALONE, which must exist."""
     if explicit_path:
@@ -194,7 +207,7 @@ def resolve_config_paths(explicit_path):
     # (it is no longer read: its settings have no effect any more).
     migrate_path("./app-health-check.conf", "/etc/default/app-health-check.conf")
     migrate_path("./sanity-check-odoo.conf", "/etc/default/app-health-check.conf")
-    candidats = ["/etc/default/app-health-check.conf", os.path.join(os.path.expanduser("~"), ".app-health-check.cfg")]
+    candidats = ["/etc/default/app-health-check.conf", personal_config_path()]
     found_list, seen = [], set()
     for candidat in candidats:
         real = os.path.realpath(candidat)
@@ -204,7 +217,7 @@ def resolve_config_paths(explicit_path):
     for ignore in ("./app-health-check.conf", "./sanity-check-odoo.conf"):
         if os.path.isfile(ignore) and os.path.realpath(ignore) not in seen:
             print(f"WARNING: {os.path.abspath(ignore)} exists but is NO LONGER read (read: /etc/default/app-health-check.conf, then "
-                  f"~/.app-health-check.cfg) — its settings have no effect; move it: mv {ignore} ~/.app-health-check.cfg",
+                  f"~/.app-health-check.conf) — its settings have no effect; move it: mv {ignore} ~/.app-health-check.conf",
                   file=sys.stderr)
     if not found_list:
         raise FileNotFoundError("no configuration file found. Searched: explicit -c/--config, " + ", ".join(candidats))
@@ -1476,7 +1489,7 @@ def main():
     parser.add_argument("--force", action="store_true",
                         help="With --create-config: replace an existing file (backup copy made)")
     parser.add_argument("-c", "--config", required=False, metavar="FILE",
-                         help="This configuration file ALONE (default: /etc/default/app-health-check.conf, then ~/.app-health-check.cfg; command-line options in the file: APP, LANGUAGE, TARGET, VERBOSE)")
+                         help="This configuration file ALONE (default: /etc/default/app-health-check.conf, then ~/.app-health-check.conf; command-line options in the file: APP, LANGUAGE, TARGET, VERBOSE)")
     parser.add_argument("--lang", choices=I18N.disponibles if I18N else ["fr"], metavar="LANG",
                         help="Display language: en or fr (default: from LC_ALL / LC_MESSAGES / LANG)")
     parser.add_argument("-v", "--verbose", action="store_true",

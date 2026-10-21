@@ -15,6 +15,7 @@
 # the one to attach to the discussion. --installed: comparison with what is deployed on the server.
 #
 # VERSION HISTORY (summary — see doc/zip-versions.changelog.txt for full detail):
+#   1.15.20261020.211944 — Personal configuration file ~/.zip-versions.conf (not .cfg); a legacy one with .cfg is renamed automatically.
 #   1.14.20261019.150215 — New copyright: Services-Conseils Linux and Rencontres Linux au Québec contributors (AGPL-3.0-or-later).
 #   1.13.20261016.173838 — Copyright holder: Services-Linux Conseils Inc
 #   1.12.20261015.194752 — Source code, comments and changelog now in English (display stays French/English through lang/zip-versions.fr.po).
@@ -54,7 +55,7 @@ import signal
 import sys
 import zipfile
 
-__version__ = "1.14.20261019.150215"
+__version__ = "1.15.20261020.211944"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
@@ -74,7 +75,7 @@ I18N = _start()
 LANGUAGE = I18N.langue if I18N else "fr"
 if I18N:
     print, input = I18N.print, I18N.input          # noqa: A001 — every displayed text goes through the translator (no effect when the display language is the source language)
-# Configuration file options (/etc/default/zip-versions.conf, then the personal file .zip-versions.cfg): KEY -> (command-line option, type).
+# Configuration file options (/etc/default/zip-versions.conf, then the personal file .zip-versions.conf): KEY -> (command-line option, type).
 # LANGUAGE: en, fr, or auto (follow LC_ALL / LANG).
 SCHEMA_CONFIG = {"INSTALLED": ("installed", str), "NGINX_DIR": ("nginx_dir", str)}
 DEFAULT_INSTALLATION = "/root/scripts"
@@ -695,7 +696,7 @@ def main():
                         help="zip archives, or directories whose zips are examined (default: current directory)")
     parser.add_argument("--changelog", action="store_true", help="Show the change log")
     parser.add_argument("-c", "--config", metavar="FILE",
-                        help="Configuration file to read ALONE (otherwise: /etc/default/zip-versions.conf, then the personal file .zip-versions.cfg; options in UPPERCASE: INSTALLED, LANGUAGE, NGINX_DIR)")
+                        help="Configuration file to read ALONE (otherwise: /etc/default/zip-versions.conf, then the personal file .zip-versions.conf; options in UPPERCASE: INSTALLED, LANGUAGE, NGINX_DIR)")
     parser.add_argument("--lang", choices=I18N.disponibles if I18N else ["fr"], metavar="LANG",
                         help="Display language: en or fr (default: from LC_ALL / LC_MESSAGES / LANG)")
     parser.add_argument("--installed", nargs="?", const=DEFAULT_INSTALLATION, metavar="DIR",

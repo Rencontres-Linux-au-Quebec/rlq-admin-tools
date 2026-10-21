@@ -288,10 +288,10 @@ class OdooMailRetry(_Base):
     # --- configuration ---------------------------------------------------------------------------------------------------
     def test_configuration_fichiers_lus_et_ligne_de_commande_prioritaire(self):
         self.write("etc-default-vide/odoo-mail-retry.conf", "# commentaire\nDAYS=7\nBATCH=3\nBIDON=1\nDAYS=abc\n")
-        self.write("maison/.odoo-mail-retry.cfg", 'BATCH="4"\n')
+        self.write("maison/.odoo-mail-retry.conf", 'BATCH="4"\n')
         env = {}
         rc, out, err = self.lancer("--no-prompt", env_extra=env)
-        self.assertIn(f"Configuration lue : {self.path('etc-default-vide', 'odoo-mail-retry.conf')}, puis {self.path('maison', '.odoo-mail-retry.cfg')} (le dernier l'emporte)\n"
+        self.assertIn(f"Configuration lue : {self.path('etc-default-vide', 'odoo-mail-retry.conf')}, puis {self.path('maison', '.odoo-mail-retry.conf')} (le dernier l'emporte)\n"
                       "  Options : --lang fr · courriels des 7 derniers jours · lot de renvoi : 4 courriels", sans_origine(sans_date(out)))
         self.assertIn("ligne ignorée « BIDON=1 »", err)
         self.assertIn("ligne ignorée « DAYS=abc »", err)
@@ -300,13 +300,13 @@ class OdooMailRetry(_Base):
         self.lancer("--no-prompt", "--days", "2", env_extra=env)
         self.assertIn("interval '2 days'", self.appels("string_agg")[-1])
         # -c/--config : ce fichier SEUL (ni /etc/default ni ~), qui doit exister
-        rc, out, err = self.lancer("--no-prompt", "-c", self.path("maison", ".odoo-mail-retry.cfg"), env_extra=env)
-        self.assertIn(f"Configuration lue : {self.path('maison', '.odoo-mail-retry.cfg')} (demandé par -c/--config : aucun autre fichier n'est lu)", sans_date(out))
+        rc, out, err = self.lancer("--no-prompt", "-c", self.path("maison", ".odoo-mail-retry.conf"), env_extra=env)
+        self.assertIn(f"Configuration lue : {self.path('maison', '.odoo-mail-retry.conf')} (demandé par -c/--config : aucun autre fichier n'est lu)", sans_date(out))
         self.assertIn("lot de renvoi : 4 courriels", out)
         self.assertIn("courriels des 30 derniers jours", out)                                  # DAYS=7 du fichier système n'est plus lu
-        rc, out, err = self.lancer("--config", self.path("inexistant.cfg"))
+        rc, out, err = self.lancer("--config", self.path("inexistant.conf"))
         self.assertEqual(rc, 2)
-        self.assertIn(f"ERREUR : fichier de config introuvable : {self.path('inexistant.cfg')}", err)
+        self.assertIn(f"ERREUR : fichier de config introuvable : {self.path('inexistant.conf')}", err)
         self.assertEqual(self.appels("UPDATE"), [])
         rc, out, err = self.lancer("--days", "0")
         self.assertEqual(rc, 2)

@@ -15,6 +15,7 @@
 # final message to spot a recurring bug at a glance.
 #
 # VERSION HISTORY (summary — see app-log-check.changelog.txt for full detail):
+#   2.23.20261020.211944 — Personal configuration file ~/.app-log-check.conf (not .cfg); a legacy one with .cfg is renamed automatically.
 #   2.22.20261019.150215 — New copyright: Services-Conseils Linux and Rencontres Linux au Québec contributors (AGPL-3.0-or-later).
 #   2.21.20261016.173838 — Copyright holder: Services-Linux Conseils Inc
 #   2.20.20261015.215241 — Source code, comments and changelog in English (display stays French/English via lang/app-log-check.fr.po).
@@ -107,7 +108,7 @@ import urllib.parse
 from collections import Counter, OrderedDict
 from datetime import datetime, timedelta
 
-__version__ = "2.22.20261019.150215"
+__version__ = "2.23.20261020.211944"
 
 DEFAULT_SERVICE = "erplibre_erplibre.service"
 STATE_DIR = os.environ.get("APP_LOG_CHECK_STATE_DIR") or os.path.expanduser("~/.local/state/app-log-check")
@@ -148,7 +149,7 @@ LANGUAGE = I18N.langue if I18N else "fr"
 TR = I18N.tr if I18N else (lambda text_value: text_value)
 if I18N:
     print, input = I18N.print, I18N.input          # noqa: A001 — every displayed text goes through the translator (no effect when the display language is the source language)
-# Configuration file options (/etc/default/app-log-check.conf, then the personal file .app-log-check.cfg): KEY -> (command-line option, type).
+# Configuration file options (/etc/default/app-log-check.conf, then the personal file .app-log-check.conf): KEY -> (command-line option, type).
 # LANGUAGE: en, fr or auto (follow LC_ALL / LANG).
 SCHEMA_CONFIG = {"APP": ("app", str), "DAYS": ("days", int), "ERRORS_ONLY": ("errors_only", bool), "FULL_TRACE": ("full_trace", bool), "NAMESPACE": ("namespace", str),
                  "SERVICE": ("service", str), "TOP": ("top", int), "VERBOSE": ("verbose", bool)}
@@ -1213,7 +1214,7 @@ def main():
         add_help=True,
     )
     parser.add_argument("-c", "--config", metavar="FILE",
-                        help="Configuration file to read ALONE (otherwise: /etc/default/app-log-check.conf, then the personal file .app-log-check.cfg; options in UPPERCASE: APP, DAYS, ERRORS_ONLY, FULL_TRACE, LANGUAGE, NAMESPACE, SERVICE, TOP, VERBOSE)")
+                        help="Configuration file to read ALONE (otherwise: /etc/default/app-log-check.conf, then the personal file .app-log-check.conf; options in UPPERCASE: APP, DAYS, ERRORS_ONLY, FULL_TRACE, LANGUAGE, NAMESPACE, SERVICE, TOP, VERBOSE)")
     parser.add_argument("--lang", choices=I18N.disponibles if I18N else ["fr"], metavar="LANG",
                         help="Display language: en or fr (default: from LC_ALL / LC_MESSAGES / LANG)")
     parser.add_argument("--service", default=None,

@@ -1,6 +1,35 @@
 Changelog — run-all.sh (suite de tests)
 (version la plus récente en premier)
 
+## 1.191.20261020.211944 — Personal configuration file ~/.run-all.conf (not .cfg)
+
+Reason:
+  « La règle de fichier de config est de lire avant dans /etc/default/programme.conf et si un fichier existe dans ~/.programme.conf ... pas .cfg »
+  « tous les programmes ainsi que la doc »
+
+Changes:
+  - Own configuration: /etc/default/run-all.conf then ~/.run-all.conf (through apps/_i18n.sh, legacy ~/.run-all.cfg renamed); help and comments.
+  - Sentinel empreinte_configs: also ~/.app-health-check.cfg, ~/.odoo-backup.cfg, ~/.app-default.cfg (a test must never rename a real legacy file).
+  - Tests: new AncienNomPersonnel (test_config_commune), EmplacementConfiguration.test_ancien_nom_personnel_renomme_en_conf (test_odoo_backup),
+    RegleDesConfigurations.test_extension_conf_et_jamais_cfg (test_conventions); every test file: ~/.NAME.conf.
+
+Bugs fixed:
+  none.
+
+Safeguards and edge cases:
+  - Legacy ~/.NAME.cfg alone: renamed to ~/.NAME.conf (same content, owner and permissions), one notice on stderr (French and English).
+  - Both files present: ~/.NAME.conf is read, ~/.NAME.cfg is IGNORED and reported once per run — never merged nor deleted (its settings may differ).
+  - Rename impossible (read-only home…): the legacy file is read as is, with a notice — settings never vanish silently.
+  - NGINX_TOOLS_CONFIG_MIGRER=0: no rename. One notice per file and per run, even across child programs (NGINX_TOOLS_CONFIG_SIGNALES).
+
+Checks:
+  - New tests test_config_commune.AncienNomPersonnel (Python and bash: rename, both files, read-only home as non-root, English notice, common file);
+  - test_conventions: no ~/.NAME.cfg in help, templates and documentation; full suite run-all.sh; ShellCheck 0.11.0 on the bash programs.
+
+Action required:
+  none — an existing ~/.run-all.cfg is renamed ~/.run-all.conf automatically at the next run. If both files exist, the program says so:
+  move the settings of the .cfg into the .conf, then delete the .cfg.
+
 ## 1.190.20261020.175756 — Tests without root; never a real system file written; no stop on « Broken pipe »
 
 Reason:
@@ -2079,7 +2108,6 @@ Vérifications effectuées :
 
 Action requise de ma part (ou « aucune ») :
   aucune
-
 
 ## 1.91.20261009.230224 — Tests : app-log-live.py 1.23
 

@@ -1,3 +1,34 @@
+## 1.19.20261020.211944 — Personal configuration file ~/.odoo-backup.conf (not .cfg)
+
+Reason:
+  « La règle de fichier de config est de lire avant dans /etc/default/programme.conf et si un fichier existe dans ~/.programme.conf ... pas .cfg »
+  « tous les programmes ainsi que la doc »
+
+Changes:
+  - CONFIG_PERSO = ~/.odoo-backup.conf; new CONFIG_ANCIEN = ~/.odoo-backup.cfg.
+  - migrer_config_perso (pre-1.5 legacy: ~/.odoo-backup.cfg was the only configuration) unchanged in spirit: moved to /etc/default when no system file exists.
+  - New migrer_ancien_nom: a ~/.odoo-backup.cfg kept as a LAYER (a system file exists) becomes ~/.odoo-backup.conf (config_migrer_ancien); the service's
+    --config pointing to the old name is corrected at once (retirer_chemin_du_service), like the 1.5 migration.
+  - Common file: legacy ~/.app-default.cfg renamed too. Help, template written at first start, comments: ~/.odoo-backup.conf.
+
+Bugs fixed:
+  - Symptom: a mass search-and-replace would have turned the pre-1.5 migration into « ~/.odoo-backup.conf → /etc/default », moving a personal LAYER.
+  - Diagnosis: the pre-1.5 file is the legacy NAME (.cfg). Fix: the pre-1.5 migration keeps watching ~/.odoo-backup.cfg (CONFIG_ANCIEN); tests updated.
+
+Safeguards and edge cases:
+  - Legacy ~/.NAME.cfg alone: renamed to ~/.NAME.conf (same content, owner and permissions), one notice on stderr (French and English).
+  - Both files present: ~/.NAME.conf is read, ~/.NAME.cfg is IGNORED and reported once per run — never merged nor deleted (its settings may differ).
+  - Rename impossible (read-only home…): the legacy file is read as is, with a notice — settings never vanish silently.
+  - NGINX_TOOLS_CONFIG_MIGRER=0: no rename. One notice per file and per run, even across child programs (NGINX_TOOLS_CONFIG_SIGNALES).
+
+Checks:
+  - New tests test_config_commune.AncienNomPersonnel (Python and bash: rename, both files, read-only home as non-root, English notice, common file);
+  - test_conventions: no ~/.NAME.cfg in help, templates and documentation; full suite run-all.sh; ShellCheck 0.11.0 on the bash programs.
+
+Action required:
+  none — an existing ~/.odoo-backup.cfg is renamed ~/.odoo-backup.conf automatically at the next run. If both files exist, the program says so:
+  move the settings of the .cfg into the .conf, then delete the .cfg.
+
 ## 1.18.20261019.150215 — New copyright: Services-Conseils Linux and Rencontres Linux au Québec contributors
 
 Reason:

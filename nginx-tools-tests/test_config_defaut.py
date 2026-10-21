@@ -44,7 +44,7 @@ class ConfigParDefaut(EnvTest):
 
     def test_sans_droits_sur_le_systeme_cree_le_fichier_personnel(self):
         r = self.lancer(NGINX_TOOLS_ETC_DEFAULT=os.path.join(self.d, "etc-inexistant"))
-        perso = os.path.join(self.home, ".zip-versions.cfg")
+        perso = os.path.join(self.home, ".zip-versions.conf")
         self.assertTrue(os.path.isfile(perso), r.stdout + r.stderr)
         self.assertEqual(stat.S_IMODE(os.stat(perso).st_mode), 0o600)
 
@@ -56,7 +56,7 @@ class ConfigParDefaut(EnvTest):
                 self.assertEqual(os.listdir(self.home), [])
 
     def test_un_fichier_existant_n_est_jamais_touche(self):
-        perso = os.path.join(self.home, ".zip-versions.cfg")
+        perso = os.path.join(self.home, ".zip-versions.conf")
         with open(perso, "w") as f:
             f.write("# le mien\nLANGUAGE=fr\n")                                 # run-all 1.188 : une option ACTIVE (un fichier tout en commentaire suit le modèle depuis _config 1.7)
         self.lancer()

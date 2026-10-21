@@ -20,10 +20,11 @@
 #   * Waits for Odoo to answer (--wait seconds at most): can be started right after the start.
 #   * Automatic start: --systemd-install adds to Odoo's unit (--service) a .d file that starts this program in the background after each start
 #     (systemd-run, without delaying Odoo's start); --systemd-remove removes it.
-# Configuration (common rule): /etc/default/odoo-warmup.conf THEN ~/.odoo-warmup.cfg (the last one wins); -c/--config: that file ALONE; the command line
+# Configuration (common rule): /etc/default/odoo-warmup.conf THEN ~/.odoo-warmup.conf (the last one wins); -c/--config: that file ALONE; the command line
 # takes priority. The files read are always displayed, with the important options.
 #
 # VERSION HISTORY (summary — see doc/odoo-warmup.changelog.txt for full detail):
+#   1.9.20261020.211944 — Personal configuration file ~/.odoo-warmup.conf (not .cfg); a legacy one with .cfg is renamed automatically.
 #   1.8.20261019.150215 — New copyright: Services-Conseils Linux and Rencontres Linux au Québec contributors (AGPL-3.0-or-later).
 #   1.7.20261017.105442 — Options line: which setting decided the display language (apps/_i18n.py 1.17).
 #   1.6.20261016.173838 — Copyright holder: Services-Linux Conseils Inc
@@ -61,13 +62,13 @@ try:                    # line editing in prompts
 except ImportError:
     pass
 
-__version__ = "1.8.20261019.150215"
+__version__ = "1.9.20261020.211944"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
 CHANGELOG_FILE = os.path.join(SCRIPT_DIR, "doc", f"{SCRIPT_NAME}.changelog.txt")
 SYSTEM_CONF = os.path.join(os.environ.get("NGINX_TOOLS_ETC_DEFAULT", "/etc/default"), "odoo-warmup.conf")      # variable: tests only
-USER_CONF = "~/.odoo-warmup.cfg"
+USER_CONF = "~/.odoo-warmup.conf"
 SYSTEMD_DIR = os.environ.get("NGINX_TOOLS_SYSTEMD_DIR", "/etc/systemd/system")                       # variable: tests only
 DEFAULT_URL = "http://127.0.0.1:8069"
 DEFAULT_PAGES = ["/", "/web/login", "/event", "/survey"]
@@ -119,8 +120,17 @@ if I18N:
 def eprint(*args):
     print(*args, file=sys.stderr, flush=True)
 
+def personal_conf():
+    """Personal configuration file to read: ~/.odoo-warmup.conf; a legacy ~/.odoo-warmup.cfg is renamed to it first (apps/_config.py migrer_ancien)."""
+    path = os.path.expanduser(USER_CONF)
+    try:
+        return load_module("_config").migrer_ancien(path)
+    except Exception:
+        return path
+
+
 def read_config(explicite=None):
-    """(values, files read, problems): /etc/default/odoo-warmup.conf then ~/.odoo-warmup.cfg (the last one wins); explicit (-c/--config):
+    """(values, files read, problems): /etc/default/odoo-warmup.conf then ~/.odoo-warmup.conf (the last one wins); explicit (-c/--config):
     that file ALONE, which must exist (FileNotFoundError otherwise). Keys: URL, DB, LOGIN, KEY_FILE, PAGES_FILE, LANGS, PAGES and MODELS (comma-separated lists),
     REPEAT and WAIT (positive numbers), LINKS and LATEST (numbers, 0 = none), SERVICE, LANGUAGE (en, fr, auto)."""
     values, files_read, problems = {}, [], []
@@ -137,7 +147,7 @@ def read_config(explicite=None):
             common = [c for c, exists_ in load_module("_config").chemins_communs() if exists_]
         except Exception:
             common = []
-    for path in (common if not explicite else []) + ([explicite] if explicite else [SYSTEM_CONF, os.path.expanduser(USER_CONF)]):
+    for path in (common if not explicite else []) + ([explicite] if explicite else [SYSTEM_CONF, personal_conf()]):
         try:
             with open(path, encoding="utf-8") as f:
                 lines = f.read().splitlines()

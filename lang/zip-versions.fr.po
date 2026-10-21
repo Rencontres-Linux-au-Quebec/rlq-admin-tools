@@ -193,8 +193,8 @@ msgstr "archives .zip, ou répertoires dont les .zip sont examinés (défaut : r
 msgid "Show the change log"
 msgstr "Affiche le journal des modifications"
 
-msgid "Configuration file to read ALONE (otherwise: /etc/default/zip-versions.conf, then the personal file .zip-versions.cfg; options in UPPERCASE: INSTALLED, LANGUAGE, NGINX_DIR)"
-msgstr "Fichier de configuration à lire SEUL (sinon : /etc/default/zip-versions.conf, puis le fichier personnel .zip-versions.cfg ; options en MAJUSCULES : INSTALLED, LANGUAGE, NGINX_DIR)"
+msgid "Configuration file to read ALONE (otherwise: /etc/default/zip-versions.conf, then the personal file .zip-versions.conf; options in UPPERCASE: INSTALLED, LANGUAGE, NGINX_DIR)"
+msgstr "Fichier de configuration à lire SEUL (sinon : /etc/default/zip-versions.conf, puis le fichier personnel .zip-versions.conf ; options en MAJUSCULES : INSTALLED, LANGUAGE, NGINX_DIR)"
 
 msgid "Display language: en or fr (default: from LC_ALL / LC_MESSAGES / LANG)"
 msgstr "Langue d'affichage : en ou fr (défaut : selon LC_ALL / LC_MESSAGES / LANG)"

@@ -472,8 +472,8 @@ msgstr " lignes lues en "
 msgid "Analyzes Odoo's systemd log for protocol attacks and Python tracebacks."
 msgstr "Analyse le journal systemd d'Odoo pour attaques protocole et traces Python."
 
-msgid "Configuration file to read ALONE (otherwise: /etc/default/app-log-check.conf, then the personal file .app-log-check.cfg; options in UPPERCASE: APP, DAYS, ERRORS_ONLY, FULL_TRACE, LANGUAGE, NAMESPACE, SERVICE, TOP, VERBOSE)"
-msgstr "Fichier de configuration à lire SEUL (sinon : /etc/default/app-log-check.conf, puis le fichier personnel .app-log-check.cfg ; options en MAJUSCULES : APP, DAYS, ERRORS_ONLY, FULL_TRACE, LANGUAGE, NAMESPACE, SERVICE, TOP, VERBOSE)"
+msgid "Configuration file to read ALONE (otherwise: /etc/default/app-log-check.conf, then the personal file .app-log-check.conf; options in UPPERCASE: APP, DAYS, ERRORS_ONLY, FULL_TRACE, LANGUAGE, NAMESPACE, SERVICE, TOP, VERBOSE)"
+msgstr "Fichier de configuration à lire SEUL (sinon : /etc/default/app-log-check.conf, puis le fichier personnel .app-log-check.conf ; options en MAJUSCULES : APP, DAYS, ERRORS_ONLY, FULL_TRACE, LANGUAGE, NAMESPACE, SERVICE, TOP, VERBOSE)"
 
 msgid "Display language: en or fr (default: from LC_ALL / LC_MESSAGES / LANG)"
 msgstr "Langue d'affichage : en ou fr (défaut : selon LC_ALL / LC_MESSAGES / LANG)"

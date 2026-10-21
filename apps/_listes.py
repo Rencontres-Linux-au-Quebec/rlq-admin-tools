@@ -11,7 +11,7 @@
 # _listes.py — les DEUX listes d'adresses propres à une installation, lues hors des archives (jamais livrées) :
 #   * LISTE BLANCHE  /etc/default/nginx-tools-white-list.conf : adresses de confiance (équipe) — jamais bannies, accès aux sites DEV et
 #     LAB. Lue SEULEMENT dans /etc/default (elle donne accès : aucun fichier utilisateur caché).
-#   * LIEUX          /etc/default/nginx-tools-ip-location.conf puis ~/.nginx-tools-ip-location.cfg : un NOM pour une adresse ou une plage
+#   * LIEUX          /etc/default/nginx-tools-ip-location.conf puis ~/.nginx-tools-ip-location.conf : un NOM pour une adresse ou une plage
 #     (université, bureau…). Descriptif : ne donne AUCUN accès.
 # Syntaxe commune, une entrée par ligne :   ADRESSE-OU-PLAGE   # libellé   [option] [option]
 #   [partagée]  plusieurs personnes derrière la même adresse : on affiche le lieu, jamais un nom de personne
@@ -20,6 +20,7 @@
 # nginx-hardening.sh --update la migre. Variables d'environnement (tests) : NGINX_TOOLS_WHITE_LIST, NGINX_TOOLS_IP_LOCATION (fichier unique).
 #
 # HISTORIQUE DE VERSION (resume — voir doc/_listes.changelog.txt pour le detail complet) :
+#   1.3.20261020.211944 — Personal configuration file ~/.NAME.conf (not .cfg); a legacy ~/.NAME.cfg is renamed automatically.
 #   1.2.20261019.150215 — New copyright: Services-Conseils Linux and Rencontres Linux au Québec contributors (AGPL-3.0-or-later).
 #   1.1.20261016.173838 — Copyright holder: Services-Linux Conseils Inc
 #   1.0.20261007.093208 — Premiere version : liste blanche et lieux, lecteur commun (remplace six analyseurs).
@@ -34,11 +35,11 @@ import os
 import re
 import sys
 
-__version__ = "1.2.20261019.150215"
+__version__ = "1.3.20261020.211944"
 
 BLANCHE_DEFAUT = "/etc/default/nginx-tools-white-list.conf"
 LIEUX_DEFAUT = "/etc/default/nginx-tools-ip-location.conf"
-LIEUX_UTILISATEUR = "~/.nginx-tools-ip-location.cfg"
+LIEUX_UTILISATEUR = "~/.nginx-tools-ip-location.conf"
 LIGNE_RE = re.compile(r"^\s*([0-9A-Fa-f:.]+(?:/\d{1,3})?)\s*(?:#(.*))?$")
 OPTION_RE = re.compile(r"\[([^\]]*)\]")
 OPTIONS = {"partagee": "partagee", "partagée": "partagee", "protegee": "protegee", "protégée": "protegee"}
@@ -132,6 +133,20 @@ class Listes(object):
         return f"Listes : {a} ; {b}"
 
 
+def _personnel(chemin):
+    """~/.NOM.conf à lire ; un ancien ~/.NOM.cfg est renommé d'abord (apps/_config.py migrer_ancien, mêmes avis que les programmes). Sans apps/_config.py :
+    le .conf, ou l'ancien fichier s'il est seul (jamais d'exception)."""
+    try:
+        import importlib.util
+        spec = importlib.util.spec_from_file_location("_config_voisin", os.path.join(os.path.dirname(os.path.abspath(__file__)), "_config.py"))
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        return module.migrer_ancien(chemin)
+    except Exception:                                        # noqa: BLE001
+        ancien = chemin[:-len(".conf")] + ".cfg" if chemin.endswith(".conf") else chemin
+        return ancien if not os.path.exists(chemin) and os.path.exists(ancien) else chemin
+
+
 def chemins(env=None, dossier_apps=None):
     """(chemin de la liste blanche, ancien chemin ou None, [chemins des lieux]) selon l'environnement."""
     env = os.environ if env is None else env
@@ -139,7 +154,7 @@ def chemins(env=None, dossier_apps=None):
     ancien = None
     if not env.get("NGINX_TOOLS_WHITE_LIST") and dossier_apps:
         ancien = os.path.join(dossier_apps, "team-ips.list")
-    lieux = [env["NGINX_TOOLS_IP_LOCATION"]] if env.get("NGINX_TOOLS_IP_LOCATION") else [LIEUX_DEFAUT, os.path.expanduser(LIEUX_UTILISATEUR)]
+    lieux = [env["NGINX_TOOLS_IP_LOCATION"]] if env.get("NGINX_TOOLS_IP_LOCATION") else [LIEUX_DEFAUT, _personnel(os.path.expanduser(LIEUX_UTILISATEUR))]
     return blanche, ancien, lieux
 
 
