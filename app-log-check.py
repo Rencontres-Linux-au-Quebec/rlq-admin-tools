@@ -14,54 +14,6 @@
 # directly in plain HTTP, bypassing nginx entirely), and (2) unhandled Python traces (tracebacks), grouped by
 # final message to spot a recurring bug at a glance.
 #
-# VERSION HISTORY (summary — see app-log-check.changelog.txt for full detail):
-#   2.23.20261020.211944 — Personal configuration file ~/.app-log-check.conf (not .cfg); a legacy one with .cfg is renamed automatically.
-#   2.22.20261019.150215 — New copyright: Services-Conseils Linux and Rencontres Linux au Québec contributors (AGPL-3.0-or-later).
-#   2.21.20261016.173838 — Copyright holder: Services-Linux Conseils Inc
-#   2.20.20261015.215241 — Source code, comments and changelog in English (display stays French/English via lang/app-log-check.fr.po).
-#   2.19.20261015.080630 — « Limited rights (not root) » notice at startup.
-#   2.18.20261013.084000 — Base64 / very long lines abbreviated in tracebacks.
-#   2.17.20261012.213000 — Odoo service deduced from db_user (Odoo configuration).
-#   2.16.20261012.103600 — Configuration file created at first start (all options commented out); doc/app-log-check.conf.example template completed.
-#   2.15.20261010.215000 — French or English display (--lang); configuration file (LANGUAGE and options) and -c/--config.
-#   2.14.20261009.112443 — --errors-only option: only the error detail (traces [2], other errors [3], diagnostics [5]).
-#   2.13.20261007.175327 — Diagnostics: « permanent » flag (cause that comes back as long as the setting is not fixed).
-#   2.12.20261007.171721 — Summary at the top; section [5]: cause and solution of e-mail errors (SMTP 452, 503, 550…) and e-mail state read from Odoo.
-#   2.11.20261007.093208 — Address labels: whitelist then places (apps/_listes.py); « shared address » verdict.
-#   2.10.20261002.214327 — --by-hour: per-account analysis, bursts after a login elsewhere, session modules, journal volume; first line of EVERY run (even --help): name and version.
-#   2.9.20261002.201545 — --by-hour option: report of problems per hour and per day, pages in error, « Session expired » and its diagnosis.
-#   1.0.20260922.083916 — First version.
-#   1.1.20260922.085118 — Service auto-detection (--service becomes optional): tries "erplibre.service"
-#                          (real name in PROD) then "erplibre_erplibre.service" (real name in DEV/LAB) via
-#                          "systemctl list-unit-files", uses the first one found. An explicit --service keeps
-#                          absolute priority over auto-detection.
-#   1.2.20260922.123120 — Added --namespace NAME: needed to keep working if the Odoo service
-#                          is isolated in its own journal namespace (LogNamespace=) to give it a
-#                          retention limit independent of the other services. Part of the
-#                          remembered (incremental) position, to never mix the positions of two namespaces.
-#   1.3.20260924.203547 — New section [4] « known noise, harmless » (source .map files of old asset
-#                          bundles, push subscriptions with an old VAPID key): counted apart, with an
-#                          explanation, instead of being mixed with the real errors. New -v/--verbose option
-#                          (journalctl/systemctl commands). Service detection by EXACT name.
-#   1.4.20260925.073513 — Section [3] grouped (account, first/last occurrence, truncated example); for a
-#                          failed SQL query, shows the table and the PostgreSQL reason (the « ERROR: » line that follows
-#                          the query, hidden until now). New known noise: concurrent update conflict
-#                          (automatically replayed by Odoo, recognized only if the reason is in the journal) and
-#                          invalid OAuth token.
-#   1.5.20260926.132132 — --changelog: pipe interruption (« | head ») without Python trace (BrokenPipeError),
-#                          defect found by the new test suite.
-#   1.6.20260926.211237 — --changelog: default SIGPIPE (no more message at Python's final flush).
-#   1.7.20260926.223504 — Known noise: websocket subscription refused by web_editor (Odoo 18 bug fixed upstream).
-#   2.0.20260927.145909 — Renamed (old name: chk-odoo-logs.py); application profiles (--app); analysis of journals
-#                          in files (BBB: bbb-web.log), grouped by message, incremental follow-up.
-#   2.1.20260927.192332 — IP of protocol attacks in magenta (terminal only).
-#   2.2.20260927.202645 — Changelog in the doc/ subfolder (fallback on the old location).
-#   2.3.20260928.083340 — Accent: « Fenêtre » in the header.
-#   2.4.20260929.144332 — Length guard on journal lines (64 KB) before the regular expressions.
-#   2.5.20260929.195459 — Help: options in alphabetical order.
-#   2.6.20260930.084200 — Ctrl-C: clean exit (code 130), without call trace.
-#   2.8.20261002.064915 — Permission refusals (Access Denied by ACLs, INFO) as known noise, detail per user.
-#   2.7.20260930.163902 — --report-err option: error report to copy-paste at the end of the run.
 #
 # Usage:
 #   python3 app-log-check.py [--service NOM] [--init] [--last HEURES] [--errors-only] [--full-trace] [-v|--verbose] [--version]
@@ -86,7 +38,7 @@
 #                      complete example is shown per group — largely enough to identify the cause, and avoids an
 #                      unreadable report if the same bug happened 200 times).
 #   --version       : displays the version and exits.
-#   --changelog     : displays app-log-check.changelog.txt.
+#   --changelog     : displays CHANGELOG.md.
 #
 # Requires access to journalctl for the service concerned (root, or member of the "systemd-journal" group on
 # most distributions).
@@ -195,7 +147,7 @@ def show_changelog():
     # process stops silently. Python otherwise ignores it, and a BrokenPipeError can occur up to the final
     # flush of the buffers (« Exception ignored on flushing sys.stdout »), out of reach of any try/except.
     signal.signal(signal.SIGPIPE, signal.SIG_DFL)
-    path = changelog_path("app-log-check.changelog.txt")
+    path = changelog_path("CHANGELOG.md")
     if not os.path.isfile(path):
         eprint(f"Changelog not found: {path}")
         sys.exit(1)

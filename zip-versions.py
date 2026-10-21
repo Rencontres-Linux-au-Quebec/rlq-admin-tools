@@ -14,27 +14,6 @@
 # Several archives of the same type (e.g. « nginx-tools (2).zip » in downloads): the most recent one is designated,
 # the one to attach to the discussion. --installed: comparison with what is deployed on the server.
 #
-# VERSION HISTORY (summary — see doc/zip-versions.changelog.txt for full detail):
-#   1.15.20261020.211944 — Personal configuration file ~/.zip-versions.conf (not .cfg); a legacy one with .cfg is renamed automatically.
-#   1.14.20261019.150215 — New copyright: Services-Conseils Linux and Rencontres Linux au Québec contributors (AGPL-3.0-or-later).
-#   1.13.20261016.173838 — Copyright holder: Services-Linux Conseils Inc
-#   1.12.20261015.194752 — Source code, comments and changelog now in English (display stays French/English through lang/zip-versions.fr.po).
-#   1.11.20261015.183428 — Green also for today's files/ISO dates and for module versions without a date (e.g. 18.0.1.107.0).
-#   1.10.20261015.092124 — Today's versions in green in ALL sections (including « ARCHIVES TO ATTACH TO THE DISCUSSION »).
-#   1.9.20261013.163324 — Versions dated today in green (+ legend).
-#   1.8.20261012.103600 — Configuration file created at first start (all options commented out); template doc/zip-versions.conf.example completed.
-#   1.7.20261010.215000 — French or English display (--lang); configuration file (LANGUAGE, INSTALLED, NGINX_DIR) and -c/--config option.
-#   1.6.20261002.214327 — First line of EVERY run (even --help): name and version.
-#   1.5.20261002.120134 — Versioned nginx configuration (VERSION file): name nginx-odoo-config.1.0.zip, compared like the other archives.
-#   1.4.20261002.073514 — Archive names: version WITHOUT the date (MAJOR.MINOR); name and content compared on these two numbers.
-#   1.3.20261002.064915 — Version in the archive name: compared with the content; version of the nginx-tools archive
-#                          (doc/nginx-tools.version), also compared with the installation.
-#   1.2.20261001.202502 — Any recognized archive: version of the manifest, CHANGELOG, package.json, pyproject.toml,
-#                          VERSION or code; tests archive <-> program consistency (common files).
-#   1.1.20261001.094048 — Test suite: nginx-tools-tests.zip (nginx-tools-tests/ folder); old tests.zip recognized and reported;
-#                          tests.zip of other programs ignored.
-#   1.0.20261001.092458 — Initial version: versions of programs and configuration in the archives, most
-#                          recent archive per type, comparison with the installation (--installed).
 #
 # Usage:
 #   zip-versions.py                       archives (*.zip) of the current directory

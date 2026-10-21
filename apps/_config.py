@@ -10,16 +10,6 @@
 # _config.py — fichiers de configuration des programmes Python (module partagé, apps/) : règle commune /etc/default/PROGRAMME.conf, PUIS le fichier personnel
 # PROGRAMME.conf (point devant, dans le répertoire personnel ; un ancien ~/.PROGRAMME.cfg est renommé), PUIS la ligne de commande (prioritaire).
 #
-# HISTORIQUE DE VERSION (résumé — voir doc/_config.changelog.txt pour le détail complet) :
-#   1.8.20261020.211944 — Personal file is now ~/.PROGRAMME.conf (not .cfg): legacy ~/.PROGRAMME.cfg renamed automatically (migrer_ancien, personnel).
-#   1.7.20261019.150215 — Configuration files with no active option rewritten from the current template at the next run; new copyright.
-#   1.6.20261015.143436 — ANONYMIZE : clé commune (app-default.conf).
-#   1.5.20261015.080630 — est_root, refus_non_root, avis_non_root ; jours_journaux (LOG_KEEP_DAYS commun).
-#   1.4.20261015.073057 — Date de modification des fichiers lus (heure locale).
-#   1.3.20261015.065821 — Le fichier commun /etc/default/app-default.conf est créé s'il n'existe pas.
-#   1.2.20261014.175821 — Fichier commun à tous les programmes : /etc/default/app-default.conf PUIS ~/.app-default.cfg, lus AVANT le fichier du programme (LANGUAGE, VERBOSE, DEBUG_LEVEL).
-#   1.1.20261012.103600 — Premier démarrage : creer_par_defaut() crée le fichier de configuration (copie de doc/PROGRAMME.conf.example, toutes les options en commentaire).
-#   1.0.20261010.211030 — Création : lecture KEY=VALUE des deux fichiers, valeurs par défaut des options argparse, ligne « Configuration lue : ».
 """Fichiers KEY=VALUE (une clé par ligne, # = commentaire, guillemets facultatifs), les clés en MAJUSCULES. Le dernier fichier lu l'emporte. Chaque programme
 déclare un SCHÉMA {CLÉ: (option argparse, type)} : les valeurs du fichier deviennent les valeurs par défaut des options, que la ligne de commande remplace.
 Variable NGINX_TOOLS_ETC_DEFAULT : autre dossier à la place de /etc/default (tests)."""

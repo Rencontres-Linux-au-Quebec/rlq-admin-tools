@@ -12,10 +12,6 @@
 #   /etc/default/nginx-tools-white-list.conf (seulement /etc/default), /etc/default/nginx-tools-ip-location.conf puis ~/.nginx-tools-ip-location.conf.
 # À sourcer (". apps/_listes.sh") ; ne fait rien tout seul.
 #
-# HISTORIQUE DE VERSION (resume — voir doc/_listes.changelog.txt pour le detail complet) :
-#   1.3.20261020.211944 — Personal configuration file ~/.NAME.conf (not .cfg); a legacy ~/.NAME.cfg is renamed automatically.
-#   1.2.20261019.150215 — New copyright: Services-Conseils Linux and Rencontres Linux au Québec contributors (AGPL-3.0-or-later).
-#   1.0.20261007.093208 — Premiere version : liste blanche et lieux, lecteur commun (remplace les analyseurs de team-ips.list).
 
 LISTES_BLANCHE_DEFAUT="/etc/default/nginx-tools-white-list.conf"
 LISTES_LIEUX_DEFAUT="/etc/default/nginx-tools-ip-location.conf"

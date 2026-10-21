@@ -8,24 +8,6 @@
 # ========================================================================================================================
 # _i18n.sh — langue d'affichage (fr / en…) et fichier de configuration des programmes bash (bibliothèque commune sourcée, apps/).
 #
-# HISTORIQUE DE VERSION (résumé — voir doc/_i18n.sh.changelog.txt pour le détail complet) :
-#   1.16.20261020.211944 — Personal file is now ~/.PROGRAMME.conf (not .cfg): config_migrer_ancien renames a legacy ~/.PROGRAMME.cfg.
-#   1.15.20261020.112434 — pad_cols: padding in COLUMNS (bash printf %-Ns counts bytes: « é » shifted the columns).
-#   1.14.20261019.150215 — config_rafraichir: configuration files with no active option rewritten from the current template; new copyright.
-#   1.13.20261017.200717 — Ctrl+C: a second Ctrl+C during the « Interrupt? » question stops the program (it was ignored after a Ctrl+C in a question).
-#   1.12.20261017.105442 — Language: LANGUAGE (GNU) also starts the translator; « Options : --lang xx (origine) » for the bash programs.
-#   1.11.20261016.173838 — run_interruptible (Ctrl+C answered at once during a long command) and ctrl_c_child (the child program asks, not both); stop of the running command on « yes ».
-#   1.10.20261015.172851 — ShellCheck : tr 'A-Z' 'a-z' remplacé par les classes [:upper:] / [:lower:] (SC2018, SC2019).
-#   1.9.20261015.143436 — --anonymize, NGINX_TOOLS_ANONYMIZE et ANONYMIZE du fichier de configuration : le programme est relancé derrière le filtre d'apps/_traduire.py.
-#   1.8.20261015.092124 — ShellCheck SC2004 : (( CFG[DEBUG_LEVEL] >= 1 )) sans $.
-#   1.7.20261015.080630 — LOG_KEEP_DAYS du fichier commun exporté (NGINX_TOOLS_LOG_KEEP_DAYS).
-#   1.6.20261015.073057 — config_date_modif : date de modification des fichiers de configuration lus (heure locale).
-#   1.5.20261015.065821 — Le fichier commun app-default.conf est créé s'il n'existe pas (config_creer_defaut).
-#   1.4.20261014.175821 — Fichier commun app-default.conf lu avant celui du programme (LANGUAGE, VERBOSE, DEBUG_LEVEL).
-#   1.3.20261014.154520 — Ctrl+C pendant une question : la réponse est lue hors readline (plus de « nt » mêlé à la ligne en cours).
-#   1.2.20261012.103600 — config_creer_defaut : crée le fichier de configuration par défaut au premier démarrage (toutes les options en commentaire).
-#   1.1.20261011.144500 — Ctrl+C : ctrl_c_installer (confirmation « Interrompre le programme ? [o/N] »), appelée par i18n_relancer ; CTRL_C_NETTOYAGE.
-#   1.0.20261010.221500 — Création : i18n_relancer (traduction de la sortie par apps/_traduire.py), config_lire / config_defaut / config_afficher (règle commune des fichiers de configuration).
 #
 # Utilisation, tout au début du programme (après SCRIPT_DIR et SCRIPT_NAME) :
 #   . "$SCRIPT_DIR/apps/_i18n.sh"; i18n_relancer "$SCRIPT_NAME" NOM_DU_PROGRAMME_LANG "$0" "$@"
