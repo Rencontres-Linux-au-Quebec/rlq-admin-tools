@@ -262,9 +262,6 @@ msgstr "Vrais visiteurs : aucun (tous les visiteurs sont des robots)"
 msgid "page(s) per real visitor"
 msgstr "page(s) par vrai visiteur"
 
-msgid "Most visited pages: "
-msgstr "Pages les plus visitées : "
-
 msgid "Session summary"
 msgstr "Résumé de la session"
 
@@ -306,9 +303,6 @@ msgstr "(touche b : les bannir avec nginx-log-audit.sh --ban, comme web-monitor.
 
 msgid "Pages by language ("
 msgstr "Pages par langue ("
-
-msgid "Top 10 URLs:"
-msgstr "Top 10 des URLs :"
 
 msgid "Odoo errors and warnings: "
 msgstr "Erreurs et avertissements d'Odoo : "
@@ -2587,3 +2581,15 @@ msgstr "--record-test-log a besoin du direct (pas avec --no-follow)"
 
 msgid "Test recording (--record-test-log): starts with the live stream, stops after {minutes} min, then the program exits; archive in {folder}"
 msgstr "Enregistrement de test (--record-test-log) : commence avec le direct, s'arrête après {minutes} min, puis le programme quitte ; archive dans {folder}"
+
+msgid "· other countries "
+msgstr "· autres pays "
+
+msgid " · without sample: "
+msgstr " · sans échantillon : "
+
+msgid "Top 10 URLs (all requests, errors included):"
+msgstr "Top 10 des URLs (toutes les requêtes, erreurs comprises) :"
+
+msgid "Most visited pages (responses below 400): "
+msgstr "Pages les plus visitées (réponses sous 400) : "
