@@ -427,7 +427,7 @@ class ProgrammeComplet(EnvTest):
 
 
 class ConfigurationEnCouches(EnvTest):
-    """2.14 : /etc/default/app-health-check.conf, PUIS ~/.app-health-check.cfg, PUIS ./app-health-check.conf (le dernier
+    """2.14 : /etc/default/app-health-check.conf, PUIS ~/.app-health-check.conf, PUIS ./app-health-check.conf (le dernier
     l'emporte) ; -c seul ; fichiers lus et options importantes toujours affichés."""
     def module(self):
         spec = importlib.util.spec_from_file_location("ahc", script_path("app-health-check.py"))
@@ -455,7 +455,7 @@ class ConfigurationEnCouches(EnvTest):
     def test_fusion_ordre_et_dedoublonnage(self):
         m = self.module()
         a = self.write("a.conf", "ODOO_PUBLIC_HOST=a.exemple.org\nSMTP_HOST=smtp.a\nEXPECT_GOOGLE_OAUTH=true\n")
-        b = self.write("b.cfg", "ODOO_PUBLIC_HOST=b.exemple.org\nEXPECT_RESTRICTED_ACCESS=true\n")
+        b = self.write("b.conf", "ODOO_PUBLIC_HOST=b.exemple.org\nEXPECT_RESTRICTED_ACCESS=true\n")
         cfg = m.load_config([a, b])
         self.assertEqual(cfg["ODOO_PUBLIC_HOST"], "b.exemple.org")              # le dernier l'emporte
         self.assertEqual(cfg["SMTP_HOST"], "smtp.a")                            # ce qui n'est pas redéfini vient du premier
@@ -478,7 +478,7 @@ class ConfigurationEnCouches(EnvTest):
         m, defaut = self.module_redirige()
         home = os.path.dirname(self.path("home-vide", "x"))
         systeme = self.write("etc-default/app-health-check.conf", "X=0\n")
-        perso = self.write("home-vide/.app-health-check.cfg", "X=1\n")
+        perso = self.write("home-vide/.app-health-check.conf", "X=1\n")
         ancien = os.getcwd()
         os.chdir(self.d)
         self.addCleanup(os.chdir, ancien)
@@ -489,7 +489,7 @@ class ConfigurationEnCouches(EnvTest):
         self.assertEqual(chemins, [defaut + "app-health-check.conf", perso])      # /etc/default puis ~ : JAMAIS ./
         self.assertEqual(m.load_config(chemins)["X"], "1")                        # ~ l'emporte ; ./ (X=2) n'a aucun effet
         self.assertIn("app-health-check.conf exists but is NO LONGER read", e.getvalue())
-        self.assertIn("mv ./app-health-check.conf ~/.app-health-check.cfg", e.getvalue())
+        self.assertIn("mv ./app-health-check.conf ~/.app-health-check.conf", e.getvalue())
         self.assertTrue(os.path.exists(courant), "avec un fichier système, ./ est signalé, jamais déplacé")
         self.assertEqual(m.resolve_config_paths(perso), [perso])                  # -c : ce fichier seul
         with self.assertRaises(FileNotFoundError):
@@ -517,7 +517,7 @@ class ConfigurationEnCouches(EnvTest):
         m = self.module()
         a = self.write("a.conf", "ODOO_PUBLIC_HOST=www.exemple.org\nADDITIONAL_PUBLIC_HOSTS=x.exemple.org y.exemple.org\nSMTP_HOST=smtp.exemple.org\nSMTP_PORT=465\n"
                                  "NOTIFY_EMAIL_TO=admin@exemple.org\nEXPECT_GOOGLE_OAUTH=true\n")
-        b = self.write("b.cfg", "EXPECT_RESTRICTED_ACCESS=true\nODOO_TEST_USER=u\nODOO_TEST_PASSWORD=p\n")
+        b = self.write("b.conf", "EXPECT_RESTRICTED_ACCESS=true\nODOO_TEST_USER=u\nODOO_TEST_PASSWORD=p\n")
         def rendu(chemins, explicite=False):
             f = io.StringIO()
             with contextlib.redirect_stdout(f):
@@ -540,10 +540,10 @@ class ConfigurationEnCouches(EnvTest):
         prog = self.prepare("app-health-check.py", {"/etc/default/": defaut})
         home = os.path.dirname(self.path("home-vide", "x"))
         self.write("etc-default/app-health-check.conf", "ODOO_PUBLIC_HOST=www.exemple.org\nSMTP_HOST=smtp.exemple.org\nNOTIFY_EMAIL_TO=a@exemple.org\n")
-        self.write("home-vide/.app-health-check.cfg", "EXPECT_RESTRICTED_ACCESS=true\n")
+        self.write("home-vide/.app-health-check.conf", "EXPECT_RESTRICTED_ACCESS=true\n")
         self.env["HOME"] = home
         rc, out, err = self.run_cmd(["python3", prog, "--check-email-dns"])      # affiche la configuration lue, sans vérifications réseau
-        self.assertIn(f"Configuration lue : {defaut}app-health-check.conf, puis {home}/.app-health-check.cfg (le dernier l'emporte)", sans_date(out))
+        self.assertIn(f"Configuration lue : {defaut}app-health-check.conf, puis {home}/.app-health-check.conf (le dernier l'emporte)", sans_date(out))
         self.assertIn("site www.exemple.org", out)
         self.assertIn("instance non publique : oui", out)                       # vient du fichier de ~
         self.assertIn("courriel : smtp.exemple.org:587 → a@exemple.org", out)   # vient de /etc/default

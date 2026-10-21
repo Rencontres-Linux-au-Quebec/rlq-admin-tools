@@ -1765,8 +1765,8 @@ msgstr "  Options : "
 msgid "  WARNING: configuration value ignored: "
 msgstr "  ATTENTION : valeur de configuration ignorée : "
 
-msgid "Configuration file to read ALONE (otherwise: /etc/default/web-monitor.conf, then the personal file .web-monitor.cfg; UPPERCASE options: APP, DAYS, DETAILS, INTERVAL_HOURS, LANGUAGE, NO_PAGER, NO_PROMPT, REVERSE, SORT, TABLE)"
-msgstr "Fichier de configuration à lire SEUL (sinon : /etc/default/web-monitor.conf, puis le fichier personnel .web-monitor.cfg ; options en MAJUSCULES : APP, DAYS, DETAILS, INTERVAL_HOURS, LANGUAGE, NO_PAGER, NO_PROMPT, REVERSE, SORT, TABLE)"
+msgid "Configuration file to read ALONE (otherwise: /etc/default/web-monitor.conf, then the personal file .web-monitor.conf; UPPERCASE options: APP, DAYS, DETAILS, INTERVAL_HOURS, LANGUAGE, NO_PAGER, NO_PROMPT, REVERSE, SORT, TABLE)"
+msgstr "Fichier de configuration à lire SEUL (sinon : /etc/default/web-monitor.conf, puis le fichier personnel .web-monitor.conf ; options en MAJUSCULES : APP, DAYS, DETAILS, INTERVAL_HOURS, LANGUAGE, NO_PAGER, NO_PROMPT, REVERSE, SORT, TABLE)"
 
 msgid "configuration file not found: "
 msgstr "fichier de configuration introuvable : "

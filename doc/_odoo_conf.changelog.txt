@@ -1,6 +1,33 @@
 Changelog — apps/_odoo_conf.py, apps/_odoo_conf.sh
 (newest version first)
 
+## 1.3.20261020.211944 — Personal configuration file ~/.PROGRAM.conf (not .cfg)
+
+Reason:
+  « La règle de fichier de config est de lire avant dans /etc/default/programme.conf et si un fichier existe dans ~/.programme.conf ... pas .cfg »
+  « tous les programmes ainsi que la doc »
+
+Changes:
+  - ODOO_CONF_PATHS read in ~/.nginx-hardening.conf (legacy ~/.nginx-hardening.cfg renamed by _personnel), then /etc/default/nginx-hardening.conf.
+  - apps/_odoo_conf.sh: same rule in odoo_conf_chemins (config_migrer_ancien when apps/_i18n.sh is loaded, otherwise the legacy file if alone).
+
+Bugs fixed:
+  none.
+
+Safeguards and edge cases:
+  - Legacy ~/.NAME.cfg alone: renamed to ~/.NAME.conf (same content, owner and permissions), one notice on stderr (French and English).
+  - Both files present: ~/.NAME.conf is read, ~/.NAME.cfg is IGNORED and reported once per run — never merged nor deleted (its settings may differ).
+  - Rename impossible (read-only home…): the legacy file is read as is, with a notice — settings never vanish silently.
+  - NGINX_TOOLS_CONFIG_MIGRER=0: no rename. One notice per file and per run, even across child programs (NGINX_TOOLS_CONFIG_SIGNALES).
+
+Checks:
+  - New tests test_config_commune.AncienNomPersonnel (Python and bash: rename, both files, read-only home as non-root, English notice, common file);
+  - test_conventions: no ~/.NAME.cfg in help, templates and documentation; full suite run-all.sh; ShellCheck 0.11.0 on the bash programs.
+
+Action required:
+  none — an existing ~/.PROGRAM.cfg is renamed ~/.PROGRAM.conf automatically at the next run. If both files exist, the program says so:
+  move the settings of the .cfg into the .conf, then delete the .cfg.
+
 ## 1.2.20261019.150215 — New copyright: Services-Conseils Linux and Rencontres Linux au Québec contributors
 
 Reason:

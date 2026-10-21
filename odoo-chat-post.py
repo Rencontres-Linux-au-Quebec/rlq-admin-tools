@@ -18,10 +18,11 @@
 #     (--post) must be one of them. An account not yet created is reported; create it, then run --create again to add the missing members (nobody is ever removed).
 #   Access: Odoo external API (XML-RPC) with an API KEY (Odoo: Preferences → Account Security → New API Key); the key is read from the configuration file
 #   (mode 600 advised) or the ODOO_API_KEY variable, never on the command line or on screen. No root access, no write outside Odoo.
-# Configuration (common rule): /etc/default/odoo-chat-post.conf THEN ~/.odoo-chat-post.cfg (the last one wins; keys API_KEY, DB, EVENTS, GROUP, LANGUAGE, LOGIN,
+# Configuration (common rule): /etc/default/odoo-chat-post.conf THEN ~/.odoo-chat-post.conf (the last one wins; keys API_KEY, DB, EVENTS, GROUP, LANGUAGE, LOGIN,
 # MEMBERS, NO_MEMBERS, SUGGESTED, URL); -c/--config: that file ALONE; the command line takes priority. The files read are always displayed, with the important options.
 #
 # VERSION HISTORY (summary — see doc/odoo-chat-post.changelog.txt for full detail):
+#   1.8.20261020.211944 — Personal configuration file ~/.odoo-chat-post.conf (not .cfg); a legacy one with .cfg is renamed automatically.
 #   1.7.20261019.150215 — New copyright: Services-Conseils Linux and Rencontres Linux au Québec contributors (AGPL-3.0-or-later).
 #   1.6.20261016.173838 — Copyright holder: Services-Linux Conseils Inc
 #   1.5.20261015.205140 — Program renamed odoo-canaux.py -> odoo-chat-post.py (English name; configuration odoo-chat-post.conf / .odoo-chat-post.cfg, ODOO_CHAT_POST_LANG).
@@ -57,7 +58,7 @@ import urllib.error
 import urllib.request
 import xmlrpc.client
 
-__version__ = "1.7.20261019.150215"
+__version__ = "1.8.20261020.211944"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
@@ -91,7 +92,7 @@ def eprint(*args):
     print(*args, file=sys.stderr, flush=True)
 
 
-# Configuration file options (/etc/default/odoo-chat-post.conf, then the personal file .odoo-chat-post.cfg): KEY -> (command-line option, type).
+# Configuration file options (/etc/default/odoo-chat-post.conf, then the personal file .odoo-chat-post.conf): KEY -> (command-line option, type).
 # LANGUAGE: en, fr or auto (follow LC_ALL / LANG). API_KEY is NOT a command-line option: read separately (read_api_key).
 SCHEMA_CONFIG = {"DB": ("db", str), "MEMBERS": ("members", lambda v: [t.strip() for t in v.split(",") if t.strip()]), "SUGGESTED": ("suggested", bool), "EVENTS": ("events", lambda v: [t.strip() for t in v.split(",") if t.strip()]), "GROUP": ("group", str), "LOGIN": ("login", str),
                  "NO_MEMBERS": ("no_members", bool), "URL": ("api_url", str)}
@@ -612,7 +613,7 @@ def main():
     parser.add_argument("--catalog", default=DEFAULT_CATALOG, metavar="FILE", help="Catalog of channels and threads (JSON) (default: doc/odoo-chat-post.catalogue.json)")
     parser.add_argument("--changelog", action="store_true", help="Show the change log")
     parser.add_argument("-c", "--config", metavar="FILE",
-                        help="Configuration file to read ALONE (otherwise: /etc/default/odoo-chat-post.conf, then the personal file .odoo-chat-post.cfg; UPPERCASE options: API_KEY, DB, EVENTS, GROUP, LANGUAGE, LOGIN, MEMBERS, NO_MEMBERS, SUGGESTED, URL)")
+                        help="Configuration file to read ALONE (otherwise: /etc/default/odoo-chat-post.conf, then the personal file .odoo-chat-post.conf; UPPERCASE options: API_KEY, DB, EVENTS, GROUP, LANGUAGE, LOGIN, MEMBERS, NO_MEMBERS, SUGGESTED, URL)")
     parser.add_argument("--create", action="store_true", help="Creates the missing channels and threads, with their first message (never modifies an existing channel)")
     parser.add_argument("--create-bot", action="store_true",
                         help="Creates the bot account (--bot-login): internal user with NO other right; on the first run it also creates its API key (one year if Odoo allows it) and writes it to --bot-config; an existing account is not modified")

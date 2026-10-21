@@ -1,7 +1,7 @@
 # Fichier de configuration de odoo-warmup.py (exemple : toutes les clés, en commentaire = valeur par défaut).
 # Les fichiers suivants sont LUS DANS CET ORDRE (le dernier l'emporte) ; la ligne de commande est prioritaire sur les fichiers :
 #   1. /etc/default/odoo-warmup.conf    (fichier du système)
-#   2. ~/.odoo-warmup.cfg               (s'il existe : réglages de l'utilisateur)
+#   2. ~/.odoo-warmup.conf               (s'il existe : réglages de l'utilisateur)
 # -c/--config FICHIER : ce fichier SEUL. Le répertoire courant n'est PAS lu. Le programme affiche toujours quel(s) fichier(s) il lit,
 # puis une ligne résumant les options importantes. Format : CLÉ=valeur, une par ligne ; # = commentaire ; guillemets facultatifs ;
 # listes : valeurs séparées par des virgules. Ce fichier est LU, jamais exécuté.

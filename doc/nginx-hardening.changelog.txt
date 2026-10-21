@@ -4,6 +4,34 @@ Copyright (C) 2026  Rencontres Linux Québec <info@rencontres-linux.quebec>
 Licence AGPL-3.0-or-later — voir le README du dépôt pour le texte complet.
 ========================================================================================================================
 
+## 2.52.20261020.211944 — Personal configuration file ~/.nginx-hardening.conf (not .cfg)
+
+Reason:
+  « La règle de fichier de config est de lire avant dans /etc/default/programme.conf et si un fichier existe dans ~/.programme.conf ... pas .cfg »
+  « tous les programmes ainsi que la doc »
+
+Changes:
+  - Help of -c/--config, header comments and doc/nginx-hardening.conf.example: ~/.nginx-hardening.conf instead of ~/.nginx-hardening.cfg; lang/nginx-hardening.*.po updated.
+  - Personal file read through apps/_i18n.sh (config_lire), which renames a legacy ~/.nginx-hardening.cfg (see the shared library's changelog).
+  - ODOO_CONF_PATHS read in ~/.nginx-hardening.conf (apps/_odoo_conf.sh); doc/nginx-tools-mail.conf.example and nginx-tools-ip-location.conf.example: ~/.NAME.conf.
+
+Bugs fixed:
+  none.
+
+Safeguards and edge cases:
+  - Legacy ~/.NAME.cfg alone: renamed to ~/.NAME.conf (same content, owner and permissions), one notice on stderr (French and English).
+  - Both files present: ~/.NAME.conf is read, ~/.NAME.cfg is IGNORED and reported once per run — never merged nor deleted (its settings may differ).
+  - Rename impossible (read-only home…): the legacy file is read as is, with a notice — settings never vanish silently.
+  - NGINX_TOOLS_CONFIG_MIGRER=0: no rename. One notice per file and per run, even across child programs (NGINX_TOOLS_CONFIG_SIGNALES).
+
+Checks:
+  - New tests test_config_commune.AncienNomPersonnel (Python and bash: rename, both files, read-only home as non-root, English notice, common file);
+  - test_conventions: no ~/.NAME.cfg in help, templates and documentation; full suite run-all.sh; ShellCheck 0.11.0 on the bash programs.
+
+Action required:
+  none — an existing ~/.nginx-hardening.cfg is renamed ~/.nginx-hardening.conf automatically at the next run. If both files exist, the program says so:
+  move the settings of the .cfg into the .conf, then delete the .cfg.
+
 ## 2.51.20261020.194336 — Odoo logrotate rule in NGINX_HARDENING_LOGROTATE_DIR
 
 Reason:

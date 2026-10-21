@@ -2,7 +2,7 @@
 # Configuration file of host-perf-audit.py (example: every key, commented out = default value).
 # Les fichiers suivants sont LUS DANS CET ORDRE (le dernier l'emporte) ; la ligne de commande est prioritaire sur les fichiers :
 #   1. /etc/default/host-perf-audit.conf    (fichier du système)
-#   2. ~/.host-perf-audit.cfg               (s'il existe : réglages de l'utilisateur)
+#   2. ~/.host-perf-audit.conf               (s'il existe : réglages de l'utilisateur)
 # -c/--config FICHIER : ce fichier SEUL. Le programme affiche toujours quel(s) fichier(s) il lit, puis une ligne résumant les options importantes.
 # Format : CLÉ=valeur, une par ligne ; # = commentaire ; guillemets facultatifs. Ce fichier est LU, jamais exécuté.
 

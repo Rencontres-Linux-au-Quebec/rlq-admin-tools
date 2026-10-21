@@ -1,5 +1,5 @@
 # Courriel commun des programmes Python et Bash (apps/_courriel.py, msmtp).
-# Fichier réel : /etc/default/nginx-tools-mail.conf (créé par « nginx-hardening.sh --update », étape 0d) puis ~/.nginx-tools-mail.cfg (le dernier lu l'emporte).
+# Fichier réel : /etc/default/nginx-tools-mail.conf (créé par « nginx-hardening.sh --update », étape 0d) puis ~/.nginx-tools-mail.conf (le dernier lu l'emporte).
 # Ce fichier ne contient JAMAIS le mot de passe : il est dans MAIL_PASSWORD_FILE (mode 0600, propriétaire root), créé par le setup (réponse sans écho).
 # Exemple avec des valeurs fictives — remplacez-les par les vôtres (ou laissez le setup les demander).
 

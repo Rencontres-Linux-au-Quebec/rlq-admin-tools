@@ -36,8 +36,8 @@ msgstr "  --all-environments           run the tests of ALL environments (Odoo a
 msgid "  --app NAME                   environnement à tester : odoo, bbb… (profil apps/NAME.conf ; défaut : détecté sur ce serveur)"
 msgstr "  --app NAME                   environment to test: odoo, bbb… (profile apps/NAME.conf; default: detected on this server)"
 
-msgid "  -c, --config FILE            fichier de configuration à lire SEUL (défaut : /etc/default/run-all.conf puis ~/.run-all.cfg)"
-msgstr "  -c, --config FILE            configuration file to read ALONE (default: /etc/default/run-all.conf then ~/.run-all.cfg)"
+msgid "  -c, --config FILE            fichier de configuration à lire SEUL (défaut : /etc/default/run-all.conf puis ~/.run-all.conf)"
+msgstr "  -c, --config FILE            configuration file to read ALONE (default: /etc/default/run-all.conf then ~/.run-all.conf)"
 
 msgid "  --changelog                  affiche le journal des modifications"
 msgstr "  --changelog                  show the change log"

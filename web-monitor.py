@@ -34,6 +34,7 @@
 # the complete report /var/log/web-monitor/, always written (30 days kept).
 #
 # VERSION HISTORY (summary — see web-monitor.changelog.txt for the full detail):
+#   2.76.20261020.211944 — Personal configuration file ~/.web-monitor.conf (not .cfg); a legacy one with .cfg is renamed automatically.
 #   2.75.20261020.164846 — Merge of 2.73 (bans: --reason passed to nginx-log-audit.sh) with 2.74 (error messages translated whole, --stats e-mail domains).
 #   2.74.20261020.112434 — Error messages that start with an option (« --days expects … ») translated whole again (« … a number of jours … »).
 #   2.73.20261020.161238 — Bans: the reason is passed to nginx-log-audit.sh (--reason) and kept in the ban journal.
@@ -191,7 +192,7 @@ import time
 import unicodedata
 import urllib.parse
 
-__version__ = "2.75.20261020.164846"
+__version__ = "2.76.20261020.211944"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
@@ -212,8 +213,8 @@ VERBOSE = False
 
 
 # --- Langue d'affichage : --lang en|fr, puis WEB_MONITOR_LANG, LC_ALL, LC_MESSAGES, LANG (apps/_i18n.py + catalogue lang/web-monitor.en.po) ----------
-SYSTEM_CONFIG = "/etc/default/web-monitor.conf"     # then the personal file .web-monitor.cfg in the home directory (apps/_config.py), then the command line
-PERSONAL_CONFIG = ".web-monitor.cfg"
+SYSTEM_CONFIG = "/etc/default/web-monitor.conf"     # then the personal file .web-monitor.conf in the home directory (apps/_config.py), then the command line
+PERSONAL_CONFIG = ".web-monitor.conf"
 # Configuration file options: KEY -> (command-line option, type). LANGUAGE: en, fr, or auto (follow LC_ALL / LANG).
 SCHEMA_CONFIG = {"APP": ("app", str), "DAYS": ("days", int), "DETAILS": ("details", bool), "INTERVAL_HOURS": ("interval_hours", int), "NO_PAGER": ("no_pager", bool),
                  "NO_PROMPT": ("no_prompt", bool), "REVERSE": ("reverse", bool), "SORT": ("sort", None), "TABLE": ("table", bool), "VERBOSE": ("verbose", bool),
@@ -4962,7 +4963,7 @@ def main():
     parser = LocalizedArgumentParser(
         description="Automatic nginx + Odoo monitoring: runs the project's tools, alerts only if action is needed.")
     parser.add_argument("-c", "--config", metavar="FILE",
-                        help="Configuration file to read ALONE (otherwise: /etc/default/web-monitor.conf, then the personal file .web-monitor.cfg; UPPERCASE options: APP, DAYS, DETAILS, INTERVAL_HOURS, LANGUAGE, NO_PAGER, NO_PROMPT, REVERSE, SORT, TABLE)")
+                        help="Configuration file to read ALONE (otherwise: /etc/default/web-monitor.conf, then the personal file .web-monitor.conf; UPPERCASE options: APP, DAYS, DETAILS, INTERVAL_HOURS, LANGUAGE, NO_PAGER, NO_PROMPT, REVERSE, SORT, TABLE)")
     parser.add_argument("--run", action="store_true", help="Run the monitoring (default behavior)")
     parser.add_argument("--dry-run", action="store_true",
                         help="Run the tools and show the decision, without e-mail or changing the log reading positions")

@@ -20,10 +20,11 @@
 #   * Without a terminal (pipe, scheduled task): list only; --resend --yes resends without a question (--batch N: only the N oldest).
 #   * Warnings before resending: PERMANENT cause (it will fail again); mail.session.batch.size undefined with many e-mails (risk of hitting the
 #     messages-per-connection limit again: resend in batches).
-# Configuration (common rule): /etc/default/odoo-mail-retry.conf THEN ~/.odoo-mail-retry.cfg (the last one wins; keys BATCH, DAYS, DB, DETAILS, LANGUAGE, NO_PROMPT); -c/--config: that file ALONE;
+# Configuration (common rule): /etc/default/odoo-mail-retry.conf THEN ~/.odoo-mail-retry.conf (the last one wins; keys BATCH, DAYS, DB, DETAILS, LANGUAGE, NO_PROMPT); -c/--config: that file ALONE;
 # the command line takes priority. The files read are always displayed, with the important options.
 #
 # VERSION HISTORY (summary — see doc/odoo-mail-retry.changelog.txt for full detail):
+#   1.14.20261020.211944 — Personal configuration file ~/.odoo-mail-retry.conf (not .cfg); a legacy one with .cfg is renamed automatically.
 #   1.13.20261019.150215 — New copyright: Services-Conseils Linux and Rencontres Linux au Québec contributors (AGPL-3.0-or-later).
 #   1.12.20261017.105442 — Options line: which setting decided the display language (apps/_i18n.py 1.17).
 #   1.11.20261016.173838 — Copyright holder: Services-Linux Conseils Inc
@@ -62,13 +63,13 @@ try:                    # line editing in prompts (backspace ^H or ^?, arrows)
 except ImportError:
     pass
 
-__version__ = "1.13.20261019.150215"
+__version__ = "1.14.20261020.211944"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
 CHANGELOG_FILE = os.path.join(SCRIPT_DIR, "doc", f"{SCRIPT_NAME}.changelog.txt")
 SYSTEM_CONF = os.path.join(os.environ.get("NGINX_TOOLS_ETC_DEFAULT", "/etc/default"), "odoo-mail-retry.conf")      # variable: tests only
-USER_CONF = "~/.odoo-mail-retry.cfg"
+USER_CONF = "~/.odoo-mail-retry.conf"
 RESEND_LOG = os.environ.get("ODOO_MAIL_RETRY_LOG", "/var/lib/nginx-tools/mail-retry.log")
 DEFAULT_DAYS, DEFAULT_BATCH = 30, 10
 BATCH_THRESHOLD = 20                  # above this mail.session.batch.size: risk of the messages-per-connection limit
@@ -132,8 +133,17 @@ def load_diagnostics():
         return None
 
 
+def personal_conf():
+    """Personal configuration file to read: ~/.odoo-mail-retry.conf; a legacy ~/.odoo-mail-retry.cfg is renamed to it first (apps/_config.py migrer_ancien)."""
+    path = os.path.expanduser(USER_CONF)
+    try:
+        return load_module("_config").migrer_ancien(path)
+    except Exception:
+        return path
+
+
 def read_config(explicite=None):
-    """(values, files read, problems): /etc/default/odoo-mail-retry.conf then ~/.odoo-mail-retry.cfg (the last one wins); explicit (-c/--config):
+    """(values, files read, problems): /etc/default/odoo-mail-retry.conf then ~/.odoo-mail-retry.conf (the last one wins); explicit (-c/--config):
     that file ALONE, which must exist (FileNotFoundError otherwise). Keys: BATCH, DAYS (positive numbers), DB, DETAILS and NO_PROMPT (yes/no), LANGUAGE (en, fr, auto)."""
     values, files_read, problems = {}, [], []
     if explicite and not os.path.isfile(explicite):
@@ -149,7 +159,7 @@ def read_config(explicite=None):
             common = [c for c, exists_ in load_module("_config").chemins_communs() if exists_]
         except Exception:
             common = []
-    for path in (common if not explicite else []) + ([explicite] if explicite else [SYSTEM_CONF, os.path.expanduser(USER_CONF)]):
+    for path in (common if not explicite else []) + ([explicite] if explicite else [SYSTEM_CONF, personal_conf()]):
         try:
             with open(path, encoding="utf-8") as f:
                 lines = f.read().splitlines()

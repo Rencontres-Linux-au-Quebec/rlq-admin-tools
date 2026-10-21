@@ -30,8 +30,8 @@ msgstr "# Configuration of odoo-backup.sh — created automatically on first run
 msgid "# ci-dessous sont retenues (les lignes commencent par # : valeurs par défaut). Enlever le # pour changer une valeur."
 msgstr "# below are kept (lines starting with # : default values). Remove the # to change a value."
 
-msgid "# Ordre de lecture : ce fichier, PUIS ~/.odoo-backup.cfg s'il existe (prioritaire), PUIS la ligne de commande (--dest,"
-msgstr "# Reading order: this file, THEN ~/.odoo-backup.cfg if it exists (takes precedence), THEN the command line (--dest,"
+msgid "# Ordre de lecture : ce fichier, PUIS ~/.odoo-backup.conf s'il existe (prioritaire), PUIS la ligne de commande (--dest,"
+msgstr "# Reading order: this file, THEN ~/.odoo-backup.conf if it exists (takes precedence), THEN the command line (--dest,"
 
 msgid "# --format, --db), prioritaire sur les fichiers."
 msgstr "# --format, --db), which takes precedence over the files."
@@ -417,8 +417,8 @@ msgstr "  --changelog                  show the change log"
 msgid "  -c, --config FILE            ce fichier de configuration SEUL (défaut : /etc/default/odoo-backup.conf, puis"
 msgstr "  -c, --config FILE            this configuration file ALONE (default: /etc/default/odoo-backup.conf, then"
 
-msgid "                               ~/.odoo-backup.cfg s'il existe ; la ligne de commande est prioritaire)"
-msgstr "                               ~/.odoo-backup.cfg if it exists; the command line takes precedence)"
+msgid "                               ~/.odoo-backup.conf s'il existe ; la ligne de commande est prioritaire)"
+msgstr "                               ~/.odoo-backup.conf if it exists; the command line takes precedence)"
 
 msgid "  --db NAME                    une seule base (avec --restore : nom de la base créée)"
 msgstr "  --db NAME                    a single database (with --restore: name of the created database)"
@@ -474,8 +474,8 @@ msgstr "  -v, --verbose                show every external command run (psql, pg
 msgid "  --version                    affiche la version et quitte"
 msgstr "  --version                    show the version and exit"
 
-msgid "Configuration (/etc/default/odoo-backup.conf, créée au premier lancement, PUIS ~/.odoo-backup.cfg s'il existe ; lue sans être"
-msgstr "Configuration (/etc/default/odoo-backup.conf, created on first run, THEN ~/.odoo-backup.cfg if it exists; read without being"
+msgid "Configuration (/etc/default/odoo-backup.conf, créée au premier lancement, PUIS ~/.odoo-backup.conf s'il existe ; lue sans être"
+msgstr "Configuration (/etc/default/odoo-backup.conf, created on first run, THEN ~/.odoo-backup.conf if it exists; read without being"
 
 msgid "exécutée : seules les clés ci-dessous sont retenues ; --dest, --format et --db l'emportent sur les fichiers) :"
 msgstr "executed: only the keys below are kept; --dest, --format and --db take precedence over the files):"

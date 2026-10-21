@@ -729,9 +729,9 @@ class Surveillance(EnvTest):
         self.assertIn("sorted by login minutes", propre)
         self.assertIn("configuration value ignored: DAYS=abc", err)
         # Fichier personnel : lu ensuite, le dernier l'emporte
-        open(os.path.join(perso_dir, ".web-monitor.cfg"), "w").write('LANGUAGE="fr"\nSORT=name\n')
+        open(os.path.join(perso_dir, ".web-monitor.conf"), "w").write('LANGUAGE="fr"\nSORT=name\n')
         rc, out, err = self.run_cmd(["python3", self.prog, "--list-users"], env)
-        self.assertRegex(sans_date(out), r"Configuration lue : .*web-monitor\.conf, puis .*\.web-monitor\.cfg \(le dernier l'emporte\)")
+        self.assertRegex(sans_date(out), r"Configuration lue : .*web-monitor\.conf, puis .*\.web-monitor\.conf \(le dernier l'emporte\)")
         self.assertIn("Options : --lang fr · --sort name · --table oui (ligne de commande prioritaire)", sans_origine(out))
         self.assertIn("valeur de configuration ignorée : DAYS=abc", err)
         self.assertIn("par ordre alphabétique", out)
@@ -747,7 +747,7 @@ class Surveillance(EnvTest):
         self.assertEqual(rc, 2)
         # Aucun fichier : la ligne le dit
         os.remove(os.path.join(etc, "web-monitor.conf"))
-        os.remove(os.path.join(perso_dir, ".web-monitor.cfg"))
+        os.remove(os.path.join(perso_dir, ".web-monitor.conf"))
         rc, out, err = self.run_cmd(["python3", self.prog, "--status"], dict(env, WEB_MONITOR_LANG="fr"))
         self.assertIn("Configuration : aucun fichier (cherchés : ", out)
 
@@ -1426,34 +1426,34 @@ class Surveillance(EnvTest):
             self.assertEqual(wm.timers_missing_files(), [])                   # tout existe : rien à signaler
             self.assertEqual(wm.analyze_timers(), [])
         # Tout est absent : configuration (--config ET -c ET --config=), script systemd, script cron
-        self.write("sd/odoo-backup.service", f"[Service]\nExecStart={script} --config /nulle/odoo-backup.cfg\n")
+        self.write("sd/odoo-backup.service", f"[Service]\nExecStart={script} --config /nulle/odoo-backup.conf\n")
         self.write(f"sd/{wm.UNIT}.service", "[Service]\nExecStart=/usr/bin/python3 /nulle/web-monitor.py -c /nulle/autre.conf\n")
         cron2 = self.write("cron/sync2", "PATH=/usr/bin\n17 * * * * root /nulle/sync-crowdsec-blocklist.sh --config=/nulle/sync.conf\n")
         with mock.patch.dict(os.environ, {"SYNC_CROWDSEC_CRON_FILE": cron2}):
             problemes = sorted(wm.timers_missing_files())
             alertes = wm.analyze_timers()
-        self.assertEqual(problemes, [("odoo-backup", "config", "/nulle/odoo-backup.cfg"),
+        self.assertEqual(problemes, [("odoo-backup", "config", "/nulle/odoo-backup.conf"),
                                      ("sync-crowdsec-blocklist", "config", "/nulle/sync.conf"),
                                      ("sync-crowdsec-blocklist", "script", "/nulle/sync-crowdsec-blocklist.sh"),
                                      (wm.UNIT, "config", "/nulle/autre.conf"), (wm.UNIT, "script", "/nulle/web-monitor.py")])
         titres = [wm.TR(a[0]) for a in alertes]
-        self.assertIn("odoo-backup : le timer lit un fichier de configuration qui n'existe pas (/nulle/odoo-backup.cfg)", titres)
+        self.assertIn("odoo-backup : le timer lit un fichier de configuration qui n'existe pas (/nulle/odoo-backup.conf)", titres)
         self.assertIn("sync-crowdsec-blocklist : le timer lance un script qui n'existe pas (/nulle/sync-crowdsec-blocklist.sh)", titres)
         detail = wm.TR(next(a[1][0] for a in alertes if "odoo-backup" in a[0]))
         self.assertIn("odoo-backup.sh --install-timer (sans --config", detail)
-        self.assertEqual(next(a[2] for a in alertes if "odoo-backup" in a[0]), ["timer:odoo-backup:config:/nulle/odoo-backup.cfg"])
+        self.assertEqual(next(a[2] for a in alertes if "odoo-backup" in a[0]), ["timer:odoo-backup:config:/nulle/odoo-backup.conf"])
 
     def test_report_err_status_sans_pager_ni_question(self):
         self.mock_exit("systemctl", 1)
         sd = os.path.dirname(self.path("sd", "x"))
-        self.write("sd/odoo-backup.service", "[Service]\nExecStart=/bin/true --config /nulle/odoo-backup.cfg\n")
+        self.write("sd/odoo-backup.service", "[Service]\nExecStart=/bin/true --config /nulle/odoo-backup.conf\n")
         self.env.update(WEB_MONITOR_STATE_DIR=os.path.dirname(self.path("etat", "x")), WEB_MONITOR_SYSTEMD_DIR=sd,
                         SYNC_CROWDSEC_CRON_FILE=self.path("cron-absent"))
         rc, out, err = self.run_cmd(["python3", self.prog, "--status", "--report-err"])
         self.assertEqual(rc, 0, err)
         rapport = out[out.index("RAPPORT D'ERREURS"):]
         self.assertRegex(rapport, r"Programme : web-monitor\.py v2\.\d+\.\d{8}\.\d{6} — commande : web-monitor\.py --status\n")
-        self.assertIn("AVERTISSEMENTS (1) :\n  1. ⚠ odoo-backup : le timer lit un fichier de configuration qui n'existe pas (/nulle/odoo-backup.cfg)", rapport)
+        self.assertIn("AVERTISSEMENTS (1) :\n  1. ⚠ odoo-backup : le timer lit un fichier de configuration qui n'existe pas (/nulle/odoo-backup.conf)", rapport)
         self.assertIn("odoo-backup.sh --install-timer", rapport)                    # ligne de détail de l'avertissement
 
     def test_report_err_desactive_pager_et_questions(self):
@@ -1465,12 +1465,12 @@ class Surveillance(EnvTest):
     def test_status_signale_un_timer_vers_un_fichier_absent(self):
         self.mock_exit("systemctl", 1)
         sd = os.path.dirname(self.path("sd", "x"))
-        self.write("sd/odoo-backup.service", "[Service]\nExecStart=/bin/true --config /nulle/odoo-backup.cfg\n")
+        self.write("sd/odoo-backup.service", "[Service]\nExecStart=/bin/true --config /nulle/odoo-backup.conf\n")
         self.env.update(WEB_MONITOR_STATE_DIR=os.path.dirname(self.path("etat", "x")), WEB_MONITOR_SYSTEMD_DIR=sd,
                         SYNC_CROWDSEC_CRON_FILE=self.path("cron-absent"))
         rc, out, err = self.run_cmd(["python3", self.prog, "--status"])
         self.assertEqual(rc, 0, err)
-        self.assertIn("⚠ odoo-backup : le timer lit un fichier de configuration qui n'existe pas (/nulle/odoo-backup.cfg)", out)
+        self.assertIn("⚠ odoo-backup : le timer lit un fichier de configuration qui n'existe pas (/nulle/odoo-backup.conf)", out)
 
     def test_couleurs_des_connexions_en_terminal_seulement(self):
         """2.28 : connexions du jour en vert, erreurs 5xx en rouge, 429 en jaune, adresse bannie en magenta — dans un

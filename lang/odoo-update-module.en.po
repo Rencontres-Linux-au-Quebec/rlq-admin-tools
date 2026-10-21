@@ -24,8 +24,8 @@ msgstr "  --changelog                  show the change log"
 msgid "  -c, --config FILE            ce fichier de configuration SEUL (défaut : /etc/default/odoo-update-module.conf, puis"
 msgstr "  -c, --config FILE            this configuration file ONLY (default: /etc/default/odoo-update-module.conf, then"
 
-msgid "                               ~/.odoo-update-module.cfg s'il existe ; la ligne de commande est prioritaire)"
-msgstr "                               ~/.odoo-update-module.cfg if it exists; the command line has priority)"
+msgid "                               ~/.odoo-update-module.conf s'il existe ; la ligne de commande est prioritaire)"
+msgstr "                               ~/.odoo-update-module.conf if it exists; the command line has priority)"
 
 msgid "  --db NAME                    base à mettre à jour (défaut : « -d » de la commande du service, sinon db_name d'Odoo)"
 msgstr "  --db NAME                    database to update (default: the « -d » of the service command, else Odoo's db_name)"
@@ -69,8 +69,8 @@ msgstr "  -v, --verbose                show every external command run (systemct
 msgid "  --version                    affiche la version et quitte"
 msgstr "  --version                    show the version and quit"
 
-msgid "Configuration (/etc/default/odoo-update-module.conf, créée au premier lancement, PUIS ~/.odoo-update-module.cfg s'il existe ; lue sans être"
-msgstr "Configuration (/etc/default/odoo-update-module.conf, created on first run, THEN ~/.odoo-update-module.cfg if it exists; read without being"
+msgid "Configuration (/etc/default/odoo-update-module.conf, créée au premier lancement, PUIS ~/.odoo-update-module.conf s'il existe ; lue sans être"
+msgstr "Configuration (/etc/default/odoo-update-module.conf, created on first run, THEN ~/.odoo-update-module.conf if it exists; read without being"
 
 msgid "exécutée ; la ligne de commande l'emporte sur les fichiers) :"
 msgstr "executed; the command line overrides the files):"

@@ -24,7 +24,7 @@
 #   --anonymize                  anonymise ce qui est affiché (adresses IP, courriels, identifiants, jetons) par des pseudonymes stables ; clé ANONYMIZE
 #   --changelog                  affiche le journal des modifications
 #   -c, --config FILE            ce fichier de configuration SEUL (défaut : /etc/default/odoo-backup.conf, puis
-#                                ~/.odoo-backup.cfg s'il existe ; la ligne de commande est prioritaire)
+#                                ~/.odoo-backup.conf s'il existe ; la ligne de commande est prioritaire)
 #   --db NAME                    une seule base (avec --restore : nom de la base créée)
 #   --dest DIR                   autre dossier des sauvegardes (DEST= dans la configuration)
 #   --dry-run                    montrer ce qui serait fait, sans rien écrire
@@ -44,7 +44,7 @@
 #   -v, --verbose                afficher chaque commande externe exécutée (psql, pg_dump, tar, rsync, systemctl)
 #   --version                    affiche la version et quitte
 #
-# Configuration (/etc/default/odoo-backup.conf, créée au premier lancement, PUIS ~/.odoo-backup.cfg s'il existe ; lue sans être
+# Configuration (/etc/default/odoo-backup.conf, créée au premier lancement, PUIS ~/.odoo-backup.conf s'il existe ; lue sans être
 # exécutée : seules les clés ci-dessous sont retenues ; --dest, --format et --db l'emportent sur les fichiers) :
 #   DEST=/var/backups/odoo        dossier des sauvegardes (droits 700)
 #   FORMAT=zip                    zip (importable par la page d'Odoo) ou tar.xz
@@ -59,6 +59,7 @@
 #   TIMER_TIME=02:30              heure(s) de la sauvegarde automatique : une ou plusieurs HH:MM (ex. TIMER_TIME=09:00 16:00 23:00)
 #
 # HISTORIQUE (résumé ; détail : doc/odoo-backup.changelog.txt)
+#   1.19.20261020.211944 — Personal configuration file ~/.odoo-backup.conf (not .cfg); a legacy layer with .cfg is renamed automatically.
 #   1.18.20261019.150215 — New copyright: Services-Conseils Linux and Rencontres Linux au Québec contributors (AGPL-3.0-or-later).
 #   1.17.20261016.173838 — Ctrl+C answered at once during pg_dump, tar and rsync
 #   1.16.20261015.143436 — --anonymize : affichage anonymisé (pseudonymes stables).
@@ -90,7 +91,7 @@ for _d in /usr/local/sbin /usr/sbin /sbin; do [[ -n "${NGINX_TOOLS_TESTS:-}" ]] 
 # (Pendant la suite de tests, NGINX_TOOLS_TESTS désactive cet ajout : /usr/sbin/ufw & co resteraient sinon joignables.)
 export PATH
 
-readonly SCRIPT_VERSION="1.18.20261019.150215"
+readonly SCRIPT_VERSION="1.19.20261020.211944"
 SCRIPT_NAME="$(basename "${BASH_SOURCE[0]}" .sh)"; readonly SCRIPT_NAME
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
 SCRIPT_PATH="$SCRIPT_DIR/$(basename "${BASH_SOURCE[0]}")"; readonly SCRIPT_PATH
@@ -111,11 +112,12 @@ if [[ -t 1 || -n "${REPORT_ERR_COULEUR:-}" ]]; then C_RED=$'\x1b[1;31m'; C_YELLO
 else C_RED=""; C_YELLOW=""; C_GREEN=""; C_RESET=""; fi
 
 # --- Options -----------------------------------------------------------------------------------------------------------
-# Règle des fichiers de configuration (tous les programmes) : lire /etc/default/odoo-backup.conf, PUIS ~/.odoo-backup.cfg s'il
+# Règle des fichiers de configuration (tous les programmes) : lire /etc/default/odoo-backup.conf, PUIS ~/.odoo-backup.conf s'il
 # existe (le dernier l'emporte), PUIS la ligne de commande (prioritaire sur les fichiers). --config FICHIER (ou la variable
 # ODOO_BACKUP_CONFIG) : ce fichier SEUL, qui DOIT exister. Les fichiers lus sont toujours affichés.
 readonly CONFIG_DEFAUT="${ODOO_BACKUP_DEFAULT_DIR:-/etc/default}/odoo-backup.conf"
-readonly CONFIG_PERSO="${HOME:-/root}/.odoo-backup.cfg"
+CONFIG_PERSO="${HOME:-/root}/.odoo-backup.conf"
+readonly CONFIG_ANCIEN="${HOME:-/root}/.odoo-backup.cfg"      # legacy personal name (rule before 1.19: personal files ended with .cfg)
 CONFIG_FILE="${ODOO_BACKUP_CONFIG:-}"; CONFIG_EXPLICITE=0; CLI_OPTIONS=""
 if [[ -n "$CONFIG_FILE" ]]; then CONFIG_EXPLICITE=1; fi
 RESTORE_FILE=""; OPT_TIMES=""; OPT_FORMAT=""; ONLY_DB=""; DO_DRY_RUN=0; DO_STATUS=0; DO_TEST_RESTORE=0; DO_INSTALL_TIMER=0; DO_UNINSTALL_TIMER=0; OPT_DEST=""; VERBOSE=0
@@ -184,14 +186,32 @@ retirer_chemin_du_service() {
 
 # Ancien fichier de configuration (avant la 1.5 : ~/.odoo-backup.cfg, seule configuration) → /etc/default : RENOMMÉ d'abord,
 # service corrigé ensuite, AVANT toute opération sur le timer (--install-timer l'arrête puis le relance après). Seulement si
-# /etc/default/odoo-backup.conf n'existe pas : un ~/.odoo-backup.cfg à côté d'un fichier système est une couche voulue.
+# /etc/default/odoo-backup.conf n'existe pas : un fichier personnel à côté d'un fichier système est une couche voulue (1.19 : l'ancien nom
+# ~/.odoo-backup.cfg devient alors ~/.odoo-backup.conf, voir migrer_ancien_nom).
 migrer_config_perso() {
-    [[ "$EUID" -eq 0 && ! -e "$CONFIG_DEFAUT" && -f "$CONFIG_PERSO" ]] || return 0
+    [[ "$EUID" -eq 0 && ! -e "$CONFIG_DEFAUT" && -f "$CONFIG_ANCIEN" && ! -e "$CONFIG_PERSO" ]] || return 0
     mkdir -p "$(dirname "$CONFIG_DEFAUT")" 2>/dev/null || return 0
-    mv -- "$CONFIG_PERSO" "$CONFIG_DEFAUT" || return 0
+    mv -- "$CONFIG_ANCIEN" "$CONFIG_DEFAUT" || return 0
     chmod 600 "$CONFIG_DEFAUT" 2>/dev/null || true
-    echo "Migration : configuration renommée $CONFIG_PERSO → $CONFIG_DEFAUT" >&2
-    retirer_chemin_du_service "$CONFIG_PERSO"
+    echo "Migration : configuration renommée $CONFIG_ANCIEN → $CONFIG_DEFAUT" >&2
+    retirer_chemin_du_service "$CONFIG_ANCIEN"
+}
+
+# 1.19 — personal file ~/.odoo-backup.conf (common rule): a legacy ~/.odoo-backup.cfg kept as a LAYER (a system file exists) is renamed to it
+# (apps/_i18n.sh config_migrer_ancien: same notices as every program); the service (old path in its --config) is corrected at once, like above.
+# Both files: the .conf is read, the .cfg is reported and ignored. Rename impossible: the legacy file is read as is.
+migrer_ancien_nom() {
+    [[ -e "$CONFIG_ANCIEN" || -L "$CONFIG_ANCIEN" ]] || return 0
+    if declare -F config_migrer_ancien >/dev/null; then
+        config_migrer_ancien "$CONFIG_PERSO"
+        CONFIG_PERSO="$CFG_A_LIRE"
+    elif [[ ! -e "$CONFIG_PERSO" ]] && mv -n -- "$CONFIG_ANCIEN" "$CONFIG_PERSO" 2>/dev/null && [[ ! -e "$CONFIG_ANCIEN" ]]; then
+        echo "Configuration : ancien fichier $CONFIG_ANCIEN renommé en $CONFIG_PERSO (les fichiers personnels se terminent maintenant par .conf)" >&2
+    elif [[ ! -e "$CONFIG_PERSO" ]]; then
+        CONFIG_PERSO="$CONFIG_ANCIEN"
+    fi
+    if [[ "$CONFIG_PERSO" != "$CONFIG_ANCIEN" && ! -e "$CONFIG_ANCIEN" && "$EUID" -eq 0 ]]; then retirer_chemin_du_service "$CONFIG_ANCIEN"; fi
+    return 0
 }
 
 # Création au premier lancement (comme app-health-check.py) : modèle commenté dans /etc/default, droits 600.
@@ -201,7 +221,7 @@ creer_config_defaut() {
     cat > "$CONFIG_DEFAUT" <<'EOF' || return 0
 # Configuration de odoo-backup.sh — créée automatiquement au premier lancement. Lue sans être exécutée : seules les clés
 # ci-dessous sont retenues (les lignes commencent par # : valeurs par défaut). Enlever le # pour changer une valeur.
-# Ordre de lecture : ce fichier, PUIS ~/.odoo-backup.cfg s'il existe (prioritaire), PUIS la ligne de commande (--dest,
+# Ordre de lecture : ce fichier, PUIS ~/.odoo-backup.conf s'il existe (prioritaire), PUIS la ligne de commande (--dest,
 # --format, --db), prioritaire sur les fichiers.
 #
 # Copie hors du serveur (rsync), ex. vers un autre serveur par Tailscale : INDISPENSABLE — une sauvegarde sur le même
@@ -225,6 +245,7 @@ EOF
     echo "Configuration créée : $CONFIG_DEFAUT (modèle commenté ; à compléter, surtout REMOTE : copie hors du serveur)." >&2
 }
 if (( ACTION_ECRIT && ! CONFIG_EXPLICITE )); then migrer_config_perso; creer_config_defaut; fi
+if (( ! CONFIG_EXPLICITE )); then migrer_ancien_nom; fi
 
 # --- Configuration : fichiers lus, dans l'ordre (le dernier l'emporte) ------------------------------------------------------
 FICHIERS_CONFIG=()
@@ -252,9 +273,11 @@ for fichier_config in ${FICHIERS_CONFIG[@]+"${FICHIERS_CONFIG[@]}"}; do
         printf -v "${BASH_REMATCH[1]}" '%s' "$valeur"
     done < "$fichier_config"
 done
-# Fichier COMMUN à tous les programmes (app-default.conf, puis ~/.app-default.cfg) : seulement VERBOSE et DEBUG_LEVEL ; la clé du fichier du programme l'emporte.
+# Fichier COMMUN à tous les programmes (app-default.conf, puis ~/.app-default.conf) : seulement VERBOSE et DEBUG_LEVEL ; la clé du fichier du programme l'emporte.
 if (( ! CONFIG_EXPLICITE )); then
-    for fichier_commun in "${NGINX_TOOLS_ETC_DEFAULT:-/etc/default}/app-default.conf" "${HOME:-/root}/.app-default.cfg"; do
+    commun_perso="${HOME:-/root}/.app-default.conf"
+    if declare -F config_migrer_ancien >/dev/null; then config_migrer_ancien "$commun_perso"; commun_perso="$CFG_A_LIRE"; fi     # 1.19: legacy ~/.app-default.cfg renamed
+    for fichier_commun in "${NGINX_TOOLS_ETC_DEFAULT:-/etc/default}/app-default.conf" "$commun_perso"; do
         [[ -r "$fichier_commun" ]] || continue
         while IFS= read -r ligne || [[ -n "$ligne" ]]; do
             [[ "$ligne" =~ ^[[:space:]]*(VERBOSE|DEBUG_LEVEL)=(.*)$ ]] || continue

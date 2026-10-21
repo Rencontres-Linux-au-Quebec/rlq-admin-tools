@@ -48,8 +48,8 @@ msgstr "  --ban-threshold N            number of clues from which a ban is sugge
 msgid "  --changelog                  affiche le journal des modifications"
 msgstr "  --changelog                  show the change log"
 
-msgid "  -c, --config FILE            fichier de configuration à lire SEUL (sinon : /etc/default/nginx-log-audit.conf, puis ~/.nginx-log-audit.cfg ;"
-msgstr "  -c, --config FILE            configuration file to read ALONE (otherwise: /etc/default/nginx-log-audit.conf, then ~/.nginx-log-audit.cfg;"
+msgid "  -c, --config FILE            fichier de configuration à lire SEUL (sinon : /etc/default/nginx-log-audit.conf, puis ~/.nginx-log-audit.conf ;"
+msgstr "  -c, --config FILE            configuration file to read ALONE (otherwise: /etc/default/nginx-log-audit.conf, then ~/.nginx-log-audit.conf;"
 
 msgid "                               clés : APP, BAN_THRESHOLD, LANGUAGE, NO_PROMPT, PAGE_BURST, PARALLEL_THRESHOLD, UA_ROTATION_THRESHOLD, VERBOSE)"
 msgstr "                               keys: APP, BAN_THRESHOLD, LANGUAGE, NO_PROMPT, PAGE_BURST, PARALLEL_THRESHOLD, UA_ROTATION_THRESHOLD, VERBOSE)"

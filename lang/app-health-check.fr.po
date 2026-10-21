@@ -19,8 +19,8 @@ msgstr "Migration (renommage des programmes, version 2.0) : "
 msgid "configuration file not found: "
 msgstr "fichier de config introuvable : "
 
-msgid " exists but is NO LONGER read (read: /etc/default/app-health-check.conf, then ~/.app-health-check.cfg) — its settings have no effect; move it: mv "
-msgstr " existe mais n'est PLUS lu (lus : /etc/default/app-health-check.conf, puis ~/.app-health-check.cfg) — ses réglages n'ont aucun effet ; le déplacer : mv "
+msgid " exists but is NO LONGER read (read: /etc/default/app-health-check.conf, then ~/.app-health-check.conf) — its settings have no effect; move it: mv "
+msgstr " existe mais n'est PLUS lu (lus : /etc/default/app-health-check.conf, puis ~/.app-health-check.conf) — ses réglages n'ont aucun effet ; le déplacer : mv "
 
 msgid "no configuration file found. Searched: explicit -c/--config, "
 msgstr "aucun fichier de config trouve. Cherche : -c/--config explicite, "
@@ -592,8 +592,8 @@ msgstr "Application derrière nginx (profil apps/NOM.conf : odoo, bbb…) — d�
 msgid "With --create-config: replace an existing file (backup copy made)"
 msgstr "Avec --create-config : remplace un fichier existant (copie de sauvegarde faite)"
 
-msgid "This configuration file ALONE (default: /etc/default/app-health-check.conf, then ~/.app-health-check.cfg; command-line options in the file: APP, LANGUAGE, TARGET, VERBOSE)"
-msgstr "Ce fichier de config SEUL (defaut : /etc/default/app-health-check.conf, puis ~/.app-health-check.cfg ; options de la ligne de commande dans le fichier : APP, LANGUAGE, TARGET, VERBOSE)"
+msgid "This configuration file ALONE (default: /etc/default/app-health-check.conf, then ~/.app-health-check.conf; command-line options in the file: APP, LANGUAGE, TARGET, VERBOSE)"
+msgstr "Ce fichier de config SEUL (defaut : /etc/default/app-health-check.conf, puis ~/.app-health-check.conf ; options de la ligne de commande dans le fichier : APP, LANGUAGE, TARGET, VERBOSE)"
 
 msgid "Display language: en or fr (default: from LC_ALL / LC_MESSAGES / LANG)"
 msgstr "Langue d'affichage : en ou fr (défaut : selon LC_ALL / LC_MESSAGES / LANG)"
@@ -673,8 +673,8 @@ msgstr " (modifié le "
 msgid " exists but is NO LONGER read (read: /etc/default/app-health-check.conf, then "
 msgstr " existe mais n'est PLUS lu (lus : /etc/default/app-health-check.conf, puis "
 
-msgid "~/.app-health-check.cfg) — its settings have no effect; move it: mv "
-msgstr "~/.app-health-check.cfg) — ses réglages n'ont aucun effet ; le déplacer : mv "
+msgid "~/.app-health-check.conf) — its settings have no effect; move it: mv "
+msgstr "~/.app-health-check.conf) — ses réglages n'ont aucun effet ; le déplacer : mv "
 
 msgid " · functional tests (JSON-RPC): "
 msgstr " · tests fonctionnels (JSON-RPC) : "

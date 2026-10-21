@@ -136,8 +136,8 @@ msgstr "Catalogue des canaux et fils (JSON) (défaut : doc/odoo-chat-post.catalo
 msgid "Show the change log"
 msgstr "Affiche le journal des modifications"
 
-msgid "Configuration file to read ALONE (otherwise: /etc/default/odoo-chat-post.conf, then the personal file .odoo-chat-post.cfg; UPPERCASE options: API_KEY, DB, EVENTS, GROUP, LANGUAGE, LOGIN, MEMBERS, NO_MEMBERS, SUGGESTED, URL)"
-msgstr "Fichier de configuration à lire SEUL (sinon : /etc/default/odoo-chat-post.conf, puis le fichier personnel .odoo-chat-post.cfg ; options en MAJUSCULES : API_KEY, DB, EVENTS, GROUP, LANGUAGE, LOGIN, MEMBERS, NO_MEMBERS, SUGGESTED, URL)"
+msgid "Configuration file to read ALONE (otherwise: /etc/default/odoo-chat-post.conf, then the personal file .odoo-chat-post.conf; UPPERCASE options: API_KEY, DB, EVENTS, GROUP, LANGUAGE, LOGIN, MEMBERS, NO_MEMBERS, SUGGESTED, URL)"
+msgstr "Fichier de configuration à lire SEUL (sinon : /etc/default/odoo-chat-post.conf, puis le fichier personnel .odoo-chat-post.conf ; options en MAJUSCULES : API_KEY, DB, EVENTS, GROUP, LANGUAGE, LOGIN, MEMBERS, NO_MEMBERS, SUGGESTED, URL)"
 
 msgid "Creates the missing channels and threads, with their first message (never modifies an existing channel)"
 msgstr "Crée les canaux et fils qui manquent, avec leur premier message (ne modifie jamais un canal existant)"

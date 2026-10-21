@@ -10,7 +10,7 @@
 # ========================================================================================================================
 """Envoi de courriels commun aux programmes Python et Bash (relais SMTP, STARTTLS), configuré une seule fois par le programme de setup.
 
-Configuration lue dans l'ordre (le dernier fichier lu l'emporte) : /etc/default/nginx-tools-mail.conf, puis ~/.nginx-tools-mail.cfg.
+Configuration lue dans l'ordre (le dernier fichier lu l'emporte) : /etc/default/nginx-tools-mail.conf, puis ~/.nginx-tools-mail.conf.
 Le MOT DE PASSE n'est JAMAIS dans ce fichier : il est dans un fichier à part (MAIL_PASSWORD_FILE, mode 0600, propriétaire root),
 ou dans la variable d'environnement NGINX_TOOLS_MAIL_PASSWORD. Il n'est jamais affiché, ni journalisé, ni mis dans un courriel.
 
@@ -20,6 +20,7 @@ MAIL_ATTACH_MAX_MB (100 : une pièce jointe plus grosse est remplacée par un LI
 Utilisation depuis Python : from _courriel import envoyer ; depuis Bash : python3 apps/_courriel.py --send "Sujet" --body-file corps.txt [--attach fichier]
 
 HISTORIQUE (résumé ; détail : doc/_courriel.changelog.txt)
+#   1.3.20261020.211944 — Personal configuration file ~/.NAME.conf (not .cfg); a legacy ~/.NAME.cfg is renamed automatically.
 #   1.2.20261019.150215 — New copyright: Services-Conseils Linux and Rencontres Linux au Québec contributors (AGPL-3.0-or-later).
 #   1.1.20261016.173838 — Copyright holder: Services-Linux Conseils Inc
 #   1.0.20261013.103000 — Première version : envoi SMTP commun, pièces jointes de plus de 100 Mo remplacées par un lien, mot de passe à part.
@@ -37,10 +38,10 @@ import time
 from email.message import EmailMessage
 from email.utils import formatdate, make_msgid
 
-__version__ = "1.2.20261019.150215"
+__version__ = "1.3.20261020.211944"
 
 CONFIG_SYSTEME = "/etc/default/nginx-tools-mail.conf"
-CONFIG_UTILISATEUR = "~/.nginx-tools-mail.cfg"
+CONFIG_UTILISATEUR = "~/.nginx-tools-mail.conf"
 MOT_DE_PASSE_DEFAUT = "/etc/default/nginx-tools-mail.pass"
 DOSSIER_LIENS_DEFAUT = "/var/lib/nginx-tools/pieces-jointes"
 CLES = ("MAIL_HOST", "MAIL_PORT", "MAIL_SECURITY", "MAIL_USER", "MAIL_FROM", "MAIL_TO", "MAIL_PASSWORD_FILE",
@@ -52,8 +53,22 @@ class ErreurCourriel(Exception):
     """Configuration incomplète ou envoi impossible (message lisible, sans secret)."""
 
 
+def _personnel(chemin):
+    """~/.NOM.conf à lire ; un ancien ~/.NOM.cfg est renommé d'abord (apps/_config.py migrer_ancien, mêmes avis que les programmes). Sans apps/_config.py :
+    le .conf, ou l'ancien fichier s'il est seul (jamais d'exception)."""
+    try:
+        import importlib.util
+        spec = importlib.util.spec_from_file_location("_config_voisin", os.path.join(os.path.dirname(os.path.abspath(__file__)), "_config.py"))
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        return module.migrer_ancien(chemin)
+    except Exception:                                        # noqa: BLE001
+        ancien = chemin[:-len(".conf")] + ".cfg" if chemin.endswith(".conf") else chemin
+        return ancien if not os.path.exists(chemin) and os.path.exists(ancien) else chemin
+
+
 def fichiers_config():
-    return [os.environ.get("NGINX_TOOLS_MAIL_CONF") or CONFIG_SYSTEME, os.path.expanduser(CONFIG_UTILISATEUR)]
+    return [os.environ.get("NGINX_TOOLS_MAIL_CONF") or CONFIG_SYSTEME, _personnel(os.path.expanduser(CONFIG_UTILISATEUR))]
 
 
 def lire_config(fichiers=None):
