@@ -258,6 +258,7 @@ if __name__ == "__main__":
     unittest.main()
 
 
+@unittest.skipUnless(os.path.isdir(CONFIG_DIR), f"configuration nginx absente : {CONFIG_DIR} (privée, hors du dépôt : NGINX_ODOO_DIR ou nginx-tools-tests/nginx-odoo/)")
 class FormatDesJournaux(unittest.TestCase):
     """combined_host (2026-09-29) : format « combined » + host="$host" EN FIN de ligne, pour tous les sites Odoo — ce
     qui lit ces journaux (awk, fail2ban, web-monitor.py) doit continuer de fonctionner sans changement."""
@@ -283,6 +284,7 @@ class FormatDesJournaux(unittest.TestCase):
         self.assertEqual(champs("{ print $9, $10, $7 }"), "404 48213 /.env")                       # code, taille, URL
 
 
+@unittest.skipUnless(os.path.isdir(CONFIG_DIR), f"configuration nginx absente : {CONFIG_DIR} (privée, hors du dépôt : NGINX_ODOO_DIR ou nginx-tools-tests/nginx-odoo/)")
 class RefusJournalises(unittest.TestCase):
     """Refus des règles de sécurité journalisés dans blocked-probes.log (jamais « access_log off ») ; jail dédiée."""
     CONF = CONFIG_DIR

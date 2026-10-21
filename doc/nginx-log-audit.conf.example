@@ -29,6 +29,7 @@
 
 # --- Options de la ligne de commande SEULEMENT (actions ou réglages ponctuels : aucune clé ici) ---
 # Les voici, pour mémoire (« nginx-log-audit --help » donne le détail). Elles se donnent sur la ligne de commande, jamais dans ce fichier.
+#   --ban-history         journal des bannissements et levées manuels (date, heure, IP, justification, origine), lecture seule
 #   --changelog           affiche le journal des modifications
 #   --details             avec --stats : détail de chaque indicateur
 #   --evidence IP         preuves pour ou contre le bannissement d'une IP et verdict, sans rien demander ni bannir (lecture seule)
@@ -40,6 +41,7 @@
 #   --investigate IP      enquête complète sur une IP (tout l'historique), avec le propriétaire de son bloc d'adresses (RDAP)
 #   --ip ADDRESS          limiter le rapport à une adresse
 #   --last HOURS          limiter toutes les sections aux HOURS dernières heures
+#   --reason TEXT         justification de --ban / --unban, enregistrée avec la date et l'heure dans bans.tsv
 #   --report-err          afficher à la fin un rapport d'erreurs à copier-coller (programme, version, serveur, échecs, avertissements)
 #   --stats               statistiques du trafic (codes, IP, User-Agents, appareils des visiteurs)
 #   --unban IP            lever un bannissement manuel

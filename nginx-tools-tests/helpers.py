@@ -26,6 +26,39 @@ import unittest
 # en UTC (avant : dépendait d'un test précédent qui laissait TZ posé). TEST_TZ : un autre fuseau.
 os.environ["TZ"] = os.environ.get("TEST_TZ") or "America/Toronto"
 time.tzset()
+# run-all 1.190 : la suite tourne SANS root. Hors root, les copies préparées des programmes (prepare) lisent NGINX_TOOLS_TEST_EUID avant $EUID,
+# $(id -u) et os.geteuid() : elles se croient root DANS le dossier de test (outils simulés, chemins redirigés) sans aucun privilège réel — rien ne peut
+# être écrit hors du dossier de test. Les programmes livrés ne sont pas modifiés. Un test du refus SANS root lance avec env_extra=SANS_ROOT_SIMULE.
+ROOT_SIMULE = os.geteuid() != 0
+SANS_ROOT_SIMULE = {"NGINX_TOOLS_TEST_EUID": ""}
+EUID_BASH_RE = re.compile(r"\$EUID\b|\$\{EUID\}")
+ID_U_BASH_RE = re.compile(r"\$\(id -u\)")
+EUID_PY_RE = re.compile(r"\bos\.geteuid\(\)")
+
+
+DEFAUT_BASH_RE = re.compile(r"\$\{([A-Z_][A-Z0-9_]*):-(/(?:etc|var)/[^}]*)\}")
+DEFAUT_PY_RE = re.compile(r"""environ\.get\(\s*(["'])([A-Z_][A-Z0-9_]*)\1\s*,\s*(["'])(/(?:etc|var)/[^"']*)\3\s*\)""")
+
+
+ECRITURES_LITTERALES_RE = re.compile(r"(?<![\w./-])(?:/etc/fail2ban|/var/log/nginx|/var/www)(?=[/\s\"'}*]|$)", re.M)      # écrits sans variable (jail.d, blocked-probes.log, letsencrypt)
+
+
+def isoler(texte, racine):
+    """run-all 1.190 : chemins système PAR DÉFAUT restés dans une copie de test (« ${VAR:-/etc/…} », « os.environ.get("VAR", "/var/…") ») dirigés vers
+    `racine` (dossier du test) : une variable posée par le test l'emporte toujours, mais rien n'est jamais lu ni écrit dans le vrai /etc ou /var (avant :
+    des tests lancés en root écrivaient /etc/logrotate.d, /etc/nginx/snippets, /etc/systemd/journald.conf.d de la machine)."""
+    texte = DEFAUT_BASH_RE.sub(lambda m: "${" + m.group(1) + ":-" + racine + m.group(2) + "}", texte)
+    texte = ECRITURES_LITTERALES_RE.sub(lambda m: racine + m.group(0), texte)      # chemins écrits en dur (/etc/fail2ban/jail.d/… de nginx-hardening.sh)
+    return DEFAUT_PY_RE.sub(lambda m: f'environ.get({m.group(1)}{m.group(2)}{m.group(1)}, {m.group(3)}{racine}{m.group(4)}{m.group(3)})', texte)
+
+
+def simuler_root(texte):
+    """Texte d'une copie de test : la vérification « root ? » lit d'abord NGINX_TOOLS_TEST_EUID (vide ou absente : vrai identifiant)."""
+    texte = EUID_BASH_RE.sub("${NGINX_TOOLS_TEST_EUID:-$EUID}", texte)
+    texte = ID_U_BASH_RE.sub("${NGINX_TOOLS_TEST_EUID:-$(id -u)}", texte)
+    return EUID_PY_RE.sub('int(os.environ.get("NGINX_TOOLS_TEST_EUID") or os.geteuid())', texte)
+
+
 SCRIPTS_DIR = os.environ.get("TEST_SCRIPTS_DIR") or os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 ANSI_RE = re.compile(r"\x1b\[[0-9;]*m")
 # Configuration nginx testee : NGINX_ODOO_DIR (run-all 1.188 : la configuration est PRIVEE, jamais dans le depot Git public — copie locale, ex. un
@@ -197,8 +230,11 @@ class EnvTest(unittest.TestCase):
         # est ABSENT, jamais la vraie commande de la machine (un test a modifié le vrai ufw d'un serveur BigBlueButton).
         # NGINX_TOOLS_TESTS empêche les programmes de rajouter /usr/sbin ; APP_DETECT_ROOT isole la détection par fichiers.
         os.makedirs(os.path.join(self.d, "racine-vide"))
+        self.racine_systeme = os.path.join(self.d, "systeme")               # 1.190 : /etc et /var PAR DÉFAUT des copies de test (isoler)
+        os.makedirs(os.path.join(self.racine_systeme, "var", "tmp"))       # « ${TMPDIR:-/var/tmp} » : doit exister
         self.env = dict(os.environ, PATH=f"{self.bin}:{chemin_sans_commandes_systeme()}", LC_ALL="C.UTF-8", APP_PROFILE="odoo", **{v: os.environ[v] for v in VARIABLES_LANGUE},
                         NGINX_TOOLS_TESTS="1", APP_DETECT_ROOT=os.path.join(self.d, "racine-vide"),
+                        NGINX_TOOLS_TEST_EUID="0" if ROOT_SIMULE else "",
                         NGINX_TOOLS_LOCK_DIR=os.path.join(self.d, "racine-vide"), NGINX_TOOLS_LOCK_WAIT="2",
                         HOME=os.path.join(self.d, "home-vide"), NGINX_TOOLS_ETC_DEFAULT=os.path.join(self.d, "etc-default-vide"),
                         NGINX_TOOLS_MAIL_CONF=os.path.join(self.d, "etc-default-vide", "nginx-tools-mail.conf"),          # courriel : jamais le vrai /etc/default, /etc/msmtprc de la machine de test
@@ -256,6 +292,7 @@ class EnvTest(unittest.TestCase):
             text = f.read()
         for old, new in (subs or {}).items():
             text = text.replace(old, new)
+        text = isoler(simuler_root(text), self.racine_systeme)
         dst = self.path("prog", name)
         with open(dst, "w", encoding="utf-8") as f:
             f.write(text)
@@ -264,6 +301,15 @@ class EnvTest(unittest.TestCase):
         cible = os.path.join(os.path.dirname(dst), "apps")
         if os.path.isdir(apps) and not os.path.isfile(os.path.join(cible, "_profile.sh")):
             shutil.copytree(apps, cible, dirs_exist_ok=True)
+            for n in os.listdir(cible):                          # composants apps/ aussi (apps/_config.py est_root…)
+                c = os.path.join(cible, n)
+                if n.endswith((".py", ".sh")) and os.path.isfile(c):
+                    with open(c, encoding="utf-8") as f:
+                        t = f.read()
+                    n_t = isoler(simuler_root(t), self.racine_systeme)
+                    if n_t != t:
+                        with open(c, "w", encoding="utf-8") as f:
+                            f.write(n_t)
         langues = os.path.join(SCRIPTS_DIR, "lang")           # catalogues de traduction (lang/PROGRAMME.en.tsv)
         if os.path.isdir(langues):
             shutil.copytree(langues, os.path.join(os.path.dirname(dst), "lang"), dirs_exist_ok=True)

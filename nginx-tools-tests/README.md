@@ -3,11 +3,15 @@
 Une seule commande, à lancer **avant chaque déploiement**, depuis le répertoire des programmes :
 
 ```bash
-sudo nginx-tools-tests/run-all.sh          # -v pour le détail de chaque test
+nginx-tools-tests/run-all.sh               # SANS sudo (1.190) ; -v pour le détail de chaque test
 ```
 
 Verdict possible : **TOUT PASSE**, **N ÉCHEC(S) — ne pas déployer**, ou « tout ce qui a été exécuté réussit — mais
 N point(s) NON vérifié(s) » (outil absent, tests exigeant root). Code de sortie 0 seulement sans échec.
+
+**Sans root** (1.190) : les copies des programmes préparées par les tests se croient root DANS le dossier de test, sans aucun privilège réel ; les
+chemins système par défaut (`/etc/…`, `/var/…`) y sont redirigés ; à la fin, tout fichier de `/etc` ou `/var/backups` écrit par un test est un échec.
+Lancée avec sudo, la suite fait de même ; seuls quelques tests marqués « exige root » (vrais privilèges) ne tournent qu'en root.
 
 ## Ce qui est vérifié
 

@@ -1804,9 +1804,6 @@ msgstr "Justification — origin"
 msgid "banni"
 msgstr "banned"
 
-msgid "levé"
-msgstr "lifted"
-
 msgid "(non enregistrée : avant la version 2.40)"
 msgstr "(not recorded: before version 2.40)"
 
@@ -1839,3 +1836,61 @@ msgstr "Justification added to the existing ban ("
 
 msgid " (ajoutée le "
 msgstr " (added on "
+
+# nginx-log-audit.sh 2.40 (indices du score, journal des bannissements) ; le motif sed lit la sortie FRANÇAISE (identique voulu)
+msgid " via ligne de commande"
+msgstr " via the command line"
+
+msgid ") — adresse signalée comme agressive par d'autres serveurs du réseau"
+msgstr ") — address reported as aggressive by other servers of the network"
+
+msgid "    Détail : journalctl -g '"
+msgstr "    Detail: journalctl -g '"
+
+msgid "' --since -100days   (journal du service surveillé par ce jail)"
+msgstr "' --since -100days   (log of the service watched by this jail)"
+
+msgid "/Règle\\|Déjà\\|REFUSÉ\\|Justification\\|sauvegard\\|mémoire\\|permanente/p"
+msgstr "/Règle\\|Déjà\\|REFUSÉ\\|Justification\\|sauvegard\\|mémoire\\|permanente/p"
+
+msgid "rafale de "
+msgstr "burst of "
+
+msgid " pages en 10 s"
+msgstr " pages in 10 s"
+
+msgid "outil de script ("
+msgstr "scripting tool ("
+
+msgid " requête(s))"
+msgstr " request(s))"
+
+msgid "double identité"
+msgstr "double identity"
+
+msgid "double identité ("
+msgstr "double identity ("
+
+msgid " organisations de robots)"
+msgstr " robot organisations)"
+
+msgid " tentative(s) d'accès à des fichiers sensibles (ex. "
+msgstr " attempt(s) to access sensitive files (e.g. "
+
+msgid " erreurs sur "
+msgstr " errors out of "
+
+msgid " requêtes"
+msgstr " requests"
+
+msgid "serveur loué ("
+msgstr "rented server ("
+
+msgid "faux moteur de recherche ("
+msgstr "fake search engine ("
+
+msgid "enquête "
+msgstr "investigation "
+
+msgid " --reason \"…\""
+msgstr " --reason \"…\""

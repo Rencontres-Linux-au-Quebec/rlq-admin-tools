@@ -16,6 +16,7 @@
 # format et des commentaires propres à chaque installation, trop risqué à éditer à l'aveugle.
 #
 # HISTORIQUE DE VERSION (résumé — voir nginx-hardening.changelog.txt pour le détail complet de chaque version) :
+#   2.51.20261020.194336 — Odoo logrotate rule written in NGINX_HARDENING_LOGROTATE_DIR like the others (was /etc/logrotate.d/odoo in all cases).
 #   2.50.20261019.150215 — New copyright: Services-Conseils Linux and Rencontres Linux au Québec contributors (AGPL-3.0-or-later).
 #   2.49.20261016.173838 — Ctrl+C works during the e-mail and BBB checks (timeout --foreground)
 #   2.48.20261015.143436 — --anonymize : affichage anonymisé (pseudonymes stables).
@@ -257,7 +258,7 @@ run() {
     "$@"
 }
 
-readonly SCRIPT_VERSION="2.50.20261019.150215"
+readonly SCRIPT_VERSION="2.51.20261020.194336"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
 SCRIPT_NAME="$(basename "${BASH_SOURCE[0]}" .sh)"; readonly SCRIPT_NAME
 # Langue d'affichage (en ou fr) : --lang, NGINX_HARDENING_LANG, LANGUAGE du fichier de configuration, LC_ALL / LANG — apps/_i18n.sh traduit la sortie (rien ne change en français).
@@ -2315,10 +2316,10 @@ if [[ "${ODOO_SPECIFIC_STEPS:-yes}" == "yes" && -n "$ODOO_LOGFILE" ]]; then
         pass "Rotation : $ODOO_LOGFILE est couvert par logrotate."
     else
         if [[ "$CHECK_ONLY" == "1" ]]; then
-            warn "Aucune règle logrotate ne mentionne $ODOO_LOGFILE : il grossira sans fin — --update crée /etc/logrotate.d/odoo (weekly, rotate 13, compress, copytruncate, missingok, notifempty)."
+            warn "Aucune règle logrotate ne mentionne $ODOO_LOGFILE : il grossira sans fin — --update crée $LOGROTATE_DIR/odoo (weekly, rotate 13, compress, copytruncate, missingok, notifempty)."
         else
-            lr_odoo=/etc/logrotate.d/odoo
-            [[ -e "$lr_odoo" ]] && lr_odoo=/etc/logrotate.d/odoo-nginx-hardening       # un fichier « odoo » existe déjà (autre contenu) : jamais écrasé
+            lr_odoo="$LOGROTATE_DIR/odoo"                              # 2.51 : dossier de NGINX_HARDENING_LOGROTATE_DIR (était /etc/logrotate.d en dur)
+            [[ -e "$lr_odoo" ]] && lr_odoo="$LOGROTATE_DIR/odoo-nginx-hardening"       # un fichier « odoo » existe déjà (autre contenu) : jamais écrasé
             lr_su=""
             lr_proprio=$(stat -c '%U %G' "$ODOO_LOGFILE" 2>/dev/null) || lr_proprio=""
             [[ -n "$lr_proprio" && "$lr_proprio" != "root root" ]] && lr_su="    su $lr_proprio"$'\n'
