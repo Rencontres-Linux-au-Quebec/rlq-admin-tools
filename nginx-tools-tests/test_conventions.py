@@ -140,7 +140,7 @@ class CompatibilitePython38(unittest.TestCase):
     def test_aucune_fonction_posterieure_a_python_3_8(self):
         for name in ("app-health-check.py", "app-log-check.py", "web-monitor.py", "zip-versions.py", "app-log-live.py", "odoo-mail-retry.py", "odoo-chat-post.py", "odoo-docs.py", "odoo-warmup.py", "host-perf-audit.py", "apps/_profile.py",
                      "apps/_reseau.py", "apps/_odoo_db.py", "apps/_bbb.py", "apps/_listes.py", "apps/_cache_ip.py", "apps/_courriel.py", "apps/_email_check.py",
-                     "apps/_odoo_users.py", "apps/_sysperf.py"):
+                     "apps/_odoo_users.py", "apps/_sysperf.py", "apps/_record.py"):
             src = open(script_path(name), encoding="utf-8").read().splitlines()
             for motif in self.INTERDITS:
                 with self.subTest(programme=name, motif=motif):

@@ -16,6 +16,20 @@ app-log-live.py --summary --no-follow      # print the summary and leave
 * Switches changed on the fly: `a` accentuate group, `c` chime, `d`/`t` name column width, `e` exclude IPs, `H` health period, `i` hide IP, `l` highlight words, `m` minimal, `M` installed modules table with sorting, `L` latest modules, `n` only not-found, `o` only lines containing a text, `r` copy-paste error report, `s` suspicious only, `T` periodic report, `v` verbose, `w` watch URLs, `C` save the changed settings to the configuration file.
 * `S`/`I` latest survey / event registrations (30 days), `E` error detail, `D` site diagnostic (why the maintenance page appears), `G` members of each `RLQ*` group, `b` ban the recommended addresses.
 
+## Recording a test (R key)
+
+To analyze a test of the site (an abandoned survey, a registration, a talk proposal…) without the noise:
+
+1. Press **R** in the live stream: a label is asked (for example `survey-abandoned`, Enter = none).
+2. Make the test. While recording, **REC** is shown in red at column `$COLUMNS - 4` of each line.
+3. Press **R** again: the recording stops and the `.tar.xz` archive is created in the background. Its path is shown on the line « Archive to send for analysis ».
+
+The archive holds: `README.txt` (local and UTC times, missing sources), `records.log` (the lines of the test, without robots, static files, websockets or local probes), `stream-all.log` (every line, with its category), `raw/` (complete extracts of nginx, Odoo, fail2ban and the systemd journal over the window), `network/` (connections of the web and Odoo ports), `db/` (PostgreSQL activity, `ir_cron` locks, snapshots of the survey, registration, e-mail and page tables), `context/` (service and Odoo settings without secrets, modules).
+
+IP addresses, e-mails, known names and tokens are replaced by stable pseudonyms before they are written. The database is only read, in read-only transactions.
+
+Without a keyboard: `--record-test-log MIN` records MIN minutes from start-up, writes the archive, then exits. `--record-max MIN` (key `RECORD_MAX`, 30 by default; 0 = no limit) stops a recording by itself.
+
 ## Latency: is it the disk?
 
 Every 30 seconds a light sampler reads the kernel counters (no command): processor, waiting time (PSI) for the disk / processor / memory — the *container's own* cgroup when running in an LXC container —, and the disks' % busy and wait per operation. Each Odoo request (SQL time + Python time of its journal line) is filed in the bin of its hour, “disk busy” or “disk calm”. Press **P** (or Ctrl-G at level 6 and more) after a few hours: the verdict says whether the disks slow the requests (SSD justified), only at times (startups, backups), or not at all (SATA enough), with the per-hour table at level 8. Inside a container the disk counters can be partial: run `host-perf-audit.py` on the Proxmox host for the real disks.
