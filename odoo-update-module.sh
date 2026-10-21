@@ -165,7 +165,7 @@ if declare -F config_lire >/dev/null; then
     config_defaut DO_WARMUP WARMUP --no-warmup booleen
     config_defaut VERBOSE VERBOSE --verbose booleen
     config_defaut ZIP_ARG ZIP --zip texte
-    case " $* " in *" --version "*|*" --help "*|*" -h "*) ;; *) config_afficher ;; esac
+    case " $* " in *" --version "*|*" --help "*|*" -h "*|*" --changelog "*) ;; *) config_afficher ;; esac
 fi
 
 while [[ $# -gt 0 ]]; do

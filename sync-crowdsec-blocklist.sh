@@ -212,7 +212,7 @@ if declare -F config_lire >/dev/null; then
     config_defaut STALE_DAYS STALE_DAYS --stale-days nombre
     config_defaut TOP_N TOP --top nombre
     config_defaut VERBOSE VERBOSE --verbose booleen
-    case " $* " in *" --version "*|*" --help "*|*" -h "*) ;; *) config_afficher ;; esac
+    case " $* " in *" --version "*|*" --help "*|*" -h "*|*" --changelog "*) ;; *) config_afficher ;; esac
 fi
 
 while [[ $# -gt 0 ]]; do
