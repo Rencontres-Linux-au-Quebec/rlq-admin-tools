@@ -247,7 +247,7 @@ run_all_nettoyer() {
 CTRL_C_NETTOYAGE=run_all_nettoyer
 trap 'run_all_nettoyer; exit 143' TERM
 
-readonly SCRIPT_VERSION="1.192.20261020.222909"
+readonly SCRIPT_VERSION="1.193.20261020.230008"
 RUN_ALL_DEBUT=$(date +%s)
 TESTS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly TESTS_DIR
 PROG_DIR="${TEST_SCRIPTS_DIR:-$(dirname "$TESTS_DIR")}"; readonly PROG_DIR

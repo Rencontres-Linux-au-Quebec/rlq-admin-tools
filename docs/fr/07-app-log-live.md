@@ -16,6 +16,20 @@ app-log-live.py --summary --no-follow      # affiche le résumé et quitte
 * Réglages changés à la volée : `a` groupe accentué, `c` bip, `d`/`t` largeur de la colonne des noms, `e` exclure des IP, `H` période de santé, `i` cacher l'IP, `l` surligner des mots, `m` minimum, `M` tableau des modules installés avec tri, `L` derniers modules, `n` seulement les introuvables, `o` seulement les lignes contenant un texte, `r` rapport d'erreurs à copier-coller, `s` seulement les suspectes, `T` rapport périodique, `v` verbeux, `w` surveiller des URL, `C` sauvegarder les réglages changés dans le fichier de configuration.
 * `S`/`I` dernières inscriptions aux sondages / événements (30 jours), `E` détail des erreurs, `D` diagnostic du site (pourquoi la page de maintenance s'affiche), `G` membres de chaque groupe `RLQ*`, `b` bannir les adresses recommandées.
 
+## Enregistrer un test (touche R)
+
+Pour analyser un test du site (un sondage abandonné, une inscription, une proposition de présentation…) sans le bruit :
+
+1. Appuyer sur **R** dans le direct : une étiquette est demandée (par exemple `sondage-abandonne`, Entrée = aucune).
+2. Faire le test. Pendant l'enregistrement, **REC** s'affiche en rouge à la colonne `$COLUMNS - 4` de chaque ligne.
+3. Appuyer de nouveau sur **R** : l'enregistrement s'arrête et l'archive `.tar.xz` est créée en arrière-plan. Son chemin s'affiche sur la ligne « Archive à envoyer pour analyse ».
+
+L'archive contient : `README.txt` (heures locales et UTC, sources absentes), `records.log` (les lignes du test, sans robots, fichiers statiques, websockets ni sondes locales), `stream-all.log` (toutes les lignes, avec leur catégorie), `raw/` (extraits complets de nginx, Odoo, fail2ban et du journal systemd pendant la fenêtre), `network/` (connexions des ports web et d'Odoo), `db/` (activité PostgreSQL, verrous sur `ir_cron`, instantanés des tables de sondages, inscriptions, courriels et pages), `context/` (réglages du service et d'Odoo sans secret, modules).
+
+Adresses IP, courriels, noms connus et jetons sont remplacés par des pseudonymes stables avant l'écriture. La base n'est lue qu'en lecture seule.
+
+Sans clavier : `--record-test-log MIN` enregistre MIN minutes à partir du démarrage, écrit l'archive puis quitte. `--record-max MIN` (clé `RECORD_MAX`, 30 par défaut ; 0 = sans limite) arrête un enregistrement de lui-même.
+
 ## Latence : est-ce le disque ?
 
 Toutes les 30 secondes, un échantillonneur léger lit les compteurs du noyau (aucune commande) : processeur, temps d'attente (PSI) du disque / du processeur / de la mémoire — le cgroup *du conteneur lui-même* dans un conteneur LXC —, et le % d'occupation des disques et l'attente par opération. Chaque requête Odoo (temps SQL + temps Python de sa ligne de journal) est classée dans l'heure où elle a eu lieu, « disque occupé » ou « disque calme ». Appuyer sur **P** (ou Ctrl-G au niveau 6 et plus) après quelques heures : le verdict dit si les disques ralentissent les requêtes (SSD justifiés), seulement par moments (démarrages, sauvegardes), ou pas du tout (SATA suffisant), avec le tableau par heure au niveau 8. Dans un conteneur, les compteurs des disques peuvent être partiels : lancer `host-perf-audit.py` sur l'hôte Proxmox pour les vrais disques.

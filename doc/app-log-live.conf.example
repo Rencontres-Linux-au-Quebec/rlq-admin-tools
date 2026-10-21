@@ -82,6 +82,8 @@
 #NO_USER_AGENT=non
 # --recap : secondes (défaut : 120 secondes ; 0 = jamais)
 #RECAP=120
+# --record-max (1.93) : minutes après lesquelles un enregistrement de test (touche R) s'arrête de lui-même (défaut : 30 ; 0 = sans limite)
+#RECORD_MAX=30
 # --service (défaut : détecté automatiquement)
 #SERVICE=
 # --slow : secondes (défaut : 5 secondes ; 0 = désactivé)
@@ -114,6 +116,7 @@
 #   --modules-latest [N]     Les N derniers modules installés (défaut : 10), avec la version actuelle d'Odoo, puis quitte ; touche L du menu
 #   --no-follow              Affiche les derniers messages puis s'arrête (pas de direct)
 #   --only TEXT              Seulement les lignes qui contiennent TEXTE (nom, adresse, URL, module…, sans tenir compte de la casse)
+#   --record-test-log MIN    Enregistre un test sans le clavier : commence avec le direct, s'arrête après MIN minutes, écrit l'archive .tar.xz à envoyer pour analyse, puis quitte
 #   --rate-limit IP          Détail des refus 429 (limitation de débit nginx) d'UNE adresse d'après les journaux nginx : URL, zone limit_req, pointes, effets, quoi changer ; puis quitte
 #   --report-err             Afficher à la fin un rapport d'erreurs à copier-coller (programme, version, serveur, échecs, avertissements)
 #   --summary                Affiche aussi le résumé de la session à la fin d'un --no-follow (avec Ctrl-C, toujours affiché)
