@@ -10,12 +10,15 @@
 # _anonymiser.py — anonymise ce qu'affichent les programmes (option --anonymize) : pseudonymes STABLES (module partagé, apps/).
 #
 # HISTORIQUE DE VERSION (résumé — voir doc/_anonymiser.changelog.txt pour le détail complet) :
+#   1.3.20261020.203430 — Names of people registered by a program (names=, names_lock=) replaced by « membre-4f2a9c » (stable, per account), column padding kept; NGINX_TOOLS_ANON_SELF: no relaunch.
 #   1.2.20261020.103939 — Masked e-mails (« b****ss@exemple.org ») replaced whole; fixed_width: IP pseudonyms padded to the width of the address (aligned columns).
 #   1.1.20261019.150215 — New copyright: Services-Conseils Linux and Rencontres Linux au Québec contributors (AGPL-3.0-or-later).
 #   1.0.20261015.143436 — Création : adresses IP (v4, v6), courriels, identifiants (login, user), jetons / mots de passe / cookies, paramètres d'URL ; filtre de lignes ; sel secret par machine.
 """Remplace, dans le texte affiché, les données qui identifient quelqu'un par des PSEUDONYMES STABLES : une même valeur donne toujours le même pseudonyme (on suit « la même
 personne » d'un rapport à l'autre sans pouvoir l'identifier). Le pseudonyme est un HMAC-SHA256 de la valeur avec un SEL SECRET propre à la machine (jamais affiché) : sans le sel,
 on ne peut ni retrouver la valeur ni vérifier une hypothèse ; avec la machine, `_anonymiser.py --pseudonyme VALEUR` dit quel pseudonyme correspond à une valeur connue.
+1.3 : les NOMS de personnes qu'un programme connaît (app-log-live.py : personnes connectées au site, étiquettes de l'équipe) lui sont confiés (names=) et deviennent
+« membre-4f2a9c » (même pseudonyme pour le nom complet, le nom court et l'identifiant d'un même compte) ; le remplissage d'une colonne qui suit le nom est ajusté.
 
 Remplacements :
   adresse IP (v4, v6)                  -> IP-4f2a9c           (jamais 127.x, ::1, 0.0.0.0, 255.x : masques et boucle locale ; ni les versions « 18.0.1.3 »)
@@ -32,13 +35,24 @@ import os
 import re
 import secrets
 import sys
+import threading
+import unicodedata
 
-__version__ = "1.2.20261020.103939"
+__version__ = "1.3.20261020.203430"
 SEL_ENV = "NGINX_TOOLS_ANON_SEL"
 ACTIF_ENV = "NGINX_TOOLS_ANON_ACTIF"          # posé pour tout ce qui est lancé derrière le filtre : rien n'est filtré deux fois
+SOI_ENV = "NGINX_TOOLS_ANON_SELF"             # 1.3: posé par un programme qui anonymise lui-même son affichage (app-log-live.py) : jamais relancé derrière le filtre
 DEMANDE_ENV = "NGINX_TOOLS_ANONYMIZE"          # 1 : anonymiser (même sans terminal, ex. cron) ; 0 : ne jamais le faire d'après la configuration
 DOMAINE_ANONYME = "anonyme.invalid"
 OUI = ("1", "oui", "yes", "true", "on", "vrai", "o", "y")
+ANSI_CODES = r"(?:\x1b\[[0-9;]*m)*"               # 1.3: color codes allowed between a name and the padding spaces of its column
+
+
+def _largeur(texte):
+    """Columns taken on a terminal: a wide East Asian character takes 2, a combining mark 0 (names in a padded column stay aligned)."""
+    if texte.isascii():
+        return len(texte)
+    return sum(0 if unicodedata.combining(c) or unicodedata.category(c) in ("Mn", "Me", "Cf") else 2 if unicodedata.east_asian_width(c) in ("W", "F") else 1 for c in texte)
 
 IPV4 = re.compile(r"(?<![\w.])(?:(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)\.){3}(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(?!\w|\.\d)")
 H = r"[0-9A-Fa-f]{1,4}"
@@ -82,10 +96,47 @@ def _lire_sel():
 class Anonymiseur:
     """Callable : Anonymiseur()(texte) -> texte anonymisé. Un même sel donne les mêmes pseudonymes d'une exécution à l'autre."""
 
-    def __init__(self, sel=None, fixed_width=False):
+    def __init__(self, sel=None, fixed_width=False, names=None, names_lock=None):
         self.sel = sel if sel is not None else _lire_sel()
         self.cache = {}
         self.fixed_width = fixed_width             # 1.2: « IP-4f2a9c » padded with spaces to the width of the address it replaces (columns stay aligned)
+        self.names = names if names is not None else {}      # 1.3: {name shown: (prefix, stable key)} — filled by the program, read here
+        self.names_lock = names_lock or threading.Lock()
+        self._names_re, self._names_n = None, -1
+
+    def add_name(self, name, key=None, prefix="membre"):
+        """1.3: `name` (a person's name, a short name, a login) will be shown as « prefix-xxxxxx »; the same `key` (an account) gives the same pseudonym to all its names."""
+        name = (name or "").strip()
+        if len(name) >= 3:
+            with self.names_lock:
+                self.names.setdefault(name, (prefix, key or name))
+
+    def _names_pattern(self):
+        """Regex of the registered names (longest first), rebuilt only when names were added; None when there is none."""
+        with self.names_lock:
+            if len(self.names) == self._names_n:
+                return self._names_re
+            self._names_n = len(self.names)
+            keys = sorted((k for k in self.names if len(k) >= 3), key=len, reverse=True)
+        self._names_re = (re.compile(r"(^|[^\w@./%-]|\x1b\[[0-9;]*m)(" + "|".join(re.escape(k) for k in keys) + r")(?![\w@/%-])(" + ANSI_CODES + r")( *)")
+                          if keys else None)
+        return self._names_re
+
+    def _name(self, m):
+        before, name, codes, spaces = m.group(1), m.group(2), m.group(3), m.group(4)
+        with self.names_lock:
+            prefix, key = self.names.get(name, ("membre", name))
+        res = f"{prefix}-{self.pseudonyme('name', str(key))}"
+        if spaces:                                 # padding of a column: as many columns in all as before (at least one space: never glued to the next column)
+            spaces = " " * max(1, _largeur(name) + len(spaces) - len(res))
+        elif self.fixed_width and len(res) < _largeur(name) and codes:
+            res = res.ljust(_largeur(name))
+        return before + res + codes + spaces
+
+    def names_sub(self, texte):
+        """1.3: the registered names replaced by their pseudonym; works on COLORED text (a colored name followed by the padding of its column)."""
+        pattern = self._names_pattern() if self.names else None
+        return pattern.sub(self._name, texte) if pattern is not None and texte else texte
 
     def pseudonyme(self, genre, valeur):
         cle = (genre, valeur.lower())
@@ -120,6 +171,7 @@ class Anonymiseur:
     def __call__(self, texte):
         if not texte:
             return texte
+        texte = self.names_sub(texte)
         texte = COURRIEL.sub(self._courriel, texte)
         texte = SECRET.sub(lambda m: m.group(1) + ("***" if not m.group(2).startswith("***") else m.group(2)), texte)
         texte = COOKIE.sub(lambda m: m.group(1) + "***", texte)
@@ -161,7 +213,7 @@ def sans_option(argv):
 def relancer_si_demande(argv, config, sortie_terminal=None):
     """Python : relance le programme derrière le filtre de sortie (apps/_traduire.py --anonymiser-seul) quand l'anonymisation est demandée ; ne revient pas dans ce cas.
     Échoue FERMÉ : si le filtre est introuvable, le programme s'arrête plutôt que d'afficher des données en clair."""
-    if not demande(argv, config, terminal=sortie_terminal):
+    if os.environ.get(SOI_ENV) or not demande(argv, config, terminal=sortie_terminal):
         return
     traducteur = os.path.join(os.path.dirname(os.path.abspath(__file__)), "_traduire.py")
     if not os.path.isfile(traducteur):
