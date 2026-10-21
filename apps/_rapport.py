@@ -83,6 +83,23 @@ LONGUEUR_DETAIL = 400
 LONGUEUR_RECO = 700          # « Comment : … » des recommandations : chemins, adresses — utiles en entier
 
 
+def changelog_section(path, key):
+    """This module's section of CHANGELOG.md: from its '## <key>' heading up to the next '## ' heading."""
+    with open(path, encoding="utf-8") as f:
+        lignes = f.read().splitlines()
+    section, dans = [], False
+    for ligne in lignes:
+        if ligne.startswith("## "):
+            if dans:
+                break
+            dans = ligne[3:].strip() == key
+            if dans:
+                section.append(ligne)
+        elif dans:
+            section.append(ligne)
+    return "\n".join(section) + "\n" if section else f"No changelog entry for {key} in {path}\n"
+
+
 def nettoyer(texte):
     """Texte sans codes de couleur ni retours chariot."""
     return ANSI_RE.sub("", texte).replace("\r", "")
@@ -330,10 +347,10 @@ class _Parseur(argparse.ArgumentParser):
 
 
 def afficher_changelog():
-    chemin = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "doc", "_rapport.changelog.txt")
+    chemin = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "CHANGELOG.md")
     try:
         with open(chemin, encoding="utf-8") as f:
-            texte = f.read()
+            texte = changelog_section(chemin, "apps/_rapport.py")
     except OSError:
         print(f"Changelog introuvable : {chemin}", file=sys.stderr)
         return 1
