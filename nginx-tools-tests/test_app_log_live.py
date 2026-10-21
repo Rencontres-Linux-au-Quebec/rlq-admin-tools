@@ -56,6 +56,13 @@ def odoo(level, database, logger, text, delta=0.0, fixe=None):
     return (f"{ts(delta, fixe)} odoo18 odoo[502385]: {utc:%Y-%m-%d %H:%M:%S},{utc.microsecond // 1000:03d} 502385 {level} {database} {logger}: {text}")
 
 
+def live_width(line):
+    """Columns of a screen line (colors ignored, a wide character counts 2)."""
+    import unicodedata
+    plain = ANSI.sub("", line)
+    return sum(0 if unicodedata.combining(c) else 2 if unicodedata.east_asian_width(c) in ("W", "F") else 1 for c in plain)
+
+
 def werkzeug(ip, url="/event", code=200, delta=0.0, fixe=None, methode="GET"):
     dt = fixe or (datetime.datetime.now(FUSEAU) - datetime.timedelta(seconds=delta))
     utc = dt.astimezone(datetime.timezone.utc)
@@ -76,7 +83,10 @@ UTILISATEURS = ("506\\037etienne@exemple.org\\037Étienne Dupont\\037f\\n507\\03
 
 
 def column(visible, width=18):
-    """La colonne d'adresse telle que le programme l'écrit : « adresse, pays » (sans crochets) complétée à la largeur fixe, puis un espace."""
+    """La colonne d'adresse telle que le programme l'écrit : « pays adresse » (sans crochets) complétée à la largeur fixe, puis un espace ; 1.91 : une adresse
+    SANS pays est précédée de 3 espaces (sous les adresses des autres lignes)."""
+    if not re.match(r"[A-Z]{2} ", visible):
+        visible = "   " + visible
     return visible.ljust(width) + " "
 
 
@@ -119,16 +129,16 @@ class AppLogLive(EnvTest):
     def test_terminal_par_defaut_soulignee_anonymisee_et_raccourcie_mais_jamais_dans_un_tube(self):
         """1.88-1.89 : dans un terminal, par défaut : une ligne sur 5 soulignée, adresses en pseudonymes (IP-xxxxxx), ligne trop large raccourcie en
         « début ... deux derniers mots » à $COLUMNS - 10 ; dans un tube (un autre programme lit la sortie) : lignes entières, vraies adresses, rien de souligné."""
-        longue = "/event/journee-portes-ouvertes-2026/registration/confirm?ticket=12&utm_source=infolettre-octobre&utm_campaign=rappel-final-de-la-journee"
+        longue = "/event/journee-portes-ouvertes-2026/registration/confirm?ticket=12&utm_source=infolettre-octobre&utm_campaign=rappel-final-de-la-journee" + "&x=" + "y" * 80 + "&fin=journee"
         self.journal([werkzeug(DNS, f"/page-{i}") for i in range(4)] + [werkzeug(DNS, longue), werkzeug(DNS, "/fin")])
         text, _ = super().run_pty(["python3", self.prog, "--no-follow", "--no-history", "--no-isp", "--no-presence", "--no-banned"], [],
-                                  env_extra={"COLUMNS": "120"}, keep_ansi=True)
+                                  env_extra={"COLUMNS": "230"}, keep_ansi=True)      # 1.91 : assez large pour les colonnes (seul le message est coupé)
         lignes = [l for l in text.splitlines() if "werkzeug" in ANSI.sub("", l)]
         self.assertEqual(len(lignes), 6, text)
         self.assertEqual([l.startswith("\x1b[4m") for l in lignes], [False, False, False, False, True, False])      # la 5e ligne du flux
         self.assertTrue(all(DNS not in ANSI.sub("", l) and "IP-" in ANSI.sub("", l) for l in lignes), "\n".join(lignes))
         cinquieme = ANSI.sub("", lignes[4]).rstrip()
-        self.assertLessEqual(len(cinquieme), 110, cinquieme)
+        self.assertLessEqual(len(cinquieme), 220, cinquieme)
         self.assertIn(" ... ", cinquieme)
         self.assertTrue(cinquieme.endswith("journee\""), cinquieme)                                      # la fin de l'URL reste visible
         rc, out, err = self.lancer("--no-history", "--no-isp", "--no-presence", "--no-banned")
@@ -164,11 +174,11 @@ class AppLogLive(EnvTest):
         lines = out.splitlines()
         self.assertEqual(len(lines), 5, out)
         # L'adresse (et son pays) est dans une COLONNE à largeur fixe juste après le niveau ; le NOM prend sa place dans le texte
-        self.assertRegex(T(lines[0]), rf'INFO {PERSONNE}\s+base werkzeug Étienne Dupont\s+HTTP/1\.1 \d+[ \d.-]*"GET  /event')             # personne déjà connectée
-        self.assertRegex(T(lines[1]), rf'INFO {DNS}\s+base werkzeug srv\.exemple\.org\s+')                          # nom DNS
+        self.assertRegex(T(lines[0]), rf'INFO +{PERSONNE}\s+base werkzeug Étienne Dupont\s+HTTP/1\.1 \d+[ \d.-]*"GET  /event')             # personne déjà connectée
+        self.assertRegex(T(lines[1]), rf'INFO +{DNS}\s+base werkzeug srv\.exemple\.org\s+')                          # nom DNS
         self.assertRegex(T(lines[2]), rf'INFO CA {ISP}\s+base werkzeug Videotron Ltee \(org\)\s+')                 # propriétaire du bloc + pays
-        self.assertRegex(T(lines[3]), r'INFO 127\.0\.0\.1\s+base werkzeug ce serveur\s+')                              # boucle locale
-        self.assertRegex(T(lines[4]), rf'INFO {self.equipe_ip}\s+base werkzeug Étienne \(cellulaire Vidéotron, adresse actuelle\)\s+')
+        self.assertRegex(T(lines[3]), r'INFO +127\.0\.0\.1\s+base werkzeug ce serveur\s+')                              # boucle locale
+        self.assertRegex(T(lines[4]), rf'INFO +{self.equipe_ip}\s+base werkzeug Étienne \(cellulaire Vidéotron, adresse actuelle\)\s+')
         self.assertEqual(len({l.index("base werkzeug") for l in lines}), 1, "les messages doivent être alignés :\n" + out)
         self.assertNotIn("(équipe)", out)
         self.assertNotIn("\x1b[", out, "pas de couleur dans un tube")
@@ -216,7 +226,7 @@ class AppLogLive(EnvTest):
         self.assertNotIn(" base ", out)                                                           # plus de nom de base
         complete = self.lancer("--no-presence")[1]                                                  # sans --min : tout, avec la base
         self.assertIn("Fetching mail", complete)
-        self.assertRegex(complete, rf"INFO {PERSONNE}\s+base werkzeug ")
+        self.assertRegex(complete, rf"INFO +{PERSONNE}\s+base werkzeug ")
 
     def test_couleurs_http_erreurs_et_connexions(self):
         flux = [werkzeug(PERSONNE, "/event", 200), werkzeug(DNS, "/x", 303), werkzeug(DNS, "/absent", 404), werkzeug(DNS, "/boum", 500),
@@ -253,13 +263,13 @@ class AppLogLive(EnvTest):
     def test_ip_gardee_par_defaut_hide_ip_et_libelle_court(self):
         self.journal([werkzeug(DNS)])
         out = self.lancer("--no-isp", "--no-presence")[1]
-        self.assertRegex(out, rf"INFO {DNS}\s+base werkzeug srv\.exemple\.org\s+")
+        self.assertRegex(out, rf"INFO +{DNS}\s+base werkzeug srv\.exemple\.org\s+")
         out = self.lancer("--no-isp", "--no-presence", "--hide-ip")[1]
         self.assertRegex(out, r"INFO\s+base werkzeug srv\.exemple\.org\s+")
         self.assertNotIn(DNS, out)
         rc, out, err = self.lancer("--no-isp", "--no-presence", "--keep-ip")                      # ancienne option : acceptée
         self.assertEqual(rc, 0, err)
-        self.assertIn(f"INFO {DNS} ", out)
+        self.assertIn(f"INFO    {DNS} ", out)
         spec = importlib.util.spec_from_file_location("live", script_path("app-log-live.py"))
         live = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(live)
@@ -306,8 +316,8 @@ class AppLogLive(EnvTest):
         self.assertRegex(T(lines[0]), rf"INFO CA {PERSONNE}\s+base werkzeug Étienne Dupont\s+")
         self.assertRegex(T(lines[1]), rf"INFO US {DNS}\s+base werkzeug srv\.exemple\.org\s+")
         self.assertRegex(T(lines[2]), rf"INFO CA {ISP}\s+base werkzeug Videotron Ltee \(org\)\s+")
-        self.assertRegex(T(lines[3]), r"INFO 127\.0\.0\.1\s+base werkzeug ce serveur\s+")                  # pas de pays pour ce serveur
-        self.assertRegex(T(lines[4]), rf"INFO {self.equipe_ip}\s+base werkzeug Étienne")
+        self.assertRegex(T(lines[3]), r"INFO +127\.0\.0\.1\s+base werkzeug ce serveur\s+")                  # pas de pays pour ce serveur
+        self.assertRegex(T(lines[4]), rf"INFO +{self.equipe_ip}\s+base werkzeug Étienne")
         self.assertNotRegex(T(lines[4]), r"\[[^\]]*, [A-Z]{2}\]")                                # ni pour l'équipe
         with open(os.path.join(self.d, "geoip.log")) as f:
             self.assertNotIn("127.0.0.1", T(f.read()))
@@ -318,9 +328,9 @@ class AppLogLive(EnvTest):
         self.mock_exit("geoiplookup", 127)
         out = self.lancer("--no-presence")[1].splitlines()
         self.assertRegex(out[2], rf"INFO CA {ISP}\s+base werkzeug Videotron Ltee \(org\)\s+")
-        self.assertRegex(out[1], rf"INFO {DNS}\s+base werkzeug srv\.exemple\.org")           # DNS : RDAP indisponible, pas de pays
+        self.assertRegex(out[1], rf"INFO +{DNS}\s+base werkzeug srv\.exemple\.org")           # DNS : RDAP indisponible, pas de pays
         out = self.lancer("--no-presence", "--no-isp")[1].splitlines()
-        self.assertRegex(out[2], rf"INFO {ISP}\s+base werkzeug {ISP}\s+")                    # sans nom ni pays : l'adresse reste aussi dans le texte
+        self.assertRegex(out[2], rf"INFO +{ISP}\s+base werkzeug {ISP}\s+")                    # sans nom ni pays : l'adresse reste aussi dans le texte
         self.assertNotRegex(out[2], r"\[[^\]]*, [A-Z]{2}\]")
 
     def test_adresse_locale_nomme_le_programme_jamais_une_personne(self):
@@ -334,7 +344,7 @@ class AppLogLive(EnvTest):
                       local("/web/assets/1/x.js"), werkzeug(PERSONNE)])
         rc, out, err = self.lancer("--no-presence")
         l = out.splitlines()
-        self.assertRegex(T(l[0]), r'INFO 127\.0\.0\.1\s+base werkzeug app-health-check\.py\s+HTTP/1\.1 303[ \d.-]*"GET  /"')
+        self.assertRegex(T(l[0]), r'INFO +127\.0\.0\.1\s+base werkzeug app-health-check\.py\s+HTTP/1\.1 303[ \d.-]*"GET  /"')
         self.assertRegex(T(l[1]), r'127\.0\.0\.1\s+base werkzeug app-health-check\.py\s+HTTP/1\.1 \d+[ \d.-]*"POST /web/webclient/version_info')
         self.assertRegex(T(l[2]), r'127\.0\.0\.1\s+base werkzeug app-health-check\.py\s+HTTP/1\.1 \d+[ \d.-]*"GET  /web/health\?db_server_status=1')
         self.assertRegex(T(l[3]), r'127\.0\.0\.1\s+base werkzeug ce serveur\s+HTTP/1\.1 \d+[ \d.-]*"GET  /web/assets/1/x\.js')
@@ -734,11 +744,11 @@ class AppLogLive(EnvTest):
                       werkzeug(self.equipe_ip, "/team"), werkzeug(DNS, "/dns")])
         rc, out, err = self.lancer()
         l = out.splitlines()
-        self.assertRegex(T(l[0]), rf'INFO {ets}\s+base werkzeug ETS - Laboratoire\s+HTTP/1\.1 \d+[ \d.-]*"GET  /event')        # plage la plus précise
-        self.assertRegex(T(l[1]), r'INFO 11\.105\.1\.1\s+base werkzeug ETS - Université\s+HTTP/1\.1 \d+[ \d.-]*"GET  /web/login')
-        self.assertRegex(T(l[2]), r'INFO 11\.101\.16\.52\s+base werkzeug Alice A \| Quartier Rosemont\s+HTTP/1\.1 \d+[ \d.-]*"GET  /odoo')         # lieu non partagé : la personne ET le lieu
-        self.assertRegex(T(l[3]), rf'INFO {self.equipe_ip}\s+base werkzeug Étienne \(cellulaire')          # liste blanche avant un lieu
-        self.assertRegex(T(l[4]), rf'INFO {DNS}\s+base werkzeug srv\.exemple\.org')
+        self.assertRegex(T(l[0]), rf'INFO +{ets}\s+base werkzeug ETS - Laboratoire\s+HTTP/1\.1 \d+[ \d.-]*"GET  /event')        # plage la plus précise
+        self.assertRegex(T(l[1]), r'INFO +11\.105\.1\.1\s+base werkzeug ETS - Université\s+HTTP/1\.1 \d+[ \d.-]*"GET  /web/login')
+        self.assertRegex(T(l[2]), r'INFO +11\.101\.16\.52\s+base werkzeug Alice A \| Quartier Rosemont\s+HTTP/1\.1 \d+[ \d.-]*"GET  /odoo')         # lieu non partagé : la personne ET le lieu
+        self.assertRegex(T(l[3]), rf'INFO +{self.equipe_ip}\s+base werkzeug Étienne \(cellulaire')          # liste blanche avant un lieu
+        self.assertRegex(T(l[4]), rf'INFO +{DNS}\s+base werkzeug srv\.exemple\.org')
         self.assertNotIn("autre(s) compte(s)", out)
         self.assertNotIn("Bob B", out)                                                                       # aucun nom de personne pour un lieu partagé
         presence = out.split("Présence d'après")[1]
@@ -748,7 +758,7 @@ class AppLogLive(EnvTest):
         self.assertIn("(4 plage(s))", err)
         # Non partagé et sans personne connue (--no-history) : le lieu remplace le DNS
         out = self.lancer("--no-history", "--no-presence")[1].splitlines()
-        self.assertRegex(out[2], r'INFO 11\.101\.16\.52\s+base werkzeug Quartier Rosemont\s+')
+        self.assertRegex(out[2], r'INFO +11\.101\.16\.52\s+base werkzeug Quartier Rosemont\s+')
         self.assertRegex(out[4], rf'{DNS}\s+base werkzeug srv\.exemple\.org')
 
     def test_colonne_d_adresse_alignee_meme_sans_adresse_et_en_ipv6(self):
@@ -765,7 +775,7 @@ class AppLogLive(EnvTest):
             self.assertIn("base werkzeug ", T(text_line))
         self.assertEqual(lines[0].index("base werkzeug"), lines[1].index("base odoo.addons"))     # avec ou sans adresse : même colonne
         self.assertEqual(lines[0].index("base werkzeug"), lines[4].index("base werkzeug"))
-        self.assertIn(f"INFO {v6} ", T(lines[3]))                                                        # IPv6 : colonne dépassée, adresse entière
+        self.assertIn(f"INFO    {v6} ", T(lines[3]))                                                        # IPv6 : colonne dépassée, adresse entière
         self.assertRegex(T(lines[2]), r"WARNING\s+base odoo\.modules\.loading\s+Un avertissement")
 
     def test_proprietaire_du_bloc_organisation_ou_nom_de_reseau(self):
@@ -860,8 +870,8 @@ class AppLogLive(EnvTest):
         self.lieux("11.101.16.52  # Quartier Rosemont\n10.9.8.7  # Lieu aussi dans la liste blanche\n")
         self.journal([werkzeug(self.equipe_ip, "/a"), werkzeug("11.101.16.52", "/b"), werkzeug(DNS, "/c"), werkzeug("10.9.8.7", "/d")])
         text = self.en_couleur()
-        self.assertIn("INFO \x1b[107;30m" + self.equipe_ip + "\x1b[0m", text)               # liste blanche : fond blanc, texte noir
-        self.assertRegex(text, r"INFO \x1b\[(?:48;5;245|47);30m11\.101\.16\.52\x1b\[0m")        # lieu : fond gris, texte noir (explicites : lisibles sur tout thème)
+        self.assertIn("INFO    \x1b[107;30m" + self.equipe_ip + "\x1b[0m", text)               # liste blanche : fond blanc, texte noir
+        self.assertRegex(text, r"INFO +\x1b\[(?:48;5;245|47);30m11\.101\.16\.52\x1b\[0m")        # lieu : fond gris, texte noir (explicites : lisibles sur tout thème)
         self.assertIn("\x1b[107;30m10.9.8.7\x1b[0m", text)                                                          # dans les deux : la liste blanche l'emporte
         self.assertNotIn("\x1b[107;30m" + DNS, text)                                                                # autre adresse : rien
         self.assertNotRegex(text, r"\x1b\[(?:48;5;245|47);30m" + re.escape(DNS))
@@ -908,7 +918,7 @@ class AppLogLive(EnvTest):
             self.assertNotIn("werkzeug:", T(text_line))
             self.assertNotIn("ir_cron ", T(text_line.replace("ir_cron" + " " * 8, "")))       # (le logger est suivi d'espaces, jamais de « : »)
             self.assertNotRegex(T(text_line), r"ir_cron\s*:")
-        self.assertRegex(l[2], r"INFO " + re.escape(self.equipe_ip) + r"\s+base werkzeug Étienne")
+        self.assertRegex(l[2], r"INFO +" + re.escape(self.equipe_ip) + r"\s+base werkzeug Étienne")
         # BigBlueButton / nginx : « - - » retiré seulement s'il vaut « - - » ; un utilisateur HTTP authentifié reste visible
         nginx = os.path.dirname(self.path("nginx", "x"))
         with open(os.path.join(nginx, "bigbluebutton.access.log"), "w") as f:
@@ -1139,7 +1149,7 @@ class AppLogLive(EnvTest):
         l = self.lancer("--no-presence")[1].splitlines()
         self.assertRegex(l[0], rf"INFO CA {publique}\s+base werkzeug Maison-ÉtienneB")
         self.assertRegex(l[1], rf"INFO CA {publique}\s+base werkzeug Maison-ÉtienneB")
-        self.assertRegex(l[2], r"INFO 127\.0\.0\.1\s+base werkzeug ce serveur")
+        self.assertRegex(l[2], r"INFO +127\.0\.0\.1\s+base werkzeug ce serveur")
 
     # --- 1.11 : tableau de bord (Ctrl-G, Ctrl-T), santé, journal quotidien -------------------------------------------------------------
     def journal_tableau(self, waiting=12):
@@ -3002,16 +3012,48 @@ class AppLogLive(EnvTest):
         live = self.module_live()
         live.COLOR = True
         ligne = "2026-10-20 09:05 INFO 11.85.88.10  " + "base werkzeug Hélène Côté" + " " * 30 + 'GET /event/' + "x" * 120 + '/fin" \x1b[31m[banned: CrowdSec]\x1b[0m'
-        court = live.shorten_line(ligne, 100)
+        court = live.shorten_line(ligne, 160)                                         # 1.91 : les colonnes (≈ 90) tiennent : seul le message est coupé
         visible = ANSI.sub("", court)
-        self.assertLessEqual(live.display_width(visible), 100)
+        self.assertLessEqual(live.display_width(visible), 160)
+        self.assertTrue(visible.startswith("2026-10-20 09:05 INFO 11.85.88.10  base werkzeug Hélène Côté" + " " * 30 + "GET /e"), visible)
         self.assertIn(" ... ", visible)
         self.assertTrue(visible.endswith('/fin" [banned: CrowdSec]'), visible)
         self.assertIn("\x1b[31m[banned: CrowdSec]", court)                               # couleur de l'étiquette gardée
         aere = "début" + " " * 80 + "suite et fin"
-        self.assertEqual(live.shorten_line(aere, 40), "début" + " " * 23 + "suite et fin")   # assez d'espaces à retirer : rien de coupé
+        coupe = ANSI.sub("", live.shorten_line(aere, 40))                            # 1.91 : le remplissage des colonnes n'est JAMAIS réduit (alignement gardé)
+        self.assertTrue(coupe.startswith("début" + " " * 20), coupe)
+        self.assertLessEqual(live.display_width(coupe), 40)
         self.assertEqual(ANSI.sub("", live.shorten_line("court", 40)), "court")
         self.assertEqual(live.underline_line("\x1b[31ma\x1b[0m b"), "\x1b[4m\x1b[31ma\x1b[0;4m b\x1b[0m")    # le soulignement survit aux remises à zéro
+        self.assertEqual(live.underline_line("\x1b[31ma\x1b[0m b", 6), "\x1b[4m\x1b[31ma\x1b[0;4m b   \x1b[0m")   # 1.91 : jusqu'au bout de la ligne d'écran
+
+    def test_colonnes_jamais_tassees_pays_noms_anonymises_et_souligne_tous_les_n(self):
+        """1.91 : [1] adresse sans pays (boucle locale…) sous les adresses des autres lignes ; noms de l'équipe anonymisés (equipe-xxxxxx) avec --anonymize ;
+        [2][3] une ligne trop longue est coupée dans le MESSAGE, jamais dans le remplissage des colonnes ; [4] ligne soulignée jusqu'à $COLUMNS ; [5] --underline N."""
+        import donnees_exemples as ex
+        noms = ex.PERSONNES_FR[:2]
+        ips = ["100.64.1.1", "100.64.1.2"]
+        self.liste_blanche("".join(f"{ip}  # {nom}\n" for ip, nom in zip(ips, noms)))
+        longue = "/event/journee-portes-ouvertes-2026/page/introduction-" + "x" * 150 + "/fin"
+        self.journal([werkzeug(ips[0], "/a"), werkzeug("127.0.0.1", "/b"), werkzeug(ips[1], longue), werkzeug(ips[0], "/c"),
+                      odoo("INFO", "base", "odoo.models.unlink", "User #1 deleted ir.attachment records with IDs: [" + ", ".join(str(i) for i in range(80)) + "]")])
+        text, _ = super().run_pty(["python3", self.prog, "--no-follow", "--no-history", "--no-isp", "--no-presence", "--no-banned", "--anonymize", "--truncate",
+                                   "--underline", "2"], [], env_extra={"COLUMNS": "230"}, keep_ansi=True)
+        lignes = [l for l in text.splitlines() if re.search(r"werkzeug|odoo\.models", ANSI.sub("", l))]
+        self.assertEqual(len(lignes), 5, text)
+        visibles = [ANSI.sub("", l) for l in lignes]
+        for nom in noms:
+            self.assertNotIn(nom, text)
+        self.assertEqual(sum("equipe-" in v for v in visibles), 3, "\n".join(visibles))
+        self.assertEqual(len({v.index("HTTP/1.1") for v in visibles[:4]}), 1, "\n".join(visibles))         # colonnes alignées, même la ligne coupée
+        self.assertEqual(visibles[1].index("127.0.0.1"), visibles[0].index("IP-"), "\n".join(visibles))    # l'adresse sans pays sous les autres
+        self.assertIn(" ... ", visibles[2])
+        debut_message = [v.index("User #1") for v in visibles[4:]]
+        self.assertEqual(debut_message, [visibles[0].index('"GET')], "\n".join(visibles))                 # message Odoo coupé, logger non tassé
+        self.assertEqual([l.startswith("\x1b[4m") for l in lignes], [False, True, False, True, False])
+        self.assertEqual(live_width(lignes[1]), 230, lignes[1])                                             # soulignée jusqu'au bout de l'écran
+        rc, aide, err = self.run_cmd(["python3", self.prog, "--help"], {"APP_LOG_LIVE_LANG": "fr"})
+        self.assertIn("--underline [N]", aide)
 
     def test_troncature_des_lignes(self):
         """1.83 : --truncate [N] coupe chaque ligne affichée à N colonnes (sans N : 2 × $COLUMNS) avec « … », couleurs gardées ; le journal quotidien garde tout."""

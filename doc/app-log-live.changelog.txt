@@ -1,6 +1,73 @@
 Changelog — app-log-live.py
 (newest version first; entries up to 1.79 are still in French: their translation is a later stage of the migration)
 
+## 1.91.20261020.203430 — Columns never squeezed; country before every public address; names anonymized; underline to the end of the line; --underline [N]; A key
+
+Reason:
+  « [1] Il manque les pays avant les IP, et l'anonymisation n'a pas fonctionné pour le nom des membres qui se sont connecté sur le site web. Il faudrait
+  probablement indiquer membre-UID (le UID x un chiffre random) [2] les noms DNS ne sont pas enligné [3] Problème d'enlignement [4] Il faudrait que la ligne
+  qui est souligné (à toutes les 5 lignes) soit souligné jusqu'à la fin de la ligne ($COLUMS) [5] Rajouter une option afin d'avoir une ligne (soulignée) à
+  tout les N lignes --underline N (si N n'est pas spécifier N=5) [6] dans rajouter une bascule pour --anonymize (A ?) »
+  (production lines pasted with the request; the names and addresses they contained are not reproduced here.)
+
+Changes:
+  - [2][3] shorten_line() (--truncate): the padding of the columns is no longer squeezed (squeeze_padding() removed). New message_start() finds where the
+    MESSAGE starts (the request « "GET … », otherwise the text after the last column padding, e.g. after the logger of an Odoo message): only the message is
+    cut, as « start ... last two words » — the room left after the columns is shared half for the start, half for the end. A screen narrower than the columns
+    themselves: the END of the line is cut (« … »), the columns stay where they are.
+  - [1] Resolver.local(): the PUBLIC addresses of this server are no longer excluded from the country lookup (geoiplookup, otherwise RDAP): « CA IP-… ce
+    serveur ». Formatting.format_value(): an address WITHOUT a country (loopback 127.0.0.1, private network, lookup slower than 3 s) is preceded by 3 spaces,
+    so it stays under the addresses of the other lines.
+  - [1] Names of people anonymized: new KNOWN_NAMES / note_name(); People.name_of() registers the name, its short form (« JoséeD ») and the login of every
+    account it names (same key « database:login » for the three); Resolver.fast() registers the team labels (whitelist). new_anonymiser() gives that register
+    to apps/_anonymiser.py 1.3: on screen, « membre-4f2a9c » (team: « equipe-4f2a9c »), padding of the name column adjusted (Output.screen_text applies the
+    names on the whole colored line first). The daily journal keeps the real names. Technical logins (admin, public, __system__, odoobot…) are not names.
+    About « membre-UID (UID x random number) »: the pseudonym is a salted HMAC of the account (like IP-xxxxxx): stable from one run to the next and on all the
+    programs, and impossible to reverse — a multiplied UID is found again with two known accounts.
+  - Bug found while testing [1]: _start() sets NGINX_TOOLS_ANON_SELF during apps/_i18n.py demarrer(): an explicit --anonymize no longer relaunches this
+    program behind the output filter of apps/_traduire.py (see Bugs fixed); app-log-live anonymizes its screen itself. The variable is removed right after:
+    the programs launched by this one keep the usual rule.
+  - [4] underline_line(text, width): the underlined line is padded with underlined spaces up to $COLUMNS (terminal_columns(), read at each write).
+  - [5] New --underline [N] (UNDERLINE key: N, oui = 5, non/0 = none; _underline_config()): one log line out of N underlined (default 5; without N: 5;
+    0 = none). --no-underline = --underline 0. Output.underline is now the number N.
+  - [6] A key (menu « ? »): --anonymize on / off on the fly (screen only; the same Anonymiseur is kept, so the pseudonyms do not change); refused with a
+    message when a parent program already anonymizes the output. ANONYMIZE is saved by the C key like the other settings (config_values()).
+  - Help (--anonymize, --no-anonymize, --underline, --no-underline), startup « Screen: » line, menu, usage header, doc/app-log-live.conf.example,
+    lang/app-log-live.fr.po (new entries, obsolete ones removed).
+
+Bugs fixed:
+  - Symptom [2][3]: names, numbers and loggers of the long lines shifted to the left (« Exemple Hébergement (org)   HTTP/1.1 200  -  62 », « INFO odoo.models.unlink
+    User #1 deleted »). Diagnosis: 1.88 shortened a long line by first removing padding spaces of the columns. Fix: only the message is cut.
+  - Symptom [1]: « IP-3f021e ce serveur » without a country while the other addresses had one; 127.0.0.1 one column left of the other addresses.
+    Diagnosis: this server was excluded from the country lookup, and an address without a country started at the column of the country code. Fix: see above.
+  - Symptom [1]: names of the people logged in to the site shown in clear with --anonymize. Diagnosis: apps/_anonymiser.py only knew patterns (addresses,
+    e-mails, identifiers), not names. Fix: register of names.
+  - Symptom (found while testing): with an EXPLICIT --anonymize in a terminal, the colored addresses and names stayed in clear (only the default anonymized).
+    Diagnosis: apps/_i18n.py relaunched the program behind apps/_traduire.py, whose filter reads « \x1b[107;30m11.x.x.x » as one word (the « m » of the color
+    code before the address). Fix: NGINX_TOOLS_ANON_SELF.
+  - Symptom (found while testing): --underline was always 0 when not given. Diagnosis: --no-underline is declared first and its default (None) won. Fix:
+    parser.set_defaults(underline=UNDERLINE_DEFAULT).
+
+Safeguards and edge cases:
+  - Names shorter than 3 characters, e-mails (anonymized on their own) and technical logins are never registered; a name is only replaced as a whole word,
+    never inside a URL (« /web/… ») or a longer word.
+  - Pseudonym longer than the name in a padded column: as many columns in all as before, at least one space kept (never glued to « HTTP/1.1 »).
+  - The old UNDERLINE=oui (read as a boolean by an older apps/_i18n.py) still means one line out of 5.
+  - A key without apps/_anonymiser.py: error message, real values stay (never a crash).
+
+Checks:
+  - New test test_colonnes_jamais_tassees_pays_noms_anonymises_et_souligne_tous_les_n (terminal, --anonymize --truncate --underline 2, team labels with
+    accents, 127.0.0.1, long URL, long Odoo message: HTTP/1.1 at the same column on every line, the address without country under the others, team names
+    absent, lines 2 and 4 underlined to 230 columns, « --underline [N] » in the help); updated: test_ligne_raccourcie_debut_points_et_deux_derniers_mots,
+    test_terminal_par_defaut_soulignee_anonymisee_et_raccourcie_mais_jamais_dans_un_tube (wider terminal: the columns must fit before the message is cut).
+  - test_anonymiser: new test_noms_des_personnes_enregistres_et_colonnes_gardees.
+  - ruff (E9, F, Python 3.8), python3 -m py_compile.
+
+Action required:
+  - Deploy the new archive (app-log-live.py, apps/_anonymiser.py, lang/app-log-live.fr.po). Your terminal must be wider than the columns (about 160 columns
+    with --min, 175 without) for the long URLs to be shortened as « start ... end »; on a narrower one, the end of the line is cut.
+  - The country of this server's public address needs geoiplookup (geoip-bin) or RDAP (no --no-isp).
+
 ## 1.90.20261020.164846 — Merge: 1.87 (ban reason, main) + 1.88 / 1.89 (this branch)
 
 Reason:

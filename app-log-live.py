@@ -28,7 +28,7 @@
 #     the line types (werkzeug, websocket "longpolling", with or without --min) starts at the same column, and the redundant ISO date of a websocket is removed;
 #   * NUMBERS AFTER THE HTTP CODE (legend at startup): Odoo "200 - 105 0.046 0.426" = size, SQL queries, SQL time, Python time; websocket "101 494 14.6" = size, duration;
 #     colors when high (SQL >= 300 orange, >= 1000 red; size >= 1 MB / 10 MB; durations according to --slow);
-#   * KEY MENU (? or h): toggles and settings on the fly — a --accentuate-group, c --chime, e --exclude-ip, T --time-report, d --dns-max, t --dns-max-truncate, H --health, i --hide-ip, l --highlight, m --min, M --modules (table of the installed Odoo modules, sorted by name, date, creation, version, author or state), o --only, r error report (--report-err),
+#   * KEY MENU (? or h): toggles and settings on the fly — a --accentuate-group, A --anonymize, c --chime, e --exclude-ip, T --time-report, d --dns-max, t --dns-max-truncate, H --health, i --hide-ip, l --highlight, m --min, M --modules (table of the installed Odoo modules, sorted by name, date, creation, version, author or state), o --only, r error report (--report-err),
 #     s --suspect, v --verbose, V version; S survey registrations, I event registrations, b addresses to ban (nginx-log-audit.sh --ban, like web-monitor.py).
 #   * KEYBOARD DASHBOARD (terminal only, --no-keys: disabled): Ctrl-G = health (✔ ⚠ ✖ with the detail of the problems), efficiency of the program (CPU, memory, input/output,
 #     address cache), pages per language (EN, FR, ES), HTTP codes, top 10 URLs, Odoo errors; Ctrl-T = only what changed since the last display; --health MIN:
@@ -61,6 +61,7 @@
 # BigBlueButton (file journals): the nginx and bbb-web journals are followed (tail -F), without names of people or presence.
 #
 # VERSION HISTORY (summary — see doc/app-log-live.changelog.txt for the full detail):
+#   1.91.20261020.203430 — Columns never squeezed by --truncate (the message is cut); country before every public address (this server too); names of people anonymized (membre-4f2a9c); underline to the end of the line; --underline [N]; A key toggles --anonymize.
 #   1.90.20261020.164846 — Merge of 1.87 (bans: --reason passed to nginx-log-audit.sh) with 1.88 and 1.89 (underlined lines, --truncate, --anonymize, --no-underline).
 #   1.89.20261020.112434 — --truncate / --anonymize by default only on a TERMINAL (a pipe, another program, the tests: real whole lines); explicit options always apply; --no-underline.
 #   1.88.20261020.103939 — One line out of 5 underlined; --truncate and --anonymize by default (--no-truncate, --no-anonymize), long lines « start ... last two words » at $COLUMNS - 10; sent e-mails named even once deleted by Odoo; « -2026- » highlighted.
@@ -161,7 +162,8 @@
 #   app-log-live.py --min                    the minimum: without database name or "werkzeug", without fetchmail noise
 #   app-log-live.py --hide-ip                without the IP address in brackets after the name
 #   app-log-live.py --no-truncate            whole log lines (by default: shortened to $COLUMNS - 10, « start ... last two words »)
-#   app-log-live.py --no-anonymize           real IP addresses and e-mails on screen (by default: stable pseudonyms IP-4f2a9c)
+#   app-log-live.py --no-anonymize           real IP addresses, e-mails and names on screen (by default: stable pseudonyms IP-4f2a9c, membre-4f2a9c; A key on the fly)
+#   app-log-live.py --underline 3            one log line out of 3 underlined to the end of the screen line (by default 5; --no-underline: none)
 #   app-log-live.py --no-follow              displays the last messages then stops (for a pipe or a file)
 #   app-log-live.py --no-isp --no-history    no outside request, without the login history
 #   --days N, --idle MIN, --recap SEC, --no-presence, --service NAME, --namespace NAME, --app NAME, --verbose, --version, --changelog, --report-err
@@ -193,7 +195,7 @@ from urllib.parse import unquote
 from collections import Counter, OrderedDict
 from concurrent.futures import Future
 
-__version__ = "1.90.20261020.164846"
+__version__ = "1.91.20261020.203430"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
@@ -206,7 +208,13 @@ def _start():
         module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(module)
         globals()["I18N_MODULE"] = module
-        return module.demarrer(SCRIPT_DIR, SCRIPT_NAME, "APP_LOG_LIVE_LANG", ("_bbb", "_listes", "nginx-log-audit", "_connexions", "_limites"))
+        # 1.91: --anonymize is applied HERE, piece by piece between the color codes (a colored address or name stays recognized): never relaunched
+        # behind the output filter of apps/_traduire.py, which saw « \x1b[…m11.191.124.32 » as a word and left colored addresses and names in clear
+        os.environ["NGINX_TOOLS_ANON_SELF"] = "1"
+        try:
+            return module.demarrer(SCRIPT_DIR, SCRIPT_NAME, "APP_LOG_LIVE_LANG", ("_bbb", "_listes", "nginx-log-audit", "_connexions", "_limites"))
+        finally:
+            os.environ.pop("NGINX_TOOLS_ANON_SELF", None)            # the programs launched by this one keep the usual rule
     except Exception:
         return None
 
@@ -263,8 +271,24 @@ def _truncate_config(value):
     return int(value)
 
 
+def _underline_config(value):
+    """UNDERLINE (1.91): one line out of N underlined — a number (0 = none), yes (= every UNDERLINE_DEFAULT lines) or no."""
+    v = value.strip().lower()
+    if v in ("no", "non", "n", "false", "off", "none", "aucun"):
+        return 0
+    if v in ("yes", "oui", "y", "o", "true", "on"):
+        return UNDERLINE_DEFAULT
+    n = int(value)
+    if n < 0:
+        raise ValueError("0 or more expected")
+    return n
+
+
+UNDERLINE_DEFAULT = 5                                                 # --underline without N: one log line out of 5 underlined
+
+
 SCHEMA_CONFIG = {"ACCENTUATE_GROUP": ("accentuate_group", str), "CHIME": ("chime", _chime_config), "DNS_MAX_TRUNCATE": ("dns_max_truncate", int), "EXCLUDE_IP": ("exclude_ip", _comma_list),
-                 "ONLY": ("only", _comma_list), "SUSPECT": ("suspect", bool), "TIME_REPORT": ("time_report", float), "TRUNCATE": ("truncate", _truncate_config), "WATCH": ("watch", str), "ANONYMIZE": ("anonymize", bool), "UNDERLINE": ("underline", bool),
+                 "ONLY": ("only", _comma_list), "SUSPECT": ("suspect", bool), "TIME_REPORT": ("time_report", float), "TRUNCATE": ("truncate", _truncate_config), "WATCH": ("watch", str), "ANONYMIZE": ("anonymize", bool), "UNDERLINE": ("underline", _underline_config),
                  "APP": ("app", str), "CMS": ("cms", str), "CONNECTIONS": ("connections", float), "DAYS": ("days", int), "DISK_MIN": ("disk_min", float), "DNS_MAX": ("dns_max", int), "HEALTH": ("health", float), "HIDE_IP": ("hide_ip", bool), "HIGHLIGHT": ("highlight", str), "IDLE": ("idle", float),
                  "LINES": ("lines", int), "LOG_DIR": ("log_dir", str), "LOG_KEEP_DAYS": ("log_keep_days", int), "MIN": ("min", bool), "MODULES_CUSTOM": ("modules_custom", bool), "MODULES_SORT": ("modules_sort", str), "MODULES_STARTUP": ("modules_startup", bool), "NAMESPACE": ("namespace", str),
                  "NO_BANNED": ("no_banned", bool), "NOT_FOUND": ("not_found", bool), "NO_BAN_PROMPT": ("no_ban_prompt", bool), "NO_CACHE": ("no_cache", bool), "NO_HISTORY": ("no_history", bool),
@@ -563,6 +587,16 @@ def load_module(name):
 # ------------------------------------------------------------------------------------------------------------------
 # IP addresses of a text
 # ------------------------------------------------------------------------------------------------------------------
+def new_anonymiser(module):
+    """1.91: Anonymiseur of apps/_anonymiser.py for the screen — aligned IP pseudonyms (fixed_width) and the names of people of KNOWN_NAMES (membre-xxxxxx);
+    an older module without these parameters still anonymizes the addresses and e-mails."""
+    parameters = module.Anonymiseur.__init__.__code__.co_varnames
+    kwargs = {"fixed_width": True} if "fixed_width" in parameters else {}
+    if "names" in parameters:
+        kwargs.update(names=KNOWN_NAMES, names_lock=KNOWN_NAMES_LOCK)
+    return module.Anonymiseur(**kwargs)
+
+
 def find_ips(text_line):
     """[(start, end, ip)] of the IPv4 and IPv6 addresses of the text (IPv6 validated: "03:02:14" is not one)."""
     found_items = [(m.start(), m.end(), m.group()) for m in IPV4_RE.finditer(text_line)]
@@ -638,7 +672,7 @@ def config_values(options, verbose, widths=None):
            "NOT_FOUND": yes_no(options["not_found"]), "VERBOSE": yes_no(verbose),
            "ACCENTUATE_GROUP": options.get("group") or "", "CHIME": "" if options.get("chime") is None else str(options["chime"]),
            "EXCLUDE_IP": ",".join(str(r) for r in options.get("exclude") or []), "ONLY": ",".join(options.get("only") or []),
-           "SUSPECT": yes_no(options.get("suspect")), "TIME_REPORT": f"{options.get('report_min') or 0:g}", "WATCH": ",".join(options.get("watch") or [])}
+           "SUSPECT": yes_no(options.get("suspect")), "ANONYMIZE": yes_no(options.get("anonymize")), "TIME_REPORT": f"{options.get('report_min') or 0:g}", "WATCH": ",".join(options.get("watch") or [])}
     if width is not None:
         res["DNS_MAX"] = "" if truncated else str(width)                    # one or the other: column without cut, or cut at N
         res["DNS_MAX_TRUNCATE"] = str(truncated) if truncated else ""
@@ -1053,6 +1087,22 @@ def local_address(ip):
         return False
 
 
+# 1.91: names of people (logged-in accounts) and team labels shown by this program -> (prefix, stable key). Given to apps/_anonymiser.py: with --anonymize
+# they become « membre-4f2a9c » / « equipe-4f2a9c » on screen (the daily journal keeps them). Logins that are not a person are never registered.
+KNOWN_NAMES = {}
+KNOWN_NAMES_LOCK = threading.Lock()
+NOT_A_PERSON = {"admin", "administrator", "administrateur", "public", "__system__", "odoobot", "demo", "portal", "default"}
+
+
+def note_name(name, key, prefix="membre"):
+    """Registers a name shown on screen (anonymized by --anonymize); ignored when shorter than 3 characters, an e-mail (anonymized on its own) or a technical login."""
+    name = (name or "").strip()
+    if len(name) < 3 or "@" in name or name.lower() in NOT_A_PERSON:
+        return
+    with KNOWN_NAMES_LOCK:
+        KNOWN_NAMES.setdefault(name, (prefix, key))
+
+
 def version_with_date():
     """"app-log-live version 1.40.20261013.100000 (2026-10-13 10:00:00)": the local date and time of the modification are in the version number."""
     m = re.match(r"^(\d+\.\d+)\.(\d{4})(\d{2})(\d{2})\.(\d{2})(\d{2})(\d{2})$", __version__)
@@ -1161,9 +1211,14 @@ class People:
         return words[0] + words[-1][0].upper() if len(words) > 1 else (words[0] if words else "")
 
     def name_of(self, database, login):
-        """Name of the person according to the database cache (otherwise their login); does not take the lock (called with or without it)."""
+        """Name of the person according to the database cache (otherwise their login); does not take the lock (called with or without it).
+        1.91: the name, its short form and the login are registered for --anonymize (same pseudonym « membre-xxxxxx » for the three)."""
         table = self.databases_seen.get(database, (0, None))[1]
-        return ((table or {}).get(login) or {}).get("nom") or login
+        name = ((table or {}).get(login) or {}).get("nom") or login
+        key = f"{database}:{login}"
+        for shown in {name, self.short(name), login}:
+            note_name(shown, key)
+        return name
 
     def tag(self, accounts, name):
         """Name of the account(s) behind an address (_tag), followed by « [watched] » or « [banned account] » when one of them is in the register of
@@ -1262,12 +1317,13 @@ class Resolver:
                 threading.Thread(target=target, args=(file,), daemon=True).start()
 
     def local(self, ip):
-        """Address without country or provider lookup: invalid, local loopback, private, this server. (The team is no longer part of it since 1.11: its country is also displayed.)"""
+        """Address without country or provider lookup: invalid, local loopback, private. (The team is no longer part of it since 1.11, nor the PUBLIC
+        addresses of this server since 1.91: their country is also displayed, in front of the address like the others.)"""
         try:
             a = ipaddress.ip_address(ip)
         except ValueError:
             return True
-        return a.is_loopback or a.is_private or a.is_link_local or ip in self.server
+        return a.is_loopback or a.is_private or a.is_link_local
 
     def category(self, ip):
         """"whitelist" (address of the whitelist), "place" (places file) or None, according to the files only (no lookup); the
@@ -1305,7 +1361,10 @@ class Resolver:
             return waiting, accounts[-1], place_name, len(accounts)  # name being read: (Future, account, place, number of accounts)
         whitelist = self.lists.blanche_de(ip) if self.lists is not None else None
         if whitelist is not None:
-            return ("team", short_caption(whitelist.libelle or "team"), None)
+            label = short_caption(whitelist.libelle or "team")
+            if whitelist.libelle:
+                note_name(label, f"team:{label}", "equipe")               # 1.91: a team label is usually a person's name
+            return ("team", label, None)
         if place is not None:
             return ("place", short_caption(place.libelle or "place"), None)
         return None
@@ -1741,6 +1800,8 @@ class Formatting:
                 ip0 = addresses[0][2]
                 visible = " ".join(renderings[ip0][1])
                 colored = crochets(renderings[ip0][1], ip0, renderings[ip0][3], surrounded=False)
+                if renderings[ip0][1][0] == ip0:                        # 1.91: no country (loopback, private network, lookup too slow): the address stays
+                    visible, colored = "   " + visible, "   " + colored  # under the addresses of the other lines (« CA 11.191.124.32 »)
             # Level longer than INFO (WARNING, ERROR…): the difference is taken from the padding of the address column, so that everything stays aligned
             column = colored + " " * max(0, self.width - len(visible) - max(0, len(L.level) - 4))
         header = []
@@ -2561,63 +2622,53 @@ def colored_prefix(text, limit):
     return "".join(out) + ("\x1b[0m" if colored else "")
 
 
-def squeeze_padding(text_line, excess):
-    """Padding of the aligned columns (a logger column of 80 characters) reduced by `excess` columns, the LONGEST runs of spaces first (one space at
-    least is kept): the message stays visible and the columns move as little as possible."""
-    parts = ANSI_SPLIT_RE.split(text_line)
-    runs = [(len(r.group(0)), i, r.start()) for i, part in enumerate(parts) if not ANSI_SPLIT_RE.fullmatch(part) for r in re.finditer(r" {2,}", part)]
-    cut = {}
-    while excess > 0 and runs:
-        runs.sort(reverse=True)
-        length, i, start = runs[0]
-        second = runs[1][0] if len(runs) > 1 else 1
-        step = min(excess, length - max(1, min(length - 1, second)) or 1)
-        cut[(i, start)] = cut.get((i, start), 0) + step
-        excess -= step
-        runs[0] = (length - step, i, start)
-        if length - step <= 1:
-            runs.pop(0)
-    if not cut:
-        return text_line
-    for i in {i for i, _ in cut}:
-        part, out, pos = parts[i], [], 0
-        for r in re.finditer(r" {2,}", part):
-            out.append(part[pos:r.start()] + " " * (len(r.group(0)) - cut.get((i, r.start()), 0)))
-            pos = r.end()
-        parts[i] = "".join(out) + part[pos:]
-    return "".join(parts)
+MESSAGE_START_RE = re.compile(r'"[A-Z]{3,9} ')                   # 1.91: start of the request of a werkzeug / nginx line (« "GET  /url" »)
+COLUMN_PADDING_RE = re.compile(r" {3,}(?=\S)")                  # padding of a column: the message of an Odoo line starts after the last one
+
+
+def message_start(plain):
+    """1.91: index (in the uncolored line) where the MESSAGE starts: the request « "GET … » of a web line, otherwise the text after the last column padding
+    (Odoo message after its padded logger); 0 when there is no column."""
+    m = MESSAGE_START_RE.search(plain)
+    if m:
+        return m.start()
+    runs = list(COLUMN_PADDING_RE.finditer(plain))
+    return runs[-1].end() if runs else 0
 
 
 def shorten_line(text_line, limit):
     """1.88 (--truncate, by default): a stream line longer than `limit` columns (a long URL…) becomes « start ... last two words », `limit` columns at most:
     the end of the line (the URL's last part, [banned: …], « ← slow ») stays visible. Last two words wider than a third of the line: only their end is kept.
-    The padding spaces of the columns are squeezed first: a line that then fits is only less aligned, nothing is cut."""
+    1.91: only the MESSAGE (the URL, the text of an Odoo message) is cut — the columns before it (time, address, name, numbers, logger) are never squeezed
+    nor cut, so they stay aligned with the other lines. A screen too narrow for the columns themselves: the end of the line is cut (« … »)."""
     if display_width(text_line) <= limit:
         return text_line
     text_line = text_line.rstrip(" ")
     plain = ANSI_RE.sub("", text_line)
     if display_width(plain) <= limit:
         return text_line
-    text_line = squeeze_padding(text_line, display_width(plain) - limit)
-    plain = ANSI_RE.sub("", text_line)
-    if display_width(plain) <= limit:
-        return text_line
-    m = TAIL_RE.search(plain)
-    if not m or m.start() == 0 or limit < 24:
+    start = message_start(plain)
+    room = limit - display_width(plain[:start])
+    if limit < 24 or room < 20:
         return truncate_line(text_line, limit)
-    start, tail_max = m.start(), max(10, limit // 3)
-    while start < len(plain) and display_width(plain[start:]) > tail_max:
-        start += 1
-    tail = colored_suffix(text_line, start)
-    head = colored_prefix(text_line, limit - display_width(plain[start:]) - len(ELLIPSIS) - 2)
+    m = TAIL_RE.search(plain, start)
+    if not m:                                                               # one single word (no end to show): cut at the end
+        return truncate_line(text_line, limit)
+    tail_start, tail_max = max(m.start(), start), max(10, min(limit // 3, (room - len(ELLIPSIS) - 2) // 2))      # the room left after the columns: half for the start of the message, half for its end
+    while tail_start < len(plain) and display_width(plain[tail_start:]) > tail_max:
+        tail_start += 1
+    tail = colored_suffix(text_line, tail_start)
+    head = colored_prefix(text_line, limit - display_width(plain[tail_start:]) - len(ELLIPSIS) - 2)
     return head + " " + color_code("90", ELLIPSIS) + " " + tail
 
 
-def underline_line(text_line):
-    """1.88: the line underlined (one line out of 5, to follow a line across the screen), colors kept: each color reset is followed by the underline again."""
+def underline_line(text_line, width=None):
+    """1.88: the line underlined (one line out of N, to follow a line across the screen), colors kept: each color reset is followed by the underline again.
+    1.91: `width` (the terminal's $COLUMNS): a shorter line is underlined up to the END of the screen line (underlined spaces)."""
     if not COLOR or not text_line:
         return text_line
-    return "\x1b[4m" + re.sub(r"\x1b\[0?m", "\x1b[0;4m", text_line) + "\x1b[0m"
+    padding = " " * max(0, (width or 0) - display_width(text_line))
+    return "\x1b[4m" + re.sub(r"\x1b\[0?m", "\x1b[0;4m", text_line) + padding + "\x1b[0m"
 
 
 def truncate_text(text, limit):
@@ -4031,7 +4082,8 @@ class Output:
         self.buffer = collections.deque(maxlen=4000)      # last chunks displayed, without colors: error report of the r key
         self.truncate = None                              # --truncate (1.83, by default since 1.88): None = whole lines; 0 = $COLUMNS - 10; N = N columns (stream lines, screen only, not the journal)
         self.anonymize = None                             # --anonymize (1.88, by default): Anonymiseur of apps/_anonymiser.py applied to the screen (the daily journal keeps everything)
-        self.underline = True                             # 1.89: --no-underline / UNDERLINE=non: no line underlined
+        self.underline = UNDERLINE_DEFAULT                # 1.89: --no-underline / UNDERLINE=non: no line underlined; 1.91: --underline N = one line out of N (0 = none)
+        self.anonymiser = None                            # 1.91: the Anonymiseur, kept when the A key turns --anonymize off (same pseudonyms when turned on again)
 
     def _open(self, day):
         os.makedirs(self.folder, mode=0o700, exist_ok=True)
@@ -4070,6 +4122,7 @@ class Output:
         """Anonymized text for the screen: each piece between two color codes separately (an address in color stays recognized)."""
         if self.anonymize is None:
             return text
+        text = self.anonymize.names_sub(text) if hasattr(self.anonymize, "names_sub") else text      # 1.91: names of people, colored and padded (whole line)
         return "".join(part if ANSI_SPLIT_RE.fullmatch(part) else self.anonymize(part) for part in ANSI_SPLIT_RE.split(text))
 
     def write(self, text, stream=False, underline=False):
@@ -4083,7 +4136,8 @@ class Output:
             width = self.truncate if self.truncate > 0 else max(20, terminal_columns() - 10)
             shown = "\n".join(shorten_line(l, width) if l else l for l in shown.split("\n"))
         if underline and self.underline:
-            shown = "\n".join(underline_line(l) for l in shown.split("\n"))
+            columns = terminal_columns()
+            shown = "\n".join(underline_line(l, columns) for l in shown.split("\n"))
         self.screen.write(shown if self.screen_color else ANSI_RE.sub("", shown))
 
     def flush(self):
@@ -4125,7 +4179,7 @@ KEYS = {b"\x07": "g", b"\x14": "t"}      # Ctrl-G: dashboard; Ctrl-T: only what 
 # Simple keys of the menu (? or h): toggles and settings of the command-line options, and a few commands
 MENU_KEYS = {b"?": "help", b"h": "help", b"i": "i", b"m": "m", b"n": "n", b"r": "r", b"s": "s", b"v": "v", b"d": "dns", b"t": "dnst", b"H": "H", b"o": "o", b"V": "V",
                 b"S": "S", b"I": "I", b"b": "b", b"a": "accent", b"c": "chime", b"e": "exclude", b"T": "report", b"E": "E", b"w": "watch", b"D": "D", b"l": "highlight", b"M": "modules", b"C": "save", b"L": "recent",
-                b"G": "G", b"P": "latency"}
+                b"G": "G", b"P": "latency", b"A": "anonymize"}
 MENU_KEYS.update({str(n).encode(): f"level{n}" for n in range(1, LEVEL_MAX + 1)})   # 1 to 9: dashboard at the chosen level
 KEYS.update(MENU_KEYS)
 
@@ -4453,7 +4507,7 @@ def follow(cmd, people, resolver, options, output):
         stats.ajouter(L, renderings, source, benign)
         watch_repeat(ips0[0][2] if ips0 else None, L)
         state["emitted"] = state.get("emitted", 0) + 1
-        output.write(highlight_text(text, options["highlight_pattern"]) + "\n", stream=True, underline=state["emitted"] % 5 == 0)       # 1.88: one line out of 5 underlined
+        output.write(highlight_text(text, options["highlight_pattern"]) + "\n", stream=True, underline=bool(output.underline) and state["emitted"] % output.underline == 0)       # 1.91: one line out of N
         if options["chime"] is not None and is_reportable_error(L, options["chime"]) and time.time() - beep["last"] >= 2.0:       # at most one beep every 2 s
             beep["last"] = time.time()
             sonner(beep["mode"], output.screen)
@@ -4799,6 +4853,7 @@ def follow(cmd, people, resolver, options, output):
         chimes = {0: "any error (4xx, 5xx, Odoo ERROR)", 1: "4xx", 2: "5xx and 4xx"}
         for key, option, text in (("a", "--accentuate-group NAME", f"contacts of the Odoo tag in bold white on dark blue [{options['group'] or 'none'}"
                                                                       + (f", {len(options['membres'])} account(s)]" if options["group"] else "]")),
+                                      ("A", "--anonymize", f"pseudonyms on screen for the addresses, e-mails and names (membre-4f2a9c); the daily log keeps everything [{yes_no(output.anonymize is not None)}]"),
                                       ("c", "--chime N", f"beep on error: 0 all, 1 = 4xx, 2 = 5xx and 4xx [{chimes.get(options['chime'], 'none')}]"),
                                       ("d", "--dns-max N", f"width of the names column, without cutting them [{global_name}]"),
                                       ("t", "--dns-max-truncate N", "width AND limit of the names column (the rest is cut, « … »)"),
@@ -4825,7 +4880,7 @@ def follow(cmd, people, resolver, options, output):
         lines.append(f"    {bold('E')}  error details: app-log-check.py --errors-only, and odoo-mail-retry.py if there are failed e-mails")
         lines.append(f"    {bold('D')}  site diagnosis: why the maintenance page shows (service, Odoo ports, nginx upstream, firewall) and what to do")
         lines.append(f"    {bold('P')}  latency: what slows the requests since start (disk, processor, memory: % of waiting time, % of disk use, per hour) and whether SSD disks are justified")
-        lines.append(f"    {bold('C')}  save the settings changed since startup into {system_config_path()} (every option changeable on the fly: ACCENTUATE_GROUP, CHIME, DNS_MAX*, EXCLUDE_IP, HEALTH, HIDE_IP, HIGHLIGHT, LEVEL, MIN, MODULES_*, NOT_FOUND, ONLY, SUSPECT, TIME_REPORT, VERBOSE, WATCH)")
+        lines.append(f"    {bold('C')}  save the settings changed since startup into {system_config_path()} (every option changeable on the fly: ACCENTUATE_GROUP, ANONYMIZE, CHIME, DNS_MAX*, EXCLUDE_IP, HEALTH, HIDE_IP, HIGHLIGHT, LEVEL, MIN, MODULES_*, NOT_FOUND, ONLY, SUSPECT, TIME_REPORT, VERBOSE, WATCH)")
         lines.append(f"    {bold('b')}  addresses to ban: {to_ban} — asks, then nginx-log-audit.sh --ban (like web-monitor.py)")
         write_out(lines)
 
@@ -4947,6 +5002,22 @@ def follow(cmd, people, resolver, options, output):
             options["keep_ip"] = not options["keep_ip"]
             form.width = address_width()
             write_out([f"  --hide-ip : {yes_no(not options['keep_ip'])} (the following lines)"])
+        elif key_value == "anonymize":                       # 1.91: --anonymize on / off on the fly (screen only: the daily journal always keeps everything)
+            if os.environ.get("NGINX_TOOLS_ANON_ACTIF"):
+                write_out([color_code(ORANGE, "  --anonymize: the output is already anonymized by the program that launched this one: unchanged.")])
+            elif output.anonymize is not None:
+                output.anonymize = None
+                write_out(["  --anonymize : no — real addresses, e-mails and names (the following lines)"])
+            else:
+                if output.anonymiser is None:
+                    module = load_module("_anonymiser")
+                    output.anonymiser = new_anonymiser(module) if module is not None else None
+                if output.anonymiser is None:
+                    write_out([color_code(STYLES["error"], "  --anonymize: apps/_anonymiser.py is unreadable: real values stay.")])
+                else:
+                    output.anonymize = output.anonymiser
+                    write_out(["  --anonymize : yes — pseudonyms IP-xxxxxx, usager-xxxxxx, membre-xxxxxx (the following lines)"])
+            options["anonymize"] = output.anonymize is not None
         elif key_value == "m":
             options["minimal"] = form.minimal = not options["minimal"]
             write_out([f"  --min : {yes_no(options['minimal'])} (the following lines)"])
@@ -5382,9 +5453,12 @@ def main():
     if "--anonymize" not in parser._option_string_actions:       # added by apps/_i18n.py; fallback parser: added here
         parser.add_argument("--anonymize", action="store_true")
     parser._option_string_actions["--anonymize"].help = TR("By default on a terminal: IP addresses, e-mails, identifiers and tokens shown on screen replaced by stable pseudonyms (IP-4f2a9c, usager-9c1e03@anonyme.invalid; "
-                                                          "names of people stay); the daily log keeps everything. ANONYMIZE key; --no-anonymize: real values")
-    parser.add_argument("--no-anonymize", dest="anonymize", action="store_false", help="Show the real IP addresses and e-mails (cancels --anonymize)")
-    parser.add_argument("--no-underline", dest="underline", action="store_false", help="No underlined line (by default one log line out of 5 is underlined on screen); UNDERLINE key")
+                                                          "names of people: membre-4f2a9c, team labels: equipe-4f2a9c); the daily log keeps everything. A key: on / off on the fly; ANONYMIZE key; --no-anonymize: real values")
+    parser.add_argument("--no-anonymize", dest="anonymize", action="store_false", help="Show the real IP addresses, e-mails and names (cancels --anonymize)")
+    parser.add_argument("--no-underline", dest="underline", action="store_const", const=0, help="No underlined line (same as --underline 0)")
+    parser.add_argument("--underline", type=int, nargs="?", const=UNDERLINE_DEFAULT, default=UNDERLINE_DEFAULT, metavar="N",
+                        help="One log line out of N underlined on screen, up to the end of the screen line (without N: 5; default: 5; 0 = none); UNDERLINE key")      # 5 = UNDERLINE_DEFAULT
+    parser.set_defaults(underline=UNDERLINE_DEFAULT)            # 1.91: --no-underline is declared first (its None would otherwise win)
     parser.set_defaults(anonymize=None)                         # None: on a terminal only (a pipe, another program, a test: real values)
     parser.add_argument("--version", action="version", version=f"app-log-live.py version {__version__}")
     if "--version" not in sys.argv[1:]:       # first line of EVERY run, even --help: name and version (--version displays it itself)
@@ -5543,7 +5617,7 @@ def main():
     on_terminal = sys.stdout.isatty()
     if args.truncate == TRUNCATE_AUTO:
         args.truncate = 0 if on_terminal else None
-    output.underline = args.underline is not False
+    output.underline = max(0, int(args.underline or 0)) if args.underline is not True else UNDERLINE_DEFAULT     # True: old UNDERLINE=oui read as a boolean
     output.truncate = None if args.truncate is None or args.truncate is False or args.truncate < 0 else args.truncate
     asked = any(a.startswith("--anon") and "--anonymize".startswith(a) for a in sys.argv[1:])
     anonymize = asked or (args.anonymize is not False and on_terminal)
@@ -5552,16 +5626,17 @@ def main():
         if anonymiser is None:
             eprint("ERROR: anonymization requested but apps/_anonymiser.py is unreadable: nothing is displayed (--no-anonymize: real values).")
             return 2
-        output.anonymize = anonymiser.Anonymiseur(fixed_width=True) if "fixed_width" in anonymiser.Anonymiseur.__init__.__code__.co_varnames else anonymiser.Anonymiseur()
+        output.anonymize = output.anonymiser = new_anonymiser(anonymiser)
     eprint("Screen: " + ("log lines shortened to " + (f"{output.truncate} columns (« start ... last two words »; --no-truncate: whole lines)" if output.truncate
                                                        else "$COLUMNS - 10 (« start ... last two words »; --no-truncate: whole lines)")
                          if output.truncate is not None else "whole log lines (--truncate: shortened)")
-           + " · " + ("addresses and e-mails anonymized (--no-anonymize: real values)" if output.anonymize else "real addresses and e-mails (--anonymize: pseudonyms)")
-           + (" · one line out of 5 underlined (--no-underline: none)" if output.underline else ""))
+           + " · " + ("addresses, e-mails and names anonymized (--no-anonymize: real values)" if output.anonymize else "real addresses, e-mails and names (--anonymize: pseudonyms)")
+           + (" · " + TR("one log line out of {n} underlined (--underline N, --no-underline: none)").format(n=output.underline) if output.underline else ""))
     if folder:
         COLOR = True                                  # the daily journal keeps the colors; the screen removes them if it is not a terminal (Output.write)
         eprint(f"Daily log (colors kept, permissions 600, {args.log_keep_days or 'all the'} days kept): {folder}/{SCRIPT_NAME}-YYYY-MM-DD{'-filter' if args.only else ''}.log — "
                f"read with: less -R FILE or tail -f FILE")
+    options["anonymize"] = output.anonymize is not None              # 1.91: A key and C key (ANONYMIZE saved like the other settings)
     return follow(cmd, people, resolver, options, output)
 
 
