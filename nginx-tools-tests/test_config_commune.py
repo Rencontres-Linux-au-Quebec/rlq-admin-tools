@@ -124,7 +124,7 @@ class FichierCommun(EnvTest):
             self.assertEqual(T(os.environ["NGINX_TOOLS_DEBUG_LEVEL"]), "3")
 
     def test_modele_documente_et_en_commentaire(self):
-        with open(script_path("doc/app-default.conf.example"), encoding="utf-8") as f:
+        with open(script_path("doc/en/app-default.conf.example"), encoding="utf-8") as f:
             text = f.read()
         for key_value in ("LANGUAGE", "VERBOSE", "DEBUG_LEVEL"):
             self.assertIn(f"#{key_value}=", T(text))

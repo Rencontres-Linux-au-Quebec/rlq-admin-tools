@@ -223,7 +223,7 @@ _config_signaler() {
 }
 
 # config_creer_defaut PROGRAMME ARGUMENTS… : premier démarrage — si AUCUN fichier de la règle n'existe, crée celui du système (/etc/default/PROGRAMME.conf, root) ou, sans les
-# droits, le fichier personnel (~/.PROGRAMME.conf) : copie de doc/PROGRAMME.conf.example (CFG_DOSSIER_DOC, sinon le dossier doc/ du programme) dont toutes les options sont en
+# droits, le fichier personnel (~/.PROGRAMME.conf) : copie de doc/en/PROGRAMME.conf.example (CFG_DOSSIER_DOC, sinon le dossier doc/en/ du programme) dont toutes les options sont en
 # commentaire. Rien n'est créé avec -c/--config, --help / --version / --changelog, si NGINX_TOOLS_CONFIG_CREER=0 ou si le modèle est absent. Chemin créé : CFG_CREE.
 CFG_CREE=""
 config_creer_defaut() {
