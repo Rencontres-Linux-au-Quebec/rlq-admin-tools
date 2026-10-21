@@ -63,6 +63,7 @@
 # BigBlueButton (file journals): the nginx and bbb-web journals are followed (tail -F), without names of people or presence.
 #
 # VERSION HISTORY (summary — see doc/app-log-live.changelog.txt for the full detail):
+#   1.94.20261021.095843 — Report corrections: Odoo messages no longer cut mid-identifier, other countries counted, RAID disks typed, requests without a disk sample counted, time of the slow requests, labels of the top 10 URLs and of the most visited pages.
 #   1.93.20261020.230008 — R key and --record-test-log: recording of a test (REC marker at $COLUMNS-4, archive .tar.xz with the logs of the window, noise left out).
 #   1.92.20261020.211944 — Personal configuration file ~/.app-log-live.conf (not .cfg); a legacy one with .cfg is renamed automatically.
 #   1.91.20261020.203430 — Columns never squeezed by --truncate (the message is cut); country before every public address (this server too); names of people anonymized (membre-4f2a9c); underline to the end of the line; --underline [N]; A key toggles --anonymize.
@@ -199,7 +200,7 @@ from urllib.parse import unquote
 from collections import Counter, OrderedDict
 from concurrent.futures import Future
 
-__version__ = "1.93.20261020.230008"
+__version__ = "1.94.20261021.095843"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
@@ -914,15 +915,35 @@ def io_wait():
     return value
 
 
+def md_rotational(name):
+    """Type of a software RAID array (mdN): True if all its member disks are spinning disks, False if all are SSD, None if unknown or mixed.
+    The members come from /sys/block/mdN/slaves (sda3 -> sda, nvme0n1p2 -> nvme0n1); 1.94: an array was typed « ? » before."""
+    kinds = set()
+    for member in glob.glob(f"/sys/block/{name}/slaves/*"):
+        base = re.sub(r"p?\d+$", "", os.path.basename(member))
+        try:
+            with open(f"/sys/block/{base}/queue/rotational", encoding="ascii") as f:
+                kinds.add(f.read().strip() == "1")
+        except OSError:
+            return None
+    return kinds.pop() if len(kinds) == 1 else None
+
+
 def physical_disks():
-    """[(name, rotational)] of the physical disks (/sys/block/*/queue/rotational: 1 = spinning hard disk, 0 = SSD / NVMe); without virtual disks (loop, ram, zram, dm-, md)."""
+    """[(name, rotational)] of the physical disks (/sys/block/*/queue/rotational: 1 = spinning hard disk, 0 = SSD / NVMe) and of the RAID arrays (mdN, type of their
+    members, 1.94: they were left out of the « disks » line of the latency report); without virtual disks (loop, ram, zram, dm-, sr, fd, nbd)."""
     res = []
     try:
         names = sorted(os.listdir("/sys/block"))
     except OSError:
         return res
     for name in names:
-        if name.startswith(("loop", "ram", "zram", "dm-", "md", "sr", "fd", "nbd")):
+        if name.startswith(("loop", "ram", "zram", "dm-", "sr", "fd", "nbd")):
+            continue
+        if name.startswith("md"):
+            raid_hdd = md_rotational(name)
+            if raid_hdd is not None:
+                res.append((name, raid_hdd))
             continue
         try:
             with open(f"/sys/block/{name}/queue/rotational", encoding="ascii") as f:
@@ -982,6 +1003,21 @@ def python_conclusion(state):
     if causes_list:
         return "probable causes: " + " ; ".join(causes_list)
     return ("load, swap and disk are NOT the cause at this moment; what remains: cold Odoo cache (assets, compiled views: after a restart, a module update or a view change), a lock, or heavy computation in a module (profiling: developer mode, bug icon -> Profiling)")
+
+
+def cut_words(text, limit):
+    """Text cut at `limit` characters, at a word boundary, with « … » at the end; unchanged if it fits (1.94: an Odoo message was cut in the middle of its identifier)."""
+    if len(text) <= limit:
+        return text
+    head = text[:limit - 1]
+    if " " in head:
+        head = head[:head.rfind(" ")]
+    return head.rstrip() + " …"
+
+
+def clock_of(instant):
+    """Local date and time of a journal line, to the second (2026-10-20 23:50:37): the slow requests show it (1.94)."""
+    return time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(instant))
 
 
 def short_url(url, width=60):
@@ -3362,7 +3398,7 @@ class LatencyMonitor:
                 b["util_max"], b["util_dev"] = util, dev or ""
             for d, v in r["disks"].items():
                 if d not in self.disks_seen:
-                    self.disks_seen[d] = self.sysperf.rotational(d)
+                    self.disks_seen[d] = md_rotational(d) if d.startswith("md") else self.sysperf.rotational(d)
                 if v["r_await"] is not None and v["r_s"] >= 1:
                     b["await_r"] += v["r_await"]
                     b["await_r_n"] += 1
@@ -3485,16 +3521,17 @@ class LatencyMonitor:
                 aw.append(f"read {t['await_r'] / t['await_r_n']:.1f} ms")
             if t["await_w_n"]:
                 aw.append(f"write {t['await_w'] / t['await_w_n']:.1f} ms")
-            kinds = [f"{d} " + ("ZFS volume" if d.startswith("zd") else "HDD" if v else "SSD" if v is False else "?") for d, v in sorted(self.disks_seen.items())]      # 1.83: name + kind (« ?, HDD » said nothing; zdN = ZFS volume)
+            kinds = [f"{d} " + ("ZFS volume" if d.startswith("zd") else ("RAID " if d.startswith("md") else "") + ("HDD" if v else "SSD" if v is False else "?")) for d, v in sorted(self.disks_seen.items())]      # 1.83: name + kind (« ?, HDD » said nothing; zdN = ZFS volume)
             res.append((6, numbers(f"    Disks ({s} samples, every {self.sample_s:g} s): {disk}" + (f" · wait per operation: {', '.join(aw)}" if aw else "")
                                    + (f" · types: {', '.join(kinds)}" if kinds else ""))))
             source = (self.prev or {}).get("psi_source", "kernel")
             res.append((6, numbers(f"    Waiting time (PSI, {source}): disk {t['io_some'] / s:.1f} % (peak {t['io_some_max']:.0f} %, all tasks {t['io_full'] / s:.1f} %) · "
                                    f"processor {t['cpu_some'] / s:.1f} % · memory {t['mem_some'] / s:.1f} % · CPU busy {t['cpu'] / s:.0f} %, iowait {t['iowait'] / s:.1f} %, steal {t['steal'] / s:.1f} %")))
+            no_sample = max(0, t["n"] - t["busy_n"] - t["calm_n"])              # 1.94: requests before the first disk sample, counted so that the figures add up
             if t["busy_n"] or t["calm_n"]:
                 res.append((6, numbers(f"    Requests while the disk was busy: {t['busy_n']}" + (f" (mean {t['busy_sum'] / t['busy_n']:.2f} s)" if t["busy_n"] else "")
                                        + f" · calm: {t['calm_n']}" + (f" (mean {t['calm_sum'] / t['calm_n']:.2f} s)" if t["calm_n"] else "")
-                                       + (f" · slow requests during a busy disk: {t['slow_busy']}/{t['slow']}" if t["slow"] else ""))))
+                                       + (f" · slow requests during a busy disk: {t['slow_busy']}/{t['slow']}" if t["slow"] else "") + (f" · without sample: {no_sample}" if no_sample else ""))))
             if self.container:
                 res.append((6, "    (container: the disk counters can be partial; the waiting times above are those of THIS container — the real disks are seen by host-perf-audit.py on the Proxmox host)"))
         if len(bins) > 1 or level >= 8:
@@ -3685,7 +3722,7 @@ class Stats:
     def ajouter(self, L, renderings, ban_source, benign=False):
         self.lines += 1
         if L.level in ("WARNING", "ERROR", "CRITICAL") and not benign:          # "bad query" of a retried conflict: counted in the conflicts, NOT in the errors
-            message = re.sub(r"(?<![A-Za-z\d])\d+", "N", (L.text or "").strip())[:90]
+            message = re.sub(r"(?<![A-Za-z\d])\d+", "N", (L.text or "").strip())[:200]
             self.odoo_errors[(L.level, L.logger, message)] += 1
             t = L.instant or time.time()
             seen = self.odoo_errors_time.setdefault((L.level, L.logger, message), [t, t])
@@ -3878,7 +3915,7 @@ class Stats:
             info_lines = self.slow_info if len(self.slow_info) == len(self.slow_requests) else [(0, 0.0, 0.0, None, 0.0)] * len(self.slow_requests)
             more = sorted(zip(self.slow_requests, info_lines), key=lambda p: p[0], reverse=True)[:3]
             indicator(0, f"Slow requests (≥ {self.slowest:g} s) : " + (f"{len(self.slow_requests)}" if self.slow_requests else none_fem()),
-                       [f"{t:.1f} s {short_url(u)} ({self.who(ip)})" + (f" — SQL {ts:.1f} s · Python {tp:.1f} s · {n} SQL queries" if ts or tp else "")
+                       [f"{t:.1f} s {short_url(u)} ({self.who(ip)})" + (f" — SQL {ts:.1f} s · Python {tp:.1f} s · {n} SQL queries" if ts or tp else "") + (f" · {clock_of(_instant)}" if _instant else "")
                         for (t, u, ip), (n, ts, tp, _size, _instant) in more]
                       + ([TR("… and {n} other slow request(s)").format(n=len(self.slow_requests) - len(more))] if len(self.slow_requests) > len(more) else [])
                       + self.analyze_slow(), (1, 5), len(self.slow_requests))
@@ -3987,7 +4024,10 @@ class Stats:
         pays = Counter(self.pays.get(ip) for ip in visitors if self.pays.get(ip))
         if pays:
             unknown_ones = len(visitors) - sum(pays.values())
-            res.append(numbers("  Visitors' countries: " + " · ".join(f"{k} {n}" for k, n in pays.most_common(8)) + (f" · unknown country {unknown_ones}" if unknown_ones else "")))
+            shown_ones = pays.most_common(8)
+            other_ones = sum(pays.values()) - sum(n for _, n in shown_ones)      # 1.94: the countries beyond the 8 most frequent were not counted on the line
+            res.append(numbers("  Visitors' countries: " + " · ".join(f"{k} {n}" for k, n in shown_ones)
+                               + (f" · other countries {other_ones}" if other_ones else "") + (f" · unknown country {unknown_ones}" if unknown_ones else "")))
         robots = [ip for ip in visitors if self.is_robot(ip)]
         robot_pages = sum(self.pages_per_ip[ip] for ip in robots)
         real = len(visitors) - len(robots)
@@ -3997,7 +4037,7 @@ class Stats:
         res.append(numbers(f"  Real visitors: {real} out of {len(visitors)} ({100 * real / len(visitors):.0f} %) · {sum(self.visits[ip] for ip in visitors if ip not in robots)} visit(s) · "
                             f"{(pages - robot_pages) / real:.1f} page(s) per real visitor" if real else "  Real visitors: none (all visitors are robots)")
                    + color_code(STYLES["debug"], self.agents_note(visitors)))
-        res.append("  Most visited pages: " + self.top(self.pages, 5))
+        res.append("  Most visited pages (responses below 400): " + self.top(self.pages, 5))
         return [(self.visit_line_level(text_line), text_line) for text_line in res]
 
     @staticmethod
@@ -4063,7 +4103,8 @@ class Stats:
         if self.slowest:
             if self.slow_requests:
                 more = max(self.slow_requests)
-                blocks.append((4, color_code(STYLES["slow_request"], f" Slow requests (≥ {self.slowest:g} s) ") + f" {len(self.slow_requests)} — the slowest: {more[0]:.1f} s {short_url(more[1])} ({self.who(more[2])})"))
+                slowest_at = self.slow_info[self.slow_requests.index(more)][4] if len(self.slow_info) == len(self.slow_requests) else None      # 1.94: its time
+                blocks.append((4, color_code(STYLES["slow_request"], f" Slow requests (≥ {self.slowest:g} s) ") + f" {len(self.slow_requests)} — the slowest: {more[0]:.1f} s {short_url(more[1])} ({self.who(more[2])})" + (f" · {clock_of(slowest_at)}" if slowest_at else "")))
             else:
                 blocks.append((9, f"  Slow requests (≥ {self.slowest:g} s) : {none_found()}."))
         views = {ip: src for ip, src in self.banned.items()}
@@ -4082,12 +4123,12 @@ class Stats:
         total = sum(self.statuses.values())
         if total:
             blocks.append((7, "  HTTP codes: " + " · ".join(color_code(http_style(int(k) * 100), f"{k}xx {percent_text(self.statuses[k], total)} %") for k in sorted(self.statuses))))
-        blocks.append((8, "  Top 10 URLs:"))
+        blocks.append((8, "  Top 10 URLs (all requests, errors included):"))
         for url, n in self.urls.most_common(10):
             blocks.append((8, "    " + color_code("1;36", f"{n:>6}") + f"  {short_url(url, 90)}"))
         if self.odoo_errors:
             blocks.append((8, f"  Odoo errors and warnings: {sum(self.odoo_errors.values())} — "
-                          + " ; ".join(f"{k[0]} {k[1]} ×{v} : {k[2][:50]}" for k, v in self.odoo_errors.most_common(5))))
+                          + " ; ".join(f"{k[0]} {k[1]} ×{v} : {cut_words(k[2], 200)}" for k, v in self.odoo_errors.most_common(5))))
         blocks.extend((4, text_line) for text_line in LATENCY.lines(level))       # session-long latency (also with Ctrl-T: labeled « since start »)
         res.extend(text_line for n, text_line in blocks if n <= level)
         if level < LEVEL_MAX:
