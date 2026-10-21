@@ -1,6 +1,43 @@
 Changelog — app-log-live.py
 (newest version first; entries up to 1.79 are still in French: their translation is a later stage of the migration)
 
+## 1.94.20261021.095843 — Report corrections: Odoo messages, countries, RAID disks, slow requests, labels
+
+Reason:
+  « Peux-tu vérifier si tout est OK avec ce sommaire » (report of 2026-10-21 08:30): six points to correct, the server itself being in order.
+
+Changes:
+  - Odoo errors and warnings (Ctrl-G, summary): the message is no longer cut at 50 characters ("xml_id 'website_ev"). The grouping key keeps 200 characters, the display cuts at a word boundary with « … » only beyond 200 (cut_words()).
+  - Visitors' countries: the countries beyond the 8 most frequent are now counted as "other countries N", so that countries + other + unknown add up to the visitors.
+  - Software RAID arrays (mdN): their type is read from their member disks (/sys/block/mdN/slaves, md_rotational()). Shown as "md1 RAID HDD" in the types of the latency report, and listed in the "disks" line of the "Python alone" conclusion (physical_disks() no longer leaves them out).
+  - Latency report, "Requests while the disk was busy / calm": "· without sample: N" counts the Odoo requests that came before the first disk sample, so the figures add up to the total.
+  - Slow requests: local date and time (2026-10-20 23:50:37) of the slowest request in the summary, and of each slow request listed in the indicator (clock_of()).
+  - Summary labels: "Top 10 URLs (all requests, errors included)" and "Most visited pages (responses below 400)". The two counts of "/" differed by one because the top 10 counts every request while the visits count only answers below 400 (for example a POST rejected for a missing CSRF token).
+  - Files touched: app-log-live.py (cut_words, clock_of, md_rotational, physical_disks, visitor statistics, latency report, slow requests, summary), lang/app-log-live.fr.po (3 new strings: other countries, without sample, the two labels; 2 obsolete strings removed), nginx-tools-tests/test_app_log_live.py (4 expected labels: « Pages les plus visitées (réponses sous 400) » ×3, « Top 10 des URLs (toutes les requêtes, erreurs comprises) »), doc/app-log-live.changelog.txt, doc/nginx-tools.version.
+
+Bugs fixed:
+  - Symptom: "xml_id 'website_ev" in the Odoo errors line, cut in the middle of the identifier. Diagnosis: fixed slice [:50] in the summary. Fix: word-boundary cut, 200 characters.
+  - Symptom: "md1 ?, md2 ?, md3 ?" as disk types, and the arrays missing from the « disks » list of the « Python alone » conclusion. Diagnosis: rotational() returns None for md*, and physical_disks() skipped them. Fix: md_rotational().
+  - Symptom: visitors' countries added up to 449 out of 644 with "unknown country 2". Diagnosis: only the 8 most frequent countries were displayed (195 visitors hidden). Fix: "other countries".
+  - Symptom: busy 34 + calm 2733 = 2767 out of 2786 Odoo requests, with 19 unexplained. Diagnosis: requests before the first disk sample were not displayed. Fix: "without sample".
+  - Symptom: the time of the slow requests was not shown (unlike the 5xx lines). Fix: clock_of().
+  - Symptom: "/" counted 159 in the most visited pages and 160 in the top 10. Diagnosis: different definitions (all requests vs. answers below 400). Fix: labels that state the definition; the counts are unchanged.
+
+Safeguards and edge cases:
+  - md_rotational(): members of mixed types (HDD and SSD) give None (shown "?", as before); a member without a readable queue/rotational gives None; partition names are mapped to their disk (sda3 -> sda, nvme0n1p2 -> nvme0n1); zdN and dm-* are unchanged.
+  - Without any md device, the result of physical_disks() is unchanged (checked on the test container: vda to vdf).
+  - "without sample" is never negative (max 0).
+  - Slow request time: left out when the request has no known timestamp (no false 1970 date).
+  - Only the grouping key of Odoo messages changed in length (90 to 200): messages that differ only after 90 characters are now separate groups.
+
+Checks:
+  - python3 -m py_compile; --version prints the new version.
+  - Functional checks: cut_words() (short and long messages), clock_of(), md_rotational() (absent device: None), physical_disks().
+  - Unit tests: test_i18n OK (32), test_alignement OK (9); test_app_log_live: 144 tests; 4 expectations updated for the new labels, then the 144 tests OK; test_conventions fails on nginx-tools-tests/run-all.sh (version line of its history), a file this change does not touch.
+
+Action required:
+  none. After the update, check on the server: the Odoo errors line shows the full identifier; the visitors' countries line ends with "other countries N"; the RAID arrays appear as "mdN RAID HDD" (or SSD) in the types.
+
 ## 1.93.20261020.230008 — Test recording: R key and --record-test-log
 
 Reason:

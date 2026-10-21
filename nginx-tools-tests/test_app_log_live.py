@@ -1183,7 +1183,7 @@ class AppLogLive(EnvTest):
         for lang in ("EN", "ES", "sans préfixe"):
             self.assertIn(lang, t)
         self.assertIn("Codes HTTP : 2xx", T(t))
-        self.assertIn("Top 10 des URLs :", T(t))
+        self.assertIn("Top 10 des URLs (toutes les requêtes, erreurs comprises) :", T(t))
         self.assertRegex(T(t), r"2 /event")                                                      # le plus demandé en tête, avec son nombre
         # Ctrl-T juste après : rien n'a changé depuis le dernier affichage
         after = " ".join(text[text.index("Depuis le dernier affichage"):].split())
@@ -2701,13 +2701,13 @@ class AppLogLive(EnvTest):
         lines = " ".join(" ".join(st.visit_lines()).split())
         self.assertIn("Visites du site : 4 visite(s) · 5 page(s) vue(s) · 3 visiteur(s) [1 personne(s) connue(s) · 1 équipe ou lieu · 1 anonyme(s)] · 1.7 page(s) par visiteur", T(lines))
         self.assertIn("Pays des visiteurs : CA 1 · FR 1 · pays inconnu 1", T(lines))
-        self.assertIn("Pages les plus visitées : /a ×2 ; /fr_CA/a ×1 ; /b ×1 ; /c ×1", T(lines))
+        self.assertIn("Pages les plus visitées (réponses sous 400) : /a ×2 ; /fr_CA/a ×1 ; /b ×1 ; /c ×1", T(lines))
         # Ctrl-T : seulement la période
         before = st.snapshot()
         request_data("2.2.2.2", "/d", offset=7300)
         period = " ".join(" ".join(st.since(before).visit_lines()).split())
         self.assertIn("Visites du site : 1 visite(s) · 1 page(s) vue(s) · 1 visiteur(s) [0 personne(s) connue(s) · 0 équipe ou lieu · 1 anonyme(s)]", T(period))
-        self.assertIn("Pages les plus visitées : /d ×1", T(period))
+        self.assertIn("Pages les plus visitées (réponses sous 400) : /d ×1", T(period))
         self.assertEqual(live.Stats(5.0).visit_lines(), [])
 
     def test_visites_dans_le_tableau_de_bord(self):
@@ -2718,7 +2718,7 @@ class AppLogLive(EnvTest):
         self.assertEqual(envoyees, 2, text)
         t = " ".join(text.split())
         self.assertRegex(T(t), r"Visites du site : 2 visite\(s\) · 6 page\(s\) vue\(s\) · 2 visiteur\(s\) \[0 personne\(s\) connue\(s\) · 0 équipe ou lieu · 2 anonyme\(s\)\] · 3\.0 page\(s\) par visiteur")
-        self.assertIn("Pages les plus visitées : /event ×2", T(t))
+        self.assertIn("Pages les plus visitées (réponses sous 400) : /event ×2", T(t))
 
     # ---- 1.65 : tableau des modules (--modules, touche M) et chiffres en couleurs de « Efficacité du programme »
     ETAT_MODULES = [
