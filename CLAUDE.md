@@ -15,8 +15,7 @@ Les créer et donner le lien, ne jamais les fusionner ni les approuver ; l'utili
 
 ## Conventions
 
-Celles de `doc/CONTEXTE.md` (section 3) : version MAJEUR.MINEUR.AAAAMMJJ.HHMMSS (heure locale), changelog `doc/<programme>.changelog.txt` le plus récent en
-premier, `--version`, `--changelog`, options triées, configuration `/etc/default/<programme>.conf` puis `~/.<programme>.conf`, archives `nom.MAJEUR.MINEUR.zip`.
+Celles de `doc/CONTEXTE.md` (section 3) : version MAJEUR.MINEUR.AAAAMMJJ.HHMMSS (heure locale), CHANGELOG.md indique le plus récent en premier, `--version`, `--changelog`, options triées, configuration `/etc/default/<programme>.conf` puis `~/.<programme>.conf`, archives `nom.MAJEUR.MINEUR.zip`.
 
 ## Dépôt public : aucune donnée personnelle
 
