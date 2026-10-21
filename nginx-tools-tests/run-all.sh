@@ -31,6 +31,8 @@
 # unitaires, fonctionnels, interactifs et de conformite (nature MESUREE pendant chaque test), desactives et en echec, et les tests les plus lents.
 #
 # HISTORIQUE DE VERSION (resume — voir run-all.changelog.txt pour le detail complet) :
+#   1.194.20261021.130912 — Test of nginx-hardening.sh 2.53: missing generated snippets and stopped nginx (nginx-tools 1.141).
+#   1.193.20261020.230008 — Test of the test recording (test_record.py) and of the 1.93 keys of app-log-live.
 #   1.192.20261020.222909 — test_docs: the legal company name is allowed as author of the Odoo module (author key of __manifest__.py only).
 #   1.191.20261020.211944 — Personal configuration file ~/.run-all.conf (not .cfg); a legacy one with .cfg is renamed automatically.
 #   1.190.20261020.175756 — Runs WITHOUT root (simulated root in the test copies only); tests never write the real /etc or /var (system defaults redirected, checked at the end); no more stop on « Broken pipe » (nginx-tools 1.137).
@@ -247,7 +249,7 @@ run_all_nettoyer() {
 CTRL_C_NETTOYAGE=run_all_nettoyer
 trap 'run_all_nettoyer; exit 143' TERM
 
-readonly SCRIPT_VERSION="1.193.20261020.230008"
+readonly SCRIPT_VERSION="1.194.20261021.130912"
 RUN_ALL_DEBUT=$(date +%s)
 TESTS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly TESTS_DIR
 PROG_DIR="${TEST_SCRIPTS_DIR:-$(dirname "$TESTS_DIR")}"; readonly PROG_DIR
