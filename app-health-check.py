@@ -1438,12 +1438,25 @@ EXPECT_GOOGLE_OAUTH={google_val}\n\n# --- E-mail notification (optional — neve
 
 
 def changelog_path(name):
-    """Changelog in the doc/ subdirectory; fallback on the old location (next to the program) as long as
-    the installation has not been reorganized."""
-    folder = os.path.dirname(os.path.realpath(__file__))
-    new = os.path.join(folder, "doc", name)
-    old = os.path.join(folder, name)
-    return new if os.path.isfile(new) or not os.path.isfile(old) else old
+    """CHANGELOG.md at the root of the repository (next to the program)."""
+    return os.path.join(os.path.dirname(os.path.realpath(__file__)), "CHANGELOG.md")
+
+
+def changelog_section(path, key):
+    """This program's section of CHANGELOG.md: from its '## <key>' heading up to the next '## ' heading."""
+    with open(path, encoding="utf-8") as f:
+        lignes = f.read().splitlines()
+    section, dans = [], False
+    for ligne in lignes:
+        if ligne.startswith("## "):
+            if dans:
+                break
+            dans = ligne[3:].strip() == key
+            if dans:
+                section.append(ligne)
+        elif dans:
+            section.append(ligne)
+    return "\n".join(section) + "\n" if section else f"No changelog entry for {key} in {path}\n"
 
 
 def show_changelog():
@@ -1457,7 +1470,7 @@ def show_changelog():
     path = changelog_path("app-health-check.changelog.txt")
     try:
         with open(path, encoding="utf-8") as f:
-            text = f.read()
+            text = changelog_section(path, "app-health-check.py")
     except OSError:
         print(f"Changelog not found: {path}", file=sys.stderr)
         return 1

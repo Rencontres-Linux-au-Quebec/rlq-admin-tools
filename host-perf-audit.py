@@ -50,7 +50,7 @@ __version__ = "1.4.20261020.211944"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
-CHANGELOG_FILE = os.path.join(SCRIPT_DIR, "doc", f"{SCRIPT_NAME}.changelog.txt")
+CHANGELOG_FILE = os.path.join(SCRIPT_DIR, "CHANGELOG.md")
 PVE_DIR = os.environ.get("HOST_PERF_AUDIT_PVE_DIR", "/etc/pve")
 SYSCTL_FILE = os.environ.get("HOST_PERF_AUDIT_SYSCTL_FILE", "/etc/sysctl.d/90-host-perf-audit.conf")
 MODPROBE_FILE = os.environ.get("HOST_PERF_AUDIT_MODPROBE_FILE", "/etc/modprobe.d/zfs-arc-host-perf-audit.conf")
@@ -790,10 +790,27 @@ def report(samples, facts, zfs, smart, names, guests_rows_cb, args, cost):
 
 
 # ---------------------------------------------------------------------------------------------------------------- command line
+def changelog_section(path, key):
+    """This program's section of CHANGELOG.md: from its '## <key>' heading up to the next '## ' heading."""
+    with open(path, encoding="utf-8") as f:
+        lignes = f.read().splitlines()
+    section, dans = [], False
+    for ligne in lignes:
+        if ligne.startswith("## "):
+            if dans:
+                break
+            dans = ligne[3:].strip() == key
+            if dans:
+                section.append(ligne)
+        elif dans:
+            section.append(ligne)
+    return "\n".join(section) + "\n" if section else f"No changelog entry for {key} in {path}\n"
+
+
 def show_changelog():
     signal.signal(signal.SIGPIPE, signal.SIG_DFL)
     try:
-        text = open(CHANGELOG_FILE, encoding="utf-8").read()
+        text = changelog_section(CHANGELOG_FILE, "host-perf-audit.py")
     except OSError:
         print(f"Changelog not found: {CHANGELOG_FILE}", file=sys.stderr)
         return 1
