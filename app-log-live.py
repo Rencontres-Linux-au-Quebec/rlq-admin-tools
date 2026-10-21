@@ -28,6 +28,8 @@
 #     the line types (werkzeug, websocket "longpolling", with or without --min) starts at the same column, and the redundant ISO date of a websocket is removed;
 #   * NUMBERS AFTER THE HTTP CODE (legend at startup): Odoo "200 - 105 0.046 0.426" = size, SQL queries, SQL time, Python time; websocket "101 494 14.6" = size, duration;
 #     colors when high (SQL >= 300 orange, >= 1000 red; size >= 1 MB / 10 MB; durations according to --slow);
+#   * TEST RECORDING (1.93): R starts / stops a recording (label asked; « REC » at column $COLUMNS-4 meanwhile; the .tar.xz archive of the window, noise left out,
+#     see apps/_record.py) — --record-test-log MIN records without the keyboard, then exits;
 #   * KEY MENU (? or h): toggles and settings on the fly — a --accentuate-group, A --anonymize, c --chime, e --exclude-ip, T --time-report, d --dns-max, t --dns-max-truncate, H --health, i --hide-ip, l --highlight, m --min, M --modules (table of the installed Odoo modules, sorted by name, date, creation, version, author or state), o --only, r error report (--report-err),
 #     s --suspect, v --verbose, V version; S survey registrations, I event registrations, b addresses to ban (nginx-log-audit.sh --ban, like web-monitor.py).
 #   * KEYBOARD DASHBOARD (terminal only, --no-keys: disabled): Ctrl-G = health (✔ ⚠ ✖ with the detail of the problems), efficiency of the program (CPU, memory, input/output,
@@ -61,6 +63,7 @@
 # BigBlueButton (file journals): the nginx and bbb-web journals are followed (tail -F), without names of people or presence.
 #
 # VERSION HISTORY (summary — see doc/app-log-live.changelog.txt for the full detail):
+#   1.93.20261020.230008 — R key and --record-test-log: recording of a test (REC marker at $COLUMNS-4, archive .tar.xz with the logs of the window, noise left out).
 #   1.92.20261020.211944 — Personal configuration file ~/.app-log-live.conf (not .cfg); a legacy one with .cfg is renamed automatically.
 #   1.91.20261020.203430 — Columns never squeezed by --truncate (the message is cut); country before every public address (this server too); names of people anonymized (membre-4f2a9c); underline to the end of the line; --underline [N]; A key toggles --anonymize.
 #   1.90.20261020.164846 — Merge of 1.87 (bans: --reason passed to nginx-log-audit.sh) with 1.88 and 1.89 (underlined lines, --truncate, --anonymize, --no-underline).
@@ -196,7 +199,7 @@ from urllib.parse import unquote
 from collections import Counter, OrderedDict
 from concurrent.futures import Future
 
-__version__ = "1.92.20261020.211944"
+__version__ = "1.93.20261020.230008"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
@@ -294,7 +297,7 @@ SCHEMA_CONFIG = {"ACCENTUATE_GROUP": ("accentuate_group", str), "CHIME": ("chime
                  "LINES": ("lines", int), "LOG_DIR": ("log_dir", str), "LOG_KEEP_DAYS": ("log_keep_days", int), "MIN": ("min", bool), "MODULES_CUSTOM": ("modules_custom", bool), "MODULES_SORT": ("modules_sort", str), "MODULES_STARTUP": ("modules_startup", bool), "NAMESPACE": ("namespace", str),
                  "NO_BANNED": ("no_banned", bool), "NOT_FOUND": ("not_found", bool), "NO_BAN_PROMPT": ("no_ban_prompt", bool), "NO_CACHE": ("no_cache", bool), "NO_HISTORY": ("no_history", bool),
                  "NO_ISP": ("no_isp", bool), "NO_KEYS": ("no_keys", bool), "NO_LOG_FILE": ("no_log_file", bool), "NO_PRESENCE": ("no_presence", bool),
-                 "LEVEL": ("level", int), "NO_USER_AGENT": ("no_user_agent", bool), "RECAP": ("recap", float), "SERVICE": ("service", str), "SLOW": ("slow", float), "VERBOSE": ("verbose", bool)}
+                 "LEVEL": ("level", int), "NO_USER_AGENT": ("no_user_agent", bool), "RECAP": ("recap", float), "RECORD_MAX": ("record_max", float), "SERVICE": ("service", str), "SLOW": ("slow", float), "VERBOSE": ("verbose", bool)}
 CHANGELOG_FILE = os.path.join(SCRIPT_DIR, "doc", f"{SCRIPT_NAME}.changelog.txt")
 LINES_DEFAULT = 50
 DAYS_DEFAULT = 0                                                      # 0 = the whole journal history
@@ -2672,6 +2675,26 @@ def underline_line(text_line, width=None):
     return "\x1b[4m" + re.sub(r"\x1b\[0?m", "\x1b[0;4m", text_line) + padding + "\x1b[0m"
 
 
+REC_WIDTH = 4                                           # 1.93: « REC » occupies the 3 columns from $COLUMNS - 4 (0-based) and one column stays free at the end
+REC_STYLE = "1;97;41"                                   # bold white on red (explicit text AND background: readable on any theme)
+
+
+def rec_mark(text_line, columns=None):
+    """1.93: a stream line shown while a test is being recorded (R key): « REC » at column $COLUMNS - 4 of its LAST screen row (a line wider than one row keeps
+    the marker on its last row). A line whose text would run into the marker is cut (« … »); the width is read again for each line (resized window)."""
+    columns = columns or terminal_columns()
+    start = max(0, columns - REC_WIDTH)
+    width = display_width(text_line)
+    rows = (width - 1) // columns if width > 0 else 0               # full screen rows before the last one
+    last = width - rows * columns                                   # visible columns on the last row
+    if last > start:
+        text_line = truncate_line(text_line, rows * columns + start)
+        width = display_width(text_line)
+        rows = (width - 1) // columns if width > 0 else 0
+        last = width - rows * columns
+    return text_line + " " * max(0, start - last) + color_code(REC_STYLE, "REC")
+
+
 def truncate_text(text, limit):
     """Each line of `text` cut by truncate_line (limit: N columns; 0 = 2 × the width of the terminal, read again at each write: a resized window is followed)."""
     width = limit if limit and limit > 0 else 2 * terminal_columns()
@@ -4085,6 +4108,7 @@ class Output:
         self.anonymize = None                             # --anonymize (1.88, by default): Anonymiseur of apps/_anonymiser.py applied to the screen (the daily journal keeps everything)
         self.underline = UNDERLINE_DEFAULT                # 1.89: --no-underline / UNDERLINE=non: no line underlined; 1.91: --underline N = one line out of N (0 = none)
         self.anonymiser = None                            # 1.91: the Anonymiseur, kept when the A key turns --anonymize off (same pseudonyms when turned on again)
+        self.rec_marker = False                           # 1.93: a test is being recorded (R key): « REC » at the end of each stream line, on screen only (never in the daily journal)
 
     def _open(self, day):
         os.makedirs(self.folder, mode=0o700, exist_ok=True)
@@ -4136,9 +4160,12 @@ class Output:
         if stream and self.truncate is not None:
             width = self.truncate if self.truncate > 0 else max(20, terminal_columns() - 10)
             shown = "\n".join(shorten_line(l, width) if l else l for l in shown.split("\n"))
+        rec = stream and self.rec_marker
         if underline and self.underline:
             columns = terminal_columns()
-            shown = "\n".join(underline_line(l, columns) for l in shown.split("\n"))
+            shown = "\n".join(underline_line(l, columns - REC_WIDTH - 1 if rec else columns) for l in shown.split("\n"))     # 1.93: the underline stops before « REC »
+        if rec:
+            shown = "\n".join(rec_mark(l) if l else l for l in shown.split("\n"))
         self.screen.write(shown if self.screen_color else ANSI_RE.sub("", shown))
 
     def flush(self):
@@ -4174,13 +4201,18 @@ def journal_folder(option, no_log_file):
 
 KEY_EVENT = "\0touche"        # marker of a keyboard event in the line queue
 PROPOSAL = "\0proposal"      # marker of a repeat-offender address to propose for banning (verdict of nginx-log-audit.sh --evidence)
+RECORD_EVENT = "\0record"    # 1.93: marker of a finished test recording (archive created in the background, or its error)
+RECORD_STATIC_RE = re.compile(r'"(?:GET|HEAD) +(?:/web/assets/|/web/static/|/[\w.-]+/static/|/web/image|/website/image|/web/content/|/favicon\.ico|/apple-touch-icon|/robots\.txt'
+                       r'|/sitemap|/[^ "?]*\.(?:css|js|map|png|jpe?g|gif|svg|ico|webp|avif|woff2?|ttf|eot|otf)(?:[?#][^ "]*)?[ "])', re.I)   # 1.93: static files (recording noise)
+WEBSOCKET_RE = re.compile(r'"GET +/(?:websocket|longpolling)\b')     # 1.93: chat / bus connections of an open tab (recording noise)
+RECORD_MAX_DEFAULT = 30.0     # 1.93: minutes after which a recording stops by itself (--record-max, RECORD_MAX)
 REPEAT_MIN = 2            # past fail2ban bans from which an address is "often banned" (same threshold as nginx-log-audit.sh: "recidivism")
 BAN_DELAY = 10              # seconds left to answer the ban proposal; without an answer, the tracking continues
 KEYS = {b"\x07": "g", b"\x14": "t"}      # Ctrl-G: dashboard; Ctrl-T: only what changed since the last time
 # Simple keys of the menu (? or h): toggles and settings of the command-line options, and a few commands
 MENU_KEYS = {b"?": "help", b"h": "help", b"i": "i", b"m": "m", b"n": "n", b"r": "r", b"s": "s", b"v": "v", b"d": "dns", b"t": "dnst", b"H": "H", b"o": "o", b"V": "V",
                 b"S": "S", b"I": "I", b"b": "b", b"a": "accent", b"c": "chime", b"e": "exclude", b"T": "report", b"E": "E", b"w": "watch", b"D": "D", b"l": "highlight", b"M": "modules", b"C": "save", b"L": "recent",
-                b"G": "G", b"P": "latency", b"A": "anonymize"}
+                b"G": "G", b"P": "latency", b"A": "anonymize", b"R": "record"}
 MENU_KEYS.update({str(n).encode(): f"level{n}" for n in range(1, LEVEL_MAX + 1)})   # 1 to 9: dashboard at the chosen level
 KEYS.update(MENU_KEYS)
 
@@ -4364,6 +4396,7 @@ def follow(cmd, people, resolver, options, output):
     periodic = {"next_report": time.time() + options["report_min"] * 60}
     recent_ones = []                                        # (arrival, line, address) of the lines WITHOUT A NAME: reminder after a login
     deferred = [None]                                   # "bad query" waiting for its cause (next line)
+    record = {"r": None, "pending": None, "auto": options.get("record_test_log"), "auto_started": False, "exit_after": False, "module": None}   # 1.93: test recording (R key)
 
     received = [0]                                        # lines taken out of the journal by the reader thread (watchdog)
 
@@ -4495,9 +4528,25 @@ def follow(cmd, people, resolver, options, output):
         if r.returncode == 0:
             stats.all_banned.add(ip)
 
+    def noise_category(L):
+        """1.93: category of a line for the test recording — the noise (local probes, websockets, static files, robots) goes only to stream-all.log."""
+        ips0 = find_ips(L.text)
+        ip = ips0[0][2] if ips0 else None
+        if ip is not None and (ip in stats.server or local_address(ip)):
+            return "local"
+        if WEBSOCKET_RE.search(L.text):
+            return "websocket"
+        if RECORD_STATIC_RE.search(L.text):
+            return "static"
+        if ip is not None and stats.is_robot(ip):
+            return "robot"
+        return "kept"
+
     def emit(L, renderings, benign=False):
         """Writes the line (if --only / --suspect keep it), with the [banned: …] label of its address and counting it for the summary."""
         text = form.format_value(L, renderings, benign)
+        if record["r"] is not None:                       # 1.93: recorded whatever the display filters (--only, --suspect…): the analysis needs the whole test
+            record["r"].add(ANSI_RE.sub("", text), noise_category(L))
         if not keep(L, ANSI_RE.sub("", text)):
             return
         ips0, source = find_ips(L.text), None
@@ -4833,6 +4882,105 @@ def follow(cmd, people, resolver, options, output):
 
     config_at_start = config_values(options, VERBOSE, (NAME_WIDTH, NAME_TRUNCATE))           # settings at startup: the C key writes only what changed since
 
+    # --- 1.93: test recording (R key, --record-test-log): apps/_record.py gathers the logs of the window into a .tar.xz to send for analysis ---------------
+    def record_databases():
+        """Odoo databases to sample, looked up once per recording (bases_odoo runs several psql)."""
+        odoo_db = people.odoo_db if people is not None else None
+        if odoo_db is None:
+            return []
+        if record.get("bases") is None:
+            record["bases"] = sorted(people.databases_seen) or sorted({b for d in people.par_ip.values() for b, _ in d}) or (odoo_db.bases_odoo() or [])
+        return record["bases"]
+
+    def record_start(label):
+        module = record["module"] or load_module("_record")
+        if module is None:
+            write_out([color_code(STYLES["error"], "  ✖ Recording impossible: apps/_record.py is missing.")])
+            return
+        record["module"], record["bases"] = module, None
+        anonymiser = load_module("_anonymiser")
+        odoo_db = people.odoo_db if people is not None else None
+        profile = options.get("profile") or {}
+        rec = module.Recorder(module.default_folder(options.get("journal_folder")), label,
+                              mask=new_anonymiser(anonymiser) if anonymiser is not None else None,
+                              query=getattr(odoo_db, "_requete", None) if odoo_db is not None and options.get("app") in (None, "odoo") else None,
+                              databases=record_databases, service=options.get("service") if cmd and cmd[0] == "journalctl" else None,
+                              namespace=options.get("namespace") or None, log_files=options.get("record_logs") or (), odoo_conf=profile.get("ODOO_CONF"),
+                              max_seconds=(options.get("record_max") or 0) * 60, program="app-log-live.py", version=__version__,
+                              versions={"_record": module.__version__, "_anonymiser": getattr(anonymiser, "__version__", "missing"),
+                                        "_odoo_db": getattr(odoo_db, "__version__", "missing")},
+                              ports=options.get("record_ports") or {}, app=options.get("app") or "odoo", filters=options.get("filters_text") or "")
+        try:
+            rec.start()
+        except OSError as e:
+            write_out([color_code(STYLES["error"], TR("  ✖ Recording impossible: {error}").format(error=e.strerror or e))])
+            return
+        record["r"] = rec
+        output.rec_marker = output.screen.isatty()
+        limit = f"{options['record_max']:g} min" if options.get("record_max") else TR("no limit")
+        write_out([color_code(REC_STYLE, " ● REC ") + " " + TR("Recording started at {time}").format(time=time.strftime("%H:%M:%S"))
+                   + (f" — « {label} »" if label else "") + " — " + TR("R again to stop (at most {limit}); the noise (robots, static files, websockets, local probes) is left out of records.log.").format(limit=limit)])
+
+    def record_stop(reason, wait=False):
+        """Stops the recording: « REC » leaves the screen at once; the archive is made in the background (RECORD_EVENT when done) or right here (wait)."""
+        rec = record["r"]
+        if rec is None:
+            return
+        record["r"] = None
+        output.rec_marker = False
+        if wait:
+            write_out(["  " + TR("Recording stopped: creating the archive…")])
+            show_record_result(rec.stop(reason, wait=True))
+            return
+        record["pending"] = rec
+        write_out(["  " + TR("Recording stopped after {seconds} s: creating the archive in the background (the live stream continues)…").format(seconds=f"{rec.elapsed():.0f}")])
+        rec.stop(reason, done=lambda result: file.put((RECORD_EVENT, result)))
+
+    def finish_recording(reason):
+        """End of the program (Ctrl-C, end of the stream): a recording in progress is closed and its archive made before leaving; one being made is awaited."""
+        if record["r"] is not None:
+            record_stop(reason, wait=True)
+        elif record["pending"] is not None:
+            rec, record["pending"] = record["pending"], None
+            write_out(["  " + TR("Waiting for the recording archive…")])
+            result = rec.join(300)
+            if result is not None:
+                show_record_result(result)
+
+    def show_record_result(result):
+        if result is None:
+            return
+        if result.get("error") or not result.get("path"):
+            write_out([color_code(STYLES["error"], TR("  ✖ Recording: archive not created ({error}).").format(error=result.get("error") or "unknown error"))])
+            return
+        counts = result.get("counts") or {}
+        noise = sum(v for k, v in counts.items() if k != "kept")
+        reasons = {"key": "R key", "duration": "maximum duration reached", "size": "maximum size reached", "end": "end of the stream", "interrupt": "Ctrl-C",
+                   "test-log": "end of --record-test-log"}
+        lines = [color_code("1;32", "  ✔ " + TR("Recording stopped ({reason}): {seconds} s, {kept} line(s) kept, {noise} noise line(s) left out").format(
+                     reason=TR(reasons.get(result.get("reason"), result.get("reason") or "?")), seconds=f"{result.get('seconds', 0):.0f}", kept=counts.get("kept", 0), noise=noise)),
+                 "    " + TR("Archive to send for analysis: {path} ({size})").format(path=result["path"], size=readable_bytes(result.get("size") or 0))]
+        if result.get("notes"):
+            lines.append(color_code(STYLES["warning"], "    " + TR("Missing or cut sources: {notes}").format(notes="; ".join(result["notes"])[:600])))
+        write_out(lines)
+
+    def check_record(now_dt):
+        """Limits of the recording (duration, size) and --record-test-log (automatic start when the live stream begins, stop after MIN minutes, then exit)."""
+        rec = record["r"]
+        if rec is None:
+            if record["auto"] and not record["auto_started"] and getattr(output, "active", True):
+                record["auto_started"] = True
+                record_start("")
+            return
+        reason = rec.limit_reason()
+        if record["auto"] and rec.elapsed() >= record["auto"] * 60:
+            reason, record["exit_after"] = "test-log", True
+        if reason:
+            if reason in ("duration", "size"):
+                write_out([color_code(STYLES["warning"], "  ⚠ " + TR("Recording: {what} — stopped by itself.").format(
+                    what=TR("maximum duration reached") if reason == "duration" else TR("maximum size reached")))])
+            record_stop(reason)
+
     def rlq_groups_lines():
         odoo_db = people.odoo_db if people is not None else None
         databases_seen = sorted(people.databases_seen) if people is not None else []
@@ -4880,6 +5028,9 @@ def follow(cmd, people, resolver, options, output):
         lines.append(f"    {bold('I')}  event registrations of the last 30 days, per event and ticket, with the survey of each ticket (answers to another survey pointed out)")
         lines.append(f"    {bold('E')}  error details: app-log-check.py --errors-only, and odoo-mail-retry.py if there are failed e-mails")
         lines.append(f"    {bold('D')}  site diagnosis: why the maintenance page shows (service, Odoo ports, nginx upstream, firewall) and what to do")
+        lines.append(f"    {bold('R')}  record a test: R starts (a label is asked), R again stops; « REC » at the end of each line meanwhile; a .tar.xz archive "
+                     f"to send for analysis (logs of the window without the noise, raw nginx / Odoo / fail2ban extracts, network and PostgreSQL samples, addresses and names anonymized)"
+                     + (" [" + TR("recording") + "]" if record["r"] is not None else ""))
         lines.append(f"    {bold('P')}  latency: what slows the requests since start (disk, processor, memory: % of waiting time, % of disk use, per hour) and whether SSD disks are justified")
         lines.append(f"    {bold('C')}  save the settings changed since startup into {system_config_path()} (every option changeable on the fly: ACCENTUATE_GROUP, ANONYMIZE, CHIME, DNS_MAX*, EXCLUDE_IP, HEALTH, HIDE_IP, HIGHLIGHT, LEVEL, MIN, MODULES_*, NOT_FOUND, ONLY, SUSPECT, TIME_REPORT, VERBOSE, WATCH)")
         lines.append(f"    {bold('b')}  addresses to ban: {to_ban} — asks, then nginx-log-audit.sh --ban (like web-monitor.py)")
@@ -5161,6 +5312,18 @@ def follow(cmd, people, resolver, options, output):
             write_out(module_lines(people.odoo_db, options["profile"].get("ODOO_CONF"), databases_seen, (MODULES_SORT_DEFAULT, False, options["modules_sort"][2]), 10))
         elif key_value == "E":
             error_details(False)
+        elif key_value == "record":                          # 1.93: R key — start / stop a test recording
+            if record["r"] is None:
+                if record["pending"] is not None:
+                    write_out(["  " + TR("The previous archive is still being created: wait for its line, then press R again.")])
+                    return
+                label = ask(TR("Label of this recording (e.g. survey-abandoned; Enter = none, Ctrl-C = cancel): "))
+                if label is None:
+                    write_out(["  " + TR("Recording not started.")])
+                    return
+                record_start(label.strip())
+            else:
+                record_stop("key")
         elif key_value == "watch":
             rep = ask(TR("--watch TEXT (comma = several, e.g. registration; empty = stop; current: {current}): ").format(current=', '.join(options['watch']) or 'none'))
             if rep is not None:
@@ -5179,7 +5342,7 @@ def follow(cmd, people, resolver, options, output):
     if options["lines"] == 0 and hasattr(output, "active"):      # no history: everything is live
         output.active = True
     if keys is not None and keys.start():
-        eprint("Keys: ? (or h) keys and options menu · Ctrl-G dashboard (health, efficiency, top 10 URLs…) · 1 to 9 dashboard detail level · Ctrl-T only what changed since last time · Ctrl-C stop and summary")
+        eprint("Keys: ? (or h) keys and options menu · Ctrl-G dashboard (health, efficiency, top 10 URLs…) · 1 to 9 dashboard detail level · Ctrl-T only what changed since last time · R record a test · Ctrl-C stop and summary")
     old_sigint = None
     if keys is not None and keys.old is not None:
         try:
@@ -5202,6 +5365,7 @@ def follow(cmd, people, resolver, options, output):
                 check_connections(time.time())
                 check_external_ip(time.time())
                 periodic_report(time.time())
+                check_record(time.time())
                 if presence is not None:
                     for kind_name, text in presence.check(time.time()):
                         output.write(presence.event(kind_name, text) + "\n")
@@ -5216,6 +5380,12 @@ def follow(cmd, people, resolver, options, output):
             if item[0] == KEY_EVENT:                    # Ctrl-G (full dashboard), Ctrl-T (differences since the last time) or a menu key
                 with interaction():
                     key(item[1])
+                continue
+            if item[0] == RECORD_EVENT:                 # 1.93: archive of a recording created (or failed) in the background
+                record["pending"] = None
+                show_record_result(item[1])
+                if record["exit_after"]:                # --record-test-log: the recording was the purpose of this run
+                    break
                 continue
             L, ips, arrival, is_login = item
             results, pays = {}, {}
@@ -5272,7 +5442,9 @@ def follow(cmd, people, resolver, options, output):
             check_connections(time.time())
             check_external_ip(time.time())
             periodic_report(time.time())
+            check_record(time.time())
         release_deferred(False)
+        finish_recording("end")
         show_summary()
         check_external_ip(time.time(), wait=True)  # end of the stream (--no-follow): at least one check, we wait for its result
         if options["summary"]:
@@ -5284,6 +5456,7 @@ def follow(cmd, people, resolver, options, output):
         if old_sigint is not None:
             signal.signal(signal.SIGINT, signal.default_int_handler)  # the rest: one more Ctrl-C interrupts immediately (never a second "Interrupt the program?" question)
         try:
+            finish_recording("interrupt")                  # 1.93: a recording in progress is never lost by Ctrl-C
             output.write("\n" + "\n".join(table_rows(heading="Session summary")) + "\n")
             output.flush()
             if people is not None and people.odoo_db is not None:
@@ -5437,6 +5610,11 @@ def main():
     parser.add_argument("--no-isp", action="store_true", help="No outside request: no lookup of the address block owner or country (rdap.org, whois)")
     parser.add_argument("--no-user-agent", action="store_true", help="Do not read the User-Agent in the nginx access log (robots are then recognized only by name or robots.txt)")
     parser.add_argument("--no-presence", action="store_true", help="No presence tracking (sign-ins, sign-outs, inactivity)")
+    parser.add_argument("--record-max", type=float, default=RECORD_MAX_DEFAULT, metavar="MIN",
+                        help=f"A test recording (R key) stops by itself after MIN minutes (default: {RECORD_MAX_DEFAULT:g}; 0 = no limit); RECORD_MAX key")
+    parser.add_argument("--record-test-log", type=float, default=None, metavar="MIN",
+                        help="Records a test without the keyboard: starts with the live stream, stops after MIN minutes, writes the .tar.xz archive to send for analysis, "
+                             "then exits (same content as the R key; folder: ~USER/app-log-live-records under sudo, otherwise LOG_DIR/records)")
     parser.add_argument("--rate-limit", default=None, metavar="IP",
                         help="Detail of the 429 refusals (nginx rate limiting) of ONE address from the nginx logs: URL, limit_req zone, peaks, effects, what to change; then exits")
     parser.add_argument("--recap", type=float, default=RECAP_DEFAUT, metavar="SEC",
@@ -5488,6 +5666,10 @@ def main():
         parser.error(f"--level must be between 1 and {LEVEL_MAX}")
     if args.time_report is not None and not 0 <= args.time_report <= 1440:
         parser.error("--time-report must be between 0 and 1440 minutes")
+    if not 0 <= (args.record_max or 0) <= 1440 or (args.record_test_log is not None and not 0 < args.record_test_log <= 1440):
+        parser.error("--record-max must be between 0 and 1440 minutes, --record-test-log greater than 0 and at most 1440")
+    if args.record_test_log is not None and args.no_follow:
+        parser.error("--record-test-log needs the live stream (not with --no-follow)")
     exclusions, invalid = read_exclusions(",".join(args.exclude_ip or []))
     if invalid:
         parser.error(f"--exclude-ip: invalid address(es) or network(s): {', '.join(invalid)}")
@@ -5611,6 +5793,30 @@ def main():
                "presence": Presence(args.idle) if is_odoo and not args.no_presence else None, "health": args.health, "keys": not args.no_keys and not args.no_follow, "app": profile.get("APP_NAME"), "propose_ban": not args.no_ban_prompt, "watch": [t.strip().lower() for t in (args.watch or "").split(",") if t.strip()], "agents": not args.no_user_agent and not args.no_follow, "acces_logs": profile.get("ACCESS_LOGS"),
                "exclude": exclusions, "chime": args.chime, "group": args.accentuate_group if group_members else None, "membres": group_members,
                "report_min": args.time_report or 0.0, "level": args.level, "modules_sort": modules_sort_state}
+    # 1.93: test recording (R key, --record-test-log): log files read over the window, Odoo ports sampled, folder of the archives
+    record_logs = []
+    for key_name in ("ACCESS_LOGS", "ERROR_LOGS", "CATCHALL_LOG"):
+        for pattern in (profile.get(key_name) or "").split():
+            record_logs += sorted(glob.glob(os.path.join(NGINX_DIR, pattern)))
+    record_logs += [os.path.join(NGINX_DIR, "blocked-probes.log"), os.environ.get("APP_LOG_LIVE_FAIL2BAN_LOG", "/var/log/fail2ban.log"), profile.get("ODOO_LOGFILE") or ""]
+    for pattern in (profile.get("APP_LOG_FILES") or "").split():
+        record_logs += sorted(glob.glob(pattern))
+    record_ports = {}
+    odoo_conf_module = load_module("_odoo_conf") if profile.get("ODOO_CONF") else None
+    if odoo_conf_module is not None and hasattr(odoo_conf_module, "lire"):
+        try:
+            conf_values = odoo_conf_module.lire(profile["ODOO_CONF"])
+            record_ports = {"http_port": conf_values.get("http_port"), "gevent_port": conf_values.get("gevent_port")}
+        except Exception:                               # noqa: BLE001 — unreadable configuration: the default Odoo ports are not guessed, only 80 / 443
+            record_ports = {}
+    filters = [f"--only {', '.join(options['only'])}"] if options["only"] else []
+    filters += [name for name, active in (("--suspect", args.suspect), ("--not-found", args.not_found), ("--min", args.min)) if active]
+    options.update(record_max=args.record_max or 0.0, record_test_log=args.record_test_log, namespace=ns, record_ports=record_ports, filters_text=" ".join(filters),
+                   record_logs=[f for f in OrderedDict.fromkeys(record_logs) if f and os.path.isfile(f)], journal_folder=journal_folder(args.log_dir, False))
+    if args.record_test_log:
+        record_module = load_module("_record")
+        eprint(TR("Test recording (--record-test-log): starts with the live stream, stops after {minutes} min, then the program exits; archive in {folder}").format(
+            minutes=f"{args.record_test_log:g}", folder=record_module.default_folder(options["journal_folder"]) if record_module else "?"))
     folder = None if args.no_follow else journal_folder(args.log_dir, args.no_log_file)
     output = Output(sys.stdout, folder, args.log_keep_days, COLOR, "-filter" if args.only else "")        # a filtered launch (--only) has its own journal: several simultaneous launches do not mix their lines
     # 1.88: by default (and from the configuration file) only on a TERMINAL — a program that reads this output (pipe, tests) gets the real lines; an explicit

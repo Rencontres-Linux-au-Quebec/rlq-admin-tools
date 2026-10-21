@@ -1,6 +1,29 @@
 Changelog — run-all.sh (suite de tests)
 (version la plus récente en premier)
 
+## 1.193.20261020.230008 — Test of the test recording (test_record.py) and of the 1.93 keys of app-log-live
+
+Reason:
+  Delivery of the test recording of app-log-live.py (R key, --record-test-log): new module test_record.py (archive of a test, noise left out, masking, sources
+  missing, sudo folder, symbolic link, REC marker) and the Python 3.8 check extended to apps/_record.py.
+
+Changes:
+  - New test module test_record.py (environment: commun): 7 tests.
+  - test_conventions.py: apps/_record.py added to the Python 3.8 check.
+
+Bugs fixed:
+  none.
+
+Safeguards and edge cases:
+  - The recording tests use a temporary folder and fake sources only (fake ss, fake journalctl); nothing is read on the server.
+
+Checks:
+  - test_record, test_conventions, test_i18n, test_app_log_live, test_docs, test_config_defaut.
+  - CheminSousCron fails when the PATH contains a nix profile (environment of the sandbox; passes with a standard PATH).
+
+Action required:
+  none.
+
 ## 1.192.20261020.222909 — test_docs: legal company name allowed as author of the Odoo module
 
 Reason:
