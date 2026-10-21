@@ -97,8 +97,8 @@
 # --truncate (par défaut depuis 1.88) : une ligne du journal plus large que N colonnes est raccourcie en « début ... deux derniers mots » (0 ou oui = $COLUMNS - 10 ;
 # non = lignes entières, comme --no-truncate). Les menus et rapports ne sont jamais coupés ; le journal quotidien garde toujours les lignes entières.
 #TRUNCATE=0
-# --no-underline (1.89) : aucune ligne soulignée (par défaut, une ligne du journal sur 5 est soulignée à l'écran ; non = aucune).
-#UNDERLINE=oui
+# --underline [N] (1.91) : une ligne du journal sur N soulignée à l'écran, jusqu'au bout de la ligne d'écran (oui = 5, par défaut ; 0 ou non = aucune, comme --no-underline).
+#UNDERLINE=5
 # --watch : surveiller les requêtes dont l'URL contient ce texte (virgule = plusieurs ; touche w à la volée)
 #WATCH=
 
@@ -124,6 +124,7 @@
 
 # --- Anonymisation de l'affichage ---
 # --anonymize (par défaut depuis 1.88 pour app-log-live) : anonymiser ce que le programme affiche à l'écran (adresses IP, courriels, identifiants, jetons) par des pseudonymes
-# stables (IP-4f2a9c, usager-9c1e03@anonyme.invalid) ; les noms des personnes restent ; le journal quotidien garde tout. non = vraies valeurs (comme --no-anonymize).
+# stables (IP-4f2a9c, usager-9c1e03@anonyme.invalid) ; depuis 1.91, les noms des personnes aussi (membre-4f2a9c ; étiquettes de l'équipe : equipe-4f2a9c) ; le journal
+# quotidien garde tout. non = vraies valeurs (comme --no-anonymize). Touche A à la volée ; la touche C la sauvegarde.
 # (la même clé dans app-default.conf vaut pour tous les programmes : ANONYMIZE=non là-bas désactive aussi celle-ci).
 #ANONYMIZE=oui

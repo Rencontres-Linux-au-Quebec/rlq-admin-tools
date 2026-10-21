@@ -64,6 +64,23 @@ class Motifs(unittest.TestCase):
         self.assertIn("Bearer ***", a)
         self.assertIn("Cookie: ***", a)
 
+    def test_noms_des_personnes_enregistres_et_colonnes_gardees(self):
+        """_anonymiser 1.3 : un nom confié par le programme (personne connectée, étiquette de l'équipe) devient « membre-xxxxxx », le même pour toutes les formes
+        d'un même compte ; le remplissage de colonne qui suit (même après un code de couleur) est ajusté ; jamais à l'intérieur d'un mot ou d'une URL."""
+        f = self.m.Anonymiseur(b"sel-de-test", fixed_width=True)
+        f.add_name("Hélène Côté", "base:helene")
+        f.add_name("HélèneC", "base:helene")
+        f.add_name("Jo", "base:jo")                                                  # trop court : jamais remplacé
+        colonne = "\x1b[1;32mHélène Côté\x1b[0m" + " " * 34 + "HTTP/1.1 200"
+        a = f(colonne)
+        self.assertNotIn("Hélène", a)
+        self.assertRegex(a, r"^\x1b\[1;32mmembre-[0-9a-f]{6}\x1b\[0m +HTTP/1\.1 200$")
+        self.assertEqual(a.index("HTTP") - len("\x1b[1;32m\x1b[0m"), len("Hélène Côté") + 34)     # HTTP reste à la même colonne
+        b = f("Courriel envoyé à HélèneC. /web/HélèneCx Jo")
+        self.assertEqual(f("Hélène Côté").strip(), b.split()[3].rstrip("."))            # même compte : même pseudonyme
+        self.assertIn("/web/HélèneCx Jo", b)
+        self.assertEqual(f(a), a)                                                     # idempotent
+
     def test_idempotent(self):
         a = self.f("1.2.3.4 a@b.org --login x token=y 2001:db8::5")
         self.assertEqual(self.f(a), a)
