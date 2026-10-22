@@ -31,7 +31,7 @@
 #   * TEST RECORDING (1.93): R starts / stops a recording (label asked; « REC » at column $COLUMNS-4 meanwhile; the .tar.xz archive of the window, noise left out,
 #     see apps/_record.py) — --record-test-log MIN records without the keyboard, then exits; N (while recording) starts / ends a step with a description (steps.txt);
 #   * STEPS LINE (1.99): F key (or --steps-line, STEPS_LINE) shows ALL the steps of the recording on ONE white reverse-video line, at each step (screen only).
-#   * KEY MENU (? or h): toggles and settings on the fly — a --accentuate-group, A --anonymize, c --chime, e --exclude-ip, T --time-report, d --dns-max, t --dns-max-truncate, H --health, i --hide-ip, l --highlight, m --min, M --modules (table of the installed Odoo modules, sorted by name, date, creation, version, author or state), o --only, r error report (--report-err),
+#   * KEY MENU (? or h): toggles and settings on the fly — a --accentuate-group, A --anonymize, c --chime, e --exclude-ip, T --time-report, U --underline N, d --dns-max, t --dns-max-truncate, H --health, i --hide-ip, l --highlight, m --min, M --modules (table of the installed Odoo modules, sorted by name, date, creation, version, author or state), o --only, r error report (--report-err),
 #     s --suspect, v --verbose, V version; S survey registrations, I event registrations, b addresses to ban (nginx-log-audit.sh --ban, like web-monitor.py).
 #   * KEYBOARD DASHBOARD (terminal only, --no-keys: disabled): Ctrl-G = health (✔ ⚠ ✖ with the detail of the problems), efficiency of the program (CPU, memory, input/output,
 #     address cache), pages per language (EN, FR, ES), HTTP codes, top 10 URLs, Odoo errors; Ctrl-T = only what changed since the last display; --health MIN:
@@ -104,7 +104,7 @@ from urllib.parse import unquote
 from collections import Counter, OrderedDict
 from concurrent.futures import Future
 
-__version__ = "1.100.20261022.133552"
+__version__ = "1.102.20261022.154430"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
@@ -600,7 +600,7 @@ def config_values(options, verbose, widths=None):
            "NOT_FOUND": yes_no(options["not_found"]), "VERBOSE": yes_no(verbose),
            "ACCENTUATE_GROUP": options.get("group") or "", "CHIME": "" if options.get("chime") is None else str(options["chime"]),
            "EXCLUDE_IP": ",".join(str(r) for r in options.get("exclude") or []), "ONLY": ",".join(options.get("only") or []),
-           "STEPS_LINE": yes_no(options.get("steps_line")), "SUSPECT": yes_no(options.get("suspect")), "ANONYMIZE": yes_no(options.get("anonymize")), "TIME_REPORT": f"{options.get('report_min') or 0:g}", "WATCH": ",".join(options.get("watch") or [])}
+           "STEPS_LINE": yes_no(options.get("steps_line")), "UNDERLINE": str(options.get("underline", UNDERLINE_DEFAULT)), "SUSPECT": yes_no(options.get("suspect")), "ANONYMIZE": yes_no(options.get("anonymize")), "TIME_REPORT": f"{options.get('report_min') or 0:g}", "WATCH": ",".join(options.get("watch") or [])}
     if width is not None:
         res["DNS_MAX"] = "" if truncated else str(width)                    # one or the other: column without cut, or cut at N
         res["DNS_MAX_TRUNCATE"] = str(truncated) if truncated else ""
@@ -4203,7 +4203,7 @@ KEYS = {b"\x07": "g", b"\x14": "t"}      # Ctrl-G: dashboard; Ctrl-T: only what 
 # Simple keys of the menu (? or h): toggles and settings of the command-line options, and a few commands
 MENU_KEYS = {b"?": "help", b"h": "help", b"i": "i", b"m": "m", b"n": "n", b"r": "r", b"s": "s", b"v": "v", b"d": "dns", b"t": "dnst", b"H": "H", b"o": "o", b"V": "V",
                 b"S": "S", b"I": "I", b"b": "b", b"a": "accent", b"c": "chime", b"e": "exclude", b"T": "report", b"E": "E", b"w": "watch", b"D": "D", b"l": "highlight", b"M": "modules", b"C": "save", b"L": "recent",
-                b"G": "G", b"P": "latency", b"A": "anonymize", b"R": "record", b"N": "step", b"F": "steps_line", b"q": "addons"}
+                b"G": "G", b"P": "latency", b"A": "anonymize", b"R": "record", b"N": "step", b"F": "steps_line", b"q": "addons", b"U": "underline"}
 MENU_KEYS.update({str(n).encode(): f"level{n}" for n in range(1, LEVEL_MAX + 1)})   # 1 to 9: dashboard at the chosen level
 KEYS.update(MENU_KEYS)
 
@@ -4387,7 +4387,7 @@ def follow(cmd, people, resolver, options, output):
     periodic = {"next_report": time.time() + options["report_min"] * 60}
     recent_ones = []                                        # (arrival, line, address) of the lines WITHOUT A NAME: reminder after a login
     deferred = [None]                                   # "bad query" waiting for its cause (next line)
-    record = {"r": None, "pending": None, "auto": options.get("record_test_log"), "auto_started": False, "exit_after": False, "module": None}   # 1.93: test recording (R key)
+    record = {"r": None, "last": None, "pending": None, "auto": options.get("record_test_log"), "auto_started": False, "exit_after": False, "module": None}   # 1.93: test recording (R key)
 
     received = [0]                                        # lines taken out of the journal by the reader thread (watchdog)
 
@@ -4918,6 +4918,7 @@ def follow(cmd, people, resolver, options, output):
         if rec is None:
             return
         record["r"] = None
+        record["last"] = rec                              # 1.101: its steps stay on the F line until the next R
         output.rec_marker = False
         if wait:
             write_out(["  " + TR("Recording stopped: creating the archive…")])
@@ -4956,12 +4957,19 @@ def follow(cmd, people, resolver, options, output):
         write_out(lines)
 
     def show_steps_line():
-        """1.99 (F key, --steps-line): all the steps of the recording on one line, white reverse video, at each change of step. Screen only: never in the journal or the archive."""
-        rec = record["r"]
-        if not options.get("steps_line") or rec is None:
+        """1.99 (F key, --steps-line): all the steps of the recording on one line, white reverse video, at each change of step. Screen only: never in the journal or the archive.
+        1.101: F works without a recording (R): the steps of the last recording are shown, or a hint when there is none yet."""
+        if not options.get("steps_line"):
             return
         columns = terminal_columns()
-        text = output.screen_text(truncate_line(steps_line_text(rec.steps, columns - 1), columns - 1))     # anonymized like the stream
+        current = record["r"]
+        source = current or record["last"]
+        prefix = "" if current is not None or source is None else TR("Last recording") + " — "
+        if source is None:
+            body = TR("Steps: no recording yet (R starts one, then N a step)")
+        else:
+            body = steps_line_text(source.steps, columns - 1 - display_width(prefix))
+        text = output.screen_text(truncate_line(prefix + body, columns - 1))     # anonymized like the stream
         output.screen.write(color_code(STEPS_LINE_STYLE, text + " " * max(0, columns - 1 - display_width(text))) + "\n")
         output.screen.flush()
 
@@ -5018,8 +5026,9 @@ def follow(cmd, people, resolver, options, output):
                                       ("n", "--not-found", f"only the pages not found (404) [{yes_no(options['not_found'])}]"),
                                       ("o", "--only TEXT", f"only the lines that contain the text (comma = OR) [{', '.join(options['only']) or 'none'}]"),
                                       ("r", "--report-err", "error report to copy and paste, based on what has been displayed so far"),
-                                      ("F", "--steps-line", TR("all the steps of the recording on one white line, updated at each step") + f" [{yes_no(options['steps_line'])}]"),
+                                      ("F", "--steps-line", TR("the steps of the recording (or of the last one) on one white line, updated at each step; works without R") + f" [{yes_no(options['steps_line'])}]"),
                                       ("s", "--suspect", f"only the suspicious requests [{yes_no(options['suspect'])}]"),
+                                      ("U", "--underline N", TR("one log line out of N underlined on screen, up to the end of the screen line (0 = none); UNDERLINE of the configuration file") + f" [{output.underline or 'none'}]"),
                                       ("T", "--time-report MIN", f"report like Ctrl-T every MIN minutes, 0 = never [{options['report_min']:g}]"),
                                       ("v", "--verbose", f"show every external command [{yes_no(VERBOSE)}]"),
                                       ("V", "--version", "program version"),
@@ -5036,7 +5045,7 @@ def follow(cmd, people, resolver, options, output):
                      + (" [" + TR("recording") + "]" if record["r"] is not None else ""))
         lines.append(f"    {bold('N')}  " + TR("step of a test (while recording): N starts a step (a description is asked), N again ends it; the steps (start, end, duration, description) go into steps.txt of the archive"))
         lines.append(f"    {bold('P')}  latency: what slows the requests since start (disk, processor, memory: % of waiting time, % of disk use, per hour) and whether SSD disks are justified")
-        lines.append(f"    {bold('C')}  save the settings changed since startup into {system_config_path()} (every option changeable on the fly: ACCENTUATE_GROUP, ANONYMIZE, CHIME, DNS_MAX*, EXCLUDE_IP, HEALTH, HIDE_IP, HIGHLIGHT, LEVEL, MIN, MODULES_*, NOT_FOUND, ONLY, SUSPECT, TIME_REPORT, VERBOSE, WATCH)")
+        lines.append(f"    {bold('C')}  save the settings changed since startup into {system_config_path()} (every option changeable on the fly: ACCENTUATE_GROUP, ANONYMIZE, CHIME, DNS_MAX*, EXCLUDE_IP, HEALTH, HIDE_IP, HIGHLIGHT, LEVEL, MIN, MODULES_*, NOT_FOUND, ONLY, SUSPECT, TIME_REPORT, UNDERLINE, VERBOSE, WATCH)")
         lines.append(f"    {bold('b')}  addresses to ban: {to_ban} — asks, then nginx-log-audit.sh --ban (like web-monitor.py)")
         write_out(lines)
 
@@ -5258,6 +5267,12 @@ def follow(cmd, people, resolver, options, output):
                     write_out([f"  --chime {options['chime']} (test beep sent)"] + [color_code(ORANGE, "  ⚠ " + c) for c in advices])
                 else:
                     write_out([color_code(STYLES["error"], f"  Value refused « {rep} » : 0, 1, 2 or n.")])
+        elif key_value == "underline":                       # 1.102: U key — one log line out of N underlined (0 = none), saved by C
+            n = requested_int(TR("--underline N (one log line out of N underlined, 0 = none; current: {current}, Enter = {default}): ").format(
+                                  current=output.underline, default=UNDERLINE_DEFAULT), UNDERLINE_DEFAULT, 0, 1000)
+            if n is not None:
+                output.underline = options["underline"] = n
+                write_out([f"  --underline {n}" + ("" if n else " (none)")])
         elif key_value == "report":
             n = requested_int(f"--time-report MIN (report like Ctrl-T every MIN minutes, 0 = never; current {options['report_min']:g}, Enter = {REPORT_DEFAULT:g}) : ", int(REPORT_DEFAULT), 0, 1440)
             if n is not None:
@@ -5356,10 +5371,8 @@ def follow(cmd, people, resolver, options, output):
             options["steps_line"] = not options.get("steps_line")
             if not options["steps_line"]:
                 write_out([TR("  --steps-line: off")])
-            elif record["r"] is None:
-                write_out([TR("  Start a recording (R) to see the steps on one line.")])
             else:
-                write_out([TR("  --steps-line: on — the steps of the recording are shown on one line at each step")])
+                write_out([TR("  --steps-line: on — the steps are shown on one line at each step (R starts a recording, N a step)")])
                 show_steps_line()
         elif key_value == "watch":
             rep = ask(TR("--watch TEXT (comma = several, e.g. registration; empty = stop; current: {current}): ").format(current=', '.join(options['watch']) or 'none'))
@@ -5696,7 +5709,7 @@ def main():
     parser.add_argument("--no-anonymize", dest="anonymize", action="store_false", help="Show the real IP addresses, e-mails and names (cancels --anonymize)")
     parser.add_argument("--no-underline", dest="underline", action="store_const", const=0, help="No underlined line (same as --underline 0)")
     parser.add_argument("--underline", type=int, nargs="?", const=UNDERLINE_DEFAULT, default=UNDERLINE_DEFAULT, metavar="N",
-                        help="One log line out of N underlined on screen, up to the end of the screen line (without N: 10; default: 10; 0 = none); UNDERLINE key")      # 10 = UNDERLINE_DEFAULT
+                        help="One log line out of N underlined on screen, up to the end of the screen line (without N: 10; default: 10; 0 = none); U key of the menu; UNDERLINE of the configuration file")      # 10 = UNDERLINE_DEFAULT
     parser.set_defaults(underline=UNDERLINE_DEFAULT)            # 1.91: --no-underline is declared first (its None would otherwise win)
     parser.set_defaults(min=MIN_DEFAULT)                       # 1.98: --min by default (MIN=no or --no-min: everything)
     parser.set_defaults(anonymize=None)                         # None: on a terminal only (a pipe, another program, a test: real values)
@@ -5886,6 +5899,7 @@ def main():
     if args.truncate == TRUNCATE_AUTO:
         args.truncate = 0 if on_terminal else None
     output.underline = max(0, int(args.underline or 0)) if args.underline is not True else UNDERLINE_DEFAULT     # True: old UNDERLINE=oui read as a boolean
+    options["underline"] = output.underline              # 1.102: U key; saved by C
     output.truncate = None if args.truncate is None or args.truncate is False or args.truncate < 0 else args.truncate
     asked = any(a.startswith("--anon") and "--anonymize".startswith(a) for a in sys.argv[1:])
     anonymize = asked or (args.anonymize is not False and on_terminal)

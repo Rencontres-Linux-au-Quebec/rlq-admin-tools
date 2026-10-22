@@ -46,7 +46,7 @@ Every 30 seconds a light sampler reads the kernel counters (no command): process
 * The event time comes from the log line, never from the machine time zone.
 * Daily colored logs go to `/var/log/app-log-live/` (root) or `~/.local/state/app-log-live/` (mode 600, 30 days; `--log-dir`, `--log-keep-days`, `--no-log-file`).
 * By default on a terminal, a log line wider than `$COLUMNS - 10` columns (`--truncate N`: N columns) is shortened to “start ... last two words”, so the end of a long URL (and a `[banned: …]` label) stays visible; `--no-truncate` shows whole lines. Menus and reports are never cut; the daily log keeps the whole lines.
-* One log line out of 10 is underlined, to follow a line across a wide screen (`--underline N`, `UNDERLINE=N`; `--no-underline`: none).
+* One log line out of 10 is underlined, to follow a line across a wide screen (`--underline N`, `UNDERLINE=N`; `--no-underline`: none). The `U` menu key asks for N; `C` saves the value into the configuration file, like the other settings.
 * `--min` is on by default: no database name, no « werkzeug », no fetchmail lines except errors (`--no-min` or `MIN=no`: everything).
 * Configuration values are written in English only: `yes` / `no` (French `oui` / `non` are still read, with a warning asking to replace them).
 * By default on a terminal, IP addresses and e-mails are shown as stable pseudonyms (`IP-4f2a9c`, `usager-9c1e03@anonyme.invalid`); `--no-anonymize` shows the real values. Names of people stay; the daily log keeps everything. A pipe or another program reading the output always gets the real, whole lines.
