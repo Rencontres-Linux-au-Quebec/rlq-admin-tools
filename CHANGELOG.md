@@ -34,6 +34,29 @@ Earlier history was archived outside this repository when this file was created.
 
 ## app-log-live.py
 
+### 1.97.20261022.100559
+
+- Title: --hide-addons (key q): hide the INFO noise of the Odoo modules.
+- Reason: The live stream is flooded by INFO lines of the Odoo modules (cron jobs, websocket, fetchmail…) that hide the lines that matter. The request: hide them, except when there is an error or when an e-mail is sent or a file (PDF…) is generated.
+- Changes:
+  - Option --hide-addons (new), key q on the fly (menu, with the current state), configuration key HIDE_ADDONS (yes/no) in doc/en and doc/fr app-log-live.conf.example.
+  - Lines whose logger starts with odoo.addons. and whose level is INFO or DEBUG are discarded, unless ADDONS_KEEP_RE matches (successfully sent, mail_mail, ir_mail_server, mail delivery, smtp, ir_actions_report, pdf, report generated, attachments .pdf/.xlsx/.docx/.csv/.zip).
+  - Line.discard_addons() (new); the same rule is applied to the lines of the reminder shown again after a sign-in.
+  - Command-line summary line (--hide-addons in the list of active filters of the test recording).
+  - Files: app-log-live.py; lang/app-log-live.fr.po (3 new fragments); doc/en and doc/fr 07-app-log-live.md and app-log-live.conf.example; nginx-tools-tests/test_app_log_live.py (new test).
+- Bugs fixed:
+  None (new option).
+- Guard rails and edge cases:
+  - Errors are never hidden: WARNING, ERROR, CRITICAL and any trace (Line.err()), even from odoo.addons.*.
+  - Lines of nginx / werkzeug requests and lines outside odoo.addons.* are never hidden.
+  - Pressing q again shows how many lines were hidden so far.
+  - Without the option, nothing changes (the test checks the complete output).
+  - --min keeps its own rule; the two options combine.
+- Checks:
+  - test_app_log_live: new test test_hide_addons_cache_le_bruit_des_modules_sauf_erreurs_courriels_et_pdf (option, key set from configuration file, errors / e-mails / PDF kept); test_min_sans_base... still passes.
+  - py_compile; ruff shows no new warning.
+- Action required: To hide the noise by default, add HIDE_ADDONS=oui to /etc/default/app-log-live.conf (or ~/.app-log-live.conf). Otherwise: none.
+
 ### 1.96.20261022.083937
 
 - Title: N key: steps of a test (start and end, with a description; steps.txt in the archive).

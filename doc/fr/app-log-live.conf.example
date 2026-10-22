@@ -34,6 +34,8 @@
 #EXCLUDE_IP=
 # --health : minutes entre deux vérifications de santé (défaut : 10 minutes ; 0 = jamais)
 #HEALTH=10
+# --hide-addons : cache les lignes INFO des modules d'Odoo (odoo.addons.*), sauf les erreurs, les courriels envoyés et les fichiers générés (PDF…) (touche q à la volée)
+#HIDE_ADDONS=non
 # --hide-ip
 #HIDE_IP=non
 # --highlight : mots surlignés en cyan dans les lignes affichées (virgule = plusieurs ; un mot tout en MAJUSCULES comme POST doit l'être dans la ligne,

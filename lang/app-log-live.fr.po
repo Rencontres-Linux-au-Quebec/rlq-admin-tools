@@ -478,6 +478,12 @@ msgstr "minutes entre deux alertes de santé, 0 = jamais ["
 msgid "hide the IP address ["
 msgstr "cacher l'adresse IP ["
 
+msgid "hide the INFO lines of the Odoo modules (odoo.addons.*), except errors, e-mails sent and generated files (PDF…) ["
+msgstr "cacher les lignes INFO des modules d'Odoo (odoo.addons.*), sauf les erreurs, les courriels envoyés et les fichiers générés (PDF…) ["
+
+msgid "; lines hidden so far: "
+msgstr " ; lignes cachées jusqu'ici : "
+
 msgid "the minimum of information ["
 msgstr "le minimum d'information ["
 
@@ -669,6 +675,9 @@ msgstr "Toutes les MIN minutes, SI quelque chose ne va pas (erreurs 5xx ou d'Odo
 
 msgid "Do not show the IP address in brackets after the name"
 msgstr "N'affiche pas l'adresse IP entre crochets après le nom"
+
+msgid "Hide the INFO lines of the Odoo modules (odoo.addons.*), except errors (WARNING, ERROR, traces), e-mails sent and generated files (PDF reports…); q key on the fly"
+msgstr "Cache les lignes INFO des modules d'Odoo (odoo.addons.*), sauf les erreurs (WARNING, ERROR, traces), les courriels envoyés et les fichiers générés (rapports PDF…) ; touche q à la volée"
 
 msgid "Minutes without activity before « no more activity » (default: "
 msgstr "Minutes sans activité avant « plus d'activité » (défaut : "
