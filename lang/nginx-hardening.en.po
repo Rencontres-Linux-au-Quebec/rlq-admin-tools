@@ -1972,3 +1972,15 @@ msgstr " ; nginx -t succeeded, nginx "
 
 msgid ") et nginx -t réussi, mais nginx n'a pas pu être "
 msgstr ") and nginx -t succeeded, but nginx could not be "
+
+msgid " : non vérifié sans root (relancer avec sudo "
+msgstr " : not checked without root (run again with sudo "
+
+msgid "nginx -t (configuration)"
+msgstr "nginx -t (configuration)"
+
+msgid "ufw : règle DENY du port "
+msgstr "ufw: DENY rule for port "
+
+msgid "iptables : règle DROP du port "
+msgstr "iptables: DROP rule for port "
