@@ -103,7 +103,7 @@ from urllib.parse import unquote
 from collections import Counter, OrderedDict
 from concurrent.futures import Future
 
-__version__ = "1.96.20261022.083937"
+__version__ = "1.97.20261022.100559"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
@@ -197,7 +197,7 @@ UNDERLINE_DEFAULT = 5                                                 # --underl
 
 SCHEMA_CONFIG = {"ACCENTUATE_GROUP": ("accentuate_group", str), "CHIME": ("chime", _chime_config), "DNS_MAX_TRUNCATE": ("dns_max_truncate", int), "EXCLUDE_IP": ("exclude_ip", _comma_list),
                  "ONLY": ("only", _comma_list), "SUSPECT": ("suspect", bool), "SUMMARY": ("summary", bool), "TIME_REPORT": ("time_report", float), "TRUNCATE": ("truncate", _truncate_config), "WATCH": ("watch", str), "ANONYMIZE": ("anonymize", bool), "UNDERLINE": ("underline", _underline_config),
-                 "APP": ("app", str), "CMS": ("cms", str), "CONNECTIONS": ("connections", float), "DAYS": ("days", int), "DISK_MIN": ("disk_min", float), "DNS_MAX": ("dns_max", int), "HEALTH": ("health", float), "HIDE_IP": ("hide_ip", bool), "HIGHLIGHT": ("highlight", str), "IDLE": ("idle", float),
+                 "APP": ("app", str), "CMS": ("cms", str), "CONNECTIONS": ("connections", float), "DAYS": ("days", int), "DISK_MIN": ("disk_min", float), "DNS_MAX": ("dns_max", int), "HEALTH": ("health", float), "HIDE_ADDONS": ("hide_addons", bool), "HIDE_IP": ("hide_ip", bool), "HIGHLIGHT": ("highlight", str), "IDLE": ("idle", float),
                  "LINES": ("lines", int), "LOG_DIR": ("log_dir", str), "LOG_KEEP_DAYS": ("log_keep_days", int), "MIN": ("min", bool), "MODULES_CUSTOM": ("modules_custom", bool), "MODULES_SORT": ("modules_sort", str), "MODULES_STARTUP": ("modules_startup", bool), "NAMESPACE": ("namespace", str),
                  "NO_BANNED": ("no_banned", bool), "NOT_FOUND": ("not_found", bool), "NO_BAN_PROMPT": ("no_ban_prompt", bool), "NO_CACHE": ("no_cache", bool), "NO_HISTORY": ("no_history", bool),
                  "NO_ISP": ("no_isp", bool), "NO_KEYS": ("no_keys", bool), "NO_LOG_FILE": ("no_log_file", bool), "NO_PRESENCE": ("no_presence", bool),
@@ -241,6 +241,10 @@ ERROR_WORDS_RE = re.compile(r"Traceback \(most recent call last\):|\b[A-Za-z_][\
                             r"\bout of memory\b|\bKilled\b|Connection refused|\btimed out\b|\bWorker [\w(). ]*timeout")
 # --min: usual noise lines, discarded EXCEPT if it is an error (level WARNING, ERROR or CRITICAL, or a trace)
 MIN_EXCLUDED_RE = re.compile(r"^(?:odoo\.addons\.mail\.models\.fetchmail: |odoo\.addons\.base\.models\.ir_cron: Job 'Mail: Fetchmail Service)")
+# 1.97 --hide-addons: INFO / DEBUG lines of the Odoo modules (logger odoo.addons.*) are hidden EXCEPT e-mails being sent and generated files (PDF reports…);
+# errors (WARNING, ERROR, CRITICAL, traces) are never hidden. Searched on "logger: text".
+ADDONS_KEEP_RE = re.compile(r"successfully sent|\bmail_mail\b|\bir_mail_server\b|mail delivery|\bsmtp\b|ir_actions_report|wkhtmltopdf|\bpdf\b|\.(?:pdf|xlsx?|docx?|csv|zip)\b"
+                            r"|report has been generated|\breport\b.*\bgenerat", re.IGNORECASE)
 # Access request (nginx / werkzeug journal): the URL and the HTTP code
 REQUEST_RE = re.compile(r'"(?:GET|POST|HEAD|PUT|DELETE|OPTIONS|PATCH|CONNECT|TRACE)\s(\S+).*"\s(\d{3})\b')
 # 3-letter methods (GET, PUT): one more space after them so that their URL aligns with that of POST / HEAD (4 letters)
@@ -575,7 +579,7 @@ def config_values(options, verbose, widths=None):
     yes_no = lambda b: "yes" if b else "no"
     sort_by = options["modules_sort"]
     width, truncated = widths if widths else (None, None)
-    res = {"HEALTH": f"{options['health']:g}", "HIDE_IP": yes_no(not options["keep_ip"]), "HIGHLIGHT": ",".join(options["highlight_words"]) or "none",
+    res = {"HEALTH": f"{options['health']:g}", "HIDE_ADDONS": yes_no(options.get("hide_addons")), "HIDE_IP": yes_no(not options["keep_ip"]), "HIGHLIGHT": ",".join(options["highlight_words"]) or "none",
            "LEVEL": str(options["level"]), "MIN": yes_no(options["minimal"]), "MODULES_CUSTOM": yes_no(sort_by[2]), "MODULES_SORT": ("-" if sort_by[1] else "") + sort_by[0],
            "NOT_FOUND": yes_no(options["not_found"]), "VERBOSE": yes_no(verbose),
            "ACCENTUATE_GROUP": options.get("group") or "", "CHIME": "" if options.get("chime") is None else str(options["chime"]),
@@ -730,6 +734,11 @@ class Line:
     def discard_in_min(self):
         return (self.level in ("INFO", "DEBUG") and not self.err()
                 and bool(MIN_EXCLUDED_RE.match(f"{self.logger}: {self.text}")))
+
+    def discard_addons(self):
+        """--hide-addons: INFO / DEBUG line of an Odoo module (logger odoo.addons.*) discarded, EXCEPT errors, e-mails sent and generated files (PDF…)."""
+        return (self.level in ("INFO", "DEBUG") and (self.logger or "").startswith("odoo.addons.") and not self.err()
+                and not ADDONS_KEEP_RE.search(f"{self.logger}: {self.text}"))
 
 
 # ------------------------------------------------------------------------------------------------------------------
@@ -4157,7 +4166,7 @@ KEYS = {b"\x07": "g", b"\x14": "t"}      # Ctrl-G: dashboard; Ctrl-T: only what 
 # Simple keys of the menu (? or h): toggles and settings of the command-line options, and a few commands
 MENU_KEYS = {b"?": "help", b"h": "help", b"i": "i", b"m": "m", b"n": "n", b"r": "r", b"s": "s", b"v": "v", b"d": "dns", b"t": "dnst", b"H": "H", b"o": "o", b"V": "V",
                 b"S": "S", b"I": "I", b"b": "b", b"a": "accent", b"c": "chime", b"e": "exclude", b"T": "report", b"E": "E", b"w": "watch", b"D": "D", b"l": "highlight", b"M": "modules", b"C": "save", b"L": "recent",
-                b"G": "G", b"P": "latency", b"A": "anonymize", b"R": "record", b"N": "step"}
+                b"G": "G", b"P": "latency", b"A": "anonymize", b"R": "record", b"N": "step", b"q": "addons"}
 MENU_KEYS.update({str(n).encode(): f"level{n}" for n in range(1, LEVEL_MAX + 1)})   # 1 to 9: dashboard at the chosen level
 KEYS.update(MENU_KEYS)
 
@@ -4682,7 +4691,7 @@ def follow(cmd, people, resolver, options, output):
             return
         reminder_form, lines = Formatting(options["minimal"], address_width(), options["slow"]), []
         for _, old_one, _ in earlier[-50:]:
-            if options["minimal"] and old_one.discard_in_min():
+            if (options["minimal"] and old_one.discard_in_min()) or (options["hide_addons"] and old_one.discard_addons()):
                 continue
             renderings = {}
             for _, _, i in find_ips(old_one.text):
@@ -4953,6 +4962,7 @@ def follow(cmd, people, resolver, options, output):
                                       ("t", "--dns-max-truncate N", "width AND limit of the names column (the rest is cut, « … »)"),
                                       ("e", "--exclude-ip IP,IP", f"hide the lines of these addresses or networks [{', '.join(str(r) for r in options['exclude']) or 'none'}]"),
                                       ("H", "--health MIN", f"minutes between two health alerts, 0 = never [{options['health']:g}]"),
+                                      ("q", "--hide-addons", f"hide the INFO lines of the Odoo modules (odoo.addons.*), except errors, e-mails sent and generated files (PDF…) [{yes_no(options['hide_addons'])}]"),
                                       ("i", "--hide-ip", f"hide the IP address [{yes_no(not options['keep_ip'])}]"),
                                       ("l", "--highlight WORDS", f"highlight these words in cyan (+word adds, -word removes; comma = several, none = nothing) [{', '.join(options['highlight_words']) or 'none'}]"),
                                       ("m", "--min", f"the minimum of information [{yes_no(options['minimal'])}]"),
@@ -5116,6 +5126,10 @@ def follow(cmd, people, resolver, options, output):
                     output.anonymize = output.anonymiser
                     write_out(["  --anonymize : yes — pseudonyms IP-xxxxxx, usager-xxxxxx, membre-xxxxxx (the following lines)"])
             options["anonymize"] = output.anonymize is not None
+        elif key_value == "addons":
+            options["hide_addons"] = not options["hide_addons"]
+            hidden = state.get("addons_hidden", 0)
+            write_out([f"  --hide-addons : {yes_no(options['hide_addons'])} (the following lines)" + (f"; lines hidden so far: {hidden}" if hidden else "")])
         elif key_value == "m":
             options["minimal"] = form.minimal = not options["minimal"]
             write_out([f"  --min : {yes_no(options['minimal'])} (the following lines)"])
@@ -5368,6 +5382,9 @@ def follow(cmd, people, resolver, options, output):
             release_deferred("could not serialize access" in L.text)      # the cause of the previous line is this one
             if options["minimal"] and L.discard_in_min():
                 continue
+            if options["hide_addons"] and L.discard_addons():
+                state["addons_hidden"] = state.get("addons_hidden", 0) + 1
+                continue
             if is_failed_request(L):                 # written with the next line, which says whether the error is harmless
                 deferred[0] = (L, renderings_of(L, results, pays))
                 continue
@@ -5542,6 +5559,8 @@ def main():
     parser.add_argument("--health", type=float, default=HEALTH_DEFAULT, metavar="MIN",
                         help=f"Every MIN minutes, IF something is wrong (5xx or Odoo errors, failed e-mails, slow requests, greedy program), show the health and "
                              f"details in the stream (default: {HEALTH_DEFAULT:g}; 0 = never)")
+    parser.add_argument("--hide-addons", action="store_true",
+                        help="Hide the INFO lines of the Odoo modules (odoo.addons.*), except errors (WARNING, ERROR, traces), e-mails sent and generated files (PDF reports…); q key on the fly")
     parser.add_argument("--hide-ip", action="store_true", help="Do not show the IP address in brackets after the name")
     parser.add_argument("--highlight", default=None, metavar="WORDS",
                         help=f"Words highlighted in cyan in the displayed lines (comma = several; an ALL-CAPS word, like POST, must be in caps in the line; others are case-insensitive); "
@@ -5768,7 +5787,7 @@ def main():
         banned_ips = Bans()
         banned_ips.start()
         eprint(banned_ips.summary())
-    options = {"keep_ip": not args.hide_ip, "minimal": args.min, "lines": args.lines, "recap": args.recap,
+    options = {"keep_ip": not args.hide_ip, "minimal": args.min, "hide_addons": args.hide_addons, "lines": args.lines, "recap": args.recap,
                "slow": max(0.0, args.slow), "only": [t.lower() for t in (args.only or []) if t], "highlight_words": read_highlight(args.highlight), "highlight_pattern": highlight_pattern(read_highlight(args.highlight)), "suspect": args.suspect, "disk_min": max(0.0, args.disk_min), "connections": max(0.0, min(100.0, args.connections)), "external_ip": not args.no_isp, "odoo_journal": profile.get("ODOO_LOGFILE"), "profile": profile, "service": service, "diag_hosts": args.diagnose_host, "not_found": args.not_found, "summary": args.summary, "banned_ips": banned_ips,
                "presence": Presence(args.idle) if is_odoo and not args.no_presence else None, "health": args.health, "keys": not args.no_keys and not args.no_follow, "app": profile.get("APP_NAME"), "propose_ban": not args.no_ban_prompt, "watch": [t.strip().lower() for t in (args.watch or "").split(",") if t.strip()], "agents": not args.no_user_agent and not args.no_follow, "acces_logs": profile.get("ACCESS_LOGS"),
                "exclude": exclusions, "chime": args.chime, "group": args.accentuate_group if group_members else None, "membres": group_members,
@@ -5790,7 +5809,7 @@ def main():
         except Exception:                               # noqa: BLE001 — unreadable configuration: the default Odoo ports are not guessed, only 80 / 443
             record_ports = {}
     filters = [f"--only {', '.join(options['only'])}"] if options["only"] else []
-    filters += [name for name, active in (("--suspect", args.suspect), ("--not-found", args.not_found), ("--min", args.min)) if active]
+    filters += [name for name, active in (("--suspect", args.suspect), ("--not-found", args.not_found), ("--min", args.min), ("--hide-addons", args.hide_addons)) if active]
     options.update(record_max=args.record_max or 0.0, record_test_log=args.record_test_log, namespace=ns, record_ports=record_ports, filters_text=" ".join(filters),
                    record_logs=[f for f in OrderedDict.fromkeys(record_logs) if f and os.path.isfile(f)], journal_folder=journal_folder(args.log_dir, False))
     if args.record_test_log:
