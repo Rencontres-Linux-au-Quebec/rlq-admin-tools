@@ -205,7 +205,7 @@ _config_signaler() {
 }
 
 # config_creer_defaut PROGRAMME ARGUMENTS… : premier démarrage — si AUCUN fichier de la règle n'existe, crée celui du système (/etc/default/PROGRAMME.conf, root) ou, sans les
-# droits, le fichier personnel (~/.PROGRAMME.conf) : copie de doc/en/PROGRAMME.conf.example (CFG_DOSSIER_DOC, sinon le dossier doc/en/ du programme) dont toutes les options sont en
+# droits, le fichier personnel (~/.PROGRAMME.conf) : copie de doc/en/PROGRAMME.conf.example (CFG_DOSSIER_DOC désigne le dossier doc/, sinon celui du programme) dont toutes les options sont en
 # commentaire. Rien n'est créé avec -c/--config, --help / --version / --changelog, si NGINX_TOOLS_CONFIG_CREER=0 ou si le modèle est absent. Chemin créé : CFG_CREE.
 CFG_CREE=""
 config_creer_defaut() {
@@ -230,7 +230,7 @@ config_creer_fichier() {
         for chemin in "$systeme" "$perso"; do [[ -f "$chemin" ]] && config_rafraichir "$programme" "$chemin"; done
         return 0
     fi
-    modele="${CFG_DOSSIER_DOC:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." 2>/dev/null && pwd)/doc/en}/$programme.conf.example"
+    modele="${CFG_DOSSIER_DOC:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." 2>/dev/null && pwd)/doc}/${CFG_LANGUE_MODELE:-en}/$programme.conf.example"
     [[ -r "$modele" ]] || return 0
     for chemin in "$systeme" "$perso"; do
         [[ -d "$(dirname "$chemin")" && -w "$(dirname "$chemin")" ]] || continue
@@ -257,7 +257,7 @@ config_creer_fichier() {
 config_rafraichir() {
     local programme="$1" chemin="$2" modele temporaire ligne premiere=1
     [[ "${NGINX_TOOLS_CONFIG_MAJ_AUTO:-}" == "0" ]] && return 0
-    modele="${CFG_DOSSIER_DOC:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." 2>/dev/null && pwd)/doc/en}/$programme.conf.example"
+    modele="${CFG_DOSSIER_DOC:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." 2>/dev/null && pwd)/doc}/${CFG_LANGUE_MODELE:-en}/$programme.conf.example"
     [[ -r "$modele" && -r "$chemin" && -w "$chemin" && -w "$(dirname "$chemin")" ]] || return 0
     grep -qE '^[[:space:]]*[A-Za-z_][A-Za-z0-9_]*[[:space:]]*=' "$chemin" && return 0          # une option active : fichier modifié par l'utilisateur
     tail -c "$(wc -c < "$modele")" "$chemin" 2>/dev/null | cmp -s - "$modele" && return 0       # déjà au modèle actuel

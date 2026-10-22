@@ -225,7 +225,7 @@ while [[ $# -gt 0 ]]; do
                 exit 1
             fi
             if [[ -t 1 ]]; then
-                changelog_section | sed -E "s/^(## [0-9]+\.[0-9]+\.[0-9]{8}\.[0-9]{6}.*)$/$(printf '\x1b[1;36m')\1$(printf '\x1b[0m')/" | (trap '' PIPE; less -R 2>/dev/null || cat) || true  # lecteur ferme plus tot (| head) : SIGPIPE attendu, pas une erreur
+                changelog_section | sed -E "s/^(### [0-9]+\.[0-9]+\.[0-9]{8}\.[0-9]{6}.*)$/$(printf '\x1b[1;36m')\1$(printf '\x1b[0m')/" | (trap '' PIPE; less -R 2>/dev/null || cat) || true  # lecteur ferme plus tot (| head) : SIGPIPE attendu, pas une erreur
             else
                 changelog_section || true  # lecteur ferme plus tot (| head) : SIGPIPE attendu, pas une erreur
             fi

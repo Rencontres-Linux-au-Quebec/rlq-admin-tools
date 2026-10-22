@@ -175,7 +175,7 @@ while [[ $# -gt 0 ]]; do
         --db) ONLY_DB="${2:-}"; shift 2 ;;
         --dry-run) DO_DRY_RUN=1; shift ;;
         --force) DO_FORCE=1; shift ;;
-        -h|--help) sed -n '/^# Usage :/,/^[^#]/p' "$SCRIPT_PATH" | sed '$d; s/^# \{0,1\}//'; exit 0 ;;
+        -h|--help) sed -n '/^# Usage :/,/^# =/p' "$SCRIPT_PATH" | sed '$d; s/^# \{0,1\}//'; exit 0 ;;
         --lang) shift 2 ;;                     # lu avant (apps/_i18n.sh)
         --module)
             if (( CLI_MODULES == 0 )); then MODULES_MOTIFS=""; CLI_MODULES=1; fi

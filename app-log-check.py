@@ -155,7 +155,7 @@ def show_changelog():
         content = changelog_section(path, "app-log-check.py")
     if sys.stdout.isatty():
         content = re.sub(
-            r"^(## [0-9]+\.[0-9]+\.[0-9]{8}\.[0-9]{6}.*)$",
+            r"^(### [0-9]+\.[0-9]+\.[0-9]{8}\.[0-9]{6}.*)$",
             "\x1b[1;36m\\1\x1b[0m",
             content,
             flags=re.MULTILINE,

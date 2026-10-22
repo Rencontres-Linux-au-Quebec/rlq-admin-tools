@@ -1,4 +1,4 @@
-"""Documentation bilingue (docs/) : mêmes pages en anglais et en français, une page par programme, aide réelle insérée, XML du module de pages Site web valide,
+"""Documentation bilingue (doc/en, doc/fr) : mêmes pages en anglais et en français, une page par programme, aide réelle insérée, XML du module de pages Site web valide,
 aucune donnée personnelle dans les pages produites."""
 # Environnement de ces tests, lu par run-all.sh : commun (tous les serveurs), odoo ou bbb.
 ENVIRONNEMENT = "commun"   # tous les serveurs (Odoo et BigBlueButton)
@@ -46,7 +46,7 @@ def donnee_personnelle(fichier, ligne):
 
 
 def charger():
-    spec = importlib.util.spec_from_file_location("build_docs_t", script_path("docs/build_docs.py"))
+    spec = importlib.util.spec_from_file_location("build_docs_t", script_path("doc/build_docs.py"))
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module

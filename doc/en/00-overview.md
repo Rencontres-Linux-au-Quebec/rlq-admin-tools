@@ -24,12 +24,10 @@
 
 Shared components live in `apps/` (profile detection, report generator, i18n, anonymizer, RDAP/whois, IP cache, mail…). They are internal: do not run them directly except `apps/_anonymiser.py` (a filter).
 
-## Folders `doc/` and `docs/`
+## Folders `CHANGELOG.md` and `doc/`
 
-The two folders have different readers:
-
-* **`doc/`** — files that **the programs themselves use** and that are installed with them: the change logs `NAME.changelog.txt` (shown by `--changelog`), the configuration templates `NAME.conf.example` (copied to `/etc/default/NAME.conf` on first run, and again while that file has no active option), `nginx-tools.version` (version of the archive, checked by `zip-versions.py`), and the maintainers' technical notes (`CONTEXTE.md`, `DROITS.md`, e-mail and BigBlueButton notes). Deleting it breaks `--changelog` and the creation of the configuration files.
-* **`docs/`** — the **administrator manual**, bilingual Markdown sources (`docs/en/`, `docs/fr/`, same file names) and `build_docs.py`, which inserts each program's real `--help` and builds the GitHub pages and the Odoo website module `rlq_tools_docs`. No program reads it: it is not needed on a server.
+* **`CHANGELOG.md`** (repository root) — the change log of every program: one section per program (`## NAME`), most recent version first. `--changelog` shows only the section of the program that is run. Earlier history is archived outside the repository.
+* **`doc/`** — everything else, in one folder with a sub-folder per language: `doc/en/` and `doc/fr/` hold the administrator manual (Markdown, same file names in both languages), `build_docs.py` (which inserts each program's real `--help` and builds the GitHub pages and the Odoo website module `rlq_tools_docs`), and the configuration templates `NAME.conf.example` (identical in `en/` and `fr/`, kept in sync; the English copy is the one read on first run). `doc/` also holds the maintainers' notes (`CONTEXTE.md`, `DROITS.md`, e-mail and BigBlueButton notes) and `nginx-tools.version`. No program needs the manual on a server.
 
 ## Requirements
 
@@ -53,7 +51,7 @@ Always deploy the program archive and the test archive **together** (same MAJOR.
 
 **First line.** Every run prints `NAME vVERSION` first (even `--help`). Data-producing or streaming programs print it on standard error.
 
-**Versions.** `MAJOR.MINOR.YYYYMMDD.HHMMSS` (local time). `--version` prints it; `--changelog` shows `doc/NAME.changelog.txt`, newest first, with version numbers colored on a terminal only.
+**Versions.** `MAJOR.MINOR.YYYYMMDD.HHMMSS` (local time). `--version` prints it; `--changelog` shows the section `## NAME` of `CHANGELOG.md`, newest first, with version numbers colored on a terminal only.
 
 **Configuration layering.** `/etc/default/NAME.conf` is read first, then `~/.NAME.conf` if it exists (the last one wins), then the command line (highest priority). The personal file always ends with `.conf`: an old personal file with the `.cfg` extension (previous rule) is renamed to `.conf` automatically at the next run, with a notice; if both exist, the `.conf` is read and the old one is reported, never merged nor deleted. `-c/--config FILE` reads that file **alone** and it must exist. Files are *parsed, never executed*; only known keys are kept. At start-up each program prints which files it read, with their modification date and a one-line summary of the important options. A default file is created on first run from `doc/NAME.conf.example`. A file in which **no option is active** (everything still in comments: never changed) is rewritten from the current template at the next run when the template changed (new keys, new comments); a file with at least one active `KEY=value` line is never touched (`NGINX_TOOLS_CONFIG_MAJ_AUTO=0`: never rewrite). Shared keys (`ANONYMIZE`, `LOG_KEEP_DAYS`, language…) live in `/etc/default/app-default.conf`.
 
