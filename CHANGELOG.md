@@ -49,6 +49,27 @@ Earlier history was archived outside this repository when this file was created.
 
 ## app-log-live.py
 
+### 1.100.20261022.133552
+
+- Title: Runs without root (sudo -n for the advanced commands); PostgreSQL mandatory for the R recording; system context in the archive; menu options in alphabetical order.
+- Reason: request: the program must run with a non-root account and use sudo before the advanced functions; the recording must keep the database samples (writes, locks), so PostgreSQL is mandatory; the archive must record whether the program ran as root, the operating system and the tools (psql 18.6 was not recorded); the menu options sorted alphabetically.
+- Changes:
+  - privileged() and lancer_root(): fail2ban-client and ipset run as they are when root, through « sudo -n » otherwise (never asks for a password).
+  - R recording refused with an explicit message without psql, without an Odoo database, or without PostgreSQL access through « sudo -n -u postgres ».
+  - Archive: context/system.txt (root or not, sudo, operating system, kernel, Python and tool versions; no user name); db/writes-BASE.log (writes per activity table at each sample).
+  - Journal of the service recorded through sudo -n when not root.
+  - Menu (? key): options sorted alphabetically by option name.
+  - Files: app-log-live.py; apps/_record.py 1.2; apps/_odoo_db.py 1.20; apps/_connexions.py 1.2; nginx-tools-tests/fixtures/app-log-live-record-exemple-tests-en-dev.tar.xz (anonymized recording with the context reported by the operator).
+- Bugs fixed:
+  - Symptom: psql and runuser were called only as root; with a non-root account there were no database samples and no context in the archive.
+  - Diagnosis: runuser needs root.
+  - Correction: sudo -n -u postgres for an account that is not root; the advanced commands go through sudo -n.
+- Guard rails and edge cases:
+  - Without sudo and without root, the commands fail as before, and the messages say so.
+  - The recording never starts blind: without the database samples it is refused.
+- Checks: py_compile; --version; test_app_log_live; test_record; test_i18n; test_conventions; test_cles_modeles; test_config_defaut.
+- Action required: to use the recording and the advanced functions without root, allow without password for the account: « sudo -n -u postgres psql », « fail2ban-client », « ipset », « journalctl ». The PostgreSQL client (postgresql-client) must be installed.
+
 ### 1.99.20261022.122804
 
 - Title: Steps line (F key, --steps-line) and a 60-minute maximum for test recordings.
@@ -289,6 +310,30 @@ Earlier history was archived outside this repository when this file was created.
 
 ## odoo-update-module.sh
 
+### 1.15.20261022.133552
+
+- Title: Activity guard: no module update while the site writes; 60-minute wait; the update is cancelled unless --force-busy; new --check-activity.
+- Reason: request: update the modules only when the site is idle. A single visitor can write (survey answer, chat message, registration, contact form), and the former guard, which counted visitors only, let such an update through.
+- Changes:
+  - Guard (site_reasons, wait_for_quiet_site): the site is busy while one of these holds: active visitors (BUSY_VISITORS threshold); write requests in the nginx logs during the last ACTIVITY_WINDOW seconds (POST, PUT, PATCH, DELETE, except the known read-only requests of Odoo); open PostgreSQL sessions on the database; write locks on ir_cron; writes in the activity tables (counters of pg_stat_user_tables, sampled twice ACTIVITY_SAMPLE seconds apart).
+  - WAIT_QUIET default: 60 minutes (was 15). 0 = a single check.
+  - At the end of the wait the update is CANCELLED (exit 3, nothing stopped) instead of going ahead. --force-busy (FORCE_BUSY=yes) runs it anyway.
+  - New option --check-activity: state of the site now, changes nothing; exit 0 = quiet, 3 = busy.
+  - PostgreSQL commands run through runuser when the program runs as root, through « sudo -n -u postgres » otherwise (no root needed).
+  - The regular expressions of the nginx logs accept several spaces between columns.
+  - Test hooks: ODOO_UPDATE_MODULE_NOW (clock), ODOO_UPDATE_MODULE_PG_AS (command used in place of sudo), ODOO_UPDATE_MODULE_SAMPLE, ODOO_UPDATE_MODULE_WINDOW.
+  - Calm-site messages state the threshold instead of claiming "no active visitor" when one visitor is below it.
+  - Files: odoo-update-module.sh; lang/odoo-update-module.en.po; doc/en and doc/fr odoo-update-module.conf.example and 09-odoo-update-module.md; nginx-tools-tests/test_odoo_update_module.py; nginx-tools-tests/fixtures/ (anonymized recording used by the tests).
+- Bugs fixed:
+  - Symptom: after WAIT_QUIET minutes with visitors still active, the update went ahead ("mise à jour quand même"), even during writes.
+  - Diagnosis: the wait looked at visitors only, and the end of the wait forced the update.
+  - Correction: the guard looks at all the activity above; the update is cancelled unless --force-busy.
+- Guard rails and edge cases:
+  - Unreadable nginx logs, or unreadable PostgreSQL (psql missing, sudo refused): counted as BUSY, never a blind update.
+  - Read-only POST requests of Odoo (lists, views, reads, bus) are not writes; any other POST counts as a write.
+- Checks: test_odoo_update_module (guard tests replayed on the anonymized recording: busy, calm, cancelled without --force-busy, forced with it, unreadable database counted as busy); test_i18n; test_conventions; test_cles_modeles; test_config_defaut; test_config_commune.
+- Action required: if your configuration keeps WAIT_QUIET=15, it still waits 15 minutes; the new default is 60. The account that runs the update, when it is not root, needs « sudo -n -u postgres psql » without password (sudoers), otherwise the update is cancelled with a message.
+
 ### 1.14.20261020.211944
 
 - Current version. Earlier history archived outside the repository.
@@ -354,6 +399,12 @@ Earlier history was archived outside this repository when this file was created.
 
 ## apps/_connexions.py
 
+### 1.2.20261022.133552
+
+- Title: PostgreSQL query of the connections through sudo -n when the account is not root.
+- Changes: POSTGRES_RUN (see apps/_odoo_db.py 1.20).
+- Action required: none.
+
 ### 1.1.20261019.150215
 
 - Current version. Earlier history archived outside the repository.
@@ -413,6 +464,12 @@ Earlier history was archived outside this repository when this file was created.
 
 ## apps/_odoo_db.py
 
+### 1.20.20261022.133552
+
+- Title: PostgreSQL queries run as the postgres user through sudo -n when the account is not root.
+- Changes: POSTGRES_RUN (runuser when root, « sudo -n -u postgres » otherwise) replaces the runuser prefix of the six queries.
+- Action required: none beyond the sudoers rules of app-log-live.py 1.100.
+
 ### 1.19.20261020.103939
 
 - Current version. Earlier history archived outside the repository.
@@ -430,6 +487,13 @@ Earlier history was archived outside this repository when this file was created.
 - Current version. Earlier history archived outside the repository.
 
 ## apps/_record.py
+
+### 1.2.20261022.133552
+
+- Title: PostgreSQL samples mandatory; context/system.txt; writes per table; sudo -n for the journal of the service.
+- Changes: start() refuses the recording without psql, without a database, or without PostgreSQL access; context/system.txt (uid, sudo, operating system, kernel, Python, tool versions, no user name); db/writes-BASE.log (write counters per activity table at each sample); privileged() for the journal of the service.
+- Files: apps/_record.py; nginx-tools-tests/test_record.py.
+- Action required: none beyond the sudoers rules of app-log-live.py 1.100.
 
 ### 1.1.20261022.083937
 

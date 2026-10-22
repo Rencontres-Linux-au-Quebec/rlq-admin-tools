@@ -104,7 +104,7 @@ from urllib.parse import unquote
 from collections import Counter, OrderedDict
 from concurrent.futures import Future
 
-__version__ = "1.99.20261022.122804"
+__version__ = "1.100.20261022.133552"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
@@ -485,6 +485,19 @@ def lancer(cmd, delay=10):
     except (OSError, subprocess.TimeoutExpired):
         return 127, ""
     return r.returncode, r.stdout
+
+
+def privileged(cmd):
+    """1.100: a command that needs root (fail2ban-client, ipset, journalctl of a protected log…): run as it is under root, through « sudo -n » otherwise
+    (never a password question; without sudo, the command runs as it is and fails as it would)."""
+    if os.geteuid() == 0 or shutil.which("sudo") is None:
+        return cmd
+    return ["sudo", "-n"] + cmd
+
+
+def lancer_root(cmd, delay=10):
+    """lancer() for the advanced commands that need root: see privileged()."""
+    return lancer(privileged(cmd), delay)
 
 
 def load_module(name):
@@ -3014,7 +3027,7 @@ def is_failed_request(L):
 
 class Bans:
     """CURRENTLY banned addresses: fail2ban (jails) and CrowdSec (ipsets crowdsec-blocklist-v4 / -v6 of sync-crowdsec-blocklist.sh; the "nomatch" entries are
-    exceptions). Read at startup then every 60 s. Root is needed; without fail2ban-client or readable ipset: no label, never an error."""
+    exceptions). Read at startup then every 60 s. Root (or « sudo -n » for the advanced commands) is needed; without fail2ban-client or readable ipset: no label, never an error."""
     DELAY = 60
     IPSETS = ("crowdsec-blocklist-v4", "crowdsec-blocklist-v6")
 
@@ -3026,19 +3039,19 @@ class Bans:
 
     @staticmethod
     def read_fail2ban():
-        code, output = lancer(["fail2ban-client", "banned"], 10)
+        code, output = lancer_root(["fail2ban-client", "banned"], 10)
         if code == 0:
             try:                              # fail2ban >= 0.11: "[{'jail': ['1.2.3.4']}, …]"
                 return {ipaddress.ip_address(a) for jail in ast.literal_eval(output.strip() or "[]") for addresses in jail.values() for a in addresses}
             except (ValueError, SyntaxError, AttributeError, TypeError):
                 pass
-        code, output = lancer(["fail2ban-client", "status"], 10)             # fallback: "Jail list: a, b" then "Banned IP list: …" per jail
+        code, output = lancer_root(["fail2ban-client", "status"], 10)             # fallback: "Jail list: a, b" then "Banned IP list: …" per jail
         if code != 0:
             return None
         m = re.search(r"Jail list:\s*(.*)", output)
         ips = set()
         for jail in [j.strip() for j in (m.group(1).split(",") if m else []) if j.strip()]:
-            mm = re.search(r"Banned IP list:\s*(.*)", lancer(["fail2ban-client", "status", jail], 10)[1])
+            mm = re.search(r"Banned IP list:\s*(.*)", lancer_root(["fail2ban-client", "status", jail], 10)[1])
             for a in (mm.group(1).split() if mm else []):
                 try:
                     ips.add(ipaddress.ip_address(a))
@@ -3050,7 +3063,7 @@ class Bans:
     def read_ipsets(cls):
         host_names, networks, exceptions, was_read = set(), [], [], False
         for name in cls.IPSETS:
-            code, output = lancer(["ipset", "list", name], 20)
+            code, output = lancer_root(["ipset", "list", name], 20)
             if code != 0:
                 continue
             was_read, member_list = True, False
@@ -4988,7 +5001,7 @@ def follow(cmd, people, resolver, options, output):
             lines.append(f"  {bold(key):<{6 + len(bold('') )}}  {text}")
         lines.append("  Command-line options, changed on the fly ([current state]):")
         chimes = {0: "any error (4xx, 5xx, Odoo ERROR)", 1: "4xx", 2: "5xx and 4xx"}
-        for key, option, text in (("a", "--accentuate-group NAME", f"contacts of the Odoo tag in bold white on dark blue [{options['group'] or 'none'}"
+        for key, option, text in sorted((("a", "--accentuate-group NAME", f"contacts of the Odoo tag in bold white on dark blue [{options['group'] or 'none'}"
                                                                       + (f", {len(options['membres'])} account(s)]" if options["group"] else "]")),
                                       ("A", "--anonymize", f"pseudonyms on screen for the addresses, e-mails and names (membre-4f2a9c); the daily log keeps everything [{yes_no(output.anonymize is not None)}]"),
                                       ("c", "--chime N", f"beep on error: 0 all, 1 = 4xx, 2 = 5xx and 4xx [{chimes.get(options['chime'], 'none')}]"),
@@ -5010,7 +5023,7 @@ def follow(cmd, people, resolver, options, output):
                                       ("T", "--time-report MIN", f"report like Ctrl-T every MIN minutes, 0 = never [{options['report_min']:g}]"),
                                       ("v", "--verbose", f"show every external command [{yes_no(VERBOSE)}]"),
                                       ("V", "--version", "program version"),
-                                      ("w", "--watch TEXT", f"watch the requests whose URL contains the text: duration, errors, slowness [{', '.join(options['watch']) or 'none'}]")):
+                                      ("w", "--watch TEXT", f"watch the requests whose URL contains the text: duration, errors, slowness [{', '.join(options['watch']) or 'none'}]")), key=lambda item: item[1].lstrip("-")):
             lines.append(f"    {bold(key)}  {option:<22} {text}")
         lines.append("  Others:")
         lines.append(f"    {bold('G')}  number of members of each Odoo RLQ* group (also in the final summary, Ctrl-C)")
