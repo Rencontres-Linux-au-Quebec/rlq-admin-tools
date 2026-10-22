@@ -313,10 +313,9 @@ class EnvTest(unittest.TestCase):
         langues = os.path.join(SCRIPTS_DIR, "lang")           # catalogues de traduction (lang/PROGRAMME.en.tsv)
         if os.path.isdir(langues):
             shutil.copytree(langues, os.path.join(os.path.dirname(dst), "lang"), dirs_exist_ok=True)
-        base = os.path.splitext(name)[0]
-        cl = script_path(f"doc/{base}.changelog.txt")
+        cl = script_path("CHANGELOG.md")                      # journal unique, à la racine du dépôt (copié à côté du programme)
         if os.path.isfile(cl):
-            shutil.copy(cl, self.path("prog", "doc", f"{base}.changelog.txt"))
+            shutil.copy(cl, os.path.join(os.path.dirname(dst), "CHANGELOG.md"))
         return dst
 
     # --- lancement -----------------------------------------------------------------------------------------------

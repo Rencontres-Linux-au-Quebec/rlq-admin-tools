@@ -140,7 +140,7 @@ while [[ $# -gt 0 ]]; do
             fi
             exit 0
             ;;
-        -h|--help) sed -n '/^# Usage :/,/^[^#]/p' "$SCRIPT_PATH" | sed '$d; s/^# \{0,1\}//'; exit 0 ;;
+        -h|--help) sed -n '/^# Usage :/,/^# =/p' "$SCRIPT_PATH" | sed '$d; s/^# \{0,1\}//'; exit 0 ;;
         --report-err) shift ;;                 # traité avant (apps/_rapport.sh) ; accepté ici avec --help, --version…
         *) echo "Argument inconnu: $1 (voir --help)" >&2; exit 1 ;;
     esac

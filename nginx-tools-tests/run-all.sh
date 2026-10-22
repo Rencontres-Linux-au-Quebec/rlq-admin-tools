@@ -72,7 +72,7 @@ if [[ -r "$PROG_DIR/apps/_i18n.sh" ]]; then
     [[ -n "${NGINX_TOOLS_I18N:-}" ]] && export NGINX_TOOLS_LANG=fr
     # Fichier de configuration (/etc/default/run-all.conf PUIS ~/.run-all.conf ; -c/--config FICHIER : ce fichier seul) : valeurs par défaut des options.
     # shellcheck disable=SC2034  # lue par apps/_i18n.sh (config_creer_defaut)
-    CFG_DOSSIER_DOC="$TESTS_DIR/doc/en"; config_lire run-all "$@"        # premier démarrage : crée le fichier de configuration (modèle : doc/run-all.conf.example)
+    CFG_DOSSIER_DOC="$TESTS_DIR/doc"; config_lire run-all "$@"        # premier démarrage : crée le fichier de configuration (modèle : doc/run-all.conf.example)
     export NGINX_TOOLS_CONFIG_CREER=0                                  # les programmes testés, eux, ne créent jamais de fichier dans le vrai /etc/default
     config_defaut TOUS_ENVIRONNEMENTS ALL_ENVIRONMENTS --all-environments booleen
     config_defaut APP_FORCE APP --app texte

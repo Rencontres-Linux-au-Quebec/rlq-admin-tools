@@ -4694,7 +4694,7 @@ def show_status():
     else:
         print(f"  {BAD}NOT configured: alerts only go to the system journal{END_BAD} (journalctl -t web-monitor).")
         print(f"  To enable it: set SMTP_HOST and NOTIFY_EMAIL_TO in {'/etc/default/app-health-check.conf'}")
-        print("  (see doc/app-health-check.conf.example for the other SMTP keys).")
+        print("  (see doc/en/app-health-check.conf.example for the other SMTP keys).")
 
     print()
     print("REPORTS")

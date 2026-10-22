@@ -24,12 +24,10 @@
 
 Les composants partagés sont dans `apps/` (détection du profil, générateur de rapport, i18n, anonymiseur, RDAP/whois, cache d'IP, courriel…). Ils sont internes : ne pas les lancer directement, sauf `apps/_anonymiser.py` (un filtre).
 
-## Dossiers `doc/` et `docs/`
+## Fichier `CHANGELOG.md` et dossier `doc/`
 
-Les deux dossiers n'ont pas les mêmes lecteurs :
-
-* **`doc/`** — les fichiers **dont les programmes eux-mêmes se servent**, installés avec eux : les journaux de modifications `NOM.changelog.txt` (affichés par `--changelog`), les modèles de configuration `NOM.conf.example` (copiés dans `/etc/default/NOM.conf` au premier lancement, puis de nouveau tant que ce fichier n'a aucune option active), `nginx-tools.version` (version de l'archive, vérifiée par `zip-versions.py`) et les notes techniques des responsables (`CONTEXTE.md`, `DROITS.md`, notes sur le courriel et BigBlueButton). Le supprimer casse `--changelog` et la création des fichiers de configuration.
-* **`docs/`** — le **manuel de l'administrateur**, sources Markdown bilingues (`docs/en/`, `docs/fr/`, mêmes noms de fichiers) et `build_docs.py`, qui insère le vrai `--help` de chaque programme et produit les pages GitHub et le module de site Web Odoo `rlq_tools_docs`. Aucun programme ne le lit : il n'est pas nécessaire sur un serveur.
+* **`CHANGELOG.md`** (racine du dépôt) — le journal de modifications de chaque programme : une section par programme (`## NOM`), la version la plus récente en premier. `--changelog` n'affiche que la section du programme lancé. L'historique antérieur est archivé hors du dépôt.
+* **`doc/`** — tout le reste, dans un seul dossier avec un sous-dossier par langue : `doc/en/` et `doc/fr/` contiennent le manuel de l'administrateur (Markdown, mêmes noms de fichiers dans les deux langues), `build_docs.py` (qui insère le vrai `--help` de chaque programme et produit les pages GitHub et le module de site Web Odoo `rlq_tools_docs`) et les modèles de configuration `NOM.conf.example` (identiques dans `en/` et `fr/`, synchronisés ; la copie anglaise est celle lue au premier démarrage). `doc/` contient aussi les notes des responsables (`CONTEXTE.md`, `DROITS.md`, notes courriel et BigBlueButton) et `nginx-tools.version`. Aucun programme n'a besoin du manuel sur un serveur.
 
 ## Prérequis
 
@@ -53,7 +51,7 @@ Déployez toujours l'archive des programmes et celle des tests **ensemble** (mê
 
 **Première ligne.** Chaque exécution affiche d'abord `NOM vVERSION` (même `--help`). Les programmes qui produisent des données ou un flux l'écrivent sur la sortie d'erreur.
 
-**Versions.** `MAJEUR.MINEUR.AAAAMMJJ.HHMMSS` (heure locale). `--version` l'affiche ; `--changelog` montre `doc/NOM.changelog.txt`, la plus récente d'abord, numéros de version en couleur dans un terminal seulement.
+**Versions.** `MAJEUR.MINEUR.AAAAMMJJ.HHMMSS` (heure locale). `--version` l'affiche ; `--changelog` montre la section `, la plus récente d'abord, numéros de version en couleur dans un terminal seulement.
 
 **Configuration en couches.** `/etc/default/NOM.conf` est lu d'abord, puis `~/.NOM.conf` s'il existe (le dernier l'emporte), puis la ligne de commande (prioritaire). Le fichier personnel se termine toujours par `.conf` : un ancien fichier personnel avec l'extension `.cfg` (règle précédente) est renommé automatiquement en `.conf` au lancement suivant, avec un avis ; si les deux existent, le `.conf` est lu et l'ancien est signalé, jamais fusionné ni supprimé. `-c/--config FICHIER` lit ce fichier **seul** et il doit exister. Les fichiers sont *analysés, jamais exécutés* ; seules les clés connues sont retenues. Au démarrage, chaque programme affiche les fichiers lus, avec leur date de modification et un sommaire d'une ligne des options importantes. Un fichier par défaut est créé au premier lancement à partir de `doc/NOM.conf.example`. Un fichier dont **aucune option n'est active** (tout encore en commentaire : jamais modifié) est réécrit d'après le modèle actuel au lancement suivant quand le modèle a changé (nouvelles clés, nouveaux commentaires) ; un fichier qui contient au moins une ligne `CLÉ=valeur` active n'est jamais touché (`NGINX_TOOLS_CONFIG_MAJ_AUTO=0` : jamais de réécriture). Les clés communes (`ANONYMIZE`, `LOG_KEEP_DAYS`, langue…) sont dans `/etc/default/app-default.conf`.
 
