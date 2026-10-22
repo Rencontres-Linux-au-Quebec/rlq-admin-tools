@@ -66,7 +66,7 @@ import sys
 import time
 from urllib.parse import urlparse, parse_qs, unquote
 
-__version__ = "2.26.20261020.211944"
+__version__ = "2.27.20261022.110306"
 # Marker added at the END of the « browser » User-Agent (2.2): our test requests are recognizable in all the
 # logs (nginx, Odoo) and excluded from the statistics by web-monitor.py. Matches no pattern of the bot filter.
 UA_MARKER = " app-health-check/" + ".".join(__version__.split(".")[:2])
@@ -234,7 +234,7 @@ def show_config_read(cfg, paths, explicit_given):
         read_files = f"{_with_date(paths[0])} (requested by -c/--config: no other file is read)"
     else:
         read_files = ", then ".join(_with_date(c) for c in paths) + (" (the last one wins)" if len(paths) > 1 else "")
-    yes_no = lambda key_value: ("yes" if cfg.get(key_value, "false").strip().lower() == "true" else "no") if LANGUAGE != "fr" else ("oui" if cfg.get(key_value, "false").strip().lower() == "true" else "non")
+    yes_no = lambda key_value: "yes" if cfg.get(key_value, "false").strip().lower() == "true" else "no"        # 2.27: option values in English only
     host_name = cfg.get("ODOO_PUBLIC_HOST") or "(not set)"
     others = len([h for h in cfg.get("ADDITIONAL_PUBLIC_HOSTS", "").replace(",", " ").split() if h])
     mail = (f"{cfg['SMTP_HOST']}:{cfg.get('SMTP_PORT', '587') or '587'} → {cfg['NOTIFY_EMAIL_TO']}"

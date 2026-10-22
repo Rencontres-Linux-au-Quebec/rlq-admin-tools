@@ -4,18 +4,12 @@
 #   2. ~/.odoo-mail-retry.conf               (s'il existe : réglages de l'utilisateur)
 # -c/--config FICHIER : ce fichier SEUL. Le répertoire courant n'est PAS lu. Le programme affiche toujours quel(s) fichier(s) il lit,
 # puis une ligne résumant les options importantes. Format : CLÉ=valeur, une par ligne ; # = commentaire ; guillemets facultatifs ;
-# booléens : oui / non (true / false, 1 / 0). Ce fichier est LU, jamais exécuté.
+# booléens : yes / no (true / false, 1 / 0) — valeurs en anglais seulement (oui / non : lus, avec un avertissement). Ce fichier est LU, jamais exécuté.
 
-# --- Langue d'affichage ---
-# en, fr ou auto (suivre LC_ALL / LC_MESSAGES / LANG). Ordre de choix : --lang, NGINX_TOOLS_LANG, ODOO_MAIL_RETRY_LANG, cette clé, LC_ALL, LC_MESSAGES, LANG.
-# Ajouter une langue = ajouter le fichier lang/odoo-mail-retry.XX.po (format PO : Poedit, Weblate…) — voir lang/README.md.
-#LANGUAGE=auto
-
-# --- Mode bavard ---
-# oui : afficher chaque commande externe exécutée (équivalent de --verbose). Peut aussi venir du fichier commun app-default.conf (clés VERBOSE et DEBUG_LEVEL).
-#VERBOSE=non
-
-# --- Options (équivalents de la ligne de commande) ---
+# --- Options (ordre alphabétique / alphabetical order) ---
+# --anonymize : anonymiser ce que le programme affiche (adresses IP, courriels, identifiants, jetons) par des pseudonymes stables (IP-4f2a9c, usager-9c1e03@anonyme.invalid) ; clé ANONYMIZE
+# (la même clé dans app-default.conf vaut pour tous les programmes ; appliquée seulement quand la sortie est un terminal ; pour cron : --anonymize ou NGINX_TOOLS_ANONYMIZE=1).
+#ANONYMIZE=no
 # --batch : taille du lot (nombre positif) (défaut : 10)
 #BATCH=10
 # --days : jours examinés (défaut : 30)
@@ -23,9 +17,14 @@
 # --db : base de données (défaut : toutes les bases qui ont des courriels)
 #DB=
 # --details
-#DETAILS=non
+#DETAILS=no
+# en, fr ou auto (suivre LC_ALL / LC_MESSAGES / LANG). Ordre de choix : --lang, NGINX_TOOLS_LANG, ODOO_MAIL_RETRY_LANG, cette clé, LC_ALL, LC_MESSAGES, LANG.
+# Ajouter une langue = ajouter le fichier lang/odoo-mail-retry.XX.po (format PO : Poedit, Weblate…) — voir lang/README.md.
+#LANGUAGE=auto
 # --no-prompt
-#NO_PROMPT=non
+#NO_PROMPT=no
+# yes : afficher chaque commande externe exécutée (équivalent de --verbose). Peut aussi venir du fichier commun app-default.conf (clés VERBOSE et DEBUG_LEVEL).
+#VERBOSE=no
 
 # --- Options de la ligne de commande SEULEMENT (actions ou réglages ponctuels : aucune clé ici) ---
 # Les voici, pour mémoire (« odoo-mail-retry --help » donne le détail). Elles se donnent sur la ligne de commande, jamais dans ce fichier.
@@ -38,8 +37,3 @@
 #   --verbose     Affiche chaque commande externe exécutée
 #   --version     affiche la version et quitte
 #   --yes         Avec --resend : confirme le renvoi (sans cela, jamais de renvoi sans terminal)
-
-# --- Anonymisation de l'affichage ---
-# --anonymize : anonymiser ce que le programme affiche (adresses IP, courriels, identifiants, jetons) par des pseudonymes stables (IP-4f2a9c, usager-9c1e03@anonyme.invalid) ; clé ANONYMIZE
-# (la même clé dans app-default.conf vaut pour tous les programmes ; appliquée seulement quand la sortie est un terminal ; pour cron : --anonymize ou NGINX_TOOLS_ANONYMIZE=1).
-#ANONYMIZE=non

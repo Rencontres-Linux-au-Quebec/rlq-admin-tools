@@ -27,7 +27,7 @@ try:                    # édition de la ligne dans toutes les invites input() (
 except ImportError:     # Windows, Python sans readline
     pass
 
-__version__ = "1.18.20261019.150215"
+__version__ = "1.19.20261022.110306"
 LANGUE_SOURCE = "fr"          # langue des messages dans le code
 
 
@@ -426,7 +426,7 @@ class Contexte:
             return {}, [f"apps/_config.py illisible ({e})"]
 
     def oui_non(self, valeur):
-        return ("yes" if valeur else "no") if self.langue != "fr" else ("oui" if valeur else "non")
+        return "yes" if valeur else "no"          # 1.19 : valeurs des options en anglais seulement (les mêmes mots que dans le fichier de configuration)
 
     def options_importantes(self, defauts):
         """Résumé « --lang fr · --days 7 · … » des valeurs venant du fichier de configuration."""
@@ -447,6 +447,12 @@ class Contexte:
         sortie("  Options : " + self.options_importantes(defauts) + " (ligne de commande prioritaire)")
         for p in problemes:
             self.print(f"  ATTENTION : valeur de configuration ignorée : {p}", file=sys.stderr)
+        try:
+            francais = _module_voisin("_config").valeurs_francaises(self.config)
+        except Exception:
+            francais = []
+        for p in francais:                 # 1.19 : valeurs en anglais seulement ; l'ancienne valeur française est lue quand même
+            self.print(f"  ATTENTION : valeur en français, écrire l'anglais dans le fichier de configuration : {p}", file=sys.stderr)
 
 
 def _analyseur(ctx):

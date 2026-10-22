@@ -30,8 +30,11 @@ msgstr ", then "
 msgid " (entier attendu)"
 msgstr " (integer expected)"
 
-msgid " (oui ou non attendu)"
+msgid " (yes ou no attendu)"
 msgstr " (yes or no expected)"
+
+msgid "  ATTENTION : valeur en français, écrire l'anglais dans le fichier de configuration : "
+msgstr "  WARNING: French value, write the English one in the configuration file: "
 
 msgid "  ATTENTION : valeur de configuration ignorée : "
 msgstr "  WARNING: configuration value ignored: "

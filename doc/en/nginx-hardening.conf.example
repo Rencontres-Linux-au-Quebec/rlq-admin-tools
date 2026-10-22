@@ -4,16 +4,17 @@
 #   2. ~/.nginx-hardening.conf               (s'il existe : réglages de l'utilisateur)
 # -c/--config FICHIER : ce fichier SEUL. Le répertoire courant n'est PAS lu. Le programme affiche toujours quel(s) fichier(s) il lit,
 # puis une ligne résumant les options importantes. Format : CLÉ=valeur, une par ligne ; # = commentaire ; guillemets facultatifs ;
-# booléens : oui / non (true / false, 1 / 0). Ce fichier est LU, jamais exécuté.
+# booléens : yes / no (true / false, 1 / 0) — valeurs en anglais seulement (oui / non : lus, avec un avertissement). Ce fichier est LU, jamais exécuté.
 
-# --- Langue d'affichage ---
+# --- Options (ordre alphabétique / alphabetical order) ---
+# --anonymize : anonymiser ce que le programme affiche (adresses IP, courriels, identifiants, jetons) par des pseudonymes stables (IP-4f2a9c, usager-9c1e03@anonyme.invalid) ; clé ANONYMIZE
+# (la même clé dans app-default.conf vaut pour tous les programmes ; appliquée seulement quand la sortie est un terminal ; pour cron : --anonymize ou NGINX_TOOLS_ANONYMIZE=1).
+#ANONYMIZE=no
+# --app (défaut : détectée automatiquement)
+#APP=
 # en, fr ou auto (suivre LC_ALL / LC_MESSAGES / LANG). Ordre de choix : --lang, NGINX_TOOLS_LANG, NGINX_HARDENING_LANG, cette clé, LC_ALL, LC_MESSAGES, LANG.
 # Ajouter une langue = ajouter le fichier lang/nginx-hardening.XX.po (format PO : Poedit, Weblate…) — voir lang/README.md.
 #LANGUAGE=auto
-
-# --- Options (équivalents de la ligne de commande) ---
-# --app (défaut : détectée automatiquement)
-#APP=
 # --log-retention-months (1 à 24)
 #LOG_RETENTION_MONTHS=3
 # --mail-from (expéditeur des courriels de la suite ; défaut : l'identifiant du relais)
@@ -25,7 +26,7 @@
 # --mail-security (starttls, ssl ou none ; défaut starttls)
 #MAIL_SECURITY=starttls
 # --mail-setup (redemander la configuration du courriel avec --update)
-#MAIL_SETUP=non
+#MAIL_SETUP=no
 # --mail-to (destinataire des courriels de la suite) (défaut : aucun, demandé la première fois)
 #MAIL_TO=
 # --mail-user (identifiant du relais SMTP) (défaut : aucun, demandé la première fois)
@@ -47,7 +48,7 @@
 # --timezone (fuseau horaire du serveur ; none = ne pas toucher ; absent = demandé au premier --update, défaut America/Montreal)
 #TIMEZONE=America/Montreal
 # --verbose
-#VERBOSE=non
+#VERBOSE=no
 # --workers (défaut : selon le serveur)
 #WORKERS=
 
@@ -59,8 +60,3 @@
 #   --check       vérification seule (comportement par défaut)
 #   --report-err  afficher à la fin un rapport d'erreurs à copier-coller (programme, version, serveur, échecs, avertissements)
 #   --version     affiche la version et quitte
-
-# --- Anonymisation de l'affichage ---
-# --anonymize : anonymiser ce que le programme affiche (adresses IP, courriels, identifiants, jetons) par des pseudonymes stables (IP-4f2a9c, usager-9c1e03@anonyme.invalid) ; clé ANONYMIZE
-# (la même clé dans app-default.conf vaut pour tous les programmes ; appliquée seulement quand la sortie est un terminal ; pour cron : --anonymize ou NGINX_TOOLS_ANONYMIZE=1).
-#ANONYMIZE=non

@@ -19,9 +19,11 @@ import sys
 import tempfile
 import time
 
-__version__ = "1.8.20261020.211944"
+__version__ = "1.9.20261022.110306"
 OUI = ("1", "true", "yes", "oui", "on", "vrai")
 NON = ("0", "false", "no", "non", "off", "faux", "")
+# 1.9 : les valeurs s'écrivent en anglais seulement ; ces anciennes valeurs françaises sont encore lues (même sens), avec un avertissement (valeurs_francaises).
+FRANCAIS = {"oui": "yes", "non": "no", "vrai": "true", "faux": "false", "aucun": "none", "aucune": "none"}
 
 
 COMMUN = "app-default"                                         # fichier commun à tous les programmes : /etc/default/app-default.conf, ~/.app-default.conf
@@ -282,7 +284,7 @@ def _creer(chemins, nom, dossier_doc, variable):
 def lire(programme, explicite=None):
     """(configuration, [fichiers lus]) : fusion des fichiers de la règle (le dernier l'emporte) ; `explicite` (-c / --config) : ce fichier seul.
     Aucun fichier : le fichier par défaut est créé (creer_par_defaut). Sans `explicite`, le fichier COMMUN à tous les programmes (app-default.conf : LANGUAGE, VERBOSE,
-    DEBUG_LEVEL) est lu d'abord, puis celui du programme, qui l'emporte. DEBUG_LEVEL >= 1 vaut VERBOSE=oui (sauf VERBOSE écrit quelque part) ; le niveau est exporté
+    DEBUG_LEVEL) est lu d'abord, puis celui du programme, qui l'emporte. DEBUG_LEVEL >= 1 vaut VERBOSE=yes (sauf VERBOSE écrit quelque part) ; le niveau est exporté
     dans NGINX_TOOLS_DEBUG_LEVEL."""
     if not explicite:
         creer_par_defaut(programme)
@@ -295,12 +297,18 @@ def lire(programme, explicite=None):
         cfg.update(lire_fichier(c))
     niveau = niveau_debug(cfg)
     if niveau >= 1 and "VERBOSE" not in cfg:
-        cfg["VERBOSE"] = "oui"
+        cfg["VERBOSE"] = "yes"
     if niveau:
         os.environ["NGINX_TOOLS_DEBUG_LEVEL"] = str(niveau)
     if str(cfg.get("LOG_KEEP_DAYS", "")).strip().isdigit():
         os.environ["NGINX_TOOLS_LOG_KEEP_DAYS"] = str(cfg["LOG_KEEP_DAYS"]).strip()
     return cfg, communs + propres
+
+
+def valeurs_francaises(cfg):
+    """[« CLÉ=oui → yes », …] : clés dont la valeur est un ancien mot français (oui, non, vrai, faux, aucun) ; lues quand même, à remplacer par l'anglais."""
+    return [f"{cle}={valeur} → {FRANCAIS[str(valeur).strip().lower()]}" for cle, valeur in sorted(cfg.items())
+            if str(valeur).strip().lower() in FRANCAIS]
 
 
 def booleen(valeur, defaut=False):
