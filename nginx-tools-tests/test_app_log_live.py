@@ -114,6 +114,16 @@ class AppLogLive(EnvTest):
         self.mock("journalctl", f'echo "$@" >> {self.d}/journalctl.log; case "$*" in *" -g "*) cat {self.d}/history.txt;; '
                                 f'*) cat {self.d}/stream.txt; {after or "true"};; esac')
 
+    def run_cmd(self, cmd, *args, **kwargs):
+        """1.98 : --min est actif par défaut ; les tests écrits pour l'affichage complet (base, « werkzeug ») demandent --no-min, sauf s'ils passent
+        eux-mêmes --min ou --no-min."""
+        return super().run_cmd(self.sans_min(cmd), *args, **kwargs)
+
+    def sans_min(self, cmd):
+        if len(cmd) > 1 and cmd[1] == self.prog and not any(o in cmd for o in ("--min", "--no-min", "--help", "--version", "--changelog")):
+            return cmd[:2] + ["--no-min"] + cmd[2:]
+        return cmd
+
     def lancer(self, *args, env_extra=None):
         rc, out, err = self.run_cmd(["python3", self.prog, "--no-follow", *args], env_extra)
         self.assertNotIn("Traceback", err, err)
@@ -124,20 +134,48 @@ class AppLogLive(EnvTest):
         les adresses exactes demandent l'affichage brut (sauf un test qui passe lui-même une de ces options)."""
         if len(cmd) > 1 and cmd[1] == self.prog and not any(o in cmd for o in ("--anonymize", "--no-anonymize", "--truncate", "--no-truncate", "--no-underline")):
             cmd = cmd[:2] + ["--no-anonymize", "--no-truncate", "--no-underline"] + cmd[2:]
-        return super().run_pty(cmd, *args, **kwargs)
+        return super().run_pty(self.sans_min(cmd), *args, **kwargs)
+
+    def test_valeurs_par_defaut_198_min_underline_highlight_et_valeurs_en_anglais(self):
+        """1.98 : MIN=yes, UNDERLINE=10 et « -2026- » dans HIGHLIGHT par défaut ; --no-min ou MIN=no : tout ; une valeur française (MIN=non) est lue
+        (même sens) avec un avertissement demandant l'anglais ; le menu et le résumé des options écrivent yes / no."""
+        live = self.module_live()
+        self.assertTrue(live.MIN_DEFAULT)
+        self.assertEqual(live.UNDERLINE_DEFAULT, 10)
+        self.assertEqual(live._underline_config("yes"), 10)
+        self.assertIn("-2026-", live.read_highlight(None))
+        self.assertIn("-2026-", live.read_highlight("+odoo"))                     # « +mot » s'ajoute à la liste par défaut, qui garde « -2026- »
+        base = ["python3", self.prog, "--no-follow", "--no-history", "--no-isp", "--no-presence", "--no-banned"]
+        rc, out, err = super().run_cmd(base)                                      # sans --no-min ajouté par le test : la valeur par défaut du programme
+        self.assertNotIn("Traceback", err, err)
+        self.assertIn("srv.exemple.org", out)
+        self.assertNotIn("werkzeug", out)
+        rc, out, err = super().run_cmd(base + ["--no-min"])
+        self.assertIn("base werkzeug", out)
+        etc = os.path.join(self.d, "etc-defaut-198")
+        os.makedirs(etc)
+        with open(os.path.join(etc, "app-log-live.conf"), "w", encoding="utf-8") as f:
+            f.write("MIN=non\nHIDE_IP=no\n")
+        rc, out, err = super().run_cmd(base, {"NGINX_TOOLS_ETC_DEFAULT": etc, "APP_LOG_LIVE_LANG": "fr"})
+        self.assertNotIn("Traceback", err, err)
+        self.assertIn("base werkzeug", out)                                       # MIN=non lu comme MIN=no
+        self.assertIn("MIN=non → no", err)
+        self.assertNotIn("HIDE_IP=no →", err)
+        self.assertIn("--min no", out + err)                                      # résumé des options : valeurs en anglais, même en français
+        self.assertNotIn("--min non", out + err)
 
     def test_terminal_par_defaut_soulignee_anonymisee_et_raccourcie_mais_jamais_dans_un_tube(self):
         """1.88-1.89 : dans un terminal, par défaut : une ligne sur 5 soulignée, adresses en pseudonymes (IP-xxxxxx), ligne trop large raccourcie en
         « début ... deux derniers mots » à $COLUMNS - 10 ; dans un tube (un autre programme lit la sortie) : lignes entières, vraies adresses, rien de souligné."""
         longue = "/event/journee-portes-ouvertes-2026/registration/confirm?ticket=12&utm_source=infolettre-octobre&utm_campaign=rappel-final-de-la-journee" + "&x=" + "y" * 80 + "&fin=journee"
-        self.journal([werkzeug(DNS, f"/page-{i}") for i in range(4)] + [werkzeug(DNS, longue), werkzeug(DNS, "/fin")])
-        text, _ = super().run_pty(["python3", self.prog, "--no-follow", "--no-history", "--no-isp", "--no-presence", "--no-banned"], [],
+        self.journal([werkzeug(DNS, f"/page-{i}") for i in range(9)] + [werkzeug(DNS, longue), werkzeug(DNS, "/fin")])
+        text, _ = super().run_pty(["python3", self.prog, "--no-follow", "--no-min", "--no-history", "--no-isp", "--no-presence", "--no-banned"], [],
                                   env_extra={"COLUMNS": "230"}, keep_ansi=True)      # 1.91 : assez large pour les colonnes (seul le message est coupé)
         lignes = [l for l in text.splitlines() if "werkzeug" in ANSI.sub("", l)]
-        self.assertEqual(len(lignes), 6, text)
-        self.assertEqual([l.startswith("\x1b[4m") for l in lignes], [False, False, False, False, True, False])      # la 5e ligne du flux
+        self.assertEqual(len(lignes), 11, text)
+        self.assertEqual([l.startswith("\x1b[4m") for l in lignes], [False] * 9 + [True, False])      # 1.98 : la 10e ligne du flux (UNDERLINE=10 par défaut)
         self.assertTrue(all(DNS not in ANSI.sub("", l) and "IP-" in ANSI.sub("", l) for l in lignes), "\n".join(lignes))
-        cinquieme = ANSI.sub("", lignes[4]).rstrip()
+        cinquieme = ANSI.sub("", lignes[9]).rstrip()
         self.assertLessEqual(len(cinquieme), 220, cinquieme)
         self.assertIn(" ... ", cinquieme)
         self.assertTrue(cinquieme.endswith("journee\""), cinquieme)                                      # la fin de l'URL reste visible
@@ -2024,13 +2062,13 @@ class AppLogLive(EnvTest):
     def test_menu_des_touches_et_options_a_la_volee(self):
         """[6] ? ouvre le menu ; i, m, s, v basculent ; d, H, o demandent une valeur ; V affiche la version."""
         self.journal_tableau()
-        sequence = [(b"/event", b"?", 0.4), (b"inscriptions aux \xc3\xa9v\xc3\xa9nements", b"i", 0.4), (b"--hide-ip : oui", b"m", 0.4), (b"--min : oui", b"s", 0.4),
-                    (b"--suspect : oui", b"d", 0.4), (b"Entr\xc3\xa9e = 20", b"30\r", 0.2), (b"--dns-max 30", b"t", 0.4), (b"Entr\xc3\xa9e = 32", b"\r", 0.2),
+        sequence = [(b"/event", b"?", 0.4), (b"inscriptions aux \xc3\xa9v\xc3\xa9nements", b"i", 0.4), (b"--hide-ip : yes", b"m", 0.4), (b"--min : yes", b"s", 0.4),
+                    (b"--suspect : yes", b"d", 0.4), (b"Entr\xc3\xa9e = 20", b"30\r", 0.2), (b"--dns-max 30", b"t", 0.4), (b"Entr\xc3\xa9e = 32", b"\r", 0.2),
                     (b"--dns-max-truncate 32", b"H", 0.4), (b"Entr\xc3\xa9e = 10", b"0\r", 0.2), (b"alertes automatiques arr\xc3\xaat\xc3\xa9es", b"o", 0.4),
-                    (b"tout afficher", b"zzz\r", 0.2), (b"--only : zzz", b"V", 0.4), (b"app-log-live.py version", b"v", 0.4), (b"--verbose : oui", b"\x03", 0.4)]
+                    (b"tout afficher", b"zzz\r", 0.2), (b"--only : zzz", b"V", 0.4), (b"app-log-live.py version", b"v", 0.4), (b"--verbose : yes", b"\x03", 0.4)]
         text, envoyees = self.run_pty(["python3", self.prog, "--no-history", "--no-isp", "--no-presence", "--no-banned", "--lines", "1"], sequence, timeout=60)
         self.assertEqual(envoyees, len(sequence), text)
-        menu = text[text.index("Touches (? ou h"):text.index("--hide-ip : oui")]
+        menu = text[text.index("Touches (? ou h"):text.index("--hide-ip : yes")]
         for attendu in ("Ctrl-G", "Ctrl-T", "Ctrl-C", "--dns-max N", "--dns-max-truncate N", "--health MIN", "--hide-ip", "--min", "--only TEXTE", "--report-err", "--suspect",
                         "--verbose", "--version", "inscriptions aux sondages", "inscriptions aux événements", "adresses à bannir : 0"):
             self.assertIn(attendu, menu)
@@ -3068,7 +3106,7 @@ class AppLogLive(EnvTest):
         longue = "/event/journee-portes-ouvertes-2026/page/introduction-" + "x" * 150 + "/fin"
         self.journal([werkzeug(ips[0], "/a"), werkzeug("127.0.0.1", "/b"), werkzeug(ips[1], longue), werkzeug(ips[0], "/c"),
                       odoo("INFO", "base", "odoo.models.unlink", "User #1 deleted ir.attachment records with IDs: [" + ", ".join(str(i) for i in range(80)) + "]")])
-        text, _ = super().run_pty(["python3", self.prog, "--no-follow", "--no-history", "--no-isp", "--no-presence", "--no-banned", "--anonymize", "--truncate",
+        text, _ = super().run_pty(["python3", self.prog, "--no-follow", "--no-min", "--no-history", "--no-isp", "--no-presence", "--no-banned", "--anonymize", "--truncate",
                                    "--underline", "2"], [], env_extra={"COLUMNS": "230"}, keep_ansi=True)
         lignes = [l for l in text.splitlines() if re.search(r"werkzeug|odoo\.models", ANSI.sub("", l))]
         self.assertEqual(len(lignes), 5, text)

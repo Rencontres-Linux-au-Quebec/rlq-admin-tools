@@ -4,20 +4,21 @@
 #   2. ~/.nginx-log-audit.conf               (s'il existe : réglages de l'utilisateur)
 # -c/--config FICHIER : ce fichier SEUL. Le répertoire courant n'est PAS lu. Le programme affiche toujours quel(s) fichier(s) il lit,
 # puis une ligne résumant les options importantes. Format : CLÉ=valeur, une par ligne ; # = commentaire ; guillemets facultatifs ;
-# booléens : oui / non (true / false, 1 / 0). Ce fichier est LU, jamais exécuté.
+# booléens : yes / no (true / false, 1 / 0) — valeurs en anglais seulement (oui / non : lus, avec un avertissement). Ce fichier est LU, jamais exécuté.
 
-# --- Langue d'affichage ---
-# en, fr ou auto (suivre LC_ALL / LC_MESSAGES / LANG). Ordre de choix : --lang, NGINX_TOOLS_LANG, NGINX_LOG_AUDIT_LANG, cette clé, LC_ALL, LC_MESSAGES, LANG.
-# Ajouter une langue = ajouter le fichier lang/nginx-log-audit.XX.po (format PO : Poedit, Weblate…) — voir lang/README.md.
-#LANGUAGE=auto
-
-# --- Options (équivalents de la ligne de commande) ---
+# --- Options (ordre alphabétique / alphabetical order) ---
+# --anonymize : anonymiser ce que le programme affiche (adresses IP, courriels, identifiants, jetons) par des pseudonymes stables (IP-4f2a9c, usager-9c1e03@anonyme.invalid) ; clé ANONYMIZE
+# (la même clé dans app-default.conf vaut pour tous les programmes ; appliquée seulement quand la sortie est un terminal ; pour cron : --anonymize ou NGINX_TOOLS_ANONYMIZE=1).
+#ANONYMIZE=no
 # --app (défaut : détectée automatiquement)
 #APP=
 # --ban-threshold
 #BAN_THRESHOLD=3
+# en, fr ou auto (suivre LC_ALL / LC_MESSAGES / LANG). Ordre de choix : --lang, NGINX_TOOLS_LANG, NGINX_LOG_AUDIT_LANG, cette clé, LC_ALL, LC_MESSAGES, LANG.
+# Ajouter une langue = ajouter le fichier lang/nginx-log-audit.XX.po (format PO : Poedit, Weblate…) — voir lang/README.md.
+#LANGUAGE=auto
 # --no-prompt
-#NO_PROMPT=non
+#NO_PROMPT=no
 # --page-burst (défaut : 8)
 #PAGE_BURST=8
 # --parallel-threshold (défaut : 5)
@@ -25,7 +26,7 @@
 # --ua-rotation-threshold (défaut : 2)
 #UA_ROTATION_THRESHOLD=2
 # --verbose
-#VERBOSE=non
+#VERBOSE=no
 
 # --- Options de la ligne de commande SEULEMENT (actions ou réglages ponctuels : aucune clé ici) ---
 # Les voici, pour mémoire (« nginx-log-audit --help » donne le détail). Elles se donnent sur la ligne de commande, jamais dans ce fichier.
@@ -48,8 +49,3 @@
 #   --unban-check         réévaluer chaque bannissement manuel (levée proposée si injustifié)
 #   --version             affiche la version et quitte
 #   --yes                 avec --ban : bannir sans question
-
-# --- Anonymisation de l'affichage ---
-# --anonymize : anonymiser ce que le programme affiche (adresses IP, courriels, identifiants, jetons) par des pseudonymes stables (IP-4f2a9c, usager-9c1e03@anonyme.invalid) ; clé ANONYMIZE
-# (la même clé dans app-default.conf vaut pour tous les programmes ; appliquée seulement quand la sortie est un terminal ; pour cron : --anonymize ou NGINX_TOOLS_ANONYMIZE=1).
-#ANONYMIZE=non
