@@ -8,6 +8,9 @@ msgstr ""
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 
+msgid "  ATTENTION : valeur en français, écrire l'anglais dans le fichier de configuration : "
+msgstr "  WARNING: French value, write the English one in the configuration file: "
+
 msgid "  Options : "
 msgstr "  Options: "
 

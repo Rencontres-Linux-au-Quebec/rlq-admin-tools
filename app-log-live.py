@@ -71,7 +71,7 @@
 #   app-log-live.py --hide-ip                without the IP address in brackets after the name
 #   app-log-live.py --no-truncate            whole log lines (by default: shortened to $COLUMNS - 10, « start ... last two words »)
 #   app-log-live.py --no-anonymize           real IP addresses, e-mails and names on screen (by default: stable pseudonyms IP-4f2a9c, membre-4f2a9c; A key on the fly)
-#   app-log-live.py --underline 3            one log line out of 3 underlined to the end of the screen line (by default 5; --no-underline: none)
+#   app-log-live.py --underline 3            one log line out of 3 underlined to the end of the screen line (by default 10; --no-underline: none)
 #   app-log-live.py --no-follow              displays the last messages then stops (for a pipe or a file)
 #   app-log-live.py --no-isp --no-history    no outside request, without the login history
 #   --days N, --idle MIN, --recap SEC, --no-presence, --service NAME, --namespace NAME, --app NAME, --verbose, --version, --changelog, --report-err
@@ -103,7 +103,7 @@ from urllib.parse import unquote
 from collections import Counter, OrderedDict
 from concurrent.futures import Future
 
-__version__ = "1.97.20261022.100559"
+__version__ = "1.98.20261022.110306"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
@@ -192,7 +192,7 @@ def _underline_config(value):
     return n
 
 
-UNDERLINE_DEFAULT = 5                                                 # --underline without N: one log line out of 5 underlined
+UNDERLINE_DEFAULT = 10                                                # --underline without N (and default since 1.98): one log line out of 10 underlined
 
 
 SCHEMA_CONFIG = {"ACCENTUATE_GROUP": ("accentuate_group", str), "CHIME": ("chime", _chime_config), "DNS_MAX_TRUNCATE": ("dns_max_truncate", int), "EXCLUDE_IP": ("exclude_ip", _comma_list),
@@ -548,6 +548,7 @@ def mask_secrets(text):
     text = SECRET_JSON_RE.sub(lambda m: m.group(1) + SECRET_MASK + m.group(3), text)
     return SECRET_BEARER_RE.sub(lambda m: m.group(1) + SECRET_MASK, text)
 
+MIN_DEFAULT = True                                                    # 1.98: --min by default (MIN key of the configuration file; --no-min: everything)
 HIGHLIGHT_DEFAULT = "POST,webclient,discuss,avatar,20-ans,21-ans,portes,ouvertes,-2026-"      # --highlight / HIGHLIGHT: words highlighted in cyan (comma = several)
 SGR_RE = re.compile(r"\x1b\[([0-9;]*)m")
 
@@ -4832,7 +4833,7 @@ def follow(cmd, people, resolver, options, output):
         return n
 
     def yes_no(current_state):
-        return ("yes" if current_state else "no") if LANGUAGE != "fr" else ("oui" if current_state else "non")
+        return "yes" if current_state else "no"           # 1.98: option values in English only (same words as in the configuration file)
 
     config_at_start = config_values(options, VERBOSE, (NAME_WIDTH, NAME_TRUNCATE))           # settings at startup: the C key writes only what changed since
 
@@ -5578,7 +5579,7 @@ def main():
                         help="Folder of the daily log with colors (default: /var/log/app-log-live for root, otherwise ~/.local/state/app-log-live; APP_LOG_LIVE_LOG_DIR, « off »: none)")
     parser.add_argument("--log-keep-days", type=int, default=None, metavar="N",
                         help=f"Daily logs kept N days, the oldest are deleted (default: LOG_KEEP_DAYS from /etc/default/app-default.conf, otherwise {JOURNAL_DAYS_DEFAULT} ; 0 = never)")
-    parser.add_argument("--min", action="store_true", help="The minimum of information: without database name or « werkzeug », without the fetchmail lines (except errors)")
+    parser.add_argument("--min", action="store_true", help="The minimum of information: without database name or « werkzeug », without the fetchmail lines (except errors); default since 1.98 (MIN key; --no-min: everything)")
     parser.add_argument("--modules", action="store_true",
                         help="Table of installed Odoo modules (name, version, state, modification and creation dates, author), then exit; sort: --modules-sort; menu key M")
     parser.add_argument("--modules-custom", action="store_true", help="With --modules (or the M key): only modules that are not by Odoo S.A.")
@@ -5627,6 +5628,7 @@ def main():
     parser.add_argument("-v", "--verbose", action="store_true", help="Show each external command run")
     parser.add_argument("--truncate", type=int, nargs="?", const=0, default=TRUNCATE_AUTO, metavar="N",
                         help="By default on a terminal: a log line wider than N columns (without N: $COLUMNS - 10) is shortened to « start ... last two words » (long URLs); menus and reports are never cut; the daily log keeps the whole lines. TRUNCATE key; --no-truncate: whole lines")
+    parser.add_argument("--no-min", dest="min", action="store_false", help="Show everything: database name, « werkzeug », fetchmail lines (cancels --min; MIN=no)")
     parser.add_argument("--no-truncate", dest="truncate", action="store_const", const=None, help="Whole log lines on screen, even very long ones (cancels --truncate)")
     if "--anonymize" not in parser._option_string_actions:       # added by apps/_i18n.py; fallback parser: added here
         parser.add_argument("--anonymize", action="store_true")
@@ -5635,8 +5637,9 @@ def main():
     parser.add_argument("--no-anonymize", dest="anonymize", action="store_false", help="Show the real IP addresses, e-mails and names (cancels --anonymize)")
     parser.add_argument("--no-underline", dest="underline", action="store_const", const=0, help="No underlined line (same as --underline 0)")
     parser.add_argument("--underline", type=int, nargs="?", const=UNDERLINE_DEFAULT, default=UNDERLINE_DEFAULT, metavar="N",
-                        help="One log line out of N underlined on screen, up to the end of the screen line (without N: 5; default: 5; 0 = none); UNDERLINE key")      # 5 = UNDERLINE_DEFAULT
+                        help="One log line out of N underlined on screen, up to the end of the screen line (without N: 10; default: 10; 0 = none); UNDERLINE key")      # 10 = UNDERLINE_DEFAULT
     parser.set_defaults(underline=UNDERLINE_DEFAULT)            # 1.91: --no-underline is declared first (its None would otherwise win)
+    parser.set_defaults(min=MIN_DEFAULT)                       # 1.98: --min by default (MIN=no or --no-min: everything)
     parser.set_defaults(anonymize=None)                         # None: on a terminal only (a pipe, another program, a test: real values)
     parser.add_argument("--version", action="version", version=f"app-log-live.py version {__version__}")
     if "--version" not in sys.argv[1:]:       # first line of EVERY run, even --help: name and version (--version displays it itself)

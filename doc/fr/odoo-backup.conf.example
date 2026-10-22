@@ -4,30 +4,31 @@
 #   2. ~/.odoo-backup.conf               (s'il existe : réglages de l'utilisateur)
 # -c/--config FICHIER : ce fichier SEUL. Le répertoire courant n'est PAS lu. Le programme affiche toujours quel(s) fichier(s) il lit,
 # puis une ligne résumant les options importantes. Format : CLÉ=valeur, une par ligne ; # = commentaire ; guillemets facultatifs ;
-# booléens : oui / non (true / false, 1 / 0). Ce fichier est LU, jamais exécuté.
+# booléens : yes / no (true / false, 1 / 0) — valeurs en anglais seulement (oui / non : lus, avec un avertissement). Ce fichier est LU, jamais exécuté.
 
-# --- Langue d'affichage ---
-# en, fr ou auto (suivre LC_ALL / LC_MESSAGES / LANG). Ordre de choix : --lang, NGINX_TOOLS_LANG, ODOO_BACKUP_LANG, cette clé, LC_ALL, LC_MESSAGES, LANG.
-# Ajouter une langue = ajouter le fichier lang/odoo-backup.XX.po (format PO : Poedit, Weblate…) — voir lang/README.md.
-#LANGUAGE=auto
-
-# --- Options (équivalents de la ligne de commande) ---
+# --- Options (ordre alphabétique / alphabetical order) ---
+# --anonymize : anonymiser ce que le programme affiche (adresses IP, courriels, identifiants, jetons) par des pseudonymes stables (IP-4f2a9c, usager-9c1e03@anonyme.invalid) ; clé ANONYMIZE
+# (la même clé dans app-default.conf vaut pour tous les programmes ; appliquée seulement quand la sortie est un terminal ; pour cron : --anonymize ou NGINX_TOOLS_ANONYMIZE=1).
+#ANONYMIZE=no
+# bases à sauvegarder (vide : db_name d'Odoo, sinon toutes) (défaut : db_name d'Odoo, sinon toutes les bases)
+#DATABASES=
 # dossier des sauvegardes
 #DEST=/var/backups/odoo
 # zip ou tar.xz
 #FORMAT=zip
-# bases à sauvegarder (vide : db_name d'Odoo, sinon toutes) (défaut : db_name d'Odoo, sinon toutes les bases)
-#DATABASES=
-# copie rsync hors du serveur (défaut : aucune copie hors du serveur)
-#REMOTE=
-# rétention : tout garder N jours
-#KEEP_RECENT_DAYS=2
 # rétention quotidienne
 #KEEP_DAILY=7
-# rétention hebdomadaire
-#KEEP_WEEKLY=4
 # rétention mensuelle
 #KEEP_MONTHLY=6
+# rétention : tout garder N jours
+#KEEP_RECENT_DAYS=2
+# rétention hebdomadaire
+#KEEP_WEEKLY=4
+# en, fr ou auto (suivre LC_ALL / LC_MESSAGES / LANG). Ordre de choix : --lang, NGINX_TOOLS_LANG, ODOO_BACKUP_LANG, cette clé, LC_ALL, LC_MESSAGES, LANG.
+# Ajouter une langue = ajouter le fichier lang/odoo-backup.XX.po (format PO : Poedit, Weblate…) — voir lang/README.md.
+#LANGUAGE=auto
+# copie rsync hors du serveur (défaut : aucune copie hors du serveur)
+#REMOTE=
 # heure(s) de la sauvegarde automatique
 #TIMER_TIME=02:30
 
@@ -49,8 +50,3 @@
 #   --uninstall-timer    retirer la sauvegarde automatique
 #   --verbose            afficher chaque commande externe exécutée (psql, pg_dump, tar, rsync, systemctl)
 #   --version            affiche la version et quitte
-
-# --- Anonymisation de l'affichage ---
-# --anonymize : anonymiser ce que le programme affiche (adresses IP, courriels, identifiants, jetons) par des pseudonymes stables (IP-4f2a9c, usager-9c1e03@anonyme.invalid) ; clé ANONYMIZE
-# (la même clé dans app-default.conf vaut pour tous les programmes ; appliquée seulement quand la sortie est un terminal ; pour cron : --anonymize ou NGINX_TOOLS_ANONYMIZE=1).
-#ANONYMIZE=non

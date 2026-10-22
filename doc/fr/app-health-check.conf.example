@@ -14,22 +14,21 @@
 # Ne JAMAIS coller le contenu rempli de ce fichier dans une conversation, un ticket, ou un dépôt Git.
 
 # --- Langue et options de la ligne de commande (la ligne de commande a priorité) ---
-# LANGUAGE : en, fr ou auto (suivre LC_ALL / LANG) ; TARGET : local ou external (--target) ; APP : profil d'application (--app) ; VERBOSE : true ou false.
-#LANGUAGE=auto (défaut : aucun : à donner sur la ligne de commande)
-#TARGET= (défaut : détectée automatiquement)
+# APP : profil d'application (--app)
 #APP=
+# LANGUAGE : en, fr ou auto (suivre LC_ALL / LANG)
+#LANGUAGE=auto (défaut : aucun : à donner sur la ligne de commande)
+# TARGET : local ou external (--target)
+#TARGET= (défaut : détectée automatiquement)
+# VERBOSE : true ou false
 #VERBOSE=false
 
 # --- Cible ---
-ODOO_PUBLIC_HOST=www.rencontres-linux.quebec
-# Pour DEV : ODOO_PUBLIC_HOST=odoo-dev.rencontres-linux.quebec
-
 # Autres noms publics qui doivent REDIRIGER vers ODOO_PUBLIC_HOST (séparés par des virgules, sans espace) — vérifié
 # en plus : présence de HSTS sur la redirection elle-même (pas seulement sur la réponse finale), et qu'un seul saut
 # suffit pour atteindre ODOO_PUBLIC_HOST. Laisser vide si cette instance n'a qu'un seul nom public (cas normal pour
 # DEV/LAB). Pour PROD :
 ADDITIONAL_PUBLIC_HOSTS=rencontres-linux.quebec,odoo18.rencontres-linux.quebec
-
 # Mettre à "true" UNIQUEMENT sur une instance de développement (DEV/LAB : accès restreint par IP, non publique), et
 # JAMAIS en PROD : cette option fait ATTENDRE un robots.txt « Disallow: / » — en PROD, elle masquerait donc la pire
 # panne possible pour un site public, sa désindexation complète. Le script vérifie la cohérence avec le nom de
@@ -42,14 +41,16 @@ ADDITIONAL_PUBLIC_HOSTS=rencontres-linux.quebec,odoo18.rencontres-linux.quebec
 # robots.txt attendent alors « Disallow: / » (servi par nginx pour les instances non publiques, voir le map
 # $robots_disallow_all dans conf.d/odoo-global.conf) au lieu du robots.txt d'Odoo. Laisser à false pour PROD.
 EXPECT_RESTRICTED_ACCESS=false
+ODOO_PUBLIC_HOST=www.rencontres-linux.quebec
+# Pour DEV : ODOO_PUBLIC_HOST=odoo-dev.rencontres-linux.quebec
 
 # --- Tests fonctionnels Odoo (JSON-RPC) — laisser vide pour ne faire QUE les tests HTTP/nginx ---
 ODOO_DB=linux_meetup_odoo_18_2026-08-06_dev
-ODOO_TEST_USER=sanity.check@rencontres-linux.quebec
-ODOO_TEST_PASSWORD=
 # Modèles à lire en lecture seule (search_read, limit 1) pour détecter un module cassé. Garder une liste courte et
 # non sensible — le compte de test ne devrait de toute façon avoir accès qu'à ce qui est nécessaire au test.
 ODOO_SMOKE_MODELS=res.partner,event.event
+ODOO_TEST_PASSWORD=
+ODOO_TEST_USER=sanity.check@rencontres-linux.quebec
 
 # --- Cas particuliers ---
 # Gestionnaire de bases (/web/database/manager) : NE PAS renseigner en temps normal. L'attente dépend du mode :
@@ -62,17 +63,17 @@ ODOO_SMOKE_MODELS=res.partner,event.event
 EXPECT_GOOGLE_OAUTH=false
 
 # --- Notification email (optionnel — laisser SMTP_HOST vide pour désactiver) ---
-SMTP_HOST=
-SMTP_PORT=587
-SMTP_USER=
-SMTP_PASSWORD=
-NOTIFY_EMAIL_FROM=alertes@rencontres-linux.quebec
-NOTIFY_EMAIL_TO=info@rencontres-linux.quebec
-# starttls (587, défaut), ssl (465) ou none (relais local sans TLS : Postfix sur 127.0.0.1:25)
-SMTP_SECURITY=
 # Sélecteur DKIM fourni par le relais SMTP (vérifié par app-health-check.py --check-email-dns)
 DKIM_SELECTOR=
 # Guide complet (relais, enregistrements DNS SPF / DKIM / DMARC, test) : doc/email-setup.md
+NOTIFY_EMAIL_FROM=alertes@rencontres-linux.quebec
+NOTIFY_EMAIL_TO=info@rencontres-linux.quebec
+SMTP_HOST=
+SMTP_PASSWORD=
+SMTP_PORT=587
+# starttls (587, défaut), ssl (465) ou none (relais local sans TLS : Postfix sur 127.0.0.1:25)
+SMTP_SECURITY=
+SMTP_USER=
 
 # --- Notification Odoo Discuss (optionnel — laisser ODOO_DISCUSS_CHANNEL vide pour désactiver) ---
 # Nécessite ODOO_TEST_USER ci-dessus (le message est posté en son nom). Le canal doit déjà exister dans Odoo.
@@ -83,4 +84,4 @@ ODOO_DISCUSS_MODEL=discuss.channel
 # --- Anonymisation de l'affichage ---
 # --anonymize : anonymiser ce que le programme affiche (adresses IP, courriels, identifiants, jetons) par des pseudonymes stables (IP-4f2a9c, usager-9c1e03@anonyme.invalid) ; clé ANONYMIZE
 # (la même clé dans app-default.conf vaut pour tous les programmes ; appliquée seulement quand la sortie est un terminal ; pour cron : --anonymize ou NGINX_TOOLS_ANONYMIZE=1).
-#ANONYMIZE=non
+#ANONYMIZE=no

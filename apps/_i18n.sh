@@ -37,7 +37,7 @@ i18n_relancer() {
     return 0
 }
 
-# _i18n_anonymize_configure PROGRAMME : vrai si un fichier de configuration (commun ou du programme) contient ANONYMIZE=oui ET que la sortie est un terminal (jamais pour un tube ni
+# _i18n_anonymize_configure PROGRAMME : vrai si un fichier de configuration (commun ou du programme) contient ANONYMIZE=yes ET que la sortie est un terminal (jamais pour un tube ni
 # cron : voir apps/_anonymiser.py) ; NGINX_TOOLS_ANONYMIZE=0 l'empêche.
 _i18n_anonymize_configure() {
     local f valeur
@@ -164,6 +164,7 @@ CFG_EXPLICITE=""
 CFG_PROGRAMME=""
 CFG_OPTIONS=()
 CFG_PROBLEMES=()
+CFG_FRANCAIS=()         # valeurs en français (oui, non…) lues quand même ; config_afficher demande de les écrire en anglais
 
 # config_migrer_ancien CHEMIN.conf (1.16) : personal file to READ, in CFG_A_LIRE. The rule is now ~/.PROGRAMME.conf; the legacy name ~/.PROGRAMME.cfg is handled here:
 #   * legacy file only: RENAMED to CHEMIN.conf (same owner, rights, content), one notice on stderr; rename impossible: the legacy file is read as is (notice);
@@ -284,7 +285,7 @@ config_rafraichir() {
 # config_lire PROGRAMME ARGUMENTS… : remplit CFG ({CLÉ: valeur}) et CFG_FICHIERS ; un -c FICHIER / --config FICHIER / --config=FICHIER des arguments : ce fichier SEUL.
 config_lire() {
     local programme="$1" i f c ligne cle valeur; shift
-    CFG=(); CFG_FICHIERS=(); CFG_EXPLICITE=""; CFG_PROGRAMME="$programme"; CFG_OPTIONS=(); CFG_PROBLEMES=()
+    CFG=(); CFG_FICHIERS=(); CFG_EXPLICITE=""; CFG_PROGRAMME="$programme"; CFG_OPTIONS=(); CFG_PROBLEMES=(); CFG_FRANCAIS=()
     local args=("$@")
     for ((i = 0; i < ${#args[@]}; i++)); do
         case "${args[i]}" in
@@ -327,9 +328,9 @@ config_lire() {
             [[ "$cle" =~ ^[A-Z][A-Z0-9_]*$ ]] && CFG["$cle"]="$valeur"
         done < "$f"
     done
-    # DEBUG_LEVEL >= 1 vaut VERBOSE=oui (sauf VERBOSE écrit dans un fichier) ; le niveau est exporté dans NGINX_TOOLS_DEBUG_LEVEL.
+    # DEBUG_LEVEL >= 1 vaut VERBOSE=yes (sauf VERBOSE écrit dans un fichier) ; le niveau est exporté dans NGINX_TOOLS_DEBUG_LEVEL.
     if [[ "${CFG[DEBUG_LEVEL]:-}" =~ ^[0-9]+$ ]] && (( CFG[DEBUG_LEVEL] >= 1 )); then
-        [[ -n "${CFG[VERBOSE]:-}" ]] || CFG[VERBOSE]="oui"
+        [[ -n "${CFG[VERBOSE]:-}" ]] || CFG[VERBOSE]="yes"
         export NGINX_TOOLS_DEBUG_LEVEL="${CFG[DEBUG_LEVEL]}"
     fi
     # LOG_KEEP_DAYS (fichier commun ou du programme) : jours de conservation des journaux propres aux programmes, exporté pour ceux qu'ils lancent.
@@ -338,19 +339,25 @@ config_lire() {
 }
 
 # config_defaut VARIABLE CLÉ OPTION [TYPE] : si le fichier définit CLÉ, VARIABLE prend cette valeur (valeur par défaut : la ligne de commande la remplace ensuite).
-# TYPE : texte (défaut), nombre (entier positif ou nul) ou booléen (oui/non, true/false, 1/0 -> 1 ou 0). Valeur invalide : signalée par config_afficher, ignorée.
+# TYPE : texte (défaut), nombre (entier positif ou nul) ou booléen (yes/no, true/false, 1/0 -> 1 ou 0). Valeur invalide : signalée par config_afficher, ignorée.
+# Valeurs en anglais seulement : un ancien oui / non / vrai / faux est lu quand même, et config_afficher demande de l'écrire en anglais.
 config_defaut() {
     local variable="$1" cle="$2" option="$3" type="${4:-texte}" valeur="${CFG[$2]:-}"
     [[ -n "$valeur" ]] || return 0
+    local anglais=""
+    case "${valeur,,}" in
+        oui) anglais=yes ;; non) anglais=no ;; vrai) anglais=true ;; faux) anglais=false ;; aucun|aucune) anglais=none ;;
+    esac
+    [[ -n "$anglais" ]] && CFG_FRANCAIS+=("$cle=$valeur → $anglais")
     case "$type" in
         nombre)
             if [[ "$valeur" =~ ^[0-9]+$ ]]; then printf -v "$variable" '%s' "$valeur"; CFG_OPTIONS+=("$option $valeur")
             else CFG_PROBLEMES+=("$cle=$valeur (entier attendu)"); fi ;;
         booleen)
             case "${valeur,,}" in
-                1|true|yes|oui|on|vrai) printf -v "$variable" '%s' 1; CFG_OPTIONS+=("$option oui") ;;
-                0|false|no|non|off|faux) printf -v "$variable" '%s' 0; CFG_OPTIONS+=("$option non") ;;
-                *) CFG_PROBLEMES+=("$cle=$valeur (oui ou non attendu)") ;;
+                1|true|yes|oui|on|vrai) printf -v "$variable" '%s' 1; CFG_OPTIONS+=("$option yes") ;;
+                0|false|no|non|off|faux) printf -v "$variable" '%s' 0; CFG_OPTIONS+=("$option no") ;;
+                *) CFG_PROBLEMES+=("$cle=$valeur (yes ou no attendu)") ;;
             esac ;;
         *) printf -v "$variable" '%s' "$valeur"; CFG_OPTIONS+=("$option $valeur") ;;
     esac
@@ -389,5 +396,6 @@ config_afficher() {
     for p in "${CFG_OPTIONS[@]}"; do opts+=" · $p"; done
     echo "  Options : $opts (ligne de commande prioritaire)"
     for p in "${CFG_PROBLEMES[@]}"; do echo "  ATTENTION : valeur de configuration ignorée : $p" >&2; done
+    for p in "${CFG_FRANCAIS[@]}"; do echo "  ATTENTION : valeur en français, écrire l'anglais dans le fichier de configuration : $p" >&2; done
     return 0
 }

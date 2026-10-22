@@ -694,8 +694,11 @@ msgstr "Dossier du journal quotidien avec les couleurs (défaut : /var/log/app-l
 msgid "Daily logs kept N days, the oldest are deleted (default: "
 msgstr "Journaux quotidiens gardés N jours, les plus vieux sont effacés (défaut : "
 
-msgid "The minimum of information: without database name or « werkzeug », without the fetchmail lines (except errors)"
-msgstr "Le minimum d'information : sans nom de base ni « werkzeug », sans les lignes de fetchmail (sauf erreur)"
+msgid "The minimum of information: without database name or « werkzeug », without the fetchmail lines (except errors); default since 1.98 (MIN key; --no-min: everything)"
+msgstr "Le minimum d'information : sans nom de base ni « werkzeug », sans les lignes de fetchmail (sauf erreur) ; par défaut depuis 1.98 (clé MIN ; --no-min : tout)"
+
+msgid "Show everything: database name, « werkzeug », fetchmail lines (cancels --min; MIN=no)"
+msgstr "Tout afficher : nom de la base, « werkzeug », lignes de fetchmail (annule --min ; MIN=no)"
 
 msgid "Journal namespace (default: that of the service, detected)"
 msgstr "Namespace de journal (défaut : celui du service, détecté)"
@@ -2483,8 +2486,8 @@ msgstr "vraies adresses, vrais courriels et vrais noms (--anonymize : pseudonyme
 msgid "No underlined line (same as --underline 0)"
 msgstr "Aucune ligne soulignée (comme --underline 0)"
 
-msgid "One log line out of N underlined on screen, up to the end of the screen line (without N: 5; default: 5; 0 = none); UNDERLINE key"
-msgstr "Une ligne du journal sur N soulignée à l'écran, jusqu'au bout de la ligne d'écran (sans N : 5 ; par défaut : 5 ; 0 = aucune) ; clé UNDERLINE"
+msgid "One log line out of N underlined on screen, up to the end of the screen line (without N: 10; default: 10; 0 = none); UNDERLINE key"
+msgstr "Une ligne du journal sur N soulignée à l'écran, jusqu'au bout de la ligne d'écran (sans N : 10 ; par défaut : 10 ; 0 = aucune) ; clé UNDERLINE"
 
 msgid "one log line out of {n} underlined (--underline N, --no-underline: none)"
 msgstr "une ligne du journal sur {n} soulignée (--underline N, --no-underline : aucune)"

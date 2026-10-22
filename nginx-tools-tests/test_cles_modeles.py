@@ -81,6 +81,27 @@ class ClesDansLesModeles(unittest.TestCase):
                 absentes = sorted(set(COMMUNES) - cles_modele(chemin))
                 self.assertEqual(absentes, [], f"app-default ({langue}) : clés absentes du modèle commun")
 
+    def test_modeles_en_ordre_alphabetique_et_valeurs_en_anglais(self):
+        """Demande du 2026-10-22 : dans chaque modèle (copié dans /etc/default), les options sont en ordre alphabétique — dans tout le fichier, ou dans
+        chaque section quand le modèle contient de vraies valeurs (app-health-check, nginx-tools-mail) ; aucune valeur oui / non (anglais seulement)."""
+        for chemin in sorted(glob.glob(os.path.join(SCRIPTS_DIR, "doc", "*", "*.conf.example"))):
+            with open(chemin, encoding="utf-8") as f:
+                lignes = f.read().splitlines()
+            nom = os.path.relpath(chemin, SCRIPTS_DIR)
+            with self.subTest(modele=nom):
+                groupes, courant = [], []
+                for ligne in lignes:
+                    if re.match(r"^# ?--- .* ---", ligne):
+                        groupes.append(courant)
+                        courant = []
+                    m = re.match(r"^#?([A-Z][A-Z0-9_]*)=", ligne)
+                    if m:
+                        courant.append(m.group(1))
+                    self.assertNotRegex(ligne, r"^#?[A-Z][A-Z0-9_]*=(oui|non|vrai|faux)\s*$", f"{nom} : valeur en français")
+                groupes.append(courant)
+                for g in groupes:
+                    self.assertEqual(g, sorted(g), f"{nom} : options hors de l'ordre alphabétique")
+
     def test_commune_declaree_dans_le_module_partage(self):
         with open(script_path("apps/_config.py"), encoding="utf-8") as f:
             texte = f.read()
