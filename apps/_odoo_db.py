@@ -23,11 +23,14 @@
 #   python3 apps/_odoo_db.py --version
 
 import json
+import os
 import re
 import subprocess
 import sys
 
-__version__ = "1.19.20261020.103939"
+__version__ = "1.20.20261022.133552"
+# 1.20: PostgreSQL commands run as the postgres user: runuser under root, « sudo -n » otherwise (the account needs no root)
+POSTGRES_RUN = ["runuser", "-u", "postgres", "--"] if os.geteuid() == 0 else ["sudo", "-n", "-u", "postgres", "--"]
 
 VERBOSE = False     # --verbose : la commande psql est affichee avant son execution
 SEP = "\x1f"
@@ -42,7 +45,7 @@ def utilisateurs(base, delai=20):
     if VERBOSE:
         print("+ runuser -u postgres -- psql -d " + base + " -tA -c \"SELECT … FROM res_users JOIN res_partner\" (lecture seule)", file=sys.stderr)
     try:
-        r = subprocess.run(["runuser", "-u", "postgres", "--", "psql", "-d", base, "-tA", "-F", SEP, "-c", REQUETE],
+        r = subprocess.run(POSTGRES_RUN + ["psql", "-d", base, "-tA", "-F", SEP, "-c", REQUETE],
                            stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, stdin=subprocess.DEVNULL,
                            universal_newlines=True, errors="replace", timeout=delai)
     except (OSError, subprocess.TimeoutExpired):
@@ -67,7 +70,7 @@ def modules_installes(base, motifs, delai=20):
     if VERBOSE:
         print("+ runuser -u postgres -- psql -d " + base + " -tA -c \"SELECT name FROM ir_module_module WHERE state = 'installed' …\" (lecture seule)", file=sys.stderr)
     try:
-        r = subprocess.run(["runuser", "-u", "postgres", "--", "psql", "-d", base, "-tA", "-c", requete], stdout=subprocess.PIPE,
+        r = subprocess.run(POSTGRES_RUN + ["psql", "-d", base, "-tA", "-c", requete], stdout=subprocess.PIPE,
                            stderr=subprocess.DEVNULL, stdin=subprocess.DEVNULL, universal_newlines=True, errors="replace", timeout=delai)
     except (OSError, subprocess.TimeoutExpired):
         return None
@@ -82,7 +85,7 @@ def _requete(base, sql, delai=20):
     if VERBOSE:
         print("+ runuser -u postgres -- env PGOPTIONS='-c default_transaction_read_only=on' psql -d " + base + " -tA -c \"" + sql[:90] + " …\"", file=sys.stderr)
     try:
-        r = subprocess.run(["runuser", "-u", "postgres", "--", "env", "PGOPTIONS=-c default_transaction_read_only=on", "psql", "-d", base, "-tA", "-F", SEP,
+        r = subprocess.run(POSTGRES_RUN + ["env", "PGOPTIONS=-c default_transaction_read_only=on", "psql", "-d", base, "-tA", "-F", SEP,
                             "-c", sql], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, stdin=subprocess.DEVNULL, universal_newlines=True,
                            errors="replace", timeout=delai)
     except (OSError, subprocess.TimeoutExpired):
@@ -473,7 +476,7 @@ def remettre_en_attente(base, ids, delai=60):
         print("+ runuser -u postgres -- psql -d " + base + " -tA -c \"UPDATE mail_mail SET state = 'outgoing' WHERE id IN (" + ", ".join(map(str, ids[:5]))
               + (" …" if len(ids) > 5 else "") + ") AND state = 'exception'\" (ÉCRITURE)", file=sys.stderr)
     try:
-        r = subprocess.run(["runuser", "-u", "postgres", "--", "psql", "-d", base, "-v", "ON_ERROR_STOP=1", "-tA", "-c", sql], stdout=subprocess.PIPE,
+        r = subprocess.run(POSTGRES_RUN + ["psql", "-d", base, "-v", "ON_ERROR_STOP=1", "-tA", "-c", sql], stdout=subprocess.PIPE,
                            stderr=subprocess.DEVNULL, stdin=subprocess.DEVNULL, universal_newlines=True, errors="replace", timeout=delai)
     except (OSError, subprocess.TimeoutExpired):
         return None
@@ -548,7 +551,7 @@ def set_user_active(base, uid, active, delai=30):
     if VERBOSE:
         print("+ runuser -u postgres -- psql -d " + base + f" -tA -c \"UPDATE res_users SET active = {'true' if active else 'false'} WHERE id = {uid} …\" (ÉCRITURE)", file=sys.stderr)
     try:
-        r = subprocess.run(["runuser", "-u", "postgres", "--", "psql", "-d", base, "-v", "ON_ERROR_STOP=1", "-tA", "-c", sql], stdout=subprocess.PIPE,
+        r = subprocess.run(POSTGRES_RUN + ["psql", "-d", base, "-v", "ON_ERROR_STOP=1", "-tA", "-c", sql], stdout=subprocess.PIPE,
                            stderr=subprocess.DEVNULL, stdin=subprocess.DEVNULL, universal_newlines=True, errors="replace", timeout=delai)
     except (OSError, subprocess.TimeoutExpired):
         return None
@@ -621,7 +624,7 @@ def fix_registration_email(base, registration_id, partner_id, old, new, mail_ids
         print("+ runuser -u postgres -- psql -1 -d " + base + f" -tA -c \"UPDATE event_registration SET email = … WHERE id = {rid} …\" (ÉCRITURE, une transaction)", file=sys.stderr)
     commands = [x for p in parts for x in ("-c", p)]           # one -c per statement, all in ONE transaction (-1): everything or nothing
     try:
-        r = subprocess.run(["runuser", "-u", "postgres", "--", "psql", "-1", "-d", base, "-v", "ON_ERROR_STOP=1", "-tA", "-F", SEP] + commands,
+        r = subprocess.run(POSTGRES_RUN + ["psql", "-1", "-d", base, "-v", "ON_ERROR_STOP=1", "-tA", "-F", SEP] + commands,
                            stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, stdin=subprocess.DEVNULL, universal_newlines=True, errors="replace", timeout=delai)
     except (OSError, subprocess.TimeoutExpired):
         return None

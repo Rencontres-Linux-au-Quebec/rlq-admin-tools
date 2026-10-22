@@ -22,6 +22,8 @@
 #DATABASE=
 # en, fr ou auto (suivre LC_ALL / LC_MESSAGES / LANG). Ordre de choix : --lang, NGINX_TOOLS_LANG, ODOO_UPDATE_MODULE_LANG, cette clé, LC_ALL, LC_MESSAGES, LANG.
 # Ajouter une langue = ajouter le fichier lang/odoo-update-module.XX.po (format PO : Poedit, Weblate…) — voir lang/README.md.
+# --force-busy : update even if the site stays busy after --wait-quiet (FORCE_BUSY=yes; default: the update is cancelled)
+#FORCE_BUSY=no
 #LANGUAGE=auto
 # modules à mettre à jour, séparés par des espaces ; motifs acceptés (--module, répétable)
 #MODULES=rlq_*
@@ -44,8 +46,9 @@
 #VERBOSE=no
 # attente maximale du démarrage après la mise à jour (service actif, puis port à l'écoute), en secondes
 #WAIT=90
-# --wait-quiet : attendre au plus N minutes que le site soit calme avant d'arrêter Odoo (0 = ne pas attendre ; au bout du délai, mise à jour quand même)
-#WAIT_QUIET=15
+# --check-activity : state of the site now (visitors, HTTP writes, PostgreSQL), changes nothing: exit 0 = quiet, 3 = busy
+# --wait-quiet : wait at most N minutes for a quiet site before stopping Odoo (0 = a single check; then the update is CANCELLED unless --force-busy)
+#WAIT_QUIET=60
 # préchauffer le cache d'Odoo après le redémarrage (odoo-warmup.py : pages publiques, derniers événements et sondages, administration) ; no = --no-warmup
 #WARMUP=yes
 # archive .zip des modules à décompresser avant la mise à jour (--zip) : un fichier, ou un dossier (la plus récente) ; vide : la plus récente « MODULE*.zip »
