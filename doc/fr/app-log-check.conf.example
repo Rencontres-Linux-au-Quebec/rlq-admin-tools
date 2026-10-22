@@ -16,6 +16,8 @@
 #APP=
 # --days (défaut : 7)
 #DAYS=7
+# --by-hour : rapport des problèmes par heure et par jour (au lieu du rapport par défaut)
+#BY_HOUR=non
 # --errors-only
 #ERRORS_ONLY=non
 # --full-trace

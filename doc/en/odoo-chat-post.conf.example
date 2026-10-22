@@ -26,6 +26,10 @@
 #EVENTS=JPOL26
 # --group : groupe qui voit les canaux et en devient membre (défaut : les utilisateurs internes)
 #GROUP=base.group_user
+# --bot-login: login of the bot account created by --create-bot (default: tux-bot)
+#BOT_LOGIN=tux-bot
+# --catalog: channels and threads catalogue (JSON); default: the catalogue shipped in doc/
+#CATALOG=
 # --members : ACCÈS RESTREINT — comptes Odoo (identifiants, virgule = plusieurs) qui voient les canaux et en sont membres, eux seuls.
 #   Les canaux sont alors réservés au groupe « Alertes équipe (odoo-chat-post) » (créé au besoin). Ajouter le compte du robot (ex. tux-bot) pour qu'il puisse publier ;
 #   tant qu'il n'existe pas, il est signalé : le créer, puis relancer --create (les membres manquants s'ajoutent, personne n'est retiré).

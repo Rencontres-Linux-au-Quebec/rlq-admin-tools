@@ -104,6 +104,9 @@
 # --watch : surveiller les requêtes dont l'URL contient ce texte (virgule = plusieurs ; touche w à la volée)
 #WATCH=
 
+# --summary : affiche aussi le résumé de session à la fin d'un --no-follow (avec Ctrl-C, toujours affiché)
+#SUMMARY=non
+
 # --- Options de la ligne de commande SEULEMENT (actions ou réglages ponctuels : aucune clé ici) ---
 # Les voici, pour mémoire (« app-log-live --help » donne le détail). Elles se donnent sur la ligne de commande, jamais dans ce fichier.
 #   --accentuate-group NAME  Contacts Odoo de l'ÉTIQUETTE de contact NOM (ex.

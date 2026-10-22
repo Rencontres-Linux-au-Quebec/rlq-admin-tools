@@ -67,7 +67,7 @@ for _d in /usr/local/sbin /usr/sbin /sbin; do [[ -n "${NGINX_TOOLS_TESTS:-}" ]] 
 # (Pendant la suite de tests, NGINX_TOOLS_TESTS désactive cet ajout : /usr/sbin/ufw & co resteraient sinon joignables.)
 export PATH
 
-readonly SCRIPT_VERSION="1.19.20261020.211944"
+readonly SCRIPT_VERSION="1.20.20261022.012000"
 SCRIPT_NAME="$(basename "${BASH_SOURCE[0]}" .sh)"; readonly SCRIPT_NAME
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
 SCRIPT_PATH="$SCRIPT_DIR/$(basename "${BASH_SOURCE[0]}")"; readonly SCRIPT_PATH
@@ -253,7 +253,7 @@ for fichier_config in ${FICHIERS_CONFIG[@]+"${FICHIERS_CONFIG[@]}"}; do
         printf -v "${BASH_REMATCH[1]}" '%s' "$valeur"
     done < "$fichier_config"
 done
-# Fichier COMMUN à tous les programmes (app-default.conf, puis ~/.app-default.conf) : seulement VERBOSE et DEBUG_LEVEL ; la clé du fichier du programme l'emporte.
+# Fichier COMMUN à tous les programmes (app-default.conf, puis ~/.app-default.conf) : VERBOSE et DEBUG_LEVEL lus ici ; LANGUAGE et ANONYMIZE sont lus par apps/_i18n.sh ; la clé du fichier du programme l'emporte.
 if (( ! CONFIG_EXPLICITE )); then
     commun_perso="${HOME:-/root}/.app-default.conf"
     if declare -F config_migrer_ancien >/dev/null; then config_migrer_ancien "$commun_perso"; commun_perso="$CFG_A_LIRE"; fi     # 1.19: legacy ~/.app-default.cfg renamed
