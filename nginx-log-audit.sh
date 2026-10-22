@@ -14,7 +14,7 @@
 #
 # Usage : nginx-log-audit.sh [dev|lab|prod] [-v|--verbose] [--ip ADRESSE] [--init] [--init-all] [--stats] [--last HEURES]
 #                            [--details] [--fail2ban] [--ban IP [--yes] [--reason TEXT]] [--unban IP] [--ban-history] [--investigate IP] [--evidence IP]
-#                            [--unban-check] [--ban-threshold N] [--page-burst N] [--parallel-threshold N] [--no-prompt] [--version]
+#                            [--unban-check] [--unban-low-score] [--ban-threshold N] [--page-burst N] [--parallel-threshold N] [--no-prompt] [--version]
 #                            [--changelog]
 #   - [dev|lab|prod]  : optionnel, auto-detecte selon les fichiers présents dans /var/log/nginx/.
 #   - -v/--verbose    : affiche aussi la commande shell exacte utilisee pour chaque verification.
@@ -88,6 +88,9 @@
 #                        User-Agents de navigateurs sont ignorés (un NAT d'entreprise ou d'université en montre
 #                        légitimement beaucoup) ; seule une IP qui se réclame de plusieurs organisations de robots à
 #                        la fois est signalée — aucune organisation n'opère les robots d'une autre.
+#   - --unban-low-score : liste les IP BANNIES (fail2ban et pare-feu manuel) dont le score est SOUS le seuil de
+#                        proposition (BAN_THRESHOLD, 3 par défaut), score recalculé comme --investigate ; demande pour
+#                        chacune si on peut la débannir (--yes : sans question ; sans terminal : liste seulement).
 #   - --version       : affiche la version et quitte.
 #   - --changelog     : affiche CHANGELOG.md (numeros de version en couleur si terminal).
 #
@@ -126,7 +129,7 @@ grep_q() { grep "$@" >/dev/null; }
 #                              ne peut pas le voir, le texte etant entre apostrophes (faux positif).
 trap 'ec=$?; echo "" >&2; echo "*** ARRÊT INATTENDU DU SCRIPT (code $ec) À LA LIGNE $LINENO ***" >&2; echo "*** Commande fautive : $BASH_COMMAND" >&2; echo "*** Si le rapport ci-dessus semble incomplet (ex. sections Top 10 absentes), c'\''est probablement la cause." >&2' ERR
 
-readonly SCRIPT_VERSION="2.42.20261020.211944"
+readonly SCRIPT_VERSION="2.43.20261022.162206"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
 # Chemin de ce programme (relances --investigate, --ban, --unban) : defini ICI, avant le bloc --ban qui l'utilise.
 SELF_PATH="$SCRIPT_DIR/$(basename "${BASH_SOURCE[0]}")"
@@ -166,6 +169,7 @@ UNBAN_IP=""
 BAN_REASON=""
 DO_BAN_HISTORY=0
 DO_UNBAN_CHECK=0
+DO_UNBAN_LOW_SCORE=0
 EXPORT_BANS=""
 IMPORT_BANS=""
 INV_MODE=""
@@ -224,6 +228,7 @@ while [[ $# -gt 0 ]]; do
         --investigate) INVESTIGATE_IP="${2:-}"; shift 2 ;;
         --evidence) EVIDENCE_IP="${2:-}"; shift 2 ;;
         --unban-check) DO_UNBAN_CHECK=1; shift ;;
+        --unban-low-score) DO_UNBAN_LOW_SCORE=1; shift ;;
         --export-bans) if [[ -n "${2:-}" && "${2:0:2}" != "--" ]]; then EXPORT_BANS="$2"; shift 2; else EXPORT_BANS="-"; shift; fi ;;
         --import-bans) IMPORT_BANS="${2:-}"; shift 2 ;;
         -c|--config) shift 2 ;;                # lus avant (apps/_i18n.sh : config_lire)
@@ -292,6 +297,7 @@ Options (par ordre alphabétique) :
   --ua-rotation-threshold N    identités de robots différentes pour l'indice « double identité »
   --unban IP                   lever un bannissement manuel (justification demandée)
   --unban-check                réévaluer chaque bannissement manuel (levée proposée si injustifié)
+  --unban-low-score            lister les IP bannies dont le score est sous le seuil et proposer de les débannir
   -v, --verbose                affiche chaque commande lancée
   --version                    affiche la version et quitte
   --yes                        avec --ban ou --unban : sans question (justification : --reason, sinon automatique)
@@ -1880,6 +1886,90 @@ decide_unban() {
         echo "      Pour lever (avec confirmation) : nginx-log-audit.sh --unban $ip"
     fi
 }
+
+# --- --unban-low-score : IP bannies (fail2ban ou pare-feu manuel) dont le score est SOUS le seuil de proposition ---------
+# Le score est recalculé comme --investigate (lecture seule). Une IP dont le score n'est pas lisible n'est jamais proposée.
+if [[ "$DO_UNBAN_LOW_SCORE" == "1" ]]; then
+    if [[ "$EUID" -ne 0 ]]; then
+        echo "ERREUR: --unban-low-score nécessite root (sudo)." >&2
+        exit 1
+    fi
+    echo "=============================================================="
+    echo " IP BANNIES SOUS LE SEUIL DE PROPOSITION (score < $BAN_THRESHOLD/7)"
+    echo "=============================================================="
+    declare -A BAN_SOURCE=()
+    declare -A SCORE_OF=()
+    declare -a LOW_IPS=()
+    if command -v fail2ban-client >/dev/null 2>&1 && run fail2ban-client ping >/dev/null 2>&1; then
+        for j in $(run fail2ban-client status 2>/dev/null | sed -n 's/.*Jail list:[[:space:]]*//p' | tr ',' ' '); do
+            for b in $(run fail2ban-client status "$j" 2>/dev/null | sed -n 's/.*Banned IP list:[[:space:]]*//p'); do
+                BAN_SOURCE["$b"]="fail2ban:$j"
+            done
+        done
+    fi
+    mapfile -t MANUAL_BANS < <(list_manual_bans)
+    for m in "${MANUAL_BANS[@]}"; do
+        [[ -n "$m" && -z "${BAN_SOURCE[$m]:-}" ]] && BAN_SOURCE["$m"]="pare-feu"
+    done
+    if (( ${#BAN_SOURCE[@]} == 0 )); then
+        echo "${C_GREEN}Aucune IP bannie (fail2ban ni bannissement manuel).${C_RESET}"
+        exit 0
+    fi
+    echo "${#BAN_SOURCE[@]} IP bannie(s) : calcul du score de chacune (lecture seule)…"
+    for ip in $(printf '%s\n' "${!BAN_SOURCE[@]}" | sort); do
+        sc=$(bash "$SELF_PATH" --investigate "$ip" --no-prompt ${APP_FORCE:+--app "$APP_FORCE"} 2>/dev/null \
+             | grep -o -m1 'Score [0-9]/7' | grep -o '[0-9]' || true)
+        SCORE_OF["$ip"]="${sc:-?}"
+        if [[ "$sc" =~ ^[0-9]+$ ]] && (( sc < BAN_THRESHOLD )); then
+            LOW_IPS+=("$ip")
+        fi
+    done
+    echo
+    printf '  %-40s %-10s %s\n' "IP" "Score" "Banni par"
+    for ip in $(printf '%s\n' "${!BAN_SOURCE[@]}" | sort); do
+        printf '  %-40s %-10s %s\n' "$ip" "${SCORE_OF[$ip]}/7" "${BAN_SOURCE[$ip]}"
+    done
+    echo
+    if (( ${#LOW_IPS[@]} == 0 )); then
+        echo "${C_GREEN}Aucune IP bannie n'a un score sous $BAN_THRESHOLD/7.${C_RESET}"
+        exit 0
+    fi
+    echo "${C_YELLOW}${#LOW_IPS[@]} IP bannie(s) sous le seuil de $BAN_THRESHOLD/7 : ${LOW_IPS[*]}${C_RESET}"
+    interactif=0
+    [[ "$NO_PROMPT" != "1" && -t 0 && -t 1 ]] && interactif=1
+    for ip in "${LOW_IPS[@]}"; do
+        src="${BAN_SOURCE[$ip]}"; sc="${SCORE_OF[$ip]}"
+        if prot=$(protected_ip_reason "$ip"); then
+            echo "  $ip : IP protégée ($(printf '%s\n' "$prot" | head -1)) — jamais levée par ce programme."
+            continue
+        fi
+        ok=0
+        if [[ "$ASSUME_YES" == "1" ]]; then
+            ok=1
+        elif (( interactif )); then
+            if demander_oui "Débannir $ip (score $sc/7, banni par $src) ? [o/N] "; then ok=1; fi
+        else
+            echo "  $ip : non levée (aucun terminal interactif ; relancer avec --yes pour la lever sans question)."
+            continue
+        fi
+        if (( ok )); then
+            case "$src" in
+                fail2ban:*)
+                    jail="${src#fail2ban:}"
+                    if run fail2ban-client set "$jail" unbanip "$ip" >/dev/null 2>&1; then
+                        echo "  ${C_GREEN}✓ $ip levée (jail $jail).${C_RESET}"
+                    else
+                        echo "  ${C_RED}✗ échec de la levée de $ip dans le jail $jail.${C_RESET}"
+                    fi
+                    ;;
+                *)
+                    relancer_action --unban "$ip" --yes --reason "score $sc/7 sous le seuil (--unban-low-score)" || true
+                    ;;
+            esac
+        fi
+    done
+    exit 0
+fi
 
 # --- --investigate IP : enquete complete sur TOUT l'historique disponible (actif + rotations + .gz) ------------------
 if [[ -n "$INVESTIGATE_IP" ]]; then
