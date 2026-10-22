@@ -155,6 +155,8 @@ class StatsResult(unittest.TextTestResult):
         else:
             kind = "unit"
         explicit = getattr(sys.modules.get(module), "PROGRAMME", None)
+        if not isinstance(explicit, str):          # un module de test peut définir PROGRAMME = <module> (test_record) : seul un nom compte
+            explicit = None
         self.records.append({"id": test.id(), "module": module, "program": explicit or program_of(module), "kind": kind,
                              "seconds": round(time.monotonic() - self._t0, 3), "result": self._outcome})
 
