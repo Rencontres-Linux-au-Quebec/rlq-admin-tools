@@ -5451,8 +5451,7 @@ def changelog_section(path, key):
 def show_changelog():
     signal.signal(signal.SIGPIPE, signal.SIG_DFL)          # "| head": silent stop, like cat
     try:
-        with open(CHANGELOG_FILE, encoding="utf-8") as f:
-            text = changelog_section(CHANGELOG_FILE, "app-log-live.py")
+        text = changelog_section(CHANGELOG_FILE, "app-log-live.py")
     except OSError:
         eprint(f"Changelog not found: {CHANGELOG_FILE}")
         return 1

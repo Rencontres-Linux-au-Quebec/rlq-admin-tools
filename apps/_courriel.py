@@ -240,8 +240,7 @@ def principal(argv=None):
     if a.changelog:
         chemin = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "CHANGELOG.md")
         try:
-            with open(chemin, encoding="utf-8") as f:
-                sys.stdout.write(changelog_section(chemin, "apps/_courriel.py"))
+            sys.stdout.write(changelog_section(chemin, "apps/_courriel.py"))
         except OSError:
             print("journal introuvable : " + chemin, file=sys.stderr)
             return 1
