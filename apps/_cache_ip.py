@@ -18,10 +18,6 @@
 #   * Vie privée : une adresse IP est un renseignement personnel. Les adresses non revues depuis 180 jours sont effacées (purge au démarrage
 #     des programmes) ; « --no-cache » (app-log-live.py, _reseau.py) ne lit ni n'écrit rien ; « _cache_ip.py --clear » efface tout.
 #
-# HISTORIQUE DE VERSION (resume — voir doc/_cache_ip.changelog.txt pour le detail complet) :
-#   1.2.20261019.150215 — New copyright: Services-Conseils Linux and Rencontres Linux au Québec contributors (AGPL-3.0-or-later).
-#   1.1.20261016.173838 — Copyright holder: Services-Linux Conseils Inc
-#   1.0.20261007.171721 — Premiere version : cache permanent des adresses (nom DNS, proprietaire du bloc, pays).
 #
 # Usage (normalement appele par les programmes de la suite) :
 #   python3 apps/_cache_ip.py --stats          contenu du cache

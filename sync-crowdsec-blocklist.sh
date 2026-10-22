@@ -28,50 +28,6 @@
 # Source par defaut : "all.txt" du projet communautaire Y3ll0w/CrowdSec-CAPI-Decisions (republie la liste CAPI de
 # CrowdSec, ~toutes les 2h, sans compte CrowdSec). Projet tiers, pas un service officiel de CrowdSec.
 #
-# HISTORIQUE DE VERSION (resume — voir sync-crowdsec-blocklist.changelog.txt pour le detail complet) :
-#   1.26.20261020.211944 — Personal configuration file ~/.sync-crowdsec-blocklist.conf (not .cfg); a legacy one with .cfg is renamed automatically.
-#   1.25.20261020.112434 — --stats: header columns aligned (« PREMIÈRE DÉTECTION » padded in bytes was 2 columns short).
-#   1.24.20261019.150215 — New copyright: Services-Conseils Linux and Rencontres Linux au Québec contributors (AGPL-3.0-or-later).
-#   1.23.20261016.173838 — Copyright holder: Services-Linux Conseils Inc
-#   1.22.20261015.143436 — --anonymize : affichage anonymisé (pseudonymes stables).
-#   1.21.20261012.103600 — Fichier de configuration créé au premier démarrage (toutes les options en commentaire) ; modèle doc/sync-crowdsec-blocklist.conf.example complété.
-#   1.20.20261010.215000 — Affichage francais ou anglais (--lang) ; fichier de configuration (LANGUAGE et options) et -c/--config.
-#   1.19.20261008.120306 — Couleurs conservees avec --report-err.
-#   1.18.20261007.093208 — Adresses protegees : liste blanche et lieux [protegee] (apps/_listes.sh).
-#   1.17.20261002.214327 — Premiere ligne de TOUTE execution (meme --help) : nom et version.
-#   1.16.20260930.163902 — Option --report-err : rapport d'erreurs a copier-coller en fin d'execution.
-#   1.15.20260930.081347 — Motif « A && B || C » remplace par un « if » (derniere_reussite).
-#   1.14.20260929.195459 — Aide : options par ordre alphabetique.
-#   1.13.20260929.134422 — Verrou flock contre les executions concurrentes.
-#   1.12.20260929.123856 — IP protegees : liste unique apps/team-ips.list, en plus des « allow » de nginx (vaut pour BBB).
-#   1.11.20260928.211633 — PATH non complete pendant la suite de tests (NGINX_TOOLS_TESTS).
-#   1.10.20260928.091309 — PATH complete (cron) ; passage date ; vrai message d'ipset et diagnostic adapte, verifie avant
-#                          le telechargement ; suivi des echecs consecutifs (--status) ; cron complete (PATH).
-#   1.9.20260927.202645 — Changelog dans le sous-repertoire doc/ (repli sur l'ancien emplacement).
-#   1.8.20260927.200712 — Fichiers d'etat et copie de sauvegarde en anglais (migration automatique).
-#   1.7.20260927.145909 — Reference mise a jour : nginx-log-audit.sh (ancien chk-nginx-logs.sh).
-#   1.6.20260926.125259 — ShellCheck 0.11.0 : aucun signalement, a tous les niveaux (constantes affectees puis
-#                          declarees readonly, faux positifs documentes), variable morte was_exec retiree. --changelog : interruption d'un
-#                          tube (ex. « | head ») geree proprement, au lieu d'un faux « ARRET INATTENDU (code 141) ».
-#   1.5.20260926.085236 — Revue de type shellcheck : « rm -rf "${STATE_DIR:?}" » (SC2115) dans --uninstall —
-#                          s'arrete au lieu de viser la racine si la variable etait un jour vide.
-#   1.4.20260926.075558 — IP protegees JAMAIS bloquees (liste blanche nginx, adresses du serveur, fichier .allow),
-#                          meme si la liste communautaire les contient exactement ou via une plage : entrees
-#                          « nomatch » dans les ipsets ; reseaux prives ecartes. Course SIGPIPE de « | grep -q »
-#                          corrigee (grep_q) — elle pouvait empecher la remise de la regle au demarrage de ufw.
-#   1.3.20260924.213315 — Options --ufw-hook / --ufw-hook-remove : integration optionnelle a ufw via son point
-#                          d'extension officiel /etc/ufw/after.init (bloc delimite, sauvegarde, retrait exact) —
-#                          ipsets et regles restaures a chaque demarrage de ufw, sans attendre le cron.
-#   1.2.20260924.203547 — Avertissement si la liste n'a pas change depuis --stale-days jours (defaut 3) : sortie,
-#                          --status et journal systeme (logger) — signe d'un depot source plus alimente.
-#   1.1.20260924.192259 — Installation automatique des paquets manquants (ipset, iptables, curl, ipset-persistent,
-#                          iptables-persistent — ces deux derniers JAMAIS si ufw est installe, car apt supprimerait
-#                          ufw) ; sauvegarde persistante apres chaque changement (netfilter-persistent save, chaines
-#                          fail2ban retirees de la sauvegarde) ; --verbose ; indicateur de progression ; --blocked
-#                          (IP reellement bloquees, compteurs par IP cumules) ; --cron-hours ; synchronisation sautee
-#                          si la liste n'a pas change ; repli sur la derniere liste en cache si le telechargement
-#                          echoue apres un redemarrage. Correctif : --status annoncait a tort ne pas exiger root.
-#   1.0.20260924.162902 — Version initiale.
 #
 # Usage : sync-crowdsec-blocklist.sh [--dry-run] [--status] [--blocked [--top N]] [--source URL] [--install-cron
 #                                    [--cron-hours N]] [--uninstall] [--min-ips N] [-v|--verbose] [--version]
@@ -104,7 +60,7 @@
 #                        contre un telechargement rate silencieusement qui debannirait tout le monde.
 #   - -v/--verbose    : affiche chaque commande systeme executee (apt, ipset, iptables, curl...).
 #   - --version       : affiche la version et quitte.
-#   - --changelog     : affiche sync-crowdsec-blocklist.changelog.txt (couleur si terminal).
+#   - --changelog     : affiche CHANGELOG.md (couleur si terminal).
 
 set -euo pipefail
 # PATH complété (2.x) : sous cron, PATH se limite à /usr/bin:/bin — ipset, iptables, nft, fail2ban-client, nginx

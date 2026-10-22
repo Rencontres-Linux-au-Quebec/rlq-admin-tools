@@ -1,6 +1,6 @@
 # odoo-docs.py — publish this documentation inside Odoo
 
-Writes the documentation (`docs/en`, `docs/fr`) **into Odoo itself**, through the external API (XML-RPC with an API key), so it stays up to date with the programs: each page embeds the real `--help` of its program. Two targets, chosen with `--target`:
+Writes the documentation (`doc/en`, `doc/fr`) **into Odoo itself**, through the external API (XML-RPC with an API key), so it stays up to date with the programs: each page embeds the real `--help` of its program. Two targets, chosen with `--target`:
 
 | Target | Where | Needs |
 |---|---|---|

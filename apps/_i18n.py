@@ -9,26 +9,6 @@
 # ========================================================================================================================
 # _i18n.py — langue d'affichage (fr / en) des programmes Python et traduction de leurs messages (module partagé, apps/).
 #
-# HISTORIQUE DE VERSION (résumé — voir doc/_i18n.changelog.txt pour le détail complet) :
-#   1.18.20261019.150215 — New copyright: Services-Conseils Linux and Rencontres Linux au Québec contributors (AGPL-3.0-or-later).
-#   1.17.20261017.105442 — Language: GNU LANGUAGE variable (as gettext); « Options : --lang xx (origin) » says which setting decided and which ones were ignored.
-#   1.16.20261016.173838 — foreground_child() / run_foreground(): Ctrl+C belongs to the child program that owns the terminal (no second question from the parent).
-#   1.15.20261016.151148 — Old catalog lang/PROGRAM.<source language>.po (left by an earlier version) ignored: it no longer cancels the translation of shared modules.
-#   1.14.20261015.230615 — Programme écrit dans la langue choisie : les clés des catalogues de modules qui figurent dans ses propres messages sont ignorées (« journal » ne devient plus « log »).
-#   1.13.20261015.220234 — Modules partagés écrits en anglais (ex. app-log-check pour odoo-mail-retry) : leur catalogue est chargé selon LEUR langue source.
-#   1.12.20261015.191427 — Langue source par programme (en-tête Source-Language) : base de la migration du code en anglais.
-#   1.11.20261015.143436 — --anonymize ajoutée à chaque analyseur d'arguments ; relance derrière le filtre (Contexte).
-#   1.10.20261015.065821 — Anglais : unités (o/Ko/Mo/Go → B/KB/MB/GB), virgules décimales → points ; colonnes alignées malgré la différence de longueur.
-#   1.9.20261014.154520 — Ctrl+C pendant une question input() : plus de « can't re-enter readline ».
-#   1.8.20261013.084000 — Chemins, URL et variables ignorés pour détecter le français restant.
-#   1.7.20261012.183000 — Codes de couleur masqués pendant la traduction (« ce serveur » mal traduit, colonnes décalées) ; le fragment le plus long gagne même s’il commence plus loin ; plus de mots français détectés.
-#   1.6.20261012.163000 — readline chargé pour toutes les invites ; la question de Ctrl+C accepte le retour arrière.
-#   1.5.20261012.094953 — Traducteur : les espaces de remplissage qui suivent un fragment absorbent la différence de longueur (colonnes alignées).
-#   1.4.20261011.144500 — Ctrl+C : installer_confirmation_ctrl_c (« Interrompre le programme ? [o/N] »), installée par demarrer().
-#   1.3.20261010.222500 — Le catalogue du programme l'emporte sur ceux des modules affichés (un même fragment, deux traductions : « journal » était rendu « log » dans web-monitor.py) ; remplacement en un seul passage (un texte traduit n'est jamais re-traduit).
-#   1.2.20261010.213500 — Contexte commun (demarrer) : langue + configuration + print/input traduits + analyseur argparse localisé, partagés par tous les programmes Python.
-#   1.1.20261010.210952 — Catalogues au format PO (standard gettext : Poedit, Weblate…), langues ouvertes (lang/PROGRAMME.XX.po), langue du fichier de configuration.
-#   1.0.20261010.200936 — Création : choix de la langue (--lang, WEB_MONITOR_LANG, LC_ALL, LC_MESSAGES, LANG) et traduction par fragments d'un catalogue lang/PROGRAMME.en.tsv.
 """Principe : les messages du programme sont écrits en français dans le code ; si la langue choisie n'est pas le français, chaque texte affiché passe par
 Traducteur, qui remplace les FRAGMENTS français connus du catalogue de cette langue par leur traduction. Les catalogues sont des fichiers PO (le format
 standard de gettext, lisibles par Poedit, Weblate, Crowdin… : msgid = fragment français, msgstr = traduction), un par programme et par langue :

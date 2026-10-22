@@ -23,17 +23,6 @@
 # Configuration (common rule): /etc/default/odoo-warmup.conf THEN ~/.odoo-warmup.conf (the last one wins); -c/--config: that file ALONE; the command line
 # takes priority. The files read are always displayed, with the important options.
 #
-# VERSION HISTORY (summary — see doc/odoo-warmup.changelog.txt for full detail):
-#   1.9.20261020.211944 — Personal configuration file ~/.odoo-warmup.conf (not .cfg); a legacy one with .cfg is renamed automatically.
-#   1.8.20261019.150215 — New copyright: Services-Conseils Linux and Rencontres Linux au Québec contributors (AGPL-3.0-or-later).
-#   1.7.20261017.105442 — Options line: which setting decided the display language (apps/_i18n.py 1.17).
-#   1.6.20261016.173838 — Copyright holder: Services-Linux Conseils Inc
-#   1.5.20261015.200821 — Source code, comments and changelog in English (display stays French/English via lang/odoo-warmup.fr.po).
-#   1.4.20261015.073057 — Modification date of the configuration files read.
-#   1.3.20261014.182101 — Extra pages in /etc/default/odoo-warmup-pages.conf; pages in fr, en, es; optional surveys.
-#   1.2.20261014.175821 — Common file app-default.conf; keys VERBOSE and DEBUG_LEVEL.
-#   1.1.20261014.174013 — Linked pages (--links) and latest events / surveys (--latest) warmed up.
-#   1.0.20261013.153900 — First version: public pages, assets, administration screens (get_views), automatic start by systemd.
 #
 # Usage:
 #   odoo-warmup.py                          warm up (public pages; plus administration if LOGIN and KEY_FILE are set)
@@ -672,8 +661,7 @@ def changelog_section(path, key):
 def show_changelog():
     signal.signal(signal.SIGPIPE, signal.SIG_DFL)
     try:
-        with open(CHANGELOG_FILE, encoding="utf-8") as f:
-            text = changelog_section(CHANGELOG_FILE, "odoo-warmup.py")
+        text = changelog_section(CHANGELOG_FILE, "odoo-warmup.py")
     except OSError:
         eprint(f"Changelog not found: {CHANGELOG_FILE}")
         return 1

@@ -19,20 +19,6 @@ les ÉCHECS, AVERTISSEMENTS et RECOMMANDATIONS à traiter avec leurs lignes de d
   - programmes Bash : apps/_rapport.sh relance le programme en capturant sa sortie, puis appelle ce fichier en ligne de
     commande (python3 apps/_rapport.py --programme … --sortie FICHIER).
 
-HISTORIQUE (résumé ; détail : doc/_rapport.changelog.txt)
-#   1.12.20261019.150215 — New copyright: Services-Conseils Linux and Rencontres Linux au Québec contributors (AGPL-3.0-or-later).
-#   1.11.20261016.173838 — Copyright holder: Services-Linux Conseils Inc
-#   1.10.20261013.103000 — apps/_courriel.py dans la ligne « Suite ».
-#   1.9.20261008.120306 — _rapport.sh : REPORT_ERR_COULEUR (couleurs conservees avec --report-err).
-#   1.8.20261007.175327 — odoo-mail-retry.py dans la ligne « Suite ».
-#   1.7.20261007.171721 — apps/_cache_ip.py dans la ligne « Suite ».
-#   1.6.20261007.093208 — apps/_listes.py dans la ligne « Suite ».
-#   1.5.20261002.073514 — app-log-live.py, apps/_reseau.py et apps/_odoo_db.py dans la ligne « Suite ».
-#   1.4.20261001.143624 — apps/_bbb.py dans la ligne « Suite ».
-#   1.3.20261001.094048 — Suite de tests dans nginx-tools-tests/ (ancien tests/ encore lu pendant la transition).
-#   1.2.20261001.092458 — zip-versions.py dans la ligne « Suite » du rapport.
-#   1.1.20260930.225745 — Recommandations numérotées une seule fois (« 1. 1. » auparavant).
-#   1.0.20260930.163902 — Première version : rapport d'erreurs commun (--report-err).
 """
 import argparse
 import datetime
@@ -349,8 +335,7 @@ class _Parseur(argparse.ArgumentParser):
 def afficher_changelog():
     chemin = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "CHANGELOG.md")
     try:
-        with open(chemin, encoding="utf-8") as f:
-            texte = changelog_section(chemin, "apps/_rapport.py")
+        texte = changelog_section(chemin, "apps/_rapport.py")
     except OSError:
         print(f"Changelog introuvable : {chemin}", file=sys.stderr)
         return 1

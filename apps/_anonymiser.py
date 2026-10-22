@@ -9,11 +9,6 @@
 # ========================================================================================================================
 # _anonymiser.py — anonymise ce qu'affichent les programmes (option --anonymize) : pseudonymes STABLES (module partagé, apps/).
 #
-# HISTORIQUE DE VERSION (résumé — voir doc/_anonymiser.changelog.txt pour le détail complet) :
-#   1.3.20261020.203430 — Names of people registered by a program (names=, names_lock=) replaced by « membre-4f2a9c » (stable, per account), column padding kept; NGINX_TOOLS_ANON_SELF: no relaunch.
-#   1.2.20261020.103939 — Masked e-mails (« b****ss@exemple.org ») replaced whole; fixed_width: IP pseudonyms padded to the width of the address (aligned columns).
-#   1.1.20261019.150215 — New copyright: Services-Conseils Linux and Rencontres Linux au Québec contributors (AGPL-3.0-or-later).
-#   1.0.20261015.143436 — Création : adresses IP (v4, v6), courriels, identifiants (login, user), jetons / mots de passe / cookies, paramètres d'URL ; filtre de lignes ; sel secret par machine.
 """Remplace, dans le texte affiché, les données qui identifient quelqu'un par des PSEUDONYMES STABLES : une même valeur donne toujours le même pseudonyme (on suit « la même
 personne » d'un rapport à l'autre sans pouvoir l'identifier). Le pseudonyme est un HMAC-SHA256 de la valeur avec un SEL SECRET propre à la machine (jamais affiché) : sans le sel,
 on ne peut ni retrouver la valeur ni vérifier une hypothèse ; avec la machine, `_anonymiser.py --pseudonyme VALEUR` dit quel pseudonyme correspond à une valeur connue.

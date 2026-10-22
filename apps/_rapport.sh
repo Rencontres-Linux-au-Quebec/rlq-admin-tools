@@ -7,7 +7,7 @@
 # Full text: https://www.gnu.org/licenses/agpl-3.0.html
 # ========================================================================================================================
 # Bibliothèque commune (sourcée par les programmes bash) : option --report-err. Composant versionné avec apps/_rapport.py
-# (doc/_rapport.changelog.txt).
+# (CHANGELOG.md).
 #   rapport_si_demande CHEMIN_DU_PROGRAMME VERSION DOSSIER_DES_PROGRAMMES "$@"
 # Sans --report-err (ou avec --help, --version, --changelog) : ne fait rien. Avec --report-err : relance le programme SANS cette
 # option en copiant sa sortie (stdout et stderr) dans un fichier tout en l'affichant, puis imprime le rapport d'erreurs

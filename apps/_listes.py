@@ -19,11 +19,6 @@
 # Transition : tant que /etc/default/nginx-tools-white-list.conf n'existe pas, l'ancienne liste apps/team-ips.list est lue (avec un avertissement) ;
 # nginx-hardening.sh --update la migre. Variables d'environnement (tests) : NGINX_TOOLS_WHITE_LIST, NGINX_TOOLS_IP_LOCATION (fichier unique).
 #
-# HISTORIQUE DE VERSION (resume — voir doc/_listes.changelog.txt pour le detail complet) :
-#   1.3.20261020.211944 — Personal configuration file ~/.NAME.conf (not .cfg); a legacy ~/.NAME.cfg is renamed automatically.
-#   1.2.20261019.150215 — New copyright: Services-Conseils Linux and Rencontres Linux au Québec contributors (AGPL-3.0-or-later).
-#   1.1.20261016.173838 — Copyright holder: Services-Linux Conseils Inc
-#   1.0.20261007.093208 — Premiere version : liste blanche et lieux, lecteur commun (remplace six analyseurs).
 #
 # Usage (normalement appele par les programmes de la suite) :
 #   python3 apps/_listes.py --resume          fichiers lus et nombre d'entrees

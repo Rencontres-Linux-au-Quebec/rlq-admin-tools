@@ -23,22 +23,6 @@
 # Configuration (common rule): /etc/default/odoo-mail-retry.conf THEN ~/.odoo-mail-retry.conf (the last one wins; keys BATCH, DAYS, DB, DETAILS, LANGUAGE, NO_PROMPT); -c/--config: that file ALONE;
 # the command line takes priority. The files read are always displayed, with the important options.
 #
-# VERSION HISTORY (summary — see doc/odoo-mail-retry.changelog.txt for full detail):
-#   1.14.20261020.211944 — Personal configuration file ~/.odoo-mail-retry.conf (not .cfg); a legacy one with .cfg is renamed automatically.
-#   1.13.20261019.150215 — New copyright: Services-Conseils Linux and Rencontres Linux au Québec contributors (AGPL-3.0-or-later).
-#   1.12.20261017.105442 — Options line: which setting decided the display language (apps/_i18n.py 1.17).
-#   1.11.20261016.173838 — Copyright holder: Services-Linux Conseils Inc
-#   1.10.20261016.114848 — Invalid e-mail addresses of event registrations (--invalid-emails): suggested correction, registration and contact fixed, failed e-mails resent (--fix --yes).
-#   1.9.20261015.215256 — Follows app-log-check 2.20 (classify_diagnostic, « short » key); no change of behavior.
-#   1.8.20261015.201033 — Source code, comments and changelog in English (display stays French/English via lang/odoo-mail-retry.fr.po).
-#   1.7.20261015.080630 — Root required from the start (everything goes through PostgreSQL).
-#   1.6.20261015.073057 — Modification date of the configuration files read.
-#   1.5.20261014.175821 — Common file app-default.conf; keys VERBOSE and DEBUG_LEVEL.
-#   1.4.20261013.081500 — --sent N: the N latest e-mails sent.
-#   1.3.20261012.103600 — Configuration file created at first start (apps/_config.py).
-#   1.2.20261010.215000 — French or English display (--lang, LANGUAGE of the configuration file), catalog lang/odoo-mail-retry.en.po.
-#   1.1.20261007.200504 — « One by one » menu: each question says WHO the e-mail is addressed to.
-#   1.0.20261007.175936 — First version: list of unsent e-mails (title, date, recipients, cause) and offer to resend them.
 #
 # Usage:
 #   odoo-mail-retry.py                      list of unsent e-mails, then the resend menu (on a terminal)
@@ -497,8 +481,7 @@ def changelog_section(path, key):
 def show_changelog():
     signal.signal(signal.SIGPIPE, signal.SIG_DFL)
     try:
-        with open(CHANGELOG_FILE, encoding="utf-8") as f:
-            text = changelog_section(CHANGELOG_FILE, "odoo-mail-retry.py")
+        text = changelog_section(CHANGELOG_FILE, "odoo-mail-retry.py")
     except OSError:
         eprint(f"Changelog not found: {CHANGELOG_FILE}")
         return 1

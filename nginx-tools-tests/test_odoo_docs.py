@@ -163,7 +163,7 @@ class TestOdooDocs(EnvTest):
     def pages_attendues(self):
         """Number of pages published: NN-name.md files of docs/en and docs/fr next to the program (a server may hold one page more or less)."""
         import re as _re
-        dossier = os.path.join(os.path.dirname(script_path("odoo-docs.py")), "docs")
+        dossier = os.path.join(os.path.dirname(script_path("odoo-docs.py")), "doc")
         return sum(1 for lang in ("en", "fr") for f in os.listdir(os.path.join(dossier, lang)) if _re.fullmatch(r"\d\d-.+\.md", f))
 
     @unittest.skipUnless(MARKDOWN, "module Python « markdown » absent (apt install python3-markdown)")
