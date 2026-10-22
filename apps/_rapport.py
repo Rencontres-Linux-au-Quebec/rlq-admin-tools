@@ -335,8 +335,7 @@ class _Parseur(argparse.ArgumentParser):
 def afficher_changelog():
     chemin = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "CHANGELOG.md")
     try:
-        with open(chemin, encoding="utf-8") as f:
-            texte = changelog_section(chemin, "apps/_rapport.py")
+        texte = changelog_section(chemin, "apps/_rapport.py")
     except OSError:
         print(f"Changelog introuvable : {chemin}", file=sys.stderr)
         return 1

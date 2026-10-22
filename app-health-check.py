@@ -1421,8 +1421,7 @@ def show_changelog():
     signal.signal(signal.SIGPIPE, signal.SIG_DFL)
     path = changelog_path("CHANGELOG.md")
     try:
-        with open(path, encoding="utf-8") as f:
-            text = changelog_section(path, "app-health-check.py")
+        text = changelog_section(path, "app-health-check.py")
     except OSError:
         print(f"Changelog not found: {path}", file=sys.stderr)
         return 1

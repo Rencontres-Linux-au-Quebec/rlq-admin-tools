@@ -151,8 +151,7 @@ def show_changelog():
     if not os.path.isfile(path):
         eprint(f"Changelog not found: {path}")
         sys.exit(1)
-    with open(path, encoding="utf-8") as f:
-        content = changelog_section(path, "app-log-check.py")
+    content = changelog_section(path, "app-log-check.py")
     if sys.stdout.isatty():
         content = re.sub(
             r"^(### [0-9]+\.[0-9]+\.[0-9]{8}\.[0-9]{6}.*)$",
