@@ -15,8 +15,8 @@ Do not run an old test suite against new programs (or the reverse): deploy both 
 
 ## Pitfalls that cost a cycle before
 
-* `systemctl is-active` prints the state *and* returns non-zero: do not write `$(… || echo unknown)`.
-* ShellCheck's development version is newer than Debian's and does not flag `A && B || C` (SC2015): a test looks for that pattern itself. Never put an apostrophe in `${x:+…}` inside double quotes.
+* `systemctl is-active` prints the state *and* returns non-zero: do not write `$(... || echo unknown)`.
+* ShellCheck's development version is newer than Debian's and does not flag `A && B || C` (SC2015): a test looks for that pattern itself. Never put an apostrophe in `${x:+...}` inside double quotes.
 * A test that loads a program inside the test process reads the real `os.environ` and `/proc`; fix machine dependencies at process level (`helpers.py`).
 * Documentation-range addresses (`192.0.2.x`, `198.51.100.x`, `203.0.113.x`) count as private for Python's `ipaddress`: use other public addresses in tests.
 * Cutting by bytes (`cut -c`) splits accented characters: cut with Python.

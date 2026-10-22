@@ -24,19 +24,19 @@
 #VERBOSE=false
 
 # --- Cible ---
-# Autres noms publics qui doivent REDIRIGER vers ODOO_PUBLIC_HOST (séparés par des virgules, sans espace) — vérifié
+# Autres noms publics qui doivent REDIRIGER vers ODOO_PUBLIC_HOST (séparés par des virgules, sans espace) - vérifié
 # en plus : présence de HSTS sur la redirection elle-même (pas seulement sur la réponse finale), et qu'un seul saut
 # suffit pour atteindre ODOO_PUBLIC_HOST. Laisser vide si cette instance n'a qu'un seul nom public (cas normal pour
 # DEV/LAB). Pour PROD :
 ADDITIONAL_PUBLIC_HOSTS=rencontres-linux.quebec,odoo18.rencontres-linux.quebec
 # Mettre à "true" UNIQUEMENT sur une instance de développement (DEV/LAB : accès restreint par IP, non publique), et
-# JAMAIS en PROD : cette option fait ATTENDRE un robots.txt « Disallow: / » — en PROD, elle masquerait donc la pire
+# JAMAIS en PROD : cette option fait ATTENDRE un robots.txt « Disallow: / » - en PROD, elle masquerait donc la pire
 # panne possible pour un site public, sa désindexation complète. Le script vérifie la cohérence avec le nom de
 # domaine (ODOO_PUBLIC_HOST et ADDITIONAL_PUBLIC_HOSTS) : il SUGGÈRE l'option si un nom contient « -dev. » ou
 # « .dev. » (ou commence par « dev. »), ex. odoo-dev.rencontres-linux.quebec, et ÉCHOUE si elle est active alors
 # qu'aucun nom ne le contient. Détection stricte : « devis », « device », « dev2 » ou le domaine « .dev » ne comptent
 # pas. Une DEV volontairement publique : EXPECT_RESTRICTED_ACCESS=false explicite fait taire la suggestion.
-# Mettre à "true" pour DEV/LAB (accès restreint par IP, non public) — active la vérification de X-Robots-Tag et
+# Mettre à "true" pour DEV/LAB (accès restreint par IP, non public) - active la vérification de X-Robots-Tag et
 # une note explicative sur l'interprétation du status obtenu pour /web/database/manager et /. Les vérifications de
 # robots.txt attendent alors « Disallow: / » (servi par nginx pour les instances non publiques, voir le map
 # $robots_disallow_all dans conf.d/odoo-global.conf) au lieu du robots.txt d'Odoo. Laisser à false pour PROD.
@@ -44,10 +44,10 @@ EXPECT_RESTRICTED_ACCESS=false
 ODOO_PUBLIC_HOST=www.rencontres-linux.quebec
 # Pour DEV : ODOO_PUBLIC_HOST=odoo-dev.rencontres-linux.quebec
 
-# --- Tests fonctionnels Odoo (JSON-RPC) — laisser vide pour ne faire QUE les tests HTTP/nginx ---
+# --- Tests fonctionnels Odoo (JSON-RPC) - laisser vide pour ne faire QUE les tests HTTP/nginx ---
 ODOO_DB=linux_meetup_odoo_18_2026-08-06_dev
 # Modèles à lire en lecture seule (search_read, limit 1) pour détecter un module cassé. Garder une liste courte et
-# non sensible — le compte de test ne devrait de toute façon avoir accès qu'à ce qui est nécessaire au test.
+# non sensible - le compte de test ne devrait de toute façon avoir accès qu'à ce qui est nécessaire au test.
 ODOO_SMOKE_MODELS=res.partner,event.event
 ODOO_TEST_PASSWORD=
 ODOO_TEST_USER=sanity.check@rencontres-linux.quebec
@@ -55,14 +55,14 @@ ODOO_TEST_USER=sanity.check@rencontres-linux.quebec
 # --- Cas particuliers ---
 # Gestionnaire de bases (/web/database/manager) : NE PAS renseigner en temps normal. L'attente dépend du mode :
 # « ouvert » en --target local (127.0.0.1 est dans la liste blanche nginx : 200 est normal), « fermé » en --target
-# external (la vraie vérification de la protection). Une valeur ici s'appliquerait aux DEUX modes — avec
+# external (la vraie vérification de la protection). Une valeur ici s'appliquerait aux DEUX modes - avec
 # EXPECT_DB_MANAGER_OPEN=false, le test local échouait à tort (200 depuis 127.0.0.1). (défaut : true en --target local, false en --target external)
 #EXPECT_DB_MANAGER_OPEN=
-# Mettre à "true" si l'authentification Google doit TOUJOURS être active sur cette instance — son absence devient
+# Mettre à "true" si l'authentification Google doit TOUJOURS être active sur cette instance - son absence devient
 # alors un échec plutôt qu'une simple information. Laisser à false si Google OAuth est optionnel/pas encore activé.
 EXPECT_GOOGLE_OAUTH=false
 
-# --- Notification email (optionnel — laisser SMTP_HOST vide pour désactiver) ---
+# --- Notification email (optionnel - laisser SMTP_HOST vide pour désactiver) ---
 # Sélecteur DKIM fourni par le relais SMTP (vérifié par app-health-check.py --check-email-dns)
 DKIM_SELECTOR=
 # Guide complet (relais, enregistrements DNS SPF / DKIM / DMARC, test) : doc/email-setup.md
@@ -75,7 +75,7 @@ SMTP_PORT=587
 SMTP_SECURITY=
 SMTP_USER=
 
-# --- Notification Odoo Discuss (optionnel — laisser ODOO_DISCUSS_CHANNEL vide pour désactiver) ---
+# --- Notification Odoo Discuss (optionnel - laisser ODOO_DISCUSS_CHANNEL vide pour désactiver) ---
 # Nécessite ODOO_TEST_USER ci-dessus (le message est posté en son nom). Le canal doit déjà exister dans Odoo.
 ODOO_DISCUSS_CHANNEL=Sanity Check
 # discuss.channel sur Odoo 17+ ; mettre "mail.channel" si votre version est antérieure.

@@ -1,10 +1,10 @@
-# odoo-docs.py — publier cette documentation dans Odoo
+# odoo-docs.py - publier cette documentation dans Odoo
 
 Écrit la documentation (`doc/en`, `doc/fr`) **dans Odoo lui-même**, par l'API externe (XML-RPC avec une clé d'API), afin qu'elle reste à jour avec les programmes : chaque page contient le vrai `--help` de son programme. Deux cibles, choisies avec `--target` :
 
 | Cible | Où | Prérequis |
 |---|---|---|
-| `wiki` | pages du module OCA **document_page** (dépôt *OCA/knowledge*) : catégorie racine → *English* / *Français* → une page par document | `document_page` installé |
+| `wiki` | pages du module OCA **document_page** (dépôt *OCA/knowledge*) : catégorie racine -> *English* / *Français* -> une page par document | `document_page` installé |
 | `website` | pages du site web `/docs/<langue>/<page>` (vue QWeb + `website.page`) | `website` installé |
 
 ```bash
@@ -16,7 +16,7 @@ odoo-docs.py --target website               # même contenu en pages du site web
 
 ## Validation avant d'écrire (wiki)
 
-Le programme refuse d'écrire sans avoir vérifié que `document_page` est **installé et fonctionne** : module à l'état `installed` (version affichée) ; modèles `document.page` et `document.page.history` ; champs `name`, `type`, `parent_id`, `content` (modifiable) ; droits `create` / `write` / `unlink` du compte ; puis un **essai réel** sur une catégorie et une page temporaires (création, modification, relecture, nombre de versions d'historique, suppression — supprimées même en cas d'échec). `--dry-run` saute l'essai d'écriture.
+Le programme refuse d'écrire sans avoir vérifié que `document_page` est **installé et fonctionne** : module à l'état `installed` (version affichée) ; modèles `document.page` et `document.page.history` ; champs `name`, `type`, `parent_id`, `content` (modifiable) ; droits `create` / `write` / `unlink` du compte ; puis un **essai réel** sur une catégorie et une page temporaires (création, modification, relecture, nombre de versions d'historique, suppression - supprimées même en cas d'échec). `--dry-run` saute l'essai d'écriture.
 
 ## Configuration
 

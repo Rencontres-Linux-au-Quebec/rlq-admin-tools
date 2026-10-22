@@ -17,11 +17,11 @@
 # --site-languages : langues du site chargées pour chaque page publique (versions trouvées dans les liens hreflang de la page) ; aucune = seulement la langue de l'adresse
 #LANGS=fr,en,es
 # en, fr ou auto (suivre LC_ALL / LC_MESSAGES / LANG). Ordre de choix : --lang, NGINX_TOOLS_LANG, ODOO_WARMUP_LANG, cette clé, LC_ALL, LC_MESSAGES, LANG.
-# Ajouter une langue = ajouter le fichier lang/odoo-warmup.XX.po (format PO : Poedit, Weblate…) — voir lang/README.md.
+# Ajouter une langue = ajouter le fichier lang/odoo-warmup.XX.po (format PO : Poedit, Weblate...) - voir lang/README.md.
 #LANGUAGE=auto
 # --latest : pages publiques des N derniers événements et sondages (lus avec la session d'administration LOGIN / KEY_FILE) ; 0 = aucun
 #LATEST=5
-# --links : pages liées trouvées dans les pages publiques (fiches d'événements, sondages…) à charger aussi ; 0 = aucune
+# --links : pages liées trouvées dans les pages publiques (fiches d'événements, sondages...) à charger aussi ; 0 = aucune
 #LINKS=6
 # Administration : utilisateur Odoo DÉDIÉ (droits de lecture suffisent) et fichier contenant sa CLÉ D'API (Préférences > Sécurité du compte > Clés API ;
 # une ligne, mode 0600 : chmod 600). Sans ces deux clés, seules les pages publiques sont préchauffées. (défaut : aucun : pages publiques seulement)

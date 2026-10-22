@@ -1,4 +1,4 @@
-# odoo-mail-retry.py — lister et renvoyer les courriels en échec
+# odoo-mail-retry.py - lister et renvoyer les courriels en échec
 
 Lit PostgreSQL (root) et liste les courriels d'Odoo à l'état **exception** (« Échec d'envoi ») : sujet, date, destinataires (masqués sauf avec `--details`) et une cause classée *transitoire* ou *PERMANENTE*. Un menu propose ensuite : `t` tous, `l` un lot des N plus anciens (`--batch`), `c` choisir, `N` aucun.
 
@@ -15,7 +15,7 @@ odoo-mail-retry.py --sent 20                     # les 20 derniers courriels ENV
 
 ## Adresses invalides des inscriptions
 
-Avant les courriels en échec, le programme liste les inscriptions aux événements dont l'adresse courriel est invalide ou mal écrite, avec la correction suggérée (`marie@hotmail'com` → `marie@hotmail.com`, `hotmial.com` → `hotmail.com`). Le menu les corrige toutes (`a`) ou une par une (`c` : Entrée accepte la suggestion, ou saisir une autre adresse, `s` passe) ; `--invalid-emails` ne montre qu'elles, `--fix --yes` applique les suggestions sans question. Une correction modifie, en une transaction, l'inscription, son contact (seulement s'il a la même adresse erronée) et les courriels en échec de cette inscription, qui repassent « En attente ». L'identifiant d'un compte Odoo n'est jamais modifié. Un courriel en échec adressé à une adresse invalide est affiché avec cette cause : renvoyé tel quel, il échouerait de nouveau.
+Avant les courriels en échec, le programme liste les inscriptions aux événements dont l'adresse courriel est invalide ou mal écrite, avec la correction suggérée (`marie@hotmail'com` -> `marie@hotmail.com`, `hotmial.com` -> `hotmail.com`). Le menu les corrige toutes (`a`) ou une par une (`c` : Entrée accepte la suggestion, ou saisir une autre adresse, `s` passe) ; `--invalid-emails` ne montre qu'elles, `--fix --yes` applique les suggestions sans question. Une correction modifie, en une transaction, l'inscription, son contact (seulement s'il a la même adresse erronée) et les courriels en échec de cette inscription, qui repassent « En attente ». L'identifiant d'un compte Odoo n'est jamais modifié. Un courriel en échec adressé à une adresse invalide est affiché avec cette cause : renvoyé tel quel, il échouerait de nouveau.
 
 ## Options
 {{HELP}}

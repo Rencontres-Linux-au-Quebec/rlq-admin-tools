@@ -1,4 +1,4 @@
-# rlq_survey_report — module Odoo 18
+# rlq_survey_report - module Odoo 18
 
 Module Odoo 18 Community (dépend de `survey`, `mail`, `event`) pour les sondages mensuels des Rencontres Linux au Québec. La documentation complète pour les utilisateurs est le *Guide utilisateur* livré dans `doc/Guide-utilisateur-rlq_survey_report.html` et servi dans Odoo à l'adresse `/rlq_survey_report/aide`. Cette page est la vue de l'administrateur.
 
@@ -16,7 +16,7 @@ Module Odoo 18 Community (dépend de `survey`, `mail`, `event`) pour les sondage
 
 | Clé | Rôle |
 |---|---|
-| `rlq_survey_report.mot_de_passe_defaut` | mot de passe par défaut pré-rempli dans le formulaire d'export — **à définir après l'installation** |
+| `rlq_survey_report.mot_de_passe_defaut` | mot de passe par défaut pré-rempli dans le formulaire d'export - **à définir après l'installation** |
 | `rlq_survey_report.courriel_inscriptions` | adresse(s) des avertissements d'inscriptions quand l'événement n'en a pas |
 | `rlq_survey_report.url_aide` | cible du bouton « Aide » |
 | `rlq_survey_report.synchro_minutes_defaut` | intervalle proposé (minutes, minimum 5, défaut `15`) pour une nouvelle synchronisation périodique |

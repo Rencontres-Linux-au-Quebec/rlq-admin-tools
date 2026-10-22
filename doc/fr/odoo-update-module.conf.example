@@ -4,7 +4,7 @@
 #   2. ~/.odoo-update-module.conf               (s'il existe : réglages de l'utilisateur)
 # -c/--config FICHIER : ce fichier SEUL. Le répertoire courant n'est PAS lu. Le programme affiche toujours quel(s) fichier(s) il lit,
 # puis une ligne résumant les options importantes. Format : CLÉ=valeur, une par ligne ; # = commentaire ; guillemets facultatifs ;
-# booléens : yes / no (true / false, 1 / 0) — valeurs en anglais seulement (oui / non : lus, avec un avertissement). Ce fichier est LU, jamais exécuté.
+# booléens : yes / no (true / false, 1 / 0) - valeurs en anglais seulement (oui / non : lus, avec un avertissement). Ce fichier est LU, jamais exécuté.
 
 # --- Options (ordre alphabétique / alphabetical order) ---
 # dossier où décompresser l'archive (--addons-dir), souvent un dossier d'addons ; vide : celui de addons_path qui contient déjà ces modules (défaut : dossier d'addons contenant déjà les modules)
@@ -21,7 +21,7 @@
 # base (--db) ; vide : « -d » de la commande du service, sinon db_name d'Odoo (défaut : « -d » du service, sinon db_name d'Odoo)
 #DATABASE=
 # en, fr ou auto (suivre LC_ALL / LC_MESSAGES / LANG). Ordre de choix : --lang, NGINX_TOOLS_LANG, ODOO_UPDATE_MODULE_LANG, cette clé, LC_ALL, LC_MESSAGES, LANG.
-# Ajouter une langue = ajouter le fichier lang/odoo-update-module.XX.po (format PO : Poedit, Weblate…) — voir lang/README.md.
+# Ajouter une langue = ajouter le fichier lang/odoo-update-module.XX.po (format PO : Poedit, Weblate...) - voir lang/README.md.
 # --force-busy : mise à jour même si le site reste occupé après --wait-quiet (FORCE_BUSY=yes ; par défaut, la mise à jour est annulée)
 #FORCE_BUSY=no
 #LANGUAGE=auto
@@ -33,7 +33,7 @@
 #ODOO_CONF=
 # dossier d'Odoo ; vide : WorkingDirectory= du service (défaut : WorkingDirectory= du service)
 #ODOO_DIR=
-# --no-rollback : ROLLBACK=no — jamais de retour arrière ; yes : après des erreurs (mise à jour, démarrage, journal d'Odoo), modules d'avant remis en place
+# --no-rollback : ROLLBACK=no - jamais de retour arrière ; yes : après des erreurs (mise à jour, démarrage, journal d'Odoo), modules d'avant remis en place
 # (question sur un terminal, automatique sinon), nouvelle mise à jour, redémarrage
 #ROLLBACK=yes
 # compte de la mise à jour (--user) ; vide : User= du service (défaut : User= du service)

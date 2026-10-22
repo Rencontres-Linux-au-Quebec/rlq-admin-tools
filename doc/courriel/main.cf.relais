@@ -1,4 +1,4 @@
-# /etc/postfix/main.cf — MODE A : Postfix « envoi seulement » qui passe par un RELAIS SMTP authentifié (recommandé).
+# /etc/postfix/main.cf - MODE A : Postfix « envoi seulement » qui passe par un RELAIS SMTP authentifié (recommandé).
 # Remplacer rencontres-linux.quebec, mail.rencontres-linux.quebec et smtp.fournisseur.exemple. Appliquer : postfix check && systemctl reload postfix
 # Les mots de passe vont dans /etc/postfix/sasl_passwd (voir courriel-securise.md), jamais ici.
 
