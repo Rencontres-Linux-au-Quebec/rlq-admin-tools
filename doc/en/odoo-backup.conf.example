@@ -4,7 +4,7 @@
 #   2. ~/.odoo-backup.conf               (s'il existe : réglages de l'utilisateur)
 # -c/--config FICHIER : ce fichier SEUL. Le répertoire courant n'est PAS lu. Le programme affiche toujours quel(s) fichier(s) il lit,
 # puis une ligne résumant les options importantes. Format : CLÉ=valeur, une par ligne ; # = commentaire ; guillemets facultatifs ;
-# booléens : yes / no (true / false, 1 / 0) — valeurs en anglais seulement (oui / non : lus, avec un avertissement). Ce fichier est LU, jamais exécuté.
+# booléens : yes / no (true / false, 1 / 0) - valeurs en anglais seulement (oui / non : lus, avec un avertissement). Ce fichier est LU, jamais exécuté.
 
 # --- Options (ordre alphabétique / alphabetical order) ---
 # --anonymize : anonymiser ce que le programme affiche (adresses IP, courriels, identifiants, jetons) par des pseudonymes stables (IP-4f2a9c, usager-9c1e03@anonyme.invalid) ; clé ANONYMIZE
@@ -25,14 +25,14 @@
 # rétention hebdomadaire
 #KEEP_WEEKLY=4
 # en, fr ou auto (suivre LC_ALL / LC_MESSAGES / LANG). Ordre de choix : --lang, NGINX_TOOLS_LANG, ODOO_BACKUP_LANG, cette clé, LC_ALL, LC_MESSAGES, LANG.
-# Ajouter une langue = ajouter le fichier lang/odoo-backup.XX.po (format PO : Poedit, Weblate…) — voir lang/README.md.
+# Ajouter une langue = ajouter le fichier lang/odoo-backup.XX.po (format PO : Poedit, Weblate...) - voir lang/README.md.
 #LANGUAGE=auto
 # copie rsync hors du serveur (défaut : aucune copie hors du serveur)
 #REMOTE=
 # heure(s) de la sauvegarde automatique
 #TIMER_TIME=02:30
 
-# Autres clés : ODOO_CONF, FILESTORE_DIR, PG_USER — voir odoo-backup.sh --help.
+# Autres clés : ODOO_CONF, FILESTORE_DIR, PG_USER - voir odoo-backup.sh --help.
 
 # --- Options de la ligne de commande SEULEMENT (actions ou réglages ponctuels : aucune clé ici) ---
 # Les voici, pour mémoire (« odoo-backup --help » donne le détail). Elles se donnent sur la ligne de commande, jamais dans ce fichier.

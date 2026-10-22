@@ -1,4 +1,4 @@
-# app-health-check.py — health of nginx + application
+# app-health-check.py - health of nginx + application
 
 Probes the web stack and reports `[OK]`, `[ATTN]`, `[FAIL]` per check: the application's health URL (`/web/health` for Odoo), key pages, TLS, sensitive files that must be refused, and the e-mail path for alerts (`--check-email-dns`, `--test-email`).
 
@@ -7,7 +7,7 @@ Probes the web stack and reports `[OK]`, `[ATTN]`, `[FAIL]` per check: the appli
 ```bash
 app-health-check.py --target local
 app-health-check.py --target external --report-err
-app-health-check.py --check-email-dns            # SMTP relay, MX, SPF, DMARC, DKIM — prints the records to add
+app-health-check.py --check-email-dns            # SMTP relay, MX, SPF, DMARC, DKIM - prints the records to add
 app-health-check.py --test-email                 # DNS checks, then really sends a test e-mail
 app-health-check.py --create-config              # detect values on this server and write /etc/default/app-health-check.conf
 ```

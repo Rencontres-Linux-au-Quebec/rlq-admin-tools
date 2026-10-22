@@ -1,6 +1,6 @@
-# host-perf-audit.py — ce qui limite les performances d'un hôte Proxmox
+# host-perf-audit.py - ce qui limite les performances d'un hôte Proxmox
 
-À lancer **sur l'hôte Proxmox** (dans un conteneur, les vrais disques ne sont pas visibles). Il mesure pendant une durée choisie — d'une minute à une journée entière — puis donne un verdict par ressource, la réponse à « des disques SSD sont-ils justifiés ? » et les réglages à changer.
+À lancer **sur l'hôte Proxmox** (dans un conteneur, les vrais disques ne sont pas visibles). Il mesure pendant une durée choisie - d'une minute à une journée entière - puis donne un verdict par ressource, la réponse à « des disques SSD sont-ils justifiés ? » et les réglages à changer.
 
 ```bash
 host-perf-audit.py                                  # une minute, un échantillon toutes les 5 s

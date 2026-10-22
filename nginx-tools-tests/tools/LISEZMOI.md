@@ -1,4 +1,4 @@
-# nginx-tools-tests/tools/ — exécutables statiques fournis avec la suite
+# nginx-tools-tests/tools/ - exécutables statiques fournis avec la suite
 
 `run-all.sh` les prend **avant** ceux du PATH : aucune installation nécessaire sur un serveur (Linux x86-64).
 

@@ -4,13 +4,13 @@
 #   2. ~/.web-monitor.conf               (s'il existe : réglages de l'utilisateur)
 # -c/--config FICHIER : ce fichier SEUL. Le répertoire courant n'est PAS lu. Le programme affiche toujours quel(s) fichier(s) il lit,
 # puis une ligne résumant les options importantes. Format : CLÉ=valeur, une par ligne ; # = commentaire ; guillemets facultatifs ;
-# booléens : yes / no (true / false, 1 / 0) — valeurs en anglais seulement (oui / non : lus, avec un avertissement). Ce fichier est LU, jamais exécuté.
+# booléens : yes / no (true / false, 1 / 0) - valeurs en anglais seulement (oui / non : lus, avec un avertissement). Ce fichier est LU, jamais exécuté.
 
 # --- Options (ordre alphabétique / alphabetical order) ---
 # --anonymize : anonymiser ce que le programme affiche (adresses IP, courriels, identifiants, jetons) par des pseudonymes stables (IP-4f2a9c, usager-9c1e03@anonyme.invalid) ; clé ANONYMIZE
 # (la même clé dans app-default.conf vaut pour tous les programmes ; appliquée seulement quand la sortie est un terminal ; pour cron : --anonymize ou NGINX_TOOLS_ANONYMIZE=1).
 #ANONYMIZE=no
-# --app : profil d'application (odoo, bbb…) (défaut : détectée automatiquement)
+# --app : profil d'application (odoo, bbb...) (défaut : détectée automatiquement)
 #APP=
 # --csv : avec --list-users, écrire aussi toutes les valeurs dans ce fichier CSV (séparateur « ; »)
 #CSV=
@@ -25,7 +25,7 @@
 # --interval-hours : intervalle de la surveillance (défaut : 1)
 #INTERVAL_HOURS=1
 # en, fr ou auto (suivre LC_ALL / LC_MESSAGES / LANG). Ordre de choix : --lang, NGINX_TOOLS_LANG, WEB_MONITOR_LANG, cette clé, LC_ALL, LC_MESSAGES, LANG.
-# Ajouter une langue = ajouter le fichier lang/web-monitor.XX.po (format PO : Poedit, Weblate…) — voir lang/README.md.
+# Ajouter une langue = ajouter le fichier lang/web-monitor.XX.po (format PO : Poedit, Weblate...) - voir lang/README.md.
 #LANGUAGE=auto
 # --no-pager
 #NO_PAGER=no
@@ -42,7 +42,7 @@
 #STATS=no
 # --table : tableau compact
 #TABLE=no
-# --table-fields : champs du tableau, dans cet ordre, séparés par des virgules (all : tous) — num,uid,ip,ipseen,ipcountry,vpn,name,login,created,first,last,logins,
+# --table-fields : champs du tableau, dans cet ordre, séparés par des virgules (all : tous) - num,uid,ip,ipseen,ipcountry,vpn,name,login,created,first,last,logins,
 # minutes,type,events,surveys,phone,country,city,groups,tags,systems,browsers,read,written,received,sent,email (vide : tous sauf tags et email)
 # ipcountry et vpn : propriétaire du bloc de chaque adresse cherché UNE fois sur Internet (rdap.org, sinon whois), puis mis en cache 90 jours ;
 # NGINX_TOOLS_INTERNET=off : le cache seulement. Les retirer de la liste évite toute recherche.
@@ -53,7 +53,7 @@
 
 # --- Options de la ligne de commande SEULEMENT (actions ou réglages ponctuels : aucune clé ici) ---
 # Les voici, pour mémoire (« web-monitor --help » donne le détail). Elles se donnent sur la ligne de commande, jamais dans ce fichier.
-# (Ce sont des ACTIONS ou des modes : dans ce fichier, elles s'exécuteraient à chaque passage du timer — bannir, corriger, lister au lieu de surveiller.)
+# (Ce sont des ACTIONS ou des modes : dans ce fichier, elles s'exécuteraient à chaque passage du timer - bannir, corriger, lister au lieu de surveiller.)
 #   --apply            Sommaire, puis le programme fait lui-même les corrections recommandées (bannissements, rechargement de nginx,
 #   --ban-odoo-user    Bannir un compte Odoo après enquête (compte archivé, adresses propres au compte bannies) ; --unban-odoo-user pour lever
 #   --ban-recommended  Bannir les IP recommandées par le dernier passage (ex.

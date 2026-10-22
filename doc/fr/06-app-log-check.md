@@ -1,4 +1,4 @@
-# app-log-check.py — analyse du journal d'Odoo
+# app-log-check.py - analyse du journal d'Odoo
 
 Lit le journal systemd du service Odoo (détecté parmi `erplibre.service`, `erplibre_erplibre.service` ; ou `--service` ; `--namespace` si l'unité utilise `LogNamespace=`) et classe ce qu'il trouve en sections numérotées : attaques de protocole, traces Python regroupées par signature [2], autres erreurs [3], bruit connu, diagnostics [5], courriels non envoyés.
 

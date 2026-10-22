@@ -20,14 +20,14 @@
 | `odoo-chat-post.py` | python | crée les canaux/fils d'alerte Discuss, un compte robot restreint, et y publie des alertes | non |
 | `odoo-docs.py` | python | publie cette documentation dans Odoo (wiki OCA `document_page` ou pages du site web) | non |
 | `zip-versions.py` | python | versions contenues dans les archives livrées, comparaison avec l'installation | non |
-| `host-perf-audit.py` | python | sur un hôte Proxmox (ou tout serveur Linux) : ce qui limite les performances — processeur, mémoire, disques, ZFS, réseau, invités — et si des disques SSD sont justifiés | pour un rapport complet |
+| `host-perf-audit.py` | python | sur un hôte Proxmox (ou tout serveur Linux) : ce qui limite les performances - processeur, mémoire, disques, ZFS, réseau, invités - et si des disques SSD sont justifiés | pour un rapport complet |
 
-Les composants partagés sont dans `apps/` (détection du profil, générateur de rapport, i18n, anonymiseur, RDAP/whois, cache d'IP, courriel…). Ils sont internes : ne pas les lancer directement, sauf `apps/_anonymiser.py` (un filtre).
+Les composants partagés sont dans `apps/` (détection du profil, générateur de rapport, i18n, anonymiseur, RDAP/whois, cache d'IP, courriel...). Ils sont internes : ne pas les lancer directement, sauf `apps/_anonymiser.py` (un filtre).
 
 ## Fichier `CHANGELOG.md` et dossier `doc/`
 
-* **`CHANGELOG.md`** (racine du dépôt) — le journal de modifications de chaque programme : une section par programme (`## NOM`), la version la plus récente en premier. `--changelog` n'affiche que la section du programme lancé. L'historique antérieur est archivé hors du dépôt.
-* **`doc/`** — tout le reste, dans un seul dossier avec un sous-dossier par langue : `doc/en/` et `doc/fr/` contiennent le manuel de l'administrateur (Markdown, mêmes noms de fichiers dans les deux langues), `build_docs.py` (qui insère le vrai `--help` de chaque programme et produit les pages GitHub et le module de site Web Odoo `rlq_tools_docs`) et les modèles de configuration `NOM.conf.example` (identiques dans `en/` et `fr/`, synchronisés ; la copie anglaise est celle lue au premier démarrage). `doc/` contient aussi les notes des responsables (`CONTEXTE.md`, `DROITS.md`, notes courriel et BigBlueButton) et `nginx-tools.version`. Aucun programme n'a besoin du manuel sur un serveur.
+* **`CHANGELOG.md`** (racine du dépôt) - le journal de modifications de chaque programme : une section par programme (`## NOM`), la version la plus récente en premier. `--changelog` n'affiche que la section du programme lancé. L'historique antérieur est archivé hors du dépôt.
+* **`doc/`** - tout le reste, dans un seul dossier avec un sous-dossier par langue : `doc/en/` et `doc/fr/` contiennent le manuel de l'administrateur (Markdown, mêmes noms de fichiers dans les deux langues), `build_docs.py` (qui insère le vrai `--help` de chaque programme et produit les pages GitHub et le module de site Web Odoo `rlq_tools_docs`) et les modèles de configuration `NOM.conf.example` (identiques dans `en/` et `fr/`, synchronisés ; la copie anglaise est celle lue au premier démarrage). `doc/` contient aussi les notes des responsables (`CONTEXTE.md`, `DROITS.md`, notes courriel et BigBlueButton) et `nginx-tools.version`. Aucun programme n'a besoin du manuel sur un serveur.
 
 ## Prérequis
 
@@ -53,9 +53,9 @@ Déployez toujours l'archive des programmes et celle des tests **ensemble** (mê
 
 **Versions.** `MAJEUR.MINEUR.AAAAMMJJ.HHMMSS` (heure locale). `--version` l'affiche ; `--changelog` montre la section `, la plus récente d'abord, numéros de version en couleur dans un terminal seulement.
 
-**Configuration en couches.** `/etc/default/NOM.conf` est lu d'abord, puis `~/.NOM.conf` s'il existe (le dernier l'emporte), puis la ligne de commande (prioritaire). Le fichier personnel se termine toujours par `.conf` : un ancien fichier personnel avec l'extension `.cfg` (règle précédente) est renommé automatiquement en `.conf` au lancement suivant, avec un avis ; si les deux existent, le `.conf` est lu et l'ancien est signalé, jamais fusionné ni supprimé. `-c/--config FICHIER` lit ce fichier **seul** et il doit exister. Les fichiers sont *analysés, jamais exécutés* ; seules les clés connues sont retenues. Au démarrage, chaque programme affiche les fichiers lus, avec leur date de modification et un sommaire d'une ligne des options importantes. Un fichier par défaut est créé au premier lancement à partir de `doc/NOM.conf.example`. Un fichier dont **aucune option n'est active** (tout encore en commentaire : jamais modifié) est réécrit d'après le modèle actuel au lancement suivant quand le modèle a changé (nouvelles clés, nouveaux commentaires) ; un fichier qui contient au moins une ligne `CLÉ=valeur` active n'est jamais touché (`NGINX_TOOLS_CONFIG_MAJ_AUTO=0` : jamais de réécriture). Les clés communes (`ANONYMIZE`, `LOG_KEEP_DAYS`, langue…) sont dans `/etc/default/app-default.conf`.
+**Configuration en couches.** `/etc/default/NOM.conf` est lu d'abord, puis `~/.NOM.conf` s'il existe (le dernier l'emporte), puis la ligne de commande (prioritaire). Le fichier personnel se termine toujours par `.conf` : un ancien fichier personnel avec l'extension `.cfg` (règle précédente) est renommé automatiquement en `.conf` au lancement suivant, avec un avis ; si les deux existent, le `.conf` est lu et l'ancien est signalé, jamais fusionné ni supprimé. `-c/--config FICHIER` lit ce fichier **seul** et il doit exister. Les fichiers sont *analysés, jamais exécutés* ; seules les clés connues sont retenues. Au démarrage, chaque programme affiche les fichiers lus, avec leur date de modification et un sommaire d'une ligne des options importantes. Un fichier par défaut est créé au premier lancement à partir de `doc/NOM.conf.example`. Un fichier dont **aucune option n'est active** (tout encore en commentaire : jamais modifié) est réécrit d'après le modèle actuel au lancement suivant quand le modèle a changé (nouvelles clés, nouveaux commentaires) ; un fichier qui contient au moins une ligne `CLÉ=valeur` active n'est jamais touché (`NGINX_TOOLS_CONFIG_MAJ_AUTO=0` : jamais de réécriture). Les clés communes (`ANONYMIZE`, `LOG_KEEP_DAYS`, langue...) sont dans `/etc/default/app-default.conf`.
 
-**Langue.** Les programmes parlent anglais et français (autre langue : ajouter `lang/NOM.XX.po`, voir *Tests, traduction et contribution*). Priorité : `--lang` > `NGINX_TOOLS_LANG` > la variable du programme (`WEB_MONITOR_LANG`…) > `LANGUAGE=` du fichier > l'environnement comme gettext : `LANGUAGE` de GNU (`fr_CA:fr:en`, sans effet sous la locale `C`), puis `LC_ALL`, `LC_MESSAGES`, `LANG` — la première définie l'emporte : un `LC_ALL` oublié masque `LANG`. La ligne *Options* du démarrage dit quel réglage a décidé : `--lang en (LC_ALL=C.UTF-8 ; LANG=fr_CA.UTF-8 ignorée(s))`.
+**Langue.** Les programmes parlent anglais et français (autre langue : ajouter `lang/NOM.XX.po`, voir *Tests, traduction et contribution*). Priorité : `--lang` > `NGINX_TOOLS_LANG` > la variable du programme (`WEB_MONITOR_LANG`...) > `LANGUAGE=` du fichier > l'environnement comme gettext : `LANGUAGE` de GNU (`fr_CA:fr:en`, sans effet sous la locale `C`), puis `LC_ALL`, `LC_MESSAGES`, `LANG` - la première définie l'emporte : un `LC_ALL` oublié masque `LANG`. La ligne *Options* du démarrage dit quel réglage a décidé : `--lang en (LC_ALL=C.UTF-8 ; LANG=fr_CA.UTF-8 ignorée(s))`.
 
 **Options en ordre alphabétique.** L'aide liste les options par ordre alphabétique ; un test le vérifie.
 
@@ -67,7 +67,7 @@ Déployez toujours l'archive des programmes et celle des tests **ensemble** (mê
 
 **Progression.** Un programme long affiche une ligne par étape avec le temps écoulé, sur la sortie d'erreur, seulement dans un terminal ou avec `--verbose` (jamais dans un tube ni une tâche planifiée).
 
-**Avis de droits.** Un programme de lecture lancé sans root affiche « Droits limités (pas root) : … » et dit ce qui sera incomplet (le taire : `NGINX_TOOLS_AVIS_ROOT=0`). Voir *Qui doit être root*.
+**Avis de droits.** Un programme de lecture lancé sans root affiche « Droits limités (pas root) : ... » et dit ce qui sera incomplet (le taire : `NGINX_TOOLS_AVIS_ROOT=0`). Voir *Qui doit être root*.
 
 ## Sortie anonymisée (`--anonymize`)
 
@@ -77,8 +77,8 @@ Tout programme accepte `--anonymize` (ou `ANONYMIZE=1`, `NGINX_TOOLS_ANONYMIZE=1
 
 Les adresses propres à une installation vivent **hors du code**, dans `/etc/default` :
 
-* `nginx-tools-white-list.conf` — adresses de confiance : jamais bannies, accès aux sites de développement/laboratoire.
-* `nginx-tools-ip-location.conf` — lieux nommés (`# Université [partagée] [protégée]`), aucun accès accordé.
+* `nginx-tools-white-list.conf` - adresses de confiance : jamais bannies, accès aux sites de développement/laboratoire.
+* `nginx-tools-ip-location.conf` - lieux nommés (`# Université [partagée] [protégée]`), aucun accès accordé.
 
 `nginx-hardening.sh --update` génère les fragments nginx à partir de ces fichiers (`team-ips-geo.conf`, `team-ips-allow.conf`) ; ne jamais les modifier à la main.
 

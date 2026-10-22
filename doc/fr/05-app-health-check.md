@@ -1,4 +1,4 @@
-# app-health-check.py — santé de nginx + application
+# app-health-check.py - santé de nginx + application
 
 Sonde la pile web et affiche `[OK]`, `[ATTN]`, `[FAIL]` par contrôle : l'URL de santé de l'application (`/web/health` pour Odoo), les pages clés, TLS, les fichiers sensibles qui doivent être refusés, et le chemin du courriel d'alerte (`--check-email-dns`, `--test-email`).
 
@@ -7,7 +7,7 @@ Sonde la pile web et affiche `[OK]`, `[ATTN]`, `[FAIL]` par contrôle : l'URL de
 ```bash
 app-health-check.py --target local
 app-health-check.py --target external --report-err
-app-health-check.py --check-email-dns            # relais SMTP, MX, SPF, DMARC, DKIM — affiche les enregistrements à ajouter
+app-health-check.py --check-email-dns            # relais SMTP, MX, SPF, DMARC, DKIM - affiche les enregistrements à ajouter
 app-health-check.py --test-email                 # contrôles DNS, puis envoi réel d'un courriel d'essai
 app-health-check.py --create-config              # détecte les valeurs de ce serveur et écrit /etc/default/app-health-check.conf
 ```

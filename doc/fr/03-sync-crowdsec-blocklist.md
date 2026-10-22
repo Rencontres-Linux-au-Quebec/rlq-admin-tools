@@ -1,4 +1,4 @@
-# sync-crowdsec-blocklist.sh — liste communautaire CrowdSec au pare-feu
+# sync-crowdsec-blocklist.sh - liste communautaire CrowdSec au pare-feu
 
 Télécharge la liste communautaire de CrowdSec et la charge dans **deux ipsets** (`crowdsec-blocklist-v4`, `-v6`) rejetés par le pare-feu (règles iptables ou crochet `ufw`). L'agent CrowdSec n'est pas nécessaire.
 
