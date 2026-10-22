@@ -525,15 +525,32 @@ class ConfigurationEnCouches(EnvTest):
             return f.getvalue()
         out = rendu([a, b])
         self.assertIn(f"Configuration lue : {a}, puis {b} (le dernier l'emporte)", sans_date(out))
-        self.assertIn("Options : --lang fr · site www.exemple.org + 2 autre(s) nom(s) · instance non publique : oui · connexion Google attendue : oui"
+        self.assertIn("Options : --lang fr · site www.exemple.org + 2 autre(s) nom(s) · instance non publique : yes · connexion Google attendue : yes"
                       " · courriel : smtp.exemple.org:465 → admin@exemple.org · tests fonctionnels (JSON-RPC) : identifiants configurés", sans_origine(out))
         out = rendu([a], explicite=True)
         self.assertIn(f"{a} (demandé par -c/--config : aucun autre fichier n'est lu)", sans_date(out))
-        self.assertIn("instance non publique : non", out)
+        self.assertIn("instance non publique : no", out)
         self.assertIn("identifiants absents (ignorés)", out)
         out = rendu([self.write("vide.conf", "")])
         self.assertIn("site (non défini)", out)
         self.assertIn("courriel : non configuré", out)
+
+    @unittest.skipIf(os.geteuid() == 0, "fichier illisible seulement sans root (root lit tout)")
+    def test_fichier_illisible_sans_root_signale_et_non_pris_pour_absent(self):
+        """2.28 : un fichier de configuration présent mais illisible (600 root) est signalé ; s'il n'y en a pas d'autre, le programme
+        s'arrête avec « run with sudo » au lieu de créer une configuration ou d'afficher « non configuré »."""
+        home = os.path.dirname(self.path("home-illisible", "x"))
+        perso = os.path.join(home, ".app-health-check.cfg")
+        self.write("home-illisible/.app-health-check.cfg", "SMTP_HOST=smtp.exemple.org\n")
+        os.chmod(perso, 0)
+        prog = self.prepare("app-health-check.py")
+        self.env["HOME"] = home
+        rc, out, err = self.run_cmd(["python3", prog, "--check-email-dns"])
+        if os.path.isfile("/etc/default/app-health-check.conf") and os.access("/etc/default/app-health-check.conf", os.R_OK):
+            self.skipTest("une configuration système lisible existe sur cet hôte")
+        self.assertEqual(rc, 2, err)
+        self.assertIn("not readable without root", err)
+        self.assertNotIn("creating", out)
 
     def test_programme_complet_lit_etc_default_puis_home(self):
         defaut = os.path.dirname(self.path("etc-default", "x")) + "/"
@@ -545,5 +562,5 @@ class ConfigurationEnCouches(EnvTest):
         rc, out, err = self.run_cmd(["python3", prog, "--check-email-dns"])      # affiche la configuration lue, sans vérifications réseau
         self.assertIn(f"Configuration lue : {defaut}app-health-check.conf, puis {home}/.app-health-check.conf (le dernier l'emporte)", sans_date(out))
         self.assertIn("site www.exemple.org", out)
-        self.assertIn("instance non publique : oui", out)                       # vient du fichier de ~
+        self.assertIn("instance non publique : yes", out)                       # vient du fichier de ~
         self.assertIn("courriel : smtp.exemple.org:587 → a@exemple.org", out)   # vient de /etc/default

@@ -66,7 +66,7 @@ import sys
 import time
 from urllib.parse import urlparse, parse_qs, unquote
 
-__version__ = "2.27.20261022.110306"
+__version__ = "2.28.20261022.171858"
 # Marker added at the END of the « browser » User-Agent (2.2): our test requests are recognizable in all the
 # logs (nginx, Odoo) and excluded from the statistics by web-monitor.py. Matches no pattern of the bot filter.
 UA_MARKER = " app-health-check/" + ".".join(__version__.split(".")[:2])
@@ -160,17 +160,26 @@ def resolve_config_paths(explicit_path):
     migrate_path("./app-health-check.conf", "/etc/default/app-health-check.conf")
     migrate_path("./sanity-check-odoo.conf", "/etc/default/app-health-check.conf")
     candidats = ["/etc/default/app-health-check.conf", personal_config_path()]
-    found_list, seen = [], set()
+    found_list, seen, illisibles = [], set(), []
     for candidat in candidats:
         real = os.path.realpath(candidat)
         if os.path.isfile(candidat) and real not in seen:
-            found_list.append(candidat)
             seen.add(real)
+            # 2.28 : présent mais illisible (ex. 600 root) : signalé, jamais pris pour « aucune configuration » (courriel « non configuré » à tort)
+            if os.access(candidat, os.R_OK):
+                found_list.append(candidat)
+            else:
+                illisibles.append(candidat)
     for ignore in ("./app-health-check.conf", "./sanity-check-odoo.conf"):
         if os.path.isfile(ignore) and os.path.realpath(ignore) not in seen:
             print(f"WARNING: {os.path.abspath(ignore)} exists but is NO LONGER read (read: /etc/default/app-health-check.conf, then "
                   f"~/.app-health-check.conf) — its settings have no effect; move it: mv {ignore} ~/.app-health-check.conf",
                   file=sys.stderr)
+    for ill in illisibles:
+        print(f"WARNING: {ill} exists but is NOT readable by this user (run with sudo): its settings are ignored", file=sys.stderr)
+    if illisibles and not found_list:
+        print(f"ERROR: configuration not readable without root: {illisibles[0]} (run with sudo)", file=sys.stderr)
+        sys.exit(2)
     if not found_list:
         raise FileNotFoundError("no configuration file found. Searched: explicit -c/--config, " + ", ".join(candidats))
     return found_list
