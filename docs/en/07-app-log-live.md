@@ -24,6 +24,8 @@ To analyze a test of the site (an abandoned survey, a registration, a talk propo
 2. Make the test. While recording, **REC** is shown in red at column `$COLUMNS - 4` of each line.
 3. Press **R** again: the recording stops and the `.tar.xz` archive is created in the background. Its path is shown on the line « Archive to send for analysis ».
 
+While recording, **N** marks the steps of the test: N asks for a description and starts a step, N again ends it (for example « registration », then « survey abandoned »). The steps (start, end, duration, description) are listed in `steps.txt` of the archive and in `records.log`. A step still open when the recording stops is closed at that moment.
+
 The archive holds: `README.txt` (local and UTC times, missing sources), `records.log` (the lines of the test, without robots, static files, websockets or local probes), `stream-all.log` (every line, with its category), `raw/` (complete extracts of nginx, Odoo, fail2ban and the systemd journal over the window), `network/` (connections of the web and Odoo ports), `db/` (PostgreSQL activity, `ir_cron` locks, snapshots of the survey, registration, e-mail and page tables), `context/` (service and Odoo settings without secrets, modules).
 
 IP addresses, e-mails, known names and tokens are replaced by stable pseudonyms before they are written. The database is only read, in read-only transactions.

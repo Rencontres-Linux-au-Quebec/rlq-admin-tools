@@ -29,7 +29,7 @@
 #   * NUMBERS AFTER THE HTTP CODE (legend at startup): Odoo "200 - 105 0.046 0.426" = size, SQL queries, SQL time, Python time; websocket "101 494 14.6" = size, duration;
 #     colors when high (SQL >= 300 orange, >= 1000 red; size >= 1 MB / 10 MB; durations according to --slow);
 #   * TEST RECORDING (1.93): R starts / stops a recording (label asked; « REC » at column $COLUMNS-4 meanwhile; the .tar.xz archive of the window, noise left out,
-#     see apps/_record.py) — --record-test-log MIN records without the keyboard, then exits;
+#     see apps/_record.py) — --record-test-log MIN records without the keyboard, then exits; N (while recording) starts / ends a step with a description (steps.txt);
 #   * KEY MENU (? or h): toggles and settings on the fly — a --accentuate-group, A --anonymize, c --chime, e --exclude-ip, T --time-report, d --dns-max, t --dns-max-truncate, H --health, i --hide-ip, l --highlight, m --min, M --modules (table of the installed Odoo modules, sorted by name, date, creation, version, author or state), o --only, r error report (--report-err),
 #     s --suspect, v --verbose, V version; S survey registrations, I event registrations, b addresses to ban (nginx-log-audit.sh --ban, like web-monitor.py).
 #   * KEYBOARD DASHBOARD (terminal only, --no-keys: disabled): Ctrl-G = health (✔ ⚠ ✖ with the detail of the problems), efficiency of the program (CPU, memory, input/output,
@@ -63,6 +63,7 @@
 # BigBlueButton (file journals): the nginx and bbb-web journals are followed (tail -F), without names of people or presence.
 #
 # VERSION HISTORY (summary — see doc/app-log-live.changelog.txt for the full detail):
+#   1.95.20261021.235747 — N key: steps of a test (start and end with a description, steps.txt in the archive, START / END lines in records.log).
 #   1.93.20261020.230008 — R key and --record-test-log: recording of a test (REC marker at $COLUMNS-4, archive .tar.xz with the logs of the window, noise left out).
 #   1.92.20261020.211944 — Personal configuration file ~/.app-log-live.conf (not .cfg); a legacy one with .cfg is renamed automatically.
 #   1.91.20261020.203430 — Columns never squeezed by --truncate (the message is cut); country before every public address (this server too); names of people anonymized (membre-4f2a9c); underline to the end of the line; --underline [N]; A key toggles --anonymize.
@@ -199,7 +200,7 @@ from urllib.parse import unquote
 from collections import Counter, OrderedDict
 from concurrent.futures import Future
 
-__version__ = "1.93.20261020.230008"
+__version__ = "1.95.20261021.235747"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
@@ -2677,6 +2678,7 @@ def underline_line(text_line, width=None):
 
 REC_WIDTH = 4                                           # 1.93: « REC » occupies the 3 columns from $COLUMNS - 4 (0-based) and one column stays free at the end
 REC_STYLE = "1;97;41"                                   # bold white on red (explicit text AND background: readable on any theme)
+STEP_STYLE = "1;30;46"                                   # 1.95: step marker (N key): bold black on cyan, explicit background
 
 
 def rec_mark(text_line, columns=None):
@@ -4212,7 +4214,7 @@ KEYS = {b"\x07": "g", b"\x14": "t"}      # Ctrl-G: dashboard; Ctrl-T: only what 
 # Simple keys of the menu (? or h): toggles and settings of the command-line options, and a few commands
 MENU_KEYS = {b"?": "help", b"h": "help", b"i": "i", b"m": "m", b"n": "n", b"r": "r", b"s": "s", b"v": "v", b"d": "dns", b"t": "dnst", b"H": "H", b"o": "o", b"V": "V",
                 b"S": "S", b"I": "I", b"b": "b", b"a": "accent", b"c": "chime", b"e": "exclude", b"T": "report", b"E": "E", b"w": "watch", b"D": "D", b"l": "highlight", b"M": "modules", b"C": "save", b"L": "recent",
-                b"G": "G", b"P": "latency", b"A": "anonymize", b"R": "record"}
+                b"G": "G", b"P": "latency", b"A": "anonymize", b"R": "record", b"N": "step"}
 MENU_KEYS.update({str(n).encode(): f"level{n}" for n in range(1, LEVEL_MAX + 1)})   # 1 to 9: dashboard at the chosen level
 KEYS.update(MENU_KEYS)
 
@@ -5031,6 +5033,7 @@ def follow(cmd, people, resolver, options, output):
         lines.append(f"    {bold('R')}  record a test: R starts (a label is asked), R again stops; « REC » at the end of each line meanwhile; a .tar.xz archive "
                      f"to send for analysis (logs of the window without the noise, raw nginx / Odoo / fail2ban extracts, network and PostgreSQL samples, addresses and names anonymized)"
                      + (" [" + TR("recording") + "]" if record["r"] is not None else ""))
+        lines.append(f"    {bold('N')}  " + TR("step of a test (while recording): N starts a step (a description is asked), N again ends it; the steps (start, end, duration, description) go into steps.txt of the archive"))
         lines.append(f"    {bold('P')}  latency: what slows the requests since start (disk, processor, memory: % of waiting time, % of disk use, per hour) and whether SSD disks are justified")
         lines.append(f"    {bold('C')}  save the settings changed since startup into {system_config_path()} (every option changeable on the fly: ACCENTUATE_GROUP, ANONYMIZE, CHIME, DNS_MAX*, EXCLUDE_IP, HEALTH, HIDE_IP, HIGHLIGHT, LEVEL, MIN, MODULES_*, NOT_FOUND, ONLY, SUSPECT, TIME_REPORT, VERBOSE, WATCH)")
         lines.append(f"    {bold('b')}  addresses to ban: {to_ban} — asks, then nginx-log-audit.sh --ban (like web-monitor.py)")
@@ -5324,6 +5327,24 @@ def follow(cmd, people, resolver, options, output):
                 record_start(label.strip())
             else:
                 record_stop("key")
+        elif key_value == "step":                            # 1.95: N key — start / end of a step of the test (a description is asked)
+            if record["r"] is None:
+                write_out(["  " + TR("Start a recording first (R): the steps are kept in it.")])
+                return
+            if record["r"].open_step is not None:
+                number = record["r"].step_end()
+                write_out([color_code(STEP_STYLE, f" ■ STEP {number} END ") + " " + TR("ended at {time}").format(time=time.strftime("%H:%M:%S"))])
+                return
+            description = ask(TR("Description of this step (e.g. registration; Enter = none, Ctrl-C = cancel): "))
+            if description is None:
+                write_out(["  " + TR("Step not started.")])
+                return
+            number = record["r"].step_start(description.strip()) if record["r"] is not None else None
+            if number is None:
+                write_out(["  " + TR("Step not started.")])
+                return
+            write_out([color_code(STEP_STYLE, f" ▶ STEP {number} START ") + " " + TR("started at {time}").format(time=time.strftime("%H:%M:%S"))
+                       + " — " + (description.strip() or TR("(no description)"))])
         elif key_value == "watch":
             rep = ask(TR("--watch TEXT (comma = several, e.g. registration; empty = stop; current: {current}): ").format(current=', '.join(options['watch']) or 'none'))
             if rep is not None:
@@ -5342,7 +5363,7 @@ def follow(cmd, people, resolver, options, output):
     if options["lines"] == 0 and hasattr(output, "active"):      # no history: everything is live
         output.active = True
     if keys is not None and keys.start():
-        eprint("Keys: ? (or h) keys and options menu · Ctrl-G dashboard (health, efficiency, top 10 URLs…) · 1 to 9 dashboard detail level · Ctrl-T only what changed since last time · R record a test · Ctrl-C stop and summary")
+        eprint("Keys: ? (or h) keys and options menu · Ctrl-G dashboard (health, efficiency, top 10 URLs…) · 1 to 9 dashboard detail level · Ctrl-T only what changed since last time · R record a test · N step while recording · Ctrl-C stop and summary")
     old_sigint = None
     if keys is not None and keys.old is not None:
         try:

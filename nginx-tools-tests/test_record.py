@@ -20,7 +20,8 @@ def charger(nom, chemin):
 
 
 ENREGISTREMENT = charger("_record", os.path.join(SCRIPTS_DIR, "apps", "_record.py"))
-PROGRAMME = charger("app_log_live_rec", os.path.join(SCRIPTS_DIR, "app-log-live.py"))
+PROGRAMME = "app-log-live.py"                               # nom du programme (lu par stats_runner)
+APP = charger("app_log_live_rec", os.path.join(SCRIPTS_DIR, "app-log-live.py"))
 
 
 def faux_ss(commande, delai=10):
@@ -38,7 +39,7 @@ class Enregistrement(unittest.TestCase):
         with open(self.journal, "w") as f:
             f.write("ancienne ligne 11.97.88.180\n")
 
-    def archive(self, lignes, **options):
+    def archive(self, lignes, etapes=(), **options):
         def requete(base, sql):
             if "to_regclass" in sql:
                 return [["t"] * len(ENREGISTREMENT.TABLES)]
@@ -53,6 +54,8 @@ class Enregistrement(unittest.TestCase):
             f.write("nouvelle 11.97.88.180 GET /event/x/my_tickets?tickets_hash=09e189cd69a70f2dcfd9a3af407a5485221a12 jean@exemple.org\n")
         for ligne, categorie in lignes:
             rec.add(ligne, categorie)
+        for genre, texte in etapes:                       # 1.1: N key — steps ("debut" = start, "fin" = end)
+            rec.step_start(texte) if genre == "debut" else rec.step_end()
         time.sleep(1.2)
         resultat = rec.stop(reason="key", wait=True)
         self.assertIsNone(resultat["error"], resultat)
@@ -88,6 +91,23 @@ class Enregistrement(unittest.TestCase):
         self.assertIn("Sources absentes ou coupées", textes["README.txt"])
         self.assertIn("absent.log", textes["README.txt"])
 
+    def test_etapes_debut_fin_dans_records_log_et_steps_txt(self):
+        resultat = self.archive([("GET /event/x/registration/new 200", "kept"), ("GET /survey/start/x 200", "kept")],
+                                etapes=[("debut", "inscription"), ("fin", None), ("debut", "sondage abandonné")])
+        base = os.path.basename(resultat["path"])[:-len(".tar.xz")]
+        with tarfile.open(resultat["path"]) as tar:
+            def lire(nom):
+                return tar.extractfile(f"{base}/{nom}").read().decode("utf-8")
+            records, etapes, readme = lire("records.log"), lire("steps.txt"), lire("README.txt")
+        self.assertIn("# STEP 1 START ", records)
+        self.assertIn("STEP 1 END ", records)
+        self.assertIn("STEP 2 START ", records)
+        self.assertIn("(recording stopped)", records)          # the step still open at the stop is closed
+        self.assertIn("inscription", etapes)
+        self.assertIn("sondage abandonné", etapes)
+        self.assertIn("steps.txt", readme)
+        self.assertIn("Étapes           : 2", readme)
+
     def test_dossier_sudo_et_lien_symbolique_refuse(self):
         cible = os.path.join(self.dossier, "vrai")
         os.makedirs(cible)
@@ -121,15 +141,15 @@ class Enregistrement(unittest.TestCase):
     def test_marque_rec_a_la_colonne_columns_moins_quatre(self):
         for texte in ("court", "x" * 70, "y" * 200, "", "z" * 56):
             with self.subTest(texte=texte[:10]):
-                sortie = PROGRAMME.rec_mark(texte, 60)
-                self.assertTrue(PROGRAMME.ANSI_RE.sub("", sortie).endswith("REC"), sortie[-20:])
-                self.assertEqual((PROGRAMME.display_width(sortie) - 3) % 60, 56, sortie[-20:])     # REC starts at column $COLUMNS - 4 of its screen row
+                sortie = APP.rec_mark(texte, 60)
+                self.assertTrue(APP.ANSI_RE.sub("", sortie).endswith("REC"), sortie[-20:])
+                self.assertEqual((APP.display_width(sortie) - 3) % 60, 56, sortie[-20:])     # REC starts at column $COLUMNS - 4 of its screen row
 
     def test_marque_rec_coupe_la_ligne_trop_large(self):
-        self.assertNotIn("…", PROGRAMME.ANSI_RE.sub("", PROGRAMME.rec_mark("a" * 80, 60)))      # two rows: the marker fits on the second one, nothing cut
-        sortie = PROGRAMME.rec_mark("a" * 117, 60)                                             # the marker would run into the text: cut
-        self.assertIn("…", PROGRAMME.ANSI_RE.sub("", sortie))
-        self.assertEqual((PROGRAMME.display_width(sortie) - 3) % 60, 56)
+        self.assertNotIn("…", APP.ANSI_RE.sub("", APP.rec_mark("a" * 80, 60)))      # two rows: the marker fits on the second one, nothing cut
+        sortie = APP.rec_mark("a" * 117, 60)                                             # the marker would run into the text: cut
+        self.assertIn("…", APP.ANSI_RE.sub("", sortie))
+        self.assertEqual((APP.display_width(sortie) - 3) % 60, 56)
 
 
 if __name__ == "__main__":

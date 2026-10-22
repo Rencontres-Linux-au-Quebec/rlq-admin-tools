@@ -1,6 +1,35 @@
 Changelog — app-log-live.py
 (newest version first; entries up to 1.79 are still in French: their translation is a later stage of the migration)
 
+## 1.95.20261021.235747 — N key: steps of a test (start and end, with a description)
+
+Reason:
+  The first archive of the test plan (2026-10-21) could only be read by timestamps: nothing marked where each action of the test started and ended.
+  Each action is now marked by hand during the R recording, with a description, and listed in the archive.
+
+Changes:
+  - Key N (only while a recording runs): N asks for a description and starts a step; N again ends the open step. The step shows on screen (cyan START / END line), in stream-all.log ([step]) and in records.log.
+  - Archive: steps.txt (new): number, start, end, duration, description. README.txt gives the number of steps.
+  - Help menu (? or h): a line for N. Key line at startup: "N step while recording".
+  - Files: app-log-live.py; apps/_record.py 1.1 (Recorder.step_start, step_end, steps.txt, README); lang/app-log-live.fr.po (French); docs/en and docs/fr 07-app-log-live.md; nginx-tools-tests/test_record.py (new test).
+
+Bugs fixed:
+  none (new function).
+
+Safeguards and edge cases:
+  - N outside a recording starts nothing; a message says to press R first.
+  - Ctrl-C at the description prompt cancels: no step is started.
+  - A step still open when the recording stops is closed then (« recording stopped » in records.log and steps.txt); pressing N for a new step closes the open one first.
+  - The description has its spaces collapsed, is cut at 200 characters and is masked like every other line (addresses, e-mails, tokens); empty = "(no description)".
+  - Numbering restarts at 1 for each recording.
+
+Checks:
+  - test_record.py: new test (START / END lines in records.log, steps.txt, README count, step closed at the stop).
+  - python3 -m py_compile on apps/_record.py, app-log-live.py and test_record.py.
+
+Action required:
+  - Version number: an archive of 2026-10-21 at 09:58 reports program 1.94.20261021.095843, which is not on branch app-log-live-record. This entry uses 1.95 to avoid a clash. Tell me if 1.94 must be the next number.
+
 ## 1.93.20261020.230008 — Test recording: R key and --record-test-log
 
 Reason:

@@ -1,6 +1,27 @@
 Changelog — run-all.sh (suite de tests)
 (version la plus récente en premier)
 
+## 1.194.20261021.235747 — test_record: steps of the test (N key)
+
+Reason:
+  New test of the step markers (N key) of the test recording, in nginx-tools-tests/test_record.py.
+
+Changes:
+  - test_record.py: archive() accepts etapes; new test_etapes_debut_fin_dans_records_log_et_steps_txt.
+  - SCRIPT_VERSION 1.194.20261021.235747.
+
+Bugs fixed:
+  none.
+
+Safeguards and edge cases:
+  - The step still open at the stop is checked (closed with "recording stopped").
+
+Checks:
+  - run-all.sh on the modules test_record and test_conventions (see the reply of the testeur agent).
+
+Action required:
+  none.
+
 ## 1.193.20261020.230008 — Test of the test recording (test_record.py) and of the 1.93 keys of app-log-live
 
 Reason:

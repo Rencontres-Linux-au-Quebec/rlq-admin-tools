@@ -1,6 +1,30 @@
 Changelog — apps/_record.py
 (newest version first)
 
+## 1.1.20261021.235747 — Steps of the test (N key): steps.txt
+
+Reason:
+  The N key of app-log-live.py marks the start and the end of each action of a test; the archive must hold them, with their times, to match the log lines.
+
+Changes:
+  - Recorder.step_start(description) / step_end(reason): step numbers, times, descriptions; the open step is closed before a new one starts.
+  - records.log and stream-all.log: "STEP n START hh:mm:ss — description" and "STEP n END hh:mm:ss — duration s — description".
+  - steps.txt (new, bilingual header) in the archive, and "Steps" line in README.txt.
+  - stop(): a step still open is closed with reason "recording stopped".
+
+Bugs fixed:
+  none.
+
+Safeguards and edge cases:
+  - step_start returns None when no recording runs or when it is stopping (no crash, nothing written).
+  - Description masked with the same mask() as the lines; spaces collapsed; 200 characters maximum.
+
+Checks:
+  - test_record.py: test_etapes_debut_fin_dans_records_log_et_steps_txt.
+
+Action required:
+  none.
+
 ## 1.0.20261020.230008 — Creation: recording of a test for app-log-live.py (R key, --record-test-log)
 
 Reason:

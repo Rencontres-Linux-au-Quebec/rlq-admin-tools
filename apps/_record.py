@@ -11,12 +11,14 @@
 # gathered over the recording window and packed into one .tar.xz (shared module, apps/).
 #
 # VERSION HISTORY (summary — see doc/_record.changelog.txt for the full detail):
+#   1.1.20261021.235747 — Steps of the test (N key of app-log-live.py): steps.txt in the archive, START / END lines in records.log.
 #   1.0.20261020.230008 — Creation: filtered stream, raw log extracts, systemd journal window, network and PostgreSQL samples, database snapshots, README, .tar.xz.
 """One recording = one window of time [start, stop] and one archive `app-log-live-record-HOST-YYYYMMDD-HHMMSS[-label].tar.xz`:
 
   README.txt          what the archive holds (French and English): times (local and UTC), server, versions, label, filters, counts, missing sources
   records.log         the lines of app-log-live.py WITHOUT the noise (robots, static files, websockets, local probes): what the test did
   stream-all.log      every line of the window, each with its category ([kept] [robot] [static] [websocket] [local])
+  steps.txt           the steps marked with the N key (start, end, duration, description); bilingual header
   raw/                complete extracts of the window, unfiltered: each log file given by the program (nginx access / error, blocked-probes, fail2ban, Odoo logfile,
                       BigBlueButton…), read from the size it had at the start (rotation followed), and the systemd journal of the service (journalctl --since/--until)
   network/            every SAMPLE_S seconds: TCP connections of the web and Odoo ports (ss), and a one-line count per port
@@ -47,7 +49,7 @@ import tempfile
 import threading
 import time
 
-__version__ = "1.0.20261020.230008"
+__version__ = "1.1.20261021.235747"
 
 SAMPLE_S = 10                               # seconds between two network / PostgreSQL samples
 RAW_MAX_BYTES = 50 * 1024 * 1024            # at most this much read from ONE log file (the beginning of the window is kept, the rest is noted as cut)
@@ -171,6 +173,8 @@ class Recorder:
         self.counts = {c: 0 for c in CATEGORIES}
         self.bytes = 0
         self.notes = []                       # sources missing or cut, said in README.txt
+        self.steps = []                       # 1.1: steps of the test (N key): dicts n, description, start, end
+        self.open_step = None                 # 1.1: the step being recorded, if any
         self.t0 = self.t1 = None
         self.work = self.base_name = None
         self.files = {}
@@ -287,6 +291,57 @@ class Recorder:
             size += len(text) + 1
         with self.lock:
             self.bytes += size
+
+    # --- 1.1: steps of the test (N key): a description marks the start and the end of one action of the test ------------------------------------
+    @staticmethod
+    def _hms(t):
+        return time.strftime("%H:%M:%S", time.localtime(t))
+
+    def step_start(self, description):
+        """Opens step N with a description (an open step is closed first). Returns N; None when no recording is running."""
+        if self.t0 is None or self.stopping:
+            return None
+        if self.open_step is not None:
+            self.step_end()
+        text = " ".join((description or "").split())[:200] or "(no description)"
+        with self.lock:
+            step = {"n": len(self.steps) + 1, "description": self.mask(text), "start": time.time(), "end": None}
+            self.steps.append(step)
+            self.open_step = step
+        self._step_line("START", step)
+        return step["n"]
+
+    def step_end(self, reason="key"):
+        """Closes the open step. Returns its number; None when no step is open."""
+        with self.lock:
+            step, self.open_step = self.open_step, None
+            if step is None:
+                return None
+            step["end"] = time.time()
+        self._step_line("END", step, reason)
+        return step["n"]
+
+    def _step_line(self, kind, step, reason="key"):
+        now = time.time()
+        if kind == "START":
+            text = f"STEP {step['n']} START {self._hms(now)} — {step['description']}"
+        else:
+            text = f"STEP {step['n']} END {self._hms(now)} — {now - step['start']:.0f} s — {step['description']}"
+            if reason != "key":
+                text += f" ({reason})"
+        self._write("stream-all.log", f"{self._hms(now)} [step] {text}\n")
+        self._write("records.log", f"# {text}\n")
+
+    def _steps_text(self):
+        out = ["# Étapes du test (touche N) / Steps of the test (N key)",
+               "# n  début / start    fin / end        durée / duration   description"]
+        for s in self.steps:
+            end = self._hms(s["end"]) if s["end"] else "(ouverte / open)"
+            duration = (s["end"] or time.time()) - s["start"]
+            out.append(f"{s['n']:>3}  {self._hms(s['start'])}       {end:<19}{duration:>8.0f} s          {s['description']}")
+        if not self.steps:
+            out.append("# (aucune étape / no step)")
+        return "\n".join(out) + "\n"
 
     # --- samples (network, PostgreSQL) --------------------------------------------------------------------------------------------------------------
     def _sample_loop(self):
@@ -562,6 +617,8 @@ class Recorder:
         return self.result
 
     def _finish(self, reason):
+        if self.open_step is not None:
+            self.step_end("recording stopped")
         if self.sampler is not None:
             self.sampler.join(30)
         try:
@@ -571,6 +628,7 @@ class Recorder:
         self._raw_extracts()
         self._journal_extract()
         self._write("records.log", f"# recording stopped {self._local(self.t1)} ({self._utc(self.t1)}) — {self.elapsed():.0f} s — reason: {reason}\n")
+        self._write("steps.txt", self._steps_text())
         self._write("README.txt", self._readme(reason))
         with self.lock:
             for f in self.files.values():
@@ -579,7 +637,7 @@ class Recorder:
         final = os.path.join(self.folder, self.base_name + ".tar.xz")
         temporary = final + ".part"
         with tarfile.open(temporary, "w:xz", preset=6) as tar:
-            for name in ("README.txt", "records.log", "stream-all.log", "raw", "network", "db", "context"):
+            for name in ("README.txt", "records.log", "stream-all.log", "steps.txt", "raw", "network", "db", "context"):
                 path = os.path.join(self.work, name)
                 if os.path.exists(path):
                     tar.add(path, arcname=os.path.join(self.base_name, name))
@@ -684,6 +742,7 @@ class Recorder:
             f"Début            : {self._local(self.t0)}  ({self._utc(self.t0)})",
             f"Fin              : {self._local(self.t1)}  ({self._utc(self.t1)})",
             f"Durée            : {self.elapsed():.0f} s — arrêt : {reasons_fr.get(reason, reason)}",
+            f"Étapes           : {len(self.steps)} (steps.txt)",
             f"Serveur          : {socket.gethostname()} — {self._os_name()}",
             f"Programme        : {self.program} v{self.version} (composant _record.py v{__version__})",
             f"Lignes           : {counts['kept']} gardées (records.log) ; {noise} de bruit retirées (robots {counts['robot']}, fichiers statiques {counts['static']}, "
@@ -693,6 +752,7 @@ class Recorder:
             "",
             "Contenu :",
             "  records.log     les lignes du test, sans le bruit",
+            "  steps.txt       les étapes marquées avec la touche N (début, fin, durée, description)",
             "  stream-all.log  toutes les lignes, avec leur catégorie",
             "  raw/            extraits complets des journaux pendant la fenêtre (nginx, fail2ban, Odoo, journal systemd du service)",
             "  network/        connexions TCP des ports web et d'Odoo toutes les " + f"{self.sample_s:g} s (ss), et leur compte par port",
@@ -707,6 +767,7 @@ class Recorder:
             f"Start            : {self._local(self.t0)}  ({self._utc(self.t0)})",
             f"End              : {self._local(self.t1)}  ({self._utc(self.t1)})",
             f"Duration         : {self.elapsed():.0f} s — stopped by: {reasons_en.get(reason, reason)}",
+            f"Steps            : {len(self.steps)} (steps.txt)",
             f"Server           : {socket.gethostname()} — {self._os_name()}",
             f"Program          : {self.program} v{self.version} (component _record.py v{__version__})",
             f"Lines            : {counts['kept']} kept (records.log); {noise} noise lines removed (robots {counts['robot']}, static files {counts['static']}, "
@@ -716,6 +777,7 @@ class Recorder:
             "",
             "Content:",
             "  records.log     the lines of the test, without the noise",
+            "  steps.txt       the steps marked with the N key (start, end, duration, description)",
             "  stream-all.log  every line, with its category",
             "  raw/            complete log extracts of the window (nginx, fail2ban, Odoo, systemd journal of the service)",
             "  network/        TCP connections of the web and Odoo ports every " + f"{self.sample_s:g} s (ss), and their count per port",
