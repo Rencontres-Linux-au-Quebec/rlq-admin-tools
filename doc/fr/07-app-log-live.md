@@ -31,6 +31,8 @@ L'archive contient : `README.txt` (heures locales et UTC, sources absentes), `re
 
 Adresses IP, courriels, noms connus et jetons sont remplacés par des pseudonymes stables avant l'écriture. La base n'est lue qu'en lecture seule.
 
+**Prérequis de l'enregistrement (1.100)** : le client `psql` (paquet `postgresql-client`) et un accès à la base Odoo sont obligatoires ; sans eux, l'enregistrement est refusé avec un message (les échantillons PostgreSQL montrent les écritures et les verrous). Le programme peut tourner sans root : PostgreSQL est alors interrogé par `sudo -n -u postgres`, et les commandes avancées (fail2ban-client, ipset, journalctl) par `sudo -n`. Ces règles sudo doivent être autorisées sans mot de passe pour le compte qui lance le programme. L'archive contient aussi le contexte système (root ou non, système d'exploitation, versions des outils).
+
 Sans clavier : `--record-test-log MIN` enregistre MIN minutes à partir du démarrage, écrit l'archive puis quitte. `--record-max MIN` (clé `RECORD_MAX`, 60 par défaut et au maximum ; 0 refusé) arrête un enregistrement de lui-même. `--steps-line` (touche F) affiche toutes les étapes de l'enregistrement sur une ligne blanche, mise à jour à chaque étape (écran seulement).
 
 ## Latence : est-ce le disque ?

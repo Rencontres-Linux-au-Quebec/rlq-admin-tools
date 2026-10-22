@@ -91,6 +91,7 @@
 #RECAP=120
 # --record-max (1.93) : minutes après lesquelles un enregistrement de test (touche R) s'arrête de lui-même (défaut et maximum : 60 ; 0 refusé)
 #RECORD_MAX=60
+# (1.100) l'enregistrement exige psql et l'accès PostgreSQL ; sans root : « sudo -n -u postgres » et « sudo -n » (sudoers, sans mot de passe)
 # --service (défaut : détecté automatiquement)
 #SERVICE=
 # --slow : secondes (défaut : 5 secondes ; 0 = désactivé)
