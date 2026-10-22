@@ -91,6 +91,7 @@
 #RECAP=120
 # --record-max (1.93): minutes after which a test recording (R key) stops by itself (default and maximum: 60; 0 is refused)
 #RECORD_MAX=60
+# (1.100) recording needs psql and PostgreSQL access; without root: « sudo -n -u postgres » and « sudo -n » (sudoers, no password)
 # --service (défaut : détecté automatiquement)
 #SERVICE=
 # --slow : secondes (défaut : 5 secondes ; 0 = désactivé)

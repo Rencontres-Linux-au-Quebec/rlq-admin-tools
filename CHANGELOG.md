@@ -59,7 +59,7 @@ Earlier history was archived outside this repository when this file was created.
   - Archive: context/system.txt (root or not, sudo, operating system, kernel, Python and tool versions; no user name); db/writes-BASE.log (writes per activity table at each sample).
   - Journal of the service recorded through sudo -n when not root.
   - Menu (? key): options sorted alphabetically by option name.
-  - Files: app-log-live.py; apps/_record.py 1.2; apps/_odoo_db.py 1.20; apps/_connexions.py 1.2; nginx-tools-tests/fixtures/app-log-live-record-exemple-tests-en-dev.tar.xz (anonymized recording with the context reported by the operator).
+  - Files: app-log-live.py; doc/en and doc/fr 07-app-log-live.md and app-log-live.conf.example (sudo and PostgreSQL requirements); apps/_record.py 1.2; apps/_odoo_db.py 1.20; apps/_connexions.py 1.2; nginx-tools-tests/fixtures/app-log-live-record-exemple-tests-en-dev.tar.xz (anonymized recording with the context reported by the operator).
 - Bugs fixed:
   - Symptom: psql and runuser were called only as root; with a non-root account there were no database samples and no context in the archive.
   - Diagnosis: runuser needs root.
@@ -67,7 +67,7 @@ Earlier history was archived outside this repository when this file was created.
 - Guard rails and edge cases:
   - Without sudo and without root, the commands fail as before, and the messages say so.
   - The recording never starts blind: without the database samples it is refused.
-- Checks: py_compile; --version; test_app_log_live; test_record; test_i18n; test_conventions; test_cles_modeles; test_config_defaut.
+- Checks: py_compile; --version; test_app_log_live; test_record; test_i18n; test_conventions; test_cles_modeles; test_config_defaut. Non-root run on a temporary account with a limited sudoers rule: --version, --help, and --app odoo --no-follow reach the service check and print the limited-rights message; sudo -n -u postgres psql and sudo -n journalctl work. A full recording could not be run in the test environment (no Odoo service).
 - Action required: to use the recording and the advanced functions without root, allow without password for the account: « sudo -n -u postgres psql », « fail2ban-client », « ipset », « journalctl ». The PostgreSQL client (postgresql-client) must be installed.
 
 ### 1.99.20261022.122804
