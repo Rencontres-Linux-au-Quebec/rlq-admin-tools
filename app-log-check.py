@@ -60,7 +60,7 @@ import urllib.parse
 from collections import Counter, OrderedDict
 from datetime import datetime, timedelta
 
-__version__ = "2.23.20261020.211944"
+__version__ = "2.24.20261022.012000"
 
 DEFAULT_SERVICE = "erplibre_erplibre.service"
 STATE_DIR = os.environ.get("APP_LOG_CHECK_STATE_DIR") or os.path.expanduser("~/.local/state/app-log-check")
@@ -103,7 +103,7 @@ if I18N:
     print, input = I18N.print, I18N.input          # noqa: A001 — every displayed text goes through the translator (no effect when the display language is the source language)
 # Configuration file options (/etc/default/app-log-check.conf, then the personal file .app-log-check.conf): KEY -> (command-line option, type).
 # LANGUAGE: en, fr or auto (follow LC_ALL / LANG).
-SCHEMA_CONFIG = {"APP": ("app", str), "DAYS": ("days", int), "ERRORS_ONLY": ("errors_only", bool), "FULL_TRACE": ("full_trace", bool), "NAMESPACE": ("namespace", str),
+SCHEMA_CONFIG = {"APP": ("app", str), "BY_HOUR": ("by_hour", bool), "DAYS": ("days", int), "ERRORS_ONLY": ("errors_only", bool), "FULL_TRACE": ("full_trace", bool), "NAMESPACE": ("namespace", str),
                  "SERVICE": ("service", str), "TOP": ("top", int), "VERBOSE": ("verbose", bool)}
 
 

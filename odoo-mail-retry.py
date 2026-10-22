@@ -47,7 +47,7 @@ try:                    # line editing in prompts (backspace ^H or ^?, arrows)
 except ImportError:
     pass
 
-__version__ = "1.14.20261020.211944"
+__version__ = "1.15.20261022.012000"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
@@ -137,7 +137,7 @@ def read_config(explicite=None):
             load_module("_config").creer_par_defaut("odoo-mail-retry")
         except Exception:
             pass
-    common = []                                               # COMMON file for all programs (app-default.conf), read first: LANGUAGE, VERBOSE, DEBUG_LEVEL only
+    common = []                                               # COMMON file for all programs (app-default.conf), read first: LANGUAGE, VERBOSE, DEBUG_LEVEL, LOG_KEEP_DAYS, ANONYMIZE only
     if not explicite:
         try:
             common = [c for c, exists_ in load_module("_config").chemins_communs() if exists_]
@@ -157,8 +157,10 @@ def read_config(explicite=None):
             m = re.fullmatch(r"(BATCH|DAYS)\s*=\s*[\"']?(\d+)[\"']?", line)
             b = re.fullmatch(r"(DETAILS|NO_PROMPT)\s*=\s*[\"']?(\w+)[\"']?", line)
             v = re.fullmatch(r"(VERBOSE|DEBUG_LEVEL)\s*=\s*[\"']?(\w*)[\"']?", line)
-            if path in common and not (v or re.match(r"LANGUAGE\s*=", line)):
-                continue                                       # the common file defines only LANGUAGE, VERBOSE and DEBUG_LEVEL
+            c = re.fullmatch(r"(LOG_KEEP_DAYS)\s*=\s*[\"']?(\d+)[\"']?", line)
+            a = re.fullmatch(r"(ANONYMIZE)\s*=\s*[\"']?(\w+)[\"']?", line)
+            if path in common and not (v or c or a or re.match(r"LANGUAGE\s*=", line)):
+                continue                                       # the common file defines only LANGUAGE, VERBOSE, DEBUG_LEVEL, LOG_KEEP_DAYS and ANONYMIZE (apps/_config.py CLES_COMMUNES)
             t = re.fullmatch(r"(DB|LANGUAGE)\s*=\s*[\"']?([\w.@-]*)[\"']?", line)
             if m and int(m.group(2)) > 0:
                 values[m.group(1)] = int(m.group(2))
@@ -171,6 +173,13 @@ def read_config(explicite=None):
                     values["DEBUG_LEVEL"] = int(v.group(2))
                 else:
                     problems.append(f"{path}:{n} : line ignored « {line} » (VERBOSE: yes/no; DEBUG_LEVEL: number)")
+            elif c:                                            # LOG_KEEP_DAYS (common or own file): exported as apps/_config.py lire() does; the environment wins
+                os.environ.setdefault("NGINX_TOOLS_LOG_KEEP_DAYS", c.group(2))
+            elif a:                                            # ANONYMIZE (common or own file): NGINX_TOOLS_ANONYMIZE, read by apps/_anonymiser.py; the environment wins
+                if a.group(2).lower() in ("1", "true", "yes", "oui", "on", "0", "false", "no", "non", "off"):
+                    os.environ.setdefault("NGINX_TOOLS_ANONYMIZE", "1" if a.group(2).lower() in ("1", "true", "yes", "oui", "on") else "0")
+                else:
+                    problems.append(f"{path}:{n} : line ignored « {line} » (ANONYMIZE: yes/no)")
             elif t:
                 if t.group(2):
                     values[t.group(1)] = t.group(2)
