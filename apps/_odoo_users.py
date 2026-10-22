@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # ========================================================================================================================
-# Copyright (C) 2026 Services-Conseils Linux
+# Copyright (C) 2026 Services-Conseils Linux Inc.
 # Copyright (C) 2026 Rencontres Linux au Québec contributors
 #
 # This program is free software: you can redistribute it and/or modify it under the terms of the GNU Affero General Public
@@ -13,10 +13,6 @@
 # Read by web-monitor.py (summary, --list-users), nginx-log-audit.sh (an address used by a BANNED account is no longer "a legitimate user")
 # and app-log-live.py (mark of a watched or banned account).
 #
-# VERSION HISTORY (summary — see doc/_odoo_users.changelog.txt for the full detail):
-#   1.2.20261019.150215 — New copyright: Services-Conseils Linux and Rencontres Linux au Québec contributors (AGPL-3.0-or-later).
-#   1.1.20261016.173838 — Copyright holder: Services-Linux Conseils Inc
-#   1.0.20261016.114848 — First version: register of banned and watched Odoo accounts.
 """Register of banned / watched Odoo accounts.
 
 File: /var/lib/nginx-tools/odoo-users.tsv (NGINX_TOOLS_ODOO_USERS to change it; "off" disables it), rights 600, columns:

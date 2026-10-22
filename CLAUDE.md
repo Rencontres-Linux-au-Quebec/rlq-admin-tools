@@ -1,5 +1,9 @@
 # Consignes pour Claude — rlq-admin-tools
 
+## Pull requests
+
+Les créer et donner le lien, ne jamais les fusionner ni les approuver ; l'utilisateur les valide lui-même.
+
 ## Tests : le moins de jetons possible
 
 - Pour lancer ou vérifier les tests, déléguer à l'agent **`testeur`** (`.claude/agents/testeur.md` : Claude Haiku 5.5, effort low). Il lance
@@ -11,8 +15,7 @@
 
 ## Conventions
 
-Celles de `doc/CONTEXTE.md` (section 3) : version MAJEUR.MINEUR.AAAAMMJJ.HHMMSS (heure locale), changelog `doc/<programme>.changelog.txt` le plus récent en
-premier, `--version`, `--changelog`, options triées, configuration `/etc/default/<programme>.conf` puis `~/.<programme>.cfg`, archives `nom.MAJEUR.MINEUR.zip`.
+Celles de `doc/CONTEXTE.md` (section 3) : version MAJEUR.MINEUR.AAAAMMJJ.HHMMSS (heure locale), CHANGELOG.md indique le plus récent en premier, `--version`, `--changelog`, options triées, configuration `/etc/default/<programme>.conf` puis `~/.<programme>.conf`, archives `nom.MAJEUR.MINEUR.zip`.
 
 ## Dépôt public : aucune donnée personnelle
 

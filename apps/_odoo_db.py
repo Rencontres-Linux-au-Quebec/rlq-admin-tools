@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # ========================================================================================================================
-# Copyright (C) 2026 Services-Conseils Linux
+# Copyright (C) 2026 Services-Conseils Linux Inc.
 # Copyright (C) 2026 Rencontres Linux au Québec contributors
 #
 # This program is free software: you can redistribute it and/or modify it under the terms of the GNU Affero General Public
@@ -15,26 +15,6 @@
 # 1.14 : deux autres écritures, toujours après confirmation et gardées dans le SQL lui-même : set_user_active (web-monitor.py --ban-odoo-user /
 # --unban-odoo-user : compte archivé ou rétabli) et fix_registration_email (odoo-mail-retry.py : adresse corrigée d'une inscription).
 #
-# HISTORIQUE DE VERSION (resume — voir doc/_odoo_db.changelog.txt pour le detail complet) :
-#   1.18.20261019.150215 — New copyright: Services-Conseils Linux and Rencontres Linux au Québec contributors (AGPL-3.0-or-later).
-#   1.17.20261019.012211 — user_profiles: creation date of each Odoo account (« created », web-monitor.py « Account created » column).
-#   1.16.20261017.105442 — user_profiles: phone, country, city, groups, tags, events and surveys of each Odoo account (web-monitor.py --table / --csv).
-#   1.15.20261016.173838 — registrations_by_ticket (survey of the TICKET, answer to another survey apart), mail_detail (recipients and subject of a sent e-mail).
-#   1.14.20261016.114848 — user_detail, set_user_active (account archived / restored), registration_emails, failed_mails_for, fix_registration_email.
-#   1.13.20261015.172851 — groupes_rlq(base) : nombre de comptes actifs de chaque groupe RLQ*.
-#   1.12.20261015.073057 — Échecs de courriels groupés par jour LOCAL (plus par jour UTC).
-#   1.11.20261014.190654 — --modules BASE : modules installés en tabulations (versions avant / après d'odoo-update-module.sh).
-#   1.10.20261013.163324 — modules_etat : modules non désinstallés (état, version installée, auteur), lecture seule.
-#   1.9.20261013.141500 — jetons_sondages (lecture seule).
-#   1.8.20261013.081500 — courriels_envoyes (lecture seule).
-#   1.7.20261009.230224 — inscriptions_avec_sondage : inscription + sondage de confirmation de la meme personne (contact ou courriel).
-#   1.6.20261009.150500 — inscriptions_evenements : nom du billet (ticket) de chaque inscription.
-#   1.5.20261008.173412 — groupe_existe, groupes_contacts, membres_groupe (etiquettes de contact, lecture seule).
-#   1.4.20261008.124728 — inscriptions_evenements, reponses_sondages (lecture seule).
-#   1.3.20261007.175327 — CORRECTION du sujet des courriels (mail_message) ; bases_odoo, courriels_en_echec, remettre_en_attente.
-#   1.2.20261007.171721 — parametres, serveurs_courriel, courriels : lectures en lecture seule (transaction forcee en lecture seule).
-#   1.1.20261002.214327 — modules_installes : modules dont le nom evoque les sessions (lecture seule).
-#   1.0.20261002.073514 — Premiere version : utilisateurs d'une base Odoo (login, UID, nom, type).
 #
 # Usage (normalement appele par les programmes de la suite) :
 #   python3 apps/_odoo_db.py BASE         liste des utilisateurs de la base (UID, identifiant, nom, type)
@@ -47,7 +27,7 @@ import re
 import subprocess
 import sys
 
-__version__ = "1.18.20261019.150215"
+__version__ = "1.19.20261020.103939"
 
 VERBOSE = False     # --verbose : la commande psql est affichee avant son execution
 SEP = "\x1f"
@@ -328,10 +308,11 @@ def registrations_by_ticket(base, days=30, limit=200, delai=30):
     return res
 
 
-def mail_detail(base, mail_id, message_id="", delai=10):
+def mail_detail(base, mail_id, message_id="", delai=10, address=""):
     """Who an e-mail (mail.mail) was sent to and what it is, READ-ONLY: {subject, recipients: [names] (contacts, otherwise the e-mail_to addresses as written),
     record: name of the record it is about (« registration Ana Tremblay — Event title » for event.registration, otherwise the model)} ; {} if not found or if
-    the Message-Id does not match (another database) ; None if PostgreSQL is unreachable."""
+    the Message-Id does not match (another database) ; None if PostgreSQL is unreachable. `address`: the recipient as Odoo logs it, masked (« b****ss@exemple.org »):
+    picks the notified partner(s) whose e-mail matches it when the mail.mail is already deleted."""
     if not str(mail_id).isdigit():
         return {}
     check = f" AND g.message_id = {_sql_text(message_id)}" if message_id else ""
@@ -342,6 +323,21 @@ def mail_detail(base, mail_id, message_id="", delai=10):
         f"FROM mail_mail m JOIN mail_message g ON g.id = m.mail_message_id WHERE m.id = {int(mail_id)}{check}", delai)
     if rows is None:
         return None
+    if (not rows or len(rows[0]) < 5) and message_id:
+        # 1.19: Odoo deletes the mail.mail right after sending it (auto_delete: « deleted mail.mail records with IDs: [7624] », a few ms later): the
+        # mail.message stays, with the same Message-Id; recipients = the partner notified by e-mail whose address matches the masked one, otherwise all the
+        # partners notified by e-mail, otherwise the partners of the message
+        pattern = re.sub(r"\*+", "%", re.sub(r"([%_\\])", r"\\\1", address)) if address and "*" in address and "@" in address else ""
+        notified = ("(SELECT string_agg(DISTINCT left(replace(p.name, E'\\n', ' '), 40), '; ') FROM mail_notification n JOIN res_partner p ON p.id = n.res_partner_id "
+                    "WHERE n.mail_message_id = g.id AND n.notification_type = 'email'{})")
+        rows = _requete(base,
+            "SELECT left(replace(COALESCE(g.subject, ''), E'\\n', ' '), 160), "
+            "COALESCE(" + (notified.format(f" AND p.email ILIKE {_sql_text(pattern)}") + ", " if pattern else "") + notified.format("") + ", "
+            "(SELECT string_agg(DISTINCT left(replace(p.name, E'\\n', ' '), 40), '; ') FROM mail_message_res_partner_rel x JOIN res_partner p ON p.id = x.res_partner_id "
+            "WHERE x.mail_message_id = g.id), ''), '', COALESCE(g.model, ''), COALESCE(g.res_id, 0) "
+            f"FROM mail_message g WHERE g.message_id = {_sql_text(message_id)} ORDER BY g.id DESC LIMIT 1", delai)
+        if rows is None:
+            return None
     if not rows or len(rows[0]) < 5:
         return {}
     subject, partners, email_to, model, res_id = rows[0][:5]

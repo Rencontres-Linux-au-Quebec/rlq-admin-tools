@@ -1,6 +1,6 @@
 # shellcheck shell=bash
 # ========================================================================================================================
-# Copyright (C) 2026 Services-Conseils Linux
+# Copyright (C) 2026 Services-Conseils Linux Inc.
 # Copyright (C) 2026 Rencontres Linux au Québec contributors
 #
 # This program is free software: you can redistribute it and/or modify it under the terms of the GNU Affero General Public
@@ -9,12 +9,9 @@
 # ========================================================================================================================
 #
 # _listes.sh — lecteur commun (bash) de la LISTE BLANCHE et des LIEUX : même fichiers et même syntaxe que apps/_listes.py (voir son en-tête).
-#   /etc/default/nginx-tools-white-list.conf (seulement /etc/default), /etc/default/nginx-tools-ip-location.conf puis ~/.nginx-tools-ip-location.cfg.
+#   /etc/default/nginx-tools-white-list.conf (seulement /etc/default), /etc/default/nginx-tools-ip-location.conf puis ~/.nginx-tools-ip-location.conf.
 # À sourcer (". apps/_listes.sh") ; ne fait rien tout seul.
 #
-# HISTORIQUE DE VERSION (resume — voir doc/_listes.changelog.txt pour le detail complet) :
-#   1.2.20261019.150215 — New copyright: Services-Conseils Linux and Rencontres Linux au Québec contributors (AGPL-3.0-or-later).
-#   1.0.20261007.093208 — Premiere version : liste blanche et lieux, lecteur commun (remplace les analyseurs de team-ips.list).
 
 LISTES_BLANCHE_DEFAUT="/etc/default/nginx-tools-white-list.conf"
 LISTES_LIEUX_DEFAUT="/etc/default/nginx-tools-ip-location.conf"
@@ -29,13 +26,22 @@ listes_fichier_blanche() {
     fi
 }
 
+# _listes_personnel CHEMIN.conf : fichier personnel à lire ; un ancien CHEMIN.cfg est renommé (apps/_i18n.sh config_migrer_ancien) ; sans _i18n.sh : le .conf, ou
+# l'ancien fichier s'il est seul.
+_listes_personnel() {
+    local ancien="${1%.conf}.cfg"
+    if declare -F config_migrer_ancien >/dev/null; then config_migrer_ancien "$1"; printf '%s\n' "$CFG_A_LIRE"
+    elif [[ ! -e "$1" && -e "$ancien" ]]; then printf '%s\n' "$ancien"
+    else printf '%s\n' "$1"; fi
+}
+
 # listes_fichiers_lieux : chemins des fichiers de lieux existants (un seul si NGINX_TOOLS_IP_LOCATION est défini), un par ligne.
 listes_fichiers_lieux() {
     local f
     if [[ -n "${NGINX_TOOLS_IP_LOCATION:-}" ]]; then
         [[ -f "$NGINX_TOOLS_IP_LOCATION" ]] && printf '%s\n' "$NGINX_TOOLS_IP_LOCATION"
     else
-        for f in "$LISTES_LIEUX_DEFAUT" "$HOME/.nginx-tools-ip-location.cfg"; do [[ -f "$f" ]] && printf '%s\n' "$f"; done
+        for f in "$LISTES_LIEUX_DEFAUT" "$(_listes_personnel "$HOME/.nginx-tools-ip-location.conf")"; do [[ -f "$f" ]] && printf '%s\n' "$f"; done
     fi
     return 0
 }

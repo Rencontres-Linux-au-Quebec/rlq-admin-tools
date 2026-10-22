@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # ========================================================================================================================
-# Copyright (C) 2026 Services-Conseils Linux
+# Copyright (C) 2026 Services-Conseils Linux Inc.
 # Copyright (C) 2026 Rencontres Linux au Québec contributors
 #
 # This program is free software: you can redistribute it and/or modify it under the terms of the GNU Affero General Public
@@ -20,19 +20,9 @@
 #   * Waits for Odoo to answer (--wait seconds at most): can be started right after the start.
 #   * Automatic start: --systemd-install adds to Odoo's unit (--service) a .d file that starts this program in the background after each start
 #     (systemd-run, without delaying Odoo's start); --systemd-remove removes it.
-# Configuration (common rule): /etc/default/odoo-warmup.conf THEN ~/.odoo-warmup.cfg (the last one wins); -c/--config: that file ALONE; the command line
+# Configuration (common rule): /etc/default/odoo-warmup.conf THEN ~/.odoo-warmup.conf (the last one wins); -c/--config: that file ALONE; the command line
 # takes priority. The files read are always displayed, with the important options.
 #
-# VERSION HISTORY (summary — see doc/odoo-warmup.changelog.txt for full detail):
-#   1.8.20261019.150215 — New copyright: Services-Conseils Linux and Rencontres Linux au Québec contributors (AGPL-3.0-or-later).
-#   1.7.20261017.105442 — Options line: which setting decided the display language (apps/_i18n.py 1.17).
-#   1.6.20261016.173838 — Copyright holder: Services-Linux Conseils Inc
-#   1.5.20261015.200821 — Source code, comments and changelog in English (display stays French/English via lang/odoo-warmup.fr.po).
-#   1.4.20261015.073057 — Modification date of the configuration files read.
-#   1.3.20261014.182101 — Extra pages in /etc/default/odoo-warmup-pages.conf; pages in fr, en, es; optional surveys.
-#   1.2.20261014.175821 — Common file app-default.conf; keys VERBOSE and DEBUG_LEVEL.
-#   1.1.20261014.174013 — Linked pages (--links) and latest events / surveys (--latest) warmed up.
-#   1.0.20261013.153900 — First version: public pages, assets, administration screens (get_views), automatic start by systemd.
 #
 # Usage:
 #   odoo-warmup.py                          warm up (public pages; plus administration if LOGIN and KEY_FILE are set)
@@ -61,13 +51,13 @@ try:                    # line editing in prompts
 except ImportError:
     pass
 
-__version__ = "1.8.20261019.150215"
+__version__ = "1.9.20261020.211944"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
-CHANGELOG_FILE = os.path.join(SCRIPT_DIR, "doc", f"{SCRIPT_NAME}.changelog.txt")
+CHANGELOG_FILE = os.path.join(SCRIPT_DIR, "CHANGELOG.md")
 SYSTEM_CONF = os.path.join(os.environ.get("NGINX_TOOLS_ETC_DEFAULT", "/etc/default"), "odoo-warmup.conf")      # variable: tests only
-USER_CONF = "~/.odoo-warmup.cfg"
+USER_CONF = "~/.odoo-warmup.conf"
 SYSTEMD_DIR = os.environ.get("NGINX_TOOLS_SYSTEMD_DIR", "/etc/systemd/system")                       # variable: tests only
 DEFAULT_URL = "http://127.0.0.1:8069"
 DEFAULT_PAGES = ["/", "/web/login", "/event", "/survey"]
@@ -119,8 +109,17 @@ if I18N:
 def eprint(*args):
     print(*args, file=sys.stderr, flush=True)
 
+def personal_conf():
+    """Personal configuration file to read: ~/.odoo-warmup.conf; a legacy ~/.odoo-warmup.cfg is renamed to it first (apps/_config.py migrer_ancien)."""
+    path = os.path.expanduser(USER_CONF)
+    try:
+        return load_module("_config").migrer_ancien(path)
+    except Exception:
+        return path
+
+
 def read_config(explicite=None):
-    """(values, files read, problems): /etc/default/odoo-warmup.conf then ~/.odoo-warmup.cfg (the last one wins); explicit (-c/--config):
+    """(values, files read, problems): /etc/default/odoo-warmup.conf then ~/.odoo-warmup.conf (the last one wins); explicit (-c/--config):
     that file ALONE, which must exist (FileNotFoundError otherwise). Keys: URL, DB, LOGIN, KEY_FILE, PAGES_FILE, LANGS, PAGES and MODELS (comma-separated lists),
     REPEAT and WAIT (positive numbers), LINKS and LATEST (numbers, 0 = none), SERVICE, LANGUAGE (en, fr, auto)."""
     values, files_read, problems = {}, [], []
@@ -137,7 +136,7 @@ def read_config(explicite=None):
             common = [c for c, exists_ in load_module("_config").chemins_communs() if exists_]
         except Exception:
             common = []
-    for path in (common if not explicite else []) + ([explicite] if explicite else [SYSTEM_CONF, os.path.expanduser(USER_CONF)]):
+    for path in (common if not explicite else []) + ([explicite] if explicite else [SYSTEM_CONF, personal_conf()]):
         try:
             with open(path, encoding="utf-8") as f:
                 lines = f.read().splitlines()
@@ -386,11 +385,11 @@ def read_pages(path):
 
 
 def create_default_pages(path):
-    """First start: creates the pages file (copy of doc/odoo-warmup-pages.conf.example, mode 644) if it does not exist; silent failure."""
+    """First start: creates the pages file (copy of doc/en/odoo-warmup-pages.conf.example, mode 644) if it does not exist; silent failure."""
     if os.path.exists(path) or os.environ.get("NGINX_TOOLS_CONFIG_CREER") == "0":
         return
     try:
-        with open(os.path.join(SCRIPT_DIR, "doc", "odoo-warmup-pages.conf.example"), encoding="utf-8") as f:
+        with open(os.path.join(SCRIPT_DIR, "doc", "en", "odoo-warmup-pages.conf.example"), encoding="utf-8") as f:
             model = f.read()
         with open(path, "x", encoding="utf-8") as f:
             f.write(model)
@@ -642,11 +641,27 @@ def main():
     return 1 if failures or administration is False else 0
 
 
+def changelog_section(path, key):
+    """This program's section of CHANGELOG.md: from its '## <key>' heading up to the next '## ' heading."""
+    with open(path, encoding="utf-8") as f:
+        lignes = f.read().splitlines()
+    section, dans = [], False
+    for ligne in lignes:
+        if ligne.startswith("## "):
+            if dans:
+                break
+            dans = ligne[3:].strip() == key
+            if dans:
+                section.append(ligne)
+        elif dans:
+            section.append(ligne)
+    return "\n".join(section) + "\n" if section else f"No changelog entry for {key} in {path}\n"
+
+
 def show_changelog():
     signal.signal(signal.SIGPIPE, signal.SIG_DFL)
     try:
-        with open(CHANGELOG_FILE, encoding="utf-8") as f:
-            text = f.read()
+        text = changelog_section(CHANGELOG_FILE, "odoo-warmup.py")
     except OSError:
         eprint(f"Changelog not found: {CHANGELOG_FILE}")
         return 1

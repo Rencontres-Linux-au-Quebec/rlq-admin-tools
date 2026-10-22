@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # ========================================================================================================================
-# Copyright (C) 2026 Services-Conseils Linux
+# Copyright (C) 2026 Services-Conseils Linux Inc.
 # Copyright (C) 2026 Rencontres Linux au Québec contributors
 #
 # This program is free software: you can redistribute it and/or modify it under the terms of the GNU Affero General Public
@@ -9,13 +9,6 @@
 # ========================================================================================================================
 # _traduire.py — traduit la sortie d'un programme bash (module partagé, apps/) : lance la commande et passe ses lignes par le catalogue lang/PROGRAMME.XX.po.
 #
-# HISTORIQUE DE VERSION (résumé — voir doc/_traduire.changelog.txt pour le détail complet) :
-#   1.5.20261019.150215 — New copyright: Services-Conseils Linux and Rencontres Linux au Québec contributors (AGPL-3.0-or-later).
-#   1.4.20261017.105442 — Origin of the language passed to the bash programs (NGINX_TOOLS_I18N_ORIGINE).
-#   1.3.20261015.143436 — Anonymisation : mode --anonymiser-seul (programmes Python), --anonymize retiré des arguments bash, SIGWINCH transmis.
-#   1.2.20261011.144500 — demarrer(confirmer_ctrl_c=False) : la question de Ctrl+C est posée par la commande, pas par le traducteur.
-#   1.1.20261011.093635 — Ctrl+C : la commande lancée derrière le traducteur n'ignore plus SIGINT (gestionnaire au lieu de SIG_IGN, hérité à l'exec).
-#   1.0.20261010.220000 — Création : langue (--lang, variable du programme, LANGUAGE du fichier de configuration, LC_ALL / LANG), filtre de sortie à lignes et à invites partielles.
 """Usage : _traduire.py PROGRAMME VARIABLE_LANGUE -- COMMANDE [ARGUMENTS…]
 
 Appelé par apps/_i18n.sh (fonction i18n_relancer) tout au début d'un programme bash. La langue se choisit comme pour les programmes Python (apps/_i18n.py) :

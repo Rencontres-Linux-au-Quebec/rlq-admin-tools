@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # ========================================================================================================================
-# Copyright (C) 2026 Services-Conseils Linux
+# Copyright (C) 2026 Services-Conseils Linux Inc.
 # Copyright (C) 2026 Rencontres Linux au Québec contributors
 #
 # This program is free software: you can redistribute it and/or modify it under the terms of the GNU Affero General Public
@@ -13,11 +13,6 @@
 # operation, operations and bytes per second), memory, network, ZFS ARC. Used by app-log-live.py (latency of the requests: is it the disk?) and
 # host-perf-audit.py (Proxmox host: what limits the performance).
 #
-# VERSION HISTORY (summary — see doc/_sysperf.changelog.txt for the full detail):
-#   1.2.20261019.150215 — New copyright: Services-Conseils Linux and Rencontres Linux au Québec contributors (AGPL-3.0-or-later).
-#   1.1.20261016.173838 — Copyright holder: Services-Linux Conseils Inc
-#   1.0.20261016.114848 — First version: snapshot() and rates() over /proc/stat, /proc/pressure, cgroup v2, /proc/diskstats, /proc/meminfo,
-#                         /proc/net/dev, ZFS arcstats.
 """Two snapshots and their difference: a sample costs a few small file reads (well under a millisecond of processor).
 
     a = snapshot(); time.sleep(30); b = snapshot(); r = rates(a, b)

@@ -1,0 +1,84 @@
+# Fichier de configuration de web-monitor.py (exemple : toutes les clés, en commentaire = valeur par défaut).
+# Les fichiers suivants sont LUS DANS CET ORDRE (le dernier l'emporte) ; la ligne de commande est prioritaire sur les fichiers :
+#   1. /etc/default/web-monitor.conf    (fichier du système)
+#   2. ~/.web-monitor.conf               (s'il existe : réglages de l'utilisateur)
+# -c/--config FICHIER : ce fichier SEUL. Le répertoire courant n'est PAS lu. Le programme affiche toujours quel(s) fichier(s) il lit,
+# puis une ligne résumant les options importantes. Format : CLÉ=valeur, une par ligne ; # = commentaire ; guillemets facultatifs ;
+# booléens : oui / non (true / false, 1 / 0). Ce fichier est LU, jamais exécuté.
+
+# --- Langue d'affichage ---
+# en, fr ou auto (suivre LC_ALL / LC_MESSAGES / LANG). Ordre de choix : --lang, NGINX_TOOLS_LANG, WEB_MONITOR_LANG, cette clé, LC_ALL, LC_MESSAGES, LANG.
+# Ajouter une langue = ajouter le fichier lang/web-monitor.XX.po (format PO : Poedit, Weblate…) — voir lang/README.md.
+#LANGUAGE=auto
+
+# --- Mode bavard ---
+# oui : afficher chaque commande externe exécutée (équivalent de --verbose). Peut aussi venir du fichier commun app-default.conf (clés VERBOSE et DEBUG_LEVEL).
+#VERBOSE=non
+
+# --- Options (équivalents de la ligne de commande) ---
+# --app : profil d'application (odoo, bbb…) (défaut : détectée automatiquement)
+#APP=
+# --days : jours de journaux analysés (défaut : 30 avec --summary)
+#DAYS=30
+# --details
+#DETAILS=non
+# --interval-hours : intervalle de la surveillance (défaut : 1)
+#INTERVAL_HOURS=1
+# --no-pager
+#NO_PAGER=non
+# --no-prompt
+#NO_PROMPT=non
+# --repeat-header : avec --table, les titres des colonnes aussi au bas du tableau
+#REPEAT_HEADER=non
+# --reverse
+#REVERSE=non
+# --sort : tri (uid, ip, name, login, created, first, last, logins, minutes, type, os, pages, written, received, sent, events, surveys, seen, vpn) (défaut : name)
+#SORT=name
+# --stats : avec --list-users, statistiques à la fin (membres par groupe et étiquette, interne / portail, pays, domaines de courriel, systèmes,
+# navigateurs, les 10 comptes les plus actifs)
+#STATS=non
+# --table : tableau compact
+#TABLE=non
+# --table-fields : champs du tableau, dans cet ordre, séparés par des virgules (all : tous) — num,uid,ip,ipseen,ipcountry,vpn,name,login,created,first,last,logins,
+# minutes,type,events,surveys,phone,country,city,groups,tags,systems,browsers,read,written,received,sent,email (vide : tous sauf tags et email)
+# ipcountry et vpn : propriétaire du bloc de chaque adresse cherché UNE fois sur Internet (rdap.org, sinon whois), puis mis en cache 90 jours ;
+# NGINX_TOOLS_INTERNET=off : le cache seulement. Les retirer de la liste évite toute recherche.
+# Exemple : TABLE_FIELDS=num,name,login,last,ipseen,logins,minutes,groups,read,written
+#TABLE_FIELDS=
+# --group : avec --list-users, seulement les membres de ce groupe Odoo (n'active pas --list-users à lui seul : le timer continue de surveiller)
+#GROUP=
+# --csv : avec --list-users, écrire aussi toutes les valeurs dans ce fichier CSV (séparateur « ; »)
+#CSV=
+# --internet : avec --suspect-users, --investigate-user, --ban-odoo-user : chercher le courriel et les adresses sur Internet sans demander
+#INTERNET=non
+
+# --- Options de la ligne de commande SEULEMENT (actions ou réglages ponctuels : aucune clé ici) ---
+# Les voici, pour mémoire (« web-monitor --help » donne le détail). Elles se donnent sur la ligne de commande, jamais dans ce fichier.
+# (Ce sont des ACTIONS ou des modes : dans ce fichier, elles s'exécuteraient à chaque passage du timer — bannir, corriger, lister au lieu de surveiller.)
+#   --apply            Sommaire, puis le programme fait lui-même les corrections recommandées (bannissements, rechargement de nginx,
+#   --ban-odoo-user    Bannir un compte Odoo après enquête (compte archivé, adresses propres au compte bannies) ; --unban-odoo-user pour lever
+#   --ban-recommended  Bannir les IP recommandées par le dernier passage (ex.
+#   --changelog        Affiche le journal des modifications
+#   --dry-run          Lance les outils et affiche la décision, sans courriel ni modification des positions de lecture
+#   --install-timer    Installe et active le timer systemd
+#   --investigate-user Enquête sur UN compte Odoo (toutes ses adresses IP, son activité, son courriel, Internet avec accord)
+#   --list-users       Lister par ordre alphabétique toutes les connexions à Odoo (ou les participants BigBlueButton)
+#   --report-err       Afficher à la fin un rapport d'erreurs à copier-coller (programme, version, serveur, échecs, avertissements)
+#   --run              Lance la surveillance (comportement par défaut)
+#   --save-recommended Avec --dry-run : enregistre quand même les IP recommandées (utilisé par la touche b d'app-log-live.py)
+#   --status           État du timer, dernier passage, dernière alerte
+#   --summary          Sommaire chiffré (aujourd'hui, J-1, J-2, 7 jours, 30 jours ou --days N)
+#   --suspect-users    Comptes Odoo connectés dont l'activité est suspecte, et comptes surveillés ; enquête, bannir ou surveiller
+#   --unban-check      Réévaluer les bannissements manuels (lance nginx-log-audit.sh --unban-check)
+#   --unban-odoo-user  Lever le bannissement d'un compte Odoo (compte rétabli, adresses bannies avec lui débannies)
+#   --uninstall-timer  Retire le timer systemd
+#   --unwatch-odoo-user Ne plus surveiller un compte Odoo
+#   --verbose          Affiche chaque commande lancée
+#   --version          affiche la version et quitte
+#   --watch-odoo-user  Surveiller un compte Odoo (toujours listé dans le sommaire, marqué dans app-log-live.py)
+#   --yes              Avec --apply, --ban-recommended, --ban-odoo-user, --unban-odoo-user : sans question
+
+# --- Anonymisation de l'affichage ---
+# --anonymize : anonymiser ce que le programme affiche (adresses IP, courriels, identifiants, jetons) par des pseudonymes stables (IP-4f2a9c, usager-9c1e03@anonyme.invalid) ; clé ANONYMIZE
+# (la même clé dans app-default.conf vaut pour tous les programmes ; appliquée seulement quand la sortie est un terminal ; pour cron : --anonymize ou NGINX_TOOLS_ANONYMIZE=1).
+#ANONYMIZE=non

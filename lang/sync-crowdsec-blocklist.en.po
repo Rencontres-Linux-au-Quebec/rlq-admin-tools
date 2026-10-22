@@ -48,8 +48,8 @@ msgstr "  --blocked                    list IPs actually blocked (firewall count
 msgid "  --changelog                  affiche le journal des modifications"
 msgstr "  --changelog                  show the change log"
 
-msgid "  -c, --config FILE            fichier de configuration à lire SEUL (sinon : /etc/default/sync-crowdsec-blocklist.conf, puis ~/.sync-crowdsec-blocklist.cfg ;"
-msgstr "  -c, --config FILE            configuration file to read ALONE (otherwise: /etc/default/sync-crowdsec-blocklist.conf, then ~/.sync-crowdsec-blocklist.cfg;"
+msgid "  -c, --config FILE            fichier de configuration à lire SEUL (sinon : /etc/default/sync-crowdsec-blocklist.conf, puis ~/.sync-crowdsec-blocklist.conf ;"
+msgstr "  -c, --config FILE            configuration file to read ALONE (otherwise: /etc/default/sync-crowdsec-blocklist.conf, then ~/.sync-crowdsec-blocklist.conf;"
 
 msgid "                               clés : CRON_HOURS, LANGUAGE, MIN_IPS, SOURCE, STALE_DAYS, TOP, VERBOSE)"
 msgstr "                               keys: CRON_HOURS, LANGUAGE, MIN_IPS, SOURCE, STALE_DAYS, TOP, VERBOSE)"

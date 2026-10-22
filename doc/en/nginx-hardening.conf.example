@@ -1,0 +1,66 @@
+# Fichier de configuration de nginx-hardening.sh (exemple : toutes les clés, en commentaire = valeur par défaut).
+# Les fichiers suivants sont LUS DANS CET ORDRE (le dernier l'emporte) ; la ligne de commande est prioritaire sur les fichiers :
+#   1. /etc/default/nginx-hardening.conf    (fichier du système)
+#   2. ~/.nginx-hardening.conf               (s'il existe : réglages de l'utilisateur)
+# -c/--config FICHIER : ce fichier SEUL. Le répertoire courant n'est PAS lu. Le programme affiche toujours quel(s) fichier(s) il lit,
+# puis une ligne résumant les options importantes. Format : CLÉ=valeur, une par ligne ; # = commentaire ; guillemets facultatifs ;
+# booléens : oui / non (true / false, 1 / 0). Ce fichier est LU, jamais exécuté.
+
+# --- Langue d'affichage ---
+# en, fr ou auto (suivre LC_ALL / LC_MESSAGES / LANG). Ordre de choix : --lang, NGINX_TOOLS_LANG, NGINX_HARDENING_LANG, cette clé, LC_ALL, LC_MESSAGES, LANG.
+# Ajouter une langue = ajouter le fichier lang/nginx-hardening.XX.po (format PO : Poedit, Weblate…) — voir lang/README.md.
+#LANGUAGE=auto
+
+# --- Options (équivalents de la ligne de commande) ---
+# --app (défaut : détectée automatiquement)
+#APP=
+# --log-retention-months (1 à 24)
+#LOG_RETENTION_MONTHS=3
+# --mail-from (expéditeur des courriels de la suite ; défaut : l'identifiant du relais)
+#MAIL_FROM=
+# --mail-host (relais SMTP des programmes Python et Bash ; demandé la première fois avec --update — le mot de passe n'est JAMAIS ici) (défaut : aucun, demandé la première fois)
+#MAIL_HOST=
+# --mail-port (port du relais SMTP ; défaut 587)
+#MAIL_PORT=587
+# --mail-security (starttls, ssl ou none ; défaut starttls)
+#MAIL_SECURITY=starttls
+# --mail-setup (redemander la configuration du courriel avec --update)
+#MAIL_SETUP=non
+# --mail-to (destinataire des courriels de la suite) (défaut : aucun, demandé la première fois)
+#MAIL_TO=
+# --mail-user (identifiant du relais SMTP) (défaut : aucun, demandé la première fois)
+#MAIL_USER=
+# --odoo-conf (défaut : premier fichier trouvé parmi ODOO_CONF_PATHS)
+#ODOO_CONF=
+# --odoo-conf-paths (chemins séparés par des espaces, motifs * permis)
+#ODOO_CONF_PATHS="/etc/odoo/odoo-linux_meetup.conf /opt/odoo/erplibre/config.conf /home/utilisateur/git/erplibre/config.conf"
+# --odoo-gevent-port (défaut : celui de la configuration d'Odoo)
+#ODOO_GEVENT_PORT=
+# --odoo-http-port (défaut : celui de la configuration d'Odoo)
+#ODOO_HTTP_PORT=
+# --odoo-service (défaut : détecté automatiquement)
+#ODOO_SERVICE=
+# --rename-from (ancien nom DNS public à remplacer dans nginx, étape 0e ; à utiliser une fois, avec --update) (défaut : aucun)
+#RENAME_FROM=
+# --rename-to (nouveau nom DNS public : nginx et certificat Let's Encrypt refaits pour ce nom) (défaut : aucun)
+#RENAME_TO=
+# --timezone (fuseau horaire du serveur ; none = ne pas toucher ; absent = demandé au premier --update, défaut America/Montreal)
+#TIMEZONE=America/Montreal
+# --verbose
+#VERBOSE=non
+# --workers (défaut : selon le serveur)
+#WORKERS=
+
+# ATTENTION : ce fichier sert AUSSI de fichier d'état (lignes SETUP_*, réécrites par --update) ; vos autres lignes sont conservées.
+
+# --- Options de la ligne de commande SEULEMENT (actions ou réglages ponctuels : aucune clé ici) ---
+# Les voici, pour mémoire (« nginx-hardening --help » donne le détail). Elles se donnent sur la ligne de commande, jamais dans ce fichier.
+#   --changelog   affiche le journal des modifications
+#   --check       vérification seule (comportement par défaut)
+#   --report-err  afficher à la fin un rapport d'erreurs à copier-coller (programme, version, serveur, échecs, avertissements)
+#   --version     affiche la version et quitte
+
+# --- Anonymisation de l'affichage ---
+# --anonymize : anonymiser ce que le programme affiche (adresses IP, courriels, identifiants, jetons) par des pseudonymes stables (IP-4f2a9c, usager-9c1e03@anonyme.invalid) ; clé ANONYMIZE
+# (la même clé dans app-default.conf vaut pour tous les programmes ; appliquée seulement quand la sortie est un terminal ; pour cron : --anonymize ou NGINX_TOOLS_ANONYMIZE=1).
+#ANONYMIZE=non

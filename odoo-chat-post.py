@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # ========================================================================================================================
-# Copyright (C) 2026 Services-Conseils Linux
+# Copyright (C) 2026 Services-Conseils Linux Inc.
 # Copyright (C) 2026 Rencontres Linux au Québec contributors
 #
 # This program is free software: you can redistribute it and/or modify it under the terms of the GNU Affero General Public
@@ -18,18 +18,9 @@
 #     (--post) must be one of them. An account not yet created is reported; create it, then run --create again to add the missing members (nobody is ever removed).
 #   Access: Odoo external API (XML-RPC) with an API KEY (Odoo: Preferences → Account Security → New API Key); the key is read from the configuration file
 #   (mode 600 advised) or the ODOO_API_KEY variable, never on the command line or on screen. No root access, no write outside Odoo.
-# Configuration (common rule): /etc/default/odoo-chat-post.conf THEN ~/.odoo-chat-post.cfg (the last one wins; keys API_KEY, DB, EVENTS, GROUP, LANGUAGE, LOGIN,
+# Configuration (common rule): /etc/default/odoo-chat-post.conf THEN ~/.odoo-chat-post.conf (the last one wins; keys API_KEY, DB, EVENTS, GROUP, LANGUAGE, LOGIN,
 # MEMBERS, NO_MEMBERS, SUGGESTED, URL); -c/--config: that file ALONE; the command line takes priority. The files read are always displayed, with the important options.
 #
-# VERSION HISTORY (summary — see doc/odoo-chat-post.changelog.txt for full detail):
-#   1.7.20261019.150215 — New copyright: Services-Conseils Linux and Rencontres Linux au Québec contributors (AGPL-3.0-or-later).
-#   1.6.20261016.173838 — Copyright holder: Services-Linux Conseils Inc
-#   1.5.20261015.205140 — Program renamed odoo-canaux.py -> odoo-chat-post.py (English name; configuration odoo-chat-post.conf / .odoo-chat-post.cfg, ODOO_CHAT_POST_LANG).
-#   1.4.20261015.203803 — Source code, comments and changelog in English (display stays French/English via lang/odoo-chat-post.fr.po); the message posted in Odoo follows the display language.
-#   1.3.20261015.105354 — --create-bot also creates the robot's API key (one year if Odoo allows it) and writes it in the configuration files (--bot-config); --renew-key.
-#   1.2.20261015.103039 — --create-bot: Tux-Bot robot account with minimal rights (internal user, no password); --bot-login.
-#   1.1.20261015.095427 — Restricted access: --members (key MEMBERS) reserves the channels for specific accounts (group « Team alerts (odoo-chat-post) »); SUGGESTED in configuration; existing channels synchronized.
-#   1.0.20261015.085700 — First version: creation of the Odoo-Errors, Odoo-Stats, Event-Registrations channels and threads (+ suggestions) with a first message; --post; --list.
 #
 # Usage:
 #   odoo-chat-post.py --list
@@ -57,11 +48,11 @@ import urllib.error
 import urllib.request
 import xmlrpc.client
 
-__version__ = "1.7.20261019.150215"
+__version__ = "1.8.20261020.211944"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
-CHANGELOG_FILE = os.path.join(SCRIPT_DIR, "doc", f"{SCRIPT_NAME}.changelog.txt")
+CHANGELOG_FILE = os.path.join(SCRIPT_DIR, "CHANGELOG.md")
 DEFAULT_CATALOG = os.path.join(SCRIPT_DIR, "doc", "odoo-chat-post.catalogue.json")
 DEFAULT_GROUP = "base.group_user"
 DEFAULT_BOT_CONFIG = os.path.join(os.environ.get("NGINX_TOOLS_ETC_DEFAULT") or "/etc/default", "odoo-chat-post.conf")     # receives the robot's LOGIN and API_KEY (--create-bot); the administrator gives HIS key through ODOO_API_KEY, never in a file
@@ -91,7 +82,7 @@ def eprint(*args):
     print(*args, file=sys.stderr, flush=True)
 
 
-# Configuration file options (/etc/default/odoo-chat-post.conf, then the personal file .odoo-chat-post.cfg): KEY -> (command-line option, type).
+# Configuration file options (/etc/default/odoo-chat-post.conf, then the personal file .odoo-chat-post.conf): KEY -> (command-line option, type).
 # LANGUAGE: en, fr or auto (follow LC_ALL / LANG). API_KEY is NOT a command-line option: read separately (read_api_key).
 SCHEMA_CONFIG = {"DB": ("db", str), "MEMBERS": ("members", lambda v: [t.strip() for t in v.split(",") if t.strip()]), "SUGGESTED": ("suggested", bool), "EVENTS": ("events", lambda v: [t.strip() for t in v.split(",") if t.strip()]), "GROUP": ("group", str), "LOGIN": ("login", str),
                  "NO_MEMBERS": ("no_members", bool), "URL": ("api_url", str)}
@@ -512,10 +503,27 @@ def make_bot_next(login):
             f"    then set a random password again; add {login} to MEMBERS and rerun --create so that it becomes a member of the channels."]
 
 
+def changelog_section(path, key):
+    """This program's section of CHANGELOG.md: from its '## <key>' heading up to the next '## ' heading."""
+    with open(path, encoding="utf-8") as f:
+        lignes = f.read().splitlines()
+    section, dans = [], False
+    for ligne in lignes:
+        if ligne.startswith("## "):
+            if dans:
+                break
+            dans = ligne[3:].strip() == key
+            if dans:
+                section.append(ligne)
+        elif dans:
+            section.append(ligne)
+    return "\n".join(section) + "\n" if section else f"No changelog entry for {key} in {path}\n"
+
+
 def show_changelog():
     signal.signal(signal.SIGPIPE, signal.SIG_DFL)          # « | head »: silent stop, like cat
     try:
-        text = open(CHANGELOG_FILE, encoding="utf-8").read()
+        text = changelog_section(CHANGELOG_FILE, "odoo-chat-post.py")
     except OSError:
         print(f"Changelog not found: {CHANGELOG_FILE}", file=sys.stderr)
         return 1
@@ -564,7 +572,7 @@ def run_main(args, parser):
         eprint(f"WARNING: {is_open} contains the API key and is readable by other accounts: chmod 600 {is_open}")
     if not (args.api_url and args.db and args.login and key_value):
         missing = [n for n, v in (("URL", args.api_url), ("DB", args.db), ("LOGIN", args.login), ("API_KEY (or the ODOO_API_KEY variable)", key_value)) if not v]
-        eprint("ERROR: missing settings: " + ", ".join(missing) + " — write them in /etc/default/odoo-chat-post.conf (see doc/odoo-chat-post.conf.example).")
+        eprint("ERROR: missing settings: " + ", ".join(missing) + " — write them in /etc/default/odoo-chat-post.conf (see doc/en/odoo-chat-post.conf.example).")
         return 2
     event_list = args.events or [DEFAULT_EVENT]
     try:
@@ -612,7 +620,7 @@ def main():
     parser.add_argument("--catalog", default=DEFAULT_CATALOG, metavar="FILE", help="Catalog of channels and threads (JSON) (default: doc/odoo-chat-post.catalogue.json)")
     parser.add_argument("--changelog", action="store_true", help="Show the change log")
     parser.add_argument("-c", "--config", metavar="FILE",
-                        help="Configuration file to read ALONE (otherwise: /etc/default/odoo-chat-post.conf, then the personal file .odoo-chat-post.cfg; UPPERCASE options: API_KEY, DB, EVENTS, GROUP, LANGUAGE, LOGIN, MEMBERS, NO_MEMBERS, SUGGESTED, URL)")
+                        help="Configuration file to read ALONE (otherwise: /etc/default/odoo-chat-post.conf, then the personal file .odoo-chat-post.conf; UPPERCASE options: API_KEY, DB, EVENTS, GROUP, LANGUAGE, LOGIN, MEMBERS, NO_MEMBERS, SUGGESTED, URL)")
     parser.add_argument("--create", action="store_true", help="Creates the missing channels and threads, with their first message (never modifies an existing channel)")
     parser.add_argument("--create-bot", action="store_true",
                         help="Creates the bot account (--bot-login): internal user with NO other right; on the first run it also creates its API key (one year if Odoo allows it) and writes it to --bot-config; an existing account is not modified")

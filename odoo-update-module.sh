@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ========================================================================================================================
-# Copyright (C) 2026 Services-Conseils Linux
+# Copyright (C) 2026 Services-Conseils Linux Inc.
 # Copyright (C) 2026 Rencontres Linux au Québec contributors
 #
 # This program is free software: you can redistribute it and/or modify it under the terms of the GNU Affero General Public
@@ -30,7 +30,7 @@
 #   --busy-visitors N            site occupé à partir de N visiteurs actifs (requête dans les 5 dernières minutes, robots exclus) ; défaut : BUSY_VISITORS, soit 3
 #   --changelog                  affiche le journal des modifications
 #   -c, --config FILE            ce fichier de configuration SEUL (défaut : /etc/default/odoo-update-module.conf, puis
-#                                ~/.odoo-update-module.cfg s'il existe ; la ligne de commande est prioritaire)
+#                                ~/.odoo-update-module.conf s'il existe ; la ligne de commande est prioritaire)
 #   --db NAME                    base à mettre à jour (défaut : « -d » de la commande du service, sinon db_name d'Odoo)
 #   --dry-run                    montrer ce qui serait fait (service, base, modules, commandes), sans rien arrêter ni écrire
 #   --force                      continuer malgré un Odoo lancé à la main (il est alors ignoré, pas arrêté)
@@ -54,7 +54,7 @@
 #   --zip FILE                   archive .zip des modules à décompresser avant la mise à jour (fichier, ou dossier : la plus récente) ; défaut : ZIP, sinon la plus
 #                                récente « MODULE*.zip » du dossier courant ; « non » : ne rien décompresser
 #
-# Configuration (/etc/default/odoo-update-module.conf, créée au premier lancement, PUIS ~/.odoo-update-module.cfg s'il existe ; lue sans être
+# Configuration (/etc/default/odoo-update-module.conf, créée au premier lancement, PUIS ~/.odoo-update-module.conf s'il existe ; lue sans être
 # exécutée ; la ligne de commande l'emporte sur les fichiers) :
 #   ADDONS_DIR=                   dossier de décompression de l'archive .zip (vide : celui de addons_path qui contient déjà les modules)
 #   BACKUP=non                    sauvegarder avant (oui / non)
@@ -75,33 +75,23 @@
 #   WAIT=90                       attente maximale du démarrage (service actif, puis port à l'écoute), en secondes
 #   WAIT_QUIET=15                 attente maximale d'un site calme avant l'arrêt d'Odoo, en minutes (0 = ne pas attendre)
 #
-# HISTORIQUE (résumé ; détail : doc/odoo-update-module.changelog.txt)
-#   1.12.20261019.150215 — New copyright: Services-Conseils Linux and Rencontres Linux au Québec contributors (AGPL-3.0-or-later).
-#   1.11.20261016.173838 — Quiet site before stopping Odoo, copy of the modules, check after the start, automatic rollback, Ctrl+C at once
-#   1.10.20261015.170611 — ShellCheck : variable locale « c » inutilisée retirée de trouver_conf (SC2034).
-#   1.9.20261015.143436 — --anonymize : affichage anonymisé (pseudonymes stables).
-#   1.8.20261015.092124 — ShellCheck : 5 signalements corrigés (C_BLUE inutilisé, boucle à un élément, motif développé, apostrophes voulues).
-#   1.7.20261015.080630 — Journaux de mise à jour gardés LOG_KEEP_DAYS jours (180) en plus des 10 plus récents.
-#   1.6.20261014.214019 — Version du manifeste de l'archive affichée dès l'en-tête.
-#   1.5.20261014.203136 — Détection automatique du service d'Odoo (erplibre* ou odoo*).
-#   1.4.20261014.190654 — Archive .zip décompressée (--zip, --addons-dir) ; versions des modules avant / après.
-#   1.3.20261014.175821 — Fichier commun app-default.conf ; clé VERBOSE.
-#   1.2.20261014.174013 — Préchauffage du cache d'Odoo (odoo-warmup.py) après le redémarrage ; --no-warmup.
-#   1.1.20261014.161550 — Sortie plus lisible : en-tête compact, étapes numérotées, ✔ ✖ ⚠ en couleur, détails en gris.
-#   1.0.20261014.110643 — Première version : arrêt du service, mise à jour des modules rlq_* qui se termine vraiment (--stop-after-init, délai maximal), contrôle du journal, redémarrage par systemd.
 # ========================================================================================================================
 
 set -euo pipefail
 for _d in /usr/local/sbin /usr/sbin /sbin; do [[ -n "${NGINX_TOOLS_TESTS:-}" ]] && break; case ":$PATH:" in *":$_d:"*) ;; *) PATH="$PATH:$_d" ;; esac; done
 export PATH
 
-readonly SCRIPT_VERSION="1.12.20261019.150215"
+readonly SCRIPT_VERSION="1.14.20261020.211944"
 SCRIPT_NAME="$(basename "${BASH_SOURCE[0]}" .sh)"; readonly SCRIPT_NAME
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
 SCRIPT_PATH="$SCRIPT_DIR/$(basename "${BASH_SOURCE[0]}")"; readonly SCRIPT_PATH
-CHANGELOG_FILE="$SCRIPT_DIR/doc/${SCRIPT_NAME}.changelog.txt"
-if [[ ! -r "$CHANGELOG_FILE" && -r "$SCRIPT_DIR/${SCRIPT_NAME}.changelog.txt" ]]; then CHANGELOG_FILE="$SCRIPT_DIR/${SCRIPT_NAME}.changelog.txt"; fi
+CHANGELOG_FILE="$SCRIPT_DIR/CHANGELOG.md"
 readonly CHANGELOG_FILE
+
+# Section of this program in CHANGELOG.md (from its "## <file name>" heading to the next "## " heading).
+changelog_section() {
+    awk -v cle="${BASH_SOURCE[0]##*/}" '/^## /{dans=($0 == "## " cle); if (dans) print; next} dans' "$CHANGELOG_FILE"
+}
 # Langue d'affichage (en ou fr) : --lang, ODOO_UPDATE_MODULE_LANG, LANGUAGE du fichier de configuration, LC_ALL / LANG — apps/_i18n.sh traduit la sortie.
 if [[ -r "$SCRIPT_DIR/apps/_i18n.sh" ]]; then
     # shellcheck source=/dev/null  # bibliothèque livrée à côté du programme
@@ -109,6 +99,7 @@ if [[ -r "$SCRIPT_DIR/apps/_i18n.sh" ]]; then
     i18n_relancer "$SCRIPT_NAME" ODOO_UPDATE_MODULE_LANG "$0" "$@"
 fi
 # 1.11: without apps/_i18n.sh, plain execution (no Ctrl+C question).
+declare -F pad_cols >/dev/null || pad_cols() { printf '%-*s' "$2" "$1"; }     # 1.13 : sans apps/_i18n.sh, remplissage en octets (comme avant)
 declare -F run_interruptible >/dev/null || run_interruptible() { "$@"; }
 declare -F ctrl_c_child >/dev/null || ctrl_c_child() { "$@"; }
 # Bibliothèque commune : configuration d'Odoo (ports, db_name…).
@@ -137,7 +128,7 @@ if [[ -r "$SCRIPT_DIR/apps/_rapport.sh" ]]; then
 fi
 # Première ligne de TOUTE exécution, même avec --help : le nom et la version du programme (--version l'affiche lui-même).
 case " $* " in *" --version "*) ;; *) echo "odoo-update-module.sh v$SCRIPT_VERSION" ;; esac
-# Configuration (/etc/default/odoo-update-module.conf, puis ~/.odoo-update-module.cfg ; -c/--config : ce fichier SEUL) : valeurs par défaut des options, la ligne de commande l'emporte.
+# Configuration (/etc/default/odoo-update-module.conf, puis ~/.odoo-update-module.conf ; -c/--config : ce fichier SEUL) : valeurs par défaut des options, la ligne de commande l'emporte.
 if declare -F config_lire >/dev/null; then
     config_lire "$SCRIPT_NAME" "$@"
     config_defaut ADDONS_DIR ADDONS_DIR --addons-dir texte
@@ -158,7 +149,7 @@ if declare -F config_lire >/dev/null; then
     config_defaut DO_WARMUP WARMUP --no-warmup booleen
     config_defaut VERBOSE VERBOSE --verbose booleen
     config_defaut ZIP_ARG ZIP --zip texte
-    case " $* " in *" --version "*|*" --help "*|*" -h "*) ;; *) config_afficher ;; esac
+    case " $* " in *" --version "*|*" --help "*|*" -h "*|*" --changelog "*) ;; *) config_afficher ;; esac
 fi
 
 while [[ $# -gt 0 ]]; do
@@ -173,9 +164,9 @@ while [[ $# -gt 0 ]]; do
             fi
             if [[ -t 1 ]]; then
                 # Numeros de version en cyan gras ; SIGPIPE (ex. "| head") laisse terminer proprement par defaut.
-                sed -E $'s/([0-9]+\\.[0-9]+\\.[0-9]{8}\\.[0-9]{6})/\\x1b[1;36m\\1\\x1b[0m/' "$CHANGELOG_FILE" || true  # lecteur ferme plus tot (| head) : SIGPIPE attendu
+                changelog_section | sed -E $'s/([0-9]+\\.[0-9]+\\.[0-9]{8}\\.[0-9]{6})/\\x1b[1;36m\\1\\x1b[0m/' || true  # lecteur ferme plus tot (| head) : SIGPIPE attendu
             else
-                cat "$CHANGELOG_FILE" || true  # lecteur ferme plus tot (| head) : SIGPIPE attendu
+                changelog_section || true  # lecteur ferme plus tot (| head) : SIGPIPE attendu
             fi
             exit 0
             ;;
@@ -184,7 +175,7 @@ while [[ $# -gt 0 ]]; do
         --db) ONLY_DB="${2:-}"; shift 2 ;;
         --dry-run) DO_DRY_RUN=1; shift ;;
         --force) DO_FORCE=1; shift ;;
-        -h|--help) sed -n '/^# Usage :/,/^# HISTORIQUE/p' "$SCRIPT_PATH" | sed '$d; s/^# \{0,1\}//'; exit 0 ;;
+        -h|--help) sed -n '/^# Usage :/,/^# =/p' "$SCRIPT_PATH" | sed '$d; s/^# \{0,1\}//'; exit 0 ;;
         --lang) shift 2 ;;                     # lu avant (apps/_i18n.sh)
         --module)
             if (( CLI_MODULES == 0 )); then MODULES_MOTIFS=""; CLI_MODULES=1; fi
@@ -212,7 +203,7 @@ ko()   { echo "  ${C_RED}✖ [FAIL]${C_RESET} ${C_RED}$*${C_RESET}"; }
 sim()  { echo "  ${C_DIM}(simulation)${C_RESET} $*"; }
 detail() { echo "    ${C_DIM}$*${C_RESET}"; }
 en_retrait() { local l; while IFS= read -r l; do printf '        %s%s%s\n' "$1" "$l" "$C_RESET"; done; }       # lignes lues sur l'entrée, en retrait, dans la couleur donnée
-champ() { printf '  %s%-13s%s %s\n' "$C_DIM" "$1" "$C_RESET" "$2"; }         # champ "Base :" "valeur"
+champ() { printf '  %s%s%s %s\n' "$C_DIM" "$(pad_cols "$1" 13)" "$C_RESET" "$2"; }         # champ "Base :" "valeur" ; 1.13 : largeur en colonnes (étiquette accentuée)
 ETAPE=0; ETAPES=0
 etape() { ETAPE=$((ETAPE + 1)); echo; echo "${C_CYAN}▶ [${ETAPE}/${ETAPES}] $*${C_RESET}"; }
 exec 3>&2

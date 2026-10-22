@@ -1,0 +1,31 @@
+# ========================================================================================================================
+# AGPL-3.0-or-later — voir run-all.sh pour le texte complet de la licence.
+# ========================================================================================================================
+#
+# Fichier de configuration de run-all.sh (exemple : toutes les clés, en commentaire = valeur par défaut).
+# Les fichiers suivants sont LUS DANS CET ORDRE (le dernier l'emporte) ; la ligne de commande est prioritaire sur les fichiers :
+#   1. /etc/default/run-all.conf    (fichier du système)
+#   2. ~/.run-all.conf               (s'il existe : réglages de l'utilisateur)
+# -c/--config FICHIER : ce fichier SEUL. Le programme affiche toujours quel(s) fichier(s) il lit, puis les options importantes.
+# Format : CLÉ=valeur, une par ligne ; # = commentaire ; booléens : oui / non. Ce fichier est LU, jamais exécuté.
+
+# --- Langue d'affichage ---
+# en, fr ou auto (suivre LC_ALL / LC_MESSAGES / LANG). Ordre de choix : --lang, NGINX_TOOLS_LANG, RUN_ALL_LANG, cette clé, LC_ALL, LC_MESSAGES, LANG.
+#LANGUAGE=auto
+
+# --- Options (équivalents de la ligne de commande) ---
+# --all-environments : exécuter les tests de TOUS les environnements
+#ALL_ENVIRONMENTS=non
+# --app : profil d'application (odoo, bbb…)
+#APP=
+# --install-missing : installer ShellCheck et ruff s'ils sont absents (root)
+#INSTALL_MISSING=non
+# --verbose : détail de chaque vérification
+#VERBOSE=non
+
+# --- Options de la ligne de commande SEULEMENT (actions ou réglages ponctuels : aucune clé ici) ---
+# Les voici, pour mémoire (« run-all --help » donne le détail). Elles se donnent sur la ligne de commande, jamais dans ce fichier.
+#   --changelog   affiche le journal des modifications
+#   --list        affiche l'environnement détecté et les modules de test retenus, sans rien exécuter
+#   --report-err  afficher à la fin un rapport d'erreurs à copier-coller (programme, version, serveur, échecs, avertissements)
+#   --version     affiche la version et quitte

@@ -18,7 +18,7 @@ Recommandation : **un relais SMTP authentifié**, sur le port 587 (STARTTLS) ou 
 ## 2. Configurer les outils
 
 Dans `/etc/default/app-health-check.conf` (créé au premier lancement ou par `app-health-check.py --create-config`, droits 600 ;
-un `~/.app-health-check.cfg` éventuel est lu ensuite et l'emporte, et le programme affiche toujours les fichiers lus) :
+un `~/.app-health-check.conf` éventuel est lu ensuite et l'emporte, et le programme affiche toujours les fichiers lus) :
 
 ```
 SMTP_HOST=smtp.fournisseur.exemple      # serveur du relais

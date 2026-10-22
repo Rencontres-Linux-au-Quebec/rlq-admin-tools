@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # ========================================================================================================================
-# Copyright (C) 2026 Services-Conseils Linux
+# Copyright (C) 2026 Services-Conseils Linux Inc.
 # Copyright (C) 2026 Rencontres Linux au Québec contributors
 #
 # This program is free software: you can redistribute it and/or modify it under the terms of the GNU Affero General Public
@@ -9,9 +9,6 @@
 # ========================================================================================================================
 # _limites.py — détail des refus 429 (limitation de débit nginx) d'UNE adresse : quoi, quand, quelle zone, quels effets, quoi changer (module partagé, apps/).
 #
-# HISTORIQUE DE VERSION (résumé — voir doc/_limites.changelog.txt pour le détail complet) :
-#   1.1.20261019.150215 — New copyright: Services-Conseils Linux and Rencontres Linux au Québec contributors (AGPL-3.0-or-later).
-#   1.0.20261015.083721 — Création : analyse des 429 d'une adresse (URL, zone, pointes par seconde, effets) et recommandations nginx.
 """Lit les journaux d'accès nginx (access.log, access.log.1, *.gz) et le journal d'erreurs (lignes « limiting requests, excess: … by zone "…" ») et dit, pour UNE adresse :
 combien de requêtes, combien de 429, sur quelles URL, dans quelle zone limit_req (le journal d'accès seul ne le dit pas), à quelle pointe (requêtes par seconde), et les
 EFFETS probables (page ou ressource refusée, action POST perdue, appel de fond d'Odoo en erreur). Chaque constat est suivi du réglage nginx à envisager.
