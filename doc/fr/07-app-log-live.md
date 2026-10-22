@@ -24,6 +24,8 @@ Pour analyser un test du site (un sondage abandonné, une inscription, une propo
 2. Faire le test. Pendant l'enregistrement, **REC** s'affiche en rouge à la colonne `$COLUMNS - 4` de chaque ligne.
 3. Appuyer de nouveau sur **R** : l'enregistrement s'arrête et l'archive `.tar.xz` est créée en arrière-plan. Son chemin s'affiche sur la ligne « Archive à envoyer pour analyse ».
 
+Pendant l'enregistrement, **N** marque les étapes du test : N demande une description et démarre une étape, N de nouveau la termine (par exemple « inscription », puis « sondage abandonné »). Les étapes (début, fin, durée, description) sont listées dans `steps.txt` de l'archive et dans `records.log`. Une étape encore ouverte à l'arrêt est fermée à ce moment-là.
+
 L'archive contient : `README.txt` (heures locales et UTC, sources absentes), `records.log` (les lignes du test, sans robots, fichiers statiques, websockets ni sondes locales), `stream-all.log` (toutes les lignes, avec leur catégorie), `raw/` (extraits complets de nginx, Odoo, fail2ban et du journal systemd pendant la fenêtre), `network/` (connexions des ports web et d'Odoo), `db/` (activité PostgreSQL, verrous sur `ir_cron`, instantanés des tables de sondages, inscriptions, courriels et pages), `context/` (réglages du service et d'Odoo sans secret, modules).
 
 Adresses IP, courriels, noms connus et jetons sont remplacés par des pseudonymes stables avant l'écriture. La base n'est lue qu'en lecture seule.

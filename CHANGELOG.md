@@ -34,6 +34,29 @@ Earlier history was archived outside this repository when this file was created.
 
 ## app-log-live.py
 
+### 1.96.20261022.083937
+
+- Title: N key: steps of a test (start and end, with a description; steps.txt in the archive).
+- Reason: The first archive of the test plan (2026-10-21) could only be read by timestamps: nothing marked where each action of the test started and ended. Each action is now marked by hand during the R recording, with a description, and listed in the archive.
+- Changes:
+  - Key N (only while a recording runs): N asks for a description and starts a step; N again ends the open step. The step shows on screen (cyan START / END line), in stream-all.log ([step]) and in records.log.
+  - Archive: steps.txt (new): number, start, end, duration, description. README.txt gives the number of steps.
+  - Help menu (? or h): a line for N. Key line at startup: "N step while recording".
+  - Files: app-log-live.py; apps/_record.py 1.1; lang/app-log-live.fr.po (French); doc/en and doc/fr 07-app-log-live.md; nginx-tools-tests/test_record.py.
+  - Merged with main (1.95 settings keys SUMMARY/UNDERLINE): this change takes 1.96 to avoid a version clash.
+- Bugs fixed:
+  None (new function).
+- Guard rails and edge cases:
+  - N outside a recording starts nothing; a message says to press R first.
+  - Ctrl-C at the description prompt cancels: no step is started.
+  - A step still open when the recording stops is closed then ("recording stopped" in records.log and steps.txt); pressing N for a new step closes the open one first.
+  - The description has its spaces collapsed, is cut at 200 characters and is masked like every other line (addresses, e-mails, tokens); empty = "(no description)".
+  - Numbering restarts at 1 for each recording.
+- Checks:
+  - test_record.py: new test (START / END lines in records.log, steps.txt, README count, step closed at the stop).
+  - py_compile and ruff on apps/_record.py, app-log-live.py and test_record.py.
+- Action required: None.
+
 ### 1.95.20261022.012000
 
 - Title: Settings keys: SUMMARY, and UNDERLINE documented in the default files.
@@ -274,6 +297,24 @@ Earlier history was archived outside this repository when this file was created.
 
 ## apps/_record.py
 
+### 1.1.20261022.083937
+
+- Title: Steps of the test (N key of app-log-live.py): steps.txt.
+- Reason: The N key of app-log-live.py marks the start and the end of each action of a test; the archive must hold them, with their times, to match the log lines.
+- Changes:
+  - Recorder.step_start(description) / step_end(reason): step numbers, times, descriptions; the open step is closed before a new one starts.
+  - records.log and stream-all.log: "STEP n START hh:mm:ss — description" and "STEP n END hh:mm:ss — duration s — description".
+  - steps.txt (new, bilingual header) in the archive, and "Steps" line in README.txt.
+  - stop(): a step still open is closed with reason "recording stopped".
+- Bugs fixed:
+  None.
+- Guard rails and edge cases:
+  - step_start returns None when no recording runs or when it is stopping (no crash, nothing written).
+  - Description masked with the same mask() as the lines; spaces collapsed; 200 characters maximum.
+- Checks:
+  - test_record.py: test_etapes_debut_fin_dans_records_log_et_steps_txt.
+- Action required: None.
+
 ### 1.0.20261020.230008
 
 - Current version. Earlier history archived outside the repository.
@@ -291,6 +332,21 @@ Earlier history was archived outside this repository when this file was created.
 - Current version. Earlier history archived outside the repository.
 
 ## run-all.sh
+
+### 1.195.20261022.083937
+
+- Title: test_record: steps of the test (N key of app-log-live.py).
+- Reason: New test of the step markers (N key) of the test recording.
+- Changes:
+  - nginx-tools-tests/test_record.py: archive() accepts etapes; new test_etapes_debut_fin_dans_records_log_et_steps_txt.
+  - Merged with main (1.194): this change takes 1.195; nginx-tools 1.142.
+- Bugs fixed:
+  None.
+- Guard rails and edge cases:
+  - The step still open at the stop is checked (closed with "recording stopped").
+- Checks:
+  - run-all.sh on the modules test_record and test_conventions.
+- Action required: None.
 
 ### 1.194.20261021.130912
 

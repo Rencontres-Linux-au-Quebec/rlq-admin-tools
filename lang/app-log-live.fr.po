@@ -1081,8 +1081,8 @@ msgstr "protégée (équipe ou lieu)"
 msgid "known person"
 msgstr "personne connue"
 
-msgid "Keys: ? (or h) keys and options menu · Ctrl-G dashboard (health, efficiency, top 10 URLs…) · 1 to 9 dashboard detail level · Ctrl-T only what changed since last time · R record a test · Ctrl-C stop and summary"
-msgstr "Touches : ? (ou h) menu des touches et des options · Ctrl-G tableau de bord (santé, efficacité, top 10 des URLs…) · 1 à 9 niveau de détail du tableau de bord · Ctrl-T seulement ce qui a changé depuis la dernière fois · R enregistrer un test · Ctrl-C arrêt et résumé"
+msgid "Keys: ? (or h) keys and options menu · Ctrl-G dashboard (health, efficiency, top 10 URLs…) · 1 to 9 dashboard detail level · Ctrl-T only what changed since last time · R record a test · N step while recording · Ctrl-C stop and summary"
+msgstr "Touches : ? (ou h) menu des touches et des options · Ctrl-G tableau de bord (santé, efficacité, top 10 des URLs…) · 1 à 9 niveau de détail du tableau de bord · Ctrl-T seulement ce qui a changé depuis la dernière fois · R enregistrer un test · N étape pendant un enregistrement · Ctrl-C arrêt et résumé"
 
 msgid "without a value; by default names are cut at "
 msgstr "sans valeur ; par défaut les noms sont coupés à "
@@ -2582,6 +2582,26 @@ msgstr "--record-test-log a besoin du direct (pas avec --no-follow)"
 msgid "Test recording (--record-test-log): starts with the live stream, stops after {minutes} min, then the program exits; archive in {folder}"
 msgstr "Enregistrement de test (--record-test-log) : commence avec le direct, s'arrête après {minutes} min, puis le programme quitte ; archive dans {folder}"
 
+msgid "Start a recording first (R): the steps are kept in it."
+msgstr "Démarrez d'abord un enregistrement (R) : les étapes y sont gardées."
+
+msgid "Description of this step (e.g. registration; Enter = none, Ctrl-C = cancel): "
+msgstr "Description de cette étape (ex. inscription ; Entrée = aucune, Ctrl-C = annuler) : "
+
+msgid "Step not started."
+msgstr "Étape non démarrée."
+
+msgid "ended at {time}"
+msgstr "terminée à {time}"
+
+msgid "started at {time}"
+msgstr "démarrée à {time}"
+
+msgid "(no description)"
+msgstr "(sans description)"
+
+msgid "step of a test (while recording): N starts a step (a description is asked), N again ends it; the steps (start, end, duration, description) go into steps.txt of the archive"
+msgstr "étape d'un test (pendant un enregistrement) : N démarre une étape (une description est demandée), N la termine de nouveau ; les étapes (début, fin, durée, description) vont dans steps.txt de l'archive"
 msgid "· other countries "
 msgstr "· autres pays "
 
