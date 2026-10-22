@@ -1846,8 +1846,8 @@ msgstr "Suivi des modules customs non-standard à Odoo (base "
 msgid "Who is connected now"
 msgstr "Qui est connecté maintenant"
 
-msgid "(every option changeable on the fly: ACCENTUATE_GROUP, ANONYMIZE, CHIME, DNS_MAX*, EXCLUDE_IP, HEALTH, HIDE_IP, HIGHLIGHT, LEVEL, MIN, MODULES_*, NOT_FOUND, ONLY, SUSPECT, TIME_REPORT, VERBOSE, WATCH)"
-msgstr "(toutes les options changeables à la volée : ACCENTUATE_GROUP, ANONYMIZE, CHIME, DNS_MAX*, EXCLUDE_IP, HEALTH, HIDE_IP, HIGHLIGHT, LEVEL, MIN, MODULES_*, NOT_FOUND, ONLY, SUSPECT, TIME_REPORT, VERBOSE, WATCH)"
+msgid "(every option changeable on the fly: ACCENTUATE_GROUP, ANONYMIZE, CHIME, DNS_MAX*, EXCLUDE_IP, HEALTH, HIDE_IP, HIGHLIGHT, LEVEL, MIN, MODULES_*, NOT_FOUND, ONLY, SUSPECT, TIME_REPORT, UNDERLINE, VERBOSE, WATCH)"
+msgstr "(toutes les options changeables à la volée : ACCENTUATE_GROUP, ANONYMIZE, CHIME, DNS_MAX*, EXCLUDE_IP, HEALTH, HIDE_IP, HIGHLIGHT, LEVEL, MIN, MODULES_*, NOT_FOUND, ONLY, SUSPECT, TIME_REPORT, UNDERLINE, VERBOSE, WATCH)"
 
 msgid "Detail of the 429 refusals (nginx rate limiting) of ONE address from the nginx logs: URL, limit_req zone, peaks, effects, what to change; then exits"
 msgstr "Détail des refus 429 (limitation de débit nginx) d'UNE adresse d'après les journaux nginx : URL, zone limit_req, pointes, effets, quoi changer ; puis quitte"
@@ -2486,8 +2486,14 @@ msgstr "vraies adresses, vrais courriels et vrais noms (--anonymize : pseudonyme
 msgid "No underlined line (same as --underline 0)"
 msgstr "Aucune ligne soulignée (comme --underline 0)"
 
-msgid "One log line out of N underlined on screen, up to the end of the screen line (without N: 10; default: 10; 0 = none); UNDERLINE key"
-msgstr "Une ligne du journal sur N soulignée à l'écran, jusqu'au bout de la ligne d'écran (sans N : 10 ; par défaut : 10 ; 0 = aucune) ; clé UNDERLINE"
+msgid "One log line out of N underlined on screen, up to the end of the screen line (without N: 10; default: 10; 0 = none); U key of the menu; UNDERLINE of the configuration file"
+msgstr "Une ligne du journal sur N soulignée à l'écran, jusqu'au bout de la ligne d'écran (sans N : 10 ; par défaut : 10 ; 0 = aucune) ; touche U du menu ; UNDERLINE du fichier de configuration"
+
+msgid "one log line out of N underlined on screen, up to the end of the screen line (0 = none); UNDERLINE of the configuration file"
+msgstr "une ligne du journal sur N soulignée à l'écran, jusqu'au bout de la ligne d'écran (0 = aucune) ; UNDERLINE du fichier de configuration"
+
+msgid "--underline N (one log line out of N underlined, 0 = none; current: {current}, Enter = {default}): "
+msgstr "--underline N (une ligne du journal sur N soulignée, 0 = aucune ; actuel : {current}, Entrée = {default}) : "
 
 msgid "one log line out of {n} underlined (--underline N, --no-underline: none)"
 msgstr "une ligne du journal sur {n} soulignée (--underline N, --no-underline : aucune)"
@@ -2632,17 +2638,20 @@ msgstr "Étapes"
 msgid "Steps: none yet (N starts one)"
 msgstr "Étapes : aucune pour l'instant (N en commence une)"
 
-msgid "all the steps of the recording on one white line, updated at each step"
-msgstr "toutes les étapes de l'enregistrement sur une ligne blanche, mise à jour à chaque étape"
+msgid "the steps of the recording (or of the last one) on one white line, updated at each step; works without R"
+msgstr "les étapes de l'enregistrement (ou du dernier) sur une ligne blanche, mise à jour à chaque étape ; fonctionne sans R"
 
 msgid "  --steps-line: off"
 msgstr "  --steps-line : désactivée"
 
-msgid "  Start a recording (R) to see the steps on one line."
-msgstr "  Démarrez un enregistrement (R) pour voir les étapes sur une ligne."
+msgid "Last recording"
+msgstr "Dernier enregistrement"
 
-msgid "  --steps-line: on — the steps of the recording are shown on one line at each step"
-msgstr "  --steps-line : activée — les étapes de l'enregistrement s'affichent sur une ligne à chaque étape"
+msgid "Steps: no recording yet (R starts one, then N a step)"
+msgstr "Étapes : aucun enregistrement pour l'instant (R en démarre un, puis N une étape)"
+
+msgid "  --steps-line: on — the steps are shown on one line at each step (R starts a recording, N a step)"
+msgstr "  --steps-line : activée — les étapes s'affichent sur une ligne à chaque étape (R démarre un enregistrement, N une étape)"
 
 msgid "The steps of a test recording (N key) on ONE white reverse-video line, updated at each step (screen only); F key of the menu; STEPS_LINE of the configuration file"
 msgstr "Les étapes d'un enregistrement de test (touche N) sur UNE ligne blanche en vidéo inverse, mise à jour à chaque étape (écran seulement) ; touche F du menu ; STEPS_LINE du fichier de configuration"
