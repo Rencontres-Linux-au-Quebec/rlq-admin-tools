@@ -1,4 +1,4 @@
-# sync-crowdsec-blocklist.sh — CrowdSec community blocklist at the firewall
+# sync-crowdsec-blocklist.sh - CrowdSec community blocklist at the firewall
 
 Downloads the CrowdSec community list and loads it into **two ipsets** (`crowdsec-blocklist-v4`, `-v6`) dropped by the firewall (iptables rules or a `ufw` hook). It does not need the CrowdSec agent.
 

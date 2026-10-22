@@ -4,7 +4,7 @@
 #   2. ~/.app-log-live.conf               (s'il existe : réglages de l'utilisateur)
 # -c/--config FICHIER : ce fichier SEUL. Le répertoire courant n'est PAS lu. Le programme affiche toujours quel(s) fichier(s) il lit,
 # puis une ligne résumant les options importantes. Format : CLÉ=valeur, une par ligne ; # = commentaire ; guillemets facultatifs ;
-# booléens : yes / no (true / false, 1 / 0) — valeurs en anglais seulement (oui / non : lus, avec un avertissement). Ce fichier est LU, jamais exécuté.
+# booléens : yes / no (true / false, 1 / 0) - valeurs en anglais seulement (oui / non : lus, avec un avertissement). Ce fichier est LU, jamais exécuté.
 
 # --- Options (ordre alphabétique / alphabetical order) ---
 # --accentuate-group : étiquette (catégorie) de contacts Odoo affichés en blanc gras sur bleu foncé (vide = aucune ; touche a à la volée)
@@ -34,7 +34,7 @@
 #EXCLUDE_IP=
 # --health : minutes entre deux vérifications de santé (défaut : 10 minutes ; 0 = jamais)
 #HEALTH=10
-# --hide-addons: hide the INFO lines of the Odoo modules (odoo.addons.*), except errors, e-mails sent and generated files (PDF…) (q key on the fly)
+# --hide-addons: hide the INFO lines of the Odoo modules (odoo.addons.*), except errors, e-mails sent and generated files (PDF...) (q key on the fly)
 #HIDE_ADDONS=no
 # --hide-ip
 #HIDE_IP=no
@@ -45,9 +45,9 @@
 # --idle : minutes sans activité (défaut : 15 minutes)
 #IDLE=15
 # en, fr ou auto (suivre LC_ALL / LC_MESSAGES / LANG). Ordre de choix : --lang, NGINX_TOOLS_LANG, APP_LOG_LIVE_LANG, cette clé, LC_ALL, LC_MESSAGES, LANG.
-# Ajouter une langue = ajouter le fichier lang/app-log-live.XX.po (format PO : Poedit, Weblate…) — voir lang/README.md.
+# Ajouter une langue = ajouter le fichier lang/app-log-live.XX.po (format PO : Poedit, Weblate...) - voir lang/README.md.
 #LANGUAGE=auto
-# --level : niveau de détail du tableau de bord et du résumé, de 1 (verdict) à 9 (tout, défaut) — touches 1 à 9 à la volée
+# --level : niveau de détail du tableau de bord et du résumé, de 1 (verdict) à 9 (tout, défaut) - touches 1 à 9 à la volée
 #LEVEL=9
 # --lines (défaut : 50)
 #LINES=50
@@ -122,16 +122,16 @@
 #   --chime [N]              Bip (dans byobu/tmux aussi : voir les conseils affichés)
 #   --diagnose               Diagnostic du site (pourquoi la page de maintenance s'affiche : service, ports d'Odoo, upstream nginx, pare-feu) puis quitte ; code 1 s'il y a un problème
 #   --diagnose-host NAME     Avec --diagnose (ou la touche D) : vérifier aussi le certificat vu par Internet de ce nom (répétable), même s'il est servi par un AUTRE serveur
-#   --dns-max-truncate [N]   Colonne des noms de N caractères, les noms plus longs sont COUPÉS à N (le dernier caractère devient « … »)
+#   --dns-max-truncate [N]   Colonne des noms de N caractères, les noms plus longs sont COUPÉS à N (le dernier caractère devient « ... »)
 #   --exclude-ip IP,IP       N'affiche pas les lignes de ces adresses ou réseaux (IP1,IP2,10.0.0.0/8)
 #   --modules-latest [N]     Les N derniers modules installés (défaut : 10), avec la version actuelle d'Odoo, puis quitte ; touche L du menu
 #   --no-follow              Affiche les derniers messages puis s'arrête (pas de direct)
-#   --only TEXT              Seulement les lignes qui contiennent TEXTE (nom, adresse, URL, module…, sans tenir compte de la casse)
+#   --only TEXT              Seulement les lignes qui contiennent TEXTE (nom, adresse, URL, module..., sans tenir compte de la casse)
 #   --record-test-log MIN    Enregistre un test sans le clavier : commence avec le direct, s'arrête après MIN minutes, écrit l'archive .tar.xz à envoyer pour analyse, puis quitte
 #   --rate-limit IP          Détail des refus 429 (limitation de débit nginx) d'UNE adresse d'après les journaux nginx : URL, zone limit_req, pointes, effets, quoi changer ; puis quitte
 #   --report-err             Afficher à la fin un rapport d'erreurs à copier-coller (programme, version, serveur, échecs, avertissements)
 #   --summary                Affiche aussi le résumé de la session à la fin d'un --no-follow (avec Ctrl-C, toujours affiché)
-#   --suspect                Seulement les requêtes suspectes (WordPress, .php, .env, .git, sauvegardes, traversée de répertoires…)
+#   --suspect                Seulement les requêtes suspectes (WordPress, .php, .env, .git, sauvegardes, traversée de répertoires...)
 #   --time-report [MIN]      Toutes les MIN minutes, le même rapport que Ctrl-T (ce qui a changé depuis le dernier affichage)
 #   --version                affiche la version et quitte
 #   --watch [TEXT]           Surveille les requêtes dont l'URL contient TEXTE (virgule = plusieurs

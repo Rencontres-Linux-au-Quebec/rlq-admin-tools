@@ -10,8 +10,8 @@ The configuration templates (`doc/*.conf.example`, `apps/*.conf`) carry no copyr
 
 ## Folders / Dossiers
 
-* `CHANGELOG.md` — the change log, one section per program (`--changelog` shows the program's own section).
-* `doc/` — `doc/en/` and `doc/fr/`: manual, configuration templates (`*.conf.example`, copied to `/etc/default`), `build_docs.py`; `doc/` also holds `nginx-tools.version` and maintainers' notes.
+* `CHANGELOG.md` - the change log, one section per program (`--changelog` shows the program's own section).
+* `doc/` - `doc/en/` and `doc/fr/`: manual, configuration templates (`*.conf.example`, copied to `/etc/default`), `build_docs.py`; `doc/` also holds `nginx-tools.version` and maintainers' notes.
   Utilisé **par les programmes** : `CHANGELOG.md` (journal, `--changelog`), `doc/en/` et `doc/fr/` (modèles de configuration `*.conf.example`, copiés dans `/etc/default`, manuel, `build_docs.py`).
-* `doc/en/` and `doc/fr/` — the administrator **manual** (Markdown, `build_docs.py` → GitHub pages and the Odoo module `rlq_tools_docs`); no program reads it.
-  Le **manuel** de l'administrateur (Markdown `en/` et `fr/`, `build_docs.py` → pages GitHub et module Odoo `rlq_tools_docs`) ; aucun programme ne le lit.
+* `doc/en/` and `doc/fr/` - the administrator **manual** (Markdown, `build_docs.py` -> GitHub pages and the Odoo module `rlq_tools_docs`); no program reads it.
+  Le **manuel** de l'administrateur (Markdown `en/` et `fr/`, `build_docs.py` -> pages GitHub et module Odoo `rlq_tools_docs`) ; aucun programme ne le lit.

@@ -1,6 +1,6 @@
-# odoo-warmup.py — warm Odoo's caches after a restart
+# odoo-warmup.py - warm Odoo's caches after a restart
 
-After a restart the first visitors pay for compiling assets, loading registries and rendering pages. This program requests, in order: public pages (in each site language), linked pages, assets, then — with an administration login — the web client, menus, `get_views` of the main models, and the public pages of the latest events and surveys. Calls to the administration API are repeated in parallel (`--repeat`) because an Odoo with several workers warms one process per request.
+After a restart the first visitors pay for compiling assets, loading registries and rendering pages. This program requests, in order: public pages (in each site language), linked pages, assets, then - with an administration login - the web client, menus, `get_views` of the main models, and the public pages of the latest events and surveys. Calls to the administration API are repeated in parallel (`--repeat`) because an Odoo with several workers warms one process per request.
 
 ```bash
 odoo-warmup.py                              # warm http://127.0.0.1:8069 (bypasses nginx)
