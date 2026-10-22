@@ -49,6 +49,30 @@ Earlier history was archived outside this repository when this file was created.
 
 ## app-log-live.py
 
+### 1.101.20261022.154316
+
+- Title: F key (steps line) works without a recording in progress.
+- Reason: request: the F key should not be available only after R; it must show the steps without requiring a recording to be started first.
+- Changes:
+  - show_steps_line(): shows the steps of the recording in progress, otherwise the steps of the LAST recording (kept until the next R), otherwise the hint « Steps: no recording yet (R starts one, then N a step) ». The line of the last recording is prefixed « Last recording — ».
+  - record["last"]: the recording stopped last, set by record_stop().
+  - F key (steps_line): no longer refuses with « Start a recording (R) »; turning it on shows the line at once.
+  - Menu: the F entry says the steps are those of the recording (or of the last one) and that it works without R.
+  - lang/app-log-live.fr.po: new and changed messages translated; obsolete messages removed.
+  - doc/en and doc/fr 07-app-log-live.md: the F key paragraph.
+- Bugs fixed:
+  - Symptom: pressing F without a recording only printed « Start a recording (R) to see the steps on one line », so the key looked unavailable.
+  - Diagnosis: the line was drawn only from the recording in progress (record["r"]); no recording meant nothing to draw.
+  - Correction: the steps are read from the recording in progress or from the last one; the refusal message is gone.
+- Guard rails and edge cases:
+  - A recording in progress takes precedence over the last one.
+  - No recording at all: a hint, never an empty line; a text wider than the terminal is cut as before.
+  - Screen only: nothing is written to the journal or to the archive.
+  - The steps of the last recording are kept in memory only, until the next R; a new recording replaces them.
+- Checks:
+  - py_compile.
+- Action required: None.
+
 ### 1.100.20261022.133552
 
 - Title: Runs without root (sudo -n for the advanced commands); PostgreSQL mandatory for the R recording; system context in the archive; menu options in alphabetical order.
