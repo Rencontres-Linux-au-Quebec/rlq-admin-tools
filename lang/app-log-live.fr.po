@@ -2579,14 +2579,14 @@ msgstr "enregistrement en cours"
 msgid "A test recording (R key) stops by itself after MIN minutes (default: "
 msgstr "Un enregistrement de test (touche R) s'arrête de lui-même après MIN minutes (défaut : "
 
-msgid "; 0 = no limit); RECORD_MAX key"
-msgstr " ; 0 = sans limite) ; clé RECORD_MAX"
+msgid "; 0 refused, 60 at most); RECORD_MAX key"
+msgstr " ; 0 refusé, 60 au maximum) ; clé RECORD_MAX"
 
 msgid "Records a test without the keyboard: starts with the live stream, stops after MIN minutes, writes the .tar.xz archive to send for analysis, then exits (same content as the R key; folder: ~USER/app-log-live-records under sudo, otherwise LOG_DIR/records)"
 msgstr "Enregistre un test sans le clavier : commence avec le direct, s'arrête après MIN minutes, écrit l'archive .tar.xz à envoyer pour analyse, puis quitte (même contenu que la touche R ; dossier : ~USAGER/app-log-live-records sous sudo, sinon LOG_DIR/records)"
 
-msgid "--record-max must be between 0 and 1440 minutes, --record-test-log greater than 0 and at most 1440"
-msgstr "--record-max doit être compris entre 0 et 1440 minutes, --record-test-log supérieur à 0 et au plus 1440"
+msgid "--record-max must be greater than 0 and at most 60 minutes, --record-test-log greater than 0 and at most 1440"
+msgstr "--record-max doit être supérieur à 0 et au plus 60 minutes, --record-test-log supérieur à 0 et au plus 1440"
 
 msgid "--record-test-log needs the live stream (not with --no-follow)"
 msgstr "--record-test-log a besoin du direct (pas avec --no-follow)"
@@ -2625,3 +2625,24 @@ msgstr "Top 10 des URLs (toutes les requêtes, erreurs comprises) :"
 
 msgid "Most visited pages (responses below 400): "
 msgstr "Pages les plus visitées (réponses sous 400) : "
+
+msgid "Steps"
+msgstr "Étapes"
+
+msgid "Steps: none yet (N starts one)"
+msgstr "Étapes : aucune pour l'instant (N en commence une)"
+
+msgid "all the steps of the recording on one white line, updated at each step"
+msgstr "toutes les étapes de l'enregistrement sur une ligne blanche, mise à jour à chaque étape"
+
+msgid "  --steps-line: off"
+msgstr "  --steps-line : désactivée"
+
+msgid "  Start a recording (R) to see the steps on one line."
+msgstr "  Démarrez un enregistrement (R) pour voir les étapes sur une ligne."
+
+msgid "  --steps-line: on — the steps of the recording are shown on one line at each step"
+msgstr "  --steps-line : activée — les étapes de l'enregistrement s'affichent sur une ligne à chaque étape"
+
+msgid "The steps of a test recording (N key) on ONE white reverse-video line, updated at each step (screen only); F key of the menu; STEPS_LINE of the configuration file"
+msgstr "Les étapes d'un enregistrement de test (touche N) sur UNE ligne blanche en vidéo inverse, mise à jour à chaque étape (écran seulement) ; touche F du menu ; STEPS_LINE du fichier de configuration"
