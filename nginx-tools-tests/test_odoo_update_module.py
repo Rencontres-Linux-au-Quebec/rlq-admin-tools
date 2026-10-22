@@ -1,8 +1,11 @@
 """odoo-update-module.sh : mise à jour des modules rlq_* puis redémarrage d'Odoo par systemd (systemctl, runuser, pgrep, ss simulés ; Odoo simulé)."""
 # Environnement de ces tests, lu par run-all.sh : commun (tous les serveurs), odoo ou bbb.
 ENVIRONNEMENT = "odoo"
+import datetime
 import getpass
 import os
+import shutil
+import tarfile
 import unittest
 import zipfile
 
@@ -51,15 +54,58 @@ class OdooUpdateModule(EnvTest):
         self.mock("ss", 'echo "LISTEN 0 128 *:10000 *:*"')
         self.mock("sleep", "exit 0") if False else None
         self.mock("journalctl", 'echo "journalctl $*" >> "$D/appels.log"; cat "$D/journal_service" 2>/dev/null; exit 0')
+        self.write("nginx/exemple-access.log", "")                         # 1.15: a readable nginx log without requests: the site is calm
         self.env.update(D=self.d, ODOO_UPDATE_MODULE_LOG_DIR=os.path.join(self.d, "journaux"), NGINX_TOOLS_ETC_DEFAULT=os.path.join(self.d, "etc"),
                         NGINX_TOOLS_CONFIG_CREER="0", TMPDIR=self.d, ODOO_UPDATE_MODULE_BACKUP_DIR=os.path.join(self.d, "copies"),
-                        ODOO_UPDATE_MODULE_NGINX_DIR=os.path.join(self.d, "nginx"), ODOO_UPDATE_MODULE_QUIET_POLL="0", ODOO_UPDATE_MODULE_SETTLE="0")
+                        ODOO_UPDATE_MODULE_NGINX_DIR=os.path.join(self.d, "nginx"), ODOO_UPDATE_MODULE_QUIET_POLL="0", ODOO_UPDATE_MODULE_SETTLE="0",
+                        ODOO_UPDATE_MODULE_PG_AS=self.write("pg-ok.sh", "#!/bin/bash\necho 0\n", 0o755), ODOO_UPDATE_MODULE_SAMPLE="0")
 
     def lancer(self, *args, **env):
         return self.run_cmd(["bash", self.prog, "--lang", "fr", *args], env_extra=env or None)
 
     def appels(self):
         return open(self.log, encoding="utf-8").read().splitlines() if os.path.exists(self.log) else []
+
+    # --- 1.15: activity guard (writes in nginx and in PostgreSQL), replayed on the anonymized log of a real test (fixtures/) ----------------------
+
+    def _journal_exemple(self):
+        """Puts the nginx access log of the recorded test (fixtures/app-log-live-record-exemple-tests-en-dev.tar.xz) in the nginx folder of the test."""
+        fixtures = os.path.join(os.path.dirname(os.path.abspath(__file__)), "fixtures", "app-log-live-record-exemple-tests-en-dev.tar.xz")
+        with tarfile.open(fixtures) as t:
+            t.extractall(self.d)
+        source = os.path.join(self.d, "app-log-live-record-exemple-tests-en-dev", "raw", "exemple_dev-access.log")
+        shutil.copy(source, os.path.join(self.d, "nginx", "exemple_dev-access.log"))
+
+    @staticmethod
+    def _epoch(stamp):
+        """UTC epoch of a « YYYY-MM-DD HH:MM:SS UTC » text (the test recording was made at 12:xx EDT = 16:xx UTC)."""
+        return str(int(datetime.datetime.strptime(stamp.replace(" UTC", ""), "%Y-%m-%d %H:%M:%S").replace(tzinfo=datetime.timezone.utc).timestamp()))
+
+    def test_199_activite_refuse_pendant_les_ecritures_et_accepte_apres(self):
+        self._journal_exemple()
+        rc, out, err = self.lancer("--check-activity", ODOO_UPDATE_MODULE_NOW=self._epoch("2026-10-22 16:09:00 UTC"))     # 12:09 EDT : soumissions de sondage
+        self.assertEqual(rc, 3, out + err)
+        self.assertIn("écriture(s) HTTP", out)
+        rc, out, err = self.lancer("--check-activity", ODOO_UPDATE_MODULE_NOW=self._epoch("2026-10-22 16:23:00 UTC"))     # 12:23 EDT : dernière écriture à 12:17
+        self.assertEqual(rc, 0, out + err)
+        self.assertIn("site calme", out)
+
+    def test_199_attente_annulee_sans_force_et_passee_avec_force_busy(self):
+        self._journal_exemple()
+        occupe = self._epoch("2026-10-22 16:09:00 UTC")
+        rc, out, err = self.lancer("--wait-quiet", "0", ODOO_UPDATE_MODULE_NOW=occupe)
+        self.assertEqual(rc, 3, out + err)
+        self.assertIn("ANNULÉE", out)
+        self.assertNotIn("systemctl stop erplibre_erplibre.service", self.appels())          # rien n'a été arrêté
+        rc, out, err = self.lancer("--wait-quiet", "0", "--force-busy", ODOO_UPDATE_MODULE_NOW=occupe)
+        self.assertEqual(rc, 0, out + err)
+        self.assertIn("systemctl stop erplibre_erplibre.service", self.appels())
+
+    def test_199_base_illisible_compte_comme_occupee(self):
+        mauvais = self.write("pg-ko.sh", "#!/bin/bash\nexit 1\n", 0o755)
+        rc, out, err = self.lancer("--check-activity", ODOO_UPDATE_MODULE_PG_AS=mauvais)
+        self.assertEqual(rc, 3, out + err)
+        self.assertIn("base PostgreSQL illisible", out)
 
     def test_succes_arret_mise_a_jour_puis_demarrage(self):
         rc, out, err = self.lancer()
@@ -413,21 +459,22 @@ while IFS='|' read -r n e v a m c; do printf '%s\n' "$n$SEP$e$SEP$v$SEP$a$SEP$m$
         self.mock("sleep", 'echo "sleep $*" >> "$D/appels.log"; rm -f "$D/nginx/site-access.log"; touch "$D/nginx/vide-access.log"')
         rc, out, err = self.lancer()
         self.assertEqual(rc, 0, out + err)
-        self.assertIn("site occupé : 5 visiteur(s) actif(s)", out)           # les 4 robots ne comptent pas
-        self.assertIn("site calme : 0 visiteur(s) actif(s)", out)
+        self.assertIn("site occupé :", out)
+        self.assertIn("5 visiteur(s) actif(s)", out)                          # les 4 robots ne comptent pas
+        self.assertIn("site calme : aucune écriture HTTP ni en base", out)
         a = self.appels()
         self.assertLess(a.index("sleep 0"), a.index("systemctl stop erplibre_erplibre.service"))
 
     def test_site_calme_aucune_attente_et_wait_quiet_0(self):
         self.journal_nginx(["198.51.100.1"])
         rc, out, err = self.lancer()
-        self.assertIn("site calme : 1 visiteur(s) actif(s)", out)
+        self.assertIn("site calme : aucune écriture HTTP ni en base, visiteurs actifs sous le seuil de 3", out)
         rc, out, err = self.lancer("--wait-quiet", "0")
         self.assertEqual(rc, 0, out + err)
-        self.assertNotIn("Attente d'un site calme", out)
+        self.assertIn("Attente d'un site calme (au plus 0 min", out)   # un seul contrôle, aucune attente
         self.journal_nginx([f"198.51.100.{i}" for i in range(5)])
         rc, out, err = self.lancer("--dry-run")
-        self.assertIn("site occupé : attente d'au plus 15 min", out)
+        self.assertIn("maintenant occupé : 5 visiteur(s) actif(s)", out)
 
     def test_copie_des_modules_avant_la_mise_a_jour(self):
         rc, out, err = self.lancer()

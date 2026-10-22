@@ -38,6 +38,22 @@ class Enregistrement(unittest.TestCase):
         self.journal = os.path.join(self.dossier, "access.log")
         with open(self.journal, "w") as f:
             f.write("ancienne ligne 11.97.88.180\n")
+        # psql est retiré du PATH des tests (COMMANDES_SYSTEME) : on simule sa présence ici, sans dépendre du PATH du processus
+        import shutil as _shutil
+        from unittest import mock
+        reel = _shutil.which
+        patch = mock.patch.object(ENREGISTREMENT.shutil, "which", side_effect=lambda cmd, *a, **k: "/usr/bin/psql" if cmd == "psql" else reel(cmd, *a, **k))
+        patch.start()
+        self.addCleanup(patch.stop)
+
+    def test_refus_sans_psql(self):
+        """1.2 : sans psql, l'enregistrement est refusé avec un message clair (les échantillons PostgreSQL sont obligatoires)."""
+        from unittest import mock
+        rec = ENREGISTREMENT.Recorder(os.path.join(self.dossier, "archives"), label="sans psql", query=lambda base, sql: [["1"]], databases=lambda: ["prod"],
+                                      service="odoo.service", log_files=[self.journal], run=faux_ss, sample_s=1, version="1.93", owner=False)
+        with mock.patch.object(ENREGISTREMENT.shutil, "which", side_effect=lambda cmd, *a, **k: None if cmd == "psql" else None):
+            with self.assertRaisesRegex(OSError, "psql"):
+                rec.start()
 
     def archive(self, lignes, etapes=(), **options):
         def requete(base, sql):

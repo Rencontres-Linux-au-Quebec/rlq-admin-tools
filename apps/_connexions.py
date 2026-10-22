@@ -22,7 +22,8 @@ import os
 import re
 import subprocess
 
-__version__ = "1.1.20261019.150215"
+__version__ = "1.2.20261022.133552"
+POSTGRES_RUN = ["runuser", "-u", "postgres", "--"] if os.geteuid() == 0 else ["sudo", "-n", "-u", "postgres", "--"]     # 1.2: root or sudo -n (see _odoo_db.py)
 SEUIL_DEFAUT = 80          # % d'utilisation à partir duquel on avertit
 SEUIL_CRITIQUE = 95
 
@@ -72,7 +73,7 @@ def postgres():
     """(connexions clientes, max_connections) de PostgreSQL ; None si impossible (pas root, psql absent)."""
     if os.geteuid() != 0:
         return None
-    code, sortie = _run(["runuser", "-u", "postgres", "--", "psql", "-Atc",
+    code, sortie = _run(POSTGRES_RUN + ["psql", "-Atc",
                          "select (select count(*) from pg_stat_activity where backend_type = 'client backend'), current_setting('max_connections')"], 20)
     m = re.match(r"^(\d+)\|(\d+)$", sortie.strip()) if code == 0 else None
     return (int(m.group(1)), int(m.group(2))) if m else None

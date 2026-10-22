@@ -29,11 +29,13 @@
 #   --backup                     sauvegarder la base avant (odoo-backup.sh --db BASE) ; échec = abandon, rien n'est arrêté
 #   --busy-visitors N            site occupé à partir de N visiteurs actifs (requête dans les 5 dernières minutes, robots exclus) ; défaut : BUSY_VISITORS, soit 3
 #   --changelog                  affiche le journal des modifications
+#   --check-activity             état du site maintenant (visiteurs, écritures HTTP, base PostgreSQL) sans rien changer : 0 = calme, 3 = occupé
 #   -c, --config FILE            ce fichier de configuration SEUL (défaut : /etc/default/odoo-update-module.conf, puis
 #                                ~/.odoo-update-module.conf s'il existe ; la ligne de commande est prioritaire)
 #   --db NAME                    base à mettre à jour (défaut : « -d » de la commande du service, sinon db_name d'Odoo)
 #   --dry-run                    montrer ce qui serait fait (service, base, modules, commandes), sans rien arrêter ni écrire
 #   --force                      continuer malgré un Odoo lancé à la main (il est alors ignoré, pas arrêté)
+#   --force-busy                 mettre à jour MÊME si le site reste occupé après --wait-quiet (sinon la mise à jour est annulée) ; FORCE_BUSY
 #   -h, --help                   affiche cette aide et quitte
 #   --lang LANG                  langue d'affichage : en ou fr (défaut : LANGUAGE du fichier de configuration, sinon LC_ALL / LC_MESSAGES / LANG)
 #   --module PATTERN             module à mettre à jour ; motif accepté (« rlq_* »), option répétable (défaut : MODULES, soit rlq_*)
@@ -49,7 +51,7 @@
 #   --user NAME                  compte sous lequel la mise à jour s'exécute (défaut : User= du service)
 #   -v, --verbose                afficher chaque commande externe exécutée (systemctl, runuser, odoo, ss)
 #   --version                    affiche la version et quitte
-#   --wait-quiet MIN             attendre au plus MIN minutes que le site soit calme avant d'arrêter Odoo (défaut : WAIT_QUIET, soit 15 ; 0 = ne pas attendre) ;
+#   --wait-quiet MIN             attendre au plus MIN minutes que le site soit calme avant d'arrêter Odoo (défaut : WAIT_QUIET, soit 60 ; 0 = un seul contrôle) ;
 #                                au bout du délai, la mise à jour se fait quand même
 #   --zip FILE                   archive .zip des modules à décompresser avant la mise à jour (fichier, ou dossier : la plus récente) ; défaut : ZIP, sinon la plus
 #                                récente « MODULE*.zip » du dossier courant ; « non » : ne rien décompresser
@@ -73,7 +75,8 @@
 #   WARMUP=oui                    préchauffer le cache d'Odoo après le redémarrage (odoo-warmup.py) ; non = comme --no-warmup
 #   TIMEOUT=1800                  durée maximale de la mise à jour, en secondes
 #   WAIT=90                       attente maximale du démarrage (service actif, puis port à l'écoute), en secondes
-#   WAIT_QUIET=15                 attente maximale d'un site calme avant l'arrêt d'Odoo, en minutes (0 = ne pas attendre)
+#   WAIT_QUIET=60                 attente maximale d'un site calme avant l'arrêt d'Odoo, en minutes (0 = un seul contrôle)
+#   FORCE_BUSY=non                mettre à jour quand même si le site reste occupé (défaut : non : la mise à jour est annulée)
 #
 # ========================================================================================================================
 
@@ -81,7 +84,7 @@ set -euo pipefail
 for _d in /usr/local/sbin /usr/sbin /sbin; do [[ -n "${NGINX_TOOLS_TESTS:-}" ]] && break; case ":$PATH:" in *":$_d:"*) ;; *) PATH="$PATH:$_d" ;; esac; done
 export PATH
 
-readonly SCRIPT_VERSION="1.14.20261020.211944"
+readonly SCRIPT_VERSION="1.15.20261022.133552"
 SCRIPT_NAME="$(basename "${BASH_SOURCE[0]}" .sh)"; readonly SCRIPT_NAME
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
 SCRIPT_PATH="$SCRIPT_DIR/$(basename "${BASH_SOURCE[0]}")"; readonly SCRIPT_PATH
@@ -116,7 +119,7 @@ else C_RED=""; C_YELLOW=""; C_GREEN=""; C_RESET=""; C_CYAN=""; C_BOLD=""; C_DIM=
 # --- Options -----------------------------------------------------------------------------------------------------------
 SERVICE=""; SERVICE_DETECTE=0; MODULES_MOTIFS="rlq_*"; ONLY_DB=""; ODOO_CONF_OPT=""; ODOO_DIR=""; RUN_USER=""; COMMAND=""
 TIMEOUT=1800; WAIT=90; DO_BACKUP=0; DO_DRY_RUN=0; DO_FORCE=0; DO_WARMUP=1; VERBOSE=0; CLI_MODULES=0; ADDONS_DIR=""; ZIP_ARG=""
-WAIT_QUIET=15; BUSY_VISITORS=3; DO_ROLLBACK=1                                           # 1.11: quiet site before stopping Odoo; rollback of the modules after errors
+WAIT_QUIET=60; BUSY_VISITORS=3; DO_ROLLBACK=1; FORCE_BUSY=0; CHECK_ACTIVITY=0                                           # 1.11: quiet site before stopping Odoo; rollback of the modules after errors
 NGINX_LOG_DIR="${ODOO_UPDATE_MODULE_NGINX_DIR:-/var/log/nginx}"
 MODULES_BACKUP_DIR="${ODOO_UPDATE_MODULE_BACKUP_DIR:-/var/backups/odoo-update-module}"
 LOG_DIR="${ODOO_UPDATE_MODULE_LOG_DIR:-/var/log/odoo-update-module}"
@@ -137,6 +140,7 @@ if declare -F config_lire >/dev/null; then
     config_defaut MODULES_BACKUP_DIR MODULES_BACKUP_DIR MODULES_BACKUP_DIR texte
     config_defaut DO_ROLLBACK ROLLBACK --no-rollback booleen
     config_defaut WAIT_QUIET WAIT_QUIET --wait-quiet nombre
+    config_defaut FORCE_BUSY FORCE_BUSY --force-busy booleen
     config_defaut COMMAND COMMAND COMMAND texte
     config_defaut ONLY_DB DATABASE --db texte
     config_defaut MODULES_MOTIFS MODULES --module texte
@@ -157,6 +161,8 @@ while [[ $# -gt 0 ]]; do
         --addons-dir) ADDONS_DIR="${2:-}"; shift 2 ;;
         --backup) DO_BACKUP=1; shift ;;
         --busy-visitors) BUSY_VISITORS="${2:-}"; shift 2 ;;
+        --check-activity) CHECK_ACTIVITY=1; shift ;;
+        --force-busy) FORCE_BUSY=1; shift ;;
         --changelog)
             if [[ ! -r "$CHANGELOG_FILE" ]]; then
                 echo "Changelog introuvable : $CHANGELOG_FILE" >&2
@@ -646,9 +652,9 @@ prechauffer() {
 active_visitors() {
     python3 - "$NGINX_LOG_DIR" <<'PYEOF'
 import datetime, glob, os, re, sys
-LINE = re.compile(r'^(\S+) \S+ \S+ \[([^\]]+)\] "[^"]*" \d{3} \S+ "[^"]*" "([^"]*)"')
+LINE = re.compile(r'^(\S+)\s+\S+\s+\S+\s+\[([^\]]+)\]\s+"[^"]*"\s+\d{3}\s+\S+\s+"[^"]*"\s+"([^"]*)"')
 ROBOT = re.compile(r"bot|crawl|spider|slurp|curl|wget|python|go-http|monitor|uptime|preview", re.I)
-now = datetime.datetime.now(datetime.timezone.utc)
+now = datetime.datetime.fromtimestamp(float(os.environ["ODOO_UPDATE_MODULE_NOW"]), datetime.timezone.utc) if os.environ.get("ODOO_UPDATE_MODULE_NOW") else datetime.datetime.now(datetime.timezone.utc)
 seen, readable = set(), False
 for path in glob.glob(os.path.join(sys.argv[1], "*access*.log")):
     try:
@@ -673,22 +679,130 @@ print(len(seen) if readable else "?")
 PYEOF
 }
 
-wait_for_quiet_site() {
-    local n debut=$SECONDS poll="${ODOO_UPDATE_MODULE_QUIET_POLL:-30}"
-    (( WAIT_QUIET > 0 )) || return 0
-    etape "Attente d'un site calme (au plus ${WAIT_QUIET} min, occupé à partir de ${BUSY_VISITORS} visiteur(s) actif(s))"
+# 1.15 — activity guard. The site is BUSY while one of these is true: active visitors (active_visitors); write requests in the nginx logs
+# (POST, PUT, PATCH, DELETE, except the known read-only requests) during the last ACTIVITY_WINDOW seconds (nginx_writes); open PostgreSQL sessions;
+# locks of writing on ir_cron; writes in the activity tables (counters of pg_stat_user_tables, sampled twice, ACTIVITY_SAMPLE s apart).
+# A value that cannot be read counts as BUSY: the update never goes ahead blind (ODOO_UPDATE_MODULE_PG_AS: test hook, command used in place of sudo).
+ACTIVITY_WINDOW="${ODOO_UPDATE_MODULE_WINDOW:-300}"       # seconds of nginx history checked for writes (5 min)
+ACTIVITY_SAMPLE="${ODOO_UPDATE_MODULE_SAMPLE:-10}"        # seconds between the two samples of the PostgreSQL counters
+ACTIVITY_TABLES="survey_user_input survey_user_input_line event_registration event_track mail_mail mail_message crm_lead website_visitor website_track ir_attachment document_page document_page_history"
+
+postgres_as() {       # psql as the postgres user: runuser under root, « sudo -n » otherwise (no password question, see sudoers)
+    if [[ -n "${ODOO_UPDATE_MODULE_PG_AS:-}" ]]; then "$ODOO_UPDATE_MODULE_PG_AS" "$@"; return; fi
+    if (( EUID == 0 )); then runuser -u postgres -- "$@"; else sudo -n -u postgres -- "$@"; fi
+}
+
+pg_query() {          # one value of the database $DB; fails (non-zero) when it cannot be read
+    postgres_as psql -X -A -t -q -d "$DB" -c "$1" 2>/dev/null
+}
+
+db_activity() {       # prints "sessions locks writes" (numbers), or "?" when the database cannot be read
+    command -v psql >/dev/null 2>&1 || [[ -n "${ODOO_UPDATE_MODULE_PG_AS:-}" ]] || { echo "?"; return 0; }
+    local liste="'${ACTIVITY_TABLES// /','}'" s l a b
+    s=$(pg_query "SELECT count(*) FROM pg_stat_activity WHERE datname = current_database() AND pid <> pg_backend_pid() AND backend_type = 'client backend' AND state IS NOT NULL AND state <> 'idle'") || { echo "?"; return 0; }
+    l=$(pg_query "SELECT count(*) FROM pg_locks k JOIN pg_class c ON c.oid = k.relation WHERE c.relname = 'ir_cron' AND k.pid <> pg_backend_pid() AND k.mode IN ('RowExclusiveLock','RowShareLock','ExclusiveLock','AccessExclusiveLock')") || { echo "?"; return 0; }
+    a=$(pg_query "SELECT COALESCE(sum(n_tup_ins + n_tup_upd + n_tup_del), 0) FROM pg_stat_user_tables WHERE relname IN ($liste)") || { echo "?"; return 0; }
+    sleep "$ACTIVITY_SAMPLE"
+    b=$(pg_query "SELECT COALESCE(sum(n_tup_ins + n_tup_upd + n_tup_del), 0) FROM pg_stat_user_tables WHERE relname IN ($liste)") || { echo "?"; return 0; }
+    echo "${s:-?} ${l:-?} $(( ${b:-0} - ${a:-0} ))"
+}
+
+nginx_writes() {      # prints the number of write requests of the last ACTIVITY_WINDOW seconds, then up to 3 of them (time, method, address); "?" if unreadable
+    python3 - "$NGINX_LOG_DIR" "$ACTIVITY_WINDOW" <<'PYEOF'
+import datetime, glob, os, re, sys
+LINE = re.compile(r'^(\S+)\s+\S+\s+\S+\s+\[([^\]]+)\]\s+"(\S+)\s+(\S+)[^"]*"\s+(\d{3})')
+# Read-only requests sent with POST by Odoo (lists, views, reads, bus, messages already in place): they are not writes
+READ_POST = re.compile(r"^/(web/action/load|web/session/get_session_info|web/webclient/\w+|mail/data|mail/thread/data|im_livechat/init|"
+                       r"website/snippet/filters|hr_attendance/attendance_user_data|"
+                       r"web/dataset/call_kw/[^ ?]*/(read|search|search_read|read_group|web_read|web_search_read|has_group|fields_get|name_get|display_name|onchange|get_views|check_access_rights))(\?|$)")
+now = datetime.datetime.fromtimestamp(float(os.environ["ODOO_UPDATE_MODULE_NOW"]), datetime.timezone.utc) if os.environ.get("ODOO_UPDATE_MODULE_NOW") else datetime.datetime.now(datetime.timezone.utc)
+limit = float(sys.argv[2])
+found, readable = [], False
+for path in glob.glob(os.path.join(sys.argv[1], "*access*.log")):
+    try:
+        with open(path, "rb") as f:
+            f.seek(0, 2)
+            f.seek(max(0, f.tell() - 4_000_000))
+            data = f.read().decode("utf-8", "replace")
+        readable = True
+    except OSError:
+        continue
+    for line in data.splitlines():
+        m = LINE.match(line)
+        if not m or m.group(3) not in ("POST", "PUT", "PATCH", "DELETE") or READ_POST.match(m.group(4)):
+            continue
+        try:
+            t = datetime.datetime.strptime(m.group(2), "%d/%b/%Y:%H:%M:%S %z")
+        except ValueError:
+            continue
+        if 0 <= (now - t).total_seconds() <= limit:
+            found.append((t, m.group(3), m.group(4)))
+if not readable:
+    print("?")
+    sys.exit(0)
+found.sort()
+print(len(found))
+for t, method, url in found[-3:]:
+    print(t.astimezone().strftime("%H:%M:%S") + " " + method + " " + url[:80])
+PYEOF
+}
+
+site_reasons() {      # prints why the site is busy, one reason per line; nothing printed = calm. Reads only, changes nothing.
+    local visiteurs w_sortie w_nombre dbv s l d
+    visiteurs=$(active_visitors 2>/dev/null || echo "?")
+    if [[ "$visiteurs" == "?" ]]; then
+        echo "journaux d'accès de nginx illisibles dans $NGINX_LOG_DIR"
+    elif (( visiteurs >= BUSY_VISITORS )); then
+        echo "$visiteurs visiteur(s) actif(s) dans les 5 dernières minutes (seuil : $BUSY_VISITORS)"
+    fi
+    w_sortie=$(nginx_writes 2>/dev/null || echo "?")
+    w_nombre=$(head -n 1 <<< "$w_sortie")
+    if [[ "$w_nombre" == "?" ]]; then
+        echo "journaux d'accès de nginx illisibles : écritures HTTP inconnues"
+    elif (( w_nombre > 0 )); then
+        echo "$w_nombre écriture(s) HTTP (POST…) dans les $(( ACTIVITY_WINDOW / 60 )) dernières minutes, la plus récente : $(tail -n 1 <<< "$w_sortie")"
+    fi
+    dbv=$(db_activity)
+    read -r s l d <<< "$dbv"
+    if [[ "$dbv" == "?" ]]; then
+        echo "base PostgreSQL illisible (psql ou « sudo -n -u postgres » refusé) : activité inconnue"
+    else
+        if (( s > 0 )); then echo "$s session(s) PostgreSQL en cours sur la base $DB"; fi
+        if (( l > 0 )); then echo "$l verrou(x) d'écriture sur ir_cron (tâche planifiée en cours)"; fi
+        if (( d > 0 )); then echo "$d écriture(s) dans les tables d'activité pendant ${ACTIVITY_SAMPLE} s"; fi
+    fi
+    return 0
+}
+
+wait_for_quiet_site() {   # waits at most WAIT_QUIET minutes for a calm site (polled every ODOO_UPDATE_MODULE_QUIET_POLL s). Still busy at the end:
+    local debut=$SECONDS poll="${ODOO_UPDATE_MODULE_QUIET_POLL:-30}" raisons resume
+    etape "Attente d'un site calme (au plus ${WAIT_QUIET} min ; occupé dès un visiteur actif, une écriture HTTP, une session ou un verrou PostgreSQL, ou une écriture en base)"
     while :; do
-        n=$(active_visitors 2>/dev/null || echo "?")
-        if [[ "$n" == "?" ]]; then attn "journaux d'accès de nginx illisibles dans $NGINX_LOG_DIR : affluence inconnue, pas d'attente"; return 0; fi
-        if (( DO_DRY_RUN )); then sim "maintenant : $n visiteur(s) actif(s) dans les 5 dernières minutes — $( (( n < BUSY_VISITORS )) && echo "site calme, pas d'attente" || echo "site occupé : attente d'au plus ${WAIT_QUIET} min" )"; return 0; fi
-        if (( n < BUSY_VISITORS )); then ok "site calme : $n visiteur(s) actif(s) dans les 5 dernières minutes"; return 0; fi
+        raisons=$(site_reasons)
+        if [[ -z "$raisons" ]]; then ok "site calme : aucune écriture HTTP ni en base, visiteurs actifs sous le seuil de $BUSY_VISITORS"; return 0; fi
+        resume=$(paste -sd ';' <<< "$raisons")
+        if (( DO_DRY_RUN )); then sim "maintenant occupé : $resume"; return 0; fi
         if (( SECONDS - debut >= WAIT_QUIET * 60 )); then
-            attn "toujours $n visiteur(s) actif(s) après ${WAIT_QUIET} min : mise à jour quand même"
-            return 0
+            if (( FORCE_BUSY )); then
+                attn "site toujours occupé après ${WAIT_QUIET} min (--force-busy) : mise à jour quand même : $resume"
+                return 0
+            fi
+            ko "site toujours occupé après ${WAIT_QUIET} min : mise à jour ANNULÉE, rien n'a été arrêté ($resume). Relancer plus tard, ou --force-busy pour passer outre."
+            exit 3
         fi
-        echo "  ${C_YELLOW}site occupé : $n visiteur(s) actif(s) dans les 5 dernières minutes${C_RESET} ${C_DIM}— nouvel essai dans ${poll} s (Ctrl+C pour arrêter)${C_RESET}"
+        echo "  ${C_YELLOW}site occupé :${C_RESET}"
+        while IFS= read -r r; do detail "· $r"; done <<< "$raisons"
         sleep "$poll"
     done
+}
+
+rapport_activite() {     # --check-activity: state of the site now, changes nothing. Exit 0 = calm, 3 = busy
+    local raisons
+    raisons=$(site_reasons)
+    if [[ -z "$raisons" ]]; then ok "site calme (base $DB) : aucune écriture HTTP ni en base, visiteurs actifs sous le seuil de $BUSY_VISITORS"; return 0; fi
+    echo "  ${C_YELLOW}site occupé (base $DB) :${C_RESET}"
+    while IFS= read -r r; do detail "· $r"; done <<< "$raisons"
+    return 3
 }
 
 # Dossier de chaque module (avant la décompression) : premier dossier de addons_path qui le contient.
@@ -840,8 +954,9 @@ champ "Config Odoo :" "${C_DIM}$ODOO_CONF_UTILISEE${C_RESET}"
 if (( DO_DRY_RUN )); then echo "  ${C_YELLOW}Mode simulation : rien n'est arrêté, écrit ni démarré.${C_RESET}"; fi
 ETAPES=5; if (( DO_WARMUP )); then ETAPES=6; fi; if (( DO_BACKUP )); then ETAPES=$((ETAPES + 1)); fi
 if [[ -n "$ZIP_FICHIER" ]]; then ETAPES=$((ETAPES + 1)); fi
-if (( WAIT_QUIET > 0 )); then ETAPES=$((ETAPES + 1)); fi
+ETAPES=$((ETAPES + 1))
 
+if (( CHECK_ACTIVITY )); then rapport_activite; exit $?; fi
 echecs=0
 find_module_dirs
 if (( DO_BACKUP )); then sauvegarder || exit 1; fi
