@@ -19,11 +19,6 @@ MAIL_ATTACH_MAX_MB (100 : une pièce jointe plus grosse est remplacée par un LI
 
 Utilisation depuis Python : from _courriel import envoyer ; depuis Bash : python3 apps/_courriel.py --send "Sujet" --body-file corps.txt [--attach fichier]
 
-HISTORIQUE (résumé ; détail : doc/_courriel.changelog.txt)
-#   1.3.20261020.211944 — Personal configuration file ~/.NAME.conf (not .cfg); a legacy ~/.NAME.cfg is renamed automatically.
-#   1.2.20261019.150215 — New copyright: Services-Conseils Linux and Rencontres Linux au Québec contributors (AGPL-3.0-or-later).
-#   1.1.20261016.173838 — Copyright holder: Services-Linux Conseils Inc
-#   1.0.20261013.103000 — Première version : envoi SMTP commun, pièces jointes de plus de 100 Mo remplacées par un lien, mot de passe à part.
 """
 import argparse
 import os
@@ -51,6 +46,23 @@ LIGNE_RE = re.compile(r'^\s*([A-Z][A-Z0-9_]*)\s*=\s*(.*?)\s*$')
 
 class ErreurCourriel(Exception):
     """Configuration incomplète ou envoi impossible (message lisible, sans secret)."""
+
+
+def changelog_section(path, key):
+    """This module's section of CHANGELOG.md: from its '## <key>' heading up to the next '## ' heading."""
+    with open(path, encoding="utf-8") as f:
+        lignes = f.read().splitlines()
+    section, dans = [], False
+    for ligne in lignes:
+        if ligne.startswith("## "):
+            if dans:
+                break
+            dans = ligne[3:].strip() == key
+            if dans:
+                section.append(ligne)
+        elif dans:
+            section.append(ligne)
+    return "\n".join(section) + "\n" if section else f"No changelog entry for {key} in {path}\n"
 
 
 def _personnel(chemin):
@@ -226,10 +238,9 @@ def principal(argv=None):
         print(f"_courriel.py version {__version__}")
         return 0
     if a.changelog:
-        chemin = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "doc", "_courriel.changelog.txt")
+        chemin = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "CHANGELOG.md")
         try:
-            with open(chemin, encoding="utf-8") as f:
-                sys.stdout.write(f.read())
+            sys.stdout.write(changelog_section(chemin, "apps/_courriel.py"))
         except OSError:
             print("journal introuvable : " + chemin, file=sys.stderr)
             return 1

@@ -1363,8 +1363,8 @@ msgstr "NON configuré : les alertes vont seulement dans le journal système"
 msgid "  To enable it: set SMTP_HOST and NOTIFY_EMAIL_TO in "
 msgstr "  Pour l'activer : renseigner SMTP_HOST et NOTIFY_EMAIL_TO dans "
 
-msgid "  (see doc/app-health-check.conf.example for the other SMTP keys)."
-msgstr "  (voir doc/app-health-check.conf.example pour les autres clés SMTP)."
+msgid "  (see doc/en/app-health-check.conf.example for the other SMTP keys)."
+msgstr "  (voir doc/en/app-health-check.conf.example pour les autres clés SMTP)."
 
 msgid " report(s) in "
 msgstr " rapport(s) dans "

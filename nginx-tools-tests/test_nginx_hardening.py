@@ -788,6 +788,39 @@ class SetupNginxOdoo(EnvTest):
             self.assertTrue(os.path.exists(f), f)
             self.assertTrue(open(f).read().startswith("# vide"))
 
+    def test_fragments_generes_absents_et_nginx_arrete(self):
+        """2.53 : cas réel — les trois fragments générés absents et nginx arrêté. nginx -t refusait tant que shared-ips-geo.conf (étape 12b) n'existait
+        pas : l'étape 12 restaurait alors des team-ips-*.conf VIDES (liste blanche perdue) et « systemctl reload » échouait sur le service arrêté.
+        --update crée les fragments manquants AVANT tout nginx -t, garde les adresses de l'équipe et DÉMARRE nginx arrêté ; --check ne crée rien."""
+        snip = os.path.dirname(self.path("snippets", "x"))
+        self.env["NGINX_HARDENING_SNIPPETS_DIR"] = snip
+        frag = {n: os.path.join(snip, n) for n in ("team-ips-geo.conf", "team-ips-allow.conf", "shared-ips-geo.conf")}
+        for f in frag.values():
+            if os.path.exists(f):
+                os.remove(f)
+        self.liste_blanche(LISTE_EXEMPLE)
+        # nginx -t refuse tant qu'un des trois fragments manque (comme les include par nom exact de odoo-global.conf)
+        tests_f = " && ".join(f'[[ -e {f} ]]' for f in frag.values())
+        self.mock("nginx", f'[[ "$1" == -T ]] && cat {self.d}/nginx-T; [[ "$1" == -t ]] && {{ {tests_f} || {{ echo "nginx: [emerg] open() \\"{frag["shared-ips-geo.conf"]}\\" failed (2: No such file or directory) in /etc/nginx/conf.d/odoo-global.conf:61" >&2; exit 1; }}; }}; exit 0')
+        out = self.setup()                                                       # --check : rien n'est créé, mais le conseil vise --update
+        for f in frag.values():
+            self.assertFalse(os.path.exists(f), f)
+        self.assertIn("ce fragment est GÉNÉRÉ par ce script", out)
+        # nginx arrêté : is-active échoue ; start réussit
+        self.mock("systemctl", f'echo "$@" >> {self.d}/systemctl.log; [[ "$1" == is-active ]] && exit 3; '
+                               f'[[ "$1" == list-unit-files && "$2" == erplibre.service ]] && {{ echo "erplibre.service enabled"; exit 0; }}; exit 0')
+        out = self.setup("--update")
+        self.assertIn("était absent : créé vide pour que nginx -t réussisse", out)
+        self.assertIn("nginx -t : la configuration est valide avant les changements", out)
+        self.assertNotIn("ancienne version restaurée", out)
+        self.assertIn("Adresses de l'équipe régénérées depuis la liste blanche ; nginx -t réussi, nginx démarré (il était arrêté).", out)
+        self.assertRegex(open(frag["team-ips-geo.conf"]).read(), r"(?m)^100\.64\.0\.21\s+1;")      # la liste blanche n'est PAS perdue
+        self.assertRegex(open(frag["team-ips-allow.conf"]).read(), r"(?m)^allow 198\.51\.100\.9;")
+        self.assertTrue(os.path.exists(frag["shared-ips-geo.conf"]))
+        journal = open(os.path.join(self.d, "systemctl.log")).read()
+        self.assertIn("start nginx", journal)
+        self.assertNotIn("reload nginx", journal)
+
     def test_report_err(self):
         out = self.setup("--report-err")
         self.assertIn("--- 13)", out)                                                # le programme s'est exécuté en entier

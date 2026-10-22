@@ -21,12 +21,6 @@
 # Configuration (common rule): /etc/default/host-perf-audit.conf THEN ~/.host-perf-audit.conf (the last one wins; keys CSV, DURATION, INTERVAL, LANGUAGE,
 # NO_GUESTS, TOP, VERBOSE); -c/--config: that file ALONE; the command line takes priority.
 #
-# VERSION HISTORY (summary — see doc/host-perf-audit.changelog.txt for the full detail):
-#   1.4.20261020.211944 — Personal configuration file ~/.host-perf-audit.conf (not .cfg); a legacy one with .cfg is renamed automatically.
-#   1.3.20261019.150215 — New copyright: Services-Conseils Linux and Rencontres Linux au Québec contributors (AGPL-3.0-or-later).
-#   1.2.20261016.173838 — Copyright holder: Services-Linux Conseils Inc
-#   1.1.20261016.151148 — Number of logical cores read from /proc/stat (the one measured), not from the machine running the program.
-#   1.0.20261016.114848 — First version: CPU, memory, disks, PSI, network, ZFS (pools, ARC, latency, datasets), guests; verdict, SSD question, --apply.
 #
 # Usage:
 #   host-perf-audit.py                         one minute of measurement (sample every 5 s), then the report
@@ -50,7 +44,7 @@ __version__ = "1.4.20261020.211944"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
-CHANGELOG_FILE = os.path.join(SCRIPT_DIR, "doc", f"{SCRIPT_NAME}.changelog.txt")
+CHANGELOG_FILE = os.path.join(SCRIPT_DIR, "CHANGELOG.md")
 PVE_DIR = os.environ.get("HOST_PERF_AUDIT_PVE_DIR", "/etc/pve")
 SYSCTL_FILE = os.environ.get("HOST_PERF_AUDIT_SYSCTL_FILE", "/etc/sysctl.d/90-host-perf-audit.conf")
 MODPROBE_FILE = os.environ.get("HOST_PERF_AUDIT_MODPROBE_FILE", "/etc/modprobe.d/zfs-arc-host-perf-audit.conf")
@@ -790,10 +784,27 @@ def report(samples, facts, zfs, smart, names, guests_rows_cb, args, cost):
 
 
 # ---------------------------------------------------------------------------------------------------------------- command line
+def changelog_section(path, key):
+    """This program's section of CHANGELOG.md: from its '## <key>' heading up to the next '## ' heading."""
+    with open(path, encoding="utf-8") as f:
+        lignes = f.read().splitlines()
+    section, dans = [], False
+    for ligne in lignes:
+        if ligne.startswith("## "):
+            if dans:
+                break
+            dans = ligne[3:].strip() == key
+            if dans:
+                section.append(ligne)
+        elif dans:
+            section.append(ligne)
+    return "\n".join(section) + "\n" if section else f"No changelog entry for {key} in {path}\n"
+
+
 def show_changelog():
     signal.signal(signal.SIGPIPE, signal.SIG_DFL)
     try:
-        text = open(CHANGELOG_FILE, encoding="utf-8").read()
+        text = changelog_section(CHANGELOG_FILE, "host-perf-audit.py")
     except OSError:
         print(f"Changelog not found: {CHANGELOG_FILE}", file=sys.stderr)
         return 1

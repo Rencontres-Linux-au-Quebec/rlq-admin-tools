@@ -28,6 +28,20 @@ def declared_version(text):
     return m.group(1) if m else None
 
 
+def changelog_sections():
+    """{cle: [versions]} lu dans CHANGELOG.md a la racine du depot (sections « ## cle », versions « ### x.y.z.w »)."""
+    sections, cle = {}, None
+    with open(os.path.join(SCRIPTS_DIR, "CHANGELOG.md"), encoding="utf-8") as f:
+        for ligne in f:
+            ligne = ligne.rstrip("\n")
+            if ligne.startswith("## "):
+                cle = ligne[3:].strip()
+                sections.setdefault(cle, [])
+            elif ligne.startswith("### ") and cle is not None:
+                sections[cle].append(ligne[4:].strip())
+    return sections
+
+
 def launcher(name):
     return ["bash", script_path(name)] if name.endswith(".sh") else ["python3", script_path(name)]
 
@@ -57,22 +71,27 @@ class Conventions(EnvTest):
                 self.assertEqual(rc, 0, err)
                 self.assertIn(declared_version(text), out)
 
-    def test_resume_entete_contient_version_courante(self):
+    def test_entete_sans_historique(self):
+        """L'historique des versions vit dans CHANGELOG.md : l'en-tete d'un programme ne le repete pas."""
+        motif = re.compile(r"VERSION HISTORY|HISTORIQUE DE VERSION|HISTORIQUE \(|^#\s+\d+\.\d+\.\d{8}\.\d{6}\s")
         for name, text in self.each():
             with self.subTest(programme=name):
-                entete = "\n".join(l for l in text.splitlines()[:200] if l.lstrip().startswith("#"))
-                self.assertIn(declared_version(text), entete, "résumé d'en-tête pas à jour")
+                entete = [l for l in text.splitlines()[:200] if l.lstrip().startswith("#")]
+                fautifs = [l for l in entete if motif.search(l)]
+                self.assertEqual(fautifs, [], "historique de versions dans l'en-tête (à retirer : voir CHANGELOG.md)")
 
     def test_changelog_plus_recent_en_premier(self):
+        """CHANGELOG.md (racine du depot) : une section « ## NOM » par programme ; sa 1re version « ### » est la version
+        courante et les versions sont decroissantes (plus recente d'abord)."""
+        sections = changelog_sections()
         for name, text in self.each():
             with self.subTest(programme=name):
-                # Changelog dans le sous-répertoire doc/ à côté du programme (ex. nginx-tools-tests/doc/ pour nginx-tools-tests/run-all.sh)
-                cl = os.path.join(SCRIPTS_DIR, os.path.dirname(name), "doc", os.path.splitext(os.path.basename(name))[0] + ".changelog.txt")
-                self.assertTrue(os.path.isfile(cl), f"changelog absent : {cl}")
-                versions = re.findall(r"^## " + VERSION_RE, open(cl, encoding="utf-8").read(), re.M)
-                self.assertTrue(versions, "aucune entrée « ## version » dans le changelog")
-                self.assertEqual(".".join(versions[0]), declared_version(text), "1re entrée ≠ version courante")
-                cles = [(int(a), int(b), c + d) for a, b, c, d in versions]
+                cle = name if name.startswith("apps/") else os.path.basename(name)
+                self.assertIn(cle, sections, f"pas de section « ## {cle} » dans CHANGELOG.md")
+                versions = sections[cle]
+                self.assertTrue(versions, "aucune entrée « ### version » dans la section du programme")
+                self.assertEqual(versions[0], declared_version(text), "1re entrée ≠ version courante")
+                cles = [tuple(int(x) for x in v.split(".")) for v in versions]
                 self.assertEqual(cles, sorted(cles, reverse=True), "versions non décroissantes (plus récente d'abord)")
 
     def test_changelog_sans_ansi_si_redirige(self):
@@ -116,18 +135,15 @@ class SansApplication(EnvTest):
                     self.assertEqual(rc, 0, err)
                     self.assertNotIn("ERREUR", err)
 
-    def test_changelog_repli_sur_l_ancien_emplacement(self):
-        """Changelog encore à côté du programme (installation pas encore réorganisée) : toujours trouvé."""
-        import shutil
+    def test_changelog_montre_seulement_sa_section(self):
+        """--changelog n'affiche que la section du programme, sans bandeau de configuration."""
         for name in ("nginx-log-audit.sh", "app-log-check.py"):
             with self.subTest(programme=name):
-                prog = self.prepare(name)
-                base = os.path.splitext(name)[0]
-                dossier = os.path.dirname(prog)
-                shutil.move(os.path.join(dossier, "doc", f"{base}.changelog.txt"), os.path.join(dossier, f"{base}.changelog.txt"))
-                rc, out, err = self.run_cmd((["bash"] if name.endswith(".sh") else ["python3"]) + [prog, "--changelog"])
+                rc, out, err = self.run_cmd(launcher(name) + ["--changelog"])
                 self.assertEqual(rc, 0, err)
-                self.assertRegex(out, r"(?m)^## \d+\.\d+\.\d{8}", "changelog non trouvé à l'ancien emplacement")
+                titres = re.findall(r"(?m)^## (\S+)", out)
+                self.assertEqual(titres, [os.path.basename(name)], "autres sections ou titre absent")
+                self.assertNotIn("Configuration :", out, "bandeau de configuration affiché avec --changelog")
 
 
 class CompatibilitePython38(unittest.TestCase):
@@ -213,12 +229,12 @@ class RegleDesConfigurations(unittest.TestCase):
                 self.assertIn(".conf", texte)
 
     def test_exemple_de_configuration_pour_chaque_programme(self):
-        """doc/PROGRAMME.conf.example existe, cite la règle de lecture et la clé LANGUAGE."""
+        """doc/en/PROGRAMME.conf.example existe, cite la règle de lecture et la clé LANGUAGE."""
         for nom, (systeme, perso) in self.AVEC_CONFIGURATION.items():
             base = nom.rsplit(".", 1)[0]
             with self.subTest(programme=base):
-                chemin = script_path(f"doc/{base}.conf.example")
-                self.assertTrue(os.path.isfile(chemin), f"doc/{base}.conf.example absent")
+                chemin = script_path(f"doc/en/{base}.conf.example")
+                self.assertTrue(os.path.isfile(chemin), f"doc/en/{base}.conf.example absent")
                 texte = open(chemin, encoding="utf-8").read()
                 self.assertIn(f"/etc/default/{systeme}", texte)
                 self.assertIn(perso, texte)
@@ -344,7 +360,8 @@ class CheminSousCron(unittest.TestCase):
                                         ("/tmp/mocks:/usr/sbin:/usr/bin", "/tmp/mocks:/usr/sbin:/usr/bin:/usr/local/sbin:/sbin")):
                     r = subprocess.run(["/bin/bash", "-c", bloc.group(0) + 'printf %s "$PATH"'], env={"PATH": depart},
                                        capture_output=True, text=True)
-                    self.assertEqual(r.stdout, attendu)
+                    # suffixe : un bash qui ajoute ses propres dossiers en tête (environnement) ne fausse pas le test
+                    self.assertTrue(r.stdout.endswith(attendu), r.stdout)
                 # Pendant les tests (NGINX_TOOLS_TESTS) : PATH inchangé, /usr/sbin/ufw & co jamais joignables
                 r = subprocess.run(["/bin/bash", "-c", bloc.group(0) + 'printf %s "$PATH"'],
                                    env={"PATH": "/usr/bin:/bin", "NGINX_TOOLS_TESTS": "1"}, capture_output=True, text=True)

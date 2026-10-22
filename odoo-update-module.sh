@@ -75,22 +75,6 @@
 #   WAIT=90                       attente maximale du démarrage (service actif, puis port à l'écoute), en secondes
 #   WAIT_QUIET=15                 attente maximale d'un site calme avant l'arrêt d'Odoo, en minutes (0 = ne pas attendre)
 #
-# HISTORIQUE (résumé ; détail : doc/odoo-update-module.changelog.txt)
-#   1.14.20261020.211944 — Personal configuration file ~/.odoo-update-module.conf (not .cfg); a legacy one with .cfg is renamed automatically.
-#   1.13.20261020.112434 — Header fields padded in columns (pad_cols): an accented label no longer shifts its value.
-#   1.12.20261019.150215 — New copyright: Services-Conseils Linux and Rencontres Linux au Québec contributors (AGPL-3.0-or-later).
-#   1.11.20261016.173838 — Quiet site before stopping Odoo, copy of the modules, check after the start, automatic rollback, Ctrl+C at once
-#   1.10.20261015.170611 — ShellCheck : variable locale « c » inutilisée retirée de trouver_conf (SC2034).
-#   1.9.20261015.143436 — --anonymize : affichage anonymisé (pseudonymes stables).
-#   1.8.20261015.092124 — ShellCheck : 5 signalements corrigés (C_BLUE inutilisé, boucle à un élément, motif développé, apostrophes voulues).
-#   1.7.20261015.080630 — Journaux de mise à jour gardés LOG_KEEP_DAYS jours (180) en plus des 10 plus récents.
-#   1.6.20261014.214019 — Version du manifeste de l'archive affichée dès l'en-tête.
-#   1.5.20261014.203136 — Détection automatique du service d'Odoo (erplibre* ou odoo*).
-#   1.4.20261014.190654 — Archive .zip décompressée (--zip, --addons-dir) ; versions des modules avant / après.
-#   1.3.20261014.175821 — Fichier commun app-default.conf ; clé VERBOSE.
-#   1.2.20261014.174013 — Préchauffage du cache d'Odoo (odoo-warmup.py) après le redémarrage ; --no-warmup.
-#   1.1.20261014.161550 — Sortie plus lisible : en-tête compact, étapes numérotées, ✔ ✖ ⚠ en couleur, détails en gris.
-#   1.0.20261014.110643 — Première version : arrêt du service, mise à jour des modules rlq_* qui se termine vraiment (--stop-after-init, délai maximal), contrôle du journal, redémarrage par systemd.
 # ========================================================================================================================
 
 set -euo pipefail
@@ -101,9 +85,13 @@ readonly SCRIPT_VERSION="1.14.20261020.211944"
 SCRIPT_NAME="$(basename "${BASH_SOURCE[0]}" .sh)"; readonly SCRIPT_NAME
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
 SCRIPT_PATH="$SCRIPT_DIR/$(basename "${BASH_SOURCE[0]}")"; readonly SCRIPT_PATH
-CHANGELOG_FILE="$SCRIPT_DIR/doc/${SCRIPT_NAME}.changelog.txt"
-if [[ ! -r "$CHANGELOG_FILE" && -r "$SCRIPT_DIR/${SCRIPT_NAME}.changelog.txt" ]]; then CHANGELOG_FILE="$SCRIPT_DIR/${SCRIPT_NAME}.changelog.txt"; fi
+CHANGELOG_FILE="$SCRIPT_DIR/CHANGELOG.md"
 readonly CHANGELOG_FILE
+
+# Section of this program in CHANGELOG.md (from its "## <file name>" heading to the next "## " heading).
+changelog_section() {
+    awk -v cle="${BASH_SOURCE[0]##*/}" '/^## /{dans=($0 == "## " cle); if (dans) print; next} dans' "$CHANGELOG_FILE"
+}
 # Langue d'affichage (en ou fr) : --lang, ODOO_UPDATE_MODULE_LANG, LANGUAGE du fichier de configuration, LC_ALL / LANG — apps/_i18n.sh traduit la sortie.
 if [[ -r "$SCRIPT_DIR/apps/_i18n.sh" ]]; then
     # shellcheck source=/dev/null  # bibliothèque livrée à côté du programme
@@ -161,7 +149,7 @@ if declare -F config_lire >/dev/null; then
     config_defaut DO_WARMUP WARMUP --no-warmup booleen
     config_defaut VERBOSE VERBOSE --verbose booleen
     config_defaut ZIP_ARG ZIP --zip texte
-    case " $* " in *" --version "*|*" --help "*|*" -h "*) ;; *) config_afficher ;; esac
+    case " $* " in *" --version "*|*" --help "*|*" -h "*|*" --changelog "*) ;; *) config_afficher ;; esac
 fi
 
 while [[ $# -gt 0 ]]; do
@@ -176,9 +164,9 @@ while [[ $# -gt 0 ]]; do
             fi
             if [[ -t 1 ]]; then
                 # Numeros de version en cyan gras ; SIGPIPE (ex. "| head") laisse terminer proprement par defaut.
-                sed -E $'s/([0-9]+\\.[0-9]+\\.[0-9]{8}\\.[0-9]{6})/\\x1b[1;36m\\1\\x1b[0m/' "$CHANGELOG_FILE" || true  # lecteur ferme plus tot (| head) : SIGPIPE attendu
+                changelog_section | sed -E $'s/([0-9]+\\.[0-9]+\\.[0-9]{8}\\.[0-9]{6})/\\x1b[1;36m\\1\\x1b[0m/' || true  # lecteur ferme plus tot (| head) : SIGPIPE attendu
             else
-                cat "$CHANGELOG_FILE" || true  # lecteur ferme plus tot (| head) : SIGPIPE attendu
+                changelog_section || true  # lecteur ferme plus tot (| head) : SIGPIPE attendu
             fi
             exit 0
             ;;
@@ -187,7 +175,7 @@ while [[ $# -gt 0 ]]; do
         --db) ONLY_DB="${2:-}"; shift 2 ;;
         --dry-run) DO_DRY_RUN=1; shift ;;
         --force) DO_FORCE=1; shift ;;
-        -h|--help) sed -n '/^# Usage :/,/^# HISTORIQUE/p' "$SCRIPT_PATH" | sed '$d; s/^# \{0,1\}//'; exit 0 ;;
+        -h|--help) sed -n '/^# Usage :/,/^# =/p' "$SCRIPT_PATH" | sed '$d; s/^# \{0,1\}//'; exit 0 ;;
         --lang) shift 2 ;;                     # lu avant (apps/_i18n.sh)
         --module)
             if (( CLI_MODULES == 0 )); then MODULES_MOTIFS=""; CLI_MODULES=1; fi

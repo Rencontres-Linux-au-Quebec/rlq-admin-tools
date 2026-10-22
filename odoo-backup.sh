@@ -58,30 +58,6 @@
 #   REMOTE=                       copie rsync facultative, ex. root@serveur-de-sauvegarde.exemple:/srv/sauvegardes/odoo
 #   TIMER_TIME=02:30              heure(s) de la sauvegarde automatique : une ou plusieurs HH:MM (ex. TIMER_TIME=09:00 16:00 23:00)
 #
-# HISTORIQUE (résumé ; détail : doc/odoo-backup.changelog.txt)
-#   1.19.20261020.211944 — Personal configuration file ~/.odoo-backup.conf (not .cfg); a legacy layer with .cfg is renamed automatically.
-#   1.18.20261019.150215 — New copyright: Services-Conseils Linux and Rencontres Linux au Québec contributors (AGPL-3.0-or-later).
-#   1.17.20261016.173838 — Ctrl+C answered at once during pg_dump, tar and rsync
-#   1.16.20261015.143436 — --anonymize : affichage anonymisé (pseudonymes stables).
-#   1.15.20261015.073057 — Date de modification des fichiers de configuration lus.
-#   1.14.20261014.175821 — Fichier commun app-default.conf (VERBOSE, DEBUG_LEVEL).
-#   1.13.20261012.103600 — Fichier de configuration créé au premier démarrage (toutes les options en commentaire) ; modèle doc/odoo-backup.conf.example complété.
-#   1.12.20261010.215000 — Affichage francais ou anglais (--lang, LANGUAGE du fichier de configuration) ; -c, synonyme de --config ; aide en anglais pour les arguments.
-#   1.11.20261008.120306 — Couleurs conservees avec --report-err.
-#   1.10.20261002.214327 — Premiere ligne de TOUTE execution (meme --help) : nom et version.
-#   1.9.20261002.073514 — Option --verbose : chaque commande externe (psql, pg_dump, tar, rsync, systemctl) est affichee.
-#   1.8.20260930.163902 — Option --report-err : rapport d'erreurs a copier-coller en fin d'execution.
-#   1.7.20260930.132809 — Plusieurs sauvegardes par jour (TIMER_TIME a plusieurs heures, --times) ; KEEP_RECENT_DAYS ; seuil d'alerte
-#                          calcule d'apres les heures.
-#   1.6.20260930.123230 — Configuration en couches (/etc/default puis ~), ligne de commande prioritaire, fichiers lus affiches ;
-#                          ancien fichier renomme AVANT toute operation sur le timer ; timer vers un fichier absent signale.
-#   1.5.20260930.093133 — Configuration dans /etc/default/odoo-backup.conf (creee au premier lancement) ; ancien emplacement lu en repli
-#                          avec avertissement ; --config introuvable = erreur ; timer sans chemin en dur.
-#   1.4.20260930.081347 — Motif « A && B || C » remplace par un « if » (ShellCheck SC2015).
-#   1.3.20260929.195459 — Aide : options par ordre alphabetique.
-#   1.2.20260929.185720 — --status : etat du timer lu correctement (systemctl is-active).
-#   1.1.20260929.180340 — Format d'Odoo (dump.sql, manifest.json, filestore/) en .zip ou .tar.xz ; --restore.
-#   1.0.20260929.150745 — Première version : pg_dump vérifié, filestore, SHA256SUMS, rétention, rsync, --test-restore, timer.
 # ========================================================================================================================
 
 set -euo pipefail
@@ -91,13 +67,17 @@ for _d in /usr/local/sbin /usr/sbin /sbin; do [[ -n "${NGINX_TOOLS_TESTS:-}" ]] 
 # (Pendant la suite de tests, NGINX_TOOLS_TESTS désactive cet ajout : /usr/sbin/ufw & co resteraient sinon joignables.)
 export PATH
 
-readonly SCRIPT_VERSION="1.19.20261020.211944"
+readonly SCRIPT_VERSION="1.20.20261022.012000"
 SCRIPT_NAME="$(basename "${BASH_SOURCE[0]}" .sh)"; readonly SCRIPT_NAME
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
 SCRIPT_PATH="$SCRIPT_DIR/$(basename "${BASH_SOURCE[0]}")"; readonly SCRIPT_PATH
-CHANGELOG_FILE="$SCRIPT_DIR/doc/${SCRIPT_NAME}.changelog.txt"
-if [[ ! -r "$CHANGELOG_FILE" && -r "$SCRIPT_DIR/${SCRIPT_NAME}.changelog.txt" ]]; then CHANGELOG_FILE="$SCRIPT_DIR/${SCRIPT_NAME}.changelog.txt"; fi
+CHANGELOG_FILE="$SCRIPT_DIR/CHANGELOG.md"
 readonly CHANGELOG_FILE
+
+# Section of this program in CHANGELOG.md (from its "## <file name>" heading to the next "## " heading).
+changelog_section() {
+    awk -v cle="${BASH_SOURCE[0]##*/}" '/^## /{dans=($0 == "## " cle); if (dans) print; next} dans' "$CHANGELOG_FILE"
+}
 # Langue d'affichage (en ou fr) : --lang, ODOO_BACKUP_LANG, LANGUAGE du fichier de configuration, LC_ALL / LANG — apps/_i18n.sh traduit la sortie (rien ne change en français).
 if [[ -r "$SCRIPT_DIR/apps/_i18n.sh" ]]; then
     # shellcheck source=/dev/null  # bibliothèque livrée à côté du programme
@@ -154,13 +134,13 @@ while [[ $# -gt 0 ]]; do
             fi
             if [[ -t 1 ]]; then
                 # Numeros de version en cyan gras ; SIGPIPE (ex. "| head") laisse terminer proprement par defaut.
-                sed -E $'s/([0-9]+\\.[0-9]+\\.[0-9]{8}\\.[0-9]{6})/\\x1b[1;36m\\1\\x1b[0m/' "$CHANGELOG_FILE" || true  # lecteur ferme plus tot (| head) : SIGPIPE attendu
+                changelog_section | sed -E $'s/([0-9]+\\.[0-9]+\\.[0-9]{8}\\.[0-9]{6})/\\x1b[1;36m\\1\\x1b[0m/' || true  # lecteur ferme plus tot (| head) : SIGPIPE attendu
             else
-                cat "$CHANGELOG_FILE" || true  # lecteur ferme plus tot (| head) : SIGPIPE attendu
+                changelog_section || true  # lecteur ferme plus tot (| head) : SIGPIPE attendu
             fi
             exit 0
             ;;
-        -h|--help) sed -n '/^# Usage :/,/^# HISTORIQUE/p' "$SCRIPT_PATH" | sed '$d; s/^# \{0,1\}//'; exit 0 ;;
+        -h|--help) sed -n '/^# Usage :/,/^# =/p' "$SCRIPT_PATH" | sed '$d; s/^# \{0,1\}//'; exit 0 ;;
         --report-err) shift ;;                 # traité avant (apps/_rapport.sh) ; accepté ici avec --help, --version…
         *) echo "Argument inconnu: $1 (voir --help)" >&2; exit 1 ;;
     esac
@@ -273,7 +253,7 @@ for fichier_config in ${FICHIERS_CONFIG[@]+"${FICHIERS_CONFIG[@]}"}; do
         printf -v "${BASH_REMATCH[1]}" '%s' "$valeur"
     done < "$fichier_config"
 done
-# Fichier COMMUN à tous les programmes (app-default.conf, puis ~/.app-default.conf) : seulement VERBOSE et DEBUG_LEVEL ; la clé du fichier du programme l'emporte.
+# Fichier COMMUN à tous les programmes (app-default.conf, puis ~/.app-default.conf) : VERBOSE et DEBUG_LEVEL lus ici ; LANGUAGE et ANONYMIZE sont lus par apps/_i18n.sh ; la clé du fichier du programme l'emporte.
 if (( ! CONFIG_EXPLICITE )); then
     commun_perso="${HOME:-/root}/.app-default.conf"
     if declare -F config_migrer_ancien >/dev/null; then config_migrer_ancien "$commun_perso"; commun_perso="$CFG_A_LIRE"; fi     # 1.19: legacy ~/.app-default.cfg renamed

@@ -33,113 +33,6 @@
 # sending function). Without SMTP configured: alert in the system journal (journalctl -t web-monitor) and in
 # the complete report /var/log/web-monitor/, always written (30 days kept).
 #
-# VERSION HISTORY (summary — see web-monitor.changelog.txt for the full detail):
-#   2.76.20261020.211944 — Personal configuration file ~/.web-monitor.conf (not .cfg); a legacy one with .cfg is renamed automatically.
-#   2.75.20261020.164846 — Merge of 2.73 (bans: --reason passed to nginx-log-audit.sh) with 2.74 (error messages translated whole, --stats e-mail domains).
-#   2.74.20261020.112434 — Error messages that start with an option (« --days expects … ») translated whole again (« … a number of jours … »).
-#   2.73.20261020.161238 — Bans: the reason is passed to nginx-log-audit.sh (--reason) and kept in the ban journal.
-#   2.72.20261019.150215 — New copyright: Services-Conseils Linux and Rencontres Linux au Québec contributors (AGPL-3.0-or-later).
-#   2.71.20261019.115217 — Fix: field and sort keys, option names shown in English in every language (« browsers », not « navigateurs »); French field names accepted.
-#   2.70.20261019.012211 — --table: every 5th line underlined; « Account created », « IP country » (RDAP / whois) and « VPN » (VPN, Tor, relay, hosting) columns; --sort created|vpn.
-#   2.69.20261017.214019 — --table: « IP seen » column, title of the sorted column in color, tags off by default; keys CSV, GROUP, INTERNET; config keys never start --list-users.
-#   2.68.20261017.200717 — Fix: --list-users --table crashed (KeyError on a date) when bans.tsv exists.
-#   2.67.20261017.105442 — --list-users --table: compact table (events, surveys, phone, country, city, groups, tags), colors; --table-fields, --group, --csv, --repeat-header, --stats; language origin.
-#   2.66.20261016.173838 — --list-users --table: pages read / written, MB received / sent; Ctrl-C of the child programs
-#   2.65.20261016.114848 — Suspicious activity of logged-in Odoo users (summary, --suspect-users), account investigation, --ban-odoo-user / --unban-odoo-user, --watch-odoo-user; --table aligned with Chinese names.
-#   2.64.20261016.084003 — --list-users --table: operating systems, browsers and pages viewed columns; --sort os|pages.
-#   2.63.20261015.225229 — Source code, comments and changelog in English (display stays French/English via lang/web-monitor.fr.po).
-#   2.62.20261015.143436 — --anonymize: anonymized display (stable pseudonyms).
-#   2.61.20261015.080630 — Root required at the start for anything that modifies, "Limited rights" notice when reading; reports kept 180 days (LOG_KEEP_DAYS).
-#   2.60.20261015.073057 — Summary columns aligned on the digits; offer to rerun with sudo for the fixes; modification date of the config files; pages viewed per address.
-#   2.59.20261015.065821 — Banned IPs that look valid (to unban); connections to Odoo; columns and units in English.
-#   2.58.20261014.175821 — Shared file app-default.conf; VERBOSE key.
-#   2.57.20261013.153500 — recommended-bans.json written in one go (temporary file then rename).
-#   2.56.20261013.105200 — Ban recommendations kept 48 h (a run no longer erases them).
-#   2.55.20261013.091500 — BigBlueButton server: any CMS is sensitive.
-#   2.54.20261013.084000 — CMS (WordPress: normal /wp-*); 403 deny rules without log_format.
-#   2.53.20261013.081500 — --save-recommended (with --dry-run); /wp, /wordpress, /_ignition, /debug/default sensitive.
-#   2.52.20261012.164500 — Numbers without thousands separator; erase (^H) working in prompts.
-#   2.51.20261012.103600 — Configuration file created at first start (all options commented out); template doc/web-monitor.conf.example completed.
-#   2.50.20261012.094953 — Summary: right-aligned digits (percentages in their column), labels and headers translated before alignment.
-#   2.49.20261011.144500 — Ctrl+C: confirmation before quitting (apps/_i18n.py).
-#   2.48.20261010.215000 — Configuration file (LANGUAGE and options), -c/--config; PO catalogs (lang/*.po, instead of TSV); table: columns +1 character.
-#   2.47.20261010.200927 — Display in French or English (--lang, LC_ALL/LANG); options and --sort keys in English; --table: N column, narrower columns.
-#   2.46.20261010.173051 — --table: login minutes fixed (journal time zone -04:00), columns of 5 to 30 characters depending on content, nginx logs read displayed.
-#   2.45.20261010.143016 — --list-users --table (table, 30-character columns, estimated login minutes), --sort KEY and --reverse.
-#   2.44.20261007.171721 — --list-users --details: the 5 busiest days of each user.
-#   2.43.20261007.093208 — Whitelist and places read from /etc/default (apps/_listes.py); address of a shared place: the place name.
-#   2.42.20261002.214327 — geoip-bin recommendation with proposed installation; First line of EVERY run (even --help): name and version.
-#   2.41.20261002.165312 — Prompts: backspace (readline); summary: all IP addresses of the accounts, without "(+N)".
-#   2.40.20261002.120134 — Leak diagnosis: "NO rule targets this path" (missing rule) distinct from a badly included server block; nginx -T evaluated.
-#   2.39.20261002.073514 — --verbose passed to all launched programs; Odoo UID in --list-users --details.
-#   2.38.20261001.143624 — BBB summary: versions, configuration, compatibility, update since the last --update.
-#   2.37.20261001.090925 — Redirect (3xx) by nginx itself to a malicious URL: rejected, no longer "not filtered".
-#   2.36.20260930.225745 — Recommendations: diagnoses made by the program (nginx -T, investigation, real test, robots.txt);
-#                          fixes offered at the end of the summary; --apply option.
-#   2.35.20260930.163902 — --report-err option: error report to copy-paste at the end of the run.
-#   2.34.20260930.132809 — Age threshold of the last backup read from the odoo-backup.sh state (several backups per day).
-#   2.33.20260930.123230 — Timers of our tools pointing to a missing script or configuration: alert and --status; app-health-check
-#                          configuration read in layers.
-#   2.32.20260930.093133 — Backup recommendation: configuration in /etc/default/odoo-backup.conf.
-#   2.31.20260930.090527 — Recommendations: Googlebot refused with 403 on BBB (not wanted in the index: LOW, pages requested);
-#                          browser 403s: case "many addresses, one of which dominates".
-#   2.30.20260930.084200 — Ctrl-C: no more traceback (less and anywhere); clean exit, code 130.
-#   2.29.20260930.081347 — 403 deny recommendation: ordinary pages / scanner URLs, distinct addresses, response size.
-#   2.28.20260930.072401 — Logins: a blank line and the name before each account, one piece of information per line, key figures in
-#                          color; BBB recommendations fixed (rules installed by nginx-hardening.sh, no more catch-all sensor).
-#   2.27.20260929.195459 — Help: options in alphabetical order; web jails recommendation based on LOADED jails
-#                          (fail2ban-client status) and stopped fail2ban reported.
-#   2.26.20260929.193615 — --days N option (summary, --list-users); vocabulary: "access to sensitive files".
-#   2.25.20260929.192148 — Summary: D-1 and D-2 columns; Odoo workers: options of the running process and of the start
-#                          script (run.sh, odoo_bin.sh) take priority over the configuration file.
-#   2.24.20260929.151644 — Odoo backup: alert (odoo-backup.sh --status) if too old or failing; HIGH recommendation without backup.
-#   2.23.20260929.145745 — Summary: IPs of known users (whole journal history), including outside the team;
-#                          e-mail recommendation pointing to doc/email-setup.md.
-#   2.22.20260929.144332 — Log line length guard (64 KB) before the regular expressions.
-#   2.21.20260929.134422 — Lock (fcntl) against concurrent runs (run, bans, timer).
-#   2.20.20260929.130357 — --list-users: details only with --details; shared addresses flagged;
-#                          limit_memory_hard=0 recognized as UNLIMITED (worker analysis, recommendation).
-#   2.19.20260929.123856 — Whitelist = nginx + single team list; section "Use by the whitelist".
-#   2.18.20260929.083206 — Summary: refusals by the security rules (blocked-probes.log) counted, coverage and disk space.
-#   2.17.20260929.080620 — Requested domain name (nginx combined_host format): most requested names, names of
-#                          malicious requests not filtered, names concerned in the recommendation.
-#   2.16.20260928.231233 — Share of logged-in users' traffic; per-account details (pages, errors, Odoo modules,
-#                          busiest day, most viewed pages) in the summary and --list-users (the 5 busiest days).
-#   2.15.20260928.224616 — --list-users option; dated "malicious requests" recommendation, with a procedure to follow.
-#   2.14.20260928.220753 — nginx whitelist: recognized ranges (in_whitelist).
-#   2.13.20260928.215040 — Summary: successful Odoo logins per account (or BigBlueButton participants), banned IPs flagged.
-#   2.12.20260928.211633 — PATH not completed during tests; pointer to doc/app-health-check.conf.example.
-#   2.11.20260928.141712 — Summary: RECOMMENDATIONS section ranked by importance; Python 3.8 fix (removesuffix).
-#   2.10.20260928.103708 — Summary: log disk space and projection (3/6/12 months); requests from our programs
-#                          excluded from all figures; Odoo worker analysis; --unban-check option.
-#   2.9.20260928.094028 — Summary: devices of human visitors (computer, phone, tablet); nginx 404s
-#                          counted as rejections; version displayed at startup and in the summary.
-#   2.8.20260928.091309 — "CrowdSec synchronization failing" alert (consecutive failures); PATH completed; server
-#                          tests recognized by the app-health-check/ marker anywhere in the User-Agent.
-#   2.7.20260928.083340 — Detailed reason for repeat offenders (days, jail); funnel: "of which malicious URLs not
-#                          filtered by nginx" and list of these URLs in the highlights.
-#   2.6.20260927.224845 — Summary: malicious URLs by their shape (no longer by 403/444 code); blocked clients by
-#                          family; server tests excluded; flagged IPs (whitelist, this server); postgresql@*; I/O.
-#   2.5.20260927.220922 — Recommended IPs: question at the end of the run ([o] all, [c] one by one, [N]) and
-#                          --ban-recommended (command given in the e-mail); precise extraction, investigation by investigation.
-#   2.4.20260927.215447 — --status rewritten as a review: timer (installed or not, active, interval, next and last run),
-#                          last run (age, delay), last alert, e-mail (configured or not), reports.
-#   2.3.20260927.202645 — Changelog in the doc/ subfolder (fallback on the old location); --changelog, --status and the timer without a detectable application.
-#   2.2.20260927.200712 — State files in English: last-alert.json, last-run; reading the files of the other tools
-#                          under their new name (old name accepted as long as it is not migrated).
-#   2.1.20260927.192332 — Funnel (arrivals, rejected by nginx, passed to the application, of which suspicious); packets
-#                          blocked at the firewall; malicious URLs and valid pages; offer to open the report in less.
-#   2.0.20260927.145909 — Renamed (old name: surveillance-odoo.py); application profiles (--app, passed to the tools);
-#                          summary according to the profile; RESOURCES block (what remains in the VM or LXC, consumption per service).
-#   1.4.20260927.101228 — Option renamed --summary (option names in English); 30-day highlights;
-#                          exact coverage of each log (date, files, rotation) and change to make to
-#                          keep 3 months.
-#   1.3.20260927.094449 — New --bilan option: figures summary (today, 7 days, 30 days) of traffic,
-#                          blocks and attacks, and Odoo errors.
-#   1.2.20260926.211237 — Summary of the points to review at the end of a run; system journal: full content of the alerts
-#                          and a status line on each run; --changelog: default SIGPIPE.
-#   1.1.20260926.165635 — Unused variable removed (new_titles): found by ruff (F841).
-#   1.0.20260926.075538 — Initial version.
 #
 # Usage:
 #   web-monitor.py                      runs the tools, alerts if necessary (default, = --run)
@@ -197,9 +90,7 @@ __version__ = "2.76.20261020.211944"
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
 # Changelog in the doc/ subdirectory; fallback on the old location as long as the installation is not reorganized.
-CHANGELOG_FILE = next((p for p in (os.path.join(SCRIPT_DIR, "doc", f"{SCRIPT_NAME}.changelog.txt"),
-                                   os.path.join(SCRIPT_DIR, f"{SCRIPT_NAME}.changelog.txt")) if os.path.isfile(p)),
-                      os.path.join(SCRIPT_DIR, "doc", f"{SCRIPT_NAME}.changelog.txt"))
+CHANGELOG_FILE = os.path.join(SCRIPT_DIR, "CHANGELOG.md")
 STATE_DIR = os.environ.get("WEB_MONITOR_STATE_DIR", "/var/lib/web-monitor")
 LOG_DIR = os.environ.get("WEB_MONITOR_LOG_DIR", "/var/log/web-monitor")
 SYSTEMD_DIR = os.environ.get("WEB_MONITOR_SYSTEMD_DIR", "/etc/systemd/system")
@@ -4803,7 +4694,7 @@ def show_status():
     else:
         print(f"  {BAD}NOT configured: alerts only go to the system journal{END_BAD} (journalctl -t web-monitor).")
         print(f"  To enable it: set SMTP_HOST and NOTIFY_EMAIL_TO in {'/etc/default/app-health-check.conf'}")
-        print("  (see doc/app-health-check.conf.example for the other SMTP keys).")
+        print("  (see doc/en/app-health-check.conf.example for the other SMTP keys).")
 
     print()
     print("REPORTS")
@@ -4843,13 +4734,30 @@ def take_lock():
     os.environ["VERROU_TENU_web_monitor"] = "1"
 
 
+def changelog_section(path, key):
+    """This program's section of CHANGELOG.md: from its '## <key>' heading up to the next '## ' heading."""
+    with open(path, encoding="utf-8") as f:
+        lignes = f.read().splitlines()
+    section, dans = [], False
+    for ligne in lignes:
+        if ligne.startswith("## "):
+            if dans:
+                break
+            dans = ligne[3:].strip() == key
+            if dans:
+                section.append(ligne)
+        elif dans:
+            section.append(ligne)
+    return "\n".join(section) + "\n" if section else f"No changelog entry for {key} in {path}\n"
+
+
 def show_changelog():
     # SIGPIPE has its default behavior (like cat or grep): if the reader closes early ("| head"), the
     # process stops silently. Python ignores it otherwise, and a BrokenPipeError can occur until the final
     # flush of the buffers ("Exception ignored on flushing sys.stdout"), out of reach of any try/except.
     signal.signal(signal.SIGPIPE, signal.SIG_DFL)
     try:
-        text = open(CHANGELOG_FILE, encoding="utf-8").read()
+        text = changelog_section(CHANGELOG_FILE, "web-monitor.py")
     except OSError:
         print(f"Changelog not found: {CHANGELOG_FILE}", file=sys.stderr)
         return 1
@@ -4940,6 +4848,8 @@ def launch_with_report(func):
 
 def show_configuration(defaults, problems):
     """Two start lines: WHICH configuration file(s) were read, and the important options that result (as well as the display language)."""
+    if "--changelog" in sys.argv:          # --changelog shows only the journal
+        return
     try:
         print(_load_module("_config").ligne_configuration(CONFIG_FILES, EXPLICIT_CONFIG, SCRIPT_NAME))
     except Exception:

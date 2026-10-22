@@ -10,9 +10,6 @@
 # _record.py — test RECORDING for app-log-live.py (R key, --record-test-log): everything needed to analyze one test of the site,
 # gathered over the recording window and packed into one .tar.xz (shared module, apps/).
 #
-# VERSION HISTORY (summary — see doc/_record.changelog.txt for the full detail):
-#   1.1.20261021.235747 — Steps of the test (N key of app-log-live.py): steps.txt in the archive, START / END lines in records.log.
-#   1.0.20261020.230008 — Creation: filtered stream, raw log extracts, systemd journal window, network and PostgreSQL samples, database snapshots, README, .tar.xz.
 """One recording = one window of time [start, stop] and one archive `app-log-live-record-HOST-YYYYMMDD-HHMMSS[-label].tar.xz`:
 
   README.txt          what the archive holds (French and English): times (local and UTC), server, versions, label, filters, counts, missing sources
@@ -49,7 +46,7 @@ import tempfile
 import threading
 import time
 
-__version__ = "1.1.20261021.235747"
+__version__ = "1.1.20261022.083937"
 
 SAMPLE_S = 10                               # seconds between two network / PostgreSQL samples
 RAW_MAX_BYTES = 50 * 1024 * 1024            # at most this much read from ONE log file (the beginning of the window is kept, the rest is noted as cut)

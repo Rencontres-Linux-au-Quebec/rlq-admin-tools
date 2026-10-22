@@ -230,8 +230,9 @@ def messages_francais_sh(chemin):
     (aide, modèle de fichier) est donc compté ligne par ligne. Le code d'autres langages (python embarqué) n'est pas un message."""
     res = {}
     source = open(chemin, encoding="utf-8").read()
-    if "/^# Usage :/,/^# HISTORIQUE/p" in source:                 # aide affichée depuis le bloc de commentaires de l'en-tête (sed -n '/^# Usage :/,/^# HISTORIQUE/p')
-        debut, fin = source.index("\n# Usage :"), source.index("\n# HISTORIQUE")
+    if "/^# Usage :/,/^# =/p" in source:                          # aide affichée depuis le bloc de commentaires de l'en-tête (sed -n '/^# Usage :/,/^# =/p')
+        debut = source.index("\n# Usage :")
+        fin = source.index("\n# =", debut)
         for k, brut in enumerate(source[debut + 1:fin].split("\n")):
             partie = re.sub(r"^# ?", "", brut)
             if len(partie.strip()) >= 4:                                   # tout le bloc d'aide : chaque ligne est affichée
