@@ -49,6 +49,28 @@ Earlier history was archived outside this repository when this file was created.
 
 ## app-log-live.py
 
+### 1.99.20261022.122804
+
+- Title: Steps line (F key, --steps-line) and a 60-minute maximum for test recordings.
+- Reason: During a test recording the steps (N key) are marked one by one, but nothing shows at a glance what the user is doing. The request: all the steps on one white reverse-video line, toggled on or off. Also, a recording must stop by itself when someone forgets to press R: the limit is now 60 minutes at most.
+- Changes:
+  - F key (menu, with the current state) and option --steps-line / STEPS_LINE (yes / no in the configuration file): all the steps of the recording on ONE line, white reverse video (style 30;107, black text on white background, both explicit). Each step: number, state (✔ ended, ▶ open) and description cut at 24 columns. Shown when turned on, and at each step start or end.
+  - steps_line_text() (new): if the full line does not fit the terminal width, the descriptions are left out and the last step is shown in full.
+  - show_steps_line() (new): screen only, anonymized like the stream (never in the daily journal, never in the archive).
+  - --record-max / RECORD_MAX: default 60 minutes (was 30); the value must be greater than 0 and at most 60 (RECORD_MAX_LIMIT). The help text and the menu are updated.
+  - Files: app-log-live.py; lang/app-log-live.fr.po (6 new messages, help fragment updated); doc/en and doc/fr 07-app-log-live.md; doc/en and doc/fr app-log-live.conf.example (STEPS_LINE, RECORD_MAX=60); doc/nginx-tools.version.
+- Bugs fixed:
+  - None (new option; change of a limit).
+- Guard rails and edge cases:
+  - Without a recording, F only changes the state and says that a recording is needed; the line is then empty of steps and nothing is written.
+  - The line is cut to the terminal width (no wrap, no broken layout); it is rewritten on each step, so an older copy stays in the scrollback (the stream scrolls).
+  - 0 is refused for --record-max / RECORD_MAX: a recording always has a limit. A value above 60 is refused too, so the limit cannot be bypassed from the command line or the configuration file.
+  - --record-test-log (automatic recording without the keyboard) keeps its own limit (at most 1440 minutes).
+- Checks:
+  - py_compile; --version, --help (French and English texts), --record-max 0 and 61 refused.
+  - test_app_log_live: new test test_199_steps_line_touche_F_et_limite_d_enregistrement_60_minutes; test_i18n (catalogue of the French messages), test_conventions, test_cles_modeles, test_config_commune, test_config_defaut, test_record, test_reglages_bannis_limites: OK.
+- Action required: If /etc/default/app-log-live.conf or ~/.app-log-live.conf contains RECORD_MAX=0 or a value above 60, change it to 60 or less: otherwise the program stops at startup with a message. To see the steps on one line, add STEPS_LINE=yes or press F during a recording.
+
 ### 1.98.20261022.110306
 
 - Title: New defaults (MIN=yes, UNDERLINE=10, -2026- highlighted), option values in English only, configuration template sorted.
