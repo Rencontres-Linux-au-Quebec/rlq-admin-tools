@@ -228,6 +228,37 @@ class AppLogLive(EnvTest):
         self.assertIn("Fetching mail", complete)
         self.assertRegex(complete, rf"INFO +{PERSONNE}\s+base werkzeug ")
 
+    def test_hide_addons_cache_le_bruit_des_modules_sauf_erreurs_courriels_et_pdf(self):
+        fixe = datetime.datetime(2026, 10, 2, 10, 7, 18, 326421, FUSEAU)
+        self.journal([werkzeug(PERSONNE, fixe=fixe),
+                      odoo("INFO", "base", "odoo.addons.base.models.ir_cron", "Job 'Autovacuum' (3) starting", fixe=fixe),
+                      odoo("INFO", "base", "odoo.addons.bus.websocket", "Websocket connection opened", fixe=fixe),
+                      odoo("INFO", "base", "odoo.addons.mail.models.fetchmail", "Fetching mail from server 'x'", fixe=fixe),
+                      odoo("ERROR", "base", "odoo.addons.mail.models.fetchmail", "Failed to fetch mail", fixe=fixe),
+                      odoo("WARNING", "base", "odoo.addons.base.models.ir_cron", "Job 'Autovacuum' (3) failed", fixe=fixe),
+                      odoo("INFO", "base", "odoo.addons.mail.models.mail_mail", "Mail with ID 42 and Message-Id '<a@b>' successfully sent", fixe=fixe),
+                      odoo("INFO", "base", "odoo.addons.base.models.ir_mail_server", "Mail delivery to 1 recipient", fixe=fixe),
+                      odoo("INFO", "base", "odoo.addons.base.models.ir_actions_report", "The PDF report has been generated for model: sale.order, records [7].", fixe=fixe),
+                      odoo("INFO", "base", "odoo.modules.loading", "Modules loaded.", fixe=fixe)])
+        out = self.lancer("--hide-addons", "--no-presence", "--no-isp")[1]
+        self.assertNotIn("(3) starting", out)                                                     # bruit des modules : caché
+        self.assertNotIn("Websocket connection opened", out)
+        self.assertNotIn("Fetching mail", out)
+        self.assertIn("Failed to fetch mail", out)                                                # erreurs : jamais cachées
+        self.assertIn("(3) failed", out)
+        self.assertIn("successfully sent", out)                                                   # courriels envoyés : gardés
+        self.assertIn("Mail delivery to 1 recipient", out)
+        self.assertIn("The PDF report has been generated", out)                                   # fichier généré : gardé
+        self.assertIn("Modules loaded.", out)                                                     # hors odoo.addons.* : gardé
+        self.assertRegex(out, rf"INFO +{PERSONNE}\s+base werkzeug ")                              # requêtes : gardées
+        complete = self.lancer("--no-presence", "--no-isp")[1]                                      # sans l'option : tout
+        self.assertIn("(3) starting", complete)
+        self.assertIn("Websocket connection opened", complete)
+        self.write("app-log-live.conf", "HIDE_ADDONS=oui\n")                                       # clé de configuration
+        out = self.lancer("-c", os.path.join(self.d, "app-log-live.conf"), "--no-presence", "--no-isp")[1]
+        self.assertNotIn("Websocket connection opened", out)
+        self.assertIn("successfully sent", out)
+
     def test_couleurs_http_erreurs_et_connexions(self):
         flux = [werkzeug(PERSONNE, "/event", 200), werkzeug(DNS, "/x", 303), werkzeug(DNS, "/absent", 404), werkzeug(DNS, "/boum", 500),
                 werkzeug(DNS, "/web/login", 200), werkzeug(DNS, "/web/session/logout", 303),
