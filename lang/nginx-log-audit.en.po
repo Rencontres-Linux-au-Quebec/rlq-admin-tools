@@ -1894,3 +1894,15 @@ msgstr "investigation "
 
 msgid " --reason \"…\""
 msgstr " --reason \"…\""
+
+msgid "Aucune IP bannie (fail2ban ni bannissement manuel)."
+msgstr "No banned IP (neither fail2ban nor manual ban)."
+
+msgid "Aucune IP bannie n'a un score sous "
+msgstr "No banned IP has a score below "
+
+msgid "IP protégée"
+msgstr "protected IP"
+
+msgid "aucun terminal interactif ; relancer avec --yes pour la lever sans question"
+msgstr "no interactive terminal; rerun with --yes to lift it without asking"
