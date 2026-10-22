@@ -6,6 +6,21 @@ Earlier history was archived outside this repository when this file was created.
 
 ## app-health-check.py
 
+### 2.27.20261022.110306
+
+- Title: Option values in English only in the configuration summary; template sorted.
+- Reason: Request: add MIN=yes, UNDERLINE=10 and -2026- in HIGHLIGHT to the default settings of /etc/default/app-log-live.conf; arguments in English only (oui → yes, non → no); options of the default configuration files in /etc/default in alphabetical order.
+- Changes:
+  - show_config_read(): yes / no in every language (was oui / non in French).
+  - doc/en and doc/fr app-health-check.conf.example: keys sorted alphabetically inside each section (the sections are kept because this template holds real example values); the one-line comment that described LANGUAGE, TARGET, APP and VERBOSE split into one comment per key.
+- Bugs fixed:
+  None.
+- Guard rails and edge cases:
+  - No key added or removed; example values unchanged.
+- Checks:
+  - py_compile; test_cles_modeles.
+- Action required: None.
+
 ### 2.26.20261020.211944
 
 - Current version. Earlier history archived outside the repository.
@@ -33,6 +48,31 @@ Earlier history was archived outside this repository when this file was created.
 - Current version. Earlier history archived outside the repository.
 
 ## app-log-live.py
+
+### 1.98.20261022.110306
+
+- Title: New defaults (MIN=yes, UNDERLINE=10, -2026- highlighted), option values in English only, configuration template sorted.
+- Reason: Request: add MIN=yes, UNDERLINE=10 and -2026- in HIGHLIGHT to the default settings of /etc/default/app-log-live.conf; arguments in English only (oui → yes, non → no); options of the default configuration files in /etc/default in alphabetical order.
+- Changes:
+  - MIN_DEFAULT = True (new constant): --min is on by default; new option --no-min (shows everything: database, « werkzeug », fetchmail lines); MIN=no in the configuration file does the same.
+  - UNDERLINE_DEFAULT = 10 (was 5): one log line out of 10 underlined by default and for UNDERLINE=yes / --underline without N; --help text updated.
+  - HIGHLIGHT: the default list already held -2026- (HIGHLIGHT_DEFAULT); the template now shows it (#HIGHLIGHT=…,ouvertes,-2026-) and explains that a word ending with a dash is a word, not a removal.
+  - Menu (? key): option states shown as yes / no in every language (was oui / non in French) — the same words as in the configuration file.
+  - doc/en and doc/fr app-log-live.conf.example: keys in alphabetical order in one « Options » section (LANGUAGE and ANONYMIZE included), yes / no values, #MIN=yes, #UNDERLINE=10.
+  - doc/en and doc/fr 07-app-log-live.md: underline every 10 lines, --min by default, English values.
+  - lang/app-log-live.fr.po: --min, --no-min and --underline help texts.
+  - nginx-tools-tests/test_app_log_live.py: the tests written for the full display pass --no-min (run_cmd / run_pty wrappers); the default-underline test uses 11 lines (10th underlined); menu test expects yes; new test test_valeurs_par_defaut_198_min_underline_highlight_et_valeurs_en_anglais.
+- Bugs fixed:
+  None (change of defaults).
+- Guard rails and edge cases:
+  - --no-min, MIN=no (or the old MIN=non, still read) bring back the full display; --min stays accepted.
+  - Old French values (oui, non, aucun) in UNDERLINE / TRUNCATE / booleans are still read with the same meaning; the configuration banner asks to write the English value.
+  - « -2026- » is not taken as « remove 2026 » by the +word / -word syntax (modify_highlight already excluded words ending with a dash).
+  - /etc/default/app-log-live.conf with no active line is refreshed to the new sorted template at the next run (apps/_config.py rafraichir); a file with active lines is never rewritten.
+- Checks:
+  - test_app_log_live, test_cles_modeles (new sorting / English-values test), test_config_commune, test_config_defaut, test_i18n: OK.
+  - py_compile.
+- Action required: In /etc/default/app-log-live.conf (or ~/.app-log-live.conf), replace any oui / non by yes / no (the program prints the lines to change). Remove an active MIN=no or UNDERLINE=5 line if you want the new defaults.
 
 ### 1.97.20261022.100559
 
@@ -180,6 +220,21 @@ Earlier history was archived outside this repository when this file was created.
 
 ## web-monitor.py
 
+### 2.77.20261022.110306
+
+- Title: Option values in English only in the configuration summary; template sorted.
+- Reason: Request: add MIN=yes, UNDERLINE=10 and -2026- in HIGHLIGHT to the default settings of /etc/default/app-log-live.conf; arguments in English only (oui → yes, non → no); options of the default configuration files in /etc/default in alphabetical order.
+- Changes:
+  - Configuration summary line: boolean options shown as yes / no in every language (was oui / non in French).
+  - doc/en and doc/fr web-monitor.conf.example: keys in alphabetical order, yes / no values.
+- Bugs fixed:
+  None.
+- Guard rails and edge cases:
+  - Old oui / non values are still read (apps/_config.py) with a warning.
+- Checks:
+  - py_compile; test_cles_modeles.
+- Action required: None.
+
 ### 2.76.20261020.211944
 
 - Current version. Earlier history archived outside the repository.
@@ -254,6 +309,23 @@ Earlier history was archived outside this repository when this file was created.
 
 ## apps/_config.py
 
+### 1.9.20261022.110306
+
+- Title: English-only values: French values detected; DEBUG_LEVEL gives VERBOSE=yes.
+- Reason: Request: add MIN=yes, UNDERLINE=10 and -2026- in HIGHLIGHT to the default settings of /etc/default/app-log-live.conf; arguments in English only (oui → yes, non → no); options of the default configuration files in /etc/default in alphabetical order.
+- Changes:
+  - FRANCAIS (new map oui/non/vrai/faux/aucun → yes/no/true/false/none) and valeurs_francaises(cfg) (new): list of « KEY=oui → yes » for the configuration banner.
+  - lire(): DEBUG_LEVEL >= 1 now sets VERBOSE=yes (was oui).
+  - All templates doc/en and doc/fr *.conf.example (read by creer_par_defaut / rafraichir): options in alphabetical order (one « Options » section; inside each section for app-health-check and nginx-tools-mail, which hold real values), boolean values yes / no, « booléens : yes / no » in the header. No key added or removed (check: no line lost apart from the old section titles).
+- Bugs fixed:
+  None.
+- Guard rails and edge cases:
+  - Old French values keep their meaning (OUI / NON lists unchanged): nothing breaks on a server whose file still says oui.
+  - Files in /etc/default without an active line follow the new sorted template at the next run; files with active lines are never rewritten.
+- Checks:
+  - test_config_commune, test_config_defaut, test_cles_modeles (new test test_modeles_en_ordre_alphabetique_et_valeurs_en_anglais).
+- Action required: None.
+
 ### 1.8.20261020.211944
 
 - Current version. Earlier history archived outside the repository.
@@ -277,6 +349,23 @@ Earlier history was archived outside this repository when this file was created.
 - Current version. Earlier history archived outside the repository.
 
 ## apps/_i18n.py
+
+### 1.19.20261022.110306
+
+- Title: Option values in English only; warning for French values (Python and Bash).
+- Reason: Request: add MIN=yes, UNDERLINE=10 and -2026- in HIGHLIGHT to the default settings of /etc/default/app-log-live.conf; arguments in English only (oui → yes, non → no); options of the default configuration files in /etc/default in alphabetical order.
+- Changes:
+  - oui_non(): always yes / no (summary « Options : … »).
+  - afficher_configuration(): after the ignored values, one warning per French value (« valeur en français, écrire l'anglais dans le fichier de configuration : MIN=oui → yes »); lang/_i18n.en.po translated.
+  - apps/_i18n.sh: config_defaut collects French values in CFG_FRANCAIS (new array) and config_afficher prints the same warning; booleans shown as yes / no; « yes ou no attendu » for an invalid value; DEBUG_LEVEL gives VERBOSE=yes; lang/_config.en.po updated.
+- Bugs fixed:
+  None.
+- Guard rails and edge cases:
+  - The French value is still applied (same meaning): only a warning, never an ignored setting.
+  - CFG_FRANCAIS is reset with the other arrays at each config_lire.
+- Checks:
+  - test_i18n (catalogues, Bash configuration), test_config_commune.
+- Action required: None.
 
 ### 1.18.20261019.150215
 

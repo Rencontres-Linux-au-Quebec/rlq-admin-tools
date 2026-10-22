@@ -422,7 +422,7 @@ class ConfigurationBash(EnvTest):
                                    'config_afficher; echo "A=$A B=$B C=$C N=${N:-}"')
         self.assertEqual(rc, 0, err)
         self.assertRegex(out, r"Configuration lue : .*/etc/demo\.conf \(modifié le [0-9: -]+\), puis .*/home/\.demo\.conf \(modifié le [0-9: -]+\) \(le dernier l'emporte\)")
-        self.assertIn("--a 5 · --b deux mots · --c oui", out)
+        self.assertIn("--a 5 · --b deux mots · --c yes", out)
         self.assertIn("A=5 B=deux mots C=1 N=", out)
         self.assertIn("ATTENTION : valeur de configuration ignorée : N=abc (entier attendu)", err)
 

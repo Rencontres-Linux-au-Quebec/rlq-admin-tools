@@ -4,53 +4,52 @@
 #   2. ~/.web-monitor.conf               (s'il existe : réglages de l'utilisateur)
 # -c/--config FICHIER : ce fichier SEUL. Le répertoire courant n'est PAS lu. Le programme affiche toujours quel(s) fichier(s) il lit,
 # puis une ligne résumant les options importantes. Format : CLÉ=valeur, une par ligne ; # = commentaire ; guillemets facultatifs ;
-# booléens : oui / non (true / false, 1 / 0). Ce fichier est LU, jamais exécuté.
+# booléens : yes / no (true / false, 1 / 0) — valeurs en anglais seulement (oui / non : lus, avec un avertissement). Ce fichier est LU, jamais exécuté.
 
-# --- Langue d'affichage ---
-# en, fr ou auto (suivre LC_ALL / LC_MESSAGES / LANG). Ordre de choix : --lang, NGINX_TOOLS_LANG, WEB_MONITOR_LANG, cette clé, LC_ALL, LC_MESSAGES, LANG.
-# Ajouter une langue = ajouter le fichier lang/web-monitor.XX.po (format PO : Poedit, Weblate…) — voir lang/README.md.
-#LANGUAGE=auto
-
-# --- Mode bavard ---
-# oui : afficher chaque commande externe exécutée (équivalent de --verbose). Peut aussi venir du fichier commun app-default.conf (clés VERBOSE et DEBUG_LEVEL).
-#VERBOSE=non
-
-# --- Options (équivalents de la ligne de commande) ---
+# --- Options (ordre alphabétique / alphabetical order) ---
+# --anonymize : anonymiser ce que le programme affiche (adresses IP, courriels, identifiants, jetons) par des pseudonymes stables (IP-4f2a9c, usager-9c1e03@anonyme.invalid) ; clé ANONYMIZE
+# (la même clé dans app-default.conf vaut pour tous les programmes ; appliquée seulement quand la sortie est un terminal ; pour cron : --anonymize ou NGINX_TOOLS_ANONYMIZE=1).
+#ANONYMIZE=no
 # --app : profil d'application (odoo, bbb…) (défaut : détectée automatiquement)
 #APP=
+# --csv : avec --list-users, écrire aussi toutes les valeurs dans ce fichier CSV (séparateur « ; »)
+#CSV=
 # --days : jours de journaux analysés (défaut : 30 avec --summary)
 #DAYS=30
 # --details
-#DETAILS=non
+#DETAILS=no
+# --group : avec --list-users, seulement les membres de ce groupe Odoo (n'active pas --list-users à lui seul : le timer continue de surveiller)
+#GROUP=
+# --internet : avec --suspect-users, --investigate-user, --ban-odoo-user : chercher le courriel et les adresses sur Internet sans demander
+#INTERNET=no
 # --interval-hours : intervalle de la surveillance (défaut : 1)
 #INTERVAL_HOURS=1
+# en, fr ou auto (suivre LC_ALL / LC_MESSAGES / LANG). Ordre de choix : --lang, NGINX_TOOLS_LANG, WEB_MONITOR_LANG, cette clé, LC_ALL, LC_MESSAGES, LANG.
+# Ajouter une langue = ajouter le fichier lang/web-monitor.XX.po (format PO : Poedit, Weblate…) — voir lang/README.md.
+#LANGUAGE=auto
 # --no-pager
-#NO_PAGER=non
+#NO_PAGER=no
 # --no-prompt
-#NO_PROMPT=non
+#NO_PROMPT=no
 # --repeat-header : avec --table, les titres des colonnes aussi au bas du tableau
-#REPEAT_HEADER=non
+#REPEAT_HEADER=no
 # --reverse
-#REVERSE=non
+#REVERSE=no
 # --sort : tri (uid, ip, name, login, created, first, last, logins, minutes, type, os, pages, written, received, sent, events, surveys, seen, vpn) (défaut : name)
 #SORT=name
 # --stats : avec --list-users, statistiques à la fin (membres par groupe et étiquette, interne / portail, pays, domaines de courriel, systèmes,
 # navigateurs, les 10 comptes les plus actifs)
-#STATS=non
+#STATS=no
 # --table : tableau compact
-#TABLE=non
+#TABLE=no
 # --table-fields : champs du tableau, dans cet ordre, séparés par des virgules (all : tous) — num,uid,ip,ipseen,ipcountry,vpn,name,login,created,first,last,logins,
 # minutes,type,events,surveys,phone,country,city,groups,tags,systems,browsers,read,written,received,sent,email (vide : tous sauf tags et email)
 # ipcountry et vpn : propriétaire du bloc de chaque adresse cherché UNE fois sur Internet (rdap.org, sinon whois), puis mis en cache 90 jours ;
 # NGINX_TOOLS_INTERNET=off : le cache seulement. Les retirer de la liste évite toute recherche.
 # Exemple : TABLE_FIELDS=num,name,login,last,ipseen,logins,minutes,groups,read,written
 #TABLE_FIELDS=
-# --group : avec --list-users, seulement les membres de ce groupe Odoo (n'active pas --list-users à lui seul : le timer continue de surveiller)
-#GROUP=
-# --csv : avec --list-users, écrire aussi toutes les valeurs dans ce fichier CSV (séparateur « ; »)
-#CSV=
-# --internet : avec --suspect-users, --investigate-user, --ban-odoo-user : chercher le courriel et les adresses sur Internet sans demander
-#INTERNET=non
+# yes : afficher chaque commande externe exécutée (équivalent de --verbose). Peut aussi venir du fichier commun app-default.conf (clés VERBOSE et DEBUG_LEVEL).
+#VERBOSE=no
 
 # --- Options de la ligne de commande SEULEMENT (actions ou réglages ponctuels : aucune clé ici) ---
 # Les voici, pour mémoire (« web-monitor --help » donne le détail). Elles se donnent sur la ligne de commande, jamais dans ce fichier.
@@ -77,8 +76,3 @@
 #   --version          affiche la version et quitte
 #   --watch-odoo-user  Surveiller un compte Odoo (toujours listé dans le sommaire, marqué dans app-log-live.py)
 #   --yes              Avec --apply, --ban-recommended, --ban-odoo-user, --unban-odoo-user : sans question
-
-# --- Anonymisation de l'affichage ---
-# --anonymize : anonymiser ce que le programme affiche (adresses IP, courriels, identifiants, jetons) par des pseudonymes stables (IP-4f2a9c, usager-9c1e03@anonyme.invalid) ; clé ANONYMIZE
-# (la même clé dans app-default.conf vaut pour tous les programmes ; appliquée seulement quand la sortie est un terminal ; pour cron : --anonymize ou NGINX_TOOLS_ANONYMIZE=1).
-#ANONYMIZE=non

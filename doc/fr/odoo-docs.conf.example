@@ -6,35 +6,29 @@
 # Format : CLÉ=valeur, une par ligne ; # = commentaire ; guillemets facultatifs. Ce fichier est LU, jamais exécuté.
 # La clé API est un SECRET : chmod 600 sur le fichier qui la contient (le programme avertit sinon) ; elle n'est jamais affichée.
 
-# --- Langue d'affichage ---
-# en, fr ou auto (suivre LC_ALL / LC_MESSAGES / LANG).
-#LANGUAGE=auto
-
-# --- Accès à Odoo (API externe, XML-RPC) ---
-# --api-url : adresse d'Odoo
-#URL=https://erp.exemple.org
-# --db : base de données d'Odoo
-#DB=
-# --login : compte Odoo propriétaire de la clé API (administrateur du site ou éditeur du wiki)
-#LOGIN=
+# --- Options (ordre alphabétique / alphabetical order) ---
+# --anonymize : anonymiser ce que le programme affiche (adresses IP, courriels, identifiants, jetons) par des pseudonymes stables ; clé ANONYMIZE
+# (la même clé dans app-default.conf vaut pour tous les programmes ; pour cron : --anonymize ou NGINX_TOOLS_ANONYMIZE=1).
+#ANONYMIZE=no
 # Clé API : Odoo → Préférences → Sécurité du compte → Nouvelle clé API (ou variable d'environnement ODOO_API_KEY)
 #API_KEY=
-
-# --- Publication ---
-# --target : wiki (module document_page, OCA knowledge) ou website (pages du site web, /docs/<langue>/<page>)
-#TARGET=wiki
-# --root : catégorie racine du wiki (cible wiki seulement)
-#ROOT=nginx-tools
+# --db : base de données d'Odoo
+#DB=
 # --docs-dir : dossier des sources de la documentation (défaut : docs/ à côté du programme)
 #DOCS_DIR=
+# en, fr ou auto (suivre LC_ALL / LC_MESSAGES / LANG).
+#LANGUAGE=auto
+# --login : compte Odoo propriétaire de la clé API (administrateur du site ou éditeur du wiki)
+#LOGIN=
+# --root : catégorie racine du wiki (cible wiki seulement)
+#ROOT=nginx-tools
+# --target : wiki (module document_page, OCA knowledge) ou website (pages du site web, /docs/<langue>/<page>)
+#TARGET=wiki
+# --api-url : adresse d'Odoo
+#URL=https://erp.exemple.org
 
 # Options de la ligne de commande sans clé de configuration :
 #   --check      valide seulement (module installé ET fonctionnel : essai réel sur une page temporaire supprimée aussitôt)
 #   --dry-run    montre ce qui serait créé ou mis à jour, sans rien écrire
 #   --lang en|fr   langue d'affichage (clé LANGUAGE)
 #   --version ; --changelog ; --report-err
-
-# --- Anonymisation de l'affichage ---
-# --anonymize : anonymiser ce que le programme affiche (adresses IP, courriels, identifiants, jetons) par des pseudonymes stables ; clé ANONYMIZE
-# (la même clé dans app-default.conf vaut pour tous les programmes ; pour cron : --anonymize ou NGINX_TOOLS_ANONYMIZE=1).
-#ANONYMIZE=non

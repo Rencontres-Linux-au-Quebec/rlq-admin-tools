@@ -51,7 +51,7 @@ class FichierCommun(EnvTest):
         self.write_out("prog.conf", "LANGUAGE=fr\n")
         cfg, files_read, _ = self.lire_py()
         self.assertEqual(T(cfg["LANGUAGE"]), "fr")
-        self.assertEqual(T(cfg["VERBOSE"]), "oui")
+        self.assertEqual(T(cfg["VERBOSE"]), "oui")                                 # valeur brute du fichier (ancienne valeur française : lue, avertissement à l'affichage)
         self.assertNotIn("DAYS", T(cfg))                                           # le fichier commun ne définit que trois clés
         self.assertEqual([os.path.basename(f) for f in files_read], ["app-default.conf", "prog.conf"])
 
@@ -74,7 +74,7 @@ class FichierCommun(EnvTest):
     def test_python_niveau_de_debug_active_verbose(self):
         self.write_out("app-default.conf", "DEBUG_LEVEL=2\n")
         cfg, _, env_niveau = self.lire_py()
-        self.assertEqual(T(cfg["VERBOSE"]), "oui")
+        self.assertEqual(T(cfg["VERBOSE"]), "yes")
         self.assertEqual(T(env_niveau), "2")
         self.write_out("prog.conf", "VERBOSE=non\n")                              # VERBOSE écrit quelque part : il l'emporte
         cfg, _, _ = self.lire_py()
@@ -92,7 +92,7 @@ class FichierCommun(EnvTest):
 
     def test_bash_debug_level_donne_verbose(self):
         self.write_out("app-default.conf", "DEBUG_LEVEL=1\n")
-        self.assertIn("V=oui", T(self.lire_bash()))
+        self.assertIn("V=yes", T(self.lire_bash()))      # DEBUG_LEVEL >= 1 : VERBOSE=yes (anglais seulement)
 
     def test_bash_config_explicite_ignore_le_commun(self):
         self.write_out("app-default.conf", "VERBOSE=oui\n")

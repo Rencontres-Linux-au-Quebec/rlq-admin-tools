@@ -4,24 +4,25 @@
 #   2. ~/.app-log-check.conf               (s'il existe : réglages de l'utilisateur)
 # -c/--config FICHIER : ce fichier SEUL. Le répertoire courant n'est PAS lu. Le programme affiche toujours quel(s) fichier(s) il lit,
 # puis une ligne résumant les options importantes. Format : CLÉ=valeur, une par ligne ; # = commentaire ; guillemets facultatifs ;
-# booléens : oui / non (true / false, 1 / 0). Ce fichier est LU, jamais exécuté.
+# booléens : yes / no (true / false, 1 / 0) — valeurs en anglais seulement (oui / non : lus, avec un avertissement). Ce fichier est LU, jamais exécuté.
 
-# --- Langue d'affichage ---
+# --- Options (ordre alphabétique / alphabetical order) ---
+# --anonymize : anonymiser ce que le programme affiche (adresses IP, courriels, identifiants, jetons) par des pseudonymes stables (IP-4f2a9c, usager-9c1e03@anonyme.invalid) ; clé ANONYMIZE
+# (la même clé dans app-default.conf vaut pour tous les programmes ; appliquée seulement quand la sortie est un terminal ; pour cron : --anonymize ou NGINX_TOOLS_ANONYMIZE=1).
+#ANONYMIZE=no
+# --app (défaut : détectée automatiquement)
+#APP=
+# --by-hour : rapport des problèmes par heure et par jour (au lieu du rapport par défaut)
+#BY_HOUR=no
+# --days (défaut : 7)
+#DAYS=7
+# --errors-only
+#ERRORS_ONLY=no
+# --full-trace
+#FULL_TRACE=no
 # en, fr ou auto (suivre LC_ALL / LC_MESSAGES / LANG). Ordre de choix : --lang, NGINX_TOOLS_LANG, APP_LOG_CHECK_LANG, cette clé, LC_ALL, LC_MESSAGES, LANG.
 # Ajouter une langue = ajouter le fichier lang/app-log-check.XX.po (format PO : Poedit, Weblate…) — voir lang/README.md.
 #LANGUAGE=auto
-
-# --- Options (équivalents de la ligne de commande) ---
-# --app (défaut : détectée automatiquement)
-#APP=
-# --days (défaut : 7)
-#DAYS=7
-# --by-hour : rapport des problèmes par heure et par jour (au lieu du rapport par défaut)
-#BY_HOUR=non
-# --errors-only
-#ERRORS_ONLY=non
-# --full-trace
-#FULL_TRACE=non
 # --namespace : espace de noms du journal (défaut : celui du service, détecté)
 #NAMESPACE=
 # --service : unité systemd (défaut : détecté automatiquement parmi erplibre.service, erplibre_erplibre.service)
@@ -29,7 +30,7 @@
 # --top (défaut : 15)
 #TOP=15
 # --verbose
-#VERBOSE=non
+#VERBOSE=no
 
 # --- Options de la ligne de commande SEULEMENT (actions ou réglages ponctuels : aucune clé ici) ---
 # Les voici, pour mémoire (« app-log-check --help » donne le détail). Elles se donnent sur la ligne de commande, jamais dans ce fichier.
@@ -39,8 +40,3 @@
 #   --last HOURS  Restreint aux HEURES dernieres heures
 #   --report-err  Afficher à la fin un rapport d'erreurs à copier-coller (programme, version, serveur, échecs, avertissements)
 #   --version     affiche la version et quitte
-
-# --- Anonymisation de l'affichage ---
-# --anonymize : anonymiser ce que le programme affiche (adresses IP, courriels, identifiants, jetons) par des pseudonymes stables (IP-4f2a9c, usager-9c1e03@anonyme.invalid) ; clé ANONYMIZE
-# (la même clé dans app-default.conf vaut pour tous les programmes ; appliquée seulement quand la sortie est un terminal ; pour cron : --anonymize ou NGINX_TOOLS_ANONYMIZE=1).
-#ANONYMIZE=non

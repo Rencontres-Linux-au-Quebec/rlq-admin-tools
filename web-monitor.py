@@ -85,7 +85,7 @@ import time
 import unicodedata
 import urllib.parse
 
-__version__ = "2.76.20261020.211944"
+__version__ = "2.77.20261022.110306"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
@@ -4854,7 +4854,7 @@ def show_configuration(defaults, problems):
         print(_load_module("_config").ligne_configuration(CONFIG_FILES, EXPLICIT_CONFIG, SCRIPT_NAME))
     except Exception:
         return
-    options = [f"--lang {LANGUAGE}" + (f" ({LANGUAGE_ORIGIN})" if LANGUAGE_ORIGIN else "")] + [f"--{o.replace('_', '-')} {('yes' if LANGUAGE != 'fr' else 'oui') if v is True else ('no' if LANGUAGE != 'fr' else 'non') if v is False else literal(','.join(v) if isinstance(v, list) else v)}" for o, v in sorted(defaults.items())]
+    options = [f"--lang {LANGUAGE}" + (f" ({LANGUAGE_ORIGIN})" if LANGUAGE_ORIGIN else "")] + [f"--{o.replace('_', '-')} {'yes' if v is True else 'no' if v is False else literal(','.join(v) if isinstance(v, list) else v)}" for o, v in sorted(defaults.items())]
     print("  Options: " + " · ".join(options) + " (command line takes precedence)")
     for p in problems:
         eprint(f"  WARNING: configuration value ignored: {p}")
