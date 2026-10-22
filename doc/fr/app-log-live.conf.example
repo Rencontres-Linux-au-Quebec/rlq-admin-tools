@@ -89,12 +89,15 @@
 #ONLY=
 # --recap : secondes (défaut : 120 secondes ; 0 = jamais)
 #RECAP=120
-# --record-max (1.93) : minutes après lesquelles un enregistrement de test (touche R) s'arrête de lui-même (défaut : 30 ; 0 = sans limite)
-#RECORD_MAX=30
+# --record-max (1.93) : minutes après lesquelles un enregistrement de test (touche R) s'arrête de lui-même (défaut et maximum : 60 ; 0 refusé)
+#RECORD_MAX=60
 # --service (défaut : détecté automatiquement)
 #SERVICE=
 # --slow : secondes (défaut : 5 secondes ; 0 = désactivé)
 #SLOW=5
+
+# --steps-line (1.99) / STEPS_LINE : toutes les étapes d'un enregistrement de test sur UNE ligne blanche (touche F), mise à jour à chaque étape: all the steps of a test recording on ONE white line (F key), updated at each step
+#STEPS_LINE=no
 # --summary : affiche aussi le résumé de session à la fin d'un --no-follow (avec Ctrl-C, toujours affiché)
 #SUMMARY=no
 # --suspect : seulement les requêtes suspectes (touche s à la volée)

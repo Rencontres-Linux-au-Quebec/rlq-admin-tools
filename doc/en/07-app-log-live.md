@@ -31,7 +31,7 @@ The archive holds: `README.txt` (local and UTC times, missing sources), `records
 
 IP addresses, e-mails, known names and tokens are replaced by stable pseudonyms before they are written. The database is only read, in read-only transactions.
 
-Without a keyboard: `--record-test-log MIN` records MIN minutes from start-up, writes the archive, then exits. `--record-max MIN` (key `RECORD_MAX`, 30 by default; 0 = no limit) stops a recording by itself.
+Without a keyboard: `--record-test-log MIN` records MIN minutes from start-up, writes the archive, then exits. `--record-max MIN` (key `RECORD_MAX`, 60 by default and at most; 0 is refused) stops a recording by itself. `--steps-line` (key F) shows all the steps of the recording on one white line, updated at each step (screen only).
 
 ## Latency: is it the disk?
 

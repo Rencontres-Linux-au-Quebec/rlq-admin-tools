@@ -30,6 +30,7 @@
 #     colors when high (SQL >= 300 orange, >= 1000 red; size >= 1 MB / 10 MB; durations according to --slow);
 #   * TEST RECORDING (1.93): R starts / stops a recording (label asked; « REC » at column $COLUMNS-4 meanwhile; the .tar.xz archive of the window, noise left out,
 #     see apps/_record.py) — --record-test-log MIN records without the keyboard, then exits; N (while recording) starts / ends a step with a description (steps.txt);
+#   * STEPS LINE (1.99): F key (or --steps-line, STEPS_LINE) shows ALL the steps of the recording on ONE white reverse-video line, at each step (screen only).
 #   * KEY MENU (? or h): toggles and settings on the fly — a --accentuate-group, A --anonymize, c --chime, e --exclude-ip, T --time-report, d --dns-max, t --dns-max-truncate, H --health, i --hide-ip, l --highlight, m --min, M --modules (table of the installed Odoo modules, sorted by name, date, creation, version, author or state), o --only, r error report (--report-err),
 #     s --suspect, v --verbose, V version; S survey registrations, I event registrations, b addresses to ban (nginx-log-audit.sh --ban, like web-monitor.py).
 #   * KEYBOARD DASHBOARD (terminal only, --no-keys: disabled): Ctrl-G = health (✔ ⚠ ✖ with the detail of the problems), efficiency of the program (CPU, memory, input/output,
@@ -103,7 +104,7 @@ from urllib.parse import unquote
 from collections import Counter, OrderedDict
 from concurrent.futures import Future
 
-__version__ = "1.98.20261022.110306"
+__version__ = "1.99.20261022.122804"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
@@ -196,7 +197,7 @@ UNDERLINE_DEFAULT = 10                                                # --underl
 
 
 SCHEMA_CONFIG = {"ACCENTUATE_GROUP": ("accentuate_group", str), "CHIME": ("chime", _chime_config), "DNS_MAX_TRUNCATE": ("dns_max_truncate", int), "EXCLUDE_IP": ("exclude_ip", _comma_list),
-                 "ONLY": ("only", _comma_list), "SUSPECT": ("suspect", bool), "SUMMARY": ("summary", bool), "TIME_REPORT": ("time_report", float), "TRUNCATE": ("truncate", _truncate_config), "WATCH": ("watch", str), "ANONYMIZE": ("anonymize", bool), "UNDERLINE": ("underline", _underline_config),
+                 "ONLY": ("only", _comma_list), "STEPS_LINE": ("steps_line", bool), "SUSPECT": ("suspect", bool), "SUMMARY": ("summary", bool), "TIME_REPORT": ("time_report", float), "TRUNCATE": ("truncate", _truncate_config), "WATCH": ("watch", str), "ANONYMIZE": ("anonymize", bool), "UNDERLINE": ("underline", _underline_config),
                  "APP": ("app", str), "CMS": ("cms", str), "CONNECTIONS": ("connections", float), "DAYS": ("days", int), "DISK_MIN": ("disk_min", float), "DNS_MAX": ("dns_max", int), "HEALTH": ("health", float), "HIDE_ADDONS": ("hide_addons", bool), "HIDE_IP": ("hide_ip", bool), "HIGHLIGHT": ("highlight", str), "IDLE": ("idle", float),
                  "LINES": ("lines", int), "LOG_DIR": ("log_dir", str), "LOG_KEEP_DAYS": ("log_keep_days", int), "MIN": ("min", bool), "MODULES_CUSTOM": ("modules_custom", bool), "MODULES_SORT": ("modules_sort", str), "MODULES_STARTUP": ("modules_startup", bool), "NAMESPACE": ("namespace", str),
                  "NO_BANNED": ("no_banned", bool), "NOT_FOUND": ("not_found", bool), "NO_BAN_PROMPT": ("no_ban_prompt", bool), "NO_CACHE": ("no_cache", bool), "NO_HISTORY": ("no_history", bool),
@@ -241,6 +242,7 @@ ERROR_WORDS_RE = re.compile(r"Traceback \(most recent call last\):|\b[A-Za-z_][\
                             r"\bout of memory\b|\bKilled\b|Connection refused|\btimed out\b|\bWorker [\w(). ]*timeout")
 # --min: usual noise lines, discarded EXCEPT if it is an error (level WARNING, ERROR or CRITICAL, or a trace)
 MIN_EXCLUDED_RE = re.compile(r"^(?:odoo\.addons\.mail\.models\.fetchmail: |odoo\.addons\.base\.models\.ir_cron: Job 'Mail: Fetchmail Service)")
+# 1.99 --steps-line (F key): all the steps of a recording on one white line; --record-max: 60 minutes at most (default and maximum, 0 refused).
 # 1.97 --hide-addons: INFO / DEBUG lines of the Odoo modules (logger odoo.addons.*) are hidden EXCEPT e-mails being sent and generated files (PDF reports…);
 # errors (WARNING, ERROR, CRITICAL, traces) are never hidden. Searched on "logger: text".
 ADDONS_KEEP_RE = re.compile(r"successfully sent|\bmail_mail\b|\bir_mail_server\b|mail delivery|\bsmtp\b|ir_actions_report|wkhtmltopdf|\bpdf\b|\.(?:pdf|xlsx?|docx?|csv|zip)\b"
@@ -585,7 +587,7 @@ def config_values(options, verbose, widths=None):
            "NOT_FOUND": yes_no(options["not_found"]), "VERBOSE": yes_no(verbose),
            "ACCENTUATE_GROUP": options.get("group") or "", "CHIME": "" if options.get("chime") is None else str(options["chime"]),
            "EXCLUDE_IP": ",".join(str(r) for r in options.get("exclude") or []), "ONLY": ",".join(options.get("only") or []),
-           "SUSPECT": yes_no(options.get("suspect")), "ANONYMIZE": yes_no(options.get("anonymize")), "TIME_REPORT": f"{options.get('report_min') or 0:g}", "WATCH": ",".join(options.get("watch") or [])}
+           "STEPS_LINE": yes_no(options.get("steps_line")), "SUSPECT": yes_no(options.get("suspect")), "ANONYMIZE": yes_no(options.get("anonymize")), "TIME_REPORT": f"{options.get('report_min') or 0:g}", "WATCH": ",".join(options.get("watch") or [])}
     if width is not None:
         res["DNS_MAX"] = "" if truncated else str(width)                    # one or the other: column without cut, or cut at N
         res["DNS_MAX_TRUNCATE"] = str(truncated) if truncated else ""
@@ -2626,6 +2628,7 @@ def underline_line(text_line, width=None):
 
 REC_WIDTH = 4                                           # 1.93: « REC » occupies the 3 columns from $COLUMNS - 4 (0-based) and one column stays free at the end
 REC_STYLE = "1;97;41"                                   # bold white on red (explicit text AND background: readable on any theme)
+STEPS_LINE_STYLE = "30;107"                              # 1.99: steps line (F key): black text on white background, both explicit (white reverse video)
 STEP_STYLE = "1;30;46"                                   # 1.95: step marker (N key): bold black on cyan, explicit background
 
 
@@ -2643,6 +2646,25 @@ def rec_mark(text_line, columns=None):
         rows = (width - 1) // columns if width > 0 else 0
         last = width - rows * columns
     return text_line + " " * max(0, start - last) + color_code(REC_STYLE, "REC")
+
+
+def steps_line_text(steps, columns):
+    """1.99 (F key, --steps-line): the steps of the recording on ONE line: number, state (✔ ended, ▶ open), description cut at 24 columns.
+    If that does not fit the width, the descriptions are left out and only the last step is shown in full."""
+    if not steps:
+        return TR("Steps: none yet (N starts one)")
+    mark = lambda s: "▶" if s["end"] is None else "✔"
+    head = TR("Steps") + f" ({len(steps)}): "
+    parts = []
+    for s in steps:
+        description = s["description"] or TR("(no description)")
+        parts.append(f"{s['n']}{mark(s)} " + (description if len(description) <= 24 else description[:23] + "…"))
+    text = head + " · ".join(parts)
+    if display_width(text) <= columns:
+        return text
+    last = steps[-1]
+    compact = head + " · ".join(f"{s['n']}{mark(s)}" for s in steps)
+    return compact + " — " + f"{last['n']}{mark(last)} {last['description'] or ''}"
 
 
 def truncate_text(text, limit):
@@ -4160,14 +4182,15 @@ RECORD_EVENT = "\0record"    # 1.93: marker of a finished test recording (archiv
 RECORD_STATIC_RE = re.compile(r'"(?:GET|HEAD) +(?:/web/assets/|/web/static/|/[\w.-]+/static/|/web/image|/website/image|/web/content/|/favicon\.ico|/apple-touch-icon|/robots\.txt'
                        r'|/sitemap|/[^ "?]*\.(?:css|js|map|png|jpe?g|gif|svg|ico|webp|avif|woff2?|ttf|eot|otf)(?:[?#][^ "]*)?[ "])', re.I)   # 1.93: static files (recording noise)
 WEBSOCKET_RE = re.compile(r'"GET +/(?:websocket|longpolling)\b')     # 1.93: chat / bus connections of an open tab (recording noise)
-RECORD_MAX_DEFAULT = 30.0     # 1.93: minutes after which a recording stops by itself (--record-max, RECORD_MAX)
+RECORD_MAX_LIMIT = 60.0        # 1.99: a test recording (R key) lasts 60 minutes at most: --record-max and RECORD_MAX cannot exceed it, nor be 0 (no limit)
+RECORD_MAX_DEFAULT = RECORD_MAX_LIMIT     # 1.93: minutes after which a recording stops by itself (--record-max, RECORD_MAX)
 REPEAT_MIN = 2            # past fail2ban bans from which an address is "often banned" (same threshold as nginx-log-audit.sh: "recidivism")
 BAN_DELAY = 10              # seconds left to answer the ban proposal; without an answer, the tracking continues
 KEYS = {b"\x07": "g", b"\x14": "t"}      # Ctrl-G: dashboard; Ctrl-T: only what changed since the last time
 # Simple keys of the menu (? or h): toggles and settings of the command-line options, and a few commands
 MENU_KEYS = {b"?": "help", b"h": "help", b"i": "i", b"m": "m", b"n": "n", b"r": "r", b"s": "s", b"v": "v", b"d": "dns", b"t": "dnst", b"H": "H", b"o": "o", b"V": "V",
                 b"S": "S", b"I": "I", b"b": "b", b"a": "accent", b"c": "chime", b"e": "exclude", b"T": "report", b"E": "E", b"w": "watch", b"D": "D", b"l": "highlight", b"M": "modules", b"C": "save", b"L": "recent",
-                b"G": "G", b"P": "latency", b"A": "anonymize", b"R": "record", b"N": "step", b"q": "addons"}
+                b"G": "G", b"P": "latency", b"A": "anonymize", b"R": "record", b"N": "step", b"F": "steps_line", b"q": "addons"}
 MENU_KEYS.update({str(n).encode(): f"level{n}" for n in range(1, LEVEL_MAX + 1)})   # 1 to 9: dashboard at the chosen level
 KEYS.update(MENU_KEYS)
 
@@ -4919,6 +4942,16 @@ def follow(cmd, people, resolver, options, output):
             lines.append(color_code(STYLES["warning"], "    " + TR("Missing or cut sources: {notes}").format(notes="; ".join(result["notes"])[:600])))
         write_out(lines)
 
+    def show_steps_line():
+        """1.99 (F key, --steps-line): all the steps of the recording on one line, white reverse video, at each change of step. Screen only: never in the journal or the archive."""
+        rec = record["r"]
+        if not options.get("steps_line") or rec is None:
+            return
+        columns = terminal_columns()
+        text = output.screen_text(truncate_line(steps_line_text(rec.steps, columns - 1), columns - 1))     # anonymized like the stream
+        output.screen.write(color_code(STEPS_LINE_STYLE, text + " " * max(0, columns - 1 - display_width(text))) + "\n")
+        output.screen.flush()
+
     def check_record(now_dt):
         """Limits of the recording (duration, size) and --record-test-log (automatic start when the live stream begins, stop after MIN minutes, then exit)."""
         rec = record["r"]
@@ -4972,6 +5005,7 @@ def follow(cmd, people, resolver, options, output):
                                       ("n", "--not-found", f"only the pages not found (404) [{yes_no(options['not_found'])}]"),
                                       ("o", "--only TEXT", f"only the lines that contain the text (comma = OR) [{', '.join(options['only']) or 'none'}]"),
                                       ("r", "--report-err", "error report to copy and paste, based on what has been displayed so far"),
+                                      ("F", "--steps-line", TR("all the steps of the recording on one white line, updated at each step") + f" [{yes_no(options['steps_line'])}]"),
                                       ("s", "--suspect", f"only the suspicious requests [{yes_no(options['suspect'])}]"),
                                       ("T", "--time-report MIN", f"report like Ctrl-T every MIN minutes, 0 = never [{options['report_min']:g}]"),
                                       ("v", "--verbose", f"show every external command [{yes_no(VERBOSE)}]"),
@@ -5292,6 +5326,7 @@ def follow(cmd, people, resolver, options, output):
             if record["r"].open_step is not None:
                 number = record["r"].step_end()
                 write_out([color_code(STEP_STYLE, f" ■ STEP {number} END ") + " " + TR("ended at {time}").format(time=time.strftime("%H:%M:%S"))])
+                show_steps_line()
                 return
             description = ask(TR("Description of this step (e.g. registration; Enter = none, Ctrl-C = cancel): "))
             if description is None:
@@ -5303,6 +5338,16 @@ def follow(cmd, people, resolver, options, output):
                 return
             write_out([color_code(STEP_STYLE, f" ▶ STEP {number} START ") + " " + TR("started at {time}").format(time=time.strftime("%H:%M:%S"))
                        + " — " + (description.strip() or TR("(no description)"))])
+            show_steps_line()
+        elif key_value == "steps_line":                     # 1.99: F key — the steps of the recording on one white line (toggle)
+            options["steps_line"] = not options.get("steps_line")
+            if not options["steps_line"]:
+                write_out([TR("  --steps-line: off")])
+            elif record["r"] is None:
+                write_out([TR("  Start a recording (R) to see the steps on one line.")])
+            else:
+                write_out([TR("  --steps-line: on — the steps of the recording are shown on one line at each step")])
+                show_steps_line()
         elif key_value == "watch":
             rep = ask(TR("--watch TEXT (comma = several, e.g. registration; empty = stop; current: {current}): ").format(current=', '.join(options['watch']) or 'none'))
             if rep is not None:
@@ -5600,6 +5645,7 @@ def main():
                         help="Only the lines that contain TEXT (name, address, URL, module…, case-insensitive); repeatable: one OR the other")
     parser.add_argument("--slow", type=float, default=5.0, metavar="SECONDS",
                         help="Odoo requests slower than SECONDS (SQL + Python): durations in orange, in red at 3 times the threshold, with the total (default 5; 0: disabled)")
+    parser.add_argument("--steps-line", action="store_true", help="The steps of a test recording (N key) on ONE white reverse-video line, updated at each step (screen only); F key of the menu; STEPS_LINE of the configuration file")
     parser.add_argument("--summary", action="store_true", help="Also show the session summary at the end of a --no-follow (with Ctrl-C, always shown)")
     parser.add_argument("--not-found", action="store_true", help="Only the requests answered with 404 (page not found); the summary lists ALL these pages with their count")
     parser.add_argument("--suspect", action="store_true", help="Only the suspicious requests (WordPress, .php, .env, .git, backups, directory traversal…)")
@@ -5611,7 +5657,7 @@ def main():
     parser.add_argument("--no-user-agent", action="store_true", help="Do not read the User-Agent in the nginx access log (robots are then recognized only by name or robots.txt)")
     parser.add_argument("--no-presence", action="store_true", help="No presence tracking (sign-ins, sign-outs, inactivity)")
     parser.add_argument("--record-max", type=float, default=RECORD_MAX_DEFAULT, metavar="MIN",
-                        help=f"A test recording (R key) stops by itself after MIN minutes (default: {RECORD_MAX_DEFAULT:g}; 0 = no limit); RECORD_MAX key")
+                        help=f"A test recording (R key) stops by itself after MIN minutes (default: {RECORD_MAX_DEFAULT:g}; 0 refused, 60 at most); RECORD_MAX key")
     parser.add_argument("--record-test-log", type=float, default=None, metavar="MIN",
                         help="Records a test without the keyboard: starts with the live stream, stops after MIN minutes, writes the .tar.xz archive to send for analysis, "
                              "then exits (same content as the R key; folder: ~USER/app-log-live-records under sudo, otherwise LOG_DIR/records)")
@@ -5668,8 +5714,8 @@ def main():
         parser.error(f"--level must be between 1 and {LEVEL_MAX}")
     if args.time_report is not None and not 0 <= args.time_report <= 1440:
         parser.error("--time-report must be between 0 and 1440 minutes")
-    if not 0 <= (args.record_max or 0) <= 1440 or (args.record_test_log is not None and not 0 < args.record_test_log <= 1440):
-        parser.error("--record-max must be between 0 and 1440 minutes, --record-test-log greater than 0 and at most 1440")
+    if not 0 < (args.record_max or 0) <= RECORD_MAX_LIMIT or (args.record_test_log is not None and not 0 < args.record_test_log <= 1440):
+        parser.error("--record-max must be greater than 0 and at most 60 minutes, --record-test-log greater than 0 and at most 1440")
     if args.record_test_log is not None and args.no_follow:
         parser.error("--record-test-log needs the live stream (not with --no-follow)")
     exclusions, invalid = read_exclusions(",".join(args.exclude_ip or []))
@@ -5791,7 +5837,7 @@ def main():
         banned_ips.start()
         eprint(banned_ips.summary())
     options = {"keep_ip": not args.hide_ip, "minimal": args.min, "hide_addons": args.hide_addons, "lines": args.lines, "recap": args.recap,
-               "slow": max(0.0, args.slow), "only": [t.lower() for t in (args.only or []) if t], "highlight_words": read_highlight(args.highlight), "highlight_pattern": highlight_pattern(read_highlight(args.highlight)), "suspect": args.suspect, "disk_min": max(0.0, args.disk_min), "connections": max(0.0, min(100.0, args.connections)), "external_ip": not args.no_isp, "odoo_journal": profile.get("ODOO_LOGFILE"), "profile": profile, "service": service, "diag_hosts": args.diagnose_host, "not_found": args.not_found, "summary": args.summary, "banned_ips": banned_ips,
+               "slow": max(0.0, args.slow), "only": [t.lower() for t in (args.only or []) if t], "highlight_words": read_highlight(args.highlight), "highlight_pattern": highlight_pattern(read_highlight(args.highlight)), "suspect": args.suspect, "disk_min": max(0.0, args.disk_min), "connections": max(0.0, min(100.0, args.connections)), "external_ip": not args.no_isp, "odoo_journal": profile.get("ODOO_LOGFILE"), "profile": profile, "service": service, "diag_hosts": args.diagnose_host, "not_found": args.not_found, "steps_line": args.steps_line, "summary": args.summary, "banned_ips": banned_ips,
                "presence": Presence(args.idle) if is_odoo and not args.no_presence else None, "health": args.health, "keys": not args.no_keys and not args.no_follow, "app": profile.get("APP_NAME"), "propose_ban": not args.no_ban_prompt, "watch": [t.strip().lower() for t in (args.watch or "").split(",") if t.strip()], "agents": not args.no_user_agent and not args.no_follow, "acces_logs": profile.get("ACCESS_LOGS"),
                "exclude": exclusions, "chime": args.chime, "group": args.accentuate_group if group_members else None, "membres": group_members,
                "report_min": args.time_report or 0.0, "level": args.level, "modules_sort": modules_sort_state}
