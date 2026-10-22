@@ -48,7 +48,7 @@ import urllib.error
 import urllib.request
 import xmlrpc.client
 
-__version__ = "1.8.20261020.211944"
+__version__ = "1.9.20261022.012000"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
@@ -84,7 +84,7 @@ def eprint(*args):
 
 # Configuration file options (/etc/default/odoo-chat-post.conf, then the personal file .odoo-chat-post.conf): KEY -> (command-line option, type).
 # LANGUAGE: en, fr or auto (follow LC_ALL / LANG). API_KEY is NOT a command-line option: read separately (read_api_key).
-SCHEMA_CONFIG = {"DB": ("db", str), "MEMBERS": ("members", lambda v: [t.strip() for t in v.split(",") if t.strip()]), "SUGGESTED": ("suggested", bool), "EVENTS": ("events", lambda v: [t.strip() for t in v.split(",") if t.strip()]), "GROUP": ("group", str), "LOGIN": ("login", str),
+SCHEMA_CONFIG = {"DB": ("db", str), "MEMBERS": ("members", lambda v: [t.strip() for t in v.split(",") if t.strip()]), "SUGGESTED": ("suggested", bool), "EVENTS": ("events", lambda v: [t.strip() for t in v.split(",") if t.strip()]), "GROUP": ("group", str), "BOT_LOGIN": ("bot_login", str), "CATALOG": ("catalog", str), "LOGIN": ("login", str),
                  "NO_MEMBERS": ("no_members", bool), "URL": ("api_url", str)}
 
 

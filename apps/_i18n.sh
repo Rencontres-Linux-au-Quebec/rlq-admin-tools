@@ -297,7 +297,7 @@ config_lire() {
         fichiers=("$CFG_EXPLICITE")
     else
         config_creer_defaut "$programme" "${args[@]}"
-        # Fichier COMMUN à tous les programmes (app-default.conf) : lu d'abord, seulement LANGUAGE, VERBOSE et DEBUG_LEVEL ; celui du programme l'emporte.
+        # Fichier COMMUN à tous les programmes (app-default.conf) : lu d'abord, seulement LANGUAGE, VERBOSE, DEBUG_LEVEL, LOG_KEEP_DAYS et ANONYMIZE ; celui du programme l'emporte.
         config_migrer_ancien "${HOME:-/root}/.app-default.conf"          # 1.16: ~/.NAME.conf (a legacy ~/.NAME.cfg is renamed; the name to read is in CFG_A_LIRE)
         for f in "${NGINX_TOOLS_ETC_DEFAULT:-/etc/default}/app-default.conf" "$CFG_A_LIRE"; do
             [[ -f "$f" ]] && communs+=("$f")
