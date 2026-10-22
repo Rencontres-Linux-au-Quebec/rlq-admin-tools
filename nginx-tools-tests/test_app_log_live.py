@@ -164,6 +164,30 @@ class AppLogLive(EnvTest):
         self.assertIn("--min no", out + err)                                      # résumé des options : valeurs en anglais, même en français
         self.assertNotIn("--min non", out + err)
 
+    def test_199_steps_line_touche_F_et_limite_d_enregistrement_60_minutes(self):
+        """1.99 : --steps-line (touche F) affiche les étapes d'un enregistrement sur UNE ligne blanche, tronquée si besoin ; --record-max est plafonné
+        à 60 minutes (0 et plus de 60 sont refusés à la ligne de commande comme dans le fichier de configuration)."""
+        live = self.module_live()
+        self.assertEqual(live.RECORD_MAX_DEFAULT, 60.0)
+        self.assertEqual(live.RECORD_MAX_LIMIT, 60.0)
+        self.assertEqual(live.STEPS_LINE_STYLE, "30;107")                        # texte noir sur fond blanc, les deux explicites
+        self.assertEqual(live.MENU_KEYS.get(b"F"), "steps_line")
+        self.assertTrue(live.steps_line_text([], 120))                           # « aucune étape » : jamais une ligne vide
+        steps = [{"n": 1, "description": "Connexion", "start": 0.0, "end": 1.0}, {"n": 2, "description": "Sondage complet", "start": 1.0, "end": None}]
+        full = live.steps_line_text(steps, 200)
+        self.assertIn("1✔ Connexion", full)
+        self.assertIn("2▶ Sondage complet", full)                                 # l'étape en cours est marquée ▶
+        short = live.steps_line_text(steps, 10)                                  # trop étroit : descriptions retirées, la dernière étape complète
+        self.assertIn("2▶ Sondage complet", short)
+        self.assertNotIn("1✔ Connexion", short)
+        base = ["python3", self.prog, "--no-follow", "--no-history", "--no-isp", "--no-presence", "--no-banned"]
+        for valeur in ("0", "61"):
+            rc, out, err = super().run_cmd(base + ["--record-max", valeur])
+            self.assertNotEqual(rc, 0, valeur)
+            self.assertIn("60 minutes", err)                                     # message en anglais ou en français
+        rc, out, err = super().run_cmd(base + ["--steps-line"])
+        self.assertNotIn("Traceback", err, err)
+
     def test_terminal_par_defaut_soulignee_anonymisee_et_raccourcie_mais_jamais_dans_un_tube(self):
         """1.88-1.89 : dans un terminal, par défaut : une ligne sur 5 soulignée, adresses en pseudonymes (IP-xxxxxx), ligne trop large raccourcie en
         « début ... deux derniers mots » à $COLUMNS - 10 ; dans un tube (un autre programme lit la sortie) : lignes entières, vraies adresses, rien de souligné."""
