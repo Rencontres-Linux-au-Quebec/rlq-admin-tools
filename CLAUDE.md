@@ -1,4 +1,4 @@
-# Consignes pour Claude — rlq-admin-tools
+# Consignes pour Claude - rlq-admin-tools
 
 ## Pull requests
 
