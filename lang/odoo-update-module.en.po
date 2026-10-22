@@ -216,17 +216,8 @@ msgstr " is still active after « systemctl stop »"
 msgid " arrêté"
 msgstr " stopped"
 
-msgid "  Mise à jour de "
-msgstr "  Updating "
-
-msgid " module(s) : "
-msgstr " module(s): "
-
 msgid ", délai maximal "
 msgstr ", maximum delay "
-
-msgid " s) — journal : "
-msgstr " s) — log: "
 
 msgid "la mise à jour ne s'est pas terminée en "
 msgstr "the update did not finish within "
@@ -245,9 +236,6 @@ msgstr " ERROR/CRITICAL line(s) in the update log ("
 
 msgid " CRITICAL) — premières :"
 msgstr " CRITICAL) — first ones:"
-
-msgid "journal de la mise à jour sans ERROR ni CRITICAL ("
-msgstr "update log without ERROR or CRITICAL ("
 
 msgid " lignes)"
 msgstr " lines)"
@@ -282,38 +270,11 @@ msgstr " after "
 msgid "ERREUR: root requis (systemctl stop/start, mise à jour sous le compte du service) — ou --dry-run pour simuler."
 msgstr "ERROR: root required (systemctl stop/start, update under the service account) — or --dry-run to simulate."
 
-msgid " — service : "
-msgstr " — service: "
-
-msgid " · configuration d'Odoo : "
-msgstr " · Odoo configuration: "
-
-msgid "  Modules : "
-msgstr "  Modules: "
-
-msgid "  Mode simulation : rien n'est arrêté, écrit ni démarré."
-msgstr "  Simulation mode: nothing is stopped, written or started."
-
 msgid "terminé avec "
 msgstr "finished with "
 
 msgid " échec(s)"
 msgstr " failure(s)"
-
-msgid "  Simulation terminée."
-msgstr "  Simulation finished."
-
-msgid "mise à jour terminée : "
-msgstr "update finished: "
-
-msgid "  Compte : "
-msgstr "  Account: "
-
-msgid " · dossier : "
-msgstr " · folder: "
-
-msgid " · base : "
-msgstr " · database: "
 
 msgid ", compte "
 msgstr ", account "
@@ -510,15 +471,6 @@ msgstr "unpacking of "
 msgid " vers "
 msgstr " to "
 
-msgid "(mis à jour)"
-msgstr "(updated)"
-
-msgid "(nouveau)"
-msgstr "(new)"
-
-msgid "(inchangé)"
-msgstr "(unchanged)"
-
 msgid "\" + modules[nom])"
 msgstr "\" + modules[nom])"
 
@@ -573,9 +525,6 @@ msgstr "  --no-rollback                never an automatic rollback (key ROLLBACK
 msgid "                               les modules sont remis dans leur version d'avant (copie prise avant la décompression), mis à jour de nouveau, et Odoo redémarré"
 msgstr "                               the modules are put back in their previous version (copy taken before unpacking), updated again, and Odoo restarted"
 
-msgid "  --wait-quiet MIN             attendre au plus MIN minutes que le site soit calme avant d'arrêter Odoo (défaut : WAIT_QUIET, soit 15 ; 0 = ne pas attendre) ;"
-msgstr "  --wait-quiet MIN             wait at most MIN minutes for a quiet site before stopping Odoo (default: WAIT_QUIET, i.e. 15; 0 = do not wait);"
-
 msgid "                               au bout du délai, la mise à jour se fait quand même"
 msgstr "                               after that delay, the update runs anyway"
 
@@ -588,50 +537,17 @@ msgstr "  MODULES_BACKUP_DIR=/var/backups/odoo-update-module   copies of the mod
 msgid "  ROLLBACK=oui                  retour arrière des modules après des erreurs (oui / non) ; question sur un terminal, automatique sinon"
 msgstr "  ROLLBACK=oui                  rollback of the modules after errors (yes / no); a question on a terminal, automatic otherwise"
 
-msgid "  WAIT_QUIET=15                 attente maximale d'un site calme avant l'arrêt d'Odoo, en minutes (0 = ne pas attendre)"
-msgstr "  WAIT_QUIET=15                 longest wait for a quiet site before stopping Odoo, in minutes (0 = do not wait)"
-
 msgid "/var/backups/odoo-update-module"
 msgstr "/var/backups/odoo-update-module"
 
 msgid "Attente d'un site calme (au plus "
 msgstr "Waiting for a quiet site (at most "
 
-msgid " min, occupé à partir de "
-msgstr " min, busy from "
-
 msgid "journaux d'accès de nginx illisibles dans "
 msgstr "nginx access logs unreadable in "
 
-msgid " : affluence inconnue, pas d'attente"
-msgstr ": traffic unknown, no wait"
-
-msgid " visiteur(s) actif(s) dans les 5 dernières minutes — "
-msgstr " active visitor(s) in the last 5 minutes — "
-
-msgid "site calme, pas d'attente"
-msgstr "quiet site, no wait"
-
-msgid "site occupé : attente d'au plus "
-msgstr "busy site: waiting at most "
-
 msgid " visiteur(s) actif(s) dans les 5 dernières minutes"
 msgstr " active visitor(s) in the last 5 minutes"
-
-msgid " visiteur(s) actif(s) après "
-msgstr " active visitor(s) after "
-
-msgid " min : mise à jour quand même"
-msgstr " min: update anyway"
-
-msgid "site occupé : "
-msgstr "busy site: "
-
-msgid "— nouvel essai dans "
-msgstr "— next try in "
-
-msgid " s (Ctrl+C pour arrêter)"
-msgstr " s (Ctrl+C to stop)"
 
 msgid "Copie des modules avant la mise à jour (base du retour arrière)"
 msgstr "Copy of the modules before the update (basis of the rollback)"
@@ -728,3 +644,72 @@ msgstr "update finished with "
 
 msgid "mise à jour ANNULÉE : les modules d'avant sont en service (journal de l'échec : "
 msgstr "update CANCELLED: the previous modules are in service (log of the failure: "
+
+msgid "  --check-activity             état du site maintenant (visiteurs, écritures HTTP, base PostgreSQL) sans rien changer : 0 = calme, 3 = occupé"
+msgstr "  --check-activity             current state of the site (visitors, HTTP writes, PostgreSQL database), changes nothing: 0 = quiet, 3 = busy"
+
+msgid "  --force-busy                 mettre à jour MÊME si le site reste occupé après --wait-quiet (sinon la mise à jour est annulée) ; FORCE_BUSY"
+msgstr "  --force-busy                 update EVEN IF the site stays busy after --wait-quiet (otherwise the update is cancelled); FORCE_BUSY"
+
+msgid "  --wait-quiet MIN             attendre au plus MIN minutes que le site soit calme avant d'arrêter Odoo (défaut : WAIT_QUIET, soit 60 ; 0 = un seul contrôle) ;"
+msgstr "  --wait-quiet MIN             wait at most MIN minutes for a quiet site before stopping Odoo (default: WAIT_QUIET, i.e. 60; 0 = a single check);"
+
+msgid "  WAIT_QUIET=60                 attente maximale d'un site calme avant l'arrêt d'Odoo, en minutes (0 = un seul contrôle)"
+msgstr "  WAIT_QUIET=60                 maximum wait for a quiet site before stopping Odoo, in minutes (0 = a single check)"
+
+msgid "  FORCE_BUSY=non                mettre à jour quand même si le site reste occupé (défaut : non : la mise à jour est annulée)"
+msgstr "  FORCE_BUSY=non                update anyway if the site stays busy (default: no: the update is cancelled)"
+
+msgid " visiteur(s) actif(s) dans les 5 dernières minutes (seuil : "
+msgstr " active visitor(s) in the last 5 minutes (threshold: "
+
+msgid "journaux d'accès de nginx illisibles : écritures HTTP inconnues"
+msgstr "nginx access logs unreadable: HTTP writes unknown"
+
+msgid " dernières minutes, la plus récente : "
+msgstr " minutes, the most recent: "
+
+msgid " écriture(s) HTTP (POST…) dans les "
+msgstr " HTTP write(s) (POST…) in the last "
+
+msgid "base PostgreSQL illisible (psql ou « sudo -n -u postgres » refusé) : activité inconnue"
+msgstr "PostgreSQL database unreadable (psql or « sudo -n -u postgres » refused): activity unknown"
+
+msgid " session(s) PostgreSQL en cours sur la base "
+msgstr " PostgreSQL session(s) running on database "
+
+msgid " verrou(x) d'écriture sur ir_cron (tâche planifiée en cours)"
+msgstr " write lock(s) on ir_cron (scheduled task running)"
+
+msgid " écriture(s) dans les tables d'activité pendant "
+msgstr " write(s) in the activity tables during "
+
+msgid " min ; occupé dès un visiteur actif, une écriture HTTP, une session ou un verrou PostgreSQL, ou une écriture en base)"
+msgstr " min; busy as soon as there is an active visitor, an HTTP write, a PostgreSQL session or lock, or a database write)"
+
+msgid "maintenant occupé : "
+msgstr "now busy: "
+
+msgid " min (--force-busy) : mise à jour quand même : "
+msgstr " min (--force-busy): updating anyway: "
+
+msgid "site toujours occupé après "
+msgstr "site still busy after "
+
+msgid " min : mise à jour ANNULÉE, rien n'a été arrêté ("
+msgstr " min: update CANCELLED, nothing was stopped ("
+
+msgid "). Relancer plus tard, ou --force-busy pour passer outre."
+msgstr "). Run again later, or use --force-busy to override."
+
+msgid "site occupé :"
+msgstr "site busy:"
+
+msgid "site occupé (base "
+msgstr "site busy (database "
+
+msgid "site calme : aucune écriture HTTP ni en base, visiteurs actifs sous le seuil de "
+msgstr "quiet site: no HTTP write nor database write, active visitors below the threshold of "
+
+msgid ") : aucune écriture HTTP ni en base, visiteurs actifs sous le seuil de "
+msgstr ") : no HTTP write nor database write, active visitors below the threshold of "

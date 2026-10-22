@@ -46,7 +46,7 @@ import tempfile
 import threading
 import time
 
-__version__ = "1.1.20261022.083937"
+__version__ = "1.2.20261022.133552"
 
 SAMPLE_S = 10                               # seconds between two network / PostgreSQL samples
 RAW_MAX_BYTES = 50 * 1024 * 1024            # at most this much read from ONE log file (the beginning of the window is kept, the rest is noted as cut)
@@ -107,6 +107,34 @@ def default_folder(journal_folder=None, env=None, euid=None):
     if journal_folder:
         return os.path.join(journal_folder, "records")
     return os.path.join(os.path.expanduser("~"), ".local", "state", "app-log-live", "records")
+
+
+TOOL_VERSIONS = (("psql", ["psql", "--version"]), ("runuser", ["runuser", "--version"]), ("sudo", ["sudo", "-V"]), ("journalctl", ["journalctl", "--version"]),
+                  ("systemctl", ["systemctl", "--version"]), ("ss", ["ss", "-V"]), ("nginx", ["nginx", "-v"]), ("fail2ban-client", ["fail2ban-client", "-V"]),
+                  ("ipset", ["ipset", "-V"]))     # 1.2: versions written in context/system.txt (stdout and stderr)
+
+
+def privileged(cmd):
+    """1.2: root commands (journalctl of a protected service…) run through « sudo -n » when this account is not root (see app-log-live.py)."""
+    if os.geteuid() == 0 or shutil.which("sudo") is None:
+        return cmd
+    return ["sudo", "-n"] + cmd
+
+
+def _tool_code(cmd):
+    try:
+        return subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, stdin=subprocess.DEVNULL, timeout=10).returncode
+    except (OSError, subprocess.TimeoutExpired):
+        return 127
+
+
+def _tool_first_line(cmd):
+    try:
+        r = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL, timeout=10, universal_newlines=True, errors="replace")
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    lines = (r.stdout or "").strip().splitlines()
+    return lines[0] if lines else f"(no output, code {r.returncode})"
 
 
 def sudo_owner(env=None):
@@ -177,6 +205,7 @@ class Recorder:
         self.files = {}
         self.offsets = []
         self.sampler = self.finisher = None
+        self._counters = {}                                # 1.2: last PostgreSQL write counters per base (db/writes-BASE.log)
         self.result = None
         self.stopping = False
 
@@ -234,6 +263,16 @@ class Recorder:
         free = shutil.disk_usage(self.folder).free
         if free < DISK_MIN_BYTES:
             raise OSError(f"only {free // (1024 * 1024)} MB free in {self.folder}")
+        # 1.2: PostgreSQL samples are MANDATORY: without them the archive cannot show the writes and the locks (the recording is refused)
+        if self.query is None:
+            raise OSError("the recording needs the Odoo database (PostgreSQL samples): no access to it")
+        if shutil.which("psql") is None:
+            raise OSError("the recording needs psql (PostgreSQL client): install postgresql-client")
+        bases = self._bases()
+        if not bases:
+            raise OSError("the recording needs an Odoo database to sample: none found")
+        if self.query(bases[0], "SELECT 1") is None:
+            raise OSError("PostgreSQL unreachable: « sudo -n -u postgres psql » failed (check the sudoers rules of this account)")
         self.t0 = time.time()
         stamp = time.strftime("%Y%m%d-%H%M%S", time.localtime(self.t0))
         host = slug(socket.gethostname().split(".")[0], 30) or "server"
@@ -397,6 +436,14 @@ class Recorder:
             locks = self.query(base, "SELECT l.pid, l.mode, l.granted FROM pg_locks l JOIN pg_class c ON c.oid = l.relation WHERE c.relname = 'ir_cron'")
             if locks:
                 self._write(f"db/cron-locks-{base}.log", f"=== {stamp} " + " ; ".join("pid " + " ".join(r) for r in locks) + "\n")
+            counters = self.query(base, "SELECT relname, n_tup_ins + n_tup_upd + n_tup_del FROM pg_stat_user_tables WHERE relname IN (" + ", ".join(f"'{t}'" for t in TABLES) + ")")
+            if counters is not None:                         # 1.2: writes per table since the previous sample (cumulative counters of PostgreSQL)
+                now_values = {r[0]: int(r[1] or 0) for r in counters}
+                before = self._counters.get(base)
+                self._counters[base] = now_values
+                if before is not None:
+                    moved = [f"{t} +{now_values[t] - before.get(t, 0)}" for t in sorted(now_values) if now_values[t] != before.get(t, now_values[t])]
+                    self._write(f"db/writes-{base}.log", f"=== {stamp} " + (" · ".join(moved) if moved else "no write") + "\n")
 
     def _bases(self):
         try:
@@ -412,6 +459,7 @@ class Recorder:
                  f"recording started: {self._local(self.t0)} / {self._utc(self.t0)}"]
         lines += [f"component {k}: {v}" for k, v in sorted(self.versions.items())]
         self._write("context/program.txt", "\n".join(lines) + "\n")
+        self._write("context/system.txt", self._system_text())
         if self.service:
             code, out = self.run(["systemctl", "show", self.service, "--no-pager", "-p",
                                   "ActiveState,SubState,TimeoutStopUSec,TimeoutStartUSec,KillMode,KillSignal,Restart,User,MainPID,ActiveEnterTimestamp"], 10)
@@ -429,6 +477,24 @@ class Recorder:
                                     + ", ".join(f"'{m}'" for m in MODULES_OF_INTEREST) + ") OR name LIKE 'rlq%' ORDER BY name")
             if rows is not None:
                 self._write(f"context/modules-{base}.txt", "name · state · version\n" + "".join(" · ".join(r) + "\n" for r in rows))
+
+    def _system_text(self):
+        """1.2: who runs the recording and with which tools: root or not, sudo, OS, kernel, Python, PostgreSQL client and the other tools (no user name)."""
+        uid = os.geteuid()
+        lines = [f"uid: {uid} ({'root' if uid == 0 else 'not root'})"]
+        if uid != 0:
+            if shutil.which("sudo") is None:
+                lines.append("sudo: not installed")
+            else:
+                lines.append("sudo -n: " + ("usable without password" if _tool_code(["sudo", "-n", "true"]) == 0 else "refused without password (check sudoers)"))
+        lines.append(f"os: {self._os_name()}")
+        uname = os.uname()
+        lines.append(f"kernel: {uname.sysname} {uname.release} {uname.machine}")
+        lines.append(f"python: {platform.python_version()}")
+        for name, cmd in TOOL_VERSIONS:
+            first = _tool_first_line(cmd) if shutil.which(cmd[0]) else None
+            lines.append(f"{name}: {first or 'not installed'}")
+        return "\n".join(lines) + "\n"
 
     @staticmethod
     def _os_name():
@@ -707,7 +773,7 @@ class Recorder:
     def _journal_extract(self):
         if not self.service:
             return
-        cmd = ["journalctl", "-u", self.service, "--no-pager", "-q", "-o", "short-iso-precise", "--since", f"@{int(self.t0)}", "--until", f"@{int(self.t1) + 1}"]
+        cmd = privileged(["journalctl", "-u", self.service, "--no-pager", "-q", "-o", "short-iso-precise", "--since", f"@{int(self.t0)}", "--until", f"@{int(self.t1) + 1}"])
         if self.namespace:
             cmd += ["--namespace", self.namespace]
         code, out = self.run(cmd, 120)

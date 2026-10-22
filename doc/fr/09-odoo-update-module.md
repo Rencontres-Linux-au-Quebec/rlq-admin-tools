@@ -15,7 +15,7 @@ Service : unité systemd `erplibre*` ou `odoo*` (`--service` pour forcer). Base 
 
 ## Site calme, copie des modules, retour arrière
 
-* **D'abord un site calme** : avant d'arrêter Odoo, le programme compte les visiteurs actifs (une requête dans les 5 dernières minutes des journaux d'accès de nginx, robots exclus). À partir de `--busy-visitors` (3), le site est occupé : il attend, vérifie toutes les 30 s, au plus `--wait-quiet` minutes (15 ; `0` = pas d'attente), puis met à jour quand même.
+* **D'abord un site calme** : avant d'arrêter Odoo, le programme vérifie l'activité : visiteurs actifs (nginx, 5 dernières minutes), écritures HTTP (POST, PUT, PATCH, DELETE hors lectures connues), sessions et verrous PostgreSQL, écritures dans les tables d'activité. Dès qu'une activité existe, il attend (contrôle toutes les 30 s) au plus `--wait-quiet` minutes (60 ; `0` = un seul contrôle). Au bout du délai, la mise à jour est **annulée** sans rien arrêter ; `--force-busy` (`FORCE_BUSY=oui`) la fait quand même. `--check-activity` affiche l'état sans rien changer. Sans `sudo` ni root, PostgreSQL reste interrogé par « sudo -n -u postgres ».
 * **Copie des modules** : les dossiers des modules sont copiés en `.tar.gz` dans `MODULES_BACKUP_DIR` (`/var/backups/odoo-update-module`, les 10 dernières gardées) *avant* tout changement.
 * **Contrôle après le démarrage** : les lignes ERROR / CRITICAL du journal d'Odoo depuis le redémarrage (journal systemd et `logfile` d'Odoo), après le préchauffage.
 * **Retour arrière** : après une mise à jour en échec, un démarrage raté ou des erreurs dans le journal — et si ce lancement a remplacé le code avec `--zip` —, les dossiers d'avant sont remis, mis à jour de nouveau et Odoo redémarré. Sur un terminal, une question d'abord (Entrée = oui) ; sans personne (cron, systemd), automatique ; `--no-rollback` (`ROLLBACK=non`) l'interdit. Le site ne reste jamais arrêté.
@@ -27,7 +27,7 @@ Les journaux de mise à jour sont gardés `LOG_KEEP_DAYS` jours. Un `-u` réussi
 
 ## Clés de configuration
 
-`ADDONS_DIR`, `BACKUP`, `BUSY_VISITORS` (3), `COMMAND`, `DATABASE`, `LANGUAGE`, `MODULES`, `MODULES_BACKUP_DIR`, `ODOO_CONF`, `ODOO_DIR`, `ROLLBACK`, `RUN_USER`, `SERVICE`, `ZIP`, `WARMUP`, `TIMEOUT` (1800 s), `WAIT` (90 s), `WAIT_QUIET` (15 min).
+`ADDONS_DIR`, `BACKUP`, `BUSY_VISITORS` (3), `COMMAND`, `DATABASE`, `LANGUAGE`, `MODULES`, `MODULES_BACKUP_DIR`, `ODOO_CONF`, `ODOO_DIR`, `ROLLBACK`, `RUN_USER`, `SERVICE`, `ZIP`, `WARMUP`, `TIMEOUT` (1800 s), `WAIT` (90 s), `WAIT_QUIET` (60 min), `FORCE_BUSY` (non).
 
 ## Options
 {{HELP}}
