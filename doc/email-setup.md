@@ -1,4 +1,4 @@
-# Courriel des alertes — configuration et DNS
+# Courriel des alertes - configuration et DNS
 
 > Configuration **complète et sécurisée** (Postfix en envoi seulement, TLS obligatoire, SPF, DKIM, DMARC, TLS-RPT, MTA-STS) avec fichiers prêts à copier : voir `courriel-securise.md` et `courriel/`.
 
@@ -9,7 +9,7 @@ configurer l'envoi, quels enregistrements ajouter au DNS du domaine, et comment 
 
 | Solution | Pour qui | Délivrabilité |
 |---|---|---|
-| **Relais SMTP d'un fournisseur** (recommandé) : le fournisseur qui héberge déjà le courriel du domaine, ou un service d'envoi (Brevo, Mailjet, Amazon SES…) | tous les serveurs | excellente : le fournisseur gère la réputation et DKIM |
+| **Relais SMTP d'un fournisseur** (recommandé) : le fournisseur qui héberge déjà le courriel du domaine, ou un service d'envoi (Brevo, Mailjet, Amazon SES...) | tous les serveurs | excellente : le fournisseur gère la réputation et DKIM |
 | **Compte Gmail / Google Workspace** avec un mot de passe d'application | dépannage | bonne, mais l'expéditeur doit être ce compte |
 | **Postfix envoyant directement** (sans relais) | déconseillé | faible : port 25 souvent bloqué par l'hébergeur, adresse IP de serveur mal réputée, PTR à obtenir |
 
@@ -50,7 +50,7 @@ l'hébergeur, et doit correspondre au nom du serveur.
 ## 4. Vérifier
 
 ```bash
-app-health-check.py --check-email-dns    # relais joignable, MX, SPF, DMARC, DKIM — enregistrements manquants indiqués
+app-health-check.py --check-email-dns    # relais joignable, MX, SPF, DMARC, DKIM - enregistrements manquants indiqués
 app-health-check.py --test-email         # la même vérification, puis l'envoi réel d'un courriel de test
 nginx-hardening.sh --check               # étape 13 : la même vérification, à chaque contrôle du serveur
 ```

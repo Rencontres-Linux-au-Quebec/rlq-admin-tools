@@ -1,4 +1,4 @@
-# nginx-log-audit.sh — nginx log report, investigations, bans
+# nginx-log-audit.sh - nginx log report, investigations, bans
 
 Reads the nginx access logs (the site log of `dev`, `lab` or `prod`; default: the detected profile) and produces a numbered report: robots, refusals, attacks, sensitive-file probes, bursts, parallel requests, rotated identities, followed by a proposal to ban offenders. It keeps a reading position, so each run analyses **what is new** (`--init` re-reads the active file, `--init-all` the whole history with rotations).
 
@@ -20,11 +20,11 @@ Clues are counted per address: sensitive-path probing, page bursts (`--page-burs
 
 ## When and why an address was banned
 
-Every `--ban` and `--unban` records in `~/.local/state/nginx-log-audit/bans.tsv` the date, the time, the **justification** and the origin (account and program: command line, `web-monitor.py`, `app-log-live.py`, report question…). The justification is asked at the keyboard (editable proposal: the evidence); `--reason TEXT` gives it in advance; with `--yes` and no `--reason`, it is recorded as "automatic". To justify an older ban after the fact: `--ban IP --reason "…"` (the ban date does not change).
+Every `--ban` and `--unban` records in `~/.local/state/nginx-log-audit/bans.tsv` the date, the time, the **justification** and the origin (account and program: command line, `web-monitor.py`, `app-log-live.py`, report question...). The justification is asked at the keyboard (editable proposal: the evidence); `--reason TEXT` gives it in advance; with `--yes` and no `--reason`, it is recorded as "automatic". To justify an older ban after the fact: `--ban IP --reason "..."` (the ban date does not change).
 
-`--investigate IP` starts with the **Bans** section: current state (firewall rule, fail2ban jails with start and end, CrowdSec list) and chronological history (journal of manual bans and `fail2ban.log` with its rotations), then, for each jail involved, its reason and what the address did (refused pages from `blocked-probes.log`, requests to the catch-all sensor…). An address blocked only by fail2ban or by the CrowdSec list does not appear in `--unban-check`, which handles manual bans only.
+`--investigate IP` starts with the **Bans** section: current state (firewall rule, fail2ban jails with start and end, CrowdSec list) and chronological history (journal of manual bans and `fail2ban.log` with its rotations), then, for each jail involved, its reason and what the address did (refused pages from `blocked-probes.log`, requests to the catch-all sensor...). An address blocked only by fail2ban or by the CrowdSec list does not appear in `--unban-check`, which handles manual bans only.
 
-Refusals produced by our nginx rules are logged to `blocked-probes.log`, not to the site logs; investigations and evidence read it too (“Requests REFUSED by nginx”), otherwise a banned address would look as if it had made no request.
+Refusals produced by our nginx rules are logged to `blocked-probes.log`, not to the site logs; investigations and evidence read it too ("Requests REFUSED by nginx"), otherwise a banned address would look as if it had made no request.
 
 ## Options
 {{HELP}}

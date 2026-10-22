@@ -1,6 +1,6 @@
-# odoo-warmup.py — préchauffer les caches d'Odoo après un redémarrage
+# odoo-warmup.py - préchauffer les caches d'Odoo après un redémarrage
 
-Après un redémarrage, les premiers visiteurs paient la compilation des assets, le chargement des registres et le rendu des pages. Ce programme demande, dans l'ordre : les pages publiques (dans chaque langue du site), les pages liées, les assets, puis — avec un identifiant d'administration — le client web, les menus, les `get_views` des principaux modèles, et les pages publiques des derniers événements et sondages. Les appels d'administration sont répétés en parallèle (`--repeat`) parce qu'un Odoo à plusieurs workers ne préchauffe qu'un processus par requête.
+Après un redémarrage, les premiers visiteurs paient la compilation des assets, le chargement des registres et le rendu des pages. Ce programme demande, dans l'ordre : les pages publiques (dans chaque langue du site), les pages liées, les assets, puis - avec un identifiant d'administration - le client web, les menus, les `get_views` des principaux modèles, et les pages publiques des derniers événements et sondages. Les appels d'administration sont répétés en parallèle (`--repeat`) parce qu'un Odoo à plusieurs workers ne préchauffe qu'un processus par requête.
 
 ```bash
 odoo-warmup.py                              # préchauffe http://127.0.0.1:8069 (contourne nginx)

@@ -1,6 +1,6 @@
 # Who must be root, and what the suite touches
 
-Rule: a program that **modifies** the system (firewall, services, `/etc` files, databases) or that can read nothing useful without root **refuses at the very start** (before any work; `--help`, `--version`, `--changelog` excepted). A reader program works without root but prints “Limited rights (not root): …” naming what will be incomplete.
+Rule: a program that **modifies** the system (firewall, services, `/etc` files, databases) or that can read nothing useful without root **refuses at the very start** (before any work; `--help`, `--version`, `--changelog` excepted). A reader program works without root but prints "Limited rights (not root): ..." naming what will be incomplete.
 
 PostgreSQL is read through the `postgres` account (`runuser`): anything involving Odoo databases (modules, accounts, registrations, e-mails) requires root.
 

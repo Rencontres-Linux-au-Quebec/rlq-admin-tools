@@ -20,18 +20,18 @@
 | `odoo-chat-post.py` | python | creates Discuss alert channels/threads, a restricted bot account, and posts alerts | no |
 | `odoo-docs.py` | python | publishes this documentation into Odoo (OCA `document_page` wiki or website pages) | no |
 | `zip-versions.py` | python | reports versions inside release archives, compares with the installation | no |
-| `host-perf-audit.py` | python | on a Proxmox host (or any Linux server): what limits the performance — CPU, memory, disks, ZFS, network, guests — and whether SSD disks are justified | for a full report |
+| `host-perf-audit.py` | python | on a Proxmox host (or any Linux server): what limits the performance - CPU, memory, disks, ZFS, network, guests - and whether SSD disks are justified | for a full report |
 
-Shared components live in `apps/` (profile detection, report generator, i18n, anonymizer, RDAP/whois, IP cache, mail…). They are internal: do not run them directly except `apps/_anonymiser.py` (a filter).
+Shared components live in `apps/` (profile detection, report generator, i18n, anonymizer, RDAP/whois, IP cache, mail...). They are internal: do not run them directly except `apps/_anonymiser.py` (a filter).
 
 ## Folders `CHANGELOG.md` and `doc/`
 
-* **`CHANGELOG.md`** (repository root) — the change log of every program: one section per program (`## NAME`), most recent version first. `--changelog` shows only the section of the program that is run. Earlier history is archived outside the repository.
-* **`doc/`** — everything else, in one folder with a sub-folder per language: `doc/en/` and `doc/fr/` hold the administrator manual (Markdown, same file names in both languages), `build_docs.py` (which inserts each program's real `--help` and builds the GitHub pages and the Odoo website module `rlq_tools_docs`), and the configuration templates `NAME.conf.example` (identical in `en/` and `fr/`, kept in sync; the English copy is the one read on first run). `doc/` also holds the maintainers' notes (`CONTEXTE.md`, `DROITS.md`, e-mail and BigBlueButton notes) and `nginx-tools.version`. No program needs the manual on a server.
+* **`CHANGELOG.md`** (repository root) - the change log of every program: one section per program (`## NAME`), most recent version first. `--changelog` shows only the section of the program that is run. Earlier history is archived outside the repository.
+* **`doc/`** - everything else, in one folder with a sub-folder per language: `doc/en/` and `doc/fr/` hold the administrator manual (Markdown, same file names in both languages), `build_docs.py` (which inserts each program's real `--help` and builds the GitHub pages and the Odoo website module `rlq_tools_docs`), and the configuration templates `NAME.conf.example` (identical in `en/` and `fr/`, kept in sync; the English copy is the one read on first run). `doc/` also holds the maintainers' notes (`CONTEXTE.md`, `DROITS.md`, e-mail and BigBlueButton notes) and `nginx-tools.version`. No program needs the manual on a server.
 
 ## Requirements
 
-* Debian/Ubuntu-like system with systemd. BigBlueButton 2.7 on Ubuntu 20.04 means **Python 3.8** — the code avoids newer syntax.
+* Debian/Ubuntu-like system with systemd. BigBlueButton 2.7 on Ubuntu 20.04 means **Python 3.8** - the code avoids newer syntax.
 * `python3`, `bash`, `gawk` or `mawk`; recommended: `geoip-bin` + `geoip-database` (local country lookup), `fail2ban`, `ufw` or `iptables`/`ipset`, `curl`.
 * PostgreSQL access is read-only through `runuser -u postgres -- psql` (this is why anything touching Odoo's database needs root).
 
@@ -53,9 +53,9 @@ Always deploy the program archive and the test archive **together** (same MAJOR.
 
 **Versions.** `MAJOR.MINOR.YYYYMMDD.HHMMSS` (local time). `--version` prints it; `--changelog` shows the section `## NAME` of `CHANGELOG.md`, newest first, with version numbers colored on a terminal only.
 
-**Configuration layering.** `/etc/default/NAME.conf` is read first, then `~/.NAME.conf` if it exists (the last one wins), then the command line (highest priority). The personal file always ends with `.conf`: an old personal file with the `.cfg` extension (previous rule) is renamed to `.conf` automatically at the next run, with a notice; if both exist, the `.conf` is read and the old one is reported, never merged nor deleted. `-c/--config FILE` reads that file **alone** and it must exist. Files are *parsed, never executed*; only known keys are kept. At start-up each program prints which files it read, with their modification date and a one-line summary of the important options. A default file is created on first run from `doc/NAME.conf.example`. A file in which **no option is active** (everything still in comments: never changed) is rewritten from the current template at the next run when the template changed (new keys, new comments); a file with at least one active `KEY=value` line is never touched (`NGINX_TOOLS_CONFIG_MAJ_AUTO=0`: never rewrite). Shared keys (`ANONYMIZE`, `LOG_KEEP_DAYS`, language…) live in `/etc/default/app-default.conf`.
+**Configuration layering.** `/etc/default/NAME.conf` is read first, then `~/.NAME.conf` if it exists (the last one wins), then the command line (highest priority). The personal file always ends with `.conf`: an old personal file with the `.cfg` extension (previous rule) is renamed to `.conf` automatically at the next run, with a notice; if both exist, the `.conf` is read and the old one is reported, never merged nor deleted. `-c/--config FILE` reads that file **alone** and it must exist. Files are *parsed, never executed*; only known keys are kept. At start-up each program prints which files it read, with their modification date and a one-line summary of the important options. A default file is created on first run from `doc/NAME.conf.example`. A file in which **no option is active** (everything still in comments: never changed) is rewritten from the current template at the next run when the template changed (new keys, new comments); a file with at least one active `KEY=value` line is never touched (`NGINX_TOOLS_CONFIG_MAJ_AUTO=0`: never rewrite). Shared keys (`ANONYMIZE`, `LOG_KEEP_DAYS`, language...) live in `/etc/default/app-default.conf`.
 
-**Language.** Programs speak English and French (other languages: add `lang/NAME.XX.po`, see *Translation*). Priority: `--lang` > `NGINX_TOOLS_LANG` > the program's variable (`WEB_MONITOR_LANG`…) > `LANGUAGE=` in the file > the environment as gettext: GNU `LANGUAGE` (`fr_CA:fr:en`, ignored under the `C` locale), then `LC_ALL`, `LC_MESSAGES`, `LANG` — the first defined wins, so a forgotten `LC_ALL` hides `LANG`. The *Options* line at start-up says which setting decided: `--lang en (LC_ALL=C.UTF-8 ; LANG=fr_CA.UTF-8 ignored)`.
+**Language.** Programs speak English and French (other languages: add `lang/NAME.XX.po`, see *Translation*). Priority: `--lang` > `NGINX_TOOLS_LANG` > the program's variable (`WEB_MONITOR_LANG`...) > `LANGUAGE=` in the file > the environment as gettext: GNU `LANGUAGE` (`fr_CA:fr:en`, ignored under the `C` locale), then `LC_ALL`, `LC_MESSAGES`, `LANG` - the first defined wins, so a forgotten `LC_ALL` hides `LANG`. The *Options* line at start-up says which setting decided: `--lang en (LC_ALL=C.UTF-8 ; LANG=fr_CA.UTF-8 ignored)`.
 
 **Alphabetical options.** Help lists options alphabetically; a test enforces it.
 
@@ -67,7 +67,7 @@ Always deploy the program archive and the test archive **together** (same MAJOR.
 
 **Progress.** Long programs print one line per step with elapsed time on standard error, only on a terminal or with `--verbose` (never in pipes or cron).
 
-**Privilege notice.** A reader program run without root prints “Limited rights (not root): …” stating what will be incomplete (silence with `NGINX_TOOLS_AVIS_ROOT=0`). See *Who must be root*.
+**Privilege notice.** A reader program run without root prints "Limited rights (not root): ..." stating what will be incomplete (silence with `NGINX_TOOLS_AVIS_ROOT=0`). See *Who must be root*.
 
 ## Anonymized output (`--anonymize`)
 
@@ -77,8 +77,8 @@ Every program accepts `--anonymize` (or `ANONYMIZE=1`, `NGINX_TOOLS_ANONYMIZE=1`
 
 Addresses specific to an installation live **outside the code**, in `/etc/default`:
 
-* `nginx-tools-white-list.conf` — trusted addresses: never banned, allowed to development/lab sites.
-* `nginx-tools-ip-location.conf` — named places (`# University [shared] [protected]`), no access granted.
+* `nginx-tools-white-list.conf` - trusted addresses: never banned, allowed to development/lab sites.
+* `nginx-tools-ip-location.conf` - named places (`# University [shared] [protected]`), no access granted.
 
 `nginx-hardening.sh --update` generates the nginx snippets from these files (`team-ips-geo.conf`, `team-ips-allow.conf`); never edit those by hand.
 

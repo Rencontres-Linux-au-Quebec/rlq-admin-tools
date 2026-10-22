@@ -1,7 +1,7 @@
-# Qui doit être root ? — droits requis par chaque programme
+# Qui doit être root ? - droits requis par chaque programme
 
 Règle : un programme qui **modifie** le système (pare-feu, services, fichiers de `/etc`, bases de données) ou qui **ne peut rien lire d'utile** sans root le **refuse dès le début**
-(avant tout travail, hors `--help`, `--version` et `--changelog`). Un programme de **lecture** fonctionne sans root mais affiche une ligne « Droits limités (pas root) : … »
+(avant tout travail, hors `--help`, `--version` et `--changelog`). Un programme de **lecture** fonctionne sans root mais affiche une ligne « Droits limités (pas root) : ... »
 qui dit ce qui sera incomplet (désactivable : `NGINX_TOOLS_AVIS_ROOT=0`).
 
 La lecture de PostgreSQL passe par le compte `postgres` (`runuser`) : tout ce qui touche aux bases d'Odoo (modules, comptes, inscriptions, courriels) exige root.
@@ -11,8 +11,8 @@ La lecture de PostgreSQL passe par le compte `postgres` (`runuser`) : tout ce qu
 | `zip-versions.py` | **Oui, entièrement** (lit des archives .zip) | Jamais |
 | `odoo-warmup.py` | **Oui** (requêtes HTTP vers le site) | Seulement pour écrire ou supprimer dans `/etc/default/odoo-warmup-pages` (sinon, fichier personnel) |
 | `app-health-check.py` | **Oui, en partie** (contrôles HTTP, certificats, services, disque) | `nginx -t`, PostgreSQL, fail2ban, journaux protégés ; `--create-config` dans `/etc/default` (sinon `~/.app-health-check.conf`) |
-| `app-log-check.py` | **Oui, en partie** (lecture des journaux accessibles) — avis « Droits limités » | PostgreSQL (modules, utilisateurs), fail2ban, journaux illisibles |
-| `app-log-live.py` | **Oui, en partie** (flux des journaux lisibles) — avis « Droits limités » | Modules et inscriptions (PostgreSQL), fail2ban, pare-feu, `nginx -T`, bannir (touche b) |
+| `app-log-check.py` | **Oui, en partie** (lecture des journaux accessibles) - avis « Droits limités » | PostgreSQL (modules, utilisateurs), fail2ban, journaux illisibles |
+| `app-log-live.py` | **Oui, en partie** (flux des journaux lisibles) - avis « Droits limités » | Modules et inscriptions (PostgreSQL), fail2ban, pare-feu, `nginx -T`, bannir (touche b) |
 | `web-monitor.py` | **Oui pour lire** : `--summary`, `--list-users`, `--status`, `--dry-run`, `--unban-check` (résultats incomplets, avis « Droits limités ») | **Refusé dès le début** pour : passage normal, `--apply`, `--ban-recommended`, `--install-timer`, `--uninstall-timer` |
 | `nginx-log-audit.sh` | **Oui pour lire** (statistiques, `--stats`, `--fail2ban` si les journaux sont lisibles) | `--ban`, `--unban`, `--export-bans`, `--import-bans` (pare-feu) |
 | `nginx-hardening.sh` | **Oui** : `--check` (défaut, ne modifie rien) | `--update` : refusé dès le début, avant même le verrou |

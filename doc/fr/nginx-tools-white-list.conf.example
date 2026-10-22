@@ -1,8 +1,8 @@
-# nginx-tools-white-list.conf — LISTE BLANCHE : adresses de CONFIANCE (équipe).
+# nginx-tools-white-list.conf - LISTE BLANCHE : adresses de CONFIANCE (équipe).
 #   * jamais bannies (fail2ban, liste communautaire CrowdSec, nginx-log-audit.sh) ;
 #   * ont accès aux sites DEV et LAB (nginx : fichiers générés par nginx-hardening.sh --update).
 # Une adresse ou une plage par ligne, suivie de son libellé après « # » :
 #   203.0.113.10        # Étienne (maison)
 #   198.51.100.0/24     # Bureau
 # Fichier lu SEULEMENT dans /etc/default (jamais dans ~) : il donne accès. Après une modification : nginx-hardening.sh --update
-# Pour NOMMER un lieu sans donner d'accès (université, bureau…) : voir /etc/default/nginx-tools-ip-location.conf
+# Pour NOMMER un lieu sans donner d'accès (université, bureau...) : voir /etc/default/nginx-tools-ip-location.conf
