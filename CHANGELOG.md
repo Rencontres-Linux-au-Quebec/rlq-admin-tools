@@ -6,6 +6,25 @@ Earlier history was archived outside this repository when this file was created.
 
 ## app-health-check.py
 
+### 2.28.20261022.171858
+
+- Title: Configuration file present but unreadable without root is reported, not treated as missing.
+- Reason: Without root, `/etc/default/app-health-check.conf` (mode 600, owner root) was found, could not be read, and its settings were silently lost. The e-mail check then reported "not configured".
+- Changes:
+  - `resolve_config_paths()`: an existing file that is not readable is listed as a warning "exists but is NOT readable by this user (run with sudo)"; it is not used.
+  - If the only file found is unreadable, the program stops with exit code 2 and "configuration not readable without root" instead of creating a new configuration.
+  - Files: app-health-check.py, nginx-tools-tests/test_app_health_check.py (test_fichier_illisible_sans_root_signale_et_non_pris_pour_absent, skipped as root).
+- Bugs fixed:
+  - Symptom: "e-mail not configured (SMTP_HOST and NOTIFY_EMAIL_TO empty)" as a normal user, while the file defined both.
+  - Diagnosis: the file was present but unreadable; the empty values came from the missing read, not from the file.
+  - Fix: see Changes above.
+- Safeguards and edge cases:
+  - An explicit `-c/--config` path is unchanged.
+  - As root, the file is read as before.
+- Checks:
+  - test_app_health_check as an ordinary user and as root; test_conventions.
+- Action required: none. Run `sudo app-health-check.py --target local` to read the configuration on the server.
+
 ### 2.27.20261022.110306
 
 - Title: Option values in English only in the configuration summary; template sorted.
@@ -385,6 +404,29 @@ Earlier history was archived outside this repository when this file was created.
 - Current version. Earlier history archived outside the repository.
 
 ## nginx-hardening.sh
+
+### 2.54.20261022.171858
+
+- Title: Run the initial-setup check without root: unverifiable points are warnings, not failures.
+- Reason: Running `nginx-hardening.sh --check` (the default mode) as an ordinary user reported false failures: `iptables -C`, `ufw status`, `fail2ban-client status` and `nginx -t` need root, so their refusal was read as "rule absent" or "configuration refused". The test suite and the read-only real-server checks (run-all.sh, section 6) therefore could not run without root.
+- Changes:
+  - `sans_root_verif()`: when not root in check mode, a check that needs root is reported as `[ATTN]` "not checked without root (run again with sudo ...)", never `[FAIL]`.
+  - Step 0a: `nginx -t` refused with "Permission denied" / "Operation not permitted" / "must be root" without root is a warning.
+  - Step 5: the iptables and ufw rule checks are warnings without root.
+  - Step 9: the fail2ban jail status checks are warnings without root.
+  - Files: nginx-hardening.sh, lang/nginx-hardening.en.po (4 new fragments), nginx-tools-tests/test_nginx_hardening.py (test_hors_root_nginx_t_et_iptables_non_verifies_sans_echec).
+- Bugs fixed:
+  - Symptom: `nginx-hardening.sh --check` run as a normal user reported "nginx -t REFUSE", "iptables : aucune règle DROP" for ports 10000 and 10002, and "Jail ... NON chargé" for three jails, although `--update` as root showed everything correct.
+  - Diagnosis: the default check mode does not require root, but these commands do. Their permission error was read as a missing rule or a refused configuration.
+  - Fix: see Changes above.
+- Safeguards and edge cases:
+  - As root, the checks are unchanged.
+  - Only `--check` is affected: `--update` still requires root.
+  - A real refusal of nginx (certificate, directive, port) still fails as root or without root, unless the message is a permission error.
+- Checks:
+  - test_nginx_hardening, test_app_health_check, test_web_monitor run as an ordinary user (147 tests, 18 skipped because they require root) and as root.
+  - test_i18n and test_conventions.
+- Action required: none for the program. To validate the real server state, run `sudo nginx-hardening.sh --check` (or `--update`, which then shows everything as before).
 
 ### 2.53.20261021.130912
 

@@ -86,7 +86,7 @@ run() {
     "$@"
 }
 
-readonly SCRIPT_VERSION="2.53.20261021.130912"
+readonly SCRIPT_VERSION="2.54.20261022.171858"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
 SCRIPT_NAME="$(basename "${BASH_SOURCE[0]}" .sh)"; readonly SCRIPT_NAME
 # Langue d'affichage (en ou fr) : --lang, NGINX_HARDENING_LANG, LANGUAGE du fichier de configuration, LC_ALL / LANG — apps/_i18n.sh traduit la sortie (rien ne change en français).
@@ -615,6 +615,8 @@ verifier_ignoreip() {
 pass() { echo "  ${C_GREEN}[OK]${C_RESET}   $1"; PASS=$((PASS+1)); }
 fail() { echo "  ${C_RED}[FAIL]${C_RESET} $1"; FAIL=$((FAIL+1)); }
 warn() { echo "  ${C_YELLOW}[ATTN]${C_RESET} $1"; WARN=$((WARN+1)); }
+# 2.54 : hors root (--check par défaut), iptables, ufw, fail2ban-client et nginx -t refusent de répondre : le point est « non vérifié » (ATTN), jamais « absent » (FAIL).
+sans_root_verif() { warn "$1 : non vérifié sans root (relancer avec sudo $0 --check)"; }
 
 # --- BigBlueButton : état AVANT / APRÈS ce passage (apps/_bbb.py) --------------------------------------------------
 # Versions (paquets, Greenlight), empreinte des fichiers de configuration de BBB et des nôtres, comparées à l'instantané
@@ -712,6 +714,8 @@ else
     nx_actif=$(systemctl is-active nginx 2>/dev/null) || nx_actif="inconnu"
     if (( nx_code == 0 )); then
         pass "nginx -t : la configuration est valide avant les changements de ce script."
+    elif [[ "$EUID" -ne 0 ]] && grep -Eqi 'Permission denied|Operation not permitted|must be root' <<<"$nx_sortie"; then
+        sans_root_verif "nginx -t (configuration)"
     else
         fail "nginx -t REFUSE la configuration AVANT tout changement de ce script (problème déjà présent, à corriger) :"
         printf '%s\n' "$nx_sortie" | head -n 8 | sed 's/^/        nginx -t : /'
@@ -1516,6 +1520,8 @@ if command -v ufw >/dev/null 2>&1; then
     for port in "$ODOO_HTTP_PORT" "$ODOO_GEVENT_PORT"; do
         if run ufw status 2>/dev/null | grep_q -E "^${port}/tcp[[:space:]]+DENY"; then
             pass "ufw : règle DENY déjà présente pour le port $port/tcp."
+        elif [[ "$CHECK_ONLY" == "1" && "$EUID" -ne 0 ]]; then
+            sans_root_verif "ufw : règle DENY du port $port/tcp"
         elif [[ "$CHECK_ONLY" == "1" ]]; then
             fail "ufw : aucune règle DENY pour le port $port/tcp (relancer avec --update pour l'ajouter)."
         else
@@ -1527,6 +1533,8 @@ elif command -v iptables >/dev/null 2>&1; then
     for port in "$ODOO_HTTP_PORT" "$ODOO_GEVENT_PORT"; do
         if run iptables -C INPUT -p tcp --dport "$port" ! -s 127.0.0.1 -j DROP 2>/dev/null; then
             pass "iptables : règle DROP déjà présente pour le port $port/tcp (sauf depuis 127.0.0.1)."
+        elif [[ "$CHECK_ONLY" == "1" && "$EUID" -ne 0 ]]; then
+            sans_root_verif "iptables : règle DROP du port $port/tcp"
         elif [[ "$CHECK_ONLY" == "1" ]]; then
             fail "iptables : aucune règle DROP pour le port $port/tcp (relancer avec --update pour l'ajouter)."
         else
@@ -1929,6 +1937,8 @@ else
         for j in "${F2B_INSTALLED_JAILS[@]}"; do
             if run fail2ban-client status "$j" >/dev/null 2>&1; then
                 pass "Jail $j chargé et actif dans fail2ban."
+            elif [[ "$EUID" -ne 0 ]]; then
+                sans_root_verif "Jail $j (fail2ban-client status)"
             else
                 fail "Jail $j : fichiers présents mais jail NON chargé par fail2ban — voir « fail2ban-client reload » puis « journalctl -u fail2ban -n 30 » (erreur de syntaxe, journal introuvable ?)."
             fi

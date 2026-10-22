@@ -732,7 +732,7 @@ class Surveillance(EnvTest):
         open(os.path.join(perso_dir, ".web-monitor.conf"), "w").write('LANGUAGE="fr"\nSORT=name\n')
         rc, out, err = self.run_cmd(["python3", self.prog, "--list-users"], env)
         self.assertRegex(sans_date(out), r"Configuration lue : .*web-monitor\.conf, puis .*\.web-monitor\.conf \(le dernier l'emporte\)")
-        self.assertIn("Options : --lang fr · --sort name · --table oui (ligne de commande prioritaire)", sans_origine(out))
+        self.assertIn("Options : --lang fr · --sort name · --table yes (ligne de commande prioritaire)", sans_origine(out))
         self.assertIn("valeur de configuration ignorée : DAYS=abc", err)
         self.assertIn("par ordre alphabétique", out)
         # La ligne de commande l'emporte ; -c : ce fichier seul
