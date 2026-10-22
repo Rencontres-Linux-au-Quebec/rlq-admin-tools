@@ -31,6 +31,8 @@ The archive holds: `README.txt` (local and UTC times, missing sources), `records
 
 IP addresses, e-mails, known names and tokens are replaced by stable pseudonyms before they are written. The database is only read, in read-only transactions.
 
+**Recording requirements (1.100)**: the `psql` client (package `postgresql-client`) and access to the Odoo database are mandatory; without them the recording is refused with a message (the PostgreSQL samples show the writes and the locks). The program can run without root: PostgreSQL is then queried through `sudo -n -u postgres`, and the advanced commands (fail2ban-client, ipset, journalctl) through `sudo -n`. These sudo rules must be allowed without password for the account running the program. The archive also records the system context (root or not, operating system, tool versions).
+
 Without a keyboard: `--record-test-log MIN` records MIN minutes from start-up, writes the archive, then exits. `--record-max MIN` (key `RECORD_MAX`, 60 by default and at most; 0 is refused) stops a recording by itself. `--steps-line` (key F) shows all the steps of the recording on one white line, updated at each step (screen only).
 
 ## Latency: is it the disk?
