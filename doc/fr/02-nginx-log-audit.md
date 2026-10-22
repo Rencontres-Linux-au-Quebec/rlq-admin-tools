@@ -1,4 +1,4 @@
-# nginx-log-audit.sh — rapport des journaux nginx, enquêtes, bannissements
+# nginx-log-audit.sh - rapport des journaux nginx, enquêtes, bannissements
 
 Lit les journaux d'accès nginx (journal du site `dev`, `lab` ou `prod` ; défaut : le profil détecté) et produit un rapport numéroté : robots, refus, attaques, recherche de fichiers sensibles, rafales, requêtes parallèles, identités de robots changeantes, puis propose de bannir les fautifs. Il garde une position de lecture : chaque exécution analyse **ce qui est nouveau** (`--init` relit le fichier actif, `--init-all` tout l'historique avec les rotations).
 
@@ -20,9 +20,9 @@ Les indices sont comptés par adresse : recherche de chemins sensibles, rafales 
 
 ## Quand et pourquoi une adresse a été bannie
 
-Chaque `--ban` et `--unban` enregistre dans `~/.local/state/nginx-log-audit/bans.tsv` la date, l'heure, la **justification** et l'origine (compte et programme : ligne de commande, `web-monitor.py`, `app-log-live.py`, question du rapport…). La justification est demandée au clavier (proposition modifiable : les preuves) ; `--reason TEXTE` la donne d'avance ; avec `--yes` sans `--reason`, elle est notée « automatique ». Pour justifier après coup un bannissement plus ancien : `--ban IP --reason "…"` (la date du bannissement ne change pas).
+Chaque `--ban` et `--unban` enregistre dans `~/.local/state/nginx-log-audit/bans.tsv` la date, l'heure, la **justification** et l'origine (compte et programme : ligne de commande, `web-monitor.py`, `app-log-live.py`, question du rapport...). La justification est demandée au clavier (proposition modifiable : les preuves) ; `--reason TEXTE` la donne d'avance ; avec `--yes` sans `--reason`, elle est notée « automatique ». Pour justifier après coup un bannissement plus ancien : `--ban IP --reason "..."` (la date du bannissement ne change pas).
 
-`--investigate IP` commence par la section **Bannissements** : état actuel (règle du pare-feu, jails fail2ban avec début et fin, liste CrowdSec) et historique chronologique (journal des bannissements manuels et `fail2ban.log` avec ses rotations), puis, pour chaque jail en cause, sa raison et ce que l'adresse a fait (pages refusées de `blocked-probes.log`, requêtes au capteur catch-all…). Une adresse bloquée seulement par fail2ban ou par la liste CrowdSec n'apparaît pas dans `--unban-check`, qui ne traite que les bannissements manuels.
+`--investigate IP` commence par la section **Bannissements** : état actuel (règle du pare-feu, jails fail2ban avec début et fin, liste CrowdSec) et historique chronologique (journal des bannissements manuels et `fail2ban.log` avec ses rotations), puis, pour chaque jail en cause, sa raison et ce que l'adresse a fait (pages refusées de `blocked-probes.log`, requêtes au capteur catch-all...). Une adresse bloquée seulement par fail2ban ou par la liste CrowdSec n'apparaît pas dans `--unban-check`, qui ne traite que les bannissements manuels.
 
 Les refus produits par nos règles nginx sont journalisés dans `blocked-probes.log`, pas dans les journaux des sites ; les enquêtes et les preuves le lisent aussi (« Requêtes REFUSÉES par nginx »), sinon une adresse bannie semblerait n'avoir fait aucune requête.
 

@@ -1,6 +1,6 @@
 # Qui doit être root, et ce que la suite touche
 
-Règle : un programme qui **modifie** le système (pare-feu, services, fichiers de `/etc`, bases de données) ou qui **ne peut rien lire d'utile** sans root le **refuse dès le début** (avant tout travail ; `--help`, `--version`, `--changelog` exceptés). Un programme de lecture fonctionne sans root mais affiche « Droits limités (pas root) : … » en disant ce qui sera incomplet.
+Règle : un programme qui **modifie** le système (pare-feu, services, fichiers de `/etc`, bases de données) ou qui **ne peut rien lire d'utile** sans root le **refuse dès le début** (avant tout travail ; `--help`, `--version`, `--changelog` exceptés). Un programme de lecture fonctionne sans root mais affiche « Droits limités (pas root) : ... » en disant ce qui sera incomplet.
 
 PostgreSQL est lu par le compte `postgres` (`runuser`) : tout ce qui touche aux bases d'Odoo (modules, comptes, inscriptions, courriels) exige root.
 

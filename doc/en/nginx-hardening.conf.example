@@ -4,7 +4,7 @@
 #   2. ~/.nginx-hardening.conf               (s'il existe : réglages de l'utilisateur)
 # -c/--config FICHIER : ce fichier SEUL. Le répertoire courant n'est PAS lu. Le programme affiche toujours quel(s) fichier(s) il lit,
 # puis une ligne résumant les options importantes. Format : CLÉ=valeur, une par ligne ; # = commentaire ; guillemets facultatifs ;
-# booléens : yes / no (true / false, 1 / 0) — valeurs en anglais seulement (oui / non : lus, avec un avertissement). Ce fichier est LU, jamais exécuté.
+# booléens : yes / no (true / false, 1 / 0) - valeurs en anglais seulement (oui / non : lus, avec un avertissement). Ce fichier est LU, jamais exécuté.
 
 # --- Options (ordre alphabétique / alphabetical order) ---
 # --anonymize : anonymiser ce que le programme affiche (adresses IP, courriels, identifiants, jetons) par des pseudonymes stables (IP-4f2a9c, usager-9c1e03@anonyme.invalid) ; clé ANONYMIZE
@@ -13,13 +13,13 @@
 # --app (défaut : détectée automatiquement)
 #APP=
 # en, fr ou auto (suivre LC_ALL / LC_MESSAGES / LANG). Ordre de choix : --lang, NGINX_TOOLS_LANG, NGINX_HARDENING_LANG, cette clé, LC_ALL, LC_MESSAGES, LANG.
-# Ajouter une langue = ajouter le fichier lang/nginx-hardening.XX.po (format PO : Poedit, Weblate…) — voir lang/README.md.
+# Ajouter une langue = ajouter le fichier lang/nginx-hardening.XX.po (format PO : Poedit, Weblate...) - voir lang/README.md.
 #LANGUAGE=auto
 # --log-retention-months (1 à 24)
 #LOG_RETENTION_MONTHS=3
 # --mail-from (expéditeur des courriels de la suite ; défaut : l'identifiant du relais)
 #MAIL_FROM=
-# --mail-host (relais SMTP des programmes Python et Bash ; demandé la première fois avec --update — le mot de passe n'est JAMAIS ici) (défaut : aucun, demandé la première fois)
+# --mail-host (relais SMTP des programmes Python et Bash ; demandé la première fois avec --update - le mot de passe n'est JAMAIS ici) (défaut : aucun, demandé la première fois)
 #MAIL_HOST=
 # --mail-port (port du relais SMTP ; défaut 587)
 #MAIL_PORT=587

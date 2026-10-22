@@ -1,4 +1,4 @@
-# nginx-hardening.sh — audit et installation du serveur
+# nginx-hardening.sh - audit et installation du serveur
 
 Audite (par défaut) ou installe/répare (`--update`) la base du serveur en étapes numérotées. Rien n'est modifié sans `--update` ; chaque fichier modifié est d'abord sauvegardé. Fonctionne pour le profil Odoo et le profil BigBlueButton (`--app odoo|bbb`, détecté sinon ; l'audit dit « sans objet » là où une étape ne convient pas à l'application).
 
@@ -23,13 +23,13 @@ Audite (par défaut) ou installe/répare (`--update`) la base du serveur en éta
 | 3 | page de maintenance |
 | 4 | interface d'écoute d'Odoo et amonts nginx : le port de l'amont doit être celui d'Odoo ; vérifie l'amont websocket (discussion en direct), `proxy_http_version`, `proxy_read_timeout` ; les amonts d'une autre version d'Odoo ne sont ni vérifiés ni modifiés |
 | 5 | pare-feu : ports HTTP/gevent d'Odoo bloqués depuis l'extérieur |
-| 6 | suggestion de limite mémoire (`--workers` × RAM disponible) |
+| 6 | suggestion de limite mémoire (`--workers` x RAM disponible) |
 | 7 | audit de l'unité systemd d'Odoo et de `run.sh` |
-| 8 | audit d'`odoo.conf` (`list_db`, `admin_passwd`, mode proxy, limites…) |
-| 9 | jails fail2ban : capteur catch-all, `odoo-auth` (échecs de connexion lus dans le journal d'Odoo), `nginx-blocked-probes` (5 refus nginx en 10 minutes → bannissement de 24 h) |
+| 8 | audit d'`odoo.conf` (`list_db`, `admin_passwd`, mode proxy, limites...) |
+| 9 | jails fail2ban : capteur catch-all, `odoo-auth` (échecs de connexion lus dans le journal d'Odoo), `nginx-blocked-probes` (5 refus nginx en 10 minutes -> bannissement de 24 h) |
 | 10 | HSTS réellement envoyé par chaque nom HTTPS (lu dans `nginx -T`) |
 | 11 | rétention des journaux (`--log-retention-months`, 1 à 24, défaut 3) |
-| 12 | listes d'adresses → fragments nginx (`team-ips-geo.conf`, `team-ips-allow.conf`, `shared-ips-geo.conf`) ; nginx est rechargé si les fragments sont plus récents que la configuration chargée |
+| 12 | listes d'adresses -> fragments nginx (`team-ips-geo.conf`, `team-ips-allow.conf`, `shared-ips-geo.conf`) ; nginx est rechargé si les fragments sont plus récents que la configuration chargée |
 | 13 | courriel d'alerte : relais, MX, SPF, DMARC, DKIM |
 | 14 | `geoip-bin` / `geoip-database` pour le pays en local |
 | 15 | bip d'`app-log-live.py --chime` dans byobu/tmux |
