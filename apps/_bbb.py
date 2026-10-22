@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # ========================================================================================================================
-# Copyright (C) 2026 Services-Conseils Linux
+# Copyright (C) 2026 Services-Conseils Linux Inc.
 # Copyright (C) 2026 Rencontres Linux au Québec contributors
 #
 # This program is free software: you can redistribute it and/or modify it under the terms of the GNU Affero General Public
@@ -13,11 +13,6 @@
 # une mise à jour de BBB (apt upgrade, bbb-install.sh) apparaît comme une différence au passage suivant.
 # Utilisé par nginx-hardening.sh (--before au début, --after à la fin) et par web-monitor.py --summary (fonction resume).
 #
-# HISTORIQUE DE VERSION (resume — voir doc/_bbb.changelog.txt pour le detail complet) :
-#   1.3.20261019.150215 — New copyright: Services-Conseils Linux and Rencontres Linux au Québec contributors (AGPL-3.0-or-later).
-#   1.2.20261016.173838 — Copyright holder: Services-Linux Conseils Inc
-#   1.1.20261002.073514 — Instantane d'un autre emplacement ignore ; jamais d'ecriture du vrai instantane sous les tests ; --verbose.
-#   1.0.20261001.143624 — Premiere version : versions, fichiers de BBB et les notres, compatibilite, instantane avant/apres.
 #
 # Usage (normalement appele par les programmes de la suite) :
 #   python3 apps/_bbb.py --before            etat + ce qui a change depuis le dernier instantane (mise a jour de BBB ?)

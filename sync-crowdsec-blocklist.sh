@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ========================================================================================================================
-# Copyright (C) 2026 Services-Conseils Linux
+# Copyright (C) 2026 Services-Conseils Linux Inc.
 # Copyright (C) 2026 Rencontres Linux au Québec contributors
 #
 # This program is free software: you can redistribute it and/or modify it under the terms of the GNU Affero General Public
@@ -28,48 +28,6 @@
 # Source par defaut : "all.txt" du projet communautaire Y3ll0w/CrowdSec-CAPI-Decisions (republie la liste CAPI de
 # CrowdSec, ~toutes les 2h, sans compte CrowdSec). Projet tiers, pas un service officiel de CrowdSec.
 #
-# HISTORIQUE DE VERSION (resume — voir sync-crowdsec-blocklist.changelog.txt pour le detail complet) :
-#   1.24.20261019.150215 — New copyright: Services-Conseils Linux and Rencontres Linux au Québec contributors (AGPL-3.0-or-later).
-#   1.23.20261016.173838 — Copyright holder: Services-Linux Conseils Inc
-#   1.22.20261015.143436 — --anonymize : affichage anonymisé (pseudonymes stables).
-#   1.21.20261012.103600 — Fichier de configuration créé au premier démarrage (toutes les options en commentaire) ; modèle doc/sync-crowdsec-blocklist.conf.example complété.
-#   1.20.20261010.215000 — Affichage francais ou anglais (--lang) ; fichier de configuration (LANGUAGE et options) et -c/--config.
-#   1.19.20261008.120306 — Couleurs conservees avec --report-err.
-#   1.18.20261007.093208 — Adresses protegees : liste blanche et lieux [protegee] (apps/_listes.sh).
-#   1.17.20261002.214327 — Premiere ligne de TOUTE execution (meme --help) : nom et version.
-#   1.16.20260930.163902 — Option --report-err : rapport d'erreurs a copier-coller en fin d'execution.
-#   1.15.20260930.081347 — Motif « A && B || C » remplace par un « if » (derniere_reussite).
-#   1.14.20260929.195459 — Aide : options par ordre alphabetique.
-#   1.13.20260929.134422 — Verrou flock contre les executions concurrentes.
-#   1.12.20260929.123856 — IP protegees : liste unique apps/team-ips.list, en plus des « allow » de nginx (vaut pour BBB).
-#   1.11.20260928.211633 — PATH non complete pendant la suite de tests (NGINX_TOOLS_TESTS).
-#   1.10.20260928.091309 — PATH complete (cron) ; passage date ; vrai message d'ipset et diagnostic adapte, verifie avant
-#                          le telechargement ; suivi des echecs consecutifs (--status) ; cron complete (PATH).
-#   1.9.20260927.202645 — Changelog dans le sous-repertoire doc/ (repli sur l'ancien emplacement).
-#   1.8.20260927.200712 — Fichiers d'etat et copie de sauvegarde en anglais (migration automatique).
-#   1.7.20260927.145909 — Reference mise a jour : nginx-log-audit.sh (ancien chk-nginx-logs.sh).
-#   1.6.20260926.125259 — ShellCheck 0.11.0 : aucun signalement, a tous les niveaux (constantes affectees puis
-#                          declarees readonly, faux positifs documentes), variable morte was_exec retiree. --changelog : interruption d'un
-#                          tube (ex. « | head ») geree proprement, au lieu d'un faux « ARRET INATTENDU (code 141) ».
-#   1.5.20260926.085236 — Revue de type shellcheck : « rm -rf "${STATE_DIR:?}" » (SC2115) dans --uninstall —
-#                          s'arrete au lieu de viser la racine si la variable etait un jour vide.
-#   1.4.20260926.075558 — IP protegees JAMAIS bloquees (liste blanche nginx, adresses du serveur, fichier .allow),
-#                          meme si la liste communautaire les contient exactement ou via une plage : entrees
-#                          « nomatch » dans les ipsets ; reseaux prives ecartes. Course SIGPIPE de « | grep -q »
-#                          corrigee (grep_q) — elle pouvait empecher la remise de la regle au demarrage de ufw.
-#   1.3.20260924.213315 — Options --ufw-hook / --ufw-hook-remove : integration optionnelle a ufw via son point
-#                          d'extension officiel /etc/ufw/after.init (bloc delimite, sauvegarde, retrait exact) —
-#                          ipsets et regles restaures a chaque demarrage de ufw, sans attendre le cron.
-#   1.2.20260924.203547 — Avertissement si la liste n'a pas change depuis --stale-days jours (defaut 3) : sortie,
-#                          --status et journal systeme (logger) — signe d'un depot source plus alimente.
-#   1.1.20260924.192259 — Installation automatique des paquets manquants (ipset, iptables, curl, ipset-persistent,
-#                          iptables-persistent — ces deux derniers JAMAIS si ufw est installe, car apt supprimerait
-#                          ufw) ; sauvegarde persistante apres chaque changement (netfilter-persistent save, chaines
-#                          fail2ban retirees de la sauvegarde) ; --verbose ; indicateur de progression ; --blocked
-#                          (IP reellement bloquees, compteurs par IP cumules) ; --cron-hours ; synchronisation sautee
-#                          si la liste n'a pas change ; repli sur la derniere liste en cache si le telechargement
-#                          echoue apres un redemarrage. Correctif : --status annoncait a tort ne pas exiger root.
-#   1.0.20260924.162902 — Version initiale.
 #
 # Usage : sync-crowdsec-blocklist.sh [--dry-run] [--status] [--blocked [--top N]] [--source URL] [--install-cron
 #                                    [--cron-hours N]] [--uninstall] [--min-ips N] [-v|--verbose] [--version]
@@ -102,7 +60,7 @@
 #                        contre un telechargement rate silencieusement qui debannirait tout le monde.
 #   - -v/--verbose    : affiche chaque commande systeme executee (apt, ipset, iptables, curl...).
 #   - --version       : affiche la version et quitte.
-#   - --changelog     : affiche sync-crowdsec-blocklist.changelog.txt (couleur si terminal).
+#   - --changelog     : affiche CHANGELOG.md (couleur si terminal).
 
 set -euo pipefail
 # PATH complété (2.x) : sous cron, PATH se limite à /usr/bin:/bin — ipset, iptables, nft, fail2ban-client, nginx
@@ -121,14 +79,18 @@ grep_q() { grep "$@" >/dev/null; }
 #                              ne peut pas le voir, le texte etant entre apostrophes (faux positif).
 trap 'ec=$?; echo "" >&2; echo "*** ARRÊT INATTENDU DU SCRIPT (code $ec) À LA LIGNE $LINENO ***" >&2; echo "*** Commande fautive : $BASH_COMMAND" >&2' ERR
 
-readonly SCRIPT_VERSION="1.24.20261019.150215"
+readonly SCRIPT_VERSION="1.26.20261020.211944"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
 SCRIPT_NAME="$(basename "${BASH_SOURCE[0]}" .sh)"; readonly SCRIPT_NAME
 # Changelog dans le sous-repertoire doc/ ; repli sur l'ancien emplacement (a cote du programme) tant que
 # l'installation n'a pas ete reorganisee.
-CHANGELOG_FILE="$SCRIPT_DIR/doc/${SCRIPT_NAME}.changelog.txt"
-if [[ ! -r "$CHANGELOG_FILE" && -r "$SCRIPT_DIR/${SCRIPT_NAME}.changelog.txt" ]]; then CHANGELOG_FILE="$SCRIPT_DIR/${SCRIPT_NAME}.changelog.txt"; fi
+CHANGELOG_FILE="$SCRIPT_DIR/CHANGELOG.md"
 readonly CHANGELOG_FILE
+
+# Section of this program in CHANGELOG.md (from its "## <file name>" heading to the next "## " heading).
+changelog_section() {
+    awk -v cle="${BASH_SOURCE[0]##*/}" '/^## /{dans=($0 == "## " cle); if (dans) print; next} dans' "$CHANGELOG_FILE"
+}
 # Langue d'affichage (en ou fr) : --lang, SYNC_CROWDSEC_BLOCKLIST_LANG, LANGUAGE du fichier de configuration, LC_ALL / LANG — apps/_i18n.sh traduit la sortie (rien ne change en français).
 if [[ -r "$SCRIPT_DIR/apps/_i18n.sh" ]]; then
     # shellcheck source=/dev/null  # bibliothèque livrée à côté du programme
@@ -195,8 +157,9 @@ case " $* " in *" --version "*) ;; *) echo "sync-crowdsec-blocklist.sh v$SCRIPT_
 # Listes d'adresses (liste blanche, lieux protégés) : /etc/default/nginx-tools-*.conf — lecteur commun apps/_listes.sh.
 # shellcheck source=/dev/null
 [[ -r "$SCRIPT_DIR/apps/_listes.sh" ]] && . "$SCRIPT_DIR/apps/_listes.sh"
-# Configuration (/etc/default/sync-crowdsec-blocklist.conf, puis ~/.sync-crowdsec-blocklist.cfg ; -c/--config : ce fichier SEUL) : valeurs par défaut des options, la ligne de commande l'emporte.
+# Configuration (/etc/default/sync-crowdsec-blocklist.conf, puis ~/.sync-crowdsec-blocklist.conf ; -c/--config : ce fichier SEUL) : valeurs par défaut des options, la ligne de commande l'emporte.
 # Clés : CRON_HOURS, LANGUAGE, MIN_IPS, SOURCE, STALE_DAYS, TOP, VERBOSE.
+declare -F pad_cols >/dev/null || pad_cols() { printf '%-*s' "$2" "$1"; }     # 1.25 : sans apps/_i18n.sh, remplissage en octets (comme avant)
 if declare -F config_lire >/dev/null; then
     config_lire "$SCRIPT_NAME" "$@"
     config_defaut CRON_HOURS CRON_HOURS --cron-hours nombre
@@ -205,7 +168,7 @@ if declare -F config_lire >/dev/null; then
     config_defaut STALE_DAYS STALE_DAYS --stale-days nombre
     config_defaut TOP_N TOP --top nombre
     config_defaut VERBOSE VERBOSE --verbose booleen
-    case " $* " in *" --version "*|*" --help "*|*" -h "*) ;; *) config_afficher ;; esac
+    case " $* " in *" --version "*|*" --help "*|*" -h "*|*" --changelog "*) ;; *) config_afficher ;; esac
 fi
 
 while [[ $# -gt 0 ]]; do
@@ -235,9 +198,9 @@ while [[ $# -gt 0 ]]; do
             fi
             if [[ -t 1 ]]; then
                 # Numeros de version en cyan gras ; SIGPIPE (ex. "| head") laisse terminer proprement par defaut.
-                sed -E $'s/([0-9]+\\.[0-9]+\\.[0-9]{8}\\.[0-9]{6})/\\x1b[1;36m\\1\\x1b[0m/' "$CHANGELOG_FILE" || true  # lecteur ferme plus tot (| head) : SIGPIPE attendu, pas une erreur
+                changelog_section | sed -E $'s/([0-9]+\\.[0-9]+\\.[0-9]{8}\\.[0-9]{6})/\\x1b[1;36m\\1\\x1b[0m/' || true  # lecteur ferme plus tot (| head) : SIGPIPE attendu, pas une erreur
             else
-                cat "$CHANGELOG_FILE" || true  # lecteur ferme plus tot (| head) : SIGPIPE attendu, pas une erreur
+                changelog_section || true  # lecteur ferme plus tot (| head) : SIGPIPE attendu, pas une erreur
             fi
             exit 0
             ;;
@@ -250,7 +213,7 @@ Options (par ordre alphabétique) :
   --anonymize                  anonymise ce qui est affiché (adresses IP, courriels, identifiants, jetons) par des pseudonymes stables ; clé ANONYMIZE
   --blocked                    IP de la liste effectivement bloquées (compteurs du pare-feu)
   --changelog                  affiche le journal des modifications
-  -c, --config FILE            fichier de configuration à lire SEUL (sinon : /etc/default/sync-crowdsec-blocklist.conf, puis ~/.sync-crowdsec-blocklist.cfg ;
+  -c, --config FILE            fichier de configuration à lire SEUL (sinon : /etc/default/sync-crowdsec-blocklist.conf, puis ~/.sync-crowdsec-blocklist.conf ;
                                clés : CRON_HOURS, LANGUAGE, MIN_IPS, SOURCE, STALE_DAYS, TOP, VERBOSE)
   --cron-hours N               avec --install-cron : intervalle en heures
   --dry-run                    télécharger et analyser la liste, sans rien modifier
@@ -896,7 +859,8 @@ if [[ "$DO_BLOCKED" == "1" ]]; then
     n_total=$(printf '%s\n' "$merged" | grep -c . || true)
     echo "$n_total IP distincte(s) bloquée(s) à ce jour. Dernière synchronisation : $last_sync"
     echo
-    printf '%-40s %10s %12s  %-38s %s\n' "IP" "PAQUETS" "OCTETS" "PREMIÈRE DÉTECTION" "DERNIÈRE DÉTECTION"
+    # 1.25 : en-tête accentué complété en COLONNES (printf de bash compte des octets : « PREMIÈRE DÉTECTION » était 2 colonnes trop court)
+    printf '%-40s %10s %12s  %s %s\n' "IP" "PAQUETS" "OCTETS" "$(pad_cols "PREMIÈRE DÉTECTION" 38)" "DERNIÈRE DÉTECTION"
     if [[ "$TOP_N" -gt 0 ]]; then
         shown=$(printf '%s\n' "$merged" | head -n "$TOP_N") || true
     else

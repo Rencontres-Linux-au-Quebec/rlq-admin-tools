@@ -1363,8 +1363,8 @@ msgstr "NON configuré : les alertes vont seulement dans le journal système"
 msgid "  To enable it: set SMTP_HOST and NOTIFY_EMAIL_TO in "
 msgstr "  Pour l'activer : renseigner SMTP_HOST et NOTIFY_EMAIL_TO dans "
 
-msgid "  (see doc/app-health-check.conf.example for the other SMTP keys)."
-msgstr "  (voir doc/app-health-check.conf.example pour les autres clés SMTP)."
+msgid "  (see doc/en/app-health-check.conf.example for the other SMTP keys)."
+msgstr "  (voir doc/en/app-health-check.conf.example pour les autres clés SMTP)."
 
 msgid " report(s) in "
 msgstr " rapport(s) dans "
@@ -1765,8 +1765,8 @@ msgstr "  Options : "
 msgid "  WARNING: configuration value ignored: "
 msgstr "  ATTENTION : valeur de configuration ignorée : "
 
-msgid "Configuration file to read ALONE (otherwise: /etc/default/web-monitor.conf, then the personal file .web-monitor.cfg; UPPERCASE options: APP, DAYS, DETAILS, INTERVAL_HOURS, LANGUAGE, NO_PAGER, NO_PROMPT, REVERSE, SORT, TABLE)"
-msgstr "Fichier de configuration à lire SEUL (sinon : /etc/default/web-monitor.conf, puis le fichier personnel .web-monitor.cfg ; options en MAJUSCULES : APP, DAYS, DETAILS, INTERVAL_HOURS, LANGUAGE, NO_PAGER, NO_PROMPT, REVERSE, SORT, TABLE)"
+msgid "Configuration file to read ALONE (otherwise: /etc/default/web-monitor.conf, then the personal file .web-monitor.conf; UPPERCASE options: APP, DAYS, DETAILS, INTERVAL_HOURS, LANGUAGE, NO_PAGER, NO_PROMPT, REVERSE, SORT, TABLE)"
+msgstr "Fichier de configuration à lire SEUL (sinon : /etc/default/web-monitor.conf, puis le fichier personnel .web-monitor.conf ; options en MAJUSCULES : APP, DAYS, DETAILS, INTERVAL_HOURS, LANGUAGE, NO_PAGER, NO_PROMPT, REVERSE, SORT, TABLE)"
 
 msgid "configuration file not found: "
 msgstr "fichier de configuration introuvable : "

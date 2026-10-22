@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # ========================================================================================================================
-# Copyright (C) 2026 Services-Conseils Linux
+# Copyright (C) 2026 Services-Conseils Linux Inc.
 # Copyright (C) 2026 Rencontres Linux au Québec contributors
 #
 # This program is free software: you can redistribute it and/or modify it under the terms of the GNU Affero General Public
@@ -9,9 +9,6 @@
 # ========================================================================================================================
 # _connexions.py — connexions à Odoo (HTTP, chat / websocket, PostgreSQL, nginx) et limites proches (module partagé, apps/).
 #
-# HISTORIQUE DE VERSION (résumé — voir doc/_connexions.changelog.txt pour le détail complet) :
-#   1.1.20261019.150215 — New copyright: Services-Conseils Linux and Rencontres Linux au Québec contributors (AGPL-3.0-or-later).
-#   1.0.20261015.065821 — Création : mesure des connexions et des descripteurs de fichiers, diagnostic avec le paramètre à changer.
 """Mesure, sans rien modifier, ce qui s'approche d'une limite quand le nombre de connexions monte (chat d'Odoo = websockets sur le port gevent, pages HTTP,
 PostgreSQL, nginx) et dit QUEL PARAMÈTRE changer. Utilisé par app-log-live.py (vérification chaque minute) et web-monitor.py (sommaire).
 

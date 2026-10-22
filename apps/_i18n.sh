@@ -1,5 +1,5 @@
 # ========================================================================================================================
-# Copyright (C) 2026 Services-Conseils Linux
+# Copyright (C) 2026 Services-Conseils Linux Inc.
 # Copyright (C) 2026 Rencontres Linux au Québec contributors
 #
 # This program is free software: you can redistribute it and/or modify it under the terms of the GNU Affero General Public
@@ -8,31 +8,24 @@
 # ========================================================================================================================
 # _i18n.sh — langue d'affichage (fr / en…) et fichier de configuration des programmes bash (bibliothèque commune sourcée, apps/).
 #
-# HISTORIQUE DE VERSION (résumé — voir doc/_i18n.sh.changelog.txt pour le détail complet) :
-#   1.14.20261019.150215 — config_rafraichir: configuration files with no active option rewritten from the current template; new copyright.
-#   1.13.20261017.200717 — Ctrl+C: a second Ctrl+C during the « Interrupt? » question stops the program (it was ignored after a Ctrl+C in a question).
-#   1.12.20261017.105442 — Language: LANGUAGE (GNU) also starts the translator; « Options : --lang xx (origine) » for the bash programs.
-#   1.11.20261016.173838 — run_interruptible (Ctrl+C answered at once during a long command) and ctrl_c_child (the child program asks, not both); stop of the running command on « yes ».
-#   1.10.20261015.172851 — ShellCheck : tr 'A-Z' 'a-z' remplacé par les classes [:upper:] / [:lower:] (SC2018, SC2019).
-#   1.9.20261015.143436 — --anonymize, NGINX_TOOLS_ANONYMIZE et ANONYMIZE du fichier de configuration : le programme est relancé derrière le filtre d'apps/_traduire.py.
-#   1.8.20261015.092124 — ShellCheck SC2004 : (( CFG[DEBUG_LEVEL] >= 1 )) sans $.
-#   1.7.20261015.080630 — LOG_KEEP_DAYS du fichier commun exporté (NGINX_TOOLS_LOG_KEEP_DAYS).
-#   1.6.20261015.073057 — config_date_modif : date de modification des fichiers de configuration lus (heure locale).
-#   1.5.20261015.065821 — Le fichier commun app-default.conf est créé s'il n'existe pas (config_creer_defaut).
-#   1.4.20261014.175821 — Fichier commun app-default.conf lu avant celui du programme (LANGUAGE, VERBOSE, DEBUG_LEVEL).
-#   1.3.20261014.154520 — Ctrl+C pendant une question : la réponse est lue hors readline (plus de « nt » mêlé à la ligne en cours).
-#   1.2.20261012.103600 — config_creer_defaut : crée le fichier de configuration par défaut au premier démarrage (toutes les options en commentaire).
-#   1.1.20261011.144500 — Ctrl+C : ctrl_c_installer (confirmation « Interrompre le programme ? [o/N] »), appelée par i18n_relancer ; CTRL_C_NETTOYAGE.
-#   1.0.20261010.221500 — Création : i18n_relancer (traduction de la sortie par apps/_traduire.py), config_lire / config_defaut / config_afficher (règle commune des fichiers de configuration).
 #
 # Utilisation, tout au début du programme (après SCRIPT_DIR et SCRIPT_NAME) :
 #   . "$SCRIPT_DIR/apps/_i18n.sh"; i18n_relancer "$SCRIPT_NAME" NOM_DU_PROGRAMME_LANG "$0" "$@"
-#   config_lire "$SCRIPT_NAME" "$@"                         # /etc/default/PROGRAMME.conf PUIS ~/.PROGRAMME.cfg ; -c / --config FICHIER : ce fichier SEUL
+#   config_lire "$SCRIPT_NAME" "$@"                         # /etc/default/PROGRAMME.conf PUIS ~/.PROGRAMME.conf ; -c / --config FICHIER : ce fichier SEUL
 #   config_defaut MIN_IPS MIN_IPS --min-ips nombre          # valeur du fichier = valeur par défaut de la variable (la ligne de commande la remplace ensuite)
 #   config_afficher                                         # « Configuration lue : … » et « Options : … »
 # Langue : --lang, NGINX_TOOLS_LANG, la variable du programme, LANGUAGE du fichier de configuration, LC_ALL / LC_MESSAGES / LANG (voir apps/_i18n.py). En français
 # (cas courant) rien ne change : aucun processus de plus. Dans une autre langue, apps/_traduire.py lance le programme et traduit sa sortie ligne par ligne.
 # shellcheck shell=bash
+
+# pad_cols TEXTE LARGEUR : TEXTE suivi d'espaces jusqu'à LARGEUR COLONNES (1.15). « printf '%-20s' » de bash compte des OCTETS : « Première » (9 octets, 8 colonnes)
+# décalait la colonne suivante d'un cran par lettre accentuée. Les caractères sont comptés en UTF-8 quelle que soit la locale de l'appelant (cron : LANG=C).
+pad_cols() {
+    local LC_ALL=C.UTF-8 texte="$1" n
+    n=$(( $2 - ${#texte} ))
+    (( n > 0 )) || n=0
+    printf '%s%*s' "$texte" "$n" ""
+}
 
 _I18N_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
@@ -49,7 +42,8 @@ i18n_relancer() {
 _i18n_anonymize_configure() {
     local f valeur
     [[ -t 1 && "${NGINX_TOOLS_ANONYMIZE:-}" != "0" ]] || return 1
-    for f in "${NGINX_TOOLS_ETC_DEFAULT:-/etc/default}/app-default.conf" "${NGINX_TOOLS_ETC_DEFAULT:-/etc/default}/$1.conf" "${HOME:-/root}/.app-default.cfg" "${HOME:-/root}/.$1.cfg"; do
+    for f in "${NGINX_TOOLS_ETC_DEFAULT:-/etc/default}/app-default.conf" "${NGINX_TOOLS_ETC_DEFAULT:-/etc/default}/$1.conf" "${HOME:-/root}/.app-default.conf" "${HOME:-/root}/.$1.conf" \
+             "${HOME:-/root}/.app-default.cfg" "${HOME:-/root}/.$1.cfg"; do          # 1.16: legacy personal names too (renamed later by config_lire)
         [[ -r "$f" ]] || continue
         valeur=$(grep -iE '^[[:space:]]*ANONYMIZE[[:space:]]*=' "$f" | tail -n 1 | cut -d= -f2- | tr -d "\"' \t" | tr '[:upper:]' '[:lower:]')
         case "$valeur" in 1|oui|yes|true|on|vrai) return 0 ;; esac
@@ -77,7 +71,7 @@ _i18n_relancer() {
         esac
     fi
     if [[ -z "$signal" ]]; then
-        if [[ -f "${NGINX_TOOLS_ETC_DEFAULT:-/etc/default}/$programme.conf" || -f "${HOME:-/root}/.$programme.cfg" ]]; then signal=1
+        if [[ -f "${NGINX_TOOLS_ETC_DEFAULT:-/etc/default}/$programme.conf" || -f "${HOME:-/root}/.$programme.conf" || -f "${HOME:-/root}/.$programme.cfg" ]]; then signal=1
         elif [[ -n "${LANGUAGE:-}${LC_ALL:-}${LC_MESSAGES:-}${LANG:-}" ]]; then signal=1; fi
     fi
     [[ -n "$signal" ]] || return 0
@@ -171,8 +165,47 @@ CFG_PROGRAMME=""
 CFG_OPTIONS=()
 CFG_PROBLEMES=()
 
+# config_migrer_ancien CHEMIN.conf (1.16) : personal file to READ, in CFG_A_LIRE. The rule is now ~/.PROGRAMME.conf; the legacy name ~/.PROGRAMME.cfg is handled here:
+#   * legacy file only: RENAMED to CHEMIN.conf (same owner, rights, content), one notice on stderr; rename impossible: the legacy file is read as is (notice);
+#   * both files: CHEMIN.conf is read, the legacy file is IGNORED (never merged nor deleted: its settings may differ), one notice per run.
+# NGINX_TOOLS_CONFIG_MIGRER=0: no rename (the legacy file is still read when alone). Same rule and same messages as apps/_config.py (migrer_ancien).
+CFG_A_LIRE=""
+config_migrer_ancien() {
+    local chemin="$1" ancien erreur
+    CFG_A_LIRE="$chemin"
+    [[ "$chemin" == *.conf ]] || return 0
+    ancien="${chemin%.conf}.cfg"
+    [[ -e "$ancien" || -L "$ancien" ]] || return 0
+    if [[ -e "$chemin" || -L "$chemin" ]]; then
+        if _config_signaler "$ancien"; then
+            printf '%s\n' "Configuration : ancien fichier $ancien IGNORÉ ($chemin existe et l'emporte) — reporter ses réglages dans $chemin, puis le supprimer" >&2
+        fi
+        return 0
+    fi
+    if [[ "${NGINX_TOOLS_CONFIG_MIGRER:-}" == "0" ]]; then CFG_A_LIRE="$ancien"; return 0; fi
+    erreur=$(mv -n -- "$ancien" "$chemin" 2>&1) || true
+    if [[ -e "$chemin" && ! -e "$ancien" && ! -L "$ancien" ]]; then
+        _config_signaler "$ancien" || true
+        printf '%s\n' "Configuration : ancien fichier $ancien renommé en $chemin (les fichiers personnels se terminent maintenant par .conf)" >&2
+    else
+        CFG_A_LIRE="$ancien"
+        if _config_signaler "$ancien"; then
+            printf '%s\n' "Configuration : impossible de renommer $ancien (${erreur##*: }) — l'ancien fichier est lu tel quel au lieu de $chemin" >&2
+        fi
+    fi
+    return 0
+}
+
+# _config_signaler FICHIER : vrai (0) the first time a legacy file is reported in this run — variable NGINX_TOOLS_CONFIG_SIGNALES, shared with apps/_config.py and
+# inherited by the programs this one starts (one notice per file and per run).
+_config_signaler() {
+    case ":${NGINX_TOOLS_CONFIG_SIGNALES:-}:" in *":$1:"*) return 1 ;; esac
+    export NGINX_TOOLS_CONFIG_SIGNALES="${NGINX_TOOLS_CONFIG_SIGNALES:+$NGINX_TOOLS_CONFIG_SIGNALES:}$1"
+    return 0
+}
+
 # config_creer_defaut PROGRAMME ARGUMENTS… : premier démarrage — si AUCUN fichier de la règle n'existe, crée celui du système (/etc/default/PROGRAMME.conf, root) ou, sans les
-# droits, le fichier personnel (~/.PROGRAMME.cfg) : copie de doc/PROGRAMME.conf.example (CFG_DOSSIER_DOC, sinon le dossier doc/ du programme) dont toutes les options sont en
+# droits, le fichier personnel (~/.PROGRAMME.conf) : copie de doc/en/PROGRAMME.conf.example (CFG_DOSSIER_DOC désigne le dossier doc/, sinon celui du programme) dont toutes les options sont en
 # commentaire. Rien n'est créé avec -c/--config, --help / --version / --changelog, si NGINX_TOOLS_CONFIG_CREER=0 ou si le modèle est absent. Chemin créé : CFG_CREE.
 CFG_CREE=""
 config_creer_defaut() {
@@ -182,8 +215,10 @@ config_creer_defaut() {
     for a in "$@"; do
         case "$a" in -h|--help|--version|--changelog|-c|--config|--config=*) return 0 ;; esac
     done
-    config_creer_fichier app-default "${NGINX_TOOLS_ETC_DEFAULT:-/etc/default}/app-default.conf" "${HOME:-/root}/.app-default.cfg"       # le fichier commun d'abord (1.5)
-    config_creer_fichier "$programme" "${NGINX_TOOLS_ETC_DEFAULT:-/etc/default}/$programme.conf" "${HOME:-/root}/.$programme.cfg"
+    config_migrer_ancien "${HOME:-/root}/.app-default.conf"                                                       # 1.16: legacy ~/.NAME.cfg renamed BEFORE any creation
+    config_creer_fichier app-default "${NGINX_TOOLS_ETC_DEFAULT:-/etc/default}/app-default.conf" "$CFG_A_LIRE"       # le fichier commun d'abord (1.5)
+    config_migrer_ancien "${HOME:-/root}/.$programme.conf"
+    config_creer_fichier "$programme" "${NGINX_TOOLS_ETC_DEFAULT:-/etc/default}/$programme.conf" "$CFG_A_LIRE"
     return 0
 }
 
@@ -195,7 +230,7 @@ config_creer_fichier() {
         for chemin in "$systeme" "$perso"; do [[ -f "$chemin" ]] && config_rafraichir "$programme" "$chemin"; done
         return 0
     fi
-    modele="${CFG_DOSSIER_DOC:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." 2>/dev/null && pwd)/doc}/$programme.conf.example"
+    modele="${CFG_DOSSIER_DOC:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." 2>/dev/null && pwd)/doc}/${CFG_LANGUE_MODELE:-en}/$programme.conf.example"
     [[ -r "$modele" ]] || return 0
     for chemin in "$systeme" "$perso"; do
         [[ -d "$(dirname "$chemin")" && -w "$(dirname "$chemin")" ]] || continue
@@ -222,7 +257,7 @@ config_creer_fichier() {
 config_rafraichir() {
     local programme="$1" chemin="$2" modele temporaire ligne premiere=1
     [[ "${NGINX_TOOLS_CONFIG_MAJ_AUTO:-}" == "0" ]] && return 0
-    modele="${CFG_DOSSIER_DOC:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." 2>/dev/null && pwd)/doc}/$programme.conf.example"
+    modele="${CFG_DOSSIER_DOC:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." 2>/dev/null && pwd)/doc}/${CFG_LANGUE_MODELE:-en}/$programme.conf.example"
     [[ -r "$modele" && -r "$chemin" && -w "$chemin" && -w "$(dirname "$chemin")" ]] || return 0
     grep -qE '^[[:space:]]*[A-Za-z_][A-Za-z0-9_]*[[:space:]]*=' "$chemin" && return 0          # une option active : fichier modifié par l'utilisateur
     tail -c "$(wc -c < "$modele")" "$chemin" 2>/dev/null | cmp -s - "$modele" && return 0       # déjà au modèle actuel
@@ -263,10 +298,12 @@ config_lire() {
     else
         config_creer_defaut "$programme" "${args[@]}"
         # Fichier COMMUN à tous les programmes (app-default.conf) : lu d'abord, seulement LANGUAGE, VERBOSE et DEBUG_LEVEL ; celui du programme l'emporte.
-        for f in "${NGINX_TOOLS_ETC_DEFAULT:-/etc/default}/app-default.conf" "${HOME:-/root}/.app-default.cfg"; do
+        config_migrer_ancien "${HOME:-/root}/.app-default.conf"          # 1.16: ~/.NAME.conf (a legacy ~/.NAME.cfg is renamed; the name to read is in CFG_A_LIRE)
+        for f in "${NGINX_TOOLS_ETC_DEFAULT:-/etc/default}/app-default.conf" "$CFG_A_LIRE"; do
             [[ -f "$f" ]] && communs+=("$f")
         done
-        for f in "${NGINX_TOOLS_ETC_DEFAULT:-/etc/default}/$programme.conf" "${HOME:-/root}/.$programme.cfg"; do
+        config_migrer_ancien "${HOME:-/root}/.$programme.conf"
+        for f in "${NGINX_TOOLS_ETC_DEFAULT:-/etc/default}/$programme.conf" "$CFG_A_LIRE"; do
             [[ -f "$f" ]] && fichiers+=("$f")
         done
     fi
@@ -331,7 +368,7 @@ config_afficher() {
     if [[ -n "$CFG_EXPLICITE" ]]; then
         lus="Configuration lue : $(cd "$(dirname "$CFG_EXPLICITE")" 2>/dev/null && pwd)/$(basename "$CFG_EXPLICITE") (modifié le $(config_date_modif "$CFG_EXPLICITE")) (demandé par -c/--config : aucun autre fichier n'est lu)"
     elif (( ${#CFG_FICHIERS[@]} == 0 )); then
-        lus="Configuration : aucun fichier (cherchés : ${NGINX_TOOLS_ETC_DEFAULT:-/etc/default}/$CFG_PROGRAMME.conf, ${HOME:-/root}/.$CFG_PROGRAMME.cfg) — valeurs par défaut"
+        lus="Configuration : aucun fichier (cherchés : ${NGINX_TOOLS_ETC_DEFAULT:-/etc/default}/$CFG_PROGRAMME.conf, ${HOME:-/root}/.$CFG_PROGRAMME.conf) — valeurs par défaut"
     else
         for f in "${CFG_FICHIERS[@]}"; do lus+="${lus:+, puis }$f (modifié le $(config_date_modif "$f"))"; done
         lus="Configuration lue : $lus"

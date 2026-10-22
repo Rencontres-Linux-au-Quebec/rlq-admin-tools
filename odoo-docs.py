@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # ========================================================================================================================
-# Copyright (C) 2026 Services-Conseils Linux
+# Copyright (C) 2026 Services-Conseils Linux Inc.
 # Copyright (C) 2026 Rencontres Linux au Québec contributors
 #
 # This program is free software: you can redistribute it and/or modify it under the terms of the GNU Affero General Public
@@ -14,11 +14,6 @@
 # Before writing anything in the wiki the program VALIDATES that document_page is installed and WORKS (module state, access rights, fields,
 # then a real create / read / history / delete round trip on a temporary page). --check does only that validation.
 #
-# VERSION HISTORY (summary — see doc/odoo-docs.changelog.txt for the full detail):
-#   1.3.20261019.150215 — New copyright: Services-Conseils Linux and Rencontres Linux au Québec contributors (AGPL-3.0-or-later).
-#   1.2.20261016.173838 — Copyright holder: Services-Linux Conseils Inc
-#   1.1.20261015.203956 — Messages in English in the code (French display via lang/odoo-docs.fr.po); English function names.
-#   1.0.20261015.185024 — Creation: --target wiki|website, --check (module and round-trip validation), --dry-run, idempotent updates.
 import argparse
 import importlib.util
 import os
@@ -28,12 +23,12 @@ import stat
 import sys
 import xmlrpc.client
 
-__version__ = "1.3.20261019.150215"
+__version__ = "1.4.20261020.211944"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
-CHANGELOG_FILE = os.path.join(SCRIPT_DIR, "doc", f"{SCRIPT_NAME}.changelog.txt")
-DOCS_DIR_DEFAULT = os.path.join(SCRIPT_DIR, "docs")
+CHANGELOG_FILE = os.path.join(SCRIPT_DIR, "CHANGELOG.md")
+DOCS_DIR_DEFAULT = os.path.join(SCRIPT_DIR, "doc")
 WIKI_MODULE = "document_page"
 WIKI_MODEL = "document.page"
 HISTORY_MODEL = "document.page.history"
@@ -62,7 +57,7 @@ def eprint(*args):
     print(*args, file=sys.stderr, flush=True)
 
 
-# Configuration file options (/etc/default/odoo-docs.conf, then ~/.odoo-docs.cfg): KEY -> (command-line option, type).
+# Configuration file options (/etc/default/odoo-docs.conf, then ~/.odoo-docs.conf): KEY -> (command-line option, type).
 # API_KEY is NOT a command-line option: read apart (read_api_key). LANGUAGE: en, fr or auto.
 SCHEMA_CONFIG = {"DB": ("db", str), "DOCS_DIR": ("docs_dir", str), "LOGIN": ("login", str), "ROOT": ("root", str), "TARGET": ("target", str), "URL": ("api_url", str)}
 
@@ -182,7 +177,7 @@ def check_website(odoo):
 
 # ---------------------------------------------------------------------------------------------------------------- documents
 def load_builder(docs_dir):
-    """docs/build_docs.py (Markdown -> HTML, real --help insertion)."""
+    """doc/build_docs.py (Markdown -> HTML, real --help insertion)."""
     path = os.path.join(docs_dir, "build_docs.py")
     if not os.path.isfile(path):
         raise DocsError(f"documentation builder not found: {path}")
@@ -265,10 +260,27 @@ def publish_website(odoo, builder, pages, dry_run):
 
 
 # ---------------------------------------------------------------------------------------------------------------- command line
+def changelog_section(path, key):
+    """This program's section of CHANGELOG.md: from its '## <key>' heading up to the next '## ' heading."""
+    with open(path, encoding="utf-8") as f:
+        lignes = f.read().splitlines()
+    section, dans = [], False
+    for ligne in lignes:
+        if ligne.startswith("## "):
+            if dans:
+                break
+            dans = ligne[3:].strip() == key
+            if dans:
+                section.append(ligne)
+        elif dans:
+            section.append(ligne)
+    return "\n".join(section) + "\n" if section else f"No changelog entry for {key} in {path}\n"
+
+
 def show_changelog():
     signal.signal(signal.SIGPIPE, signal.SIG_DFL)          # « | head »: silent stop, like cat
     try:
-        text = open(CHANGELOG_FILE, encoding="utf-8").read()
+        text = changelog_section(CHANGELOG_FILE, "odoo-docs.py")
     except OSError:
         print(f"Changelog not found: {CHANGELOG_FILE}", file=sys.stderr)
         return 1
@@ -315,7 +327,7 @@ def run(args, parser):
         eprint(f"WARNING: {open_file} contains the API key and is readable by other accounts: chmod 600 {open_file}")
     if not (args.api_url and args.db and args.login and key):
         missing = [n for n, v in (("URL", args.api_url), ("DB", args.db), ("LOGIN", args.login), ("API_KEY (or the ODOO_API_KEY variable)", key)) if not v]
-        eprint("ERROR: missing settings: " + ", ".join(missing) + " — write them in /etc/default/odoo-docs.conf (see doc/odoo-docs.conf.example).")
+        eprint("ERROR: missing settings: " + ", ".join(missing) + " — write them in /etc/default/odoo-docs.conf (see doc/en/odoo-docs.conf.example).")
         return 2
     try:
         odoo = Odoo(args.api_url, args.db, args.login, key)
@@ -348,13 +360,13 @@ def run(args, parser):
 
 def main():
     parser = (I18N.parser if I18N else LocalizedArgumentParser)(
-        description="Publishes the suite's documentation (docs/en, docs/fr) into Odoo: wiki of the document_page module (OCA) or website pages.")
+        description="Publishes the suite's documentation (doc/en, doc/fr) into Odoo: wiki of the document_page module (OCA) or website pages.")
     parser.add_argument("--api-url", default=None, metavar="URL", help="Odoo address (e.g. https://erp.example.org); URL key of the configuration file")
     parser.add_argument("--changelog", action="store_true", help="Show the change log")
     parser.add_argument("--check", action="store_true",
                         help="Validate only: connection, module installed and WORKING (real test: create, read back and delete a temporary page), publishes nothing")
     parser.add_argument("-c", "--config", metavar="FILE",
-                        help="Configuration file to read ALONE (otherwise: /etc/default/odoo-docs.conf, then the personal file .odoo-docs.cfg; UPPERCASE options: API_KEY, DB, DOCS_DIR, LANGUAGE, LOGIN, ROOT, TARGET, URL)")
+                        help="Configuration file to read ALONE (otherwise: /etc/default/odoo-docs.conf, then the personal file .odoo-docs.conf; UPPERCASE options: API_KEY, DB, DOCS_DIR, LANGUAGE, LOGIN, ROOT, TARGET, URL)")
     parser.add_argument("--db", default=None, metavar="NAME", help="Odoo database")
     parser.add_argument("--docs-dir", default=None, metavar="DIR", help=f"Folder of the documentation sources (default: {DOCS_DIR_DEFAULT})")
     parser.add_argument("--dry-run", action="store_true", help="Validate and show what would be created or updated, writing nothing (no write test)")

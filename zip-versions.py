@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # ========================================================================================================================
-# Copyright (C) 2026 Services-Conseils Linux
+# Copyright (C) 2026 Services-Conseils Linux Inc.
 # Copyright (C) 2026 Rencontres Linux au Québec contributors
 #
 # This program is free software: you can redistribute it and/or modify it under the terms of the GNU Affero General Public
@@ -14,26 +14,6 @@
 # Several archives of the same type (e.g. « nginx-tools (2).zip » in downloads): the most recent one is designated,
 # the one to attach to the discussion. --installed: comparison with what is deployed on the server.
 #
-# VERSION HISTORY (summary — see doc/zip-versions.changelog.txt for full detail):
-#   1.14.20261019.150215 — New copyright: Services-Conseils Linux and Rencontres Linux au Québec contributors (AGPL-3.0-or-later).
-#   1.13.20261016.173838 — Copyright holder: Services-Linux Conseils Inc
-#   1.12.20261015.194752 — Source code, comments and changelog now in English (display stays French/English through lang/zip-versions.fr.po).
-#   1.11.20261015.183428 — Green also for today's files/ISO dates and for module versions without a date (e.g. 18.0.1.107.0).
-#   1.10.20261015.092124 — Today's versions in green in ALL sections (including « ARCHIVES TO ATTACH TO THE DISCUSSION »).
-#   1.9.20261013.163324 — Versions dated today in green (+ legend).
-#   1.8.20261012.103600 — Configuration file created at first start (all options commented out); template doc/zip-versions.conf.example completed.
-#   1.7.20261010.215000 — French or English display (--lang); configuration file (LANGUAGE, INSTALLED, NGINX_DIR) and -c/--config option.
-#   1.6.20261002.214327 — First line of EVERY run (even --help): name and version.
-#   1.5.20261002.120134 — Versioned nginx configuration (VERSION file): name nginx-odoo-config.1.0.zip, compared like the other archives.
-#   1.4.20261002.073514 — Archive names: version WITHOUT the date (MAJOR.MINOR); name and content compared on these two numbers.
-#   1.3.20261002.064915 — Version in the archive name: compared with the content; version of the nginx-tools archive
-#                          (doc/nginx-tools.version), also compared with the installation.
-#   1.2.20261001.202502 — Any recognized archive: version of the manifest, CHANGELOG, package.json, pyproject.toml,
-#                          VERSION or code; tests archive <-> program consistency (common files).
-#   1.1.20261001.094048 — Test suite: nginx-tools-tests.zip (nginx-tools-tests/ folder); old tests.zip recognized and reported;
-#                          tests.zip of other programs ignored.
-#   1.0.20261001.092458 — Initial version: versions of programs and configuration in the archives, most
-#                          recent archive per type, comparison with the installation (--installed).
 #
 # Usage:
 #   zip-versions.py                       archives (*.zip) of the current directory
@@ -54,11 +34,11 @@ import signal
 import sys
 import zipfile
 
-__version__ = "1.14.20261019.150215"
+__version__ = "1.15.20261020.211944"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
-CHANGELOG_FILE = os.path.join(SCRIPT_DIR, "doc", f"{SCRIPT_NAME}.changelog.txt")
+CHANGELOG_FILE = os.path.join(SCRIPT_DIR, "CHANGELOG.md")
 def _start():
     """Common context (apps/_i18n.py: language, configuration, translated print / input, parser); module missing (script copied alone): source language, no configuration."""
     try:
@@ -74,7 +54,7 @@ I18N = _start()
 LANGUAGE = I18N.langue if I18N else "fr"
 if I18N:
     print, input = I18N.print, I18N.input          # noqa: A001 — every displayed text goes through the translator (no effect when the display language is the source language)
-# Configuration file options (/etc/default/zip-versions.conf, then the personal file .zip-versions.cfg): KEY -> (command-line option, type).
+# Configuration file options (/etc/default/zip-versions.conf, then the personal file .zip-versions.conf): KEY -> (command-line option, type).
 # LANGUAGE: en, fr, or auto (follow LC_ALL / LANG).
 SCHEMA_CONFIG = {"INSTALLED": ("installed", str), "NGINX_DIR": ("nginx_dir", str)}
 DEFAULT_INSTALLATION = "/root/scripts"
@@ -650,10 +630,27 @@ def run(args):
     return 1 if n_attn else 0
 
 
+def changelog_section(path, key):
+    """This program's section of CHANGELOG.md: from its '## <key>' heading up to the next '## ' heading."""
+    with open(path, encoding="utf-8") as f:
+        lignes = f.read().splitlines()
+    section, dans = [], False
+    for ligne in lignes:
+        if ligne.startswith("## "):
+            if dans:
+                break
+            dans = ligne[3:].strip() == key
+            if dans:
+                section.append(ligne)
+        elif dans:
+            section.append(ligne)
+    return "\n".join(section) + "\n" if section else f"No changelog entry for {key} in {path}\n"
+
+
 def show_changelog():
     signal.signal(signal.SIGPIPE, signal.SIG_DFL)          # « | head »: silent stop, like cat
     try:
-        text = open(CHANGELOG_FILE, encoding="utf-8").read()
+        text = changelog_section(CHANGELOG_FILE, "zip-versions.py")
     except OSError:
         print(f"Changelog not found: {CHANGELOG_FILE}", file=sys.stderr)
         return 1
@@ -695,7 +692,7 @@ def main():
                         help="zip archives, or directories whose zips are examined (default: current directory)")
     parser.add_argument("--changelog", action="store_true", help="Show the change log")
     parser.add_argument("-c", "--config", metavar="FILE",
-                        help="Configuration file to read ALONE (otherwise: /etc/default/zip-versions.conf, then the personal file .zip-versions.cfg; options in UPPERCASE: INSTALLED, LANGUAGE, NGINX_DIR)")
+                        help="Configuration file to read ALONE (otherwise: /etc/default/zip-versions.conf, then the personal file .zip-versions.conf; options in UPPERCASE: INSTALLED, LANGUAGE, NGINX_DIR)")
     parser.add_argument("--lang", choices=I18N.disponibles if I18N else ["fr"], metavar="LANG",
                         help="Display language: en or fr (default: from LC_ALL / LC_MESSAGES / LANG)")
     parser.add_argument("--installed", nargs="?", const=DEFAULT_INSTALLATION, metavar="DIR",

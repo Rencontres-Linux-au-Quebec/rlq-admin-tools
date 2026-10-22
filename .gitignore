@@ -26,3 +26,8 @@ env/
 # (Conserver uniquement les fichiers *.example ou *.template)
 *.conf.local
 *.secret
+
+# Suite de tests (nginx-tools-tests/) : configuration nginx PRIVÉE (copie locale ou NGINX_ODOO_DIR), journaux locaux des passages
+# (les exécutables de nginx-tools-tests/tools/ sont dans le dépôt depuis run-all 1.189)
+nginx-tools-tests/nginx-odoo/
+nginx-tools-tests/last-*.log

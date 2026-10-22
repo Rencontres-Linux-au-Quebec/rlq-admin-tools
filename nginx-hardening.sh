@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ========================================================================================================================
-# Copyright (C) 2026 Services-Conseils Linux
+# Copyright (C) 2026 Services-Conseils Linux Inc.
 # Copyright (C) 2026 Rencontres Linux au Québec contributors
 #
 # This program is free software: you can redistribute it and/or modify it under the terms of the GNU Affero General Public
@@ -15,177 +15,6 @@
 # jamais rien. Ne modifie JAMAIS odoo.conf lui-même (juste un diagnostic + une recommandation) : ce fichier a un
 # format et des commentaires propres à chaque installation, trop risqué à éditer à l'aveugle.
 #
-# HISTORIQUE DE VERSION (résumé — voir nginx-hardening.changelog.txt pour le détail complet de chaque version) :
-#   2.50.20261019.150215 — New copyright: Services-Conseils Linux and Rencontres Linux au Québec contributors (AGPL-3.0-or-later).
-#   2.49.20261016.173838 — Ctrl+C works during the e-mail and BBB checks (timeout --foreground)
-#   2.48.20261015.143436 — --anonymize : affichage anonymisé (pseudonymes stables).
-#   2.47.20261015.080630 — Le refus sans root (--update) précède le verrou.
-#   2.46.20261013.205851 — Étape 4 : les amonts d'une autre version d'Odoo (odoo17, odoo17_chat) ne sont ni vérifiés ni modifiés.
-#   2.45.20261013.203700 — Websocket : la variable de proxy_pass ($odoo_backend_chat) est résolue ; lecture des blocs corrigée.
-#   2.44.20261013.195358 — Étape 4 : vérification du websocket d'Odoo (discussions en temps réel) et correction de proxy_http_version / proxy_read_timeout.
-#   2.43.20261013.163324 — Nouvelle étape 0a : nginx -t et état du service AVANT les changements, avec aide pour corriger.
-#   2.42.20261013.161254 — Étape 0e : --rename-to seul, l'ancien nom est trouvé dans les server_name de nginx.
-#   2.41.20261013.153600 — Étape 0d : question « faire le setup du courriel maintenant ? [o/N] » (non par défaut).
-#   2.40.20261013.150500 — Étape 0d : les questions du courriel sont posées même si la sortie est redirigée ; introduction et message clair sans terminal.
-#   2.39.20261013.123500 — Étape 0e : changement de nom DNS (nginx et certificat Let's Encrypt) ; options --rename-from et --rename-to.
-#   2.38.20261013.103000 — Étape 0d : courriel des programmes (msmtp, relais SMTP demandé une fois, mot de passe à part) ; options --mail-*.
-#   2.37.20261013.100000 — Étape 4 : le port des amonts nginx doit être celui d'Odoo ; --update le corrige.
-#   2.36.20261013.091500 — « Quoi faire » traduit en anglais (HSTS).
-#   2.35.20261012.231200 — iptables-persistent installé si les règles ne sont pas enregistrées ; page de maintenance cherchée dans /etc/nginx/maintenance ; unités de mémoire et textes anglais.
-#   2.34.20261012.220800 — Fuseau horaire (--timezone, America/Montreal), dossier de cache nginx, rotation du journal d'Odoo (logrotate), ExecStart direct, sortie anglaise complète.
-#   2.33.20261012.213000 — Étape 0 : installe les programmes manquants (ss, curl, logrotate, fail2ban ; iptables-persistent) ; service Odoo déduit de db_user.
-#   2.32.20261012.195500 — Configuration d'Odoo détectée (--odoo-conf-paths) : application reconnue comme Odoo, ports du pare-feu et journal (logfile) lus dans la configuration ; étape 11b.
-#   2.31.20261012.103600 — Fichier de configuration créé au premier démarrage (toutes les options en commentaire) ; modèle doc/nginx-hardening.conf.example complété.
-#   2.30.20261011.181500 — Étape 12b : shared-ips-geo.conf généré depuis les lieux [partagée] (limites de débit plus larges pour une salle derrière une adresse).
-#   2.29.20261011.144500 — ShellCheck SC2002 (cat inutile) corrigé ; Ctrl+C : confirmation avant de quitter (apps/_i18n.sh).
-#   2.28.20261011.133251 — Étape 12 : recharge nginx si team-ips-*.conf sont plus récents que la configuration chargée (adresse ajoutée mais refusée en 403).
-#   2.27.20261010.215000 — Affichage francais ou anglais (--lang) ; fichier de configuration (LANGUAGE et options, lignes SETUP_* conservees) et -c/--config.
-#   2.26.20261009.170830 — Verification d'odoo-auth : test sur TEXTE (journalctl puis fail2ban-regex) ; adresse de l'equipe ignoree par la jail.
-#   2.25.20261009.150500 — Etape 16 : curl -A python-requests/2.31 vers le nom public (/mass_mailing_themes) ; 403 = le filtre anti-robots bloque Odoo lui-meme.
-#   2.24.20261009.104326 — Etape 15 : quelle configuration de byobu/tmux changer pour le bip de app-log-live.py --chime.
-#   2.23.20261008.120306 — Couleurs conservees avec --report-err ; fichiers team-ips-* listes si nginx -t refuse.
-#   2.22.20261008.112757 — Etape 12 : team-ips-geo.conf et team-ips-allow.conf EXISTENT toujours (nginx refuse un include a joker sans fichier) ; jamais de rm.
-#   2.21.20261008.113500 — Etape 12 : si nginx -t refuse, affiche son message et dit si la configuration etait DEJA invalide avant les adresses.
-#   2.20.20261007.093208 — Listes en /etc/default : migration de apps/team-ips.list, modeles, generation nginx, ignoreip (liste blanche + lieux proteges).
-#   2.19.20261002.214327 — Etape 14 : geoip-bin (recommande, installe par --update) ; Premiere ligne de TOUTE execution (meme --help) : nom et version.
-#   2.18.20261002.073514 — --verbose transmis a apps/_bbb.py ; section BigBlueButton protegee des instantanes d'autres emplacements.
-#   1.0.20260922.081216 — Version initiale : répertoires (letsencrypt, catch-all log, maintenance), pare-feu
-#                          (ufw ou iptables selon disponibilité) pour les ports 10000/10002, diagnostic de
-#                          l'interface d'écoute d'Odoo (ss), fichier d'état pour --check.
-#   1.1.20260922.194104 — Fichier d'état déplacé vers /etc/default/rlq-nginx-odoo-setup.conf (convention Debian
-#                          standard pour ce type de fichier), au lieu de /etc/ directement.
-#   1.2.20260922.195656 — Trois nouvelles étapes (diagnostic seulement, jamais d'édition automatique) :
-#                          (6) calcule des limites limit_memory_soft/hard suggérées à partir du nombre de workers
-#                          réel et de la RAM réellement disponible (via MemoryCurrent du cgroup Odoo, pas une
-#                          estimation à l'aveugle), et compare à la valeur actuellement configurée si trouvable ;
-#                          (7) audite l'unité systemd d'Odoo et son script de démarrage (Wants=network-online,
-#                          limite anti-boucle-de-redémarrage, NoNewPrivileges, exec avant le binaire réel,
-#                          coquilles connues) ; (8) audite odoo.conf (proxy_mode, list_db, admin_passwd faible).
-#                          Nouvelles options --odoo-service, --odoo-conf, --workers.
-#   1.3.20260922.222513 — --odoo-conf auto-détecte maintenant /opt/odoo/erplibre/config.conf (PROD) puis
-#                          /home/utilisateur/git/erplibre/config.conf (DEV) avant le repli générique
-#                          /etc/odoo/odoo.conf. La vérification de --limit-memory-hard=0 dans run.sh ignore
-#                          maintenant la ligne du mode test (--log-level=test) : ces runs sont courts et ponctuels
-#                          (--stop-after-init), une limite illimitée y est normale, pas un vrai problème.
-#   1.4.20260922.225003 — Correctif critique : deux affectations dans l'étape 7 (extraction d'ExecStart=) n'avaient
-#                          pas de "|| true" — si l'unité systemd n'avait pas d'ExecStart= trouvable tel quel (ex.
-#                          format inattendu), le script s'arrêtait net AVANT d'écrire le fichier d'état, sans que
-#                          la cause soit évidente. L'exclusion de la ligne --log-level=test s'applique maintenant
-#                          à TOUTES les vérifications de run.sh (exec, coquille ORIGIN_CONFIG_PATH, limite
-#                          mémoire), pas seulement la dernière. L'étape 7 utilise "systemctl cat" plutôt que lire
-#                          directement le fichier d'unité, pour inclure les éventuels drop-ins (sinon un réglage
-#                          ajouté via override, ex. NoNewPrivileges, était signalé à tort comme absent). La
-#                          recommandation finale sur http_interface ne s'affiche plus que si un port est
-#                          réellement exposé (étape 4) — elle apparaissait à tort pour n'importe quel échec.
-#   1.5.20260922.225452 — Correctif critique : les étapes 1-3 (répertoires ACME/maintenance, journal catch-all)
-#                          plantaient tout le script si un répertoire parent attendu (ex. /var/log/nginx) n'existe
-#                          pas — un cas réel si nginx n'est pas encore installé, ou installé ailleurs. Chaque
-#                          mkdir/touch/cp/chown est maintenant vérifié explicitement, avec un message d'erreur
-#                          clair (FAIL ou ATTN selon la gravité) plutôt qu'un arrêt brutal via le trap ERR.
-#   1.6.20260922.230500 — Le fichier d'état est maintenant nommé d'après le nom réel du script (basename sans
-#                          .sh) plutôt qu'un nom fixe "rlq-nginx-odoo-setup.conf" — devient
-#                          /etc/default/nginx-hardening.conf tel que livré. Le changelog est résolu de la même
-#                          façon.
-#   1.7.20260922.232142 — CHANGEMENT DE COMPORTEMENT PAR DÉFAUT : sans option, le script fait maintenant une
-#                          VÉRIFICATION SEULE (comme --check) — plus sûr par défaut. Nouvelle option --update
-#                          pour appliquer réellement les changements (l'ancien comportement par défaut). --check
-#                          reste accepté (no-op désormais, gardé pour compatibilité explicite et pour les appels
-#                          existants de nginx-log-audit.sh/app-health-check.py). Root n'est requis que pour
-#                          --update.
-#   1.8.20260923.075125 — Correctif : l'étape 6 (limites mémoire) ne regardait QUE odoo.conf pour la valeur
-#                          actuelle de limit_memory_hard, ignorant qu'un --limit-memory-hard en ligne de commande
-#                          dans run.sh (priorité Odoo standard : CLI > fichier de config) rend la valeur
-#                          d'odoo.conf inutilisée en pratique. L'étape 6 vérifie maintenant d'abord la ligne de
-#                          production de run.sh (même exclusion de --log-level=test que l'étape 7, partagée via
-#                          une résolution commune faite une seule fois désormais) avant de se rabattre sur
-#                          odoo.conf, et indique clairement la source retenue dans son message. Messages internes
-#                          "relancer sans --check" (devenus faux depuis la 1.7) corrigés vers "--update".
-#   1.9.20260923.155021 — Nouvelle étape 9 : installe un jail fail2ban dédié au capteur catch-all
-#                          (odoo-catchall-444.log), invisible de tous les jails existants (leur glob
-#                          "*access*.log" ne matche jamais ce nom de fichier). Crée deux fichiers NEUFS et
-#                          autonomes (filter.d/nginx-catchall.conf, jail.d/nginx-catchall.conf) — jamais de
-#                          modification de jail.local ou d'un fichier existant. Fichiers source livrés dans
-#                          fail2ban/ à côté de ce script.
-#   1.10.20260924.063613 — Nouvelle étape 10 : audit HSTS via "nginx -T" (config active fusionnée, tous les
-#                          include() developpes) sur CHAQUE bloc server en écoute 443, pas seulement les vhosts
-#                          servant du contenu — regression test direct du bug HSTS absent sur le bloc non-canonique
-#                          de PROD, corrigé dans les fichiers de config nginx livrés séparément. Diagnostic
-#                          seulement, jamais d'édition automatique d'un fichier de config existant.
-#   1.11.20260924.083650 — L'étape 9 (jail fail2ban catch-all) recharge maintenant fail2ban automatiquement
-#                          ("fail2ban-client reload") après une installation réussie en --update, plutôt que de
-#                          se contenter d'un rappel affiché — contrairement à un redémarrage d'Odoo (jamais
-#                          automatique, interruption réelle), un reload fail2ban est rapide et sans impact sur
-#                          le trafic web.
-#   1.12.20260924.085519 — Deux correctifs suite a un rapport reel : (1) l'etape 6 prenait parfois la valeur
-#                          --limit-memory-hard d'une LIGNE COMMENTEE plus bas dans run.sh (ex. une vieille
-#                          invocation laissee en reference) plutot que la vraie ligne de production active — les
-#                          lignes commencant par # sont maintenant exclues de toutes les verifications basees sur
-#                          run.sh, en plus de la ligne --log-level=test deja exclue. (2) L'etape 10 (HSTS) signalait
-#                          a tort le capteur catch-all interne (server_name "_", qui ferme la connexion en 444 sans
-#                          jamais servir de contenu — HSTS n'a pas de sens ici) : desormais jamais signale. Un bloc
-#                          443 sans AUCUN server_name (probablement le site par defaut Debian encore actif) est
-#                          maintenant distingue clairement, avec suggestion de le desactiver plutot que de lui
-#                          ajouter HSTS.
-#   1.13.20260924.113852 — Correctif suite a un rapport reel : le message de l'etape 10 nommait
-#                          /etc/nginx/sites-enabled/default comme cause probable du bloc 443 sans server_name,
-#                          alors que ce fichier n'existe pas chez l'utilisateur (seuls 00-catchall-default.conf et
-#                          le vhost de l'instance sont actifs) — message rendu neutre, invite a verifier soi-meme
-#                          via "nginx -T" plutot que de presumer une cause non confirmee. Etape 9 (jail fail2ban) :
-#                          cherche maintenant les fichiers source a DEUX emplacements (/etc/nginx/fail2ban/ en
-#                          premier, puis a cote du script) — le README ne documentait jusqu'ici aucun emplacement
-#                          precis pour le dossier fail2ban/ du zip, et l'utilisateur l'avait logiquement place sous
-#                          /etc/nginx/ comme le reste du zip, ce que le script ne cherchait pas. README mis a jour
-#                          pour documenter explicitement cet emplacement.
-#   1.14.20260924.203547 — Etape 10 refaite en test EMPIRIQUE (curl HTTPS local par nom, avec SNI) : les versions
-#                          1.10 a 1.13 supposaient a tort que "nginx -T" developpe les include() — il affiche en
-#                          realite chaque fichier separement, d'ou de faux [FAIL]/[ATTN] sur des vhosts dont le
-#                          server_name et le HSTS viennent de snippets inclus. Nouvelle option -v/--verbose.
-#   1.15.20260925.162700 — Message list_db (etape 8) corrige : il affirmait a tort que la liste des bases etait deja
-#                          protegee par nginx. Il liste maintenant les URL reservees aux IP autorisees et celles qui
-#                          restent publiques (/web/database/list si l'ancienne regle nginx est active, /jsonrpc dans
-#                          tous les cas), avec la marche a suivre (list_db = False en PROD).
-#   1.16.20260926.075558 — Etape 9 : nouveau jail fail2ban odoo-auth (echecs de connexion lus dans le journal d'Odoo),
-#                          GENERE pour ce serveur (service, namespace de journal, liste blanche nginx en ignoreip) ;
-#                          verification que chaque jail est reellement CHARGE par fail2ban. Course SIGPIPE de
-#                          « | grep -q » corrigee (grep_q), dont « nginx -T | grep -q » (sortie volumineuse).
-#   1.17.20260926.125259 — ShellCheck 0.11.0 : aucun signalement, a tous les niveaux (constantes affectees puis
-#                          declarees readonly, faux positifs documentes). --changelog : interruption d'un
-#                          tube (ex. « | head ») geree proprement, au lieu d'un faux « ARRET INATTENDU (code 141) ».
-#   1.18.20260926.132132 — Jail odoo-auth genere : paragraphe « MODELE » du modele retire EN ENTIER (une phrase
-#                          orpheline restait) ; 127.0.0.1 plus repetee dans ignoreip. Defauts trouves par la suite de tests.
-#   1.19.20260926.211237 — SC2015 (A && B || C) reecrit en if/then dans le message du jail odoo-auth (ShellCheck de Debian).
-#   1.20.20260926.223504 — Commande fail2ban-regex affichee corrigee : journalmatch par l'option -m (entre crochets, elle
-#                          faisait planter fail2ban-regex).
-#   1.21.20260926.230736 — Verification fail2ban-regex expliquee (but, marche a suivre, lecture du resultat) ; lignes
-#                          reconnues affichees avec leur IP (--print-all-matched).
-#   2.0.20260927.145909 — Renomme (ancien nom : setup-nginx-odoo.sh) ; profils d'application (--app) ; etapes propres a
-#                          Odoo « sans objet » pour BBB ; conseil HSTS pour HAProxy ; etape 11 : retention des journaux (3 mois).
-#   2.1.20260927.200712 — Copies de sauvegarde en anglais : .before-nginx-hardening, .before-setup (migration automatique).
-#   2.2.20260927.202645 — Changelog dans le sous-repertoire doc/ (repli sur l'ancien emplacement).
-#   2.2.20260928.091309 — PATH complete au demarrage (lancement par cron : /usr/sbin et /sbin manquants).
-#   2.3.20260928.103708 — Nouvelle option --log-retention-months N (etape 11) ; lecture fiable de MaxRetentionSec.
-#   2.4.20260928.211633 — PATH non complete pendant la suite de tests (NGINX_TOOLS_TESTS).
-#   2.5.20260928.212833 — Etape 11 : directive « su » ajoutee quand logrotate refuse (/var/log inscriptible par syslog) ;
-#                          variables des etapes Odoo initialisees (plantage final sur BigBlueButton).
-#   2.6.20260929.083206 — Etape 9 : jail nginx-blocked-probes (refus des regles, journal dedie) ; verification et
-#                          completion de l'ignoreip de fail2ban avec les adresses de l'equipe (table $is_trusted_ip).
-#   2.7.20260929.123856 — ignoreip : adresses de nginx ET de la liste unique apps/team-ips.list ; verifie aussi pour BigBlueButton.
-#   2.8.20260929.134422 — Etape 12 : adresses de l'equipe generees dans nginx depuis apps/team-ips.list (ecriture atomique,
-#                          nginx -t, restauration) ; verrou flock pour --update.
-#   2.9.20260929.145745 — Etape 13 : courriel des alertes (relais SMTP, MX, SPF, DMARC, DKIM) via app-health-check.py.
-#   2.10.20260929.151644 — Etape 9 pour BigBlueButton : regles de securite (/etc/bigbluebutton/nginx/zz-*.nginx) et jail
-#                          nginx-blocked-probes, sans toucher aux fichiers geres par BBB.
-#   2.11.20260929.185720 — Etape 13 jamais silencieuse ; cause d'un rechargement de fail2ban en echec (service arrete, erreur de
-#                          configuration) ; etat de systemctl lu correctement.
-#   2.12.20260929.195459 — Aide : options par ordre alphabetique.
-#   2.13.20260929.235632 — Etape 10 : redirection vers le meme nom suivie (HSTS de la page d'arrivee) ; conseil HAProxy
-#                          « http-after-response » (s'applique aussi a ses redirections).
-#   2.14.20260930.081347 — Motif « A && B || C » remplace par un « if » (ShellCheck de Debian/Ubuntu : SC2015).
-#   2.15.20260930.084200 — Filtre et jail ecrits sur BBB identiques aux fichiers livres (octet pour octet) ; HSTS : page
-#                          d'arrivee conforme.
-#   2.17.20261001.143624 — BigBlueButton : etat AVANT / APRES le passage (versions, configuration de BBB et la notre,
-#                          compatibilite, instantane) — apps/_bbb.py ; doc/bbb-upgrade.md.
-#   2.16.20260930.163902 — Option --report-err : rapport d'erreurs a copier-coller en fin d'execution.
 # Usage : nginx-hardening.sh [--update] [--check] [--odoo-http-port PORT] [--odoo-gevent-port PORT]
 #                              [--odoo-service NOM] [--odoo-conf CHEMIN] [--odoo-conf-paths LISTE] [--timezone ZONE] [--workers N] [-v|--verbose] [--version]
 #                              [--changelog]
@@ -209,7 +38,7 @@
 #                            reconnue comme Odoo et le journal (logfile, sinon journal systemd) est repéré. Lecture seule.
 #   - --odoo-conf-paths L  : chemins candidats (séparés par des espaces, motifs * permis). Défaut : /etc/odoo/odoo-linux_meetup.conf
 #                            /opt/odoo/erplibre/config.conf /home/utilisateur/git/erplibre/config.conf /etc/odoo/*.conf.
-#                            Clé ODOO_CONF_PATHS de /etc/default/nginx-hardening.conf ou ~/.nginx-hardening.cfg.
+#                            Clé ODOO_CONF_PATHS de /etc/default/nginx-hardening.conf ou ~/.nginx-hardening.conf.
 #   - --timezone ZONE      : fuseau horaire du serveur (étape 0b ; défaut America/Montreal, demandé au premier --update, mémorisé dans TIMEZONE ;
 #                            « none » : ne rien changer).
 #   - --mail-host/--mail-port/--mail-security/--mail-user/--mail-from/--mail-to, --mail-setup : courriel des programmes Python et Bash (étape 0d) ;
@@ -223,7 +52,7 @@
 #   - -v/--verbose         : affiche chaque commande système exécutée (ss, ufw, iptables, systemctl, nginx -T,
 #                            curl, cp, chown, fail2ban-client...), préfixée de « + ».
 #   - --version            : affiche la version et quitte.
-#   - --changelog          : affiche nginx-hardening.changelog.txt (couleur si terminal).
+#   - --changelog          : affiche CHANGELOG.md (couleur si terminal).
 #
 # Doit être exécuté en root pour --update (chown, pare-feu, /var/www, /var/log/nginx). Sans --update
 # (vérification seule, comportement par défaut), aucun privilège requis.
@@ -257,7 +86,7 @@ run() {
     "$@"
 }
 
-readonly SCRIPT_VERSION="2.50.20261019.150215"
+readonly SCRIPT_VERSION="2.53.20261021.130912"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
 SCRIPT_NAME="$(basename "${BASH_SOURCE[0]}" .sh)"; readonly SCRIPT_NAME
 # Langue d'affichage (en ou fr) : --lang, NGINX_HARDENING_LANG, LANGUAGE du fichier de configuration, LC_ALL / LANG — apps/_i18n.sh traduit la sortie (rien ne change en français).
@@ -268,9 +97,13 @@ if [[ -r "$SCRIPT_DIR/apps/_i18n.sh" ]]; then
 fi
 # Changelog dans le sous-repertoire doc/ ; repli sur l'ancien emplacement (a cote du programme) tant que
 # l'installation n'a pas ete reorganisee.
-CHANGELOG_FILE="$SCRIPT_DIR/doc/${SCRIPT_NAME}.changelog.txt"
-if [[ ! -r "$CHANGELOG_FILE" && -r "$SCRIPT_DIR/${SCRIPT_NAME}.changelog.txt" ]]; then CHANGELOG_FILE="$SCRIPT_DIR/${SCRIPT_NAME}.changelog.txt"; fi
+CHANGELOG_FILE="$SCRIPT_DIR/CHANGELOG.md"
 readonly CHANGELOG_FILE
+
+# Section of this program in CHANGELOG.md (from its "## <file name>" heading to the next "## " heading).
+changelog_section() {
+    awk -v cle="${BASH_SOURCE[0]##*/}" '/^## /{dans=($0 == "## " cle); if (dans) print; next} dans' "$CHANGELOG_FILE"
+}
 # migrer_chemin ANCIEN NOUVEAU : renommage des programmes en 2.0 — renomme un fichier ou repertoire de l'ancien nom
 # s'il existe et que le nouveau n'existe PAS encore (jamais d'ecrasement) ; silencieux si rien a faire ou si les
 # droits manquent (le programme continue avec le nouveau chemin).
@@ -316,7 +149,7 @@ NEED_FAIL2BAN_RESTART=0
 F2B_INSTALLED_JAILS=()
 LOG_RETENTION_MONTHS=3
 RETENTION_EXPLICITE=0
-# Fichier de configuration (/etc/default/nginx-hardening.conf PUIS ~/.nginx-hardening.cfg ; -c/--config FICHIER : ce fichier seul) : valeurs par défaut des options.
+# Fichier de configuration (/etc/default/nginx-hardening.conf PUIS ~/.nginx-hardening.conf ; -c/--config FICHIER : ce fichier seul) : valeurs par défaut des options.
 # /etc/default/nginx-hardening.conf sert AUSSI de fichier d'état (lignes SETUP_*, réécrites par --update) : les autres lignes y sont conservées.
 if declare -F config_lire >/dev/null; then
     config_lire nginx-hardening "$@"
@@ -392,9 +225,9 @@ while [[ $# -gt 0 ]]; do
                 exit 1
             fi
             if [[ -t 1 ]]; then
-                sed -E "s/^(## [0-9]+\.[0-9]+\.[0-9]{8}\.[0-9]{6}.*)$/$(printf '\x1b[1;36m')\1$(printf '\x1b[0m')/" "$CHANGELOG_FILE" | (trap '' PIPE; less -R 2>/dev/null || cat) || true  # lecteur ferme plus tot (| head) : SIGPIPE attendu, pas une erreur
+                changelog_section | sed -E "s/^(### [0-9]+\.[0-9]+\.[0-9]{8}\.[0-9]{6}.*)$/$(printf '\x1b[1;36m')\1$(printf '\x1b[0m')/" | (trap '' PIPE; less -R 2>/dev/null || cat) || true  # lecteur ferme plus tot (| head) : SIGPIPE attendu, pas une erreur
             else
-                cat "$CHANGELOG_FILE" || true  # lecteur ferme plus tot (| head) : SIGPIPE attendu, pas une erreur
+                changelog_section || true  # lecteur ferme plus tot (| head) : SIGPIPE attendu, pas une erreur
             fi
             exit 0
             ;;
@@ -409,7 +242,7 @@ Options (par ordre alphabétique) :
   --app NAME                   application derrière nginx (profil apps/NAME.conf : odoo, bbb…) ; détectée par défaut
   --changelog                  affiche le journal des modifications
   --check                      vérification seule (comportement par défaut)
-  -c, --config FILE            fichier de configuration à lire SEUL (défaut : /etc/default/nginx-hardening.conf puis ~/.nginx-hardening.cfg)
+  -c, --config FILE            fichier de configuration à lire SEUL (défaut : /etc/default/nginx-hardening.conf puis ~/.nginx-hardening.conf)
   -h, --help                   affiche cette aide et quitte
   --lang LANG                  langue d'affichage : en ou fr (défaut : selon LC_ALL / LC_MESSAGES / LANG)
   --log-retention-months N     durée de conservation des journaux visée par l'étape 11 (1 à 24 mois, défaut : 3)
@@ -574,6 +407,39 @@ generer_partages() {
     done < <(listes_lieux | listes_valides | awk -F'\037' '$3 ~ /partagee/ && !vu[$1]++')
 }
 
+# fragments_generes_assurer : les TROIS fragments générés (team-ips-geo.conf, team-ips-allow.conf, shared-ips-geo.conf) sont inclus par leur nom exact dans
+# odoo-global.conf et env-*.conf : il suffit qu'UN manque pour que nginx -t refuse TOUTE la configuration — y compris pendant l'étape 12, qui écrit les
+# deux premiers et teste nginx avant que l'étape 12b n'ait écrit le troisième (cas réel : nginx arrêté, liste blanche effacée par la restauration).
+# --update, Odoo seulement : chaque fragment ABSENT est créé vide (une ligne de commentaire, valide dans un bloc geo comme parmi des allow) ; un fichier
+# présent n'est jamais touché ; les étapes 12 et 12b les remplissent ensuite. Affiche une ligne par fichier créé ; retourne 0 s'il en a créé au moins un.
+fragments_generes_assurer() {
+    local snip="${NGINX_HARDENING_SNIPPETS_DIR:-/etc/nginx/snippets}" f cree=1
+    [[ "$CHECK_ONLY" == "1" || "$APP_NAME" != "odoo" ]] && return 1
+    for f in team-ips-geo.conf team-ips-allow.conf shared-ips-geo.conf; do
+        [[ -e "$snip/$f" ]] && continue
+        if mkdir -p "$snip" 2>/dev/null && printf '%s\n' "# vide — créé par nginx-hardening.sh --update (nginx refuse un include sans fichier) ; rempli aux étapes 12 et 12b" > "$snip/$f" 2>/dev/null; then
+            chmod 644 "$snip/$f" 2>/dev/null || true
+            echo "        $snip/$f était absent : créé vide pour que nginx -t réussisse (rempli à l'étape 12)."
+            cree=0
+        fi
+    done
+    return "$cree"
+}
+
+# nginx_appliquer : applique une configuration que nginx -t vient d'accepter. Service actif : rechargement ; service ARRÊTÉ (configuration
+# invalide au démarrage, arrêt manuel…) : démarrage — un « systemctl reload » échoue sur un service arrêté et le site restait hors ligne.
+# Retourne 0 si nginx tourne avec la nouvelle configuration. NGINX_APPLIQUE = « rechargé » ou « démarré » (pour le message).
+NGINX_APPLIQUE=""
+nginx_appliquer() {
+    if run systemctl is-active --quiet nginx 2>/dev/null; then
+        NGINX_APPLIQUE="rechargé"
+        run systemctl reload nginx >/dev/null 2>&1
+    else
+        NGINX_APPLIQUE="démarré (il était arrêté)"
+        run systemctl start nginx >/dev/null 2>&1
+    fi
+}
+
 # creer_modele DESTINATION MODELE : crée le fichier (droits 644) depuis doc/MODELE livré avec les programmes, à défaut un en-tête minimal.
 creer_modele() {
     local dest="$1" modele="$SCRIPT_DIR/doc/$2"
@@ -679,7 +545,7 @@ durcir_bbb() {
         mkdir -p "$dir"; tmp=$(mktemp "$dir/.zz-nginx-hardening.XXXXXX")
         printf '%s\n' "$contenu" > "$tmp" && chmod 644 "$tmp" && mv -f "$tmp" "$fichier"
         if run nginx -t >/dev/null 2>&1; then
-            run systemctl reload nginx >/dev/null 2>&1 || true
+            nginx_appliquer || true
             pass "Règles de sécurité BBB installées ($fichier) ; nginx -t réussi, nginx rechargé."
         else
             if [[ -n "$ancien" ]]; then printf '%s\n' "$ancien" > "$fichier"; else rm -f "$fichier"; fi
@@ -806,7 +672,11 @@ nginx_aide() {      # nginx_aide MESSAGE : conseils d'après le message de « ng
         echo "        Que faire : un certificat ou une clé est introuvable ou illisible. Si le nom DNS a changé : $0 --update --rename-to NOUVEAU_NOM (refait nginx et le certificat) ; sinon « certbot certificates » puis « certbot renew »."
     fi
     if grep -Eqi 'open\(\) .* failed \(2: No such file|No such file or directory' <<<"$m"; then
-        echo "        Que faire : un fichier ou un dossier mentionné par nginx n'existe pas (cache, journal, include). Les dossiers de cache sont créés par $0 --update (étape 0c) ; sinon créer le fichier ou retirer la ligne."
+        if grep -Eq '(team-ips-(geo|allow)|shared-ips-geo)\.conf' <<<"$m"; then
+            echo "        Que faire : ce fragment est GÉNÉRÉ par ce script depuis /etc/default/nginx-tools-*.conf : $0 --update le crée (vide au besoin), régénère les adresses et recharge (ou démarre) nginx."
+        else
+            echo "        Que faire : un fichier ou un dossier mentionné par nginx n'existe pas (cache, journal, include). Les dossiers de cache sont créés par $0 --update (étape 0c) ; sinon créer le fichier ou retirer la ligne."
+        fi
     fi
     if grep -Eqi 'unknown directive|unknown "' <<<"$m"; then
         echo "        Que faire : directive inconnue de cette installation de nginx : module absent (ex. GeoIP : apt install libnginx-mod-http-geoip) ou faute de frappe dans la ligne indiquée."
@@ -836,6 +706,8 @@ echo "--- 0a) nginx avant les changements (nginx -t, service) ---"
 if ! command -v nginx >/dev/null 2>&1; then
     warn "nginx absent (commande introuvable) : le reste du setup ne peut pas vérifier ni recharger nginx."
 else
+    # --update : les fragments GÉNÉRÉS par ce script (étapes 12 et 12b) ne sont pas un « problème déjà présent » : s'ils manquent, ils sont créés vides AVANT le test.
+    fragments_generes_assurer && pass "Fragments générés absents créés vides (remplis aux étapes 12 et 12b) : nginx -t peut tester le reste de la configuration."
     nx_code=0; nx_sortie=$(run nginx -t 2>&1) || nx_code=$?
     nx_actif=$(systemctl is-active nginx 2>/dev/null) || nx_actif="inconnu"
     if (( nx_code == 0 )); then
@@ -847,7 +719,7 @@ else
         echo "        Après correction : nginx -t && systemctl reload nginx, puis relancer ce script. Les étapes qui modifient nginx restaurent leurs fichiers si nginx -t refuse, mais ne réparent pas ce problème."
     fi
     if [[ "$nx_actif" != "active" ]]; then
-        warn "Le service nginx n'est pas actif (état : $nx_actif) : systemctl status nginx --no-pager ; journalctl -u nginx -n 30 --no-pager$( (( nx_code == 0 )) && echo " ; après vérification : systemctl start nginx" )."
+        warn "Le service nginx n'est pas actif (état : $nx_actif) : systemctl status nginx --no-pager ; journalctl -u nginx -n 30 --no-pager$( (( nx_code == 0 )) && { [[ "$CHECK_ONLY" == "1" ]] && echo " ; --update le démarre si nginx -t réussit" || echo " ; il sera démarré par la première étape qui applique la configuration (nginx -t d'abord)"; } )."
     fi
 fi
 
@@ -1174,7 +1046,7 @@ else
                 fail "Changement de nom : nginx -t refuse la nouvelle configuration — anciennes versions restaurées, nginx NON rechargé. Sauvegardes : $rn_sauv"
                 rn_ok=0
             else
-                run systemctl reload nginx >/dev/null 2>&1 || true
+                nginx_appliquer || true
                 pass "nginx : $RENAME_FROM remplacé par $RENAME_TO dans ${#rn_fichiers[@]} fichier(s) ; nginx -t réussi, nginx rechargé. Sauvegardes : $rn_sauv"
             fi
         fi
@@ -1201,7 +1073,7 @@ else
                 renom_restaurer
                 fail "Changement de nom : nginx -t refuse les chemins du nouveau certificat — anciennes versions restaurées, nginx NON rechargé."
             else
-                run systemctl reload nginx >/dev/null 2>&1 || true
+                nginx_appliquer || true
                 pass "nginx : certificat de $RENAME_TO en service ; nginx -t réussi, nginx rechargé."
             fi
         elif (( rn_ok )); then
@@ -1403,7 +1275,7 @@ while IFS=$'\t' read -r am_fic am_reel am_ligne am_nom am_srv; do
     cp -p "$am_reel" "$am_copie" 2>/dev/null || { fail "nginx : copie de sauvegarde de $am_reel impossible — fichier non modifié."; continue; }
     sed -i -E "${am_ligne}s/(server[[:space:]]+[^;[:space:]]*:)${am_port}([[:space:];])/\1${am_attendu}\2/" "$am_reel"
     if run nginx -t >/dev/null 2>&1; then
-        run systemctl reload nginx >/dev/null 2>&1 || true
+        nginx_appliquer || true
         pass "nginx : l'amont « $am_nom » ($am_fic:$am_ligne) passe du port $am_port à $am_attendu (Odoo, $am_genre) ; nginx -t réussi, nginx rechargé. Sauvegarde : $am_copie"
     else
         cp -p "$am_copie" "$am_reel" 2>/dev/null || true
@@ -1598,7 +1470,7 @@ ${ws_ind}proxy_read_timeout ${WS_DELAI_REGLE}s;" "$ws_reel"
                 ws_quoi="« proxy_read_timeout ${WS_DELAI_REGLE}s; » ajouté (défaut : 60 s)"
             fi
             if run nginx -t >/dev/null 2>&1; then
-                run systemctl reload nginx >/dev/null 2>&1 || true
+                nginx_appliquer || true
                 pass "nginx : location « $ws_chem » ($ws_fic) : $ws_quoi ; nginx -t réussi, nginx rechargé. Sauvegarde : $ws_copie"
             else
                 cp -p "$ws_copie" "$ws_reel" 2>/dev/null || true
@@ -2315,10 +2187,10 @@ if [[ "${ODOO_SPECIFIC_STEPS:-yes}" == "yes" && -n "$ODOO_LOGFILE" ]]; then
         pass "Rotation : $ODOO_LOGFILE est couvert par logrotate."
     else
         if [[ "$CHECK_ONLY" == "1" ]]; then
-            warn "Aucune règle logrotate ne mentionne $ODOO_LOGFILE : il grossira sans fin — --update crée /etc/logrotate.d/odoo (weekly, rotate 13, compress, copytruncate, missingok, notifempty)."
+            warn "Aucune règle logrotate ne mentionne $ODOO_LOGFILE : il grossira sans fin — --update crée $LOGROTATE_DIR/odoo (weekly, rotate 13, compress, copytruncate, missingok, notifempty)."
         else
-            lr_odoo=/etc/logrotate.d/odoo
-            [[ -e "$lr_odoo" ]] && lr_odoo=/etc/logrotate.d/odoo-nginx-hardening       # un fichier « odoo » existe déjà (autre contenu) : jamais écrasé
+            lr_odoo="$LOGROTATE_DIR/odoo"                              # 2.51 : dossier de NGINX_HARDENING_LOGROTATE_DIR (était /etc/logrotate.d en dur)
+            [[ -e "$lr_odoo" ]] && lr_odoo="$LOGROTATE_DIR/odoo-nginx-hardening"       # un fichier « odoo » existe déjà (autre contenu) : jamais écrasé
             lr_su=""
             lr_proprio=$(stat -c '%U %G' "$ODOO_LOGFILE" 2>/dev/null) || lr_proprio=""
             [[ -n "$lr_proprio" && "$lr_proprio" != "root root" ]] && lr_su="    su $lr_proprio"$'\n'
@@ -2384,11 +2256,12 @@ else
             fi
         done
         if (( eq_change )); then
+            fragments_generes_assurer || true        # shared-ips-geo.conf (étape 12b) doit exister AVANT ce nginx -t, sinon les adresses de l'équipe seraient restaurées pour rien
             if eq_erreur=$(run nginx -t 2>&1); then
-                if run systemctl reload nginx >/dev/null 2>&1; then
-                    pass "Adresses de l'équipe régénérées depuis la liste blanche ; nginx -t réussi, nginx rechargé."
+                if nginx_appliquer; then
+                    pass "Adresses de l'équipe régénérées depuis la liste blanche ; nginx -t réussi, nginx $NGINX_APPLIQUE."
                 else
-                    warn "Adresses de l'équipe régénérées et nginx -t réussi, mais rechargement impossible — systemctl reload nginx à la main."
+                    warn "Adresses de l'équipe régénérées et nginx -t réussi, mais nginx n'a pas pu être $NGINX_APPLIQUE — systemctl status nginx --no-pager ; journalctl -u nginx -n 30 --no-pager."
                 fi
             else
                 for eq_type in geo allow; do
@@ -2415,10 +2288,10 @@ else
                 if [[ "$CHECK_ONLY" == "1" ]]; then
                     warn "Les fichiers team-ips-*.conf sont plus récents que la configuration chargée par nginx : les adresses récentes sont refusées (403) tant que nginx n'est pas rechargé — --update le recharge (ou systemctl reload nginx)."
                 elif eq_erreur=$(run nginx -t 2>&1); then
-                    if run systemctl reload nginx >/dev/null 2>&1; then
-                        pass "nginx rechargé : team-ips-*.conf étaient plus récents que la configuration chargée."
+                    if nginx_appliquer; then
+                        pass "nginx $NGINX_APPLIQUE : team-ips-*.conf étaient plus récents que la configuration chargée."
                     else
-                        warn "team-ips-*.conf plus récents que la configuration chargée, nginx -t réussi, mais rechargement impossible — systemctl reload nginx à la main."
+                        warn "team-ips-*.conf plus récents que la configuration chargée, nginx -t réussi, mais nginx n'a pas pu être $NGINX_APPLIQUE — systemctl status nginx --no-pager ; journalctl -u nginx -n 30 --no-pager."
                     fi
                 else
                     fail "team-ips-*.conf plus récents que la configuration chargée, mais nginx -t refuse la configuration — nginx NON rechargé."
@@ -2447,10 +2320,10 @@ if [[ "$APP_NAME" == "odoo" ]]; then
         part_tmp=$(mktemp "$snip/.shared-ips-geo.XXXXXX")
         printf '%s\n' "$part_nouveau" > "$part_tmp" && chmod 644 "$part_tmp" && mv -f "$part_tmp" "$part_dst"
         if part_erreur=$(run nginx -t 2>&1); then
-            if run systemctl reload nginx >/dev/null 2>&1; then
-                pass "Réseaux partagés régénérés ($part_n) dans $part_dst ; nginx -t réussi, nginx rechargé."
+            if nginx_appliquer; then
+                pass "Réseaux partagés régénérés ($part_n) dans $part_dst ; nginx -t réussi, nginx $NGINX_APPLIQUE."
             else
-                warn "Réseaux partagés régénérés ($part_n) et nginx -t réussi, mais rechargement impossible — systemctl reload nginx à la main."
+                warn "Réseaux partagés régénérés ($part_n) et nginx -t réussi, mais nginx n'a pas pu être $NGINX_APPLIQUE — systemctl status nginx --no-pager ; journalctl -u nginx -n 30 --no-pager."
             fi
         else
             if [[ -n "$part_ancien" ]]; then printf '%s\n' "$part_ancien" > "$part_dst"; else printf '%s\n' "# vide — restauré après refus de nginx -t" > "$part_dst"; fi

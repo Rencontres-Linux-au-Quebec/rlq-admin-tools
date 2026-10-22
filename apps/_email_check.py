@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # ========================================================================================================================
-# Copyright (C) 2026 Services-Conseils Linux
+# Copyright (C) 2026 Services-Conseils Linux Inc.
 # Copyright (C) 2026 Rencontres Linux au Québec contributors
 #
 # This program is free software: you can redistribute it and/or modify it under the terms of the GNU Affero General Public
@@ -12,10 +12,6 @@
 # server of the domain (DNS MX), and — only when the caller asks for it — Internet lookups (StopForumSpam, Gravatar, web search).
 # Used by web-monitor.py (investigation of an Odoo account) and odoo-mail-retry.py (invalid addresses of registrations and failed e-mails).
 #
-# VERSION HISTORY (summary — see doc/_email_check.changelog.txt for the full detail):
-#   1.2.20261019.150215 — New copyright: Services-Conseils Linux and Rencontres Linux au Québec contributors (AGPL-3.0-or-later).
-#   1.1.20261016.173838 — Copyright holder: Services-Linux Conseils Inc
-#   1.0.20261016.114848 — First version: syntax, typo suggestion, disposable domains, DNS MX, StopForumSpam, Gravatar, web search.
 """E-mail address checks, without any side effect.
 
   check(address)              -> {"valid", "reason", "suggestion", "domain", "disposable"} (offline: syntax, typo, disposable list)

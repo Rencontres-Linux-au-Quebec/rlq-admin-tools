@@ -142,8 +142,8 @@ msgstr " contient la clé API et est lisible par d'autres comptes : chmod 600 "
 msgid "API_KEY (or the ODOO_API_KEY variable)"
 msgstr "API_KEY (ou la variable ODOO_API_KEY)"
 
-msgid " — write them in /etc/default/odoo-docs.conf (see doc/odoo-docs.conf.example)."
-msgstr " — les écrire dans /etc/default/odoo-docs.conf (voir doc/odoo-docs.conf.example)."
+msgid " — write them in /etc/default/odoo-docs.conf (see doc/en/odoo-docs.conf.example)."
+msgstr " — les écrire dans /etc/default/odoo-docs.conf (voir doc/en/odoo-docs.conf.example)."
 
 msgid "ERROR: missing settings: "
 msgstr "ERREUR : réglages manquants : "
@@ -160,8 +160,8 @@ msgstr "Publication de "
 msgid ") — target: "
 msgstr ") — cible : "
 
-msgid "Publishes the suite's documentation (docs/en, docs/fr) into Odoo: wiki of the document_page module (OCA) or website pages."
-msgstr "Publie la documentation de la suite (docs/en, docs/fr) dans Odoo : wiki du module document_page (OCA) ou pages du site web."
+msgid "Publishes the suite's documentation (doc/en, doc/fr) into Odoo: wiki of the document_page module (OCA) or website pages."
+msgstr "Publie la documentation de la suite (doc/en, doc/fr) dans Odoo : wiki du module document_page (OCA) ou pages du site web."
 
 msgid "Odoo address (e.g. https://erp.example.org); URL key of the configuration file"
 msgstr "Adresse d'Odoo (ex. https://erp.exemple.org) ; clé URL du fichier de configuration"
@@ -172,8 +172,8 @@ msgstr "Affiche le journal des modifications"
 msgid "Validate only: connection, module installed and WORKING (real test: create, read back and delete a temporary page), publishes nothing"
 msgstr "Valide seulement : connexion, module installé et FONCTIONNEL (essai réel de création, relecture et suppression d'une page temporaire), sans rien publier"
 
-msgid "Configuration file to read ALONE (otherwise: /etc/default/odoo-docs.conf, then the personal file .odoo-docs.cfg; UPPERCASE options: API_KEY, DB, DOCS_DIR, LANGUAGE, LOGIN, ROOT, TARGET, URL)"
-msgstr "Fichier de configuration à lire SEUL (sinon : /etc/default/odoo-docs.conf, puis le fichier personnel .odoo-docs.cfg ; options en MAJUSCULES : API_KEY, DB, DOCS_DIR, LANGUAGE, LOGIN, ROOT, TARGET, URL)"
+msgid "Configuration file to read ALONE (otherwise: /etc/default/odoo-docs.conf, then the personal file .odoo-docs.conf; UPPERCASE options: API_KEY, DB, DOCS_DIR, LANGUAGE, LOGIN, ROOT, TARGET, URL)"
+msgstr "Fichier de configuration à lire SEUL (sinon : /etc/default/odoo-docs.conf, puis le fichier personnel .odoo-docs.conf ; options en MAJUSCULES : API_KEY, DB, DOCS_DIR, LANGUAGE, LOGIN, ROOT, TARGET, URL)"
 
 msgid "Odoo database"
 msgstr "Base de données d'Odoo"

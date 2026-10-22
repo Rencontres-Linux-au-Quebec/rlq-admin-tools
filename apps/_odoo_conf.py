@@ -1,5 +1,5 @@
 # ========================================================================================================================
-# Copyright (C) 2026 Services-Conseils Linux
+# Copyright (C) 2026 Services-Conseils Linux Inc.
 # Copyright (C) 2026 Rencontres Linux au Québec contributors
 #
 # This program is free software: you can redistribute it and/or modify it under the terms of the GNU Affero General Public
@@ -8,13 +8,13 @@
 # ========================================================================================================================
 """Bibliothèque commune (programmes Python) : trouver la configuration d'Odoo et en lire les réglages — même logique que
 apps/_odoo_conf.sh. Candidats (premier trouvé gagne) : variable d'environnement ODOO_CONF_PATHS, ligne ODOO_CONF_PATHS="..." de
-~/.nginx-hardening.cfg puis de /etc/default/nginx-hardening.conf, puis la liste par défaut. Les motifs avec * sont développés ;
+~/.nginx-hardening.conf puis de /etc/default/nginx-hardening.conf, puis la liste par défaut. Les motifs avec * sont développés ;
 APP_DETECT_ROOT (tests) préfixe tous les chemins."""
 import glob
 import os
 import re
 
-__version__ = "1.2.20261019.150215"
+__version__ = "1.3.20261020.211944"
 
 CHEMINS_DEFAUT = ("/etc/odoo/odoo-linux_meetup.conf /opt/odoo/erplibre/config.conf /home/utilisateur/git/erplibre/config.conf /etc/odoo/odoo.conf "
                   "/etc/odoo/*.conf /home/*/git/erplibre/config.conf /opt/odoo/*/config.conf")
@@ -36,10 +36,24 @@ def _reglage(fichier, cle):
     return valeur.split("#", 1)[0].strip().strip("\"'").strip() or None
 
 
+def _personnel(chemin):
+    """~/.NOM.conf à lire ; un ancien ~/.NOM.cfg est renommé d'abord (apps/_config.py migrer_ancien, mêmes avis que les programmes). Sans apps/_config.py :
+    le .conf, ou l'ancien fichier s'il est seul (jamais d'exception)."""
+    try:
+        import importlib.util
+        spec = importlib.util.spec_from_file_location("_config_voisin", os.path.join(os.path.dirname(os.path.abspath(__file__)), "_config.py"))
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        return module.migrer_ancien(chemin)
+    except Exception:                                        # noqa: BLE001
+        ancien = chemin[:-len(".conf")] + ".cfg" if chemin.endswith(".conf") else chemin
+        return ancien if not os.path.exists(chemin) and os.path.exists(ancien) else chemin
+
+
 def chemins_candidats():
     liste = os.environ.get("ODOO_CONF_PATHS")
     etc = os.environ.get("NGINX_TOOLS_ETC_DEFAULT", "/etc/default")
-    for fichier in (os.path.join(os.environ.get("HOME", "/nonexistent"), ".nginx-hardening.cfg"), os.path.join(etc, "nginx-hardening.conf")):
+    for fichier in (_personnel(os.path.join(os.environ.get("HOME", "/nonexistent"), ".nginx-hardening.conf")), os.path.join(etc, "nginx-hardening.conf")):
         liste = liste or _reglage(fichier, "ODOO_CONF_PATHS")
     return (liste or CHEMINS_DEFAUT).split()
 

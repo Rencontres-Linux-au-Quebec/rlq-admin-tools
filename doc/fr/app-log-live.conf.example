@@ -1,0 +1,133 @@
+# Fichier de configuration de app-log-live.py (exemple : toutes les clés, en commentaire = valeur par défaut).
+# Les fichiers suivants sont LUS DANS CET ORDRE (le dernier l'emporte) ; la ligne de commande est prioritaire sur les fichiers :
+#   1. /etc/default/app-log-live.conf    (fichier du système)
+#   2. ~/.app-log-live.conf               (s'il existe : réglages de l'utilisateur)
+# -c/--config FICHIER : ce fichier SEUL. Le répertoire courant n'est PAS lu. Le programme affiche toujours quel(s) fichier(s) il lit,
+# puis une ligne résumant les options importantes. Format : CLÉ=valeur, une par ligne ; # = commentaire ; guillemets facultatifs ;
+# booléens : oui / non (true / false, 1 / 0). Ce fichier est LU, jamais exécuté.
+
+# --- Langue d'affichage ---
+# en, fr ou auto (suivre LC_ALL / LC_MESSAGES / LANG). Ordre de choix : --lang, NGINX_TOOLS_LANG, APP_LOG_LIVE_LANG, cette clé, LC_ALL, LC_MESSAGES, LANG.
+# Ajouter une langue = ajouter le fichier lang/app-log-live.XX.po (format PO : Poedit, Weblate…) — voir lang/README.md.
+#LANGUAGE=auto
+
+# --- Options (équivalents de la ligne de commande) ---
+# --accentuate-group : étiquette (catégorie) de contacts Odoo affichés en blanc gras sur bleu foncé (vide = aucune ; touche a à la volée)
+#ACCENTUATE_GROUP=
+# --app (défaut : détectée automatiquement)
+#APP=
+# --cms : CMS du site (odoo, wordpress ou auto) : sous WordPress, /wp-admin, xmlrpc.php, *.php ne sont pas suspects (défaut : auto)
+#CMS=auto
+# --chime : bip sur erreur : 0 = toute erreur, 1 = 4xx, 2 = 5xx et 4xx (vide = aucun bip ; touche c à la volée)
+#CHIME=
+# --connections : % d'une limite (descripteurs, connexions PostgreSQL, nginx, websocket/chat) à partir duquel un WARNING s'affiche, vérifié chaque minute (défaut : 80 % ; 0 = jamais)
+#CONNECTIONS=80
+# --days (défaut : 0 = tout l'historique du journal)
+#DAYS=0
+# --disk-min : Go libres sous lesquels un WARNING d'espace disque s'affiche (partition des journaux ; 0 = jamais) (défaut : 5 Go ; 0 = jamais)
+#DISK_MIN=5
+# --dns-max (défaut : 45)
+#DNS_MAX=45
+# --dns-max-truncate : colonne des noms COUPÉS à N caractères (vide = pas de coupure ; touche t à la volée). Un seul de DNS_MAX / DNS_MAX_TRUNCATE est rempli par la touche C.
+#DNS_MAX_TRUNCATE=
+# --exclude-ip : adresses ou réseaux cachés (virgule = plusieurs ; touche e à la volée)
+#EXCLUDE_IP=
+# --health : minutes entre deux vérifications de santé (défaut : 10 minutes ; 0 = jamais)
+#HEALTH=10
+# --hide-ip
+#HIDE_IP=non
+# --highlight : mots surlignés en cyan dans les lignes affichées (virgule = plusieurs ; un mot tout en MAJUSCULES comme POST doit l'être dans la ligne,
+# les autres sans tenir compte de la casse ; « none » = aucun ; « +mot » ajoute un mot à la liste par défaut, « -mot » l'enlève : HIGHLIGHT=+odoo,-POST).
+# Valeur par défaut ci-dessous ; ajouter simplement d'autres mots à la suite. Touche l du menu à la volée (+mot / -mot y fonctionnent aussi).
+#HIGHLIGHT=POST,webclient,discuss,avatar,20-ans,21-ans,portes,ouvertes
+# --idle : minutes sans activité (défaut : 15 minutes)
+#IDLE=15
+# --level : niveau de détail du tableau de bord et du résumé, de 1 (verdict) à 9 (tout, défaut) — touches 1 à 9 à la volée
+#LEVEL=9
+# --lines (défaut : 50)
+#LINES=50
+# --log-dir : dossier des journaux quotidiens (défaut : /var/log/app-log-live pour root, sinon ~/.local/state/app-log-live)
+#LOG_DIR=
+# --log-keep-days (défaut : 30 ; 0 = jamais)
+#LOG_KEEP_DAYS=30
+# --min
+#MIN=non
+# --modules-custom : le tableau des modules (--modules, touche M) ne montre que les modules hors Odoo S.A.
+#MODULES_CUSTOM=non
+# --modules-sort : tri du tableau des modules : name, date, created, version, author, state (- devant = ordre inverse). Aussi : --modules (tableau puis fin)
+#MODULES_SORT=date
+# --modules-startup : au démarrage, affiche d'abord le suivi des modules customs non-standard (rlq* avec leur version, puis les autres hors Odoo S.A.), triés selon MODULES_SORT
+#MODULES_STARTUP=non
+# --namespace (défaut : celui du service, détecté)
+#NAMESPACE=
+# --not-found : seulement les pages introuvables (404) (défaut : non)
+#NOT_FOUND=non
+# --no-banned
+#NO_BANNED=non
+# --no-ban-prompt
+#NO_BAN_PROMPT=non
+# --no-cache
+#NO_CACHE=non
+# --no-history
+#NO_HISTORY=non
+# --no-isp  (aucune requête extérieure : ni propriétaire des adresses, ni curl ifconfig.me pour détecter un changement d'IP externe du serveur)
+#NO_ISP=non
+# --no-keys
+#NO_KEYS=non
+# --no-log-file
+#NO_LOG_FILE=non
+# --no-presence
+#NO_PRESENCE=non
+# --no-user-agent
+#NO_USER_AGENT=non
+# --recap : secondes (défaut : 120 secondes ; 0 = jamais)
+#RECAP=120
+# --record-max (1.93) : minutes après lesquelles un enregistrement de test (touche R) s'arrête de lui-même (défaut : 30 ; 0 = sans limite)
+#RECORD_MAX=30
+# --service (défaut : détecté automatiquement)
+#SERVICE=
+# --slow : secondes (défaut : 5 secondes ; 0 = désactivé)
+#SLOW=5
+# --verbose
+#VERBOSE=non
+# --only : seulement les lignes qui contiennent ce texte (virgule = OU ; touche o à la volée)
+#ONLY=
+# --suspect : seulement les requêtes suspectes (touche s à la volée)
+#SUSPECT=non
+# --time-report : minutes entre deux rapports comme Ctrl-T (0 = jamais ; touche T à la volée : sauvegardé par la touche C)
+#TIME_REPORT=0
+# --truncate (par défaut depuis 1.88) : une ligne du journal plus large que N colonnes est raccourcie en « début ... deux derniers mots » (0 ou oui = $COLUMNS - 10 ;
+# non = lignes entières, comme --no-truncate). Les menus et rapports ne sont jamais coupés ; le journal quotidien garde toujours les lignes entières.
+#TRUNCATE=0
+# --underline [N] (1.91) : une ligne du journal sur N soulignée à l'écran, jusqu'au bout de la ligne d'écran (oui = 5, par défaut ; 0 ou non = aucune, comme --no-underline).
+#UNDERLINE=5
+# --watch : surveiller les requêtes dont l'URL contient ce texte (virgule = plusieurs ; touche w à la volée)
+#WATCH=
+
+# --- Options de la ligne de commande SEULEMENT (actions ou réglages ponctuels : aucune clé ici) ---
+# Les voici, pour mémoire (« app-log-live --help » donne le détail). Elles se donnent sur la ligne de commande, jamais dans ce fichier.
+#   --accentuate-group NAME  Contacts Odoo de l'ÉTIQUETTE de contact NOM (ex.
+#   --changelog              Affiche le journal des modifications
+#   --chime [N]              Bip (dans byobu/tmux aussi : voir les conseils affichés)
+#   --diagnose               Diagnostic du site (pourquoi la page de maintenance s'affiche : service, ports d'Odoo, upstream nginx, pare-feu) puis quitte ; code 1 s'il y a un problème
+#   --diagnose-host NAME     Avec --diagnose (ou la touche D) : vérifier aussi le certificat vu par Internet de ce nom (répétable), même s'il est servi par un AUTRE serveur
+#   --dns-max-truncate [N]   Colonne des noms de N caractères, les noms plus longs sont COUPÉS à N (le dernier caractère devient « … »)
+#   --exclude-ip IP,IP       N'affiche pas les lignes de ces adresses ou réseaux (IP1,IP2,10.0.0.0/8)
+#   --modules-latest [N]     Les N derniers modules installés (défaut : 10), avec la version actuelle d'Odoo, puis quitte ; touche L du menu
+#   --no-follow              Affiche les derniers messages puis s'arrête (pas de direct)
+#   --only TEXT              Seulement les lignes qui contiennent TEXTE (nom, adresse, URL, module…, sans tenir compte de la casse)
+#   --record-test-log MIN    Enregistre un test sans le clavier : commence avec le direct, s'arrête après MIN minutes, écrit l'archive .tar.xz à envoyer pour analyse, puis quitte
+#   --rate-limit IP          Détail des refus 429 (limitation de débit nginx) d'UNE adresse d'après les journaux nginx : URL, zone limit_req, pointes, effets, quoi changer ; puis quitte
+#   --report-err             Afficher à la fin un rapport d'erreurs à copier-coller (programme, version, serveur, échecs, avertissements)
+#   --summary                Affiche aussi le résumé de la session à la fin d'un --no-follow (avec Ctrl-C, toujours affiché)
+#   --suspect                Seulement les requêtes suspectes (WordPress, .php, .env, .git, sauvegardes, traversée de répertoires…)
+#   --time-report [MIN]      Toutes les MIN minutes, le même rapport que Ctrl-T (ce qui a changé depuis le dernier affichage)
+#   --version                affiche la version et quitte
+#   --watch [TEXT]           Surveille les requêtes dont l'URL contient TEXTE (virgule = plusieurs
+
+# --- Anonymisation de l'affichage ---
+# --anonymize (par défaut depuis 1.88 pour app-log-live) : anonymiser ce que le programme affiche à l'écran (adresses IP, courriels, identifiants, jetons) par des pseudonymes
+# stables (IP-4f2a9c, usager-9c1e03@anonyme.invalid) ; depuis 1.91, les noms des personnes aussi (membre-4f2a9c ; étiquettes de l'équipe : equipe-4f2a9c) ; le journal
+# quotidien garde tout. non = vraies valeurs (comme --no-anonymize). Touche A à la volée ; la touche C la sauvegarde.
+# (la même clé dans app-default.conf vaut pour tous les programmes : ANONYMIZE=non là-bas désactive aussi celle-ci).
+#ANONYMIZE=oui

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ========================================================================================================================
-# Copyright (C) 2026 Services-Conseils Linux
+# Copyright (C) 2026 Services-Conseils Linux Inc.
 # Copyright (C) 2026 Rencontres Linux au Québec contributors
 #
 # This program is free software: you can redistribute it and/or modify it under the terms of the GNU Affero General Public
@@ -11,213 +11,9 @@
 # nginx-log-audit.sh — audit rapide des blocages nginx (bad-bot, méthode, traversee, 429, 5xx, erreurs upstream,
 # catch-all) + statistiques de type goaccess + verification cible d'une IP.
 #
-# HISTORIQUE DE VERSION (resume — voir nginx-log-audit.changelog.txt pour le détail complet de chaque version) :
-#   2.39.20261019.150215 — New copyright: Services-Conseils Linux and Rencontres Linux au Québec contributors (AGPL-3.0-or-later).
-#   2.38.20261016.173838 — Ctrl+C works while the program is running (timeout --foreground)
-#   2.37.20261016.114848 — Comptes Odoo bannis par web-monitor.py ignorés (plus « utilisateur légitime ») ; compte sous surveillance signalé dans l'enquête.
-#   2.36.20261015.143436 — --anonymize : affichage anonymisé (pseudonymes stables).
-#   2.35.20261013.091500 — Serveur BigBlueButton : tout CMS est sensible.
-#   2.34.20261013.084000 — CMS : /wp, /wordpress, xmlrpc.php normaux sous WordPress.
-#   2.33.20261013.081500 — SENSITIVE_RE : /wp, /wordpress, /_ignition, /debug/default.
-#   2.32.20261012.231200 — Site « lab » reconnu (dev|lab|prod) ; --ban installe iptables-persistent s'il manque ; contrôle du setup dans la langue d'affichage.
-#   2.31.20261012.103600 — Fichier de configuration créé au premier démarrage (toutes les options en commentaire) ; modèle doc/nginx-log-audit.conf.example complété.
-#   2.30.20261011.172500 — Section [11] : seulement avec erreurs 5xx/429, lieux connus (université) ignorés, information seulement.
-#   2.29.20261011.165500 — Section [11] : requêtes dynamiques en parallèle depuis une même adresse (même cookie probable) ; option --parallel-threshold.
-#   2.28.20261011.144500 — Ctrl+C : confirmation avant de quitter (apps/_i18n.sh) ; demander_oui la rétablit après la question.
-#   2.27.20261010.215000 — Affichage francais ou anglais (--lang) ; fichier de configuration (LANGUAGE et options) et -c/--config.
-#   2.26.20261009.114822 — Option --evidence IP : preuves et verdict de --ban, sans question ni bannissement (lecture seule).
-#   2.25.20261008.120306 — Couleurs conservees avec --report-err.
-#   2.24.20261007.171721 — Proprietaire du bloc d'adresses (organisation ou nom du reseau) au lieu de « fournisseur d'acces » ; cache des adresses (via _reseau.py).
-#   2.23.20261007.093208 — Listes en /etc/default (plus aucune adresse en dur) ; section « Lieu » dans les preuves ; lieux proteges.
-#   2.22.20261002.214327 — Preuves et recidivistes : requetes REFUSEES (blocked-probes.log) ; --export-bans : version sur stderr ; Premiere ligne de TOUTE execution (meme --help) : nom et version.
-#   2.21.20261002.165312 — « lecture de <fichier> » seulement avec --details.
-#   2.20.20261002.073514 — Progression (une ligne par etape, un journal a la fois, sans relecture) ; fournisseur d'acces via apps/_reseau.py ; --verbose transmis.
-#   1.0.20260918.191339 — Version initiale du versionnage : ajout de __version__/--version, --init, --stats,
-#                          couleur conditionnelle au terminal, --changelog. Fonctionnalites d'audit inchangees
-#                          par rapport a la dernière version non versionnee.
-#   1.1.20260918.193000 — Le numero de version ne fait plus partie du nom de fichier (reste dans --version et le
-#                          changelog uniquement) — sur demande explicite, remplace la convention generale.
-#   1.2.20260918.195720 — Horodatage de version corrige en EDT (America/New_York), pas UTC. Colonne % dans
-#                          --stats, description des codes HTTP, IP publique + OS dans l'en-tête, date de la
-#                          dernière exécution affichee, locale UTF-8 forcee par defaut.
-#   1.3.20260918.211357 — Correctif majeur : "set -e -o pipefail" + "head -N" sur une grosse sortie triee tuait
-#                          le script silencieusement (SIGPIPE) des que le volume de logs depassait le tampon de
-#                          tube (~64Ko) — explique pourquoi --stats n'affichait rien apres le premier "Top" en
-#                          PROD (gros volume) mais fonctionnait en DEV (petit volume). "|| true" ajoute sur
-#                          chaque pipeline concernee. Détail complet des erreurs [error.log] affiche (plus un
-#                          simple compte + pointeur vers le fichier). Top 10 IP annote avec appartenance aux
-#                          règles "allow" de la config nginx active. Nouvelle répartition des systèmes
-#                          d'exploitation visiteurs (approximatif, déduit du User-Agent).
-#   1.4.20260918.214442 — Code HTTP 101 (changement de protocole/websocket) ajoute a la table de descriptions.
-#                          Avertissement ajoute dans --stats : le fichier complet peut contenir des entrées
-#                          antérieures à un correctif récent (ex. robots.txt vu comme "bloqué" alors qu'il ne
-#                          l'est plus depuis).
-#   1.5.20260918.221632 — Ajout de --last HEURES (fenêtre de temps plutot que fichier complet ou delta depuis le
-#                          dernier appel), --details (IP par chemin bloqué dans --stats), --fail2ban (bannis
-#                          actuels + DNS inverse, pour reperer un faux positif).
-#   1.6.20260918.224850 — Correction complete des accents manquants dans TOUT le texte affiche (mots ecrits sans
-#                          accent par erreur dans le code source — pas un bug d'encodage/locale, confirme par
-#                          l'utilisateur). --details etendu aux User-Agents et a la repartition OS (top IP par
-#                          UA, top UA par OS). --fail2ban enrichi avec whois (proprietaire du bloc IP) et,
-#                          combine a --details, un echantillon des requetes de chaque IP bannie.
-#   1.7.20260919.092358 — Correctif critique (recidive) : deux pipelines "head" avaient echappe au correctif 1.3
-#                          ("|| true" manquant), causant a nouveau la disparition intermittente des sections
-#                          Top 10/15 en --stats. Trap ERR ajoute (annonce clairement toute interruption
-#                          inattendue du script, avec la ligne et la commande fautive). --details (chemins
-#                          bloques) affiche desormais le statut HTTP exact par IP (403 vs 404, etc.).
-#                          /xmlrpc/2/db proteges comme /web/database/manager (config nginx, hors de ce fichier).
-#   1.8.20260919.104557 — --details (chemins bloques) affiche maintenant aussi le User-Agent complet a cote de
-#                          chaque IP/statut, pour eviter un grep manuel de verification apres coup.
-#   1.9.20260919.211437 — Le trap ERR ajoute en 1.7 a immediatement rempli son role : deux VRAIES commandes
-#                          non protegees trouvees et corrigees. (1) --fail2ban : "host"/"getent"/"whois" avec
-#                          "timeout" peuvent echouer (timeout depasse, DNS indisponible) sans que ce soit une
-#                          erreur SIGPIPE — meme symptome (script tue net), cause differente. (2) PLUS GRAVE :
-#                          la recuperation de l'IP publique (curl) en tout DEBUT de script n'avait jamais ete
-#                          protegee — un simple echec reseau/DNS a ce moment-la tuait TOUT le rapport avant meme
-#                          d'afficher quoi que ce soit. "|| true" ajoute partout ou un echec reseau/outil externe
-#                          est plausible (curl, host, getent, whois, fail2ban-client) ; volontairement PAS ajoute
-#                          sur les commandes internes (wc, cat, sed, awk sur des fichiers deja verifies) pour que
-#                          le trap ERR garde sa valeur de detection sur les vrais imprevus futurs.
-#   1.10.20260919.212936 — Faux positif corrige dans --fail2ban : "*.googleusercontent.com" (generique) n'est PAS
-#                          un signe fiable de Googlebot — c'est le DNS inverse standard de N'IMPORTE QUELLE VM
-#                          Google Cloud louee. Seul "*.gae.googleusercontent.com" (App Engine) est documente par
-#                          Google comme fiable ; resserre au motif exact. Trouve via un vrai cas observe (scanner
-#                          de secrets sur une VM GCP louee, signale a tort comme "ressemble a un moteur de
-#                          recherche").
-#   1.11.20260921.192049 — Nouvelle option --init-all : inventaire de tous les fichiers de log presents dans
-#                          /var/log/nginx (actifs, tournes, compresses .gz), avec taille et date de premiere/
-#                          derniere entree pour chacun, plus la periode totale couverte. Independant de dev/prod.
-#   1.12.20260921.194244 — --fail2ban --details cherche maintenant l'echantillon de requetes dans TOUS les
-#                          fichiers surveilles par le jail (via "File list:" de fail2ban-client), pas seulement
-#                          $ACCESS_LOG — corrige un angle mort ou une IP bannie semblait n'avoir "rien fait" alors
-#                          que la requete fautive etait dans un autre fichier (ex. l'access.log generique de
-#                          nginx, egalement surveille par le meme jail).
-#   1.13.20260921.225003 — --fail2ban --details affiche maintenant le COMPTE TOTAL de requetes de l'IP bannie et
-#                          leur repartition par statut, avant l'echantillon — un bannissement fail2ban se
-#                          declenche sur un DEBIT (maxretry en findtime secondes), donc 3-5 lignes d'exemple ne
-#                          suffisaient pas a juger si le seuil etait vraiment atteint.
-#   1.14.20260922.081701 — Verification legere du setup initial en tete de rapport (repertoires, pare-feu) via
-#                          nginx-hardening.sh --check, s'il est deploye a cote de ce script — silencieux si tout
-#                          est en ordre, sinon avertissement avec les etapes en echec.
-#   1.15.20260922.232142 — Message corrige suite au changement de comportement par defaut de nginx-hardening.sh
-#                          (v1.7+) : "sans --check" ne corrige plus rien (devenu aussi lecture seule) — le message
-#                          pointe maintenant vers --update.
-#   1.16.20260923.095244 — --init-all refait pour correspondre a la demande initiale : au lieu d'un simple
-#                          inventaire, fusionne reellement TOUS les fichiers connus (actif + rotations .N +
-#                          compresses .N.gz, decompresses a la volee) pour access/error/catchall, et analyse cet
-#                          historique complet comme un seul fichier — combinable avec --last pour restreindre cet
-#                          historique fusionne a une fenetre recente. Corrige au passage un vrai conflit de
-#                          "trap EXIT" : --init-all et --last posaient chacun leur propre trap de nettoyage, le
-#                          second ecrasant le premier (les fichiers temporaires de --init-all n'auraient jamais
-#                          ete supprimes si les deux options etaient combinees) — fusionnes en un seul tableau/trap
-#                          partage.
-#   1.17.20260923.133055 — --fail2ban --details cherche maintenant aussi dans les rotations (.N, .N.gz) des
-#                          fichiers que fail2ban rapporte surveiller, pas seulement le fichier actif — corrige un
-#                          vrai cas observe ("--init-all" etait suggere comme solution mais n'avait aucun effet
-#                          ici, cette section ne lisant jamais $ACCESS_LOG). Fusion faite une seule fois par jail
-#                          (pas par IP bannie) pour ne pas redecompresser les memes .gz inutilement.
-#   1.18.20260923.152327 — Nouvelles options --ban IP et --unban IP : bannissement/levee manuel via pare-feu
-#                          (ufw ou iptables, meme logique que nginx-hardening.sh), volontairement independant
-#                          des jails fail2ban existants (aucun ne surveille le capteur catch-all). --ban affiche
-#                          le contexte (occurrences connues) avant de demander confirmation (--yes pour sauter),
-#                          idempotent. --unban symetrique. Trap ERR a immediatement attrape un vrai risque de
-#                          boucle infinie dans la suppression iptables (corrige avant livraison : verification
-#                          explicite de succes/echec + limite de securite a 20 iterations).
-#   1.19.20260923.152659 — --unban demande desormais aussi une confirmation explicite (absente jusqu'ici — seul
-#                          --ban en avait une), sautee avec --yes comme pour --ban. Les deux confirmations
-#                          expliquent maintenant clairement la consequence de l'action (portee du blocage, duree,
-#                          risque sur un vrai visiteur) avant de demander une reponse, pas seulement un compte
-#                          d'occurrences.
-#   1.20.20260924.071330 — Nouvelle section [9] : detecte les IP ayant utilise plusieurs User-Agents distincts sur
-#                          la fenetre analysee (seuil configurable via --ua-rotation-threshold, defaut 3) — signe
-#                          fiable d'un scanner qui usurpe plusieurs identites (ex. Googlebot puis GPTBot puis
-#                          ChatGPT-User depuis la meme IP, comme observe avec 11.55.161.77 dans l'historique de
-#                          ce projet). Un vrai navigateur ou un vrai bot connu garde le meme UA d'une requete a
-#                          l'autre.
-#   1.21.20260924.083650 — Correctif suite a un vrai rapport en conditions reelles : la section [9] signalait a
-#                          tort de vrais Googlebot (66.249.66.x, plage IP officielle Google) et le crawler de
-#                          previsualisation de liens de Meta (meta-externalagent), qui varient legitimement leur UA
-#                          sans etre une usurpation. Nouvelle logique par familles de bots connues (Google, Meta,
-#                          Bing) : si TOUTES les UA distincts d'une IP appartiennent a la MEME famille, c'est une
-#                          seule entite qui varie son emballage, pas une usurpation — reste un signal reel si les UA
-#                          n'ont aucune famille commune (cas d'origine : Google+OpenAI+Perplexity, jamais une seule
-#                          entite legitime). IP de l'equipe (memes que /web/database/manager) exclues d'office.
-#                          BUG CRITIQUE TROUVE ET CORRIGE AVANT LIVRAISON (trap ERR) : l'ancienne extraction de
-#                          signature ("compatible; NOM") plantait tout le script des qu'une IP flaggee n'avait
-#                          AUCUNE UA avec ce prefixe (grep sans resultat sous set -e, sans garde) — corrige avec la
-#                          nouvelle approche par familles, entierement gardee.
-#   1.22.20260924.203547 — Section [9] refaite : ne compte plus que les User-Agents qui se declarent ROBOTS, groupes
-#                          par organisation (Google, OpenAI, Meta...) ; signale une IP qui se reclame de plusieurs
-#                          organisations a la fois. Les navigateurs sont ignores : un NAT d'entreprise ou
-#                          d'universite en montre legitimement beaucoup (faux positifs des versions 1.20-1.21).
-#                          -v/--verbose annonce aussi les commandes systeme (ufw, iptables, fail2ban-client, curl,
-#                          host/getent) via run().
-#   1.23.20260925.073513 — --fail2ban affiche aussi les IP reellement bloquees par la liste communautaire CrowdSec
-#                          (via sync-crowdsec-blocklist.sh --blocked, s'il est present) : ces IP sont bloquees par
-#                          le noyau avant nginx et n'apparaissent dans aucun journal. 15 premieres, --details = toutes.
-#   1.24.20260925.080316 — Enquete automatique : nouvelle section [10] et option --investigate IP. Pour chaque IP
-#                          suspecte, le script rassemble et affiche les preuves (rafale de pages, outil de script,
-#                          double identite, DNS inverse d'hebergeur, faux moteur de recherche, fichiers sensibles, erreurs),
-#                          calcule un score et, a partir de --ban-threshold indices (defaut 3), PROPOSE le
-#                          bannissement avec confirmation (terminal + root ; sinon affiche la commande).
-#   1.25.20260925.082639 — IP protegees, jamais proposees au bannissement (sections [9]/[10], --investigate) :
-#                          boucle locale, adresses du serveur (dont son IP publique), reseaux prives, equipe, IP des
-#                          regles « allow » de nginx — faux positif reel en DEV : app-health-check.py lui-meme
-#                          (127.0.0.1 et l'IP publique) propose au bannissement. --ban refuse les trois premieres et
-#                          avertit pour les deux dernieres. Expressions regulieres passees a awk par ENVIRON au lieu
-#                          de -v (gawk en retirait les barres obliques inverses, elargissant silencieusement les motifs).
-#   1.26.20260925.165621 — Ctrl-C pendant la question de bannissement = « non », le rapport continue (il arretait
-#                          tout le rapport, et la position du journal etant deja enregistree, l'IP n'etait plus
-#                          proposee au rapport suivant). « Faux moteur de recherche » ne cite plus que les moteurs ;
-#                          les User-Agents non affiches sont comptes, et --investigate les affiche tous.
-#   1.27.20260925.231612 — --ban/--unban sauvegardent les regles (netfilter-persistent, chaines fail2ban exclues ;
-#                          ufw actif : deja permanent) ; ufw utilise seulement s'il est ACTIF ; arret SIGPIPE (code
-#                          141) de --fail2ban --details sur une IP tres active (770 requetes) corrige.
-#   1.28.20260925.234323 — --fail2ban : detection des RECIDIVISTES (IP bannies actives sur plusieurs jours, qui
-#                          reviennent apres chaque expiration du bannissement temporaire) et proposition de
-#                          bannissement permanent ; section CrowdSec limitee a 20 lignes, meme avec --details.
-#   1.29.20260926.075558 — Course SIGPIPE de « | grep -q » corrigee partout (grep_q) : sous pipefail, un « cmd | grep -q »
-#                          pouvait repondre faux alors que le motif etait present.
-#   1.30.20260926.085236 — Revue de type shellcheck (outil indisponible, verifications ciblees) : deux variables
-#                          mortes retirees de l'enquete (claims_engine, cloud — affectees, jamais lues).
-#   1.31.20260926.125259 — ShellCheck 0.11.0 : aucun signalement, a tous les niveaux (constantes affectees puis
-#                          declarees readonly, faux positifs documentes). --changelog : interruption d'un
-#                          tube (ex. « | head ») geree proprement, au lieu d'un faux « ARRET INATTENDU (code 141) ».
-#   1.32.20260926.211237 — Questions (o/N) par readline : touche d'effacement ^H ou ^? fonctionnelle, fleches ; Ctrl-C =
-#                          non (sous-shell). SC2015 (A && B || C) reecrits en if/then (ShellCheck de Debian).
-#   1.33.20260927.092739 — Bannissement propose seulement avec au moins un signe d'HOSTILITE (faux positif : robot
-#                          inoffensif propose pour 3 visites de /events) ; URL demandees affichees dans chaque enquete.
-#   1.34.20260927.093411 — Nouvelle option --unban-check (reevaluation des bannissements manuels avec la logique
-#                          actuelle, URL affichees, levee proposee) ; capteur catch-all compte comme signe d'hostilite
-#                          dans les enquetes sur tout l'historique ; date des bannissements memorisee. Correctif :
-#                          ban/levee depuis une question echouaient en silence si le fichier n'etait pas executable.
-#   2.0.20260927.145909 — Renomme (ancien nom : chk-nginx-logs.sh) ; profils d'application (--app) : journaux de BBB,
-#                          capteur catch-all « sans objet » quand le profil n'en a pas.
-#   2.1.20260927.192332 — --ban : raisonnement (enquete complete) avant la confirmation ; sortie aeree ; elements
-#                          malveillants en magenta (URL sensibles, codes 403/404/429/444/5xx, IP du capteur).
-#   2.2.20260927.200712 — Fichiers d'etat en anglais : bans.tsv, public-ip (migration automatique des anciens).
-#   2.3.20260927.202645 — Changelog dans le sous-repertoire doc/ (repli sur l'ancien emplacement).
-#   2.4.20260927.215447 — Nouvelles options --export-bans et --import-bans (bannissements d'un serveur a l'autre).
-#   2.5.20260928.083340 — --ban : preuves de toutes les sources (DNS, fail2ban, capteur, site, journal) et verdict pour/contre.
-#   2.6.20260928.091309 — PATH complete au demarrage (lancement par cron : /usr/sbin et /sbin manquants).
-#   2.7.20260928.103708 — Requetes de nos programmes exclues du rapport et de --stats ; --stats : appareils des visiteurs.
-#   2.8.20260928.211633 — Enquete : appels internes du back-office exclus de la rafale ; indications « session ouverte » et
-#                          « URL repetee » ; PATH non complete pendant les tests ; ligne sans continuation (SC1004).
-#   2.9.20260928.212833 — Enquete : nom de l'utilisateur Odoo connecte depuis l'IP (journal : « Login successful … from IP »).
-#   2.10.20260928.215040 — IP connectee a Odoo avec un compte : jamais proposee au bannissement ; raison « contre » de --ban ;
-#                          levee proposee par --unban-check ; 11.97.88.180 ajoutee aux IP de l'equipe.
-#   2.11.20260928.220753 — Plages IPv4 (a.b.c.d/n) reconnues dans TEAM_IPS et dans les listes « allow » de nginx ; 11.148.77.0/24.
-#   2.12.20260928.224616 — IP de l'equipe : adresse actuelle du cellulaire (11.148.77.5, plus la plage) et 4 adresses Tailscale.
-#   2.13.20260929.123856 — IP de l'equipe lues dans la liste unique apps/team-ips.list (repli sur la liste integree).
-#   2.14.20260929.134422 — Verrou flock contre les executions concurrentes.
-#   2.15.20260929.193615 — Vocabulaire : « recherche de fichiers sensibles », « tentative(s) d'acces » (plus « sondage »).
-#   2.16.20260929.195459 — Aide : options par ordre alphabetique.
-#   2.17.20260930.084200 — Section [7] : refus voulus (« access forbidden by rule », limitation de debit) resumes, plus listes comme erreurs.
-#   2.19.20261002.064915 — --investigate : fournisseur d'acces de l'IP (RDAP via rdap.org, sinon whois), pays, abus.
-#   2.18.20260930.163902 — Option --report-err : rapport d'erreurs a copier-coller en fin d'execution.
 #
 # Usage : nginx-log-audit.sh [dev|lab|prod] [-v|--verbose] [--ip ADRESSE] [--init] [--init-all] [--stats] [--last HEURES]
-#                            [--details] [--fail2ban] [--ban IP [--yes]] [--unban IP] [--investigate IP] [--evidence IP]
+#                            [--details] [--fail2ban] [--ban IP [--yes] [--reason TEXT]] [--unban IP] [--ban-history] [--investigate IP] [--evidence IP]
 #                            [--unban-check] [--ban-threshold N] [--page-burst N] [--parallel-threshold N] [--no-prompt] [--version]
 #                            [--changelog]
 #   - [dev|lab|prod]  : optionnel, auto-detecte selon les fichiers présents dans /var/log/nginx/.
@@ -252,6 +48,9 @@
 #                        --ban (sautée avec --yes). Sans effet sur un bannissement fail2ban — utiliser
 #                        "fail2ban-client set <jail> unbanip IP" pour ceux-là.
 #   - --yes           : saute la confirmation interactive de --ban ET --unban.
+#   - --reason TEXT   : justification de --ban / --unban, enregistrée avec la date et l'heure dans bans.tsv (2.40). Sans --reason :
+#                        demandée au clavier (proposition modifiable : les preuves), automatique avec --yes.
+#   - --ban-history   : journal des bannissements et levées manuels (date, heure, IP, justification, origine), lecture seule.
 #   - --investigate IP : enquete complete sur une IP dans TOUT l'historique disponible (journal actif, rotations et
 #                        .gz) : preuves une par une, commandes equivalentes, score, puis proposition de bannissement
 #                        avec confirmation. La section [10] du rapport normal fait la meme enquete, automatiquement,
@@ -290,7 +89,7 @@
 #                        légitimement beaucoup) ; seule une IP qui se réclame de plusieurs organisations de robots à
 #                        la fois est signalée — aucune organisation n'opère les robots d'une autre.
 #   - --version       : affiche la version et quitte.
-#   - --changelog     : affiche nginx-log-audit.changelog.txt (numeros de version en couleur si terminal).
+#   - --changelog     : affiche CHANGELOG.md (numeros de version en couleur si terminal).
 #
 # Sections du rapport standard :
 #   [1] 403 (bad bot)              — fréquence par User-Agent. Presque toujours du bruit attendu (bot_blocker.conf).
@@ -327,7 +126,7 @@ grep_q() { grep "$@" >/dev/null; }
 #                              ne peut pas le voir, le texte etant entre apostrophes (faux positif).
 trap 'ec=$?; echo "" >&2; echo "*** ARRÊT INATTENDU DU SCRIPT (code $ec) À LA LIGNE $LINENO ***" >&2; echo "*** Commande fautive : $BASH_COMMAND" >&2; echo "*** Si le rapport ci-dessus semble incomplet (ex. sections Top 10 absentes), c'\''est probablement la cause." >&2' ERR
 
-readonly SCRIPT_VERSION="2.39.20261019.150215"
+readonly SCRIPT_VERSION="2.42.20261020.211944"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
 # Chemin de ce programme (relances --investigate, --ban, --unban) : defini ICI, avant le bloc --ban qui l'utilise.
 SELF_PATH="$SCRIPT_DIR/$(basename "${BASH_SOURCE[0]}")"
@@ -339,9 +138,13 @@ if [[ -r "$SCRIPT_DIR/apps/_i18n.sh" ]]; then
 fi
 # Changelog dans le sous-repertoire doc/ ; repli sur l'ancien emplacement (a cote du programme) tant que
 # l'installation n'a pas ete reorganisee.
-CHANGELOG_FILE="$SCRIPT_DIR/doc/nginx-log-audit.changelog.txt"
-if [[ ! -r "$CHANGELOG_FILE" && -r "$SCRIPT_DIR/nginx-log-audit.changelog.txt" ]]; then CHANGELOG_FILE="$SCRIPT_DIR/nginx-log-audit.changelog.txt"; fi
+CHANGELOG_FILE="$SCRIPT_DIR/CHANGELOG.md"
 readonly CHANGELOG_FILE
+
+# Section of this program in CHANGELOG.md (from its "## <file name>" heading to the next "## " heading).
+changelog_section() {
+    awk -v cle="${BASH_SOURCE[0]##*/}" '/^## /{dans=($0 == "## " cle); if (dans) print; next} dans' "$CHANGELOG_FILE"
+}
 
 # Force une locale UTF-8 si aucune n'est déjà definie (cron et certains services minimalistes tournent souvent
 # sans LANG/LC_ALL, ce qui peut degrader l'affichage des caracteres accentues) — ne remplace jamais une locale
@@ -360,6 +163,8 @@ DO_INIT_ALL=0
 LAST_HOURS=""
 BAN_IP=""
 UNBAN_IP=""
+BAN_REASON=""
+DO_BAN_HISTORY=0
 DO_UNBAN_CHECK=0
 EXPORT_BANS=""
 IMPORT_BANS=""
@@ -384,7 +189,7 @@ fi
 # Première ligne de TOUTE exécution, même avec --help : le nom et la version du programme (--version l'affiche lui-même).
 # --export-bans écrit une LISTE d'adresses destinée à être redirigée dans un fichier puis réimportée : la version va sur la sortie d'erreur.
 case " $* " in *" --version "*) ;; *" --export-bans "*) echo "nginx-log-audit.sh v$SCRIPT_VERSION" >&2 ;; *) echo "nginx-log-audit.sh v$SCRIPT_VERSION" ;; esac
-# Configuration (/etc/default/nginx-log-audit.conf, puis ~/.nginx-log-audit.cfg ; -c/--config : ce fichier SEUL) : valeurs par défaut des options, la ligne de commande l'emporte.
+# Configuration (/etc/default/nginx-log-audit.conf, puis ~/.nginx-log-audit.conf ; -c/--config : ce fichier SEUL) : valeurs par défaut des options, la ligne de commande l'emporte.
 # Clés : APP, BAN_THRESHOLD, LANGUAGE, NO_PROMPT, PAGE_BURST, PARALLEL_THRESHOLD, UA_ROTATION_THRESHOLD, VERBOSE.
 if declare -F config_lire >/dev/null; then
     config_lire nginx-log-audit "$@"
@@ -411,6 +216,9 @@ while [[ $# -gt 0 ]]; do
         --init-all) DO_INIT_ALL=1; shift ;;
         --ban) BAN_IP="${2:-}"; shift 2 ;;
         --unban) UNBAN_IP="${2:-}"; shift 2 ;;
+        --reason) BAN_REASON="${2:-}"; shift 2 ;;
+        --reason=*) BAN_REASON="${1#--reason=}"; shift ;;
+        --ban-history) DO_BAN_HISTORY=1; shift ;;
         --yes) ASSUME_YES=1; shift ;;
         --ua-rotation-threshold) UA_ROTATION_THRESHOLD="${2:-}"; shift 2 ;;
         --investigate) INVESTIGATE_IP="${2:-}"; shift 2 ;;
@@ -436,9 +244,9 @@ while [[ $# -gt 0 ]]; do
             if [[ -t 1 ]]; then
                 # Numeros de version (X.Y.AAAAMMDD.HHMMSS) en cyan gras — couleurs standard ANSI, s'adaptent au
                 # theme clair/sombre du terminal plutot que d'imposer une couleur fixe potentiellement illisible.
-                sed -E $'s/([0-9]+\\.[0-9]+\\.[0-9]{8}\\.[0-9]{6})/\\x1b[1;36m\\1\\x1b[0m/' "$CHANGELOG_FILE" || true  # lecteur ferme plus tot (| head) : SIGPIPE attendu, pas une erreur
+                changelog_section | sed -E $'s/([0-9]+\\.[0-9]+\\.[0-9]{8}\\.[0-9]{6})/\\x1b[1;36m\\1\\x1b[0m/' 2>/dev/null || true  # lecteur ferme plus tot (| head) : SIGPIPE attendu, pas une erreur
             else
-                cat "$CHANGELOG_FILE" || true  # lecteur ferme plus tot (| head) : SIGPIPE attendu, pas une erreur
+                changelog_section 2>/dev/null || true  # lecteur ferme plus tot (| head) : SIGPIPE attendu, pas une erreur
             fi
             # « || true » : sans lui, le piege ERR du script prenait le SIGPIPE d'un lecteur ferme plus tot (ex.
 
@@ -456,10 +264,11 @@ Arguments :
 Options (par ordre alphabétique) :
   --anonymize                  anonymise ce qui est affiché (adresses IP, courriels, identifiants, jetons) par des pseudonymes stables ; clé ANONYMIZE
   --app NAME                   application derrière nginx (profil apps/NAME.conf : odoo, bbb…) ; détectée par défaut
-  --ban IP                     bannir IP au pare-feu (preuves affichées, confirmation demandée)
+  --ban IP                     bannir IP au pare-feu (preuves affichées, justification et confirmation demandées)
+  --ban-history                journal des bannissements et levées manuels : date, heure, justification, origine (lecture seule)
   --ban-threshold N            nombre d'indices à partir duquel le bannissement est proposé (défaut : 3)
   --changelog                  affiche le journal des modifications
-  -c, --config FILE            fichier de configuration à lire SEUL (sinon : /etc/default/nginx-log-audit.conf, puis ~/.nginx-log-audit.cfg ;
+  -c, --config FILE            fichier de configuration à lire SEUL (sinon : /etc/default/nginx-log-audit.conf, puis ~/.nginx-log-audit.conf ;
                                clés : APP, BAN_THRESHOLD, LANGUAGE, NO_PROMPT, PAGE_BURST, PARALLEL_THRESHOLD, UA_ROTATION_THRESHOLD, VERBOSE)
   --details                    avec --stats : détail de chaque indicateur
   --evidence IP                preuves pour ou contre le bannissement d'une IP et verdict, sans rien demander ni bannir (lecture seule)
@@ -476,15 +285,16 @@ Options (par ordre alphabétique) :
   --no-prompt                  ne pas proposer de bannir en fin de rapport
   --page-burst N               pages distinctes en 10 s à partir desquelles l'indice « rafale » est retenu
   --parallel-threshold N        requêtes dynamiques d'une même IP dans la même seconde à partir desquelles la section [11] les signale (défaut : 5)
+  --reason TEXT                avec --ban ou --unban : justification enregistrée dans le journal des bannissements
   --report-err                 afficher à la fin un rapport d'erreurs à copier-coller (programme, version, serveur,
                                échecs, avertissements) ; désactive couleurs et questions interactives
   --stats                      statistiques du trafic (codes, IP, User-Agents, appareils des visiteurs)
   --ua-rotation-threshold N    identités de robots différentes pour l'indice « double identité »
-  --unban IP                   lever un bannissement manuel
+  --unban IP                   lever un bannissement manuel (justification demandée)
   --unban-check                réévaluer chaque bannissement manuel (levée proposée si injustifié)
   -v, --verbose                affiche chaque commande lancée
   --version                    affiche la version et quitte
-  --yes                        avec --ban : bannir sans question
+  --yes                        avec --ban ou --unban : sans question (justification : --reason, sinon automatique)
 AIDE
             exit 0
             ;;
@@ -511,9 +321,9 @@ prendre_verrou() {
     fi
     export "$var=1"
 }
-# Lecture seule (--stats, --investigate, --export-bans) : sans verrou ; sinon (rapport, positions, --ban, --unban,
+# Lecture seule (--stats, --investigate, --evidence, --export-bans, --ban-history) : sans verrou ; sinon (rapport, positions, --ban, --unban,
 # --unban-check, --import-bans) : attente de NGINX_TOOLS_LOCK_WAIT secondes au plus (120 par défaut).
-if [[ "$DO_STATS" != "1" && -z "$INVESTIGATE_IP" && -z "$EVIDENCE_IP" && -z "$EXPORT_BANS" ]]; then
+if [[ "$DO_STATS" != "1" && -z "$INVESTIGATE_IP" && -z "$EVIDENCE_IP" && -z "$EXPORT_BANS" && "$DO_BAN_HISTORY" != "1" ]]; then
     prendre_verrou "${NGINX_TOOLS_LOCK_WAIT:-120}" nginx-log-audit
 fi
 
@@ -688,13 +498,86 @@ ETAT_MIGR="${NGINX_LOG_AUDIT_STATE_DIR:-$HOME/.local/state/nginx-log-audit}"
 migrer_chemin "$ETAT_MIGR/bannissements.tsv" "$ETAT_MIGR/bans.tsv"
 migrer_chemin "$ETAT_MIGR/ip-publique" "$ETAT_MIGR/public-ip"
 PUBLIC_IP_CACHE="${NGINX_LOG_AUDIT_STATE_DIR:-$HOME/.local/state/nginx-log-audit}/public-ip"
-# Journal des bannissements et levees manuels (date, evenement, IP) : --unban-check affiche la date du bannissement.
+# Journal des bannissements et levees manuels : --unban-check, --investigate et --ban-history affichent la date, l'heure et la
+# justification. Colonnes (TAB) : date heure | evenement (banni / leve) | IP | justification | origine (compte et programme).
+# Les 3 premieres colonnes ne changent jamais : web-monitor.py --summary et --list-users les lisent. 4e colonne : avant la 2.40,
+# seulement l'origine d'un import (BAN_NOTE) ; une ligne plus ancienne n'a que 3 colonnes (justification inconnue).
 BAN_LOG="${NGINX_LOG_AUDIT_STATE_DIR:-$HOME/.local/state/nginx-log-audit}/bans.tsv"
+# Une seule ligne, sans TAB ni retour de ligne ni code de controle (le fichier est lu colonne par colonne), 300 caracteres au plus.
+nettoyer_texte() {
+    local t
+    t=$(printf '%s' "$1" | tr '\t\r\n' '   ' | tr -d '\000-\010\013\014\016-\037\177' | sed -E 's/  +/ /g; s/^ //; s/ $//')
+    printf '%s' "${t:0:300}"            # en caractères (locale UTF-8), jamais au milieu d'une lettre accentuée
+}
+# Qui a demande l'action : le compte (sudo compris) et le programme appelant avec son option principale (web-monitor.py
+# --ban-recommended, app-log-live.py, nginx-log-audit.sh --unban-check ou le rapport…), sinon « ligne de commande ». Remonte les
+# processus parents (/proc, 8 niveaux au plus) en sautant les enveloppes de CET appel (sudo, timeout, bash… dont la ligne contient
+# déjà --ban ou --unban de ce programme). Jamais d'erreur.
+origine_appel() {
+    local qui="${SUDO_USER:-${USER:-$(id -un 2>/dev/null || echo root)}}" pid="$PPID" niveau mot prog="" opt="" meme
+    local -a args
+    for (( niveau = 0; niveau < 8 && pid > 1; niveau++ )); do
+        [[ -r "/proc/$pid/cmdline" ]] || break
+        mapfile -d '' -t args < "/proc/$pid/cmdline" 2>/dev/null || break       # un argument par élément (séparés par NUL)
+        prog=""; opt=""; meme=0
+        for mot in "${args[@]}"; do
+            [[ "$mot" == *[[:space:]]* ]] && continue                           # ex. « bash -c 'script…' » : pas un nom de programme
+            case "$mot" in
+                *web-monitor.py|*app-log-live.py|*app-log-check.py|*nginx-log-audit.sh|*nginx-hardening.sh) [[ -z "$prog" ]] && prog=$(basename "$mot") ;;
+                --ban|--unban) [[ "$prog" == nginx-log-audit.sh ]] && meme=1 ;;
+                --*) [[ -n "$prog" && -z "$opt" ]] && opt="${mot%%=*}" ;;
+            esac
+        done
+        if [[ -n "$prog" && "$meme" == "0" ]]; then
+            [[ "$prog" == nginx-log-audit.sh && -z "$opt" ]] && opt="(rapport)"
+            printf '%s via %s%s' "$qui" "$prog" "${opt:+ $opt}"
+            return 0
+        fi
+        pid=$(awk '/^PPid:/ { print $2 }' "/proc/$pid/status" 2>/dev/null) || break
+        [[ -n "$pid" ]] || break
+    done
+    printf '%s via ligne de commande' "$qui"
+}
 note_ban() {
     mkdir -p "$(dirname "$BAN_LOG")" 2>/dev/null || return 0
-    # 4e colonne facultative (BAN_NOTE) : origine d'un bannissement importe (--import-bans), sans toucher aux 3 premieres
-    # colonnes (date, evenement, IP) que lisent --unban-check et web-monitor.py --summary.
-    printf '%s\t%s\t%s%s\n' "$(date '+%Y-%m-%d %H:%M')" "$1" "$2" "${BAN_NOTE:+	$BAN_NOTE}" >> "$BAN_LOG" 2>/dev/null || true
+    local raison
+    raison=$(nettoyer_texte "${BAN_NOTE:+$BAN_NOTE${BAN_REASON:+ — }}${BAN_REASON}")
+    printf '%s\t%s\t%s\t%s\t%s\n' "$(date '+%Y-%m-%d %H:%M')" "$1" "$2" "${raison:--}" "$(nettoyer_texte "$(origine_appel)")" >> "$BAN_LOG" 2>/dev/null || true
+}
+# Adresse DÉJÀ bannie : une justification donnée (au clavier ou --reason, pas l'automatique) est ajoutée au journal par un événement
+# « justifie » (la date du bannissement ne change pas) — c'est ainsi qu'on justifie après coup un bannissement antérieur à la 2.40.
+ajouter_justification() {
+    [[ -z "$BAN_REASON" || "$BAN_REASON" == automatique* ]] && return 0
+    note_ban justifie "$1"
+    echo "Justification ajoutée au bannissement existant ($(date '+%Y-%m-%d %H:%M')) : $BAN_REASON"
+}
+# demander_texte QUESTION [DEFAUT] : une ligne au clavier (DEFAUT proposé, modifiable) ; Ctrl+C = DEFAUT ; sans terminal : DEFAUT.
+demander_texte() {
+    local question="$1" defaut="${2:-}" tmp rc=0 reponse=""
+    if [[ ! -t 0 ]]; then printf '%s' "$defaut"; return 0; fi
+    tmp=$(mktemp)
+    trap ':' INT
+    ( trap - INT; read -e -r -i "$defaut" -p "$question" r && printf '%s' "$r" > "$tmp" ) </dev/tty >/dev/tty 2>&1 || rc=$?
+    trap - INT; declare -F ctrl_c_installer >/dev/null && ctrl_c_installer
+    reponse=$(cat "$tmp" 2>/dev/null) || reponse=""
+    rm -f "$tmp"
+    if (( rc != 0 )); then reponse="$defaut"; echo >/dev/tty; fi
+    printf '%s' "$reponse"
+}
+# Raison d'un bannissement par un jail fail2ban (ceux de nginx-hardening.sh et les jails courants), pour --investigate.
+raison_jail() {
+    case "$1" in
+        nginx-blocked-probes) echo "requêtes REFUSÉES par nginx (fichiers sensibles, failles, outils d'attaque) — blocked-probes.log" ;;
+        nginx-catchall)       echo "accès par adresse IP brute ou domaine inconnu (capteur catch-all) — typique d'un scanner" ;;
+        odoo-auth)            echo "échecs de connexion à Odoo (mot de passe) répétés" ;;
+        sshd|ssh)             echo "échecs de connexion SSH répétés" ;;
+        recidive)             echo "bannie à répétition par d'autres jails (récidive)" ;;
+        nginx-limit-req)      echo "trop de requêtes (limite de débit de nginx dépassée)" ;;
+        nginx-http-auth)      echo "échecs d'authentification HTTP de nginx" ;;
+        nginx-botsearch)      echo "recherche de pages d'administration ou de failles (robot)" ;;
+        nginx-bad-request)    echo "requêtes HTTP malformées" ;;
+        *)                    echo "règle du jail $1 (filtre /etc/fail2ban/filter.d/$1.conf)" ;;
+    esac
 }
 ALLOWED_IPS_CACHE=""
 ALLOWED_IPS_LOADED=0
@@ -918,6 +801,9 @@ preuves_ip() {
         echo "    Contre :"
         for r in "${contre[@]}"; do echo "      ${C_YELLOW}− $r${C_RESET}"; done
     fi
+    # Proposition de justification pour --ban (2.40) : les preuves « pour », sur une ligne.
+    PREUVES_RESUME=""
+    if (( ${#pour[@]} > 0 )); then PREUVES_RESUME=$(printf '%s ; ' "${pour[@]}"); PREUVES_RESUME="${PREUVES_RESUME% ; }"; fi
     if (( ${#pour[@]} == 0 && ${#contre[@]} > 0 )); then
         echo "    ${C_RED}Verdict : ne pas bannir${C_RESET} — aucune preuve contre cette IP, et des éléments plaident en sa faveur."
     elif (( ${#pour[@]} == 0 )); then
@@ -930,6 +816,133 @@ preuves_ip() {
     echo
 }
 JAILS_HORS_NGINX=()
+PREUVES_RESUME=""
+PROP_RAISON=""
+
+# --- Bannissements d'une IP (2.40) : état ACTUEL (pare-feu, fail2ban, liste CrowdSec) et HISTORIQUE chronologique (journal des
+# bannissements manuels bans.tsv, fail2ban.log et rotations) avec la date, l'heure et la justification de chaque bannissement.
+# Utilisée par --investigate (même sans aucune requête au site : une adresse bannie par nginx-blocked-probes n'apparaît que dans
+# blocked-probes.log) et par --unban-check. $2 : indentation.
+afficher_bannissements() {
+    local ip="$1" ind="${2:-  }" ipre trouve=0 j quand n=0 d=""
+    local -a jails_actuels=() jails_hist=()
+    ipre=$(printf '%s' "$ip" | sed 's/[.]/\\./g')
+    progres "Bannissements de $ip : pare-feu, fail2ban, liste CrowdSec, journal des bannissements manuels"
+    echo "${ind}${C_BOLD}Bannissements de $ip${C_RESET} (quand, et pourquoi)"
+    # --- 1) État actuel ---
+    echo "${ind}  État actuel :"
+    if [[ "$EUID" -ne 0 ]]; then
+        echo "${ind}    non lisible sans root (pare-feu, fail2ban, ipset) : relancer avec sudo"
+    else
+        local pf=""
+        if [[ "$ip" == *:* ]]; then
+            command -v ip6tables >/dev/null 2>&1 && run ip6tables -C INPUT -s "$ip" -j DROP 2>/dev/null && pf="règle ip6tables « DROP »"
+        else
+            command -v iptables >/dev/null 2>&1 && run iptables -C INPUT -s "$ip" -j DROP 2>/dev/null && pf="règle iptables « DROP »"
+        fi
+        if [[ -z "$pf" ]] && ufw_active && run ufw status 2>/dev/null | awk '/DENY/ {print $NF}' | grep_q -xF -- "$ip"; then pf="règle ufw « deny from »"; fi
+        if [[ -n "$pf" ]]; then
+            trouve=1
+            echo "${ind}    Pare-feu : ${C_MAL}BANNIE${C_RESET} — $pf (bannissement manuel, sans expiration ; levée : nginx-log-audit.sh --unban $ip)"
+        else
+            echo "${ind}    Pare-feu : pas de bannissement manuel"
+        fi
+        if command -v fail2ban-client >/dev/null 2>&1 && run fail2ban-client ping >/dev/null 2>&1; then
+            for j in $(run fail2ban-client status 2>/dev/null | sed -n 's/.*Jail list:[[:space:]]*//p' | tr ',' ' '); do
+                if run fail2ban-client status "$j" 2>/dev/null | sed -n 's/.*Banned IP list:[[:space:]]*//p' | tr ' ' '\n' | grep_q -xF -- "$ip"; then
+                    jails_actuels+=("$j")
+                    # fail2ban 0.11+ : « IP  AAAA-MM-JJ HH:MM:SS + durée = AAAA-MM-JJ HH:MM:SS » (début et fin du bannissement)
+                    quand=$(run fail2ban-client get "$j" banip --with-time 2>/dev/null | awk -v ip="$ip" '$1 == ip { $1 = ""; sub(/^[ \t]+/, ""); print; exit }') || quand=""
+                    echo "${ind}    fail2ban : ${C_MAL}BANNIE${C_RESET} par le jail ${C_MAL}$j${C_RESET} — $(raison_jail "$j")"
+                    if [[ -n "$quand" ]]; then echo "${ind}      début + durée = fin : $quand"; fi
+                fi
+            done
+            if (( ${#jails_actuels[@]} == 0 )); then echo "${ind}    fail2ban : pas bannie actuellement"; else trouve=1; fi
+        else
+            echo "${ind}    fail2ban : non installé ou arrêté"
+        fi
+        local s cs=""
+        if command -v ipset >/dev/null 2>&1; then
+            for s in crowdsec-blocklist-v4 crowdsec-blocklist-v6; do
+                run ipset test "$s" "$ip" >/dev/null 2>&1 && cs="$s"
+            done
+        fi
+        if [[ -n "$cs" ]]; then
+            trouve=1
+            local maj liste="${SYNC_CROWDSEC_STATE_DIR:-/var/lib/sync-crowdsec-blocklist}/last-list.txt"
+            maj=$(date -r "$liste" '+%Y-%m-%d %H:%M' 2>/dev/null) || maj=""
+            echo "${ind}    Liste CrowdSec : ${C_MAL}BLOQUÉE${C_RESET} (ipset $cs) — adresse signalée comme agressive par d'autres serveurs du réseau"
+            echo "${ind}      CrowdSec (liste communautaire, sync-crowdsec-blocklist.sh) : aucune justification locale${maj:+ ; liste mise à jour le $maj}"
+        else
+            echo "${ind}    Liste CrowdSec : absente"
+        fi
+    fi
+    # --- 2) Historique : une ligne par événement, du plus ancien au plus récent ---
+    local hist="" f2b
+    if [[ -r "$BAN_LOG" ]]; then
+        hist=$(awk -F'\t' -v ip="$ip" '$3 == ip {
+                   ev = ($2 == "banni") ? "BANNIE au pare-feu" : (($2 == "leve") ? "bannissement LEVÉ" : (($2 == "justifie") ? "justification ajoutée" : $2))
+                   r = (NF >= 4 && $4 != "" && $4 != "-") ? "justification : " $4 : "justification : non enregistrée (avant la version 2.40)"
+                   printf "%s\t%s — %s%s\n", $1, ev, r, (NF >= 5 && $5 != "") ? " — par " $5 : "" }' "$BAN_LOG" 2>/dev/null) || hist=""
+    fi
+    f2b=$(lire_chrono "${FAIL2BAN_LOG_FILE:-/var/log/fail2ban.log}"* | { grep -E "\] (Restore Ban|Ban|Unban) $ipre( |$)" || true; } | awk '
+            { if (match($0, /\[[^]]+\] (Restore Ban|Ban|Unban) /)) {
+                  s = substr($0, RSTART, RLENGTH); j = s; sub(/^\[/, "", j); sub(/\].*/, "", j)
+                  a = s; sub(/^\[[^]]+\] /, "", a); sub(/ $/, "", a)
+                  t = (a == "Unban") ? "fail2ban : bannissement levé par le jail " j " (fin de la durée, ou levée manuelle)" : ((a == "Ban") ? "fail2ban : BANNIE par le jail " j : "fail2ban : bannissement rétabli au redémarrage (jail " j ")")
+                  printf "%s %s\t%s\t%s\n", $1, substr($2, 1, 8), t, j } }')
+    if [[ -n "$f2b" ]]; then
+        mapfile -t jails_hist < <(printf '%s\n' "$f2b" | awk -F'\t' '$2 ~ /BANNIE/ { print $3 }' | sort -u)
+        f2b=$(printf '%s\n' "$f2b" | cut -f1,2)
+        hist="$hist${hist:+$'\n'}$f2b"
+    fi
+    echo "${ind}  Historique (heure locale, du plus ancien au plus récent) :"
+    if [[ -z "$hist" ]]; then
+        echo "${ind}    aucun événement dans le journal des bannissements manuels ni dans les journaux de fail2ban conservés"
+    else
+        trouve=1
+        n=$(printf '%s\n' "$hist" | grep -c .)
+        (( n > 30 )) && echo "${ind}    ($((n - 30)) événement(s) plus ancien(s) non affiché(s))"
+        printf '%s\n' "$hist" | sort -s -t"$(printf '\t')" -k1,1 | tail -n 30 | awk -F'\t' -v ind="$ind" -v m="$C_MAL" -v r="$C_RESET" '
+            { t = $2; if (t ~ /BANNIE/) t = m t r; printf "%s    %-19s  %s\n", ind, $1, t }'
+    fi
+    # --- 3) Raison détaillée de chaque jail fail2ban en cause : ce que l'adresse a fait ---
+    local -A vus=()
+    for j in "${jails_actuels[@]}" "${jails_hist[@]}"; do
+        [[ -z "$j" || -n "${vus[$j]:-}" ]] && continue
+        vus[$j]=1
+        echo "${ind}  Pourquoi le jail $j l'a bannie : $(raison_jail "$j")"
+        local found
+        found=$(lire_chrono "${FAIL2BAN_LOG_FILE:-/var/log/fail2ban.log}"* | { grep -E "\[$j\] Found $ipre( |$)" || true; } \
+                | awk '{ n++; if (!p) p = $1 " " substr($2, 1, 8); d = $1 " " substr($2, 1, 8) } END { if (n) printf "%d\t%s\t%s\n", n, p, d }')
+        if [[ -n "$found" ]]; then
+            IFS=$'\t' read -r n quand d <<< "$found"
+            echo "${ind}    $n détection(s) par fail2ban (première : $quand, dernière : $d)"
+        fi
+        case "$j" in
+            nginx-blocked-probes)
+                local pages
+                pages=$(urls_refusees "$ip" 8)
+                if [[ -n "$pages" ]]; then
+                    echo "${ind}    Pages demandées et refusées par nginx (blocked-probes.log) :"
+                    printf '%s\n' "$pages" | awk -F'\t' -v ind="$ind" '{ printf "%s      %5d  %s\n", ind, $1, $2 }' | surligner
+                else
+                    echo "${ind}    (blocked-probes.log ne contient plus ces requêtes : journal tourné depuis)"
+                fi ;;
+            nginx-catchall)
+                local ca
+                ca=$(lire_chrono /var/log/nginx/*catchall*.log* | { grep -E "^$ipre " || true; } | tail -n 3 | cut -c1-150)
+                if [[ -n "$ca" ]]; then echo "${ind}    Dernières requêtes au capteur catch-all :"; printf '%s\n' "$ca" | sed "s/^/${ind}      /"; fi ;;
+            *)
+                echo "${ind}    Détail : journalctl -g '$ipre' --since -100days   (journal du service surveillé par ce jail)" ;;
+        esac
+    done
+    if (( trouve == 0 )); then
+        echo "${ind}  ${C_GREEN}Aucun bannissement trouvé${C_RESET} sur ce serveur : ni pare-feu, ni fail2ban (journaux conservés), ni liste CrowdSec,"
+        echo "${ind}  ni journal des bannissements manuels ($BAN_LOG). Si elle est signalée bannie ailleurs, vérifier sur l'autre serveur."
+    fi
+    echo
+}
 
 # Connexions RÉUSSIES à Odoo (2.10), lues UNE fois par exécution dans le journal systemd (100 jours) : Odoo écrit
 # « Login successful for db:BASE login:COMPTE from IP ». Une IP qui s'est connectée avec un compte (bénévole, membre)
@@ -1082,6 +1095,27 @@ if [[ -n "$EVIDENCE_IP" ]]; then
     exit 0
 fi
 
+# --- --ban-history : journal des bannissements et levées manuels (2.40) : date, heure, IP, justification, origine ------------
+if [[ "$DO_BAN_HISTORY" == "1" ]]; then
+    echo "=============================================================="
+    echo " JOURNAL DES BANNISSEMENTS MANUELS ($BAN_LOG)"
+    echo "=============================================================="
+    if [[ ! -s "$BAN_LOG" ]]; then
+        echo "Aucun bannissement manuel enregistré (journal absent ou vide)."
+        [[ "$EUID" -ne 0 ]] && echo "Le journal est dans le dossier du compte qui bannit (root) : relancer avec sudo."
+        exit 0
+    fi
+    echo "Du plus ancien au plus récent (heure locale) — bannissements de fail2ban et liste CrowdSec : nginx-log-audit.sh --investigate IP"
+    echo
+    awk -F'\t' -v m="$C_MAL" -v g="$C_GREEN" -v r="$C_RESET" -v b="$C_BOLD" '
+        BEGIN { printf "%s%-16s  %-8s  %-15s  %s%s\n", b, "Date", "Action", "IP", "Justification — origine", r }
+        NF >= 3 {
+            if ($2 == "banni") { a = m "banni" r "   " } else if ($2 == "leve") { a = g "levé" r "    " } else if ($2 == "justifie") { a = "justifié" } else { a = sprintf("%-8s", $2) }
+            j = (NF >= 4 && $4 != "" && $4 != "-") ? $4 : "(non enregistrée : avant la version 2.40)"
+            printf "%-16s  %s  %-15s  %s%s\n", $1, a, $3, j, (NF >= 5 && $5 != "") ? " — " $5 : "" }' "$BAN_LOG"
+    exit 0
+fi
+
 # --- --ban IP : bannissement manuel via pare-feu (ufw ou iptables, meme logique que nginx-hardening.sh) ---------
 # Choix delibere de NE PAS passer par les jails fail2ban existants : aucun d'eux ne surveille le capteur
 # catch-all (d'ou vient typiquement la justification d'un bannissement manuel par volume), et injecter une IP
@@ -1151,19 +1185,31 @@ if [[ -n "$BAN_IP" ]]; then
         echo
         if ! demander_oui "Confirmer le bannissement de $BAN_IP ? [o/N] "; then echo "Annulé."; exit 0; fi
     fi
+    # Justification (2.40), enregistrée avec la date et l'heure dans le journal des bannissements (--investigate, --unban-check et
+    # --ban-history l'affichent) : au clavier (proposition modifiable : --reason, sinon les preuves), --reason avec --yes, sinon automatique.
+    if [[ "$ASSUME_YES" != "1" ]]; then
+        echo
+        echo "Justification du bannissement (enregistrée avec la date et l'heure ; Entrée accepte la proposition) :"
+        BAN_REASON=$(demander_texte "> " "${BAN_REASON:-${PREUVES_RESUME:+preuves : $PREUVES_RESUME}}")
+    fi
+    BAN_REASON=$(nettoyer_texte "$BAN_REASON")
+    [[ -z "$BAN_REASON" ]] && BAN_REASON="automatique : aucune justification fournie"
 
     if ufw_active; then
         if run ufw status 2>/dev/null | grep_q -F "$BAN_IP"; then
             echo "${C_YELLOW}Déjà présent dans une règle ufw pour $BAN_IP — rien à faire.${C_RESET}"
+            ajouter_justification "$BAN_IP"
         else
             run ufw deny from "$BAN_IP" >/dev/null
             echo "${C_GREEN}Règle ufw ajoutée : deny from $BAN_IP${C_RESET}"
             note_ban banni "$BAN_IP"
+            echo "Justification enregistrée ($(date '+%Y-%m-%d %H:%M')) : $BAN_REASON"
             persist_firewall
         fi
     elif command -v iptables >/dev/null 2>&1; then
         if run iptables -C INPUT -s "$BAN_IP" -j DROP 2>/dev/null; then
             echo "${C_YELLOW}Déjà présent dans iptables pour $BAN_IP — règle inchangée.${C_RESET}"
+            ajouter_justification "$BAN_IP"
             # Sauvegarde quand meme : c'est le moyen de rendre permanent un bannissement pose AVANT l'installation de
             # netfilter-persistent (le conseil affiche en fin de persist_firewall est de relancer --ban).
             persist_firewall
@@ -1171,6 +1217,7 @@ if [[ -n "$BAN_IP" ]]; then
             run iptables -I INPUT -s "$BAN_IP" -j DROP
             echo "${C_GREEN}Règle iptables ajoutée : DROP depuis $BAN_IP${C_RESET}"
             note_ban banni "$BAN_IP"
+            echo "Justification enregistrée ($(date '+%Y-%m-%d %H:%M')) : $BAN_REASON"
             persist_firewall
         fi
     else
@@ -1217,7 +1264,12 @@ if [[ -n "$UNBAN_IP" ]]; then
     if [[ "$ASSUME_YES" != "1" ]]; then
         echo
         if ! demander_oui "Confirmer la levée du bannissement de $UNBAN_IP ? [o/N] "; then echo "Annulé."; exit 0; fi
+        echo
+        echo "Justification de la levée (enregistrée avec la date et l'heure ; Entrée accepte la proposition) :"
+        BAN_REASON=$(demander_texte "> " "$BAN_REASON")
     fi
+    BAN_REASON=$(nettoyer_texte "$BAN_REASON")
+    [[ -z "$BAN_REASON" ]] && BAN_REASON="automatique : aucune justification fournie"
 
     removed=0
     if command -v ufw >/dev/null 2>&1 && run ufw status 2>/dev/null | grep_q -F "$UNBAN_IP"; then
@@ -1244,6 +1296,7 @@ if [[ -n "$UNBAN_IP" ]]; then
         echo "${C_RED}Une règle avait été détectée pour $UNBAN_IP mais son retrait a échoué — vérifiez manuellement.${C_RESET}" >&2
     else
         note_ban leve "$UNBAN_IP"
+        echo "Justification enregistrée ($(date '+%Y-%m-%d %H:%M')) : $BAN_REASON"
         # Sans resauvegarde, l'ancienne sauvegarde persistante contiendrait encore la regle retiree : l'IP
         # redeviendrait bannie au prochain redemarrage.
         persist_firewall
@@ -1469,7 +1522,7 @@ relancer_action() {
     local out rc=0
     out=$(bash "$SELF_PATH" "$@" 2>&1) || rc=$?
     if (( rc == 0 )); then
-        printf '%s\n' "$out" | sed -n '/Règle\|Déjà\|REFUSÉ\|sauvegard\|mémoire\|permanente/p' | sed 's/^/      /'
+        printf '%s\n' "$out" | sed -n '/Règle\|Déjà\|REFUSÉ\|Justification\|sauvegard\|mémoire\|permanente/p' | sed 's/^/      /'
     else
         echo "      ${C_RED}ÉCHEC de « $* » (code $rc) — sortie complète :${C_RESET}"
         printf '%s\n' "$out" | sed 's/^/        /'
@@ -1615,6 +1668,7 @@ investigate_and_propose() {
     if [[ -n "$INVESTIGATE_IP" ]]; then etapes="$etapes, propriétaire du bloc d'adresses"; fi
     progres "Enquête sur $ip : $etapes"
     local score=0 ok="${C_RED}[✓]${C_RESET}" no="[ ]" verified_engine=0 ptr fwd engines
+    local -a motifs=()                 # indices retenus : justification proposée si le bannissement est accepté (2.40)
     echo
     echo "  ▶ ${C_YELLOW}$ip${C_RESET} — $total requête(s) $scope"
     if [[ -n "$INVESTIGATE_IP" ]]; then infos_reseau "$ip"; fi
@@ -1634,16 +1688,16 @@ investigate_and_propose() {
 
     echo
     echo "      Indices :"
-    if (( maxp >= PAGE_BURST )); then score=$((score+1)); hostile=$((hostile+1)); echo "      $ok Rafale : $maxp pages distinctes en 10 s ($maxb""x) — un humain lit une page à la fois (assets exclus du compte)"
+    if (( maxp >= PAGE_BURST )); then score=$((score+1)); hostile=$((hostile+1)); motifs+=("rafale de $maxp pages en 10 s"); echo "      $ok Rafale : $maxp pages distinctes en 10 s ($maxb""x) — un humain lit une page à la fois (assets exclus du compte)"
     else echo "      $no Rafale : au plus $maxp page(s) distincte(s) en 10 s (seuil : $PAGE_BURST)"; fi
-    if (( nscript > 0 )); then score=$((score+1)); echo "      $ok Outil de script déclaré : $nscript requête(s) (bibliothèque HTTP, pas un navigateur)"
+    if (( nscript > 0 )); then score=$((score+1)); motifs+=("outil de script ($nscript requête(s))"); echo "      $ok Outil de script déclaré : $nscript requête(s) (bibliothèque HTTP, pas un navigateur)"
     else echo "      $no Outil de script : aucun"; fi
-    if (( nscript > 0 && nbrowser > 0 )); then score=$((score+1)); echo "      $ok Double identité : outil de script ET User-Agent de navigateur depuis la même IP (client automatisé qui change d'identité)"
-    elif (( nf >= 2 )); then score=$((score+1)); echo "      $ok Double identité : se réclame de $nf organisations de robots (${fams//|/, })"
+    if (( nscript > 0 && nbrowser > 0 )); then score=$((score+1)); motifs+=("double identité"); echo "      $ok Double identité : outil de script ET User-Agent de navigateur depuis la même IP (client automatisé qui change d'identité)"
+    elif (( nf >= 2 )); then score=$((score+1)); motifs+=("double identité ($nf organisations de robots)"); echo "      $ok Double identité : se réclame de $nf organisations de robots (${fams//|/, })"
     else echo "      $no Double identité : non"; fi
-    if (( nprobe >= 3 )); then score=$((score+1)); hostile=$((hostile+1)); echo "      $ok Recherche de fichiers sensibles : $nprobe requête(s) (ex. $probes)"
+    if (( nprobe >= 3 )); then score=$((score+1)); hostile=$((hostile+1)); motifs+=("$nprobe tentative(s) d'accès à des fichiers sensibles (ex. $probes)"); echo "      $ok Recherche de fichiers sensibles : $nprobe requête(s) (ex. $probes)"
     else echo "      $no Recherche de fichiers sensibles : ${nprobe} requête(s)"; fi
-    if (( nerr >= 20 && nerr * 2 >= total )); then score=$((score+1)); hostile=$((hostile+1)); echo "      $ok Taux d'erreurs élevé : $nerr/$total (4xx/5xx/444)"
+    if (( nerr >= 20 && nerr * 2 >= total )); then score=$((score+1)); hostile=$((hostile+1)); motifs+=("$nerr erreurs sur $total requêtes"); echo "      $ok Taux d'erreurs élevé : $nerr/$total (4xx/5xx/444)"
     else echo "      $no Taux d'erreurs : $nerr/$total"; fi
 
     ptr=$(run timeout --foreground 3 host "$ip" 2>/dev/null | awk '/pointer/{print $NF}' | sed 's/\.$//' | head -1) || true
@@ -1651,7 +1705,7 @@ investigate_and_propose() {
         ptr=$(run timeout --foreground 3 getent hosts "$ip" 2>/dev/null | awk '{print $2}' | head -1) || true
     fi
     if [[ -n "$ptr" ]] && printf '%s' "$ptr" | grep_q -iE "$CLOUD_PTR_RE" && ! printf '%s' "$ptr" | grep_q -i 'gae\.googleusercontent'; then
-        score=$((score+1)); echo "      $ok Serveur loué chez un hébergeur : $ptr (DNS inverse) — pas une connexion d'internaute"
+        score=$((score+1)); motifs+=("serveur loué ($ptr)"); echo "      $ok Serveur loué chez un hébergeur : $ptr (DNS inverse) — pas une connexion d'internaute"
     else
         echo "      $no Serveur loué : ${ptr:-aucun DNS inverse}"
     fi
@@ -1665,7 +1719,7 @@ investigate_and_propose() {
             echo "      ${C_GREEN}[=]${C_RESET} Moteur de recherche VÉRIFIÉ ($ptr ↔ $ip) — jamais proposé au bannissement"
         else
             engines=$(printf '%s\n' "${fams//|/$'\n'}" | grep -xE 'Google|Microsoft|Apple|Yandex' | paste -sd, - | sed 's/,/, /g') || true
-            score=$((score+1)); hostile=$((hostile+1)); echo "      $ok Faux moteur de recherche : se dit robot de ${engines} mais la double vérification DNS (inverse puis directe) échoue"
+            score=$((score+1)); hostile=$((hostile+1)); motifs+=("faux moteur de recherche ($engines)"); echo "      $ok Faux moteur de recherche : se dit robot de ${engines} mais la double vérification DNS (inverse puis directe) échoue"
         fi
     fi
     # Capteur catch-all (enquetes sur tout l'historique : --investigate, --unban-check) : une IP qui frappe le serveur
@@ -1674,7 +1728,7 @@ investigate_and_propose() {
         local n_ca
         n_ca=$(awk -v ip="$ip" '$1 == ip' "$CATCHALL_MERGED" | grep -c . || true)
         if (( n_ca > 0 )); then
-            hostile=$((hostile+1))
+            hostile=$((hostile+1)); motifs+=("$n_ca tentative(s) au capteur catch-all")
             echo "      $ok Capteur catch-all : $n_ca tentative(s) par IP brute ou domaine inconnu (typique d'un scanner)"
         else
             echo "      $no Capteur catch-all : aucune tentative"
@@ -1760,6 +1814,8 @@ investigate_and_propose() {
         return 0
     fi
     echo "      ${C_MAL}→ Score $score/7 : bannissement recommandé.${C_RESET}"
+    PROP_RAISON="enquête $(date '+%Y-%m-%d %H:%M') : score $score/7, $hostile signe(s) d'hostilité — $(printf '%s ; ' "${motifs[@]}")"
+    PROP_RAISON="${PROP_RAISON% ; }"
     confirm_and_ban "$ip"
 }
 
@@ -1776,8 +1832,11 @@ confirm_and_ban() {
         # Ctrl-C = « non » et le rapport continue (voir demander_oui) : un arret ici perdrait ces lignes, la position de
         # lecture du journal etant deja enregistree a ce stade.
         if demander_oui "      Bannir $ip maintenant ? [o/N] "; then
+            local justif
+            echo "      Justification (enregistrée avec la date et l'heure ; Entrée accepte la proposition) :"
+            justif=$(demander_texte "      > " "${PROP_RAISON:-}")
             echo
-            relancer_action --ban "$ip" --yes
+            relancer_action --ban "$ip" --yes --reason "${justif:-${PROP_RAISON:-}}"
         elif [[ "$DEMANDER_INTERROMPU" == "1" ]]; then
             echo "      (Ctrl-C : non banni, le rapport continue — plus tard : nginx-log-audit.sh --investigate $ip)"
         else
@@ -1810,7 +1869,7 @@ decide_unban() {
     echo "        (Gardez-le si vous l'aviez banni pour une raison connue qui n'apparaît pas dans ces journaux.)"
     if [[ "$NO_PROMPT" != "1" && -t 0 && -t 1 && "$EUID" -eq 0 ]]; then
         if demander_oui "      Lever le bannissement de $ip maintenant ? [o/N] "; then
-            relancer_action --unban "$ip" --yes
+            relancer_action --unban "$ip" --yes --reason "réévaluation (--unban-check) : $raison"
             UNBAN_VERDICT="levé"
         elif [[ "$DEMANDER_INTERROMPU" == "1" ]]; then
             echo "      (Ctrl-C : bannissement conservé, la réévaluation continue)"
@@ -1827,6 +1886,9 @@ if [[ -n "$INVESTIGATE_IP" ]]; then
     echo "=============================================================="
     echo " ENQUÊTE SUR $INVESTIGATE_IP (tout l'historique : $ENV, rotations et .gz compris)"
     echo "=============================================================="
+    echo
+    # 2.40 : d'abord QUAND et POURQUOI l'adresse a été bannie (pare-feu, fail2ban, CrowdSec) — même sans requête au site.
+    afficher_bannissements "$INVESTIGATE_IP" "  "
     INV_SRC="$STATE_DIR/.investigate.$$"
     INIT_ALL_TMP_FILES+=("$INV_SRC")
     trap 'rm -f "${INIT_ALL_TMP_FILES[@]}"' EXIT
@@ -1836,7 +1898,8 @@ if [[ -n "$INVESTIGATE_IP" ]]; then
     [[ -n "$CATCHALL_LOG" ]] && { merge_all_rotations "$CATCHALL_LOG" "$CATCHALL_MERGED" > /dev/null 2>&1 || true; }
     INV_REC=$(scan_ips "$INV_SRC" "$INVESTIGATE_IP") || true
     if [[ -z "$INV_REC" ]]; then
-        echo "Aucune requête de $INVESTIGATE_IP dans l'historique disponible de $ENV."
+        echo "Aucune requête de $INVESTIGATE_IP dans l'historique disponible du site ($ENV) : les requêtes refusées par nginx et"
+        echo "celles du capteur catch-all n'y sont pas — voir « Bannissements » ci-dessus, ou : nginx-log-audit.sh --evidence $INVESTIGATE_IP"
         exit 0
     fi
     investigate_and_propose "$INV_REC" "$(dirname "${ORIG_ACCESS_LOG:-$ACCESS_LOG}")/$(basename "${ORIG_ACCESS_LOG:-$ACCESS_LOG}")*  (zgrep pour les .gz)" "dans tout l'historique disponible"
@@ -1869,11 +1932,15 @@ if [[ "$DO_UNBAN_CHECK" == "1" ]]; then
     n_lever=0; n_garder=0; n_trace=0; n_leve=0; i=0
     for bip in "${BANS[@]}"; do
         i=$((i + 1))
-        quand=$(awk -F'\t' -v ip="$bip" '$3 == ip && $2 == "banni" { d = $1 } END { print d }' "$BAN_LOG" 2>/dev/null) || quand=""
+        IFS=$'\t' read -r quand justif origine < <(awk -F'\t' -v ip="$bip" '$3 == ip && $2 == "banni" { d = $1; r = (NF >= 4) ? $4 : ""; o = (NF >= 5) ? $5 : "" }
+                                                     $3 == ip && $2 == "justifie" && NF >= 4 { r = $4 " (ajoutée le " $1 ")" }
+                                                     END { printf "%s\t%s\t%s\n", d, r, o }' "$BAN_LOG" 2>/dev/null) || { quand=""; justif=""; origine=""; }
         echo
         # (Pas de « ${quand:-…} » ici : quand la variable est remplie, cette forme la renvoie ELLE-MEME — date doublee.)
         if [[ -n "$quand" ]]; then quand="le $quand"; else quand="(date inconnue : bannissement antérieur à la 1.34, ou posé à la main)"; fi
-        echo "--- [$i/${#BANS[@]}] $bip — banni $quand"
+        echo "--- [$i/${#BANS[@]}] $bip — banni $quand${origine:+ par $origine}"
+        if [[ -n "$justif" && "$justif" != "-" ]]; then echo "    Justification : $justif"
+        else echo "    Justification : non enregistrée (bannissement antérieur à la 2.40) ; pour l'ajouter : nginx-log-audit.sh --ban $bip --reason \"…\""; fi
         UNBAN_VERDICT=""
         rec=$(scan_ips "$INV_SRC" "$bip") || true
         if [[ -n "$rec" ]]; then
@@ -2655,6 +2722,7 @@ if [[ "$DO_FAIL2BAN" == "1" ]]; then
             for rip in "${RECIDIVIST_ORDER[@]}"; do
                 echo
                 echo "  ▶ ${C_YELLOW}$rip${C_RESET} — ${RECIDIVISTS[$rip]}"
+                PROP_RAISON="récidiviste fail2ban ($(date '+%Y-%m-%d %H:%M')) : ${RECIDIVISTS[$rip]}"
                 confirm_and_ban "$rip"
             done
         fi

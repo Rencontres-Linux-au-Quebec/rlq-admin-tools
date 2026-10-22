@@ -42,8 +42,8 @@ msgstr "  Options: "
 msgid " (ligne de commande prioritaire)"
 msgstr " (command line takes precedence)"
 
-msgid ".cfg) — valeurs par défaut"
-msgstr ".cfg) — default values"
+msgid ".conf) — valeurs par défaut"
+msgstr ".conf) — default values"
 
 msgid "Interrompre le programme ? [o/N] "
 msgstr "Stop the program? [y/N] "
@@ -77,3 +77,30 @@ msgstr " — rerun with sudo for a complete view."
 
 msgid " mis à jour à l'instant d'après le nouveau modèle : aucune option n'y était active)"
 msgstr " updated just now from the new template: no option was active in it)"
+
+msgid "# Fichier mis à jour automatiquement le {DATE} par {NOM} : aucune option n’y était active, il suit le modèle actuel."
+msgstr "# File updated automatically on {DATE} by {NOM}: no option was active in it, it follows the current template."
+
+msgid "Configuration : ancien fichier "
+msgstr "Configuration: legacy file "
+
+msgid " IGNORÉ ("
+msgstr " IGNORED ("
+
+msgid " existe et l'emporte) — reporter ses réglages dans "
+msgstr " exists and wins) — move its settings into "
+
+msgid ", puis le supprimer"
+msgstr ", then delete it"
+
+msgid "Configuration : impossible de renommer "
+msgstr "Configuration: cannot rename "
+
+msgid ") — l'ancien fichier est lu tel quel au lieu de "
+msgstr ") — the legacy file is read as is instead of "
+
+msgid " renommé en "
+msgstr " renamed to "
+
+msgid " (les fichiers personnels se terminent maintenant par .conf)"
+msgstr " (personal files now end with .conf)"

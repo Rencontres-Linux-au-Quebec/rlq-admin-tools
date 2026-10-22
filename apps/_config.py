@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # ========================================================================================================================
-# Copyright (C) 2026 Services-Conseils Linux
+# Copyright (C) 2026 Services-Conseils Linux Inc.
 # Copyright (C) 2026 Rencontres Linux au Québec contributors
 #
 # This program is free software: you can redistribute it and/or modify it under the terms of the GNU Affero General Public
@@ -8,17 +8,8 @@
 # Full text: https://www.gnu.org/licenses/agpl-3.0.html
 # ========================================================================================================================
 # _config.py — fichiers de configuration des programmes Python (module partagé, apps/) : règle commune /etc/default/PROGRAMME.conf, PUIS le fichier personnel
-# PROGRAMME.cfg (point devant, dans le répertoire personnel), PUIS la ligne de commande (prioritaire).
+# PROGRAMME.conf (point devant, dans le répertoire personnel ; un ancien ~/.PROGRAMME.cfg est renommé), PUIS la ligne de commande (prioritaire).
 #
-# HISTORIQUE DE VERSION (résumé — voir doc/_config.changelog.txt pour le détail complet) :
-#   1.7.20261019.150215 — Configuration files with no active option rewritten from the current template at the next run; new copyright.
-#   1.6.20261015.143436 — ANONYMIZE : clé commune (app-default.conf).
-#   1.5.20261015.080630 — est_root, refus_non_root, avis_non_root ; jours_journaux (LOG_KEEP_DAYS commun).
-#   1.4.20261015.073057 — Date de modification des fichiers lus (heure locale).
-#   1.3.20261015.065821 — Le fichier commun /etc/default/app-default.conf est créé s'il n'existe pas.
-#   1.2.20261014.175821 — Fichier commun à tous les programmes : /etc/default/app-default.conf PUIS ~/.app-default.cfg, lus AVANT le fichier du programme (LANGUAGE, VERBOSE, DEBUG_LEVEL).
-#   1.1.20261012.103600 — Premier démarrage : creer_par_defaut() crée le fichier de configuration (copie de doc/PROGRAMME.conf.example, toutes les options en commentaire).
-#   1.0.20261010.211030 — Création : lecture KEY=VALUE des deux fichiers, valeurs par défaut des options argparse, ligne « Configuration lue : ».
 """Fichiers KEY=VALUE (une clé par ligne, # = commentaire, guillemets facultatifs), les clés en MAJUSCULES. Le dernier fichier lu l'emporte. Chaque programme
 déclare un SCHÉMA {CLÉ: (option argparse, type)} : les valeurs du fichier deviennent les valeurs par défaut des options, que la ligne de commande remplace.
 Variable NGINX_TOOLS_ETC_DEFAULT : autre dossier à la place de /etc/default (tests)."""
@@ -28,12 +19,12 @@ import sys
 import tempfile
 import time
 
-__version__ = "1.7.20261019.150215"
+__version__ = "1.8.20261020.211944"
 OUI = ("1", "true", "yes", "oui", "on", "vrai")
 NON = ("0", "false", "no", "non", "off", "faux", "")
 
 
-COMMUN = "app-default"                                         # fichier commun à tous les programmes : /etc/default/app-default.conf, ~/.app-default.cfg
+COMMUN = "app-default"                                         # fichier commun à tous les programmes : /etc/default/app-default.conf, ~/.app-default.conf
 CLES_COMMUNES = ("LANGUAGE", "VERBOSE", "DEBUG_LEVEL", "LOG_KEEP_DAYS", "ANONYMIZE")         # les seules clés lues dans le fichier commun (le fichier du programme l'emporte)
 
 
@@ -62,10 +53,77 @@ def niveau_debug(cfg):
         return 0
 
 
+ANCIEN_SUFFIXE = ".cfg"                  # 1.8: suffix of the personal files before the rule became ~/.PROGRAMME.conf
+
+
+def _deja_signale(ancien):
+    """True if this legacy file was already reported by this program or the program that started it (variable NGINX_TOOLS_CONFIG_SIGNALES, inherited by the
+    child programs: one notice per file and per run, even when apps/_config.py is loaded several times); otherwise it is recorded and False is returned."""
+    deja = [c for c in os.environ.get("NGINX_TOOLS_CONFIG_SIGNALES", "").split(os.pathsep) if c]
+    if ancien in deja:
+        return True
+    os.environ["NGINX_TOOLS_CONFIG_SIGNALES"] = os.pathsep.join(deja + [ancien])
+    return False
+
+
+def _avis(texte):
+    """Notice on the standard error (never on the standard output, which may be data). The configuration is read BEFORE the program knows its display
+    language: the French text is translated here by lang/_config.XX.po, in the language given by --lang, NGINX_TOOLS_LANG or the locale (apps/_i18n.py)."""
+    try:
+        import importlib.util
+        dossier = os.path.dirname(os.path.abspath(__file__))
+        spec = importlib.util.spec_from_file_location("_i18n_avis", os.path.join(dossier, "_i18n.py"))
+        i18n = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(i18n)
+        texte = i18n.traducteur(i18n.langue(sys.argv[1:]), os.path.dirname(dossier), "_config")(texte)
+    except Exception:                                            # noqa: BLE001 — translation is a comfort: the French notice is displayed anyway
+        pass
+    try:
+        print(texte, file=sys.stderr, flush=True)
+    except (OSError, ValueError):
+        pass
+
+
+def migrer_ancien(chemin):
+    """1.8 — path of a personal file to READ, after migration of its legacy name. `chemin` ends with .conf (ex. ~/.web-monitor.conf); the legacy file is the same
+    name with .cfg (~/.web-monitor.cfg, rule before 1.8):
+      * no legacy file: `chemin`, nothing done;
+      * legacy file only: RENAMED to `chemin` (same owner, rights and content), one notice on stderr; rename impossible (read-only home…): the legacy file is
+        returned so that its settings still apply, with a notice;
+      * both files: `chemin` is read, the legacy file is IGNORED, one notice per run (never merged nor deleted automatically: its settings may differ).
+    NGINX_TOOLS_CONFIG_MIGRER=0: no rename (the legacy file is still read when it is the only one). Never raises."""
+    if not chemin.endswith(".conf"):
+        return chemin
+    ancien = chemin[:-len(".conf")] + ANCIEN_SUFFIXE
+    try:
+        if not os.path.lexists(ancien):
+            return chemin
+        if os.path.lexists(chemin):
+            if not _deja_signale(ancien):
+                _avis(f"Configuration : ancien fichier {ancien} IGNORÉ ({chemin} existe et l'emporte) — reporter ses réglages dans {chemin}, puis le supprimer")
+            return chemin
+        if os.environ.get("NGINX_TOOLS_CONFIG_MIGRER") == "0":
+            return ancien
+        os.rename(ancien, chemin)
+    except OSError as e:
+        if not _deja_signale(ancien):
+            _avis(f"Configuration : impossible de renommer {ancien} ({e.strerror}) — l'ancien fichier est lu tel quel au lieu de {chemin}")
+        return ancien
+    _deja_signale(ancien)
+    _avis(f"Configuration : ancien fichier {ancien} renommé en {chemin} (les fichiers personnels se terminent maintenant par .conf)")
+    return chemin
+
+
+def personnel(programme):
+    """1.8 — personal file of a program to read: ~/.PROGRAMME.conf (a legacy ~/.PROGRAMME.cfg is renamed first, see migrer_ancien)."""
+    return migrer_ancien(os.path.join(os.path.expanduser("~"), f".{programme}.conf"))
+
+
 def chemins_regle(programme):
-    """[(chemin, existe)] des deux fichiers de la règle, dans l'ordre de lecture."""
+    """[(chemin, existe)] des deux fichiers de la règle, dans l'ordre de lecture : /etc/default/PROGRAMME.conf, puis ~/.PROGRAMME.conf (1.8 : un ancien
+    ~/.PROGRAMME.cfg est renommé d'abord, voir migrer_ancien)."""
     systeme = os.path.join(os.environ.get("NGINX_TOOLS_ETC_DEFAULT", "/etc/default"), f"{programme}.conf")
-    perso = os.path.join(os.path.expanduser("~"), f".{programme}.cfg")
+    perso = personnel(programme)
     return [(c, os.path.isfile(c)) for c in (systeme, perso)]
 
 
@@ -118,13 +176,13 @@ def avis_non_root(programme, limites, argv=None):
 
 def creer_par_defaut(programme, dossier_doc=None, argv=None):
     """Premier démarrage : si AUCUN fichier de la règle n'existe, crée celui du système (/etc/default/PROGRAMME.conf, root) ou, sans les droits, le fichier personnel
-    (~/.PROGRAMME.cfg) : copie de doc/PROGRAMME.conf.example (toutes les options y sont en commentaire = valeurs par défaut) précédée de trois lignes d'origine.
+    (~/.PROGRAMME.conf) : copie de doc/PROGRAMME.conf.example (toutes les options y sont en commentaire = valeurs par défaut) précédée de trois lignes d'origine.
     Rien n'est créé avec -c/--config, avec --help / --version / --changelog, si NGINX_TOOLS_CONFIG_CREER=0 ou si le modèle est absent. Retourne le chemin créé ou None ;
     il est aussi inscrit dans la variable NGINX_TOOLS_CONFIG_CREE (pour la ligne « Configuration lue : … »)."""
     argv = sys.argv[1:] if argv is None else argv
     if os.environ.get("NGINX_TOOLS_CONFIG_CREER") == "0" or any(a in SANS_CREATION or a == "-c" or a.startswith("--config") for a in argv):
         return None
-    dossier_doc = dossier_doc or os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "doc")
+    dossier_doc = dossier_doc or os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "doc", "en")
     _creer(chemins_communs(), COMMUN, dossier_doc, variable="NGINX_TOOLS_CONFIG_COMMUN_CREE")      # le fichier commun d'abord (1.3) : créé s'il n'existe pas, même si celui du programme existe
     chemins = chemins_regle(programme)
     for nom, liste in ((COMMUN, chemins_communs()), (programme, chemins)):       # 1.7 : fichiers jamais modifiés (aucune option active) remis au modèle actuel
