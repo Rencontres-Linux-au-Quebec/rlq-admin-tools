@@ -360,7 +360,8 @@ class CheminSousCron(unittest.TestCase):
                                         ("/tmp/mocks:/usr/sbin:/usr/bin", "/tmp/mocks:/usr/sbin:/usr/bin:/usr/local/sbin:/sbin")):
                     r = subprocess.run(["/bin/bash", "-c", bloc.group(0) + 'printf %s "$PATH"'], env={"PATH": depart},
                                        capture_output=True, text=True)
-                    self.assertEqual(r.stdout, attendu)
+                    # suffixe : un bash qui ajoute ses propres dossiers en tête (environnement) ne fausse pas le test
+                    self.assertTrue(r.stdout.endswith(attendu), r.stdout)
                 # Pendant les tests (NGINX_TOOLS_TESTS) : PATH inchangé, /usr/sbin/ufw & co jamais joignables
                 r = subprocess.run(["/bin/bash", "-c", bloc.group(0) + 'printf %s "$PATH"'],
                                    env={"PATH": "/usr/bin:/bin", "NGINX_TOOLS_TESTS": "1"}, capture_output=True, text=True)
