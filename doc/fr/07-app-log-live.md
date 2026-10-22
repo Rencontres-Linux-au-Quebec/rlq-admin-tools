@@ -31,7 +31,7 @@ L'archive contient : `README.txt` (heures locales et UTC, sources absentes), `re
 
 Adresses IP, courriels, noms connus et jetons sont remplacés par des pseudonymes stables avant l'écriture. La base n'est lue qu'en lecture seule.
 
-Sans clavier : `--record-test-log MIN` enregistre MIN minutes à partir du démarrage, écrit l'archive puis quitte. `--record-max MIN` (clé `RECORD_MAX`, 60 par défaut et au maximum ; 0 refusé) arrête un enregistrement de lui-même. `--steps-line` (touche F) affiche toutes les étapes de l'enregistrement sur une ligne blanche, mise à jour à chaque étape (écran seulement).
+Sans clavier : `--record-test-log MIN` enregistre MIN minutes à partir du démarrage, écrit l'archive puis quitte. `--record-max MIN` (clé `RECORD_MAX`, 60 par défaut et au maximum ; 0 refusé) arrête un enregistrement de lui-même. `--steps-line` (touche F) affiche toutes les étapes de l'enregistrement sur une ligne blanche, mise à jour à chaque étape (écran seulement). La touche F fonctionne sans enregistrement en cours : elle montre alors les étapes du dernier enregistrement (jusqu'au prochain R), ou une indication s'il n'y en a pas encore.
 
 ## Latence : est-ce le disque ?
 

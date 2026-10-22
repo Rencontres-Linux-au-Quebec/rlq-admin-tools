@@ -104,7 +104,7 @@ from urllib.parse import unquote
 from collections import Counter, OrderedDict
 from concurrent.futures import Future
 
-__version__ = "1.100.20261022.133552"
+__version__ = "1.101.20261022.154316"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
@@ -4387,7 +4387,7 @@ def follow(cmd, people, resolver, options, output):
     periodic = {"next_report": time.time() + options["report_min"] * 60}
     recent_ones = []                                        # (arrival, line, address) of the lines WITHOUT A NAME: reminder after a login
     deferred = [None]                                   # "bad query" waiting for its cause (next line)
-    record = {"r": None, "pending": None, "auto": options.get("record_test_log"), "auto_started": False, "exit_after": False, "module": None}   # 1.93: test recording (R key)
+    record = {"r": None, "last": None, "pending": None, "auto": options.get("record_test_log"), "auto_started": False, "exit_after": False, "module": None}   # 1.93: test recording (R key)
 
     received = [0]                                        # lines taken out of the journal by the reader thread (watchdog)
 
@@ -4918,6 +4918,7 @@ def follow(cmd, people, resolver, options, output):
         if rec is None:
             return
         record["r"] = None
+        record["last"] = rec                              # 1.101: its steps stay on the F line until the next R
         output.rec_marker = False
         if wait:
             write_out(["  " + TR("Recording stopped: creating the archive…")])
@@ -4956,12 +4957,19 @@ def follow(cmd, people, resolver, options, output):
         write_out(lines)
 
     def show_steps_line():
-        """1.99 (F key, --steps-line): all the steps of the recording on one line, white reverse video, at each change of step. Screen only: never in the journal or the archive."""
-        rec = record["r"]
-        if not options.get("steps_line") or rec is None:
+        """1.99 (F key, --steps-line): all the steps of the recording on one line, white reverse video, at each change of step. Screen only: never in the journal or the archive.
+        1.101: F works without a recording (R): the steps of the last recording are shown, or a hint when there is none yet."""
+        if not options.get("steps_line"):
             return
         columns = terminal_columns()
-        text = output.screen_text(truncate_line(steps_line_text(rec.steps, columns - 1), columns - 1))     # anonymized like the stream
+        current = record["r"]
+        source = current or record["last"]
+        prefix = "" if current is not None or source is None else TR("Last recording") + " — "
+        if source is None:
+            body = TR("Steps: no recording yet (R starts one, then N a step)")
+        else:
+            body = steps_line_text(source.steps, columns - 1 - display_width(prefix))
+        text = output.screen_text(truncate_line(prefix + body, columns - 1))     # anonymized like the stream
         output.screen.write(color_code(STEPS_LINE_STYLE, text + " " * max(0, columns - 1 - display_width(text))) + "\n")
         output.screen.flush()
 
@@ -5018,7 +5026,7 @@ def follow(cmd, people, resolver, options, output):
                                       ("n", "--not-found", f"only the pages not found (404) [{yes_no(options['not_found'])}]"),
                                       ("o", "--only TEXT", f"only the lines that contain the text (comma = OR) [{', '.join(options['only']) or 'none'}]"),
                                       ("r", "--report-err", "error report to copy and paste, based on what has been displayed so far"),
-                                      ("F", "--steps-line", TR("all the steps of the recording on one white line, updated at each step") + f" [{yes_no(options['steps_line'])}]"),
+                                      ("F", "--steps-line", TR("the steps of the recording (or of the last one) on one white line, updated at each step; works without R") + f" [{yes_no(options['steps_line'])}]"),
                                       ("s", "--suspect", f"only the suspicious requests [{yes_no(options['suspect'])}]"),
                                       ("T", "--time-report MIN", f"report like Ctrl-T every MIN minutes, 0 = never [{options['report_min']:g}]"),
                                       ("v", "--verbose", f"show every external command [{yes_no(VERBOSE)}]"),
@@ -5356,10 +5364,8 @@ def follow(cmd, people, resolver, options, output):
             options["steps_line"] = not options.get("steps_line")
             if not options["steps_line"]:
                 write_out([TR("  --steps-line: off")])
-            elif record["r"] is None:
-                write_out([TR("  Start a recording (R) to see the steps on one line.")])
             else:
-                write_out([TR("  --steps-line: on — the steps of the recording are shown on one line at each step")])
+                write_out([TR("  --steps-line: on — the steps are shown on one line at each step (R starts a recording, N a step)")])
                 show_steps_line()
         elif key_value == "watch":
             rep = ask(TR("--watch TEXT (comma = several, e.g. registration; empty = stop; current: {current}): ").format(current=', '.join(options['watch']) or 'none'))
