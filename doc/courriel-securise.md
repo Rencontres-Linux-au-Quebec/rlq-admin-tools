@@ -8,8 +8,8 @@ copier** dans `doc/courriel/` pour un serveur Linux (Debian / Ubuntu) qui envoie
 
 | Mode | Principe | Quand |
 |---|---|---|
-| **A. Relais authentifié** (recommandé) | Postfix local → relais SMTP du fournisseur (587, TLS, mot de passe) | le plus simple, bonne délivrabilité, le relais gère la réputation et souvent le DKIM |
-| **B. Envoi direct** | Postfix local → serveurs des destinataires, signature DKIM par OpenDKIM | port 25 sortant ouvert, adresse IP « propre », PTR obtenu de l'hébergeur ; plus d'entretien |
+| **A. Relais authentifié** (recommandé) | Postfix local -> relais SMTP du fournisseur (587, TLS, mot de passe) | le plus simple, bonne délivrabilité, le relais gère la réputation et souvent le DKIM |
+| **B. Envoi direct** | Postfix local -> serveurs des destinataires, signature DKIM par OpenDKIM | port 25 sortant ouvert, adresse IP « propre », PTR obtenu de l'hébergeur ; plus d'entretien |
 
 Dans les deux modes Postfix **n'écoute que sur 127.0.0.1** (`inet_interfaces = loopback-only`) : aucun port 25 exposé, aucun
 relais ouvert possible. Odoo et les outils envoient à `127.0.0.1:25`, sans mot de passe (accès local seulement).
@@ -23,7 +23,7 @@ cp /etc/postfix/main.cf /etc/postfix/main.cf.origine
 cp doc/courriel/main.cf.relais /etc/postfix/main.cf       # mode A   (mode B : doc/courriel/main.cf.direct)
 ```
 
-**Mode A** — identifiants du relais (droits stricts) :
+**Mode A** - identifiants du relais (droits stricts) :
 
 ```bash
 install -m 600 /dev/null /etc/postfix/sasl_passwd
@@ -32,7 +32,7 @@ postmap /etc/postfix/sasl_passwd && chmod 600 /etc/postfix/sasl_passwd /etc/post
 postfix check && systemctl restart postfix
 ```
 
-**Mode B** — certificat (facultatif pour l'envoi, utile si un correspondant l'exige) et OpenDKIM :
+**Mode B** - certificat (facultatif pour l'envoi, utile si un correspondant l'exige) et OpenDKIM :
 
 ```bash
 apt install opendkim opendkim-tools
@@ -44,7 +44,7 @@ cat /etc/opendkim/keys/rencontres-linux.quebec/2026a.txt        # la valeur à p
 systemctl enable --now opendkim && postfix check && systemctl restart postfix
 ```
 
-## 3. DNS (chez le fournisseur du domaine) — modèle : `doc/courriel/dns-zone.txt`
+## 3. DNS (chez le fournisseur du domaine) - modèle : `doc/courriel/dns-zone.txt`
 
 | Enregistrement | Nom | Rôle |
 |---|---|---|
@@ -57,16 +57,14 @@ systemctl enable --now opendkim && postfix check && systemctl restart postfix
 | **MTA-STS** | `_mta-sts` + page HTTPS | seulement si le domaine **reçoit** du courrier (section 6) |
 
 **Déploiement progressif de DMARC** : `p=none` (observer les rapports 2 à 4 semaines, corriger les expéditeurs oubliés : Odoo, formulaires,
-infolettres) → `p=quarantine` → `p=reject`. `adkim=s; aspf=s` (alignement strict) convient quand tous les envois utilisent
+infolettres) -> `p=quarantine` -> `p=reject`. `adkim=s; aspf=s` (alignement strict) convient quand tous les envois utilisent
 exactement `@rencontres-linux.quebec` ; passer à `r` (relaxé) si un service tiers envoie avec un sous-domaine.
 La boîte `dmarc@` (rua) doit exister ; les rapports sont des fichiers XML compressés envoyés par Google, Microsoft, etc.
 
 **Rotation DKIM** (tous les 6 à 12 mois) : générer `2026b`, publier `2026b._domainkey`, attendre la propagation, changer `Selector` et
 `KeyFile` dans `opendkim.conf`, redémarrer, puis retirer `2026a` après 2 semaines.
 
-## 4. Odoo et les outils
-
-- **Odoo** (Paramètres ▸ Technique ▸ Serveurs de courriel sortant) : serveur `127.0.0.1`, port `25`, sécurité **Aucune** (boucle locale),
+## 4. Odoo et les outils - **Odoo** (Paramètres - Technique - Serveurs de courriel sortant) : serveur `127.0.0.1`, port `25`, sécurité **Aucune** (boucle locale),
   « Filtre De » = `rencontres-linux.quebec`. Paramètres système : `mail.catchall.domain` = `rencontres-linux.quebec`, `mail.default.from` =
   `notifications` (adresse expéditrice du domaine, jamais celle d'un utilisateur : SPF et DMARC doivent s'aligner). `mail.session.batch.size`
   à 10 évite l'erreur 452 des relais qui limitent les messages par connexion.
@@ -89,9 +87,7 @@ app-health-check.py --check-email-dns                        # MX, SPF, DMARC, D
 Dans Gmail, « Afficher l'original » doit indiquer `SPF: PASS`, `DKIM: PASS`, `DMARC: PASS` ; la ligne « Received » doit montrer
 « using TLS » (`TLSv1.3`). Un test plus complet : envoyer à l'adresse fournie par mail-tester.com ou à `check-auth@verifier.port25.com`.
 
-## 6. Pour aller plus loin
-
-- **MTA-STS** (domaine qui reçoit du courrier) : TXT `_mta-sts` = `v=STSv1; id=AAAAMMJJ…` (changer l'`id` à chaque modification de la
+## 6. Pour aller plus loin - **MTA-STS** (domaine qui reçoit du courrier) : TXT `_mta-sts` = `v=STSv1; id=AAAAMMJJ...` (changer l'`id` à chaque modification de la
   politique) et le fichier `https://mta-sts.rencontres-linux.quebec/.well-known/mta-sts.txt` :
   ```
   version: STSv1
@@ -110,14 +106,12 @@ Dans Gmail, « Afficher l'original » doit indiquer `SPF: PASS`, `DKIM: PASS`, `
 ## Configuration automatique par le programme de setup (nginx-hardening.sh 2.38)
 
 `nginx-hardening.sh --update` (étape 0d) installe `msmtp`, `msmtp-mta` (commande `sendmail`) et `bsd-mailx` (commande `mail`), puis demande **une seule fois** dans un terminal :
-serveur SMTP, port (587), chiffrement (STARTTLS), nom d'utilisateur, adresse d'expéditeur, adresse de destination et mot de passe (sans écho).
-
-- Les réponses non secrètes vont dans `/etc/default/nginx-tools-mail.conf` (modèle : `doc/nginx-tools-mail.conf.example`).
+serveur SMTP, port (587), chiffrement (STARTTLS), nom d'utilisateur, adresse d'expéditeur, adresse de destination et mot de passe (sans écho). - Les réponses non secrètes vont dans `/etc/default/nginx-tools-mail.conf` (modèle : `doc/nginx-tools-mail.conf.example`).
 - Le **mot de passe** va dans `/etc/default/nginx-tools-mail.pass`, mode 0600, propriétaire root. Il n'est jamais dans le fichier de configuration, ni affiché, ni journalisé, ni dans un rapport (`--report-err`), ni dans les archives livrées.
 - `/etc/msmtprc` est écrit pour les programmes Bash (`sendmail`, `mail`) ; le mot de passe y est lu dans le fichier à part (`passwordeval`). Un `/etc/msmtprc` créé par quelqu'un d'autre n'est jamais écrasé.
 - Les programmes Python utilisent `apps/_courriel.py` (`python3 apps/_courriel.py --test`, `--send SUJET`, `--show-config`) ; `app-health-check.py` s'en sert quand ses propres clés `SMTP_*` sont vides.
 - Une pièce jointe de plus de 100 Mo (`MAIL_ATTACH_MAX_MB`) est remplacée par un lien (voir `doc/nginx-tools-mail.conf.example`).
-- Pour redemander les réponses : `nginx-hardening.sh --update --mail-setup`. Sans terminal : `--mail-host`, `--mail-user`… et la variable d'environnement `NGINX_TOOLS_MAIL_PASSWORD`.
+- Pour redemander les réponses : `nginx-hardening.sh --update --mail-setup`. Sans terminal : `--mail-host`, `--mail-user`... et la variable d'environnement `NGINX_TOOLS_MAIL_PASSWORD`.
 
 ### Entrées DNS à créer (valeurs exactes affichées par `app-health-check.py --check-email-dns`, étape 13 du setup)
 
@@ -127,7 +121,7 @@ Pour le domaine D de l'adresse d'expéditeur :
 |------|-----|--------|
 | TXT (SPF) | `D.` | `v=spf1 include:DOMAINE_DU_RELAIS ~all` si le domaine du relais publie un SPF, sinon `v=spf1 a:HOTE_DU_RELAIS ~all` |
 | TXT (DMARC) | `_dmarc.D.` | `v=DMARC1; p=none; rua=mailto:postmaster@D; fo=1` (puis `quarantine`, puis `reject` après quelques semaines de rapports propres) |
-| TXT (DKIM) | `SELECTEUR._domainkey.D.` | `v=DKIM1; k=rsa; p=CLÉ_PUBLIQUE` — clé et sélecteur fournis par le relais ; notez le sélecteur dans `DKIM_SELECTOR` |
+| TXT (DKIM) | `SELECTEUR._domainkey.D.` | `v=DKIM1; k=rsa; p=CLÉ_PUBLIQUE` - clé et sélecteur fournis par le relais ; notez le sélecteur dans `DKIM_SELECTOR` |
 | MX | `D.` | seulement si D doit aussi recevoir du courrier (chez votre fournisseur) |
 
 Le SPF, le DKIM et le DMARC doivent concerner le domaine de l'adresse **expéditeur** (`MAIL_FROM`), pas celui du serveur SMTP.

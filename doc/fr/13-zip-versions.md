@@ -1,6 +1,6 @@
-# zip-versions.py — versions contenues dans les archives livrées
+# zip-versions.py - versions contenues dans les archives livrées
 
-Lit des archives `.zip` **sans les extraire** et rapporte les versions des programmes, de la configuration et des modules Odoo qu'elles contiennent (`__version__`, `SCRIPT_VERSION`, `VERSION`, manifestes de modules, journaux), désigne **l'archive la plus récente de chaque type**, et vérifie que le *nom* et le *contenu* d'une archive concordent sur MAJEUR.MINEUR (ex. `nginx-tools.1.111.zip` ↔ `doc/nginx-tools.version` ; archive de tests ↔ `run-all.sh`).
+Lit des archives `.zip` **sans les extraire** et rapporte les versions des programmes, de la configuration et des modules Odoo qu'elles contiennent (`__version__`, `SCRIPT_VERSION`, `VERSION`, manifestes de modules, journaux), désigne **l'archive la plus récente de chaque type**, et vérifie que le *nom* et le *contenu* d'une archive concordent sur MAJEUR.MINEUR (ex. `nginx-tools.1.111.zip` <-> `doc/nginx-tools.version` ; archive de tests <-> `run-all.sh`).
 
 ```bash
 zip-versions.py ~/Téléchargements             # section « ARCHIVES À JOINDRE »

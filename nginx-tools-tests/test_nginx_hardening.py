@@ -317,6 +317,19 @@ class SetupNginxOdoo(EnvTest):
         out = self.etape(re.sub(r"\x1b\[[0-9;]*m", "", self.setup("--check")), "0a")
         self.assertIn("libnginx-mod-http-geoip", out)
 
+    def test_hors_root_nginx_t_et_iptables_non_verifies_sans_echec(self):
+        """2.54 : --check lancé sans root : nginx -t refusé par « Permission denied » et iptables -C refusé par manque de droits
+        donnent [ATTN] « non vérifié sans root », jamais [FAIL] « absent » (ni « REFUSE »)."""
+        self.env["NGINX_TOOLS_TEST_EUID"] = "1000"
+        self.mock("nginx", 'echo "nginx: [emerg] open() \"/run/nginx.pid\" failed (13: Permission denied)" >&2; exit 1')
+        self.mock("iptables", 'echo "iptables v1.8.9: can\'t initialize iptables table: Permission denied (you must be root)" >&2; exit 3')
+        out = re.sub(r"\x1b\[[0-9;]*m", "", self.setup("--check"))
+        self.assertIn("nginx -t (configuration) : non vérifié sans root", out)
+        self.assertNotIn("nginx -t REFUSE", out)
+        self.assertRegex(out, r"(ufw : règle DENY|iptables : règle DROP) du port \d+/tcp : non vérifié sans root")   # ufw d'abord, puis iptables
+        self.assertNotIn("[FAIL] iptables", out)
+        self.assertNotIn("[FAIL] ufw", out)
+
     def _mail(self, *args, mdp="secret-de-test"):
         env = dict(self.env, NGINX_TOOLS_MAIL_PASSWORD=mdp) if mdp else self.env
         rc, out, err = self.run_cmd(["bash", self.prog, "--odoo-conf", self.path("odoo.conf"), *args], env_extra=env if mdp else None)

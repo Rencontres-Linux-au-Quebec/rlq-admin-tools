@@ -15,8 +15,8 @@ Ne jamais lancer une ancienne suite de tests contre de nouveaux programmes (ni l
 
 ## Pièges qui ont déjà coûté un cycle
 
-* `systemctl is-active` affiche l'état *et* renvoie un code non nul : ne pas écrire `$(… || echo inconnu)`.
-* La version de développement de ShellCheck est plus récente que celle de Debian et ne signale pas `A && B || C` (SC2015) : un test cherche lui-même ce motif. Jamais d'apostrophe dans `${x:+…}` entre guillemets.
+* `systemctl is-active` affiche l'état *et* renvoie un code non nul : ne pas écrire `$(... || echo inconnu)`.
+* La version de développement de ShellCheck est plus récente que celle de Debian et ne signale pas `A && B || C` (SC2015) : un test cherche lui-même ce motif. Jamais d'apostrophe dans `${x:+...}` entre guillemets.
 * Un test qui charge un programme dans le processus de test lit le vrai `os.environ` et `/proc` ; corriger les dépendances à la machine au niveau du processus (`helpers.py`).
 * Les adresses de documentation (`192.0.2.x`, `198.51.100.x`, `203.0.113.x`) sont « privées » pour `ipaddress` de Python : utiliser d'autres adresses publiques dans les tests.
 * Couper par octets (`cut -c`) coupe un caractère accentué en deux : couper avec Python.

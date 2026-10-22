@@ -10,7 +10,7 @@
 # --anonymize : anonymiser ce que le programme affiche (adresses IP, courriels, identifiants, jetons) par des pseudonymes stables ; clé ANONYMIZE
 # (la même clé dans app-default.conf vaut pour tous les programmes ; pour cron : --anonymize ou NGINX_TOOLS_ANONYMIZE=1).
 #ANONYMIZE=no
-# Clé API : Odoo → Préférences → Sécurité du compte → Nouvelle clé API (ou variable d'environnement ODOO_API_KEY)
+# Clé API : Odoo -> Préférences -> Sécurité du compte -> Nouvelle clé API (ou variable d'environnement ODOO_API_KEY)
 #API_KEY=
 # --db : base de données d'Odoo
 #DB=

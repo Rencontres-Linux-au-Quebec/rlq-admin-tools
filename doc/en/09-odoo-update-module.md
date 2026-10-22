@@ -1,9 +1,9 @@
-# odoo-update-module.sh — controlled module update
+# odoo-update-module.sh - controlled module update
 
-Updates Odoo modules (`rlq_*` by default) the safe way: optionally unpacks a module archive, **stops the service**, runs `odoo -u … --stop-after-init --no-http --workers=0 --max-cron-threads=0` as the service's account under a maximum duration, **restarts** the service, waits until it listens, then warms the cache (`odoo-warmup.py`).
+Updates Odoo modules (`rlq_*` by default) the safe way: optionally unpacks a module archive, **stops the service**, runs `odoo -u ... --stop-after-init --no-http --workers=0 --max-cron-threads=0` as the service's account under a maximum duration, **restarts** the service, waits until it listens, then warms the cache (`odoo-warmup.py`).
 
 ```bash
-odoo-update-module.sh --dry-run                       # service, database, modules, commands — nothing stopped
+odoo-update-module.sh --dry-run                       # service, database, modules, commands - nothing stopped
 odoo-update-module.sh --backup                        # odoo-backup.sh first; a failed backup aborts, nothing is stopped
 odoo-update-module.sh --zip ~/Downloads --addons-dir /opt/odoo/addons
 odoo-update-module.sh --module 'rlq_*' --module website_x --timeout 3600
@@ -18,8 +18,8 @@ Service: `erplibre*` or `odoo*` systemd unit (override `--service`). Database: t
 * **A quiet site first**: before stopping Odoo, the program checks the activity: active visitors (nginx, last 5 minutes), HTTP writes (POST, PUT, PATCH, DELETE except known reads), PostgreSQL sessions and locks, writes in the activity tables. As soon as there is activity, it waits (checking every 30 s) for at most `--wait-quiet` minutes (60; `0` = a single check). At the end of the wait the update is **cancelled**, nothing is stopped; `--force-busy` (`FORCE_BUSY=yes`) runs it anyway. `--check-activity` shows the state without changing anything. Without root, PostgreSQL is queried through « sudo -n -u postgres ».
 * **Copy of the modules**: the module folders are saved as a `.tar.gz` in `MODULES_BACKUP_DIR` (`/var/backups/odoo-update-module`, the last 10 kept) *before* anything changes.
 * **Check after the start**: the ERROR / CRITICAL lines of Odoo's log since the restart (systemd journal and Odoo's `logfile`), after the warm-up.
-* **Rollback**: after a failed update, a failed start or errors in the log — and when this run replaced the code with `--zip` — the previous module folders are put back, updated again and Odoo restarted. On a terminal it asks first (Enter = yes); unattended (cron, systemd) it is automatic; `--no-rollback` (`ROLLBACK=non`) forbids it. The site never stays stopped.
-* **Ctrl+C** is answered at once, even during a 30-minute update; “yes” stops the update and restarts the service if it was running.
+* **Rollback**: after a failed update, a failed start or errors in the log - and when this run replaced the code with `--zip` - the previous module folders are put back, updated again and Odoo restarted. On a terminal it asks first (Enter = yes); unattended (cron, systemd) it is automatic; `--no-rollback` (`ROLLBACK=non`) forbids it. The site never stays stopped.
+* **Ctrl+C** is answered at once, even during a 30-minute update; "yes" stops the update and restarts the service if it was running.
 
 ## What to check after
 

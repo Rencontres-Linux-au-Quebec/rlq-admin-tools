@@ -1,4 +1,4 @@
-# odoo-backup.sh — backup and restore in Odoo's native format
+# odoo-backup.sh - backup and restore in Odoo's native format
 
 Backs up every configured (or detected) database in the format of Odoo's own *Manage Databases* page: `pg_dump --no-owner` text dump + `manifest.json` + `filestore/`, packed as `.zip` (importable by the Odoo page) or `.tar.xz`.
 
