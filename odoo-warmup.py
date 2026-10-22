@@ -23,17 +23,6 @@
 # Configuration (common rule): /etc/default/odoo-warmup.conf THEN ~/.odoo-warmup.conf (the last one wins); -c/--config: that file ALONE; the command line
 # takes priority. The files read are always displayed, with the important options.
 #
-# VERSION HISTORY (summary — see doc/odoo-warmup.changelog.txt for full detail):
-#   1.9.20261020.211944 — Personal configuration file ~/.odoo-warmup.conf (not .cfg); a legacy one with .cfg is renamed automatically.
-#   1.8.20261019.150215 — New copyright: Services-Conseils Linux and Rencontres Linux au Québec contributors (AGPL-3.0-or-later).
-#   1.7.20261017.105442 — Options line: which setting decided the display language (apps/_i18n.py 1.17).
-#   1.6.20261016.173838 — Copyright holder: Services-Linux Conseils Inc
-#   1.5.20261015.200821 — Source code, comments and changelog in English (display stays French/English via lang/odoo-warmup.fr.po).
-#   1.4.20261015.073057 — Modification date of the configuration files read.
-#   1.3.20261014.182101 — Extra pages in /etc/default/odoo-warmup-pages.conf; pages in fr, en, es; optional surveys.
-#   1.2.20261014.175821 — Common file app-default.conf; keys VERBOSE and DEBUG_LEVEL.
-#   1.1.20261014.174013 — Linked pages (--links) and latest events / surveys (--latest) warmed up.
-#   1.0.20261013.153900 — First version: public pages, assets, administration screens (get_views), automatic start by systemd.
 #
 # Usage:
 #   odoo-warmup.py                          warm up (public pages; plus administration if LOGIN and KEY_FILE are set)
@@ -62,11 +51,11 @@ try:                    # line editing in prompts
 except ImportError:
     pass
 
-__version__ = "1.9.20261020.211944"
+__version__ = "1.10.20261022.012000"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
-CHANGELOG_FILE = os.path.join(SCRIPT_DIR, "doc", f"{SCRIPT_NAME}.changelog.txt")
+CHANGELOG_FILE = os.path.join(SCRIPT_DIR, "CHANGELOG.md")
 SYSTEM_CONF = os.path.join(os.environ.get("NGINX_TOOLS_ETC_DEFAULT", "/etc/default"), "odoo-warmup.conf")      # variable: tests only
 USER_CONF = "~/.odoo-warmup.conf"
 SYSTEMD_DIR = os.environ.get("NGINX_TOOLS_SYSTEMD_DIR", "/etc/systemd/system")                       # variable: tests only
@@ -141,7 +130,7 @@ def read_config(explicite=None):
             load_module("_config").creer_par_defaut("odoo-warmup")
         except Exception:
             pass
-    common = []                                               # COMMON file for all programs (app-default.conf), read first: LANGUAGE, VERBOSE, DEBUG_LEVEL only
+    common = []                                               # COMMON file for all programs (app-default.conf), read first: LANGUAGE, VERBOSE, DEBUG_LEVEL, LOG_KEEP_DAYS, ANONYMIZE only
     if not explicite:
         try:
             common = [c for c, exists_ in load_module("_config").chemins_communs() if exists_]
@@ -160,8 +149,10 @@ def read_config(explicite=None):
                 continue
             m = re.fullmatch(r"(REPEAT|WAIT|LINKS|LATEST)\s*=\s*[\"']?(\d+)[\"']?", line)
             v = re.fullmatch(r"(VERBOSE|DEBUG_LEVEL)\s*=\s*[\"']?(\w*)[\"']?", line)
-            if path in common and not (v or re.match(r"LANGUAGE\s*=", line)):
-                continue                                       # the common file defines only LANGUAGE, VERBOSE and DEBUG_LEVEL
+            c = re.fullmatch(r"(LOG_KEEP_DAYS)\s*=\s*[\"']?(\d+)[\"']?", line)
+            a = re.fullmatch(r"(ANONYMIZE)\s*=\s*[\"']?(\w+)[\"']?", line)
+            if path in common and not (v or c or a or re.match(r"LANGUAGE\s*=", line)):
+                continue                                       # the common file defines only LANGUAGE, VERBOSE, DEBUG_LEVEL, LOG_KEEP_DAYS and ANONYMIZE (apps/_config.py CLES_COMMUNES)
             t = re.fullmatch(r"(URL|DB|LOGIN|KEY_FILE|PAGES|PAGES_FILE|LANGS|MODELS|SERVICE|LANGUAGE)\s*=\s*[\"']?([^\"']*)[\"']?", line)
             if m and (int(m.group(2)) > 0 or m.group(1) in ("LINKS", "LATEST")):
                 values[m.group(1)] = int(m.group(2))
@@ -172,6 +163,13 @@ def read_config(explicite=None):
                     values["DEBUG_LEVEL"] = int(v.group(2))
                 else:
                     problems.append(f"{path}:{n} : line ignored « {line} » (VERBOSE: yes/no; DEBUG_LEVEL: number)")
+            elif c:                                            # LOG_KEEP_DAYS (common or own file): exported as apps/_config.py lire() does; the environment wins
+                os.environ.setdefault("NGINX_TOOLS_LOG_KEEP_DAYS", c.group(2))
+            elif a:                                            # ANONYMIZE (common or own file): NGINX_TOOLS_ANONYMIZE, read by apps/_anonymiser.py; the environment wins
+                if a.group(2).lower() in ("1", "true", "yes", "oui", "on", "0", "false", "no", "non", "off"):
+                    os.environ.setdefault("NGINX_TOOLS_ANONYMIZE", "1" if a.group(2).lower() in ("1", "true", "yes", "oui", "on") else "0")
+                else:
+                    problems.append(f"{path}:{n} : line ignored « {line} » (ANONYMIZE: yes/no)")
             elif t:
                 if t.group(2).strip():
                     values[t.group(1)] = t.group(2).strip()
@@ -396,11 +394,11 @@ def read_pages(path):
 
 
 def create_default_pages(path):
-    """First start: creates the pages file (copy of doc/odoo-warmup-pages.conf.example, mode 644) if it does not exist; silent failure."""
+    """First start: creates the pages file (copy of doc/en/odoo-warmup-pages.conf.example, mode 644) if it does not exist; silent failure."""
     if os.path.exists(path) or os.environ.get("NGINX_TOOLS_CONFIG_CREER") == "0":
         return
     try:
-        with open(os.path.join(SCRIPT_DIR, "doc", "odoo-warmup-pages.conf.example"), encoding="utf-8") as f:
+        with open(os.path.join(SCRIPT_DIR, "doc", "en", "odoo-warmup-pages.conf.example"), encoding="utf-8") as f:
             model = f.read()
         with open(path, "x", encoding="utf-8") as f:
             f.write(model)
@@ -652,11 +650,27 @@ def main():
     return 1 if failures or administration is False else 0
 
 
+def changelog_section(path, key):
+    """This program's section of CHANGELOG.md: from its '## <key>' heading up to the next '## ' heading."""
+    with open(path, encoding="utf-8") as f:
+        lignes = f.read().splitlines()
+    section, dans = [], False
+    for ligne in lignes:
+        if ligne.startswith("## "):
+            if dans:
+                break
+            dans = ligne[3:].strip() == key
+            if dans:
+                section.append(ligne)
+        elif dans:
+            section.append(ligne)
+    return "\n".join(section) + "\n" if section else f"No changelog entry for {key} in {path}\n"
+
+
 def show_changelog():
     signal.signal(signal.SIGPIPE, signal.SIG_DFL)
     try:
-        with open(CHANGELOG_FILE, encoding="utf-8") as f:
-            text = f.read()
+        text = changelog_section(CHANGELOG_FILE, "odoo-warmup.py")
     except OSError:
         eprint(f"Changelog not found: {CHANGELOG_FILE}")
         return 1

@@ -14,11 +14,6 @@
 # (ARIN, RIPE, LACNIC, APNIC, AFRINIC) ; à défaut, la commande whois. Seule l'adresse demandée est envoyée.
 # Utilisé par nginx-log-audit.sh (--investigate) et app-log-live.py.
 #
-# HISTORIQUE DE VERSION (resume — voir doc/_reseau.changelog.txt pour le detail complet) :
-#   1.3.20261019.150215 — New copyright: Services-Conseils Linux and Rencontres Linux au Québec contributors (AGPL-3.0-or-later).
-#   1.2.20261016.173838 — Copyright holder: Services-Linux Conseils Inc
-#   1.1.20261007.171721 — Cache permanent (apps/_cache_ip.py) ; --no-cache ; proprietaire du bloc d'adresses.
-#   1.0.20261002.073514 — Premiere version : code RDAP/whois partage (auparavant integre a nginx-log-audit.sh 2.19).
 #
 # Usage (normalement appele par les programmes de la suite) :
 #   python3 apps/_reseau.py IP            titulaire, reseau, plage, pays, abus (lisible)

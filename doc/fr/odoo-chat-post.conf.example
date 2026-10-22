@@ -1,0 +1,55 @@
+# Fichier de configuration de odoo-chat-post.py (exemple : toutes les clés, en commentaire = valeur par défaut).
+# Les fichiers suivants sont LUS DANS CET ORDRE (le dernier l'emporte) ; la ligne de commande est prioritaire sur les fichiers :
+#   1. /etc/default/odoo-chat-post.conf    (fichier du système)
+#   2. ~/.odoo-chat-post.conf               (s'il existe : réglages de l'utilisateur)
+# -c/--config FICHIER : ce fichier SEUL. Le répertoire courant n'est PAS lu. Le programme affiche toujours quel(s) fichier(s) il lit,
+# puis une ligne résumant les options importantes. Format : CLÉ=valeur, une par ligne ; # = commentaire ; guillemets facultatifs ;
+# booléens : oui / non (true / false, 1 / 0). Ce fichier est LU, jamais exécuté.
+# La clé API est un SECRET : chmod 600 sur le fichier qui la contient (le programme avertit sinon) ; elle n'est jamais affichée.
+
+# --- Langue d'affichage ---
+# en, fr ou auto (suivre LC_ALL / LC_MESSAGES / LANG).
+#LANGUAGE=auto
+
+# --- Accès à Odoo (API externe, XML-RPC) ---
+# --api-url : adresse d'Odoo
+#URL=https://erp.exemple.org
+# --db : base de données d'Odoo
+#DB=
+# --login : compte Odoo propriétaire de la clé (un compte de service est conseillé, ex. alertes@exemple.org)
+#LOGIN=
+# Clé API : Odoo → Préférences → Sécurité du compte → Nouvelle clé API (ou variable d'environnement ODOO_API_KEY)
+#API_KEY=
+
+# --- Canaux ---
+# --event : événements dont les fils sont créés (virgule = plusieurs ; défaut : JPOL26)
+#EVENTS=JPOL26
+# --group : groupe qui voit les canaux et en devient membre (défaut : les utilisateurs internes)
+#GROUP=base.group_user
+# --bot-login : identifiant du compte bot créé par --create-bot (défaut : tux-bot)
+#BOT_LOGIN=tux-bot
+# --catalog : catalogue des canaux et fils (JSON) ; défaut : le catalogue livré dans doc/
+#CATALOG=
+# --members : ACCÈS RESTREINT — comptes Odoo (identifiants, virgule = plusieurs) qui voient les canaux et en sont membres, eux seuls.
+#   Les canaux sont alors réservés au groupe « Alertes équipe (odoo-chat-post) » (créé au besoin). Ajouter le compte du robot (ex. tux-bot) pour qu'il puisse publier ;
+#   tant qu'il n'existe pas, il est signalé : le créer, puis relancer --create (les membres manquants s'ajoutent, personne n'est retiré).
+#MEMBERS=etienne.berube.ing@exemple.org,tux-bot
+# --suggested : crée aussi les canaux suggérés (sécurité, courriels, sauvegardes, mises à jour, jour J)
+#SUGGESTED=oui
+# --no-members : ne pas ajouter les comptes du groupe comme membres des nouveaux canaux
+#NO_MEMBERS=non
+
+# Options de la ligne de commande sans clé de configuration :
+#   --lang en|fr       langue d'affichage (clé LANGUAGE)
+#   --catalog FICHIER   catalogue des canaux (défaut : doc/odoo-chat-post.catalogue.json ; modifiable : noms, raisons, canaux suggérés)
+#   --create [--dry-run]   créer les canaux et fils qui manquent (à blanc : montre seulement)
+#   --create-bot [--bot-login LOGIN] [--bot-config FICHIER] [--renew-key]   créer le compte du robot (utilisateur interne, aucun autre droit) ET sa clé API (un an si Odoo le permet),
+#                       écrite (LOGIN, API_KEY, droits 600) dans /etc/default/odoo-chat-post.conf ; à lancer avec le compte ADMINISTRATEUR : ODOO_API_KEY=… odoo-chat-post.py --login ADMIN --create-bot
+#   --list              état de chaque canal et fil
+#   --post CANAL/FIL --message TEXTE     publier une alerte (« - » : texte lu sur l'entrée standard)
+#   --version ; --changelog ; --report-err
+
+# --- Anonymisation de l'affichage ---
+# --anonymize : anonymiser ce que le programme affiche (adresses IP, courriels, identifiants, jetons) par des pseudonymes stables (IP-4f2a9c, usager-9c1e03@anonyme.invalid) ; clé ANONYMIZE
+# (la même clé dans app-default.conf vaut pour tous les programmes ; appliquée seulement quand la sortie est un terminal ; pour cron : --anonymize ou NGINX_TOOLS_ANONYMIZE=1).
+#ANONYMIZE=non

@@ -62,103 +62,6 @@
 # The stream is never blocked by a slow lookup: a line waits at most 3 s, then keeps the IP address.
 # BigBlueButton (file journals): the nginx and bbb-web journals are followed (tail -F), without names of people or presence.
 #
-# VERSION HISTORY (summary — see doc/app-log-live.changelog.txt for the full detail):
-#   1.95.20261021.235747 — N key: steps of a test (start and end with a description, steps.txt in the archive, START / END lines in records.log).
-#   1.93.20261020.230008 — R key and --record-test-log: recording of a test (REC marker at $COLUMNS-4, archive .tar.xz with the logs of the window, noise left out).
-#   1.92.20261020.211944 — Personal configuration file ~/.app-log-live.conf (not .cfg); a legacy one with .cfg is renamed automatically.
-#   1.91.20261020.203430 — Columns never squeezed by --truncate (the message is cut); country before every public address (this server too); names of people anonymized (membre-4f2a9c); underline to the end of the line; --underline [N]; A key toggles --anonymize.
-#   1.90.20261020.164846 — Merge of 1.87 (bans: --reason passed to nginx-log-audit.sh) with 1.88 and 1.89 (underlined lines, --truncate, --anonymize, --no-underline).
-#   1.89.20261020.112434 — --truncate / --anonymize by default only on a TERMINAL (a pipe, another program, the tests: real whole lines); explicit options always apply; --no-underline.
-#   1.88.20261020.103939 — One line out of 5 underlined; --truncate and --anonymize by default (--no-truncate, --no-anonymize), long lines « start ... last two words » at $COLUMNS - 10; sent e-mails named even once deleted by Odoo; « -2026- » highlighted.
-#   1.87.20261020.161238 — Bans: the reason is passed to nginx-log-audit.sh (--reason) and kept in the ban journal.
-#   1.86.20261019.150215 — --diagnose / D key: nginx configuration versions with their dates (archive, README journal, deployed files, last reload); new copyright.
-#   1.85.20261017.200717 — RLQ* groups shown as « RLQ23-Bénévole = 11 » (no « member(s) »), columns narrower.
-#   1.84.20261016.173838 — I key: registrations per event and ticket with THE survey of the ticket; sent e-mails named; Ctrl-C of the child programs
-#   1.83.20261016.160728 — --truncate [N] (lines cut to 2 × $COLUMNS); SSH accounts with their number of sessions; RLQ* groups on 4 / 2 columns; colored numbers no longer leave English in the French display.
-#   1.82.20261016.114848 — Latency report (key P, Ctrl-G, summary): what slows the requests over hours — disk % busy, I/O waiting time, SQL vs Python — and whether SSD are justified; watched / banned accounts marked; key G fixed.
-#   1.81.20261016.084053 — SSH port read from the running sshd (ss, then sshd -T, then sshd_config) instead of the fixed port 22 in the "Who is connected now" lines.
-#   1.80.20261016.065343 — Source code, comments and changelog in English (display stays French/English via lang/app-log-live.fr.po).
-#   1.79.20261015.172851 — G key and end summary (Ctrl-C): number of members of each RLQ* group of Odoo.
-#   1.78.20261015.170611 — Startup block: rlq* modules always listed with their version (no longer only the 5 last modified).
-#   1.77.20261015.092124 — --modules-startup: tracking of custom modules at startup ONLY on request (--modules-sort sort); a conditional firewall rule or the loopback is no longer a "ban".
-#   1.76.20261015.083721 — All settings saved (C key: --time-report, --chime, --only…); addresses already banned in iptables/ufw removed from the list; tracking of custom modules (rlq* first) at startup; Odoo / SSH logged-in users; --rate-limit IP.
-#   1.75.20261015.080630 — rlq* modules always displayed (all of them, with their version) before the latest modules; journals kept 180 days (LOG_KEEP_DAYS); "Limited rights" notice.
-#   1.74.20261015.073057 — Periodic reports (--time-report) and Ctrl-T: network connections of Odoo per port (chat, HTTP, PostgreSQL) and descriptors.
-#   1.73.20261015.065821 — Check every minute of the connections to Odoo (--connections PCT): near limit = WARNING with the parameter to change.
-#   1.72.20261014.214019 — L key / --modules-latest: custom modules (not Odoo S.A., rlq_*) first.
-#   1.71.20261014.203136 — --lines: 50 by default (instead of 222); default values in comments in the configuration templates.
-#   1.70.20261014.190654 — --modules-latest [N] / L key: the N (10) last installed modules with the Odoo version.
-#   1.69.20261014.175821 — C key: save the changed settings to /etc/default/app-log-live.conf; shared file app-default.conf.
-#   1.68.20261014.174013 — Module times in local time; Lists / Cache / unreadable databases lines in color.
-#   1.67.20261014.170802 — --highlight and l key: "+word" adds a highlighted word, "-word" removes it.
-#   1.66.20261014.164721 — More readable startup: one line per database for the modules, 5 last modules in columns, colors.
-#   1.65.20261014.151232 — Table of installed Odoo modules (--modules, M key) with sorting; colored numbers in "Program efficiency".
-#   1.64.20261014.114859 — The watchdog keeps quiet during a question to the user (ban, investigation, menu).
-#   1.63.20261014.110643 — Label of people without duplicates: accounts without a known name (admin, e-mail) no longer add to the names.
-#   1.62.20261014.103454 — At startup: the 10 last non-Odoo S.A. modules installed or updated, with their date.
-#   1.61.20261013.231736 — systemd service stopped: an alert explains that the tracking is waiting (Odoo started by hand) and says what to do.
-#   1.60.20261013.224353 — Live watchdog: alert with the stack of the blocked thread; kill -USR1 PID writes the stack of all threads.
-#   1.59.20261013.220907 — Live display: the lookup of the external IP (curl ifconfig.me) no longer holds back the lines.
-#   1.58.20261013.215347 — --highlight / HIGHLIGHT / l key: words highlighted in cyan in the displayed lines.
-#   1.57.20261013.214058 — Masking of secrets in linear time: a long line no longer blocks the live display.
-#   1.56.20261013.205851 — Site diagnostic: the upstreams of another Odoo version (odoo17) are not failures.
-#   1.55.20261013.203700 — Site diagnostic: "The service … is active." and "it is the Odoo port." (translated into English).
-#   1.54.20261013.201708 — Values of access_token=, token=, password=… masked (***) when displayed.
-#   1.53.20261013.191845 — Concurrent update conflicts: "retried" and "final failures" counted apart from Odoo errors.
-#   1.52.20261013.163324 — Detailed errors (time, address, known user), version in the health alert, state of the Odoo modules at startup.
-#   1.51.20261013.161254 — Certificate diagnostic: suggests nginx-hardening.sh --update --rename-to when the DNS name changed.
-#   1.50.20261013.155822 — Summary: ×N, Top 10, "none" and HTTP codes in color.
-#   1.49.20261013.155051 — b key: the address is no longer repeated when it has no name.
-#   1.48.20261013.160500 — Slow requests: recompiled assets and views (cold Odoo cache) recognized.
-#   1.47.20261013.153500 — Distinct daily journal for a filtered launch (--only); help of --watch (does not filter).
-#   1.46.20261013.143500 — Slow requests in Python: disk wait (% iowait, I/O pressure) and type of disks (rotational or SSD).
-#   1.45.20261013.141500 — --watch: most viewed pages, visitors, robots and surveys (/survey/) by title and ticket; slow request in Python: server state.
-#   1.44.20261013.121500 — Diagnostic: check of the SSL certificate like a browser; --diagnose-host option.
-#   1.43.20261013.112000 — Alignment: URL containing quotes recognized (WERKZEUG_RE, STATUS_RE, REQUEST_RE, SHORT_METHOD_RE).
-#   1.42.20261013.105200 — b key: web-monitor.py is relaunched only if there is no address to ban.
-#   1.41.20261013.103000 — Help menu (? or h): version and date of the modification.
-#   1.40.20261013.100000 — External IP changed: displayed with the /etc/default files to fix; websocket aligned in --min (name and duration with 3 decimals).
-#   1.39.20261013.091500 — D key / --diagnose: why the maintenance page is displayed; BigBlueButton: any suspicious CMS; repeated Ctrl-C without a trace.
-#   1.38.20261013.084000 — --cms auto|odoo|wordpress: under WordPress, /wp-*, xmlrpc.php, *.php are no longer suspicious.
-#   1.37.20261013.081500 — Probes /wp, /wordpress, /_ignition, /debug/default suspicious; 5 different pages in 404 = address to ban; the b key relaunches web-monitor.py.
-#   1.36.20261012.231200 — --not-found (404 pages, n key); journal disk space WARNING (--disk-min GB, default 5).
-#   1.35.20261012.220800 — Odoo messages aligned on the GET / POST column; Ctrl-G / Ctrl-T indicate the start and duration of the period.
-#   1.34.20261012.213000 — Odoo service deduced from db_user (Odoo configuration).
-#   1.33.20261012.195500 — Odoo with logfile (Odoo configuration): file reading, UTC times converted to local time.
-#   1.32.20261012.183000 — Startup fully translated (--lang en); "this server" aligned; causes of slow requests (SQL / Python, grouped pages, clusters).
-#   1.31.20261012.164500 — Names cut at 45 characters by default (--dns-max removes the cut); erasing (^H) works in prompts; help on keys 1 to 9.
-#   1.30.20261012.103600 — Configuration file created at first startup (all options in comments); template doc/app-log-live.conf.example completed.
-#   1.29.20261012.084701 — "Addresses to ban: none" explains why (recommendations of web-monitor.py missing, unreadable, too old or discarded).
-#   1.28.20261011.231758 — Dashboard with 9 levels of detail: --level N and keys 1 to 9 (1 = one-line verdict, 5 = the essentials, 9 = everything).
-#   1.27.20261011.204500 — At least one space before "HTTP/1.1"; dashboard fully translated into English.
-#   1.26.20261011.144500 — Werkzeug (Odoo) lines: "HTTP/1.1" 200 size, number of SQL queries, SQL / Python times placed BEFORE "GET /url" (aligned columns); Ctrl+C with confirmation.
-#   1.25.20261010.215000 — French or English display (--lang); configuration file (LANGUAGE and options) and -c/--config.
-#   1.24.20261010.164501 — b key and dashboard: addresses recommended by web-monitor.py (recommended-bans.json) added to the addresses to ban.
-#   1.23.20261009.230224 — I key: open-house confirmation survey (complete, in progress or absent) next to each registration.
-#   1.22.20261009.153721 — base64 images (data:image) and base64 line sequences summarized on screen; summary without "base6N".
-#   1.21.20261009.150500 — I key: name of the ticket of each registration; dashboard: full addresses of the failed e-mails to resend.
-#   1.20.20261009.142644 — Robots according to the User-Agent of the nginx access journal; --watch (monitoring of registrations: duration, errors, slowness); --no-user-agent.
-#   1.19.20261009.114822 — Frequently banned address (verdict: ban justified): ban question with a 10 s delay; --no-ban-prompt.
-#   1.18.20261009.112443 — Version in the summary; Ctrl-C asks for confirmation; error detail (E key, or question at exit) via app-log-check.py --errors-only.
-#   1.17.20261009.105804 — Robots apart in the site visits: % of real visitors (Ctrl-G, Ctrl-T, summary).
-#   1.16.20261009.085618 — Local probes apart, URLs shortened in the middle, Odoo warning messages in the dashboard.
-#   1.15.20261008.235744 — The b key never proposes 127.0.0.1 or the addresses of this server any more.
-#   1.14.20261008.191922 — Statistics of site visits (Ctrl-G, Ctrl-T, summary): visits, page views, visitors, countries, most visited pages.
-#   1.13.20261008.173412 — --exclude-ip (e key), --accentuate-group (a), --chime (c: beep, byobu/tmux included), --time-report (T: Ctrl-T report every N minutes).
-#   1.12.20261008.124728 — Key menu (? or h: options on the fly, report, surveys, events, ban); sorted presence; summarized accounts (JoséeD+ÉtienneB); colored summary numbers.
-#   1.11.20261008.103818 — Dashboard (Ctrl-G, Ctrl-T), health, colored daily journal; DNS 45 (--dns-max, --dns-max-truncate); legend of the numbers; presence in columns; place + person; country of the team.
-#   1.10.20261008.084031 — Name on 42 characters; country BEFORE the address without comma (column of 18); one space after GET/PUT (URLs aligned on POST).
-#   1.9.20261007.232518 — Whitelist and places: EXPLICIT white / gray background and black text (the inverse gray was black on black).
-#   1.8.20261007.231352 — Compact presentation: without ":", without brackets, without "- -"; name and logger on 38 characters, address column of 19.
-#   1.7.20261007.223004 — Suspicious in magenta; [banned]; slow requests; --only, --suspect; session summary (Ctrl-C, --summary).
-#   1.6.20261007.221217 — Name on at least 40 characters; suspicious requests, URLs in error and addresses (whitelist, places) in inverse video.
-#   1.5.20261007.171721 — Permanent address cache; owner of the block (org / network) instead of "ISP".
-#   1.4.20261007.093208 — Lists outside the archives (whitelist, places); shared place = name of the place; address column of fixed width after the level.
-#   1.3.20261002.214327 — geoip-bin reminder at startup; First line of EVERY run (even --help): name and version.
-#   1.2.20261002.165312 — Country of the IP; fast path (immediate name after a login); reminder of the visitor's lines; local server = program; SQL conflict in orange.
-#   1.1.20261002.120134 — ISO format without duplicates, --min, colors (HTTP, errors, logins), presence, IP kept by default, unlimited history,
-#                 50 lines.
-#   1.0.20261002.073514 — First version: real-time journal, IP addresses replaced by person, DNS name or ISP.
 #
 #   (--no-cache: neither reading nor writing of the permanent address cache, /var/lib/nginx-tools/ip-cache.sqlite)
 # Usage:
@@ -200,7 +103,7 @@ from urllib.parse import unquote
 from collections import Counter, OrderedDict
 from concurrent.futures import Future
 
-__version__ = "1.95.20261021.235747"
+__version__ = "1.96.20261022.083937"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
@@ -293,13 +196,13 @@ UNDERLINE_DEFAULT = 5                                                 # --underl
 
 
 SCHEMA_CONFIG = {"ACCENTUATE_GROUP": ("accentuate_group", str), "CHIME": ("chime", _chime_config), "DNS_MAX_TRUNCATE": ("dns_max_truncate", int), "EXCLUDE_IP": ("exclude_ip", _comma_list),
-                 "ONLY": ("only", _comma_list), "SUSPECT": ("suspect", bool), "TIME_REPORT": ("time_report", float), "TRUNCATE": ("truncate", _truncate_config), "WATCH": ("watch", str), "ANONYMIZE": ("anonymize", bool), "UNDERLINE": ("underline", _underline_config),
+                 "ONLY": ("only", _comma_list), "SUSPECT": ("suspect", bool), "SUMMARY": ("summary", bool), "TIME_REPORT": ("time_report", float), "TRUNCATE": ("truncate", _truncate_config), "WATCH": ("watch", str), "ANONYMIZE": ("anonymize", bool), "UNDERLINE": ("underline", _underline_config),
                  "APP": ("app", str), "CMS": ("cms", str), "CONNECTIONS": ("connections", float), "DAYS": ("days", int), "DISK_MIN": ("disk_min", float), "DNS_MAX": ("dns_max", int), "HEALTH": ("health", float), "HIDE_IP": ("hide_ip", bool), "HIGHLIGHT": ("highlight", str), "IDLE": ("idle", float),
                  "LINES": ("lines", int), "LOG_DIR": ("log_dir", str), "LOG_KEEP_DAYS": ("log_keep_days", int), "MIN": ("min", bool), "MODULES_CUSTOM": ("modules_custom", bool), "MODULES_SORT": ("modules_sort", str), "MODULES_STARTUP": ("modules_startup", bool), "NAMESPACE": ("namespace", str),
                  "NO_BANNED": ("no_banned", bool), "NOT_FOUND": ("not_found", bool), "NO_BAN_PROMPT": ("no_ban_prompt", bool), "NO_CACHE": ("no_cache", bool), "NO_HISTORY": ("no_history", bool),
                  "NO_ISP": ("no_isp", bool), "NO_KEYS": ("no_keys", bool), "NO_LOG_FILE": ("no_log_file", bool), "NO_PRESENCE": ("no_presence", bool),
                  "LEVEL": ("level", int), "NO_USER_AGENT": ("no_user_agent", bool), "RECAP": ("recap", float), "RECORD_MAX": ("record_max", float), "SERVICE": ("service", str), "SLOW": ("slow", float), "VERBOSE": ("verbose", bool)}
-CHANGELOG_FILE = os.path.join(SCRIPT_DIR, "doc", f"{SCRIPT_NAME}.changelog.txt")
+CHANGELOG_FILE = os.path.join(SCRIPT_DIR, "CHANGELOG.md")
 LINES_DEFAULT = 50
 DAYS_DEFAULT = 0                                                      # 0 = the whole journal history
 IDLE_DEFAULT = 15.0                                                 # minutes without activity before "no more activity"
@@ -703,7 +606,7 @@ def write_config(path, values):
             lines = f.read().splitlines()
         mode = os.stat(path).st_mode & 0o777
     except FileNotFoundError:
-        model = os.path.join(SCRIPT_DIR, "doc", f"{SCRIPT_NAME}.conf.example")
+        model = os.path.join(SCRIPT_DIR, "doc", "en", f"{SCRIPT_NAME}.conf.example")
         try:
             with open(model, encoding="utf-8") as f:
                 lines = f.read().splitlines()
@@ -915,15 +818,35 @@ def io_wait():
     return value
 
 
+def md_rotational(name):
+    """Type of a software RAID array (mdN): True if all its member disks are spinning disks, False if all are SSD, None if unknown or mixed.
+    The members come from /sys/block/mdN/slaves (sda3 -> sda, nvme0n1p2 -> nvme0n1); 1.94: an array was typed « ? » before."""
+    kinds = set()
+    for member in glob.glob(f"/sys/block/{name}/slaves/*"):
+        base = re.sub(r"p?\d+$", "", os.path.basename(member))
+        try:
+            with open(f"/sys/block/{base}/queue/rotational", encoding="ascii") as f:
+                kinds.add(f.read().strip() == "1")
+        except OSError:
+            return None
+    return kinds.pop() if len(kinds) == 1 else None
+
+
 def physical_disks():
-    """[(name, rotational)] of the physical disks (/sys/block/*/queue/rotational: 1 = spinning hard disk, 0 = SSD / NVMe); without virtual disks (loop, ram, zram, dm-, md)."""
+    """[(name, rotational)] of the physical disks (/sys/block/*/queue/rotational: 1 = spinning hard disk, 0 = SSD / NVMe) and of the RAID arrays (mdN, type of their
+    members, 1.94: they were left out of the « disks » line of the latency report); without virtual disks (loop, ram, zram, dm-, sr, fd, nbd)."""
     res = []
     try:
         names = sorted(os.listdir("/sys/block"))
     except OSError:
         return res
     for name in names:
-        if name.startswith(("loop", "ram", "zram", "dm-", "md", "sr", "fd", "nbd")):
+        if name.startswith(("loop", "ram", "zram", "dm-", "sr", "fd", "nbd")):
+            continue
+        if name.startswith("md"):
+            raid_hdd = md_rotational(name)
+            if raid_hdd is not None:
+                res.append((name, raid_hdd))
             continue
         try:
             with open(f"/sys/block/{name}/queue/rotational", encoding="ascii") as f:
@@ -983,6 +906,21 @@ def python_conclusion(state):
     if causes_list:
         return "probable causes: " + " ; ".join(causes_list)
     return ("load, swap and disk are NOT the cause at this moment; what remains: cold Odoo cache (assets, compiled views: after a restart, a module update or a view change), a lock, or heavy computation in a module (profiling: developer mode, bug icon -> Profiling)")
+
+
+def cut_words(text, limit):
+    """Text cut at `limit` characters, at a word boundary, with « … » at the end; unchanged if it fits (1.94: an Odoo message was cut in the middle of its identifier)."""
+    if len(text) <= limit:
+        return text
+    head = text[:limit - 1]
+    if " " in head:
+        head = head[:head.rfind(" ")]
+    return head.rstrip() + " …"
+
+
+def clock_of(instant):
+    """Local date and time of a journal line, to the second (2026-10-20 23:50:37): the slow requests show it (1.94)."""
+    return time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(instant))
 
 
 def short_url(url, width=60):
@@ -3364,7 +3302,7 @@ class LatencyMonitor:
                 b["util_max"], b["util_dev"] = util, dev or ""
             for d, v in r["disks"].items():
                 if d not in self.disks_seen:
-                    self.disks_seen[d] = self.sysperf.rotational(d)
+                    self.disks_seen[d] = md_rotational(d) if d.startswith("md") else self.sysperf.rotational(d)
                 if v["r_await"] is not None and v["r_s"] >= 1:
                     b["await_r"] += v["r_await"]
                     b["await_r_n"] += 1
@@ -3487,16 +3425,17 @@ class LatencyMonitor:
                 aw.append(f"read {t['await_r'] / t['await_r_n']:.1f} ms")
             if t["await_w_n"]:
                 aw.append(f"write {t['await_w'] / t['await_w_n']:.1f} ms")
-            kinds = [f"{d} " + ("ZFS volume" if d.startswith("zd") else "HDD" if v else "SSD" if v is False else "?") for d, v in sorted(self.disks_seen.items())]      # 1.83: name + kind (« ?, HDD » said nothing; zdN = ZFS volume)
+            kinds = [f"{d} " + ("ZFS volume" if d.startswith("zd") else ("RAID " if d.startswith("md") else "") + ("HDD" if v else "SSD" if v is False else "?")) for d, v in sorted(self.disks_seen.items())]      # 1.83: name + kind (« ?, HDD » said nothing; zdN = ZFS volume)
             res.append((6, numbers(f"    Disks ({s} samples, every {self.sample_s:g} s): {disk}" + (f" · wait per operation: {', '.join(aw)}" if aw else "")
                                    + (f" · types: {', '.join(kinds)}" if kinds else ""))))
             source = (self.prev or {}).get("psi_source", "kernel")
             res.append((6, numbers(f"    Waiting time (PSI, {source}): disk {t['io_some'] / s:.1f} % (peak {t['io_some_max']:.0f} %, all tasks {t['io_full'] / s:.1f} %) · "
                                    f"processor {t['cpu_some'] / s:.1f} % · memory {t['mem_some'] / s:.1f} % · CPU busy {t['cpu'] / s:.0f} %, iowait {t['iowait'] / s:.1f} %, steal {t['steal'] / s:.1f} %")))
+            no_sample = max(0, t["n"] - t["busy_n"] - t["calm_n"])              # 1.94: requests before the first disk sample, counted so that the figures add up
             if t["busy_n"] or t["calm_n"]:
                 res.append((6, numbers(f"    Requests while the disk was busy: {t['busy_n']}" + (f" (mean {t['busy_sum'] / t['busy_n']:.2f} s)" if t["busy_n"] else "")
                                        + f" · calm: {t['calm_n']}" + (f" (mean {t['calm_sum'] / t['calm_n']:.2f} s)" if t["calm_n"] else "")
-                                       + (f" · slow requests during a busy disk: {t['slow_busy']}/{t['slow']}" if t["slow"] else ""))))
+                                       + (f" · slow requests during a busy disk: {t['slow_busy']}/{t['slow']}" if t["slow"] else "") + (f" · without sample: {no_sample}" if no_sample else ""))))
             if self.container:
                 res.append((6, "    (container: the disk counters can be partial; the waiting times above are those of THIS container — the real disks are seen by host-perf-audit.py on the Proxmox host)"))
         if len(bins) > 1 or level >= 8:
@@ -3687,7 +3626,7 @@ class Stats:
     def ajouter(self, L, renderings, ban_source, benign=False):
         self.lines += 1
         if L.level in ("WARNING", "ERROR", "CRITICAL") and not benign:          # "bad query" of a retried conflict: counted in the conflicts, NOT in the errors
-            message = re.sub(r"(?<![A-Za-z\d])\d+", "N", (L.text or "").strip())[:90]
+            message = re.sub(r"(?<![A-Za-z\d])\d+", "N", (L.text or "").strip())[:200]
             self.odoo_errors[(L.level, L.logger, message)] += 1
             t = L.instant or time.time()
             seen = self.odoo_errors_time.setdefault((L.level, L.logger, message), [t, t])
@@ -3880,7 +3819,7 @@ class Stats:
             info_lines = self.slow_info if len(self.slow_info) == len(self.slow_requests) else [(0, 0.0, 0.0, None, 0.0)] * len(self.slow_requests)
             more = sorted(zip(self.slow_requests, info_lines), key=lambda p: p[0], reverse=True)[:3]
             indicator(0, f"Slow requests (≥ {self.slowest:g} s) : " + (f"{len(self.slow_requests)}" if self.slow_requests else none_fem()),
-                       [f"{t:.1f} s {short_url(u)} ({self.who(ip)})" + (f" — SQL {ts:.1f} s · Python {tp:.1f} s · {n} SQL queries" if ts or tp else "")
+                       [f"{t:.1f} s {short_url(u)} ({self.who(ip)})" + (f" — SQL {ts:.1f} s · Python {tp:.1f} s · {n} SQL queries" if ts or tp else "") + (f" · {clock_of(_instant)}" if _instant else "")
                         for (t, u, ip), (n, ts, tp, _size, _instant) in more]
                       + ([TR("… and {n} other slow request(s)").format(n=len(self.slow_requests) - len(more))] if len(self.slow_requests) > len(more) else [])
                       + self.analyze_slow(), (1, 5), len(self.slow_requests))
@@ -3989,7 +3928,10 @@ class Stats:
         pays = Counter(self.pays.get(ip) for ip in visitors if self.pays.get(ip))
         if pays:
             unknown_ones = len(visitors) - sum(pays.values())
-            res.append(numbers("  Visitors' countries: " + " · ".join(f"{k} {n}" for k, n in pays.most_common(8)) + (f" · unknown country {unknown_ones}" if unknown_ones else "")))
+            shown_ones = pays.most_common(8)
+            other_ones = sum(pays.values()) - sum(n for _, n in shown_ones)      # 1.94: the countries beyond the 8 most frequent were not counted on the line
+            res.append(numbers("  Visitors' countries: " + " · ".join(f"{k} {n}" for k, n in shown_ones)
+                               + (f" · other countries {other_ones}" if other_ones else "") + (f" · unknown country {unknown_ones}" if unknown_ones else "")))
         robots = [ip for ip in visitors if self.is_robot(ip)]
         robot_pages = sum(self.pages_per_ip[ip] for ip in robots)
         real = len(visitors) - len(robots)
@@ -3999,7 +3941,7 @@ class Stats:
         res.append(numbers(f"  Real visitors: {real} out of {len(visitors)} ({100 * real / len(visitors):.0f} %) · {sum(self.visits[ip] for ip in visitors if ip not in robots)} visit(s) · "
                             f"{(pages - robot_pages) / real:.1f} page(s) per real visitor" if real else "  Real visitors: none (all visitors are robots)")
                    + color_code(STYLES["debug"], self.agents_note(visitors)))
-        res.append("  Most visited pages: " + self.top(self.pages, 5))
+        res.append("  Most visited pages (responses below 400): " + self.top(self.pages, 5))
         return [(self.visit_line_level(text_line), text_line) for text_line in res]
 
     @staticmethod
@@ -4065,7 +4007,8 @@ class Stats:
         if self.slowest:
             if self.slow_requests:
                 more = max(self.slow_requests)
-                blocks.append((4, color_code(STYLES["slow_request"], f" Slow requests (≥ {self.slowest:g} s) ") + f" {len(self.slow_requests)} — the slowest: {more[0]:.1f} s {short_url(more[1])} ({self.who(more[2])})"))
+                slowest_at = self.slow_info[self.slow_requests.index(more)][4] if len(self.slow_info) == len(self.slow_requests) else None      # 1.94: its time
+                blocks.append((4, color_code(STYLES["slow_request"], f" Slow requests (≥ {self.slowest:g} s) ") + f" {len(self.slow_requests)} — the slowest: {more[0]:.1f} s {short_url(more[1])} ({self.who(more[2])})" + (f" · {clock_of(slowest_at)}" if slowest_at else "")))
             else:
                 blocks.append((9, f"  Slow requests (≥ {self.slowest:g} s) : {none_found()}."))
         views = {ip: src for ip, src in self.banned.items()}
@@ -4084,12 +4027,12 @@ class Stats:
         total = sum(self.statuses.values())
         if total:
             blocks.append((7, "  HTTP codes: " + " · ".join(color_code(http_style(int(k) * 100), f"{k}xx {percent_text(self.statuses[k], total)} %") for k in sorted(self.statuses))))
-        blocks.append((8, "  Top 10 URLs:"))
+        blocks.append((8, "  Top 10 URLs (all requests, errors included):"))
         for url, n in self.urls.most_common(10):
             blocks.append((8, "    " + color_code("1;36", f"{n:>6}") + f"  {short_url(url, 90)}"))
         if self.odoo_errors:
             blocks.append((8, f"  Odoo errors and warnings: {sum(self.odoo_errors.values())} — "
-                          + " ; ".join(f"{k[0]} {k[1]} ×{v} : {k[2][:50]}" for k, v in self.odoo_errors.most_common(5))))
+                          + " ; ".join(f"{k[0]} {k[1]} ×{v} : {cut_words(k[2], 200)}" for k, v in self.odoo_errors.most_common(5))))
         blocks.extend((4, text_line) for text_line in LATENCY.lines(level))       # session-long latency (also with Ctrl-T: labeled « since start »)
         res.extend(text_line for n, text_line in blocks if n <= level)
         if level < LEVEL_MAX:
@@ -5508,11 +5451,27 @@ def follow(cmd, people, resolver, options, output):
     return 0 if proc.returncode in (0, -signal.SIGTERM, None) else proc.returncode
 
 
+def changelog_section(path, key):
+    """This program's section of CHANGELOG.md: from its '## <key>' heading up to the next '## ' heading."""
+    with open(path, encoding="utf-8") as f:
+        lignes = f.read().splitlines()
+    section, dans = [], False
+    for ligne in lignes:
+        if ligne.startswith("## "):
+            if dans:
+                break
+            dans = ligne[3:].strip() == key
+            if dans:
+                section.append(ligne)
+        elif dans:
+            section.append(ligne)
+    return "\n".join(section) + "\n" if section else f"No changelog entry for {key} in {path}\n"
+
+
 def show_changelog():
     signal.signal(signal.SIGPIPE, signal.SIG_DFL)          # "| head": silent stop, like cat
     try:
-        with open(CHANGELOG_FILE, encoding="utf-8") as f:
-            text = f.read()
+        text = changelog_section(CHANGELOG_FILE, "app-log-live.py")
     except OSError:
         eprint(f"Changelog not found: {CHANGELOG_FILE}")
         return 1

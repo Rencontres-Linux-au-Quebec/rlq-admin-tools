@@ -15,27 +15,6 @@
 # 1.14 : deux autres écritures, toujours après confirmation et gardées dans le SQL lui-même : set_user_active (web-monitor.py --ban-odoo-user /
 # --unban-odoo-user : compte archivé ou rétabli) et fix_registration_email (odoo-mail-retry.py : adresse corrigée d'une inscription).
 #
-# HISTORIQUE DE VERSION (resume — voir doc/_odoo_db.changelog.txt pour le detail complet) :
-#   1.19.20261020.103939 — mail_detail: e-mail already deleted by Odoo (auto_delete) found again through its mail.message (same Message-Id).
-#   1.18.20261019.150215 — New copyright: Services-Conseils Linux and Rencontres Linux au Québec contributors (AGPL-3.0-or-later).
-#   1.17.20261019.012211 — user_profiles: creation date of each Odoo account (« created », web-monitor.py « Account created » column).
-#   1.16.20261017.105442 — user_profiles: phone, country, city, groups, tags, events and surveys of each Odoo account (web-monitor.py --table / --csv).
-#   1.15.20261016.173838 — registrations_by_ticket (survey of the TICKET, answer to another survey apart), mail_detail (recipients and subject of a sent e-mail).
-#   1.14.20261016.114848 — user_detail, set_user_active (account archived / restored), registration_emails, failed_mails_for, fix_registration_email.
-#   1.13.20261015.172851 — groupes_rlq(base) : nombre de comptes actifs de chaque groupe RLQ*.
-#   1.12.20261015.073057 — Échecs de courriels groupés par jour LOCAL (plus par jour UTC).
-#   1.11.20261014.190654 — --modules BASE : modules installés en tabulations (versions avant / après d'odoo-update-module.sh).
-#   1.10.20261013.163324 — modules_etat : modules non désinstallés (état, version installée, auteur), lecture seule.
-#   1.9.20261013.141500 — jetons_sondages (lecture seule).
-#   1.8.20261013.081500 — courriels_envoyes (lecture seule).
-#   1.7.20261009.230224 — inscriptions_avec_sondage : inscription + sondage de confirmation de la meme personne (contact ou courriel).
-#   1.6.20261009.150500 — inscriptions_evenements : nom du billet (ticket) de chaque inscription.
-#   1.5.20261008.173412 — groupe_existe, groupes_contacts, membres_groupe (etiquettes de contact, lecture seule).
-#   1.4.20261008.124728 — inscriptions_evenements, reponses_sondages (lecture seule).
-#   1.3.20261007.175327 — CORRECTION du sujet des courriels (mail_message) ; bases_odoo, courriels_en_echec, remettre_en_attente.
-#   1.2.20261007.171721 — parametres, serveurs_courriel, courriels : lectures en lecture seule (transaction forcee en lecture seule).
-#   1.1.20261002.214327 — modules_installes : modules dont le nom evoque les sessions (lecture seule).
-#   1.0.20261002.073514 — Premiere version : utilisateurs d'une base Odoo (login, UID, nom, type).
 #
 # Usage (normalement appele par les programmes de la suite) :
 #   python3 apps/_odoo_db.py BASE         liste des utilisateurs de la base (UID, identifiant, nom, type)

@@ -32,7 +32,7 @@ class ConfigParDefaut(EnvTest):
         self.assertTrue(os.path.isfile(chemin), r.stdout + r.stderr)
         texte = open(chemin, encoding="utf-8").read()
         self.assertIn("Fichier créé automatiquement le", texte)
-        self.assertIn("Modèle d’origine : doc/zip-versions.conf.example", texte)
+        self.assertIn("Modèle d’origine : doc/en/zip-versions.conf.example", texte)
         self.assertEqual(stat.S_IMODE(os.stat(chemin).st_mode), 0o644)
         actives = [l for l in texte.splitlines() if l.strip() and not l.lstrip().startswith("#")]
         self.assertEqual(actives, [], "toutes les options doivent être en commentaire")
@@ -92,7 +92,7 @@ class ConfigParDefaut(EnvTest):
 
 
 class ModelesComplets(unittest.TestCase):
-    """Chaque doc/PROGRAMME.conf.example (et celui de run-all) cite TOUTES les options longues de l'aide du programme : celles qui se configurent (CLÉ=valeur) et, en fin de
+    """Chaque doc/en/PROGRAMME.conf.example (et celui de run-all) cite TOUTES les options longues de l'aide du programme : celles qui se configurent (CLÉ=valeur) et, en fin de
     fichier, celles de la ligne de commande seulement."""
     PROGRAMMES = ("app-log-check.py", "app-log-live.py", "odoo-mail-retry.py", "odoo-chat-post.py", "odoo-docs.py", "odoo-warmup.py", "web-monitor.py", "zip-versions.py", "host-perf-audit.py", "nginx-hardening.sh", "nginx-log-audit.sh",
                   "odoo-backup.sh", "odoo-update-module.sh", "sync-crowdsec-blocklist.sh")
@@ -105,14 +105,14 @@ class ModelesComplets(unittest.TestCase):
                 aide = subprocess.run(exe + ["--help", "--lang", "fr"], capture_output=True, text=True, env=env, timeout=60).stdout
                 options = set(re.findall(r"^  (?:-\w, )?(--[\w-]+)", aide, re.M)) - {"--help"}
                 self.assertGreater(len(options), 5, aide)
-                modele = open(script_path("doc/" + re.sub(r"\.(py|sh)$", "", programme) + ".conf.example"), encoding="utf-8").read()
-                self.assertEqual(sorted(o for o in options if o not in modele), [], f"options absentes de doc/{programme}.conf.example")
+                modele = open(script_path("doc/en/" + re.sub(r"\.(py|sh)$", "", programme) + ".conf.example"), encoding="utf-8").read()
+                self.assertEqual(sorted(o for o in options if o not in modele), [], f"options absentes de doc/en/{programme}.conf.example")
 
     def test_cles_de_configuration_en_commentaire(self):
         """Le modèle est copié tel quel : aucune ligne active (CLÉ=valeur sans #)."""
         for programme in self.PROGRAMMES:
             with self.subTest(programme=programme):
-                modele = open(script_path("doc/" + re.sub(r"\.(py|sh)$", "", programme) + ".conf.example"), encoding="utf-8").read()
+                modele = open(script_path("doc/en/" + re.sub(r"\.(py|sh)$", "", programme) + ".conf.example"), encoding="utf-8").read()
                 self.assertEqual([l for l in modele.splitlines() if l.strip() and not l.lstrip().startswith("#")], [])
 
 

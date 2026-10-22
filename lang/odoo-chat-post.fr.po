@@ -109,8 +109,8 @@ msgstr " contient la clé API et est lisible par d'autres comptes : chmod 600 "
 msgid "API_KEY (or the ODOO_API_KEY variable)"
 msgstr "API_KEY (ou la variable ODOO_API_KEY)"
 
-msgid " — write them in /etc/default/odoo-chat-post.conf (see doc/odoo-chat-post.conf.example)."
-msgstr " — les écrire dans /etc/default/odoo-chat-post.conf (voir doc/odoo-chat-post.conf.example)."
+msgid " — write them in /etc/default/odoo-chat-post.conf (see doc/en/odoo-chat-post.conf.example)."
+msgstr " — les écrire dans /etc/default/odoo-chat-post.conf (voir doc/en/odoo-chat-post.conf.example)."
 
 msgid "ERROR: missing settings: "
 msgstr "ERREUR : réglages manquants : "
