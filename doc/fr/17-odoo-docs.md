@@ -1,6 +1,6 @@
 # odoo-docs.py — publier cette documentation dans Odoo
 
-Écrit la documentation (`docs/en`, `docs/fr`) **dans Odoo lui-même**, par l'API externe (XML-RPC avec une clé d'API), afin qu'elle reste à jour avec les programmes : chaque page contient le vrai `--help` de son programme. Deux cibles, choisies avec `--target` :
+Écrit la documentation (`doc/en`, `doc/fr`) **dans Odoo lui-même**, par l'API externe (XML-RPC avec une clé d'API), afin qu'elle reste à jour avec les programmes : chaque page contient le vrai `--help` de son programme. Deux cibles, choisies avec `--target` :
 
 | Cible | Où | Prérequis |
 |---|---|---|

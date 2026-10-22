@@ -14,12 +14,6 @@
 # Before writing anything in the wiki the program VALIDATES that document_page is installed and WORKS (module state, access rights, fields,
 # then a real create / read / history / delete round trip on a temporary page). --check does only that validation.
 #
-# VERSION HISTORY (summary — see doc/odoo-docs.changelog.txt for the full detail):
-#   1.4.20261020.211944 — Personal configuration file ~/.odoo-docs.conf (not .cfg); a legacy one with .cfg is renamed automatically.
-#   1.3.20261019.150215 — New copyright: Services-Conseils Linux and Rencontres Linux au Québec contributors (AGPL-3.0-or-later).
-#   1.2.20261016.173838 — Copyright holder: Services-Linux Conseils Inc
-#   1.1.20261015.203956 — Messages in English in the code (French display via lang/odoo-docs.fr.po); English function names.
-#   1.0.20261015.185024 — Creation: --target wiki|website, --check (module and round-trip validation), --dry-run, idempotent updates.
 import argparse
 import importlib.util
 import os

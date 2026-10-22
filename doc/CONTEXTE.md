@@ -33,7 +33,7 @@ jamais bannies (fail2ban `ignoreip`, liste CrowdSec, `nginx-log-audit.sh`). `ngi
 
 - **Version** `MAJEUR.MINEUR.AAAAMMJJ.HHMMSS` : MINEUR +0.1 à CHAQUE changement demandé, MAJEUR seulement sur demande ou rupture de
   compatibilité ; date et heure locale (America/New_York) de la modification. `__version__` / `SCRIPT_VERSION` ; `--version` dynamique.
-- **Journal** `doc/<programme>.changelog.txt` (sans numéro de version dans le nom), version la plus récente EN PREMIER : titre, motif,
+- **Journal** `CHANGELOG.md` à la racine du dépôt : une section `## <programme>` par programme (chemin depuis la racine pour les modules `apps/`), version la plus récente EN PREMIER : titre, motif,
   détail, bugs corrigés (symptôme, diagnostic, correction), garde-fous, vérifications, action requise. `--changelog` : numéros de
   version en couleur (seulement dans un terminal), tube fermé proprement. En-tête du programme : une ligne par version.
 - **Tout en français** (commentaires, messages, journal) sauf les noms de programmes et d'options. **Options de l'aide par ordre

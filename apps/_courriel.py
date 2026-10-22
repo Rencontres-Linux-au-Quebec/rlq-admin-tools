@@ -19,11 +19,6 @@ MAIL_ATTACH_MAX_MB (100 : une pièce jointe plus grosse est remplacée par un LI
 
 Utilisation depuis Python : from _courriel import envoyer ; depuis Bash : python3 apps/_courriel.py --send "Sujet" --body-file corps.txt [--attach fichier]
 
-HISTORIQUE (résumé ; détail : doc/_courriel.changelog.txt)
-#   1.3.20261020.211944 — Personal configuration file ~/.NAME.conf (not .cfg); a legacy ~/.NAME.cfg is renamed automatically.
-#   1.2.20261019.150215 — New copyright: Services-Conseils Linux and Rencontres Linux au Québec contributors (AGPL-3.0-or-later).
-#   1.1.20261016.173838 — Copyright holder: Services-Linux Conseils Inc
-#   1.0.20261013.103000 — Première version : envoi SMTP commun, pièces jointes de plus de 100 Mo remplacées par un lien, mot de passe à part.
 """
 import argparse
 import os
@@ -245,8 +240,7 @@ def principal(argv=None):
     if a.changelog:
         chemin = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "CHANGELOG.md")
         try:
-            with open(chemin, encoding="utf-8") as f:
-                sys.stdout.write(changelog_section(chemin, "apps/_courriel.py"))
+            sys.stdout.write(changelog_section(chemin, "apps/_courriel.py"))
         except OSError:
             print("journal introuvable : " + chemin, file=sys.stderr)
             return 1

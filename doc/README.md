@@ -1,13 +1,13 @@
 # Documentation sources / Sources de la documentation
 
-> **`docs/` vs `doc/`** — `docs/` (this folder) is the administrator **manual**: Markdown sources read by people and by `build_docs.py`, never by the programs. `doc/` holds what **the programs use**: change logs (`--changelog`), configuration templates (`*.conf.example`), `nginx-tools.version`, maintainers' notes.  
-> **`docs/` ou `doc/`** — `docs/` (ce dossier) est le **manuel** de l'administrateur : sources Markdown lues par les personnes et par `build_docs.py`, jamais par les programmes. `doc/` contient ce dont **les programmes se servent** : journaux (`--changelog`), modèles de configuration (`*.conf.example`), `nginx-tools.version`, notes des responsables.
+> **`doc/en/` and `doc/fr/`** — the administrator **manual** (Markdown sources read by people and by `build_docs.py`, never by the programs). The change log is `CHANGELOG.md` at the repository root.
+> **`doc/en/` et `doc/fr/`** — le **manuel** de l'administrateur : sources Markdown lues par les personnes et par `build_docs.py`, jamais par les programmes. Le journal est `CHANGELOG.md` à la racine du dépôt.
 
 Bilingual administrator documentation of the suite. `en/` and `fr/` hold the same pages (same file names); `{{HELP}}` is replaced by each program's real `--help`, so the option lists cannot go stale.
 
 ```bash
-python3 docs/build_docs.py --check            # validate (needs python3-markdown)
-python3 docs/build_docs.py --out /tmp/docs    # Markdown in /tmp/docs/build/<lang>/, Odoo module in /tmp/docs/rlq_tools_docs/
+python3 doc/build_docs.py --check            # validate (needs python3-markdown)
+python3 doc/build_docs.py --out /tmp/docs    # Markdown in /tmp/docs/build/<lang>/, Odoo module in /tmp/docs/rlq_tools_docs/
 ```
 
 ## Publishing on an Odoo website (Odoo 18 Community, module `website`)

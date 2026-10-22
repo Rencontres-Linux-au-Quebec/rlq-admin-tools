@@ -11,54 +11,6 @@
 # app-health-check.py — quick check (nginx + application) to run before/after an update, or continuously from
 # cron (2-3 times a day recommended). No external dependency: only the Python 3 standard library.
 #
-# VERSION HISTORY (summary — see doc/app-health-check.changelog.txt for the full detail):
-#   2.26.20261020.211944 — Personal configuration file ~/.app-health-check.conf (not .cfg); a legacy one with .cfg is renamed automatically.
-#   2.25.20261019.150215 — New copyright: Services-Conseils Linux and Rencontres Linux au Québec contributors (AGPL-3.0-or-later).
-#   2.24.20261017.105442 — Options line: which setting decided the display language (apps/_i18n.py 1.17).
-#   2.23.20261016.173838 — Copyright holder: Services-Linux Conseils Inc
-#   2.22.20261015.211324 — Source code, comments and changelog in English (display stays French/English via lang/app-health-check.fr.po).
-#   2.21.20261015.073057 — Modification date of the configuration files read.
-#   2.20.20261013.103000 — E-mail: common configuration (nginx-tools-mail.conf); exact SPF according to the relay; complete DKIM template.
-#   2.19.20261010.215000 — French or English display (--lang, LANGUAGE of the configuration file), catalog lang/app-health-check.en.po.
-#   2.18.20261002.214327 — First line of EVERY run (even --help): name and version.
-#   2.17.20261002.165312 — Prompts: backspace (^H) understood (readline).
-#   1.0.20260918.191339 — Initial versioning: added __version__/--version.
-#   1.1.20260918.193000 — Renamed sanity_check_odoo.py -> app-health-check.py; configuration file resolved automatically; -v/--verbose; Odoo version + database banner; argparse error messages localized.
-#   1.2.20260918.195720 — Version timestamp fixed to EDT; output encoding forced to UTF-8 (accents under cron); Google OAuth check message clarified (active/inactive/broken).
-#   1.3.20260918.211357 — /web/database/manager explicitly allowed for 127.0.0.1: default of EXPECT_DB_MANAGER_OPEN now depends on the mode; OAuth message with the exact Odoo menu paths.
-#   1.4.20260918.224850 — Missing accents fixed in ALL displayed text; the OAuth check shows the HTTP status and size of /web/login, and saves the full response with -v/--verbose.
-#   1.5.20260922.081701 — New check_local_setup(): reuses nginx-hardening.sh --check (directories, firewall) instead of duplicating the logic; silently skipped if the script is absent.
-#   1.6.20260922.232142 — Message fixed after nginx-hardening.sh (v1.7+) became read-only by default: it now points to --update.
-#   1.7.20260924.063343 — Browser User-Agent for ALL requests; check_hsts_multi_host() (ADDITIONAL_PUBLIC_HOSTS); checks for SERankingBacklinksBot/GeedoShopProductFinder; /robots.txt exempt; directory traversal in the QUERY STRING;
-#                          EXPECT_RESTRICTED_ACCESS for DEV/LAB (X-Robots-Tag and an explanatory note).
-#   1.8.20260924.083650 — New check: robots.txt contains the Disallow rules (/*?tags= and /*&tags=) set manually in the Odoo UI against the facet trap; the script only VERIFIES it.
-#   1.9.20260924.203547 — Non-public instances (EXPECT_RESTRICTED_ACCESS=true): the robots.txt checks expect « Disallow: / » served by nginx ($robots_disallow_all); the anti-facet check does not apply.
-#   1.10.20260925.073513 — The header always shows the configuration file loaded and the mode (non-public instance: yes/no); one explanatory failure instead of three misleading ones.
-#   1.11.20260925.084442 — Consistency check between the instance NAME and EXPECT_RESTRICTED_ACCESS: suggestion on a development name, FAILURE if active on a name that is not one.
-#   1.12.20260925.085034 — STRICT development detection: only public domain names containing « -dev. » or « .dev. » (or starting with « dev. ») count.
-#   1.13.20260925.085711 — New option --create-config [PATH] (+ --force): generates the configuration file by detecting public names, non-public instance, database and Google connection state; secrets never guessed.
-#   1.14.20260925.231612 — Google (OAuth) check: /web/login is now requested FOLLOWING redirections (Odoo redirects to /en_CA/web/login); false failure fixed.
-#   1.15.20260926.125259 — New option --changelog (required by the convention): colored version numbers on a terminal, plain text when redirected, broken pipe handled.
-#   1.16.20260926.165635 — Unused import removed (socket, left over from 1.11): found by ruff (F401).
-#   1.17.20260926.211237 — --changelog: default SIGPIPE (no message on a broken pipe).
-#   1.18.20260927.101228 — --create-config no longer writes EXPECT_DB_MANAGER_OPEN=false (false failure locally); explanatory message if this setting forces « closed » locally.
-#   2.0.20260927.145909 — Renamed (former name: sanity-check-odoo.py); application profiles (--app); BigBlueButton checks (home page, API); --create-config adapted.
-#   2.1.20260927.200712 — Backup copy named in English: .before-create-config (automatic migration).
-#   2.2.20260927.202645 — Changelog in the doc/ subdirectory (fallback on the old location).
-#   2.3.20260928.091309 — « app-health-check/VERSION » marker at the end of the tests' browser User-Agent.
-#   2.4.20260928.141712 — TLS certificate check of each public name (failure under 21 days) and of its renewal.
-#   2.5.20260928.211633 — Configuration example moved to doc/ (doc/app-health-check.conf.example).
-#   2.6.20260928.224616 — New test: sensitive files (/.env, /en_CA/.env, /.git/config) refused by nginx itself.
-#   2.7.20260929.144332 — Light probe /web/health?db_server_status=1 first (Odoo 16 and later).
-#   2.8.20260929.145745 — E-mail: --check-email-dns (relay, MX, SPF, DMARC, DKIM) and --test-email; SMTP_SECURITY (starttls, ssl, none); Date and Message-ID headers.
-#   2.9.20260929.182259 — Fix: stop on « SMTP_HOST not configured » at the end of a run; colored labels (terminal); certbot check without systemctl; report header renamed.
-#   2.10.20260929.185720 — --check-email-dns and --test-email without --target, and without a detected application.
-#   2.11.20260929.193615 — First run: default configuration created automatically (detected values).
-#   2.12.20260929.195459 — Help: options in alphabetical order.
-#   2.13.20260930.084200 — Ctrl-C: clean end (code 130), no traceback.
-#   2.14.20260930.123230 — Layered configuration (/etc/default, ~/.app-health-check.cfg, ./), files read and important options displayed.
-#   2.15.20260930.132809 — The current directory is no longer read (configuration: /etc/default then ~/.app-health-check.cfg); old file renamed to /etc/default, otherwise reported.
-#   2.16.20260930.163902 — Option --report-err: error report to copy and paste at the end of the run.
 #
 # Usage:
 #   python3 app-health-check.py --create-config          (first installation: generates the configuration)
@@ -1460,17 +1412,16 @@ def changelog_section(path, key):
 
 
 def show_changelog():
-    """Shows app-health-check.changelog.txt: version numbers in bold cyan if the output is a terminal (standard
+    """Shows CHANGELOG.md: version numbers in bold cyan if the output is a terminal (standard
     ANSI color, which follows the terminal theme), plain text if it is redirected; a reader that closes early
     (e.g. « | head ») ends cleanly, without a Python traceback."""
     # SIGPIPE keeps its default behavior (like cat or grep): if the reader closes early (« | head »), the
     # process stops silently. Python ignores it otherwise, and a BrokenPipeError can occur until the final
     # flush of the buffers (« Exception ignored on flushing sys.stdout »), out of reach of any try/except.
     signal.signal(signal.SIGPIPE, signal.SIG_DFL)
-    path = changelog_path("app-health-check.changelog.txt")
+    path = changelog_path("CHANGELOG.md")
     try:
-        with open(path, encoding="utf-8") as f:
-            text = changelog_section(path, "app-health-check.py")
+        text = changelog_section(path, "app-health-check.py")
     except OSError:
         print(f"Changelog not found: {path}", file=sys.stderr)
         return 1
