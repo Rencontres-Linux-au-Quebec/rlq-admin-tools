@@ -3099,6 +3099,27 @@ class AppLogLive(EnvTest):
         self.assertEqual(len(live.rlq_group_columns(g, 20)), 9)
         self.assertEqual(len(live.rlq_group_columns(g[:1], 200)), 1)
 
+    def test_groupes_rlq_homonymes_distingues_par_identifiant_et_categorie(self):
+        """1.103 : deux groupes RLQ* qui portent le même nom sont affichés avec leur identifiant « #12 » et leur catégorie « [Événements] » ; un groupe
+        sans identifiant garde l'ancien affichage « nom = nombre »."""
+        live = self.module_live()
+        spec = importlib.util.spec_from_file_location("odoo_db_t2", script_path("apps/_odoo_db.py"))
+        odoo_db = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(odoo_db)
+        odoo_db._requete = lambda database, sql, delay=20: ([
+            ['{"en_US": "RLQ22-Visiteur", "fr_CA": "RLQ22-Visiteur"}', "70", "13", '{"fr_CA": "Événements", "en_US": "Events"}'],
+            ["RLQ22-Visiteur", "0", "9", ""],
+            ["RLQ22-Visiteur", "0", "21", '{"en_US": "Events"}'],
+        ] if database == "b1" else None)
+        grouped = odoo_db.groupes_rlq("b1")
+        self.assertEqual([(g["nom"], g["id"], g["membres"], g["categorie"]) for g in grouped],
+                         [("RLQ22-Visiteur", 9, 0, ""), ("RLQ22-Visiteur", 13, 70, "Événements"), ("RLQ22-Visiteur", 21, 0, "Events")])
+        text = "\n".join(ANSI.sub("", l) for l in live.rlq_group_lines(odoo_db, ["b1"]))
+        self.assertIn("RLQ22-Visiteur #9 = 0", T(text))
+        self.assertIn("RLQ22-Visiteur #13 [Événements] = 70", T(text))
+        self.assertIn("RLQ22-Visiteur #21 [Events] = 0", T(text))
+        self.assertEqual(live.rlq_group_label({"nom": "RLQ23-Visiteur", "membres": 4}), "RLQ23-Visiteur")          # sans identifiant : affichage d'avant
+
     def test_ligne_raccourcie_debut_points_et_deux_derniers_mots(self):
         """1.88 : ligne plus large que la limite = « début ... deux derniers mots » ; « [banned: …] » compte pour UN mot (la fin de l'URL reste) ; le
         remplissage des colonnes est réduit d'abord (une ligne qui tient alors n'est pas coupée) ; couleurs gardées des deux côtés."""

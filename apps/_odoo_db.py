@@ -106,30 +106,43 @@ def modules_etat(base, delai=30):
     return [{"nom": c[0], "etat": c[1], "version": c[2], "auteur": c[3], "maj": c[4], "cree": c[5]} for c in lignes if len(c) == 6]
 
 
+def nom_traduit(valeur):
+    """Nom Odoo lu en texte : un nom traduisible (JSON par langue dans Odoo récent) donne la valeur fr_CA, puis fr_FR, puis en_US, puis la première."""
+    valeur = valeur or ""
+    if valeur.startswith("{"):
+        try:
+            valeurs = json.loads(valeur)
+            return valeurs.get("fr_CA") or valeurs.get("fr_FR") or valeurs.get("en_US") or next(iter(valeurs.values()), "")
+        except ValueError:
+            pass
+    return valeur
+
+
 def groupes_rlq(base, prefixe="RLQ", delai=20):
-    """[{nom, membres}] des groupes Odoo dont le nom commence par PREFIXE (« RLQ-JPOL26-Visiteur »…), avec le nombre de comptes ACTIFS qui en font partie, triés par nom ;
-    None si impossible (psql absent, base inaccessible, pas root). LECTURE SEULE. Le nom d'un groupe est traduisible (JSON par langue) dans Odoo récent : la première langue trouvée est utilisée."""
+    """[{nom, membres, id, categorie}] des groupes Odoo dont le nom commence par PREFIXE (« RLQ-JPOL26-Visiteur »…), avec le nombre de comptes ACTIFS qui en font
+    partie, triés par nom ; `id` (identifiant du groupe, res_groups.id) et `categorie` (nom de sa catégorie, ou « » s'il n'en a pas) distinguent deux groupes
+    qui portent le même nom. None si impossible (psql absent, base inaccessible, pas root). LECTURE SEULE."""
     if not re.fullmatch(r"[\w-]{1,30}", prefixe or ""):
         return None
-    lignes = _requete(base, "SELECT g.name::text, count(u.id) FROM res_groups g LEFT JOIN res_groups_users_rel r ON r.gid = g.id "
-                            "LEFT JOIN res_users u ON u.id = r.uid AND u.active "
-                            f"WHERE g.name::text ILIKE '%{prefixe}%' GROUP BY g.id, g.name ORDER BY g.name::text", delai)
+    lignes = _requete(base, "SELECT g.name::text, count(u.id), g.id, COALESCE(c.name::text, '') FROM res_groups g "
+                            "LEFT JOIN res_groups_users_rel r ON r.gid = g.id LEFT JOIN res_users u ON u.id = r.uid AND u.active "
+                            "LEFT JOIN ir_module_category c ON c.id = g.category_id "
+                            f"WHERE g.name::text ILIKE '%{prefixe}%' GROUP BY g.id, g.name, c.name ORDER BY g.name::text, g.id", delai)
     if lignes is None:
         return None
     res = []
     for c in lignes:
-        if len(c) != 2 or not c[1].isdigit():
+        if len(c) < 2 or not c[1].isdigit():
             continue
-        nom = c[0]
-        if nom.startswith("{"):
-            try:
-                valeurs = json.loads(nom)
-                nom = valeurs.get("fr_CA") or valeurs.get("fr_FR") or valeurs.get("en_US") or next(iter(valeurs.values()), "")
-            except ValueError:
-                pass
+        nom = nom_traduit(c[0])
         if nom.upper().startswith(prefixe.upper()):
-            res.append({"nom": nom, "membres": int(c[1])})
-    return sorted(res, key=lambda g: g["nom"].lower())
+            groupe = {"nom": nom, "membres": int(c[1])}
+            if len(c) > 2 and c[2].isdigit():
+                groupe["id"] = int(c[2])
+            if len(c) > 3:
+                groupe["categorie"] = nom_traduit(c[3])
+            res.append(groupe)
+    return sorted(res, key=lambda g: (g["nom"].lower(), g.get("id", 0)))
 
 
 def parametres(base, prefixe="mail."):
