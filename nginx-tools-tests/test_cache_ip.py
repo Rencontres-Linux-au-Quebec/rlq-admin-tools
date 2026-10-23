@@ -34,7 +34,7 @@ class CacheIP(EnvTest):
 
     def test_chemin_selon_l_environnement(self):
         m = module()
-        self.assertIsNone(m.chemin_cache({"NGINX_TOOLS_IP_CACHE": "off"}))                 # désactivé
+        self.assertIsNone(m.chemin_cache({"NGINX_TOOLS_IP_CACHE": "off"}))                 # disabled
         self.assertIsNone(m.chemin_cache({"NGINX_TOOLS_IP_CACHE": "NON"}))
         self.assertEqual(m.chemin_cache({"NGINX_TOOLS_IP_CACHE": "/tmp/x.sqlite"}), "/tmp/x.sqlite")
         defaut = m.chemin_cache({})
@@ -50,23 +50,23 @@ class CacheIP(EnvTest):
 
     def test_durees_de_validite_et_jamais_les_echecs(self):
         c = self.cache()
-        self.assertIsNone(c.ptr("203.0.113.9"))                                            # jamais cherchée
+        self.assertIsNone(c.ptr("203.0.113.9"))                                            # never looked up
         c.ecrire_ptr("203.0.113.9", "srv.exemple.org")
         c.ecrire_ptr("203.0.113.10", "")                                                   # le DNS dit qu'il n'y a pas de nom
         c.ecrire_rdap("203.0.113.9", RDAP)
         c.ecrire_pays("203.0.113.11", "US", "geoip")
         self.assertEqual(c.ptr("203.0.113.9"), "srv.exemple.org")
-        self.assertEqual(c.ptr("203.0.113.10"), "")                                        # « aucun nom » est une réponse
+        self.assertEqual(c.ptr("203.0.113.10"), "")                                        # "no name" is an answer
         self.assertEqual(c.rdap("203.0.113.9"), RDAP)
         self.assertEqual((c.pays("203.0.113.9"), c.pays("203.0.113.11")), ("CA", "US"))   # le pays vient du RDAP ou de geoip
         c.horloge[0] += 2 * JOUR
         self.assertEqual(c.ptr("203.0.113.10"), "", "« aucun nom » encore valide après 2 jours")
-        c.horloge[0] += 2 * JOUR                                                           # 4 jours : « aucun nom » périmé (3 j) ; nom trouvé encore valide (30 j)
+        c.horloge[0] += 2 * JOUR                                                           # 4 days: "no name" expired (3 d); name found still valid (30 d)
         self.assertIsNone(c.ptr("203.0.113.10"))
         self.assertEqual(c.ptr("203.0.113.9"), "srv.exemple.org")
-        c.horloge[0] += 27 * JOUR                                                          # 31 jours : nom périmé
+        c.horloge[0] += 27 * JOUR                                                          # 31 days: name expired
         self.assertIsNone(c.ptr("203.0.113.9"))
-        self.assertEqual(c.rdap("203.0.113.9"), RDAP)                                      # propriétaire et pays : 90 jours
+        self.assertEqual(c.rdap("203.0.113.9"), RDAP)                                      # owner and country: 90 days
         c.horloge[0] += 60 * JOUR                                                          # 91 jours
         self.assertIsNone(c.rdap("203.0.113.9"))
         self.assertIsNone(c.pays("203.0.113.9"))
@@ -80,7 +80,7 @@ class CacheIP(EnvTest):
         c.ecrire_ptr("203.0.113.9", "srv.exemple.org")
         c.ecrire_rdap("203.0.113.9", dict(RDAP, pays=""))                                  # RDAP sans pays : n'efface pas un pays connu
         c.ecrire_pays("203.0.113.9", "US", "geoip")
-        c.ecrire_pays("203.0.113.9", "", "geoip")                                          # pays vide : ignoré
+        c.ecrire_pays("203.0.113.9", "", "geoip")                                          # empty country: ignored
         e = c.lire("203.0.113.9")
         self.assertEqual((e["n"], e["vu1"], e["vu2"]), (2, 1_000_000.0, 1_000_100.0))
         self.assertEqual((e["ptr"], e["organisation"], e["pays"], e["pays_src"]), ("srv.exemple.org", "Videotron Ltee", "US", "geoip"))
@@ -94,9 +94,9 @@ class CacheIP(EnvTest):
         c.horloge[0] = 1_000_000.0
         s = c.stats()
         self.assertEqual((s["adresses"], s["avec_ptr"]), (5, 5))
-        self.assertEqual(c.purger(), 2)                                                    # 181 et 400 jours sans nouvelle vue : effacées (180 j)
+        self.assertEqual(c.purger(), 2)                                                    # 181 and 400 days without a new view: erased (180 d)
         self.assertEqual(c.stats()["adresses"], 3)
-        self.assertEqual(c.purger(50), 2)                                                  # durée donnée : 100 et 179 jours
+        self.assertEqual(c.purger(50), 2)                                                  # given duration: 100 and 179 days
         c.vider()
         self.assertEqual(c.stats()["adresses"], 0)
 
@@ -107,13 +107,13 @@ class CacheIP(EnvTest):
         c = module().Cache(abime)
         self.assertFalse(c.actif)
         self.assertIn("inutilisable", c.raison)
-        self.assertIsNone(c.ptr("203.0.113.9"))                                            # toutes les méthodes restent silencieuses
+        self.assertIsNone(c.ptr("203.0.113.9"))                                            # all the methods stay silent
         c.ecrire_ptr("203.0.113.9", "x")
         c.toucher("203.0.113.9")
         self.assertEqual(c.purger(), 0)
         self.assertEqual(c.stats()["adresses"], 0)
         self.assertIn("inutilisable", c.resume())
-        sous_un_fichier = module().Cache(os.path.join(abime, "impossible", "cache.sqlite"))   # le « dossier » est un fichier
+        sous_un_fichier = module().Cache(os.path.join(abime, "impossible", "cache.sqlite"))   # the "folder" is a file
         self.assertFalse(sous_un_fichier.actif)
 
     def test_plusieurs_fils_et_plusieurs_processus(self):
@@ -129,7 +129,7 @@ class CacheIP(EnvTest):
                 "c=m.Cache(sys.argv[2]);[c.ecrire_ptr('10.2.%s.%d'%(sys.argv[3],i),'p') for i in range(150)]")
         procs = [subprocess.Popen([sys.executable, "-c", code, script_path("apps/_cache_ip.py"), c.chemin, str(k)]) for k in range(3)]
         self.assertEqual([p.wait(timeout=60) for p in procs], [0, 0, 0])
-        self.assertEqual(c.stats()["adresses"], 600 + 450)                                 # écritures de processus différents : aucune perdue
+        self.assertEqual(c.stats()["adresses"], 600 + 450)                                 # writes from different processes: none lost
 
     def test_ligne_de_commande(self):
         chemin = os.path.join(self.d, "cli.sqlite")
@@ -153,7 +153,7 @@ class CacheIP(EnvTest):
         self.assertRegex(cli("--version")[1], r"^_cache_ip\.py version 1\.\d+\.\d{8}\.\d{6}$")
         r = subprocess.run([sys.executable, script_path("apps/_cache_ip.py"), "--stats"], capture_output=True, text=True,
                            env=dict(os.environ, NGINX_TOOLS_IP_CACHE="off"))
-        self.assertEqual(r.returncode, 1)                                                  # désactivé : code 1, message sur la sortie d'erreur
+        self.assertEqual(r.returncode, 1)                                                  # disabled: code 1, message on the error output
         self.assertIn("Cache des adresses : désactivé", r.stderr)
 
 
@@ -197,10 +197,10 @@ class CacheEtReseau(EnvTest):
         self.reseau("--raw", "--no-cache")
         self.assertEqual(self.appels(), 2)
         self.assertFalse(os.path.exists(self.cache), "--no-cache n'écrit rien")
-        self.reseau("--raw")                                                               # écrit
+        self.reseau("--raw")                                                               # written
         self.reseau("--raw", "--no-cache")                                                 # ne lit pas
         self.assertEqual(self.appels(), 4)
-        self.assertEqual(self.reseau("--raw", cache=False)[0], 0)                          # NGINX_TOOLS_IP_CACHE=off : désactivé
+        self.assertEqual(self.reseau("--raw", cache=False)[0], 0)                          # NGINX_TOOLS_IP_CACHE=off: disabled
         self.assertEqual(self.appels(), 5)
 
     def test_un_echec_n_est_jamais_memorise(self):

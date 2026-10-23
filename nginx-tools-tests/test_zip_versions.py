@@ -52,7 +52,7 @@ class ZipVersions(EnvTest):
         self.assertIn("apps/_rapport.py                 1.1.20260930.225745", out)
         self.assertIn("nginx-hardening.sh               2.16.20260930.163902", out)
         self.assertIn("run-all.sh                       1.54.20261001.090925", out)
-        self.assertNotIn("9.9.20991231", out)                                  # fausse version des données de test ignorée
+        self.assertNotIn("9.9.20991231", out)                                  # fake version of the test data ignored
         self.assertIn("configuration nginx (journal)    2026-10-01 — 2 fichier(s)", out)
         self.assertIn("nginx-tools.zip est plus ancienne que", out)
         self.assertIn("web-monitor.py 2.35.20260930.163902 < 2.37.20261001.090925", out)
@@ -96,7 +96,7 @@ class ZipVersions(EnvTest):
         self.assertIn(f"\x1b[1;32m1.104.{j}.090500\x1b[0m", r)
         self.assertIn(f"\x1b[1;32m1.76.{j}.083721\x1b[0m", r)
         self.assertIn(" ancien 1.2.20200101.000000)", r)
-        self.assertNotIn("nginx-tools.1.104.zip\x1b", r)                # le nom d'archive (sans date) n'est pas touché
+        self.assertNotIn("nginx-tools.1.104.zip\x1b", r)                # the archive name (without date) is not touched
         self.assertEqual(mod.colorize_versions(r), r)                   # idempotent
         mod.COLOR = False
         self.assertEqual(mod.colorize_versions(ligne), ligne)
@@ -116,8 +116,8 @@ class ZipVersions(EnvTest):
         """--installed : à déployer, archive périmée, identique ; configuration nginx comparée par contenu."""
         zip_outils = self.outils("nginx-tools.zip", "2.37.20261001.090925")
         inst = os.path.dirname(self.path("scripts", "x"))
-        self.write("scripts/web-monitor.py", programme("2.35.20260930.163902"))           # plus ancien : à déployer
-        self.write("scripts/nginx-hardening.sh", programme("2.17.20261002.080000", bash=True))  # plus récent : archive périmée
+        self.write("scripts/web-monitor.py", programme("2.35.20260930.163902"))           # older: to deploy
+        self.write("scripts/nginx-hardening.sh", programme("2.17.20261002.080000", bash=True))  # newer: archive outdated
         self.write("scripts/apps/_rapport.py", programme("1.1.20260930.225745"))           # identique
         self.archive("nginx-odoo-config.zip", {"nginx-odoo/README.md": "- 2026-10-01 : b\n",
                                                "nginx-odoo/conf.d/odoo-global.conf": "x;\n",
@@ -135,7 +135,7 @@ class ZipVersions(EnvTest):
         self.assertIn("configuration : 1 fichier(s) identique(s)", out)
         self.assertIn("1 fichier(s) différent(s) de l'archive : sites-available/10-prod.conf", out)
         self.assertIn("1 absent(s)", out)
-        self.assertNotIn("fail2ban/odoo-auth.filter.conf", out)                   # copié ailleurs : non comparé
+        self.assertNotIn("fail2ban/odoo-auth.filter.conf", out)                   # copied elsewhere: not compared
         self.assertEqual(rc, 1)
 
     def test_aucune_archive(self):
@@ -160,7 +160,7 @@ class ZipVersions(EnvTest):
         self.assertIn("ancien nom (dossier tests/)", out)
         self.assertIn("tests (1).zip est plus ancienne que", out)
         self.assertIn("nginx-tools-tests.zip  (plus récent : run-all.sh 1.56.20261001.100000)", out.split("ARCHIVES À JOINDRE")[1])
-        # Installation : ancienne copie de NOTRE suite dans tests/ signalée ; la nouvelle est comparée
+        # Installation: old copy of OUR suite in tests/ reported; the new one is compared
         inst = os.path.dirname(self.path("scripts", "x"))
         self.write("scripts/web-monitor.py", programme("2.37.20261001.090925"))
         self.write("scripts/tests/run-all.sh", programme("1.55.20261001.092458", bash=True))
@@ -181,7 +181,7 @@ class ZipVersions(EnvTest):
             "rlq_survey_report/doc/CHANGELOG.md": journal,
             "rlq_survey_report/__manifest__.py": "{\n    'name': 'RLQ',\n    'version': '18.0.1.7.0',\n}\n",
             "rlq_survey_report/models/report_builder.py": "x = 1\n",
-            "rlq_survey_report/tests/test_wizard.py": '__version__ = "9.9.9"\n'})          # données de test : ignorées
+            "rlq_survey_report/tests/test_wizard.py": '__version__ = "9.9.9"\n'})          # test data: ignored
         self.archive("rlq_survey_report (1).zip", {
             "rlq_survey_report/__manifest__.py": "{'version': '18.0.1.6.0'}\n",
             "rlq_survey_report/models/report_builder.py": "x = 0\n"})
@@ -231,7 +231,7 @@ class ZipVersions(EnvTest):
         self.archive("nginx-tools.1.1.zip", {"nginx-tools/web-monitor.py": programme("2.38.20261001.143624"),
                                             "nginx-tools/doc/nginx-tools.version": v + "\n"})
         self.archive("nginx-tools-tests.1.59.zip",
-                     {"nginx-tools-tests/run-all.sh": programme("1.60.20261002.100000", bash=True)})        # nom ≠ contenu
+                     {"nginx-tools-tests/run-all.sh": programme("1.60.20261002.100000", bash=True)})        # name != content
         self.archive("rlq_survey_report.18.0.1.90.0.zip", {"rlq_survey_report/__manifest__.py": "{'version': '18.0.1.90.0'}\n"})
         self.archive("nginx-tools.zip", {"nginx-tools/web-monitor.py": programme("2.37.20261001.090925")})  # ancien, sans version
         self.archive("nginx-tools.1.0.20261002.064915.zip", {"nginx-tools/web-monitor.py": programme("2.37.20261001.090925"),
@@ -240,18 +240,18 @@ class ZipVersions(EnvTest):
         self.assertIn("version de l’archive             1.1.20261002.100000", out)
         self.assertIn("[ATTN] le nom du fichier indique la version 1.59, le contenu 1.60.20261002.100000 "
                       "(nom attendu : nginx-tools-tests.1.60.zip)", out)
-        self.assertNotIn("le nom du fichier indique la version 18.0.1.90.0", out)              # cohérent
-        self.assertNotIn("le nom du fichier indique la version 1.1,", out)                     # « 1.1 » = début de 1.1.2026…
-        self.assertNotIn("le nom du fichier indique la version 1.0.20261002.064915", out)      # ancienne forme complète : acceptée
+        self.assertNotIn("le nom du fichier indique la version 18.0.1.90.0", out)              # consistent
+        self.assertNotIn("le nom du fichier indique la version 1.1,", out)                     # "1.1" = start of 1.1.2026...
+        self.assertNotIn("le nom du fichier indique la version 1.0.20261002.064915", out)      # old full form: accepted
         self.assertIn("(nom sans version, et sans doc/nginx-tools.version : archive antérieure", out)
         a_joindre = out.split("ARCHIVES À JOINDRE")[1]
         self.assertIn(f"nginx-tools.1.1.zip  (version {v}, plus récent : web-monitor.py 2.38.20261001.143624)", a_joindre)
         self.assertEqual(rc, 1)
-        # Nom sans version d'une archive de nos types qui a une version : le nom attendu est indiqué, sans la date
+        # Archive name without a version for one of our types that has a version: the expected name is given, without the date
         self.archive("nginx-tools-tests.zip", {"nginx-tools-tests/run-all.sh": programme("1.61.20261003.080000", bash=True)})
         rc, out = self.lancer(os.path.join(self.dossier, "nginx-tools-tests.zip"))
         self.assertIn("(nom sans version : l'archive serait nginx-tools-tests.1.61.zip)", out)
-        # Installation : version de l'archive déployée
+        # Installation: version of the deployed archive
         inst = os.path.dirname(self.path("scripts", "x"))
         self.write("scripts/web-monitor.py", programme("2.38.20261001.143624"))
         self.write("scripts/doc/nginx-tools.version", "1.0.20261001.000000\n")
@@ -266,7 +266,7 @@ class ZipVersions(EnvTest):
         v = "1.0.20261002.093000"
         self.archive("nginx-odoo-config.1.0.zip", {"nginx-odoo/VERSION": v + "\n", "nginx-odoo/README.md": "- 2026-10-02 : a\n",
                                                    "nginx-odoo/conf.d/odoo-global.conf": "x;\n"})
-        self.archive("nginx-odoo-config.2.0.zip", {"nginx-odoo/VERSION": v + "\n", "nginx-odoo/README.md": "- 2026-10-02 : a\n"})   # nom ≠ contenu
+        self.archive("nginx-odoo-config.2.0.zip", {"nginx-odoo/VERSION": v + "\n", "nginx-odoo/README.md": "- 2026-10-02 : a\n"})   # name != content
         rc, out = self.lancer(os.path.join(self.dossier, "nginx-odoo-config.1.0.zip"))
         self.assertIn(f"version de l’archive             {v}", out)
         self.assertIn("configuration nginx (journal)    2026-10-02 — 2 fichier(s)", out)           # VERSION n'est pas un fichier de configuration
@@ -288,8 +288,8 @@ class ZipVersions(EnvTest):
         r = mod.colorize_versions(f"  rlq_survey_report ./x.zip  (version 18.0.1.107.0, fichier le plus récent {d} 17:28) ; ancien 2020-01-01 10:00")
         self.assertIn(f"\x1b[1;32m{d} 17:28\x1b[0m", r)
         self.assertIn(" ancien 2020-01-01 10:00", r)
-        self.assertNotIn("18.0.1.107.0\x1b", r)                          # la version sans date n'est pas colorée
+        self.assertNotIn("18.0.1.107.0\x1b", r)                          # the version without a date is not colored
         self.assertEqual(mod.colorize_versions(r), r)                    # idempotent
         j = d.replace("-", "")
         v = mod.colorize_versions(f"1.5.{j}.101500 ({d})")
-        self.assertEqual(v.count("\x1b[1;32m"), 2)                       # une version du jour et une date du jour, chacune colorée une fois
+        self.assertEqual(v.count("\x1b[1;32m"), 2)                       # a version of the day and a date of the day, each colored once

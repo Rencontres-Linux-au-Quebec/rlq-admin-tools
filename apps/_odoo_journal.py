@@ -1,15 +1,15 @@
 # ========================================================================================================================
 # Copyright (C) 2026 Services-Conseils Linux Inc.
-# Copyright (C) 2026 Rencontres Linux au Québec contributors
+# Copyright (C) 2026 Rencontres Linux au Quebec contributors
 #
 # This program is free software: you can redistribute it and/or modify it under the terms of the GNU Affero General Public
 # License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
 # Full text: https://www.gnu.org/licenses/agpl-3.0.html
 # ========================================================================================================================
-# Journal d'Odoo écrit dans un FICHIER (logfile de sa configuration) : chaque ligne reçoit le préfixe d'un journal systemd,
-# « 2026-10-02T10:07:18.326000-0400 hôte odoo[PID]: » (l'heure d'Odoo, en UTC, est convertie en heure locale). Les programmes qui lisent
-# « journalctl -o short-iso-precise » fonctionnent alors sans changement. Les lignes sans heure (trace Python) reprennent le préfixe précédent.
-# Usage : python3 _odoo_journal.py FICHIER NOMBRE_DE_LIGNES SUIVRE   (NOMBRE_DE_LIGNES : « +1 » = tout le fichier ; SUIVRE : 1 = tail -F)
+# Odoo journal written to a FILE (logfile of its configuration): each line receives the prefix of a systemd journal,
+# "2026-10-02T10:07:18.326000-0400 host odoo[PID]: " (Odoo's time, in UTC, is converted to local time). The programs that read
+# "journalctl -o short-iso-precise" then work without change. Lines without a time (Python traceback) take the previous prefix.
+# Usage: python3 _odoo_journal.py FILE NUMBER_OF_LINES FOLLOW   (NUMBER_OF_LINES: "+1" = whole file; FOLLOW: 1 = tail -F)
 import datetime
 import re
 import socket

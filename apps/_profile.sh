@@ -1,18 +1,18 @@
 # ========================================================================================================================
 # Copyright (C) 2026 Services-Conseils Linux Inc.
-# Copyright (C) 2026 Rencontres Linux au Québec contributors
+# Copyright (C) 2026 Rencontres Linux au Quebec contributors
 #
 # This program is free software: you can redistribute it and/or modify it under the terms of the GNU Affero General Public
 # License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
 # Full text: https://www.gnu.org/licenses/agpl-3.0.html
 # ========================================================================================================================
-# Bibliothèque commune (sourcée par les programmes bash) : choix du profil d'application apps/<nom>.conf.
-#   charger_profil_app DOSSIER_APPS [NOM_FORCÉ]
-# Sans nom forcé : détection automatique (unités systemd ou fichiers DETECT_*). Aucune application détectée, ou
-# plusieurs : message clair et arrêt (préciser --app=NOM). Définit toutes les clés du profil + APP_DETECTION.
+# Common library (sourced by the bash programs): choice of the application profile apps/<name>.conf.
+#   charger_profil_app APPS_DIR [FORCED_NAME]
+# Without a forced name: automatic detection (systemd units or DETECT_* files). No application detected, or
+# several: clear message and stop (specify --app=NAME). Defines all the profile keys + APP_DETECTION.
 # shellcheck shell=bash
 
-# Charge la bibliothèque de configuration d'Odoo (apps/_odoo_conf.sh) si ce n'est déjà fait.
+# Loads the Odoo configuration library (apps/_odoo_conf.sh) if not already done.
 _profil_charger_odoo_conf() {
     declare -F odoo_conf_trouver >/dev/null && return 0
     # shellcheck source=/dev/null
@@ -22,16 +22,16 @@ _profil_charger_odoo_conf() {
 
 _profil_detecte() {
     local f="$1" u fichier
-    # Lecture des seules clés de détection, dans un sous-shell (le profil n'est pas encore choisi).
+    # Reads only the detection keys, in a subshell (the profile is not chosen yet).
     local units files
     units=$( ( # shellcheck source=/dev/null
                . "$f"; echo "${DETECT_UNITS:-}" ) ) || return 1
     files=$( ( # shellcheck source=/dev/null
                . "$f"; echo "${DETECT_FILES:-}" ) ) || return 1
-    # APP_DETECT_ROOT : racine des fichiers de détection (vide en production ; dossier vide pendant les tests, pour ne
-    # jamais dépendre de ce qui est installé sur la machine qui les exécute).
+    # APP_DETECT_ROOT: root of the detection files (empty in production; empty folder during the tests, so as not to
+    # ever depend on what is installed on the machine running them).
     for fichier in $files; do [[ -e "${APP_DETECT_ROOT:-}$fichier" ]] && return 0; done
-    # DETECT_ODOO_CONF="yes" : la présence d'un fichier de configuration d'Odoo (apps/_odoo_conf.sh) suffit.
+    # DETECT_ODOO_CONF="yes": the presence of an Odoo configuration file (apps/_odoo_conf.sh) is enough.
     local detecte_conf
     detecte_conf=$( ( # shellcheck source=/dev/null
                       . "$f"; echo "${DETECT_ODOO_CONF:-}" ) ) || detecte_conf=""
@@ -78,7 +78,7 @@ charger_profil_app() {
     APP_NAME=""
     # shellcheck source=/dev/null
     . "$f"
-    # Profil à configuration d'Odoo : fichier trouvé, ports et journal lus (variables ODOO_CONF_*).
+    # Profile with Odoo configuration: file found, ports and log read (variables ODOO_CONF_*).
     ODOO_CONF_TROUVE=""
     if [[ "${DETECT_ODOO_CONF:-}" == "yes" ]]; then
         _profil_charger_odoo_conf "$dossier"

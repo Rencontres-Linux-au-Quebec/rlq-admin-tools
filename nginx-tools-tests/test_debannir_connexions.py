@@ -37,7 +37,7 @@ echo "   \\`- Banned IP list:	10.0.0.1 10.0.0.4 10.0.0.20"; else echo "Status"; 
         section = out.split("IP BANNIES QUI SEMBLENT VALIDES")[1].split("RECOMMANDATIONS")[0]
         self.assertRegex(section, r"10\.0\.0\.1\s+certaine\s+utilisateur connu")
         self.assertRegex(section, r"10\.0\.0\.20\s+probable\s+visiteur humain probable : 2 page")
-        self.assertNotIn("10.0.0.4", section)                                  # a demandé /.env : bannie à raison
+        self.assertNotIn("10.0.0.4", section)                                  # requested /.env: rightly banned
         self.assertIn("fail2ban-client set nginx-catchall unbanip 10.0.0.1", section)
         self.assertIn("Débannir 2 IP valide(s)", out)
         self.assertIn("2 IP bannie(s) semblent valides (1 certaine(s)", out)
@@ -47,11 +47,11 @@ echo "   \\`- Banned IP list:	10.0.0.1 10.0.0.4 10.0.0.20"; else echo "Status"; 
         self.assertEqual(rc, 0, err)
         self.assertIn("BANNED IPs THAT LOOK VALID (to unban)", out)
         self.assertIn("Unban 2 valid IP(s)", out)
-        self.assertNotRegex(out, r"\d (Ko|Mo|Go|o)\b")                         # unités : KB, MB, GB, B
+        self.assertNotRegex(out, r"\d (Ko|Mo|Go|o)\b")                         # units: KB, MB, GB, B
         self.assertNotRegex(out, r"\[(MOYENNE|FAIBLE)\]")
         self.assertNotIn("semblent", out)
         self.assertNotIn("HAUTE", out)
-        self.assertNotRegex(out, r"\d,\d+ (KB|MB|GB)")                         # virgule décimale : point en anglais
+        self.assertNotRegex(out, r"\d,\d+ (KB|MB|GB)")                         # decimal comma: point in English
 
     def test_colonne_sept_jours_supprimee_quand_la_periode_est_courte(self):
         rc, out, err = self.run_cmd(["python3", self.prog, "--summary", "--days", "5", "--lang", "en"])
@@ -73,8 +73,8 @@ echo "   \\`- Banned IP list:	10.0.0.1 10.0.0.4 10.0.0.20"; else echo "Status"; 
                 nombres = [(m.start(), m.end()) for m in re.finditer(r"\d+", ligne[45:])]
                 nombres = [(a + 45, b + 45) for a, b in nombres][:5]
                 for (debut_e, fin_e), (a, b) in zip(zip(debuts, debuts[1:] + [10 ** 6]), nombres):
-                    self.assertGreaterEqual(a, debut_e - 0, ligne)             # le chiffre commence sous l'étiquette ou à sa droite
-                    self.assertLess(b, fin_e + 1, ligne)                        # et se termine avant l'étiquette suivante
+                    self.assertGreaterEqual(a, debut_e - 0, ligne)             # the number starts under the label or to its right
+                    self.assertLess(b, fin_e + 1, ligne)                        # and ends before the next label
                 self.assertNotIn("30 day ", entete + " ")
 
     def test_url_inoffensive_refusee_n_est_pas_malveillante(self):
@@ -90,7 +90,7 @@ echo "   \\`- Banned IP list:	10.0.0.1 10.0.0.4 10.0.0.20"; else echo "Status"; 
 
 
 for _nom in [n for n in dir(test_web_monitor.Bilan) if n.startswith("test") and n not in IpAdebannir.__dict__]:
-    setattr(IpAdebannir, _nom, None)             # les tests hérités de Bilan tournent dans test_web_monitor (ici le jeu de données est complété)
+    setattr(IpAdebannir, _nom, None)             # the tests inherited from Bilan run in test_web_monitor (here the data set is completed)
 
 
 class Connexions(EnvTest):
@@ -124,7 +124,7 @@ class Connexions(EnvTest):
         self.assertIn("max_connections", textes)
         self.assertIn("db_maxconn", textes)
         self.assertIn("db_maxconn_gevent", textes)
-        self.assertTrue(any("peut ouvrir jusqu'à 1024 connexions" in c for _, c, _ in r))      # (13 + 2 + 1) × 64
+        self.assertTrue(any("peut ouvrir jusqu'à 1024 connexions" in c for _, c, _ in r))      # (13 + 2 + 1) x 64
 
     def test_nginx_worker_connections_et_seuil_personnalise(self):
         r = self.c.diagnostiquer(self.mesures(nginx_clients=450))
@@ -153,7 +153,7 @@ class ConfigCommuneCreee(EnvTest):
         ancien_home = os.environ.get("HOME")
         os.environ["HOME"] = self.d
         try:
-            self.write("etc-default/prog.conf", "X=2\n")                 # celui du programme existe déjà : le commun est créé quand même
+            self.write("etc-default/prog.conf", "X=2\n")                 # the program's own one already exists: the common one is created anyway
             config.creer_par_defaut("prog", dossier_doc=doc, argv=[])
             self.assertTrue(os.path.isfile(os.path.join(etc, "app-default.conf")))
             self.assertIn("#LANGUAGE=auto", open(os.path.join(etc, "app-default.conf")).read())

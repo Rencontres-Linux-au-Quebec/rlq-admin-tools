@@ -34,7 +34,7 @@ class Serveur(http.server.BaseHTTPRequestHandler):
         self.wfile.write(body)
 
     def do_GET(self):
-        if self.path.startswith("/web/health"):                          # 2.7 : sonde légère d'Odoo
+        if self.path.startswith("/web/health"):                          # 2.7: light probe of Odoo
             ok = ETAT.get("health", True)
             corps = b'{"status": "pass"}' if ok else b'{"status": "fail", "error": "db"}'
             self.send_response(200 if ok else 500)
@@ -62,7 +62,7 @@ class SanityCheck(EnvTest):
         if not os.path.isfile(script_path("app-health-check.py")):
             raise unittest.SkipTest("app-health-check.py absent")
         import tempfile
-        cls.tls = tempfile.mkdtemp(prefix="test-rlq-tls-")     # clé privée de test : supprimée en fin de classe
+        cls.tls = tempfile.mkdtemp(prefix="test-rlq-tls-")     # test private key: deleted at the end of the class
         subprocess.run(["openssl", "req", "-x509", "-newkey", "rsa:2048", "-keyout", f"{cls.tls}/k.pem", "-out",
                         f"{cls.tls}/c.pem", "-days", "1", "-nodes", "-subj", "/CN=test"], capture_output=True, check=True)
         cls.srv = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Serveur)
@@ -95,7 +95,7 @@ class SanityCheck(EnvTest):
     def resultats(self, cfg):
         return {l: (ok, d) for l, ok, d in self.m.check_http(cfg, "local")}
 
-    # --- règle stricte (1.12) ---------------------------------------------------------------------------------------
+    # --- strict rule (1.12) ---------------------------------------------------------------------------------------
     def test_detection_developpement_stricte(self):
         cas = {"odoo-dev.rencontres-linux.quebec": True, "odoo.dev.exemple.org": True, "dev.exemple.org": True,
                "ODOO-DEV.Exemple.org": True, "www.rencontres-linux.quebec": False, "odoo18.rencontres-linux.quebec": False,
@@ -122,7 +122,7 @@ class SanityCheck(EnvTest):
         r2 = self.resultats({"ODOO_PUBLIC_HOST": "odoo-dev.rencontres-linux.quebec", "EXPECT_RESTRICTED_ACCESS": "true"})
         self.assertIs(r2["/robots.txt"][0], True)
 
-    # --- Google OAuth derrière la redirection de langue (1.14) ---------------------------------------------------------
+    # --- Google OAuth behind the language redirection (1.14) ---------------------------------------------------------
     def test_google_oauth_suit_la_redirection_de_langue(self):
         r = self.resultats({"ODOO_PUBLIC_HOST": "www.rencontres-linux.quebec", "EXPECT_GOOGLE_OAUTH": "true"})
         cle = next(k for k in r if "Google" in k)
@@ -135,7 +135,7 @@ class SanityCheck(EnvTest):
         r = self.resultats(cfg)
         cle = next(k for k in r if k.startswith("Light probe /web/health"))
         self.assertIs(r[cle][0], True, r[cle][1])
-        self.assertEqual(list(r)[0], cle)                                  # la toute première vérification
+        self.assertEqual(list(r)[0], cle)                                  # the very first check
         ETAT["health"] = False
         try:
             r = self.resultats(cfg)
@@ -164,7 +164,7 @@ class SanityCheck(EnvTest):
         self.assertNotIn("piege", open(chemin).read().split("ADDITIONAL_PUBLIC_HOSTS=")[1].splitlines()[0])
         self.assertEqual(stat.S_IMODE(os.stat(chemin).st_mode), 0o600)
         with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
-            self.assertEqual(self.m.create_config(chemin), 1)                   # jamais d'écrasement sans --force
+            self.assertEqual(self.m.create_config(chemin), 1)                   # never overwritten without --force
 
 
 
@@ -185,7 +185,7 @@ class CertificatTLS(EnvTest):
         proc = subprocess.Popen(["openssl", "s_server", "-quiet", "-accept", f"127.0.0.1:{port}", "-cert", cert, "-key", cle, "-www"],
                                 stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         self.addCleanup(lambda: (proc.kill(), proc.wait()))
-        for _ in range(50):                                             # attendre l'écoute (5 s au plus)
+        for _ in range(50):                                             # wait for listening (5 s at most)
             try:
                 socket.create_connection(("127.0.0.1", port), timeout=0.2).close()
                 break
@@ -215,7 +215,7 @@ class CertificatTLS(EnvTest):
         self.assertIs(ok, False)
         self.assertRegex(detail, r"expires in (9|10) day\(s\).*certbot renew --dry-run")
         port, _ = self.serveur(60)
-        label, ok, detail = self.verifier(port, ca)                        # autorité non reconnue
+        label, ok, detail = self.verifier(port, ca)                        # authority not recognized
         self.assertIs(ok, False)
         self.assertIn("certificate REFUSED", detail)
         self.assertIn("issuer: Autorite de test", detail)
@@ -277,7 +277,7 @@ class Courriel(EnvTest):
                "NOTIFY_EMAIL_TO": "info@destinataire.exemple", "DKIM_SELECTOR": "s1"}
         niveaux = {msg.split(" :")[0]: n for n, msg, _ in m.check_email_dns(cfg)}
         self.assertEqual(set(niveaux.values()), {"OK"}, niveaux)
-        # SPF en double, DMARC absent, destinataire sans MX, relais fermé
+        # duplicate SPF, DMARC missing, recipient without MX, closed relay
         zone[("rencontres-linux.quebec", "TXT")] = ["v=spf1 -all", "v=spf1 include:x -all"]
         del zone[("_dmarc.rencontres-linux.quebec", "TXT")]
         del zone[("destinataire.exemple", "MX")]
@@ -288,7 +288,7 @@ class Courriel(EnvTest):
         self.assertIn("[FAIL] no MX for the recipient domain destinataire.exemple", texte)
         self.assertIn("[FAIL] SMTP relay unreachable: 127.0.0.1:1", texte)
         self.assertIn('add to DNS: _dmarc.rencontres-linux.quebec. TXT "v=DMARC1; p=none; rua=mailto:postmaster@rencontres-linux.quebec; fo=1"', texte)
-        self.assertEqual(m.check_email_dns({})[0][0], "FAIL")                    # non configuré
+        self.assertEqual(m.check_email_dns({})[0][0], "FAIL")                    # not configured
 
     def test_spf_exact_selon_le_relais_et_dkim_avec_modele(self):
         """2.20 : l'enregistrement SPF proposé est EXACT : include: du domaine du relais s'il publie un SPF, sinon a:HOTE ; relais local : mx a ; DKIM : modèle complet."""
@@ -326,7 +326,7 @@ class Courriel(EnvTest):
         port = proc.stdout.readline().strip()
         cfg = {"SMTP_HOST": "127.0.0.1", "SMTP_PORT": port, "SMTP_SECURITY": "none",
                "NOTIFY_EMAIL_FROM": "alertes@rencontres-linux.quebec", "NOTIFY_EMAIL_TO": "info@rencontres-linux.quebec"}
-        m.check_email_dns = lambda c: []                                          # DNS testé ailleurs
+        m.check_email_dns = lambda c: []                                          # DNS tested elsewhere
         import io, contextlib
         f = io.StringIO()
         with contextlib.redirect_stdout(f):
@@ -345,7 +345,7 @@ class Courriel(EnvTest):
         import email.policy
         msg = email.message_from_string(message, policy=email.policy.default)
         self.assertTrue(str(msg["Subject"]).startswith("[app-health-check] Test d'envoi"), msg["Subject"])
-        self.assertRegex(str(msg["Message-ID"]).strip(), r"^<[^<>\s]+@rencontres-linux\.quebec>$")   # replié : espace en tête
+        self.assertRegex(str(msg["Message-ID"]).strip(), r"^<[^<>\s]+@rencontres-linux\.quebec>$")   # folded: leading space
         self.assertTrue(msg["Date"])
         self.assertEqual(msg["From"], "alertes@rencontres-linux.quebec")
 
@@ -376,7 +376,7 @@ class ProgrammeComplet(EnvTest):
         rc, out, err = self.lancer()
         self.assertNotIn("Traceback", err)
         self.assertRegex(out, r"Résumé : \d+ échec\(s\) sur \d+ vérification\(s\)\.")
-        self.assertNotIn("\x1b[", out)                                   # sortie capturée : jamais de couleur
+        self.assertNotIn("\x1b[", out)                                   # captured output: never color
         self.assertIn("Rapport app-health-check.py v", out)
 
     def test_relais_injoignable_signale_sans_arret(self):
@@ -439,14 +439,14 @@ class ConfigurationEnCouches(EnvTest):
         prog = self.prepare("app-health-check.py")
         cfg = self.write("ahc.conf", "ODOO_PUBLIC_HOST=www.exemple.org\nSMTP_PASSWORD=motdepasse\n")
         rc, out, err = self.run_cmd(["python3", prog, "--report-err", "--check-email-dns", "-c", cfg, "--app", "odoo"])
-        self.assertEqual(rc, 1, err)                                                # code conservé (courriel non configuré)
+        self.assertEqual(rc, 1, err)                                                # code kept (e-mail not configured)
         self.assertLess(out.index("[FAIL] courriel non configuré"), out.index("RAPPORT D'ERREURS"))
         rapport = out[out.index("RAPPORT D'ERREURS"):]
         self.assertRegex(rapport, r"Programme : app-health-check\.py v2\.\d+\.\d{8}\.\d{6} — commande : app-health-check\.py --check-email-dns -c \S+ --app odoo\n")
         self.assertIn("Contexte  : Application : Odoo", rapport)
         self.assertIn("Configuration lue : ", rapport)
         self.assertIn("ÉCHECS (1) :\n  1. [FAIL] courriel non configuré", rapport)
-        self.assertIn("voir doc/email-setup.md", rapport)                          # ligne de détail
+        self.assertIn("voir doc/email-setup.md", rapport)                          # detail line
         self.assertNotIn("motdepasse", out)
         rc, out, err = self.run_cmd(["python3", prog, "--version", "--report-err"])
         self.assertEqual(rc, 0, err)
@@ -458,10 +458,10 @@ class ConfigurationEnCouches(EnvTest):
         b = self.write("b.conf", "ODOO_PUBLIC_HOST=b.exemple.org\nEXPECT_RESTRICTED_ACCESS=true\n")
         cfg = m.load_config([a, b])
         self.assertEqual(cfg["ODOO_PUBLIC_HOST"], "b.exemple.org")              # le dernier l'emporte
-        self.assertEqual(cfg["SMTP_HOST"], "smtp.a")                            # ce qui n'est pas redéfini vient du premier
+        self.assertEqual(cfg["SMTP_HOST"], "smtp.a")                            # what is not redefined comes from the first
         self.assertEqual(cfg["EXPECT_GOOGLE_OAUTH"], "true")
         self.assertEqual(cfg["EXPECT_RESTRICTED_ACCESS"], "true")
-        self.assertEqual(m.load_config(a)["ODOO_PUBLIC_HOST"], "a.exemple.org")  # un seul chemin : inchangé
+        self.assertEqual(m.load_config(a)["ODOO_PUBLIC_HOST"], "a.exemple.org")  # a single path: unchanged
 
     def module_redirige(self):
         """Copie du programme dont « /etc/default/ » pointe vers un dossier de test : les fonctions qui RENOMMENT des fichiers
@@ -509,7 +509,7 @@ class ConfigurationEnCouches(EnvTest):
             chemins = m.resolve_config_paths(None)
         self.assertEqual(chemins, [defaut + "app-health-check.conf"])
         self.assertFalse(os.path.exists("./app-health-check.conf"))
-        self.assertEqual(m.load_config(chemins)["ODOO_PUBLIC_HOST"], "www.exemple.org")   # contenu conservé
+        self.assertEqual(m.load_config(chemins)["ODOO_PUBLIC_HOST"], "www.exemple.org")   # content kept
         self.assertIn("Migration", e.getvalue())
 
     def test_affichage_des_fichiers_lus_et_des_options(self):
@@ -559,7 +559,7 @@ class ConfigurationEnCouches(EnvTest):
         self.write("etc-default/app-health-check.conf", "ODOO_PUBLIC_HOST=www.exemple.org\nSMTP_HOST=smtp.exemple.org\nNOTIFY_EMAIL_TO=a@exemple.org\n")
         self.write("home-vide/.app-health-check.conf", "EXPECT_RESTRICTED_ACCESS=true\n")
         self.env["HOME"] = home
-        rc, out, err = self.run_cmd(["python3", prog, "--check-email-dns"])      # affiche la configuration lue, sans vérifications réseau
+        rc, out, err = self.run_cmd(["python3", prog, "--check-email-dns"])      # shows the configuration read, without network checks
         self.assertIn(f"Configuration lue : {defaut}app-health-check.conf, puis {home}/.app-health-check.conf (le dernier l'emporte)", sans_date(out))
         self.assertIn("site www.exemple.org", out)
         self.assertIn("instance non publique : yes", out)                       # vient du fichier de ~

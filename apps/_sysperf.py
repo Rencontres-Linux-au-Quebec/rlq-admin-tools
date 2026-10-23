@@ -1,15 +1,15 @@
 #!/usr/bin/env python3
 # ========================================================================================================================
 # Copyright (C) 2026 Services-Conseils Linux Inc.
-# Copyright (C) 2026 Rencontres Linux au Québec contributors
+# Copyright (C) 2026 Rencontres Linux au Quebec contributors
 #
 # This program is free software: you can redistribute it and/or modify it under the terms of the GNU Affero General Public
 # License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
 # Full text: https://www.gnu.org/licenses/agpl-3.0.html
 # ========================================================================================================================
 #
-# _sysperf.py — performance counters of the machine read from /proc and /sys, WITHOUT any external command (shared module, apps/):
-# processor (busy, iowait, steal), pressure stall information (PSI: cpu, io, memory — host or container cgroup), disks (% utilization, wait per
+# _sysperf.py - performance counters of the machine read from /proc and /sys, WITHOUT any external command (shared module, apps/):
+# processor (busy, iowait, steal), pressure stall information (PSI: cpu, io, memory - host or container cgroup), disks (% utilization, wait per
 # operation, operations and bytes per second), memory, network, ZFS ARC. Used by app-log-live.py (latency of the requests: is it the disk?) and
 # host-perf-audit.py (Proxmox host: what limits the performance).
 #
@@ -26,7 +26,7 @@ import os
 import re
 import time
 
-__version__ = "1.2.20261019.150215"
+__version__ = "1.3.20261022.231529"
 
 ROOT = os.environ.get("NGINX_TOOLS_PROC_ROOT", "")
 SKIP_DEVICES = ("loop", "ram", "zram", "sr", "fd", "nbd")

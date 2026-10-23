@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 # ========================================================================================================================
 # Copyright (C) 2026 Services-Conseils Linux Inc.
-# Copyright (C) 2026 Rencontres Linux au Québec contributors
+# Copyright (C) 2026 Rencontres Linux au Quebec contributors
 #
 # This program is free software: you can redistribute it and/or modify it under the terms of the GNU Affero General Public
 # License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
 # Full text: https://www.gnu.org/licenses/agpl-3.0.html
 # ========================================================================================================================
-# _i18n.py — langue d'affichage (fr / en) des programmes Python et traduction de leurs messages (module partagé, apps/).
+# _i18n.py - display language (fr / en) of the Python programs and translation of their messages (shared module, apps/).
 #
 """Principe : les messages du programme sont écrits en français dans le code ; si la langue choisie n'est pas le français, chaque texte affiché passe par
 Traducteur, qui remplace les FRAGMENTS français connus du catalogue de cette langue par leur traduction. Les catalogues sont des fichiers PO (le format
@@ -22,12 +22,12 @@ import os
 import re
 import sys
 
-try:                    # édition de la ligne dans toutes les invites input() (retour arrière ^H ou ^?, flèches) : sans readline, un terminal qui envoie ^H affiche « ^H »
+try:                    # line editing in all the input() prompts (backspace ^H or ^?, arrows): without readline, a terminal that sends ^H displays "^H"
     import readline  # noqa: F401
 except ImportError:     # Windows, Python sans readline
     pass
 
-__version__ = "1.19.20261022.110306"
+__version__ = "1.20.20261022.231529"
 LANGUE_SOURCE = "fr"          # langue des messages dans le code
 
 
@@ -85,7 +85,7 @@ def langue_et_origine(argv=None, variable_programme="", defaut="fr", disponibles
         else:
             continue
         if v.lower() in disponibles:
-            return v.lower(), ""                          # la ligne de commande : rien à expliquer
+            return v.lower(), ""                          # the command line: nothing to explain
     for nom, v in [("NGINX_TOOLS_LANG", os.environ.get("NGINX_TOOLS_LANG", ""))] + ([(variable_programme, os.environ.get(variable_programme, ""))] if variable_programme else []):
         if v.strip():
             return _code(v, disponibles) or "en", f"{nom}={v.strip()}"
@@ -171,7 +171,7 @@ MOTS_FRANCAIS = re.compile(r"\b(?:le|la|les|des|du|une?|aucune?|pas|est|sont|ave
 
 
 ANSI = re.compile(r"\x1b\[[0-9;]*[A-Za-z]")
-CHEMINS = re.compile(r"(?<!\w)/\S+|\S*[_$]\S*")        # chemins et URL (« /event/journee-portes-ouvertes-sur-linux »), noms de variables : des DONNÉES, pas des phrases françaises restées à traduire
+CHEMINS = re.compile(r"(?<!\w)/\S+|\S*[_$]\S*")        # paths and URLs ("/event/journee-portes-ouvertes-sur-linux"), variable names: DATA, not French sentences left to translate
 
 
 class Traducteur:
@@ -181,20 +181,20 @@ class Traducteur:
     NGINX_TOOLS_I18N_DEBUG=FICHIER : ces lignes restées en français y sont ajoutées (diagnostic des fragments manquants). Sans catalogue : texte inchangé."""
     def __init__(self, catalogue):
         self.table = dict(catalogue)
-        for cle, valeur in list(self.table.items()):      # variantes automatiques : sans espaces finaux (texte « strip »é), première lettre en minuscule (« installer … » après « a) »)
+        for cle, valeur in list(self.table.items()):      # automatic variants: without trailing spaces ("strip"ped text), first letter in lower case ("installer ..." after "a)")
             variantes = [(cle.rstrip(), valeur.rstrip())] if cle != cle.rstrip() and len(cle.rstrip()) >= 12 else []
             for k, v in [(cle, valeur)] + variantes:
                 if k[:1].isupper() and k[1:2].islower() and v[:1].isupper() and v[1:2].islower():
                     variantes.append((k[0].lower() + k[1:], v[0].lower() + v[1:]))
             for k, v in variantes:
                 self.table.setdefault(k, v)
-        for cle, valeur in list(self.table.items()):      # étiquette à remplissage INTERNE (« IP les plus actives      : ») : la traduction garde la même largeur
+        for cle, valeur in list(self.table.items()):      # label with INTERNAL padding ("most active IPs      :"): the translation keeps the same width
             self.table[cle] = self._meme_largeur(cle, valeur)
         self.cles = sorted(self.table, key=lambda k: (-len(k), k))
         self.multi = [k for k in self.cles if "\n" in k]
         self.simples = [k for k in self.cles if "\n" not in k]
         self.motifs, self.cache = {}, {}
-        self.langue = None          # code de la langue d'affichage (renseigné par traducteur()) : règles propres à la langue (_locale)
+        self.langue = None          # code of the display language (set by traducteur()): rules specific to the language (_locale)
 
     def __bool__(self):
         return bool(self.table)
@@ -222,9 +222,9 @@ class Traducteur:
             motif = self.motifs[id(cles)] = re.compile("(?:" + "|".join(morceaux) + ")(\ue000*)( {2,})?") if morceaux else False
         if not motif:
             return texte
-        # Le plus long gagne même s'il commence plus loin : « , propriétaire du bloc d'adresses » (module) ne coupe plus « propriétaire du bloc d'adresses (org / réseau) » (programme)
+        # The longest wins even if it starts further on: ", owner of the address block" (module) no longer cuts "owner of the address block (org / network)" (program)
         morceaux, pos, n = [], 0, len(texte)
-        reste = 0          # écart de longueur d'un fragment NON suivi de remplissage (« Disque » + chemin) : absorbé par le prochain remplissage de la ligne (colonnes alignées)
+        reste = 0          # length difference of a fragment NOT followed by padding ("Disk" + path): absorbed by the next padding of the line (columns aligned)
         while pos <= n:
             m = motif.search(texte, pos)
             if m is None:
@@ -284,7 +284,7 @@ class Traducteur:
         if res is not None:
             return res
         codes = ANSI.findall(texte) if "\x1b" in texte else []
-        if codes:                                           # codes de couleur : masqués pendant la traduction (sinon « \x1b[36mce serveur » n'est pas un mot entier), puis remis en place
+        if codes:                                           # color codes: hidden during translation (otherwise "\x1b[36mthis server" is not a whole word), then put back in place
             res = self._traduire(ANSI.sub("\ue000", texte))
             if res.count("\ue000") == len(codes):
                 it = iter(codes)
@@ -330,11 +330,11 @@ def traducteur(langue_choisie, dossier_programme, programme, supplementaires=())
     for nom in noms:
         for fr, traduit in lire_po(os.path.join(dossier_programme, "lang", f"{nom}.{langue_choisie}.po")):
             if fr and traduit:                           # msgstr vide : non traduit ; identique au msgid : valable dans les deux langues, MAIS il compte (il masque la traduction d'un module)
-                catalogue.setdefault(fr, traduit)        # le catalogue du programme l'emporte sur ceux des modules affichés (même fragment, autre traduction)
+                catalogue.setdefault(fr, traduit)        # the program's catalogue wins over those of the displayed modules (same fragment, other translation)
     if langue_choisie == source and catalogue:
-        # Programme écrit dans la langue choisie : ses propres mots ne doivent pas être « retraduits » par un fragment d'un catalogue de module écrit dans une autre
-        # langue (ex. le « journal » anglais du programme ne devient pas « log » à cause de la clé française « journal »). Les clés dont le texte figure dans les
-        # messages du programme sont donc ignorées (les clés identiques à leur traduction, qui masquent une traduction, restent).
+        # Program written in the chosen language: its own words must not be "re-translated" by a fragment of a module catalogue written in another
+        # language (e.g. the English "journal" of the program does not become "log" because of the French key "journal"). The keys whose text appears in the
+        # messages of the program are therefore ignored (keys identical to their translation, which hide a translation, remain).
         propres = []
         for chemin in glob.glob(os.path.join(dossier_programme, "lang", f"{programme}.*.po")):
             if chemin.endswith(f".{source}.po"):         # 1.15: old catalog of the time the program was written in the other language (residual file): its msgids are NOT the program's words
@@ -398,7 +398,7 @@ class Contexte:
         self.langue, self.origine_langue = langue_et_origine(self.argv, variable, disponibles=self.disponibles, configuration=self.config.get("LANGUAGE", ""))
         self.tr = traducteur(self.langue, dossier, programme, supplementaires)
         self._print, self._input = print, input
-        if argv is None:                                  # exécution réelle du programme (pas une analyse d'arguments d'un autre) : --anonymize relance derrière le filtre
+        if argv is None:                                  # real execution of the program (not an analysis of another program's arguments): --anonymize relaunches behind the filter
             try:
                 anonymiser = _module_voisin("_anonymiser")
             except Exception:
@@ -426,7 +426,7 @@ class Contexte:
             return {}, [f"apps/_config.py illisible ({e})"]
 
     def oui_non(self, valeur):
-        return "yes" if valeur else "no"          # 1.19 : valeurs des options en anglais seulement (les mêmes mots que dans le fichier de configuration)
+        return "yes" if valeur else "no"          # 1.19: option values in English only (the same words as in the configuration file)
 
     def options_importantes(self, defauts):
         """Résumé « --lang fr · --days 7 · … » des valeurs venant du fichier de configuration."""
@@ -437,7 +437,7 @@ class Contexte:
         sortie = sortie or self.print
         if "--changelog" in sys.argv:          # --changelog n'affiche que le journal : pas de bandeau de configuration
             return
-        if os.environ.get("NGINX_TOOLS_CONFIG_VUE"):          # déjà affichée par le programme appelant : pas de répétition dans les sorties qu'il analyse
+        if os.environ.get("NGINX_TOOLS_CONFIG_VUE"):          # already displayed by the calling program: no repetition in the outputs it parses
             return
         os.environ["NGINX_TOOLS_CONFIG_VUE"] = "1"
         try:
@@ -451,14 +451,14 @@ class Contexte:
             francais = _module_voisin("_config").valeurs_francaises(self.config)
         except Exception:
             francais = []
-        for p in francais:                 # 1.19 : valeurs en anglais seulement ; l'ancienne valeur française est lue quand même
+        for p in francais:                 # 1.19: values in English only; the old French value is still read anyway
             self.print(f"  ATTENTION : valeur en français, écrire l'anglais dans le fichier de configuration : {p}", file=sys.stderr)
 
 
 def _analyseur(ctx):
     class ArgumentParserLocalise(argparse.ArgumentParser):
         def __init__(self, *args, **kwargs):
-            kwargs.setdefault("formatter_class", AideTriee)             # options par ordre alphabétique
+            kwargs.setdefault("formatter_class", AideTriee)             # options in alphabetical order
             if kwargs.get("description"):
                 kwargs["description"] = ctx.tr(kwargs["description"])
             super().__init__(*args, **kwargs)
@@ -563,7 +563,7 @@ def installer_confirmation_ctrl_c(tr=None):
     etat = {"question": False}
 
     def gestionnaire(numero, cadre):
-        if etat["question"]:                           # Ctrl+C pendant la question : confirmé
+        if etat["question"]:                           # Ctrl+C during the question: confirmed
             signal.signal(signal.SIGINT, signal.SIG_DFL)
             raise KeyboardInterrupt
         etat["question"] = True
@@ -571,7 +571,7 @@ def installer_confirmation_ctrl_c(tr=None):
             sys.stderr.write("\r\n" + tr(QUESTION_CTRL_C))
             sys.stderr.flush()
             try:
-                reponse = _lire_reponse_terminal()     # pas input() : « can't re-enter readline » si Ctrl+C arrive pendant un input()
+                reponse = _lire_reponse_terminal()     # not input(): "can't re-enter readline" if Ctrl+C arrives during an input()
                 confirme = reponse.strip().lower() in REPONSES_OUI
             except EOFError:                           # fin de fichier : oui
                 confirme = True

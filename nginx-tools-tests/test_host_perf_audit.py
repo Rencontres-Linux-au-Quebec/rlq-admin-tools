@@ -1,7 +1,7 @@
 """host-perf-audit.py (1.0) et apps/_sysperf.py : ce qui limite les performances d'un hôte Proxmox — processeur, mémoire, disques, ZFS, réseau, invités —,
 verdict, réponse à « des disques SSD sont-ils justifiés ? », réglages suggérés, --csv, Ctrl-C. Faux /proc, /sys, /etc/pve, zpool et zfs : aucune mesure réelle."""
 # Environnement de ces tests, lu par run-all.sh : commun (tous les serveurs), odoo ou bbb.
-ENVIRONNEMENT = "commun"   # programme pour l'hôte Proxmox : testé partout
+ENVIRONNEMENT = "commun"   # program for the Proxmox host: tested everywhere
 import importlib.util
 import io
 import os
@@ -69,9 +69,9 @@ class SysPerf(unittest.TestCase):
         m = charger("sp_t", "apps/_sysperf.py", {"NGINX_TOOLS_PROC_ROOT": d})
         faux_proc(d)
         a = m.snapshot()
-        self.assertEqual(sorted(a["disks"]), ["sda"])                         # partition et loop ignorées
+        self.assertEqual(sorted(a["disks"]), ["sda"])                         # partition and loop ignored
         self.assertEqual(a["psi_source"], "/sys/fs/cgroup")
-        # 10 s plus tard : 50 % occupé, 10 % iowait ; disque occupé 8 s sur 10 ; 2 s d'attente E-S
+        # 10 s later: 50 % busy, 10 % iowait; disk busy 8 s out of 10; 2 s of I/O wait
         faux_proc(d, ticks=(1400, 0, 600, 8400, 200, 0, 0, 0), io_total=2_000_000, disque=(200, 0, 1600, 2050, 100, 0, 1200, 4000, 0, 8900, 9200))
         b = m.snapshot()
         b["t"] = a["t"] + 10.0
@@ -80,7 +80,7 @@ class SysPerf(unittest.TestCase):
         self.assertAlmostEqual(r["cpu"]["iowait"], 10.0, places=1)
         self.assertAlmostEqual(r["disks"]["sda"]["util"], 80.0, places=1)
         self.assertAlmostEqual(r["disks"]["sda"]["r_await"], 20.0, places=1)    # 2000 ms pour 100 lectures
-        self.assertAlmostEqual(r["disks"]["sda"]["w_await"], 40.0, places=1)    # 4000 ms pour 100 écritures
+        self.assertAlmostEqual(r["disks"]["sda"]["w_await"], 40.0, places=1)    # 4000 ms for 100 writes
         self.assertAlmostEqual(r["psi"]["io"]["some"], 20.0, places=1)          # 2 s sur 10 s
         self.assertEqual(m.busiest_disk(r), ("sda", r["disks"]["sda"]["util"]))
         self.assertTrue(m.rotational("sda"))
@@ -118,13 +118,13 @@ class Rapport(unittest.TestCase):
         self.assertIn("disks are the LIMIT", texte)
         self.assertEqual(fd.verdicts["disks"][0], "bad")
         self.assertIn("this program used 0.12 s of processor in all", texte)
-        self.assertIn("« special » mirrored SSD", texte)                                 # étape intermédiaire avant de tout remplacer
+        self.assertIn("« special » mirrored SSD", texte)                                 # intermediate step before replacing everything
 
     def test_hdd_calmes_ssd_non_justifies(self):
         texte, fd = self.rapport(self.echantillons(util=8.0, io_some=0.5, await_ms=6.0))
         self.assertIn("NO: the HDD are not a limit for this load", texte)
         self.assertEqual(fd.verdicts["disks"][0], "ok")
-        self.assertIn("ARC hit ratio only 80 %", " ".join(t for _, t, _, _ in fd.suggestions))     # RAM libre : ARC plus grand suggéré, avec --apply
+        self.assertIn("ARC hit ratio only 80 %", " ".join(t for _, t, _, _ in fd.suggestions))     # free RAM: larger ARC suggested, with --apply
 
     def test_aucun_echantillon(self):
         texte, fd = self.rapport([])
@@ -180,7 +180,7 @@ esac''')
         self.assertIn("     --apply : zfs set compression=lz4 rpool/data", out)
         self.assertIn("disponible au moins 15.3 Gio (moyenne 15.3 Gio)", out)
         self.assertIn("file synchrone en écriture 40.0 ms", out)
-        self.assertNotIn("Processeurs les processeurs sont parfois saturés", out)          # compteurs figés : pas de faux 100 %
+        self.assertNotIn("Processeurs les processeurs sont parfois saturés", out)          # frozen counters: no false 100 %
         self.assertIn("dataset rpool/data : atime=on sans relatime", out)
         self.assertIn("VM 120 (bbb3) : disque sur le bus SATA (émulé, lent)", out)
         self.assertIn("VM 120 (bbb3) : le type de CPU kvm64", out)

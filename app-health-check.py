@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
 # ========================================================================================================================
 # Copyright (C) 2026 Services-Conseils Linux Inc.
-# Copyright (C) 2026 Rencontres Linux au Québec contributors
+# Copyright (C) 2026 Rencontres Linux au Quebec contributors
 #
 # This program is free software: you can redistribute it and/or modify it under the terms of the GNU Affero General Public
 # License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
 # Full text: https://www.gnu.org/licenses/agpl-3.0.html
 # ========================================================================================================================
 #
-# app-health-check.py — quick check (nginx + application) to run before/after an update, or continuously from
+# app-health-check.py - quick check (nginx + application) to run before/after an update, or continuously from
 # cron (2-3 times a day recommended). No external dependency: only the Python 3 standard library.
 #
 #
@@ -23,12 +23,12 @@
 #                        including the bad-bot exemption for local requests.
 #   --target external : connection through the real domain name (real DNS), certificate verified normally. For a TRULY external
 #                        test (one that would detect a firewall or DNS problem, or a block specific to an IP range),
-#                        run this script from a machine DIFFERENT from the server (your workstation, a small monitoring VPS) — run
+#                        run this script from a machine DIFFERENT from the server (your workstation, a small monitoring VPS) - run
 #                        from the server itself in "external" mode, it still exercises the whole real nginx path, just from the same machine.
 #   --create-config [PATH] : generates the configuration file (default: /etc/default/app-health-check.conf) by
 #                        DETECTING on this server: ODOO_PUBLIC_HOST (the name that serves the site) and
 #                        ADDITIONAL_PUBLIC_HOSTS (those that redirect to it), from nginx -T and a local HTTPS request
-#                        per name; EXPECT_RESTRICTED_ACCESS (true only for « -dev. » or « .dev. »); ODOO_DB
+#                        per name; EXPECT_RESTRICTED_ACCESS (true only for "-dev." or ".dev."); ODOO_DB
 #                        (-d of the systemd unit, otherwise db_name of odoo.conf); EXPECT_GOOGLE_OAUTH (current state of
 #                        /web/login). Passwords, SMTP and recipients are left commented out, never guessed.
 #                        Permissions 600. If several names serve a site: a question on a terminal, otherwise the first one.
@@ -36,7 +36,7 @@
 #   -v/--verbose       : also shows, at the start of the analysis, the detected Odoo version and the configured database
 #                        name, as well as every HTTP request made during the checks.
 #
-# Configuration files (KEY=VALUE, one per line, # for a comment) — see doc/app-health-check.conf.example. READ IN THIS
+# Configuration files (KEY=VALUE, one per line, # for a comment) - see doc/app-health-check.conf.example. READ IN THIS
 # ORDER and merged (the last one wins): (1) /etc/default/app-health-check.conf, (2) ~/.app-health-check.conf if it exists;
 # the current directory is no longer read; -c/--config: that file ALONE. The files read and the important options are always
 # displayed. Recommended permissions: chmod 600, owner root or the user who runs the cron job.
@@ -51,7 +51,7 @@ import importlib.util
 import json
 import os
 import re
-try:                    # line editing in prompts (backspace ^H or ^?, arrows): without readline, input() shows « ^H »
+try:                    # line editing in prompts (backspace ^H or ^?, arrows): without readline, input() shows "^H"
     import readline  # noqa: F401
 except ImportError:
     pass
@@ -66,8 +66,8 @@ import sys
 import time
 from urllib.parse import urlparse, parse_qs, unquote
 
-__version__ = "2.28.20261022.171858"
-# Marker added at the END of the « browser » User-Agent (2.2): our test requests are recognizable in all the
+__version__ = "2.29.20261022.231529"
+# Marker added at the END of the "browser" User-Agent (2.2): our test requests are recognizable in all the
 # logs (nginx, Odoo) and excluded from the statistics by web-monitor.py. Matches no pattern of the bot filter.
 UA_MARKER = " app-health-check/" + ".".join(__version__.split(".")[:2])
 
@@ -96,7 +96,7 @@ def lang_origin():
     return f" ({origin})" if origin else ""
 TR = I18N.tr if I18N else (lambda text: text)
 if I18N:
-    print, input = I18N.print, I18N.input          # noqa: A001 — every displayed text goes through the translator (no effect when the display language is the source language)
+    print, input = I18N.print, I18N.input          # noqa: A001 - every displayed text goes through the translator (no effect when the display language is the source language)
 
 
 def _target(value):
@@ -109,7 +109,7 @@ def _target(value):
 # APP: application (profile), LANGUAGE: en, fr or auto (follow LC_ALL / LANG), TARGET: local or external, VERBOSE: yes / no.
 SCHEMA_CONFIG = {"APP": ("app", str), "TARGET": ("target", _target), "VERBOSE": ("verbose", bool)}
 
-# Forces the output encoding to UTF-8, whatever the system locale — cron and some services often run
+# Forces the output encoding to UTF-8, whatever the system locale - cron and some services often run
 # with a minimal locale (C/POSIX), which can degrade the display of accented characters, or even
 # crash print() with UnicodeEncodeError. reconfigure() exists since Python 3.7.
 for _stream in (sys.stdout, sys.stderr):
@@ -141,7 +141,7 @@ def personal_config_path():
         module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(module)
         return module.migrer_ancien(path)
-    except Exception:                                    # noqa: BLE001 — apps/_config.py missing or unreadable: the rule without migration
+    except Exception:                                    # noqa: BLE001 - apps/_config.py missing or unreadable: the rule without migration
         return path
 
 
@@ -165,7 +165,7 @@ def resolve_config_paths(explicit_path):
         real = os.path.realpath(candidat)
         if os.path.isfile(candidat) and real not in seen:
             seen.add(real)
-            # 2.28 : présent mais illisible (ex. 600 root) : signalé, jamais pris pour « aucune configuration » (courriel « non configuré » à tort)
+            # 2.28: present but unreadable (e.g. 600 root): reported, never taken for "no configuration" (e-mail "not configured" wrongly)
             if os.access(candidat, os.R_OK):
                 found_list.append(candidat)
             else:
@@ -306,7 +306,7 @@ class Http:
         # Default browser UA for EVERY normal request: "app-health-check/1.0" (the former default) was
         # blocked at least once in real conditions (seen in an nginx-log-audit.sh --details report,
         # bad-bot section), skewing the result of a test that had nothing to do with bot blocking.
-        # The few tests that DELIBERATELY check the blocking (curl, SERankingBacklinksBot, etc. — see further
+        # The few tests that DELIBERATELY check the blocking (curl, SERankingBacklinksBot, etc. - see further
         # down in check_http) pass their own User-Agent through extra_headers, which always takes precedence.
         default_ua = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36" + UA_MARKER
         headers = {"User-Agent": extra_headers.pop("User-Agent", default_ua)} if extra_headers else {
@@ -343,7 +343,7 @@ class Http:
                 if parsed.query:
                     next_path += "?" + parsed.query
                 # If the redirection changes domain, it is followed with the SAME connection mode (local/external)
-                # but a new Host — useful to check the complete chain (e.g. apex -> www).
+                # but a new Host - useful to check the complete chain (e.g. apex -> www).
                 sub = Http(self.connect_host, self.connect_port, next_host_header, self.verify_tls, self.timeout, self.verbose)
                 sub.cookies = dict(self.cookies)
                 return sub.request(method, next_path, body, dict(extra_headers or {}), follow_redirects - 1)
@@ -354,7 +354,7 @@ class Http:
 # ------------------------------------------------------------------------------------------------------------------
 # Banner at the start of the analysis: detected Odoo version (public route /web/webclient/version_info, needs
 # no authentication) and configured database name. Displayed unconditionally at the start of
-# the analysis (not only in verbose mode) — verbose mode also adds the detail of each HTTP request.
+# the analysis (not only in verbose mode) - verbose mode also adds the detail of each HTTP request.
 # ------------------------------------------------------------------------------------------------------------------
 def print_odoo_banner(cfg, target, verbose=False):
     host = cfg["ODOO_PUBLIC_HOST"]
@@ -455,9 +455,9 @@ def check_http(cfg, target, verbose=False):
     missing = [h for h in expected_headers if h not in headers]
     results.append(("Security headers present", not missing, f"manquants: {missing}" if missing else "OK"))
 
-    # Non-public instance (EXPECT_RESTRICTED_ACCESS=true): nginx itself serves an « everything forbidden » robots.txt
-    # (map $robots_disallow_all in conf.d/odoo-global.conf), in place of the one generated by Odoo — the robots.txt checks
-    # therefore expect « Disallow: / » rather than the Sitemap and anti-facet rules of PROD.
+    # Non-public instance (EXPECT_RESTRICTED_ACCESS=true): nginx itself serves an "everything forbidden" robots.txt
+    # (map $robots_disallow_all in conf.d/odoo-global.conf), in place of the one generated by Odoo - the robots.txt checks
+    # therefore expect "Disallow: /" rather than the Sitemap and anti-facet rules of PROD.
     restricted = cfg.get("EXPECT_RESTRICTED_ACCESS", "false").lower() == "true"
 
     def robots_ok(status, body):
@@ -468,7 +468,7 @@ def check_http(cfg, target, verbose=False):
     robots_attendu = "« Disallow: / » (non-public instance)" if restricted else "« Sitemap » (Odoo's robots.txt)"
 
     def robots_detail(status, body):
-        # Public mode but « everything forbidden » robots.txt: two possible causes, with opposite consequences.
+        # Public mode but "everything forbidden" robots.txt: two possible causes, with opposite consequences.
         if not restricted and status == 200 and re.search(rb"(?m)^Disallow:\s*/\s*$", body):
             return (f"status: {status} — robots.txt FORBIDS THE WHOLE SITE (« Disallow: / »). Non-public instance "
                     "(DEV/LAB): normal, add EXPECT_RESTRICTED_ACCESS=true to the configuration file "
@@ -476,7 +476,7 @@ def check_http(cfg, target, verbose=False):
                     "$robots_disallow_all (conf.d/odoo-global.conf) and the robots.txt configured in Odoo.")
         return f"status: {status}, expected: {robots_attendu}"
 
-    # 3) robots.txt (historical bug: wrongly blocked by the .txt extensions rule — see securite-commune.conf)
+    # 3) robots.txt (historical bug: wrongly blocked by the .txt extensions rule - see securite-commune.conf)
     try:
         status, _, body_robots = client().request("GET", "/robots.txt")
         ok = robots_ok(status, body_robots)
@@ -492,14 +492,14 @@ def check_http(cfg, target, verbose=False):
         results.append(("/sitemap.xml", False, f"exception: {e}"))
 
     # 5) Login page + Google OAuth link: checks that redirect_uri points to the REAL domain (regression
-    #    test of the fixed bug — redirect_uri used to point to "http://odoo/..." before the fix).
+    #    test of the fixed bug - redirect_uri used to point to "http://odoo/..." before the fix).
     # EXPECT_GOOGLE_OAUTH in the configuration (true/false, default false): if true, the ABSENCE of the link becomes a real
-    # failure (FAIL) rather than a simple piece of information — useful if you know that Google must be active on this
+    # failure (FAIL) rather than a simple piece of information - useful if you know that Google must be active on this
     # instance and want to be alerted if it disappears.
     expect_oauth = cfg.get("EXPECT_GOOGLE_OAUTH", "false").lower() == "true"
     try:
         # follow_redirects: Odoo redirects /web/login to the version in the visitor's language (303 to
-        # /en_CA/web/login); without following, the « Redirecting... » page (219 bytes) was analyzed, without a Google link —
+        # /en_CA/web/login); without following, the "Redirecting..." page (219 bytes) was analyzed, without a Google link -
         # a false failure although the Google login worked. --create-config already followed redirections, hence
         # EXPECT_GOOGLE_OAUTH=true detected then contradicted by this check.
         status, _, body_login = client().request("GET", "/web/login", follow_redirects=3)
@@ -549,7 +549,7 @@ def check_http(cfg, target, verbose=False):
         results.append(("Authentification Google (OAuth)", False, f"exception: {e}"))
 
     # 6) DB manager: must NOT be open to the public. EXCEPTION: in "local" mode, 127.0.0.1 is
-    # now explicitly allowed in env-*.conf (for this script and manual diagnostics) — a 200 is
+    # now explicitly allowed in env-*.conf (for this script and manual diagnostics) - a 200 is
     # therefore expected and correct there, not a leak. In "external" mode, a 200 stays abnormal unless explicitly configured.
     default_expect_open = "true" if target == "local" else "false"
     expect_open = cfg.get("EXPECT_DB_MANAGER_OPEN", default_expect_open).lower() == "true"
@@ -560,14 +560,14 @@ def check_http(cfg, target, verbose=False):
         detail = f"status: {status} (open expected: {expect_open}, default for this mode: {default_expect_open})"
         if not ok and target == "local" and is_open and "EXPECT_DB_MANAGER_OPEN" in cfg:
             # Typical case: EXPECT_DB_MANAGER_OPEN=false written in the configuration (by --create-config before
-            # 1.18), which forces « closed » even locally, where 127.0.0.1 is allowed by the nginx whitelist.
+            # 1.18), which forces "closed" even locally, where 127.0.0.1 is allowed by the nginx whitelist.
             detail += (" — locally, 127.0.0.1 is on the nginx allow list: 200 is NORMAL. Remove (or comment out) EXPECT_DB_MANAGER_OPEN from the configuration file: the default expectation depends on the mode (closed with --target external, the real check of the protection).")
         results.append(("/web/database/manager stays protected", ok, detail))
     except Exception as e:
         results.append(("/web/database/manager stays protected", False, f"exception: {e}"))
 
     # 7) Bad-bot blocking: in external mode, a "curl" UA must be blocked (403). In local mode, it must PASS
-    #    (exemption $is_internal_client) — both check the same rule from a different angle.
+    #    (exemption $is_internal_client) - both check the same rule from a different angle.
     try:
         status, _, _ = client().request("GET", "/", extra_headers={"User-Agent": "curl/8.14.1"})
         if target == "external":
@@ -593,7 +593,7 @@ def check_http(cfg, target, verbose=False):
         results.append(("Asset statique JS", False, f"exception: {e}"))
 
     # 9) New commercial bots added to bot_blocker.conf: must be blocked like the others. Only
-    #    meaningful in external mode (locally, $is_internal_client exempts any UA blocking — see check 7).
+    #    meaningful in external mode (locally, $is_internal_client exempts any UA blocking - see check 7).
     if target == "external":
         for bot_ua in ("SERankingBacklinksBot", "GeedoShopProductFinder"):
             try:
@@ -606,7 +606,7 @@ def check_http(cfg, target, verbose=False):
                          "test not applicable in local mode ($is_internal_client exempts all blocking by UA) — run again with --target external"))
 
     # 10) /robots.txt must stay reachable EVEN to a recognized bad bot (otherwise it never sees the Disallow that
-    #     concerns it — counter-productive). Only meaningful in external mode, for the same reason as above.
+    #     concerns it - counter-productive). Only meaningful in external mode, for the same reason as above.
     if target == "external":
         try:
             status, _, body_robots_bot = client().request("GET", "/robots.txt", extra_headers={"User-Agent": "Mozilla/5.0 (compatible; AhrefsBot/7.0; +http://ahrefs.com/robot/)"})
@@ -621,7 +621,7 @@ def check_http(cfg, target, verbose=False):
 
     # 11) Directory traversal IN THE QUERY STRING (not only the path): must be blocked by NGINX
     #     (rule 3, securite-commune.conf), not let through to Odoo. Both produce a 404 status, so
-    #     the status alone cannot tell them apart — Odoo's error page (rendered by its website
+    #     the status alone cannot tell them apart - Odoo's error page (rendered by its website
     #     theme, several KB with CSS/JS) is much larger than nginx's minimal 404 page
     #     (a few hundred bytes at most, no layout). A short body is therefore a reliable sign
     #     that NGINX answered, not Odoo.
@@ -636,8 +636,8 @@ def check_http(cfg, target, verbose=False):
         ))
     except Exception as e:
         results.append(("Traversal in the query string blocked by nginx", False, f"exception: {e}"))
-    # Sensitive files refused by nginx ITSELF (rule « location ~ /\. » of securite-commune.conf): small nginx
-    # 404 page, never Odoo's 404 page — otherwise these requests reach the application (recommendation of the summary).
+    # Sensitive files refused by nginx ITSELF (rule "location ~ /\." of securite-commune.conf): small nginx
+    # 404 page, never Odoo's 404 page - otherwise these requests reach the application (recommendation of the summary).
     try:
         passes = []
         for path in ("/.env", "/en_CA/.env", "/.git/config"):
@@ -653,7 +653,7 @@ def check_http(cfg, target, verbose=False):
     # 12) DEV/LAB only (EXPECT_RESTRICTED_ACCESS=true in the configuration): X-Robots-Tag must be present on
     #     EVERY response, including an access refusal (hence "always" on the nginx side); the refused access from a non-
     #     authorized IP only makes sense to check from the outside, and only if the machine running this script
-    #     is NOT itself on the whitelist — impossible to guarantee automatically, hence a note rather than
+    #     is NOT itself on the whitelist - impossible to guarantee automatically, hence a note rather than
     #     a decided failure/success (see the initial request: "provide an option or a warning").
     if cfg.get("EXPECT_RESTRICTED_ACCESS", "false").lower() == "true":
         try:
@@ -677,7 +677,7 @@ def check_http(cfg, target, verbose=False):
     #     > Settings > Robots.txt) against the facet trap on the events/blog page filters
     #     (e.g. /event?tags=[3,+2] generates a combinatorial explosion of indexable URLs, already seen with
     #     SERankingBacklinksBot exploring these combinations). This setting is made in the Odoo UI, NOT in
-    #     a file — this script can only VERIFY it, never apply it itself.
+    #     a file - this script can only VERIFY it, never apply it itself.
     if restricted:
         results.append(("robots.txt: facet trap /*?tags= blocked", None,
                          "not applicable on a non-public instance (robots.txt « Disallow: / » served by nginx)"))
@@ -703,10 +703,10 @@ def check_http(cfg, target, verbose=False):
 
 # ------------------------------------------------------------------------------------------------------------------
 # HSTS check + single-hop redirection, on ALL the public names of an instance (not only
-# ODOO_PUBLIC_HOST) — only has an effect if ADDITIONAL_PUBLIC_HOSTS is set in the configuration (empty by default,
+# ODOO_PUBLIC_HOST) - only has an effect if ADDITIONAL_PUBLIC_HOSTS is set in the configuration (empty by default,
 # hence no impact on DEV/LAB, which have a single name). For PROD: checks that the bare domain and the old name
 # odoo18 both redirect to https://www... in a single hop, AND that HSTS is present from the redirection
-# itself (not only on the final response) — otherwise a browser that NEVER visited www directly
+# itself (not only on the final response) - otherwise a browser that NEVER visited www directly
 # before has no HTTPS guarantee before that very first unencrypted round trip (for the HTTP entry).
 # ------------------------------------------------------------------------------------------------------------------
 TLS_DAYS_THRESHOLD = 21     # certbot renews at 30 days: under 21, the renewal has been failing for at least 9 days
@@ -814,7 +814,7 @@ def check_hsts_multi_host(cfg, target, verbose=False):
 
     for extra in extra_hosts:
         # 2) HTTP entry (port 80, cleartext): must redirect in ONE hop to https://host/, with HSTS from this
-        #    very first response — the Http class only handles HTTPS, simple HTTP request here through http.client.
+        #    very first response - the Http class only handles HTTPS, simple HTTP request here through http.client.
         try:
             conn = http.client.HTTPConnection(connect_for(extra), 80, timeout=15)
             conn.putrequest("GET", "/", skip_host=True)
@@ -854,13 +854,13 @@ def check_hsts_multi_host(cfg, target, verbose=False):
 
 # ------------------------------------------------------------------------------------------------------------------
 # Consistency between the instance NAME and EXPECT_RESTRICTED_ACCESS. This option must be active on a development
-# instance (non-public: robots.txt « Disallow: / », X-Robots-Tag noindex, IP-restricted access) and ABOVE ALL
-# NOT in PROD: there it would make the check EXPECT a « Disallow: / » robots.txt — and so hide exactly the most
+# instance (non-public: robots.txt "Disallow: /", X-Robots-Tag noindex, IP-restricted access) and ABOVE ALL
+# NOT in PROD: there it would make the check EXPECT a "Disallow: /" robots.txt - and so hide exactly the most
 # serious failure for a public site, its complete removal from the search engines.
-# Detection deliberately STRICT, on public domain names only (those robots see): an entire « dev » label
-# followed by a dot — « -dev. » (odoo-dev.example.org), « .dev. » (odoo.dev.example.org) or « dev. »
+# Detection deliberately STRICT, on public domain names only (those robots see): an entire "dev" label
+# followed by a dot - "-dev." (odoo-dev.example.org), ".dev." (odoo.dev.example.org) or "dev."
 # at the very start of the name (dev.example.org). Nothing else: no substring (devis, device, developers, mondev), no
-# variant (dev2), no « .dev » top-level domain (which also serves real public sites), no other word
+# variant (dev2), no ".dev" top-level domain (which also serves real public sites), no other word
 # (lab, test...), no machine name.
 # ------------------------------------------------------------------------------------------------------------------
 DEV_NAME_RE = re.compile(r"(^|[.-])dev\.", re.IGNORECASE)
@@ -922,7 +922,7 @@ def jsonrpc_call(http_client, path, method_params):
 
 
 # ------------------------------------------------------------------------------------------------------------------
-# Check of the initial setup (directories, firewall) — reuses nginx-hardening.sh --check rather than
+# Check of the initial setup (directories, firewall) - reuses nginx-hardening.sh --check rather than
 # reimplementing the same logic in Python: a single source of truth for what makes a complete setup.
 # ------------------------------------------------------------------------------------------------------------------
 def check_local_setup(verbose=False):
@@ -930,7 +930,7 @@ def check_local_setup(verbose=False):
     script_dir = os.path.dirname(os.path.abspath(__file__))
     setup_script = os.path.join(script_dir, "nginx-hardening.sh")
     if not os.path.isfile(setup_script) or not os.access(setup_script, os.X_OK):
-        # Not deployed next to this one — silently ignored rather than failing (same logic as
+        # Not deployed next to this one - silently ignored rather than failing (same logic as
         # nginx-log-audit.sh, which also skips this check if the script is not found).
         return results
     if verbose:
@@ -1424,9 +1424,9 @@ def show_changelog():
     """Shows CHANGELOG.md: version numbers in bold cyan if the output is a terminal (standard
     ANSI color, which follows the terminal theme), plain text if it is redirected; a reader that closes early
     (e.g. « | head ») ends cleanly, without a Python traceback."""
-    # SIGPIPE keeps its default behavior (like cat or grep): if the reader closes early (« | head »), the
+    # SIGPIPE keeps its default behavior (like cat or grep): if the reader closes early ("| head"), the
     # process stops silently. Python ignores it otherwise, and a BrokenPipeError can occur until the final
-    # flush of the buffers (« Exception ignored on flushing sys.stdout »), out of reach of any try/except.
+    # flush of the buffers ("Exception ignored on flushing sys.stdout"), out of reach of any try/except.
     signal.signal(signal.SIGPIPE, signal.SIG_DFL)
     path = changelog_path("CHANGELOG.md")
     try:
@@ -1491,7 +1491,7 @@ def main():
     print(f"Application : {profile['APP_LABEL']} ({profile['APP_DETECTION']})")
     if args.create_config:
         sys.exit(create_config(args.create_config, force=args.force, verbose=args.verbose, profile=profile))
-    # --check-email-dns and --test-email do not query the site: --target is useless (2.10 — forgotten in 2.8, step 13
+    # --check-email-dns and --test-email do not query the site: --target is useless (2.10 - forgotten in 2.8, step 13
     # of nginx-hardening.sh received the program's help instead of the diagnosis).
     if not args.target and not (args.check_email_dns or args.test_email):
         parser.error("argument --target required (local or external), except with --create-config, --check-email-dns or --test-email")
@@ -1514,7 +1514,7 @@ def main():
     complete_common_mail(cfg)
     # File quoted in the messages (where to add a setting): the /etc/default one if it is read, otherwise the first.
     config_path = DEFAULT_CONFIG_PATH if DEFAULT_CONFIG_PATH in config_paths else config_paths[0]
-    # Always displayed (and no longer only in --verbose): several locations are read, and a « forgotten » setting
+    # Always displayed (and no longer only in --verbose): several locations are read, and a "forgotten" setting
     # (e.g. EXPECT_RESTRICTED_ACCESS) often comes from reading a different file from the one that was edited.
     show_config_read(cfg, config_paths, bool(args.config))
     if args.check_email_dns:
@@ -1547,7 +1547,7 @@ def main():
 
     subject = f"[{'ERROR' if n_fail else 'OK'}] Health check {profile['APP_LABEL']} ({args.target}) — {n_fail} failure(s)"
     # E-mail report ONLY if SMTP is configured (2.9: 2.8 called send_email unconditionally and the
-    # program stopped on « SMTP_HOST not configured » after checking everything). Sending failure: reported, no stop.
+    # program stopped on "SMTP_HOST not configured" after checking everything). Sending failure: reported, no stop.
     if cfg.get("SMTP_HOST") and cfg.get("NOTIFY_EMAIL_TO"):
         try:
             send_email(cfg, subject, report)

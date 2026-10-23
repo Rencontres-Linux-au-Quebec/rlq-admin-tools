@@ -1,18 +1,18 @@
 #!/usr/bin/env python3
 # ========================================================================================================================
 # Copyright (C) 2026 Services-Conseils Linux Inc.
-# Copyright (C) 2026 Rencontres Linux au Québec contributors
+# Copyright (C) 2026 Rencontres Linux au Quebec contributors
 #
 # This program is free software: you can redistribute it and/or modify it under the terms of the GNU Affero General Public
 # License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
 # Full text: https://www.gnu.org/licenses/agpl-3.0.html
 # ========================================================================================================================
 #
-# _reseau.py — PROPRIÉTAIRE du bloc d'adresses d'une IP (RDAP, sinon whois) : organisation enregistrée ou nom du réseau, plage, pays, adresse de
-# signalement. Pas forcément un fournisseur d'accès : hébergeur, nuage, moteur de recherche, entreprise ; toutes les adresses du bloc ont le même.
-# d'abus. RDAP (successeur de whois, réponse JSON) interrogé par https://rdap.org, qui redirige vers le bon registre
-# (ARIN, RIPE, LACNIC, APNIC, AFRINIC) ; à défaut, la commande whois. Seule l'adresse demandée est envoyée.
-# Utilisé par nginx-log-audit.sh (--investigate) et app-log-live.py.
+# _reseau.py - OWNER of an IP address block (RDAP, otherwise whois): registered organization or network name, range, country, abuse
+# report address. Not necessarily an ISP: host, cloud, search engine, company; all the addresses of the block have the same one.
+# RDAP (whois successor, JSON response) queried via https://rdap.org, which redirects to the right registry
+# (ARIN, RIPE, LACNIC, APNIC, AFRINIC); otherwise the whois command. Only the requested address is sent.
+# Used by nginx-log-audit.sh (--investigate) and app-log-live.py.
 #
 #
 # Usage (normalement appele par les programmes de la suite) :
@@ -29,7 +29,7 @@ import shutil
 import subprocess
 import sys
 
-__version__ = "1.3.20261019.150215"
+__version__ = "1.4.20261022.231529"
 
 VERBOSE = False     # --verbose : chaque commande externe (curl, wget, whois) est affichee avant son execution
 SEP = "\x1f"

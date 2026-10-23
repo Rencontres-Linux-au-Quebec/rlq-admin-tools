@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
 # ========================================================================================================================
 # Copyright (C) 2026 Services-Conseils Linux Inc.
-# Copyright (C) 2026 Rencontres Linux au Québec contributors
+# Copyright (C) 2026 Rencontres Linux au Quebec contributors
 #
 # This program is free software: you can redistribute it and/or modify it under the terms of the GNU Affero General Public
 # License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
 # Full text: https://www.gnu.org/licenses/agpl-3.0.html
 # ========================================================================================================================
 #
-# sync-crowdsec-blocklist.sh — importe la liste communautaire de CrowdSec (CAPI) dans deux ipsets dedies (IPv4 et
+# sync-crowdsec-blocklist.sh - imports the CrowdSec community list (CAPI) into two dedicated ipsets (IPv4 and
 # IPv6) + une regle iptables/ip6tables DROP chacun, sans faire tourner l'agent CrowdSec complet. Pense pour un
 # lancement periodique (cron) : telecharge la liste (jusqu'a ~3000 IP), la charge par lots dans un ipset temporaire
 # puis l'echange ATOMIQUEMENT avec l'ipset actif (ipset swap : jamais de fenetre avec un ensemble vide ou partiel),
@@ -22,7 +22,7 @@
 # Savoir quelles IP ont REELLEMENT ete bloquees (--blocked) : les ipsets sont crees avec l'option "counters", qui
 # compte paquets/octets PAR ENTREE a chaque correspondance de la regle DROP. Pas de journalisation noyau (LOG), peu
 # fiable dans un conteneur LXC non privilegie. Comme chaque synchronisation remplace l'ipset (compteurs remis a
-# zero), les compteurs sont cumules juste avant chaque echange dans un fichier d'etat local — l'historique survit
+# zero), the counters are accumulated just before each exchange in a local state file - the history survives
 # donc aux synchronisations, y compris pour une IP retiree entre-temps de la liste communautaire.
 #
 # Source par defaut : "all.txt" du projet communautaire Y3ll0w/CrowdSec-CAPI-Decisions (republie la liste CAPI de
@@ -43,43 +43,43 @@
 #   - --source URL    : remplace l'URL de la liste (texte brut, une IP ou un CIDR par ligne).
 #   - --install-cron  : cree /etc/cron.d/sync-crowdsec-blocklist (fichier neuf et autonome) : une synchronisation
 #                        toutes les --cron-hours heures, plus une au demarrage (@reboot). Root requis.
-#   - --cron-hours N  : intervalle du cron, en heures (1 a 24, defaut : 1 — voir le changelog 1.1 pour le choix).
+#   - --cron-hours N  : interval of the cron, in hours (1 to 24, default: 1 - see the changelog 1.1 for the choice).
 #   - --uninstall     : retire regles, ipsets, cron et cache, puis resauvegarde l'etat persistant pour que rien ne
 #                        soit restaure au prochain demarrage. Ne desinstalle AUCUN paquet. Root requis.
 #   - --stale-days N  : avertit (sortie, --status et journal systeme via logger) si la liste n'a pas change depuis N
 #                        jours ou plus (defaut : 3 ; la source se met a jour environ toutes les 2 h). Une liste figee
 #                        signale presque surement un depot source qui n'est plus alimente.
-#   - --ufw-hook      : (serveurs avec ufw, optionnel) insere dans /etc/ufw/after.init — point d'extension officiel
-#                        de ufw, execute juste apres l'initialisation de ses regles — un bloc delimite par des
+#   - --ufw-hook      : (servers with ufw, optional) inserts into /etc/ufw/after.init - the official extension point
+#                        of ufw, executed just after the initialization of its rules - a block delimited by
 #                        marqueurs qui restaure ipsets (depuis la liste en cache, sans reseau) et regles DROP a chaque
 #                        demarrage de ufw : au boot, et apres un rechargement qui vide les chaines (MANAGE_BUILTINS=yes).
 #                        Copie de sauvegarde faite une fois ; ne peut jamais faire echouer ufw. Seule modification d'un
-#                        fichier existant de tout ce projet — d'ou une option explicite, jamais automatique. Root requis.
+#                        existing file of this whole project - hence an explicit option, never automatic. Root required.
 #   - --ufw-hook-remove : retire exactement ce bloc et remet le fichier dans son etat d'execution d'origine.
-#   - --min-ips N     : minimum d'IP valides attendues avant d'accepter une mise a jour (defaut : 50) — protege
+#   - --min-ips N     : minimum number of valid IPs expected before accepting an update (default: 50) - protects
 #                        contre un telechargement rate silencieusement qui debannirait tout le monde.
 #   - -v/--verbose    : affiche chaque commande systeme executee (apt, ipset, iptables, curl...).
 #   - --version       : affiche la version et quitte.
 #   - --changelog     : affiche CHANGELOG.md (couleur si terminal).
 
 set -euo pipefail
-# PATH complété (2.x) : sous cron, PATH se limite à /usr/bin:/bin — ipset, iptables, nft, fail2ban-client, nginx
-# (dans /usr/sbin, /sbin) étaient alors introuvables. Ajoutés À LA FIN : ne masquent jamais une commande déjà trouvée.
+# PATH completed (2.x): under cron, PATH is limited to /usr/bin:/bin - ipset, iptables, nft, fail2ban-client, nginx
+# (in /usr/sbin, /sbin) were then not found. Added AT THE END: they never hide a command already found.
 for _d in /usr/local/sbin /usr/sbin /sbin; do [[ -n "${NGINX_TOOLS_TESTS:-}" ]] && break; case ":$PATH:" in *":$_d:"*) ;; *) PATH="$PATH:$_d" ;; esac; done
-# (Pendant la suite de tests, NGINX_TOOLS_TESTS désactive cet ajout : /usr/sbin/ufw & co resteraient sinon joignables.)
+# (During the test suite, NGINX_TOOLS_TESTS disables this addition: /usr/sbin/ufw & co would otherwise remain reachable.)
 export PATH
 
-# grep_q : equivalent de « grep -q » SANS la course SIGPIPE. « cmd | grep -q motif » sous « set -o pipefail » peut
+# grep_q: equivalent of "grep -q" WITHOUT the SIGPIPE race. "cmd | grep -q pattern" under "set -o pipefail" can
 # repondre FAUX alors que le motif est present : grep -q s'arrete a la premiere correspondance et ferme le tube ; si
-# cmd ecrit encore, il recoit SIGPIPE et pipefail propage cet echec (course observee en test sur « ipset list -n »).
+# cmd still writes, it receives SIGPIPE and pipefail propagates this failure (race observed in test on "ipset list -n").
 # grep sans -q lit toute l'entree : l'ecrivain n'est jamais interrompu.
 grep_q() { grep "$@" >/dev/null; }
 
-# shellcheck disable=SC2154  # « ec » est affectee DANS le texte du trap (ec=$?), a l'execution : shellcheck
+# shellcheck disable=SC2154  # "ec" is set INSIDE the trap text (ec=$?), at run time: shellcheck
 #                              ne peut pas le voir, le texte etant entre apostrophes (faux positif).
 trap 'ec=$?; echo "" >&2; echo "*** ARRÊT INATTENDU DU SCRIPT (code $ec) À LA LIGNE $LINENO ***" >&2; echo "*** Commande fautive : $BASH_COMMAND" >&2' ERR
 
-readonly SCRIPT_VERSION="1.26.20261020.211944"
+readonly SCRIPT_VERSION="1.27.20261022.231529"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
 SCRIPT_NAME="$(basename "${BASH_SOURCE[0]}" .sh)"; readonly SCRIPT_NAME
 # Changelog dans le sous-repertoire doc/ ; repli sur l'ancien emplacement (a cote du programme) tant que
@@ -91,9 +91,9 @@ readonly CHANGELOG_FILE
 changelog_section() {
     awk -v cle="${BASH_SOURCE[0]##*/}" '/^## /{dans=($0 == "## " cle); if (dans) print; next} dans' "$CHANGELOG_FILE"
 }
-# Langue d'affichage (en ou fr) : --lang, SYNC_CROWDSEC_BLOCKLIST_LANG, LANGUAGE du fichier de configuration, LC_ALL / LANG — apps/_i18n.sh traduit la sortie (rien ne change en français).
+# Display language (en or fr): --lang, SYNC_CROWDSEC_BLOCKLIST_LANG, LANGUAGE of the configuration file, LC_ALL / LANG - apps/_i18n.sh translates the output (nothing changes in French).
 if [[ -r "$SCRIPT_DIR/apps/_i18n.sh" ]]; then
-    # shellcheck source=/dev/null  # bibliothèque livrée à côté du programme
+    # shellcheck source=/dev/null  # library shipped next to the program
     . "$SCRIPT_DIR/apps/_i18n.sh"
     i18n_relancer "$SCRIPT_NAME" SYNC_CROWDSEC_BLOCKLIST_LANG "$0" "$@"
 fi
@@ -106,7 +106,7 @@ readonly CACHE_LIST="$STATE_DIR/last-list.txt"
 readonly CACHE_SHA="$STATE_DIR/last-list.sha256"
 readonly BLOCKED_DB="$STATE_DIR/blocked-ips.tsv"
 readonly LAST_SYNC_FILE="$STATE_DIR/last-sync"
-readonly FAILURE_FILE="$STATE_DIR/last-failure"   # échecs consécutifs en cours (effacé à la première réussite)
+readonly FAILURE_FILE="$STATE_DIR/last-failure"   # consecutive failures in progress (erased at the first success)
 readonly LAST_CHANGE_FILE="$STATE_DIR/last-list-change"   # epoch du dernier changement REEL de la liste
 readonly CRON_FILE="${SYNC_CROWDSEC_CRON_FILE:-/etc/cron.d/sync-crowdsec-blocklist}"
 readonly CHUNK_SIZE=250
@@ -146,19 +146,19 @@ TOP_N=50
 CRON_HOURS=1
 STALE_DAYS=3
 
-# --report-err : rapport d'erreurs à copier-coller en fin d'exécution (programme, version, serveur, échecs…) — apps/_rapport.sh
+# --report-err: error report to copy and paste at the end of the run (program, version, server, failures...) - apps/_rapport.sh
 if [[ -r "$SCRIPT_DIR/apps/_rapport.sh" ]]; then
-    # shellcheck source=/dev/null  # bibliothèque livrée à côté du programme
+    # shellcheck source=/dev/null  # library shipped next to the program
     . "$SCRIPT_DIR/apps/_rapport.sh"
     rapport_si_demande "$SCRIPT_DIR/$(basename "${BASH_SOURCE[0]}")" "$SCRIPT_VERSION" "$SCRIPT_DIR" "$@"
 fi
-# Première ligne de TOUTE exécution, même avec --help : le nom et la version du programme (--version l'affiche lui-même).
+# First line of EVERY run, even with --help: the name and version of the program (--version displays it itself).
 case " $* " in *" --version "*) ;; *) echo "sync-crowdsec-blocklist.sh v$SCRIPT_VERSION" ;; esac
-# Listes d'adresses (liste blanche, lieux protégés) : /etc/default/nginx-tools-*.conf — lecteur commun apps/_listes.sh.
+# Address lists (white list, protected places): /etc/default/nginx-tools-*.conf - common reader apps/_listes.sh.
 # shellcheck source=/dev/null
 [[ -r "$SCRIPT_DIR/apps/_listes.sh" ]] && . "$SCRIPT_DIR/apps/_listes.sh"
-# Configuration (/etc/default/sync-crowdsec-blocklist.conf, puis ~/.sync-crowdsec-blocklist.conf ; -c/--config : ce fichier SEUL) : valeurs par défaut des options, la ligne de commande l'emporte.
-# Clés : CRON_HOURS, LANGUAGE, MIN_IPS, SOURCE, STALE_DAYS, TOP, VERBOSE.
+# Configuration (/etc/default/sync-crowdsec-blocklist.conf, then ~/.sync-crowdsec-blocklist.conf; -c/--config: this file ONLY): default values of the options, the command line wins.
+# Keys: CRON_HOURS, LANGUAGE, MIN_IPS, SOURCE, STALE_DAYS, TOP, VERBOSE.
 declare -F pad_cols >/dev/null || pad_cols() { printf '%-*s' "$2" "$1"; }     # 1.25 : sans apps/_i18n.sh, remplissage en octets (comme avant)
 if declare -F config_lire >/dev/null; then
     config_lire "$SCRIPT_NAME" "$@"
@@ -236,14 +236,14 @@ Options (par ordre alphabétique) :
 AIDE
             exit 0
             ;;
-        --report-err) shift ;;                 # traité avant (apps/_rapport.sh) ; accepté ici avec --help, --version…
+        --report-err) shift ;;                 # handled before (apps/_rapport.sh); accepted here with --help, --version...
         *) echo "Argument inconnu: $1" >&2; exit 1 ;;
     esac
 done
 
-# Verrou (flock) : une seule exécution MODIFIANTE à la fois — cron, timer systemd et lancement manuel peuvent se
-# croiser. Attente en secondes (0 : abandon immédiat). Dossier : NGINX_TOOLS_LOCK_DIR (tests), sinon /run/lock, sinon
-# /tmp. Un appel imbriqué du même script (ex. --import-bans qui lance --ban) réutilise le verrou déjà tenu.
+# Lock (flock): only one MODIFYING run at a time - cron, systemd timer and manual launch may
+# cross. Wait in seconds (0: immediate abort). Folder: NGINX_TOOLS_LOCK_DIR (tests), otherwise /run/lock, otherwise
+# /tmp. A nested call of the same script (e.g. --import-bans which launches --ban) reuses the lock already held.
 prendre_verrou() {
     local attente="$1" nom="$2" var ok dir="${NGINX_TOOLS_LOCK_DIR:-/run/lock}"
     var="VERROU_TENU_${nom//-/_}"
@@ -259,8 +259,8 @@ prendre_verrou() {
     fi
     export "$var=1"
 }
-# Synchronisation (cron) : abandon immédiat si une autre tourne. Sans verrou : --status (lecture) et --ufw-hook
-# (appelé par ufw à chaque rechargement : ne doit jamais être empêché de réinsérer ses règles).
+# Synchronization (cron): immediate abort if another one is running. Without lock: --status (read) and --ufw-hook
+# (called by ufw at each reload: must never be prevented from reinserting its rules).
 if [[ "$DO_STATUS" != "1" && "$DO_UFW_HOOK" != "1" ]]; then
     prendre_verrou 0 sync-crowdsec-blocklist
 fi
@@ -286,7 +286,7 @@ fi
 # --- Utilitaires ----------------------------------------------------------------------------------------------------
 # run : execute une commande en l'affichant d'abord si --verbose. L'affichage passe par le descripteur 3, copie du
 # stderr ORIGINAL faite ici une seule fois : beaucoup d'appels redirigent leur propre stderr vers /dev/null pour
-# masquer le bruit des outils (ex. "run ipset create ... 2>/dev/null") — ecrire la ligne "+ commande" sur stderr la
+# hide the noise of the tools (e.g. "run ipset create ... 2>/dev/null") - write the line "+ command" on stderr the
 # ferait disparaitre avec ce bruit, exactement pour les commandes les plus importantes a voir.
 exec 3>&2
 run() {
@@ -307,7 +307,7 @@ require_root() {
     fi
 }
 
-# Barre de progression sur une seule ligne (retour chariot) — seulement si la sortie est un terminal : dans un
+# Progress bar on a single line (carriage return) - only if the output is a terminal: in a
 # journal de cron, des centaines de "\r" rendraient le fichier illisible.
 progress() {
     [[ -t 1 ]] || return 0
@@ -418,7 +418,7 @@ diagnostic_ipset() {
         echo "ipset a répondu : ${err:-aucun message}"
     fi
 }
-echec() {             # message d'erreur fatal, retenu pour le suivi des échecs
+echec() {             # fatal error message, kept for the failure tracking
     LAST_ERROR=$(printf '%s' "$1" | head -1)
     printf '%s\n' "$1" | sed "s/^/${C_RED}ERREUR: /; s/\$/${C_RESET}/" >&2
 }
@@ -442,7 +442,7 @@ fin_synchro() {
 }
 
 # Installation des paquets manquants. apt-get --no-remove : si l'installation devait retirer un paquet (ex. ufw a
-# cause d'un conflit), apt abandonne au lieu de supprimer quoi que ce soit — garde-fou en plus de la verification
+# cause of a conflict), apt gives up instead of deleting anything - a safeguard in addition to the verification
 # explicite de ufw ci-dessous.
 ensure_packages() {
     local missing=()
@@ -481,7 +481,7 @@ ensure_packages() {
 }
 
 # Charge un fichier (une entree par ligne) dans un ipset par lots de CHUNK_SIZE via "ipset restore" (un seul
-# processus par lot au lieu d'un "ipset add" par IP — des dizaines de fois plus rapide pour ~3000 entrees).
+# batch process instead of one "ipset add" per IP - dozens of times faster for ~3000 entries).
 # Met a jour la barre de progression partagee (LOADED/TOTAL_TO_LOAD).
 load_into_set() {
     local file="$1" set_name="$2" batch count
@@ -511,7 +511,7 @@ load_into_set() {
 
 # Remplace le contenu de l'ipset actif par celui d'un ipset temporaire, atomiquement. Si l'echange echoue (ex. ipset
 # actif cree par la version 1.0 SANS l'option counters, incompatible), bascule sur un remplacement complet : retrait
-# de la regle, destruction de l'ancien ipset, renommage du temporaire, remise de la regle — une fenetre de quelques
+# of the rule, destruction of the old ipset, renaming of the temporary one, restoration of the rule - a window of a few
 # millisecondes sans protection, une seule fois lors de cette migration.
 swap_or_replace() {
     local tmp_set="$1" set_name="$2" tool="$3"
@@ -540,7 +540,7 @@ list_age_days() {
 # Avertit si la liste n'a pas change depuis plus de STALE_DAYS jours : la source se met a jour environ toutes les
 # 2 h, donc une liste figee depuis plusieurs jours signifie presque surement que le depot tiers qui la republie
 # n'est plus alimente (projet abandonne, compte suspendu, changement de format). Les ipsets resteraient alors
-# charges avec une liste de plus en plus perimee, SANS aucune erreur visible — d'ou cet avertissement, repris dans
+# loaded with an increasingly outdated list, WITHOUT any visible error - hence this warning, repeated in
 # le journal systeme (logger) pour ne pas rester enfoui dans le fichier de journal du cron.
 warn_if_stale() {
     local age
@@ -563,15 +563,15 @@ warn_if_stale() {
 
 # --- IP protegees : JAMAIS bloquees, meme si la liste communautaire les contient -----------------------------------
 # Risque couvert : une IP de l'equipe (souvent une connexion residentielle dynamique, reattribuee) ou du serveur
-# lui-meme presente dans la liste communautaire — le serveur se couperait de ses administrateurs ou de ses propres
-# outils. Source unique, comme pour nginx-log-audit.sh : les IP des regles « allow » de la config nginx active, les
+# itself present in the community list - the server would cut itself off from its administrators or from its own
+# tools. Single source, as for nginx-log-audit.sh: the IPs of the "allow" rules of the active nginx configuration, the
 # adresses du serveur (hostname -I + IP publique), et un fichier optionnel ALLOW_FILE (une IP ou un CIDR par ligne,
 # # pour les commentaires). Les reseaux prives et de boucle locale sont ecartes de la liste des le depart.
 collect_protected_ips() {
     local out="" ip pub
     if command -v nginx >/dev/null 2>&1; then
         out+=$(run nginx -T 2>/dev/null | grep -oE 'allow [0-9a-fA-F:./]+;' | awk '{print $2}' | tr -d ';')$'\n' || true
-        # Liste blanche et lieux [protégée] (/etc/default/nginx-tools-*.conf, apps/_listes.sh) : protégés même sans liste « allow » nginx (BBB).
+        # White list and [protected] places (/etc/default/nginx-tools-*.conf, apps/_listes.sh): protected even without a nginx "allow" list (BBB).
         out+=$(listes_ne_pas_bannir)$'\n' || true
     fi
     out+=$(hostname -I 2>/dev/null | tr ' ' '\n')$'\n' || true
@@ -593,10 +593,10 @@ collect_protected_ips() {
         | grep -vE "$PRIVATE_V4_RE" | grep -vE "$PRIVATE_V6_RE" | sort -u || true
 }
 
-# Ajoute chaque IP protegee en « nomatch » dans les ipsets indiques : dans un ipset hash:net, une entree plus precise
-# marquee nomatch l'emporte sur une plage plus large qui la contient — une IP protegee n'est donc jamais bloquee, que
+# Adds each protected IP as "nomatch" in the indicated ipsets: in a hash:net ipset, a more precise entry
+# marked nomatch wins over a wider range that contains it - a protected IP is therefore never blocked, even if
 # la liste la contienne exactement ou via une plage (CIDR). Affiche un avertissement pour chaque IP protegee qui
-# figurait dans la liste. $1/$2 = ipsets IPv4/IPv6 ; $3 = « silencieux » pour --ufw-start.
+# was in the list. $1/$2 = IPv4/IPv6 ipsets; $3 = "silent" for --ufw-start.
 apply_protected() {
     local set4="$1" set6="$2" quiet="${3:-}" ip set n=0 hits=0
     PROTECTED_LIST=$(collect_protected_ips) || PROTECTED_LIST=""
@@ -607,7 +607,7 @@ apply_protected() {
             hits=$((hits + 1))
             [[ -z "$quiet" ]] && echo "      ${C_YELLOW}ATTENTION : $ip (IP protégée) figurait dans la liste communautaire — exclue, jamais bloquée.${C_RESET}"
         fi
-        # del puis add : un simple « add -exist » ne garantit pas la mise a jour du drapeau nomatch d'une entree
+        # del then add: a simple "add -exist" does not guarantee the update of the nomatch flag of an entry
         # deja presente (IP protegee listee exactement).
         ipset del "$set" "$ip" >/dev/null 2>&1 || true
         run ipset add "$set" "$ip" nomatch -exist >/dev/null 2>&1 || true
@@ -619,10 +619,10 @@ apply_protected() {
 
 # --- Integration ufw (optionnelle) ---------------------------------------------------------------------------------
 # ufw execute /etc/ufw/after.init (s'il est executable) juste APRES avoir mis en place ses propres regles, a son
-# demarrage — donc au boot et, avec MANAGE_BUILTINS=yes, a chaque rechargement qui vide les chaines de base. C'est le
-# point d'extension officiel prevu par ufw pour les ipsets (voir « man ufw-framework »). --ufw-hook y insere un bloc
+# startup - hence at boot and, with MANAGE_BUILTINS=yes, at each reload that empties the base chains. This is the
+# official extension point provided by ufw for ipsets (see "man ufw-framework"). --ufw-hook inserts a block
 # delimite par des marqueurs, qui appelle ce script en mode --ufw-start : rechargement des ipsets depuis la derniere
-# liste en cache (aucun reseau, aucun apt — ufw demarre tot au boot) et remise des regles DROP en tete de INPUT.
+# list in cache (no network, no apt - ufw starts early at boot) and restoration of the DROP rules at the top of INPUT.
 # Seul le bloc entre les marqueurs est ajoute ou retire ; le reste du fichier n'est jamais modifie.
 
 ufw_hook_installed() {
@@ -644,14 +644,14 @@ install_ufw_hook() {
     if [[ ! -f "$UFW_AFTER_INIT" ]]; then
         # Fichier absent (installation atypique) : on cree un after.init minimal, avec la meme structure que celui
         # fourni par ufw.
-        # shellcheck disable=SC2016  # contenu ecrit dans after.init : « $1 » doit y rester litteral
+        # shellcheck disable=SC2016  # content written into after.init: "$1" must remain literal there
         printf '%s\n' '#!/bin/sh' '# after.init : si exécutable, appelé par ufw-init. Voir « man ufw-framework ».' \
             'case "$1" in' 'start|stop|status|flush-all) ;;' '*) echo "Usage: after.init {start|stop|flush-all|status}" ;;' 'esac' \
             > "$UFW_AFTER_INIT"
         echo "non" > "$UFW_HOOK_STATE"
         echo "      $UFW_AFTER_INIT absent — fichier minimal créé."
     else
-        # Etat d'origine memorise UNE SEULE FOIS (une reinstallation ne doit pas l'ecraser par « oui »).
+        # Original state stored ONLY ONCE (a reinstallation must not overwrite it with "yes").
         if [[ ! -f "$UFW_HOOK_STATE" ]]; then
             if [[ -x "$UFW_AFTER_INIT" ]]; then echo "oui" > "$UFW_HOOK_STATE"; else echo "non" > "$UFW_HOOK_STATE"; fi
         fi
@@ -661,8 +661,8 @@ install_ufw_hook() {
         fi
     fi
     tmp="$(mktemp)"
-    # Bloc insere juste apres la premiere ligne (#!) : il s'execute avant le reste, ne gere que « start », et se
-    # termine toujours avec succes (« || true ») — meme sous « set -e » (present dans le after.init d'Ubuntu), il ne
+    # Block inserted just after the first line (#!): it runs before the rest, handles only "start", and
+    # always ends successfully ("|| true") - even under "set -e" (present in Ubuntu's after.init), it does not
     # peut jamais faire echouer le demarrage de ufw, y compris si ce script a ete deplace ou supprime depuis.
     strip_ufw_block "$UFW_AFTER_INIT" | awk -v b="$UFW_HOOK_BEGIN" -v e="$UFW_HOOK_END" -v s="$script_path" '
         NR == 1 && /^#!/ { print; ins = 1 }
@@ -859,7 +859,7 @@ if [[ "$DO_BLOCKED" == "1" ]]; then
     n_total=$(printf '%s\n' "$merged" | grep -c . || true)
     echo "$n_total IP distincte(s) bloquée(s) à ce jour. Dernière synchronisation : $last_sync"
     echo
-    # 1.25 : en-tête accentué complété en COLONNES (printf de bash compte des octets : « PREMIÈRE DÉTECTION » était 2 colonnes trop court)
+    # 1.25: accented header completed in COLUMNS (bash's printf counts bytes: "PREMIERE DETECTION" was 2 columns too short)
     printf '%-40s %10s %12s  %s %s\n' "IP" "PAQUETS" "OCTETS" "$(pad_cols "PREMIÈRE DÉTECTION" 38)" "DERNIÈRE DÉTECTION"
     if [[ "$TOP_N" -gt 0 ]]; then
         shown=$(printf '%s\n' "$merged" | head -n "$TOP_N") || true
@@ -988,7 +988,7 @@ fi
 USING_CACHE=0
 if [[ "$download_ok" != "1" ]]; then
     # Repli sur la derniere liste connue UNIQUEMENT si les ipsets sont absents (cas typique : redemarrage, reseau
-    # pas encore pret). Si les ipsets existent deja, ils contiennent deja cette liste — rien de mieux a faire que
+    # not ready yet). If the ipsets already exist, they already contain this list - nothing better to do than
     # les garder tels quels.
     if [[ "$DO_DRY_RUN" != "1" && -s "$CACHE_LIST" ]] && ! { set_exists "$IPSET_V4" && set_exists "$IPSET_V6"; }; then
         echo "      ${C_YELLOW}Téléchargement impossible — ipsets absents, restauration depuis la dernière liste en cache.${C_RESET}"
@@ -1032,7 +1032,7 @@ changed=0
 STEP=$((STEP + 1)); step "$STEP" "$TOTAL_STEPS" "Mise à jour des ipsets"
 if [[ "$USING_CACHE" != "1" && -n "$old_sha" && "$new_sha" == "$old_sha" ]] && set_exists "$IPSET_V4" && set_exists "$IPSET_V6"; then
     echo "      Liste identique à la précédente synchronisation — ipsets inchangés (compteurs conservés)."
-    # Mise a jour depuis la version 1.1 : pas encore de date de dernier changement connue — on part de maintenant.
+    # Update from version 1.1: no last-change date known yet - we start from now.
     [[ -r "$LAST_CHANGE_FILE" ]] || date +%s > "$LAST_CHANGE_FILE"
     warn_if_stale
 else
@@ -1042,7 +1042,7 @@ else
     if ! err_ipset=$(run ipset create "$IPSET_V4" hash:net family inet counters -exist 2>&1) \
        || ! err_ipset=$(run ipset create "$IPSET_V6" hash:net family inet6 counters -exist 2>&1); then
         # -exist echoue aussi si l'ipset existe avec des options differentes (version 1.0, sans compteurs) : ce cas
-        # est gere plus bas par swap_or_replace — on ne s'arrete que si l'ipset n'existe vraiment pas.
+        # is handled further down by swap_or_replace - we stop only if the ipset really does not exist.
         if ! set_exists "$IPSET_V4" || ! set_exists "$IPSET_V6"; then
             echec "$(printf 'impossible de créer les ipsets : %s' "$(diagnostic_ipset "$err_ipset")")"
             exit 1

@@ -65,15 +65,15 @@ class Classement(unittest.TestCase):
     def test_echecs_avec_leur_detail_sans_doublon_ni_faux_positif(self):
         premiers = [e[0].strip() for e in self.c["echecs"]]
         self.assertEqual(premiers, [
-            "[FAIL] courriel non configuré (SMTP_HOST et NOTIFY_EMAIL_TO vides)",     # une seule fois malgré le doublon
+            "[FAIL] courriel non configuré (SMTP_HOST et NOTIFY_EMAIL_TO vides)",     # only once despite the duplicate
             "[ÉCHEC] shellcheck nginx-hardening.sh : 1 signalement(s)",
             'open() "/srv/x" failed (13: Permission denied), client: 1.2.3.4',
             "Jails fail2ban installés, mais fail2ban n'est PAS démarré (inactive) : aucune jail n'est active."])
         self.assertEqual([x.strip() for x in self.c["echecs"][0][1:]], ["voir doc/email-setup.md : choisir un relais SMTP"])
         detail = [x.strip() for x in self.c["echecs"][1][1:]]
         self.assertEqual(detail, ["./nginx-hardening.sh:960:61: note: Note that A && B || C is not if-then-else. [SC2015]",
-                                  "FAIL: test_x (test_y.Z)"])                      # détail : jamais compté comme un échec de plus
-        self.assertFalse(any("Erreurs Odoo (ERROR/CRITICAL)" in e[0] for e in self.c["echecs"]))   # « Erreurs … : 0 » n'est pas une erreur
+                                  "FAIL: test_x (test_y.Z)"])                      # detail: never counted as one more failure
+        self.assertFalse(any("Erreurs Odoo (ERROR/CRITICAL)" in e[0] for e in self.c["echecs"]))   # "Erreurs ... : 0" is not an error
 
     def test_avertissements_recommandations_ignores_et_trace(self):
         self.assertEqual([a[0].strip() for a in self.c["avertissements"]],
@@ -81,18 +81,18 @@ class Classement(unittest.TestCase):
         self.assertIn("bannissement à lever", self.c["avertissements"][1][1])
         titres = [r[0].strip() for r in self.c["recommandations"]]
         self.assertEqual(titres, ["1. [HAUTE] Odoo sans limite mémoire (limit_memory_hard=0)",
-                                  "3. [MOYENNE] 343 requêtes malveillantes ont atteint Odoo"])     # FAIBLE : pas listée
+                                  "3. [MOYENNE] 343 requêtes malveillantes ont atteint Odoo"])     # LOW: not listed
         self.assertEqual([x.strip()[:10] for x in self.c["recommandations"][0][1:]], ["Pourquoi :", "Comment  :"])
         self.assertEqual(len(self.c["ignores"]), 1)
         (trace,) = self.c["tracebacks"]
         self.assertEqual(trace[0].strip(), "Traceback (most recent call last):")
         self.assertEqual(trace[-1].strip(), "ValueError: boom")
-        self.assertLessEqual(len(trace), 6)                                            # début, 4 dernières lignes, exception
+        self.assertLessEqual(len(trace), 6)                                            # start, last 4 lines, exception
 
     def test_recommandation_faible_n_avale_pas_la_suivante(self):
         c = self.m.classer(["  1. [FAIBLE] HSTS court", "  2. [MOYENNE] alertes par courriel non configurées", "     Comment  : suivre doc/email-setup.md"])
         self.assertEqual([r[0].strip() for r in c["recommandations"]], ["2. [MOYENNE] alertes par courriel non configurées"])
-        self.assertEqual(len(c["recommandations"][0]), 2)                              # avec sa ligne « Comment »
+        self.assertEqual(len(c["recommandations"][0]), 2)                              # with its "Comment" line
 
     def test_contexte_lu_dans_la_sortie(self):
         ctx = self.m.contexte_dans_sortie(self.m.nettoyer(ECHANTILLON).splitlines())
@@ -159,7 +159,7 @@ class Rapport(unittest.TestCase):
         muet = m.construire_rapport("x.py", "1.0", "x.py", "\n".join(f"ligne {i}" for i in range(30)) + "\n", 2, 1, "", info=INFO)
         self.assertIn("Code de sortie 2 sans message d'échec reconnu — dernières lignes de la sortie :", muet)
         self.assertIn("  ligne 29", muet)
-        self.assertNotIn("ligne 5\n", muet)                                          # seulement les 12 dernières
+        self.assertNotIn("ligne 5\n", muet)                                          # only the last 12
 
     def test_limite_par_categorie(self):
         m = charger()
@@ -201,10 +201,10 @@ class ExecutionPython(unittest.TestCase):
         code, out, err, _ = self.lancer(f)
         self.assertEqual(code, 3)
         self.assertIn("bonjour", out)
-        self.assertIn("[FAIL] problème signalé sur stderr", err)                     # toujours affiché sur le vrai flux
+        self.assertIn("[FAIL] problème signalé sur stderr", err)                     # still displayed on the real stream
         self.assertLess(out.index("bonjour"), out.index("RAPPORT D'ERREURS"))        # sortie du programme AVANT le rapport
         self.assertIn("commande : prog.py --x", out)                                 # --report-err n'y figure pas
-        self.assertIn("1. [FAIL] problème signalé sur stderr", out)                   # stderr capturé aussi
+        self.assertIn("1. [FAIL] problème signalé sur stderr", out)                   # stderr captured too
         self.assertIn("code de sortie 3 (ÉCHEC)", out)
 
     def test_exceptions_et_codes_de_sortie(self):
@@ -270,8 +270,8 @@ echo "COUL=${{REPORT_ERR_COULEUR:-non}}"
         out, _ = self.run_pty(["bash", prog, "--report-err"], [], env_extra={"TERM": "xterm"}, keep_ansi=True)
         avant, _, rapport = out.partition("RAPPORT D'ERREURS")
         self.assertIn("COUL=1", avant)
-        self.assertIn("\x1b[1;31m[FAIL]", avant)                                    # couleur affichée
-        self.assertNotIn("\x1b", rapport)                                           # rapport à copier : texte pur
+        self.assertIn("\x1b[1;31m[FAIL]", avant)                                    # color displayed
+        self.assertNotIn("\x1b", rapport)                                           # report to copy: plain text
 
     def test_pas_de_couleur_si_la_sortie_n_est_pas_un_terminal_ou_no_color(self):
         prog = self.programme()

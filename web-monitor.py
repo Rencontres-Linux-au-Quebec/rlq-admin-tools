@@ -1,20 +1,20 @@
 #!/usr/bin/env python3
 # ========================================================================================================================
 # Copyright (C) 2026 Services-Conseils Linux Inc.
-# Copyright (C) 2026 Rencontres Linux au Québec contributors
+# Copyright (C) 2026 Rencontres Linux au Quebec contributors
 #
 # This program is free software: you can redistribute it and/or modify it under the terms of the GNU Affero General Public
 # License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
 # Full text: https://www.gnu.org/licenses/agpl-3.0.html
 # ========================================================================================================================
 #
-# web-monitor.py — AUTOMATIC monitoring: runs the project's tools without interaction (app-health-check.py,
+# web-monitor.py - AUTOMATIC monitoring: runs the project's tools without interaction (app-health-check.py,
 # app-log-check.py, nginx-log-audit.sh, sync-crowdsec-blocklist.sh --status), decides whether something
-# REQUIRES ACTION, and sends an e-mail ONLY in that case — a single grouped alert, never one per tool.
+# REQUIRES ACTION, and sends an e-mail ONLY in that case - a single grouped alert, never one per tool.
 #
 # What triggers an alert (and nothing else, so that every e-mail deserves to be read):
 #   - app-health-check.py --target local: at least one [FAIL] (site, HSTS, blocking, robots.txt, Google...);
-#   - app-log-check.py: entries "to review" (protocol attacks, Python traces, errors) — known harmless
+#   - app-log-check.py: entries "to review" (protocol attacks, Python traces, errors) - known harmless
 #     noise (section [4]) never alerts;
 #   - nginx-log-audit.sh --fail2ban --no-prompt: 5xx errors, Odoo upstream down, recommended ban
 #     (section [10]) or repeat offender to ban permanently. NOT the attacks already blocked (405, 444,
@@ -85,7 +85,7 @@ import time
 import unicodedata
 import urllib.parse
 
-__version__ = "2.77.20261022.110306"
+__version__ = "2.78.20261022.231529"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
@@ -155,7 +155,7 @@ def _load_i18n():
         avail = module.langues_disponibles(SCRIPT_DIR, SCRIPT_NAME)
         chosen, origin = module.langue_et_origine(variable_programme="WEB_MONITOR_LANG", disponibles=avail, configuration=cfg.get("LANGUAGE", "")) \
             if hasattr(module, "langue_et_origine") else (module.langue(variable_programme="WEB_MONITOR_LANG", disponibles=avail, configuration=cfg.get("LANGUAGE", "")), "")
-        globals()["LANGUAGE_ORIGIN"] = origin             # 2.67: which setting decided the language (shown in « Options: --lang xx (origin) »)
+        globals()["LANGUAGE_ORIGIN"] = origin             # 2.67: which setting decided the language (shown in "Options: --lang xx (origin)")
         return chosen, module.traducteur(chosen, SCRIPT_DIR, SCRIPT_NAME, ("_bbb", "_connexions", "_email_check", "_listes", "_odoo_db", "_profile", "nginx-log-audit", "sync-crowdsec-blocklist", "app-log-check")), avail, cfg, files
     except Exception:
         return "en", (lambda text_value: text_value), ["en"], cfg, files
@@ -200,7 +200,7 @@ except Exception:
 _system_print, _system_input = print, input
 
 
-def print(*a, **k):            # noqa: A001 — all displayed text goes through the translator (no effect in French)
+def print(*a, **k):            # noqa: A001 - all displayed text goes through the translator (no effect in French)
     _system_print(*(TR(x) if isinstance(x, str) else x for x in a), **k)
 
 
@@ -318,7 +318,7 @@ def detect_odoo_service():
 
 
 # ------------------------------------------------------------------------------------------------------------------
-# Analysis of each tool: returns a list of alerts (title, excerpt lines, keys) — empty list = nothing to
+# Analysis of each tool: returns a list of alerts (title, excerpt lines, keys) - empty list = nothing to
 # report. The KEYS identify each element (a failing check, a proposed IP, a type of Python trace)
 # without the counters or hours that change on every run: they are what decides "new problem".
 # ------------------------------------------------------------------------------------------------------------------
@@ -368,7 +368,7 @@ def analyze_nginx_logs(code, out):
     if s7:
         alerts.append(("nginx-log-audit.sh: Odoo unreachable from nginx (upstream errors)", [l.strip()[:200] for l in s7[:12]], ["nginx:upstream"]))
     # Section [10] walked INVESTIGATION BY INVESTIGATION: an IP is kept only if ITS OWN investigation concludes "ban
-    # recommended" (before 2.5, all the IPs of the section were as soon as a single one was recommended — including
+    # recommended" (before 2.5, all the IPs of the section were as soon as a single one was recommended - including
     # the robots "to watch" or "probably harmless").
     blocks, current = [], None
     for l in section(out, "--- [10]"):
@@ -657,7 +657,7 @@ def do_run(dry_run):
             body_lines += [f"To ban the {len(RECOMMENDED)} recommended IP(s) in one command (root, with confirmation):",
                            "    web-monitor.py --ban-recommended", ""]
         subject = f"[web-monitor] {host} : {len(alerts)} item(s) to examine"
-        # Comparison on the TITLES (the details — hours, counters — change on every run). New e-mail
+        # Comparison on the TITLES (the details - hours, counters - change on every run). New e-mail
         # only if a NEW problem appears, or 24 h after the previous one: a problem that disappears (resolved)
         # does not justify writing again for the others, already reported.
         titles = [t for t, _, _ in alerts]
@@ -701,7 +701,7 @@ def do_run(dry_run):
             f.write(f"{now:%Y-%m-%d %H:%M:%S %Z} — {status}\n")
         purge_old_logs()
         # Status line on EVERY run: "journalctl -t web-monitor" also shows the history of the runs
-        # (nothing to report, alerts already reported…), not only the alerts sent.
+        # (nothing to report, alerts already reported...), not only the alerts sent.
         journal([f"Pass {now:%Y-%m-%d %H:%M} — {status}"])
         print(f"{host} — {now:%Y-%m-%d %H:%M %Z}")
         print(f"Result: {status}")
@@ -753,10 +753,10 @@ def color_code(code, text_value):
     if not colors_on():
         return str(text_value)
     return f"\x1b[1;{code}m{text_value}\x1b[0m" if code != "1" else f"\x1b[1m{text_value}\x1b[0m"
-# Group 8: requested domain name (nginx combined_host format: host="…" at the end of the line; absent from old lines).
+# Group 8: requested domain name (nginx combined_host format: host="..." at the end of the line; absent from old lines).
 TIME_RE = re.compile(r'\[(\d{2}/\w{3}/\d{4}:\d{2}:\d{2}):\d{2} ([+-]\d{4})\]')     # minute and time zone of an access line (--list-users --table)
 ACCESS_RE = re.compile(r'^(\S+) \S+ \S+ \[(\d{2}/\w{3}/\d{4}):[^\]]*\] "(\S+) (\S+)[^"]*" (\d{3})(?: (\S+) "[^"]*" "([^"]*)")?(?: host="([^"]*)")?(?: rl=(\d+))?')
-# 2.66: « rl=$request_length » (size of the request, headers included) at the end of the combined_host format (nginx-odoo-config 1.11): MB sent by each account.
+# 2.66: "rl=$request_length" (size of the request, headers included) at the end of the combined_host format (nginx-odoo-config 1.11): MB sent by each account.
 CATCHALL_RE = re.compile(r'^(\S+) - \[(\d{2}/\w{3}/\d{4}):[^\]]*\](?: "\S+ (\S+))?')
 FAIL2BAN_RE = re.compile(r"^(\d{4})-(\d{2})-(\d{2}) .*\[([^\]]+)\] Ban (\S+)")
 ASSET_RE = re.compile(r"^/web/(assets|image|static|content|binary)/|/static/|/websocket|/longpolling|"
@@ -794,7 +794,7 @@ def truncate(text_lines):
 
 
 NGINX_404_SIZE = 2048    # below: nginx 404 page; above: application 404 page
-# Redirect produced by nginx ITSELF ("return 301" of a block that only redirects, e.g. rencontres-linux.quebec →
+# Redirect produced by nginx ITSELF ("return 301" of a block that only redirects, e.g. rencontres-linux.quebec ->
 # www): page of 162 to 169 bytes ("301 Moved Permanently", with or without version number); the Odoo redirect
 # (Werkzeug, "Redirecting..." + target URL) always exceeds 200 bytes. A malicious URL redirected by nginx did not
 # reach the application: counted as rejected (before 2.37, false "not filtered by nginx").
@@ -1851,7 +1851,7 @@ def recommendations(c, facts, policies):
         requested = ("Pages requested: " + ", ".join(f"{u} ({fmt(c)})" for u, c in sorted(pages_m.items(), key=lambda x: -x[1])[:3])
                      + ". ") if pages_m else ""
         if bbb:
-            # A meetings server (room links /rooms/…/join) has no reason to be indexed: the refusal is intended.
+            # A meetings server (room links /rooms/.../join) has no reason to be indexed: the refusal is intended.
             R.append((3, f"{display_name} is trying to index this BigBlueButton server: {fmt(n)} 403 refusals in {DAYS} days",
                       "a meeting server has no reason to be indexed (room links): the refusal is intended; the only cost is that the robot keeps coming back",
                       f"nothing urgent. {requested}" + robots_state()))
@@ -2236,7 +2236,7 @@ def show_accounts(facts, banned):
         print()
         print(f"  {color_code('1', display_name)}")
         today_d = color_code("32", v["n"][0]) if v["n"][0] else "0"
-        week = f"7 j {v['n'][1]} · " if DAYS > 7 else ""              # --days N ≤ 7: no distinct "week" column
+        week = f"7 j {v['n'][1]} · " if DAYS > 7 else ""              # --days N <= 7: no distinct "week" column
         print(f"    Logins          : today {today_d} · {week}{DAYS} j {v['n'][2]} — last {v['last']}")
         print(f"    IP addresses    : {shown}")
         if "stats_ip" in facts:
@@ -2300,7 +2300,7 @@ def uid_lines(login, databases, utilisateurs):
 
 
 # --- --list-users: sort (--sort), table (--table), estimated login duration ------------------------------------------------------
-COLUMN_WIDTH = 30                  # --table: MAXIMUM width of a column (longer text truncated with "…")
+COLUMN_WIDTH = 30                  # --table: MAXIMUM width of a column (longer text truncated with "...")
 MIN_COLUMN_WIDTH = 5               # --table: minimum width; in between, the column adjusts to its longest content
 JOURNAL_ISO_RE = re.compile(r"^(\d{4})-(\d\d)-(\d\d)T(\d\d):(\d\d):(\d\d)(?:[.,]\d+)?(?:(Z)|([+-])(\d\d):?(\d\d))?")
 
@@ -2381,7 +2381,7 @@ def plain_text(text):
 
 def sort_key(value):
     """--sort: accepts the canonical key or a synonym (name, latest, first, duration…), case-insensitive; otherwise an error that lists the keys."""
-    v = plain_text(value or "")                         # 2.66: accents ignored (« reçus » = « recus », « écrites » = « ecrites »)
+    v = plain_text(value or "")                         # 2.66: accents ignored when matching (the French words for received and written match with or without their accents)
     for key_value, (_, _, synonyms) in USER_SORTS.items():
         if v == key_value or v in {plain_text(x) for x in synonyms}:
             return key_value
@@ -2416,8 +2416,8 @@ def truncate_column(text_value, width=COLUMN_WIDTH):
     return out + "…" + " " * (width - 1 - used)
 
 
-# --table / --csv (2.67): fields of the table, in the default order — key (--table-fields), French header, English header, alignment, maximum width.
-# The headers are written in both languages here (a column title is not a sentence to translate by fragments: « Type », « Name » would change elsewhere).
+# --table / --csv (2.67): fields of the table, in the default order - key (--table-fields), French header, English header, alignment, maximum width.
+# The headers are written in both languages here (a column title is not a sentence to translate by fragments: "Type", "Name" would change elsewhere).
 TABLE_FIELDS = (
     ("num", "N°", "#", "r", 5), ("uid", "UID", "UID", "r", 6), ("ip", "IP", "IP", "l", 20), ("ipseen", "IP vue", "IP seen", "l", 27), ("name", "Nom", "Name", "l", 21), ("login", "Identifiant", "Login", "l", 23),
     ("ipcountry", "Pays IP", "IP ctry", "l", 8), ("vpn", "VPN", "VPN", "l", 14),
@@ -2430,18 +2430,18 @@ TABLE_FIELDS = (
 FIELD_KEYS = [f[0] for f in TABLE_FIELDS]
 DEFAULT_TABLE_FIELDS = [k for k in FIELD_KEYS if k not in ("email", "tags")]     # the login is already the e-mail of most accounts; 2.69: tags often repeat the groups
 PROFILE_FIELDS = {"events", "surveys", "phone", "country", "city", "groups", "tags", "email", "created"}      # read in PostgreSQL (apps/_odoo_db.py user_profiles)
-# 2.71: French names of the fields, accepted for the English keys (until 2.70 the French help displayed « navigateurs », « envoyé(s) »… instead of the keys)
+# 2.71: French names of the fields, accepted for the English keys (until 2.70 the French help displayed "navigateurs", "envoye(s)"... instead of the keys)
 FIELD_ALIASES = {"navigateurs": "browsers", "systemes": "systems", "envoye(s)": "sent", "envoyes": "sent", "recus": "received", "lues": "read",
                  "ecrites": "written", "pays": "country", "ville": "city", "groupes": "groups", "etiquettes": "tags", "telephone": "phone",
                  "evenements": "events", "sondages": "surveys", "courriel": "email", "nom": "name", "identifiant": "login", "connexions": "logins",
                  "premiere": "first", "derniere": "last", "cree": "created", "ip-vue": "ipseen", "pays-ip": "ipcountry"}
-MIN_HEADER_WIDTH = 4                  # a column is never narrower: its title stays readable (« Conn », « Mint »)
+MIN_HEADER_WIDTH = 4                  # a column is never narrower: its title stays readable ("Conn", "Mint")
 
 
 def table_fields(value):
     """--table-fields name,login,logins…: the fields to show, in the order given (« all » = every field, e-mail included); otherwise an error that lists them."""
     keys = [k.strip().lower().replace("ip-seen", "ipseen").replace("ip-country", "ipcountry") for k in (value or "").split(",") if k.strip()]
-    keys = [FIELD_ALIASES.get(plain_text(k), k) for k in keys]                     # 2.71: the French names once shown by the help (« navigateurs »)
+    keys = [FIELD_ALIASES.get(plain_text(k), k) for k in keys]                     # 2.71: the French names once shown by the help ("navigateurs")
     if keys == ["all"]:
         return list(FIELD_KEYS)
     wrong = [k for k in keys if k not in FIELD_KEYS]
@@ -2608,7 +2608,7 @@ IP_LOOKUP_TIMEOUT_S = 8
 IP_LOOKUP_THREADS = 8
 # Owner of the block (RDAP organisation and network name) -> (kind, short name; empty: the owner's first word). The first match wins.
 # Kinds: VPN, Tor, Relay (iCloud Private Relay, Cloudflare WARP: the user's real address is hidden too), Hosting (data center: the exit of most VPNs
-# and proxies — a person does not browse from a data center, a VPN does).
+# and proxies - a person does not browse from a data center, a VPN does).
 VPN_OWNERS = (
     (r"nordvpn|tefincom", "VPN", "NordVPN"), (r"surfshark", "VPN", "Surfshark"), (r"expressvpn|express vpn", "VPN", "ExpressVPN"),
     (r"proton ?(ag|vpn|technologies)", "VPN", "Proton"), (r"mullvad|31173 services", "VPN", "Mullvad"), (r"private internet access", "VPN", "PIA"),
@@ -2952,7 +2952,7 @@ def list_users(details=False, table_rows=False, sort_order="name", invert=False,
     compute_minutes = (want_agents or sort_order == "minutes") and not bbb              # login minutes: activity of the addresses in the nginx logs
     stats, tracked_ips = {}, ({i for v in accounts.values() for i in v["ips"]} if (details or compute_minutes) else set())
     activity, cached_minutes, nginx_logs_read = {}, {}, []
-    rl_lines = [0]                        # 2.67: lines with « rl= » (size of the request): without any, « MB sent » cannot be known
+    rl_lines = [0]                        # 2.67: lines with "rl=" (size of the request): without any, "MB sent" cannot be known
     ip_agents = {}                        # --table: {address: {"os": {name: n}, "nav": {name: n}, "pages": n}} (User-Agent and pages of the accounts' addresses)
     bbb_agents = {}                       # BigBlueButton: {participant: same dict}, from the User-Agent of the join link
     if bbb or tracked_ips:                    # nginx logs: participants (BBB), traffic of the accounts (--details, --table)
@@ -3004,8 +3004,8 @@ def list_users(details=False, table_rows=False, sort_order="name", invert=False,
     banned = set()
     try:
         for l in open(os.path.join(CHK_STATE, "bans.tsv"), encoding="utf-8"):
-            cols = l.rstrip("\n").split("\t")              # 2.68: NOT « fields » (that name holds the --table-fields columns: KeyError on a date)
-            if len(cols) >= 3 and cols[1] in ("banni", "leve"):    # 2.73: other events (« justifie »: justification added later) change nothing
+            cols = l.rstrip("\n").split("\t")              # 2.68: NOT "fields" (that name holds the --table-fields columns: KeyError on a date)
+            if len(cols) >= 3 and cols[1] in ("banni", "leve"):    # 2.73: other events ("justifie": justification added later) change nothing
                 (banned.add if cols[1] == "banni" else banned.discard)(cols[2])
     except OSError:
         pass
@@ -3453,7 +3453,7 @@ def investigate_user(login, ask=True, internet=None, offer_actions=True):
                 sign(2, f"{detail['messages_30d']} messages posted in 30 days")
         if detail["survey_answers"] is not None:
             print(f"  survey answers: {detail['survey_answers']}")
-        if time.time() - detail["created"] < NEW_ACCOUNT_DAYS * 86400 and not history:      # counted in [2b] (« new account ») when it logged in
+        if time.time() - detail["created"] < NEW_ACCOUNT_DAYS * 86400 and not history:      # counted in [2b] ("new account") when it logged in
             sign(1, f"account created less than {NEW_ACCOUNT_DAYS} days ago")
         if not detail["share"]:
             print(color_code("33", "  INTERNAL account (employee, volunteer with back-office access): never banned by this program — archive it in Odoo itself if needed."))
@@ -3817,7 +3817,7 @@ def collect_summary(periods):
                     bad = malicious(url)
                     if bad:
                         facts.setdefault("ips_mal", set()).add(ip)
-                    # nginx itself answers 404 to malicious URLs (location ~ /\., .php, ../…) to reveal nothing:
+                    # nginx itself answers 404 to malicious URLs (location ~ /\., .php, ../...) to reveal nothing:
                     # small page (a few hundred bytes), whereas the Odoo 404 page weighs tens of KB.
                     rejected = (code in NGINX_REJECT_CODES or (code == "404" and bad and size < NGINX_404_SIZE)
                                or (code[0] == "3" and bad and size <= NGINX_3XX_SIZE))
@@ -3853,7 +3853,7 @@ def collect_summary(periods):
                                 if short_path in family_paths or len(family_paths) < 300:
                                     plus_one(family_paths, short_path)
                             if family.startswith("browser"):
-                                if bad:                          # scanner URL (.env, .php…): normal refusal
+                                if bad:                          # scanner URL (.env, .php...): normal refusal
                                     facts["refus_nav_scanners"] = facts.get("refus_nav_scanners", 0) + 1
                                 else:                            # ordinary page: rule too strict or disguised robot?
                                     plus_one(facts["refus_navigateurs"], url.split("?")[0][:60])
@@ -3878,8 +3878,8 @@ def collect_summary(periods):
                         elif code[0] == "2" and not bad and not ASSET_RE.search(url):
                             for i in idx:
                                 pages_per_period[i][key_value] = device_family(ua)
-                    # BigBlueButton participants: participation link (/bigbluebutton/api/join?fullName=…), opened
-                    # by the participant's browser — their IP and the name they entered.
+                    # BigBlueButton participants: participation link (/bigbluebutton/api/join?fullName=...), opened
+                    # by the participant's browser - their IP and the name they entered.
                     if url.startswith("/bigbluebutton/api/join?") and code[0] in "23":
                         q = urllib.parse.parse_qs(url.split("?", 1)[1])
                         note_account(facts["comptes"], (q.get("fullName") or ["(no name)"])[0][:40], ip, idx, f"{d:%Y-%m-%d}")
@@ -3962,7 +3962,7 @@ def collect_summary(periods):
                 if len(fields) <= date_col:
                     continue
                 if key_value == "manuels" and len(fields) >= 3 and fields[1] in ("banni", "leve"):
-                    banned[fields[2]] = fields[1]                   # last known event: banned / lifted (2.73: « justifie » ignored)
+                    banned[fields[2]] = fields[1]                   # last known event: banned / lifted (2.73: "justifie" ignored)
                 if filter_text and filter_text not in fields:
                     continue
                 try:
@@ -4076,7 +4076,7 @@ def _meminfo():
 def _existing_services():
     units = ["nginx.service"]
     for u in PROFILE.get("SERVICES", "").split():
-        if "*" in u:                         # e.g. postgresql@*.service: the real instances (postgresql@16-main…)
+        if "*" in u:                         # e.g. postgresql@*.service: the real instances (postgresql@16-main...)
             out = run(["systemctl", "list-units", "--all", "--no-legend", "--plain", u], timeout=20)[1]
             units += [l.split()[0] for l in out.splitlines() if l.split()]
         elif u != "nginx.service":
@@ -4230,7 +4230,7 @@ def remember_recommendations(now, merge=True):
     now_dt = time.time()
     ips = [{"ip": ip, "raison": r, "vu": now_dt} for ip, r in RECOMMENDED]
     # A run only reads the NEW lines of the logs: an address recommended by a previous run does not necessarily appear there any more. It therefore stays recommended
-    # (with its reason) until it is banned or 48 h after its last recommendation — otherwise a rerun (b key of app-log-live.py) would erase valid recommendations.
+    # (with its reason) until it is banned or 48 h after its last recommendation - otherwise a rerun (b key of app-log-live.py) would erase valid recommendations.
     try:
         if not merge:                                  # list processed by --ban-recommended: emptied for good
             raise ValueError
@@ -4804,8 +4804,8 @@ class LocalizedArgumentParser(argparse.ArgumentParser):
         return super().add_argument(*args, **kwargs)
 
     def error(self, message):
-        # 2.71: option names never translated (« --sort » became « --tri »). 2.74: a message translated WHOLE by the catalogue (its msgid includes the option:
-        # « --days expects a number of days … ») keeps that translation when every option name is still there; otherwise the options are set aside
+        # 2.71: option names never translated ("--sort" became "--tri"). 2.74: a message translated WHOLE by the catalogue (its msgid includes the option:
+        # "--days expects a number of days ...") keeps that translation when every option name is still there; otherwise the options are set aside
         options = re.findall(r"(?<![\w-])--[a-z][\w-]*", message)
         whole = TR(message)
         message = whole if whole != message and all(re.search(rf"(?<![\w-]){re.escape(o)}(?![\w-])", whole) for o in options) else \
@@ -4964,8 +4964,8 @@ def main():
         return show_changelog()
     given = {a.split("=", 1)[0] for a in sys.argv[1:] if a.startswith("--")}
     listing = given & {"--table-fields", "--group", "--csv", "--stats", "--repeat-header"}
-    if listing:                                         # 2.67: these options only make sense with --list-users — 2.69: ON THE COMMAND LINE only: the same
-        args.list_users = True                          # keys in a configuration file (TABLE_FIELDS, STATS…) are settings of --list-users, never a reason to list
+    if listing:                                         # 2.67: these options only make sense with --list-users - 2.69: ON THE COMMAND LINE only: the same
+        args.list_users = True                          # keys in a configuration file (TABLE_FIELDS, STATS...) are settings of --list-users, never a reason to list
         args.table = args.table or listing != {"--csv"}  # (the timer, run without option, keeps monitoring); --csv alone: the file only
     set_cms()
     if not args.dry_run:
@@ -4996,7 +4996,7 @@ def main():
         except Exception as e:            # ProfilError (message in French)
             eprint(f"ERROR: {e}")
             return 2
-        set_cms()                                      # the profile is known: BigBlueButton → any CMS is sensitive
+        set_cms()                                      # the profile is known: BigBlueButton -> any CMS is sensitive
     if args.summary:
         return show_summary()
     internet = True if args.internet else None

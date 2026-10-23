@@ -1,21 +1,21 @@
 #!/usr/bin/env python3
 # ========================================================================================================================
 # Copyright (C) 2026 Services-Conseils Linux Inc.
-# Copyright (C) 2026 Rencontres Linux au Québec contributors
+# Copyright (C) 2026 Rencontres Linux au Quebec contributors
 #
 # This program is free software: you can redistribute it and/or modify it under the terms of the GNU Affero General Public
 # License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
 # Full text: https://www.gnu.org/licenses/agpl-3.0.html
 # ========================================================================================================================
 #
-# odoo-mail-retry.py — Odoo's UNSENT E-MAILS: the list (each e-mail's TITLE, its date, its recipients, the cause of the failure), then the
+# odoo-mail-retry.py - Odoo's UNSENT E-MAILS: the list (each e-mail's TITLE, its date, its recipients, the cause of the failure), then the
 # offer to RESEND them.
-#   * List: e-mails in « Delivery Failed » (state « exception » of mail.mail) of the last --days days (30 by default), read READ-ONLY from
+#   * List: e-mails in "Delivery Failed" (state "exception" of mail.mail) of the last --days days (30 by default), read READ-ONLY from
 #     PostgreSQL (apps/_odoo_db.py, root). Addresses masked (j***@gmail.com) except with --details. Cause recognized from Odoo's error (messages-per-
-#     connection limit 452, sender refused 550...) with the mention « transient » (a resend goes through) or « PERMANENT » (comes back until the setting is fixed:
+#     connection limit 452, sender refused 550...) with the mention "transient" (a resend goes through) or "PERMANENT" (comes back until the setting is fixed:
 #     see app-log-check.py, section [5]).
-#   * Resend: on a terminal, a menu — [t] all, [l] the oldest (a batch), [c] one by one, [N] none. « Resend » = put the e-mail back in the « Outgoing » state,
-#     exactly like Odoo's « Retry » button: the scheduled action « Mail: Email Queue Manager » sends it at its next run. This is the program's ONLY write;
+#   * Resend: on a terminal, a menu - [t] all, [l] the oldest (a batch), [c] one by one, [N] none. "Resend" = put the e-mail back in the "Outgoing" state,
+#     exactly like Odoo's "Retry" button: the scheduled action "Mail: Email Queue Manager" sends it at its next run. This is the program's ONLY write;
 #     it only touches e-mails still in failure, and each resend is recorded in /var/lib/nginx-tools/mail-retry.log.
 #   * Without a terminal (pipe, scheduled task): list only; --resend --yes resends without a question (--batch N: only the N oldest).
 #   * Warnings before resending: PERMANENT cause (it will fail again); mail.session.batch.size undefined with many e-mails (risk of hitting the
@@ -47,7 +47,7 @@ try:                    # line editing in prompts (backspace ^H or ^?, arrows)
 except ImportError:
     pass
 
-__version__ = "1.15.20261022.012000"
+__version__ = "1.16.20261022.231529"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
@@ -80,7 +80,7 @@ def lang_origin():
     origin = getattr(I18N, "origine_langue", "") if I18N else ""
     return f" ({origin})" if origin else ""
 if I18N:
-    print, input = I18N.print, I18N.input          # noqa: A001 — every displayed text goes through the translator (no effect when the display language is the source language)
+    print, input = I18N.print, I18N.input          # noqa: A001 - every displayed text goes through the translator (no effect when the display language is the source language)
 
 
 def wrap(text, **kwargs):
@@ -211,7 +211,7 @@ def cause_of(reason, diag):
     d = diag.classify_diagnostic(reason) if diag is not None and reason else None
     if d is not None:
         return d["short"], bool(d.get("permanent"))
-    useful = re.sub(r"^.*?serveur SMTP '[^']*'\.\s*", "", re.sub(r"\s+", " ", reason))      # without the preamble « Failed to send ... via SMTP server 'None'. »
+    useful = re.sub(r"^.*?serveur SMTP '[^']*'\.\s*", "", re.sub(r"\s+", " ", reason))      # without the preamble "Failed to send ... via SMTP server 'None'."
     return (useful[:70] or "unknown cause"), False
 
 
@@ -234,7 +234,7 @@ def show_list(database, failures, state, days_list, details, diag):
         cause, permanent = cause_of(m["raison"], diag)
         bad = invalid_recipient(m["destinataires"], checker)
         shown = cause
-        if bad:                                  # 1.10: invalid address — resending without fixing it fails again
+        if bad:                                  # 1.10: invalid address - resending without fixing it fails again
             cause, permanent = "invalid address", True
             shown = f"invalid address ({bad[1]['reason']})" + (f", suggested: {bad[1]['suggestion'] if details else mask(bad[1]['suggestion'])}" if bad[1]["suggestion"] else "")
         m["cause"], m["permanente"], m["invalide"] = cause, permanent, bool(bad)
@@ -615,7 +615,7 @@ def main():
     code = 0
     for database in databases:
         invalid = find_invalid_registrations(db, database, days_list, checker)
-        if args.invalid_emails or invalid:          # 1.10: invalid addresses first — fixing them resends their e-mails
+        if args.invalid_emails or invalid:          # 1.10: invalid addresses first - fixing them resends their e-mails
             show_invalid(database, invalid, args.details)
             if invalid and args.fix and args.yes:
                 fix_menu(db, database, invalid, True, checker)

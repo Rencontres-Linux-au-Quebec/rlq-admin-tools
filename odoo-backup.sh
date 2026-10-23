@@ -1,22 +1,22 @@
 #!/usr/bin/env bash
 # ========================================================================================================================
 # Copyright (C) 2026 Services-Conseils Linux Inc.
-# Copyright (C) 2026 Rencontres Linux au Québec contributors
+# Copyright (C) 2026 Rencontres Linux au Quebec contributors
 #
 # This program is free software: you can redistribute it and/or modify it under the terms of the GNU Affero General Public
 # License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
 # Full text: https://www.gnu.org/licenses/agpl-3.0.html
 # ========================================================================================================================
 #
-# odoo-backup.sh — sauvegarde et restauration de la base PostgreSQL et du filestore d'Odoo, au FORMAT D'ODOO.
+# odoo-backup.sh - backup and restoration of Odoo's PostgreSQL database and filestore, in ODOO's FORMAT.
 #
 # Chaque sauvegarde est une archive au format natif d'Odoo (celui de la page du gestionnaire de bases) : dump.sql
-# (pg_dump --no-owner, texte), manifest.json (version d'Odoo, de PostgreSQL, modules installés) et filestore/.
-# --format zip (défaut) : importable tel quel par la page /web/database/manager d'Odoo ; --format tar.xz : même
-# contenu, mieux compressé. Vérifications : fin de dump.sql présente, archive relue, empreinte SHA-256 (.sha256).
-# Écriture dans un fichier .partial renommé seulement si tout a réussi ; espace disque vérifié AVANT ; rétention
+# (pg_dump --no-owner, text), manifest.json (Odoo and PostgreSQL versions, installed modules) and filestore/.
+# --format zip (default): importable as is by the /web/database/manager page of Odoo; --format tar.xz: same
+# content, better compressed. Checks: end of dump.sql present, archive re-read, SHA-256 fingerprint (.sha256).
+# Writing to a .partial file renamed only if everything succeeded; disk space checked BEFORE; retention
 # quotidienne / hebdomadaire / mensuelle ; copie rsync facultative (ex. vers Proxmox par Tailscale). --restore restaure
-# une archive .zip ou .tar.xz sur ce serveur. L'état (dernière réussite, dernier échec) est lu par web-monitor.py.
+# archive .zip or .tar.xz on this server. The state (last success, last failure) is read by web-monitor.py.
 #
 # Usage : odoo-backup.sh [OPTION]...   (sans option : sauvegarder toutes les bases configurées ou détectées)
 #
@@ -61,13 +61,13 @@
 # ========================================================================================================================
 
 set -euo pipefail
-# PATH complété (2.x) : sous cron, PATH se limite à /usr/bin:/bin — ipset, iptables, nft, fail2ban-client, nginx
-# (dans /usr/sbin, /sbin) étaient alors introuvables. Ajoutés À LA FIN : ne masquent jamais une commande déjà trouvée.
+# PATH completed (2.x): under cron, PATH is limited to /usr/bin:/bin - ipset, iptables, nft, fail2ban-client, nginx
+# (in /usr/sbin, /sbin) were then not found. Added AT THE END: they never hide a command already found.
 for _d in /usr/local/sbin /usr/sbin /sbin; do [[ -n "${NGINX_TOOLS_TESTS:-}" ]] && break; case ":$PATH:" in *":$_d:"*) ;; *) PATH="$PATH:$_d" ;; esac; done
-# (Pendant la suite de tests, NGINX_TOOLS_TESTS désactive cet ajout : /usr/sbin/ufw & co resteraient sinon joignables.)
+# (During the test suite, NGINX_TOOLS_TESTS disables this addition: /usr/sbin/ufw & co would otherwise remain reachable.)
 export PATH
 
-readonly SCRIPT_VERSION="1.20.20261022.012000"
+readonly SCRIPT_VERSION="1.21.20261022.231529"
 SCRIPT_NAME="$(basename "${BASH_SOURCE[0]}" .sh)"; readonly SCRIPT_NAME
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
 SCRIPT_PATH="$SCRIPT_DIR/$(basename "${BASH_SOURCE[0]}")"; readonly SCRIPT_PATH
@@ -78,13 +78,13 @@ readonly CHANGELOG_FILE
 changelog_section() {
     awk -v cle="${BASH_SOURCE[0]##*/}" '/^## /{dans=($0 == "## " cle); if (dans) print; next} dans' "$CHANGELOG_FILE"
 }
-# Langue d'affichage (en ou fr) : --lang, ODOO_BACKUP_LANG, LANGUAGE du fichier de configuration, LC_ALL / LANG — apps/_i18n.sh traduit la sortie (rien ne change en français).
+# Display language (en or fr): --lang, ODOO_BACKUP_LANG, LANGUAGE of the configuration file, LC_ALL / LANG - apps/_i18n.sh translates the output (nothing changes in French).
 if [[ -r "$SCRIPT_DIR/apps/_i18n.sh" ]]; then
-    # shellcheck source=/dev/null  # bibliothèque livrée à côté du programme
+    # shellcheck source=/dev/null  # library shipped next to the program
     . "$SCRIPT_DIR/apps/_i18n.sh"
     i18n_relancer "$SCRIPT_NAME" ODOO_BACKUP_LANG "$0" "$@"
 fi
-declare -F run_interruptible >/dev/null || run_interruptible() { "$@"; }     # sans apps/_i18n.sh : exécution simple
+declare -F run_interruptible >/dev/null || run_interruptible() { "$@"; }     # without apps/_i18n.sh: simple execution
 readonly STATE_DIR="${ODOO_BACKUP_STATE_DIR:-/var/lib/odoo-backup}"
 readonly SYSTEMD_DIR="${ODOO_BACKUP_SYSTEMD_DIR:-/etc/systemd/system}"
 
@@ -92,22 +92,22 @@ if [[ -t 1 || -n "${REPORT_ERR_COULEUR:-}" ]]; then C_RED=$'\x1b[1;31m'; C_YELLO
 else C_RED=""; C_YELLOW=""; C_GREEN=""; C_RESET=""; fi
 
 # --- Options -----------------------------------------------------------------------------------------------------------
-# Règle des fichiers de configuration (tous les programmes) : lire /etc/default/odoo-backup.conf, PUIS ~/.odoo-backup.conf s'il
+# Configuration file rule (all the programs): read /etc/default/odoo-backup.conf, THEN ~/.odoo-backup.conf if it
 # existe (le dernier l'emporte), PUIS la ligne de commande (prioritaire sur les fichiers). --config FICHIER (ou la variable
-# ODOO_BACKUP_CONFIG) : ce fichier SEUL, qui DOIT exister. Les fichiers lus sont toujours affichés.
+# ODOO_BACKUP_CONFIG): this file ONLY, which MUST exist. The files read are always displayed.
 readonly CONFIG_DEFAUT="${ODOO_BACKUP_DEFAULT_DIR:-/etc/default}/odoo-backup.conf"
 CONFIG_PERSO="${HOME:-/root}/.odoo-backup.conf"
 readonly CONFIG_ANCIEN="${HOME:-/root}/.odoo-backup.cfg"      # legacy personal name (rule before 1.19: personal files ended with .cfg)
 CONFIG_FILE="${ODOO_BACKUP_CONFIG:-}"; CONFIG_EXPLICITE=0; CLI_OPTIONS=""
 if [[ -n "$CONFIG_FILE" ]]; then CONFIG_EXPLICITE=1; fi
 RESTORE_FILE=""; OPT_TIMES=""; OPT_FORMAT=""; ONLY_DB=""; DO_DRY_RUN=0; DO_STATUS=0; DO_TEST_RESTORE=0; DO_INSTALL_TIMER=0; DO_UNINSTALL_TIMER=0; OPT_DEST=""; VERBOSE=0
-# --report-err : rapport d'erreurs à copier-coller en fin d'exécution (programme, version, serveur, échecs…) — apps/_rapport.sh
+# --report-err: error report to copy and paste at the end of the run (program, version, server, failures...) - apps/_rapport.sh
 if [[ -r "$SCRIPT_DIR/apps/_rapport.sh" ]]; then
-    # shellcheck source=/dev/null  # bibliothèque livrée à côté du programme
+    # shellcheck source=/dev/null  # library shipped next to the program
     . "$SCRIPT_DIR/apps/_rapport.sh"
     rapport_si_demande "$SCRIPT_DIR/$(basename "${BASH_SOURCE[0]}")" "$SCRIPT_VERSION" "$SCRIPT_DIR" "$@"
 fi
-# Première ligne de TOUTE exécution, même avec --help : le nom et la version du programme (--version l'affiche lui-même).
+# First line of EVERY run, even with --help: the name and version of the program (--version displays it itself).
 case " $* " in *" --version "*) ;; *) echo "odoo-backup.sh v$SCRIPT_VERSION" ;; esac
 
 while [[ $# -gt 0 ]]; do
@@ -141,19 +141,19 @@ while [[ $# -gt 0 ]]; do
             exit 0
             ;;
         -h|--help) sed -n '/^# Usage :/,/^# =/p' "$SCRIPT_PATH" | sed '$d; s/^# \{0,1\}//'; exit 0 ;;
-        --report-err) shift ;;                 # traité avant (apps/_rapport.sh) ; accepté ici avec --help, --version…
+        --report-err) shift ;;                 # handled before (apps/_rapport.sh); accepted here with --help, --version...
         *) echo "Argument inconnu: $1 (voir --help)" >&2; exit 1 ;;
     esac
 done
 
-# --- Configuration : migration et création (actions qui ÉCRIVENT, en root, sans --config) ---------------------------------
-# Action qui écrit : sauvegarde, restauration, timer. Jamais : --status, --dry-run, --test-restore, --uninstall-timer.
+# --- Configuration: migration and creation (actions that WRITE, as root, without --config) ---------------------------------
+# Action that writes: backup, restoration, timer. Never: --status, --dry-run, --test-restore, --uninstall-timer.
 ACTION_ECRIT=1
 if [[ "$DO_STATUS" == "1" || "$DO_DRY_RUN" == "1" || "$DO_TEST_RESTORE" == "1" || "$DO_UNINSTALL_TIMER" == "1" ]]; then ACTION_ECRIT=0; fi
 if [[ -n "$RESTORE_FILE" ]]; then ACTION_ECRIT=0; fi
 
-# Le service systemd peut contenir l'ancien chemin de configuration en dur (--config, avant la 1.5) : retiré IMMÉDIATEMENT après
-# le renommage, sans arrêter le timer, pour qu'il ne pointe jamais vers un fichier absent (il retrouve seul /etc/default).
+# The systemd service may contain the old configuration path hard-coded (--config, before 1.5): removed IMMEDIATELY after
+# the renaming, without stopping the timer, so that it never points to a missing file (it finds /etc/default by itself).
 retirer_chemin_du_service() {
     local ancien="$1" unite="$SYSTEMD_DIR/odoo-backup.service" contenu
     [[ -f "$unite" ]] || return 0
@@ -164,9 +164,9 @@ retirer_chemin_du_service() {
     echo "Timer : chemin de l'ancien fichier retiré du service (il retrouve seul $CONFIG_DEFAUT) ; le timer n'a PAS été arrêté." >&2
 }
 
-# Ancien fichier de configuration (avant la 1.5 : ~/.odoo-backup.cfg, seule configuration) → /etc/default : RENOMMÉ d'abord,
-# service corrigé ensuite, AVANT toute opération sur le timer (--install-timer l'arrête puis le relance après). Seulement si
-# /etc/default/odoo-backup.conf n'existe pas : un fichier personnel à côté d'un fichier système est une couche voulue (1.19 : l'ancien nom
+# Legacy configuration file (before 1.5: ~/.odoo-backup.cfg, the only configuration) -> /etc/default: RENAMED first,
+# service corrected afterwards, BEFORE any operation on the timer (--install-timer stops it then restarts it after). Only if
+# /etc/default/odoo-backup.conf does not exist: a personal file next to a system file is a desired layer (1.19: the old name
 # ~/.odoo-backup.cfg devient alors ~/.odoo-backup.conf, voir migrer_ancien_nom).
 migrer_config_perso() {
     [[ "$EUID" -eq 0 && ! -e "$CONFIG_DEFAUT" && -f "$CONFIG_ANCIEN" && ! -e "$CONFIG_PERSO" ]] || return 0
@@ -177,7 +177,7 @@ migrer_config_perso() {
     retirer_chemin_du_service "$CONFIG_ANCIEN"
 }
 
-# 1.19 — personal file ~/.odoo-backup.conf (common rule): a legacy ~/.odoo-backup.cfg kept as a LAYER (a system file exists) is renamed to it
+# 1.19 - personal file ~/.odoo-backup.conf (common rule): a legacy ~/.odoo-backup.cfg kept as a LAYER (a system file exists) is renamed to it
 # (apps/_i18n.sh config_migrer_ancien: same notices as every program); the service (old path in its --config) is corrected at once, like above.
 # Both files: the .conf is read, the .cfg is reported and ignored. Rename impossible: the legacy file is read as is.
 migrer_ancien_nom() {
@@ -194,7 +194,7 @@ migrer_ancien_nom() {
     return 0
 }
 
-# Création au premier lancement (comme app-health-check.py) : modèle commenté dans /etc/default, droits 600.
+# Creation at first launch (like app-health-check.py): commented template in /etc/default, rights 600.
 creer_config_defaut() {
     [[ "$EUID" -eq 0 && ! -e "$CONFIG_DEFAUT" ]] || return 0
     mkdir -p "$(dirname "$CONFIG_DEFAUT")" 2>/dev/null || return 0
@@ -230,7 +230,7 @@ if (( ! CONFIG_EXPLICITE )); then migrer_ancien_nom; fi
 # --- Configuration : fichiers lus, dans l'ordre (le dernier l'emporte) ------------------------------------------------------
 FICHIERS_CONFIG=()
 if (( CONFIG_EXPLICITE )); then
-    # Un fichier demandé et introuvable n'est JAMAIS ignoré : les valeurs par défaut (sans REMOTE : plus de copie hors du
+    # A requested file that is not found is NEVER ignored: the default values (without REMOTE: no more copy off the
     # serveur) s'appliqueraient en silence.
     [[ -e "$CONFIG_FILE" ]] || { echo "ERREUR: configuration introuvable : $CONFIG_FILE" >&2; exit 1; }
     FICHIERS_CONFIG=("$CONFIG_FILE")
@@ -243,7 +243,7 @@ for fichier_config in ${FICHIERS_CONFIG[@]+"${FICHIERS_CONFIG[@]}"}; do
     if [[ ! -r "$fichier_config" ]]; then echo "ERREUR: configuration illisible (droits) : $fichier_config" >&2; exit 1; fi
 done
 
-# --- Configuration : lue ligne à ligne, JAMAIS exécutée (pas de « source ») ; clés inconnues ignorées ---------------
+# --- Configuration: read line by line, NEVER executed (no "source"); unknown keys ignored ---------------
 DEST=/var/backups/odoo; FORMAT=zip; DATABASES=""; ODOO_CONF=""; FILESTORE_DIR=""; PG_USER=postgres
 KEEP_RECENT_DAYS=2; KEEP_DAILY=7; KEEP_WEEKLY=4; KEEP_MONTHLY=6; REMOTE=""; TIMER_TIME=02:30
 for fichier_config in ${FICHIERS_CONFIG[@]+"${FICHIERS_CONFIG[@]}"}; do
@@ -253,7 +253,7 @@ for fichier_config in ${FICHIERS_CONFIG[@]+"${FICHIERS_CONFIG[@]}"}; do
         printf -v "${BASH_REMATCH[1]}" '%s' "$valeur"
     done < "$fichier_config"
 done
-# Fichier COMMUN à tous les programmes (app-default.conf, puis ~/.app-default.conf) : VERBOSE et DEBUG_LEVEL lus ici ; LANGUAGE et ANONYMIZE sont lus par apps/_i18n.sh ; la clé du fichier du programme l'emporte.
+# COMMON file for all the programs (app-default.conf, then ~/.app-default.conf): VERBOSE and DEBUG_LEVEL read here; LANGUAGE and ANONYMIZE are read by apps/_i18n.sh; the program's file key wins.
 if (( ! CONFIG_EXPLICITE )); then
     commun_perso="${HOME:-/root}/.app-default.conf"
     if declare -F config_migrer_ancien >/dev/null; then config_migrer_ancien "$commun_perso"; commun_perso="$CFG_A_LIRE"; fi     # 1.19: legacy ~/.app-default.cfg renamed
@@ -276,7 +276,7 @@ fi
 for n in KEEP_RECENT_DAYS KEEP_DAILY KEEP_WEEKLY KEEP_MONTHLY; do
     [[ "${!n}" =~ ^[0-9]+$ ]] || { echo "ERREUR: $n doit être un entier (reçu : « ${!n} »)." >&2; exit 1; }
 done
-# Heures des sauvegardes : une ou plusieurs HH:MM (espaces ou virgules) ; « 9:00 » devient « 09:00 » ; triées, sans doublon.
+# Backup times: one or more HH:MM (spaces or commas); "9:00" becomes "09:00"; sorted, without duplicate.
 normaliser_heures() {
     local h mot
     local -a mots=() res=()
@@ -293,7 +293,7 @@ normaliser_heures() {
 TIMER_TIME_BRUT="$TIMER_TIME"
 TIMER_TIME=$(normaliser_heures "$TIMER_TIME_BRUT") || { echo "ERREUR: TIMER_TIME attend une ou plusieurs heures HH:MM, ex. « 09:00 16:00 23:00 » (reçu : « $TIMER_TIME_BRUT »)." >&2; exit 1; }
 read -ra HEURES <<< "$TIMER_TIME"
-# Écart maximal entre deux sauvegardes consécutives (cyclique, en heures) + 2 h de marge : au-delà, la dernière sauvegarde est
+# Maximum gap between two consecutive backups (cyclic, in hours) + 2 h margin: beyond that, the last backup is
 # trop ancienne (une seule par jour : 24 + 2 = 26 h, comme avant ; 09:00 16:00 23:00 : 10 + 2 = 12 h).
 calculer_seuil_heures() {
     local prec="" premier="" h m ecart max=0
@@ -307,7 +307,7 @@ calculer_seuil_heures() {
 }
 SEUIL_HEURES=$(calculer_seuil_heures)
 
-# Quels fichiers sont lus, et les options importantes : deux lignes (l'affichage ne dépend jamais de la couleur).
+# Which files are read, and the important options: two lines (the display never depends on color).
 afficher_configuration() {
     local lus="" f bases_txt copie_txt cli_txt=""
     if (( CONFIG_EXPLICITE )); then
@@ -327,9 +327,9 @@ afficher_configuration() {
     echo "  Options : --lang ${NGINX_TOOLS_I18N_LANGUE:-fr} · sauvegardes dans $DEST ($FORMAT) aux heures : ${TIMER_TIME// /, } · bases : $bases_txt · copie hors du serveur : $copie_txt · rétention : tout sur $KEEP_RECENT_DAYS j, puis $KEEP_DAILY j / $KEEP_WEEKLY sem. / $KEEP_MONTHLY mois$cli_txt"
 }
 
-# Verrou (flock) : une seule exécution MODIFIANTE à la fois — cron, timer systemd et lancement manuel peuvent se
-# croiser. Attente en secondes (0 : abandon immédiat). Dossier : NGINX_TOOLS_LOCK_DIR (tests), sinon /run/lock, sinon
-# /tmp. Un appel imbriqué du même script (ex. --import-bans qui lance --ban) réutilise le verrou déjà tenu.
+# Lock (flock): only one MODIFYING run at a time - cron, systemd timer and manual launch may
+# cross. Wait in seconds (0: immediate abort). Folder: NGINX_TOOLS_LOCK_DIR (tests), otherwise /run/lock, otherwise
+# /tmp. A nested call of the same script (e.g. --import-bans which launches --ban) reuses the lock already held.
 prendre_verrou() {
     local attente="$1" nom="$2" var ok dir="${NGINX_TOOLS_LOCK_DIR:-/run/lock}"
     var="VERROU_TENU_${nom//-/_}"
@@ -346,7 +346,7 @@ prendre_verrou() {
     export "$var=1"
 }
 if [[ "$DO_STATUS" != "1" && "$DO_DRY_RUN" != "1" ]]; then prendre_verrou 0 odoo-backup; fi
-# grep_q : equivalent de « grep -q » SANS la course SIGPIPE sous « set -o pipefail » (lit toute l'entree).
+# grep_q: equivalent of "grep -q" WITHOUT the SIGPIPE race under "set -o pipefail" (reads all the input).
 grep_q() { grep "$@" > /dev/null; }
 
 # --- Outils -------------------------------------------------------------------------------------------------------------
@@ -356,7 +356,7 @@ ko()   { echo "  ${C_RED}[FAIL]${C_RESET} $*"; }
 octets() { numfmt --to=iec --suffix=o "${1:-0}" 2>/dev/null | sed -E 's/^([0-9.,]+)([KMGTP]?)o$/\1 \2o/' || echo "${1:-0} o"; }
 # Commandes PostgreSQL sous le compte PG_USER (root : runuser) ; sinon l'utilisateur courant.
 exec 3>&2
-trace() {       # --verbose : la commande externe exacte, avant son exécution (sur la sortie d'erreur)
+trace() {       # --verbose: the exact external command, before its execution (on the error output)
     if [[ "$VERBOSE" == "1" ]]; then printf '+ %s\n' "$*" >&3; fi
     return 0
 }
@@ -377,7 +377,7 @@ conf_odoo() {
     done
     return 0
 }
-valeur_odoo() {       # valeur_odoo CLÉ : clé de la section [options] de la configuration d'Odoo (vide si absente)
+valeur_odoo() {       # valeur_odoo KEY: key of the [options] section of the Odoo configuration (empty if absent)
     local c; c=$(conf_odoo); [[ -z "$c" ]] && return 0
     awk -F'=' -v k="$1" '/^\[/ { dans = ($0 ~ /^\[options\]/) } dans && $1 ~ "^[ \t]*" k "[ \t]*$" { v = $2; sub(/^[ \t]+/, "", v); sub(/[ \t]+$/, "", v); print v; exit }' "$c"
 }
@@ -397,19 +397,19 @@ filestore_de() {       # dossier du filestore de la base $1 (vide si introuvable
     done
     return 0
 }
-noter() {             # noter success|failure MESSAGE : état lu par web-monitor.py et --status
+noter() {             # noter success|failure MESSAGE: state read by web-monitor.py and --status
     [[ "$DO_DRY_RUN" == "1" ]] && return 0
     mkdir -p "$STATE_DIR" 2>/dev/null || return 0
     printf '%s\t%s\t%s\n' "$(date +%s)" "$(date '+%Y-%m-%d %H:%M')" "$2" > "$STATE_DIR/last-$1" 2>/dev/null || true
-    # Âge maximal toléré de la dernière sauvegarde (selon les heures configurées) : lu par web-monitor.py
+    # Maximum age tolerated for the last backup (according to the configured times): read by web-monitor.py
     if [[ "$1" == "success" ]]; then echo "$SEUIL_HEURES" > "$STATE_DIR/max-age-hours" 2>/dev/null || true; fi
 }
 
 # --- Sauvegarde d'une base, au format d'Odoo ---------------------------------------------------------------------------
-# Motif des archives : BASE_AAAA-MM-JJ_HHMMSS.zip|.tar.xz (+ .sha256). Contenu identique à la sauvegarde de la page
+# Archive pattern: BASE_YYYY-MM-DD_HHMMSS.zip|.tar.xz (+ .sha256). Content identical to the backup of the page
 # d'Odoo (odoo/service/db.py : dump_db) : dump.sql, manifest.json (dump_db_manifest), filestore/.
 MOTIF_ARCHIVE='_([0-9]{4}-[0-9]{2}-[0-9]{2}_[0-9]{6})\.(zip|tar\.xz)$'
-manifest_json() {      # manifest_json BASE FICHIER : manifest.json d'Odoo (version, PostgreSQL, modules installés)
+manifest_json() {      # manifest_json BASE FILE: Odoo manifest.json (version, PostgreSQL, installed modules)
     local db="$1" sortie="$2" base_v pgv modules
     base_v=$(pg psql -Atc "SELECT latest_version FROM ir_module_module WHERE name = 'base'" -d "$db" 2>/dev/null) || base_v=""
     pgv=$(pg psql -Atc "SHOW server_version" -d "$db" 2>/dev/null) || pgv=""
@@ -479,7 +479,7 @@ sauvegarder() {
         return 1
     fi
     tmp=$(mktemp -d "$DEST/$db/.partial-XXXXXX"); chmod 700 "$tmp"
-    if ! run_interruptible pg pg_dump --no-owner -d "$db" > "$tmp/dump.sql" 2> "$tmp/errors.txt"; then      # 1.x: Ctrl+C answered at once, « no » lets the dump finish
+    if ! run_interruptible pg pg_dump --no-owner -d "$db" > "$tmp/dump.sql" 2> "$tmp/errors.txt"; then      # 1.x: Ctrl+C answered at once, "no" lets the dump finish
         ko "pg_dump de $db en échec : $(head -c 300 "$tmp/errors.txt")"; rm -rf "$tmp"; return 1
     fi
     if ! tail -c 4096 "$tmp/dump.sql" | grep_q 'PostgreSQL database dump complete'; then
@@ -511,12 +511,12 @@ sauvegarder() {
     retention "$db"
 }
 
-# --- Rétention : la plus récente de chaque jour (KEEP_DAILY jours), semaine ISO (KEEP_WEEKLY), mois (KEEP_MONTHLY) ---
-retention() {          # rétention INDÉPENDANTE par format : une sauvegarde manuelle en tar.xz n'efface pas le zip du jour
+# --- Retention: the most recent of each day (KEEP_DAILY days), ISO week (KEEP_WEEKLY), month (KEEP_MONTHLY) ---
+retention() {          # INDEPENDENT retention per format: a manual backup in tar.xz does not delete the zip of the day
     local db="$1" fmt f d j s m garder nj ns nm recent=""
     find "$DEST/$db" -maxdepth 1 -name '.partial-*' -mmin +1440 -exec rm -rf {} + 2>/dev/null || true
-    # KEEP_RECENT_DAYS : TOUTES les sauvegardes des N derniers jours (aujourd'hui compris) — sans cela, avec plusieurs
-    # sauvegardes par jour, seule la dernière de chaque jour serait gardée et les précédentes effacées aussitôt.
+    # KEEP_RECENT_DAYS: ALL the backups of the last N days (today included) - without it, with several
+    # backups per day, only the last one of each day would be kept and the previous ones deleted at once.
     if (( KEEP_RECENT_DAYS > 0 )); then recent=$(date -d "-$((KEEP_RECENT_DAYS - 1)) days" +%Y-%m-%d); fi
     for fmt in zip tar.xz; do
         local -A vu_j=() vu_s=() vu_m=()
@@ -533,7 +533,7 @@ retention() {          # rétention INDÉPENDANTE par format : une sauvegarde ma
         unset vu_j vu_s vu_m
     done
 }
-archives() {           # archives BASE : « date<TAB>fichier », la plus récente d'abord (seuls les noms au format du programme)
+archives() {           # BASE archives: "date<TAB>file", the most recent first (only the names in the program's format)
     find "$DEST/$1" -mindepth 1 -maxdepth 1 -type f -printf '%f\n' 2>/dev/null \
         | sed -nE "s/^(.+)${MOTIF_ARCHIVE}/\\2\t&/p" | sort -r
 }
@@ -581,9 +581,9 @@ afficher_statut() {
 }
 
 # --- Restauration d'une archive .zip ou .tar.xz (format d'Odoo) ------------------------------------------------------
-# Jamais d'écrasement : base existante ou filestore non vide = refus. Chemins dangereux (absolus, « .. ») = refus. Les
-# objets sont créés sous le compte PostgreSQL d'Odoo (db_user : SET ROLE), comme lors d'une restauration par Odoo.
-restaurer() {          # restaurer ARCHIVE [BASE_CIBLE] [DOSSIER_FILESTORE_CIBLE] [essai] → 0 si restaurée
+# Never overwrite: existing database or non-empty filestore = refusal. Dangerous paths (absolute, "..") = refusal. The
+# objects are created under Odoo's PostgreSQL account (db_user: SET ROLE), as during a restoration by Odoo.
+restaurer() {          # restore ARCHIVE [TARGET_BASE] [TARGET_FILESTORE_FOLDER] [test] -> 0 if restored
     local archive="$1" cible="${2:-}" fs_cible="${3:-}" essai="${4:-}" tmp role proprio erreurs nb
     [[ -r "$archive" ]] || { ko "archive introuvable : $archive"; return 1; }
     case "$archive" in *.zip|*.tar.xz) ;; *) ko "format non reconnu (attendu : .zip ou .tar.xz) : $archive"; return 1 ;; esac
@@ -637,8 +637,8 @@ PY
     if ! pg createdb ${role:+--owner "$role"} "$cible"; then rm -rf "$tmp"; ko "createdb $cible impossible"; return 1; fi
     chmod 755 "$tmp"; chmod 644 "$tmp/dump.sql"                    # lisible par le compte PostgreSQL
     pg psql -q -d "$cible" ${role:+-c "SET ROLE \"$role\""} -f "$tmp/dump.sql" > /dev/null 2> "$tmp/errors.txt" || true
-    # Erreurs sans conséquence (comme lors d'une restauration par Odoo) : commentaire d'une extension créée par
-    # le superutilisateur. Toute autre erreur est signalée.
+    # Harmless errors (as during a restoration by Odoo): comment of an extension created by
+    # the superuser. Any other error is reported.
     erreurs=$(grep -E 'ERROR:' "$tmp/errors.txt" | grep -vc 'must be owner of extension') || erreurs=0
     nb=$(pg psql -Atc "SELECT count(*) FROM ir_module_module WHERE state = 'installed'" -d "$cible" 2>/dev/null) || nb=""
     if [[ ! "$nb" =~ ^[0-9]+$ || "$nb" -eq 0 ]]; then
@@ -662,7 +662,7 @@ PY
     fi
 }
 
-# --- --test-restore : la dernière sauvegarde est-elle RÉELLEMENT restaurable ? --------------------------------------
+# --- --test-restore: is the last backup REALLY restorable? ----------------------------------------------------------
 test_restauration() {
     local db dernier essai rc=0 fs_essai
     for db in $(bases); do
@@ -680,8 +680,8 @@ test_restauration() {
 # --- Timer systemd ------------------------------------------------------------------------------------------------------
 installer_timer() {
     [[ "$EUID" -eq 0 ]] || { echo "ERREUR: root requis pour --install-timer." >&2; exit 1; }
-    # Chemin de configuration dans le timer SEULEMENT s'il a été demandé (--config) : sinon le programme retrouve seul son
-    # fichier (/etc/default), et déplacer ce fichier ne casse plus le timer.
+    # Configuration path in the timer ONLY if it was requested (--config): otherwise the program finds its
+    # file by itself (/etc/default), and moving this file no longer breaks the timer.
     local CONFIG_ARG="" LIGNES_CALENDRIER="" h
     if (( CONFIG_EXPLICITE )); then CONFIG_ARG=" --config $CONFIG_FILE"; fi
     for h in "${HEURES[@]}"; do LIGNES_CALENDRIER+="${LIGNES_CALENDRIER:+$'\n'}OnCalendar=*-*-* $h"; done   # une ligne par heure
@@ -708,8 +708,8 @@ RandomizedDelaySec=10min
 [Install]
 WantedBy=timers.target
 EOF
-    # Le fichier de configuration a déjà été renommé (migration, plus haut) : le timer n'est arrêté qu'ENSUITE. « restart » =
-    # arrêt puis démarrage, pour que la nouvelle définition (service, heure) s'applique à un timer déjà actif.
+    # The configuration file has already been renamed (migration, above): the timer is stopped only AFTERWARDS. "restart" =
+    # stop then start, so that the new definition (service, time) applies to an already active timer.
     trace systemctl daemon-reload; systemctl daemon-reload
     trace systemctl enable odoo-backup.timer; systemctl enable odoo-backup.timer
     trace systemctl restart odoo-backup.timer; systemctl restart odoo-backup.timer

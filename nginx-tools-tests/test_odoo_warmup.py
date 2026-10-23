@@ -118,7 +118,7 @@ class OdooWarmup(EnvTest):
         self.assertIn(("GET", "/web/webclient/load_menus"), FauxOdoo.appels)
         self.assertEqual(FauxOdoo.appels.count(("POST", "/web/dataset/call_kw/event.event/get_views")), 2)      # --repeat 2
         self.assertEqual(FauxOdoo.appels.count(("POST", "/web/dataset/call_kw/survey.survey/get_views")), 2)
-        self.assertNotIn(("GET", "/survey"), FauxOdoo.appels)                                                   # PAGES remplace la liste par défaut
+        self.assertNotIn(("GET", "/survey"), FauxOdoo.appels)                                                   # PAGES replaces the default list
         self.assertNotIn("administration non préchauffée", out)
 
     def test_pages_liees_decouvertes_et_limitees(self):
@@ -141,7 +141,7 @@ class OdooWarmup(EnvTest):
         self.assertEqual(code, 0, out + err)
         self.assertIn(("POST", "/web/dataset/call_kw/event.event/search_read"), FauxOdoo.appels)
         self.assertIn(("POST", "/web/dataset/call_kw/survey.survey/search_read"), FauxOdoo.appels)
-        self.assertIn(("GET", "/event/dernier-9"), FauxOdoo.appels)                      # adresse absolue ramenée au chemin
+        self.assertIn(("GET", "/event/dernier-9"), FauxOdoo.appels)                      # absolute address reduced to the path
         self.assertIn(("GET", "/survey/start/tok1"), FauxOdoo.appels)
         self.assertIn(("GET", "/event/non-publie-8"), FauxOdoo.appels)
         self.assertIn("/event/non-publie-8 (non public)", out)
@@ -155,7 +155,7 @@ class OdooWarmup(EnvTest):
         self.assertEqual(code, 0, out + err)
         self.assertEqual(FauxOdoo.appels.count(("GET", "/en_CA/event")), 1)
         self.assertEqual(FauxOdoo.appels.count(("GET", "/es_MX/event")), 1)
-        self.assertEqual(FauxOdoo.appels.count(("GET", "/event")), 1)                    # la langue de la page elle-même n'est pas rechargée
+        self.assertEqual(FauxOdoo.appels.count(("GET", "/event")), 1)                    # the language of the page itself is not reloaded
         self.assertNotIn(("GET", "/de/event"), FauxOdoo.appels)
         FauxOdoo.appels.clear()
         self.lancer("--url", self.url, "--wait", "5", "--links", "0", "--site-languages", "es")
