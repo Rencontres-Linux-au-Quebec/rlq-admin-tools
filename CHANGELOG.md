@@ -55,6 +55,27 @@ Earlier history was archived outside this repository when this file was created.
 
 ## app-log-live.py
 
+### 1.103.20261022.215046 - Title: RLQ* groups show their identifier and category, so homonyms can be told apart.
+- Reason: request: the G key and the end summary listed « RLQ22-Visiteur = 0 » three times without any way to tell the three groups apart. Odoo allows several groups with the same name.
+- Changes:
+  - apps/_odoo_db.py, groupes_rlq(): the query also reads res_groups.id and the name of the category (ir_module_category). Each group is returned with `id` and `categorie`; the list is sorted by name, then by id. The grouping is still per group id, so homonyms are no longer merged.
+  - apps/_odoo_db.py, nom_traduit(): new helper, the translated-name reading moved out of groupes_rlq() (fr_CA, then fr_FR, then en_US, then the first value).
+  - app-log-live.py, rlq_group_label(): new helper; a group is written « RLQ22-Visiteur #12 [Événements] = 70 ». The « #id » and the « [category] » parts appear only when the data provides them, so callers that only pass a name and a count get the previous output.
+  - app-log-live.py, rlq_group_columns(): uses rlq_group_label() for each cell.
+  - nginx-tools-tests/test_app_log_live.py: test_groupes_rlq_homonymes_distingues_par_identifiant_et_categorie.
+- Bugs fixed:
+  - Symptom: three lines « RLQ22-Visiteur = 0 / 70 / 0 » and two « RLQ22-Commanditaire » lines, impossible to attribute.
+  - Diagnosis: the query already grouped by group id, so these were distinct res_groups records sharing the same displayed name; the program printed only the name.
+  - Correction: the identifier and the category are read and displayed next to the name.
+- Guard rails and edge cases:
+  - Read-only: the query is unchanged apart from the two added columns and the join on the category; the prefix is still checked by regex before use.
+  - A group without category is shown without brackets; a name that is not valid JSON is kept as it is.
+  - Column width is measured on the displayed text, so the longer labels reduce the number of columns on a narrow terminal (as before).
+- Checks:
+  - py_compile of app-log-live.py and apps/_odoo_db.py; --version.
+  - Unit tests of the RLQ* groups (test_groupes_rlq_*), alignment tests and test_conventions.
+- Action required: None. To see the identifiers, press G in the menu or read the end summary (Ctrl-C) after updating.
+
 ### 1.102.20261022.154430 - Title: U key (menu) for UNDERLINE; saved by the C key.
 - Reason: request: add an option U for UNDERLINE in the menu that asks for a number, and make sure it is saved with the C key.
 - Changes: - MENU_KEYS: U = underline; the menu lists « U --underline N » (current value, 0 = none) in alphabetical order. - Key handler underline: asks for N (0 to 1000; Enter = 10, the default), applies it at once to the output (output.underline) and to options["underline"]. - config_values(): UNDERLINE is written by the C key (only when changed since startup, like the other settings). - main(): options["underline"] is set from the value in use at startup (command line, or UNDERLINE of the configuration file). - C key help: UNDERLINE added to the list of savable settings. - --underline help: « U key of the menu; UNDERLINE of the configuration file ». - Header comment, lang/app-log-live.fr.po and doc/en and doc/fr 07-app-log-live.md updated.
