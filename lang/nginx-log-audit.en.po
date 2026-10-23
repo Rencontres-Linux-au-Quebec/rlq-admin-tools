@@ -1906,3 +1906,48 @@ msgstr "protected IP"
 
 msgid "aucun terminal interactif ; relancer avec --yes pour la lever sans question"
 msgstr "no interactive terminal; rerun with --yes to lift it without asking"
+
+msgid "  --unban-low-score            lister les IP bannies dont le score est sous le seuil et proposer de les débannir"
+msgstr "  --unban-low-score            list banned IPs whose score is below the threshold, and offer to unban them"
+
+msgid "ERREUR: --unban-low-score nécessite root (sudo)."
+msgstr "ERROR: --unban-low-score requires root (sudo)."
+
+msgid " IP BANNIES SOUS LE SEUIL DE PROPOSITION (score < "
+msgstr " BANNED IPS BELOW THE PROPOSAL THRESHOLD (score < "
+
+msgid " IP bannie(s) : calcul du score de chacune (lecture seule)…"
+msgstr " banned IP(s): computing the score of each (read-only)..."
+
+msgid "Banni par"
+msgstr "Banned by"
+
+msgid " IP bannie(s) sous le seuil de "
+msgstr " banned IP(s) below the threshold of "
+
+msgid " : IP protégée ("
+msgstr " : protected IP ("
+
+msgid ") — jamais levée par ce programme."
+msgstr ") - never lifted by this program."
+
+msgid "Débannir "
+msgstr "Unban "
+
+msgid "/7, banni par "
+msgstr "/7, banned by "
+
+msgid " : non levée (aucun terminal interactif ; relancer avec --yes pour la lever sans question)."
+msgstr " : not lifted (no interactive terminal; rerun with --yes to lift it without asking)."
+
+msgid " levée (jail "
+msgstr " lifted (jail "
+
+msgid "✗ échec de la levée de "
+msgstr "FAILED to lift "
+
+msgid " dans le jail "
+msgstr " in jail "
+
+msgid "/7 sous le seuil (--unban-low-score)"
+msgstr "/7 below the threshold (--unban-low-score)"
