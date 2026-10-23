@@ -240,4 +240,4 @@ class OdooWarmup(EnvTest):
         self.assertRegex(out, r"odoo-warmup.py version 1\.\d+\.\d{8}\.\d{6}")
         code, out, err = self.run_cmd(["python3", script_path("odoo-warmup.py"), "--changelog"])
         self.assertIn("## odoo-warmup.py", out)
-        self.assertRegex(out, r"(?m)^### 1\.\d+\.\d{8}\.\d{6}$")
+        self.assertRegex(out, r"(?m)^### 1\.\d+\.\d{8}\.\d{6}( - .*)?$")
