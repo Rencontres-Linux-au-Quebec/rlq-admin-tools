@@ -38,11 +38,11 @@ Earlier history was archived outside this repository when this file was created.
 - Checks: - py_compile; test_cles_modeles.
 - Action required: None.
 
-### 2.26.20261020.211944
+### 2.26.20261020.211944 - Current version. Earlier history archived outside the repository.
 
 ## app-log-check.py
 
-### 2.24.20261022.012000
+### 2.24.20261022.012000 - Title: Settings key: BY_HOUR.
 - Reason: Reason: the report mode --by-hour is a setting that can stay in the file; --last remains a one-shot window and stays on the command line.
 - Changes: - SCHEMA_CONFIG: new key BY_HOUR (--by-hour). - doc/en and doc/fr app-log-check.conf.example: BY_HOUR added. - --init and --last remain command-line only (actions / one-shot filter).
 - Bugs fixed:
@@ -51,11 +51,11 @@ Earlier history was archived outside this repository when this file was created.
 - Checks: - py_compile, ruff, test_cles_modeles.
 - Action required: None.
 
-### 2.23.20261020.211944
+### 2.23.20261020.211944 - Current version. Earlier history archived outside the repository.
 
 ## app-log-live.py
 
-### 1.102.20261022.154430
+### 1.102.20261022.154430 - Title: U key (menu) for UNDERLINE; saved by the C key.
 - Reason: request: add an option U for UNDERLINE in the menu that asks for a number, and make sure it is saved with the C key.
 - Changes: - MENU_KEYS: U = underline; the menu lists « U --underline N » (current value, 0 = none) in alphabetical order. - Key handler underline: asks for N (0 to 1000; Enter = 10, the default), applies it at once to the output (output.underline) and to options["underline"]. - config_values(): UNDERLINE is written by the C key (only when changed since startup, like the other settings). - main(): options["underline"] is set from the value in use at startup (command line, or UNDERLINE of the configuration file). - C key help: UNDERLINE added to the list of savable settings. - --underline help: « U key of the menu; UNDERLINE of the configuration file ». - Header comment, lang/app-log-live.fr.po and doc/en and doc/fr 07-app-log-live.md updated.
 - Bugs fixed:
@@ -64,7 +64,7 @@ Earlier history was archived outside this repository when this file was created.
 - Checks: - py_compile; --version.
 - Action required: None.
 
-### 1.101.20261022.154316
+### 1.101.20261022.154316 - Title: F key (steps line) works without a recording in progress.
 - Reason: request: the F key should not be available only after R; it must show the steps without requiring a recording to be started first.
 - Changes: - show_steps_line(): shows the steps of the recording in progress, otherwise the steps of the LAST recording (kept until the next R), otherwise the hint « Steps: no recording yet (R starts one, then N a step) ». The line of the last recording is prefixed « Last recording - ». - record["last"]: the recording stopped last, set by record_stop(). - F key (steps_line): no longer refuses with « Start a recording (R) »; turning it on shows the line at once. - Menu: the F entry says the steps are those of the recording (or of the last one) and that it works without R. - lang/app-log-live.fr.po: new and changed messages translated; obsolete messages removed. - doc/en and doc/fr 07-app-log-live.md: the F key paragraph.
 - Bugs fixed: - Symptom: pressing F without a recording only printed « Start a recording (R) to see the steps on one line », so the key looked unavailable. - Diagnosis: the line was drawn only from the recording in progress (record["r"]); no recording meant nothing to draw. - Correction: the steps are read from the recording in progress or from the last one; the refusal message is gone.
@@ -72,7 +72,7 @@ Earlier history was archived outside this repository when this file was created.
 - Checks: - py_compile.
 - Action required: None.
 
-### 1.100.20261022.133552
+### 1.100.20261022.133552 - Title: Runs without root (sudo -n for the advanced commands); PostgreSQL mandatory for the R recording; system context in the archive; menu options in alphabetical order.
 - Reason: request: the program must run with a non-root account and use sudo before the advanced functions; the recording must keep the database samples (writes, locks), so PostgreSQL is mandatory; the archive must record whether the program ran as root, the operating system and the tools (psql 18.6 was not recorded); the menu options sorted alphabetically.
 - Changes: - privileged() and lancer_root(): fail2ban-client and ipset run as they are when root, through « sudo -n » otherwise (never asks for a password). - R recording refused with an explicit message without psql, without an Odoo database, or without PostgreSQL access through « sudo -n -u postgres ». - Archive: context/system.txt (root or not, sudo, operating system, kernel, Python and tool versions; no user name); db/writes-BASE.log (writes per activity table at each sample). - Journal of the service recorded through sudo -n when not root. - Menu (? key): options sorted alphabetically by option name. - Files: app-log-live.py; doc/en and doc/fr 07-app-log-live.md and app-log-live.conf.example (sudo and PostgreSQL requirements); apps/_record.py 1.2; apps/_odoo_db.py 1.20; apps/_connexions.py 1.2; nginx-tools-tests/fixtures/app-log-live-record-exemple-tests-en-dev.tar.xz (anonymized recording with the context reported by the operator).
 - Bugs fixed: - Symptom: psql and runuser were called only as root; with a non-root account there were no database samples and no context in the archive. - Diagnosis: runuser needs root. - Correction: sudo -n -u postgres for an account that is not root; the advanced commands go through sudo -n.
@@ -80,7 +80,7 @@ Earlier history was archived outside this repository when this file was created.
 - Checks: py_compile; --version; test_app_log_live; test_record; test_i18n; test_conventions; test_cles_modeles; test_config_defaut. Non-root run on a temporary account with a limited sudoers rule: --version, --help, and --app odoo --no-follow reach the service check and print the limited-rights message; sudo -n -u postgres psql and sudo -n journalctl work. A full recording could not be run in the test environment (no Odoo service).
 - Action required: to use the recording and the advanced functions without root, allow without password for the account: « sudo -n -u postgres psql », « fail2ban-client », « ipset », « journalctl ». The PostgreSQL client (postgresql-client) must be installed.
 
-### 1.99.20261022.122804
+### 1.99.20261022.122804 - Title: Steps line (F key, --steps-line) and a 60-minute maximum for test recordings.
 - Reason: During a test recording the steps (N key) are marked one by one, but nothing shows at a glance what the user is doing. The request: all the steps on one white reverse-video line, toggled on or off. Also, a recording must stop by itself when someone forgets to press R: the limit is now 60 minutes at most.
 - Changes: - F key (menu, with the current state) and option --steps-line / STEPS_LINE (yes / no in the configuration file): all the steps of the recording on ONE line, white reverse video (style 30;107, black text on white background, both explicit). Each step: number, state ([OK] ended, - open) and description cut at 24 columns. Shown when turned on, and at each step start or end. - steps_line_text() (new): if the full line does not fit the terminal width, the descriptions are left out and the last step is shown in full. - show_steps_line() (new): screen only, anonymized like the stream (never in the daily journal, never in the archive). - --record-max / RECORD_MAX: default 60 minutes (was 30); the value must be greater than 0 and at most 60 (RECORD_MAX_LIMIT). The help text and the menu are updated. - Files: app-log-live.py; lang/app-log-live.fr.po (6 new messages, help fragment updated); doc/en and doc/fr 07-app-log-live.md; doc/en and doc/fr app-log-live.conf.example (STEPS_LINE, RECORD_MAX=60); doc/nginx-tools.version.
 - Bugs fixed: - None (new option; change of a limit).
@@ -88,7 +88,7 @@ Earlier history was archived outside this repository when this file was created.
 - Checks: - py_compile; --version, --help (French and English texts), --record-max 0 and 61 refused. - test_app_log_live: new test test_199_steps_line_touche_F_et_limite_d_enregistrement_60_minutes; test_i18n (catalogue of the French messages), test_conventions, test_cles_modeles, test_config_commune, test_config_defaut, test_record, test_reglages_bannis_limites: OK.
 - Action required: If /etc/default/app-log-live.conf or ~/.app-log-live.conf contains RECORD_MAX=0 or a value above 60, change it to 60 or less: otherwise the program stops at startup with a message. To see the steps on one line, add STEPS_LINE=yes or press F during a recording.
 
-### 1.98.20261022.110306
+### 1.98.20261022.110306 - Title: New defaults (MIN=yes, UNDERLINE=10, -2026- highlighted), option values in English only, configuration template sorted.
 - Reason: Request: add MIN=yes, UNDERLINE=10 and -2026- in HIGHLIGHT to the default settings of /etc/default/app-log-live.conf; arguments in English only (oui -> yes, non -> no); options of the default configuration files in /etc/default in alphabetical order.
 - Changes: - MIN_DEFAULT = True (new constant): --min is on by default; new option --no-min (shows everything: database, « werkzeug », fetchmail lines); MIN=no in the configuration file does the same. - UNDERLINE_DEFAULT = 10 (was 5): one log line out of 10 underlined by default and for UNDERLINE=yes / --underline without N; --help text updated. - HIGHLIGHT: the default list already held -2026- (HIGHLIGHT_DEFAULT); the template now shows it (#HIGHLIGHT=...,ouvertes,-2026-) and explains that a word ending with a dash is a word, not a removal. - Menu (? key): option states shown as yes / no in every language (was oui / non in French) - the same words as in the configuration file. - doc/en and doc/fr app-log-live.conf.example: keys in alphabetical order in one « Options » section (LANGUAGE and ANONYMIZE included), yes / no values, #MIN=yes, #UNDERLINE=10. - doc/en and doc/fr 07-app-log-live.md: underline every 10 lines, --min by default, English values. - lang/app-log-live.fr.po: --min, --no-min and --underline help texts. - nginx-tools-tests/test_app_log_live.py: the tests written for the full display pass --no-min (run_cmd / run_pty wrappers); the default-underline test uses 11 lines (10th underlined); menu test expects yes; new test test_valeurs_par_defaut_198_min_underline_highlight_et_valeurs_en_anglais.
 - Bugs fixed:
@@ -97,7 +97,7 @@ Earlier history was archived outside this repository when this file was created.
 - Checks: - test_app_log_live, test_cles_modeles (new sorting / English-values test), test_config_commune, test_config_defaut, test_i18n: OK. - py_compile.
 - Action required: In /etc/default/app-log-live.conf (or ~/.app-log-live.conf), replace any oui / non by yes / no (the program prints the lines to change). Remove an active MIN=no or UNDERLINE=5 line if you want the new defaults.
 
-### 1.97.20261022.100559
+### 1.97.20261022.100559 - Title: --hide-addons (key q): hide the INFO noise of the Odoo modules.
 - Reason: The live stream is flooded by INFO lines of the Odoo modules (cron jobs, websocket, fetchmail...) that hide the lines that matter. The request: hide them, except when there is an error or when an e-mail is sent or a file (PDF...) is generated.
 - Changes: - Option --hide-addons (new), key q on the fly (menu, with the current state), configuration key HIDE_ADDONS (yes/no) in doc/en and doc/fr app-log-live.conf.example. - Lines whose logger starts with odoo.addons. and whose level is INFO or DEBUG are discarded, unless ADDONS_KEEP_RE matches (successfully sent, mail_mail, ir_mail_server, mail delivery, smtp, ir_actions_report, pdf, report generated, attachments .pdf/.xlsx/.docx/.csv/.zip). - Line.discard_addons() (new); the same rule is applied to the lines of the reminder shown again after a sign-in. - Command-line summary line (--hide-addons in the list of active filters of the test recording). - Files: app-log-live.py; lang/app-log-live.fr.po (3 new fragments); doc/en and doc/fr 07-app-log-live.md and app-log-live.conf.example; nginx-tools-tests/test_app_log_live.py (new test).
 - Bugs fixed:
@@ -106,7 +106,7 @@ Earlier history was archived outside this repository when this file was created.
 - Checks: - test_app_log_live: new test test_hide_addons_cache_le_bruit_des_modules_sauf_erreurs_courriels_et_pdf (option, key set from configuration file, errors / e-mails / PDF kept); test_min_sans_base... still passes. - py_compile; ruff shows no new warning.
 - Action required: To hide the noise by default, add HIDE_ADDONS=oui to /etc/default/app-log-live.conf (or ~/.app-log-live.conf). Otherwise: none.
 
-### 1.96.20261022.083937
+### 1.96.20261022.083937 - Title: N key: steps of a test (start and end, with a description; steps.txt in the archive).
 - Reason: The first archive of the test plan (2026-10-21) could only be read by timestamps: nothing marked where each action of the test started and ended. Each action is now marked by hand during the R recording, with a description, and listed in the archive.
 - Changes: - Key N (only while a recording runs): N asks for a description and starts a step; N again ends the open step. The step shows on screen (cyan START / END line), in stream-all.log ([step]) and in records.log. - Archive: steps.txt (new): number, start, end, duration, description. README.txt gives the number of steps. - Help menu (? or h): a line for N. Key line at startup: "N step while recording". - Files: app-log-live.py; apps/_record.py 1.1; lang/app-log-live.fr.po (French); doc/en and doc/fr 07-app-log-live.md; nginx-tools-tests/test_record.py. - Merged with main (1.95 settings keys SUMMARY/UNDERLINE): this change takes 1.96 to avoid a version clash.
 - Bugs fixed:
@@ -115,7 +115,7 @@ Earlier history was archived outside this repository when this file was created.
 - Checks: - test_record.py: new test (START / END lines in records.log, steps.txt, README count, step closed at the stop). - py_compile and ruff on apps/_record.py, app-log-live.py and test_record.py.
 - Action required: None.
 
-### 1.95.20261022.012000
+### 1.95.20261022.012000 - Title: Settings keys: SUMMARY, and UNDERLINE documented in the default files.
 - Reason: Reason: the owner wants every changeable setting available in the configuration file, and default files that list every variable (commented). UNDERLINE was missing from default files created before the key existed.
 - Changes: - SCHEMA_CONFIG: new key SUMMARY (--summary: session summary at the end of a --no-follow run). - doc/en and doc/fr app-log-live.conf.example: SUMMARY added. UNDERLINE was already in the code and in both examples (verified). - Action-only options stay on the command line: --diagnose, --diagnose-host, --modules, --modules-latest, --no-follow, --rate-limit, --record-test-log, --keep-ip (hidden legacy option).
 - Bugs fixed: - Symptom: UNDERLINE absent from /etc/default/app-log-live.conf. Diagnosis: the file was created before the key existed, and an existing file is never completed automatically. Fix: add the line by hand (see Action required).
@@ -123,15 +123,15 @@ Earlier history was archived outside this repository when this file was created.
 - Checks: - py_compile and ruff on the program; test_cles_modeles (every schema key is present in both examples).
 - Action required: Add `UNDERLINE=5` and `SUMMARY=non` to /etc/default/app-log-live.conf if you want them written in the file (new installs get them automatically).
 
-### 1.94.20261021.095843
+### 1.94.20261021.095843 - Current version. Earlier history archived outside the repository.
 
 ## host-perf-audit.py
 
-### 1.4.20261020.211944
+### 1.4.20261020.211944 - Current version. Earlier history archived outside the repository.
 
 ## odoo-chat-post.py
 
-### 1.9.20261022.012000
+### 1.9.20261022.012000 - Title: Settings keys: BOT_LOGIN and CATALOG.
 - Reason: Reason: every setting in the command line gets a key; actions remain on the command line.
 - Changes: - SCHEMA_CONFIG: new keys BOT_LOGIN (--bot-login) and CATALOG (--catalog). - doc/en and doc/fr odoo-chat-post.conf.example: both added. - Command-line only (actions or per-run inputs): --bot-config, --create, --create-bot, --dry-run, --list, --message, --post, --renew-key.
 - Bugs fixed:
@@ -140,15 +140,15 @@ Earlier history was archived outside this repository when this file was created.
 - Checks: - py_compile, ruff, test_cles_modeles.
 - Action required: None.
 
-### 1.8.20261020.211944
+### 1.8.20261020.211944 - Current version. Earlier history archived outside the repository.
 
 ## odoo-docs.py
 
-### 1.4.20261020.211944
+### 1.4.20261020.211944 - Current version. Earlier history archived outside the repository.
 
 ## odoo-mail-retry.py
 
-### 1.15.20261022.012000
+### 1.15.20261022.012000 - Title: The common file now reaches LOG_KEEP_DAYS and ANONYMIZE.
 - Reason: Reason: same as odoo-warmup.py: the common-file filter discarded LOG_KEEP_DAYS and ANONYMIZE.
 - Changes: - read_config(): the common file accepts LOG_KEEP_DAYS and ANONYMIZE; both are exported to the environment (environment wins).
 - Bugs fixed: - Symptom: ANONYMIZE in app-default.conf ignored. Diagnosis and fix as in odoo-warmup.py.
@@ -156,11 +156,11 @@ Earlier history was archived outside this repository when this file was created.
 - Checks: - py_compile, ruff, test_cles_modeles.
 - Action required: None.
 
-### 1.14.20261020.211944
+### 1.14.20261020.211944 - Current version. Earlier history archived outside the repository.
 
 ## odoo-warmup.py
 
-### 1.10.20261022.012000
+### 1.10.20261022.012000 - Title: The common file now reaches LOG_KEEP_DAYS and ANONYMIZE.
 - Reason: Reason: app-default.conf defines five common keys (apps/_config.py CLES_COMMUNES), but this program read only LANGUAGE, VERBOSE and DEBUG_LEVEL from it.
 - Changes: - read_config(): the common file accepts LOG_KEEP_DAYS and ANONYMIZE. - LOG_KEEP_DAYS and ANONYMIZE are exported as NGINX_TOOLS_LOG_KEEP_DAYS and NGINX_TOOLS_ANONYMIZE (only if not already set in the environment). - Comment updated to list the five keys.
 - Bugs fixed: - Symptom: ANONYMIZE=yes in app-default.conf had no effect on odoo-warmup. Diagnosis: the common-file filter discarded every key except three. Fix: accept the two keys.
@@ -168,11 +168,11 @@ Earlier history was archived outside this repository when this file was created.
 - Checks: - py_compile, ruff, test_cles_modeles.
 - Action required: None.
 
-### 1.9.20261020.211944
+### 1.9.20261020.211944 - Current version. Earlier history archived outside the repository.
 
 ## web-monitor.py
 
-### 2.77.20261022.110306
+### 2.77.20261022.110306 - Title: Option values in English only in the configuration summary; template sorted.
 - Reason: Request: add MIN=yes, UNDERLINE=10 and -2026- in HIGHLIGHT to the default settings of /etc/default/app-log-live.conf; arguments in English only (oui -> yes, non -> no); options of the default configuration files in /etc/default in alphabetical order.
 - Changes: - Configuration summary line: boolean options shown as yes / no in every language (was oui / non in French). - doc/en and doc/fr web-monitor.conf.example: keys in alphabetical order, yes / no values.
 - Bugs fixed:
@@ -181,15 +181,15 @@ Earlier history was archived outside this repository when this file was created.
 - Checks: - py_compile; test_cles_modeles.
 - Action required: None.
 
-### 2.76.20261020.211944
+### 2.76.20261020.211944 - Current version. Earlier history archived outside the repository.
 
 ## zip-versions.py
 
-### 1.15.20261020.211944
+### 1.15.20261020.211944 - Current version. Earlier history archived outside the repository.
 
 ## odoo-backup.sh
 
-### 1.20.20261022.012000
+### 1.20.20261022.012000 - Title: Comment corrected for the common file (no behaviour change).
 - Reason: Reason: the comment said only VERBOSE and DEBUG_LEVEL are read from app-default.conf. LANGUAGE and ANONYMIZE are in fact read through apps/_i18n.sh, and LOG_KEEP_DAYS does not apply to this program.
 - Changes: - Comment only (line ~256).
 - Bugs fixed:
@@ -198,11 +198,11 @@ Earlier history was archived outside this repository when this file was created.
 - Checks: - shellcheck, bash -n.
 - Action required: None.
 
-### 1.19.20261020.211944
+### 1.19.20261020.211944 - Current version. Earlier history archived outside the repository.
 
 ## odoo-update-module.sh
 
-### 1.15.20261022.133552
+### 1.15.20261022.133552 - Title: Activity guard: no module update while the site writes; 60-minute wait; the update is cancelled unless --force-busy; new --check-activity.
 - Reason: request: update the modules only when the site is idle. A single visitor can write (survey answer, chat message, registration, contact form), and the former guard, which counted visitors only, let such an update through.
 - Changes: - Guard (site_reasons, wait_for_quiet_site): the site is busy while one of these holds: active visitors (BUSY_VISITORS threshold); write requests in the nginx logs during the last ACTIVITY_WINDOW seconds (POST, PUT, PATCH, DELETE, except the known read-only requests of Odoo); open PostgreSQL sessions on the database; write locks on ir_cron; writes in the activity tables (counters of pg_stat_user_tables, sampled twice ACTIVITY_SAMPLE seconds apart). - WAIT_QUIET default: 60 minutes (was 15). 0 = a single check. - At the end of the wait the update is CANCELLED (exit 3, nothing stopped) instead of going ahead. --force-busy (FORCE_BUSY=yes) runs it anyway. - New option --check-activity: state of the site now, changes nothing; exit 0 = quiet, 3 = busy. - PostgreSQL commands run through runuser when the program runs as root, through « sudo -n -u postgres » otherwise (no root needed). - The regular expressions of the nginx logs accept several spaces between columns. - Test hooks: ODOO_UPDATE_MODULE_NOW (clock), ODOO_UPDATE_MODULE_PG_AS (command used in place of sudo), ODOO_UPDATE_MODULE_SAMPLE, ODOO_UPDATE_MODULE_WINDOW. - Calm-site messages state the threshold instead of claiming "no active visitor" when one visitor is below it. - Files: odoo-update-module.sh; lang/odoo-update-module.en.po; doc/en and doc/fr odoo-update-module.conf.example and 09-odoo-update-module.md; nginx-tools-tests/test_odoo_update_module.py; nginx-tools-tests/fixtures/ (anonymized recording used by the tests).
 - Bugs fixed: - Symptom: after WAIT_QUIET minutes with visitors still active, the update went ahead ("mise à jour quand même"), even during writes. - Diagnosis: the wait looked at visitors only, and the end of the wait forced the update. - Correction: the guard looks at all the activity above; the update is cancelled unless --force-busy.
@@ -210,7 +210,7 @@ Earlier history was archived outside this repository when this file was created.
 - Checks: test_odoo_update_module (guard tests replayed on the anonymized recording: busy, calm, cancelled without --force-busy, forced with it, unreadable database counted as busy); test_i18n; test_conventions; test_cles_modeles; test_config_defaut; test_config_commune.
 - Action required: if your configuration keeps WAIT_QUIET=15, it still waits 15 minutes; the new default is 60. The account that runs the update, when it is not root, needs « sudo -n -u postgres psql » without password (sudoers), otherwise the update is cancelled with a message.
 
-### 1.14.20261020.211944
+### 1.14.20261020.211944 - Current version. Earlier history archived outside the repository.
 
 ## nginx-hardening.sh
 
@@ -269,23 +269,23 @@ Earlier history was archived outside this repository when this file was created.
 
 ## sync-crowdsec-blocklist.sh
 
-### 1.26.20261020.211944
+### 1.26.20261020.211944 - Current version. Earlier history archived outside the repository.
 
 ## apps/_anonymiser.py
 
-### 1.3.20261020.203430
+### 1.3.20261020.203430 - Current version. Earlier history archived outside the repository.
 
 ## apps/_bbb.py
 
-### 1.3.20261019.150215
+### 1.3.20261019.150215 - Current version. Earlier history archived outside the repository.
 
 ## apps/_cache_ip.py
 
-### 1.2.20261019.150215
+### 1.2.20261019.150215 - Current version. Earlier history archived outside the repository.
 
 ## apps/_config.py
 
-### 1.9.20261022.110306
+### 1.9.20261022.110306 - Title: English-only values: French values detected; DEBUG_LEVEL gives VERBOSE=yes.
 - Reason: Request: add MIN=yes, UNDERLINE=10 and -2026- in HIGHLIGHT to the default settings of /etc/default/app-log-live.conf; arguments in English only (oui -> yes, non -> no); options of the default configuration files in /etc/default in alphabetical order.
 - Changes: - FRANCAIS (new map oui/non/vrai/faux/aucun -> yes/no/true/false/none) and valeurs_francaises(cfg) (new): list of « KEY=oui -> yes » for the configuration banner. - lire(): DEBUG_LEVEL >= 1 now sets VERBOSE=yes (was oui). - All templates doc/en and doc/fr *.conf.example (read by creer_par_defaut / rafraichir): options in alphabetical order (one « Options » section; inside each section for app-health-check and nginx-tools-mail, which hold real values), boolean values yes / no, « booléens : yes / no » in the header. No key added or removed (check: no line lost apart from the old section titles).
 - Bugs fixed:
@@ -294,27 +294,27 @@ Earlier history was archived outside this repository when this file was created.
 - Checks: - test_config_commune, test_config_defaut, test_cles_modeles (new test test_modeles_en_ordre_alphabetique_et_valeurs_en_anglais).
 - Action required: None.
 
-### 1.8.20261020.211944
+### 1.8.20261020.211944 - Current version. Earlier history archived outside the repository.
 
 ## apps/_connexions.py
 
-### 1.2.20261022.133552
+### 1.2.20261022.133552 - Title: PostgreSQL query of the connections through sudo -n when the account is not root.
 - Changes: POSTGRES_RUN (see apps/_odoo_db.py 1.20).
 - Action required: none.
 
-### 1.1.20261019.150215
+### 1.1.20261019.150215 - Current version. Earlier history archived outside the repository.
 
 ## apps/_courriel.py
 
-### 1.3.20261020.211944
+### 1.3.20261020.211944 - Current version. Earlier history archived outside the repository.
 
 ## apps/_email_check.py
 
-### 1.2.20261019.150215
+### 1.2.20261019.150215 - Current version. Earlier history archived outside the repository.
 
 ## apps/_i18n.py
 
-### 1.19.20261022.110306
+### 1.19.20261022.110306 - Title: Option values in English only; warning for French values (Python and Bash).
 - Reason: Request: add MIN=yes, UNDERLINE=10 and -2026- in HIGHLIGHT to the default settings of /etc/default/app-log-live.conf; arguments in English only (oui -> yes, non -> no); options of the default configuration files in /etc/default in alphabetical order.
 - Changes: - oui_non(): always yes / no (summary « Options : ... »). - afficher_configuration(): after the ignored values, one warning per French value (« valeur en français, écrire l'anglais dans le fichier de configuration : MIN=oui -> yes »); lang/_i18n.en.po translated. - apps/_i18n.sh: config_defaut collects French values in CFG_FRANCAIS (new array) and config_afficher prints the same warning; booleans shown as yes / no; « yes ou no attendu » for an invalid value; DEBUG_LEVEL gives VERBOSE=yes; lang/_config.en.po updated.
 - Bugs fixed:
@@ -323,44 +323,44 @@ Earlier history was archived outside this repository when this file was created.
 - Checks: - test_i18n (catalogues, Bash configuration), test_config_commune.
 - Action required: None.
 
-### 1.18.20261019.150215
+### 1.18.20261019.150215 - Current version. Earlier history archived outside the repository.
 
 ## apps/_limites.py
 
-### 1.1.20261019.150215
+### 1.1.20261019.150215 - Current version. Earlier history archived outside the repository.
 
 ## apps/_listes.py
 
-### 1.3.20261020.211944
+### 1.3.20261020.211944 - Current version. Earlier history archived outside the repository.
 
 ## apps/_odoo_conf.py
 
-### 1.3.20261020.211944
+### 1.3.20261020.211944 - Current version. Earlier history archived outside the repository.
 
 ## apps/_odoo_db.py
 
-### 1.20.20261022.133552
+### 1.20.20261022.133552 - Title: PostgreSQL queries run as the postgres user through sudo -n when the account is not root.
 - Changes: POSTGRES_RUN (runuser when root, « sudo -n -u postgres » otherwise) replaces the runuser prefix of the six queries.
 - Action required: none beyond the sudoers rules of app-log-live.py 1.100.
 
-### 1.19.20261020.103939
+### 1.19.20261020.103939 - Current version. Earlier history archived outside the repository.
 
 ## apps/_odoo_users.py
 
-### 1.2.20261019.150215
+### 1.2.20261019.150215 - Current version. Earlier history archived outside the repository.
 
 ## apps/_rapport.py
 
-### 1.12.20261019.150215
+### 1.12.20261019.150215 - Current version. Earlier history archived outside the repository.
 
 ## apps/_record.py
 
-### 1.2.20261022.133552
+### 1.2.20261022.133552 - Title: PostgreSQL samples mandatory; context/system.txt; writes per table; sudo -n for the journal of the service.
 - Changes: start() refuses the recording without psql, without a database, or without PostgreSQL access; context/system.txt (uid, sudo, operating system, kernel, Python, tool versions, no user name); db/writes-BASE.log (write counters per activity table at each sample); privileged() for the journal of the service.
 - Files: apps/_record.py; nginx-tools-tests/test_record.py.
 - Action required: none beyond the sudoers rules of app-log-live.py 1.100.
 
-### 1.1.20261022.083937
+### 1.1.20261022.083937 - Title: Steps of the test (N key of app-log-live.py): steps.txt.
 - Reason: The N key of app-log-live.py marks the start and the end of each action of a test; the archive must hold them, with their times, to match the log lines.
 - Changes: - Recorder.step_start(description) / step_end(reason): step numbers, times, descriptions; the open step is closed before a new one starts. - records.log and stream-all.log: "STEP n START hh:mm:ss - description" and "STEP n END hh:mm:ss - duration s - description". - steps.txt (new, bilingual header) in the archive, and "Steps" line in README.txt. - stop(): a step still open is closed with reason "recording stopped".
 - Bugs fixed:
@@ -369,19 +369,19 @@ Earlier history was archived outside this repository when this file was created.
 - Checks: - test_record.py: test_etapes_debut_fin_dans_records_log_et_steps_txt.
 - Action required: None.
 
-### 1.0.20261020.230008
+### 1.0.20261020.230008 - Current version. Earlier history archived outside the repository.
 
 ## apps/_reseau.py
 
-### 1.3.20261019.150215
+### 1.3.20261019.150215 - Current version. Earlier history archived outside the repository.
 
 ## apps/_sysperf.py
 
-### 1.2.20261019.150215
+### 1.2.20261019.150215 - Current version. Earlier history archived outside the repository.
 
 ## run-all.sh
 
-### 1.195.20261022.083937
+### 1.195.20261022.083937 - Title: test_record: steps of the test (N key of app-log-live.py).
 - Reason: New test of the step markers (N key) of the test recording.
 - Changes: - nginx-tools-tests/test_record.py: archive() accepts etapes; new test_etapes_debut_fin_dans_records_log_et_steps_txt. - Merged with main (1.194): this change takes 1.195; nginx-tools 1.142.
 - Bugs fixed:
@@ -390,8 +390,8 @@ Earlier history was archived outside this repository when this file was created.
 - Checks: - run-all.sh on the modules test_record and test_conventions.
 - Action required: None.
 
-### 1.194.20261021.130912
+### 1.194.20261021.130912 - Current version. Earlier history archived outside the repository.
 
 ## apps/_traduire.py
 
-### 1.5.20261019.150215
+### 1.5.20261019.150215 - Current version. Earlier history archived outside the repository.

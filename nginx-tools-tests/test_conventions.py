@@ -38,7 +38,8 @@ def changelog_sections():
                 cle = ligne[3:].strip()
                 sections.setdefault(cle, [])
             elif ligne.startswith("### ") and cle is not None:
-                sections[cle].append(ligne[4:].strip())
+                # en-tete « ### version - titre » : seule la version (1er mot) compte
+                sections[cle].append(ligne[4:].strip().split(" ")[0])
     return sections
 
 
