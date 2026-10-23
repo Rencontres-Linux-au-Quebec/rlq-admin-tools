@@ -35,7 +35,7 @@ class ConfirmationCtrlC(EnvTest):
                     'except KeyboardInterrupt:\n'
                     '    print("INTERROMPU", flush=True); sys.exit(130)\n'
                     'print("FIN", flush=True)\n')
-        self.py_question = os.path.join(self.racine, "toy_question.py")           # Ctrl+C PENDANT un input() (readline) : « can't re-enter readline » en 1.8
+        self.py_question = os.path.join(self.racine, "toy_question.py")           # Ctrl+C DURING an input() (readline): "can't re-enter readline" in 1.8
         with open(self.py_question, "w", encoding="utf-8") as f:
             f.write('import importlib.util, os, sys\n'
                     'spec = importlib.util.spec_from_file_location("_i18n", os.path.join(os.path.dirname(os.path.abspath(__file__)), "apps", "_i18n.py"))\n'
@@ -124,8 +124,8 @@ class ConfirmationCtrlC(EnvTest):
         self.assertIn("REPONSE=t", texte)
         texte, _ = self.lancer(["bash", self.sh_question], [(b"aucun :", CTRL_C, 0.4), (QUESTION_FR, b"o\r", 0.2)])
         self.assertNotIn("REPONSE=", texte)
-        # _i18n.sh 1.13 : un SECOND Ctrl+C pendant « Interrompre le programme ? » (après un Ctrl+C reçu pendant la question) arrête le programme — il était
-        # ignoré (« ^C^C^C »), sans erreur de bash (« trap_handler: bad signal 2 »)
+        # _i18n.sh 1.13: a SECOND Ctrl+C during "Interrupt the program?" (after a Ctrl+C received during the question) stops the program - it was
+        # ignored ("^C^C^C"), without a bash error ("trap_handler: bad signal 2")
         texte, envoyees = self.lancer(["bash", self.sh_question], [(b"aucun :", CTRL_C, 0.4), (QUESTION_FR, CTRL_C, 0.3)])
         self.assertEqual(envoyees, 2, texte)
         self.assertNotIn("REPONSE=", texte)
@@ -142,7 +142,7 @@ class ConfirmationCtrlC(EnvTest):
         self.assertNotIn("Interrompre", err)
 
 
-    # --- 1.11 / 1.16 : Ctrl+C PENDANT une commande longue et entre programmes (demande répétée) --------------------------------------------------
+    # --- 1.11 / 1.16: Ctrl+C DURING a long command and between programs (repeated request) --------------------------------------------------
     def ecrire(self, nom, texte):
         chemin = os.path.join(self.racine, nom)
         with open(chemin, "w", encoding="utf-8") as f:
@@ -207,7 +207,7 @@ class ConfirmationCtrlC(EnvTest):
             with open(chemin, encoding="utf-8") as f:
                 lignes = f.readlines()
             for n, ligne in enumerate(lignes, 1):
-                if ligne.lstrip().startswith("#") or "lancer=(timeout" in ligne:     # odoo-update-module.sh : la mise à jour passe par run_interruptible
+                if ligne.lstrip().startswith("#") or "lancer=(timeout" in ligne:     # odoo-update-module.sh: the update goes through run_interruptible
                     continue
                 if re.search(r"(?<![-\w])timeout (?!--foreground)\S", ligne):
                     fautes.append(f"{os.path.basename(chemin)}:{n}: {ligne.strip()[:100]}")

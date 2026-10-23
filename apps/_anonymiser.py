@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 # ========================================================================================================================
 # Copyright (C) 2026 Services-Conseils Linux Inc.
-# Copyright (C) 2026 Rencontres Linux au Québec contributors
+# Copyright (C) 2026 Rencontres Linux au Quebec contributors
 #
 # This program is free software: you can redistribute it and/or modify it under the terms of the GNU Affero General Public
 # License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
 # Full text: https://www.gnu.org/licenses/agpl-3.0.html
 # ========================================================================================================================
-# _anonymiser.py — anonymise ce qu'affichent les programmes (option --anonymize) : pseudonymes STABLES (module partagé, apps/).
+# _anonymiser.py - anonymizes what the programs display (option --anonymize): STABLE pseudonyms (shared module, apps/).
 #
 """Remplace, dans le texte affiché, les données qui identifient quelqu'un par des PSEUDONYMES STABLES : une même valeur donne toujours le même pseudonyme (on suit « la même
 personne » d'un rapport à l'autre sans pouvoir l'identifier). Le pseudonyme est un HMAC-SHA256 de la valeur avec un SEL SECRET propre à la machine (jamais affiché) : sans le sel,
@@ -33,11 +33,11 @@ import sys
 import threading
 import unicodedata
 
-__version__ = "1.3.20261020.203430"
+__version__ = "1.4.20261022.231529"
 SEL_ENV = "NGINX_TOOLS_ANON_SEL"
-ACTIF_ENV = "NGINX_TOOLS_ANON_ACTIF"          # posé pour tout ce qui est lancé derrière le filtre : rien n'est filtré deux fois
-SOI_ENV = "NGINX_TOOLS_ANON_SELF"             # 1.3: posé par un programme qui anonymise lui-même son affichage (app-log-live.py) : jamais relancé derrière le filtre
-DEMANDE_ENV = "NGINX_TOOLS_ANONYMIZE"          # 1 : anonymiser (même sans terminal, ex. cron) ; 0 : ne jamais le faire d'après la configuration
+ACTIF_ENV = "NGINX_TOOLS_ANON_ACTIF"          # set for everything launched behind the filter: nothing is filtered twice
+SOI_ENV = "NGINX_TOOLS_ANON_SELF"             # 1.3: set by a program that anonymizes its own display (app-log-live.py): never relaunched behind the filter
+DEMANDE_ENV = "NGINX_TOOLS_ANONYMIZE"          # 1: anonymize (even without a terminal, e.g. cron); 0: never do it according to the configuration
 DOMAINE_ANONYME = "anonyme.invalid"
 OUI = ("1", "oui", "yes", "true", "on", "vrai", "o", "y")
 ANSI_CODES = r"(?:\x1b\[[0-9;]*m)*"               # 1.3: color codes allowed between a name and the padding spaces of its column
@@ -85,7 +85,7 @@ def _lire_sel():
         with os.fdopen(fd, "wb") as f:
             f.write(nouveau + b"\n")
         return nouveau
-    return nouveau                                 # ni /etc ni le dossier personnel inscriptibles : sel éphémère (pseudonymes valables pour cette exécution seulement)
+    return nouveau                                 # neither /etc nor the home folder writable: ephemeral salt (pseudonyms valid for this run only)
 
 
 class Anonymiseur:
@@ -94,8 +94,8 @@ class Anonymiseur:
     def __init__(self, sel=None, fixed_width=False, names=None, names_lock=None):
         self.sel = sel if sel is not None else _lire_sel()
         self.cache = {}
-        self.fixed_width = fixed_width             # 1.2: « IP-4f2a9c » padded with spaces to the width of the address it replaces (columns stay aligned)
-        self.names = names if names is not None else {}      # 1.3: {name shown: (prefix, stable key)} — filled by the program, read here
+        self.fixed_width = fixed_width             # 1.2: "IP-4f2a9c" padded with spaces to the width of the address it replaces (columns stay aligned)
+        self.names = names if names is not None else {}      # 1.3: {name shown: (prefix, stable key)} - filled by the program, read here
         self.names_lock = names_lock or threading.Lock()
         self._names_re, self._names_n = None, -1
 
@@ -146,7 +146,7 @@ class Anonymiseur:
         except ValueError:
             return texte
         if adresse.is_loopback or adresse.is_unspecified or texte.startswith("255.") or (adresse.version == 4 and re.fullmatch(r"1[5-9]\.0\.\d+\.\d+", texte)):
-            return texte                                                  # boucle locale, masque, version « 18.0.1.3 » d'un module Odoo
+            return texte                                                  # local loop, mask, version "18.0.1.3" of an Odoo module
         res = "IP-" + self.pseudonyme("ip", str(adresse))
         return res.ljust(len(texte)) if self.fixed_width else res
 
@@ -224,7 +224,7 @@ def main(argv):
     if argv[1:2] == ["--pseudonyme"]:
         for valeur in argv[2:]:
             sortie = anonymiseur(valeur)
-            if sortie == valeur:                 # valeur nue (sans motif) : IP ou courriel reconnus d'après leur forme, sinon identifiant
+            if sortie == valeur:                 # bare value (no pattern): IP or e-mail recognized by their form, otherwise identifier
                 sortie = "ID-" + anonymiseur.pseudonyme("ident", valeur)
             print(f"{valeur} -> {sortie}")
         return 0

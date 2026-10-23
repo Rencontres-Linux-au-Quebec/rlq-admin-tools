@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 # ========================================================================================================================
 # Copyright (C) 2026 Services-Conseils Linux Inc.
-# Copyright (C) 2026 Rencontres Linux au Québec contributors
+# Copyright (C) 2026 Rencontres Linux au Quebec contributors
 #
 # This program is free software: you can redistribute it and/or modify it under the terms of the GNU Affero General Public
 # License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
 # Full text: https://www.gnu.org/licenses/agpl-3.0.html
 # ========================================================================================================================
-# _record.py — test RECORDING for app-log-live.py (R key, --record-test-log): everything needed to analyze one test of the site,
+# _record.py - test RECORDING for app-log-live.py (R key, --record-test-log): everything needed to analyze one test of the site,
 # gathered over the recording window and packed into one .tar.xz (shared module, apps/).
 #
 """One recording = one window of time [start, stop] and one archive `app-log-live-record-HOST-YYYYMMDD-HHMMSS[-label].tar.xz`:
@@ -46,7 +46,7 @@ import tempfile
 import threading
 import time
 
-__version__ = "1.2.20261022.133552"
+__version__ = "1.3.20261022.231529"
 
 SAMPLE_S = 10                               # seconds between two network / PostgreSQL samples
 RAW_MAX_BYTES = 50 * 1024 * 1024            # at most this much read from ONE log file (the beginning of the window is kept, the rest is noted as cut)
@@ -59,7 +59,7 @@ CATEGORIES = ("kept", "robot", "static", "websocket", "local")
 UUID_RE = re.compile(r"(?<![0-9A-Za-z])[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}(?![0-9A-Za-z])")
 LONG_HEX_RE = re.compile(r"(?<![0-9A-Za-z])[0-9a-fA-F]{20,}(?![0-9A-Za-z])")
 TOKEN_PARAM_RE = re.compile(r"(?i)([?&;][\w.-]*(?:hash|token|key|sig|secret)[\w.-]*=)([^&\s\"'#]+)")
-SURVEY_PATH_RE = re.compile(r"(/survey/[\w-]+/)([\w-]{12,})(?:/([\w-]{12,}))?")      # /survey/start/<survey token>, /survey/submit/<survey token>/<answer token>…
+SURVEY_PATH_RE = re.compile(r"(/survey/[\w-]+/)([\w-]{12,})(?:/([\w-]{12,}))?")      # /survey/start/<survey token>, /survey/submit/<survey token>/<answer token>...
 SQL_LITERAL_RE = re.compile(r"'(?:[^']|'')*'")
 FALLBACK_IPV4_RE = re.compile(r"(?<![\w.])(?:(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)\.){3}(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(?!\w|\.\d)")
 FALLBACK_IPV6_RE = re.compile(r"(?<![\w:.])(?:[0-9A-Fa-f]{1,4}:){2,7}[0-9A-Fa-f]{0,4}(?![\w:.])")
@@ -223,7 +223,7 @@ class Recorder:
             text = UUID_RE.sub(lambda m: self._token(m.group(0)), text)
             text = LONG_HEX_RE.sub(lambda m: self._token(m.group(0)), text)
             return self.mask_names(text)
-        except Exception:                                    # noqa: BLE001 — a masking error must never leave a real value: the line is dropped
+        except Exception:                                    # noqa: BLE001 - a masking error must never leave a real value: the line is dropped
             return "(line not written: masking failed)"
 
     def mask_sql(self, text):
@@ -384,7 +384,7 @@ class Recorder:
         try:
             self._write_context()
             self._snapshot("start")
-        except Exception as e:                               # noqa: BLE001 — a failed source is noted, never fatal
+        except Exception as e:                               # noqa: BLE001 - a failed source is noted, never fatal
             self.notes.append(f"start snapshot failed: {e}")
         while not self.stop_event.is_set():
             started = time.time()

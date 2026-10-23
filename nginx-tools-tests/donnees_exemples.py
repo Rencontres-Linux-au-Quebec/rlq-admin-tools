@@ -1,7 +1,7 @@
 # ========================================================================================================================
 # Copyright (C) 2026 Services-Conseils Linux
-# Copyright (C) 2026 Rencontres Linux au Québec contributors
-# Licence : GNU Affero General Public License, version 3 ou ultérieure — https://www.gnu.org/licenses/agpl-3.0.html
+# Copyright (C) 2026 Rencontres Linux au Quebec contributors
+# Licence: GNU Affero General Public License, version 3 or later - https://www.gnu.org/licenses/agpl-3.0.html
 # ========================================================================================================================
 """Données d'exemple FICTIVES de la suite (run-all.sh 1.188) : personnes, courriels, événements, lieux et organisations, en français (accents,
 traits d'union, apostrophes) et en anglais, plus les cas qui décalent les colonnes d'un terminal : accent COMBINANT (forme NFD : 2 caractères Python,
@@ -11,8 +11,8 @@ import unicodedata
 
 PERSONNES_FR = ["Hélène Côté", "François Lévesque", "Zoé Bérubé", "Gaëtan Brûlé", "Noël Ouellet-Béliveau", "Ève D'Aragon"]
 PERSONNES_EN = ["John Smith", "Mary O'Brien", "Christopher Whitfield"]
-PERSONNE_NFD = unicodedata.normalize("NFD", "Renée Gagné")         # « e » + accent combinant : len() = 13, largeur = 11
-PERSONNE_CJK = "张三李四"                                            # « Zhang San, Li Si » (Monsieur Tout-le-monde) : 4 caractères, 8 colonnes
+PERSONNE_NFD = unicodedata.normalize("NFD", "Renée Gagné")         # "e" + combining accent: len() = 13, width = 11
+PERSONNE_CJK = "张三李四"                                            # "Zhang San, Li Si" (Mr. Everyman): 4 characters, 8 columns
 PERSONNES = PERSONNES_FR + PERSONNES_EN + [PERSONNE_NFD, PERSONNE_CJK]
 
 
@@ -28,7 +28,7 @@ EVENEMENTS_EN = ["Linux Open House 2026", "Free Software Evening", "Hands-on: re
 LIEUX_FR = ["Université du Québec à Montréal", "Bibliothèque Gabrielle-Roy", "Café des Écrivains"]
 LIEUX_EN = ["Public Library", "Community Center", "Maker Space"]
 ORGANISATIONS = ["Vidéotron ltée", "Télébec", "Example Networks Inc.", "Réseau d'exemple"]
-# Adresses : documentation (privées pour Python : jamais recherchées) et publiques fictives (blocs du DoD, recherchées comme une vraie adresse)
+# Addresses: documentation (private for Python: never looked up) and fictitious public ones (DoD blocks, looked up like a real address)
 IP_DOC = ["192.0.2.10", "198.51.100.20", "203.0.113.30"]
 IP_PUBLIQUES = ["11.5.88.10", "11.9.16.20", "11.13.216.30", "11.17.240.40"]
 

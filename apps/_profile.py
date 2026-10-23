@@ -1,6 +1,6 @@
 # ========================================================================================================================
 # Copyright (C) 2026 Services-Conseils Linux Inc.
-# Copyright (C) 2026 Rencontres Linux au Québec contributors
+# Copyright (C) 2026 Rencontres Linux au Quebec contributors
 #
 # This program is free software: you can redistribute it and/or modify it under the terms of the GNU Affero General Public
 # License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
@@ -72,7 +72,7 @@ def _avec_configuration_odoo(profil):
         if chemin:
             r = lib.lire(chemin)
             profil.update({"ODOO_CONF": chemin, "ODOO_HTTP_PORT": r["http_port"], "ODOO_GEVENT_PORT": r["gevent_port"], "ODOO_LOGFILE": r["logfile"]})
-            if r["unites"]:                                    # service nommé d'après db_user / le fichier : essayé en premier
+            if r["unites"]:                                    # service named after db_user / the file: tried first
                 profil["DETECT_UNITS"] = " ".join(r["unites"] + [u for u in profil.get("DETECT_UNITS", "").split() if u not in r["unites"]])
             if profil.get("APP_DETECTION") == "détectée automatiquement":
                 profil["APP_DETECTION"] = f"détectée automatiquement ; configuration d'Odoo : {chemin}"

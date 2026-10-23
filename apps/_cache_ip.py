@@ -1,28 +1,28 @@
 #!/usr/bin/env python3
 # ========================================================================================================================
 # Copyright (C) 2026 Services-Conseils Linux Inc.
-# Copyright (C) 2026 Rencontres Linux au Québec contributors
+# Copyright (C) 2026 Rencontres Linux au Quebec contributors
 #
 # This program is free software: you can redistribute it and/or modify it under the terms of the GNU Affero General Public
 # License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
 # Full text: https://www.gnu.org/licenses/agpl-3.0.html
 # ========================================================================================================================
 #
-# _cache_ip.py — CACHE PERMANENT des informations sur les adresses IP : nom DNS (PTR), propriétaire du bloc d'adresses (RDAP : organisation,
-# réseau, plage, adresse d'abus), pays. Une adresse n'est cherchée qu'UNE fois sur Internet, puis servie instantanément : le démarrage de
-# app-log-live.py n'attend plus ses recherches, et nginx-log-audit.sh --investigate ne redemande pas ce qu'il sait déjà.
+# _cache_ip.py - PERMANENT CACHE of information about IP addresses: DNS name (PTR), owner of the address block (RDAP: organization,
+# network, range, abuse address), country. An address is looked up on the Internet only ONCE, then served instantly: the start of
+# app-log-live.py no longer waits for its lookups, and nginx-log-audit.sh --investigate does not ask again what it already knows.
 #   * Fichier SQLite : /var/lib/nginx-tools/ip-cache.sqlite (root), sinon ~/.cache/nginx-tools/ip-cache.sqlite ; droits 600. Variable
-#     NGINX_TOOLS_IP_CACHE : autre chemin, ou « off » pour désactiver (les tests la mettent à « off »).
-#   * Durées de validité : nom DNS trouvé 30 jours, « aucun nom » 3 jours ; propriétaire du bloc et pays 90 jours. Une recherche en ÉCHEC
-#     (réseau injoignable) n'est JAMAIS mémorisée : elle sera retentée.
-#   * Vie privée : une adresse IP est un renseignement personnel. Les adresses non revues depuis 180 jours sont effacées (purge au démarrage
-#     des programmes) ; « --no-cache » (app-log-live.py, _reseau.py) ne lit ni n'écrit rien ; « _cache_ip.py --clear » efface tout.
+#     NGINX_TOOLS_IP_CACHE: other path, or "off" to disable (the tests set it to "off").
+#   * Validity periods: DNS name found 30 days, "no name" 3 days; block owner and country 90 days. A lookup that FAILED
+#     (network unreachable) is NEVER stored: it will be retried.
+#   * Privacy: an IP address is personal information. Addresses not seen for 180 days are erased (purge at program startup
+#     of the programs); "--no-cache" (app-log-live.py, _reseau.py) reads and writes nothing; "_cache_ip.py --clear" erases everything.
 #
 #
 # Usage (normalement appele par les programmes de la suite) :
 #   python3 apps/_cache_ip.py --stats          contenu du cache
 #   python3 apps/_cache_ip.py --show ADRESSE   ce que le cache sait d'une adresse
-#   python3 apps/_cache_ip.py --purge [JOURS]  efface les adresses non revues depuis JOURS jours (180 par défaut)
+#   python3 apps/_cache_ip.py --purge [DAYS]  erases the addresses not seen for DAYS days (180 by default)
 #   python3 apps/_cache_ip.py --clear          efface tout le cache
 #   python3 apps/_cache_ip.py --version
 
@@ -32,7 +32,7 @@ import sys
 import threading
 import time
 
-__version__ = "1.2.20261019.150215"
+__version__ = "1.3.20261022.231529"
 
 DEFAUT_ROOT = "/var/lib/nginx-tools/ip-cache.sqlite"
 JOUR = 86400.0

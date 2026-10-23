@@ -6,7 +6,7 @@ d'erreur ni trace Python (bugs trouvés en session : option absente de app-healt
 INATTENDU (code 141) » des scripts Bash)."""
 # Environnement de ces tests, lu par run-all.sh : commun (tous les serveurs), odoo ou bbb.
 ENVIRONNEMENT = "commun"   # tous les serveurs (Odoo et BigBlueButton)
-NATURE_TESTS = "conformité"   # run-all 1.188 (statistiques) : versions, changelogs, en-têtes, options triées : fichiers lus, rien d'exécuté (un test qui lance un programme reste « fonctionnel »)
+NATURE_TESTS = "conformité"   # run-all 1.188 (statistics): versions, changelogs, headers, sorted options: files read, nothing executed (a test that runs a program stays "functional")
 import datetime
 import os
 import re
@@ -15,7 +15,7 @@ import unittest
 
 from helpers import CONFIG_DIR, EnvTest, script_path, SCRIPTS_DIR
 
-# Dossier de la suite (nginx-tools-tests ; « tests » avant run-all.sh 1.56) : nom réel, pour suivre un renommage.
+# Folder of the suite (nginx-tools-tests; "tests" before run-all.sh 1.56): real name, to follow a renaming.
 NOM_SUITE = os.path.basename(os.path.dirname(os.path.abspath(__file__)))
 
 PROGRAMMES = ["nginx-log-audit.sh", "nginx-hardening.sh", "sync-crowdsec-blocklist.sh", "odoo-backup.sh", "odoo-update-module.sh",
@@ -38,7 +38,7 @@ def changelog_sections():
                 cle = ligne[3:].strip()
                 sections.setdefault(cle, [])
             elif ligne.startswith("### ") and cle is not None:
-                # en-tete « ### version - titre » : seule la version (1er mot) compte
+                # "### version - title" header: only the version (1st word) counts
                 sections[cle].append(ligne[4:].strip().split(" ")[0])
     return sections
 
@@ -47,7 +47,7 @@ def launcher(name):
     return ["bash", script_path(name)] if name.endswith(".sh") else ["python3", script_path(name)]
 
 
-PROGRAMMES_ANGLAIS = ("app-health-check.py", "zip-versions.py", "odoo-warmup.py", "host-perf-audit.py", "odoo-mail-retry.py", "odoo-chat-post.py", "odoo-docs.py", "app-log-check.py", "web-monitor.py", "app-log-live.py")       # programmes dont le code est déjà en anglais (migration par étapes)
+PROGRAMMES_ANGLAIS = ("app-health-check.py", "zip-versions.py", "odoo-warmup.py", "host-perf-audit.py", "odoo-mail-retry.py", "odoo-chat-post.py", "odoo-docs.py", "app-log-check.py", "web-monitor.py", "app-log-live.py")       # programs whose code is already in English (step-by-step migration)
 
 
 class Conventions(EnvTest):
@@ -63,7 +63,7 @@ class Conventions(EnvTest):
                 v = declared_version(text)
                 self.assertIsNotNone(v, "variable de version absente ou mal formée")
                 m = re.fullmatch(VERSION_RE, v)
-                datetime.datetime.strptime(m.group(3) + m.group(4), "%Y%m%d%H%M%S")   # date et heure réelles
+                datetime.datetime.strptime(m.group(3) + m.group(4), "%Y%m%d%H%M%S")   # real date and time
 
     def test_option_version_dynamique(self):
         for name, text in self.each():
@@ -111,7 +111,7 @@ class Conventions(EnvTest):
     def test_changelog_tube_interrompu_proprement(self):
         for name, _ in self.each():
             with self.subTest(programme=name):
-                # 5 repetitions : l'echec depend de la vitesse relative des deux processus (course) — un seul essai
+                # 5 repetitions: the failure depends on the relative speed of the two processes (race) - a single try
                 # passait en session alors que le bug existait (app-log-check.py).
                 cmd = " ".join(launcher(name)) + " --changelog | head -1 >/dev/null"
                 for _ in range(5):
@@ -126,7 +126,7 @@ class SansApplication(EnvTest):
     web-monitor.py 2.0 à 2.2 chargeait le profil avant --changelog et échouait (« aucune application reconnue »)."""
     def test_version_et_changelog_sans_application(self):
         del self.env["APP_PROFILE"]
-        self.mock_exit("systemctl", 1)                                  # aucune unité : aucune application détectée
+        self.mock_exit("systemctl", 1)                                  # no unit: no application detected
         for name in PROGRAMMES:
             if not os.path.isfile(script_path(name)):
                 continue
@@ -173,7 +173,7 @@ class RapportErreurs(unittest.TestCase):
             if not os.path.isfile(script_path(name)):
                 continue
             with self.subTest(programme=name):
-                env = dict(os.environ, APP_PROFILE="odoo", NO_COLOR="1", NGINX_TOOLS_LANG="fr")      # l'aide est testée en français, même si run-all.sh tourne avec --lang en
+                env = dict(os.environ, APP_PROFILE="odoo", NO_COLOR="1", NGINX_TOOLS_LANG="fr")      # the help is tested in French, even if run-all.sh runs with --lang en
                 aide = subprocess.run(launcher(name) + ["--help"], capture_output=True, text=True, env=env).stdout
                 self.assertIn("--report-err", aide)
                 self.assertIn("rapport d'erreurs à copier-coller", aide.replace("\n", " ").replace("  ", " "))
@@ -189,7 +189,7 @@ class RapportErreurs(unittest.TestCase):
                 if name.endswith(".sh"):
                     self.assertIn('. "$SCRIPT_DIR/apps/_rapport.sh"' if not name.endswith("run-all.sh") else '. "$PROG_DIR/apps/_rapport.sh"', texte)
                     self.assertIn("rapport_si_demande", texte)
-                    self.assertIn("--report-err) shift ;;", texte)                   # accepté par l'analyseur d'options
+                    self.assertIn("--report-err) shift ;;", texte)                   # accepted by the option parser
                 else:
                     lanceur = "launch_with_report" if name in PROGRAMMES_ANGLAIS else "lancer_avec_rapport"
                     self.assertIn(f"{lanceur}(", texte)
@@ -202,7 +202,7 @@ class RegleDesConfigurations(unittest.TestCase):
     la ligne de commande (prioritaire) ; -c/--config : ce fichier seul ; les fichiers lus sont TOUJOURS affichés."""
     PYTHON = ("web-monitor", "zip-versions", "odoo-mail-retry", "odoo-chat-post", "odoo-docs", "odoo-warmup", "app-health-check", "app-log-check", "app-log-live", "host-perf-audit")
     BASH = ("sync-crowdsec-blocklist", "odoo-backup", "odoo-update-module", "nginx-log-audit", "nginx-hardening")
-    PROPRES = {"odoo-backup", "app-health-check", "odoo-mail-retry", "odoo-warmup"}        # programmes qui lisent eux-mêmes leurs fichiers (en plus de la règle commune)
+    PROPRES = {"odoo-backup", "app-health-check", "odoo-mail-retry", "odoo-warmup"}        # programs that read their files themselves (in addition to the common rule)
     AVEC_CONFIGURATION = {f"{n}.py": (f"{n}.conf", f".{n}.conf") for n in PYTHON}
     AVEC_CONFIGURATION.update({f"{n}.sh": (f"{n}.conf", f".{n}.conf") for n in BASH})
 
@@ -276,7 +276,7 @@ class CtrlC(unittest.TestCase):
         for name in ("web-monitor.py", "app-health-check.py", "app-log-check.py", "zip-versions.py", "app-log-live.py", "odoo-mail-retry.py", "odoo-chat-post.py", "odoo-docs.py", "host-perf-audit.py"):
             with self.subTest(programme=name):
                 texte = open(script_path(name), encoding="utf-8").read()
-                # web-monitor : executer() ; les autres : principal_protege() — appelés par le point d'entrée (lancer_avec_rapport)
+                # web-monitor: executer(); the others: principal_protege() - called by the entry point (lancer_avec_rapport)
                 # programs migrated to English (SOURCE_EN): protected_main() / launch_with_report()
                 en = name in PROGRAMMES_ANGLAIS
                 fonction = "def execute():" if name == "web-monitor.py" else ("def protected_main():" if en else "def principal_protege():")
@@ -299,7 +299,7 @@ class MotifEtOu(unittest.TestCase):
         ligne = re.sub(r"'[^']*'", "Q", ligne)
         ligne = re.sub(r'"(?:[^"\\]|\\.)*"', "Q", ligne)
         ligne = re.sub(r"\s#.*$", "", ligne)
-        if re.match(r"\s*\w+\(\)\s*\{", ligne):                 # fonction sur une ligne : son corps est analysé, pas avalé
+        if re.match(r"\s*\w+\(\)\s*\{", ligne):                 # one-line function: its body is analyzed, not swallowed
             ligne = re.sub(r"^\s*\w+\(\)\s*\{\s*", "", ligne)
             ligne = re.sub(r";?\s*\}\s*$", "", ligne)
         for _ in range(6):
@@ -356,14 +356,14 @@ class CheminSousCron(unittest.TestCase):
             bloc = re.search(r"^for _d in /usr/local/sbin /usr/sbin /sbin;.*\n(?:#.*\n)*export PATH\n", src, re.M)
             with self.subTest(programme=name):
                 self.assertIsNotNone(bloc, "PATH non complété")
-                self.assertLess(bloc.start(), src.index("\nset -euo pipefail\n") + 400)  # dès le début (après son commentaire)
+                self.assertLess(bloc.start(), src.index("\nset -euo pipefail\n") + 400)  # right from the start (after its comment)
                 for depart, attendu in (("/usr/bin:/bin", "/usr/bin:/bin:/usr/local/sbin:/usr/sbin:/sbin"),
                                         ("/tmp/mocks:/usr/sbin:/usr/bin", "/tmp/mocks:/usr/sbin:/usr/bin:/usr/local/sbin:/sbin")):
                     r = subprocess.run(["/bin/bash", "-c", bloc.group(0) + 'printf %s "$PATH"'], env={"PATH": depart},
                                        capture_output=True, text=True)
-                    # suffixe : un bash qui ajoute ses propres dossiers en tête (environnement) ne fausse pas le test
+                    # suffix: a bash that adds its own folders at the head (environment) does not skew the test
                     self.assertTrue(r.stdout.endswith(attendu), r.stdout)
-                # Pendant les tests (NGINX_TOOLS_TESTS) : PATH inchangé, /usr/sbin/ufw & co jamais joignables
+                # During the tests (NGINX_TOOLS_TESTS): PATH unchanged, /usr/sbin/ufw & co never reachable
                 r = subprocess.run(["/bin/bash", "-c", bloc.group(0) + 'printf %s "$PATH"'],
                                    env={"PATH": "/usr/bin:/bin", "NGINX_TOOLS_TESTS": "1"}, capture_output=True, text=True)
                 self.assertEqual(r.stdout, "/usr/bin:/bin")
@@ -408,7 +408,7 @@ class NomsDeFichiersEnAnglais(unittest.TestCase):
 
     def test_fichiers_livres(self):
         racine = SCRIPTS_DIR
-        liste = lambda d: os.listdir(d) if os.path.isdir(d) else []   # dossier absent (installation incomplète) : pas de plantage
+        liste = lambda d: os.listdir(d) if os.path.isdir(d) else []   # folder absent (incomplete installation): no crash
         noms = liste(racine) + [f"apps/{n}" for n in liste(os.path.join(racine, "apps"))] + \
                [f"{NOM_SUITE}/{n}" for n in liste(os.path.dirname(os.path.abspath(__file__)))]
         for n in noms:
@@ -425,7 +425,7 @@ class NomsDeFichiersEnAnglais(unittest.TestCase):
             for i, ligne in enumerate(open(chemin, encoding="utf-8"), 1):
                 if ligne.lstrip().startswith("#") or re.search(r"migr|ancien|new_or_old", ligne, re.I):
                     continue          # commentaires (dont l'historique) et migrations : anciens noms voulus
-                # Formes de NOMS DE FICHIERS seulement (les messages, eux, restent en français : « bannissements »).
+                # File NAME forms only (the messages, for their part, stay in French: "bannissements").
                 m = re.search(r"[\w.$/{}-]*(bannissements\.tsv|derniere-[a-z]|dernier-[a-z]|ip-bloquees|ip-publique|\.avant-[a-z])[\w.-]*", ligne)
                 with self.subTest(programme=name, ligne=i):
                     self.assertIsNone(m, f"nom de fichier en français : {m.group(0) if m else ''}")
@@ -440,7 +440,7 @@ class CopieConfiguration(unittest.TestCase):
         copie = CONFIG_DIR                                        # run-all 1.188 : NGINX_ODOO_DIR d'abord
         if not (os.path.isdir(livree) and os.path.isdir(copie)):
             # Cas normal sur un serveur (seule la copie de la suite existe) : rien a comparer, donc rien de NON verifie
-            # — le test reussit au lieu de se desactiver (il comptait a tort comme « point non verifie »).
+            # - the test passes instead of being disabled (it wrongly counted as an "unverified point").
             return
         ecarts = []
         def parcours(c):
@@ -522,7 +522,7 @@ class EnTeteDeVersion(unittest.TestCase):
     lue par d'autres programmes)."""
     PROGRAMMES = ["nginx-hardening.sh", "nginx-log-audit.sh", "odoo-backup.sh", "odoo-update-module.sh", "sync-crowdsec-blocklist.sh", "web-monitor.py",
                   "app-health-check.py", "app-log-check.py", "app-log-live.py", "odoo-mail-retry.py", "odoo-chat-post.py", "odoo-docs.py", "odoo-warmup.py", "host-perf-audit.py", "zip-versions.py", "run-all.sh"]
-    SUR_STDERR = ("app-log-live.py",)        # sa sortie standard est le flux du journal : l'en-tête va sur la sortie d'erreur
+    SUR_STDERR = ("app-log-live.py",)        # its standard output is the journal stream: the header goes to the error output
 
     def chemin(self, nom):
         return os.path.join(os.path.dirname(os.path.abspath(__file__)), nom) if nom == "run-all.sh" else os.path.join(SCRIPTS_DIR, nom)

@@ -1,7 +1,7 @@
 """apps/_bbb.py — état de BigBlueButton (versions, configuration de BBB et la nôtre), compatibilité avec nos règles,
 instantané avant/après une mise à jour ; intégration dans nginx-hardening.sh et web-monitor.py --summary."""
 # Environnement de ces tests, lu par run-all.sh : commun (tous les serveurs), odoo ou bbb.
-ENVIRONNEMENT = "bbb"   # BigBlueButton : état de BBB (apps/_bbb.py), instantané avant / après
+ENVIRONNEMENT = "bbb"   # BigBlueButton: state of BBB (apps/_bbb.py), snapshot before / after
 import importlib.util
 import json
 import os
@@ -26,7 +26,7 @@ class EtatBBB(EnvTest):
         self.mock("bbb-conf", 'echo "BigBlueButton Server 2.7.12"; exit 0')
         self.mock("docker", 'echo "bigbluebutton/greenlight:v3.3.1"')
         self.avant_env = dict(os.environ)
-        self.addCleanup(self.restaurer, dict(os.environ))          # copie AVANT les modifications (sinon rien n'est restauré)
+        self.addCleanup(self.restaurer, dict(os.environ))          # copy BEFORE the changes (otherwise nothing is restored)
         os.environ.update({k: v for k, v in self.e.items() if k.startswith(("NGINX_TOOLS_", "WEB_MONITOR_"))})
         os.environ["PATH"] = self.e["PATH"]
 
@@ -56,7 +56,7 @@ X""")
         e = self.module().releve()
         self.assertEqual(e["release"], "2.7.12")
         self.assertEqual(e["paquets"]["bbb-html5"], "1:2.7.12-2")
-        self.assertNotIn("bbb-ancien", e["paquets"])                          # désinstallé (rc) : ignoré
+        self.assertNotIn("bbb-ancien", e["paquets"])                          # uninstalled (rc): ignored
         self.assertEqual(e["greenlight"], ["bigbluebutton/greenlight:v3.3.1"])
         self.assertIn(self.regles, e["fichiers_nous"])
         self.assertNotIn(self.regles, e["fichiers_bbb"])
@@ -74,11 +74,11 @@ X""")
         self.assertIn("[OK] API de BBB répond (https://bbb3.exemple.org/bigbluebutton/api → 200 SUCCESS)", texte)
         self.assertIn("[OK] bbb-conf --check : aucun problème potentiel signalé", texte)
         self.assertEqual(problemes, [])
-        # Une de nos règles capte le client HTML5 : 404 minimal de nginx → échec
+        # One of our rules catches the HTML5 client: nginx minimal 404 -> failure
         m.get = lambda chemin, nom, timeout=8: (404, b"<html>404</html>") if "html5" in chemin else (200, b"SUCCESS")
         lignes, problemes = m.verifier(m.releve())
         self.assertIn("[FAIL] client HTML5 : https://bbb3.exemple.org/html5client/ → 404 minimal", "\n".join(lignes))
-        # Règles non chargées (BBB a retiré l'include) et bbb-conf --check qui signale un problème
+        # Rules not loaded (BBB removed the include) and bbb-conf --check reporting a problem
         self.mock("nginx", 'if [ "$1" = "-T" ]; then echo "# configuration file /etc/nginx/nginx.conf:"; fi; exit 0')
         self.mock("bbb-conf", 'echo "# Potential problems described below"; echo "# Warning: mismatch IP"; echo ""; exit 0')
         m = self.module()
@@ -97,7 +97,7 @@ X""")
         with open(self.e["NGINX_TOOLS_BBB_STATE"], encoding="utf-8") as f:
             etat = json.load(f)
         self.assertEqual(etat["release"], "2.7.12")
-        # Mise à jour de BBB : versions, haproxy.cfg régénéré, fichier de BBB modifié
+        # BBB update: versions, haproxy.cfg regenerated, BBB file modified
         self.write("bbb-etc/bigbluebutton-release", "BIGBLUEBUTTON_RELEASE=2.7.14\n")
         self.paquets("2.7.14")
         self.write("haproxy/haproxy.cfg", "frontend f\n  bind :443\n")
@@ -135,7 +135,7 @@ X""")
         self.assertFalse(os.path.exists(self.e["NGINX_TOOLS_BBB_STATE"]), "--check ne doit pas écrire l'instantané")
         self.lignes_check = out
         self.assertNotIn("+ dpkg-query", out, "sans --verbose, aucune commande affichée")
-        # --verbose est transmis à apps/_bbb.py : ses commandes externes s'affichent dans la section
+        # --verbose is passed to apps/_bbb.py: its external commands are shown in the section
         rc, out, err = self.run_cmd(["bash", prog, "--check", "--verbose"], env)
         self.assertIn("+ dpkg-query -W -f", out + err)
         self.assertIn("+ nginx -T", out + err)

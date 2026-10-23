@@ -18,7 +18,7 @@ class ConfigurationOdoo(EnvTest):
         self.apps = os.path.join(SCRIPTS_DIR, "apps")
         self.env["APP_DETECT_ROOT"] = self.racine
         self.env.pop("ODOO_CONF_PATHS", None)
-        self.env.pop("APP_PROFILE", None)                              # détection réelle
+        self.env.pop("APP_PROFILE", None)                              # real detection
 
     def conf(self, chemin, http=8069, gevent=8072, extra=""):
         complet = os.path.join(self.racine, chemin.lstrip("/"))
@@ -110,7 +110,7 @@ class PareFeuSelonLaConfiguration(EnvTest):
         super().setUp()
         self.prog = self.prepare("nginx-hardening.sh", {"/var/www": os.path.dirname(self.path("var-www", "x")),
                                                        "/var/log/nginx": os.path.dirname(self.path("var-log-nginx", "x"))})
-        self.env["APP_DETECT_ROOT"] = ""                               # chemins ODOO_CONF_PATHS absolus, non préfixés
+        self.env["APP_DETECT_ROOT"] = ""                               # absolute ODOO_CONF_PATHS paths, not prefixed
         self.mock("systemctl", 'exit 1')
         self.mock("ss", "exit 0")
         self.mock("ufw", f'[[ "$1" == status ]] && exit 0; echo "$@" >> {self.d}/ufw.log; exit 0')
@@ -227,7 +227,7 @@ class MiseEnPlace(PareFeuSelonLaConfiguration):
         out = self.lancer("--app", "odoo")
         self.assertIn("Fuseau horaire : UTC (souhaité : America/Montreal) — relancer avec --update", out)
         self.assertFalse(os.path.exists(os.path.join(self.d, "timedatectl.log")))
-        out = self.mise_a_jour()                                     # sans terminal : le défaut est appliqué
+        out = self.mise_a_jour()                                     # without a terminal: the default is applied
         self.assertIn("Fuseau horaire réglé à America/Montreal (avant : UTC)", out)
         self.assertIn("set-timezone America/Montreal", open(os.path.join(self.d, "timedatectl.log")).read())
         self.assertIn("TIMEZONE=America/Montreal", open(os.path.join(self.env["NGINX_TOOLS_ETC_DEFAULT"], "nginx-hardening.conf")).read())
@@ -260,7 +260,7 @@ class MiseEnPlace(PareFeuSelonLaConfiguration):
         for mot in ("weekly", "rotate 13", "compress", "copytruncate", "missingok", "notifempty"):
             self.assertIn(mot, contenu)
         self.assertIn("tourné chaque semaine", out)
-        # Un fichier « odoo » existe déjà avec un autre contenu : jamais écrasé
+        # An "odoo" file already exists with other content: never overwritten
         os.remove(regle)
         with open(regle, "w") as f:
             f.write("/autre/journal {\n}\n")
@@ -270,7 +270,7 @@ class MiseEnPlace(PareFeuSelonLaConfiguration):
 
     def test_sortie_anglaise_sans_francais(self):
         out = self.mise_a_jour("--lang", "en")
-        restes = [l for l in out.splitlines() if re.search(r"[éèàêôçù]", l) and self.d not in l]      # (titres contenant un chemin du test : clés du catalogue autres)
+        restes = [l for l in out.splitlines() if re.search(r"[éèàêôçù]", l) and self.d not in l]      # (titles containing a test path: other catalog keys)
         self.assertEqual(restes, [], "lignes restées en français avec --lang en")
 
     def test_page_de_maintenance_copiee_depuis_la_configuration_nginx_deployee(self):

@@ -51,8 +51,8 @@ class FichierCommun(EnvTest):
         self.write_out("prog.conf", "LANGUAGE=fr\n")
         cfg, files_read, _ = self.lire_py()
         self.assertEqual(T(cfg["LANGUAGE"]), "fr")
-        self.assertEqual(T(cfg["VERBOSE"]), "oui")                                 # valeur brute du fichier (ancienne valeur française : lue, avertissement à l'affichage)
-        self.assertNotIn("DAYS", T(cfg))                                           # le fichier commun ne définit que trois clés
+        self.assertEqual(T(cfg["VERBOSE"]), "oui")                                 # raw file value (old French value: read, warning at display)
+        self.assertNotIn("DAYS", T(cfg))                                           # the common file defines only three keys
         self.assertEqual([os.path.basename(f) for f in files_read], ["app-default.conf", "prog.conf"])
 
     def test_python_personnel_commun_apres_systeme_commun(self):
@@ -76,7 +76,7 @@ class FichierCommun(EnvTest):
         cfg, _, env_niveau = self.lire_py()
         self.assertEqual(T(cfg["VERBOSE"]), "yes")
         self.assertEqual(T(env_niveau), "2")
-        self.write_out("prog.conf", "VERBOSE=non\n")                              # VERBOSE écrit quelque part : il l'emporte
+        self.write_out("prog.conf", "VERBOSE=non\n")                              # VERBOSE written somewhere: it wins
         cfg, _, _ = self.lire_py()
         self.assertEqual(T(cfg["VERBOSE"]), "non")
 
@@ -84,9 +84,9 @@ class FichierCommun(EnvTest):
         self.write_out("app-default.conf", "LANGUAGE=en\nVERBOSE=non\nDAYS=3\nDEBUG_LEVEL=2\n")
         self.write_out("prog.conf", "LANGUAGE=fr\n")
         output = self.lire_bash()
-        self.assertIn("V=non", T(output))                                          # VERBOSE écrit : DEBUG_LEVEL ne le force pas
+        self.assertIn("V=non", T(output))                                          # VERBOSE written: DEBUG_LEVEL does not force it
         self.assertIn("L=fr", T(output))
-        self.assertIn("D= ", T(output))                                            # clé non commune ignorée
+        self.assertIn("D= ", T(output))                                            # non-common key ignored
         self.assertIn("N=2", T(output))
         self.assertRegex(T(output), r"F=\S*app-default\.conf \S*prog\.conf")
 
@@ -110,7 +110,7 @@ class FichierCommun(EnvTest):
                     values, files_read, problems = module.read_config()
                 self.assertIs(values.get("VERBOSE"), True)
                 self.assertEqual(T(values.get("LANGUAGE")), "en")
-                self.assertNotIn("BATCH", T(values))                              # clé du programme dans le fichier commun : ignorée, sans avertissement
+                self.assertNotIn("BATCH", T(values))                              # program key in the common file: ignored, without warning
                 self.assertEqual(problems, [])
                 self.assertTrue(files_read[0].endswith("app-default.conf"))
 
@@ -148,7 +148,7 @@ class SauvegardeDesReglages(EnvTest):
         after = live.config_values(self.options(live, keep_ip=False, modules_sort=("date", True, True), highlight_words=[]), True)
         self.assertEqual(live.config_changes(after, start_state), {"HIDE_IP": "yes", "HIGHLIGHT": "none", "MODULES_CUSTOM": "yes", "MODULES_SORT": "-date", "VERBOSE": "yes"})
         self.assertEqual(live.config_changes(start_state, start_state), {})
-        # les valeurs écrites se relisent avec les lecteurs du programme
+        # the values written are read back with the program's readers
         self.assertEqual(live.read_modules_sort("-date")[:2], ("date", True))
         self.assertEqual(live.read_highlight("aucun"), [])
 
@@ -164,7 +164,7 @@ class SauvegardeDesReglages(EnvTest):
         self.assertEqual(lines[:5], ["# mon commentaire", "HIDE_IP=oui", "MIN=oui", "VERBOSE=oui", "AUTRE=garde"])
         self.assertIn("LEVEL=5", T(lines))
         self.assertIn('HIGHLIGHT="x y , z#"', T(lines))
-        self.assertEqual(stat.S_IMODE(os.stat(path).st_mode), 0o600)         # droits gardés
+        self.assertEqual(stat.S_IMODE(os.stat(path).st_mode), 0o600)         # rights kept
         self.assertEqual([f for f in os.listdir(self.d) if ".tmp" in f], [])
 
     def test_ecrire_cree_depuis_le_modele_avec_droits_644(self):
@@ -173,7 +173,7 @@ class SauvegardeDesReglages(EnvTest):
         live.write_config(path, {"VERBOSE": "oui"})
         text = open(path, encoding="utf-8").read()
         self.assertIn("VERBOSE=oui", T(text.splitlines()))
-        self.assertNotIn("#VERBOSE=non", T(text))                                # la ligne commentée du modèle est activée, pas dupliquée
+        self.assertNotIn("#VERBOSE=non", T(text))                                # the commented line of the template is activated, not duplicated
         self.assertEqual(stat.S_IMODE(os.stat(path).st_mode), 0o644)
 
     def test_ecriture_impossible_leve_oserror(self):
@@ -269,7 +269,7 @@ class AncienNomPersonnel(EnvTest):
                     self.assertEqual(sortie, f"D=4 F={self.nouveau}")
                 self.assertFalse(os.path.exists(self.ancien))
                 self.assertEqual(self.contenu(self.nouveau), "DAYS=4\n")
-                self.assertEqual(stat.S_IMODE(os.stat(self.nouveau).st_mode), 0o600)                 # droits gardés (fichier personnel : souvent secret)
+                self.assertEqual(stat.S_IMODE(os.stat(self.nouveau).st_mode), 0o600)                 # rights kept (personal file: often secret)
                 avis = f"Configuration : ancien fichier {self.ancien} renommé en {self.nouveau} (les fichiers personnels se terminent maintenant par .conf)"
                 self.assertEqual(err.count(avis), 1, err)                                           # lu deux fois : un seul avis
 
@@ -286,7 +286,7 @@ class AncienNomPersonnel(EnvTest):
                     self.assertEqual(sortie, f"D=9 F={self.nouveau}")
                 avis = f"Configuration : ancien fichier {self.ancien} IGNORÉ ({self.nouveau} existe et l'emporte) — reporter ses réglages dans {self.nouveau}, puis le supprimer"
                 self.assertEqual(err.count(avis), 1, err)
-                self.assertEqual(self.contenu(self.ancien), "DAYS=4\n")                              # jamais modifié ni supprimé
+                self.assertEqual(self.contenu(self.ancien), "DAYS=4\n")                              # never modified or deleted
 
     @unittest.skipIf(os.geteuid() == 0, "root renomme même dans un dossier sans droit d'écriture")
     def test_renommage_impossible_ancien_lu_tel_quel(self):

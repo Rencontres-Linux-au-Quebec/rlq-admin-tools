@@ -80,14 +80,14 @@ class SourceUniqueEquipe(unittest.TestCase):
         geo, err = self.generer("geo", liste)
         self.assertIn("# GÉNÉRÉ par nginx-hardening.sh à partir de la liste blanche (/etc/default/nginx-tools-white-list.conf)", geo)
         self.assertRegex(geo, r"(?m)^203\.0\.113\.10\s+1;\s+# Étienne \(maison\)$")
-        self.assertRegex(geo, r"(?m)^198\.51\.100\.0/24\s+1;\s+# Bureau$")                      # l'option [protégée] n'est pas dans le libellé
+        self.assertRegex(geo, r"(?m)^198\.51\.100\.0/24\s+1;\s+# Bureau$")                      # the [protected] option is not in the label
         self.assertRegex(geo, r"(?m)^2001:db8::/32\s+1;\s+# Réseau v6$")
-        self.assertNotIn("pas-une-adresse", geo)                                                  # jamais écrit dans nginx (il refuserait tout)
+        self.assertNotIn("pas-une-adresse", geo)                                                  # never written to nginx (it would refuse everything)
         self.assertIn("ligne 4 : « pas-une-adresse »", err)
         allow, _ = self.generer("allow", liste)
         self.assertRegex(allow, r"(?m)^allow 203\.0\.113\.10;\s+# Étienne \(maison\)$")
         self.assertRegex(allow, r"(?m)^allow 198\.51\.100\.0/24;\s+# Bureau$")
-        # Liste absente ou vide : aucune adresse (DEV et LAB restent fermés), mais un fichier valide
+        # List absent or empty: no address (DEV and LAB stay closed), but a valid file
         vide, _ = self.generer("allow", "")
         self.assertEqual([l for l in vide.splitlines() if not l.startswith("#")], [])
 

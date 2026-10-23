@@ -29,12 +29,12 @@ class Motifs(unittest.TestCase):
     def test_adresses_ip_v4_et_v6_stables(self):
         a = self.f("11.97.88.222 puis 11.97.88.222 et 11.26.17.163")
         ips = a.split()
-        self.assertTrue(ips[0].startswith("IP-") and ips[0] == ips[2])               # même adresse : même pseudonyme
+        self.assertTrue(ips[0].startswith("IP-") and ips[0] == ips[2])               # same address: same pseudonym
         self.assertNotEqual(ips[0], ips[4])
         self.assertNotIn("69.157", a)
         v6 = self.f("client 2001:db8::1 vu")
         self.assertRegex(v6, r"client IP-[0-9a-f]{6} vu")
-        self.assertEqual(self.m.Anonymiseur(b"sel-de-test")("11.97.88.222"), self.f("11.97.88.222"))      # stable d'une exécution à l'autre (même sel)
+        self.assertEqual(self.m.Anonymiseur(b"sel-de-test")("11.97.88.222"), self.f("11.97.88.222"))      # stable from one run to the next (same salt)
         self.assertNotEqual(self.m.Anonymiseur(b"autre-sel")("11.97.88.222"), self.f("11.97.88.222"))
 
     def test_ce_qui_n_est_pas_une_personne_reste_intact(self):
@@ -47,7 +47,7 @@ class Motifs(unittest.TestCase):
         a = self.f("de etienne.berube.ing@exemple.org et Etienne.Berube.ing@exemple.org, url ?login=marc%40ex.org")
         self.assertNotIn("gmail", a)
         self.assertNotIn("ex.org", a)
-        self.assertEqual(a.split()[1], a.split()[3].rstrip(","))                      # casse ignorée : même courriel, même pseudonyme
+        self.assertEqual(a.split()[1], a.split()[3].rstrip(","))                      # case ignored: same e-mail, same pseudonym
         self.assertRegex(a, r"usager-[0-9a-f]{6}@anonyme\.invalid")
         b = self.f("Options : --login alertes · --bot-login tux-bot · LOGIN=alertes · user=jean")
         for nom in ("alertes", "tux-bot", "jean"):
@@ -70,14 +70,14 @@ class Motifs(unittest.TestCase):
         f = self.m.Anonymiseur(b"sel-de-test", fixed_width=True)
         f.add_name("Hélène Côté", "base:helene")
         f.add_name("HélèneC", "base:helene")
-        f.add_name("Jo", "base:jo")                                                  # trop court : jamais remplacé
+        f.add_name("Jo", "base:jo")                                                  # too short: never replaced
         colonne = "\x1b[1;32mHélène Côté\x1b[0m" + " " * 34 + "HTTP/1.1 200"
         a = f(colonne)
         self.assertNotIn("Hélène", a)
         self.assertRegex(a, r"^\x1b\[1;32mmembre-[0-9a-f]{6}\x1b\[0m +HTTP/1\.1 200$")
-        self.assertEqual(a.index("HTTP") - len("\x1b[1;32m\x1b[0m"), len("Hélène Côté") + 34)     # HTTP reste à la même colonne
+        self.assertEqual(a.index("HTTP") - len("\x1b[1;32m\x1b[0m"), len("Hélène Côté") + 34)     # HTTP stays in the same column
         b = f("Courriel envoyé à HélèneC. /web/HélèneCx Jo")
-        self.assertEqual(f("Hélène Côté").strip(), b.split()[3].rstrip("."))            # même compte : même pseudonyme
+        self.assertEqual(f("Hélène Côté").strip(), b.split()[3].rstrip("."))            # same account: same pseudonym
         self.assertIn("/web/HélèneCx Jo", b)
         self.assertEqual(f(a), a)                                                     # idempotent
 
@@ -88,9 +88,9 @@ class Motifs(unittest.TestCase):
     def test_demande(self):
         d = self.m.demande
         self.assertTrue(d(["--anonymize"], {}, env={}, terminal=False))
-        self.assertTrue(d(["--anon"], {}, env={}, terminal=False))                      # abréviation acceptée par argparse
+        self.assertTrue(d(["--anon"], {}, env={}, terminal=False))                      # abbreviation accepted by argparse
         self.assertFalse(d(["--anonymize", "--help"], {}, env={}))
-        self.assertFalse(d(["--anonymize"], {}, env={self.m.ACTIF_ENV: "1"}))             # déjà derrière le filtre
+        self.assertFalse(d(["--anonymize"], {}, env={self.m.ACTIF_ENV: "1"}))             # already behind the filter
         self.assertTrue(d([], {"ANONYMIZE": "oui"}, env={}, terminal=True))
         self.assertFalse(d([], {"ANONYMIZE": "oui"}, env={}, terminal=False))             # configuration : seulement au terminal
         self.assertTrue(d([], {}, env={"NGINX_TOOLS_ANONYMIZE": "1"}, terminal=False))      # cron : variable
@@ -137,14 +137,14 @@ class Executions(EnvTest):
         r = self.lancer("python3", script_path("odoo-chat-post.py"), "--anonymize", "--list")
         self.assertNotIn("marc.tremblay", r.stdout + r.stderr)
         self.assertRegex(r.stdout, r"usager-[0-9a-f]{6}@anonyme\.invalid")
-        self.assertEqual(r.returncode, clair.returncode)                                   # code de retour conservé
+        self.assertEqual(r.returncode, clair.returncode)                                   # return code kept
         r2 = self.lancer("python3", script_path("odoo-chat-post.py"), "--list", env={"NGINX_TOOLS_ANONYMIZE": "1"})
         self.assertNotIn("marc.tremblay", r2.stdout)
 
     def test_configuration_seulement_au_terminal(self):
         os.makedirs(os.path.join(self.d, "etc"), exist_ok=True)
         self._conf_canaux("ANONYMIZE=oui\n")
-        r = self.lancer("python3", script_path("odoo-chat-post.py"), "--list")                  # sortie capturée (tube) : pas de modification du texte
+        r = self.lancer("python3", script_path("odoo-chat-post.py"), "--list")                  # captured output (pipe): no change to the text
         self.assertIn("marc.tremblay@exemple.org", r.stdout)
 
     def test_aucun_double_filtre_pour_les_programmes_lances(self):
@@ -171,7 +171,7 @@ class Executions(EnvTest):
         r = self.lancer("python3", os.path.join(copie, "odoo-chat-post.py"), "--anonymize", "--list")
         self.assertNotEqual(r.returncode, 0)
         self.assertIn("introuvable", r.stderr)
-        self.assertNotIn("marc.tremblay", r.stdout)                                        # jamais de données en clair quand l'anonymisation est demandée
+        self.assertNotIn("marc.tremblay", r.stdout)                                        # never clear data when anonymization is requested
 
     def test_option_dans_l_aide_de_chaque_programme(self):
         for nom in PROGRAMMES_PYTHON:

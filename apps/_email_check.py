@@ -1,15 +1,15 @@
 #!/usr/bin/env python3
 # ========================================================================================================================
 # Copyright (C) 2026 Services-Conseils Linux Inc.
-# Copyright (C) 2026 Rencontres Linux au Québec contributors
+# Copyright (C) 2026 Rencontres Linux au Quebec contributors
 #
 # This program is free software: you can redistribute it and/or modify it under the terms of the GNU Affero General Public
 # License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
 # Full text: https://www.gnu.org/licenses/agpl-3.0.html
 # ========================================================================================================================
 #
-# _email_check.py — e-mail address checks (shared module, apps/): syntax, suggested correction of a typo, disposable domain, mail
-# server of the domain (DNS MX), and — only when the caller asks for it — Internet lookups (StopForumSpam, Gravatar, web search).
+# _email_check.py - e-mail address checks (shared module, apps/): syntax, suggested correction of a typo, disposable domain, mail
+# server of the domain (DNS MX), and - only when the caller asks for it - Internet lookups (StopForumSpam, Gravatar, web search).
 # Used by web-monitor.py (investigation of an Odoo account) and odoo-mail-retry.py (invalid addresses of registrations and failed e-mails).
 #
 """E-mail address checks, without any side effect.
@@ -32,13 +32,13 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
-__version__ = "1.2.20261019.150215"
+__version__ = "1.3.20261022.231529"
 
 TIMEOUT_S = 8
 USER_AGENT = "nginx-tools-email-check/1.0 (+https://www.rencontres-linux.quebec)"
 EXTRA_DISPOSABLE_FILE = os.environ.get("NGINX_TOOLS_DISPOSABLE_DOMAINS", "/etc/default/nginx-tools-disposable-domains.conf")
 
-# Popular mailbox domains (Québec first): target of the typo suggestion (distance 1 or 2 from one of these).
+# Popular mailbox domains (Quebec first): target of the typo suggestion (distance 1 or 2 from one of these).
 POPULAR_DOMAINS = ("gmail.com", "hotmail.com", "hotmail.ca", "outlook.com", "outlook.fr", "live.ca", "live.com", "msn.com", "yahoo.com", "yahoo.ca",
                    "yahoo.fr", "icloud.com", "me.com", "mac.com", "videotron.ca", "sympatico.ca", "bell.net", "cogeco.ca", "cgocable.ca", "globetrotter.net",
                    "telus.net", "shaw.ca", "rogers.com", "protonmail.com", "proton.me", "pm.me", "gmx.com", "gmx.fr", "aol.com", "laposte.net",
@@ -276,7 +276,7 @@ def stopforumspam(email=None, ips=()):
 
 def gravatar(email):
     """True: a Gravatar profile picture exists for this address (often a sign of an address used for years); False: none; None: unreachable."""
-    h = hashlib.md5((email or "").strip().lower().encode("utf-8")).hexdigest()       # noqa: S324 — Gravatar's own identifier, not a security use
+    h = hashlib.md5((email or "").strip().lower().encode("utf-8")).hexdigest()       # noqa: S324 - Gravatar's own identifier, not a security use
     status, _ = _fetch(f"https://www.gravatar.com/avatar/{h}?d=404&s=1")
     return True if status == 200 else False if status == 404 else None
 

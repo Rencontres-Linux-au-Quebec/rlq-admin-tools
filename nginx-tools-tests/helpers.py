@@ -1,7 +1,7 @@
 # ========================================================================================================================
 # Copyright (C) 2026 Services-Conseils Linux
-# Copyright (C) 2026 Rencontres Linux au Québec contributors
-# Licence : GNU Affero General Public License, version 3 ou ultérieure — https://www.gnu.org/licenses/agpl-3.0.html
+# Copyright (C) 2026 Rencontres Linux au Quebec contributors
+# Licence: GNU Affero General Public License, version 3 or later - https://www.gnu.org/licenses/agpl-3.0.html
 # ========================================================================================================================
 """Outils communs de la suite de tests : environnement temporaire, faux outils système, préparation des scripts
 (chemins système redirigés vers le répertoire de test), lancement normal ou dans un vrai pseudo-terminal.
@@ -22,13 +22,13 @@ import tempfile
 import time
 import unittest
 
-# run-all 1.188 : heures attendues en heure de l'Est (journaux « -0400 » des serveurs) — fixées pour la suite ET les programmes lancés, même sur une machine
-# en UTC (avant : dépendait d'un test précédent qui laissait TZ posé). TEST_TZ : un autre fuseau.
+# run-all 1.188: expected hours in Eastern time ("-0400" logs of the servers) - fixed for the suite AND the programs launched, even on a machine
+# in UTC (before: depended on a previous test that left TZ set). TEST_TZ: another time zone.
 os.environ["TZ"] = os.environ.get("TEST_TZ") or "America/Toronto"
 time.tzset()
-# run-all 1.190 : la suite tourne SANS root. Hors root, les copies préparées des programmes (prepare) lisent NGINX_TOOLS_TEST_EUID avant $EUID,
-# $(id -u) et os.geteuid() : elles se croient root DANS le dossier de test (outils simulés, chemins redirigés) sans aucun privilège réel — rien ne peut
-# être écrit hors du dossier de test. Les programmes livrés ne sont pas modifiés. Un test du refus SANS root lance avec env_extra=SANS_ROOT_SIMULE.
+# run-all 1.190: the suite runs WITHOUT root. Outside root, the prepared copies of the programs (prepare) read NGINX_TOOLS_TEST_EUID before $EUID,
+# $(id -u) and os.geteuid(): they believe they are root INSIDE the test folder (simulated tools, redirected paths) without any real privilege - nothing can
+# be written outside the test folder. The shipped programs are not modified. A test of the refusal WITHOUT root runs with env_extra=SANS_ROOT_SIMULE.
 ROOT_SIMULE = os.geteuid() != 0
 SANS_ROOT_SIMULE = {"NGINX_TOOLS_TEST_EUID": ""}
 EUID_BASH_RE = re.compile(r"\$EUID\b|\$\{EUID\}")
@@ -40,7 +40,7 @@ DEFAUT_BASH_RE = re.compile(r"\$\{([A-Z_][A-Z0-9_]*):-(/(?:etc|var)/[^}]*)\}")
 DEFAUT_PY_RE = re.compile(r"""environ\.get\(\s*(["'])([A-Z_][A-Z0-9_]*)\1\s*,\s*(["'])(/(?:etc|var)/[^"']*)\3\s*\)""")
 
 
-ECRITURES_LITTERALES_RE = re.compile(r"(?<![\w./-])(?:/etc/fail2ban|/var/log/nginx|/var/www)(?=[/\s\"'}*]|$)", re.M)      # écrits sans variable (jail.d, blocked-probes.log, letsencrypt)
+ECRITURES_LITTERALES_RE = re.compile(r"(?<![\w./-])(?:/etc/fail2ban|/var/log/nginx|/var/www)(?=[/\s\"'}*]|$)", re.M)      # written without a variable (jail.d, blocked-probes.log, letsencrypt)
 
 
 def isoler(texte, racine):
@@ -48,7 +48,7 @@ def isoler(texte, racine):
     `racine` (dossier du test) : une variable posée par le test l'emporte toujours, mais rien n'est jamais lu ni écrit dans le vrai /etc ou /var (avant :
     des tests lancés en root écrivaient /etc/logrotate.d, /etc/nginx/snippets, /etc/systemd/journald.conf.d de la machine)."""
     texte = DEFAUT_BASH_RE.sub(lambda m: "${" + m.group(1) + ":-" + racine + m.group(2) + "}", texte)
-    texte = ECRITURES_LITTERALES_RE.sub(lambda m: racine + m.group(0), texte)      # chemins écrits en dur (/etc/fail2ban/jail.d/… de nginx-hardening.sh)
+    texte = ECRITURES_LITTERALES_RE.sub(lambda m: racine + m.group(0), texte)      # paths written in hard (/etc/fail2ban/jail.d/... of nginx-hardening.sh)
     return DEFAUT_PY_RE.sub(lambda m: f'environ.get({m.group(1)}{m.group(2)}{m.group(1)}, {m.group(3)}{racine}{m.group(4)}{m.group(3)})', texte)
 
 
@@ -61,9 +61,9 @@ def simuler_root(texte):
 
 SCRIPTS_DIR = os.environ.get("TEST_SCRIPTS_DIR") or os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 ANSI_RE = re.compile(r"\x1b\[[0-9;]*m")
-# Configuration nginx testee : NGINX_ODOO_DIR (run-all 1.188 : la configuration est PRIVEE, jamais dans le depot Git public — copie locale, ex. un
+# Tested nginx configuration: NGINX_ODOO_DIR (run-all 1.188: the configuration is PRIVATE, never in the public Git repository - local copy, e.g. a
 # clone de rlq-nginx-config), sinon nginx-tools-tests/nginx-odoo/ (livree avec l'archive de la suite), sinon nginx-odoo/ a cote des programmes.
-# Absente : les tests qui en ont besoin sont desactives (« configuration absente »), jamais en echec.
+# Absent: the tests that need it are disabled ("configuration absente"), never failing.
 CONFIG_DIR = next((d for d in ([os.path.abspath(os.environ["NGINX_ODOO_DIR"])] if os.environ.get("NGINX_ODOO_DIR") else [])
                    + [os.path.join(os.path.dirname(os.path.abspath(__file__)), "nginx-odoo"),
                       os.path.join(SCRIPTS_DIR, "nginx-odoo")] if os.path.isdir(d)),
@@ -79,13 +79,13 @@ def require_script(testcase, name):
         testcase.skipTest(f"{name} absent de {SCRIPTS_DIR}")
 
 
-# Commandes système jamais joignables depuis un test (sauf faux outil du test lui-même) : elles modifient ou interrogent
-# l'état réel de la machine (pare-feu, services, réseau, journaux, paquets, BigBlueButton).
+# System commands never reachable from a test (except the test's own fake tool): they modify or query
+# the real state of the machine (firewall, services, network, logs, packages, BigBlueButton).
 COMMANDES_SYSTEME = {"ufw", "iptables", "ip6tables", "iptables-save", "ip6tables-save", "iptables-restore",
                      "ip6tables-restore", "iptables-legacy", "iptables-nft", "ipset", "nft", "fail2ban-client",
                      "fail2ban-server", "netfilter-persistent", "systemctl", "journalctl", "nginx", "logrotate", "apt",
                      "apt-get", "certbot", "service", "reboot", "shutdown", "curl", "wget", "host", "dig", "nslookup",
-                     "bbb-conf", "haproxy", "docker", "dpkg", "dpkg-query", "whois", "psql", "runuser", "geoiplookup", "apt-cache"}   # dpkg, docker : relevé de BBB (apps/_bbb.py)
+                     "bbb-conf", "haproxy", "docker", "dpkg", "dpkg-query", "whois", "psql", "runuser", "geoiplookup", "apt-cache"}   # dpkg, docker: BBB survey (apps/_bbb.py)
 _CHEMIN_TESTS = None
 
 
@@ -131,24 +131,24 @@ def _isoler_etat_web_monitor():
 
 
 ETAT_WEB_MONITOR_ISOLE = _isoler_etat_web_monitor()
-# Cache permanent des adresses (/var/lib/nginx-tools/ip-cache.sqlite) : DÉSACTIVÉ par défaut dans les tests (jamais le vrai cache du serveur, et
-# aucune réponse mémorisée ne fausse un test qui lance le même programme plusieurs fois) ; un test du cache donne son propre chemin.
+# Permanent address cache (/var/lib/nginx-tools/ip-cache.sqlite): DISABLED by default in the tests (never the server's real cache, and
+# no remembered answer distorts a test that runs the same program several times); a cache test gives its own path.
 os.environ["NGINX_TOOLS_IP_CACHE"] = "off"
-# Journal quotidien d'app-log-live.py (/var/log/app-log-live ou ~/.local/state) : DÉSACTIVÉ par défaut dans les tests ; un test du journal donne son propre dossier.
+# Daily journal of app-log-live.py (/var/log/app-log-live or ~/.local/state): DISABLED by default in the tests; a journal test gives its own folder.
 os.environ["APP_LOG_LIVE_LOG_DIR"] = "off"
-# Registre des comptes Odoo bannis / surveillés (apps/_odoo_users.py, /var/lib/nginx-tools/odoo-users.tsv) : jamais le vrai ; recherches Internet
+# Register of banned / watched Odoo accounts (apps/_odoo_users.py, /var/lib/nginx-tools/odoo-users.tsv): never the real one; Internet lookups
 # (apps/_email_check.py : StopForumSpam, Gravatar, DuckDuckGo, DNS MX) : jamais pendant les tests.
 os.environ["NGINX_TOOLS_ODOO_USERS"] = "off"
 os.environ["NGINX_TOOLS_INTERNET"] = "off"
-os.environ.pop("NGINX_TOOLS_CONFIG_VUE", None)                  # run-all.sh l'exporte après avoir affiché sa configuration : les tests des programmes doivent voir les lignes « Configuration… / Options… »
-for _v in ("NGINX_TOOLS_I18N", "NGINX_TOOLS_I18N_LANGUE", "NGINX_TOOLS_LANG"):     # run-all.sh lancé en anglais passe par le traducteur et exporte ces variables : les tests ne doivent pas en hériter
+os.environ.pop("NGINX_TOOLS_CONFIG_VUE", None)                  # run-all.sh exports it after displaying its configuration: the tests of the programs must see the lines "Configuration... / Options..."
+for _v in ("NGINX_TOOLS_I18N", "NGINX_TOOLS_I18N_LANGUE", "NGINX_TOOLS_LANG"):     # run-all.sh launched in English goes through the translator and exports these variables: the tests must not inherit them
     os.environ.pop(_v, None)
-os.environ["NGINX_TOOLS_CONFIG_CREER"] = "0"                                # premier démarrage : les programmes créeraient leur fichier de configuration par défaut ; seul test_config_defaut.py le demande
+os.environ["NGINX_TOOLS_CONFIG_CREER"] = "0"                                # first start: the programs would create their default configuration file; only test_config_defaut.py asks for it
 os.environ["NGINX_TOOLS_ETC_DEFAULT"] = "/inexistant-etc-default"            # apps/_config.py : jamais les vrais /etc/default/PROGRAMME.conf de la machine
 VARIABLES_LANGUE = ("APP_HEALTH_CHECK_LANG", "APP_LOG_CHECK_LANG", "APP_LOG_LIVE_LANG", "NGINX_HARDENING_LANG", "NGINX_LOG_AUDIT_LANG", "ODOO_BACKUP_LANG",
                     "ODOO_MAIL_RETRY_LANG", "RUN_ALL_LANG", "SYNC_CROWDSEC_BLOCKLIST_LANG", "WEB_MONITOR_LANG", "ZIP_VERSIONS_LANG", "HOST_PERF_AUDIT_LANG")
 for _v in VARIABLES_LANGUE:
-    os.environ.setdefault(_v, "fr")            # les tests vérifient les messages français ; l'anglais : --lang=en
+    os.environ.setdefault(_v, "fr")            # the tests check the French messages; English: --lang=en
 
 
 # Liste blanche d'essai (adresses FICTIVES) : les tests n'utilisent jamais la vraie liste d'une installation.
@@ -217,21 +217,21 @@ class EnvTest(unittest.TestCase):
     def setUp(self):
         self.d = tempfile.mkdtemp(prefix="test-rlq-")
         # Enregistre AUSSITOT : les nettoyages s'executent meme si la suite de setUp echoue ou desactive le test
-        # (tearDown, lui, n'est pas appele dans ce cas — repertoires laisses dans /tmp).
+        # (tearDown, for its part, is not called in that case - directories left in /tmp).
         self.addCleanup(shutil.rmtree, self.d, True)
         self.bin = os.path.join(self.d, "bin")
         os.makedirs(self.bin)
         awk = os.environ.get("TEST_AWK")
         if awk:
             os.symlink(awk, os.path.join(self.bin, "awk"))
-        # APP_PROFILE=odoo par défaut : les tests ne dépendent pas de ce qui est installé sur la machine (un test de
-        # détection automatique retire cette variable).
-        # PATH SANS les commandes système sensibles (ufw, iptables, systemctl, nginx…) : un outil non simulé par le test
-        # est ABSENT, jamais la vraie commande de la machine (un test a modifié le vrai ufw d'un serveur BigBlueButton).
-        # NGINX_TOOLS_TESTS empêche les programmes de rajouter /usr/sbin ; APP_DETECT_ROOT isole la détection par fichiers.
+        # APP_PROFILE=odoo by default: the tests do not depend on what is installed on the machine (an automatic detection test
+        # removes this variable).
+        # PATH WITHOUT the sensitive system commands (ufw, iptables, systemctl, nginx...): a tool not simulated by the test
+        # is ABSENT, never the real command of the machine (a test once modified the real ufw of a BigBlueButton server).
+        # NGINX_TOOLS_TESTS prevents the programs from adding /usr/sbin; APP_DETECT_ROOT isolates the detection by files.
         os.makedirs(os.path.join(self.d, "racine-vide"))
-        self.racine_systeme = os.path.join(self.d, "systeme")               # 1.190 : /etc et /var PAR DÉFAUT des copies de test (isoler)
-        os.makedirs(os.path.join(self.racine_systeme, "var", "tmp"))       # « ${TMPDIR:-/var/tmp} » : doit exister
+        self.racine_systeme = os.path.join(self.d, "systeme")               # 1.190: /etc and /var BY DEFAULT of the test copies (isolate)
+        os.makedirs(os.path.join(self.racine_systeme, "var", "tmp"))       # "${TMPDIR:-/var/tmp}": must exist
         self.env = dict(os.environ, PATH=f"{self.bin}:{chemin_sans_commandes_systeme()}", LC_ALL="C.UTF-8", APP_PROFILE="odoo", **{v: os.environ[v] for v in VARIABLES_LANGUE},
                         NGINX_TOOLS_TESTS="1", APP_DETECT_ROOT=os.path.join(self.d, "racine-vide"),
                         NGINX_TOOLS_TEST_EUID="0" if ROOT_SIMULE else "",
@@ -240,7 +240,7 @@ class EnvTest(unittest.TestCase):
                         NGINX_TOOLS_MAIL_CONF=os.path.join(self.d, "etc-default-vide", "nginx-tools-mail.conf"),          # courriel : jamais le vrai /etc/default, /etc/msmtprc de la machine de test
                         NGINX_TOOLS_MAIL_PASSWORD_FILE=os.path.join(self.d, "etc-default-vide", "nginx-tools-mail.pass"),
                         NGINX_TOOLS_MSMTPRC=os.path.join(self.d, "etc-default-vide", "msmtprc"),          # jamais le vrai ~/.programme.conf de la machine de test
-                        # État de BigBlueButton (apps/_bbb.py) : instantané et fichiers lus dans le dossier du test
+                        # State of BigBlueButton (apps/_bbb.py): snapshot and files read in the test folder
                         NGINX_TOOLS_BBB_STATE=os.path.join(self.d, "state", "bbb-state.json"),
                         NGINX_TOOLS_BBB_ETC=os.path.join(self.d, "bbb-etc"),
                         NGINX_TOOLS_NGINX_ETC=os.path.join(self.d, "nginx-etc"),
@@ -248,12 +248,12 @@ class EnvTest(unittest.TestCase):
                         NGINX_TOOLS_FAIL2BAN_ETC=os.path.join(self.d, "fail2ban-etc"),
                         NGINX_TOOLS_BBB_PROPERTIES=os.path.join(self.d, "bbb-web", "bigbluebutton.properties"),
                         NGINX_TOOLS_BBB_PORT="1",                        # aucune connexion au vrai 443 de la machine
-                        # /proc : web-monitor.py y lit l'heure du dernier rechargement de nginx — sur un serveur où nginx tourne,
-                        # un test dépendait de la vraie heure (échec « nginx n'a pas été rechargé depuis », 2.37). Dossier vide.
+                        # /proc: web-monitor.py reads there the time of the last nginx reload - on a server where nginx runs,
+                        # a test depended on the real time (failure "nginx has not been reloaded since", 2.37). Empty folder.
                         WEB_MONITOR_PROC_DIR=PROC_ISOLE,
                         NGINX_TOOLS_IP_CACHE="off",
                         APP_LOG_LIVE_LOG_DIR="off",
-                        NGINX_TOOLS_ODOO_USERS=os.path.join(self.d, "state", "odoo-users.tsv"),     # registre des comptes bannis / surveillés : celui du test
+                        NGINX_TOOLS_ODOO_USERS=os.path.join(self.d, "state", "odoo-users.tsv"),     # register of banned / watched accounts: the test's own
                         NGINX_TOOLS_INTERNET="off",
                         WEB_MONITOR_STATE_DIR=os.path.join(self.d, "web-monitor-state"),       # recommended-bans.json : jamais celui du vrai serveur
                         NGINX_TOOLS_WHITE_LIST=os.path.join(self.d, "etc-default", "nginx-tools-white-list.conf"),
@@ -297,11 +297,11 @@ class EnvTest(unittest.TestCase):
         with open(dst, "w", encoding="utf-8") as f:
             f.write(text)
         os.chmod(dst, 0o755)
-        apps = os.path.join(SCRIPTS_DIR, "apps")          # profils d'application, livrés à côté des programmes
+        apps = os.path.join(SCRIPTS_DIR, "apps")          # application profiles, shipped next to the programs
         cible = os.path.join(os.path.dirname(dst), "apps")
         if os.path.isdir(apps) and not os.path.isfile(os.path.join(cible, "_profile.sh")):
             shutil.copytree(apps, cible, dirs_exist_ok=True)
-            for n in os.listdir(cible):                          # composants apps/ aussi (apps/_config.py est_root…)
+            for n in os.listdir(cible):                          # apps/ components too (apps/_config.py est_root...)
                 c = os.path.join(cible, n)
                 if n.endswith((".py", ".sh")) and os.path.isfile(c):
                     with open(c, encoding="utf-8") as f:
@@ -313,7 +313,7 @@ class EnvTest(unittest.TestCase):
         langues = os.path.join(SCRIPTS_DIR, "lang")           # catalogues de traduction (lang/PROGRAMME.en.tsv)
         if os.path.isdir(langues):
             shutil.copytree(langues, os.path.join(os.path.dirname(dst), "lang"), dirs_exist_ok=True)
-        cl = script_path("CHANGELOG.md")                      # journal unique, à la racine du dépôt (copié à côté du programme)
+        cl = script_path("CHANGELOG.md")                      # single log, at the root of the repository (copied next to the program)
         if os.path.isfile(cl):
             shutil.copy(cl, os.path.join(os.path.dirname(dst), "CHANGELOG.md"))
         return dst
@@ -331,12 +331,12 @@ class EnvTest(unittest.TestCase):
         env = dict(self.env, **(env_extra or {}))
         pid, fd = pty.fork()
         if pid == 0:
-            signal.signal(signal.SIGINT, signal.SIG_DFL)          # lancé en arrière-plan (&, nohup), SIGINT est IGNORÉ et hérité : Ctrl-C ne ferait rien
+            signal.signal(signal.SIGINT, signal.SIG_DFL)          # launched in the background (&, nohup), SIGINT is IGNORED and inherited: Ctrl-C would do nothing
             os.execvpe(cmd[0], cmd, env)
         out, sent, t0 = b"", 0, time.time()
         pending = list(answers)
-        # Questions posées par app-log-live.py à la fin d'un Ctrl-C (confirmation de sortie ; « plus de détails ? ») : répondues AUTOMATIQUEMENT (o ; Entrée = non) tant que le test
-        # n'attend pas lui-même cette question (réponse prévue dans `answers`), pour que les tests existants de Ctrl-C voient toujours le résumé.
+        # Questions asked by app-log-live.py at the end of a Ctrl-C (exit confirmation; "more details?"): answered AUTOMATICALLY (o; Enter = no) as long as the test
+        # does not itself wait for this question (answer planned in `answers`), so that the existing Ctrl-C tests always see the summary.
         auto = [(b"[N] non, continuer", b"o\r"), (b"Plus de d\xc3\xa9tails sur les erreurs", b"\r"),
                 (b"Interrompre le programme ? [o/N]", b"o\r"), (b"Stop the program? [y/N]", b"y\r")]      # confirmation commune de Ctrl+C (apps/_i18n.py / _i18n.sh)
         vus = {motif: 0 for motif, _ in auto}

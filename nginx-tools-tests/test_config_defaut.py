@@ -58,9 +58,9 @@ class ConfigParDefaut(EnvTest):
     def test_un_fichier_existant_n_est_jamais_touche(self):
         perso = os.path.join(self.home, ".zip-versions.conf")
         with open(perso, "w") as f:
-            f.write("# le mien\nLANGUAGE=fr\n")                                 # run-all 1.188 : une option ACTIVE (un fichier tout en commentaire suit le modèle depuis _config 1.7)
+            f.write("# le mien\nLANGUAGE=fr\n")                                 # run-all 1.188: an ACTIVE option (a file that is all comments follows the template since _config 1.7)
         self.lancer()
-        self.assertEqual(os.listdir(self.etc), ["app-default.conf"])          # seul le fichier commun (1.3) est créé : celui du programme existe déjà (personnel)
+        self.assertEqual(os.listdir(self.etc), ["app-default.conf"])          # only the common file (1.3) is created: the program's own file already exists (personal)
         self.assertEqual(open(perso).read(), "# le mien\nLANGUAGE=fr\n")
 
     def test_bibliotheque_bash_cree_le_fichier(self):

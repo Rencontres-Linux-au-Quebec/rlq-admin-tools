@@ -38,7 +38,7 @@ class Enregistrement(unittest.TestCase):
         self.journal = os.path.join(self.dossier, "access.log")
         with open(self.journal, "w") as f:
             f.write("ancienne ligne 11.97.88.180\n")
-        # psql est retiré du PATH des tests (COMMANDES_SYSTEME) : on simule sa présence ici, sans dépendre du PATH du processus
+        # psql is removed from the PATH of the tests (COMMANDES_SYSTEME): its presence is simulated here, without depending on the process PATH
         import shutil as _shutil
         from unittest import mock
         reel = _shutil.which
@@ -70,7 +70,7 @@ class Enregistrement(unittest.TestCase):
             f.write("nouvelle 11.97.88.180 GET /event/x/my_tickets?tickets_hash=09e189cd69a70f2dcfd9a3af407a5485221a12 jean@exemple.org\n")
         for ligne, categorie in lignes:
             rec.add(ligne, categorie)
-        for genre, texte in etapes:                       # 1.1: N key — steps ("debut" = start, "fin" = end)
+        for genre, texte in etapes:                       # 1.1: N key - steps ('debut' = start, 'fin' = end)
             rec.step_start(texte) if genre == "debut" else rec.step_end()
         time.sleep(1.2)
         resultat = rec.stop(reason="key", wait=True)

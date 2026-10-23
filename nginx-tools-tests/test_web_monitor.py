@@ -33,7 +33,7 @@ RIEN
 --- [10] Enquête sur les IP suspectes ---
 OUT
 [[ -n "$TEST_BAN_IP" ]] && printf "  ▶ %s — 35 requête(s)\\n      Signes d'hostilité : 2 (rafale, fichiers sensibles)\\n      → Score 5/7 : bannissement recommandé.\\n" "$TEST_BAN_IP"
-# Deuxième enquête de la même section, NON recommandée : ne doit jamais être proposée au bannissement (2.5)
+# Second investigation of the same section, NOT recommended: must never be proposed for banning (2.5)
 [[ -n "$TEST_BAN_IP" ]] && printf "  ▶ 11.68.110.86 — 5 requête(s)\\n      Signes d'hostilité : 0\\n      → Score 3/7 — signes d'AUTOMATISATION seulement : robot probablement inoffensif\\n"
 echo " RÉSUMÉ : au moins une section contient du nouveau"
 '''
@@ -48,7 +48,7 @@ class Surveillance(EnvTest):
         self.write("prog/app-log-check.py", 'import os; open(os.environ["TEST_ENV_ODOO"],"w").write(os.environ.get("APP_LOG_CHECK_STATE_DIR",""))\n'
                                             'print("RÉSUMÉ : rien de suspect dans cette fenêtre.")\n')
         self.mock_exit("systemctl", 1)
-        self.mock("logger", f"cat >> {self.d}/journal.txt")                  # enregistre chaque ligne reçue
+        self.mock("logger", f"cat >> {self.d}/journal.txt")                  # records each line received
         self.env.update(WEB_MONITOR_STATE_DIR=os.path.dirname(self.path("state", "x")),
                         WEB_MONITOR_LOG_DIR=os.path.dirname(self.path("log", "x")),
                         TEST_COURRIELS=self.path("courriels.txt"), TEST_FAILS=self.path("fails.txt"),
@@ -114,7 +114,7 @@ class Surveillance(EnvTest):
         self.assertIn("point(s) à examiner", j)
         self.assertIn("[FAIL] HSTS présent — www : absent", j)
         self.assertIn("Passage ", j)
-        self.passage(["HSTS présent — www : absent"])                     # même situation : pas de nouveau détail
+        self.passage(["HSTS présent — www : absent"])                     # same situation: no new detail
         j2 = open(self.path("journal.txt")).read()
         self.assertEqual(j2.count("[FAIL] HSTS présent"), 1, "détail répété alors que l'alerte est déjà signalée")
         self.assertIn("déjà signalées", j2)
@@ -144,7 +144,7 @@ class Surveillance(EnvTest):
         self.assertIn("(message écrit par une version antérieure au renommage des programmes)", out)
         self.assertIn("Configuré : alertes envoyées à admin@exemple.org", out)   # configuration du faux app-health-check.py
         self.assertNotIn("0 timers listed", out)
-        # Sans SMTP dans la configuration : l'état et la marche à suivre sont dits
+        # Without SMTP in the configuration: the state and what to do are said
         self.write("prog/app-health-check.py", FAUX_SANITY.replace('"SMTP_HOST": "smtp.exemple.org", "NOTIFY_EMAIL_TO": "admin@exemple.org"', ""))
         rc, out, err = self.run_cmd(["python3", self.prog, "--status"])
         self.assertIn("NON configuré : les alertes vont seulement dans le journal système", out)
@@ -212,7 +212,7 @@ class Surveillance(EnvTest):
         spec = __import__("importlib.util").util.spec_from_file_location("wm", self.prog)
         wm = __import__("importlib.util").util.module_from_spec(spec)
         spec.loader.exec_module(wm)
-        wm._meminfo = lambda: {"MemTotal": 16 << 30}                         # RAM fixée : résultat indépendant de la machine
+        wm._meminfo = lambda: {"MemTotal": 16 << 30}                         # RAM fixed: result independent of the machine
         conf = self.write("odoo.conf", "[options]\nworkers = 6\nmax_cron_threads = 2\nlimit_memory_hard = 4294967296\n")
         ligne_cmd = {"v": f"ExecStart={{ path=/x ; argv[]=/opt/erplibre/.venv/bin/python3 odoo-bin -c {conf} --workers=4 ; }}"}
         wm.run = lambda cmd, timeout=0: (0, ligne_cmd["v"])
@@ -237,14 +237,14 @@ class Surveillance(EnvTest):
         out = avis(C())
         self.assertIn("mode multithread (workers=0)", out)
         self.assertRegex(out, r"essayer workers=\d+")
-        # limit_memory_hard=0 (cas réel de PROD) : AUCUNE limite, jamais « pire cas 0 o » ni « aucun signe de saturation »
+        # limit_memory_hard=0 (real case of PROD): NO limit, never "worst case 0 o" nor "no sign of saturation"
         self.write("odoo.conf", "[options]\nworkers = 3\nmax_cron_threads = 1\nlimit_memory_hard = 0\n")
         out = avis(C(), mem=1 << 30)
         self.assertIn("pire cas : ILLIMITÉ (limit_memory_hard=0)", out)
         self.assertIn("AUCUNE limite mémoire", out)
         self.assertNotIn("aucun signe de saturation", out)
         # Configuration saine, sans saturation
-        self.write("odoo.conf", "[options]\nworkers = 3\nmax_cron_threads = 1\nlimit_memory_hard = 2147483648\n")  # 3 ≤ 2 × cœurs + 1 partout
+        self.write("odoo.conf", "[options]\nworkers = 3\nmax_cron_threads = 1\nlimit_memory_hard = 2147483648\n")  # 3 <= 2 x cores + 1 everywhere
         out = avis(C(), mem=1 << 30)
         self.assertIn("aucun signe de saturation", out)
         self.assertNotIn("pire cas mémoire au-delà", out)
@@ -265,7 +265,7 @@ class Surveillance(EnvTest):
         class C:
             v = {"transmises": 12890, "transmises_suspectes": 3087, "fichiers_sensibles": 3590, "erreurs5xx": 3}
             def get(self, k, i): return self.v.get(k, 0)
-        class CSansAujourdhui(C):                                                  # aucune requête malveillante aujourd'hui
+        class CSansAujourdhui(C):                                                  # no malicious request today
             def get(self, k, i): return 0 if (k == "transmises_suspectes" and i == 0) else self.v.get(k, 0)
         faits = {"non_filtrees": {"/.env": 108, "/.env.local": 95, "/.env.backup": 90}, "jails": {"sshd": 2},
                  "robots": {"Googlebot": 3002, "browser (Windows)": 1511, "libredtail-http": 607},
@@ -282,7 +282,7 @@ class Surveillance(EnvTest):
         lignes = [l for l in out.splitlines() if re.match(r"  \d+\. \[", l)]
         self.assertIn("3087 requêtes malveillantes (/.env, /.env.local, /.env.backup…) ont atteint BigBlueButton en 7 jours (24 % du trafic transmis)", lignes[0])
         self.assertIn("[HAUTE]", lignes[0])
-        # Règles pas encore installées : la commande qui les installe (jamais d'écriture à la main)
+        # Rules not yet installed: the command that installs them (never a manual write)
         self.assertIn("nginx-hardening.sh --update : il installe", out)
         self.assertIn("zz-nginx-hardening-security.nginx", out)
         self.assertNotIn("zz-security.nginx", out)
@@ -291,19 +291,19 @@ class Surveillance(EnvTest):
         self.assertTrue(any("navigateurs ordinaires" in l for l in lignes))
         self.assertIn("1300 visent des pages ordinaires (/b (900), /bigbluebutton/api/join (400))", out)
         self.assertFalse(any("pas de capteur catch-all" in l for l in lignes))    # sans objet sur BBB (HAProxy)
-        # Règles installées : plus de recommandation si rien aujourd'hui ; sinon, vérifier l'inclusion
+        # Rules installed: no more recommendation if nothing today; otherwise, check the inclusion
         with open(os.path.join(dossier_bbb, "zz-nginx-hardening-security.nginx"), "w") as fh:
             fh.write("# règles\n")
         self.assertNotIn("requêtes malveillantes", recos(CSansAujourdhui))
-        out2 = recos(C)                                   # 2.36 : plus de commande à taper — essai fait par le programme
+        out2 = recos(C)                                   # 2.36: no more command to type - trial done by the program
         self.assertIn("essai à travers nginx impossible", out2)
         self.assertNotIn("nginx -T | grep", out2)
-        # Une seule correction pour plusieurs recommandations qui demandent la même commande (libellés réunis)
+        # One single fix for several recommendations that ask for the same command (labels grouped)
         self.assertEqual(out.count("(nginx-hardening.sh --update)"), 1, out)
         self.assertIn("CORRECTIONS QUE LE PROGRAMME PEUT FAIRE LUI-MÊME", out)
         self.assertTrue(any("journaux conservés moins de 3 mois : nginx (14 jours)" in l and "[FAIBLE]" in l for l in lignes))
         prios = [re.search(r"\[(HAUTE|MOYENNE|FAIBLE)", re.sub(r"\x1b\[[0-9;]*m", "", l)).group(1) for l in lignes]
-        self.assertEqual(prios, sorted(prios, key=["HAUTE", "MOYENNE", "FAIBLE"].index))    # classées
+        self.assertEqual(prios, sorted(prios, key=["HAUTE", "MOYENNE", "FAIBLE"].index))    # ranked
 
     def test_liste_blanche_avec_plage(self):
         spec = __import__("importlib.util").util.spec_from_file_location("wm", self.prog)
@@ -355,7 +355,7 @@ class Surveillance(EnvTest):
         wm.note_account(faits["comptes"], "etienne@exemple.org", "11.97.88.180", [0, 1, 2], "2026-09-28 12:02")
         wm.note_account(faits["comptes"], "etienne@exemple.org", "11.126.46.49", [2], "2026-09-10 08:00")
         wm.note_account(faits["comptes"], "benevole@exemple.org", "203.0.113.9", [1, 2], "2026-09-25 19:30")
-        wm.note_account(faits["comptes"], "lecteur@exemple.org", "11.126.46.49", [2], "2026-09-24 07:42")   # adresse partagée
+        wm.note_account(faits["comptes"], "lecteur@exemple.org", "11.126.46.49", [2], "2026-09-24 07:42")   # shared address
         def sortie(profil):
             wm.PROFILE = profil
             f = io.StringIO()
@@ -364,7 +364,7 @@ class Surveillance(EnvTest):
             return re.sub(r"\x1b\[[0-9;]*m", "", f.getvalue())
         out = sortie({"APP_NAME": "odoo", "APP_LABEL": "Odoo"})
         self.assertIn("CONNEXIONS À ODOO (connexions réussies, journal)", out)
-        # Une ligne vide puis le nom, puis une information par ligne étiquetée
+        # An empty line then the name, then one piece of information per labeled line
         self.assertRegex(out, r"\n\n  etienne@exemple\.org\n    Connexions      : aujourd'hui 1 · 7 j 1 · 30 j 2 — dernière 2026-09-28 12:02"
                               r"\n    Adresses IP     : 11\.97\.88\.180, 11\.126\.46\.49 \(partagée : 2 comptes\)")
         self.assertIn("203.0.113.9 (bannie)", out)
@@ -379,10 +379,10 @@ class Surveillance(EnvTest):
         self.write("journal.txt", journal + "\n")
         self.mock("journalctl", f"cat {self.d}/journal.txt")
         self.mock("systemctl", 'case "$*" in *list-unit-files*erplibre.service*) echo "erplibre.service enabled enabled";; esac; exit 0')
-        requetes = {20: 3, 21: 7, 22: 5, 23: 9, 24: 1, 25: 4, 26: 6}                      # jour de septembre -> requêtes de l'adresse 203.0.113.5
+        requetes = {20: 3, 21: 7, 22: 5, 23: 9, 24: 1, 25: 4, 26: 6}                      # day of September -> requests from address 203.0.113.5
         lignes = [f'203.0.113.5 - - [{j}/Sep/2026:10:00:{i:02d} -0400] "GET /odoo/discuss HTTP/1.1" 200 100 "-" "x"\n' for j, n in requetes.items() for i in range(n)]
         lignes += [f'198.51.100.9 - - [21/Sep/2026:11:00:{i:02d} -0400] "GET /event HTTP/1.1" 200 100 "-" "x"\n' for i in range(4)]   # 2e adresse du compte
-        lignes += [f'45.33.32.156 - - [24/Sep/2026:11:00:{i:02d} -0400] "GET /event HTTP/1.1" 200 100 "-" "x"\n' for i in range(50)]   # autre visiteur : ignoré
+        lignes += [f'45.33.32.156 - - [24/Sep/2026:11:00:{i:02d} -0400] "GET /event HTTP/1.1" 200 100 "-" "x"\n' for i in range(50)]   # other visitor: ignored
         os.makedirs(os.path.join(self.d, "nginx"), exist_ok=True)
         with open(os.path.join(self.d, "nginx", "site-access.log"), "w") as f:
             f.writelines(lignes)
@@ -411,8 +411,8 @@ class Surveillance(EnvTest):
         self.mock("systemctl", 'case "$*" in *list-unit-files*erplibre.service*) echo "erplibre.service enabled enabled";; esac; exit 0')
         self.mock("runuser", 'printf "7\\037ana@exemple.org\\037Ana Tremblay\\037f\\n12\\037zoe@exemple.org\\037Zoé\\037t\\n'
                              '5\\037bob@exemple.org\\037Bob avec un nom vraiment beaucoup trop long pour la colonne\\037f\\n"')
-        lignes = [f'203.0.113.5 - - [20/Sep/2026:10:0{m}:00 -0400] "GET /odoo HTTP/1.1" 200 1 "-" "x"\n' for m in (0, 1, 3, 4)]       # 10:00 à 10:04 = 5 minutes
-        lignes += [f'203.0.113.5 - - [20/Sep/2026:15:0{m}:00 -0400] "GET /odoo HTTP/1.1" 200 1 "-" "x"\n' for m in (0, 2)]            # 15:00 à 15:02 = 3 minutes
+        lignes = [f'203.0.113.5 - - [20/Sep/2026:10:0{m}:00 -0400] "GET /odoo HTTP/1.1" 200 1 "-" "x"\n' for m in (0, 1, 3, 4)]       # 10:00 to 10:04 = 5 minutes
+        lignes += [f'203.0.113.5 - - [20/Sep/2026:15:0{m}:00 -0400] "GET /odoo HTTP/1.1" 200 1 "-" "x"\n' for m in (0, 2)]            # 15:00 to 15:02 = 3 minutes
         lignes += ['203.0.113.5 - - [20/Sep/2026:18:00:00 -0400] "GET /odoo HTTP/1.1" 200 1 "-" "x"\n']                               # trop tard : autre visite, pas de connexion
         lignes += ['192.0.2.77 - - [22/Sep/2026:08:00:00 -0400] "POST /web/login HTTP/1.1" 303 1 "-" "x"\n',
                    '192.0.2.77 - - [22/Sep/2026:08:40:00 -0400] "GET /odoo HTTP/1.1" 200 1 "-" "x"\n']                                # 40 min plus tard : > 30 min, hors session
@@ -439,26 +439,26 @@ class Surveillance(EnvTest):
         self.assertTrue(all(w >= 4 for w in largeurs), largeurs)
         self.assertTrue(set(tableau[0]) <= {"|", "-"})
         titre1, titre2 = cellules[1], cellules[2]                                        # deux lignes de titres
-        col = {(a.strip(), b.strip()): i for i, (a, b) in enumerate(zip(titre1, titre2))}    # run-all 1.188 : colonnes par leur titre (2.70 en a ajouté 3)
+        col = {(a.strip(), b.strip()): i for i, (a, b) in enumerate(zip(titre1, titre2))}    # run-all 1.188: columns by their title (2.70 added 3 of them)
         self.assertEqual([c.strip() for c in titre1[:3]], ["N°", "UID", "IP"])
-        self.assertEqual(titre1[col[("Conn", "")]], "Conn")                                # « Connexions » coupé à la largeur des données (minimum 4)
+        self.assertEqual(titre1[col[("Conn", "")]], "Conn")                                # "Connexions" cut to the width of the data (minimum 4)
         self.assertIn(("Première", "connexion"), col)                                      # deux mots : deux lignes
         self.assertIn(("Page", "lues"), col)
         ana = next(c for c in cellules if "ana@exemple.org" in "".join(c))
-        self.assertEqual(ana[0], "   1")                                                  # nombres à droite, sans espace autour
+        self.assertEqual(ana[0], "   1")                                                  # numbers on the right, without space around
         self.assertEqual(ana[2].strip(), "203.0.113.5")
-        self.assertEqual(ana[3].strip(), "203.0.113.5 09-20 18:00")                        # 2.69 « IP vue » : sa dernière requête (18 h, après la connexion de 15 h)
-        self.assertNotIn("Étiq", tableau[1])                                                # 2.69 : étiquettes hors du tableau par défaut
+        self.assertEqual(ana[3].strip(), "203.0.113.5 09-20 18:00")                        # 2.69 "IP vue": its last request (18 h, after the 15 h connection)
+        self.assertNotIn("Étiq", tableau[1])                                                # 2.69: labels outside the default table
         self.assertEqual(ana[4].strip(), "Ana Tremblay")
         premiere = col[("Première", "connexion")]
         self.assertEqual([x.strip() for x in ana[premiere:premiere + 4]], ["2026-09-20 10:00", "2026-09-20 15:00", "2", "8"])    # 5 + 3 minutes
         self.assertEqual(ana[col[("Type", "")]].strip(), "interne")
         bob = next(c for c in cellules if "bob@exemple.org" in "".join(c))
-        self.assertTrue(bob[4].endswith("…"))                                             # nom trop long : coupé (21 au plus)
+        self.assertTrue(bob[4].endswith("…"))                                             # name too long: cut (21 at most)
         self.assertEqual(len(bob[4]), 21)
         self.assertEqual(bob[col[("Conn", "")]].strip(), "1")
         zoe = next(c for c in cellules if "zoe@exemple.org" in "".join(c))
-        self.assertEqual(zoe[col[("Type", "")]].strip(), "portail")                         # « portail/public » raccourci
+        self.assertEqual(zoe[col[("Type", "")]].strip(), "portail")                         # "portail/public" shortened
         self.assertNotIn(" | ", tableau[3])
         self.assertIn("Journaux d'accès nginx lus (1 fichier(s)", propre)
         self.assertIn("Total : 3 compte(s), 4 connexion(s), 10 minute(s) de connexion", propre)
@@ -491,20 +491,20 @@ class Surveillance(EnvTest):
         rc, out, err = self.run_cmd(["python3", self.prog, "--list-users", "--table-fields", "login,systems,browsers,read", "--lang=fr"], env)
         self.assertNotIn("Traceback", err, err)
         propre, tableau, cellules = self.lignes_tableau(out)
-        self.assertEqual([c.strip() for c in cellules[1]], ["Identifiant", "Systèmes", "Naviga", "Page"])   # --table-fields : ces colonnes, dans cet ordre ; « Navigateurs » coupé à la largeur de « Chrome »
+        self.assertEqual([c.strip() for c in cellules[1]], ["Identifiant", "Systèmes", "Naviga", "Page"])   # --table-fields: these columns, in this order; "Navigateurs" cut to the width of "Chrome"
         self.assertEqual([c.strip() for c in cellules[2]], ["", "", "", "lues"])
         ligne = {nom: [c.strip() for c in next(c for c in cellules if nom in "".join(c))] for nom in ("ana@", "bob@", "zoe@")}
         self.assertEqual(ligne["ana@"][1:], ["Windows,Android", "Chrome", "11"])                 # 2.67 : aucune espace dans les listes
         self.assertEqual(ligne["bob@"][1:], ["macOS", "Safari", "2"])
         self.assertEqual(ligne["zoe@"][1:], ["-", "-", "0"])
         self.assertIn("systèmes, navigateurs et pages vues", propre)
-        self.assertEqual(self.run_cmd(["python3", self.prog, "--list-users", "--table-fields", "login,zzz"], env)[0], 2)      # champ inconnu : refusé
+        self.assertEqual(self.run_cmd(["python3", self.prog, "--list-users", "--table-fields", "login,zzz"], env)[0], 2)      # unknown field: refused
         rc, out, err = self.run_cmd(["python3", self.prog, "--list-users", "--table", "--sort", "pages"], env)
         ordre = [m.group(0) for m in re.finditer(r"(ana|bob|zoe)@exemple", re.sub(r"\x1b\[[0-9;]*m", "", out))]
-        self.assertEqual(ordre[:3], ["ana@exemple", "bob@exemple", "zoe@exemple"], out)            # décroissant : 11, 2, 0
+        self.assertEqual(ordre[:3], ["ana@exemple", "bob@exemple", "zoe@exemple"], out)            # decreasing: 11, 2, 0
         rc, out, err = self.run_cmd(["python3", self.prog, "--list-users", "--table", "--lang=en", "--sort", "os", "--reverse"], env)
         self.assertNotIn("Traceback", err, err)
-        self.assertIn("Syst", out)                                                     # titres coupés à la largeur des données (2.67)
+        self.assertIn("Syst", out)                                                     # titles cut to the width of the data (2.67)
         self.assertIn("Brow", out)
 
     def test_list_users_table_pages_ecrites_et_mo_recus_envoyes(self):
@@ -523,9 +523,9 @@ class Surveillance(EnvTest):
         propre, tableau, cellules = self.lignes_tableau(out)
         ana = [c.strip() for c in next(c for c in cellules if "ana@" in "".join(c))]
         bob = [c.strip() for c in next(c for c in cellules if "bob@" in "".join(c))]
-        self.assertEqual(ana[1], "3")                          # inscription, compte, write — pas la lecture, le websocket ni le refus 403
-        self.assertEqual(ana[2], "7.0")                        # 900 + 1500 + 3 000 000 + 0 + 200 + 4 000 000 + 100 octets (+ quelques octets avant) ≈ 7.0 Mo
-        self.assertEqual(ana[3], "2.5")                        # rl= : 2 500 000 + … ≈ 2.5 Mo
+        self.assertEqual(ana[1], "3")                          # registration, account, write - not the read, the websocket nor the 403 refusal
+        self.assertEqual(ana[2], "7.0")                        # 900 + 1500 + 3 000 000 + 0 + 200 + 4 000 000 + 100 bytes (+ a few bytes before) ~ 7.0 MB
+        self.assertEqual(ana[3], "2.5")                        # rl=: 2 500 000 + ... ~ 2.5 MB
         self.assertEqual(bob[3], "?")                          # ses lignes n'ont pas de champ rl=
         self.assertNotIn("AUCUNE ligne des journaux nginx lus", propre)                 # des lignes ont rl= : pas d'alerte
         self.assertIn("Mo envoyés : taille de ses requêtes", propre)
@@ -557,9 +557,9 @@ class Surveillance(EnvTest):
         ana = [c.strip() for c in next(c for c in cellules if "ana@" in "".join(c))]
         self.assertEqual(ana[1:], ["3", "2", "+1 514 555-0101", "CA", "Montréal", "RLQ23-Bénévole", "Bénévole,Membre"])
         bob = [c.strip() for c in next(c for c in cellules if "bob@" in "".join(c))]
-        self.assertEqual(bob[1:], ["1", "0", "-", "FR", "Lyon", "RLQ23-Visiteur", "-"])      # groupe sans module (créé dans Odoo) : affiché ; « Internal User » : non
+        self.assertEqual(bob[1:], ["1", "0", "-", "FR", "Lyon", "RLQ23-Visiteur", "-"])      # group without module (created in Odoo): displayed; "Internal User": no
         zoe = [c.strip() for c in next(c for c in cellules if "zoe@" in "".join(c))]
-        self.assertEqual(zoe[6], "-")                                                          # « Portal » : groupe technique
+        self.assertEqual(zoe[6], "-")                                                          # "Portal": technical group
         rc, out, err = self.run_cmd(["python3", self.prog, "--list-users", "--table", "--sort", "events"], env)
         ordre = [m.group(0) for m in re.finditer(r"(ana|bob|zoe)@exemple", re.sub(r"\x1b\[[0-9;]*m", "", out))]
         self.assertEqual(ordre[:3], ["ana@exemple", "bob@exemple", "zoe@exemple"], out)
@@ -577,7 +577,7 @@ class Surveillance(EnvTest):
         rc, out, err = self.run_cmd(["python3", self.prog, "--group", "zzz-inconnu"], env)
         self.assertEqual(rc, 1)
         self.assertIn("Aucun groupe Odoo nommé « zzz-inconnu »", out)
-        self.assertIn("RLQ23-Bénévole", out)                                                  # les groupes RLQ connus sont proposés
+        self.assertIn("RLQ23-Bénévole", out)                                                  # the known RLQ groups are proposed
         chemin = os.path.join(self.d, "comptes.csv")
         rc, out, err = self.run_cmd(["python3", self.prog, "--list-users", "--csv", chemin, "--lang=fr"], env)
         self.assertEqual(rc, 0, out + err)
@@ -596,10 +596,10 @@ class Surveillance(EnvTest):
         self.assertEqual(ana["Groupes"], "RLQ23-Bénévole")
         self.assertEqual(ana["Étiquettes"], "Bénévole, Membre")
         self.assertEqual(ana["Adresses IP (connexions)"], "203.0.113.5 (2)")
-        self.assertEqual(ana["Mo reçus"], "0,000")                                             # virgule décimale en français
+        self.assertEqual(ana["Mo reçus"], "0,000")                                             # decimal comma in French
         self.assertEqual(ana["Ville"], "Montréal")
         bob = dict(zip(titres, next(l for l in lignes if "bob@exemple.org" in l)))
-        self.assertEqual(bob["Nom"], "Bob Martin")                                              # jamais coupé
+        self.assertEqual(bob["Nom"], "Bob Martin")                                              # never cut
         rc, out, err = self.run_cmd(["python3", self.prog, "--list-users", "--table-fields", "login,logins", "--repeat-header", "--stats", "--lang=fr"], env)
         propre, tableau, cellules = self.lignes_tableau(out)
         self.assertEqual(sum(1 for c in cellules if c[0].strip() == "Identifiant"), 2)            # titres en haut ET en bas
@@ -620,8 +620,8 @@ class Surveillance(EnvTest):
         with open(os.path.join(self.d, "journal.txt"), "a") as f:
             f.write(f"{aujourdhui}T09:00:00-0400 odoo18 odoo[1]: x INFO base odoo.addons.base.models.res_users: Login successful for db:base login:neo@exemple.org from 203.0.113.99\n")
         texte, _ = self.run_pty(["python3", self.prog, "--list-users", "--table-fields", "login,first,last,logins"], [], dict(self.env, **env), timeout=60, keep_ansi=True)
-        self.assertIn(f"\x1b[1;32m{aujourdhui} 09:00", texte)                                 # dernière connexion : aujourd'hui
-        self.assertIn(f"\x1b[1;36m{aujourdhui} 09:00", texte)                                 # première connexion aujourd'hui : compte nouveau
+        self.assertIn(f"\x1b[1;32m{aujourdhui} 09:00", texte)                                 # last connection: today
+        self.assertIn(f"\x1b[1;36m{aujourdhui} 09:00", texte)                                 # first connection today: new account
         rc, out, err = self.run_cmd(["python3", self.prog, "--list-users", "--table"], env)
         self.assertNotIn("\x1b[", out)
 
@@ -633,9 +633,9 @@ class Surveillance(EnvTest):
         rc, out, err = self.run_cmd(["python3", self.prog, "--list-users", "--table-fields", "login,ipseen", "--sort", "seen"], env)
         propre, tableau, cellules = self.lignes_tableau(out)
         lignes = [[c.strip() for c in l] for l in cellules if "@" in "".join(l)]
-        self.assertEqual(lignes[0], ["bob@exemple.org", "192.0.2.77 09-22 08:40"])            # vu le plus récemment (requête de 08:40, connexion à 08:00)
+        self.assertEqual(lignes[0], ["bob@exemple.org", "192.0.2.77 09-22 08:40"])            # most recently seen (request at 08:40, connection at 08:00)
         self.assertEqual(lignes[1], ["ana@exemple.org", "203.0.113.5 09-20 18:00"])
-        self.assertEqual(lignes[2], ["zoe@exemple.org", "-"])                                  # aucune requête de son adresse
+        self.assertEqual(lignes[2], ["zoe@exemple.org", "-"])                                  # no request from its address
         chemin = os.path.join(self.d, "vus.csv")
         self.run_cmd(["python3", self.prog, "--list-users", "--csv", chemin, "--lang=fr"], env)
         with open(chemin, encoding="utf-8-sig") as f:
@@ -644,7 +644,7 @@ class Surveillance(EnvTest):
         self.assertIn("203.0.113.5 (2026-09-20 18:00)", texte)
         texte, _ = self.run_pty(["python3", self.prog, "--list-users", "--table-fields", "login,last,logins", "--sort", "last"], [], dict(self.env, **env),
                                 timeout=60, keep_ansi=True)
-        self.assertIn("\x1b[1;36mDernière", texte)                                              # colonne triée : titre en cyan
+        self.assertIn("\x1b[1;36mDernière", texte)                                              # sorted column: title in cyan
         self.assertIn("\x1b[1mIdentifiant", texte)                                              # les autres : gras
         etc = self.env["NGINX_TOOLS_ETC_DEFAULT"]
         os.makedirs(etc, exist_ok=True)
@@ -652,13 +652,13 @@ class Surveillance(EnvTest):
             f.write("TABLE_FIELDS=login,logins\nSTATS=oui\nGROUP=zzz\nCSV=" + os.path.join(self.d, "jamais.csv") + "\n")
         rc, out, err = self.run_cmd(["python3", self.prog, "--status"], dict(env, WEB_MONITOR_LANG=""))
         self.assertIn("TIMER", out)
-        self.assertNotIn("|----", out)                                                          # les clés ne lancent pas --list-users
+        self.assertNotIn("|----", out)                                                          # the keys do not launch --list-users
         self.assertFalse(os.path.exists(os.path.join(self.d, "jamais.csv")))
         with open(os.path.join(etc, "web-monitor.conf"), "w") as f:
             f.write("TABLE_FIELDS=login,logins\nTABLE=oui\n")
         rc, out, err = self.run_cmd(["python3", self.prog, "--list-users"], env)
         propre, tableau, cellules = self.lignes_tableau(out)
-        self.assertEqual([c.strip() for c in cellules[1]], ["Identifiant", "Conn"])              # TABLE_FIELDS du fichier appliqué
+        self.assertEqual([c.strip() for c in cellules[1]], ["Identifiant", "Conn"])              # TABLE_FIELDS of the file applied
 
     def test_list_users_minutes_avec_fuseau_a_deux_points(self):
         """2.46 : journalctl -o short-iso récent écrit le fuseau « -04:00 » (ou « Z ») : les minutes de connexion ne tombent plus à 0."""
@@ -669,7 +669,7 @@ class Surveillance(EnvTest):
             propre = re.sub(r"\x1b\[[0-9;]*m", "", out)
             ana = next(l for l in propre.splitlines() if "ana@exemple.org" in l)
             entete = [c.strip() for c in next(l for l in propre.splitlines() if l.startswith("|") and not set(l) <= set("|-")).strip("|").split("|")]
-            minutes = [c.strip() for c in ana.strip("|").split("|")][next(i for i, c in enumerate(entete) if c.startswith("Min"))]      # run-all 1.188 : par l'en-tête, coupé à la largeur des données (2.70 : colonne « Compte créé » ajoutée avant)
+            minutes = [c.strip() for c in ana.strip("|").split("|")][next(i for i, c in enumerate(entete) if c.startswith("Min"))]      # run-all 1.188: by the header, cut to the width of the data (2.70: "Compte cree" column added before)
             self.assertGreaterEqual(int(minutes), 1, (fuseau, ana))
             if fuseau == "-04:00":
                 self.assertEqual(minutes, "8", ana)
@@ -705,7 +705,7 @@ class Surveillance(EnvTest):
         self.assertEqual(self.run_cmd(["python3", self.prog, "--lang=de"], env)[0], 2)
         # Environnement : LC_ALL=en_US -> anglais ; l'option --lang=fr l'emporte ; WEB_MONITOR_LANG=fr (test) l'emporte sur LC_ALL
         env_en = dict(env, LC_ALL="en_US.UTF-8")
-        env_en["WEB_MONITOR_LANG"] = ""                       # variable du programme vide : ignorée
+        env_en["WEB_MONITOR_LANG"] = ""                       # program variable empty: ignored
         self.assertIn("TIMER (automatic monitoring)", self.run_cmd(["python3", self.prog, "--status"], env_en)[1])
         self.assertIn("TIMER (surveillance automatique)", self.run_cmd(["python3", self.prog, "--status", "--lang=fr"], env_en)[1])
         self.assertIn("TIMER (surveillance automatique)", self.run_cmd(["python3", self.prog, "--status"], dict(env_en, LC_ALL="fr_CA.UTF-8"))[1])
@@ -720,10 +720,10 @@ class Surveillance(EnvTest):
         perso_dir = self.env["HOME"]
         os.makedirs(perso_dir, exist_ok=True)
         open(os.path.join(etc, "web-monitor.conf"), "w").write("# commentaire\nLANGUAGE=en\nTABLE=yes\nSORT=minutes\nDAYS=abc\n")
-        env = dict(env, WEB_MONITOR_LANG="")                                         # la variable du programme (fixée par les tests) laisserait la main au fichier
+        env = dict(env, WEB_MONITOR_LANG="")                                         # the program variable (set by the tests) would leave the way open to the file
         rc, out, err = self.run_cmd(["python3", self.prog, "--list-users"], env)
         propre = re.sub(r"\x1b\[[0-9;]*m", "", out)
-        self.assertIn(f"Configuration read: {os.path.join(etc, 'web-monitor.conf')}", propre)            # un seul fichier : pas de « le dernier l'emporte »
+        self.assertIn(f"Configuration read: {os.path.join(etc, 'web-monitor.conf')}", propre)            # a single file: no "the last one wins"
         self.assertIn("Options: --lang en · --sort minutes · --table yes (command line takes precedence)", sans_origine(propre))
         self.assertRegex(propre, r"\|#\s*\|UID\s*\|IP\s*\|")                                  # TABLE=yes : tableau (compact, 2.67), SORT=minutes
         self.assertIn("sorted by login minutes", propre)
@@ -775,20 +775,20 @@ class Surveillance(EnvTest):
             self.assertNotIn("Traceback", err, err)
             propre = re.sub(r"\x1b\[[0-9;]*m", "", out)
             return [c.split("@")[0] for c in re.findall(r"\b(\w+@exemple\.org)", propre)]
-        self.assertEqual(ordre(), ["ana", "bob", "zoe"])                                  # défaut : nom (Ana, Bob, Zoé)
+        self.assertEqual(ordre(), ["ana", "bob", "zoe"])                                  # default: name (Ana, Bob, Zoe)
         self.assertEqual(ordre("--sort=name", "--reverse"), ["zoe", "bob", "ana"])
-        self.assertEqual(ordre("--sort=latest"), ["zoe", "bob", "ana"])                    # dernière connexion : la plus récente d'abord
+        self.assertEqual(ordre("--sort=latest"), ["zoe", "bob", "ana"])                    # last connection: the most recent first
         self.assertEqual(ordre("--sort=derniere", "--reverse"), ["ana", "bob", "zoe"])
-        self.assertEqual(ordre("--sort=first"), ["ana", "bob", "zoe"])                     # première connexion : la plus ancienne d'abord
+        self.assertEqual(ordre("--sort=first"), ["ana", "bob", "zoe"])                     # first connection: the oldest first
         self.assertEqual(ordre("--sort", "UID"), ["bob", "ana", "zoe"])                    # 5, 7, 12
-        self.assertEqual(ordre("--sort=minutes"), ["ana", "bob", "zoe"])                   # 8, 1, 1 (égalité : ordre alphabétique conservé)
+        self.assertEqual(ordre("--sort=minutes"), ["ana", "bob", "zoe"])                   # 8, 1, 1 (tie: alphabetical order kept)
         self.assertEqual(ordre("--sort=connexions"), ["ana", "bob", "zoe"])
         self.assertEqual(ordre("--sort=ip"), ["bob", "zoe", "ana"])                        # 192.0.2.77, 198.51.100.9, 203.0.113.5
         self.assertEqual(ordre("--sort=type"), ["ana", "bob", "zoe"])                      # interne, interne, portail
         rc, out, err = self.run_cmd(["python3", self.prog, "--list-users", "--sort=couleur"], env)
         self.assertNotEqual(rc, 0)
         self.assertIn("clé de tri inconnue « couleur »", err)
-        # Sans --table : liste par compte, même tri, entête qui le dit
+        # Without --table: list per account, same sorting, header saying so
         rc, out, err = self.run_cmd(["python3", self.prog, "--list-users", "--sort=latest"], env)
         self.assertIn("3 compte(s), triés par dernière connexion", out)
         self.assertLess(out.index("zoe@exemple.org"), out.index("bob@exemple.org"))
@@ -817,7 +817,7 @@ class Surveillance(EnvTest):
         self.assertEqual(appels.count("-d base "), 1, "une seule requête par base")
         self.assertIn("SELECT", appels.upper())
         self.assertNotRegex(appels.upper(), r"\b(INSERT|UPDATE|DELETE|DROP|ALTER)\b")      # lecture seule
-        # Sans --details : ni UID ni requête à la base
+        # Without --details: neither UID nor database query
         os.remove(os.path.join(self.d, "runuser.log"))
         rc, out, err = self.run_cmd(["python3", self.prog, "--list-users"])
         self.assertNotIn("UID Odoo", out)
@@ -845,12 +845,12 @@ class Surveillance(EnvTest):
             return re.sub(r"\x1b\[[0-9;]*m", "", f.getvalue())
         out = sortie({"APP_NAME": "odoo", "APP_LABEL": "Odoo", "APP_LOG_KIND": "journal"})
         noms = [l.strip() for l in out.splitlines() if l.startswith("  ") and not l.startswith("   ") and "@" in l]
-        self.assertEqual(noms, ["Etienne@exemple.org", "etienne@exemple.org", "zoe@exemple.org"])   # sans égard à la casse ; à égalité, majuscule d'abord
+        self.assertEqual(noms, ["Etienne@exemple.org", "etienne@exemple.org", "zoe@exemple.org"])   # case-insensitive; on a tie, uppercase first
         self.assertRegex(out, r"\n\n  zoe@exemple\.org\n    Connexions      : 2 \(première 2026-09-20 10:00, dernière 2026-09-26 10:00\)"
                               r"\n    Adresses IP     : 203\.0\.113\.9 \(bannie\)")
         self.assertIn("3 compte(s), par ordre alphabétique", out)
         self.assertIn("depuis le 2026-07-23", out)
-        # --days : journal borné (--since), source indiquée
+        # --days: journal bounded (--since), source indicated
         commandes = []
         wm.run = lambda cmd, timeout=0: (commandes.append(cmd), (0, journal))[1]
         wm.DAYS, wm.DAYS_GIVEN = 10, True
@@ -859,7 +859,7 @@ class Surveillance(EnvTest):
         self.assertIn("--since", commandes[-1])
         self.assertIn("10 derniers jours", out)
         wm.DAYS_GIVEN = False
-        # 2.16 : détails de trafic des adresses du compte (tous les journaux nginx conservés)
+        # 2.16: traffic details of the account's addresses (all the nginx logs kept)
         self.write("nginx/rencontres_linux_quebec_prod-access.log",
                    '11.97.88.180 - - [28/Sep/2026:12:02:11 -0400] "POST /web/dataset/call_kw/survey.survey/web_read HTTP/1.1" 200 300 "-" "Mozilla/5.0"\n'
                    '11.97.88.180 - - [28/Sep/2026:12:02:12 -0400] "GET /odoo/action-908 HTTP/1.1" 200 3000 "-" "Mozilla/5.0"\n')
@@ -867,7 +867,7 @@ class Surveillance(EnvTest):
         wm.PROFILE = {"APP_NAME": "odoo", "APP_LABEL": "Odoo", "APP_LOG_KIND": "journal", "ACCESS_LOGS": "*-access.log"}
         f = io.StringIO()
         with contextlib.redirect_stdout(f):
-            wm.list_users()                                              # défaut : sans détails (2.20)
+            wm.list_users()                                              # default: no details (2.20)
         self.assertNotIn("Trafic          :", f.getvalue())
         self.assertIn("web-monitor.py --list-users --details", f.getvalue())
         f = io.StringIO()
@@ -905,16 +905,16 @@ class Surveillance(EnvTest):
         texte = wm.TR("\n".join(wm.detail_lines(a))).replace("\u202f", " ")
         self.assertIn("Trafic          : 2 pages vues · 7 requêtes · 1 erreur(s) (429 : 1)", texte)
         self.assertIn("Jour le + actif : 2026-09-28 (6 requêtes)", texte)
-        self.assertIn("Modules Odoo    : mail (3), base (2)", texte)              # res.* et ir.* → base
+        self.assertIn("Modules Odoo    : mail (3), base (2)", texte)              # res.* and ir.* -> base
         self.assertIn("Pages + vues    : /event (1), /odoo/discuss (1)", texte)
         class C:
             n = {}
         c = C()
         wm.WHITELIST.clear()
-        wm.WHITELIST.add("11.148.77.5")                                     # équipe
+        wm.WHITELIST.add("11.148.77.5")                                     # team
         wm.logged_in_shares(c, {"stats_ip": st, "ips_connues": {"11.97.88.180", "11.148.77.5"}})
         self.assertEqual((c.n[("req_connectes", 2)], c.n[("pages_connectes", 2)]), (7, 2))  # l'anonyme n'y est pas
-        self.assertEqual(c.n[("req_connus_hors_equipe", 2)], 6)            # 2.23 : l'équipe retirée
+        self.assertEqual(c.n[("req_connus_hors_equipe", 2)], 6)            # 2.23: the team member removed
 
     def test_recommandation_requetes_malveillantes(self):
         """2.15 : « requêtes malveillantes » (ancien vocabulaire retiré) ; marche à suivre selon qu'il y en a encore aujourd'hui."""
@@ -940,11 +940,11 @@ class Surveillance(EnvTest):
             self.assertIn(attendu, out)
             self.assertNotIn("app-health-check.py --target local", out)       # 2.36 : l'essai est fait par le programme
             self.assertNotIn("sondage", out.lower())
-            if auj:                                                      # nom demandé (format combined_host de nginx)
+            if auj:                                                      # requested name (nginx combined_host format)
                 self.assertIn("Noms concernés : odoo18.exemple.org (5) — c'est le bloc server de ce nom qu'il faut corriger.", out)
 
     # ---------------------------------------------------------------------------------------------------------------
-    # 2.36 : les recommandations ne renvoient plus à des commandes à taper — le programme les fait lui-même.
+    # 2.36: the recommendations no longer point to commands to type - the program does them itself.
     # ---------------------------------------------------------------------------------------------------------------
     def module_wm(self, profil, nginx_t="", investigate=""):
         """Module web-monitor chargé pour un test de recommandations : commandes système simulées."""
@@ -996,7 +996,7 @@ class Surveillance(EnvTest):
                  "non_filtrees_jour": avant}
         bbb = {"APP_NAME": "bbb", "APP_LABEL": "BigBlueButton"}
         avec_regles = f"# configuration file /etc/nginx/sites-enabled/bbb:\nserver {{\n# configuration file {regles}:\nlocation ~ /\\. {{\n"
-        # a) nginx pas rechargé depuis l'installation : rechargement proposé (correction du programme)
+        # a) nginx not reloaded since installation: reload proposed (program fix)
         wm = self.module_wm(bbb, avec_regles)
         wm.nginx_loaded_since = lambda: installe - 7200
         out = self.recos_de(wm, C(), faits)
@@ -1004,13 +1004,13 @@ class Surveillance(EnvTest):
         self.assertIn("nginx -t && systemctl reload nginx", [a[1] for a in wm.ACTIONS])
         self.assertIn("a) Recharger nginx pour appliquer les règles de sécurité de BigBlueButton", out)
         self.assertNotIn("nginx -T | grep", out)
-        # b) rechargé, mais fichier absent de nginx -T : la configuration de BBB ne l'inclut pas
+        # b) reloaded, but file absent from nginx -T: BBB's configuration does not include it
         wm = self.module_wm(bbb, "# configuration file /etc/nginx/sites-enabled/bbb:\nserver {\n")
         wm.nginx_loaded_since = lambda: installe + 60
         out = self.recos_de(wm, C(), faits)
         self.assertIn("est absent de nginx -T", out)
         self.assertNotIn("nginx -t && systemctl reload nginx", [a[1] for a in wm.ACTIONS])
-        # c) toutes antérieures à l'entrée en vigueur, et nginx les refuse maintenant : FAIBLE, rien à faire
+        # c) all earlier than the entry into force, and nginx refuses them now: LOW, nothing to do
         wm = self.module_wm(bbb, avec_regles)
         wm.nginx_loaded_since = lambda: installe + 60
         wm.read_page = lambda chemin, hote=None: (404, b"x" * 150)
@@ -1020,7 +1020,7 @@ class Surveillance(EnvTest):
         self.assertIn("datent toutes d'avant l'entrée en vigueur des règles", bloc)
         self.assertIn("nginx refuse maintenant /.env → 404 (150 o)", bloc)
         self.assertIn("Rien à faire", bloc)
-        # d) postérieures, et une location prioritaire de BBB les capte : le programme le montre (fichier:ligne)
+        # d) later, and a priority location of BBB catches them: the program shows it (file:line)
         apres = [(installe + 120, "/html5client/.env", "bbb30.exemple.org")] * 5
         faits_d = dict(faits, non_filtrees_jour=avant + apres)
         texte = avec_regles + "# configuration file /etc/bigbluebutton/nginx/bbb-html5.nginx:\nlocation ^~ /html5client {\n"
@@ -1047,7 +1047,7 @@ class Surveillance(EnvTest):
         regles = ("# configuration file /etc/nginx/snippets/securite-commune.conf:\n"
                   "location ~ /\\. {\n    return 404;\n}\nlocation ~* ^/(_hcms|wp-content|wp-json|server-status) {\n    return 404;\n}\n"
                   'location ~* "^/(?:[a-z]{2}(?:_[A-Z]{2})?/)?(?!web/)zzz" {\n')
-        # 1. AUCUNE règle ne vise ces chemins : la règle manque (et ce n'est pas un problème d'inclusion)
+        # 1. NO rule targets these paths: the rule is missing (and it is not an inclusion problem)
         wm = self.module_wm(odoo, regles)
         wm.read_page = lambda chemin, hote=None: reponses[chemin]
         bloc = self.reco(self.recos_de(wm, C(), faits), "requêtes malveillantes")
@@ -1055,14 +1055,14 @@ class Surveillance(EnvTest):
         self.assertIn("AUCUNE règle de nginx -T ne vise /wp-admin/, /en_CA/wp-admin/, /en_CA/wp-admin", bloc)
         self.assertIn("le bloc server est correct, il MANQUE une règle", bloc)
         self.assertNotIn("doit inclure snippets/securite-commune.conf", bloc)
-        # 2. Règle wp-admin SANS préfixe de langue : seul /wp-admin/ est visé ; le programme nomme ceux qui ne le sont toujours pas
+        # 2. wp-admin rule WITHOUT language prefix: only /wp-admin/ is targeted; the program names those that still are not
         sans_prefixe = regles.replace("wp-content|wp-json", "wp-admin|wp-content|wp-json")
         wm = self.module_wm(odoo, sans_prefixe)
         wm.read_page = lambda chemin, hote=None: reponses[chemin]
         bloc = self.reco(self.recos_de(wm, C(), faits), "requêtes malveillantes")
         self.assertIn("AUCUNE règle de nginx -T ne vise /en_CA/wp-admin/, /en_CA/wp-admin :", bloc)
         self.assertNotIn("vise /wp-admin/", bloc)
-        # 3. Règle livrée (préfixe de langue facultatif) : tout est visé, mais nginx répond quand même → bloc server sans cette règle
+        # 3. Shipped rule (optional language prefix): everything is targeted, but nginx answers anyway -> server block without this rule
         livree = regles.replace("(_hcms|wp-content|wp-json|server-status)", "(wp-admin|wp-content)").replace(
             "location ~* ^/(", 'location ~* "^/(?:[a-z]{2}(?:_[A-Z]{2})?/)?(').replace("(wp-admin|wp-content) {", '(wp-admin|wp-content)" {')
         wm = self.module_wm(odoo, livree)
@@ -1071,7 +1071,7 @@ class Surveillance(EnvTest):
         self.assertNotIn("AUCUNE règle", bloc)
         self.assertIn("des règles les visent (/etc/nginx/snippets/securite-commune.conf:4 « location ~* ^/(?:[a-z]{2}", bloc)
         self.assertIn("ne les inclut pas, ou une autre location les précède", bloc)
-        # 4. nginx -T illisible : cause non déterminée (jamais une cause inventée)
+        # 4. nginx -T unreadable: cause not determined (never an invented cause)
         wm = self.module_wm(odoo, "")
         wm.read_page = lambda chemin, hote=None: reponses[chemin]
         bloc = self.reco(self.recos_de(wm, C(), faits), "requêtes malveillantes")
@@ -1125,7 +1125,7 @@ class Surveillance(EnvTest):
         self.assertNotIn("--investigate", bloc)
         self.assertNotIn("Détail : nginx-log-audit.sh", bloc)
         self.assertIn("▶ bannir 11.76.10.18", out)
-        # Adresse déjà bannie : ni enquête ni proposition
+        # Address already banned: no investigation nor proposal
         wm = self.module_wm({"APP_NAME": "bbb", "APP_LABEL": "BigBlueButton"}, texte, "→ Score 5/7 : bannissement recommandé.")
         out = self.recos_de(wm, C(), dict(faits, bannies={"11.76.10.18": "banni"}))
         self.assertIn("11.76.10.18 déjà bannie, rien à faire", out)
@@ -1163,7 +1163,7 @@ class Surveillance(EnvTest):
             with contextlib.redirect_stdout(io.StringIO()):
                 wm.offer_fixes()
         self.assertEqual(faits_par, [("ban", ["203.0.113.9"], False), "reload", "timer"])
-        with unittest.mock.patch("os.geteuid", return_value=1000), unittest.mock.patch.dict(os.environ, {"NGINX_TOOLS_TEST_EUID": ""}):   # run-all 1.190 : sans root simulé
+        with unittest.mock.patch("os.geteuid", return_value=1000), unittest.mock.patch.dict(os.environ, {"NGINX_TOOLS_TEST_EUID": ""}):   # run-all 1.190: without simulated root
             f = io.StringIO()
             with contextlib.redirect_stdout(f):
                 wm.offer_fixes()
@@ -1188,7 +1188,7 @@ class Surveillance(EnvTest):
         with contextlib.redirect_stdout(f):
             wm.recommendations(C(), {"non_filtrees": {}, "jails": {"nginx-x": 1}, "robots": {}}, {})
         self.assertRegex(f.getvalue(), r"\[.*HAUTE.*\] aucune sauvegarde automatique d'Odoo")
-        self.assertEqual(wm.analyze_backup(1, "[FAIL] base : AUCUNE sauvegarde"), [])          # jamais configurée
+        self.assertEqual(wm.analyze_backup(1, "[FAIL] base : AUCUNE sauvegarde"), [])          # never configured
         self.write("etat-sauvegarde/last-success", "1\t2026-09-20 02:30\tbase\n")
         alertes = wm.analyze_backup(1, "  [FAIL] base : dernière sauvegarde il y a 50 h (2026-09-27_023000)")
         self.assertEqual(wm.TR(alertes[0][0]), "odoo-backup.sh : sauvegarde d'Odoo trop ancienne ou en échec")
@@ -1218,7 +1218,7 @@ class Surveillance(EnvTest):
         self.assertEqual((v["limit_memory_hard"], v["limit_time_real"], v["limit_time_cpu"], v["workers"]), (6000000000, 1800, 1200, 3))
         self.assertEqual((wm.TR(origine["limit_memory_hard"]), wm.TR(origine["limit_time_cpu"]), wm.TR(origine["workers"])),
                          ("processus en cours", "script de démarrage", "fichier"))
-        # Processus illisible (Odoo arrêté) : valeurs du script de démarrage, jamais « 0 = illimité » du fichier
+        # Unreadable process (Odoo stopped): values of the start script, never the "0 = unlimited" of the file
         reponses["MainPID"] = "0"
         chemin, v, origine = wm.odoo_config("erplibre.service")
         self.assertEqual((v["limit_memory_hard"], v["limit_time_real"]), (5449449472, 1200))
@@ -1243,7 +1243,7 @@ class Surveillance(EnvTest):
                 wm.recommendations(C(), faits, {})
             return f.getvalue()
         out = recos((0, "Status\n|- Number of jail: 2\n`- Jail list: sshd, nginx-blocked-probes"))
-        self.assertNotIn("aucune jail fail2ban ne bannit les scanners web", out)       # chargée, même sans bannissement
+        self.assertNotIn("aucune jail fail2ban ne bannit les scanners web", out)       # loaded, even without banning
         out = recos((0, "Status\n`- Jail list: sshd"))
         self.assertIn("aucune jail fail2ban ne bannit les scanners web (901", out)
         self.assertIn("nginx-hardening.sh --update", out)
@@ -1275,7 +1275,7 @@ class Surveillance(EnvTest):
     def test_403_navigateurs_regle_ou_robots(self):
         """2.29 : 403 de navigateurs — pages ordinaires séparées des URL de scanners ; peu d'adresses = robots ;
         beaucoup d'adresses = règle à trouver ; taille de la réponse = nginx ou application."""
-        # Cas réel de BBB de PROD : « / » 519, « /signin » 44, « /login » 33, « /.env » 41 — ici concentrés sur 3 adresses
+        # Real case of PROD's BBB: "/" 519, "/signin" 44, "/login" 33, "/.env" 41 - here concentrated on 3 addresses
         out = self.recos_403({"refus_navigateurs": {"/": 519, "/signin": 44, "/login": 33}, "refus_nav_scanners": 41,
                               "refus_nav_ip": {"203.0.113.5": 500, "203.0.113.6": 60, "203.0.113.7": 36}, "refus_nav_petits": 590})
         self.assertIn("596 visent des pages ordinaires (/ (519), /signin (44), /login (33))", out)
@@ -1284,15 +1284,15 @@ class Surveillance(EnvTest):
         self.assertIn("probablement des robots", out)
         self.assertIn("Réponses très courtes : typique d'un refus de nginx lui-même", out)
         self.assertNotIn("RÈGLE", out)
-        # Mêmes refus répartis sur 300 adresses, réponses longues : une règle refuse de vrais visiteurs
+        # Same refusals spread over 300 addresses, long answers: a rule refuses real visitors
         ips = {f"198.51.{i // 250}.{i % 250 + 1}": 2 for i in range(300)}
         out = self.recos_403({"refus_navigateurs": {"/": 600}, "refus_nav_ip": ips, "refus_nav_petits": 10})
         self.assertIn("Réparties sur 300 adresses différentes : probablement une RÈGLE qui refuse de vrais visiteurs", out)
-        self.assertNotIn("nginx -T | grep", out)                                  # 2.36 : relevé par le programme
+        self.assertNotIn("nginx -T | grep", out)                                  # 2.36: noted by the program
         self.assertIn("Configuration de nginx illisible (nginx -T)", out)
         self.assertIn("Réponses longues : plutôt l'application que nginx", out)
         self.assertNotIn("probablement des robots", out)
-        # Cas réel de BBB de PROD : 233 adresses, dont UNE à 34 % — ni « concentrées » ni « règle » : un robot domine
+        # Real case of PROD's BBB: 233 addresses, including ONE at 34 % - neither "concentrated" nor "rule": a robot dominates
         ips = {"11.76.10.201": 430, "11.141.105.161": 108, "11.75.218.193": 72}
         ips.update({f"198.51.{i // 250}.{i % 250 + 1}": 3 if i < 191 else 2 for i in range(230)})
         out = self.recos_403({"refus_navigateurs": {"/": 748, "/rooms/dmd-nuj-ic7-gmb/join": 398, "/api/host.describe": 49,
@@ -1302,7 +1302,7 @@ class Surveillance(EnvTest):
         self.assertIn("Enquête du programme : 11.76.10.201 : enquête impossible", out)   # 2.36 : faite par le programme
         self.assertNotIn("--investigate", out)
         self.assertIn("Les 232 autres adresses se partagent le reste", out)
-        self.assertNotIn("Concentrées sur", out)                               # 233 adresses ne sont pas « concentrées »
+        self.assertNotIn("Concentrées sur", out)                               # 233 addresses are not "concentrated"
         self.assertNotIn("probablement une RÈGLE qui refuse", out)
 
     def test_googlebot_403_bbb_ou_odoo(self):
@@ -1346,7 +1346,7 @@ class Surveillance(EnvTest):
         spec = __import__("importlib.util").util.spec_from_file_location("wm", self.prog)
         wm = __import__("importlib.util").util.module_from_spec(spec)
         spec.loader.exec_module(wm)
-        # 1) n'importe où : fin propre
+        # 1) anywhere: clean end
         def interrompu():
             raise KeyboardInterrupt
         wm.main = interrompu
@@ -1355,7 +1355,7 @@ class Surveillance(EnvTest):
             self.assertEqual(wm.execute(), 130)
         self.assertIn("Interrompu (Ctrl-C).", e.getvalue())
         self.assertNotIn("Traceback", e.getvalue())
-        # 2) pendant less : un VRAI SIGINT est envoyé à ce processus pendant que less « tourne »
+        # 2) during less: a REAL SIGINT is sent to this process while less is "running"
         class Tty(io.StringIO):
             def isatty(self):
                 return True
@@ -1367,7 +1367,7 @@ class Surveillance(EnvTest):
         wm.sys = types.SimpleNamespace(stdin=Tty(), stdout=Tty(), stderr=sys.stderr)
         wm.shutil = types.SimpleNamespace(which=lambda n: "/usr/bin/less")
         wm.subprocess = types.SimpleNamespace(run=faux_less)
-        wm.input = lambda *_: ""                                                 # Entrée : ouvrir less
+        wm.input = lambda *_: ""                                                 # Enter: open less
         avant = signal.getsignal(signal.SIGINT)
         try:
             wm.offer_less("/tmp/rapport.txt")
@@ -1376,7 +1376,7 @@ class Surveillance(EnvTest):
         finally:
             signal.signal(signal.SIGINT, avant)
         self.assertTrue(callable(vus["gestionnaire"]) and vus["gestionnaire"] is not avant)
-        self.assertIsNot(vus["gestionnaire"], signal.SIG_IGN)                    # jamais SIG_IGN : less en hériterait
+        self.assertIsNot(vus["gestionnaire"], signal.SIG_IGN)                    # never SIG_IGN: less would inherit it
 
     def test_seuil_de_la_sauvegarde_selon_les_heures_configurees(self):
         """2.34 : âge maximal toléré de la dernière sauvegarde = celui écrit par odoo-backup.sh selon les heures configurées
@@ -1423,7 +1423,7 @@ class Surveillance(EnvTest):
         self.write(f"sd/{wm.UNIT}.service", f"[Service]\nExecStart=/usr/bin/python3 {script}\n")
         cron = self.write("cron/sync", f"SHELL=/bin/bash\nPATH=/usr/bin\n17 * * * * root /usr/bin/flock -n /run/lock/s.lock {script} > /dev/null 2>&1\n")
         with mock.patch.dict(os.environ, {"SYNC_CROWDSEC_CRON_FILE": cron}):
-            self.assertEqual(wm.timers_missing_files(), [])                   # tout existe : rien à signaler
+            self.assertEqual(wm.timers_missing_files(), [])                   # everything exists: nothing to report
             self.assertEqual(wm.analyze_timers(), [])
         # Tout est absent : configuration (--config ET -c ET --config=), script systemd, script cron
         self.write("sd/odoo-backup.service", f"[Service]\nExecStart={script} --config /nulle/odoo-backup.conf\n")
@@ -1454,7 +1454,7 @@ class Surveillance(EnvTest):
         rapport = out[out.index("RAPPORT D'ERREURS"):]
         self.assertRegex(rapport, r"Programme : web-monitor\.py v2\.\d+\.\d{8}\.\d{6} — commande : web-monitor\.py --status\n")
         self.assertIn("AVERTISSEMENTS (1) :\n  1. ⚠ odoo-backup : le timer lit un fichier de configuration qui n'existe pas (/nulle/odoo-backup.conf)", rapport)
-        self.assertIn("odoo-backup.sh --install-timer", rapport)                    # ligne de détail de l'avertissement
+        self.assertIn("odoo-backup.sh --install-timer", rapport)                    # detail line of the warning
 
     def test_report_err_desactive_pager_et_questions(self):
         """--report-err implique --no-prompt et --no-pager : un rapport à copier-coller ne s'interrompt jamais."""
@@ -1506,11 +1506,11 @@ class Surveillance(EnvTest):
         self.assertIn("aujourd'hui \x1b[1;32m1\x1b[0m", c)                           # connexions du jour : vert
         self.assertIn("\x1b[1;31m2 erreur(s)\x1b[0m", c)                              # il y a une 5xx : rouge
         self.assertIn("\x1b[1;31m502 : 1\x1b[0m", c)
-        self.assertIn("\x1b[1;33m429 : 1\x1b[0m", c)                                  # limitation de débit : jaune
+        self.assertIn("\x1b[1;33m429 : 1\x1b[0m", c)                                  # rate limiting: yellow
         self.assertIn("\x1b[1;35m203.0.113.9 (bannie)\x1b[0m", c)                     # adresse bannie : magenta
         self.assertIn("\x1b[1mzoe@exemple.org\x1b[0m", c)                            # nom en gras
-        self.assertNotIn("\x1b[", rendu(False))                                       # rapport capturé : aucun code
-        self.assertNotIn("\x1b[", rendu(True, no_color=True))                         # NO_COLOR respecté
+        self.assertNotIn("\x1b[", rendu(False))                                       # captured report: no code
+        self.assertNotIn("\x1b[", rendu(True, no_color=True))                         # NO_COLOR respected
         self.assertIn("7 j 1 · 30 j 1", rendu(False))
         wm.DAYS = 3
         self.assertNotIn("7 j", rendu(False))
@@ -1597,7 +1597,7 @@ class Surveillance(EnvTest):
         self.assertEqual(rc, 0, err)
         self.assertIn("--ban 45.9.8.7 --yes", self.bans())
         rc, out, err = self.run_cmd(["python3", self.prog, "--ban-recommended", "--yes"])
-        self.assertIn("Aucune IP recommandée", out)                         # liste traitée : vidée
+        self.assertIn("Aucune IP recommandée", out)                         # list processed: emptied
 
     def test_verbose_transmis_a_tous_les_programmes_lances(self):
         """2.39 : « web-monitor.py --verbose » n'affichait que SES commandes ; les programmes qu'il lance (app-health-check.py,
@@ -1621,7 +1621,7 @@ class Surveillance(EnvTest):
         avec, err = commandes("--verbose")
         for programme in ("app-health-check", "app-log-check", "nginx-log-audit", "sync-crowdsec"):
             self.assertIn("--verbose", avec[programme], f"{programme} n'a pas reçu --verbose : {avec[programme]}")
-        self.assertIn("+ ", err)                                              # les commandes de web-monitor lui-même
+        self.assertIn("+ ", err)                                              # the commands of web-monitor itself
         sans, err = commandes()
         for programme in ("app-health-check", "app-log-check", "nginx-log-audit", "sync-crowdsec"):
             self.assertNotIn("--verbose", sans[programme], f"{programme} : --verbose sans qu'il ait été demandé")
@@ -1669,14 +1669,14 @@ class Surveillance(EnvTest):
             fonction = next(a[2] for a in wm.ACTIONS if a[1].startswith("apt-get install -y geoip-bin"))
             fonction()
             self.assertIn(["apt-get", "install", "-y", "geoip-bin", "geoip-database"], appels)
-            # Paquet introuvable : rien de recommandé
+            # Package not found: nothing recommended
             wm.ACTIONS.clear()
             wm_candidat[0] = "(none)"
             f = io.StringIO()
             with contextlib.redirect_stdout(f):
                 wm.recommendations(C(), faits, {})
             self.assertNotIn("geoip-bin", f.getvalue())
-        # Déjà installé : rien non plus
+        # Already installed: nothing either
         wm.ACTIONS.clear()
         wm_candidat[0] = "1.6.12-10"
         with mock.patch.object(wm.shutil, "which", lambda n, *a, **k: "/usr/bin/geoiplookup" if n == "geoiplookup" else reel(n, *a, **k)):
@@ -1707,7 +1707,7 @@ class Surveillance(EnvTest):
         texte = re.sub(r"\x1b\[[0-9;]*m", "", f.getvalue())
         self.assertIn("11.105.216.7 (partagée : ETS - Université)", texte)
         self.assertIn("45.33.32.156 (partagée : 2 comptes)", texte)
-        self.assertIn("11.105.1.1 (partagée : ETS - Université)", texte)                              # un seul compte, mais lieu partagé
+        self.assertIn("11.105.1.1 (partagée : ETS - Université)", texte)                              # a single account, but shared place
         self.assertEqual(wm.TR(wm.shared_text(4)), "4 comptes")
         self.assertEqual(wm.shared_text("ETS - Université"), "ETS - Université")
 
@@ -1725,7 +1725,7 @@ class Surveillance(EnvTest):
                 with self.subTest(programme=programme, retour_arriere=nom):
                     texte, _ = self.run_pty(["python3", "-c", charge % script_path(programme)], [(b"Bannir ?", b"v" + touche + b"c\n", 0.05)])
                     self.assertIn("REPONSE='c'", texte, f"{nom} n'a pas effacé le « v » : {texte!r}")
-        # Témoin : sans readline (Python nu), ^H n'efface rien — c'est le défaut qu'on avait
+        # Witness: without readline (bare Python), ^H erases nothing - that is the default we had
         texte, _ = self.run_pty(["python3", "-c", "print('REPONSE=' + repr(input('Bannir ? ')))"], [(b"Bannir ?", b"v\x08c\n", 0.05)])
         self.assertNotIn("REPONSE='c'", texte)
 
@@ -1835,7 +1835,7 @@ class Bilan(EnvTest):
         rc, out, err = self.run_cmd(["python3", self.prog, "--summary", "--days", "3"])
         self.assertEqual(rc, 0, err)
         entete = next(l for l in out.splitlines() if "Aujourd'hui" in l)
-        self.assertRegex(entete, r"Aujourd'hui\*?\s+J-1\*?\s+J-2\*?\s+3 jours\*?\s*$")        # plus de « 7 jours »
+        self.assertRegex(entete, r"Aujourd'hui\*?\s+J-1\*?\s+J-2\*?\s+3 jours\*?\s*$")        # no more "7 days"
         self.assertIn("FAITS MARQUANTS (3 jours)", out)
         rc, out, err = self.run_cmd(["python3", self.prog, "--summary", "--days", "1"])
         entete = next(l for l in out.splitlines() if "Aujourd'hui" in l)
@@ -1851,15 +1851,15 @@ class Bilan(EnvTest):
                    "Pages vues": [4, 7, 11],                                       # POST et images exclus
                    "Refus 403 (robots, outils": [1, 2, 2], "Tentatives sur le capteur": [2, 5, 5],
                    "Requêtes freinées": [1, 1, 1], "Accès à des fichiers sensibles": [1, 3, 3],
-                   "IP bannies par fail2ban": [2, 2, 3],                           # IP distinctes, Unban ignoré
-                   "Bannissements manuels": [1, 1, 2],                             # « leve » ignoré
+                   "IP bannies par fail2ban": [2, 2, 3],                           # distinct IPs, Unban ignored
+                   "Bannissements manuels": [1, 1, 2],                             # "leve" ignored
                    "IP de la liste CrowdSec": [1, 2, 3], "Échecs de connexion": [2, 2, 2],
-                   "Erreurs Odoo": [1, 4, 4],                                      # INFO non compté
+                   "Erreurs Odoo": [1, 4, 4],                                      # INFO not counted
                    "Erreurs serveur": [1, 1, 1]}
         for libelle, v in attendu.items():
             with self.subTest(indicateur=libelle):
                 self.assertEqual(self.valeurs(out, libelle), v)
-        self.assertNotIn("partielle", out)                                         # la rotation remonte à 40 jours
+        self.assertNotIn("partielle", out)                                         # rotation goes back 40 days
 
     def test_faits_marquants_couverture_et_conseils_de_retention(self):
         """1.4 : faits marquants des 30 jours ; couverture EXACTE de chaque journal ; modification à faire pour 3 mois."""
@@ -1868,7 +1868,7 @@ class Bilan(EnvTest):
         rc, out, err = self.run_cmd(["python3", self.prog, "--summary"])
         self.assertEqual(rc, 0, err)
         self.assertIn(f"Jour le plus chargé      : {T:%Y-%m-%d} (10 requêtes)", out)
-        self.assertIn("IP les plus actives      : 10.0.0.1 (4), 10.0.0.9 (4)", out)          # égalité : ordre stable
+        self.assertIn("IP les plus actives      : 10.0.0.1 (4), 10.0.0.9 (4)", out)          # tie: stable order
         self.assertRegex(out, r"URL malveillantes        : .*/\.env \(1\)")
         self.assertIn("Pages valides les + vues : / (7)", out)
         self.assertIn("Clients bloqués (403)    : navigateur (autre) (2)", out)
@@ -1886,8 +1886,8 @@ class Bilan(EnvTest):
         cellules = lambda l: (lambda v: [v[0], v[3], v[4]] if len(v) == 5 else v)(
             re.findall(r"\d+(?: \(\d+ %\))?", next(x for x in out.splitlines() if x.strip().startswith(l))[52:]))
         self.assertEqual(cellules("Arrivées à nginx"), ["12", "20", "24"])
-        # 2.9 : /.git/config en 404 avec une PETITE page = réponse de nginx lui-même → rejetée (et non plus « parvenue à
-        # Odoo ») ; le cas d'un vrai 404 d'Odoo (page lourde) est couvert par test_appareils_des_visiteurs_humains_et_404_de_nginx.
+        # 2.9: /.git/config in 404 with a SMALL page = answer of nginx itself -> rejected (and no longer "reached
+        # Odoo"); the case of a real 404 from Odoo (heavy page) is covered by test_appareils_des_visiteurs_humains_et_404_de_nginx.
         self.assertEqual(cellules("Rejetées par nginx"), ["4 (33 %)", "9 (45 %)", "9 (37 %)"])
         self.assertEqual(cellules("Transmises à Odoo"), ["8 (66 %)", "11 (55 %)", "15 (62 %)"])
         self.assertEqual(cellules("dont URL malveillantes"), ["0 (0 %)", "0 (0 %)", "0 (0 %)"])
@@ -1974,18 +1974,18 @@ esac''')
         self.mock("nginx", '[[ "$1" == -T ]] && printf "location ~ x {\\n    allow 11.126.46.49;\\n}\\n"; exit 0')
         valeurs = lambda o, l: re.findall(r"\d+(?: \(\d+ %\))?", next(x for x in o.splitlines() if x.strip().startswith(l))[52:])
         n = lambda o, l: int(valeurs(o, l)[0].split()[0])
-        _, avant, _ = self.run_cmd(["python3", self.prog, "--summary"])       # visiteurs déjà présents dans les données
+        _, avant, _ = self.run_cmd(["python3", self.prog, "--summary"])       # visitors already present in the data
         with open(self.path("nginx", "rencontres_linux_quebec_prod-access.log"), "a") as f:
             f.writelines(humain("24.1.1.1", IPHONE) + humain("24.1.1.2", ANDROID) + humain("24.1.1.3", IPAD)
                          + humain("24.1.1.4", PC)
                          + [L("35.1.1.1", "/event", 200, PC)] * 5                          # scraper : jamais de CSS/JS
                          + humain("66.249.66.1", "Mozilla/5.0 (compatible; Googlebot/2.1)")
                          + humain("24.1.1.5", "curl/8.5.0")
-                         + humain("11.126.46.49", PC)                                     # équipe (liste blanche)
-                         + [L("45.1.1.1", "/.env", 404, "-", 162),                          # 404 de nginx : rejeté
-                            L("45.1.1.2", "/.env", 404, "-", 48213)])                       # 404 d'Odoo : non filtré
+                         + humain("11.126.46.49", PC)                                     # team (white list)
+                         + [L("45.1.1.1", "/.env", 404, "-", 162),                          # nginx 404: rejected
+                            L("45.1.1.2", "/.env", 404, "-", 48213)])                       # Odoo 404: not filtered
         rc, out, err = self.run_cmd(["python3", self.prog, "--summary"])
-        self.assertEqual(n(out, "Ordinateur") - n(avant, "Ordinateur"), 1)                  # scraper, équipe, robots exclus
+        self.assertEqual(n(out, "Ordinateur") - n(avant, "Ordinateur"), 1)                  # scraper, team, robots excluded
         self.assertEqual(n(out, "Cellulaire") - n(avant, "Cellulaire"), 2)
         self.assertEqual(n(out, "Tablette") - n(avant, "Tablette"), 1)
         self.assertIn("comme un Mac : il compte comme ordinateur", out)
@@ -2006,7 +2006,7 @@ esac''')
         ligne = lambda o, l: next(x for x in o.splitlines() if x.strip().startswith(l))
         _, avant, _ = self.run_cmd(["python3", self.prog, "--summary"])
         with open(self.path("nginx", "rencontres_linux_quebec_prod-access.log"), "a") as f:
-            f.writelines([L("45.2.2.1", "/.env", 301, 162, "rencontres-linux.quebec"),          # nginx : rejetée
+            f.writelines([L("45.2.2.1", "/.env", 301, 162, "rencontres-linux.quebec"),          # nginx: rejected
                           L("45.2.2.2", "/.git/config", 301, 169, "odoo18.rencontres-linux.quebec"),  # nginx avec version
                           L("45.2.2.3", "/en_CA/.env", 303, 289, "www.rencontres-linux.quebec")])   # Odoo : transmise
         rc, out, err = self.run_cmd(["python3", self.prog, "--summary"])
@@ -2075,7 +2075,7 @@ esac''')
         self.assertIn("250 visent des pages ordinaires (/ (250))", out.replace("\u202f", " "))
         m = re.search(r"(\d+) visent des URL de scanners \(\.env, \.php…\) : refus normal", out)
         self.assertIsNotNone(m, out[-800:])
-        self.assertGreaterEqual(int(m.group(1)), 20)                     # + les refus .env déjà présents dans le journal de test
+        self.assertGreaterEqual(int(m.group(1)), 20)                     # + the .env refusals already present in the test log
         self.assertIn("Réparties sur 250 adresses différentes", out.replace("\u202f", " "))
         self.assertIn("Réponses très courtes", out)
 

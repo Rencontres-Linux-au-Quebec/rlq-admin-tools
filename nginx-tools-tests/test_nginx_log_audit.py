@@ -30,7 +30,7 @@ class ChkNginxLogs(EnvTest):
             open(os.path.join(self.logs, f), "a").close()
         self.access = os.path.join(self.logs, "rencontres_linux_quebec_prod-access.log")
         open(self.access, "a").close()
-        self.mock_exit("curl", 1)                                    # IP publique indisponible par défaut
+        self.mock_exit("curl", 1)                                    # public IP unavailable by default
         self.mock("iptables", f'F={self.d}/rules; touch $F; o=$1; shift; case $o in -C) grep -qxF "$*" $F;; '
                               f'-I) echo "$*" >> $F;; -D) grep -vxF "$*" $F > $F.t; mv $F.t $F;; esac')
         self.mock("host", 'case "$1" in\n'
@@ -57,7 +57,7 @@ class ChkNginxLogs(EnvTest):
         m = re.search(r"▶ " + re.escape(ip) + r" .*?(?=\n  ▶ |\n--- |\n=====|\Z)", out, re.S)
         return m.group(0) if m else ""
 
-    # --- bugs trouvés en session ------------------------------------------------------------------------------------
+    # --- bugs found during the session ------------------------------------------------------------------------------------
     def test_report_err(self):
         rc, out, err = self.run_cmd(["bash", self.prog, "prod", "--no-prompt", "--report-err"])
         self.assertIn("RAPPORT D'ERREURS (--report-err)", out)
@@ -80,7 +80,7 @@ class ChkNginxLogs(EnvTest):
         self.assertIn("RIEN", s7)
         self.assertIn("4 refus par règle d'accès (access forbidden by rule) — attendu : accès restreint par IP ; clients les plus actifs : 11.160.68.185 (3), 11.59.36.114 (1)", s7)
         self.assertIn("1 requête(s) freinée(s) par la limitation de débit (voir [429])", s7)
-        self.assertNotIn("access forbidden by rule, client", s7)                 # jamais listés comme erreurs
+        self.assertNotIn("access forbidden by rule, client", s7)                 # never listed as errors
         with open(err, "a") as f:
             f.write('2026/09/30 05:00:00 [error] 4#4: *7 open() "/srv/x" failed (13: Permission denied), client: 1.2.3.4, server: x, request: "GET /x HTTP/1.1"\n')
         rc, out, e = self.run_cmd(["bash", self.prog, "prod", "--no-prompt"])
@@ -109,7 +109,7 @@ class ChkNginxLogs(EnvTest):
         codes = re.search(r"Codes HTTP : (.*)", bloc).group(1)
         self.assertIn("403", codes)
         self.assertNotIn("curl", codes)
-        self.assertIn("Serveur loué", bloc)                            # DNS inverse OVH reconnu (motif ajouté en 1.24)
+        self.assertIn("Serveur loué", bloc)                            # OVH reverse DNS recognized (pattern added in 1.24)
 
     def test_motifs_awk_non_degrades(self):
         """1.25 : motifs passés par « awk -v », dégradés par gawk (« \\.env » devenait « .env »)."""
@@ -164,7 +164,7 @@ class ChkNginxLogs(EnvTest):
             self.add(*(acc("203.0.113.50", "25/Sep/2026", sec, f"/event/{i}/track", 500 if i == 0 else 200) for i in range(6)))
         for sec in ("09:00:01", "09:00:02", "09:00:03", "09:00:04"):
             self.add(*(acc("203.0.113.90", "25/Sep/2026", sec, f"/survey/{i}/submit") for i in range(9)))             # beaucoup de monde, aucune erreur : normal
-            self.add(*(acc("203.0.113.80", "25/Sep/2026", sec, f"/event/{i}/register", 500) for i in range(6)))       # lieu connu : ignoré
+            self.add(*(acc("203.0.113.80", "25/Sep/2026", sec, f"/event/{i}/register", 500) for i in range(6)))       # known place: ignored
         self.add(*(acc("203.0.113.60", "25/Sep/2026", "09:01:00", f"/web/assets/{i}/a.js", 500) for i in range(12)))     # statiques : exclus
         self.add(*(acc("127.0.0.1", "25/Sep/2026", "09:03:00", f"/p{i}", 500) for i in range(6)))
         _, out, _ = self.report()
@@ -221,8 +221,8 @@ class ChkNginxLogs(EnvTest):
         self.assertFalse(any(l.startswith("Jail jail-c") for l in lignes), "un jail sans IP bannie ne doit rien lire")
         self.assertFalse(any("autre.log" in l for l in lignes))
         self.assertIn("Aucune IP actuellement bannie", out)
-        self.assertIn("actif sur 3 jours distincts (15/Sep, 18/Sep, 25/Sep)", out)       # le résultat ne change pas
-        # Sans --verbose ni terminal (tâche planifiée, tube) : aucune ligne de progression
+        self.assertIn("actif sur 3 jours distincts (15/Sep, 18/Sep, 25/Sep)", out)       # the result does not change
+        # Without --verbose nor terminal (scheduled task, pipe): no progress line
         rc, out, err = self.report("--fail2ban")
         self.assertNotRegex(err, r"\[\s*\d+ s\]")
 
@@ -261,8 +261,8 @@ class ChkNginxLogs(EnvTest):
         open(os.path.join(self.logs, "rencontres_linux_quebec_lab-error.log"), "w").close()
         rc, out, err = self.run_cmd(["bash", self.prog, "--init", "--no-prompt"])
         self.assertNotIn("aucun fichier /var/log", err)
-        self.assertIn("Rapport nginx — lab", out)                                  # l'environnement détecté est « lab »
-        open(self.access, "w").close()                                                  # prod ET lab : l'auto-détection ne choisit pas
+        self.assertIn("Rapport nginx — lab", out)                                  # the detected environment is "lab"
+        open(self.access, "w").close()                                                  # prod AND lab: the auto-detection does not choose
         rc, out, err = self.run_cmd(["bash", self.prog, "--init", "--no-prompt"])
         self.assertEqual(rc, 1)
         self.assertIn("plusieurs jeux de logs (prod lab)", err)
@@ -292,7 +292,7 @@ class ChkNginxLogs(EnvTest):
         self.assertIn("bannissement recommandé", bloc)
         self.assertRegex(bloc, r"Signes d'hostilité : [1-9]")
 
-    # --- 2.1 : raisonnement avant --ban, sortie aérée, couleur des éléments malveillants ---------------------------------
+    # --- 2.1: reasoning before --ban, airy output, color of malicious elements ---------------------------------
     def _robot_et_scanner(self):
         self.mock("host", '[[ "$1" == 11.68.110.86 ]] && echo "x pointer 86.110.68.11.bc.googleusercontent.com."; exit 0')
         self.add(acc("11.68.110.86", "27/Sep/2026", "03:04:47", "/events", 403, "python-requests/2.33.0"),
@@ -309,9 +309,9 @@ class ChkNginxLogs(EnvTest):
         self.assertIn("Signes d'hostilité : 0", out)
         self.assertIn("ATTENTION : aucun signe d'hostilité", out)
         self.assertLess(out.index("PREUVES RASSEMBLÉES POUR"), out.index("Ceci va bloquer TOUT le trafic"))
-        self.assertIn("PTR : 86.110.68.11.bc.googleusercontent.com", out)             # même réponse DNS que l'enquête
+        self.assertIn("PTR : 86.110.68.11.bc.googleusercontent.com", out)             # same DNS answer as the investigation
         self.assertIn("robot probablement\n", out)
-        self.assertIn("inoffensif (vérifier les URL demandées ci-dessus)", out)          # verdict complet, pas tronqué
+        self.assertIn("inoffensif (vérifier les URL demandées ci-dessus)", out)          # full verdict, not truncated
         self.assertIn("Annulé.", out)
         rc, out, err = self.run_cmd(["bash", self.prog, "--ban", "11.83.10.20"], input_text="n\n")
         self.assertIn("Recherche de fichiers sensibles : 20", out)
@@ -323,7 +323,7 @@ class ChkNginxLogs(EnvTest):
         bloc = out[out.index("▶ 11.83.10.20"):]
         for titre in ("\n\n      Indices :\n", "\n\n      Pour vérifier soi-même :\n        host 11.83.10.20\n"):
             self.assertIn(titre, bloc)
-        self.assertNotIn("Commandes équivalentes : host", bloc)                          # plus de ligne de 150 caractères
+        self.assertNotIn("Commandes équivalentes : host", bloc)                          # no line longer than 150 characters
 
     def test_malveillant_en_magenta_dans_un_terminal_seulement(self):
         self._robot_et_scanner()
@@ -333,7 +333,7 @@ class ChkNginxLogs(EnvTest):
         r = subprocess.run(["bash", self.prog, "prod", "--investigate", "11.83.10.20", "--no-prompt"], capture_output=True, env=self.env)
         self.assertNotIn(b"\x1b[", r.stdout)
 
-    # --- 2.11 : plages d'adresses (cellulaire à adresse dynamique) ---------------------------------------------------
+    # --- 2.11: address ranges (mobile phone with a dynamic address) ----------------------------------------------------
     def test_plages_equipe_et_liste_blanche(self):
         """11.148.77.105 puis 11.148.77.5 : plage 11.148.77.0/24 dans TEAM_IPS ; plage « allow » de nginx reconnue."""
         import datetime
@@ -353,7 +353,7 @@ class ChkNginxLogs(EnvTest):
         self.assertIn("liste blanche, plage 198.51.100.0/24", out)
         self.assertNotIn("bannissement recommandé", out)
 
-    # --- 2.13 : liste unique de l'équipe (apps/team-ips.list) ------------------------------------------------------
+    # --- 2.13: single team list (apps/team-ips.list) -----------------------------------------------------------------
     def test_liste_unique_de_l_equipe(self):
         self.liste_blanche("198.51.100.200   # bénévole (essai)\n")
         import datetime
@@ -363,7 +363,7 @@ class ChkNginxLogs(EnvTest):
         rc, out, err = self.run_cmd(["bash", self.prog, "--investigate", "198.51.100.200"])
         self.assertIn("IP protégée (IP de l'équipe)", out)
 
-    # --- 2.10 : une IP connectée à Odoo avec un compte n'est jamais proposée au bannissement ---------------------------
+    # --- 2.10: an IP connected to Odoo with an account is never proposed for banning -----------------------------------
     def test_ip_connectee_a_odoo_jamais_proposee(self):
         import datetime
         d = datetime.date.today().strftime("%d/%b/%Y")
@@ -378,13 +378,13 @@ class ChkNginxLogs(EnvTest):
         self.assertIn("benevole@exemple.org (1 connexion(s), dernière 2026-09-20T09:00)", out)
         self.assertIn("connectée à Odoo avec le compte benevole@exemple.org : un compte n'est pas une preuve de bonne foi", out)
         self.assertNotIn("bannissement recommandé", out)
-        if os.geteuid() == 0:                                             # --ban : raison « contre », verdict
+        if os.geteuid() == 0:                                             # --ban: reason "against", verdict
             self.mock("iptables", '[[ "$1" == -S ]] && echo "-P INPUT ACCEPT"; exit 1')
             rc, out, err = self.run_cmd(["bash", self.prog, "--ban", "203.0.113.9"], input_text="")
             self.assertIn("− connectée à Odoo avec un compte (benevole@exemple.org)", out)
             self.assertNotIn("bannissement justifié", out)
 
-    # --- 2.8 : utilisateur connecté au back-office (cas réel 11.97.88.180) ------------------------------------------
+    # --- 2.8: user logged in to the back office (real case 11.97.88.180) ------------------------------------------------
     def test_back_office_sans_fausse_rafale_et_boucle_signalee(self):
         """Une page du back-office déclenche des dizaines d'appels internes : ce n'est pas une rafale de pages ; une URL
         répétée des milliers de fois (get_web_dialog_size_config) est une boucle de module, pas une attaque."""
@@ -406,7 +406,7 @@ class ChkNginxLogs(EnvTest):
         self.assertIn("[i] Session ouverte dans le back-office : 325 appel(s) internes", out)
         self.assertRegex(out, r"\[i\] Répétition : 92 % des requêtes sur une seule URL \(300 x /web/dataset/call_kw/ir\.config_parameter/get_web_dialog_size_config\)")
 
-    # --- 2.7 : requêtes de nos programmes exclues ; appareils dans --stats -------------------------------------------
+    # --- 2.7: requests of our programs excluded; devices in --stats -----------------------------------------------------
     def test_nos_programmes_exclus_du_rapport_et_appareils_dans_stats(self):
         import datetime
         T = datetime.date.today()
@@ -436,7 +436,7 @@ class ChkNginxLogs(EnvTest):
         import gzip, re as _re
         self.mock("iptables", '[[ "$1" == -S ]] && echo "-P INPUT ACCEPT"; exit 1')
         if dig is not None:
-            self.mock("host", dig)                       # réponse DNS simulée (host, comme l'enquête)
+            self.mock("host", dig)                       # simulated DNS answer (host, like the investigation)
         self.mock("getent", getent)
         self.mock("journalctl", f"printf '%s' '{journal}'")
         os.makedirs(self.path("f2b"), exist_ok=True)
@@ -523,21 +523,21 @@ class ChkNginxLogs(EnvTest):
     # --- 2.4 : export et import des bannissements entre serveurs ----------------------------------------------------------
     @unittest.skipUnless(os.geteuid() == 0, "--export-bans et --import-bans exigent root")
     def test_export_puis_import_classe_et_ne_bannit_que_les_nouvelles(self):
-        self._bannissements()                              # 5 bannissements manuels, parmi des règles non manuelles
+        self._bannissements()                              # 5 manual bans, among non-manual rules
         with open(os.path.join(self.env["NGINX_LOG_AUDIT_STATE_DIR"], "bans.tsv"), "w") as f:
             f.write("2026-09-25 08:00\tbanni\t11.55.161.77\n")
         rc, export, err = self.run_cmd(["bash", self.prog, "--export-bans"])
         self.assertEqual(rc, 0, err)
         self.assertIn("11.55.161.77\t2026-09-25 08:00\t", export)
-        self.assertNotIn("nginx-log-audit.sh v", export)                                      # la liste redirigée reste propre…
-        self.assertRegex(err.splitlines()[0], r"^nginx-log-audit\.sh v\d")                     # … la version est la première ligne, sur la sortie d'erreur
-        self.assertEqual(len([l for l in export.splitlines() if l and not l.startswith("#")]), 5)   # règles non manuelles exclues
-        # Serveur de destination : 11.68.110.86 déjà banni ; ajout d'une IP privée, d'une ligne invalide et d'un doublon
+        self.assertNotIn("nginx-log-audit.sh v", export)                                      # the redirected list stays clean...
+        self.assertRegex(err.splitlines()[0], r"^nginx-log-audit\.sh v\d")                     # ... the version is the first line, on the error output
+        self.assertEqual(len([l for l in export.splitlines() if l and not l.startswith("#")]), 5)   # non-manual rules excluded
+        # Destination server: 11.68.110.86 already banned; addition of a private IP, an invalid line and a duplicate
         with open(os.path.join(self.d, "rules"), "w") as f:
             f.write("INPUT -s 11.68.110.86 -j DROP\n")
         fichier = self.write("export.tsv", export + "10.0.0.5\t\t\npas-une-ip\t\t\n11.55.161.77\t\t\n")
         rc, out, err = self.run_cmd(["bash", self.prog, "--import-bans", fichier], input_text="")
-        self.assertIn("Annulé.", out)                                                         # sans réponse : rien
+        self.assertIn("Annulé.", out)                                                         # without answer: nothing
         self.assertNotIn("11.55.161.77", open(os.path.join(self.d, "rules")).read())
         self.assertRegex(out, r"\[protégée ici\] 11\.126\.46\.49")                        # liste blanche nginx locale
         self.assertRegex(out, r"\[protégée ici\] 10\.0\.0\.5")
@@ -579,7 +579,7 @@ class ChkNginxLogs(EnvTest):
         self._bannissements()
         rc, out, err = self.run_cmd(["bash", self.prog, "prod", "--unban-check", "--no-prompt"])
         self.assertEqual(rc, 0, err)
-        self.assertIn("5 bannissement(s) manuel(s)", out)                 # règles de ports, ipset, fail2ban exclues
+        self.assertIn("5 bannissement(s) manuel(s)", out)                 # port rules, ipset, fail2ban excluded
         bloc = lambda ip: out[out.index(f"] {ip} —"):].split("\n--- [")[0]
         self.assertIn("Levée RECOMMANDÉE : aucun signe d'hostilité", bloc("11.68.110.86"))
         self.assertIn("1x /events", bloc("11.68.110.86"))
@@ -668,11 +668,11 @@ class ChkNginxLogs(EnvTest):
         self.assertIn("c'est ce que voit le jail nginx-blocked-probes", out)
         self.assertRegex(out, r"\s+3  /\.env \(404\)\n")
         self.assertRegex(out, r"\s+2  /wp-admin/ \(404\)\n")
-        self.assertRegex(out, r"\s+1  /\.git/config \(404\)\n")                         # paramètres retirés
-        self.assertNotIn("/autre", out)                                                  # une autre adresse n'est pas mélangée
+        self.assertRegex(out, r"\s+1  /\.git/config \(404\)\n")                         # parameters removed
+        self.assertNotIn("/autre", out)                                                  # another address is not mixed in
         self.assertIn("+ 6 requête(s) refusée(s) par nginx (fichiers sensibles, failles, outils d'attaque), sur 2 jour(s)", out)
         self.assertIn("Verdict : bannissement justifié", re.sub(r"\x1b\[[0-9;]*m", "", out))
-        # Aucune requête refusée conservée : dit clairement, sans inventer de preuve
+        # No refused request kept: says it clearly, without inventing evidence
         for nom in ("blocked-probes.log", "blocked-probes.log.1"):
             os.remove(os.path.join(self.logs, nom))
         _, out, _ = self.run_cmd(["bash", self.prog, "prod", "--ban", ip, "--no-prompt"], input_text="n\n")
@@ -691,14 +691,14 @@ class ChkNginxLogs(EnvTest):
         self.assertIn("Lieu (/etc/default/nginx-tools-ip-location.conf)", propre)
         self.assertIn("ETS - Université (plage 11.105.0.0/16) — options : partagee", propre)
         self.assertIn("adresse PARTAGÉE (ETS - Université) : la bannir bloquerait toutes les personnes de ce lieu", propre)
-        self.assertIn("Requêtes REFUSÉES par nginx : 3 requête(s)", propre)                               # les deux arguments sont présentés
+        self.assertIn("Requêtes REFUSÉES par nginx : 3 requête(s)", propre)                               # both arguments are presented
         self.assertIn("Listes : liste blanche : aucun fichier ; lieux ", err)                            # fichiers lus, sur la sortie d'erreur
-        # Lieu protégé : traité comme la liste blanche (avertissement, enquête : IP protégée)
+        # Protected place: treated like the white list (warning, investigation: protected IP)
         with open(os.path.join(self.logs, "rencontres_linux_quebec_prod-access.log"), "w") as f:
             f.writelines(f'203.0.113.70 - - [02/Oct/2026:10:00:{i:02d} -0400] "GET /.env HTTP/1.1" 404 300 "-" "python-requests/2"\n' for i in range(12))
         _, out, _ = self.run_cmd(["bash", self.prog, "--investigate", "203.0.113.70"])
         self.assertIn("IP protégée (lieu protégé : Bureau (plage 203.0.113.64/26))", out)
-        # Un lieu seulement [partagée] n'est PAS « protégé » : l'enquête se poursuit
+        # A place only [shared] is NOT "protected": the investigation continues
         with open(os.path.join(self.logs, "rencontres_linux_quebec_prod-access.log"), "w") as f:
             f.writelines(f'11.105.216.7 - - [02/Oct/2026:10:00:{i:02d} -0400] "GET /.env HTTP/1.1" 404 300 "-" "python-requests/2"\n' for i in range(12))
         _, out, _ = self.run_cmd(["bash", self.prog, "--investigate", "11.105.216.7"])
@@ -731,7 +731,7 @@ class ChkNginxLogs(EnvTest):
         with gzip.open(os.path.join(self.logs, "odoo-catchall-444.log.2.gz"), "wt") as f:
             f.write(catchall("11.89.160.73", "15/Sep/2026"))
         self.add(acc("11.89.160.73", "25/Sep/2026", "10:00:00", "/event", 200, "Mozilla/5.0 (X11; Linux x86_64) Firefox/130.0"))
-        ban = ["bash", self.prog, "prod", "--ban", "11.89.160.73", "--no-prompt", "--verbose"]       # les « preuves » précèdent la confirmation
+        ban = ["bash", self.prog, "prod", "--ban", "11.89.160.73", "--no-prompt", "--verbose"]       # the "evidence" precedes the confirmation
         _, out, err = self.run_cmd(ban, input_text="n\n")
         self.assertIn("Preuves pour 11.89.160.73 : journaux du capteur catch-all", err)
         self.assertNotIn("lecture de odoo-catchall-444.log", err, "« lecture de… » sans --details")
@@ -770,7 +770,7 @@ class ChkNginxLogs(EnvTest):
         self.mock_exit("whois", 1)
         _, out, _ = self.run_cmd(["bash", self.prog, "prod", "--investigate", "11.42.88.181", "--no-prompt"])
         self.assertIn("Propriétaire du bloc d'adresses : inconnu", out)
-        # Rapport ordinaire : rien envoyé à rdap.org
+        # Ordinary report: nothing sent to rdap.org
         open(os.path.join(self.d, "curl.log"), "w").close()
         self.mock("curl", f'echo "$@" >> {self.d}/curl.log; exit 1')
         self.report()

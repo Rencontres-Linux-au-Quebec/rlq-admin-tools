@@ -15,7 +15,7 @@ server { listen 443 ssl default_server; server_name _; return 444; }
 # configuration file /etc/nginx/sites-enabled/10-prod.conf:
 server {
     listen 443 ssl;
-    # Seul ce bloc sert réellement le contenu Odoo — server_name restreint à www, voir le commentaire ci-dessus.
+    # Only this block really serves the Odoo content - server_name restricted to www, see the comment above.
     include /etc/nginx/snippets/odoo/prod-www.name.conf;
 }
 # configuration file /etc/nginx/snippets/odoo/prod-www.name.conf:
@@ -68,8 +68,8 @@ class SetupNginxOdoo(EnvTest):
         for t in ("ss", "ufw"):
             self.mock_exit(t)
         self.write("odoo.conf", "[options]\nproxy_mode = True\n")
-        # SÉCURITÉ : l'étape 11 (rétention) modifie /etc/logrotate.d et la configuration de journald avec --update —
-        # toujours rediriger vers le répertoire du test (la suite peut tourner en root sur un vrai serveur).
+        # SECURITY: step 11 (retention) modifies /etc/logrotate.d and the journald configuration with --update -
+        # always redirect to the test folder (the suite may run as root on a real server).
         self.write("logrotate.d/nginx", "/var/log/nginx/*.log {\n\tdaily\n\tmissingok\n\trotate 14\n\tcompress\n}\n")
         self.write("logrotate.d/fail2ban", "/var/log/fail2ban.log {\n    weekly\n    rotate 4\n}\n")
         self.env.update(NGINX_HARDENING_LOGROTATE_DIR=os.path.dirname(self.path("logrotate.d", "x")),
@@ -147,7 +147,7 @@ class SetupNginxOdoo(EnvTest):
         out = self.etape(re.sub(r"\x1b\[[0-9;]*m", "", self.setup("--update")), 4)
         self.assertIn("l'amont « odoo17 »", out)
         self.assertIn("est celui d'une autre version d'Odoo (port 8069) : non vérifié, non modifié.", out)
-        self.assertIn("passe du port 8069 à 10000", out)                  # l'amont « odoo » de cette instance, lui, est bien corrigé
+        self.assertIn("passe du port 8069 à 10000", out)                  # the "odoo" upstream of this instance, for its part, is corrected
         with open(autre, encoding="utf-8") as f:
             texte = f.read()
         self.assertIn("server 127.0.0.1:8069;", texte)
@@ -208,7 +208,7 @@ class SetupNginxOdoo(EnvTest):
         self.assertIn("        proxy_pass http://odoo_chat;\n        proxy_read_timeout 300s;\n        proxy_http_version 1.1;\n", texte.replace("        proxy_http_version 1.1;\n        proxy_read_timeout 300s;\n", "        proxy_read_timeout 300s;\n        proxy_http_version 1.1;\n"))
         self.assertEqual(texte.count("proxy_http_version 1.1;"), 1)
         self.assertEqual(texte.count("proxy_read_timeout 300s;"), 1)
-        self.assertIn('proxy_set_header Connection "upgrade";', texte)            # en-têtes intacts
+        self.assertIn('proxy_set_header Connection "upgrade";', texte)            # headers intact
         self.assertTrue(os.path.islink(os.path.join(os.path.dirname(os.path.dirname(fic)), "sites-enabled", "40-ws.conf")))
         self.assertTrue(os.listdir(self.env["NGINX_HARDENING_BACKUP_DIR"]))
         out = self.etape(re.sub(r"\x1b\[[0-9;]*m", "", self.setup("--check")), 4)
@@ -350,7 +350,7 @@ class SetupNginxOdoo(EnvTest):
         with open(conf, encoding="utf-8") as f:
             texte = f.read()
         self.assertIn('MAIL_HOST="smtp.exemple.org"', texte)
-        self.assertIn('MAIL_FROM="alertes@exemple.org"', texte)                                 # défaut : l'identifiant
+        self.assertIn('MAIL_FROM="alertes@exemple.org"', texte)                                 # default: the identifier
         self.assertIn('MAIL_ATTACH_MAX_MB="100"', texte)
         self.assertNotIn("secret-de-test", texte)
         with open(mdp, encoding="utf-8") as f:
@@ -390,7 +390,7 @@ class SetupNginxOdoo(EnvTest):
             self.assertIn('MAIL_HOST="smtp.exemple.org"', f.read())
         with open(mdp, encoding="utf-8") as f:
             self.assertEqual(f.read().strip(), "secret-de-test")
-        out = self.etape(re.sub(r"\x1b\[[0-9;]*m", "", self.setup("--update", "--mail-setup")), "0d")                      # sans terminal : message clair, rien de bloqué
+        out = self.etape(re.sub(r"\x1b\[[0-9;]*m", "", self.setup("--update", "--mail-setup")), "0d")                      # without terminal: clear message, nothing blocked
         self.assertIn("Aucun terminal pour poser les questions du courriel", out)
 
     def test_etape0d_question_oui_non_reponse_non_par_defaut(self):
@@ -473,7 +473,7 @@ class SetupNginxOdoo(EnvTest):
         self.assertIn("certificat de odoo.exemple.org en service", out)
         with open(fic, encoding="utf-8") as f:
             self.assertIn("server_name odoo.exemple.org www.odoo-lab.exemple.org;", f.read())
-        with open(fic, "w", encoding="utf-8") as f:                                                    # deux anciens noms possibles du même domaine
+        with open(fic, "w", encoding="utf-8") as f:                                                    # two old possible names of the same domain
             f.write(avant.replace("server_name odoo-lab.exemple.org", "server_name odoo-lab.exemple.org autre.exemple.org", 1))
         out = self.etape(re.sub(r"\x1b\[[0-9;]*m", "", self.setup("--update", "--rename-to", "odoo.exemple.org")), "0e")
         self.assertIn("Noms trouvés dans les server_name de nginx : autre.exemple.org odoo-lab.exemple.org", out)
@@ -566,13 +566,13 @@ class SetupNginxOdoo(EnvTest):
         self.assertIn("geoip-bin et geoip-database installés", out)
         with open(appels) as f:
             self.assertIn("install -y geoip-bin geoip-database", f.read())
-        # Paquet introuvable dans les dépôts (cas possible sur une distribution récente)
-        os.remove(appels)       # (l'étape 0 peut avoir installé d'autres programmes : seul geoip compte ci-dessous)
+        # Package not found in the repositories (possible case on a recent distribution)
+        os.remove(appels)       # (step 0 may have installed other programs: only geoip counts below)
         self.mock("apt-cache", 'echo "geoip-bin:"; echo "  Installed: (none)"; echo "  Candidate: (none)"')
         out = re.sub(r"\x1b\[[0-9;]*m", "", self.setup("--update"))
         self.assertIn("geoip-bin est introuvable dans les dépôts de cette distribution", out)
         self.assertNotIn("geoip", open(appels).read() if os.path.exists(appels) else "", "rien à installer si le paquet n'existe pas")
-        # Installé et base qui répond : [OK] ; installé sans base : [ATTN]
+        # Installed and database responding: [OK]; installed without database: [ATTN]
         self.mock("geoiplookup", 'echo "GeoIP Country Edition: US, United States"')
         out = re.sub(r"\x1b\[[0-9;]*m", "", self.setup("--check"))
         self.assertIn("[OK]   geoip-bin installé et sa base répond", out)
@@ -600,8 +600,8 @@ class SetupNginxOdoo(EnvTest):
         self.assertTrue(os.path.exists(ancien + ".migre"))
         self.assertIn("Lieux : modèle créé", out)
         self.assertTrue(os.path.exists(lieux))
-        self.assertIn("203.0.113.5", open(os.path.join(snip, "team-ips-geo.conf")).read())             # nginx généré depuis la liste migrée
-        # Fichiers présents : jamais modifiés
+        self.assertIn("203.0.113.5", open(os.path.join(snip, "team-ips-geo.conf")).read())             # nginx generated from the migrated list
+        # Files present: never modified
         with open(blanche, "a") as f:
             f.write("192.0.2.77    # ajout\n")
         with open(lieux, "w") as f:
@@ -613,7 +613,7 @@ class SetupNginxOdoo(EnvTest):
         self.assertIn("(1 plage(s))", out)
         self.assertIn("192.0.2.77", open(blanche).read())
         self.assertEqual(open(lieux).read(), "198.51.100.0/24   # Université exemple   [partagée]\n")
-        # Ni ancienne liste ni liste blanche : un fichier vide à remplir est créé (rien n'est inventé)
+        # Neither old list nor white list: an empty file to fill in is created (nothing is invented)
         os.remove(blanche)
         out = re.sub(r"\x1b\[[0-9;]*m", "", self.setup("--update"))
         self.assertIn("Liste blanche créée VIDE", out)
@@ -640,8 +640,8 @@ class SetupNginxOdoo(EnvTest):
         self.assertNotIn("198.51.100.128/25", ign)
         for fichier in ("team-ips-geo.conf", "team-ips-allow.conf"):
             contenu = open(os.path.join(snip, fichier)).read()
-            self.assertIn("203.0.113.5", contenu)                                                      # liste blanche : accès
-            self.assertNotIn("203.0.113.64", contenu)                                                  # lieu protégé : AUCUN accès
+            self.assertIn("203.0.113.5", contenu)                                                      # white list: access
+            self.assertNotIn("203.0.113.64", contenu)                                                  # protected place: NO access
             self.assertNotIn("198.51.100.128", contenu)
 
     def test_hsts_empirique_a_travers_les_include(self):
@@ -649,9 +649,9 @@ class SetupNginxOdoo(EnvTest):
         e10 = self.etape(self.setup(), 10)
         self.assertIn("HSTS présent — www.rencontres-linux.quebec", e10)
         self.assertIn("HSTS présent — odoo18.rencontres-linux.quebec (HTTP 301, max-age=300s", e10)
-        self.assertIn("http-seulement.example : aucune réponse HTTPS", e10)      # nom en ligne compacte (corrigé en 1.14)
+        self.assertIn("http-seulement.example : aucune réponse HTTPS", e10)      # name in compact line (fixed in 1.14)
         self.assertNotIn("Seul ce bloc", e10)                                     # un commentaire n'est jamais un nom
-        self.assertNotIn("legacy", e10)                                           # noms regex ignorés
+        self.assertNotIn("legacy", e10)                                           # regex names ignored
         self.assertNotIn("[FAIL]", e10)
 
     def test_jail_blocked_probes_et_ignoreip_de_l_equipe(self):
@@ -667,13 +667,13 @@ class SetupNginxOdoo(EnvTest):
         self.assertIn("(jails : nginx-catchall sshd)", ligne)
         self.assertIn("11.148.77.5", ligne)                                    # table $is_trusted_ip de nginx
         self.assertIn("100.64.0.21", ligne)                                    # liste blanche (/etc/default/nginx-tools-white-list.conf)
-        self.assertNotRegex(ligne, r" 11\.126\.46\.49( |$)")               # déjà ignorée
+        self.assertNotRegex(ligne, r" 11\.126\.46\.49( |$)")               # already ignored
         out = self.setup("--update")
         self.assertIn("Jail nginx-blocked-probes installé", out)
         self.assertTrue(os.path.isfile(os.path.join(self.f2b, "jail.d", "nginx-blocked-probes.conf")))
         ign = open(os.path.join(self.f2b, "jail.d", "zz-nginx-hardening-ignoreip.local")).read()
         self.assertIn("[DEFAULT]", ign)
-        self.assertRegex(ign, r"ignoreip = 127\.0\.0\.1/8 ::1 10\.0\.0\.0/8 11\.126\.46\.49 ")   # existantes conservées, en tête
+        self.assertRegex(ign, r"ignoreip = 127\.0\.0\.1/8 ::1 10\.0\.0\.0/8 11\.126\.46\.49 ")   # existing ones kept, at the top
         for ip in ("11.148.77.5", "100.64.0.21", "198.51.100.9"):
             self.assertIn(ip, ign)
 
@@ -686,12 +686,12 @@ class SetupNginxOdoo(EnvTest):
         geo = os.path.join(snip, "team-ips-geo.conf")
         out = self.setup()
         self.assertIn("team-ips-geo.conf absent — --update le régénérera", out)
-        self.assertFalse(os.path.exists(geo))                                    # --check : rien d'écrit
+        self.assertFalse(os.path.exists(geo))                                    # --check: nothing written
         out = self.setup("--update")
         self.assertRegex(open(geo).read(), r"(?m)^100\.64\.0\.21\s+1;   # Étienne \(Tailscale : poste-2\)$")
         self.assertRegex(open(os.path.join(snip, "team-ips-allow.conf")).read(), r"(?m)^allow 198\.51\.100\.9;\s+# Mathis$")
         self.assertIn("team-ips-allow.conf à jour", self.setup())
-        # Adresse ajoutée, mais nginx -t refuse : ancienne version restaurée
+        # Address added, but nginx -t refuses: old version restored
         avant = open(geo).read()
         with open(liste, "a") as f:
             f.write("198.51.100.7    # bénévole\n")
@@ -704,11 +704,11 @@ class SetupNginxOdoo(EnvTest):
         out = self.setup("--update")
         self.assertIn('nginx -t : nginx: [emerg] unknown directive "boum" in /etc/nginx/x.conf:3', out)
         self.assertIn("DÉJÀ invalide", out)
-        # nginx accepte : adresse ajoutée
+        # nginx accepts: address added
         self.mock("nginx", f'[[ "$1" == -T ]] && cat {self.d}/nginx-T; exit 0')
         self.setup("--update")
         self.assertIn("198.51.100.7", open(geo).read())
-        # Entrée invalide : rien n'est écrit
+        # Invalid entry: nothing is written
         with open(liste, "a") as f:
             f.write("pas-une-adresse    # erreur de saisie\n")
         out = self.setup("--update")
@@ -723,11 +723,11 @@ class SetupNginxOdoo(EnvTest):
         self.env["NGINX_HARDENING_SNIPPETS_DIR"] = snip
         self.liste_blanche(LISTE_EXEMPLE)
         self.setup("--update")
-        self.env["NGINX_HARDENING_WORKER_AGE"] = "0"                   # travailleurs démarrés à l'instant : configuration chargée à jour
+        self.env["NGINX_HARDENING_WORKER_AGE"] = "0"                   # workers started just now: configuration loaded up to date
         out = self.setup("--update")
         self.assertIn("team-ips-allow.conf à jour", out)
         self.assertNotIn("plus récents que la configuration chargée", out)
-        self.env["NGINX_HARDENING_WORKER_AGE"] = "86400"               # travailleurs d'hier, fichiers écrits il y a quelques secondes
+        self.env["NGINX_HARDENING_WORKER_AGE"] = "86400"               # yesterday's workers, files written a few seconds ago
         out = self.setup()
         self.assertIn("plus récents que la configuration chargée par nginx", out)
         self.assertIn("--update le recharge", out)
@@ -782,17 +782,17 @@ class SetupNginxOdoo(EnvTest):
         for f in (geo, allow):
             if os.path.exists(f):
                 os.remove(f)
-        self.setup()                                                             # --check : rien n'est créé
+        self.setup()                                                             # --check: nothing is created
         self.assertFalse(os.path.exists(geo))
-        # Sans liste blanche : fichiers créés quand même
+        # Without white list: files created anyway
         blanche = self.env["NGINX_TOOLS_WHITE_LIST"]
         self.env["NGINX_TOOLS_WHITE_LIST"] = os.path.join(self.d, "inexistante.conf")
         self.setup("--update")
-        for f in (geo, allow):                                                   # --update crée un modèle de liste puis génère : les fichiers existent
+        for f in (geo, allow):                                                   # --update creates a list template then generates: the files exist
             self.assertTrue(os.path.exists(f), f)
         for f in (geo, allow):
             os.remove(f)
-        # Avec liste blanche, mais nginx -t refuse et il n'y avait rien avant : fichiers vides valides, pas supprimés
+        # With white list, but nginx -t refuses and there was nothing before: valid empty files, not deleted
         self.env["NGINX_TOOLS_WHITE_LIST"] = blanche
         self.liste_blanche(LISTE_EXEMPLE)
         self.mock("nginx", f'[[ "$1" == -T ]] && cat {self.d}/nginx-T; [[ "$1" == -t ]] && exit 1; exit 0')
@@ -815,11 +815,11 @@ class SetupNginxOdoo(EnvTest):
         # nginx -t refuse tant qu'un des trois fragments manque (comme les include par nom exact de odoo-global.conf)
         tests_f = " && ".join(f'[[ -e {f} ]]' for f in frag.values())
         self.mock("nginx", f'[[ "$1" == -T ]] && cat {self.d}/nginx-T; [[ "$1" == -t ]] && {{ {tests_f} || {{ echo "nginx: [emerg] open() \\"{frag["shared-ips-geo.conf"]}\\" failed (2: No such file or directory) in /etc/nginx/conf.d/odoo-global.conf:61" >&2; exit 1; }}; }}; exit 0')
-        out = self.setup()                                                       # --check : rien n'est créé, mais le conseil vise --update
+        out = self.setup()                                                       # --check: nothing is created, but the advice points to --update
         for f in frag.values():
             self.assertFalse(os.path.exists(f), f)
         self.assertIn("ce fragment est GÉNÉRÉ par ce script", out)
-        # nginx arrêté : is-active échoue ; start réussit
+        # nginx stopped: is-active fails; start succeeds
         self.mock("systemctl", f'echo "$@" >> {self.d}/systemctl.log; [[ "$1" == is-active ]] && exit 3; '
                                f'[[ "$1" == list-unit-files && "$2" == erplibre.service ]] && {{ echo "erplibre.service enabled"; exit 0; }}; exit 0')
         out = self.setup("--update")
@@ -836,7 +836,7 @@ class SetupNginxOdoo(EnvTest):
 
     def test_report_err(self):
         out = self.setup("--report-err")
-        self.assertIn("--- 13)", out)                                                # le programme s'est exécuté en entier
+        self.assertIn("--- 13)", out)                                                # the program ran entirely
         rapport = out[out.index("RAPPORT D'ERREURS"):]
         self.assertRegex(rapport, r"Programme : nginx-hardening\.sh v2\.\d+\.\d{8}\.\d{6} — commande : nginx-hardening\.sh --odoo-conf \S+\n")
         self.assertRegex(rapport, r"Bilan     : \d+ échec\(s\), \d+ avertissement\(s\), 0 recommandation\(s\) à traiter — sortie de \d+ ligne")
@@ -855,7 +855,7 @@ class SetupNginxOdoo(EnvTest):
         self.assertRegex(bloc, r"\[FAIL\]\s+aucun SPF pour rencontres-linux\.quebec")
         self.assertIn('ajouter au DNS : rencontres-linux.quebec. TXT "v=spf1 include:x -all"', bloc)
         self.assertIn("app-health-check.py --test-email", bloc)
-        # Aucun résultat reconnu (ex. programme qui refuse l'option) : jamais « tout est en ordre » sans vérification
+        # No result recognized (e.g. program refusing the option): never "all is in order" without verification
         self.write("prog/app-health-check.py", 'import sys\nprint("usage : app-health-check.py [-h]")\n'
                                                'print("app-health-check.py : erreur : argument --target requis", file=sys.stderr)\nsys.exit(2)\n')
         out = self.setup()
@@ -869,18 +869,18 @@ class SetupNginxOdoo(EnvTest):
         self.assertIn("Jail odoo-auth absent", self.etape(self.setup(), 9))
         out = self.setup("--update")
         self.assertIn("Jail odoo-auth : chargé et actif", out)
-        # 1.20 : « systemd-journal[journalmatch=…] » faisait planter fail2ban-regex — journalmatch passe par -m
+        # 1.20: "systemd-journal[journalmatch=...]" made fail2ban-regex crash - journalmatch goes through -m
         self.assertIn('journalctl -u erplibre.service --since "10 min ago" --no-pager > /tmp/odoo-journal.txt', out)   # 2.26 : test sur texte
         self.assertRegex(out, r"fail2ban-regex /tmp/odoo-journal\.txt \S+/filter\.d/odoo-auth\.conf")
-        self.assertIn("IGNORÉE par fail2ban", out)                                                                   # l'adresse de l'équipe n'est jamais comptée
-        self.assertIn("MAUVAIS mot de passe", out)                    # 1.21 : marche à suivre expliquée
+        self.assertIn("IGNORÉE par fail2ban", out)                                                                   # the team's address is never counted
+        self.assertIn("MAUVAIS mot de passe", out)                    # 1.21: procedure explained
         self.assertNotIn("[journalmatch", out)
         jail = open(os.path.join(self.f2b, "jail.d", "odoo-auth.conf")).read()
         self.assertIn("journalmatch = _SYSTEMD_UNIT=erplibre.service", jail)
-        self.assertIn("11.126.46.49", jail)                                     # ignoreip ← liste blanche nginx
+        self.assertIn("11.126.46.49", jail)                                     # ignoreip <- nginx white list
         self.assertNotRegex(jail, r"@[A-Z_]+@", "marqueur du modèle non remplacé")
         self.assertNotIn("MODÈLE", jail)
-        self.assertNotIn("et l'installe vers", jail, "phrase orpheline du paragraphe « MODÈLE »")   # corrigé en 1.18
+        self.assertNotIn("et l'installe vers", jail, "phrase orpheline du paragraphe « MODÈLE »")   # fixed in 1.18
         self.assertEqual(jail.count("127.0.0.1 "), 0, "127.0.0.1 répétée alors que couverte par 127.0.0.1/8")
         self.assertIn("Jail odoo-auth à jour", self.etape(self.setup(), 9))
         with open(self.path("nginx-T"), "a") as f:

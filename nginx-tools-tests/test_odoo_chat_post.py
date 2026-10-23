@@ -215,7 +215,7 @@ class Canaux(EnvTest):
         self.assertEqual(len(self.faux.messages), avant + 1)
         cible, corps = self.faux.messages[-1]
         self.assertEqual(self.faux.canaux[cible]["name"], "HTTP 5xx")
-        self.assertIn("&lt;b&gt;affichée&lt;/b&gt;<br/>second ligne", corps)           # texte échappé : jamais de HTML venu d'un journal
+        self.assertIn("&lt;b&gt;affichée&lt;/b&gt;<br/>second ligne", corps)           # escaped text: never HTML coming from a log
 
     def test_publier_depuis_l_entree_standard(self):
         self.demarrer()
@@ -288,7 +288,7 @@ class Canaux(EnvTest):
         gid = next(iter(self.faux.groupes))
         erreurs = next(i for i, c in self.faux.canaux.items() if c["name"] == "Odoo-Erreurs")
         self.assertEqual(self.faux.canaux[erreurs]["group_public_id"], gid)          # PAS base.group_user
-        self.assertEqual({p for c, p in self.faux.membres}, {10})                    # seul le compte de Étienne
+        self.assertEqual({p for c, p in self.faux.membres}, {10})                    # only the account of Etienne
         self.assertIn("ATTENTION : le compte tux-bot n'existe pas encore", r.stdout)
         self.assertIn("Accès restreint à : etienne.berube.ing@exemple.org", r.stdout)
         self.assertEqual(self.faux.ecritures_users, [([20], {"groups_id": [[4, gid]]})] * len(self.faux.ecritures_users))
@@ -299,21 +299,21 @@ class Canaux(EnvTest):
         self.faux.comptes.pop("tux-bot")
         self.lancer("--create", "--members", "etienne.berube.ing@exemple.org,tux-bot")
         n_canaux, n_messages = len(self.faux.canaux), len(self.faux.messages)
-        self.faux.comptes["tux-bot"] = (21, 11)                                      # le compte vient d'être créé dans Odoo
+        self.faux.comptes["tux-bot"] = (21, 11)                                      # the account has just been created in Odoo
         r = self.lancer("--create", "--members", "etienne.berube.ing@exemple.org,tux-bot")
         self.assertEqual((len(self.faux.canaux), len(self.faux.messages)), (n_canaux, n_messages))
         self.assertEqual({p for c, p in self.faux.membres}, {10, 11})
-        self.assertEqual(len(self.faux.groupes), 1)                                  # groupe réutilisé, pas recréé
+        self.assertEqual(len(self.faux.groupes), 1)                                  # group reused, not recreated
         self.assertIn("membre(s) ajouté(s) à Odoo-Erreurs", r.stdout)
         self.assertNotIn("ATTENTION", r.stdout)
 
     def test_acces_restreint_canal_existant_trop_ouvert_signale(self):
         self.demarrer()
-        self.lancer("--create")                                                      # canaux créés d'abord pour tous les internes
+        self.lancer("--create")                                                      # channels created first for all the internal users
         r = self.lancer("--create", "--members", "etienne.berube.ing@exemple.org")
         self.assertIn("Odoo-Erreurs est visible par un autre groupe", r.stdout)
         erreurs = next(i for i, c in self.faux.canaux.items() if c["name"] == "Odoo-Erreurs")
-        self.assertEqual(self.faux.canaux[erreurs]["group_public_id"], 3)            # jamais modifié
+        self.assertEqual(self.faux.canaux[erreurs]["group_public_id"], 3)            # never modified
         self.assertIn(10, {p for c, p in self.faux.membres if c == erreurs})
 
     def test_acces_restreint_suggeres_et_config(self):
@@ -348,7 +348,7 @@ class Canaux(EnvTest):
         self.assertNotIn("password", valeurs)                                          # aucun mot de passe
         self.assertTrue(contexte["no_reset_password"])                                 # aucun courriel d'invitation
         self.assertIn("mot de passe aléatoire", r.stdout)
-        self.assertEqual(self.faux.canaux, {})                                          # --create-bot seul ne crée aucun canal
+        self.assertEqual(self.faux.canaux, {})                                          # --create-bot alone creates no channel
 
     def test_robot_existant_inchange_et_droits_admin_signales(self):
         self.demarrer()
@@ -388,8 +388,8 @@ class Canaux(EnvTest):
         sauvegardes = [f for f in os.listdir(self.etc) if f.endswith(".bak")]
         self.assertEqual(len(sauvegardes), 1)
         self.assertEqual(os.stat(os.path.join(self.etc, sauvegardes[0])).st_mode & 0o777, 0o600)
-        self.assertNotIn("CLE-SECRETE-DU-ROBOT", r.stdout + r.stderr)                  # jamais affichée
-        self.assertEqual(len(self.faux.mots_de_passe), 2)                              # mot de passe temporaire puis mot de passe jeté
+        self.assertNotIn("CLE-SECRETE-DU-ROBOT", r.stdout + r.stderr)                  # never displayed
+        self.assertEqual(len(self.faux.mots_de_passe), 2)                              # temporary password then discarded password
         self.assertNotEqual(self.faux.mots_de_passe[0], self.faux.mots_de_passe[1])
 
     def test_robot_cle_duree_reduite_si_odoo_limite(self):
@@ -412,7 +412,7 @@ class Canaux(EnvTest):
         self.assertIn("clé API non créée automatiquement", r.stdout)
         self.assertIn("Création manuelle", r.stdout)
         self.assertEqual(self.conf(), avant)                                            # configuration intacte
-        self.assertEqual(len(self.faux.mots_de_passe), 2)                               # mot de passe rendu inutilisable malgré l'échec
+        self.assertEqual(len(self.faux.mots_de_passe), 2)                               # password made unusable despite the failure
 
     def test_robot_fichier_non_inscriptible_rien_cree(self):
         self.demarrer()

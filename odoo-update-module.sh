@@ -1,24 +1,24 @@
 #!/usr/bin/env bash
 # ========================================================================================================================
 # Copyright (C) 2026 Services-Conseils Linux Inc.
-# Copyright (C) 2026 Rencontres Linux au Québec contributors
+# Copyright (C) 2026 Rencontres Linux au Quebec contributors
 #
 # This program is free software: you can redistribute it and/or modify it under the terms of the GNU Affero General Public
 # License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
 # Full text: https://www.gnu.org/licenses/agpl-3.0.html
 # ========================================================================================================================
 #
-# odoo-update-module.sh — met à jour des modules Odoo (par défaut ceux de Rencontres Linux Québec : rlq_*) puis redémarre Odoo par systemd.
+# odoo-update-module.sh - updates Odoo modules (by default those of Rencontres Linux Quebec: rlq_*) then restarts Odoo through systemd.
 #
-# Déroulement : (1) détection du service systemd, de son compte, de son dossier, de la base et de la configuration d'Odoo ; (2) modules
-# trouvés dans les addons_path ; (3) sauvegarde facultative de la base (--backup) ; (4) attente d'un site CALME (au plus --wait-quiet minutes,
-# 15 par défaut : moins de --busy-visitors visiteurs actifs dans les journaux de nginx) ; (5) copie des modules d'avant (.tar.gz) ; (6) service
-# ARRÊTÉ (aucun second Odoo sur la base, aucun conflit de port) ; (7) archive décompressée (--zip) ; (8) mise à jour par « odoo -d BASE -u MODULES
-# --stop-after-init --no-http --workers=0 --max-cron-threads=0 » sous le compte du service, avec un délai maximal (--timeout) qui tue le processus
-# s'il ne se termine pas — Ctrl+C y répond tout de suite ; (9) journal de la mise à jour contrôlé (ERROR / CRITICAL) ; (10) service DÉMARRÉ par
-# systemd, état et port vérifiés ; (11) préchauffage ; (12) journal d'Odoo contrôlé depuis le démarrage. Après une erreur (8 à 12) : RETOUR ARRIÈRE
-# (modules d'avant remis, nouvelle mise à jour, redémarrage ; question sur un terminal, automatique sinon ; --no-rollback pour l'empêcher). Le site
-# ne reste jamais arrêté ; le code de sortie dit alors 1. Un Odoo lancé à la main sur la même base est refusé (--force pour passer outre).
+# Sequence: (1) detection of the systemd service, its account, its folder, the database and the Odoo configuration; (2) modules
+# found in the addons_path; (3) optional backup of the database (--backup); (4) waiting for a QUIET site (at most --wait-quiet minutes,
+# 15 by default: fewer than --busy-visitors active visitors in the nginx logs); (5) copy of the previous modules (.tar.gz); (6) service
+# STOPPED (no second Odoo on the database, no port conflict); (7) archive extracted (--zip); (8) update through "odoo -d BASE -u MODULES
+# --stop-after-init --no-http --workers=0 --max-cron-threads=0" under the service's account, with a maximum delay (--timeout) that kills the process
+# if it does not finish - Ctrl+C answers at once; (9) update log checked (ERROR / CRITICAL); (10) service STARTED by
+# systemd, state and port checked; (11) cache warm-up; (12) Odoo log checked since the start. After an error (8 to 12): ROLLBACK
+# (previous modules put back, new update, restart; question on a terminal, automatic otherwise; --no-rollback to prevent it). The site
+# never stays stopped; the exit code then says 1. An Odoo started by hand on the same database is refused (--force to override).
 #
 # Usage : odoo-update-module.sh [OPTION]...   (sans option : mettre à jour les modules rlq_* de la base du service, puis redémarrer)
 #
@@ -84,7 +84,7 @@ set -euo pipefail
 for _d in /usr/local/sbin /usr/sbin /sbin; do [[ -n "${NGINX_TOOLS_TESTS:-}" ]] && break; case ":$PATH:" in *":$_d:"*) ;; *) PATH="$PATH:$_d" ;; esac; done
 export PATH
 
-readonly SCRIPT_VERSION="1.15.20261022.133552"
+readonly SCRIPT_VERSION="1.16.20261022.231529"
 SCRIPT_NAME="$(basename "${BASH_SOURCE[0]}" .sh)"; readonly SCRIPT_NAME
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
 SCRIPT_PATH="$SCRIPT_DIR/$(basename "${BASH_SOURCE[0]}")"; readonly SCRIPT_PATH
@@ -95,9 +95,9 @@ readonly CHANGELOG_FILE
 changelog_section() {
     awk -v cle="${BASH_SOURCE[0]##*/}" '/^## /{dans=($0 == "## " cle); if (dans) print; next} dans' "$CHANGELOG_FILE"
 }
-# Langue d'affichage (en ou fr) : --lang, ODOO_UPDATE_MODULE_LANG, LANGUAGE du fichier de configuration, LC_ALL / LANG — apps/_i18n.sh traduit la sortie.
+# Display language (en or fr): --lang, ODOO_UPDATE_MODULE_LANG, LANGUAGE of the configuration file, LC_ALL / LANG - apps/_i18n.sh translates the output.
 if [[ -r "$SCRIPT_DIR/apps/_i18n.sh" ]]; then
-    # shellcheck source=/dev/null  # bibliothèque livrée à côté du programme
+    # shellcheck source=/dev/null  # library shipped next to the program
     . "$SCRIPT_DIR/apps/_i18n.sh"
     i18n_relancer "$SCRIPT_NAME" ODOO_UPDATE_MODULE_LANG "$0" "$@"
 fi
@@ -105,9 +105,9 @@ fi
 declare -F pad_cols >/dev/null || pad_cols() { printf '%-*s' "$2" "$1"; }     # 1.13 : sans apps/_i18n.sh, remplissage en octets (comme avant)
 declare -F run_interruptible >/dev/null || run_interruptible() { "$@"; }
 declare -F ctrl_c_child >/dev/null || ctrl_c_child() { "$@"; }
-# Bibliothèque commune : configuration d'Odoo (ports, db_name…).
+# Common library: Odoo configuration (ports, db_name...).
 if [[ -r "$SCRIPT_DIR/apps/_odoo_conf.sh" ]]; then
-    # shellcheck source=/dev/null  # bibliothèque livrée à côté du programme
+    # shellcheck source=/dev/null  # library shipped next to the program
     . "$SCRIPT_DIR/apps/_odoo_conf.sh"
 fi
 
@@ -123,15 +123,15 @@ WAIT_QUIET=60; BUSY_VISITORS=3; DO_ROLLBACK=1; FORCE_BUSY=0; CHECK_ACTIVITY=0   
 NGINX_LOG_DIR="${ODOO_UPDATE_MODULE_NGINX_DIR:-/var/log/nginx}"
 MODULES_BACKUP_DIR="${ODOO_UPDATE_MODULE_BACKUP_DIR:-/var/backups/odoo-update-module}"
 LOG_DIR="${ODOO_UPDATE_MODULE_LOG_DIR:-/var/log/odoo-update-module}"
-# --report-err : rapport d'erreurs à copier-coller en fin d'exécution — apps/_rapport.sh
+# --report-err: error report to copy and paste at the end of the run - apps/_rapport.sh
 if [[ -r "$SCRIPT_DIR/apps/_rapport.sh" ]]; then
-    # shellcheck source=/dev/null  # bibliothèque livrée à côté du programme
+    # shellcheck source=/dev/null  # library shipped next to the program
     . "$SCRIPT_DIR/apps/_rapport.sh"
     rapport_si_demande "$SCRIPT_DIR/$(basename "${BASH_SOURCE[0]}")" "$SCRIPT_VERSION" "$SCRIPT_DIR" "$@"
 fi
-# Première ligne de TOUTE exécution, même avec --help : le nom et la version du programme (--version l'affiche lui-même).
+# First line of EVERY run, even with --help: the name and version of the program (--version displays it itself).
 case " $* " in *" --version "*) ;; *) echo "odoo-update-module.sh v$SCRIPT_VERSION" ;; esac
-# Configuration (/etc/default/odoo-update-module.conf, puis ~/.odoo-update-module.conf ; -c/--config : ce fichier SEUL) : valeurs par défaut des options, la ligne de commande l'emporte.
+# Configuration (/etc/default/odoo-update-module.conf, then ~/.odoo-update-module.conf; -c/--config: this file ONLY): default values of the options, the command line wins.
 if declare -F config_lire >/dev/null; then
     config_lire "$SCRIPT_NAME" "$@"
     config_defaut ADDONS_DIR ADDONS_DIR --addons-dir texte
@@ -189,7 +189,7 @@ while [[ $# -gt 0 ]]; do
         --no-rollback) DO_ROLLBACK=0; shift ;;
         --no-warmup) DO_WARMUP=0; shift ;;
         --odoo-conf) ODOO_CONF_OPT="${2:-}"; shift 2 ;;
-        --report-err) shift ;;                 # traité avant (apps/_rapport.sh) ; accepté ici avec --help, --version…
+        --report-err) shift ;;                 # handled before (apps/_rapport.sh); accepted here with --help, --version...
         --service) SERVICE="${2:-}"; shift 2 ;;
         --timeout) TIMEOUT="${2:-}"; shift 2 ;;
         --user) RUN_USER="${2:-}"; shift 2 ;;
@@ -202,25 +202,25 @@ while [[ $# -gt 0 ]]; do
 done
 
 # --- Outils -------------------------------------------------------------------------------------------------------------
-# Présentation : peu de texte, de la couleur pour guider l'œil — vert = réussi, jaune = attention, rouge = échec, cyan = étape, gris = détail secondaire.
+# Presentation: little text, color to guide the eye - green = success, yellow = warning, red = failure, cyan = step, gray = secondary detail.
 ok()   { echo "  ${C_GREEN}✔${C_RESET} $*"; }
 attn() { echo "  ${C_YELLOW}⚠ [ATTN]${C_RESET} ${C_YELLOW}$*${C_RESET}"; }
 ko()   { echo "  ${C_RED}✖ [FAIL]${C_RESET} ${C_RED}$*${C_RESET}"; }
 sim()  { echo "  ${C_DIM}(simulation)${C_RESET} $*"; }
 detail() { echo "    ${C_DIM}$*${C_RESET}"; }
-en_retrait() { local l; while IFS= read -r l; do printf '        %s%s%s\n' "$1" "$l" "$C_RESET"; done; }       # lignes lues sur l'entrée, en retrait, dans la couleur donnée
-champ() { printf '  %s%s%s %s\n' "$C_DIM" "$(pad_cols "$1" 13)" "$C_RESET" "$2"; }         # champ "Base :" "valeur" ; 1.13 : largeur en colonnes (étiquette accentuée)
+en_retrait() { local l; while IFS= read -r l; do printf '        %s%s%s\n' "$1" "$l" "$C_RESET"; done; }       # lines read on the input, indented, in the given color
+champ() { printf '  %s%s%s %s\n' "$C_DIM" "$(pad_cols "$1" 13)" "$C_RESET" "$2"; }         # field "Base :" "value"; 1.13: width in columns (accented label)
 ETAPE=0; ETAPES=0
 etape() { ETAPE=$((ETAPE + 1)); echo; echo "${C_CYAN}▶ [${ETAPE}/${ETAPES}] $*${C_RESET}"; }
 exec 3>&2
-trace() {       # --verbose : la commande externe exacte, avant son exécution (sur la sortie d'erreur)
+trace() {       # --verbose: the exact external command, before its execution (on the error output)
     if [[ "$VERBOSE" == "1" ]]; then printf '+ %s\n' "$*" >&3; fi
     return 0
 }
 sc() { trace systemctl "$@"; systemctl "$@"; }
 
-# Détection automatique du service d'Odoo (--service ou SERVICE l'emportent) : unités « erplibre* » ou « odoo* »
-# (en production : erplibre ou odoo), hors unités auxiliaires (warmup, backup, update, mail, retry...). Actif préféré.
+# Automatic detection of the Odoo service (--service or SERVICE take precedence): units "erplibre*" or "odoo*"
+# (in production: erplibre or odoo), excluding auxiliary units (warmup, backup, update, mail, retry...). Active one preferred.
 deviner_service() {
     local liste candidats actifs
     trace systemctl list-units --type=service --all --no-legend --plain
@@ -242,7 +242,7 @@ deviner_service() {
 [[ "$SERVICE" =~ ^[A-Za-z0-9@_.:-]+$ ]] || { echo "ERREUR: nom de service invalide : « $SERVICE »." >&2; exit 1; }
 [[ "$SERVICE" == *.* ]] || SERVICE="$SERVICE.service"
 
-# Verrou (flock) : une seule mise à jour à la fois (timer, cron et lancement manuel peuvent se croiser).
+# Lock (flock): only one update at a time (timer, cron and manual launch may cross).
 prendre_verrou() {
     local dir="${NGINX_TOOLS_LOCK_DIR:-/run/lock}" ok
     command -v flock >/dev/null 2>&1 || return 0
@@ -255,8 +255,8 @@ prendre_verrou() {
     fi
 }
 
-# --- Détection : service, compte, dossier, base, configuration, modules -----------------------------------------------------
-propriete() { systemctl show -p "$1" --value -- "$SERVICE" 2>/dev/null || true; }   # propriété du service (vide si absente)
+# --- Detection: service, account, folder, database, configuration, modules ------------------------------------------------
+propriete() { systemctl show -p "$1" --value -- "$SERVICE" 2>/dev/null || true; }   # owner of the service (empty if absent)
 
 detecter_service() {
     local charge exec_start argv
@@ -298,10 +298,10 @@ trouver_base() {
     [[ "$DB" =~ ^[A-Za-z0-9_.-]+$ ]] || { ko "nom de base invalide : « $DB »"; exit 1; }
 }
 
-# Archive .zip des modules : --zip / ZIP (fichier, ou dossier : la plus récente), sinon la plus récente « MOTIF*.zip » du dossier COURANT ; aucune : rien à décompresser.
-# Un zip trouvé sans l'avoir demandé n'est qu'une commodité ; un zip DEMANDÉ et introuvable est une erreur.
+# .zip archive of the modules: --zip / ZIP (file, or folder: the most recent), otherwise the most recent "PATTERN*.zip" of the CURRENT folder; none: nothing to extract.
+# A zip found without having asked for it is only a convenience; a zip REQUESTED and not found is an error.
 ZIP_FICHIER=""; ZIP_MODULES=(); ZIP_VERSIONS=(); DESTINATION=""
-zip_inspecter() {   # zip_inspecter FICHIER : « module<TAB>version du manifeste » par module de l'archive ; code 3 si un chemin sort du dossier de destination
+zip_inspecter() {   # zip_inspecter FILE: "module<TAB>manifest version" per module of the archive; code 3 if a path leaves the destination folder
     python3 - "$1" <<'PYEOF'
 import ast, posixpath, sys, zipfile
 try:
@@ -328,7 +328,7 @@ PYEOF
 trouver_zip() {
     local source motif cand="" f
     local -a MOTIFS=()
-    read -ra MOTIFS <<< "$MODULES_MOTIFS"                      # sans développement des « * » par le shell dans le dossier courant
+    read -ra MOTIFS <<< "$MODULES_MOTIFS"                      # without expanding the "*" by the shell in the current folder
     source="$ZIP_ARG"
     case "${source,,}" in non|no|none|off) return 0 ;; esac
     if [[ -n "$source" && -f "$source" ]]; then cand="$source"
@@ -336,7 +336,7 @@ trouver_zip() {
         local dossier="${source:-$PWD}"
         if [[ -n "$source" && ! -d "$source" ]]; then ko "archive introuvable : « $source » (--zip ou ZIP)"; exit 1; fi
         for motif in "${MOTIFS[@]}"; do
-            # shellcheck disable=SC2012,SC2086,SC2231  # noms de fichiers simples ; motif développé voulu
+            # shellcheck disable=SC2012,SC2086,SC2231  # simple file names; pattern expansion intended
             f=$(ls -1t "$dossier"/$motif*.zip 2>/dev/null | head -n 1 || true)
             if [[ -n "$f" && ( -z "$cand" || "$f" -nt "$cand" ) ]]; then cand="$f"; fi
         done
@@ -354,7 +354,7 @@ trouver_zip() {
     while IFS= read -r ligne; do ZIP_MODULES+=("${ligne%%$'\t'*}"); ZIP_VERSIONS+=("${ligne#*$'\t'}"); done <<< "$sortie"
 }
 
-# Dossier de décompression : --addons-dir / ADDONS_DIR ; sinon le dossier d'addons_path qui contient déjà un de ces modules ; sinon erreur (jamais deviné au hasard).
+# Extraction folder: --addons-dir / ADDONS_DIR; otherwise the addons_path folder which already contains one of these modules; otherwise error (never guessed at random).
 trouver_destination() {
     local liste chemin m
     local -a dossiers=()
@@ -405,7 +405,7 @@ PYEOF
     else ko "décompression de $ZIP_FICHIER dans $DESTINATION impossible (droits ? espace disque ?)"; return 1; fi
 }
 
-# Versions des modules installés, avant / après (lecture seule dans PostgreSQL, apps/_odoo_db.py --modules) : les modules mis à jour + les 10 modifiés le plus récemment.
+# Versions of the installed modules, before / after (read-only in PostgreSQL, apps/_odoo_db.py --modules): the updated modules + the 10 most recently modified.
 VERS_AVANT=""
 versions_lire() { python3 "$SCRIPT_DIR/apps/_odoo_db.py" --modules "$DB" 2>/dev/null || true; }
 afficher_versions() {
@@ -449,11 +449,11 @@ for n in noms:
 PYEOF
 }
 
-# Modules : motifs (« rlq_* ») développés dans les addons_path de la configuration d'Odoo ; seuls les dossiers qui ont un __manifest__.py comptent.
+# Modules: patterns ("rlq_*") expanded in the addons_path of the Odoo configuration; only the folders that have a __manifest__.py count.
 trouver_modules() {
     local liste chemin motif d nom
     local -a dossiers=() MOTIFS=()
-    read -ra MOTIFS <<< "$MODULES_MOTIFS"                      # sans développement des « * » par le shell dans le dossier courant
+    read -ra MOTIFS <<< "$MODULES_MOTIFS"                      # without expanding the "*" by the shell in the current folder
     MODULES_TROUVES=()
     liste=$(odoo_conf_valeur "$ODOO_CONF_UTILISEE" addons_path 2>/dev/null || true)
     IFS=',' read -ra dossiers <<< "$liste"
@@ -463,7 +463,7 @@ trouver_modules() {
             chemin="${chemin#"${chemin%%[![:space:]]*}"}"; chemin="${chemin%"${chemin##*[![:space:]]}"}"
             [[ -n "$chemin" ]] || continue
             [[ "$chemin" == /* ]] || chemin="$ODOO_DIR/$chemin"
-            # shellcheck disable=SC2231  # développement du motif voulu
+            # shellcheck disable=SC2231  # pattern expansion intended
             for d in $chemin/$motif; do
                 [[ -f "$d/__manifest__.py" ]] || continue
                 nom=$(basename "$d")
@@ -471,7 +471,7 @@ trouver_modules() {
             done
         done
     done
-    for nom in ${ZIP_MODULES[@]+"${ZIP_MODULES[@]}"}; do          # les modules de l'archive sont mis à jour aussi (même s'ils ne sont pas encore sur le disque)
+    for nom in ${ZIP_MODULES[@]+"${ZIP_MODULES[@]}"}; do          # the modules of the archive are updated too (even if they are not yet on disk)
         case " ${MODULES_TROUVES[*]-} " in *" $nom "*) ;; *) MODULES_TROUVES+=("$nom") ;; esac
     done
     if (( ${#MODULES_TROUVES[@]} == 0 )); then
@@ -487,12 +487,12 @@ commande_odoo() {
     else ko "commande d'Odoo introuvable : ./odoo_bin.sh absent de « ${ODOO_DIR:-?} » et odoo-bin absent du PATH (voir COMMAND)"; exit 1; fi
 }
 
-# Odoo lancé à la main (hors systemd) : même Odoo qui ne s'arrête pas, mêmes ports, même base.
+# Odoo started by hand (outside systemd): even an Odoo that does not stop, same ports, same database.
 odoo_a_la_main() {
     pgrep -af 'odoo[-_]bin' 2>/dev/null | grep -v "odoo-update-module" || true
 }
 
-# Appelé APRÈS l'arrêt du service (sinon l'Odoo du service lui-même serait vu) ; refus : le service est remis dans l'état où on l'a trouvé.
+# Called AFTER the service stop (otherwise the service's own Odoo would be seen); refusal: the service is put back in the state we found it.
 verifier_odoo_a_la_main() {
     local autres
     if (( DO_DRY_RUN )); then sim "vérification qu'aucun Odoo ne tourne hors systemd (après l'arrêt du service)"; return 0; fi
@@ -506,7 +506,7 @@ verifier_odoo_a_la_main() {
     exit 1
 }
 
-# --- Étapes -------------------------------------------------------------------------------------------------------------------
+# --- Steps --------------------------------------------------------------------------------------------------------------
 sauvegarder() {
     local prog="$SCRIPT_DIR/odoo-backup.sh"
     [[ -x "$prog" || -r "$prog" ]] || { ko "odoo-backup.sh introuvable à côté de ce programme"; return 1; }
@@ -534,11 +534,11 @@ preparer_journal() {
     JOURNAL="$dir/update-$DB-$(date +%Y%m%d-%H%M%S).log"
     DOSSIER_JOURNAUX="$dir"
 }
-purger_journaux() {   # garde les 10 plus récents ET tout ce qui a moins de LOG_KEEP_DAYS jours (fichier commun, défaut 180 ; 0 = ne rien effacer)
+purger_journaux() {   # keeps the 10 most recent AND everything less than LOG_KEEP_DAYS days old (common file, default 180; 0 = erase nothing)
     local f jours="${NGINX_TOOLS_LOG_KEEP_DAYS:-180}"
     [[ "$jours" =~ ^[0-9]+$ ]] || jours=180
     (( jours == 0 )) && return 0
-    # shellcheck disable=SC2012  # noms produits par ce programme : aucun caractère étrange
+    # shellcheck disable=SC2012  # names produced by this program: no strange character
     ls -1t "$DOSSIER_JOURNAUX"/update-*.log 2>/dev/null | tail -n +11 | while IFS= read -r f; do
         [[ -n "$(find "$f" -mtime "-$jours" 2>/dev/null)" ]] || rm -f -- "$f"
     done
@@ -551,7 +551,7 @@ mettre_a_jour() {
     local -a odoo=("$CMD_ODOO" -c "$ODOO_CONF_UTILISEE" -d "$DB" -u "$liste"
                    --stop-after-init --no-http --workers=0 --max-cron-threads=0
                    --limit-time-real="$TIMEOUT" --limit-time-cpu="$TIMEOUT" --limit-memory-hard=0 --log-level=info)
-    # shellcheck disable=SC2016  # les apostrophes sont voulues : bash -c reçoit le script tel quel
+    # shellcheck disable=SC2016  # the apostrophes are intended: bash -c receives the script as is
     local -a lancer=(timeout --kill-after=30 "$TIMEOUT" bash -c 'cd "$1" && shift && exec "$@"' _ "${ODOO_DIR:-.}" "${odoo[@]}")
     if [[ -n "$RUN_USER" && "$(id -un)" != "$RUN_USER" ]]; then
         local maison
@@ -590,7 +590,7 @@ controler_journal() {
     ok "journal de la mise à jour sans ERROR ni CRITICAL ${C_DIM}($(grep -c . "$JOURNAL") lignes)${C_RESET}"
 }
 
-port_ecoute() {   # port_ecoute PORT : 0 si un programme écoute sur ce port
+port_ecoute() {   # port_ecoute PORT: 0 if a program listens on this port
     ss -ltn "sport = :$1" 2>/dev/null | grep -q ":$1\b"
 }
 
@@ -611,8 +611,8 @@ demarrer() {
     return 1
 }
 
-# Préchauffage du cache (odoo-warmup.py) après le redémarrage : pages publiques, derniers événements et sondages, écrans d'administration. Jamais un échec de la mise à jour :
-# un problème de préchauffage est un avertissement. Sa sortie détaillée va dans un fichier ; ici, un résumé.
+# Cache warm-up (odoo-warmup.py) after the restart: public pages, latest events and polls, administration screens. Never a failure of the update:
+# a warm-up problem is a warning. Its detailed output goes to a file; here, a summary.
 prechauffer() {
     local prog="$SCRIPT_DIR/odoo-warmup.py" port="${ODOO_CONF_HTTP_PORT:-8069}" log code=0 resume lignes
     etape "Préchauffage du cache"
@@ -646,9 +646,9 @@ prechauffer() {
 }
 
 
-# --- 1.11 : site calme, copie des modules, contrôle après le démarrage, retour arrière ---------------------------------------------
-# active_visitors : nombre d'adresses qui ont fait une requête dans les 5 dernières minutes (journaux d'accès de nginx, fin de chaque fichier seulement ;
-# robots, outils et ce serveur exclus) ; « ? » si aucun journal n'est lisible.
+# --- 1.11: quiet site, copy of the modules, check after the start, rollback -----------------------------------------------
+# active_visitors: number of addresses that made a request in the last 5 minutes (nginx access logs, end of each file only;
+# robots, tools and this server excluded); "?" if no log is readable.
 active_visitors() {
     python3 - "$NGINX_LOG_DIR" <<'PYEOF'
 import datetime, glob, os, re, sys
@@ -679,7 +679,7 @@ print(len(seen) if readable else "?")
 PYEOF
 }
 
-# 1.15 — activity guard. The site is BUSY while one of these is true: active visitors (active_visitors); write requests in the nginx logs
+# 1.15 - activity guard. The site is BUSY while one of these is true: active visitors (active_visitors); write requests in the nginx logs
 # (POST, PUT, PATCH, DELETE, except the known read-only requests) during the last ACTIVITY_WINDOW seconds (nginx_writes); open PostgreSQL sessions;
 # locks of writing on ir_cron; writes in the activity tables (counters of pg_stat_user_tables, sampled twice, ACTIVITY_SAMPLE s apart).
 # A value that cannot be read counts as BUSY: the update never goes ahead blind (ODOO_UPDATE_MODULE_PG_AS: test hook, command used in place of sudo).
@@ -687,7 +687,7 @@ ACTIVITY_WINDOW="${ODOO_UPDATE_MODULE_WINDOW:-300}"       # seconds of nginx his
 ACTIVITY_SAMPLE="${ODOO_UPDATE_MODULE_SAMPLE:-10}"        # seconds between the two samples of the PostgreSQL counters
 ACTIVITY_TABLES="survey_user_input survey_user_input_line event_registration event_track mail_mail mail_message crm_lead website_visitor website_track ir_attachment document_page document_page_history"
 
-postgres_as() {       # psql as the postgres user: runuser under root, « sudo -n » otherwise (no password question, see sudoers)
+postgres_as() {       # psql as the postgres user: runuser under root, "sudo -n" otherwise (no password question, see sudoers)
     if [[ -n "${ODOO_UPDATE_MODULE_PG_AS:-}" ]]; then "$ODOO_UPDATE_MODULE_PG_AS" "$@"; return; fi
     if (( EUID == 0 )); then runuser -u postgres -- "$@"; else sudo -n -u postgres -- "$@"; fi
 }
@@ -805,7 +805,7 @@ rapport_activite() {     # --check-activity: state of the site now, changes noth
     return 3
 }
 
-# Dossier de chaque module (avant la décompression) : premier dossier de addons_path qui le contient.
+# Folder of each module (before extraction): first addons_path folder which contains it.
 declare -A MODULE_DIRS=()
 find_module_dirs() {
     local liste chemin nom
@@ -862,13 +862,13 @@ restore_modules() {
     else ko "restauration de $MODULES_BACKUP impossible"; return 1; fi
 }
 
-# Erreurs d'Odoo depuis le démarrage : journal du service (systemd) et fichier « logfile » de la configuration d'Odoo (heures UTC).
+# Odoo errors since startup: service journal (systemd) and the "logfile" of the Odoo configuration (UTC hours).
 DEMARRAGE_EPOCH=0
 check_after_start() {
     local erreurs="" fichier depuis_utc n
     etape "Contrôle du journal d'Odoo depuis le démarrage"
     if (( DO_DRY_RUN )); then sim "journalctl -u $SERVICE --since @DÉMARRAGE : lignes ERROR / CRITICAL (et le fichier logfile d'Odoo)"; return 0; fi
-    if (( ! DO_WARMUP )); then sleep "${ODOO_UPDATE_MODULE_SETTLE:-15}"; fi        # sans préchauffage : quelques secondes de vraies requêtes
+    if (( ! DO_WARMUP )); then sleep "${ODOO_UPDATE_MODULE_SETTLE:-15}"; fi        # without warm-up: a few seconds of real requests
     if command -v journalctl >/dev/null 2>&1; then
         erreurs=$(journalctl -u "$SERVICE" --since "@$DEMARRAGE_EPOCH" -o cat --no-pager 2>/dev/null | grep -E ' (ERROR|CRITICAL) ' || true)
     fi
@@ -886,8 +886,8 @@ check_after_start() {
     return 1
 }
 
-# Retour arrière : arrêt, modules d'avant remis en place, nouvelle mise à jour (la base suit le code d'avant), redémarrage, contrôle. Question sur un terminal
-# (Entrée = oui), automatique sinon (cron, systemd) ; jamais avec --no-rollback (ROLLBACK=non) ni si ce programme n'a pas remplacé le code (pas d'archive).
+# Rollback: stop, previous modules put back in place, new update (the database follows the previous code), restart, check. Question on a terminal
+# (Enter = yes), automatic otherwise (cron, systemd); never with --no-rollback (ROLLBACK=no) nor if this program did not replace the code (no archive).
 rollback() {
     local rep=""
     if (( DO_DRY_RUN )); then sim "en cas d'erreur : retour arrière des modules (copie d'avant, nouvelle mise à jour, redémarrage)"; return 1; fi
@@ -914,7 +914,7 @@ rollback() {
     return 0
 }
 
-# Ctrl+C confirmé pendant le traitement : le service est remis en route s'il était actif (le site ne reste jamais arrêté).
+# Ctrl+C confirmed during processing: the service is restarted if it was active (the site never stays stopped).
 interrupted_cleanup() {
     if (( ETAIT_ACTIF )) && [[ "$(sc is-active "$SERVICE" 2>/dev/null || true)" != "active" ]]; then
         echo "  Interruption : redémarrage du service $SERVICE (il était actif)…" >&2
@@ -960,21 +960,21 @@ if (( CHECK_ACTIVITY )); then rapport_activite; exit $?; fi
 echecs=0
 find_module_dirs
 if (( DO_BACKUP )); then sauvegarder || exit 1; fi
-wait_for_quiet_site                                           # 1.11: Odoo s'arrête quand le site est calme (au plus WAIT_QUIET min d'attente)
-backup_modules || exit 1                                      # 1.11: copie des modules d'avant : base du retour arrière
-VERS_AVANT=$(versions_lire)                                   # versions avant la mise à jour (lecture seule)
+wait_for_quiet_site                                           # 1.11: Odoo stops when the site is quiet (at most WAIT_QUIET min of waiting)
+backup_modules || exit 1                                      # 1.11: copy of the previous modules: base of the rollback
+VERS_AVANT=$(versions_lire)                                   # versions before the update (read-only)
 ZIP_ECHEC=0; ETAIT_ACTIF=0
 if [[ "$(sc is-active "$SERVICE" 2>/dev/null || true)" == "active" ]]; then ETAIT_ACTIF=1; fi
 arreter || exit 1
 verifier_odoo_a_la_main
 if [[ -n "$ZIP_FICHIER" ]]; then
-    CODE_REPLACED=1                                          # même une décompression interrompue a pu remplacer des fichiers
+    CODE_REPLACED=1                                          # even an interrupted extraction may have replaced files
     decompresser || { echecs=$((echecs + 1)); ZIP_ECHEC=1; }
 fi
 preparer_journal
 if (( ZIP_ECHEC )); then
     ko "mise à jour des modules annulée : l'archive n'a pas été décompressée"
-    if [[ -n "$MODULES_BACKUP" ]]; then restore_modules || true; fi           # fichiers à moitié remplacés : remis comme avant (la base n'a pas changé)
+    if [[ -n "$MODULES_BACKUP" ]]; then restore_modules || true; fi           # half-replaced files: put back as before (the database did not change)
     if (( ETAIT_ACTIF )); then sc start "$SERVICE" >/dev/null 2>&1 || true; fi
     exit 1
 fi
