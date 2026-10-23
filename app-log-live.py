@@ -104,7 +104,7 @@ from urllib.parse import unquote
 from collections import Counter, OrderedDict
 from concurrent.futures import Future
 
-__version__ = "1.102.20261022.154430"
+__version__ = "1.103.20261022.215046"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
@@ -2893,10 +2893,21 @@ def ticket_report(rows):
     return out
 
 
+def rlq_group_label(groupe):
+    """Nom d'un groupe RLQ* suivi de son identifiant « #12 » et de sa catégorie « [Événements] » quand Odoo les fournit (v1.103) : deux groupes qui portent
+    le même nom se distinguent ainsi. Sans ces champs (données sans identifiant), seul le nom est écrit, comme avant."""
+    texte = groupe["nom"]
+    if "id" in groupe:
+        texte += f" #{groupe['id']}"
+    if groupe.get("categorie"):
+        texte += f" [{groupe['categorie']}]"
+    return texte
+
+
 def rlq_group_columns(grouped, columns=None):
     """The groups as « RLQ23-Bénévole = 11 » (1.85: no « member(s) » word, no gap between the name and its number), in 4 columns on a wide terminal, 2 on
     a medium one, 1 otherwise; read from top to bottom, balanced columns; cells padded by display width (Chinese names aligned)."""
-    cells = [g["nom"] + " = " + color_code("1;32" if g["membres"] else "90", str(g["membres"])) for g in grouped]
+    cells = [rlq_group_label(g) + " = " + color_code("1;32" if g["membres"] else "90", str(g["membres"])) for g in grouped]
     cell_w = max(display_width(c) for c in cells)
     columns = columns or terminal_columns()
     n = next((k for k in (4, 2) if 4 + k * cell_w + (k - 1) * 4 <= columns), 1)
