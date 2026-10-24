@@ -5,7 +5,7 @@ Lance les outils de la suite selon un horaire, **n'alerte que s'il faut agir**, 
 ```bash
 web-monitor.py --install-timer --interval-hours 1   # minuterie systemd, un passage par heure
 web-monitor.py --status                             # état de la minuterie, dernier passage, dernière alerte
-web-monitor.py --summary --days 7                   # trafic, blocages et attaques, erreurs, faits saillants, couverture des journaux
+web-monitor.py --summary --days 7                   # trafic, blocages et attaques, erreurs, requêtes par nom DNS, faits saillants, couverture des journaux
 web-monitor.py --apply                              # fait les corrections recommandées, une question par correction
 web-monitor.py --apply --yes                        # idem, sans questions
 web-monitor.py --list-users --table --sort last --reverse   # identifiants Odoo (ou participants BBB) avec leur trafic

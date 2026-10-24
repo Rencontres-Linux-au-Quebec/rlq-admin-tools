@@ -539,6 +539,31 @@ class AppLogLive(EnvTest):
         propre.count_conflict(live.Line(odoo("INFO", "base", "odoo.service.model", "SERIALIZATION_FAILURE, 4 tries left, try again in 0.1 sec...")))
         self.assertIn("Échecs définitifs de mise à jour simultanée : aucun", T("\n".join(propre.health()[1])))
 
+    def test_requetes_par_nom_dns_seulement_identifies_et_difference_ctrl_t(self):
+        """1.104 : « Requests by name (DNS column) » du sommaire (Ctrl-T compris) : requêtes par nom affiché ; une adresse sans nom n'est jamais comptée comme nom,
+        elle est comptée à part ; la différence entre deux affichages ne reprend que les nouvelles requêtes."""
+        live = self.module_live()
+        st = live.Stats(5.0)
+
+        def acc(ip):
+            return live.Line(f'{ip} - - [23/Oct/2026:10:00:00 -0400] "GET /web/login HTTP/1.1" 200 1234 "-" "Mozilla/5.0"')
+
+        renderings = {"198.51.100.7": ("odoo.exemple.ca", [], False, None), "198.51.100.8": ("198.51.100.8", [], True, None)}
+        for ip in ["198.51.100.7"] * 3 + ["198.51.100.8"] * 2 + ["198.51.100.9"]:        # 9 : pas de rendu, donc sans nom
+            st.ajouter(acc(ip), renderings, None)
+        self.assertEqual(dict(st.by_name), {"odoo.exemple.ca": 3})
+        self.assertEqual(st.requests, 6)
+        lignes = "\n".join(re.sub(r"\x1b\[[0-9;]*m", "", x) for x in st.summary(level=5))
+        self.assertIn("Requests by name (DNS column): 3 identified, 3 by address only", lignes)
+        self.assertIn("odoo.exemple.ca ×3", lignes)
+        self.assertNotIn("      198.51.100.8 ×", lignes)                    # the bare address is never a line of the name block
+        self.assertIn("Requêtes par nom (colonne DNS) : 3 identifiées, 3 seulement par adresse", T("Requests by name (DNS column): 3 identified, 3 by address only"))
+        before = st.snapshot()
+        st.ajouter(acc("198.51.100.7"), renderings, None)
+        d = st.since(before)
+        self.assertEqual(dict(d.by_name), {"odoo.exemple.ca": 1})
+        self.assertEqual(d.requests, 1)
+
     def test_conflits_comptes_de_bout_en_bout_dans_le_resume(self):
         """1.53 : de bout en bout : le résumé de santé compte les conflits réessayés et l'échec définitif."""
         self.journal([odoo("INFO", "base", "odoo.service.model", "SERIALIZATION_FAILURE, 4 tries left, try again in 0.13 sec..."),

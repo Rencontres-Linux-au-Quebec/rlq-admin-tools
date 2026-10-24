@@ -45,7 +45,8 @@
 #   * SLOW REQUESTS: Odoo duration (SQL + Python) >= --slow seconds (5 by default): both durations in bold orange, bold red at 3 times the threshold, and "← slow: 12.3 s";
 #   * FILTERS: --suspect (only suspicious requests); --not-found (only 404 answers, and the summary lists ALL these pages); --only TEXT (name, address, URL, module… case-insensitive, repeatable: one OR the other); both
 #     add up; a Python trace follows the decision of its first line; the summary counts only the displayed lines;
-#   * SESSION SUMMARY when stopping with Ctrl-C (and with --summary at the end of a --no-follow): most active addresses, suspicious requests (with [banned]), 5xx and 4xx errors,
+#   * SESSION SUMMARY when stopping with Ctrl-C (and with --summary at the end of a --no-follow): most active addresses, requests by name (the DNS column: identified
+#     names only, the addresses without a name are counted apart; Ctrl-T gives the period), suspicious requests (with [banned]), 5xx and 4xx errors,
 #     slow requests, banned addresses seen;
 #   * PRESENCE: "● login", "✕ logout", "○ no activity since N min" inserted in the stream, and a summary of who is
 #     still logged in after the history (see "Logged in" below);
@@ -104,7 +105,7 @@ from urllib.parse import unquote
 from collections import Counter, OrderedDict
 from concurrent.futures import Future
 
-__version__ = "1.103.20261022.215046"
+__version__ = "1.104.20261023.210301"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
@@ -3549,7 +3550,7 @@ def language_of(url):
 class Stats:
     """What happened during the session, for the summary (Ctrl-C, --summary) and the dashboard (Ctrl-G, Ctrl-T): most active addresses, suspicious requests,
     5xx and 4xx errors, slow requests, banned addresses, pages per language, most requested URLs, Odoo errors. Counts only the DISPLAYED lines (after --only and --suspect)."""
-    COUNTERS = ("par_ip", "suspect_ips", "suspect_urls", "urls", "languages", "statuses", "odoo_errors", "pages", "pages_per_ip", "visits", "probes", "not_found", "conflict_codes", "failure_codes")
+    COUNTERS = ("par_ip", "by_name", "suspect_ips", "suspect_urls", "urls", "languages", "statuses", "odoo_errors", "pages", "pages_per_ip", "visits", "probes", "not_found", "conflict_codes", "failure_codes")
     VISIT_PAUSE = 1800                                 # seconds without a page view after which the return of an address is a NEW visit
 
     def __init__(self, slowest):
@@ -3560,6 +3561,7 @@ class Stats:
         self.recommended, self._reco_t, self.reco_state = {}, 0.0, ""            # {address: reason}: bans recommended by the last run of web-monitor.py (re-read every 60 s)
         self.mail_detail = None                      # function () -> lines: recipients of the failed e-mails to resend (set by follow(), reads PostgreSQL)
         self.par_ip, self.names = Counter(), {}
+        self.by_name = Counter()                                                  # identified name (DNS column, person, team, server…) -> requests; bare addresses not counted
         self.suspect_ips, self.suspect_urls = Counter(), Counter()
         self.list_404 = False                                                      # --not-found: the summary lists ALL the 404 pages
         self.not_found = Counter()                                               # URL -> number of 404 responses
@@ -3699,6 +3701,8 @@ class Stats:
             self.first = L.instant
         self.par_ip[ip] += 1
         self.names.setdefault(ip, ANSI_RE.sub("", renderings[ip][0]) if ip in renderings else ip)
+        if ip != "?" and self.names[ip] != ip:                                     # identified: a name, not the bare address (kept in step with --dns-max)
+            self.by_name[self.names[ip]] += 1
         url, code = r.group(1), int(r.group(2))
         if ROBOTS_FILES_RE.match(url.split("?", 1)[0]):
             self.robots_ips.add(ip)
@@ -4041,6 +4045,11 @@ class Stats:
         if 2 <= level <= 5:
             blocks.append((2, self.activity_one_line()))
         blocks.append((5, "  Most active addresses: " + " ; ".join(f"{self.who(ip)} " + color_code("1;36", f"×{n}") for ip, n in self.par_ip.most_common(5))))
+        named = sum(self.by_name.values())                                           # requests whose address has an identified name (DNS column)
+        blocks.append((5, f"  Requests by name (DNS column): {named} identified, {self.requests - named} by address only"))
+        blocks.extend((5, f"      {name} " + color_code("1;36", f"×{n}")) for name, n in self.by_name.most_common(10))
+        if len(self.by_name) > 10:
+            blocks.append((5, f"      +{len(self.by_name) - 10} name(s) not shown"))
         if self.suspect_ips:
             blocks.append((4, color_code(STYLES["suspect"], " Suspicious requests ") + f" {sum(self.suspect_urls.values())} de {len(self.suspect_ips)} address(es) — "
                           + self.top(self.suspect_urls)))
