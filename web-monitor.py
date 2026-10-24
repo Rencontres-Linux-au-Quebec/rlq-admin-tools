@@ -85,7 +85,7 @@ import time
 import unicodedata
 import urllib.parse
 
-__version__ = "2.77.20261022.110306"
+__version__ = "2.78.20261023.210301"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
@@ -3762,7 +3762,7 @@ def collect_summary(periods):
     unreadable = []
     facts = {"ip": {}, "malveillantes": {}, "non_filtrees": {}, "non_filtrees_hotes": {}, "hotes": {}, "valides": {}, "robots": {},
              "days": {}, "jails": {}, "comptes": {}, "refus_navigateurs": {}, "refus_nav_ip": {}, "refus_robots_chemins": {},
-             "non_filtrees_jour": [], "ips_2xx": set()}
+             "non_filtrees_jour": [], "ips_2xx": set(), "hotes_periodes": {}}
     cache = {}
     start30 = periods.starts[2]
 
@@ -3885,6 +3885,9 @@ def collect_summary(periods):
                         note_account(facts["comptes"], (q.get("fullName") or ["(no name)"])[0][:40], ip, idx, f"{d:%Y-%m-%d}")
                     if host_value:
                         plus_one(facts["hotes"], host_value)
+                    row_hote = facts["hotes_periodes"].setdefault(host_value or "", [0] * Periods.N)   # "" = line without Host (older format)
+                    for i in idx:
+                        row_hote[i] += 1
                     plus_one(facts["ip"], ip)
                     plus_one(facts["days"], d)
     # --- capteur catch-all ---
@@ -4478,6 +4481,29 @@ def show_summary():
         print(f"  Firewall: {fmt(sum(pf.values()))} packets blocked BEFORE nginx since the rules were loaded ("
               + ", ".join(f"{k} : {fmt(v)}" for k, v in pf.items()) + ")")
         print("             cumulative iptables counters, in packets (not requests): not split by period.")
+
+    # --- requests per DNS name (Host), per period: the same columns as the funnel above ---
+    host_rows = facts.get("hotes_periodes", {})
+    if host_rows:
+        ranked = sorted((h for h in host_rows if h), key=lambda h: (-host_rows[h][2], -host_rows[h][0], h))
+        shown, others = ranked[:15], ranked[15:]
+        print()
+        print("REQUESTS BY DNS NAME (Host), SITE LOGS (this server's own tests excluded)")
+        print(" " * (width + 1) + "".join(e.ljust(col) for e in entry_list))
+
+        def host_line(label, values):
+            label = label if len(label) <= width - 3 else label[:width - 4] + "…"
+            cells = ""
+            for i in periods.order:                                   # same cells as the funnel: the number, then the 8 columns of the « (12 %) » these rows do not have
+                cells += (f"{fmt(values[i]):>{number_width}}" + " " * 8).rjust(col)
+            print(f"  {label:<{width - 2}}" + cells)
+
+        for h in shown:
+            host_line(h, host_rows[h])
+        if others:
+            host_line(TR("{n} other name(s)").format(n=len(others)), [sum(host_rows[h][i] for h in others) for i in range(Periods.N)])
+        if "" in host_rows:
+            host_line(TR("(no Host field: older log lines)"), host_rows[""])
 
     # --- faits marquants (30 jours) ---
     print()

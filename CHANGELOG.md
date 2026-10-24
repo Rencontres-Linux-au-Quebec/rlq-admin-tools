@@ -55,6 +55,26 @@ Earlier history was archived outside this repository when this file was created.
 
 ## app-log-live.py
 
+### 1.104.20261023.210301 - Title: Requests by name (DNS column) in the summary, Ctrl-T included.
+- Reason: request: in the summary (key Ctrl-T, and the summary at the end of a session), show the number of requests for each name of the DNS column, only for the names that could be identified. The bare IP addresses must not appear in this count.
+- Changes:
+  - Stats: new counter `by_name` (identified name -> requests). It is listed in COUNTERS, so the snapshot and the difference of Ctrl-T (since()) handle it like the other counters.
+  - Stats.ajouter(): a request is counted under its name when its address has one (the name of the column: DNS name, person, team, server, organization or network). An address without a name is never counted under its own address.
+  - Stats.summary(), level 5 (with the most active addresses): « Requests by name (DNS column): N identified, M by address only », then the 10 most requested names, then « +K name(s) not shown » when there are more.
+  - Header comment: description of the session summary.
+  - lang/app-log-live.fr.po: the four new messages are translated.
+  - nginx-tools-tests/test_app_log_live.py: test_requetes_par_nom_dns_seulement_identifies_et_difference_ctrl_t.
+- Bugs fixed:
+  None in this change.
+- Guard rails and edge cases:
+  - The names are counted as they are displayed in the column: a name cut by --dns-max-truncate is counted under its cut form, so two long names with the same beginning are counted together.
+  - The total of identified and unidentified requests stays exact even when the list of names is cut at 10 lines.
+  - The screen anonymisation (A key, --anonymize) applies to these names like to the rest of the screen; the daily journal keeps the real names.
+- Checks:
+  - py_compile of app-log-live.py; test_requetes_par_nom_dns_seulement_identifies_et_difference_ctrl_t; test_i18n, test_conventions and test_cles_modeles.
+  - test_app_log_live: the two menu tests (test_menu_des_touches_et_options_a_la_volee, test_menu_exclure_groupe_bip_et_rapport) fail the same way on the main branch (keys sent to the pseudo-terminal too fast for the machine load); see the pull request.
+- Action required: none. The new lines appear in the summary after the update.
+
 ### 1.103.20261022.215046 - Title: RLQ* groups show their identifier and category, so homonyms can be told apart.
 - Reason: request: the G key and the end summary listed « RLQ22-Visiteur = 0 » three times without any way to tell the three groups apart. Odoo allows several groups with the same name.
 - Changes:
@@ -192,6 +212,26 @@ Earlier history was archived outside this repository when this file was created.
 ### 1.9.20261020.211944 - Current version. Earlier history archived outside the repository.
 
 ## web-monitor.py
+
+### 2.78.20261023.210301 - Title: Requests per DNS name (Host) for each period in --summary.
+- Reason: request: --summary gives the figures for today, D-1, D-2, 7 days and 30 days, but the names requested (Host, the DNS column) were only given for the whole 30 days. The number of requests per name over several days is needed.
+- Changes:
+  - collect_summary(): facts["hotes_periodes"]: for each Host name, the number of site requests in each of the five periods (the same windows as the funnel). A line without a Host field is counted under the empty name. The requests of this server's own programs are excluded, as before.
+  - show_summary(): new table after the firewall lines, « REQUESTS BY DNS NAME (Host), SITE LOGS », with the same columns and the same asterisk for the partial periods as the funnel. The 15 most requested names are shown (sorted by the 30-day figure, then by today), the others are summed in one line « N other name(s) », and the lines without a Host field in « (no Host field: older log lines) ».
+  - A name longer than the label column is cut with "...".
+  - lang/web-monitor.fr.po: the three new messages are translated.
+  - nginx-tools-tests/test_web_monitor.py: test Bilan.test_requetes_par_nom_dns_par_periode.
+- Bugs fixed:
+  None in this change.
+- Guard rails and edge cases:
+  - Only the site logs (nginx access logs) are counted, like the existing line « Names requested (Host) ». The catch-all sensor and blocked-probes.log are not counted per name.
+  - The numbers of the new table are aligned in the same columns as the funnel (the first alignment test of --summary checks it).
+  - A period without any request shows 0; the figures of the rows add up to the « Requests on the site » line, except for the names cut into « other name(s) », which are summed.
+- Checks:
+  - py_compile of web-monitor.py; manual run of --summary on synthetic nginx logs (today, yesterday, five days ago, lines without host=, one request from this server), in English and in French.
+  - test_requetes_par_nom_dns_par_periode, test_sommaire_chiffres_alignes_a_droite_avec_les_pourcentages_a_part, test_i18n, test_conventions and test_cles_modeles.
+  - test_web_monitor: the two Surveillance tests (test_fin_de_passage_c_passe_par_l_enquete_de_ban, test_fin_de_passage_o_bannit_toutes_n_aucune) fail the same way on the main branch; not related to this change.
+- Action required: none. The table appears in the next --summary run.
 
 ### 2.77.20261022.110306 - Title: Option values in English only in the configuration summary; template sorted.
 - Reason: Request: add MIN=yes, UNDERLINE=10 and -2026- in HIGHLIGHT to the default settings of /etc/default/app-log-live.conf; arguments in English only (oui -> yes, non -> no); options of the default configuration files in /etc/default in alphabetical order.

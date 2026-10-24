@@ -2759,3 +2759,12 @@ msgstr " » (champs : "
 
 msgid ", or all)"
 msgstr ", ou all)"
+
+msgid "REQUESTS BY DNS NAME (Host), SITE LOGS (this server's own tests excluded)"
+msgstr "REQUÊTES PAR NOM DNS (Host), JOURNAUX DU SITE (tests de ce serveur exclus)"
+
+msgid "{n} other name(s)"
+msgstr "{n} autre(s) nom(s)"
+
+msgid "(no Host field: older log lines)"
+msgstr "(sans champ Host : anciennes lignes)"
