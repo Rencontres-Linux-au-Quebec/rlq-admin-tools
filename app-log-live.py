@@ -105,7 +105,7 @@ from urllib.parse import unquote
 from collections import Counter, OrderedDict
 from concurrent.futures import Future
 
-__version__ = "1.104.20261023.210301"
+__version__ = "1.105.20261025.113234"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
@@ -4080,7 +4080,7 @@ class Stats:
         blocks.append((4 if views else 9, "  Banned addresses seen: " + color_code(ORANGE if views else "32", str(len(views))) + (" — " + " ; ".join(f"{self.who(ip)} ({src})" for ip, src in list(views.items())[:5]) if views else ".")))
         to_ban = self.to_ban()
         if to_ban:
-            blocks.append((4, color_code(ORANGE, f"  Addresses to ban: {len(to_ban)}") + " — " + " ; ".join(f"{self.who(ip)} ×{n}" if n else f"{self.who(ip)} (web-monitor)" for ip, n in to_ban[:5])
+            blocks.append((4, color_code(ORANGE, f"  Addresses to ban: {len(to_ban)}") + " — " + " ; ".join(f"{self.who(ip)} ({self.ban_reason(ip, n)})" for ip, n in to_ban[:5])
                           + "  (key b: ban them with nginx-log-audit.sh --ban, like web-monitor.py)"))
         else:
             blocks.append((9 if not self.reco_diagnostic() else 4, f"  Addresses to ban: {none_found()} (key b to check)." + (f" Recommendations from web-monitor.py: {self.reco_diagnostic()}." if self.reco_diagnostic() else "")))

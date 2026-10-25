@@ -155,7 +155,7 @@ msgid "program memory at "
 msgstr "mémoire du programme à "
 
 msgid "without prefix"
-msgstr "sans préfixe"
+msgstr "sans préfixe (langue par défaut du site)"
 
 msgid "too old"
 msgstr "trop ancien"

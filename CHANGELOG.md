@@ -46,7 +46,7 @@ Earlier history was archived outside this repository when this file was created.
 ### 2.27.20261022.110306
 
 - Title: Option values in English only in the configuration summary; template sorted.
-- Reason: Request: add MIN=yes, UNDERLINE=10 and -2026- in HIGHLIGHT to the default settings of /etc/default/app-log-live.conf; arguments in English only (oui → yes, non → no); options of the default configuration files in /etc/default in alphabetical order.
+- Reason: Request: add MIN=yes, UNDERLINE=10 and -2026- in HIGHLIGHT to the default settings of /etc/default/app-log-live.conf; arguments in English only (oui -> yes, non -> no); options of the default configuration files in /etc/default in alphabetical order.
 - Changes:
   - show_config_read(): yes / no in every language (was oui / non in French).
   - doc/en and doc/fr app-health-check.conf.example: keys sorted alphabetically inside each section (the sections are kept because this template holds real example values); the one-line comment that described LANGUAGE, TARGET, APP and VERBOSE split into one comment per key.
@@ -90,6 +90,31 @@ Earlier history was archived outside this repository when this file was created.
 ### 2.23.20261020.211944 - Current version. Earlier history archived outside the repository.
 
 ## app-log-live.py
+
+### 1.105.20261025.113234 - Summary: reason of each address to ban, clear label for pages without prefix
+
+- Title: Summary: reason of each address to ban, clear label for pages without prefix.
+- Reason: The summary showed "Suspicious requests: none" and, just below, "Addresses to ban: 2" with no reason. The two addresses were not suspicious requests: they were probe sweeps (5 or more DIFFERENT pages not found, 404), which the "Suspicious requests" line does not count. The label "sans préfixe" for "Pages by language" was read as "not French", although it is the default language of the site (French here, without prefix in the URL).
+- Changes:
+  - Summary, "Addresses to ban" line: each address now shows its reason (same wording as the b key), for example "7 different pages not found (404): probe sweep" or "3 suspicious request(s)". Stats.ban_reason() was already used by the b key; it is now also used by the summary.
+  - lang/app-log-live.fr.po: msgstr of "without prefix" becomes "sans préfixe (langue par défaut du site)". The English text and the code key ("without prefix") are unchanged.
+  - Version: __version__ 1.105.20261025.113234.
+  - Files: app-log-live.py, lang/app-log-live.fr.po, CHANGELOG.md.
+- Bugs fixed:
+  - Symptom: "Suspicious requests: none" followed by "Addresses to ban: 2" looks contradictory.
+  - Diagnosis: to_ban() also lists addresses with 5 or more different 404 pages (probe sweep). The summary line counted only the suspicious URLs.
+  - Fix: the reason is displayed next to each address. No change to the detection rules.
+  - Symptom: "FR 0 %" in the summary of the language pages.
+  - Diagnosis: the French pages have no URL prefix (language_of returns "without prefix"), so French is counted under "sans préfixe", not under "FR".
+  - Fix: the label now says that this is the default language of the site. The count itself is not changed.
+- Safeguards and edge cases:
+  - The language is still inferred from the URL prefix. The label does not claim the page is French: it says "default language of the site", which is true only if the site's default language is French (to confirm in Odoo: Website > Configuration > Languages).
+  - Addresses already banned, of the whitelist, of a place, of a known person or of this server stay excluded (to_ban() unchanged).
+- Checks:
+  - python3 -I -m py_compile app-log-live.py: OK.
+  - python3 app-log-live.py --version: 1.105.20261025.113234.
+  - Test suite nginx-tools-tests/run-all.sh: not run in this change (to be run before the pull request is merged).
+- Action required: confirm in Odoo that the default language of the website is French.
 
 ### 1.104.20261023.210301 - Title: Requests by name (DNS column) in the summary, Ctrl-T included.
 - Reason: request: in the summary (key Ctrl-T, and the summary at the end of a session), show the number of requests for each name of the DNS column, only for the names that could be identified. The bare IP addresses must not appear in this count.
