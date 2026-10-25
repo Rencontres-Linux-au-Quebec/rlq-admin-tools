@@ -466,6 +466,27 @@ Earlier history was archived outside this repository when this file was created.
 
 ## odoo-warmup.py
 
+### 1.14.20261025.175011 - Automatic detection only when a single Odoo instance answers
+
+- Title: Automatic detection only when exactly one Odoo instance answers; the program never needs root.
+- Reason: Several Odoo instances can run on one server (for example ports 10002 and 10000). Choosing one of them silently is wrong. The program must also run as a normal user.
+- Changes:
+  - An Odoo instance is recognised by /web/login answering 200 with "odoo" in the page, not only by a listening port.
+  - Exactly one Odoo instance: it is used and shown. Several: detection stops with an error and asks for --url or URL. None answering: the single candidate (Odoo may be starting), else 127.0.0.1:8069.
+  - Priority unchanged: --url, then URL in the configuration file, then detection.
+  - Root: not needed. Only --systemd-install and --systemd-remove write systemd files and need root.
+  - Files: odoo-warmup.py.
+- Bugs fixed:
+  - Symptom: a warning about several Odoo ports did not stop the run; the first port was used.
+  - Diagnosis: the detection chose the first answering port.
+  - Correction: refusal when several instances answer.
+- Safeguards and edge cases:
+  - Without root, process command lines may be unreadable: the Odoo page check still applies.
+  - A listening Python process that is not Odoo (no "odoo" on its login page) is ignored.
+- Checks:
+  - py_compile of odoo-warmup.py; test suite test_odoo_warmup; fake Odoo servers on 10002 and 10000: refusal, then detection of 10002 alone.
+- Action required: if the server has several instances, set URL in /etc/default/odoo-warmup.conf (or give --url).
+
 ### 1.13.20261025.174351 - Port detection with netstat, and warning when several Odoo ports answer
 
 - Title: Port detection also works where ss is missing (netstat), and several answering Odoo ports are reported.
