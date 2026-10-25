@@ -673,8 +673,11 @@ msgstr "N'affiche pas les lignes de ces adresses ou réseaux (IP1,IP2,10.0.0.0/8
 msgid "Every MIN minutes, IF something is wrong (5xx or Odoo errors, failed e-mails, slow requests, greedy program), show the health and details in the stream (default: "
 msgstr "Toutes les MIN minutes, SI quelque chose ne va pas (erreurs 5xx ou d'Odoo, courriels en échec, requêtes lentes, programme gourmand), affiche la santé et le détail dans le flux (défaut : "
 
-msgid "Do not show the IP address in brackets after the name"
-msgstr "N'affiche pas l'adresse IP entre crochets après le nom"
+msgid "Do not show the IP address in brackets after the name (default)"
+msgstr "N'affiche pas l'adresse IP entre crochets après le nom (par défaut)"
+
+msgid "Show the IP address in brackets after the name (default: hidden; HIDE_IP=no in the configuration file)"
+msgstr "Affiche l'adresse IP entre crochets après le nom (par défaut : masquée ; HIDE_IP=no dans le fichier de configuration)"
 
 msgid "Hide the INFO lines of the Odoo modules (odoo.addons.*), except errors (WARNING, ERROR, traces), e-mails sent and generated files (PDF reports…); q key on the fly"
 msgstr "Cache les lignes INFO des modules d'Odoo (odoo.addons.*), sauf les erreurs (WARNING, ERROR, traces), les courriels envoyés et les fichiers générés (rapports PDF…) ; touche q à la volée"
@@ -2486,8 +2489,8 @@ msgstr "vraies adresses, vrais courriels et vrais noms (--anonymize : pseudonyme
 msgid "No underlined line (same as --underline 0)"
 msgstr "Aucune ligne soulignée (comme --underline 0)"
 
-msgid "One log line out of N underlined on screen, up to the end of the screen line (without N: 10; default: 10; 0 = none); U key of the menu; UNDERLINE of the configuration file"
-msgstr "Une ligne du journal sur N soulignée à l'écran, jusqu'au bout de la ligne d'écran (sans N : 10 ; par défaut : 10 ; 0 = aucune) ; touche U du menu ; UNDERLINE du fichier de configuration"
+msgid "One log line out of N underlined on screen, up to 80 percent of the screen width (without N: 10; default: 10; 0 = none); U key of the menu; UNDERLINE of the configuration file"
+msgstr "Une ligne du journal sur N soulignée à l'écran, jusqu'à 80 pour cent de la largeur de l'écran (sans N : 10 ; par défaut : 10 ; 0 = aucune) ; touche U du menu ; UNDERLINE du fichier de configuration"
 
 msgid "one log line out of N underlined on screen, up to the end of the screen line (0 = none); UNDERLINE of the configuration file"
 msgstr "une ligne du journal sur N soulignée à l'écran, jusqu'au bout de la ligne d'écran (0 = aucune) ; UNDERLINE du fichier de configuration"
