@@ -105,7 +105,7 @@ from urllib.parse import unquote
 from collections import Counter, OrderedDict
 from concurrent.futures import Future
 
-__version__ = "1.108.20261025.150359"
+__version__ = "1.109.20261025.162831"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
@@ -4053,7 +4053,7 @@ class Stats:
         robots = sum(1 for ip in visitors if self.is_robot(ip))
         return numbers(f"  Activity: {self.requests} request(s) · {pages} page(s) viewed · {len(visitors)} visitor(s) ({len(visitors) - robots} real, {robots} bot(s))")
 
-    def summary(self, extras=(), program_alerts=(), heading="Session summary", level=LEVEL_MAX):
+    def summary(self, extras=(), program_alerts=(), heading="Session summary", level=LEVEL_MAX, people=()):
         """Lines of the session summary (or of the period, for Ctrl-T): health, what happened, efficiency of the program (extras).
         `level` (1 to 9, keys 1 to 9, --level) chooses the detail; each level adds to the previous one, 9 shows everything:
         1 the health verdict and what is wrong · 2 + the activity in one line · 3 + all the health indicators · 4 + the alerts (suspicious, 4xx / 5xx, slow, bans) ·
@@ -4071,7 +4071,7 @@ class Stats:
             health = [text_line for text_line in health if not ANSI_RE.sub("", text_line).lstrip().startswith("✔")]
         res.extend(health)
         if not self.requests:
-            return res + ["  No request in the lines shown."] + (list(extras) if level >= 9 else [])
+            return res + ["  No request in the lines shown."] + list(people) + (list(extras) if level >= 9 else [])
         blocks = []                                                   # [(minimum level, line)] in the display order of level 9
         if 2 <= level <= 5:
             blocks.append((2, self.activity_one_line()))
@@ -4139,7 +4139,7 @@ class Stats:
         res.extend(text_line for n, text_line in blocks if n <= level)
         if level < LEVEL_MAX:
             res.append(color_code(STYLES["title"], f"  Level {level} out of {LEVEL_MAX}") + " — keys 1 to 9 for more or less detail (9 = everything)")
-        return res + (list(extras) if level >= 9 else [])
+        return res + list(people) + (list(extras) if level >= 9 else [])
 
 
 class Output:
@@ -4655,9 +4655,11 @@ def follow(cmd, people, resolver, options, output):
         now_dt, res, cache = stats.snapshot(), Resources.measure(), Counter(resolver.counters)
         before_res, before_cache = (ref["res"], ref["cache"]) if delta else (resources0, Counter())
         period = now_dt.since(ref["stats"]) if delta else now_dt
-        extras = ["  " + color_code(STYLES["title"], "Who is connected now")] + logged_in_lines(options.get("presence")) + ["  " + color_code(STYLES["title"], "Program efficiency")] + [measured_numbers(l) for l in Resources.lines(before_res, res) + cache_lines(before_cache, cache)] + socket_lines()
+        # 1.109: "Who is connected now" is shown at every level (Ctrl-G and Ctrl-T), not only at level 9 (it was hidden at levels 1 to 8).
+        people = ["  " + color_code(STYLES["title"], "Who is connected now")] + logged_in_lines(options.get("presence"))
+        extras = ["  " + color_code(STYLES["title"], "Program efficiency")] + [measured_numbers(l) for l in Resources.lines(before_res, res) + cache_lines(before_cache, cache)] + socket_lines()
         lines = period.summary(extras, Resources.alerts(before_res, res),
-                                delta_heading if delta else heading, level or options["level"])
+                                delta_heading if delta else heading, level or options["level"], people=people)
         ref.update(stats=now_dt, res=res, cache=cache)
         return lines
 
