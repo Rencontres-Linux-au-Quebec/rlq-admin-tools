@@ -51,7 +51,7 @@ try:                    # line editing in prompts
 except ImportError:
     pass
 
-__version__ = "1.11.20261022.231529"
+__version__ = "1.12.20261025.172228"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
@@ -550,6 +550,65 @@ class LocalizedArgumentParser(argparse.ArgumentParser):
         super().__init__(*args, **kwargs)
 
 
+def odoo_ports_from_conf():
+    """HTTP port written in the first Odoo configuration file found (apps/_odoo_conf.py); [] if none."""
+    module = load_module("_odoo_conf")
+    if module is None:
+        return []
+    for chemin in module.chemins_candidats():
+        if os.path.isfile(chemin):
+            port = module.lire(chemin)["http_port"]
+            return [int(port)] if port.isdigit() else []
+    return []
+
+
+def odoo_ports_listening():
+    """TCP ports listened to by a Python process whose command line mentions odoo (ss, Linux); [] if unavailable."""
+    try:
+        sortie = subprocess.run(["ss", "-ltnpH"], capture_output=True, text=True, timeout=5, check=False).stdout
+    except (OSError, subprocess.SubprocessError):
+        return []
+    ports = []
+    for ligne in sortie.splitlines():
+        champs = ligne.split()
+        if len(champs) < 4 or "python" not in ligne:
+            continue
+        pids = re.findall(r"pid=(\d+)", ligne)
+        if pids:
+            try:
+                with open(f"/proc/{pids[0]}/cmdline", "rb") as f:
+                    commande = f.read().decode("utf-8", "replace")
+            except OSError:
+                commande = ""                              # not readable without root: the process name is python
+            if commande and "odoo" not in commande.lower():
+                continue
+        port = champs[3].rsplit(":", 1)[-1]
+        if port.isdigit():
+            ports.append(int(port))
+    return ports
+
+
+def detect_odoo_url():
+    """Address of Odoo when neither --url nor URL is set. Candidates, in order: the HTTP port of the Odoo configuration
+    file, then the ports of the Odoo Python processes that listen. The first one answering /web/login wins; without an
+    answer, the first candidate (Odoo may still be starting), else the default port 8069."""
+    candidats = []
+    for port in odoo_ports_from_conf() + odoo_ports_listening():
+        if port not in candidats:
+            candidats.append(port)
+    for port in candidats:
+        url = f"http://127.0.0.1:{port}"
+        code, _, _ = Client(url).request_("/web/login")
+        if code in (200, 302, 303):
+            print(f"Odoo detected on port {port} ({url})")
+            return url
+    if candidats:
+        print(f"No answer on the detected port(s) {candidats}, waiting on port {candidats[0]}")
+        return f"http://127.0.0.1:{candidats[0]}"
+    print(f"No Odoo port detected, default {DEFAULT_URL}")
+    return DEFAULT_URL
+
+
 def main():
     parser = (I18N.parser if I18N else LocalizedArgumentParser)(description="Warms up the Odoo cache (public pages, assets, administration screens) after a restart.")
     parser.add_argument("-c", "--config", default=None, metavar="FILE",
@@ -568,7 +627,7 @@ def main():
     parser.add_argument("--site-languages", default=None, metavar="LIST", help=f"Site languages warmed up for every public page, comma-separated (default: {DEFAULT_LANGUAGES}; none: none). Key LANGS")
     parser.add_argument("--systemd-install", action="store_true", help="Run the warm-up after every start of the Odoo unit (systemd .d file, root)")
     parser.add_argument("--systemd-remove", action="store_true", help="Remove the automatic start installed by --systemd-install")
-    parser.add_argument("--url", default=None, metavar="URL", help=f"Odoo address (default: {DEFAULT_URL} : Odoo's HTTP port, bypassing nginx)")
+    parser.add_argument("--url", default=None, metavar="URL", help="Odoo address (default: automatic detection from the Odoo configuration file and the listening Odoo processes, then http://127.0.0.1:8069 ; bypasses nginx)")
     parser.add_argument("-v", "--verbose", action="store_true", help="Show each external command run")
     parser.add_argument("--version", action="version", version=f"odoo-warmup.py version {__version__}")
     parser.add_argument("--wait", type=int, default=None, metavar="SECONDS", help=f"Waits for Odoo to answer for {DEFAULT_WAIT} seconds at most (default) before warming up")
@@ -585,7 +644,7 @@ def main():
         eprint(f"ERROR: {e}")
         return 2
     VERBOSE = VERBOSE or bool(config.get("VERBOSE"))               # VERBOSE / DEBUG_LEVEL of the configuration file (common or own)
-    url = args.url or config.get("URL", DEFAULT_URL)
+    url = args.url or config.get("URL") or detect_odoo_url()
     database = args.db or config.get("DB")
     login = config.get("LOGIN")
     key_file = config.get("KEY_FILE")
