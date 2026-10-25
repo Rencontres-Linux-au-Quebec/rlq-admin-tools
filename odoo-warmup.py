@@ -51,7 +51,7 @@ try:                    # line editing in prompts
 except ImportError:
     pass
 
-__version__ = "1.14.20261025.175011"
+__version__ = "1.15.20261025.175745"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
@@ -550,16 +550,18 @@ class LocalizedArgumentParser(argparse.ArgumentParser):
         super().__init__(*args, **kwargs)
 
 
-def odoo_ports_from_conf():
-    """HTTP port written in the first Odoo configuration file found (apps/_odoo_conf.py); [] if none."""
+def odoo_conf_ports():
+    """(HTTP ports, gevent ports) of the first Odoo configuration file found (apps/_odoo_conf.py); ([], []) if none.
+    The gevent port (long polling, websocket) is not an HTTP instance: it is never probed as one."""
     module = load_module("_odoo_conf")
     if module is None:
-        return []
+        return [], []
     for chemin in module.chemins_candidats():
         if os.path.isfile(chemin):
-            port = module.lire(chemin)["http_port"]
-            return [int(port)] if port.isdigit() else []
-    return []
+            conf = module.lire(chemin)
+            http_port, gevent_port = conf["http_port"], conf["gevent_port"]
+            return ([int(http_port)] if http_port.isdigit() else []), ([int(gevent_port)] if gevent_port.isdigit() else [])
+    return [], []
 
 
 def _listening_lines():
@@ -602,8 +604,9 @@ def detect_odoo_url():
     ports of the listening Python processes. A candidate counts as Odoo only if /web/login answers 200 with "odoo" in the page.
     Exactly one Odoo answering: it is used. Several: nothing is chosen (None): the user must give --url or URL.
     None answering: the single candidate if there is one (Odoo may be starting), else the default port 8069."""
+    http_ports, gevent_ports = odoo_conf_ports()
     candidats = []
-    for port in odoo_ports_from_conf() + odoo_ports_listening():
+    for port in http_ports + [p for p in odoo_ports_listening() if p not in gevent_ports]:
         if port not in candidats:
             candidats.append(port)
     trouves = []

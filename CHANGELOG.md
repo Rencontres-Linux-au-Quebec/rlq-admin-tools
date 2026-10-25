@@ -466,6 +466,24 @@ Earlier history was archived outside this repository when this file was created.
 
 ## odoo-warmup.py
 
+### 1.15.20261025.175745 - The gevent port is not an Odoo instance
+
+- Title: The gevent (long polling) port of the Odoo configuration file is never taken for a second instance.
+- Reason: Odoo uses two ports: http_port (the web site, 10000 on the server) and gevent_port (long polling, 10002). Both listen, so the detection saw two instances and stopped.
+- Changes:
+  - odoo_conf_ports() replaces odoo_ports_from_conf(): returns the HTTP port and the gevent port of the configuration file.
+  - The gevent port is removed from the listening-port candidates and is never probed as an HTTP instance.
+  - Files: odoo-warmup.py.
+- Bugs fixed:
+  - Symptom: "several Odoo instances answer on ports [10000, 10002]" on a single Odoo instance.
+  - Diagnosis: the gevent port was a candidate like the HTTP port.
+  - Correction: exclusion of the gevent port.
+- Safeguards and edge cases:
+  - Without a configuration file, the gevent port is unknown; it is then only accepted if it answers 200 with "odoo" on /web/login.
+- Checks:
+  - py_compile; test suite test_odoo_warmup; a configuration with http_port 10000 and gevent_port 10002 gives 10000 only.
+- Action required: none if the configuration file is found. Otherwise set URL in /etc/default/odoo-warmup.conf.
+
 ### 1.14.20261025.175011 - Automatic detection only when a single Odoo instance answers
 
 - Title: Automatic detection only when exactly one Odoo instance answers; the program never needs root.
