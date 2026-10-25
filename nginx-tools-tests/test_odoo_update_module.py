@@ -90,16 +90,16 @@ class OdooUpdateModule(EnvTest):
         self.assertEqual(rc, 0, out + err)
         self.assertIn("site calme", out)
 
-    def test_199_attente_annulee_sans_force_et_passee_avec_force_busy(self):
+    def test_199_attente_annulee_meme_avec_force_busy_si_ecriture(self):
         self._journal_exemple()
         occupe = self._epoch("2026-10-22 16:09:00 UTC")
         rc, out, err = self.lancer("--wait-quiet", "0", ODOO_UPDATE_MODULE_NOW=occupe)
         self.assertEqual(rc, 3, out + err)
         self.assertIn("ANNULÉE", out)
         self.assertNotIn("systemctl stop erplibre_erplibre.service", self.appels())          # nothing was stopped
-        rc, out, err = self.lancer("--wait-quiet", "0", "--force-busy", ODOO_UPDATE_MODULE_NOW=occupe)
-        self.assertEqual(rc, 0, out + err)
-        self.assertIn("systemctl stop erplibre_erplibre.service", self.appels())
+        rc, out, err = self.lancer("--wait-quiet", "0", "--force-busy", ODOO_UPDATE_MODULE_NOW=occupe)     # 1.17: une ECRITURE bloque toujours
+        self.assertEqual(rc, 3, out + err)
+        self.assertNotIn("systemctl stop erplibre_erplibre.service", self.appels())
 
     def test_199_base_illisible_compte_comme_occupee(self):
         mauvais = self.write("pg-ko.sh", "#!/bin/bash\nexit 1\n", 0o755)
@@ -460,7 +460,7 @@ while IFS='|' read -r n e v a m c; do printf '%s\n' "$n$SEP$e$SEP$v$SEP$a$SEP$m$
         rc, out, err = self.lancer()
         self.assertEqual(rc, 0, out + err)
         self.assertIn("site occupé :", out)
-        self.assertIn("5 visiteur(s) actif(s)", out)                          # les 4 robots ne comptent pas
+        self.assertIn("5 visiteurs actifs", out)                          # les 4 robots ne comptent pas
         self.assertIn("site calme : aucune écriture HTTP ni en base", out)
         a = self.appels()
         self.assertLess(a.index("sleep 0"), a.index("systemctl stop erplibre_erplibre.service"))
@@ -474,7 +474,7 @@ while IFS='|' read -r n e v a m c; do printf '%s\n' "$n$SEP$e$SEP$v$SEP$a$SEP$m$
         self.assertIn("Attente d'un site calme (au plus 0 min", out)   # a single check, no wait
         self.journal_nginx([f"198.51.100.{i}" for i in range(5)])
         rc, out, err = self.lancer("--dry-run")
-        self.assertIn("maintenant occupé : 5 visiteur(s) actif(s)", out)
+        self.assertIn("maintenant occupé : 5 visiteurs actifs", out)
 
     def test_copie_des_modules_avant_la_mise_a_jour(self):
         rc, out, err = self.lancer()

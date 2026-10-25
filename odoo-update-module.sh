@@ -27,7 +27,7 @@
 #                                addons_path qui contient déjà ces modules
 #   --anonymize                  anonymise ce qui est affiché (adresses IP, courriels, identifiants, jetons) par des pseudonymes stables ; clé ANONYMIZE
 #   --backup                     sauvegarder la base avant (odoo-backup.sh --db BASE) ; échec = abandon, rien n'est arrêté
-#   --busy-visitors N            site occupé à partir de N visiteurs actifs (requête dans les 5 dernières minutes, robots exclus) ; défaut : BUSY_VISITORS, soit 3
+#   --busy-visitors N            site occupé à partir de N visiteurs actifs (requête dans les dernières VISITOR_WINDOW minutes, robots exclus) ; défaut : BUSY_VISITORS, soit 3
 #   --changelog                  affiche le journal des modifications
 #   --check-activity             état du site maintenant (visiteurs, écritures HTTP, base PostgreSQL) sans rien changer : 0 = calme, 3 = occupé
 #   -c, --config FILE            ce fichier de configuration SEUL (défaut : /etc/default/odoo-update-module.conf, puis
@@ -35,7 +35,7 @@
 #   --db NAME                    base à mettre à jour (défaut : « -d » de la commande du service, sinon db_name d'Odoo)
 #   --dry-run                    montrer ce qui serait fait (service, base, modules, commandes), sans rien arrêter ni écrire
 #   --force                      continuer malgré un Odoo lancé à la main (il est alors ignoré, pas arrêté)
-#   --force-busy                 mettre à jour MÊME si le site reste occupé après --wait-quiet (sinon la mise à jour est annulée) ; FORCE_BUSY
+#   --force-busy                 conservée pour compatibilité : les lectures seules ne bloquent jamais la mise à jour, les écritures la bloquent toujours (même avec cette option) ; FORCE_BUSY
 #   -h, --help                   affiche cette aide et quitte
 #   --lang LANG                  langue d'affichage : en ou fr (défaut : LANGUAGE du fichier de configuration, sinon LC_ALL / LC_MESSAGES / LANG)
 #   --module PATTERN             module à mettre à jour ; motif accepté (« rlq_* »), option répétable (défaut : MODULES, soit rlq_*)
@@ -51,6 +51,7 @@
 #   --user NAME                  compte sous lequel la mise à jour s'exécute (défaut : User= du service)
 #   -v, --verbose                afficher chaque commande externe exécutée (systemctl, runuser, odoo, ss)
 #   --version                    affiche la version et quitte
+#   --visitor-window MIN         fenêtre de comptage des visiteurs actifs, en minutes (défaut : VISITOR_WINDOW, soit 5)
 #   --wait-quiet MIN             attendre au plus MIN minutes que le site soit calme avant d'arrêter Odoo (défaut : WAIT_QUIET, soit 60 ; 0 = un seul contrôle) ;
 #                                au bout du délai, la mise à jour se fait quand même
 #   --zip FILE                   archive .zip des modules à décompresser avant la mise à jour (fichier, ou dossier : la plus récente) ; défaut : ZIP, sinon la plus
@@ -60,7 +61,8 @@
 # exécutée ; la ligne de commande l'emporte sur les fichiers) :
 #   ADDONS_DIR=                   dossier de décompression de l'archive .zip (vide : celui de addons_path qui contient déjà les modules)
 #   BACKUP=non                    sauvegarder avant (oui / non)
-#   BUSY_VISITORS=3               site occupé à partir de ce nombre de visiteurs actifs (5 dernières minutes, robots exclus)
+#   BUSY_VISITORS=3               site occupé à partir de ce nombre de visiteurs actifs (fenêtre VISITOR_WINDOW, robots exclus)
+#   VISITOR_WINDOW=5              fenêtre de comptage des visiteurs actifs, en minutes
 #   COMMAND=                      commande d'Odoo (vide : ./odoo_bin.sh du dossier du service, sinon odoo-bin)
 #   DATABASE=                     base (vide : « -d » du service, sinon db_name d'Odoo)
 #   LANGUAGE=auto                 langue d'affichage : en, fr ou auto (suivre LC_ALL / LANG)
@@ -84,7 +86,7 @@ set -euo pipefail
 for _d in /usr/local/sbin /usr/sbin /sbin; do [[ -n "${NGINX_TOOLS_TESTS:-}" ]] && break; case ":$PATH:" in *":$_d:"*) ;; *) PATH="$PATH:$_d" ;; esac; done
 export PATH
 
-readonly SCRIPT_VERSION="1.16.20261022.231529"
+readonly SCRIPT_VERSION="1.17.20261025.124729"
 SCRIPT_NAME="$(basename "${BASH_SOURCE[0]}" .sh)"; readonly SCRIPT_NAME
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
 SCRIPT_PATH="$SCRIPT_DIR/$(basename "${BASH_SOURCE[0]}")"; readonly SCRIPT_PATH
@@ -119,7 +121,7 @@ else C_RED=""; C_YELLOW=""; C_GREEN=""; C_RESET=""; C_CYAN=""; C_BOLD=""; C_DIM=
 # --- Options -----------------------------------------------------------------------------------------------------------
 SERVICE=""; SERVICE_DETECTE=0; MODULES_MOTIFS="rlq_*"; ONLY_DB=""; ODOO_CONF_OPT=""; ODOO_DIR=""; RUN_USER=""; COMMAND=""
 TIMEOUT=1800; WAIT=90; DO_BACKUP=0; DO_DRY_RUN=0; DO_FORCE=0; DO_WARMUP=1; VERBOSE=0; CLI_MODULES=0; ADDONS_DIR=""; ZIP_ARG=""
-WAIT_QUIET=60; BUSY_VISITORS=3; DO_ROLLBACK=1; FORCE_BUSY=0; CHECK_ACTIVITY=0                                           # 1.11: quiet site before stopping Odoo; rollback of the modules after errors
+WAIT_QUIET=60; BUSY_VISITORS=3; VISITOR_WINDOW=5; CLI_BUSY=0; CLI_WINDOW=0; CLI_WAIT=0; DO_ROLLBACK=1; FORCE_BUSY=0; CHECK_ACTIVITY=0                                          # 1.11: quiet site before stopping Odoo; rollback of the modules after errors
 NGINX_LOG_DIR="${ODOO_UPDATE_MODULE_NGINX_DIR:-/var/log/nginx}"
 MODULES_BACKUP_DIR="${ODOO_UPDATE_MODULE_BACKUP_DIR:-/var/backups/odoo-update-module}"
 LOG_DIR="${ODOO_UPDATE_MODULE_LOG_DIR:-/var/log/odoo-update-module}"
@@ -137,6 +139,7 @@ if declare -F config_lire >/dev/null; then
     config_defaut ADDONS_DIR ADDONS_DIR --addons-dir texte
     config_defaut DO_BACKUP BACKUP --backup booleen
     config_defaut BUSY_VISITORS BUSY_VISITORS --busy-visitors nombre
+    config_defaut VISITOR_WINDOW VISITOR_WINDOW --visitor-window nombre
     config_defaut MODULES_BACKUP_DIR MODULES_BACKUP_DIR MODULES_BACKUP_DIR texte
     config_defaut DO_ROLLBACK ROLLBACK --no-rollback booleen
     config_defaut WAIT_QUIET WAIT_QUIET --wait-quiet nombre
@@ -160,7 +163,7 @@ while [[ $# -gt 0 ]]; do
     case "$1" in
         --addons-dir) ADDONS_DIR="${2:-}"; shift 2 ;;
         --backup) DO_BACKUP=1; shift ;;
-        --busy-visitors) BUSY_VISITORS="${2:-}"; shift 2 ;;
+        --busy-visitors) BUSY_VISITORS="${2:-}"; CLI_BUSY=1; shift 2 ;;
         --check-activity) CHECK_ACTIVITY=1; shift ;;
         --force-busy) FORCE_BUSY=1; shift ;;
         --changelog)
@@ -195,7 +198,8 @@ while [[ $# -gt 0 ]]; do
         --user) RUN_USER="${2:-}"; shift 2 ;;
         -v|--verbose) VERBOSE=1; shift ;;
         --version) echo "odoo-update-module.sh version $SCRIPT_VERSION"; exit 0 ;;
-        --wait-quiet) WAIT_QUIET="${2:-}"; shift 2 ;;
+        --visitor-window) VISITOR_WINDOW="${2:-}"; CLI_WINDOW=1; shift 2 ;;
+        --wait-quiet) WAIT_QUIET="${2:-}"; CLI_WAIT=1; shift 2 ;;
         --zip) ZIP_ARG="${2:-}"; shift 2 ;;
         *) echo "Argument inconnu: $1 (voir --help)" >&2; exit 1 ;;
     esac
@@ -647,10 +651,10 @@ prechauffer() {
 
 
 # --- 1.11: quiet site, copy of the modules, check after the start, rollback -----------------------------------------------
-# active_visitors: number of addresses that made a request in the last 5 minutes (nginx access logs, end of each file only;
+# active_visitors SECONDS: number of addresses that made a request in the last SECONDS seconds (nginx access logs, end of each file only;
 # robots, tools and this server excluded); "?" if no log is readable.
 active_visitors() {
-    python3 - "$NGINX_LOG_DIR" <<'PYEOF'
+    python3 - "$NGINX_LOG_DIR" "${1:-300}" <<'PYEOF'
 import datetime, glob, os, re, sys
 LINE = re.compile(r'^(\S+)\s+\S+\s+\S+\s+\[([^\]]+)\]\s+"[^"]*"\s+\d{3}\s+\S+\s+"[^"]*"\s+"([^"]*)"')
 ROBOT = re.compile(r"bot|crawl|spider|slurp|curl|wget|python|go-http|monitor|uptime|preview", re.I)
@@ -673,7 +677,7 @@ for path in glob.glob(os.path.join(sys.argv[1], "*access*.log")):
             t = datetime.datetime.strptime(m.group(2), "%d/%b/%Y:%H:%M:%S %z")
         except ValueError:
             continue
-        if (now - t).total_seconds() <= 300:
+        if (now - t).total_seconds() <= float(sys.argv[2]):
             seen.add(m.group(1))
 print(len(seen) if readable else "?")
 PYEOF
@@ -747,51 +751,115 @@ for t, method, url in found[-3:]:
 PYEOF
 }
 
-site_reasons() {      # prints why the site is busy, one reason per line; nothing printed = calm. Reads only, changes nothing.
+# Reasons why the site is busy, one per line: "W|text" = a write, or a value that cannot be read (always blocks the update);
+# "R|text" = active visitors only (reads: the update goes ahead once the wait is over). Nothing printed = calm. Reads only, changes nothing.
+site_reasons() {
     local visiteurs w_sortie w_nombre dbv s l d
-    visiteurs=$(active_visitors 2>/dev/null || echo "?")
+    visiteurs=$(active_visitors "$(( VISITOR_WINDOW * 60 ))" 2>/dev/null || echo "?")
     if [[ "$visiteurs" == "?" ]]; then
-        echo "journaux d'accès de nginx illisibles dans $NGINX_LOG_DIR"
+        printf 'W|%s\n' "journaux d'accès de nginx illisibles dans $NGINX_LOG_DIR"
     elif (( visiteurs >= BUSY_VISITORS )); then
-        echo "$visiteurs visiteur(s) actif(s) dans les 5 dernières minutes (seuil : $BUSY_VISITORS)"
+        printf 'R|%s\n' "$visiteurs visiteurs actifs dans les $VISITOR_WINDOW dernières minutes (seuil : $BUSY_VISITORS)"
     fi
     w_sortie=$(nginx_writes 2>/dev/null || echo "?")
     w_nombre=$(head -n 1 <<< "$w_sortie")
     if [[ "$w_nombre" == "?" ]]; then
-        echo "journaux d'accès de nginx illisibles : écritures HTTP inconnues"
+        printf 'W|%s\n' "journaux d'accès de nginx illisibles : écritures HTTP inconnues"
     elif (( w_nombre > 0 )); then
-        echo "$w_nombre écriture(s) HTTP (POST…) dans les $(( ACTIVITY_WINDOW / 60 )) dernières minutes, la plus récente : $(tail -n 1 <<< "$w_sortie")"
+        printf 'W|%s\n' "$w_nombre écriture(s) HTTP (POST…) dans les $(( ACTIVITY_WINDOW / 60 )) dernières minutes, la plus récente : $(tail -n 1 <<< "$w_sortie")"
     fi
     dbv=$(db_activity)
     read -r s l d <<< "$dbv"
     if [[ "$dbv" == "?" ]]; then
-        echo "base PostgreSQL illisible (psql ou « sudo -n -u postgres » refusé) : activité inconnue"
+        printf 'W|%s\n' "base PostgreSQL illisible (psql ou « sudo -n -u postgres » refusé) : activité inconnue"
     else
-        if (( s > 0 )); then echo "$s session(s) PostgreSQL en cours sur la base $DB"; fi
-        if (( l > 0 )); then echo "$l verrou(x) d'écriture sur ir_cron (tâche planifiée en cours)"; fi
-        if (( d > 0 )); then echo "$d écriture(s) dans les tables d'activité pendant ${ACTIVITY_SAMPLE} s"; fi
+        if (( s > 0 )); then printf 'W|%s\n' "$s session(s) PostgreSQL en cours sur la base $DB"; fi
+        if (( l > 0 )); then printf 'W|%s\n' "$l verrou(x) d'écriture sur ir_cron (tâche planifiée en cours)"; fi
+        if (( d > 0 )); then printf 'W|%s\n' "$d écriture(s) dans les tables d'activité pendant ${ACTIVITY_SAMPLE} s"; fi
     fi
     return 0
 }
 
-wait_for_quiet_site() {   # waits at most WAIT_QUIET minutes for a calm site (polled every ODOO_UPDATE_MODULE_QUIET_POLL s). Still busy at the end:
-    local debut=$SECONDS poll="${ODOO_UPDATE_MODULE_QUIET_POLL:-30}" raisons resume
-    etape "Attente d'un site calme (au plus ${WAIT_QUIET} min ; occupé dès un visiteur actif, une écriture HTTP, une session ou un verrou PostgreSQL, ou une écriture en base)"
+# peut_demander: true when a person can answer (terminal on input and output); otherwise the configured values are used silently.
+peut_demander() { [[ -t 0 && -t 1 ]]; }
+
+# question_reponse TEXTE DEFAUT SECONDES: asks on the terminal (on stderr); prints the answer, or DEFAUT when empty or when nothing comes within SECONDES.
+question_reponse() {
+    local reponse=""
+    printf '%s' "$1" >&2
+    if ! IFS= read -r -t "$3" reponse; then echo >&2; reponse=""; fi
+    echo "${reponse:-$2}"
+}
+
+# lire_nombre TEXTE VARIABLE DEFAUT MINIMUM: asks for a whole number and stores it in VARIABLE (Enter, no answer, or a refused value = DEFAUT).
+lire_nombre() {
+    local reponse
+    reponse=$(question_reponse "$1" "$3" 10)
+    if [[ "$reponse" =~ ^[0-9]+$ ]] && (( reponse >= $4 )); then
+        printf -v "$2" '%s' "$reponse"
+    else
+        attn "valeur refusée : « $reponse » ; valeur par défaut conservée ($3)"
+        printf -v "$2" '%s' "$3"
+    fi
+}
+
+# demander_parametres_demarrage: questions at the start (threshold, window, wait), before any check. A value given on the command line is not asked again.
+demander_parametres_demarrage() {
+    if ! peut_demander; then
+        detail "paramètres (pas de terminal, valeurs par défaut) : seuil $BUSY_VISITORS visiteurs, fenêtre $VISITOR_WINDOW min, attente $WAIT_QUIET min"
+        return 0
+    fi
+    echo
+    detail "Paramètres du site (Entrée = valeur entre crochets ; sans réponse en 10 s, elle est gardée) :"
+    (( CLI_BUSY ))   || lire_nombre "  Seuil : site occupé à partir de combien de visiteurs actifs ? [$BUSY_VISITORS] " BUSY_VISITORS "$BUSY_VISITORS" 1
+    (( CLI_WINDOW )) || lire_nombre "  Pendant combien de minutes compte-t-on les visiteurs ? [$VISITOR_WINDOW] " VISITOR_WINDOW "$VISITOR_WINDOW" 1
+    (( CLI_WAIT ))   || lire_nombre "  Attendre au plus combien de minutes un site calme ? [$WAIT_QUIET] " WAIT_QUIET "$WAIT_QUIET" 0
+    detail "paramètres retenus : seuil $BUSY_VISITORS visiteurs, fenêtre $VISITOR_WINDOW min, attente $WAIT_QUIET min"
+}
+
+# changer_parametres: asked every ASK_EVERY seconds during the wait; no answer within 10 s = the settings are kept and the checks go on.
+changer_parametres() {
+    local reponse
+    reponse=$(question_reponse "  Changer les paramètres (seuil, fenêtre, attente) ? [o/N] " "n" 10)
+    case "${reponse,,}" in
+        o|oui|y|yes)
+            lire_nombre "  Seuil de visiteurs actifs ? [$BUSY_VISITORS] " BUSY_VISITORS "$BUSY_VISITORS" 1
+            lire_nombre "  Fenêtre de comptage, en minutes ? [$VISITOR_WINDOW] " VISITOR_WINDOW "$VISITOR_WINDOW" 1
+            lire_nombre "  Attente maximale, en minutes ? [$WAIT_QUIET] " WAIT_QUIET "$WAIT_QUIET" 0
+            detail "nouveaux paramètres : seuil $BUSY_VISITORS visiteurs, fenêtre $VISITOR_WINDOW min, attente $WAIT_QUIET min"
+            ;;
+    esac
+}
+
+# wait_for_quiet_site: waits while the site is busy, at most WAIT_QUIET minutes, checked every POLL seconds. RULE: a WRITE (HTTP, database, lock,
+# session, or a value that cannot be read) NEVER lets the update go ahead: at the end of the wait the update is cancelled and nothing is stopped.
+# Only reads (visitors above the threshold, no write) allow the update once the wait is over. Every ASK_EVERY seconds (300 by default), asks whether
+# to change the settings (10 s to answer; otherwise the settings are kept).
+wait_for_quiet_site() {
+    local debut=$SECONDS poll="${ODOO_UPDATE_MODULE_QUIET_POLL:-30}" ask_every="${ODOO_UPDATE_MODULE_ASK_EVERY:-300}"
+    local prochaine=$(( SECONDS + ask_every )) raisons ecritures resume r stamp
+    etape "Attente d'un site calme (au plus ${WAIT_QUIET} min ; occupé dès ${BUSY_VISITORS} visiteurs actifs, ou dès une écriture HTTP, une session ou un verrou PostgreSQL, ou une écriture en base)"
     while :; do
         raisons=$(site_reasons)
         if [[ -z "$raisons" ]]; then ok "site calme : aucune écriture HTTP ni en base, visiteurs actifs sous le seuil de $BUSY_VISITORS"; return 0; fi
-        resume=$(paste -sd ';' <<< "$raisons")
+        ecritures=$(grep '^W|' <<< "$raisons" || true)
+        resume=$(cut -d'|' -f2- <<< "$raisons" | paste -sd ';' -)
         if (( DO_DRY_RUN )); then sim "maintenant occupé : $resume"; return 0; fi
         if (( SECONDS - debut >= WAIT_QUIET * 60 )); then
-            if (( FORCE_BUSY )); then
-                attn "site toujours occupé après ${WAIT_QUIET} min (--force-busy) : mise à jour quand même : $resume"
+            if [[ -z "$ecritures" ]]; then
+                attn "fin de l'attente (${WAIT_QUIET} min) : seulement des lectures (visiteurs), mise à jour permise ($resume)"
                 return 0
             fi
-            ko "site toujours occupé après ${WAIT_QUIET} min : mise à jour ANNULÉE, rien n'a été arrêté ($resume). Relancer plus tard, ou --force-busy pour passer outre."
+            ko "site toujours en écriture après ${WAIT_QUIET} min : mise à jour ANNULÉE, rien n'a été arrêté ($resume). Relancer plus tard. --force-busy ne passe jamais outre une écriture."
             exit 3
         fi
-        echo "  ${C_YELLOW}site occupé :${C_RESET}"
-        while IFS= read -r r; do detail "· $r"; done <<< "$raisons"
+        stamp=$(date +%H:%M:%S)
+        echo "  ${C_YELLOW}[$stamp] site occupé :${C_RESET}"
+        while IFS= read -r r; do detail "· ${r#*|}"; done <<< "$raisons"
+        if (( SECONDS >= prochaine )); then
+            prochaine=$(( SECONDS + ask_every ))
+            if peut_demander; then changer_parametres; fi
+        fi
         sleep "$poll"
     done
 }
@@ -957,6 +1025,7 @@ if [[ -n "$ZIP_FICHIER" ]]; then ETAPES=$((ETAPES + 1)); fi
 ETAPES=$((ETAPES + 1))
 
 if (( CHECK_ACTIVITY )); then rapport_activite; exit $?; fi
+demander_parametres_demarrage                                 # 1.17: questions at the start (threshold, window, wait), defaults after 10 s
 echecs=0
 find_module_dirs
 if (( DO_BACKUP )); then sauvegarder || exit 1; fi

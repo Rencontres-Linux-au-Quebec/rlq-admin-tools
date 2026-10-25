@@ -540,6 +540,39 @@ Earlier history was archived outside this repository when this file was created.
 
 ## odoo-update-module.sh
 
+### 1.17.20261025.124729 - Start-up questions (threshold, window, wait); reads allowed, writes never; 5-minute settings prompt
+
+- Title: Start-up questions and periodic settings prompt; a write always blocks the update, reads alone do not.
+- Reason: The maintainer asked that the threshold, the counting window and the wait time be asked when the script starts (defaults taken from the
+  configuration files, after 10 seconds without an answer), that the busy message show the time, that the wording "visiteurs actifs" be used, and
+  that every 5 minutes during the wait the script asks whether to change the settings (10 seconds to answer). The update must never run while the
+  database or the website is being written to, but may run when there are only reads.
+- Changes:
+  - odoo-update-module.sh: new functions peut_demander, question_reponse, lire_nombre, demander_parametres_demarrage (asked before the checks),
+    changer_parametres (asked every ODOO_UPDATE_MODULE_ASK_EVERY seconds, default 300, during the wait).
+  - wait_for_quiet_site: prints "[HH:MM:SS] site occupé :" at each check; at the end of the wait, a write blocks the update (cancelled, nothing
+    stopped), reads alone let it go ahead with a warning.
+  - site_reasons: each reason is tagged W (write or unreadable value, always blocks) or R (active visitors only, reads). Messages now say
+    "visiteurs actifs".
+  - active_visitors: takes the window in seconds (default 300).
+  - New option --visitor-window MIN and configuration key VISITOR_WINDOW (default 5). The three questions are skipped for the values given on the
+    command line.
+  - --force-busy: kept for compatibility; it no longer overrides a write (it had no effect on reads, which were already allowed).
+  - lang/odoo-update-module.en.po: English translations of the new and changed messages and help lines; obsolete entries removed.
+  - nginx-tools-tests/test_odoo_update_module.py: assertions updated (new wording; a write stays blocked with --force-busy).
+  - Files: odoo-update-module.sh, lang/odoo-update-module.en.po, nginx-tools-tests/test_odoo_update_module.py, CHANGELOG.md.
+- Bugs fixed: none. Behaviour change: with --force-busy, a site with writes is no longer updated after the wait (it was before).
+- Safeguards and edge cases:
+  - Unreadable nginx logs or PostgreSQL state are treated as writes (never update blind).
+  - Without a terminal (cron, timer, pipe), no question is asked: the configured values are used and the script says so.
+  - A refused (non-numeric or too small) answer keeps the default value and shows a warning.
+  - --dry-run still shows the checks; the questions are asked only on an interactive terminal.
+- Checks:
+  - bash -n on odoo-update-module.sh; --help lists --visitor-window; non-interactive --dry-run prints the default values.
+  - nginx-tools-tests: test_odoo_update_module.py (39 tests, OK), test_i18n.py (32 tests, OK), test_conventions.py.
+  - Not run: the full run-all.sh suite (exceeded the time limit in this session).
+- Action required: review the behaviour change for --force-busy above; check the English messages on a server running in English.
+
 ### 1.16.20261022.231529 - Code comments translated to English
 
 - Title: Code comments translated to English (repository convention).
