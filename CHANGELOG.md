@@ -466,6 +466,29 @@ Earlier history was archived outside this repository when this file was created.
 
 ## odoo-warmup.py
 
+### 1.20.20261025.194640 - Site name read from the nginx configuration
+
+- Title: Without HOST, the warm-up finds the site name in the nginx configuration and goes through nginx.
+- Reason: The warm-up went directly to Odoo when HOST was not set, which produced the REQUEST_URI error at each start. The nginx configuration differs from one server to another, so the name is read from the files, not hard-coded.
+- Changes:
+  - nginx_names_for_port(PORT): reads NGINX_DIR/nginx.conf and sites-enabled/* (includes followed, comments removed), finds the upstream blocks that point to 127.0.0.1:PORT and the server blocks whose proxy_pass reaches them (directly or through set $variable), and returns their server_name (without _).
+  - via_nginx(HOST): probes /web/login over HTTPS with the site name (certificate checked).
+  - main(): HOST set -> nginx first, direct detection otherwise. HOST not set -> direct detection, then the site name from nginx when exactly one name reaches the Odoo port, then nginx.
+  - Several names reach the port: nothing is chosen; the message asks for HOST.
+  - Files: odoo-warmup.py.
+- Bugs fixed:
+  - Symptom: KeyError REQUEST_URI at each warm-up run while the visitors (through nginx) get no such error.
+  - Diagnosis: HOST was missing from the configuration, so the warm-up bypassed nginx.
+  - Correction: automatic site name from the nginx configuration.
+- Safeguards and edge cases:
+  - Reading the configuration needs no root (NGINX_DIR files are readable).
+  - Absent or unreadable nginx files: no name, direct connection as before.
+  - Two names reaching the port: no choice.
+  - Include depth limited to 5.
+- Checks:
+  - py_compile; test suite test_odoo_warmup; a copy of the server's configuration (upstream odoo -> 127.0.0.1:10000, set $odoo_backend odoo, include of the name file): 10000 gives odoo-dev.rencontres-linux.quebec, 9999 gives nothing; a second vhost to 10000 gives two names.
+- Action required: none if the configuration is as expected. If the warm-up says several names, set HOST in /etc/default/odoo-warmup.conf.
+
 ### 1.19.20261025.192521 - Default wait of 20 seconds instead of 120
 
 - Title: The default --wait (and key WAIT) is 20 seconds.
