@@ -61,6 +61,8 @@
 #WAIT_ANONYMOUS_LOW=2
 # low activity: fewer than N requests (robots excluded) in the VISITOR_WINDOW window
 #LOW_REQUESTS=10
+# maximum: a logged-in user counts only if active in the last N minutes (session may still be valid)
+#CONNECTED_WINDOW=15
 # préchauffer le cache d'Odoo après le redémarrage (odoo-warmup.py : pages publiques, derniers événements et sondages, administration) ; no = --no-warmup
 #WARMUP=yes
 # archive .zip des modules à décompresser avant la mise à jour (--zip) : un fichier, ou un dossier (la plus récente) ; vide : la plus récente « MODULE*.zip »
