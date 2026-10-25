@@ -37,7 +37,7 @@
 # --hide-addons: hide the INFO lines of the Odoo modules (odoo.addons.*), except errors, e-mails sent and generated files (PDF...) (q key on the fly)
 #HIDE_ADDONS=no
 # --hide-ip
-#HIDE_IP=no
+#HIDE_IP=yes
 # --highlight : mots surlignés en cyan dans les lignes affichées (virgule = plusieurs ; un mot tout en MAJUSCULES comme POST doit l'être dans la ligne,
 # les autres sans tenir compte de la casse ; « none » = aucun ; « +mot » ajoute un mot à la liste par défaut, « -mot » l'enlève : HIGHLIGHT=+odoo,-POST).
 # Valeur par défaut ci-dessous (« -2026- » avec un tiret à la fin est un MOT, pas un retrait) ; ajouter simplement d'autres mots à la suite. Touche l du menu à la volée (+mot / -mot y fonctionnent aussi).

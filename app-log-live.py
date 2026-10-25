@@ -105,7 +105,7 @@ from urllib.parse import unquote
 from collections import Counter, OrderedDict
 from concurrent.futures import Future
 
-__version__ = "1.106.20261025.113933"
+__version__ = "1.107.20261025.115115"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
@@ -194,6 +194,7 @@ def _underline_config(value):
     return n
 
 
+UNDERLINE_RATIO = 0.8                                             # 1.107: underlined lines stop at 80 % of the terminal width (COLUMNS)
 UNDERLINE_DEFAULT = 10                                                # --underline without N (and default since 1.98): one log line out of 10 underlined
 
 
@@ -4203,7 +4204,10 @@ class Output:
         rec = stream and self.rec_marker
         if underline and self.underline:
             columns = terminal_columns()
-            shown = "\n".join(underline_line(l, columns - REC_WIDTH - 1 if rec else columns) for l in shown.split("\n"))     # 1.93: the underline stops before "REC"
+            limit = int(columns * UNDERLINE_RATIO)                  # 1.107: 80 % of the terminal width
+            if rec:
+                limit = min(limit, columns - REC_WIDTH - 1)         # 1.93: the underline stops before "REC"
+            shown = "\n".join(underline_line(l, limit) for l in shown.split("\n"))
         if rec:
             shown = "\n".join(rec_mark(l) if l else l for l in shown.split("\n"))
         self.screen.write(shown if self.screen_color else ANSI_RE.sub("", shown))
@@ -5683,7 +5687,7 @@ def main():
                              f"details in the stream (default: {HEALTH_DEFAULT:g}; 0 = never)")
     parser.add_argument("--hide-addons", action="store_true",
                         help="Hide the INFO lines of the Odoo modules (odoo.addons.*), except errors (WARNING, ERROR, traces), e-mails sent and generated files (PDF reports…); q key on the fly")
-    parser.add_argument("--hide-ip", action="store_true", help="Do not show the IP address in brackets after the name")
+    parser.add_argument("--hide-ip", dest="hide_ip", action="store_true", help="Do not show the IP address in brackets after the name (default)")
     parser.add_argument("--highlight", default=None, metavar="WORDS",
                         help=f"Words highlighted in cyan in the displayed lines (comma = several; an ALL-CAPS word, like POST, must be in caps in the line; others are case-insensitive); "
                              f"'none': no word; '+word' adds a word to the default list, '-word' removes it (--highlight=+odoo,-POST). Default: {HIGHLIGHT_DEFAULT}. HIGHLIGHT key of the configuration file; key l of the menu")
@@ -5719,6 +5723,8 @@ def main():
     parser.add_argument("--no-banned", action="store_true", help="No [banned: …] label (reads neither fail2ban nor the CrowdSec ipsets)")
     parser.add_argument("--only", action="append", default=None, metavar="TEXT",
                         help="Only the lines that contain TEXT (name, address, URL, module…, case-insensitive); repeatable: one OR the other")
+    parser.add_argument("--show-ip", dest="hide_ip", action="store_false",
+                        help="Show the IP address in brackets after the name (default: hidden; HIDE_IP=no in the configuration file)")
     parser.add_argument("--slow", type=float, default=5.0, metavar="SECONDS",
                         help="Odoo requests slower than SECONDS (SQL + Python): durations in orange, in red at 3 times the threshold, with the total (default 5; 0: disabled)")
     parser.add_argument("--steps-line", action="store_true", help="The steps of a test recording (N key) on ONE white reverse-video line, updated at each step (screen only); F key of the menu; STEPS_LINE of the configuration file")
@@ -5759,9 +5765,10 @@ def main():
     parser.add_argument("--no-anonymize", dest="anonymize", action="store_false", help="Show the real IP addresses, e-mails and names (cancels --anonymize)")
     parser.add_argument("--no-underline", dest="underline", action="store_const", const=0, help="No underlined line (same as --underline 0)")
     parser.add_argument("--underline", type=int, nargs="?", const=UNDERLINE_DEFAULT, default=UNDERLINE_DEFAULT, metavar="N",
-                        help="One log line out of N underlined on screen, up to the end of the screen line (without N: 10; default: 10; 0 = none); U key of the menu; UNDERLINE of the configuration file")      # 10 = UNDERLINE_DEFAULT
+                        help="One log line out of N underlined on screen, up to 80 percent of the screen width (without N: 10; default: 10; 0 = none); U key of the menu; UNDERLINE of the configuration file")      # 10 = UNDERLINE_DEFAULT
     parser.set_defaults(underline=UNDERLINE_DEFAULT)            # 1.91: --no-underline is declared first (its None would otherwise win)
     parser.set_defaults(min=MIN_DEFAULT)                       # 1.98: --min by default (MIN=no or --no-min: everything)
+    parser.set_defaults(hide_ip=True)                           # 1.107: the IP address is hidden by default (HIDE_IP=no in the configuration file, or --show-ip)
     parser.set_defaults(anonymize=None)                         # None: on a terminal only (a pipe, another program, a test: real values)
     parser.add_argument("--version", action="version", version=f"app-log-live.py version {__version__}")
     if "--version" not in sys.argv[1:]:       # first line of EVERY run, even --help: name and version (--version displays it itself)

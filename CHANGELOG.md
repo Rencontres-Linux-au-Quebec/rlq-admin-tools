@@ -91,6 +91,35 @@ Earlier history was archived outside this repository when this file was created.
 
 ## app-log-live.py
 
+### 1.107.20261025.115115 - IP address hidden by default; underlined lines at 80 percent of the terminal width
+
+- Title: IP address hidden by default (HIDE_IP=yes); underlined lines stop at 80 percent of the terminal width (COLUMNS).
+- Reason: The IP address in brackets is hidden by default now (it was shown unless --hide-ip was given). The underlined lines (--underline) ran to the end of the terminal line; the request is to stop them at 80 percent of the width.
+- Changes:
+  - HIDE_IP: the default is now yes (set_defaults(hide_ip=True) before the configuration file is applied, so HIDE_IP=no in the file still shows the address).
+  - New option --show-ip (same destination as --hide-ip; shows the address). --hide-ip keeps working.
+  - Underlined lines: UNDERLINE_RATIO = 0.8 of the terminal width (terminal_columns(), that is COLUMNS). With the REC marker, the underline still stops before "REC".
+  - Help text of --underline: "up to 80 percent of the screen width" (no percent sign: argparse reads it as a format).
+  - doc/en and doc/fr app-log-live.conf.example: HIDE_IP=yes in the commented example.
+  - lang/app-log-live.fr.po: new and updated messages (--hide-ip, --show-ip, --underline), so the French help text does not fall back to word substitution.
+  - Version: __version__ 1.107.20261025.115115.
+  - Files: app-log-live.py, lang/app-log-live.fr.po, doc/en/app-log-live.conf.example, doc/fr/app-log-live.conf.example, CHANGELOG.md.
+- Bugs fixed:
+  - Symptom: the help text of --underline ended with "%" in the French catalogue and --help crashed (TypeError: %d format).
+  - Diagnosis: argparse formats help strings with the % operator; any percent sign in a help text must be written as %%, or avoided.
+  - Fix: the percent sign is replaced by the words "percent" (English) and "pour cent" (French).
+- Safeguards and edge cases:
+  - Config file priority kept: set_defaults runs before I18N.defauts(), so HIDE_IP in /etc/default or ~/.app-log-live.conf still wins over the new default; command-line options still win over the file.
+  - Underline with --no-underline or --underline 0: unchanged (no underline).
+  - Width unknown: terminal_columns() falls back to 100 columns (80 underlined).
+- Checks:
+  - python3 -I -m py_compile app-log-live.py: OK.
+  - app-log-live.py --version: 1.107.20261025.115115.
+  - app-log-live.py --help: runs (English and French help), --show-ip shown in the options list.
+  - Underline width check: 100 columns gives an underline of 80 columns.
+  - Not run: nginx-tools-tests/run-all.sh (to be run before the pull request is merged).
+- Action required: none. Note: the HIDE_IP default changes what is shown; use --show-ip or HIDE_IP=no to see the addresses again.
+
 ### 1.106.20261025.113933 - Summary: site default language read from Odoo (root only)
 
 - Title: Summary: the « without prefix » pages show the site's default language, read from Odoo (root only).
