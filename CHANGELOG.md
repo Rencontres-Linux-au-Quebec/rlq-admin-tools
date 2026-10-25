@@ -466,6 +466,25 @@ Earlier history was archived outside this repository when this file was created.
 
 ## odoo-warmup.py
 
+### 1.17.20261025.191509 - Up to four tries for a public page answering 5xx
+
+- Title: A public page answering 5xx is requested up to four times, one second apart.
+- Reason: After a restart, Odoo runs several processes and each builds its template cache at its first render. One retry (version 1.16) could still reach a process that was not ready yet. The log showed a 500, then a 200 one second later on the same page.
+- Changes:
+  - load_page(): up to PUBLIC_ATTEMPTS (4) tries, RETRY_PAUSE (1 second) between them; the last answer is recorded.
+  - Files: odoo-warmup.py.
+- Bugs fixed:
+  - Symptom: a 500 in the Odoo log at each start, even with 1.16.
+  - Diagnosis: a single retry does not guarantee to reach a warm process; the log showed several processes loading the registry.
+  - Correction: several tries.
+- Safeguards and edge cases:
+  - Only 5xx answers are retried; a 404 (optional page) is not.
+  - A page still answering 5xx after four tries is recorded as a failure.
+  - Calling /web/login first was considered and not kept: it answers 303 and does not render the layout.
+- Checks:
+  - py_compile; test suite test_odoo_warmup; scripted client: 500, 500, 200 is recorded as 200 after 3 calls; five times 500 is recorded as 500 after 4 calls.
+- Action required: none. The 500 may still appear in the Odoo log at a cold start; the warm-up reports it as success if a later try answers 200.
+
 ### 1.16.20261025.185140 - One retry for a public page answering 5xx
 
 - Title: A public page answering 5xx is requested once more after one second.
