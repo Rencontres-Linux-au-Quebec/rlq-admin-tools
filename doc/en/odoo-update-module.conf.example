@@ -14,15 +14,17 @@
 #ANONYMIZE=no
 # sauvegarder la base avant (--backup)
 #BACKUP=no
-# --busy-visitors : site occupé à partir de N visiteurs actifs (requête dans les 5 dernières minutes, robots exclus)
+# --busy-visitors: site busy from N active visitors (requests in the last VISITOR_WINDOW minutes, robots excluded)
 #BUSY_VISITORS=3
+# --visitor-window: window for counting active visitors, in minutes
+#VISITOR_WINDOW=5
 # commande d'Odoo ; vide : ./odoo_bin.sh du dossier du service, sinon odoo-bin (défaut : ./odoo_bin.sh du dossier du service, sinon odoo-bin)
 #COMMAND=
 # base (--db) ; vide : « -d » de la commande du service, sinon db_name d'Odoo (défaut : « -d » du service, sinon db_name d'Odoo)
 #DATABASE=
 # en, fr ou auto (suivre LC_ALL / LC_MESSAGES / LANG). Ordre de choix : --lang, NGINX_TOOLS_LANG, ODOO_UPDATE_MODULE_LANG, cette clé, LC_ALL, LC_MESSAGES, LANG.
 # Ajouter une langue = ajouter le fichier lang/odoo-update-module.XX.po (format PO : Poedit, Weblate...) - voir lang/README.md.
-# --force-busy : update even if the site stays busy after --wait-quiet (FORCE_BUSY=yes; default: the update is cancelled)
+# --force-busy: kept for compatibility; writes always block the update (FORCE_BUSY=yes; no effect on reads)
 #FORCE_BUSY=no
 #LANGUAGE=auto
 # modules à mettre à jour, séparés par des espaces ; motifs acceptés (--module, répétable)
@@ -47,8 +49,18 @@
 # attente maximale du démarrage après la mise à jour (service actif, puis port à l'écoute), en secondes
 #WAIT=90
 # --check-activity : state of the site now (visitors, HTTP writes, PostgreSQL), changes nothing: exit 0 = quiet, 3 = busy
-# --wait-quiet : wait at most N minutes for a quiet site before stopping Odoo (0 = a single check; then the update is CANCELLED unless --force-busy)
-#WAIT_QUIET=60
+# --wait-quiet: fixed wait for a quiet site, in minutes (0 = a single check); empty (default): delays by profile below
+#WAIT_QUIET=
+# maximum wait, in minutes, when a logged-in user is active (website_visitor table: partner_id, last_connection_datetime)
+#WAIT_CONNECTED=60
+# same when activity is low (fewer than LOW_REQUESTS requests in the window)
+#WAIT_CONNECTED_LOW=3
+# maximum wait, in minutes, when only anonymous visitors are active
+#WAIT_ANONYMOUS=30
+# same when activity is low
+#WAIT_ANONYMOUS_LOW=2
+# low activity: fewer than N requests (robots excluded) in the VISITOR_WINDOW window
+#LOW_REQUESTS=10
 # préchauffer le cache d'Odoo après le redémarrage (odoo-warmup.py : pages publiques, derniers événements et sondages, administration) ; no = --no-warmup
 #WARMUP=yes
 # archive .zip des modules à décompresser avant la mise à jour (--zip) : un fichier, ou un dossier (la plus récente) ; vide : la plus récente « MODULE*.zip »

@@ -540,6 +540,84 @@ Earlier history was archived outside this repository when this file was created.
 
 ## odoo-update-module.sh
 
+### 1.19.20261025.130618 - ShellCheck clean: unused variables removed
+
+- Title: ShellCheck warnings on the start-up and wait changes fixed (no behaviour change).
+- Reason: The maintainer pointed out that ShellCheck was available to check the program; the check reported three warnings (SC2034) on code added
+  in 1.17 and 1.18.
+- Changes:
+  - odoo-update-module.sh: CLI_WAIT removed (the fixed delay is WAIT_QUIET, non-empty when given); unused local var removed from demander_attentes;
+    FORCE_BUSY kept for compatibility, with a ShellCheck directive above the option loop.
+  - Files: odoo-update-module.sh, CHANGELOG.md.
+- Bugs fixed: none (no behaviour change).
+- Safeguards and edge cases: --wait-quiet still fixes the delay for every profile; the question about the maximal waits is still skipped when WAIT_QUIET is set.
+- Checks: shellcheck -x odoo-update-module.sh (ShellCheck 0.11.0, from the project archive): clean; bash -n; test_odoo_update_module.py (39 tests, OK).
+- Action required: none.
+
+### 1.18.20261025.125933 - Maximum waits by profile: logged-in users 60/3 min, anonymous visitors 30/2 min
+
+- Title: Maximum wait depends on who is on the site (logged-in users or anonymous visitors) and on the activity level.
+- Reason: The maintainer asked that a logged-in user who is active on the website allows at most 60 minutes of waiting (3 minutes when the
+  activity is low), and that when only anonymous visitors are present, who can change little, the maximum is 30 minutes (2 minutes when the
+  activity is low). Confirmed definitions: a logged-in user is a website_visitor row with partner_id set and last_connection_datetime within the
+  VISITOR_WINDOW; low activity is fewer than LOW_REQUESTS (10) requests, robots excluded, in the same window.
+- Changes:
+  - odoo-update-module.sh: new functions visiteurs_connectes (PostgreSQL, table website_visitor), requetes_recentes (nginx logs),
+    attente_maximale (sets ATTENTE_MAX and ATTENTE_PROFIL, checked at every poll). The 2 maxima and their low-activity values are read from the
+    configuration files (WAIT_CONNECTED, WAIT_CONNECTED_LOW, WAIT_ANONYMOUS, WAIT_ANONYMOUS_LOW) and LOW_REQUESTS.
+  - WAIT_QUIET is now empty by default: a value given (configuration or --wait-quiet) fixes the delay for every profile.
+  - Start-up questions and the 5-minute prompt now ask the two maxima (logged-in, anonymous) unless WAIT_QUIET is fixed.
+  - The busy messages show the current maximum and its profile.
+  - doc/en and doc/fr: odoo-update-module.conf.example and 09-odoo-update-module.md list the new keys.
+  - lang/odoo-update-module.en.po: translations of the new messages; obsolete entries removed.
+  - nginx-tools-tests/test_odoo_update_module.py: expectation updated for the new wording.
+  - Files: odoo-update-module.sh, doc/en/odoo-update-module.conf.example, doc/fr/odoo-update-module.conf.example,
+    doc/en/09-odoo-update-module.md, doc/fr/09-odoo-update-module.md, lang/odoo-update-module.en.po,
+    nginx-tools-tests/test_odoo_update_module.py, CHANGELOG.md.
+- Bugs fixed: none.
+- Safeguards and edge cases:
+  - If the PostgreSQL table cannot be read, the logged-in delays apply (users are never cut short by an unknown state).
+  - If the nginx logs cannot be read, the request count is unknown and the normal activity delay applies.
+  - Writes still block the update at the end of the wait, whatever the profile.
+- Checks:
+  - bash -n; --help shows the new keys; test_odoo_update_module.py (39 tests); test_i18n.py (32 tests); test_docs.py; test_config_defaut.py
+    (the only failure is app-log-live.py --show-ip, not related to this change).
+- Action required: confirm that the reading of "activité faible" (fewer than 10 requests in the window) and of the logged-in user (website_visitor)
+  matches what you want; check that the Odoo version of this server has website_visitor.last_connection_datetime.
+
+### 1.17.20261025.124729 - Start-up questions (threshold, window, wait); reads allowed, writes never; 5-minute settings prompt
+
+- Title: Start-up questions and periodic settings prompt; a write always blocks the update, reads alone do not.
+- Reason: The maintainer asked that the threshold, the counting window and the wait time be asked when the script starts (defaults taken from the
+  configuration files, after 10 seconds without an answer), that the busy message show the time, that the wording "visiteurs actifs" be used, and
+  that every 5 minutes during the wait the script asks whether to change the settings (10 seconds to answer). The update must never run while the
+  database or the website is being written to, but may run when there are only reads.
+- Changes:
+  - odoo-update-module.sh: new functions peut_demander, question_reponse, lire_nombre, demander_parametres_demarrage (asked before the checks),
+    changer_parametres (asked every ODOO_UPDATE_MODULE_ASK_EVERY seconds, default 300, during the wait).
+  - wait_for_quiet_site: prints "[HH:MM:SS] site occupé :" at each check; at the end of the wait, a write blocks the update (cancelled, nothing
+    stopped), reads alone let it go ahead with a warning.
+  - site_reasons: each reason is tagged W (write or unreadable value, always blocks) or R (active visitors only, reads). Messages now say
+    "visiteurs actifs".
+  - active_visitors: takes the window in seconds (default 300).
+  - New option --visitor-window MIN and configuration key VISITOR_WINDOW (default 5). The three questions are skipped for the values given on the
+    command line.
+  - --force-busy: kept for compatibility; it no longer overrides a write (it had no effect on reads, which were already allowed).
+  - lang/odoo-update-module.en.po: English translations of the new and changed messages and help lines; obsolete entries removed.
+  - nginx-tools-tests/test_odoo_update_module.py: assertions updated (new wording; a write stays blocked with --force-busy).
+  - Files: odoo-update-module.sh, lang/odoo-update-module.en.po, nginx-tools-tests/test_odoo_update_module.py, CHANGELOG.md.
+- Bugs fixed: none. Behaviour change: with --force-busy, a site with writes is no longer updated after the wait (it was before).
+- Safeguards and edge cases:
+  - Unreadable nginx logs or PostgreSQL state are treated as writes (never update blind).
+  - Without a terminal (cron, timer, pipe), no question is asked: the configured values are used and the script says so.
+  - A refused (non-numeric or too small) answer keeps the default value and shows a warning.
+  - --dry-run still shows the checks; the questions are asked only on an interactive terminal.
+- Checks:
+  - bash -n on odoo-update-module.sh; --help lists --visitor-window; non-interactive --dry-run prints the default values.
+  - nginx-tools-tests: test_odoo_update_module.py (39 tests, OK), test_i18n.py (32 tests, OK), test_conventions.py.
+  - Not run: the full run-all.sh suite (exceeded the time limit in this session).
+- Action required: review the behaviour change for --force-busy above; check the English messages on a server running in English.
+
 ### 1.16.20261022.231529 - Code comments translated to English
 
 - Title: Code comments translated to English (repository convention).
