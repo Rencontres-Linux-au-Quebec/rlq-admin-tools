@@ -91,6 +91,51 @@ Earlier history was archived outside this repository when this file was created.
 
 ## app-log-live.py
 
+### 1.110.20261025.172827 - "Who is connected now" shown from level 5
+
+- Title: The list of connected users is shown from dashboard level 5 (Ctrl-G and Ctrl-T), not at every level.
+- Reason: Request from the maintainer: the connected users must appear when the level is 5 or more, not only at level 9.
+- Changes:
+  - app-log-live.py, summary(): the `people` lines are added when level >= 5 (both return paths). Before this version (1.109), they were added at every level.
+  - app-log-live.py, table_rows(): comment updated.
+  - Version: __version__ 1.110.20261025.172827.
+  - Files: app-log-live.py, CHANGELOG.md.
+- Bugs fixed: none.
+- Safeguards and edge cases:
+  - Levels 1 to 4: connected users are hidden (as before 1.109). Levels 5 to 8: shown without the "Program efficiency" block. Level 9: everything, as before.
+  - Detection unchanged (ssh_sessions(), Odoo presence).
+- Checks:
+  - python3 -I -m py_compile app-log-live.py: OK.
+  - app-log-live.py --version: 1.110.20261025.172827.
+  - logged_in_lines() with a fake "who" in PATH: "Connected over SSH: 1 (martial ×1)".
+  - Not run: the full test suite test_app_log_live.py (to be run with the testeur agent before the pull request is merged).
+- Action required: none.
+
+### 1.109.20261025.162831 - "Who is connected now" shown with Ctrl-T at every level
+
+- Title: The list of connected users is shown by Ctrl-T (and Ctrl-G) whatever the dashboard level.
+- Reason: Report from the maintainer: Ctrl-T did not show the connected users, although the command "who" lists them on the server.
+- Changes:
+  - app-log-live.py, table_rows(): the block "Who is connected now" (Odoo presence and SSH sessions, from logged_in_lines()) is built apart and passed to summary() as the new argument `people`.
+  - app-log-live.py, summary(): new argument `people=()`; its lines are added at every level, before the "Program efficiency" block. Before, the whole "extras" block (connected users, program efficiency, Odoo network connections) was shown only at level 9.
+  - "Program efficiency" and "Odoo network connections" keep their level 9 display.
+  - Version: __version__ 1.109.20261025.162831.
+  - Files: app-log-live.py, CHANGELOG.md.
+- Bugs fixed:
+  - Symptom: Ctrl-T shows the requests of the period but no "Who is connected now" section, while "who" lists an open SSH session.
+  - Diagnosis: the connected-users block was part of the extras, and the extras are added to the summary only when the dashboard level is 9. Any lower level (keys 1 to 8, or LEVEL=1 to 8 in /etc/default/app-log-live.conf or ~/.app-log-live.conf) hides it.
+  - Fix: the block is no longer gated by the level.
+- Safeguards and edge cases:
+  - No change to the detection: ssh_sessions() still reads "who" and keeps only the lines with an origin address; the Odoo presence is unchanged.
+  - The new argument has a default (empty tuple): every other caller of summary() behaves as before.
+  - When there is no request in the lines shown, the connected users are still displayed.
+- Checks:
+  - python3 -I -m py_compile app-log-live.py: OK.
+  - app-log-live.py --version: 1.109.20261025.162831.
+  - With a fake "who" in PATH (one SSH session from a remote address), logged_in_lines() returns the expected "Connected over SSH: 1 (martial ×1)" line.
+  - Not run: the full test suite nginx-tools-tests/test_app_log_live.py (too long in this session; network and DNS dependent). To be run before the pull request is merged.
+- Action required: none. To check on the server: press Ctrl-T; the "Who is connected now" section must list the same SSH sessions as "who".
+
 ### 1.108.20261025.150359 - Country next to each name in "Requests by name (DNS column)"
 
 - Title: The country of the address is shown next to each name in the summary.
