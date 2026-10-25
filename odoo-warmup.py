@@ -51,7 +51,7 @@ try:                    # line editing in prompts
 except ImportError:
     pass
 
-__version__ = "1.15.20261025.175745"
+__version__ = "1.16.20261025.185140"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
@@ -60,6 +60,7 @@ SYSTEM_CONF = os.path.join(os.environ.get("NGINX_TOOLS_ETC_DEFAULT", "/etc/defau
 USER_CONF = "~/.odoo-warmup.conf"
 SYSTEMD_DIR = os.environ.get("NGINX_TOOLS_SYSTEMD_DIR", "/etc/systemd/system")                       # variable: tests only
 DEFAULT_URL = "http://127.0.0.1:8069"
+RETRY_PAUSE = 1.0                                   # seconds before the second try of a public page answering 5xx
 DEFAULT_PAGES = ["/", "/web/login", "/event", "/survey"]
 DEFAULT_MODELS = ["event.event", "event.registration", "event.event.ticket", "survey.survey", "survey.user_input", "res.partner"]
 VIEWS = [[False, "list"], [False, "form"], [False, "search"], [False, "kanban"]]
@@ -342,6 +343,9 @@ def language_variants(text, languages, path):
 def load_page(client, path, tally, assets, languages=()):
     """A public page (failure of an optional page: noted, not counted), its assets and its versions in the `languages`. Returns the HTML text."""
     code, duration, text = client.request_(path)
+    if code >= 500:                                   # first render of a page can fail while Odoo builds its template cache: one retry
+        time.sleep(RETRY_PAUSE)
+        code, duration, text = client.request_(path)
     if is_optional(path) and not 200 <= code < 400:
         tally.add_ignore(path, code, duration, "optional")
     else:
