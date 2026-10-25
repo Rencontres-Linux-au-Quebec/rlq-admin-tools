@@ -1,58 +1,58 @@
 #!/usr/bin/env python3
 # ========================================================================================================================
 # Copyright (C) 2026 Services-Conseils Linux Inc.
-# Copyright (C) 2026 Rencontres Linux au Québec contributors
+# Copyright (C) 2026 Rencontres Linux au Quebec contributors
 #
 # This program is free software: you can redistribute it and/or modify it under the terms of the GNU Affero General Public
 # License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
 # Full text: https://www.gnu.org/licenses/agpl-3.0.html
 # ========================================================================================================================
 #
-# app-log-live.py — the application journal IN REAL TIME (Odoo: "journalctl --lines 50 -fu erplibre.service"), formatted:
+# app-log-live.py - the application journal IN REAL TIME (Odoo: "journalctl --lines 50 -fu erplibre.service"), formatted:
 #   * LOCAL date and time in the format 2026-10-02 10:07:18.33 (hundredths): no more duplicate of Odoo's UTC time or of the PID;
 #     the date "[02/Oct/2026 14:07:18]" of werkzeug requests is removed (it is already at the start of the line);
 #   * each IP address replaced by what is known about it, followed by the address in brackets, in this order:
 #       1. the NAME of the person who has already logged in to the site from this address (Odoo journal, "Login successful for
-#          db:… login:… from IP"; name read from PostgreSQL read-only, otherwise the login; a login that arrives
+#          db:... login:... from IP"; name read from PostgreSQL read-only, otherwise the login; a login that arrives
 #          WHILE displaying is learned immediately);
 #       2. the team label (whitelist), or "this server" (loopback, address of the server); on the address of a PLACE: "Person | Place" (several accounts: "Place | Person +1 other account(s)");
 #       3. the DNS name (reverse DNS);
 #       4. failing that, the OWNER of the address block according to RDAP (rdap.org, otherwise whois): "Name (org)" = registered organization,
 #          "NAME (network)" = only the technical name of the network. It is NOT necessarily an internet provider (host, cloud, search
 #          engine, company) and all the addresses of that block carry the same name. --no-isp: no outside request;
-#   * COMPACT PRESENTATION: "2026-10-07 22:46:02.82 odoo18 odoo INFO CA 11.191.124.32    name … "GET … " — no ":" after the program or after the logger, address and country WITHOUT
+#   * COMPACT PRESENTATION: "2026-10-07 22:46:02.82 odoo18 odoo INFO CA 11.191.124.32    name ... "GET ... " - no ":" after the program or after the logger, address and country WITHOUT
 #     brackets (country BEFORE the address, no comma) in a column of 18 characters, and the "- -" of a request (RFC 1413 identity and HTTP user, always "-" in Odoo) removed (never when there is a real
 #     user); addresses quoted INSIDE a message keep "name [CA address]";
-#   * ALIGNMENT: the name that replaces the address takes AT LEAST 45 characters (--dns-max N: N without ever truncating, 20 without a value; --dns-max-truncate N: cut at N, "…" at the end,
+#   * ALIGNMENT: the name that replaces the address takes AT LEAST 45 characters (--dns-max N: N without ever truncating, 20 without a value; --dns-max-truncate N: cut at N, "..." at the end,
 #     32 without a value); on lines WITHOUT an address (Odoo messages such as odoo.addons.mail.models.mail_mail), the text starts at the column of the GET / POST of requests (never above the number columns); the GET of all
 #     the line types (werkzeug, websocket "longpolling", with or without --min) starts at the same column, and the redundant ISO date of a websocket is removed;
 #   * NUMBERS AFTER THE HTTP CODE (legend at startup): Odoo "200 - 105 0.046 0.426" = size, SQL queries, SQL time, Python time; websocket "101 494 14.6" = size, duration;
 #     colors when high (SQL >= 300 orange, >= 1000 red; size >= 1 MB / 10 MB; durations according to --slow);
-#   * TEST RECORDING (1.93): R starts / stops a recording (label asked; « REC » at column $COLUMNS-4 meanwhile; the .tar.xz archive of the window, noise left out,
-#     see apps/_record.py) — --record-test-log MIN records without the keyboard, then exits; N (while recording) starts / ends a step with a description (steps.txt);
+#   * TEST RECORDING (1.93): R starts / stops a recording (label asked; "REC" at column $COLUMNS-4 meanwhile; the .tar.xz archive of the window, noise left out,
+#     see apps/_record.py) - --record-test-log MIN records without the keyboard, then exits; N (while recording) starts / ends a step with a description (steps.txt);
 #   * STEPS LINE (1.99): F key (or --steps-line, STEPS_LINE) shows ALL the steps of the recording on ONE white reverse-video line, at each step (screen only).
-#   * KEY MENU (? or h): toggles and settings on the fly — a --accentuate-group, A --anonymize, c --chime, e --exclude-ip, T --time-report, U --underline N, d --dns-max, t --dns-max-truncate, H --health, i --hide-ip, l --highlight, m --min, M --modules (table of the installed Odoo modules, sorted by name, date, creation, version, author or state), o --only, r error report (--report-err),
+#   * KEY MENU (? or h): toggles and settings on the fly - a --accentuate-group, A --anonymize, c --chime, e --exclude-ip, T --time-report, U --underline N, d --dns-max, t --dns-max-truncate, H --health, i --hide-ip, l --highlight, m --min, M --modules (table of the installed Odoo modules, sorted by name, date, creation, version, author or state), o --only, r error report (--report-err),
 #     s --suspect, v --verbose, V version; S survey registrations, I event registrations, b addresses to ban (nginx-log-audit.sh --ban, like web-monitor.py).
-#   * KEYBOARD DASHBOARD (terminal only, --no-keys: disabled): Ctrl-G = health (✔ ⚠ ✖ with the detail of the problems), efficiency of the program (CPU, memory, input/output,
+#   * KEYBOARD DASHBOARD (terminal only, --no-keys: disabled): Ctrl-G = health (check mark / warning / cross symbols, with the detail of the problems), efficiency of the program (CPU, memory, input/output,
 #     address cache), pages per language (EN, FR, ES), HTTP codes, top 10 URLs, Odoo errors; Ctrl-T = only what changed since the last display; --health MIN:
 #     automatic alert with the detail, ONLY if there is a problem;
 #   * DAILY JOURNAL: the live stream (not the startup history) is also written WITH its colors to FOLDER/app-log-live-YYYY-MM-DD.log (mode 600, 30 days kept; --log-dir,
 #     --log-keep-days, --no-log-file): "less -R file" or "tail -f file";
-#   * INVERSE VIDEO: the URL of a SUSPICIOUS request (WordPress, .php, phpMyAdmin, .env, .git, backups, directory traversal, Odoo database manager…) in MAGENTA; the URL of an HTTP 5xx (red) or 4xx (yellow) error, only the URL; the address of a machine of the WHITELIST (white background) or of the PLACES file
-#     (gray background), black text (explicit colors: readable on any theme) — with --hide-ip, it is the name that is; the login page keeps its style except on 5xx; a legend is displayed at startup;
+#   * INVERSE VIDEO: the URL of a SUSPICIOUS request (WordPress, .php, phpMyAdmin, .env, .git, backups, directory traversal, Odoo database manager...) in MAGENTA; the URL of an HTTP 5xx (red) or 4xx (yellow) error, only the URL; the address of a machine of the WHITELIST (white background) or of the PLACES file
+#     (gray background), black text (explicit colors: readable on any theme) - with --hide-ip, it is the name that is; the login page keeps its style except on 5xx; a legend is displayed at startup;
 #   * [banned: fail2ban] / [banned: CrowdSec] at the end of the line when the address is CURRENTLY banned (fail2ban-client, ipsets crowdsec-blocklist-v4 / -v6 of sync-crowdsec-blocklist.sh,
 #     "nomatch" = exception; re-read every 60 s; root required; never for the whitelist or a place; --no-banned: disabled);
-#   * SLOW REQUESTS: Odoo duration (SQL + Python) >= --slow seconds (5 by default): both durations in bold orange, bold red at 3 times the threshold, and "← slow: 12.3 s";
-#   * FILTERS: --suspect (only suspicious requests); --not-found (only 404 answers, and the summary lists ALL these pages); --only TEXT (name, address, URL, module… case-insensitive, repeatable: one OR the other); both
+#   * SLOW REQUESTS: Odoo duration (SQL + Python) >= --slow seconds (5 by default): both durations in bold orange, bold red at 3 times the threshold, and "<- slow: 12.3 s";
+#   * FILTERS: --suspect (only suspicious requests); --not-found (only 404 answers, and the summary lists ALL these pages); --only TEXT (name, address, URL, module... case-insensitive, repeatable: one OR the other); both
 #     add up; a Python trace follows the decision of its first line; the summary counts only the displayed lines;
 #   * SESSION SUMMARY when stopping with Ctrl-C (and with --summary at the end of a --no-follow): most active addresses, requests by name (the DNS column: identified
 #     names only, the addresses without a name are counted apart; Ctrl-T gives the period), suspicious requests (with [banned]), 5xx and 4xx errors,
 #     slow requests, banned addresses seen;
-#   * PRESENCE: "● login", "✕ logout", "○ no activity since N min" inserted in the stream, and a summary of who is
+#   * PRESENCE: "login" (filled circle), "logout" (cross), "no activity since N min" (empty circle) inserted in the stream, and a summary of who is
 #     still logged in after the history (see "Logged in" below);
 #   * colors: HTTP codes (200 green, 3xx cyan, 4xx red, 5xx bold red), levels and error words (ERROR and Traceback in red,
 #     WARNING in orange), logins to the site (login, /web/login) in white on blue; --min: the minimum of information.
-#   * COUNTRY: "Name [CA address]" (local geoiplookup database if it exists, otherwise RDAP — the same call as the internet provider; never
+#   * COUNTRY: "Name [CA address]" (local geoiplookup database if it exists, otherwise RDAP - the same call as the internet provider; never
 #     for this server, a private network or the team);
 #   * 127.0.0.1 and the addresses of this server: never a person; the PROGRAM is named (app-health-check.py for its health probes);
 #   * LOGIN: as soon as a person logs in, their lines of the last --recap seconds (120), displayed higher up without a name, are
@@ -71,7 +71,7 @@
 #   app-log-live.py --lines 500              ... with 500 messages of history
 #   app-log-live.py --min                    the minimum: without database name or "werkzeug", without fetchmail noise
 #   app-log-live.py --hide-ip                without the IP address in brackets after the name
-#   app-log-live.py --no-truncate            whole log lines (by default: shortened to $COLUMNS - 10, « start ... last two words »)
+#   app-log-live.py --no-truncate            whole log lines (by default: shortened to $COLUMNS - 10, "start ... last two words")
 #   app-log-live.py --no-anonymize           real IP addresses, e-mails and names on screen (by default: stable pseudonyms IP-4f2a9c, membre-4f2a9c; A key on the fly)
 #   app-log-live.py --underline 3            one log line out of 3 underlined to the end of the screen line (by default 10; --no-underline: none)
 #   app-log-live.py --no-follow              displays the last messages then stops (for a pipe or a file)
@@ -119,7 +119,7 @@ def _start():
         spec.loader.exec_module(module)
         globals()["I18N_MODULE"] = module
         # 1.91: --anonymize is applied HERE, piece by piece between the color codes (a colored address or name stays recognized): never relaunched
-        # behind the output filter of apps/_traduire.py, which saw « \x1b[…m11.191.124.32 » as a word and left colored addresses and names in clear
+        # behind the output filter of apps/_traduire.py, which saw "\x1b[...m11.191.124.32" as a word and left colored addresses and names in clear
         os.environ["NGINX_TOOLS_ANON_SELF"] = "1"
         try:
             return module.demarrer(SCRIPT_DIR, SCRIPT_NAME, "APP_LOG_LIVE_LANG", ("_bbb", "_listes", "nginx-log-audit", "_connexions", "_limites"))
@@ -153,7 +153,7 @@ def foreground_child():
 LANGUAGE = I18N.langue if I18N else "fr"
 TR = I18N.tr if I18N else (lambda text: text)
 if I18N:
-    print, input = I18N.print, I18N.input          # noqa: A001 — all displayed text goes through the translator (no effect in French)
+    print, input = I18N.print, I18N.input          # noqa: A001 - all displayed text goes through the translator (no effect in French)
 # Configuration file options (/etc/default/app-log-live.conf, then the personal file .app-log-live.conf): KEY -> (command-line option, type).
 # LANGUAGE: en, fr or auto (follow LC_ALL / LANG).
 def _comma_list(value):
@@ -209,7 +209,7 @@ LINES_DEFAULT = 50
 DAYS_DEFAULT = 0                                                      # 0 = the whole journal history
 IDLE_DEFAULT = 15.0                                                 # minutes without activity before "no more activity"
 REPORT_DEFAULT = 60.0                                                 # --time-report without a value: minutes between two periodic reports
-LEVEL_MAX = 9                                                        # dashboard levels: 1 (verdict) to 9 (everything) — keys 1 to 9, --level
+LEVEL_MAX = 9                                                        # dashboard levels: 1 (verdict) to 9 (everything) - keys 1 to 9, --level
 CONNECTIONS_THRESHOLD_DEFAULT = 80.0                                          # % of use of a limit (connections, descriptors, PostgreSQL, nginx) from which a WARNING is displayed; --connections
 DISK_MIN_DEFAULT = 5.0                                               # free GB below which a WARNING is displayed (journals partition); --disk-min
 HEALTH_DEFAULT = 10.0                                                   # minutes between two automatic health checks (alert only if there is a problem)
@@ -244,7 +244,7 @@ ERROR_WORDS_RE = re.compile(r"Traceback \(most recent call last\):|\b[A-Za-z_][\
 # --min: usual noise lines, discarded EXCEPT if it is an error (level WARNING, ERROR or CRITICAL, or a trace)
 MIN_EXCLUDED_RE = re.compile(r"^(?:odoo\.addons\.mail\.models\.fetchmail: |odoo\.addons\.base\.models\.ir_cron: Job 'Mail: Fetchmail Service)")
 # 1.99 --steps-line (F key): all the steps of a recording on one white line; --record-max: 60 minutes at most (default and maximum, 0 refused).
-# 1.97 --hide-addons: INFO / DEBUG lines of the Odoo modules (logger odoo.addons.*) are hidden EXCEPT e-mails being sent and generated files (PDF reports…);
+# 1.97 --hide-addons: INFO / DEBUG lines of the Odoo modules (logger odoo.addons.*) are hidden EXCEPT e-mails being sent and generated files (PDF reports...);
 # errors (WARNING, ERROR, CRITICAL, traces) are never hidden. Searched on "logger: text".
 ADDONS_KEEP_RE = re.compile(r"successfully sent|\bmail_mail\b|\bir_mail_server\b|mail delivery|\bsmtp\b|ir_actions_report|wkhtmltopdf|\bpdf\b|\.(?:pdf|xlsx?|docx?|csv|zip)\b"
                             r"|report has been generated|\breport\b.*\bgenerat", re.IGNORECASE)
@@ -252,7 +252,7 @@ ADDONS_KEEP_RE = re.compile(r"successfully sent|\bmail_mail\b|\bir_mail_server\b
 REQUEST_RE = re.compile(r'"(?:GET|POST|HEAD|PUT|DELETE|OPTIONS|PATCH|CONNECT|TRACE)\s(\S+).*"\s(\d{3})\b')
 # 3-letter methods (GET, PUT): one more space after them so that their URL aligns with that of POST / HEAD (4 letters)
 SHORT_METHOD_RE = re.compile(r'"(?:GET|PUT)( )(?=\S+.*"\s\d{3}\b)')
-# SUSPICIOUS requests: neither Odoo nor BigBlueButton (WordPress, PHP, phpMyAdmin…), sensitive files (.env, .git, backups, keys), directory traversal, exposed Odoo
+# SUSPICIOUS requests: neither Odoo nor BigBlueButton (WordPress, PHP, phpMyAdmin...), sensitive files (.env, .git, backups, keys), directory traversal, exposed Odoo
 # database manager. Same spirit as SENSITIVE_RE of nginx-log-audit.sh; search on the decoded URL (%2e%2e = ..).
 SUSPECT_WP = r"/wp-(?:admin|content|includes|login|json|config|cron)|/wp(?:/|\?|$)|/wordpress(?:/|\?|$)|wlwmanifest|xmlrpc\.php|\.php(?:\b|$)"    # suspicious on an Odoo site ONLY (normal under WordPress)
 SUSPECT_BASE = (
@@ -278,8 +278,8 @@ def regler_cms(cms, bbb_server=False):
 THRESHOLD_404 = 5               # DIFFERENT pages in 404 for the same address: probe sweep, address to ban (like a suspicious request)
 NAME_WIDTH = 45            # MINIMUM width (never truncated) of the name that replaces the address, and of the first field (the logger) of lines without an address
 DNS_MAX_DEFAULT = 20         # --dns-max without a value: width of the names column (never truncated)
-DNS_TRUNCATE_DEFAULT = 32     # --dns-max-truncate without a value: width AND limit of the names column (the rest is cut, "…" at the end)
-NAME_TRUNCATE = 45            # limit of the names (default: cut at the width of the column, "…" at the end); 0 = never truncated (--dns-max)
+DNS_TRUNCATE_DEFAULT = 32     # --dns-max-truncate without a value: width AND limit of the names column (the rest is cut, "..." at the end)
+NAME_TRUNCATE = 45            # limit of the names (default: cut at the width of the column, "..." at the end); 0 = never truncated (--dns-max)
 # Numbers after the HTTP code: thresholds above which they change color (orange, then red)
 SQL_HIGH, SQL_VERY_HIGH = 300, 1000                       # number of SQL queries of a page
 SIZE_HIGH, SIZE_VERY_HIGH = 1_000_000, 10_000_000   # bytes of the response
@@ -311,10 +311,10 @@ STYLES = {"person": "1;32", "team": "1;32", "place": "1;36", "server": "36", "dn
           "suspect": "7;35", "url_critical": "7;91", "url_warning": "7;93", "blanche": "107;30", "place_ip": ("48;5;245" if COLORS_256 else "47") + ";30",
           "accent": "1;97;48;5;18" if COLORS_256 else "1;97;44",       # contact of the --accentuate-group group: bold white on dark blue
           "banned": "1;91", "slow_request": "1;" + ORANGE, "very_slow_request": "1;31", "title": "1;36"}
-# Duration of an Odoo request (werkzeug): "… 200 - 105 0.046 0.426" = code, size, SQL queries, SQL time, Python time (seconds)
+# Duration of an Odoo request (werkzeug): "... 200 - 105 0.046 0.426" = code, size, SQL queries, SQL time, Python time (seconds)
 DURATION_RE = re.compile(r'"\s\d{3}\s\S+\s(\d+)\s(\d+\.\d+)\s(\d+\.\d+)\s*$')
 # Same line: the size (bytes or "-") and the number of SQL queries, to color them when they are high
-# Whole werkzeug request: '"GET /url HTTP/1.1" 200 - 13 0.006 0.066' — the block "HTTP/1.1 200 - 13 0.006 0.066" is displayed BEFORE "GET /url" (aligned columns)
+# Whole werkzeug request: '"GET /url HTTP/1.1" 200 - 13 0.006 0.066' - the block "HTTP/1.1 200 - 13 0.006 0.066" is displayed BEFORE "GET /url" (aligned columns)
 WERKZEUG_RE = re.compile(r'"((?:GET|POST|HEAD|PUT|DELETE|OPTIONS|PATCH|CONNECT|TRACE)\s.*?) (HTTP/\d(?:\.\d)?)"\s(\d{3})\s(\S+)(?:\s(\d+)\s(\d+\.\d+))?\s(\d+\.\d+)\s*$')
 SQL_SIZE_RE = re.compile(r'"\s\d{3}\s(\S+)\s(\d+)\s\d+\.\d+\s\d+\.\d+\s*$')
 
@@ -334,7 +334,7 @@ def percent_text(n, total):
 
 def numbers(text, style="1;36"):
     """The numbers (and their "%") of a summary line in color; "2xx", "EN" and the words stay as they are."""
-    return NUMBER_RE.sub(lambda m: color_code(style, m.group(0)), TR(text))      # 1.83: translated first (a colored « 95 % » split the fragment « % under »)
+    return NUMBER_RE.sub(lambda m: color_code(style, m.group(0)), TR(text))      # 1.83: translated first (a colored "95 %" split the fragment "% under")
 
 
 MEASURE_RE = re.compile(r"(?<![\w.])\d+(?:[.,]\d+)?(?: ?(?:%|[KMGT]?o\b(?:/s)?))?(?!\w)")
@@ -342,7 +342,7 @@ MEASURE_RE = re.compile(r"(?<![\w.])\d+(?:[.,]\d+)?(?: ?(?:%|[KMGT]?o\b(?:/s)?))
 
 def measured_numbers(text, style="1;36"):
     """The measures of a line ("0.4 %", "39.8 MB", "55.5 KB/s", "0 B", "194", decimals included) in color; the words stay as they are."""
-    return MEASURE_RE.sub(lambda m: color_code(style, m.group(0)), TR(text))     # 1.83: translated first (a colored « 67.6 KB/s » split « /s, of which disk »)
+    return MEASURE_RE.sub(lambda m: color_code(style, m.group(0)), TR(text))     # 1.83: translated first (a colored "67.6 KB/s" split "/s, of which disk")
 
 
 TIMES_RE = re.compile(r"×\d+")
@@ -544,7 +544,7 @@ def find_ips(text_line):
 # A journal line, parsed
 # ------------------------------------------------------------------------------------------------------------------
 DATA_URI_RE = re.compile(r"(data:[\w/+.-]+;base64,)[A-Za-z0-9+/=]{20,}'?")
-# Secrets in the lines (Google access token in /auth_oauth/signin?…access_token=…, password, reset token…): their VALUE is never displayed or counted;
+# Secrets in the lines (Google access token in /auth_oauth/signin?...access_token=..., password, reset token...): their VALUE is never displayed or counted;
 # Odoo's own journal is not modified. "token_type=Bearer" is not a secret.
 # LINEAR-time expressions: never a nested repetition or a prefix "(word_)*" (on a long line of words_separated_by_underscores, 1.54 took seconds,
 # then minutes: the live display stopped). The keyword is searched directly; what precedes it ("access_") does not need to be read: only the value is replaced.
@@ -699,7 +699,7 @@ class Line:
     (cleaned: without werkzeug's redundant date). Line without a recognized header (BigBlueButton): everything is in "text"."""
     def __init__(self, raw_line):
         raw_line = DATA_URI_RE.sub(r"\1[… base64 omis]", raw_line)                  # image pasted in an e-mail: never thousands of characters on screen
-        raw_line = mask_secrets(raw_line)                                          # access token, password…: never displayed
+        raw_line = mask_secrets(raw_line)                                          # access token, password...: never displayed
         self.raw_line = raw_line
         self.ts_txt = self.instant = self.host_name = self.program_name = self.level = self.database = self.logger = None
         self.text = raw_line
@@ -997,7 +997,7 @@ def thread_stacks(names=None):
 WATCHDOG_DELAY = float(os.environ.get("APP_LOG_LIVE_WATCHDOG", "8"))      # seconds without progress before the watchdog alert (0: disabled)
 
 
-INTERACTIVE = [0]        # > 0: the main thread is deliberately waiting for an answer (question, investigation, ban) — the watchdog keeps quiet
+INTERACTIVE = [0]        # > 0: the main thread is deliberately waiting for an answer (question, investigation, ban) - the watchdog keeps quiet
 
 
 @contextlib.contextmanager
@@ -1057,7 +1057,7 @@ def local_address(ip):
 
 
 # 1.91: names of people (logged-in accounts) and team labels shown by this program -> (prefix, stable key). Given to apps/_anonymiser.py: with --anonymize
-# they become « membre-4f2a9c » / « equipe-4f2a9c » on screen (the daily journal keeps them). Logins that are not a person are never registered.
+# they become "membre-4f2a9c" / "equipe-4f2a9c" on screen (the daily journal keeps them). Logins that are not a person are never registered.
 KNOWN_NAMES = {}
 KNOWN_NAMES_LOCK = threading.Lock()
 NOT_A_PERSON = {"admin", "administrator", "administrateur", "public", "__system__", "odoobot", "demo", "portal", "default"}
@@ -1319,7 +1319,7 @@ class Resolver:
         if a.is_loopback or ip in self.server:                  # never a person: several programs, sometimes a tunnel
             return ("server", "this server", None)
         place = self.lists.lieu(ip) if self.lists is not None else None
-        if place is not None and place.partagee:                   # university, office…: several people, the PLACE is named
+        if place is not None and place.partagee:                   # university, office...: several people, the PLACE is named
             return ("place", short_caption(place.libelle or "shared place"), None)
         accounts = self.people.accounts(ip)
         if accounts:
@@ -1503,7 +1503,7 @@ def render(kind_name, text, ip, keep_ip, pays=None, category=None, accent=False)
     if accent and kind_name == "person":                         # member of the --accentuate-group group: bold white on dark blue
         style = STYLES["accent"]
     shown = text + suffix
-    if NAME_TRUNCATE and len(shown) > NAME_TRUNCATE:               # --dns-max-truncate N: at most N characters, the last one is "…"
+    if NAME_TRUNCATE and len(shown) > NAME_TRUNCATE:               # --dns-max-truncate N: at most N characters, the last one is "..."
         shown = shown[:NAME_TRUNCATE - 1] + "…"
     name = ip if raw else color_code(style, shown)
     return name, ([pays] if pays else []) + ([ip] if keep_ip else []), raw, category
@@ -1741,7 +1741,7 @@ class Formatting:
         if L.level is not None:                                         # new structured Odoo entry: the trace is over
             self.in_trace = False
             self.benign_ongoing = benign
-            # Logger other than werkzeug ("longpolling" of websockets…): longer "database logger" (or displayed in --min): the name is shortened accordingly, the GET stays aligned
+            # Logger other than werkzeug ("longpolling" of websockets...): longer "database logger" (or displayed in --min): the name is shortened accordingly, the GET stays aligned
             displayed = ([] if self.minimal else [L.database]) + ([] if self.hidden_logger(L) else [L.logger])
             reference = 0 if self.minimal else len("base werkzeug") + 1
             self.offset = (len(" ".join(displayed)) + 1 if displayed else 0) - reference
@@ -1770,8 +1770,8 @@ class Formatting:
                 visible = " ".join(renderings[ip0][1])
                 colored = crochets(renderings[ip0][1], ip0, renderings[ip0][3], surrounded=False)
                 if renderings[ip0][1][0] == ip0:                        # 1.91: no country (loopback, private network, lookup too slow): the address stays
-                    visible, colored = "   " + visible, "   " + colored  # under the addresses of the other lines (« CA 11.191.124.32 »)
-            # Level longer than INFO (WARNING, ERROR…): the difference is taken from the padding of the address column, so that everything stays aligned
+                    visible, colored = "   " + visible, "   " + colored  # under the addresses of the other lines ("CA 11.191.124.32")
+            # Level longer than INFO (WARNING, ERROR...): the difference is taken from the padding of the address column, so that everything stays aligned
             column = colored + " " * max(0, self.width - len(visible) - max(0, len(L.level) - 4))
         header = []
         if L.ts_txt:
@@ -1880,7 +1880,7 @@ class Presence:
             widths = [max(len(r[k]) for r in ranked) for k in (1, 2, 3, 4)]
             headers = ("State", "Name", "Address", "Last activity")
             widths = [max(l, len(t)) for l, t in zip(widths, headers)]
-            widths[0] = max(widths[0], 15)                                   # room for the French « ✕ déconnecté(e) » (the translation never changes the column positions)
+            widths[0] = max(widths[0], 15)                                   # room for the French "logout" label (the translation never changes the column positions)
             lines.append("  " + color_code(STYLES["debug"], "  ".join(t.ljust(l) for t, l in zip(headers, widths)) + "  " + TR("Detail")))
             for kind_name, state, name, address, date, detail in ranked:
                 text = "  ".join(c.ljust(l) for c, l in zip((state, name, address, date), widths)) + "  " + detail
@@ -2384,7 +2384,7 @@ def check_modules(odoo_db, conf, databases_seen):
             lines.append("    " + color_code(ORANGE, f"⚠ {len(pending)} pending: ") + ", ".join(f"{n} ({e})" for n, e in pending[:8])
                           + color_code("90", " — interrupted update or installation: restart with -u"))
         personal = [m for m in installed if "odoo s.a." not in m["auteur"].lower()]
-        rlq = sorted((m for m in installed if m["nom"].lower().startswith("rlq")), key=lambda m: m["nom"])         # the Rencontres Linux Québec modules: ALWAYS displayed, with their version
+        rlq = sorted((m for m in installed if m["nom"].lower().startswith("rlq")), key=lambda m: m["nom"])         # the Rencontres Linux Quebec modules: ALWAYS displayed, with their version
         if personal or rlq:
             others = [m for m in personal if not m["nom"].lower().startswith("rlq")]
             recent_ones = sorted((m for m in others if m.get("maj")), key=lambda m: (m["maj"], m["nom"]), reverse=True)[:5]
@@ -2470,7 +2470,7 @@ def modules_table(state, database, sort_by=(MODULES_SORT_DEFAULT, False, False),
     values = {"name": lambda m: m["nom"].lower(), "version": lambda m: version_key(m["version"]), "author": lambda m: (m["auteur"] or "").lower(),
                "state": lambda m: m["etat"], "date": lambda m: m.get("maj") or "", "created": lambda m: m.get("cree") or ""}
     with_value = [m for m in installed if values[key_value](m) not in ("", (0,))]
-    without = [m for m in installed if m not in with_value]               # without a value (unknown date…): always at the end
+    without = [m for m in installed if m not in with_value]               # without a value (unknown date...): always at the end
     natural_reverse = key_value in MODULES_DATES
     with_value.sort(key=lambda m: (values[key_value](m), m["nom"]), reverse=natural_reverse != inverse)
     sort_lines = with_value + sorted(without, key=lambda m: m["nom"])
@@ -2555,7 +2555,7 @@ def truncate_line(text_line, limit):
     return "".join(out)
 
 
-TAIL_RE = re.compile(r"(?:\[[^\]]*\]|\S+)\s+(?:\[[^\]]*\]|\S+)\s*$")      # last two words; « [banned: CrowdSec] » counts as ONE word (the URL stays visible)
+TAIL_RE = re.compile(r"(?:\[[^\]]*\]|\S+)\s+(?:\[[^\]]*\]|\S+)\s*$")      # last two words; "[banned: CrowdSec]" counts as ONE word (the URL stays visible)
 TRUNCATE_AUTO = -2                                      # --truncate not given: on a terminal only (argparse would apply type=int to a text default)
 ELLIPSIS = "..."                                        # 1.88: marker between the start of a shortened line and its last two words
 
@@ -2591,7 +2591,7 @@ def colored_prefix(text, limit):
     return "".join(out) + ("\x1b[0m" if colored else "")
 
 
-MESSAGE_START_RE = re.compile(r'"[A-Z]{3,9} ')                   # 1.91: start of the request of a werkzeug / nginx line (« "GET  /url" »)
+MESSAGE_START_RE = re.compile(r'"[A-Z]{3,9} ')                   # 1.91: start of the request of a werkzeug / nginx line ("GET  /url" with quotes)
 COLUMN_PADDING_RE = re.compile(r" {3,}(?=\S)")                  # padding of a column: the message of an Odoo line starts after the last one
 
 
@@ -2640,7 +2640,7 @@ def underline_line(text_line, width=None):
     return "\x1b[4m" + re.sub(r"\x1b\[0?m", "\x1b[0;4m", text_line) + padding + "\x1b[0m"
 
 
-REC_WIDTH = 4                                           # 1.93: « REC » occupies the 3 columns from $COLUMNS - 4 (0-based) and one column stays free at the end
+REC_WIDTH = 4                                           # 1.93: "REC" occupies the 3 columns from $COLUMNS - 4 (0-based) and one column stays free at the end
 REC_STYLE = "1;97;41"                                   # bold white on red (explicit text AND background: readable on any theme)
 STEPS_LINE_STYLE = "30;107"                              # 1.99: steps line (F key): black text on white background, both explicit (white reverse video)
 STEP_STYLE = "1;30;46"                                   # 1.95: step marker (N key): bold black on cyan, explicit background
@@ -3053,11 +3053,11 @@ class Bans:
     def read_fail2ban():
         code, output = lancer_root(["fail2ban-client", "banned"], 10)
         if code == 0:
-            try:                              # fail2ban >= 0.11: "[{'jail': ['1.2.3.4']}, …]"
+            try:                              # fail2ban >= 0.11: "[{'jail': ['1.2.3.4']}, ...]"
                 return {ipaddress.ip_address(a) for jail in ast.literal_eval(output.strip() or "[]") for addresses in jail.values() for a in addresses}
             except (ValueError, SyntaxError, AttributeError, TypeError):
                 pass
-        code, output = lancer_root(["fail2ban-client", "status"], 10)             # fallback: "Jail list: a, b" then "Banned IP list: …" per jail
+        code, output = lancer_root(["fail2ban-client", "status"], 10)             # fallback: "Jail list: a, b" then "Banned IP list: ..." per jail
         if code != 0:
             return None
         m = re.search(r"Jail list:\s*(.*)", output)
@@ -3266,16 +3266,16 @@ class Resources:
 
 
 # ------------------------------------------------------------------------------------------------------------------
-# 1.82: LATENCY — what slows the requests down over hours (disk, processor, memory, or the code itself). A sampler thread reads the kernel counters every
+# 1.82: LATENCY - what slows the requests down over hours (disk, processor, memory, or the code itself). A sampler thread reads the kernel counters every
 # LATENCY_SAMPLE_S seconds (apps/_sysperf.py: a few small /proc files, no external command); every Odoo request (SQL time + Python time of its journal
 # line) is filed in the bin of its hour, classified "disk busy" or "disk calm" according to the last sample. Nothing is kept per request: a few numbers per
 # hour, whatever the length of the session.
 # ------------------------------------------------------------------------------------------------------------------
 LATENCY_SAMPLE_S = float(os.environ.get("APP_LOG_LIVE_LATENCY_SAMPLE", "30"))
 IO_BUSY_PSI = 10.0           # % of the time with at least one task waiting for the disk (PSI io "some") from which the disk is "busy"
-IO_BUSY_UTIL = 60.0          # … or % of utilization of the busiest disk
+IO_BUSY_UTIL = 60.0          # ... or % of utilization of the busiest disk
 SLOW_LATENCY_S = 1.0         # slow request for the latency report (independent of --slow, which only colors the lines)
-HIST_BASE, HIST_RATIO, HIST_N = 0.005, 1.25, 48           # duration histogram: 5 ms × 1.25^k (up to ~ 230 s)
+HIST_BASE, HIST_RATIO, HIST_N = 0.005, 1.25, 48           # duration histogram: 5 ms x 1.25^k (up to ~ 230 s)
 
 
 def in_container():
@@ -3482,7 +3482,7 @@ class LatencyMonitor:
                 aw.append(f"read {t['await_r'] / t['await_r_n']:.1f} ms")
             if t["await_w_n"]:
                 aw.append(f"write {t['await_w'] / t['await_w_n']:.1f} ms")
-            kinds = [f"{d} " + ("ZFS volume" if d.startswith("zd") else ("RAID " if d.startswith("md") else "") + ("HDD" if v else "SSD" if v is False else "?")) for d, v in sorted(self.disks_seen.items())]      # 1.83: name + kind (« ?, HDD » said nothing; zdN = ZFS volume)
+            kinds = [f"{d} " + ("ZFS volume" if d.startswith("zd") else ("RAID " if d.startswith("md") else "") + ("HDD" if v else "SSD" if v is False else "?")) for d, v in sorted(self.disks_seen.items())]      # 1.83: name + kind ("?, HDD" said nothing; zdN = ZFS volume)
             res.append((6, numbers(f"    Disks ({s} samples, every {self.sample_s:g} s): {disk}" + (f" · wait per operation: {', '.join(aw)}" if aw else "")
                                    + (f" · types: {', '.join(kinds)}" if kinds else ""))))
             source = (self.prev or {}).get("psi_source", "kernel")
@@ -3517,7 +3517,7 @@ ROBOTS_FILES_RE = re.compile(r"^/(?:robots\.txt|[\w.-]*sitemap[\w.-]*\.xml(?:\.g
 ROBOT_NAME_RE = re.compile(r"bot|crawl|spider|scrap|linkedin|facebook|fbsv|meta-|semrush|ahrefs|petal|yandex|baidu|bytespider|amazonbot|applebot|gptbot|ccbot|openai|anthropic|"
                           r"mj12|dotbot|seznam|sogou|bingpreview|msnbot|duckduck|ia_archiver|archive\.org|sofya|screaming|censys|shodan|zgrab|expanse|netcraft", re.I)
 
-# User-Agent (nginx access journal, combined_host format: …"referrer" "User-Agent" host="…"): robots recognized by their signature, or script tools; empty UA = robot.
+# User-Agent (nginx access journal, combined_host format: ..."referrer" "User-Agent" host="..."): robots recognized by their signature, or script tools; empty UA = robot.
 ACCESS_AGENT_RE = re.compile(r'^(\S+) \S+ \S+ \[[^\]]*\] "[^"]*" \d{3} \S+ "[^"]*" "([^"]*)"')
 STATIC_RE = re.compile(r"\.(?:css|js|map|png|jpe?g|gif|svg|ico|webp|woff2?|ttf|eot|mp4|webm)$|^/(?:web/assets|web/static|web/image|web/content)/", re.I)
 SURVEY_TOKEN_RE = re.compile(r"^/survey/(?:(?:start|submit|fill|print|results|begin|prefill|retry|test|get_certification)/)?([0-9a-fA-F][0-9a-fA-F-]{7,})(?:/|$)")
@@ -3583,7 +3583,7 @@ class Stats:
         self.agents = {}                                                            # shared: address -> first User-Agent read in the nginx access journal
         self.robots_ips = set()                                                      # shared: addresses that requested robots.txt or a sitemap
         self.first = None                                                         # instant of the oldest line seen (window of the error detail)
-        self.server = set()                                                        # shared: addresses of THIS server (local probes) — never to ban
+        self.server = set()                                                        # shared: addresses of THIS server (local probes) - never to ban
 
     def already_banned(self, ip):
         """True if the address is already banned (seen banned in the journal, or blocked now by fail2ban, an iptables / ufw rule or CrowdSec)."""
@@ -3606,7 +3606,7 @@ class Stats:
                if ip != "?" and not self.already_banned(ip) and ip not in self.protected_ones and ip not in self.people
                and ip not in self.server and not local_address(ip)]
         views = {ip for ip, _ in res}
-        for ip, pages in sorted(self.ip_not_found.items(), key=lambda kv: -len(kv[1])):          # sweep: 5 DIFFERENT pages in 404 (WordPress, debug, .env… ; a visitor's address almost never does that)
+        for ip, pages in sorted(self.ip_not_found.items(), key=lambda kv: -len(kv[1])):          # sweep: 5 DIFFERENT pages in 404 (WordPress, debug, .env... ; a visitor's address almost never does that)
             if len(pages) >= THRESHOLD_404 and ip not in views and ip != "?" and not self.already_banned(ip) and ip not in self.protected_ones and ip not in self.people \
                     and ip not in self.server and not local_address(ip):
                 res.append((ip, len(pages)))
@@ -4036,7 +4036,7 @@ class Stats:
                             heading=heading, name=os.path.basename(__file__), version=__version__, start=time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(start)),
                             duration=f"{duration_s // 3600:02d}:{duration_s % 3600 // 60:02d}:{duration_s % 60:02d}", lines=self.lines, requests=self.requests))]
         health = self.health(program_alerts)[1]
-        if level < 3:                                               # verdict + only what is wrong (the ✔ from level 3)
+        if level < 3:                                               # verdict + only what is wrong (the check mark from level 3)
             health = [text_line for text_line in health if not ANSI_RE.sub("", text_line).lstrip().startswith("✔")]
         res.extend(health)
         if not self.requests:
@@ -4098,7 +4098,7 @@ class Stats:
         if self.odoo_errors:
             blocks.append((8, f"  Odoo errors and warnings: {sum(self.odoo_errors.values())} — "
                           + " ; ".join(f"{k[0]} {k[1]} ×{v} : {cut_words(k[2], 200)}" for k, v in self.odoo_errors.most_common(5))))
-        blocks.extend((4, text_line) for text_line in LATENCY.lines(level))       # session-long latency (also with Ctrl-T: labeled « since start »)
+        blocks.extend((4, text_line) for text_line in LATENCY.lines(level))       # session-long latency (also with Ctrl-T: labeled "since start")
         res.extend(text_line for n, text_line in blocks if n <= level)
         if level < LEVEL_MAX:
             res.append(color_code(STYLES["title"], f"  Level {level} out of {LEVEL_MAX}") + " — keys 1 to 9 for more or less detail (9 = everything)")
@@ -4118,7 +4118,7 @@ class Output:
         self.anonymize = None                             # --anonymize (1.88, by default): Anonymiseur of apps/_anonymiser.py applied to the screen (the daily journal keeps everything)
         self.underline = UNDERLINE_DEFAULT                # 1.89: --no-underline / UNDERLINE=non: no line underlined; 1.91: --underline N = one line out of N (0 = none)
         self.anonymiser = None                            # 1.91: the Anonymiseur, kept when the A key turns --anonymize off (same pseudonyms when turned on again)
-        self.rec_marker = False                           # 1.93: a test is being recorded (R key): « REC » at the end of each stream line, on screen only (never in the daily journal)
+        self.rec_marker = False                           # 1.93: a test is being recorded (R key): "REC" at the end of each stream line, on screen only (never in the daily journal)
 
     def _open(self, day):
         os.makedirs(self.folder, mode=0o700, exist_ok=True)
@@ -4173,7 +4173,7 @@ class Output:
         rec = stream and self.rec_marker
         if underline and self.underline:
             columns = terminal_columns()
-            shown = "\n".join(underline_line(l, columns - REC_WIDTH - 1 if rec else columns) for l in shown.split("\n"))     # 1.93: the underline stops before « REC »
+            shown = "\n".join(underline_line(l, columns - REC_WIDTH - 1 if rec else columns) for l in shown.split("\n"))     # 1.93: the underline stops before "REC"
         if rec:
             shown = "\n".join(rec_mark(l) if l else l for l in shown.split("\n"))
         self.screen.write(shown if self.screen_color else ANSI_RE.sub("", shown))
@@ -4419,10 +4419,10 @@ def follow(cmd, people, resolver, options, output):
             if "mail.mail" in L.text or "Total emails" in L.text:      # 1.84: who received the e-mail and what it is, instead of the raw Odoo message
                 if after_mail and MAIL_TOTAL_RE.search(L.text):
                     after_mail = False
-                    continue                                    # « Total emails tried by SMTP: 1 » right after a sent e-mail: nothing more to say
+                    continue                                    # "Total emails tried by SMTP: 1" right after a sent e-mail: nothing more to say
                 deleted = MAIL_DELETED_RE.search(L.text)
                 if deleted and sent_ids and set(re.findall(r"\d+", deleted.group(1))) <= sent_ids:
-                    continue                                    # 1.88: Odoo deletes the e-mails it just sent (auto_delete): already said by « E-mail #N sent to … »
+                    continue                                    # 1.88: Odoo deletes the e-mails it just sent (auto_delete): already said by "E-mail #N sent to ..."
                 sent = MAIL_SENT_RE.search(L.text)
                 detail = mail_sent_text(L, people) if sent else None
                 after_mail = sent is not None
@@ -4431,7 +4431,7 @@ def follow(cmd, people, resolver, options, output):
                 if detail:
                     L.text = detail
             else:
-                after_mail = after_mail and L.text.startswith("Sent batch ")      # « Sent batch 1 emails via mail server ID #2 » may come before « Total emails … »
+                after_mail = after_mail and L.text.startswith("Sent batch ")      # "Sent batch 1 emails via mail server ID #2" may come before "Total emails ..."
             m = LOGIN_RE.search(L.text)
             if m and people is not None:             # live login: learned BEFORE replacing the addresses
                 people.ajouter(m.group(3), m.group(1), m.group(2), time.strftime("%Y-%m-%dT%H:%M:%S"))
@@ -4556,7 +4556,7 @@ def follow(cmd, people, resolver, options, output):
     def emit(L, renderings, benign=False):
         """Writes the line (if --only / --suspect keep it), with the [banned: …] label of its address and counting it for the summary."""
         text = form.format_value(L, renderings, benign)
-        if record["r"] is not None:                       # 1.93: recorded whatever the display filters (--only, --suspect…): the analysis needs the whole test
+        if record["r"] is not None:                       # 1.93: recorded whatever the display filters (--only, --suspect...): the analysis needs the whole test
             record["r"].add(ANSI_RE.sub("", text), noise_category(L))
         if not keep(L, ANSI_RE.sub("", text)):
             return
@@ -4772,7 +4772,7 @@ def follow(cmd, people, resolver, options, output):
             output.write(color_code("1;32", f"↻ {name} [{ip}] : {len(lines)} previous line(s) of this address (since {since}), "
                                       "shown above without name:") + "\n" + "\n".join(lines) + "\n")
 
-    # --- touches du menu (? ou h) : options de la ligne de commande changées en cours de route -----------------------------------------------------
+    # --- menu touches (? or h): command line options changed on the fly ------------------------------------------------------
     def write_out(lines):
         output.write("\n".join(lines) + "\n")
         output.flush()
@@ -5287,7 +5287,7 @@ def follow(cmd, people, resolver, options, output):
                     write_out([f"  --chime {options['chime']} (test beep sent)"] + [color_code(ORANGE, "  ⚠ " + c) for c in advices])
                 else:
                     write_out([color_code(STYLES["error"], f"  Value refused « {rep} » : 0, 1, 2 or n.")])
-        elif key_value == "underline":                       # 1.102: U key — one log line out of N underlined (0 = none), saved by C
+        elif key_value == "underline":                       # 1.102: U key - one log line out of N underlined (0 = none), saved by C
             n = requested_int(TR("--underline N (one log line out of N underlined, 0 = none; current: {current}, Enter = {default}): ").format(
                                   current=output.underline, default=UNDERLINE_DEFAULT), UNDERLINE_DEFAULT, 0, 1000)
             if n is not None:
@@ -5355,7 +5355,7 @@ def follow(cmd, people, resolver, options, output):
             write_out(module_lines(people.odoo_db, options["profile"].get("ODOO_CONF"), databases_seen, (MODULES_SORT_DEFAULT, False, options["modules_sort"][2]), 10))
         elif key_value == "E":
             error_details(False)
-        elif key_value == "record":                          # 1.93: R key — start / stop a test recording
+        elif key_value == "record":                          # 1.93: R key - start / stop a test recording
             if record["r"] is None:
                 if record["pending"] is not None:
                     write_out(["  " + TR("The previous archive is still being created: wait for its line, then press R again.")])
@@ -5367,7 +5367,7 @@ def follow(cmd, people, resolver, options, output):
                 record_start(label.strip())
             else:
                 record_stop("key")
-        elif key_value == "step":                            # 1.95: N key — start / end of a step of the test (a description is asked)
+        elif key_value == "step":                            # 1.95: N key - start / end of a step of the test (a description is asked)
             if record["r"] is None:
                 write_out(["  " + TR("Start a recording first (R): the steps are kept in it.")])
                 return
@@ -5387,7 +5387,7 @@ def follow(cmd, people, resolver, options, output):
             write_out([color_code(STEP_STYLE, f" ▶ STEP {number} START ") + " " + TR("started at {time}").format(time=time.strftime("%H:%M:%S"))
                        + " — " + (description.strip() or TR("(no description)"))])
             show_steps_line()
-        elif key_value == "steps_line":                     # 1.99: F key — the steps of the recording on one white line (toggle)
+        elif key_value == "steps_line":                     # 1.99: F key - the steps of the recording on one white line (toggle)
             options["steps_line"] = not options.get("steps_line")
             if not options["steps_line"]:
                 write_out([TR("  --steps-line: off")])
@@ -5901,7 +5901,7 @@ def main():
         try:
             conf_values = odoo_conf_module.lire(profile["ODOO_CONF"])
             record_ports = {"http_port": conf_values.get("http_port"), "gevent_port": conf_values.get("gevent_port")}
-        except Exception:                               # noqa: BLE001 — unreadable configuration: the default Odoo ports are not guessed, only 80 / 443
+        except Exception:                               # noqa: BLE001 - unreadable configuration: the default Odoo ports are not guessed, only 80 / 443
             record_ports = {}
     filters = [f"--only {', '.join(options['only'])}"] if options["only"] else []
     filters += [name for name, active in (("--suspect", args.suspect), ("--not-found", args.not_found), ("--min", args.min), ("--hide-addons", args.hide_addons)) if active]
@@ -5913,7 +5913,7 @@ def main():
             minutes=f"{args.record_test_log:g}", folder=record_module.default_folder(options["journal_folder"]) if record_module else "?"))
     folder = None if args.no_follow else journal_folder(args.log_dir, args.no_log_file)
     output = Output(sys.stdout, folder, args.log_keep_days, COLOR, "-filter" if args.only else "")        # a filtered launch (--only) has its own journal: several simultaneous launches do not mix their lines
-    # 1.88: by default (and from the configuration file) only on a TERMINAL — a program that reads this output (pipe, tests) gets the real lines; an explicit
+    # 1.88: by default (and from the configuration file) only on a TERMINAL - a program that reads this output (pipe, tests) gets the real lines; an explicit
     # --truncate / --anonymize on the command line always applies
     on_terminal = sys.stdout.isatty()
     if args.truncate == TRUNCATE_AUTO:

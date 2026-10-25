@@ -1,17 +1,17 @@
 #!/usr/bin/env python3
 # ========================================================================================================================
 # Copyright (C) 2026 Services-Conseils Linux Inc.
-# Copyright (C) 2026 Rencontres Linux au Québec contributors
+# Copyright (C) 2026 Rencontres Linux au Quebec contributors
 #
 # This program is free software: you can redistribute it and/or modify it under the terms of the GNU Affero General Public
 # License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
 # Full text: https://www.gnu.org/licenses/agpl-3.0.html
 # ========================================================================================================================
 #
-# zip-versions.py — versions contained in the project archives (nginx-tools.zip, nginx-tools-tests.zip, nginx-odoo-config.zip),
+# zip-versions.py - versions contained in the project archives (nginx-tools.zip, nginx-tools-tests.zip, nginx-odoo-config.zip),
 # WITHOUT extracting them: version of each program, date of the nginx configuration log, most recent file.
 # Any other archive (e.g. an Odoo module): version of its manifest, of its CHANGELOG, of package.json, etc.
-# Several archives of the same type (e.g. « nginx-tools (2).zip » in downloads): the most recent one is designated,
+# Several archives of the same type (e.g. "nginx-tools (2).zip" in downloads): the most recent one is designated,
 # the one to attach to the discussion. --installed: comparison with what is deployed on the server.
 #
 #
@@ -34,7 +34,7 @@ import signal
 import sys
 import zipfile
 
-__version__ = "1.15.20261020.211944"
+__version__ = "1.16.20261022.231529"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
@@ -53,7 +53,7 @@ def _start():
 I18N = _start()
 LANGUAGE = I18N.langue if I18N else "fr"
 if I18N:
-    print, input = I18N.print, I18N.input          # noqa: A001 — every displayed text goes through the translator (no effect when the display language is the source language)
+    print, input = I18N.print, I18N.input          # noqa: A001 - every displayed text goes through the translator (no effect when the display language is the source language)
 # Configuration file options (/etc/default/zip-versions.conf, then the personal file .zip-versions.conf): KEY -> (command-line option, type).
 # LANGUAGE: en, fr, or auto (follow LC_ALL / LANG).
 SCHEMA_CONFIG = {"INSTALLED": ("installed", str), "NGINX_DIR": ("nginx_dir", str)}
@@ -63,7 +63,7 @@ VERSION_RE = re.compile(r'(?:SCRIPT_VERSION|__version__)\s*=\s*"(\d+\.\d+\.\d{8}
 CONFIG_LOG_RE = re.compile(r"(?m)^- (\d{4}-\d{2}-\d{2}) :")
 PROGRAM_RE = re.compile(r"\.(sh|py)$")
 BARE_VERSION_RE = re.compile(r"^\d+\.\d+\.\d{8}\.\d{6}$")
-SUITE_VERSION_FILE = "doc/nginx-tools.version"   # version of the nginx-tools archive (own name: no shared « VERSION »)
+SUITE_VERSION_FILE = "doc/nginx-tools.version"   # version of the nginx-tools archive (own name: no shared "VERSION")
 # File carrying the archive version, per type: nginx-tools: doc/nginx-tools.version; nginx-odoo-config: VERSION
 # (the configuration has no program to version; it is delivered as nginx-odoo-config.1.0.zip).
 VERSION_FILES = {"nginx-tools": SUITE_VERSION_FILE, "nginx-odoo-config": "VERSION"}
@@ -78,7 +78,7 @@ def color(code, text):
 
 DATED_VERSION_RE = re.compile(r"(?<!\x1b\[1;32m)\b(\d+\.\d+\.(\d{8})\.\d{6})\b")
 _print = print
-DATE_ISO_RE = re.compile(r"(?<![\w:-])((\d{4})-(\d\d)-(\d\d)(?: \d\d:\d\d(?::\d\d)?)?)(?![\w-])")      # « 2026-10-15 17:28 »: date of a file (module versions without a date)
+DATE_ISO_RE = re.compile(r"(?<![\w:-])((\d{4})-(\d\d)-(\d\d)(?: \d\d:\d\d(?::\d\d)?)?)(?![\w-])")      # "2026-10-15 17:28": date of a file (module versions without a date)
 VIEWS = {"today": False}
 
 
@@ -109,7 +109,7 @@ def colorize_versions(text):
     return "".join(res)
 
 
-def print(*args, **kwargs):  # noqa: A001 — the program's single output path: color of today's versions in all sections
+def print(*args, **kwargs):  # noqa: A001 - the program's single output path: color of today's versions in all sections
     _print(*(colorize_versions(a) for a in args), **kwargs)
 
 
@@ -168,7 +168,7 @@ JSON_VERSION_RE = re.compile(r'"version"\s*:\s*"([^"]+)"')
 TOML_VERSION_RE = re.compile(r'(?m)^\s*version\s*=\s*"([^"]+)"')
 CODE_VERSION_RE = re.compile(r"""(?m)^\s*(?:readonly\s+)?(?:__version__|SCRIPT_VERSION|VERSION)\s*=\s*['"](\d+(?:\.\d+){1,5})['"]""")
 TESTS_DIR_RE = re.compile(r"(?:^|/)(?:tests?|testing)/|(?:^|/)test_[^/]*$|_test\.py$")
-SUITE_SIGNATURE = "test_web_monitor.py"     # recognizes OUR suite in an old « tests/ » folder (shared name)
+SUITE_SIGNATURE = "test_web_monitor.py"     # recognizes OUR suite in an old "tests/" folder (shared name)
 
 
 def archive_type(names):
@@ -648,7 +648,7 @@ def changelog_section(path, key):
 
 
 def show_changelog():
-    signal.signal(signal.SIGPIPE, signal.SIG_DFL)          # « | head »: silent stop, like cat
+    signal.signal(signal.SIGPIPE, signal.SIG_DFL)          # "| head": silent stop, like cat
     try:
         text = changelog_section(CHANGELOG_FILE, "zip-versions.py")
     except OSError:

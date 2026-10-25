@@ -1,16 +1,16 @@
 #!/usr/bin/env python3
 # ========================================================================================================================
 # Copyright (C) 2026 Services-Conseils Linux Inc.
-# Copyright (C) 2026 Rencontres Linux au Québec contributors
+# Copyright (C) 2026 Rencontres Linux au Quebec contributors
 #
 # This program is free software: you can redistribute it and/or modify it under the terms of the GNU Affero General Public
 # License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
 # Full text: https://www.gnu.org/licenses/agpl-3.0.html
 # ========================================================================================================================
 #
-# odoo-docs.py — publishes the suite's documentation (docs/en, docs/fr) INTO Odoo, through the external API (XML-RPC, API key):
-#   --target wiki     pages of the OCA module « document_page » (knowledge repository): a category tree, one page per document, per language.
-#   --target website  website pages /docs/<lang>/<page> (module « website »), created and updated idempotently.
+# odoo-docs.py - publishes the suite's documentation (docs/en, docs/fr) INTO Odoo, through the external API (XML-RPC, API key):
+#   --target wiki     pages of the OCA module "document_page" (knowledge repository): a category tree, one page per document, per language.
+#   --target website  website pages /docs/<lang>/<page> (module "website"), created and updated idempotently.
 # Before writing anything in the wiki the program VALIDATES that document_page is installed and WORKS (module state, access rights, fields,
 # then a real create / read / history / delete round trip on a temporary page). --check does only that validation.
 #
@@ -23,7 +23,7 @@ import stat
 import sys
 import xmlrpc.client
 
-__version__ = "1.4.20261020.211944"
+__version__ = "1.5.20261022.231529"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
@@ -50,7 +50,7 @@ def _start():
 
 I18N = _start()
 if I18N:
-    print, input = I18N.print, I18N.input          # noqa: A001 — every displayed text goes through the translator (no effect when the display language is the source language)
+    print, input = I18N.print, I18N.input          # noqa: A001 - every displayed text goes through the translator (no effect when the display language is the source language)
 
 
 def eprint(*args):
@@ -278,7 +278,7 @@ def changelog_section(path, key):
 
 
 def show_changelog():
-    signal.signal(signal.SIGPIPE, signal.SIG_DFL)          # « | head »: silent stop, like cat
+    signal.signal(signal.SIGPIPE, signal.SIG_DFL)          # "| head": silent stop, like cat
     try:
         text = changelog_section(CHANGELOG_FILE, "odoo-docs.py")
     except OSError:

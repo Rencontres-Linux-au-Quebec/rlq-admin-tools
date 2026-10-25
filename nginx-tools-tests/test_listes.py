@@ -60,8 +60,8 @@ class ListesPython(EnvTest):
         L = self.charge()
         blanche = {str(e.reseau): (e.libelle, e.partagee, e.protegee) for e in L.blanche}
         self.assertEqual(blanche["203.0.113.10/32"], ("Étienne (maison)", False, False))
-        self.assertEqual(blanche["198.51.100.77/32"][0], "")                                    # adresse sans libellé
-        self.assertEqual(blanche["203.0.113.50/32"][0], "Invité")                               # une option n'est jamais dans le libellé
+        self.assertEqual(blanche["198.51.100.77/32"][0], "")                                    # address without a label
+        self.assertEqual(blanche["203.0.113.50/32"][0], "Invité")                               # an option is never in the label
         self.assertEqual(len(L.blanche), 5)                                                     # 6 lignes utiles, 1 invalide
         lieux = {str(e.reseau): (e.libelle, e.partagee, e.protegee) for e in L.lieux}
         self.assertEqual(lieux["192.0.2.0/24"], ("Université exemple", True, False))
@@ -81,8 +81,8 @@ class ListesPython(EnvTest):
         self.assertEqual(L.etiquette("192.0.2.5"), "Université exemple")                        # puis le lieu
         self.assertEqual(L.etiquette("8.8.8.8"), "")
         self.assertTrue(L.protegee("203.0.113.10"))                                            # liste blanche : jamais bannie
-        self.assertTrue(L.protegee("192.0.2.200"))                                             # lieu [protégée]
-        self.assertFalse(L.protegee("192.0.2.5"))                                              # lieu seulement [partagée] : non
+        self.assertTrue(L.protegee("192.0.2.200"))                                             # place [protected]
+        self.assertFalse(L.protegee("192.0.2.5"))                                              # place only [shared]: no
         self.assertFalse(L.protegee("not-an-ip"))
         reseaux = [str(r) for r in L.reseaux_ne_pas_bannir()]
         self.assertIn("192.0.2.128/25", reseaux)
@@ -91,14 +91,14 @@ class ListesPython(EnvTest):
     def test_liste_blanche_seulement_dans_etc_default_lieux_aussi_dans_home(self):
         home = os.path.dirname(self.path("home", "x"))
         with open(os.path.join(home, ".nginx-tools-white-list.conf"), "w") as f:
-            f.write("203.0.113.1  # caché dans ~\n")                                           # ne doit JAMAIS être lu : la liste blanche donne accès
+            f.write("203.0.113.1  # caché dans ~\n")                                           # must NEVER be read: the white list grants access
         with open(os.path.join(home, ".nginx-tools-ip-location.conf"), "w") as f:
             f.write("192.0.2.0/24  # Lieu de l'utilisateur  [partagée]\n")
         ancien_home = os.environ.get("HOME")
         os.environ["HOME"] = home
         try:
-            L = module().charger(os.path.join(SCRIPTS_DIR, "apps"), {})                         # aucune surcharge : chemins par défaut
-            blanche, _, lieux = module(isole=False).chemins({})          # les VRAIS emplacements par défaut (chemins seulement : rien n'est lu)
+            L = module().charger(os.path.join(SCRIPTS_DIR, "apps"), {})                         # no override: default paths
+            blanche, _, lieux = module(isole=False).chemins({})          # the REAL default locations (paths only: nothing is read)
         finally:
             if ancien_home is None:
                 os.environ.pop("HOME", None)
@@ -168,7 +168,7 @@ class ListesBash(EnvTest):
         « ligne  : pas-une-adresse »)."""
         lignes = {l.split(SEP)[0]: l.split(SEP) for l in self.bash("listes_blanche").splitlines()}
         self.assertEqual(lignes["pas-une-adresse"], ["pas-une-adresse", "invalide", "", "7"])
-        self.assertEqual(lignes["198.51.100.77"], ["198.51.100.77", "", "", "5"])                # libellé ET options vides
+        self.assertEqual(lignes["198.51.100.77"], ["198.51.100.77", "", "", "5"])                # label AND options empty
         self.assertEqual(lignes["203.0.113.99"][2], "inconnue:bizarre")
         lieux = {l.split(SEP)[0]: l.split(SEP) for l in self.bash("listes_lieux").splitlines()}
         self.assertEqual(lieux["192.0.2.128/25"], ["192.0.2.128/25", "Labo (sous-réseau)", "partagee,protegee", "2"])
@@ -176,9 +176,9 @@ class ListesBash(EnvTest):
     def test_ne_pas_bannir_resume_et_fichiers(self):
         protegees = self.bash("listes_ne_pas_bannir").split()
         for a in ("203.0.113.10", "198.51.100.0/24", "198.51.100.77", "203.0.113.50", "203.0.113.99", "192.0.2.128/25"):
-            self.assertEqual(protegees.count(a), 1, a)                                           # liste blanche + lieux [protégée], sans doublon
+            self.assertEqual(protegees.count(a), 1, a)                                           # white list + [protected] places, without duplicate
         for a in ("192.0.2.0/24", "2001:db8::/32", "pas-une-adresse"):
-            self.assertNotIn(a, protegees)                                                       # lieu non protégé, adresse invalide : jamais
+            self.assertNotIn(a, protegees)                                                       # unprotected place, invalid address: never
         blanche, lieux = os.path.join(self.d, "blanche.conf"), os.path.join(self.d, "lieux.conf")
         self.assertEqual(self.bash("listes_resume").strip(), f"Listes : liste blanche {blanche} (5 adresse(s)) ; lieux {lieux} (3 plage(s))")
         home = os.path.dirname(self.path("home", "x"))

@@ -4,7 +4,7 @@ connexion, règle /web/database/*), filtres fail2ban sur des lignes réelles ; e
 installé (serveur)."""
 # Environnement de ces tests, lu par run-all.sh : commun (tous les serveurs), odoo ou bbb.
 ENVIRONNEMENT = "odoo"   # configuration nginx des serveurs Odoo (nginx-odoo/)
-NATURE_TESTS = "conformité"   # run-all 1.188 (statistiques) : configuration nginx / fail2ban lue et vérifiée sans nginx (un test qui lance un programme reste « fonctionnel »)
+NATURE_TESTS = "conformité"   # run-all 1.188 (statistics): nginx / fail2ban configuration read and checked without nginx (a test that runs a program stays "functional")
 import glob
 import os
 import re
@@ -15,7 +15,7 @@ import unittest
 
 from helpers import CONFIG_DIR, script_path
 
-# Snippets fournis par les paquets Debian (pas par ce projet) : présents sur tout serveur, absents du dépôt.
+# Snippets provided by the Debian packages (not by this project): present on every server, absent from the repository.
 SNIPPETS_SYSTEME = {"snakeoil.conf", "fastcgi-php.conf"}
 
 NAVIGATEURS = ["Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36",
@@ -90,7 +90,7 @@ class ConfigNginx(unittest.TestCase):
     def test_include_pointent_vers_des_fichiers_existants(self):
         for f in conf_files():
             for cible in re.findall(r"^\s*include\s+(/etc/nginx/(?:snippets|conf\.d)/\S+?);", open(f, encoding="utf-8").read(), re.M):
-                if "*" in cible or os.path.basename(cible) in SNIPPETS_SYSTEME or os.path.basename(cible).startswith(("team-ips-", "shared-ips-")):      # team-ips-* et shared-ips-* : GÉNÉRÉS, jamais livrés
+                if "*" in cible or os.path.basename(cible) in SNIPPETS_SYSTEME or os.path.basename(cible).startswith(("team-ips-", "shared-ips-")):      # team-ips-* and shared-ips-*: GENERATED, never shipped
                     continue
                 with self.subTest(fichier=os.path.relpath(f, CONFIG_DIR), include=cible):
                     self.assertTrue(os.path.isfile(os.path.join(CONFIG_DIR, cible[len("/etc/nginx/"):])), "fichier inclus absent")
@@ -121,7 +121,7 @@ class ConfigNginx(unittest.TestCase):
 
     def test_filtre_a_robots(self):
         texte = lire("conf.d/bot_blocker.conf")
-        # « (?:\\ |\S)+ » : un motif peut contenir des espaces protégées (« Palo\ Alto\ Networks »), valides pour nginx.
+        # "(?:\\ |\S)+": a pattern may contain escaped spaces ("Palo\ Alto\ Networks"), valid for nginx.
         motifs = [re.compile(m.group(1).strip('"'), re.I) for m in re.finditer(r'^\s*~\*((?:\\ |\S)+)\s+1;', texte, re.M)]
         self.assertGreaterEqual(len(motifs), 5)
         bloque = lambda ua: any(m.search(ua) for m in motifs)
@@ -174,7 +174,7 @@ class ConfigNginx(unittest.TestCase):
             rx = re.compile(m.group(1))
             self.assertTrue(rx.search(groupe + ":203.0.113.5"), nom)
             self.assertFalse(rx.search(("1" if groupe == "0" else "0") + ":203.0.113.5"), nom)
-            self.assertFalse(rx.search(groupe + ":"), nom)                         # clé vide (IP de confiance, GET…) : jamais de limite
+            self.assertFalse(rx.search(groupe + ":"), nom)                         # empty key (trusted IP, GET...): never a limit
         commun = lire("snippets/odoo/_odoo-common.conf")
         self.assertIn("limit_req zone=odoo_general_partage burst=180 nodelay;", commun)
         self.assertIn("limit_req zone=odoo_login_partage burst=25 nodelay;", commun)
@@ -216,7 +216,7 @@ class ConfigNginx(unittest.TestCase):
         self.assertEqual(self.hote(regs, base + "Login failed for login:x@y.org from 2001:db8::42"), "2001:db8::42")
         self.assertEqual(self.hote(regs, "… auth_signup: Password reset attempt for <admin> by user <__system__> from 198.51.100.7"), "198.51.100.7")
         self.assertIsNone(self.hote(regs, base + "Login successful for db:x login:admin from 11.126.46.49"))
-        # Injection : un identifiant piégé ne peut pas faire bannir une autre IP (l'IP réelle est toujours en fin de ligne)
+        # Injection: a trapped identifier cannot get another IP banned (the real IP is always at the end of the line)
         self.assertEqual(self.hote(regs, base + "Login failed for db:x login:a from 11.126.46.49 from 198.51.100.66"), "198.51.100.66")
 
     def test_filtre_catchall(self):
@@ -271,7 +271,7 @@ class FormatDesJournaux(unittest.TestCase):
         fmt_ = "".join(re.findall(r"'([^']*)'", m.group(1)))
         self.assertTrue(fmt_.startswith('$remote_addr - $remote_user [$time_local] "$request" $status $body_bytes_sent '
                                         '"$http_referer" "$http_user_agent"'), "le début doit rester le format combined")
-        self.assertTrue(fmt_.endswith(' host="$host" rl=$request_length'))        # 1.11 : taille de la requête TOUT À LA FIN (web-monitor.py : Mo envoyés)
+        self.assertTrue(fmt_.endswith(' host="$host" rl=$request_length'))        # 1.11: size of the request AT THE VERY END (web-monitor.py: MB sent)
         for env in ("prod", "dev", "lab"):
             with self.subTest(site=env):
                 ssl = open(os.path.join(self.CONF, "snippets", "odoo", f"rencontres-linux-quebec-{env}.ssl.conf"), encoding="utf-8").read()
@@ -437,7 +437,7 @@ class IconeEcranDAccueil(unittest.TestCase):
 
     def test_reecriture_interne_sans_redirection_ni_perte_des_en_tetes(self):
         _, bloc = self.bloc()
-        self.assertIn("rewrite ^ /web/image/website/1/app_icon/180x180 break;", bloc)       # l'icône d'application d'Odoo, en 180x180 (taille d'iOS)
+        self.assertIn("rewrite ^ /web/image/website/1/app_icon/180x180 break;", bloc)       # the Odoo application icon, at 180x180 (iOS size)
         self.assertIn("proxy_pass http://$odoo_backend;", bloc)
         self.assertNotRegex(bloc, r"\breturn\s+30\d\b")                                       # jamais une redirection : iOS ne la suit pas toujours
         self.assertNotIn("proxy_set_header", bloc, "un seul proxy_set_header ferait perdre TOUS ceux du niveau serveur (voir _odoo-common.conf)")

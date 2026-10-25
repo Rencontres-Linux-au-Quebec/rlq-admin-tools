@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 # ========================================================================================================================
 # Copyright (C) 2026 Services-Conseils Linux Inc.
-# Copyright (C) 2026 Rencontres Linux au Québec contributors
+# Copyright (C) 2026 Rencontres Linux au Quebec contributors
 #
 # This program is free software: you can redistribute it and/or modify it under the terms of the GNU Affero General Public
 # License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
 # Full text: https://www.gnu.org/licenses/agpl-3.0.html
 # ========================================================================================================================
-# _connexions.py — connexions à Odoo (HTTP, chat / websocket, PostgreSQL, nginx) et limites proches (module partagé, apps/).
+# _connexions.py - connections to Odoo (HTTP, chat / websocket, PostgreSQL, nginx) and nearby limits (shared module, apps/).
 #
 """Mesure, sans rien modifier, ce qui s'approche d'une limite quand le nombre de connexions monte (chat d'Odoo = websockets sur le port gevent, pages HTTP,
 PostgreSQL, nginx) et dit QUEL PARAMÈTRE changer. Utilisé par app-log-live.py (vérification chaque minute) et web-monitor.py (sommaire).
@@ -22,9 +22,9 @@ import os
 import re
 import subprocess
 
-__version__ = "1.2.20261022.133552"
+__version__ = "1.3.20261022.231529"
 POSTGRES_RUN = ["runuser", "-u", "postgres", "--"] if os.geteuid() == 0 else ["sudo", "-n", "-u", "postgres", "--"]     # 1.2: root or sudo -n (see _odoo_db.py)
-SEUIL_DEFAUT = 80          # % d'utilisation à partir duquel on avertit
+SEUIL_DEFAUT = 80          # % utilization from which a warning is shown
 SEUIL_CRITIQUE = 95
 
 

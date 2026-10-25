@@ -1,25 +1,25 @@
 #!/usr/bin/env python3
 # ========================================================================================================================
 # Copyright (C) 2026 Services-Conseils Linux Inc.
-# Copyright (C) 2026 Rencontres Linux au Québec contributors
+# Copyright (C) 2026 Rencontres Linux au Quebec contributors
 #
 # This program is free software: you can redistribute it and/or modify it under the terms of the GNU Affero General Public
 # License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
 # Full text: https://www.gnu.org/licenses/agpl-3.0.html
 # ========================================================================================================================
 #
-# _odoo_db.py — utilisateurs d'une base Odoo (identifiant de connexion, UID, nom, interne ou portail/public), lus en
-# LECTURE SEULE dans PostgreSQL (runuser -u postgres -- psql). Utilisé par web-monitor.py (--list-users --details : UID)
-# et app-log-live.py (nom de la personne derrière une adresse IP). Lectures SEULEMENT, jamais de mot de passe lu — sauf remettre_en_attente
-# (odoo-mail-retry.py, avec confirmation) : la seule écriture, qui ne change que l'état de courriels en échec d'envoi.
-# 1.14 : deux autres écritures, toujours après confirmation et gardées dans le SQL lui-même : set_user_active (web-monitor.py --ban-odoo-user /
-# --unban-odoo-user : compte archivé ou rétabli) et fix_registration_email (odoo-mail-retry.py : adresse corrigée d'une inscription).
+# _odoo_db.py - users of an Odoo database (login identifier, UID, name, internal or portal/public), read in
+# READ-ONLY mode from PostgreSQL (runuser -u postgres -- psql). Used by web-monitor.py (--list-users --details: UID)
+# and app-log-live.py (name of the person behind an IP address). Reads ONLY, never a password read - except remettre_en_attente
+# (odoo-mail-retry.py, with confirmation): the only write, which changes only the state of e-mails that failed to send.
+# 1.14: two other writes, always after confirmation and guarded in the SQL itself: set_user_active (web-monitor.py --ban-odoo-user /
+# --unban-odoo-user: account archived or restored) and fix_registration_email (odoo-mail-retry.py: corrected address of a registration).
 #
 #
 # Usage (normalement appele par les programmes de la suite) :
 #   python3 apps/_odoo_db.py BASE         liste des utilisateurs de la base (UID, identifiant, nom, type)
 #   python3 apps/_odoo_db.py --verbose BASE   ... en affichant la commande psql
-#   python3 apps/_odoo_db.py --modules BASE  modules installés (nom, état, version, modifié UTC, auteur ; tabulations)
+#   python3 apps/_odoo_db.py --modules BASE  installed modules (name, state, version, modified UTC, author; tabs)
 #   python3 apps/_odoo_db.py --version
 
 import json
@@ -28,8 +28,8 @@ import re
 import subprocess
 import sys
 
-__version__ = "1.20.20261022.133552"
-# 1.20: PostgreSQL commands run as the postgres user: runuser under root, « sudo -n » otherwise (the account needs no root)
+__version__ = "1.21.20261022.231529"
+# 1.20: PostgreSQL commands run as the postgres user: runuser under root, "sudo -n" otherwise (the account needs no root)
 POSTGRES_RUN = ["runuser", "-u", "postgres", "--"] if os.geteuid() == 0 else ["sudo", "-n", "-u", "postgres", "--"]
 
 VERBOSE = False     # --verbose : la commande psql est affichee avant son execution
@@ -182,7 +182,7 @@ def courriels(base, jours=7):
     if etats is None:
         return None
     echecs = _requete(base, f"SELECT to_char(date(create_date + interval '{decalage_local_sql()} seconds'), 'YYYY-MM-DD'), COUNT(*) FROM mail_mail WHERE state = 'exception' AND {depuis} GROUP BY 1 ORDER BY 1") or []
-    # Le sujet n'est PAS dans mail_mail : mail.mail hérite de mail.message (_inherits), il est dans mail_message.
+    # The subject is NOT in mail_mail: mail.mail inherits from mail.message (_inherits), it is in mail_message.
     sujets = _requete(base, f"SELECT left(COALESCE(g.subject, ''), 80), COUNT(*) FROM mail_mail m JOIN mail_message g ON g.id = m.mail_message_id "
                             f"WHERE m.state = 'exception' AND m.{depuis} GROUP BY 1 ORDER BY 2 DESC LIMIT 5") or []
     raisons = _requete(base, f"SELECT left(split_part(COALESCE(failure_reason, ''), E'\\n', 1), 140), COUNT(*) FROM mail_mail WHERE state = 'exception' AND {depuis} GROUP BY 1 ORDER BY 2 DESC LIMIT 5") or []
@@ -340,7 +340,7 @@ def mail_detail(base, mail_id, message_id="", delai=10, address=""):
     if rows is None:
         return None
     if (not rows or len(rows[0]) < 5) and message_id:
-        # 1.19: Odoo deletes the mail.mail right after sending it (auto_delete: « deleted mail.mail records with IDs: [7624] », a few ms later): the
+        # 1.19: Odoo deletes the mail.mail right after sending it (auto_delete: "deleted mail.mail records with IDs: [7624]", a few ms later): the
         # mail.message stays, with the same Message-Id; recipients = the partner notified by e-mail whose address matches the masked one, otherwise all the
         # partners notified by e-mail, otherwise the partners of the message
         pattern = re.sub(r"\*+", "%", re.sub(r"([%_\\])", r"\\\1", address)) if address and "*" in address and "@" in address else ""
@@ -660,7 +660,7 @@ def main():
     if "-v" in arguments or "--verbose" in arguments:
         VERBOSE = True
         arguments = [a for a in arguments if a not in ("-v", "--verbose")]
-    if len(arguments) == 2 and arguments[0] == "--modules":          # modules installés : nom, état, version, date de modification (UTC), auteur — séparés par des tabulations
+    if len(arguments) == 2 and arguments[0] == "--modules":          # installed modules: name, state, version, modification date (UTC), author - separated by tabs
         etat = modules_etat(arguments[1])
         if etat is None:
             print("modules illisibles (psql absent, base inaccessible, ou root requis)", file=sys.stderr)

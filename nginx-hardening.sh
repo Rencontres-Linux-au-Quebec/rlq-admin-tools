@@ -1,76 +1,76 @@
 #!/usr/bin/env bash
 # ========================================================================================================================
 # Copyright (C) 2026 Services-Conseils Linux Inc.
-# Copyright (C) 2026 Rencontres Linux au Québec contributors
+# Copyright (C) 2026 Rencontres Linux au Quebec contributors
 #
 # This program is free software: you can redistribute it and/or modify it under the terms of the GNU Affero General Public
 # License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
 # Full text: https://www.gnu.org/licenses/agpl-3.0.html
 # ========================================================================================================================
 #
-# nginx-hardening.sh — installation initiale idempotente : répertoires (ACME, journal catch-all, page de
-# maintenance), et pare-feu (bloque l'accès externe direct aux ports HTTP/gevent d'Odoo, qui contournerait TOUTES
-# les règles nginx si laissé ouvert). Sûr à relancer plusieurs fois — chaque étape vérifie l'état actuel avant
-# d'agir, rien n'est dupliqué. SANS DANGER PAR DÉFAUT : sans --update explicite, ne fait QUE vérifier, ne modifie
-# jamais rien. Ne modifie JAMAIS odoo.conf lui-même (juste un diagnostic + une recommandation) : ce fichier a un
-# format et des commentaires propres à chaque installation, trop risqué à éditer à l'aveugle.
+# nginx-hardening.sh - idempotent initial installation: directories (ACME, catch-all log, maintenance page), and firewall (blocks direct external access to Odoo's HTTP/gevent ports, which would bypass ALL
+# nginx rules if left open). Safe to rerun several times: each step checks the current state before
+# acting, nothing is duplicated. NO DANGER BY DEFAULT: without an explicit --update, it ONLY checks, never changes
+# anything. NEVER modifies odoo.conf itself (only a diagnostic and a recommendation): this file has a
+# format and comments specific to each installation, too risky to edit blindly.
+# format and comments specific to each installation, too risky to edit blindly.
 #
 # Usage : nginx-hardening.sh [--update] [--check] [--odoo-http-port PORT] [--odoo-gevent-port PORT]
 #                              [--odoo-service NOM] [--odoo-conf CHEMIN] [--odoo-conf-paths LISTE] [--timezone ZONE] [--workers N] [-v|--verbose] [--version]
 #                              [--changelog]
-#   - (aucune option)      : VÉRIFICATION SEULE — ne modifie RIEN, même comportement que --check. C'est le
-#                            comportement par défaut depuis la 1.7 (avant : appliquait les changements par
-#                            défaut, ce qui posait un vrai risque de modification accidentelle du système).
-#   - --check              : identique à l'absence d'option — gardé pour compatibilité explicite. C'est ce mode
+#   - (no option)          : CHECK ONLY - changes NOTHING, same behavior as --check. This is the
+#                            default behavior since 1.7 (before: applied the changes by
+#                            default, which posed a real risk of accidental system changes).
+#   - --check              : same as no option - kept for explicit compatibility. This is the mode
 #                            qu'utilisent nginx-log-audit.sh et app-health-check.py pour avertir si le setup
-#                            initial n'a jamais été fait.
-#   - --update             : exécute réellement les étapes d'installation (répertoires + pare-feu), écrit le
-#                            fichier d'état. Nécessite root. C'est l'ancien comportement par défaut.
-#   - --odoo-http-port     : port HTTP principal d'Odoo à vérifier (défaut : http_port/xmlrpc_port de la configuration
-#                            d'Odoo trouvée, sinon 8069 si la clé est absente, sinon 10000 si aucune configuration).
-#   - --odoo-gevent-port   : port gevent/longpolling (défaut : gevent_port/longpolling_port de la configuration, sinon
-#                            8072 ; 10002 si aucune configuration). Ces ports pilotent ufw/iptables (étape 5).
-#   - --odoo-service NOM   : unité systemd d'Odoo à ausculter (étapes 6-7). Sans cette option : auto-détection
-#                            parmi "erplibre.service" et "erplibre_erplibre.service" (même logique que
+#                            initial installation was never done.
+#   - --update             : actually runs the installation steps (directories + firewall), writes the
+#                            state file. Requires root. This is the former default behavior.
+#   - --odoo-http-port     : Odoo's main HTTP port to check (default: http_port/xmlrpc_port of the Odoo
+#                            configuration found, otherwise 8069 if the key is absent, otherwise 10000 if no configuration).
+#   - --odoo-gevent-port   : gevent/longpolling port (default: gevent_port/longpolling_port of the configuration, otherwise
+#                            8072; 10002 if no configuration). These ports drive ufw/iptables (step 5).
+#   - --odoo-service NAME  : Odoo systemd unit to audit (steps 6-7). Without this option: auto-detection
+#                            among "erplibre.service" and "erplibre_erplibre.service" (same logic as
 #                            app-log-check.py).
-#   - --odoo-conf CHEMIN   : fichier de configuration d'Odoo à lire (ports, logfile, workers, limites). Sans cette option :
-#                            premier fichier existant de --odoo-conf-paths. Si un est trouvé, l'application du serveur est
-#                            reconnue comme Odoo et le journal (logfile, sinon journal systemd) est repéré. Lecture seule.
-#   - --odoo-conf-paths L  : chemins candidats (séparés par des espaces, motifs * permis). Défaut : /etc/odoo/odoo-linux_meetup.conf
+#   - --odoo-conf PATH     : Odoo configuration file to read (ports, logfile, workers, limits). Without this option:
+#                            first existing file of --odoo-conf-paths. If one is found, the server application is
+#                            recognized as Odoo and the log (logfile, otherwise systemd journal) is located. Read-only.
+#   - --odoo-conf-paths L  : candidate paths (space separated, * patterns allowed). Default: /etc/odoo/odoo-linux_meetup.conf
 #                            /opt/odoo/erplibre/config.conf /home/utilisateur/git/erplibre/config.conf /etc/odoo/*.conf.
-#                            Clé ODOO_CONF_PATHS de /etc/default/nginx-hardening.conf ou ~/.nginx-hardening.conf.
-#   - --timezone ZONE      : fuseau horaire du serveur (étape 0b ; défaut America/Montreal, demandé au premier --update, mémorisé dans TIMEZONE ;
-#                            « none » : ne rien changer).
-#   - --mail-host/--mail-port/--mail-security/--mail-user/--mail-from/--mail-to, --mail-setup : courriel des programmes Python et Bash (étape 0d) ;
-#                            demandé UNE fois avec --update ; le mot de passe est demandé sans écho et gardé dans un fichier à part (0600).
+#                            ODOO_CONF_PATHS key of /etc/default/nginx-hardening.conf or ~/.nginx-hardening.conf.
+#   - --timezone ZONE      : server time zone (step 0b; default America/Montreal, asked at the first --update, stored in TIMEZONE;
+#                            "none": change nothing).
+#   - --mail-host/--mail-port/--mail-security/--mail-user/--mail-from/--mail-to, --mail-setup : mail of the Python and Bash programs (step 0d);
+#                            asked ONCE with --update; the password is asked without echo and kept in a separate file (0600).
 #   - --log-retention-months N : duree de conservation des journaux visee par l'etape 11 (1 a 24 mois, defaut : 3).
-#                            nginx et fail2ban : « rotate » releve pour couvrir au moins N mois (jamais abaisse).
+#                            nginx and fail2ban: "rotate" raised to cover at least N months (never lowered).
 #                            Journal systemd : MaxRetentionSec=Nmonth ; une valeur deja fixee n'est modifiee que si
 #                            l'option est donnee ET qu'elle se trouve dans le fichier de ce script (sinon : signalee).
-#   - --workers N          : nombre de workers Odoo, si introuvable dans odoo.conf (ex. défini en ligne de
-#                            commande dans run.sh plutôt que dans le fichier de config).
-#   - -v/--verbose         : affiche chaque commande système exécutée (ss, ufw, iptables, systemctl, nginx -T,
-#                            curl, cp, chown, fail2ban-client...), préfixée de « + ».
+#   - --workers N          : number of Odoo workers, if not found in odoo.conf (e.g. set on the command
+#                            line in run.sh rather than in the config file).
+#   - -v/--verbose         : shows each system command run (ss, ufw, iptables, systemctl, nginx -T,
+#                            curl, cp, chown, fail2ban-client...), prefixed with "+".
 #   - --version            : affiche la version et quitte.
 #   - --changelog          : affiche CHANGELOG.md (couleur si terminal).
 #
-# Doit être exécuté en root pour --update (chown, pare-feu, /var/www, /var/log/nginx). Sans --update
-# (vérification seule, comportement par défaut), aucun privilège requis.
+# Must be run as root for --update (chown, firewall, /var/www, /var/log/nginx). Without --update
+# (check only, default behavior), no privilege required.
 
 set -euo pipefail
-# PATH complété (2.x) : sous cron, PATH se limite à /usr/bin:/bin — ipset, iptables, nft, fail2ban-client, nginx
-# (dans /usr/sbin, /sbin) étaient alors introuvables. Ajoutés À LA FIN : ne masquent jamais une commande déjà trouvée.
+# PATH completed (2.x): under cron, PATH is limited to /usr/bin:/bin - ipset, iptables, nft, fail2ban-client, nginx
+# (in /usr/sbin, /sbin) were then not found. Added AT THE END: never hide a command already found.
 for _d in /usr/local/sbin /usr/sbin /sbin; do [[ -n "${NGINX_TOOLS_TESTS:-}" ]] && break; case ":$PATH:" in *":$_d:"*) ;; *) PATH="$PATH:$_d" ;; esac; done
-# (Pendant la suite de tests, NGINX_TOOLS_TESTS désactive cet ajout : /usr/sbin/ufw & co resteraient sinon joignables.)
+# (During the test suite, NGINX_TOOLS_TESTS disables this addition: /usr/sbin/ufw & co would otherwise stay reachable.)
 export PATH
 
-# grep_q : equivalent de « grep -q » SANS la course SIGPIPE. « cmd | grep -q motif » sous « set -o pipefail » peut
+# grep_q: equivalent of "grep -q" WITHOUT the SIGPIPE race. "cmd | grep -q pattern" under "set -o pipefail" can
 # repondre FAUX alors que le motif est present : grep -q s'arrete a la premiere correspondance et ferme le tube ; si
-# cmd ecrit encore, il recoit SIGPIPE et pipefail propage cet echec (course observee en test sur « ipset list -n »).
+# cmd still writing, it receives SIGPIPE and pipefail propagates this failure (race observed in test on "ipset list -n").
 # grep sans -q lit toute l'entree : l'ecrivain n'est jamais interrompu.
 grep_q() { grep "$@" >/dev/null; }
 
-# shellcheck disable=SC2154  # « ec » est affectee DANS le texte du trap (ec=$?), a l'execution : shellcheck
+# shellcheck disable=SC2154  # "ec" is set INSIDE the trap text (ec=$?), at execution: shellcheck
 #                              ne peut pas le voir, le texte etant entre apostrophes (faux positif).
 trap 'ec=$?; echo "" >&2; echo "*** ARRÊT INATTENDU DU SCRIPT (code $ec) À LA LIGNE $LINENO ***" >&2; echo "*** Commande fautive : $BASH_COMMAND" >&2' ERR
 
@@ -86,12 +86,12 @@ run() {
     "$@"
 }
 
-readonly SCRIPT_VERSION="2.54.20261022.171858"
+readonly SCRIPT_VERSION="2.55.20261022.231529"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
 SCRIPT_NAME="$(basename "${BASH_SOURCE[0]}" .sh)"; readonly SCRIPT_NAME
-# Langue d'affichage (en ou fr) : --lang, NGINX_HARDENING_LANG, LANGUAGE du fichier de configuration, LC_ALL / LANG — apps/_i18n.sh traduit la sortie (rien ne change en français).
+# Display language (en or fr): --lang, NGINX_HARDENING_LANG, LANGUAGE of the configuration file, LC_ALL / LANG - apps/_i18n.sh translates the output (nothing changes in French).
 if [[ -r "$SCRIPT_DIR/apps/_i18n.sh" ]]; then
-    # shellcheck source=/dev/null  # bibliothèque livrée à côté du programme
+    # shellcheck source=/dev/null  # library shipped next to the program
     . "$SCRIPT_DIR/apps/_i18n.sh"
     i18n_relancer nginx-hardening NGINX_HARDENING_LANG "$0" "$@"
 fi
@@ -104,7 +104,7 @@ readonly CHANGELOG_FILE
 changelog_section() {
     awk -v cle="${BASH_SOURCE[0]##*/}" '/^## /{dans=($0 == "## " cle); if (dans) print; next} dans' "$CHANGELOG_FILE"
 }
-# migrer_chemin ANCIEN NOUVEAU : renommage des programmes en 2.0 — renomme un fichier ou repertoire de l'ancien nom
+# migrer_chemin OLD NEW: renaming of the programs in 2.0 - renames a file or directory from the old name
 # s'il existe et que le nouveau n'existe PAS encore (jamais d'ecrasement) ; silencieux si rien a faire ou si les
 # droits manquent (le programme continue avec le nouveau chemin).
 migrer_chemin() {
@@ -130,27 +130,27 @@ else
 fi
 
 CHECK_ONLY=1
-ODOO_HTTP_PORT=""      # vide : lu dans la configuration d'Odoo (étape « configuration »), sinon 10000 / 10002
+ODOO_HTTP_PORT=""      # empty: read from the Odoo configuration ("configuration" step), otherwise 10000 / 10002
 ODOO_GEVENT_PORT=""
 ODOO_CONF_PATHS="${ODOO_CONF_PATHS:-}"
 ODOO_SERVICE=""
-TIMEZONE=""            # vide : défaut ci-dessous (demandé la première fois) ; « none » : ne rien changer
+TIMEZONE=""            # empty: default below (asked the first time); "none": change nothing
 TIMEZONE_DEFAUT="America/Montreal"
-MAIL_HOST=""; MAIL_PORT=""; MAIL_SECURITY=""; MAIL_USER=""; MAIL_FROM=""; MAIL_TO=""   # courriel des programmes (étape 0d) : vide = lu dans le fichier commun, sinon demandé
-MAIL_SETUP=0           # --mail-setup : redemander la configuration du courriel même si elle existe
-RENAME_FROM=""; RENAME_TO=""   # --rename-from / --rename-to : changement de nom DNS public (étape 0e) ; vide : rien à faire
+MAIL_HOST=""; MAIL_PORT=""; MAIL_SECURITY=""; MAIL_USER=""; MAIL_FROM=""; MAIL_TO=""   # programs' mail (step 0d): empty = read from the common file, otherwise asked
+MAIL_SETUP=0           # --mail-setup: ask the mail configuration again even if it exists
+RENAME_FROM=""; RENAME_TO=""   # --rename-from / --rename-to: public DNS name change (step 0e); empty: nothing to do
 APP_FORCE=""
 ODOO_CONF=""
 ODOO_WORKERS_OVERRIDE=""
-# Initialisées ici : affectées par des étapes propres à Odoo (4 et 9), mais lues par le récapitulatif final — même
-# pour BigBlueButton, dont ces étapes sont « sans objet » (sinon : « unbound variable » en fin d'exécution).
+# Initialized here: set by steps specific to Odoo (4 and 9), but read by the final summary - same
+# for BigBlueButton, for which these steps are "not applicable" (otherwise: "unbound variable" at the end of execution).
 PORT_EXPOSED=0
 NEED_FAIL2BAN_RESTART=0
 F2B_INSTALLED_JAILS=()
 LOG_RETENTION_MONTHS=3
 RETENTION_EXPLICITE=0
-# Fichier de configuration (/etc/default/nginx-hardening.conf PUIS ~/.nginx-hardening.conf ; -c/--config FICHIER : ce fichier seul) : valeurs par défaut des options.
-# /etc/default/nginx-hardening.conf sert AUSSI de fichier d'état (lignes SETUP_*, réécrites par --update) : les autres lignes y sont conservées.
+# Configuration file (/etc/default/nginx-hardening.conf THEN ~/.nginx-hardening.conf; -c/--config FILE: this file only): default values of the options.
+# /etc/default/nginx-hardening.conf ALSO serves as the state file (SETUP_* lines, rewritten by --update): the other lines are kept there.
 if declare -F config_lire >/dev/null; then
     config_lire nginx-hardening "$@"
     config_defaut APP_FORCE APP --app texte
@@ -174,27 +174,27 @@ if declare -F config_lire >/dev/null; then
     config_defaut ODOO_WORKERS_OVERRIDE WORKERS --workers nombre
 fi
 
-export ODOO_CONF_PATHS   # lu par apps/_odoo_conf.sh (vide : lignes ODOO_CONF_PATHS des fichiers de configuration, puis liste par défaut)
+export ODOO_CONF_PATHS   # read by apps/_odoo_conf.sh (empty: ODOO_CONF_PATHS lines of the configuration files, then default list)
 
-# --report-err : rapport d'erreurs à copier-coller en fin d'exécution (programme, version, serveur, échecs…) — apps/_rapport.sh
+# --report-err: error report to copy-paste at the end of execution (program, version, server, failures...) - apps/_rapport.sh
 if [[ -r "$SCRIPT_DIR/apps/_rapport.sh" ]]; then
-    # shellcheck source=/dev/null  # bibliothèque livrée à côté du programme
+    # shellcheck source=/dev/null  # library shipped next to the program
     . "$SCRIPT_DIR/apps/_rapport.sh"
     rapport_si_demande "$SCRIPT_DIR/$(basename "${BASH_SOURCE[0]}")" "$SCRIPT_VERSION" "$SCRIPT_DIR" "$@"
 fi
-# Première ligne de TOUTE exécution, même avec --help : le nom et la version du programme (--version l'affiche lui-même).
+# First line of EVERY execution, even with --help: the name and version of the program (--version displays it itself).
 case " $* " in *" --version "*) ;; *) echo "nginx-hardening.sh v$SCRIPT_VERSION" ;; esac
 if declare -F config_afficher >/dev/null; then
     case " $* " in *" --version "*|*" --changelog "*) ;; *) config_afficher ;; esac
 fi
-# Listes d'adresses (liste blanche et lieux) : /etc/default/nginx-tools-*.conf, jamais livrées dans les archives — lecteur commun apps/_listes.sh.
+# Address lists (white list and places): /etc/default/nginx-tools-*.conf, never shipped in the archives - common reader apps/_listes.sh.
 # shellcheck source=/dev/null
 [[ -r "$SCRIPT_DIR/apps/_listes.sh" ]] && . "$SCRIPT_DIR/apps/_listes.sh"
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
         -v|--verbose) VERBOSE=1; shift ;;
-        --check) CHECK_ONLY=1; shift ;;   # comportement par defaut desormais — garde pour compatibilite explicite
+        --check) CHECK_ONLY=1; shift ;;   # behavior by default now - kept for explicit compatibility
         --update) CHECK_ONLY=0; shift ;;  # applique reellement les changements (anciennement le defaut)
         --app) APP_FORCE="${2:-}"; shift 2 ;;
         --app=*) APP_FORCE="${1#--app=}"; shift ;;
@@ -273,16 +273,16 @@ AIDE
             ;;
         -c|--config) shift 2 ;;                # lus avant (apps/_i18n.sh : config_lire)
         --config=*) shift ;;
-        --lang) shift 2 ;;                     # traité avant (apps/_i18n.sh : i18n_relancer)
+        --lang) shift 2 ;;                     # handled earlier (apps/_i18n.sh: i18n_relancer)
         --lang=*) shift ;;
-        --report-err) shift ;;                 # traité avant (apps/_rapport.sh) ; accepté ici avec --help, --version…
+        --report-err) shift ;;                 # handled earlier (apps/_rapport.sh); accepted here with --help, --version...
         *) echo "Argument inconnu: $1" >&2; exit 1 ;;
     esac
 done
 
-# Verrou (flock) : une seule exécution MODIFIANTE à la fois — cron, timer systemd et lancement manuel peuvent se
-# croiser. Attente en secondes (0 : abandon immédiat). Dossier : NGINX_TOOLS_LOCK_DIR (tests), sinon /run/lock, sinon
-# /tmp. Un appel imbriqué du même script (ex. --import-bans qui lance --ban) réutilise le verrou déjà tenu.
+# Lock (flock): only one MODIFYING execution at a time - cron, systemd timer and manual launch may
+# cross. Wait in seconds (0: immediate abort). Directory: NGINX_TOOLS_LOCK_DIR (tests), otherwise /run/lock, otherwise
+# /tmp. A nested call of the same script (e.g. --import-bans which runs --ban) reuses the lock already held.
 prendre_verrou() {
     local attente="$1" nom="$2" var ok dir="${NGINX_TOOLS_LOCK_DIR:-/run/lock}"
     var="VERROU_TENU_${nom//-/_}"
@@ -298,11 +298,11 @@ prendre_verrou() {
     fi
     export "$var=1"
 }
-if [[ "$CHECK_ONLY" != "1" && "$EUID" -ne 0 ]]; then        # root vérifié AVANT le verrou (1.102 : le refus est la première chose faite)
+if [[ "$CHECK_ONLY" != "1" && "$EUID" -ne 0 ]]; then        # root checked BEFORE the lock (1.102: the refusal is the first thing done)
     echo "ERREUR: ce script doit être exécuté en root (sudo) pour --update." >&2
     exit 1
 fi
-# --update seulement (--check ne modifie rien) : attente de NGINX_TOOLS_LOCK_WAIT secondes au plus (60 par défaut).
+# --update only (--check changes nothing): wait for NGINX_TOOLS_LOCK_WAIT seconds at most (60 by default).
 if [[ "$CHECK_ONLY" != "1" ]]; then
     prendre_verrou "${NGINX_TOOLS_LOCK_WAIT:-60}" nginx-hardening
 fi
@@ -316,7 +316,7 @@ fi
 echo "=============================================================="
 echo
 
-# Chaque étape mène à l'une de ces trois issues, comptées à la fin pour le code de sortie et le résumé.
+# Each step leads to one of these three outcomes, counted at the end for the exit code and the summary.
 PASS=0
 FAIL=0
 WARN=0
@@ -334,9 +334,9 @@ fi
 echo "Application : $APP_LABEL ($APP_DETECTION)"
 echo
 
-# --- Configuration d'Odoo : fichier trouvé (--odoo-conf, sinon premier candidat existant : --odoo-conf-paths), ports et journal ---
+# --- Odoo configuration: file found (--odoo-conf, otherwise first existing candidate: --odoo-conf-paths), ports and log ---
 # Les ports HTTP et gevent viennent de la configuration (http_port / xmlrpc_port, gevent_port / longpolling_port) : le pare-feu
-# (étapes 4 et 5) vise donc les VRAIS ports de ce serveur. Une option explicite (--odoo-http-port…) l'emporte toujours.
+# (steps 4 and 5) therefore target the REAL ports of this server. An explicit option (--odoo-http-port...) always wins.
 ODOO_PORTS_SOURCE="défaut historique (aucune configuration d'Odoo trouvée)"
 ODOO_LOGFILE=""
 ODOO_CONF_UNITES=""
@@ -373,9 +373,9 @@ fi
 # sans_objet RAISON : etape ignoree pour cette application (affiche, jamais compte comme echec ni avertissement).
 sans_objet() { echo "  [--]   Sans objet pour $APP_LABEL : $1"; }
 
-# Adresses de l'équipe → nginx (étape 12) : fichiers inclus GÉNÉRÉS depuis la LISTE BLANCHE (/etc/default/nginx-tools-white-list.conf, apps/_listes.sh).
-# $1 = geo (table $is_trusted_ip : « ADRESSE 1; ») ou allow (listes allow : « allow ADRESSE; »). Entrées invalides :
-# notées dans EQUIPE_INVALIDES (jamais écrites dans nginx, qui refuserait sinon toute sa configuration).
+# Team addresses -> nginx (step 12): included files GENERATED from the WHITE LIST (/etc/default/nginx-tools-white-list.conf, apps/_listes.sh).
+# $1 = geo (table $is_trusted_ip: "ADDRESS 1; ") or allow (allow lists: "allow ADDRESS; "). Invalid entries:
+# noted in EQUIPE_INVALIDES (never written to nginx, which would otherwise refuse its whole configuration).
 EQUIPE_INVALIDES=""
 generer_equipe() {
     local type="$1" adr lib n
@@ -396,7 +396,7 @@ generer_equipe() {
     done < <(listes_blanche)
 }
 
-# generer_partages : contenu de shared-ips-geo.conf (table $is_shared_ip de nginx) : les adresses des lieux marqués [partagée] (université…) ; zones de limitation plus larges.
+# generer_partages: content of shared-ips-geo.conf (nginx $is_shared_ip table): addresses of the places marked [shared] (university...); wider rate-limit zones.
 generer_partages() {
     local adr lib
     echo "# GÉNÉRÉ par nginx-hardening.sh à partir des lieux [partagée] (/etc/default/nginx-tools-ip-location.conf) — NE PAS MODIFIER À LA MAIN."
@@ -407,11 +407,11 @@ generer_partages() {
     done < <(listes_lieux | listes_valides | awk -F'\037' '$3 ~ /partagee/ && !vu[$1]++')
 }
 
-# fragments_generes_assurer : les TROIS fragments générés (team-ips-geo.conf, team-ips-allow.conf, shared-ips-geo.conf) sont inclus par leur nom exact dans
-# odoo-global.conf et env-*.conf : il suffit qu'UN manque pour que nginx -t refuse TOUTE la configuration — y compris pendant l'étape 12, qui écrit les
-# deux premiers et teste nginx avant que l'étape 12b n'ait écrit le troisième (cas réel : nginx arrêté, liste blanche effacée par la restauration).
-# --update, Odoo seulement : chaque fragment ABSENT est créé vide (une ligne de commentaire, valide dans un bloc geo comme parmi des allow) ; un fichier
-# présent n'est jamais touché ; les étapes 12 et 12b les remplissent ensuite. Affiche une ligne par fichier créé ; retourne 0 s'il en a créé au moins un.
+# fragments_generes_assurer: the THREE generated fragments (team-ips-geo.conf, team-ips-allow.conf, shared-ips-geo.conf) are included by their exact name in
+# odoo-global.conf and env-*.conf: it is enough that ONE is missing for nginx -t to refuse the WHOLE configuration - including during step 12, which writes the
+# first two and tests nginx before step 12b has written the third (real case: nginx stopped, white list erased by the restore).
+# --update, Odoo only: each MISSING fragment is created empty (one comment line, valid in a geo block and among allow lines); an existing file
+# is never touched; steps 12 and 12b fill them afterward. Displays one line per file created; returns 0 if it created at least one.
 fragments_generes_assurer() {
     local snip="${NGINX_HARDENING_SNIPPETS_DIR:-/etc/nginx/snippets}" f cree=1
     [[ "$CHECK_ONLY" == "1" || "$APP_NAME" != "odoo" ]] && return 1
@@ -426,9 +426,9 @@ fragments_generes_assurer() {
     return "$cree"
 }
 
-# nginx_appliquer : applique une configuration que nginx -t vient d'accepter. Service actif : rechargement ; service ARRÊTÉ (configuration
-# invalide au démarrage, arrêt manuel…) : démarrage — un « systemctl reload » échoue sur un service arrêté et le site restait hors ligne.
-# Retourne 0 si nginx tourne avec la nouvelle configuration. NGINX_APPLIQUE = « rechargé » ou « démarré » (pour le message).
+# nginx_appliquer: applies a configuration that nginx -t has just accepted. Active service: reload; STOPPED service (configuration
+# invalid at startup, manual stop...): start - a "systemctl reload" fails on a stopped service and the site stayed offline.
+# Returns 0 if nginx runs with the new configuration. NGINX_APPLIQUE = "reloaded" or "started" (for the message).
 NGINX_APPLIQUE=""
 nginx_appliquer() {
     if run systemctl is-active --quiet nginx 2>/dev/null; then
@@ -440,7 +440,7 @@ nginx_appliquer() {
     fi
 }
 
-# creer_modele DESTINATION MODELE : crée le fichier (droits 644) depuis doc/MODELE livré avec les programmes, à défaut un en-tête minimal.
+# creer_modele DESTINATION MODELE: creates the file (mode 644) from doc/MODELE shipped with the programs, otherwise a minimal header.
 creer_modele() {
     local dest="$1" modele="$SCRIPT_DIR/doc/$2"
     mkdir -p "$(dirname "$dest")" 2>/dev/null || return 1
@@ -449,8 +449,8 @@ creer_modele() {
     chmod 644 "$dest"
 }
 
-# migrer_listes : la liste blanche et les lieux vivent dans /etc/default (hors des archives, publiables sans données personnelles).
-# --update : migre l'ancienne liste apps/team-ips.list (copiée, puis renommée .migre) ou crée un modèle ; fichiers présents : jamais modifiés.
+# migrer_listes: the white list and the places live in /etc/default (outside the archives, publishable without personal data).
+# --update: migrates the old list apps/team-ips.list (copied, then renamed .migre) or creates a template; existing files: never modified.
 migrer_listes() {
     local blanche="${NGINX_TOOLS_WHITE_LIST:-$LISTES_BLANCHE_DEFAUT}" lieux="${NGINX_TOOLS_IP_LOCATION:-$LISTES_LIEUX_DEFAUT}"
     local ancien="$SCRIPT_DIR/apps/team-ips.list"
@@ -478,9 +478,9 @@ migrer_listes() {
     while IFS= read -r probleme; do [[ -n "$probleme" ]] && warn "Listes : $probleme"; done < <(python3 "$SCRIPT_DIR/apps/_listes.py" --resume 2>/dev/null | sed -n 's/^  ATTENTION //p')
 }
 
-# Durcissement de BigBlueButton (étape 9) : fichier À NOUS dans /etc/bigbluebutton/nginx/ (inclus par BBB dans son bloc
-# server, jamais écrasé par ses mises à jour). Refuse UNIQUEMENT des URL que BBB ne sert jamais ; aucun emplacement de
-# BBB n'est modifié (client HTML5, API, WebRTC : proxy_buffering, délais et mises à niveau de protocole intacts).
+# Hardening of BigBlueButton (step 9): file OURS in /etc/bigbluebutton/nginx/ (included by BBB in its block
+# server, never overwritten by its updates). Refuses ONLY URLs that BBB never serves; no location of
+# BBB is modified (HTML5 client, API, WebRTC: proxy_buffering, timeouts and protocol upgrades intact).
 generer_regles_bbb() {
     cat <<'EOF'
 # GÉNÉRÉ par nginx-hardening.sh — NE PAS MODIFIER À LA MAIN (relancer nginx-hardening.sh --update).
@@ -501,8 +501,8 @@ location ~* ^/(wp-admin|wp-login|wp-content|wp-includes|xmlrpc\.php|phpmyadmin|p
 EOF
 }
 # Filtre et jail de nginx-blocked-probes : copie EXACTE (octet pour octet) de nginx-odoo/fail2ban/nginx-blocked-probes.
-# {filter,jail}.conf, pour que tests/run-all.sh (étape 5, cmp) ne signale pas de différence sur un serveur BBB, où ces
-# fichiers ne sont pas déployés et doivent être écrits ici. Un test vérifie l'identité avec les fichiers livrés.
+# {filter,jail}.conf, so that tests/run-all.sh (step 5, cmp) does not report a difference on a BBB server, where these
+# files are not deployed and must be written here. A test checks identity with the shipped files.
 filtre_blocked_probes() {
     cat <<'EOF'
 # Filtre fail2ban : refus des règles de sécurité de nginx (securite-commune.conf : fichiers sensibles, .php, cadriciels,
@@ -552,7 +552,7 @@ durcir_bbb() {
             fail "nginx -t refuse les règles de sécurité BBB — ancienne version restaurée, nginx NON rechargé (nginx -t pour le détail)."
         fi
     fi
-    # Jail nginx-blocked-probes (fichiers écrits ici : la configuration nginx-odoo n'est pas déployée sur BBB).
+    # Jail nginx-blocked-probes (files written here: the nginx-odoo configuration is not deployed on BBB).
     if command -v fail2ban-client >/dev/null 2>&1; then
         if [[ -f /etc/fail2ban/jail.d/nginx-blocked-probes.conf && -f /etc/fail2ban/filter.d/nginx-blocked-probes.conf ]]; then
             pass "Jail nginx-blocked-probes : fichiers présents."
@@ -571,20 +571,20 @@ durcir_bbb() {
     fi
 }
 
-# Définie ici, avec les fonctions utilitaires : appelée par l'étape 9 pour Odoo ET pour BigBlueButton.
+# Defined here, with the utility functions: called by step 9 for Odoo AND for BigBlueButton.
 verifier_ignoreip() {
-    # --- 9c) ignoreip : adresses de l'équipe (table $is_trusted_ip de nginx ET liste blanche + lieux [protégée] de /etc/default/nginx-tools-*.conf) jamais bannies par fail2ban. Les listes
-    # « allow » de nginx et « ignoreip » de fail2ban sont INDÉPENDANTES : une adresse ajoutée à l'une ne l'est pas à
-    # l'autre. Correction (--update) dans un fichier à part, lu en dernier (jail.d/*.local), qui REPREND les adresses
-    # déjà ignorées : jamais de modification de jail.local.
+    # --- 9c) ignoreip: team addresses (nginx $is_trusted_ip table AND white list + [protected] places of /etc/default/nginx-tools-*.conf) never banned by fail2ban. The lists
+    # "allow" of nginx and "ignoreip" of fail2ban are INDEPENDENT: an address added to one is not added to
+    # the other. Correction (--update) in a separate file, read last (jail.d/*.local), which TAKES OVER the addresses
+    # already ignored: never a change to jail.local.
     f2b_equipe=$({ run nginx -T 2>/dev/null | awk '/^[[:space:]]*geo[[:space:]].*\$is_trusted_ip[[:space:]]*\{/ { dans = 1; next }
         dans && /^[[:space:]]*\}/ { dans = 0 } dans && $2 ~ /^1;/ && $1 != "127.0.0.1" && $1 != "::1" { print $1 }'; listes_ne_pas_bannir ; } | sort -u) || f2b_equipe=""
     f2b_jails=$(run fail2ban-client status 2>/dev/null | sed -n 's/.*Jail list:[[:space:]]*//p' | tr ',' ' ') || f2b_jails=""
     if [[ -n "$f2b_equipe" && -n "${f2b_jails// /}" ]]; then
         f2b_manquants=(); f2b_connues=""
         for j in $f2b_jails; do
-            # Adresses VALIDES seulement : IPv4 (plage éventuelle), IPv6 à deux deux-points au moins — jamais un morceau de
-            # texte (« ignored: » donnerait « ed: »), qui rendrait la configuration de fail2ban illisible.
+            # VALID addresses only: IPv4 (possibly a range), IPv6 with at least two colons - never a piece of
+            # text ("ignored:" would give "ed:"), which would make the fail2ban configuration unreadable.
             f2b_ign=$(run fail2ban-client get "$j" ignoreip 2>/dev/null | grep -oE '[0-9a-fA-F:.]+(/[0-9]+)?' \
                       | grep -xE '[0-9]{1,3}(\.[0-9]{1,3}){3}(/[0-9]{1,2})?|[0-9a-fA-F]*:[0-9a-fA-F]*:[0-9a-fA-F:]*(/[0-9]{1,3})?' || true)
             f2b_connues="$f2b_connues $f2b_ign"
@@ -615,16 +615,16 @@ verifier_ignoreip() {
 pass() { echo "  ${C_GREEN}[OK]${C_RESET}   $1"; PASS=$((PASS+1)); }
 fail() { echo "  ${C_RED}[FAIL]${C_RESET} $1"; FAIL=$((FAIL+1)); }
 warn() { echo "  ${C_YELLOW}[ATTN]${C_RESET} $1"; WARN=$((WARN+1)); }
-# 2.54 : hors root (--check par défaut), iptables, ufw, fail2ban-client et nginx -t refusent de répondre : le point est « non vérifié » (ATTN), jamais « absent » (FAIL).
+# 2.54: not as root (--check by default), iptables, ufw, fail2ban-client and nginx -t refuse to answer: the point is "unverified" (ATTN), never "absent" (FAIL).
 sans_root_verif() { warn "$1 : non vérifié sans root (relancer avec sudo $0 --check)"; }
 
-# --- BigBlueButton : état AVANT / APRÈS ce passage (apps/_bbb.py) --------------------------------------------------
-# Versions (paquets, Greenlight), empreinte des fichiers de configuration de BBB et des nôtres, comparées à l'instantané
-# du dernier --update : une mise à jour de BBB faite entre-temps apparaît AVANT ; APRÈS, la compatibilité de nos règles
-# avec BBB est vérifiée (nginx -t, règles chargées, API et client HTML5 joignables, HSTS de HAProxy, bbb-conf --check).
+# --- BigBlueButton: state BEFORE / AFTER this pass (apps/_bbb.py) ---
+# Versions (packages, Greenlight), fingerprint of BBB's configuration files and ours, compared to the snapshot
+# of the last --update: a BBB update done in the meantime appears BEFORE; AFTER, the compatibility of our rules
+# with BBB is checked (nginx -t, rules loaded, API and HTML5 client reachable, HAProxy HSTS, bbb-conf --check).
 bbb_etat() {
     local ligne verb=()
-    if [[ "$VERBOSE" == "1" ]]; then verb=(--verbose); fi          # --verbose est passé aux programmes appelés
+    if [[ "$VERBOSE" == "1" ]]; then verb=(--verbose); fi          # --verbose is passed to the programs called
     while IFS= read -r ligne; do
         case "$ligne" in
             "[OK] "*)   pass "${ligne#\[OK\] }" ;;
@@ -642,8 +642,8 @@ if [[ "$APP_NAME" == "bbb" && -r "$APPS_DIR/_bbb.py" ]] && command -v python3 >/
     echo
 fi
 
-# --- 0) Programmes requis : installés par --update s'ils manquent (apt) ----------------------------------------------
-# paquet_installer COMMANDE PAQUET : COMMANDE absente => vérification seule : avertit ; --update : apt-get install, puis revérifie.
+# --- 0) Required programs: installed by --update if missing (apt) ---
+# paquet_installer COMMAND PACKAGE: COMMAND absent => check only: warns; --update: apt-get install, then rechecks.
 paquet_installer() {
     local cmd="$1" paquet="$2"
     if command -v "$cmd" >/dev/null 2>&1; then
@@ -665,10 +665,10 @@ paquet_installer logrotate logrotate
 paquet_installer fail2ban-client fail2ban
 echo
 
-# --- 0a) nginx AVANT mes changements : « nginx -t » et l'état du service, avec de l'aide pour corriger ------------------------------
-# Un problème déjà présent (certificat introuvable, dossier de cache absent, directive inconnue, port occupé…) est signalé ICI, avec le fichier et les lignes en cause et
-# la marche à suivre, pour qu'un refus de nginx plus loin ne soit pas attribué aux changements de ce script. Rien n'est modifié par cette étape.
-nginx_aide() {      # nginx_aide MESSAGE : conseils d'après le message de « nginx -t » (une ligne par cause reconnue)
+# --- 0a) nginx BEFORE my changes: "nginx -t" and the service state, with help to fix ---
+# A problem already present (certificate not found, cache directory absent, unknown directive, port in use...) is reported HERE, with the file and the lines involved, and
+# the steps to follow, so that a refusal of nginx later is not attributed to this script's changes. Nothing is changed by this step.
+nginx_aide() {      # nginx_aide MESSAGE: advice from the "nginx -t" message (one line per recognized cause)
     local m="$1" fic lig
     if grep -Eqi 'cannot load certificate|BIO_new_file|SSL_CTX_use_(PrivateKey|certificate)' <<<"$m"; then
         echo "        Que faire : un certificat ou une clé est introuvable ou illisible. Si le nom DNS a changé : $0 --update --rename-to NOUVEAU_NOM (refait nginx et le certificat) ; sinon « certbot certificates » puis « certbot renew »."
@@ -708,7 +708,7 @@ echo "--- 0a) nginx avant les changements (nginx -t, service) ---"
 if ! command -v nginx >/dev/null 2>&1; then
     warn "nginx absent (commande introuvable) : le reste du setup ne peut pas vérifier ni recharger nginx."
 else
-    # --update : les fragments GÉNÉRÉS par ce script (étapes 12 et 12b) ne sont pas un « problème déjà présent » : s'ils manquent, ils sont créés vides AVANT le test.
+    # --update: the fragments GENERATED by this script (steps 12 and 12b) are not an "already present problem": if missing, they are created empty BEFORE the test.
     fragments_generes_assurer && pass "Fragments générés absents créés vides (remplis aux étapes 12 et 12b) : nginx -t peut tester le reste de la configuration."
     nx_code=0; nx_sortie=$(run nginx -t 2>&1) || nx_code=$?
     nx_actif=$(systemctl is-active nginx 2>/dev/null) || nx_actif="inconnu"
@@ -727,9 +727,9 @@ else
     fi
 fi
 
-# --- 0b) Fuseau horaire du serveur (défaut : America/Montreal ; --timezone, TIMEZONE ; « none » : ne rien changer) -----------------
-# La première fois (TIMEZONE absent de tous les fichiers de configuration), --update demande dans un terminal ; la réponse est gardée dans /etc/default/nginx-hardening.conf
-# (ligne TIMEZONE=…). Sans terminal : le défaut est appliqué.
+# --- 0b) Server time zone (default: America/Montreal; --timezone, TIMEZONE; "none": change nothing) ---
+# The first time (TIMEZONE absent from all the configuration files), --update asks in a terminal; the answer is kept in /etc/default/nginx-hardening.conf
+# (TIMEZONE=... line). Without a terminal: the default is applied.
 echo "--- 0b) Fuseau horaire ---"
 TIMEZONE_A_ENREGISTRER=""
 if [[ "$TIMEZONE" == "none" ]]; then
@@ -768,7 +768,7 @@ else
 fi
 echo
 
-# --- 0c) Dossiers de cache nginx (proxy_cache_path) : nginx refuse de démarrer si le dossier n'existe pas --------------------------
+# --- 0c) nginx cache directories (proxy_cache_path): nginx refuses to start if the directory does not exist ---
 echo "--- 0c) Dossiers de cache nginx (proxy_cache_path) ---"
 if ! command -v nginx >/dev/null 2>&1; then
     sans_objet "nginx absent"
@@ -795,15 +795,15 @@ fi
 echo
 
 # --- 0d) Courriel des programmes Python et Bash : relais SMTP, logiciels (msmtp), configuration commune --------------------------
-# Les paramètres (hôte, port, chiffrement, identifiant, expéditeur, destinataire) sont gardés dans /etc/default/nginx-tools-mail.conf ; le MOT DE PASSE
-# est dans /etc/default/nginx-tools-mail.pass (mode 0600, root), jamais dans le fichier de configuration, jamais affiché, jamais dans un courriel ni un rapport.
-# Les programmes Python utilisent apps/_courriel.py ; Bash (sendmail, mail) passe par msmtp, configuré dans /etc/msmtprc à partir du même fichier.
+# The parameters (host, port, encryption, login, sender, recipient) are kept in /etc/default/nginx-tools-mail.conf; the PASSWORD
+# is in /etc/default/nginx-tools-mail.pass (mode 0600, root), never in the configuration file, never displayed, never in an email or a report.
+# The Python programs use apps/_courriel.py; Bash (sendmail, mail) goes through msmtp, configured in /etc/msmtprc from the same file.
 echo "--- 0d) Courriel des programmes (relais SMTP, msmtp, configuration commune) ---"
 MAIL_CONF="${NGINX_TOOLS_MAIL_CONF:-/etc/default/nginx-tools-mail.conf}"
 MAIL_PASS="${NGINX_TOOLS_MAIL_PASSWORD_FILE:-/etc/default/nginx-tools-mail.pass}"
 MSMTPRC="${NGINX_TOOLS_MSMTPRC:-/etc/msmtprc}"
 mail_valeur() { if [[ -r "$MAIL_CONF" ]]; then sed -nE "s/^$1=\"?([^\"]*)\"?[[:space:]]*(#.*)?$/\1/p" "$MAIL_CONF" | tail -1; fi; return 0; }
-# Logiciels : msmtp (envoi), sendmail (msmtp-mta, sauf si un autre serveur de courriel est déjà installé), mail (bsd-mailx).
+# Software: msmtp (sending), sendmail (msmtp-mta, unless another mail server is already installed), mail (bsd-mailx).
 paquet_installer msmtp msmtp
 if [[ -x /usr/sbin/sendmail || -x /usr/lib/sendmail ]] || command -v sendmail >/dev/null 2>&1; then
     pass "sendmail présent (commande sendmail des programmes Bash)."
@@ -821,7 +821,7 @@ for mail_cle in HOST PORT SECURITY USER FROM TO; do
     [[ -n "${!mail_var}" ]] || printf -v "$mail_var" '%s' "$(mail_valeur "$mail_var")"
 done
 mail_deja=0; [[ -n "$MAIL_HOST" && -r "$MAIL_PASS" ]] && mail_deja=1
-mail_demander() {      # mail_demander VARIABLE "question" [défaut] : affecte la réponse (ou le défaut) ; sans terminal, garde la valeur
+mail_demander() {      # mail_demander VARIABLE "question" [default]: sets the answer (or the default); without a terminal, keeps the value
     local nom="$1" question="$2" defaut="${3:-}" reponse=""
     [[ -n "${!nom}" ]] && return 0
     if mail_terminal; then
@@ -829,9 +829,9 @@ mail_demander() {      # mail_demander VARIABLE "question" [défaut] : affecte l
     fi
     printf -v "$nom" '%s' "${reponse:-$defaut}"
 }
-mail_terminal() { [[ -t 0 && -t 2 ]]; }       # questions posées sur le terminal (entrée et erreur standard) : fonctionne aussi avec « | tee journal » (sortie redirigée)
+mail_terminal() { [[ -t 0 && -t 2 ]]; }       # questions asked on the terminal (standard input and error): also works with "| tee journal" (redirected output)
 mail_valide() { [[ "$1" != *[\"\$\`\\]* && "$1" != *$'\n'* ]]; }
-mail_non=0      # réponse « non » (défaut) à la question : le setup SMTP est sauté pour ce passage
+mail_non=0      # "no" answer (default) to the question: the SMTP setup is skipped for this run
 if [[ "$CHECK_ONLY" != "1" ]] && ! (( mail_deja && ! MAIL_SETUP )) && (( ! MAIL_SETUP )) && [[ -z "$MAIL_HOST" && -z "${NGINX_TOOLS_MAIL_PASSWORD:-}" ]] && mail_terminal; then
     read -r -p "  Faire le setup du courriel (relais SMTP) maintenant ? [o/N] : " mail_rep || mail_rep=""
     case "${mail_rep,,}" in o|oui|y|yes) ;; *) mail_non=1 ;; esac
@@ -902,7 +902,7 @@ else
             fi
             chmod 0600 "$MAIL_PASS" 2>/dev/null || true
             pass "Courriel configuré : $MAIL_CONF (sans mot de passe) et $MAIL_PASS (mode 0600)."
-            # msmtp (sendmail et mail des programmes Bash) : /etc/msmtprc, sauf s'il existe et n'a pas été créé ici.
+            # msmtp (sendmail and mail of the Bash programs): /etc/msmtprc, unless it exists and was not created here.
             if [[ -e "$MSMTPRC" ]] && ! grep -q "nginx-hardening.sh" "$MSMTPRC" 2>/dev/null; then
                 warn "$MSMTPRC existe et n'a pas été créé par ce programme — laissé tel quel (copie de la configuration à y reporter : hôte $MAIL_HOST, port $MAIL_PORT, utilisateur $MAIL_USER)."
             else
@@ -948,12 +948,12 @@ echo "  Entrées DNS exactes à créer (SPF, DMARC, DKIM) : étape 13 ci-dessous
 echo
 
 # --- 0e) Changement de nom DNS public (ex. odoo-lab.exemple.org -> odoo.exemple.org) : nginx et certificat Let's Encrypt -------------
-# --rename-from ANCIEN --rename-to NOUVEAU. Sans --update : rapport de ce qui serait changé. Avec --update : sauvegarde des fichiers nginx touchés, noms remplacés
-# (server_name, redirections…), certificat du nouveau nom obtenu avec certbot (webroot /var/www/letsencrypt) s'il n'existe pas, chemins du certificat remplacés,
-# « nginx -t » puis rechargement ; en cas de refus de nginx, tout est restauré. Odoo (web.base.url, dbfilter) et le DNS ne sont jamais modifiés : rappels affichés.
+# --rename-from OLD --rename-to NEW. Without --update: report of what would be changed. With --update: backup of the nginx files touched, names replaced
+# (server_name, redirects...), certificate for the new name obtained with certbot (webroot /var/www/letsencrypt) if it does not exist, certificate paths replaced,
+# "nginx -t" then reload; if nginx refuses, everything is restored. Odoo (web.base.url, dbfilter) and DNS are never modified: reminders displayed.
 echo "--- 0e) Changement de nom DNS (nginx et Let's Encrypt) ---"
 renom_valide() { [[ "$1" =~ ^[A-Za-z0-9]([A-Za-z0-9-]*[A-Za-z0-9])?(\.[A-Za-z0-9]([A-Za-z0-9-]*[A-Za-z0-9])?)+$ ]]; }
-renom_fichiers() {      # fichiers réels (sans doublon) de nginx qui mentionnent l'ancien nom (nom entier, pas un sous-domaine)
+renom_fichiers() {      # real files (no duplicate) of nginx that mention the old name (whole name, not a subdomain)
     local dir="${NGINX_HARDENING_NGINX_DIR:-/etc/nginx}" f reel vus=" "
     for f in "$dir"/sites-enabled/* "$dir"/conf.d/*.conf; do
         [[ -f "$f" ]] || continue
@@ -974,7 +974,7 @@ renom_candidats() {     # noms de domaine complets des directives server_name de
     done | sort -u
     return 0
 }
-# Seul le NOUVEAU nom est donné : l'ancien est cherché dans les server_name de nginx (un seul nom du même domaine : retenu ; plusieurs : demandé dans un terminal).
+# Only the NEW name is given: the old one is searched in nginx server_name entries (one name of the same domain: kept; several: asked in a terminal).
 if [[ -z "$RENAME_FROM" && -n "$RENAME_TO" ]] && renom_valide "$RENAME_TO"; then
     mapfile -t rn_cands < <(renom_candidats)
     rn_domaine="${RENAME_TO#*.}"; rn_memes=()
@@ -1041,7 +1041,7 @@ else
         done
         renom_restaurer() { local i; for i in "${!rn_fichiers[@]}"; do cp -p "${rn_copies[$i]}" "${rn_fichiers[$i]}" 2>/dev/null || true; done; }
         if (( rn_ok )); then
-            # Phase 1 : le nom (server_name, redirections…) ; les chemins du certificat (letsencrypt/live|archive/ANCIEN) restent tels quels pour l'instant.
+            # Phase 1: the name (server_name, redirects...); certificate paths (letsencrypt/live|archive/OLD) stay as they are for now.
             for rn_f in "${rn_fichiers[@]}"; do
                 sed -i -E "\#letsencrypt/(live|archive)/${rn_ancien_re}([^A-Za-z0-9._-]|\$)#!{s#${rn_limite}#\1${RENAME_TO}\2#g;s#${rn_limite}#\1${RENAME_TO}\2#g}" "$rn_f"
             done
@@ -1069,7 +1069,7 @@ else
             fi
         fi
         if (( rn_ok && rn_cert_ok )); then
-            # Phase 2 : les chemins du certificat passent à celui du nouveau nom.
+            # Phase 2: the certificate paths switch to that of the new name.
             for rn_f in "${rn_fichiers[@]}"; do
                 sed -i "s#letsencrypt/live/${rn_ancien_re}/#letsencrypt/live/${RENAME_TO}/#g" "$rn_f"
             done
@@ -1084,7 +1084,7 @@ else
             warn "Les chemins du certificat de $RENAME_FROM sont gardés tant que $RENAME_TO n'a pas de certificat : les navigateurs refuseront $RENAME_TO. Corriger la cause ci-dessus puis relancer la même commande."
         fi
     fi
-    # Ce que le programme ne modifie jamais : rappels précis.
+    # What the program never modifies: precise reminders.
     echo "  À faire à la main pour $RENAME_TO :"
     echo "    - DNS : enregistrement A (et AAAA) $RENAME_TO vers l'adresse IP de ce serveur ; retirer $RENAME_FROM du DNS seulement quand plus personne ne l'utilise."
     echo "    - Odoo : Paramètres → Technique → Paramètres système → web.base.url = https://$RENAME_TO (et freeze.url si présent)."
@@ -1099,7 +1099,7 @@ else
 fi
 echo
 
-# --- 1) Répertoire pour les défis ACME (Let's Encrypt) -----------------------------------------------------------
+# --- 1) Directory for ACME challenges (Let's Encrypt) ---
 echo "--- 1) Répertoire ACME (/var/www/letsencrypt) ---"
 if [[ -n "${HARDENING_CONFIG:-}" ]]; then
 if [[ -d /var/www/letsencrypt ]]; then
@@ -1115,7 +1115,7 @@ else
 fi
 echo
 
-# --- 2) Journal dédié au capteur catch-all -------------------------------------------------------------------
+# --- 2) Dedicated log for the catch-all sensor ---
 else
     sans_objet "pas de configuration de durcissement nginx livrée pour cette application (répertoire ACME de la configuration nginx-odoo)"
 fi
@@ -1161,7 +1161,7 @@ if [[ -n "${HARDENING_CONFIG:-}" ]]; then
 MAINT_DIR=/var/www/maintenance
 MAINT_FILE="$MAINT_DIR/index.html"
 MAINT_SOURCE="$SCRIPT_DIR/maintenance/index.html"
-for maint_cand in "$SCRIPT_DIR/maintenance/index.html" /etc/nginx/maintenance/index.html /root/scripts/maintenance/index.html; do      # à côté du programme, puis la configuration nginx déployée
+for maint_cand in "$SCRIPT_DIR/maintenance/index.html" /etc/nginx/maintenance/index.html /root/scripts/maintenance/index.html; do      # next to the program, then the deployed nginx configuration
     if [[ -r "$maint_cand" ]]; then MAINT_SOURCE="$maint_cand"; break; fi
 done
 if [[ -f "$MAINT_FILE" ]]; then
@@ -1183,11 +1183,11 @@ echo
 
 PORT_EXPOSED=0
 NEED_FAIL2BAN_RESTART=0
-# iptables_rendre_persistant : sans paquet de persistance, les règles disparaissent au redémarrage — --update installe iptables-persistent et enregistre.
+# iptables_rendre_persistant: without a persistence package, the rules disappear at reboot - --update installs iptables-persistent and saves.
 iptables_rendre_persistant() {
     if command -v netfilter-persistent >/dev/null 2>&1; then
         if run netfilter-persistent save >/dev/null 2>&1; then
-            for ipt_f in /etc/iptables/rules.v4 /etc/iptables/rules.v6 /etc/iptables/ipsets; do         # chaînes de fail2ban : recréées par lui au démarrage (jamais restaurées en double)
+            for ipt_f in /etc/iptables/rules.v4 /etc/iptables/rules.v6 /etc/iptables/ipsets; do         # fail2ban chains: recreated by it at startup (never restored twice)
                 if [[ -f "$ipt_f" ]] && grep -q 'f2b-' "$ipt_f" 2>/dev/null; then run sed -i '/f2b-/d' "$ipt_f"; fi
             done
             pass "iptables : règles enregistrées (netfilter-persistent) — elles survivent à un redémarrage."
@@ -1205,7 +1205,7 @@ iptables_rendre_persistant() {
     fi
 }
 
-# --- 4) Interface d'écoute d'Odoo (diagnostic seulement — jamais d'édition automatique d'odoo.conf) --------------
+# --- 4) Odoo listening interface (diagnostic only - never automatic editing of odoo.conf) ---
 else
     sans_objet "pas de page de maintenance de la configuration nginx-odoo"
 fi
@@ -1227,8 +1227,8 @@ else
     done
 fi
 
-# Amonts nginx : les ports des « upstream » doivent être ceux d'Odoo (http_port / gevent_port de la configuration d'Odoo).
-# Sinon nginx n'atteint pas Odoo et répond la page de maintenance (502/503/504) alors qu'Odoo tourne très bien.
+# nginx upstreams: the "upstream" ports must be Odoo's (http_port / gevent_port of the Odoo configuration).
+# Otherwise nginx does not reach Odoo and answers the maintenance page (502/503/504) while Odoo runs very well.
 amonts_nginx_lister() {
     local dir="${NGINX_HARDENING_NGINX_DIR:-/etc/nginx}" f reel vus=" "
     for f in "$dir"/sites-enabled/* "$dir"/conf.d/*.conf; do
@@ -1252,7 +1252,7 @@ amonts_ko=0
 while IFS=$'\t' read -r am_fic am_reel am_ligne am_nom am_srv; do
     [[ -n "$am_srv" ]] || continue
     am_hote="${am_srv%:*}"; am_port="${am_srv##*:}"
-    [[ "$am_hote" == "$am_srv" ]] && continue                        # pas de port (socket unix, nom de groupe…)
+    [[ "$am_hote" == "$am_srv" ]] && continue                        # no port (unix socket, group name...)
     [[ "$am_port" =~ ^[0-9]+$ ]] || continue
     case "$am_hote" in 127.0.0.1|localhost|"[::1]") ;; *) continue ;; esac
     case "$am_nom" in
@@ -1290,11 +1290,11 @@ if (( amonts_n == 0 )); then
     echo "  [--]   nginx : aucun amont « odoo » sur 127.0.0.1 trouvé dans sites-enabled/ ni conf.d/ (vérification des ports ignorée)."
 fi
 
-# Websocket d'Odoo (discussions en temps réel) : sans le bon « location /websocket » dans nginx, les messages n'arrivent pas en direct (ou avec un long retard) chez les
-# personnes connectées. Vérifie : la route /websocket vers le port gevent, HTTP 1.1, les en-têtes Upgrade et Connection, le délai de lecture (Odoo envoie un ping toutes les 40
-# à 55 s ; le défaut de nginx est 60 s) et le nombre de connexions de nginx. Lit nginx.conf avec ses « include » (ou sites-enabled/ et conf.d/ à défaut).
+# Odoo websocket (real-time discussions): without the right "location /websocket" in nginx, messages do not arrive live (or with a long delay) for
+# connected people. Checks: the /websocket route to the gevent port, HTTP 1.1, the Upgrade and Connection headers, the read timeout (Odoo sends a ping every 40
+# to 55 s; the nginx default is 60 s) and the nginx connection count. Reads nginx.conf with its "include" (or sites-enabled/ and conf.d/ otherwise).
 WS_DELAI_MIN=120        # secondes : en dessous, la marge sur les pings d'Odoo est trop mince
-WS_DELAI_REGLE=300      # secondes : valeur posée par --update
+WS_DELAI_REGLE=300      # seconds: value set by --update
 ws_lire_fichier() {
     local f="$1" prof="${2:-0}" n=0 ligne motif g
     [[ -f "$f" ]] || return 0
@@ -1305,7 +1305,7 @@ ws_lire_fichier() {
             motif="${BASH_REMATCH[1]}"
             [[ "$motif" == /* ]] || motif="$ws_racine/$motif"
             if [[ "$motif" == /etc/nginx/* && "$ws_racine" != /etc/nginx ]]; then motif="$ws_racine/${motif#/etc/nginx/}"; fi      # dossier nginx de remplacement (tests)
-            for g in $motif; do                                  # glob volontairement non protégé
+            for g in $motif; do                                  # deliberately unprotected glob
                 if [[ -f "$g" ]]; then ws_lire_fichier "$g" $((prof + 1)); fi
             done
         else
@@ -1326,7 +1326,7 @@ ws_config_aplatie() {
     fi
     return 0
 }
-ws_analyser() {   # $1 port HTTP d'Odoo, $2 port gevent : lignes (séparées par \037) « G|H », chemin, fichier:ligne, délai, fichier:ligne du délai, version HTTP, Upgrade, Connection, indentation, délai propre
+ws_analyser() {   # $1 Odoo HTTP port, $2 gevent port: lines (separated by \037) "G|H", path, file:line, timeout, file:line of the timeout, HTTP version, Upgrade, Connection, indentation, own timeout
     awk -F'\t' -v HTTP="$1" -v GEVENT="$2" -v q="'" '
     function trim(s) { gsub(/^[ \t]+|[ \t]+$/, "", s); return s }
     function unquote(s) { gsub("^[\"" q "]|[\"" q "]$", "", s); return s }
@@ -1362,7 +1362,7 @@ ws_analyser() {   # $1 port HTTP d'Odoo, $2 port gevent : lignes (séparées par
         }
         if (d < 1) return
         if (typ[d] == "location" && pp[d] != "") {
-            t = pp[d]                                  # « proxy_pass http://$odoo_backend_chat; » : la variable vient d un « set » du serveur (ou du http)
+            t = pp[d]                                  # "proxy_pass http://$odoo_backend_chat;": the variable comes from a "set" of the server (or of the http block)
             while (match(t, /\$[A-Za-z_0-9]+/)) {
                 nom = substr(t, RSTART, RLENGTH); val = ""
                 for (k = d; k >= 1; k--) if ((fid[k], nom) in sv) { val = sv[fid[k], nom]; break }
@@ -1371,7 +1371,7 @@ ws_analyser() {   # $1 port HTTP d'Odoo, $2 port gevent : lignes (séparées par
             }
             n++; R_chemin[n] = chemin[d]; R_pp[n] = t; R_ppt[n] = ppt[d]; R_ind[n] = ind[d]
             hu = 0; hc = ""; hv2 = ""; tov = ""; ttag = ""; trouve = 0; tprop = 0
-            for (k = d; k >= 1; k--) {              # les en-têtes ne sont hérités que si ce location (ou le niveau le plus proche) n en définit aucun
+            for (k = d; k >= 1; k--) {              # headers are inherited only if this location (or the closest level) defines none
                 if (!trouve && ph[k] > 0) { hu = up[k]; hc = cn[k]; trouve = 1 }
                 if (hv2 == "" && hv[k] != "") hv2 = hv[k]
                 if (tov == "" && to[k] != "") { tov = to[k]; ttag = tt[k]; tprop = (k == d) }
@@ -1395,7 +1395,7 @@ ws_analyser() {   # $1 port HTTP d'Odoo, $2 port gevent : lignes (séparées par
             if (t ~ /^(127\.0\.0\.1|localhost|\[::1\]):[0-9]+$/) { port = t; sub(/.*:/, "", port) }
             else if (t in ups) port = ups[t]
             classe = (port == GEVENT) ? "G" : ((port == HTTP && R_chemin[i] ~ /websocket|longpolling/) ? "H" : "")
-            if (classe == "" && t ~ /\$/ && R_chemin[i] ~ /websocket|longpolling/) classe = "U"        # variable que le script ne sait pas résoudre
+            if (classe == "" && t ~ /\$/ && R_chemin[i] ~ /websocket|longpolling/) classe = "U"        # variable the script cannot resolve
             if (classe != "") printf "%s\037%s\037%s\037%s\037%s\037%s\037%s\037%s\037%s\037%s\n", classe, R_chemin[i], R_ppt[i], (classe == "U" ? t : R_to[i]), R_tt[i], R_hv[i], R_up[i], R_cn[i], R_ind[i], R_tprop[i]
         }
         if (wc != "") printf "W\037%s\n", wc
@@ -1450,7 +1450,7 @@ if [[ -d "${NGINX_HARDENING_NGINX_DIR:-/etc/nginx}" ]]; then
                 ;;
         esac
     done <<< "$ws_donnees"
-    # Corrections de --update (sans effet sur l'héritage des en-têtes) : proxy_http_version 1.1 et proxy_read_timeout
+    # Corrections of --update (no effect on header inheritance): proxy_http_version 1.1 and proxy_read_timeout
     if [[ -n "$ws_fixes" ]]; then
         ws_sauv="${NGINX_HARDENING_BACKUP_DIR:-/var/backups/nginx-hardening}"
         mkdir -p "$ws_sauv" 2>/dev/null || true
@@ -1507,9 +1507,9 @@ EOM
 fi
 echo
 
-# --- 5) Pare-feu : bloquer l'accès externe direct aux ports Odoo -------------------------------------------------
-# Défense en profondeur : même si Odoo est corrigé pour n'écouter qu'en local (etape 4), un pare-feu explicite
-# protège aussi si ce réglage est un jour accidentellement changé. Détecte ufw en priorité (plus lisible/portable
+# --- 5) Firewall: block direct external access to Odoo ports ---
+# Defense in depth: even if Odoo is fixed to listen only locally (step 4), an explicit firewall
+# also protects if this setting is accidentally changed one day. Detects ufw first (more readable/portable
 # sur Debian), sinon retombe sur iptables direct.
 else
     sans_objet "ports du serveur d'application Odoo"
@@ -1543,7 +1543,7 @@ elif command -v iptables >/dev/null 2>&1; then
             iptables_rendre_persistant
         fi
     done
-    if ! command -v netfilter-persistent >/dev/null 2>&1; then          # règles déjà posées mais jamais enregistrées : perdues au prochain redémarrage
+    if ! command -v netfilter-persistent >/dev/null 2>&1; then          # rules already set but never saved: lost at the next reboot
         if [[ "$CHECK_ONLY" == "1" ]]; then
             warn "iptables : netfilter-persistent absent — les règles disparaîtront au redémarrage (relancer avec --update pour installer iptables-persistent)."
         else
@@ -1555,7 +1555,7 @@ else
 fi
 echo
 
-# --- Résolution du service Odoo (étapes 6-8) : même logique d'auto-détection que app-log-check.py ----------------
+# --- Resolution of the Odoo service (steps 6-8): same auto-detection logic as app-log-check.py ---
 odoo_service="$ODOO_SERVICE"
 if [[ -z "$odoo_service" ]]; then
     for candidate in $ODOO_CONF_UNITES erplibre.service erplibre_erplibre.service; do
@@ -1566,15 +1566,15 @@ if [[ -z "$odoo_service" ]]; then
     done
 fi
 
-# --- Résolution de odoo.conf : faite plus haut (--odoo-conf, sinon premier candidat de --odoo-conf-paths). Repli d'affichage seulement.
+# --- Resolution of odoo.conf: done above (--odoo-conf, otherwise first candidate of --odoo-conf-paths). Display fallback only.
 if [[ -z "$ODOO_CONF" ]]; then
     ODOO_CONF="/etc/odoo/odoo.conf"  # repli pour affichage, meme si rien n'a ete trouve
 fi
 
-# --- Résolution du script de démarrage réel (run.sh) via l'unité systemd — utilisée par les étapes 6 ET 7.
+# --- Resolution of the real startup script (run.sh) via the systemd unit - used by steps 6 AND 7.
 # "systemctl cat" fusionne les eventuels drop-ins (sinon un reglage ajoute via override serait invisible). Fait
 # UNE SEULE FOIS ici : un flag --limit-memory-hard passe en ligne de commande dans run.sh a PRIORITE sur la
-# valeur de odoo.conf (regle Odoo standard : CLI > fichier de config) — l'etape 6 doit le savoir pour ne pas
+# value of odoo.conf (standard Odoo rule: CLI > config file) - step 6 must know it so as not to
 # signaler a tort une valeur de odoo.conf qu'Odoo n'utilise jamais reellement en pratique.
 run_script=""
 run_script_prod_lines=""
@@ -1585,7 +1585,7 @@ if [[ -n "$odoo_service" ]]; then
         exec_start=$(printf '%s' "$unit_content" | grep -E "^ExecStart=" | tail -1 | sed -E 's/^ExecStart=//') || true
         run_script=$(printf '%s' "$exec_start" | awk '{print $1}') || true
         if [[ -n "$run_script" && -r "$run_script" ]] && ! grep -Iq . "$run_script" 2>/dev/null; then
-            # ExecStart lance directement un programme (python du venv…) et non un script run.sh : les options d'Odoo sont sur la ligne ExecStart elle-même
+            # ExecStart directly launches a program (venv python...) and not a run.sh script: Odoo's options are on the ExecStart line itself
             run_direct=1
             run_script_prod_lines="$exec_start"
         elif [[ -n "$run_script" && -r "$run_script" ]]; then
@@ -1594,7 +1594,7 @@ if [[ -n "$odoo_service" ]]; then
             # avec ses propres valeurs --limit-memory-*, parfois tres differentes de celles reellement actives) de
             # TOUTES les verifications basees sur run.sh. Sans l'exclusion des commentaires, "tail -1" sur un grep
             # multi-lignes prend le DERNIER "--limit-memory-hard=" trouve dans le fichier, meme s'il est mort dans
-            # un commentaire plus bas que la vraie ligne de production — bug reel observe : une ligne commentee
+            # a comment lower down than the real production line - real bug observed: a commented line
             # contenant --limit-memory-hard=10737418240 (10240 Mo) etait prise pour la valeur active, faussant
             # entierement le diagnostic de l'etape 6 malgre une vraie ligne de production correcte juste au-dessus.
             run_script_prod_lines=$(grep -v -- "--log-level=test" "$run_script" | grep -vE '^\s*#') || true
@@ -1602,14 +1602,14 @@ if [[ -n "$odoo_service" ]]; then
     fi
 fi
 
-# --- 6) Calcul suggéré des limites mémoire Odoo (workers x RAM réellement disponible) -----------------------------
-# Jamais applique automatiquement (odoo.conf ou run.sh ne sont jamais modifies) — affiche juste le calcul et une
+# --- 6) Suggested calculation of Odoo memory limits (workers x RAM really available) ---
+# Never applied automatically (odoo.conf or run.sh are never modified) - only displays the calculation and a
 # comparaison avec la valeur actuelle si elle est trouvable, pour eviter de deviner un chiffre a l'aveugle (voir
 # l'incident evite : un chiffre choisi sans connaitre le nombre de workers reel aurait pu causer un OOM en PROD).
 else
     sans_objet "ports du serveur d'application Odoo (pare-feu de BBB : ufw, géré par son installateur)"
 fi
-U_MEM="Mo"; [[ "${NGINX_TOOLS_I18N_LANGUE:-fr}" != "fr" ]] && U_MEM="MB"       # unité de mémoire affichée (Mo en français)
+U_MEM="Mo"; [[ "${NGINX_TOOLS_I18N_LANGUE:-fr}" != "fr" ]] && U_MEM="MB"       # memory unit displayed (MB in French)
 echo "--- 6) Suggestion de limites mémoire Odoo (workers × RAM disponible) ---"
 if [[ "${ODOO_SPECIFIC_STEPS:-yes}" == "yes" ]]; then
 if [[ -z "$odoo_service" ]]; then
@@ -1661,7 +1661,7 @@ else
 
         if [[ -r "$ODOO_CONF" ]] || [[ -n "$run_script_prod_lines" ]]; then
             # Priorite : un --limit-memory-hard=N en ligne de commande dans run.sh (branche production) l'emporte
-            # TOUJOURS sur la valeur de odoo.conf, cote Odoo — donc on le cherche d'abord ici.
+            # ALWAYS the value of odoo.conf, Odoo side - so we look for it here first.
             current_hard=""
             current_hard_source=""
             if [[ -n "$run_script_prod_lines" ]]; then
@@ -1690,7 +1690,7 @@ else
 fi
 echo
 
-# --- 7) Audit du service Odoo (unité systemd + script de démarrage) — diagnostic seulement, jamais d'édition -----
+# --- 7) Audit of the Odoo service (systemd unit + startup script) - diagnostic only, never editing ---
 else
     sans_objet "limites mémoire des workers Odoo"
 fi
@@ -1750,7 +1750,7 @@ else
 fi
 echo
 
-# --- 8) Audit odoo.conf (points de sécurité additionnels, hors gestion des ports déjà couverte) -------------------
+# --- 8) Audit of odoo.conf (additional security points, outside the port management already covered) ---
 else
     sans_objet "unité systemd et run.sh d'Odoo"
 fi
@@ -1769,8 +1769,8 @@ else
     list_db=$(grep -E "^\s*list_db\s*=" "$ODOO_CONF" | tail -1 | sed -E 's/^[^=]*=\s*//' | tr -d '[:space:]' | tr '[:upper:]' '[:lower:]') || true
     # Ce que la regle nginx reserve aux IP autorisees (location allow/deny des env-*.conf) : depuis la config livree
     # le 2026-09-25, TOUTES les routes /web/database/* ; avant, seulement manager et selector (+ /xmlrpc/(2/)db).
-    # /jsonrpc (service « db », methode « list ») reste hors de portee de nginx dans tous les cas : c'est le point
-    # d'entree general de l'API, impossible a filtrer sans casser les integrations — seul list_db = False le ferme.
+    # /jsonrpc (service "db", method "list") remains out of nginx's reach in all cases: it is the general
+    # entry point of the API, impossible to filter without breaking integrations - only list_db = False closes it.
     db_rule_all=0
     if command -v nginx >/dev/null 2>&1 && run nginx -T 2>/dev/null | grep_q -F 'web/database/.*|xmlrpc'; then
         db_rule_all=1
@@ -1806,10 +1806,10 @@ fi
 echo
 
 
-# --- 9) Jails fail2ban : capteur catch-all (nginx) et échecs de connexion Odoo (journal d'Odoo) --------------------
+# --- 9) fail2ban jails: catch-all sensor (nginx) and Odoo login failures (Odoo log) ---
 # nginx-catchall : le capteur catch-all (odoo-catchall-444.log) est invisible des jails existants (leur glob
-# « *access*.log » ne le trouve jamais). odoo-auth : un mauvais mot de passe repond 200, donc invisible pour tout jail
-# nginx — seul le journal d'Odoo (« Login failed … from IP ») permet de detecter la force brute. Fichiers NEUFS et
+# "*access*.log" never finds it. odoo-auth: a wrong password answers 200, so invisible to any nginx
+# jail - only Odoo's log ("Login failed ... from IP") makes it possible to detect brute force. NEW files and
 # autonomes sous filter.d/ et jail.d/, jamais de modification de jail.local. Sources cherchees dans /etc/nginx/fail2ban
 # (deploiement documente dans le README) puis a cote de ce script.
 else
@@ -1825,8 +1825,8 @@ F2B_INSTALLED_JAILS=()
 if ! command -v fail2ban-client >/dev/null 2>&1; then
     warn "fail2ban-client introuvable — fail2ban n'est peut-être pas installé, étape ignorée."
 else
-    # --- 9a) jails aux fichiers copiés tels quels : nginx-catchall (capteur catch-all), nginx-blocked-probes (refus
-    # des règles de sécurité, journal dédié blocked-probes.log) ---
+    # --- 9a) jails with files copied as they are: nginx-catchall (catch-all sensor), nginx-blocked-probes (refusals
+    # of the security rules, dedicated log blocked-probes.log) ---
     installer_jail_copie() {
         local nom="$1" pourquoi="$2" filtre="/etc/fail2ban/filter.d/$1.conf" jail="/etc/fail2ban/jail.d/$1.conf"
         if [[ -f "$filtre" && -f "$jail" ]]; then
@@ -1849,7 +1849,7 @@ else
     }
     installer_jail_copie nginx-catchall "le capteur catch-all reste invisible de fail2ban"
     installer_jail_copie nginx-blocked-probes "les refus des règles de sécurité (blocked-probes.log) ne sont jamais sanctionnés"
-    # Le journal doit exister pour que fail2ban charge la jail (nginx le crée à la première requête refusée).
+    # The log must exist for fail2ban to load the jail (nginx creates it at the first refused request).
     if [[ "$CHECK_ONLY" != "1" && ! -e /var/log/nginx/blocked-probes.log ]] && [[ " ${F2B_INSTALLED_JAILS[*]} " == *" nginx-blocked-probes "* ]]; then
         if touch /var/log/nginx/blocked-probes.log 2>/dev/null; then
             chown --reference=/var/log/nginx /var/log/nginx/blocked-probes.log 2>/dev/null || true
@@ -1869,7 +1869,7 @@ else
             warn "Jail odoo-auth : modèle introuvable (odoo-auth.*.conf dans /etc/nginx/fail2ban/) — déployez le dossier fail2ban/ du zip."
         fi
     else
-        # Journal d'Odoo : namespace eventuel (LogNamespace, cf. isolation du journal) — le backend systemd de fail2ban
+        # Odoo log: possible namespace (LogNamespace, see log isolation) - fail2ban's systemd backend
         # ne lit que le journal par defaut, sauf si on lui donne le repertoire du namespace.
         auth_ns=$(run systemctl show -p LogNamespace --value "$odoo_service" 2>/dev/null) || auth_ns=""
         if [[ -n "$auth_ns" ]]; then
@@ -1878,7 +1878,7 @@ else
             auth_backend="systemd"
         fi
         # IP a ne jamais bannir : boucle locale, adresses de ce serveur, et la liste blanche nginx (source unique des
-        # IP de confiance — equipe) : une erreur de mot de passe d'un administrateur ne doit pas le couper du site.
+        # trusted IP - team): an administrator's password error must not cut them off from the site.
         auth_ignore="127.0.0.1/8 ::1"
         for a in $(hostname -I 2>/dev/null) $(run nginx -T 2>/dev/null | grep -oE 'allow [0-9a-fA-F:./]+;' | awk '{print $2}' | tr -d ';' | sort -u); do
             case "$a" in 127.*|::1) continue ;; esac        # deja couvertes par 127.0.0.1/8 et ::1
@@ -1888,7 +1888,7 @@ else
                               -e '/^# MODÈLE — ne pas copier tel quel/,/jail\.d\/odoo-auth\.conf\.$/c\# GÉNÉRÉ par nginx-hardening.sh --update pour ce serveur — ne pas éditer à la main (sera régénéré).' \
                               "$F2B_SRC_DIR/odoo-auth.jail.conf.template")
         if [[ -n "$ODOO_LOGFILE" ]]; then
-            # Odoo écrit dans un FICHIER (logfile de sa configuration) : fail2ban le lit directement, pas le journal systemd.
+            # Odoo writes to a FILE (logfile of its configuration): fail2ban reads it directly, not the systemd journal.
             auth_generated=$(printf '%s\n' "$auth_generated" | sed -e "s#^backend .*#backend      = auto#" -e "s#^journalmatch .*#logpath      = $ODOO_LOGFILE\nlogtimezone  = UTC#")
             auth_backend="auto, logpath $ODOO_LOGFILE"
         fi
@@ -1951,7 +1951,7 @@ echo
 # Test EMPIRIQUE : pour chaque nom declare par une directive server_name dans la config active, une vraie requete
 # HTTPS est faite en local (curl --resolve NOM:443:127.0.0.1, donc avec le bon SNI) et l'en-tete
 # Strict-Transport-Security est cherche dans la reponse. Remplace l'analyse statique des versions 1.10 a 1.13, qui
-# supposait a tort que "nginx -T" developpe les include() : il ne le fait PAS — il affiche chaque fichier
+# wrongly assumed that "nginx -T" expands the include() directives: it does NOT - it displays each file
 # separement, l'un apres l'autre. Un bloc server dont le server_name ou le HSTS vient d'un fichier inclus (cas de
 # TOUS les vhosts de ce projet : snippets/odoo/*.name.conf et _odoo-common.conf) etait donc juge a tort sans nom
 # ou sans HSTS. Le test empirique voit exactement ce qu'un navigateur recevrait, include() et heritage compris.
@@ -1959,7 +1959,7 @@ echo
 else
     sans_objet "jails du capteur catch-all et des connexions Odoo (capteur : HAProxy aiguille le port 443 de BBB)"
     durcir_bbb
-    # Adresses de l'équipe ignorées par fail2ban : vaut aussi pour BigBlueButton (jail sshd notamment).
+    # Team addresses ignored by fail2ban: also applies to BigBlueButton (sshd jail in particular).
     if command -v fail2ban-client >/dev/null 2>&1; then verifier_ignoreip; fi
 fi
 echo "--- 10) HSTS réellement envoyé par chaque nom servi en HTTPS ---"
@@ -2008,8 +2008,8 @@ else
                     pass "HSTS présent — $hname (HTTP $hcode, ${hsts_val})"
                 fi
             else
-                # Redirection vers le MÊME nom (ex. « / » → « /b » de BBB) : la page d'arrivée est vérifiée aussi. Si elle
-                # porte HSTS, le navigateur l'enregistre : avertissement (en-tête à ajouter aussi aux redirections).
+                # Redirect to the SAME name (e.g. "/" -> "/b" of BBB): the arrival page is checked too. If it
+                # carries HSTS, the browser records it: warning (header to add to the redirects too).
                 hsts_arrivee=""; chemin_arrivee=""
                 if [[ "$hcode" =~ ^30[1278]$ ]]; then
                     loc=$(printf '%s\n' "$hdrs" | tr -d '\r' | awk 'tolower($0) ~ /^location:/ { sub(/^[^:]*:[[:space:]]*/, ""); print; exit }') || loc=""
@@ -2024,8 +2024,8 @@ else
                     fi
                 fi
                 if [[ -n "$hsts_arrivee" ]]; then
-                    # HSTS est enregistré par le navigateur sur la réponse HTTPS finale : une redirection qui n'en porte pas
-                    # (BBB : « / » → Greenlight) est sans conséquence dès que la page d'arrivée l'envoie. Conforme.
+                    # HSTS is recorded by the browser on the final HTTPS response: a redirect that does not carry it
+                    # (BBB: "/" -> Greenlight) has no consequence as long as the arrival page sends it. Compliant.
                     pass "HSTS présent — $hname (la redirection HTTP $hcode n'en porte pas, mais la page d'arrivée $chemin_arrivee l'envoie : $hsts_arrivee ; le navigateur l'enregistre)"
                 else
                     if [[ "${TLS_TERMINATION:-nginx}" == "haproxy" ]]; then
@@ -2033,7 +2033,7 @@ else
                     else
                         conseil="dans le fichier sites-available/ du bloc server 443 qui sert ce nom, ajoutez « include /etc/nginx/snippets/odoo/hsts.conf; » au niveau server (un bloc de redirection), ou vérifiez qu'il inclut bien _odoo-common.conf (un bloc qui sert Odoo) ; add_header … always pour qu'il s'applique aussi aux redirections et erreurs ; puis nginx -t && systemctl reload nginx. Pour trouver le fichier : grep -rln \"$hname\" /etc/nginx/"
                     fi
-                    # (complément construit à part : une apostrophe dans « ${x:+…} » entre guillemets casse l'analyse de bash)
+                    # (complement built separately: an apostrophe in "${x:+...}" between quotes breaks bash parsing)
                     precision=""; if [[ -n "$chemin_arrivee" ]]; then precision=", et sur la page d'arrivée $chemin_arrivee"; fi
                     fail "HSTS ABSENT — $hname (HTTP $hcode$precision). Quoi faire : $conseil"
                 fi
@@ -2049,11 +2049,11 @@ if ! [[ "$LOG_RETENTION_MONTHS" =~ ^[0-9]+$ ]] || (( LOG_RETENTION_MONTHS < 1 ||
 fi
 echo "--- 11) Rétention des journaux (cible : $LOG_RETENTION_MONTHS mois) ---"
 # Rotation de nginx et de fail2ban (/etc/logrotate.d/) et duree de conservation du journal systemd. Debian garde par
-# defaut 14 jours de journaux nginx (rotation quotidienne, « rotate 14 ») : insuffisant pour les bilans sur 30 jours
-# et plus (web-monitor.py --summary). --update ajuste « rotate » selon la frequence (quotidienne : 92, hebdomadaire :
+# default 14 days of nginx logs (daily rotation, "rotate 14"): insufficient for reports over 30 days
+# and more (web-monitor.py --summary). --update adjusts "rotate" according to the frequency (daily: 92, weekly:
 # 14, mensuelle : 4), apres une copie de sauvegarde (.before-nginx-hardening), valide la syntaxe (logrotate -d) et
 # restaure la copie en cas d'erreur. Journal systemd : MaxRetentionSec=Nmonth (garde au plus N mois).
-RETENTION_CIBLE=$(( (LOG_RETENTION_MONTHS * 61 + 1) / 2 ))   # mois de 30,5 jours : 3 → 92, 6 → 183, 12 → 366
+RETENTION_CIBLE=$(( (LOG_RETENTION_MONTHS * 61 + 1) / 2 ))   # months of 30.5 days: 3 -> 92, 6 -> 183, 12 -> 366
 LOGROTATE_DIR="${NGINX_HARDENING_LOGROTATE_DIR:-/etc/logrotate.d}"
 for lr_nom in nginx fail2ban; do
     lr_f="$LOGROTATE_DIR/$lr_nom"
@@ -2067,9 +2067,9 @@ for lr_nom in nginx fail2ban; do
     [[ -z "$lr_n" ]] && lr_n=4
     case "$lr_freq" in daily) lr_m=1; lr_fr="quotidienne" ;; weekly) lr_m=7; lr_fr="hebdomadaire" ;; *) lr_m=30; lr_fr="mensuelle" ;; esac
     lr_jours=$((lr_n * lr_m))
-    # Rotation réellement effectuée ? Sous Ubuntu, /var/log appartient au groupe syslog, qui peut y écrire : logrotate
-    # REFUSE alors de faire tourner les journaux de ce dossier sans directive « su » (« parent directory has insecure
-    # permissions ») — le journal ne tournait donc pas du tout, quel que soit « rotate ».
+    # Rotation actually performed? On Ubuntu, /var/log belongs to the syslog group, which can write there: logrotate
+    # then REFUSES to rotate the logs of this directory without a "su" directive ("parent directory has insecure
+    # permissions") - the log therefore did not rotate at all, whatever "rotate".
     lr_err=""
     if command -v logrotate >/dev/null 2>&1; then
         lr_err=$(run logrotate -d "$lr_f" 2>&1 | grep -m1 -iE '^error:' || true)
@@ -2095,7 +2095,7 @@ for lr_nom in nginx fail2ban; do
         lr_fait+=("« rotate $lr_n » → « rotate $lr_cible » (≈ $LOG_RETENTION_MONTHS mois)")
     fi
     if (( lr_su )); then
-        # su <propriétaire> <groupe> du journal lui-même (repli : root adm, l'usage Debian/Ubuntu pour /var/log).
+        # su <owner> <group> of the log itself (fallback: root adm, the Debian/Ubuntu usage for /var/log).
         lr_journal=$(awk '/^[[:space:]]*\// { print $1; exit }' "$lr_f")
         lr_proprio=""
         for lr_j in $lr_journal; do [[ -e "$lr_j" ]] && lr_proprio=$(stat -c '%U %G' "$lr_j" 2>/dev/null) && break; done
@@ -2129,8 +2129,8 @@ if [[ -n "$jr_ns" ]]; then
 else
     jr_f="$JOURNALD_DIR/journald.conf.d/90-nginx-hardening-retention.conf"; jr_unit="systemd-journald"
 fi
-# Valeur lue dans une variable : grep renvoie 2 si journald.conf est absent MEME quand il trouve la ligne ailleurs —
-# avec pipefail, « grep … | grep_q . » concluait alors « aucune durée fixée » et AJOUTAIT une seconde ligne.
+# Value read into a variable: grep returns 2 if journald.conf is absent EVEN when it finds the line elsewhere -
+# with pipefail, "grep ... | grep_q ." then concluded "no fixed duration" and ADDED a second line.
 jr_actuel=$(grep -rhsE '^[[:space:]]*MaxRetentionSec=' "$JOURNALD_DIR/journald.conf" "$JOURNALD_DIR/journald.conf.d/" \
             ${jr_ns:+"$jr_f"} 2>/dev/null | tail -1 | tr -d '[:space:]') || true
 if [[ -n "$jr_actuel" ]]; then
@@ -2166,9 +2166,9 @@ else
 fi
 echo
 
-# nginx_plus_ancien_que FICHIER… : 0 si nginx tourne avec une configuration PLUS ANCIENNE qu'un de ces fichiers (modifié après le dernier chargement :
-# il faut recharger), 1 si la configuration chargée est à jour, 2 si on ne peut pas le savoir (nginx arrêté, ps absent). nginx ne dit pas quelle
-# configuration il a chargée : à chaque rechargement il démarre de NOUVEAUX processus de travail, dont l'âge (le plus jeune) est l'âge de la
+# nginx_plus_ancien_que FILE...: 0 if nginx runs with a configuration OLDER than one of these files (modified after the last load:
+# it must be reloaded), 1 if the loaded configuration is up to date, 2 if it cannot be known (nginx stopped, ps absent). nginx does not say which
+# configuration it loaded: at each reload it starts NEW worker processes, whose age (the youngest) is the age of the
 # configuration. NGINX_HARDENING_WORKER_AGE (secondes) remplace cette mesure (essais).
 nginx_plus_ancien_que() {
     local age_config="${NGINX_HARDENING_WORKER_AGE:-}" maitre f modif maintenant plus_recent=""
@@ -2183,12 +2183,12 @@ nginx_plus_ancien_que() {
     for f in "$@"; do
         [[ -f "$f" ]] || continue
         modif=$(stat -c %Y "$f" 2>/dev/null) || continue
-        (( maintenant - modif + 1 < age_config )) && plus_recent="$f"      # fichier modifié APRÈS le démarrage des travailleurs (tolérance : 1 s)
+        (( maintenant - modif + 1 < age_config )) && plus_recent="$f"      # file modified AFTER the workers started (tolerance: 1 s)
     done
     [[ -n "$plus_recent" ]]
 }
 
-# --- 11b) Journal d'Odoo en FICHIER (logfile de sa configuration) : doit être tourné (logrotate), sinon il grossit sans fin -----------
+# --- 11b) Odoo log in FILE (logfile of its configuration): must be rotated (logrotate), otherwise it grows endlessly ---
 if [[ "${ODOO_SPECIFIC_STEPS:-yes}" == "yes" && -n "$ODOO_LOGFILE" ]]; then
     echo "--- 11b) Journal d'Odoo en fichier ($ODOO_LOGFILE) ---"
     if [[ ! -e "$ODOO_LOGFILE" ]]; then
@@ -2199,8 +2199,8 @@ if [[ "${ODOO_SPECIFIC_STEPS:-yes}" == "yes" && -n "$ODOO_LOGFILE" ]]; then
         if [[ "$CHECK_ONLY" == "1" ]]; then
             warn "Aucune règle logrotate ne mentionne $ODOO_LOGFILE : il grossira sans fin — --update crée $LOGROTATE_DIR/odoo (weekly, rotate 13, compress, copytruncate, missingok, notifempty)."
         else
-            lr_odoo="$LOGROTATE_DIR/odoo"                              # 2.51 : dossier de NGINX_HARDENING_LOGROTATE_DIR (était /etc/logrotate.d en dur)
-            [[ -e "$lr_odoo" ]] && lr_odoo="$LOGROTATE_DIR/odoo-nginx-hardening"       # un fichier « odoo » existe déjà (autre contenu) : jamais écrasé
+            lr_odoo="$LOGROTATE_DIR/odoo"                              # 2.51: directory of NGINX_HARDENING_LOGROTATE_DIR (was hard-coded /etc/logrotate.d)
+            [[ -e "$lr_odoo" ]] && lr_odoo="$LOGROTATE_DIR/odoo-nginx-hardening"       # an "odoo" file already exists (other content): never overwritten
             lr_su=""
             lr_proprio=$(stat -c '%U %G' "$ODOO_LOGFILE" 2>/dev/null) || lr_proprio=""
             [[ -n "$lr_proprio" && "$lr_proprio" != "root root" ]] && lr_su="    su $lr_proprio"$'\n'
@@ -2221,18 +2221,18 @@ if [[ "${ODOO_SPECIFIC_STEPS:-yes}" == "yes" && -n "$ODOO_LOGFILE" ]]; then
     echo
 fi
 
-# --- 12) Adresses de l'équipe dans nginx (fichiers GÉNÉRÉS depuis apps/team-ips.list) ------------------------------
-# Une seule liste à tenir : la table $is_trusted_ip et les listes allow incluent team-ips-geo.conf et
-# team-ips-allow.conf. Écriture atomique (fichier temporaire dans le même dossier, puis mv), nginx -t AVANT tout
-# rechargement ; en cas de refus, l'ancienne version est restaurée et nginx n'est pas rechargé.
+# --- 12) Team addresses in nginx (files GENERATED from apps/team-ips.list) ---
+# A single list to maintain: the $is_trusted_ip table and the allow lists include team-ips-geo.conf and
+# team-ips-allow.conf. Atomic write (temporary file in the same directory, then mv), nginx -t BEFORE any
+# reload; on refusal, the old version is restored and nginx is not reloaded.
 echo "--- 12) Listes d'adresses : liste blanche et lieux (/etc/default/nginx-tools-*.conf) → nginx ---"
 migrer_listes
 listes_resume >&2
 if [[ "$APP_NAME" != "odoo" ]]; then
     sans_objet "fichiers team-ips-*.conf de la configuration nginx-odoo (les listes restent lues par les outils)"
 elif [[ -z "$(listes_fichier_blanche)" ]]; then
-    # nginx REFUSE un include à joker sans aucun fichier correspondant ([emerg] open() ... No such file) :
-    # on s'assure donc que les deux fichiers existent (au moins vides, en commentaire) même sans liste blanche.
+    # nginx REFUSES a wildcard include without any matching file ([emerg] open() ... No such file):
+    # so we make sure both files exist (at least empty, as a comment) even without a white list.
     snip="${NGINX_HARDENING_SNIPPETS_DIR:-/etc/nginx/snippets}"
     if [[ "$CHECK_ONLY" != "1" ]]; then
         for eq_type in geo allow; do
@@ -2266,7 +2266,7 @@ else
             fi
         done
         if (( eq_change )); then
-            fragments_generes_assurer || true        # shared-ips-geo.conf (étape 12b) doit exister AVANT ce nginx -t, sinon les adresses de l'équipe seraient restaurées pour rien
+            fragments_generes_assurer || true        # shared-ips-geo.conf (step 12b) must exist BEFORE this nginx -t, otherwise team addresses would be restored for nothing
             if eq_erreur=$(run nginx -t 2>&1); then
                 if nginx_appliquer; then
                     pass "Adresses de l'équipe régénérées depuis la liste blanche ; nginx -t réussi, nginx $NGINX_APPLIQUE."
@@ -2275,12 +2275,12 @@ else
                 fi
             else
                 for eq_type in geo allow; do
-                    # Jamais de rm : un include à joker sans fichier fait échouer nginx -t. Sans ancienne version : fichier vide valide.
+                    # Never rm: a wildcard include without file makes nginx -t fail. Without an old version: valid empty file.
                     if [[ -n "${eq_ancien[$eq_type]+x}" ]]; then printf '%s\n' "${eq_ancien[$eq_type]}" > "$snip/team-ips-$eq_type.conf"
                     else printf '%s\n' "# vide — restauré après refus de nginx -t" > "$snip/team-ips-$eq_type.conf"; fi
                 done
                 fail "nginx -t refuse la configuration avec les adresses régénérées — ancienne version restaurée, nginx NON rechargé (nginx -t pour le détail)."
-                # Le message de nginx lui-même, puis la preuve : nginx -t refuse-t-il AUSSI la version d'avant ? Alors les adresses ne sont pas en cause : la configuration était déjà invalide.
+                # nginx's own message, then the proof: does nginx -t ALSO refuse the previous version? Then the addresses are not to blame: the configuration was already invalid.
                 printf '%s\n' "$eq_erreur" | head -8 | sed 's/^/        nginx -t : /'
                 echo "        Fichiers présents (dossier $snip) :"
                 { ls -ld "$snip" "$snip"/team-ips-* 2>&1 || true; } | sed 's/^/          /'
@@ -2292,7 +2292,7 @@ else
             fi
         fi
         if (( ! eq_change )); then
-            # Fichiers déjà à jour, mais nginx les a-t-il CHARGÉS ? (cas réel : adresse ajoutée, fichier régénéré, nginx jamais rechargé -> 403 pour la nouvelle adresse)
+            # Files already up to date, but has nginx LOADED them? (real case: address added, file regenerated, nginx never reloaded -> 403 for the new address)
             nginx_plus_ancien_que "$snip/team-ips-geo.conf" "$snip/team-ips-allow.conf" && eq_a_charger=1 || eq_a_charger=0
             if (( eq_a_charger )); then
                 if [[ "$CHECK_ONLY" == "1" ]]; then
@@ -2314,7 +2314,7 @@ else
         fi
     fi
 fi
-# --- 12b) Réseaux partagés (lieux [partagée]) → shared-ips-geo.conf : limites de débit plus larges pour une salle derrière UNE adresse ---------------------------------
+# --- 12b) Shared networks (places [shared]) -> shared-ips-geo.conf: wider rate limits for a room behind ONE address ---
 if [[ "$APP_NAME" == "odoo" ]]; then
     snip="${NGINX_HARDENING_SNIPPETS_DIR:-/etc/nginx/snippets}"
     part_dst="$snip/shared-ips-geo.conf"
@@ -2345,9 +2345,9 @@ fi
 echo
 
 # --- 13) Courriel des alertes : relais SMTP et DNS (MX, SPF, DMARC, DKIM) ---------------------------------------------
-# Délégué à app-health-check.py --check-email-dns (même configuration que l'envoi des alertes) : chaque ligne
-# [OK]/[ATTN]/[FAIL] est comptée ici ; les lignes de détail (enregistrements DNS à ajouter) sont affichées telles quelles.
-# Diagnostic seulement : rien n'est modifié (le DNS se règle chez le fournisseur du domaine). Guide : doc/email-setup.md.
+# Delegated to app-health-check.py --check-email-dns (same configuration as sending alerts): each line
+# [OK]/[ATTN]/[FAIL] is counted here; the detail lines (DNS records to add) are displayed as they are.
+# Diagnostic only: nothing is changed (DNS is set at the domain provider). Guide: doc/email-setup.md.
 echo "--- 13) Courriel des alertes (relais SMTP, MX, SPF, DMARC, DKIM) ---"
 if [[ ! -r "$SCRIPT_DIR/app-health-check.py" ]]; then
     warn "app-health-check.py introuvable à côté de ce script — vérification du courriel impossible."
@@ -2358,11 +2358,11 @@ else
             "[OK] "*)   pass "${ligne_courriel#\[OK\] }"; courriel_n=$((courriel_n + 1)) ;;
             "[ATTN] "*) warn "${ligne_courriel#\[ATTN\] }"; courriel_n=$((courriel_n + 1)) ;;
             "[FAIL] "*) fail "${ligne_courriel#\[FAIL\] }"; courriel_n=$((courriel_n + 1)) ;;
-            "       "*) echo "  $ligne_courriel" ;;                         # détail : enregistrement DNS à ajouter
+            "       "*) echo "  $ligne_courriel" ;;                         # detail: DNS record to add
             *)          courriel_brut="${courriel_brut:-$ligne_courriel}" ;;
         esac
     done < <(NGINX_TOOLS_LANG=fr timeout --foreground 120 python3 "$SCRIPT_DIR/app-health-check.py" --check-email-dns 2>&1 || true)
-    # Aucun résultat reconnu (programme trop ancien, erreur) : jamais « tout est en ordre » sans vérification.
+    # No recognized result (program too old, error): never "all is in order" without verification.
     if (( courriel_n == 0 )); then
         warn "vérification du courriel impossible : app-health-check.py n'a produit aucun résultat reconnu${courriel_brut:+ (« ${courriel_brut:0:140} »)}."
     fi
@@ -2371,8 +2371,8 @@ fi
 echo
 
 # --- 14) Pays des adresses IP : base locale (geoip-bin) ------------------------------------------------------------
-# RECOMMANDÉ pour tous les serveurs, pas facultatif : sans lui, app-log-live.py cherche le pays de CHAQUE adresse sur Internet (rdap.org) —
-# lent (une requête par adresse) et dépendant d'un service extérieur. Avec lui : lecture locale, instantanée, sans rien envoyer.
+# RECOMMENDED for all servers, not optional: without it, app-log-live.py looks up the country of EACH address on the Internet (rdap.org) -
+# slow (one request per address) and dependent on an external service. With it: local reading, instant, without sending anything.
 echo "--- 14) Pays des adresses IP : geoip-bin (base locale) ---"
 if command -v geoiplookup >/dev/null 2>&1; then
     if geoiplookup 8.8.8.8 2>/dev/null | grep -qE 'Country Edition: [A-Z]{2},'; then
@@ -2399,7 +2399,7 @@ fi
 echo
 
 # --- 15) Bip d'app-log-live.py (--chime) dans byobu / tmux ---------------------------------------------------------
-# byobu s'appuie sur tmux : par défaut tmux peut avaler le bip (bell-action none, visual-bell on). On dit QUELLE configuration changer ; rien n'est modifié.
+# byobu relies on tmux: by default tmux may swallow the bell (bell-action none, visual-bell on). We say WHICH configuration to change; nothing is changed.
 if command -v byobu >/dev/null 2>&1 || command -v tmux >/dev/null 2>&1; then
     echo "--- 15) Bip d'app-log-live.py (--chime) dans byobu / tmux ---"
     bip_manque=()
@@ -2422,8 +2422,8 @@ if command -v byobu >/dev/null 2>&1 || command -v tmux >/dev/null 2>&1; then
     echo
 fi
 
-# --- 16) Appels d'Odoo vers son propre nom public (User-Agent « python-requests ») ----------------------------------
-# Odoo (mass_mailing, aperçu des thèmes…) appelle son nom public avec python-requests : si nginx le prend pour un robot (403), les pages qui s'en servent cassent.
+# --- 16) Odoo calls to its own public name (User-Agent "python-requests") ---
+# Odoo (mass_mailing, theme preview...) calls its public name with python-requests: if nginx takes it for a robot (403), the pages that use it break.
 # On refait, DEPUIS le serveur et SANS --resolve (donc par l'adresse publique, comme Odoo), la commande de diagnostic : curl -sI -A python-requests/2.31 https://NOM/mass_mailing_themes
 if [[ "$APP_NAME" == "odoo" ]] && command -v nginx >/dev/null 2>&1 && command -v curl >/dev/null 2>&1 && [[ -n "${hsts_names:-}" ]]; then
     echo "--- 16) Appels d'Odoo vers son propre nom public (User-Agent python-requests, page /mass_mailing_themes) ---"
@@ -2464,7 +2464,7 @@ fi
 echo "=============================================================="
 
 if [[ "$CHECK_ONLY" != "1" ]]; then
-    # Le fichier d'état est aussi le fichier de configuration : les lignes de l'utilisateur (LANGUAGE, options…) sont conservées, seules les lignes SETUP_* sont remplacées.
+    # The state file is also the configuration file: the user's lines (LANGUAGE, options...) are kept, only the SETUP_* lines are replaced.
     conserve=""
     mkdir -p "$(dirname "$STATE_FILE")" 2>/dev/null || true
     if [[ -r "$STATE_FILE" ]]; then
@@ -2500,7 +2500,7 @@ if (( NEED_FAIL2BAN_RESTART > 0 )); then
     # "fail2ban-client reload" plutot que "systemctl reload fail2ban" : fonctionne meme si l'unite systemd de
     # fail2ban n'implemente pas ExecReload, et fail2ban-client est deja confirme present a ce stade (etape 9).
     # Contrairement a un redemarrage d'Odoo (jamais automatique dans ce script, interruption reelle du service),
-    # un reload de fail2ban est rapide et sans impact sur le trafic web — sans risque a faire automatiquement ici.
+    # a fail2ban reload is fast and has no impact on web traffic - safe to do automatically here.
     if run fail2ban-client reload >/dev/null 2>&1; then
         echo "Jails fail2ban installés ou régénérés : fail2ban rechargé (fail2ban-client reload)."
         sleep 2
@@ -2515,7 +2515,7 @@ if (( NEED_FAIL2BAN_RESTART > 0 )); then
             echo "    Vérification ponctuelle (une fois) : fail2ban voit-il les échecs de connexion dans le VRAI journal d'Odoo ?"
             echo "    1) Depuis un navigateur, se connecter au site avec un MAUVAIS mot de passe (une fois suffit) ;"
             echo "    2) lancer :"
-            # Test sur TEXTE (fiable) : « fail2ban-regex … systemd-journal » peut lire 0 ligne même quand le journal est plein (constaté sur DEV) ; le filtre, lui, est vérifié sur un extrait du journal.
+            # Test on TEXT (reliable): "fail2ban-regex ... systemd-journal" can read 0 lines even when the journal is full (observed on DEV); the filter, however, is checked on an excerpt of the journal.
             jopt=""; if [[ -n "${auth_ns:-}" ]]; then jopt=" --namespace=$auth_ns"; fi
             if [[ -n "$ODOO_LOGFILE" && -r "$ODOO_LOGFILE" ]]; then
                 jtest="$ODOO_LOGFILE"                                    # journal d'Odoo en fichier : lu tel quel
@@ -2531,8 +2531,8 @@ if (( NEED_FAIL2BAN_RESTART > 0 )); then
             echo "       (ignoreip) : depuis votre poste d'équipe, « Total failed » reste à 0, c'est NORMAL. Pour voir la jail compter, essayer depuis une adresse hors liste (cellulaire, autre réseau)."
         fi
     else
-        # Cause la plus fréquente : fail2ban n'est pas démarré (aucun socket) ; sinon, erreur de configuration.
-        # « systemctl is-active » AFFICHE l'état ET renvoie un code non nul s'il n'est pas actif : lu dans une variable.
+        # Most frequent cause: fail2ban is not started (no socket); otherwise, configuration error.
+        # "systemctl is-active" DISPLAYS the state AND returns a non-zero code if it is not active: read into a variable.
         f2b_etat=""; command -v systemctl >/dev/null 2>&1 && { f2b_etat=$(systemctl is-active fail2ban 2>/dev/null) || true; }
         if [[ -n "$f2b_etat" && "$f2b_etat" != "active" ]]; then
             echo "${C_RED}Jails fail2ban installés, mais fail2ban n'est PAS démarré ($f2b_etat) : aucune jail n'est active.${C_RESET}"

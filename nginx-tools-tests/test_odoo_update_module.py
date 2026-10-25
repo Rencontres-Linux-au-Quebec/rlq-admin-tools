@@ -86,7 +86,7 @@ class OdooUpdateModule(EnvTest):
         rc, out, err = self.lancer("--check-activity", ODOO_UPDATE_MODULE_NOW=self._epoch("2026-10-22 16:09:00 UTC"))     # 12:09 EDT : soumissions de sondage
         self.assertEqual(rc, 3, out + err)
         self.assertIn("écriture(s) HTTP", out)
-        rc, out, err = self.lancer("--check-activity", ODOO_UPDATE_MODULE_NOW=self._epoch("2026-10-22 16:23:00 UTC"))     # 12:23 EDT : dernière écriture à 12:17
+        rc, out, err = self.lancer("--check-activity", ODOO_UPDATE_MODULE_NOW=self._epoch("2026-10-22 16:23:00 UTC"))     # 12:23 EDT: last write at 12:17
         self.assertEqual(rc, 0, out + err)
         self.assertIn("site calme", out)
 
@@ -96,7 +96,7 @@ class OdooUpdateModule(EnvTest):
         rc, out, err = self.lancer("--wait-quiet", "0", ODOO_UPDATE_MODULE_NOW=occupe)
         self.assertEqual(rc, 3, out + err)
         self.assertIn("ANNULÉE", out)
-        self.assertNotIn("systemctl stop erplibre_erplibre.service", self.appels())          # rien n'a été arrêté
+        self.assertNotIn("systemctl stop erplibre_erplibre.service", self.appels())          # nothing was stopped
         rc, out, err = self.lancer("--wait-quiet", "0", "--force-busy", ODOO_UPDATE_MODULE_NOW=occupe)
         self.assertEqual(rc, 0, out + err)
         self.assertIn("systemctl stop erplibre_erplibre.service", self.appels())
@@ -117,13 +117,13 @@ class OdooUpdateModule(EnvTest):
         self.assertLess(i_stop, i_odoo)
         self.assertLess(i_odoo, i_start)
         commande = a[i_odoo]
-        self.assertIn("-d base_prod", commande)                       # base du « -d » de la commande du service
+        self.assertIn("-d base_prod", commande)                       # base of the "-d" of the service's command
         self.assertIn("-u rlq_autre,rlq_survey_report", commande.replace("rlq_survey_report,rlq_autre", "rlq_autre,rlq_survey_report"))
         self.assertNotIn("autre_module", commande)
         self.assertNotIn("rlq_sans_manifeste", commande)
         for option in ("--stop-after-init", "--no-http", "--workers=0", "--max-cron-threads=0", "--limit-time-real=1800", "-c " + self.conf):
             self.assertIn(option, commande)
-        self.assertEqual(a[i_odoo + 1], "etat_service=inactive")        # Odoo s'exécute service ARRÊTÉ
+        self.assertEqual(a[i_odoo + 1], "etat_service=inactive")        # Odoo runs with the service STOPPED
         self.assertEqual(os.path.realpath(a[i_odoo + 2]), os.path.realpath(self.odoo))
         self.assertIn("mise à jour terminée", out)
         self.assertTrue(os.listdir(os.path.join(self.d, "journaux")))
@@ -157,7 +157,7 @@ class OdooUpdateModule(EnvTest):
         self.assertIn("HORS systemd", out)
         a = self.appels()
         self.assertFalse([l for l in a if l.startswith("odoo ")])
-        self.assertEqual(a[-1], "systemctl start erplibre_erplibre.service")        # il était actif : on le remet
+        self.assertEqual(a[-1], "systemctl start erplibre_erplibre.service")        # it was active: we restart it
         rc, out, err = self.lancer("--force")
         self.assertEqual(rc, 0, out + err)
         self.assertIn("--force : on continue", out)
@@ -166,14 +166,14 @@ class OdooUpdateModule(EnvTest):
         """1.0 -> 1.1 : en-tête compact (service, base, modules), étapes [1/7]…, ✔ vert ; sans terminal (tube) : aucun code de couleur."""
         rc, out, err = self.lancer()
         self.assertEqual(rc, 0, out + err)
-        for etape in ("[1/7] Attente d'un site calme", "[2/7] Copie des modules", "[3/7] Arrêt du service", "[4/7] Mise à jour des modules dans la base base_prod", "[5/7] Redémarrage du service", "[7/7] Contrôle du journal d'Odoo"):     # 1.11 : 7 étapes
+        for etape in ("[1/7] Attente d'un site calme", "[2/7] Copie des modules", "[3/7] Arrêt du service", "[4/7] Mise à jour des modules dans la base base_prod", "[5/7] Redémarrage du service", "[7/7] Contrôle du journal d'Odoo"):     # 1.11: 7 steps
             self.assertIn(etape, out)
         self.assertIn("✔ mise à jour terminée", out)
         self.assertNotIn("\x1b[", out)
         self.assertNotIn("[OK]", out)
         texte, _ = self.run_pty(["bash", self.prog, "--lang", "fr"], [], dict(self.env), timeout=60, keep_ansi=True)
-        self.assertIn("\x1b[1;36m▶ [3/7] Arrêt du service", texte)                       # étape en cyan gras
-        self.assertIn("\x1b[1;32m✔\x1b[0m", texte)                                       # succès en vert
+        self.assertIn("\x1b[1;36m▶ [3/7] Arrêt du service", texte)                       # step in bold cyan
+        self.assertIn("\x1b[1;32m✔\x1b[0m", texte)                                       # success in green
         self.assertIn("\x1b[1;33mbase_prod", texte)                                      # la base en jaune gras
 
     FAUX_PRECHAUFFAGE = """#!/usr/bin/env python3
@@ -198,7 +198,7 @@ sys.exit(%d)
         a = self.appels()
         i_start = a.index("systemctl start erplibre_erplibre.service")
         i_warm = next(i for i, l in enumerate(a) if l.startswith("warmup "))
-        self.assertGreater(i_warm, i_start)                                            # APRÈS le redémarrage
+        self.assertGreater(i_warm, i_start)                                            # AFTER the restart
         self.assertIn("--url http://127.0.0.1:10000 --db base_prod", a[i_warm])
         self.assertLess(out.index("[5/7] Redémarrage"), out.index("[6/7] Préchauffage"))
         self.assertIn("✔ mise à jour terminée", out)
@@ -206,7 +206,7 @@ sys.exit(%d)
     def test_prechauffage_echecs_et_absence_sont_des_avertissements(self):
         self.faux_prechauffage('print("  [ÉCHEC ] /event/x                       HTTP 500  plus lent :   1.0 s  (1 échec(s) sur 1)")', 1, "", 1)
         rc, out, err = self.lancer()
-        self.assertEqual(rc, 0, out + err)                                              # jamais un échec de la mise à jour
+        self.assertEqual(rc, 0, out + err)                                              # never a failure of the update
         self.assertIn("[ATTN] préchauffage terminé avec des échecs", out)
         self.assertIn("/event/x", out)
         os.remove(os.path.join(self.d, "prog", "odoo-warmup.py"))
@@ -229,7 +229,7 @@ sys.exit(%d)
         rc, out, err = self.lancer()
         self.assertIn("LOGIN et KEY_FILE à définir", out)
 
-    # --- 1.4 : versions avant / après, archive .zip -------------------------------------------------------------------------
+    # --- 1.4: versions before / after, .zip archive ----------------------------------------------------------------------
     FAUX_RUNUSER = r"""
 SEP=$'\x1f'
 if grep -q '^odoo ' "$D/appels.log" 2>/dev/null; then f="$D/modules_apres"; else f="$D/modules_avant"; fi
@@ -281,12 +281,12 @@ while IFS='|' read -r n e v a m c; do printf '%s\n' "$n$SEP$e$SEP$v$SEP$a$SEP$m$
         self.assertIn("[4/8] Décompression de rlq_survey_report.zip", out)
         self.assertIn("18.0.1.101.0", out)
         self.assertIn("Archive :", out)
-        entete = out.split("Archive :")[1].split("Compte :")[0]                            # 1.6 : version du manifeste dès l'en-tête
+        entete = out.split("Archive :")[1].split("Compte :")[0]                            # 1.6: version of the manifest from the header
         self.assertIn("rlq_survey_report", entete)
         self.assertIn("version 18.0.1.101.0", entete)
         a = self.appels()
         self.assertLess(a.index("systemctl stop erplibre_erplibre.service"), next(i for i, l in enumerate(a) if l.startswith("odoo ")))
-        self.assertTrue(os.path.isfile(archive))                                          # l'archive n'est pas supprimée
+        self.assertTrue(os.path.isfile(archive))                                          # the archive is not deleted
 
     def test_archive_destination_deduite_de_addons_path_et_modules_ajoutes(self):
         """Sans --addons-dir : le dossier d'addons_path qui contient déjà le module ; un module nouveau de l'archive est mis à jour aussi."""
@@ -327,7 +327,7 @@ while IFS='|' read -r n e v a m c; do printf '%s\n' "$n$SEP$e$SEP$v$SEP$a$SEP$m$
         rc, out, err = self.lancer("--zip", inconnu)
         self.assertEqual(rc, 1, out + err)
         self.assertIn("préciser --addons-dir", out)
-        self.assertFalse([l for l in self.appels() if l.startswith("systemctl stop")])      # rien n'est arrêté
+        self.assertFalse([l for l in self.appels() if l.startswith("systemctl stop")])      # nothing is stopped
         faux = os.path.join(self.d, "faux.zip")
         with open(faux, "w") as f:
             f.write("pas un zip")
@@ -445,7 +445,7 @@ while IFS='|' read -r n e v a m c; do printf '%s\n' "$n$SEP$e$SEP$v$SEP$a$SEP$m$
         self.assertNotIn("rlq_survey_report", out.split("Modules :")[1].splitlines()[0])
 
 
-    # --- 1.11 : site calme avant l'arrêt, copie des modules, contrôle après le démarrage, retour arrière ------------------------------------------
+    # --- 1.11: quiet site before the stop, copy of the modules, check after the start, rollback ----------------------------------------
     def journal_nginx(self, adresses, robots=0):
         import datetime
         t = datetime.datetime.now(datetime.timezone.utc).astimezone().strftime("%d/%b/%Y:%H:%M:%S %z")
@@ -471,7 +471,7 @@ while IFS='|' read -r n e v a m c; do printf '%s\n' "$n$SEP$e$SEP$v$SEP$a$SEP$m$
         self.assertIn("site calme : aucune écriture HTTP ni en base, visiteurs actifs sous le seuil de 3", out)
         rc, out, err = self.lancer("--wait-quiet", "0")
         self.assertEqual(rc, 0, out + err)
-        self.assertIn("Attente d'un site calme (au plus 0 min", out)   # un seul contrôle, aucune attente
+        self.assertIn("Attente d'un site calme (au plus 0 min", out)   # a single check, no wait
         self.journal_nginx([f"198.51.100.{i}" for i in range(5)])
         rc, out, err = self.lancer("--dry-run")
         self.assertIn("maintenant occupé : 5 visiteur(s) actif(s)", out)
@@ -505,7 +505,7 @@ while IFS='|' read -r n e v a m c; do printf '%s\n' "$n$SEP$e$SEP$v$SEP$a$SEP$m$
         self.assertTrue(os.path.isfile(os.path.join(ancien, "ANCIEN")))                   # la version d'avant est revenue
         self.assertFalse(os.path.exists(os.path.join(ancien, "models")))                   # les fichiers de l'archive sont partis
         a = self.appels()
-        self.assertEqual(len([l for l in a if l.startswith("odoo ")]), 2)                  # mise à jour, puis mise à jour avec les modules d'avant
+        self.assertEqual(len([l for l in a if l.startswith("odoo ")]), 2)                  # update, then update with the previous modules
         self.assertEqual(a.count("systemctl start erplibre_erplibre.service"), 2)
         self.assertEqual(a[-1].split()[0], "journalctl")
 
@@ -518,7 +518,7 @@ while IFS='|' read -r n e v a m c; do printf '%s\n' "$n$SEP$e$SEP$v$SEP$a$SEP$m$
         rc, out, err = self.lancer("--zip", archive, "--no-rollback")
         self.assertEqual(rc, 1, out + err)
         self.assertIn("retour arrière désactivé", out)
-        self.assertEqual(len([l for l in self.appels() if l.startswith("odoo ")]), 2)    # une mise à jour par lancement, aucune de plus
+        self.assertEqual(len([l for l in self.appels() if l.startswith("odoo ")]), 2)    # one update per launch, no more
 
     def test_echec_de_la_mise_a_jour_retour_arriere(self):
         self.write("odoo/custom/rlq_survey_report/ANCIEN", "x\n")
@@ -527,10 +527,10 @@ while IFS='|' read -r n e v a m c; do printf '%s\n' "$n$SEP$e$SEP$v$SEP$a$SEP$m$
         self.assertEqual(rc, 1, out + err)
         self.assertIn("Retour arrière des modules", out)
         self.assertTrue(os.path.isfile(os.path.join(self.odoo, "custom", "rlq_survey_report", "ANCIEN")))
-        self.assertIn("la mise à jour avec les modules d'avant a échoué aussi", out)       # le faux Odoo échoue toujours : dit clairement
+        self.assertIn("la mise à jour avec les modules d'avant a échoué aussi", out)       # the fake Odoo always fails: says it clearly
         a = self.appels()
         self.assertGreater(len(a) - 1 - a[::-1].index("systemctl start erplibre_erplibre.service"), max(i for i, l in enumerate(a) if l.startswith("odoo ")))
-        self.assertEqual(open(self.path("etat")).read().strip(), "active")                 # le site ne reste jamais arrêté
+        self.assertEqual(open(self.path("etat")).read().strip(), "active")                 # the site never stays stopped
 
     def test_aide_options_1_11_en_ordre_alphabetique(self):
         rc, out, err = self.lancer("--help")

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # ========================================================================================================================
 # Copyright (C) 2026 Services-Conseils Linux
-# Copyright (C) 2026 Rencontres Linux au Québec contributors
+# Copyright (C) 2026 Rencontres Linux au Quebec contributors
 #
 # This program is free software: you can redistribute it and/or modify it under the terms of the GNU Affero General Public
 # License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
@@ -30,7 +30,7 @@ import time
 import unicodedata
 import unittest
 
-__version__ = "1.0.20261020.112434"
+__version__ = "1.1.20261022.231529"
 HERE = os.path.dirname(os.path.abspath(__file__))
 PROG_DIR = os.environ.get("TEST_SCRIPTS_DIR") or os.path.dirname(HERE)
 KINDS = ("unit", "functional", "interactive", "conformity")
@@ -155,7 +155,7 @@ class StatsResult(unittest.TextTestResult):
         else:
             kind = "unit"
         explicit = getattr(sys.modules.get(module), "PROGRAMME", None)
-        if not isinstance(explicit, str):          # un module de test peut définir PROGRAMME = <module> (test_record) : seul un nom compte
+        if not isinstance(explicit, str):          # a test module may define PROGRAMME = <module> (test_record): only a name counts
             explicit = None
         self.records.append({"id": test.id(), "module": module, "program": explicit or program_of(module), "kind": kind,
                              "seconds": round(time.monotonic() - self._t0, 3), "result": self._outcome})
@@ -271,7 +271,7 @@ def main(argv):
         print(f"stats_runner.py version {__version__}")
         return 0
     if len(argv) >= 4 and argv[1] == "--run":
-        return run(argv[2], [a for a in argv[3:] if not a.startswith("-")])          # « -v » of the former command line: the output is always verbose
+        return run(argv[2], [a for a in argv[3:] if not a.startswith("-")])          # '-v' of the former command line: the output is always verbose
     whole = None
     if len(argv) >= 3 and argv[1] == "--total":
         try:

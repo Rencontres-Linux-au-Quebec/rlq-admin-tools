@@ -1,17 +1,17 @@
 #!/usr/bin/env python3
 # ========================================================================================================================
 # Copyright (C) 2026 Services-Conseils Linux Inc.
-# Copyright (C) 2026 Rencontres Linux au Québec contributors
+# Copyright (C) 2026 Rencontres Linux au Quebec contributors
 #
 # This program is free software: you can redistribute it and/or modify it under the terms of the GNU Affero General Public
 # License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
 # Full text: https://www.gnu.org/licenses/agpl-3.0.html
 # ========================================================================================================================
 #
-# _bbb.py — état de BigBlueButton : versions (paquets, Greenlight), empreinte des fichiers de configuration GÉRÉS PAR BBB
-# et des NÔTRES, vérifications de compatibilité avec notre durcissement nginx. Instantané conservé entre deux passages :
-# une mise à jour de BBB (apt upgrade, bbb-install.sh) apparaît comme une différence au passage suivant.
-# Utilisé par nginx-hardening.sh (--before au début, --after à la fin) et par web-monitor.py --summary (fonction resume).
+# _bbb.py - state of BigBlueButton: versions (packages, Greenlight), fingerprint of the configuration files MANAGED BY BBB
+# and OUR OWN, compatibility checks with our nginx hardening. Snapshot kept between two runs:
+# a BBB update (apt upgrade, bbb-install.sh) shows up as a difference on the next run.
+# Used by nginx-hardening.sh (--before at the start, --after at the end) and by web-monitor.py --summary (function resume).
 #
 #
 # Usage (normalement appele par les programmes de la suite) :
@@ -32,7 +32,7 @@ import ssl
 import subprocess
 import sys
 
-__version__ = "1.3.20261019.150215"
+__version__ = "1.4.20261022.231529"
 
 ETC_BBB = os.environ.get("NGINX_TOOLS_BBB_ETC", "/etc/bigbluebutton")
 NGINX_BBB = os.environ.get("NGINX_HARDENING_BBB_NGINX_DIR", os.path.join(ETC_BBB, "nginx"))
@@ -82,7 +82,7 @@ def lire(chemin):
 
 
 # ------------------------------------------------------------------------------------------------------------------
-# Relevé de l'état
+# State report
 # ------------------------------------------------------------------------------------------------------------------
 def fichiers_bbb():
     """Fichiers de configuration gérés par BBB (paquets ou bbb-install.sh) : jamais modifiés par nos outils."""
@@ -166,7 +166,7 @@ def enregistrer(chemin, etat):
 
 
 # ------------------------------------------------------------------------------------------------------------------
-# Vérifications de compatibilité (nos règles ↔ BBB)
+# Compatibility checks (our rules <-> BBB)
 # ------------------------------------------------------------------------------------------------------------------
 def nom_serveur():
     """Nom public de BBB : bigbluebutton.web.serverURL (surcharge de /etc/bigbluebutton, puis valeur par défaut)."""
@@ -323,7 +323,7 @@ def resume(mode="summary", sauver=False):
     precedent = charger(ETAT)
     ignore = ""
     if precedent and set(precedent.get("fichiers_nous", {})) != set(etat["fichiers_nous"]):
-        # Instantané écrit pour d'AUTRES emplacements (tests, ancienne installation) : sans valeur, jamais une « disparition ».
+        # Snapshot written for OTHER locations (tests, old installation): no value, never a 'disappearance'.
         ignore = (f"       Instantané du {precedent.get('date')} ignoré : il décrit d'autres emplacements de fichiers "
                   "(écrit par une exécution de test ou une ancienne installation) — il sera remplacé par le prochain --update")
         precedent = None

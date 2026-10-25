@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
 # ========================================================================================================================
 # Copyright (C) 2026 Services-Conseils Linux Inc.
-# Copyright (C) 2026 Rencontres Linux au Québec contributors
+# Copyright (C) 2026 Rencontres Linux au Quebec contributors
 #
 # This program is free software: you can redistribute it and/or modify it under the terms of the GNU Affero General Public
 # License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
 # Full text: https://www.gnu.org/licenses/agpl-3.0.html
 # ========================================================================================================================
 #
-# odoo-warmup.py — WARMS UP the Odoo cache after a restart or a module update: the first users no longer suffer the 5 to 10 seconds
+# odoo-warmup.py - WARMS UP the Odoo cache after a restart or a module update: the first users no longer suffer the 5 to 10 seconds
 # needed to build assets (JS/CSS), compiled views and menus.
 #   * PUBLIC pages (no password): home, /web/login, /event, /survey... (PAGES list of the configuration file) and all the assets (/web/assets/...) these
 #     pages request.
@@ -51,7 +51,7 @@ try:                    # line editing in prompts
 except ImportError:
     pass
 
-__version__ = "1.10.20261022.012000"
+__version__ = "1.11.20261022.231529"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
@@ -103,7 +103,7 @@ def lang_origin():
     origin = getattr(I18N, "origine_langue", "") if I18N else ""
     return f" ({origin})" if origin else ""
 if I18N:
-    print, input = I18N.print, I18N.input          # noqa: A001 — every displayed text goes through the translator (no effect when the display language is the source language)
+    print, input = I18N.print, I18N.input          # noqa: A001 - every displayed text goes through the translator (no effect when the display language is the source language)
 
 
 def eprint(*args):
@@ -275,7 +275,7 @@ def in_parallel(jobs, repetitions):
         for name, future in futures:
             try:
                 results.append((name, future.result()))
-            except Exception as e:  # noqa: BLE001 — a failure does not stop the warm-up
+            except Exception as e:  # noqa: BLE001 - a failure does not stop the warm-up
                 results.append((name, (0, 0.0, f"{type(e).__name__}: {e}")))
     return results
 

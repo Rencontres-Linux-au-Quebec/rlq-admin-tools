@@ -12,7 +12,7 @@ T0 = 1759784400                      # instant du premier courriel ; les suivant
 RAISON_452 = "Échec de l'envoi de l'e-mail via le serveur SMTP 'None'. SMTPDataError: (452, b'4.4.5 Maximum number of messages per session exceeded.')"
 RAISON_550 = ("Échec de l'envoi de l'e-mail via le serveur SMTP 'None'. SMTPDataError: (550, b'You are not allowed to send emails as \"etienne@exemple.org\" "
               "(header From) while using \"admin@exemple.org\" as envelope sender (MAIL FROM: ...). Please fix.')")
-COURRIELS = [   # id, instant, titre, destinataires, raison — du plus ancien au plus récent (ordre de la requête)
+COURRIELS = [   # id, instant, title, recipients, reason - from the oldest to the most recent (order of the query)
     (7171, T0 - 86400 * 20, "Invitation à l'événement", "x@exemple.fr", RAISON_550),
     (7404, T0, "Bienvenue sur la plateforme", "jean.dupont@exemple.org", RAISON_452),
     (7405, T0 + 60, "Bienvenue sur la plateforme", "marie@exemple.org", RAISON_452),
@@ -30,7 +30,7 @@ class _Base(EnvTest):
     def setUp(self):
         super().setUp()
         self.prog = self.prepare("odoo-mail-retry.py")
-        self.prepare("app-log-check.py")                                   # base de diagnostics (cause d'un échec), à côté du programme
+        self.prepare("app-log-check.py")                                   # diagnostics base (cause of a failure), next to the program
         self.env["ODOO_MAIL_RETRY_LOG"] = self.path("journal-renvois.log")
         self.env["HOME"] = self.path("maison", "x")[:-2]
         os.makedirs(self.env["HOME"], exist_ok=True)
@@ -107,7 +107,7 @@ class OdooMailRetry(_Base):
         self.assertEqual(rc, 0, err)
         self.assertRegex(out, r"^odoo-mail-retry\.py v1\.\d+\.\d{8}\.\d{6}\n")
         self.assertIn("Courriels non envoyés — base linux_meetup_odoo_18, 30 derniers jours : 5 en échec d'envoi, 3 en attente d'envoi, 120 envoyés", out)
-        self.assertNotIn("autre_base", out)                                                    # sans table des courriels : ignorée
+        self.assertNotIn("autre_base", out)                                                    # without an e-mail table: ignored
         self.assertIn("(adresses masquées ; --details pour les voir en entier)", out)
         self.assertIn(f"#7404   {heure(T0)}   « Bienvenue sur la plateforme »", out)           # le TITRE de chaque courriel
         self.assertIn(f"#7406   {heure(T0 + 120)}   « Votre inscription »", out)
@@ -141,7 +141,7 @@ class OdooMailRetry(_Base):
         rc, out, err = self.lancer("--no-prompt")
         self.assertEqual(rc, 0, err)
         self.assertIn("« Bienvenue sur la plateforme »", out)
-        self.assertIn("cause : SMTPDataError: (452, b'4.4.5 Maximum number of messages", " ".join(out.split()))      # sans le préambule inutile
+        self.assertIn("cause : SMTPDataError: (452, b'4.4.5 Maximum number of messages", " ".join(out.split()))      # without the useless preamble
 
     # --- le menu de renvoi ---------------------------------------------------------------------------------------------
     def menu(self, reponses, *args):
@@ -156,7 +156,7 @@ class OdooMailRetry(_Base):
         self.assertEqual(self.ids_remis(), [7171, 7404, 7405, 7406, 7500])
         self.assertIn("5 courriel(s) remis à l'état « En attente » : #7171, #7404, #7405, #7406, #7500.", sortie)
         self.assertIn("Mail: Email Queue Manager", sortie)
-        with open(self.path("journal-renvois.log")) as f:                                      # chaque renvoi est consigné
+        with open(self.path("journal-renvois.log")) as f:                                      # each resend is logged
             self.assertRegex(f.read(), r"^\d{4}-\d\d-\d\d \d\d:\d\d:\d\d\tlinux_meetup_odoo_18\t5\t7171,7404,7405,7406,7500\n$")
 
     def test_menu_lot_des_plus_anciens(self):
@@ -210,7 +210,7 @@ class OdooMailRetry(_Base):
         self.assertIn("5 courriel(s) remis à l'état « En attente »", out)
 
     def test_courriel_deja_renvoye_ou_supprime_est_ignore(self):
-        self.donnees(COURRIELS, deja=(7404, 7500))                                              # plus en échec au moment de l'écriture
+        self.donnees(COURRIELS, deja=(7404, 7500))                                              # no longer failing at the time of writing
         rc, out, err = self.lancer("--resend", "--yes")
         self.assertIn("3 courriel(s) remis à l'état « En attente » : #7171, #7405, #7406.", out)
         self.assertIn("2 ignoré(s) : plus en échec d'envoi (déjà renvoyés ou supprimés) : #7404, #7500.", out)
@@ -227,7 +227,7 @@ class OdooMailRetry(_Base):
         douze = [(8000 + i, T0 + i, "Bienvenue", "p@exemple.org", RAISON_452) for i in range(12)]
         self.donnees(douze)
         a = " ".join(self.lancer("--no-prompt")[1].split())
-        self.assertIn("[ATTN] mail.session.batch.size est non défini", a)                       # aussi en liste seule : à savoir AVANT de renvoyer
+        self.assertIn("[ATTN] mail.session.batch.size est non défini", a)                       # also in list-only mode: to know BEFORE resending
         a = " ".join(self.lancer("--resend", "--yes")[1].split())
         self.assertIn("[ATTN] mail.session.batch.size est non défini : Odoo enverra ces 12 courriels sur UNE seule connexion SMTP", a)
         self.assertIn("renvoyer par lots (choix « l »)", a)
@@ -239,17 +239,17 @@ class OdooMailRetry(_Base):
         a = " ".join(self.lancer("--resend", "--yes")[1].split())
         self.assertIn("mail.session.batch.size est défini à 500", a)
 
-    # --- sécurité des requêtes ----------------------------------------------------------------------------------------------
+    # --- security of the queries ----------------------------------------------------------------------------------------------
     def test_lecture_seule_pour_la_liste_ecriture_gardee_pour_le_renvoi(self):
         self.lancer("--resend", "--yes")
         lectures = [a for a in self.appels() if "UPDATE" not in a]
         self.assertTrue(lectures)
         for a in lectures:
-            self.assertIn("PGOPTIONS=-c default_transaction_read_only=on", a, a)               # PostgreSQL refuserait toute écriture
+            self.assertIn("PGOPTIONS=-c default_transaction_read_only=on", a, a)               # PostgreSQL would refuse any write
         (ecriture,) = self.appels("UPDATE mail_mail")
         self.assertNotIn("PGOPTIONS", ecriture)
         self.assertIn("SET state = 'outgoing'", ecriture)
-        self.assertIn("AND state = 'exception' RETURNING id", ecriture)                         # seulement ce qui est ENCORE en échec
+        self.assertIn("AND state = 'exception' RETURNING id", ecriture)                         # only what is STILL failing
         self.assertRegex(ecriture, r"IN \(7171, 7404, 7405, 7406, 7500\)")
         self.assertNotRegex(" ".join(self.appels()), r"smtp_pass|smtp_user|DELETE|DROP|TRUNCATE")
         self.assertNotIn("mail_message SET", ecriture)
@@ -282,7 +282,7 @@ class OdooMailRetry(_Base):
 
     def test_journal_des_renvois_inscriptible_ou_non(self):
         rc, out, err = self.lancer("--resend", "--yes", env_extra={"ODOO_MAIL_RETRY_LOG": self.path("journal-renvois.log", "x")})
-        self.assertEqual(rc, 0, err)                                                            # « dossier » qui est un fichier : le renvoi réussit quand même
+        self.assertEqual(rc, 0, err)                                                            # "folder" that is a file: the resend succeeds anyway
         self.assertIn("5 courriel(s) remis", out)
 
     # --- configuration ---------------------------------------------------------------------------------------------------
@@ -303,7 +303,7 @@ class OdooMailRetry(_Base):
         rc, out, err = self.lancer("--no-prompt", "-c", self.path("maison", ".odoo-mail-retry.conf"), env_extra=env)
         self.assertIn(f"Configuration lue : {self.path('maison', '.odoo-mail-retry.conf')} (demandé par -c/--config : aucun autre fichier n'est lu)", sans_date(out))
         self.assertIn("lot de renvoi : 4 courriels", out)
-        self.assertIn("courriels des 30 derniers jours", out)                                  # DAYS=7 du fichier système n'est plus lu
+        self.assertIn("courriels des 30 derniers jours", out)                                  # DAYS=7 of the system file is no longer read
         rc, out, err = self.lancer("--config", self.path("inexistant.conf"))
         self.assertEqual(rc, 2)
         self.assertIn(f"ERREUR : fichier de config introuvable : {self.path('inexistant.conf')}", err)
@@ -316,7 +316,7 @@ class OdooMailRetry(_Base):
 class AdressesInvalides(_Base):
     """1.10 : inscriptions dont l'adresse courriel est invalide (« marieb.essai@gmail'com ») : liste, correction suggérée, correction de l'inscription et du contact
     en UNE transaction, courriels en échec renvoyés ; adresse invalide d'un courriel en échec signalée."""
-    INSCRIPTIONS = [   # id, instant, événement, nom, courriel, état, contact, courriel du contact, identifiant Odoo
+    INSCRIPTIONS = [   # id, instant, event, name, e-mail, state, contact, contact's e-mail, Odoo identifier
         (1965, T0, "Journée portes ouvertes sur Linux 2026", "Marie B.", "marieb.essai@gmail'com", "open", 4, "marieb.essai@gmail'com", "marieb.essai@gmail'com"),
         (1966, T0 + 60, "Pause café Linux", "Jean", "jean@gmial.com", "open", 0, "", ""),
         (1967, T0 + 90, "Pause café Linux", "Ana", "ana@videotron.ca", "open", 0, "", ""),
@@ -343,7 +343,7 @@ class AdressesInvalides(_Base):
         self.assertIn("Pour les corriger : relancer sur un terminal (menu), ou avec --fix --yes", out)
         self.assertEqual(self.appels("UPDATE"), [])
         rc, out, err = self.lancer("--invalid-emails", "--no-prompt")
-        self.assertIn("m***@gmail'com", out)                                            # adresses masquées par défaut
+        self.assertIn("m***@gmail'com", out)                                            # addresses hidden by default
         self.assertNotIn("marieb.essai@", out)
 
     def test_courriel_en_echec_vers_une_adresse_invalide(self):
@@ -364,13 +364,13 @@ class AdressesInvalides(_Base):
         maj = self.appels("UPDATE event_registration")
         self.assertEqual(len(maj), 2)
         self.assertIn("psql -1 ", maj[0])                                               # une seule transaction
-        self.assertIn("WHERE id = 1965 AND email = 'marieb.essai@gmail''com'", maj[0])    # ancienne valeur revérifiée ; apostrophe doublée
+        self.assertIn("WHERE id = 1965 AND email = 'marieb.essai@gmail''com'", maj[0])    # old value rechecked; apostrophe doubled
         self.assertIn("UPDATE res_partner SET email = 'marieb.essai@gmail.com', email_normalized = lower('marieb.essai@gmail.com')", maj[0])
         self.assertIn("WHERE id = 4 AND email = 'marieb.essai@gmail''com'", maj[0])
         self.assertIn("UPDATE mail_mail SET state = 'outgoing'", maj[0])
         self.assertIn("WHERE id IN (7171) AND state = 'exception'", maj[0])
-        self.assertNotIn("UPDATE res_partner", maj[1])                                  # inscription sans contact : contact jamais touché
-        self.assertNotIn("UPDATE res_users", "\n".join(self.appels()))                 # identifiant jamais changé
+        self.assertNotIn("UPDATE res_partner", maj[1])                                  # registration without contact: contact never touched
+        self.assertNotIn("UPDATE res_users", "\n".join(self.appels()))                 # identifier never changed
         journal = open(self.env["ODOO_MAIL_RETRY_LOG"]).read()
         self.assertIn("fix-email\tregistration=1965\tpartner=4\tmarieb.essai@gmail'com -> marieb.essai@gmail.com", journal)
 

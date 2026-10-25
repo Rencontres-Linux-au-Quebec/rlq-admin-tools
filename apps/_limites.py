@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 # ========================================================================================================================
 # Copyright (C) 2026 Services-Conseils Linux Inc.
-# Copyright (C) 2026 Rencontres Linux au Québec contributors
+# Copyright (C) 2026 Rencontres Linux au Quebec contributors
 #
 # This program is free software: you can redistribute it and/or modify it under the terms of the GNU Affero General Public
 # License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
 # Full text: https://www.gnu.org/licenses/agpl-3.0.html
 # ========================================================================================================================
-# _limites.py — détail des refus 429 (limitation de débit nginx) d'UNE adresse : quoi, quand, quelle zone, quels effets, quoi changer (module partagé, apps/).
+# _limites.py - details of the 429 refusals (nginx rate limiting) for ONE address: what, when, which zone, which effects, what to change (shared module, apps/).
 #
 """Lit les journaux d'accès nginx (access.log, access.log.1, *.gz) et le journal d'erreurs (lignes « limiting requests, excess: … by zone "…" ») et dit, pour UNE adresse :
 combien de requêtes, combien de 429, sur quelles URL, dans quelle zone limit_req (le journal d'accès seul ne le dit pas), à quelle pointe (requêtes par seconde), et les
@@ -20,7 +20,7 @@ import gzip
 import os
 import re
 
-__version__ = "1.1.20261019.150215"
+__version__ = "1.2.20261022.231529"
 DOSSIER_DEFAUT = "/var/log/nginx"
 ACCES_RE = re.compile(r'^(\S+) \S+ \S+ \[([^\]]+)\] "([^"]*)" (\d{3}) (\S+)')
 ERREUR_RE = re.compile(r'^(\d{4}/\d\d/\d\d \d\d:\d\d:\d\d) .*limiting (requests|connections)(?:, excess: ([\d.]+))? by zone "([^"]+)", client: (\S+),.*?request: "(\S+) (\S+)')
@@ -94,7 +94,7 @@ def analyser(ip, dossier=DOSSIER_DEFAUT, fichiers_acces=None, fichiers_erreur=No
                 for ligne in f:
                     m = ERREUR_RE.match(ligne)
                     if m and m.group(5) == ip:
-                        zone = m.group(4) + (" (limit_conn)" if m.group(2) == "connections" else "")       # limit_conn : trop de connexions SIMULTANÉES (pas un débit)
+                        zone = m.group(4) + (" (limit_conn)" if m.group(2) == "connections" else "")       # limit_conn: too many SIMULTANEOUS connections (not a rate)
                         faits["zones"][zone] += 1
                         faits["zone_url"][zone][m.group(7).split("?")[0]] += 1
                         faits["excess_max"] = max(faits["excess_max"], float(m.group(3) or 0))

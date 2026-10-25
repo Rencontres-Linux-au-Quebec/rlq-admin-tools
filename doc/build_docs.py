@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 # ========================================================================================================================
 # Copyright (C) 2026 Services-Conseils Linux Inc.
-# Copyright (C) 2026 Rencontres Linux au Québec contributors
+# Copyright (C) 2026 Rencontres Linux au Quebec contributors
 #
 # This program is free software: you can redistribute it and/or modify it under the terms of the GNU Affero General Public
 # License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
 # Full text: https://www.gnu.org/licenses/agpl-3.0.html
 # ========================================================================================================================
-# build_docs.py — builds the bilingual (en/fr) documentation of nginx-tools.
+# build_docs.py - builds the bilingual (en/fr) documentation of nginx-tools.
 #
 """Documentation builder.
 
@@ -28,7 +28,7 @@ import xml.dom.minidom
 
 import markdown
 
-__version__ = "1.6.20261019.150215"
+__version__ = "1.7.20261022.231529"
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 LANGS = ("en", "fr")

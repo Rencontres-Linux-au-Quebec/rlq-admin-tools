@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # ========================================================================================================================
 # Copyright (C) 2026 Services-Conseils Linux
-# Copyright (C) 2026 Rencontres Linux au Québec contributors
+# Copyright (C) 2026 Rencontres Linux au Quebec contributors
 #
 # This program is free software: you can redistribute it and/or modify it under the terms of the GNU Affero General Public
 # License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
@@ -18,7 +18,7 @@ from helpers import SCRIPTS_DIR, script_path
 
 ENVIRONNEMENT = "commun"   # tous les serveurs (Odoo et BigBlueButton)
 
-# Lecteurs écrits à la main (sans SCHEMA_CONFIG) : clés lues par odoo-warmup.py et odoo-mail-retry.py.
+# Hand-written readers (without SCHEMA_CONFIG): keys read by odoo-warmup.py and odoo-mail-retry.py.
 LECTEURS_MANUELS = {
     "odoo-warmup": ["REPEAT", "WAIT", "LINKS", "LATEST", "URL", "DB", "LOGIN", "KEY_FILE", "PAGES", "PAGES_FILE", "LANGS", "MODELS", "SERVICE", "LANGUAGE"],
     "odoo-mail-retry": ["BATCH", "DAYS", "DB", "DETAILS", "NO_PROMPT", "LANGUAGE"],

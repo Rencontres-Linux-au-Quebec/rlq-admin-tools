@@ -1,16 +1,16 @@
 #!/usr/bin/env python3
 # ========================================================================================================================
 # Copyright (C) 2026 Services-Conseils Linux Inc.
-# Copyright (C) 2026 Rencontres Linux au Québec contributors
+# Copyright (C) 2026 Rencontres Linux au Quebec contributors
 #
 # This program is free software: you can redistribute it and/or modify it under the terms of the GNU Affero General Public
 # License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
 # Full text: https://www.gnu.org/licenses/agpl-3.0.html
 # ========================================================================================================================
 #
-# host-perf-audit.py — WHAT LIMITS THE PERFORMANCE of a hypervisor (Proxmox VE) or of any Linux server: processor, memory, disks, network, ZFS,
-# measured over a chosen duration (a minute to several hours), then a verdict per resource, the answer to « are SSD disks justified? » and the
-# settings to change (ZFS, ARC, swappiness…). Run it ON THE PROXMOX HOST: inside a container, the real disks are not visible.
+# host-perf-audit.py - WHAT LIMITS THE PERFORMANCE of a hypervisor (Proxmox VE) or of any Linux server: processor, memory, disks, network, ZFS,
+# measured over a chosen duration (a minute to several hours), then a verdict per resource, the answer to "are SSD disks justified?" and the
+# settings to change (ZFS, ARC, swappiness...). Run it ON THE PROXMOX HOST: inside a container, the real disks are not visible.
 #   * Light by design: one sample every INTERVAL seconds reads a few small files of /proc and /sys (apps/_sysperf.py, no external command); the
 #     program lowers its own priority (nice 10, idle I/O class) and reports what it cost. The few commands (zpool, zfs, pveversion, smartctl) run ONCE.
 #   * Per guest (LXC containers and VMs): processor, memory, disk throughput and disk waiting time, from their cgroup (cgroup v2), named from
@@ -40,7 +40,7 @@ import subprocess
 import sys
 import time
 
-__version__ = "1.4.20261020.211944"
+__version__ = "1.5.20261022.231529"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
@@ -51,7 +51,7 @@ MODPROBE_FILE = os.environ.get("HOST_PERF_AUDIT_MODPROBE_FILE", "/etc/modprobe.d
 CMD_TIMEOUT = 20
 VERBOSE = False
 
-# Thresholds (documented in the report): above them the resource is « limiting ».
+# Thresholds (documented in the report): above them the resource is "limiting".
 CPU_PSI_WARN, CPU_PSI_BAD = 10.0, 25.0          # % of the time with at least one task waiting for a processor
 IO_PSI_WARN, IO_PSI_BAD = 5.0, 15.0             # % of the time with at least one task waiting for the disk
 IO_FULL_BAD = 5.0                               # % of the time with ALL the tasks waiting for the disk
@@ -73,7 +73,7 @@ def _start():
 
 I18N = _start()
 if I18N:
-    print, input = I18N.print, I18N.input          # noqa: A001 — every displayed text goes through the translator
+    print, input = I18N.print, I18N.input          # noqa: A001 - every displayed text goes through the translator
 T = I18N.tr if I18N else (lambda text: text)       # column titles: translated BEFORE padding (aligned in every language)
 
 
@@ -311,7 +311,7 @@ def zfs_facts():
         c = line.split("\t")
         if len(c) == 2 and c[0] in pools:
             pools[c[0]]["ashift"] = c[1]
-    # Average waits since import, in nanoseconds (-p): total_wait r/w, disk_wait r/w, syncq_wait r/w, asyncq_wait r/w…
+    # Average waits since import, in nanoseconds (-p): total_wait r/w, disk_wait r/w, syncq_wait r/w, asyncq_wait r/w...
     code, out = run(["zpool", "iostat", "-l", "-H", "-p"])
     for line in out.splitlines():
         c = line.split("\t")

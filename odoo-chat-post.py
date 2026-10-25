@@ -1,22 +1,22 @@
 #!/usr/bin/env python3
 # ========================================================================================================================
 # Copyright (C) 2026 Services-Conseils Linux Inc.
-# Copyright (C) 2026 Rencontres Linux au Québec contributors
+# Copyright (C) 2026 Rencontres Linux au Quebec contributors
 #
 # This program is free software: you can redistribute it and/or modify it under the terms of the GNU Affero General Public
 # License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
 # Full text: https://www.gnu.org/licenses/agpl-3.0.html
 # ========================================================================================================================
 #
-# odoo-chat-post.py — Odoo DISCUSSION CHANNELS (Discuss) to keep the team informed about problems, WITHOUT access to the Linux console.
+# odoo-chat-post.py - Odoo DISCUSSION CHANNELS (Discuss) to keep the team informed about problems, WITHOUT access to the Linux console.
 #   * --create: creates the missing channels and threads (Odoo 18 sub-channels), from doc/odoo-chat-post.catalogue.json (editable; --catalog FILE),
 #     and writes in each one a FIRST MESSAGE that says why the channel exists, who feeds it and what to do. Existing channels are never modified or repeated.
-#     The catalog's « suggested » channels are only created with --suggested. Event threads (e.g. JPOL26-Inscriptions) exist for each --event.
-#   * --post CHANNEL/THREAD --message TEXT: posts an alert in a thread (« - »: the text comes from standard input), for scheduled tasks and other programs.
+#     The catalog's "suggested" channels are only created with --suggested. Event threads (e.g. JPOL26-Inscriptions) exist for each --event.
+#   * --post CHANNEL/THREAD --message TEXT: posts an alert in a thread ("-": the text comes from standard input), for scheduled tasks and other programs.
 #   * --list: state of each channel and thread of the catalog (present or absent).
-#   * --members LOGINS: RESTRICTED access — only these Odoo accounts (e.g. etienne.berube.ing@exemple.org,tux-bot) see the channels and are members; the account of the robot that posts
+#   * --members LOGINS: RESTRICTED access - only these Odoo accounts (e.g. etienne.berube.ing@exemple.org,tux-bot) see the channels and are members; the account of the robot that posts
 #     (--post) must be one of them. An account not yet created is reported; create it, then run --create again to add the missing members (nobody is ever removed).
-#   Access: Odoo external API (XML-RPC) with an API KEY (Odoo: Preferences → Account Security → New API Key); the key is read from the configuration file
+#   Access: Odoo external API (XML-RPC) with an API KEY (Odoo: Preferences -> Account Security -> New API Key); the key is read from the configuration file
 #   (mode 600 advised) or the ODOO_API_KEY variable, never on the command line or on screen. No root access, no write outside Odoo.
 # Configuration (common rule): /etc/default/odoo-chat-post.conf THEN ~/.odoo-chat-post.conf (the last one wins; keys API_KEY, DB, EVENTS, GROUP, LANGUAGE, LOGIN,
 # MEMBERS, NO_MEMBERS, SUGGESTED, URL); -c/--config: that file ALONE; the command line takes priority. The files read are always displayed, with the important options.
@@ -28,7 +28,7 @@
 #   odoo-chat-post.py --create [--suggested] [--event JPOL26] [--members etienne.berube.ing@exemple.org,tux-bot]
 #   odoo-chat-post.py --post "Odoo-Erreurs/HTTP 5xx" --message "Maintenance page shown since 08:12"
 #   web-monitor.py --summary | odoo-chat-post.py --post "Odoo-Stats/Sommaire" --message -
-#   ODOO_API_KEY=… odoo-chat-post.py --login ADMIN --create-bot [--bot-login tux-bot] [--bot-config FILE] [--renew-key] [--dry-run]   robot account (minimal rights) + its API key written with mode 600
+#   ODOO_API_KEY=... odoo-chat-post.py --login ADMIN --create-bot [--bot-login tux-bot] [--bot-config FILE] [--renew-key] [--dry-run]   robot account (minimal rights) + its API key written with mode 600
 #   --api-url, --bot-config, --bot-login, --renew-key, --catalog, --db, --group, --lang, --login, --members, --no-members, --report-err, --version, --changelog
 
 import argparse
@@ -48,7 +48,7 @@ import urllib.error
 import urllib.request
 import xmlrpc.client
 
-__version__ = "1.9.20261022.012000"
+__version__ = "1.10.20261022.231529"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
@@ -75,7 +75,7 @@ def _start():
 I18N = _start()
 LANGUAGE = I18N.langue if I18N else "fr"
 if I18N:
-    print, input = I18N.print, I18N.input          # noqa: A001 — every displayed text goes through the translator (no effect when the display language is the source language)
+    print, input = I18N.print, I18N.input          # noqa: A001 - every displayed text goes through the translator (no effect when the display language is the source language)
 
 
 def eprint(*args):
@@ -521,7 +521,7 @@ def changelog_section(path, key):
 
 
 def show_changelog():
-    signal.signal(signal.SIGPIPE, signal.SIG_DFL)          # « | head »: silent stop, like cat
+    signal.signal(signal.SIGPIPE, signal.SIG_DFL)          # "| head": silent stop, like cat
     try:
         text = changelog_section(CHANGELOG_FILE, "odoo-chat-post.py")
     except OSError:

@@ -116,7 +116,7 @@ class Courriel(EnvTest):
         gros = os.path.join(self.d, "gros.bin")
         with open(gros, "wb") as f:
             f.write(b"x" * 5000)
-        cfg = dict(self.cfg, MAIL_ATTACH_MAX_MB="0.002", MAIL_LINK_URL="https://exemple.org/pj/")          # 0,002 Mo ≈ 2097 octets
+        cfg = dict(self.cfg, MAIL_ATTACH_MAX_MB="0.002", MAIL_LINK_URL="https://exemple.org/pj/")          # 0.002 MB ~ 2097 bytes
         self.m.envoyer("Avec pièces", "Corps\n", pieces=[petit, gros], cfg=cfg)
         message = self._texte(self.serveur.recus[0])
         self.assertIn('filename="petit.txt"', message)
@@ -125,7 +125,7 @@ class Courriel(EnvTest):
         jetons = os.listdir(cfg["MAIL_LINK_DIR"])
         self.assertEqual(len(jetons), 1)
         self.assertTrue(os.path.isfile(os.path.join(cfg["MAIL_LINK_DIR"], jetons[0], "gros.bin")))
-        # sans MAIL_LINK_URL : le chemin sur le serveur est donné
+        # without MAIL_LINK_URL: the path on the server is given
         self.m.envoyer("Sans URL", "Corps\n", pieces=[gros], cfg=dict(cfg, MAIL_LINK_URL=""))
         self.assertIn("copié sur le serveur", self._texte(self.serveur.recus[1]))
 

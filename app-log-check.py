@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
 # ========================================================================================================================
 # Copyright (C) 2026 Services-Conseils Linux Inc.
-# Copyright (C) 2026 Rencontres Linux au Québec contributors
+# Copyright (C) 2026 Rencontres Linux au Quebec contributors
 #
 # This program is free software: you can redistribute it and/or modify it under the terms of the GNU Affero General Public
 # License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
 # Full text: https://www.gnu.org/licenses/agpl-3.0.html
 # ========================================================================================================================
 #
-# app-log-check.py — analyzes Odoo's systemd journal (journalctl -u <service>) to spot two things that
+# app-log-check.py - analyzes Odoo's systemd journal (journalctl -u <service>) to spot two things that
 # nginx-log-audit.sh can NOT see (these events never appear in the nginx logs, only in Odoo's own
 # journal): (1) protocol-level attacks against Odoo's gevent/longpolling port (e.g. a TLS client that connects
 # directly in plain HTTP, bypassing nginx entirely), and (2) unhandled Python traces (tracebacks), grouped by
@@ -17,12 +17,12 @@
 #
 # Usage:
 #   python3 app-log-check.py [--service NOM] [--init] [--last HEURES] [--errors-only] [--full-trace] [-v|--verbose] [--version]
-#   app-log-check.py --by-hour [--days N] [--top N]   report of problems PER HOUR AND PER DAY (pages in error, « Session expired »)
+#   app-log-check.py --by-hour [--days N] [--top N]   report of problems PER HOUR AND PER DAY (pages in error, "Session expired")
 #                            [--changelog]
 #
 #   --service NAME  : name of the systemd unit to query. Without this option: auto-detection among
 #                      "erplibre.service" (PROD) and "erplibre_erplibre.service" (DEV/LAB), via
-#                      "systemctl list-unit-files" — the first one that really exists on this machine is
+#                      "systemctl list-unit-files" - the first one that really exists on this machine is
 #                      used. To be given explicitly if the name differs from the two above.
 #   --namespace NAME: journal namespace to query (e.g. "odoo" if the Odoo service was isolated via
 #                      LogNamespace= in a systemd override). Without this option: default namespace, as
@@ -32,10 +32,10 @@
 #                      not by this script). Without this option: only the entries since the last run
 #                      (position remembered per service in ~/.local/state/app-log-check/).
 #   --last HOURS    : restricts to the last HOURS hours, independently of the remembered position (like
-#                      nginx-log-audit.sh) — never touches that position, a normal call then resumes it
+#                      nginx-log-audit.sh) - never touches that position, a normal call then resumes it
 #                      exactly where it was.
 #   --full-trace    : shows the complete Python trace for EVERY error group (by default, a single
-#                      complete example is shown per group — largely enough to identify the cause, and avoids an
+#                      complete example is shown per group - largely enough to identify the cause, and avoids an
 #                      unreadable report if the same bug happened 200 times).
 #   --version       : displays the version and exits.
 #   --changelog     : displays CHANGELOG.md.
@@ -60,12 +60,12 @@ import urllib.parse
 from collections import Counter, OrderedDict
 from datetime import datetime, timedelta
 
-__version__ = "2.24.20261022.012000"
+__version__ = "2.25.20261022.231529"
 
 DEFAULT_SERVICE = "erplibre_erplibre.service"
 STATE_DIR = os.environ.get("APP_LOG_CHECK_STATE_DIR") or os.path.expanduser("~/.local/state/app-log-check")
 
-# A "structured" Odoo line always starts with its own timestamp + level — this is what distinguishes a
+# A "structured" Odoo line always starts with its own timestamp + level - this is what distinguishes a
 # NEW log entry from a "raw" continuation line (e.g. a Python traceback line, which does not have this
 # prefix). journalctl -o cat already removes its OWN syslog prefix, so this pattern only concerns the
 # internal format of Odoo's Python logger.
@@ -100,7 +100,7 @@ I18N = _start()
 LANGUAGE = I18N.langue if I18N else "fr"
 TR = I18N.tr if I18N else (lambda text_value: text_value)
 if I18N:
-    print, input = I18N.print, I18N.input          # noqa: A001 — every displayed text goes through the translator (no effect when the display language is the source language)
+    print, input = I18N.print, I18N.input          # noqa: A001 - every displayed text goes through the translator (no effect when the display language is the source language)
 # Configuration file options (/etc/default/app-log-check.conf, then the personal file .app-log-check.conf): KEY -> (command-line option, type).
 # LANGUAGE: en, fr or auto (follow LC_ALL / LANG).
 SCHEMA_CONFIG = {"APP": ("app", str), "BY_HOUR": ("by_hour", bool), "DAYS": ("days", int), "ERRORS_ONLY": ("errors_only", bool), "FULL_TRACE": ("full_trace", bool), "NAMESPACE": ("namespace", str),
@@ -113,7 +113,7 @@ def vcmd(cmd):
         eprint("+ " + shlex.join(cmd))
 
 
-# Magenta for malicious elements (IP of protocol attacks) — terminal only, never in a pipe.
+# Magenta for malicious elements (IP of protocol attacks) - terminal only, never in a pipe.
 BAD, END_BAD = ("\x1b[1;35m", "\x1b[0m") if sys.stdout.isatty() else ("", "")
 
 
@@ -143,9 +143,9 @@ def changelog_section(path, key):
 
 
 def show_changelog():
-    # SIGPIPE has its default behavior (like cat or grep): if the reader closes early (« | head »), the
+    # SIGPIPE has its default behavior (like cat or grep): if the reader closes early ("| head"), the
     # process stops silently. Python otherwise ignores it, and a BrokenPipeError can occur up to the final
-    # flush of the buffers (« Exception ignored on flushing sys.stdout »), out of reach of any try/except.
+    # flush of the buffers ("Exception ignored on flushing sys.stdout"), out of reach of any try/except.
     signal.signal(signal.SIGPIPE, signal.SIG_DFL)
     path = changelog_path("CHANGELOG.md")
     if not os.path.isfile(path):
@@ -163,7 +163,7 @@ def show_changelog():
         sys.stdout.write(content)
         sys.stdout.flush()
     except BrokenPipeError:
-        # Reader closed early (e.g. « --changelog | head »): silent exit, without Python trace. The
+        # Reader closed early (e.g. "--changelog | head"): silent exit, without Python trace. The
         # descriptor is redirected to /dev/null so that Python's final flush does not fail in turn.
         os.dup2(os.open(os.devnull, os.O_WRONLY), sys.stdout.fileno())
 
@@ -599,7 +599,7 @@ def print_section(title):
     print(f"--- {title} ---")
 
 
-# PROD uses "erplibre.service"; DEV and LAB use "erplibre_erplibre.service" — auto-detect rather than
+# PROD uses "erplibre.service"; DEV and LAB use "erplibre_erplibre.service" - auto-detect rather than
 # making the user guess --service at each call. The order does not matter (only one of the two should exist on a
 # given machine), but keep the list short: adding --service remains the explicit way for any other name.
 CANDIDATE_SERVICES = ["erplibre.service", "erplibre_erplibre.service"]
@@ -797,17 +797,17 @@ class HourlyAnalyzer:
     def __init__(self):
         self.per_key = {}                  # (category, key) -> Counter{(day, hour): n}
         self.all_items = Counter()              # (day, hour) -> n, all categories
-        self.ips_session = Counter()       # address -> « Session expired » attached to a request from this address
-        self.sessions = []                 # instant of each « Session expired »
-        self.sessions_by_ip = []              # (instant, address) of each « Session expired » attached to a request
+        self.ips_session = Counter()       # address -> "Session expired" attached to a request from this address
+        self.sessions = []                 # instant of each "Session expired"
+        self.sessions_by_ip = []              # (instant, address) of each "Session expired" attached to a request
         self.logins = []               # (instant, identifier, address) of each successful login
         self.accounts_by_ip = {}               # address -> identifiers logged in from it
-        self.databases_seen = Counter()             # database -> « Session expired » (to read the installed modules)
+        self.databases_seen = Counter()             # database -> "Session expired" (to read the installed modules)
         self.byte_count = 0
-        self.starts_list = []               # instants of the service's « Started … » (restarts)
+        self.starts_list = []               # instants of the service's "Started ..." (restarts)
         self.text_lines = 0
         self.ongoing = None               # entry in progress (structured line + continuations)
-        self.waiting = {}                  # pid -> (day, hour, instant) of a « Session expired » waiting for its page
+        self.waiting = {}                  # pid -> (day, hour, instant) of a "Session expired" waiting for its page
 
     def count_items(self, category, key_value, day, hour):
         self.per_key.setdefault((category, key_value), Counter())[(day, hour)] += 1
@@ -991,7 +991,7 @@ def show_hourly_report(a, service, day_count, top):
         print(" No problem in the window (no error, warning, error page or « Session expired »).")
         return
     print(" Count: errors (ERROR, CRITICAL), warnings (WARNING), error pages (HTTP 400 and above), « Session expired ».")
-    redundant = 2 * len(a.sessions)                    # each « Session expired » comes with its request line
+    redundant = 2 * len(a.sessions)                    # each "Session expired" comes with its request line
     print(f" Log: {thousands(a.text_lines)} lines (≈ {a.byte_count / 1e6:.0f} MB) over {day_count} days; « Session expired » and their requests: "
           f"≈ {thousands(redundant)} lines ({100 * redundant / max(a.text_lines, 1):.0f} %).")
     print()
@@ -1025,7 +1025,7 @@ def show_hourly_report(a, service, day_count, top):
     for total, cat, key_value, c in sorted(messages, key=lambda x: (-x[0], x[2]))[:top]:
         print(f"  {thousands(total):>7}  {'ERR.' if cat == 'error' else 'WARN.':<7} {key_value[:150]}")
         print(f"           per day: {per_day(c)}   |   peaks: {peaks(c)}")
-    # --- diagnosis of « Session expired »
+    # --- diagnosis of "Session expired"
     total_s = len(a.sessions)
     if total_s >= 20:
         session_diagnostics(a, total_s)
