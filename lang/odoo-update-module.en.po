@@ -816,3 +816,6 @@ msgstr ") : update CANCELLED, nothing was stopped ("
 
 msgid "· attente maximale : "
 msgstr "· maximum wait: "
+
+msgid "  CONNECTED_WINDOW=15           un utilisateur connecté compte s'il a été actif dans les N dernières minutes (session encore valide ignorée)"
+msgstr "  CONNECTED_WINDOW=15           a logged-in user counts only if active in the last N minutes (a still-valid session is ignored)"

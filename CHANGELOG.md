@@ -91,6 +91,20 @@ Earlier history was archived outside this repository when this file was created.
 
 ## app-log-live.py
 
+### 1.108.20261025.150359 - Country next to each name in "Requests by name (DNS column)"
+
+- Title: The country of the address is shown next to each name in the summary.
+- Reason: The maintainer asked to add the country of the IP address to the "Requêtes par nom (colonne DNS)" rows.
+- Changes:
+  - app-log-live.py, summary(): the country most frequent among the addresses of a name is shown in brackets after the name, for example
+    "name [CA] x12"; nothing is shown when the country is unknown.
+  - Files: app-log-live.py, CHANGELOG.md.
+- Bugs fixed: none.
+- Safeguards and edge cases: a name shared by several countries shows the most frequent one; addresses without a known country are left out.
+- Checks: py_compile; test suite test_app_log_live.py: the same 23 failures and 1 error as before the change (environment-dependent tests: DNS,
+  geoiplookup, terminal); no new failure.
+- Action required: none.
+
 ### 1.107.20261025.115115 - IP address hidden by default; underlined lines at 80 percent of the terminal width
 
 - Title: IP address hidden by default (HIDE_IP=yes); underlined lines stop at 80 percent of the terminal width (COLUMNS).
@@ -539,6 +553,22 @@ Earlier history was archived outside this repository when this file was created.
 ### 1.19.20261020.211944 - Current version. Earlier history archived outside the repository.
 
 ## odoo-update-module.sh
+
+### 1.20.20261025.150359 - Logged-in users count only if active in the last 15 minutes
+
+- Title: A logged-in user keeps the site "busy" only if active in the last CONNECTED_WINDOW minutes (15 by default).
+- Reason: The maintainer asked that a logged-in user is considered present only while active during the last 15 minutes, because a session can
+  stay valid for much longer without activity.
+- Changes:
+  - odoo-update-module.sh: new key CONNECTED_WINDOW (default 15); visiteurs_connectes uses it instead of VISITOR_WINDOW.
+  - doc/en and doc/fr: odoo-update-module.conf.example and 09-odoo-update-module.md list the key.
+  - lang/odoo-update-module.en.po: translation of the help line.
+  - Files: odoo-update-module.sh, doc/en/odoo-update-module.conf.example, doc/fr/odoo-update-module.conf.example,
+    doc/en/09-odoo-update-module.md, doc/fr/09-odoo-update-module.md, lang/odoo-update-module.en.po, CHANGELOG.md.
+- Bugs fixed: none.
+- Safeguards and edge cases: if the PostgreSQL table cannot be read, the logged-in delays still apply (unknown state).
+- Checks: bash -n; shellcheck not re-run for this change (no new construct); test_odoo_update_module.py (39 tests, OK); test_i18n.py (32 tests, OK).
+- Action required: none.
 
 ### 1.19.20261025.130618 - ShellCheck clean: unused variables removed
 

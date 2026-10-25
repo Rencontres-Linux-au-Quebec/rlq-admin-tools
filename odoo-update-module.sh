@@ -82,6 +82,7 @@
 #   WAIT_ANONYMOUS=30             attente maximale, en minutes, si seuls des visiteurs non connectés sont actifs
 #   WAIT_ANONYMOUS_LOW=2          idem si l'activité est faible
 #   LOW_REQUESTS=10               activité faible : moins de N requêtes (hors robots) dans la fenêtre VISITOR_WINDOW
+#   CONNECTED_WINDOW=15           un utilisateur connecté compte s'il a été actif dans les N dernières minutes (session encore valide ignorée)
 #   FORCE_BUSY=non                mettre à jour quand même si le site reste occupé (défaut : non : la mise à jour est annulée)
 #
 # ========================================================================================================================
@@ -90,7 +91,7 @@ set -euo pipefail
 for _d in /usr/local/sbin /usr/sbin /sbin; do [[ -n "${NGINX_TOOLS_TESTS:-}" ]] && break; case ":$PATH:" in *":$_d:"*) ;; *) PATH="$PATH:$_d" ;; esac; done
 export PATH
 
-readonly SCRIPT_VERSION="1.19.20261025.130618"
+readonly SCRIPT_VERSION="1.20.20261025.150359"
 SCRIPT_NAME="$(basename "${BASH_SOURCE[0]}" .sh)"; readonly SCRIPT_NAME
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
 SCRIPT_PATH="$SCRIPT_DIR/$(basename "${BASH_SOURCE[0]}")"; readonly SCRIPT_PATH
@@ -125,7 +126,7 @@ else C_RED=""; C_YELLOW=""; C_GREEN=""; C_RESET=""; C_CYAN=""; C_BOLD=""; C_DIM=
 # --- Options -----------------------------------------------------------------------------------------------------------
 SERVICE=""; SERVICE_DETECTE=0; MODULES_MOTIFS="rlq_*"; ONLY_DB=""; ODOO_CONF_OPT=""; ODOO_DIR=""; RUN_USER=""; COMMAND=""
 TIMEOUT=1800; WAIT=90; DO_BACKUP=0; DO_DRY_RUN=0; DO_FORCE=0; DO_WARMUP=1; VERBOSE=0; CLI_MODULES=0; ADDONS_DIR=""; ZIP_ARG=""
-WAIT_QUIET=""; WAIT_CONNECTED=60; WAIT_CONNECTED_LOW=3; WAIT_ANONYMOUS=30; WAIT_ANONYMOUS_LOW=2; LOW_REQUESTS=10; BUSY_VISITORS=3; VISITOR_WINDOW=5; CLI_BUSY=0; CLI_WINDOW=0; DO_ROLLBACK=1; FORCE_BUSY=0; CHECK_ACTIVITY=0                                          # 1.11: quiet site before stopping Odoo; rollback of the modules after errors
+WAIT_QUIET=""; WAIT_CONNECTED=60; WAIT_CONNECTED_LOW=3; WAIT_ANONYMOUS=30; WAIT_ANONYMOUS_LOW=2; LOW_REQUESTS=10; CONNECTED_WINDOW=15; BUSY_VISITORS=3; VISITOR_WINDOW=5; CLI_BUSY=0; CLI_WINDOW=0; DO_ROLLBACK=1; FORCE_BUSY=0; CHECK_ACTIVITY=0                                          # 1.11: quiet site before stopping Odoo; rollback of the modules after errors
 NGINX_LOG_DIR="${ODOO_UPDATE_MODULE_NGINX_DIR:-/var/log/nginx}"
 MODULES_BACKUP_DIR="${ODOO_UPDATE_MODULE_BACKUP_DIR:-/var/backups/odoo-update-module}"
 LOG_DIR="${ODOO_UPDATE_MODULE_LOG_DIR:-/var/log/odoo-update-module}"
@@ -152,6 +153,7 @@ if declare -F config_lire >/dev/null; then
     config_defaut WAIT_ANONYMOUS WAIT_ANONYMOUS WAIT_ANONYMOUS nombre
     config_defaut WAIT_ANONYMOUS_LOW WAIT_ANONYMOUS_LOW WAIT_ANONYMOUS_LOW nombre
     config_defaut LOW_REQUESTS LOW_REQUESTS LOW_REQUESTS nombre
+    config_defaut CONNECTED_WINDOW CONNECTED_WINDOW CONNECTED_WINDOW nombre
     config_defaut FORCE_BUSY FORCE_BUSY --force-busy booleen
     config_defaut COMMAND COMMAND COMMAND texte
     config_defaut ONLY_DB DATABASE --db texte
@@ -822,12 +824,12 @@ print(total if lisible else "?")
 PYEOF
 }
 
-# visiteurs_connectes: number of logged-in users active in the last VISITOR_WINDOW minutes (Odoo table website_visitor: partner_id set and
-# last_connection_datetime recent); "?" when the database cannot be read (then the longer, logged-in delays apply: users are never cut short).
+# visiteurs_connectes: number of logged-in users active in the last CONNECTED_WINDOW minutes (15 by default; the session may still be valid after
+# that: a logged-in user is only counted while active) (Odoo table website_visitor: partner_id set and last_connection_datetime recent); "?" when the database cannot be read (then the longer, logged-in delays apply: users are never cut short).
 visiteurs_connectes() {
-    [[ "$VISITOR_WINDOW" =~ ^[0-9]+$ ]] || { echo "?"; return 0; }
+    [[ "$CONNECTED_WINDOW" =~ ^[0-9]+$ ]] || { echo "?"; return 0; }
     command -v psql >/dev/null 2>&1 || [[ -n "${ODOO_UPDATE_MODULE_PG_AS:-}" ]] || { echo "?"; return 0; }
-    pg_query "SELECT count(*) FROM website_visitor WHERE partner_id IS NOT NULL AND last_connection_datetime > (now() AT TIME ZONE 'UTC') - interval '${VISITOR_WINDOW} minutes'" || echo "?"
+    pg_query "SELECT count(*) FROM website_visitor WHERE partner_id IS NOT NULL AND last_connection_datetime > (now() AT TIME ZONE 'UTC') - interval '${CONNECTED_WINDOW} minutes'" || echo "?"
 }
 
 # attente_maximale: sets ATTENTE_MAX (minutes) and ATTENTE_PROFIL from the profile of the site now. A fixed WAIT_QUIET (command line or configuration) wins.

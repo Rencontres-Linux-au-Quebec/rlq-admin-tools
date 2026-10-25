@@ -105,7 +105,7 @@ from urllib.parse import unquote
 from collections import Counter, OrderedDict
 from concurrent.futures import Future
 
-__version__ = "1.107.20261025.115115"
+__version__ = "1.108.20261025.150359"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
@@ -4078,7 +4078,13 @@ class Stats:
         blocks.append((5, "  Most active addresses: " + " ; ".join(f"{self.who(ip)} " + color_code("1;36", f"×{n}") for ip, n in self.par_ip.most_common(5))))
         named = sum(self.by_name.values())                                           # requests whose address has an identified name (DNS column)
         blocks.append((5, f"  Requests by name (DNS column): {named} identified, {self.requests - named} by address only"))
-        blocks.extend((5, f"      {name} " + color_code("1;36", f"×{n}")) for name, n in self.by_name.most_common(10))
+        pays_par_nom = {}                                                             # name -> Counter of the countries of its addresses (most frequent shown)
+        for ip in self.par_ip:
+            nom = self.names.get(ip, ip)
+            if nom != ip and nom in self.by_name and self.pays.get(ip):
+                pays_par_nom.setdefault(nom, Counter())[self.pays[ip]] += 1
+        blocks.extend((5, f"      {name}" + (f" [{pays_par_nom[name].most_common(1)[0][0]}]" if name in pays_par_nom else "") + " " + color_code("1;36", f"×{n}"))
+                      for name, n in self.by_name.most_common(10))
         if len(self.by_name) > 10:
             blocks.append((5, f"      +{len(self.by_name) - 10} name(s) not shown"))
         if self.suspect_ips:
