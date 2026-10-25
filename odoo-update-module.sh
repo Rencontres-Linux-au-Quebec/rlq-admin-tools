@@ -90,7 +90,7 @@ set -euo pipefail
 for _d in /usr/local/sbin /usr/sbin /sbin; do [[ -n "${NGINX_TOOLS_TESTS:-}" ]] && break; case ":$PATH:" in *":$_d:"*) ;; *) PATH="$PATH:$_d" ;; esac; done
 export PATH
 
-readonly SCRIPT_VERSION="1.18.20261025.125933"
+readonly SCRIPT_VERSION="1.19.20261025.130618"
 SCRIPT_NAME="$(basename "${BASH_SOURCE[0]}" .sh)"; readonly SCRIPT_NAME
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
 SCRIPT_PATH="$SCRIPT_DIR/$(basename "${BASH_SOURCE[0]}")"; readonly SCRIPT_PATH
@@ -125,7 +125,7 @@ else C_RED=""; C_YELLOW=""; C_GREEN=""; C_RESET=""; C_CYAN=""; C_BOLD=""; C_DIM=
 # --- Options -----------------------------------------------------------------------------------------------------------
 SERVICE=""; SERVICE_DETECTE=0; MODULES_MOTIFS="rlq_*"; ONLY_DB=""; ODOO_CONF_OPT=""; ODOO_DIR=""; RUN_USER=""; COMMAND=""
 TIMEOUT=1800; WAIT=90; DO_BACKUP=0; DO_DRY_RUN=0; DO_FORCE=0; DO_WARMUP=1; VERBOSE=0; CLI_MODULES=0; ADDONS_DIR=""; ZIP_ARG=""
-WAIT_QUIET=""; WAIT_CONNECTED=60; WAIT_CONNECTED_LOW=3; WAIT_ANONYMOUS=30; WAIT_ANONYMOUS_LOW=2; LOW_REQUESTS=10; BUSY_VISITORS=3; VISITOR_WINDOW=5; CLI_BUSY=0; CLI_WINDOW=0; CLI_WAIT=0; DO_ROLLBACK=1; FORCE_BUSY=0; CHECK_ACTIVITY=0                                          # 1.11: quiet site before stopping Odoo; rollback of the modules after errors
+WAIT_QUIET=""; WAIT_CONNECTED=60; WAIT_CONNECTED_LOW=3; WAIT_ANONYMOUS=30; WAIT_ANONYMOUS_LOW=2; LOW_REQUESTS=10; BUSY_VISITORS=3; VISITOR_WINDOW=5; CLI_BUSY=0; CLI_WINDOW=0; DO_ROLLBACK=1; FORCE_BUSY=0; CHECK_ACTIVITY=0                                          # 1.11: quiet site before stopping Odoo; rollback of the modules after errors
 NGINX_LOG_DIR="${ODOO_UPDATE_MODULE_NGINX_DIR:-/var/log/nginx}"
 MODULES_BACKUP_DIR="${ODOO_UPDATE_MODULE_BACKUP_DIR:-/var/backups/odoo-update-module}"
 LOG_DIR="${ODOO_UPDATE_MODULE_LOG_DIR:-/var/log/odoo-update-module}"
@@ -168,6 +168,7 @@ if declare -F config_lire >/dev/null; then
     case " $* " in *" --version "*|*" --help "*|*" -h "*|*" --changelog "*) ;; *) config_afficher ;; esac
 fi
 
+# shellcheck disable=SC2034  # FORCE_BUSY: kept for compatibility, no effect (see CHANGELOG 1.17)
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --addons-dir) ADDONS_DIR="${2:-}"; shift 2 ;;
@@ -208,7 +209,7 @@ while [[ $# -gt 0 ]]; do
         -v|--verbose) VERBOSE=1; shift ;;
         --version) echo "odoo-update-module.sh version $SCRIPT_VERSION"; exit 0 ;;
         --visitor-window) VISITOR_WINDOW="${2:-}"; CLI_WINDOW=1; shift 2 ;;
-        --wait-quiet) WAIT_QUIET="${2:-}"; CLI_WAIT=1; shift 2 ;;
+        --wait-quiet) WAIT_QUIET="${2:-}"; shift 2 ;;
         --zip) ZIP_ARG="${2:-}"; shift 2 ;;
         *) echo "Argument inconnu: $1 (voir --help)" >&2; exit 1 ;;
     esac
@@ -875,7 +876,6 @@ lire_nombre() {
 
 # demander_attentes: asks the two maxima (logged-in users, anonymous visitors), unless WAIT_QUIET fixes one delay or the value came from the command line.
 demander_attentes() {
-    local var
     [[ -z "$WAIT_QUIET" ]] || return 0
     lire_nombre "  Attente maximale si un utilisateur connecté est actif (minutes) ? [$WAIT_CONNECTED] " WAIT_CONNECTED "$WAIT_CONNECTED" 0
     lire_nombre "  Attente maximale si seuls des visiteurs non connectés sont actifs (minutes) ? [$WAIT_ANONYMOUS] " WAIT_ANONYMOUS "$WAIT_ANONYMOUS" 0

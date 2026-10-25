@@ -540,6 +540,20 @@ Earlier history was archived outside this repository when this file was created.
 
 ## odoo-update-module.sh
 
+### 1.19.20261025.130618 - ShellCheck clean: unused variables removed
+
+- Title: ShellCheck warnings on the start-up and wait changes fixed (no behaviour change).
+- Reason: The maintainer pointed out that ShellCheck was available to check the program; the check reported three warnings (SC2034) on code added
+  in 1.17 and 1.18.
+- Changes:
+  - odoo-update-module.sh: CLI_WAIT removed (the fixed delay is WAIT_QUIET, non-empty when given); unused local var removed from demander_attentes;
+    FORCE_BUSY kept for compatibility, with a ShellCheck directive above the option loop.
+  - Files: odoo-update-module.sh, CHANGELOG.md.
+- Bugs fixed: none (no behaviour change).
+- Safeguards and edge cases: --wait-quiet still fixes the delay for every profile; the question about the maximal waits is still skipped when WAIT_QUIET is set.
+- Checks: shellcheck -x odoo-update-module.sh (ShellCheck 0.11.0, from the project archive): clean; bash -n; test_odoo_update_module.py (39 tests, OK).
+- Action required: none.
+
 ### 1.18.20261025.125933 - Maximum waits by profile: logged-in users 60/3 min, anonymous visitors 30/2 min
 
 - Title: Maximum wait depends on who is on the site (logged-in users or anonymous visitors) and on the activity level.
