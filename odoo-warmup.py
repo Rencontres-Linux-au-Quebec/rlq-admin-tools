@@ -34,12 +34,15 @@
 
 import argparse
 import concurrent.futures
+import http.client
 import http.cookiejar
 import importlib.util
 import json
 import os
 import re
 import signal
+import socket
+import ssl
 import subprocess
 import sys
 import time
@@ -51,7 +54,7 @@ try:                    # line editing in prompts
 except ImportError:
     pass
 
-__version__ = "1.17.20261025.191509"
+__version__ = "1.18.20261025.192316"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
@@ -60,6 +63,8 @@ SYSTEM_CONF = os.path.join(os.environ.get("NGINX_TOOLS_ETC_DEFAULT", "/etc/defau
 USER_CONF = "~/.odoo-warmup.conf"
 SYSTEMD_DIR = os.environ.get("NGINX_TOOLS_SYSTEMD_DIR", "/etc/systemd/system")                       # variable: tests only
 DEFAULT_URL = "http://127.0.0.1:8069"
+NGINX_ADDRESS = ("127.0.0.1", 443)                  # nginx of this server, HTTPS: the way visitors reach Odoo (variable: tests only)
+NGINX_HOST = None                                   # site name (key HOST) when the warm-up goes through nginx
 RETRY_PAUSE = 1.0                                   # seconds between two tries of a public page answering 5xx
 PUBLIC_ATTEMPTS = 4                                 # tries of a public page answering 5xx (several Odoo processes)
 DEFAULT_PAGES = ["/", "/web/login", "/event", "/survey"]
@@ -155,7 +160,7 @@ def read_config(explicite=None):
             a = re.fullmatch(r"(ANONYMIZE)\s*=\s*[\"']?(\w+)[\"']?", line)
             if path in common and not (v or c or a or re.match(r"LANGUAGE\s*=", line)):
                 continue                                       # the common file defines only LANGUAGE, VERBOSE, DEBUG_LEVEL, LOG_KEEP_DAYS and ANONYMIZE (apps/_config.py CLES_COMMUNES)
-            t = re.fullmatch(r"(URL|DB|LOGIN|KEY_FILE|PAGES|PAGES_FILE|LANGS|MODELS|SERVICE|LANGUAGE)\s*=\s*[\"']?([^\"']*)[\"']?", line)
+            t = re.fullmatch(r"(URL|HOST|DB|LOGIN|KEY_FILE|PAGES|PAGES_FILE|LANGS|MODELS|SERVICE|LANGUAGE)\s*=\s*[\"']?([^\"']*)[\"']?", line)
             if m and (int(m.group(2)) > 0 or m.group(1) in ("LINKS", "LATEST")):
                 values[m.group(1)] = int(m.group(2))
             elif v:
@@ -176,7 +181,7 @@ def read_config(explicite=None):
                 if t.group(2).strip():
                     values[t.group(1)] = t.group(2).strip()
             else:
-                problems.append(f"{path}:{n} : line ignored « {line} » (keys: URL, DB, LOGIN, KEY_FILE, PAGES, PAGES_FILE, LANGS, MODELS, SERVICE: text; REPEAT, WAIT: positive numbers; LINKS, LATEST: numbers; LANGUAGE: en, fr, auto)")
+                problems.append(f"{path}:{n} : line ignored « {line} » (keys: URL, HOST, DB, LOGIN, KEY_FILE, PAGES, PAGES_FILE, LANGS, MODELS, SERVICE: text; REPEAT, WAIT: positive numbers; LINKS, LATEST: numbers; LANGUAGE: en, fr, auto)")
     level = values.get("DEBUG_LEVEL", 0)
     if level >= 1 and "VERBOSE" not in values:               # DEBUG_LEVEL >= 1 means VERBOSE=yes
         values["VERBOSE"] = True
@@ -204,6 +209,20 @@ def read_key(path):
     return key or None
 
 
+class _NginxConnection(http.client.HTTPSConnection):
+    """HTTPS connection to nginx on this machine: the TCP connection goes to NGINX_ADDRESS, while the TLS name (SNI) and the
+    certificate check use the site name, exactly as a visitor's browser does."""
+
+    def connect(self):
+        sock = socket.create_connection(NGINX_ADDRESS, self.timeout)
+        self.sock = self._context.wrap_socket(sock, server_hostname=NGINX_HOST)
+
+
+class _NginxHandler(urllib.request.HTTPSHandler):
+    def https_open(self, req):
+        return self.do_open(_NginxConnection, req, context=ssl.create_default_context())
+
+
 class Client:
     """Small HTTP client with cookies (Odoo session), measures the time of each request."""
 
@@ -211,6 +230,8 @@ class Client:
         self.database = base_url.rstrip("/")
         self.cookies = http.cookiejar.CookieJar()
         handlers = [urllib.request.HTTPCookieProcessor(self.cookies)]
+        if NGINX_HOST and self.database == f"https://{NGINX_HOST}":        # through nginx: never through the system proxy
+            handlers += [_NginxHandler(), urllib.request.ProxyHandler({})]
         if re.match(r"https?://(127\.0\.0\.1|localhost|\[::1\])(:|/|$)", self.database):      # local Odoo: never through the system proxy
             handlers.append(urllib.request.ProxyHandler({}))
         self.opener = urllib.request.build_opener(*handlers)
@@ -638,7 +659,7 @@ def detect_odoo_url():
 def main():
     parser = (I18N.parser if I18N else LocalizedArgumentParser)(description="Warms up the Odoo cache (public pages, assets, administration screens) after a restart.")
     parser.add_argument("-c", "--config", default=None, metavar="FILE",
-                        help=f"This configuration file ONLY (default: {SYSTEM_CONF}, then {USER_CONF} ; keys URL, DB, LOGIN, KEY_FILE, PAGES, PAGES_FILE, LANGS, MODELS, REPEAT, WAIT, SERVICE, LANGUAGE)")
+                        help=f"This configuration file ONLY (default: {SYSTEM_CONF}, then {USER_CONF} ; keys URL, HOST, DB, LOGIN, KEY_FILE, PAGES, PAGES_FILE, LANGS, MODELS, REPEAT, WAIT, SERVICE, LANGUAGE)")
     parser.add_argument("--changelog", action="store_true", help="Show the change log")
     parser.add_argument("--db", default=None, metavar="NAME", help="Odoo database for administration (required with LOGIN if Odoo has several databases)")
     parser.add_argument("--lang", choices=I18N.disponibles if I18N else ["fr"], metavar="LANG",
@@ -660,7 +681,7 @@ def main():
     if "--version" not in sys.argv[1:]:       # first line of EVERY run, even --help (--version prints it itself)
         print(f"odoo-warmup.py v{__version__}")
     args = parser.parse_args()
-    global VERBOSE
+    global VERBOSE, NGINX_HOST
     VERBOSE = args.verbose
     if args.changelog:
         return show_changelog()
@@ -671,6 +692,16 @@ def main():
         return 2
     VERBOSE = VERBOSE or bool(config.get("VERBOSE"))               # VERBOSE / DEBUG_LEVEL of the configuration file (common or own)
     url = args.url or config.get("URL")
+    host = config.get("HOST")
+    if not url and host:                                  # HOST set: the visitors' way (nginx, HTTPS) when it answers
+        NGINX_HOST = host
+        code, _, texte = Client(f"https://{host}").request_("/web/login")
+        if code in (200, 302, 303):
+            url = f"https://{host}"
+            print(f"Through nginx, as the visitors do: {url}")
+        else:
+            NGINX_HOST = None
+            print(f"nginx does not answer for {host} (HTTP {code}): direct connection to Odoo")
     if not url:
         url = detect_odoo_url()
         if url is None:

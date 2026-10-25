@@ -466,6 +466,26 @@ Earlier history was archived outside this repository when this file was created.
 
 ## odoo-warmup.py
 
+### 1.18.20261025.192316 - Warm-up through nginx, as the visitors do, when HOST is set
+
+- Title: With the key HOST, the warm-up goes through nginx (HTTPS on this machine), and directly to Odoo only if nginx does not answer.
+- Reason: The warm-up asked Odoo directly on its port, without nginx. Odoo then gets no REQUEST_URI, and the first render of /en_CA/web/login fails with KeyError REQUEST_URI at each start. Visitors go through nginx and do not see this error.
+- Changes:
+  - New key HOST (site name, in /etc/default/odoo-warmup.conf or ~/.odoo-warmup.conf). Used only when URL and --url are not set.
+  - _NginxConnection / _NginxHandler: the TCP connection goes to 127.0.0.1:443 (NGINX_ADDRESS); the TLS name (SNI), the Host header and the certificate check use HOST, as a browser does. The system proxy is not used.
+  - main(): with HOST, nginx is probed on /web/login; if it answers 200, 302 or 303, the warm-up uses https://HOST; otherwise direct detection (1.14 to 1.15) applies.
+  - Files: odoo-warmup.py, lang/odoo-warmup.fr.po (keys list in the help and in the messages).
+- Bugs fixed:
+  - Symptom: a KeyError REQUEST_URI in the Odoo log at each warm-up run, never for visitors.
+  - Diagnosis: the warm-up bypassed nginx; the visitors' path through nginx does not raise it (200 on the same page via nginx, HTTP/HTTPS on the local address).
+  - Correction: the warm-up uses the same path as the visitors when HOST is set.
+- Safeguards and edge cases:
+  - The certificate is checked for HOST: a wrong name or an invalid certificate makes nginx count as not answering, and the direct path is used.
+  - Without HOST, behaviour is unchanged.
+- Checks:
+  - py_compile; test suite test_odoo_warmup; local TLS server with a self-signed certificate for odoo-dev.test: the right name answers 200 and the Host header is received; a wrong name gives no answer (0).
+- Action required: add HOST=odoo-dev.rencontres-linux.quebec to /etc/default/odoo-warmup.conf (or ~/.odoo-warmup.conf), then run the warm-up. Check that the Odoo log no longer shows KeyError REQUEST_URI.
+
 ### 1.17.20261025.191509 - Up to four tries for a public page answering 5xx
 
 - Title: A public page answering 5xx is requested up to four times, one second apart.

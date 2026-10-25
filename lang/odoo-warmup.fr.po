@@ -76,8 +76,8 @@ msgstr "Préchauffe le cache d'Odoo (pages publiques, assets, écrans d'administ
 msgid "This configuration file ONLY (default: "
 msgstr "Ce fichier de configuration SEUL (défaut : "
 
-msgid " ; keys URL, DB, LOGIN, KEY_FILE, PAGES, PAGES_FILE, LANGS, MODELS, REPEAT, WAIT, SERVICE, LANGUAGE)"
-msgstr " ; clés URL, DB, LOGIN, KEY_FILE, PAGES, PAGES_FILE, LANGS, MODELS, REPEAT, WAIT, SERVICE, LANGUAGE)"
+msgid " ; keys URL, HOST, DB, LOGIN, KEY_FILE, PAGES, PAGES_FILE, LANGS, MODELS, REPEAT, WAIT, SERVICE, LANGUAGE)"
+msgstr " ; clés URL, HOST, DB, LOGIN, KEY_FILE, PAGES, PAGES_FILE, LANGS, MODELS, REPEAT, WAIT, SERVICE, LANGUAGE)"
 
 msgid "Show the change log"
 msgstr "Affiche le journal des modifications"
@@ -182,8 +182,8 @@ msgstr "--report-err indisponible (apps/_rapport.py absent) — exécution norma
 msgid "events"
 msgstr "événements"
 
-msgid " » (keys: URL, DB, LOGIN, KEY_FILE, PAGES, PAGES_FILE, LANGS, MODELS, SERVICE: text; REPEAT, WAIT: positive numbers; LINKS, LATEST: numbers; LANGUAGE: en, fr, auto)"
-msgstr " » (clés : URL, DB, LOGIN, KEY_FILE, PAGES, PAGES_FILE, LANGS, MODELS, SERVICE : texte ; REPEAT, WAIT : nombres positifs ; LINKS, LATEST : nombres ; LANGUAGE : en, fr, auto)"
+msgid " » (keys: URL, HOST, DB, LOGIN, KEY_FILE, PAGES, PAGES_FILE, LANGS, MODELS, SERVICE: text; REPEAT, WAIT: positive numbers; LINKS, LATEST: numbers; LANGUAGE: en, fr, auto)"
+msgstr " » (clés : URL, HOST, DB, LOGIN, KEY_FILE, PAGES, PAGES_FILE, LANGS, MODELS, SERVICE : texte ; REPEAT, WAIT : nombres positifs ; LINKS, LATEST : nombres ; LANGUAGE : en, fr, auto)"
 
 msgid " (not public)"
 msgstr " (non public)"
