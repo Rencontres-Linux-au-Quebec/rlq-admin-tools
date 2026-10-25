@@ -466,6 +466,64 @@ Earlier history was archived outside this repository when this file was created.
 
 ## odoo-warmup.py
 
+### 1.15.20261025.175745 - The gevent port is not an Odoo instance
+
+- Title: The gevent (long polling) port of the Odoo configuration file is never taken for a second instance.
+- Reason: Odoo uses two ports: http_port (the web site, 10000 on the server) and gevent_port (long polling, 10002). Both listen, so the detection saw two instances and stopped.
+- Changes:
+  - odoo_conf_ports() replaces odoo_ports_from_conf(): returns the HTTP port and the gevent port of the configuration file.
+  - The gevent port is removed from the listening-port candidates and is never probed as an HTTP instance.
+  - Files: odoo-warmup.py.
+- Bugs fixed:
+  - Symptom: "several Odoo instances answer on ports [10000, 10002]" on a single Odoo instance.
+  - Diagnosis: the gevent port was a candidate like the HTTP port.
+  - Correction: exclusion of the gevent port.
+- Safeguards and edge cases:
+  - Without a configuration file, the gevent port is unknown; it is then only accepted if it answers 200 with "odoo" on /web/login.
+- Checks:
+  - py_compile; test suite test_odoo_warmup; a configuration with http_port 10000 and gevent_port 10002 gives 10000 only.
+- Action required: none if the configuration file is found. Otherwise set URL in /etc/default/odoo-warmup.conf.
+
+### 1.14.20261025.175011 - Automatic detection only when a single Odoo instance answers
+
+- Title: Automatic detection only when exactly one Odoo instance answers; the program never needs root.
+- Reason: Several Odoo instances can run on one server (for example ports 10002 and 10000). Choosing one of them silently is wrong. The program must also run as a normal user.
+- Changes:
+  - An Odoo instance is recognised by /web/login answering 200 with "odoo" in the page, not only by a listening port.
+  - Exactly one Odoo instance: it is used and shown. Several: detection stops with an error and asks for --url or URL. None answering: the single candidate (Odoo may be starting), else 127.0.0.1:8069.
+  - Priority unchanged: --url, then URL in the configuration file, then detection.
+  - Root: not needed. Only --systemd-install and --systemd-remove write systemd files and need root.
+  - Files: odoo-warmup.py.
+- Bugs fixed:
+  - Symptom: a warning about several Odoo ports did not stop the run; the first port was used.
+  - Diagnosis: the detection chose the first answering port.
+  - Correction: refusal when several instances answer.
+- Safeguards and edge cases:
+  - Without root, process command lines may be unreadable: the Odoo page check still applies.
+  - A listening Python process that is not Odoo (no "odoo" on its login page) is ignored.
+- Checks:
+  - py_compile of odoo-warmup.py; test suite test_odoo_warmup; fake Odoo servers on 10002 and 10000: refusal, then detection of 10002 alone.
+- Action required: if the server has several instances, set URL in /etc/default/odoo-warmup.conf (or give --url).
+
+### 1.13.20261025.174351 - Port detection with netstat, and warning when several Odoo ports answer
+
+- Title: Port detection also works where ss is missing (netstat), and several answering Odoo ports are reported.
+- Reason: On the production server (Debian-like, netstat installed, ss absent) the detection found nothing, so the default 8069 was used. Odoo listens on 10002 and 10000 (python3). Also, when several Odoo ports answer, the first one was used silently.
+- Changes:
+  - Listening sockets: ss -ltnpH first, then netstat -tlnp when ss is missing or empty (function _listening_lines()).
+  - Several answering ports: the first one is still used, but a WARNING line lists all of them and asks for --url or URL.
+  - Files: odoo-warmup.py.
+- Bugs fixed:
+  - Symptom: "No Odoo port detected, default http://127.0.0.1:8069" although python3 processes listen on 10002 and 10000.
+  - Diagnosis: the program only knew the ss command; netstat output was not read.
+  - Correction: netstat fallback and parser checked on the netstat output of the server.
+- Safeguards and edge cases:
+  - Without root, a process command line can be unreadable: the process name (python) is then accepted.
+  - Neither ss nor netstat available: no candidate from the processes; configuration file and default port still apply.
+- Checks:
+  - py_compile of odoo-warmup.py; parser run on the netstat output of the server (ports 10002 and 10000 found).
+- Action required: none. If the warning appears on the server, choose the port with --url or URL in /etc/default/odoo-warmup.conf.
+
 ### 1.12.20261025.172228 - Automatic detection of the Odoo port
 
 - Title: Automatic detection of the Odoo HTTP port when --url and URL are not set.

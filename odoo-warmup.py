@@ -51,7 +51,7 @@ try:                    # line editing in prompts
 except ImportError:
     pass
 
-__version__ = "1.12.20261025.172228"
+__version__ = "1.15.20261025.175745"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
@@ -550,62 +550,80 @@ class LocalizedArgumentParser(argparse.ArgumentParser):
         super().__init__(*args, **kwargs)
 
 
-def odoo_ports_from_conf():
-    """HTTP port written in the first Odoo configuration file found (apps/_odoo_conf.py); [] if none."""
+def odoo_conf_ports():
+    """(HTTP ports, gevent ports) of the first Odoo configuration file found (apps/_odoo_conf.py); ([], []) if none.
+    The gevent port (long polling, websocket) is not an HTTP instance: it is never probed as one."""
     module = load_module("_odoo_conf")
     if module is None:
-        return []
+        return [], []
     for chemin in module.chemins_candidats():
         if os.path.isfile(chemin):
-            port = module.lire(chemin)["http_port"]
-            return [int(port)] if port.isdigit() else []
+            conf = module.lire(chemin)
+            http_port, gevent_port = conf["http_port"], conf["gevent_port"]
+            return ([int(http_port)] if http_port.isdigit() else []), ([int(gevent_port)] if gevent_port.isdigit() else [])
+    return [], []
+
+
+def _listening_lines():
+    """Listening TCP sockets, one text line per socket: ss (iproute2) first, then netstat (net-tools); [] if neither works."""
+    for commande in (["ss", "-ltnpH"], ["netstat", "-tlnp"]):
+        try:
+            sortie = subprocess.run(commande, capture_output=True, text=True, timeout=5, check=False).stdout
+        except (OSError, subprocess.SubprocessError):
+            continue
+        if sortie.strip():
+            return sortie.splitlines()
     return []
 
 
 def odoo_ports_listening():
-    """TCP ports listened to by a Python process whose command line mentions odoo (ss, Linux); [] if unavailable."""
-    try:
-        sortie = subprocess.run(["ss", "-ltnpH"], capture_output=True, text=True, timeout=5, check=False).stdout
-    except (OSError, subprocess.SubprocessError):
-        return []
+    """TCP ports listened to by a Python process whose command line mentions odoo; [] if unavailable.
+    The program never needs root (only --systemd-install and --systemd-remove write systemd files). Without root, the command line of another user's process may be unreadable: the process name (python) is then accepted; the Odoo page check still applies."""
     ports = []
-    for ligne in sortie.splitlines():
+    for ligne in _listening_lines():
         champs = ligne.split()
         if len(champs) < 4 or "python" not in ligne:
             continue
-        pids = re.findall(r"pid=(\d+)", ligne)
+        pids = re.findall(r"pid=(\d+)", ligne) or re.findall(r"\s(\d+)/\S+", ligne)
         if pids:
             try:
                 with open(f"/proc/{pids[0]}/cmdline", "rb") as f:
                     commande = f.read().decode("utf-8", "replace")
             except OSError:
-                commande = ""                              # not readable without root: the process name is python
+                commande = ""
             if commande and "odoo" not in commande.lower():
                 continue
         port = champs[3].rsplit(":", 1)[-1]
-        if port.isdigit():
+        if port.isdigit() and int(port) not in ports:
             ports.append(int(port))
     return ports
 
 
 def detect_odoo_url():
-    """Address of Odoo when neither --url nor URL is set. Candidates, in order: the HTTP port of the Odoo configuration
-    file, then the ports of the Odoo Python processes that listen. The first one answering /web/login wins; without an
-    answer, the first candidate (Odoo may still be starting), else the default port 8069."""
+    """Address of Odoo when neither --url nor URL is set. Candidates: the HTTP port of the Odoo configuration file, then the
+    ports of the listening Python processes. A candidate counts as Odoo only if /web/login answers 200 with "odoo" in the page.
+    Exactly one Odoo answering: it is used. Several: nothing is chosen (None): the user must give --url or URL.
+    None answering: the single candidate if there is one (Odoo may be starting), else the default port 8069."""
+    http_ports, gevent_ports = odoo_conf_ports()
     candidats = []
-    for port in odoo_ports_from_conf() + odoo_ports_listening():
+    for port in http_ports + [p for p in odoo_ports_listening() if p not in gevent_ports]:
         if port not in candidats:
             candidats.append(port)
+    trouves = []
     for port in candidats:
-        url = f"http://127.0.0.1:{port}"
-        code, _, _ = Client(url).request_("/web/login")
-        if code in (200, 302, 303):
-            print(f"Odoo detected on port {port} ({url})")
-            return url
-    if candidats:
-        print(f"No answer on the detected port(s) {candidats}, waiting on port {candidats[0]}")
+        code, _, texte = Client(f"http://127.0.0.1:{port}").request_("/web/login")
+        if code == 200 and "odoo" in texte.lower():
+            trouves.append(port)
+    if len(trouves) == 1:
+        print(f"Odoo detected on port {trouves[0]} (http://127.0.0.1:{trouves[0]})")
+        return f"http://127.0.0.1:{trouves[0]}"
+    if len(trouves) > 1:
+        eprint(f"ERROR: several Odoo instances answer on ports {trouves}: detection does not choose. Give --url or URL in /etc/default/odoo-warmup.conf (or ~/.odoo-warmup.conf).")
+        return None
+    if len(candidats) == 1:
+        print(f"No answer yet on port {candidats[0]}, waiting on it")
         return f"http://127.0.0.1:{candidats[0]}"
-    print(f"No Odoo port detected, default {DEFAULT_URL}")
+    print(f"No single Odoo port detected, default {DEFAULT_URL}")
     return DEFAULT_URL
 
 
@@ -644,7 +662,11 @@ def main():
         eprint(f"ERROR: {e}")
         return 2
     VERBOSE = VERBOSE or bool(config.get("VERBOSE"))               # VERBOSE / DEBUG_LEVEL of the configuration file (common or own)
-    url = args.url or config.get("URL") or detect_odoo_url()
+    url = args.url or config.get("URL")
+    if not url:
+        url = detect_odoo_url()
+        if url is None:
+            return 2
     database = args.db or config.get("DB")
     login = config.get("LOGIN")
     key_file = config.get("KEY_FILE")
