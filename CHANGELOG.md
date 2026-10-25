@@ -540,6 +540,37 @@ Earlier history was archived outside this repository when this file was created.
 
 ## odoo-update-module.sh
 
+### 1.18.20261025.125933 - Maximum waits by profile: logged-in users 60/3 min, anonymous visitors 30/2 min
+
+- Title: Maximum wait depends on who is on the site (logged-in users or anonymous visitors) and on the activity level.
+- Reason: The maintainer asked that a logged-in user who is active on the website allows at most 60 minutes of waiting (3 minutes when the
+  activity is low), and that when only anonymous visitors are present, who can change little, the maximum is 30 minutes (2 minutes when the
+  activity is low). Confirmed definitions: a logged-in user is a website_visitor row with partner_id set and last_connection_datetime within the
+  VISITOR_WINDOW; low activity is fewer than LOW_REQUESTS (10) requests, robots excluded, in the same window.
+- Changes:
+  - odoo-update-module.sh: new functions visiteurs_connectes (PostgreSQL, table website_visitor), requetes_recentes (nginx logs),
+    attente_maximale (sets ATTENTE_MAX and ATTENTE_PROFIL, checked at every poll). The 2 maxima and their low-activity values are read from the
+    configuration files (WAIT_CONNECTED, WAIT_CONNECTED_LOW, WAIT_ANONYMOUS, WAIT_ANONYMOUS_LOW) and LOW_REQUESTS.
+  - WAIT_QUIET is now empty by default: a value given (configuration or --wait-quiet) fixes the delay for every profile.
+  - Start-up questions and the 5-minute prompt now ask the two maxima (logged-in, anonymous) unless WAIT_QUIET is fixed.
+  - The busy messages show the current maximum and its profile.
+  - doc/en and doc/fr: odoo-update-module.conf.example and 09-odoo-update-module.md list the new keys.
+  - lang/odoo-update-module.en.po: translations of the new messages; obsolete entries removed.
+  - nginx-tools-tests/test_odoo_update_module.py: expectation updated for the new wording.
+  - Files: odoo-update-module.sh, doc/en/odoo-update-module.conf.example, doc/fr/odoo-update-module.conf.example,
+    doc/en/09-odoo-update-module.md, doc/fr/09-odoo-update-module.md, lang/odoo-update-module.en.po,
+    nginx-tools-tests/test_odoo_update_module.py, CHANGELOG.md.
+- Bugs fixed: none.
+- Safeguards and edge cases:
+  - If the PostgreSQL table cannot be read, the logged-in delays apply (users are never cut short by an unknown state).
+  - If the nginx logs cannot be read, the request count is unknown and the normal activity delay applies.
+  - Writes still block the update at the end of the wait, whatever the profile.
+- Checks:
+  - bash -n; --help shows the new keys; test_odoo_update_module.py (39 tests); test_i18n.py (32 tests); test_docs.py; test_config_defaut.py
+    (the only failure is app-log-live.py --show-ip, not related to this change).
+- Action required: confirm that the reading of "activité faible" (fewer than 10 requests in the window) and of the logged-in user (website_visitor)
+  matches what you want; check that the Odoo version of this server has website_visitor.last_connection_datetime.
+
 ### 1.17.20261025.124729 - Start-up questions (threshold, window, wait); reads allowed, writes never; 5-minute settings prompt
 
 - Title: Start-up questions and periodic settings prompt; a write always blocks the update, reads alone do not.

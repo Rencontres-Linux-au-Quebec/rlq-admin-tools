@@ -52,8 +52,7 @@
 #   -v, --verbose                afficher chaque commande externe exécutée (systemctl, runuser, odoo, ss)
 #   --version                    affiche la version et quitte
 #   --visitor-window MIN         fenêtre de comptage des visiteurs actifs, en minutes (défaut : VISITOR_WINDOW, soit 5)
-#   --wait-quiet MIN             attendre au plus MIN minutes que le site soit calme avant d'arrêter Odoo (défaut : WAIT_QUIET, soit 60 ; 0 = un seul contrôle) ;
-#                                au bout du délai, la mise à jour se fait quand même
+#   --wait-quiet MIN             délai fixe d'attente d'un site calme, en minutes (WAIT_QUIET) : remplace les deux délais selon le profil ; 0 = un seul contrôle
 #   --zip FILE                   archive .zip des modules à décompresser avant la mise à jour (fichier, ou dossier : la plus récente) ; défaut : ZIP, sinon la plus
 #                                récente « MODULE*.zip » du dossier courant ; « non » : ne rien décompresser
 #
@@ -77,7 +76,12 @@
 #   WARMUP=oui                    préchauffer le cache d'Odoo après le redémarrage (odoo-warmup.py) ; non = comme --no-warmup
 #   TIMEOUT=1800                  durée maximale de la mise à jour, en secondes
 #   WAIT=90                       attente maximale du démarrage (service actif, puis port à l'écoute), en secondes
-#   WAIT_QUIET=60                 attente maximale d'un site calme avant l'arrêt d'Odoo, en minutes (0 = un seul contrôle)
+#   WAIT_QUIET=                   délai fixe, en minutes (vide : délais selon le profil ci-dessous ; 0 = un seul contrôle)
+#   WAIT_CONNECTED=60             attente maximale, en minutes, si un utilisateur connecté est actif
+#   WAIT_CONNECTED_LOW=3          idem si l'activité est faible (moins de LOW_REQUESTS requêtes)
+#   WAIT_ANONYMOUS=30             attente maximale, en minutes, si seuls des visiteurs non connectés sont actifs
+#   WAIT_ANONYMOUS_LOW=2          idem si l'activité est faible
+#   LOW_REQUESTS=10               activité faible : moins de N requêtes (hors robots) dans la fenêtre VISITOR_WINDOW
 #   FORCE_BUSY=non                mettre à jour quand même si le site reste occupé (défaut : non : la mise à jour est annulée)
 #
 # ========================================================================================================================
@@ -86,7 +90,7 @@ set -euo pipefail
 for _d in /usr/local/sbin /usr/sbin /sbin; do [[ -n "${NGINX_TOOLS_TESTS:-}" ]] && break; case ":$PATH:" in *":$_d:"*) ;; *) PATH="$PATH:$_d" ;; esac; done
 export PATH
 
-readonly SCRIPT_VERSION="1.17.20261025.124729"
+readonly SCRIPT_VERSION="1.18.20261025.125933"
 SCRIPT_NAME="$(basename "${BASH_SOURCE[0]}" .sh)"; readonly SCRIPT_NAME
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
 SCRIPT_PATH="$SCRIPT_DIR/$(basename "${BASH_SOURCE[0]}")"; readonly SCRIPT_PATH
@@ -121,7 +125,7 @@ else C_RED=""; C_YELLOW=""; C_GREEN=""; C_RESET=""; C_CYAN=""; C_BOLD=""; C_DIM=
 # --- Options -----------------------------------------------------------------------------------------------------------
 SERVICE=""; SERVICE_DETECTE=0; MODULES_MOTIFS="rlq_*"; ONLY_DB=""; ODOO_CONF_OPT=""; ODOO_DIR=""; RUN_USER=""; COMMAND=""
 TIMEOUT=1800; WAIT=90; DO_BACKUP=0; DO_DRY_RUN=0; DO_FORCE=0; DO_WARMUP=1; VERBOSE=0; CLI_MODULES=0; ADDONS_DIR=""; ZIP_ARG=""
-WAIT_QUIET=60; BUSY_VISITORS=3; VISITOR_WINDOW=5; CLI_BUSY=0; CLI_WINDOW=0; CLI_WAIT=0; DO_ROLLBACK=1; FORCE_BUSY=0; CHECK_ACTIVITY=0                                          # 1.11: quiet site before stopping Odoo; rollback of the modules after errors
+WAIT_QUIET=""; WAIT_CONNECTED=60; WAIT_CONNECTED_LOW=3; WAIT_ANONYMOUS=30; WAIT_ANONYMOUS_LOW=2; LOW_REQUESTS=10; BUSY_VISITORS=3; VISITOR_WINDOW=5; CLI_BUSY=0; CLI_WINDOW=0; CLI_WAIT=0; DO_ROLLBACK=1; FORCE_BUSY=0; CHECK_ACTIVITY=0                                          # 1.11: quiet site before stopping Odoo; rollback of the modules after errors
 NGINX_LOG_DIR="${ODOO_UPDATE_MODULE_NGINX_DIR:-/var/log/nginx}"
 MODULES_BACKUP_DIR="${ODOO_UPDATE_MODULE_BACKUP_DIR:-/var/backups/odoo-update-module}"
 LOG_DIR="${ODOO_UPDATE_MODULE_LOG_DIR:-/var/log/odoo-update-module}"
@@ -143,6 +147,11 @@ if declare -F config_lire >/dev/null; then
     config_defaut MODULES_BACKUP_DIR MODULES_BACKUP_DIR MODULES_BACKUP_DIR texte
     config_defaut DO_ROLLBACK ROLLBACK --no-rollback booleen
     config_defaut WAIT_QUIET WAIT_QUIET --wait-quiet nombre
+    config_defaut WAIT_CONNECTED WAIT_CONNECTED WAIT_CONNECTED nombre
+    config_defaut WAIT_CONNECTED_LOW WAIT_CONNECTED_LOW WAIT_CONNECTED_LOW nombre
+    config_defaut WAIT_ANONYMOUS WAIT_ANONYMOUS WAIT_ANONYMOUS nombre
+    config_defaut WAIT_ANONYMOUS_LOW WAIT_ANONYMOUS_LOW WAIT_ANONYMOUS_LOW nombre
+    config_defaut LOW_REQUESTS LOW_REQUESTS LOW_REQUESTS nombre
     config_defaut FORCE_BUSY FORCE_BUSY --force-busy booleen
     config_defaut COMMAND COMMAND COMMAND texte
     config_defaut ONLY_DB DATABASE --db texte
@@ -780,6 +789,67 @@ site_reasons() {
     return 0
 }
 
+# requetes_recentes: number of requests of the last VISITOR_WINDOW minutes in the nginx logs (robots and this server excluded); "?" if unreadable.
+requetes_recentes() {
+    python3 - "$NGINX_LOG_DIR" "$(( VISITOR_WINDOW * 60 ))" <<'PYEOF'
+import datetime, glob, os, re, sys
+LINE = re.compile(r'^(\S+)\s+\S+\s+\S+\s+\[([^\]]+)\]\s+"[^"]*"\s+\d{3}\s+\S+\s+"[^"]*"\s+"([^"]*)"')
+ROBOT = re.compile(r"bot|crawl|spider|slurp|curl|wget|python|go-http|monitor|uptime|preview", re.I)
+now = datetime.datetime.fromtimestamp(float(os.environ["ODOO_UPDATE_MODULE_NOW"]), datetime.timezone.utc) if os.environ.get("ODOO_UPDATE_MODULE_NOW") else datetime.datetime.now(datetime.timezone.utc)
+limite = float(sys.argv[2])
+total, lisible = 0, False
+for path in glob.glob(os.path.join(sys.argv[1], "*access*.log")):
+    try:
+        with open(path, "rb") as f:
+            f.seek(0, 2)
+            f.seek(max(0, f.tell() - 2_000_000))
+            data = f.read().decode("utf-8", "replace")
+        lisible = True
+    except OSError:
+        continue
+    for line in data.splitlines():
+        m = LINE.match(line)
+        if not m or ROBOT.search(m.group(3)) or m.group(1) in ("127.0.0.1", "::1"):
+            continue
+        try:
+            t = datetime.datetime.strptime(m.group(2), "%d/%b/%Y:%H:%M:%S %z")
+        except ValueError:
+            continue
+        if 0 <= (now - t).total_seconds() <= limite:
+            total += 1
+print(total if lisible else "?")
+PYEOF
+}
+
+# visiteurs_connectes: number of logged-in users active in the last VISITOR_WINDOW minutes (Odoo table website_visitor: partner_id set and
+# last_connection_datetime recent); "?" when the database cannot be read (then the longer, logged-in delays apply: users are never cut short).
+visiteurs_connectes() {
+    [[ "$VISITOR_WINDOW" =~ ^[0-9]+$ ]] || { echo "?"; return 0; }
+    command -v psql >/dev/null 2>&1 || [[ -n "${ODOO_UPDATE_MODULE_PG_AS:-}" ]] || { echo "?"; return 0; }
+    pg_query "SELECT count(*) FROM website_visitor WHERE partner_id IS NOT NULL AND last_connection_datetime > (now() AT TIME ZONE 'UTC') - interval '${VISITOR_WINDOW} minutes'" || echo "?"
+}
+
+# attente_maximale: sets ATTENTE_MAX (minutes) and ATTENTE_PROFIL from the profile of the site now. A fixed WAIT_QUIET (command line or configuration) wins.
+attente_maximale() {
+    local connectes requetes
+    if [[ -n "$WAIT_QUIET" ]]; then ATTENTE_MAX="$WAIT_QUIET"; ATTENTE_PROFIL="délai fixe (WAIT_QUIET)"; return 0; fi
+    connectes=$(visiteurs_connectes 2>/dev/null || echo "?")
+    requetes=$(requetes_recentes 2>/dev/null || echo "?")
+    if [[ "$connectes" == "?" || "$connectes" -gt 0 ]]; then
+        if [[ "$requetes" != "?" && "$requetes" -lt "$LOW_REQUESTS" ]]; then
+            ATTENTE_MAX="$WAIT_CONNECTED_LOW"; ATTENTE_PROFIL="utilisateur connecté, activité faible"
+        else
+            ATTENTE_MAX="$WAIT_CONNECTED"; ATTENTE_PROFIL="utilisateur connecté actif"
+        fi
+    else
+        if [[ "$requetes" != "?" && "$requetes" -lt "$LOW_REQUESTS" ]]; then
+            ATTENTE_MAX="$WAIT_ANONYMOUS_LOW"; ATTENTE_PROFIL="visiteurs non connectés, activité faible"
+        else
+            ATTENTE_MAX="$WAIT_ANONYMOUS"; ATTENTE_PROFIL="visiteurs non connectés"
+        fi
+    fi
+}
+
 # peut_demander: true when a person can answer (terminal on input and output); otherwise the configured values are used silently.
 peut_demander() { [[ -t 0 && -t 1 ]]; }
 
@@ -803,59 +873,71 @@ lire_nombre() {
     fi
 }
 
-# demander_parametres_demarrage: questions at the start (threshold, window, wait), before any check. A value given on the command line is not asked again.
+# demander_attentes: asks the two maxima (logged-in users, anonymous visitors), unless WAIT_QUIET fixes one delay or the value came from the command line.
+demander_attentes() {
+    local var
+    [[ -z "$WAIT_QUIET" ]] || return 0
+    lire_nombre "  Attente maximale si un utilisateur connecté est actif (minutes) ? [$WAIT_CONNECTED] " WAIT_CONNECTED "$WAIT_CONNECTED" 0
+    lire_nombre "  Attente maximale si seuls des visiteurs non connectés sont actifs (minutes) ? [$WAIT_ANONYMOUS] " WAIT_ANONYMOUS "$WAIT_ANONYMOUS" 0
+}
+
+# demander_parametres_demarrage: questions at the start (threshold, window, maximal waits), before any check. A value given on the command line is not asked again.
 demander_parametres_demarrage() {
     if ! peut_demander; then
-        detail "paramètres (pas de terminal, valeurs par défaut) : seuil $BUSY_VISITORS visiteurs, fenêtre $VISITOR_WINDOW min, attente $WAIT_QUIET min"
+        detail "paramètres (pas de terminal, valeurs par défaut) : seuil $BUSY_VISITORS visiteurs, fenêtre $VISITOR_WINDOW min, attente connecté $WAIT_CONNECTED min, attente anonyme $WAIT_ANONYMOUS min"
         return 0
     fi
     echo
     detail "Paramètres du site (Entrée = valeur entre crochets ; sans réponse en 10 s, elle est gardée) :"
     (( CLI_BUSY ))   || lire_nombre "  Seuil : site occupé à partir de combien de visiteurs actifs ? [$BUSY_VISITORS] " BUSY_VISITORS "$BUSY_VISITORS" 1
     (( CLI_WINDOW )) || lire_nombre "  Pendant combien de minutes compte-t-on les visiteurs ? [$VISITOR_WINDOW] " VISITOR_WINDOW "$VISITOR_WINDOW" 1
-    (( CLI_WAIT ))   || lire_nombre "  Attendre au plus combien de minutes un site calme ? [$WAIT_QUIET] " WAIT_QUIET "$WAIT_QUIET" 0
-    detail "paramètres retenus : seuil $BUSY_VISITORS visiteurs, fenêtre $VISITOR_WINDOW min, attente $WAIT_QUIET min"
+    demander_attentes
+    detail "paramètres retenus : seuil $BUSY_VISITORS visiteurs, fenêtre $VISITOR_WINDOW min, attente connecté $WAIT_CONNECTED min, attente anonyme $WAIT_ANONYMOUS min"
 }
 
 # changer_parametres: asked every ASK_EVERY seconds during the wait; no answer within 10 s = the settings are kept and the checks go on.
 changer_parametres() {
     local reponse
-    reponse=$(question_reponse "  Changer les paramètres (seuil, fenêtre, attente) ? [o/N] " "n" 10)
+    reponse=$(question_reponse "  Changer les paramètres (seuil, fenêtre, attentes) ? [o/N] " "n" 10)
     case "${reponse,,}" in
         o|oui|y|yes)
             lire_nombre "  Seuil de visiteurs actifs ? [$BUSY_VISITORS] " BUSY_VISITORS "$BUSY_VISITORS" 1
             lire_nombre "  Fenêtre de comptage, en minutes ? [$VISITOR_WINDOW] " VISITOR_WINDOW "$VISITOR_WINDOW" 1
-            lire_nombre "  Attente maximale, en minutes ? [$WAIT_QUIET] " WAIT_QUIET "$WAIT_QUIET" 0
-            detail "nouveaux paramètres : seuil $BUSY_VISITORS visiteurs, fenêtre $VISITOR_WINDOW min, attente $WAIT_QUIET min"
+            demander_attentes
+            detail "nouveaux paramètres : seuil $BUSY_VISITORS visiteurs, fenêtre $VISITOR_WINDOW min, attente connecté $WAIT_CONNECTED min, attente anonyme $WAIT_ANONYMOUS min"
             ;;
     esac
 }
 
-# wait_for_quiet_site: waits while the site is busy, at most WAIT_QUIET minutes, checked every POLL seconds. RULE: a WRITE (HTTP, database, lock,
-# session, or a value that cannot be read) NEVER lets the update go ahead: at the end of the wait the update is cancelled and nothing is stopped.
-# Only reads (visitors above the threshold, no write) allow the update once the wait is over. Every ASK_EVERY seconds (300 by default), asks whether
-# to change the settings (10 s to answer; otherwise the settings are kept).
+# wait_for_quiet_site: waits while the site is busy, at most the maximal delay of its profile (attente_maximale), checked every POLL seconds.
+# RULE: a WRITE (HTTP, database, lock, session, or a value that cannot be read) NEVER lets the update go ahead: at the end of the wait the update
+# is cancelled and nothing is stopped. Only reads (visitors above the threshold, no write) allow the update once the wait is over. Every ASK_EVERY
+# seconds (300 by default), asks whether to change the settings (10 s to answer; otherwise the settings are kept).
 wait_for_quiet_site() {
     local debut=$SECONDS poll="${ODOO_UPDATE_MODULE_QUIET_POLL:-30}" ask_every="${ODOO_UPDATE_MODULE_ASK_EVERY:-300}"
     local prochaine=$(( SECONDS + ask_every )) raisons ecritures resume r stamp
-    etape "Attente d'un site calme (au plus ${WAIT_QUIET} min ; occupé dès ${BUSY_VISITORS} visiteurs actifs, ou dès une écriture HTTP, une session ou un verrou PostgreSQL, ou une écriture en base)"
+    attente_maximale
+    etape "Attente d'un site calme (occupé dès ${BUSY_VISITORS} visiteurs actifs, ou dès une écriture HTTP, une session ou un verrou PostgreSQL, ou une écriture en base)"
+    detail "attente maximale : ${ATTENTE_MAX} min (${ATTENTE_PROFIL})"
     while :; do
         raisons=$(site_reasons)
         if [[ -z "$raisons" ]]; then ok "site calme : aucune écriture HTTP ni en base, visiteurs actifs sous le seuil de $BUSY_VISITORS"; return 0; fi
         ecritures=$(grep '^W|' <<< "$raisons" || true)
         resume=$(cut -d'|' -f2- <<< "$raisons" | paste -sd ';' -)
-        if (( DO_DRY_RUN )); then sim "maintenant occupé : $resume"; return 0; fi
-        if (( SECONDS - debut >= WAIT_QUIET * 60 )); then
+        attente_maximale
+        if (( DO_DRY_RUN )); then sim "maintenant occupé : $resume (attente maximale ${ATTENTE_MAX} min, ${ATTENTE_PROFIL})"; return 0; fi
+        if (( SECONDS - debut >= ATTENTE_MAX * 60 )); then
             if [[ -z "$ecritures" ]]; then
-                attn "fin de l'attente (${WAIT_QUIET} min) : seulement des lectures (visiteurs), mise à jour permise ($resume)"
+                attn "fin de l'attente (${ATTENTE_MAX} min, ${ATTENTE_PROFIL}) : seulement des lectures (visiteurs), mise à jour permise ($resume)"
                 return 0
             fi
-            ko "site toujours en écriture après ${WAIT_QUIET} min : mise à jour ANNULÉE, rien n'a été arrêté ($resume). Relancer plus tard. --force-busy ne passe jamais outre une écriture."
+            ko "site toujours en écriture après ${ATTENTE_MAX} min (${ATTENTE_PROFIL}) : mise à jour ANNULÉE, rien n'a été arrêté ($resume). Relancer plus tard. --force-busy ne passe jamais outre une écriture."
             exit 3
         fi
         stamp=$(date +%H:%M:%S)
         echo "  ${C_YELLOW}[$stamp] site occupé :${C_RESET}"
         while IFS= read -r r; do detail "· ${r#*|}"; done <<< "$raisons"
+        detail "· attente maximale : ${ATTENTE_MAX} min (${ATTENTE_PROFIL})"
         if (( SECONDS >= prochaine )); then
             prochaine=$(( SECONDS + ask_every ))
             if peut_demander; then changer_parametres; fi

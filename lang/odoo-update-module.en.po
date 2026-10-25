@@ -540,9 +540,6 @@ msgstr "  ROLLBACK=oui                  rollback of the modules after errors (ye
 msgid "/var/backups/odoo-update-module"
 msgstr "/var/backups/odoo-update-module"
 
-msgid "Attente d'un site calme (au plus "
-msgstr "Waiting for a quiet site (at most "
-
 msgid "journaux d'accès de nginx illisibles dans "
 msgstr "nginx access logs unreadable in "
 
@@ -648,12 +645,6 @@ msgstr "  --check-activity             current state of the site (visitors, HTTP
 msgid "  --force-busy                 conservée pour compatibilité : les lectures seules ne bloquent jamais la mise à jour, les écritures la bloquent toujours (même avec cette option) ; FORCE_BUSY"
 msgstr " "
 
-msgid "  --wait-quiet MIN             attendre au plus MIN minutes que le site soit calme avant d'arrêter Odoo (défaut : WAIT_QUIET, soit 60 ; 0 = un seul contrôle) ;"
-msgstr "  --wait-quiet MIN             wait at most MIN minutes for a quiet site before stopping Odoo (default: WAIT_QUIET, i.e. 60; 0 = a single check);"
-
-msgid "  WAIT_QUIET=60                 attente maximale d'un site calme avant l'arrêt d'Odoo, en minutes (0 = un seul contrôle)"
-msgstr "  WAIT_QUIET=60                 maximum wait for a quiet site before stopping Odoo, in minutes (0 = a single check)"
-
 msgid "  FORCE_BUSY=non                mettre à jour quand même si le site reste occupé (défaut : non : la mise à jour est annulée)"
 msgstr "  FORCE_BUSY=non                update anyway if the site stays busy (default: no: the update is cancelled)"
 
@@ -678,14 +669,8 @@ msgstr " write lock(s) on ir_cron (scheduled task running)"
 msgid " écriture(s) dans les tables d'activité pendant "
 msgstr " write(s) in the activity tables during "
 
-msgid " min ; occupé dès un visiteur actif, une écriture HTTP, une session ou un verrou PostgreSQL, ou une écriture en base)"
-msgstr " min; busy as soon as there is an active visitor, an HTTP write, a PostgreSQL session or lock, or a database write)"
-
 msgid "maintenant occupé : "
 msgstr "now busy: "
-
-msgid " min : mise à jour ANNULÉE, rien n'a été arrêté ("
-msgstr " min: update CANCELLED, nothing was stopped ("
 
 msgid "site occupé :"
 msgstr "site busy:"
@@ -724,9 +709,6 @@ msgstr "settings (no terminal, default values): threshold "
 msgid " visiteurs, fenêtre "
 msgstr " visitors, window "
 
-msgid " min, attente "
-msgstr " min, wait "
-
 msgid "Paramètres du site (Entrée = valeur entre crochets ; sans réponse en 10 s, elle est gardée) :"
 msgstr "Site settings (Enter = value in brackets; no answer in 10 s keeps it):"
 
@@ -735,9 +717,6 @@ msgstr "  Threshold: site busy from how many active visitors? ["
 
 msgid "  Pendant combien de minutes compte-t-on les visiteurs ? ["
 msgstr "  For how many minutes are visitors counted? ["
-
-msgid "  Attendre au plus combien de minutes un site calme ? ["
-msgstr "  Wait at most how many minutes for a quiet site? ["
 
 msgid "paramètres retenus : seuil "
 msgstr "settings kept: threshold "
@@ -751,23 +730,14 @@ msgstr "  Active visitor threshold? ["
 msgid "  Fenêtre de comptage, en minutes ? ["
 msgstr "  Counting window, in minutes? ["
 
-msgid "  Attente maximale, en minutes ? ["
-msgstr "  Maximum wait, in minutes? ["
-
 msgid "nouveaux paramètres : seuil "
 msgstr "new settings: threshold "
-
-msgid " min ; occupé dès "
-msgstr " min; busy from "
 
 msgid " visiteurs actifs, ou dès une écriture HTTP, une session ou un verrou PostgreSQL, ou une écriture en base)"
 msgstr " active visitors, or from an HTTP write, a session or a PostgreSQL lock, or a database write)"
 
 msgid "fin de l'attente ("
 msgstr "end of the wait ("
-
-msgid " min) : seulement des lectures (visiteurs), mise à jour permise ("
-msgstr " min): reads only (visitors), update allowed ("
 
 msgid "site toujours en écriture après "
 msgstr "site still writing after "
@@ -777,3 +747,72 @@ msgstr "). Run again later. --force-busy never overrides a write."
 
 msgid "] site occupé :"
 msgstr "] site busy:"
+
+msgid "  --wait-quiet MIN             délai fixe d'attente d'un site calme, en minutes (WAIT_QUIET) : remplace les deux délais selon le profil ; 0 = un seul contrôle"
+msgstr "  --wait-quiet MIN             fixed wait for a quiet site, in minutes (WAIT_QUIET): replaces both delays by profile; 0 = a single check"
+
+msgid "  WAIT_QUIET=                   délai fixe, en minutes (vide : délais selon le profil ci-dessous ; 0 = un seul contrôle)"
+msgstr "  WAIT_QUIET=                   fixed delay, in minutes (empty: delays by profile below; 0 = a single check)"
+
+msgid "  WAIT_CONNECTED=60             attente maximale, en minutes, si un utilisateur connecté est actif"
+msgstr "  WAIT_CONNECTED=60             maximum wait, in minutes, when a logged-in user is active"
+
+msgid "  WAIT_CONNECTED_LOW=3          idem si l'activité est faible (moins de LOW_REQUESTS requêtes)"
+msgstr "  WAIT_CONNECTED_LOW=3          same when activity is low (fewer than LOW_REQUESTS requests)"
+
+msgid "  WAIT_ANONYMOUS=30             attente maximale, en minutes, si seuls des visiteurs non connectés sont actifs"
+msgstr "anonymous visitors"
+
+msgid "  WAIT_ANONYMOUS_LOW=2          idem si l'activité est faible"
+msgstr "  WAIT_ANONYMOUS_LOW=2          same when activity is low"
+
+msgid "  LOW_REQUESTS=10               activité faible : moins de N requêtes (hors robots) dans la fenêtre VISITOR_WINDOW"
+msgstr "  LOW_REQUESTS=10               low activity: fewer than N requests (robots excluded) in the VISITOR_WINDOW window"
+
+msgid "délai fixe (WAIT_QUIET)"
+msgstr "fixed delay (WAIT_QUIET)"
+
+msgid "utilisateur connecté, activité faible"
+msgstr "logged-in user, low activity"
+
+msgid "utilisateur connecté actif"
+msgstr "active logged-in user"
+
+msgid "visiteurs non connectés, activité faible"
+msgstr "anonymous visitors, low activity"
+
+msgid "visiteurs non connectés"
+msgstr "anonymous visitors"
+
+msgid "  Attente maximale si un utilisateur connecté est actif (minutes) ? ["
+msgstr "  Maximum wait if a logged-in user is active (minutes)? ["
+
+msgid "  Attente maximale si seuls des visiteurs non connectés sont actifs (minutes) ? ["
+msgstr "  Maximum wait if only anonymous visitors are active (minutes)? ["
+
+msgid " min, attente connecté "
+msgstr " min, wait logged-in "
+
+msgid " min, attente anonyme "
+msgstr " min, wait anonymous "
+
+msgid "  Changer les paramètres (seuil, fenêtre, attentes) ? [o/N] "
+msgstr "  Change the settings (threshold, window, waits)? [y/N] "
+
+msgid "Attente d'un site calme (occupé dès "
+msgstr "Waiting for a quiet site (busy from "
+
+msgid "attente maximale : "
+msgstr "maximum wait: "
+
+msgid " (attente maximale "
+msgstr " (maximum wait "
+
+msgid ") : seulement des lectures (visiteurs), mise à jour permise ("
+msgstr ") : reads only (visitors), update allowed ("
+
+msgid ") : mise à jour ANNULÉE, rien n'a été arrêté ("
+msgstr ") : update CANCELLED, nothing was stopped ("
+
+msgid "· attente maximale : "
+msgstr "· maximum wait: "

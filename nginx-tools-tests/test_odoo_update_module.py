@@ -471,7 +471,7 @@ while IFS='|' read -r n e v a m c; do printf '%s\n' "$n$SEP$e$SEP$v$SEP$a$SEP$m$
         self.assertIn("site calme : aucune écriture HTTP ni en base, visiteurs actifs sous le seuil de 3", out)
         rc, out, err = self.lancer("--wait-quiet", "0")
         self.assertEqual(rc, 0, out + err)
-        self.assertIn("Attente d'un site calme (au plus 0 min", out)   # a single check, no wait
+        self.assertIn("attente maximale : 0 min", out)   # a single check, no wait
         self.journal_nginx([f"198.51.100.{i}" for i in range(5)])
         rc, out, err = self.lancer("--dry-run")
         self.assertIn("maintenant occupé : 5 visiteurs actifs", out)
