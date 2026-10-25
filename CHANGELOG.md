@@ -466,6 +466,29 @@ Earlier history was archived outside this repository when this file was created.
 
 ## odoo-warmup.py
 
+### 1.12.20261025.172228 - Automatic detection of the Odoo port
+
+- Title: Automatic detection of the Odoo HTTP port when --url and URL are not set.
+- Reason: The default address 127.0.0.1:8069 was used even when Odoo listens on another port (for example 10002 on the development server), so the warm-up waited for an address that does not answer.
+- Changes:
+  - New functions odoo_ports_from_conf() (HTTP port of the first Odoo configuration file found, through apps/_odoo_conf.py), odoo_ports_listening() (TCP ports of the Python processes whose command line mentions odoo, through ss) and detect_odoo_url() (probe of each candidate on /web/login).
+  - Order of the candidates: configuration file, then listening Odoo processes. The first one answering 200, 302 or 303 is used.
+  - Priority unchanged: --url on the command line, then URL in the configuration file, then detection, then http://127.0.0.1:8069.
+  - The detected address is shown on the screen, in French and English.
+  - Files: odoo-warmup.py (version, detection functions, --url help text), lang/odoo-warmup.fr.po (French text of the new messages and of the --url help).
+- Bugs fixed:
+  - Symptom: with a port other than 8069 and no explicit URL, the warm-up stopped with "Odoo does not answer at http://127.0.0.1:8069".
+  - Diagnosis: the default URL was fixed in the code; nothing looked at the port Odoo really uses.
+  - Correction: detection described above.
+- Safeguards and edge cases:
+  - Without root, the command line of other users' processes cannot be read: the process name (python) is then accepted.
+  - ss missing or failing: no candidate from the listening processes, the configuration file and the default port still apply.
+  - No candidate answering: the first candidate is used, so the wait loop reports the real port.
+- Checks:
+  - py_compile of odoo-warmup.py.
+  - Test suite nginx-tools-tests/test_odoo_warmup.py (see the result in the pull request).
+- Action required: none.
+
 ### 1.11.20261022.231529 - Code comments translated to English
 
 - Title: Code comments translated to English (repository convention).

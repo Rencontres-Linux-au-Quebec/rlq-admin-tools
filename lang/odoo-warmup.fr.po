@@ -103,11 +103,9 @@ msgstr "Lancer le préchauffage après chaque démarrage de l'unité d'Odoo (fic
 msgid "Remove the automatic start installed by --systemd-install"
 msgstr "Retirer le démarrage automatique installé par --systemd-install"
 
-msgid "Odoo address (default: "
-msgstr "Adresse d'Odoo (défaut : "
 
-msgid " : Odoo's HTTP port, bypassing nginx)"
-msgstr " : le port HTTP d'Odoo, sans passer par nginx)"
+msgid "Odoo address (default: automatic detection from the Odoo configuration file and the listening Odoo processes, then http://127.0.0.1:8069 ; bypasses nginx)"
+msgstr "Adresse d'Odoo (défaut : détection automatique à partir du fichier de configuration d'Odoo et des processus Odoo en écoute, puis http://127.0.0.1:8069 ; sans passer par nginx)"
 
 msgid "Show each external command run"
 msgstr "Affiche chaque commande externe exécutée"
