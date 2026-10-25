@@ -105,7 +105,7 @@ from urllib.parse import unquote
 from collections import Counter, OrderedDict
 from concurrent.futures import Future
 
-__version__ = "1.105.20261025.113234"
+__version__ = "1.106.20261025.113933"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
@@ -3547,6 +3547,36 @@ def language_of(url):
     return code.upper() if code in ("en", "fr", "es") else "others"
 
 
+DEFAULT_LANGUAGE = {}      # 1.106: default language of the site, read once per session from Odoo (root only)
+
+
+def site_default_language():
+    """1.106: code of the site's default language (e.g. "fr_CA") read from the Odoo database. Root only: None otherwise (the summary
+    then says so). Read once per session (the database is not queried again at each refresh)."""
+    if "value" not in DEFAULT_LANGUAGE:
+        value = None
+        if os.geteuid() == 0:
+            module = load_module("_odoo_db")
+            if module is not None and hasattr(module, "langue_defaut") and hasattr(module, "bases_odoo"):
+                bases = module.bases_odoo() or []
+                if bases:
+                    value = module.langue_defaut(bases[0])
+        DEFAULT_LANGUAGE["value"] = value
+    return DEFAULT_LANGUAGE["value"]
+
+
+def language_label(code):
+    """1.106: label of a language bucket in the summary; the « without prefix » bucket names the site's default language."""
+    if code != "without prefix":
+        return code
+    if os.geteuid() != 0:
+        return TR("without prefix") + " (" + TR("default language not read (root required)") + ")"
+    default = site_default_language()
+    if default:
+        return TR("without prefix") + f" ({default} = " + TR("default language of the site") + ")"
+    return TR("without prefix") + " (" + TR("default language not read (database unreachable)") + ")"
+
+
 class Stats:
     """What happened during the session, for the summary (Ctrl-C, --summary) and the dashboard (Ctrl-G, Ctrl-T): most active addresses, suspicious requests,
     5xx and 4xx errors, slow requests, banned addresses, pages per language, most requested URLs, Odoo errors. Counts only the DISPLAYED lines (after --only and --suspect)."""
@@ -4086,7 +4116,7 @@ class Stats:
             blocks.append((9 if not self.reco_diagnostic() else 4, f"  Addresses to ban: {none_found()} (key b to check)." + (f" Recommendations from web-monitor.py: {self.reco_diagnostic()}." if self.reco_diagnostic() else "")))
         pages = sum(self.languages.values())
         if pages:
-            blocks.append((5, numbers(f"  Pages by language ({pages} page(s)): " + " · ".join(f"{k} {100 * v / pages:.0f} %" for k, v in self.languages.most_common()))))
+            blocks.append((5, numbers(f"  Pages by language ({pages} page(s)): " + " · ".join(f"{language_label(k)} {100 * v / pages:.0f} %" for k, v in self.languages.most_common()))))
         blocks.extend(self.visit_levels())
         blocks.extend((4, text_line) for text_line in self.watch_lines())
         total = sum(self.statuses.values())
