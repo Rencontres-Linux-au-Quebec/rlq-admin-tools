@@ -466,6 +466,24 @@ Earlier history was archived outside this repository when this file was created.
 
 ## odoo-warmup.py
 
+### 1.16.20261025.185140 - One retry for a public page answering 5xx
+
+- Title: A public page answering 5xx is requested once more after one second.
+- Reason: On the development server, the first request for a language-prefixed page (/en_CA/web/login) fails with a 500 (KeyError REQUEST_URI while Odoo builds its template cache), and the next request for the same page succeeds. The warm-up triggered this error at every run, and the error filled the Odoo log.
+- Changes:
+  - load_page(): a 5xx answer is requested once more after RETRY_PAUSE (1 second); the second answer is the one recorded.
+  - Files: odoo-warmup.py.
+- Bugs fixed:
+  - Symptom: a 500 in the Odoo log for each warm-up run, although the warm-up reported 0 failure.
+  - Diagnosis: first render of the page fails while the template cache is built; the warm-up is the first client to request these pages.
+  - Correction: one retry. The cache is then built by the warm-up, not by the first visitor.
+- Safeguards and edge cases:
+  - Only 5xx answers are retried; a 404 (optional page) is not.
+  - A page failing twice is still recorded as a failure.
+- Checks:
+  - py_compile; test suite test_odoo_warmup; scripted client: 500 then 200 is recorded as 200 after 2 calls; 500 twice is recorded as 500.
+- Action required: none. The Odoo log may still show one 500 per language variant on a cold start; the root cause (REQUEST_URI absent on the direct port) is to be checked on the server.
+
 ### 1.15.20261025.175745 - The gevent port is not an Odoo instance
 
 - Title: The gevent (long polling) port of the Odoo configuration file is never taken for a second instance.
