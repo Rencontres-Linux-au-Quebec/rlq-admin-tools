@@ -737,6 +737,28 @@ Earlier history was archived outside this repository when this file was created.
 
 ## nginx-log-audit.sh
 
+### 2.45.20261025.155703 - Summary of IPs to unban after --unban-check
+
+- Title: summary of the IPs to lift at the end of --unban-check when there are more than 5.
+- Reason: on a server with many manual bans, the per-IP report scrolls far above the final tally, and the IPs recommended for lifting are hard to find again. The request was to list them after the command, only when there are more than 5.
+- Changes:
+  - --unban-check: each IP whose lifting is recommended (verdict "lever") or done (verdict "levé") is recorded during the loop.
+  - After the BILAN line, if more than 5 IPs are recorded (constant UNBAN_SUMMARY_MIN=5), a bilingual summary lists each IP with its status (lifting recommended / lifting done). Nothing is printed for 5 IPs or fewer.
+  - No new option and no new configuration key (the threshold is a fixed constant, not a setting).
+  - Documentation: doc/en/02-nginx-log-audit.md and doc/fr/02-nginx-log-audit.md.
+  - Files: nginx-log-audit.sh, CHANGELOG.md, doc/en/02-nginx-log-audit.md, doc/fr/02-nginx-log-audit.md.
+- Bugs fixed: none.
+- Safeguards and edge cases:
+  - The summary is only printed by --unban-check; other actions and the exit code are unchanged.
+  - An empty recommendation list never reaches the summary loop (guarded by the count check, safe with set -u).
+  - Each lift still asks for confirmation one IP at a time; the summary does not lift anything.
+  - Output uses no em dash or other typographic symbols in the new lines.
+- Checks:
+  - bash -n on nginx-log-audit.sh; shellcheck 0.11.0 with -S warning: no new warnings.
+  - Isolated test of the summary block with 6 IPs (summary shown, with mixed statuses) and 5 IPs (nothing shown).
+- Action required: none.
+
+
 ### 2.44.20261022.231529 - Code comments translated to English
 
 - Title: Code comments translated to English (repository convention).

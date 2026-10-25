@@ -16,7 +16,7 @@ nginx-log-audit.sh --stats --details       # statistiques : codes, IP, agents ut
 
 ## Comment un bannissement est décidé
 
-Les indices sont comptés par adresse : recherche de chemins sensibles, rafales de pages (`--page-burst` : pages distinctes en 10 s), requêtes dynamiques parallèles dans la même seconde (`--parallel-threshold`, section 11), nombreuses identités de robot depuis une adresse (`--ua-rotation-threshold`). Un bannissement est *suggéré* à partir de `--ban-threshold` indices (défaut 3). Les adresses de la liste blanche ou des lieux `[protégée]` ne sont jamais proposées. Les bannissements manuels sont réévalués par `--unban-check` (la levée est suggérée si elle n'est plus justifiée).
+Les indices sont comptés par adresse : recherche de chemins sensibles, rafales de pages (`--page-burst` : pages distinctes en 10 s), requêtes dynamiques parallèles dans la même seconde (`--parallel-threshold`, section 11), nombreuses identités de robot depuis une adresse (`--ua-rotation-threshold`). Un bannissement est *suggéré* à partir de `--ban-threshold` indices (défaut 3). Les adresses de la liste blanche ou des lieux `[protégée]` ne sont jamais proposées. Les bannissements manuels sont réévalués par `--unban-check` (la levée est suggérée si elle n'est plus justifiée). Lorsque plus de 5 IP sont à lever, un sommaire de ces IP est affiché après le bilan.
 
 ## Quand et pourquoi une adresse a été bannie
 
