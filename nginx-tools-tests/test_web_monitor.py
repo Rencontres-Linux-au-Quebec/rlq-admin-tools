@@ -1567,14 +1567,14 @@ class Surveillance(EnvTest):
     def test_fin_de_passage_o_bannit_toutes_n_aucune(self):
         self.write("fails.txt", "")
         self.env["TEST_BAN_IP"] = "45.9.8.7"
-        texte, envoye = self.run_pty(["python3", self.prog, "--no-pager"], [(b"[N] aucune", b"o\n", 0.2)])
+        texte, envoye = self.run_pty(["python3", self.prog, "--no-pager"], [(b"[N]", b"o\n", 0.2)])
         self.assertEqual(envoye, 1)
         self.assertIn("▶ 45.9.8.7", texte)
         self.assertNotIn("▶ 11.68.110.86 —", texte.split("recommandée(s) au bannissement")[-1])
         self.assertIn("--ban 45.9.8.7 --yes", self.bans())
         self.assertIn("1/1 IP bannie(s)", texte)
         os.remove(self.path("bans.log"))
-        texte, _ = self.run_pty(["python3", self.prog, "--no-pager"], [(b"[N] aucune", b"\n", 0.2)])
+        texte, _ = self.run_pty(["python3", self.prog, "--no-pager"], [(b"[N]", b"\n", 0.2)])
         self.assertIn("Plus tard : web-monitor.py --ban-recommended", texte)
         self.assertEqual(self.bans(), "")
 
@@ -1582,7 +1582,7 @@ class Surveillance(EnvTest):
     def test_fin_de_passage_c_passe_par_l_enquete_de_ban(self):
         self.write("fails.txt", "")
         self.env["TEST_BAN_IP"] = "45.9.8.7"
-        self.run_pty(["python3", self.prog, "--no-pager"], [(b"[N] aucune", b"c\n", 0.2)])
+        self.run_pty(["python3", self.prog, "--no-pager"], [(b"[N]", b"c\n", 0.2)])
         self.assertRegex(self.bans(), r"--ban 45\.9\.8\.7 (--reason .* )?--app")         # nginx-log-audit 2.40 : --reason (justification) avant --app
         self.assertNotIn("--yes", self.bans())                              # --ban interactif : raisonnement et question
 
