@@ -34,6 +34,7 @@
 
 import argparse
 import concurrent.futures
+import glob
 import http.client
 import http.cookiejar
 import importlib.util
@@ -47,6 +48,7 @@ import subprocess
 import sys
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 
 try:                    # line editing in prompts
@@ -54,7 +56,7 @@ try:                    # line editing in prompts
 except ImportError:
     pass
 
-__version__ = "1.19.20261025.192521"
+__version__ = "1.20.20261025.194640"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
@@ -65,6 +67,7 @@ SYSTEMD_DIR = os.environ.get("NGINX_TOOLS_SYSTEMD_DIR", "/etc/systemd/system")  
 DEFAULT_URL = "http://127.0.0.1:8069"
 NGINX_ADDRESS = ("127.0.0.1", 443)                  # nginx of this server, HTTPS: the way visitors reach Odoo (variable: tests only)
 NGINX_HOST = None                                   # site name (key HOST) when the warm-up goes through nginx
+NGINX_DIR = os.environ.get("NGINX_TOOLS_ETC_NGINX", "/etc/nginx")      # variable: tests only
 RETRY_PAUSE = 1.0                                   # seconds between two tries of a public page answering 5xx
 PUBLIC_ATTEMPTS = 4                                 # tries of a public page answering 5xx (several Odoo processes)
 DEFAULT_PAGES = ["/", "/web/login", "/event", "/survey"]
@@ -628,6 +631,86 @@ def odoo_ports_listening():
     return ports
 
 
+def _nginx_text(path, depth=0):
+    """Text of an nginx file without its comments, with its include directives expanded (depth-limited)."""
+    try:
+        with open(path, encoding="utf-8", errors="replace") as f:
+            texte = re.sub(r"#[^\n]*", "", f.read())
+    except OSError:
+        return ""
+    if depth >= 5:
+        return texte
+
+    def inclure(m):
+        motif = m.group(1).strip()
+        if motif.startswith("/etc/nginx/"):                # absolute paths of the standard tree follow NGINX_DIR (tests)
+            motif = os.path.join(NGINX_DIR, motif[len("/etc/nginx/"):])
+        elif not os.path.isabs(motif):
+            motif = os.path.join(NGINX_DIR, motif)
+        return "\n".join(_nginx_text(f, depth + 1) for f in sorted(glob.glob(motif)) if os.path.isfile(f))
+    return re.sub(r"^\s*include\s+([^;]+);", inclure, texte, flags=re.M)
+
+
+def _block_body(texte, ouverture):
+    """Text between the brace at index `ouverture` and its matching closing brace."""
+    niveau = 0
+    for i in range(ouverture, len(texte)):
+        if texte[i] == "{":
+            niveau += 1
+        elif texte[i] == "}":
+            niveau -= 1
+            if niveau == 0:
+                return texte[ouverture + 1:i]
+    return texte[ouverture + 1:]
+
+
+def nginx_names_for_port(port):
+    """Site names (server_name, without _) of the nginx server blocks whose proxy_pass reaches 127.0.0.1:PORT, through an
+    upstream or a set $variable. Read from NGINX_DIR/nginx.conf and sites-enabled/ (no root needed); [] if none."""
+    textes = []
+    principal = os.path.join(NGINX_DIR, "nginx.conf")
+    if os.path.isfile(principal):
+        textes.append(_nginx_text(principal))
+    for fichier in sorted(glob.glob(os.path.join(NGINX_DIR, "sites-enabled", "*"))):
+        if os.path.isfile(fichier):
+            textes.append(_nginx_text(fichier))
+    texte = "\n".join(textes)
+    upstreams = {}
+    for m in re.finditer(r"upstream\s+(\S+)\s*\{", texte):
+        corps = _block_body(texte, m.end() - 1)
+        upstreams[m.group(1)] = [int(p) for p in re.findall(r"server\s+(?:127\.0\.0\.1|localhost):(\d+)", corps)]
+    noms = []
+    for m in re.finditer(r"(?<![\w-])server\s*\{", texte):
+        corps = _block_body(texte, m.end() - 1)
+        variables = dict(re.findall(r"set\s+\$(\w+)\s+([^;\s]+)\s*;", corps))
+        ports = []
+        for cible in re.findall(r"proxy_pass\s+https?://([^;/\s]+)", corps):
+            if cible.startswith("$"):
+                cible = variables.get(cible[1:], cible)
+            if cible in upstreams:
+                ports += upstreams[cible]
+            else:
+                ports += [int(p) for p in re.findall(r"^(?:127\.0\.0\.1|localhost):(\d+)$", cible)]
+        if port in ports:
+            for groupe in re.findall(r"server_name\s+([^;]+);", corps):
+                for nom in groupe.split():
+                    if nom != "_" and "$" not in nom and nom not in noms:
+                        noms.append(nom)
+    return noms
+
+
+def via_nginx(host):
+    """URL https://HOST when nginx answers /web/login for this site name (certificate checked), else None."""
+    global NGINX_HOST
+    NGINX_HOST = host
+    code, _, _ = Client(f"https://{host}").request_("/web/login")
+    if code in (200, 302, 303):
+        return f"https://{host}"
+    NGINX_HOST = None
+    print(f"nginx does not answer for {host} (HTTP {code}): direct connection to Odoo")
+    return None
+
+
 def detect_odoo_url():
     """Address of Odoo when neither --url nor URL is set. Candidates: the HTTP port of the Odoo configuration file, then the
     ports of the listening Python processes. A candidate counts as Odoo only if /web/login answers 200 with "odoo" in the page.
@@ -694,18 +777,19 @@ def main():
     url = args.url or config.get("URL")
     host = config.get("HOST")
     if not url and host:                                  # HOST set: the visitors' way (nginx, HTTPS) when it answers
-        NGINX_HOST = host
-        code, _, texte = Client(f"https://{host}").request_("/web/login")
-        if code in (200, 302, 303):
-            url = f"https://{host}"
-            print(f"Through nginx, as the visitors do: {url}")
-        else:
-            NGINX_HOST = None
-            print(f"nginx does not answer for {host} (HTTP {code}): direct connection to Odoo")
+        url = via_nginx(host)
     if not url:
         url = detect_odoo_url()
         if url is None:
             return 2
+        if not host:                                      # no HOST: the site name is read from the nginx configuration
+            port = int(urllib.parse.urlsplit(url).port or 80)
+            noms = nginx_names_for_port(port)
+            if len(noms) == 1:
+                print(f"Site name found in the nginx configuration: {noms[0]}")
+                url = via_nginx(noms[0]) or url
+            elif len(noms) > 1:
+                print(f"Several site names reach port {port} ({', '.join(noms)}): set HOST in the configuration file")
     database = args.db or config.get("DB")
     login = config.get("LOGIN")
     key_file = config.get("KEY_FILE")
