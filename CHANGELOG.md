@@ -451,6 +451,18 @@ Earlier history was archived outside this repository when this file was created.
 
 ## web-monitor.py
 
+### 2.79.20261025.153031 - Test of the ban question no longer depends on its spacing
+
+- Title: Three tests waited for the French text "[N] aucune" to answer the ban question; the terminal shows "[N]  aucune" (two spaces), so they timed out.
+- Reason: The test suite failed on this server (two of them, then three with the same cause); the program itself was correct.
+- Changes:
+  - nginx-tools-tests/test_web_monitor.py: the three waits now look for "[N]", the marker of the question, whatever the spacing or the translation.
+  - Files: nginx-tools-tests/test_web_monitor.py, web-monitor.py (version only), CHANGELOG.md.
+- Bugs fixed: test only, no program change. Diagnosis: the prompt was displayed correctly; only the expected text was wrong.
+- Safeguards and edge cases: the answers sent are unchanged (o, Enter, c); the program's behaviour is untouched.
+- Checks: test_web_monitor (85 tests, OK); ruff E9/F on the program: clean.
+- Action required: none.
+
 ### 2.78.20261023.210301 - Title: Requests per DNS name (Host) for each period in --summary.
 - Reason: request: --summary gives the figures for today, D-1, D-2, 7 days and 30 days, but the names requested (Host, the DNS column) were only given for the whole 30 days. The number of requests per name over several days is needed.
 - Changes:
