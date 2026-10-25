@@ -91,6 +91,33 @@ Earlier history was archived outside this repository when this file was created.
 
 ## app-log-live.py
 
+### 1.106.20261025.113933 - Summary: site default language read from Odoo (root only)
+
+- Title: Summary: the « without prefix » pages show the site's default language, read from Odoo (root only).
+- Reason: The summary showed "sans préfixe" for the pages without a language prefix, and this was read as "not French". The default language of the site is the only one without a prefix, so the program should read it from Odoo instead of guessing. The program runs as root in the current setup; without root, the database cannot be read.
+- Changes:
+  - site_default_language(): reads the default language once per session, only when running as root (via apps/_odoo_db.py langue_defaut()). Not queried again at each refresh.
+  - language_label(): in the summary "Pages by language", the "without prefix" bucket shows the default language, for example "sans préfixe (fr_CA = langue par défaut du site)". Without root or without database access, the label says why the language is unknown.
+  - Translations (lang/app-log-live.fr.po): "sans préfixe" reverts to its plain text; new messages for the default language and the two unknown cases.
+  - Version: __version__ 1.106.20261025.113933.
+  - Files: app-log-live.py, apps/_odoo_db.py, lang/app-log-live.fr.po, CHANGELOG.md.
+- Bugs fixed:
+  - Symptom: "sans préfixe 46 %" could be read as "not French" for a French site.
+  - Diagnosis: the label did not say which language is the default; the program never read it from Odoo.
+  - Fix: the default language is read from Odoo and shown in the label.
+- Safeguards and edge cases:
+  - Read only as root (os.geteuid() == 0). Non-root: no database query, the label says the language is not read.
+  - Read-only: the query goes through _requete(), which forces a read-only PostgreSQL transaction.
+  - Database unreachable as root: the label says "base inaccessible", not "root requis".
+  - If the site has several websites, the first one (lowest id) is used; if there is no website, the first active language is used.
+  - The language is read from the database; the count of pages is still based on the URL prefix.
+- Checks:
+  - python3 -I -m py_compile on app-log-live.py and apps/_odoo_db.py: OK.
+  - app-log-live.py --version: 1.106.20261025.113933. _odoo_db.py --version: 1.22.20261025.113933.
+  - Without a database (sandbox): site_default_language() returns None, labels correct in the three cases (unknown, unreachable, known).
+  - Not tested against a real Odoo database. Test suite nginx-tools-tests/run-all.sh: not run.
+- Action required: none. Verify the displayed language on the server (as root): it should match Website > Configuration > Languages in Odoo.
+
 ### 1.105.20261025.113234 - Summary: reason of each address to ban, clear label for pages without prefix
 
 - Title: Summary: reason of each address to ban, clear label for pages without prefix.
@@ -890,6 +917,18 @@ Earlier history was archived outside this repository when this file was created.
 ### 1.3.20261020.211944 - Current version. Earlier history archived outside the repository.
 
 ## apps/_odoo_db.py
+
+### 1.22.20261025.113933 - New read-only function langue_defaut() (default language of the website)
+
+- Title: New read-only function langue_defaut(base): default language of the website, read from Odoo.
+- Reason: Needed by app-log-live.py to show the default language of the site in the summary (see its 1.106).
+- Changes:
+  - langue_defaut(base, delai=20): code of the default language (e.g. "fr_CA") from website.default_lang_id joined to res_lang; fallback: first active language. Root only (os.geteuid() == 0), otherwise None.
+  - Files: apps/_odoo_db.py.
+- Bugs fixed: none.
+- Safeguards and edge cases: read-only query through _requete() (transaction forced read-only by PostgreSQL); None if the table or the column is missing.
+- Checks: python3 -I -m py_compile; --version; without a database, returns None.
+- Action required: none.
 
 ### 1.21.20261022.231529 - Code comments translated to English
 

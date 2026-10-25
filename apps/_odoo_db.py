@@ -28,7 +28,7 @@ import re
 import subprocess
 import sys
 
-__version__ = "1.21.20261022.231529"
+__version__ = "1.22.20261025.113933"
 # 1.20: PostgreSQL commands run as the postgres user: runuser under root, "sudo -n" otherwise (the account needs no root)
 POSTGRES_RUN = ["runuser", "-u", "postgres", "--"] if os.geteuid() == 0 else ["sudo", "-n", "-u", "postgres", "--"]
 
@@ -430,6 +430,17 @@ def reponses_sondages(base, jours=30, limite=15, delai=20):
     return _inscriptions(base, f"SELECT extract(epoch from i.create_date)::bigint, left({_titre_sql('s.title')}, 60), left(replace(COALESCE(p.name, 'anonyme'), E'\n', ' '), 40), "
                                f"COALESCE(i.state, '') FROM survey_user_input i JOIN survey_survey s ON s.id = i.survey_id LEFT JOIN res_partner p ON p.id = i.partner_id "
                                f"WHERE i.create_date > now() - interval '{jours} days' AND NOT COALESCE(i.test_entry, false) ORDER BY i.create_date DESC LIMIT {limite}", delai)
+
+
+def langue_defaut(base, delai=20):
+    """Code de la langue par défaut du site web (par exemple "fr_CA"), lue dans la base ; None si impossible (pas root, psql absent,
+    table absente). Repli : première langue active. LECTURE SEULE (transaction en lecture seule imposée par PostgreSQL)."""
+    if os.geteuid() != 0:
+        return None
+    lignes = _requete(base, "SELECT l.code FROM website w JOIN res_lang l ON l.id = w.default_lang_id ORDER BY w.id LIMIT 1", delai)
+    if not lignes or not lignes[0] or not lignes[0][0]:
+        lignes = _requete(base, "SELECT code FROM res_lang WHERE active ORDER BY id LIMIT 1", delai)
+    return lignes[0][0] if lignes and lignes[0] and lignes[0][0] else None
 
 
 def bases_odoo():

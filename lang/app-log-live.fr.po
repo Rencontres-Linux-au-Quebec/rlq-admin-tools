@@ -155,7 +155,7 @@ msgid "program memory at "
 msgstr "mémoire du programme à "
 
 msgid "without prefix"
-msgstr "sans préfixe (langue par défaut du site)"
+msgstr "sans préfixe"
 
 msgid "too old"
 msgstr "trop ancien"
@@ -2667,3 +2667,12 @@ msgstr " seulement par adresse"
 
 msgid " name(s) not shown"
 msgstr " nom(s) non affiché(s)"
+
+msgid "default language of the site"
+msgstr "langue par défaut du site"
+
+msgid "default language not read (root required)"
+msgstr "langue par défaut non lue : root requis"
+
+msgid "default language not read (database unreachable)"
+msgstr "langue par défaut non lue : base inaccessible"
