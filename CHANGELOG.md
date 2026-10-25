@@ -466,6 +466,21 @@ Earlier history was archived outside this repository when this file was created.
 
 ## odoo-warmup.py
 
+### 1.19.20261025.192521 - Default wait of 20 seconds instead of 120
+
+- Title: The default --wait (and key WAIT) is 20 seconds.
+- Reason: Requested. Odoo is normally up well before 120 seconds; a shorter default fails sooner when the service is really stopped.
+- Changes:
+  - DEFAULT_WAIT: 120 -> 20. REQUEST_TIMEOUT (120 s per request) is unchanged.
+  - doc/fr and doc/en odoo-warmup.conf.example: #WAIT=20.
+  - Files: odoo-warmup.py, doc/fr/odoo-warmup.conf.example, doc/en/odoo-warmup.conf.example.
+- Bugs fixed: none.
+- Safeguards and edge cases:
+  - A slow start longer than 20 seconds: use --wait 120 or WAIT=120 in the configuration file.
+- Checks:
+  - py_compile; test suite test_odoo_warmup.
+- Action required: none, unless Odoo needs more than 20 seconds to answer after a restart; then set WAIT=120.
+
 ### 1.18.20261025.192316 - Warm-up through nginx, as the visitors do, when HOST is set
 
 - Title: With the key HOST, the warm-up goes through nginx (HTTPS on this machine), and directly to Odoo only if nginx does not answer.

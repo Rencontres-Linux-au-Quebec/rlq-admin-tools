@@ -54,7 +54,7 @@ try:                    # line editing in prompts
 except ImportError:
     pass
 
-__version__ = "1.18.20261025.192316"
+__version__ = "1.19.20261025.192521"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
@@ -70,7 +70,7 @@ PUBLIC_ATTEMPTS = 4                                 # tries of a public page ans
 DEFAULT_PAGES = ["/", "/web/login", "/event", "/survey"]
 DEFAULT_MODELS = ["event.event", "event.registration", "event.event.ticket", "survey.survey", "survey.user_input", "res.partner"]
 VIEWS = [[False, "list"], [False, "form"], [False, "search"], [False, "kanban"]]
-DEFAULT_REPETITIONS, DEFAULT_WAIT, REQUEST_TIMEOUT = 4, 120, 120
+DEFAULT_REPETITIONS, DEFAULT_WAIT, REQUEST_TIMEOUT = 4, 20, 120
 DEFAULT_LINKS, DEFAULT_LATEST = 6, 5                    # linked pages discovered in the public pages; latest events / surveys (administration)
 LATEST_KINDS = (("event.event", "website_url", "events"), ("survey.survey", "survey_start_url", "surveys"))
 DEFAULT_SERVICE = "odoo.service"
