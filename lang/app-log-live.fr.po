@@ -2655,3 +2655,15 @@ msgstr "  --steps-line : activée — les étapes s'affichent sur une ligne à c
 
 msgid "The steps of a test recording (N key) on ONE white reverse-video line, updated at each step (screen only); F key of the menu; STEPS_LINE of the configuration file"
 msgstr "Les étapes d'un enregistrement de test (touche N) sur UNE ligne blanche en vidéo inverse, mise à jour à chaque étape (écran seulement) ; touche F du menu ; STEPS_LINE du fichier de configuration"
+
+msgid "Requests by name (DNS column): "
+msgstr "Requêtes par nom (colonne DNS) : "
+
+msgid " identified, "
+msgstr " identifiées, "
+
+msgid " by address only"
+msgstr " seulement par adresse"
+
+msgid " name(s) not shown"
+msgstr " nom(s) non affiché(s)"

@@ -1830,6 +1830,29 @@ class Bilan(EnvTest):
         a, b = self.valeurs(avant, "Requêtes sur le site", j12=True), self.valeurs(out, "Requêtes sur le site", j12=True)
         self.assertEqual([y - x for x, y in zip(a, b)], [0, 3, 2, 5, 5])       # hier 3, avant-hier 2, inclus dans 7 et 30 j
 
+    def test_requetes_par_nom_dns_par_periode(self):
+        """2.78 : tableau « REQUÊTES PAR NOM DNS (Host) » du --summary : une ligne par nom, colonnes Aujourd'hui, J-1, J-2, 7 et 30 jours ;
+        les lignes sans champ Host (anciens formats) forment leur propre ligne ; les tests du serveur lui-même ne sont pas comptés."""
+        import datetime
+        mois = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+        ng = lambda d: f"{d:%d}/{mois[d.month - 1]}/{d:%Y}"
+        H = lambda ip, d, hote: f'{ip} - - [{ng(d)}:11:00:00 -0400] "GET /event HTTP/1.1" 200 900 "-" "Mozilla/5.0" host="{hote}"\n'
+        T = datetime.date.today(); J1 = T - datetime.timedelta(days=1)
+        with open(self.path("nginx", "rencontres_linux_quebec_prod-access.log"), "a") as f:
+            f.writelines([H("203.0.113.50", T, "odoo.exemple.ca"), H("203.0.113.51", T, "odoo.exemple.ca"),
+                          H("203.0.113.52", J1, "odoo.exemple.ca"), H("203.0.113.60", J1, "bbb.exemple.ca"),
+                          H("203.0.113.61", J1, "bbb.exemple.ca"), H("203.0.113.62", J1, "bbb.exemple.ca"),
+                          H("127.0.0.1", T, "odoo.exemple.ca")])                       # this server: never counted
+        rc, out, err = self.run_cmd(["python3", self.prog, "--summary", "--lang", "fr"])
+        self.assertEqual(rc, 0, err)
+        self.assertIn("REQUÊTES PAR NOM DNS (Host)", out)
+        def valeurs_ligne(nom):
+            ligne = next(x for x in out.splitlines() if x.strip().startswith(nom))
+            return [int(v) for v in ligne.split() if v.isdigit()]            # the figures only (the label may contain spaces)
+        self.assertEqual(valeurs_ligne("odoo.exemple.ca"), [2, 1, 0, 3, 3])          # aujourd'hui, J-1, J-2, 7 jours, 30 jours
+        self.assertEqual(valeurs_ligne("bbb.exemple.ca"), [0, 3, 0, 3, 3])
+        self.assertEqual(valeurs_ligne("(sans"), [10, 0, 0, 15, 19])                 # the fixture lines have no Host: 10 today, 5 three days ago, 4 twenty days ago, 1 forty days ago
+
     def test_option_days(self):
         """2.26 : --days N — période longue de N jours ; colonnes sans objet retirées ; valeur invalide refusée."""
         rc, out, err = self.run_cmd(["python3", self.prog, "--summary", "--days", "3"])
