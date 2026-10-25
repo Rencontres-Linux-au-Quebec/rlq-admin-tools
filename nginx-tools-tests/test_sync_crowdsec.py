@@ -1,7 +1,7 @@
 """sync-crowdsec-blocklist.sh — IP protégées (nomatch), course « grep -q », garde-fous, crochet ufw."""
 # Environnement de ces tests, lu par run-all.sh : commun (tous les serveurs), odoo ou bbb.
 ENVIRONNEMENT = "commun"   # tous les serveurs (Odoo et BigBlueButton)
-PROGRAMME = "sync-crowdsec-blocklist.sh"   # run-all 1.188 (statistiques) : le nom du module ne désigne pas le programme
+PROGRAMME = "sync-crowdsec-blocklist.sh"   # run-all 1.188 (statistics): the module name does not designate the program
 import os
 import unittest
 
@@ -38,7 +38,7 @@ elif a[0] == "restore":
     save()
 elif a[0] == "list":
     if a[1] == "-n":
-        # UNE ECRITURE PAR LIGNE, videe aussitot : reproduit la course « | grep -q » (lecteur ferme en cours d'ecriture)
+        # ONE WRITE PER LINE, flushed at once: reproduces the "| grep -q" race (reader closed while still writing)
         for n in S:
             try: sys.stdout.write(n + "\n"); sys.stdout.flush()
             except BrokenPipeError: os._exit(141)
@@ -93,7 +93,7 @@ class SyncCrowdsec(EnvTest):
         self.assertRegex(rapport, r"Programme : sync-crowdsec-blocklist\.sh v1\.\d+\.\d{8}\.\d{6} — commande : sync-crowdsec-blocklist\.sh --status\n")
         self.assertRegex(rapport, r"ÉCHECS \(\d+\) :\n(?:.*\n)*?  \d+\. .*ÉCHEC EN COURS : 1 tentative\(s\) consécutive\(s\)")
 
-    # --- 1.10 : échecs visibles, datés et suivis ; PATH sous cron ------------------------------------------------------
+    # --- 1.10: visible failures, dated and tracked; PATH under cron ------------------------------------------------------
     @unittest.skipUnless(os.geteuid() == 0, "la synchronisation exige root")
     def test_echec_ipset_diagnostic_suivi_puis_efface(self):
         """Cas réel : « impossible de créer les ipsets », sans date, répété à chaque passage du cron."""
@@ -103,9 +103,9 @@ class SyncCrowdsec(EnvTest):
         self.mock("curl", f'echo telecharge >> {self.d}/curl.log; exit 1')
         rc, out, err = self.sync()
         self.assertEqual(rc, 1)
-        self.assertRegex(out.splitlines()[0], r"^sync-crowdsec-blocklist\.sh v\d")                        # en-tête de version
-        self.assertRegex(out.splitlines()[1], r"^Configuration : ")                                   # fichier de configuration lu (2 lignes : Configuration…, Options…)
-        self.assertRegex(out.splitlines()[3], r"^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2} \S+$")             # daté
+        self.assertRegex(out.splitlines()[0], r"^sync-crowdsec-blocklist\.sh v\d")                        # version header
+        self.assertRegex(out.splitlines()[1], r"^Configuration : ")                                   # configuration file read (2 lines: Configuration..., Options...)
+        self.assertRegex(out.splitlines()[3], r"^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2} \S+$")             # dated
         self.assertIn("ipset inutilisable : module noyau ip_set non disponible (ipset v7.19: Kernel error", err)
         self.assertFalse(os.path.exists(self.path("curl.log")), "liste téléchargée malgré ipset inutilisable")
         self.assertIn("ÉCHEC n° 1 consécutif", err)
@@ -113,11 +113,11 @@ class SyncCrowdsec(EnvTest):
         self.assertIn("ÉCHEC n° 2 consécutif, depuis le ", err)
         rc, out, err = self.run_cmd(["bash", self.prog, "--status"])
         self.assertIn("ÉCHEC EN COURS : 2 tentative(s) consécutive(s)", out)
-        # Droits insuffisants : autre diagnostic (plus d'accusation systématique de LXC)
+        # Insufficient rights: other diagnosis (no more systematic LXC accusation)
         self.mock("ipset", 'echo "ipset v7.19: Operation not permitted" >&2; exit 1')
         rc, out, err = self.sync()
         self.assertIn("droits insuffisants pour ipset", err)
-        # Réussite : suivi effacé
+        # Success: tracking erased
         with open(self.path("bin", "ipset"), "w") as f:
             f.write(bon_ipset)
         self.setUp_curl()
@@ -142,7 +142,7 @@ class SyncCrowdsec(EnvTest):
         self.assertEqual(rc, 0, err)
         cron = open(self.path("cron")).read()
         self.assertIn("\nPATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin\n", cron)
-        self.assertIn("17 * * * * root", cron)                                      # ligne d'origine conservée
+        self.assertIn("17 * * * * root", cron)                                      # original line kept
         rc, out, err = self.sync()
         self.assertEqual(open(self.path("cron")).read().count("PATH="), 1)          # une seule fois
         os.remove(self.path("cron"))
@@ -160,7 +160,7 @@ class SyncCrowdsec(EnvTest):
         ligne = next(l for l in out.splitlines() if l.startswith("IP protégées"))
         for ip in IPS_EXEMPLE + ("198.51.100.128/25",):
             self.assertIn(ip, ligne)
-        self.assertNotIn("192.0.2.0/24", ligne)                                      # partagée seulement : pas protégée
+        self.assertNotIn("192.0.2.0/24", ligne)                                      # shared only: not protected
         self.assertNotIn("192.0.2.7", ligne)
 
     def test_ip_protegees_jamais_bloquees_meme_via_une_plage(self):
@@ -175,7 +175,7 @@ class SyncCrowdsec(EnvTest):
         self.assertIn("figurait dans la liste communautaire", out)
         import json
         entrees = json.load(open(self.env["TEST_IPSET_DB"]))["crowdsec-blocklist-v4"]
-        self.assertNotIn("10.1.2.3", entrees)                      # réseaux privés écartés dès l'analyse
+        self.assertNotIn("10.1.2.3", entrees)                      # private networks discarded as early as the analysis
 
     def test_redemarrage_ufw_recree_la_regle_malgre_la_course_grep_q(self):
         """1.4 : « ipset list -n | grep -q » sous pipefail répondait « absent » (course SIGPIPE) — 0/10 avant."""

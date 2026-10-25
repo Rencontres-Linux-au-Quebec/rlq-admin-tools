@@ -1,21 +1,21 @@
 #!/usr/bin/env python3
 # ========================================================================================================================
 # Copyright (C) 2026 Services-Conseils Linux Inc.
-# Copyright (C) 2026 Rencontres Linux au Québec contributors
+# Copyright (C) 2026 Rencontres Linux au Quebec contributors
 #
 # This program is free software: you can redistribute it and/or modify it under the terms of the GNU Affero General Public
 # License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
 # Full text: https://www.gnu.org/licenses/agpl-3.0.html
 # ========================================================================================================================
 #
-# _listes.py — les DEUX listes d'adresses propres à une installation, lues hors des archives (jamais livrées) :
-#   * LISTE BLANCHE  /etc/default/nginx-tools-white-list.conf : adresses de confiance (équipe) — jamais bannies, accès aux sites DEV et
-#     LAB. Lue SEULEMENT dans /etc/default (elle donne accès : aucun fichier utilisateur caché).
+# _listes.py - the TWO address lists specific to an installation, read outside the archives (never shipped):
+#   * WHITE LIST  /etc/default/nginx-tools-white-list.conf: trusted addresses (team) - never banned, access to the DEV and
+#     LAB sites. Read ONLY in /etc/default (it grants access: no hidden user file).
 #   * LIEUX          /etc/default/nginx-tools-ip-location.conf puis ~/.nginx-tools-ip-location.conf : un NOM pour une adresse ou une plage
-#     (université, bureau…). Descriptif : ne donne AUCUN accès.
-# Syntaxe commune, une entrée par ligne :   ADRESSE-OU-PLAGE   # libellé   [option] [option]
-#   [partagée]  plusieurs personnes derrière la même adresse : on affiche le lieu, jamais un nom de personne
-#   [protégée]  jamais bannie ni recommandée au bannissement (sans aucun accès : c'est la liste blanche qui en donne)
+#     (university, office...). Description: grants NO access.
+# Common syntax, one entry per line:   ADDRESS-OR-RANGE   # label   [option] [option]
+#   [shared]  several people behind the same address: the place is shown, never a person's name
+#   [protected]  never banned nor recommended for banning (grants no access by itself: the white list does that)
 # Transition : tant que /etc/default/nginx-tools-white-list.conf n'existe pas, l'ancienne liste apps/team-ips.list est lue (avec un avertissement) ;
 # nginx-hardening.sh --update la migre. Variables d'environnement (tests) : NGINX_TOOLS_WHITE_LIST, NGINX_TOOLS_IP_LOCATION (fichier unique).
 #
@@ -30,7 +30,7 @@ import os
 import re
 import sys
 
-__version__ = "1.3.20261020.211944"
+__version__ = "1.4.20261022.231529"
 
 BLANCHE_DEFAUT = "/etc/default/nginx-tools-white-list.conf"
 LIEUX_DEFAUT = "/etc/default/nginx-tools-ip-location.conf"

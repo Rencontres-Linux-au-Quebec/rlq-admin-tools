@@ -39,7 +39,7 @@ class ChkOdooLogs(EnvTest):
         self.mock("journalctl", f"cat {self.d}/journal.txt")
         self.mock("systemctl", '[[ "$2" == erplibre.service ]] && echo "erplibre.service enabled enabled"; exit 0')
         self.env["APP_LOG_CHECK_STATE_DIR"] = os.path.dirname(self.path("state", "x"))
-        # liste blanche et lieux : chemins isolés par helpers (vides) ; un test qui veut des entrées utilise self.liste_blanche() / self.lieux()
+        # white list and places: paths isolated by helpers (empty); a test that wants entries uses self.liste_blanche() / self.lieux()
 
     def test_ligne_en_base64_jamais_affichee_comme_message(self):
         """Une trace dont la dernière ligne est une image en base64 : le titre du groupe est la ligne utile précédente, jamais le bloc de données ; toute ligne affichée est abrégée."""
@@ -72,7 +72,7 @@ class ChkOdooLogs(EnvTest):
         self.assertNotIn("SOMMAIRE", out.upper().split("--- [2]")[0].split("Fenêtre")[-1])
         self.assertIn("Access Denied", out)
         complet = self.lancer()
-        self.assertIn("--- [4]", complet)                                  # sans l'option : inchangé
+        self.assertIn("--- [4]", complet)                                  # without the option: unchanged
 
     def test_report_err(self):
         rc, out, err = self.run_cmd(["python3", self.prog, "--init", "--report-err"])
@@ -127,28 +127,28 @@ class ChkOdooLogs(EnvTest):
         rc, out, err = self.par_heure()
         self.assertEqual(rc, 0, err)
         self.assertIn("RAPPORT DES PROBLÈMES PAR HEURE ET PAR JOUR — erplibre.service — 7 derniers jours", out)
-        # table : 19 h = 25 « Session expired », 20 h = 5 + 1 conflit SQL, 21 h = 3 pages 404 (le 10-02) ; 03 h = 3 (le 10-01)
+        # table: 19 h = 25 "Session expired", 20 h = 5 + 1 SQL conflict, 21 h = 3 404 pages (on 10-02); 03 h = 3 (on 10-01)
         t = out[out.index("[1]"):out.index("[2]")]
         self.assertRegex(t, r"  19 h  \|\s+\.\s+25 \|\s+25 ")
         self.assertRegex(t, r"  20 h  \|\s+\.\s+6 \|\s+6 ")
         self.assertRegex(t, r"  21 h  \|\s+\.\s+3 \|\s+3 ")
         self.assertRegex(t, r"  03 h  \|\s+3\s+\. \|\s+3 ")
         self.assertRegex(t, r"  Total \|\s+3\s+34 \|\s+37")
-        self.assertNotIn("  00 h  |", t)                                                       # seules les heures concernées sont listées
+        self.assertNotIn("  00 h  |", t)                                                       # only the hours concerned are listed
         self.assertIn("Heures sans problème : 00 h–02 h, 04 h–18 h, 22 h–23 h", t)
         self.assertIn("Heures les plus chargées : 19 h (25), 20 h (6), 03 h (3), 21 h (3)", t)
-        # pages : « Session expired » rattaché à la requête SUIVANTE du même processus ; identifiants et paramètres retirés
+        # pages: "Session expired" attached to the NEXT request of the same process; identifiers and parameters removed
         p = out[out.index("[2]"):out.index("[3]")]
         self.assertRegex(p, r"\s+30  Session expirée /web/dataset/call_kw/ir\.config_parameter/get_web_dialog_size_config\n")
         self.assertRegex(p, r"\s+3  HTTP 404\s+/wp-admin/\n")
         self.assertIn("pics : 19 h (25), 20 h (5)", p)
-        # messages : erreurs, avertissements et conflit SQL (sans gravité), regroupés sans les nombres
+        # messages: errors, warnings and SQL conflict (harmless), grouped without the numbers
         m = out[out.index("[3]"):out.index("[4]")]
         self.assertRegex(m, r"\s+2  ERREUR  .*Exception during request handling N")
         self.assertRegex(m, r"\s+1  AVERT\.\s+odoo\.modules\.loading: Attention module N")     # sans horodatage ni niveau
         self.assertIn("Conflit de mise à jour simultanée", m)
         self.assertIn("(sans gravité)", m)
-        # fenêtre demandée à journalctl, en heure locale, sans toucher à la position mémorisée
+        # window asked of journalctl, in local time, without touching the remembered position
         with open(os.path.join(self.d, "journalctl.log")) as f:
             self.assertIn("-o short-iso --no-pager --since -7 days", f.read())
         self.assertFalse(os.path.exists(os.path.join(self.env["APP_LOG_CHECK_STATE_DIR"], "x")))
@@ -165,13 +165,13 @@ class ChkOdooLogs(EnvTest):
         self.assertIn("VERDICT : UN SEUL CLIENT (11.97.88.180", d)
         self.assertIn("Ce n'est PAS un défaut du serveur", d)
         self.assertIn("Redémarrages du service dans la période : 1 ; 83 % des « Session expired » surviennent dans l'heure qui suit", d)
-        # Plusieurs adresses, juste après un redémarrage : sessions perdues au redémarrage
+        # Several addresses, just after a restart: sessions lost at restart
         self.journal_session(ips=("11.97.88.180", "11.101.16.52", "11.114.10.1"))
         d = self.par_heure()[1]
         d = " ".join(d[d.index("[4]"):].split())
         self.assertIn("VERDICT : PLUSIEURS CLIENTS, surtout juste après un redémarrage", d)
         self.assertIn("data_dir/sessions", d)
-        # Plusieurs adresses, sans redémarrage : autre cause
+        # Several addresses, without restart: other cause
         self.journal_session(ips=("11.97.88.180", "11.101.16.52", "11.114.10.1"), restart=False)
         d = self.par_heure()[1]
         d = " ".join(d[d.index("[4]"):].split())
@@ -250,7 +250,7 @@ class ChkOdooLogs(EnvTest):
         self.assertRegex(t, r"  Total \|\s+1200 \|\s+1200")
         self.assertNotIn("1 200", t)
         self.assertRegex(out, r" Journal : 1 200 lignes \(≈ \d+ Mo\) sur 7 jours ; « Session expired » et leurs requêtes : ≈ 0 lignes \(0 %\)\.")
-        self.assertRegex(out, r"1 200  HTTP 404\s+/absent")                                         # les totaux en prose gardent leur séparateur
+        self.assertRegex(out, r"1 200  HTTP 404\s+/absent")                                         # totals in prose keep their separator
 
     def test_lieu_partage_adresse_partagee_et_pas_un_seul_onglet(self):
         """Adresse d'un lieu [partagée] : le tableau des clients nomme le lieu, et le verdict ne conclut pas à « un seul onglet » : plusieurs
@@ -261,7 +261,7 @@ class ChkOdooLogs(EnvTest):
         self.assertIn("11.97.88.180 30 (100 %) ETS - Université", d)
         self.assertIn("VERDICT : ADRESSE PARTAGÉE (11.97.88.180 — ETS - Université, 100 %). Plusieurs personnes se trouvent derrière cette adresse", d)
         self.assertNotIn("UN SEUL CLIENT", d)
-        # Sans lieu : l'interprétation habituelle
+        # Without a place: the usual interpretation
         self.lieux("")
         d = " ".join(self.par_heure()[1].split())
         self.assertIn("VERDICT : UN SEUL CLIENT (11.97.88.180", d)
@@ -271,9 +271,9 @@ class ChkOdooLogs(EnvTest):
         self.liste_blanche("11.97.88.180  # Étienne (Bell — adresse actuelle)\n")
         out = self.par_heure()[1]
         self.assertIn("11.97.88.180", out)
-        self.assertRegex(out, r"11\.97\.88\.180\s+30  \(100 %\)  Étienne \(Bell\)")                      # libellé court de l'équipe
+        self.assertRegex(out, r"11\.97\.88\.180\s+30  \(100 %\)  Étienne \(Bell\)")                      # short label of the team
         self.assertIn("VERDICT : UN SEUL CLIENT (11.97.88.180 — Étienne (Bell), 100 %)", out)
-        # Journal sans aucun problème
+        # Log without any problem
         self.write("journal.txt", "2026-10-02T10:00:00-0400 odoo18 odoo[1]: 2026-10-02 14:00:00,000 1 INFO base werkzeug: 1.2.3.4 - - \"GET / HTTP/1.1\" 200 - 1 0.0 0.0\n")
         self.assertIn("Aucun problème dans la fenêtre", self.par_heure()[1])
         # --days invalide, BigBlueButton (journaux en fichiers : non pris en charge, dit clairement)
@@ -326,7 +326,7 @@ esac''')
         out = self.lancer()
         propre = " ".join(out.replace("\u00a0", " ").split())
         sommaire = out[out.index("--- SOMMAIRE ---"):out.index("--- [1]")]
-        self.assertLess(out.index("--- SOMMAIRE ---"), out.index("--- [1]"))                      # le sommaire est EN TÊTE
+        self.assertLess(out.index("--- SOMMAIRE ---"), out.index("--- [1]"))                      # the summary is AT THE TOP
         self.assertIn("[!]  COURRIEL        10 échec(s) d'envoi (10 courriel(s) distinct(s)), du 2026-09-08 22:30:48 au 2026-10-06 20:51:16 : "
                       "5 × limite de messages par connexion (452), 4 × « MAIL multiple » (503), 1 × expéditeur refusé (550)", sommaire)
         self.assertIn("des personnes n'ont PAS reçu leur courriel (inscription, invitation…) : cause et solution en [5]", sommaire)
@@ -343,11 +343,11 @@ esac''')
         # 503 : cascade du 452
         self.assertIn("« Multiple MAIL commands not allowed » (503), en cascade après un autre échec — 4 occurrence(s)", d5)
         self.assertIn("Conséquence du refus 452", d5)
-        # 550 : expéditeur, avec les deux adresses constatées dans l'erreur
+        # 550: sender, with the two addresses found in the error
         self.assertIn("l'adresse « De » n'est pas celle de l'expéditeur autorisé par le serveur de courriel (550) — 1 occurrence(s)", d5)
         self.assertIn("Constaté : De : etienne@exemple.org ; expéditeur de l'enveloppe (compte SMTP) : admin@exemple.org (1×)", d5)
         self.assertIn("Filtre De » (From filter)", d5)
-        # état lu dans Odoo
+        # state read in Odoo
         self.assertIn("État des courriels dans Odoo (lecture seule, base linux_meetup_odoo_18, 7 derniers jours)", d5)
         self.assertIn("Serveurs de courrier sortant : AUCUN enregistré — Odoo utilise les réglages smtp_* de odoo.conf", d5)
         self.assertIn("mail.session.batch.size : non défini — Odoo envoie jusqu'à 1000 courriels par connexion SMTP", d5)
@@ -356,17 +356,17 @@ esac''')
         self.assertIn("Échecs par jour : 2026-10-06 (9)", d5)
         self.assertIn("Sujets en échec : « Bienvenue sur la plateforme » (7) ; « Votre inscription » (2)", d5)
         self.assertIn("Causes et solutions : section [5].", propre)
-        # LECTURE SEULE : transaction forcée en lecture seule par PostgreSQL, aucune écriture dans les requêtes, jamais d'adresse de destinataire
+        # READ ONLY: transaction forced to read-only by PostgreSQL, no write in the queries, never a recipient's address
         with open(os.path.join(self.d, "runuser.log")) as f:
             appels = f.read()
         self.assertIn("PGOPTIONS=-c default_transaction_read_only=on psql -d linux_meetup_odoo_18", appels)
         self.assertNotRegex(appels.upper(), r"\b(INSERT|UPDATE|DELETE|DROP|ALTER|TRUNCATE|CREATE)\b")
-        self.assertIn("JOIN mail_message g ON g.id = m.mail_message_id", appels)                   # le sujet est dans mail_message (mail.mail en hérite), pas dans mail_mail
-        self.assertNotIn("COALESCE(subject", appels)                                                 # ancienne requête fautive : mail_mail n'a pas de colonne subject
+        self.assertIn("JOIN mail_message g ON g.id = m.mail_message_id", appels)                   # the subject is in mail_message (mail.mail inherits from it), not in mail_mail
+        self.assertNotIn("COALESCE(subject", appels)                                                 # old faulty query: mail_mail has no subject column
         self.assertNotIn("email_to", appels)
         self.assertNotIn("recipient", appels)
         self.assertNotRegex(appels, r"smtp_pass|smtp_user|smtp_authentication")                    # jamais d'identifiant ni de mot de passe SMTP lus
-        self.assertIn("key !~* '(secret|password|passwd|token|apikey|private)'", appels)             # clés de paramètres qui évoquent un secret : exclues
+        self.assertIn("key !~* '(secret|password|passwd|token|apikey|private)'", appels)             # parameter keys that suggest a secret: excluded
 
     def test_diagnostic_courriel_serveur_deja_regle_postgresql_illisible_et_autres_erreurs(self):
         self.journal_courriels()
@@ -376,7 +376,7 @@ esac''')
         self.assertIn("Serveur sortant : « Courriel organisme » (smtp.exemple.org:587, starttls), filtre De « admin@exemple.org »", d5)
         self.assertIn("mail.session.batch.size : 10 (si les erreurs 452 continuent, choisir une valeur plus petite)", d5)
         self.assertNotIn("AUCUN enregistré", d5)
-        # Sans PostgreSQL (runuser absent) : le diagnostic reste donné, l'état est dit illisible
+        # Without PostgreSQL (runuser absent): the diagnosis is still given, the state is said unreadable
         os.remove(os.path.join(self.d, "bin", "runuser"))
         d5 = " ".join(self.section(self.lancer(), 5).replace("\u00a0", " ").split())
         self.assertIn("Pourquoi : Odoo envoie les courriels en attente par lots", d5)
@@ -413,7 +413,7 @@ esac''')
     def test_bruit_connu_classe_a_part(self):
         s4 = self.section(self.lancer(), 4)
         self.assertIn("[2x] Carte de source (.map)", s4)
-        self.assertIn("[3x] Conflit de mise à jour simultanée", s4)          # raison confirmée dans le journal
+        self.assertIn("[3x] Conflit de mise à jour simultanée", s4)          # reason confirmed in the log
         self.assertIn("Connexion OAuth (Google) refusée", s4)
         self.assertIn("[1x] Abonnement websocket refusé par web_editor", s4)            # 1.7 : bug Odoo 18 connu
         self.assertIn("[1x] odoo.exceptions.AccessDenied", self.section(self.lancer(), 2),

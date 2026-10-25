@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 # ========================================================================================================================
 # Copyright (C) 2026 Services-Conseils Linux Inc.
-# Copyright (C) 2026 Rencontres Linux au Québec contributors
+# Copyright (C) 2026 Rencontres Linux au Quebec contributors
 #
 # This program is free software: you can redistribute it and/or modify it under the terms of the GNU Affero General Public
 # License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
 # Full text: https://www.gnu.org/licenses/agpl-3.0.html
 # ========================================================================================================================
-# _traduire.py — traduit la sortie d'un programme bash (module partagé, apps/) : lance la commande et passe ses lignes par le catalogue lang/PROGRAMME.XX.po.
+# _traduire.py - translates the output of a bash program (shared module, apps/): runs the command and passes its lines through the catalogue lang/PROGRAM.XX.po.
 #
 """Usage : _traduire.py PROGRAMME VARIABLE_LANGUE -- COMMANDE [ARGUMENTS…]
 
@@ -28,10 +28,10 @@ import subprocess
 import sys
 import termios
 
-__version__ = "1.5.20261019.150215"
+__version__ = "1.6.20261022.231529"
 DOSSIER = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SUPPLEMENTAIRES = ("_listes", "_profile", "_rapport", "_bbb", "_reseau", "_cache_ip", "_odoo_db")
-# Programmes dont la sortie contient celle d'un autre programme (affichée telle quelle) : leur catalogue est complété par celui de l'autre.
+# Programs whose output contains that of another program (displayed as is): their catalogue is completed with the other's.
 AUTRES_CATALOGUES = {"nginx-log-audit": ("sync-crowdsec-blocklist",), "nginx-hardening": ("app-health-check",), "run-all": ("app-health-check",)}
 SILENCE = 0.05            # secondes sans rien recevoir avant de traduire une invite sans fin de ligne
 
@@ -101,14 +101,14 @@ def lancer(commande, tr, langue, anonymiser=False):
     """Exécute la commande avec sa sortie filtrée ; code de retour de la commande. anonymiser : la commande (et tout ce qu'elle lance) reçoit NGINX_TOOLS_ANON_ACTIF."""
     sorties, enfants, fermer = [], [], []
     try:
-        identiques = os.fstat(1).st_ino == os.fstat(2).st_ino and os.fstat(1).st_dev == os.fstat(2).st_dev      # « 2>&1 » : un seul tuyau, l'ordre des lignes est conservé
+        identiques = os.fstat(1).st_ino == os.fstat(2).st_ino and os.fstat(1).st_dev == os.fstat(2).st_dev      # "2>&1": a single pipe, the order of the lines is kept
     except OSError:
         identiques = False
     for numero in ((1,) if identiques else (1, 2)):
         if os.isatty(numero):
             maitre, esclave = os.openpty()
             attr = termios.tcgetattr(esclave)
-            attr[1] &= ~termios.OPOST                      # pas de \n -> \r\n : le terminal réel s'en charge
+            attr[1] &= ~termios.OPOST                      # no \n -> \r\n: the real terminal takes care of it
             termios.tcsetattr(esclave, termios.TCSANOW, attr)
             _taille(numero, esclave)
             sorties.append((maitre, numero, True))
@@ -120,7 +120,7 @@ def lancer(commande, tr, langue, anonymiser=False):
         fermer.append(enfants[-1])
     if identiques:
         enfants.append(enfants[0])
-    signal.signal(signal.SIGINT, lambda *_: None)          # Ctrl-C va aussi à la commande (même groupe) : c'est elle qui décide. Un GESTIONNAIRE (et non SIG_IGN, hérité à l'exec) : la commande garde le comportement normal de Ctrl-C
+    signal.signal(signal.SIGINT, lambda *_: None)          # Ctrl-C also goes to the command (same group): it is the command that decides. A HANDLER (and not SIG_IGN, inherited at exec): the command keeps the normal Ctrl-C behavior
     proc = subprocess.Popen(commande, stdout=enfants[0], stderr=enfants[1], close_fds=True, env=dict(os.environ, NGINX_TOOLS_I18N="1", NGINX_TOOLS_I18N_LANGUE=langue, **({"NGINX_TOOLS_ANON_ACTIF": "1"} if anonymiser else {})))
     for fd in fermer:
         os.close(fd)
@@ -130,7 +130,7 @@ def lancer(commande, tr, langue, anonymiser=False):
             if terminal:
                 _taille(numero, maitre)
         try:
-            proc.send_signal(signal.SIGWINCH)              # le pseudo-terminal n'est pas le terminal de contrôle de la commande : elle n'en serait pas avertie autrement
+            proc.send_signal(signal.SIGWINCH)              # the pseudo-terminal is not the control terminal of the command: it would not be warned otherwise
         except OSError:
             pass
     signal.signal(signal.SIGWINCH, redimensionner)
@@ -145,7 +145,7 @@ def lancer(commande, tr, langue, anonymiser=False):
         if not evenements:
             for f in flux.values():
                 f.vider()
-            if proc.poll() is not None:                    # commande finie, mais un processus lancé par elle garde la sortie ouverte : on n'attend pas
+            if proc.poll() is not None:                    # command finished, but a process launched by it keeps the output open: we do not wait
                 if fin is None:
                     fin = True
                     continue
@@ -174,10 +174,10 @@ def main(argv):
     programme, variable, commande = argv[1], argv[2], argv[4:]
     try:
         module = _i18n()
-        # commande = [interpréteur, script, arguments…] : la langue dépend des arguments du script
+        # command = [interpreter, script, arguments...]: the language depends on the script's arguments
         contexte = module.demarrer(DOSSIER, programme, variable, SUPPLEMENTAIRES + AUTRES_CATALOGUES.get(programme, ()), argv=commande[2:], confirmer_ctrl_c=False)
         langue, tr = contexte.langue, contexte.tr
-        os.environ["NGINX_TOOLS_I18N_ORIGINE"] = getattr(contexte, "origine_langue", "")       # 1.4: shown by config_afficher (« --lang fr (LANG=fr_CA.UTF-8) »)
+        os.environ["NGINX_TOOLS_I18N_ORIGINE"] = getattr(contexte, "origine_langue", "")       # 1.4: shown by config_afficher ("--lang fr (LANG=fr_CA.UTF-8)")
         config = contexte.config
     except Exception:
         langue, tr, config = "fr", None, {}
@@ -186,7 +186,7 @@ def main(argv):
         outil = _anonymiser()
         if outil.demande(commande[2:], config, terminal=os.isatty(1)):
             anonymiseur = outil.Anonymiseur()
-        commande = commande[:2] + outil.sans_option(commande[2:])         # les programmes bash ne connaissent pas --anonymize : le filtre est posé ici
+        commande = commande[:2] + outil.sans_option(commande[2:])         # the bash programs do not know --anonymize: the filter is set here
     except Exception:
         if any(a.startswith("--anon") and "--anonymize".startswith(a) for a in commande[2:]):
             print("ERREUR : anonymisation demandée mais apps/_anonymiser.py est illisible : rien n'est affiché.", file=sys.stderr)

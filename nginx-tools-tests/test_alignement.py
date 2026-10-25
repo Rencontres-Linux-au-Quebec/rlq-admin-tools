@@ -4,7 +4,7 @@ sync-crowdsec-blocklist.sh --stats, champs de odoo-update-module.sh, groupes RLQ
 statistiques de run-all.sh (stats_runner.py). Les tableaux complets de web-monitor.py et le flux de app-log-live.py sont vérifiés dans
 test_odoo_users.py et test_app_log_live.py (même données)."""
 # Environnement de ces tests, lu par run-all.sh : commun (tous les serveurs), odoo ou bbb.
-ENVIRONNEMENT = "commun"   # fonctions d'affichage communes, aucun service réel
+ENVIRONNEMENT = "commun"   # common display functions, no real service
 import contextlib
 import importlib.util
 import io
@@ -44,8 +44,8 @@ class PadColsBash(EnvTest):
     def test_accents_comptes_une_colonne_meme_sous_lang_c(self):
         for texte in ex.PERSONNES_FR + ex.PERSONNES_EN + ["PREMIÈRE DÉTECTION", ""]:
             with self.subTest(texte=texte):
-                self.assertEqual(ex.largeur(self.pad(texte, 30)), 31)              # 30 colonnes + « | »
-        self.assertEqual(self.pad("trop long pour la colonne", 4), "trop long pour la colonne|")     # jamais coupé, jamais négatif
+                self.assertEqual(ex.largeur(self.pad(texte, 30)), 31)              # 30 columns + '|'
+        self.assertEqual(self.pad("trop long pour la colonne", 4), "trop long pour la colonne|")     # never cut, never negative
 
     def test_printf_de_bash_compte_des_octets(self):
         """Le défaut corrigé : sans pad_cols, « Première » (9 octets) recevait 1 espace de moins que « Premiere »."""
@@ -134,7 +134,7 @@ class StatistiquesDeRunAll(unittest.TestCase):
                         self.sr.report([chemin], lang=langue, color=False)
                     lignes = sortie.getvalue().splitlines()
                     entete = next(i for i, l in enumerate(lignes) if re.match(r"\s+Program(me)?\s{2,}tests", l))
-                    tableau = lignes[entete:entete + 6]                     # en-tête, 4 programmes + transversal, total
+                    tableau = lignes[entete:entete + 6]                     # header, 4 programs + cross-cutting, total
                     self.assertEqual(len({ex.largeur(l) for l in tableau}), 1, "\n".join(tableau))
                     self.assertIn("TOTAL", lignes[entete + 6])
                     self.assertEqual(ex.largeur(lignes[entete + 6]), ex.largeur(tableau[0]))

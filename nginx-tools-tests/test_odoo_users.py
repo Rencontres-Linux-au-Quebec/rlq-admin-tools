@@ -35,11 +35,11 @@ class ComptesOdoo(EnvTest):
         self.aujourdhui = datetime.date.today()
         self.mock("systemctl", 'case "$*" in *list-unit-files*erplibre.service*) echo "erplibre.service enabled enabled";; esac; exit 0')
         self.nginx = os.path.dirname(self.path("nginx", "x"))
-        self.env.update(TZ="America/Toronto",                    # run-all 1.188 : heures attendues en heure de l'Est, même sur une machine en UTC
+        self.env.update(TZ="America/Toronto",                    # run-all 1.188: expected hours in Eastern time, even on a machine in UTC
                         WEB_MONITOR_NGINX_DIR=self.nginx, WEB_MONITOR_FAIL2BAN_LOG=self.path("fail2ban.log"),
                         NGINX_LOG_AUDIT_STATE_DIR=os.path.dirname(self.path("chk", "x")), SYNC_CROWDSEC_STATE_DIR=os.path.dirname(self.path("cs", "x")))
         self.write("fail2ban.log", "")
-        # nginx-log-audit.sh simulé : enquête (verdict) et bannissements journalisés
+        # nginx-log-audit.sh simulated: investigation (verdict) and logged bans
         self.write("prog/nginx-log-audit.sh", f'echo "$@" >> {self.d}/nla.log\n'
                    'case "$*" in *--investigate*) echo "      → Score 1/7 — connectée à Odoo avec le compte x : un compte n\'est pas une preuve de bonne foi,";; esac\n'
                    'exit 0\n', 0o755)
@@ -156,7 +156,7 @@ esac''')
         self.assertIn("n'est plus surveillé", out)
         rc, out, err = self.lancer("--summary", "--no-prompt")
         self.assertNotIn("ana@exemple.org", self.section(out))
-        self.assertEqual(open(self.env["NGINX_TOOLS_ODOO_USERS"]).read().count("\n"), 2)        # deux événements, l'historique est gardé
+        self.assertEqual(open(self.env["NGINX_TOOLS_ODOO_USERS"]).read().count("\n"), 2)        # two events, the history is kept
 
     # --- bannissement --------------------------------------------------------------------------------------------------
     @unittest.skipUnless(os.geteuid() == 0, "bannir un compte exige root")
@@ -165,27 +165,27 @@ esac''')
         épargnée, registre ; --unban-odoo-user --yes : compte rétabli et adresse débannie."""
         self.scenario()
         with open(self.path("journal.txt"), "a") as f:
-            f.write(self.connexion(f"{self.aujourdhui}T09:00:00", "fantome5075@exemple.org", "11.36.1.2"))          # adresse aussi utilisée par ana
+            f.write(self.connexion(f"{self.aujourdhui}T09:00:00", "fantome5075@exemple.org", "11.36.1.2"))          # address also used by ana
         rc, out, err = self.lancer("--ban-odoo-user", "fantome5075@exemple.org", "--yes")
         self.assertEqual(rc, 0, out + err)
         self.assertIn("ENQUÊTE SUR LE COMPTE ODOO fantome5075@exemple.org", out)
         self.assertIn("[2] Ses adresses IP (2 dans tout le journal)", out)
         self.assertIn("11.36.1.2 — 1 connexion(s) — aussi utilisée par : ana@exemple.org", out)
-        self.assertIn("non cherché (--internet pour l'autoriser sans question)", out)       # --yes : jamais d'envoi à des tiers sans accord
+        self.assertIn("non cherché (--internet pour l'autoriser sans question)", out)       # --yes: never sent to third parties without agreement
         self.assertIn("BANNISSEMENT DU COMPTE ODOO fantome5075@exemple.org (UID 849, base base)", out)
         self.assertIn("non bannie : 11.36.1.2 (aussi utilisée par ana@exemple.org)", out)
         self.assertIn("Compte Odoo : archivé", out)
         maj = [l for l in open(self.path("runuser.log")).read().splitlines() if "UPDATE res_users" in l]
         self.assertEqual(len(maj), 1)
         self.assertIn("SET active = false", maj[0])
-        self.assertIn("WHERE u.id = 849 AND u.share AND u.active", maj[0])                     # garde-fous dans le SQL lui-même
+        self.assertIn("WHERE u.id = 849 AND u.share AND u.active", maj[0])                     # guards in the SQL itself
         self.assertIn("'public_user', 'user_root', 'user_admin'", maj[0])
         nla = open(self.path("nla.log")).read()
         self.assertIn("--ban 11.95.32.106 --yes", nla)
         self.assertNotIn("--ban 11.36.1.2", nla)
         registre = open(self.env["NGINX_TOOLS_ODOO_USERS"]).read()
         self.assertRegex(registre, r"\tbanned\tbase\t849\tfantome5075@exemple\.org\t11\.95\.32\.106\tscore \d+")
-        # le compte banni n'est plus « utilisateur connu » ni listé dans la section
+        # the banned account is no longer a "known user" nor listed in the section
         rc, out, err = self.lancer("--summary", "--no-prompt")
         self.assertNotIn("▶ fantome5075@exemple.org", self.section(out))
         rc, out, err = self.lancer("--ban-odoo-user", "fantome5075@exemple.org", "--yes")
@@ -212,10 +212,10 @@ esac''')
     def test_sans_root_le_bannissement_est_refuse(self):
         if os.geteuid() == 0:
             self.skipTest("test du refus sans root")
-        rc, out, err = self.lancer("--ban-odoo-user", "x@exemple.org", "--yes", env=dict(self.env, **SANS_ROOT_SIMULE))      # run-all 1.190 : vrai refus, sans root simulé
+        rc, out, err = self.lancer("--ban-odoo-user", "x@exemple.org", "--yes", env=dict(self.env, **SANS_ROOT_SIMULE))      # run-all 1.190: real refusal, without simulated root
         self.assertEqual(rc, 2)
 
-    # --- tableau : largeur des caractères chinois ----------------------------------------------------------------------
+    # --- table: width of Chinese characters ------------------------------------------------------------------------------
     def test_list_users_table_noms_chinois_alignes(self):
         """2.65 : un nom chinois (« 张三李四 », 4 caractères mais 8 colonnes du terminal) décalait toutes les colonnes de la ligne."""
         self.scenario()
@@ -225,13 +225,13 @@ esac''')
         self.assertEqual({largeur(l) for l in tableau}, {largeur(tableau[0])}, "\n".join(tableau))
         chinois = next(l for l in tableau if "张三李四" in l)
         bornes = [largeur(chinois[:i]) for i, c in enumerate(chinois) if c == "|"]
-        self.assertEqual(bornes, [i for i, c in enumerate(tableau[0]) if c == "|"])        # chaque barre au même endroit que l'en-tête
+        self.assertEqual(bornes, [i for i, c in enumerate(tableau[0]) if c == "|"])        # each bar at the same place as the header
 
     def test_list_users_table_alignee_en_francais_et_en_anglais_avec_donnees_d_exemple(self):
         """run-all 1.188 : comptes d'exemple (donnees_exemples.py : accents, anglais, accent combinant NFD, chinois) — en français ET en anglais, chaque « | »
         du tableau est à la même colonne d'écran que dans l'en-tête (les en-têtes traduits n'ont pas la même longueur : « Identifiant » / « Login »)."""
         import donnees_exemples as ex
-        lignes = "".join(f"{uid}{SEP}{login}{SEP}{nom}{SEP}t\\n" for uid, login, nom in ex.COMPTES).replace("'", "'\\''")     # « O'Brien » : apostrophe pour le shell
+        lignes = "".join(f"{uid}{SEP}{login}{SEP}{nom}{SEP}t\\n" for uid, login, nom in ex.COMPTES).replace("'", "'\\''")     # "O'Brien": apostrophe for the shell
         self.mock("runuser", f'''case "$*" in
  *"FROM res_users u JOIN res_partner p ON p.id = u.partner_id ORDER BY u.id"*) printf '{lignes}';;
  *) ;;
@@ -252,7 +252,7 @@ esac''')
         wm = charger("wm_t", "web-monitor.py")
         self.assertEqual(wm.display_width("张三李四"), 8)
         self.assertEqual(wm.display_width("José"), 4)
-        self.assertEqual(wm.display_width("é"), 1)                                        # caractère combinant
+        self.assertEqual(wm.display_width("é"), 1)                                        # combining character
         cellule = wm.truncate_column("张三李四张三李四", 9)
         self.assertEqual(wm.display_width(cellule), 9)
         self.assertTrue(cellule.endswith("… ") or cellule.endswith("…"))

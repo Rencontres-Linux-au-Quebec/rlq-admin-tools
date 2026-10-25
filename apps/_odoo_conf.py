@@ -1,6 +1,6 @@
 # ========================================================================================================================
 # Copyright (C) 2026 Services-Conseils Linux Inc.
-# Copyright (C) 2026 Rencontres Linux au Québec contributors
+# Copyright (C) 2026 Rencontres Linux au Quebec contributors
 #
 # This program is free software: you can redistribute it and/or modify it under the terms of the GNU Affero General Public
 # License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
@@ -14,7 +14,7 @@ import glob
 import os
 import re
 
-__version__ = "1.3.20261020.211944"
+__version__ = "1.4.20261022.231529"
 
 CHEMINS_DEFAUT = ("/etc/odoo/odoo-linux_meetup.conf /opt/odoo/erplibre/config.conf /home/utilisateur/git/erplibre/config.conf /etc/odoo/odoo.conf "
                   "/etc/odoo/*.conf /home/*/git/erplibre/config.conf /opt/odoo/*/config.conf")

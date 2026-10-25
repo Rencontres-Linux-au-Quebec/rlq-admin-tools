@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 # ========================================================================================================================
 # Copyright (C) 2026 Services-Conseils Linux Inc.
-# Copyright (C) 2026 Rencontres Linux au Québec contributors
+# Copyright (C) 2026 Rencontres Linux au Quebec contributors
 #
 # This program is free software: you can redistribute it and/or modify it under the terms of the GNU Affero General Public
 # License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
@@ -31,14 +31,14 @@ import sys
 import time
 import traceback
 
-__version__ = "1.12.20261019.150215"
+__version__ = "1.13.20261022.231529"
 
-# Programmes de la suite dont la version est relevée (détecte un déploiement incomplet : fichiers d'âges différents).
+# Programs of the suite whose version is read (detects an incomplete deployment: files of different ages).
 FICHIERS_SUITE = ["nginx-hardening.sh", "nginx-log-audit.sh", "sync-crowdsec-blocklist.sh", "odoo-backup.sh",
                   "app-health-check.py", "app-log-check.py", "web-monitor.py", "zip-versions.py", "app-log-live.py", "odoo-mail-retry.py", "apps/_rapport.py", "apps/_bbb.py", "apps/_reseau.py",
                   "apps/_odoo_db.py", "apps/_listes.py", "apps/_cache_ip.py", "apps/_courriel.py",
                   "nginx-tools-tests/run-all.sh"]
-# Suite de tests : dossier nginx-tools-tests/ (archive nginx-tools-tests.zip) ; « tests/ » avant la 1.3 — encore lu tant
+# Test suite: folder nginx-tools-tests/ (archive nginx-tools-tests.zip); "tests/" before 1.3 - still read until
 # que l'ancienne copie existe, pour ne pas perdre la version de la suite pendant la transition.
 SUITE = "nginx-tools-tests/"
 ANCIEN_DOSSIER_SUITE = "tests/"
@@ -50,10 +50,10 @@ SECRET_FR_RE = re.compile(r"(?i)(mot de passe\s*[=:]\s*)(\S+)")
 
 TAG_ECHEC = re.compile(r"\[(?:FAIL|ÉCHEC|ECHEC|ERR[A-ZÉ]*)\]")
 ECHEC_LIGNE = re.compile(
-    r"^\s*(?:ERREUR|ERROR|FAIL|FATAL)\b"                        # ligne QUI COMMENCE par… (pas « Erreurs Odoo : 0 »)
+    r"^\s*(?:ERREUR|ERROR|FAIL|FATAL)\b"                        # line THAT STARTS WITH ... (not 'Erreurs Odoo : 0')
     r"|^\s*VERDICT\s*:.*ÉCHEC"
     r"|\*\*\* ARRÊT INATTENDU|Commande fautive"
-    r"|\bÉCHEC\b|PAS démarré|N'EXISTE PAS|a échoué"                # messages d'échec sans étiquette (statuts, diagnostics)
+    r"|\bÉCHEC\b|PAS démarré|N'EXISTE PAS|a échoué"                # failure messages without a label (statuses, diagnostics)
     r"|command not found|Permission denied|No such file or directory|syntax error|unbound variable|Erreur de segmentation"
     r"|\[Errno \d+\]")
 TAG_ATTN = re.compile(r"\[(?:ATTN|WARN|WARNING|INSTABLE|IGNORÉ)\]|^\s*(?:ATTENTION|WARNING)\b|^\s*⚠|^\s*VERDICT\s*:.*NON vérifié")
@@ -61,12 +61,12 @@ TAG_SKIP = re.compile(r"\[SKIP\]")
 RECO_RE = re.compile(r"^\s*\d+\.\s+\[(HAUTE|MOYENNE|FAIBLE)\]")
 CONTEXTE_RE = re.compile(r"^\s*(?:Application\s*:|Configuration lue\s*:|Options\s*:|Sommaire\s+—)")
 TRACEBACK = "Traceback (most recent call last):"
-DEJA_NUMEROTE = re.compile(r"^\d+\.\s+")       # « 1. [MOYENNE] … » : numéro du programme, remplacé par celui du rapport
+DEJA_NUMEROTE = re.compile(r"^\d+\.\s+")       # "1. [MOYENNE] ...": program number, replaced by that of the report
 
-MAX_ELEMENTS = 30            # par catégorie ; le reste est compté
-LONGUEUR_LIGNE = 500         # caractères conservés par ligne
+MAX_ELEMENTS = 30            # per category; the rest is counted
+LONGUEUR_LIGNE = 500         # characters kept per line
 LONGUEUR_DETAIL = 400
-LONGUEUR_RECO = 700          # « Comment : … » des recommandations : chemins, adresses — utiles en entier
+LONGUEUR_RECO = 700          # "Comment : ..." of the recommendations: paths, addresses - useful in full
 
 
 def changelog_section(path, key):
@@ -232,7 +232,7 @@ def construire_rapport(programme, version, commande, sortie, code, duree, dossie
             return
         r.append(f"{titre} ({len(elements)}) :")
         for n, element in enumerate(elements[:MAX_ELEMENTS], 1):
-            # Élément déjà numéroté par le programme (« 1. [MOYENNE] … ») : son numéro est retiré (« 1. 1. » avant la 1.1).
+            # Element already numbered by the program ("1. [MOYENNE] ..."): its number is removed ("1. 1." before 1.1).
             premiere = DEJA_NUMEROTE.sub("", element[0].strip())
             r.append(f"  {n}. {premiere}")
             r.extend(f"       {x.strip()}" for x in element[1:])
@@ -308,7 +308,7 @@ def lancer(fonction, programme, version, dossier):
 
 
 # ------------------------------------------------------------------------------------------------------------------------
-# Ligne de commande : utilisée par apps/_rapport.sh (programmes bash)
+# Command line: used by apps/_rapport.sh (bash programs)
 # ------------------------------------------------------------------------------------------------------------------------
 class _Aide(argparse.HelpFormatter):
     """Options de l'aide par ordre alphabétique (nom long, sans les tirets), comme les programmes de la suite."""

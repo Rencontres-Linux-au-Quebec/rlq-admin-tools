@@ -5,7 +5,7 @@ import re
 
 from i18n_tools import MARQUES_FR
 
-MARQUES_SH = re.compile(r"\b(environnements?|modules?|retenus?|programmes?|section|étape|étapes)\b", re.IGNORECASE)      # mots français sans accent propres aux programmes bash
+MARQUES_SH = re.compile(r"\b(environnements?|modules?|retenus?|programmes?|section|étape|étapes)\b", re.IGNORECASE)      # French words without accents specific to bash programs
 DIRECTIVE_PRINTF = re.compile(r"%[-0-9.*]*[sdiufxXoceEgG]")
 COUPURES = re.compile(r"\\033\[[0-9;]*m|\\x1b\[[0-9;]*m|\\e\[[0-9;]*m|\\[nrt]|\x1b\[[0-9;]*m|" + DIRECTIVE_PRINTF.pattern)
 
@@ -146,7 +146,7 @@ def _extraire(t, ligne0=1):
     """[(morceau, ligne)] de tout le code bash `t`."""
     res, n, i = [], len(t), 0
     ligne = [ligne0]
-    heredocs = []                          # (étiquette, entre guillemets, avec tabulations) en attente du prochain retour à la ligne
+    heredocs = []                          # (label, in quotes, with tabs) waiting for the next line break
     while i < n:
         c = t[i]
         if c == "\n":
@@ -210,7 +210,7 @@ def _extraire(t, ligne0=1):
             fin = t.find("'", i + 1)
             fin = n if fin < 0 else fin
             interieur = t[i + 1:fin]
-            if '"' in interieur:                  # code entre apostrophes (trap, awk, sed…) : ses chaînes "…" sont des messages
+            if '"' in interieur:                  # code in single quotes (trap, awk, sed...): its "..." strings are messages
                 res.extend(_extraire(interieur, ligne[0]))
             else:
                 for p in _decouper(interieur):
@@ -230,12 +230,12 @@ def messages_francais_sh(chemin):
     (aide, modèle de fichier) est donc compté ligne par ligne. Le code d'autres langages (python embarqué) n'est pas un message."""
     res = {}
     source = open(chemin, encoding="utf-8").read()
-    if "/^# Usage :/,/^# =/p" in source:                          # aide affichée depuis le bloc de commentaires de l'en-tête (sed -n '/^# Usage :/,/^# =/p')
+    if "/^# Usage :/,/^# =/p" in source:                          # help displayed from the header comment block (sed -n between the Usage and = markers)
         debut = source.index("\n# Usage :")
         fin = source.index("\n# =", debut)
         for k, brut in enumerate(source[debut + 1:fin].split("\n")):
             partie = re.sub(r"^# ?", "", brut)
-            if len(partie.strip()) >= 4:                                   # tout le bloc d'aide : chaque ligne est affichée
+            if len(partie.strip()) >= 4:                                   # the whole help block: each line is displayed
                 res.setdefault(partie, source[:debut + 1].count("\n") + 1 + k)
     for texte, ligne in _extraire(source):
         if re.match(r"\s*(import |#!)", texte) or "sys.argv" in texte:

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # ========================================================================================================================
 # Copyright (C) 2026 Services-Conseils Linux
-# Copyright (C) 2026 Rencontres Linux au Québec contributors
+# Copyright (C) 2026 Rencontres Linux au Quebec contributors
 #
 # Ce fichier fait partie de la configuration nginx de Rencontres Linux Quebec. Logiciel libre : vous pouvez le
 # redistribuer et/ou le modifier selon les termes de la GNU Affero General Public License publiee par la Free
@@ -9,21 +9,21 @@
 # Texte complet : https://www.gnu.org/licenses/agpl-3.0.html
 # ========================================================================================================================
 #
-# run-all.sh — lanceur unique de la validation, a executer AVANT chaque deploiement. Une seule commande, un seul verdict :
+# run-all.sh - single launcher of the validation, to run BEFORE each deployment. One command, one verdict:
 #   0) presence des programmes et du dossier apps/ (installation incomplete signalee, avec la commande a lancer) ;
 #   1) syntaxe de tous les programmes (bash -n, python3 -m py_compile) ;
 #   2) ShellCheck sur tous les scripts Bash (0 signalement attendu : les exceptions voulues sont documentees par des
 #      directives dans le code) ;
 #   3) ruff sur le Python, s'il est installe (equivalent de ShellCheck pour Python) ;
-#   4) la suite de tests (unittest, inclus dans Python), UNE FOIS PAR AWK DISPONIBLE (mawk, gawk, BusyBox) — gawk et
-#      mawk n'interpretent pas les programmes awk de la meme facon (bug « awk -v » de nginx-log-audit.sh 1.24, invisible
+#   4) the test suite (unittest, included in Python), ONCE PER AVAILABLE AWK (mawk, gawk, BusyBox) - gawk and
+#      mawk do not interpret awk programs the same way ("awk -v" bug of nginx-log-audit.sh 1.24, invisible
 #      sous mawk) ;
 #   5) configuration deployee (/etc/nginx, /etc/fail2ban) comparee a la version testee (nginx-tools-tests/nginx-odoo/), pour
 #      information : les differences sont signalees sans entrer dans le verdict (serveurs Odoo seulement) ;
 #   6) controles du serveur REEL, en lecture seule, propres a son environnement (BigBlueButton : apps/_bbb.py ; Odoo :
 #      app-health-check.py --target local), pour information : ils n'entrent pas dans le verdict.
 # L'ENVIRONNEMENT (Odoo ou BigBlueButton) est detecte au depart (apps/_profile.py, ou --app NOM) : chaque module de test porte
-# une etiquette « ENVIRONNEMENT = "commun" | "odoo" | "bbb" » et seuls les modules communs et ceux de CET environnement
+# a label ENVIRONNEMENT = "commun" | "odoo" | "bbb" and only the common modules and those of THIS environment
 # tournent. Serveur non reconnu (poste de developpement) ou --all-environments : tous les modules.
 # Outils cherches dans le PATH, puis dans nginx-tools-tests/tools/ (executables statiques deposes la, ex. shellcheck, gawk, ruff).
 # Ce qui n'a PAS pu etre verifie (outil absent, tests exigeant root ou un terminal) est dit explicitement dans le verdict.
@@ -36,11 +36,11 @@
 
 set -euo pipefail
 
-# shellcheck disable=SC2154  # « ec » est affectee DANS le texte du trap (ec=$?), a l'execution (faux positif).
+# shellcheck disable=SC2154  # "ec" is set INSIDE the trap text (ec=$?), at run time (false positive).
 trap 'ec=$?; echo "*** ARRÊT INATTENDU DE run-all.sh (code $ec) À LA LIGNE $LINENO : $BASH_COMMAND" >&2' ERR
-# Ctrl+C : apps/_i18n.sh demande confirmation (« Interrompre le programme ? [o/N] ») ; si oui, run_all_nettoyer arrête la passe de tests (son propre groupe de processus) avant la sortie.
+# Ctrl+C: apps/_i18n.sh asks for confirmation ("Interrompre le programme ? [o/N]"); if yes, run_all_nettoyer stops the test pass (its own process group) before exiting.
 JOB_PID=""
-# shellcheck disable=SC2317,SC2329  # appelée indirectement : CTRL_C_NETTOYAGE (apps/_i18n.sh) et le piège TERM
+# shellcheck disable=SC2317,SC2329  # called indirectly: CTRL_C_NETTOYAGE (apps/_i18n.sh) and the TERM trap
 run_all_nettoyer() {
     if [[ -n "$JOB_PID" ]]; then kill -TERM -- "-$JOB_PID" 2>/dev/null || true; fi
     echo >&2; echo "Interrompu (Ctrl+C) : arrêt de run-all.sh." >&2
@@ -49,7 +49,7 @@ run_all_nettoyer() {
 CTRL_C_NETTOYAGE=run_all_nettoyer
 trap 'run_all_nettoyer; exit 143' TERM
 
-readonly SCRIPT_VERSION="1.195.20261022.083937"
+readonly SCRIPT_VERSION="1.196.20261022.231529"
 RUN_ALL_DEBUT=$(date +%s)
 TESTS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly TESTS_DIR
 PROG_DIR="${TEST_SCRIPTS_DIR:-$(dirname "$TESTS_DIR")}"; readonly PROG_DIR
@@ -63,30 +63,30 @@ changelog_section() {
 }
 VERBOSE=0; APP_FORCE=""; TOUS_ENVIRONNEMENTS=0; LISTE_SEULE=0; INSTALLER_MANQUANTS=0
 
-# Langue d'affichage (en ou fr) : --lang, RUN_ALL_LANG, LANGUAGE du fichier de configuration, LC_ALL / LANG — apps/_i18n.sh traduit la sortie (rien ne change en français).
+# Display language (en or fr): --lang, RUN_ALL_LANG, LANGUAGE of the configuration file, LC_ALL / LANG - apps/_i18n.sh translates the output (nothing changes in French).
 if [[ -r "$PROG_DIR/apps/_i18n.sh" ]]; then
-    # shellcheck source=/dev/null  # bibliothèque livrée avec les programmes
+    # shellcheck source=/dev/null  # library shipped with the programs
     . "$PROG_DIR/apps/_i18n.sh"
     i18n_relancer run-all RUN_ALL_LANG "$0" "$@"
-    # Les programmes lancés par la suite (et dont la sortie est analysée) restent en français : seule la sortie de run-all.sh est traduite.
+    # The programs launched by the suite (and whose output is parsed) stay in French: only the output of run-all.sh is translated.
     [[ -n "${NGINX_TOOLS_I18N:-}" ]] && export NGINX_TOOLS_LANG=fr
-    # Fichier de configuration (/etc/default/run-all.conf PUIS ~/.run-all.conf ; -c/--config FICHIER : ce fichier seul) : valeurs par défaut des options.
+    # Configuration file (/etc/default/run-all.conf THEN ~/.run-all.conf; -c/--config FILE: this file ONLY): default values of the options.
     # shellcheck disable=SC2034  # lue par apps/_i18n.sh (config_creer_defaut)
-    CFG_DOSSIER_DOC="$TESTS_DIR/doc"; config_lire run-all "$@"        # premier démarrage : crée le fichier de configuration (modèle : doc/run-all.conf.example)
-    export NGINX_TOOLS_CONFIG_CREER=0                                  # les programmes testés, eux, ne créent jamais de fichier dans le vrai /etc/default
+    CFG_DOSSIER_DOC="$TESTS_DIR/doc"; config_lire run-all "$@"        # first start: creates the configuration file (template: doc/run-all.conf.example)
+    export NGINX_TOOLS_CONFIG_CREER=0                                  # the tested programs themselves never create a file in the real /etc/default
     config_defaut TOUS_ENVIRONNEMENTS ALL_ENVIRONMENTS --all-environments booleen
     config_defaut APP_FORCE APP --app texte
     config_defaut INSTALLER_MANQUANTS INSTALL_MISSING --install-missing booleen
     config_defaut VERBOSE VERBOSE --verbose booleen
 fi
 
-# --report-err : rapport d'erreurs à copier-coller en fin d'exécution (programme, version, serveur, échecs…) — apps/_rapport.sh
+# --report-err: error report to copy and paste at the end of the run (program, version, server, failures...) - apps/_rapport.sh
 if [[ -r "$PROG_DIR/apps/_rapport.sh" ]]; then
-    # shellcheck source=/dev/null  # bibliothèque livrée à côté du programme
+    # shellcheck source=/dev/null  # library shipped next to the program
     . "$PROG_DIR/apps/_rapport.sh"
     rapport_si_demande "$TESTS_DIR/run-all.sh" "$SCRIPT_VERSION" "$PROG_DIR" "$@"
 fi
-# Première ligne de TOUTE exécution, même avec --help : le nom et la version du programme (--version l'affiche lui-même).
+# First line of EVERY run, even with --help: the name and version of the program (--version displays it itself).
 case " $* " in *" --version "*) ;; *) echo "run-all.sh v$SCRIPT_VERSION" ;; esac
 if declare -F config_afficher >/dev/null; then
     case " $* " in *" --version "*|*" --changelog "*) ;; *) config_afficher ;; esac
@@ -132,7 +132,7 @@ Options (par ordre alphabétique) :
 AIDE
             exit 0
             ;;
-        --report-err) shift ;;                 # traité avant (apps/_rapport.sh) ; accepté ici avec --help, --version…
+        --report-err) shift ;;                 # handled before (apps/_rapport.sh); accepted here with --help, --version...
         *) echo "Argument inconnu : $1" >&2; exit 1 ;;
     esac
 done
@@ -144,7 +144,7 @@ else
 fi
 [[ -d "$TESTS_DIR/tools" ]] && export PATH="$TESTS_DIR/tools:$PATH"
 
-# --install-missing : ShellCheck et ruff absents sont installés (apt-get, sinon pip pour ruff) ; sans cette option, les étapes 2 et 3 sont seulement ignorées.
+# --install-missing: ShellCheck and ruff missing are installed (apt-get, otherwise pip for ruff); without this option, steps 2 and 3 are only skipped.
 installer_manquants() {
     local cmd="$1" paquet="$2" pip_paquet="${3:-}"
     command -v "$cmd" >/dev/null 2>&1 && return 0
@@ -191,7 +191,7 @@ elif [[ -r "$PROG_DIR/apps/_profile.py" ]] && command -v python3 >/dev/null 2>&1
 fi
 if (( TOUS_ENVIRONNEMENTS )); then ENV_ORIGINE="${ENV_ORIGINE:+$ENV_ORIGINE ; }tous les environnements demandés (--all-environments)"; fi
 
-# Modules de test : l'etiquette « ENVIRONNEMENT = "…" » de chacun (commun, odoo, bbb) decide s'il tourne sur ce serveur.
+# Test modules: the ENVIRONNEMENT = "..." label of each one (commun, odoo, bbb) decides whether it runs on this server.
 MODULES=(); MODULES_ECARTES=(); ECARTES_ENV=""
 for f in "$TESTS_DIR"/test_*.py; do
     m=$(basename "$f" .py)
@@ -240,9 +240,9 @@ else
         echo "      ${C_YELLOW}Déployer l'archive : cd $PROG_DIR && unzip -o nginx-tools.<version>.zip && cp -r nginx-tools/* . && rm -rf nginx-tools${C_RESET}"
     fi
 fi
-# Ancienne copie de CETTE suite dans tests/ (avant la 1.56 : nom partagé avec les tests d'autres programmes, qui
-# s'écrasaient mutuellement) : signalée avec la liste de nos fichiers qui s'y trouvent, jamais supprimée ici — le dossier
-# peut contenir les tests d'autres programmes, parfois sous les mêmes noms (README.md, helpers.py…).
+# Old copy of THIS suite in tests/ (before 1.56: name shared with the tests of other programs, which
+# overwrote each other): reported with the list of our files found there, never deleted here - the folder
+# may contain the tests of other programs, sometimes under the same names (README.md, helpers.py...).
 if [[ "$(basename "$TESTS_DIR")" != "tests" && -f tests/test_web_monitor.py && -f tests/run-all.sh ]]; then
     ancienne=$(sed -n 's/^readonly SCRIPT_VERSION="\(.*\)"/\1/p' tests/run-all.sh | head -1)
     communs=()
@@ -253,23 +253,23 @@ if [[ "$(basename "$TESTS_DIR")" != "tests" && -f tests/test_web_monitor.py && -
     echo "          maintenant dans $(basename "$TESTS_DIR")/ — à retirer de tests/ (${#communs[@]} nom(s) en commun : ${communs[*]:0:8}…)"
 fi
 
-# Fichiers RÉSIDUELS d'anciennes versions : une archive extraite par-dessus un ancien dossier n'en retire rien. Ces fichiers (listes d'adresses
-# personnelles, générées sur chaque serveur) ne sont plus livrés ; leur présence fait échouer des tests (test_locks, test_multi_app, test_listes)
-# pour une raison qui n'est pas un défaut du code. Signalé avec la commande exacte, jamais supprimé ici.
+# RESIDUAL files of old versions: an archive extracted over an old folder removes nothing from it. These files (personal address lists,
+# generated on each server) are no longer shipped; their presence makes tests fail (test_locks, test_multi_app, test_listes)
+# for a reason that is not a defect of the code. Reported with the exact command, never deleted here.
 RESIDUELS=()
 for f in "$PROG_DIR/apps/team-ips.list" "$TESTS_DIR/nginx-odoo/snippets/team-ips-geo.conf" "$TESTS_DIR/nginx-odoo/snippets/team-ips-allow.conf" \
          "$PROG_DIR/nginx-odoo/snippets/team-ips-geo.conf" "$PROG_DIR/nginx-odoo/snippets/team-ips-allow.conf"; do
     [[ -f "$f" ]] && RESIDUELS+=("$f")
 done
-# 1.182 : ancien catalogue lang/PROGRAMME.en.po d'un programme passé au code anglais (son lang/PROGRAMME.fr.po déclare Source-Language en) : cp -r ne
-# l'efface pas, et il fausse les traductions (texte français dans l'affichage anglais) et test_i18n.
-# Règle générale : un catalogue dans la langue SOURCE du programme (déclarée par l'en-tête Source-Language de son catalogue français) est résiduel.
+# 1.182: old catalogue lang/PROGRAM.en.po of a program that moved to English code (its lang/PROGRAM.fr.po declares Source-Language en): cp -r does not
+# erase it, and it skews the translations (French text in the English display) and test_i18n.
+# General rule: a catalogue in the program's SOURCE language (declared by the Source-Language header of its French catalogue) is residual.
 for f in "$PROG_DIR"/lang/*.po; do
     lg=${f%.po}; lg=${lg##*.}; base=${f%."$lg".po}
     [[ -f "$f" && "$lg" != fr && -f "$base.fr.po" ]] && grep -q "^\"Source-Language: $lg" "$base.fr.po" && RESIDUELS+=("$f")
 done
-# 1.186 : la suite de tests ne modifie JAMAIS le dossier des programmes (elle ne faisait que proposer, mais c'était hors de son dossier) : les fichiers
-# résiduels sont signalés, avec la commande pour les retirer, et les tests continuent (les anciens lang/PROG.en.po ne sont plus lus : apps/_i18n.py 1.15).
+# 1.186: the test suite NEVER modifies the programs' folder (it only proposed, but that was outside its folder): residual files
+# are reported, with the command to remove them, and the tests continue (old lang/PROG.en.po are no longer read: apps/_i18n.py 1.15).
 if (( ${#RESIDUELS[@]} > 0 )); then
     echo "  ${C_YELLOW}[ATTN]${C_RESET}  fichier(s) résiduel(s) d'une ancienne version (plus livrés, lus par aucun programme) :"
     printf '          %s\n' "${RESIDUELS[@]}"
@@ -298,7 +298,7 @@ fi
 
 titre "3) ruff (analyse du Python)"
 if command -v ruff >/dev/null 2>&1; then
-    # E9/F : erreurs de syntaxe et defauts reels (noms indefinis, imports ou variables inutilises...) — pas le style.
+    # E9/F: syntax errors and real defects (undefined names, unused imports or variables...) - not the style.
     if out=$(ruff check --select E9,F --target-version py38 --no-cache --output-format concise "${PY_PROGS[@]}" "$TESTS_DIR"/*.py 2>&1); then ok "ruff : aucun défaut"
     else ko "ruff : défauts trouvés"; printf '%s\n' "$out" | sed 's/^/      /'; fi
 else
@@ -307,8 +307,8 @@ fi
 
 titre "4) Suite de tests (une fois par awk disponible) — ${#MODULES[@]} module(s) : commun${ENV_APP:+ + $ENV_APP}"
 TMP_AVANT=$(find "${TMPDIR:-/tmp}" -maxdepth 1 -name 'test-rlq-*' 2>/dev/null | sort) || true
-# Sentinelle : la suite ne doit JAMAIS créer ni modifier un fichier de configuration RÉEL (/etc/default, ~). Empreinte avant/après :
-# sur un serveur ces fichiers existent légitimement — seul un changement PENDANT la suite est une faute.
+# Sentinel: the suite must NEVER create or modify a REAL configuration file (/etc/default, ~). Fingerprint before/after:
+# on a server these files legitimately exist - only a change DURING the suite is a fault.
 # Legacy personal names (rule before 1.191: personal files ended with .cfg; the programs rename them .conf): a test must never rename a real one.
 ANCIENS_NOMS=("${HOME:-/root}/.app-health-check.cfg" "${HOME:-/root}/.odoo-backup.cfg" "${HOME:-/root}/.app-default.cfg")    # legacy names
 empreinte_configs() {
@@ -320,12 +320,12 @@ empreinte_configs() {
              /etc/default/nginx-tools-mail.conf /etc/default/nginx-tools-mail.pass /etc/msmtprc \
              /etc/default/nginx-tools-white-list.conf /etc/default/nginx-tools-ip-location.conf /var/lib/nginx-tools/ip-cache.sqlite \
              /var/lib/nginx-tools/odoo-users.tsv; do
-        # 1.190 : fichier illisible sans root (droits 600) : taille et date de modification (stat), qui changent aussi si un test l'écrit
+        # 1.190: file unreadable without root (mode 600): size and modification date (stat), which also change if a test writes it
         if [[ -r "$f" ]]; then sha256sum "$f"; elif [[ -e "$f" ]]; then echo "illisible $(stat -c '%s %Y' "$f" 2>/dev/null)  $f"; else echo "absent  $f"; fi
     done
 }
 CONFIGS_AVANT=$(empreinte_configs)
-MARQUE_SYSTEME=$(mktemp)                                         # 1.190 : tout fichier de /etc ou /var/backups modifié APRÈS ce point est examiné à la fin
+MARQUE_SYSTEME=$(mktemp)                                         # 1.190: any file of /etc or /var/backups modified AFTER this point is examined at the end
 AWKS=()
 for a in mawk gawk original-awk; do command -v "$a" >/dev/null 2>&1 && AWKS+=("$(command -v "$a")"); done
 BB_WRAP=""
@@ -333,8 +333,8 @@ if command -v busybox >/dev/null 2>&1 && busybox awk 'BEGIN{}' 2>/dev/null; then
     BB_WRAP="$(mktemp -d)/awk-busybox"; printf '#!/bin/sh\nexec busybox awk "$@"\n' > "$BB_WRAP"; chmod +x "$BB_WRAP"; AWKS+=("$BB_WRAP")
 fi
 [[ ${#AWKS[@]} -eq 0 ]] && AWKS+=("$(command -v awk)")
-STATS_DIR=$(mktemp -d); STATS_FICHIERS=()                    # 1.188 : statistiques de chaque passe (stats_runner.py), affichées à la fin
-LANCEUR=(python3 -W ignore -m unittest)                         # repli sans stats_runner.py (ancienne suite) : mêmes tests, sans statistiques
+STATS_DIR=$(mktemp -d); STATS_FICHIERS=()                    # 1.188: statistics of each pass (stats_runner.py), displayed at the end
+LANCEUR=(python3 -W ignore -m unittest)                         # fallback without stats_runner.py (old suite): same tests, without statistics
 for a in "${AWKS[@]}"; do
     rc=0
     nom=$(basename "$a"); nom=${nom#awk-}
@@ -342,21 +342,21 @@ for a in "${AWKS[@]}"; do
         STATS_FICHIERS+=("$STATS_DIR/passe-${#STATS_FICHIERS[@]}-$nom.json")
         LANCEUR=(python3 -W ignore "$TESTS_DIR/stats_runner.py" --run "${STATS_FICHIERS[-1]}")
     fi
-    # La passe tourne dans SA PROPRE session (setsid) : le Ctrl+C du terminal ne l'atteint pas, la confirmation de run-all décide (non -> la passe continue, sans test faussé).
+    # The pass runs in ITS OWN session (setsid): the terminal's Ctrl+C does not reach it, run-all's confirmation decides (no -> the pass continues, without a false test).
     sortie_passe=$(mktemp)
     (cd "$TESTS_DIR" && TEST_AWK="$a" TEST_SCRIPTS_DIR="$PROG_DIR" exec setsid "${LANCEUR[@]}" "${MODULES[@]}" -v >"$sortie_passe" 2>&1) &
     JOB_PID=$!
     while :; do
         wait "$JOB_PID" && rc=0 || rc=$?
-        kill -0 "$JOB_PID" 2>/dev/null || break              # « wait » interrompu par la question de Ctrl+C : la passe tourne encore, on l'attend de nouveau
+        kill -0 "$JOB_PID" 2>/dev/null || break              # "wait" interrupted by the Ctrl+C question: the pass is still running, we wait for it again
     done
     JOB_PID=""
     res=$(cat "$sortie_passe"); rm -f "$sortie_passe"
     bilan=$(printf '%s\n' "$res" | grep -E '^(Ran|OK|FAILED)' | tr '\n' ' ')
     if [[ $rc -eq 0 ]]; then ok "tests sous $nom : $bilan"; printf '%s\n' "$res" | detail
     else
-        # Chaque test en échec est relancé SEUL : échec confirmé (bloquant), ou test INSTABLE — il ne réussit que seul
-        # (dépendance à l'ordre ou au moment) : signalé, avec son message complet conservé dans last-instable.log.
+        # Each failing test is rerun ALONE: confirmed failure (blocking), or UNSTABLE test - it passes only alone
+        # (dependency on order or timing): reported, with its complete message kept in last-instable.log.
         confirmes=(); instables=()
         while IFS= read -r id; do
             [[ -z "$id" ]] && continue
@@ -369,7 +369,7 @@ for a in "${AWKS[@]}"; do
                  | awk '{ id = $2; if (id !~ ("\\." $1 "$")) id = id "." $1; print id }' | sort -u)
         if (( ${#confirmes[@]} > 0 || ${#instables[@]} == 0 )); then
             ko "tests sous $nom : $bilan"
-            # 1.190 : sed lit TOUTE l'entrée (pas de « head ») : sinon grep reçoit SIGPIPE et « set -o pipefail » + le piège ERR arrêtaient run-all.sh
+            # 1.190: sed reads ALL the input (no "head"): otherwise grep receives SIGPIPE and "set -o pipefail" + the ERR trap stopped run-all.sh
             printf '%s\n' "$res" | grep -E '^(FAIL|ERROR):|AssertionError|Error:' | sed -n '1,40s/^/      /p'
         else
             ok "tests sous $nom : tous réussis une fois relancés seuls"
@@ -386,7 +386,7 @@ for a in "${AWKS[@]}"; do
             done
         fi
     fi
-    # Tests desactives : la RAISON reelle, donnee par chaque test (-v : « ... skipped 'raison' »), une fois par raison.
+    # Disabled tests: the real REASON, given by each test (-v: "... skipped 'reason'"), once per reason.
     if [[ "$a" == "${AWKS[0]}" ]]; then
         while IFS= read -r ligne; do
             [[ -z "$ligne" ]] && continue
@@ -397,12 +397,12 @@ for a in "${AWKS[@]}"; do
 done
 [[ -n "$BB_WRAP" ]] && rm -rf "$(dirname "$BB_WRAP")"
 # Filet de securite : repertoires temporaires des tests restes dans /tmp (test interrompu, processus tue...). Seuls
-# ceux CREES PENDANT CE PASSAGE sont supprimes — jamais ceux d'un autre passage en cours ou d'un autre utilisateur.
+# those CREATED DURING THIS PASS are deleted - never those of another running pass or of another user.
 TMP_APRES=$(find "${TMPDIR:-/tmp}" -maxdepth 1 -name 'test-rlq-*' 2>/dev/null | sort) || true
 RESTES=$(comm -13 <(printf '%s\n' "$TMP_AVANT") <(printf '%s\n' "$TMP_APRES") | grep . || true)
 CONFIGS_APRES=$(empreinte_configs)
-# 1.190 : fichiers SYSTÈME modifiés pendant la suite. Un test ne doit JAMAIS écrire hors de son dossier : un fichier qui nomme un dossier de test
-# (/tmp/test-rlq-…) vient d'un test = échec ; les autres (un service de la machine a pu écrire pendant ce temps) = pour information.
+# 1.190: SYSTEM files modified during the suite. A test must NEVER write outside its folder: a file that names a test folder
+# (/tmp/test-rlq-...) comes from a test = failure; the others (a service of the machine may have written during that time) = for information.
 ECRITS_PAR_TESTS=(); ECRITS_AUTRES=()
 while IFS= read -r f; do
     [[ -z "$f" ]] && continue
@@ -433,7 +433,7 @@ done
 titre "5) Configuration déployée comparée à la version testée (nginx-tools-tests/nginx-odoo/)"
 # Derive de deploiement : fichiers de /etc/nginx et /etc/fail2ban differents de la configuration testee. Signale
 # seulement (une difference peut etre voulue, ex. liste d'IP de l'equipe) : n'entre pas dans le verdict.
-REF="${NGINX_ODOO_DIR:-$TESTS_DIR/nginx-odoo}"                   # 1.188 : configuration privée, hors du dépôt Git (copie locale)
+REF="${NGINX_ODOO_DIR:-$TESTS_DIR/nginx-odoo}"                   # 1.188: private configuration, outside the Git repository (local copy)
 if [[ -n "$ENV_APP" && "$ENV_APP" != "odoo" ]]; then
     echo "  [INFO]  sans objet pour $ENV_LABEL : cette configuration nginx est celle des serveurs Odoo"
 elif [[ ! -d /etc/nginx ]]; then
@@ -458,9 +458,9 @@ else
 fi
 
 titre "6) Contrôles du serveur réel, en lecture seule (${ENV_LABEL:-environnement non reconnu})"
-# Contrôles PROPRES à l'environnement, faits sur CE serveur (les étapes 1 à 4 testent le code avec des commandes simulées).
-# Pour information : l'état d'un serveur n'est pas un défaut du code, donc rien ici n'entre dans le verdict.
-controle_reel() {          # controle_reel LIBELLÉ COMMANDE… : lignes [OK]/[ATTN]/[FAIL] de la sortie, en un résumé
+# Checks SPECIFIC to the environment, done on THIS server (steps 1 to 4 test the code with simulated commands).
+# For information: the state of a server is not a defect of the code, so nothing here enters the verdict.
+controle_reel() {          # controle_reel LABEL COMMAND...: [OK]/[ATTN]/[FAIL] lines of the output, in a summary
     local libelle="$1" sortie n_fail n_attn; shift
     sortie=$(timeout --foreground 300 "$@" 2>&1) || true
     n_fail=$(printf '%s\n' "$sortie" | grep -cE '^\s*(\x1b\[[0-9;]*m)?\[(FAIL|ÉCHEC)\]' || true)
@@ -486,8 +486,8 @@ case "$ENV_APP" in
     *) echo "  [INFO]  environnement non reconnu : aucun contrôle de serveur réel (--app NOM pour en choisir un)" ;;
 esac
 
-# 1.188 : statistiques (durée, ressources, nombre de tests par programme et par nature) — le tableau est écrit DANS la langue d'affichage par
-# stats_runner.py (largeurs calculées après traduction : colonnes alignées en français comme en anglais)
+# 1.188: statistics (duration, resources, number of tests per program and per kind) - the table is written IN THE DISPLAY LANGUAGE by
+# stats_runner.py (widths computed after translation: columns aligned in French as in English)
 if (( ${#STATS_FICHIERS[@]} > 0 )); then
     python3 "$TESTS_DIR/stats_runner.py" --total "$(( $(date +%s) - RUN_ALL_DEBUT ))" --report "${STATS_FICHIERS[@]}" || true
 fi
@@ -502,6 +502,6 @@ else
     echo "${C_GREEN} VERDICT : TOUT PASSE — validation complète.${C_RESET}"
 fi
 echo "=============================================================="
-# « exit » explicite : un « (( ECHECS == 0 )) » final faux declenchait le piege ERR (faux « ARRET INATTENDU »).
+# explicit "exit": a final "(( ECHECS == 0 ))" false triggered the ERR trap (false "UNEXPECTED STOP").
 if (( ECHECS > 0 )); then exit 1; fi
 exit 0

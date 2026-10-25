@@ -24,7 +24,7 @@ def systemctl_unites(*unites):
 class Profils(EnvTest):
     def setUp(self):
         super().setUp()
-        del self.env["APP_PROFILE"]                                   # détection réelle
+        del self.env["APP_PROFILE"]                                   # real detection
         self.prog = self.prepare("nginx-log-audit.sh")
         self.apps = os.path.join(os.path.dirname(self.prog), "apps")
 
@@ -109,10 +109,10 @@ class DurcissementBBB(EnvTest):
         self.assertIn("Règles de sécurité BBB installées", out)
         regles = open(fichier).read()
         self.assertIn("location ~ /\\.(?!well-known/) {", regles)
-        self.assertRegex(regles, r"access_log \S*/blocked-probes\.log;")   # (chemin réécrit vers un dossier de test)
-        self.assertNotIn("proxy_", regles)                                        # aucun emplacement de BBB touché
+        self.assertRegex(regles, r"access_log \S*/blocked-probes\.log;")   # (path rewritten to a test folder)
+        self.assertNotIn("proxy_", regles)                                        # no BBB location touched
         self.assertRegex(open(os.path.join(f2b, "jail.d", "nginx-blocked-probes.conf")).read(), r"logpath  = \S*/blocked-probes\.log")
-        # Fichier modifié à la main, puis nginx -t refuse la version régénérée : la version en place est restaurée
+        # File modified by hand, then nginx -t refuses the regenerated version: the version in place is restored
         with open(fichier, "w") as f:
             f.write("# version locale\n")
         self.mock("nginx", '[[ "$1" == -T ]] && echo "    include /etc/bigbluebutton/nginx/*.nginx;"; [[ "$1" == -t ]] && exit 1; exit 0')
@@ -120,7 +120,7 @@ class DurcissementBBB(EnvTest):
         self.assertIn("nginx -t refuse les règles de sécurité BBB — ancienne version restaurée", out)
         self.assertEqual(open(fichier).read(), "# version locale\n")
         self.assertNotIn("unbound variable", err)
-        # fail2ban non démarré : cause dite, commande donnée (cas réel du serveur BBB de DEV)
+        # fail2ban not started: cause stated, command given (real case of the DEV BBB server)
         for f in ("jail.d", "filter.d"):
             os.remove(os.path.join(f2b, f, "nginx-blocked-probes.conf"))
         self.mock("fail2ban-client", "exit 1")
@@ -174,7 +174,7 @@ class Migration(EnvTest):
         self.env["HOME"] = os.path.dirname(self.path("home", "x"))
         self.env.pop("NGINX_LOG_AUDIT_STATE_DIR", None)
         rc, out, err = self.run_cmd(["bash", prog, "--version"])
-        rc, out, err = self.run_cmd(["bash", prog, "--ban", "127.0.0.1", "--yes"])          # refusé, mais migration faite
+        rc, out, err = self.run_cmd(["bash", prog, "--ban", "127.0.0.1", "--yes"])          # refused, but migration done
         self.assertIn("Migration (renommage des programmes, version 2.0)", err)
         self.assertTrue(os.path.isfile(self.path("home", ".local/state/nginx-log-audit/bans.tsv")))
         self.assertFalse(os.path.exists(self.path("home", ".local/state/chk-nginx-logs")))
@@ -275,7 +275,7 @@ class BigBlueButton(EnvTest):
         open(conf, "w").write(contenu)
         self.env["APP_LOG_CHECK_STATE_DIR"] = os.path.dirname(self.path("st", "x"))
         rc, out, err = self.run_cmd(["python3", prog])
-        self.assertIn("[2x] 2026-09-27T10:00:01.456-04:00 bbb-web ERROR", out)          # même erreur, numéros différents
+        self.assertIn("[2x] 2026-09-27T10:00:01.456-04:00 bbb-web ERROR", out)          # same error, different numbers
         self.assertIn("RÉSUMÉ : 2 erreur(s) à examiner", out)
         with open(log, "a") as f:
             f.write("2026-09-27T11:00:00.000-04:00 bbb-web ERROR o.b.w.c.RecordingService - Recording 777 not found\n")
@@ -293,17 +293,17 @@ class BigBlueButton(EnvTest):
         for t in ("systemctl", "ss", "ufw", "fail2ban-client", "logrotate"):
             self.mock_exit(t)
         self.liste_blanche(LISTE_EXEMPLE)
-        # 2.7 : ignoreip vérifié aussi pour BBB (jail sshd), avec la liste blanche
-        self.mock("fail2ban-client", 'case "$1 $2" in\n "status ") printf \'%s\\n\' \'`- Jail list: sshd\';;\n "get sshd") printf \'%s\\n\' \'These IP addresses/networks are ignored:\' \'`- 127.0.0.1/8\';;\nesac\n')   # apostrophes : accents graves de fail2ban non interprétés
+        # 2.7: ignoreip also checked for BBB (sshd jail), with the white list
+        self.mock("fail2ban-client", 'case "$1 $2" in\n "status ") printf \'%s\\n\' \'`- Jail list: sshd\';;\n "get sshd") printf \'%s\\n\' \'These IP addresses/networks are ignored:\' \'`- 127.0.0.1/8\';;\nesac\n')   # apostrophes: fail2ban backticks not interpreted
         rc, out, err = self.run_cmd(["bash", prog])
         ligne = next(l for l in out.splitlines() if "adresses de l'équipe NON ignorées (jails : sshd)" in l)
         for ip in ("203.0.113.5", "100.64.0.21", "198.51.100.9"):
             self.assertIn(ip, ligne)
-        self.assertNotIn("unbound variable", err)                   # 2.5 : PORT_EXPOSED, initialisée à l'étape 4 (Odoo) seulement
+        self.assertNotIn("unbound variable", err)                   # 2.5: PORT_EXPOSED, initialized at step 4 (Odoo) only
         self.assertIn("Application : BigBlueButton", out)
         self.assertIn("Sans objet pour BigBlueButton : odoo.conf", out)
         self.assertIn("Sans objet pour BigBlueButton : pas de capteur catch-all", out)
-        self.assertIn("/etc/haproxy/haproxy.cfg", out)                                   # conseil HSTS adapté à HAProxy
+        self.assertIn("/etc/haproxy/haproxy.cfg", out)                                   # HSTS advice adapted to HAProxy
         self.assertIn("--update passera à « rotate 92 »", out)
         self.assertIn("--update passera à « rotate 14 »", out)
         self.assertIn("MaxRetentionSec=3month", out)
@@ -314,8 +314,8 @@ class BigBlueButton(EnvTest):
         self.assertIn("MaxRetentionSec=3month", open(self.path("systemd", "journald.conf.d/90-nginx-hardening-retention.conf")).read())
         rc, out, err = self.run_cmd(["bash", prog])
         self.assertRegex(out, r"nginx : rotation quotidienne, 92 conservés ≈ 92 jours")
-        # 2.3 : --log-retention-months 6 → rotate 183 (quotidien), 27 (hebdomadaire) ; journal : 3month → 6month
-        # (valeur déjà fixée, mais dans le fichier de ce script et option explicite : mise à jour)
+        # 2.3: --log-retention-months 6 -> rotate 183 (daily), 27 (weekly); log: 3month -> 6month
+        # (value already set, but in this script's file and explicit option: updated)
         rc, out, err = self.run_cmd(["bash", prog, "--update", "--log-retention-months", "6"])
         self.assertIn("Rétention des journaux (cible : 6 mois)", out)
         self.assertRegex(open(lr).read(), r"\trotate 183\n")
@@ -327,8 +327,8 @@ class BigBlueButton(EnvTest):
         rc, out, err = self.run_cmd(["bash", prog, "--log-retention-months", "0"])
         self.assertEqual(rc, 1)
         self.assertIn("entre 1 et 24", err)
-        # 2.5 : cas réel du serveur BBB — /var/log inscriptible par le groupe syslog : logrotate refuse tout fichier sans
-        # directive « su » ; fail2ban.log ne tournait donc pas du tout, même avec une durée de conservation suffisante.
+        # 2.5: real case of the BBB server - /var/log writable by the syslog group: logrotate refuses any file without a
+        # "su" directive; fail2ban.log therefore did not rotate at all, even with a sufficient retention period.
         f2b = os.path.join(os.path.dirname(lr), "fail2ban")
         with open(f2b, "w") as f:
             f.write("/var/log/fail2ban.log {\n    weekly\n    rotate 14\n    compress\n}\n")
@@ -342,7 +342,7 @@ class BigBlueButton(EnvTest):
         self.assertIn("directive « su", out)
         self.assertNotIn("refusé par logrotate", out)
         rc, out, err = self.run_cmd(["bash", prog])
-        self.assertNotIn("NE TOURNE PAS", out)                      # accepté ensuite
+        self.assertNotIn("NE TOURNE PAS", out)                      # accepted afterwards
 
     def test_web_monitor_summary_bbb(self):
         prog = self.prepare("web-monitor.py")
@@ -351,7 +351,7 @@ class BigBlueButton(EnvTest):
         T = datetime.date.today()
         mois = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"][T.month - 1]
         self.write("nginx/bigbluebutton.access.log", BBB_LOG.replace("27/Sep/2026", f"{T:%d}/{mois}/{T:%Y}"))
-        self.write("nginx/rencontres_linux_quebec_prod-access.log", "")                 # autre site : ignoré pour BBB
+        self.write("nginx/rencontres_linux_quebec_prod-access.log", "")                 # other site: ignored for BBB
         log = self.write("bbb-web.log", f"{T.isoformat()}T10:00:01.456-04:00 bbb-web ERROR x - y\n")
         conf = os.path.join(os.path.dirname(prog), "apps", "bbb.conf")
         contenu = open(conf).read().replace("/var/log/bigbluebutton/bbb-web.log", log)

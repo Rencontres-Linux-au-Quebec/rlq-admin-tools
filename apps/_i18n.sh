@@ -1,25 +1,25 @@
 # ========================================================================================================================
 # Copyright (C) 2026 Services-Conseils Linux Inc.
-# Copyright (C) 2026 Rencontres Linux au Québec contributors
+# Copyright (C) 2026 Rencontres Linux au Quebec contributors
 #
 # This program is free software: you can redistribute it and/or modify it under the terms of the GNU Affero General Public
 # License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
 # Full text: https://www.gnu.org/licenses/agpl-3.0.html
 # ========================================================================================================================
-# _i18n.sh — langue d'affichage (fr / en…) et fichier de configuration des programmes bash (bibliothèque commune sourcée, apps/).
+# _i18n.sh - display language (fr / en...) and configuration file of the bash programs (common library, sourced, apps/).
 #
 #
-# Utilisation, tout au début du programme (après SCRIPT_DIR et SCRIPT_NAME) :
+# Usage, at the very start of the program (after SCRIPT_DIR and SCRIPT_NAME):
 #   . "$SCRIPT_DIR/apps/_i18n.sh"; i18n_relancer "$SCRIPT_NAME" NOM_DU_PROGRAMME_LANG "$0" "$@"
 #   config_lire "$SCRIPT_NAME" "$@"                         # /etc/default/PROGRAMME.conf PUIS ~/.PROGRAMME.conf ; -c / --config FICHIER : ce fichier SEUL
-#   config_defaut MIN_IPS MIN_IPS --min-ips nombre          # valeur du fichier = valeur par défaut de la variable (la ligne de commande la remplace ensuite)
-#   config_afficher                                         # « Configuration lue : … » et « Options : … »
-# Langue : --lang, NGINX_TOOLS_LANG, la variable du programme, LANGUAGE du fichier de configuration, LC_ALL / LC_MESSAGES / LANG (voir apps/_i18n.py). En français
+#   config_defaut MIN_IPS MIN_IPS --min-ips nombre          # file value = default value of the variable (the command line replaces it afterwards)
+#   config_afficher                                         # "Configuration lue : ..." and "Options : ..." (program messages)
+# Language: --lang, NGINX_TOOLS_LANG, the program's variable, LANGUAGE of the configuration file, LC_ALL / LC_MESSAGES / LANG (see apps/_i18n.py). In French
 # (cas courant) rien ne change : aucun processus de plus. Dans une autre langue, apps/_traduire.py lance le programme et traduit sa sortie ligne par ligne.
 # shellcheck shell=bash
 
-# pad_cols TEXTE LARGEUR : TEXTE suivi d'espaces jusqu'à LARGEUR COLONNES (1.15). « printf '%-20s' » de bash compte des OCTETS : « Première » (9 octets, 8 colonnes)
-# décalait la colonne suivante d'un cran par lettre accentuée. Les caractères sont comptés en UTF-8 quelle que soit la locale de l'appelant (cron : LANG=C).
+# pad_cols TEXT WIDTH: TEXT followed by spaces up to WIDTH COLUMNS (1.15). Bash's "printf '%-20s'" counts BYTES: "Premiere" (9 bytes, 8 columns)
+# shifted the next column by one step per accented letter. Characters are counted in UTF-8 whatever the caller's locale (cron: LANG=C).
 pad_cols() {
     local LC_ALL=C.UTF-8 texte="$1" n
     n=$(( $2 - ${#texte} ))
@@ -29,16 +29,16 @@ pad_cols() {
 
 _I18N_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-# i18n_relancer PROGRAMME VARIABLE_LANGUE SCRIPT ARGUMENTS… : relance le programme derrière le traducteur si la langue n'est pas le français. Sans effet (retour 0) si le
-# programme est déjà derrière le traducteur, si rien n'indique une autre langue, ou si python3 / apps/_traduire.py manquent.
+# i18n_relancer PROGRAM LANGUAGE_VARIABLE SCRIPT ARGUMENTS...: relaunches the program behind the translator if the language is not French. No effect (return 0) if the
+# program is already behind the translator, if nothing indicates another language, or if python3 / apps/_traduire.py are missing.
 i18n_relancer() {
     _i18n_relancer "$@" || return $?
-    ctrl_c_installer                                    # atteint seulement si le programme n'est pas relancé derrière le traducteur (qui, lui, ne pose aucune question)
+    ctrl_c_installer                                    # reached only if the program is not relaunched behind the translator (which itself asks no question)
     return 0
 }
 
 # _i18n_anonymize_configure PROGRAMME : vrai si un fichier de configuration (commun ou du programme) contient ANONYMIZE=yes ET que la sortie est un terminal (jamais pour un tube ni
-# cron : voir apps/_anonymiser.py) ; NGINX_TOOLS_ANONYMIZE=0 l'empêche.
+# cron: see apps/_anonymiser.py); NGINX_TOOLS_ANONYMIZE=0 prevents it.
 _i18n_anonymize_configure() {
     local f valeur
     [[ -t 1 && "${NGINX_TOOLS_ANONYMIZE:-}" != "0" ]] || return 1
@@ -58,7 +58,7 @@ _i18n_relancer() {
     [[ -r "$_I18N_DIR/_traduire.py" ]] && command -v python3 >/dev/null 2>&1 || return 0
     for a in "$@"; do
         case "$a" in --lang|--lang=*|-c|--config|--config=*) signal=1 ;; esac
-        case "$a" in --anon|--anony|--anonym|--anonymi|--anonymiz|--anonymize) signal=1 ;; esac          # --anonymize : filtre de sortie (apps/_anonymiser.py), posé par apps/_traduire.py
+        case "$a" in --anon|--anony|--anonym|--anonymi|--anonymiz|--anonymize) signal=1 ;; esac          # --anonymize: output filter (apps/_anonymiser.py), set by apps/_traduire.py
     done
     [[ -z "$signal" && -n "${NGINX_TOOLS_ANONYMIZE:-}" && "${NGINX_TOOLS_ANONYMIZE}" != "0" ]] && signal=1
     [[ -z "$signal" ]] && _i18n_anonymize_configure "$programme" && signal=1
@@ -79,10 +79,10 @@ _i18n_relancer() {
 }
 
 # --- Ctrl+C : toujours une confirmation avant de quitter ---------------------------------------------------------------------------------------------------------
-# ctrl_c_installer : installe le piège INT « Interrompre le programme ? [o/N] ». Oui (o, oui, y, yes), fin de fichier ou second Ctrl+C -> arrêt (code 130) après la fonction
-# de nettoyage nommée par CTRL_C_NETTOYAGE (si elle existe) ; autre réponse -> reprise. Sans effet hors terminal (cron, tube, tests) et si NGINX_TOOLS_CTRL_C=0.
-# Limite : le Ctrl+C du terminal part aussi aux commandes en cours (même groupe de processus) : une commande courte interrompue pendant la question s'arrête
-# quand même ; le script, lui, reprend après la réponse. CTRL_C_NETTOYAGE sert aussi à arrêter ce que le script a lancé en arrière-plan.
+# ctrl_c_installer: installs the INT trap "Interrompre le programme ? [o/N]" (program prompt). Yes (o, oui, y, yes), end of file or second Ctrl+C -> stop (code 130) after the function
+# named by CTRL_C_NETTOYAGE (if it exists); other answer -> resume. No effect outside a terminal (cron, pipe, tests) and if NGINX_TOOLS_CTRL_C=0.
+# Limit: the terminal's Ctrl+C also goes to the running commands (same process group): a short command interrupted during the question stops
+# anyway; the script itself resumes after the answer. CTRL_C_NETTOYAGE also serves to stop what the script launched in the background.
 CTRL_C_NETTOYAGE=""
 CTRL_C_PID=""                       # 1.11: command started by run_interruptible, stopped (TERM) when the interruption is confirmed
 _ctrl_c_en_cours=0
@@ -95,17 +95,17 @@ ctrl_c_installer() {
 
 _ctrl_c_demande() {
     local rep=""
-    if (( _ctrl_c_en_cours )); then _ctrl_c_arret; fi             # second Ctrl+C pendant la question : confirmé
+    if (( _ctrl_c_en_cours )); then _ctrl_c_arret; fi             # second Ctrl+C during the question: confirmed
     _ctrl_c_en_cours=1
     printf '\r\n%s' "Interrompre le programme ? [o/N] " >&2
-    # PAS « read -e » : pendant une question déjà posée par « read -e », la réponse se mêlait à la ligne en cours (« n » + « t » = « nt »). Terminal remis en mode ligne
-    # (écho, retour arrière du noyau) le temps de la réponse, puis dans l'état d'avant (celui que le readline interrompu attend).
+    # NOT "read -e": during a question already asked by "read -e", the answer was mixed into the current line ("n" + "t" = "nt"). Terminal put back in line mode
+    # (echo, kernel erase) for the duration of the answer, then in the previous state (the one the interrupted readline waits for).
     local etat_tty=""
     etat_tty=$(stty -g 2>/dev/null </dev/tty) || etat_tty=""
     [[ -n "$etat_tty" ]] && stty icanon echo echoe isig icrnl 2>/dev/null </dev/tty
-    # 1.13 : la réponse est lue dans un sous-shell où Ctrl+C a son effet normal : bash ne relance pas un piège INT déjà en cours, si bien qu'un second Ctrl+C
-    # pendant cette question (après un Ctrl+C reçu pendant un « read -e ») restait sans effet (« ^C^C^C »). Sous-shell interrompu ou fin de fichier : oui.
-    # Ce shell-ci ignore Ctrl+C le temps de la question (sinon bash, recevant le même signal pendant son piège : « trap_handler: bad signal 2 », abandon).
+    # 1.13: the answer is read in a subshell where Ctrl+C has its normal effect: bash does not rerun an INT trap already running, so a second Ctrl+C
+    # during this question (after a Ctrl+C received during a "read -e") stayed without effect ("^C^C^C"). Interrupted subshell or end of file: yes.
+    # This shell ignores Ctrl+C for the duration of the question (otherwise bash, receiving the same signal during its trap: "trap_handler: bad signal 2", abort).
     trap '' INT
     rep=$(trap - INT; IFS= read -r r </dev/tty 2>/dev/null || read -r r || exit 130; printf '%s' "$r") || rep=o
     trap '_ctrl_c_demande' INT
@@ -124,10 +124,10 @@ _ctrl_c_arret() {
     exit 130
 }
 
-# run_interruptible CMD… (1.11) : runs a LONG command so that Ctrl+C is answered AT ONCE. In the foreground, bash runs the INT trap only when the command ends
-# (30 min for a module update, 60 s for a « timeout journalctl »): Ctrl+C seemed dead. Here the command runs in the background (SIGINT ignored for it: the
-# terminal's Ctrl+C is not for it) and bash waits with « wait », which the trap interrupts: the question comes immediately; « no » goes back to waiting,
-# « yes » stops the command (TERM) then the program. Redirections of the call apply to the command; its code is returned. Not for a command that reads the keyboard.
+# run_interruptible CMD... (1.11): runs a LONG command so that Ctrl+C is answered AT ONCE. In the foreground, bash runs the INT trap only when the command ends
+# (30 min for a module update, 60 s for a "timeout journalctl"): Ctrl+C seemed dead. Here the command runs in the background (SIGINT ignored for it: the
+# terminal's Ctrl+C is not for it) and bash waits with "wait", which the trap interrupts: the question comes immediately; "no" goes back to waiting,
+# "yes" stops the command (TERM) then the program. Redirections of the call apply to the command; its code is returned. Not for a command that reads the keyboard.
 run_interruptible() {
     local pid rc=0 rc2
     "$@" &
@@ -135,7 +135,7 @@ run_interruptible() {
     CTRL_C_PID=$pid
     while :; do
         wait "$pid" && rc=0 || rc=$?
-        kill -0 "$pid" 2>/dev/null || break        # finished (otherwise: wait interrupted by the Ctrl+C question, answer « no »)
+        kill -0 "$pid" 2>/dev/null || break        # finished (otherwise: wait interrupted by the Ctrl+C question, answer "no")
     done
     if (( rc > 128 )); then                        # ended while the question was asked: its real code, if bash still has it
         wait "$pid" 2>/dev/null && rc2=0 || rc2=$?
@@ -145,8 +145,8 @@ run_interruptible() {
     return "$rc"
 }
 
-# ctrl_c_child CMD… (1.11) : runs a program that owns the terminal (questions, its own Ctrl+C confirmation). The terminal's Ctrl+C reaches both programs (same
-# process group): without this, this program asked « Interrupt? » again once the child had answered. Here this program says nothing while the child runs
+# ctrl_c_child CMD... (1.11): runs a program that owns the terminal (questions, its own Ctrl+C confirmation). The terminal's Ctrl+C reaches both programs (same
+# process group): without this, this program asked "Interrupt?" again once the child had answered. Here this program says nothing while the child runs
 # (a trap that does nothing, NOT an ignored signal, which the child would inherit). Its code is returned.
 ctrl_c_child() {
     local rc=0
@@ -157,14 +157,14 @@ ctrl_c_child() {
     return "$rc"
 }
 
-# --- Fichier de configuration : lu ligne à ligne, JAMAIS exécuté (pas de « source ») ; clés en majuscules, guillemets facultatifs, # = commentaire -------------------
+# --- Configuration file: read line by line, NEVER executed (no "source"); keys in capitals, optional quotes, # = comment ----------------------------------------
 declare -gA CFG=()
 CFG_FICHIERS=()
 CFG_EXPLICITE=""
 CFG_PROGRAMME=""
 CFG_OPTIONS=()
 CFG_PROBLEMES=()
-CFG_FRANCAIS=()         # valeurs en français (oui, non…) lues quand même ; config_afficher demande de les écrire en anglais
+CFG_FRANCAIS=()         # values in French (oui, non...) still read; config_afficher asks for them to be written in English
 
 # config_migrer_ancien CHEMIN.conf (1.16) : personal file to READ, in CFG_A_LIRE. The rule is now ~/.PROGRAMME.conf; the legacy name ~/.PROGRAMME.cfg is handled here:
 #   * legacy file only: RENAMED to CHEMIN.conf (same owner, rights, content), one notice on stderr; rename impossible: the legacy file is read as is (notice);
@@ -197,7 +197,7 @@ config_migrer_ancien() {
     return 0
 }
 
-# _config_signaler FICHIER : vrai (0) the first time a legacy file is reported in this run — variable NGINX_TOOLS_CONFIG_SIGNALES, shared with apps/_config.py and
+# _config_signaler FILE: true (0) the first time a legacy file is reported in this run - variable NGINX_TOOLS_CONFIG_SIGNALES, shared with apps/_config.py and
 # inherited by the programs this one starts (one notice per file and per run).
 _config_signaler() {
     case ":${NGINX_TOOLS_CONFIG_SIGNALES:-}:" in *":$1:"*) return 1 ;; esac
@@ -205,9 +205,9 @@ _config_signaler() {
     return 0
 }
 
-# config_creer_defaut PROGRAMME ARGUMENTS… : premier démarrage — si AUCUN fichier de la règle n'existe, crée celui du système (/etc/default/PROGRAMME.conf, root) ou, sans les
-# droits, le fichier personnel (~/.PROGRAMME.conf) : copie de doc/en/PROGRAMME.conf.example (CFG_DOSSIER_DOC désigne le dossier doc/, sinon celui du programme) dont toutes les options sont en
-# commentaire. Rien n'est créé avec -c/--config, --help / --version / --changelog, si NGINX_TOOLS_CONFIG_CREER=0 ou si le modèle est absent. Chemin créé : CFG_CREE.
+# config_creer_defaut PROGRAM ARGUMENTS...: first start - if NO file of the rule exists, creates the system one (/etc/default/PROGRAM.conf, root) or, without
+# rights, the personal file (~/.PROGRAM.conf): copy of doc/en/PROGRAM.conf.example (CFG_DOSSIER_DOC designates the doc/ folder, otherwise the program's) whose options are all in
+# comment. Nothing is created with -c/--config, --help / --version / --changelog, if NGINX_TOOLS_CONFIG_CREER=0 or if the template is missing. Path created: CFG_CREE.
 CFG_CREE=""
 config_creer_defaut() {
     local programme="$1" a ligne modele chemin mode systeme perso; shift
@@ -223,8 +223,8 @@ config_creer_defaut() {
     return 0
 }
 
-# config_creer_fichier NOM SYSTEME PERSO : crée le premier des deux fichiers qui peut l'être, à partir de doc/NOM.conf.example, si aucun n'existe ; CFG_CREE reçoit le chemin créé
-# (seulement pour le fichier du programme : la ligne « Configuration lue » ne parle pas du fichier commun).
+# config_creer_fichier NAME SYSTEM PERSONAL: creates the first of the two files that can be, from doc/NAME.conf.example, if none exists; CFG_CREE receives the path created
+# (only for the program's file: the "Configuration lue" line does not mention the common file).
 config_creer_fichier() {
     local programme="$1" systeme="$2" perso="$3" a ligne modele chemin mode
     if [[ -e "$systeme" || -e "$perso" ]]; then
@@ -245,23 +245,23 @@ config_creer_fichier() {
                  cat "$modele"
              } > "$chemin" ) 2>/dev/null; then
             chmod "$mode" "$chemin" 2>/dev/null
-            if [[ "$programme" != app-default ]]; then CFG_CREE="$chemin"; export NGINX_TOOLS_CONFIG_CREE="$chemin"; fi       # variable d'environnement : la ligne reste vraie après i18n_relancer
+            if [[ "$programme" != app-default ]]; then CFG_CREE="$chemin"; export NGINX_TOOLS_CONFIG_CREE="$chemin"; fi       # environment variable: the line stays true after i18n_relancer
             return 0
         fi
     done
     return 0
 }
 
-# config_rafraichir NOM FICHIER (1.14) : un fichier EXISTANT dont aucune option n'est active (tout en commentaire = jamais modifié) est réécrit à partir du modèle
-# doc/NOM.conf.example quand celui-ci a changé ; un fichier avec au moins une ligne CLÉ=VALEUR n'est JAMAIS touché. Fichier temporaire du même dossier, mêmes droits et
-# propriétaire, puis renommage. NGINX_TOOLS_CONFIG_MAJ_AUTO=0 : jamais. Le chemin est ajouté à NGINX_TOOLS_CONFIG_MAJ (ligne « Configuration lue »).
+# config_rafraichir NAME FILE (1.14): an EXISTING file in which no option is active (all comments = never modified) is rewritten from the template
+# doc/NAME.conf.example when the latter has changed; a file with at least one KEY=VALUE line is NEVER touched. Temporary file in the same folder, same rights and
+# owner, then rename. NGINX_TOOLS_CONFIG_MAJ_AUTO=0: never. The path is added to NGINX_TOOLS_CONFIG_MAJ ("Configuration lue" line).
 config_rafraichir() {
     local programme="$1" chemin="$2" modele temporaire ligne premiere=1
     [[ "${NGINX_TOOLS_CONFIG_MAJ_AUTO:-}" == "0" ]] && return 0
     modele="${CFG_DOSSIER_DOC:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." 2>/dev/null && pwd)/doc}/${CFG_LANGUE_MODELE:-en}/$programme.conf.example"
     [[ -r "$modele" && -r "$chemin" && -w "$chemin" && -w "$(dirname "$chemin")" ]] || return 0
-    grep -qE '^[[:space:]]*[A-Za-z_][A-Za-z0-9_]*[[:space:]]*=' "$chemin" && return 0          # une option active : fichier modifié par l'utilisateur
-    tail -c "$(wc -c < "$modele")" "$chemin" 2>/dev/null | cmp -s - "$modele" && return 0       # déjà au modèle actuel
+    grep -qE '^[[:space:]]*[A-Za-z_][A-Za-z0-9_]*[[:space:]]*=' "$chemin" && return 0          # an active option: file modified by the user
+    tail -c "$(wc -c < "$modele")" "$chemin" 2>/dev/null | cmp -s - "$modele" && return 0       # already at the current template
     temporaire="$(mktemp "$(dirname "$chemin")/.$(basename "$chemin").XXXXXX" 2>/dev/null)" || return 0
     {
         while IFS= read -r ligne; do
@@ -282,7 +282,7 @@ config_rafraichir() {
     return 0
 }
 
-# config_lire PROGRAMME ARGUMENTS… : remplit CFG ({CLÉ: valeur}) et CFG_FICHIERS ; un -c FICHIER / --config FICHIER / --config=FICHIER des arguments : ce fichier SEUL.
+# config_lire PROGRAM ARGUMENTS...: fills CFG ({KEY: value}) and CFG_FICHIERS; a -c FILE / --config FILE / --config=FILE in the arguments: this file ONLY.
 config_lire() {
     local programme="$1" i f c ligne cle valeur; shift
     CFG=(); CFG_FICHIERS=(); CFG_EXPLICITE=""; CFG_PROGRAMME="$programme"; CFG_OPTIONS=(); CFG_PROBLEMES=(); CFG_FRANCAIS=()
@@ -298,7 +298,7 @@ config_lire() {
         fichiers=("$CFG_EXPLICITE")
     else
         config_creer_defaut "$programme" "${args[@]}"
-        # Fichier COMMUN à tous les programmes (app-default.conf) : lu d'abord, seulement LANGUAGE, VERBOSE, DEBUG_LEVEL, LOG_KEEP_DAYS et ANONYMIZE ; celui du programme l'emporte.
+        # COMMON file for all the programs (app-default.conf): read first, only LANGUAGE, VERBOSE, DEBUG_LEVEL, LOG_KEEP_DAYS and ANONYMIZE; the program's one wins.
         config_migrer_ancien "${HOME:-/root}/.app-default.conf"          # 1.16: ~/.NAME.conf (a legacy ~/.NAME.cfg is renamed; the name to read is in CFG_A_LIRE)
         for f in "${NGINX_TOOLS_ETC_DEFAULT:-/etc/default}/app-default.conf" "$CFG_A_LIRE"; do
             [[ -f "$f" ]] && communs+=("$f")
@@ -328,19 +328,19 @@ config_lire() {
             [[ "$cle" =~ ^[A-Z][A-Z0-9_]*$ ]] && CFG["$cle"]="$valeur"
         done < "$f"
     done
-    # DEBUG_LEVEL >= 1 vaut VERBOSE=yes (sauf VERBOSE écrit dans un fichier) ; le niveau est exporté dans NGINX_TOOLS_DEBUG_LEVEL.
+    # DEBUG_LEVEL >= 1 means VERBOSE=yes (unless VERBOSE is written in a file); the level is exported in NGINX_TOOLS_DEBUG_LEVEL.
     if [[ "${CFG[DEBUG_LEVEL]:-}" =~ ^[0-9]+$ ]] && (( CFG[DEBUG_LEVEL] >= 1 )); then
         [[ -n "${CFG[VERBOSE]:-}" ]] || CFG[VERBOSE]="yes"
         export NGINX_TOOLS_DEBUG_LEVEL="${CFG[DEBUG_LEVEL]}"
     fi
-    # LOG_KEEP_DAYS (fichier commun ou du programme) : jours de conservation des journaux propres aux programmes, exporté pour ceux qu'ils lancent.
+    # LOG_KEEP_DAYS (common or program file): days of retention of the logs specific to the programs, exported for those they launch.
     [[ "${CFG[LOG_KEEP_DAYS]:-}" =~ ^[0-9]+$ ]] && export NGINX_TOOLS_LOG_KEEP_DAYS="${CFG[LOG_KEEP_DAYS]}"
     return 0
 }
 
-# config_defaut VARIABLE CLÉ OPTION [TYPE] : si le fichier définit CLÉ, VARIABLE prend cette valeur (valeur par défaut : la ligne de commande la remplace ensuite).
-# TYPE : texte (défaut), nombre (entier positif ou nul) ou booléen (yes/no, true/false, 1/0 -> 1 ou 0). Valeur invalide : signalée par config_afficher, ignorée.
-# Valeurs en anglais seulement : un ancien oui / non / vrai / faux est lu quand même, et config_afficher demande de l'écrire en anglais.
+# config_defaut VARIABLE KEY OPTION [TYPE]: if the file defines KEY, VARIABLE takes that value (default value: the command line replaces it afterwards).
+# TYPE: text (default), number (positive or zero integer) or boolean (yes/no, true/false, 1/0 -> 1 or 0). Invalid value: reported by config_afficher, ignored.
+# English values only: an old oui / non / vrai / faux is still read, and config_afficher asks for it to be written in English.
 config_defaut() {
     local variable="$1" cle="$2" option="$3" type="${4:-texte}" valeur="${CFG[$2]:-}"
     [[ -n "$valeur" ]] || return 0
@@ -364,13 +364,13 @@ config_defaut() {
     return 0
 }
 
-# config_date_modif FICHIER : date et heure LOCALES de dernière modification (AAAA-MM-JJ HH:MM), « ? » si illisible.
+# config_date_modif FILE: LOCAL date and time of last modification (YYYY-MM-DD HH:MM), "?" if unreadable.
 config_date_modif() { date -r "$1" '+%Y-%m-%d %H:%M' 2>/dev/null || echo '?'; }
 
-# config_afficher : deux lignes de départ — QUEL(S) fichier(s) de configuration ont été lus, puis les options importantes qui en résultent (langue comprise).
+# config_afficher: two starting lines - WHICH configuration file(s) were read, then the important options that result from them (language included).
 config_afficher() {
     local lus="" f opts p
-    [[ -n "${NGINX_TOOLS_CONFIG_VUE:-}" ]] && return 0      # déjà affichée par le programme appelant (ou par un appel précédent) : pas de répétition dans les sorties analysées
+    [[ -n "${NGINX_TOOLS_CONFIG_VUE:-}" ]] && return 0      # already displayed by the calling program (or by a previous call): no repetition in the parsed outputs
     export NGINX_TOOLS_CONFIG_VUE=1
     if [[ -n "$CFG_EXPLICITE" ]]; then
         lus="Configuration lue : $(cd "$(dirname "$CFG_EXPLICITE")" 2>/dev/null && pwd)/$(basename "$CFG_EXPLICITE") (modifié le $(config_date_modif "$CFG_EXPLICITE")) (demandé par -c/--config : aucun autre fichier n'est lu)"
@@ -382,7 +382,7 @@ config_afficher() {
         (( ${#CFG_FICHIERS[@]} > 1 )) && lus+=" (le dernier l'emporte)"
         for f in "${CFG_FICHIERS[@]}"; do [[ "$f" == "${NGINX_TOOLS_CONFIG_CREE:-}" ]] && CFG_CREE="$f"; done
         [[ -n "$CFG_CREE" ]] && lus+=" (fichier créé à l'instant : toutes les options y sont en commentaire, valeurs par défaut)"
-        if [[ -z "$CFG_CREE" && -n "${NGINX_TOOLS_CONFIG_MAJ:-}" ]]; then         # 1.14 : fichiers remis au modèle actuel (config_rafraichir)
+        if [[ -z "$CFG_CREE" && -n "${NGINX_TOOLS_CONFIG_MAJ:-}" ]]; then         # 1.14: files reset to the current template (config_rafraichir)
             local maj="" m
             for f in "${CFG_FICHIERS[@]}"; do
                 IFS=: read -ra m <<< "$NGINX_TOOLS_CONFIG_MAJ"

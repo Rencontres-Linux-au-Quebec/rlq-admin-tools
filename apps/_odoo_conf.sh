@@ -1,25 +1,25 @@
 # ========================================================================================================================
 # Copyright (C) 2026 Services-Conseils Linux Inc.
-# Copyright (C) 2026 Rencontres Linux au Québec contributors
+# Copyright (C) 2026 Rencontres Linux au Quebec contributors
 #
 # This program is free software: you can redistribute it and/or modify it under the terms of the GNU Affero General Public
 # License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
 # Full text: https://www.gnu.org/licenses/agpl-3.0.html
 # ========================================================================================================================
-# Bibliothèque commune (sourcée par les programmes bash) : trouver la configuration d'Odoo et en lire les réglages.
+# Common library (sourced by the bash programs): find the Odoo configuration and read its settings.
 #   odoo_conf_chemins            chemins (ou motifs) candidats, un par ligne
 #   odoo_conf_trouver            premier fichier de configuration d'Odoo lisible (affiche son chemin ; code 1 si aucun)
-#   odoo_conf_valeur FICHIER CLÉ dernière valeur de CLÉ dans le fichier (sans espaces ni guillemets ; vide si absente)
-#   odoo_conf_charger FICHIER    définit ODOO_CONF_HTTP_PORT, ODOO_CONF_GEVENT_PORT, ODOO_CONF_LOGFILE, ODOO_CONF_INTERFACE
-#                                (valeurs de la configuration ; ports par défaut d'Odoo 8069 / 8072 si absents)
-# Liste des candidats (premier trouvé gagne), par ordre de priorité : variable d'environnement ODOO_CONF_PATHS, puis ligne
+#   odoo_conf_valeur FILE KEY   last value of KEY in the file (without spaces or quotes; empty if absent)
+#   odoo_conf_charger FILE      sets ODOO_CONF_HTTP_PORT, ODOO_CONF_GEVENT_PORT, ODOO_CONF_LOGFILE, ODOO_CONF_INTERFACE
+#                                (configuration values; default Odoo ports 8069 / 8072 if absent)
+# List of candidates (first found wins), by priority: environment variable ODOO_CONF_PATHS, then line
 # ODOO_CONF_PATHS="..." de ~/.nginx-hardening.conf, puis de /etc/default/nginx-hardening.conf, puis la liste ci-dessous.
-# Séparateur : espace ; les motifs avec * sont développés. APP_DETECT_ROOT (tests) préfixe tous les chemins.
+# Separator: space; patterns with * are expanded. APP_DETECT_ROOT (tests) prefixes all the paths.
 # shellcheck shell=bash
 
 ODOO_CONF_PATHS_DEFAUT="/etc/odoo/odoo-linux_meetup.conf /opt/odoo/erplibre/config.conf /home/utilisateur/git/erplibre/config.conf /etc/odoo/odoo.conf /etc/odoo/*.conf /home/*/git/erplibre/config.conf /opt/odoo/*/config.conf"
 
-# Valeur de CLÉ="..." dans un fichier de réglages du programme (dernier gagne), sans guillemets.
+# Value of KEY="..." in a program's settings file (last one wins), without quotes.
 _odoo_conf_reglage() {
     local fichier="$1" cle="$2" v
     [[ -r "$fichier" ]] || return 1
@@ -38,8 +38,8 @@ odoo_conf_chemins() {
     [[ -n "$liste" ]] || liste=$(_odoo_conf_reglage "$perso" ODOO_CONF_PATHS) || liste=""
     [[ -n "$liste" ]] || liste=$(_odoo_conf_reglage "$etc/nginx-hardening.conf" ODOO_CONF_PATHS) || liste=""
     [[ -n "$liste" ]] || liste="$ODOO_CONF_PATHS_DEFAUT"
-    set -f   # séparation par espaces SANS développer les motifs (fait plus tard, sous APP_DETECT_ROOT)
-    # shellcheck disable=SC2086  # séparation par espaces voulue
+    set -f   # splitting by spaces WITHOUT expanding the patterns (done later, under APP_DETECT_ROOT)
+    # shellcheck disable=SC2086  # splitting by spaces is intended
     printf '%s\n' $liste
     set +f
 }
@@ -48,7 +48,7 @@ odoo_conf_trouver() {
     local racine="${APP_DETECT_ROOT:-}" motif f
     while IFS= read -r motif; do
         [[ -n "$motif" ]] || continue
-        # shellcheck disable=SC2086  # développement du motif voulu
+        # shellcheck disable=SC2086  # pattern expansion is intended
         for f in $racine$motif; do
             if [[ -f "$f" && -r "$f" ]] && grep -Eq '^\[options\]|^[[:space:]]*(db_host|addons_path|http_port|xmlrpc_port|admin_passwd)[[:space:]]*=' "$f" 2>/dev/null; then
                 printf '%s\n' "$f"
@@ -67,7 +67,7 @@ odoo_conf_valeur() {
     printf '%s\n' "$v"
 }
 
-# shellcheck disable=SC2034  # variables lues par les programmes qui sourcent cette bibliothèque
+# shellcheck disable=SC2034  # variables read by the programs that source this library
 odoo_conf_charger() {
     local f="$1" v
     v=$(odoo_conf_valeur "$f" http_port); [[ -n "$v" ]] || v=$(odoo_conf_valeur "$f" xmlrpc_port)
@@ -78,7 +78,7 @@ odoo_conf_charger() {
     [[ "$ODOO_CONF_LOGFILE" == "False" || "$ODOO_CONF_LOGFILE" == "false" ]] && ODOO_CONF_LOGFILE=""
     ODOO_CONF_INTERFACE=$(odoo_conf_valeur "$f" http_interface)
     [[ -n "$ODOO_CONF_INTERFACE" ]] || ODOO_CONF_INTERFACE=$(odoo_conf_valeur "$f" xmlrpc_interface)
-    # Service systemd : souvent nommé d'après db_user (ex. odoo-linux_meetup) ou d'après le fichier de configuration.
+    # systemd service: often named after db_user (e.g. odoo-linux_meetup) or after the configuration file.
     ODOO_CONF_DB_USER=$(odoo_conf_valeur "$f" db_user)
     ODOO_CONF_UNITES=""
     local nom

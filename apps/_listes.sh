@@ -1,23 +1,23 @@
 # shellcheck shell=bash
 # ========================================================================================================================
 # Copyright (C) 2026 Services-Conseils Linux Inc.
-# Copyright (C) 2026 Rencontres Linux au Québec contributors
+# Copyright (C) 2026 Rencontres Linux au Quebec contributors
 #
 # This program is free software: you can redistribute it and/or modify it under the terms of the GNU Affero General Public
 # License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
 # Full text: https://www.gnu.org/licenses/agpl-3.0.html
 # ========================================================================================================================
 #
-# _listes.sh — lecteur commun (bash) de la LISTE BLANCHE et des LIEUX : même fichiers et même syntaxe que apps/_listes.py (voir son en-tête).
+# _listes.sh - common reader (bash) of the WHITE LIST and the PLACES: same files and same syntax as apps/_listes.py (see its header).
 #   /etc/default/nginx-tools-white-list.conf (seulement /etc/default), /etc/default/nginx-tools-ip-location.conf puis ~/.nginx-tools-ip-location.conf.
-# À sourcer (". apps/_listes.sh") ; ne fait rien tout seul.
+# To be sourced (". apps/_listes.sh"); does nothing by itself.
 #
 
 LISTES_BLANCHE_DEFAUT="/etc/default/nginx-tools-white-list.conf"
 LISTES_LIEUX_DEFAUT="/etc/default/nginx-tools-ip-location.conf"
-LISTES_SEP=$'\037'             # séparateur des champs de listes_lire (jamais une tabulation : read la fusionne quand un champ est vide)
+LISTES_SEP=$'\037'             # field separator of listes_lire (never a tab: read merges it when a field is empty)
 
-# listes_fichier_blanche : chemin de la liste blanche LUE — le nouveau fichier ; à défaut, l'ancienne liste apps/team-ips.list
+# listes_fichier_blanche: path of the white list READ - the new file; otherwise the old list apps/team-ips.list
 # (transition, seulement sans surcharge d'environnement) ; rien si aucun n'existe.
 listes_fichier_blanche() {
     local nouveau="${NGINX_TOOLS_WHITE_LIST:-$LISTES_BLANCHE_DEFAUT}" ancien="${SCRIPT_DIR:-.}/apps/team-ips.list"
@@ -26,7 +26,7 @@ listes_fichier_blanche() {
     fi
 }
 
-# _listes_personnel CHEMIN.conf : fichier personnel à lire ; un ancien CHEMIN.cfg est renommé (apps/_i18n.sh config_migrer_ancien) ; sans _i18n.sh : le .conf, ou
+# _listes_personnel PATH.conf: personal file to read; an old PATH.cfg is renamed (apps/_i18n.sh config_migrer_ancien); without _i18n.sh: the .conf, or
 # l'ancien fichier s'il est seul.
 _listes_personnel() {
     local ancien="${1%.conf}.cfg"
@@ -35,7 +35,7 @@ _listes_personnel() {
     else printf '%s\n' "$1"; fi
 }
 
-# listes_fichiers_lieux : chemins des fichiers de lieux existants (un seul si NGINX_TOOLS_IP_LOCATION est défini), un par ligne.
+# listes_fichiers_lieux: paths of the existing places files (only one if NGINX_TOOLS_IP_LOCATION is set), one per line.
 listes_fichiers_lieux() {
     local f
     if [[ -n "${NGINX_TOOLS_IP_LOCATION:-}" ]]; then
@@ -46,8 +46,8 @@ listes_fichiers_lieux() {
     return 0
 }
 
-# listes_lire FICHIER : une ligne par entrée, « ADRESSE LIBELLÉ OPTIONS NUMÉRO-DE-LIGNE » séparés par le caractère 037 (octal : jamais une tabulation, que read fusionnerait quand un champ est vide) (options : partagee, protegee,
-# separées par des virgules ; « inconnue:xxx » pour une option inconnue). L'adresse n'est PAS validée ici (voir listes_adresse_valide).
+# listes_lire FILE: one line per entry, "ADDRESS LABEL OPTIONS LINE-NUMBER" separated by the character 037 (octal: never a tab, which read would merge when a field is empty) (options: partagee, protegee,
+# separated by commas; "inconnue:xxx" for an unknown option). The address is NOT validated here (see listes_adresse_valide).
 listes_lire() {
     local fichier="$1" ligne adr com opts reste opt lib n=0
     [[ -r "$fichier" ]] || return 0
@@ -71,12 +71,12 @@ listes_lire() {
     return 0
 }
 
-# listes_adresse_valide ADRESSE : adresse ou plage IPv4/IPv6 de forme correcte (jamais écrite dans nginx sinon : il refuserait toute sa configuration).
+# listes_adresse_valide ADDRESS: IPv4/IPv6 address or range of correct form (never written to nginx otherwise: it would refuse its whole configuration).
 listes_adresse_valide() {
     [[ "$1" =~ ^[0-9]{1,3}(\.[0-9]{1,3}){3}(/[0-9]{1,2})?$ || "$1" =~ ^[0-9a-fA-F]*:[0-9a-fA-F]*:[0-9a-fA-F:]*(/[0-9]{1,3})?$ ]]
 }
 
-# listes_valides : filtre (entrée standard -> sortie standard) : ne garde que les entrées dont l'adresse est de forme correcte.
+# listes_valides: filter (standard input -> standard output): keeps only the entries whose address is of correct form.
 listes_valides() {
     local ligne adr
     while IFS= read -r ligne; do
@@ -86,7 +86,7 @@ listes_valides() {
     return 0
 }
 
-# listes_blanche : entrées de la liste blanche (format de listes_lire).
+# listes_blanche: white list entries (listes_lire format).
 listes_blanche() {
     local f
     f=$(listes_fichier_blanche)
@@ -94,21 +94,21 @@ listes_blanche() {
     return 0
 }
 
-# listes_lieux : entrées de tous les fichiers de lieux (format de listes_lire).
+# listes_lieux: entries of all the places files (listes_lire format).
 listes_lieux() {
     local f
     while IFS= read -r f; do [[ -n "$f" ]] && listes_lire "$f"; done < <(listes_fichiers_lieux)
     return 0
 }
 
-# listes_ne_pas_bannir : adresses à ne JAMAIS bannir (liste blanche + lieux [protégée]), une par ligne, sans doublon, adresses valides seulement.
+# listes_ne_pas_bannir: addresses NEVER to ban (white list + [protected] places), one per line, without duplicate, valid addresses only.
 listes_ne_pas_bannir() {
     { listes_blanche | listes_valides | cut -d "$LISTES_SEP" -f1
       listes_lieux | listes_valides | awk -F'\037' '$3 ~ /protegee/ { print $1 }'
     } | awk 'NF && !vu[$0]++'
 }
 
-# listes_resume : la ligne « Listes : … » (fichiers lus et nombre d'adresses valides), pour la sortie d'erreur des programmes.
+# listes_resume: the line 'Listes : ...' (files read and number of valid addresses), for the programs' error output.
 listes_resume() {
     local fb nb nl lieux a b
     fb=$(listes_fichier_blanche); lieux=$(listes_fichiers_lieux | paste -sd, - | sed 's/,/, /g')

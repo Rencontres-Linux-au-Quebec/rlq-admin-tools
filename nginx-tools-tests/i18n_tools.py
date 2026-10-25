@@ -6,7 +6,7 @@ import re
 
 from helpers import SCRIPTS_DIR
 
-# Un texte est « français » s'il contient une lettre accentuée / un signe typographique français, ou un mot courant du vocabulaire des programmes.
+# A text is 'French' if it contains an accented letter / a French typographic sign, or a common word of the programs' vocabulary.
 MARQUES_FR = re.compile(r"[àâçéèêëîïôûùüœÀÉÈÊ«»…→—]|\b(le|la|les|des|du|de|un|une|aucun|aucune|pas|est|sont|avec|sans|pour|dans|sur|ou|et|depuis|erreur|adresse|fichier"
                         r"|fichiers|connexion|jours|par|ce|cette|trop|déjà|plus|moins|lancé|affiche|liste|lue|lus|lu|langue|options?|valeurs?|ignorée?s?|demandé|cherchés?"
                         r"|configuration|défaut|introuvable|inconnue?|absente?s?|présente?s?|requêtes?|ligne|lignes|nom|noms|mot|passage|rapport|journal|journaux"

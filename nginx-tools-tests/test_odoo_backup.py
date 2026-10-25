@@ -170,7 +170,7 @@ class OdooBackup(EnvTest):
                 attendu.add(n)
         self.assertEqual(set(garde), attendu)
         self.assertIn("a-garder-toujours.zip", self.archives())
-        # Rétention indépendante par format : une sauvegarde tar.xz n'efface pas le zip du même jour
+        # Independent retention per format: a tar.xz backup does not delete the zip of the same day
         rc, out, err = self.lancer("--format", "tar.xz")
         self.assertIn(max(garde), self.archives())
 
@@ -203,7 +203,7 @@ class EmplacementConfiguration(EnvTest):
         self.env.pop("ODOO_BACKUP_CONFIG", None)
         self.mock("pg_dump", 'echo "-- PostgreSQL database dump complete"')
         self.mock("psql", FAUX_PSQL)
-        # systemctl : chaque appel est noté AVEC l'état du nouveau fichier de configuration à cet instant
+        # systemctl: each call is noted WITH the state of the new configuration file at that instant
         self.mock("systemctl", 'echo "$*|conf=$([ -e "$ODOO_BACKUP_DEFAULT_DIR/odoo-backup.conf" ] && echo oui || echo non)" >> "$D/systemctl.log"')
         self.conf = os.path.join(self.etc, "odoo-backup.conf")
         self.perso = os.path.join(self.home, ".odoo-backup.conf")
@@ -225,12 +225,12 @@ class EmplacementConfiguration(EnvTest):
         # /etc/default d'abord, ~ ensuite : DEST et FORMAT viennent de ~, le reste de /etc/default
         self.assertIn("Options : --lang fr · sauvegardes dans /home/dest (tar.xz) aux heures : 02:30 · bases : base1 · copie hors du serveur : root@h:/x"
                       " · rétention : tout sur 2 j, puis 5 j / 4 sem. / 6 mois", sans_origine(out))
-        self.assertTrue(os.path.exists(self.perso))                              # --dry-run ne déplace rien
+        self.assertTrue(os.path.exists(self.perso))                              # --dry-run moves nothing
         # La ligne de commande l'emporte sur les deux fichiers, et le dit
         rc, out, err = self.dry("--dest", "/cli/dest", "--format", "zip")
         self.assertIn("sauvegardes dans /cli/dest (zip)", out)
         self.assertIn("ligne de commande (prioritaire) : --dest /cli/dest --format zip", out)
-        # ~ seul : lu ; rien : valeurs par défaut, dit
+        # ~ only: read; nothing: default values, said
         os.remove(self.conf)
         rc, out, err = self.dry()
         self.assertIn(f"Configuration lue : {self.perso}\n", sans_date(out + "\n"))
@@ -249,7 +249,7 @@ class EmplacementConfiguration(EnvTest):
         self.assertEqual(rc, 1)
         self.assertIn("ERREUR: configuration introuvable : /nulle/part/odoo-backup.conf", err)
         rc, out, err = self.run_cmd(["bash", self.prog, "--dry-run"], env_extra={"ODOO_BACKUP_CONFIG": "/nulle/part/x.conf"})
-        self.assertEqual(rc, 1)                                                 # même chose par la variable d'environnement
+        self.assertEqual(rc, 1)                                                 # same thing via the environment variable
 
     @unittest.skipUnless(os.geteuid() == 0, "exige root")
     def test_ancien_fichier_renomme_avant_toute_operation_sur_le_timer(self):
@@ -264,7 +264,7 @@ class EmplacementConfiguration(EnvTest):
         self.assertFalse(os.path.exists(self.ancien), "l'ancien fichier aurait dû être renommé")
         self.assertFalse(os.path.exists(self.perso), "l'ancien fichier va dans /etc/default, pas dans ~/.odoo-backup.conf")
         self.assertEqual(oct(os.stat(self.conf).st_mode & 0o777), "0o600")
-        self.assertIn("REMOTE=root@h:/x", open(self.conf).read())                # contenu conservé
+        self.assertIn("REMOTE=root@h:/x", open(self.conf).read())                # content kept
         self.assertIn(f"Migration : configuration renommée {self.ancien} → {self.conf}", err)
         self.assertIn("Timer : chemin de l'ancien fichier retiré du service", err)
         self.assertIn("le timer n'a PAS été arrêté", err)
@@ -273,7 +273,7 @@ class EmplacementConfiguration(EnvTest):
         self.assertEqual([a.split("|")[0] for a in appels],
                          ["daemon-reload", "daemon-reload", "enable odoo-backup.timer", "restart odoo-backup.timer"])
         self.assertTrue(all(a.endswith("|conf=oui") for a in appels), appels)    # jamais un appel avant le renommage
-        # Déjà un fichier système : l'ancien ~/.odoo-backup.cfg est une COUCHE voulue : jamais déplacé vers /etc/default, renommé ~/.odoo-backup.conf (1.19)
+        # A system file already exists: the old ~/.odoo-backup.cfg is a DESIRED LAYER: never moved to /etc/default, renamed ~/.odoo-backup.conf (1.19)
         self.write("home/.odoo-backup.cfg", "KEEP_DAILY=3\n")
         rc, out, err = self.run_cmd(["bash", self.prog, "--install-timer"])
         self.assertTrue(os.path.exists(self.perso))
@@ -297,12 +297,12 @@ class EmplacementConfiguration(EnvTest):
         self.assertIn(f"Configuration lue : {self.conf}, puis {self.perso} (le dernier l'emporte)", sans_date(out))
         self.assertIn("sauvegardes dans /home/dest", out)
         rc, out, err = self.dry()
-        self.assertNotIn("ancien fichier", err)                                   # une seule fois : il n'y a plus rien à renommer
+        self.assertNotIn("ancien fichier", err)                                   # only once: there is nothing left to rename
         self.write("home/.odoo-backup.cfg", "DEST=/autre/dest\n")
         rc, out, err = self.dry()
         self.assertIn(f"Configuration : ancien fichier {self.ancien} IGNORÉ ({self.perso} existe et l'emporte)", err)
         self.assertIn("sauvegardes dans /home/dest", out)
-        self.assertTrue(os.path.exists(self.ancien))                              # jamais supprimé
+        self.assertTrue(os.path.exists(self.ancien))                              # never deleted
 
     @unittest.skipUnless(os.geteuid() == 0, "exige root")
     def test_creation_au_premier_lancement(self):
@@ -312,14 +312,14 @@ class EmplacementConfiguration(EnvTest):
         texte = open(self.conf).read()
         for cle in ("REMOTE", "DEST", "FORMAT", "DATABASES", "ODOO_CONF", "FILESTORE_DIR", "PG_USER", "KEEP_DAILY", "KEEP_WEEKLY",
                     "KEEP_MONTHLY", "TIMER_TIME"):
-            self.assertIn(f"#{cle}=", texte)                                    # modèle entièrement commenté
-        self.assertNotRegex(texte, r"(?m)^[A-Z_]+=")                            # aucune valeur active : comportement inchangé
+            self.assertIn(f"#{cle}=", texte)                                    # fully commented template
+        self.assertNotRegex(texte, r"(?m)^[A-Z_]+=")                            # no active value: behavior unchanged
         self.assertIn("PUIS ~/.odoo-backup.conf s'il existe", texte)
         self.assertIn(f"Configuration créée : {self.conf}", err)
         rc, out, err = self.run_cmd(["bash", self.prog, "--dest", self.dest])
         self.assertNotIn("Configuration créée", err)                            # une seule fois
         os.remove(self.conf)
-        for args in (["--status"], ["--dry-run"]):                              # jamais créée par une action qui n'écrit pas
+        for args in (["--status"], ["--dry-run"]):                              # never created by an action that does not write
             self.run_cmd(["bash", self.prog, "--dest", self.dest] + args)
             self.assertFalse(os.path.exists(self.conf), args)
 
@@ -330,12 +330,12 @@ class EmplacementConfiguration(EnvTest):
         rc, out, err = self.run_cmd(["bash", self.prog, "--install-timer"])
         self.assertEqual(rc, 0, out + err)
         ligne = next(l for l in open(unite).read().splitlines() if l.startswith("ExecStart="))
-        self.assertNotIn("--config", ligne)                                     # déplacer le fichier ne casse plus le timer
+        self.assertNotIn("--config", ligne)                                     # moving the file no longer breaks the timer
         self.assertTrue(ligne.endswith("odoo-backup.sh"), ligne)
         self.assertIn("arrêté puis relancé", out)
         autre = self.write("autre.conf", "DATABASES=base1\n")
         self.run_cmd(["bash", self.prog, "--install-timer", "--config", autre])
-        self.assertIn(f"--config {autre}", open(unite).read())                  # --config explicite : écrit, comme demandé
+        self.assertIn(f"--config {autre}", open(unite).read())                  # explicit --config: written, as requested
 
     @unittest.skipUnless(os.geteuid() == 0, "exige root")
     def test_statut_timer_vers_un_fichier_ou_un_script_absent(self):
@@ -392,13 +392,13 @@ class PlusieursSauvegardesParJour(EnvTest):
         self.assertLess(out.index("[FAIL] base1 : AUCUNE sauvegarde"), out.index("RAPPORT D'ERREURS (--report-err)"))
         rapport = out[out.index("RAPPORT D'ERREURS"):]
         self.assertRegex(rapport, r"Programme : odoo-backup\.sh v1\.\d+\.\d{8}\.\d{6} — commande : odoo-backup\.sh --dest \S+ --status\n")
-        self.assertNotIn("--report-err —", rapport)                                 # l'option n'est pas dans la commande rapportée
+        self.assertNotIn("--report-err —", rapport)                                 # the option is not in the reported command
         self.assertRegex(rapport, r"Serveur   : \S+ .*utilisateur \S+ — bash \d")
         self.assertIn("code de sortie 1 (ÉCHEC)", rapport)
         self.assertIn("Contexte  : Configuration lue : ", rapport)
         self.assertRegex(rapport, r"Suite     : .*odoo-backup\.sh \d+\.\d+\.\d{8}\.\d{6}")
         self.assertIn("ÉCHECS (1) :\n  1. [FAIL] base1 : AUCUNE sauvegarde", rapport)
-        self.assertIn("AVERTISSEMENTS (2) :", rapport)                              # timer non installé, pas de copie hors du serveur
+        self.assertIn("AVERTISSEMENTS (2) :", rapport)                              # timer not installed, no copy off the server
         self.assertIn("[ATTN] Timer : NON INSTALLÉ", rapport)
         self.assertIn("[ATTN] Copie hors du serveur : aucune (REMOTE)", rapport)
         self.assertEqual([f for f in os.listdir(self.d) if f.startswith("report-err.")], [], "fichier temporaire oublié")
@@ -407,7 +407,7 @@ class PlusieursSauvegardesParJour(EnvTest):
             rc, out, err = self.run_cmd(["bash", self.prog, option, "--report-err"])
             self.assertEqual(rc, 0, err)
             self.assertNotIn("RAPPORT D'ERREURS", out)
-        # Composant absent : message clair, exécution normale
+        # Component absent: clear message, normal run
         os.remove(os.path.join(os.path.dirname(self.prog), "apps", "_rapport.py"))
         rc, out, err = self.run_cmd(["bash", self.prog, "--dest", self.dest, "--status", "--report-err"])
         self.assertIn("--report-err indisponible", err)
@@ -431,14 +431,14 @@ class PlusieursSauvegardesParJour(EnvTest):
     def test_timer_une_ligne_par_heure_et_ligne_de_commande_prioritaire(self):
         unite = os.path.join(self.systemd, "odoo-backup.timer")
         with open(self.conf, "w") as f:
-            f.write("DATABASES=base1\nTIMER_TIME=02:30\n")                    # le fichier dit 02:30…
-        rc, out, err = self.run_cmd(["bash", self.prog, "--install-timer", "--times", "23:00 9:00 16:00"])   # …la ligne de commande l'emporte
+            f.write("DATABASES=base1\nTIMER_TIME=02:30\n")                    # the file says 02:30...
+        rc, out, err = self.run_cmd(["bash", self.prog, "--install-timer", "--times", "23:00 9:00 16:00"])   # ...the command line wins
         self.assertEqual(rc, 0, out + err)
         lignes = [l for l in open(unite).read().splitlines() if l.startswith("OnCalendar=")]
         self.assertEqual(lignes, ["OnCalendar=*-*-* 09:00", "OnCalendar=*-*-* 16:00", "OnCalendar=*-*-* 23:00"])
         self.assertIn("3 sauvegarde(s) par jour, à 09:00, 16:00, 23:00", out)
         self.assertIn('ligne de commande (prioritaire) : --times "23:00 9:00 16:00"', out)
-        self.assertIn("Persistent=true", open(unite).read())                     # rattrapage si le serveur était éteint
+        self.assertIn("Persistent=true", open(unite).read())                     # catch-up if the server was off
         # Une seule heure : une seule ligne (comportement d'avant)
         rc, out, err = self.run_cmd(["bash", self.prog, "--install-timer"])
         self.assertEqual([l for l in open(unite).read().splitlines() if l.startswith("OnCalendar=")], ["OnCalendar=*-*-* 02:30"])
@@ -451,7 +451,7 @@ class PlusieursSauvegardesParJour(EnvTest):
         rc, out, err = self.run_cmd(["bash", self.prog, "--status", "--dest", self.dest])
         self.assertIn("chaque jour à 09:00, 16:00, 23:00", out)
         self.assertNotIn("ne correspond pas", out)
-        self.write("etc-default/odoo-backup.conf", "DATABASES=base1\nTIMER_TIME=02:30\n")      # configuration changée, timer pas réinstallé
+        self.write("etc-default/odoo-backup.conf", "DATABASES=base1\nTIMER_TIME=02:30\n")      # configuration changed, timer not reinstalled
         rc, out, err = self.run_cmd(["bash", self.prog, "--status", "--dest", self.dest])
         self.assertIn("le timer installé (09:00, 16:00, 23:00) ne correspond pas aux heures configurées (02:30)", out)
 
@@ -471,7 +471,7 @@ class PlusieursSauvegardesParJour(EnvTest):
         self.assertEqual(rc, 1)
         rc, out, err = self.lancer("--status", conf="TIMER_TIME=00:00 12:00\n")         # deux par jour : 12 h + 2 = 14 h
         self.assertIn("seuil 14 h", out)
-        # Le seuil est écrit pour web-monitor.py à chaque sauvegarde réussie
+        # The threshold is written for web-monitor.py at each successful backup
         rc, out, err = self.lancer(conf="TIMER_TIME=09:00 16:00 23:00\n")
         self.assertEqual(rc, 0, out + err)
         self.assertEqual(open(os.path.join(self.etat, "max-age-hours")).read().strip(), "12")
@@ -491,13 +491,13 @@ class PlusieursSauvegardesParJour(EnvTest):
                 for h in ("090000", "160000", "230000"):
                     open(os.path.join(d, f"base1_{auj - datetime.timedelta(days=jours)}_{h}.zip"), "w").close()
         prepare()
-        rc, out, err = self.lancer(conf="")                                                  # KEEP_RECENT_DAYS=2 par défaut
+        rc, out, err = self.lancer(conf="")                                                  # KEEP_RECENT_DAYS=2 by default
         self.assertEqual(rc, 0, out + err)
         restes = self.archives()
         hier = [a for a in restes if str(auj - datetime.timedelta(days=1)) in a]
         self.assertEqual(len(hier), 3, restes)                                               # hier : les trois
-        self.assertEqual(len([a for a in restes if str(auj) in a]), 1, restes)              # aujourd'hui : celle qui vient d'être faite
-        for jours in (2, 3):                                                                 # avant-hier et avant : la dernière de la journée
+        self.assertEqual(len([a for a in restes if str(auj) in a]), 1, restes)              # today: the one just made
+        for jours in (2, 3):                                                                 # the day before yesterday and earlier: the last one of the day
             self.assertEqual([a for a in restes if str(auj - datetime.timedelta(days=jours)) in a],
                              [f"base1_{auj - datetime.timedelta(days=jours)}_230000.zip"])
         prepare()

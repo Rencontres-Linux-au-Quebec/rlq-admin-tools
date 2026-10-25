@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
 # ========================================================================================================================
 # Copyright (C) 2026 Services-Conseils Linux Inc.
-# Copyright (C) 2026 Rencontres Linux au Québec contributors
+# Copyright (C) 2026 Rencontres Linux au Quebec contributors
 #
 # This program is free software: you can redistribute it and/or modify it under the terms of the GNU Affero General Public
 # License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
 # Full text: https://www.gnu.org/licenses/agpl-3.0.html
 # ========================================================================================================================
-# _config.py — fichiers de configuration des programmes Python (module partagé, apps/) : règle commune /etc/default/PROGRAMME.conf, PUIS le fichier personnel
-# PROGRAMME.conf (point devant, dans le répertoire personnel ; un ancien ~/.PROGRAMME.cfg est renommé), PUIS la ligne de commande (prioritaire).
+# _config.py - configuration files of the Python programs (shared module, apps/): common rule /etc/default/PROGRAM.conf, THEN the personal file
+# PROGRAM.conf (dot in front, in the home folder; an old ~/.PROGRAM.cfg is renamed), THEN the command line (which takes priority).
 #
 """Fichiers KEY=VALUE (une clé par ligne, # = commentaire, guillemets facultatifs), les clés en MAJUSCULES. Le dernier fichier lu l'emporte. Chaque programme
 déclare un SCHÉMA {CLÉ: (option argparse, type)} : les valeurs du fichier deviennent les valeurs par défaut des options, que la ligne de commande remplace.
@@ -19,15 +19,15 @@ import sys
 import tempfile
 import time
 
-__version__ = "1.9.20261022.110306"
+__version__ = "1.10.20261022.231529"
 OUI = ("1", "true", "yes", "oui", "on", "vrai")
 NON = ("0", "false", "no", "non", "off", "faux", "")
-# 1.9 : les valeurs s'écrivent en anglais seulement ; ces anciennes valeurs françaises sont encore lues (même sens), avec un avertissement (valeurs_francaises).
+# 1.9: values are written in English only; these old French values are still read (same meaning), with a warning (valeurs_francaises).
 FRANCAIS = {"oui": "yes", "non": "no", "vrai": "true", "faux": "false", "aucun": "none", "aucune": "none"}
 
 
-COMMUN = "app-default"                                         # fichier commun à tous les programmes : /etc/default/app-default.conf, ~/.app-default.conf
-CLES_COMMUNES = ("LANGUAGE", "VERBOSE", "DEBUG_LEVEL", "LOG_KEEP_DAYS", "ANONYMIZE")         # les seules clés lues dans le fichier commun (le fichier du programme l'emporte)
+COMMUN = "app-default"                                         # common file for all the programs: /etc/default/app-default.conf, ~/.app-default.conf
+CLES_COMMUNES = ("LANGUAGE", "VERBOSE", "DEBUG_LEVEL", "LOG_KEEP_DAYS", "ANONYMIZE")         # the only keys read in the common file (the program's file wins)
 
 
 def chemins_communs():
@@ -35,7 +35,7 @@ def chemins_communs():
     return chemins_regle(COMMUN)
 
 
-JOURNAUX_JOURS_DEFAUT = 180            # jours de journaux gardés par les programmes qui écrivent les leurs (LOG_KEEP_DAYS du fichier commun) ; 0 = jamais effacés
+JOURNAUX_JOURS_DEFAUT = 180            # days of logs kept by the programs that write their own (LOG_KEEP_DAYS of the common file); 0 = never erased
 
 
 def jours_journaux(defaut=JOURNAUX_JOURS_DEFAUT):
@@ -78,7 +78,7 @@ def _avis(texte):
         i18n = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(i18n)
         texte = i18n.traducteur(i18n.langue(sys.argv[1:]), os.path.dirname(dossier), "_config")(texte)
-    except Exception:                                            # noqa: BLE001 — translation is a comfort: the French notice is displayed anyway
+    except Exception:                                            # noqa: BLE001 - translation is a comfort: the French notice is displayed anyway
         pass
     try:
         print(texte, file=sys.stderr, flush=True)
@@ -150,7 +150,7 @@ def lire_fichier(chemin):
     return res
 
 
-SANS_CREATION = ("-h", "--help", "--version", "--changelog")      # arguments qui n'exécutent rien : aucun fichier n'est créé
+SANS_CREATION = ("-h", "--help", "--version", "--changelog")      # arguments that run nothing: no file is created
 
 
 def est_root():
@@ -185,9 +185,9 @@ def creer_par_defaut(programme, dossier_doc=None, argv=None):
     if os.environ.get("NGINX_TOOLS_CONFIG_CREER") == "0" or any(a in SANS_CREATION or a == "-c" or a.startswith("--config") for a in argv):
         return None
     dossier_doc = dossier_doc or os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "doc", "en")
-    _creer(chemins_communs(), COMMUN, dossier_doc, variable="NGINX_TOOLS_CONFIG_COMMUN_CREE")      # le fichier commun d'abord (1.3) : créé s'il n'existe pas, même si celui du programme existe
+    _creer(chemins_communs(), COMMUN, dossier_doc, variable="NGINX_TOOLS_CONFIG_COMMUN_CREE")      # the common file first (1.3): created if it does not exist, even if the program's own one exists
     chemins = chemins_regle(programme)
-    for nom, liste in ((COMMUN, chemins_communs()), (programme, chemins)):       # 1.7 : fichiers jamais modifiés (aucune option active) remis au modèle actuel
+    for nom, liste in ((COMMUN, chemins_communs()), (programme, chemins)):       # 1.7: files never modified (no active option) reset to the current template
         for chemin, existe in liste:
             if existe:
                 rafraichir(chemin, nom, dossier_doc)
@@ -328,7 +328,7 @@ def defauts_options(cfg, schema):
             res[option] = booleen(valeur, None) if type_ is bool else type_(valeur)
             if res[option] is None:
                 raise ValueError(valeur)
-        except (ValueError, TypeError, Exception) as e:       # noqa: B014 — fonction de type fournie par le programme (peut lever ArgumentTypeError)
+        except (ValueError, TypeError, Exception) as e:       # noqa: B014 - function type provided by the program (may raise ArgumentTypeError)
             problemes.append(f"{cle}={valeur} ({e})")
     return res, problemes
 

@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 # ========================================================================================================================
 # Copyright (C) 2026 Services-Conseils Linux Inc.
-# Copyright (C) 2026 Rencontres Linux au Québec contributors
+# Copyright (C) 2026 Rencontres Linux au Quebec contributors
 #
 # This program is free software: you can redistribute it and/or modify it under the terms of the GNU Affero General Public
 # License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
@@ -33,7 +33,7 @@ import time
 from email.message import EmailMessage
 from email.utils import formatdate, make_msgid
 
-__version__ = "1.3.20261020.211944"
+__version__ = "1.4.20261022.231529"
 
 CONFIG_SYSTEME = "/etc/default/nginx-tools-mail.conf"
 CONFIG_UTILISATEUR = "~/.nginx-tools-mail.conf"
@@ -161,7 +161,7 @@ def pieces_ou_liens(cfg, pieces):
             continue
         dossier = cfg.get("MAIL_LINK_DIR") or DOSSIER_LIENS_DEFAUT
         nettoyer_liens(dossier, int(cfg.get("MAIL_LINK_DAYS") or 30))
-        jeton = secrets.token_urlsafe(24)                       # adresse impossible à deviner : seul le destinataire du courriel la connaît
+        jeton = secrets.token_urlsafe(24)                       # address impossible to guess: only the recipient of the e-mail knows it
         cible = os.path.join(dossier, jeton)
         os.makedirs(cible, mode=0o755, exist_ok=True)
         nom = os.path.basename(chemin)

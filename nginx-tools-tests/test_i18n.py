@@ -14,7 +14,7 @@ from helpers import sans_origine, SCRIPTS_DIR, EnvTest, script_path
 from i18n_tools import charger_i18n, messages_francais, lire_po_brut
 from i18n_tools_sh import messages_francais_sh
 
-SOURCE_ANGLAISE = ("app-health-check", "zip-versions", "odoo-warmup", "odoo-mail-retry", "odoo-chat-post", "odoo-docs", "app-log-check", "web-monitor", "app-log-live", "host-perf-audit")       # programmes dont le code est en anglais (catalogue lang/PROGRAMME.fr.po) — migration par étapes
+SOURCE_ANGLAISE = ("app-health-check", "zip-versions", "odoo-warmup", "odoo-mail-retry", "odoo-chat-post", "odoo-docs", "app-log-check", "web-monitor", "app-log-live", "host-perf-audit")       # programs whose code is in English (catalogue lang/PROGRAM.fr.po) - step-by-step migration
 PROGRAMMES_PYTHON = {"web-monitor": "WEB_MONITOR_LANG", "zip-versions": "ZIP_VERSIONS_LANG", "odoo-mail-retry": "ODOO_MAIL_RETRY_LANG", "odoo-chat-post": "ODOO_CHAT_POST_LANG", "odoo-docs": "ODOO_DOCS_LANG", "odoo-warmup": "ODOO_WARMUP_LANG", "app-health-check": "APP_HEALTH_CHECK_LANG",
                      "app-log-check": "APP_LOG_CHECK_LANG", "app-log-live": "APP_LOG_LIVE_LANG", "host-perf-audit": "HOST_PERF_AUDIT_LANG"}
 PROGRAMMES_BASH = {"sync-crowdsec-blocklist": "SYNC_CROWDSEC_BLOCKLIST_LANG", "odoo-backup": "ODOO_BACKUP_LANG", "odoo-update-module": "ODOO_UPDATE_MODULE_LANG", "nginx-log-audit": "NGINX_LOG_AUDIT_LANG",
@@ -60,21 +60,21 @@ class LangueEtTraducteur(unittest.TestCase):
         os.environ["LC_ALL"] = "fr_FR.UTF-8"
         self.assertEqual(langue([], "WEB_MONITOR_LANG"), "fr")                               # LC_ALL avant LC_MESSAGES
         self.assertEqual(langue([], "WEB_MONITOR_LANG", configuration="en"), "en")           # LANGUAGE du fichier de configuration avant LC_ALL
-        self.assertEqual(langue([], "WEB_MONITOR_LANG", configuration="auto"), "fr")         # « auto » : suivre l'environnement
+        self.assertEqual(langue([], "WEB_MONITOR_LANG", configuration="auto"), "fr")         # "auto": follow the environment
         os.environ["WEB_MONITOR_LANG"] = "en"
         self.assertEqual(langue([], "WEB_MONITOR_LANG", configuration="fr"), "en")           # variable du programme avant le fichier
         os.environ["NGINX_TOOLS_LANG"] = "fr"
-        self.assertEqual(langue([], "WEB_MONITOR_LANG"), "fr")                               # langue imposée à tous les outils avant la variable du programme
+        self.assertEqual(langue([], "WEB_MONITOR_LANG"), "fr")                               # language imposed on all the tools before the program's variable
         self.assertEqual(langue(["--lang=en"], "WEB_MONITOR_LANG"), "en")                    # l'option l'emporte sur tout
         self.assertEqual(langue(["--x", "--lang", "fr"], "WEB_MONITOR_LANG"), "fr")
-        self.assertEqual(langue(["--lang=zz"], "WEB_MONITOR_LANG"), "fr")                    # valeur inconnue ignorée ici (argparse la refuse)
+        self.assertEqual(langue(["--lang=zz"], "WEB_MONITOR_LANG"), "fr")                    # unknown value ignored here (argparse refuses it)
 
     def test_traducteur_chemins_et_url_ne_sont_pas_du_francais_restant(self):
         """Une URL (/event/journee-portes-ouvertes-sur-linux) ou un nom de variable ($is_bad_bot) dans une ligne traduite ne la fait pas revenir en français."""
         t = self.i18n.Traducteur({" visent des pages ordinaires": " target ordinary pages"})
         self.assertEqual(t("12 visent des pages ordinaires (/event/journee-portes-ouvertes-sur-linux (3), $is_bad_bot)"),
                          "12 target ordinary pages (/event/journee-portes-ouvertes-sur-linux (3), $is_bad_bot)")
-        self.assertEqual(t("12 visent des pages ordinaires et sur la page"), "12 visent des pages ordinaires et sur la page")      # vrai français restant : intacte
+        self.assertEqual(t("12 visent des pages ordinaires et sur la page"), "12 visent des pages ordinaires et sur la page")      # real French remaining: intact
 
     def test_traducteur_fragments_mots_entiers_et_lignes_francaises(self):
         """Fragments les plus longs d'abord ; mot entier pour les fragments qui commencent ou finissent par une lettre ; une ligne encore à moitié
@@ -82,13 +82,13 @@ class LangueEtTraducteur(unittest.TestCase):
         t = self.i18n.Traducteur({"banni": "banned", "aucune": "none", " ligne(s)": " line(s)", "aucune ligne": "no line"})
         self.assertEqual(t("aucune ligne"), "no line")                                       # le plus long d'abord
         self.assertEqual(t("3 ligne(s), banni"), "3 line(s), banned")
-        self.assertEqual(t("bannies"), "bannies")                                            # jamais à l'intérieur d'un mot
-        self.assertEqual(t("aucune\nil y a des bannis"), "none\nil y a des bannis")        # par ligne : la 2e reste française, la 1re traduite
-        self.assertEqual(t("banni et bannies"), "banni et bannies")                          # moitié traduite : intacte
+        self.assertEqual(t("bannies"), "bannies")                                            # never inside a word
+        self.assertEqual(t("aucune\nil y a des bannis"), "none\nil y a des bannis")        # per line: the 2nd stays French, the 1st translated
+        self.assertEqual(t("banni et bannies"), "banni et bannies")                          # half translated: intact
         self.assertEqual(self.i18n.Traducteur({})("aucune ligne"), "aucune ligne")
         self.assertFalse(self.i18n.Traducteur({}))
         self.assertEqual(self.i18n.traducteur("fr", SCRIPTS_DIR, "web-monitor")("aucune ligne"), "aucune ligne")
-        self.assertEqual(self.i18n.traducteur("en", "/inexistant", "web-monitor")("aucune ligne"), "aucune ligne")     # catalogue absent : français, sans erreur
+        self.assertEqual(self.i18n.traducteur("en", "/inexistant", "web-monitor")("aucune ligne"), "aucune ligne")     # catalogue absent: French, without error
 
     def test_remplacement_en_un_seul_passage(self):
         """Un texte déjà traduit n'est jamais re-traduit par un fragment plus court (« systemd journal of » ne devient pas « systemd log of »)."""
@@ -102,7 +102,7 @@ class LangueEtTraducteur(unittest.TestCase):
         self.assertEqual(len(t(ligne)), len(ligne))
         self.assertEqual(t(ligne), f"  {'Manual bans':<30}{'3':>6}")
         self.assertEqual(t("Libellé  x"), "Label    x")                 # traduction plus courte : le remplissage s'allonge
-        self.assertEqual(t("Erreurs :  x"), "Errors :   x")            # 1.10 : l'écart de longueur d'un fragment non suivi de remplissage est absorbé par le prochain remplissage de la ligne
+        self.assertEqual(t("Erreurs :  x"), "Errors :   x")            # 1.10: the length difference of a fragment not followed by padding is absorbed by the next padding of the line
         longue = self.i18n.Traducteur({"Ok": "Very long text"})
         self.assertEqual(longue("Ok  1"), "Very long text 1")           # traduction plus longue : au moins une espace reste
 
@@ -117,7 +117,7 @@ class LangueEtTraducteur(unittest.TestCase):
         self.assertEqual(t("Charge 0,68 · 0,65 (1/5 min)"), "Charge 0.68 · 0.65 (1/5 min)")
         self.assertEqual(len(t("  IP les plus actives      : x")), len("  IP les plus actives      : x"))
         fr = self.i18n.Traducteur({"libres": "free"})
-        self.assertEqual(fr("29,1 Go libres"), "29,1 Go free")                 # sans langue anglaise : inchangé
+        self.assertEqual(fr("29,1 Go libres"), "29,1 Go free")                 # without English language: unchanged
 
     def test_codes_de_couleur_ne_genent_pas_la_traduction(self):
         """1.7 : « \x1b[36mce serveur\x1b[0m » est traduit en entier (le « m » du code ne casse plus le mot entier) et la colonne reste alignée."""
@@ -156,9 +156,9 @@ class LangueEtTraducteur(unittest.TestCase):
             self.assertEqual(entrees.get("un"), "one")
             self.assertEqual(entrees.get("deux lignes"), "two lines")
             self.assertNotIn("flou", entrees)
-            self.assertEqual(self.i18n.Traducteur({k: v for k, v in entrees.items() if v})("vide"), "vide")      # msgstr vide : non traduit, texte français conservé
+            self.assertEqual(self.i18n.Traducteur({k: v for k, v in entrees.items() if v})("vide"), "vide")      # empty msgstr: not translated, French text kept
             self.assertEqual(entrees.get('citation "x"\n'), 'quote "x"\n')
-            self.assertNotIn("", entrees)                                                    # l'en-tête n'est pas un message
+            self.assertNotIn("", entrees)                                                    # the header is not a message
             self.assertEqual(self.i18n.echapper_po('a"b\n'), 'a\\"b\\n')
 
     def test_ajouter_une_langue_c_est_ajouter_un_fichier(self):
@@ -190,7 +190,7 @@ class LangueEtTraducteur(unittest.TestCase):
             fr, en = self.i18n.traducteur("fr", d, "demo"), self.i18n.traducteur("en", d, "demo")
             self.assertEqual(fr("No connection to the server"), "Aucune connexion au serveur")
             self.assertEqual(en("No connection to the server"), "No connection to the server")
-            self.assertEqual(fr("Configuration lue : /etc/x"), "Configuration lue : /etc/x")        # message partagé déjà en français
+            self.assertEqual(fr("Configuration lue : /etc/x"), "Configuration lue : /etc/x")        # shared message already in French
             self.assertEqual(en("Configuration lue : /etc/x"), "Configuration read : /etc/x")
 
     def test_module_partage_ecrit_en_anglais_traduit_selon_sa_propre_langue(self):
@@ -260,21 +260,21 @@ class Catalogues(unittest.TestCase):
         import ast
         chemin = os.path.join(SCRIPTS_DIR, nom + ".py")
         francais = re.compile(r"[àâçéèêëîïôûùüœÀÉÈÊ]|\b(le|la|les|des|du|pas|sont|avec|sans|pour|dans|depuis|erreur|fichiers?|connexion|jours|cette|déjà|ligne|lignes|nom|noms|rapport)\b")
-        # Français voulu dans le code : nom de la langue dans sa propre langue ; textes FRANÇAIS lus dans la sortie des autres outils (analysés en NGINX_TOOLS_LANG=fr) ;
-        # synonymes français acceptés des clés de --sort ; messages d'argparse et libellés de la branche française
+        # French wanted in the code: name of the language in its own language; FRENCH texts read in the output of the other tools (parsed in NGINX_TOOLS_LANG=fr);
+        # French synonyms accepted for the --sort keys; argparse messages and labels of the French branch
         voulus = ("RÉSUMÉ", "Signes d'hostilité", "Bannissement PERMANENT recommandé", "Pour bannir", "dernier échec", "inchangée depuis", "bannissement recommandé",
                   "affiche cette aide et quitte", "affiche la version et quitte", " : erreur : ", "Première connexion", "Dernière connexion", "Systèmes",
                   "désactivé", "Verdict : bannissement justifié", "Déjà", "Pages écrites", "Mo reçus", "Mo envoyés",
-                  "Événements", "Téléphone", "Étiquettes", "Nom du pays", "Navigateurs", "Adresses IP vues", "Compte créé", "Pays des adresses IP", "VPN, Tor, relais, hébergeur")      # 2.67 : titres français des colonnes (--table, --csv), écrits dans les deux langues       # app-log-live : texte français lu dans la sortie des autres outils / du cache partagé
-        synonymes = ("première", "dernière", "récent", "connexion", "durée", "système", "créé", "création", "hébergeur")       # run-all 1.188 : « created » (web-monitor 2.70)
+                  "Événements", "Téléphone", "Étiquettes", "Nom du pays", "Navigateurs", "Adresses IP vues", "Compte créé", "Pays des adresses IP", "VPN, Tor, relais, hébergeur")      # 2.67: French column titles (--table, --csv), written in both languages       # app-log-live: French text read in the output of the other tools / of the shared cache
+        synonymes = ("première", "dernière", "récent", "connexion", "durée", "système", "créé", "création", "hébergeur")       # run-all 1.188: "created" (web-monitor 2.70)
         restes = [(l, v) for l, v in self.manquants(chemin, ("_config", "_i18n"))
                   if francais.search(v.lower()) and v != "'Français'" and not any(x in v for x in voulus) and v.strip("'\"") not in synonymes]
         self.assertEqual(restes, [], "texte français resté dans le code d'un programme anglais")
         po = os.path.join(SCRIPTS_DIR, "lang", nom + ".fr.po")
         self.assertIn('"Source-Language: en\\n"', open(po, encoding="utf-8").read())
-        # Un ancien lang/PROG.en.po (résiduel d'une version où PROG était écrit en français) n'est plus lu (apps/_i18n.py 1.15) : signalé par run-all.sh, pas une erreur.
+        # An old lang/PROG.en.po (residual of a version where PROG was written in French) is no longer read (apps/_i18n.py 1.15): reported by run-all.sh, not an error.
         valeurs = {n.value for n in ast.walk(ast.parse(open(chemin, encoding="utf-8").read())) if isinstance(n, ast.Constant) and isinstance(n.value, str)}
-        peripheriques = [(en, fr) for en, fr in lire_po_brut(po) if en not in valeurs and en.strip("() ") not in valeurs and not any(en in v for v in valeurs)]       # « (manifest) » : étiquette entre parenthèses, assemblée à l'affichage ; un fragment peut couvrir plusieurs morceaux de texte collés par Python
+        peripheriques = [(en, fr) for en, fr in lire_po_brut(po) if en not in valeurs and en.strip("() ") not in valeurs and not any(en in v for v in valeurs)]       # "(manifest)": label in parentheses, assembled at display; a fragment may cover several pieces of text glued together by Python
         self.assertEqual(peripheriques, [], f"entrées de lang/{nom}.fr.po absentes du code (périmées ou mal copiées)")
 
     def test_catalogue_de_chaque_programme_python(self):
@@ -457,7 +457,7 @@ class ConfigurationDesProgrammes(EnvTest):
                 os.remove(conf)
                 _, out2, err2 = self.run_cmd(interprete + [prog, "--lang", "en", "--help"], dict(variables, NGINX_TOOLS_ETC_DEFAULT=etc))
                 self.assertNotIn("Traceback", err1 + err2)
-                lignes = lambda t: [l for l in t.splitlines() if not re.match(r"\s*(Configuration|Options)\b[^:]*:", l)]       # lignes « Configuration… / Options… » : propres au fichier lu
+                lignes = lambda t: [l for l in t.splitlines() if not re.match(r"\s*(Configuration|Options)\b[^:]*:", l)]       # "Configuration... / Options..." lines: specific to the file read
                 self.assertEqual(lignes(out1), lignes(out2), "LANGUAGE=en du fichier de configuration != --lang en")
                 self.assertNotIn("par ordre alphabétique", out1)
                 self.assertNotIn("affiche cette aide", out1)

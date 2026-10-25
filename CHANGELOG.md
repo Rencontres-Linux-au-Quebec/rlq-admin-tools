@@ -6,6 +6,24 @@ Earlier history was archived outside this repository when this file was created.
 
 ## app-health-check.py
 
+### 2.29.20261022.231529 - Code comments translated to English
+
+- Title: Code comments translated to English (repository convention).
+- Reason: Commit messages and code comments written in French with accents were displayed badly in the GitHub logs (UTF-8 display). The repository conventions require English code comments; user-visible text stays bilingual (French and English).
+- Changes:
+  - Comments only: 48 comment lines translated from French to English. No code, string, docstring or option was changed.
+  - Copyright line written "Quebec" (no accent), for the same reason.
+  - Files: app-health-check.py.
+- Bugs fixed: none (translation only).
+- Safeguards and edge cases:
+  - Only comment text changed: the non-comment lines of the file are identical to the previous version (checked with git diff).
+  - Docstrings and user-visible strings keep their current (bilingual) text.
+- Checks:
+  - Syntax check (bash -n or python py_compile) and a diff check showing that only comments changed.
+  - Test suite nginx-tools-tests/run-all.sh (result given in the pull request).
+- Action required: none.
+
+
 ### 2.28.20261022.171858
 
 - Title: Configuration file present but unreadable without root is reported, not treated as missing.
@@ -42,6 +60,24 @@ Earlier history was archived outside this repository when this file was created.
 
 ## app-log-check.py
 
+### 2.25.20261022.231529 - Code comments translated to English
+
+- Title: Code comments translated to English (repository convention).
+- Reason: Commit messages and code comments written in French with accents were displayed badly in the GitHub logs (UTF-8 display). The repository conventions require English code comments; user-visible text stays bilingual (French and English).
+- Changes:
+  - Comments only: 22 comment lines translated from French to English. No code, string, docstring or option was changed.
+  - Copyright line written "Quebec" (no accent), for the same reason.
+  - Files: app-log-check.py.
+- Bugs fixed: none (translation only).
+- Safeguards and edge cases:
+  - Only comment text changed: the non-comment lines of the file are identical to the previous version (checked with git diff).
+  - Docstrings and user-visible strings keep their current (bilingual) text.
+- Checks:
+  - Syntax check (bash -n or python py_compile) and a diff check showing that only comments changed.
+  - Test suite nginx-tools-tests/run-all.sh (result given in the pull request).
+- Action required: none.
+
+
 ### 2.24.20261022.012000 - Title: Settings key: BY_HOUR.
 - Reason: Reason: the report mode --by-hour is a setting that can stay in the file; --last remains a one-shot window and stays on the command line.
 - Changes: - SCHEMA_CONFIG: new key BY_HOUR (--by-hour). - doc/en and doc/fr app-log-check.conf.example: BY_HOUR added. - --init and --last remain command-line only (actions / one-shot filter).
@@ -54,6 +90,24 @@ Earlier history was archived outside this repository when this file was created.
 ### 2.23.20261020.211944 - Current version. Earlier history archived outside the repository.
 
 ## app-log-live.py
+
+### 1.104.20261022.231529 - Code comments translated to English
+
+- Title: Code comments translated to English (repository convention).
+- Reason: Commit messages and code comments written in French with accents were displayed badly in the GitHub logs (UTF-8 display). The repository conventions require English code comments; user-visible text stays bilingual (French and English).
+- Changes:
+  - Comments only: 67 comment lines translated from French to English. No code, string, docstring or option was changed.
+  - Copyright line written "Quebec" (no accent), for the same reason.
+  - Files: app-log-live.py.
+- Bugs fixed: none (translation only).
+- Safeguards and edge cases:
+  - Only comment text changed: the non-comment lines of the file are identical to the previous version (checked with git diff).
+  - Docstrings and user-visible strings keep their current (bilingual) text.
+- Checks:
+  - Syntax check (bash -n or python py_compile) and a diff check showing that only comments changed.
+  - Test suite nginx-tools-tests/run-all.sh (result given in the pull request).
+- Action required: none.
+
 
 ### 1.103.20261022.215046 - Title: RLQ* groups show their identifier and category, so homonyms can be told apart.
 - Reason: request: the G key and the end summary listed « RLQ22-Visiteur = 0 » three times without any way to tell the three groups apart. Odoo allows several groups with the same name.
@@ -148,9 +202,45 @@ Earlier history was archived outside this repository when this file was created.
 
 ## host-perf-audit.py
 
+### 1.5.20261022.231529 - Code comments translated to English
+
+- Title: Code comments translated to English (repository convention).
+- Reason: Commit messages and code comments written in French with accents were displayed badly in the GitHub logs (UTF-8 display). The repository conventions require English code comments; user-visible text stays bilingual (French and English).
+- Changes:
+  - Comments only: 8 comment lines translated from French to English. No code, string, docstring or option was changed.
+  - Copyright line written "Quebec" (no accent), for the same reason.
+  - Files: host-perf-audit.py.
+- Bugs fixed: none (translation only).
+- Safeguards and edge cases:
+  - Only comment text changed: the non-comment lines of the file are identical to the previous version (checked with git diff).
+  - Docstrings and user-visible strings keep their current (bilingual) text.
+- Checks:
+  - Syntax check (bash -n or python py_compile) and a diff check showing that only comments changed.
+  - Test suite nginx-tools-tests/run-all.sh (result given in the pull request).
+- Action required: none.
+
+
 ### 1.4.20261020.211944 - Current version. Earlier history archived outside the repository.
 
 ## odoo-chat-post.py
+
+### 1.10.20261022.231529 - Code comments translated to English
+
+- Title: Code comments translated to English (repository convention).
+- Reason: Commit messages and code comments written in French with accents were displayed badly in the GitHub logs (UTF-8 display). The repository conventions require English code comments; user-visible text stays bilingual (French and English).
+- Changes:
+  - Comments only: 10 comment lines translated from French to English. No code, string, docstring or option was changed.
+  - Copyright line written "Quebec" (no accent), for the same reason.
+  - Files: odoo-chat-post.py.
+- Bugs fixed: none (translation only).
+- Safeguards and edge cases:
+  - Only comment text changed: the non-comment lines of the file are identical to the previous version (checked with git diff).
+  - Docstrings and user-visible strings keep their current (bilingual) text.
+- Checks:
+  - Syntax check (bash -n or python py_compile) and a diff check showing that only comments changed.
+  - Test suite nginx-tools-tests/run-all.sh (result given in the pull request).
+- Action required: none.
+
 
 ### 1.9.20261022.012000 - Title: Settings keys: BOT_LOGIN and CATALOG.
 - Reason: Reason: every setting in the command line gets a key; actions remain on the command line.
@@ -165,9 +255,45 @@ Earlier history was archived outside this repository when this file was created.
 
 ## odoo-docs.py
 
+### 1.5.20261022.231529 - Code comments translated to English
+
+- Title: Code comments translated to English (repository convention).
+- Reason: Commit messages and code comments written in French with accents were displayed badly in the GitHub logs (UTF-8 display). The repository conventions require English code comments; user-visible text stays bilingual (French and English).
+- Changes:
+  - Comments only: 7 comment lines translated from French to English. No code, string, docstring or option was changed.
+  - Copyright line written "Quebec" (no accent), for the same reason.
+  - Files: odoo-docs.py.
+- Bugs fixed: none (translation only).
+- Safeguards and edge cases:
+  - Only comment text changed: the non-comment lines of the file are identical to the previous version (checked with git diff).
+  - Docstrings and user-visible strings keep their current (bilingual) text.
+- Checks:
+  - Syntax check (bash -n or python py_compile) and a diff check showing that only comments changed.
+  - Test suite nginx-tools-tests/run-all.sh (result given in the pull request).
+- Action required: none.
+
+
 ### 1.4.20261020.211944 - Current version. Earlier history archived outside the repository.
 
 ## odoo-mail-retry.py
+
+### 1.16.20261022.231529 - Code comments translated to English
+
+- Title: Code comments translated to English (repository convention).
+- Reason: Commit messages and code comments written in French with accents were displayed badly in the GitHub logs (UTF-8 display). The repository conventions require English code comments; user-visible text stays bilingual (French and English).
+- Changes:
+  - Comments only: 11 comment lines translated from French to English. No code, string, docstring or option was changed.
+  - Copyright line written "Quebec" (no accent), for the same reason.
+  - Files: odoo-mail-retry.py.
+- Bugs fixed: none (translation only).
+- Safeguards and edge cases:
+  - Only comment text changed: the non-comment lines of the file are identical to the previous version (checked with git diff).
+  - Docstrings and user-visible strings keep their current (bilingual) text.
+- Checks:
+  - Syntax check (bash -n or python py_compile) and a diff check showing that only comments changed.
+  - Test suite nginx-tools-tests/run-all.sh (result given in the pull request).
+- Action required: none.
+
 
 ### 1.15.20261022.012000 - Title: The common file now reaches LOG_KEEP_DAYS and ANONYMIZE.
 - Reason: Reason: same as odoo-warmup.py: the common-file filter discarded LOG_KEEP_DAYS and ANONYMIZE.
@@ -181,6 +307,24 @@ Earlier history was archived outside this repository when this file was created.
 
 ## odoo-warmup.py
 
+### 1.11.20261022.231529 - Code comments translated to English
+
+- Title: Code comments translated to English (repository convention).
+- Reason: Commit messages and code comments written in French with accents were displayed badly in the GitHub logs (UTF-8 display). The repository conventions require English code comments; user-visible text stays bilingual (French and English).
+- Changes:
+  - Comments only: 5 comment lines translated from French to English. No code, string, docstring or option was changed.
+  - Copyright line written "Quebec" (no accent), for the same reason.
+  - Files: odoo-warmup.py.
+- Bugs fixed: none (translation only).
+- Safeguards and edge cases:
+  - Only comment text changed: the non-comment lines of the file are identical to the previous version (checked with git diff).
+  - Docstrings and user-visible strings keep their current (bilingual) text.
+- Checks:
+  - Syntax check (bash -n or python py_compile) and a diff check showing that only comments changed.
+  - Test suite nginx-tools-tests/run-all.sh (result given in the pull request).
+- Action required: none.
+
+
 ### 1.10.20261022.012000 - Title: The common file now reaches LOG_KEEP_DAYS and ANONYMIZE.
 - Reason: Reason: app-default.conf defines five common keys (apps/_config.py CLES_COMMUNES), but this program read only LANGUAGE, VERBOSE and DEBUG_LEVEL from it.
 - Changes: - read_config(): the common file accepts LOG_KEEP_DAYS and ANONYMIZE. - LOG_KEEP_DAYS and ANONYMIZE are exported as NGINX_TOOLS_LOG_KEEP_DAYS and NGINX_TOOLS_ANONYMIZE (only if not already set in the environment). - Comment updated to list the five keys.
@@ -192,6 +336,24 @@ Earlier history was archived outside this repository when this file was created.
 ### 1.9.20261020.211944 - Current version. Earlier history archived outside the repository.
 
 ## web-monitor.py
+
+### 2.78.20261022.231529 - Code comments translated to English
+
+- Title: Code comments translated to English (repository convention).
+- Reason: Commit messages and code comments written in French with accents were displayed badly in the GitHub logs (UTF-8 display). The repository conventions require English code comments; user-visible text stays bilingual (French and English).
+- Changes:
+  - Comments only: 40 comment lines translated from French to English. No code, string, docstring or option was changed.
+  - Copyright line written "Quebec" (no accent), for the same reason.
+  - Files: web-monitor.py.
+- Bugs fixed: none (translation only).
+- Safeguards and edge cases:
+  - Only comment text changed: the non-comment lines of the file are identical to the previous version (checked with git diff).
+  - Docstrings and user-visible strings keep their current (bilingual) text.
+- Checks:
+  - Syntax check (bash -n or python py_compile) and a diff check showing that only comments changed.
+  - Test suite nginx-tools-tests/run-all.sh (result given in the pull request).
+- Action required: none.
+
 
 ### 2.77.20261022.110306 - Title: Option values in English only in the configuration summary; template sorted.
 - Reason: Request: add MIN=yes, UNDERLINE=10 and -2026- in HIGHLIGHT to the default settings of /etc/default/app-log-live.conf; arguments in English only (oui -> yes, non -> no); options of the default configuration files in /etc/default in alphabetical order.
@@ -206,9 +368,45 @@ Earlier history was archived outside this repository when this file was created.
 
 ## zip-versions.py
 
+### 1.16.20261022.231529 - Code comments translated to English
+
+- Title: Code comments translated to English (repository convention).
+- Reason: Commit messages and code comments written in French with accents were displayed badly in the GitHub logs (UTF-8 display). The repository conventions require English code comments; user-visible text stays bilingual (French and English).
+- Changes:
+  - Comments only: 10 comment lines translated from French to English. No code, string, docstring or option was changed.
+  - Copyright line written "Quebec" (no accent), for the same reason.
+  - Files: zip-versions.py.
+- Bugs fixed: none (translation only).
+- Safeguards and edge cases:
+  - Only comment text changed: the non-comment lines of the file are identical to the previous version (checked with git diff).
+  - Docstrings and user-visible strings keep their current (bilingual) text.
+- Checks:
+  - Syntax check (bash -n or python py_compile) and a diff check showing that only comments changed.
+  - Test suite nginx-tools-tests/run-all.sh (result given in the pull request).
+- Action required: none.
+
+
 ### 1.15.20261020.211944 - Current version. Earlier history archived outside the repository.
 
 ## odoo-backup.sh
+
+### 1.21.20261022.231529 - Code comments translated to English
+
+- Title: Code comments translated to English (repository convention).
+- Reason: Commit messages and code comments written in French with accents were displayed badly in the GitHub logs (UTF-8 display). The repository conventions require English code comments; user-visible text stays bilingual (French and English).
+- Changes:
+  - Comments only: 61 comment lines translated from French to English. No code, string, docstring or option was changed.
+  - Copyright line written "Quebec" (no accent), for the same reason.
+  - Files: odoo-backup.sh.
+- Bugs fixed: none (translation only).
+- Safeguards and edge cases:
+  - Only comment text changed: the non-comment lines of the file are identical to the previous version (checked with git diff).
+  - Help texts and generated configuration templates are not translated (they are displayed, or compared with shipped files, by the tests): their French text is kept on purpose.
+- Checks:
+  - Syntax check (bash -n or python py_compile) and a diff check showing that only comments changed.
+  - Test suite nginx-tools-tests/run-all.sh (result given in the pull request).
+- Action required: none.
+
 
 ### 1.20.20261022.012000 - Title: Comment corrected for the common file (no behaviour change).
 - Reason: Reason: the comment said only VERBOSE and DEBUG_LEVEL are read from app-default.conf. LANGUAGE and ANONYMIZE are in fact read through apps/_i18n.sh, and LOG_KEEP_DAYS does not apply to this program.
@@ -223,6 +421,24 @@ Earlier history was archived outside this repository when this file was created.
 
 ## odoo-update-module.sh
 
+### 1.16.20261022.231529 - Code comments translated to English
+
+- Title: Code comments translated to English (repository convention).
+- Reason: Commit messages and code comments written in French with accents were displayed badly in the GitHub logs (UTF-8 display). The repository conventions require English code comments; user-visible text stays bilingual (French and English).
+- Changes:
+  - Comments only: 66 comment lines translated from French to English. No code, string, docstring or option was changed.
+  - Copyright line written "Quebec" (no accent), for the same reason.
+  - Files: odoo-update-module.sh.
+- Bugs fixed: none (translation only).
+- Safeguards and edge cases:
+  - Only comment text changed: the non-comment lines of the file are identical to the previous version (checked with git diff).
+  - Help texts and generated configuration templates are not translated (they are displayed, or compared with shipped files, by the tests): their French text is kept on purpose.
+- Checks:
+  - Syntax check (bash -n or python py_compile) and a diff check showing that only comments changed.
+  - Test suite nginx-tools-tests/run-all.sh (result given in the pull request).
+- Action required: none.
+
+
 ### 1.15.20261022.133552 - Title: Activity guard: no module update while the site writes; 60-minute wait; the update is cancelled unless --force-busy; new --check-activity.
 - Reason: request: update the modules only when the site is idle. A single visitor can write (survey answer, chat message, registration, contact form), and the former guard, which counted visitors only, let such an update through.
 - Changes: - Guard (site_reasons, wait_for_quiet_site): the site is busy while one of these holds: active visitors (BUSY_VISITORS threshold); write requests in the nginx logs during the last ACTIVITY_WINDOW seconds (POST, PUT, PATCH, DELETE, except the known read-only requests of Odoo); open PostgreSQL sessions on the database; write locks on ir_cron; writes in the activity tables (counters of pg_stat_user_tables, sampled twice ACTIVITY_SAMPLE seconds apart). - WAIT_QUIET default: 60 minutes (was 15). 0 = a single check. - At the end of the wait the update is CANCELLED (exit 3, nothing stopped) instead of going ahead. --force-busy (FORCE_BUSY=yes) runs it anyway. - New option --check-activity: state of the site now, changes nothing; exit 0 = quiet, 3 = busy. - PostgreSQL commands run through runuser when the program runs as root, through « sudo -n -u postgres » otherwise (no root needed). - The regular expressions of the nginx logs accept several spaces between columns. - Test hooks: ODOO_UPDATE_MODULE_NOW (clock), ODOO_UPDATE_MODULE_PG_AS (command used in place of sudo), ODOO_UPDATE_MODULE_SAMPLE, ODOO_UPDATE_MODULE_WINDOW. - Calm-site messages state the threshold instead of claiming "no active visitor" when one visitor is below it. - Files: odoo-update-module.sh; lang/odoo-update-module.en.po; doc/en and doc/fr odoo-update-module.conf.example and 09-odoo-update-module.md; nginx-tools-tests/test_odoo_update_module.py; nginx-tools-tests/fixtures/ (anonymized recording used by the tests).
@@ -234,6 +450,24 @@ Earlier history was archived outside this repository when this file was created.
 ### 1.14.20261020.211944 - Current version. Earlier history archived outside the repository.
 
 ## nginx-hardening.sh
+
+### 2.55.20261022.231529 - Code comments translated to English
+
+- Title: Code comments translated to English (repository convention).
+- Reason: Commit messages and code comments written in French with accents were displayed badly in the GitHub logs (UTF-8 display). The repository conventions require English code comments; user-visible text stays bilingual (French and English).
+- Changes:
+  - Comments only: 227 comment lines translated from French to English. No code, string, docstring or option was changed.
+  - Copyright line written "Quebec" (no accent), for the same reason.
+  - Files: nginx-hardening.sh.
+- Bugs fixed: none (translation only).
+- Safeguards and edge cases:
+  - Only comment text changed: the non-comment lines of the file are identical to the previous version (checked with git diff).
+  - Help texts and generated configuration templates are not translated (they are displayed, or compared with shipped files, by the tests): their French text is kept on purpose.
+- Checks:
+  - Syntax check (bash -n or python py_compile) and a diff check showing that only comments changed.
+  - Test suite nginx-tools-tests/run-all.sh (result given in the pull request).
+- Action required: none.
+
 
 ### 2.54.20261022.171858
 
@@ -264,6 +498,24 @@ Earlier history was archived outside this repository when this file was created.
 
 ## nginx-log-audit.sh
 
+### 2.44.20261022.231529 - Code comments translated to English
+
+- Title: Code comments translated to English (repository convention).
+- Reason: Commit messages and code comments written in French with accents were displayed badly in the GitHub logs (UTF-8 display). The repository conventions require English code comments; user-visible text stays bilingual (French and English).
+- Changes:
+  - Comments only: 228 comment lines translated from French to English. No code, string, docstring or option was changed.
+  - Copyright line written "Quebec" (no accent), for the same reason.
+  - Files: nginx-log-audit.sh.
+- Bugs fixed: none (translation only).
+- Safeguards and edge cases:
+  - Only comment text changed: the non-comment lines of the file are identical to the previous version (checked with git diff).
+  - Help texts and generated configuration templates are not translated (they are displayed, or compared with shipped files, by the tests): their French text is kept on purpose.
+- Checks:
+  - Syntax check (bash -n or python py_compile) and a diff check showing that only comments changed.
+  - Test suite nginx-tools-tests/run-all.sh (result given in the pull request).
+- Action required: none.
+
+
 ### 2.43.20261022.162206
 
 - **Titre** : option `--unban-low-score` — lister les IP bannies dont le score est sous le seuil et proposer de les débannir.
@@ -290,21 +542,111 @@ Earlier history was archived outside this repository when this file was created.
 
 ## sync-crowdsec-blocklist.sh
 
+### 1.27.20261022.231529 - Code comments translated to English
+
+- Title: Code comments translated to English (repository convention).
+- Reason: Commit messages and code comments written in French with accents were displayed badly in the GitHub logs (UTF-8 display). The repository conventions require English code comments; user-visible text stays bilingual (French and English).
+- Changes:
+  - Comments only: 55 comment lines translated from French to English. No code, string, docstring or option was changed.
+  - Copyright line written "Quebec" (no accent), for the same reason.
+  - Files: sync-crowdsec-blocklist.sh.
+- Bugs fixed: none (translation only).
+- Safeguards and edge cases:
+  - Only comment text changed: the non-comment lines of the file are identical to the previous version (checked with git diff).
+  - Help texts and generated configuration templates are not translated (they are displayed, or compared with shipped files, by the tests): their French text is kept on purpose.
+- Checks:
+  - Syntax check (bash -n or python py_compile) and a diff check showing that only comments changed.
+  - Test suite nginx-tools-tests/run-all.sh (result given in the pull request).
+- Action required: none.
+
+
 ### 1.26.20261020.211944 - Current version. Earlier history archived outside the repository.
 
 ## apps/_anonymiser.py
+
+### 1.4.20261022.231529 - Code comments translated to English
+
+- Title: Code comments translated to English (repository convention).
+- Reason: Commit messages and code comments written in French with accents were displayed badly in the GitHub logs (UTF-8 display). The repository conventions require English code comments; user-visible text stays bilingual (French and English).
+- Changes:
+  - Comments only: 11 comment lines translated from French to English. No code, string, docstring or option was changed.
+  - Copyright line written "Quebec" (no accent), for the same reason.
+  - Shared module used by several programs: the translated comments do not change any behavior. Files: apps/_anonymiser.py.
+- Bugs fixed: none (translation only).
+- Safeguards and edge cases:
+  - Only comment text changed: the non-comment lines of the file are identical to the previous version (checked with git diff).
+  - Docstrings and user-visible strings keep their current (bilingual) text.
+- Checks:
+  - Syntax check (bash -n or python py_compile) and a diff check showing that only comments changed.
+  - Test suite nginx-tools-tests/run-all.sh (result given in the pull request).
+- Action required: none.
+
 
 ### 1.3.20261020.203430 - Current version. Earlier history archived outside the repository.
 
 ## apps/_bbb.py
 
+### 1.4.20261022.231529 - Code comments translated to English
+
+- Title: Code comments translated to English (repository convention).
+- Reason: Commit messages and code comments written in French with accents were displayed badly in the GitHub logs (UTF-8 display). The repository conventions require English code comments; user-visible text stays bilingual (French and English).
+- Changes:
+  - Comments only: 9 comment lines translated from French to English. No code, string, docstring or option was changed.
+  - Copyright line written "Quebec" (no accent), for the same reason.
+  - Shared module used by several programs: the translated comments do not change any behavior. Files: apps/_bbb.py.
+- Bugs fixed: none (translation only).
+- Safeguards and edge cases:
+  - Only comment text changed: the non-comment lines of the file are identical to the previous version (checked with git diff).
+  - Docstrings and user-visible strings keep their current (bilingual) text.
+- Checks:
+  - Syntax check (bash -n or python py_compile) and a diff check showing that only comments changed.
+  - Test suite nginx-tools-tests/run-all.sh (result given in the pull request).
+- Action required: none.
+
+
 ### 1.3.20261019.150215 - Current version. Earlier history archived outside the repository.
 
 ## apps/_cache_ip.py
 
+### 1.3.20261022.231529 - Code comments translated to English
+
+- Title: Code comments translated to English (repository convention).
+- Reason: Commit messages and code comments written in French with accents were displayed badly in the GitHub logs (UTF-8 display). The repository conventions require English code comments; user-visible text stays bilingual (French and English).
+- Changes:
+  - Comments only: 11 comment lines translated from French to English. No code, string, docstring or option was changed.
+  - Copyright line written "Quebec" (no accent), for the same reason.
+  - Shared module used by several programs: the translated comments do not change any behavior. Files: apps/_cache_ip.py.
+- Bugs fixed: none (translation only).
+- Safeguards and edge cases:
+  - Only comment text changed: the non-comment lines of the file are identical to the previous version (checked with git diff).
+  - Docstrings and user-visible strings keep their current (bilingual) text.
+- Checks:
+  - Syntax check (bash -n or python py_compile) and a diff check showing that only comments changed.
+  - Test suite nginx-tools-tests/run-all.sh (result given in the pull request).
+- Action required: none.
+
+
 ### 1.2.20261019.150215 - Current version. Earlier history archived outside the repository.
 
 ## apps/_config.py
+
+### 1.10.20261022.231529 - Code comments translated to English
+
+- Title: Code comments translated to English (repository convention).
+- Reason: Commit messages and code comments written in French with accents were displayed badly in the GitHub logs (UTF-8 display). The repository conventions require English code comments; user-visible text stays bilingual (French and English).
+- Changes:
+  - Comments only: 13 comment lines translated from French to English. No code, string, docstring or option was changed.
+  - Copyright line written "Quebec" (no accent), for the same reason.
+  - Shared module used by several programs: the translated comments do not change any behavior. Files: apps/_config.py.
+- Bugs fixed: none (translation only).
+- Safeguards and edge cases:
+  - Only comment text changed: the non-comment lines of the file are identical to the previous version (checked with git diff).
+  - Docstrings and user-visible strings keep their current (bilingual) text.
+- Checks:
+  - Syntax check (bash -n or python py_compile) and a diff check showing that only comments changed.
+  - Test suite nginx-tools-tests/run-all.sh (result given in the pull request).
+- Action required: none.
+
 
 ### 1.9.20261022.110306 - Title: English-only values: French values detected; DEBUG_LEVEL gives VERBOSE=yes.
 - Reason: Request: add MIN=yes, UNDERLINE=10 and -2026- in HIGHLIGHT to the default settings of /etc/default/app-log-live.conf; arguments in English only (oui -> yes, non -> no); options of the default configuration files in /etc/default in alphabetical order.
@@ -319,6 +661,24 @@ Earlier history was archived outside this repository when this file was created.
 
 ## apps/_connexions.py
 
+### 1.3.20261022.231529 - Code comments translated to English
+
+- Title: Code comments translated to English (repository convention).
+- Reason: Commit messages and code comments written in French with accents were displayed badly in the GitHub logs (UTF-8 display). The repository conventions require English code comments; user-visible text stays bilingual (French and English).
+- Changes:
+  - Comments only: 4 comment lines translated from French to English. No code, string, docstring or option was changed.
+  - Copyright line written "Quebec" (no accent), for the same reason.
+  - Shared module used by several programs: the translated comments do not change any behavior. Files: apps/_connexions.py.
+- Bugs fixed: none (translation only).
+- Safeguards and edge cases:
+  - Only comment text changed: the non-comment lines of the file are identical to the previous version (checked with git diff).
+  - Docstrings and user-visible strings keep their current (bilingual) text.
+- Checks:
+  - Syntax check (bash -n or python py_compile) and a diff check showing that only comments changed.
+  - Test suite nginx-tools-tests/run-all.sh (result given in the pull request).
+- Action required: none.
+
+
 ### 1.2.20261022.133552 - Title: PostgreSQL query of the connections through sudo -n when the account is not root.
 - Changes: POSTGRES_RUN (see apps/_odoo_db.py 1.20).
 - Action required: none.
@@ -327,13 +687,67 @@ Earlier history was archived outside this repository when this file was created.
 
 ## apps/_courriel.py
 
+### 1.4.20261022.231529 - Code comments translated to English
+
+- Title: Code comments translated to English (repository convention).
+- Reason: Commit messages and code comments written in French with accents were displayed badly in the GitHub logs (UTF-8 display). The repository conventions require English code comments; user-visible text stays bilingual (French and English).
+- Changes:
+  - Comments only: 3 comment lines translated from French to English. No code, string, docstring or option was changed.
+  - Copyright line written "Quebec" (no accent), for the same reason.
+  - Shared module used by several programs: the translated comments do not change any behavior. Files: apps/_courriel.py.
+- Bugs fixed: none (translation only).
+- Safeguards and edge cases:
+  - Only comment text changed: the non-comment lines of the file are identical to the previous version (checked with git diff).
+  - Docstrings and user-visible strings keep their current (bilingual) text.
+- Checks:
+  - Syntax check (bash -n or python py_compile) and a diff check showing that only comments changed.
+  - Test suite nginx-tools-tests/run-all.sh (result given in the pull request).
+- Action required: none.
+
+
 ### 1.3.20261020.211944 - Current version. Earlier history archived outside the repository.
 
 ## apps/_email_check.py
 
+### 1.3.20261022.231529 - Code comments translated to English
+
+- Title: Code comments translated to English (repository convention).
+- Reason: Commit messages and code comments written in French with accents were displayed badly in the GitHub logs (UTF-8 display). The repository conventions require English code comments; user-visible text stays bilingual (French and English).
+- Changes:
+  - Comments only: 6 comment lines translated from French to English. No code, string, docstring or option was changed.
+  - Copyright line written "Quebec" (no accent), for the same reason.
+  - Shared module used by several programs: the translated comments do not change any behavior. Files: apps/_email_check.py.
+- Bugs fixed: none (translation only).
+- Safeguards and edge cases:
+  - Only comment text changed: the non-comment lines of the file are identical to the previous version (checked with git diff).
+  - Docstrings and user-visible strings keep their current (bilingual) text.
+- Checks:
+  - Syntax check (bash -n or python py_compile) and a diff check showing that only comments changed.
+  - Test suite nginx-tools-tests/run-all.sh (result given in the pull request).
+- Action required: none.
+
+
 ### 1.2.20261019.150215 - Current version. Earlier history archived outside the repository.
 
 ## apps/_i18n.py
+
+### 1.20.20261022.231529 - Code comments translated to English
+
+- Title: Code comments translated to English (repository convention).
+- Reason: Commit messages and code comments written in French with accents were displayed badly in the GitHub logs (UTF-8 display). The repository conventions require English code comments; user-visible text stays bilingual (French and English).
+- Changes:
+  - Comments only: 23 comment lines translated from French to English. No code, string, docstring or option was changed.
+  - Copyright line written "Quebec" (no accent), for the same reason.
+  - Shared module used by several programs: the translated comments do not change any behavior. Files: apps/_i18n.py.
+- Bugs fixed: none (translation only).
+- Safeguards and edge cases:
+  - Only comment text changed: the non-comment lines of the file are identical to the previous version (checked with git diff).
+  - Docstrings and user-visible strings keep their current (bilingual) text.
+- Checks:
+  - Syntax check (bash -n or python py_compile) and a diff check showing that only comments changed.
+  - Test suite nginx-tools-tests/run-all.sh (result given in the pull request).
+- Action required: none.
+
 
 ### 1.19.20261022.110306 - Title: Option values in English only; warning for French values (Python and Bash).
 - Reason: Request: add MIN=yes, UNDERLINE=10 and -2026- in HIGHLIGHT to the default settings of /etc/default/app-log-live.conf; arguments in English only (oui -> yes, non -> no); options of the default configuration files in /etc/default in alphabetical order.
@@ -348,17 +762,89 @@ Earlier history was archived outside this repository when this file was created.
 
 ## apps/_limites.py
 
+### 1.2.20261022.231529 - Code comments translated to English
+
+- Title: Code comments translated to English (repository convention).
+- Reason: Commit messages and code comments written in French with accents were displayed badly in the GitHub logs (UTF-8 display). The repository conventions require English code comments; user-visible text stays bilingual (French and English).
+- Changes:
+  - Comments only: 4 comment lines translated from French to English. No code, string, docstring or option was changed.
+  - Copyright line written "Quebec" (no accent), for the same reason.
+  - Shared module used by several programs: the translated comments do not change any behavior. Files: apps/_limites.py.
+- Bugs fixed: none (translation only).
+- Safeguards and edge cases:
+  - Only comment text changed: the non-comment lines of the file are identical to the previous version (checked with git diff).
+  - Docstrings and user-visible strings keep their current (bilingual) text.
+- Checks:
+  - Syntax check (bash -n or python py_compile) and a diff check showing that only comments changed.
+  - Test suite nginx-tools-tests/run-all.sh (result given in the pull request).
+- Action required: none.
+
+
 ### 1.1.20261019.150215 - Current version. Earlier history archived outside the repository.
 
 ## apps/_listes.py
+
+### 1.4.20261022.231529 - Code comments translated to English
+
+- Title: Code comments translated to English (repository convention).
+- Reason: Commit messages and code comments written in French with accents were displayed badly in the GitHub logs (UTF-8 display). The repository conventions require English code comments; user-visible text stays bilingual (French and English).
+- Changes:
+  - Comments only: 9 comment lines translated from French to English. No code, string, docstring or option was changed.
+  - Copyright line written "Quebec" (no accent), for the same reason.
+  - Shared module used by several programs: the translated comments do not change any behavior. Files: apps/_listes.py.
+- Bugs fixed: none (translation only).
+- Safeguards and edge cases:
+  - Only comment text changed: the non-comment lines of the file are identical to the previous version (checked with git diff).
+  - Docstrings and user-visible strings keep their current (bilingual) text.
+- Checks:
+  - Syntax check (bash -n or python py_compile) and a diff check showing that only comments changed.
+  - Test suite nginx-tools-tests/run-all.sh (result given in the pull request).
+- Action required: none.
+
 
 ### 1.3.20261020.211944 - Current version. Earlier history archived outside the repository.
 
 ## apps/_odoo_conf.py
 
+### 1.4.20261022.231529 - Code comments translated to English
+
+- Title: Code comments translated to English (repository convention).
+- Reason: Commit messages and code comments written in French with accents were displayed badly in the GitHub logs (UTF-8 display). The repository conventions require English code comments; user-visible text stays bilingual (French and English).
+- Changes:
+  - Comments only: 2 comment lines translated from French to English. No code, string, docstring or option was changed.
+  - Copyright line written "Quebec" (no accent), for the same reason.
+  - Shared module used by several programs: the translated comments do not change any behavior. Files: apps/_odoo_conf.py.
+- Bugs fixed: none (translation only).
+- Safeguards and edge cases:
+  - Only comment text changed: the non-comment lines of the file are identical to the previous version (checked with git diff).
+  - Docstrings and user-visible strings keep their current (bilingual) text.
+- Checks:
+  - Syntax check (bash -n or python py_compile) and a diff check showing that only comments changed.
+  - Test suite nginx-tools-tests/run-all.sh (result given in the pull request).
+- Action required: none.
+
+
 ### 1.3.20261020.211944 - Current version. Earlier history archived outside the repository.
 
 ## apps/_odoo_db.py
+
+### 1.21.20261022.231529 - Code comments translated to English
+
+- Title: Code comments translated to English (repository convention).
+- Reason: Commit messages and code comments written in French with accents were displayed badly in the GitHub logs (UTF-8 display). The repository conventions require English code comments; user-visible text stays bilingual (French and English).
+- Changes:
+  - Comments only: 13 comment lines translated from French to English. No code, string, docstring or option was changed.
+  - Copyright line written "Quebec" (no accent), for the same reason.
+  - Shared module used by several programs: the translated comments do not change any behavior. Files: apps/_odoo_db.py.
+- Bugs fixed: none (translation only).
+- Safeguards and edge cases:
+  - Only comment text changed: the non-comment lines of the file are identical to the previous version (checked with git diff).
+  - Docstrings and user-visible strings keep their current (bilingual) text.
+- Checks:
+  - Syntax check (bash -n or python py_compile) and a diff check showing that only comments changed.
+  - Test suite nginx-tools-tests/run-all.sh (result given in the pull request).
+- Action required: none.
+
 
 ### 1.20.20261022.133552 - Title: PostgreSQL queries run as the postgres user through sudo -n when the account is not root.
 - Changes: POSTGRES_RUN (runuser when root, « sudo -n -u postgres » otherwise) replaces the runuser prefix of the six queries.
@@ -368,13 +854,67 @@ Earlier history was archived outside this repository when this file was created.
 
 ## apps/_odoo_users.py
 
+### 1.3.20261022.231529 - Code comments translated to English
+
+- Title: Code comments translated to English (repository convention).
+- Reason: Commit messages and code comments written in French with accents were displayed badly in the GitHub logs (UTF-8 display). The repository conventions require English code comments; user-visible text stays bilingual (French and English).
+- Changes:
+  - Comments only: 3 comment lines translated from French to English. No code, string, docstring or option was changed.
+  - Copyright line written "Quebec" (no accent), for the same reason.
+  - Shared module used by several programs: the translated comments do not change any behavior. Files: apps/_odoo_users.py.
+- Bugs fixed: none (translation only).
+- Safeguards and edge cases:
+  - Only comment text changed: the non-comment lines of the file are identical to the previous version (checked with git diff).
+  - Docstrings and user-visible strings keep their current (bilingual) text.
+- Checks:
+  - Syntax check (bash -n or python py_compile) and a diff check showing that only comments changed.
+  - Test suite nginx-tools-tests/run-all.sh (result given in the pull request).
+- Action required: none.
+
+
 ### 1.2.20261019.150215 - Current version. Earlier history archived outside the repository.
 
 ## apps/_rapport.py
 
+### 1.13.20261022.231529 - Code comments translated to English
+
+- Title: Code comments translated to English (repository convention).
+- Reason: Commit messages and code comments written in French with accents were displayed badly in the GitHub logs (UTF-8 display). The repository conventions require English code comments; user-visible text stays bilingual (French and English).
+- Changes:
+  - Comments only: 12 comment lines translated from French to English. No code, string, docstring or option was changed.
+  - Copyright line written "Quebec" (no accent), for the same reason.
+  - Shared module used by several programs: the translated comments do not change any behavior. Files: apps/_rapport.py.
+- Bugs fixed: none (translation only).
+- Safeguards and edge cases:
+  - Only comment text changed: the non-comment lines of the file are identical to the previous version (checked with git diff).
+  - Docstrings and user-visible strings keep their current (bilingual) text.
+- Checks:
+  - Syntax check (bash -n or python py_compile) and a diff check showing that only comments changed.
+  - Test suite nginx-tools-tests/run-all.sh (result given in the pull request).
+- Action required: none.
+
+
 ### 1.12.20261019.150215 - Current version. Earlier history archived outside the repository.
 
 ## apps/_record.py
+
+### 1.3.20261022.231529 - Code comments translated to English
+
+- Title: Code comments translated to English (repository convention).
+- Reason: Commit messages and code comments written in French with accents were displayed badly in the GitHub logs (UTF-8 display). The repository conventions require English code comments; user-visible text stays bilingual (French and English).
+- Changes:
+  - Comments only: 6 comment lines translated from French to English. No code, string, docstring or option was changed.
+  - Copyright line written "Quebec" (no accent), for the same reason.
+  - Shared module used by several programs: the translated comments do not change any behavior. Files: apps/_record.py.
+- Bugs fixed: none (translation only).
+- Safeguards and edge cases:
+  - Only comment text changed: the non-comment lines of the file are identical to the previous version (checked with git diff).
+  - Docstrings and user-visible strings keep their current (bilingual) text.
+- Checks:
+  - Syntax check (bash -n or python py_compile) and a diff check showing that only comments changed.
+  - Test suite nginx-tools-tests/run-all.sh (result given in the pull request).
+- Action required: none.
+
 
 ### 1.2.20261022.133552 - Title: PostgreSQL samples mandatory; context/system.txt; writes per table; sudo -n for the journal of the service.
 - Changes: start() refuses the recording without psql, without a database, or without PostgreSQL access; context/system.txt (uid, sudo, operating system, kernel, Python, tool versions, no user name); db/writes-BASE.log (write counters per activity table at each sample); privileged() for the journal of the service.
@@ -394,13 +934,67 @@ Earlier history was archived outside this repository when this file was created.
 
 ## apps/_reseau.py
 
+### 1.4.20261022.231529 - Code comments translated to English
+
+- Title: Code comments translated to English (repository convention).
+- Reason: Commit messages and code comments written in French with accents were displayed badly in the GitHub logs (UTF-8 display). The repository conventions require English code comments; user-visible text stays bilingual (French and English).
+- Changes:
+  - Comments only: 7 comment lines translated from French to English. No code, string, docstring or option was changed.
+  - Copyright line written "Quebec" (no accent), for the same reason.
+  - Shared module used by several programs: the translated comments do not change any behavior. Files: apps/_reseau.py.
+- Bugs fixed: none (translation only).
+- Safeguards and edge cases:
+  - Only comment text changed: the non-comment lines of the file are identical to the previous version (checked with git diff).
+  - Docstrings and user-visible strings keep their current (bilingual) text.
+- Checks:
+  - Syntax check (bash -n or python py_compile) and a diff check showing that only comments changed.
+  - Test suite nginx-tools-tests/run-all.sh (result given in the pull request).
+- Action required: none.
+
+
 ### 1.3.20261019.150215 - Current version. Earlier history archived outside the repository.
 
 ## apps/_sysperf.py
 
+### 1.3.20261022.231529 - Code comments translated to English
+
+- Title: Code comments translated to English (repository convention).
+- Reason: Commit messages and code comments written in French with accents were displayed badly in the GitHub logs (UTF-8 display). The repository conventions require English code comments; user-visible text stays bilingual (French and English).
+- Changes:
+  - Comments only: 4 comment lines translated from French to English. No code, string, docstring or option was changed.
+  - Copyright line written "Quebec" (no accent), for the same reason.
+  - Shared module used by several programs: the translated comments do not change any behavior. Files: apps/_sysperf.py.
+- Bugs fixed: none (translation only).
+- Safeguards and edge cases:
+  - Only comment text changed: the non-comment lines of the file are identical to the previous version (checked with git diff).
+  - Docstrings and user-visible strings keep their current (bilingual) text.
+- Checks:
+  - Syntax check (bash -n or python py_compile) and a diff check showing that only comments changed.
+  - Test suite nginx-tools-tests/run-all.sh (result given in the pull request).
+- Action required: none.
+
+
 ### 1.2.20261019.150215 - Current version. Earlier history archived outside the repository.
 
 ## run-all.sh
+
+### 1.196.20261022.231529 - Code comments translated to English
+
+- Title: Code comments translated to English (repository convention).
+- Reason: Commit messages and code comments written in French with accents were displayed badly in the GitHub logs (UTF-8 display). The repository conventions require English code comments; user-visible text stays bilingual (French and English).
+- Changes:
+  - Comments only: 55 comment lines translated from French to English. No code, string, docstring or option was changed.
+  - Copyright line written "Quebec" (no accent), for the same reason.
+  - Files: nginx-tools-tests/run-all.sh.
+- Bugs fixed: none (translation only).
+- Safeguards and edge cases:
+  - Only comment text changed: the non-comment lines of the file are identical to the previous version (checked with git diff).
+  - Help texts and generated configuration templates are not translated (they are displayed, or compared with shipped files, by the tests): their French text is kept on purpose.
+- Checks:
+  - Syntax check (bash -n or python py_compile) and a diff check showing that only comments changed.
+  - Test suite nginx-tools-tests/run-all.sh (result given in the pull request).
+- Action required: none.
+
 
 ### 1.195.20261022.083937 - Title: test_record: steps of the test (N key of app-log-live.py).
 - Reason: New test of the step markers (N key) of the test recording.
@@ -415,4 +1009,61 @@ Earlier history was archived outside this repository when this file was created.
 
 ## apps/_traduire.py
 
+### 1.6.20261022.231529 - Code comments translated to English
+
+- Title: Code comments translated to English (repository convention).
+- Reason: Commit messages and code comments written in French with accents were displayed badly in the GitHub logs (UTF-8 display). The repository conventions require English code comments; user-visible text stays bilingual (French and English).
+- Changes:
+  - Comments only: 12 comment lines translated from French to English. No code, string, docstring or option was changed.
+  - Copyright line written "Quebec" (no accent), for the same reason.
+  - Shared module used by several programs: the translated comments do not change any behavior. Files: apps/_traduire.py.
+- Bugs fixed: none (translation only).
+- Safeguards and edge cases:
+  - Only comment text changed: the non-comment lines of the file are identical to the previous version (checked with git diff).
+  - Docstrings and user-visible strings keep their current (bilingual) text.
+- Checks:
+  - Syntax check (bash -n or python py_compile) and a diff check showing that only comments changed.
+  - Test suite nginx-tools-tests/run-all.sh (result given in the pull request).
+- Action required: none.
+
+
 ### 1.5.20261019.150215 - Current version. Earlier history archived outside the repository.
+
+## doc/build_docs.py
+
+### 1.7.20261022.231529 - Code comments translated to English
+
+- Title: Code comments translated to English (repository convention).
+- Reason: Commit messages and code comments written in French with accents were displayed badly in the GitHub logs (UTF-8 display). The repository conventions require English code comments; user-visible text stays bilingual (French and English).
+- Changes:
+  - Comments only: 3 comment lines translated from French to English. No code, string, docstring or option was changed.
+  - Copyright line written "Quebec" (no accent), for the same reason.
+  - Files: doc/build_docs.py.
+- Bugs fixed: none (translation only).
+- Safeguards and edge cases:
+  - Only comment text changed: the non-comment lines of the file are identical to the previous version (checked with git diff).
+  - Docstrings and user-visible strings keep their current (bilingual) text.
+- Checks:
+  - Syntax check (bash -n or python py_compile) and a diff check showing that only comments changed.
+  - Test suite nginx-tools-tests/run-all.sh (result given in the pull request).
+- Action required: none.
+
+## nginx-tools-tests/stats_runner.py
+
+### 1.1.20261022.231529 - Code comments translated to English
+
+- Title: Code comments translated to English (repository convention).
+- Reason: Commit messages and code comments written in French with accents were displayed badly in the GitHub logs (UTF-8 display). The repository conventions require English code comments; user-visible text stays bilingual (French and English).
+- Changes:
+  - Comments only: 4 comment lines translated from French to English. No code, string, docstring or option was changed.
+  - Copyright line written "Quebec" (no accent), for the same reason.
+  - Files: nginx-tools-tests/stats_runner.py.
+- Bugs fixed: none (translation only).
+- Safeguards and edge cases:
+  - Only comment text changed: the non-comment lines of the file are identical to the previous version (checked with git diff).
+  - Docstrings and user-visible strings keep their current (bilingual) text.
+- Checks:
+  - Syntax check (bash -n or python py_compile) and a diff check showing that only comments changed.
+  - Test suite nginx-tools-tests/run-all.sh (result given in the pull request).
+- Action required: none.
+

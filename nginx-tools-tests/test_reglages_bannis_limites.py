@@ -54,7 +54,7 @@ class ToutEstSauvegarde(Base):
         start = text.index("    def key(key_value):")
         key = text[start:text.index("\n    def ", start + 10)]
         modifiees = set(re.findall(r'options\["([a-z_]+)"\]\s*=(?!=)', key)) | set(re.findall(r'^\s*options\["([a-z_]+)"\],', key, re.M))
-        derives = {"highlight_pattern", "membres"}                         # recalculés à partir d'une autre option
+        derives = {"highlight_pattern", "membres"}                         # recalculated from another option
         body = text[text.index("def config_values"):text.index("def config_changes")]
         for name in sorted(modifiees - derives):
             with self.subTest(option=name):
@@ -75,7 +75,7 @@ class ToutEstSauvegarde(Base):
         self.assertEqual(problems, [])
         self.assertEqual((defaults["time_report"], defaults["chime"], defaults["only"], defaults["suspect"], defaults["watch"], defaults["accentuate_group"], defaults["dns_max"]),
                          (10.0, 1, ["a", "b"], True, "reg", "Equipe", 60))
-        self.assertNotIn("dns_max_truncate", defaults)        # vide : option non touchée
+        self.assertNotIn("dns_max_truncate", defaults)        # empty: option not touched
 
     def test_ecriture_dans_le_fichier(self):
         live = self.live()
@@ -100,7 +100,7 @@ class DejaBannie(Base):
         with mock.patch.dict(os.environ, {"PATH": self.bin + os.pathsep + os.environ["PATH"]}):
             live = self.live()
             ips = {str(a) for a in live.Bans.read_firewall()}
-        self.assertEqual(ips, {"11.26.17.163", "11.0.67.32"})      # le réseau 10.0.0.0/8 n'est pas une adresse
+        self.assertEqual(ips, {"11.26.17.163", "11.0.67.32"})      # the network 10.0.0.0/8 is not an address
 
     def test_pare_feu_illisible(self):
         self.mock("iptables", "exit 1")
@@ -169,7 +169,7 @@ class SuiviCustoms(Base):
         self.assertLess(text.index("rlq_a"), text.index("rlq_survey_report"))
         self.assertLess(text.index("rlq_survey_report"), text.index("zzz_autre"))
         self.assertIn("18.0.1.105.0", T(text))
-        self.assertNotIn("Odoo S.A.", T(text.split("Version", 1)[1]))            # les modules standards ne sont pas listés
+        self.assertNotIn("Odoo S.A.", T(text.split("Version", 1)[1]))            # standard modules are not listed
         self.assertIn("Odoo 18.0.1.3", T(text))
 
     def test_lecture_impossible_est_expliquee(self):
@@ -191,7 +191,7 @@ class SuiviCustoms(Base):
         m = lambda name, v: {"nom": name, "etat": "installed", "version": v, "auteur": "RLQ", "maj": None, "cree": None}
         state = [m("base", "18.0.1.3"), m("rlq_b", "1.0"), m("rlq_a", "2.0"), m("zeta", "9.0"), m("alpha", "1.5")]
         raw = lambda sort_by: re.sub(r"\x1b\[[0-9;]*m", "", "\n".join(live.customs_tracking_lines(self.Db(state), None, [], sort_by)))
-        t = raw(("name", True, True))                               # nom décroissant : les rlq* restent en tête
+        t = raw(("name", True, True))                               # decreasing name: the rlq* ones stay at the top
         self.assertLess(t.index("rlq_a"), t.index("rlq_b"))
         self.assertLess(t.index("rlq_b"), t.index("zeta"))
         self.assertLess(t.index("zeta"), t.index("alpha"))
@@ -202,7 +202,7 @@ class SuiviCustoms(Base):
 class Connectes(Base):
     def test_odoo_et_ssh(self):
         self.mock("who", 'echo "marcel   pts/0        2026-10-15 08:01 (192.0.2.7)"; echo "root     tty1         2026-10-15 07:00"')
-        self.mock("ss", 'case "$*" in *-Htlnp*) echo \'LISTEN 0 128 0.0.0.0:2222 0.0.0.0:* users:(("sshd",pid=7,fd=3))\';; *) echo "ESTAB 0 0 10.0.0.1:2222 192.0.2.7:5555";; esac')   # 1.81 : sshd écoute sur 2222
+        self.mock("ss", 'case "$*" in *-Htlnp*) echo \'LISTEN 0 128 0.0.0.0:2222 0.0.0.0:* users:(("sshd",pid=7,fd=3))\';; *) echo "ESTAB 0 0 10.0.0.1:2222 192.0.2.7:5555";; esac')   # 1.81: sshd listens on 2222
         live = self.live()
         p = live.Presence(15)
         now = time.time()

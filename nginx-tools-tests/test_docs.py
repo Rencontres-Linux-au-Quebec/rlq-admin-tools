@@ -31,9 +31,9 @@ def _termes_personnels():
 
 PERSONNEL = re.compile("|".join([r"gmail\.com", r"rencontres-linux\.quebec", r"services-conseils"] + _termes_personnels()), re.I)
 
-# run-all 1.192 : le nom LÉGAL de l'entreprise est permis comme auteur du module Odoo (titulaire du droit d'auteur, champ exigé par Odoo), et SEULEMENT
-# là : clé « author » d'un __manifest__.py. Seul ce nom exact est retiré de la ligne avant la recherche ; le reste de la ligne reste vérifié (un courriel
-# ou un nom personnel ajouté à l'auteur échoue toujours) ; ailleurs (pages, XML, autres clés du manifeste) le terme reste interdit.
+# run-all 1.192: the company's LEGAL name is allowed as author of the Odoo module (copyright holder, field required by Odoo), and ONLY
+# there: the "author" key of a __manifest__.py. Only this exact name is removed from the line before the search; the rest of the line remains checked (an e-mail
+# or a personal name added to the author always fails); elsewhere (pages, XML, other manifest keys) the term remains forbidden.
 AUTEUR_LEGAL = re.compile(r"Services-Conseils Linux Inc\.")
 CLE_AUTEUR = re.compile(r"""^\s*\{?\s*['"]author['"]\s*:""")
 
@@ -79,7 +79,7 @@ class Documentation(unittest.TestCase):
                     self.assertEqual(len(page), 1, programme)
                     texte = open(os.path.join(self.dossier.name, "build", langue, page[0]), encoding="utf-8").read()
                     self.assertNotIn("{{HELP}}", texte)
-                    self.assertIn("--report-err", texte)                              # l'aide réelle du programme est dans la page
+                    self.assertIn("--report-err", texte)                              # the program's real help is on the page
                     self.assertIn("--anonymize", texte)
 
     def test_langue_de_l_aide_inseree(self):
@@ -108,12 +108,12 @@ class Documentation(unittest.TestCase):
         self.assertIsNone(donnee_personnelle("rlq_tools_docs/__manifest__.py", auteur))
         self.assertIsNone(donnee_personnelle("__manifest__.py", "{'author': 'Services-Conseils Linux Inc.',\n"))
         cas_refuses = (
-            ("__manifest__.py", "    'author': 'Services-Conseils Linux Inc., Jean Exemple <jean.exemple@gmail.com>',\n"),  # courriel ajouté à l'auteur
-            ("__manifest__.py", "    'author': 'services-conseils',\n"),                                       # pas le nom légal exact
-            ("__manifest__.py", "    'summary': 'Services-Conseils Linux Inc. documentation',\n"),             # autre clé du manifeste
+            ("__manifest__.py", "    'author': 'Services-Conseils Linux Inc., Jean Exemple <jean.exemple@gmail.com>',\n"),  # e-mail added to the author
+            ("__manifest__.py", "    'author': 'services-conseils',\n"),                                       # not the exact legal name
+            ("__manifest__.py", "    'summary': 'Services-Conseils Linux Inc. documentation',\n"),             # other manifest key
             ("__manifest__.py", "    'website': 'https://rencontres-linux.quebec',\n"),
             ("08-odoo-backup.md", "Auteur : Services-Conseils Linux Inc.\n"),                                 # page de documentation
-            ("docs_pages.xml", "    'author': 'Services-Conseils Linux Inc.',\n"),                            # même ligne hors du manifeste
+            ("docs_pages.xml", "    'author': 'Services-Conseils Linux Inc.',\n"),                            # same line outside the manifest
         )
         for fichier, ligne in cas_refuses:
             with self.subTest(fichier=fichier, ligne=ligne.strip()):
