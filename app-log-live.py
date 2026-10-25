@@ -105,7 +105,7 @@ from urllib.parse import unquote
 from collections import Counter, OrderedDict
 from concurrent.futures import Future
 
-__version__ = "1.109.20261025.162831"
+__version__ = "1.110.20261025.172827"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
@@ -4071,7 +4071,7 @@ class Stats:
             health = [text_line for text_line in health if not ANSI_RE.sub("", text_line).lstrip().startswith("✔")]
         res.extend(health)
         if not self.requests:
-            return res + ["  No request in the lines shown."] + list(people) + (list(extras) if level >= 9 else [])
+            return res + ["  No request in the lines shown."] + (list(people) if level >= 5 else []) + (list(extras) if level >= 9 else [])
         blocks = []                                                   # [(minimum level, line)] in the display order of level 9
         if 2 <= level <= 5:
             blocks.append((2, self.activity_one_line()))
@@ -4139,7 +4139,7 @@ class Stats:
         res.extend(text_line for n, text_line in blocks if n <= level)
         if level < LEVEL_MAX:
             res.append(color_code(STYLES["title"], f"  Level {level} out of {LEVEL_MAX}") + " — keys 1 to 9 for more or less detail (9 = everything)")
-        return res + list(people) + (list(extras) if level >= 9 else [])
+        return res + (list(people) if level >= 5 else []) + (list(extras) if level >= 9 else [])
 
 
 class Output:
@@ -4655,7 +4655,7 @@ def follow(cmd, people, resolver, options, output):
         now_dt, res, cache = stats.snapshot(), Resources.measure(), Counter(resolver.counters)
         before_res, before_cache = (ref["res"], ref["cache"]) if delta else (resources0, Counter())
         period = now_dt.since(ref["stats"]) if delta else now_dt
-        # 1.109: "Who is connected now" is shown at every level (Ctrl-G and Ctrl-T), not only at level 9 (it was hidden at levels 1 to 8).
+        # 1.110: "Who is connected now" is shown from level 5 (Ctrl-G and Ctrl-T); before, only at level 9.
         people = ["  " + color_code(STYLES["title"], "Who is connected now")] + logged_in_lines(options.get("presence"))
         extras = ["  " + color_code(STYLES["title"], "Program efficiency")] + [measured_numbers(l) for l in Resources.lines(before_res, res) + cache_lines(before_cache, cache)] + socket_lines()
         lines = period.summary(extras, Resources.alerts(before_res, res),

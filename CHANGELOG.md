@@ -91,6 +91,26 @@ Earlier history was archived outside this repository when this file was created.
 
 ## app-log-live.py
 
+### 1.110.20261025.172827 - "Who is connected now" shown from level 5
+
+- Title: The list of connected users is shown from dashboard level 5 (Ctrl-G and Ctrl-T), not at every level.
+- Reason: Request from the maintainer: the connected users must appear when the level is 5 or more, not only at level 9.
+- Changes:
+  - app-log-live.py, summary(): the `people` lines are added when level >= 5 (both return paths). Before this version (1.109), they were added at every level.
+  - app-log-live.py, table_rows(): comment updated.
+  - Version: __version__ 1.110.20261025.172827.
+  - Files: app-log-live.py, CHANGELOG.md.
+- Bugs fixed: none.
+- Safeguards and edge cases:
+  - Levels 1 to 4: connected users are hidden (as before 1.109). Levels 5 to 8: shown without the "Program efficiency" block. Level 9: everything, as before.
+  - Detection unchanged (ssh_sessions(), Odoo presence).
+- Checks:
+  - python3 -I -m py_compile app-log-live.py: OK.
+  - app-log-live.py --version: 1.110.20261025.172827.
+  - logged_in_lines() with a fake "who" in PATH: "Connected over SSH: 1 (martial ×1)".
+  - Not run: the full test suite test_app_log_live.py (to be run with the testeur agent before the pull request is merged).
+- Action required: none.
+
 ### 1.109.20261025.162831 - "Who is connected now" shown with Ctrl-T at every level
 
 - Title: The list of connected users is shown by Ctrl-T (and Ctrl-G) whatever the dashboard level.
