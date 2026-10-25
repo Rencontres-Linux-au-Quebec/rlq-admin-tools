@@ -466,6 +466,60 @@ Earlier history was archived outside this repository when this file was created.
 
 ## odoo-warmup.py
 
+### 1.19.20261025.192521 - Default wait of 20 seconds instead of 120
+
+- Title: The default --wait (and key WAIT) is 20 seconds.
+- Reason: Requested. Odoo is normally up well before 120 seconds; a shorter default fails sooner when the service is really stopped.
+- Changes:
+  - DEFAULT_WAIT: 120 -> 20. REQUEST_TIMEOUT (120 s per request) is unchanged.
+  - doc/fr and doc/en odoo-warmup.conf.example: #WAIT=20.
+  - Files: odoo-warmup.py, doc/fr/odoo-warmup.conf.example, doc/en/odoo-warmup.conf.example.
+- Bugs fixed: none.
+- Safeguards and edge cases:
+  - A slow start longer than 20 seconds: use --wait 120 or WAIT=120 in the configuration file.
+- Checks:
+  - py_compile; test suite test_odoo_warmup.
+- Action required: none, unless Odoo needs more than 20 seconds to answer after a restart; then set WAIT=120.
+
+### 1.18.20261025.192316 - Warm-up through nginx, as the visitors do, when HOST is set
+
+- Title: With the key HOST, the warm-up goes through nginx (HTTPS on this machine), and directly to Odoo only if nginx does not answer.
+- Reason: The warm-up asked Odoo directly on its port, without nginx. Odoo then gets no REQUEST_URI, and the first render of /en_CA/web/login fails with KeyError REQUEST_URI at each start. Visitors go through nginx and do not see this error.
+- Changes:
+  - New key HOST (site name, in /etc/default/odoo-warmup.conf or ~/.odoo-warmup.conf). Used only when URL and --url are not set.
+  - _NginxConnection / _NginxHandler: the TCP connection goes to 127.0.0.1:443 (NGINX_ADDRESS); the TLS name (SNI), the Host header and the certificate check use HOST, as a browser does. The system proxy is not used.
+  - main(): with HOST, nginx is probed on /web/login; if it answers 200, 302 or 303, the warm-up uses https://HOST; otherwise direct detection (1.14 to 1.15) applies.
+  - Files: odoo-warmup.py, lang/odoo-warmup.fr.po (keys list in the help and in the messages).
+- Bugs fixed:
+  - Symptom: a KeyError REQUEST_URI in the Odoo log at each warm-up run, never for visitors.
+  - Diagnosis: the warm-up bypassed nginx; the visitors' path through nginx does not raise it (200 on the same page via nginx, HTTP/HTTPS on the local address).
+  - Correction: the warm-up uses the same path as the visitors when HOST is set.
+- Safeguards and edge cases:
+  - The certificate is checked for HOST: a wrong name or an invalid certificate makes nginx count as not answering, and the direct path is used.
+  - Without HOST, behaviour is unchanged.
+- Checks:
+  - py_compile; test suite test_odoo_warmup; local TLS server with a self-signed certificate for odoo-dev.test: the right name answers 200 and the Host header is received; a wrong name gives no answer (0).
+- Action required: add HOST=odoo-dev.rencontres-linux.quebec to /etc/default/odoo-warmup.conf (or ~/.odoo-warmup.conf), then run the warm-up. Check that the Odoo log no longer shows KeyError REQUEST_URI.
+
+### 1.17.20261025.191509 - Up to four tries for a public page answering 5xx
+
+- Title: A public page answering 5xx is requested up to four times, one second apart.
+- Reason: After a restart, Odoo runs several processes and each builds its template cache at its first render. One retry (version 1.16) could still reach a process that was not ready yet. The log showed a 500, then a 200 one second later on the same page.
+- Changes:
+  - load_page(): up to PUBLIC_ATTEMPTS (4) tries, RETRY_PAUSE (1 second) between them; the last answer is recorded.
+  - Files: odoo-warmup.py.
+- Bugs fixed:
+  - Symptom: a 500 in the Odoo log at each start, even with 1.16.
+  - Diagnosis: a single retry does not guarantee to reach a warm process; the log showed several processes loading the registry.
+  - Correction: several tries.
+- Safeguards and edge cases:
+  - Only 5xx answers are retried; a 404 (optional page) is not.
+  - A page still answering 5xx after four tries is recorded as a failure.
+  - Calling /web/login first was considered and not kept: it answers 303 and does not render the layout.
+- Checks:
+  - py_compile; test suite test_odoo_warmup; scripted client: 500, 500, 200 is recorded as 200 after 3 calls; five times 500 is recorded as 500 after 4 calls.
+- Action required: none. The 500 may still appear in the Odoo log at a cold start; the warm-up reports it as success if a later try answers 200.
+
 ### 1.16.20261025.185140 - One retry for a public page answering 5xx
 
 - Title: A public page answering 5xx is requested once more after one second.

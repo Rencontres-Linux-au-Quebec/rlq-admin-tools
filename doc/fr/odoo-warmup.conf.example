@@ -41,7 +41,7 @@
 # yes : afficher chaque commande externe exécutée (équivalent de --verbose). Peut aussi venir du fichier commun app-default.conf (clés VERBOSE et DEBUG_LEVEL).
 #VERBOSE=no
 # --wait : secondes d'attente qu'Odoo réponde avant de préchauffer
-#WAIT=120
+#WAIT=20
 
 # --- Options de la ligne de commande SEULEMENT (actions ou réglages ponctuels : aucune clé ici) ---
 # Les voici, pour mémoire (« odoo-warmup --help » donne le détail). Elles se donnent sur la ligne de commande, jamais dans ce fichier.
