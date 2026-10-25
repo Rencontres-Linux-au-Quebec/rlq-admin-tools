@@ -51,7 +51,7 @@ try:                    # line editing in prompts
 except ImportError:
     pass
 
-__version__ = "1.12.20261025.172228"
+__version__ = "1.13.20261025.174351"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
@@ -562,28 +562,37 @@ def odoo_ports_from_conf():
     return []
 
 
+def _listening_lines():
+    """Listening TCP sockets, one text line per socket: ss (iproute2) first, then netstat (net-tools); [] if neither works."""
+    for commande in (["ss", "-ltnpH"], ["netstat", "-tlnp"]):
+        try:
+            sortie = subprocess.run(commande, capture_output=True, text=True, timeout=5, check=False).stdout
+        except (OSError, subprocess.SubprocessError):
+            continue
+        if sortie.strip():
+            return sortie.splitlines()
+    return []
+
+
 def odoo_ports_listening():
-    """TCP ports listened to by a Python process whose command line mentions odoo (ss, Linux); [] if unavailable."""
-    try:
-        sortie = subprocess.run(["ss", "-ltnpH"], capture_output=True, text=True, timeout=5, check=False).stdout
-    except (OSError, subprocess.SubprocessError):
-        return []
+    """TCP ports listened to by a Python process whose command line mentions odoo; [] if unavailable.
+    Without root, the command line of another user's process may be unreadable: the process name (python) is then accepted."""
     ports = []
-    for ligne in sortie.splitlines():
+    for ligne in _listening_lines():
         champs = ligne.split()
         if len(champs) < 4 or "python" not in ligne:
             continue
-        pids = re.findall(r"pid=(\d+)", ligne)
+        pids = re.findall(r"pid=(\d+)", ligne) or re.findall(r"\s(\d+)/\S+", ligne)
         if pids:
             try:
                 with open(f"/proc/{pids[0]}/cmdline", "rb") as f:
                     commande = f.read().decode("utf-8", "replace")
             except OSError:
-                commande = ""                              # not readable without root: the process name is python
+                commande = ""
             if commande and "odoo" not in commande.lower():
                 continue
         port = champs[3].rsplit(":", 1)[-1]
-        if port.isdigit():
+        if port.isdigit() and int(port) not in ports:
             ports.append(int(port))
     return ports
 
@@ -596,12 +605,17 @@ def detect_odoo_url():
     for port in odoo_ports_from_conf() + odoo_ports_listening():
         if port not in candidats:
             candidats.append(port)
+    answering = []
     for port in candidats:
-        url = f"http://127.0.0.1:{port}"
-        code, _, _ = Client(url).request_("/web/login")
+        code, _, _ = Client(f"http://127.0.0.1:{port}").request_("/web/login")
         if code in (200, 302, 303):
-            print(f"Odoo detected on port {port} ({url})")
-            return url
+            answering.append(port)
+    if answering:
+        port = answering[0]
+        print(f"Odoo detected on port {port} (http://127.0.0.1:{port})")
+        if len(answering) > 1:
+            print(f"WARNING: several Odoo ports answer {answering}: the first one is used; choose one with --url or URL in the configuration file")
+        return f"http://127.0.0.1:{port}"
     if candidats:
         print(f"No answer on the detected port(s) {candidats}, waiting on port {candidats[0]}")
         return f"http://127.0.0.1:{candidats[0]}"

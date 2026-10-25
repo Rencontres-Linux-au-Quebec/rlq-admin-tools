@@ -466,6 +466,25 @@ Earlier history was archived outside this repository when this file was created.
 
 ## odoo-warmup.py
 
+### 1.13.20261025.174351 - Port detection with netstat, and warning when several Odoo ports answer
+
+- Title: Port detection also works where ss is missing (netstat), and several answering Odoo ports are reported.
+- Reason: On the production server (Debian-like, netstat installed, ss absent) the detection found nothing, so the default 8069 was used. Odoo listens on 10002 and 10000 (python3). Also, when several Odoo ports answer, the first one was used silently.
+- Changes:
+  - Listening sockets: ss -ltnpH first, then netstat -tlnp when ss is missing or empty (function _listening_lines()).
+  - Several answering ports: the first one is still used, but a WARNING line lists all of them and asks for --url or URL.
+  - Files: odoo-warmup.py.
+- Bugs fixed:
+  - Symptom: "No Odoo port detected, default http://127.0.0.1:8069" although python3 processes listen on 10002 and 10000.
+  - Diagnosis: the program only knew the ss command; netstat output was not read.
+  - Correction: netstat fallback and parser checked on the netstat output of the server.
+- Safeguards and edge cases:
+  - Without root, a process command line can be unreadable: the process name (python) is then accepted.
+  - Neither ss nor netstat available: no candidate from the processes; configuration file and default port still apply.
+- Checks:
+  - py_compile of odoo-warmup.py; parser run on the netstat output of the server (ports 10002 and 10000 found).
+- Action required: none. If the warning appears on the server, choose the port with --url or URL in /etc/default/odoo-warmup.conf.
+
 ### 1.12.20261025.172228 - Automatic detection of the Odoo port
 
 - Title: Automatic detection of the Odoo HTTP port when --url and URL are not set.
