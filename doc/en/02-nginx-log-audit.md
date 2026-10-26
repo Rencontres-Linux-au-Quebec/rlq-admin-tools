@@ -26,5 +26,22 @@ Every `--ban` and `--unban` records in `~/.local/state/nginx-log-audit/bans.tsv`
 
 Refusals produced by our nginx rules are logged to `blocked-probes.log`, not to the site logs; investigations and evidence read it too ("Requests REFUSED by nginx"), otherwise a banned address would look as if it had made no request.
 
+## Reviewing manual bans every day (`--unban-check`)
+
+`--unban-check` (run as root) re-evaluates each manual ban with the current rules and proposes lifting the unjustified ones. Its verdicts:
+
+- **justified**: at least one strong sign (sensitive files, errors in bulk, fake search engine, catch-all sensor) or repeated refusals in `blocked-probes.log`: keep it;
+- **to check**: a single burst of pages and no strong sign: a browser or a monitoring tool can do that. Nothing is lifted by this verdict; read the requests and decide;
+- **inconsistent**: the address changed during the investigation: no verdict, run `--investigate` again;
+- **without trace**: no request left in the logs: the ban history (fail2ban jails, ban log) is shown.
+
+After the list, the section **AUTRES POINTS A RE-VERIFIER** runs read-only checks and prints the command for each: team addresses among the bans, fail2ban jails, addresses refused by nginx that also received normal pages (possible false positive), logs used by the checks, and the commands to run by hand for each address to check. Its sections 1 to 5 can be copied as they are for a review.
+
+To run it every morning, as root:
+
+```
+0 7 * * * root /root/scripts/nginx-log-audit.sh prod --unban-check --no-prompt
+```
+
 ## Options
 {{HELP}}

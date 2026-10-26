@@ -26,5 +26,22 @@ Chaque `--ban` et `--unban` enregistre dans `~/.local/state/nginx-log-audit/bans
 
 Les refus produits par nos règles nginx sont journalisés dans `blocked-probes.log`, pas dans les journaux des sites ; les enquêtes et les preuves le lisent aussi (« Requêtes REFUSÉES par nginx »), sinon une adresse bannie semblerait n'avoir fait aucune requête.
 
+## Revue quotidienne des bannissements manuels (`--unban-check`)
+
+`--unban-check` (lancé en root) réévalue chaque bannissement manuel avec les règles actuelles et propose de lever ceux qui ne sont plus justifiés. Ses verdicts :
+
+- **justifié** : au moins un signe fort (fichiers sensibles, erreurs en masse, faux moteur de recherche, capteur catch-all) ou des refus répétés dans `blocked-probes.log` : on le garde ;
+- **à vérifier** : une seule rafale de pages, sans signe fort : un navigateur ou un outil de surveillance peut faire cela. Ce verdict ne lève RIEN ; lisez les requêtes et décidez ;
+- **incohérente** : l'adresse a changé pendant l'enquête : aucun verdict, relancer `--investigate` ;
+- **sans trace** : plus aucune requête dans les journaux : l'historique des bannissements (jails fail2ban, journal des bannissements) est affiché.
+
+Après la liste, la section **AUTRES POINTS À RE-VÉRIFIER** lance des contrôles en lecture seule et affiche la commande de chacun : adresses de l'équipe parmi les bannissements, jails fail2ban, adresses refusées par nginx qui ont aussi reçu des pages normales (faux positif possible), journaux utilisés, et les commandes à lancer à la main pour chaque adresse à vérifier. Ses sections 1 à 5 peuvent être copiées telles quelles pour une relecture.
+
+Pour le lancer chaque matin, en root :
+
+```
+0 7 * * * root /root/scripts/nginx-log-audit.sh prod --unban-check --no-prompt
+```
+
 ## Options
 {{HELP}}
