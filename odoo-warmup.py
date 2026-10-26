@@ -56,7 +56,7 @@ try:                    # line editing in prompts
 except ImportError:
     pass
 
-__version__ = "1.24.20261025.212138"
+__version__ = "1.25.20261025.214951"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
@@ -68,7 +68,7 @@ DEFAULT_URL = "http://127.0.0.1:8069"
 NGINX_ADDRESS = ("127.0.0.1", 443)                  # nginx of this server, HTTPS: the way visitors reach Odoo (variable: tests only)
 NGINX_HOST = None                                   # site name (key HOST) when the warm-up goes through nginx
 NGINX_DIR = os.environ.get("NGINX_TOOLS_ETC_NGINX", "/etc/nginx")      # variable: tests only
-PROBE_TIMEOUT = 3                                    # seconds for a detection probe (a port that is not HTTP must not block)
+PROBE_TIMEOUT = 10                                   # seconds for a detection probe (a port that is not HTTP must not block; Odoo can be slow after a start)
 RETRY_PAUSE = 1.0                                   # seconds between two tries of a public page answering 5xx
 PUBLIC_ATTEMPTS = 4                                 # tries of a public page answering 5xx (several Odoo processes)
 DEFAULT_PAGES = ["/", "/web/login", "/event", "/survey"]
@@ -754,6 +754,19 @@ def via_nginx(host):
     return None
 
 
+def config_illisibles():
+    """Odoo configuration files that exist (candidate patterns of apps/_odoo_conf.py) but cannot be read by this account."""
+    module = load_module("_odoo_conf")
+    if module is None:
+        return []
+    illisibles = []
+    for motif in module.chemins_candidats():
+        for chemin in glob.glob(motif):
+            if os.path.isfile(chemin) and not os.access(chemin, os.R_OK) and chemin not in illisibles:
+                illisibles.append(chemin)
+    return illisibles
+
+
 def detect_odoo_url():
     """Address of Odoo when neither --url nor URL is set. Candidates: the HTTP port of the Odoo configuration file, then the
     ports of the listening Python processes. A candidate counts as Odoo only if /web/login answers 200 with "odoo" in the page.
@@ -778,7 +791,13 @@ def detect_odoo_url():
     if len(candidats) == 1:
         print(f"No answer yet on port {candidats[0]}, waiting on it")
         return f"http://127.0.0.1:{candidats[0]}"
+    illisibles = config_illisibles()
+    if illisibles:
+        eprint(f"WARNING: the Odoo configuration file cannot be read by this account: {', '.join(illisibles)} (ports unknown).")
+        eprint(f"ATTENTION : le fichier de configuration d'Odoo n'est pas lisible par ce compte : {', '.join(illisibles)} (ports inconnus).")
     print(f"No single Odoo port detected, default {DEFAULT_URL}")
+    print("Set URL=http://127.0.0.1:PORT in /etc/default/odoo-warmup.conf (or ~/.odoo-warmup.conf) to skip the detection / "
+          "Mettez URL=http://127.0.0.1:PORT dans /etc/default/odoo-warmup.conf (ou ~/.odoo-warmup.conf) pour sauter la detection.")
     return DEFAULT_URL
 
 
