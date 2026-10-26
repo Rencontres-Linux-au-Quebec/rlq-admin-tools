@@ -56,7 +56,7 @@ try:                    # line editing in prompts
 except ImportError:
     pass
 
-__version__ = "1.20.20261025.194640"
+__version__ = "1.21.20261025.202416"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
@@ -240,6 +240,13 @@ class Client:
         self.opener = urllib.request.build_opener(*handlers)
 
     def request_(self, path, payload=None):
+        """(HTTP code, seconds, body as text); code 0 if the connection fails. With ODOO_WARMUP_TRACE set, each request is written to stderr."""
+        code, duration, text = self._request(path, payload)
+        if os.environ.get("ODOO_WARMUP_TRACE"):
+            print(f"TRACE {self.database}{path} -> HTTP {code} in {duration:.2f} s", file=sys.stderr)
+        return code, duration, text
+
+    def _request(self, path, payload=None):
         """(HTTP code, seconds, body as text); code 0 if the connection fails."""
         url = path if path.startswith("http") else self.database + path
         headers_list = {"User-Agent": "odoo-warmup", "Accept-Encoding": "identity"}
