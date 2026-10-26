@@ -466,6 +466,26 @@ Earlier history was archived outside this repository when this file was created.
 
 ## odoo-warmup.py
 
+### 1.29.20261025.223329 - No default survey page
+
+- Title: /survey is no longer a default public page; the survey links found in the pages are still followed.
+- Reason: The Odoo site has no /survey page (404 on /en_CA/survey and /survey); the warm-up requested it at every run.
+- Changes:
+  - DEFAULT_PAGES: /, /web/login, /event.
+  - Example configuration files (doc/fr and doc/en): PAGES without /survey.
+  - Test: the optional survey test sets PAGES=/,/survey explicitly.
+  - Files: odoo-warmup.py, doc/fr/odoo-warmup.conf.example, doc/en/odoo-warmup.conf.example, nginx-tools-tests/test_odoo_warmup.py, CHANGELOG.md.
+- Bugs fixed:
+  - Symptom: a 404 on /survey at every run, shown as optional.
+  - Diagnosis: the default list still contained /survey.
+  - Correction: removed from the default list.
+- Safeguards and edge cases:
+  - A survey that is in PAGES (configuration) is still requested and reported as optional.
+  - Survey links (/survey/start/...) found in the pages are still followed and never counted as failures.
+- Checks:
+  - py_compile; test suite test_odoo_warmup (17 tests).
+- Action required: if /etc/default/odoo-warmup-pages.conf (or the PAGES key of your configuration) lists /survey, remove that line.
+
 ### 1.28.20261025.221900 - Start by systemd: detection waits for Odoo to listen
 
 - Title: Started by the systemd drop-in, the warm-up waits up to 120 s for Odoo to listen before it chooses the port; the systemd options do not run the detection.

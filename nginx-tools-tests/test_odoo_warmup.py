@@ -101,7 +101,7 @@ class OdooWarmup(EnvTest):
         code, out, err = self.lancer("--url", self.url, "--wait", "5")
         self.assertEqual(code, 0, out + err)
         self.assertIn("Configuration lue :", out)
-        for page in ("/", "/web/login", "/event", "/survey"):
+        for page in ("/", "/web/login", "/event"):
             self.assertIn(("GET", page), FauxOdoo.appels)
         self.assertIn(("GET", "/web/assets/1/web.assets_frontend.min.css"), FauxOdoo.appels)
         self.assertIn(("GET", "/web/assets/2/web.assets_frontend.min.js"), FauxOdoo.appels)
@@ -189,6 +189,7 @@ class OdooWarmup(EnvTest):
     def test_pages_de_sondages_optionnelles(self):
         """Une page /survey qui échoue (404) est notée « (optionnel) » mais ne fait pas échouer le préchauffage."""
         FauxOdoo.survey_ok = False
+        self.conf("PAGES=/,/survey\n")
         code, out, err = self.lancer("--url", self.url, "--wait", "5", "--links", "0")
         self.assertEqual(code, 0, out + err)
         self.assertIn("/survey (optionnel)", out)

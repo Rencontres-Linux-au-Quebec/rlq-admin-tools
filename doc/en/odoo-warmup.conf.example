@@ -29,7 +29,7 @@
 # Modèles dont les vues (liste, formulaire, recherche, kanban) sont préchargées : les écrans que les administrateurs ouvrent.
 #MODELS=event.event,event.registration,event.event.ticket,survey.survey,survey.user_input,res.partner
 # Pages publiques à charger (et leurs assets), séparées par des virgules : ajouter les pages populaires (ex. la page d'un événement).
-#PAGES=/,/web/login,/event,/survey
+#PAGES=/,/web/login,/event
 # --pages-file : fichier des pages publiques supplémentaires, un chemin par ligne (modèle : doc/odoo-warmup-pages.conf.example ; ajouter une page = ajouter une ligne)
 #PAGES_FILE=/etc/default/odoo-warmup-pages.conf
 # --repeat : passages en parallèle de chaque appel d'administration (plusieurs processus d'Odoo)
