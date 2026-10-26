@@ -2042,3 +2042,15 @@ msgstr " to check, "
 
 msgid " incohérente(s)"
 msgstr " inconsistent"
+
+msgid "SOMMAIRE DES IP À DÉBANNIR : "
+msgstr "SUMMARY OF IPs TO UNBAN: "
+
+msgid "levée effectuée / lifted"
+msgstr "lifted"
+
+msgid "levée recommandée / lifting recommended"
+msgstr "lifting recommended"
+
+msgid "  (Chaque levée demande confirmation, IP par IP / each lift asks for confirmation, one IP at a time)"
+msgstr "  (each lift asks for confirmation, one IP at a time)"

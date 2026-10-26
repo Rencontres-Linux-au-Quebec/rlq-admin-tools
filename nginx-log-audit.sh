@@ -69,6 +69,7 @@
 #                        date of the ban if known, then verdict - lifting recommended (no sign of hostility, IP
 #                        protegee, moteur verifie), bannissement justifie, ou aucune trace (decision manuelle). Propose
 #                        la levee avec confirmation (terminal + root), sinon affiche la commande. Root requis.
+#                        With more than 5 IPs to lift, a summary of those IPs is printed after the BILAN line.
 #   - --export-bans [FICHIER] : exporte les bannissements MANUELS en place (IP, date du bannissement, serveur
 #                        d'origine), vers FICHIER ou la sortie standard. Root requis.
 #   - --import-bans FICHIER|- : bannit sur CE serveur les IP d'un export (- : entree standard). Apercu classe avant
@@ -129,7 +130,7 @@ grep_q() { grep "$@" >/dev/null; }
 #                              ne peut pas le voir, le texte etant entre apostrophes (faux positif).
 trap 'ec=$?; echo "" >&2; echo "*** ARRÊT INATTENDU DU SCRIPT (code $ec) À LA LIGNE $LINENO ***" >&2; echo "*** Commande fautive : $BASH_COMMAND" >&2; echo "*** Si le rapport ci-dessus semble incomplet (ex. sections Top 10 absentes), c'\''est probablement la cause." >&2' ERR
 
-readonly SCRIPT_VERSION="2.45.20261026.114649"
+readonly SCRIPT_VERSION="2.46.20261026.195327"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
 # Chemin de ce programme (relances --investigate, --ban, --unban) : defini ICI, avant le bloc --ban qui l'utilise.
 SELF_PATH="$SCRIPT_DIR/$(basename "${BASH_SOURCE[0]}")"
@@ -1873,6 +1874,8 @@ confirm_and_ban() {
 
 # --- --unban-check : reevaluation d'un bannissement manuel avec la logique actuelle ---------------------------------
 UNBAN_VERDICT=""
+readonly UNBAN_SUMMARY_MIN=5
+UNBAN_SUMMARY=()
 decide_unban() {
     local ip="$1" hostile="$2" score="$3" verified="$4" prot raison=""
     if [[ "$ENQUETE_INCOHERENTE" == "1" ]]; then
@@ -2182,7 +2185,8 @@ if [[ "$DO_UNBAN_CHECK" == "1" ]]; then
             fi
         fi
         case "$UNBAN_VERDICT" in
-            lever) n_lever=$((n_lever + 1)) ;; levé) n_lever=$((n_lever + 1)); n_leve=$((n_leve + 1)) ;;
+            lever) n_lever=$((n_lever + 1)); UNBAN_SUMMARY+=("$bip|lever") ;;
+            levé) n_lever=$((n_lever + 1)); n_leve=$((n_leve + 1)); UNBAN_SUMMARY+=("$bip|leve") ;;
             garder) n_garder=$((n_garder + 1)) ;;
             verifier) n_verif=$((n_verif + 1)); REVOIR_IPS+=("$bip") ;;
             incoherente) n_incoh=$((n_incoh + 1)); REVOIR_IPS+=("$bip") ;;
@@ -2193,6 +2197,21 @@ if [[ "$DO_UNBAN_CHECK" == "1" ]]; then
     echo "=============================================================="
     echo " BILAN : ${#BANS[@]} bannissement(s) — $n_garder justifié(s), $n_lever levée(s) recommandée(s)$([[ $n_leve -gt 0 ]] && echo " (dont $n_leve effectuée(s))"), $n_trace sans trace, $n_verif à vérifier, $n_incoh incohérente(s)"
     echo "=============================================================="
+    # Sommaire (2.45) : au-dela de UNBAN_SUMMARY_MIN IP a lever, la liste est repetee ici pour la relecture.
+    if (( ${#UNBAN_SUMMARY[@]} > UNBAN_SUMMARY_MIN )); then
+        echo
+        echo "${C_BOLD}SOMMAIRE DES IP À DÉBANNIR : ${#UNBAN_SUMMARY[@]} IP / SUMMARY OF IPs TO UNBAN: ${#UNBAN_SUMMARY[@]} IPs${C_RESET}"
+        for sum_entry in "${UNBAN_SUMMARY[@]}"; do
+            sum_ip="${sum_entry%%|*}"
+            if [[ "${sum_entry#*|}" == "leve" ]]; then
+                echo "  $sum_ip - ${C_GREEN}levée effectuée / lifted${C_RESET}"
+            else
+                echo "  $sum_ip - ${C_YELLOW}levée recommandée / lifting recommended${C_RESET}"
+            fi
+        done
+        echo "  (Chaque levée demande confirmation, IP par IP / each lift asks for confirmation, one IP at a time)"
+        echo "=============================================================="
+    fi
     revue_controles "${BANS[@]}"
     exit 0
 fi

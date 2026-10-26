@@ -34,16 +34,21 @@
 
 import argparse
 import concurrent.futures
+import glob
+import http.client
 import http.cookiejar
 import importlib.util
 import json
 import os
 import re
 import signal
+import socket
+import ssl
 import subprocess
 import sys
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 
 try:                    # line editing in prompts
@@ -51,7 +56,7 @@ try:                    # line editing in prompts
 except ImportError:
     pass
 
-__version__ = "1.11.20261022.231529"
+__version__ = "1.31.20261025.224500"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
@@ -60,10 +65,17 @@ SYSTEM_CONF = os.path.join(os.environ.get("NGINX_TOOLS_ETC_DEFAULT", "/etc/defau
 USER_CONF = "~/.odoo-warmup.conf"
 SYSTEMD_DIR = os.environ.get("NGINX_TOOLS_SYSTEMD_DIR", "/etc/systemd/system")                       # variable: tests only
 DEFAULT_URL = "http://127.0.0.1:8069"
+NGINX_ADDRESS = ("127.0.0.1", 443)                  # nginx of this server, HTTPS: the way visitors reach Odoo (variable: tests only)
+NGINX_HOST = None                                   # site name (key HOST) when the warm-up goes through nginx
+NGINX_DIR = os.environ.get("NGINX_TOOLS_ETC_NGINX", "/etc/nginx")      # variable: tests only
+PROBE_TIMEOUT = 10                                   # seconds for a detection probe (a port that is not HTTP must not block; Odoo can be slow after a start)
+RETRY_PAUSE = 1.0                                   # seconds between two tries of a public page answering 5xx
+PUBLIC_ATTEMPTS = 4                                 # tries of a public page answering 5xx (several Odoo processes)
 DEFAULT_PAGES = ["/", "/web/login", "/event", "/survey"]
 DEFAULT_MODELS = ["event.event", "event.registration", "event.event.ticket", "survey.survey", "survey.user_input", "res.partner"]
 VIEWS = [[False, "list"], [False, "form"], [False, "search"], [False, "kanban"]]
-DEFAULT_REPETITIONS, DEFAULT_WAIT, REQUEST_TIMEOUT = 4, 120, 120
+DEFAULT_REPETITIONS, DEFAULT_WAIT, REQUEST_TIMEOUT = 4, 20, 120
+DETECTION_WAIT = 120                                  # seconds the port detection waits for Odoo to listen (start by systemd)
 DEFAULT_LINKS, DEFAULT_LATEST = 6, 5                    # linked pages discovered in the public pages; latest events / surveys (administration)
 LATEST_KINDS = (("event.event", "website_url", "events"), ("survey.survey", "survey_start_url", "surveys"))
 DEFAULT_SERVICE = "odoo.service"
@@ -153,7 +165,7 @@ def read_config(explicite=None):
             a = re.fullmatch(r"(ANONYMIZE)\s*=\s*[\"']?(\w+)[\"']?", line)
             if path in common and not (v or c or a or re.match(r"LANGUAGE\s*=", line)):
                 continue                                       # the common file defines only LANGUAGE, VERBOSE, DEBUG_LEVEL, LOG_KEEP_DAYS and ANONYMIZE (apps/_config.py CLES_COMMUNES)
-            t = re.fullmatch(r"(URL|DB|LOGIN|KEY_FILE|PAGES|PAGES_FILE|LANGS|MODELS|SERVICE|LANGUAGE)\s*=\s*[\"']?([^\"']*)[\"']?", line)
+            t = re.fullmatch(r"(URL|HOST|DB|LOGIN|KEY_FILE|PAGES|PAGES_FILE|LANGS|MODELS|SERVICE|LANGUAGE)\s*=\s*[\"']?([^\"']*)[\"']?", line)
             if m and (int(m.group(2)) > 0 or m.group(1) in ("LINKS", "LATEST")):
                 values[m.group(1)] = int(m.group(2))
             elif v:
@@ -174,7 +186,7 @@ def read_config(explicite=None):
                 if t.group(2).strip():
                     values[t.group(1)] = t.group(2).strip()
             else:
-                problems.append(f"{path}:{n} : line ignored « {line} » (keys: URL, DB, LOGIN, KEY_FILE, PAGES, PAGES_FILE, LANGS, MODELS, SERVICE: text; REPEAT, WAIT: positive numbers; LINKS, LATEST: numbers; LANGUAGE: en, fr, auto)")
+                problems.append(f"{path}:{n} : line ignored « {line} » (keys: URL, HOST, DB, LOGIN, KEY_FILE, PAGES, PAGES_FILE, LANGS, MODELS, SERVICE: text; REPEAT, WAIT: positive numbers; LINKS, LATEST: numbers; LANGUAGE: en, fr, auto)")
     level = values.get("DEBUG_LEVEL", 0)
     if level >= 1 and "VERBOSE" not in values:               # DEBUG_LEVEL >= 1 means VERBOSE=yes
         values["VERBOSE"] = True
@@ -202,18 +214,51 @@ def read_key(path):
     return key or None
 
 
+class _NginxConnection(http.client.HTTPSConnection):
+    """HTTPS connection to nginx on this machine: the TCP connection goes to NGINX_ADDRESS, while the TLS name (SNI) and the
+    certificate check use the site name, exactly as a visitor's browser does."""
+
+    def connect(self):
+        sock = socket.create_connection(NGINX_ADDRESS, self.timeout)
+        self.sock = self._context.wrap_socket(sock, server_hostname=NGINX_HOST)
+
+
+class _NginxHandler(urllib.request.HTTPSHandler):
+    def https_open(self, req):
+        return self.do_open(_NginxConnection, req, context=ssl.create_default_context())
+
+
+class _SansRedirection(urllib.request.HTTPRedirectHandler):
+    """The redirection is not followed: the 303 is the answer (a survey page redirects to a language version that does not exist)."""
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        return None
+
+
 class Client:
     """Small HTTP client with cookies (Odoo session), measures the time of each request."""
 
-    def __init__(self, base_url):
+    def __init__(self, base_url, timeout=None):
         self.database = base_url.rstrip("/")
+        self.timeout = timeout or REQUEST_TIMEOUT
         self.cookies = http.cookiejar.CookieJar()
         handlers = [urllib.request.HTTPCookieProcessor(self.cookies)]
+        if NGINX_HOST and self.database == f"https://{NGINX_HOST}":        # through nginx: never through the system proxy
+            handlers += [_NginxHandler(), urllib.request.ProxyHandler({})]
         if re.match(r"https?://(127\.0\.0\.1|localhost|\[::1\])(:|/|$)", self.database):      # local Odoo: never through the system proxy
             handlers.append(urllib.request.ProxyHandler({}))
         self.opener = urllib.request.build_opener(*handlers)
+        self.opener_sans_redirection = urllib.request.build_opener(*handlers, _SansRedirection())
 
-    def request_(self, path, payload=None):
+    def request_(self, path, payload=None, suivre=True):
+        """(HTTP code, seconds, body as text); code 0 if the connection fails. suivre=False: a redirection is not followed.
+        With ODOO_WARMUP_TRACE set, each request is written to stderr."""
+        code, duration, text = self._request(path, payload, suivre)
+        if os.environ.get("ODOO_WARMUP_TRACE"):
+            print(f"TRACE {self.database}{path} -> HTTP {code} in {duration:.2f} s", file=sys.stderr)
+        return code, duration, text
+
+    def _request(self, path, payload=None, suivre=True):
         """(HTTP code, seconds, body as text); code 0 if the connection fails."""
         url = path if path.startswith("http") else self.database + path
         headers_list = {"User-Agent": "odoo-warmup", "Accept-Encoding": "identity"}
@@ -223,7 +268,8 @@ class Client:
             headers_list["Content-Type"] = "application/json"
         start = time.time()
         try:
-            with self.opener.open(urllib.request.Request(url, data=body, headers=headers_list), timeout=REQUEST_TIMEOUT) as r:
+            opener = self.opener if suivre else self.opener_sans_redirection
+            with opener.open(urllib.request.Request(url, data=body, headers=headers_list), timeout=self.timeout) as r:
                 text = r.read().decode("utf-8", "replace")
                 return r.status, time.time() - start, text
         except urllib.error.HTTPError as e:
@@ -321,8 +367,10 @@ def is_optional(path):
 
 def language_variants(text, languages, path):
     """Paths of the page's versions in the `languages` (fr, en, es...), read from its <link rel="alternate" hreflang="...">. One version per language; the language
-    of the page itself is excluded."""
+    of the page itself is excluded. A survey page (/survey, optional) has no language versions requested: /en_CA/survey does not exist."""
     path = path.split("?")[0].rstrip("/")
+    if is_optional(path):
+        return []
     found, families = [], set()
     alternates = []
     for tag in re.findall(r"<link\b[^>]*>", text):
@@ -341,7 +389,13 @@ def language_variants(text, languages, path):
 
 def load_page(client, path, tally, assets, languages=()):
     """A public page (failure of an optional page: noted, not counted), its assets and its versions in the `languages`. Returns the HTML text."""
-    code, duration, text = client.request_(path)
+    # A first render can fail with 5xx while one Odoo process builds its template cache: the page is requested again
+    # (each request may reach another process), up to PUBLIC_ATTEMPTS times.
+    for attempt in range(PUBLIC_ATTEMPTS):
+        code, duration, text = client.request_(path, suivre=not is_optional(path))
+        if code < 500 or attempt == PUBLIC_ATTEMPTS - 1:
+            break
+        time.sleep(RETRY_PAUSE)
     if is_optional(path) and not 200 <= code < 400:
         tally.add_ignore(path, code, duration, "optional")
     else:
@@ -482,6 +536,31 @@ def warm_latest(client, number, tally, languages=()):
                 tally.add_item(a, [client.request_(a)])
 
 
+def est_processus_odoo(commande):
+    """True for a Python command line of Odoo: the word odoo, or the ERPlibre directory (erplibre), in lower case (bytes)."""
+    commande = commande.lower()
+    return b"python" in commande and (b"odoo" in commande or b"erplibre" in commande)
+
+
+def odoo_units(proc="/proc"):
+    """systemd units (NAME.service) that run an Odoo Python process, read in /proc/PID/cgroup (readable without root)."""
+    unites = set()
+    for dossier in glob.glob(os.path.join(proc, "[0-9]*")):
+        try:
+            with open(os.path.join(dossier, "cmdline"), "rb") as f:
+                commande = f.read().lower()
+            if not est_processus_odoo(commande):
+                continue
+            with open(os.path.join(dossier, "cgroup"), encoding="utf-8", errors="replace") as f:
+                for ligne in f:
+                    services = [segment for segment in ligne.strip().split("/") if segment.endswith(".service")]
+                    if services:
+                        unites.add(services[-1])
+        except OSError:
+            continue
+    return sorted(unites)
+
+
 def systemd_content(service, program_path, wait_seconds):
     """systemd .d file: starts the warm-up in the background (systemd-run, without delaying Odoo) after each start."""
     return ("# Generated by odoo-warmup.py --systemd-install — Odoo cache warm-up after every start (remove with --systemd-remove).\n"
@@ -550,10 +629,255 @@ class LocalizedArgumentParser(argparse.ArgumentParser):
         super().__init__(*args, **kwargs)
 
 
+def ports_de_ligne_de_commande(texte):
+    """(HTTP ports, gevent ports, configuration path) found in an Odoo command line or in the ExecStart of its unit."""
+    http = [int(p) for p in re.findall(r"--http-port[= ](\d+)", texte)]
+    gevent = [int(p) for p in re.findall(r"--gevent-port[= ](\d+)", texte)]
+    config = re.findall(r"(?:^|\s)(?:-c|--config)[= ](\S+)", texte)
+    return http, gevent, (config[-1] if config else None)
+
+
+def commandes_odoo(proc="/proc"):
+    """Command lines of the Odoo Python processes and ExecStart of their systemd units (both readable without root)."""
+    textes = []
+    for dossier in glob.glob(os.path.join(proc, "[0-9]*")):
+        try:
+            with open(os.path.join(dossier, "cmdline"), "rb") as f:
+                commande = f.read().lower()
+            if est_processus_odoo(commande):
+                with open(os.path.join(dossier, "cmdline"), "rb") as f:
+                    textes.append(f.read().replace(b"\0", b" ").decode("utf-8", errors="replace"))
+        except OSError:
+            continue
+    for unite in odoo_units(proc):
+        try:
+            resultat = subprocess.run(["systemctl", "show", "-p", "ExecStart", "--value", unite], capture_output=True, text=True, timeout=10, check=False)
+            textes.append(resultat.stdout)
+        except (OSError, subprocess.SubprocessError):
+            continue
+    return textes
+
+
+def ports_du_service(proc="/proc"):
+    """(HTTP ports, gevent ports, configuration path) read in the Odoo processes and their units; no configuration file is opened here."""
+    http, gevent, config = [], [], None
+    for texte in commandes_odoo(proc):
+        h, g, c = ports_de_ligne_de_commande(texte)
+        http += [p for p in h if p not in http]
+        gevent += [p for p in g if p not in gevent]
+        config = config or c
+    return http, gevent, config
+
+
+def odoo_conf_ports():
+    """(HTTP ports, gevent ports) of the first Odoo configuration file found (apps/_odoo_conf.py); ([], []) if none.
+    The gevent port (long polling, websocket) is not an HTTP instance: it is never probed as one."""
+    module = load_module("_odoo_conf")
+    if module is None:
+        return [], []
+    chemin = module.trouver()                                 # develops the * patterns (e.g. /home/*/git/erplibre/config.conf)
+    if chemin is None:
+        http_ports, gevent_ports, config = ports_du_service()  # no readable file: the command lines and ExecStart of the Odoo units
+        if not http_ports and config and os.path.isfile(config) and os.access(config, os.R_OK):
+            conf = module.lire(config)
+            http_ports = [int(conf["http_port"])] if conf["http_port"].isdigit() else []
+            gevent_ports = [int(conf["gevent_port"])] if conf["gevent_port"].isdigit() else []
+        return http_ports, gevent_ports
+    conf = module.lire(chemin)
+    http_port, gevent_port = conf["http_port"], conf["gevent_port"]
+    return ([int(http_port)] if http_port.isdigit() else []), ([int(gevent_port)] if gevent_port.isdigit() else [])
+
+
+def odoo_uids():
+    """UIDs of the Python processes whose command line mentions odoo (read in /proc: no root needed for those processes)."""
+    uids = set()
+    for dossier in glob.glob("/proc/[0-9]*"):
+        try:
+            with open(os.path.join(dossier, "cmdline"), "rb") as f:
+                commande = f.read().lower()
+            if est_processus_odoo(commande):
+                uids.add(os.stat(dossier).st_uid)
+        except OSError:
+            continue
+    return uids
+
+
+def _listening_lines():
+    """Listening TCP sockets with their owner: ss -ltnHe (iproute2) first, then netstat -tlen (net-tools); [] if neither works.
+    Owner shown without root for every socket: 'uid:N' in ss, the 'User' column in netstat."""
+    for commande in (["ss", "-ltnHe"], ["netstat", "-tlen"]):
+        try:
+            sortie = subprocess.run(commande, capture_output=True, text=True, timeout=5, check=False).stdout
+        except (OSError, subprocess.SubprocessError):
+            continue
+        if sortie.strip():
+            return sortie.splitlines()
+    return []
+
+
+def odoo_ports_listening():
+    """TCP ports listened to by the account(s) that run an Odoo Python process (found in /proc). [] if none is visible."""
+    uids = odoo_uids()
+    if not uids:
+        return []
+    ports = []
+    for ligne in _listening_lines():
+        champs = ligne.split()
+        uid = re.search(r"uid:(\d+)", ligne)
+        if uid:
+            proprietaire = int(uid.group(1))
+        elif len(champs) >= 7 and champs[6].isdigit():          # netstat: User column
+            proprietaire = int(champs[6])
+        else:
+            continue
+        if proprietaire not in uids or len(champs) < 4:
+            continue
+        port = champs[3].rsplit(":", 1)[-1]
+        if port.isdigit() and int(port) not in ports:
+            ports.append(int(port))
+    return ports
+
+
+def _nginx_text(path, depth=0):
+    """Text of an nginx file without its comments, with its include directives expanded (depth-limited)."""
+    try:
+        with open(path, encoding="utf-8", errors="replace") as f:
+            texte = re.sub(r"#[^\n]*", "", f.read())
+    except OSError:
+        return ""
+    if depth >= 5:
+        return texte
+
+    def inclure(m):
+        motif = m.group(1).strip()
+        if motif.startswith("/etc/nginx/"):                # absolute paths of the standard tree follow NGINX_DIR (tests)
+            motif = os.path.join(NGINX_DIR, motif[len("/etc/nginx/"):])
+        elif not os.path.isabs(motif):
+            motif = os.path.join(NGINX_DIR, motif)
+        return "\n".join(_nginx_text(f, depth + 1) for f in sorted(glob.glob(motif)) if os.path.isfile(f))
+    return re.sub(r"^\s*include\s+([^;]+);", inclure, texte, flags=re.M)
+
+
+def _block_body(texte, ouverture):
+    """Text between the brace at index `ouverture` and its matching closing brace."""
+    niveau = 0
+    for i in range(ouverture, len(texte)):
+        if texte[i] == "{":
+            niveau += 1
+        elif texte[i] == "}":
+            niveau -= 1
+            if niveau == 0:
+                return texte[ouverture + 1:i]
+    return texte[ouverture + 1:]
+
+
+def nginx_names_for_port(port):
+    """Site names (server_name, without _) of the nginx server blocks whose proxy_pass reaches 127.0.0.1:PORT, through an
+    upstream or a set $variable. Read from NGINX_DIR/nginx.conf and sites-enabled/ (no root needed); [] if none."""
+    textes = []
+    principal = os.path.join(NGINX_DIR, "nginx.conf")
+    if os.path.isfile(principal):
+        textes.append(_nginx_text(principal))
+    for fichier in sorted(glob.glob(os.path.join(NGINX_DIR, "sites-enabled", "*"))):
+        if os.path.isfile(fichier):
+            textes.append(_nginx_text(fichier))
+    texte = "\n".join(textes)
+    upstreams = {}
+    for m in re.finditer(r"upstream\s+(\S+)\s*\{", texte):
+        corps = _block_body(texte, m.end() - 1)
+        upstreams[m.group(1)] = [int(p) for p in re.findall(r"server\s+(?:127\.0\.0\.1|localhost):(\d+)", corps)]
+    noms = []
+    for m in re.finditer(r"(?<![\w-])server\s*\{", texte):
+        corps = _block_body(texte, m.end() - 1)
+        variables = dict(re.findall(r"set\s+\$(\w+)\s+([^;\s]+)\s*;", corps))
+        ports = []
+        for cible in re.findall(r"proxy_pass\s+https?://([^;/\s]+)", corps):
+            if cible.startswith("$"):
+                cible = variables.get(cible[1:], cible)
+            if cible in upstreams:
+                ports += upstreams[cible]
+            else:
+                ports += [int(p) for p in re.findall(r"^(?:127\.0\.0\.1|localhost):(\d+)$", cible)]
+        if port in ports:
+            for groupe in re.findall(r"server_name\s+([^;]+);", corps):
+                for nom in groupe.split():
+                    if nom != "_" and "$" not in nom and nom not in noms:
+                        noms.append(nom)
+    return noms
+
+
+def via_nginx(host):
+    """URL https://HOST when nginx answers /web/login for this site name (certificate checked), else None."""
+    global NGINX_HOST
+    NGINX_HOST = host
+    code, _, _ = Client(f"https://{host}").request_("/web/login")
+    if code in (200, 302, 303):
+        return f"https://{host}"
+    NGINX_HOST = None
+    print(f"nginx does not answer for {host} (HTTP {code}): direct connection to Odoo")
+    return None
+
+
+def config_illisibles():
+    """Odoo configuration files that exist (candidate patterns of apps/_odoo_conf.py) but cannot be read by this account."""
+    module = load_module("_odoo_conf")
+    if module is None:
+        return []
+    illisibles = []
+    for motif in module.chemins_candidats():
+        for chemin in glob.glob(motif):
+            if os.path.isfile(chemin) and not os.access(chemin, os.R_OK) and chemin not in illisibles:
+                illisibles.append(chemin)
+    return illisibles
+
+
+def detect_odoo_url(attente=0):
+    """Address of Odoo when neither --url nor URL is set. Candidates: the HTTP port of the Odoo configuration file, then the
+    ports of the listening Python processes. A candidate counts as Odoo only if /web/login answers 200 with "odoo" in the page.
+    Exactly one Odoo answering: it is used. Several: nothing is chosen (None): the user must give --url or URL.
+    None answering: the single candidate if there is one (Odoo may be starting), else the default port 8069."""
+    avertie = [False]
+    fin = time.time() + attente                           # attente: a start by systemd may not listen yet (ExecStartPost)
+    while True:
+        http_ports, gevent_ports = odoo_conf_ports()
+        candidats = []
+        for port in http_ports + [p for p in odoo_ports_listening() if p not in gevent_ports]:
+            if port not in candidats:
+                candidats.append(port)
+        if candidats or time.time() >= fin:
+            break
+        if attente and not avertie[0]:
+            avertie[0] = True
+            print(f"Odoo is not listening yet, waiting ({attente} s at most) / Odoo n'ecoute pas encore, attente ({attente} s au plus)")
+        time.sleep(2)
+    trouves = []
+    for port in candidats:
+        code, _, texte = Client(f"http://127.0.0.1:{port}", timeout=PROBE_TIMEOUT).request_("/web/login")
+        if code == 200 and "odoo" in texte.lower():
+            trouves.append(port)
+    if len(trouves) == 1:
+        print(f"Odoo detected on port {trouves[0]} (http://127.0.0.1:{trouves[0]})")
+        return f"http://127.0.0.1:{trouves[0]}"
+    if len(trouves) > 1:
+        eprint(f"ERROR: several Odoo instances answer on ports {trouves}: detection does not choose. Give --url or URL in /etc/default/odoo-warmup.conf (or ~/.odoo-warmup.conf).")
+        return None
+    if len(candidats) == 1:
+        print(f"No answer yet on port {candidats[0]}, waiting on it")
+        return f"http://127.0.0.1:{candidats[0]}"
+    illisibles = config_illisibles()
+    if illisibles:
+        eprint(f"WARNING: the Odoo configuration file cannot be read by this account: {', '.join(illisibles)} (ports unknown).")
+        eprint(f"ATTENTION : le fichier de configuration d'Odoo n'est pas lisible par ce compte : {', '.join(illisibles)} (ports inconnus).")
+    print(f"No single Odoo port detected, default {DEFAULT_URL}")
+    print("Set URL=http://127.0.0.1:PORT in /etc/default/odoo-warmup.conf (or ~/.odoo-warmup.conf) to skip the detection / "
+          "Mettez URL=http://127.0.0.1:PORT dans /etc/default/odoo-warmup.conf (ou ~/.odoo-warmup.conf) pour sauter la detection.")
+    return DEFAULT_URL
+
+
 def main():
     parser = (I18N.parser if I18N else LocalizedArgumentParser)(description="Warms up the Odoo cache (public pages, assets, administration screens) after a restart.")
     parser.add_argument("-c", "--config", default=None, metavar="FILE",
-                        help=f"This configuration file ONLY (default: {SYSTEM_CONF}, then {USER_CONF} ; keys URL, DB, LOGIN, KEY_FILE, PAGES, PAGES_FILE, LANGS, MODELS, REPEAT, WAIT, SERVICE, LANGUAGE)")
+                        help=f"This configuration file ONLY (default: {SYSTEM_CONF}, then {USER_CONF} ; keys URL, HOST, DB, LOGIN, KEY_FILE, PAGES, PAGES_FILE, LANGS, MODELS, REPEAT, WAIT, SERVICE, LANGUAGE)")
     parser.add_argument("--changelog", action="store_true", help="Show the change log")
     parser.add_argument("--db", default=None, metavar="NAME", help="Odoo database for administration (required with LOGIN if Odoo has several databases)")
     parser.add_argument("--lang", choices=I18N.disponibles if I18N else ["fr"], metavar="LANG",
@@ -564,18 +888,18 @@ def main():
     parser.add_argument("--repeat", type=int, default=None, metavar="N", help=f"Parallel passes of each administration call (default: {DEFAULT_REPETITIONS}) : touche plusieurs processus d'Odoo")
     parser.add_argument("--report-err", action="store_true",
                         help="Print at the end an error report to copy and paste (program, version, server, failures, warnings)")
-    parser.add_argument("--service", default=None, metavar="UNIT", help=f"Odoo systemd unit for --systemd-install and --systemd-remove (default: {DEFAULT_SERVICE})")
+    parser.add_argument("--service", default=None, metavar="UNIT", help="Odoo systemd unit for --systemd-install and --systemd-remove (default: the unit that runs the Odoo Python process, else SERVICE of the configuration)")
     parser.add_argument("--site-languages", default=None, metavar="LIST", help=f"Site languages warmed up for every public page, comma-separated (default: {DEFAULT_LANGUAGES}; none: none). Key LANGS")
     parser.add_argument("--systemd-install", action="store_true", help="Run the warm-up after every start of the Odoo unit (systemd .d file, root)")
     parser.add_argument("--systemd-remove", action="store_true", help="Remove the automatic start installed by --systemd-install")
-    parser.add_argument("--url", default=None, metavar="URL", help=f"Odoo address (default: {DEFAULT_URL} : Odoo's HTTP port, bypassing nginx)")
+    parser.add_argument("--url", default=None, metavar="URL", help="Odoo address (default: automatic detection from the Odoo configuration file and the listening Odoo processes, then http://127.0.0.1:8069 ; bypasses nginx)")
     parser.add_argument("-v", "--verbose", action="store_true", help="Show each external command run")
     parser.add_argument("--version", action="version", version=f"odoo-warmup.py version {__version__}")
     parser.add_argument("--wait", type=int, default=None, metavar="SECONDS", help=f"Waits for Odoo to answer for {DEFAULT_WAIT} seconds at most (default) before warming up")
     if "--version" not in sys.argv[1:]:       # first line of EVERY run, even --help (--version prints it itself)
         print(f"odoo-warmup.py v{__version__}")
     args = parser.parse_args()
-    global VERBOSE
+    global VERBOSE, NGINX_HOST
     VERBOSE = args.verbose
     if args.changelog:
         return show_changelog()
@@ -585,7 +909,24 @@ def main():
         eprint(f"ERROR: {e}")
         return 2
     VERBOSE = VERBOSE or bool(config.get("VERBOSE"))               # VERBOSE / DEBUG_LEVEL of the configuration file (common or own)
-    url = args.url or config.get("URL", DEFAULT_URL)
+    url = args.url or config.get("URL")
+    host = config.get("HOST")
+    if not url and host:                                  # HOST set: the visitors' way (nginx, HTTPS) when it answers
+        url = via_nginx(host)
+    if not url and not (args.systemd_install or args.systemd_remove):      # the systemd options do not need Odoo
+        url = detect_odoo_url(DETECTION_WAIT)
+    elif not url:
+        url = DEFAULT_URL
+        if url is None:
+            return 2
+        if not host:                                      # no HOST: the site name is read from the nginx configuration
+            port = int(urllib.parse.urlsplit(url).port or 80)
+            noms = nginx_names_for_port(port)
+            if len(noms) == 1:
+                print(f"Site name found in the nginx configuration: {noms[0]}")
+                url = via_nginx(noms[0]) or url
+            elif len(noms) > 1:
+                print(f"Several site names reach port {port} ({', '.join(noms)}): set HOST in the configuration file")
     database = args.db or config.get("DB")
     login = config.get("LOGIN")
     key_file = config.get("KEY_FILE")
@@ -601,7 +942,7 @@ def main():
     models = split_list(config.get("MODELS"), DEFAULT_MODELS)
     repetitions = args.repeat if args.repeat is not None else config.get("REPEAT", DEFAULT_REPETITIONS)
     wait_seconds = args.wait if args.wait is not None else config.get("WAIT", DEFAULT_WAIT)
-    service = args.service or config.get("SERVICE", DEFAULT_SERVICE)
+    service = args.service or config.get("SERVICE")
     links_count = args.links if args.links is not None else config.get("LINKS", DEFAULT_LINKS)
     latest = args.latest if args.latest is not None else config.get("LATEST", DEFAULT_LATEST)
     if repetitions < 1 or wait_seconds < 1:
@@ -622,6 +963,19 @@ def main():
         eprint(f"  ATTENTION {p}")
     if args.systemd_install and args.systemd_remove:
         parser.error("--systemd-install and --systemd-remove are mutually exclusive")
+    if args.systemd_install or args.systemd_remove:
+        if not service:
+            units = odoo_units()
+            if len(units) > 1:
+                eprint(f"ERROR: several units run an Odoo Python process: {', '.join(units)}. Choose one with --service UNIT.")
+                eprint(f"ERREUR : plusieurs unites font tourner Odoo : {', '.join(units)}. Choisissez-en une avec --service UNIT.")
+                return 2
+            service = units[0] if units else DEFAULT_SERVICE
+            if units:
+                print(f"Odoo unit found from its running process / unite Odoo trouvee dans son processus : {service}")
+            else:
+                eprint(f"WARNING: no running Odoo Python process found, {DEFAULT_SERVICE} used. Use --service UNIT if it is another unit.")
+                eprint(f"ATTENTION : aucun processus Python d'Odoo en marche, {DEFAULT_SERVICE} utilise. Utilisez --service UNIT si c'est une autre unite.")
     if args.systemd_install:
         return systemd_install_unit(service, wait_seconds)
     if args.systemd_remove:

@@ -21,6 +21,7 @@ class FauxOdoo(BaseHTTPRequestHandler):
     appels = []
     cle_valide = "cle-secrete"
     survey_ok = True
+    survey_redirige = False
 
     def log_message(self, *a):
         pass
@@ -39,6 +40,11 @@ class FauxOdoo(BaseHTTPRequestHandler):
             self._repondre(200, PAGE_EVENTS.replace("<html>", "<html>" + ALTERNATES, 1))
         elif self.path == "/survey" and not FauxOdoo.survey_ok:
             self._repondre(404, "")
+        elif self.path == "/survey" and FauxOdoo.survey_redirige:
+            self.send_response(303)
+            self.send_header("Location", "/en_CA/survey")
+            self.send_header("Content-Length", "0")
+            self.end_headers()
         elif self.path in ("/en_CA/event", "/es_MX/event", "/contactus", "/blog", "/", "/web/login", "/survey", "/event/jpol-1", "/event/jpol-2/register", "/event/jpol-3", "/event/dernier-9", "/survey/start/tok1"):
             self._repondre(200, PAGE)
         elif self.path.startswith("/web/assets/"):
@@ -75,6 +81,7 @@ class OdooWarmup(EnvTest):
         FauxOdoo.appels = []
         FauxOdoo.cle_valide = "cle-secrete"
         FauxOdoo.survey_ok = True
+        FauxOdoo.survey_redirige = False
         self.serveur = HTTPServer(("127.0.0.1", 0), FauxOdoo)
         threading.Thread(target=self.serveur.serve_forever, daemon=True).start()
         self.addCleanup(self.serveur.server_close)
@@ -189,6 +196,7 @@ class OdooWarmup(EnvTest):
     def test_pages_de_sondages_optionnelles(self):
         """Une page /survey qui échoue (404) est notée « (optionnel) » mais ne fait pas échouer le préchauffage."""
         FauxOdoo.survey_ok = False
+        self.conf("PAGES=/,/survey\n")
         code, out, err = self.lancer("--url", self.url, "--wait", "5", "--links", "0")
         self.assertEqual(code, 0, out + err)
         self.assertIn("/survey (optionnel)", out)
@@ -234,6 +242,78 @@ class OdooWarmup(EnvTest):
         self.assertFalse(os.path.exists(fichier))
         code, out, err = self.lancer("--systemd-remove", "--service", "odoo-test.service")
         self.assertIn("Rien à retirer", out)
+
+    def test_unite_systemd_trouvee_par_le_processus_odoo(self):
+        import importlib.util
+        spec = importlib.util.spec_from_file_location("odoo_warmup_module", script_path("odoo-warmup.py"))
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        proc = os.path.join(self.d, "proc")
+        for pid, commande, cgroupe in (("101", b"python3\0/opt/erplibre/odoo-bin\0", "0::/system.slice/erplibre.service\n"),
+                                       ("102", b"bash\0-c\0sleep\0", "0::/system.slice/ssh.service\n"),
+                                       ("103", b"python3\0/usr/bin/odoo\0", "0::/system.slice/user.slice/erplibre-worker.service\n")):
+            os.makedirs(os.path.join(proc, pid))
+            with open(os.path.join(proc, pid, "cmdline"), "wb") as f:
+                f.write(commande)
+            with open(os.path.join(proc, pid, "cgroup"), "w") as f:
+                f.write(cgroupe)
+        self.assertEqual(module.odoo_units(proc), ["erplibre-worker.service", "erplibre.service"])
+        self.assertEqual(module.odoo_units(os.path.join(self.d, "vide")), [])
+
+    def test_ports_lus_dans_la_ligne_de_commande_du_service(self):
+        import importlib.util
+        spec = importlib.util.spec_from_file_location("odoo_warmup_module2", script_path("odoo-warmup.py"))
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        self.assertEqual(module.ports_de_ligne_de_commande("python3 odoo-bin --http-port=10000 --gevent-port 10002 -c /etc/odoo.conf"),
+                         ([10000], [10002], "/etc/odoo.conf"))
+        self.assertEqual(module.ports_de_ligne_de_commande("ExecStart={ path=/usr/bin/python3 ; argv[]=/usr/bin/python3 odoo-bin --config /x.conf }"),
+                         ([], [], "/x.conf"))
+        # Un faux /proc avec un processus Odoo, et un faux systemctl qui renvoie l'ExecStart de l'unité
+        proc = os.path.join(self.d, "proc2")
+        os.makedirs(os.path.join(proc, "201"))
+        with open(os.path.join(proc, "201", "cmdline"), "wb") as f:
+            f.write(b"python3\0odoo-bin\0--http-port=10000\0")
+        with open(os.path.join(proc, "201", "cgroup"), "w") as f:
+            f.write("0::/system.slice/erplibre.service\n")
+        bin_dir = os.path.join(self.d, "bin-faux-systemctl")
+        os.makedirs(bin_dir)
+        with open(os.path.join(bin_dir, "systemctl"), "w") as f:
+            f.write("#!/bin/sh\necho 'ExecStart={ argv[]=/usr/bin/python3 odoo-bin --gevent-port=10002 }'\n")
+        os.chmod(os.path.join(bin_dir, "systemctl"), 0o755)
+        ancien = os.environ.get("PATH", "")
+        os.environ["PATH"] = bin_dir + os.pathsep + ancien
+        try:
+            http, gevent, config = module.ports_du_service(proc)
+        finally:
+            os.environ["PATH"] = ancien
+        self.assertEqual((http, gevent, config), ([10000], [10002], None))
+
+    def test_processus_erplibre_reconnu_sans_le_mot_odoo(self):
+        import importlib.util
+        spec = importlib.util.spec_from_file_location("odoo_warmup_module3", script_path("odoo-warmup.py"))
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        self.assertTrue(module.est_processus_odoo(b"python3\0/home/mathben/git/erplibre/serveur.py\0"))
+        self.assertTrue(module.est_processus_odoo(b"python3\0odoo-bin\0"))
+        self.assertFalse(module.est_processus_odoo(b"bash\0-c\0erplibre\0"))
+        self.assertFalse(module.est_processus_odoo(b"python3\0/usr/bin/autre.py\0"))
+
+    def test_redirection_d_un_sondage_non_suivie(self):
+        FauxOdoo.survey_redirige = True
+        code, out, err = self.lancer("--url", self.url, "--wait", "5", "--links", "0")
+        self.assertEqual(code, 0, out + err)
+        self.assertIn(("GET", "/survey"), FauxOdoo.appels)
+        self.assertNotIn(("GET", "/en_CA/survey"), FauxOdoo.appels)
+
+    def test_pas_de_variante_de_langue_pour_une_page_de_sondage(self):
+        import importlib.util
+        spec = importlib.util.spec_from_file_location("odoo_warmup_module4", script_path("odoo-warmup.py"))
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        html = '<html><link rel="alternate" hreflang="en" href="/en_CA/survey"/><link rel="alternate" hreflang="fr" href="/survey"/></html>'
+        self.assertEqual(module.language_variants(html, ("fr", "en", "es"), "/survey"), [])
+        self.assertEqual(module.language_variants(html, ("fr", "en", "es"), "/event"), ["/en_CA/survey", "/survey"])
 
     def test_version_et_changelog(self):
         code, out, err = self.run_cmd(["python3", script_path("odoo-warmup.py"), "--version"])

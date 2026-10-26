@@ -91,6 +91,51 @@ Earlier history was archived outside this repository when this file was created.
 
 ## app-log-live.py
 
+### 1.110.20261025.172827 - "Who is connected now" shown from level 5
+
+- Title: The list of connected users is shown from dashboard level 5 (Ctrl-G and Ctrl-T), not at every level.
+- Reason: Request from the maintainer: the connected users must appear when the level is 5 or more, not only at level 9.
+- Changes:
+  - app-log-live.py, summary(): the `people` lines are added when level >= 5 (both return paths). Before this version (1.109), they were added at every level.
+  - app-log-live.py, table_rows(): comment updated.
+  - Version: __version__ 1.110.20261025.172827.
+  - Files: app-log-live.py, CHANGELOG.md.
+- Bugs fixed: none.
+- Safeguards and edge cases:
+  - Levels 1 to 4: connected users are hidden (as before 1.109). Levels 5 to 8: shown without the "Program efficiency" block. Level 9: everything, as before.
+  - Detection unchanged (ssh_sessions(), Odoo presence).
+- Checks:
+  - python3 -I -m py_compile app-log-live.py: OK.
+  - app-log-live.py --version: 1.110.20261025.172827.
+  - logged_in_lines() with a fake "who" in PATH: "Connected over SSH: 1 (martial ×1)".
+  - Not run: the full test suite test_app_log_live.py (to be run with the testeur agent before the pull request is merged).
+- Action required: none.
+
+### 1.109.20261025.162831 - "Who is connected now" shown with Ctrl-T at every level
+
+- Title: The list of connected users is shown by Ctrl-T (and Ctrl-G) whatever the dashboard level.
+- Reason: Report from the maintainer: Ctrl-T did not show the connected users, although the command "who" lists them on the server.
+- Changes:
+  - app-log-live.py, table_rows(): the block "Who is connected now" (Odoo presence and SSH sessions, from logged_in_lines()) is built apart and passed to summary() as the new argument `people`.
+  - app-log-live.py, summary(): new argument `people=()`; its lines are added at every level, before the "Program efficiency" block. Before, the whole "extras" block (connected users, program efficiency, Odoo network connections) was shown only at level 9.
+  - "Program efficiency" and "Odoo network connections" keep their level 9 display.
+  - Version: __version__ 1.109.20261025.162831.
+  - Files: app-log-live.py, CHANGELOG.md.
+- Bugs fixed:
+  - Symptom: Ctrl-T shows the requests of the period but no "Who is connected now" section, while "who" lists an open SSH session.
+  - Diagnosis: the connected-users block was part of the extras, and the extras are added to the summary only when the dashboard level is 9. Any lower level (keys 1 to 8, or LEVEL=1 to 8 in /etc/default/app-log-live.conf or ~/.app-log-live.conf) hides it.
+  - Fix: the block is no longer gated by the level.
+- Safeguards and edge cases:
+  - No change to the detection: ssh_sessions() still reads "who" and keeps only the lines with an origin address; the Odoo presence is unchanged.
+  - The new argument has a default (empty tuple): every other caller of summary() behaves as before.
+  - When there is no request in the lines shown, the connected users are still displayed.
+- Checks:
+  - python3 -I -m py_compile app-log-live.py: OK.
+  - app-log-live.py --version: 1.109.20261025.162831.
+  - With a fake "who" in PATH (one SSH session from a remote address), logged_in_lines() returns the expected "Connected over SSH: 1 (martial ×1)" line.
+  - Not run: the full test suite nginx-tools-tests/test_app_log_live.py (too long in this session; network and DNS dependent). To be run before the pull request is merged.
+- Action required: none. To check on the server: press Ctrl-T; the "Who is connected now" section must list the same SSH sessions as "who".
+
 ### 1.108.20261025.150359 - Country next to each name in "Requests by name (DNS column)"
 
 - Title: The country of the address is shown next to each name in the summary.
@@ -421,6 +466,397 @@ Earlier history was archived outside this repository when this file was created.
 
 ## odoo-warmup.py
 
+### 1.31.20261025.224500 - Redirection of a survey page not followed
+
+- Title: For an optional page (survey), a redirection (303) is not followed: /en_CA/survey, which does not exist, is no longer requested.
+- Reason: The log shows GET /survey (303), then GET /en_CA/survey (404) at once: the client followed the redirection of the survey page to its language version. The 1.30 diagnosis (the hreflang alternates) was wrong: the 1.30 change did not stop the request.
+- Changes:
+  - _SansRedirection: redirection handler that returns the 3xx as the answer.
+  - Client.request_(path, suivre=True): suivre=False uses an opener without redirection.
+  - load_page(): suivre is False for the optional pages (surveys).
+  - Test: fake server redirects /survey to /en_CA/survey; /en_CA/survey must not be requested.
+  - Files: odoo-warmup.py, nginx-tools-tests/test_odoo_warmup.py, CHANGELOG.md.
+- Bugs fixed:
+  - Symptom: 404 on /en_CA/survey at every run, after the 303 on /survey.
+  - Diagnosis: urllib followed the 303 to the language version of the survey page.
+  - Correction: no redirection is followed for an optional page; the other pages are unchanged (their redirections are followed, as before).
+- Safeguards and edge cases:
+  - Only the optional (survey) pages are concerned; the redirections of /web/login and /event are still followed.
+  - The 303 counts as an answer below 400, so the survey page is not reported as a failure.
+- Checks:
+  - py_compile; test suite test_odoo_warmup (19 tests).
+- Action required: none.
+
+### 1.30.20261025.223900 - /survey back by default; no language versions of a survey page
+
+- Title: /survey is a default page again, but its language versions (/en_CA/survey, /fr/survey...) are not requested.
+- Reason: /survey exists on Odoo 18 CE; /en_CA/survey does not (404). The hreflang alternates of the pages announced /en_CA/survey, which the warm-up requested at every run. The 1.29 change removed the page itself, which was wrong.
+- Changes:
+  - DEFAULT_PAGES: /, /web/login, /event, /survey (restored).
+  - language_variants(): returns no variant for an optional page (survey).
+  - Example configuration files (doc/fr and doc/en) restored as before 1.29.
+  - Tests: default pages include /survey; a survey page gives no language variant.
+  - Files: odoo-warmup.py, nginx-tools-tests/test_odoo_warmup.py, doc/fr/odoo-warmup.conf.example, doc/en/odoo-warmup.conf.example, CHANGELOG.md.
+- Bugs fixed:
+  - Symptom: 404 on /en_CA/survey at every run (the log shows 303 on /survey, then 404 on /en_CA/survey).
+  - Diagnosis: the alternates of the pages list /en_CA/survey, and the warm-up followed them.
+  - Correction: no language version of a survey page is requested.
+- Safeguards and edge cases:
+  - The survey page itself is still requested and its failure is still only noted (optional).
+  - Survey links (/survey/start/...) are still followed.
+- Checks:
+  - py_compile; test suite test_odoo_warmup (18 tests).
+- Action required: none. The version 1.29 entry is superseded by this one.
+
+### 1.29.20261025.223329 - No default survey page
+
+- Title: /survey is no longer a default public page; the survey links found in the pages are still followed.
+- Reason: The Odoo site has no /survey page (404 on /en_CA/survey and /survey); the warm-up requested it at every run.
+- Changes:
+  - DEFAULT_PAGES: /, /web/login, /event.
+  - Example configuration files (doc/fr and doc/en): PAGES without /survey.
+  - Test: the optional survey test sets PAGES=/,/survey explicitly.
+  - Files: odoo-warmup.py, doc/fr/odoo-warmup.conf.example, doc/en/odoo-warmup.conf.example, nginx-tools-tests/test_odoo_warmup.py, CHANGELOG.md.
+- Bugs fixed:
+  - Symptom: a 404 on /survey at every run, shown as optional.
+  - Diagnosis: the default list still contained /survey.
+  - Correction: removed from the default list.
+- Safeguards and edge cases:
+  - A survey that is in PAGES (configuration) is still requested and reported as optional.
+  - Survey links (/survey/start/...) found in the pages are still followed and never counted as failures.
+- Checks:
+  - py_compile; test suite test_odoo_warmup (17 tests).
+- Action required: if /etc/default/odoo-warmup-pages.conf (or the PAGES key of your configuration) lists /survey, remove that line.
+
+### 1.28.20261025.221900 - Start by systemd: detection waits for Odoo to listen
+
+- Title: Started by the systemd drop-in, the warm-up waits up to 120 s for Odoo to listen before it chooses the port; the systemd options do not run the detection.
+- Reason: The ExecStartPost of the drop-in starts the warm-up right after the start of erplibre_erplibre.service, while Odoo is still loading its modules. The detection found no listening port, fell back to 8069 and stopped; the Odoo log shows only the two first requests.
+- Changes:
+  - detect_odoo_url(attente): polls the candidate ports every 2 s until one is listening or the wait ends (DETECTION_WAIT = 120 s; message printed once).
+  - --systemd-install and --systemd-remove do not run the detection and do not need Odoo.
+  - Files: odoo-warmup.py, CHANGELOG.md.
+- Bugs fixed:
+  - Symptom: with the drop-in, the warm-up requests only /web/login and /en_CA/web/login, then stops (manual run: all pages).
+  - Diagnosis: the detection runs once at the start, before the port is bound.
+  - Correction: wait for the port.
+- Safeguards and edge cases:
+  - Nothing listening after 120 s: 8069 as before.
+  - A manual run with Odoo already up is unchanged (the first poll finds the ports).
+- Checks:
+  - py_compile; test suite test_odoo_warmup (17 tests).
+- Action required: check the journal of the warm-up unit (journalctl -u odoo-warmup-run) after the next restart of erplibre_erplibre.service, and send it if the warm-up still stops early.
+
+### 1.27.20261025.220011 - Odoo processes recognised by the ERPlibre path too
+
+- Title: A Python process is an Odoo process if its command line contains odoo or erplibre (not only odoo).
+- Reason: On the server, the service erplibre_erplibre.service starts run.sh, which starts Python with the ERPlibre path; ExecStart carries no port. The UID of this Python process gives the ports, but the process was not recognised when its command line has no odoo word.
+- Changes:
+  - est_processus_odoo(): common test for the Python processes of Odoo, used by odoo_uids(), odoo_units() and commandes_odoo().
+  - Files: odoo-warmup.py, nginx-tools-tests/test_odoo_warmup.py.
+- Bugs fixed:
+  - Symptom: no Odoo UID and no unit found, so no port from the owner of the process (no port detected).
+  - Diagnosis: the match on the word odoo alone; the ERPlibre command line does not always contain it.
+  - Correction: the match also accepts erplibre.
+- Safeguards and edge cases:
+  - bash processes are not matched: python is required.
+  - Other Python processes with neither word are still ignored.
+- Checks:
+  - py_compile; test suite test_odoo_warmup (17 tests).
+- Action required: none. Send the output of ps -o pid,uid,cmd -C python3 (or the Python line of the Odoo process) if the detection still finds no port.
+
+### 1.26.20261025.215544 - Odoo ports read from the Odoo service, without the configuration file
+
+- Title: When no configuration file can be read, the HTTP and gevent ports come from the command line of the Odoo processes and from ExecStart of their systemd unit.
+- Reason: The account running the warm-up cannot read the Odoo configuration file; the Odoo service (systemctl) gives the ports and the configuration path without reading that file.
+- Changes:
+  - ports_de_ligne_de_commande(): --http-port, --gevent-port and -c/--config read in a command line.
+  - commandes_odoo(): command lines of the Odoo Python processes (/proc) and ExecStart of their units (systemctl show, no root).
+  - ports_du_service(): ports and configuration path from these command lines.
+  - odoo_conf_ports(): used when no configuration file is found; the configuration file is read only if it is readable and no port was found in the command lines.
+  - Files: odoo-warmup.py, nginx-tools-tests/test_odoo_warmup.py.
+- Bugs fixed:
+  - Symptom: as a normal user, no port is detected because the configuration file is not readable.
+  - Diagnosis: the program needed the file to read the ports, although the service carries them.
+  - Correction: the ports are read from the service first.
+- Safeguards and edge cases:
+  - If the service gives no port and the file is not readable, the detection works as before (listening sockets, then 8069).
+  - systemctl missing or failing: ignored.
+- Checks:
+  - py_compile; test suite test_odoo_warmup (16 tests, with a fake /proc and a fake systemctl). Not tested on a real systemd host.
+- Action required: none, but check on the server: systemctl show -p ExecStart --value <unit> must show --http-port or -c; send the output if the detection still fails.
+
+### 1.25.20261025.214951 - Non-root account: unreadable configuration reported, detection probe 10 s
+
+- Title: When the Odoo configuration file cannot be read by the account, the warm-up says so and tells how to set URL; the detection probe waits 10 s.
+- Reason: Run as a normal user, the warm-up found no port: the probe of 10000 timed out after 3 s (HTTP 0 in 3.02 s) and the configuration file was not read, so the message gave no reason.
+- Changes:
+  - config_illisibles(): configuration files matching the candidate patterns that exist but are not readable by this account.
+  - detect_odoo_url(): when no port is detected, warns about these files and prints how to set URL (or ~/.odoo-warmup.conf).
+  - PROBE_TIMEOUT: 3 s to 10 s.
+  - Files: odoo-warmup.py.
+- Bugs fixed:
+  - Symptom: as a normal user, "No single Odoo port detected, default http://127.0.0.1:8069" and Odoo never answers on 8069.
+  - Diagnosis: the detection does not read a configuration file it cannot open (silent OSError); the probe of 10000 was cut at 3 s.
+  - Correction: explicit warning, longer probe timeout.
+- Safeguards and edge cases:
+  - A file the account can read is used as before; no change for root.
+  - A configuration file in a home directory that the account cannot enter is not seen by glob: the hint about URL still applies.
+- Checks:
+  - py_compile; test suite test_odoo_warmup (15 tests).
+- Action required: as a normal user, set URL=http://127.0.0.1:10000 in /etc/default/odoo-warmup.conf (or ~/.odoo-warmup.conf), or ask for read access to the configuration file.
+
+### 1.24.20261025.212138 - Odoo unit found from its running process for --systemd-install
+
+- Title: Without --service, --systemd-install and --systemd-remove use the systemd unit that runs the Odoo Python process, not odoo.service.
+- Reason: The default unit odoo.service does not exist on the server; the Odoo service has another name (see systemctl status of the Odoo process).
+- Changes:
+  - odoo_units(): reads /proc/PID/cgroup of each Python process whose command line mentions odoo and keeps the NAME.service of that process (no root needed).
+  - Order for the unit: --service, then SERVICE of the configuration, then the unit found in the process, then odoo.service (with a warning).
+  - Several Odoo units found: error, asking for --service UNIT (nothing is written).
+  - --service help text updated.
+  - Files: odoo-warmup.py, nginx-tools-tests/test_odoo_warmup.py.
+- Bugs fixed:
+  - Symptom: --systemd-install without --service writes odoo.service.d/odoo-warmup.conf for a unit that does not exist, so the warm-up never runs after a start.
+  - Diagnosis: DEFAULT_SERVICE was used as soon as no --service or SERVICE was given, without looking at the running Odoo.
+  - Correction: the unit is read from the running process.
+- Safeguards and edge cases:
+  - No Odoo process running: odoo.service is used and a warning says so.
+  - Two or more Odoo units: nothing is written.
+  - A normal run (no --systemd-*) does not change.
+- Checks:
+  - py_compile; test suite test_odoo_warmup (new test with a fake /proc tree).
+- Action required: run --systemd-install again without --service (or with --service NAME.service) so the drop-in is written for the right unit; remove the wrong drop-in /etc/systemd/system/odoo.service.d/odoo-warmup.conf if it was created.
+
+### 1.23.20261025.211244 - Odoo configuration file found when its path has a * pattern
+
+- Title: The Odoo configuration file is found through the default patterns (for example /home/*/git/erplibre/config.conf), so its http_port and gevent_port are used.
+- Reason: The configuration file was not found in the real run, so the gevent port 10002 was not excluded and was probed as an HTTP instance. That probe returned HTTP 500 on the Odoo side, at the start of every run.
+- Changes:
+  - odoo_conf_ports(): uses trouver() of apps/_odoo_conf.py, which expands the * patterns; before, the patterns were tested literally with os.path.isfile().
+  - apps/_odoo_conf.py (shared module, version 1.5.20261025.211244): _reglage() accepts spaces around the "=" of ODOO_CONF_PATHS in nginx-hardening.conf; the key is escaped.
+  - Files: odoo-warmup.py, apps/_odoo_conf.py.
+- Bugs fixed:
+  - Symptom: the first request of a run is a probe to http://127.0.0.1:10002/web/login, answered with HTTP 500 by Odoo, although config.conf says gevent_port = 10002.
+  - Diagnosis: chemins_candidats() returns the default patterns as plain text; os.path.isfile("/home/*/git/erplibre/config.conf") is always False, so no configuration file was read and no port was excluded.
+  - Correction: trouver() develops the patterns, as the other programs do.
+- Safeguards and edge cases:
+  - Without a configuration file, the behaviour is unchanged (candidates from the listening sockets, then 8069).
+  - Workaround until this version: HOST=odoo-dev.rencontres-linux.quebec in /etc/default/odoo-warmup.conf skips the detection entirely.
+- Checks:
+  - py_compile of both files; test suite test_odoo_warmup and test_odoo_conf (to run).
+- Action required: none.
+
+### 1.22.20261025.210356 - Odoo found by the owner of its processes, without root
+
+- Title: The Odoo ports are those listened to by the account that runs an Odoo Python process; works without root.
+- Reason: Without root, ss does not show the process of another account, so the Python process was not seen and the detection fell back to 8069. The owner (UID) of each listening socket is shown without root (ss -e: uid:N; netstat: User column).
+- Changes:
+  - odoo_uids(): UIDs of the processes whose command line contains python and odoo (read in /proc).
+  - odoo_ports_listening(): listening TCP sockets owned by one of these UIDs (ss -ltnHe, then netstat -tlen).
+  - Client(timeout=...): optional timeout; detection probes use PROBE_TIMEOUT (3 s), so a port that is not HTTP does not block for 120 s.
+  - Files: odoo-warmup.py.
+- Bugs fixed:
+  - Symptom: "No single Odoo port detected, default http://127.0.0.1:8069" when run without root.
+  - Diagnosis: the Python process of Odoo was not visible without root in ss -ltnp.
+  - Correction: owner UID instead of process name.
+- Safeguards and edge cases:
+  - No Odoo process visible: no candidate from the processes; the configuration file and the default port still apply.
+  - Each candidate must still answer 200 with "odoo" on /web/login.
+- Checks:
+  - py_compile; test suite test_odoo_warmup; parsing of ss and netstat samples (10002 and 10000 found, UID 0 ignored).
+- Action required: none.
+
+### 1.21.20261025.202416 - Request trace for diagnosis (ODOO_WARMUP_TRACE)
+
+- Title: With the environment variable ODOO_WARMUP_TRACE set, each request of the warm-up is written to stderr with its URL, HTTP code and duration.
+- Reason: The 500 error in the Odoo log could not be reproduced by replaying the requests one by one; the exact sequence of the real run is needed.
+- Changes:
+  - Client.request_() wraps the former request_() (renamed _request()); the trace is printed only when ODOO_WARMUP_TRACE is set.
+  - Files: odoo-warmup.py.
+- Bugs fixed: none (diagnosis aid).
+- Safeguards and edge cases:
+  - Without the variable, the output and the behaviour are unchanged.
+- Checks:
+  - py_compile; test suite test_odoo_warmup.
+- Action required: none. To diagnose: ODOO_WARMUP_TRACE=1 odoo-warmup.py 2>&1 | tee /tmp/trace.txt, then send the TRACE lines and the matching Odoo log lines.
+
+### 1.20.20261025.194640 - Site name read from the nginx configuration
+
+- Title: Without HOST, the warm-up finds the site name in the nginx configuration and goes through nginx.
+- Reason: The warm-up went directly to Odoo when HOST was not set, which produced the REQUEST_URI error at each start. The nginx configuration differs from one server to another, so the name is read from the files, not hard-coded.
+- Changes:
+  - nginx_names_for_port(PORT): reads NGINX_DIR/nginx.conf and sites-enabled/* (includes followed, comments removed), finds the upstream blocks that point to 127.0.0.1:PORT and the server blocks whose proxy_pass reaches them (directly or through set $variable), and returns their server_name (without _).
+  - via_nginx(HOST): probes /web/login over HTTPS with the site name (certificate checked).
+  - main(): HOST set -> nginx first, direct detection otherwise. HOST not set -> direct detection, then the site name from nginx when exactly one name reaches the Odoo port, then nginx.
+  - Several names reach the port: nothing is chosen; the message asks for HOST.
+  - Files: odoo-warmup.py.
+- Bugs fixed:
+  - Symptom: KeyError REQUEST_URI at each warm-up run while the visitors (through nginx) get no such error.
+  - Diagnosis: HOST was missing from the configuration, so the warm-up bypassed nginx.
+  - Correction: automatic site name from the nginx configuration.
+- Safeguards and edge cases:
+  - Reading the configuration needs no root (NGINX_DIR files are readable).
+  - Absent or unreadable nginx files: no name, direct connection as before.
+  - Two names reaching the port: no choice.
+  - Include depth limited to 5.
+- Checks:
+  - py_compile; test suite test_odoo_warmup; a copy of the server's configuration (upstream odoo -> 127.0.0.1:10000, set $odoo_backend odoo, include of the name file): 10000 gives odoo-dev.rencontres-linux.quebec, 9999 gives nothing; a second vhost to 10000 gives two names.
+- Action required: none if the configuration is as expected. If the warm-up says several names, set HOST in /etc/default/odoo-warmup.conf.
+
+### 1.19.20261025.192521 - Default wait of 20 seconds instead of 120
+
+- Title: The default --wait (and key WAIT) is 20 seconds.
+- Reason: Requested. Odoo is normally up well before 120 seconds; a shorter default fails sooner when the service is really stopped.
+- Changes:
+  - DEFAULT_WAIT: 120 -> 20. REQUEST_TIMEOUT (120 s per request) is unchanged.
+  - doc/fr and doc/en odoo-warmup.conf.example: #WAIT=20.
+  - Files: odoo-warmup.py, doc/fr/odoo-warmup.conf.example, doc/en/odoo-warmup.conf.example.
+- Bugs fixed: none.
+- Safeguards and edge cases:
+  - A slow start longer than 20 seconds: use --wait 120 or WAIT=120 in the configuration file.
+- Checks:
+  - py_compile; test suite test_odoo_warmup.
+- Action required: none, unless Odoo needs more than 20 seconds to answer after a restart; then set WAIT=120.
+
+### 1.18.20261025.192316 - Warm-up through nginx, as the visitors do, when HOST is set
+
+- Title: With the key HOST, the warm-up goes through nginx (HTTPS on this machine), and directly to Odoo only if nginx does not answer.
+- Reason: The warm-up asked Odoo directly on its port, without nginx. Odoo then gets no REQUEST_URI, and the first render of /en_CA/web/login fails with KeyError REQUEST_URI at each start. Visitors go through nginx and do not see this error.
+- Changes:
+  - New key HOST (site name, in /etc/default/odoo-warmup.conf or ~/.odoo-warmup.conf). Used only when URL and --url are not set.
+  - _NginxConnection / _NginxHandler: the TCP connection goes to 127.0.0.1:443 (NGINX_ADDRESS); the TLS name (SNI), the Host header and the certificate check use HOST, as a browser does. The system proxy is not used.
+  - main(): with HOST, nginx is probed on /web/login; if it answers 200, 302 or 303, the warm-up uses https://HOST; otherwise direct detection (1.14 to 1.15) applies.
+  - Files: odoo-warmup.py, lang/odoo-warmup.fr.po (keys list in the help and in the messages).
+- Bugs fixed:
+  - Symptom: a KeyError REQUEST_URI in the Odoo log at each warm-up run, never for visitors.
+  - Diagnosis: the warm-up bypassed nginx; the visitors' path through nginx does not raise it (200 on the same page via nginx, HTTP/HTTPS on the local address).
+  - Correction: the warm-up uses the same path as the visitors when HOST is set.
+- Safeguards and edge cases:
+  - The certificate is checked for HOST: a wrong name or an invalid certificate makes nginx count as not answering, and the direct path is used.
+  - Without HOST, behaviour is unchanged.
+- Checks:
+  - py_compile; test suite test_odoo_warmup; local TLS server with a self-signed certificate for odoo-dev.test: the right name answers 200 and the Host header is received; a wrong name gives no answer (0).
+- Action required: add HOST=odoo-dev.rencontres-linux.quebec to /etc/default/odoo-warmup.conf (or ~/.odoo-warmup.conf), then run the warm-up. Check that the Odoo log no longer shows KeyError REQUEST_URI.
+
+### 1.17.20261025.191509 - Up to four tries for a public page answering 5xx
+
+- Title: A public page answering 5xx is requested up to four times, one second apart.
+- Reason: After a restart, Odoo runs several processes and each builds its template cache at its first render. One retry (version 1.16) could still reach a process that was not ready yet. The log showed a 500, then a 200 one second later on the same page.
+- Changes:
+  - load_page(): up to PUBLIC_ATTEMPTS (4) tries, RETRY_PAUSE (1 second) between them; the last answer is recorded.
+  - Files: odoo-warmup.py.
+- Bugs fixed:
+  - Symptom: a 500 in the Odoo log at each start, even with 1.16.
+  - Diagnosis: a single retry does not guarantee to reach a warm process; the log showed several processes loading the registry.
+  - Correction: several tries.
+- Safeguards and edge cases:
+  - Only 5xx answers are retried; a 404 (optional page) is not.
+  - A page still answering 5xx after four tries is recorded as a failure.
+  - Calling /web/login first was considered and not kept: it answers 303 and does not render the layout.
+- Checks:
+  - py_compile; test suite test_odoo_warmup; scripted client: 500, 500, 200 is recorded as 200 after 3 calls; five times 500 is recorded as 500 after 4 calls.
+- Action required: none. The 500 may still appear in the Odoo log at a cold start; the warm-up reports it as success if a later try answers 200.
+
+### 1.16.20261025.185140 - One retry for a public page answering 5xx
+
+- Title: A public page answering 5xx is requested once more after one second.
+- Reason: On the development server, the first request for a language-prefixed page (/en_CA/web/login) fails with a 500 (KeyError REQUEST_URI while Odoo builds its template cache), and the next request for the same page succeeds. The warm-up triggered this error at every run, and the error filled the Odoo log.
+- Changes:
+  - load_page(): a 5xx answer is requested once more after RETRY_PAUSE (1 second); the second answer is the one recorded.
+  - Files: odoo-warmup.py.
+- Bugs fixed:
+  - Symptom: a 500 in the Odoo log for each warm-up run, although the warm-up reported 0 failure.
+  - Diagnosis: first render of the page fails while the template cache is built; the warm-up is the first client to request these pages.
+  - Correction: one retry. The cache is then built by the warm-up, not by the first visitor.
+- Safeguards and edge cases:
+  - Only 5xx answers are retried; a 404 (optional page) is not.
+  - A page failing twice is still recorded as a failure.
+- Checks:
+  - py_compile; test suite test_odoo_warmup; scripted client: 500 then 200 is recorded as 200 after 2 calls; 500 twice is recorded as 500.
+- Action required: none. The Odoo log may still show one 500 per language variant on a cold start; the root cause (REQUEST_URI absent on the direct port) is to be checked on the server.
+
+### 1.15.20261025.175745 - The gevent port is not an Odoo instance
+
+- Title: The gevent (long polling) port of the Odoo configuration file is never taken for a second instance.
+- Reason: Odoo uses two ports: http_port (the web site, 10000 on the server) and gevent_port (long polling, 10002). Both listen, so the detection saw two instances and stopped.
+- Changes:
+  - odoo_conf_ports() replaces odoo_ports_from_conf(): returns the HTTP port and the gevent port of the configuration file.
+  - The gevent port is removed from the listening-port candidates and is never probed as an HTTP instance.
+  - Files: odoo-warmup.py.
+- Bugs fixed:
+  - Symptom: "several Odoo instances answer on ports [10000, 10002]" on a single Odoo instance.
+  - Diagnosis: the gevent port was a candidate like the HTTP port.
+  - Correction: exclusion of the gevent port.
+- Safeguards and edge cases:
+  - Without a configuration file, the gevent port is unknown; it is then only accepted if it answers 200 with "odoo" on /web/login.
+- Checks:
+  - py_compile; test suite test_odoo_warmup; a configuration with http_port 10000 and gevent_port 10002 gives 10000 only.
+- Action required: none if the configuration file is found. Otherwise set URL in /etc/default/odoo-warmup.conf.
+
+### 1.14.20261025.175011 - Automatic detection only when a single Odoo instance answers
+
+- Title: Automatic detection only when exactly one Odoo instance answers; the program never needs root.
+- Reason: Several Odoo instances can run on one server (for example ports 10002 and 10000). Choosing one of them silently is wrong. The program must also run as a normal user.
+- Changes:
+  - An Odoo instance is recognised by /web/login answering 200 with "odoo" in the page, not only by a listening port.
+  - Exactly one Odoo instance: it is used and shown. Several: detection stops with an error and asks for --url or URL. None answering: the single candidate (Odoo may be starting), else 127.0.0.1:8069.
+  - Priority unchanged: --url, then URL in the configuration file, then detection.
+  - Root: not needed. Only --systemd-install and --systemd-remove write systemd files and need root.
+  - Files: odoo-warmup.py.
+- Bugs fixed:
+  - Symptom: a warning about several Odoo ports did not stop the run; the first port was used.
+  - Diagnosis: the detection chose the first answering port.
+  - Correction: refusal when several instances answer.
+- Safeguards and edge cases:
+  - Without root, process command lines may be unreadable: the Odoo page check still applies.
+  - A listening Python process that is not Odoo (no "odoo" on its login page) is ignored.
+- Checks:
+  - py_compile of odoo-warmup.py; test suite test_odoo_warmup; fake Odoo servers on 10002 and 10000: refusal, then detection of 10002 alone.
+- Action required: if the server has several instances, set URL in /etc/default/odoo-warmup.conf (or give --url).
+
+### 1.13.20261025.174351 - Port detection with netstat, and warning when several Odoo ports answer
+
+- Title: Port detection also works where ss is missing (netstat), and several answering Odoo ports are reported.
+- Reason: On the production server (Debian-like, netstat installed, ss absent) the detection found nothing, so the default 8069 was used. Odoo listens on 10002 and 10000 (python3). Also, when several Odoo ports answer, the first one was used silently.
+- Changes:
+  - Listening sockets: ss -ltnpH first, then netstat -tlnp when ss is missing or empty (function _listening_lines()).
+  - Several answering ports: the first one is still used, but a WARNING line lists all of them and asks for --url or URL.
+  - Files: odoo-warmup.py.
+- Bugs fixed:
+  - Symptom: "No Odoo port detected, default http://127.0.0.1:8069" although python3 processes listen on 10002 and 10000.
+  - Diagnosis: the program only knew the ss command; netstat output was not read.
+  - Correction: netstat fallback and parser checked on the netstat output of the server.
+- Safeguards and edge cases:
+  - Without root, a process command line can be unreadable: the process name (python) is then accepted.
+  - Neither ss nor netstat available: no candidate from the processes; configuration file and default port still apply.
+- Checks:
+  - py_compile of odoo-warmup.py; parser run on the netstat output of the server (ports 10002 and 10000 found).
+- Action required: none. If the warning appears on the server, choose the port with --url or URL in /etc/default/odoo-warmup.conf.
+
+### 1.12.20261025.172228 - Automatic detection of the Odoo port
+
+- Title: Automatic detection of the Odoo HTTP port when --url and URL are not set.
+- Reason: The default address 127.0.0.1:8069 was used even when Odoo listens on another port (for example 10002 on the development server), so the warm-up waited for an address that does not answer.
+- Changes:
+  - New functions odoo_ports_from_conf() (HTTP port of the first Odoo configuration file found, through apps/_odoo_conf.py), odoo_ports_listening() (TCP ports of the Python processes whose command line mentions odoo, through ss) and detect_odoo_url() (probe of each candidate on /web/login).
+  - Order of the candidates: configuration file, then listening Odoo processes. The first one answering 200, 302 or 303 is used.
+  - Priority unchanged: --url on the command line, then URL in the configuration file, then detection, then http://127.0.0.1:8069.
+  - The detected address is shown on the screen, in French and English.
+  - Files: odoo-warmup.py (version, detection functions, --url help text), lang/odoo-warmup.fr.po (French text of the new messages and of the --url help).
+- Bugs fixed:
+  - Symptom: with a port other than 8069 and no explicit URL, the warm-up stopped with "Odoo does not answer at http://127.0.0.1:8069".
+  - Diagnosis: the default URL was fixed in the code; nothing looked at the port Odoo really uses.
+  - Correction: detection described above.
+- Safeguards and edge cases:
+  - Without root, the command line of other users' processes cannot be read: the process name (python) is then accepted.
+  - ss missing or failing: no candidate from the listening processes, the configuration file and the default port still apply.
+  - No candidate answering: the first candidate is used, so the wait loop reports the real port.
+- Checks:
+  - py_compile of odoo-warmup.py.
+  - Test suite nginx-tools-tests/test_odoo_warmup.py (see the result in the pull request).
+- Action required: none.
+
 ### 1.11.20261022.231529 - Code comments translated to English
 
 - Title: Code comments translated to English (repository convention).
@@ -737,7 +1173,7 @@ Earlier history was archived outside this repository when this file was created.
 
 ## nginx-log-audit.sh
 
-### 2.45.20261026.114649 - Unban review: refusals count, single bursts to check, coherence guard, daily checks
+### 2.46.20261026.195327 - Unban review: refusals count, single bursts to check, coherence guard, daily checks
 
 - Title: Unban review: refused-only bans are justified, single bursts are flagged, coherence guard, daily checks section.
 - Reason: Review of the 87 manual bans listed by `--unban-check` (2026-10-26). Three problems: (a) several addresses were reported "without trace" although they were refused again and again (blocked-probes.log was never read by the re-evaluation); (b) the investigation of 192.54.244.135 printed the reverse DNS, the host lookup and the grep of another address (34.179.161.77), so its verdict rested on the wrong evidence; (c) a single burst of pages was enough to keep a ban. The administrator also wants a daily list of points to re-check, with the commands run by the program itself.
@@ -765,6 +1201,7 @@ Earlier history was archived outside this repository when this file was created.
   - Missing logs (blocked-probes.log, access log, fail2ban.log) are reported as [ATTN] or "nothing to compare"; they do not stop the program.
   - An empty list of manual bans still prints the section.
   - `--unban-check` still requires root (firewall rules).
+- Version: 2.46 (not 2.45): main already released 2.45 (summary of the IPs to unban). Both features are kept.
 - Checks:
   - `bash -n` and ShellCheck 0.11.0 (no warning).
   - `test_i18n`: 32 tests OK (every new message has an English entry).
@@ -775,6 +1212,28 @@ Earlier history was archived outside this repository when this file was created.
   - Re-run `--investigate 192.54.244.135` (the investigation of this address was inconsistent).
   - Check the address 140.82.7.85 by hand (its only sign is a burst of pages).
   - For a daily check, add the crontab line shown in the documentation (section "Reviewing manual bans every day").
+
+### 2.45.20261025.155703 - Summary of IPs to unban after --unban-check
+
+- Title: summary of the IPs to lift at the end of --unban-check when there are more than 5.
+- Reason: on a server with many manual bans, the per-IP report scrolls far above the final tally, and the IPs recommended for lifting are hard to find again. The request was to list them after the command, only when there are more than 5.
+- Changes:
+  - --unban-check: each IP whose lifting is recommended (verdict "lever") or done (verdict "levé") is recorded during the loop.
+  - After the BILAN line, if more than 5 IPs are recorded (constant UNBAN_SUMMARY_MIN=5), a bilingual summary lists each IP with its status (lifting recommended / lifting done). Nothing is printed for 5 IPs or fewer.
+  - No new option and no new configuration key (the threshold is a fixed constant, not a setting).
+  - Documentation: doc/en/02-nginx-log-audit.md and doc/fr/02-nginx-log-audit.md.
+  - Files: nginx-log-audit.sh, CHANGELOG.md, doc/en/02-nginx-log-audit.md, doc/fr/02-nginx-log-audit.md.
+- Bugs fixed: none.
+- Safeguards and edge cases:
+  - The summary is only printed by --unban-check; other actions and the exit code are unchanged.
+  - An empty recommendation list never reaches the summary loop (guarded by the count check, safe with set -u).
+  - Each lift still asks for confirmation one IP at a time; the summary does not lift anything.
+  - Output uses no em dash or other typographic symbols in the new lines.
+- Checks:
+  - bash -n on nginx-log-audit.sh; shellcheck 0.11.0 with -S warning: no new warnings.
+  - Isolated test of the summary block with 6 IPs (summary shown, with mixed statuses) and 5 IPs (nothing shown).
+- Action required: none.
+
 
 ### 2.44.20261022.231529 - Code comments translated to English
 

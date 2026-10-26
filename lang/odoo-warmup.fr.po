@@ -76,8 +76,8 @@ msgstr "Préchauffe le cache d'Odoo (pages publiques, assets, écrans d'administ
 msgid "This configuration file ONLY (default: "
 msgstr "Ce fichier de configuration SEUL (défaut : "
 
-msgid " ; keys URL, DB, LOGIN, KEY_FILE, PAGES, PAGES_FILE, LANGS, MODELS, REPEAT, WAIT, SERVICE, LANGUAGE)"
-msgstr " ; clés URL, DB, LOGIN, KEY_FILE, PAGES, PAGES_FILE, LANGS, MODELS, REPEAT, WAIT, SERVICE, LANGUAGE)"
+msgid " ; keys URL, HOST, DB, LOGIN, KEY_FILE, PAGES, PAGES_FILE, LANGS, MODELS, REPEAT, WAIT, SERVICE, LANGUAGE)"
+msgstr " ; clés URL, HOST, DB, LOGIN, KEY_FILE, PAGES, PAGES_FILE, LANGS, MODELS, REPEAT, WAIT, SERVICE, LANGUAGE)"
 
 msgid "Show the change log"
 msgstr "Affiche le journal des modifications"
@@ -103,11 +103,9 @@ msgstr "Lancer le préchauffage après chaque démarrage de l'unité d'Odoo (fic
 msgid "Remove the automatic start installed by --systemd-install"
 msgstr "Retirer le démarrage automatique installé par --systemd-install"
 
-msgid "Odoo address (default: "
-msgstr "Adresse d'Odoo (défaut : "
 
-msgid " : Odoo's HTTP port, bypassing nginx)"
-msgstr " : le port HTTP d'Odoo, sans passer par nginx)"
+msgid "Odoo address (default: automatic detection from the Odoo configuration file and the listening Odoo processes, then http://127.0.0.1:8069 ; bypasses nginx)"
+msgstr "Adresse d'Odoo (défaut : détection automatique à partir du fichier de configuration d'Odoo et des processus Odoo en écoute, puis http://127.0.0.1:8069 ; sans passer par nginx)"
 
 msgid "Show each external command run"
 msgstr "Affiche chaque commande externe exécutée"
@@ -184,8 +182,8 @@ msgstr "--report-err indisponible (apps/_rapport.py absent) — exécution norma
 msgid "events"
 msgstr "événements"
 
-msgid " » (keys: URL, DB, LOGIN, KEY_FILE, PAGES, PAGES_FILE, LANGS, MODELS, SERVICE: text; REPEAT, WAIT: positive numbers; LINKS, LATEST: numbers; LANGUAGE: en, fr, auto)"
-msgstr " » (clés : URL, DB, LOGIN, KEY_FILE, PAGES, PAGES_FILE, LANGS, MODELS, SERVICE : texte ; REPEAT, WAIT : nombres positifs ; LINKS, LATEST : nombres ; LANGUAGE : en, fr, auto)"
+msgid " » (keys: URL, HOST, DB, LOGIN, KEY_FILE, PAGES, PAGES_FILE, LANGS, MODELS, SERVICE: text; REPEAT, WAIT: positive numbers; LINKS, LATEST: numbers; LANGUAGE: en, fr, auto)"
+msgstr " » (clés : URL, HOST, DB, LOGIN, KEY_FILE, PAGES, PAGES_FILE, LANGS, MODELS, SERVICE : texte ; REPEAT, WAIT : nombres positifs ; LINKS, LATEST : nombres ; LANGUAGE : en, fr, auto)"
 
 msgid " (not public)"
 msgstr " (non public)"

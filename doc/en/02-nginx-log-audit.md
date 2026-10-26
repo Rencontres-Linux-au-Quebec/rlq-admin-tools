@@ -16,7 +16,7 @@ nginx-log-audit.sh --stats --details       # traffic statistics: codes, IPs, use
 
 ## How a ban is decided
 
-Clues are counted per address: sensitive-path probing, page bursts (`--page-burst`: distinct pages in 10 s), parallel dynamic requests in the same second (`--parallel-threshold`, section 11), many robot identities from one address (`--ua-rotation-threshold`). A ban is *suggested* from `--ban-threshold` clues (default 3). Addresses in the white list or in places marked `[protected]` are never proposed. Manual bans are re-evaluated by `--unban-check` (lifting is suggested if no longer justified).
+Clues are counted per address: sensitive-path probing, page bursts (`--page-burst`: distinct pages in 10 s), parallel dynamic requests in the same second (`--parallel-threshold`, section 11), many robot identities from one address (`--ua-rotation-threshold`). A ban is *suggested* from `--ban-threshold` clues (default 3). Addresses in the white list or in places marked `[protected]` are never proposed. Manual bans are re-evaluated by `--unban-check` (lifting is suggested if no longer justified). When more than 5 IPs are to be lifted, a summary of those IPs is printed after the final tally.
 
 ## When and why an address was banned
 
