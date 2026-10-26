@@ -56,7 +56,7 @@ try:                    # line editing in prompts
 except ImportError:
     pass
 
-__version__ = "1.25.20261025.214951"
+__version__ = "1.26.20261025.215544"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
@@ -610,6 +610,46 @@ class LocalizedArgumentParser(argparse.ArgumentParser):
         super().__init__(*args, **kwargs)
 
 
+def ports_de_ligne_de_commande(texte):
+    """(HTTP ports, gevent ports, configuration path) found in an Odoo command line or in the ExecStart of its unit."""
+    http = [int(p) for p in re.findall(r"--http-port[= ](\d+)", texte)]
+    gevent = [int(p) for p in re.findall(r"--gevent-port[= ](\d+)", texte)]
+    config = re.findall(r"(?:^|\s)(?:-c|--config)[= ](\S+)", texte)
+    return http, gevent, (config[-1] if config else None)
+
+
+def commandes_odoo(proc="/proc"):
+    """Command lines of the Odoo Python processes and ExecStart of their systemd units (both readable without root)."""
+    textes = []
+    for dossier in glob.glob(os.path.join(proc, "[0-9]*")):
+        try:
+            with open(os.path.join(dossier, "cmdline"), "rb") as f:
+                commande = f.read().lower()
+            if b"python" in commande and b"odoo" in commande:
+                with open(os.path.join(dossier, "cmdline"), "rb") as f:
+                    textes.append(f.read().replace(b"\0", b" ").decode("utf-8", errors="replace"))
+        except OSError:
+            continue
+    for unite in odoo_units(proc):
+        try:
+            resultat = subprocess.run(["systemctl", "show", "-p", "ExecStart", "--value", unite], capture_output=True, text=True, timeout=10, check=False)
+            textes.append(resultat.stdout)
+        except (OSError, subprocess.SubprocessError):
+            continue
+    return textes
+
+
+def ports_du_service(proc="/proc"):
+    """(HTTP ports, gevent ports, configuration path) read in the Odoo processes and their units; no configuration file is opened here."""
+    http, gevent, config = [], [], None
+    for texte in commandes_odoo(proc):
+        h, g, c = ports_de_ligne_de_commande(texte)
+        http += [p for p in h if p not in http]
+        gevent += [p for p in g if p not in gevent]
+        config = config or c
+    return http, gevent, config
+
+
 def odoo_conf_ports():
     """(HTTP ports, gevent ports) of the first Odoo configuration file found (apps/_odoo_conf.py); ([], []) if none.
     The gevent port (long polling, websocket) is not an HTTP instance: it is never probed as one."""
@@ -618,7 +658,12 @@ def odoo_conf_ports():
         return [], []
     chemin = module.trouver()                                 # develops the * patterns (e.g. /home/*/git/erplibre/config.conf)
     if chemin is None:
-        return [], []
+        http_ports, gevent_ports, config = ports_du_service()  # no readable file: the command lines and ExecStart of the Odoo units
+        if not http_ports and config and os.path.isfile(config) and os.access(config, os.R_OK):
+            conf = module.lire(config)
+            http_ports = [int(conf["http_port"])] if conf["http_port"].isdigit() else []
+            gevent_ports = [int(conf["gevent_port"])] if conf["gevent_port"].isdigit() else []
+        return http_ports, gevent_ports
     conf = module.lire(chemin)
     http_port, gevent_port = conf["http_port"], conf["gevent_port"]
     return ([int(http_port)] if http_port.isdigit() else []), ([int(gevent_port)] if gevent_port.isdigit() else [])

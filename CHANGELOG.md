@@ -466,6 +466,27 @@ Earlier history was archived outside this repository when this file was created.
 
 ## odoo-warmup.py
 
+### 1.26.20261025.215544 - Odoo ports read from the Odoo service, without the configuration file
+
+- Title: When no configuration file can be read, the HTTP and gevent ports come from the command line of the Odoo processes and from ExecStart of their systemd unit.
+- Reason: The account running the warm-up cannot read the Odoo configuration file; the Odoo service (systemctl) gives the ports and the configuration path without reading that file.
+- Changes:
+  - ports_de_ligne_de_commande(): --http-port, --gevent-port and -c/--config read in a command line.
+  - commandes_odoo(): command lines of the Odoo Python processes (/proc) and ExecStart of their units (systemctl show, no root).
+  - ports_du_service(): ports and configuration path from these command lines.
+  - odoo_conf_ports(): used when no configuration file is found; the configuration file is read only if it is readable and no port was found in the command lines.
+  - Files: odoo-warmup.py, nginx-tools-tests/test_odoo_warmup.py.
+- Bugs fixed:
+  - Symptom: as a normal user, no port is detected because the configuration file is not readable.
+  - Diagnosis: the program needed the file to read the ports, although the service carries them.
+  - Correction: the ports are read from the service first.
+- Safeguards and edge cases:
+  - If the service gives no port and the file is not readable, the detection works as before (listening sockets, then 8069).
+  - systemctl missing or failing: ignored.
+- Checks:
+  - py_compile; test suite test_odoo_warmup (16 tests, with a fake /proc and a fake systemctl). Not tested on a real systemd host.
+- Action required: none, but check on the server: systemctl show -p ExecStart --value <unit> must show --http-port or -c; send the output if the detection still fails.
+
 ### 1.25.20261025.214951 - Non-root account: unreadable configuration reported, detection probe 10 s
 
 - Title: When the Odoo configuration file cannot be read by the account, the warm-up says so and tells how to set URL; the detection probe waits 10 s.
