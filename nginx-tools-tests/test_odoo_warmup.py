@@ -189,6 +189,7 @@ class OdooWarmup(EnvTest):
     def test_pages_de_sondages_optionnelles(self):
         """Une page /survey qui échoue (404) est notée « (optionnel) » mais ne fait pas échouer le préchauffage."""
         FauxOdoo.survey_ok = False
+        self.conf("PAGES=/,/survey\n")
         code, out, err = self.lancer("--url", self.url, "--wait", "5", "--links", "0")
         self.assertEqual(code, 0, out + err)
         self.assertIn("/survey (optionnel)", out)
@@ -290,6 +291,15 @@ class OdooWarmup(EnvTest):
         self.assertTrue(module.est_processus_odoo(b"python3\0odoo-bin\0"))
         self.assertFalse(module.est_processus_odoo(b"bash\0-c\0erplibre\0"))
         self.assertFalse(module.est_processus_odoo(b"python3\0/usr/bin/autre.py\0"))
+
+    def test_pas_de_variante_de_langue_pour_une_page_de_sondage(self):
+        import importlib.util
+        spec = importlib.util.spec_from_file_location("odoo_warmup_module4", script_path("odoo-warmup.py"))
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        html = '<html><link rel="alternate" hreflang="en" href="/en_CA/survey"/><link rel="alternate" hreflang="fr" href="/survey"/></html>'
+        self.assertEqual(module.language_variants(html, ("fr", "en", "es"), "/survey"), [])
+        self.assertEqual(module.language_variants(html, ("fr", "en", "es"), "/event"), ["/en_CA/survey", "/survey"])
 
     def test_version_et_changelog(self):
         code, out, err = self.run_cmd(["python3", script_path("odoo-warmup.py"), "--version"])

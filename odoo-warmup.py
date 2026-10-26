@@ -56,7 +56,7 @@ try:                    # line editing in prompts
 except ImportError:
     pass
 
-__version__ = "1.28.20261025.221900"
+__version__ = "1.30.20261025.223900"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
@@ -357,8 +357,10 @@ def is_optional(path):
 
 def language_variants(text, languages, path):
     """Paths of the page's versions in the `languages` (fr, en, es...), read from its <link rel="alternate" hreflang="...">. One version per language; the language
-    of the page itself is excluded."""
+    of the page itself is excluded. A survey page (/survey, optional) has no language versions requested: /en_CA/survey does not exist."""
     path = path.split("?")[0].rstrip("/")
+    if is_optional(path):
+        return []
     found, families = [], set()
     alternates = []
     for tag in re.findall(r"<link\b[^>]*>", text):
