@@ -56,7 +56,7 @@ try:                    # line editing in prompts
 except ImportError:
     pass
 
-__version__ = "1.30.20261025.223900"
+__version__ = "1.31.20261025.224500"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
@@ -228,6 +228,13 @@ class _NginxHandler(urllib.request.HTTPSHandler):
         return self.do_open(_NginxConnection, req, context=ssl.create_default_context())
 
 
+class _SansRedirection(urllib.request.HTTPRedirectHandler):
+    """The redirection is not followed: the 303 is the answer (a survey page redirects to a language version that does not exist)."""
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        return None
+
+
 class Client:
     """Small HTTP client with cookies (Odoo session), measures the time of each request."""
 
@@ -241,15 +248,17 @@ class Client:
         if re.match(r"https?://(127\.0\.0\.1|localhost|\[::1\])(:|/|$)", self.database):      # local Odoo: never through the system proxy
             handlers.append(urllib.request.ProxyHandler({}))
         self.opener = urllib.request.build_opener(*handlers)
+        self.opener_sans_redirection = urllib.request.build_opener(*handlers, _SansRedirection())
 
-    def request_(self, path, payload=None):
-        """(HTTP code, seconds, body as text); code 0 if the connection fails. With ODOO_WARMUP_TRACE set, each request is written to stderr."""
-        code, duration, text = self._request(path, payload)
+    def request_(self, path, payload=None, suivre=True):
+        """(HTTP code, seconds, body as text); code 0 if the connection fails. suivre=False: a redirection is not followed.
+        With ODOO_WARMUP_TRACE set, each request is written to stderr."""
+        code, duration, text = self._request(path, payload, suivre)
         if os.environ.get("ODOO_WARMUP_TRACE"):
             print(f"TRACE {self.database}{path} -> HTTP {code} in {duration:.2f} s", file=sys.stderr)
         return code, duration, text
 
-    def _request(self, path, payload=None):
+    def _request(self, path, payload=None, suivre=True):
         """(HTTP code, seconds, body as text); code 0 if the connection fails."""
         url = path if path.startswith("http") else self.database + path
         headers_list = {"User-Agent": "odoo-warmup", "Accept-Encoding": "identity"}
@@ -259,7 +268,8 @@ class Client:
             headers_list["Content-Type"] = "application/json"
         start = time.time()
         try:
-            with self.opener.open(urllib.request.Request(url, data=body, headers=headers_list), timeout=self.timeout) as r:
+            opener = self.opener if suivre else self.opener_sans_redirection
+            with opener.open(urllib.request.Request(url, data=body, headers=headers_list), timeout=self.timeout) as r:
                 text = r.read().decode("utf-8", "replace")
                 return r.status, time.time() - start, text
         except urllib.error.HTTPError as e:
@@ -382,7 +392,7 @@ def load_page(client, path, tally, assets, languages=()):
     # A first render can fail with 5xx while one Odoo process builds its template cache: the page is requested again
     # (each request may reach another process), up to PUBLIC_ATTEMPTS times.
     for attempt in range(PUBLIC_ATTEMPTS):
-        code, duration, text = client.request_(path)
+        code, duration, text = client.request_(path, suivre=not is_optional(path))
         if code < 500 or attempt == PUBLIC_ATTEMPTS - 1:
             break
         time.sleep(RETRY_PAUSE)
