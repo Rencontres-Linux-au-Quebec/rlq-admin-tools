@@ -466,6 +466,20 @@ Earlier history was archived outside this repository when this file was created.
 
 ## odoo-warmup.py
 
+### 1.21.20261025.202416 - Request trace for diagnosis (ODOO_WARMUP_TRACE)
+
+- Title: With the environment variable ODOO_WARMUP_TRACE set, each request of the warm-up is written to stderr with its URL, HTTP code and duration.
+- Reason: The 500 error in the Odoo log could not be reproduced by replaying the requests one by one; the exact sequence of the real run is needed.
+- Changes:
+  - Client.request_() wraps the former request_() (renamed _request()); the trace is printed only when ODOO_WARMUP_TRACE is set.
+  - Files: odoo-warmup.py.
+- Bugs fixed: none (diagnosis aid).
+- Safeguards and edge cases:
+  - Without the variable, the output and the behaviour are unchanged.
+- Checks:
+  - py_compile; test suite test_odoo_warmup.
+- Action required: none. To diagnose: ODOO_WARMUP_TRACE=1 odoo-warmup.py 2>&1 | tee /tmp/trace.txt, then send the TRACE lines and the matching Odoo log lines.
+
 ### 1.20.20261025.194640 - Site name read from the nginx configuration
 
 - Title: Without HOST, the warm-up finds the site name in the nginx configuration and goes through nginx.
