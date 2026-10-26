@@ -466,6 +466,25 @@ Earlier history was archived outside this repository when this file was created.
 
 ## odoo-warmup.py
 
+### 1.28.20261025.221900 - Start by systemd: detection waits for Odoo to listen
+
+- Title: Started by the systemd drop-in, the warm-up waits up to 120 s for Odoo to listen before it chooses the port; the systemd options do not run the detection.
+- Reason: The ExecStartPost of the drop-in starts the warm-up right after the start of erplibre_erplibre.service, while Odoo is still loading its modules. The detection found no listening port, fell back to 8069 and stopped; the Odoo log shows only the two first requests.
+- Changes:
+  - detect_odoo_url(attente): polls the candidate ports every 2 s until one is listening or the wait ends (DETECTION_WAIT = 120 s; message printed once).
+  - --systemd-install and --systemd-remove do not run the detection and do not need Odoo.
+  - Files: odoo-warmup.py, CHANGELOG.md.
+- Bugs fixed:
+  - Symptom: with the drop-in, the warm-up requests only /web/login and /en_CA/web/login, then stops (manual run: all pages).
+  - Diagnosis: the detection runs once at the start, before the port is bound.
+  - Correction: wait for the port.
+- Safeguards and edge cases:
+  - Nothing listening after 120 s: 8069 as before.
+  - A manual run with Odoo already up is unchanged (the first poll finds the ports).
+- Checks:
+  - py_compile; test suite test_odoo_warmup (17 tests).
+- Action required: check the journal of the warm-up unit (journalctl -u odoo-warmup-run) after the next restart of erplibre_erplibre.service, and send it if the warm-up still stops early.
+
 ### 1.27.20261025.220011 - Odoo processes recognised by the ERPlibre path too
 
 - Title: A Python process is an Odoo process if its command line contains odoo or erplibre (not only odoo).
