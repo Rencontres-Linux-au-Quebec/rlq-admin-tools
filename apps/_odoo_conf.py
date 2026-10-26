@@ -14,7 +14,7 @@ import glob
 import os
 import re
 
-__version__ = "1.4.20261022.231529"
+__version__ = "1.5.20261025.211244"
 
 CHEMINS_DEFAUT = ("/etc/odoo/odoo-linux_meetup.conf /opt/odoo/erplibre/config.conf /home/utilisateur/git/erplibre/config.conf /etc/odoo/odoo.conf "
                   "/etc/odoo/*.conf /home/*/git/erplibre/config.conf /opt/odoo/*/config.conf")
@@ -26,7 +26,7 @@ def _reglage(fichier, cle):
         with open(fichier, encoding="utf-8", errors="replace") as f:
             valeur = None
             for ligne in f:
-                m = re.match(rf"^\s*{cle}=(.*)$", ligne)
+                m = re.match(rf"^\s*{re.escape(cle)}\s*=(.*)$", ligne)
                 if m:
                     valeur = m.group(1)
     except OSError:
