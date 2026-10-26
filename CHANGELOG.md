@@ -466,6 +466,28 @@ Earlier history was archived outside this repository when this file was created.
 
 ## odoo-warmup.py
 
+### 1.24.20261025.212138 - Odoo unit found from its running process for --systemd-install
+
+- Title: Without --service, --systemd-install and --systemd-remove use the systemd unit that runs the Odoo Python process, not odoo.service.
+- Reason: The default unit odoo.service does not exist on the server; the Odoo service has another name (see systemctl status of the Odoo process).
+- Changes:
+  - odoo_units(): reads /proc/PID/cgroup of each Python process whose command line mentions odoo and keeps the NAME.service of that process (no root needed).
+  - Order for the unit: --service, then SERVICE of the configuration, then the unit found in the process, then odoo.service (with a warning).
+  - Several Odoo units found: error, asking for --service UNIT (nothing is written).
+  - --service help text updated.
+  - Files: odoo-warmup.py, nginx-tools-tests/test_odoo_warmup.py.
+- Bugs fixed:
+  - Symptom: --systemd-install without --service writes odoo.service.d/odoo-warmup.conf for a unit that does not exist, so the warm-up never runs after a start.
+  - Diagnosis: DEFAULT_SERVICE was used as soon as no --service or SERVICE was given, without looking at the running Odoo.
+  - Correction: the unit is read from the running process.
+- Safeguards and edge cases:
+  - No Odoo process running: odoo.service is used and a warning says so.
+  - Two or more Odoo units: nothing is written.
+  - A normal run (no --systemd-*) does not change.
+- Checks:
+  - py_compile; test suite test_odoo_warmup (new test with a fake /proc tree).
+- Action required: run --systemd-install again without --service (or with --service NAME.service) so the drop-in is written for the right unit; remove the wrong drop-in /etc/systemd/system/odoo.service.d/odoo-warmup.conf if it was created.
+
 ### 1.23.20261025.211244 - Odoo configuration file found when its path has a * pattern
 
 - Title: The Odoo configuration file is found through the default patterns (for example /home/*/git/erplibre/config.conf), so its http_port and gevent_port are used.

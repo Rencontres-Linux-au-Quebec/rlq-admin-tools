@@ -235,6 +235,23 @@ class OdooWarmup(EnvTest):
         code, out, err = self.lancer("--systemd-remove", "--service", "odoo-test.service")
         self.assertIn("Rien à retirer", out)
 
+    def test_unite_systemd_trouvee_par_le_processus_odoo(self):
+        import importlib.util
+        spec = importlib.util.spec_from_file_location("odoo_warmup_module", script_path("odoo-warmup.py"))
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        proc = os.path.join(self.d, "proc")
+        for pid, commande, cgroupe in (("101", b"python3\0/opt/erplibre/odoo-bin\0", "0::/system.slice/erplibre.service\n"),
+                                       ("102", b"bash\0-c\0sleep\0", "0::/system.slice/ssh.service\n"),
+                                       ("103", b"python3\0/usr/bin/odoo\0", "0::/system.slice/user.slice/erplibre-worker.service\n")):
+            os.makedirs(os.path.join(proc, pid))
+            with open(os.path.join(proc, pid, "cmdline"), "wb") as f:
+                f.write(commande)
+            with open(os.path.join(proc, pid, "cgroup"), "w") as f:
+                f.write(cgroupe)
+        self.assertEqual(module.odoo_units(proc), ["erplibre-worker.service", "erplibre.service"])
+        self.assertEqual(module.odoo_units(os.path.join(self.d, "vide")), [])
+
     def test_version_et_changelog(self):
         code, out, err = self.run_cmd(["python3", script_path("odoo-warmup.py"), "--version"])
         self.assertRegex(out, r"odoo-warmup.py version 1\.\d+\.\d{8}\.\d{6}")
