@@ -56,7 +56,7 @@ try:                    # line editing in prompts
 except ImportError:
     pass
 
-__version__ = "1.21.20261025.202416"
+__version__ = "1.22.20261025.210356"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
@@ -68,6 +68,7 @@ DEFAULT_URL = "http://127.0.0.1:8069"
 NGINX_ADDRESS = ("127.0.0.1", 443)                  # nginx of this server, HTTPS: the way visitors reach Odoo (variable: tests only)
 NGINX_HOST = None                                   # site name (key HOST) when the warm-up goes through nginx
 NGINX_DIR = os.environ.get("NGINX_TOOLS_ETC_NGINX", "/etc/nginx")      # variable: tests only
+PROBE_TIMEOUT = 3                                    # seconds for a detection probe (a port that is not HTTP must not block)
 RETRY_PAUSE = 1.0                                   # seconds between two tries of a public page answering 5xx
 PUBLIC_ATTEMPTS = 4                                 # tries of a public page answering 5xx (several Odoo processes)
 DEFAULT_PAGES = ["/", "/web/login", "/event", "/survey"]
@@ -229,8 +230,9 @@ class _NginxHandler(urllib.request.HTTPSHandler):
 class Client:
     """Small HTTP client with cookies (Odoo session), measures the time of each request."""
 
-    def __init__(self, base_url):
+    def __init__(self, base_url, timeout=None):
         self.database = base_url.rstrip("/")
+        self.timeout = timeout or REQUEST_TIMEOUT
         self.cookies = http.cookiejar.CookieJar()
         handlers = [urllib.request.HTTPCookieProcessor(self.cookies)]
         if NGINX_HOST and self.database == f"https://{NGINX_HOST}":        # through nginx: never through the system proxy
@@ -256,7 +258,7 @@ class Client:
             headers_list["Content-Type"] = "application/json"
         start = time.time()
         try:
-            with self.opener.open(urllib.request.Request(url, data=body, headers=headers_list), timeout=REQUEST_TIMEOUT) as r:
+            with self.opener.open(urllib.request.Request(url, data=body, headers=headers_list), timeout=self.timeout) as r:
                 text = r.read().decode("utf-8", "replace")
                 return r.status, time.time() - start, text
         except urllib.error.HTTPError as e:
@@ -603,9 +605,24 @@ def odoo_conf_ports():
     return [], []
 
 
+def odoo_uids():
+    """UIDs of the Python processes whose command line mentions odoo (read in /proc: no root needed for those processes)."""
+    uids = set()
+    for dossier in glob.glob("/proc/[0-9]*"):
+        try:
+            with open(os.path.join(dossier, "cmdline"), "rb") as f:
+                commande = f.read().lower()
+            if b"python" in commande and b"odoo" in commande:
+                uids.add(os.stat(dossier).st_uid)
+        except OSError:
+            continue
+    return uids
+
+
 def _listening_lines():
-    """Listening TCP sockets, one text line per socket: ss (iproute2) first, then netstat (net-tools); [] if neither works."""
-    for commande in (["ss", "-ltnpH"], ["netstat", "-tlnp"]):
+    """Listening TCP sockets with their owner: ss -ltnHe (iproute2) first, then netstat -tlen (net-tools); [] if neither works.
+    Owner shown without root for every socket: 'uid:N' in ss, the 'User' column in netstat."""
+    for commande in (["ss", "-ltnHe"], ["netstat", "-tlen"]):
         try:
             sortie = subprocess.run(commande, capture_output=True, text=True, timeout=5, check=False).stdout
         except (OSError, subprocess.SubprocessError):
@@ -616,22 +633,22 @@ def _listening_lines():
 
 
 def odoo_ports_listening():
-    """TCP ports listened to by a Python process whose command line mentions odoo; [] if unavailable.
-    The program never needs root (only --systemd-install and --systemd-remove write systemd files). Without root, the command line of another user's process may be unreadable: the process name (python) is then accepted; the Odoo page check still applies."""
+    """TCP ports listened to by the account(s) that run an Odoo Python process (found in /proc). [] if none is visible."""
+    uids = odoo_uids()
+    if not uids:
+        return []
     ports = []
     for ligne in _listening_lines():
         champs = ligne.split()
-        if len(champs) < 4 or "python" not in ligne:
+        uid = re.search(r"uid:(\d+)", ligne)
+        if uid:
+            proprietaire = int(uid.group(1))
+        elif len(champs) >= 7 and champs[6].isdigit():          # netstat: User column
+            proprietaire = int(champs[6])
+        else:
             continue
-        pids = re.findall(r"pid=(\d+)", ligne) or re.findall(r"\s(\d+)/\S+", ligne)
-        if pids:
-            try:
-                with open(f"/proc/{pids[0]}/cmdline", "rb") as f:
-                    commande = f.read().decode("utf-8", "replace")
-            except OSError:
-                commande = ""
-            if commande and "odoo" not in commande.lower():
-                continue
+        if proprietaire not in uids or len(champs) < 4:
+            continue
         port = champs[3].rsplit(":", 1)[-1]
         if port.isdigit() and int(port) not in ports:
             ports.append(int(port))
@@ -730,7 +747,7 @@ def detect_odoo_url():
             candidats.append(port)
     trouves = []
     for port in candidats:
-        code, _, texte = Client(f"http://127.0.0.1:{port}").request_("/web/login")
+        code, _, texte = Client(f"http://127.0.0.1:{port}", timeout=PROBE_TIMEOUT).request_("/web/login")
         if code == 200 and "odoo" in texte.lower():
             trouves.append(port)
     if len(trouves) == 1:

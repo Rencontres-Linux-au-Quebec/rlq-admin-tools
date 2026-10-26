@@ -466,6 +466,26 @@ Earlier history was archived outside this repository when this file was created.
 
 ## odoo-warmup.py
 
+### 1.22.20261025.210356 - Odoo found by the owner of its processes, without root
+
+- Title: The Odoo ports are those listened to by the account that runs an Odoo Python process; works without root.
+- Reason: Without root, ss does not show the process of another account, so the Python process was not seen and the detection fell back to 8069. The owner (UID) of each listening socket is shown without root (ss -e: uid:N; netstat: User column).
+- Changes:
+  - odoo_uids(): UIDs of the processes whose command line contains python and odoo (read in /proc).
+  - odoo_ports_listening(): listening TCP sockets owned by one of these UIDs (ss -ltnHe, then netstat -tlen).
+  - Client(timeout=...): optional timeout; detection probes use PROBE_TIMEOUT (3 s), so a port that is not HTTP does not block for 120 s.
+  - Files: odoo-warmup.py.
+- Bugs fixed:
+  - Symptom: "No single Odoo port detected, default http://127.0.0.1:8069" when run without root.
+  - Diagnosis: the Python process of Odoo was not visible without root in ss -ltnp.
+  - Correction: owner UID instead of process name.
+- Safeguards and edge cases:
+  - No Odoo process visible: no candidate from the processes; the configuration file and the default port still apply.
+  - Each candidate must still answer 200 with "odoo" on /web/login.
+- Checks:
+  - py_compile; test suite test_odoo_warmup; parsing of ss and netstat samples (10002 and 10000 found, UID 0 ignored).
+- Action required: none.
+
 ### 1.21.20261025.202416 - Request trace for diagnosis (ODOO_WARMUP_TRACE)
 
 - Title: With the environment variable ODOO_WARMUP_TRACE set, each request of the warm-up is written to stderr with its URL, HTTP code and duration.
