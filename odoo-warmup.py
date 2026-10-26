@@ -56,7 +56,7 @@ try:                    # line editing in prompts
 except ImportError:
     pass
 
-__version__ = "1.27.20261025.220011"
+__version__ = "1.28.20261025.221900"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
@@ -75,6 +75,7 @@ DEFAULT_PAGES = ["/", "/web/login", "/event", "/survey"]
 DEFAULT_MODELS = ["event.event", "event.registration", "event.event.ticket", "survey.survey", "survey.user_input", "res.partner"]
 VIEWS = [[False, "list"], [False, "form"], [False, "search"], [False, "kanban"]]
 DEFAULT_REPETITIONS, DEFAULT_WAIT, REQUEST_TIMEOUT = 4, 20, 120
+DETECTION_WAIT = 120                                  # seconds the port detection waits for Odoo to listen (start by systemd)
 DEFAULT_LINKS, DEFAULT_LATEST = 6, 5                    # linked pages discovered in the public pages; latest events / surveys (administration)
 LATEST_KINDS = (("event.event", "website_url", "events"), ("survey.survey", "survey_start_url", "surveys"))
 DEFAULT_SERVICE = "odoo.service"
@@ -818,16 +819,25 @@ def config_illisibles():
     return illisibles
 
 
-def detect_odoo_url():
+def detect_odoo_url(attente=0):
     """Address of Odoo when neither --url nor URL is set. Candidates: the HTTP port of the Odoo configuration file, then the
     ports of the listening Python processes. A candidate counts as Odoo only if /web/login answers 200 with "odoo" in the page.
     Exactly one Odoo answering: it is used. Several: nothing is chosen (None): the user must give --url or URL.
     None answering: the single candidate if there is one (Odoo may be starting), else the default port 8069."""
-    http_ports, gevent_ports = odoo_conf_ports()
-    candidats = []
-    for port in http_ports + [p for p in odoo_ports_listening() if p not in gevent_ports]:
-        if port not in candidats:
-            candidats.append(port)
+    avertie = [False]
+    fin = time.time() + attente                           # attente: a start by systemd may not listen yet (ExecStartPost)
+    while True:
+        http_ports, gevent_ports = odoo_conf_ports()
+        candidats = []
+        for port in http_ports + [p for p in odoo_ports_listening() if p not in gevent_ports]:
+            if port not in candidats:
+                candidats.append(port)
+        if candidats or time.time() >= fin:
+            break
+        if attente and not avertie[0]:
+            avertie[0] = True
+            print(f"Odoo is not listening yet, waiting ({attente} s at most) / Odoo n'ecoute pas encore, attente ({attente} s au plus)")
+        time.sleep(2)
     trouves = []
     for port in candidats:
         code, _, texte = Client(f"http://127.0.0.1:{port}", timeout=PROBE_TIMEOUT).request_("/web/login")
@@ -891,8 +901,10 @@ def main():
     host = config.get("HOST")
     if not url and host:                                  # HOST set: the visitors' way (nginx, HTTPS) when it answers
         url = via_nginx(host)
-    if not url:
-        url = detect_odoo_url()
+    if not url and not (args.systemd_install or args.systemd_remove):      # the systemd options do not need Odoo
+        url = detect_odoo_url(DETECTION_WAIT)
+    elif not url:
+        url = DEFAULT_URL
         if url is None:
             return 2
         if not host:                                      # no HOST: the site name is read from the nginx configuration
