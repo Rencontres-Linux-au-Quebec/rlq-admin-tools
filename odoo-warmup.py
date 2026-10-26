@@ -56,7 +56,7 @@ try:                    # line editing in prompts
 except ImportError:
     pass
 
-__version__ = "1.29.20261025.223329"
+__version__ = "1.30.20261025.223900"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
@@ -71,7 +71,7 @@ NGINX_DIR = os.environ.get("NGINX_TOOLS_ETC_NGINX", "/etc/nginx")      # variabl
 PROBE_TIMEOUT = 10                                   # seconds for a detection probe (a port that is not HTTP must not block; Odoo can be slow after a start)
 RETRY_PAUSE = 1.0                                   # seconds between two tries of a public page answering 5xx
 PUBLIC_ATTEMPTS = 4                                 # tries of a public page answering 5xx (several Odoo processes)
-DEFAULT_PAGES = ["/", "/web/login", "/event"]
+DEFAULT_PAGES = ["/", "/web/login", "/event", "/survey"]
 DEFAULT_MODELS = ["event.event", "event.registration", "event.event.ticket", "survey.survey", "survey.user_input", "res.partner"]
 VIEWS = [[False, "list"], [False, "form"], [False, "search"], [False, "kanban"]]
 DEFAULT_REPETITIONS, DEFAULT_WAIT, REQUEST_TIMEOUT = 4, 20, 120
@@ -357,8 +357,10 @@ def is_optional(path):
 
 def language_variants(text, languages, path):
     """Paths of the page's versions in the `languages` (fr, en, es...), read from its <link rel="alternate" hreflang="...">. One version per language; the language
-    of the page itself is excluded."""
+    of the page itself is excluded. A survey page (/survey, optional) has no language versions requested: /en_CA/survey does not exist."""
     path = path.split("?")[0].rstrip("/")
+    if is_optional(path):
+        return []
     found, families = [], set()
     alternates = []
     for tag in re.findall(r"<link\b[^>]*>", text):
