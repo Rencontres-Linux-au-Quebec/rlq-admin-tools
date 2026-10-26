@@ -466,6 +466,24 @@ Earlier history was archived outside this repository when this file was created.
 
 ## odoo-warmup.py
 
+### 1.27.20261025.220011 - Odoo processes recognised by the ERPlibre path too
+
+- Title: A Python process is an Odoo process if its command line contains odoo or erplibre (not only odoo).
+- Reason: On the server, the service erplibre_erplibre.service starts run.sh, which starts Python with the ERPlibre path; ExecStart carries no port. The UID of this Python process gives the ports, but the process was not recognised when its command line has no odoo word.
+- Changes:
+  - est_processus_odoo(): common test for the Python processes of Odoo, used by odoo_uids(), odoo_units() and commandes_odoo().
+  - Files: odoo-warmup.py, nginx-tools-tests/test_odoo_warmup.py.
+- Bugs fixed:
+  - Symptom: no Odoo UID and no unit found, so no port from the owner of the process (no port detected).
+  - Diagnosis: the match on the word odoo alone; the ERPlibre command line does not always contain it.
+  - Correction: the match also accepts erplibre.
+- Safeguards and edge cases:
+  - bash processes are not matched: python is required.
+  - Other Python processes with neither word are still ignored.
+- Checks:
+  - py_compile; test suite test_odoo_warmup (17 tests).
+- Action required: none. Send the output of ps -o pid,uid,cmd -C python3 (or the Python line of the Odoo process) if the detection still finds no port.
+
 ### 1.26.20261025.215544 - Odoo ports read from the Odoo service, without the configuration file
 
 - Title: When no configuration file can be read, the HTTP and gevent ports come from the command line of the Odoo processes and from ExecStart of their systemd unit.

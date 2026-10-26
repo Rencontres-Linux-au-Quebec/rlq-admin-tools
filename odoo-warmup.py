@@ -56,7 +56,7 @@ try:                    # line editing in prompts
 except ImportError:
     pass
 
-__version__ = "1.26.20261025.215544"
+__version__ = "1.27.20261025.220011"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
@@ -523,6 +523,12 @@ def warm_latest(client, number, tally, languages=()):
                 tally.add_item(a, [client.request_(a)])
 
 
+def est_processus_odoo(commande):
+    """True for a Python command line of Odoo: the word odoo, or the ERPlibre directory (erplibre), in lower case (bytes)."""
+    commande = commande.lower()
+    return b"python" in commande and (b"odoo" in commande or b"erplibre" in commande)
+
+
 def odoo_units(proc="/proc"):
     """systemd units (NAME.service) that run an Odoo Python process, read in /proc/PID/cgroup (readable without root)."""
     unites = set()
@@ -530,7 +536,7 @@ def odoo_units(proc="/proc"):
         try:
             with open(os.path.join(dossier, "cmdline"), "rb") as f:
                 commande = f.read().lower()
-            if b"python" not in commande or b"odoo" not in commande:
+            if not est_processus_odoo(commande):
                 continue
             with open(os.path.join(dossier, "cgroup"), encoding="utf-8", errors="replace") as f:
                 for ligne in f:
@@ -625,7 +631,7 @@ def commandes_odoo(proc="/proc"):
         try:
             with open(os.path.join(dossier, "cmdline"), "rb") as f:
                 commande = f.read().lower()
-            if b"python" in commande and b"odoo" in commande:
+            if est_processus_odoo(commande):
                 with open(os.path.join(dossier, "cmdline"), "rb") as f:
                     textes.append(f.read().replace(b"\0", b" ").decode("utf-8", errors="replace"))
         except OSError:
@@ -676,7 +682,7 @@ def odoo_uids():
         try:
             with open(os.path.join(dossier, "cmdline"), "rb") as f:
                 commande = f.read().lower()
-            if b"python" in commande and b"odoo" in commande:
+            if est_processus_odoo(commande):
                 uids.add(os.stat(dossier).st_uid)
         except OSError:
             continue

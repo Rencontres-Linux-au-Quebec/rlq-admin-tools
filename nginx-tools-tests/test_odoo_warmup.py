@@ -281,6 +281,16 @@ class OdooWarmup(EnvTest):
             os.environ["PATH"] = ancien
         self.assertEqual((http, gevent, config), ([10000], [10002], None))
 
+    def test_processus_erplibre_reconnu_sans_le_mot_odoo(self):
+        import importlib.util
+        spec = importlib.util.spec_from_file_location("odoo_warmup_module3", script_path("odoo-warmup.py"))
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        self.assertTrue(module.est_processus_odoo(b"python3\0/home/mathben/git/erplibre/serveur.py\0"))
+        self.assertTrue(module.est_processus_odoo(b"python3\0odoo-bin\0"))
+        self.assertFalse(module.est_processus_odoo(b"bash\0-c\0erplibre\0"))
+        self.assertFalse(module.est_processus_odoo(b"python3\0/usr/bin/autre.py\0"))
+
     def test_version_et_changelog(self):
         code, out, err = self.run_cmd(["python3", script_path("odoo-warmup.py"), "--version"])
         self.assertRegex(out, r"odoo-warmup.py version 1\.\d+\.\d{8}\.\d{6}")
