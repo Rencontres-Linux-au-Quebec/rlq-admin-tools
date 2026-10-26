@@ -56,7 +56,7 @@ try:                    # line editing in prompts
 except ImportError:
     pass
 
-__version__ = "1.22.20261025.210356"
+__version__ = "1.23.20261025.211244"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
@@ -597,12 +597,12 @@ def odoo_conf_ports():
     module = load_module("_odoo_conf")
     if module is None:
         return [], []
-    for chemin in module.chemins_candidats():
-        if os.path.isfile(chemin):
-            conf = module.lire(chemin)
-            http_port, gevent_port = conf["http_port"], conf["gevent_port"]
-            return ([int(http_port)] if http_port.isdigit() else []), ([int(gevent_port)] if gevent_port.isdigit() else [])
-    return [], []
+    chemin = module.trouver()                                 # develops the * patterns (e.g. /home/*/git/erplibre/config.conf)
+    if chemin is None:
+        return [], []
+    conf = module.lire(chemin)
+    http_port, gevent_port = conf["http_port"], conf["gevent_port"]
+    return ([int(http_port)] if http_port.isdigit() else []), ([int(gevent_port)] if gevent_port.isdigit() else [])
 
 
 def odoo_uids():

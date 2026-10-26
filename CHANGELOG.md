@@ -466,6 +466,25 @@ Earlier history was archived outside this repository when this file was created.
 
 ## odoo-warmup.py
 
+### 1.23.20261025.211244 - Odoo configuration file found when its path has a * pattern
+
+- Title: The Odoo configuration file is found through the default patterns (for example /home/*/git/erplibre/config.conf), so its http_port and gevent_port are used.
+- Reason: The configuration file was not found in the real run, so the gevent port 10002 was not excluded and was probed as an HTTP instance. That probe returned HTTP 500 on the Odoo side, at the start of every run.
+- Changes:
+  - odoo_conf_ports(): uses trouver() of apps/_odoo_conf.py, which expands the * patterns; before, the patterns were tested literally with os.path.isfile().
+  - apps/_odoo_conf.py (shared module, version 1.5.20261025.211244): _reglage() accepts spaces around the "=" of ODOO_CONF_PATHS in nginx-hardening.conf; the key is escaped.
+  - Files: odoo-warmup.py, apps/_odoo_conf.py.
+- Bugs fixed:
+  - Symptom: the first request of a run is a probe to http://127.0.0.1:10002/web/login, answered with HTTP 500 by Odoo, although config.conf says gevent_port = 10002.
+  - Diagnosis: chemins_candidats() returns the default patterns as plain text; os.path.isfile("/home/*/git/erplibre/config.conf") is always False, so no configuration file was read and no port was excluded.
+  - Correction: trouver() develops the patterns, as the other programs do.
+- Safeguards and edge cases:
+  - Without a configuration file, the behaviour is unchanged (candidates from the listening sockets, then 8069).
+  - Workaround until this version: HOST=odoo-dev.rencontres-linux.quebec in /etc/default/odoo-warmup.conf skips the detection entirely.
+- Checks:
+  - py_compile of both files; test suite test_odoo_warmup and test_odoo_conf (to run).
+- Action required: none.
+
 ### 1.22.20261025.210356 - Odoo found by the owner of its processes, without root
 
 - Title: The Odoo ports are those listened to by the account that runs an Odoo Python process; works without root.
