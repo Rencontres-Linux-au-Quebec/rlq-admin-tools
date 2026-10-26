@@ -466,6 +466,65 @@ Earlier history was archived outside this repository when this file was created.
 
 ## odoo-warmup.py
 
+### 1.27.20261025.220011 - Odoo processes recognised by the ERPlibre path too
+
+- Title: A Python process is an Odoo process if its command line contains odoo or erplibre (not only odoo).
+- Reason: On the server, the service erplibre_erplibre.service starts run.sh, which starts Python with the ERPlibre path; ExecStart carries no port. The UID of this Python process gives the ports, but the process was not recognised when its command line has no odoo word.
+- Changes:
+  - est_processus_odoo(): common test for the Python processes of Odoo, used by odoo_uids(), odoo_units() and commandes_odoo().
+  - Files: odoo-warmup.py, nginx-tools-tests/test_odoo_warmup.py.
+- Bugs fixed:
+  - Symptom: no Odoo UID and no unit found, so no port from the owner of the process (no port detected).
+  - Diagnosis: the match on the word odoo alone; the ERPlibre command line does not always contain it.
+  - Correction: the match also accepts erplibre.
+- Safeguards and edge cases:
+  - bash processes are not matched: python is required.
+  - Other Python processes with neither word are still ignored.
+- Checks:
+  - py_compile; test suite test_odoo_warmup (17 tests).
+- Action required: none. Send the output of ps -o pid,uid,cmd -C python3 (or the Python line of the Odoo process) if the detection still finds no port.
+
+### 1.26.20261025.215544 - Odoo ports read from the Odoo service, without the configuration file
+
+- Title: When no configuration file can be read, the HTTP and gevent ports come from the command line of the Odoo processes and from ExecStart of their systemd unit.
+- Reason: The account running the warm-up cannot read the Odoo configuration file; the Odoo service (systemctl) gives the ports and the configuration path without reading that file.
+- Changes:
+  - ports_de_ligne_de_commande(): --http-port, --gevent-port and -c/--config read in a command line.
+  - commandes_odoo(): command lines of the Odoo Python processes (/proc) and ExecStart of their units (systemctl show, no root).
+  - ports_du_service(): ports and configuration path from these command lines.
+  - odoo_conf_ports(): used when no configuration file is found; the configuration file is read only if it is readable and no port was found in the command lines.
+  - Files: odoo-warmup.py, nginx-tools-tests/test_odoo_warmup.py.
+- Bugs fixed:
+  - Symptom: as a normal user, no port is detected because the configuration file is not readable.
+  - Diagnosis: the program needed the file to read the ports, although the service carries them.
+  - Correction: the ports are read from the service first.
+- Safeguards and edge cases:
+  - If the service gives no port and the file is not readable, the detection works as before (listening sockets, then 8069).
+  - systemctl missing or failing: ignored.
+- Checks:
+  - py_compile; test suite test_odoo_warmup (16 tests, with a fake /proc and a fake systemctl). Not tested on a real systemd host.
+- Action required: none, but check on the server: systemctl show -p ExecStart --value <unit> must show --http-port or -c; send the output if the detection still fails.
+
+### 1.25.20261025.214951 - Non-root account: unreadable configuration reported, detection probe 10 s
+
+- Title: When the Odoo configuration file cannot be read by the account, the warm-up says so and tells how to set URL; the detection probe waits 10 s.
+- Reason: Run as a normal user, the warm-up found no port: the probe of 10000 timed out after 3 s (HTTP 0 in 3.02 s) and the configuration file was not read, so the message gave no reason.
+- Changes:
+  - config_illisibles(): configuration files matching the candidate patterns that exist but are not readable by this account.
+  - detect_odoo_url(): when no port is detected, warns about these files and prints how to set URL (or ~/.odoo-warmup.conf).
+  - PROBE_TIMEOUT: 3 s to 10 s.
+  - Files: odoo-warmup.py.
+- Bugs fixed:
+  - Symptom: as a normal user, "No single Odoo port detected, default http://127.0.0.1:8069" and Odoo never answers on 8069.
+  - Diagnosis: the detection does not read a configuration file it cannot open (silent OSError); the probe of 10000 was cut at 3 s.
+  - Correction: explicit warning, longer probe timeout.
+- Safeguards and edge cases:
+  - A file the account can read is used as before; no change for root.
+  - A configuration file in a home directory that the account cannot enter is not seen by glob: the hint about URL still applies.
+- Checks:
+  - py_compile; test suite test_odoo_warmup (15 tests).
+- Action required: as a normal user, set URL=http://127.0.0.1:10000 in /etc/default/odoo-warmup.conf (or ~/.odoo-warmup.conf), or ask for read access to the configuration file.
+
 ### 1.24.20261025.212138 - Odoo unit found from its running process for --systemd-install
 
 - Title: Without --service, --systemd-install and --systemd-remove use the systemd unit that runs the Odoo Python process, not odoo.service.

@@ -252,6 +252,45 @@ class OdooWarmup(EnvTest):
         self.assertEqual(module.odoo_units(proc), ["erplibre-worker.service", "erplibre.service"])
         self.assertEqual(module.odoo_units(os.path.join(self.d, "vide")), [])
 
+    def test_ports_lus_dans_la_ligne_de_commande_du_service(self):
+        import importlib.util
+        spec = importlib.util.spec_from_file_location("odoo_warmup_module2", script_path("odoo-warmup.py"))
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        self.assertEqual(module.ports_de_ligne_de_commande("python3 odoo-bin --http-port=10000 --gevent-port 10002 -c /etc/odoo.conf"),
+                         ([10000], [10002], "/etc/odoo.conf"))
+        self.assertEqual(module.ports_de_ligne_de_commande("ExecStart={ path=/usr/bin/python3 ; argv[]=/usr/bin/python3 odoo-bin --config /x.conf }"),
+                         ([], [], "/x.conf"))
+        # Un faux /proc avec un processus Odoo, et un faux systemctl qui renvoie l'ExecStart de l'unité
+        proc = os.path.join(self.d, "proc2")
+        os.makedirs(os.path.join(proc, "201"))
+        with open(os.path.join(proc, "201", "cmdline"), "wb") as f:
+            f.write(b"python3\0odoo-bin\0--http-port=10000\0")
+        with open(os.path.join(proc, "201", "cgroup"), "w") as f:
+            f.write("0::/system.slice/erplibre.service\n")
+        bin_dir = os.path.join(self.d, "bin-faux-systemctl")
+        os.makedirs(bin_dir)
+        with open(os.path.join(bin_dir, "systemctl"), "w") as f:
+            f.write("#!/bin/sh\necho 'ExecStart={ argv[]=/usr/bin/python3 odoo-bin --gevent-port=10002 }'\n")
+        os.chmod(os.path.join(bin_dir, "systemctl"), 0o755)
+        ancien = os.environ.get("PATH", "")
+        os.environ["PATH"] = bin_dir + os.pathsep + ancien
+        try:
+            http, gevent, config = module.ports_du_service(proc)
+        finally:
+            os.environ["PATH"] = ancien
+        self.assertEqual((http, gevent, config), ([10000], [10002], None))
+
+    def test_processus_erplibre_reconnu_sans_le_mot_odoo(self):
+        import importlib.util
+        spec = importlib.util.spec_from_file_location("odoo_warmup_module3", script_path("odoo-warmup.py"))
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        self.assertTrue(module.est_processus_odoo(b"python3\0/home/mathben/git/erplibre/serveur.py\0"))
+        self.assertTrue(module.est_processus_odoo(b"python3\0odoo-bin\0"))
+        self.assertFalse(module.est_processus_odoo(b"bash\0-c\0erplibre\0"))
+        self.assertFalse(module.est_processus_odoo(b"python3\0/usr/bin/autre.py\0"))
+
     def test_version_et_changelog(self):
         code, out, err = self.run_cmd(["python3", script_path("odoo-warmup.py"), "--version"])
         self.assertRegex(out, r"odoo-warmup.py version 1\.\d+\.\d{8}\.\d{6}")
