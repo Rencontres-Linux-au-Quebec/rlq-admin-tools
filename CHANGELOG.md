@@ -466,6 +466,27 @@ Earlier history was archived outside this repository when this file was created.
 
 ## odoo-warmup.py
 
+### 1.31.20261025.224500 - Redirection of a survey page not followed
+
+- Title: For an optional page (survey), a redirection (303) is not followed: /en_CA/survey, which does not exist, is no longer requested.
+- Reason: The log shows GET /survey (303), then GET /en_CA/survey (404) at once: the client followed the redirection of the survey page to its language version. The 1.30 diagnosis (the hreflang alternates) was wrong: the 1.30 change did not stop the request.
+- Changes:
+  - _SansRedirection: redirection handler that returns the 3xx as the answer.
+  - Client.request_(path, suivre=True): suivre=False uses an opener without redirection.
+  - load_page(): suivre is False for the optional pages (surveys).
+  - Test: fake server redirects /survey to /en_CA/survey; /en_CA/survey must not be requested.
+  - Files: odoo-warmup.py, nginx-tools-tests/test_odoo_warmup.py, CHANGELOG.md.
+- Bugs fixed:
+  - Symptom: 404 on /en_CA/survey at every run, after the 303 on /survey.
+  - Diagnosis: urllib followed the 303 to the language version of the survey page.
+  - Correction: no redirection is followed for an optional page; the other pages are unchanged (their redirections are followed, as before).
+- Safeguards and edge cases:
+  - Only the optional (survey) pages are concerned; the redirections of /web/login and /event are still followed.
+  - The 303 counts as an answer below 400, so the survey page is not reported as a failure.
+- Checks:
+  - py_compile; test suite test_odoo_warmup (19 tests).
+- Action required: none.
+
 ### 1.30.20261025.223900 - /survey back by default; no language versions of a survey page
 
 - Title: /survey is a default page again, but its language versions (/en_CA/survey, /fr/survey...) are not requested.

@@ -21,6 +21,7 @@ class FauxOdoo(BaseHTTPRequestHandler):
     appels = []
     cle_valide = "cle-secrete"
     survey_ok = True
+    survey_redirige = False
 
     def log_message(self, *a):
         pass
@@ -39,6 +40,11 @@ class FauxOdoo(BaseHTTPRequestHandler):
             self._repondre(200, PAGE_EVENTS.replace("<html>", "<html>" + ALTERNATES, 1))
         elif self.path == "/survey" and not FauxOdoo.survey_ok:
             self._repondre(404, "")
+        elif self.path == "/survey" and FauxOdoo.survey_redirige:
+            self.send_response(303)
+            self.send_header("Location", "/en_CA/survey")
+            self.send_header("Content-Length", "0")
+            self.end_headers()
         elif self.path in ("/en_CA/event", "/es_MX/event", "/contactus", "/blog", "/", "/web/login", "/survey", "/event/jpol-1", "/event/jpol-2/register", "/event/jpol-3", "/event/dernier-9", "/survey/start/tok1"):
             self._repondre(200, PAGE)
         elif self.path.startswith("/web/assets/"):
@@ -75,6 +81,7 @@ class OdooWarmup(EnvTest):
         FauxOdoo.appels = []
         FauxOdoo.cle_valide = "cle-secrete"
         FauxOdoo.survey_ok = True
+        FauxOdoo.survey_redirige = False
         self.serveur = HTTPServer(("127.0.0.1", 0), FauxOdoo)
         threading.Thread(target=self.serveur.serve_forever, daemon=True).start()
         self.addCleanup(self.serveur.server_close)
@@ -291,6 +298,13 @@ class OdooWarmup(EnvTest):
         self.assertTrue(module.est_processus_odoo(b"python3\0odoo-bin\0"))
         self.assertFalse(module.est_processus_odoo(b"bash\0-c\0erplibre\0"))
         self.assertFalse(module.est_processus_odoo(b"python3\0/usr/bin/autre.py\0"))
+
+    def test_redirection_d_un_sondage_non_suivie(self):
+        FauxOdoo.survey_redirige = True
+        code, out, err = self.lancer("--url", self.url, "--wait", "5", "--links", "0")
+        self.assertEqual(code, 0, out + err)
+        self.assertIn(("GET", "/survey"), FauxOdoo.appels)
+        self.assertNotIn(("GET", "/en_CA/survey"), FauxOdoo.appels)
 
     def test_pas_de_variante_de_langue_pour_une_page_de_sondage(self):
         import importlib.util
