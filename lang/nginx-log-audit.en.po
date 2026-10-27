@@ -1922,6 +1922,9 @@ msgstr " BANNED IPS BELOW THE PROPOSAL THRESHOLD (score < "
 msgid " IP bannie(s) : calcul du score de chacune (lecture seule)…"
 msgstr " banned IP(s): computing the score of each (read-only)..."
 
+msgid " (enquête en lecture seule)"
+msgstr " (read-only lookup)"
+
 msgid "Banni par"
 msgstr "Banned by"
 
