@@ -229,14 +229,21 @@ class OdooWarmup(EnvTest):
         self.assertIn("Odoo ne répond pas", err)
 
     def test_systemd_installer_puis_retirer(self):
+        fichier = os.path.join(self.d, "systemd", "odoo-warmup-odoo-test.service")
+        ancien = os.path.join(self.d, "systemd", "odoo-test.service.d", "odoo-warmup.conf")
+        os.makedirs(os.path.dirname(ancien), exist_ok=True)
+        with open(ancien, "w") as f:
+            f.write("[Service]\nExecStartPost=-+/usr/bin/systemd-run\n")
         code, out, err = self.lancer("--systemd-install", "--service", "odoo-test.service", "--wait", "90")
         self.assertEqual(code, 0, out + err)
-        fichier = os.path.join(self.d, "systemd", "odoo-test.service.d", "odoo-warmup.conf")
         with open(fichier) as f:
             contenu = f.read()
-        self.assertIn("ExecStartPost=-+/usr/bin/systemd-run", contenu)
-        self.assertIn("--no-block", contenu)
+        self.assertIn("ExecStartPre=/bin/sleep 120", contenu)
         self.assertIn("--wait 90", contenu)
+        self.assertIn("Requires=odoo-test.service", contenu)
+        self.assertIn("WantedBy=odoo-test.service", contenu)
+        self.assertNotIn("ExecStartPost", contenu)
+        self.assertFalse(os.path.exists(ancien), "l'ancien drop-in doit etre retire")
         code, out, err = self.lancer("--systemd-remove", "--service", "odoo-test.service")
         self.assertEqual(code, 0, out + err)
         self.assertFalse(os.path.exists(fichier))
