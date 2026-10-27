@@ -466,6 +466,48 @@ Earlier history was archived outside this repository when this file was created.
 
 ## odoo-warmup.py
 
+### 1.34.20261027.125500 - Warm-up delay in an environment file
+
+- Title: The delay is read at each start from /etc/default/odoo-warmup-NAME (WARMUP_DELAY=SECONDS): change it there, no reinstall.
+- Reason: Changing the delay meant reinstalling the unit; a value in a file, read by systemd, is simpler to change on a server.
+- Changes:
+  - warmup_env_path(), delay_of_env_file(): the environment file and its WARMUP_DELAY.
+  - systemd_content(): Environment=WARMUP_DELAY=120 (default), EnvironmentFile=- the file (it overrides the default), ExecStartPre=/bin/sleep ${WARMUP_DELAY}.
+  - systemd_install_unit(): writes the file when --delay is given, or when it does not exist yet; otherwise keeps the value of the file.
+  - --delay (with --systemd-install) is written to the file; negative values refused.
+  - Files: odoo-warmup.py, nginx-tools-tests/test_odoo_warmup.py, CHANGELOG.md.
+- Bugs fixed:
+  - Symptom: a new delay needed a reinstall of the unit.
+  - Diagnosis: the delay was written in the unit file.
+  - Correction: the delay is in the environment file, read at each start.
+- Safeguards and edge cases:
+  - The file is not removed by --systemd-remove (it keeps the delay for a later install).
+  - A missing or invalid value falls back to 120 s.
+  - No daemon-reload is needed after a change to the file.
+- Checks:
+  - py_compile; test suite test_odoo_warmup (20 tests): file written, kept at a second install, changed by hand, negative value refused.
+- Action required: none. To change the delay on the server: edit /etc/default/odoo-warmup-erplibre_erplibre (WARMUP_DELAY=30) and start the warm-up unit or restart erplibre_erplibre.service.
+
+### 1.33.20261027.124500 - --delay: warm-up delay chosen on the command line
+
+- Title: --delay SECONDS sets the delay before the warm-up in the unit installed by --systemd-install (default 120 s).
+- Reason: The 120 s delay must be changed temporarily (slow SATA disks, tests) without editing the program.
+- Changes:
+  - --delay SECONDS (option, sorted with the others); used only with --systemd-install; negative values refused.
+  - systemd_content() and systemd_install_unit() take the delay; the unit is written with ExecStartPre=/bin/sleep DELAY.
+  - The directory of the units is created if it is missing.
+  - Files: odoo-warmup.py, nginx-tools-tests/test_odoo_warmup.py, CHANGELOG.md.
+- Bugs fixed:
+  - Symptom: the unit could not be written when the systemd directory did not exist ("No such file or directory").
+  - Diagnosis: the install of 1.32 did not create the directory, unlike the former drop-in.
+  - Correction: os.makedirs of the directory before writing.
+- Safeguards and edge cases:
+  - The delay is written in the unit: to change it, reinstall with --delay (the unit is replaced).
+  - --delay without --systemd-install has no effect.
+- Checks:
+  - py_compile; test suite test_odoo_warmup (20 tests), including --delay 30 and --delay -5.
+- Action required: none. To change the delay for a test: sudo python3 /opt/rlq-admin-tools/odoo-warmup.py --systemd-install --service erplibre_erplibre.service --delay 30, then restart the unit to test; reinstall with the default (no --delay) to restore 120 s.
+
 ### 1.32.20261027.121500 - --systemd-install makes a separate unit, not a drop-in
 
 - Title: --systemd-install installs odoo-warmup-NAME.service, which runs the warm-up 120 s after each start of the Odoo unit; the former drop-in with ExecStartPost is removed.
