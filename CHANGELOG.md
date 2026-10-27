@@ -1173,7 +1173,7 @@ Earlier history was archived outside this repository when this file was created.
 
 ## nginx-log-audit.sh
 
-### 2.50.20261026.220500 - --unban-low-score uses the --unban-check verdict; one process; one progress line per address
+### 2.50.20261026.220229 - --unban-low-score uses the --unban-check verdict; one process; one progress line per address
 
 - Title: `--unban-low-score` lifts only what `--unban-check` recommends; it runs in one process, shows one step per address, and reads the Odoo journal once.
 - Reason: On DEV, `--unban-low-score` lifted 64.89.160.73 (score 2/7) and 45.138.12.52 (score 1/7). Both had been judged "a garder" (keep) by `--unban-check` the same day: 3 hostility signs and a scanner for the first, one sign for the second. The two modes disagreed because the low-score mode decided on the score alone. The administrator also asked for less noise and a shorter run (about 155 s for 30 addresses, each sub-investigation rereading the Odoo journal and printing its own headers).
