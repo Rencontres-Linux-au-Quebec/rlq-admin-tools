@@ -130,7 +130,7 @@ grep_q() { grep "$@" >/dev/null; }
 #                              ne peut pas le voir, le texte etant entre apostrophes (faux positif).
 trap 'ec=$?; echo "" >&2; echo "*** ARRÊT INATTENDU DU SCRIPT (code $ec) À LA LIGNE $LINENO ***" >&2; echo "*** Commande fautive : $BASH_COMMAND" >&2; echo "*** Si le rapport ci-dessus semble incomplet (ex. sections Top 10 absentes), c'\''est probablement la cause." >&2' ERR
 
-readonly SCRIPT_VERSION="2.46.20261026.195327"
+readonly SCRIPT_VERSION="2.47.20261026.210405"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
 # Chemin de ce programme (relances --investigate, --ban, --unban) : defini ICI, avant le bloc --ban qui l'utilise.
 SELF_PATH="$SCRIPT_DIR/$(basename "${BASH_SOURCE[0]}")"
@@ -391,6 +391,16 @@ progres() {
 }
 progres_detail() {      # comme progres, mais SEULEMENT avec --details (lecture de chaque fichier de rotation)
     if [[ "$DO_DETAILS" == "1" ]]; then progres "$@"; fi
+    return 0
+}
+progres_point() {       # progres_point N: un point par journal lu ("." puis " ." ensuite), sans --details
+    if (( PROGRES_ACTIF )) && [[ "$DO_DETAILS" != "1" ]]; then
+        if (( $1 > 1 )); then printf ' .' >&3; else printf '.' >&3; fi
+    fi
+    return 0
+}
+progres_fin_points() {  # progres_fin_points N: fin de la ligne de points (saut de ligne) si N points ont été écrits
+    if (( PROGRES_ACTIF )) && [[ "$DO_DETAILS" != "1" ]] && (( $1 > 0 )); then printf '\n' >&3; fi
     return 0
 }
 taille_lisible() {      # taille_lisible FILE: "4 MB" (or "812 KB"), "?" if unreadable
@@ -1071,18 +1081,21 @@ merge_all_rotations() {
     fi
     : > "$out"
     local n_f=0 total_f=${#files[@]}
+    if (( total_f > 0 )); then progres "Lecture des journaux"; fi
     for f in "${files[@]}"; do
         [[ -f "$f" ]] || continue
         n_f=$((n_f + 1))
         gz=""; if [[ "$f" == *.gz ]]; then gz=", compressé"; fi
-        progres "Lecture du journal $n_f/$total_f : $(basename "$f") ($(taille_lisible "$f")$gz)"
+        progres_detail "Lecture du journal $n_f/$total_f : $(basename "$f") ($(taille_lisible "$f")$gz)"
         if [[ "$f" == *.gz ]]; then
             zcat "$f" >> "$out" 2>/dev/null || true
         else
             cat "$f" >> "$out" 2>/dev/null || true
         fi
+        progres_point "$n_f"
         printf '%s\n' "$f"
     done
+    progres_fin_points "$n_f"
 }
 
 # --- Rough validation of IPv4/IPv6, shared by --ban and --unban ---

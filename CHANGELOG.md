@@ -1173,6 +1173,19 @@ Earlier history was archived outside this repository when this file was created.
 
 ## nginx-log-audit.sh
 
+### 2.47.20261026.210405 - Log reading shown as one line with one dot per log file
+
+- Title: Quieter progress output: one "Lecture des journaux" line, then one dot per log file read.
+- Reason: The run printed one progress line per rotated log file ("Lecture du journal 1/39 : ..."), 39 lines for one address. The administrator asked for a short progress line instead, and sent the daily `--unban-check` and `--investigate` output as text to review.
+- Changes:
+  - `merge_all_rotations()`: prints "Lecture des journaux" once (when at least one file is read), then one "." per file read (" ." after the first). The per-file line is kept and shown only with `--details`.
+  - New helpers `progres_point N` (one dot, shown with --verbose or on a terminal, not with --details) and `progres_fin_points N` (ends the dot line with a newline).
+  - Files touched: nginx-log-audit.sh, lang/nginx-log-audit.en.po (new msgid "Lecture des journaux"), nginx-tools-tests/test_nginx_log_audit.py (progression test run with --details; new test for the dots), nginx-tools-tests/run-all.sh (SCRIPT_VERSION), doc/nginx-tools.version.
+- Bugs fixed: none in this version (display change only).
+- Safeguards and edge cases: no dot line when no file is read (no header either); the dot line is never printed in a pipe or a scheduled task (progress is off there); with --details the dot line is replaced by the per-file lines, so the two never mix; the dot line ends with a newline before the next progress message.
+- Checks: bash -n, ShellCheck 0.11.0 clean, test_nginx_log_audit 44 OK (new test: header, no per-file line, ". . ." for three files). test_i18n: the nginx-log-audit catalogue passes; the odoo-warmup catalogue failure is pre-existing on main and unrelated.
+- Action required: none.
+
 ### 2.46.20261026.195327 - Unban review: refusals count, single bursts to check, coherence guard, daily checks
 
 - Title: Unban review: refused-only bans are justified, single bursts are flagged, coherence guard, daily checks section.
