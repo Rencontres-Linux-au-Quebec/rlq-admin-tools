@@ -125,13 +125,30 @@ class ConfigNginx(unittest.TestCase):
         motifs = [re.compile(m.group(1).strip('"'), re.I) for m in re.finditer(r'^\s*~\*((?:\\ |\S)+)\s+1;', texte, re.M)]
         self.assertGreaterEqual(len(motifs), 5)
         bloque = lambda ua: any(m.search(ua) for m in motifs)
-        for ua in ("python-httpx/0.28.1", "Python-urllib/3.11", "curl/8.5.0", "python-requests/2.32",
+        for ua in ("python-httpx/0.28.1", "Python-urllib/3.11", "python-requests/2.32", "Wget/1.21",
                    "Mozilla/5.0 (compatible; SERankingBacklinksBot/1.0)", "Mozilla/5.0 (compatible; GeedoShopProductFinder/1.0)"):
             with self.subTest(bloque=ua):
                 self.assertTrue(bloque(ua))
-        for ua in NAVIGATEURS:
+        for ua in list(NAVIGATEURS) + ["curl/8.5.0"]:
             with self.subTest(laisse=ua):
-                self.assertFalse(bloque(ua), "un vrai navigateur serait bloqué")
+                self.assertFalse(bloque(ua), "un vrai navigateur, ou un curl isolé, ne doit pas être bloqué par UA")
+
+    def test_curl_limite_par_rafale_et_non_bloque_par_ua(self):
+        """v1.12 : curl n'est plus refusé par UA ; une rafale (2 requêtes en 5 s) est refusée par la zone odoo_curl."""
+        glob_ = lire("conf.d/odoo-global.conf")
+        self.assertIn("zone=odoo_curl:10m rate=12r/m;", glob_, "une requête par 5 s, sans rafale")
+        self.assertRegex(glob_, r'"~\*\^curl/"\s+1;')
+        self.assertRegex(glob_, r'"1:0:0"\s+\$binary_remote_addr;')
+        self.assertNotRegex(lire("conf.d/bot_blocker.conf"), r"~\*\^\(\S*curl")      # curl absent de la liste des bad bots
+        self.assertIn("limit_req zone=odoo_curl burst=0 nodelay;", lire("snippets/securite-commune.conf"))
+
+    def test_curl_repete_dans_chaque_location_qui_a_son_propre_limit_req(self):
+        """nginx ne fusionne pas les limit_req d'un niveau parent : une location qui en déclare un doit aussi déclarer odoo_curl."""
+        texte = lire("snippets/odoo/_odoo-common.conf")
+        for bloc in re.split(r"\n(?=location )", texte):
+            if "limit_req zone=" in bloc and bloc.lstrip().startswith("location"):
+                with self.subTest(location=bloc.splitlines()[0]):
+                    self.assertIn("limit_req zone=odoo_curl burst=0 nodelay;", bloc)
 
     def test_limite_de_connexion(self):
         m = re.search(r'"~(\^0:POST:[^"]+)"\s+\$binary_remote_addr', lire("conf.d/odoo-global.conf"))

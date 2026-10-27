@@ -280,6 +280,36 @@ class ChkNginxLogs(EnvTest):
         ordre = [out.index(ip) for ip in ("9.1.1.1", "13.8.8.8", "104.8.8.8")]
         self.assertEqual(ordre, sorted(ordre), "ordre numérique attendu : 9.x, 13.x, 104.x")
 
+    def test_rafale_du_service_worker_ne_compte_pas_mais_une_vraie_rafale_oui(self):
+        """2.52 : les pages préchargées par le service worker (Referer .../service-worker.js) ne forment pas une rafale
+        humaine ; le même volume de pages sans ce Referer reste une rafale (témoin)."""
+        sw = "https://www.rencontres-linux.quebec/en_CA/event/service-worker.js"
+        self.add(*(f'198.51.100.61 - - [26/Oct/2026:10:00:00 -0400] "GET /en_CA/event/page-{i} HTTP/1.1" 200 512 "{sw}" "{CHROME}"\n'
+                   for i in range(16)))
+        self.add(*(acc("198.51.100.62", "26/Oct/2026", "10:00:00", f"/en_CA/event/page-{i}", 200, CHROME) for i in range(16)))
+        _, prefetch, _ = self.run_cmd(["bash", self.prog, "prod", "--investigate", "198.51.100.61", "--no-prompt"])
+        self.assertNotRegex(prefetch, r"Rafale : \d+ pages distinctes")
+        self.assertIn("au plus 0 page(s)", prefetch)
+        _, vraie, err = self.run_cmd(["bash", self.prog, "prod", "--investigate", "198.51.100.62", "--no-prompt"])
+        self.assertRegex(vraie, r"Rafale : 16 pages distinctes")
+
+    @unittest.skipUnless(os.geteuid() == 0, "--unban-check exige root")
+    def test_icones_du_capteur_catchall_ne_justifient_pas_le_bannissement(self):
+        """2.52 : apple-touch-icon et favicon.ico reçus du capteur catch-all (ancien nom de serveur) ne sont pas hostiles :
+        sans autre trace, l'IP est proposée à la levée au lieu d'être justifiée."""
+        self._bannissements()
+        with open(os.path.join(self.d, "rules"), "a") as f:
+            f.write("INPUT -s 198.51.100.60 -j DROP\n")
+        with open(os.path.join(self.logs, "odoo-catchall-444.log"), "w") as f:
+            f.writelines(catchall("198.51.100.60", "26/Oct/2026", p, "com.apple.WebKit.Networking")
+                         for p in ("/apple-touch-icon.png", "/apple-touch-icon-precomposed.png", "/favicon.ico"))
+        rc, out, err = self.run_cmd(["bash", self.prog, "prod", "--unban-check", "--no-prompt"])
+        self.assertEqual(rc, 0, err)
+        self.assertIn("3 requête(s) d'icône", out)
+        apres = out[out.index("3 requête(s) d'icône"):].split("\n  ▶")[0]
+        self.assertIn("non hostiles", apres)
+        self.assertNotIn("Bannissement JUSTIFIÉ", apres)
+
     def test_ban_ufw_inactif_utilise_iptables_et_sauvegarde_sans_f2b(self):
         """1.27 : ufw installé mais inactif utilisé à tort ; règles non sauvegardées ; chaînes fail2ban à exclure."""
         self.mock("ufw", '[[ "$1" == status ]] && echo "Status: inactive"; echo "ufw $*" >> ' + self.d + "/ufw.log")

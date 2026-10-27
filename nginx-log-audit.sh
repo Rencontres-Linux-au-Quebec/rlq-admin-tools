@@ -130,7 +130,7 @@ grep_q() { grep "$@" >/dev/null; }
 #                              ne peut pas le voir, le texte etant entre apostrophes (faux positif).
 trap 'ec=$?; echo "" >&2; echo "*** ARRÊT INATTENDU DU SCRIPT (code $ec) À LA LIGNE $LINENO ***" >&2; echo "*** Commande fautive : $BASH_COMMAND" >&2; echo "*** Si le rapport ci-dessus semble incomplet (ex. sections Top 10 absentes), c'\''est probablement la cause." >&2' ERR
 
-readonly SCRIPT_VERSION="2.51.20261026.222540"
+readonly SCRIPT_VERSION="2.52.20261026.230003"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
 # Chemin de ce programme (relances --investigate, --ban, --unban) : defini ICI, avant le bloc --ban qui l'utilise.
 SELF_PATH="$SCRIPT_DIR/$(basename "${BASH_SOURCE[0]}")"
@@ -1616,7 +1616,9 @@ scan_ips() {
         split($3, st, " "); code = st[1]
         ua = $6; l = tolower(ua)
         total[ip]++; sc[ip SUBSEP code]++; uac[ip SUBSEP ua]++; urlc[ip SUBSEP substr(path, 1, 100)]++
-        if (path !~ static_re) {
+        # 2.52: a page prefetched by the service worker (Referer ".../service-worker.js") is not a human reading
+        # pages one after the other: it does not count toward the burst (the requests still count in the totals).
+        if (path !~ static_re && $4 !~ /\/service-worker\.js(\?|$)/) {
             k = ip SUBSEP bucket SUBSEP path
             if (!(k in seenp)) { seenp[k] = 1; kb = ip SUBSEP bucket; pc[kb]++
                 if (pc[kb] > maxp[ip]) { maxp[ip] = pc[kb]; maxb[ip] = bucket } }
@@ -1683,6 +1685,16 @@ infos_reseau() {
     echo "      Propriétaire du bloc d'adresses : ${C_YELLOW}${org:-$net}${C_RESET} ($genre ; pas forcément un fournisseur d'accès)${pays:+ — pays $pays}"
     echo "        réseau ${net:-?}${plage:+ ($plage)} — source $source${registre:+ ($registre)}"
     if [[ -n "$abus" ]]; then echo "        signalement d'abus : $abus"; fi
+}
+
+# 2.52: comptes des requetes du capteur catch-all pour une IP, sous la forme "hostiles icones".
+# Les icones demandees d'elles-memes par un navigateur (apple-touch-icon, favicon.ico) ne sont pas un signe
+# d'hostilite : un iPhone ou un Mac les demande des qu'une page est enregistree, vers un ancien nom de serveur.
+# Elles sont comptees a part et ne comptent ni dans le score ni dans les signes d'hostilite.
+compter_catchall() {
+    awk -v ip="$1" '$1 == ip {
+        if ($0 ~ /"(GET|HEAD) \/(apple-touch-icon[^ ?]*|favicon\.ico)[ ?]/) i++; else h++
+    } END { print h + 0, i + 0 }' "$CATCHALL_MERGED" 2>/dev/null || true
 }
 
 investigate_and_propose() {
@@ -1755,13 +1767,18 @@ investigate_and_propose() {
     # Capteur catch-all (enquetes sur tout l'historique : --investigate, --unban-check) : une IP qui frappe le serveur
     # by its raw address or an unknown domain is almost always a scanner - a sign of hostility.
     if [[ -n "$CATCHALL_MERGED" && -s "$CATCHALL_MERGED" ]]; then
-        local n_ca
-        n_ca=$(awk -v ip="$ip" '$1 == ip' "$CATCHALL_MERGED" | grep -c . || true)
+        local n_ca n_ico
+        read -r n_ca n_ico <<< "$(compter_catchall "$ip")"
         if (( n_ca > 0 )); then
             score=$((score+1)); hostile=$((hostile+1)); SIGNE_FORT=1; motifs+=("$n_ca tentative(s) au capteur catch-all")
             echo "      $ok Capteur catch-all : $n_ca tentative(s) par IP brute ou domaine inconnu (typique d'un scanner)"
+        elif (( n_ico > 0 )); then
+            echo "      $no Capteur catch-all : $n_ico requête(s) d'icône seulement (apple-touch-icon, favicon.ico) : non hostiles"
         else
             echo "      $no Capteur catch-all : aucune tentative"
+        fi
+        if (( n_ca > 0 && n_ico > 0 )); then
+            echo "        (en plus, $n_ico requête(s) d'icône ignorée(s) : non hostiles)"
         fi
     fi
     echo
@@ -1950,13 +1967,13 @@ preparer_journaux_unban() {
 # --- Verdict de --unban-check pour UNE adresse bannie (sortie sur stdout, verdict dans UNBAN_VERDICT) ---------------
 # Shared by --unban-check and --unban-low-score: the same logic, in the same process (logs read once).
 evaluer_bannissement() {
-    local ip="$1" rec n_ca refus
+    local ip="$1" rec n_ca n_ico refus
     UNBAN_VERDICT=""
     rec=$(scan_ips "$INV_SRC" "$ip") || true
     if [[ -n "$rec" ]]; then
         investigate_and_propose "$rec" "$(dirname "$ORIG_ACCESS_LOG")/$(basename "$ORIG_ACCESS_LOG")*" "dans tout l'historique disponible"
     else
-        n_ca=$(awk -v ip="$ip" '$1 == ip' "$CATCHALL_MERGED" 2>/dev/null | grep -c . || true)
+        read -r n_ca n_ico <<< "$(compter_catchall "$ip")"
         if (( n_ca > 0 )); then
             echo "  ▶ ${C_YELLOW}$ip${C_RESET} — aucune requête sur le site, mais $n_ca tentative(s) sur le capteur catch-all"
             echo "      URL tentées :"
@@ -1971,6 +1988,10 @@ evaluer_bannissement() {
             awk -F'\t' '{ printf "        %sx %s\n", $1, $2 }' <<< "$refus"
             UNBAN_VERDICT="garder"
             echo "      ${C_RED}→ Bannissement JUSTIFIÉ : requêtes répétées refusées par les règles de sécurité — le garder.${C_RESET}"
+        elif (( n_ico > 0 )); then
+            # 2.52: only browser icon requests reached the catch-all sensor: not hostile, the ban can be lifted.
+            UNBAN_VERDICT="lever"
+            echo "  ▶ ${C_GREEN}$ip${C_RESET} — aucune requête sur le site ; $n_ico requête(s) d'icône au capteur catch-all (apple-touch-icon, favicon.ico), non hostiles"
         else
             # No evidence left in the logs: show the ban history (fail2ban jails, ban log) instead of a bare "no trace".
             UNBAN_VERDICT="trace"

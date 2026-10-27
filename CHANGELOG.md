@@ -1173,6 +1173,45 @@ Earlier history was archived outside this repository when this file was created.
 
 ## nginx-log-audit.sh
 
+### 2.52.20261026.230003 - curl rate-limited instead of blocked; service-worker prefetch and icon requests no longer count as hostility
+
+- Title: curl is no longer blocked by user agent (nginx-odoo-config 1.12: one curl every 5 seconds; a second one in the window gets 429). The audit no longer counts service-worker prefetches as a page burst, nor browser icon requests as catch-all hostility.
+- Reason: (a) The owner asked that curl not be blocked, except when several curl requests arrive within 5 seconds from the same address. (b) A friend's home address (67.55.21.165) was banned for 24 hours by the fail2ban jail nginx-catchall: 16 hits in one second, all Safari requests for `/apple-touch-icon.png`, `/apple-touch-icon-precomposed.png` and `/favicon.ico` on `ctf1.services-conseils-linux.org`, an old host name that pointed to PROD (51.161.38.12) and has been removed from DNS. (c) The audit counted those icon hits as hostility, and a 14-page burst as a sign of a script. The burst came from the service worker (`/en_CA/event/service-worker.js` prefetching pages, Referer `.../service-worker.js`): Odoo legitimately returns several pages per second, so the owner's point is correct. Burst requests with a `/web/image/` path were already excluded (STATIC_RE).
+- Changes:
+  - nginx-odoo-config 1.12 (separate project, VERSION updated):
+    - `conf.d/bot_blocker.conf`: `curl` removed from the bad-bot regex (python-requests, python-httpx, python-urllib and Wget are still blocked); the comment explains the new rate limit.
+    - `conf.d/odoo-global.conf`: `map $http_user_agent $is_curl_client` (`"~*^curl/"`), `map "$is_curl_client:$is_internal_client:$is_trusted_ip" $limit_key_curl` (key = client address only for a curl client that is neither 127.0.0.1 nor a trusted IP), `limit_req_zone $limit_key_curl zone=odoo_curl:10m rate=12r/m`.
+    - `snippets/securite-commune.conf`: new rule 1 bis, `limit_req zone=odoo_curl burst=0 nodelay;` at server level (inherited by the locations that declare no limit_req, such as the static cache and `location = /robots.txt`).
+    - `snippets/odoo/_odoo-common.conf`: the same line added to the three locations that declare their own limit_req (`location` for the apple-touch-icon, `location /`, `location ~ ^/web_editor/shape/`), because nginx does not merge a parent limit_req with a child one.
+    - `README.md` is not changed by this version; the README lines about curl describe the server-local exception, which is unchanged.
+  - nginx-log-audit.sh:
+    - `scan_ips()`: the page burst ignores a request whose Referer (field 4) ends with `/service-worker.js` (optional query string). The requests still count in the totals.
+    - New function `compter_catchall IP`: prints "hostile icon" counts for one address from the merged catch-all log. An icon is a `GET` or `HEAD` of `/apple-touch-icon*` or `/favicon.ico`.
+    - `investigate_and_propose()`: the catch-all criterion uses only the hostile count; icon-only traffic is reported as "non hostiles" and does not add to the score.
+    - `evaluer_bannissement()` (used by `--unban-check` and `--unban-low-score`): an address with no site request and only icon requests on the catch-all sensor gets the verdict "lever" (lift recommended) with an explicit message. Previously it fell through to "trace".
+    - Tests (nginx-tools-tests/test_nginx_log_audit.py): `test_rafale_du_service_worker_ne_compte_pas_mais_une_vraie_rafale_oui` (16 pages with the service-worker Referer: no burst; the same 16 pages without it: burst of 16) and `test_icones_du_capteur_catchall_ne_justifient_pas_le_bannissement`.
+    - Tests (nginx-tools-tests/test_config_nginx.py): `test_filtre_a_robots` no longer expects curl to be blocked and checks that an isolated curl is not blocked by user agent; `test_curl_limite_par_rafale_et_non_bloque_par_ua` and `test_curl_repete_dans_chaque_location_qui_a_son_propre_limit_req` are new.
+    - Catalogue `lang/nginx-log-audit.en.po`: five new messages (icon requests, "(also, ", "no request on the site").
+  - Files touched: nginx-log-audit.sh, CHANGELOG.md, lang/nginx-log-audit.en.po, nginx-tools-tests/test_nginx_log_audit.py, nginx-tools-tests/test_config_nginx.py, nginx-tools-tests/run-all.sh (SCRIPT_VERSION), doc/nginx-tools.version, nginx-odoo-config project (VERSION 1.12.20261026.230003 and 5 files above).
+- Bugs fixed:
+  - Symptom 1: a curl test from outside returned 403 (bot blocker). Diagnosis: curl in the bad-bot regex of bot_blocker.conf. Fix: rate limit instead.
+  - Symptom 2: a friend's address was banned for 24 h with score 1/7 and no proposal to lift it. Diagnosis: the catch-all criterion counted icon requests as hostility (hostile = 1) and the burst criterion counted service-worker prefetches (14 pages in 10 s). With both, the verdict was "garder". Fix: both exclusions above. Expected verdict for that address with the same logs: no hostile sign, so "lever".
+- Safeguards and edge cases:
+  - curl limit: `rate=12r/m` with `burst=0 nodelay`: the first request passes, a second one within the next 5 seconds is refused with 429 (`limit_req_status 429` is already set). A single curl every 5 seconds or more is never refused. Localhost (`$is_internal_client`) and trusted addresses (`$is_trusted_ip`) are exempt, as for the other limits. Only the User-Agent prefix `curl/` is limited; a client that changes its User-Agent is handled by the other rules, not by this one.
+  - Known limit: the curl limit does not exempt a request sent to the server's own public address (`$remote_addr = $server_addr`). Odoo's self-calls use python-requests, which the limit does not touch.
+  - Referer exclusion: the Referer header is set by the client. A scanner can forge `.../service-worker.js` to avoid the burst criterion. Only that criterion changes; the other hostility criteria (catch-all, sensitive files, errors, fake search engines) still count.
+  - Icon exclusion: only `apple-touch-icon*` and `favicon.ico`. Any other catch-all request still counts, including `/apple-touch-icon.png` when it is part of a longer scan (the scan's other requests still count).
+  - Verdicts: `--unban-check` and `--unban-low-score` use the same function (`evaluer_bannissement`), so both change together.
+  - nginx limit_req inheritance: a location that declares any limit_req does not inherit the server-level one, so the line is repeated in each such location. A test checks this for `_odoo-common.conf`.
+- Checks:
+  - nginx-odoo-config: `python3 -m unittest test_config_nginx` with NGINX_ODOO_DIR pointing to the 1.12 tree: 32 tests, OK (2 skipped). `nginx -t` NOT run: nginx is not installed in the sandbox.
+  - nginx-log-audit.sh: `bash -n` OK; the two new tests pass; `test_nginx_log_audit` full run and `test_i18n` nginx-log-audit catalogue pass.
+  - The odoo-warmup i18n failure is pre-existing on main and unrelated.
+- Action required:
+  - PROD and DEV: deploy nginx-odoo-config 1.12 (conf.d, snippets). Run `nginx -t` before `systemctl reload nginx`. Not verified here.
+  - PROD: `fail2ban-client set nginx-catchall unbanip 67.55.21.165` (the friend's address).
+  - Decision still open: the 64.89.160.73 re-ban on DEV (see 2.50).
+
 ### 2.51.20261026.222540 - Numeric order of addresses; catch-all hits counted in the score
 
 - Title: Addresses listed in numeric order (13.x before 104.x); a catch-all hit now adds to the score.
