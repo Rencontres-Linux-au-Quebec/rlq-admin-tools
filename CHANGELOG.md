@@ -466,6 +466,28 @@ Earlier history was archived outside this repository when this file was created.
 
 ## odoo-warmup.py
 
+### 1.32.20261027.121500 - --systemd-install makes a separate unit, not a drop-in
+
+- Title: --systemd-install installs odoo-warmup-NAME.service, which runs the warm-up 120 s after each start of the Odoo unit; the former drop-in with ExecStartPost is removed.
+- Reason: The ExecStartPost of the drop-in made the start of erplibre_erplibre.service wait (start timeout after 90 s, restart loop). The warm-up must not be part of the start of the Odoo unit.
+- Changes:
+  - warmup_unit_path(): /etc/systemd/system/odoo-warmup-NAME.service (NAME = the unit without .service).
+  - systemd_content(): Type=oneshot unit, ExecStartPre=/bin/sleep 120 (WARMUP_DELAY), ExecStart the warm-up with --wait, Requires= and After= the Odoo unit, WantedBy= the Odoo unit.
+  - remove_dropin_ancien(): removes the former drop-in (dropin_path) at install and at removal.
+  - systemd_install_unit(): writes the unit, daemon-reload, systemctl enable (not in tests).
+  - systemd_remove_unit(): disables and removes the unit and the former drop-in.
+  - Files: odoo-warmup.py, nginx-tools-tests/test_odoo_warmup.py, CHANGELOG.md.
+- Bugs fixed:
+  - Symptom: start of Odoo timed out (90 s), the unit was killed and restarted in a loop, while the warm-up ran at each start.
+  - Diagnosis: ExecStartPost of the drop-in is part of the start job of the Odoo unit.
+  - Correction: the warm-up runs in its own unit, after the start.
+- Safeguards and edge cases:
+  - The Odoo unit is not changed by the warm-up.
+  - Without NGINX_TOOLS_SYSTEMD_DIR, daemon-reload and systemctl enable/disable run; in tests they do not.
+- Checks:
+  - py_compile; test suite test_odoo_warmup (19 tests), the install test checks the unit, the removal of the former drop-in and the removal.
+- Action required: on the server, run --systemd-install --service erplibre_erplibre.service as root, then systemctl start odoo-warmup-erplibre_erplibre.service to test.
+
 ### 1.31.20261025.224500 - Redirection of a survey page not followed
 
 - Title: For an optional page (survey), a redirection (303) is not followed: /en_CA/survey, which does not exist, is no longer requested.
