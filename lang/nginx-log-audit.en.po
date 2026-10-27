@@ -2090,3 +2090,18 @@ msgstr " banned IP(s) to lift (lift recommended): "
 
 msgid "levée recommandée par --unban-check (--unban-low-score)"
 msgstr "lift recommended by --unban-check (--unban-low-score)"
+
+msgid " requête(s) d'icône seulement (apple-touch-icon, favicon.ico) : non hostiles"
+msgstr " icon request(s) only (apple-touch-icon, favicon.ico): not hostile"
+
+msgid "        (en plus, "
+msgstr "        (also, "
+
+msgid " requête(s) d'icône ignorée(s) : non hostiles)"
+msgstr " icon request(s) ignored: not hostile)"
+
+msgid " — aucune requête sur le site ; "
+msgstr " - no request on the site; "
+
+msgid " requête(s) d'icône au capteur catch-all (apple-touch-icon, favicon.ico), non hostiles"
+msgstr " icon request(s) at the catch-all sensor (apple-touch-icon, favicon.ico), not hostile"
