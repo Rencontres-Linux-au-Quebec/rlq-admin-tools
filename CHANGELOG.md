@@ -1173,6 +1173,33 @@ Earlier history was archived outside this repository when this file was created.
 
 ## nginx-log-audit.sh
 
+### 2.50.20261026.220500 - --unban-low-score uses the --unban-check verdict; one process; one progress line per address
+
+- Title: `--unban-low-score` lifts only what `--unban-check` recommends; it runs in one process, shows one step per address, and reads the Odoo journal once.
+- Reason: On DEV, `--unban-low-score` lifted 64.89.160.73 (score 2/7) and 45.138.12.52 (score 1/7). Both had been judged "a garder" (keep) by `--unban-check` the same day: 3 hostility signs and a scanner for the first, one sign for the second. The two modes disagreed because the low-score mode decided on the score alone. The administrator also asked for less noise and a shorter run (about 155 s for 30 addresses, each sub-investigation rereading the Odoo journal and printing its own headers).
+- Changes:
+  - New function `evaluer_bannissement IP`: the body of the `--unban-check` loop, moved unchanged into a function. `--unban-check` and `--unban-low-score` both call it, so the verdict is the same.
+  - New function `preparer_journaux_unban`: the log merge done once per run, shared by both modes.
+  - `--unban-low-score`: an address is lifted only when the verdict is "lever". The score is still shown. No sub-process per address: the investigations run in the same process, so the Odoo journal (`charger_logins`) is read once per run.
+  - Output: one step per address, "Réévaluation n/N : IP (lecture seule)", the table gets a "--unban-check" column (LEVÉE recommandée, garder, à vérifier, sans trace, incohérente), and the details of each evaluation are not printed.
+  - `decide_unban()`: no question while evaluating (`MODE_EVALUATION`), so the only prompt is the one of `--unban-low-score`.
+  - `investigate_and_propose()`: remembers the score of the evaluation (`DERNIER_SCORE`).
+  - Help text, header comment, doc/en/nginx-log-audit.conf.example and lang/nginx-log-audit.en.po updated.
+  - Files touched: nginx-log-audit.sh, lang/nginx-log-audit.en.po, nginx-tools-tests/test_nginx_log_audit.py, doc/en/nginx-log-audit.conf.example, CHANGELOG.md, nginx-tools-tests/run-all.sh (SCRIPT_VERSION), doc/nginx-tools.version.
+- Bugs fixed:
+  - Symptom: an address judged "a garder" by `--unban-check` was lifted by `--unban-low-score`.
+  - Diagnosis: two decision rules (score for the low-score mode, verdict for `--unban-check`).
+  - Fix: one rule, the verdict.
+  - Symptom: 20 of 30 addresses showed "?/7" and could never be proposed.
+  - Diagnosis: the investigation prints a score only on some branches. The new table shows the verdict for every address, so these addresses are now assessed (catch-all and refusal evidence).
+- Safeguards and edge cases:
+  - A protected address (team, protected place) is never lifted, as before.
+  - An address whose verdict is "verifier", "trace" or "incoherente" is never lifted.
+  - Without a terminal, the list is shown and nothing is lifted, unless --yes is given.
+  - The log merge happens once: a log that changes during the run is read as it was at the start.
+- Checks: bash -n, ShellCheck 0.11.0 clean, test_nginx_log_audit OK (45 tests). The low-score test now covers two cases: an address judged "garder" is never lifted (even at a low score), and an address judged "lever" is lifted with --yes. test_i18n: the nginx-log-audit catalogue passes (10 msgids added); the odoo-warmup failure is pre-existing on main.
+- Action required: on DEV, consider re-banning 64.89.160.73 (scanner: 507 catch-all attempts, 238 sensitive-file requests), which 2.49 lifted by mistake: nginx-log-audit.sh --ban 64.89.160.73 --reason "...". Then review 45.138.12.52 with --unban-check.
+
 ### 2.49.20261026.213805 - --unban-low-score: one-digit score, visible progress, loopback excluded from section 3
 
 - Title: Low-score list shows a correct score and progress steps; 127.0.0.1 is no longer a false positive in section 3.
