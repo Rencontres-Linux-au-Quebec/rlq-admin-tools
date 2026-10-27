@@ -591,6 +591,41 @@ class ChkNginxLogs(EnvTest):
         self.assertIn("2 justifié(s), 2 levée(s) recommandée(s)", out)
 
     @unittest.skipUnless(os.geteuid() == 0, "--unban-check exige root")
+    def test_unban_check_refus_repetes_justifient_le_bannissement(self):
+        """2.45 : une IP sans aucune requête au site ni au capteur catch-all, mais refusée à répétition (blocked-probes.log),
+        est justifiée (ce sont des refus certains), au lieu d'être « sans trace »."""
+        self._bannissements()
+        with open(os.path.join(self.d, "rules"), "a") as f:
+            f.write("INPUT -s 198.51.100.98 -j DROP\n")
+        with open(os.path.join(self.logs, "blocked-probes.log"), "w") as f:
+            f.writelines(acc("198.51.100.98", "26/Oct/2026", f"09:00:{i:02d}", "/.git/config", 404, "curl/8.5.0") for i in range(3))
+        rc, out, err = self.run_cmd(["bash", self.prog, "prod", "--unban-check", "--no-prompt"])
+        self.assertEqual(rc, 0, err)
+        bloc = out[out.index("] 198.51.100.98 "):].split("\n--- [")[0]
+        self.assertIn("requêtes REFUSÉES par nginx", bloc)
+        self.assertIn("Bannissement JUSTIFIÉ : requêtes répétées refusées", bloc)
+        self.assertNotIn("Réévaluation impossible", bloc)
+
+    @unittest.skipUnless(os.geteuid() == 0, "--unban-check exige root")
+    def test_unban_check_une_seule_rafale_a_verifier(self):
+        """2.45 : une seule rafale de pages, sans signe fort, n'est plus un motif suffisant pour garder le bannissement :
+        « à vérifier » ; la section de revue liste l'adresse avec les commandes à lancer."""
+        self._bannissements()
+        with open(os.path.join(self.d, "rules"), "a") as f:
+            f.write("INPUT -s 198.51.100.97 -j DROP\n")
+        self.add(*(acc("198.51.100.97", "26/Oct/2026", "10:00:00", f"/shop/produit-{i}", 200, CHROME) for i in range(16)))
+        rc, out, err = self.run_cmd(["bash", self.prog, "prod", "--unban-check", "--no-prompt"])
+        self.assertEqual(rc, 0, err)
+        bloc = out[out.index("] 198.51.100.97 "):].split("\n--- [")[0]
+        self.assertIn("À VÉRIFIER : un seul signe d'hostilité", bloc)
+        self.assertNotIn("Bannissement JUSTIFIÉ", bloc)
+        self.assertIn("1 à vérifier", out)
+        revue = out[out.index("AUTRES POINTS À RE-VÉRIFIER"):]
+        self.assertIn("nginx-log-audit.sh --investigate 198.51.100.97 --no-prompt", revue)
+        self.assertIn("1) Adresses de l'équipe", revue)
+        self.assertIn("5) Bannissements à vérifier à la main", revue)
+
+    @unittest.skipUnless(os.geteuid() == 0, "--unban-check exige root")
     def test_unban_check_leve_meme_si_le_fichier_n_est_pas_executable(self):
         """1.34 : la relance directe exigeait le droit d'exécution — lancé par « bash », la levée échouait en silence
         (« Permission denied » filtré) et arrêtait le script. Relance désormais par « bash »."""

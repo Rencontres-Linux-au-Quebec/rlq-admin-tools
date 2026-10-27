@@ -1173,6 +1173,46 @@ Earlier history was archived outside this repository when this file was created.
 
 ## nginx-log-audit.sh
 
+### 2.46.20261026.195327 - Unban review: refusals count, single bursts to check, coherence guard, daily checks
+
+- Title: Unban review: refused-only bans are justified, single bursts are flagged, coherence guard, daily checks section.
+- Reason: Review of the 87 manual bans listed by `--unban-check` (2026-10-26). Three problems: (a) several addresses were reported "without trace" although they were refused again and again (blocked-probes.log was never read by the re-evaluation); (b) the investigation of 192.54.244.135 printed the reverse DNS, the host lookup and the grep of another address (34.179.161.77), so its verdict rested on the wrong evidence; (c) a single burst of pages was enough to keep a ban. The administrator also wants a daily list of points to re-check, with the commands run by the program itself.
+- Changes:
+  - `--unban-check`:
+    - an address without any request on the site or on the catch-all sensor is now checked in `blocked-probes.log`: repeated refusals justify keeping the ban ("requêtes REFUSÉES par nginx");
+    - an address with no evidence left shows its ban history (`afficher_bannissements`: fail2ban jails, ban log) instead of a bare "no trace";
+    - two new verdicts: "à vérifier" (only one burst of pages and no strong sign) and "incohérente" (no verdict, the investigation must be run again). Neither lifts a ban by itself;
+    - new section "AUTRES POINTS À RE-VÉRIFIER" (function `revue_controles`, read-only, printed after the BILAN and also when there is no manual ban): 1) team and protected addresses among the bans; 2) fail2ban jails and number of banned addresses per jail; 3) addresses refused by nginx that also received 200 pages (possible false positive); 4) logs used by the checks; 5) the commands to run by hand for each address to re-check;
+    - the BILAN line gives the counts of "à vérifier" and "incohérente".
+  - `investigate_and_propose`: remembers the address asked for; a coherence check before the "Pour vérifier soi-même" lines marks the investigation as inconsistent when the address changed; sets a strong-sign flag (`SIGNE_FORT`) for sensitive files, errors, fake search engine and catch-all.
+  - `decide_unban`: returns "incohérente" when the investigation is inconsistent, and "à vérifier" when the only sign is a burst of pages.
+  - New global variables: `ENQUETE_INCOHERENTE`, `SIGNE_FORT`, `REVOIR_IPS`.
+  - Files: nginx-log-audit.sh, lang/nginx-log-audit.en.po (30 new entries), doc/en/02-nginx-log-audit.md and doc/fr/02-nginx-log-audit.md (section "Reviewing manual bans every day"), nginx-tools-tests/test_nginx_log_audit.py (2 tests), nginx-tools-tests/run-all.sh (1.197), doc/nginx-tools.version (1.146).
+- Bugs fixed:
+  - Symptom: `--unban-check` showed, for 192.54.244.135, the reverse DNS, the host command and the grep of 34.179.161.77; the verdict was based on another address.
+  - Diagnosis: the address used by the DNS and grep lines changed between the header of the investigation and the DNS lines. The fixtures of the test suite do not reproduce it, and the statement of the cause in the code is not confirmed yet.
+  - Fix: the address is remembered at the start of the investigation; if it differs before the verification lines, the investigation is marked inconsistent (no verdict), and the verification lines use the address that was asked for. The cause itself still has to be confirmed on the real log of the server (see "Action required").
+  - Symptom: addresses refused by nginx (blocked-probes.log) were reported "sans trace".
+  - Diagnosis: the re-evaluation read only the site access logs and the catch-all log.
+  - Fix: blocked-probes.log and the ban history are read (see Changes).
+- Safeguards and edge cases:
+  - The verdict "à vérifier" never lifts a ban: the decision stays with the administrator.
+  - The new section is read-only: no firewall rule, fail2ban jail or ban log is changed by it.
+  - Missing logs (blocked-probes.log, access log, fail2ban.log) are reported as [ATTN] or "nothing to compare"; they do not stop the program.
+  - An empty list of manual bans still prints the section.
+  - `--unban-check` still requires root (firewall rules).
+- Version: 2.46 (not 2.45): main already released 2.45 (summary of the IPs to unban). Both features are kept.
+- Checks:
+  - `bash -n` and ShellCheck 0.11.0 (no warning).
+  - `test_i18n`: 32 tests OK (every new message has an English entry).
+  - `test_nginx_log_audit`: 43 tests OK (41 existing and 2 new: refusals justify a ban; a single burst is "à vérifier" and appears in section 5).
+  - Not run on the production servers.
+- Action required:
+  - Run `nginx-log-audit.sh --unban-check` on each server and send the sections 1 to 5 of the output for a review.
+  - Re-run `--investigate 192.54.244.135` (the investigation of this address was inconsistent).
+  - Check the address 140.82.7.85 by hand (its only sign is a burst of pages).
+  - For a daily check, add the crontab line shown in the documentation (section "Reviewing manual bans every day").
+
 ### 2.45.20261025.155703 - Summary of IPs to unban after --unban-check
 
 - Title: summary of the IPs to lift at the end of --unban-check when there are more than 5.

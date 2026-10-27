@@ -130,7 +130,7 @@ grep_q() { grep "$@" >/dev/null; }
 #                              ne peut pas le voir, le texte etant entre apostrophes (faux positif).
 trap 'ec=$?; echo "" >&2; echo "*** ARRÊT INATTENDU DU SCRIPT (code $ec) À LA LIGNE $LINENO ***" >&2; echo "*** Commande fautive : $BASH_COMMAND" >&2; echo "*** Si le rapport ci-dessus semble incomplet (ex. sections Top 10 absentes), c'\''est probablement la cause." >&2' ERR
 
-readonly SCRIPT_VERSION="2.45.20261025.155703"
+readonly SCRIPT_VERSION="2.46.20261026.195327"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
 # Chemin de ce programme (relances --investigate, --ban, --unban) : defini ICI, avant le bloc --ban qui l'utilise.
 SELF_PATH="$SCRIPT_DIR/$(basename "${BASH_SOURCE[0]}")"
@@ -171,6 +171,11 @@ BAN_REASON=""
 DO_BAN_HISTORY=0
 DO_UNBAN_CHECK=0
 DO_UNBAN_LOW_SCORE=0
+# Set by investigate_and_propose: ENQUETE_INCOHERENTE=1 when the address changed during the investigation (no verdict then);
+# SIGNE_FORT=1 when a strong sign of hostility was found (sensitive files, errors, fake search engine, catch-all).
+ENQUETE_INCOHERENTE=0
+SIGNE_FORT=0
+REVOIR_IPS=()                  # --unban-check: addresses whose ban must be checked by hand (section 5 of the review)
 EXPORT_BANS=""
 IMPORT_BANS=""
 INV_MODE=""
@@ -1671,6 +1676,11 @@ investigate_and_propose() {
     local rec="$1" src="$2" scope="${3:-dans la fenêtre analysée}"
     local ip total maxp maxb urls hostile=0 n_url nscript nbrowser nf fams nerr nprobe codes uas probes
     IFS=$'\037' read -r _ ip total maxp maxb nscript nbrowser nf fams nerr nprobe codes uas probes urls <<< "$rec"
+    # The address investigated is remembered: every check below must still work on it (see the coherence check before the
+    # DNS lines at the end of this function).
+    local ip_depart="$ip"
+    ENQUETE_INCOHERENTE=0
+    SIGNE_FORT=0
     local etapes="DNS inverse, connexions Odoo, capteur catch-all"
     if [[ -n "$INVESTIGATE_IP" ]]; then etapes="$etapes, propriétaire du bloc d'adresses"; fi
     progres "Enquête sur $ip : $etapes"
@@ -1702,9 +1712,9 @@ investigate_and_propose() {
     if (( nscript > 0 && nbrowser > 0 )); then score=$((score+1)); motifs+=("double identité"); echo "      $ok Double identité : outil de script ET User-Agent de navigateur depuis la même IP (client automatisé qui change d'identité)"
     elif (( nf >= 2 )); then score=$((score+1)); motifs+=("double identité ($nf organisations de robots)"); echo "      $ok Double identité : se réclame de $nf organisations de robots (${fams//|/, })"
     else echo "      $no Double identité : non"; fi
-    if (( nprobe >= 3 )); then score=$((score+1)); hostile=$((hostile+1)); motifs+=("$nprobe tentative(s) d'accès à des fichiers sensibles (ex. $probes)"); echo "      $ok Recherche de fichiers sensibles : $nprobe requête(s) (ex. $probes)"
+    if (( nprobe >= 3 )); then score=$((score+1)); hostile=$((hostile+1)); SIGNE_FORT=1; motifs+=("$nprobe tentative(s) d'accès à des fichiers sensibles (ex. $probes)"); echo "      $ok Recherche de fichiers sensibles : $nprobe requête(s) (ex. $probes)"
     else echo "      $no Recherche de fichiers sensibles : ${nprobe} requête(s)"; fi
-    if (( nerr >= 20 && nerr * 2 >= total )); then score=$((score+1)); hostile=$((hostile+1)); motifs+=("$nerr erreurs sur $total requêtes"); echo "      $ok Taux d'erreurs élevé : $nerr/$total (4xx/5xx/444)"
+    if (( nerr >= 20 && nerr * 2 >= total )); then score=$((score+1)); hostile=$((hostile+1)); SIGNE_FORT=1; motifs+=("$nerr erreurs sur $total requêtes"); echo "      $ok Taux d'erreurs élevé : $nerr/$total (4xx/5xx/444)"
     else echo "      $no Taux d'erreurs : $nerr/$total"; fi
 
     ptr=$(run timeout --foreground 3 host "$ip" 2>/dev/null | awk '/pointer/{print $NF}' | sed 's/\.$//' | head -1) || true
@@ -1726,7 +1736,7 @@ investigate_and_propose() {
             echo "      ${C_GREEN}[=]${C_RESET} Moteur de recherche VÉRIFIÉ ($ptr ↔ $ip) — jamais proposé au bannissement"
         else
             engines=$(printf '%s\n' "${fams//|/$'\n'}" | grep -xE 'Google|Microsoft|Apple|Yandex' | paste -sd, - | sed 's/,/, /g') || true
-            score=$((score+1)); hostile=$((hostile+1)); motifs+=("faux moteur de recherche ($engines)"); echo "      $ok Faux moteur de recherche : se dit robot de ${engines} mais la double vérification DNS (inverse puis directe) échoue"
+            score=$((score+1)); hostile=$((hostile+1)); SIGNE_FORT=1; motifs+=("faux moteur de recherche ($engines)"); echo "      $ok Faux moteur de recherche : se dit robot de ${engines} mais la double vérification DNS (inverse puis directe) échoue"
         fi
     fi
     # Capteur catch-all (enquetes sur tout l'historique : --investigate, --unban-check) : une IP qui frappe le serveur
@@ -1735,7 +1745,7 @@ investigate_and_propose() {
         local n_ca
         n_ca=$(awk -v ip="$ip" '$1 == ip' "$CATCHALL_MERGED" | grep -c . || true)
         if (( n_ca > 0 )); then
-            hostile=$((hostile+1)); motifs+=("$n_ca tentative(s) au capteur catch-all")
+            hostile=$((hostile+1)); SIGNE_FORT=1; motifs+=("$n_ca tentative(s) au capteur catch-all")
             echo "      $ok Capteur catch-all : $n_ca tentative(s) par IP brute ou domaine inconnu (typique d'un scanner)"
         else
             echo "      $no Capteur catch-all : aucune tentative"
@@ -1763,6 +1773,13 @@ investigate_and_propose() {
         echo "          ${C_YELLOW}de cet utilisateur (outils de développement, onglet Réseau).${C_RESET}"
     fi
 
+    # Coherence check: the address must be the one that was investigated. A change would mean that the evidence and the
+    # verdict below concern another address: no verdict then, and the lines "to verify" use the address that was asked for.
+    if [[ "$ip" != "$ip_depart" ]]; then
+        ENQUETE_INCOHERENTE=1
+        echo "      ${C_RED}[FAIL] Enquête incohérente : l'adresse a changé pendant l'analyse ($ip_depart -> $ip). Aucun verdict : à relancer.${C_RESET}"
+        ip="$ip_depart"
+    fi
     echo "      Pour vérifier soi-même :"
     echo "        host $ip"
     echo "        grep -F \"$ip \" $src | awk -F'\"' '{print \$6}' | sort | uniq -c"
@@ -1861,12 +1878,25 @@ readonly UNBAN_SUMMARY_MIN=5
 UNBAN_SUMMARY=()
 decide_unban() {
     local ip="$1" hostile="$2" score="$3" verified="$4" prot raison=""
+    if [[ "$ENQUETE_INCOHERENTE" == "1" ]]; then
+        UNBAN_VERDICT="incoherente"
+        echo "      ${C_YELLOW}→ Aucun verdict : enquête incohérente, à relancer (nginx-log-audit.sh --investigate $ip).${C_RESET}"
+        return 0
+    fi
     if prot=$(protected_ip_reason "$ip"); then
         raison="IP protégée ($(printf '%s\n' "$prot" | head -1)) : bannie par erreur"
     elif [[ "$verified" == "1" ]]; then
         raison="moteur de recherche VÉRIFIÉ : le bannir le retire de l'indexation du site"
     elif (( hostile == 0 )); then
         raison="aucun signe d'hostilité (score $score/7, automatisation seulement) — voir les URL demandées"
+    fi
+    # A single sign of hostility that is only a burst of pages (no strong sign) is not enough to keep a ban: a browser or a
+    # monitoring tool can load many pages in 10 seconds. The reader decides.
+    if [[ -z "$raison" && "$hostile" == "1" && "$SIGNE_FORT" != "1" ]]; then
+        UNBAN_VERDICT="verifier"
+        echo "      ${C_YELLOW}→ À VÉRIFIER : un seul signe d'hostilité, une rafale de pages, sans signe fort (fichiers sensibles,"
+        echo "        erreurs, faux moteur, capteur catch-all). Gardez-le seulement si vous reconnaissez cet outil.${C_RESET}"
+        return 0
     fi
     if [[ -z "$raison" ]]; then
         UNBAN_VERDICT="garder"
@@ -1999,6 +2029,96 @@ if [[ -n "$INVESTIGATE_IP" ]]; then
     exit 0
 fi
 
+# --- --unban-check : other points to re-check every day (read-only; this program runs them and shows the commands) ------
+# Each check prints [OK], [ATTN] or [FAIL] and the command that shows the same thing by hand. The section can be copied
+# as it is and sent for a review. Arguments: the manual bans examined (may be empty).
+revue_controles() {
+    local -a bans=("$@")
+    local ip jails j n_att=0 acces_glob croise x nb
+    local -a fichiers_acces=()
+    acces_glob="$(dirname "${ORIG_ACCESS_LOG:-$ACCESS_LOG}")/$(basename "${ORIG_ACCESS_LOG:-$ACCESS_LOG}")*"
+    echo
+    echo "=============================================================="
+    echo " AUTRES POINTS À RE-VÉRIFIER (contrôles lancés par ce programme, lecture seule)"
+    echo "=============================================================="
+    # 1) Team and protected addresses among the manual bans: a ban on one of them is an error to correct at once.
+    echo "${C_BOLD}1) Adresses de l'équipe et lieux protégés parmi les bannissements manuels${C_RESET}"
+    echo "   Commande : iptables -S INPUT | grep -- '-j DROP'"
+    for ip in "${bans[@]}"; do
+        if protected_ip_reason "$ip" >/dev/null 2>&1; then
+            n_att=$((n_att + 1))
+            echo "   ${C_RED}[ATTN]${C_RESET} $ip est bannie alors qu'elle est protégée : $(protected_ip_reason "$ip" | head -n 1)"
+        fi
+    done
+    if (( n_att == 0 )); then echo "   ${C_GREEN}[OK]${C_RESET} aucune adresse protégée parmi les ${#bans[@]} bannissement(s) manuel(s)"; fi
+    # 2) fail2ban: the jails that ban automatically (refusals, failed logins, catch-all)
+    echo
+    echo "${C_BOLD}2) Jails fail2ban${C_RESET}"
+    echo "   Commande : fail2ban-client status"
+    jails=""
+    if command -v fail2ban-client >/dev/null 2>&1; then
+        jails=$(run fail2ban-client status 2>/dev/null | sed -n 's/.*Jail list:[[:space:]]*//p' | tr -d ' ' | tr ',' ' ') || jails=""
+    fi
+    if [[ -n "$jails" ]]; then
+        echo "   ${C_GREEN}[OK]${C_RESET} jails actives : $jails"
+        for j in $jails; do
+            nb=$(run fail2ban-client status "$j" 2>/dev/null | sed -n 's/.*Currently banned:[[:space:]]*//p') || nb=""
+            echo "   [i] $j : ${nb:-?} IP bannie(s) en ce moment (commande : fail2ban-client status $j)"
+        done
+    else
+        echo "   ${C_RED}[FAIL]${C_RESET} fail2ban inaccessible ou sans jail : les bannissements automatiques ne sont pas appliqués"
+    fi
+    # 3) Addresses refused by nginx AND served normal pages (200): a visitor who got a refusal (rule 6 or 9 of
+    #    securite-commune.conf, for example) is a false positive to fix, not a scanner.
+    echo
+    echo "${C_BOLD}3) Adresses refusées par nginx et servies normalement (200) : faux positif possible${C_RESET}"
+    echo "   Commande : grep -F \"IP \" /var/log/nginx/blocked-probes.log"
+    if compgen -G "/var/log/nginx/blocked-probes.log*" >/dev/null && compgen -G "$acces_glob" >/dev/null; then
+        mapfile -t fichiers_acces < <(compgen -G "$acces_glob")
+        croise=$(comm -12 <(lire_chrono "${fichiers_acces[@]}" 2>/dev/null | awk '$9 == 200 { print $1 }' | sort -u) \
+                          <(lire_chrono /var/log/nginx/blocked-probes.log* 2>/dev/null | awk '{ print $1 }' | sort -u) | head -n 10) || croise=""
+        if [[ -n "$croise" ]]; then
+            echo "   ${C_RED}[ATTN]${C_RESET} ces adresses ont reçu des refus ET des pages 200 (10 maximum) :"
+            while IFS= read -r x; do
+                [[ -z "$x" ]] && continue
+                echo "       $x : $(urls_refusees "$x" 2 | awk -F'\t' '{ printf "%sx %s ; ", $1, $2 }')"
+            done <<< "$croise"
+        else
+            echo "   ${C_GREEN}[OK]${C_RESET} aucune adresse refusée n'a reçu de page 200"
+        fi
+    else
+        echo "   [i] journal blocked-probes.log ou journal d'accès absent : rien à comparer"
+    fi
+    # 4) Logs used by the checks above (fail2ban history and refusals), readable?
+    echo
+    echo "${C_BOLD}4) Journaux utilisés par ces contrôles${C_RESET}"
+    echo "   Commande : ls -l /var/log/fail2ban.log* /var/log/nginx/blocked-probes.log*"
+    if compgen -G "${FAIL2BAN_LOG_FILE:-/var/log/fail2ban.log}*" >/dev/null; then
+        echo "   ${C_GREEN}[OK]${C_RESET} historique fail2ban présent (rotations comprises)"
+    else
+        echo "   ${C_RED}[ATTN]${C_RESET} historique fail2ban introuvable : l'origine des anciens bannissements ne peut plus être vérifiée"
+    fi
+    if compgen -G "/var/log/nginx/blocked-probes.log*" >/dev/null; then
+        echo "   ${C_GREEN}[OK]${C_RESET} journal blocked-probes.log présent"
+    else
+        echo "   ${C_YELLOW}[ATTN]${C_RESET} blocked-probes.log absent : les refus des règles 4 à 11 ne sont pas journalisés"
+    fi
+    # 5) Bans to look at by hand, with the commands to run (paste their output for a review).
+    echo
+    echo "${C_BOLD}5) Bannissements à vérifier à la main (commandes à lancer)${C_RESET}"
+    if (( ${#REVOIR_IPS[@]} == 0 )); then
+        echo "   ${C_GREEN}[OK]${C_RESET} aucun bannissement à revoir"
+    else
+        for ip in "${REVOIR_IPS[@]}"; do
+            echo "   ${C_YELLOW}$ip${C_RESET}"
+            echo "       nginx-log-audit.sh --investigate $ip --no-prompt"
+            echo "       grep -h -F \"$ip\" ${FAIL2BAN_LOG_FILE:-/var/log/fail2ban.log}*"
+        done
+    fi
+    echo
+    echo "   Pour une relecture : copiez les sections 1 à 5 de ce rapport."
+}
+
 # --- --unban-check : reevalue chaque bannissement manuel avec la logique ACTUELLE, sur tout l'historique --------------
 if [[ "$DO_UNBAN_CHECK" == "1" ]]; then
     if [[ "$EUID" -ne 0 ]]; then
@@ -2011,6 +2131,7 @@ if [[ "$DO_UNBAN_CHECK" == "1" ]]; then
     mapfile -t BANS < <(list_manual_bans)
     if (( ${#BANS[@]} == 0 )); then
         echo "${C_GREEN}Aucun bannissement manuel en place (iptables INPUT « -s IP -j DROP », ufw « deny from »).${C_RESET}"
+        revue_controles
         exit 0
     fi
     echo "${#BANS[@]} bannissement(s) manuel(s) à réévaluer avec la logique actuelle (bannissement justifié seulement"
@@ -2022,7 +2143,8 @@ if [[ "$DO_UNBAN_CHECK" == "1" ]]; then
     merge_all_rotations "${ORIG_ACCESS_LOG:-$ACCESS_LOG}" "$INV_SRC" > /dev/null
     [[ -n "$CATCHALL_LOG" ]] && { merge_all_rotations "$CATCHALL_LOG" "$CATCHALL_MERGED" > /dev/null 2>&1 || true; }
     INV_MODE="unban-check"
-    n_lever=0; n_garder=0; n_trace=0; n_leve=0; i=0
+    n_lever=0; n_garder=0; n_trace=0; n_leve=0; n_verif=0; n_incoh=0; i=0
+    REVOIR_IPS=()
     for bip in "${BANS[@]}"; do
         i=$((i + 1))
         IFS=$'\t' read -r quand justif origine < <(awk -F'\t' -v ip="$bip" '$3 == ip && $2 == "banni" { d = $1; r = (NF >= 4) ? $4 : ""; o = (NF >= 5) ? $5 : "" }
@@ -2047,21 +2169,33 @@ if [[ "$DO_UNBAN_CHECK" == "1" ]]; then
                     | sort | uniq -c | sort -rn | head -n 8 | sed -E 's/^ *([0-9]+) /\1x /; s/^/        /'; } || true
                 UNBAN_VERDICT="garder"
                 echo "      ${C_RED}→ Bannissement JUSTIFIÉ : scanner (accès par IP brute ou domaine inconnu) — le garder.${C_RESET}"
+            elif refus=$(urls_refusees "$bip" 3) && [[ -n "$refus" ]]; then
+                # Refused requests (blocked-probes.log) are certain evidence: they are what the nginx-blocked-probes jail counts.
+                echo "  ▶ ${C_YELLOW}$bip${C_RESET} — aucune requête sur le site, mais requêtes REFUSÉES par nginx (blocked-probes.log) :"
+                echo "      URL refusées :"
+                awk -F'\t' '{ printf "        %sx %s\n", $1, $2 }' <<< "$refus"
+                UNBAN_VERDICT="garder"
+                echo "      ${C_RED}→ Bannissement JUSTIFIÉ : requêtes répétées refusées par les règles de sécurité — le garder.${C_RESET}"
             else
+                # No evidence left in the logs: show the ban history (fail2ban jails, ban log) instead of a bare "no trace".
                 UNBAN_VERDICT="trace"
-                echo "      Aucune requête de $bip dans l'historique disponible (journaux tournés depuis le bannissement ?)."
+                echo "      Aucune requête de $bip dans les journaux du site, du capteur catch-all ni de blocked-probes.log."
+                afficher_bannissements "$bip" "      "
                 echo "      Réévaluation impossible : décision manuelle (--unban $bip pour lever)."
             fi
         fi
         case "$UNBAN_VERDICT" in
             lever) n_lever=$((n_lever + 1)); UNBAN_SUMMARY+=("$bip|lever") ;;
             levé) n_lever=$((n_lever + 1)); n_leve=$((n_leve + 1)); UNBAN_SUMMARY+=("$bip|leve") ;;
-            garder) n_garder=$((n_garder + 1)) ;; *) n_trace=$((n_trace + 1)) ;;
+            garder) n_garder=$((n_garder + 1)) ;;
+            verifier) n_verif=$((n_verif + 1)); REVOIR_IPS+=("$bip") ;;
+            incoherente) n_incoh=$((n_incoh + 1)); REVOIR_IPS+=("$bip") ;;
+            *) n_trace=$((n_trace + 1)); REVOIR_IPS+=("$bip") ;;
         esac
     done
     echo
     echo "=============================================================="
-    echo " BILAN : ${#BANS[@]} bannissement(s) — $n_garder justifié(s), $n_lever levée(s) recommandée(s)$([[ $n_leve -gt 0 ]] && echo " (dont $n_leve effectuée(s))"), $n_trace sans trace"
+    echo " BILAN : ${#BANS[@]} bannissement(s) — $n_garder justifié(s), $n_lever levée(s) recommandée(s)$([[ $n_leve -gt 0 ]] && echo " (dont $n_leve effectuée(s))"), $n_trace sans trace, $n_verif à vérifier, $n_incoh incohérente(s)"
     echo "=============================================================="
     # Sommaire (2.45) : au-dela de UNBAN_SUMMARY_MIN IP a lever, la liste est repetee ici pour la relecture.
     if (( ${#UNBAN_SUMMARY[@]} > UNBAN_SUMMARY_MIN )); then
@@ -2078,6 +2212,7 @@ if [[ "$DO_UNBAN_CHECK" == "1" ]]; then
         echo "  (Chaque levée demande confirmation, IP par IP / each lift asks for confirmation, one IP at a time)"
         echo "=============================================================="
     fi
+    revue_controles "${BANS[@]}"
     exit 0
 fi
 

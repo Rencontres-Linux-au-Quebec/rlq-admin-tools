@@ -1951,3 +1951,106 @@ msgstr " in jail "
 
 msgid "/7 sous le seuil (--unban-low-score)"
 msgstr "/7 below the threshold (--unban-low-score)"
+
+
+msgid "[FAIL] Enquête incohérente : l'adresse a changé pendant l'analyse ("
+msgstr "[FAIL] Inconsistent investigation: the address changed during the analysis ("
+
+msgid "). Aucun verdict : à relancer."
+msgstr "). No verdict: run the investigation again."
+
+msgid "→ Aucun verdict : enquête incohérente, à relancer (nginx-log-audit.sh --investigate "
+msgstr "→ No verdict: inconsistent investigation, run it again (nginx-log-audit.sh --investigate "
+
+msgid "→ À VÉRIFIER : un seul signe d'hostilité, une rafale de pages, sans signe fort (fichiers sensibles,"
+msgstr "→ TO CHECK: a single sign of hostility, a burst of pages, no strong sign (sensitive files,"
+
+msgid "        erreurs, faux moteur, capteur catch-all). Gardez-le seulement si vous reconnaissez cet outil."
+msgstr "        errors, fake search engine, catch-all sensor). Keep it only if you recognise this tool."
+
+msgid " AUTRES POINTS À RE-VÉRIFIER (contrôles lancés par ce programme, lecture seule)"
+msgstr " OTHER POINTS TO RE-CHECK (checks run by this program, read-only)"
+
+msgid "1) Adresses de l'équipe et lieux protégés parmi les bannissements manuels"
+msgstr "1) Team addresses and protected places among the manual bans"
+
+msgid " est bannie alors qu'elle est protégée : "
+msgstr " is banned although it is protected: "
+
+msgid " aucune adresse protégée parmi les "
+msgstr " no protected address among the "
+
+msgid " IP bannie(s) en ce moment (commande : fail2ban-client status "
+msgstr " IP(s) banned right now (command: fail2ban-client status "
+
+msgid " fail2ban inaccessible ou sans jail : les bannissements automatiques ne sont pas appliqués"
+msgstr " fail2ban unreachable or without any jail: automatic bans are not applied"
+
+msgid "3) Adresses refusées par nginx et servies normalement (200) : faux positif possible"
+msgstr "3) Addresses refused by nginx and also served normally (200): possible false positive"
+
+msgid " ces adresses ont reçu des refus ET des pages 200 (10 maximum) :"
+msgstr " these addresses received refusals AND 200 pages (10 maximum):"
+
+msgid " aucune adresse refusée n'a reçu de page 200"
+msgstr " no refused address received a 200 page"
+
+msgid "   [i] journal blocked-probes.log ou journal d'accès absent : rien à comparer"
+msgstr "   [i] blocked-probes.log or access log missing: nothing to compare"
+
+msgid "4) Journaux utilisés par ces contrôles"
+msgstr "4) Logs used by these checks"
+
+msgid " historique fail2ban présent (rotations comprises)"
+msgstr " fail2ban history present (rotations included)"
+
+msgid " historique fail2ban introuvable : l'origine des anciens bannissements ne peut plus être vérifiée"
+msgstr " fail2ban history not found: the origin of old bans can no longer be checked"
+
+msgid " journal blocked-probes.log présent"
+msgstr " blocked-probes.log present"
+
+msgid " blocked-probes.log absent : les refus des règles 4 à 11 ne sont pas journalisés"
+msgstr " blocked-probes.log missing: refusals of rules 4 to 11 are not logged"
+
+msgid "5) Bannissements à vérifier à la main (commandes à lancer)"
+msgstr "5) Bans to check by hand (commands to run)"
+
+msgid " aucun bannissement à revoir"
+msgstr " no ban to check"
+
+msgid "   Pour une relecture : copiez les sections 1 à 5 de ce rapport."
+msgstr "   For a review: copy sections 1 to 5 of this report."
+
+msgid " — aucune requête sur le site, mais requêtes REFUSÉES par nginx (blocked-probes.log) :"
+msgstr " — no request on the site, but requests REFUSED by nginx (blocked-probes.log):"
+
+msgid "      URL refusées :"
+msgstr "      URLs refused:"
+
+msgid "→ Bannissement JUSTIFIÉ : requêtes répétées refusées par les règles de sécurité — le garder."
+msgstr "→ Ban JUSTIFIED: repeated requests refused by the security rules — keep it."
+
+msgid " dans les journaux du site, du capteur catch-all ni de blocked-probes.log."
+msgstr " in the site logs, the catch-all sensor or blocked-probes.log."
+
+msgid " sans trace, "
+msgstr " without trace, "
+
+msgid " à vérifier, "
+msgstr " to check, "
+
+msgid " incohérente(s)"
+msgstr " inconsistent"
+
+msgid "SOMMAIRE DES IP À DÉBANNIR : "
+msgstr "SUMMARY OF IPs TO UNBAN: "
+
+msgid "levée effectuée / lifted"
+msgstr "lifted"
+
+msgid "levée recommandée / lifting recommended"
+msgstr "lifting recommended"
+
+msgid "  (Chaque levée demande confirmation, IP par IP / each lift asks for confirmation, one IP at a time)"
+msgstr "  (each lift asks for confirmation, one IP at a time)"
