@@ -426,6 +426,9 @@ msgstr ", compressed"
 msgid "Lecture du journal "
 msgstr "Reading the log "
 
+msgid "Lecture des journaux"
+msgstr "Reading the logs"
+
 msgid "ERREUR: '"
 msgstr "ERROR: '"
 

@@ -208,7 +208,7 @@ class ChkNginxLogs(EnvTest):
         self.mock("fail2ban-client", f'case "$2" in "") echo \'`- Jail list:\tjail-a, jail-b, jail-c\';; '
                                      f'jail-c) echo "|- Banned IP list:"; echo \'`- File list:\t{self.logs}/autre.log\';; '
                                      f'*) echo "|- Banned IP list:\t11.89.160.73"; echo \'`- File list:\t{fichier}\';; esac')
-        rc, out, err = self.report("--fail2ban", "--verbose")
+        rc, out, err = self.report("--fail2ban", "--verbose", "--details")
         self.assertEqual(rc, 0, err)
         lignes = [re.sub(r"^\[\s*\d+ s\] ", "", l) for l in err.splitlines() if re.match(r"^\[\s*\d+ s\] ", l)]
         self.assertIn("Jail jail-a : 1 IP bannie(s) ; lecture des journaux surveillés (1 fichier(s) et leurs rotations)", lignes)
@@ -225,6 +225,26 @@ class ChkNginxLogs(EnvTest):
         # Without --verbose nor terminal (scheduled task, pipe): no progress line
         rc, out, err = self.report("--fail2ban")
         self.assertNotRegex(err, r"\[\s*\d+ s\]")
+
+    def test_progression_un_point_par_journal_sans_details(self):
+        """2.47 : sans --details, une seule ligne « Lecture des journaux » puis un point par journal lu,
+        sans le détail de chaque fichier (le détail reste disponible avec --details)."""
+        with open(os.path.join(self.logs, "odoo-catchall-444.log"), "w") as f:
+            f.write(catchall("11.89.160.73", "25/Sep/2026"))
+        with open(os.path.join(self.logs, "odoo-catchall-444.log.1"), "w") as f:
+            f.write(catchall("11.89.160.73", "18/Sep/2026"))
+        with gzip.open(os.path.join(self.logs, "odoo-catchall-444.log.2.gz"), "wt") as f:
+            f.write(catchall("11.89.160.73", "15/Sep/2026"))
+        fichier = f"{self.logs}/odoo-catchall-444.log"
+        self.mock("fail2ban-client", f'case "$2" in "") echo \'`- Jail list:\tjail-a\';; '
+                                     f'*) echo "|- Banned IP list:\t11.89.160.73"; echo \'`- File list:\t{fichier}\';; esac')
+        rc, out, err = self.report("--fail2ban", "--verbose")
+        self.assertEqual(rc, 0, err)
+        lignes = err.splitlines()
+        self.assertTrue(any(re.fullmatch(r"\[\s*\d+ s\] Lecture des journaux", l) for l in lignes), lignes)
+        self.assertFalse(any("Lecture du journal" in l for l in lignes), "détail par fichier affiché sans --details")
+        self.assertIn(". . .", lignes, "un point par journal lu attendu")
+        self.assertNotIn(". . . .", lignes)
 
     def test_ban_ufw_inactif_utilise_iptables_et_sauvegarde_sans_f2b(self):
         """1.27 : ufw installé mais inactif utilisé à tort ; règles non sauvegardées ; chaînes fail2ban à exclure."""
