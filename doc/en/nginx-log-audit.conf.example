@@ -47,6 +47,6 @@
 #   --stats               statistiques du trafic (codes, IP, User-Agents, appareils des visiteurs)
 #   --unban IP            lever un bannissement manuel
 #   --unban-check         réévaluer chaque bannissement manuel (levée proposée si injustifié)
-#   --unban-low-score     lister les IP bannies dont le score est sous le seuil et proposer de les débannir
+#   --unban-low-score     lister les IP bannies que --unban-check recommande de lever, et proposer de les débannir
 #   --version             affiche la version et quitte
 #   --yes                 avec --ban : bannir sans question

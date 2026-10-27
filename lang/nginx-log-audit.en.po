@@ -1910,8 +1910,8 @@ msgstr "protected IP"
 msgid "aucun terminal interactif ; relancer avec --yes pour la lever sans question"
 msgstr "no interactive terminal; rerun with --yes to lift it without asking"
 
-msgid "  --unban-low-score            lister les IP bannies dont le score est sous le seuil et proposer de les débannir"
-msgstr "  --unban-low-score            list banned IPs whose score is below the threshold, and offer to unban them"
+msgid "  --unban-low-score            lister les IP bannies que --unban-check recommande de lever, et proposer de les débannir"
+msgstr "  --unban-low-score            list banned IPs that --unban-check recommends lifting, and offer to unban them"
 
 msgid "ERREUR: --unban-low-score nécessite root (sudo)."
 msgstr "ERROR: --unban-low-score requires root (sudo)."
@@ -2060,3 +2060,33 @@ msgstr "lifting recommended"
 
 msgid "  (Chaque levée demande confirmation, IP par IP / each lift asks for confirmation, one IP at a time)"
 msgstr "  (each lift asks for confirmation, one IP at a time)"
+
+msgid " IP BANNIES DONT --unban-check RECOMMANDE LA LEVÉE (lecture seule d'abord)"
+msgstr " BANNED IP ADDRESSES WHOSE LIFTING --unban-check RECOMMENDS (read-only first)"
+
+msgid " IP bannie(s) : réévaluation avec la logique de --unban-check (lecture seule)…"
+msgstr " banned IP(s): re-evaluation with the --unban-check logic (read-only)..."
+
+msgid "Réévaluation "
+msgstr "Re-evaluation "
+
+msgid "LEVÉE recommandée"
+msgstr "LIFT recommended"
+
+msgid "à vérifier"
+msgstr "to check"
+
+msgid "sans trace"
+msgstr "no trace"
+
+msgid "incohérente"
+msgstr "inconsistent"
+
+msgid "Aucune IP bannie n'a une levée recommandée par --unban-check."
+msgstr "No banned IP has a lift recommended by --unban-check."
+
+msgid " IP bannie(s) à lever (levée recommandée) : "
+msgstr " banned IP(s) to lift (lift recommended): "
+
+msgid "levée recommandée par --unban-check (--unban-low-score)"
+msgstr "lift recommended by --unban-check (--unban-low-score)"
