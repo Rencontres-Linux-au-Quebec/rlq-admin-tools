@@ -7,7 +7,7 @@ import subprocess
 import re
 import unittest
 
-from helpers import EnvTest, CONFIG_DIR, LISTE_EXEMPLE
+from helpers import EnvTest, CONFIG_DIR, LISTE_EXEMPLE, SCRIPTS_DIR
 
 NGINX_T_PROD = """nginx: configuration file /etc/nginx/nginx.conf test is successful
 # configuration file /etc/nginx/sites-enabled/00-catchall-default.conf:
@@ -329,6 +329,95 @@ class SetupNginxOdoo(EnvTest):
         self.assertRegex(out, r"(ufw : règle DENY|iptables : règle DROP) du port \d+/tcp : non vérifié sans root")   # ufw d'abord, puis iptables
         self.assertNotIn("[FAIL] iptables", out)
         self.assertNotIn("[FAIL] ufw", out)
+
+    def _generique(self, *args, copie=False):
+        """2.56 : étape 0f. Le dossier nginx/ du dépôt est copié à côté du programme de test ; /etc/nginx est simulé par NGINX_HARDENING_NGINX_DIR."""
+        shutil.copytree(os.path.join(SCRIPTS_DIR, "nginx"), os.path.join(os.path.dirname(self.prog), "nginx"), dirs_exist_ok=True)
+        dest = self.path("etc-nginx-generique")
+        os.makedirs(dest, exist_ok=True)
+        if copie:
+            shutil.copytree(os.path.join(SCRIPTS_DIR, "nginx", "conf.d"), os.path.join(dest, "conf.d"), dirs_exist_ok=True)
+            shutil.copytree(os.path.join(SCRIPTS_DIR, "nginx", "snippets"), os.path.join(dest, "snippets"), dirs_exist_ok=True)
+            shutil.copytree(os.path.join(SCRIPTS_DIR, "nginx", "fail2ban"), os.path.join(dest, "fail2ban"), dirs_exist_ok=True)
+            os.makedirs(os.path.join(dest, "snippets"), exist_ok=True)
+            with open(os.path.join(dest, "snippets", "robots-disallow.conf"), "w", encoding="utf-8") as f:
+                f.write("# test\n")
+        rc, out, err = self.run_cmd(["bash", self.prog, "--odoo-conf", self.path("odoo.conf"), *args],
+                                    env_extra={"NGINX_HARDENING_NGINX_DIR": dest})
+        self.assertNotIn("ARRÊT INATTENDU", err, err)
+        return re.sub(r"\x1b\[[0-9;]*m", "", out), dest
+
+    def test_generique_check_montre_le_plan_sans_rien_ecrire(self):
+        """2.56 : --check liste les fichiers génériques à créer dans /etc/nginx (y compris le fichier propre au site) et n'écrit rien."""
+        out, dest = self._generique("--check")
+        etape = self.etape(out, "0f")
+        self.assertIn("creer conf.d/bot_blocker.conf", etape)
+        self.assertIn("creer conf.d/odoo-global.conf", etape)
+        self.assertIn("creer snippets/robots-disallow.conf", etape)
+        self.assertIn("creer fail2ban/nginx-catchall.filter.conf", etape)
+        self.assertIn("relancer avec --update", etape)
+        self.assertEqual(os.listdir(dest), [], "--check ne doit rien créer")
+
+    def test_generique_identique_rien_a_faire(self):
+        """2.56 : tous les fichiers déjà identiques au dépôt : aucun changement proposé."""
+        out, _ = self._generique("--check", copie=True)
+        self.assertIn("Configuration nginx générique à jour", self.etape(out, "0f"))
+
+    def test_generique_fichier_modifie_propose_le_remplacement(self):
+        """2.56 : un fichier modifié à la main est signalé « remplacer » avec un extrait des différences ; --check ne le touche pas."""
+        out, dest = self._generique("--check", copie=True)
+        chemin = os.path.join(dest, "conf.d", "bot_blocker.conf")
+        with open(chemin, "a", encoding="utf-8") as f:
+            f.write("# modifié à la main\n")
+        avant = open(chemin, encoding="utf-8").read()
+        out, _ = self._generique("--check")
+        self.assertIn("remplacer conf.d/bot_blocker.conf", self.etape(out, "0f"))
+        self.assertIn("Différences pour conf.d/bot_blocker.conf", self.etape(out, "0f"))
+        self.assertEqual(open(chemin, encoding="utf-8").read(), avant, "--check ne modifie pas le fichier")
+
+    def test_generique_confirme_remplace_avec_sauvegarde_puis_refuse_si_nginx_t_echoue(self):
+        """2.56 : --update dans un vrai terminal : la confirmation « o » remplace le fichier modifié (sauvegarde datée conservée) ;
+        si nginx -t refuse, l'état précédent est rétabli (ici nginx -t est simulé en échec)."""
+        self._generique("--check", copie=True)            # copie du dossier nginx/ à côté du programme
+        dest = self.path("etc-nginx-generique")
+        chemin = os.path.join(dest, "conf.d", "bot_blocker.conf")
+        with open(chemin, "a", encoding="utf-8") as f:
+            f.write("# modifié à la main\n")
+        avant = open(chemin, encoding="utf-8").read()
+        # nginx -t refuse seulement la version MODIFIÉE (pas celle du dépôt) : l'état d'avant l'étape 0f passe, la nouvelle version échoue
+        self.mock("nginx", f'[[ "$1" == -T ]] && cat {self.d}/nginx-T\n'
+                           f'[[ "$1" == -t ]] && {{ grep -q "modifié à la main" {chemin} && exit 0; [[ -f {chemin} ]] && ! grep -q "modifié à la main" {chemin} && {{ echo "test refusé" >&2; exit 1; }}; }}\n'
+                           f'exit 0')
+        # Question du courriel (0d, [o/N]) : « n » ; confirmation de l'étape 0f, la suivante : « o »
+        texte, _ = self.run_pty(["bash", self.prog, "--odoo-conf", self.path("odoo.conf"), "--update", "--timezone", "none"],
+                                [(b"[o/N]", b"n\n", 0.3), (b"[o/N]", b"o\n", 0.3)], env_extra={"NGINX_HARDENING_NGINX_DIR": dest}, timeout=90)
+        self.assertIn("nginx -t refuse la configuration générique", texte)
+        self.assertEqual(open(chemin, encoding="utf-8").read(), avant, "après refus de nginx -t, le fichier modifié est rétabli")
+        self.assertFalse([n for n in os.listdir(os.path.dirname(chemin)) if ".before-generic-" in n], "sauvegarde retirée après rétablissement")
+        self.assertEqual(open(os.path.join(dest, "snippets", "robots-disallow.conf"), encoding="utf-8").read(), "# test\n",
+                         "fichier préexistant (propre au site) jamais touché")
+
+    def test_generique_confirme_remplace_et_garde_une_sauvegarde_si_nginx_t_passe(self):
+        """2.56 : confirmation « o » et nginx -t réussi : le fichier modifié est remplacé par la version du dépôt, la sauvegarde datée reste."""
+        self._generique("--check", copie=True)
+        dest = self.path("etc-nginx-generique")
+        chemin = os.path.join(dest, "conf.d", "bot_blocker.conf")
+        with open(chemin, "a", encoding="utf-8") as f:
+            f.write("# modifié à la main\n")
+        self.mock("nginx", f'[[ "$1" == -T ]] && cat {self.d}/nginx-T; exit 0')
+        texte, _ = self.run_pty(["bash", self.prog, "--odoo-conf", self.path("odoo.conf"), "--update", "--timezone", "none"],
+                                [(b"[o/N]", b"n\n", 0.3), (b"[o/N]", b"o\n", 0.3)], env_extra={"NGINX_HARDENING_NGINX_DIR": dest}, timeout=90)
+        self.assertIn("nginx -t réussit", texte)
+        self.assertEqual(open(chemin, encoding="utf-8").read(), open(os.path.join(SCRIPTS_DIR, "nginx", "conf.d", "bot_blocker.conf"), encoding="utf-8").read())
+        sauvegardes = [n for n in os.listdir(os.path.dirname(chemin)) if ".before-generic-" in n]
+        self.assertEqual(len(sauvegardes), 1, "une sauvegarde datée de la version modifiée")
+        self.assertIn("# modifié à la main", open(os.path.join(os.path.dirname(chemin), sauvegardes[0]), encoding="utf-8").read())
+
+    def test_generique_update_sans_terminal_ne_modifie_rien(self):
+        """2.56 : --update sans terminal ne peut pas demander la confirmation : rien n'est écrit, le message l'indique."""
+        out, dest = self._generique("--update")
+        self.assertIn("Pas de terminal", self.etape(out, "0f"))
+        self.assertEqual(os.listdir(dest), [], "sans confirmation, aucun fichier ne doit être créé")
 
     def _mail(self, *args, mdp="secret-de-test"):
         env = dict(self.env, NGINX_TOOLS_MAIL_PASSWORD=mdp) if mdp else self.env

@@ -1126,6 +1126,43 @@ Earlier history was archived outside this repository when this file was created.
 
 ## nginx-hardening.sh
 
+### 2.56.20261027.171700 - Generic nginx and fail2ban configuration installed by --update; site files separated
+
+- Title: the generic nginx and fail2ban configuration lives in the repository (nginx/) and is installed by --update; the files that belong to one site (domains, vhosts, instance names, certificates) are in a separate package, rlq-nginx-config.14.zip.
+- Reason: the bot blocker, the rate limits, the common security rules and the fail2ban filters are useful to any site served by nginx (Odoo, BigBlueButton), so they must be public and installed automatically, with the latest version. The site package must not contain domain names that belong to the repository. Also: a visitor who only requested browser icons (apple-touch-icon, favicon.ico) on an old host name was banned for 24 hours by the jail nginx-catchall, because its filter had no ignoreregex.
+- Changes:
+  - New step 0f, "Configuration nginx generique": copies nginx/ (repository, next to this script) to /etc/nginx/ with the same layout as the site package. The set depends on the detected application (APP_NAME, from apps/_profile.sh): odoo = bot blocker, odoo-global, securite-commune, _odoo-common, hsts, fail2ban filters and jails of nginx-catchall, nginx-blocked-probes and odoo-auth; bbb = bot blocker only (BigBlueButton's own rules stay with durcir_bbb).
+  - Per file: identical = nothing; missing = created; different (edited by hand, or an older version) = a dated backup `NAME.before-generic-AAAAMMJJ-HHMMSS` is kept, the first 25 lines of the diff are shown, then the replacement.
+  - The snippets/robots-disallow.conf file (site-specific, included by the robots map of odoo-global.conf) is created empty only if it is missing; the site package fills it.
+  - Confirmation is asked in a terminal ("[o/N]"). Without a terminal nothing changes and the step says so. --check only shows the plan.
+  - After the copy, fragments_generes_assurer() and nginx -t run; if nginx -t refuses, every file changed by the step is restored (backup moved back, created files removed); otherwise nginx is reloaded (nginx_appliquer).
+  - nginx/ (new, repository): conf.d/bot_blocker.conf, conf.d/odoo-global.conf (the robots map now includes the site file), snippets/securite-commune.conf, snippets/odoo/_odoo-common.conf, snippets/odoo/hsts.conf, fail2ban/ (nginx-catchall, nginx-blocked-probes, odoo-auth), VERSION (1.14), README.md. Site names are replaced by a placeholder in the comments.
+  - fail2ban/nginx-catchall.filter.conf: ignoreregex ignores GET/HEAD of /apple-touch-icon* and /favicon.ico on the catch-all sensor. The jail still bans scanners (raw IP, unknown host names).
+  - rlq-nginx-config.14.zip (site package, separate): sites-available/, maintenance/index.html, snippets/odoo/ (env-*, name, ssl, instance files), snippets/robots-disallow.conf, README.md, VERSION (1.14).
+  - nginx-tools-tests/test_nginx_hardening.py: five new tests (plan in --check without writing, identical files, modified file, no terminal, confirmation with rollback when nginx -t refuses, confirmation with a kept backup when nginx -t passes).
+  - Backup suffix in English (.before-generic-), per the naming convention.
+  - Files touched: nginx-hardening.sh, nginx/ (new), CHANGELOG.md, lang/nginx-hardening.en.po, nginx-tools-tests/test_nginx_hardening.py, nginx-tools-tests/test_config_nginx.py, nginx-tools-tests/run-all.sh (SCRIPT_VERSION), doc/nginx-tools.version.
+- Bugs fixed:
+  - Symptom: a visitor requesting only browser icons from an old host name was banned for 24 hours (nginx-catchall, 10 hits in 60 s).
+  - Diagnosis: the filter counted every 444 line of the catch-all log; ignoreregex was empty.
+  - Fix: ignoreregex in the filter (the audit's counterpart was fixed in 2.52).
+- Safeguards and edge cases:
+  - Nothing changes without a confirmation in a terminal; --check changes nothing (test: the directory stays empty).
+  - A file edited by hand is never overwritten silently: the backup and the diff come first.
+  - A site file that already exists (robots-disallow.conf, team and shared fragments) is never replaced by this step.
+  - nginx -t is the final gate; a refusal restores the previous state, and the test covers that path.
+  - Not handled yet: a generic file that the site package also contains (should not happen with the split above); BigBlueButton is limited to the bot map.
+- Checks:
+  - test_nginx_hardening: the five new tests pass; the rest of the module is unchanged.
+  - test_config_nginx run on the merged tree (nginx/ + rlq-nginx-config.14): 32 tests OK, 2 skipped.
+  - ShellCheck 0.11.0 on nginx-hardening.sh: clean.
+  - Not run: nginx -t on a real server; nginx is not installed in the sandbox.
+  - The odoo-warmup i18n failure is pre-existing on main and unrelated.
+- Action required:
+  - On the server: unpack rlq-nginx-config.14.zip into the site configuration (sites-available, snippets/odoo, maintenance, snippets/robots-disallow.conf) or keep the current files and let --update compare them.
+  - Run nginx-hardening.sh --update from the repository; confirm the 0f changes (review the diff first); it runs nginx -t and reloads nginx.
+  - Reload fail2ban after the install so that the nginx-catchall filter with ignoreregex applies.
+
 ### 2.55.20261022.231529 - Code comments translated to English
 
 - Title: Code comments translated to English (repository convention).
@@ -1866,6 +1903,16 @@ Earlier history was archived outside this repository when this file was created.
 
 ## run-all.sh
 
+### 1.204.20261027.171700 - Test runner: CHANGELOG convention and nginx-hardening tests
+
+- Title: the test runner version follows the nginx-hardening tests (generic configuration step).
+- Reason: the new tests of nginx-hardening.sh 2.56 (generic configuration installed by --update) are part of the suite.
+- Changes: SCRIPT_VERSION 1.204; doc/nginx-tools.version 1.153.
+- Bugs fixed: none.
+- Safeguards and edge cases: none (no behaviour change).
+- Checks: test_conventions.
+- Action required: none.
+
 ### 1.196.20261022.231529 - Code comments translated to English
 
 - Title: Code comments translated to English (repository convention).
@@ -1954,4 +2001,3 @@ Earlier history was archived outside this repository when this file was created.
   - Syntax check (bash -n or python py_compile) and a diff check showing that only comments changed.
   - Test suite nginx-tools-tests/run-all.sh (result given in the pull request).
 - Action required: none.
-

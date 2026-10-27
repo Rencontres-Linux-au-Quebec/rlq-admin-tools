@@ -1,0 +1,24 @@
+# ========================================================================================================================
+# Copyright (C) 2026  Services-Linux Conseils Inc <Martial@Bigras.ca> <Martial.Bigras@Services-Conseils-Linux.com>
+# Licence : GNU Affero General Public License, version 3 ou ultérieure — https://www.gnu.org/licenses/agpl-3.0.html
+# ========================================================================================================================
+#
+# MODÈLE — ne pas copier tel quel : setup-nginx-odoo.sh --update le complète pour CE serveur (service Odoo détecté,
+# namespace de journal éventuel, IP à ne jamais bannir reprises de la liste blanche nginx) et l'installe vers
+# /etc/fail2ban/jail.d/odoo-auth.conf.
+#
+# Seuils : 5 échecs en 10 minutes → bannissement 1 heure, sur les ports web. Un humain qui se trompe de mot de passe
+# n'atteint pas ce seuil ; un robot qui essaie des mots de passe, si. La limite de débit nginx (zone odoo_login, 5
+# tentatives/min) ralentit déjà l'attaque ; ce jail la bloque ensuite complètement au pare-feu.
+
+[odoo-auth]
+enabled      = true
+filter       = odoo-auth
+backend      = @BACKEND@
+journalmatch = _SYSTEMD_UNIT=@ODOO_UNIT@
+port         = http,https
+maxretry     = 5
+findtime     = 600
+bantime      = 3600
+ignoreip     = @IGNOREIP@
+action       = iptables-multiport[name=odoo-auth, port="http,https", protocol=tcp]

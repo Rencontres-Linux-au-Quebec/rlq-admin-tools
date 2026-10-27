@@ -86,7 +86,7 @@ run() {
     "$@"
 }
 
-readonly SCRIPT_VERSION="2.55.20261022.231529"
+readonly SCRIPT_VERSION="2.56.20261027.171700"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
 SCRIPT_NAME="$(basename "${BASH_SOURCE[0]}" .sh)"; readonly SCRIPT_NAME
 # Display language (en or fr): --lang, NGINX_HARDENING_LANG, LANGUAGE of the configuration file, LC_ALL / LANG - apps/_i18n.sh translates the output (nothing changes in French).
@@ -1096,6 +1096,95 @@ else
     echo "    - Anciens certificat et configuration : « certbot certificates » puis « certbot delete --cert-name $RENAME_FROM » quand $RENAME_FROM n'est plus servi."
     echo "    - HSTS : les navigateurs qui ont visité $RENAME_FROM continueront d'exiger HTTPS pour lui ; garder $RENAME_FROM avec un certificat valide et une redirection 301 vers $RENAME_TO."
     echo "    - Vérification : app-log-live.py --diagnose --diagnose-host $RENAME_TO (certificat vu comme un navigateur)."
+fi
+echo
+
+# --- 0f) Configuration nginx generique (dossier nginx/ du depot, a cote de ce script) ---------------------------------------
+# 2.56: the generic files (bots, rate limits, common security rules, fail2ban) are installed in /etc/nginx/ with the SAME layout as the site
+# package. The set depends on the application detected by apps/_profile.sh (APP_NAME): odoo = the full set; bbb = the bot map only (BBB's
+# own rules stay with durcir_bbb). For each file: identical => nothing; missing => created; different (edited by hand, or an older
+# version) => a dated backup is kept, the diff is shown, then the replacement. Nothing changes without a confirmation (--update),
+# and with --check only the plan is shown. Then nginx -t: if it fails, every file changed by this step is restored from its backup.
+GEN_SRC="$SCRIPT_DIR/nginx"
+GEN_DEST="${NGINX_HARDENING_NGINX_DIR:-/etc/nginx}"
+gen_fichiers_app() {
+    case "$APP_NAME" in
+        odoo) echo "conf.d/bot_blocker.conf conf.d/odoo-global.conf snippets/securite-commune.conf snippets/odoo/_odoo-common.conf snippets/odoo/hsts.conf fail2ban/nginx-catchall.filter.conf fail2ban/nginx-catchall.jail.conf fail2ban/nginx-blocked-probes.filter.conf fail2ban/nginx-blocked-probes.jail.conf fail2ban/odoo-auth.filter.conf" ;;
+        bbb)  echo "conf.d/bot_blocker.conf" ;;
+        *)    echo "" ;;
+    esac
+}
+echo "--- 0f) Configuration nginx générique (dépôt : $GEN_SRC) ---"
+GEN_LISTE=$(gen_fichiers_app)
+if [[ -z "$GEN_LISTE" ]]; then
+    sans_objet "configuration nginx générique (application non reconnue : $APP_NAME)"
+elif [[ ! -d "$GEN_SRC" ]]; then
+    warn "Dossier nginx/ absent à côté du programme ($GEN_SRC) : configuration générique non installée."
+else
+    GEN_VERSION=$(cat "$GEN_SRC/VERSION" 2>/dev/null || true)
+    echo "  Version livrée : ${GEN_VERSION:-inconnue} ; destination : $GEN_DEST"
+    GEN_PLAN=()
+    for rel in $GEN_LISTE; do
+        src="$GEN_SRC/$rel"; dst="$GEN_DEST/$rel"
+        if [[ ! -r "$src" ]]; then warn "$rel absent du dépôt : ignoré."; continue; fi
+        if [[ ! -e "$dst" ]]; then GEN_PLAN+=("creer $rel")
+        elif cmp -s "$src" "$dst"; then :
+        else GEN_PLAN+=("remplacer $rel"); fi
+    done
+    if [[ "$APP_NAME" == "odoo" && ! -e "$GEN_DEST/snippets/robots-disallow.conf" ]]; then
+        GEN_PLAN+=("creer snippets/robots-disallow.conf (vide : fichier propre au site, à remplir par le zip du site)")
+    fi
+    if (( ${#GEN_PLAN[@]} == 0 )); then
+        pass "Configuration nginx générique à jour (tous les fichiers sont identiques au dépôt)."
+    else
+        echo "  Changements prévus :"
+        for ligne in "${GEN_PLAN[@]}"; do echo "    - $ligne"; done
+        for ligne in "${GEN_PLAN[@]}"; do
+            case "$ligne" in remplacer\ *) rel="${ligne#remplacer }"
+                echo "  Différences pour $rel (les 25 premières lignes) :"
+                diff -u "$GEN_DEST/$rel" "$GEN_SRC/$rel" 2>/dev/null | sed -n '3,27p' | sed 's/^/      /' || true ;; esac
+        done
+        if [[ "$CHECK_ONLY" == "1" ]]; then
+            warn "Configuration nginx générique : ${#GEN_PLAN[@]} changement(s) en attente (relancer avec --update pour les appliquer après confirmation)."
+        else
+            GEN_REP=""
+            if [[ -t 0 ]]; then read -r -p "  Appliquer ces ${#GEN_PLAN[@]} changement(s) à la configuration nginx générique ? [o/N] " GEN_REP || GEN_REP=""
+            else warn "Pas de terminal : configuration nginx générique non modifiée (lancer --update dans un terminal pour confirmer)."; fi
+            if [[ "$GEN_REP" =~ ^[oOyY]$ ]]; then
+                GEN_TS=$(date +%Y%m%d-%H%M%S); GEN_FAITS=()
+                for ligne in "${GEN_PLAN[@]}"; do
+                    rel="${ligne#* }"; rel="${rel%% (*}"; src="$GEN_SRC/$rel"; dst="$GEN_DEST/$rel"
+                    case "$ligne" in
+                        remplacer\ *) cp -p "$dst" "$dst.before-generic-$GEN_TS" && GEN_FAITS+=("remplacer:$rel") ;;
+                        creer\ *)     GEN_FAITS+=("creer:$rel") ;;
+                    esac
+                    mkdir -p "$(dirname "$dst")" 2>/dev/null || true
+                    if [[ "$rel" == snippets/robots-disallow.conf ]]; then
+                        printf '%s\n' "# vide — créé par nginx-hardening.sh --update ; à remplir par le zip de configuration du site" > "$dst"
+                    else
+                        cp "$src" "$dst"
+                    fi
+                    chmod 644 "$dst" 2>/dev/null || true
+                done
+                fragments_generes_assurer || true
+                if nginx -t >/dev/null 2>&1; then
+                    pass "Configuration nginx générique installée (${#GEN_FAITS[@]} fichier(s)) ; nginx -t réussit."
+                    nginx_appliquer
+                    echo "  nginx : $NGINX_APPLIQUE"
+                else
+                    fail "nginx -t refuse la configuration générique : retour à l'état précédent."
+                    for item in "${GEN_FAITS[@]}"; do
+                        rel="${item#*:}"; dst="$GEN_DEST/$rel"
+                        if [[ "$item" == remplacer:* ]]; then mv -f "$dst.before-generic-$GEN_TS" "$dst"
+                        else rm -f "$dst"; fi
+                    done
+                    nginx -t 2>&1 | tail -n 3 | sed 's/^/      /' || true
+                fi
+            else
+                warn "Configuration nginx générique : aucun changement appliqué (refusé ou sans réponse)."
+            fi
+        fi
+    fi
 fi
 echo
 

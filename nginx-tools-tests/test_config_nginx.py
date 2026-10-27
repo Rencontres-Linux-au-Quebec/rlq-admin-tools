@@ -210,9 +210,11 @@ class ConfigNginx(unittest.TestCase):
                 self.assertIn("deny all;", bloc)
 
     def test_robots_tout_interdit_pour_dev_seulement(self):
+        """2.56 : la carte est générique (include) ; les noms non publics sont dans snippets/robots-disallow.conf, propre au site."""
         m = re.search(r"map \$server_name \$robots_disallow_all \{(.*?)\}", lire("conf.d/odoo-global.conf"), re.S)
-        self.assertRegex(m.group(1), r"odoo-dev\.rencontres-linux\.quebec\s+1;")
-        self.assertNotRegex(m.group(1), r"www\.rencontres-linux\.quebec\s+1;")
+        self.assertIn("include /etc/nginx/snippets/robots-disallow.conf;", m.group(1))
+        self.assertRegex(lire("snippets/robots-disallow.conf"), r"odoo-dev\.rencontres-linux\.quebec\s+1;")
+        self.assertNotRegex(lire("snippets/robots-disallow.conf"), r"www\.rencontres-linux\.quebec\s+1;")
 
     # --- fail2ban ------------------------------------------------------------------------------------------------------
     def failregex(self, nom):
