@@ -1173,6 +1173,26 @@ Earlier history was archived outside this repository when this file was created.
 
 ## nginx-log-audit.sh
 
+### 2.51.20261026.222540 - Numeric order of addresses; catch-all hits counted in the score
+
+- Title: Addresses listed in numeric order (13.x before 104.x); a catch-all hit now adds to the score.
+- Reason: (a) `--unban-check` and `--unban-low-score` listed addresses in alphabetical order (104.x before 13.x). (b) A friend's home address (Quebec, Distributel) was banned by the fail2ban jail nginx-catchall; `--investigate` printed "Signes d'hostilité : 2" but "Score 1/7" and "d'automatisation : -1", which cannot both be right. The catch-all branch counted the hit as hostility but never as a criterion of the score. (c) A friend's curl test returned 403: this is the bot blocker (bot_blocker.conf), which refuses curl user agents on purpose; it is not a bug.
+- Changes:
+  - `list_manual_bans()`: `sort -V -u` (version sort) instead of `sort -u`.
+  - `--unban-low-score`: `sort -V` for the list of addresses (table and evaluation order).
+  - `investigate_and_propose()`, catch-all branch: `score=$((score+1))` next to the hostility count, like the other criteria.
+  - Test: `test_unban_low_score_ordre_numerique_des_ip` (new); the PTY test `test_unban_check_leve_meme_si_le_fichier_n_est_pas_executable` answers the prompts in numeric order.
+  - Files touched: nginx-log-audit.sh, nginx-tools-tests/test_nginx_log_audit.py, CHANGELOG.md, nginx-tools-tests/run-all.sh (SCRIPT_VERSION), doc/nginx-tools.version.
+- Bugs fixed:
+  - Symptom: 104.x listed before 13.x; a catch-all hit shown as hostility but missing from the score; automation count negative (-1).
+  - Diagnosis: `sort -u` is lexical; the catch-all branch increments `hostile` without `score`.
+  - Fix: `sort -V`; `score` incremented as well.
+- Safeguards and edge cases:
+  - Verdicts (`--unban-check`, `--unban-low-score`) depend on the hostility count, not on the score: this change alters the displayed score only, not which addresses are lifted.
+  - The score of an address seen only on the catch-all sensor (no site request) is still not computed (shown "?/7"); the verdict column is the decision.
+- Checks: bash -n, ShellCheck 0.11.0 clean, test_nginx_log_audit OK (46 tests). test_i18n: nginx-log-audit catalogue passes; the odoo-warmup failure is pre-existing on main.
+- Action required: none for the code. Open points: (1) a browser asking for Apple touch icons or favicons on a host that nginx does not serve counts as catch-all hostility (friend's case: 16 hits on ctf1.services-conseils-linux.org, 24 h fail2ban ban); decide whether those requests should be excluded, or the host served. (2) Friend's home address: `fail2ban-client set nginx-catchall unbanip 67.55.21.165` on PROD if the ban must end before 2026-10-27 18:13.
+
 ### 2.50.20261026.220229 - --unban-low-score uses the --unban-check verdict; one process; one progress line per address
 
 - Title: `--unban-low-score` lifts only what `--unban-check` recommends; it runs in one process, shows one step per address, and reads the Odoo journal once.

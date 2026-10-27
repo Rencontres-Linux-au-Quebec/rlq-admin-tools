@@ -270,6 +270,16 @@ class ChkNginxLogs(EnvTest):
         self.assertIn(f"unbanip {lever}", levees)
         self.assertNotIn(f"unbanip {garder}", levees, "une IP « garder » ne doit jamais être levée")
 
+    @unittest.skipUnless(os.geteuid() == 0, "--unban-low-score exige root")
+    def test_unban_low_score_ordre_numerique_des_ip(self):
+        """2.51 : les IP sont listées dans l'ordre numérique (13.x avant 104.x), pas dans l'ordre alphabétique."""
+        self.mock("fail2ban-client", 'case "$1 $2" in "ping ") exit 0;; "status ") echo \'`- Jail list:\tjail-a\';; '
+                                     '"status jail-a") echo "|- Banned IP list:\t104.8.8.8 13.8.8.8 9.1.1.1";; *) exit 0;; esac')
+        rc, out, err = self.run_cmd(["bash", self.prog, "prod", "--unban-low-score", "--no-prompt"])
+        self.assertEqual(rc, 0, err)
+        ordre = [out.index(ip) for ip in ("9.1.1.1", "13.8.8.8", "104.8.8.8")]
+        self.assertEqual(ordre, sorted(ordre), "ordre numérique attendu : 9.x, 13.x, 104.x")
+
     def test_ban_ufw_inactif_utilise_iptables_et_sauvegarde_sans_f2b(self):
         """1.27 : ufw installé mais inactif utilisé à tort ; règles non sauvegardées ; chaînes fail2ban à exclure."""
         self.mock("ufw", '[[ "$1" == status ]] && echo "Status: inactive"; echo "ufw $*" >> ' + self.d + "/ufw.log")
@@ -675,9 +685,10 @@ class ChkNginxLogs(EnvTest):
         (« Permission denied » filtré) et arrêtait le script. Relance désormais par « bash »."""
         self._bannissements()
         os.chmod(self.prog, 0o644)
+        # 2.51: addresses are in numeric order (11.68 before 11.126), so the answers follow that order.
         text, sent = self.run_pty(["bash", self.prog, "prod", "--unban-check"],
-                                  [(b"Lever le bannissement de 11.126.46.49", b"o\n", 0.3),
-                                   (b"Lever le bannissement de 11.68.110.86", b"n\n", 0.3)])
+                                  [(b"Lever le bannissement de 11.68.110.86", b"n\n", 0.3),
+                                   (b"Lever le bannissement de 11.126.46.49", b"o\n", 0.3)])
         self.assertIn("Règle iptables retirée pour 11.126.46.49", text)
         self.assertIn("Bannissement conservé", text)
         self.assertIn("dont 1 effectuée", text)

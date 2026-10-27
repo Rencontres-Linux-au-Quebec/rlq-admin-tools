@@ -130,7 +130,7 @@ grep_q() { grep "$@" >/dev/null; }
 #                              ne peut pas le voir, le texte etant entre apostrophes (faux positif).
 trap 'ec=$?; echo "" >&2; echo "*** ARRÊT INATTENDU DU SCRIPT (code $ec) À LA LIGNE $LINENO ***" >&2; echo "*** Commande fautive : $BASH_COMMAND" >&2; echo "*** Si le rapport ci-dessus semble incomplet (ex. sections Top 10 absentes), c'\''est probablement la cause." >&2' ERR
 
-readonly SCRIPT_VERSION="2.50.20261026.220229"
+readonly SCRIPT_VERSION="2.51.20261026.222540"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
 # Chemin de ce programme (relances --investigate, --ban, --unban) : defini ICI, avant le bloc --ban qui l'utilise.
 SELF_PATH="$SCRIPT_DIR/$(basename "${BASH_SOURCE[0]}")"
@@ -620,7 +620,7 @@ list_manual_bans() {
         if ufw_active; then
             run ufw status 2>/dev/null | awk '/DENY/ {print $NF}' | grep -E '^[0-9a-fA-F:.]+$' || true
         fi
-    } | sort -u
+    } | sort -V -u
 }
 
 # Preuves rassemblees pour une IP avant un bannissement (2.5) : identite DNS (PTR, confirmation, scanners declares),
@@ -1758,7 +1758,7 @@ investigate_and_propose() {
         local n_ca
         n_ca=$(awk -v ip="$ip" '$1 == ip' "$CATCHALL_MERGED" | grep -c . || true)
         if (( n_ca > 0 )); then
-            hostile=$((hostile+1)); SIGNE_FORT=1; motifs+=("$n_ca tentative(s) au capteur catch-all")
+            score=$((score+1)); hostile=$((hostile+1)); SIGNE_FORT=1; motifs+=("$n_ca tentative(s) au capteur catch-all")
             echo "      $ok Capteur catch-all : $n_ca tentative(s) par IP brute ou domaine inconnu (typique d'un scanner)"
         else
             echo "      $no Capteur catch-all : aucune tentative"
@@ -2015,7 +2015,7 @@ if [[ "$DO_UNBAN_LOW_SCORE" == "1" ]]; then
     preparer_journaux_unban
     MODE_EVALUATION=1
     n_ip=0
-    for ip in $(printf '%s\n' "${!BAN_SOURCE[@]}" | sort); do
+    for ip in $(printf '%s\n' "${!BAN_SOURCE[@]}" | sort -V); do
         n_ip=$((n_ip + 1))
         # One progress step per address, on the error output (terminal or --verbose only).
         progres "Réévaluation $n_ip/${#BAN_SOURCE[@]} : $ip (lecture seule)"
@@ -2034,7 +2034,7 @@ if [[ "$DO_UNBAN_LOW_SCORE" == "1" ]]; then
     MODE_EVALUATION=0
     echo
     printf '  %-40s %-8s %-24s %s\n' "IP" "Score" "--unban-check" "Banni par"
-    for ip in $(printf '%s\n' "${!BAN_SOURCE[@]}" | sort); do
+    for ip in $(printf '%s\n' "${!BAN_SOURCE[@]}" | sort -V); do
         case "${VERDICT_OF[$ip]}" in
             lever)        libelle="LEVÉE recommandée" ;;
             garder)       libelle="garder" ;;
