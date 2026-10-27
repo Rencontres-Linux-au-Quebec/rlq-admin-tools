@@ -250,6 +250,16 @@ class OdooWarmup(EnvTest):
         code, out, err = self.lancer("--systemd-remove", "--service", "odoo-test.service")
         self.assertIn("Rien à retirer", out)
 
+    def test_delai_du_prechauffage_systemd_sur_la_ligne_de_commande(self):
+        fichier = os.path.join(self.d, "systemd", "odoo-warmup-odoo-test.service")
+        code, out, err = self.lancer("--systemd-install", "--service", "odoo-test.service", "--delay", "30")
+        self.assertEqual(code, 0, out + err)
+        with open(fichier) as f:
+            self.assertIn("ExecStartPre=/bin/sleep 30", f.read())
+        code, out, err = self.lancer("--systemd-install", "--service", "odoo-test.service", "--delay", "-5")
+        self.assertNotEqual(code, 0)
+        self.lancer("--systemd-remove", "--service", "odoo-test.service")
+
     def test_unite_systemd_trouvee_par_le_processus_odoo(self):
         import importlib.util
         spec = importlib.util.spec_from_file_location("odoo_warmup_module", script_path("odoo-warmup.py"))
