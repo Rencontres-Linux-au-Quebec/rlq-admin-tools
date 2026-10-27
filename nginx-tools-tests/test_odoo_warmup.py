@@ -238,7 +238,8 @@ class OdooWarmup(EnvTest):
         self.assertEqual(code, 0, out + err)
         with open(fichier) as f:
             contenu = f.read()
-        self.assertIn("ExecStartPre=/bin/sleep 120", contenu)
+        self.assertIn("ExecStartPre=/bin/sleep ${WARMUP_DELAY}", contenu)
+        self.assertIn("EnvironmentFile=-", contenu)
         self.assertIn("--wait 90", contenu)
         self.assertIn("Requires=odoo-test.service", contenu)
         self.assertIn("WantedBy=odoo-test.service", contenu)
@@ -250,15 +251,24 @@ class OdooWarmup(EnvTest):
         code, out, err = self.lancer("--systemd-remove", "--service", "odoo-test.service")
         self.assertIn("Rien à retirer", out)
 
-    def test_delai_du_prechauffage_systemd_sur_la_ligne_de_commande(self):
-        fichier = os.path.join(self.d, "systemd", "odoo-warmup-odoo-test.service")
+    def test_delai_du_prechauffage_dans_le_fichier_d_environnement(self):
+        unite = os.path.join(self.d, "systemd", "odoo-warmup-odoo-test.service")
+        environnement = os.path.join(self.etc, "odoo-warmup-odoo-test")
         code, out, err = self.lancer("--systemd-install", "--service", "odoo-test.service", "--delay", "30")
         self.assertEqual(code, 0, out + err)
-        with open(fichier) as f:
-            self.assertIn("ExecStartPre=/bin/sleep 30", f.read())
+        with open(environnement) as f:
+            self.assertIn("WARMUP_DELAY=30", f.read())
+        code, out, err = self.lancer("--systemd-install", "--service", "odoo-test.service")
+        self.assertEqual(code, 0, out + err)
+        with open(environnement) as f:
+            self.assertIn("WARMUP_DELAY=30", f.read())
+        self.assertIn("runs 30 s", out)
+        with open(environnement, "w") as f:
+            f.write("WARMUP_DELAY=45\n")
         code, out, err = self.lancer("--systemd-install", "--service", "odoo-test.service", "--delay", "-5")
         self.assertNotEqual(code, 0)
-        self.lancer("--systemd-remove", "--service", "odoo-test.service")
+        code, out, err = self.lancer("--systemd-remove", "--service", "odoo-test.service")
+        self.assertFalse(os.path.exists(unite))
 
     def test_unite_systemd_trouvee_par_le_processus_odoo(self):
         import importlib.util
