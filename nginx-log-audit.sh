@@ -130,7 +130,7 @@ grep_q() { grep "$@" >/dev/null; }
 #                              ne peut pas le voir, le texte etant entre apostrophes (faux positif).
 trap 'ec=$?; echo "" >&2; echo "*** ARRÊT INATTENDU DU SCRIPT (code $ec) À LA LIGNE $LINENO ***" >&2; echo "*** Commande fautive : $BASH_COMMAND" >&2; echo "*** Si le rapport ci-dessus semble incomplet (ex. sections Top 10 absentes), c'\''est probablement la cause." >&2' ERR
 
-readonly SCRIPT_VERSION="2.48.20261026.212654"
+readonly SCRIPT_VERSION="2.49.20261026.213805"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
 # Chemin de ce programme (relances --investigate, --ban, --unban) : defini ICI, avant le bloc --ban qui l'utilise.
 SELF_PATH="$SCRIPT_DIR/$(basename "${BASH_SOURCE[0]}")"
@@ -1962,9 +1962,14 @@ if [[ "$DO_UNBAN_LOW_SCORE" == "1" ]]; then
         exit 0
     fi
     echo "${#BAN_SOURCE[@]} IP bannie(s) : calcul du score de chacune (lecture seule)…"
+    n_ip=0
     for ip in $(printf '%s\n' "${!BAN_SOURCE[@]}" | sort); do
-        sc=$(bash "$SELF_PATH" --investigate "$ip" --no-prompt ${APP_FORCE:+--app "$APP_FORCE"} 2>/dev/null \
-             | grep -o -m1 'Score [0-9]/7' | grep -o '[0-9]' || true)
+        n_ip=$((n_ip + 1))
+        # Progress on the error output (terminal only): the investigation does DNS and whois lookups, which take seconds.
+        progres "Score $n_ip/${#BAN_SOURCE[@]} : $ip (enquête en lecture seule)"
+        # The score is the digit of the "Score N/7" line only (one line: a second digit would be the 7 of "/7").
+        sc=$(bash "$SELF_PATH" --investigate "$ip" --no-prompt ${APP_FORCE:+--app "$APP_FORCE"} \
+             | sed -n 's/.*[^0-9]\([0-9]\)\/7 .*/\1/p' | awk 'NR == 1' || true)
         SCORE_OF["$ip"]="${sc:-?}"
         if [[ "$sc" =~ ^[0-9]+$ ]] && (( sc < BAN_THRESHOLD )); then
             LOW_IPS+=("$ip")
@@ -2088,7 +2093,8 @@ revue_controles() {
     echo "   Commande : grep -F \"IP \" /var/log/nginx/blocked-probes.log"
     if compgen -G "/var/log/nginx/blocked-probes.log*" >/dev/null && compgen -G "$acces_glob" >/dev/null; then
         mapfile -t fichiers_acces < <(compgen -G "$acces_glob")
-        croise=$(comm -12 <(lire_chrono "${fichiers_acces[@]}" 2>/dev/null | awk '$9 == 200 { print $1 }' | sort -u) \
+        # Loopback (requêtes locales, par exemple un contrôle du serveur) : jamais un faux positif, exclu ici.
+        croise=$(comm -12 <(lire_chrono "${fichiers_acces[@]}" 2>/dev/null | awk '$9 == 200 && $1 != "127.0.0.1" && $1 != "::1" { print $1 }' | sort -u) \
                           <(lire_chrono /var/log/nginx/blocked-probes.log* 2>/dev/null | awk '{ print $1 }' | sort -u) | awk 'NR <= 10') || croise=""  # awk lit tout : pas de SIGPIPE pour comm
         if [[ -n "$croise" ]]; then
             echo "   ${C_RED}[ATTN]${C_RESET} ces adresses ont reçu des refus ET des pages 200 (10 maximum) :"

@@ -1173,6 +1173,29 @@ Earlier history was archived outside this repository when this file was created.
 
 ## nginx-log-audit.sh
 
+### 2.49.20261026.213805 - --unban-low-score: one-digit score, visible progress, loopback excluded from section 3
+
+- Title: Low-score list shows a correct score and progress steps; 127.0.0.1 is no longer a false positive in section 3.
+- Reason: Review of the output of `--unban-low-score` (PROD and DEV, 2026-10-26): (a) the scores were shown as "3" then "7/7" on two lines, so no address was under the threshold, and the program still printed "Aucune IP bannie n'a un score sous 3/7" under a table listing scores 0 to 6; (b) the command was silent for several minutes; (c) section 3 of the daily checks listed 127.0.0.1 (local requests) as an address that was refused and also served a 200.
+- Changes:
+  - `--unban-low-score`: the score is read from the "N/7" line only, with a sed that does not match the word of the line (`grep -o '[0-9]'` returned both the 3 and the 7 of "3/7").
+  - `--unban-low-score`: one step per address on the error output, "Score n/N : IP (enquête en lecture seule)" (shown in a terminal or with --verbose only). The investigation's own progress lines are no longer discarded (stderr is no longer sent to /dev/null for the investigation run).
+  - `revue_controles()`, section 3: 127.0.0.1 and ::1 are excluded from the access-log side of the comparison.
+  - Files touched: nginx-log-audit.sh, lang/nginx-log-audit.en.po (new msgid " (enquête en lecture seule)"), nginx-tools-tests/test_nginx_log_audit.py (new test), CHANGELOG.md, nginx-tools-tests/run-all.sh (SCRIPT_VERSION), doc/nginx-tools.version.
+- Bugs fixed:
+  - Symptom: table row "3" / "7/7" and "Aucune IP bannie n'a un score sous 3/7" in the same output.
+  - Diagnosis: the extraction kept every digit of the matched "Score N/7" text; the two-digit value failed the numeric test, so no address was ever proposed.
+  - Fix: one digit, from the Score line only.
+  - Symptom: 127.0.0.1 listed in section 3.
+  - Diagnosis: the check compares every address with a 200 in the access logs; local checks on the server are 200 responses for the same address refused in blocked-probes.log.
+  - Fix: loopback excluded.
+- Safeguards and edge cases:
+  - An address with no "Score" line in its investigation keeps "?/7" and is never proposed (unchanged). This is a known limit: the investigation prints a score only on some branches (for example none for an address seen only on the catch-all sensor). Extending this to a score is a separate change to decide.
+  - The investigation run is no longer silenced on stderr: its errors, if any, now appear on the error output.
+  - The progress line is off in a pipe or a scheduled task.
+- Checks: bash -n, ShellCheck 0.11.0 clean, test_nginx_log_audit OK (45 tests, including the new test: one-digit score, "Score 1/1" step line), test_i18n: nginx-log-audit catalogue passes; the odoo-warmup catalogue failure is pre-existing on main.
+- Action required: decide whether the "?/7" addresses (no score line) should get a score, or be listed as "score non calculable" in --unban-low-score. None for this version.
+
 ### 2.48.20261026.212654 - Fix "comm: write error: Broken pipe" in the daily checks section
 
 - Title: Section 3 of the daily checks: no more broken pipe, and no more empty result under pipefail.

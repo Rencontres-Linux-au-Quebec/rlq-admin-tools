@@ -246,6 +246,22 @@ class ChkNginxLogs(EnvTest):
         self.assertIn(". . .", lignes, "un point par journal lu attendu")
         self.assertNotIn(". . . .", lignes)
 
+    @unittest.skipUnless(os.geteuid() == 0, "--unban-low-score exige root")
+    def test_unban_low_score_score_a_un_chiffre_et_etapes_affichees(self):
+        """2.49 : le score est lu sur la ligne « Score N/7 » seulement (avant : « 3\\n7/7 », donc aucune IP sous le seuil) ;
+        une étape par IP est affichée sur l'erreur standard pendant l'enquête (plusieurs secondes par IP)."""
+        ip = "11.89.160.73"
+        self.add(*(acc(ip, "25/Sep/2026", f"07:12:1{k}", f"{p}?x={k}", 403, "curl/8.5.0") for k, p in enumerate(["/.env", "/.git/config", "/wp-admin/"] * 2)))
+        fichier = f"{self.logs}/odoo-catchall-444.log"
+        self.mock("fail2ban-client", f'case "$1 $2" in "ping ") exit 0;; "status ") echo \'`- Jail list:\tjail-a\';; '
+                                     f'"status jail-a") echo "|- Banned IP list:\t{ip}"; echo \'`- File list:\t{fichier}\';; '
+                                     f'*) exit 0;; esac')
+        rc, out, err = self.run_cmd(["bash", self.prog, "prod", "--unban-low-score", "--no-prompt", "--verbose"])
+        self.assertEqual(rc, 0, err)
+        self.assertRegex(out, r"\s" + re.escape(ip) + r"\s+\d/7\s+fail2ban:jail-a\n", out)   # one digit, one line
+        self.assertNotRegex(out, r"\n7/7", out)
+        self.assertIn(f"Score 1/1 : {ip} (enquête en lecture seule)", err)                 # a step is shown per address
+
     def test_ban_ufw_inactif_utilise_iptables_et_sauvegarde_sans_f2b(self):
         """1.27 : ufw installé mais inactif utilisé à tort ; règles non sauvegardées ; chaînes fail2ban à exclure."""
         self.mock("ufw", '[[ "$1" == status ]] && echo "Status: inactive"; echo "ufw $*" >> ' + self.d + "/ufw.log")
