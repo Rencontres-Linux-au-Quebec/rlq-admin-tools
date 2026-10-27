@@ -1173,6 +1173,23 @@ Earlier history was archived outside this repository when this file was created.
 
 ## nginx-log-audit.sh
 
+### 2.48.20261026.212654 - Fix "comm: write error: Broken pipe" in the daily checks section
+
+- Title: Section 3 of the daily checks: no more broken pipe, and no more empty result under pipefail.
+- Reason: The daily `--unban-check` output (PROD, 2026-10-26) printed "comm: write error: Broken pipe" in section 3 ("Adresses refusées par nginx et servies normalement (200)"). The administrator asked for it to be fixed.
+- Diagnosis: `comm -12 ... | head -n 10` closed the pipe after ten lines. When the list is long enough, `comm` gets SIGPIPE (exit 141). With `set -o pipefail`, the `|| croise=""` fallback then emptied the result, so section 3 could print "[OK] aucune adresse" even when addresses matched.
+- Changes:
+  - `revue_controles()`, section 3: `head -n 10` replaced by `awk 'NR <= 10'`, which reads the whole stream and never closes it early, so `comm` never receives SIGPIPE and the result is kept.
+  - Files touched: nginx-log-audit.sh, CHANGELOG.md, nginx-tools-tests/run-all.sh (SCRIPT_VERSION), doc/nginx-tools.version.
+- Bugs fixed:
+  - Symptom: "comm: write error: Broken pipe" on stderr; the section could report "[OK]" when addresses matched.
+  - Diagnosis: pipe closed by `head` while `comm` still wrote (reproduced: 300,000-line inputs gave exit 141 with the old pipeline, none with the new one).
+  - Fix: see above.
+- Safeguards and edge cases: the list is still limited to 10 addresses; with fewer than 10 matches the output is unchanged; the other `| head` pipelines of the script were not changed because they read a finite, already-complete input.
+- Checks: bash -n, ShellCheck 0.11.0 clean, test_nginx_log_audit OK (44 tests), reproduction of the old and new pipelines.
+- Known point, not changed in this version: section 3 lists the refused URLs of each address and includes 127.0.0.1 (local requests). The loopback address should probably be excluded from this check; to be decided.
+- Action required: none.
+
 ### 2.47.20261026.210405 - Log reading shown as one line with one dot per log file
 
 - Title: Quieter progress output: one "Lecture des journaux" line, then one dot per log file read.

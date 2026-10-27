@@ -130,7 +130,7 @@ grep_q() { grep "$@" >/dev/null; }
 #                              ne peut pas le voir, le texte etant entre apostrophes (faux positif).
 trap 'ec=$?; echo "" >&2; echo "*** ARRÊT INATTENDU DU SCRIPT (code $ec) À LA LIGNE $LINENO ***" >&2; echo "*** Commande fautive : $BASH_COMMAND" >&2; echo "*** Si le rapport ci-dessus semble incomplet (ex. sections Top 10 absentes), c'\''est probablement la cause." >&2' ERR
 
-readonly SCRIPT_VERSION="2.47.20261026.210405"
+readonly SCRIPT_VERSION="2.48.20261026.212654"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
 # Chemin de ce programme (relances --investigate, --ban, --unban) : defini ICI, avant le bloc --ban qui l'utilise.
 SELF_PATH="$SCRIPT_DIR/$(basename "${BASH_SOURCE[0]}")"
@@ -2089,7 +2089,7 @@ revue_controles() {
     if compgen -G "/var/log/nginx/blocked-probes.log*" >/dev/null && compgen -G "$acces_glob" >/dev/null; then
         mapfile -t fichiers_acces < <(compgen -G "$acces_glob")
         croise=$(comm -12 <(lire_chrono "${fichiers_acces[@]}" 2>/dev/null | awk '$9 == 200 { print $1 }' | sort -u) \
-                          <(lire_chrono /var/log/nginx/blocked-probes.log* 2>/dev/null | awk '{ print $1 }' | sort -u) | head -n 10) || croise=""
+                          <(lire_chrono /var/log/nginx/blocked-probes.log* 2>/dev/null | awk '{ print $1 }' | sort -u) | awk 'NR <= 10') || croise=""  # awk lit tout : pas de SIGPIPE pour comm
         if [[ -n "$croise" ]]; then
             echo "   ${C_RED}[ATTN]${C_RESET} ces adresses ont reçu des refus ET des pages 200 (10 maximum) :"
             while IFS= read -r x; do
