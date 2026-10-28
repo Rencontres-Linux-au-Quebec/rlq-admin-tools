@@ -130,7 +130,7 @@ grep_q() { grep "$@" >/dev/null; }
 #                              ne peut pas le voir, le texte etant entre apostrophes (faux positif).
 trap 'ec=$?; echo "" >&2; echo "*** ARRÊT INATTENDU DU SCRIPT (code $ec) À LA LIGNE $LINENO ***" >&2; echo "*** Commande fautive : $BASH_COMMAND" >&2; echo "*** Si le rapport ci-dessus semble incomplet (ex. sections Top 10 absentes), c'\''est probablement la cause." >&2' ERR
 
-readonly SCRIPT_VERSION="2.53.20261028.100500"
+readonly SCRIPT_VERSION="2.54.20261028.104800"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
 # Chemin de ce programme (relances --investigate, --ban, --unban) : defini ICI, avant le bloc --ban qui l'utilise.
 SELF_PATH="$SCRIPT_DIR/$(basename "${BASH_SOURCE[0]}")"
@@ -1496,18 +1496,23 @@ fi
 # --ban-sqli (2.53) : adresses ayant envoyé une injection SQL (UNION SELECT, EXTRACTVALUE, ORDER BY n, etc.) dans le journal
 # d'accès. Chaque adresse passe par --ban (mêmes protections : adresses de l'équipe, serveur, journal des bannissements).
 # Signature volontairement précise : un tri légitime (order=website_sequence asc) ne doit jamais correspondre.
-SQLI_RE='union([[:space:]]|%20|[+]|/[*])+(all([[:space:]]|%20|[+])+)?select|extractvalue[(]|updatexml[(]|order([[:space:]]|%20|[+])+by([[:space:]]|%20|[+])+[0-9]|elt[(][0-9]|concat[(]0x7e|sleep[(][0-9]|benchmark[(][0-9]'
+SQLI_RE='union([[:space:]]|%20|[+]|/[*])+(all([[:space:]]|%20|[+])+)?select|extractvalue[(]|updatexml[(]|order([[:space:]]|%20|[+])+by([[:space:]]|%20|[+])+[0-9]|elt[(][0-9]|concat[(]0x7e|sleep[(][0-9]|benchmark[(][0-9]|information_schema|waitfor([[:space:]]|%20|[+])+delay'
 if [[ "$DO_BAN_SQLI" == "1" ]]; then
     if [[ "$EUID" -ne 0 ]]; then
         echo "ERREUR: --ban-sqli nécessite root (sudo)." >&2
         exit 1
     fi
     echo "=============================================================="
-    echo " BANNISSEMENT DES SOURCES D'INJECTION SQL : $ACCESS_LOG"
+    echo " BANNISSEMENT DES SOURCES D'INJECTION SQL : $ACCESS_LOG (+ blocked-probes.log, access.log)"
     echo "=============================================================="
     echo "Recherche des requêtes d'injection SQL (lecture seule)..."
     sqli_tmp=$(mktemp "${TMPDIR:-/tmp}/ban-sqli.XXXXXX") || { echo "ERREUR: fichier temporaire impossible." >&2; exit 1; }
-    grep -Ei -- "$SQLI_RE" "$ACCESS_LOG" 2>/dev/null | awk '{print $1}' | sort | uniq -c | sort -rn > "$sqli_tmp" || true
+    # Sources : le journal du site, puis les refus des règles nginx (blocked-probes.log) et access.log, lus par la jail nginx-sqli.
+    sqli_files=("$ACCESS_LOG")
+    for f in /var/log/nginx/blocked-probes.log /var/log/nginx/access.log; do
+        [[ -r "$f" && "$f" != "$ACCESS_LOG" ]] && sqli_files+=("$f")
+    done
+    grep -Ei -- "$SQLI_RE" "${sqli_files[@]}" 2>/dev/null | awk '{print $1}' | sort | uniq -c | sort -rn > "$sqli_tmp" || true
     if [[ ! -s "$sqli_tmp" ]]; then
         echo "${C_GREEN}Aucune injection SQL trouvée dans $ACCESS_LOG : rien à bannir.${C_RESET}"
         rm -f "$sqli_tmp"

@@ -1317,6 +1317,23 @@ Earlier history was archived outside this repository when this file was created.
 
 ## nginx-log-audit.sh
 
+### 2.54.20261028.104800 - --ban-sqli reads the logs where the attacks are recorded
+
+- Title: --ban-sqli also reads blocked-probes.log and access.log, and recognizes INFORMATION_SCHEMA and WAITFOR DELAY.
+- Reason: The first version read only the production access log. On 2026-10-28 the injection requests were refused by nginx (404) and recorded in blocked-probes.log, so --ban-sqli found nothing. The local jail nginx-sqli (jail.local) reads the same logs as this version.
+- Changes:
+  - The search covers the site access log, /var/log/nginx/blocked-probes.log and /var/log/nginx/access.log (when readable, no duplicate).
+  - Signature: INFORMATION_SCHEMA and WAITFOR (space, %20 or +) DELAY added, as in the local filter.
+  - Files: nginx-log-audit.sh only.
+- Bugs fixed: the empty result for the 2026-10-28 attacks (wrong file, not a wrong ban).
+- Safeguards and edge cases:
+  - Bans still go through --ban (protected addresses refused and shown as SKIP).
+  - A grep for the word "union" alone gives false positives (the French word "réunion" in calendar links): the signature requires UNION followed by SELECT.
+- Checks:
+  - bash -n and ShellCheck (v0.11.0): no warning.
+  - test_nginx_log_audit: see the pull request.
+- Action required: none beyond running sudo nginx-log-audit.sh --ban-sqli after merge, if needed.
+
 ### 2.53.20261028.100500 - --ban-sqli: ban the sources of SQL injection attempts found in the access log
 
 - Title: Option --ban-sqli bans the addresses that sent SQL injection attempts.
