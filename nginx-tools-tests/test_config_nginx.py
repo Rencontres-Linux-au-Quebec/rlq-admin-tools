@@ -134,13 +134,19 @@ class ConfigNginx(unittest.TestCase):
                 self.assertFalse(bloque(ua), "un vrai navigateur, ou un curl isolé, ne doit pas être bloqué par UA")
 
     def test_curl_limite_par_rafale_et_non_bloque_par_ua(self):
-        """v1.12 : curl n'est plus refusé par UA ; une rafale (2 requêtes en 5 s) est refusée par la zone odoo_curl."""
+        """v1.12 (seuil v1.13) : curl n'est plus refusé par UA ; une rafale de plus de 10 requêtes d'un coup est refusée par la zone odoo_curl (v1.13 : burst=10)."""
         glob_ = lire("conf.d/odoo-global.conf")
-        self.assertIn("zone=odoo_curl:10m rate=12r/m;", glob_, "une requête par 5 s, sans rafale")
+        self.assertIn("zone=odoo_curl:10m rate=12r/m;", glob_, "une requête par 5 s en régime permanent")
         self.assertRegex(glob_, r'"~\*\^curl/"\s+1;')
         self.assertRegex(glob_, r'"1:0:0"\s+\$binary_remote_addr;')
         self.assertNotRegex(lire("conf.d/bot_blocker.conf"), r"~\*\^\(\S*curl")      # curl absent de la liste des bad bots
-        self.assertIn("limit_req zone=odoo_curl burst=0 nodelay;", lire("snippets/securite-commune.conf"))
+        self.assertIn("limit_req zone=odoo_curl burst=10 nodelay;", lire("snippets/securite-commune.conf"))
+
+    def test_sondes_wordpress_wp_et_wordpress_refusees(self):
+        """1.13 (reprise en 1.14) : « wp », « wp-... » et « wordpress » sont refusés par la location des sondes, avec ou sans préfixe de langue."""
+        sec = lire("snippets/securite-commune.conf")
+        self.assertIn("wp(?:-[a-z]+)?(?:/|$)|wordpress(?:/|$)", sec)
+        self.assertIn("wp-login", sec)
 
     def test_curl_repete_dans_chaque_location_qui_a_son_propre_limit_req(self):
         """nginx ne fusionne pas les limit_req d'un niveau parent : une location qui en déclare un doit aussi déclarer odoo_curl."""
@@ -148,7 +154,7 @@ class ConfigNginx(unittest.TestCase):
         for bloc in re.split(r"\n(?=location )", texte):
             if "limit_req zone=" in bloc and bloc.lstrip().startswith("location"):
                 with self.subTest(location=bloc.splitlines()[0]):
-                    self.assertIn("limit_req zone=odoo_curl burst=0 nodelay;", bloc)
+                    self.assertIn("limit_req zone=odoo_curl burst=10 nodelay;", bloc)
 
     def test_limite_de_connexion(self):
         m = re.search(r'"~(\^0:POST:[^"]+)"\s+\$binary_remote_addr', lire("conf.d/odoo-global.conf"))

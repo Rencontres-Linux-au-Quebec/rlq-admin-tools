@@ -15,3 +15,7 @@ avant d'etre remplace, et l'installation demande confirmation. Un fichier absent
 Version : voir le fichier VERSION de ce dossier.
 
 Fichiers propres au site (domaines, vhosts, environnements) : voir le zip de configuration du site (rlq-nginx-config.NN.zip).
+
+## Historique
+
+- 1.14 (reprise de la version 1.13 de l'administrateur, séparée en deux) : curl en rafale avec `rate=12r/m` et `burst=10` : un humain qui tape quelques commandes passe, au-delà de 10 requêtes d'un coup depuis la même IP, 429. Sondes WordPress (snippets/securite-commune.conf) : « wp », « wp-... » et « wordpress », avec ou sans préfixe de langue, refusés en 404.

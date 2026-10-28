@@ -1126,6 +1126,25 @@ Earlier history was archived outside this repository when this file was created.
 
 ## nginx-hardening.sh
 
+### 2.57.20261027.203437 - Generic nginx configuration 1.14: curl burst of 10, WordPress probes
+
+- Title: generic nginx configuration 1.14 (version 1.13 of the administrator, merged into the repository's nginx/ folder).
+- Reason: the administrator's 1.13 changes a human typing a few curl commands should not be refused: the curl rate stays 12 requests per minute, but a burst of up to 10 requests is accepted. The WordPress probe location also has to refuse "wp", "wp-..." and "wordpress" paths, with or without a language prefix.
+- Changes:
+  - nginx/conf.d/odoo-global.conf, nginx/snippets/securite-commune.conf, nginx/snippets/odoo/_odoo-common.conf: odoo_curl burst is 10 (was 0), in the server rule and in the three locations that declare their own limit_req.
+  - nginx/snippets/securite-commune.conf: WordPress probe location extended with wp(?:-[a-z]+)?(?:/|$) and wordpress(?:/|$).
+  - nginx/conf.d/bot_blocker.conf: comment only.
+  - nginx/VERSION: 1.14; nginx/README.md: short history.
+  - rlq-nginx-config.1.14.zip (site package): VERSION and README version line updated; no other change.
+  - nginx-tools-tests/test_config_nginx.py: curl burst assertions updated to 10; new test test_sondes_wordpress_wp_et_wordpress_refusees.
+  - Files touched: nginx/ (4 files, patched from the 1.13 tree), nginx-tools-tests/test_config_nginx.py, nginx-hardening.sh (SCRIPT_VERSION), CHANGELOG.md, run-all.sh, doc/nginx-tools.version.
+- Bugs fixed: none in the program; configuration behaviour follows the administrator's decision.
+- Safeguards and edge cases:
+  - burst=10 with rate=12r/m: a single curl every 5 seconds or more is never refused; the 11th request in a burst is refused (429). Localhost and trusted addresses stay exempt.
+  - The WordPress regex is anchored at the end (/ or end of path), so wpxyz and wordpress-like names other than the listed forms are not matched by the new alternatives.
+- Checks: test_config_nginx on the merged tree (nginx/ + site package): 33 tests, OK, 2 skipped; nginx -t not run (nginx not installed here).
+- Action required: after unpacking the site package and running nginx-hardening.sh --update, confirm the 0f changes (the 1.13 values replace the 1.12 values in /etc/nginx), then nginx -t and reload.
+
 ### 2.56.20261027.171700 - Generic nginx and fail2ban configuration installed by --update; site files separated
 
 - Title: the generic nginx and fail2ban configuration lives in the repository (nginx/) and is installed by --update; the files that belong to one site (domains, vhosts, instance names, certificates) are in a separate package, rlq-nginx-config.14.zip.
@@ -1902,6 +1921,15 @@ Earlier history was archived outside this repository when this file was created.
 ### 1.2.20261019.150215 - Current version. Earlier history archived outside the repository.
 
 ## run-all.sh
+
+### 1.205.20261027.203437 - Test runner: WordPress probes and curl burst 10
+
+- Title: test runner follows the generic nginx configuration 1.14.
+- Changes: SCRIPT_VERSION 1.205; doc/nginx-tools.version 1.154; test_config_nginx updated.
+- Bugs fixed: none.
+- Safeguards and edge cases: none.
+- Checks: test_config_nginx, test_conventions.
+- Action required: none.
 
 ### 1.204.20261027.171700 - Test runner: CHANGELOG convention and nginx-hardening tests
 
