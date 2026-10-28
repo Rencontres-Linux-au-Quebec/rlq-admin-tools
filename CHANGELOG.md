@@ -1340,6 +1340,13 @@ Earlier history was archived outside this repository when this file was created.
 
 ## nginx-log-audit.sh
 
+### 2.58.20261028.173500 - --ban-sqli: first and last date on one line
+
+- Title: The first and last dates of each address are printed on one line, separated by two tabulations.
+- Reason: Requested by the operator, to read the time span of each address more quickly.
+- Files: nginx-log-audit.sh, CHANGELOG.md.
+- Action required: none.
+
 ### 2.57.20261028.165800 - --ban-sqli: colours for addresses that reached Odoo
 
 - Title: In the --ban-sqli list, addresses with a 2xx answer are shown in red, with a warning line, and a summary line before the question.
