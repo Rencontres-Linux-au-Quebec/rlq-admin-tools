@@ -1190,6 +1190,16 @@ Earlier history was archived outside this repository when this file was created.
 
 ## nginx-hardening.sh
 
+### 2.60.20261028.170500 - --disable-uri and --enable-uri: refuse a path of the Odoo site
+
+- Title: Refuse (404) a path of the Odoo site in every language, for example /shop, with --disable-uri; --enable-uri removes the refusal.
+- Reason: The shop attacks reached Odoo (HTTP 200) through /shop?order=. Until the vulnerability is confirmed fixed, the module's path can be refused in nginx. This is a temporary measure, not a fix.
+- Detail: Option --disable-uri CHEMIN and --enable-uri CHEMIN (repeatable). The paths are validated (start with /, letters, digits, _ . / -; not "/" alone, no ".."). Step 12c writes snippets/uri-desactivees.conf: one location per path, regex (^(/[A-Za-z_-]+)?PATH(/|$)) so /shop, /es/shop and /en_CA/shop are all refused. The list is kept in that file (lines "# uri : PATH"), so a later --update without the option keeps the refusals. nginx -t runs before the reload; on refusal the previous file is restored.
+- Files: nginx-hardening.sh, nginx/snippets/securite-commune.conf (new include, first line of the rules), CHANGELOG.md, nginx-tools-tests/test_nginx_uri.py (new).
+- Guards and edge cases: the placeholder uri-desactivees.conf is created empty before any nginx -t (fragments_generes_assurer), so an update never fails on the missing include. /shopping is not refused (the path must be followed by / or the end).
+- Checks: test_nginx_uri (5 tests: addition, escaped dot, removal, retention without option, empty list, include present). ShellCheck 0.11.0: clean.
+- Action required: run sudo nginx-hardening.sh --disable-uri /shop --check, then --update. To undo: --enable-uri /shop --update.
+
 ### 2.59.20261028.112400 - Backup before each --update, and --rollback to restore it
 
 - Title: Automatic backup before every --update; --rollback restores a backup after confirmation.
