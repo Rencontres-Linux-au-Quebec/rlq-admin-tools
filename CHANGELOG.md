@@ -1190,6 +1190,29 @@ Earlier history was archived outside this repository when this file was created.
 
 ## nginx-hardening.sh
 
+### 2.59.20261028.112400 - Backup before each --update, and --rollback to restore it
+
+- Title: Automatic backup before every --update; --rollback restores a backup after confirmation.
+- Reason: --update changes the nginx and fail2ban configuration (generic files, jails, logpath). A change that breaks nginx or fail2ban had no simple way back.
+- Changes:
+  - Backup before every --update (not with --check): archive of /etc/nginx and /etc/fail2ban in /var/backups/nginx-hardening/archives/AAAAMMJJ-HHMMSS-MMM-update.tar.gz, with a .txt file (version, date, folders). The BACKUP_KEEP most recent archives are kept (default 20). If the archive cannot be made, nothing is changed.
+  - New option --rollback: restores the most recent archive, or --backup NAME. Shows the differences (30 first lines), asks for confirmation (--yes to skip). Before restoring, the current state is saved (avant-rollback archive).
+  - Restore: the folders are moved aside, copied back, nginx -t is run; if it refuses, the folders are put back and nothing stays changed. Then nginx and fail2ban are reloaded.
+  - New option --backup NAME (with --rollback) and --yes (with --rollback).
+  - Environment variables (no configuration key): NGINX_HARDENING_ARCHIVE_DIR (archives, default /var/backups/nginx-hardening/archives, separate from the per-file .bak copies), NGINX_HARDENING_BACKUP_KEEP, NGINX_HARDENING_BACKUP_ROOTS (space-separated folders).
+  - Files: nginx-hardening.sh, nginx-tools-tests/test_nginx_backup.py (new).
+- Bugs fixed: none.
+- Safeguards and edge cases:
+  - Not restored by --rollback: iptables rules, installed packages, odoo.conf (never changed by this program), the /etc/default/nginx-tools-*.conf files.
+  - Restoring replaces the whole folder: files added after the backup are removed. The safety archive is made first, so this can be undone.
+  - Without a terminal and without --yes, nothing is restored.
+- Checks:
+  - test_nginx_backup (3 tests): archive contents and pruning to the newest, restore of content and removal of new files, undo when nginx -t refuses.
+  - --rollback on the script: lists the archive, shows the differences, refuses without a terminal.
+  - test_nginx_hardening (44) and test_conventions: see the pull request.
+  - ShellCheck: no warning.
+- Action required: none before the next --update (a backup is made automatically). To go back: sudo nginx-hardening.sh --rollback.
+
 ### 2.58.20261028.110200 - Jail nginx-sqli also reads blocked-probes.log (step 9b, asked before any change)
 
 - Title: nginx-hardening.sh --update adds /var/log/nginx/blocked-probes.log to the logpath of the jail nginx-sqli, after confirmation.
