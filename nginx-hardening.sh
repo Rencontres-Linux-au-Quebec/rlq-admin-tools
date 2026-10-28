@@ -86,7 +86,7 @@ run() {
     "$@"
 }
 
-readonly SCRIPT_VERSION="2.58.20261028.110200"
+readonly SCRIPT_VERSION="2.59.20261028.112400"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
 SCRIPT_NAME="$(basename "${BASH_SOURCE[0]}" .sh)"; readonly SCRIPT_NAME
 # Display language (en or fr): --lang, NGINX_HARDENING_LANG, LANGUAGE of the configuration file, LC_ALL / LANG - apps/_i18n.sh translates the output (nothing changes in French).
@@ -130,6 +130,13 @@ else
 fi
 
 CHECK_ONLY=1
+# Backups (2.59): one archive (NGINX_HARDENING_ARCHIVE_DIR, separate from the per-file .bak copies) of the nginx and fail2ban configuration before each --update (--rollback restores it).
+ARCHIVE_DIR="${NGINX_HARDENING_ARCHIVE_DIR:-/var/backups/nginx-hardening/archives}"
+BACKUP_KEEP="${NGINX_HARDENING_BACKUP_KEEP:-20}"
+read -r -a BACKUP_ROOTS <<< "${NGINX_HARDENING_BACKUP_ROOTS:-/etc/nginx /etc/fail2ban}"
+ROLLBACK=0
+ROLLBACK_BACKUP=""
+ROLLBACK_YES=0
 ODOO_HTTP_PORT=""      # empty: read from the Odoo configuration ("configuration" step), otherwise 10000 / 10002
 ODOO_GEVENT_PORT=""
 ODOO_CONF_PATHS="${ODOO_CONF_PATHS:-}"
@@ -196,6 +203,9 @@ while [[ $# -gt 0 ]]; do
         -v|--verbose) VERBOSE=1; shift ;;
         --check) CHECK_ONLY=1; shift ;;   # behavior by default now - kept for explicit compatibility
         --update) CHECK_ONLY=0; shift ;;  # applique reellement les changements (anciennement le defaut)
+        --backup) ROLLBACK_BACKUP="${2:-}"; shift 2 ;;
+        --rollback) ROLLBACK=1; shift ;;
+        --yes) ROLLBACK_YES=1; shift ;;
         --app) APP_FORCE="${2:-}"; shift 2 ;;
         --app=*) APP_FORCE="${1#--app=}"; shift ;;
         --mail-from) MAIL_FROM="${2:-}"; shift 2 ;;
@@ -240,6 +250,7 @@ vérification seule, rien n'est modifié.
 Options (par ordre alphabétique) :
   --anonymize                  anonymise ce qui est affiché (adresses IP, courriels, identifiants, jetons) par des pseudonymes stables ; clé ANONYMIZE
   --app NAME                   application derrière nginx (profil apps/NAME.conf : odoo, bbb…) ; détectée par défaut
+  --backup NAME                avec --rollback : sauvegarde à restaurer (défaut : la plus récente ; liste : ls /var/backups/nginx-hardening/archives)
   --changelog                  affiche le journal des modifications
   --check                      vérification seule (comportement par défaut)
   -c, --config FILE            fichier de configuration à lire SEUL (défaut : /etc/default/nginx-hardening.conf puis ~/.nginx-hardening.conf)
@@ -263,11 +274,13 @@ Options (par ordre alphabétique) :
   --rename-to NAME             nouveau nom DNS public : nginx et certificat Let's Encrypt sont refaits pour ce nom (sans --rename-from, l'ancien nom est cherché dans nginx)
   --report-err                 afficher à la fin un rapport d'erreurs à copier-coller (programme, version, serveur,
                                échecs, avertissements) ; désactive couleurs et questions interactives
+  --rollback                   restaure la sauvegarde la plus récente (ou --backup NAME) de la configuration nginx et fail2ban, après confirmation
   --timezone ZONE              fuseau horaire du serveur (défaut : America/Montreal, demandé la première fois ; none = ne pas toucher)
   --update                     installer ou mettre à jour ce qui manque (sauvegarde des fichiers modifiés)
   -v, --verbose                affiche chaque commande lancée
   --version                    affiche la version et quitte
   --workers N                  nombre de workers pour la suggestion de limites mémoire (étape 6)
+  --yes                        avec --rollback : restaurer sans question
 AIDE
             exit 0
             ;;
@@ -634,6 +647,128 @@ bbb_etat() {
         esac
     done < <(timeout --foreground 400 python3 "$APPS_DIR/_bbb.py" ${verb[@]+"${verb[@]}"} "$@" 2>&1 || true)
 }
+# --- Sauvegardes (2.59) : une archive de la configuration nginx et fail2ban avant chaque --update ; --rollback la restaure ---
+# Archive : $ARCHIVE_DIR/AAAAMMJJ-HHMMSS-MMM-ETIQUETTE.tar.gz, avec un fichier .txt (version, date, racines). Les BACKUP_KEEP plus
+# récentes sont gardées. Non couverts : règles iptables, paquets installés, odoo.conf (jamais modifié par ce programme).
+sauvegarde_elaguer() {    # keeps the BACKUP_KEEP most recent archives
+    local f i=0
+    local -a liste=()
+    mapfile -t liste < <(find "$ARCHIVE_DIR" -maxdepth 1 -name '*.tar.gz' -printf '%T@ %p\n' 2>/dev/null | sort -rn | cut -d' ' -f2- || true)
+    for f in "${liste[@]}"; do
+        i=$((i+1))
+        if (( i > BACKUP_KEEP )); then rm -f "$f" "$f.txt"; fi
+    done
+}
+sauvegarde_creer() {     # $1 label: prints the archive path; returns 1 if it could not be made
+    local etiquette="$1" nom chemin racine
+    local -a racines=()
+    for racine in "${BACKUP_ROOTS[@]}"; do
+        if [[ -e "$racine" ]]; then racines+=("${racine#/}"); fi
+    done
+    (( ${#racines[@]} > 0 )) || return 1
+    mkdir -p "$ARCHIVE_DIR" || return 1
+    chmod 700 "$ARCHIVE_DIR" || return 1
+    nom="$(date +%Y%m%d-%H%M%S-%3N)-$etiquette"
+    chemin="$ARCHIVE_DIR/$nom.tar.gz"
+    if ! tar -czf "$chemin" -C / "${racines[@]}" 2>/dev/null; then rm -f "$chemin"; return 1; fi
+    {
+        echo "nginx-hardening.sh v$SCRIPT_VERSION"
+        echo "date : $(date '+%Y-%m-%d %H:%M:%S %Z')"
+        echo "etiquette : $etiquette"
+        echo "racines : ${racines[*]}"
+    } > "$chemin.txt"
+    chmod 600 "$chemin" "$chemin.txt"
+    sauvegarde_elaguer
+    echo "$chemin"
+}
+archive_extraire() {     # $1 archive, $2 empty directory: extracts the archive there
+    tar -xzf "$1" -C "$2"
+}
+archive_appliquer() {    # $1 extracted directory: puts every root of the archive back in place; nginx -t must pass, else nothing stays changed
+    local tmp="$1" racine rel stamp
+    local -a deplace=()
+    stamp=$(date +%Y%m%d-%H%M%S-%3N)
+    annuler() {
+        for racine in "${deplace[@]}"; do
+            rm -rf "$racine"
+            mv "$racine.rollback-old-$stamp" "$racine"
+        done
+    }
+    for racine in "${BACKUP_ROOTS[@]}"; do
+        rel="${racine#/}"
+        [[ -e "$tmp/$rel" ]] || continue
+        if [[ -e "$racine" ]]; then
+            if ! mv "$racine" "$racine.rollback-old-$stamp"; then annuler; return 1; fi
+            deplace+=("$racine")
+        fi
+        mkdir -p "$(dirname "$racine")"
+        if ! cp -a "$tmp/$rel" "$racine"; then annuler; return 1; fi
+    done
+    if command -v nginx >/dev/null 2>&1 && ! nginx -t >/dev/null 2>&1; then
+        annuler
+        return 1
+    fi
+    for racine in "${deplace[@]}"; do rm -rf "$racine.rollback-old-$stamp"; done
+    return 0
+}
+rollback_executer() {    # --rollback: restores an archive (the newest by default, or --backup NAME), after confirmation
+    local archive="" tmp="" rep="" avant="" racine
+    if [[ "$EUID" -ne 0 ]]; then echo "ERREUR: --rollback nécessite root (sudo)." >&2; exit 1; fi
+    if [[ -n "$ROLLBACK_BACKUP" ]]; then
+        if [[ "$ROLLBACK_BACKUP" == */* ]]; then echo "ERREUR: --backup prend un nom, pas un chemin." >&2; exit 1; fi
+        archive="$ARCHIVE_DIR/$ROLLBACK_BACKUP"
+        [[ -f "$archive" ]] || archive="$ARCHIVE_DIR/$ROLLBACK_BACKUP.tar.gz"
+    else
+        archive=$(find "$ARCHIVE_DIR" -maxdepth 1 -name '*.tar.gz' -printf '%T@ %p\n' 2>/dev/null | sort -rn | head -n 1 | cut -d' ' -f2- || true)
+    fi
+    if [[ -z "$archive" || ! -f "$archive" ]]; then
+        echo "Aucune sauvegarde trouvée dans $ARCHIVE_DIR (--backup NAME pour une autre)." >&2
+        exit 1
+    fi
+    echo "--- Restauration de la sauvegarde : $archive ---"
+    if [[ -r "$archive.txt" ]]; then sed 's/^/  /' "$archive.txt"; fi
+    tmp=$(mktemp -d "${TMPDIR:-/tmp}/nh-rollback.XXXXXX")
+    if ! archive_extraire "$archive" "$tmp"; then rm -rf "$tmp"; echo "ERREUR: archive illisible : $archive" >&2; exit 1; fi
+    echo "  Différences avec l'état actuel (30 premières lignes) :"
+    for racine in "${BACKUP_ROOTS[@]}"; do
+        if [[ -e "$tmp/${racine#/}" ]]; then diff -rq "$tmp/${racine#/}" "$racine" 2>/dev/null || true; fi
+    done | head -n 30 | sed 's/^/      /' || true
+    if [[ "$ROLLBACK_YES" != "1" ]]; then
+        if [[ -t 0 ]]; then read -r -p "  Restaurer cette sauvegarde ? L'état actuel est sauvegardé d'abord. [o/N] " rep || rep=""
+        else echo "Pas de terminal : rien restauré (ajouter --yes pour confirmer sans question)." >&2; rm -rf "$tmp"; exit 1; fi
+        if [[ ! "$rep" =~ ^[oOyY]$ ]]; then echo "Annulé : rien restauré."; rm -rf "$tmp"; exit 0; fi
+    fi
+    if ! avant=$(sauvegarde_creer avant-rollback); then
+        rm -rf "$tmp"; fail "Sauvegarde préalable impossible : rien restauré."; exit 1
+    fi
+    echo "  État actuel sauvegardé : $avant"
+    if archive_appliquer "$tmp"; then
+        rm -rf "$tmp"
+        if command -v systemctl >/dev/null 2>&1 && systemctl is-active --quiet nginx 2>/dev/null; then systemctl reload nginx || true; fi
+        if command -v fail2ban-client >/dev/null 2>&1; then fail2ban-client reload >/dev/null 2>&1 || true; fi
+        pass "Sauvegarde restaurée (nginx -t réussit). Retour arrière : --rollback --backup $(basename "$avant" .tar.gz)"
+        warn "Non restaurés : règles iptables, paquets installés, odoo.conf."
+        exit 0
+    fi
+    rm -rf "$tmp"
+    fail "Restauration annulée : nginx -t refuse la sauvegarde ou une copie a échoué ; l'état actuel est conservé."
+    exit 1
+}
+
+# --- Sauvegarde avant --update ou restauration (--rollback) ---
+if [[ "$ROLLBACK" == "1" ]]; then
+    rollback_executer
+fi
+if [[ "$CHECK_ONLY" == "0" ]]; then
+    echo "--- Sauvegarde de la configuration avant modification ---"
+    if ! SAUVEGARDE_UPDATE=$(sauvegarde_creer update); then
+        fail "Sauvegarde impossible dans $ARCHIVE_DIR : aucune modification faite."
+        exit 1
+    fi
+    pass "Sauvegarde : $SAUVEGARDE_UPDATE (restauration : --rollback)"
+    echo
+fi
+
 BBB_ETAT=0
 if [[ "$APP_NAME" == "bbb" && -r "$APPS_DIR/_bbb.py" ]] && command -v python3 >/dev/null 2>&1; then
     BBB_ETAT=1
