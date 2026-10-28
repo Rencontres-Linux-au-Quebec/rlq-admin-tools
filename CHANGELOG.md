@@ -1190,6 +1190,30 @@ Earlier history was archived outside this repository when this file was created.
 
 ## nginx-hardening.sh
 
+### 2.58.20261028.110200 - Jail nginx-sqli also reads blocked-probes.log (step 9b, asked before any change)
+
+- Title: nginx-hardening.sh --update adds /var/log/nginx/blocked-probes.log to the logpath of the jail nginx-sqli, after confirmation.
+- Reason: The refusals of nginx's security rules are written to blocked-probes.log. The jail nginx-sqli (defined by hand in /etc/fail2ban/jail.local on the Odoo servers) read only the access logs, so injection attempts refused by nginx were never counted. On 2026-10-28 they were banned only by nginx-blocked-probes.
+- Changes:
+  - New step 9b: finds the file that defines the jail (jail.local, jail.d/*.conf, jail.conf), checks whether its logpath already reads the log, and otherwise shows the difference (diff -u, 20 lines).
+  - With --check: the change is reported as pending. With --update in a terminal: confirmation asked; without terminal: nothing changes.
+  - On confirmation: dated backup (jail file .before-logpath-AAAAMMJJ-HHMMSS), change written with the owner and mode kept, fail2ban reloaded, then the jail's file list checked. If fail2ban does not take the change, the backup is restored and fail2ban reloaded.
+  - The jail is NOT copied from the repository: its filter is the server's own and is left untouched.
+  - Only Odoo (APP_NAME odoo). Other applications: nothing.
+  - Helper functions: f2b_jail_fichier, f2b_section_contient, f2b_logpath_ajouter.
+  - Files: nginx-hardening.sh, nginx-tools-tests/test_nginx_logpath.py (new).
+- Bugs fixed: a bug found during the tests before release: the awk variable "log" is a reserved word in awk (the insertion failed). Renamed "journal".
+- Safeguards and edge cases:
+  - Already present: nothing is changed (checked on the jail section only, not on other sections).
+  - Multi-line logpath: the new path goes after the first line; continuation lines are kept.
+  - Missing section, or no logpath line in it: nothing is changed; a warning asks for a manual edit.
+  - blocked-probes.log absent: warning only (nginx creates it at the first refusal).
+- Checks:
+  - test_nginx_logpath (4 tests): detection, insertion after the first logpath line, other sections untouched, multi-line logpath, missing section.
+  - test_nginx_hardening (44 tests) OK.
+  - ShellCheck: same warnings as before this change (none).
+- Action required: sudo nginx-hardening.sh --check (to see the difference), then sudo nginx-hardening.sh --update and answer o to apply.
+
 ### 2.57.20261027.203437 - Generic nginx configuration 1.14: curl burst of 10, WordPress probes
 
 - Title: generic nginx configuration 1.14 (version 1.13 of the administrator, merged into the repository's nginx/ folder).

@@ -86,7 +86,7 @@ run() {
     "$@"
 }
 
-readonly SCRIPT_VERSION="2.57.20261027.203437"
+readonly SCRIPT_VERSION="2.58.20261028.110200"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
 SCRIPT_NAME="$(basename "${BASH_SOURCE[0]}" .sh)"; readonly SCRIPT_NAME
 # Display language (en or fr): --lang, NGINX_HARDENING_LANG, LANGUAGE of the configuration file, LC_ALL / LANG - apps/_i18n.sh translates the output (nothing changes in French).
@@ -2033,6 +2033,80 @@ else
             fi
         done
     fi
+fi
+echo
+
+# --- 9b) Jail nginx-sqli defined by hand on the server (jail.local): logpath must also read blocked-probes.log ---
+# 2.59: the refusals of the nginx rules are written to blocked-probes.log. The jail nginx-sqli read only the access logs, so an
+# injection refused by nginx was never counted. The jail is NOT copied from the repository (its filter is local to the server):
+# only its logpath line changes. Same rules as 0f: the difference is shown, nothing changes without confirmation (--update),
+# a dated backup is kept, fail2ban is reloaded, and the jail's file list is checked; if that fails, the backup is restored.
+F2B_SQLI_JAIL="nginx-sqli"
+F2B_SQLI_LOG="/var/log/nginx/blocked-probes.log"
+f2b_jail_fichier() {      # $1 jail: file that defines [$1] (jail.local, jail.d/*.conf, jail.conf); prints it, returns 1 if none
+    local f
+    for f in /etc/fail2ban/jail.local /etc/fail2ban/jail.d/*.conf /etc/fail2ban/jail.conf; do
+        [[ -r "$f" ]] || continue
+        if awk -v j="$1" '$0 ~ "^[[:space:]]*\\[" j "\\][[:space:]]*$" { found = 1 } END { exit !found }' "$f"; then
+            echo "$f"; return 0
+        fi
+    done
+    return 1
+}
+f2b_section_contient() {  # $1 file, $2 jail, $3 log: 0 if the logpath of [$2] already reads $3
+    awk -v j="$2" -v journal="$3" '
+        /^[[:space:]]*\[/ { dans = ($0 ~ "^[[:space:]]*\\[" j "\\][[:space:]]*$") }
+        dans && index($0, journal) { ok = 1 }
+        END { exit !ok }' "$1"
+}
+f2b_logpath_ajouter() {   # $1 file, $2 jail, $3 log: the file with $3 added after the first logpath line of [$2] (stdout)
+    awk -v j="$2" -v journal="$3" '
+        /^[[:space:]]*\[/ { dans = ($0 ~ "^[[:space:]]*\\[" j "\\][[:space:]]*$") }
+        { print }
+        dans && !fait && /^[[:space:]]*logpath[[:space:]]*=/ { print "           " journal; fait = 1 }' "$1"
+}
+echo "--- 9b) Jail $F2B_SQLI_JAIL : journaux lus (blocked-probes.log) ---"
+if [[ "$APP_NAME" != "odoo" ]]; then
+    sans_objet "jail $F2B_SQLI_JAIL (Odoo seulement)"
+elif ! command -v fail2ban-client >/dev/null 2>&1; then
+    sans_objet "jail $F2B_SQLI_JAIL (fail2ban absent)"
+elif ! F2B_SQLI_FICHIER=$(f2b_jail_fichier "$F2B_SQLI_JAIL"); then
+    sans_objet "jail $F2B_SQLI_JAIL non définie sur ce serveur"
+elif [[ ! -e "$F2B_SQLI_LOG" ]]; then
+    warn "$F2B_SQLI_LOG absent : nginx le crée au premier refus de ses règles ; relancer ensuite."
+elif f2b_section_contient "$F2B_SQLI_FICHIER" "$F2B_SQLI_JAIL" "$F2B_SQLI_LOG"; then
+    pass "Jail $F2B_SQLI_JAIL : $F2B_SQLI_LOG déjà lu ($F2B_SQLI_FICHIER)."
+else
+    F2B_TMP=$(mktemp "${TMPDIR:-/tmp}/f2b-logpath.XXXXXX")
+    f2b_logpath_ajouter "$F2B_SQLI_FICHIER" "$F2B_SQLI_JAIL" "$F2B_SQLI_LOG" > "$F2B_TMP"
+    if cmp -s "$F2B_SQLI_FICHIER" "$F2B_TMP"; then
+        warn "Jail $F2B_SQLI_JAIL : aucune ligne logpath dans $F2B_SQLI_FICHIER : ajouter $F2B_SQLI_LOG à la main."
+    else
+        echo "  Changement prévu pour $F2B_SQLI_FICHIER (jail $F2B_SQLI_JAIL, lecture de $F2B_SQLI_LOG) :"
+        diff -u "$F2B_SQLI_FICHIER" "$F2B_TMP" | sed -n '3,20p' | sed 's/^/      /' || true
+        if [[ "$CHECK_ONLY" == "1" ]]; then
+            warn "Jail $F2B_SQLI_JAIL : journal $F2B_SQLI_LOG non lu (relancer avec --update pour l'ajouter après confirmation)."
+        else
+            F2B_REP=""
+            if [[ -t 0 ]]; then read -r -p "  Appliquer ce changement à $F2B_SQLI_FICHIER et recharger fail2ban ? [o/N] " F2B_REP || F2B_REP=""
+            else warn "Pas de terminal : jail $F2B_SQLI_JAIL non modifiée (lancer --update dans un terminal pour confirmer)."; fi
+            if [[ "$F2B_REP" =~ ^[oOyY]$ ]]; then
+                F2B_BAK="$F2B_SQLI_FICHIER.before-logpath-$(date +%Y%m%d-%H%M%S)"
+                cp -p "$F2B_SQLI_FICHIER" "$F2B_BAK"
+                cat "$F2B_TMP" > "$F2B_SQLI_FICHIER"
+                if fail2ban-client reload >/dev/null 2>&1 && fail2ban-client status "$F2B_SQLI_JAIL" 2>/dev/null | grep_q "$F2B_SQLI_LOG"; then
+                    pass "Jail $F2B_SQLI_JAIL : $F2B_SQLI_LOG ajouté ; sauvegarde : $F2B_BAK."
+                else
+                    cp -p "$F2B_BAK" "$F2B_SQLI_FICHIER"
+                    fail2ban-client reload >/dev/null 2>&1 || true
+                    fail "Jail $F2B_SQLI_JAIL : fail2ban n'a pas pris le changement : retour à $F2B_SQLI_FICHIER d'origine (sauvegarde : $F2B_BAK)."
+                fi
+            else
+                warn "Jail $F2B_SQLI_JAIL : aucun changement appliqué (refusé ou sans réponse)."
+            fi
+        fi
+    fi
+    rm -f "$F2B_TMP"
 fi
 echo
 
