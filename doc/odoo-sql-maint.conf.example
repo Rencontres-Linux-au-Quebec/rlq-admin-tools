@@ -1,24 +1,27 @@
 # odoo-sql-maint configuration / configuration d'odoo-sql-maint
 #
-# Copy to /etc/default/odoo-sql-maint.conf (system wide) or ~/.odoo-sql-maint.conf (per user).
-# The later file read wins; command-line options win over both.
-# Passwords are NOT stored here: use ~/.pgpass with chmod 600.
+# Read at each start. Command-line options override this file.
+# Lu a chaque lancement. Les options de la ligne de commande ont priorite.
 #
-# Format: KEY=VALUE, one per line. Lines starting with # are ignored.
+# Passwords are NOT stored here: use ~/.pgpass (chmod 600).
+# Les mots de passe ne sont PAS ici : utilisez ~/.pgpass (chmod 600).
+
+# Target database (required). Example: odoo_dev / Base cible (obligatoire). Exemple : odoo_dev
+PG_DATABASE=
 
 PG_HOST=localhost
 PG_PORT=5432
 PG_USER=odoo
-PG_DATABASE=odoo_dev
 
-# Audit log of every run (leave empty to disable)
-LOG_FILE=/var/log/odoo-sql-maint.log
+# Audit log of every run (empty = disabled) / Journal d'audit (vide = desactive)
+LOG_FILE=
 
 # Destructive runs on database names matching this regex need --yes
+# Execution destructive sur une base dont le nom correspond a cette regex : --yes requis
 PROD_PATTERN=prod
 
-# Interface language: fr or en (empty = from LANG)
-UI_LANG=fr
+# Interface language: fr or en (empty = from LANG) / Langue : fr ou en (vide = selon LANG)
+UI_LANG=
 
-# Menu program (dialog is the supported one)
+# Menu program (dialog) / Programme du menu (dialog)
 DIALOG_BIN=dialog

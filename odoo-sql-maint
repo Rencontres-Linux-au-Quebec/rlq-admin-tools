@@ -24,7 +24,7 @@
 #
 # Options (par ordre alphabetique) : see --help / voir --help
 
-__version__="1.2.20261028.181641"
+__version__="1.3.20261028.194152"
 
 set -u
 set -o pipefail
@@ -117,6 +117,12 @@ MSG_EN[config_read]="Config read: %s"
 MSG_FR[config_read]="Config lue : %s"
 MSG_EN[config_none]="none"
 MSG_FR[config_none]="aucune"
+MSG_EN[config_created]="Config file created: %s (set PG_DATABASE before use)."
+MSG_FR[config_created]="Fichier de config cree : %s (renseignez PG_DATABASE avant usage)."
+MSG_EN[config_create_fail]="Cannot create config file: %s"
+MSG_FR[config_create_fail]="Impossible de creer le fichier de config : %s"
+MSG_EN[no_tty]="The menu needs an interactive terminal (cannot open /dev/tty). Run it from a terminal (ssh -t), or use --run NAME."
+MSG_FR[no_tty]="Le menu demande un terminal interactif (/dev/tty inaccessible). Lancez-le depuis un terminal (ssh -t), ou utilisez --run NAME."
 
 t() {  # t KEY [printf-args...]
   local key="$1"
@@ -219,20 +225,73 @@ load_config_file() {  # load_config_file PATH
   CONFIG_FILES_READ+=("$file")
 }
 
+# Commented configuration template, written when no configuration file exists.
+print_config_template() {
+  cat <<'TEMPLATE'
+# odoo-sql-maint configuration / configuration d'odoo-sql-maint
+#
+# Read at each start. Command-line options override this file.
+# Lu a chaque lancement. Les options de la ligne de commande ont priorite.
+#
+# Passwords are NOT stored here: use ~/.pgpass (chmod 600).
+# Les mots de passe ne sont PAS ici : utilisez ~/.pgpass (chmod 600).
+
+# Target database (required). Example: odoo_dev / Base cible (obligatoire). Exemple : odoo_dev
+PG_DATABASE=
+
+PG_HOST=localhost
+PG_PORT=5432
+PG_USER=odoo
+
+# Audit log of every run (empty = disabled) / Journal d'audit (vide = desactive)
+LOG_FILE=
+
+# Destructive runs on database names matching this regex need --yes
+# Execution destructive sur une base dont le nom correspond a cette regex : --yes requis
+PROD_PATTERN=prod
+
+# Interface language: fr or en (empty = from LANG) / Langue : fr ou en (vide = selon LANG)
+UI_LANG=
+
+# Menu program (dialog) / Programme du menu (dialog)
+DIALOG_BIN=dialog
+TEMPLATE
+}
+
+# write_config_template PATH: create PATH (and its folder) with mode 600, never overwrite.
+write_config_template() {
+  local file="$1" dir
+  dir="$(dirname -- "$file")"
+  if ! mkdir -p -- "$dir" 2>/dev/null || ! (umask 077; print_config_template > "$file") 2>/dev/null; then
+    printf '%s\n' "$(t config_create_fail "$file")" >&2
+    return 1
+  fi
+  printf '%s\n' "$(t config_created "$file")" >&2
+  return 0
+}
+
 load_configuration() {
-  local file
+  local file found=0 default_file="$HOME/.odoo-sql-maint.conf"
   if [[ -n "$CONFIG_OVERRIDE" ]]; then
+    if [[ ! -e "$CONFIG_OVERRIDE" ]]; then
+      write_config_template "$CONFIG_OVERRIDE" || exit 2
+    fi
     if [[ ! -r "$CONFIG_OVERRIDE" ]]; then
       printf '%s\n' "$(t no_config "$CONFIG_OVERRIDE")" >&2
       exit 2
     fi
     load_config_file "$CONFIG_OVERRIDE"
   else
-    for file in /etc/default/odoo-sql-maint.conf "$HOME/.odoo-sql-maint.conf"; do
+    for file in /etc/default/odoo-sql-maint.conf "$default_file"; do
       if [[ -r "$file" ]]; then
         load_config_file "$file"
+        found=1
       fi
     done
+    # No configuration file at all: create the default one, then read it.
+    if [[ "$found" -eq 0 ]] && write_config_template "$default_file"; then
+      load_config_file "$default_file"
+    fi
   fi
   if [[ -n "$CLI_DATABASE" ]]; then
     PG_DATABASE="$CLI_DATABASE"
@@ -268,6 +327,14 @@ check_psql() {
 check_dialog() {
   if ! command -v "$DIALOG_BIN" >/dev/null 2>&1; then
     printf '%s\n' "$(t no_dialog "$DIALOG_BIN")" >&2
+    exit 3
+  fi
+}
+
+# The dialog menu draws on the terminal: fail with a clear message when /dev/tty cannot be opened.
+check_tty() {
+  if ! { : >/dev/tty; } 2>/dev/null; then
+    printf '%s\n' "$(t no_tty)" >&2
     exit 3
   fi
 }
@@ -531,7 +598,7 @@ main() {
 
   case "$ACTION" in
     run)  run_cli "$RUN_NAME"; return $? ;;
-    menu) check_dialog; run_menu ;;
+    menu) check_dialog; check_tty; run_menu ;;
   esac
   return 0
 }
