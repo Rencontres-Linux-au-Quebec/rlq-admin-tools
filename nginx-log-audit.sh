@@ -130,7 +130,7 @@ grep_q() { grep "$@" >/dev/null; }
 #                              ne peut pas le voir, le texte etant entre apostrophes (faux positif).
 trap 'ec=$?; echo "" >&2; echo "*** ARRÊT INATTENDU DU SCRIPT (code $ec) À LA LIGNE $LINENO ***" >&2; echo "*** Commande fautive : $BASH_COMMAND" >&2; echo "*** Si le rapport ci-dessus semble incomplet (ex. sections Top 10 absentes), c'\''est probablement la cause." >&2' ERR
 
-readonly SCRIPT_VERSION="2.54.20261028.104800"
+readonly SCRIPT_VERSION="2.55.20261028.161044"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
 # Chemin de ce programme (relances --investigate, --ban, --unban) : defini ICI, avant le bloc --ban qui l'utilise.
 SELF_PATH="$SCRIPT_DIR/$(basename "${BASH_SOURCE[0]}")"
@@ -1512,7 +1512,8 @@ if [[ "$DO_BAN_SQLI" == "1" ]]; then
     for f in /var/log/nginx/blocked-probes.log /var/log/nginx/access.log; do
         [[ -r "$f" && "$f" != "$ACCESS_LOG" ]] && sqli_files+=("$f")
     done
-    grep -Ei -- "$SQLI_RE" "${sqli_files[@]}" 2>/dev/null | awk '{print $1}' | sort | uniq -c | sort -rn > "$sqli_tmp" || true
+    # -h : sans nom de fichier en tête (plusieurs fichiers), sinon l'adresse est « fichier:IP » et jamais une IP.
+    grep -hEi -- "$SQLI_RE" "${sqli_files[@]}" 2>/dev/null | awk '{print $1}' | sort | uniq -c | sort -rn > "$sqli_tmp" || true
     if [[ ! -s "$sqli_tmp" ]]; then
         echo "${C_GREEN}Aucune injection SQL trouvée dans $ACCESS_LOG : rien à bannir.${C_RESET}"
         rm -f "$sqli_tmp"

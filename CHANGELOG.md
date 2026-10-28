@@ -1340,6 +1340,15 @@ Earlier history was archived outside this repository when this file was created.
 
 ## nginx-log-audit.sh
 
+### 2.55.20261028.161044 - --ban-sqli: sources read from several logs
+
+- Title: --ban-sqli reads the attacker addresses from blocked-probes.log and access.log correctly.
+- Reason: Version 2.54 searched several log files at once. grep then prefixes each line with the file name, so the first field was "/var/log/nginx/blocked-probes.log:82.121.129.96" instead of the address. Every source was therefore ignored ("pas une adresse IP") and nothing could be banned.
+- Detail: grep -h (without file names) in the --ban-sqli search. Nothing else changes: same signature, same protections (team addresses, server, ban journal).
+- Files: nginx-log-audit.sh, CHANGELOG.md.
+- Checks: manual run on sample logs (blocked-probes.log and access.log): the addresses are listed, a team address is still refused by --ban.
+- Action required: none. The server needs the program updated (git pull or the installed copy).
+
 ### 2.54.20261028.104800 - --ban-sqli reads the logs where the attacks are recorded
 
 - Title: --ban-sqli also reads blocked-probes.log and access.log, and recognizes INFORMATION_SCHEMA and WAITFOR DELAY.
