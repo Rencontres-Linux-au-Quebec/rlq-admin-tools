@@ -1190,6 +1190,15 @@ Earlier history was archived outside this repository when this file was created.
 
 ## nginx-hardening.sh
 
+### 2.62.20261028.181500 - --update checks over HTTP that refused paths answer 404
+
+- Title: After a change of refused paths, --update requests each refused path on every public name (and under /es) and reports any answer other than 404.
+- Reason: 2.61 reported "nginx rechargé" as success without checking the result. On the server, https://www.rencontres-linux.quebec/shop still answered 200 after the reload.
+- Detail: New functions uri_noms_testables (public names from nginx -T, same rules as the HSTS step) and uri_verifier (curl --resolve to 127.0.0.1, read-only GET). The check runs only with --update, after the file is written or was already up to date. It reports each test that does not answer 404 and prints the next command to run. No automatic restore: nginx -t already accepted the configuration, so the cause is a server block that does not apply the rule.
+- Files: nginx-hardening.sh, CHANGELOG.md, nginx-tools-tests/test_nginx_uri.py.
+- Checks: test_nginx_uri (8 tests: 404 on every name, 200 reported as a failure, and the earlier cases). ShellCheck 0.11.0: clean.
+- Action required: run sudo nginx-hardening.sh --update (the verification runs). If it reports a failure, send the lines it prints.
+
 ### 2.61.20261028.180500 - --disable-uri / --enable-uri: confirmation and list of refused paths
 
 - Title: Changing the refused paths asks for confirmation, after showing the paths refused now and after the change.

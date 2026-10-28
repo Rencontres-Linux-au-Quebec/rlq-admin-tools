@@ -6,6 +6,7 @@ import shutil
 import subprocess
 import tempfile
 import unittest
+import unittest.mock
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SCRIPT = os.path.join(ROOT, "nginx-hardening.sh")
@@ -14,7 +15,7 @@ SECURITE = os.path.join(ROOT, "nginx", "snippets", "securite-commune.conf")
 
 def etape():
     texte = open(SCRIPT, encoding="utf-8").read()
-    debut = texte.index("# --- 12c) URI")
+    debut = texte.index("# uri_noms_testables:")
     fin = texte.index("# --- 13) Courriel")
     return texte[debut:fin]
 
@@ -25,9 +26,14 @@ class UriRefusees(unittest.TestCase):
         self.addCleanup(shutil.rmtree, self.tmp, True)
         self.snip = os.path.join(self.tmp, "snippets")
         os.makedirs(os.path.join(self.tmp, "bin"))
-        for nom in ("nginx", "systemctl"):
-            with open(os.path.join(self.tmp, "bin", nom), "w") as f:
-                f.write("#!/bin/sh\nexit 0\n")
+        # faux nginx : « nginx -T » déclare un nom public ; faux curl : répond le code de CODE_HTTP (404 par défaut)
+        with open(os.path.join(self.tmp, "bin", "nginx"), "w") as f:
+            f.write('#!/bin/sh\n[ "$1" = "-T" ] && echo "server { server_name exemple.test; }"\nexit 0\n')
+        with open(os.path.join(self.tmp, "bin", "curl"), "w") as f:
+            f.write('#!/bin/sh\necho "${CODE_HTTP:-404}"\n')
+        with open(os.path.join(self.tmp, "bin", "systemctl"), "w") as f:
+            f.write("#!/bin/sh\nexit 0\n")
+        for nom in ("nginx", "curl", "systemctl"):
             os.chmod(os.path.join(self.tmp, "bin", nom), 0o755)
 
     def lancer(self, ajouts, retraits, oui=True):
@@ -57,6 +63,16 @@ class UriRefusees(unittest.TestCase):
         self.assertEqual(r.returncode, 0, r.stderr + r.stdout)
         self.assertFalse(os.path.exists(os.path.join(self.snip, "uri-desactivees.conf")))
         self.assertIn("Pas de terminal", r.stdout)
+
+    def test_verification_404_sur_chaque_nom_public(self):
+        r = self.lancer(['"/shop"'], [])
+        self.assertIn("toutes répondent 404", r.stdout, r.stdout + r.stderr)
+
+    def test_verification_signale_un_200(self):
+        with unittest.mock.patch.dict(os.environ, {"CODE_HTTP": "200"}):
+            r = self.lancer(['"/shop"'], [])
+        self.assertIn("ne répondent pas 404", r.stdout, r.stdout + r.stderr)
+        self.assertIn("exemple.test/shop : HTTP 200", r.stdout)
 
     def test_point_echappe_dans_le_motif(self):
         self.lancer(['"/blog.x"'], [])
