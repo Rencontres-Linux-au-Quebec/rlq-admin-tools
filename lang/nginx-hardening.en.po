@@ -1984,3 +1984,66 @@ msgstr "ufw: DENY rule for port "
 
 msgid "iptables : règle DROP du port "
 msgstr "iptables: DROP rule for port "
+
+msgid "--- 0f) Configuration nginx générique (dépôt : "
+msgstr "--- 0f) Generic nginx configuration (repository: "
+
+msgid "configuration nginx générique (application non reconnue : "
+msgstr "generic nginx configuration (application not recognized: "
+
+msgid "Dossier nginx/ absent à côté du programme ("
+msgstr "nginx/ folder missing next to the program ("
+
+msgid ") : configuration générique non installée."
+msgstr ") : generic configuration not installed."
+
+msgid "  Version livrée : "
+msgstr "  Version delivered: "
+
+msgid "inconnue"
+msgstr "unknown"
+
+msgid " absent du dépôt : ignoré."
+msgstr " missing from the repository: skipped."
+
+msgid "creer snippets/robots-disallow.conf (vide : fichier propre au site, à remplir par le zip du site)"
+msgstr "create snippets/robots-disallow.conf (empty: site-specific file, to be filled by the site package)"
+
+msgid "Configuration nginx générique à jour (tous les fichiers sont identiques au dépôt)."
+msgstr "Generic nginx configuration up to date (all files identical to the repository)."
+
+msgid "  Changements prévus :"
+msgstr "  Planned changes:"
+
+msgid "  Différences pour "
+msgstr "  Differences for "
+
+msgid " (les 25 premières lignes) :"
+msgstr " (first 25 lines):"
+
+msgid "Configuration nginx générique : "
+msgstr "Generic nginx configuration: "
+
+msgid " changement(s) en attente (relancer avec --update pour les appliquer après confirmation)."
+msgstr " change(s) pending (run --update to apply them after confirmation)."
+
+msgid " changement(s) à la configuration nginx générique ? [o/N] "
+msgstr " change(s) to the generic nginx configuration? [y/N] "
+
+msgid "Pas de terminal : configuration nginx générique non modifiée (lancer --update dans un terminal pour confirmer)."
+msgstr "No terminal: generic nginx configuration not changed (run --update in a terminal to confirm)."
+
+msgid "# vide — créé par nginx-hardening.sh --update ; à remplir par le zip de configuration du site"
+msgstr "# empty file, created by nginx-hardening.sh --update; to be filled by the site configuration package"
+
+msgid "Configuration nginx générique installée ("
+msgstr "Generic nginx configuration installed ("
+
+msgid " fichier(s)) ; nginx -t réussit."
+msgstr " file(s)); nginx -t passes."
+
+msgid "nginx -t refuse la configuration générique : retour à l'état précédent."
+msgstr "nginx -t rejects the generic configuration: restoring the previous state."
+
+msgid "Configuration nginx générique : aucun changement appliqué (refusé ou sans réponse)."
+msgstr "Generic nginx configuration: no change applied (refused or no answer)."
