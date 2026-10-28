@@ -4,6 +4,57 @@ Version numbers follow `MAJOR.MINOR.YYYYMMDD.HHMMSS` (local time of the change).
 Each program has its own section; the most recent version comes first.
 Earlier history was archived outside this repository when this file was created.
 
+## odoo-sql-maint
+
+### 1.2.20261028.181641 - Program section in CHANGELOG, --changelog shows only this program, closed-pipe fix
+
+- Title: odoo-sql-maint 1.2: own changelog section, closed pipe handled, repository integration.
+- Reason: The program was delivered as a standalone file. The repository keeps one section per program in CHANGELOG.md and the --changelog option must show only the program's own section. The first release also claimed a clean exit on a closed pipe, which was not true.
+- Changes:
+  - `odoo-sql-maint` now lives at the root of the repository, with the repository's AGPL header and English code comments.
+  - `--changelog` reads only the `## odoo-sql-maint` section of CHANGELOG.md, colours the version numbers, and removes colours when the output is redirected.
+  - Configuration template moved to `doc/odoo-sql-maint.conf.example` (copied to /etc/default by the administrator, as for other programs).
+  - Help text states the config files read and the key options in French and English.
+  - Files: odoo-sql-maint, doc/odoo-sql-maint.conf.example, CHANGELOG.md.
+- Bugs fixed:
+  - Symptom: `odoo-sql-maint --list | head -2` printed "printf: write error: Broken pipe" on stderr.
+  - Diagnosis: the SIGPIPE trap did not fire in this environment, so the builtin printf reported the error itself.
+  - Fix: the list and changelog outputs ignore write errors on a closed pipe and exit with status 0.
+  - Symptom: the output of `--changelog` included the sections of other programs.
+  - Diagnosis: the program printed the whole CHANGELOG.md file.
+  - Fix: only the section titled `## odoo-sql-maint` is printed.
+- Safeguards and edge cases:
+  - Destructive queries (push-purge, vapid-neutralize) still require confirmation, and are refused on names matching PROD_PATTERN unless --yes is given. Dry runs are always allowed.
+  - Database names are checked against a strict pattern. Query text is fixed in the script and never built from user input.
+  - Unknown options, missing values, unknown languages and unreadable config files produce a clear message and a non-zero exit code.
+  - When CHANGELOG.md is missing, --changelog reports it on stderr and exits 2. When the file exists but has no section for this program, --changelog prints nothing.
+- Checks:
+  - bash -n and shellcheck 0.11.0: no warning.
+  - --version, --list, --help, --changelog (also piped to head), --bogus (exit 2), --run push-purge --database odoo_prod (refused, exit 4), --run connection-test with no database (refused, exit 4).
+  - Not checked here: menu mode (dialog not installed in the test environment) and live SQL (no test database reachable).
+- Action required: install dialog (apt install dialog) and test the menu on DEV before using it on PROD. Copy doc/odoo-sql-maint.conf.example to /etc/default/odoo-sql-maint.conf and set PG_DATABASE.
+
+### 1.1.20261028.085627 - Remove unused colour variable (shellcheck)
+
+- Title: Remove unused colour variable (shellcheck SC2034).
+- Reason: shellcheck reported a warning on the version 1.0 script.
+- Changes: C_OK removed from the defaults and from init_colors. Files: odoo-sql-maint.
+- Bugs fixed: symptom: shellcheck exit code 1. Diagnosis: C_OK was never printed. Fix: variable removed; output colours unchanged.
+- Safeguards and edge cases: no behaviour change.
+- Checks: bash -n OK, shellcheck OK, --version, --list, --changelog, prod guard.
+- Action required: none.
+
+### 1.0.20261028.085000 - Initial release: menu-driven SQL maintenance runner
+
+- Title: Initial release of odoo-sql-maint.
+- Reason: run maintenance SQL queries (VAPID keys and push subscriptions after copying PROD to DEV) from an interactive menu, or from maintenance scripts.
+- Changes: menu mode (dialog), CLI mode (--run, --list), dry run (transaction rolled back), configuration from /etc/default and ~/.odoo-sql-maint.conf, audit log (LOG_FILE), French and English interface.
+- Bugs fixed: none (first release).
+- Safeguards and edge cases: confirmation for destructive queries, PROD_PATTERN guard, input validation, passwords read from ~/.pgpass only.
+- Checks: bash -n OK, --version, --help, --list, --changelog.
+- Action required: none for the first release; see 1.2.
+
+
 ## app-health-check.py
 
 ### 2.29.20261022.231529 - Code comments translated to English
