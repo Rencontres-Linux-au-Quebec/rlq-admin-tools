@@ -31,8 +31,8 @@ msgstr "peak of "
 msgid " requêtes en une seconde : typique d'un chargement de page avec beaucoup de ressources ou de plusieurs personnes derrière la même adresse (université, entreprise)"
 msgstr " requests in one second: typical of a page load with many resources or of several people behind the same address (university, company)"
 
-msgid "ajouter l'adresse à la liste blanche (nginx-tools-white-list.conf) si c'est un lieu connu, ou augmenter burst (ex. burst=100 nodelay) pour la zone odoo_general"
-msgstr "add the address to the white list (nginx-tools-white-list.conf) if it is a known place, or raise burst (e.g. burst=100 nodelay) for the odoo_general zone"
+msgid "ajouter l'adresse à la liste blanche (nginx-tools-white-list.conf) si c'est un lieu connu, ou augmenter burst (ex. burst=100 nodelay) pour la zone odoo_general_v2"
+msgstr "add the address to the white list (nginx-tools-white-list.conf) if it is a known place, or raise burst (e.g. burst=100 nodelay) for the odoo_general_v2 zone"
 
 msgid " action(s) POST refusée(s) : un formulaire ou une inscription a pu être perdu"
 msgstr " POST action(s) refused: a form or a registration may have been lost"
@@ -46,8 +46,8 @@ msgstr " resource(s) (JS, CSS, images) refused: page badly displayed for the per
 msgid "exclure /web/static/, /web/assets/ et /website/static/ de limit_req (location avec limit_req off ; ou cache navigateur : expires 7d)"
 msgstr "exclude /web/static/, /web/assets/ and /website/static/ from limit_req (location with limit_req off; or browser cache: expires 7d)"
 
-msgid " refus sur la zone odoo_login (5 par minute) : plusieurs tentatives de connexion rapprochées"
-msgstr " refusals on the odoo_login zone (5 per minute): several login attempts close together"
+msgid " refus sur la zone odoo_login_v2 (5 par minute) : plusieurs tentatives de connexion rapprochées"
+msgstr " refusals on the odoo_login_v2 zone (5 per minute): several login attempts close together"
 
 msgid "normal contre le bourrage d'identifiants ; si c'est une vraie personne, attendre une minute ; ne pas relâcher cette zone"
 msgstr "normal against credential stuffing; if it is a real person, wait a minute; do not relax this zone"
@@ -118,5 +118,5 @@ msgstr " (limit_conn)"
 msgid " refus par limit_conn : trop de connexions SIMULTANÉES de cette personne (plusieurs onglets, pages avec appels longs comme /track, /websocket, chargements parallèles)"
 msgstr " refusals by limit_conn: too many SIMULTANEOUS connections from this person (several tabs, pages with long calls like /track, /websocket, parallel loads)"
 
-msgid "augmenter la limite (limit_conn odoo_visiteur 16;) ou ne pas appliquer limit_conn aux appels longs (location /websocket et /longpolling) ; vérifier que les onglets ouverts ne se multiplient pas"
-msgstr "raise the limit (limit_conn odoo_visiteur 16;) or do not apply limit_conn to long calls (location /websocket and /longpolling); check that open tabs do not multiply"
+msgid "augmenter la limite (limit_conn odoo_visiteur_v2 16;) ou ne pas appliquer limit_conn aux appels longs (location /websocket et /longpolling) ; vérifier que les onglets ouverts ne se multiplient pas"
+msgstr "raise the limit (limit_conn odoo_visiteur_v2 16;) or do not apply limit_conn to long calls (location /websocket and /longpolling); check that open tabs do not multiply"

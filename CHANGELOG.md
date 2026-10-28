@@ -454,6 +454,15 @@ Earlier history was archived outside this repository when this file was created.
 - Action required: none.
 
 
+### 1.16.20261028.191500 - Limit zones renamed with the _v2 suffix so that nginx reloads
+
+- Title: odoo_general, odoo_general_partage, odoo_login, odoo_login_partage, odoo_curl and odoo_visiteur become *_v2 (nginx/conf.d/odoo-global.conf and every file that uses them).
+- Reason: nginx refused every reload since 11:11 on the server: "limit_req odoo_general uses the $limit_key_general_std key while previously it used the $limit_key_general key". nginx -t does not detect it; systemd reported "Reloaded" and the script announced success, so the rules of the recent updates (including /shop) were never active.
+- Detail: the zone names change, the keys and rates do not. The parsers that read zone names in the logs (apps/_limites.py, nginx-log-audit.sh) and their tests are updated; the translations (lang/*.po) are updated with the same text.
+- Files: nginx/conf.d/odoo-global.conf, nginx/snippets/odoo/_odoo-common.conf, nginx/snippets/securite-commune.conf, nginx/conf.d/bot_blocker.conf, nginx/fail2ban/odoo-auth.jail.conf.template, nginx/VERSION, nginx/README.md, apps/_limites.py, nginx-log-audit.sh, lang/_limites.en.po, lang/nginx-log-audit.en.po, nginx-tools-tests/test_config_nginx.py, nginx-tools-tests/test_reglages_bannis_limites.py, doc/CONTEXTE.md.
+- Checks: test_config_nginx and test_reglages_bannis_limites run after the rename (see the pull request).
+- Action required: after the merge, sudo nginx-hardening.sh --update (copies the files, reloads nginx; the reload now succeeds). Then check the error log has no new [emerg] line.
+
 ### 1.15.20261022.012000 - Title: The common file now reaches LOG_KEEP_DAYS and ANONYMIZE.
 - Reason: Reason: same as odoo-warmup.py: the common-file filter discarded LOG_KEEP_DAYS and ANONYMIZE.
 - Changes: - read_config(): the common file accepts LOG_KEEP_DAYS and ANONYMIZE; both are exported to the environment (environment wins).

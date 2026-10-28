@@ -134,13 +134,13 @@ class ConfigNginx(unittest.TestCase):
                 self.assertFalse(bloque(ua), "un vrai navigateur, ou un curl isolé, ne doit pas être bloqué par UA")
 
     def test_curl_limite_par_rafale_et_non_bloque_par_ua(self):
-        """v1.12 (seuil v1.13) : curl n'est plus refusé par UA ; une rafale de plus de 10 requêtes d'un coup est refusée par la zone odoo_curl (v1.13 : burst=10)."""
+        """v1.12 (seuil v1.13) : curl n'est plus refusé par UA ; une rafale de plus de 10 requêtes d'un coup est refusée par la zone odoo_curl_v2 (v1.13 : burst=10)."""
         glob_ = lire("conf.d/odoo-global.conf")
-        self.assertIn("zone=odoo_curl:10m rate=12r/m;", glob_, "une requête par 5 s en régime permanent")
+        self.assertIn("zone=odoo_curl_v2:10m rate=12r/m;", glob_, "une requête par 5 s en régime permanent")
         self.assertRegex(glob_, r'"~\*\^curl/"\s+1;')
         self.assertRegex(glob_, r'"1:0:0"\s+\$binary_remote_addr;')
         self.assertNotRegex(lire("conf.d/bot_blocker.conf"), r"~\*\^\(\S*curl")      # curl absent de la liste des bad bots
-        self.assertIn("limit_req zone=odoo_curl burst=10 nodelay;", lire("snippets/securite-commune.conf"))
+        self.assertIn("limit_req zone=odoo_curl_v2 burst=10 nodelay;", lire("snippets/securite-commune.conf"))
 
     def test_sondes_wordpress_wp_et_wordpress_refusees(self):
         """1.13 (reprise en 1.14) : « wp », « wp-... » et « wordpress » sont refusés par la location des sondes, avec ou sans préfixe de langue."""
@@ -149,12 +149,12 @@ class ConfigNginx(unittest.TestCase):
         self.assertIn("wp-login", sec)
 
     def test_curl_repete_dans_chaque_location_qui_a_son_propre_limit_req(self):
-        """nginx ne fusionne pas les limit_req d'un niveau parent : une location qui en déclare un doit aussi déclarer odoo_curl."""
+        """nginx ne fusionne pas les limit_req d'un niveau parent : une location qui en déclare un doit aussi déclarer odoo_curl_v2."""
         texte = lire("snippets/odoo/_odoo-common.conf")
         for bloc in re.split(r"\n(?=location )", texte):
             if "limit_req zone=" in bloc and bloc.lstrip().startswith("location"):
                 with self.subTest(location=bloc.splitlines()[0]):
-                    self.assertIn("limit_req zone=odoo_curl burst=10 nodelay;", bloc)
+                    self.assertIn("limit_req zone=odoo_curl_v2 burst=10 nodelay;", bloc)
 
     def test_limite_de_connexion(self):
         m = re.search(r'"~(\^0:POST:[^"]+)"\s+\$binary_remote_addr', lire("conf.d/odoo-global.conf"))
@@ -165,12 +165,12 @@ class ConfigNginx(unittest.TestCase):
         for cle in ("0:GET:/web/login", "1:POST:/web/login", "0:POST:/web/dataset/call_kw", "0:POST:/shop/cart/update"):
             with self.subTest(illimite=cle):
                 self.assertFalse(rx.search(cle))
-        self.assertIn("limit_req zone=odoo_login", lire("snippets/odoo/_odoo-common.conf"))
+        self.assertIn("limit_req zone=odoo_login_v2", lire("snippets/odoo/_odoo-common.conf"))
 
     def test_limite_de_connexions_simultanees_par_cookie_de_visiteur(self):
         """1.7 : limit_conn par cookie visitor_uuid (conflits d'écriture website_visitor) : clé vide pour les IP de confiance et sans cookie ; 429 ; location / seulement."""
         glob = lire("conf.d/odoo-global.conf")
-        self.assertIn("limit_conn_zone $limit_key_visiteur zone=odoo_visiteur:10m;", glob)
+        self.assertIn("limit_conn_zone $limit_key_visiteur zone=odoo_visiteur_v2:10m;", glob)
         self.assertIn("limit_conn_status 429;", glob)
         m = re.search(r'map "\$is_trusted_ip:\$cookie_visitor_uuid" \$limit_key_visiteur \{(.*?)\}', glob, re.S)
         self.assertTrue(m)
@@ -179,18 +179,18 @@ class ConfigNginx(unittest.TestCase):
         self.assertFalse(re.search(rx.group(1), "1:abc-123"))
         self.assertFalse(re.search(rx.group(1), "0:"))
         commun = lire("snippets/odoo/_odoo-common.conf")
-        self.assertEqual(commun.count("limit_conn odoo_visiteur 8;"), 1)
-        self.assertLess(commun.index("location / {"), commun.index("limit_conn odoo_visiteur 8;"))
+        self.assertEqual(commun.count("limit_conn odoo_visiteur_v2 8;"), 1)
+        self.assertLess(commun.index("location / {"), commun.index("limit_conn odoo_visiteur_v2 8;"))
 
     def test_reseaux_partages_ont_leurs_propres_zones_plus_larges(self):
         """1.9 : les adresses des lieux [partagée] (université) passent par des zones plus larges (3 fois le débit, 5 fois les connexions) ; chaque zone n'a de clé que pour
         son groupe (adresse ordinaire ou partagée), jamais les deux ; le fichier généré est inclus."""
         glob = lire("conf.d/odoo-global.conf")
         self.assertIn("include /etc/nginx/snippets/shared-ips-geo.conf;", glob)
-        self.assertIn("limit_req_zone $limit_key_general_std zone=odoo_general:10m rate=30r/s;", glob)
-        self.assertIn("limit_req_zone $limit_key_general_partage zone=odoo_general_partage:10m rate=90r/s;", glob)
-        self.assertIn("limit_req_zone $limit_key_login_std zone=odoo_login:10m rate=5r/m;", glob)
-        self.assertIn("limit_req_zone $limit_key_login_partage zone=odoo_login_partage:10m rate=25r/m;", glob)
+        self.assertIn("limit_req_zone $limit_key_general_std zone=odoo_general_v2:10m rate=30r/s;", glob)
+        self.assertIn("limit_req_zone $limit_key_general_partage zone=odoo_general_partage_v2:10m rate=90r/s;", glob)
+        self.assertIn("limit_req_zone $limit_key_login_std zone=odoo_login_v2:10m rate=5r/m;", glob)
+        self.assertIn("limit_req_zone $limit_key_login_partage zone=odoo_login_partage_v2:10m rate=25r/m;", glob)
         for nom, groupe in (("general_std", "0"), ("general_partage", "1"), ("login_std", "0"), ("login_partage", "1")):
             m = re.search(r'map "\$is_shared_ip:\$limit_key_[a-z]+" \$limit_key_' + nom + r' \{\s*"~(\^[^"]+)"\s+\$1;', glob)
             self.assertTrue(m, nom)
@@ -199,8 +199,8 @@ class ConfigNginx(unittest.TestCase):
             self.assertFalse(rx.search(("1" if groupe == "0" else "0") + ":203.0.113.5"), nom)
             self.assertFalse(rx.search(groupe + ":"), nom)                         # empty key (trusted IP, GET...): never a limit
         commun = lire("snippets/odoo/_odoo-common.conf")
-        self.assertIn("limit_req zone=odoo_general_partage burst=180 nodelay;", commun)
-        self.assertIn("limit_req zone=odoo_login_partage burst=25 nodelay;", commun)
+        self.assertIn("limit_req zone=odoo_general_partage_v2 burst=180 nodelay;", commun)
+        self.assertIn("limit_req zone=odoo_login_partage_v2 burst=25 nodelay;", commun)
 
     def test_regle_gestion_des_bases_dans_chaque_environnement(self):
         for env in ("prod", "dev", "lab"):
@@ -466,8 +466,8 @@ class IconeEcranDAccueil(unittest.TestCase):
         self.assertIn("proxy_pass http://$odoo_backend;", bloc)
         self.assertNotRegex(bloc, r"\breturn\s+30\d\b")                                       # jamais une redirection : iOS ne la suit pas toujours
         self.assertNotIn("proxy_set_header", bloc, "un seul proxy_set_header ferait perdre TOUS ceux du niveau serveur (voir _odoo-common.conf)")
-        self.assertIn("limit_req zone=odoo_general", bloc)
-        self.assertIn("odoo_general", lire(os.path.join("conf.d", "odoo-global.conf")))      # la zone existe
+        self.assertIn("limit_req zone=odoo_general_v2", bloc)
+        self.assertIn("odoo_general_v2", lire(os.path.join("conf.d", "odoo-global.conf")))      # la zone existe
 
     def test_regle_dans_le_fichier_inclus_par_les_vhosts_https_seulement(self):
         """$odoo_backend n'existe que dans les vhosts https : la règle ne doit PAS être dans securite-commune.conf (aussi inclus par les blocs du port 80)."""

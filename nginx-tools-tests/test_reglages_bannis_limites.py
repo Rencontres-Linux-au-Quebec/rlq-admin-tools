@@ -231,31 +231,31 @@ class Limites429(Base):
                          + [L("11.97.88.222", 2, "GET /web/static/a.js", 429), L("11.97.88.222", 3, "POST /web/login", 429), L("11.97.88.222", 4, "GET /page", 429),
                             L("9.9.9.9", 0, "GET /autre", 429)])
         with open(os.path.join(self.folder, "error.log"), "w") as f:
-            f.write('2026/10/13 06:00:00 [error] 1#1: *1 limiting requests, excess: 61.500 by zone "odoo_general", client: 11.97.88.222, server: x, request: "GET /event/x/track HTTP/2.0", host: "x"\n'
-                    '2026/10/13 06:00:01 [error] 1#1: *2 limiting requests, excess: 1.000 by zone "odoo_login", client: 9.9.9.9, server: x, request: "POST /web/login HTTP/2.0", host: "x"\n'
-                    '2026/10/13 06:00:02 [warn] 1#1: *3 limiting connections by zone "odoo_visiteur", client: 11.97.88.222, server: x, request: "GET /event/x/track HTTP/2.0", host: "x"\n')
+            f.write('2026/10/13 06:00:00 [error] 1#1: *1 limiting requests, excess: 61.500 by zone "odoo_general_v2", client: 11.97.88.222, server: x, request: "GET /event/x/track HTTP/2.0", host: "x"\n'
+                    '2026/10/13 06:00:01 [error] 1#1: *2 limiting requests, excess: 1.000 by zone "odoo_login_v2", client: 9.9.9.9, server: x, request: "POST /web/login HTTP/2.0", host: "x"\n'
+                    '2026/10/13 06:00:02 [warn] 1#1: *3 limiting connections by zone "odoo_visiteur_v2", client: 11.97.88.222, server: x, request: "GET /event/x/track HTTP/2.0", host: "x"\n')
 
     def test_analyse(self):
         f = self.m.analyser("11.97.88.222", self.folder)
         self.assertEqual(f["requetes"], 34)
         self.assertEqual(f["codes"]["429"], 33)
         self.assertEqual(f["par_url"].most_common(1)[0], ("/event/x/track", 30))
-        self.assertEqual(f["zones"], {"odoo_general": 1, "odoo_visiteur (limit_conn)": 1})
+        self.assertEqual(f["zones"], {"odoo_general_v2": 1, "odoo_visiteur_v2 (limit_conn)": 1})
         self.assertEqual(f["excess_max"], 61.5)
         self.assertEqual((f["effets"]["fond"], f["effets"]["ressource"], f["effets"]["action"], f["effets"]["page"]), (30, 1, 1, 1))
 
     def test_une_autre_adresse_n_est_pas_melangee(self):
         f = self.m.analyser("9.9.9.9", self.folder)
         self.assertEqual(f["requetes"], 1)
-        self.assertEqual(f["zones"], {"odoo_login": 1})
+        self.assertEqual(f["zones"], {"odoo_login_v2": 1})
 
     def test_rapport_et_recommandations(self):
         text = "\n".join(self.m.lignes(self.m.analyser("11.97.88.222", self.folder)))
         self.assertIn("refusées en 429 : 33", T(text))
         self.assertIn("/event/x/track", T(text))
-        self.assertIn("odoo_general ×1", T(text))
-        self.assertIn("odoo_visiteur (limit_conn) ×1", T(text))
-        self.assertIn("limit_conn odoo_visiteur 16", T(text))
+        self.assertIn("odoo_general_v2 ×1", T(text))
+        self.assertIn("odoo_visiteur_v2 (limit_conn) ×1", T(text))
+        self.assertIn("limit_conn odoo_visiteur_v2 16", T(text))
         self.assertIn("action(s) POST refusée(s)", T(text))
         self.assertIn("burst", T(text))
 

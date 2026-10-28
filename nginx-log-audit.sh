@@ -2786,7 +2786,7 @@ fi
 if (( n11 == 0 )); then
     echo "${C_GREEN}RIEN${C_RESET}"
 else
-    echo "  Effet : conflits d'écriture sur website_visitor dans Odoo (« bad query » / « could not serialize »). nginx-odoo-config 1.7 limite les connexions simultanées par cookie (limit_conn odoo_visiteur → 429) ;"
+    echo "  Effet : conflits d'écriture sur website_visitor dans Odoo (« bad query » / « could not serialize »). nginx-odoo-config 1.7 limite les connexions simultanées par cookie (limit_conn odoo_visiteur_v2 → 429) ;"
     echo "  Information seulement (aucun bannissement proposé) ; vérifier l'adresse : nginx-log-audit.sh --investigate ADRESSE"
 fi
 echo

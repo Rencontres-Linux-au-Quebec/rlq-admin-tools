@@ -1527,8 +1527,8 @@ msgstr "+ simultaneous dynamic requests (up to "
 msgid " en erreur 5xx/429 — même cookie de visiteur probable"
 msgstr " as 5xx/429 errors — probably the same visitor cookie"
 
-msgid "  Effet : conflits d'écriture sur website_visitor dans Odoo (« bad query » / « could not serialize »). nginx-odoo-config 1.7 limite les connexions simultanées par cookie (limit_conn odoo_visiteur → 429) ;"
-msgstr "  Effect: write conflicts on website_visitor in Odoo (\"bad query\" / \"could not serialize\"). nginx-odoo-config 1.7 limits simultaneous connections per cookie (limit_conn odoo_visiteur → 429);"
+msgid "  Effet : conflits d'écriture sur website_visitor dans Odoo (« bad query » / « could not serialize »). nginx-odoo-config 1.7 limite les connexions simultanées par cookie (limit_conn odoo_visiteur_v2 → 429) ;"
+msgstr "  Effect: write conflicts on website_visitor in Odoo (\"bad query\" / \"could not serialize\"). nginx-odoo-config 1.7 limits simultaneous connections per cookie (limit_conn odoo_visiteur_v2 → 429);"
 
 msgid "  Information seulement (aucun bannissement proposé) ; vérifier l'adresse : nginx-log-audit.sh --investigate ADRESSE"
 msgstr "  Information only (no ban proposed); check the address: nginx-log-audit.sh --investigate ADDRESS"

@@ -18,4 +18,5 @@ Fichiers propres au site (domaines, vhosts, environnements) : voir le zip de con
 
 ## Historique
 
+- 1.16 : zones de limitation renommées avec le suffixe `_v2` (odoo_general, odoo_general_partage, odoo_login, odoo_login_partage, odoo_curl, odoo_visiteur). nginx refusait de recharger la configuration : la zone `odoo_general` avait changé de clé (`$limit_key_general` devenu `$limit_key_general_std`), et une zone de même nom avec une autre clé ne peut pas être modifiée par un simple rechargement. Un nom neuf permet le rechargement sans redémarrage.
 - 1.14 (reprise de la version 1.13 de l'administrateur, séparée en deux) : curl en rafale avec `rate=12r/m` et `burst=10` : un humain qui tape quelques commandes passe, au-delà de 10 requêtes d'un coup depuis la même IP, 429. Sondes WordPress (snippets/securite-commune.conf) : « wp », « wp-... » et « wordpress », avec ou sans préfixe de langue, refusés en 404.

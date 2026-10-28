@@ -119,7 +119,7 @@ def recommandations(faits, zones_connues=None):
     pointe = max(faits["par_seconde"].values()) if faits["par_seconde"] else 0
     if pointe >= 20:
         res.append((f"pointe de {pointe} requêtes en une seconde : typique d'un chargement de page avec beaucoup de ressources ou de plusieurs personnes derrière la même adresse (université, entreprise)",
-                    "ajouter l'adresse à la liste blanche (nginx-tools-white-list.conf) si c'est un lieu connu, ou augmenter burst (ex. burst=100 nodelay) pour la zone odoo_general"))
+                    "ajouter l'adresse à la liste blanche (nginx-tools-white-list.conf) si c'est un lieu connu, ou augmenter burst (ex. burst=100 nodelay) pour la zone odoo_general_v2"))
     if faits["effets"].get("action"):
         res.append((f"{faits['effets']['action']} action(s) POST refusée(s) : un formulaire ou une inscription a pu être perdu",
                     "ne jamais limiter les POST de formulaires de la même façon que les pages : zone séparée avec burst, ou exemption pour les adresses connues"))
@@ -129,9 +129,9 @@ def recommandations(faits, zones_connues=None):
     conn = sum(n for z, n in faits["zones"].items() if "(limit_conn)" in z)
     if conn:
         res.append((f"{conn} refus par limit_conn : trop de connexions SIMULTANÉES de cette personne (plusieurs onglets, pages avec appels longs comme /track, /websocket, chargements parallèles)",
-                    "augmenter la limite (limit_conn odoo_visiteur 16;) ou ne pas appliquer limit_conn aux appels longs (location /websocket et /longpolling) ; vérifier que les onglets ouverts ne se multiplient pas"))
-    if "odoo_login" in faits["zones"]:
-        res.append((f"{faits['zones']['odoo_login']} refus sur la zone odoo_login (5 par minute) : plusieurs tentatives de connexion rapprochées",
+                    "augmenter la limite (limit_conn odoo_visiteur_v2 16;) ou ne pas appliquer limit_conn aux appels longs (location /websocket et /longpolling) ; vérifier que les onglets ouverts ne se multiplient pas"))
+    if "odoo_login_v2" in faits["zones"]:
+        res.append((f"{faits['zones']['odoo_login_v2']} refus sur la zone odoo_login_v2 (5 par minute) : plusieurs tentatives de connexion rapprochées",
                     "normal contre le bourrage d'identifiants ; si c'est une vraie personne, attendre une minute ; ne pas relâcher cette zone"))
     if not res:
         res.append((f"{n429} refus répartis sans cause évidente", "relire les URL ci-dessus et les zones ; ajuster rate / burst de la zone concernée"))

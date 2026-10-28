@@ -8,7 +8,7 @@
 # /etc/fail2ban/jail.d/odoo-auth.conf.
 #
 # Seuils : 5 échecs en 10 minutes → bannissement 1 heure, sur les ports web. Un humain qui se trompe de mot de passe
-# n'atteint pas ce seuil ; un robot qui essaie des mots de passe, si. La limite de débit nginx (zone odoo_login, 5
+# n'atteint pas ce seuil ; un robot qui essaie des mots de passe, si. La limite de débit nginx (zone odoo_login_v2, 5
 # tentatives/min) ralentit déjà l'attaque ; ce jail la bloque ensuite complètement au pare-feu.
 
 [odoo-auth]
