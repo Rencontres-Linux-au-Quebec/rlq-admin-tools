@@ -86,7 +86,7 @@ run() {
     "$@"
 }
 
-readonly SCRIPT_VERSION="2.59.20261028.112400"
+readonly SCRIPT_VERSION="2.60.20261028.170500"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
 SCRIPT_NAME="$(basename "${BASH_SOURCE[0]}" .sh)"; readonly SCRIPT_NAME
 # Display language (en or fr): --lang, NGINX_HARDENING_LANG, LANGUAGE of the configuration file, LC_ALL / LANG - apps/_i18n.sh translates the output (nothing changes in French).
@@ -137,6 +137,8 @@ read -r -a BACKUP_ROOTS <<< "${NGINX_HARDENING_BACKUP_ROOTS:-/etc/nginx /etc/fai
 ROLLBACK=0
 ROLLBACK_BACKUP=""
 ROLLBACK_YES=0
+DISABLE_URI_LIST=()     # --disable-uri CHEMIN (repeatable): refused with 404 in the Odoo site, every language
+ENABLE_URI_LIST=()      # --enable-uri CHEMIN (repeatable): the refusal is removed
 ODOO_HTTP_PORT=""      # empty: read from the Odoo configuration ("configuration" step), otherwise 10000 / 10002
 ODOO_GEVENT_PORT=""
 ODOO_CONF_PATHS="${ODOO_CONF_PATHS:-}"
@@ -205,6 +207,8 @@ while [[ $# -gt 0 ]]; do
         --update) CHECK_ONLY=0; shift ;;  # applique reellement les changements (anciennement le defaut)
         --backup) ROLLBACK_BACKUP="${2:-}"; shift 2 ;;
         --rollback) ROLLBACK=1; shift ;;
+        --disable-uri) DISABLE_URI_LIST+=("${2:-}"); shift 2 ;;
+        --enable-uri) ENABLE_URI_LIST+=("${2:-}"); shift 2 ;;
         --yes) ROLLBACK_YES=1; shift ;;
         --app) APP_FORCE="${2:-}"; shift 2 ;;
         --app=*) APP_FORCE="${1#--app=}"; shift ;;
@@ -254,6 +258,8 @@ Options (par ordre alphabétique) :
   --changelog                  affiche le journal des modifications
   --check                      vérification seule (comportement par défaut)
   -c, --config FILE            fichier de configuration à lire SEUL (défaut : /etc/default/nginx-hardening.conf puis ~/.nginx-hardening.conf)
+  --disable-uri CHEMIN         refuse (404) ce chemin dans le site Odoo, toutes les langues (ex. /shop) : fichier snippets/uri-desactivees.conf ; répétable
+  --enable-uri CHEMIN          rétablit un chemin refusé par --disable-uri ; répétable
   -h, --help                   affiche cette aide et quitte
   --lang LANG                  langue d'affichage : en ou fr (défaut : selon LC_ALL / LC_MESSAGES / LANG)
   --log-retention-months N     durée de conservation des journaux visée par l'étape 11 (1 à 24 mois, défaut : 3)
@@ -291,6 +297,14 @@ AIDE
         --report-err) shift ;;                 # handled earlier (apps/_rapport.sh); accepted here with --help, --version...
         *) echo "Argument inconnu: $1" >&2; exit 1 ;;
     esac
+done
+
+# --disable-uri / --enable-uri: a path only (starts with /, letters, digits, _ . / -); "/" alone would refuse the whole site.
+for u in ${DISABLE_URI_LIST[@]+"${DISABLE_URI_LIST[@]}"} ${ENABLE_URI_LIST[@]+"${ENABLE_URI_LIST[@]}"}; do
+    if [[ ! "$u" =~ ^/[A-Za-z0-9_./-]+$ ]] || [[ "$u" == *..* ]]; then
+        echo "ERREUR: chemin invalide « $u » : il commence par / et ne contient que lettres, chiffres, _ . / - (ex. /shop)." >&2
+        exit 1
+    fi
 done
 
 # Lock (flock): only one MODIFYING execution at a time - cron, systemd timer and manual launch may
@@ -428,11 +442,11 @@ generer_partages() {
 fragments_generes_assurer() {
     local snip="${NGINX_HARDENING_SNIPPETS_DIR:-/etc/nginx/snippets}" f cree=1
     [[ "$CHECK_ONLY" == "1" || "$APP_NAME" != "odoo" ]] && return 1
-    for f in team-ips-geo.conf team-ips-allow.conf shared-ips-geo.conf; do
+    for f in team-ips-geo.conf team-ips-allow.conf shared-ips-geo.conf uri-desactivees.conf; do
         [[ -e "$snip/$f" ]] && continue
         if mkdir -p "$snip" 2>/dev/null && printf '%s\n' "# vide — créé par nginx-hardening.sh --update (nginx refuse un include sans fichier) ; rempli aux étapes 12 et 12b" > "$snip/$f" 2>/dev/null; then
             chmod 644 "$snip/$f" 2>/dev/null || true
-            echo "        $snip/$f était absent : créé vide pour que nginx -t réussisse (rempli à l'étape 12)."
+            echo "        $snip/$f était absent : créé vide pour que nginx -t réussisse (rempli par son étape : 12, 12b ou 12c)."
             cree=0
         fi
     done
@@ -2637,6 +2651,60 @@ if [[ "$APP_NAME" == "odoo" ]]; then
             if [[ -n "$part_ancien" ]]; then printf '%s\n' "$part_ancien" > "$part_dst"; else printf '%s\n' "# vide — restauré après refus de nginx -t" > "$part_dst"; fi
             fail "nginx -t refuse la configuration avec les réseaux partagés régénérés — ancienne version restaurée, nginx NON rechargé."
             printf '%s\n' "$part_erreur" | head -8 | sed 's/^/        nginx -t : /'
+        fi
+    fi
+fi
+echo
+
+# --- 12c) URI refusées (--disable-uri / --enable-uri) -> uri-desactivees.conf, inclus au début de securite-commune.conf ---
+# La liste vit DANS le fichier (lignes « # uri : CHEMIN ») : un --update sans option la conserve.
+# Une requête vers ce chemin (toutes langues : /shop, /es/shop, /en_CA/shop...) reçoit 404 avant le site.
+if [[ "$APP_NAME" == "odoo" ]]; then
+    snip="${NGINX_HARDENING_SNIPPETS_DIR:-/etc/nginx/snippets}"
+    uri_dst="$snip/uri-desactivees.conf"
+    declare -A uri_liste=()
+    if [[ -f "$uri_dst" ]]; then
+        while IFS= read -r ligne; do
+            [[ "$ligne" == "# uri : "* ]] && uri_liste["${ligne#"# uri : "}"]=1
+        done < "$uri_dst"
+    fi
+    if (( ${#DISABLE_URI_LIST[@]} > 0 )); then
+        for u in "${DISABLE_URI_LIST[@]}"; do uri_liste["$u"]=1; done
+    fi
+    if (( ${#ENABLE_URI_LIST[@]} > 0 )); then
+        for u in "${ENABLE_URI_LIST[@]}"; do unset "uri_liste[$u]"; done
+    fi
+    uri_nouveau="# Généré par nginx-hardening.sh (--disable-uri / --enable-uri) : ne pas éditer à la main."$'\n'
+    if (( ${#uri_liste[@]} == 0 )); then
+        uri_nouveau+="# Aucune URI refusée."$'\n'
+    else
+        mapfile -t uri_triees < <(printf '%s\n' "${!uri_liste[@]}" | sort)
+        for u in "${uri_triees[@]}"; do uri_nouveau+="# uri : $u"$'\n'; done
+        for u in "${uri_triees[@]}"; do
+            motif="^(/[A-Za-z_-]+)?${u//./\\.}(/|\$)"
+            uri_nouveau+="location ~ $motif { return 404; }"$'\n'
+        done
+    fi
+    uri_n=${#uri_liste[@]}
+    if [[ -f "$uri_dst" ]] && [[ "$(cat "$uri_dst")" == "$uri_nouveau" ]]; then
+        pass "$uri_dst à jour ($uri_n URI refusée(s))."
+    elif [[ "$CHECK_ONLY" == "1" ]]; then
+        warn "$uri_dst $([[ -f "$uri_dst" ]] && echo "différent de la liste demandée" || echo "absent") — --update l'écrira ($uri_n URI refusée(s))."
+    else
+        uri_ancien=""; [[ -f "$uri_dst" ]] && uri_ancien=$(cat "$uri_dst")
+        mkdir -p "$snip"
+        uri_tmp=$(mktemp "$snip/.uri-desactivees.XXXXXX")
+        printf '%s' "$uri_nouveau" > "$uri_tmp" && chmod 644 "$uri_tmp" && mv -f "$uri_tmp" "$uri_dst"
+        if uri_erreur=$(run nginx -t 2>&1); then
+            if nginx_appliquer; then
+                pass "URI refusées ($uri_n) dans $uri_dst ; nginx -t réussi, nginx $NGINX_APPLIQUE."
+            else
+                warn "URI refusées ($uri_n) et nginx -t réussi, mais nginx n'a pas pu être $NGINX_APPLIQUE — systemctl status nginx --no-pager ; journalctl -u nginx -n 30 --no-pager."
+            fi
+        else
+            if [[ -n "$uri_ancien" ]]; then printf '%s\n' "$uri_ancien" > "$uri_dst"; else printf '%s\n' "# vide — restauré après refus de nginx -t" > "$uri_dst"; fi
+            fail "nginx -t refuse la configuration avec les URI refusées — ancienne version restaurée, nginx NON rechargé."
+            printf '%s\n' "$uri_erreur" | head -8 | sed 's/^/        nginx -t : /'
         fi
     fi
 fi
