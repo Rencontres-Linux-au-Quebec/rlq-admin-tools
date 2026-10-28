@@ -74,6 +74,12 @@ class SetupNginxOdoo(EnvTest):
         self.write("logrotate.d/fail2ban", "/var/log/fail2ban.log {\n    weekly\n    rotate 4\n}\n")
         self.env.update(NGINX_HARDENING_LOGROTATE_DIR=os.path.dirname(self.path("logrotate.d", "x")),
                         NGINX_HARDENING_JOURNALD_DIR=os.path.dirname(self.path("systemd", "x")))
+        # SECURITY: --update archives /etc/nginx and /etc/fail2ban (--rollback): test folders only, never the real ones.
+        racines = [os.path.join(self.d, "sauv-nginx"), os.path.join(self.d, "sauv-fail2ban")]
+        for r in racines:
+            os.makedirs(r, exist_ok=True)
+        self.env.update(NGINX_HARDENING_ARCHIVE_DIR=os.path.join(self.d, "archives"),
+                        NGINX_HARDENING_BACKUP_ROOTS=" ".join(racines))
 
     def exiger_modeles(self):
         """Les tests du jail odoo-auth ont besoin des modèles du dossier nginx-odoo/fail2ban/ (config extraite du zip
