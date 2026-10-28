@@ -86,7 +86,7 @@ run() {
     "$@"
 }
 
-readonly SCRIPT_VERSION="2.60.20261028.170500"
+readonly SCRIPT_VERSION="2.61.20261028.180500"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
 SCRIPT_NAME="$(basename "${BASH_SOURCE[0]}" .sh)"; readonly SCRIPT_NAME
 # Display language (en or fr): --lang, NGINX_HARDENING_LANG, LANGUAGE of the configuration file, LC_ALL / LANG - apps/_i18n.sh translates the output (nothing changes in French).
@@ -286,7 +286,7 @@ Options (par ordre alphabétique) :
   -v, --verbose                affiche chaque commande lancée
   --version                    affiche la version et quitte
   --workers N                  nombre de workers pour la suggestion de limites mémoire (étape 6)
-  --yes                        avec --rollback : restaurer sans question
+  --yes                        avec --rollback, --disable-uri ou --enable-uri : appliquer sans question
 AIDE
             exit 0
             ;;
@@ -2659,6 +2659,7 @@ echo
 # --- 12c) URI refusées (--disable-uri / --enable-uri) -> uri-desactivees.conf, inclus au début de securite-commune.conf ---
 # La liste vit DANS le fichier (lignes « # uri : CHEMIN ») : un --update sans option la conserve.
 # Une requête vers ce chemin (toutes langues : /shop, /es/shop, /en_CA/shop...) reçoit 404 avant le site.
+# Changement de liste = confirmation (o/N) ; sans terminal, rien n'est modifié sauf avec --yes.
 if [[ "$APP_NAME" == "odoo" ]]; then
     snip="${NGINX_HARDENING_SNIPPETS_DIR:-/etc/nginx/snippets}"
     uri_dst="$snip/uri-desactivees.conf"
@@ -2668,6 +2669,7 @@ if [[ "$APP_NAME" == "odoo" ]]; then
             [[ "$ligne" == "# uri : "* ]] && uri_liste["${ligne#"# uri : "}"]=1
         done < "$uri_dst"
     fi
+    uri_actuelles=$(printf '%s\n' "${!uri_liste[@]}" | sort | paste -sd ' ' -)
     if (( ${#DISABLE_URI_LIST[@]} > 0 )); then
         for u in "${DISABLE_URI_LIST[@]}"; do uri_liste["$u"]=1; done
     fi
@@ -2685,26 +2687,41 @@ if [[ "$APP_NAME" == "odoo" ]]; then
             uri_nouveau+="location ~ $motif { return 404; }"$'\n'
         done
     fi
+    uri_futures=$(printf '%s\n' "${!uri_liste[@]}" | sort | paste -sd ' ' -)
     uri_n=${#uri_liste[@]}
+    echo "  URI refusées actuellement : ${uri_actuelles:-aucune}"
     if [[ -f "$uri_dst" ]] && [[ "$(cat "$uri_dst")" == "$uri_nouveau" ]]; then
-        pass "$uri_dst à jour ($uri_n URI refusée(s))."
+        pass "$uri_dst à jour ($uri_n URI refusée(s) : ${uri_futures:-aucune})."
     elif [[ "$CHECK_ONLY" == "1" ]]; then
-        warn "$uri_dst $([[ -f "$uri_dst" ]] && echo "différent de la liste demandée" || echo "absent") — --update l'écrira ($uri_n URI refusée(s))."
+        warn "URI refusées : ${uri_actuelles:-aucune} → ${uri_futures:-aucune} — --update appliquera ce changement après confirmation."
     else
-        uri_ancien=""; [[ -f "$uri_dst" ]] && uri_ancien=$(cat "$uri_dst")
-        mkdir -p "$snip"
-        uri_tmp=$(mktemp "$snip/.uri-desactivees.XXXXXX")
-        printf '%s' "$uri_nouveau" > "$uri_tmp" && chmod 644 "$uri_tmp" && mv -f "$uri_tmp" "$uri_dst"
-        if uri_erreur=$(run nginx -t 2>&1); then
-            if nginx_appliquer; then
-                pass "URI refusées ($uri_n) dans $uri_dst ; nginx -t réussi, nginx $NGINX_APPLIQUE."
+        uri_ok=0
+        if [[ "$ROLLBACK_YES" == "1" ]]; then
+            uri_ok=1
+        elif [[ -t 0 ]]; then
+            read -r -p "  Refuser (404) : ${uri_futures:-aucune} (actuellement : ${uri_actuelles:-aucune}) ? [o/N] " uri_rep || uri_rep=""
+            [[ "$uri_rep" =~ ^[oOyY] ]] && uri_ok=1
+        else
+            warn "Pas de terminal : URI refusées inchangées (${uri_actuelles:-aucune}). Ajouter --yes pour confirmer sans question."
+        fi
+        if (( uri_ok )); then
+            uri_ancien=""; [[ -f "$uri_dst" ]] && uri_ancien=$(cat "$uri_dst")
+            mkdir -p "$snip"
+            uri_tmp=$(mktemp "$snip/.uri-desactivees.XXXXXX")
+            printf '%s' "$uri_nouveau" > "$uri_tmp" && chmod 644 "$uri_tmp" && mv -f "$uri_tmp" "$uri_dst"
+            if uri_erreur=$(run nginx -t 2>&1); then
+                if nginx_appliquer; then
+                    pass "URI refusées ($uri_n : ${uri_futures:-aucune}) dans $uri_dst ; nginx -t réussi, nginx $NGINX_APPLIQUE."
+                else
+                    warn "URI refusées ($uri_n) et nginx -t réussi, mais nginx n'a pas pu être $NGINX_APPLIQUE — systemctl status nginx --no-pager ; journalctl -u nginx -n 30 --no-pager."
+                fi
             else
-                warn "URI refusées ($uri_n) et nginx -t réussi, mais nginx n'a pas pu être $NGINX_APPLIQUE — systemctl status nginx --no-pager ; journalctl -u nginx -n 30 --no-pager."
+                if [[ -n "$uri_ancien" ]]; then printf '%s\n' "$uri_ancien" > "$uri_dst"; else printf '%s\n' "# vide — restauré après refus de nginx -t" > "$uri_dst"; fi
+                fail "nginx -t refuse la configuration avec les URI refusées — ancienne version restaurée, nginx NON rechargé."
+                printf '%s\n' "$uri_erreur" | head -8 | sed 's/^/        nginx -t : /'
             fi
         else
-            if [[ -n "$uri_ancien" ]]; then printf '%s\n' "$uri_ancien" > "$uri_dst"; else printf '%s\n' "# vide — restauré après refus de nginx -t" > "$uri_dst"; fi
-            fail "nginx -t refuse la configuration avec les URI refusées — ancienne version restaurée, nginx NON rechargé."
-            printf '%s\n' "$uri_erreur" | head -8 | sed 's/^/        nginx -t : /'
+            warn "URI refusées non modifiées (${uri_actuelles:-aucune})."
         fi
     fi
 fi

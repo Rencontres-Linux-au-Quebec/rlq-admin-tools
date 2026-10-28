@@ -1190,6 +1190,15 @@ Earlier history was archived outside this repository when this file was created.
 
 ## nginx-hardening.sh
 
+### 2.61.20261028.180500 - --disable-uri / --enable-uri: confirmation and list of refused paths
+
+- Title: Changing the refused paths asks for confirmation, after showing the paths refused now and after the change.
+- Reason: 2.60 applied the refusal of /shop during --update without any question, and nothing showed the list of refused paths.
+- Detail: Step 12c prints "URI refusées actuellement" and the list after the change. With a terminal: question [o/N], default no. Without a terminal: nothing is changed unless --yes is given (--yes is shared with --rollback). --check shows the pending change. Same rule as before: nginx -t before the reload, previous file restored on refusal.
+- Files: nginx-hardening.sh, CHANGELOG.md, nginx-tools-tests/test_nginx_uri.py.
+- Checks: test_nginx_uri (6 tests, including: no terminal and no --yes = nothing changed); with a pseudo terminal: answer n changes nothing, answer o writes the file and reloads (stub nginx). ShellCheck 0.11.0: clean.
+- Action required: to check the current refusal: grep location /etc/nginx/snippets/uri-desactivees.conf. To undo: --enable-uri /shop --update (asks first).
+
 ### 2.60.20261028.170500 - --disable-uri and --enable-uri: refuse a path of the Odoo site
 
 - Title: Refuse (404) a path of the Odoo site in every language, for example /shop, with --disable-uri; --enable-uri removes the refusal.

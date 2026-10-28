@@ -30,14 +30,14 @@ class UriRefusees(unittest.TestCase):
                 f.write("#!/bin/sh\nexit 0\n")
             os.chmod(os.path.join(self.tmp, "bin", nom), 0o755)
 
-    def lancer(self, ajouts, retraits):
+    def lancer(self, ajouts, retraits, oui=True):
         prog = (
             'set -uo pipefail\n'
             'pass(){ echo "PASS $*"; }; warn(){ echo "WARN $*"; }; fail(){ echo "FAIL $*"; }\n'
             'run(){ "$@"; }; nginx_appliquer(){ NGINX_APPLIQUE=rechargé; return 0; }\n'
             f'export PATH="{self.tmp}/bin:$PATH"\n'
             f'APP_NAME=odoo; CHECK_ONLY=0; NGINX_HARDENING_SNIPPETS_DIR="{self.snip}"\n'
-            f'DISABLE_URI_LIST=({" ".join(ajouts)}); ENABLE_URI_LIST=({" ".join(retraits)})\n'
+            f'DISABLE_URI_LIST=({" ".join(ajouts)}); ENABLE_URI_LIST=({" ".join(retraits)}); ROLLBACK_YES={1 if oui else 0}\n'
             + etape()
         )
         return subprocess.run(["bash", "-c", prog], capture_output=True, text=True)
@@ -51,6 +51,12 @@ class UriRefusees(unittest.TestCase):
         self.assertEqual(r.returncode, 0, r.stderr + r.stdout)
         self.assertIn("location ~ ^(/[A-Za-z0-9_-]+)?/shop(/|$) { return 404; }", self.lire())
         self.assertIn("# uri : /shop", self.lire())
+
+    def test_sans_confirmation_ni_terminal_rien_n_est_modifie(self):
+        r = self.lancer(['"/shop"'], [], oui=False)
+        self.assertEqual(r.returncode, 0, r.stderr + r.stdout)
+        self.assertFalse(os.path.exists(os.path.join(self.snip, "uri-desactivees.conf")))
+        self.assertIn("Pas de terminal", r.stdout)
 
     def test_point_echappe_dans_le_motif(self):
         self.lancer(['"/blog.x"'], [])
