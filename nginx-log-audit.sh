@@ -130,7 +130,7 @@ grep_q() { grep "$@" >/dev/null; }
 #                              ne peut pas le voir, le texte etant entre apostrophes (faux positif).
 trap 'ec=$?; echo "" >&2; echo "*** ARRÊT INATTENDU DU SCRIPT (code $ec) À LA LIGNE $LINENO ***" >&2; echo "*** Commande fautive : $BASH_COMMAND" >&2; echo "*** Si le rapport ci-dessus semble incomplet (ex. sections Top 10 absentes), c'\''est probablement la cause." >&2' ERR
 
-readonly SCRIPT_VERSION="2.52.20261026.230003"
+readonly SCRIPT_VERSION="2.53.20261028.100500"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
 # Chemin de ce programme (relances --investigate, --ban, --unban) : defini ICI, avant le bloc --ban qui l'utilise.
 SELF_PATH="$SCRIPT_DIR/$(basename "${BASH_SOURCE[0]}")"
@@ -167,6 +167,7 @@ DO_INIT_ALL=0
 LAST_HOURS=""
 BAN_IP=""
 UNBAN_IP=""
+DO_BAN_SQLI=0
 BAN_REASON=""
 DO_BAN_HISTORY=0
 DO_UNBAN_CHECK=0
@@ -225,6 +226,7 @@ while [[ $# -gt 0 ]]; do
         --fail2ban) DO_FAIL2BAN=1; shift ;;
         --init-all) DO_INIT_ALL=1; shift ;;
         --ban) BAN_IP="${2:-}"; shift 2 ;;
+        --ban-sqli) DO_BAN_SQLI=1; shift ;;
         --unban) UNBAN_IP="${2:-}"; shift 2 ;;
         --reason) BAN_REASON="${2:-}"; shift 2 ;;
         --reason=*) BAN_REASON="${1#--reason=}"; shift ;;
@@ -277,6 +279,7 @@ Options (par ordre alphabétique) :
   --app NAME                   application derrière nginx (profil apps/NAME.conf : odoo, bbb…) ; détectée par défaut
   --ban IP                     bannir IP au pare-feu (preuves affichées, justification et confirmation demandées)
   --ban-history                journal des bannissements et levées manuels : date, heure, justification, origine (lecture seule)
+  --ban-sqli                   bannir les adresses ayant envoyé une injection SQL dans le journal d'accès (liste et confirmation demandées, sauf --yes)
   --ban-threshold N            nombre d'indices à partir duquel le bannissement est proposé (défaut : 3)
   --changelog                  affiche le journal des modifications
   -c, --config FILE            fichier de configuration à lire SEUL (sinon : /etc/default/nginx-log-audit.conf, puis ~/.nginx-log-audit.conf ;
@@ -1490,6 +1493,61 @@ fi
 # (active + .N + .N.gz, decompressed on the fly) - the rest of the script then processes this merge exactly like
 # le fichier actif normal, sans distinction. Force le comportement "fichier complet" (comme --init) : la position
 # incrementale normale n'a pas de sens contre un fichier temporaire regenere a chaque appel.
+# --ban-sqli (2.53) : adresses ayant envoyé une injection SQL (UNION SELECT, EXTRACTVALUE, ORDER BY n, etc.) dans le journal
+# d'accès. Chaque adresse passe par --ban (mêmes protections : adresses de l'équipe, serveur, journal des bannissements).
+# Signature volontairement précise : un tri légitime (order=website_sequence asc) ne doit jamais correspondre.
+SQLI_RE='union([[:space:]]|%20|[+]|/[*])+(all([[:space:]]|%20|[+])+)?select|extractvalue[(]|updatexml[(]|order([[:space:]]|%20|[+])+by([[:space:]]|%20|[+])+[0-9]|elt[(][0-9]|concat[(]0x7e|sleep[(][0-9]|benchmark[(][0-9]'
+if [[ "$DO_BAN_SQLI" == "1" ]]; then
+    if [[ "$EUID" -ne 0 ]]; then
+        echo "ERREUR: --ban-sqli nécessite root (sudo)." >&2
+        exit 1
+    fi
+    echo "=============================================================="
+    echo " BANNISSEMENT DES SOURCES D'INJECTION SQL : $ACCESS_LOG"
+    echo "=============================================================="
+    echo "Recherche des requêtes d'injection SQL (lecture seule)..."
+    sqli_tmp=$(mktemp "${TMPDIR:-/tmp}/ban-sqli.XXXXXX") || { echo "ERREUR: fichier temporaire impossible." >&2; exit 1; }
+    grep -Ei -- "$SQLI_RE" "$ACCESS_LOG" 2>/dev/null | awk '{print $1}' | sort | uniq -c | sort -rn > "$sqli_tmp" || true
+    if [[ ! -s "$sqli_tmp" ]]; then
+        echo "${C_GREEN}Aucune injection SQL trouvée dans $ACCESS_LOG : rien à bannir.${C_RESET}"
+        rm -f "$sqli_tmp"
+        exit 0
+    fi
+    echo
+    echo "Adresses ayant tenté une injection SQL (requêtes : adresse) :"
+    while read -r nb ip; do
+        [[ -z "$ip" ]] && continue
+        if looks_like_ip "$ip"; then
+            printf '  %6s  %s\n' "$nb" "$ip"
+        else
+            printf '  %6s  %s   (ignorée : pas une adresse IP)\n' "$nb" "$ip"
+        fi
+    done < "$sqli_tmp"
+    echo
+    if [[ "$ASSUME_YES" != "1" ]]; then
+        if ! demander_oui "Bannir ces adresses au pare-feu ? [o/N] "; then
+            echo "Annulé : aucune adresse bannie."
+            rm -f "$sqli_tmp"
+            exit 0
+        fi
+    fi
+    n_ok=0; n_ko=0
+    while read -r nb ip; do
+        looks_like_ip "$ip" || continue
+        why="injection SQL (--ban-sqli) : $nb requête(s) dans $(basename "$ACCESS_LOG")"
+        if bash "$SELF_PATH" --ban "$ip" --yes --reason "$why" ${APP_FORCE:+--app "$APP_FORCE"} >/dev/null 2>&1; then
+            echo "${C_GREEN}[OK]${C_RESET} $ip banni ($nb requête(s))"
+            n_ok=$((n_ok+1))
+        else
+            echo "${C_YELLOW}[SKIP]${C_RESET} $ip non banni (adresse protégée ou erreur : nginx-log-audit.sh --ban $ip pour le détail)"
+            n_ko=$((n_ko+1))
+        fi
+    done < "$sqli_tmp"
+    rm -f "$sqli_tmp"
+    echo
+    echo "$n_ok adresse(s) bannie(s), $n_ko ignorée(s). Levée : nginx-log-audit.sh --unban IP"
+    exit 0
+fi
 ORIG_ACCESS_LOG="$ACCESS_LOG"
 INIT_ALL_TMP_FILES=()
 if [[ "$DO_INIT_ALL" == "1" ]]; then

@@ -1293,6 +1293,28 @@ Earlier history was archived outside this repository when this file was created.
 
 ## nginx-log-audit.sh
 
+### 2.53.20261028.100500 - --ban-sqli: ban the sources of SQL injection attempts found in the access log
+
+- Title: Option --ban-sqli bans the addresses that sent SQL injection attempts.
+- Reason: On 2026-10-28, automated SQL injection attempts against /es/shop?order= (UNION ALL SELECT, EXTRACTVALUE, ORDER BY n, comment sequences) came from about twenty addresses in a few minutes. Odoo rejected each one with HTTP 400, but no jail banned them: nothing in nginx or fail2ban watches the access log for these payloads.
+- Changes:
+  - New option --ban-sqli (no argument). It reads the active access log (ACCESS_LOG), keeps the lines matching SQLI_RE (UNION [ALL] SELECT, EXTRACTVALUE(, UPDATEXML(, ORDER BY <digit>, ELT(<digit>, CONCAT(0x7e, SLEEP(<digit>, BENCHMARK(<digit>), counts the requests per address, and lists them, most active first.
+  - Confirmation requested before banning (or no question with --yes). Each address is banned by calling --ban IP --yes --reason "injection SQL (--ban-sqli) : N requête(s) ...", so every protection of --ban applies (team addresses, server addresses, ban journal, --unban to undo).
+  - The option needs root, like --ban. Exit code 0 when nothing is found or when the run ends.
+  - Help text: new line for --ban-sqli, between --ban-history and --ban-threshold (alphabetical order kept).
+  - Files: nginx-log-audit.sh only.
+- Bugs fixed: none (new option).
+- Safeguards and edge cases:
+  - The signature is deliberately narrow: a legitimate sort such as order=website_sequence%20asc does not match (checked on sample lines).
+  - Addresses are only banned through --ban, never with a direct firewall command: protected addresses are refused there and reported as [SKIP].
+  - Lines that do not start with an IP address are listed as ignored.
+  - Temporary file created with mktemp and removed on every exit path of the option.
+- Checks:
+  - bash -n and ShellCheck (v0.11.0): no warning.
+  - Signature tested on five sample lines: the three injection lines match, a plain order= sort and a plain 200 request do not.
+  - nginx-tools-tests: test_nginx_log_audit (48 tests) OK; test_conventions for this changelog entry.
+- Action required: run `sudo nginx-log-audit.sh --ban-sqli` (confirmation shown) to ban the addresses already seen. Preventive jail (nginx-sqli filter, nginx rule on $args) is a separate change, not included here.
+
 ### 2.52.20261026.230003 - curl rate-limited instead of blocked; service-worker prefetch and icon requests no longer count as hostility
 
 - Title: curl is no longer blocked by user agent (nginx-odoo-config 1.12: one curl every 5 seconds; a second one in the window gets 429). The audit no longer counts service-worker prefetches as a page burst, nor browser icon requests as catch-all hostility.
