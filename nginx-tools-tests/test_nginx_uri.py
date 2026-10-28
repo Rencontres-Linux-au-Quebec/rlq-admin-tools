@@ -49,7 +49,7 @@ class UriRefusees(unittest.TestCase):
     def test_ajout_genere_une_location_par_chemin_toutes_langues(self):
         r = self.lancer(['"/shop"'], [])
         self.assertEqual(r.returncode, 0, r.stderr + r.stdout)
-        self.assertIn("location ~ ^(/[A-Za-z_-]+)?/shop(/|$) { return 404; }", self.lire())
+        self.assertIn("location ~ ^(/[A-Za-z0-9_-]+)?/shop(/|$) { return 404; }", self.lire())
         self.assertIn("# uri : /shop", self.lire())
 
     def test_point_echappe_dans_le_motif(self):

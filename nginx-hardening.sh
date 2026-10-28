@@ -2681,7 +2681,7 @@ if [[ "$APP_NAME" == "odoo" ]]; then
         mapfile -t uri_triees < <(printf '%s\n' "${!uri_liste[@]}" | sort)
         for u in "${uri_triees[@]}"; do uri_nouveau+="# uri : $u"$'\n'; done
         for u in "${uri_triees[@]}"; do
-            motif="^(/[A-Za-z_-]+)?${u//./\\.}(/|\$)"
+            motif="^(/[A-Za-z0-9_-]+)?${u//./\\.}(/|\$)"
             uri_nouveau+="location ~ $motif { return 404; }"$'\n'
         done
     fi
