@@ -1340,6 +1340,15 @@ Earlier history was archived outside this repository when this file was created.
 
 ## nginx-log-audit.sh
 
+### 2.57.20261028.165800 - --ban-sqli: colours for addresses that reached Odoo
+
+- Title: In the --ban-sqli list, addresses with a 2xx answer are shown in red, with a warning line, and a summary line before the question.
+- Reason: A 2xx answer means the request reached Odoo (not refused by nginx). That is the information that matters most before banning.
+- Detail: Red for the address, status and warning line when a status is 2xx; magenta for the other addresses (refused 404); bold for the SQL pattern. Colours only on a terminal (no codes when redirected).
+- Files: nginx-log-audit.sh, CHANGELOG.md.
+- Checks: sample logs with one 200 and one 404: colour codes in the right places; the answer "n" banned nothing. ShellCheck 0.11.0: clean.
+- Action required: none.
+
 ### 2.56.20261028.164512 - --ban-sqli shows the details of each address before the confirmation
 
 - Title: For each address that attempted an SQL injection: first and last date, status codes, sources, SQL pattern found, user agents and an example request.
