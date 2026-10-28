@@ -1190,6 +1190,15 @@ Earlier history was archived outside this repository when this file was created.
 
 ## nginx-hardening.sh
 
+### 2.63.20261028.190500 - A reload refused by nginx is reported as a failure
+
+- Title: After a reload, the error log is read: a new [emerg] line means nginx refused the new configuration and kept the old one.
+- Reason: On the server, nginx refused every reload since 11:11 (limit_req zone odoo_general: key changed from $limit_key_general to $limit_key_general_std), yet systemd reported "Reloaded" and the script announced "nginx rechargé". The rules of the last updates were never active.
+- Detail: nginx_appliquer keeps the reload exit code, waits NGINX_HARDENING_RELOAD_WAIT seconds (1 by default), compares the number of [emerg] lines in NGINX_HARDENING_ERROR_LOG (default /var/log/nginx/error.log) before and after, and prints the last [emerg] line. Callers already print "nginx n'a pas pu être rechargé" on failure, and the previous files are restored when nginx -t refuses.
+- Files: nginx-hardening.sh, CHANGELOG.md.
+- Checks: stub systemctl: reload without error reports success; reload that adds an [emerg] line reports the refusal. ShellCheck 0.11.0: clean.
+- Cause to fix on the server (not done by this version): a zone whose key changed needs a restart, or a new zone name so that a reload is accepted. Action required: decide between a short restart (sudo nginx -t then sudo systemctl restart nginx) and a renamed zone in the repository.
+
 ### 2.62.20261028.181500 - --update checks over HTTP that refused paths answer 404
 
 - Title: After a change of refused paths, --update requests each refused path on every public name (and under /es) and reports any answer other than 404.

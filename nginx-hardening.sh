@@ -86,7 +86,7 @@ run() {
     "$@"
 }
 
-readonly SCRIPT_VERSION="2.62.20261028.181500"
+readonly SCRIPT_VERSION="2.63.20261028.190500"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
 SCRIPT_NAME="$(basename "${BASH_SOURCE[0]}" .sh)"; readonly SCRIPT_NAME
 # Display language (en or fr): --lang, NGINX_HARDENING_LANG, LANGUAGE of the configuration file, LC_ALL / LANG - apps/_i18n.sh translates the output (nothing changes in French).
@@ -458,13 +458,26 @@ fragments_generes_assurer() {
 # Returns 0 if nginx runs with the new configuration. NGINX_APPLIQUE = "reloaded" or "started" (for the message).
 NGINX_APPLIQUE=""
 nginx_appliquer() {
+    # 2.63 : systemd annonce « Reloaded » même quand nginx REFUSE la nouvelle configuration au rechargement (zone limit_req
+    # de clé différente, par exemple) : il garde alors l'ancienne. Le journal d'erreurs est donc relu après le rechargement :
+    # une nouvelle ligne [emerg] = échec, signalé comme tel.
+    local journal="${NGINX_HARDENING_ERROR_LOG:-/var/log/nginx/error.log}" avant=0 apres=0 ligne
+    avant=$(grep -c '\[emerg\]' "$journal" 2>/dev/null) || avant=0
     if run systemctl is-active --quiet nginx 2>/dev/null; then
         NGINX_APPLIQUE="rechargé"
-        run systemctl reload nginx >/dev/null 2>&1
+        run systemctl reload nginx >/dev/null 2>&1 || return 1
     else
         NGINX_APPLIQUE="démarré (il était arrêté)"
-        run systemctl start nginx >/dev/null 2>&1
+        run systemctl start nginx >/dev/null 2>&1 || return 1
     fi
+    sleep "${NGINX_HARDENING_RELOAD_WAIT:-1}"
+    apres=$(grep -c '\[emerg\]' "$journal" 2>/dev/null) || apres=0
+    if (( apres > avant )); then
+        ligne=$(grep '\[emerg\]' "$journal" 2>/dev/null | tail -n 1)
+        echo "        nginx a refusé la configuration au rechargement : ${ligne:-voir $journal}" >&2
+        return 1
+    fi
+    return 0
 }
 
 # creer_modele DESTINATION MODELE: creates the file (mode 644) from doc/MODELE shipped with the programs, otherwise a minimal header.
