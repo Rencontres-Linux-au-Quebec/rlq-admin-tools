@@ -1340,6 +1340,16 @@ Earlier history was archived outside this repository when this file was created.
 
 ## nginx-log-audit.sh
 
+### 2.59.20261028.174500 - --ban-sqli: skip addresses already banned
+
+- Title: --ban-sqli bans only the addresses that are not already banned, and says where each one is banned.
+- Reason: A second run banned the same addresses again and printed [OK] for each, which hid the real state.
+- Detail: New function ip_deja_bannie (iptables -C INPUT DROP, ufw deny, fail2ban banned lists). In the detail, a line "déjà bannie : ..."; during the ban, [DÉJÀ] and no ban call. The summary gives the counts: banned now, already banned, not banned.
+- Files: nginx-log-audit.sh, CHANGELOG.md.
+- Checks: test with a fake iptables (one address already in DROP): it is skipped and marked, the others are not changed. ShellCheck 0.11.0: clean.
+- Note: a fail2ban ban expires after its duration (24 h on this server): an address banned only by fail2ban is counted as already banned until it expires.
+- Action required: none.
+
 ### 2.58.20261028.173500 - --ban-sqli: first and last date on one line
 
 - Title: The first and last dates of each address are printed on one line, separated by two tabulations.

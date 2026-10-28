@@ -130,7 +130,7 @@ grep_q() { grep "$@" >/dev/null; }
 #                              ne peut pas le voir, le texte etant entre apostrophes (faux positif).
 trap 'ec=$?; echo "" >&2; echo "*** ARRÊT INATTENDU DU SCRIPT (code $ec) À LA LIGNE $LINENO ***" >&2; echo "*** Commande fautive : $BASH_COMMAND" >&2; echo "*** Si le rapport ci-dessus semble incomplet (ex. sections Top 10 absentes), c'\''est probablement la cause." >&2' ERR
 
-readonly SCRIPT_VERSION="2.58.20261028.173500"
+readonly SCRIPT_VERSION="2.59.20261028.174500"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
 # Chemin de ce programme (relances --investigate, --ban, --unban) : defini ICI, avant le bloc --ban qui l'utilise.
 SELF_PATH="$SCRIPT_DIR/$(basename "${BASH_SOURCE[0]}")"
@@ -1497,6 +1497,22 @@ fi
 # d'accès. Chaque adresse passe par --ban (mêmes protections : adresses de l'équipe, serveur, journal des bannissements).
 # Signature volontairement précise : un tri légitime (order=website_sequence asc) ne doit jamais correspondre.
 SQLI_RE='union([[:space:]]|%20|[+]|/[*])+(all([[:space:]]|%20|[+])+)?select|extractvalue[(]|updatexml[(]|order([[:space:]]|%20|[+])+by([[:space:]]|%20|[+])+[0-9]|elt[(][0-9]|concat[(]0x7e|sleep[(][0-9]|benchmark[(][0-9]|information_schema|waitfor([[:space:]]|%20|[+])+delay'
+# ip_deja_bannie IP : affiche où l'adresse est déjà bannie (pare-feu iptables, ufw, jails fail2ban) et retourne 0 ; sinon retourne 1.
+ip_deja_bannie() {
+    local ip="$1" ou=() j
+    if [[ "$ip" != *:* ]] && command -v iptables >/dev/null 2>&1 && run iptables -C INPUT -s "$ip" -j DROP 2>/dev/null; then ou+=("pare-feu iptables"); fi
+    if ufw_active && run ufw status 2>/dev/null | awk '/DENY/ {print $NF}' | grep_q -xF -- "$ip"; then ou+=("pare-feu ufw"); fi
+    if command -v fail2ban-client >/dev/null 2>&1 && run fail2ban-client ping >/dev/null 2>&1; then
+        for j in $(run fail2ban-client status 2>/dev/null | sed -n 's/.*Jail list:[[:space:]]*//p' | tr ',' ' '); do
+            if run fail2ban-client status "$j" 2>/dev/null | sed -n 's/.*Banned IP list:[[:space:]]*//p' | tr ' ' '\n' | grep_q -xF -- "$ip"; then ou+=("fail2ban $j"); fi
+        done
+    fi
+    (( ${#ou[@]} == 0 )) && return 1
+    local IFS=', '
+    echo "${ou[*]}"
+    return 0
+}
+
 if [[ "$DO_BAN_SQLI" == "1" ]]; then
     if [[ "$EUID" -ne 0 ]]; then
         echo "ERREUR: --ban-sqli nécessite root (sudo)." >&2
@@ -1570,6 +1586,7 @@ if [[ "$DO_BAN_SQLI" == "1" ]]; then
         printf '      motif(s) SQL : %s%s%s\n' "$C_BOLD" "$toks" "$C_RESET"
         printf '      agent(s) : %s\n' "$uas"
         printf '      requête : %s\n' "$ex"
+        if deja=$(ip_deja_bannie "$ip"); then printf '      %sdéjà bannie : %s%s\n' "$C_BOLD" "$deja" "$C_RESET"; fi
     done < "$sqli_sum"
     echo
     n_reussi=$(awk -F'\037' -v re="$RE_REUSSI" '$5 ~ re' "$sqli_sum" | wc -l)
@@ -1584,9 +1601,14 @@ if [[ "$DO_BAN_SQLI" == "1" ]]; then
             exit 0
         fi
     fi
-    n_ok=0; n_ko=0
+    n_ok=0; n_ko=0; n_deja=0
     while IFS=$'\037' read -r nb ip _; do
         looks_like_ip "$ip" || continue
+        if deja=$(ip_deja_bannie "$ip"); then
+            echo "${C_BOLD}[DÉJÀ]${C_RESET} $ip déjà bannie ($deja) : rien à faire"
+            n_deja=$((n_deja+1))
+            continue
+        fi
         why="injection SQL (--ban-sqli) : $nb requête(s) dans $(basename "$ACCESS_LOG")"
         if bash "$SELF_PATH" --ban "$ip" --yes --reason "$why" ${APP_FORCE:+--app "$APP_FORCE"} >/dev/null 2>&1; then
             echo "${C_GREEN}[OK]${C_RESET} $ip banni ($nb requête(s))"
@@ -1598,7 +1620,7 @@ if [[ "$DO_BAN_SQLI" == "1" ]]; then
     done < "$sqli_sum"
     rm -rf "$sqli_dir"
     echo
-    echo "$n_ok adresse(s) bannie(s), $n_ko ignorée(s). Levée : nginx-log-audit.sh --unban IP"
+    echo "$n_ok adresse(s) bannie(s) maintenant, $n_deja déjà bannie(s) (ignorée(s)), $n_ko non bannie(s). Levée : nginx-log-audit.sh --unban IP"
     exit 0
 fi
 ORIG_ACCESS_LOG="$ACCESS_LOG"
