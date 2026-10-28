@@ -1,0 +1,540 @@
+#!/usr/bin/env bash
+# ========================================================================================================================
+# Copyright (C) 2026 Services-Conseils Linux Inc.
+# Copyright (C) 2026 Rencontres Linux au Quebec contributors
+#
+# This program is free software: you can redistribute it and/or modify it under the terms of the GNU Affero General Public
+# License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
+# Full text: https://www.gnu.org/licenses/agpl-3.0.html
+# ========================================================================================================================
+#
+# odoo-sql-maint - menu-driven runner for maintenance SQL queries on an Odoo PostgreSQL database.
+# odoo-sql-maint - lanceur de menu pour les requetes SQL de maintenance sur une base PostgreSQL d'Odoo.
+#
+# Every query runs inside a transaction: COMMIT for a real run, ROLLBACK for a dry run. Destructive queries ask for
+# confirmation and are refused on databases whose name matches PROD_PATTERN unless --yes is given.
+#
+# Config files read, in this order (the later file overrides the earlier one):
+#   /etc/default/odoo-sql-maint.conf
+#   ~/.odoo-sql-maint.conf
+# Command-line options override both. --config FILE reads only FILE.
+# Passwords are never stored in a config file: use ~/.pgpass (chmod 600).
+#
+# Usage / Utilisation : odoo-sql-maint [OPTION]...   (sans option : menu dialog)
+#
+# Options (par ordre alphabetique) : see --help / voir --help
+
+__version__="1.2.20261028.181641"
+
+set -u
+set -o pipefail
+
+PROGRAM="odoo-sql-maint"
+SCRIPT_PATH="$(readlink -f "$0")"
+SCRIPT_DIR="$(dirname "$SCRIPT_PATH")"
+
+# ---------- defaults (lowest priority) ----------
+PG_HOST="localhost"
+PG_PORT="5432"
+PG_USER="odoo"
+PG_DATABASE=""
+DIALOG_BIN="dialog"
+LOG_FILE=""
+UI_LANG=""
+PROD_PATTERN="prod"    # regex: destructive runs on matching database names need --yes
+
+CONFIG_FILES_READ=()
+CONFIG_OVERRIDE=""
+ACTION="menu"
+RUN_NAME=""
+ASSUME_YES=0
+DRY_RUN=0
+VERBOSE=0
+CLI_DATABASE=""
+CLI_LANG=""
+LAST_OUTFILE=""
+PSQL_ARGS=()
+USE_COLOR=0
+C_OPT=""
+C_VER=""
+C_ERR=""
+C_RST=""
+
+# ---------- user-visible messages (French and English) ----------
+declare -A MSG_EN MSG_FR
+
+MSG_EN[title]="Odoo SQL maintenance"
+MSG_FR[title]="Maintenance SQL Odoo"
+MSG_EN[menu]="Choose a query (database: %s)"
+MSG_FR[menu]="Choisir une requete (base : %s)"
+MSG_EN[action]="Action for: %s"
+MSG_FR[action]="Action pour : %s"
+MSG_EN[act_run]="Run"
+MSG_FR[act_run]="Executer"
+MSG_EN[act_dry]="Dry run (rollback at the end)"
+MSG_FR[act_dry]="Simulation (annulation a la fin)"
+MSG_EN[act_cancel]="Back"
+MSG_FR[act_cancel]="Retour"
+MSG_EN[exit]="Quit"
+MSG_FR[exit]="Quitter"
+MSG_EN[destructive]="destructive"
+MSG_FR[destructive]="destructive"
+MSG_EN[confirm]="This query modifies data. Really run it on '%s'?"
+MSG_FR[confirm]="Cette requete modifie des donnees. Vraiment l'executer sur '%s' ?"
+MSG_EN[confirm_cli]="Type YES to run on '%s': "
+MSG_FR[confirm_cli]="Tapez OUI pour executer sur '%s' : "
+MSG_EN[blocked]="Refused: database '%s' matches the protected pattern '%s'. Use --yes to force."
+MSG_FR[blocked]="Refuse : la base '%s' correspond au motif protege '%s'. Utilisez --yes pour forcer."
+MSG_EN[no_db]="No database set. Use --database or PG_DATABASE in a config file."
+MSG_FR[no_db]="Aucune base definie. Utilisez --database ou PG_DATABASE dans un fichier de config."
+MSG_EN[bad_db]="Invalid database name: %s"
+MSG_FR[bad_db]="Nom de base invalide : %s"
+MSG_EN[no_dialog]="'%s' is required (ex. apt install dialog), or use --run."
+MSG_FR[no_dialog]="'%s' est requis (ex. apt install dialog), ou utilisez --run."
+MSG_EN[no_psql]="psql is required (apt install postgresql-client)."
+MSG_FR[no_psql]="psql est requis (apt install postgresql-client)."
+MSG_EN[no_changelog]="CHANGELOG.md not found."
+MSG_FR[no_changelog]="CHANGELOG.md introuvable."
+MSG_EN[no_config]="Config file not readable: %s"
+MSG_FR[no_config]="Fichier de config illisible : %s"
+MSG_EN[bad_option]="Unknown option: %s (see --help)"
+MSG_FR[bad_option]="Option inconnue : %s (voir --help)"
+MSG_EN[missing_value]="Option %s needs a value."
+MSG_FR[missing_value]="L'option %s demande une valeur."
+MSG_EN[bad_language]="Unknown language: %s (use fr or en)."
+MSG_FR[bad_language]="Langue inconnue : %s (utilisez fr ou en)."
+MSG_EN[bad_query]="Unknown query: %s (see --list)"
+MSG_FR[bad_query]="Requete inconnue : %s (voir --list)"
+MSG_EN[refused_noyes]="Destructive query needs --yes when no terminal is attached."
+MSG_FR[refused_noyes]="Requete destructive : --yes requis sans terminal."
+MSG_EN[cancelled]="Cancelled."
+MSG_FR[cancelled]="Annule."
+MSG_EN[done_ok]="Query finished (exit %s)."
+MSG_FR[done_ok]="Requete terminee (code %s)."
+MSG_EN[done_fail]="Query failed (exit %s). See the output above."
+MSG_FR[done_fail]="Echec de la requete (code %s). Voir la sortie ci-dessus."
+MSG_EN[config_read]="Config read: %s"
+MSG_FR[config_read]="Config lue : %s"
+MSG_EN[config_none]="none"
+MSG_FR[config_none]="aucune"
+
+t() {  # t KEY [printf-args...]
+  local key="$1"
+  shift
+  local fmt
+  if [[ "$UI_LANG" == "fr" ]]; then
+    fmt="${MSG_FR[$key]:-$key}"
+  else
+    fmt="${MSG_EN[$key]:-$key}"
+  fi
+  # shellcheck disable=SC2059
+  printf "$fmt" "$@"
+}
+
+# ---------- query catalog (add new queries here) ----------
+# Each query needs: an entry in QUERY_NAMES, Q_SQL, Q_DESC_EN, Q_DESC_FR,
+# and Q_DESTRUCTIVE=1 if it deletes or changes data.
+QUERY_NAMES=(connection-test vapid-status push-count push-purge vapid-neutralize)
+declare -A Q_SQL Q_DESC_EN Q_DESC_FR Q_DESTRUCTIVE
+
+Q_SQL[connection-test]="SELECT version();"
+Q_DESC_EN[connection-test]="Test the connection (server version)"
+Q_DESC_FR[connection-test]="Tester la connexion (version du serveur)"
+
+Q_SQL[vapid-status]="SELECT key, length(value) AS length, left(value, 6) AS starts_with FROM ir_config_parameter WHERE key LIKE 'mail.web_push%' ORDER BY key;"
+Q_DESC_EN[vapid-status]="Show VAPID key state (length and first 6 characters only)"
+Q_DESC_FR[vapid-status]="Etat des cles VAPID (longueur et 6 premiers caracteres seulement)"
+
+Q_SQL[push-count]="SELECT count(*) AS push_devices FROM mail_push_device;"
+Q_DESC_EN[push-count]="Count push subscriptions"
+Q_DESC_FR[push-count]="Compter les abonnements push"
+
+Q_SQL[push-purge]="DELETE FROM mail_push_device;"
+Q_DESC_EN[push-purge]="Delete all push subscriptions (copied from PROD)"
+Q_DESC_FR[push-purge]="Supprimer tous les abonnements push (copies de PROD)"
+Q_DESTRUCTIVE[push-purge]=1
+
+Q_SQL[vapid-neutralize]="DELETE FROM ir_config_parameter WHERE key IN ('mail.web_push_vapid_private_key', 'mail.web_push_vapid_public_key');"
+Q_DESC_EN[vapid-neutralize]="Delete VAPID keys (Odoo regenerates them when needed)"
+Q_DESC_FR[vapid-neutralize]="Supprimer les cles VAPID (Odoo les regenere au besoin)"
+Q_DESTRUCTIVE[vapid-neutralize]=1
+
+# ---------- helpers ----------
+cleanup_temp() {
+  if [[ -n "$LAST_OUTFILE" ]]; then
+    rm -f -- "$LAST_OUTFILE"
+  fi
+  LAST_OUTFILE=""
+}
+
+init_colors() {
+  if [[ -t 1 && -z "${NO_COLOR:-}" && "${TERM:-dumb}" != "dumb" ]]; then
+    C_OPT=$'\e[1;36m'
+    C_VER=$'\e[1;33m'
+    C_ERR=$'\e[1;31m'
+    C_RST=$'\e[0m'
+    USE_COLOR=1
+  fi
+}
+
+query_desc() {
+  if [[ "$UI_LANG" == "fr" ]]; then
+    printf '%s' "${Q_DESC_FR[$1]}"
+  else
+    printf '%s' "${Q_DESC_EN[$1]}"
+  fi
+}
+
+notify() {  # notify INTERFACE TEXT
+  if [[ "$1" == "dialog" ]]; then
+    "$DIALOG_BIN" --msgbox "$2" 9 72 || true
+  else
+    printf '%s%s%s\n' "$C_ERR" "$2" "$C_RST" >&2
+  fi
+}
+
+log_line() {  # log_line QUERY MODE RESULT
+  [[ -n "$LOG_FILE" ]] || return 0
+  printf '%s %s db=%s user=%s query=%s mode=%s result=%s\n' \
+    "$(date '+%Y-%m-%d %H:%M:%S %Z')" "$PROGRAM" "$PG_DATABASE" "$PG_USER" \
+    "$1" "$2" "$3" >> "$LOG_FILE" 2>/dev/null || true
+}
+
+load_config_file() {  # load_config_file PATH
+  local file="$1" line key value
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    line="${line%%#*}"
+    [[ "$line" =~ ^[[:space:]]*([A-Z_]+)[[:space:]]*=[[:space:]]*(.*)$ ]] || continue
+    key="${BASH_REMATCH[1]}"
+    value="${BASH_REMATCH[2]}"
+    value="${value%"${value##*[![:space:]]}"}"
+    value="${value#\"}"
+    value="${value%\"}"
+    case "$key" in
+      PG_HOST|PG_PORT|PG_USER|PG_DATABASE|DIALOG_BIN|LOG_FILE|PROD_PATTERN|UI_LANG)
+        printf -v "$key" '%s' "$value"
+        ;;
+    esac
+  done < "$file"
+  CONFIG_FILES_READ+=("$file")
+}
+
+load_configuration() {
+  local file
+  if [[ -n "$CONFIG_OVERRIDE" ]]; then
+    if [[ ! -r "$CONFIG_OVERRIDE" ]]; then
+      printf '%s\n' "$(t no_config "$CONFIG_OVERRIDE")" >&2
+      exit 2
+    fi
+    load_config_file "$CONFIG_OVERRIDE"
+  else
+    for file in /etc/default/odoo-sql-maint.conf "$HOME/.odoo-sql-maint.conf"; do
+      if [[ -r "$file" ]]; then
+        load_config_file "$file"
+      fi
+    done
+  fi
+  if [[ -n "$CLI_DATABASE" ]]; then
+    PG_DATABASE="$CLI_DATABASE"
+  fi
+  if [[ -n "$CLI_LANG" ]]; then
+    UI_LANG="$CLI_LANG"
+  fi
+  if [[ "$VERBOSE" -eq 1 ]]; then
+    printf '%s\n' "$(t config_read "${CONFIG_FILES_READ[*]:-$(t config_none)}")" >&2
+  fi
+}
+
+resolve_language() {
+  if [[ -z "$UI_LANG" ]]; then
+    case "${LANG:-fr}" in
+      en*) UI_LANG="en" ;;
+      *)   UI_LANG="fr" ;;
+    esac
+  fi
+  case "$UI_LANG" in
+    fr|en) ;;
+    *) UI_LANG="en" ;;
+  esac
+}
+
+check_psql() {
+  if ! command -v psql >/dev/null 2>&1; then
+    printf '%s\n' "$(t no_psql)" >&2
+    exit 3
+  fi
+}
+
+check_dialog() {
+  if ! command -v "$DIALOG_BIN" >/dev/null 2>&1; then
+    printf '%s\n' "$(t no_dialog "$DIALOG_BIN")" >&2
+    exit 3
+  fi
+}
+
+psql_base_args() {
+  PSQL_ARGS=(-X -q -v ON_ERROR_STOP=1 -h "$PG_HOST" -p "$PG_PORT" -U "$PG_USER" -d "$PG_DATABASE" -P pager=off)
+}
+
+# run_query NAME MODE(run|dry) OUTFILE
+# Wraps the query in a transaction: COMMIT for run, ROLLBACK for dry.
+run_query() {
+  local name="$1" mode="$2" outfile="$3" rc
+  {
+    echo "BEGIN;"
+    echo "${Q_SQL[$name]}"
+    if [[ "$mode" == "dry" ]]; then
+      echo "ROLLBACK;"
+    else
+      echo "COMMIT;"
+    fi
+  } | psql "${PSQL_ARGS[@]}" > "$outfile" 2>&1
+  rc=$?
+  log_line "$name" "$mode" "$rc"
+  return "$rc"
+}
+
+# execute_query NAME MODE(run|dry) INTERFACE(dialog|cli)
+# Returns 0 on success, 1 on SQL failure, 4 when refused or cancelled.
+execute_query() {
+  local name="$1" mode="$2" ui="$3" rc answer=""
+  cleanup_temp
+
+  if [[ -z "$PG_DATABASE" ]]; then
+    notify "$ui" "$(t no_db)"
+    return 4
+  fi
+  if [[ ! "$PG_DATABASE" =~ ^[A-Za-z0-9_.-]+$ ]]; then
+    notify "$ui" "$(t bad_db "$PG_DATABASE")"
+    return 4
+  fi
+
+  if [[ "${Q_DESTRUCTIVE[$name]:-0}" == "1" && "$mode" == "run" ]]; then
+    if [[ -n "$PROD_PATTERN" && "$ASSUME_YES" -ne 1 && "$PG_DATABASE" =~ $PROD_PATTERN ]]; then
+      notify "$ui" "$(t blocked "$PG_DATABASE" "$PROD_PATTERN")"
+      return 4
+    fi
+    if [[ "$ASSUME_YES" -ne 1 ]]; then
+      if [[ "$ui" == "dialog" ]]; then
+        if ! "$DIALOG_BIN" --yesno "$(t confirm "$PG_DATABASE")" 8 72; then
+          notify "$ui" "$(t cancelled)"
+          return 4
+        fi
+      elif [[ -t 0 ]]; then
+        read -r -p "$(t confirm_cli "$PG_DATABASE")" answer
+        if [[ "$answer" != "YES" && "$answer" != "OUI" ]]; then
+          notify "$ui" "$(t cancelled)"
+          return 4
+        fi
+      else
+        notify "$ui" "$(t refused_noyes)"
+        return 4
+      fi
+    fi
+  fi
+
+  LAST_OUTFILE="$(mktemp)"
+  run_query "$name" "$mode" "$LAST_OUTFILE"
+  rc=$?
+  if [[ "$rc" -eq 0 ]]; then
+    printf '\n%s\n' "$(t done_ok "$rc")" >> "$LAST_OUTFILE"
+    return 0
+  fi
+  printf '\n%s\n' "$(t done_fail "$rc")" >> "$LAST_OUTFILE"
+  return 1
+}
+
+run_menu() {
+  local choice action name
+  local -a items
+  while true; do
+    items=()
+    for name in "${QUERY_NAMES[@]}"; do
+      items+=("$name" "$(query_desc "$name")")
+    done
+    items+=("quit" "$(t exit)")
+    choice="$("$DIALOG_BIN" --stdout --title "$(t title)" \
+      --menu "$(t menu "$PG_DATABASE")" 22 100 12 "${items[@]}")" || break
+    [[ "$choice" == "quit" ]] && break
+
+    action="$("$DIALOG_BIN" --stdout --title "$(t title)" \
+      --menu "$(t action "$choice")" 12 72 3 \
+      run "$(t act_run)" dry "$(t act_dry)" back "$(t act_cancel)")" || continue
+    [[ "$action" == "back" ]] && continue
+
+    execute_query "$choice" "$action" dialog || true
+    if [[ -n "$LAST_OUTFILE" && -s "$LAST_OUTFILE" ]]; then
+      "$DIALOG_BIN" --title "$(t title)" --textbox "$LAST_OUTFILE" 22 100 || true
+    fi
+    cleanup_temp
+  done
+}
+
+run_cli() {  # run_cli NAME
+  local name="$1" mode="run" rc
+  if [[ -z "${Q_SQL[$name]:-}" ]]; then
+    printf '%s%s%s\n' "$C_ERR" "$(t bad_query "$name")" "$C_RST" >&2
+    return 2
+  fi
+  if [[ "$DRY_RUN" -eq 1 ]]; then
+    mode="dry"
+  fi
+  execute_query "$name" "$mode" cli
+  rc=$?
+  if [[ -n "$LAST_OUTFILE" && -s "$LAST_OUTFILE" ]]; then
+    cat -- "$LAST_OUTFILE"
+  fi
+  cleanup_temp
+  return "$rc"
+}
+
+list_queries() {
+  local name flag line
+  for name in "${QUERY_NAMES[@]}"; do
+    flag=""
+    if [[ "${Q_DESTRUCTIVE[$name]:-0}" == "1" ]]; then
+      flag=" [$(t destructive)]"
+    fi
+    printf -v line '%s%-18s%s %s%s\n' "$C_OPT" "$name" "$C_RST" "$(query_desc "$name")" "$flag"
+    # A closed pipe (ex. | head) is not an error: stop quietly.
+    printf '%s' "$line" 2>/dev/null || return 0
+  done
+}
+
+# Prints only this program's section of CHANGELOG.md ("## odoo-sql-maint"), version numbers in colour.
+show_changelog() {
+  local file="" candidate
+  for candidate in \
+    "$SCRIPT_DIR/CHANGELOG.md" \
+    "/usr/local/share/doc/odoo-sql-maint/CHANGELOG.md" \
+    "/usr/share/doc/odoo-sql-maint/CHANGELOG.md"; do
+    if [[ -r "$candidate" ]]; then
+      file="$candidate"
+      break
+    fi
+  done
+  if [[ -z "$file" ]]; then
+    printf '%s\n' "$(t no_changelog)" >&2
+    return 2
+  fi
+  # Errors from awk on a closed pipe are ignored on purpose.
+  awk -v sect="## $PROGRAM" -v on="$USE_COLOR" -v ver="$C_VER" -v rst="$C_RST" '
+    /^## / { show = ($0 == sect); if (!show) next }
+    !show { next }
+    /^### / && (on + 0) && match($0, /[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+/) {
+      printf "%s%s%s%s%s\n", substr($0, 1, RSTART - 1), ver,
+        substr($0, RSTART, RLENGTH), rst, substr($0, RSTART + RLENGTH)
+      next
+    }
+    { print }
+  ' "$file" 2>/dev/null || true
+}
+
+show_help() {
+  cat <<EOF
+Usage / Utilisation: $PROGRAM [options]
+
+Options (alphabetical / ordre alphabetique):
+  ${C_OPT}--changelog${C_RST}        Show this program's changelog / Afficher le journal de ce programme
+  ${C_OPT}--config FILE${C_RST}      Read only FILE / Lire seulement FILE
+  ${C_OPT}--database NAME${C_RST}    Target database / Base cible
+  ${C_OPT}--dry-run${C_RST}          With --run: roll back at the end / Avec --run : annuler a la fin
+  ${C_OPT}--help${C_RST}             Show this help / Afficher cette aide
+  ${C_OPT}--language LANG${C_RST}    Interface language, fr or en / Langue de l'interface, fr ou en
+  ${C_OPT}--list${C_RST}             List available queries / Lister les requetes
+  ${C_OPT}--run NAME${C_RST}         Run one query without the menu / Executer une requete sans menu
+  ${C_OPT}--verbose${C_RST}          Show the config files read / Afficher les fichiers de config lus
+  ${C_OPT}--version${C_RST}          Show the version / Afficher la version
+  ${C_OPT}--yes${C_RST}              Skip confirmations, for scripts / Sans confirmation, pour les scripts
+
+Config files / Fichiers de config (later overrides earlier; command line overrides all):
+  /etc/default/odoo-sql-maint.conf
+  ~/.odoo-sql-maint.conf
+  Key options / Options principales: PG_HOST, PG_PORT, PG_USER, PG_DATABASE (target base / base cible),
+  LOG_FILE (audit log / journal d'audit), PROD_PATTERN (destructive runs need --yes / --yes requis),
+  UI_LANG (fr or en), DIALOG_BIN.
+
+$(t config_read "${CONFIG_FILES_READ[*]:-$(t config_none)}")
+EOF
+}
+
+parse_args() {
+  local opt val
+  while [[ $# -gt 0 ]]; do
+    opt="$1"
+    val=""
+    case "$opt" in
+      --*=*)
+        val="${opt#*=}"
+        opt="${opt%%=*}"
+        ;;
+      --config|--database|--language|--run)
+        if [[ $# -lt 2 ]]; then
+          printf '%s\n' "$(t missing_value "$opt")" >&2
+          exit 2
+        fi
+        val="$2"
+        shift
+        ;;
+    esac
+    case "$opt" in
+      --changelog) ACTION="changelog" ;;
+      --config)    CONFIG_OVERRIDE="$val" ;;
+      --database)  CLI_DATABASE="$val" ;;
+      --dry-run)   DRY_RUN=1 ;;
+      --help)      ACTION="help" ;;
+      --language)
+        case "$val" in
+          fr|en) CLI_LANG="$val" ;;
+          *)
+            printf '%s\n' "$(t bad_language "$val")" >&2
+            exit 2
+            ;;
+        esac
+        ;;
+      --list)      ACTION="list" ;;
+      --run)       ACTION="run"; RUN_NAME="$val" ;;
+      --verbose)   VERBOSE=1 ;;
+      --version)   ACTION="version" ;;
+      --yes)       ASSUME_YES=1 ;;
+      *)
+        printf '%s\n' "$(t bad_option "$opt")" >&2
+        exit 2
+        ;;
+    esac
+    shift
+  done
+}
+
+main() {
+  trap cleanup_temp EXIT
+  trap 'exit 0' PIPE    # quiet exit when the output pipe is closed (ex. | head)
+
+  parse_args "$@"
+  init_colors
+
+  case "$ACTION" in
+    version)   printf '%s %s\n' "$PROGRAM" "$__version__"; return 0 ;;
+    changelog) show_changelog; return $? ;;
+  esac
+
+  load_configuration
+  resolve_language
+
+  case "$ACTION" in
+    help) show_help; return 0 ;;
+    list) list_queries; return 0 ;;
+  esac
+
+  check_psql
+  psql_base_args
+
+  case "$ACTION" in
+    run)  run_cli "$RUN_NAME"; return $? ;;
+    menu) check_dialog; run_menu ;;
+  esac
+  return 0
+}
+
+main "$@"
+exit $?
