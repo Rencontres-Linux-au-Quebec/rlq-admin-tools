@@ -130,7 +130,7 @@ grep_q() { grep "$@" >/dev/null; }
 #                              ne peut pas le voir, le texte etant entre apostrophes (faux positif).
 trap 'ec=$?; echo "" >&2; echo "*** ARRÊT INATTENDU DU SCRIPT (code $ec) À LA LIGNE $LINENO ***" >&2; echo "*** Commande fautive : $BASH_COMMAND" >&2; echo "*** Si le rapport ci-dessus semble incomplet (ex. sections Top 10 absentes), c'\''est probablement la cause." >&2' ERR
 
-readonly SCRIPT_VERSION="2.56.20261028.164512"
+readonly SCRIPT_VERSION="2.57.20261028.165800"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
 # Chemin de ce programme (relances --investigate, --ban, --unban) : defini ICI, avant le bloc --ban qui l'utilise.
 SELF_PATH="$SCRIPT_DIR/$(basename "${BASH_SOURCE[0]}")"
@@ -1554,20 +1554,30 @@ if [[ "$DO_BAN_SQLI" == "1" ]]; then
     echo
     echo "Adresses ayant tenté une injection SQL : $(wc -l < "$sqli_sum") adresse(s), $(wc -l < "$sqli_detail") requête(s)."
     echo
+    # Rouge : la requête a reçu une réponse 2xx, donc elle a atteint Odoo (les refus nginx en 404 restent en magenta).
+    RE_REUSSI='(^|, )2[0-9][0-9]($|,)'
     while IFS=$'\037' read -r nb ip premiere derniere sts srcs toks uas ex; do
         if ! looks_like_ip "$ip"; then
             printf '  %s   (ignorée : pas une adresse IP)\n' "$ip"
             continue
         fi
-        printf '  %s   %s requête(s)\n' "$ip" "$nb"
+        couleur="$C_MAL"
+        [[ "$sts" =~ $RE_REUSSI ]] && couleur="$C_RED"
+        printf '  %s%s%s   %s requête(s)\n' "$couleur" "$ip" "$C_RESET" "$nb"
+        [[ "$couleur" == "$C_RED" ]] && printf '      %s!! réponse 2xx : la requête a atteint Odoo%s\n' "$C_RED" "$C_RESET"
         printf '      première : %s\n' "$premiere"
         printf '      dernière : %s\n' "$derniere"
-        printf '      statut(s) : %s   source(s) : %s\n' "$sts" "$srcs"
-        printf '      motif(s) SQL : %s\n' "$toks"
+        printf '      statut(s) : %s%s%s   source(s) : %s\n' "$couleur" "$sts" "$C_RESET" "$srcs"
+        printf '      motif(s) SQL : %s%s%s\n' "$C_BOLD" "$toks" "$C_RESET"
         printf '      agent(s) : %s\n' "$uas"
         printf '      requête : %s\n' "$ex"
     done < "$sqli_sum"
     echo
+    n_reussi=$(awk -F'\037' -v re="$RE_REUSSI" '$5 ~ re' "$sqli_sum" | wc -l)
+    if (( n_reussi > 0 )); then
+        echo "${C_RED}ATTENTION : $n_reussi adresse(s) ont reçu une réponse 2xx : ces requêtes ont atteint Odoo (lignes en rouge).${C_RESET}"
+        echo
+    fi
     if [[ "$ASSUME_YES" != "1" ]]; then
         if ! demander_oui "Bannir ces adresses au pare-feu ? [o/N] "; then
             echo "Annulé : aucune adresse bannie."
