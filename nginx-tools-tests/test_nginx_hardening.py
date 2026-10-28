@@ -43,7 +43,8 @@ class SetupNginxOdoo(EnvTest):
         src = os.path.dirname(self.path("f2b-src", "x"))
         self.modeles = os.path.join(CONFIG_DIR, "fail2ban")
         for n in ("nginx-catchall.filter.conf", "nginx-catchall.jail.conf", "odoo-auth.filter.conf", "odoo-auth.jail.conf.template",
-                  "nginx-blocked-probes.filter.conf", "nginx-blocked-probes.jail.conf"):
+                  "nginx-blocked-probes.filter.conf", "nginx-blocked-probes.jail.conf",
+                  "nginx-sqli.filter.conf", "nginx-sqli.jail.conf"):
             p = os.path.join(self.modeles, n)
             if os.path.isfile(p):
                 with open(p) as a, open(os.path.join(src, n), "w") as b:

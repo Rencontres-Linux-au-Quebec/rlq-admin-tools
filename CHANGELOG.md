@@ -1190,6 +1190,29 @@ Earlier history was archived outside this repository when this file was created.
 
 ## nginx-hardening.sh
 
+### 2.58.20261028.102900 - SQL injection in the URL: refused by nginx and banned by fail2ban (jail nginx-sqli)
+
+- Title: Block SQL injection attempts in the URL (map, refusal rule, jail nginx-sqli).
+- Reason: On 2026-10-28, automated requests sent UNION ALL SELECT, EXTRACTVALUE and ORDER BY n in the order= parameter of /es/shop. Odoo rejected them (HTTP 400), but they reached Odoo, and no jail banned their sources. The nginx-blocked-probes jail only counts refusals written to blocked-probes.log, which these requests never produced.
+- Changes:
+  - nginx/conf.d/odoo-global.conf: map $request_uri $is_sqli_probe (narrow signature, no backslash, no space).
+  - nginx/snippets/securite-commune.conf: rule 3 bis, "if ($is_sqli_probe) return 403", placed before the hidden-files rule.
+  - nginx/fail2ban/nginx-sqli.filter.conf and nginx-sqli.jail.conf (new): same signature on the access logs (*access*.log, all applications); 3 attempts in 10 min, ban 24 h.
+  - nginx-hardening.sh: the two files added to the odoo file list, and the jail installed with installer_jail_copie nginx-sqli (installed by --update, checked by --check).
+  - nginx/VERSION 1.15.20261028.102900 and nginx/README.md entry 1.15.
+  - nginx-tools-tests/test_nginx_sqli.py (new), test_nginx_hardening.py (fixture list).
+- Bugs fixed: none (new protection). Symptom of the gap: the attacks were visible in the Odoo log only.
+- Safeguards and edge cases:
+  - Legitimate sorts (order=website_sequence%20asc, order=is_published%20desc) do not match; tested.
+  - The rule answers 403 before Odoo: Odoo never receives the request. The map is in the http context (odoo-global.conf), not in the server block.
+  - The map has no backslash and no space in its regex, to avoid the escaping problem documented in securite-commune.conf.
+  - The jail reads the access logs, so the trusted addresses (ignoreip, see verifier_ignoreip) are still ignored.
+- Checks:
+  - test_nginx_sqli (5 tests) and test_nginx_hardening (44 tests) OK.
+  - The regexes were checked with Python on the real lines of 2026-10-28.
+  - nginx and fail2ban are not installed on the development machine: "nginx -t" and "fail2ban-client -t" must be run on the server before reloading.
+- Action required: on each Odoo server, run `sudo nginx-hardening.sh --update` then `sudo nginx -t && sudo systemctl reload nginx`, and check that the jail nginx-sqli is listed by `sudo fail2ban-client status`.
+
 ### 2.57.20261027.203437 - Generic nginx configuration 1.14: curl burst of 10, WordPress probes
 
 - Title: generic nginx configuration 1.14 (version 1.13 of the administrator, merged into the repository's nginx/ folder).

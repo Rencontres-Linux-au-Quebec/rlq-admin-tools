@@ -86,7 +86,7 @@ run() {
     "$@"
 }
 
-readonly SCRIPT_VERSION="2.57.20261027.203437"
+readonly SCRIPT_VERSION="2.58.20261028.102900"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
 SCRIPT_NAME="$(basename "${BASH_SOURCE[0]}" .sh)"; readonly SCRIPT_NAME
 # Display language (en or fr): --lang, NGINX_HARDENING_LANG, LANGUAGE of the configuration file, LC_ALL / LANG - apps/_i18n.sh translates the output (nothing changes in French).
@@ -1109,7 +1109,7 @@ GEN_SRC="$SCRIPT_DIR/nginx"
 GEN_DEST="${NGINX_HARDENING_NGINX_DIR:-/etc/nginx}"
 gen_fichiers_app() {
     case "$APP_NAME" in
-        odoo) echo "conf.d/bot_blocker.conf conf.d/odoo-global.conf snippets/securite-commune.conf snippets/odoo/_odoo-common.conf snippets/odoo/hsts.conf fail2ban/nginx-catchall.filter.conf fail2ban/nginx-catchall.jail.conf fail2ban/nginx-blocked-probes.filter.conf fail2ban/nginx-blocked-probes.jail.conf fail2ban/odoo-auth.filter.conf" ;;
+        odoo) echo "conf.d/bot_blocker.conf conf.d/odoo-global.conf snippets/securite-commune.conf snippets/odoo/_odoo-common.conf snippets/odoo/hsts.conf fail2ban/nginx-catchall.filter.conf fail2ban/nginx-catchall.jail.conf fail2ban/nginx-blocked-probes.filter.conf fail2ban/nginx-blocked-probes.jail.conf fail2ban/nginx-sqli.filter.conf fail2ban/nginx-sqli.jail.conf fail2ban/odoo-auth.filter.conf" ;;
         bbb)  echo "conf.d/bot_blocker.conf" ;;
         *)    echo "" ;;
     esac
@@ -1938,6 +1938,7 @@ else
     }
     installer_jail_copie nginx-catchall "le capteur catch-all reste invisible de fail2ban"
     installer_jail_copie nginx-blocked-probes "les refus des règles de sécurité (blocked-probes.log) ne sont jamais sanctionnés"
+    installer_jail_copie nginx-sqli "les tentatives d'injection SQL (journal d'accès) ne sont jamais sanctionnées"
     # The log must exist for fail2ban to load the jail (nginx creates it at the first refused request).
     if [[ "$CHECK_ONLY" != "1" && ! -e /var/log/nginx/blocked-probes.log ]] && [[ " ${F2B_INSTALLED_JAILS[*]} " == *" nginx-blocked-probes "* ]]; then
         if touch /var/log/nginx/blocked-probes.log 2>/dev/null; then

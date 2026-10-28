@@ -18,4 +18,5 @@ Fichiers propres au site (domaines, vhosts, environnements) : voir le zip de con
 
 ## Historique
 
+- 1.15 : injection SQL dans l'URL (parametre order= de /es/shop) : map $is_sqli_probe (conf.d/odoo-global.conf), refus 403 avant Odoo (snippets/securite-commune.conf, règle 3 bis), jail fail2ban nginx-sqli (3 tentatives en 10 min, banni 24 h). À déployer : nginx-hardening.sh --update.
 - 1.14 (reprise de la version 1.13 de l'administrateur, séparée en deux) : curl en rafale avec `rate=12r/m` et `burst=10` : un humain qui tape quelques commandes passe, au-delà de 10 requêtes d'un coup depuis la même IP, 429. Sondes WordPress (snippets/securite-commune.conf) : « wp », « wp-... » et « wordpress », avec ou sans préfixe de langue, refusés en 404.
