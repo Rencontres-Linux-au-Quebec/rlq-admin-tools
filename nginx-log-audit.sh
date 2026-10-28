@@ -130,7 +130,7 @@ grep_q() { grep "$@" >/dev/null; }
 #                              ne peut pas le voir, le texte etant entre apostrophes (faux positif).
 trap 'ec=$?; echo "" >&2; echo "*** ARRÊT INATTENDU DU SCRIPT (code $ec) À LA LIGNE $LINENO ***" >&2; echo "*** Commande fautive : $BASH_COMMAND" >&2; echo "*** Si le rapport ci-dessus semble incomplet (ex. sections Top 10 absentes), c'\''est probablement la cause." >&2' ERR
 
-readonly SCRIPT_VERSION="2.57.20261028.165800"
+readonly SCRIPT_VERSION="2.58.20261028.173500"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
 # Chemin de ce programme (relances --investigate, --ban, --unban) : defini ICI, avant le bloc --ban qui l'utilise.
 SELF_PATH="$SCRIPT_DIR/$(basename "${BASH_SOURCE[0]}")"
@@ -1565,8 +1565,7 @@ if [[ "$DO_BAN_SQLI" == "1" ]]; then
         [[ "$sts" =~ $RE_REUSSI ]] && couleur="$C_RED"
         printf '  %s%s%s   %s requête(s)\n' "$couleur" "$ip" "$C_RESET" "$nb"
         [[ "$couleur" == "$C_RED" ]] && printf '      %s!! réponse 2xx : la requête a atteint Odoo%s\n' "$C_RED" "$C_RESET"
-        printf '      première : %s\n' "$premiere"
-        printf '      dernière : %s\n' "$derniere"
+        printf '      première : %s\t\tdernière : %s\n' "$premiere" "$derniere"
         printf '      statut(s) : %s%s%s   source(s) : %s\n' "$couleur" "$sts" "$C_RESET" "$srcs"
         printf '      motif(s) SQL : %s%s%s\n' "$C_BOLD" "$toks" "$C_RESET"
         printf '      agent(s) : %s\n' "$uas"
