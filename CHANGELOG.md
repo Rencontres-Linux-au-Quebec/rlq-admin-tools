@@ -1340,6 +1340,17 @@ Earlier history was archived outside this repository when this file was created.
 
 ## nginx-log-audit.sh
 
+### 2.56.20261028.164512 - --ban-sqli shows the details of each address before the confirmation
+
+- Title: For each address that attempted an SQL injection: first and last date, status codes, sources, SQL pattern found, user agents and an example request.
+- Reason: Before banning many addresses, the operator needs to check the requests (dates, agents, part of the SQL) to be sure they are attacks.
+- Detail: New list, most active address first, printed before the question. Each request is read once per source file (blocked-probes.log, access.log, the site log). The SQL pattern is the part of the request that matched the signature. The example request is cut at 200 characters, user agents at 90 characters.
+- Files: nginx-log-audit.sh, CHANGELOG.md.
+- Guards: the ban itself is unchanged (same list of addresses, same protections, same confirmation). Temporary files are removed on every exit path. Fields are separated by character 0x1F, so empty fields (no status, no pattern) are kept.
+- Bug fixed while testing: awk added a leading ", " to the first value of each list (created the element before testing it).
+- Checks: manual run on sample logs (two addresses, three requests): dates, statuses, sources, patterns, agents and examples correct; the confirmation answered "n" banned nothing. test_nginx_log_audit: 48 tests OK. ShellCheck 0.11.0: clean.
+- Action required: none. The next run of --ban-sqli shows the details before asking.
+
 ### 2.55.20261028.161044 - --ban-sqli: sources read from several logs
 
 - Title: --ban-sqli reads the attacker addresses from blocked-probes.log and access.log correctly.

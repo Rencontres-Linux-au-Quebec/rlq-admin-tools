@@ -130,7 +130,7 @@ grep_q() { grep "$@" >/dev/null; }
 #                              ne peut pas le voir, le texte etant entre apostrophes (faux positif).
 trap 'ec=$?; echo "" >&2; echo "*** ARRÊT INATTENDU DU SCRIPT (code $ec) À LA LIGNE $LINENO ***" >&2; echo "*** Commande fautive : $BASH_COMMAND" >&2; echo "*** Si le rapport ci-dessus semble incomplet (ex. sections Top 10 absentes), c'\''est probablement la cause." >&2' ERR
 
-readonly SCRIPT_VERSION="2.55.20261028.161044"
+readonly SCRIPT_VERSION="2.56.20261028.164512"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
 # Chemin de ce programme (relances --investigate, --ban, --unban) : defini ICI, avant le bloc --ban qui l'utilise.
 SELF_PATH="$SCRIPT_DIR/$(basename "${BASH_SOURCE[0]}")"
@@ -1506,39 +1506,77 @@ if [[ "$DO_BAN_SQLI" == "1" ]]; then
     echo " BANNISSEMENT DES SOURCES D'INJECTION SQL : $ACCESS_LOG (+ blocked-probes.log, access.log)"
     echo "=============================================================="
     echo "Recherche des requêtes d'injection SQL (lecture seule)..."
-    sqli_tmp=$(mktemp "${TMPDIR:-/tmp}/ban-sqli.XXXXXX") || { echo "ERREUR: fichier temporaire impossible." >&2; exit 1; }
+    sqli_dir=$(mktemp -d "${TMPDIR:-/tmp}/ban-sqli.XXXXXX") || { echo "ERREUR: dossier temporaire impossible." >&2; exit 1; }
+    sqli_detail="$sqli_dir/detail.tsv"; sqli_sum="$sqli_dir/summary.txt"
     # Sources : le journal du site, puis les refus des règles nginx (blocked-probes.log) et access.log, lus par la jail nginx-sqli.
     sqli_files=("$ACCESS_LOG")
     for f in /var/log/nginx/blocked-probes.log /var/log/nginx/access.log; do
         [[ -r "$f" && "$f" != "$ACCESS_LOG" ]] && sqli_files+=("$f")
     done
-    # -h : sans nom de fichier en tête (plusieurs fichiers), sinon l'adresse est « fichier:IP » et jamais une IP.
-    grep -hEi -- "$SQLI_RE" "${sqli_files[@]}" 2>/dev/null | awk '{print $1}' | sort | uniq -c | sort -rn > "$sqli_tmp" || true
-    if [[ ! -s "$sqli_tmp" ]]; then
+    # Une ligne par requête d'injection : adresse, date, statut, source, agent, motif SQL trouvé, requête (tabulations).
+    for f in "${sqli_files[@]}"; do
+        grep -Ei -- "$SQLI_RE" "$f" 2>/dev/null | awk -F'"' -v src="$(basename "$f")" -v re="$SQLI_RE" '
+            BEGIN { OFS = "\t" }
+            {
+                ip = $1; sub(/ .*/, "", ip)
+                date = ""; if (match($0, /\[[^]]*\]/)) date = substr($0, RSTART + 1, RLENGTH - 2)
+                split($3, b, " "); st = b[1]
+                req = $2; ua = $6; tok = ""
+                if (match(tolower(req), re)) tok = substr(req, RSTART, RLENGTH)
+                print ip, date, st, src, ua, tok, req
+            }' >> "$sqli_detail" || true
+    done
+    if [[ ! -s "$sqli_detail" ]]; then
         echo "${C_GREEN}Aucune injection SQL trouvée dans $ACCESS_LOG : rien à bannir.${C_RESET}"
-        rm -f "$sqli_tmp"
+        rm -rf "$sqli_dir"
         exit 0
     fi
+    # Une ligne par adresse, la plus active en premier : compte, premiere et derniere date, statuts, sources, motifs, agents, exemple.
+    # Séparateur 0x1F (et non tabulation : read traiterait les champs vides comme des espaces).
+    awk -F'\t' '
+        BEGIN { OFS = "\037" }
+        function ajouter(tab, cle_ip, v,   cle) {
+            cle = cle_ip SUBSEP v
+            if (v == "" || (cle in vu)) return
+            vu[cle] = 1
+            if (cle_ip in tab) tab[cle_ip] = tab[cle_ip] ", " v
+            else tab[cle_ip] = v
+        }
+        {
+            ip = $1; n[ip]++
+            if (!(ip in premiere)) { premiere[ip] = $2; exemple[ip] = substr($7, 1, 200) }
+            derniere[ip] = $2
+            ajouter(sts, ip, $3); ajouter(srcs, ip, $4); ajouter(toks, ip, $6); ajouter(uas, ip, substr($5, 1, 90))
+        }
+        END {
+            for (ip in n) print n[ip], ip, premiere[ip], derniere[ip], sts[ip], srcs[ip], toks[ip], uas[ip], exemple[ip]
+        }' "$sqli_detail" | sort -t$'\037' -k1,1nr > "$sqli_sum"
     echo
-    echo "Adresses ayant tenté une injection SQL (requêtes : adresse) :"
-    while read -r nb ip; do
-        [[ -z "$ip" ]] && continue
-        if looks_like_ip "$ip"; then
-            printf '  %6s  %s\n' "$nb" "$ip"
-        else
-            printf '  %6s  %s   (ignorée : pas une adresse IP)\n' "$nb" "$ip"
+    echo "Adresses ayant tenté une injection SQL : $(wc -l < "$sqli_sum") adresse(s), $(wc -l < "$sqli_detail") requête(s)."
+    echo
+    while IFS=$'\037' read -r nb ip premiere derniere sts srcs toks uas ex; do
+        if ! looks_like_ip "$ip"; then
+            printf '  %s   (ignorée : pas une adresse IP)\n' "$ip"
+            continue
         fi
-    done < "$sqli_tmp"
+        printf '  %s   %s requête(s)\n' "$ip" "$nb"
+        printf '      première : %s\n' "$premiere"
+        printf '      dernière : %s\n' "$derniere"
+        printf '      statut(s) : %s   source(s) : %s\n' "$sts" "$srcs"
+        printf '      motif(s) SQL : %s\n' "$toks"
+        printf '      agent(s) : %s\n' "$uas"
+        printf '      requête : %s\n' "$ex"
+    done < "$sqli_sum"
     echo
     if [[ "$ASSUME_YES" != "1" ]]; then
         if ! demander_oui "Bannir ces adresses au pare-feu ? [o/N] "; then
             echo "Annulé : aucune adresse bannie."
-            rm -f "$sqli_tmp"
+            rm -rf "$sqli_dir"
             exit 0
         fi
     fi
     n_ok=0; n_ko=0
-    while read -r nb ip; do
+    while IFS=$'\037' read -r nb ip _; do
         looks_like_ip "$ip" || continue
         why="injection SQL (--ban-sqli) : $nb requête(s) dans $(basename "$ACCESS_LOG")"
         if bash "$SELF_PATH" --ban "$ip" --yes --reason "$why" ${APP_FORCE:+--app "$APP_FORCE"} >/dev/null 2>&1; then
@@ -1548,8 +1586,8 @@ if [[ "$DO_BAN_SQLI" == "1" ]]; then
             echo "${C_YELLOW}[SKIP]${C_RESET} $ip non banni (adresse protégée ou erreur : nginx-log-audit.sh --ban $ip pour le détail)"
             n_ko=$((n_ko+1))
         fi
-    done < "$sqli_tmp"
-    rm -f "$sqli_tmp"
+    done < "$sqli_sum"
+    rm -rf "$sqli_dir"
     echo
     echo "$n_ok adresse(s) bannie(s), $n_ko ignorée(s). Levée : nginx-log-audit.sh --unban IP"
     exit 0
