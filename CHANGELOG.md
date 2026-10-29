@@ -143,6 +143,29 @@ Earlier history was archived outside this repository when this file was created.
 
 ## app-health-check.py
 
+### 2.32.20261029.195500 - --json, --changes, alerts by ntfy or webhook
+
+- Title: machine-readable results, changes since the previous run, and alerts only when something happens.
+- Reason: the report is a text for people. A cron job or a monitoring tool needs the results in a structured form, and an operator who runs the check every day wants to know what is new instead of reading every line again. Alerts by e-mail or Discuss are sent at every run, so the noise hides real problems.
+- Changes:
+  - --json: the results (label, status OK / FAIL / SKIP, detail), the number of failures and the changes are printed as JSON on standard output. The readable text of the checks goes to standard error during the run (sys.stdout is redirected, restored before the JSON).
+  - --changes: the readable report gets a section listing the new failures and the resolved checks since the previous run.
+  - Memory of the runs (state_path, save_run): the results of every run are saved in last-run.json, mode 600 (the details name hosts and certificates). Folder: APP_HEALTH_CHECK_STATE_DIR if set; else /var/lib/app-health-check when it exists or when running as root; else ~/.local/state/app-health-check. Written through a temporary file then replaced.
+  - compare_runs: a check failing now and not failing before (new check included) is a new failure; a check passing now and failing before is resolved.
+  - Alerts (send_alerts): NOTIFY_NTFY_URL (ntfy topic) and NOTIFY_WEBHOOK_URL (JSON title and message), sent only when there is a failure or a change. Other keys and the e-mail / Discuss behaviour are unchanged.
+  - Files touched: app-health-check.py, lang/app-health-check.fr.po, doc/en and doc/fr app-health-check.conf.example.
+- Bugs fixed: none.
+- Safeguards and edge cases:
+  - No previous run: no change is reported (first run, unreadable or damaged file).
+  - A failed save is reported on standard error ([ATTN]), the check is not stopped.
+  - Notification URLs must start with http:// or https://; others are refused with a message.
+  - A notification error is reported and does not change the exit code (1 only for failed checks).
+  - The ntfy title is ASCII (HTTP headers): the accents of the subject are replaced.
+- Checks:
+  - py_compile OK; --version displays the dynamic version; --help lists --changes and --json.
+  - Unit checks on the comparison, the saved file (mode 600) and its reading, done by hand before the commit.
+- Action required: none. To receive alerts, set NOTIFY_NTFY_URL or NOTIFY_WEBHOOK_URL in the configuration file, and use --changes or --json in the cron job if wanted.
+
 ### 2.31.20261028.214122 - --menu: English programs translate the menu and its help through their catalogue
 
 - Title: --menu: English programs translate the menu and its help through their catalogue.
