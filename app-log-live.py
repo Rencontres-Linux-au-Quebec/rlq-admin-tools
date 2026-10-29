@@ -31,6 +31,8 @@
 #   * TEST RECORDING (1.93): R starts / stops a recording (label asked; "REC" at column $COLUMNS-4 meanwhile; the .tar.xz archive of the window, noise left out,
 #     see apps/_record.py) - --record-test-log MIN records without the keyboard, then exits; N (while recording) starts / ends a step with a description (steps.txt);
 #   * STEPS LINE (1.99): F key (or --steps-line, STEPS_LINE) shows ALL the steps of the recording on ONE white reverse-video line, at each step (screen only).
+#   * STATUS BAR (1.113, --status-every N): reverse-video summary every N lines (SQL injection attempts, 4xx, 5xx, banned addresses, slow requests), reset by Ctrl-T and g;
+#     f key: the buffer of the last lines (--buffer N) displayed again with the current options; P key: printed to a file with colors; Y key: latency report.
 #   * KEY MENU (? or h): toggles and settings on the fly - a --accentuate-group, A --anonymize, c --chime, e --exclude-ip, T --time-report, U --underline N, d --dns-max, t --dns-max-truncate, H --health, i --hide-ip, l --highlight, m --min, M --modules (table of the installed Odoo modules, sorted by name, date, creation, version, author or state), o --only, r error report (--report-err),
 #     s --suspect, v --verbose, V version; S survey registrations, I event registrations, b addresses to ban (nginx-log-audit.sh --ban, like web-monitor.py).
 #   * KEYBOARD DASHBOARD (terminal only, --no-keys: disabled): Ctrl-G = health (check mark / warning / cross symbols, with the detail of the problems), efficiency of the program (CPU, memory, input/output,
@@ -109,7 +111,7 @@ from urllib.parse import unquote
 from collections import Counter, OrderedDict
 from concurrent.futures import Future
 
-__version__ = "1.112.20261029.165811"
+__version__ = "1.113.20261029.171832"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
@@ -4291,6 +4293,60 @@ class Stats:
         return res + (list(people) if level >= 5 else []) + (list(extras) if level >= 9 else [])
 
 
+BUFFER_DEFAULT = 200                # 1.113 --buffer N: last displayed lines kept in memory (f: displayed again with the current options; P: printed to a file)
+STATUS_EVERY_DEFAULT = 100          # 1.113 --status-every N: status bar (reverse video) after every N displayed lines; 0 = never
+# 1.113 SQL injection attempts, on the decoded URL: UNION SELECT, time or error functions (sleep, benchmark, extractvalue...), tautologies (' or 1=1), stacked statements
+SQLI_RE = re.compile(r"union(?:\s|\+|/\*.*?\*/|%20)+(?:all(?:\s|\+|%20)+)?select|information_schema|\b(?:sleep|benchmark|pg_sleep|load_file|extractvalue|updatexml)\s*\("
+                     r"|\bxp_cmdshell\b|\bor\s*['\"]?\d+['\"]?\s*=\s*['\"]?\d+|'\s*(?:or|and)\s|;\s*(?:drop|insert|update|delete|shutdown)\b|\bconcat\s*\(\s*0x", re.IGNORECASE)
+
+
+class StatusBar:
+    """1.113: cumulative summary of the recent problems, drawn as a reverse-video bar every N displayed lines (--status-every N): SQL injection attempts,
+    4xx and 5xx answers, addresses currently banned (seen), slow requests (--slow). Reset by the detailed reports (Ctrl-T and g).
+    Colour of the bar: white = nothing to see, green = a little (4xx, a few slow requests), yellow = to look at (SQL injection, 5xx, banned addresses,
+    many slow requests), red = investigate now (repeated SQL injection, many 5xx, many slow requests)."""
+    def __init__(self):
+        self.reset()
+
+    def reset(self):
+        self.sqli = self.e4 = self.e5 = self.slow = 0
+        self.slow_max = 0.0
+        self.banned = set()
+
+    def observe(self, L, banned_ip, slow_threshold):
+        """Counts one displayed line (banned_ip: its address, when the line carries a [banned: ...] label)."""
+        request = REQUEST_RE.search(L.text or "")
+        if request:
+            code = int(request.group(2))
+            if 400 <= code < 500:
+                self.e4 += 1
+            elif code >= 500:
+                self.e5 += 1
+            if SQLI_RE.search(unquote(request.group(1))):
+                self.sqli += 1
+        if banned_ip:
+            self.banned.add(banned_ip)
+        total = request_duration(L.text or "")
+        if total is not None and slow_threshold and total >= slow_threshold:
+            self.slow += 1
+            self.slow_max = max(self.slow_max, total)
+
+    def color(self):
+        """SGR code of the reverse-video bar: 37 white, 32 green, 33 yellow, 31 red."""
+        if self.sqli >= 3 or self.e5 >= 10 or self.slow >= 20:
+            return "31"
+        if self.sqli or self.e5 or self.banned or self.slow >= 5 or self.e4 >= 100:
+            return "33"
+        if self.e4 or self.slow:
+            return "32"
+        return "37"
+
+    def summary(self):
+        slow_text = f"{self.slow}" + (f" (max {self.slow_max:.1f} s)" if self.slow else "")
+        return " · ".join([TR("SQLi attacks") + f" {self.sqli}", f"4xx {self.e4}", f"5xx {self.e5}",
+                           TR("banned") + f" {len(self.banned)}", TR("slow") + f" {slow_text}"])
+
+
 class Output:
     """Screen + DAILY JOURNAL: everything displayed is also appended, with its colors (escape sequences), to `FOLDER/app-log-live-YYYY-MM-DD.log` (one file per day,
     mode 600: the journal contains addresses and names) — to be re-read with "less -R file" or "tail -f file". Only the live stream, not the startup history (otherwise
@@ -4412,7 +4468,7 @@ KEYS = {b"\x07": "g", b"\x14": "t"}      # Ctrl-G: dashboard; Ctrl-T: only what 
 # Simple keys of the menu (? or h): toggles and settings of the command-line options, and a few commands
 MENU_KEYS = {b"?": "help", b"h": "help", b"i": "i", b"m": "m", b"n": "n", b"r": "r", b"s": "s", b"v": "v", b"d": "dns", b"t": "dnst", b"H": "H", b"o": "o", b"V": "V",
                 b"S": "S", b"I": "I", b"b": "b", b"a": "accent", b"c": "chime", b"e": "exclude", b"T": "report", b"E": "E", b"w": "watch", b"D": "D", b"l": "highlight", b"M": "modules", b"C": "save", b"L": "recent",
-                b"G": "G", b"P": "latency", b"A": "anonymize", b"R": "record", b"N": "step", b"F": "steps_line", b"q": "addons", b"U": "underline"}
+                b"G": "G", b"Y": "latency", b"P": "print", b"f": "refresh", b"A": "anonymize", b"R": "record", b"N": "step", b"F": "steps_line", b"q": "addons", b"U": "underline"}
 MENU_KEYS.update({str(n).encode(): f"level{n}" for n in range(1, LEVEL_MAX + 1)})   # 1 to 9: dashboard at the chosen level
 KEYS.update(MENU_KEYS)
 
@@ -4742,25 +4798,96 @@ def follow(cmd, people, resolver, options, output):
             return "robot"
         return "kept"
 
-    def emit(L, renderings, benign=False):
-        """Writes the line (if --only / --suspect keep it), with the [banned: …] label of its address and counting it for the summary."""
-        text = form.format_value(L, renderings, benign)
-        if record["r"] is not None:                       # 1.93: recorded whatever the display filters (--only, --suspect...): the analysis needs the whole test
-            record["r"].add(ANSI_RE.sub("", text), noise_category(L))
-        if not keep(L, ANSI_RE.sub("", text)):
-            return
-        ips0, source = find_ips(L.text), None
+    status = StatusBar()                                  # 1.113: counters of the status bar (reset by Ctrl-T and g)
+    line_memory = collections.deque(maxlen=max(0, options.get("buffer", BUFFER_DEFAULT)))      # 1.113: last displayed lines (f and P keys)
+
+    def compose(L, renderings, benign):
+        """1.113: (base, text, first address, banned source) of a line: base = the line as rendered; text = base plus the [banned: ...] label of its address."""
+        base = form.format_value(L, renderings, benign)
+        text, ips0, source = base, find_ips(L.text), None
         if banned_ips is not None and ips0 and ips0[0][2] in renderings and renderings[ips0[0][2]][3] is None:        # never for the whitelist or a place
             source = banned_ips.source_of(ips0[0][2])
             if source:
                 text += " " + color_code(STYLES["banned"], f"[banned: {source}]")
+        return base, text, ips0, source
+
+    def paint(L, text, inputs, benign, underline=False):
+        """1.113: writes one line and keeps it in the buffer of the f (refresh) and P (print) keys; `inputs` = (results, pays) to render it again."""
+        shown = highlight_text(text, options["highlight_pattern"])
+        if line_memory.maxlen:
+            line_memory.append({"L": L, "inputs": inputs, "benign": benign, "shown": shown})
+        output.write(shown + "\n", stream=True, underline=underline)       # 1.91: one line out of N underlined
+
+    def emit(L, renderings, benign=False, inputs=None):
+        """Writes the line (if --only / --suspect keep it), with the [banned: …] label of its address and counting it for the summary.
+        1.113: then the status bar every --status-every lines; `inputs` = (results, pays) of the line, kept for the f and P keys."""
+        base, text, ips0, source = compose(L, renderings, benign)
+        if record["r"] is not None:                       # 1.93: recorded whatever the display filters (--only, --suspect...): the analysis needs the whole test
+            record["r"].add(ANSI_RE.sub("", base), noise_category(L))
+        if not keep(L, ANSI_RE.sub("", text)):
+            return
         stats.ajouter(L, renderings, source, benign)
         watch_repeat(ips0[0][2] if ips0 else None, L)
         state["emitted"] = state.get("emitted", 0) + 1
-        output.write(highlight_text(text, options["highlight_pattern"]) + "\n", stream=True, underline=bool(output.underline) and state["emitted"] % output.underline == 0)       # 1.91: one line out of N
+        paint(L, text, inputs, benign, underline=bool(output.underline) and state["emitted"] % output.underline == 0)
+        status.observe(L, ips0[0][2] if source else None, options["slow"])
+        if options["status_every"] and state["emitted"] % options["status_every"] == 0:
+            output.write(status_line() + "\n")
         if options["chime"] is not None and is_reportable_error(L, options["chime"]) and time.time() - beep["last"] >= 2.0:       # at most one beep every 2 s
             beep["last"] = time.time()
             sonner(beep["mode"], output.screen)
+
+    def status_line():
+        """1.113: the status bar, reverse video, its colour according to the problems counted since the last detailed report."""
+        columns = terminal_columns()
+        text = f" {TR('STATUS')}  {status.summary()}  ·  {TR('since the last detailed report (Ctrl-T or g)')} "
+        return color_code(f"7;1;{status.color()}", text[:max(20, columns - 1)].ljust(columns - 1))
+
+    def refresh_lines():
+        """f key: the lines of the buffer are displayed again with the CURRENT options (addresses, names, highlight, --only...). They are not counted again,
+        and not written again to the daily journal."""
+        entries = [entry for entry in line_memory if entry["inputs"] is not None]
+        if not entries:
+            write_out(["  " + TR("Nothing to refresh yet (the buffer keeps the last lines displayed: --buffer N).")])
+            return
+        write_out([color_code(STYLES["title"], TR("──── last {n} line(s), displayed again with the current options ────").format(n=len(entries)))])
+        active = output.active
+        output.active = False                             # display only: the daily journal already has these lines
+        try:
+            for entry in entries:
+                results, pays = entry["inputs"]
+                base, text, _ips0, _source = compose(entry["L"], renderings_of(entry["L"], results, pays), entry["benign"])
+                if not keep(entry["L"], ANSI_RE.sub("", text)):
+                    continue
+                entry["shown"] = highlight_text(text, options["highlight_pattern"])
+                output.write(entry["shown"] + "\n", stream=True)
+        finally:
+            output.active = active
+
+    def print_lines():
+        """P key: the lines of the buffer are written to a file WITH their colors (less -R shows them). Created with mode 600: the lines hold addresses and names."""
+        available = [entry["shown"] for entry in line_memory]
+        if not available:
+            write_out(["  " + TR("Nothing to print yet (the buffer keeps the last lines displayed: --buffer N).")])
+            return
+        count = requested_int(TR("Lines to print (1 to {n}, Enter = all): ").format(n=len(available)), len(available), 1, len(available))
+        if count is None:
+            return
+        default_name = os.path.join(output.folder or os.getcwd(), f"{SCRIPT_NAME}-print-{time.strftime('%Y%m%d-%H%M%S')}.log")
+        answer = ask(TR("File (Enter = {name}): ").format(name=default_name))
+        if answer is None:
+            return
+        path = answer.strip() or default_name
+        try:
+            descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0), 0o600)
+            with os.fdopen(descriptor, "w", encoding="utf-8", errors="replace") as file_out:
+                file_out.write(color_code(STYLES["title"], f"──── {SCRIPT_NAME}.py v{__version__} : {count} line(s) printed {time.strftime('%Y-%m-%d %H:%M:%S')} ────") + "\n")
+                for shown in available[-count:]:
+                    file_out.write(shown + "\n")
+        except OSError as error:
+            write_out([color_code(STYLES["error"], "  " + TR("Print failed: {error}").format(error=error))])
+            return
+        write_out(["  " + TR("{n} line(s) written to {path} (colors kept: less -R {path}; mode 600, names and addresses inside)").format(n=count, path=path)])
 
     def release_deferred(benign):
         if deferred[0] is not None:
@@ -5243,7 +5370,7 @@ def follow(cmd, people, resolver, options, output):
                                       ("T", "--time-report MIN", f"report like Ctrl-T every MIN minutes, 0 = never [{options['report_min']:g}]"),
                                       ("v", "--verbose", f"show every external command [{yes_no(VERBOSE)}]"),
                                       ("V", "--version", "program version"),
-                                      ("w", "--watch TEXT", f"watch the requests whose URL contains the text: duration, errors, slowness [{', '.join(options['watch']) or 'none'}]")), key=lambda item: item[1].lstrip("-")):
+                                      ("w", "--watch TEXT", f"watch the requests whose URL contains the text: duration, errors, slowness [{', '.join(options['watch']) or 'none'}]")), key=lambda item: (item[0].lower(), item[0].isupper())):      # 1.113: alphabetical order of the short keys
             lines.append(f"    {bold(key)}  {option:<22} {text}")
         lines.append("  Others:")
         lines.append(f"    {bold('G')}  number of members of each Odoo RLQ* group (also in the final summary, Ctrl-C)")
@@ -5255,9 +5382,13 @@ def follow(cmd, people, resolver, options, output):
                      f"to send for analysis (logs of the window without the noise, raw nginx / Odoo / fail2ban extracts, network and PostgreSQL samples, addresses and names anonymized)"
                      + (" [" + TR("recording") + "]" if record["r"] is not None else ""))
         lines.append(f"    {bold('N')}  " + TR("step of a test (while recording): N starts a step (a description is asked), N again ends it; the steps (start, end, duration, description) go into steps.txt of the archive"))
-        lines.append(f"    {bold('P')}  latency: what slows the requests since start (disk, processor, memory: % of waiting time, % of disk use, per hour) and whether SSD disks are justified")
+        lines.append(f"    {bold('Y')}  latency: what slows the requests since start (disk, processor, memory: % of waiting time, % of disk use, per hour) and whether SSD disks are justified")
+        lines.append(f"    {bold('P')}  print the last lines of the buffer (--buffer N) to a file, colors kept (asks the number of lines and the file name)")
+        lines.append(f"    {bold('f')}  refresh: the last lines of the buffer are displayed again with the current options (IP, DNS, names, --only...), not counted again")
         lines.append(f"    {bold('C')}  save the settings changed since startup into {system_config_path()} (every option changeable on the fly: ACCENTUATE_GROUP, ANONYMIZE, CHIME, DNS_MAX*, EXCLUDE_IP, HEALTH, HIDE_IP, HIGHLIGHT, LEVEL, MIN, MODULES_*, NOT_FOUND, ONLY, SUSPECT, TIME_REPORT, UNDERLINE, VERBOSE, WATCH)")
         lines.append(f"    {bold('b')}  addresses to ban: {to_ban} — asks, then nginx-log-audit.sh --ban (like web-monitor.py)")
+        others_at = lines.index("  Others:") + 1                 # 1.113: the other keys are also in alphabetical order
+        lines[others_at:] = sorted(lines[others_at:], key=lambda text_line: (ANSI_RE.sub("", text_line).strip()[:1].lower(), ANSI_RE.sub("", text_line).strip()[:1].isupper()))
         write_out(lines)
 
     def survey_line(i, margin=0):
@@ -5369,6 +5500,12 @@ def follow(cmd, people, resolver, options, output):
         global VERBOSE, NAME_WIDTH, NAME_TRUNCATE
         if key_value in ("g", "t"):
             write_out(["", *table_rows(delta=key_value == "t")])
+            status.reset()                                  # 1.113: a detailed report starts a new period for the status bar
+            write_out(["  " + TR("Status bar: counters reset (new period from now).")])
+        elif key_value == "refresh":                        # 1.113: f key - last lines displayed again with the current options
+            refresh_lines()
+        elif key_value == "print":                          # 1.113: P key - last lines printed to a file, colors kept
+            print_lines()
         elif key_value.startswith("level"):
             options["level"] = int(key_value[5:])
             write_out(["", *table_rows(level=options["level"])])
@@ -5678,7 +5815,7 @@ def follow(cmd, people, resolver, options, output):
             if is_failed_request(L):                 # written with the next line, which says whether the error is harmless
                 deferred[0] = (L, renderings_of(L, results, pays))
                 continue
-            emit(L, renderings_of(L, results, pays))
+            emit(L, renderings_of(L, results, pays), inputs=(results, pays))
             events = []
             if ips:
                 ip = ips[0][0]                          # the client is the first address of the message
@@ -5943,6 +6080,10 @@ def main():
     parser.set_defaults(min=MIN_DEFAULT)                       # 1.98: --min by default (MIN=no or --no-min: everything)
     parser.set_defaults(hide_ip=True)                           # 1.107: the IP address is hidden by default (HIDE_IP=no in the configuration file, or --show-ip)
     parser.set_defaults(anonymize=None)                         # None: on a terminal only (a pipe, another program, a test: real values)
+    parser.add_argument("--buffer", type=int, default=BUFFER_DEFAULT, metavar="N",
+                        help="Last displayed lines kept in memory for the f key (displayed again with the current options) and the P key (printed to a file): 0 = none (default: 200)")
+    parser.add_argument("--status-every", type=int, default=STATUS_EVERY_DEFAULT, metavar="N",
+                        help="Status bar in reverse video after every N displayed lines: SQL injection attempts, 4xx, 5xx, banned addresses, slow requests since the last detailed report (Ctrl-T or g); 0 = never (default: 100)")
     parser.add_argument("--country", action="append", default=None, metavar="CC,CC",
                         help="Show only the lines whose first address is in these countries (two-letter codes such as CA,FR; repeatable). Lines without address are hidden")
     parser.add_argument("--exclude-country", action="append", default=None, metavar="CC,CC",
@@ -5994,6 +6135,8 @@ def main():
         args.until_epoch = parse_time(args.until, end=True) if args.until is not None else None
     except (ValueError, OverflowError, OSError) as error:
         parser.error(f"--since / --until: {error} (see --help for the formats)")
+    if args.buffer < 0 or args.status_every < 0:
+        parser.error("--buffer and --status-every must be zero or positive")
     if args.days and args.since is not None:
         parser.error("--days and --since cannot be combined")
     if args.since_epoch is not None and args.until_epoch is not None and args.until_epoch <= args.since_epoch:
@@ -6156,7 +6299,8 @@ def main():
                "presence": Presence(args.idle) if is_odoo and not args.no_presence else None, "health": args.health, "keys": not args.no_keys and not args.no_follow, "app": profile.get("APP_NAME"), "propose_ban": not args.no_ban_prompt, "watch": [t.strip().lower() for t in (args.watch or "").split(",") if t.strip()], "agents": not args.no_user_agent and not args.no_follow, "acces_logs": profile.get("ACCESS_LOGS"),
                "exclude": exclusions, "chime": args.chime, "group": args.accentuate_group if group_members else None, "membres": group_members,
                "report_min": args.time_report or 0.0, "level": args.level, "modules_sort": modules_sort_state}
-    options.update({"since": args.since_epoch, "until": args.until_epoch, "grep": grep_re,            # 1.112 filters of the stream loop
+    options.update({"buffer": args.buffer, "status_every": args.status_every,                          # 1.113: buffer of the f and P keys, status bar
+                    "since": args.since_epoch, "until": args.until_epoch, "grep": grep_re,            # 1.112 filters of the stream loop
                     "countries": countries or None, "exclude_countries": unwanted_countries or None})
     # 1.93: test recording (R key, --record-test-log): log files read over the window, Odoo ports sampled, folder of the archives
     record_logs = []
