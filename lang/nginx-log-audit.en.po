@@ -2105,3 +2105,77 @@ msgstr " - no request on the site; "
 
 msgid " requête(s) d'icône au capteur catch-all (apple-touch-icon, favicon.ico), non hostiles"
 msgstr " icon request(s) at the catch-all sensor (apple-touch-icon, favicon.ico), not hostile"
+
+# 2.60 : --ban-sqli, contexte par adresse (DNS, propriétaire, connexions Odoo, commandes, URL)
+msgid "  --no-lookup                  avec --ban-sqli : aucune requête DNS ni RDAP (propriétaire, pays) ; seuls les journaux sont lus"
+msgstr "  --no-lookup                  with --ban-sqli: no DNS or RDAP query (owner, country); only the logs are read"
+
+msgid " (confirmé)"
+msgstr " (confirmed)"
+
+msgid " (NON confirmé : ce nom ne renvoie pas vers "
+msgstr " (NOT confirmed: this name does not point back to "
+
+msgid "inconnu (python3 ou _reseau.py absent)"
+msgstr "unknown (python3 or _reseau.py missing)"
+
+msgid "inconnu (RDAP injoignable)"
+msgstr "unknown (RDAP unreachable)"
+
+msgid "inconnu"
+msgstr "unknown"
+
+msgid "non vérifié (--no-lookup)"
+msgstr "not checked (--no-lookup)"
+
+msgid "Contexte de "
+msgstr "Context of "
+
+msgid " : DNS inverse, propriétaire du bloc d'adresses (RDAP)"
+msgstr ": reverse DNS, owner of the address block (RDAP)"
+
+msgid "erreur"
+msgstr "error"
+
+msgid " requête(s), première : "
+msgstr " request(s), first: "
+
+msgid "Contexte : comptes Odoo et URL lus dans les journaux ; DNS et propriétaire NON vérifiés (--no-lookup)."
+msgstr "Context: Odoo accounts and URLs read in the logs; DNS and owner NOT checked (--no-lookup)."
+
+msgid "Contexte : DNS inverse, propriétaire du bloc d'adresses (RDAP), comptes Odoo connectés, commandes, URL demandées."
+msgstr "Context: reverse DNS, owner of the address block (RDAP), connected Odoo accounts, orders, URLs requested."
+
+msgid "      propriétaire du bloc (≈ fournisseur Internet) : "
+msgstr "      owner of the address block (≈ internet provider): "
+
+msgid "comptes Odoo connectés : "
+msgstr "Odoo accounts connected: "
+
+msgid "      comptes Odoo connectés : aucun dans le journal Odoo (100 derniers jours)"
+msgstr "      Odoo accounts connected: none in the Odoo log (last 100 days)"
+
+msgid "panier, commande ou paiement : "
+msgstr "cart, order or payment: "
+
+msgid "      panier, commande ou paiement : aucun"
+msgstr "      cart, order or payment: none"
+
+msgid "      URL les plus demandées : "
+msgstr "      most requested URLs: "
+
+msgid "!! activité Odoo normale : jamais bannie en lot (nginx-log-audit.sh --ban "
+msgstr "!! normal Odoo activity: never banned in bulk (nginx-log-audit.sh --ban "
+
+msgid " pour le faire à la main)"
+msgstr " to do it by hand)"
+
+msgid " adresse(s) ont une activité Odoo normale (connexion ou commande) : elles ne seront PAS bannies en lot."
+msgstr " address(es) have normal Odoo activity (login or order): they will NOT be banned in bulk."
+
+msgid " non banni : activité Odoo normale (connexion ou commande). Bannissement à la main seulement : nginx-log-audit.sh --ban "
+msgstr " not banned: normal Odoo activity (login or order). Ban by hand only: nginx-log-audit.sh --ban "
+
+msgid " avec activité Odoo normale (non bannie(s)), "
+msgstr " with normal Odoo activity (not banned), "
+
