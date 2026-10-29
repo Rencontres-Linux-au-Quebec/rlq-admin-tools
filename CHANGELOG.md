@@ -6,6 +6,35 @@ Earlier history was archived outside this repository when this file was created.
 
 ## odoo-sql-maint
 
+### 1.3.20261028.194152 - Terminal check, automatic configuration file, dialog install status
+
+- Title: Clear message when the menu has no terminal; configuration file created when missing.
+- Reason: Running the menu without an interactive terminal failed with "cannot open tty-output", which does not say what to do. A missing configuration file had to be written by hand.
+- Changes:
+  - New function check_tty: the menu checks that /dev/tty can be opened before starting dialog, and exits with code 3 and a bilingual message otherwise (suggests ssh -t or --run NAME).
+  - New function print_config_template and write_config_template: when no configuration file is found, ~/.odoo-sql-maint.conf is created with a commented template and mode 600. An existing file is never overwritten.
+  - With --config FILE: a missing file is created at that path (its folder too); an unreadable one is still an error (exit 2).
+  - PG_DATABASE is empty in the template, so no database is targeted by mistake; the program asks for it.
+  - Files: odoo-sql-maint, doc/odoo-sql-maint.conf.example (same content as the template written by the program).
+- Bugs fixed:
+  - Symptom: "cannot open tty-output" when the menu runs without an interactive terminal (ex. over a non-interactive session).
+  - Diagnosis: dialog needs /dev/tty to draw its screens; without it, it fails with that message.
+  - Fix: the menu checks /dev/tty first and explains the problem. The menu itself needs a terminal: use ssh -t, or --run NAME for scripts.
+- Safeguards and edge cases:
+  - An existing configuration file is never replaced; a second run only reads it (tested).
+  - The created file is mode 600 (it may later hold settings for the database).
+  - A failed creation (ex. read-only folder) is reported and the program continues with its defaults; with --config it exits 2.
+  - Passwords still come only from ~/.pgpass.
+- Checks:
+  - bash -n OK; shellcheck 0.11.0 no warning.
+  - No config anywhere: file created with mode 600, read back, exit 4 (no database set, as expected).
+  - Second run: file not overwritten.
+  - --config to a missing file in a missing folder: created, exit 0.
+  - --config in an unwritable path: message, exit 2.
+  - Menu without terminal with dialog present: message in French and English, exit 3.
+  - Not checked here: the menu on a real terminal (dialog is not installed in this environment).
+- Action required: install dialog on the server as root (apt install dialog postgresql-client), then run the menu from a real terminal (ssh -t) and set PG_DATABASE in the created file.
+
 ### 1.2.20261028.181641 - Program section in CHANGELOG, --changelog shows only this program, closed-pipe fix
 
 - Title: odoo-sql-maint 1.2: own changelog section, closed pipe handled, repository integration.
