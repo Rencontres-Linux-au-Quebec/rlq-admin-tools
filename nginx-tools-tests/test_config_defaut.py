@@ -91,6 +91,16 @@ class ConfigParDefaut(EnvTest):
         self.assertEqual((valeurs, problemes), ({}, []))
 
 
+# Options de ligne de commande SANS clé de configuration (règle : actions et réglages ponctuels, jamais dans le fichier).
+# --menu : partout (action). Les autres : action, option d'une action, ou inverse d'une clé qui a déjà sa propre ligne dans le modèle.
+CLI_SEULEMENT = {
+    "app-log-live.py": {"--show-ip"},                                                   # inverse de HIDE_IP (clé du modèle)
+    "nginx-hardening.sh": {"--backup", "--disable-uri", "--enable-uri", "--rollback", "--yes"},
+    "nginx-log-audit.sh": {"--ban-sqli", "--no-lookup"},
+    "odoo-warmup.py": {"--delay"},                                                      # option de --systemd-install
+}
+
+
 class ModelesComplets(unittest.TestCase):
     """Chaque doc/en/PROGRAMME.conf.example (et celui de run-all) cite TOUTES les options longues de l'aide du programme : celles qui se configurent (CLÉ=valeur) et, en fin de
     fichier, celles de la ligne de commande seulement."""
@@ -103,7 +113,7 @@ class ModelesComplets(unittest.TestCase):
             with self.subTest(programme=programme):
                 exe = ["python3", script_path(programme)] if programme.endswith(".py") else ["bash", script_path(programme)]
                 aide = subprocess.run(exe + ["--help", "--lang", "fr"], capture_output=True, text=True, env=env, timeout=60).stdout
-                options = set(re.findall(r"^  (?:-\w, )?(--[\w-]+)", aide, re.M)) - {"--help"}
+                options = set(re.findall(r"^  (?:-\w, )?(--[\w-]+)", aide, re.M)) - {"--help", "--menu"} - CLI_SEULEMENT.get(programme, set())
                 self.assertGreater(len(options), 5, aide)
                 modele = open(script_path("doc/en/" + re.sub(r"\.(py|sh)$", "", programme) + ".conf.example"), encoding="utf-8").read()
                 self.assertEqual(sorted(o for o in options if o not in modele), [], f"options absentes de doc/en/{programme}.conf.example")

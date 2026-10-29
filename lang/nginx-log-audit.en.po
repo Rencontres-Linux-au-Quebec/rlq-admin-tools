@@ -2179,3 +2179,83 @@ msgstr " not banned: normal Odoo activity (login or order). Ban by hand only: ng
 msgid " avec activité Odoo normale (non bannie(s)), "
 msgstr " with normal Odoo activity (not banned), "
 
+msgid "  --ban-sqli                   bannir les adresses ayant envoyé une injection SQL dans le journal d'accès (liste et confirmation demandées, sauf --yes)"
+msgstr "  --ban-sqli                   ban the addresses that sent an SQL injection in the access log (list and confirmation asked, unless --yes)"
+
+msgid "ERREUR: --ban-sqli nécessite root (sudo)."
+msgstr "ERROR: --ban-sqli requires root (sudo)."
+
+msgid " BANNISSEMENT DES SOURCES D'INJECTION SQL : "
+msgstr " SQL INJECTION SOURCES BAN: "
+
+msgid "Recherche des requêtes d'injection SQL (lecture seule)..."
+msgstr "Searching for SQL injection requests (read only)..."
+
+msgid "ERREUR: dossier temporaire impossible."
+msgstr "ERROR: temporary folder impossible."
+
+msgid "Aucune injection SQL trouvée dans "
+msgstr "No SQL injection found in "
+
+msgid " : rien à bannir."
+msgstr " : nothing to ban."
+
+msgid "Adresses ayant tenté une injection SQL : "
+msgstr "Addresses that tried an SQL injection: "
+
+msgid " adresse(s), "
+msgstr " address(es), "
+
+msgid " requête(s)."
+msgstr " request(s)."
+
+msgid "   (ignorée : pas une adresse IP)"
+msgstr "   (ignored: not an IP address)"
+
+msgid "!! réponse 2xx : la requête a atteint Odoo"
+msgstr "!! 2xx response: the request reached Odoo"
+
+msgid "      première : "
+msgstr "      first: "
+
+msgid "dernière : "
+msgstr "last: "
+
+msgid "      requête : "
+msgstr "      request: "
+
+msgid "déjà bannie : "
+msgstr "already banned: "
+
+msgid " adresse(s) ont reçu une réponse 2xx : ces requêtes ont atteint Odoo (lignes en rouge)."
+msgstr " address(es) got a 2xx response: these requests reached Odoo (lines in red)."
+
+msgid "Annulé : aucune adresse bannie."
+msgstr "Cancelled: no address banned."
+
+msgid "[DÉJÀ]"
+msgstr "[ALREADY]"
+
+msgid " déjà bannie ("
+msgstr " already banned ("
+
+msgid ") : rien à faire"
+msgstr ") : nothing to do"
+
+msgid " requête(s) dans "
+msgstr " request(s) in "
+
+msgid " non banni (adresse protégée ou erreur : nginx-log-audit.sh --ban "
+msgstr " not banned (protected address or error: nginx-log-audit.sh --ban "
+
+msgid " pour le détail)"
+msgstr " for details)"
+
+msgid " adresse(s) bannie(s) maintenant, "
+msgstr " address(es) banned now, "
+
+msgid " déjà bannie(s) (ignorée(s)), "
+msgstr " already banned (ignored), "
+
+msgid " non bannie(s). Levée : nginx-log-audit.sh --unban IP"
+msgstr " not banned. Lifted: nginx-log-audit.sh --unban IP"

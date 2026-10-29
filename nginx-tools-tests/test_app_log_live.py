@@ -117,11 +117,16 @@ class AppLogLive(EnvTest):
     def run_cmd(self, cmd, *args, **kwargs):
         """1.98 : --min est actif par défaut ; les tests écrits pour l'affichage complet (base, « werkzeug ») demandent --no-min, sauf s'ils passent
         eux-mêmes --min ou --no-min."""
-        return super().run_cmd(self.sans_min(cmd), *args, **kwargs)
+        return super().run_cmd(self.sans_min(cmd, ip=True), *args, **kwargs)
 
-    def sans_min(self, cmd):
+    def sans_min(self, cmd, ip=False):
+        """1.112 : l'adresse IP est masquée PAR DÉFAUT (HIDE_IP, 1.107) ; les tests qui lisent les adresses demandent --show-ip, sauf ceux qui testent ce défaut
+        (nom du test : hide / par_defaut / ip_gardee) ou qui passent eux-mêmes une option d'adresse."""
         if len(cmd) > 1 and cmd[1] == self.prog and not any(o in cmd for o in ("--min", "--no-min", "--help", "--version", "--changelog")):
-            return cmd[:2] + ["--no-min"] + cmd[2:]
+            extra = ["--no-min"]
+            if ip and not any(m in self._testMethodName for m in ("hide", "par_defaut", "ip_gardee")) and not any(o in cmd for o in ("--show-ip", "--hide-ip")):
+                extra.append("--show-ip")
+            return cmd[:2] + extra + cmd[2:]
         return cmd
 
     def lancer(self, *args, env_extra=None):
@@ -2111,13 +2116,13 @@ class AppLogLive(EnvTest):
     def test_menu_des_touches_et_options_a_la_volee(self):
         """[6] ? ouvre le menu ; i, m, s, v basculent ; d, H, o demandent une valeur ; V affiche la version."""
         self.journal_tableau()
-        sequence = [(b"/event", b"?", 0.4), (b"inscriptions aux \xc3\xa9v\xc3\xa9nements", b"i", 0.4), (b"--hide-ip : yes", b"m", 0.4), (b"--min : yes", b"s", 0.4),
+        sequence = [(b"/event", b"?", 0.4), (b"inscriptions aux \xc3\xa9v\xc3\xa9nements", b"i", 0.4), (b"--hide-ip : no", b"m", 0.4), (b"--min : yes", b"s", 0.4),
                     (b"--suspect : yes", b"d", 0.4), (b"Entr\xc3\xa9e = 20", b"30\r", 0.2), (b"--dns-max 30", b"t", 0.4), (b"Entr\xc3\xa9e = 32", b"\r", 0.2),
                     (b"--dns-max-truncate 32", b"H", 0.4), (b"Entr\xc3\xa9e = 10", b"0\r", 0.2), (b"alertes automatiques arr\xc3\xaat\xc3\xa9es", b"o", 0.4),
                     (b"tout afficher", b"zzz\r", 0.2), (b"--only : zzz", b"V", 0.4), (b"app-log-live.py version", b"v", 0.4), (b"--verbose : yes", b"\x03", 0.4)]
-        text, envoyees = self.run_pty(["python3", self.prog, "--no-history", "--no-isp", "--no-presence", "--no-banned", "--lines", "1"], sequence, timeout=60)
+        text, envoyees = self.run_pty(["python3", self.prog, "--no-history", "--no-isp", "--no-presence", "--no-banned", "--lines", "1"], sequence, timeout=60, colonnes=200)
         self.assertEqual(envoyees, len(sequence), text)
-        menu = text[text.index("Touches (? ou h"):text.index("--hide-ip : yes")]
+        menu = text[text.index("Touches (? ou h"):text.index("--hide-ip : no")]
         for attendu in ("Ctrl-G", "Ctrl-T", "Ctrl-C", "--dns-max N", "--dns-max-truncate N", "--health MIN", "--hide-ip", "--min", "--only TEXTE", "--report-err", "--suspect",
                         "--verbose", "--version", "inscriptions aux sondages", "inscriptions aux événements", "adresses à bannir : 0"):
             self.assertIn(attendu, menu)

@@ -284,6 +284,7 @@ class BigBlueButton(EnvTest):
 
     def test_nginx_hardening_etapes_odoo_sans_objet_et_retention(self):
         prog = self.prepare("nginx-hardening.sh", {"/etc/default/": os.path.dirname(self.path("etc-default", "x")) + "/",
+                                                   "/etc/nginx": os.path.dirname(self.path("etc-nginx", "x")),       # racine sauvegardée (sans elle, --update refuse : pas de nginx sur ce poste)
                                                    "/var/log/nginx": os.path.dirname(self.path("nl", "x")), "/var/www": os.path.dirname(self.path("www", "x"))})
         lr = self.write("logrotate.d/nginx", "/var/log/nginx/*.log {\n\tdaily\n\tmissingok\n\trotate 14\n\tcompress\n}\n")
         self.write("logrotate.d/fail2ban", "/var/log/fail2ban.log {\n    weekly\n    rotate 4\n}\n")

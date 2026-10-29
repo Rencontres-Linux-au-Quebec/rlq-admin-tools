@@ -144,8 +144,8 @@ class OdooMailRetry(_Base):
         self.assertIn("cause : SMTPDataError: (452, b'4.4.5 Maximum number of messages", " ".join(out.split()))      # without the useless preamble
 
     # --- le menu de renvoi ---------------------------------------------------------------------------------------------
-    def menu(self, reponses, *args):
-        sortie, _ = self.run_pty(["python3", self.prog, *args], reponses)
+    def menu(self, reponses, *args, colonnes=0):
+        sortie, _ = self.run_pty(["python3", self.prog, *args], reponses, colonnes=colonnes)
         self.assertNotIn("Traceback", sortie, sortie)
         return sortie
 
@@ -173,14 +173,14 @@ class OdooMailRetry(_Base):
 
     def test_menu_un_par_un_dit_a_qui_est_destine_chaque_courriel(self):
         """Les titres se ressemblent (« Rapport de sondage » ×5) : chaque question dit À QUI le courriel est destiné — masqué comme la liste, entier avec --details."""
-        reponses = [(b"[N] aucun : ", b"c\n", 0.1)] + [(f"#{i}".encode(), b"q\n", 0.1) for i in (7171,)]
-        sortie = " ".join(self.menu(reponses).split())
+        reponses = [(b"[N] aucun : ", b"c\n", 0.1), (b"[o/N/q] :", b"q\n", 0.1)]      # attend l'invite de la question (la liste affiche aussi « #7171 »)
+        sortie = " ".join(self.menu(reponses, colonnes=200).split())      # invite longue : terminal large (sinon readline coupe le mot)
         self.assertIn(f"#7171 {heure(T0 - 86400 * 20)} « Invitation à l'événement » → à : x***@exemple.fr — expéditeur refusé (550) — renvoyer ? [o/N/q] :", sortie)
-        sortie = " ".join(self.menu(reponses, "--details").split())
+        sortie = " ".join(self.menu(reponses, "--details", colonnes=200).split())
         self.assertIn("« Invitation à l'événement » → à : x@exemple.fr — expéditeur refusé (550) — renvoyer ? [o/N/q] :", sortie)
         self.assertNotIn("x***@", sortie)
-        sortie = " ".join(self.menu([(b"[N] aucun : ", b"c\n", 0.1), (b"#7171", b"n\n", 0.1), (b"#7404", b"n\n", 0.1), (b"#7405", b"n\n", 0.1),
-                                     (b"#7406", b"n\n", 0.1), (b"#7500", b"q\n", 0.1)]).split())
+        invites = [(b"[o/N/q] :", b"n\n", 0.1)] * 4 + [(b"[o/N/q] :", b"q\n", 0.1)]          # 5 courriels : une invite chacun (on répond à l'invite, pas au n° de la liste)
+        sortie = " ".join(self.menu([(b"[N] aucun : ", b"c\n", 0.1)] + invites, colonnes=200).split())
         self.assertIn("→ à : j***@exemple.org — limite de messages par connexion (452)", sortie)
         self.assertIn("→ à : a***@exemple.org, s***@exemple.org — limite", sortie)               # plusieurs destinataires : tous
         self.assertIn("« Rappel » → à : (aucun destinataire noté) —", sortie)
