@@ -24,7 +24,7 @@
 #
 # Options (par ordre alphabetique) : see --help / voir --help
 
-__version__="1.3.20261028.194152"
+__version__="1.4.20261028.202537"
 
 set -u
 set -o pipefail
@@ -411,6 +411,20 @@ execute_query() {
   return 1
 }
 
+# dialog_run VAR ARGS...: run dialog with its screen on the terminal; its answer goes to VAR.
+# The answer is written to a file (--output-fd), not captured with $(...): dialog then keeps the
+# terminal as its screen and never needs to re-open a terminal by name ("cannot open tty-output").
+dialog_run() {
+  local __var="$1" answer rc
+  shift
+  answer="$(mktemp)" || return 1
+  "$DIALOG_BIN" --output-fd 3 "$@" 3>"$answer"
+  rc=$?
+  printf -v "$__var" '%s' "$(cat -- "$answer")"
+  rm -f -- "$answer"
+  return "$rc"
+}
+
 run_menu() {
   local choice action name
   local -a items
@@ -420,13 +434,13 @@ run_menu() {
       items+=("$name" "$(query_desc "$name")")
     done
     items+=("quit" "$(t exit)")
-    choice="$("$DIALOG_BIN" --stdout --title "$(t title)" \
-      --menu "$(t menu "$PG_DATABASE")" 22 100 12 "${items[@]}")" || break
+    dialog_run choice --title "$(t title)" \
+      --menu "$(t menu "$PG_DATABASE")" 22 100 12 "${items[@]}" || break
     [[ "$choice" == "quit" ]] && break
 
-    action="$("$DIALOG_BIN" --stdout --title "$(t title)" \
+    dialog_run action --title "$(t title)" \
       --menu "$(t action "$choice")" 12 72 3 \
-      run "$(t act_run)" dry "$(t act_dry)" back "$(t act_cancel)")" || continue
+      run "$(t act_run)" dry "$(t act_dry)" back "$(t act_cancel)" || continue
     [[ "$action" == "back" ]] && continue
 
     execute_query "$choice" "$action" dialog || true
