@@ -296,6 +296,27 @@ Earlier history was archived outside this repository when this file was created.
 
 ## app-log-live.py
 
+### 1.114.20261029.192022 - Status bar: top addresses, red alert once, status settings in the configuration file
+
+- Title: the status bar names the three addresses with the most problem lines, gives one alert when it turns red, and the --buffer and --status-every settings can be kept in the configuration file.
+- Reason: The status bar of 1.113 shows that something is wrong, but not where it comes from. The red colour was only visible in the bar, so an operator looking at another window could miss it. The two settings of the bar had to be given on the command line each time.
+- Changes:
+  - StatusBar.observe (function observe): counts, for each displayed line that is a problem (4xx, 5xx, SQL injection attempt, banned address), the first address of the line (new parameter ip). StatusBar.top_ips (new method): "top IP" followed by the three addresses with the most problems, as "ip (count)".
+  - Privacy: the top addresses are shown only when the addresses are displayed (--show-ip, the H key). Otherwise the bar says that they are hidden (--show-ip). status_line reads the H key setting at each redraw, so the bar follows the key.
+  - Alert (emit, in follow): the first time the bar is red since the last reset, one beep (sonner, same mode as --chime, whatever --chime is) and one red line "ALERT: the status bar turned red...". The alert is not repeated until Ctrl-T or g resets the counters (StatusBar.alerted).
+  - Configuration: SCHEMA_CONFIG gets BUFFER (--buffer) and STATUS_EVERY (--status-every). They are read from /etc/default/app-log-live.conf, then from ~/.app-log-live.conf, and the command line keeps priority.
+  - Files touched: app-log-live.py, lang/app-log-live.fr.po (3 new messages), nginx-tools-tests/test_app_log_live.py, doc/fr/07-app-log-live.md and doc/en/07-app-log-live.md.
+- Bugs fixed: none.
+- Safeguards and edge cases:
+  - A line with no address (for example a line without a client address) is counted in the totals but not in the top addresses.
+  - The alert is given once per period: a bar that stays red does not beep on each line.
+  - The beep respects the terminal check of sonner: nothing is sent when the output is not a terminal (redirected output, tests).
+  - Only the bar is affected by --hide-ip: the daily journal keeps the same content as before.
+- Checks:
+  - py_compile OK; --version displays 1.114.20261029.192022.
+  - New unit test test_114_ip_principales_alerte_rouge_une_fois (see the verdict of the testeur agent in the pull request).
+- Action required: none. Optional: add BUFFER=... and STATUS_EVERY=... to app-log-live.conf to change the defaults (200 and 100).
+
 ### 1.113.20261029.171832 - Real-time dashboard: status bar, refresh (f), print (P), key menu in order
 
 - Title: a status bar in reverse video every N lines, the refresh of the last lines (f), their printing to a file (P), and the key menu sorted by short key.

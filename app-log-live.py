@@ -111,7 +111,7 @@ from urllib.parse import unquote
 from collections import Counter, OrderedDict
 from concurrent.futures import Future
 
-__version__ = "1.113.20261029.171832"
+__version__ = "1.114.20261029.192022"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
@@ -210,7 +210,7 @@ SCHEMA_CONFIG = {"ACCENTUATE_GROUP": ("accentuate_group", str), "CHIME": ("chime
                  "LINES": ("lines", int), "LOG_DIR": ("log_dir", str), "LOG_KEEP_DAYS": ("log_keep_days", int), "MIN": ("min", bool), "MODULES_CUSTOM": ("modules_custom", bool), "MODULES_SORT": ("modules_sort", str), "MODULES_STARTUP": ("modules_startup", bool), "NAMESPACE": ("namespace", str),
                  "NO_BANNED": ("no_banned", bool), "NOT_FOUND": ("not_found", bool), "NO_BAN_PROMPT": ("no_ban_prompt", bool), "NO_CACHE": ("no_cache", bool), "NO_HISTORY": ("no_history", bool),
                  "NO_ISP": ("no_isp", bool), "NO_KEYS": ("no_keys", bool), "NO_LOG_FILE": ("no_log_file", bool), "NO_PRESENCE": ("no_presence", bool),
-                 "LEVEL": ("level", int), "NO_USER_AGENT": ("no_user_agent", bool), "RECAP": ("recap", float), "RECORD_MAX": ("record_max", float), "SERVICE": ("service", str), "SLOW": ("slow", float), "VERBOSE": ("verbose", bool)}
+                 "LEVEL": ("level", int), "BUFFER": ("buffer", int), "STATUS_EVERY": ("status_every", int), "NO_USER_AGENT": ("no_user_agent", bool), "RECAP": ("recap", float), "RECORD_MAX": ("record_max", float), "SERVICE": ("service", str), "SLOW": ("slow", float), "VERBOSE": ("verbose", bool)}
 CHANGELOG_FILE = os.path.join(SCRIPT_DIR, "CHANGELOG.md")
 LINES_DEFAULT = 50
 DAYS_DEFAULT = 0                                                      # 0 = the whole journal history
@@ -4304,28 +4304,42 @@ class StatusBar:
     """1.113: cumulative summary of the recent problems, drawn as a reverse-video bar every N displayed lines (--status-every N): SQL injection attempts,
     4xx and 5xx answers, addresses currently banned (seen), slow requests (--slow). Reset by the detailed reports (Ctrl-T and g).
     Colour of the bar: white = nothing to see, green = a little (4xx, a few slow requests), yellow = to look at (SQL injection, 5xx, banned addresses,
-    many slow requests), red = investigate now (repeated SQL injection, many 5xx, many slow requests)."""
-    def __init__(self):
+    many slow requests), red = investigate now (repeated SQL injection, many 5xx, many slow requests).
+    1.114: the three addresses with the most problem lines are shown (only when the addresses are displayed: --show-ip; hidden otherwise);
+    `alerted` is set once the bar turns red, so that the alert (beep and line) is given once until the next reset."""
+    TOP_IPS = 3
+
+    def __init__(self, show_ips=False):
+        self.show_ips = show_ips
         self.reset()
 
     def reset(self):
         self.sqli = self.e4 = self.e5 = self.slow = 0
         self.slow_max = 0.0
         self.banned = set()
+        self.problems_by_ip = collections.Counter()
+        self.alerted = False
 
-    def observe(self, L, banned_ip, slow_threshold):
-        """Counts one displayed line (banned_ip: its address, when the line carries a [banned: ...] label)."""
+    def observe(self, L, banned_ip, slow_threshold, ip=None):
+        """Counts one displayed line (banned_ip: its address, when the line carries a [banned: ...] label; ip: its first address)."""
+        problem = False
         request = REQUEST_RE.search(L.text or "")
         if request:
             code = int(request.group(2))
             if 400 <= code < 500:
                 self.e4 += 1
+                problem = True
             elif code >= 500:
                 self.e5 += 1
+                problem = True
             if SQLI_RE.search(unquote(request.group(1))):
                 self.sqli += 1
+                problem = True
         if banned_ip:
             self.banned.add(banned_ip)
+            problem = True
+        if ip and problem:
+            self.problems_by_ip[ip] += 1
         total = request_duration(L.text or "")
         if total is not None and slow_threshold and total >= slow_threshold:
             self.slow += 1
@@ -4341,10 +4355,22 @@ class StatusBar:
             return "32"
         return "37"
 
+    def top_ips(self):
+        """1.114: the addresses with the most problem lines, as "ip (count)", or the text saying they are hidden (--hide-ip)."""
+        if not self.problems_by_ip:
+            return ""
+        if not self.show_ips:
+            return TR("top IP") + " " + TR("hidden (--show-ip)")
+        best = self.problems_by_ip.most_common(self.TOP_IPS)
+        return TR("top IP") + " " + ", ".join(f"{ip} ({count})" for ip, count in best)
+
     def summary(self):
         slow_text = f"{self.slow}" + (f" (max {self.slow_max:.1f} s)" if self.slow else "")
-        return " · ".join([TR("SQLi attacks") + f" {self.sqli}", f"4xx {self.e4}", f"5xx {self.e5}",
-                           TR("banned") + f" {len(self.banned)}", TR("slow") + f" {slow_text}"])
+        parts = [TR("SQLi attacks") + f" {self.sqli}", f"4xx {self.e4}", f"5xx {self.e5}",
+                 TR("banned") + f" {len(self.banned)}", TR("slow") + f" {slow_text}"]
+        if self.problems_by_ip:
+            parts.append(self.top_ips())
+        return " · ".join(parts)
 
 
 class Output:
@@ -4798,7 +4824,7 @@ def follow(cmd, people, resolver, options, output):
             return "robot"
         return "kept"
 
-    status = StatusBar()                                  # 1.113: counters of the status bar (reset by Ctrl-T and g)
+    status = StatusBar(show_ips=bool(options.get("keep_ip")))      # 1.113: counters of the status bar (reset by Ctrl-T and g); 1.114: top addresses if shown
     line_memory = collections.deque(maxlen=max(0, options.get("buffer", BUFFER_DEFAULT)))      # 1.113: last displayed lines (f and P keys)
 
     def compose(L, renderings, benign):
@@ -4830,7 +4856,11 @@ def follow(cmd, people, resolver, options, output):
         watch_repeat(ips0[0][2] if ips0 else None, L)
         state["emitted"] = state.get("emitted", 0) + 1
         paint(L, text, inputs, benign, underline=bool(output.underline) and state["emitted"] % output.underline == 0)
-        status.observe(L, ips0[0][2] if source else None, options["slow"])
+        status.observe(L, ips0[0][2] if source else None, options["slow"], ips0[0][2] if ips0 else None)
+        if status.color() == "31" and not status.alerted:      # 1.114: the bar turns red: one beep and one line, until the next reset (Ctrl-T or g)
+            status.alerted = True
+            sonner(beep["mode"], output.screen)
+            output.write(color_code("1;31", "  " + TR("ALERT: the status bar turned red, investigate now (Ctrl-T or g to acknowledge)")) + "\n")
         if options["status_every"] and state["emitted"] % options["status_every"] == 0:
             output.write(status_line() + "\n")
         if options["chime"] is not None and is_reportable_error(L, options["chime"]) and time.time() - beep["last"] >= 2.0:       # at most one beep every 2 s
@@ -4840,6 +4870,7 @@ def follow(cmd, people, resolver, options, output):
     def status_line():
         """1.113: the status bar, reverse video, its colour according to the problems counted since the last detailed report."""
         columns = terminal_columns()
+        status.show_ips = bool(options.get("keep_ip"))          # 1.114: follows the H key (--hide-ip / --show-ip) on the fly
         text = f" {TR('STATUS')}  {status.summary()}  ·  {TR('since the last detailed report (Ctrl-T or g)')} "
         return color_code(f"7;1;{status.color()}", text[:max(20, columns - 1)].ljust(columns - 1))
 
