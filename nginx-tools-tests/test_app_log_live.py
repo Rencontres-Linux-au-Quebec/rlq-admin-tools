@@ -3398,3 +3398,23 @@ class AppLogLive(EnvTest):
         bar.reset()
         self.assertEqual((bar.sqli, bar.e5, bar.slow), (0, 0, 0), "Ctrl-T ou g : bilan remis à zéro")
         self.assertIn("SQLi", bar.summary())
+
+    def test_114_ip_principales_et_alerte_rouge(self):
+        """1.114 : la barre d'état nomme les trois adresses les plus fautives (masquées sans --show-ip) et l'alerte rouge ne se répète pas."""
+        live = self.module_live()
+        bar = live.StatusBar(show_ips=True)
+        attaque = live.Line('2026-10-29T10:00:00.000000-0400 odoo[1]: 2026-10-29 14:00:00,000 1 INFO db werkzeug: 11.1.1.1 - - "GET /shop?id=1%20UNION%20SELECT%20password HTTP/1.1" 500 - 1 0.1 0.2')
+        for _ in range(3):
+            bar.observe(attaque, None, 5.0, "11.1.1.1")
+        bar.observe(attaque, None, 5.0, "22.2.2.2")
+        self.assertIn("11.1.1.1 (3)", bar.summary(), "l'adresse la plus fautive est nommée avec son compte")
+        self.assertIn("22.2.2.2 (1)", bar.summary())
+        cachee = live.StatusBar(show_ips=False)
+        cachee.observe(attaque, None, 5.0, "11.1.1.1")
+        self.assertNotIn("11.1.1.1", cachee.summary(), "adresse cachée sans --show-ip")
+        self.assertIn("(--show-ip)", cachee.summary())
+        self.assertFalse(bar.alerted, "pas d'alerte avant le passage au rouge")
+        bar.alerted = True
+        bar.reset()
+        self.assertFalse(bar.alerted, "Ctrl-T ou g réarme l'alerte")
+        self.assertEqual(bar.problems_by_ip, {}, "le palmarès repart à zéro")
