@@ -468,6 +468,43 @@ class ChkNginxLogs(EnvTest):
             self.assertIn("− connectée à Odoo avec un compte (benevole@exemple.org)", out)
             self.assertNotIn("bannissement justifié", out)
 
+    # --- 2.60: --ban-sqli shows the context of each address; an address with normal activity in Odoo is never banned in bulk ---
+    def test_ban_sqli_contexte_et_activite_normale_jamais_bannie_en_lot(self):
+        import datetime
+        if os.geteuid() != 0:
+            self.skipTest("--ban-sqli demande root")
+        d = datetime.date.today().strftime("%d/%b/%Y")
+        sqli = "/es/shop?order=1%20union%20select%201,2"
+
+        def ligne(ip, meth, u, c, s):
+            return f'{ip} - - [{d}:10:00:{s:02d} -0400] "{meth} {u} HTTP/1.1" {c} 300 "-" "Mozilla/5.0 Chrome/152"\n'
+        lignes = [
+            ligne("203.0.113.50", "GET", sqli, 200, 1),                  # connecté à Odoo : jamais bannie en lot
+            ligne("203.0.113.50", "POST", "/shop/cart/update", 200, 2),
+            ligne("203.0.113.60", "GET", sqli, 404, 3),                  # attaque seule : bannie
+            ligne("198.51.100.7", "GET", sqli, 200, 4),                  # a passé une commande : jamais bannie en lot
+            ligne("198.51.100.7", "POST", "/shop/confirm_order", 200, 5),
+        ]
+        with open(os.path.join(self.logs, "rencontres_linux_quebec_prod-access.log"), "w") as f:
+            f.writelines(lignes)
+        self.mock("journalctl", 'echo "2026-09-20T09:00:00-0400 odoo18 odoo[1]: 2026-09-20 13:00:00,1 1 INFO base odoo.addons.base.models.res_users: '
+                                'Login successful for db:base login:benevole@exemple.org from 203.0.113.50"')
+        self.mock("iptables", f'echo "$@" >> {self.d}/iptables.log; [[ "$1" == -C ]] && exit 1; exit 0')
+        rc, out, err = self.run_cmd(["bash", self.prog, "--ban-sqli", "--no-lookup", "--yes"])
+        self.assertEqual(rc, 0, out + err)
+        self.assertIn("comptes Odoo connectés : benevole@exemple.org", out)
+        self.assertIn("panier, commande ou paiement : 1 requête(s)", out)
+        self.assertIn("URL les plus demandées : 1× ", out)
+        self.assertIn("[NORMAL] 203.0.113.50", out)
+        self.assertIn("[NORMAL] 198.51.100.7", out)
+        self.assertIn("2 avec activité Odoo normale (non bannie(s))", out)
+        self.assertEqual(out.count("!! réponse 2xx"), 2, out)               # 2 adresses seulement : la 404 n'est pas « réussie »
+        self.assertIn("DNS inverse : non vérifié (--no-lookup)", out)
+        with open(os.path.join(self.d, "iptables.log")) as f:
+            insertions = [l for l in f if l.startswith("-I ")]    # -C : simple vérification « déjà bannie »
+        self.assertEqual(len(insertions), 1, insertions)
+        self.assertIn("203.0.113.60", insertions[0])
+
     # --- 2.8: user logged in to the back office (real case 11.97.88.180) ------------------------------------------------
     def test_back_office_sans_fausse_rafale_et_boucle_signalee(self):
         """Une page du back-office déclenche des dizaines d'appels internes : ce n'est pas une rafale de pages ; une URL

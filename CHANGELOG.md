@@ -1455,6 +1455,18 @@ Earlier history was archived outside this repository when this file was created.
 
 ## nginx-log-audit.sh
 
+### 2.60.20261028.201441 - --ban-sqli: context for each address, and no bulk ban of normal Odoo users
+
+- Title: --ban-sqli shows, for each address, its reverse DNS name, its owner and country, the Odoo accounts it logged in with, its cart/order/payment requests and its most requested URLs. An address with normal Odoo activity is never banned in bulk.
+- Reason: Before banning, the operator must be sure that the address is not a customer doing a normal transaction in Odoo. The report did not show who the address is, and the bulk ban did not check the logins already known to the script.
+- Detail: New functions dns_inverse (reverse name, confirmed when the name points back to the address), proprietaire_ip (owner and country through apps/_reseau.py, RDAP), sqli_contexte (one pass over the site logs, rotations included, for the cart, order and payment requests with a 2xx/3xx answer, and the five most requested URLs without query string), champ_ctx. Logins come from the journal already read for the report (charger_logins, logins_odoo). New option --no-lookup: no DNS or RDAP request, only the logs are read. Addresses with a login or an order are marked [NORMAL] in the bulk ban and counted in the summary; they are banned by hand with --ban IP.
+- Bugs fixed: the red "!! réponse 2xx" line was shown for every address when the output was not a terminal (the colour variables are empty, so the comparison was always true). It is now a flag.
+- Guard rails and edge cases: the context is read only for the addresses of the list; a DNS timeout gives "aucun" or "NON confirmé" after 5 s; without python3 or _reseau.py the owner is "inconnu"; an address with no PTR is not reported as suspicious by itself; the lookups do not change any file.
+- Files: nginx-log-audit.sh, nginx-tools-tests/test_nginx_log_audit.py (new test: an address with a login and an address with an order are never banned in bulk, the attack-only address is), CHANGELOG.md.
+- Checks: test_nginx_log_audit (126 tests in the run, including the new one), test_conventions (changelog order), test_docs, test_alignement: OK. test_i18n: the 27 untranslated strings of nginx-log-audit, the nginx-hardening strings and odoo-warmup were already failing on origin/main; the 24 new strings of this version are translated in lang/nginx-log-audit.en.po. The test_sbin_ajoutes test fails only in the full run (sandbox PATH) and passes alone, on main too. ShellCheck 0.11.0 on nginx-log-audit.sh: clean at the default level.
+- Limits: the text of the new lines is in French, like the rest of --ban-sqli; the English translation (lang/) is not done. The RDAP owner is the holder of the address block, not always the ISP. The Odoo login comes from the systemd journal (100 days): an account used from another address is not seen.
+- Action required: none. For a quick check without DNS or RDAP requests: sudo nginx-log-audit.sh --ban-sqli --no-lookup.
+
 ### 2.59.20261028.174500 - --ban-sqli: skip addresses already banned
 
 - Title: --ban-sqli bans only the addresses that are not already banned, and says where each one is banned.
