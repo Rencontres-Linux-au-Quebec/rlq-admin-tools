@@ -16,10 +16,10 @@
 #BACKUP=no
 # --busy-visitors : site occupé à partir de N visiteurs actifs (requête dans les dernières VISITOR_WINDOW minutes, robots exclus)
 #BUSY_VISITORS=3
-# --visitor-window : durée de comptage des visiteurs actifs, en minutes
-#VISITOR_WINDOW=5
 # commande d'Odoo ; vide : ./odoo_bin.sh du dossier du service, sinon odoo-bin (défaut : ./odoo_bin.sh du dossier du service, sinon odoo-bin)
 #COMMAND=
+# un utilisateur connecté compte seulement s'il a été actif dans les N dernières minutes (la session peut rester valide)
+#CONNECTED_WINDOW=15
 # base (--db) ; vide : « -d » de la commande du service, sinon db_name d'Odoo (défaut : « -d » du service, sinon db_name d'Odoo)
 #DATABASE=
 # en, fr ou auto (suivre LC_ALL / LC_MESSAGES / LANG). Ordre de choix : --lang, NGINX_TOOLS_LANG, ODOO_UPDATE_MODULE_LANG, cette clé, LC_ALL, LC_MESSAGES, LANG.
@@ -27,6 +27,8 @@
 # --force-busy : conservée pour compatibilité ; les écritures bloquent toujours la mise à jour (FORCE_BUSY=yes ; sans effet sur les lectures)
 #FORCE_BUSY=no
 #LANGUAGE=auto
+# activité faible : moins de N requêtes (hors robots) dans la fenêtre VISITOR_WINDOW
+#LOW_REQUESTS=10
 # modules à mettre à jour, séparés par des espaces ; motifs acceptés (--module, répétable)
 #MODULES=rlq_*
 # Copies des modules AVANT chaque mise à jour (.tar.gz, droits 700, les 10 dernières gardées) : base du retour arrière
@@ -46,23 +48,21 @@
 #TIMEOUT=1800
 # yes : afficher chaque commande externe exécutée (équivalent de --verbose). Peut aussi venir du fichier commun app-default.conf (clés VERBOSE et DEBUG_LEVEL).
 #VERBOSE=no
+# --visitor-window : durée de comptage des visiteurs actifs, en minutes
+#VISITOR_WINDOW=5
 # attente maximale du démarrage après la mise à jour (service actif, puis port à l'écoute), en secondes
 #WAIT=90
-# --check-activity : état du site maintenant (visiteurs, écritures HTTP, PostgreSQL), sans rien changer : 0 = calme, 3 = occupé
-# --wait-quiet : délai fixe d'attente d'un site calme, en minutes (0 = un seul contrôle) ; vide (défaut) : délais selon le profil ci-dessous
-#WAIT_QUIET=
-# attente maximale, en minutes, si un utilisateur connecté est actif (table website_visitor : partner_id, last_connection_datetime)
-#WAIT_CONNECTED=60
-# idem si l'activité est faible (moins de LOW_REQUESTS requêtes dans la fenêtre)
-#WAIT_CONNECTED_LOW=3
 # attente maximale, en minutes, si seuls des visiteurs non connectés sont actifs
 #WAIT_ANONYMOUS=30
 # idem si l'activité est faible
 #WAIT_ANONYMOUS_LOW=2
-# activité faible : moins de N requêtes (hors robots) dans la fenêtre VISITOR_WINDOW
-#LOW_REQUESTS=10
-# un utilisateur connecté compte seulement s'il a été actif dans les N dernières minutes (la session peut rester valide)
-#CONNECTED_WINDOW=15
+# attente maximale, en minutes, si un utilisateur connecté est actif (table website_visitor : partner_id, last_connection_datetime)
+#WAIT_CONNECTED=60
+# idem si l'activité est faible (moins de LOW_REQUESTS requêtes dans la fenêtre)
+#WAIT_CONNECTED_LOW=3
+# --check-activity : état du site maintenant (visiteurs, écritures HTTP, PostgreSQL), sans rien changer : 0 = calme, 3 = occupé
+# --wait-quiet : délai fixe d'attente d'un site calme, en minutes (0 = un seul contrôle) ; vide (défaut) : délais selon le profil ci-dessous
+#WAIT_QUIET=
 # préchauffer le cache d'Odoo après le redémarrage (odoo-warmup.py : pages publiques, derniers événements et sondages, administration) ; no = --no-warmup
 #WARMUP=yes
 # archive .zip des modules à décompresser avant la mise à jour (--zip) : un fichier, ou un dossier (la plus récente) ; vide : la plus récente « MODULE*.zip »

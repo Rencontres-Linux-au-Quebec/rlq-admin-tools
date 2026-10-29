@@ -1,0 +1,27 @@
+# odoo-sql-maint configuration / configuration d'odoo-sql-maint
+#
+# Read at each start. Command-line options override this file.
+# Lu a chaque lancement. Les options de la ligne de commande ont priorite.
+#
+# Passwords are NOT stored here: use ~/.pgpass (chmod 600).
+# Les mots de passe ne sont PAS ici : utilisez ~/.pgpass (chmod 600).
+
+# Target database (required). Example: odoo_dev / Base cible (obligatoire). Exemple : odoo_dev
+PG_DATABASE=
+
+PG_HOST=localhost
+PG_PORT=5432
+PG_USER=odoo
+
+# Audit log of every run (empty = disabled) / Journal d'audit (vide = desactive)
+LOG_FILE=
+
+# Destructive runs on database names matching this regex need --yes
+# Execution destructive sur une base dont le nom correspond a cette regex : --yes requis
+PROD_PATTERN=prod
+
+# Interface language: fr or en (empty = from LANG) / Langue : fr ou en (vide = selon LANG)
+UI_LANG=
+
+# Menu program (dialog) / Programme du menu (dialog)
+DIALOG_BIN=dialog

@@ -130,7 +130,7 @@ grep_q() { grep "$@" >/dev/null; }
 #                              ne peut pas le voir, le texte etant entre apostrophes (faux positif).
 trap 'ec=$?; echo "" >&2; echo "*** ARRÊT INATTENDU DU SCRIPT (code $ec) À LA LIGNE $LINENO ***" >&2; echo "*** Commande fautive : $BASH_COMMAND" >&2; echo "*** Si le rapport ci-dessus semble incomplet (ex. sections Top 10 absentes), c'\''est probablement la cause." >&2' ERR
 
-readonly SCRIPT_VERSION="2.55.20261028.161044"
+readonly SCRIPT_VERSION="2.62.20261028.214122"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
 # Chemin de ce programme (relances --investigate, --ban, --unban) : defini ICI, avant le bloc --ban qui l'utilise.
 SELF_PATH="$SCRIPT_DIR/$(basename "${BASH_SOURCE[0]}")"
@@ -168,6 +168,7 @@ LAST_HOURS=""
 BAN_IP=""
 UNBAN_IP=""
 DO_BAN_SQLI=0
+NO_LOOKUP=0                # --no-lookup (2.60) : --ban-sqli sans requête DNS ni RDAP (les journaux seulement)
 BAN_REASON=""
 DO_BAN_HISTORY=0
 DO_UNBAN_CHECK=0
@@ -214,6 +215,20 @@ if declare -F config_lire >/dev/null; then
     case " $* " in *" --version "*|*" --help "*|*" -h "*|*" --changelog "*) ;; *" --export-bans "*) config_afficher >&2 ;; *) config_afficher ;; esac
 fi
 
+# Menu --menu (2.x) : apps/_menu.sh (dialog si installé, sinon texte). Entrées : TAG|FR|EN|CONFIRMATION.
+# shellcheck source=/dev/null  # bibliothèque livrée à côté du programme
+[[ -r "$SCRIPT_DIR/apps/_menu.sh" ]] && . "$SCRIPT_DIR/apps/_menu.sh"
+# shellcheck disable=SC2034  # lues par apps/_menu.sh (chargé plus haut)
+MENU_ENTREES=(
+    "|Rapport du jour (sans option)|Today's report (no option)|0"
+    "--stats|Statistiques du trafic|Traffic statistics|0"
+    "--fail2ban|État de fail2ban et historique des bannissements|fail2ban state and ban history|0"
+    "--ban-history|Journal des bannissements manuels|Manual ban journal|0"
+    "--unban-check|Réévaluer les bannissements manuels|Re-check manual bans|0"
+    "--export-bans|Exporter les bannissements manuels|Export manual bans|0"
+)
+declare -F menu_si_demande >/dev/null && menu_si_demande "$SCRIPT_DIR/$(basename "${BASH_SOURCE[0]}")" "$@"
+
 while [[ $# -gt 0 ]]; do
     case "$1" in
         dev|lab|prod) ENV="$1"; shift ;;
@@ -244,11 +259,13 @@ while [[ $# -gt 0 ]]; do
         --lang) shift 2 ;;
         --app) APP_FORCE="${2:-}"; shift 2 ;;
         --app=*) APP_FORCE="${1#--app=}"; shift ;;
+        --no-lookup) NO_LOOKUP=1; shift ;;
         --no-prompt) NO_PROMPT=1; shift ;;
         --ban-threshold) BAN_THRESHOLD="${2:-}"; shift 2 ;;
         --page-burst) PAGE_BURST="${2:-}"; shift 2 ;;
         --parallel-threshold) PARALLEL_THRESHOLD="${2:-}"; shift 2 ;;
         --version) echo "nginx-log-audit.sh version $SCRIPT_VERSION"; exit 0 ;;
+        --menu) shift ;;     # --menu (apps/_menu.sh) : traité avant la boucle
         --changelog)
             if [[ ! -r "$CHANGELOG_FILE" ]]; then
                 echo "Changelog introuvable : $CHANGELOG_FILE" >&2
@@ -296,6 +313,8 @@ Options (par ordre alphabétique) :
   --ip ADDRESS                 limiter le rapport à une adresse
   --lang LANG                  langue d'affichage : en ou fr (défaut : selon LC_ALL / LC_MESSAGES / LANG)
   --last HOURS                 limiter toutes les sections aux HOURS dernières heures
+  --menu                       menu interactif des opérations courantes (dialog si installé ; terminal requis)
+  --no-lookup                  avec --ban-sqli : aucune requête DNS ni RDAP (propriétaire, pays) ; seuls les journaux sont lus
   --no-prompt                  ne pas proposer de bannir en fin de rapport
   --page-burst N               pages distinctes en 10 s à partir desquelles l'indice « rafale » est retenu
   --parallel-threshold N        requêtes dynamiques d'une même IP dans la même seconde à partir desquelles la section [11] les signale (défaut : 5)
@@ -1497,6 +1516,120 @@ fi
 # d'accès. Chaque adresse passe par --ban (mêmes protections : adresses de l'équipe, serveur, journal des bannissements).
 # Signature volontairement précise : un tri légitime (order=website_sequence asc) ne doit jamais correspondre.
 SQLI_RE='union([[:space:]]|%20|[+]|/[*])+(all([[:space:]]|%20|[+])+)?select|extractvalue[(]|updatexml[(]|order([[:space:]]|%20|[+])+by([[:space:]]|%20|[+])+[0-9]|elt[(][0-9]|concat[(]0x7e|sleep[(][0-9]|benchmark[(][0-9]|information_schema|waitfor([[:space:]]|%20|[+])+delay'
+# ip_deja_bannie IP : affiche où l'adresse est déjà bannie (pare-feu iptables, ufw, jails fail2ban) et retourne 0 ; sinon retourne 1.
+ip_deja_bannie() {
+    local ip="$1" ou=() j
+    if [[ "$ip" != *:* ]] && command -v iptables >/dev/null 2>&1 && run iptables -C INPUT -s "$ip" -j DROP 2>/dev/null; then ou+=("pare-feu iptables"); fi
+    if ufw_active && run ufw status 2>/dev/null | awk '/DENY/ {print $NF}' | grep_q -xF -- "$ip"; then ou+=("pare-feu ufw"); fi
+    if command -v fail2ban-client >/dev/null 2>&1 && run fail2ban-client ping >/dev/null 2>&1; then
+        for j in $(run fail2ban-client status 2>/dev/null | sed -n 's/.*Jail list:[[:space:]]*//p' | tr ',' ' '); do
+            if run fail2ban-client status "$j" 2>/dev/null | sed -n 's/.*Banned IP list:[[:space:]]*//p' | tr ' ' '\n' | grep_q -xF -- "$ip"; then ou+=("fail2ban $j"); fi
+        done
+    fi
+    (( ${#ou[@]} == 0 )) && return 1
+    local IFS=', '
+    echo "${ou[*]}"
+    return 0
+}
+
+# --- --ban-sqli (2.60) : contexte par adresse, pour ne pas bannir un internaute qui travaille normalement dans Odoo ---
+# dns_inverse IP : nom inverse (PTR), « (confirmé) » si ce nom renvoie vers la même adresse ; « aucun » sinon. Délai 5 s.
+dns_inverse() {
+    local ip="$1" ptr="" retour=""
+    if command -v host >/dev/null 2>&1; then
+        ptr=$(timeout --foreground 5 host "$ip" 2>/dev/null | { grep -m1 -oE 'pointer [^ ]+' || true; } | awk '{print $2}' | sed 's/\.$//') || ptr=""
+    elif command -v getent >/dev/null 2>&1; then
+        ptr=$(timeout --foreground 5 getent hosts "$ip" 2>/dev/null | awk 'NF > 1 { print $2; exit }') || ptr=""
+    fi
+    if [[ -z "$ptr" ]]; then
+        echo "aucun"
+        return 0
+    fi
+    retour=$(timeout --foreground 5 getent ahosts "$ptr" 2>/dev/null | awk '{print $1}' | sort -u) || retour=""
+    if printf '%s\n' "$retour" | grep_q -xF "$ip"; then
+        echo "$ptr (confirmé)"
+    else
+        echo "$ptr (NON confirmé : ce nom ne renvoie pas vers $ip)"
+    fi
+}
+# proprietaire_ip IP : titulaire du bloc d'adresses et pays (RDAP via apps/_reseau.py) : souvent le fournisseur d'accès, pas toujours.
+proprietaire_ip() {
+    local ip="$1" ligne="" org="" net="" pays="" t
+    if [[ ! -r "$APPS_DIR/_reseau.py" ]] || ! command -v python3 >/dev/null 2>&1; then
+        echo "inconnu (python3 ou _reseau.py absent)"
+        return 0
+    fi
+    ligne=$(run timeout --foreground 20 python3 "$APPS_DIR/_reseau.py" --raw "$ip" 2>/dev/null) || ligne=""
+    if [[ -z "$ligne" ]]; then
+        echo "inconnu (RDAP injoignable)"
+        return 0
+    fi
+    IFS=$'\037' read -r org net _ pays _ _ _ <<< "$ligne" || true
+    t="${org:-${net:-inconnu}}"
+    if [[ -n "$pays" ]]; then t="$t, pays $pays"; fi
+    echo "$t"
+}
+# sqli_contexte IPS CONTEXTE BRUT FICHIER... : une ligne par adresse dans CONTEXTE, champs séparés par 0x1F :
+# adresse, nom inverse, propriétaire (pays), comptes Odoo connectés (journal systemd), actions panier / commande / paiement
+# sur le site, URL les plus demandées, et 1 si l'adresse a une activité Odoo normale (connexion ou commande) : jamais bannie en lot.
+sqli_contexte() {
+    local ips="$1" ctx="$2" brut="$3" ip ptr own logins ligne_t ncmd pc dc cmds urls normal
+    shift 3
+    # Un seul passage dans les journaux, pour les adresses retenues seulement.
+    lire_chrono "$@" 2>/dev/null | awk -v liste="$ips" '
+        BEGIN {
+            FS = "\""
+            while ((getline l < liste) > 0) voulue[l] = 1
+        }
+        {
+            ip = $1; sub(/ .*/, "", ip)
+            if (!(ip in voulue)) next
+            split($2, r, " "); met = r[1]; u = r[2]; sub(/\?.*/, "", u)
+            split($3, b, " "); st = b[1]
+            d = ""; if (match($0, /\[[^]]*\]/)) d = substr($0, RSTART + 1, RLENGTH - 2)
+            if (st ~ /^[23]/ && ((met == "POST" && u ~ /\/(shop\/(cart|checkout|address|payment|confirm)|payment\/)/) || u ~ /\/shop\/confirmation/)) {
+                nc[ip]++
+                if (!(ip in pc)) pc[ip] = d
+                dc[ip] = d
+            }
+            k = ip SUBSEP u
+            nu[k]++
+            if (index(cod[k], st) == 0) cod[k] = cod[k] (cod[k] == "" ? "" : ",") st
+            if (!(k in vu)) { vu[k] = 1; ordre[++n] = k }
+        }
+        END {
+            for (ip in voulue) printf "T\037%s\037%d\037%s\037%s\n", ip, nc[ip] + 0, pc[ip], dc[ip]
+            for (i = 1; i <= n; i++) { k = ordre[i]; split(k, p, SUBSEP); printf "U\037%s\037%d\037%s\037%s\n", p[1], nu[k], cod[k], p[2] }
+        }' > "$brut" || true
+    : > "$ctx"
+    while IFS= read -r ip; do
+        looks_like_ip "$ip" || continue
+        if (( NO_LOOKUP )); then
+            ptr="non vérifié (--no-lookup)"; own="non vérifié (--no-lookup)"
+        else
+            progres "Contexte de $ip : DNS inverse, propriétaire du bloc d'adresses (RDAP)"
+            ptr=$(dns_inverse "$ip") || ptr="erreur"
+            own=$(proprietaire_ip "$ip") || own="erreur"
+        fi
+        logins=$(logins_odoo "$ip" | paste -sd';' - | sed 's/;/ ; /g') || logins=""
+        ligne_t=$(awk -F'\037' -v ip="$ip" '$1 == "T" && $2 == ip' "$brut") || ligne_t=""
+        ncmd=""; pc=""; dc=""
+        IFS=$'\037' read -r _ _ ncmd pc dc <<< "$ligne_t" || true
+        ncmd=${ncmd:-0}
+        cmds=""
+        if (( ncmd > 0 )); then cmds="$ncmd requête(s), première : $pc, dernière : $dc"; fi
+        urls=$(awk -F'\037' -v ip="$ip" '$1 == "U" && $2 == ip { print $3 "\037" $5 "\037" $4 }' "$brut" \
+            | sort -t$'\037' -k1,1nr | awk -F'\037' 'NR <= 5 { s = s (s == "" ? "" : " ; ") $1 "× " $2 " (" $3 ")" } END { print s }') || urls=""
+        normal=0
+        if [[ -n "$logins" ]] || (( ncmd > 0 )); then normal=1; fi
+        printf '%s\037%s\037%s\037%s\037%s\037%s\037%s\n' "$ip" "$ptr" "$own" "$logins" "$cmds" "$urls" "$normal" >> "$ctx"
+    done < "$ips"
+}
+# champ_ctx IP N : le champ N (2 = nom inverse ... 7 = activité normale) de la ligne de l'adresse IP dans CONTEXTE.
+champ_ctx() {
+    awk -F'\037' -v ip="$1" -v n="$2" '$1 == ip { print $n; exit }' "$sqli_ctx" 2>/dev/null || true
+}
+
 if [[ "$DO_BAN_SQLI" == "1" ]]; then
     if [[ "$EUID" -ne 0 ]]; then
         echo "ERREUR: --ban-sqli nécessite root (sudo)." >&2
@@ -1506,40 +1639,130 @@ if [[ "$DO_BAN_SQLI" == "1" ]]; then
     echo " BANNISSEMENT DES SOURCES D'INJECTION SQL : $ACCESS_LOG (+ blocked-probes.log, access.log)"
     echo "=============================================================="
     echo "Recherche des requêtes d'injection SQL (lecture seule)..."
-    sqli_tmp=$(mktemp "${TMPDIR:-/tmp}/ban-sqli.XXXXXX") || { echo "ERREUR: fichier temporaire impossible." >&2; exit 1; }
+    sqli_dir=$(mktemp -d "${TMPDIR:-/tmp}/ban-sqli.XXXXXX") || { echo "ERREUR: dossier temporaire impossible." >&2; exit 1; }
+    sqli_detail="$sqli_dir/detail.tsv"; sqli_sum="$sqli_dir/summary.txt"
     # Sources : le journal du site, puis les refus des règles nginx (blocked-probes.log) et access.log, lus par la jail nginx-sqli.
     sqli_files=("$ACCESS_LOG")
     for f in /var/log/nginx/blocked-probes.log /var/log/nginx/access.log; do
         [[ -r "$f" && "$f" != "$ACCESS_LOG" ]] && sqli_files+=("$f")
     done
-    # -h : sans nom de fichier en tête (plusieurs fichiers), sinon l'adresse est « fichier:IP » et jamais une IP.
-    grep -hEi -- "$SQLI_RE" "${sqli_files[@]}" 2>/dev/null | awk '{print $1}' | sort | uniq -c | sort -rn > "$sqli_tmp" || true
-    if [[ ! -s "$sqli_tmp" ]]; then
+    # Une ligne par requête d'injection : adresse, date, statut, source, agent, motif SQL trouvé, requête (tabulations).
+    for f in "${sqli_files[@]}"; do
+        grep -Ei -- "$SQLI_RE" "$f" 2>/dev/null | awk -F'"' -v src="$(basename "$f")" -v re="$SQLI_RE" '
+            BEGIN { OFS = "\t" }
+            {
+                ip = $1; sub(/ .*/, "", ip)
+                date = ""; if (match($0, /\[[^]]*\]/)) date = substr($0, RSTART + 1, RLENGTH - 2)
+                split($3, b, " "); st = b[1]
+                req = $2; ua = $6; tok = ""
+                if (match(tolower(req), re)) tok = substr(req, RSTART, RLENGTH)
+                print ip, date, st, src, ua, tok, req
+            }' >> "$sqli_detail" || true
+    done
+    if [[ ! -s "$sqli_detail" ]]; then
         echo "${C_GREEN}Aucune injection SQL trouvée dans $ACCESS_LOG : rien à bannir.${C_RESET}"
-        rm -f "$sqli_tmp"
+        rm -rf "$sqli_dir"
         exit 0
     fi
+    # Une ligne par adresse, la plus active en premier : compte, premiere et derniere date, statuts, sources, motifs, agents, exemple.
+    # Séparateur 0x1F (et non tabulation : read traiterait les champs vides comme des espaces).
+    awk -F'\t' '
+        BEGIN { OFS = "\037" }
+        function ajouter(tab, cle_ip, v,   cle) {
+            cle = cle_ip SUBSEP v
+            if (v == "" || (cle in vu)) return
+            vu[cle] = 1
+            if (cle_ip in tab) tab[cle_ip] = tab[cle_ip] ", " v
+            else tab[cle_ip] = v
+        }
+        {
+            ip = $1; n[ip]++
+            if (!(ip in premiere)) { premiere[ip] = $2; exemple[ip] = substr($7, 1, 200) }
+            derniere[ip] = $2
+            ajouter(sts, ip, $3); ajouter(srcs, ip, $4); ajouter(toks, ip, $6); ajouter(uas, ip, substr($5, 1, 90))
+        }
+        END {
+            for (ip in n) print n[ip], ip, premiere[ip], derniere[ip], sts[ip], srcs[ip], toks[ip], uas[ip], exemple[ip]
+        }' "$sqli_detail" | sort -t$'\037' -k1,1nr > "$sqli_sum"
+    # Contexte par adresse (2.60) : nom inverse, propriétaire (pays), comptes Odoo connectés, commandes, URL demandées.
+    charger_logins
+    awk -F'\037' '{ print $2 }' "$sqli_sum" > "$sqli_dir/ips.txt"
+    sqli_ctx="$sqli_dir/contexte.txt"
+    ctx_fichiers=()
+    for f in "${sqli_files[@]}"; do
+        for g in "$f"*; do [[ -r "$g" ]] && ctx_fichiers+=("$g"); done
+    done
+    if (( NO_LOOKUP )); then
+        echo "Contexte : comptes Odoo et URL lus dans les journaux ; DNS et propriétaire NON vérifiés (--no-lookup)."
+    else
+        echo "Contexte : DNS inverse, propriétaire du bloc d'adresses (RDAP), comptes Odoo connectés, commandes, URL demandées."
+    fi
+    sqli_contexte "$sqli_dir/ips.txt" "$sqli_ctx" "$sqli_dir/brut.txt" "${ctx_fichiers[@]}"
     echo
-    echo "Adresses ayant tenté une injection SQL (requêtes : adresse) :"
-    while read -r nb ip; do
-        [[ -z "$ip" ]] && continue
-        if looks_like_ip "$ip"; then
-            printf '  %6s  %s\n' "$nb" "$ip"
-        else
-            printf '  %6s  %s   (ignorée : pas une adresse IP)\n' "$nb" "$ip"
+    echo "Adresses ayant tenté une injection SQL : $(wc -l < "$sqli_sum") adresse(s), $(wc -l < "$sqli_detail") requête(s)."
+    echo
+    # Rouge : la requête a reçu une réponse 2xx, donc elle a atteint Odoo (les refus nginx en 404 restent en magenta).
+    RE_REUSSI='(^|, )2[0-9][0-9]($|,)'
+    while IFS=$'\037' read -r nb ip premiere derniere sts srcs toks uas ex; do
+        if ! looks_like_ip "$ip"; then
+            printf '  %s   (ignorée : pas une adresse IP)\n' "$ip"
+            continue
         fi
-    done < "$sqli_tmp"
+        # reussi=1 (et non « couleur == C_RED ») : hors terminal, les couleurs sont vides et la comparaison serait toujours vraie.
+        couleur="$C_MAL"; reussi=0
+        if [[ "$sts" =~ $RE_REUSSI ]]; then couleur="$C_RED"; reussi=1; fi
+        printf '  %s%s%s   %s requête(s)\n' "$couleur" "$ip" "$C_RESET" "$nb"
+        if (( reussi )); then printf '      %s!! réponse 2xx : la requête a atteint Odoo%s\n' "$C_RED" "$C_RESET"; fi
+        printf '      première : %s\t\tdernière : %s\n' "$premiere" "$derniere"
+        printf '      statut(s) : %s%s%s   source(s) : %s\n' "$couleur" "$sts" "$C_RESET" "$srcs"
+        printf '      motif(s) SQL : %s%s%s\n' "$C_BOLD" "$toks" "$C_RESET"
+        printf '      agent(s) : %s\n' "$uas"
+        printf '      requête : %s\n' "$ex"
+        printf '      DNS inverse : %s\n' "$(champ_ctx "$ip" 2)"
+        printf '      propriétaire du bloc (≈ fournisseur Internet) : %s\n' "$(champ_ctx "$ip" 3)"
+        logins=$(champ_ctx "$ip" 4)
+        if [[ -n "$logins" ]]; then printf '      %scomptes Odoo connectés : %s%s\n' "$C_YELLOW" "$logins" "$C_RESET"
+        else printf '      comptes Odoo connectés : aucun dans le journal Odoo (100 derniers jours)\n'; fi
+        cmds=$(champ_ctx "$ip" 5)
+        if [[ -n "$cmds" ]]; then printf '      %spanier, commande ou paiement : %s%s\n' "$C_YELLOW" "$cmds" "$C_RESET"
+        else printf '      panier, commande ou paiement : aucun\n'; fi
+        printf '      URL les plus demandées : %s\n' "$(champ_ctx "$ip" 6)"
+        if [[ "$(champ_ctx "$ip" 7)" == "1" ]]; then
+            printf '      %s!! activité Odoo normale : jamais bannie en lot (nginx-log-audit.sh --ban %s pour le faire à la main)%s\n' "$C_YELLOW" "$ip" "$C_RESET"
+        fi
+        if deja=$(ip_deja_bannie "$ip"); then printf '      %sdéjà bannie : %s%s\n' "$C_BOLD" "$deja" "$C_RESET"; fi
+    done < "$sqli_sum"
     echo
+    n_reussi=$(awk -F'\037' -v re="$RE_REUSSI" '$5 ~ re' "$sqli_sum" | wc -l)
+    if (( n_reussi > 0 )); then
+        echo "${C_RED}ATTENTION : $n_reussi adresse(s) ont reçu une réponse 2xx : ces requêtes ont atteint Odoo (lignes en rouge).${C_RESET}"
+        echo
+    fi
+    n_normal_pre=$(awk -F'\037' '$7 == "1"' "$sqli_ctx" | wc -l)
+    if (( n_normal_pre > 0 )); then
+        echo "${C_YELLOW}ATTENTION : $n_normal_pre adresse(s) ont une activité Odoo normale (connexion ou commande) : elles ne seront PAS bannies en lot.${C_RESET}"
+        echo
+    fi
     if [[ "$ASSUME_YES" != "1" ]]; then
         if ! demander_oui "Bannir ces adresses au pare-feu ? [o/N] "; then
             echo "Annulé : aucune adresse bannie."
-            rm -f "$sqli_tmp"
+            rm -rf "$sqli_dir"
             exit 0
         fi
     fi
-    n_ok=0; n_ko=0
-    while read -r nb ip; do
+    n_ok=0; n_ko=0; n_deja=0; n_normal=0
+    while IFS=$'\037' read -r nb ip _; do
         looks_like_ip "$ip" || continue
+        if deja=$(ip_deja_bannie "$ip"); then
+            echo "${C_BOLD}[DÉJÀ]${C_RESET} $ip déjà bannie ($deja) : rien à faire"
+            n_deja=$((n_deja+1))
+            continue
+        fi
+        if [[ "$(champ_ctx "$ip" 7)" == "1" ]]; then
+            echo "${C_YELLOW}[NORMAL]${C_RESET} $ip non banni : activité Odoo normale (connexion ou commande). Bannissement à la main seulement : nginx-log-audit.sh --ban $ip"
+            n_normal=$((n_normal+1))
+            continue
+        fi
         why="injection SQL (--ban-sqli) : $nb requête(s) dans $(basename "$ACCESS_LOG")"
         if bash "$SELF_PATH" --ban "$ip" --yes --reason "$why" ${APP_FORCE:+--app "$APP_FORCE"} >/dev/null 2>&1; then
             echo "${C_GREEN}[OK]${C_RESET} $ip banni ($nb requête(s))"
@@ -1548,10 +1771,10 @@ if [[ "$DO_BAN_SQLI" == "1" ]]; then
             echo "${C_YELLOW}[SKIP]${C_RESET} $ip non banni (adresse protégée ou erreur : nginx-log-audit.sh --ban $ip pour le détail)"
             n_ko=$((n_ko+1))
         fi
-    done < "$sqli_tmp"
-    rm -f "$sqli_tmp"
+    done < "$sqli_sum"
+    rm -rf "$sqli_dir"
     echo
-    echo "$n_ok adresse(s) bannie(s), $n_ko ignorée(s). Levée : nginx-log-audit.sh --unban IP"
+    echo "$n_ok adresse(s) bannie(s) maintenant, $n_deja déjà bannie(s) (ignorée(s)), $n_normal avec activité Odoo normale (non bannie(s)), $n_ko non bannie(s). Levée : nginx-log-audit.sh --unban IP"
     exit 0
 fi
 ORIG_ACCESS_LOG="$ACCESS_LOG"

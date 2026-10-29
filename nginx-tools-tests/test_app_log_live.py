@@ -117,11 +117,16 @@ class AppLogLive(EnvTest):
     def run_cmd(self, cmd, *args, **kwargs):
         """1.98 : --min est actif par défaut ; les tests écrits pour l'affichage complet (base, « werkzeug ») demandent --no-min, sauf s'ils passent
         eux-mêmes --min ou --no-min."""
-        return super().run_cmd(self.sans_min(cmd), *args, **kwargs)
+        return super().run_cmd(self.sans_min(cmd, ip=True), *args, **kwargs)
 
-    def sans_min(self, cmd):
+    def sans_min(self, cmd, ip=False):
+        """1.112 : l'adresse IP est masquée PAR DÉFAUT (HIDE_IP, 1.107) ; les tests qui lisent les adresses demandent --show-ip, sauf ceux qui testent ce défaut
+        (nom du test : hide_ip / par_defaut / ip_gardee) ou qui passent eux-mêmes une option d'adresse."""
         if len(cmd) > 1 and cmd[1] == self.prog and not any(o in cmd for o in ("--min", "--no-min", "--help", "--version", "--changelog")):
-            return cmd[:2] + ["--no-min"] + cmd[2:]
+            extra = ["--no-min"]
+            if ip and not any(m in self._testMethodName for m in ("hide_ip", "par_defaut", "ip_gardee")) and not any(o in cmd for o in ("--show-ip", "--hide-ip")):
+                extra.append("--show-ip")
+            return cmd[:2] + extra + cmd[2:]
         return cmd
 
     def lancer(self, *args, env_extra=None):
@@ -193,7 +198,7 @@ class AppLogLive(EnvTest):
         « début ... deux derniers mots » à $COLUMNS - 10 ; dans un tube (un autre programme lit la sortie) : lignes entières, vraies adresses, rien de souligné."""
         longue = "/event/journee-portes-ouvertes-2026/registration/confirm?ticket=12&utm_source=infolettre-octobre&utm_campaign=rappel-final-de-la-journee" + "&x=" + "y" * 80 + "&fin=journee"
         self.journal([werkzeug(DNS, f"/page-{i}") for i in range(9)] + [werkzeug(DNS, longue), werkzeug(DNS, "/fin")])
-        text, _ = super().run_pty(["python3", self.prog, "--no-follow", "--no-min", "--no-history", "--no-isp", "--no-presence", "--no-banned"], [],
+        text, _ = super().run_pty(["python3", self.prog, "--no-follow", "--no-min", "--no-history", "--no-isp", "--no-presence", "--no-banned", "--show-ip"], [],
                                   env_extra={"COLUMNS": "230"}, keep_ansi=True)      # 1.91: wide enough for the columns (only the message is cut)
         lignes = [l for l in text.splitlines() if "werkzeug" in ANSI.sub("", l)]
         self.assertEqual(len(lignes), 11, text)
@@ -203,7 +208,7 @@ class AppLogLive(EnvTest):
         self.assertLessEqual(len(cinquieme), 220, cinquieme)
         self.assertIn(" ... ", cinquieme)
         self.assertTrue(cinquieme.endswith("journee\""), cinquieme)                                      # la fin de l'URL reste visible
-        rc, out, err = self.lancer("--no-history", "--no-isp", "--no-presence", "--no-banned")
+        rc, out, err = self.lancer("--show-ip", "--no-history", "--no-isp", "--no-presence", "--no-banned")
         self.assertIn(longue, out)
         self.assertIn(DNS, out)
         self.assertNotIn("\x1b[4m", out)
@@ -274,7 +279,7 @@ class AppLogLive(EnvTest):
                       odoo("ERROR", "base", "odoo.addons.mail.models.fetchmail", "Failed to fetch mail", fixe=fixe),
                       odoo("WARNING", "base", "odoo.addons.base.models.ir_cron", "Job 'Mail: Fetchmail Service' (9) failed", fixe=fixe),
                       odoo("INFO", "base", "odoo.addons.base.models.ir_cron", "Job 'Autovacuum' (3) starting", fixe=fixe)])
-        out = self.lancer("--min", "--no-presence")[1]
+        out = self.lancer("--min", "--show-ip", "--no-presence")[1]
         lines = out.splitlines()
         self.assertEqual(lines[0], '2026-10-02 10:07:18.33 odoo18 odoo INFO ' + column(PERSONNE)
                                     + 'Étienne Dupont'.ljust(45) + ' ' + block())
@@ -355,12 +360,15 @@ class AppLogLive(EnvTest):
 
     def test_ip_gardee_par_defaut_hide_ip_et_libelle_court(self):
         self.journal([werkzeug(DNS)])
-        out = self.lancer("--no-isp", "--no-presence")[1]
-        self.assertRegex(out, rf"INFO +{DNS}\s+base werkzeug srv\.exemple\.org\s+")
+        out = self.lancer("--no-isp", "--no-presence")[1]                                        # 1.107 : par défaut, l'IP est masquée (le nom reste)
+        self.assertRegex(out, r"INFO\s+base werkzeug srv\.exemple\.org\s+")
+        self.assertNotIn(DNS, out)
         out = self.lancer("--no-isp", "--no-presence", "--hide-ip")[1]
         self.assertRegex(out, r"INFO\s+base werkzeug srv\.exemple\.org\s+")
         self.assertNotIn(DNS, out)
-        rc, out, err = self.lancer("--no-isp", "--no-presence", "--keep-ip")                      # old option: accepted
+        out = self.lancer("--no-isp", "--no-presence", "--show-ip")[1]
+        self.assertRegex(out, rf"INFO +{DNS}\s+base werkzeug srv\.exemple\.org\s+")
+        rc, out, err = self.lancer("--no-isp", "--no-presence", "--keep-ip")                      # ancien nom de --show-ip : accepté, l'IP reste affichée
         self.assertEqual(rc, 0, err)
         self.assertIn(f"INFO    {DNS} ", out)
         spec = importlib.util.spec_from_file_location("live", script_path("app-log-live.py"))
@@ -920,7 +928,8 @@ class AppLogLive(EnvTest):
     # --- alignment, suspicious requests, reverse video ---
     def en_couleur(self, *args):
         """Sortie dans un VRAI terminal (couleurs actives, séquences conservées) : (stdout+stderr du pty)."""
-        text, _ = self.run_pty(["python3", self.prog, "--no-follow", "--no-history", "--no-isp", "--no-presence", *args], [], keep_ansi=True)
+        extra = [] if any(o in args for o in ("--show-ip", "--hide-ip")) else ["--show-ip"]     # 1.112 : IP masquée par défaut ; ces tests de couleur lisent l'adresse
+        text, _ = self.run_pty(["python3", self.prog, "--no-follow", "--no-history", "--no-isp", "--no-presence", *extra, *args], [], keep_ansi=True)
         return text
 
     def test_nom_sur_au_moins_45_caracteres_jamais_tronque_et_logger_sans_adresse_sur_45(self):
@@ -2111,13 +2120,13 @@ class AppLogLive(EnvTest):
     def test_menu_des_touches_et_options_a_la_volee(self):
         """[6] ? ouvre le menu ; i, m, s, v basculent ; d, H, o demandent une valeur ; V affiche la version."""
         self.journal_tableau()
-        sequence = [(b"/event", b"?", 0.4), (b"inscriptions aux \xc3\xa9v\xc3\xa9nements", b"i", 0.4), (b"--hide-ip : yes", b"m", 0.4), (b"--min : yes", b"s", 0.4),
+        sequence = [(b"/event", b"?", 0.4), (b"inscriptions aux \xc3\xa9v\xc3\xa9nements", b"i", 0.4), (b"--hide-ip : no", b"m", 0.4), (b"--min : yes", b"s", 0.4),
                     (b"--suspect : yes", b"d", 0.4), (b"Entr\xc3\xa9e = 20", b"30\r", 0.2), (b"--dns-max 30", b"t", 0.4), (b"Entr\xc3\xa9e = 32", b"\r", 0.2),
                     (b"--dns-max-truncate 32", b"H", 0.4), (b"Entr\xc3\xa9e = 10", b"0\r", 0.2), (b"alertes automatiques arr\xc3\xaat\xc3\xa9es", b"o", 0.4),
                     (b"tout afficher", b"zzz\r", 0.2), (b"--only : zzz", b"V", 0.4), (b"app-log-live.py version", b"v", 0.4), (b"--verbose : yes", b"\x03", 0.4)]
-        text, envoyees = self.run_pty(["python3", self.prog, "--no-history", "--no-isp", "--no-presence", "--no-banned", "--lines", "1"], sequence, timeout=60)
+        text, envoyees = self.run_pty(["python3", self.prog, "--no-history", "--no-isp", "--no-presence", "--no-banned", "--lines", "1"], sequence, timeout=60, colonnes=200)
         self.assertEqual(envoyees, len(sequence), text)
-        menu = text[text.index("Touches (? ou h"):text.index("--hide-ip : yes")]
+        menu = text[text.index("Touches (? ou h"):text.index("--hide-ip : no")]
         for attendu in ("Ctrl-G", "Ctrl-T", "Ctrl-C", "--dns-max N", "--dns-max-truncate N", "--health MIN", "--hide-ip", "--min", "--only TEXTE", "--report-err", "--suspect",
                         "--verbose", "--version", "inscriptions aux sondages", "inscriptions aux événements", "adresses à bannir : 0"):
             self.assertIn(attendu, menu)
@@ -2228,7 +2237,7 @@ class AppLogLive(EnvTest):
         self.assertIn("--save-recommended", appels[0])
         self.assertEqual(t.count("Mise à jour des recommandations de web-monitor.py"), 1, t)
         self.assertLess(t.index("1/1 adresse(s) bannie(s)"), t.index("Mise à jour des recommandations"))
-        self.assertIn("Adresses à bannir : 1 — srv.exemple.org [93.184.216.34] ×2", T(t))          # the known person is never proposed
+        self.assertIn("Adresses à bannir : 1 — srv.exemple.org [93.184.216.34] (2 requête(s) suspecte(s))", T(t))          # the known person is never proposed
         self.assertNotIn(f"[{PERSONNE}] ×", T(t.split("Adresses à bannir")[1].split("Top 10")[0]))
         self.assertIn("1 adresse(s) à bannir", T(t))
         self.assertNotRegex(T(t), r"(\d+\.\d+\.\d+\.\d+) \1 —")                              # 1.49: the address is never repeated when its unknown name is the address itself
@@ -2458,7 +2467,7 @@ class AppLogLive(EnvTest):
         L.instant = time.time()
         st.ajouter(L, {"8.8.8.8": ("ok.exemple.org", [], False, None)}, None)
         t = " ".join(" ".join(st.summary()).split())
-        self.assertIn("Adresses à bannir : 2 — 11.65.131.103 (web-monitor) ; 11.76.10.40 (web-monitor)", T(t))
+        self.assertIn("Adresses à bannir : 2 — 11.65.131.103 (recommandée par web-monitor.py (enquête : Score 4/7)) ; 11.76.10.40 (recommandée par web-monitor.py (récidiviste : 4 jours))", T(t))
         # Suspicious requests seen here: first, and a recommended address is not counted twice
         st2 = live.Stats(5.0)
         st2.server.add("10.9.9.9")
@@ -2787,7 +2796,7 @@ class AppLogLive(EnvTest):
                     (b"vide = aucune", b"pas-une-adresse\r", 0.2), (b"Adresse(s) refus", b"a", 0.4), (b"vide = aucune ; actuel : aucune", b"Collaborateurs-2026\r", 0.2),
                     (b"1 compte(s) (les lignes", b"a", 0.4), (b"vide = aucune ; actuel : Collab", b"Inexistant\r", 0.2), (b"existe dans aucune base", b"c", 0.4),
                     (b"Entr\xc3\xa9e = 0", b"1\r", 0.2), (b"--chime 1 (bip", b"T", 0.4), (b"Entr\xc3\xa9e = 60", b"5\r", 0.2), (b"--time-report 5", b"\x03", 0.4)]
-        text, envoyees = self.run_pty(["python3", self.prog, "--no-isp", "--no-presence", "--no-banned", "--lines", "1"], sequence, timeout=60)
+        text, envoyees = self.run_pty(["python3", self.prog, "--no-isp", "--no-presence", "--no-banned", "--lines", "1"], sequence, timeout=60, colonnes=200)
         self.assertEqual(envoyees, len(sequence), text)
         menu = text[text.index("Touches (? ou h"):text.index("--exclude-ip : 93.184")]
         for attendu in ("--accentuate-group NOM", "--chime N", "--exclude-ip IP,IP", "--time-report MIN"):
@@ -3176,7 +3185,7 @@ class AppLogLive(EnvTest):
         longue = "/event/journee-portes-ouvertes-2026/page/introduction-" + "x" * 150 + "/fin"
         self.journal([werkzeug(ips[0], "/a"), werkzeug("127.0.0.1", "/b"), werkzeug(ips[1], longue), werkzeug(ips[0], "/c"),
                       odoo("INFO", "base", "odoo.models.unlink", "User #1 deleted ir.attachment records with IDs: [" + ", ".join(str(i) for i in range(80)) + "]")])
-        text, _ = super().run_pty(["python3", self.prog, "--no-follow", "--no-min", "--no-history", "--no-isp", "--no-presence", "--no-banned", "--anonymize", "--truncate",
+        text, _ = super().run_pty(["python3", self.prog, "--no-follow", "--no-min", "--no-history", "--no-isp", "--no-presence", "--no-banned", "--anonymize", "--show-ip", "--truncate",
                                    "--underline", "2"], [], env_extra={"COLUMNS": "230"}, keep_ansi=True)
         lignes = [l for l in text.splitlines() if re.search(r"werkzeug|odoo\.models", ANSI.sub("", l))]
         self.assertEqual(len(lignes), 5, text)

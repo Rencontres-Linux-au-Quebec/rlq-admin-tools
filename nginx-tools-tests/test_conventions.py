@@ -18,7 +18,7 @@ from helpers import CONFIG_DIR, EnvTest, script_path, SCRIPTS_DIR
 # Folder of the suite (nginx-tools-tests; "tests" before run-all.sh 1.56): real name, to follow a renaming.
 NOM_SUITE = os.path.basename(os.path.dirname(os.path.abspath(__file__)))
 
-PROGRAMMES = ["nginx-log-audit.sh", "nginx-hardening.sh", "sync-crowdsec-blocklist.sh", "odoo-backup.sh", "odoo-update-module.sh",
+PROGRAMMES = ["admin-menu.sh", "nginx-log-audit.sh", "nginx-hardening.sh", "sync-crowdsec-blocklist.sh", "odoo-backup.sh", "odoo-update-module.sh",
               "app-log-check.py", "app-health-check.py", "web-monitor.py", "zip-versions.py", "app-log-live.py", "odoo-mail-retry.py", "odoo-chat-post.py", "odoo-docs.py", "odoo-warmup.py", "host-perf-audit.py", f"{NOM_SUITE}/run-all.sh"]
 VERSION_RE = r"(\d+)\.(\d+)\.(\d{8})\.(\d{6})"
 
@@ -201,7 +201,7 @@ class RegleDesConfigurations(unittest.TestCase):
     """Règle commune des fichiers de configuration : /etc/default/<programme>.conf, PUIS ~/.<programme>.conf s'il existe, PUIS
     la ligne de commande (prioritaire) ; -c/--config : ce fichier seul ; les fichiers lus sont TOUJOURS affichés."""
     PYTHON = ("web-monitor", "zip-versions", "odoo-mail-retry", "odoo-chat-post", "odoo-docs", "odoo-warmup", "app-health-check", "app-log-check", "app-log-live", "host-perf-audit")
-    BASH = ("sync-crowdsec-blocklist", "odoo-backup", "odoo-update-module", "nginx-log-audit", "nginx-hardening")
+    BASH = ("admin-menu", "sync-crowdsec-blocklist", "odoo-backup", "odoo-update-module", "nginx-log-audit", "nginx-hardening")
     PROPRES = {"odoo-backup", "app-health-check", "odoo-mail-retry", "odoo-warmup"}        # programs that read their files themselves (in addition to the common rule)
     AVEC_CONFIGURATION = {f"{n}.py": (f"{n}.conf", f".{n}.conf") for n in PYTHON}
     AVEC_CONFIGURATION.update({f"{n}.sh": (f"{n}.conf", f".{n}.conf") for n in BASH})

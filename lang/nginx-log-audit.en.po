@@ -2105,3 +2105,177 @@ msgstr " - no request on the site; "
 
 msgid " requête(s) d'icône au capteur catch-all (apple-touch-icon, favicon.ico), non hostiles"
 msgstr " icon request(s) at the catch-all sensor (apple-touch-icon, favicon.ico), not hostile"
+
+# 2.60 : --ban-sqli, contexte par adresse (DNS, propriétaire, connexions Odoo, commandes, URL)
+msgid "  --no-lookup                  avec --ban-sqli : aucune requête DNS ni RDAP (propriétaire, pays) ; seuls les journaux sont lus"
+msgstr "  --no-lookup                  with --ban-sqli: no DNS or RDAP query (owner, country); only the logs are read"
+
+msgid " (confirmé)"
+msgstr " (confirmed)"
+
+msgid " (NON confirmé : ce nom ne renvoie pas vers "
+msgstr " (NOT confirmed: this name does not point back to "
+
+msgid "inconnu (python3 ou _reseau.py absent)"
+msgstr "unknown (python3 or _reseau.py missing)"
+
+msgid "inconnu (RDAP injoignable)"
+msgstr "unknown (RDAP unreachable)"
+
+msgid "inconnu"
+msgstr "unknown"
+
+msgid "non vérifié (--no-lookup)"
+msgstr "not checked (--no-lookup)"
+
+msgid "Contexte de "
+msgstr "Context of "
+
+msgid " : DNS inverse, propriétaire du bloc d'adresses (RDAP)"
+msgstr ": reverse DNS, owner of the address block (RDAP)"
+
+msgid "erreur"
+msgstr "error"
+
+msgid " requête(s), première : "
+msgstr " request(s), first: "
+
+msgid "Contexte : comptes Odoo et URL lus dans les journaux ; DNS et propriétaire NON vérifiés (--no-lookup)."
+msgstr "Context: Odoo accounts and URLs read in the logs; DNS and owner NOT checked (--no-lookup)."
+
+msgid "Contexte : DNS inverse, propriétaire du bloc d'adresses (RDAP), comptes Odoo connectés, commandes, URL demandées."
+msgstr "Context: reverse DNS, owner of the address block (RDAP), connected Odoo accounts, orders, URLs requested."
+
+msgid "      propriétaire du bloc (≈ fournisseur Internet) : "
+msgstr "      owner of the address block (≈ internet provider): "
+
+msgid "comptes Odoo connectés : "
+msgstr "Odoo accounts connected: "
+
+msgid "      comptes Odoo connectés : aucun dans le journal Odoo (100 derniers jours)"
+msgstr "      Odoo accounts connected: none in the Odoo log (last 100 days)"
+
+msgid "panier, commande ou paiement : "
+msgstr "cart, order or payment: "
+
+msgid "      panier, commande ou paiement : aucun"
+msgstr "      cart, order or payment: none"
+
+msgid "      URL les plus demandées : "
+msgstr "      most requested URLs: "
+
+msgid "!! activité Odoo normale : jamais bannie en lot (nginx-log-audit.sh --ban "
+msgstr "!! normal Odoo activity: never banned in bulk (nginx-log-audit.sh --ban "
+
+msgid " pour le faire à la main)"
+msgstr " to do it by hand)"
+
+msgid " adresse(s) ont une activité Odoo normale (connexion ou commande) : elles ne seront PAS bannies en lot."
+msgstr " address(es) have normal Odoo activity (login or order): they will NOT be banned in bulk."
+
+msgid " non banni : activité Odoo normale (connexion ou commande). Bannissement à la main seulement : nginx-log-audit.sh --ban "
+msgstr " not banned: normal Odoo activity (login or order). Ban by hand only: nginx-log-audit.sh --ban "
+
+msgid " avec activité Odoo normale (non bannie(s)), "
+msgstr " with normal Odoo activity (not banned), "
+
+msgid "  --ban-sqli                   bannir les adresses ayant envoyé une injection SQL dans le journal d'accès (liste et confirmation demandées, sauf --yes)"
+msgstr "  --ban-sqli                   ban the addresses that sent an SQL injection in the access log (list and confirmation asked, unless --yes)"
+
+msgid "ERREUR: --ban-sqli nécessite root (sudo)."
+msgstr "ERROR: --ban-sqli requires root (sudo)."
+
+msgid " BANNISSEMENT DES SOURCES D'INJECTION SQL : "
+msgstr " SQL INJECTION SOURCES BAN: "
+
+msgid "Recherche des requêtes d'injection SQL (lecture seule)..."
+msgstr "Searching for SQL injection requests (read only)..."
+
+msgid "ERREUR: dossier temporaire impossible."
+msgstr "ERROR: temporary folder impossible."
+
+msgid "Aucune injection SQL trouvée dans "
+msgstr "No SQL injection found in "
+
+msgid " : rien à bannir."
+msgstr " : nothing to ban."
+
+msgid "Adresses ayant tenté une injection SQL : "
+msgstr "Addresses that tried an SQL injection: "
+
+msgid " adresse(s), "
+msgstr " address(es), "
+
+msgid " requête(s)."
+msgstr " request(s)."
+
+msgid "   (ignorée : pas une adresse IP)"
+msgstr "   (ignored: not an IP address)"
+
+msgid "!! réponse 2xx : la requête a atteint Odoo"
+msgstr "!! 2xx response: the request reached Odoo"
+
+msgid "      première : "
+msgstr "      first: "
+
+msgid "dernière : "
+msgstr "last: "
+
+msgid "      requête : "
+msgstr "      request: "
+
+msgid "déjà bannie : "
+msgstr "already banned: "
+
+msgid " adresse(s) ont reçu une réponse 2xx : ces requêtes ont atteint Odoo (lignes en rouge)."
+msgstr " address(es) got a 2xx response: these requests reached Odoo (lines in red)."
+
+msgid "Annulé : aucune adresse bannie."
+msgstr "Cancelled: no address banned."
+
+msgid "[DÉJÀ]"
+msgstr "[ALREADY]"
+
+msgid " déjà bannie ("
+msgstr " already banned ("
+
+msgid ") : rien à faire"
+msgstr ") : nothing to do"
+
+msgid " requête(s) dans "
+msgstr " request(s) in "
+
+msgid " non banni (adresse protégée ou erreur : nginx-log-audit.sh --ban "
+msgstr " not banned (protected address or error: nginx-log-audit.sh --ban "
+
+msgid " pour le détail)"
+msgstr " for details)"
+
+msgid " adresse(s) bannie(s) maintenant, "
+msgstr " address(es) banned now, "
+
+msgid " déjà bannie(s) (ignorée(s)), "
+msgstr " already banned (ignored), "
+
+msgid " non bannie(s). Levée : nginx-log-audit.sh --unban IP"
+msgstr " not banned. Lifted: nginx-log-audit.sh --unban IP"
+msgid "|Rapport du jour (sans option)|Today's report (no option)|0"
+msgstr ""
+
+msgid "--stats|Statistiques du trafic|Traffic statistics|0"
+msgstr ""
+
+msgid "--fail2ban|État de fail2ban et historique des bannissements|fail2ban state and ban history|0"
+msgstr ""
+
+msgid "--ban-history|Journal des bannissements manuels|Manual ban journal|0"
+msgstr ""
+
+msgid "--unban-check|Réévaluer les bannissements manuels|Re-check manual bans|0"
+msgstr ""
+
+msgid "--export-bans|Exporter les bannissements manuels|Export manual bans|0"
+msgstr ""
+
+msgid "  --menu                       menu interactif des opérations courantes (dialog si installé ; terminal requis)"
+msgstr "  --menu                       interactive menu of the common operations (dialog if installed; terminal required)"

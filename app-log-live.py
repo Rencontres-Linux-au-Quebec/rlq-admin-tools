@@ -105,7 +105,7 @@ from urllib.parse import unquote
 from collections import Counter, OrderedDict
 from concurrent.futures import Future
 
-__version__ = "1.110.20261025.172827"
+__version__ = "1.111.20261028.225404"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
@@ -5657,6 +5657,14 @@ class LocalizedArgumentParser(argparse.ArgumentParser):
         super().__init__(*args, **kwargs)
 
 
+MENU_ENTREES = [
+    ([], 'Live follow', 'Live follow', False),
+    (['--diagnose'], 'Site diagnosis (maintenance page)', 'Site diagnosis (maintenance page)', False),
+    (['--modules'], 'Odoo modules table', 'Odoo modules table', False),
+    (['--no-follow'], 'Last messages, then stop', 'Last messages, then stop', False),
+]
+
+
 def main():
     global VERBOSE, NAME_WIDTH, NAME_TRUNCATE, COLOR
     parser = (I18N.parser if I18N else LocalizedArgumentParser)(
@@ -5701,7 +5709,7 @@ def main():
                              f"'none': no word; '+word' adds a word to the default list, '-word' removes it (--highlight=+odoo,-POST). Default: {HIGHLIGHT_DEFAULT}. HIGHLIGHT key of the configuration file; key l of the menu")
     parser.add_argument("--idle", type=float, default=IDLE_DEFAULT, metavar="MIN",
                         help=f"Minutes without activity before « no more activity » (default: {IDLE_DEFAULT:g})")
-    parser.add_argument("--keep-ip", action="store_true", help=argparse.SUPPRESS)       # old option: the address is kept by default
+    parser.add_argument("--keep-ip", dest="hide_ip", action="store_false", help=argparse.SUPPRESS)       # old name of --show-ip (1.111: it had no effect since 1.107)
     parser.add_argument("--lang", choices=I18N.disponibles if I18N else ["fr"], metavar="LANG",
                         help="Display language: en or fr (default: from LC_ALL / LC_MESSAGES / LANG)")
     parser.add_argument("--level", type=int, default=LEVEL_MAX, metavar="N",
@@ -5712,6 +5720,7 @@ def main():
                         help="Folder of the daily log with colors (default: /var/log/app-log-live for root, otherwise ~/.local/state/app-log-live; APP_LOG_LIVE_LOG_DIR, « off »: none)")
     parser.add_argument("--log-keep-days", type=int, default=None, metavar="N",
                         help=f"Daily logs kept N days, the oldest are deleted (default: LOG_KEEP_DAYS from /etc/default/app-default.conf, otherwise {JOURNAL_DAYS_DEFAULT} ; 0 = never)")
+    parser.add_argument("--menu", action="store_true", help="interactive menu of the common operations (dialog if installed; terminal required)")
     parser.add_argument("--min", action="store_true", help="The minimum of information: without database name or « werkzeug », without the fetchmail lines (except errors); default since 1.98 (MIN key; --no-min: everything)")
     parser.add_argument("--modules", action="store_true",
                         help="Table of installed Odoo modules (name, version, state, modification and creation dates, author), then exit; sort: --modules-sort; menu key M")
@@ -5783,6 +5792,15 @@ def main():
         eprint(f"app-log-live.py v{__version__}")
     defaults, problems = I18N.defauts(parser, SCHEMA_CONFIG) if I18N else ({}, [])
     args = parser.parse_args()
+    if args.menu:
+        import importlib.util as _ilu
+        _spec = _ilu.spec_from_file_location("_menu", os.path.join(SCRIPT_DIR, "apps", "_menu.py"))
+        _menu = _ilu.module_from_spec(_spec)
+        _spec.loader.exec_module(_menu)
+        _menu.menu(os.path.abspath(__file__), sys.argv[1:], MENU_ENTREES,
+                   traduire=I18N.tr if I18N else None, langue=I18N.langue if I18N else "fr",
+                   configuration=_menu.configuration_de(SCRIPT_DIR, "app-log-live", sys.argv[1:]),
+                   nom=f"app-log-live.py v{__version__}")
     _cfg_root = load_module("_config")
     _notice = _cfg_root and _cfg_root.avis_non_root("app-log-live.py", "PostgreSQL databases (modules, registrations), fail2ban, firewall, nginx -T and some logs unreadable; the b key cannot ban")
     if _notice:

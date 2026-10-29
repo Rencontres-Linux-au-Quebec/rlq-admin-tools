@@ -12,8 +12,11 @@ Variables d'environnement reconnues :
                      disponible, pour attraper les différences gawk/mawk (bug « awk -v » de nginx-log-audit.sh 1.24).
 """
 import os
+import fcntl
 import pty
 import re
+import struct
+import termios
 import select
 import signal
 import shutil
@@ -324,7 +327,7 @@ class EnvTest(unittest.TestCase):
         r = subprocess.run(cmd, capture_output=True, text=True, env=env, input=input_text, timeout=timeout)
         return r.returncode, ANSI_RE.sub("", r.stdout), ANSI_RE.sub("", r.stderr)
 
-    def run_pty(self, cmd, answers, env_extra=None, timeout=60, keep_ansi=False):
+    def run_pty(self, cmd, answers, env_extra=None, timeout=60, keep_ansi=False, colonnes=0):
         """Lance cmd dans un VRAI pseudo-terminal. answers : liste de (texte attendu, octets à envoyer, délai avant
         envoi) — ex. (b"[o/N]", b"\\x03", 0.3) envoie un vrai Ctrl-C (caractère INTR du terminal) à la question.
         Retourne (texte complet sans couleurs, nombre de réponses envoyées)."""
@@ -333,6 +336,8 @@ class EnvTest(unittest.TestCase):
         if pid == 0:
             signal.signal(signal.SIGINT, signal.SIG_DFL)          # launched in the background (&, nohup), SIGINT is IGNORED and inherited: Ctrl-C would do nothing
             os.execvpe(cmd[0], cmd, env)
+        if colonnes:                                              # largeur du terminal : readline coupe une invite plus longue (espace inséré au retour à la ligne)
+            fcntl.ioctl(fd, termios.TIOCSWINSZ, struct.pack("HHHH", 50, colonnes, 0, 0))
         out, sent, t0 = b"", 0, time.time()
         pending = list(answers)
         # Questions asked by app-log-live.py at the end of a Ctrl-C (exit confirmation; "more details?"): answered AUTOMATICALLY (o; Enter = no) as long as the test

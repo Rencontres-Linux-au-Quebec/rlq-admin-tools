@@ -262,7 +262,7 @@ class OdooWarmup(EnvTest):
         self.assertEqual(code, 0, out + err)
         with open(environnement) as f:
             self.assertIn("WARMUP_DELAY=30", f.read())
-        self.assertIn("runs 30 s", out)
+        self.assertRegex(out, r"(runs|exécute) 30 s")          # la langue de la session (fr par défaut) : phrase traduite
         with open(environnement, "w") as f:
             f.write("WARMUP_DELAY=45\n")
         code, out, err = self.lancer("--systemd-install", "--service", "odoo-test.service", "--delay", "-5")

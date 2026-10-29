@@ -645,3 +645,12 @@ msgstr "file synchrone en écriture"
 
 msgid "async queue write"
 msgstr "file asynchrone en écriture"
+
+msgid "Measure performance (60 s)"
+msgstr "Mesurer les performances (60 s)"
+
+msgid "Apply the safe settings"
+msgstr "Appliquer les réglages sans risque"
+
+msgid "interactive menu of the common operations (dialog if installed; terminal required)"
+msgstr "menu interactif des opérations courantes (dialog si installé ; terminal requis)"
