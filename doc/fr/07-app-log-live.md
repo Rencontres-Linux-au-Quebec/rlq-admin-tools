@@ -37,7 +37,7 @@ Sans clavier : `--record-test-log MIN` enregistre MIN minutes à partir du déma
 
 ## Latence : est-ce le disque ?
 
-Toutes les 30 secondes, un échantillonneur léger lit les compteurs du noyau (aucune commande) : processeur, temps d'attente (PSI) du disque / du processeur / de la mémoire - le cgroup *du conteneur lui-même* dans un conteneur LXC - , et le % d'occupation des disques et l'attente par opération. Chaque requête Odoo (temps SQL + temps Python de sa ligne de journal) est classée dans l'heure où elle a eu lieu, « disque occupé » ou « disque calme ». Appuyer sur **P** (ou Ctrl-G au niveau 6 et plus) après quelques heures : le verdict dit si les disques ralentissent les requêtes (SSD justifiés), seulement par moments (démarrages, sauvegardes), ou pas du tout (SATA suffisant), avec le tableau par heure au niveau 8. Dans un conteneur, les compteurs des disques peuvent être partiels : lancer `host-perf-audit.py` sur l'hôte Proxmox pour les vrais disques.
+Toutes les 30 secondes, un échantillonneur léger lit les compteurs du noyau (aucune commande) : processeur, temps d'attente (PSI) du disque / du processeur / de la mémoire - le cgroup *du conteneur lui-même* dans un conteneur LXC - , et le % d'occupation des disques et l'attente par opération. Chaque requête Odoo (temps SQL + temps Python de sa ligne de journal) est classée dans l'heure où elle a eu lieu, « disque occupé » ou « disque calme ». Appuyer sur **Y** (ou Ctrl-G au niveau 6 et plus) après quelques heures : le verdict dit si les disques ralentissent les requêtes (SSD justifiés), seulement par moments (démarrages, sauvegardes), ou pas du tout (SATA suffisant), avec le tableau par heure au niveau 8. Dans un conteneur, les compteurs des disques peuvent être partiels : lancer `host-perf-audit.py` sur l'hôte Proxmox pour les vrais disques.
 
 ## Règles de conception à connaître
 
@@ -74,6 +74,13 @@ app-log-live.py -S yesterday -U today -g erreur  # hier seulement, lignes conten
 app-log-live.py --exclude-country US,CN         # cache les adresses de ces pays
 app-log-live.py --days 0.1 --no-follow          # historique des connexions des 2,4 dernières heures
 ```
+
+## Barre d'état, rafraîchissement et impression (1.113)
+
+* **Barre d'état** (vidéo inverse), après toutes les N lignes affichées (`--status-every N`, 100 par défaut ; 0 = jamais) : tentatives d'injection SQL, réponses 4xx et 5xx, adresses bannies vues, requêtes lentes (durée >= `--slow`) et la plus lente. Les compteurs sont cumulés depuis le dernier rapport détaillé : **Ctrl-T** ou **g** les remettent à zéro. Couleur : blanc = rien à signaler ; vert = un peu (4xx, quelques requêtes lentes) ; jaune = à regarder (injection SQL, 5xx, adresse bannie, plusieurs requêtes lentes) ; rouge = enquêter maintenant (injections répétées, beaucoup de 5xx ou de requêtes lentes).
+* **f** (rafraîchir) : les dernières lignes du tampon sont réaffichées avec les options courantes (adresses, DNS, noms, surlignage, `--only`...). Elles ne sont pas recomptées ni réécrites dans le journal quotidien.
+* **P** (imprimer) : les dernières lignes du tampon (`--buffer N`, 200 par défaut ; 0 = aucun) sont écrites dans un fichier, couleurs conservées (`less -R fichier`). Le programme demande le nombre de lignes et le nom du fichier. Le fichier est créé en mode 600 : il contient des adresses et des noms.
+* **Y** : rapport de latence (anciennement la touche P).
 
 ## Options
 {{HELP}}
