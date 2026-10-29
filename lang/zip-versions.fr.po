@@ -231,3 +231,12 @@ msgstr "(journal)"
 
 msgid "(VERSION file)"
 msgstr "(fichier VERSION)"
+
+msgid "Compare the archives (no option)"
+msgstr "Comparer les archives (sans option)"
+
+msgid "Also compare with the installation"
+msgstr "Comparer aussi avec l'installation"
+
+msgid "interactive menu of the common operations (dialog if installed; terminal required)"
+msgstr "menu interactif des opérations courantes (dialog si installé ; terminal requis)"

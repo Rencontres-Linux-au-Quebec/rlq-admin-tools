@@ -2047,3 +2047,6 @@ msgstr "nginx -t rejects the generic configuration: restoring the previous state
 
 msgid "Configuration nginx générique : aucun changement appliqué (refusé ou sans réponse)."
 msgstr "Generic nginx configuration: no change applied (refused or no answer)."
+
+msgid "  --menu                       menu interactif des opérations courantes (dialog si installé ; terminal requis)"
+msgstr "  --menu                       interactive menu of the common operations (dialog if installed; terminal required)"

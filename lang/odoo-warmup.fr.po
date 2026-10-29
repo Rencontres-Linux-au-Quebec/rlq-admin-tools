@@ -271,3 +271,15 @@ msgstr "derniers "
 
 msgid ": cannot read"
 msgstr " : lecture impossible"
+
+msgid "Warm up the Odoo cache"
+msgstr "Préchauffer le cache d'Odoo"
+
+msgid "Install warm-up at startup"
+msgstr "Installer le préchauffage au démarrage"
+
+msgid "Remove warm-up at startup"
+msgstr "Retirer le préchauffage au démarrage"
+
+msgid "interactive menu of the common operations (dialog if installed; terminal required)"
+msgstr "menu interactif des opérations courantes (dialog si installé ; terminal requis)"

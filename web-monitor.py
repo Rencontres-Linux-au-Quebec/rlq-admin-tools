@@ -85,7 +85,7 @@ import time
 import unicodedata
 import urllib.parse
 
-__version__ = "2.79.20261025.153031"
+__version__ = "2.81.20261028.214122"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
@@ -4894,12 +4894,25 @@ def execute():
         print("\nInterrupted (Ctrl-C).", file=sys.stderr)
         return 130
 
+MENU_ENTREES = [
+    ([], 'Monitoring (one pass)', 'Monitoring (one pass)', False),
+    (['--summary'], 'Numeric summary', 'Numeric summary', False),
+    (['--status'], 'Timer and last pass status', 'Timer and last pass status', False),
+    (['--list-users'], 'List Odoo connections', 'List Odoo connections', False),
+    (['--suspect-users'], 'Accounts with suspicious activity', 'Accounts with suspicious activity', False),
+    (['--dry-run'], 'Run without e-mail or change', 'Run without e-mail or change', False),
+    (['--install-timer'], 'Install the systemd timer', 'Install the systemd timer', True),
+    (['--uninstall-timer'], 'Remove the systemd timer', 'Remove the systemd timer', True),
+]
+
+
 def main():
     global VERBOSE
     parser = LocalizedArgumentParser(
         description="Automatic nginx + Odoo monitoring: runs the project's tools, alerts only if action is needed.")
     parser.add_argument("-c", "--config", metavar="FILE",
                         help="Configuration file to read ALONE (otherwise: /etc/default/web-monitor.conf, then the personal file .web-monitor.conf; UPPERCASE options: APP, DAYS, DETAILS, INTERVAL_HOURS, LANGUAGE, NO_PAGER, NO_PROMPT, REVERSE, SORT, TABLE)")
+    parser.add_argument("--menu", action="store_true", help="interactive menu of the common operations (dialog if installed; terminal required)")
     parser.add_argument("--run", action="store_true", help="Run the monitoring (default behavior)")
     parser.add_argument("--dry-run", action="store_true",
                         help="Run the tools and show the decision, without e-mail or changing the log reading positions")
@@ -4975,6 +4988,15 @@ def main():
     except Exception as e:
         defaults, problems = {}, [f"apps/_config.py unreadable ({e})"]
     args = parser.parse_args()
+    if args.menu:
+        import importlib.util as _ilu
+        _spec = _ilu.spec_from_file_location("_menu", os.path.join(SCRIPT_DIR, "apps", "_menu.py"))
+        _menu = _ilu.module_from_spec(_spec)
+        _spec.loader.exec_module(_menu)
+        _menu.menu(os.path.abspath(__file__), sys.argv[1:], MENU_ENTREES,
+                   traduire=TR, langue=LANGUAGE,
+                   configuration=_menu.configuration_de(SCRIPT_DIR, "web-monitor", sys.argv[1:]),
+                   nom=f"web-monitor.py v{__version__}")
     if args.config and not os.path.isfile(args.config):
         parser.error(f"configuration file not found: {args.config}")
     show_configuration(defaults, problems)

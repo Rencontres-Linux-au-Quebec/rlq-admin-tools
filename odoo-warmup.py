@@ -56,7 +56,7 @@ try:                    # line editing in prompts
 except ImportError:
     pass
 
-__version__ = "1.34.20261027.125500"
+__version__ = "1.36.20261028.214122"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
@@ -946,6 +946,13 @@ def detect_odoo_url(attente=0):
     return DEFAULT_URL
 
 
+MENU_ENTREES = [
+    ([], 'Warm up the Odoo cache', 'Warm up the Odoo cache', False),
+    (['--systemd-install'], 'Install warm-up at startup', 'Install warm-up at startup', True),
+    (['--systemd-remove'], 'Remove warm-up at startup', 'Remove warm-up at startup', True),
+]
+
+
 def main():
     parser = (I18N.parser if I18N else LocalizedArgumentParser)(description="Warms up the Odoo cache (public pages, assets, administration screens) after a restart.")
     parser.add_argument("-c", "--config", default=None, metavar="FILE",
@@ -956,6 +963,7 @@ def main():
                         help="Display language: en or fr (default: from LC_ALL / LC_MESSAGES / LANG)")
     parser.add_argument("--latest", type=int, default=None, metavar="N", help=f"Also warms up the public pages of the N latest events and surveys, read with the administration session (default: {DEFAULT_LATEST}; 0: none). Key LATEST")
     parser.add_argument("--links", type=int, default=None, metavar="N", help=f"Also loads N linked pages found in the public pages (event pages, surveys…) (default: {DEFAULT_LINKS}; 0: none). Key LINKS")
+    parser.add_argument("--menu", action="store_true", help="interactive menu of the common operations (dialog if installed; terminal required)")
     parser.add_argument("--pages-file", default=None, metavar="FILE", help=f"File of additional public pages, one path per line (default: {PAGES_FILE}; created at first run). Key PAGES_FILE")
     parser.add_argument("--repeat", type=int, default=None, metavar="N", help=f"Parallel passes of each administration call (default: {DEFAULT_REPETITIONS}) : touche plusieurs processus d'Odoo")
     parser.add_argument("--report-err", action="store_true",
@@ -972,6 +980,15 @@ def main():
     if "--version" not in sys.argv[1:]:       # first line of EVERY run, even --help (--version prints it itself)
         print(f"odoo-warmup.py v{__version__}")
     args = parser.parse_args()
+    if args.menu:
+        import importlib.util as _ilu
+        _spec = _ilu.spec_from_file_location("_menu", os.path.join(SCRIPT_DIR, "apps", "_menu.py"))
+        _menu = _ilu.module_from_spec(_spec)
+        _spec.loader.exec_module(_menu)
+        _menu.menu(os.path.abspath(__file__), sys.argv[1:], MENU_ENTREES,
+                   traduire=I18N.tr if I18N else None, langue=I18N.langue if I18N else "fr",
+                   configuration=_menu.configuration_de(SCRIPT_DIR, "odoo-warmup", sys.argv[1:]),
+                   nom=f"odoo-warmup.py v{__version__}")
     global VERBOSE, NGINX_HOST
     VERBOSE = args.verbose
     if args.changelog:

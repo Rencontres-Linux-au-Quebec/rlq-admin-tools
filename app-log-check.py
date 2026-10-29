@@ -60,7 +60,7 @@ import urllib.parse
 from collections import Counter, OrderedDict
 from datetime import datetime, timedelta
 
-__version__ = "2.25.20261022.231529"
+__version__ = "2.27.20261028.214122"
 
 DEFAULT_SERVICE = "erplibre_erplibre.service"
 STATE_DIR = os.environ.get("APP_LOG_CHECK_STATE_DIR") or os.path.expanduser("~/.local/state/app-log-check")
@@ -1171,6 +1171,13 @@ def hourly_report(service, namespace, day_count, top):
     return 0
 
 
+MENU_ENTREES = [
+    ([], 'Analyse the logs (no option)', 'Analyse the logs (no option)', False),
+    (['--by-hour'], 'Problems by hour and day', 'Problems by hour and day', False),
+    (['--errors-only'], 'Error details only', 'Error details only', False),
+]
+
+
 def main():
     parser = (I18N.parser if I18N else LocalizedArgumentParser)(
         description="Analyzes Odoo's systemd log for protocol attacks and Python tracebacks.",
@@ -1180,6 +1187,7 @@ def main():
                         help="Configuration file to read ALONE (otherwise: /etc/default/app-log-check.conf, then the personal file .app-log-check.conf; options in UPPERCASE: APP, DAYS, ERRORS_ONLY, FULL_TRACE, LANGUAGE, NAMESPACE, SERVICE, TOP, VERBOSE)")
     parser.add_argument("--lang", choices=I18N.disponibles if I18N else ["fr"], metavar="LANG",
                         help="Display language: en or fr (default: from LC_ALL / LC_MESSAGES / LANG)")
+    parser.add_argument("--menu", action="store_true", help="interactive menu of the common operations (dialog if installed; terminal required)")
     parser.add_argument("--service", default=None,
                          help=f"Systemd unit to query (default: auto-detection among {', '.join(CANDIDATE_SERVICES)})")
     parser.add_argument("--namespace", default=None,
@@ -1205,6 +1213,15 @@ def main():
         print(f"app-log-check.py v{__version__}")
     defauts, problems = I18N.defauts(parser, SCHEMA_CONFIG) if I18N else ({}, [])
     args = parser.parse_args()
+    if args.menu:
+        import importlib.util as _ilu
+        _spec = _ilu.spec_from_file_location("_menu", os.path.join(SCRIPT_DIR, "apps", "_menu.py"))
+        _menu = _ilu.module_from_spec(_spec)
+        _spec.loader.exec_module(_menu)
+        _menu.menu(os.path.abspath(__file__), sys.argv[1:], MENU_ENTREES,
+                   traduire=I18N.tr if I18N else None, langue=I18N.langue if I18N else "fr",
+                   configuration=_menu.configuration_de(SCRIPT_DIR, "app-log-check", sys.argv[1:]),
+                   nom=f"app-log-check.py v{__version__}")
     if args.config and not os.path.isfile(args.config):
         parser.error(f"configuration file not found: {args.config}")
     if I18N:
