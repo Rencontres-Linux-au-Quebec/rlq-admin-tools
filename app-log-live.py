@@ -105,7 +105,7 @@ from urllib.parse import unquote
 from collections import Counter, OrderedDict
 from concurrent.futures import Future
 
-__version__ = "1.110.20261025.172827"
+__version__ = "1.111.20261028.225404"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
@@ -5701,7 +5701,7 @@ def main():
                              f"'none': no word; '+word' adds a word to the default list, '-word' removes it (--highlight=+odoo,-POST). Default: {HIGHLIGHT_DEFAULT}. HIGHLIGHT key of the configuration file; key l of the menu")
     parser.add_argument("--idle", type=float, default=IDLE_DEFAULT, metavar="MIN",
                         help=f"Minutes without activity before « no more activity » (default: {IDLE_DEFAULT:g})")
-    parser.add_argument("--keep-ip", action="store_true", help=argparse.SUPPRESS)       # old option: the address is kept by default
+    parser.add_argument("--keep-ip", dest="hide_ip", action="store_false", help=argparse.SUPPRESS)       # old name of --show-ip (1.111: it had no effect since 1.107)
     parser.add_argument("--lang", choices=I18N.disponibles if I18N else ["fr"], metavar="LANG",
                         help="Display language: en or fr (default: from LC_ALL / LC_MESSAGES / LANG)")
     parser.add_argument("--level", type=int, default=LEVEL_MAX, metavar="N",

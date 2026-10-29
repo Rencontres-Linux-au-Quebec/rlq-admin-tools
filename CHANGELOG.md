@@ -196,6 +196,19 @@ Earlier history was archived outside this repository when this file was created.
 
 ## app-log-live.py
 
+### 1.111.20261028.225404 - --keep-ip: the old name of --show-ip works again
+
+- Title: --keep-ip (old name of --show-ip) had no effect since the address became hidden by default (1.107); it now shows the IP address again.
+- Reason: The test of the default address (test_ip_gardee_par_defaut_hide_ip_et_libelle_court) found that --keep-ip did not show the IP, and the default expectations of the tests were out of date.
+- Changes:
+  - --keep-ip is the same option as --show-ip (hidden from --help, as before).
+  - nginx-tools-tests/test_app_log_live.py: tests that read addresses ask for --show-ip (the default is now masked, HIDE_IP=yes); the default test checks the masked default; the summary wording of « Adresses à bannir » and the web-monitor reasons are the current ones; the key-menu test waits for the current prompts with a wide terminal.
+  - Files: app-log-live.py, nginx-tools-tests/test_app_log_live.py, CHANGELOG.md.
+- Bugs fixed: symptom: --keep-ip accepted but ignored, so the address stayed hidden. Diagnosis: the option stored a value that nothing read. Correction: same destination as --show-ip.
+- Safeguards and edge cases: the default (masked address) is unchanged; --show-ip and --hide-ip keep their meaning.
+- Checks: test_app_log_live (one test still fails: column alignment, the order of the lines in the output, see the pull request).
+- Action required: none.
+
 ### 1.110.20261025.172827 - "Who is connected now" shown from level 5
 
 - Title: The list of connected users is shown from dashboard level 5 (Ctrl-G and Ctrl-T), not at every level.
