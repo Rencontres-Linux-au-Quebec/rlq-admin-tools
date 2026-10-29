@@ -17,7 +17,7 @@
 #
 # Usage : nginx-hardening.sh [--update] [--check] [--odoo-http-port PORT] [--odoo-gevent-port PORT]
 #                              [--odoo-service NOM] [--odoo-conf CHEMIN] [--odoo-conf-paths LISTE] [--timezone ZONE] [--workers N] [-v|--verbose] [--version]
-#                              [--changelog]
+#                              [--changelog] [--menu]
 #   - (no option)          : CHECK ONLY - changes NOTHING, same behavior as --check. This is the
 #                            default behavior since 1.7 (before: applied the changes by
 #                            default, which posed a real risk of accidental system changes).
@@ -53,6 +53,9 @@
 #                            curl, cp, chown, fail2ban-client...), prefixed with "+".
 #   - --version            : affiche la version et quitte.
 #   - --changelog          : affiche CHANGELOG.md (couleur si terminal).
+#   - --menu               : menu interactif des operations courantes (verification, --update, --rollback, options lues
+#                            dans les fichiers de configuration, --changelog). Terminal requis ; les options de la ligne de
+#                            commande restent valables et sont transmises a chaque operation du menu.
 #
 # Must be run as root for --update (chown, firewall, /var/www, /var/log/nginx). Without --update
 # (check only, default behavior), no privilege required.
@@ -86,7 +89,7 @@ run() {
     "$@"
 }
 
-readonly SCRIPT_VERSION="2.60.20261028.170500"
+readonly SCRIPT_VERSION="2.61.20261028.203623"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
 SCRIPT_NAME="$(basename "${BASH_SOURCE[0]}" .sh)"; readonly SCRIPT_NAME
 # Display language (en or fr): --lang, NGINX_HARDENING_LANG, LANGUAGE of the configuration file, LC_ALL / LANG - apps/_i18n.sh translates the output (nothing changes in French).
@@ -130,6 +133,7 @@ else
 fi
 
 CHECK_ONLY=1
+MENU=0                 # --menu (2.61): menu interactif, lance apres la lecture des options
 # Backups (2.59): one archive (NGINX_HARDENING_ARCHIVE_DIR, separate from the per-file .bak copies) of the nginx and fail2ban configuration before each --update (--rollback restores it).
 ARCHIVE_DIR="${NGINX_HARDENING_ARCHIVE_DIR:-/var/backups/nginx-hardening/archives}"
 BACKUP_KEEP="${NGINX_HARDENING_BACKUP_KEEP:-20}"
@@ -200,6 +204,7 @@ fi
 # shellcheck source=/dev/null
 [[ -r "$SCRIPT_DIR/apps/_listes.sh" ]] && . "$SCRIPT_DIR/apps/_listes.sh"
 
+ARGS_INITIAUX=("$@")   # options recues (2.61) : le menu (--menu) relance ce programme avec les memes options
 while [[ $# -gt 0 ]]; do
     case "$1" in
         -v|--verbose) VERBOSE=1; shift ;;
@@ -219,6 +224,7 @@ while [[ $# -gt 0 ]]; do
         --mail-setup) MAIL_SETUP=1; shift ;;
         --mail-to) MAIL_TO="${2:-}"; shift 2 ;;
         --mail-user) MAIL_USER="${2:-}"; shift 2 ;;
+        --menu) MENU=1; shift ;;
         --odoo-http-port) ODOO_HTTP_PORT="${2:-}"; shift 2 ;;
         --odoo-gevent-port) ODOO_GEVENT_PORT="${2:-}"; shift 2 ;;
         --odoo-service) ODOO_SERVICE="${2:-}"; shift 2 ;;
@@ -270,6 +276,7 @@ Options (par ordre alphabétique) :
   --mail-setup                 redemander la configuration du courriel (avec --update)
   --mail-to ADDRESS            destinataire des courriels de la suite (alertes, rapports)
   --mail-user NAME             identifiant du relais SMTP (le mot de passe est demandé, jamais passé en option)
+  --menu                       menu interactif des opérations courantes (terminal requis)
   --odoo-conf FILE            configuration d'Odoo (défaut : premier fichier trouvé parmi --odoo-conf-paths)
   --odoo-conf-paths LIST       chemins (espaces ; motifs * permis) où chercher la configuration d'Odoo (défaut : /etc/odoo/odoo-linux_meetup.conf
                                /opt/odoo/erplibre/config.conf /home/utilisateur/git/erplibre/config.conf /etc/odoo/*.conf…)
@@ -306,6 +313,104 @@ for u in ${DISABLE_URI_LIST[@]+"${DISABLE_URI_LIST[@]}"} ${ENABLE_URI_LIST[@]+"$
         exit 1
     fi
 done
+
+# --- Menu interactif (2.61, --menu) : les opérations courantes sans retenir les options. Chaque choix relance CE programme avec
+# les options recues sur la ligne de commande (sans --menu) plus l'operation choisie : une seule logique, celle des options.
+menu_confirmer() {    # menu_confirmer QUESTION : 0 si la réponse est oui (o, oui, y, yes), 1 sinon
+    local rep=""
+    read -r -p "$1 [o/N] " rep || return 1
+    case "${rep,,}" in o|oui|y|yes) return 0 ;; esac
+    return 1
+}
+
+menu_lancer() {       # menu_lancer OPERATION... : relance ce programme avec les options de la ligne de commande et l'operation
+    local -a args=()
+    local a rc=0
+    for a in ${ARGS_INITIAUX[@]+"${ARGS_INITIAUX[@]}"}; do
+        [[ "$a" == "--menu" ]] || args+=("$a")
+    done
+    args+=("$@")
+    echo
+    bash "$SCRIPT_DIR/$(basename "${BASH_SOURCE[0]}")" ${args[@]+"${args[@]}"} || rc=$?
+    echo
+    if (( rc == 0 )); then echo "${C_GREEN}Terminé${C_RESET} (code 0)."; else echo "${C_RED}Code de retour : $rc${C_RESET}"; fi
+}
+
+menu_config_voir() { # les fichiers de configuration lus et les options par défaut qu'ils donnent (apps/_i18n.sh : config_lire)
+    local f p
+    if ! declare -F config_lire >/dev/null; then
+        echo "${C_YELLOW}[ATTN]${C_RESET} module de configuration (apps/_i18n.sh) absent : aucune option lue."
+        return 0
+    fi
+    echo
+    echo "Fichiers de configuration lus (le dernier l'emporte) :"
+    if [[ -n "$CFG_EXPLICITE" ]]; then
+        echo "  $CFG_EXPLICITE (demandé par -c/--config : aucun autre fichier n'est lu)"
+    elif (( ${#CFG_FICHIERS[@]} == 0 )); then
+        echo "  aucun (valeurs par défaut du programme)"
+    else
+        for f in "${CFG_FICHIERS[@]}"; do echo "  $f (modifié le $(config_date_modif "$f"))"; done
+    fi
+    echo
+    echo "Options par défaut lues dans ces fichiers (la ligne de commande les remplace) :"
+    if (( ${#CFG_OPTIONS[@]} == 0 )); then
+        echo "  aucune"
+    else
+        for p in "${CFG_OPTIONS[@]}"; do echo "  ${C_GREEN}${p%% *}${C_RESET} ${p#* }"; done
+    fi
+    for p in ${CFG_PROBLEMES[@]+"${CFG_PROBLEMES[@]}"}; do echo "  ${C_YELLOW}[ATTN]${C_RESET} valeur ignorée : $p"; done
+    for p in ${CFG_FRANCAIS[@]+"${CFG_FRANCAIS[@]}"}; do echo "  ${C_YELLOW}[ATTN]${C_RESET} valeur en français, écrire l'anglais : $p"; done
+}
+
+menu_principal() {    # boucle du menu (--menu) : terminal requis
+    local choix=""
+    if [[ ! -t 0 || ! -t 2 ]]; then
+        echo "ERREUR: --menu demande un terminal (entrée et sortie interactives)." >&2
+        exit 1
+    fi
+    while true; do
+        echo
+        echo "=============================================================="
+        echo " MENU nginx-hardening.sh v$SCRIPT_VERSION"
+        echo "=============================================================="
+        echo "  ${C_GREEN}1${C_RESET}  Vérifier le setup (${C_GREEN}--check${C_RESET}) : rien n'est modifié"
+        echo "  ${C_GREEN}2${C_RESET}  Appliquer les changements (${C_GREEN}--update${C_RESET}) : root et confirmation requis"
+        echo "  ${C_GREEN}3${C_RESET}  Restaurer la sauvegarde la plus récente (${C_GREEN}--rollback${C_RESET}) : root, confirmation"
+        echo "  ${C_GREEN}4${C_RESET}  Voir les options par défaut lues dans les fichiers de configuration"
+        echo "  ${C_GREEN}5${C_RESET}  Voir le journal des modifications (${C_GREEN}--changelog${C_RESET})"
+        echo "  ${C_GREEN}q${C_RESET}  Quitter"
+        echo
+        read -r -p "Votre choix : " choix || { echo; break; }
+        case "$choix" in
+            1) menu_lancer --check ;;
+            2)
+                if [[ "$EUID" -ne 0 ]]; then
+                    echo "${C_RED}ERREUR${C_RESET}: --update demande root (relancer avec sudo $(basename "$0") --menu)." >&2
+                elif menu_confirmer "Appliquer maintenant les changements (sauvegarde automatique avant) ?"; then
+                    menu_lancer --update
+                else
+                    echo "Annule : rien n'est modifié."
+                fi ;;
+            3)
+                if [[ "$EUID" -ne 0 ]]; then
+                    echo "${C_RED}ERREUR${C_RESET}: --rollback demande root (relancer avec sudo $(basename "$0") --menu)." >&2
+                else
+                    menu_lancer --rollback
+                fi ;;
+            4) menu_config_voir ;;
+            5) menu_lancer --changelog ;;
+            q|Q) break ;;
+            *) echo "Choix inconnu : « $choix »." ;;
+        esac
+        read -r -p "Entrée pour revenir au menu..." _ || break
+    done
+    exit 0
+}
+
+# --menu (2.61) : menu interactif, avant toute modification (le verrou et les droits sont verifies par l'operation choisie)
+if [[ "$MENU" == "1" ]]; then
+    menu_principal
+fi
 
 # Lock (flock): only one MODIFYING execution at a time - cron, systemd timer and manual launch may
 # cross. Wait in seconds (0: immediate abort). Directory: NGINX_TOOLS_LOCK_DIR (tests), otherwise /run/lock, otherwise

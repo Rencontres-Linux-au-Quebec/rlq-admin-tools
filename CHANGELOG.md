@@ -1295,6 +1295,30 @@ Earlier history was archived outside this repository when this file was created.
 
 ## nginx-hardening.sh
 
+### 2.61.20261028.203623 - --menu: interactive menu for the usual operations
+
+- Title: New option --menu: a text menu for the usual operations, so the options no longer have to be remembered.
+- Reason: The operations (check, update, rollback, change log) and the reading of the configuration files were only reachable through command-line options. The menu offers them with a number, and shows the default options read from the configuration files.
+- Changes:
+  - New option --menu (terminal required). Menu: 1 check (--check), 2 apply the changes (--update, root and confirmation required), 3 restore the latest backup (--rollback, root, confirmation asked by the operation), 4 show the default options read from the configuration files, 5 show the change log (--changelog), q quit.
+  - Option 4 lists the configuration files read (in order, the last one wins, with their modification date) and each default option they provide (for example --odoo-http-port 8169), with the invalid or French values reported.
+  - Each choice runs this program again with the same command-line options (except --menu) plus the chosen operation, so the menu and the options share one code path. The program's exit code is shown after each operation, and the menu stays open.
+  - Functions: menu_principal, menu_lancer, menu_config_voir, menu_confirmer. Variables: MENU, ARGS_INITIAUX (the options received, kept before the parsing loop).
+  - Help: --menu listed in alphabetical order, between --mail-user and --odoo-conf. The usage line and the description in the header are updated.
+  - Files: nginx-hardening.sh, CHANGELOG.md, nginx-tools-tests/test_nginx_hardening.py (one test added).
+- Bugs fixed: none.
+- Safeguards and edge cases:
+  - Without a terminal (input or output redirected, cron, pipe), --menu refuses with an error and exit code 1; nothing is run.
+  - The menu runs before the lock and before any change: the operations it starts keep their own safeguards (root check, lock, backup before --update, confirmation before --update and --rollback).
+  - --update from the menu is refused with a clear message when the program is not run as root, before asking for confirmation.
+  - Nothing is added to the configuration model: --menu is an action, and actions stay on the command line only (like --rollback and --update).
+- Checks:
+  - test_nginx_hardening: new test test_menu_sans_terminal_refuse_et_l_aide_le_liste (refusal without a terminal, --menu in the help).
+  - Manual test in a pseudo-terminal, with a temporary configuration folder: menu displayed, option 4 lists the files read and the options, unknown choice handled, option 1 started and its exit code shown, q quits.
+  - test_conventions (version format, change log order, alphabetical options in the help): run.
+  - Known failure before this change, not caused by it: test_config_defaut (options missing from doc/en/nginx-hardening.conf.example: --backup, --disable-uri, --enable-uri, --rollback, --yes; actions, not settings). Same for nginx-log-audit.sh, app-log-live.py and odoo-warmup.py.
+- Action required: none. Try it with: sudo nginx-hardening.sh --menu
+
 ### 2.60.20261028.170500 - --disable-uri and --enable-uri: refuse a path of the Odoo site
 
 - Title: Refuse (404) a path of the Odoo site in every language, for example /shop, with --disable-uri; --enable-uri removes the refusal.
