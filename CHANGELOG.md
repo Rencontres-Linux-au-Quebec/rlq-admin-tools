@@ -296,6 +296,39 @@ Earlier history was archived outside this repository when this file was created.
 
 ## app-log-live.py
 
+### 1.112.20261029.165811 - Time window, journalctl options, country filters, fractions of a day
+
+- Title: --since / -S, --until / -U, --utc, -n, --no-hostname, -g / --grep, --country, --exclude-country; --days accepts fractions (0.1 = 2.4 hours).
+- Reason: The administrator wanted to follow the Odoo journal for a precise period (for example the last 0.1 day) and to use the options of journalctl (-S, -U, -n, --utc, --no-hostname...). He also wanted to show or hide the addresses of one country, which the program did not offer.
+- Changes:
+  - --days is now a decimal number (type float). 0 keeps the whole history; a whole number of days keeps the form "--since -N days" sent to journalctl, a fraction is sent as an epoch.
+  - -S / --since TIME and -U / --until TIME (new function parse_time): "now", "today", "yesterday", "@EPOCH", "HH:MM[:SS]", "YYYY-MM-DD [HH:MM[:SS]] [Z or +HH:MM]", relative values ("-2h", "+1 day", "0.5 hour", "3 days ago", units s, min, h, d, w and long forms). A date alone is the start of its day, and the start of the next day for --until.
+  - --utc: the times of the log lines and the times given without a time zone are in UTC (default: local time). Parsed in Line._analyze.
+  - -n is an alias of --lines (same meaning as journalctl -n).
+  - --no-hostname (journalctl option, and the host name is left out of the header of the line; the lines without host are read: JOURNAL_RE host now optional).
+  - -g / --grep REGEX (new functions window_keep): the message of each line must match; case-insensitive unless the pattern has an uppercase letter (journalctl smart case). Also passed to journalctl with --case-sensitive for the live stream.
+  - --country CC,CC and --exclude-country CC,CC (new function country_keep): filter on the country of the FIRST address of the line (the client), the same address as --exclude-ip. Repeatable, two-letter codes, validated.
+  - -f / --follow and --no-pager: accepted for journalctl compatibility, no effect (the live stream is the default, the output is never paged).
+  - --until stops the live stream when a line reaches that time (the stream is in order).
+  - --days + --since together are refused; --until must be later than --since.
+  - Config key DAYS is read as a decimal number.
+  - journal_epoch, days_window, journal_options, read_history (new arguments since and until), stream_command, main (filter setup and eprint of the active filters).
+  - Files touched: app-log-live.py, lang/app-log-live.fr.po (French of the new messages and help; the old --days help entry removed), nginx-tools-tests/test_app_log_live.py (two new tests), CHANGELOG.md.
+- Bugs fixed: none.
+- Safeguards and edge cases:
+  - A line without time header (Python trace, BigBlueButton) follows the time window of the previous timed line; --grep is tested on every line.
+  - A timed line without address is hidden by --country and kept by --exclude-country; an address of unknown country is hidden by --country and kept by --exclude-country.
+  - Lines with an address whose country lookup is still pending when the line is shown (WAIT_DELAY) follow the rule for unknown countries.
+  - The --days message of the history keeps its wording; the file-based history (Odoo logfile) filters on the epoch of each line.
+  - --since with a value in the future gives no line (no error).
+- Checks:
+  - py_compile OK; --help lists the new options in alphabetical order (aide triée par le formateur).
+  - Manual checks of parse_time (formats, relative values, --utc, invalid values), of the journal line parsing with and without host, of window_keep and country_keep, and of the journalctl command built by stream_command.
+  - Unit tests: nginx-tools-tests/test_app_log_live.py, 151 tests run, one failure: test_colonnes_jamais_tassees_pays_noms_anonymises_et_souligne_tous_les_n. The same failure exists without this change (checked on the previous version): not caused by 1.112.
+  - test_i18n: the catalogue of app-log-live is complete; the failure of nginx-hardening (bash catalogue) is not related to this program.
+  - test_conventions (order of the versions in CHANGELOG.md): the 1.112.20261028.214122 section of this program was already placed after 1.111.20261028.225404; not changed here.
+- Action required: none. Example: app-log-live.py -S '-2h' --utc -n 500 ; app-log-live.py --exclude-country US,CN ; app-log-live.py --days 0.1 --no-follow.
+
 ### 1.111.20261028.225404 - --keep-ip: the old name of --show-ip works again
 
 - Title: --keep-ip (old name of --show-ip) had no effect since the address became hidden by default (1.107); it now shows the IP address again.

@@ -56,5 +56,24 @@ Every 30 seconds a light sampler reads the kernel counters (no command): process
 * A sent e-mail shows its recipient and subject: "E-mail #7573 sent to Ana Tremblay (a***n@...) - « subject » - registration ...".
 * **Ctrl+C** during a program started from the menu (nginx-log-audit.sh, web-monitor.py...): one question only, at once.
 
+## Time window, journalctl options and country filters (1.112)
+
+* `-S` / `--since TIME` and `-U` / `--until TIME`: `YYYY-MM-DD [HH:MM[:SS]] [Z or +HH:MM]`, `HH:MM[:SS]` (today), `today`, `yesterday`, `now`, `@EPOCH`, or relative (`-2h`, `'-30 min'`, `'0.5 day'`, `'3 days ago'`). Local time, or UTC with `--utc`. A date alone covers the whole day (`--until` stops at the start of the next day). With the live stream, `--until` stops the program at that time.
+* `--utc`: the times of the lines and the times given without a time zone are in UTC.
+* `-n` / `--lines N`: alias of `--lines`, as in journalctl. `--no-hostname`: without the host name.
+* `-g` / `--grep REGEX`: only the lines whose message matches. Case-insensitive unless REGEX has an uppercase letter (as journalctl).
+* `--country CC,CC`: only the lines whose first address (the client) is in these countries. `--exclude-country CC,CC`: hides them. Two-letter codes, repeatable. An address of unknown country is hidden by `--country` and kept by `--exclude-country`.
+* `--days` accepts fractions: `--days 0.1` = 2.4 hours of sign-in history.
+* `-f` and `--no-pager` are accepted for journalctl compatibility (no effect).
+
+Examples:
+
+```bash
+app-log-live.py -S '-2h' --utc -n 500          # last two hours, in UTC
+app-log-live.py -S yesterday -U today -g error  # yesterday only, lines containing "error"
+app-log-live.py --exclude-country US,CN         # hide the addresses of these countries
+app-log-live.py --days 0.1 --no-follow          # sign-ins of the last 2.4 hours
+```
+
 ## Options
 {{HELP}}
