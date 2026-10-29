@@ -518,3 +518,21 @@ msgstr ") (requested by --config: neither /etc/default nor ~ are read)"
 
 msgid "  --anonymize                  anonymise ce qui est affiché (adresses IP, courriels, identifiants, jetons) par des pseudonymes stables ; clé ANONYMIZE"
 msgstr "  --anonymize                  anonymizes what is displayed (IP addresses, emails, identifiers, tokens) with stable pseudonyms; key ANONYMIZE"
+
+msgid "  --menu                       menu interactif des opérations courantes (dialog si installé ; terminal requis)"
+msgstr "  --menu                       interactive menu of the common operations (dialog if installed; terminal required)"
+
+msgid "--dry-run|Montrer ce qui serait fait|Show what would be done|0"
+msgstr ""
+
+msgid "--status|Sauvegardes présentes et timer|Backups and timer status|0"
+msgstr ""
+
+msgid "--test-restore|Tester la restauration de la dernière sauvegarde|Test restore of the latest backup|1"
+msgstr ""
+
+msgid "--install-timer|Installer la sauvegarde automatique|Install automatic backup|1"
+msgstr ""
+
+msgid "--uninstall-timer|Retirer la sauvegarde automatique|Remove automatic backup|1"
+msgstr ""

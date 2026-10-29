@@ -40,7 +40,7 @@ import subprocess
 import sys
 import time
 
-__version__ = "1.5.20261022.231529"
+__version__ = "1.7.20261028.214122"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
@@ -839,6 +839,12 @@ class LocalizedArgumentParser(argparse.ArgumentParser):
         super().__init__(*args, **kwargs)
 
 
+MENU_ENTREES = [
+    ([], 'Measure performance (60 s)', 'Measure performance (60 s)', False),
+    (['--apply'], 'Apply the safe settings', 'Apply the safe settings', True),
+]
+
+
 def main():
     global VERBOSE
     parser = (I18N.parser if I18N else LocalizedArgumentParser)(
@@ -853,6 +859,7 @@ def main():
     parser.add_argument("--interval", type=float, default=None, metavar="SECONDS",
                         help="Seconds between two samples (default: 5 up to 2 minutes of measurement, 15 up to 30 minutes, 60 beyond)")
     parser.add_argument("--lang", choices=I18N.disponibles if I18N else ["en"], metavar="LANG", help="Display language: en or fr (default: from LC_ALL / LC_MESSAGES / LANG)")
+    parser.add_argument("--menu", action="store_true", help="interactive menu of the common operations (dialog if installed; terminal required)")
     parser.add_argument("--no-guests", action="store_true", help="Do not measure each container / VM (cgroups)")
     parser.add_argument("--report-err", action="store_true", help="Print at the end an error report to copy and paste (program, version, server, failures, warnings)")
     parser.add_argument("--top", type=int, default=8, metavar="N", help="Number of guests shown, the busiest on the disks first (default: 8)")
@@ -863,6 +870,15 @@ def main():
         print(f"host-perf-audit.py v{__version__}")
     defaults, problems = I18N.defauts(parser, SCHEMA_CONFIG) if I18N else ({}, [])
     args = parser.parse_args()
+    if args.menu:
+        import importlib.util as _ilu
+        _spec = _ilu.spec_from_file_location("_menu", os.path.join(SCRIPT_DIR, "apps", "_menu.py"))
+        _menu = _ilu.module_from_spec(_spec)
+        _spec.loader.exec_module(_menu)
+        _menu.menu(os.path.abspath(__file__), sys.argv[1:], MENU_ENTREES,
+                   traduire=I18N.tr if I18N else None, langue=I18N.langue if I18N else "fr",
+                   configuration=_menu.configuration_de(SCRIPT_DIR, "host-perf-audit", sys.argv[1:]),
+                   nom=f"host-perf-audit.py v{__version__}")
     if args.config and not os.path.isfile(args.config):
         parser.error(f"configuration file not found: {args.config}")
     if I18N:
