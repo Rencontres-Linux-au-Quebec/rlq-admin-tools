@@ -53,7 +53,7 @@
 #                            curl, cp, chown, fail2ban-client...), prefixed with "+".
 #   - --version            : affiche la version et quitte.
 #   - --changelog          : affiche CHANGELOG.md (couleur si terminal).
-#   - --menu               : menu interactif des operations courantes (verification, --update, --rollback, options lues
+#   - --menu               : menu dialog (texte si dialog est absent) des operations courantes (verification, --update, --rollback, options lues
 #                            dans les fichiers de configuration, --changelog). Terminal requis ; les options de la ligne de
 #                            commande restent valables et sont transmises a chaque operation du menu.
 #
@@ -89,7 +89,7 @@ run() {
     "$@"
 }
 
-readonly SCRIPT_VERSION="2.61.20261028.203623"
+readonly SCRIPT_VERSION="2.62.20261028.210125"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
 SCRIPT_NAME="$(basename "${BASH_SOURCE[0]}" .sh)"; readonly SCRIPT_NAME
 # Display language (en or fr): --lang, NGINX_HARDENING_LANG, LANGUAGE of the configuration file, LC_ALL / LANG - apps/_i18n.sh translates the output (nothing changes in French).
@@ -276,7 +276,7 @@ Options (par ordre alphabétique) :
   --mail-setup                 redemander la configuration du courriel (avec --update)
   --mail-to ADDRESS            destinataire des courriels de la suite (alertes, rapports)
   --mail-user NAME             identifiant du relais SMTP (le mot de passe est demandé, jamais passé en option)
-  --menu                       menu interactif des opérations courantes (terminal requis)
+  --menu                       menu interactif des opérations courantes (dialog si installé ; terminal requis)
   --odoo-conf FILE            configuration d'Odoo (défaut : premier fichier trouvé parmi --odoo-conf-paths)
   --odoo-conf-paths LIST       chemins (espaces ; motifs * permis) où chercher la configuration d'Odoo (défaut : /etc/odoo/odoo-linux_meetup.conf
                                /opt/odoo/erplibre/config.conf /home/utilisateur/git/erplibre/config.conf /etc/odoo/*.conf…)
@@ -314,16 +314,34 @@ for u in ${DISABLE_URI_LIST[@]+"${DISABLE_URI_LIST[@]}"} ${ENABLE_URI_LIST[@]+"$
     fi
 done
 
-# --- Menu interactif (2.61, --menu) : les opérations courantes sans retenir les options. Chaque choix relance CE programme avec
-# les options recues sur la ligne de commande (sans --menu) plus l'operation choisie : une seule logique, celle des options.
+# --- Menu interactif (2.61, --menu ; dialog depuis 2.62) : les operations courantes sans retenir les options. Chaque choix relance CE
+# programme avec les options recues sur la ligne de commande (sans --menu) plus l'operation choisie : une seule logique, celle des options.
+# MENU_UI : "dialog" (menu graphique, si la commande dialog est installee et qu'un terminal est disponible) ou "texte" (repli).
+MENU_UI=""
+DIALOG_BIN="dialog"
+
+dialog_run() {    # dialog_run VAR ARGS... : lance dialog ; la reponse va dans VAR (fichier --output-fd, comme odoo-sql-maint)
+    local __var="$1" reponse rc=0
+    shift
+    reponse="$(mktemp)" || return 1
+    "$DIALOG_BIN" --output-fd 3 "$@" 3>"$reponse" || rc=$?
+    printf -v "$__var" '%s' "$(cat -- "$reponse")"
+    rm -f -- "$reponse"
+    return "$rc"
+}
+
 menu_confirmer() {    # menu_confirmer QUESTION : 0 si la réponse est oui (o, oui, y, yes), 1 sinon
-    local rep=""
+    local rep="" rc=0
+    if [[ "$MENU_UI" == "dialog" ]]; then
+        "$DIALOG_BIN" --title "nginx-hardening.sh" --yesno "$1" 8 72 || rc=$?
+        return "$rc"
+    fi
     read -r -p "$1 [o/N] " rep || return 1
     case "${rep,,}" in o|oui|y|yes) return 0 ;; esac
     return 1
 }
 
-menu_lancer() {       # menu_lancer OPERATION... : relance ce programme avec les options de la ligne de commande et l'operation
+menu_lancer() {       # menu_lancer OPERATION... : relance ce programme avec les options de la ligne de commande et l'opération, puis affiche le code de retour
     local -a args=()
     local a rc=0
     for a in ${ARGS_INITIAUX[@]+"${ARGS_INITIAUX[@]}"}; do
@@ -362,12 +380,59 @@ menu_config_voir() { # les fichiers de configuration lus et les options par déf
     for p in ${CFG_FRANCAIS[@]+"${CFG_FRANCAIS[@]}"}; do echo "  ${C_YELLOW}[ATTN]${C_RESET} valeur en français, écrire l'anglais : $p"; done
 }
 
-menu_principal() {    # boucle du menu (--menu) : terminal requis
+menu_config_fenetre() {   # option 4 en dialog : les mêmes informations, dans une fenêtre de texte (sans codes de couleur)
+    local f
+    f="$(mktemp)" || return 1
+    menu_config_voir | sed -E 's/\x1b\[[0-9;]*m//g' > "$f"
+    "$DIALOG_BIN" --title "Options lues dans les fichiers de configuration" --textbox "$f" 22 100 || true
+    rm -f -- "$f"
+}
+
+menu_action() {       # menu_action CHOIX : lance l'opération (1 à 5) ; root et confirmation sont vérifiés ici ; retour 1 si choix inconnu
+    case "$1" in
+        1) menu_lancer --check ;;
+        2)
+            if [[ "$EUID" -ne 0 ]]; then
+                echo "${C_RED}ERREUR${C_RESET}: --update demande root (relancer avec sudo $(basename "$0") --menu)." >&2
+            elif menu_confirmer "Appliquer maintenant les changements (sauvegarde automatique avant) ?"; then
+                menu_lancer --update
+            else
+                echo "Annulé : rien n'est modifié."
+            fi ;;
+        3)
+            if [[ "$EUID" -ne 0 ]]; then
+                echo "${C_RED}ERREUR${C_RESET}: --rollback demande root (relancer avec sudo $(basename "$0") --menu)." >&2
+            else
+                menu_lancer --rollback
+            fi ;;
+        4)
+            if [[ "$MENU_UI" == "dialog" ]]; then menu_config_fenetre; else menu_config_voir; fi ;;
+        5) menu_lancer --changelog ;;
+        *) return 1 ;;
+    esac
+}
+
+menu_dialog() {       # menu graphique (dialog) : une fenêtre de choix, puis l'opération dans le terminal
     local choix=""
-    if [[ ! -t 0 || ! -t 2 ]]; then
-        echo "ERREUR: --menu demande un terminal (entrée et sortie interactives)." >&2
-        exit 1
-    fi
+    while true; do
+        dialog_run choix --title "nginx-hardening.sh v$SCRIPT_VERSION" \
+            --menu "Choisissez une opération (les options de la ligne de commande sont reprises) :" 16 76 6 \
+            1 "Vérifier le setup (--check) : rien n'est modifié" \
+            2 "Appliquer les changements (--update) : root, confirmation" \
+            3 "Restaurer la sauvegarde la plus récente (--rollback)" \
+            4 "Voir les options par défaut lues dans les fichiers de configuration" \
+            5 "Voir le journal des modifications (--changelog)" \
+            q "Quitter" || break
+        [[ "$choix" == "q" ]] && break
+        menu_action "$choix" || true
+        if [[ "$choix" != "4" ]]; then
+            read -r -p "Entrée pour revenir au menu..." _ || break
+        fi
+    done
+}
+
+menu_texte() {        # menu en mode texte (repli, quand dialog n'est pas installé)
+    local choix=""
     while true; do
         echo
         echo "=============================================================="
@@ -382,28 +447,28 @@ menu_principal() {    # boucle du menu (--menu) : terminal requis
         echo
         read -r -p "Votre choix : " choix || { echo; break; }
         case "$choix" in
-            1) menu_lancer --check ;;
-            2)
-                if [[ "$EUID" -ne 0 ]]; then
-                    echo "${C_RED}ERREUR${C_RESET}: --update demande root (relancer avec sudo $(basename "$0") --menu)." >&2
-                elif menu_confirmer "Appliquer maintenant les changements (sauvegarde automatique avant) ?"; then
-                    menu_lancer --update
-                else
-                    echo "Annule : rien n'est modifié."
-                fi ;;
-            3)
-                if [[ "$EUID" -ne 0 ]]; then
-                    echo "${C_RED}ERREUR${C_RESET}: --rollback demande root (relancer avec sudo $(basename "$0") --menu)." >&2
-                else
-                    menu_lancer --rollback
-                fi ;;
-            4) menu_config_voir ;;
-            5) menu_lancer --changelog ;;
             q|Q) break ;;
-            *) echo "Choix inconnu : « $choix »." ;;
+            *) menu_action "$choix" || echo "Choix inconnu : « $choix »." ;;
         esac
         read -r -p "Entrée pour revenir au menu..." _ || break
     done
+}
+
+menu_principal() {    # --menu : dialog si disponible (et un terminal), sinon le menu texte ; terminal requis
+    if [[ ! -t 0 || ! -t 2 ]]; then
+        echo "ERREUR: --menu demande un terminal (entrée et sortie interactives)." >&2
+        exit 1
+    fi
+    if command -v "$DIALOG_BIN" >/dev/null 2>&1 && { : >/dev/tty; } 2>/dev/null; then
+        MENU_UI="dialog"
+        menu_dialog
+    else
+        MENU_UI="texte"
+        if ! command -v "$DIALOG_BIN" >/dev/null 2>&1; then
+            echo "${C_YELLOW}[ATTN]${C_RESET} commande dialog absente : menu en mode texte (sudo apt install dialog pour le menu graphique)." >&2
+        fi
+        menu_texte
+    fi
     exit 0
 }
 

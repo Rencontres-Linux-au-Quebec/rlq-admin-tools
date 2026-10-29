@@ -1295,6 +1295,35 @@ Earlier history was archived outside this repository when this file was created.
 
 ## nginx-hardening.sh
 
+### 2.62.20261028.210125 - --menu: graphical menu with dialog, text menu as fallback
+
+- Title: The menu of --menu uses dialog when it is installed; without dialog, the text menu is still shown, with a note.
+- Reason: The menu was only a text menu. Martial expects the dialog menu, as in odoo-sql-maint.
+- Changes:
+  - With dialog installed and a terminal available, --menu opens a dialog window: 1 check, 2 apply (confirmation in a dialog yes/no box), 3 rollback, 4 default options read from the configuration files (in a text box), 5 change log, Quit.
+  - Operations that print output (1, 2, 3, 5) leave dialog, run in the terminal (their questions still work), then wait for Enter before returning to the window.
+  - Without dialog (or without a terminal for it), the text menu of 2.61 is used and a note says: sudo apt install dialog.
+  - The menu actions are in one function (menu_action) shared by both modes, so root and confirmation checks are not duplicated.
+  - dialog answers are read from a file (--output-fd), as in odoo-sql-maint; the call is protected so that set -e does not stop the program when dialog is cancelled.
+  - Functions: dialog_run, menu_dialog, menu_texte, menu_config_fenetre, menu_action, menu_principal (dispatch).
+  - Help and header: --menu now says dialog when installed.
+  - Files: nginx-hardening.sh, CHANGELOG.md.
+- Bugs fixed:
+  - Symptom: with dialog expected, --menu showed only the text menu.
+  - Diagnosis: the 2.61 menu never called dialog.
+  - Correction: dialog is used when available (see above).
+- Safeguards and edge cases:
+  - Without a terminal, --menu still refuses (code 1).
+  - --update and --rollback still refuse without root, before any question; a declined confirmation changes nothing.
+  - The menu runs before the lock and before any change, as in 2.61.
+- Checks:
+  - Test with a stand-in dialog command (records calls, returns scripted answers): option 4 opens the text box, option 1 runs the check and returns to the window, option 2 with a declined confirmation changes nothing, q quits.
+  - Text menu (dialog absent from PATH): note shown, unknown choice handled, q quits.
+  - Without a terminal: refused with code 1.
+  - The real dialog rendering was NOT tested in this session (dialog could not be installed here); to be checked on a real terminal.
+  - The accepted confirmation of --update was NOT run here (root on the test machine would have changed nginx and the firewall).
+- Action required: install dialog on the servers to get the graphical menu (sudo apt install dialog). Then sudo nginx-hardening.sh --menu.
+
 ### 2.61.20261028.203623 - --menu: interactive menu for the usual operations
 
 - Title: New option --menu: a text menu for the usual operations, so the options no longer have to be remembered.
