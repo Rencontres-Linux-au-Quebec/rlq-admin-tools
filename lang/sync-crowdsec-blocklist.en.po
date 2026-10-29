@@ -525,6 +525,18 @@ msgstr " — current ipsets kept as they are."
 msgid "Analyse de la liste"
 msgstr "Analysing the list"
 
+msgid " entrée(s) valide(s), contre "
+msgstr " valid entry(ies), against "
+
+msgid " à la synchronisation précédente (baisse de plus de "
+msgstr " at the previous sync (drop of more than "
+
+msgid " %) — mise à jour ANNULÉE."
+msgstr " %) — update CANCELLED."
+
+msgid "Vérifiez la source, puis relancez avec --max-drop 0 si cette baisse est attendue. Aucun ipset n'a été modifié."
+msgstr "Check the source, then run again with --max-drop 0 if this drop is expected. No ipset was changed."
+
 msgid " entrée(s) valide(s) ("
 msgstr " valid entry(ies) ("
 
