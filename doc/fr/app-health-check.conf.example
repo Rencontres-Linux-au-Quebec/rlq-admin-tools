@@ -85,3 +85,13 @@ ODOO_DISCUSS_MODEL=discuss.channel
 # --anonymize : anonymiser ce que le programme affiche (adresses IP, courriels, identifiants, jetons) par des pseudonymes stables (IP-4f2a9c, usager-9c1e03@anonyme.invalid) ; clé ANONYMIZE
 # (la même clé dans app-default.conf vaut pour tous les programmes ; appliquée seulement quand la sortie est un terminal ; pour cron : --anonymize ou NGINX_TOOLS_ANONYMIZE=1).
 #ANONYMIZE=no
+
+# --- 2.32 : passages précédents et alertes ---
+# --changes : ajoute au rapport ce qui a changé depuis le passage précédent (nouvelles pannes, contrôles résolus). Chaque passage est enregistré dans last-run.json
+# (dossier /var/lib/app-health-check, ou ~/.local/state/app-health-check ; variable APP_HEALTH_CHECK_STATE_DIR pour changer).
+# --json : résultats en JSON sur la sortie standard (le texte lisible va sur la sortie d'erreur).
+# Alertes : envoyées SEULEMENT quand il y a une panne ou un changement (un serveur sain et stable reste silencieux). Adresses en https (ou http).
+# ntfy : URL d'un sujet, par exemple https://ntfy.sh/mon-sujet
+#NOTIFY_NTFY_URL=
+# webhook : POST JSON {"title": ..., "message": ...}
+#NOTIFY_WEBHOOK_URL=
