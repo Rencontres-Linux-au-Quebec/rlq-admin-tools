@@ -4,6 +4,38 @@ Version numbers follow `MAJOR.MINOR.YYYYMMDD.HHMMSS` (local time of the change).
 Each program has its own section; the most recent version comes first.
 Earlier history was archived outside this repository when this file was created.
 
+## admin-menu.sh
+
+### 1.0.20261028.225816 - First version: one menu for all the programs that have --menu
+
+- Title: admin-menu.sh lists the repository programs that offer --menu and starts the menu of the one chosen.
+- Reason: Each program has its own menu (--menu), and the administrator had to remember each program name and its options. One entry point is needed, and dialog (the window menu) must be installed when it is missing.
+- Name: admin-menu.sh rather than odoo-menu.sh. The tools also serve applications other than Odoo behind nginx, and the program names of the repository do not contain the name of an application.
+- Details:
+  - New file admin-menu.sh (bash, version from the readonly SCRIPT_VERSION variable, shown by --version).
+  - Programs offered: every executable file of the folder whose text contains --menu (16 programs at this version, found at each run, so a new program appears without a change here). The PROGRAMS key restricts the list.
+  - Menu: dialog when it is installed, otherwise a text menu. Each entry starts the program with --menu (and with --verbose when the verbose mode is on); the program then shows its own menu. A "Press Enter to return to the menu" pause follows each run.
+  - Installation of dialog: offered at the start of the menu when it is missing (question, then apt-get update and apt-get install dialog, as root or with sudo). --install-dialog does the same without asking.
+  - Options: --changelog, -c/--config FILE, -h/--help, --install-dialog, --list, --report-err, -v/--verbose, --version. Options are shown in colour in the help, sorted alphabetically.
+  - Configuration: /etc/default/admin-menu.conf, then ~/.admin-menu.conf (last one wins; command line first). Keys: LANGUAGE (en, fr, auto), PROGRAMS (list of programs, empty for all), VERBOSE (yes or no). The file(s) really read are shown at each run.
+  - Language: French or English according to LANGUAGE, otherwise LC_ALL, LC_MESSAGES, LANG.
+  - Ctrl+C: asks for confirmation (apps/_i18n.sh, ctrl_c_child for the program started).
+  - Files touched: admin-menu.sh (new), CHANGELOG.md (this section), doc/en/admin-menu.conf.example and doc/fr/admin-menu.conf.example (new configuration templates).
+- Bugs fixed: none (first version).
+- Safeguards and edge cases:
+  - Without a terminal, the menu refuses with a message (exit 1); without option, the list of programs and the help are shown instead.
+  - No program with --menu in the folder: the menu says so and exits.
+  - A program that fails returns its code, which is shown; the menu stays open.
+  - If apt-get update fails, the installation is still tried, with a warning.
+  - Without root and without sudo, the installation is refused with a message; nothing is changed.
+  - --changelog shows only this section; colours off when the output is redirected; a closed pipe ends quietly.
+- Checks performed:
+  - bash -n and ShellCheck 0.11.0 with -x: no warning.
+  - --version, --help, --list, --changelog, unknown option, and the text menu inside a pseudo-terminal (choice of quit, colours and labels checked).
+  - --install-dialog on a machine without access to the Ubuntu package archive: the program stops with a clear message, as designed.
+  - Not verified here: the dialog window itself (dialog could not be installed in the test environment).
+- Action required: run admin-menu.sh once on a terminal. If dialog is missing, answer o to install it; then check the window menu. No other action.
+
 ## odoo-sql-maint
 
 ### 1.4.20261028.202537 - Menu no longer captures dialog output (fix for "cannot open tty-output")
