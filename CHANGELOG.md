@@ -1757,6 +1757,30 @@ Earlier history was archived outside this repository when this file was created.
 
 ## nginx-hardening.sh
 
+### 2.64.20261029.081857 - Malformed tags parameter on event pages refused (404) by the generic nginx configuration 1.15
+
+- Title: The generic nginx configuration refuses a ?tags= value that is not a list of numbers on the event pages.
+- Reason: Odoo's event search reads the tags parameter with literal_eval. A source sent about 2 200 requests with invented tags values (tags=stfD, search values full of quotes and brackets) on /en_CA/event and /es/event. Each request with a value such as stfD ended as an unhandled ValueError (HTTP 500 and an ERROR odoo.http line). Martial asked for a filter in the nginx configuration.
+- Changes:
+  - nginx/snippets/securite-commune.conf, new rule 3 bis: a request whose path is /event (any language prefix) and whose query string contains tags= followed by a value other than [numbers, commas, plus] (with %2B, %2C or %20 allowed) gets 404, as the rule for hidden files does. Legitimate links of the site, such as tags=[35,+40,+12,+37], pass.
+  - nginx/VERSION: 1.15.20261029.081857 (configuration archive).
+  - doc/nginx-tools.version: 1.155.20261029.081857 (archive of the tools).
+  - nginx-hardening.sh: SCRIPT_VERSION only.
+  - nginx-tools-tests/test_nginx_uri.py: class FiltreTagsEvenements (malformed values refused, site links accepted), reads the rule from securite-commune.conf.
+  - Files: nginx/snippets/securite-commune.conf, nginx/VERSION, doc/nginx-tools.version, nginx-hardening.sh, nginx-tools-tests/test_nginx_uri.py, CHANGELOG.md.
+- Bugs fixed:
+  - Symptom: 11 HTTP 500 responses and 11 ERROR odoo.http lines in 10 minutes, all on /en_CA/event with a tags value that is not a list.
+  - Diagnosis: website_event/models/event_event.py, _search_get_detail: literal_eval(tags) receives a bare name (stfD). The exception is not caught, so the request fails with 500. No data is exposed: the error happens before the database query.
+  - Correction: the request is refused by nginx before it reaches Odoo.
+- Safeguards and edge cases:
+  - The rule runs on the whole query string, so a valid tags= followed by an invalid one (tags=[35]&tags=stfD) is refused.
+  - Encoded brackets (%5B35%5D) are refused too: the site writes literal brackets. If a partner link is encoded, it will get 404 and must be rewritten with literal brackets.
+  - The regex has no backslash escaping inside the double quotes beyond the characters used elsewhere in the file; nginx -t has not been run here (nginx is not installed in the test environment).
+- Checks:
+  - python unittest nginx-tools-tests/test_nginx_uri.py: 7 tests OK (5 existing, 2 new). The regex was also checked against 16 sample URIs.
+  - Not verified here: nginx -t on a real server, and the 500 count after deployment.
+- Action required: on each server (PROD Odoo, DEV Odoo), run nginx-hardening.sh --update. It runs nginx -t and reloads nginx itself (nginx_appliquer) when the configuration is valid; it does not test the site afterwards for this rule, so check by hand that a request with tags=stfD returns 404 and that /es/event/jornada-linux-2025-23/track?tags=[35,+40] still returns 200. Not done here: auto-ban in web-monitor.py (the recommendations file is 69 h old, the timer should be checked).
+
 ### 2.63.20261028.222437 - Catalogue entries for the bash messages not yet translated (rollback, URI, backup, menu)
 
 - Title: English catalogue entries for the bash messages that were still French (backup, rollback, refused URIs, configuration reading, menu).

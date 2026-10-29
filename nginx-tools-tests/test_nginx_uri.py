@@ -2,6 +2,7 @@
 ENVIRONNEMENT = "odoo"   # --disable-uri / --enable-uri de nginx-hardening.sh (2.60), testés sur des dossiers temporaires
 # Step 12c (URI refusées) extracted from the script and run with a stub nginx; the snippets folder is a temporary folder.
 import os
+import re
 import shutil
 import subprocess
 import tempfile
@@ -73,6 +74,29 @@ class UriRefusees(unittest.TestCase):
     def test_include_present_dans_securite_commune(self):
         with open(SECURITE, encoding="utf-8") as f:
             self.assertIn("include /etc/nginx/snippets/uri-desactivees.conf;", f.read())
+
+
+class FiltreTagsEvenements(unittest.TestCase):
+    """securite-commune.conf, regle 3 bis (v1.15): ?tags= malforme sur /event -> 404 (Odoo: literal_eval -> 500)."""
+
+    def motif(self):
+        texte = open(SECURITE, encoding="utf-8").read()
+        m = re.search(r'if \(\$request_uri ~\* "(\^\(/\[a-z_\]\+\)\?/event.*?)"\) \{', texte)
+        self.assertIsNotNone(m, "regle 3 bis introuvable dans securite-commune.conf")
+        return m.group(1)
+
+    def refuse(self, uri):
+        return re.search(self.motif(), uri, re.IGNORECASE) is not None
+
+    def test_valeurs_malformees_refusees(self):
+        for uri in ("/event?tags=stfD", "/en_CA/event?search=zqzz&tags=stfD", "/event?tags=[x]", "/event?tags=[35]x",
+                    "/event?tags=[35]&tags=stfD", "/event?date=upcoming&tags=[zz]", "/es/event?tags=%5B35%5D"):
+            self.assertTrue(self.refuse(uri), uri)
+
+    def test_liens_legitimes_du_site_acceptes(self):
+        for uri in ("/es/event/jornada-linux-2025-23/track?tags=[35,+40,+12,+37]", "/event?tags=[1]&date=x",
+                    "/event?tags=[1,2,3]", "/event?tags=[35,%2B40]", "/event", "/event/x/track", "/shop?tags=stfD"):
+            self.assertFalse(self.refuse(uri), uri)
 
 
 if __name__ == "__main__":
