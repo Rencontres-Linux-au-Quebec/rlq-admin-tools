@@ -79,7 +79,7 @@ grep_q() { grep "$@" >/dev/null; }
 #                              ne peut pas le voir, le texte etant entre apostrophes (faux positif).
 trap 'ec=$?; echo "" >&2; echo "*** ARRÊT INATTENDU DU SCRIPT (code $ec) À LA LIGNE $LINENO ***" >&2; echo "*** Commande fautive : $BASH_COMMAND" >&2' ERR
 
-readonly SCRIPT_VERSION="1.27.20261022.231529"
+readonly SCRIPT_VERSION="1.29.20261028.214122"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
 SCRIPT_NAME="$(basename "${BASH_SOURCE[0]}" .sh)"; readonly SCRIPT_NAME
 # Changelog dans le sous-repertoire doc/ ; repli sur l'ancien emplacement (a cote du programme) tant que
@@ -171,6 +171,21 @@ if declare -F config_lire >/dev/null; then
     case " $* " in *" --version "*|*" --help "*|*" -h "*|*" --changelog "*) ;; *) config_afficher ;; esac
 fi
 
+# Menu --menu (2.x) : apps/_menu.sh (dialog si installé, sinon texte). Entrées : TAG|FR|EN|CONFIRMATION.
+# shellcheck source=/dev/null  # bibliothèque livrée à côté du programme
+[[ -r "$SCRIPT_DIR/apps/_menu.sh" ]] && . "$SCRIPT_DIR/apps/_menu.sh"
+# shellcheck disable=SC2034  # lues par apps/_menu.sh (chargé plus haut)
+MENU_ENTREES=(
+    "|Synchroniser la liste maintenant|Sync the list now|1"
+    "--dry-run|Télécharger et analyser sans rien modifier|Download and analyse, change nothing|0"
+    "--status|État de la dernière synchronisation|Last sync status|0"
+    "--blocked|IP effectivement bloquées|Addresses actually blocked|0"
+    "--install-cron|Installer la synchronisation automatique|Install automatic sync|1"
+    "--ufw-hook|Installer le crochet ufw|Install the ufw hook|1"
+    "--uninstall|Retirer cron, règles et ipsets|Remove cron, rules and ipsets|1"
+)
+declare -F menu_si_demande >/dev/null && menu_si_demande "$SCRIPT_DIR/$(basename "${BASH_SOURCE[0]}")" "$@"
+
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --dry-run) DO_DRY_RUN=1; shift ;;
@@ -191,6 +206,7 @@ while [[ $# -gt 0 ]]; do
         --min-ips) MIN_IPS="${2:-}"; shift 2 ;;
         -v|--verbose) VERBOSE=1; shift ;;
         --version) echo "sync-crowdsec-blocklist.sh version $SCRIPT_VERSION"; exit 0 ;;
+        --menu) shift ;;     # --menu (apps/_menu.sh) : traité avant la boucle
         --changelog)
             if [[ ! -r "$CHANGELOG_FILE" ]]; then
                 echo "Changelog introuvable : $CHANGELOG_FILE" >&2
@@ -220,6 +236,7 @@ Options (par ordre alphabétique) :
   -h, --help                   affiche cette aide et quitte
   --install-cron               synchronisation automatique (fichier cron)
   --lang LANG                  langue d'affichage : en ou fr (défaut : selon LC_ALL / LC_MESSAGES / LANG)
+  --menu    menu interactif des opérations courantes (dialog si installé ; terminal requis)
   --min-ips N                  taille minimale acceptée de la liste (protection contre une liste tronquée)
   --report-err                 afficher à la fin un rapport d'erreurs à copier-coller (programme, version, serveur,
                                échecs, avertissements) ; désactive couleurs et questions interactives

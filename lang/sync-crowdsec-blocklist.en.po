@@ -593,3 +593,27 @@ msgstr "stopped with code "
 
 msgid "  --anonymize                  anonymise ce qui est affiché (adresses IP, courriels, identifiants, jetons) par des pseudonymes stables ; clé ANONYMIZE"
 msgstr "  --anonymize                  anonymizes what is displayed (IP addresses, emails, identifiers, tokens) with stable pseudonyms; key ANONYMIZE"
+
+msgid "|Synchroniser la liste maintenant|Sync the list now|1"
+msgstr ""
+
+msgid "--dry-run|Télécharger et analyser sans rien modifier|Download and analyse, change nothing|0"
+msgstr ""
+
+msgid "--status|État de la dernière synchronisation|Last sync status|0"
+msgstr ""
+
+msgid "--blocked|IP effectivement bloquées|Addresses actually blocked|0"
+msgstr ""
+
+msgid "--install-cron|Installer la synchronisation automatique|Install automatic sync|1"
+msgstr ""
+
+msgid "--ufw-hook|Installer le crochet ufw|Install the ufw hook|1"
+msgstr ""
+
+msgid "--uninstall|Retirer cron, règles et ipsets|Remove cron, rules and ipsets|1"
+msgstr ""
+
+msgid "  --menu    menu interactif des opérations courantes (dialog si installé ; terminal requis)"
+msgstr "  --menu    interactive menu of the common operations (dialog if installed; terminal required)"

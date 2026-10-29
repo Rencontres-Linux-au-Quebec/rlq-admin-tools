@@ -2679,3 +2679,18 @@ msgstr "langue par défaut non lue : root requis"
 
 msgid "default language not read (database unreachable)"
 msgstr "langue par défaut non lue : base inaccessible"
+
+msgid "Live follow"
+msgstr "Suivi en direct"
+
+msgid "Site diagnosis (maintenance page)"
+msgstr "Diagnostic du site (page de maintenance)"
+
+msgid "Odoo modules table"
+msgstr "Tableau des modules Odoo"
+
+msgid "Last messages, then stop"
+msgstr "Derniers messages, puis arrêt"
+
+msgid "interactive menu of the common operations (dialog if installed; terminal required)"
+msgstr "menu interactif des opérations courantes (dialog si installé ; terminal requis)"

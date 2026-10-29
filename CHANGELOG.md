@@ -111,6 +111,40 @@ Earlier history was archived outside this repository when this file was created.
 
 ## app-health-check.py
 
+### 2.31.20261028.214122 - --menu: English programs translate the menu and its help through their catalogue
+
+- Title: --menu: English programs translate the menu and its help through their catalogue.
+- Reason: With --lang en, the --menu help and the menu entries were partly in French: the catalogue tests (test_i18n) and the English help test (test_web_monitor) failed.
+- Changes:
+  - The menu entries and the --menu help are written in English in the code; their French text is in lang/app-health-check.py.fr.po (msgid = English text, msgstr = French).
+  - apps/_menu.py: menu() takes traduire (the program's translator) and langue (the program's display language). The menu labels and its messages follow the program's language, not only NGINX_TOOLS_I18N_LANGUE.
+  - nginx-tools-tests/test_config_defaut.py: --menu is an action (CLI only, like --backup), excluded from the check of the configuration model.
+  - Files: app-health-check.py, lang/app-health-check.py.fr.po, apps/_menu.py, nginx-tools-tests/test_config_defaut.py, CHANGELOG.md.
+- Bugs fixed: symptom: test_i18n reported French text in the code of this English program. Diagnosis: the new menu strings were French in the code, but this program's code is English and its texts are translated through lang/. Correction: English strings plus catalogue entries.
+- Safeguards and edge cases: the menu labels, its confirmation and cancel messages follow the language of the program; the entries still run the same options as before.
+- Checks: test_i18n (catalogues), test_menu, test_config_defaut, the English help test of this program where it exists.
+- Action required: none.
+
+### 2.30.20261028.211449 - --menu: interactive menu of the usual operations
+
+- Title: New option --menu: a menu (dialog when installed, text otherwise) for the usual operations of app-health-check.py.
+- Reason: Operations were only reachable through command-line options. The menu offers them by number, shows the configuration read, and asks for confirmation before operations that change the system.
+- Changes:
+  - New option --menu (terminal required). Entries: vérification de la santé, courriel des alertes, courriel de test; configuration read (c or the menu item); change log (--changelog); quit.
+  - Each entry runs this program again with the options received on the command line (except --menu) plus its own option. Entries that change the system ask for confirmation first.
+  - Shared library apps/_menu.py (new): dialog when installed, text menu otherwise, with a note to install dialog.
+  - Help: --menu listed in alphabetical order. --help, --version and --changelog keep their priority over --menu.
+  - Files: app-health-check.py, apps/_menu.py (new), nginx-tools-tests/test_menu.py (new), CHANGELOG.md.
+- Bugs fixed: none.
+- Safeguards and edge cases:
+  - Without a terminal, --menu refuses with an error and exit code 1; nothing is run.
+  - The menu relaunches the program only; root checks, locks and confirmations stay those of the operation itself.
+- Checks:
+  - test_menu: --menu listed in the help, refused without a terminal.
+  - Manual test in a pseudo-terminal (text menu and stand-in dialog) on read-only entries.
+  - Other tests of the program and conventions: see the pull request.
+- Action required: none. To get the graphical menu: sudo apt install dialog.
+
 ### 2.29.20261022.231529 - Code comments translated to English
 
 - Title: Code comments translated to English (repository convention).
@@ -165,6 +199,40 @@ Earlier history was archived outside this repository when this file was created.
 
 ## app-log-check.py
 
+### 2.27.20261028.214122 - --menu: English programs translate the menu and its help through their catalogue
+
+- Title: --menu: English programs translate the menu and its help through their catalogue.
+- Reason: With --lang en, the --menu help and the menu entries were partly in French: the catalogue tests (test_i18n) and the English help test (test_web_monitor) failed.
+- Changes:
+  - The menu entries and the --menu help are written in English in the code; their French text is in lang/app-log-check.py.fr.po (msgid = English text, msgstr = French).
+  - apps/_menu.py: menu() takes traduire (the program's translator) and langue (the program's display language). The menu labels and its messages follow the program's language, not only NGINX_TOOLS_I18N_LANGUE.
+  - nginx-tools-tests/test_config_defaut.py: --menu is an action (CLI only, like --backup), excluded from the check of the configuration model.
+  - Files: app-log-check.py, lang/app-log-check.py.fr.po, apps/_menu.py, nginx-tools-tests/test_config_defaut.py, CHANGELOG.md.
+- Bugs fixed: symptom: test_i18n reported French text in the code of this English program. Diagnosis: the new menu strings were French in the code, but this program's code is English and its texts are translated through lang/. Correction: English strings plus catalogue entries.
+- Safeguards and edge cases: the menu labels, its confirmation and cancel messages follow the language of the program; the entries still run the same options as before.
+- Checks: test_i18n (catalogues), test_menu, test_config_defaut, the English help test of this program where it exists.
+- Action required: none.
+
+### 2.26.20261028.211449 - --menu: interactive menu of the usual operations
+
+- Title: New option --menu: a menu (dialog when installed, text otherwise) for the usual operations of app-log-check.py.
+- Reason: Operations were only reachable through command-line options. The menu offers them by number, shows the configuration read, and asks for confirmation before operations that change the system.
+- Changes:
+  - New option --menu (terminal required). Entries: analyse des journaux, par heure et par jour, détail des erreurs; configuration read (c or the menu item); change log (--changelog); quit.
+  - Each entry runs this program again with the options received on the command line (except --menu) plus its own option. Entries that change the system ask for confirmation first.
+  - Shared library apps/_menu.py (new): dialog when installed, text menu otherwise, with a note to install dialog.
+  - Help: --menu listed in alphabetical order. --help, --version and --changelog keep their priority over --menu.
+  - Files: app-log-check.py, apps/_menu.py (new), nginx-tools-tests/test_menu.py (new), CHANGELOG.md.
+- Bugs fixed: none.
+- Safeguards and edge cases:
+  - Without a terminal, --menu refuses with an error and exit code 1; nothing is run.
+  - The menu relaunches the program only; root checks, locks and confirmations stay those of the operation itself.
+- Checks:
+  - test_menu: --menu listed in the help, refused without a terminal.
+  - Manual test in a pseudo-terminal (text menu and stand-in dialog) on read-only entries.
+  - Other tests of the program and conventions: see the pull request.
+- Action required: none. To get the graphical menu: sudo apt install dialog.
+
 ### 2.25.20261022.231529 - Code comments translated to English
 
 - Title: Code comments translated to English (repository convention).
@@ -195,6 +263,40 @@ Earlier history was archived outside this repository when this file was created.
 ### 2.23.20261020.211944 - Current version. Earlier history archived outside the repository.
 
 ## app-log-live.py
+
+### 1.112.20261028.214122 - --menu: English programs translate the menu and its help through their catalogue
+
+- Title: --menu: English programs translate the menu and its help through their catalogue.
+- Reason: With --lang en, the --menu help and the menu entries were partly in French: the catalogue tests (test_i18n) and the English help test (test_web_monitor) failed.
+- Changes:
+  - The menu entries and the --menu help are written in English in the code; their French text is in lang/app-log-live.py.fr.po (msgid = English text, msgstr = French).
+  - apps/_menu.py: menu() takes traduire (the program's translator) and langue (the program's display language). The menu labels and its messages follow the program's language, not only NGINX_TOOLS_I18N_LANGUE.
+  - nginx-tools-tests/test_config_defaut.py: --menu is an action (CLI only, like --backup), excluded from the check of the configuration model.
+  - Files: app-log-live.py, lang/app-log-live.py.fr.po, apps/_menu.py, nginx-tools-tests/test_config_defaut.py, CHANGELOG.md.
+- Bugs fixed: symptom: test_i18n reported French text in the code of this English program. Diagnosis: the new menu strings were French in the code, but this program's code is English and its texts are translated through lang/. Correction: English strings plus catalogue entries.
+- Safeguards and edge cases: the menu labels, its confirmation and cancel messages follow the language of the program; the entries still run the same options as before.
+- Checks: test_i18n (catalogues), test_menu, test_config_defaut, the English help test of this program where it exists.
+- Action required: none.
+
+### 1.111.20261028.211449 - --menu: interactive menu of the usual operations
+
+- Title: New option --menu: a menu (dialog when installed, text otherwise) for the usual operations of app-log-live.py.
+- Reason: Operations were only reachable through command-line options. The menu offers them by number, shows the configuration read, and asks for confirmation before operations that change the system.
+- Changes:
+  - New option --menu (terminal required). Entries: suivi en direct, diagnostic, modules Odoo, derniers messages; configuration read (c or the menu item); change log (--changelog); quit.
+  - Each entry runs this program again with the options received on the command line (except --menu) plus its own option. Entries that change the system ask for confirmation first.
+  - Shared library apps/_menu.py (new): dialog when installed, text menu otherwise, with a note to install dialog.
+  - Help: --menu listed in alphabetical order. --help, --version and --changelog keep their priority over --menu.
+  - Files: app-log-live.py, apps/_menu.py (new), nginx-tools-tests/test_menu.py (new), CHANGELOG.md.
+- Bugs fixed: none.
+- Safeguards and edge cases:
+  - Without a terminal, --menu refuses with an error and exit code 1; nothing is run.
+  - The menu relaunches the program only; root checks, locks and confirmations stay those of the operation itself.
+- Checks:
+  - test_menu: --menu listed in the help, refused without a terminal.
+  - Manual test in a pseudo-terminal (text menu and stand-in dialog) on read-only entries.
+  - Other tests of the program and conventions: see the pull request.
+- Action required: none. To get the graphical menu: sudo apt install dialog.
 
 ### 1.110.20261025.172827 - "Who is connected now" shown from level 5
 
@@ -466,6 +568,40 @@ Earlier history was archived outside this repository when this file was created.
 
 ## host-perf-audit.py
 
+### 1.7.20261028.214122 - --menu: English programs translate the menu and its help through their catalogue
+
+- Title: --menu: English programs translate the menu and its help through their catalogue.
+- Reason: With --lang en, the --menu help and the menu entries were partly in French: the catalogue tests (test_i18n) and the English help test (test_web_monitor) failed.
+- Changes:
+  - The menu entries and the --menu help are written in English in the code; their French text is in lang/host-perf-audit.py.fr.po (msgid = English text, msgstr = French).
+  - apps/_menu.py: menu() takes traduire (the program's translator) and langue (the program's display language). The menu labels and its messages follow the program's language, not only NGINX_TOOLS_I18N_LANGUE.
+  - nginx-tools-tests/test_config_defaut.py: --menu is an action (CLI only, like --backup), excluded from the check of the configuration model.
+  - Files: host-perf-audit.py, lang/host-perf-audit.py.fr.po, apps/_menu.py, nginx-tools-tests/test_config_defaut.py, CHANGELOG.md.
+- Bugs fixed: symptom: test_i18n reported French text in the code of this English program. Diagnosis: the new menu strings were French in the code, but this program's code is English and its texts are translated through lang/. Correction: English strings plus catalogue entries.
+- Safeguards and edge cases: the menu labels, its confirmation and cancel messages follow the language of the program; the entries still run the same options as before.
+- Checks: test_i18n (catalogues), test_menu, test_config_defaut, the English help test of this program where it exists.
+- Action required: none.
+
+### 1.6.20261028.211449 - --menu: interactive menu of the usual operations
+
+- Title: New option --menu: a menu (dialog when installed, text otherwise) for the usual operations of host-perf-audit.py.
+- Reason: Operations were only reachable through command-line options. The menu offers them by number, shows the configuration read, and asks for confirmation before operations that change the system.
+- Changes:
+  - New option --menu (terminal required). Entries: mesure (60 s), réglages sans risque (--apply); configuration read (c or the menu item); change log (--changelog); quit.
+  - Each entry runs this program again with the options received on the command line (except --menu) plus its own option. Entries that change the system ask for confirmation first.
+  - Shared library apps/_menu.py (new): dialog when installed, text menu otherwise, with a note to install dialog.
+  - Help: --menu listed in alphabetical order. --help, --version and --changelog keep their priority over --menu.
+  - Files: host-perf-audit.py, apps/_menu.py (new), nginx-tools-tests/test_menu.py (new), CHANGELOG.md.
+- Bugs fixed: none.
+- Safeguards and edge cases:
+  - Without a terminal, --menu refuses with an error and exit code 1; nothing is run.
+  - The menu relaunches the program only; root checks, locks and confirmations stay those of the operation itself.
+- Checks:
+  - test_menu: --menu listed in the help, refused without a terminal.
+  - Manual test in a pseudo-terminal (text menu and stand-in dialog) on read-only entries.
+  - Other tests of the program and conventions: see the pull request.
+- Action required: none. To get the graphical menu: sudo apt install dialog.
+
 ### 1.5.20261022.231529 - Code comments translated to English
 
 - Title: Code comments translated to English (repository convention).
@@ -487,6 +623,40 @@ Earlier history was archived outside this repository when this file was created.
 ### 1.4.20261020.211944 - Current version. Earlier history archived outside the repository.
 
 ## odoo-chat-post.py
+
+### 1.12.20261028.214122 - --menu: English programs translate the menu and its help through their catalogue
+
+- Title: --menu: English programs translate the menu and its help through their catalogue.
+- Reason: With --lang en, the --menu help and the menu entries were partly in French: the catalogue tests (test_i18n) and the English help test (test_web_monitor) failed.
+- Changes:
+  - The menu entries and the --menu help are written in English in the code; their French text is in lang/odoo-chat-post.py.fr.po (msgid = English text, msgstr = French).
+  - apps/_menu.py: menu() takes traduire (the program's translator) and langue (the program's display language). The menu labels and its messages follow the program's language, not only NGINX_TOOLS_I18N_LANGUE.
+  - nginx-tools-tests/test_config_defaut.py: --menu is an action (CLI only, like --backup), excluded from the check of the configuration model.
+  - Files: odoo-chat-post.py, lang/odoo-chat-post.py.fr.po, apps/_menu.py, nginx-tools-tests/test_config_defaut.py, CHANGELOG.md.
+- Bugs fixed: symptom: test_i18n reported French text in the code of this English program. Diagnosis: the new menu strings were French in the code, but this program's code is English and its texts are translated through lang/. Correction: English strings plus catalogue entries.
+- Safeguards and edge cases: the menu labels, its confirmation and cancel messages follow the language of the program; the entries still run the same options as before.
+- Checks: test_i18n (catalogues), test_menu, test_config_defaut, the English help test of this program where it exists.
+- Action required: none.
+
+### 1.11.20261028.211449 - --menu: interactive menu of the usual operations
+
+- Title: New option --menu: a menu (dialog when installed, text otherwise) for the usual operations of odoo-chat-post.py.
+- Reason: Operations were only reachable through command-line options. The menu offers them by number, shows the configuration read, and asks for confirmation before operations that change the system.
+- Changes:
+  - New option --menu (terminal required). Entries: catalogue, création à blanc, création des canaux, compte du robot; configuration read (c or the menu item); change log (--changelog); quit.
+  - Each entry runs this program again with the options received on the command line (except --menu) plus its own option. Entries that change the system ask for confirmation first.
+  - Shared library apps/_menu.py (new): dialog when installed, text menu otherwise, with a note to install dialog.
+  - Help: --menu listed in alphabetical order. --help, --version and --changelog keep their priority over --menu.
+  - Files: odoo-chat-post.py, apps/_menu.py (new), nginx-tools-tests/test_menu.py (new), CHANGELOG.md.
+- Bugs fixed: none.
+- Safeguards and edge cases:
+  - Without a terminal, --menu refuses with an error and exit code 1; nothing is run.
+  - The menu relaunches the program only; root checks, locks and confirmations stay those of the operation itself.
+- Checks:
+  - test_menu: --menu listed in the help, refused without a terminal.
+  - Manual test in a pseudo-terminal (text menu and stand-in dialog) on read-only entries.
+  - Other tests of the program and conventions: see the pull request.
+- Action required: none. To get the graphical menu: sudo apt install dialog.
 
 ### 1.10.20261022.231529 - Code comments translated to English
 
@@ -519,6 +689,40 @@ Earlier history was archived outside this repository when this file was created.
 
 ## odoo-docs.py
 
+### 1.7.20261028.214122 - --menu: English programs translate the menu and its help through their catalogue
+
+- Title: --menu: English programs translate the menu and its help through their catalogue.
+- Reason: With --lang en, the --menu help and the menu entries were partly in French: the catalogue tests (test_i18n) and the English help test (test_web_monitor) failed.
+- Changes:
+  - The menu entries and the --menu help are written in English in the code; their French text is in lang/odoo-docs.py.fr.po (msgid = English text, msgstr = French).
+  - apps/_menu.py: menu() takes traduire (the program's translator) and langue (the program's display language). The menu labels and its messages follow the program's language, not only NGINX_TOOLS_I18N_LANGUE.
+  - nginx-tools-tests/test_config_defaut.py: --menu is an action (CLI only, like --backup), excluded from the check of the configuration model.
+  - Files: odoo-docs.py, lang/odoo-docs.py.fr.po, apps/_menu.py, nginx-tools-tests/test_config_defaut.py, CHANGELOG.md.
+- Bugs fixed: symptom: test_i18n reported French text in the code of this English program. Diagnosis: the new menu strings were French in the code, but this program's code is English and its texts are translated through lang/. Correction: English strings plus catalogue entries.
+- Safeguards and edge cases: the menu labels, its confirmation and cancel messages follow the language of the program; the entries still run the same options as before.
+- Checks: test_i18n (catalogues), test_menu, test_config_defaut, the English help test of this program where it exists.
+- Action required: none.
+
+### 1.6.20261028.211449 - --menu: interactive menu of the usual operations
+
+- Title: New option --menu: a menu (dialog when installed, text otherwise) for the usual operations of odoo-docs.py.
+- Reason: Operations were only reachable through command-line options. The menu offers them by number, shows the configuration read, and asks for confirmation before operations that change the system.
+- Changes:
+  - New option --menu (terminal required). Entries: vérification, essai (--dry-run), publication; configuration read (c or the menu item); change log (--changelog); quit.
+  - Each entry runs this program again with the options received on the command line (except --menu) plus its own option. Entries that change the system ask for confirmation first.
+  - Shared library apps/_menu.py (new): dialog when installed, text menu otherwise, with a note to install dialog.
+  - Help: --menu listed in alphabetical order. --help, --version and --changelog keep their priority over --menu.
+  - Files: odoo-docs.py, apps/_menu.py (new), nginx-tools-tests/test_menu.py (new), CHANGELOG.md.
+- Bugs fixed: none.
+- Safeguards and edge cases:
+  - Without a terminal, --menu refuses with an error and exit code 1; nothing is run.
+  - The menu relaunches the program only; root checks, locks and confirmations stay those of the operation itself.
+- Checks:
+  - test_menu: --menu listed in the help, refused without a terminal.
+  - Manual test in a pseudo-terminal (text menu and stand-in dialog) on read-only entries.
+  - Other tests of the program and conventions: see the pull request.
+- Action required: none. To get the graphical menu: sudo apt install dialog.
+
 ### 1.5.20261022.231529 - Code comments translated to English
 
 - Title: Code comments translated to English (repository convention).
@@ -540,6 +744,40 @@ Earlier history was archived outside this repository when this file was created.
 ### 1.4.20261020.211944 - Current version. Earlier history archived outside the repository.
 
 ## odoo-mail-retry.py
+
+### 1.18.20261028.214122 - --menu: English programs translate the menu and its help through their catalogue
+
+- Title: --menu: English programs translate the menu and its help through their catalogue.
+- Reason: With --lang en, the --menu help and the menu entries were partly in French: the catalogue tests (test_i18n) and the English help test (test_web_monitor) failed.
+- Changes:
+  - The menu entries and the --menu help are written in English in the code; their French text is in lang/odoo-mail-retry.py.fr.po (msgid = English text, msgstr = French).
+  - apps/_menu.py: menu() takes traduire (the program's translator) and langue (the program's display language). The menu labels and its messages follow the program's language, not only NGINX_TOOLS_I18N_LANGUE.
+  - nginx-tools-tests/test_config_defaut.py: --menu is an action (CLI only, like --backup), excluded from the check of the configuration model.
+  - Files: odoo-mail-retry.py, lang/odoo-mail-retry.py.fr.po, apps/_menu.py, nginx-tools-tests/test_config_defaut.py, CHANGELOG.md.
+- Bugs fixed: symptom: test_i18n reported French text in the code of this English program. Diagnosis: the new menu strings were French in the code, but this program's code is English and its texts are translated through lang/. Correction: English strings plus catalogue entries.
+- Safeguards and edge cases: the menu labels, its confirmation and cancel messages follow the language of the program; the entries still run the same options as before.
+- Checks: test_i18n (catalogues), test_menu, test_config_defaut, the English help test of this program where it exists.
+- Action required: none.
+
+### 1.17.20261028.211449 - --menu: interactive menu of the usual operations
+
+- Title: New option --menu: a menu (dialog when installed, text otherwise) for the usual operations of odoo-mail-retry.py.
+- Reason: Operations were only reachable through command-line options. The menu offers them by number, shows the configuration read, and asks for confirmation before operations that change the system.
+- Changes:
+  - New option --menu (terminal required). Entries: courriels récents, adresses invalides, 20 derniers envoyés; configuration read (c or the menu item); change log (--changelog); quit.
+  - Each entry runs this program again with the options received on the command line (except --menu) plus its own option. Entries that change the system ask for confirmation first.
+  - Shared library apps/_menu.py (new): dialog when installed, text menu otherwise, with a note to install dialog.
+  - Help: --menu listed in alphabetical order. --help, --version and --changelog keep their priority over --menu.
+  - Files: odoo-mail-retry.py, apps/_menu.py (new), nginx-tools-tests/test_menu.py (new), CHANGELOG.md.
+- Bugs fixed: none.
+- Safeguards and edge cases:
+  - Without a terminal, --menu refuses with an error and exit code 1; nothing is run.
+  - The menu relaunches the program only; root checks, locks and confirmations stay those of the operation itself.
+- Checks:
+  - test_menu: --menu listed in the help, refused without a terminal.
+  - Manual test in a pseudo-terminal (text menu and stand-in dialog) on read-only entries.
+  - Other tests of the program and conventions: see the pull request.
+- Action required: none. To get the graphical menu: sudo apt install dialog.
 
 ### 1.16.20261022.231529 - Code comments translated to English
 
@@ -570,6 +808,40 @@ Earlier history was archived outside this repository when this file was created.
 ### 1.14.20261020.211944 - Current version. Earlier history archived outside the repository.
 
 ## odoo-warmup.py
+
+### 1.36.20261028.214122 - --menu: English programs translate the menu and its help through their catalogue
+
+- Title: --menu: English programs translate the menu and its help through their catalogue.
+- Reason: With --lang en, the --menu help and the menu entries were partly in French: the catalogue tests (test_i18n) and the English help test (test_web_monitor) failed.
+- Changes:
+  - The menu entries and the --menu help are written in English in the code; their French text is in lang/odoo-warmup.py.fr.po (msgid = English text, msgstr = French).
+  - apps/_menu.py: menu() takes traduire (the program's translator) and langue (the program's display language). The menu labels and its messages follow the program's language, not only NGINX_TOOLS_I18N_LANGUE.
+  - nginx-tools-tests/test_config_defaut.py: --menu is an action (CLI only, like --backup), excluded from the check of the configuration model.
+  - Files: odoo-warmup.py, lang/odoo-warmup.py.fr.po, apps/_menu.py, nginx-tools-tests/test_config_defaut.py, CHANGELOG.md.
+- Bugs fixed: symptom: test_i18n reported French text in the code of this English program. Diagnosis: the new menu strings were French in the code, but this program's code is English and its texts are translated through lang/. Correction: English strings plus catalogue entries.
+- Safeguards and edge cases: the menu labels, its confirmation and cancel messages follow the language of the program; the entries still run the same options as before.
+- Checks: test_i18n (catalogues), test_menu, test_config_defaut, the English help test of this program where it exists.
+- Action required: none.
+
+### 1.35.20261028.211449 - --menu: interactive menu of the usual operations
+
+- Title: New option --menu: a menu (dialog when installed, text otherwise) for the usual operations of odoo-warmup.py.
+- Reason: Operations were only reachable through command-line options. The menu offers them by number, shows the configuration read, and asks for confirmation before operations that change the system.
+- Changes:
+  - New option --menu (terminal required). Entries: préchauffage, préchauffage au démarrage (installation et retrait); configuration read (c or the menu item); change log (--changelog); quit.
+  - Each entry runs this program again with the options received on the command line (except --menu) plus its own option. Entries that change the system ask for confirmation first.
+  - Shared library apps/_menu.py (new): dialog when installed, text menu otherwise, with a note to install dialog.
+  - Help: --menu listed in alphabetical order. --help, --version and --changelog keep their priority over --menu.
+  - Files: odoo-warmup.py, apps/_menu.py (new), nginx-tools-tests/test_menu.py (new), CHANGELOG.md.
+- Bugs fixed: none.
+- Safeguards and edge cases:
+  - Without a terminal, --menu refuses with an error and exit code 1; nothing is run.
+  - The menu relaunches the program only; root checks, locks and confirmations stay those of the operation itself.
+- Checks:
+  - test_menu: --menu listed in the help, refused without a terminal.
+  - Manual test in a pseudo-terminal (text menu and stand-in dialog) on read-only entries.
+  - Other tests of the program and conventions: see the pull request.
+- Action required: none. To get the graphical menu: sudo apt install dialog.
 
 ### 1.34.20261027.125500 - Warm-up delay in an environment file
 
@@ -1056,6 +1328,40 @@ Earlier history was archived outside this repository when this file was created.
 
 ## web-monitor.py
 
+### 2.81.20261028.214122 - --menu: English programs translate the menu and its help through their catalogue
+
+- Title: --menu: English programs translate the menu and its help through their catalogue.
+- Reason: With --lang en, the --menu help and the menu entries were partly in French: the catalogue tests (test_i18n) and the English help test (test_web_monitor) failed.
+- Changes:
+  - The menu entries and the --menu help are written in English in the code; their French text is in lang/web-monitor.py.fr.po (msgid = English text, msgstr = French).
+  - apps/_menu.py: menu() takes traduire (the program's translator) and langue (the program's display language). The menu labels and its messages follow the program's language, not only NGINX_TOOLS_I18N_LANGUE.
+  - nginx-tools-tests/test_config_defaut.py: --menu is an action (CLI only, like --backup), excluded from the check of the configuration model.
+  - Files: web-monitor.py, lang/web-monitor.py.fr.po, apps/_menu.py, nginx-tools-tests/test_config_defaut.py, CHANGELOG.md.
+- Bugs fixed: symptom: test_i18n reported French text in the code of this English program. Diagnosis: the new menu strings were French in the code, but this program's code is English and its texts are translated through lang/. Correction: English strings plus catalogue entries.
+- Safeguards and edge cases: the menu labels, its confirmation and cancel messages follow the language of the program; the entries still run the same options as before.
+- Checks: test_i18n (catalogues), test_menu, test_config_defaut, the English help test of this program where it exists.
+- Action required: none.
+
+### 2.80.20261028.211449 - --menu: interactive menu of the usual operations
+
+- Title: New option --menu: a menu (dialog when installed, text otherwise) for the usual operations of web-monitor.py.
+- Reason: Operations were only reachable through command-line options. The menu offers them by number, shows the configuration read, and asks for confirmation before operations that change the system.
+- Changes:
+  - New option --menu (terminal required). Entries: surveillance, sommaire, état, connexions, comptes suspects, essai, timer (installation et retrait); configuration read (c or the menu item); change log (--changelog); quit.
+  - Each entry runs this program again with the options received on the command line (except --menu) plus its own option. Entries that change the system ask for confirmation first.
+  - Shared library apps/_menu.py (new): dialog when installed, text menu otherwise, with a note to install dialog.
+  - Help: --menu listed in alphabetical order. --help, --version and --changelog keep their priority over --menu.
+  - Files: web-monitor.py, apps/_menu.py (new), nginx-tools-tests/test_menu.py (new), CHANGELOG.md.
+- Bugs fixed: none.
+- Safeguards and edge cases:
+  - Without a terminal, --menu refuses with an error and exit code 1; nothing is run.
+  - The menu relaunches the program only; root checks, locks and confirmations stay those of the operation itself.
+- Checks:
+  - test_menu: --menu listed in the help, refused without a terminal.
+  - Manual test in a pseudo-terminal (text menu and stand-in dialog) on read-only entries.
+  - Other tests of the program and conventions: see the pull request.
+- Action required: none. To get the graphical menu: sudo apt install dialog.
+
 ### 2.79.20261025.153031 - Test of the ban question no longer depends on its spacing
 
 - Title: Three tests waited for the French text "[N] aucune" to answer the ban question; the terminal shows "[N]  aucune" (two spaces), so they timed out.
@@ -1118,6 +1424,40 @@ Earlier history was archived outside this repository when this file was created.
 
 ## zip-versions.py
 
+### 1.18.20261028.214122 - --menu: English programs translate the menu and its help through their catalogue
+
+- Title: --menu: English programs translate the menu and its help through their catalogue.
+- Reason: With --lang en, the --menu help and the menu entries were partly in French: the catalogue tests (test_i18n) and the English help test (test_web_monitor) failed.
+- Changes:
+  - The menu entries and the --menu help are written in English in the code; their French text is in lang/zip-versions.py.fr.po (msgid = English text, msgstr = French).
+  - apps/_menu.py: menu() takes traduire (the program's translator) and langue (the program's display language). The menu labels and its messages follow the program's language, not only NGINX_TOOLS_I18N_LANGUE.
+  - nginx-tools-tests/test_config_defaut.py: --menu is an action (CLI only, like --backup), excluded from the check of the configuration model.
+  - Files: zip-versions.py, lang/zip-versions.py.fr.po, apps/_menu.py, nginx-tools-tests/test_config_defaut.py, CHANGELOG.md.
+- Bugs fixed: symptom: test_i18n reported French text in the code of this English program. Diagnosis: the new menu strings were French in the code, but this program's code is English and its texts are translated through lang/. Correction: English strings plus catalogue entries.
+- Safeguards and edge cases: the menu labels, its confirmation and cancel messages follow the language of the program; the entries still run the same options as before.
+- Checks: test_i18n (catalogues), test_menu, test_config_defaut, the English help test of this program where it exists.
+- Action required: none.
+
+### 1.17.20261028.211449 - --menu: interactive menu of the usual operations
+
+- Title: New option --menu: a menu (dialog when installed, text otherwise) for the usual operations of zip-versions.py.
+- Reason: Operations were only reachable through command-line options. The menu offers them by number, shows the configuration read, and asks for confirmation before operations that change the system.
+- Changes:
+  - New option --menu (terminal required). Entries: comparaison des archives, comparaison avec l'installation; configuration read (c or the menu item); change log (--changelog); quit.
+  - Each entry runs this program again with the options received on the command line (except --menu) plus its own option. Entries that change the system ask for confirmation first.
+  - Shared library apps/_menu.py (new): dialog when installed, text menu otherwise, with a note to install dialog.
+  - Help: --menu listed in alphabetical order. --help, --version and --changelog keep their priority over --menu.
+  - Files: zip-versions.py, apps/_menu.py (new), nginx-tools-tests/test_menu.py (new), CHANGELOG.md.
+- Bugs fixed: none.
+- Safeguards and edge cases:
+  - Without a terminal, --menu refuses with an error and exit code 1; nothing is run.
+  - The menu relaunches the program only; root checks, locks and confirmations stay those of the operation itself.
+- Checks:
+  - test_menu: --menu listed in the help, refused without a terminal.
+  - Manual test in a pseudo-terminal (text menu and stand-in dialog) on read-only entries.
+  - Other tests of the program and conventions: see the pull request.
+- Action required: none. To get the graphical menu: sudo apt install dialog.
+
 ### 1.16.20261022.231529 - Code comments translated to English
 
 - Title: Code comments translated to English (repository convention).
@@ -1139,6 +1479,38 @@ Earlier history was archived outside this repository when this file was created.
 ### 1.15.20261020.211944 - Current version. Earlier history archived outside the repository.
 
 ## odoo-backup.sh
+
+### 1.23.20261028.214122 - --menu: catalogue entries for the menu and its help line (English)
+
+- Title: --menu: catalogue entries for the menu and its help line (English).
+- Reason: The catalogue test (test_i18n) reported the new --menu strings of this program as untranslated.
+- Changes:
+  - lang/odoo-backup.sh.en.po: entries for the menu entries (their English text is shown from the EN field of the menu, so msgstr is empty) and for the --menu help line (English translation).
+  - Files: lang/odoo-backup.sh.en.po, CHANGELOG.md.
+- Bugs fixed: symptom: test_i18n failure on this program. Diagnosis: the catalogue had no entries for the new strings. Correction: entries added. The program code is unchanged.
+- Safeguards and edge cases: no change in behaviour; the French and English menus are unchanged.
+- Checks: test_i18n (catalogues of bash programs).
+- Action required: none.
+
+### 1.22.20261028.211449 - --menu: interactive menu of the usual operations
+
+- Title: New option --menu: a menu (dialog when installed, text otherwise) for the usual operations of odoo-backup.sh.
+- Reason: Operations were only reachable through command-line options. The menu offers them by number, shows the configuration read, and asks for confirmation before operations that change the system.
+- Changes:
+  - New option --menu (terminal required). Entries: sauvegarde, essai (--dry-run), état, test de restauration, timer, retrait du timer; configuration read (c or the menu item); change log (--changelog); quit.
+  - Each entry runs this program again with the options received on the command line (except --menu) plus its own option. Entries that change the system ask for confirmation first.
+  - Shared library apps/_menu.sh (new): dialog when installed, text menu otherwise, with a note to install dialog.
+  - Help: --menu listed in alphabetical order. --help, --version and --changelog keep their priority over --menu.
+  - Files: odoo-backup.sh, apps/_menu.sh (new), nginx-tools-tests/test_menu.py (new), CHANGELOG.md.
+- Bugs fixed: none.
+- Safeguards and edge cases:
+  - Without a terminal, --menu refuses with an error and exit code 1; nothing is run.
+  - The menu relaunches the program only; root checks, locks and confirmations stay those of the operation itself.
+- Checks:
+  - test_menu: --menu listed in the help, refused without a terminal.
+  - Manual test in a pseudo-terminal (text menu and stand-in dialog) on read-only entries.
+  - Other tests of the program and conventions: see the pull request.
+- Action required: none. To get the graphical menu: sudo apt install dialog.
 
 ### 1.21.20261022.231529 - Code comments translated to English
 
@@ -1170,6 +1542,38 @@ Earlier history was archived outside this repository when this file was created.
 ### 1.19.20261020.211944 - Current version. Earlier history archived outside the repository.
 
 ## odoo-update-module.sh
+
+### 1.22.20261028.214122 - --menu: catalogue entries for the menu and its help line (English)
+
+- Title: --menu: catalogue entries for the menu and its help line (English).
+- Reason: The catalogue test (test_i18n) reported the new --menu strings of this program as untranslated.
+- Changes:
+  - lang/odoo-update-module.sh.en.po: entries for the menu entries (their English text is shown from the EN field of the menu, so msgstr is empty) and for the --menu help line (English translation).
+  - Files: lang/odoo-update-module.sh.en.po, CHANGELOG.md.
+- Bugs fixed: symptom: test_i18n failure on this program. Diagnosis: the catalogue had no entries for the new strings. Correction: entries added. The program code is unchanged.
+- Safeguards and edge cases: no change in behaviour; the French and English menus are unchanged.
+- Checks: test_i18n (catalogues of bash programs).
+- Action required: none.
+
+### 1.21.20261028.211449 - --menu: interactive menu of the usual operations
+
+- Title: New option --menu: a menu (dialog when installed, text otherwise) for the usual operations of odoo-update-module.sh.
+- Reason: Operations were only reachable through command-line options. The menu offers them by number, shows the configuration read, and asks for confirmation before operations that change the system.
+- Changes:
+  - New option --menu (terminal required). Entries: essai (--dry-run), activité du site, mise à jour des modules; configuration read (c or the menu item); change log (--changelog); quit.
+  - Each entry runs this program again with the options received on the command line (except --menu) plus its own option. Entries that change the system ask for confirmation first.
+  - Shared library apps/_menu.sh (new): dialog when installed, text menu otherwise, with a note to install dialog.
+  - Help: --menu listed in alphabetical order. --help, --version and --changelog keep their priority over --menu.
+  - Files: odoo-update-module.sh, apps/_menu.sh (new), nginx-tools-tests/test_menu.py (new), CHANGELOG.md.
+- Bugs fixed: none.
+- Safeguards and edge cases:
+  - Without a terminal, --menu refuses with an error and exit code 1; nothing is run.
+  - The menu relaunches the program only; root checks, locks and confirmations stay those of the operation itself.
+- Checks:
+  - test_menu: --menu listed in the help, refused without a terminal.
+  - Manual test in a pseudo-terminal (text menu and stand-in dialog) on read-only entries.
+  - Other tests of the program and conventions: see the pull request.
+- Action required: none. To get the graphical menu: sudo apt install dialog.
 
 ### 1.20.20261025.150359 - Logged-in users count only if active in the last 15 minutes
 
@@ -1507,6 +1911,38 @@ Earlier history was archived outside this repository when this file was created.
 - Current version. Earlier history archived outside the repository.
 
 ## nginx-log-audit.sh
+
+### 2.62.20261028.214122 - --menu: catalogue entries for the menu and its help line (English)
+
+- Title: --menu: catalogue entries for the menu and its help line (English).
+- Reason: The catalogue test (test_i18n) reported the new --menu strings of this program as untranslated.
+- Changes:
+  - lang/nginx-log-audit.sh.en.po: entries for the menu entries (their English text is shown from the EN field of the menu, so msgstr is empty) and for the --menu help line (English translation).
+  - Files: lang/nginx-log-audit.sh.en.po, CHANGELOG.md.
+- Bugs fixed: symptom: test_i18n failure on this program. Diagnosis: the catalogue had no entries for the new strings. Correction: entries added. The program code is unchanged.
+- Safeguards and edge cases: no change in behaviour; the French and English menus are unchanged.
+- Checks: test_i18n (catalogues of bash programs).
+- Action required: none.
+
+### 2.61.20261028.211449 - --menu: interactive menu of the usual operations
+
+- Title: New option --menu: a menu (dialog when installed, text otherwise) for the usual operations of nginx-log-audit.sh.
+- Reason: Operations were only reachable through command-line options. The menu offers them by number, shows the configuration read, and asks for confirmation before operations that change the system.
+- Changes:
+  - New option --menu (terminal required). Entries: rapport du jour, statistiques, fail2ban, journal des bannissements, réévaluation, export des bannissements; configuration read (c or the menu item); change log (--changelog); quit.
+  - Each entry runs this program again with the options received on the command line (except --menu) plus its own option. Entries that change the system ask for confirmation first.
+  - Shared library apps/_menu.sh (new): dialog when installed, text menu otherwise, with a note to install dialog.
+  - Help: --menu listed in alphabetical order. --help, --version and --changelog keep their priority over --menu.
+  - Files: nginx-log-audit.sh, apps/_menu.sh (new), nginx-tools-tests/test_menu.py (new), CHANGELOG.md.
+- Bugs fixed: none.
+- Safeguards and edge cases:
+  - Without a terminal, --menu refuses with an error and exit code 1; nothing is run.
+  - The menu relaunches the program only; root checks, locks and confirmations stay those of the operation itself.
+- Checks:
+  - test_menu: --menu listed in the help, refused without a terminal.
+  - Manual test in a pseudo-terminal (text menu and stand-in dialog) on read-only entries.
+  - Other tests of the program and conventions: see the pull request.
+- Action required: none. To get the graphical menu: sudo apt install dialog.
 
 ### 2.60.20261028.201441 - --ban-sqli: context for each address, and no bulk ban of normal Odoo users
 
@@ -1849,6 +2285,38 @@ Earlier history was archived outside this repository when this file was created.
 - Current version. Earlier history archived outside the repository.
 
 ## sync-crowdsec-blocklist.sh
+
+### 1.29.20261028.214122 - --menu: catalogue entries for the menu and its help line (English)
+
+- Title: --menu: catalogue entries for the menu and its help line (English).
+- Reason: The catalogue test (test_i18n) reported the new --menu strings of this program as untranslated.
+- Changes:
+  - lang/sync-crowdsec-blocklist.sh.en.po: entries for the menu entries (their English text is shown from the EN field of the menu, so msgstr is empty) and for the --menu help line (English translation).
+  - Files: lang/sync-crowdsec-blocklist.sh.en.po, CHANGELOG.md.
+- Bugs fixed: symptom: test_i18n failure on this program. Diagnosis: the catalogue had no entries for the new strings. Correction: entries added. The program code is unchanged.
+- Safeguards and edge cases: no change in behaviour; the French and English menus are unchanged.
+- Checks: test_i18n (catalogues of bash programs).
+- Action required: none.
+
+### 1.28.20261028.211449 - --menu: interactive menu of the usual operations
+
+- Title: New option --menu: a menu (dialog when installed, text otherwise) for the usual operations of sync-crowdsec-blocklist.sh.
+- Reason: Operations were only reachable through command-line options. The menu offers them by number, shows the configuration read, and asks for confirmation before operations that change the system.
+- Changes:
+  - New option --menu (terminal required). Entries: synchronisation, essai (--dry-run), état, adresses bloquées, cron, crochet ufw, retrait; configuration read (c or the menu item); change log (--changelog); quit.
+  - Each entry runs this program again with the options received on the command line (except --menu) plus its own option. Entries that change the system ask for confirmation first.
+  - Shared library apps/_menu.sh (new): dialog when installed, text menu otherwise, with a note to install dialog.
+  - Help: --menu listed in alphabetical order. --help, --version and --changelog keep their priority over --menu.
+  - Files: sync-crowdsec-blocklist.sh, apps/_menu.sh (new), nginx-tools-tests/test_menu.py (new), CHANGELOG.md.
+- Bugs fixed: none.
+- Safeguards and edge cases:
+  - Without a terminal, --menu refuses with an error and exit code 1; nothing is run.
+  - The menu relaunches the program only; root checks, locks and confirmations stay those of the operation itself.
+- Checks:
+  - test_menu: --menu listed in the help, refused without a terminal.
+  - Manual test in a pseudo-terminal (text menu and stand-in dialog) on read-only entries.
+  - Other tests of the program and conventions: see the pull request.
+- Action required: none. To get the graphical menu: sudo apt install dialog.
 
 ### 1.27.20261022.231529 - Code comments translated to English
 

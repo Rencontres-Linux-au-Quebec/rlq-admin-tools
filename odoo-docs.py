@@ -23,7 +23,7 @@ import stat
 import sys
 import xmlrpc.client
 
-__version__ = "1.5.20261022.231529"
+__version__ = "1.7.20261028.214122"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
@@ -358,6 +358,13 @@ def run(args, parser):
         return 1
 
 
+MENU_ENTREES = [
+    (['--check'], 'Check connection and module', 'Check connection and module', False),
+    (['--dry-run'], 'Show what would be published', 'Show what would be published', False),
+    ([], 'Publish the documentation', 'Publish the documentation', True),
+]
+
+
 def main():
     parser = (I18N.parser if I18N else LocalizedArgumentParser)(
         description="Publishes the suite's documentation (doc/en, doc/fr) into Odoo: wiki of the document_page module (OCA) or website pages.")
@@ -372,6 +379,7 @@ def main():
     parser.add_argument("--dry-run", action="store_true", help="Validate and show what would be created or updated, writing nothing (no write test)")
     parser.add_argument("--lang", choices=I18N.disponibles if I18N else ["fr"], metavar="LANG", help="Display language: en or fr (default: from LC_ALL / LC_MESSAGES / LANG)")
     parser.add_argument("--login", default=None, metavar="USER", help="Odoo account owning the API key")
+    parser.add_argument("--menu", action="store_true", help="interactive menu of the common operations (dialog if installed; terminal required)")
     parser.add_argument("--report-err", action="store_true", help="Print at the end an error report to copy and paste (program, version, server, failures, warnings)")
     parser.add_argument("--root", default=None, metavar="NAME", help=f"With --target wiki: root category of the wiki (default: {ROOT_DEFAULT})")
     parser.add_argument("--target", default=None, metavar="wiki|website",
@@ -381,6 +389,15 @@ def main():
         print(f"odoo-docs.py v{__version__}")
     defaults, problems = I18N.defauts(parser, SCHEMA_CONFIG) if I18N else ({}, [])
     args = parser.parse_args()
+    if args.menu:
+        import importlib.util as _ilu
+        _spec = _ilu.spec_from_file_location("_menu", os.path.join(SCRIPT_DIR, "apps", "_menu.py"))
+        _menu = _ilu.module_from_spec(_spec)
+        _spec.loader.exec_module(_menu)
+        _menu.menu(os.path.abspath(__file__), sys.argv[1:], MENU_ENTREES,
+                   traduire=I18N.tr if I18N else None, langue=I18N.langue if I18N else "fr",
+                   configuration=_menu.configuration_de(SCRIPT_DIR, "odoo-docs", sys.argv[1:]),
+                   nom=f"odoo-docs.py v{__version__}")
     if args.config and not os.path.isfile(args.config):
         parser.error(f"configuration file not found: {args.config}")
     if I18N:

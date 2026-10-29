@@ -789,3 +789,15 @@ msgstr "  Heure |"
 
 msgid " Busiest days : "
 msgstr " Jours les plus chargés   : "
+
+msgid "Analyse the logs (no option)"
+msgstr "Analyser les journaux (sans option)"
+
+msgid "Problems by hour and day"
+msgstr "Problèmes par heure et par jour"
+
+msgid "Error details only"
+msgstr "Seulement le détail des erreurs"
+
+msgid "interactive menu of the common operations (dialog if installed; terminal required)"
+msgstr "menu interactif des opérations courantes (dialog si installé ; terminal requis)"
