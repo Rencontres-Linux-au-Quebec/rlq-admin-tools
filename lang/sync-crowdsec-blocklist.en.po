@@ -126,6 +126,9 @@ msgstr "ERROR: "
 msgid " attend un entier positif (reçu: '"
 msgstr " expects a positive integer (got: '"
 
+msgid "ERREUR: --max-drop attend un pourcentage entre 0 et 100 (reçu: "
+msgstr "ERROR: --max-drop expects a percentage between 0 and 100 (got: "
+
 msgid "ERREUR: --cron-hours attend une valeur entre 1 et 24 (reçu: "
 msgstr "ERROR: --cron-hours expects a value between 1 and 24 (got: "
 
