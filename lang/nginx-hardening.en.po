@@ -2311,3 +2311,82 @@ msgstr "refused URIs ("
 
 msgid "nginx -t refuse la configuration avec les URI refusées — ancienne version restaurée, nginx NON rechargé."
 msgstr "nginx -t refuses the configuration with the refused URIs: previous version restored, nginx NOT reloaded."
+
+msgid "  --test-rules                 teste les règles nginx par des requêtes curl (lecture seule) : refus attendus et pages servies, sortie 1 si un cas échoue"
+msgstr "  --test-rules                 tests the nginx rules with curl requests (read only): expected refusals and pages served, exit 1 if a case fails"
+
+msgid "--test-rules : nginx et curl sont nécessaires."
+msgstr "--test-rules: nginx and curl are required."
+
+msgid "--test-rules : les cas du test sont ceux du site Odoo"
+msgstr "--test-rules: the test cases are those of the Odoo site"
+
+msgid "--test-rules : aucun server_name testable dans nginx -T (nginx configuré ?)."
+msgstr "--test-rules: no testable server_name in nginx -T (is nginx configured?)."
+
+msgid "|404|tags malformé refusé (règle 3 bis)"
+msgstr "|404|malformed tags refused (rule 3 bis)"
+
+msgid "|2xx3xx|tags légitime accepté"
+msgstr "|2xx3xx|legitimate tags accepted"
+
+msgid "|404|fichier caché refusé (règle 4)"
+msgstr "|404|hidden file refused (rule 4)"
+
+msgid "|404|traversée de répertoire encodée refusée (règle 3)"
+msgstr "|404|encoded directory traversal refused (rule 3)"
+
+msgid "|405|méthode TRACE refusée (règle 2)"
+msgstr "|405|TRACE method refused (rule 2)"
+
+msgid "|403|robot indésirable refusé (bot_blocker)"
+msgstr "|403|unwanted robot refused (bot_blocker)"
+
+msgid "|2xx3xx|page d'accueil servie"
+msgstr "|2xx3xx|home page served"
+
+msgid " (2xx ou 3xx attendu)"
+msgstr " (2xx or 3xx expected)"
+
+msgid " (attendu : "
+msgstr " (expected: "
+
+msgid "Résultat : "
+msgstr "Result: "
+
+msgid " en échec, sur "
+msgstr " failed, out of "
+
+msgid " nom(s) testé(s)."
+msgstr " name(s) tested."
+
+msgid "En cas d'échec : nginx -T | grep -n include (les règles sont-elles incluses ?), puis nginx-hardening.sh --update."
+msgstr "In case of failure: nginx -T | grep -n include (are the rules included?), then nginx-hardening.sh --update."
+
+msgid "tags malformé refusé (règle 3 bis)"
+msgstr "malformed tags refused (rule 3 bis)"
+
+msgid "tags légitime accepté"
+msgstr "legitimate tags accepted"
+
+msgid "fichier caché refusé (règle 4)"
+msgstr "hidden file refused (rule 4)"
+
+msgid "traversée de répertoire encodée refusée (règle 3)"
+msgstr "encoded directory traversal refused (rule 3)"
+
+msgid "méthode TRACE refusée (règle 2)"
+msgstr "TRACE method refused (rule 2)"
+
+msgid "robot indésirable refusé (bot_blocker)"
+msgstr "unwanted robot refused (bot_blocker)"
+
+msgid "page d'accueil servie"
+msgstr "home page served"
+
+msgid "robots.txt servi"
+msgstr "robots.txt served"
+
+msgid " cas OK, "
+msgstr " cases OK, "
+
