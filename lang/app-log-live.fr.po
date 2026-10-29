@@ -2739,3 +2739,47 @@ msgstr "pays"
 
 msgid "not country"
 msgstr "pas le pays"
+
+# 1.113: status bar, f (refresh), P (print), --buffer, --status-every
+
+msgid "STATUS"
+msgstr "ÉTAT"
+
+msgid "SQLi attacks"
+msgstr "attaques SQLi"
+
+msgid "banned"
+msgstr "bannies"
+
+msgid "since the last detailed report (Ctrl-T or g)"
+msgstr "depuis le dernier rapport détaillé (Ctrl-T ou g)"
+
+msgid "Status bar: counters reset (new period from now)."
+msgstr "Barre d'état : compteurs remis à zéro (nouvelle période à partir de maintenant)."
+
+msgid "Nothing to refresh yet (the buffer keeps the last lines displayed: --buffer N)."
+msgstr "Rien à rafraîchir pour l'instant (le tampon garde les dernières lignes affichées : --buffer N)."
+
+msgid "──── last {n} line(s), displayed again with the current options ────"
+msgstr "──── {n} dernière(s) ligne(s), affichée(s) de nouveau avec les options courantes ────"
+
+msgid "Nothing to print yet (the buffer keeps the last lines displayed: --buffer N)."
+msgstr "Rien à imprimer pour l'instant (le tampon garde les dernières lignes affichées : --buffer N)."
+
+msgid "Lines to print (1 to {n}, Enter = all): "
+msgstr "Lignes à imprimer (1 à {n}, Entrée = toutes) : "
+
+msgid "File (Enter = {name}): "
+msgstr "Fichier (Entrée = {name}) : "
+
+msgid "Print failed: {error}"
+msgstr "Impression impossible : {error}"
+
+msgid "{n} line(s) written to {path} (colors kept: less -R {path}; mode 600, names and addresses inside)"
+msgstr "{n} ligne(s) écrite(s) dans {path} (couleurs conservées : less -R {path} ; mode 600, contient des noms et des adresses)"
+
+msgid "Last displayed lines kept in memory for the f key (displayed again with the current options) and the P key (printed to a file): 0 = none (default: 200)"
+msgstr "Dernières lignes affichées gardées en mémoire pour la touche f (affichées de nouveau avec les options courantes) et la touche P (imprimées dans un fichier) : 0 = aucune (défaut : 200)"
+
+msgid "Status bar in reverse video after every N displayed lines: SQL injection attempts, 4xx, 5xx, banned addresses, slow requests since the last detailed report (Ctrl-T or g); 0 = never (default: 100)"
+msgstr "Barre d'état en vidéo inverse après toutes les N lignes affichées : tentatives d'injection SQL, 4xx, 5xx, adresses bannies, requêtes lentes depuis le dernier rapport détaillé (Ctrl-T ou g) ; 0 = jamais (défaut : 100)"

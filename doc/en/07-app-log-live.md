@@ -37,7 +37,7 @@ Without a keyboard: `--record-test-log MIN` records MIN minutes from start-up, w
 
 ## Latency: is it the disk?
 
-Every 30 seconds a light sampler reads the kernel counters (no command): processor, waiting time (PSI) for the disk / processor / memory - the *container's own* cgroup when running in an LXC container - , and the disks' % busy and wait per operation. Each Odoo request (SQL time + Python time of its journal line) is filed in the bin of its hour, "disk busy" or "disk calm". Press **P** (or Ctrl-G at level 6 and more) after a few hours: the verdict says whether the disks slow the requests (SSD justified), only at times (startups, backups), or not at all (SATA enough), with the per-hour table at level 8. Inside a container the disk counters can be partial: run `host-perf-audit.py` on the Proxmox host for the real disks.
+Every 30 seconds a light sampler reads the kernel counters (no command): processor, waiting time (PSI) for the disk / processor / memory - the *container's own* cgroup when running in an LXC container - , and the disks' % busy and wait per operation. Each Odoo request (SQL time + Python time of its journal line) is filed in the bin of its hour, "disk busy" or "disk calm". Press **Y** (or Ctrl-G at level 6 and more) after a few hours: the verdict says whether the disks slow the requests (SSD justified), only at times (startups, backups), or not at all (SATA enough), with the per-hour table at level 8. Inside a container the disk counters can be partial: run `host-perf-audit.py` on the Proxmox host for the real disks.
 
 ## Design rules worth knowing
 
@@ -74,6 +74,13 @@ app-log-live.py -S yesterday -U today -g error  # yesterday only, lines containi
 app-log-live.py --exclude-country US,CN         # hide the addresses of these countries
 app-log-live.py --days 0.1 --no-follow          # sign-ins of the last 2.4 hours
 ```
+
+## Status bar, refresh and print (1.113)
+
+* **Status bar** (reverse video), after every N displayed lines (`--status-every N`, 100 by default; 0 = never): SQL injection attempts, 4xx and 5xx answers, banned addresses seen, slow requests (duration >= `--slow`) and the slowest one. The counters are cumulative since the last detailed report: **Ctrl-T** or **g** reset them. Colour: white = nothing to see; green = a little (4xx, a few slow requests); yellow = to look at (SQL injection, 5xx, banned address, many slow requests); red = investigate now (repeated injections, many 5xx or slow requests).
+* **f** (refresh): the last lines of the buffer are displayed again with the current options (addresses, DNS, names, highlight, `--only`...). They are not counted again and not written again to the daily journal.
+* **P** (print): the last lines of the buffer (`--buffer N`, 200 by default; 0 = none) are written to a file, colors kept (`less -R file`). The program asks for the number of lines and the file name. The file is created with mode 600: it holds addresses and names.
+* **Y**: latency report (formerly the P key).
 
 ## Options
 {{HELP}}

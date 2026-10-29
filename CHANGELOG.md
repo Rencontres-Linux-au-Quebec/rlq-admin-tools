@@ -296,6 +296,32 @@ Earlier history was archived outside this repository when this file was created.
 
 ## app-log-live.py
 
+### 1.113.20261029.171832 - Real-time dashboard: status bar, refresh (f), print (P), key menu in order
+
+- Title: a status bar in reverse video every N lines, the refresh of the last lines (f), their printing to a file (P), and the key menu sorted by short key.
+- Reason: The program can run for several hours. Looking at the page after page of the stream to find the problems is not practical. A bar summarizing the recent problems (SQL injection attempts, 4xx and 5xx answers, banned addresses, slow requests) tells where to start an investigation. The keys of the menu (h) are listed by short key, the refresh of the last lines with the current options is a key of the menu like the toggles, and P prints the last lines (colors kept) to a file.
+- Changes:
+  - Status bar (class StatusBar, function status_line): printed after every N displayed lines (--status-every N, 100 by default, 0 = never). It counts since the last detailed report: SQL injection attempts (SQLI_RE, applied to the decoded URL: UNION SELECT, sleep/benchmark/extractvalue..., tautologies, stacked statements), 4xx and 5xx answers, addresses currently banned seen on the lines, slow requests (duration >= --slow) and the slowest one. Reset by Ctrl-T and g (key function). Reverse video (SGR 7), colour white (37, nothing to see), green (32, a little), yellow (33, to look at), red (31, investigate now). Thresholds in StatusBar.color(): red = 3 or more injections, 10 or more 5xx, 20 or more slow requests; yellow = one injection, one 5xx, one banned address, 5 or more slow requests, 100 or more 4xx; green = a 4xx or a slow request.
+  - Buffer (function paint): the displayed lines are kept with their source data (results and pays) in a deque of --buffer N lines (200 by default, 0 = none). emit() is split into compose() (rendering and banned label), paint() (writes and keeps) and emit() (counting, status bar, chime).
+  - f key (refresh_lines): the buffered lines are displayed again with the current options (IP, DNS, names, highlight, --only...). They are not counted again and not written again to the daily journal (output.active is set to False during the refresh).
+  - P key (print_lines): asks the number of lines (default: all of the buffer) and the file name (default: app-log-live-print-YYYYMMDD-HHMMSS.log in the log folder). The file is created with O_EXCL and mode 600, the colours are kept, the lines are the real ones (not anonymized).
+  - Y key: the latency report (LATENCY.lines) moved from the key P, which is now the print key. MENU_KEYS: Y latency, P print, f refresh.
+  - Key menu (h): the short keys are sorted alphabetically (case-insensitive, lowercase first on equal letters), in the options section and in the Others section. The f, P and Y entries are added.
+  - Options: --buffer N and --status-every N (new), validated (zero or positive).
+  - Ctrl-G and Ctrl-T also print a line saying that the counters of the status bar were reset.
+  - Files touched: app-log-live.py, lang/app-log-live.fr.po (French of the new messages and help), doc/fr/07-app-log-live.md and doc/en/07-app-log-live.md, nginx-tools-tests/test_app_log_live.py (key test updated: P is print, Y is latency; new test of the status bar and of the SQL injection detection), CHANGELOG.md.
+- Bugs fixed: none. Note: the key P was documented as latency; it is now Y (see above).
+- Safeguards and edge cases:
+  - Lines replayed by f are not counted in the status bar, the statistics or the record (test recording).
+  - Lines without a stored source (reminders of a visitor, deferred lines) are not refreshable: they are skipped by f.
+  - P refuses to overwrite an existing file (O_EXCL); a write error is shown, the program continues.
+  - The status bar colours are not anonymized (no address is shown in the bar).
+  - A bar without any line counted is white.
+- Checks:
+  - py_compile OK; the new unit tests pass (test_113_barre_d_etat_couleur_et_injection_sql and test_touches_g_et_p_reliees updated).
+  - Full module test_app_log_live: see the verdict of the run below.
+- Action required: note the new key assignment: P prints, Y shows the latency report. To have a status bar at another interval, use --status-every N; to keep more or fewer lines for f and P, use --buffer N.
+
 ### 1.112.20261029.165811 - Time window, journalctl options, country filters, fractions of a day
 
 - Title: --since / -S, --until / -U, --utc, -n, --no-hostname, -g / --grep, --country, --exclude-country; --days accepts fractions (0.1 = 2.4 hours).
@@ -329,19 +355,6 @@ Earlier history was archived outside this repository when this file was created.
   - test_conventions (order of the versions in CHANGELOG.md): the 1.112.20261028.214122 section of this program was already placed after 1.111.20261028.225404; not changed here.
 - Action required: none. Example: app-log-live.py -S '-2h' --utc -n 500 ; app-log-live.py --exclude-country US,CN ; app-log-live.py --days 0.1 --no-follow.
 
-### 1.111.20261028.225404 - --keep-ip: the old name of --show-ip works again
-
-- Title: --keep-ip (old name of --show-ip) had no effect since the address became hidden by default (1.107); it now shows the IP address again.
-- Reason: The test of the default address (test_ip_gardee_par_defaut_hide_ip_et_libelle_court) found that --keep-ip did not show the IP, and the default expectations of the tests were out of date.
-- Changes:
-  - --keep-ip is the same option as --show-ip (hidden from --help, as before).
-  - nginx-tools-tests/test_app_log_live.py: tests that read addresses ask for --show-ip (the default is now masked, HIDE_IP=yes); the default test checks the masked default; the summary wording of « Adresses à bannir » and the web-monitor reasons are the current ones; the key-menu test waits for the current prompts with a wide terminal.
-  - Files: app-log-live.py, nginx-tools-tests/test_app_log_live.py, CHANGELOG.md.
-- Bugs fixed: symptom: --keep-ip accepted but ignored, so the address stayed hidden. Diagnosis: the option stored a value that nothing read. Correction: same destination as --show-ip.
-- Safeguards and edge cases: the default (masked address) is unchanged; --show-ip and --hide-ip keep their meaning.
-- Checks: test_app_log_live (one test still fails: column alignment, the order of the lines in the output, see the pull request).
-- Action required: none.
-
 ### 1.112.20261028.214122 - --menu: English programs translate the menu and its help through their catalogue
 
 - Title: --menu: English programs translate the menu and its help through their catalogue.
@@ -354,6 +367,19 @@ Earlier history was archived outside this repository when this file was created.
 - Bugs fixed: symptom: test_i18n reported French text in the code of this English program. Diagnosis: the new menu strings were French in the code, but this program's code is English and its texts are translated through lang/. Correction: English strings plus catalogue entries.
 - Safeguards and edge cases: the menu labels, its confirmation and cancel messages follow the language of the program; the entries still run the same options as before.
 - Checks: test_i18n (catalogues), test_menu, test_config_defaut, the English help test of this program where it exists.
+- Action required: none.
+
+### 1.111.20261028.225404 - --keep-ip: the old name of --show-ip works again
+
+- Title: --keep-ip (old name of --show-ip) had no effect since the address became hidden by default (1.107); it now shows the IP address again.
+- Reason: The test of the default address (test_ip_gardee_par_defaut_hide_ip_et_libelle_court) found that --keep-ip did not show the IP, and the default expectations of the tests were out of date.
+- Changes:
+  - --keep-ip is the same option as --show-ip (hidden from --help, as before).
+  - nginx-tools-tests/test_app_log_live.py: tests that read addresses ask for --show-ip (the default is now masked, HIDE_IP=yes); the default test checks the masked default; the summary wording of « Adresses à bannir » and the web-monitor reasons are the current ones; the key-menu test waits for the current prompts with a wide terminal.
+  - Files: app-log-live.py, nginx-tools-tests/test_app_log_live.py, CHANGELOG.md.
+- Bugs fixed: symptom: --keep-ip accepted but ignored, so the address stayed hidden. Diagnosis: the option stored a value that nothing read. Correction: same destination as --show-ip.
+- Safeguards and edge cases: the default (masked address) is unchanged; --show-ip and --hide-ip keep their meaning.
+- Checks: test_app_log_live (one test still fails: column alignment, the order of the lines in the output, see the pull request).
 - Action required: none.
 
 ### 1.111.20261028.211449 - --menu: interactive menu of the usual operations

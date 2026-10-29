@@ -3314,7 +3314,9 @@ class AppLogLive(EnvTest):
         """1.82 : la touche G (membres des groupes RLQ*) était décrite dans le menu mais jamais reliée ; P = latence."""
         live = self.module_live()
         self.assertEqual(live.MENU_KEYS.get(b"G"), "G")
-        self.assertEqual(live.MENU_KEYS.get(b"P"), "latency")
+        self.assertEqual(live.MENU_KEYS.get(b"Y"), "latency")       # 1.113: P prints the buffer, Y is the latency report
+        self.assertEqual(live.MENU_KEYS.get(b"P"), "print")
+        self.assertEqual(live.MENU_KEYS.get(b"f"), "refresh")
         self.assertEqual(len(set(live.MENU_KEYS)), len(live.MENU_KEYS))
 
     def test_comptes_surveilles_et_bannis_marques(self):
@@ -3377,3 +3379,22 @@ class AppLogLive(EnvTest):
         self.assertTrue(live.country_keep(L, [("11.1.1.1", None, None)], pays, {}, opts))
         self.assertFalse(live.country_keep(L, [("8.8.8.8", None, None)], pays, {}, opts))
         self.assertFalse(live.country_keep(L, [], {}, {}, opts), "ligne horodatee sans adresse : cachee par --country")
+
+    def test_113_barre_d_etat_couleur_et_injection_sql(self):
+        """1.113 : barre d'état (blanc, vert, jaune, rouge selon les problèmes comptés) et détection des injections SQL sur l'URL décodée."""
+        live = self.module_live()
+        bar = live.StatusBar()
+        self.assertEqual(bar.color(), "37", "rien à signaler : blanc")
+        attaque = live.Line('2026-10-29T10:00:00.000000-0400 odoo[1]: 2026-10-29 14:00:00,000 1 INFO db werkzeug: 11.1.1.1 - - "GET /shop?id=1%20UNION%20SELECT%20password HTTP/1.1" 500 - 1 0.1 0.2')
+        self.assertTrue(live.SQLI_RE.search("/shop?id=1 UNION SELECT password"), "UNION SELECT détecté")
+        self.assertTrue(live.SQLI_RE.search("/x?a=' or 1=1"), "tautologie détectée")
+        self.assertFalse(live.SQLI_RE.search("/web/image/12/logo.png"), "URL normale ignorée")
+        bar.observe(attaque, None, 5.0)
+        self.assertEqual((bar.sqli, bar.e5), (1, 1))
+        self.assertEqual(bar.color(), "33", "une injection et une erreur 5xx : jaune")
+        for _ in range(2):
+            bar.observe(attaque, None, 5.0)
+        self.assertEqual(bar.color(), "31", "trois injections : rouge")
+        bar.reset()
+        self.assertEqual((bar.sqli, bar.e5, bar.slow), (0, 0, 0), "Ctrl-T ou g : bilan remis à zéro")
+        self.assertIn("SQLi", bar.summary())
