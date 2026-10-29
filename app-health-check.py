@@ -66,7 +66,7 @@ import sys
 import time
 from urllib.parse import urlparse, parse_qs, unquote
 
-__version__ = "2.29.20261022.231529"
+__version__ = "2.31.20261028.214122"
 # Marker added at the END of the "browser" User-Agent (2.2): our test requests are recognizable in all the
 # logs (nginx, Odoo) and excluded from the statistics by web-monitor.py. Matches no pattern of the bot filter.
 UA_MARKER = " app-health-check/" + ".".join(__version__.split(".")[:2])
@@ -1444,8 +1444,16 @@ def show_changelog():
     return 0
 
 
+MENU_ENTREES = [
+    ([], 'Check server health', 'Check server health', False),
+    (['--check-email-dns'], 'Check alert e-mail (DNS, SMTP)', 'Check alert e-mail (DNS, SMTP)', False),
+    (['--test-email'], 'Send a test e-mail', 'Send a test e-mail', True),
+]
+
+
 def main():
     parser = (I18N.parser if I18N else LocalizedArgumentParser)(description="Health check of nginx + Odoo")
+    parser.add_argument("--menu", action="store_true", help="interactive menu of the common operations (dialog if installed; terminal required)")
     parser.add_argument("--target", choices=["local", "external"], required=False,
                         help="Connection mode (required, except with --create-config)")
     parser.add_argument("--check-email-dns", action="store_true",
@@ -1474,6 +1482,15 @@ def main():
         print(f"app-health-check.py v{__version__}")
     defauts, problems = I18N.defauts(parser, SCHEMA_CONFIG) if I18N else ({}, [])
     args = parser.parse_args()
+    if args.menu:
+        import importlib.util as _ilu
+        _spec = _ilu.spec_from_file_location("_menu", os.path.join(SCRIPT_DIR, "apps", "_menu.py"))
+        _menu = _ilu.module_from_spec(_spec)
+        _spec.loader.exec_module(_menu)
+        _menu.menu(os.path.abspath(__file__), sys.argv[1:], MENU_ENTREES,
+                   traduire=I18N.tr if I18N else None, langue=I18N.langue if I18N else "fr",
+                   configuration=_menu.configuration_de(SCRIPT_DIR, "app-health-check", sys.argv[1:]),
+                   nom=f"app-health-check.py v{__version__}")
     for problem in problems:
         print(f"  WARNING: configuration value ignored: {problem}", file=sys.stderr)
 

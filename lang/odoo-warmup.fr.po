@@ -298,3 +298,14 @@ msgstr "ATTENTION : aucun processus Python d'Odoo en marche, "
 
 msgid " used. Use --service UNIT if it is another unit."
 msgstr " utilisé. Utilisez --service UNIT si c'est une autre unité."
+msgid "Warm up the Odoo cache"
+msgstr "Préchauffer le cache d'Odoo"
+
+msgid "Install warm-up at startup"
+msgstr "Installer le préchauffage au démarrage"
+
+msgid "Remove warm-up at startup"
+msgstr "Retirer le préchauffage au démarrage"
+
+msgid "interactive menu of the common operations (dialog if installed; terminal required)"
+msgstr "menu interactif des opérations courantes (dialog si installé ; terminal requis)"

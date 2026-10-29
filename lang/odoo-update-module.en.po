@@ -819,3 +819,15 @@ msgstr "· maximum wait: "
 
 msgid "  CONNECTED_WINDOW=15           un utilisateur connecté compte s'il a été actif dans les N dernières minutes (session encore valide ignorée)"
 msgstr "  CONNECTED_WINDOW=15           a logged-in user counts only if active in the last N minutes (a still-valid session is ignored)"
+
+msgid "  --menu   menu interactif des opérations courantes (dialog si installé ; terminal requis)"
+msgstr "  --menu   interactive menu of the common operations (dialog if installed; terminal required)"
+
+msgid "--dry-run|Montrer la mise à jour sans la faire|Show the update without doing it|0"
+msgstr ""
+
+msgid "--check-activity|État du site maintenant|Site activity now|0"
+msgstr ""
+
+msgid "|Mettre à jour le ou les modules (configuration)|Update the module(s) (configuration)|1"
+msgstr ""

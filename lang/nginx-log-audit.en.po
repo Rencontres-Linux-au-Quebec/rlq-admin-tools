@@ -2259,3 +2259,23 @@ msgstr " already banned (ignored), "
 
 msgid " non bannie(s). Levée : nginx-log-audit.sh --unban IP"
 msgstr " not banned. Lifted: nginx-log-audit.sh --unban IP"
+msgid "|Rapport du jour (sans option)|Today's report (no option)|0"
+msgstr ""
+
+msgid "--stats|Statistiques du trafic|Traffic statistics|0"
+msgstr ""
+
+msgid "--fail2ban|État de fail2ban et historique des bannissements|fail2ban state and ban history|0"
+msgstr ""
+
+msgid "--ban-history|Journal des bannissements manuels|Manual ban journal|0"
+msgstr ""
+
+msgid "--unban-check|Réévaluer les bannissements manuels|Re-check manual bans|0"
+msgstr ""
+
+msgid "--export-bans|Exporter les bannissements manuels|Export manual bans|0"
+msgstr ""
+
+msgid "  --menu                       menu interactif des opérations courantes (dialog si installé ; terminal requis)"
+msgstr "  --menu                       interactive menu of the common operations (dialog if installed; terminal required)"

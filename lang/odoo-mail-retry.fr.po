@@ -393,3 +393,15 @@ msgstr "inchangé"
 
 msgid " registration(s)"
 msgstr " inscription(s)"
+
+msgid "List recent e-mails"
+msgstr "Lister les courriels récents"
+
+msgid "Sign-ups: invalid addresses"
+msgstr "Inscriptions : adresses invalides"
+
+msgid "The last 20 e-mails sent"
+msgstr "Les 20 derniers courriels envoyés"
+
+msgid "interactive menu of the common operations (dialog if installed; terminal required)"
+msgstr "menu interactif des opérations courantes (dialog si installé ; terminal requis)"

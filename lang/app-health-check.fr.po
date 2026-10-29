@@ -813,3 +813,15 @@ msgstr " existe déjà — rien n'a été modifié. Relancez avec --force pour l
 
 msgid ".before-create-config will be made)."
 msgstr ".before-create-config sera faite)."
+
+msgid "Check server health"
+msgstr "Vérifier la santé du serveur"
+
+msgid "Check alert e-mail (DNS, SMTP)"
+msgstr "Vérifier le courriel des alertes (DNS, SMTP)"
+
+msgid "Send a test e-mail"
+msgstr "Envoyer un courriel de test"
+
+msgid "interactive menu of the common operations (dialog if installed; terminal required)"
+msgstr "menu interactif des opérations courantes (dialog si installé ; terminal requis)"

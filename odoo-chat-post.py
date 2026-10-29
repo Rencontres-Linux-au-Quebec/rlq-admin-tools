@@ -48,7 +48,7 @@ import urllib.error
 import urllib.request
 import xmlrpc.client
 
-__version__ = "1.10.20261022.231529"
+__version__ = "1.12.20261028.214122"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
@@ -610,6 +610,14 @@ def run_main(args, parser):
         return 1
 
 
+MENU_ENTREES = [
+    (['--list'], 'List catalogue channels and threads', 'List catalogue channels and threads', False),
+    (['--create', '--dry-run'], 'Show channels to create', 'Show channels to create', False),
+    (['--create'], 'Create missing channels and threads', 'Create missing channels and threads', True),
+    (['--create-bot'], 'Create the bot account', 'Create the bot account', True),
+]
+
+
 def main():
     parser = (I18N.parser if I18N else LocalizedArgumentParser)(
         description="Creates in Odoo (Discuss) the team's alert channels and threads, with a first message giving the reason for each, and publishes alerts in them.")
@@ -635,6 +643,7 @@ def main():
     parser.add_argument("--login", default=None, metavar="USER", help="Odoo account that owns the API key")
     parser.add_argument("--members", default=None, metavar="LOGINS",
                         help="RESTRICTED access: Odoo accounts (logins separated by commas) that see the channels and are their members, and nobody else (e.g. etienne.berube.ing@exemple.org,tux-bot); key MEMBERS")
+    parser.add_argument("--menu", action="store_true", help="interactive menu of the common operations (dialog if installed; terminal required)")
     parser.add_argument("--message", default=None, metavar="TEXT", help="With --post: the text to publish (\"-\": read standard input)")
     parser.add_argument("--no-members", action="store_true", help="Do not add the group accounts as members of the new channels")
     parser.add_argument("--post", default=None, metavar="CHANNEL/THREAD", help="Publishes --message in this channel or thread (e.g. \"Odoo-Erreurs/HTTP 5xx\")")
@@ -647,6 +656,15 @@ def main():
         print(f"odoo-chat-post.py v{__version__}")
     defauts, problems = I18N.defauts(parser, SCHEMA_CONFIG) if I18N else ({}, [])
     args = parser.parse_args()
+    if args.menu:
+        import importlib.util as _ilu
+        _spec = _ilu.spec_from_file_location("_menu", os.path.join(SCRIPT_DIR, "apps", "_menu.py"))
+        _menu = _ilu.module_from_spec(_spec)
+        _spec.loader.exec_module(_menu)
+        _menu.menu(os.path.abspath(__file__), sys.argv[1:], MENU_ENTREES,
+                   traduire=I18N.tr if I18N else None, langue=I18N.langue if I18N else "fr",
+                   configuration=_menu.configuration_de(SCRIPT_DIR, "odoo-chat-post", sys.argv[1:]),
+                   nom=f"odoo-chat-post.py v{__version__}")
     if args.config and not os.path.isfile(args.config):
         parser.error(f"configuration file not found: {args.config}")
     if I18N:
