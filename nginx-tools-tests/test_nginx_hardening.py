@@ -425,6 +425,14 @@ class SetupNginxOdoo(EnvTest):
         self.assertIn("Pas de terminal", self.etape(out, "0f"))
         self.assertEqual(os.listdir(dest), [], "sans confirmation, aucun fichier ne doit être créé")
 
+    def test_menu_sans_terminal_refuse_et_l_aide_le_liste(self):
+        """2.61 : --menu demande un terminal (sinon refus, code 1, rien n'est lancé) ; l'aide liste --menu."""
+        rc, out, err = self.run_cmd(["bash", self.prog, "--menu"])
+        self.assertEqual(rc, 1, out + err)
+        self.assertIn("--menu demande un terminal", out + err)
+        rc, out, err = self.run_cmd(["bash", self.prog, "--help"])
+        self.assertIn("--menu", out)
+
     def _mail(self, *args, mdp="secret-de-test"):
         env = dict(self.env, NGINX_TOOLS_MAIL_PASSWORD=mdp) if mdp else self.env
         rc, out, err = self.run_cmd(["bash", self.prog, "--odoo-conf", self.path("odoo.conf"), *args], env_extra=env if mdp else None)
