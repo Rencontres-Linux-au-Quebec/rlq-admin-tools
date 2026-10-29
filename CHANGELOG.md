@@ -809,6 +809,19 @@ Earlier history was archived outside this repository when this file was created.
 
 ## odoo-warmup.py
 
+### 1.35.20261028.222437 - Messages in English only: no French duplicate lines; catalogue entries updated
+
+- Title: English messages only (the French text comes from lang/odoo-warmup.fr.po); stale catalogue entries updated.
+- Reason: The English program printed some messages twice (English then French), and its catalogue had entries for older texts. The catalogue test (test_i18n) reported them.
+- Changes:
+  - Removed the French duplicate lines of the warm-up unit file, the Odoo-not-listening wait, the unreadable configuration file warning, the several-units error, the unit found message, and the no-process warning.
+  - lang/odoo-warmup.fr.po: entries for the English messages now printed; the systemd unit texts and the --systemd-install / --systemd-remove help are updated to the current code text.
+  - Files: odoo-warmup.py, lang/odoo-warmup.fr.po, CHANGELOG.md.
+- Bugs fixed: symptom: each message appeared in French too, and some French texts had no English source. Diagnosis: bilingual lines written by hand in the code, and catalogue entries for texts that had changed. Correction: English only in the code, catalogue updated.
+- Safeguards and edge cases: the French display is unchanged in the text; the systemd unit content is unchanged apart from its comment wording.
+- Checks: test_i18n (catalogues of the Python programs).
+- Action required: none.
+
 ### 1.36.20261028.214122 - --menu: English programs translate the menu and its help through their catalogue
 
 - Title: --menu: English programs translate the menu and its help through their catalogue.
@@ -1699,6 +1712,18 @@ Earlier history was archived outside this repository when this file was created.
 
 ## nginx-hardening.sh
 
+### 2.63.20261028.222437 - Catalogue entries for the bash messages not yet translated (rollback, URI, backup, menu)
+
+- Title: English catalogue entries for the bash messages that were still French (backup, rollback, refused URIs, configuration reading, menu).
+- Reason: The catalogue test (test_i18n) reported about 90 French messages without an English entry.
+- Changes:
+  - lang/nginx-hardening.en.po: entries for the messages and help lines listed by the test. The program code is unchanged.
+  - Files: lang/nginx-hardening.en.po, CHANGELOG.md.
+- Bugs fixed: symptom: with --lang en, these messages stayed in French. Diagnosis: the catalogue had no entries for messages added since it was written. Correction: entries added.
+- Safeguards and edge cases: the answers o/y and the words expected by the program are unchanged; the English prompt still accepts y.
+- Checks: test_i18n (catalogues of the bash programs), test_odoo_conf (English output without French).
+- Action required: none.
+
 ### 2.62.20261028.210125 - --menu: graphical menu with dialog, text menu as fallback
 
 - Title: The menu of --menu uses dialog when it is installed; without dialog, the text menu is still shown, with a note.
@@ -1911,6 +1936,18 @@ Earlier history was archived outside this repository when this file was created.
 - Current version. Earlier history archived outside the repository.
 
 ## nginx-log-audit.sh
+
+### 2.61.20261028.222437 - Catalogue entries for the --ban-sqli messages (English)
+
+- Title: English catalogue entries for the --ban-sqli messages.
+- Reason: The catalogue test (test_i18n) reported the --ban-sqli messages, added without catalogue entries.
+- Changes:
+  - lang/nginx-log-audit.en.po: entries for the messages and the help line of --ban-sqli. The program code is unchanged.
+  - Files: lang/nginx-log-audit.en.po, CHANGELOG.md.
+- Bugs fixed: symptom: with --lang en, the --ban-sqli messages stayed in French. Diagnosis: no catalogue entries. Correction: entries added.
+- Safeguards and edge cases: no change in behaviour.
+- Checks: test_i18n (catalogues of the bash programs).
+- Action required: none.
 
 ### 2.62.20261028.214122 - --menu: catalogue entries for the menu and its help line (English)
 

@@ -637,7 +637,6 @@ def systemd_install_unit(service, wait_seconds, delay=None):
             delay = WARMUP_DELAY if delay is None else delay
             with open(env_path, "w", encoding="utf-8") as f:
                 f.write(f"# Delay in seconds after the start of {service} before the warm-up (read at each start; change it here, no reinstall).\n"
-                        f"# Delai en secondes apres le demarrage de {service} avant le prechauffage (lu a chaque demarrage).\n"
                         f"WARMUP_DELAY={delay}\n")
         lu = delay_of_env_file(env_path)
         delay = lu if lu is not None else WARMUP_DELAY
@@ -920,7 +919,7 @@ def detect_odoo_url(attente=0):
             break
         if attente and not avertie[0]:
             avertie[0] = True
-            print(f"Odoo is not listening yet, waiting ({attente} s at most) / Odoo n'ecoute pas encore, attente ({attente} s au plus)")
+            print(f"Odoo is not listening yet, waiting ({attente} s at most)")
         time.sleep(2)
     trouves = []
     for port in candidats:
@@ -939,7 +938,6 @@ def detect_odoo_url(attente=0):
     illisibles = config_illisibles()
     if illisibles:
         eprint(f"WARNING: the Odoo configuration file cannot be read by this account: {', '.join(illisibles)} (ports unknown).")
-        eprint(f"ATTENTION : le fichier de configuration d'Odoo n'est pas lisible par ce compte : {', '.join(illisibles)} (ports inconnus).")
     print(f"No single Odoo port detected, default {DEFAULT_URL}")
     print("Set URL=http://127.0.0.1:PORT in /etc/default/odoo-warmup.conf (or ~/.odoo-warmup.conf) to skip the detection / "
           "Mettez URL=http://127.0.0.1:PORT dans /etc/default/odoo-warmup.conf (ou ~/.odoo-warmup.conf) pour sauter la detection.")
@@ -1058,14 +1056,12 @@ def main():
             units = odoo_units()
             if len(units) > 1:
                 eprint(f"ERROR: several units run an Odoo Python process: {', '.join(units)}. Choose one with --service UNIT.")
-                eprint(f"ERREUR : plusieurs unites font tourner Odoo : {', '.join(units)}. Choisissez-en une avec --service UNIT.")
                 return 2
             service = units[0] if units else DEFAULT_SERVICE
             if units:
-                print(f"Odoo unit found from its running process / unite Odoo trouvee dans son processus : {service}")
+                print(f"Odoo unit found from its running process: {service}")
             else:
                 eprint(f"WARNING: no running Odoo Python process found, {DEFAULT_SERVICE} used. Use --service UNIT if it is another unit.")
-                eprint(f"ATTENTION : aucun processus Python d'Odoo en marche, {DEFAULT_SERVICE} utilise. Utilisez --service UNIT si c'est une autre unite.")
     delay = args.delay
     if delay is not None and delay < 0:
         parser.error("--delay must be zero or a positive number of seconds")

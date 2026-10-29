@@ -2048,5 +2048,266 @@ msgstr "nginx -t rejects the generic configuration: restoring the previous state
 msgid "Configuration nginx générique : aucun changement appliqué (refusé ou sans réponse)."
 msgstr "Generic nginx configuration: no change applied (refused or no answer)."
 
+msgid "  --backup NAME                avec --rollback : sauvegarde à restaurer (défaut : la plus récente ; liste : ls /var/backups/nginx-hardening/archives)"
+msgstr "  --backup NAME                with --rollback: backup to restore (default: the most recent; list: ls /var/backups/nginx-hardening/archives)"
+
+msgid "  --disable-uri CHEMIN         refuse (404) ce chemin dans le site Odoo, toutes les langues (ex. /shop) : fichier snippets/uri-desactivees.conf ; répétable"
+msgstr "  --disable-uri CHEMIN         refuses (404) this path in the Odoo site, all languages (e.g. /shop): file snippets/uri-desactivees.conf; repeatable"
+
+msgid "  --enable-uri CHEMIN          rétablit un chemin refusé par --disable-uri ; répétable"
+msgstr "  --enable-uri CHEMIN          restores a path refused by --disable-uri; repeatable"
+
 msgid "  --menu                       menu interactif des opérations courantes (dialog si installé ; terminal requis)"
 msgstr "  --menu                       interactive menu of the common operations (dialog if installed; terminal required)"
+
+msgid "  --rollback                   restaure la sauvegarde la plus récente (ou --backup NAME) de la configuration nginx et fail2ban, après confirmation"
+msgstr "  --rollback                   restores the most recent backup (or --backup NAME) of the nginx and fail2ban configuration, after confirmation"
+
+msgid "  --yes                        avec --rollback : restaurer sans question"
+msgstr "  --yes                        with --rollback: restore without asking"
+
+msgid "ERREUR: chemin invalide « "
+msgstr "ERROR: invalid path « "
+
+msgid " » : il commence par / et ne contient que lettres, chiffres, _ . / - (ex. /shop)."
+msgstr " » : it must start with / and contain only letters, digits, _ . / - (e.g. /shop)."
+
+msgid "Terminé"
+msgstr "Done"
+
+msgid "Code de retour : "
+msgstr "Return code: "
+
+msgid " module de configuration (apps/_i18n.sh) absent : aucune option lue."
+msgstr " configuration module (apps/_i18n.sh) missing: no option read."
+
+msgid "Fichiers de configuration lus (le dernier l'emporte) :"
+msgstr "Configuration files read (the last one wins):"
+
+msgid "  aucun (valeurs par défaut du programme)"
+msgstr "   none (program defaults)"
+
+msgid "Options par défaut lues dans ces fichiers (la ligne de commande les remplace) :"
+msgstr "Default options read from these files (the command line overrides them):"
+
+msgid "  aucune"
+msgstr "   none"
+
+msgid " valeur ignorée : "
+msgstr " value ignored: "
+
+msgid " valeur en français, écrire l'anglais : "
+msgstr " value in French, write it in English: "
+
+msgid "Options lues dans les fichiers de configuration"
+msgstr "Options read from the configuration files"
+
+msgid "ERREUR"
+msgstr "ERROR"
+
+msgid ": --update demande root (relancer avec sudo "
+msgstr ": --update requires root (run again with sudo "
+
+msgid "Appliquer maintenant les changements (sauvegarde automatique avant) ?"
+msgstr "Apply the changes now (automatic backup first)?"
+
+msgid "Annulé : rien n'est modifié."
+msgstr "Cancelled: nothing changed."
+
+msgid ": --rollback demande root (relancer avec sudo "
+msgstr ": --rollback requires root (run again with sudo "
+
+msgid "Choisissez une opération (les options de la ligne de commande sont reprises) :"
+msgstr "Choose an operation (the command-line options are kept):"
+
+msgid "Vérifier le setup (--check) : rien n'est modifié"
+msgstr "Check the setup (--check): nothing changed"
+
+msgid "Appliquer les changements (--update) : root, confirmation"
+msgstr "Apply the changes (--update): root, confirmation"
+
+msgid "Restaurer la sauvegarde la plus récente (--rollback)"
+msgstr "Restore the most recent backup (--rollback)"
+
+msgid "Voir les options par défaut lues dans les fichiers de configuration"
+msgstr "See the default options read from the configuration files"
+
+msgid "Voir le journal des modifications (--changelog)"
+msgstr "See the change log (--changelog)"
+
+msgid "Quitter"
+msgstr "Quit"
+
+msgid "Entrée pour revenir au menu..."
+msgstr "Press Enter to return to the menu..."
+
+msgid "  Vérifier le setup ("
+msgstr "  Check the setup ("
+
+msgid ") : rien n'est modifié"
+msgstr ") : nothing changed"
+
+msgid "  Appliquer les changements ("
+msgstr "  Apply the changes ("
+
+msgid ") : root et confirmation requis"
+msgstr ") : root and confirmation required"
+
+msgid "  Restaurer la sauvegarde la plus récente ("
+msgstr "  Restore the most recent backup ("
+
+msgid "  Voir les options par défaut lues dans les fichiers de configuration"
+msgstr "  See the default options read from the configuration files"
+
+msgid "  Voir le journal des modifications ("
+msgstr "  See the change log ("
+
+msgid "  Quitter"
+msgstr "  Quit"
+
+msgid "Choix inconnu : « "
+msgstr "Unknown choice: « "
+
+msgid "ERREUR: --menu demande un terminal (entrée et sortie interactives)."
+msgstr "ERROR: --menu requires a terminal (interactive input and output)."
+
+msgid " commande dialog absente : menu en mode texte (sudo apt install dialog pour le menu graphique)."
+msgstr " dialog command missing: text menu (sudo apt install dialog for the graphical menu)."
+
+msgid " était absent : créé vide pour que nginx -t réussisse (rempli par son étape : 12, 12b ou 12c)."
+msgstr " was missing: created empty so that nginx -t succeeds (filled by its step: 12, 12b or 12c)."
+
+msgid "ERREUR: --rollback nécessite root (sudo)."
+msgstr "ERROR: --rollback requires root (sudo)."
+
+msgid "ERREUR: --backup prend un nom, pas un chemin."
+msgstr "ERROR: --backup takes a name, not a path."
+
+msgid "Aucune sauvegarde trouvée dans "
+msgstr "No backup found in "
+
+msgid " (--backup NAME pour une autre)."
+msgstr " (--backup NAME for another one)."
+
+msgid "--- Restauration de la sauvegarde : "
+msgstr "--- Restoring backup: "
+
+msgid "ERREUR: archive illisible : "
+msgstr "ERROR: unreadable archive: "
+
+msgid "  Différences avec l'état actuel (30 premières lignes) :"
+msgstr "   Differences with the current state (first 30 lines):"
+
+msgid "  Restaurer cette sauvegarde ? L'état actuel est sauvegardé d'abord. [o/N] "
+msgstr "   Restore this backup? The current state is backed up first. [y/N] "
+
+msgid "Pas de terminal : rien restauré (ajouter --yes pour confirmer sans question)."
+msgstr "No terminal: nothing restored (add --yes to confirm without asking)."
+
+msgid "Annulé : rien restauré."
+msgstr "Cancelled: nothing restored."
+
+msgid "Sauvegarde préalable impossible : rien restauré."
+msgstr "Pre-restore backup impossible: nothing restored."
+
+msgid "  État actuel sauvegardé : "
+msgstr "   Current state backed up: "
+
+msgid "Sauvegarde restaurée (nginx -t réussit). Retour arrière : --rollback --backup "
+msgstr "Backup restored (nginx -t succeeds). To undo: --rollback --backup "
+
+msgid "Non restaurés : règles iptables, paquets installés, odoo.conf."
+msgstr "Not restored: iptables rules, installed packages, odoo.conf."
+
+msgid "Restauration annulée : nginx -t refuse la sauvegarde ou une copie a échoué ; l'état actuel est conservé."
+msgstr "Restore cancelled: nginx -t refuses the backup or a copy failed; the current state is kept."
+
+msgid "--- Sauvegarde de la configuration avant modification ---"
+msgstr "--- Backup of the configuration before the change ---"
+
+msgid "Sauvegarde impossible dans "
+msgstr "Backup impossible in "
+
+msgid " : aucune modification faite."
+msgstr " : no change made."
+
+msgid "Sauvegarde : "
+msgstr "Backup: "
+
+msgid " : journaux lus (blocked-probes.log) ---"
+msgstr " : logs read (blocked-probes.log) ---"
+
+msgid " (fail2ban absent)"
+msgstr " (fail2ban missing)"
+
+msgid " non définie sur ce serveur"
+msgstr " not defined on this server"
+
+msgid " absent : nginx le crée au premier refus de ses règles ; relancer ensuite."
+msgstr " missing: nginx creates it on the first refusal of its rules; run again then."
+
+msgid " déjà lu ("
+msgstr " already read ("
+
+msgid " : aucune ligne logpath dans "
+msgstr " : no logpath line in "
+
+msgid " à la main."
+msgstr " by hand."
+
+msgid "  Changement prévu pour "
+msgstr "   Change planned for "
+
+msgid ", lecture de "
+msgstr ", reading "
+
+msgid " : journal "
+msgstr " : journal "
+
+msgid " non lu (relancer avec --update pour l'ajouter après confirmation)."
+msgstr " not read (run again with --update to add it after confirmation)."
+
+msgid "  Appliquer ce changement à "
+msgstr "   Apply this change to "
+
+msgid " et recharger fail2ban ? [o/N] "
+msgstr " and reload fail2ban? [y/N] "
+
+msgid "Pas de terminal : jail "
+msgstr "No terminal: jail "
+
+msgid " non modifiée (lancer --update dans un terminal pour confirmer)."
+msgstr " not changed (run --update in a terminal to confirm)."
+
+msgid " ajouté ; sauvegarde : "
+msgstr " added; backup: "
+
+msgid " : fail2ban n'a pas pris le changement : retour à "
+msgstr " : fail2ban did not take the change: back to "
+
+msgid " d'origine (sauvegarde : "
+msgstr " original (backup: "
+
+msgid " : aucun changement appliqué (refusé ou sans réponse)."
+msgstr " : no change applied (refused or no answer)."
+
+msgid "# Généré par nginx-hardening.sh (--disable-uri / --enable-uri) : ne pas éditer à la main."
+msgstr "# Generated by nginx-hardening.sh (--disable-uri / --enable-uri): do not edit by hand."
+
+msgid "# Aucune URI refusée."
+msgstr "# No refused URI."
+
+msgid " URI refusée(s))."
+msgstr " refused URI(s))."
+
+msgid "différent de la liste demandée"
+msgstr "different from the requested list"
+
+msgid " — --update l'écrira ("
+msgstr " - --update will write it ("
+
+msgid "URI refusées ("
+msgstr "refused URIs ("
+
+msgid "nginx -t refuse la configuration avec les URI refusées — ancienne version restaurée, nginx NON rechargé."
+msgstr "nginx -t refuses the configuration with the refused URIs: previous version restored, nginx NOT reloaded."
