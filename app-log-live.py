@@ -76,6 +76,10 @@
 #   app-log-live.py --underline 3            one log line out of 3 underlined to the end of the screen line (by default 10; --no-underline: none)
 #   app-log-live.py --no-follow              displays the last messages then stops (for a pipe or a file)
 #   app-log-live.py --no-isp --no-history    no outside request, without the login history
+#   app-log-live.py -S '-2h' -U now --utc   lines of the last two hours, in UTC (or -S 'yesterday', --since '2026-10-29 08:00')
+#   app-log-live.py -g 'erreur|timeout' -n 500   messages matching a regular expression (--grep), 500 lines of history
+#   app-log-live.py --exclude-country US,CN   hide the addresses of these countries (--country CA shows only them)
+#   app-log-live.py --days 0.1 --no-follow   the last 2.4 hours of sign-ins (fractions of a day are allowed)
 #   --days N, --idle MIN, --recap SEC, --no-presence, --service NAME, --namespace NAME, --app NAME, --verbose, --version, --changelog, --report-err
 
 import argparse
@@ -105,7 +109,7 @@ from urllib.parse import unquote
 from collections import Counter, OrderedDict
 from concurrent.futures import Future
 
-__version__ = "1.111.20261028.225404"
+__version__ = "1.112.20261029.165811"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
@@ -200,7 +204,7 @@ UNDERLINE_DEFAULT = 10                                                # --underl
 
 SCHEMA_CONFIG = {"ACCENTUATE_GROUP": ("accentuate_group", str), "CHIME": ("chime", _chime_config), "DNS_MAX_TRUNCATE": ("dns_max_truncate", int), "EXCLUDE_IP": ("exclude_ip", _comma_list),
                  "ONLY": ("only", _comma_list), "STEPS_LINE": ("steps_line", bool), "SUSPECT": ("suspect", bool), "SUMMARY": ("summary", bool), "TIME_REPORT": ("time_report", float), "TRUNCATE": ("truncate", _truncate_config), "WATCH": ("watch", str), "ANONYMIZE": ("anonymize", bool), "UNDERLINE": ("underline", _underline_config),
-                 "APP": ("app", str), "CMS": ("cms", str), "CONNECTIONS": ("connections", float), "DAYS": ("days", int), "DISK_MIN": ("disk_min", float), "DNS_MAX": ("dns_max", int), "HEALTH": ("health", float), "HIDE_ADDONS": ("hide_addons", bool), "HIDE_IP": ("hide_ip", bool), "HIGHLIGHT": ("highlight", str), "IDLE": ("idle", float),
+                 "APP": ("app", str), "CMS": ("cms", str), "CONNECTIONS": ("connections", float), "DAYS": ("days", float),"DISK_MIN": ("disk_min", float), "DNS_MAX": ("dns_max", int), "HEALTH": ("health", float), "HIDE_ADDONS": ("hide_addons", bool), "HIDE_IP": ("hide_ip", bool), "HIGHLIGHT": ("highlight", str), "IDLE": ("idle", float),
                  "LINES": ("lines", int), "LOG_DIR": ("log_dir", str), "LOG_KEEP_DAYS": ("log_keep_days", int), "MIN": ("min", bool), "MODULES_CUSTOM": ("modules_custom", bool), "MODULES_SORT": ("modules_sort", str), "MODULES_STARTUP": ("modules_startup", bool), "NAMESPACE": ("namespace", str),
                  "NO_BANNED": ("no_banned", bool), "NOT_FOUND": ("not_found", bool), "NO_BAN_PROMPT": ("no_ban_prompt", bool), "NO_CACHE": ("no_cache", bool), "NO_HISTORY": ("no_history", bool),
                  "NO_ISP": ("no_isp", bool), "NO_KEYS": ("no_keys", bool), "NO_LOG_FILE": ("no_log_file", bool), "NO_PRESENCE": ("no_presence", bool),
@@ -229,7 +233,10 @@ LOGIN_RE = re.compile(r"Login successful for db:(\S+) login:(\S+) from ([0-9A-Fa
 HISTORY_RE = re.compile(r"^(\S+) .*Login successful for db:(\S+) login:(\S+) from ([0-9A-Fa-f:.]+)")
 
 # Line of "journalctl -o short-iso-precise": 2026-10-02T10:07:18.326421-0400 odoo18 odoo[502389]: message
-JOURNAL_RE = re.compile(r"^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})\.(\d{6})([+-]\d{2}):?(\d{2}|Z)? (\S+) ([^\s\[:]+)(?:\[\d+\])?: (.*)$")
+# 1.112: the host name is optional (journalctl --no-hostname); the line is then "2026-10-02T10:07:18.326421-0400 odoo[502389]: message"
+JOURNAL_RE = re.compile(r"^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})\.(\d{6})([+-]\d{2}):?(\d{2}|Z)? (?:([^\s\[:]+) )?([^\s\[:]+)(?:\[\d+\])?: (.*)$")
+# 1.112 --utc: times of the log lines and of --since / --until in UTC instead of the local time (set by main)
+TIME_UTC = False
 # Odoo message: 2026-10-02 14:07:18,326 502389 INFO base werkzeug: text
 ODOO_RE = re.compile(r"^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2},\d{3} \d+ (DEBUG|INFO|WARNING|ERROR|CRITICAL) (\S+) (\S+): (.*)$")
 WERKZEUG_DATE_RE = re.compile(r"^(.*? - - )\[\d{2}/\w{3}/\d{4} \d{2}:\d{2}:\d{2}\] (\".*)$")
@@ -720,6 +727,8 @@ class Line:
         except ValueError:
             return
         rounded = dt + datetime.timedelta(microseconds=5000)                      # hundredths rounded (326 ms -> .33)
+        if TIME_UTC:                                                              # 1.112 --utc: shown in UTC
+            rounded = rounded.astimezone(datetime.timezone.utc)
         self.ts_txt = f"{rounded:%Y-%m-%d %H:%M:%S}.{rounded.microsecond // 10000:02d}"
         self.instant = dt.timestamp()
         self.text = message
@@ -1777,7 +1786,7 @@ class Formatting:
         header = []
         if L.ts_txt:
             header.append(L.ts_txt)
-            header.append(f"{L.host_name} {L.program_name}" + ("" if L.level else ":"))          # structured Odoo line: "odoo18 odoo INFO", without ":"
+            header.append(" ".join(x for x in (L.host_name, L.program_name) if x) + ("" if L.level else ":"))          # structured Odoo line: "odoo18 odoo INFO", without ":" (1.112: without host with --no-hostname)
         if L.level:
             header.append({"ERROR": color_code(STYLES["warning"] if benign else STYLES["error"], L.level), "CRITICAL": color_code(STYLES["error"], L.level),
                            "WARNING": color_code(STYLES["warning"], L.level), "DEBUG": color_code(STYLES["debug"], L.level)}.get(L.level, L.level))
@@ -2991,25 +3000,70 @@ def odoo_journal_file(profile):
     return file_path if file_path and profile.get("APP_LOG_KIND") != "file" and os.path.isfile(file_path) and os.path.isfile(FILE_CONVERTER) else None
 
 
-def read_history(people, service, ns, days, file_path=None):
-    """Successful logins of the systemd journal (the DAYS last days; 0 = the whole history) -> table of people;
-    number of known addresses. `file`: Odoo journal as a file (logfile) rather than the systemd journal."""
+def journal_epoch(raw):
+    """1.112: instant (epoch seconds) of a line of "journalctl -o short-iso-precise", or None when the line has no such header."""
+    m = JOURNAL_RE.match(raw or "")
+    if not m:
+        return None
+    a, mo, j, h, mi, s, us, offset, minutes = m.groups()[:9]
+    try:
+        zone = datetime.timezone(datetime.timedelta(hours=int(offset), minutes=(-1 if offset[0] == "-" else 1) * int(minutes or 0)))
+        return datetime.datetime(int(a), int(mo), int(j), int(h), int(mi), int(s), int(us), tzinfo=zone).timestamp()
+    except ValueError:
+        return None
+
+
+def days_window(days):
+    """1.112: journalctl arguments for the last DAYS days. Whole days keep the form "-N days"; fractions (0.1 = 2.4 hours) become an epoch."""
+    if float(days).is_integer():
+        return ["--since", f"-{int(days)} days"]
+    return ["--since", f"@{math.floor(time.time() - days * 86400)}"]
+
+
+def read_history(people, service, ns, days, file_path=None, since=None, until=None):
+    """Successful logins of the systemd journal (the DAYS last days, fractions allowed; 0 = the whole history) -> table of people;
+    number of known addresses. 1.112: `since` / `until` (epoch seconds, from --since / --until) replace DAYS when given.
+    `file`: Odoo journal as a file (logfile) rather than the systemd journal."""
+    start = since if since is not None else (time.time() - days * 86400 if days else None)
     if file_path:
-        since = (datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=days)).strftime("%Y-%m-%d") if days else ""
         code, output = lancer([sys.executable, FILE_CONVERTER, file_path, "+1", "0"], 600)
         for text_line in output.splitlines():
             m = HISTORY_RE.match(text_line)
-            if m and "Login successful for" in text_line and text_line[:10] >= since:
+            if not (m and "Login successful for" in text_line):
+                continue
+            when = journal_epoch(text_line)
+            if when is None:
+                kept = start is None and until is None
+            else:
+                kept = (start is None or when >= start) and (until is None or when < until)
+            if kept:
                 people.ajouter(m.group(4), m.group(2), m.group(3), m.group(1))
         return len(people.par_ip)
-    cmd = ["journalctl", "-u", service, "-q", "--no-pager", "-o", "short-iso"] + (["--since", f"-{days} days"] if days else []) \
+    window = (["--since", f"@{math.floor(since)}"] if since is not None else (days_window(days) if days else [])) \
+        + (["--until", f"@{math.ceil(until)}"] if until is not None else [])
+    cmd = ["journalctl", "-u", service, "-q", "--no-pager", "-o", "short-iso"] + window \
         + ["-g", "Login successful for"] + (["--namespace", ns] if ns else [])
-    code, output = lancer(cmd, 600 if not days else 180)
+    code, output = lancer(cmd, 600 if not (days or since is not None) else 180)
     for text_line in output.splitlines():
         m = HISTORY_RE.match(text_line)
         if m:
             people.ajouter(m.group(4), m.group(2), m.group(3), m.group(1))
     return len(people.par_ip)
+
+
+def journal_options(args):
+    """1.112: journalctl options of the stream: time window (--since, --until, epoch values set by main), --no-hostname,
+    --grep (case-sensitive only when the pattern has an uppercase letter, as in journalctl's smart case)."""
+    options_ = []
+    if getattr(args, "since_epoch", None) is not None:
+        options_ += ["--since", f"@{math.floor(args.since_epoch)}"]
+    if getattr(args, "until_epoch", None) is not None:
+        options_ += ["--until", f"@{math.ceil(args.until_epoch)}"]
+    if getattr(args, "no_hostname", False):
+        options_.append("--no-hostname")
+    if getattr(args, "grep", None):
+        options_ += ["-g", args.grep, f"--case-sensitive={'yes' if args.grep_sensitive else 'no'}"]
+    return options_
 
 
 def stream_command(args, profile, service, ns):
@@ -3030,12 +3084,107 @@ def stream_command(args, profile, service, ns):
     cmd = ["journalctl", "--lines", str(args.lines), "--no-pager", "-u", service, "-o", "short-iso-precise"]
     if not args.no_follow:
         cmd.insert(3, "--follow")
-    return cmd + (["--namespace", ns] if ns else [])
+    return cmd + journal_options(args) + (["--namespace", ns] if ns else [])
 
 
 def is_failed_request(L):
     """Entry "ERROR odoo.sql_db: bad query": its cause is in the NEXT line (concurrent update conflict = harmless)."""
     return L.level == "ERROR" and L.logger == "odoo.sql_db" and L.text.startswith("bad query")
+
+
+TIME_UNITS = {"s": 1, "sec": 1, "secs": 1, "second": 1, "seconds": 1, "min": 60, "mins": 60, "minute": 60, "minutes": 60,
+              "h": 3600, "hr": 3600, "hrs": 3600, "hour": 3600, "hours": 3600, "d": 86400, "day": 86400, "days": 86400,
+              "w": 604800, "week": 604800, "weeks": 604800}
+RELATIVE_TIME_RE = re.compile(r"^([+-]?)\s*(\d+(?:[.,]\d+)?)\s*([a-z]+)\s*(ago)?$", re.IGNORECASE)
+ABSOLUTE_TIME_RE = re.compile(r"^(\d{4})-(\d{1,2})-(\d{1,2})(?:[ T](\d{1,2}):(\d{2})(?::(\d{2})(?:[.,](\d{1,6}))?)?)?\s*(Z|[+-]\d{2}:?\d{2})?$", re.IGNORECASE)
+TIME_OF_DAY_RE = re.compile(r"^(\d{1,2}):(\d{2})(?::(\d{2}))?$")
+
+
+def _zone_of(text):
+    """Time zone of "Z" or "+HH:MM" / "-HHMM" (None when absent)."""
+    if not text:
+        return None
+    if text.upper() == "Z":
+        return datetime.timezone.utc
+    digits = text.replace(":", "")
+    return datetime.timezone(datetime.timedelta(hours=int(digits[1:3]), minutes=int(digits[3:5])) * (-1 if digits[0] == "-" else 1))
+
+
+def _epoch(naive, zone=None):
+    """Epoch seconds of a naive date: in ZONE, else in UTC with --utc, else in local time."""
+    if zone is None and TIME_UTC:
+        zone = datetime.timezone.utc
+    if zone is not None:
+        naive = naive.replace(tzinfo=zone)
+    return naive.timestamp()
+
+
+def parse_time(text, end=False):
+    """1.112: instant (epoch seconds) of a --since / --until value: "now", "today", "yesterday", "@EPOCH", "HH:MM[:SS]" (today),
+    "YYYY-MM-DD [HH:MM[:SS]] [Z or +HH:MM]", or relative: "-2h", "+1 day", "0.5 hour", "3 days ago" (units s, min, h, d, w and long forms).
+    Without a time zone: local time, or UTC with --utc. A date alone is the start of its day, or the start of the NEXT day for --until
+    (so that the whole day is included). Raises ValueError for anything else."""
+    value = (text or "").strip()
+    low = value.lower()
+    if low == "now":
+        return time.time()
+    if low.startswith("@"):
+        return float(value[1:])
+    today = (datetime.datetime.now(datetime.timezone.utc) if TIME_UTC else datetime.datetime.now()).date()
+    if low in ("today", "yesterday"):
+        day = today - datetime.timedelta(days=1 if low == "yesterday" else 0)
+        return _epoch(datetime.datetime(day.year, day.month, day.day))
+    m = TIME_OF_DAY_RE.match(value)
+    if m:
+        h, mi, s = m.groups()
+        return _epoch(datetime.datetime(today.year, today.month, today.day, int(h), int(mi), int(s or 0)))
+    m = ABSOLUTE_TIME_RE.match(value)
+    if m:
+        y, mo, d, h, mi, s, frac, zone_text = m.groups()
+        if h is None:
+            start = datetime.datetime(int(y), int(mo), int(d))
+            if end:
+                start += datetime.timedelta(days=1)
+            return _epoch(start, _zone_of(zone_text))
+        micro = int((frac or "0").ljust(6, "0")[:6])
+        return _epoch(datetime.datetime(int(y), int(mo), int(d), int(h), int(mi), int(s or 0), micro), _zone_of(zone_text))
+    m = RELATIVE_TIME_RE.match(value)
+    if m:
+        sign, amount, unit, _ago = m.groups()
+        if unit.lower() not in TIME_UNITS:
+            raise ValueError(f"unknown unit: {unit}")
+        delta = float(amount.replace(",", ".")) * TIME_UNITS[unit.lower()]
+        return time.time() + delta if sign == "+" else time.time() - delta
+    raise ValueError(f"unrecognized time: {text}")
+
+
+def window_keep(L, state, options):
+    """1.112 --since, --until, --grep: is the line displayed? --grep tests each line (the message); --since and --until use the time header.
+    A line without time header (Python trace, BigBlueButton) follows the time window of the previous timed line."""
+    if options["grep"] is not None and options["grep"].search(L.text or "") is None:
+        return False
+    if L.instant is None:
+        return state.get("window_ok", True)
+    state["window_ok"] = (options["since"] is None or L.instant >= options["since"]) and (options["until"] is None or L.instant < options["until"])
+    return state["window_ok"]
+
+
+def country_keep(L, ips, pays, state, options):
+    """1.112 --country / --exclude-country: is the line displayed according to the country of its FIRST address (the client)? A line with
+    neither time header nor address follows the previous decision. A timed line without address: kept only without --country.
+    An address without known country: dropped by --country, kept by --exclude-country."""
+    wanted, unwanted = options["countries"], options["exclude_countries"]
+    if not wanted and not unwanted:
+        return True
+    if L.ts_txt is None and not ips:
+        return state.get("country_ok", True)
+    if ips:
+        code = (pays.get(ips[0][0]) or "").upper()
+        ok = (not wanted or code in wanted) and not (unwanted and code in unwanted)
+    else:
+        ok = not wanted
+    state["country_ok"] = ok
+    return ok
 
 
 class Bans:
@@ -5500,6 +5649,11 @@ def follow(cmd, people, resolver, options, output):
                     break
                 continue
             L, ips, arrival, is_login = item
+            if options["until"] is not None and L.instant is not None and L.instant >= options["until"]:
+                state["until_reached"] = True           # 1.112 --until: the stream is in order, nothing more is displayed after this line
+                break
+            if not window_keep(L, state, options):      # 1.112 --since, --grep: decided before any lookup
+                continue
             results, pays = {}, {}
             for ip, future, country_future in ips:
                 try:
@@ -5511,6 +5665,8 @@ def follow(cmd, people, resolver, options, output):
                         pays[ip] = country_future.result(timeout=max(0.0, arrival + WAIT_DELAY - time.time()))
                     except Exception:
                         pays[ip] = None
+            if not country_keep(L, ips, pays, state, options):   # 1.112 --country, --exclude-country: needs the country of the address
+                continue
             state["read_files"] += 1
             stats.count_conflict(L)
             release_deferred("could not serialize access" in L.text)      # the cause of the previous line is this one
@@ -5666,7 +5822,7 @@ MENU_ENTREES = [
 
 
 def main():
-    global VERBOSE, NAME_WIDTH, NAME_TRUNCATE, COLOR
+    global VERBOSE, NAME_WIDTH, NAME_TRUNCATE, COLOR, TIME_UTC
     parser = (I18N.parser if I18N else LocalizedArgumentParser)(
         description="Real-time application log: local ISO time without duplicates, each IP address replaced by the name of the person already signed in (otherwise DNS name, otherwise owner of the address block), presence of people, colors.")
     parser.add_argument("--app", metavar="NAME", help="Application behind nginx (profile apps/NAME.conf: odoo, bbb…) — detected automatically by default")
@@ -5682,8 +5838,8 @@ def main():
                         help="Configuration file to read ALONE (otherwise: /etc/default/app-log-live.conf, then the personal file .app-log-live.conf; options in UPPERCASE: APP, CONNECTIONS, DAYS, DNS_MAX, HEALTH, HIDE_IP, IDLE, LANGUAGE, LINES, LOG_DIR, LOG_KEEP_DAYS, MIN, NAMESPACE, NO_BANNED, NO_BAN_PROMPT, NO_CACHE, NO_HISTORY, NO_ISP, NO_KEYS, NO_LOG_FILE, NO_PRESENCE, NO_USER_AGENT, RECAP, SERVICE, SLOW, VERBOSE)")
     parser.add_argument("--chime", type=int, nargs="?", const=0, default=None, choices=(0, 1, 2), metavar="N",
                         help="Beep (in byobu/tmux too: see the tips shown) when a displayed line is an error: 0 = any error (4xx, 5xx, Odoo ERROR), 1 = 4xx, 2 = 5xx and 4xx (0 without value)")
-    parser.add_argument("--days", type=int, default=DAYS_DEFAULT, metavar="N",
-                        help="Days of sign-in history read from the log (default: 0 = the whole history of the log)")
+    parser.add_argument("--days", type=float, default=DAYS_DEFAULT, metavar="N",
+                        help="Days of sign-in history read from the log, fractions allowed: 0.1 = 2.4 hours (default: 0 = the whole history of the log)")
     parser.add_argument("--diagnose", action="store_true",
                         help="Site diagnosis (why the maintenance page shows: service, Odoo ports, nginx upstream, firewall) and the versions of the nginx configuration with their dates, then exits; code 1 if there is a problem")
     parser.add_argument("--diagnose-host", action="append", default=[], metavar="NOM",
@@ -5714,7 +5870,7 @@ def main():
                         help="Display language: en or fr (default: from LC_ALL / LC_MESSAGES / LANG)")
     parser.add_argument("--level", type=int, default=LEVEL_MAX, metavar="N",
                         help=f"Detail level of the dashboard and summary: 1 = one-line verdict … 5 = the essentials … {LEVEL_MAX} = everything (default: {LEVEL_MAX}; keys 1 to 9 on the fly)")
-    parser.add_argument("--lines", type=int, default=LINES_DEFAULT, metavar="N",
+    parser.add_argument("-n", "--lines", type=int, default=LINES_DEFAULT, metavar="N",
                         help=f"History messages shown before the live stream (default: {LINES_DEFAULT})")
     parser.add_argument("--log-dir", default=None, metavar="DIR",
                         help="Folder of the daily log with colors (default: /var/log/app-log-live for root, otherwise ~/.local/state/app-log-live; APP_LOG_LIVE_LOG_DIR, « off »: none)")
@@ -5787,6 +5943,24 @@ def main():
     parser.set_defaults(min=MIN_DEFAULT)                       # 1.98: --min by default (MIN=no or --no-min: everything)
     parser.set_defaults(hide_ip=True)                           # 1.107: the IP address is hidden by default (HIDE_IP=no in the configuration file, or --show-ip)
     parser.set_defaults(anonymize=None)                         # None: on a terminal only (a pipe, another program, a test: real values)
+    parser.add_argument("--country", action="append", default=None, metavar="CC,CC",
+                        help="Show only the lines whose first address is in these countries (two-letter codes such as CA,FR; repeatable). Lines without address are hidden")
+    parser.add_argument("--exclude-country", action="append", default=None, metavar="CC,CC",
+                        help="Hide the lines whose first address is in these countries (two-letter codes such as US,CN; repeatable). Addresses of unknown country are kept")
+    parser.add_argument("-f", "--follow", action="store_true", dest="journalctl_follow",
+                        help="Accepted for journalctl compatibility: the live stream is the default (use --no-follow to stop after the history)")
+    parser.add_argument("-g", "--grep", metavar="REGEX",
+                        help="Show only the lines whose message matches this regular expression. Case-insensitive unless REGEX has an uppercase letter (as journalctl)")
+    parser.add_argument("--no-hostname", action="store_true",
+                        help="Do not show the host name of the journal lines (as journalctl --no-hostname)")
+    parser.add_argument("--no-pager", action="store_true", dest="journalctl_no_pager",
+                        help="Accepted for journalctl compatibility: the output is never paged")
+    parser.add_argument("-S", "--since", metavar="TIME",
+                        help="Show the lines from TIME: YYYY-MM-DD [HH:MM[:SS]] [Z or +HH:MM], HH:MM[:SS] (today), today, yesterday, @EPOCH, now, or relative (-2h, '-30 min', '0.5 day', '3 days ago'). Local time, or UTC with --utc")
+    parser.add_argument("-U", "--until", metavar="TIME",
+                        help="Show only the lines BEFORE TIME (same formats as --since); a date alone includes the whole day. With the live stream, the program stops at that time")
+    parser.add_argument("--utc", action="store_true",
+                        help="Times in UTC: the time of each line, and the times given to --since / --until without a time zone (default: local time)")
     parser.add_argument("--version", action="version", version=f"app-log-live.py version {__version__}")
     if "--version" not in sys.argv[1:]:       # first line of EVERY run, even --help: name and version (--version displays it itself)
         eprint(f"app-log-live.py v{__version__}")
@@ -5813,6 +5987,27 @@ def main():
     if I18N:
         I18N.afficher_configuration(defaults, problems, sortie=eprint)
     VERBOSE = args.verbose
+    # 1.112: time window (--since, --until, --utc), --grep, --country, --exclude-country: checked here, applied in the stream loop
+    TIME_UTC = args.utc
+    try:
+        args.since_epoch = parse_time(args.since) if args.since is not None else None
+        args.until_epoch = parse_time(args.until, end=True) if args.until is not None else None
+    except (ValueError, OverflowError, OSError) as error:
+        parser.error(f"--since / --until: {error} (see --help for the formats)")
+    if args.days and args.since is not None:
+        parser.error("--days and --since cannot be combined")
+    if args.since_epoch is not None and args.until_epoch is not None and args.until_epoch <= args.since_epoch:
+        parser.error("--until must be later than --since")
+    args.grep_sensitive = any(ch.isupper() for ch in (args.grep or ""))            # journalctl's smart case: uppercase letter = case-sensitive
+    try:
+        grep_re = re.compile(args.grep, 0 if args.grep_sensitive else re.IGNORECASE) if args.grep else None
+    except re.error as error:
+        parser.error(f"--grep: invalid regular expression: {error}")
+    countries = {c.upper() for value in (args.country or []) for c in re.split(r"[,\s]+", value) if c}
+    unwanted_countries = {c.upper() for value in (args.exclude_country or []) for c in re.split(r"[,\s]+", value) if c}
+    invalid_countries = sorted(c for c in countries | unwanted_countries if not re.fullmatch(r"[A-Z]{2}", c))
+    if invalid_countries:
+        parser.error(f"--country / --exclude-country: invalid country code(s): {', '.join(invalid_countries)}")
     if args.changelog:
         return show_changelog()
     profile_module = load_module("_profile")
@@ -5893,11 +6088,13 @@ def main():
         for text_line in customs_tracking_lines(people.odoo_db, profile.get("ODOO_CONF"), [], modules_sort_state):
             eprint(text_line)
     if is_odoo and not args.no_history:
-        extent = f"{args.days} days" if args.days else "the whole log"
+        extent = (f"from {args.since}" if args.since is not None else f"{args.days:g} days" if args.days else "the whole log")       # 1.112: --since, fractions of --days
+        if args.until is not None:
+            extent += f" until {args.until}"
         eprint(color_code("90", f"Sign-in history ({extent}) : reading the log"
-                    + (" (may take several minutes; --days N to limit)" if not args.days else " (up to 3 minutes)") + "…"))
+                    + (" (may take several minutes; --days N to limit)" if not (args.days or args.since is not None) else " (up to 3 minutes)") + "…"))
         start = time.time()
-        n = read_history(people, service, ns, args.days, odoo_file)
+        n = read_history(people, service, ns, args.days, odoo_file, args.since_epoch, args.until_epoch)
         eprint("  " + color_code("1;36", str(n)) + color_code("90", f" address(es) known from a sign-in to the site (in {time.time() - start:.0f} s)."))
         people.preload()                              # names of the people read BEFORE the live stream
     if is_odoo and profile.get("ODOO_CONF") and people.odoo_db is not None:
@@ -5936,6 +6133,15 @@ def main():
         eprint("RECOMMENDED: geoip-bin missing — the country of each address is looked up on the Internet (rdap.org), slowly. nginx-hardening.sh --update installs it (apt-get install geoip-bin geoip-database).")
     if exclusions:
         eprint(f"Excluded addresses (--exclude-ip): {', '.join(str(r) for r in exclusions)}")
+    def shown_time(epoch):                                                   # the time as it is displayed: local, or UTC with --utc
+        return datetime.datetime.fromtimestamp(epoch, datetime.timezone.utc if TIME_UTC else None).strftime("%Y-%m-%d %H:%M:%S") + (" UTC" if TIME_UTC else "")
+    time_filters = [f"{TR('from')} {shown_time(args.since_epoch)}"] if args.since_epoch is not None else []
+    if args.until_epoch is not None:
+        time_filters.append(f"{TR('before')} {shown_time(args.until_epoch)}")
+    filters_shown = time_filters + ([f"grep {args.grep}"] if args.grep else []) + ([f"{TR('country')} {','.join(sorted(countries))}"] if countries else []) \
+        + ([f"{TR('not country')} {','.join(sorted(unwanted_countries))}"] if unwanted_countries else [])
+    if filters_shown:
+        eprint(TR("Filters (--since, --until, --grep, --country, --exclude-country): {filters}").format(filters="; ".join(filters_shown)))
     if args.time_report:
         eprint(f"Periodic report (--time-report): every {args.time_report:g} minutes, like Ctrl-T")
     if not args.no_follow:
@@ -5950,6 +6156,8 @@ def main():
                "presence": Presence(args.idle) if is_odoo and not args.no_presence else None, "health": args.health, "keys": not args.no_keys and not args.no_follow, "app": profile.get("APP_NAME"), "propose_ban": not args.no_ban_prompt, "watch": [t.strip().lower() for t in (args.watch or "").split(",") if t.strip()], "agents": not args.no_user_agent and not args.no_follow, "acces_logs": profile.get("ACCESS_LOGS"),
                "exclude": exclusions, "chime": args.chime, "group": args.accentuate_group if group_members else None, "membres": group_members,
                "report_min": args.time_report or 0.0, "level": args.level, "modules_sort": modules_sort_state}
+    options.update({"since": args.since_epoch, "until": args.until_epoch, "grep": grep_re,            # 1.112 filters of the stream loop
+                    "countries": countries or None, "exclude_countries": unwanted_countries or None})
     # 1.93: test recording (R key, --record-test-log): log files read over the window, Odoo ports sampled, folder of the archives
     record_logs = []
     for key_name in ("ACCESS_LOGS", "ERROR_LOGS", "CATCHALL_LOG"):

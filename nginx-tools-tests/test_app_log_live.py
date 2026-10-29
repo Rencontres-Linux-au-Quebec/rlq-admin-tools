@@ -3336,3 +3336,44 @@ class AppLogLive(EnvTest):
         finally:
             os.environ["NGINX_TOOLS_ODOO_USERS"] = ancien or "off"
         self.assertEqual(live.display_width("张三李四"), 8)
+
+    def test_112_temps_fractions_de_jour_fenetre_et_commandes_journalctl(self):
+        """1.112 : --since / --until (formats, relatifs, epoch), --days fractionnaire, options journalctl transmises en epoch."""
+        live = self.module_live()
+        now = time.time()
+        self.assertAlmostEqual(live.parse_time("-2h"), now - 7200, delta=5)
+        self.assertAlmostEqual(live.parse_time("0.5 hour"), now - 1800, delta=5)
+        self.assertAlmostEqual(live.parse_time("+1 day"), now + 86400, delta=5)
+        self.assertEqual(live.parse_time("@1700000000"), 1700000000.0)
+        with self.assertRaises(ValueError):
+            live.parse_time("n'importe quoi")
+        self.assertEqual(live.days_window(30), ["--since", "-30 days"], "un nombre entier de jours garde sa forme d'origine")
+        self.assertEqual(live.days_window(0.1)[0], "--since")
+        self.assertTrue(live.days_window(0.1)[1].startswith("@"), "0.1 jour = 2,4 heures : une date epoch")
+
+        class Args:
+            pass
+        args = Args()
+        args.lines, args.no_follow, args.since_epoch, args.until_epoch = 50, False, 1700000000.5, None
+        args.no_hostname, args.grep, args.grep_sensitive = True, "Foo", True
+        cmd = live.stream_command(args, {}, "odoo", None)
+        self.assertIn("--no-hostname", cmd)
+        self.assertIn("--case-sensitive=yes", cmd)
+        self.assertIn("@1700000000", cmd)
+        self.assertIn("Foo", cmd)
+
+    def test_112_fenetre_grep_et_pays_des_lignes(self):
+        """1.112 : --until arrete la fenetre, --grep teste chaque ligne, --country garde le pays de l'adresse du client."""
+        live = self.module_live()
+        opts = {"since": 100.0, "until": 200.0, "grep": re.compile("erreur", re.I), "countries": {"CA"}, "exclude_countries": None}
+        state = {}
+        L = live.Line("2026-10-29T10:00:00.000000-0400 odoo[1]: erreur B")
+        L.instant = 150.0
+        self.assertTrue(live.window_keep(L, state, opts))
+        L.instant = 250.0
+        self.assertFalse(live.window_keep(L, state, opts), "apres --until : hors fenetre")
+        pays = {"11.1.1.1": "CA", "8.8.8.8": "US"}
+        L.instant = 150.0
+        self.assertTrue(live.country_keep(L, [("11.1.1.1", None, None)], pays, {}, opts))
+        self.assertFalse(live.country_keep(L, [("8.8.8.8", None, None)], pays, {}, opts))
+        self.assertFalse(live.country_keep(L, [], {}, {}, opts), "ligne horodatee sans adresse : cachee par --country")

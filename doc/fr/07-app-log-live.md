@@ -56,5 +56,24 @@ Toutes les 30 secondes, un échantillonneur léger lit les compteurs du noyau (a
 * Un courriel envoyé montre son destinataire et son sujet : « Courriel no 7573 envoyé à Ana Tremblay (a***n@...) - « sujet » - inscription ... ».
 * **Ctrl+C** pendant un programme lancé depuis le menu (nginx-log-audit.sh, web-monitor.py...) : une seule question, tout de suite.
 
+## Période, journalctl et filtres par pays (1.112)
+
+* `-S` / `--since TEMPS` et `-U` / `--until TEMPS` : `YYYY-MM-DD [HH:MM[:SS]] [Z ou +HH:MM]`, `HH:MM[:SS]` (aujourd'hui), `today`, `yesterday`, `now`, `@EPOCH`, ou relatif (`-2h`, `'-30 min'`, `'0.5 day'`, `'3 days ago'`). Heure locale, ou UTC avec `--utc`. Une date seule couvre toute la journée (`--until` s'arrête au début du jour suivant). En direct, `--until` arrête le programme à ce moment.
+* `--utc` : heures des lignes et heures données sans fuseau en UTC.
+* `-n` / `--lines N` : alias de `--lines`, comme dans journalctl. `--no-hostname` : sans le nom de l'hôte.
+* `-g` / `--grep REGEX` : seulement les lignes dont le message correspond. Insensible à la casse, sauf si REGEX contient une majuscule (comme journalctl).
+* `--country CC,CC` : seulement les lignes dont la première adresse (le client) est dans ces pays. `--exclude-country CC,CC` : cache ces pays. Codes à deux lettres, répétables. Une adresse de pays inconnu est cachée par `--country` et gardée par `--exclude-country`.
+* `--days` accepte les fractions : `--days 0.1` = 2,4 heures d'historique des connexions.
+* `-f` et `--no-pager` sont acceptés pour compatibilité avec journalctl (sans effet).
+
+Exemples :
+
+```bash
+app-log-live.py -S '-2h' --utc -n 500          # deux dernières heures, en UTC
+app-log-live.py -S yesterday -U today -g erreur  # hier seulement, lignes contenant « erreur »
+app-log-live.py --exclude-country US,CN         # cache les adresses de ces pays
+app-log-live.py --days 0.1 --no-follow          # historique des connexions des 2,4 dernières heures
+```
+
 ## Options
 {{HELP}}
