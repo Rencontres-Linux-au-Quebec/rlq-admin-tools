@@ -293,7 +293,7 @@ Options (par ordre alphabétique) :
   -v, --verbose                affiche chaque commande lancée
   --version                    affiche la version et quitte
   --workers N                  nombre de workers pour la suggestion de limites mémoire (étape 6)
-  --yes                        avec --rollback : restaurer sans question
+  --yes                        avec --rollback, --disable-uri ou --enable-uri : appliquer sans question
 AIDE
             exit 0
             ;;
@@ -628,13 +628,26 @@ fragments_generes_assurer() {
 # Returns 0 if nginx runs with the new configuration. NGINX_APPLIQUE = "reloaded" or "started" (for the message).
 NGINX_APPLIQUE=""
 nginx_appliquer() {
+    # 2.63 : systemd annonce « Reloaded » même quand nginx REFUSE la nouvelle configuration au rechargement (zone limit_req
+    # de clé différente, par exemple) : il garde alors l'ancienne. Le journal d'erreurs est donc relu après le rechargement :
+    # une nouvelle ligne [emerg] = échec, signalé comme tel.
+    local journal="${NGINX_HARDENING_ERROR_LOG:-/var/log/nginx/error.log}" avant=0 apres=0 ligne
+    avant=$(grep -c '\[emerg\]' "$journal" 2>/dev/null) || avant=0
     if run systemctl is-active --quiet nginx 2>/dev/null; then
         NGINX_APPLIQUE="rechargé"
-        run systemctl reload nginx >/dev/null 2>&1
+        run systemctl reload nginx >/dev/null 2>&1 || return 1
     else
         NGINX_APPLIQUE="démarré (il était arrêté)"
-        run systemctl start nginx >/dev/null 2>&1
+        run systemctl start nginx >/dev/null 2>&1 || return 1
     fi
+    sleep "${NGINX_HARDENING_RELOAD_WAIT:-1}"
+    apres=$(grep -c '\[emerg\]' "$journal" 2>/dev/null) || apres=0
+    if (( apres > avant )); then
+        ligne=$(grep '\[emerg\]' "$journal" 2>/dev/null | tail -n 1)
+        echo "        nginx a refusé la configuration au rechargement : ${ligne:-voir $journal}" >&2
+        return 1
+    fi
+    return 0
 }
 
 # creer_modele DESTINATION MODELE: creates the file (mode 644) from doc/MODELE shipped with the programs, otherwise a minimal header.
@@ -2826,9 +2839,56 @@ if [[ "$APP_NAME" == "odoo" ]]; then
 fi
 echo
 
+# uri_noms_testables: the public names declared in "nginx -T" (same rules as the HSTS step: no comments, no "_", no regex, no wildcard).
+uri_noms_testables() {
+    local dump
+    dump=$(run nginx -T 2>/dev/null) || dump=""
+    printf '%s\n' "$dump" | awk '
+        { line = $0; c = index(line, "#"); if (c > 0) line = substr(line, 1, c - 1)
+          while ((p = index(line, "server_name")) > 0) {
+              before = (p > 1) ? substr(line, p - 1, 1) : " "
+              line = substr(line, p + 11)
+              if (before !~ /[[:space:];{]/ || line !~ /^[[:space:]]/) continue
+              e = index(line, ";"); part = (e > 0) ? substr(line, 1, e - 1) : line
+              n = split(part, names, /[[:space:]]+/)
+              for (i = 1; i <= n; i++) if (names[i] != "" && names[i] != "_" && names[i] !~ /^~/ && names[i] !~ /\*/) print names[i]
+          } }' | sort -u
+}
+
+# uri_verifier "/shop /blog": asks nginx itself, for EVERY public name and both "/chemin" and "/es/chemin", that the path answers 404.
+# Read-only (GET). Returns 1 if one test does not answer 404: the rule is then not applied by the server block that answers.
+uri_verifier() {
+    local chemins="$1" noms nom chemin prefixe code total=0 echec=0
+    noms=$(uri_noms_testables)
+    if [[ -z "$noms" ]]; then
+        warn "URI : aucun nom public testable dans nginx -T : vérification impossible."
+        return 0
+    fi
+    for chemin in $chemins; do
+        for prefixe in "" "/es"; do
+            while IFS= read -r nom; do
+                [[ -z "$nom" ]] && continue
+                total=$((total+1))
+                code=$(run curl -sk -o /dev/null -m 8 -w '%{http_code}' --resolve "$nom:443:127.0.0.1" "https://$nom$prefixe$chemin" 2>/dev/null) || code="000"
+                if [[ "$code" != "404" ]]; then
+                    echec=$((echec+1))
+                    echo "        $nom$prefixe$chemin : HTTP $code (attendu 404)"
+                fi
+            done <<< "$noms"
+        done
+    done
+    if (( echec == 0 )); then
+        pass "URI refusées : $total test(s) sur les noms publics — toutes répondent 404 (chemins : $chemins)."
+        return 0
+    fi
+    fail "URI refusées : $echec test(s) sur $total ne répondent pas 404 : le bloc server qui répond à ces noms n'applique pas la règle. Voir : nginx -T 2>/dev/null | grep -n 'uri-desactivees\|location ~'"
+    return 1
+}
+
 # --- 12c) URI refusées (--disable-uri / --enable-uri) -> uri-desactivees.conf, inclus au début de securite-commune.conf ---
 # La liste vit DANS le fichier (lignes « # uri : CHEMIN ») : un --update sans option la conserve.
 # Une requête vers ce chemin (toutes langues : /shop, /es/shop, /en_CA/shop...) reçoit 404 avant le site.
+# Changement de liste = confirmation (o/N) ; sans terminal, rien n'est modifié sauf avec --yes.
 if [[ "$APP_NAME" == "odoo" ]]; then
     snip="${NGINX_HARDENING_SNIPPETS_DIR:-/etc/nginx/snippets}"
     uri_dst="$snip/uri-desactivees.conf"
@@ -2838,6 +2898,7 @@ if [[ "$APP_NAME" == "odoo" ]]; then
             [[ "$ligne" == "# uri : "* ]] && uri_liste["${ligne#"# uri : "}"]=1
         done < "$uri_dst"
     fi
+    uri_actuelles=$(printf '%s\n' "${!uri_liste[@]}" | sort | paste -sd ' ' -)
     if (( ${#DISABLE_URI_LIST[@]} > 0 )); then
         for u in "${DISABLE_URI_LIST[@]}"; do uri_liste["$u"]=1; done
     fi
@@ -2855,27 +2916,49 @@ if [[ "$APP_NAME" == "odoo" ]]; then
             uri_nouveau+="location ~ $motif { return 404; }"$'\n'
         done
     fi
+    uri_futures=$(printf '%s\n' "${!uri_liste[@]}" | sort | paste -sd ' ' -)
     uri_n=${#uri_liste[@]}
+    echo "  URI refusées actuellement : ${uri_actuelles:-aucune}"
+    uri_actif=0
     if [[ -f "$uri_dst" ]] && [[ "$(cat "$uri_dst")" == "$uri_nouveau" ]]; then
-        pass "$uri_dst à jour ($uri_n URI refusée(s))."
+        pass "$uri_dst à jour ($uri_n URI refusée(s) : ${uri_futures:-aucune})."
+        uri_actif=1
     elif [[ "$CHECK_ONLY" == "1" ]]; then
-        warn "$uri_dst $([[ -f "$uri_dst" ]] && echo "différent de la liste demandée" || echo "absent") — --update l'écrira ($uri_n URI refusée(s))."
+        warn "URI refusées : ${uri_actuelles:-aucune} → ${uri_futures:-aucune} — --update appliquera ce changement après confirmation."
     else
-        uri_ancien=""; [[ -f "$uri_dst" ]] && uri_ancien=$(cat "$uri_dst")
-        mkdir -p "$snip"
-        uri_tmp=$(mktemp "$snip/.uri-desactivees.XXXXXX")
-        printf '%s' "$uri_nouveau" > "$uri_tmp" && chmod 644 "$uri_tmp" && mv -f "$uri_tmp" "$uri_dst"
-        if uri_erreur=$(run nginx -t 2>&1); then
-            if nginx_appliquer; then
-                pass "URI refusées ($uri_n) dans $uri_dst ; nginx -t réussi, nginx $NGINX_APPLIQUE."
+        uri_ok=0
+        if [[ "$ROLLBACK_YES" == "1" ]]; then
+            uri_ok=1
+        elif [[ -t 0 ]]; then
+            read -r -p "  Refuser (404) : ${uri_futures:-aucune} (actuellement : ${uri_actuelles:-aucune}) ? [o/N] " uri_rep || uri_rep=""
+            [[ "$uri_rep" =~ ^[oOyY] ]] && uri_ok=1
+        else
+            warn "Pas de terminal : URI refusées inchangées (${uri_actuelles:-aucune}). Ajouter --yes pour confirmer sans question."
+        fi
+        if (( uri_ok )); then
+            uri_ancien=""; [[ -f "$uri_dst" ]] && uri_ancien=$(cat "$uri_dst")
+            mkdir -p "$snip"
+            uri_tmp=$(mktemp "$snip/.uri-desactivees.XXXXXX")
+            printf '%s' "$uri_nouveau" > "$uri_tmp" && chmod 644 "$uri_tmp" && mv -f "$uri_tmp" "$uri_dst"
+            if uri_erreur=$(run nginx -t 2>&1); then
+                if nginx_appliquer; then
+                    pass "URI refusées ($uri_n : ${uri_futures:-aucune}) dans $uri_dst ; nginx -t réussi, nginx $NGINX_APPLIQUE."
+                    uri_actif=1
+                else
+                    warn "URI refusées ($uri_n) et nginx -t réussi, mais nginx n'a pas pu être $NGINX_APPLIQUE — systemctl status nginx --no-pager ; journalctl -u nginx -n 30 --no-pager."
+                fi
             else
-                warn "URI refusées ($uri_n) et nginx -t réussi, mais nginx n'a pas pu être $NGINX_APPLIQUE — systemctl status nginx --no-pager ; journalctl -u nginx -n 30 --no-pager."
+                if [[ -n "$uri_ancien" ]]; then printf '%s\n' "$uri_ancien" > "$uri_dst"; else printf '%s\n' "# vide — restauré après refus de nginx -t" > "$uri_dst"; fi
+                fail "nginx -t refuse la configuration avec les URI refusées — ancienne version restaurée, nginx NON rechargé."
+                printf '%s\n' "$uri_erreur" | head -8 | sed 's/^/        nginx -t : /'
             fi
         else
-            if [[ -n "$uri_ancien" ]]; then printf '%s\n' "$uri_ancien" > "$uri_dst"; else printf '%s\n' "# vide — restauré après refus de nginx -t" > "$uri_dst"; fi
-            fail "nginx -t refuse la configuration avec les URI refusées — ancienne version restaurée, nginx NON rechargé."
-            printf '%s\n' "$uri_erreur" | head -8 | sed 's/^/        nginx -t : /'
+            warn "URI refusées non modifiées (${uri_actuelles:-aucune})."
         fi
+    fi
+    # Verification réelle (--update) : nginx doit répondre 404 sur chaque nom public, pas seulement avoir accepté le fichier.
+    if [[ "$CHECK_ONLY" == "0" && "${uri_actif:-0}" == "1" && "$uri_n" -gt 0 ]]; then
+        uri_verifier "$uri_futures" || true
     fi
 fi
 echo
