@@ -89,7 +89,7 @@ run() {
     "$@"
 }
 
-readonly SCRIPT_VERSION="2.64.20261029.081857"
+readonly SCRIPT_VERSION="2.65.20261029.084500"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
 SCRIPT_NAME="$(basename "${BASH_SOURCE[0]}" .sh)"; readonly SCRIPT_NAME
 # Display language (en or fr): --lang, NGINX_HARDENING_LANG, LANGUAGE of the configuration file, LC_ALL / LANG - apps/_i18n.sh translates the output (nothing changes in French).
@@ -133,6 +133,7 @@ else
 fi
 
 CHECK_ONLY=1
+TEST_RULES=0           # --test-rules (2.65): test en lecture seule des règles nginx
 MENU=0                 # --menu (2.61): menu interactif, lance apres la lecture des options
 # Backups (2.59): one archive (NGINX_HARDENING_ARCHIVE_DIR, separate from the per-file .bak copies) of the nginx and fail2ban configuration before each --update (--rollback restores it).
 ARCHIVE_DIR="${NGINX_HARDENING_ARCHIVE_DIR:-/var/backups/nginx-hardening/archives}"
@@ -225,6 +226,7 @@ while [[ $# -gt 0 ]]; do
         --mail-to) MAIL_TO="${2:-}"; shift 2 ;;
         --mail-user) MAIL_USER="${2:-}"; shift 2 ;;
         --menu) MENU=1; shift ;;
+        --test-rules) TEST_RULES=1; shift ;;
         --odoo-http-port) ODOO_HTTP_PORT="${2:-}"; shift 2 ;;
         --odoo-gevent-port) ODOO_GEVENT_PORT="${2:-}"; shift 2 ;;
         --odoo-service) ODOO_SERVICE="${2:-}"; shift 2 ;;
@@ -288,6 +290,7 @@ Options (par ordre alphabétique) :
   --report-err                 afficher à la fin un rapport d'erreurs à copier-coller (programme, version, serveur,
                                échecs, avertissements) ; désactive couleurs et questions interactives
   --rollback                   restaure la sauvegarde la plus récente (ou --backup NAME) de la configuration nginx et fail2ban, après confirmation
+  --test-rules                 teste les règles nginx par des requêtes curl (lecture seule) : refus attendus et pages servies, sortie 1 si un cas échoue
   --timezone ZONE              fuseau horaire du serveur (défaut : America/Montreal, demandé la première fois ; none = ne pas toucher)
   --update                     installer ou mettre à jour ce qui manque (sauvegarde des fichiers modifiés)
   -v, --verbose                affiche chaque commande lancée
@@ -530,6 +533,76 @@ else
 fi
 echo "Application : $APP_LABEL ($APP_DETECTION)"
 echo
+
+# --- --test-rules (2.65) : test en lecture seule, depuis ce serveur, que les règles nginx répondent comme prévu ---
+# Chaque cas : méthode, chemin, User-Agent, code attendu. "2xx3xx" = réponse 2xx ou 3xx (la règle n'a pas refusé).
+# Requêtes envoyées à nginx local (127.0.0.1:443, --resolve) : le test ne dépend pas du DNS ni d'un pare-feu externe.
+tester_regles() {
+    local nom methode chemin ua attendu libelle obtenu nb_noms=0 nb_ok=0 nb_ko=0
+    local ua_nav="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+    local ua_robot="AhrefsBot/7.0 (+http://ahrefs.com/robot/)"
+    local noms cas
+    if ! command -v nginx >/dev/null 2>&1 || ! command -v curl >/dev/null 2>&1; then
+        fail "--test-rules : nginx et curl sont nécessaires."
+        exit 1
+    fi
+    if [[ "$APP_NAME" != "odoo" ]]; then
+        sans_objet "--test-rules : les cas du test sont ceux du site Odoo"
+        exit 0
+    fi
+    # Noms lus comme à l'étape 10 : server_name de "nginx -T", sans commentaire, sans "_", sans expression régulière.
+    noms=$(nginx -T 2>/dev/null | awk '
+        { line = $0; c = index(line, "#"); if (c > 0) line = substr(line, 1, c - 1)
+          while ((p = index(line, "server_name")) > 0) {
+              before = (p > 1) ? substr(line, p - 1, 1) : " "
+              line = substr(line, p + 11)
+              if (before !~ /[[:space:];{]/ || line !~ /^[[:space:]]/) continue
+              e = index(line, ";"); part = (e > 0) ? substr(line, 1, e - 1) : line
+              n = split(part, names, /[[:space:]]+/)
+              for (i = 1; i <= n; i++) if (names[i] != "" && names[i] != "_" && names[i] !~ /^~/ && names[i] !~ /\*/) print names[i]
+          } }' | sort -u) || true
+    if [[ -z "$noms" ]]; then
+        fail "--test-rules : aucun server_name testable dans nginx -T (nginx configuré ?)."
+        exit 1
+    fi
+    # methode | chemin | User-Agent | code attendu | ce qui est vérifié
+    cas=$(cat <<CAS
+GET|/en_CA/event?search=test&tags=stfD|$ua_nav|404|tags malformé refusé (règle 3 bis)
+GET|/event?tags=[35,+40]|$ua_nav|2xx3xx|tags légitime accepté
+GET|/.env|$ua_nav|404|fichier caché refusé (règle 4)
+GET|/%2e%2e/etc/passwd|$ua_nav|404|traversée de répertoire encodée refusée (règle 3)
+TRACE|/|$ua_nav|405|méthode TRACE refusée (règle 2)
+GET|/|$ua_robot|403|robot indésirable refusé (bot_blocker)
+GET|/|$ua_nav|2xx3xx|page d'accueil servie
+GET|/robots.txt|$ua_nav|200|robots.txt servi
+CAS
+)
+    while IFS= read -r nom; do
+        [[ -z "$nom" ]] && continue
+        nb_noms=$((nb_noms+1))
+        echo "--- $nom ---"
+        while IFS='|' read -r methode chemin ua attendu libelle; do
+            [[ -z "$methode" ]] && continue
+            obtenu=$(curl -sk -g -o /dev/null -w '%{http_code}' --max-time 8 -X "$methode" -A "$ua" \
+                --resolve "$nom:443:127.0.0.1" "https://$nom$chemin" 2>/dev/null) || obtenu="000"
+            if [[ "$attendu" == "2xx3xx" ]]; then
+                if [[ "$obtenu" =~ ^[23][0-9][0-9]$ ]]; then pass "$libelle : $methode $chemin -> $obtenu"; nb_ok=$((nb_ok+1))
+                else fail "$libelle : $methode $chemin -> $obtenu (2xx ou 3xx attendu)"; nb_ko=$((nb_ko+1)); fi
+            elif [[ "$obtenu" == "$attendu" ]]; then
+                pass "$libelle : $methode $chemin -> $obtenu"; nb_ok=$((nb_ok+1))
+            else
+                fail "$libelle : $methode $chemin -> $obtenu (attendu : $attendu)"; nb_ko=$((nb_ko+1))
+            fi
+        done <<< "$cas"
+    done <<< "$noms"
+    echo
+    echo "Résultat : $nb_ok cas OK, $nb_ko en échec, sur $nb_noms nom(s) testé(s)."
+    if (( nb_ko > 0 )); then
+        echo "En cas d'échec : nginx -T | grep -n include (les règles sont-elles incluses ?), puis nginx-hardening.sh --update."
+        exit 1
+    fi
+    exit 0
+}
 
 # --- Odoo configuration: file found (--odoo-conf, otherwise first existing candidate: --odoo-conf-paths), ports and log ---
 # Les ports HTTP et gevent viennent de la configuration (http_port / xmlrpc_port, gevent_port / longpolling_port) : le pare-feu
@@ -814,6 +887,10 @@ fail() { echo "  ${C_RED}[FAIL]${C_RESET} $1"; FAIL=$((FAIL+1)); }
 warn() { echo "  ${C_YELLOW}[ATTN]${C_RESET} $1"; WARN=$((WARN+1)); }
 # 2.54: not as root (--check by default), iptables, ufw, fail2ban-client and nginx -t refuse to answer: the point is "unverified" (ATTN), never "absent" (FAIL).
 sans_root_verif() { warn "$1 : non vérifié sans root (relancer avec sudo $0 --check)"; }
+# --test-rules (2.65): après les fonctions pass/fail/warn, avant toute étape (aucune modification).
+if [[ "$TEST_RULES" == "1" ]]; then
+    tester_regles
+fi
 
 # --- BigBlueButton: state BEFORE / AFTER this pass (apps/_bbb.py) ---
 # Versions (packages, Greenlight), fingerprint of BBB's configuration files and ours, compared to the snapshot

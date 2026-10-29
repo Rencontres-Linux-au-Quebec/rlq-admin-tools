@@ -1757,6 +1757,30 @@ Earlier history was archived outside this repository when this file was created.
 
 ## nginx-hardening.sh
 
+### 2.65.20261029.084500 - --test-rules: read-only curl checks of the nginx rules
+
+- Title: New option --test-rules sends a series of curl requests to the local nginx and reports whether each rule still refuses or serves what it should.
+- Reason: After --update, Martial wants to verify in one command that the nginx rules are in place and still working (no manual curl series). Asked during the work on the tags filter.
+- Changes:
+  - New option --test-rules (help in alphabetical order, in colour as the others). Function tester_regles; the dispatch comes after the helper functions and before any step, so nothing is installed or modified.
+  - For each server_name read from nginx -T (same reading as step 10): 8 requests, sent to 127.0.0.1:443 with --resolve, so the DNS and the external firewall do not matter. Cases: tags malformed refused (404, rule 3 bis), legitimate tags accepted, hidden file refused (404, rule 4), encoded directory traversal refused (404, rule 3), TRACE refused (405, rule 2), unwanted robot refused (403, bot_blocker), home page served, robots.txt served (200).
+  - Verdict: one line per case [OK] or [FAIL] with the code obtained and the code expected; summary line; exit code 0 if all cases pass, 1 otherwise. For an application other than Odoo, the step is not applicable (sans_objet), exit 0.
+  - Files: nginx-hardening.sh, lang/nginx-hardening.en.po (English entries), nginx-tools-tests/test_test_rules.py (new: stubs nginx and curl, checks exit codes and messages), CHANGELOG.md.
+- Bugs fixed: none.
+- Safeguards and edge cases:
+  - Read-only: no file is written, no reload, no package installed. The dispatch runs before the package checks.
+  - nginx or curl missing: refusal with exit 1, nothing else run.
+  - No server_name testable: exit 1 with a message.
+  - Requests use -g (no curl globbing, so [35,+40] is sent as is) and a timeout of 8 s; a failed connection gives code 000, which counts as a failure.
+  - A 2xx or 3xx answer counts as "not blocked" for the cases marked as legitimate.
+  - The sentinel 2xx3xx and the catalogue entries keep the English output readable.
+- Checks performed:
+  - test_test_rules (2 tests, stubs): all rules in place -> exit 0 with 8 cases OK; one rule missing -> exit 1 with [FAIL].
+  - Manual run with stubs: 8 OK, 0 failed; with a server answering 200 everywhere: 5 failed, exit 1.
+  - test_i18n (catalogues, English entries), test_nginx_hardening, test_docs, test_nginx_uri, test_menu: OK.
+  - Not verified here: a real nginx and real Odoo; the requests were only run against stubs.
+- Action required: none for the program. On PROD and DEV, after --update, run: nginx-hardening.sh --app=odoo --test-rules
+
 ### 2.64.20261029.081857 - Malformed tags parameter on event pages refused (404) by the generic nginx configuration 1.15
 
 - Title: The generic nginx configuration refuses a ?tags= value that is not a list of numbers on the event pages.
