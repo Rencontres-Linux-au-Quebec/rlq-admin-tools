@@ -1,0 +1,6 @@
+# admin-menu.conf - configuration of admin-menu.sh. Every key is shown with its default value (commented).
+# Read from /etc/default/admin-menu.conf, then from ~/.admin-menu.conf if it exists (the last one wins).
+# The command line has priority over these files.
+#LANGUAGE=auto          # en, fr or auto (auto: LC_ALL, then LC_MESSAGES, then LANG)
+#PROGRAMS=              # programs to offer, separated by spaces (empty: every program of the folder that has --menu)
+#VERBOSE=no             # yes: print each command launched (also passed to the programs)
