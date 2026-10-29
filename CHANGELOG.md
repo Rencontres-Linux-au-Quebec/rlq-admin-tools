@@ -6,6 +6,31 @@ Earlier history was archived outside this repository when this file was created.
 
 ## odoo-sql-maint
 
+### 1.4.20261028.202537 - Menu no longer captures dialog output (fix for "cannot open tty-output")
+
+- Title: The menu asks dialog for its answer in a file instead of capturing its output.
+- Reason: With a working terminal, running the menu still failed with "cannot open tty-output". Version 1.3 only added a clearer message for the case where no terminal exists; it did not fix this error, which happens in the menu itself.
+- Changes:
+  - New function dialog_run: runs dialog with --output-fd 3, writing the answer to a temporary file, and returns dialog's exit code.
+  - run_menu uses dialog_run for the query list and the action list (previously "$(dialog --stdout ...)").
+  - Confirmation boxes and message boxes were already called without capturing their output; they are unchanged.
+  - Files: odoo-sql-maint.
+- Bugs fixed:
+  - Symptom: "cannot open tty-output" when starting the menu from a terminal where dialog itself works.
+  - Diagnosis: with --stdout inside $(...), dialog's standard output is a pipe, so dialog looks for a terminal by name (from stderr, stdout or stdin, or /dev/tty) and opens it for writing. If that name cannot be opened, dialog stops with this message. This is dialog's code path in util.c.
+  - Fix: dialog keeps the terminal as its screen; the answer goes to a file. The name lookup is not used.
+- Safeguards and edge cases:
+  - The temporary answer file is removed after each call, also when the user cancels (empty answer, non-zero code).
+  - The no-terminal check added in 1.3 (check_tty) still runs first.
+  - The CLI mode (--run) does not use dialog and is unchanged.
+- Checks:
+  - bash -n OK; shellcheck 0.11.0 no warning.
+  - dialog 1.3 built from its source and tested in a pseudo-terminal (script): menu opens, choosing a query, running it and quitting work; the audit log records the run.
+  - dialog --output-fd tested with stdout on the terminal, on a pipe and on a file: answer received in all three cases.
+  - --run connection-test still works.
+  - Not checked: the menu on the production server's own terminal emulator; the full test suite of the repository.
+- Action required: none beyond installing dialog and postgresql-client as before (apt install dialog postgresql-client). If the error persists, send the output of: echo $TERM; tty; ls -l $(tty); and the exact command line used.
+
 ### 1.3.20261028.194152 - Terminal check, automatic configuration file, dialog install status
 
 - Title: Clear message when the menu has no terminal; configuration file created when missing.
