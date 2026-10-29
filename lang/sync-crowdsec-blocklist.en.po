@@ -51,8 +51,8 @@ msgstr "  --changelog                  show the change log"
 msgid "  -c, --config FILE            fichier de configuration à lire SEUL (sinon : /etc/default/sync-crowdsec-blocklist.conf, puis ~/.sync-crowdsec-blocklist.conf ;"
 msgstr "  -c, --config FILE            configuration file to read ALONE (otherwise: /etc/default/sync-crowdsec-blocklist.conf, then ~/.sync-crowdsec-blocklist.conf;"
 
-msgid "                               clés : CRON_HOURS, LANGUAGE, MIN_IPS, SOURCE, STALE_DAYS, TOP, VERBOSE)"
-msgstr "                               keys: CRON_HOURS, LANGUAGE, MIN_IPS, SOURCE, STALE_DAYS, TOP, VERBOSE)"
+msgid "                               clés : CRON_HOURS, LANGUAGE, MAX_DROP, MIN_IPS, SOURCE, STALE_DAYS, TOP, VERBOSE)"
+msgstr "                               keys: CRON_HOURS, LANGUAGE, MAX_DROP, MIN_IPS, SOURCE, STALE_DAYS, TOP, VERBOSE)"
 
 msgid "  --cron-hours N               avec --install-cron : intervalle en heures"
 msgstr "  --cron-hours N               with --install-cron: interval in hours"
@@ -125,6 +125,9 @@ msgstr "ERROR: "
 
 msgid " attend un entier positif (reçu: '"
 msgstr " expects a positive integer (got: '"
+
+msgid "ERREUR: --max-drop attend un pourcentage entre 0 et 100 (reçu: "
+msgstr "ERROR: --max-drop expects a percentage between 0 and 100 (got: "
 
 msgid "ERREUR: --cron-hours attend une valeur entre 1 et 24 (reçu: "
 msgstr "ERROR: --cron-hours expects a value between 1 and 24 (got: "
@@ -522,6 +525,18 @@ msgstr " — current ipsets kept as they are."
 msgid "Analyse de la liste"
 msgstr "Analysing the list"
 
+msgid " entrée(s) valide(s), contre "
+msgstr " valid entry(ies), against "
+
+msgid " à la synchronisation précédente (baisse de plus de "
+msgstr " at the previous sync (drop of more than "
+
+msgid " %) — mise à jour ANNULÉE."
+msgstr " %) — update CANCELLED."
+
+msgid "Vérifiez la source, puis relancez avec --max-drop 0 si cette baisse est attendue. Aucun ipset n'a été modifié."
+msgstr "Check the source, then run again with --max-drop 0 if this drop is expected. No ipset was changed."
+
 msgid " entrée(s) valide(s) ("
 msgstr " valid entry(ies) ("
 
@@ -614,6 +629,9 @@ msgstr ""
 
 msgid "--uninstall|Retirer cron, règles et ipsets|Remove cron, rules and ipsets|1"
 msgstr ""
+
+msgid "  --max-drop PCT               refuse une liste plus petite de PCT % que la dernière acceptée (défaut 50 ; 0 = pas de contrôle)"
+msgstr "  --max-drop PCT               refuse a list smaller by more than PCT % than the last accepted one (default 50; 0 = no check)"
 
 msgid "  --menu    menu interactif des opérations courantes (dialog si installé ; terminal requis)"
 msgstr "  --menu    interactive menu of the common operations (dialog if installed; terminal required)"

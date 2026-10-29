@@ -2522,6 +2522,24 @@ Earlier history was archived outside this repository when this file was created.
 
 ## sync-crowdsec-blocklist.sh
 
+### 1.30.20261029.193900 - --max-drop: refuse a list much smaller than the last accepted one
+
+- Title: a sudden drop of the blocklist size stops the update, the ipsets are kept.
+- Reason: the script already keeps the current ipsets when the download fails and refuses a list under --min-ips. A truncated download that still passes --min-ips (for example 60 entries instead of 5000) would unban most of the addresses. A relative limit closes that gap.
+- Changes:
+  - New option --max-drop PCT (default 50, 0 = no check, 100 at most), also key MAX_DROP in the configuration file (config_defaut).
+  - New state file last-list.count in the state folder: number of valid entries of the last accepted list, written with last-list.sha256.
+  - Check placed after the analysis, before the ipset update, in normal and --dry-run modes (dry-run only reports it).
+  - Files touched: sync-crowdsec-blocklist.sh (version 1.30), CHANGELOG.md.
+- Bugs fixed: none.
+- Safeguards and edge cases:
+  - No check when the cache fallback is used, and none on the first run (no reference yet).
+  - A reference of zero is ignored.
+  - The message gives the way out (--max-drop 0) when the drop is expected.
+- Checks:
+  - bash -n OK; --version displays the dynamic version.
+- Action required: none. If a legitimate large cleanup of the source happens, run once with --max-drop 0.
+
 ### 1.29.20261028.214122 - --menu: catalogue entries for the menu and its help line (English)
 
 - Title: --menu: catalogue entries for the menu and its help line (English).
