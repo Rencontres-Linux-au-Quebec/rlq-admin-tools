@@ -1805,6 +1805,32 @@ Earlier history was archived outside this repository when this file was created.
   - Not verified here: nginx -t on a real server, and the 500 count after deployment.
 - Action required: on each server (PROD Odoo, DEV Odoo), run nginx-hardening.sh --update. It runs nginx -t and reloads nginx itself (nginx_appliquer) when the configuration is valid; it does not test the site afterwards for this rule, so check by hand that a request with tags=stfD returns 404 and that /es/event/jornada-linux-2025-23/track?tags=[35,+40] still returns 200. Not done here: auto-ban in web-monitor.py (the recommendations file is 69 h old, the timer should be checked).
 
+### 2.63.20261028.190500 - A reload refused by nginx is reported as a failure
+
+- Title: After a reload, the error log is read: a new [emerg] line means nginx refused the new configuration and kept the old one.
+- Reason: On the server, nginx refused every reload since 11:11 (limit_req zone odoo_general: key changed from $limit_key_general to $limit_key_general_std), yet systemd reported "Reloaded" and the script announced "nginx rechargé". The rules of the last updates were never active.
+- Detail: nginx_appliquer keeps the reload exit code, waits NGINX_HARDENING_RELOAD_WAIT seconds (1 by default), compares the number of [emerg] lines in NGINX_HARDENING_ERROR_LOG (default /var/log/nginx/error.log) before and after, and prints the last [emerg] line. Callers already print "nginx n'a pas pu être rechargé" on failure, and the previous files are restored when nginx -t refuses.
+- Files: nginx-hardening.sh, CHANGELOG.md.
+- Checks: stub systemctl: reload without error reports success; reload that adds an [emerg] line reports the refusal. ShellCheck 0.11.0: clean.
+- Cause to fix on the server (not done by this version): a zone whose key changed needs a restart, or a new zone name so that a reload is accepted. Action required: decide between a short restart (sudo nginx -t then sudo systemctl restart nginx) and a renamed zone in the repository.
+
+### 2.62.20261028.181500 - --update checks over HTTP that refused paths answer 404
+
+- Title: After a change of refused paths, --update requests each refused path on every public name (and under /es) and reports any answer other than 404.
+- Reason: 2.61 reported "nginx rechargé" as success without checking the result. On the server, https://www.rencontres-linux.quebec/shop still answered 200 after the reload.
+- Detail: New functions uri_noms_testables (public names from nginx -T, same rules as the HSTS step) and uri_verifier (curl --resolve to 127.0.0.1, read-only GET). The check runs only with --update, after the file is written or was already up to date. It reports each test that does not answer 404 and prints the next command to run. No automatic restore: nginx -t already accepted the configuration, so the cause is a server block that does not apply the rule.
+- Files: nginx-hardening.sh, CHANGELOG.md, nginx-tools-tests/test_nginx_uri.py.
+- Checks: test_nginx_uri (8 tests: 404 on every name, 200 reported as a failure, and the earlier cases). ShellCheck 0.11.0: clean.
+- Action required: run sudo nginx-hardening.sh --update (the verification runs). If it reports a failure, send the lines it prints.
+
+### 2.61.20261028.180500 - --disable-uri / --enable-uri: confirmation and list of refused paths
+
+- Title: Changing the refused paths asks for confirmation, after showing the paths refused now and after the change.
+- Reason: 2.60 applied the refusal of /shop during --update without any question, and nothing showed the list of refused paths.
+- Detail: Step 12c prints "URI refusées actuellement" and the list after the change. With a terminal: question [o/N], default no. Without a terminal: nothing is changed unless --yes is given (--yes is shared with --rollback). --check shows the pending change. Same rule as before: nginx -t before the reload, previous file restored on refusal.
+- Files: nginx-hardening.sh, CHANGELOG.md, nginx-tools-tests/test_nginx_uri.py.
+- Checks: test_nginx_uri (6 tests, including: no terminal and no --yes = nothing changed); with a pseudo terminal: answer n changes nothing, answer o writes the file and reloads (stub nginx). ShellCheck 0.11.0: clean.
+- Action required: to check the current refusal: grep location /etc/nginx/snippets/uri-desactivees.conf. To undo: --enable-uri /shop --update (asks first).
 ### 2.63.20261028.222437 - Catalogue entries for the bash messages not yet translated (rollback, URI, backup, menu)
 
 - Title: English catalogue entries for the bash messages that were still French (backup, rollback, refused URIs, configuration reading, menu).
