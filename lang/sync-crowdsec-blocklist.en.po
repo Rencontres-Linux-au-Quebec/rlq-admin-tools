@@ -51,8 +51,8 @@ msgstr "  --changelog                  show the change log"
 msgid "  -c, --config FILE            fichier de configuration à lire SEUL (sinon : /etc/default/sync-crowdsec-blocklist.conf, puis ~/.sync-crowdsec-blocklist.conf ;"
 msgstr "  -c, --config FILE            configuration file to read ALONE (otherwise: /etc/default/sync-crowdsec-blocklist.conf, then ~/.sync-crowdsec-blocklist.conf;"
 
-msgid "                               clés : CRON_HOURS, LANGUAGE, MIN_IPS, SOURCE, STALE_DAYS, TOP, VERBOSE)"
-msgstr "                               keys: CRON_HOURS, LANGUAGE, MIN_IPS, SOURCE, STALE_DAYS, TOP, VERBOSE)"
+msgid "                               clés : CRON_HOURS, LANGUAGE, MAX_DROP, MIN_IPS, SOURCE, STALE_DAYS, TOP, VERBOSE)"
+msgstr "                               keys: CRON_HOURS, LANGUAGE, MAX_DROP, MIN_IPS, SOURCE, STALE_DAYS, TOP, VERBOSE)"
 
 msgid "  --cron-hours N               avec --install-cron : intervalle en heures"
 msgstr "  --cron-hours N               with --install-cron: interval in hours"
@@ -614,6 +614,9 @@ msgstr ""
 
 msgid "--uninstall|Retirer cron, règles et ipsets|Remove cron, rules and ipsets|1"
 msgstr ""
+
+msgid "  --max-drop PCT               refuse une liste plus petite de PCT % que la dernière acceptée (défaut 50 ; 0 = pas de contrôle)"
+msgstr "  --max-drop PCT               refuse a list smaller by more than PCT % than the last accepted one (default 50; 0 = no check)"
 
 msgid "  --menu    menu interactif des opérations courantes (dialog si installé ; terminal requis)"
 msgstr "  --menu    interactive menu of the common operations (dialog if installed; terminal required)"

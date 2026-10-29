@@ -16,6 +16,7 @@
 # Ajouter une langue = ajouter le fichier lang/sync-crowdsec-blocklist.XX.po (format PO : Poedit, Weblate...) - voir lang/README.md.
 #LANGUAGE=auto
 # --min-ips : taille minimale acceptée de la liste (défaut : 50)
+#MAX_DROP=50
 #MIN_IPS=50
 # --source : autre source de la liste (défaut : source publique CrowdSec intégrée)
 #SOURCE=

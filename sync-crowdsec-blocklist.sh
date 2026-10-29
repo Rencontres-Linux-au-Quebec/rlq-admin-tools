@@ -236,15 +236,15 @@ Options (par ordre alphabétique) :
   --blocked                    IP de la liste effectivement bloquées (compteurs du pare-feu)
   --changelog                  affiche le journal des modifications
   -c, --config FILE            fichier de configuration à lire SEUL (sinon : /etc/default/sync-crowdsec-blocklist.conf, puis ~/.sync-crowdsec-blocklist.conf ;
-                               clés : CRON_HOURS, LANGUAGE, MIN_IPS, SOURCE, STALE_DAYS, TOP, VERBOSE)
+                               clés : CRON_HOURS, LANGUAGE, MAX_DROP, MIN_IPS, SOURCE, STALE_DAYS, TOP, VERBOSE)
   --cron-hours N               avec --install-cron : intervalle en heures
   --dry-run                    télécharger et analyser la liste, sans rien modifier
   -h, --help                   affiche cette aide et quitte
   --install-cron               synchronisation automatique (fichier cron)
   --lang LANG                  langue d'affichage : en ou fr (défaut : selon LC_ALL / LC_MESSAGES / LANG)
+  --max-drop PCT               refuse une liste plus petite de PCT % que la dernière acceptée (défaut 50 ; 0 = pas de contrôle)
   --menu    menu interactif des opérations courantes (dialog si installé ; terminal requis)
   --min-ips N                  taille minimale acceptée de la liste (protection contre une liste tronquée)
-  --max-drop PCT               refuse une liste plus petite de PCT % que la dernière acceptée (défaut 50 ; 0 = pas de contrôle)
   --report-err                 afficher à la fin un rapport d'erreurs à copier-coller (programme, version, serveur,
                                échecs, avertissements) ; désactive couleurs et questions interactives
   --source URL                 autre source de la liste
