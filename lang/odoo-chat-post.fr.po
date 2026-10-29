@@ -375,3 +375,18 @@ msgstr "Alimenté par :"
 
 msgid " (local time) by odoo-chat-post.py"
 msgstr " (heure locale) par odoo-chat-post.py"
+
+msgid "List catalogue channels and threads"
+msgstr "Lister les canaux et fils du catalogue"
+
+msgid "Show channels to create"
+msgstr "Montrer les canaux à créer"
+
+msgid "Create missing channels and threads"
+msgstr "Créer les canaux et fils manquants"
+
+msgid "Create the bot account"
+msgstr "Créer le compte du robot"
+
+msgid "interactive menu of the common operations (dialog if installed; terminal required)"
+msgstr "menu interactif des opérations courantes (dialog si installé ; terminal requis)"

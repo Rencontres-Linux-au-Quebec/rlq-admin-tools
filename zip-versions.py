@@ -34,7 +34,7 @@ import signal
 import sys
 import zipfile
 
-__version__ = "1.16.20261022.231529"
+__version__ = "1.18.20261028.214122"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
@@ -685,6 +685,12 @@ class LocalizedArgumentParser(argparse.ArgumentParser):
         super().__init__(*args, **kwargs)
 
 
+MENU_ENTREES = [
+    ([], 'Compare the archives (no option)', 'Compare the archives (no option)', False),
+    (['--installed'], 'Also compare with the installation', 'Also compare with the installation', False),
+]
+
+
 def main():
     parser = (I18N.parser if I18N else LocalizedArgumentParser)(
         description="Versions of the programs and configuration held in the project archives (without extracting them); designates the most recent archive of each type, to attach to the discussion.")
@@ -698,6 +704,7 @@ def main():
     parser.add_argument("--installed", nargs="?", const=DEFAULT_INSTALLATION, metavar="DIR",
                         help=f"Also compare with the installation: programs of DIR (default: {DEFAULT_INSTALLATION}), "
                              "configuration of --nginx-dir")
+    parser.add_argument("--menu", action="store_true", help="interactive menu of the common operations (dialog if installed; terminal required)")
     parser.add_argument("--nginx-dir", default=DEFAULT_NGINX, metavar="DIR",
                         help=f"With --installed: deployed nginx configuration (default: {DEFAULT_NGINX})")
     parser.add_argument("--report-err", action="store_true",
@@ -707,6 +714,15 @@ def main():
         print(f"zip-versions.py v{__version__}")
     defaults, problems = I18N.defauts(parser, SCHEMA_CONFIG) if I18N else ({}, [])
     args = parser.parse_args()
+    if args.menu:
+        import importlib.util as _ilu
+        _spec = _ilu.spec_from_file_location("_menu", os.path.join(SCRIPT_DIR, "apps", "_menu.py"))
+        _menu = _ilu.module_from_spec(_spec)
+        _spec.loader.exec_module(_menu)
+        _menu.menu(os.path.abspath(__file__), sys.argv[1:], MENU_ENTREES,
+                   traduire=I18N.tr if I18N else None, langue=I18N.langue if I18N else "fr",
+                   configuration=_menu.configuration_de(SCRIPT_DIR, "zip-versions", sys.argv[1:]),
+                   nom=f"zip-versions.py v{__version__}")
     if args.config and not os.path.isfile(args.config):
         parser.error(f"configuration file not found: {args.config}")
     if I18N:

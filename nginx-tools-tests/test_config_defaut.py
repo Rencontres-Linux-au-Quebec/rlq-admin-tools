@@ -103,7 +103,7 @@ class ModelesComplets(unittest.TestCase):
             with self.subTest(programme=programme):
                 exe = ["python3", script_path(programme)] if programme.endswith(".py") else ["bash", script_path(programme)]
                 aide = subprocess.run(exe + ["--help", "--lang", "fr"], capture_output=True, text=True, env=env, timeout=60).stdout
-                options = set(re.findall(r"^  (?:-\w, )?(--[\w-]+)", aide, re.M)) - {"--help"}
+                options = set(re.findall(r"^  (?:-\w, )?(--[\w-]+)", aide, re.M)) - {"--help", "--menu"}      # --menu : action (CLI seulement, comme --backup), jamais un réglage
                 self.assertGreater(len(options), 5, aide)
                 modele = open(script_path("doc/en/" + re.sub(r"\.(py|sh)$", "", programme) + ".conf.example"), encoding="utf-8").read()
                 self.assertEqual(sorted(o for o in options if o not in modele), [], f"options absentes de doc/en/{programme}.conf.example")

@@ -130,7 +130,7 @@ grep_q() { grep "$@" >/dev/null; }
 #                              ne peut pas le voir, le texte etant entre apostrophes (faux positif).
 trap 'ec=$?; echo "" >&2; echo "*** ARRÊT INATTENDU DU SCRIPT (code $ec) À LA LIGNE $LINENO ***" >&2; echo "*** Commande fautive : $BASH_COMMAND" >&2; echo "*** Si le rapport ci-dessus semble incomplet (ex. sections Top 10 absentes), c'\''est probablement la cause." >&2' ERR
 
-readonly SCRIPT_VERSION="2.60.20261028.201441"
+readonly SCRIPT_VERSION="2.62.20261028.214122"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
 # Chemin de ce programme (relances --investigate, --ban, --unban) : defini ICI, avant le bloc --ban qui l'utilise.
 SELF_PATH="$SCRIPT_DIR/$(basename "${BASH_SOURCE[0]}")"
@@ -215,6 +215,20 @@ if declare -F config_lire >/dev/null; then
     case " $* " in *" --version "*|*" --help "*|*" -h "*|*" --changelog "*) ;; *" --export-bans "*) config_afficher >&2 ;; *) config_afficher ;; esac
 fi
 
+# Menu --menu (2.x) : apps/_menu.sh (dialog si installé, sinon texte). Entrées : TAG|FR|EN|CONFIRMATION.
+# shellcheck source=/dev/null  # bibliothèque livrée à côté du programme
+[[ -r "$SCRIPT_DIR/apps/_menu.sh" ]] && . "$SCRIPT_DIR/apps/_menu.sh"
+# shellcheck disable=SC2034  # lues par apps/_menu.sh (chargé plus haut)
+MENU_ENTREES=(
+    "|Rapport du jour (sans option)|Today's report (no option)|0"
+    "--stats|Statistiques du trafic|Traffic statistics|0"
+    "--fail2ban|État de fail2ban et historique des bannissements|fail2ban state and ban history|0"
+    "--ban-history|Journal des bannissements manuels|Manual ban journal|0"
+    "--unban-check|Réévaluer les bannissements manuels|Re-check manual bans|0"
+    "--export-bans|Exporter les bannissements manuels|Export manual bans|0"
+)
+declare -F menu_si_demande >/dev/null && menu_si_demande "$SCRIPT_DIR/$(basename "${BASH_SOURCE[0]}")" "$@"
+
 while [[ $# -gt 0 ]]; do
     case "$1" in
         dev|lab|prod) ENV="$1"; shift ;;
@@ -251,6 +265,7 @@ while [[ $# -gt 0 ]]; do
         --page-burst) PAGE_BURST="${2:-}"; shift 2 ;;
         --parallel-threshold) PARALLEL_THRESHOLD="${2:-}"; shift 2 ;;
         --version) echo "nginx-log-audit.sh version $SCRIPT_VERSION"; exit 0 ;;
+        --menu) shift ;;     # --menu (apps/_menu.sh) : traité avant la boucle
         --changelog)
             if [[ ! -r "$CHANGELOG_FILE" ]]; then
                 echo "Changelog introuvable : $CHANGELOG_FILE" >&2
@@ -298,6 +313,7 @@ Options (par ordre alphabétique) :
   --ip ADDRESS                 limiter le rapport à une adresse
   --lang LANG                  langue d'affichage : en ou fr (défaut : selon LC_ALL / LC_MESSAGES / LANG)
   --last HOURS                 limiter toutes les sections aux HOURS dernières heures
+  --menu                       menu interactif des opérations courantes (dialog si installé ; terminal requis)
   --no-lookup                  avec --ban-sqli : aucune requête DNS ni RDAP (propriétaire, pays) ; seuls les journaux sont lus
   --no-prompt                  ne pas proposer de bannir en fin de rapport
   --page-burst N               pages distinctes en 10 s à partir desquelles l'indice « rafale » est retenu

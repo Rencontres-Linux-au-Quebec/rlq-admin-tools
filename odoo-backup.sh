@@ -32,6 +32,7 @@
 #   -h, --help                   affiche cette aide et quitte
 #   --install-timer              sauvegardes automatiques aux heures TIMER_TIME (systemd), une ou plusieurs fois par jour
 #   --lang LANG                  langue d'affichage : en ou fr (défaut : LANGUAGE du fichier de configuration, sinon LC_ALL / LC_MESSAGES / LANG)
+#   --menu                       menu interactif des opérations courantes (dialog si installé ; terminal requis)
 #   --report-err                 afficher à la fin un rapport d'erreurs à copier-coller (programme, version, serveur,
 #                                échecs, avertissements) ; désactive couleurs et questions interactives
 #   --restore FILE               restaurer une archive .zip ou .tar.xz (jamais d'écrasement : base ou filestore
@@ -67,7 +68,7 @@ for _d in /usr/local/sbin /usr/sbin /sbin; do [[ -n "${NGINX_TOOLS_TESTS:-}" ]] 
 # (During the test suite, NGINX_TOOLS_TESTS disables this addition: /usr/sbin/ufw & co would otherwise remain reachable.)
 export PATH
 
-readonly SCRIPT_VERSION="1.21.20261022.231529"
+readonly SCRIPT_VERSION="1.23.20261028.214122"
 SCRIPT_NAME="$(basename "${BASH_SOURCE[0]}" .sh)"; readonly SCRIPT_NAME
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
 SCRIPT_PATH="$SCRIPT_DIR/$(basename "${BASH_SOURCE[0]}")"; readonly SCRIPT_PATH
@@ -110,6 +111,22 @@ fi
 # First line of EVERY run, even with --help: the name and version of the program (--version displays it itself).
 case " $* " in *" --version "*) ;; *) echo "odoo-backup.sh v$SCRIPT_VERSION" ;; esac
 
+# Menu --menu (2.x) : apps/_menu.sh (dialog si installé, sinon texte). Entrées : TAG|FR|EN|CONFIRMATION.
+# shellcheck source=/dev/null  # bibliothèque livrée à côté du programme
+[[ -r "$SCRIPT_DIR/apps/_menu.sh" ]] && . "$SCRIPT_DIR/apps/_menu.sh"
+# shellcheck disable=SC2034  # lues par apps/_menu.sh (chargé plus haut)
+MENU_ENTREES=(
+    "|Sauvegarder maintenant|Back up now|0"
+    "--dry-run|Montrer ce qui serait fait|Show what would be done|0"
+    "--status|Sauvegardes présentes et timer|Backups and timer status|0"
+    "--test-restore|Tester la restauration de la dernière sauvegarde|Test restore of the latest backup|1"
+    "--install-timer|Installer la sauvegarde automatique|Install automatic backup|1"
+    "--uninstall-timer|Retirer la sauvegarde automatique|Remove automatic backup|1"
+)
+# shellcheck disable=SC2034  # lue par apps/_menu.sh
+MENU_FICHIERS_CONFIG=("$CONFIG_DEFAUT" "$CONFIG_PERSO")
+declare -F menu_si_demande >/dev/null && menu_si_demande "$SCRIPT_DIR/$(basename "${BASH_SOURCE[0]}")" "$@"
+
 while [[ $# -gt 0 ]]; do
     case "$1" in
         -c|--config) CONFIG_FILE="${2:-}"; CONFIG_EXPLICITE=1; shift 2 ;;
@@ -127,6 +144,7 @@ while [[ $# -gt 0 ]]; do
         --uninstall-timer) DO_UNINSTALL_TIMER=1; shift ;;
         -v|--verbose) VERBOSE=1; shift ;;
         --version) echo "odoo-backup.sh version $SCRIPT_VERSION"; exit 0 ;;
+        --menu) shift ;;     # --menu (apps/_menu.sh) : traité avant la boucle
         --changelog)
             if [[ ! -r "$CHANGELOG_FILE" ]]; then
                 echo "Changelog introuvable : $CHANGELOG_FILE" >&2

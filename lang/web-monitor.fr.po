@@ -2768,3 +2768,27 @@ msgstr "{n} autre(s) nom(s)"
 
 msgid "(no Host field: older log lines)"
 msgstr "(sans champ Host : anciennes lignes)"
+
+msgid "Monitoring (one pass)"
+msgstr "Surveillance (un passage)"
+
+msgid "Numeric summary"
+msgstr "Sommaire chiffré"
+
+msgid "Timer and last pass status"
+msgstr "État du timer et dernier passage"
+
+msgid "List Odoo connections"
+msgstr "Lister les connexions à Odoo"
+
+msgid "Accounts with suspicious activity"
+msgstr "Comptes à activité suspecte"
+
+msgid "Run without e-mail or change"
+msgstr "Lancer sans courriel ni modification"
+
+msgid "Install the systemd timer"
+msgstr "Installer le timer systemd"
+
+msgid "interactive menu of the common operations (dialog if installed; terminal required)"
+msgstr "menu interactif des opérations courantes (dialog si installé ; terminal requis)"

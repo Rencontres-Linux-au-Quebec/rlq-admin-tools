@@ -47,7 +47,7 @@ try:                    # line editing in prompts (backspace ^H or ^?, arrows)
 except ImportError:
     pass
 
-__version__ = "1.16.20261022.231529"
+__version__ = "1.18.20261028.214122"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
@@ -525,6 +525,13 @@ class LocalizedArgumentParser(argparse.ArgumentParser):
         super().__init__(*args, **kwargs)
 
 
+MENU_ENTREES = [
+    ([], 'List recent e-mails', 'List recent e-mails', False),
+    (['--invalid-emails'], 'Sign-ups: invalid addresses', 'Sign-ups: invalid addresses', False),
+    (['--sent', '20'], 'The last 20 e-mails sent', 'The last 20 e-mails sent', False),
+]
+
+
 def main():
     parser = (I18N.parser if I18N else LocalizedArgumentParser)(description="List of the Odoo e-mails not sent (title, date, recipients, cause), then offer to resend them.")
     parser.add_argument("--batch", type=int, default=None, metavar="N",
@@ -540,6 +547,7 @@ def main():
                         help="Only the event registrations whose e-mail address is invalid (marieb.essai@gmail'com, gmial.com…) with the suggested correction, then the offer to fix the registration and its contact and to resend the e-mail")
     parser.add_argument("--lang", choices=I18N.disponibles if I18N else ["fr"], metavar="LANG",
                         help="Display language: en or fr (default: from LC_ALL / LC_MESSAGES / LANG)")
+    parser.add_argument("--menu", action="store_true", help="interactive menu of the common operations (dialog if installed; terminal required)")
     parser.add_argument("--no-prompt", action="store_true", help="List only: no question, even on a terminal")
     parser.add_argument("--report-err", action="store_true",
                         help="Print at the end an error report to copy and paste (program, version, server, failures, warnings)")
@@ -551,6 +559,15 @@ def main():
     if "--version" not in sys.argv[1:]:       # first line of EVERY run, even --help: name and version (--version prints it itself)
         print(f"odoo-mail-retry.py v{__version__}")
     args = parser.parse_args()
+    if args.menu:
+        import importlib.util as _ilu
+        _spec = _ilu.spec_from_file_location("_menu", os.path.join(SCRIPT_DIR, "apps", "_menu.py"))
+        _menu = _ilu.module_from_spec(_spec)
+        _spec.loader.exec_module(_menu)
+        _menu.menu(os.path.abspath(__file__), sys.argv[1:], MENU_ENTREES,
+                   traduire=I18N.tr if I18N else None, langue=I18N.langue if I18N else "fr",
+                   configuration=_menu.configuration_de(SCRIPT_DIR, "odoo-mail-retry", sys.argv[1:]),
+                   nom=f"odoo-mail-retry.py v{__version__}")
     refusal = load_module("_config").refus_non_root("odoo-mail-retry.py", "every reading or re-queuing of e-mails goes through PostgreSQL (postgres account)")
     if refusal:
         eprint(refusal)

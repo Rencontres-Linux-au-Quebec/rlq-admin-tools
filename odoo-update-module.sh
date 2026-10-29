@@ -38,6 +38,7 @@
 #   --force-busy                 conservée pour compatibilité : les lectures seules ne bloquent jamais la mise à jour, les écritures la bloquent toujours (même avec cette option) ; FORCE_BUSY
 #   -h, --help                   affiche cette aide et quitte
 #   --lang LANG                  langue d'affichage : en ou fr (défaut : LANGUAGE du fichier de configuration, sinon LC_ALL / LC_MESSAGES / LANG)
+#   --menu   menu interactif des opérations courantes (dialog si installé ; terminal requis)
 #   --module PATTERN             module à mettre à jour ; motif accepté (« rlq_* »), option répétable (défaut : MODULES, soit rlq_*)
 #   --no-rollback                jamais de retour arrière automatique (clé ROLLBACK=non) ; sinon, après des erreurs (mise à jour, démarrage, journal du service),
 #                                les modules sont remis dans leur version d'avant (copie prise avant la décompression), mis à jour de nouveau, et Odoo redémarré
@@ -91,7 +92,7 @@ set -euo pipefail
 for _d in /usr/local/sbin /usr/sbin /sbin; do [[ -n "${NGINX_TOOLS_TESTS:-}" ]] && break; case ":$PATH:" in *":$_d:"*) ;; *) PATH="$PATH:$_d" ;; esac; done
 export PATH
 
-readonly SCRIPT_VERSION="1.20.20261025.150359"
+readonly SCRIPT_VERSION="1.22.20261028.214122"
 SCRIPT_NAME="$(basename "${BASH_SOURCE[0]}" .sh)"; readonly SCRIPT_NAME
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
 SCRIPT_PATH="$SCRIPT_DIR/$(basename "${BASH_SOURCE[0]}")"; readonly SCRIPT_PATH
@@ -170,6 +171,17 @@ if declare -F config_lire >/dev/null; then
     case " $* " in *" --version "*|*" --help "*|*" -h "*|*" --changelog "*) ;; *) config_afficher ;; esac
 fi
 
+# Menu --menu (2.x) : apps/_menu.sh (dialog si installé, sinon texte). Entrées : TAG|FR|EN|CONFIRMATION.
+# shellcheck source=/dev/null  # bibliothèque livrée à côté du programme
+[[ -r "$SCRIPT_DIR/apps/_menu.sh" ]] && . "$SCRIPT_DIR/apps/_menu.sh"
+# shellcheck disable=SC2034  # lues par apps/_menu.sh (chargé plus haut)
+MENU_ENTREES=(
+    "--dry-run|Montrer la mise à jour sans la faire|Show the update without doing it|0"
+    "--check-activity|État du site maintenant|Site activity now|0"
+    "|Mettre à jour le ou les modules (configuration)|Update the module(s) (configuration)|1"
+)
+declare -F menu_si_demande >/dev/null && menu_si_demande "$SCRIPT_DIR/$(basename "${BASH_SOURCE[0]}")" "$@"
+
 # shellcheck disable=SC2034  # FORCE_BUSY: kept for compatibility, no effect (see CHANGELOG 1.17)
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -178,6 +190,7 @@ while [[ $# -gt 0 ]]; do
         --busy-visitors) BUSY_VISITORS="${2:-}"; CLI_BUSY=1; shift 2 ;;
         --check-activity) CHECK_ACTIVITY=1; shift ;;
         --force-busy) FORCE_BUSY=1; shift ;;
+        --menu) shift ;;     # --menu (apps/_menu.sh) : traité avant la boucle
         --changelog)
             if [[ ! -r "$CHANGELOG_FILE" ]]; then
                 echo "Changelog introuvable : $CHANGELOG_FILE" >&2

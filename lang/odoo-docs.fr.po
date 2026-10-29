@@ -219,3 +219,15 @@ msgstr "ATTENTION : page d'essai "
 
 msgid "WARNING: "
 msgstr "ATTENTION : "
+
+msgid "Check connection and module"
+msgstr "Vérifier la connexion et le module"
+
+msgid "Show what would be published"
+msgstr "Montrer ce qui serait publié"
+
+msgid "Publish the documentation"
+msgstr "Publier la documentation"
+
+msgid "interactive menu of the common operations (dialog if installed; terminal required)"
+msgstr "menu interactif des opérations courantes (dialog si installé ; terminal requis)"
