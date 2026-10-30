@@ -319,6 +319,29 @@ Earlier history was archived outside this repository when this file was created.
 
 ## app-log-live.py
 
+### 1.118.20261030.000133 - Size column 2 characters wider, f key keeps the underlined lines, nginx words in colour
+
+- Title: the size column holds 7 characters (up to 9 999 999 bytes); the f (refresh) key underlines the same lines as the screen; the nginx program and database words are shown in bold magenta.
+- Reason: a size of 1962191 pushed the request of the nginx line out of its column (5 characters were too few); after the f key the lines were displayed without the underline, which made them hard to follow; the nginx lines were hard to tell apart from the Odoo lines.
+- Changes:
+  - SIZE_WIDTH = 7 (was 5), NUMBERS_BLOCK_WIDTH = 42 (was 40): the request of every Odoo and nginx request line moves 2 columns to the right.
+  - refresh_lines (f key): each line of the buffer keeps its emission number ("n"); it is written with the same underline rule as on screen (one line out of N, N = --underline).
+  - STYLES["nginx"] = "1;35" (new style): the program word (http) and the database word (nginx) of nginx lines are in bold magenta in the header. The padding of the header is computed on the plain text, so the colour takes no column.
+  - nginx-tools-tests/test_app_log_live.py: size expectations updated to 7 characters; new test test_touche_f_redessine_les_lignes_soulignees (f key, underline on the redrawn lines).
+  - Files touched: app-log-live.py, nginx-tools-tests/test_app_log_live.py, CHANGELOG.md.
+- Bugs fixed:
+  - Symptom: after the f key the lines were displayed without underline. Diagnosis: refresh_lines called output.write without the underline argument. Fix: the underline rule is applied again to the redrawn lines.
+  - Symptom: a size of 7 digits pushed the request of the nginx line to the right. Diagnosis: the size column was 5 characters wide. Fix: 7 characters.
+- Safeguards and edge cases:
+  - A size with more than 7 digits (more than 9 MB) still pushes the request one column to the right; not seen on this site.
+  - --min, --no-underline and --underline 0: unchanged (no underline is drawn).
+  - Colours are added to the program and database words only; the plain text and the columns are unchanged.
+- Checks:
+  - Rendering with the real Formatting: nginx and Odoo request lines have the country at the same column, the request at the same column, and the size of 1962191 ends at the same column as the Odoo dash.
+  - test_touche_f_redessine_les_lignes_soulignees fails on the previous version and passes on this one.
+  - Full test_app_log_live run: see the result line of this version (only test_colonnes_jamais_tassees is expected to fail, already failing on the base branch because of the terminal width).
+- Action required: none.
+
 ### 1.117.20261029.233250 - nginx requests aligned on the status, the size and the request of Odoo lines
 
 - Title: the status code, the size and the request of nginx access lines are in the same columns as those of the Odoo request lines; the level is right-aligned on 8 characters for every line (option A chosen by the user).
