@@ -2390,3 +2390,6 @@ msgstr "robots.txt served"
 msgid " cas OK, "
 msgstr " cases OK, "
 
+
+msgid "        nginx a refusé la configuration au rechargement : "
+msgstr "        nginx refused the configuration on reload: "
