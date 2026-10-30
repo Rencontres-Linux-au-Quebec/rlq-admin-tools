@@ -2009,8 +2009,24 @@ BASE_MODULES = {"res": "base", "ir": "base", "base": "base"}
 # Form submissions that write into Odoo (registration, account creation, password reset, website form, message, survey): a flood of them is spam.
 FORM_POST_RE = re.compile(r"^/(?:[a-z]{2}_[A-Z]{2}/)?(?:event/[^/]+/registration/|web/signup|web/reset_password|website/form/|mail/message/post|"
                           r"mail/chatter_post|survey/submit/|website/contactus|shop/address)")
-BURST_WINDOW_S = 10               # suspicious burst: BURST_PAGES distinct pages or more within this window (same rule as nginx-log-audit.sh)
-BURST_PAGES = 15
+def charger_seuils_communs():
+    """Seuils partagés avec app-log-live.py (apps/_seuils.py, qui décrit ses fichiers de réglage). Sans le module : valeurs intégrées."""
+    chemin = os.path.join(SCRIPT_DIR, "apps", "_seuils.py")
+    if not os.path.isfile(chemin):
+        return {"BURST_PAGES": 15, "BURST_WINDOW_S": 10}
+    spec = importlib.util.spec_from_file_location("_seuils", chemin)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    valeurs, _lus, avis = module.charger()
+    for avertissement in avis:
+        print(f"WARNING / AVERTISSEMENT: {avertissement}", file=sys.stderr)
+    return valeurs
+
+
+SEUILS_COMMUNS = charger_seuils_communs()
+# suspicious burst: BURST_PAGES distinct pages or more within BURST_WINDOW_S seconds (shared value, apps/_seuils.py)
+BURST_WINDOW_S = SEUILS_COMMUNS["BURST_WINDOW_S"]
+BURST_PAGES = SEUILS_COMMUNS["BURST_PAGES"]
 
 
 def accumulate_ip(stats, ip, method, url, code, d, idx, ua="", second=None):
