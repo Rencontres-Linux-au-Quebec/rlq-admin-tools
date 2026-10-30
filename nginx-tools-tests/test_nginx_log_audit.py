@@ -52,6 +52,27 @@ class ChkNginxLogs(EnvTest):
         self.assertNotIn("ARRÊT INATTENDU", err, err)
         return rc, out, err
 
+    def test_263_compare_24_heures_contre_24_precedentes(self):
+        """2.63 --compare : la dernière journée contre la précédente (blocages, erreurs, IP), fichier écrit en mode 600, lecture seule."""
+        maintenant = time.time()
+        def ligne(ip, heure_epoch, code, chemin="/x"):
+            date = time.strftime("%d/%b/%Y:%H:%M:%S %z", time.localtime(heure_epoch))
+            return f'{ip} - - [{date}] "GET {chemin} HTTP/1.1" {code} 10 "-" "ua"\n'
+        self.add(ligne("11.1.1.1", maintenant - 3600, 404),           # dernières 24 h : bloquée
+                 ligne("11.1.1.1", maintenant - 7200, 404),           # dernières 24 h : bloquée
+                 ligne("11.9.9.9", maintenant - 1800, 200, "/web"),   # dernières 24 h : normale
+                 ligne("11.2.2.2", maintenant - 30 * 3600, 404),      # 24 h précédentes : bloquée
+                 ligne("11.3.3.3", maintenant - 50 * 3600, 404))      # hors fenêtre : ignorée
+        fichier = os.path.join(self.d, "comparaison.txt")
+        rc, out, err = self.report("--compare", fichier)
+        self.assertEqual(rc, 0, err)
+        texte = open(fichier, encoding="utf-8").read()
+        self.assertIn("Bloquées (403/404/405/429/444) : 2  (24 h précédentes : 1)", texte)
+        self.assertIn("Requêtes         :        3  (24 h précédentes :        1)", texte)
+        self.assertNotIn("11.3.3.3", texte, "une ligne hors des 48 heures n'est pas comptée")
+        self.assertEqual(oct(os.stat(fichier).st_mode & 0o777), "0o600", "le rapport contient des adresses IP")
+        self.assertNotIn("Rapport nginx", out, "le mode --compare ne lance pas le rapport complet")
+
     def ip_block(self, out, ip):
         """Bloc d'enquête de la section [10] (ou --investigate) pour une IP."""
         m = re.search(r"▶ " + re.escape(ip) + r" .*?(?=\n  ▶ |\n--- |\n=====|\Z)", out, re.S)
