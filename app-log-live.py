@@ -114,7 +114,7 @@ from urllib.parse import unquote
 from collections import Counter, OrderedDict
 from concurrent.futures import Future
 
-__version__ = "1.119.20261030.074937"
+__version__ = "1.120.20261030.104109"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
@@ -2588,6 +2588,14 @@ def display_width(text):
     return sum(0 if unicodedata.combining(c) or unicodedata.category(c) in ("Mn", "Me", "Cf") else 2 if unicodedata.east_asian_width(c) in ("W", "F") else 1 for c in text)
 
 
+def terminal_rows():
+    """1.120: height of the terminal in lines ($LINES first, then the terminal itself; 24 when unknown)."""
+    try:
+        return max(10, shutil.get_terminal_size((100, 24)).lines)
+    except (OSError, ValueError):
+        return 24
+
+
 def terminal_columns():
     """Width of the terminal in columns ($COLUMNS first, then the terminal itself; 100 when unknown)."""
     try:
@@ -2655,6 +2663,46 @@ def colored_prefix(text, limit):
             out.append(c)
             used += w
     return "".join(out) + ("\x1b[0m" if colored else "")
+
+
+HTML_HEAD = ("<!doctype html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n<title>{title}</title>\n"
+             "<style>body{{background:#111;color:#ddd;margin:12px}} pre{{font:13px/1.35 monospace;white-space:pre}}</style>\n</head>\n<body>\n<pre>\n")
+HTML_COLORS = {"30": "#666", "31": "#e5534b", "32": "#57ab5a", "33": "#c69026", "34": "#539bf5", "35": "#b083f0", "36": "#39c5cf", "37": "#ddd",
+               "90": "#888", "91": "#ff7b72", "92": "#7ee787", "93": "#e3b341", "94": "#79c0ff", "95": "#d2a8ff", "96": "#56d4dd", "97": "#fff"}
+HTML_LINE_WIDTH = 140           # 1.120: each line of the HTML copy is cut to this many characters (colours kept)
+
+
+def ansi_to_html(text):
+    """1.120: a line with its colour codes as HTML: one span per run of text with the same style (bold, underline, colours)."""
+    import html as html_module
+    out, style, opened = [], {}, False
+    for part in ANSI_SPLIT_RE.split(text):
+        if ANSI_SPLIT_RE.fullmatch(part):
+            for code in (part[2:-1].split(";") if part[2:-1] else ["0"]):
+                if code in ("0", ""):
+                    style = {}
+                elif code == "1":
+                    style["font-weight"] = "bold"
+                elif code == "4":
+                    style["text-decoration"] = "underline"
+                elif code in HTML_COLORS:
+                    style["color"] = HTML_COLORS[code]
+            continue
+        if opened:
+            out.append("</span>")
+            opened = False
+        if style:
+            out.append('<span style="' + ";".join(f"{k}:{v}" for k, v in style.items()) + '">')
+            opened = True
+        out.append(html_module.escape(part))
+    if opened:
+        out.append("</span>")
+    return "".join(out)
+
+
+def html_line(text_line):
+    """1.120: one journal line for the HTML copy: cut to HTML_LINE_WIDTH columns, colours kept."""
+    return ansi_to_html(colored_prefix(text_line, HTML_LINE_WIDTH))
 
 
 MESSAGE_START_RE = re.compile(r'"[A-Z]{3,9} ')                   # 1.91: start of the request of a werkzeug / nginx line ("GET  /url" with quotes)
@@ -4370,7 +4418,7 @@ class Stats:
 
 
 BUFFER_DEFAULT = 200                # 1.113 --buffer N: last displayed lines kept in memory (f: displayed again with the current options; P: printed to a file)
-STATUS_EVERY_DEFAULT = 100          # 1.113 --status-every N: status bar (reverse video) after every N displayed lines; 0 = never
+STATUS_EVERY_DEFAULT = -1          # 1.113 --status-every N: status bar (reverse video) after every N displayed lines; 0 = never; -1 (1.120): automatic = terminal height minus 2 lines
 # 1.113 SQL injection attempts, on the decoded URL: UNION SELECT, time or error functions (sleep, benchmark, extractvalue...), tautologies (' or 1=1), stacked statements
 SQLI_RE = re.compile(r"union(?:\s|\+|/\*.*?\*/|%20)+(?:all(?:\s|\+|%20)+)?select|information_schema|\b(?:sleep|benchmark|pg_sleep|load_file|extractvalue|updatexml)\s*\("
                      r"|\bxp_cmdshell\b|\bor\s*['\"]?\d+['\"]?\s*=\s*['\"]?\d+|'\s*(?:or|and)\s|;\s*(?:drop|insert|update|delete|shutdown)\b|\bconcat\s*\(\s*0x", re.IGNORECASE)
@@ -4393,6 +4441,7 @@ class StatusBar:
         self.reset()
 
     def reset(self):
+        self.sql_max = self.odoo_err = 0                 # 1.120: most SQL queries of one request; Odoo ERROR and CRITICAL lines
         self.sqli = self.e4 = self.e5 = self.slow = 0
         self.slow_max = 0.0
         self.banned = set()
@@ -4402,6 +4451,11 @@ class StatusBar:
     def observe(self, L, banned_ip, slow_threshold, ip=None):
         """Counts one displayed line (banned_ip: its address, when the line carries a [banned: ...] label; ip: its first address)."""
         problem = False
+        werk = WERKZEUG_RE.search(L.text or "")
+        if werk and werk.group(5):
+            self.sql_max = max(self.sql_max, int(werk.group(5)))           # 1.120: the most SQL queries of one request (its "transaction")
+        if L.level in ("ERROR", "CRITICAL") and L.database != "nginx":
+            self.odoo_err += 1                                              # 1.120: Odoo errors (nginx errors are not counted here)
         request = REQUEST_RE.search(L.text or "")
         if request:
             code = int(request.group(2))
@@ -4436,6 +4490,12 @@ class StatusBar:
             return "32"
         return "37"
 
+    def health(self):
+        """1.120: health of the bar, out of 100 %: SQL injection attempts (3 points), 5xx (2), banned addresses (2 each), 4xx (0.1 each) and
+        connections slower than 9 s (1 each) take points off. Reset by Ctrl-T and g, like the other counters."""
+        penalty = 3 * self.sqli + 2 * self.e5 + 0.1 * self.e4 + 2 * len(self.banned) + self.slow
+        return max(0, round(100 - penalty))
+
     def top_ips(self):
         """1.114: the addresses with the most problem lines, as "ip (count)", or the text saying they are hidden (--hide-ip)."""
         if not self.problems_by_ip or not self.show_ips:        # 1.116: nothing at all when the addresses are hidden (no "hidden" text)
@@ -4443,10 +4503,16 @@ class StatusBar:
         best = self.problems_by_ip.most_common(self.TOP_IPS)
         return TR("top IP") + " " + ", ".join(f"{ip} ×{count}" for ip, count in best)      # 1.119: no parentheses
 
-    def summary(self):
+    def summary(self, users=None, ssh=None):
+        """1.120: users and ssh (number of people signed in to Odoo, of SSH sessions) are given by the caller when known."""
         slow_text = f"{self.slow}" + (f" (max {self.slow_max:.1f} s)" if self.slow else "")
-        parts = [TR("SQLi attacks") + f" {self.sqli}", f"4xx {self.e4}", f"5xx {self.e5}",
-                 TR("banned") + f" {len(self.banned)}", TR("slow") + f" {slow_text}"]
+        parts = [TR("health state") + f" {self.health()} %", TR("SQLi attacks") + f" {self.sqli}", f"4xx {self.e4}", f"5xx {self.e5}",
+                 TR("banned") + f" {len(self.banned)}", TR("slow") + f" {slow_text}",
+                 TR("max SQL") + f" {self.sql_max}", TR("Odoo errors") + f" {self.odoo_err}"]
+        if users is not None:
+            parts.append(TR("Odoo users") + f" {users}")
+        if ssh is not None:
+            parts.append(TR("SSH") + f" {ssh}")
         top = self.top_ips()
         if top:
             parts.append(top)
@@ -4466,6 +4532,8 @@ class Output:
         self.anonymize = None                             # --anonymize (1.88, by default): Anonymiseur of apps/_anonymiser.py applied to the screen (the daily journal keeps everything)
         self.underline = UNDERLINE_DEFAULT                # 1.89: --no-underline / UNDERLINE=non: no line underlined; 1.91: --underline N = one line out of N (0 = none)
         self.anonymiser = None                            # 1.91: the Anonymiseur, kept when the A key turns --anonymize off (same pseudonyms when turned on again)
+        self.html = True                                  # 1.120: a copy of the daily journal in HTML (app-log-live-DATE.html), --no-html-journal: none
+        self.html_file, self.html_path = None, None
         self.rec_marker = False                           # 1.93: a test is being recorded (R key): "REC" at the end of each stream line, on screen only (never in the daily journal)
 
     def _open(self, day):
@@ -4474,8 +4542,23 @@ class Output:
         descriptor = os.open(self.path, os.O_WRONLY | os.O_APPEND | os.O_CREAT | getattr(os, "O_NOFOLLOW", 0), 0o600)
         self.file_path = os.fdopen(descriptor, "a", encoding="utf-8", errors="replace")
         self.day = day
+        if self.html:
+            self._open_html(day)
         self.file_path.write(color_code(STYLES["title"], TR("──── {name}.py v{version} : log of {day}, opened at {time} ────").format(name=SCRIPT_NAME, version=__version__, day=day, time=time.strftime('%H:%M:%S'))) + "\n")
         self.purge(day)
+
+    def _open_html(self, day):
+        """1.120: the HTML copy of the day (same folder, mode 600); the page head is written only once, when the file is created."""
+        import html as html_module
+        self.close_html()                                  # 1.120: the page of the previous day is finished first (day change)
+        self.html_path = os.path.join(self.folder, f"{SCRIPT_NAME}-{day}{self.suffix}.html")
+        try:
+            descriptor = os.open(self.html_path, os.O_WRONLY | os.O_APPEND | os.O_CREAT | getattr(os, "O_NOFOLLOW", 0), 0o600)
+            self.html_file = os.fdopen(descriptor, "a", encoding="utf-8", errors="replace")
+            if os.fstat(descriptor).st_size == 0:
+                self.html_file.write(HTML_HEAD.format(title=html_module.escape(f"{SCRIPT_NAME} {day}")))
+        except OSError:
+            self.html_file = None
 
     def purge(self, day):
         """Deletes the daily journals older than `keep_days` days (according to the date in the file NAME)."""
@@ -4483,7 +4566,7 @@ class Output:
             return
         limit = datetime.date.fromisoformat(day) - datetime.timedelta(days=self.keep_days)
         for name in os.listdir(self.folder):
-            m = re.fullmatch(re.escape(SCRIPT_NAME) + r"-(\d{4}-\d{2}-\d{2})(?:-filter|-filtre)?\.log", name)
+            m = re.fullmatch(re.escape(SCRIPT_NAME) + r"-(\d{4}-\d{2}-\d{2})(?:-filter|-filtre)?\.(?:log|html)", name)      # 1.120: .html too
             try:
                 if m and datetime.date.fromisoformat(m.group(1)) < limit:
                     os.unlink(os.path.join(self.folder, name))
@@ -4497,6 +4580,8 @@ class Output:
                 self.close()
                 self._open(day)
             self.file_path.write(text)
+            if self.html_file is not None:
+                self.html_file.write(html_line(text) + "\n")      # 1.120
         except OSError as e:
             eprint(f"Daily log disabled: {e}")
             self.folder = None
@@ -4537,7 +4622,18 @@ class Output:
                 pass
         self.screen.flush()
 
+    def close_html(self):
+        """1.120: writes the end of the HTML page and closes it (no-op when there is none)."""
+        if self.html_file is not None:
+            try:
+                self.html_file.write("</pre>\n</body>\n</html>\n")
+                self.html_file.close()
+            except OSError:
+                pass
+            self.html_file = None
+
     def close(self):
+        self.close_html()
         if self.file_path is not None:
             try:
                 self.file_path.close()
@@ -4942,7 +5038,8 @@ def follow(cmd, people, resolver, options, output):
             status.alerted = True
             sonner(beep["mode"], output.screen)
             output.write(color_code("1;31", "  " + TR("ALERT: the status bar turned red, investigate now (Ctrl-T or g to acknowledge)")) + "\n")
-        if options["status_every"] and state["emitted"] % options["status_every"] == 0:
+        every = options["status_every"] if options["status_every"] >= 0 else max(5, terminal_rows() - 2)      # 1.120: automatic = the terminal height
+        if every and state["emitted"] % every == 0:
             output.write(status_line() + "\n")
         if options["chime"] is not None and is_reportable_error(L, options["chime"]) and time.time() - beep["last"] >= 2.0:       # at most one beep every 2 s
             beep["last"] = time.time()
@@ -4952,7 +5049,8 @@ def follow(cmd, people, resolver, options, output):
         """1.113: the status bar, reverse video, its colour according to the problems counted since the last detailed report."""
         columns = terminal_columns()
         status.show_ips = bool(options.get("keep_ip"))          # 1.114: follows the H key (--hide-ip / --show-ip) on the fly
-        text = f" {TR('STATUS')}  {status.summary()}  ·  {TR('since the last detailed report (Ctrl-T or g)')} "
+        users = len(odoo_logged_in(options.get("presence"), time.time())) if options.get("presence") is not None else None      # 1.120
+        text = f" {TR('STATUS')}  {status.summary(users, len(ssh_sessions()))}  ·  {TR('since the last detailed report (Ctrl-T or g)')} "
         return color_code(f"7;1;{status.color()}", text[:max(20, columns - 1)].ljust(columns - 1))
 
     def refresh_lines():
@@ -6166,6 +6264,7 @@ def main():
     parser.add_argument("--no-history", action="store_true", help="Do not read the sign-in history (people names learned only live)")
     parser.add_argument("--no-keys", action="store_true", help="Do not listen to the keyboard (? or h: keys menu, Ctrl-G: dashboard, Ctrl-T: changes since last time)")
     parser.add_argument("--no-log-file", action="store_true", help="No daily log (the live stream is written nowhere, except on screen)")
+    parser.add_argument("--no-html-journal", action="store_true", help="No HTML copy of the daily journal (app-log-live-DATE.html, lines cut to 140 characters)")
     parser.add_argument("--no-isp", action="store_true", help="No outside request: no lookup of the address block owner or country (rdap.org, whois)")
     parser.add_argument("--no-user-agent", action="store_true", help="Do not read the User-Agent in the nginx access log (robots are then recognized only by name or robots.txt)")
     parser.add_argument("--no-presence", action="store_true", help="No presence tracking (sign-ins, sign-outs, inactivity)")
@@ -6204,7 +6303,7 @@ def main():
     parser.add_argument("--buffer", type=int, default=BUFFER_DEFAULT, metavar="N",
                         help="Last displayed lines kept in memory for the f key (displayed again with the current options) and the P key (printed to a file): 0 = none (default: 200)")
     parser.add_argument("--status-every", type=int, default=STATUS_EVERY_DEFAULT, metavar="N",
-                        help="Status bar in reverse video after every N displayed lines: SQL injection attempts, 4xx, 5xx, banned addresses, slow requests since the last detailed report (Ctrl-T or g); 0 = never (default: 100)")
+                        help="Status bar in reverse video after every N displayed lines: SQL injection attempts, 4xx, 5xx, banned addresses, slow requests since the last detailed report (Ctrl-T or g); 0 = never; default: automatic, the terminal height minus 2 lines")
     parser.add_argument("--country", action="append", default=None, metavar="CC,CC",
                         help="Show only the lines whose first address is in these countries (two-letter codes such as CA,FR; repeatable). Lines without address are hidden")
     parser.add_argument("--exclude-country", action="append", default=None, metavar="CC,CC",
@@ -6256,7 +6355,7 @@ def main():
         args.until_epoch = parse_time(args.until, end=True) if args.until is not None else None
     except (ValueError, OverflowError, OSError) as error:
         parser.error(f"--since / --until: {error} (see --help for the formats)")
-    if args.buffer < 0 or args.status_every < 0:
+    if args.buffer < 0 or args.status_every < -1:
         parser.error("--buffer and --status-every must be zero or positive")
     if args.days and args.since is not None:
         parser.error("--days and --since cannot be combined")
@@ -6459,6 +6558,7 @@ def main():
     if args.truncate == TRUNCATE_AUTO:
         args.truncate = 0 if on_terminal else None
     output.underline = max(0, int(args.underline or 0)) if args.underline is not True else UNDERLINE_DEFAULT     # True: old UNDERLINE=oui read as a boolean
+    output.html = not args.no_html_journal               # 1.120: HTML copy of the daily journal
     options["underline"] = output.underline              # 1.102: U key; saved by C
     output.truncate = None if args.truncate is None or args.truncate is False or args.truncate < 0 else args.truncate
     asked = any(a.startswith("--anon") and "--anonymize".startswith(a) for a in sys.argv[1:])
