@@ -68,7 +68,7 @@ for _d in /usr/local/sbin /usr/sbin /sbin; do [[ -n "${NGINX_TOOLS_TESTS:-}" ]] 
 # (During the test suite, NGINX_TOOLS_TESTS disables this addition: /usr/sbin/ufw & co would otherwise remain reachable.)
 export PATH
 
-readonly SCRIPT_VERSION="1.23.20261028.214122"
+readonly SCRIPT_VERSION="1.24.20261029.200500"
 SCRIPT_NAME="$(basename "${BASH_SOURCE[0]}" .sh)"; readonly SCRIPT_NAME
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
 SCRIPT_PATH="$SCRIPT_DIR/$(basename "${BASH_SOURCE[0]}")"; readonly SCRIPT_PATH
@@ -238,6 +238,8 @@ creer_config_defaut() {
 #KEEP_WEEKLY=4                     #           la dernière de chaque semaine pendant N semaines,
 #KEEP_MONTHLY=6                    #           la dernière de chaque mois pendant N mois
 #TIMER_TIME=02:30                  # heure(s) de la sauvegarde automatique, une ou plusieurs : TIMER_TIME=09:00 16:00 23:00
+#REMOTE_RETENTION=yes              # 1.24 : appliquer la même rétention sur la copie distante (REMOTE) ; no = la copie ne fait que grossir
+#MAX_REMOTE_DELETE=20              # 1.24 : nombre maximal de fichiers supprimés sur la copie distante en une passe (sécurité)
 EOF
     chmod 600 "$CONFIG_DEFAUT" 2>/dev/null || true
     echo "Configuration créée : $CONFIG_DEFAUT (modèle commenté ; à compléter, surtout REMOTE : copie hors du serveur)." >&2
@@ -264,9 +266,10 @@ done
 # --- Configuration: read line by line, NEVER executed (no "source"); unknown keys ignored ---------------
 DEST=/var/backups/odoo; FORMAT=zip; DATABASES=""; ODOO_CONF=""; FILESTORE_DIR=""; PG_USER=postgres
 KEEP_RECENT_DAYS=2; KEEP_DAILY=7; KEEP_WEEKLY=4; KEEP_MONTHLY=6; REMOTE=""; TIMER_TIME=02:30
+REMOTE_RETENTION=yes; MAX_REMOTE_DELETE=20          # 1.24: the same retention on the remote copy; at most N files deleted there per run
 for fichier_config in ${FICHIERS_CONFIG[@]+"${FICHIERS_CONFIG[@]}"}; do
     while IFS= read -r ligne || [[ -n "$ligne" ]]; do
-        [[ "$ligne" =~ ^[[:space:]]*(DEST|FORMAT|DATABASES|ODOO_CONF|FILESTORE_DIR|PG_USER|KEEP_RECENT_DAYS|KEEP_DAILY|KEEP_WEEKLY|KEEP_MONTHLY|REMOTE|TIMER_TIME)=(.*)$ ]] || continue
+        [[ "$ligne" =~ ^[[:space:]]*(DEST|FORMAT|DATABASES|ODOO_CONF|FILESTORE_DIR|PG_USER|KEEP_RECENT_DAYS|KEEP_DAILY|KEEP_WEEKLY|KEEP_MONTHLY|REMOTE|REMOTE_RETENTION|MAX_REMOTE_DELETE|TIMER_TIME)=(.*)$ ]] || continue
         valeur="${BASH_REMATCH[2]%%#*}"; valeur="${valeur%"${valeur##*[![:space:]]}"}"; valeur="${valeur#\"}"; valeur="${valeur%\"}"
         printf -v "${BASH_REMATCH[1]}" '%s' "$valeur"
     done < "$fichier_config"
@@ -291,9 +294,10 @@ fi
 [[ -n "$OPT_FORMAT" ]] && FORMAT="$OPT_FORMAT"
 [[ -n "$OPT_TIMES" ]] && TIMER_TIME="$OPT_TIMES"
 [[ "$FORMAT" == "zip" || "$FORMAT" == "tar.xz" ]] || { echo "ERREUR: format « $FORMAT » inconnu (zip ou tar.xz)." >&2; exit 1; }
-for n in KEEP_RECENT_DAYS KEEP_DAILY KEEP_WEEKLY KEEP_MONTHLY; do
+for n in KEEP_RECENT_DAYS KEEP_DAILY KEEP_WEEKLY KEEP_MONTHLY MAX_REMOTE_DELETE; do
     [[ "${!n}" =~ ^[0-9]+$ ]] || { echo "ERREUR: $n doit être un entier (reçu : « ${!n} »)." >&2; exit 1; }
 done
+[[ "$REMOTE_RETENTION" == "yes" || "$REMOTE_RETENTION" == "no" ]] || { echo "ERREUR: REMOTE_RETENTION attend yes ou no (reçu : « $REMOTE_RETENTION »)." >&2; exit 1; }
 # Backup times: one or more HH:MM (spaces or commas); "9:00" becomes "09:00"; sorted, without duplicate.
 normaliser_heures() {
     local h mot
@@ -527,6 +531,27 @@ sauvegarder() {
         rm -f /tmp/odoo-backup-rsync.$$
     fi
     retention "$db"
+    retention_distante "$db"
+}
+
+# --- 1.24: retention on the remote copy (REMOTE). Before, the remote folder only grew: the local retention never reached it.
+# After the local retention, the remote folder of the database is made equal to the local one: rsync --delete-excluded with
+# include filters (archives and their .sha256 only). --max-delete N stops the run (rsync error) instead of deleting more than N
+# files. Nothing is done when there is no local archive (an empty local folder would empty the remote one).
+retention_distante() {  # retention_distante BASE
+    local db="$1" nb_locales journal
+    [[ -n "$REMOTE" && "$REMOTE_RETENTION" == "yes" ]] || return 0
+    nb_locales=$(archives "$db" | wc -l)
+    if (( nb_locales == 0 )); then attn "$db : aucune sauvegarde locale — rétention distante ignorée (elle viderait la copie)"; return 0; fi
+    journal=$(mktemp "${TMPDIR:-/var/tmp}/odoo-backup-prune.XXXXXX")
+    trace rsync -a --delete --delete-excluded --max-delete="$MAX_REMOTE_DELETE" --include='*.zip' --include='*.tar.xz' --include='*.sha256' --exclude='*' "$DEST/$db/" "$REMOTE/$db/"
+    if run_interruptible rsync -a --delete --delete-excluded --max-delete="$MAX_REMOTE_DELETE" --include='*.zip' --include='*.tar.xz' --include='*.sha256' --exclude='*' "$DEST/$db/" "$REMOTE/$db/" 2>"$journal"; then
+        ok "rétention distante appliquée : $REMOTE/$db ($nb_locales sauvegarde(s) gardée(s))"
+    else
+        attn "rétention distante en échec pour $db ($(head -c 200 "$journal")) — copie distante inchangée au-delà de ce qui a été fait ; limite MAX_REMOTE_DELETE=$MAX_REMOTE_DELETE"
+        noter failure "rétention distante en échec pour $db"
+    fi
+    rm -f "$journal"
 }
 
 # --- Retention: the most recent of each day (KEEP_DAILY days), ISO week (KEEP_WEEKLY), month (KEEP_MONTHLY) ---
@@ -593,8 +618,19 @@ afficher_statut() {
     else
         attn "Timer : NON INSTALLÉ — sauvegarde automatique : odoo-backup.sh --install-timer"
     fi
-    if [[ -n "$REMOTE" ]]; then echo "  Copie hors du serveur : $REMOTE"
+    if [[ -n "$REMOTE" ]]; then echo "  Copie hors du serveur : $REMOTE (rétention distante : $REMOTE_RETENTION)"
     else attn "Copie hors du serveur : aucune (REMOTE) — une sauvegarde sur le même serveur ne protège pas d'une perte du serveur"; fi
+    # 1.24: date and result of the last restoration test (--test-restore)
+    if [[ -r "$STATE_DIR/last-restore-test" ]]; then
+        local essai_date essai_resultat essai_epoch
+        IFS=$'\t' read -r essai_date essai_resultat < "$STATE_DIR/last-restore-test"
+        essai_epoch=$(date -d "$essai_date" +%s 2>/dev/null) || essai_epoch=0
+        if [[ "$essai_resultat" != "success" ]]; then ko "dernier test de restauration en ÉCHEC ($essai_date) : $SCRIPT_PATH --test-restore"; rc=1
+        elif (( $(date +%s) - essai_epoch > 7 * 86400 )); then attn "dernier test de restauration réussi il y a plus de 7 jours ($essai_date) : $SCRIPT_PATH --test-restore"
+        else ok "dernier test de restauration réussi ($essai_date)"; fi
+    else
+        attn "aucun test de restauration enregistré — lancer : $SCRIPT_PATH --test-restore"
+    fi
     return "$rc"
 }
 
@@ -745,7 +781,15 @@ desinstaller_timer() {
 if [[ "$DO_STATUS" == "1" ]]; then afficher_statut; exit $?; fi
 if [[ "$DO_INSTALL_TIMER" == "1" ]]; then afficher_configuration; installer_timer; exit 0; fi
 if [[ "$DO_UNINSTALL_TIMER" == "1" ]]; then desinstaller_timer; exit 0; fi
-if [[ "$DO_TEST_RESTORE" == "1" ]]; then afficher_configuration; test_restauration; exit $?; fi
+if [[ "$DO_TEST_RESTORE" == "1" ]]; then
+    afficher_configuration
+    test_restauration; rc_test=$?
+    # 1.24: the result is kept for --status (a restoration test that is never run is a backup nobody knows is broken)
+    if [[ "$DO_DRY_RUN" != "1" ]]; then
+        mkdir -p "$STATE_DIR" 2>/dev/null && printf '%s\t%s\n' "$(date '+%Y-%m-%d %H:%M')" "$([[ $rc_test -eq 0 ]] && echo success || echo failure)" > "$STATE_DIR/last-restore-test" 2>/dev/null || true
+    fi
+    exit "$rc_test"
+fi
 if [[ -n "$RESTORE_FILE" ]]; then afficher_configuration; restaurer "$RESTORE_FILE" "$ONLY_DB"; exit $?; fi
 if [[ "$DO_DRY_RUN" != "1" && "$EUID" -ne 0 && -n "$PG_USER" && "$(id -un)" != "$PG_USER" ]]; then
     echo "ERREUR: root requis (pg_dump sous le compte $PG_USER)." >&2

@@ -1538,6 +1538,29 @@ Earlier history was archived outside this repository when this file was created.
 
 ## odoo-backup.sh
 
+### 1.24.20261029.200500 - Retention on the remote copy, result of the restoration test in --status
+
+- Title: the remote copy follows the local retention, and --status shows whether the last restoration test succeeded.
+- Reason: the retention only cleaned the local folder. The remote copy (REMOTE, for example on another server through Tailscale) grew without limit until its disk was full. The restoration test (--test-restore) existed, but its result was not kept: nothing said when it last ran or whether it succeeded.
+- Changes:
+  - retention_distante (new, after retention): after the local retention, the remote folder of each database is made equal to the local one with rsync --delete --delete-excluded and include filters (*.zip, *.tar.xz, *.sha256 only). --max-delete MAX_REMOTE_DELETE stops the run instead of deleting more.
+  - Configuration: REMOTE_RETENTION=yes|no (default yes) and MAX_REMOTE_DELETE=20 (integers checked). Both read from the configuration files; the example files document them.
+  - --test-restore: the result (date and success or failure) is written to last-restore-test in the state folder (not in dry-run).
+  - --status: shows the result of the last restoration test; a failure is an error, a success older than 7 days or no test at all is a warning. The remote retention setting is shown next to the remote copy.
+  - Files touched: odoo-backup.sh (version 1.24), lang/odoo-backup.en.po (15 fragments), doc/en and doc/fr odoo-backup.conf.example, CHANGELOG.md.
+- Bugs fixed: none, but the remote copy never being pruned was a growing risk: symptom = the remote disk fills; diagnosis = retention() only handles DEST; fix = retention_distante.
+- Safeguards and edge cases:
+  - No remote pruning when there is no local archive for the database: an empty local folder would empty the remote one. A warning is written instead.
+  - --max-delete: at most MAX_REMOTE_DELETE files are deleted in one run; above that rsync fails and the warning says so.
+  - REMOTE_RETENTION=no keeps the previous behaviour exactly.
+  - The remote folder is assumed dedicated to the backups of this program: with REMOTE_RETENTION=yes, files of other kinds in it are deleted.
+  - The rsync failure is recorded in last-failure (state read by --status and web-monitor.py).
+- Checks:
+  - bash -n OK; --version displays the dynamic version.
+  - Functional check of the guard (empty local folder) with the function extracted and stubs.
+  - NOT checked here: the rsync deletion itself, because rsync is not installed in the test environment. To be checked on the backup server: a remote folder with an extra old archive, run the backup once, and see it removed.
+- Action required: before the first run with REMOTE_RETENTION=yes, check the remote folder content (the files not produced by odoo-backup.sh would be deleted), or set REMOTE_RETENTION=no. After installation, run odoo-backup.sh --test-restore once so that --status has a result.
+
 ### 1.23.20261028.214122 - --menu: catalogue entries for the menu and its help line (English)
 
 - Title: --menu: catalogue entries for the menu and its help line (English).

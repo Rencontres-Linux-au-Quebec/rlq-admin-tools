@@ -536,3 +536,48 @@ msgstr ""
 
 msgid "--uninstall-timer|Retirer la sauvegarde automatique|Remove automatic backup|1"
 msgstr ""
+
+msgid "rétention distante appliquée : "
+msgstr "remote retention applied: "
+
+msgid " ("
+msgstr " ("
+
+msgid " sauvegarde(s) gardée(s))"
+msgstr " backup(s) kept)"
+
+msgid " : aucune sauvegarde locale — rétention distante ignorée (elle viderait la copie)"
+msgstr " : no local backup — remote retention skipped (it would empty the copy)"
+
+msgid "rétention distante en échec pour "
+msgstr "remote retention failed for "
+
+msgid ") — copie distante inchangée au-delà de ce qui a été fait ; limite MAX_REMOTE_DELETE="
+msgstr ") — remote copy left as it is beyond what was done; limit MAX_REMOTE_DELETE="
+
+msgid " (rétention distante : "
+msgstr " (remote retention: "
+
+msgid "ERREUR: REMOTE_RETENTION attend yes ou no (reçu : « "
+msgstr "ERROR: REMOTE_RETENTION expects yes or no (got: « "
+
+msgid " »)."
+msgstr " »)."
+
+msgid "dernier test de restauration en ÉCHEC ("
+msgstr "last restoration test FAILED ("
+
+msgid ") : "
+msgstr ") : "
+
+msgid " --test-restore"
+msgstr " --test-restore"
+
+msgid "dernier test de restauration réussi il y a plus de 7 jours ("
+msgstr "last restoration test succeeded more than 7 days ago ("
+
+msgid "dernier test de restauration réussi ("
+msgstr "last restoration test succeeded ("
+
+msgid "aucun test de restauration enregistré — lancer : "
+msgstr "no restoration test recorded — run: "
