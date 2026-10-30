@@ -2393,3 +2393,42 @@ msgstr " cases OK, "
 
 msgid "        nginx a refusé la configuration au rechargement : "
 msgstr "        nginx refused the configuration on reload: "
+
+msgid "URI : aucun nom public testable dans nginx -T : vérification impossible."
+msgstr "URI: no testable public name in nginx -T: check impossible."
+
+msgid " (attendu 404)"
+msgstr " (expected 404)"
+
+msgid "URI refusées : "
+msgstr "Refused URIs: "
+
+msgid " test(s) sur les noms publics — toutes répondent 404 (chemins : "
+msgstr " test(s) on the public names: all answer 404 (paths: "
+
+msgid " test(s) sur "
+msgstr " test(s) on "
+
+msgid " ne répondent pas 404 : le bloc server qui répond à ces noms n'applique pas la règle. Voir : nginx "
+msgstr " do not answer 404: the server block answering these names does not apply the rule. See: nginx "
+
+msgid "  URI refusées actuellement : "
+msgstr "  Refused URIs currently: "
+
+msgid "aucune"
+msgstr "none"
+
+msgid " URI refusée(s) : "
+msgstr " refused URI(s): "
+
+msgid " — --update appliquera ce changement après confirmation."
+msgstr " — --update will apply this change after confirmation."
+
+msgid "Pas de terminal : URI refusées inchangées ("
+msgstr "No terminal: refused URIs unchanged ("
+
+msgid "). Ajouter --yes pour confirmer sans question."
+msgstr ")  Add --yes to confirm without asking."
+
+msgid "URI refusées non modifiées ("
+msgstr "Refused URIs not changed ("
