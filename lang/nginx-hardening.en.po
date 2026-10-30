@@ -2063,8 +2063,8 @@ msgstr "  --menu                       interactive menu of the common operations
 msgid "  --rollback                   restaure la sauvegarde la plus récente (ou --backup NAME) de la configuration nginx et fail2ban, après confirmation"
 msgstr "  --rollback                   restores the most recent backup (or --backup NAME) of the nginx and fail2ban configuration, after confirmation"
 
-msgid "  --yes                        avec --rollback : restaurer sans question"
-msgstr "  --yes                        with --rollback: restore without asking"
+msgid "  --yes                        avec --rollback, --disable-uri ou --enable-uri : appliquer sans question"
+msgstr "  --yes                        with --rollback, --disable-uri or --enable-uri: apply without asking"
 
 msgid "ERREUR: chemin invalide « "
 msgstr "ERROR: invalid path « "
