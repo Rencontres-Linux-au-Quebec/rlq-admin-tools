@@ -217,7 +217,26 @@ DAYS_DEFAULT = 0                                                      # 0 = the 
 IDLE_DEFAULT = 15.0                                                 # minutes without activity before "no more activity"
 REPORT_DEFAULT = 60.0                                                 # --time-report without a value: minutes between two periodic reports
 LEVEL_MAX = 9                                                        # dashboard levels: 1 (verdict) to 9 (everything) - keys 1 to 9, --level
-CONNECTIONS_THRESHOLD_DEFAULT = 80.0                                          # % of use of a limit (connections, descriptors, PostgreSQL, nginx) from which a WARNING is displayed; --connections
+# Shared thresholds (apps/_seuils.py, also read by web-monitor.py; its header lists the files that override them).
+# Without the module, or if it cannot be read, the built-in value of the constant is kept.
+def seuil_commun(cle, defaut):
+    chemin = os.path.join(SCRIPT_DIR, "apps", "_seuils.py")
+    if not os.path.isfile(chemin):
+        return defaut
+    try:
+        spec = importlib.util.spec_from_file_location("_seuils", chemin)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        valeurs, _lus, avis = module.charger()
+    except Exception as erreur:
+        print(f"WARNING / AVERTISSEMENT: apps/_seuils.py unreadable / illisible ({erreur}): built-in values used", file=sys.stderr)
+        return defaut
+    for avertissement in avis:
+        print(f"WARNING / AVERTISSEMENT: {avertissement}", file=sys.stderr)
+    return valeurs.get(cle, defaut)
+
+
+CONNECTIONS_THRESHOLD_DEFAULT = seuil_commun("CONNECTIONS_PCT", 80.0)                                          # % of use of a limit (connections, descriptors, PostgreSQL, nginx) from which a WARNING is displayed; --connections
 DISK_MIN_DEFAULT = 5.0                                               # free GB below which a WARNING is displayed (journals partition); --disk-min
 HEALTH_DEFAULT = 10.0                                                   # minutes between two automatic health checks (alert only if there is a problem)
 JOURNAL_DAYS_DEFAULT = 180                                            # days of daily journals kept (they contain addresses and names)
@@ -285,7 +304,7 @@ def regler_cms(cms, bbb_server=False):
     SUSPECT_RE = re.compile(SUSPECT_BASE + ("" if cms == "wordpress" and not bbb_server else "|" + SUSPECT_WP) + (SUSPECT_CMS_BBB if bbb_server else ""), re.I)
 
 
-THRESHOLD_404 = 5               # DIFFERENT pages in 404 for the same address: probe sweep, address to ban (like a suspicious request)
+THRESHOLD_404 = seuil_commun("PROBE_404", 5)               # DIFFERENT pages in 404 for the same address: probe sweep, address to ban (like a suspicious request)
 NAME_WIDTH = 45            # MINIMUM width (never truncated) of the name that replaces the address, and of the first field (the logger) of lines without an address
 DNS_MAX_DEFAULT = 20         # --dns-max without a value: width of the names column (never truncated)
 DNS_TRUNCATE_DEFAULT = 32     # --dns-max-truncate without a value: width AND limit of the names column (the rest is cut, "..." at the end)
@@ -520,6 +539,7 @@ def load_module(name):
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
+
 
 
 # ------------------------------------------------------------------------------------------------------------------
@@ -4488,7 +4508,7 @@ RECORD_STATIC_RE = re.compile(r'"(?:GET|HEAD) +(?:/web/assets/|/web/static/|/[\w
 WEBSOCKET_RE = re.compile(r'"GET +/(?:websocket|longpolling)\b')     # 1.93: chat / bus connections of an open tab (recording noise)
 RECORD_MAX_LIMIT = 60.0        # 1.99: a test recording (R key) lasts 60 minutes at most: --record-max and RECORD_MAX cannot exceed it, nor be 0 (no limit)
 RECORD_MAX_DEFAULT = RECORD_MAX_LIMIT     # 1.93: minutes after which a recording stops by itself (--record-max, RECORD_MAX)
-REPEAT_MIN = 2            # past fail2ban bans from which an address is "often banned" (same threshold as nginx-log-audit.sh: "recidivism")
+REPEAT_MIN = seuil_commun("REPEAT_MIN", 2)            # past fail2ban bans from which an address is "often banned" (same threshold as nginx-log-audit.sh: "recidivism")
 BAN_DELAY = 10              # seconds left to answer the ban proposal; without an answer, the tracking continues
 KEYS = {b"\x07": "g", b"\x14": "t"}      # Ctrl-G: dashboard; Ctrl-T: only what changed since the last time
 # Simple keys of the menu (? or h): toggles and settings of the command-line options, and a few commands

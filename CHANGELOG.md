@@ -1489,6 +1489,15 @@ Earlier history was archived outside this repository when this file was created.
 
 ## web-monitor.py
 
+### 2.82.20261029.212344 - Burst and shared thresholds read from apps/_seuils.py
+
+- Title: Burst and shared thresholds read from apps/_seuils.py.
+- Reason: Burst thresholds must match app-log-live.py and the shared file, so that one change applies to both programs.
+- Changes:
+  - BURST_PAGES and BURST_WINDOW_S now come from apps/_seuils.py through charger_seuils_communs(); the built-in values are kept without the module.
+  - Warnings from the shared file are printed on stderr.
+  - Files: web-monitor.py, apps/_seuils.py, nginx-tools-tests/test_seuils.py.
+
 ### 2.81.20261028.214122 - --menu: English programs translate the menu and its help through their catalogue
 
 - Title: --menu: English programs translate the menu and its help through their catalogue.
@@ -2677,6 +2686,20 @@ Earlier history was archived outside this repository when this file was created.
 
 
 ### 1.26.20261020.211944 - Current version. Earlier history archived outside the repository.
+
+## apps/_seuils.py
+
+### 1.0.20261029.212344 - Shared thresholds for web-monitor.py and app-log-live.py
+
+- Title: Shared thresholds for web-monitor.py and app-log-live.py.
+- Reason: The same notions were written twice with values that could drift apart (burst: 15 pages in web-monitor.py; the 404 probe threshold and the connection percentage in app-log-live.py). One module now holds them.
+- Changes:
+  - New module apps/_seuils.py: BURST_PAGES (15), BURST_WINDOW_S (10), CONNECTIONS_PCT (80), PROBE_404 (5), REPEAT_MIN (2). Defaults unchanged.
+  - Optional overrides read in order: /etc/default/app-seuils.conf, then ~/.app-seuils.conf (KEY=value; the last one read wins).
+  - Invalid or unknown values are ignored with a bilingual warning on stderr; the default is kept.
+  - Functions: lire(), valide(), charger() returning (values, files read, warnings).
+  - Files: apps/_seuils.py, nginx-tools-tests/test_seuils.py (8 tests).
+  - Not changed: nginx-log-audit.sh keeps its own bash values (its --page-burst default is 8 against 15 here; this difference is still to be decided).
 
 ## apps/_anonymiser.py
 
