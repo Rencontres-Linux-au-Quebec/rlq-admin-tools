@@ -231,8 +231,8 @@ msgstr "the Odoo update ended with code "
 msgid "Odoo s'est arrêté de lui-même après "
 msgstr "Odoo stopped by itself after "
 
-msgid " ligne(s) ERROR/CRITICAL dans le journal de la mise à jour ("
-msgstr " ERROR/CRITICAL line(s) in the update log ("
+msgid " lignes ERROR/CRITICAL dans le journal de la mise à jour ("
+msgstr " ERROR/CRITICAL lines in the update log ("
 
 msgid " CRITICAL) — premières :"
 msgstr " CRITICAL) — first ones:"
@@ -273,8 +273,8 @@ msgstr "ERROR: root required (systemctl stop/start, update under the service acc
 msgid "terminé avec "
 msgstr "finished with "
 
-msgid " échec(s)"
-msgstr " failure(s)"
+msgid " échecs"
+msgstr " failures"
 
 msgid ", compte "
 msgstr ", account "
@@ -294,8 +294,8 @@ msgstr "Stopping the service"
 msgid "Mise à jour des modules dans la base "
 msgstr "Updating the modules in database "
 
-msgid " module(s), compte "
-msgstr " module(s), account "
+msgid " modules, compte "
+msgstr " modules, account "
 
 msgid " s — en cours…"
 msgstr " s — running…"
@@ -375,8 +375,8 @@ msgstr "administration not warmed up: set LOGIN and KEY_FILE in /etc/default/odo
 msgid "détail : "
 msgstr "details: "
 
-msgid " appel(s)) :"
-msgstr " call(s)):"
+msgid " appels) :"
+msgstr " calls):"
 
 msgid "  --addons-dir DIR             dossier où décompresser l'archive .zip des modules (souvent un dossier d'addons) ; défaut : ADDONS_DIR, sinon le dossier de"
 msgstr "  --addons-dir DIR             folder where the modules' .zip archive is unpacked (often an addons folder); default: ADDONS_DIR, else the addons_path folder"
@@ -444,8 +444,8 @@ msgstr " (owner: that of the folder)"
 msgid " décompressé dans "
 msgstr " unpacked into "
 
-msgid " module(s), fichiers existants remplacés)"
-msgstr " module(s), existing files replaced)"
+msgid " modules, fichiers existants remplacés)"
+msgstr " modules, existing files replaced)"
 
 msgid "versions des modules illisibles (PostgreSQL : root requis ?)"
 msgstr "module versions unreadable (PostgreSQL: root required?)"
@@ -561,8 +561,8 @@ msgstr " (MODULES_BACKUP_DIR) — nothing was stopped"
 msgid "copie des modules impossible (espace disque ?) — rien n'a été arrêté"
 msgstr "copy of the modules impossible (disk space?) — nothing was stopped"
 
-msgid " module(s) copié(s) : "
-msgstr " module(s) copied: "
+msgid " modules copiés : "
+msgstr " modules copied: "
 
 msgid "aucune copie des modules : retour arrière impossible"
 msgstr "no copy of the modules: rollback impossible"
@@ -582,8 +582,8 @@ msgstr " --since @START: ERROR / CRITICAL lines (and Odoo's logfile)"
 msgid "aucune erreur (ERROR / CRITICAL) dans le journal d'Odoo depuis le démarrage"
 msgstr "no error (ERROR / CRITICAL) in Odoo's log since the start"
 
-msgid " ligne(s) ERROR/CRITICAL dans le journal d'Odoo depuis le démarrage — premières :"
-msgstr " ERROR/CRITICAL line(s) in Odoo's log since the start — first ones:"
+msgid " lignes ERROR/CRITICAL dans le journal d'Odoo depuis le démarrage — premières :"
+msgstr " ERROR/CRITICAL lines in Odoo's log since the start — first ones:"
 
 msgid "en cas d'erreur : retour arrière des modules (copie d'avant, nouvelle mise à jour, redémarrage)"
 msgstr "on error: rollback of the modules (previous copy, new update, restart)"
@@ -654,20 +654,20 @@ msgstr "nginx access logs unreadable: HTTP writes unknown"
 msgid " dernières minutes, la plus récente : "
 msgstr " minutes, the most recent: "
 
-msgid " écriture(s) HTTP (POST…) dans les "
-msgstr " HTTP write(s) (POST…) in the last "
+msgid " écritures HTTP (POST…) dans les "
+msgstr " HTTP writes (POST…) in the last "
 
 msgid "base PostgreSQL illisible (psql ou « sudo -n -u postgres » refusé) : activité inconnue"
 msgstr "PostgreSQL database unreadable (psql or « sudo -n -u postgres » refused): activity unknown"
 
-msgid " session(s) PostgreSQL en cours sur la base "
-msgstr " PostgreSQL session(s) running on database "
+msgid " sessions PostgreSQL en cours sur la base "
+msgstr " PostgreSQL sessions running on database "
 
 msgid " verrou(x) d'écriture sur ir_cron (tâche planifiée en cours)"
-msgstr " write lock(s) on ir_cron (scheduled task running)"
+msgstr " write locks on ir_cron (scheduled task running)"
 
-msgid " écriture(s) dans les tables d'activité pendant "
-msgstr " write(s) in the activity tables during "
+msgid " écritures dans les tables d'activité pendant "
+msgstr " writes in the activity tables during "
 
 msgid "maintenant occupé : "
 msgstr "now busy: "
@@ -829,5 +829,5 @@ msgstr ""
 msgid "--check-activity|État du site maintenant|Site activity now|0"
 msgstr ""
 
-msgid "|Mettre à jour le ou les modules (configuration)|Update the module(s) (configuration)|1"
+msgid "|Mettre à jour le ou les modules (configuration)|Update the modules (configuration)|1"
 msgstr ""

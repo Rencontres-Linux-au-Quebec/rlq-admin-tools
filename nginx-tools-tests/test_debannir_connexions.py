@@ -39,14 +39,14 @@ echo "   \\`- Banned IP list:	10.0.0.1 10.0.0.4 10.0.0.20"; else echo "Status"; 
         self.assertRegex(section, r"10\.0\.0\.20\s+probable\s+visiteur humain probable : 2 page")
         self.assertNotIn("10.0.0.4", section)                                  # requested /.env: rightly banned
         self.assertIn("fail2ban-client set nginx-catchall unbanip 10.0.0.1", section)
-        self.assertIn("Débannir 2 IP valide(s)", out)
-        self.assertIn("2 IP bannie(s) semblent valides (1 certaine(s)", out)
+        self.assertIn("Débannir 2 IP valides", out)
+        self.assertIn("2 IP bannies semblent valides (1 certaines", out)
 
     def test_section_en_anglais_sans_francais_ni_unites_francaises(self):
         rc, out, err = self.run_cmd(["python3", self.prog, "--summary", "--lang", "en"])
         self.assertEqual(rc, 0, err)
         self.assertIn("BANNED IPs THAT LOOK VALID (to unban)", out)
-        self.assertIn("Unban 2 valid IP(s)", out)
+        self.assertIn("Unban 2 valid IPs", out)
         self.assertNotRegex(out, r"\d (Ko|Mo|Go|o)\b")                         # units: KB, MB, GB, B
         self.assertNotRegex(out, r"\[(MOYENNE|FAIBLE)\]")
         self.assertNotIn("semblent", out)
@@ -112,7 +112,7 @@ class Connexions(EnvTest):
         self.assertEqual(len(r), 1)
         niveau, constat, conseil = r[0]
         self.assertEqual(niveau, "warn")
-        self.assertIn("850 connexion(s) établie(s)", constat)
+        self.assertIn("850 connexions établies", constat)
         self.assertIn("LimitNOFILE=65535", conseil)
         self.assertIn("systemctl edit erplibre.service", conseil)
         self.assertEqual(self.c.diagnostiquer(self.mesures(fd_gevent=(1000, 1024)))[0][0], "crit")

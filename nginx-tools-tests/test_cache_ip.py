@@ -45,7 +45,7 @@ class CacheIP(EnvTest):
     def test_creation_droits_600_et_ligne_de_resume(self):
         c = self.cache()
         self.assertEqual(oct(os.stat(c.chemin).st_mode & 0o777), "0o600")                  # des adresses IP sont des renseignements personnels
-        self.assertEqual(c.resume(), f"Cache des adresses : {c.chemin} (0 adresse(s), {os.path.getsize(c.chemin) // 1024} Ko)")
+        self.assertEqual(c.resume(), f"Cache des adresses : {c.chemin} (0 adresses, {os.path.getsize(c.chemin) // 1024} Ko)")
         self.assertEqual(module().Cache(None).resume(), "Cache des adresses : désactivé")
 
     def test_durees_de_validite_et_jamais_les_echecs(self):
@@ -141,14 +141,14 @@ class CacheIP(EnvTest):
             r = subprocess.run([sys.executable, script_path("apps/_cache_ip.py"), *args], capture_output=True, text=True, env=env)
             return r.returncode, r.stdout, r.stderr
         rc, out, _ = cli("--stats")
-        self.assertIn(f"Cache des adresses : {chemin} (1 adresse(s)", out)
+        self.assertIn(f"Cache des adresses : {chemin} (1 adresses", out)
         self.assertIn("avec nom DNS : 1 ; avec propriétaire du bloc (organisation) : 1 ; avec pays : 1", out)
         rc, out, _ = cli("--show", "203.0.113.9")
         self.assertIn("nom DNS : srv.exemple.org", out)
         self.assertIn("propriétaire du bloc : Videotron Ltee (organisation) — plage 11.40.0.0/14", out)
         self.assertIn("pays : CA (rdap)", out)
         self.assertEqual(cli("--show", "198.51.100.1")[0], 1)
-        self.assertIn("effacée(s)", cli("--purge", "0")[1])
+        self.assertIn("effacées", cli("--purge", "0")[1])
         self.assertIn("vidé", cli("--clear")[1])
         self.assertRegex(cli("--version")[1], r"^_cache_ip\.py version 1\.\d+\.\d{8}\.\d{6}$")
         r = subprocess.run([sys.executable, script_path("apps/_cache_ip.py"), "--stats"], capture_output=True, text=True,

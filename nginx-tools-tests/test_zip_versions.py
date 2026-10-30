@@ -53,7 +53,7 @@ class ZipVersions(EnvTest):
         self.assertIn("nginx-hardening.sh               2.16.20260930.163902", out)
         self.assertIn("run-all.sh                       1.54.20261001.090925", out)
         self.assertNotIn("9.9.20991231", out)                                  # fake version of the test data ignored
-        self.assertIn("configuration nginx (journal)    2026-10-01 — 2 fichier(s)", out)
+        self.assertIn("configuration nginx (journal)    2026-10-01 — 2 fichiers", out)
         self.assertIn("nginx-tools.zip est plus ancienne que", out)
         self.assertIn("web-monitor.py 2.35.20260930.163902 < 2.37.20261001.090925", out)
         self.assertIn("vieille-config.zip est plus ancienne que", out)
@@ -61,7 +61,7 @@ class ZipVersions(EnvTest):
         self.assertIn("nginx-tools (1).zip  (plus récent : web-monitor.py 2.37.20261001.090925)", a_joindre)
         self.assertIn(os.path.join(self.dossier, "nginx-odoo-config.zip"), a_joindre)
         self.assertIn("nginx-tools-tests.zip  (plus récent : run-all.sh 1.54.20261001.090925)", a_joindre)
-        self.assertIn("nginx-tools-tests.zip ↔ nginx-odoo-config.zip : 2 fichier(s) commun(s), tous identiques", out)
+        self.assertIn("nginx-tools-tests.zip ↔ nginx-odoo-config.zip : 2 fichiers communs, tous identiques", out)
         self.assertEqual(rc, 0)
 
     def test_versions_datees_d_aujourd_hui_en_vert(self):
@@ -109,7 +109,7 @@ class ZipVersions(EnvTest):
         rc, out = self.lancer(self.dossier, os.path.join(self.dossier, "nexiste-pas.zip"))
         self.assertIn("[ATTN] archive illisible", out)
         self.assertIn("nexiste-pas.zip : introuvable", out)
-        self.assertIn("manquant(s) : nginx-tools-tests", out)
+        self.assertIn("manquants : nginx-tools-tests", out)
         self.assertEqual(rc, 1)
 
     def test_comparaison_avec_l_installation_et_la_configuration(self):
@@ -132,9 +132,9 @@ class ZipVersions(EnvTest):
         self.assertIn("web-monitor.py : installé 2.35.20260930.163902 < archive 2.37.20261001.090925 — à déployer", out)
         self.assertIn("nginx-hardening.sh : installé 2.17.20261002.080000 > archive 2.16.20260930.163902 — archive périmée", out)
         self.assertIn("[OK]   apps/_rapport.py 1.1.20260930.225745", out)
-        self.assertIn("configuration : 1 fichier(s) identique(s)", out)
-        self.assertIn("1 fichier(s) différent(s) de l'archive : sites-available/10-prod.conf", out)
-        self.assertIn("1 absent(s)", out)
+        self.assertIn("configuration : 1 fichiers identiques", out)
+        self.assertIn("1 fichiers différents de l'archive : sites-available/10-prod.conf", out)
+        self.assertIn("1 absents", out)
         self.assertNotIn("fail2ban/odoo-auth.filter.conf", out)                   # copied elsewhere: not compared
         self.assertEqual(rc, 1)
 
@@ -202,16 +202,16 @@ class ZipVersions(EnvTest):
         self.assertIn("package.json                     3.2.1  (paquet)", out)
         self.assertIn("pyproject.toml                   0.4.0  (paquet)", out)
         self.assertIn("aucune version déclarée", out)                            # archive de tests
-        self.assertIn("[OK]   rlq_survey_report_tests.zip ↔ rlq_survey_report.zip : 2 fichier(s) commun(s), tous identiques", out)
+        self.assertIn("[OK]   rlq_survey_report_tests.zip ↔ rlq_survey_report.zip : 2 fichiers communs, tous identiques", out)
         a_joindre = out.split("ARCHIVES À JOINDRE")[1]
         self.assertIn("rlq_survey_report.zip  (version 18.0.1.7.0", a_joindre)
         self.assertIn("fichiers communs identiques à rlq_survey_report 18.0.1.7.0", a_joindre)
-        self.assertNotIn("manquant(s)", a_joindre)                               # aucune de nos archives ici
+        self.assertNotIn("manquants", a_joindre)                               # aucune de nos archives ici
         self.assertNotIn("(aucun programme versionné reconnu)", out)
         # Tests qui ne correspondent plus au programme
         self.archive("rlq_survey_report_tests.zip", {"rlq_survey_report_tests/models/report_builder.py": "x = 2\n"})
         rc, out = self.lancer(self.dossier)
-        self.assertIn("1 fichier(s) commun(s) différent(s) : models/report_builder.py", out)
+        self.assertIn("1 fichiers communs différents : models/report_builder.py", out)
         self.assertEqual(rc, 1)
 
     def test_copie_testee_de_la_configuration_identique(self):
@@ -221,7 +221,7 @@ class ZipVersions(EnvTest):
                                                "nginx-tools-tests/nginx-odoo/conf.d/odoo-global.conf": "x;\n"})
         self.archive("nginx-odoo-config.zip", {"nginx-odoo/README.md": "- 2026-10-01 : a\n", "nginx-odoo/conf.d/odoo-global.conf": "y;\n"})
         rc, out = self.lancer(self.dossier)
-        self.assertIn("nginx-tools-tests.zip ↔ nginx-odoo-config.zip : 1 fichier(s) commun(s) différent(s) : conf.d/odoo-global.conf", out)
+        self.assertIn("nginx-tools-tests.zip ↔ nginx-odoo-config.zip : 1 fichiers communs différents : conf.d/odoo-global.conf", out)
 
     def test_version_dans_le_nom_des_archives(self):
         """1.3 / 1.4 : archives livrées avec leur version SANS la date dans le nom (nginx-tools.1.1.zip) ; version de
@@ -269,7 +269,7 @@ class ZipVersions(EnvTest):
         self.archive("nginx-odoo-config.2.0.zip", {"nginx-odoo/VERSION": v + "\n", "nginx-odoo/README.md": "- 2026-10-02 : a\n"})   # name != content
         rc, out = self.lancer(os.path.join(self.dossier, "nginx-odoo-config.1.0.zip"))
         self.assertIn(f"version de l’archive             {v}", out)
-        self.assertIn("configuration nginx (journal)    2026-10-02 — 2 fichier(s)", out)           # VERSION n'est pas un fichier de configuration
+        self.assertIn("configuration nginx (journal)    2026-10-02 — 2 fichiers", out)           # VERSION n'est pas un fichier de configuration
         self.assertNotIn("le nom du fichier indique", out)
         self.assertIn(f"nginx-odoo-config.1.0.zip  (version {v}, plus récent : 2026-10-02)", out.split("ARCHIVES À JOINDRE")[1])
         rc, out = self.lancer(os.path.join(self.dossier, "nginx-odoo-config.2.0.zip"))

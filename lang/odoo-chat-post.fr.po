@@ -70,8 +70,8 @@ msgstr "  Canal créé : "
 msgid ", first message written, "
 msgstr ", premier message écrit, "
 
-msgid " member(s) added)"
-msgstr " membre(s) ajouté(s))"
+msgid " members added)"
+msgstr " membres ajoutés)"
 
 msgid "    Thread already present: "
 msgstr "    Fil déjà présent : "
@@ -88,8 +88,8 @@ msgstr ", premier message écrit)"
 msgid "  Dry run: nothing was written to Odoo."
 msgstr "  À blanc : rien n'a été écrit dans Odoo."
 
-msgid " channel(s) / thread(s) created."
-msgstr " canal(aux) / fil(s) créé(s)."
+msgid " channels / threads created."
+msgstr " canal(aux) / fils créés."
 
 msgid "  This Odoo version has no sub-channels: each thread is a channel named \"Channel — Thread\"."
 msgstr "  Cette version d'Odoo n'a pas de sous-canaux : chaque fil est un canal nommé « Canal — Fil »."
@@ -205,8 +205,8 @@ msgstr " (groupe « "
 msgid "(no account found)"
 msgstr "(aucun compte trouvé)"
 
-msgid " member(s) added to "
-msgstr " membre(s) ajouté(s) à "
+msgid " members added to "
+msgstr " membres ajoutés à "
 
 msgid " is visible to another group than \""
 msgstr " est visible par un autre groupe que « "
@@ -304,8 +304,8 @@ msgstr "  ATTENTION : clé API non créée automatiquement : "
 msgid "  API key created for "
 msgstr "  Clé API créée pour "
 
-msgid " day(s), until "
-msgstr " jour(s), jusqu'au "
+msgid " days, until "
+msgstr " jours, jusqu'au "
 
 msgid " (longest duration Odoo accepts for this account)"
 msgstr " (durée maximale acceptée par Odoo pour ce compte)"

@@ -92,7 +92,7 @@ set -euo pipefail
 for _d in /usr/local/sbin /usr/sbin /sbin; do [[ -n "${NGINX_TOOLS_TESTS:-}" ]] && break; case ":$PATH:" in *":$_d:"*) ;; *) PATH="$PATH:$_d" ;; esac; done
 export PATH
 
-readonly SCRIPT_VERSION="1.22.20261028.214122"
+readonly SCRIPT_VERSION="1.23.20261030.153422"
 SCRIPT_NAME="$(basename "${BASH_SOURCE[0]}" .sh)"; readonly SCRIPT_NAME
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
 SCRIPT_PATH="$SCRIPT_DIR/$(basename "${BASH_SOURCE[0]}")"; readonly SCRIPT_PATH
@@ -178,7 +178,7 @@ fi
 MENU_ENTREES=(
     "--dry-run|Montrer la mise à jour sans la faire|Show the update without doing it|0"
     "--check-activity|État du site maintenant|Site activity now|0"
-    "|Mettre à jour le ou les modules (configuration)|Update the module(s) (configuration)|1"
+    "|Mettre à jour le ou les modules (configuration)|Update the modules (configuration)|1"
 )
 declare -F menu_si_demande >/dev/null && menu_si_demande "$SCRIPT_DIR/$(basename "${BASH_SOURCE[0]}")" "$@"
 
@@ -430,7 +430,7 @@ if os.geteuid() == 0:                                   # les fichiers appartien
         except OSError:
             pass
 PYEOF
-    then ok "$(basename "$ZIP_FICHIER") décompressé dans ${C_BOLD}$DESTINATION${C_RESET} (${#ZIP_MODULES[@]} module(s), fichiers existants remplacés)"
+    then ok "$(basename "$ZIP_FICHIER") décompressé dans ${C_BOLD}$DESTINATION${C_RESET} (${#ZIP_MODULES[@]} modules, fichiers existants remplacés)"
     else ko "décompression de $ZIP_FICHIER dans $DESTINATION impossible (droits ? espace disque ?)"; return 1; fi
 }
 
@@ -589,7 +589,7 @@ mettre_a_jour() {
         lancer=(timeout --kill-after=30 "$TIMEOUT" runuser -u "$RUN_USER" -- env "HOME=${maison:-/nonexistent}" bash -c 'cd "$1" && shift && exec "$@"' _ "${ODOO_DIR:-.}" "${odoo[@]}")
     fi
     if (( DO_DRY_RUN )); then sim "$(printf '%q ' "${lancer[@]}")> $JOURNAL"; return 0; fi
-    echo "  ${C_DIM}${#MODULES_TROUVES[@]} module(s), compte ${RUN_USER:-$(id -un)}, délai maximal ${TIMEOUT} s — en cours…${C_RESET}"
+    echo "  ${C_DIM}${#MODULES_TROUVES[@]} modules, compte ${RUN_USER:-$(id -un)}, délai maximal ${TIMEOUT} s — en cours…${C_RESET}"
     detail "journal : $JOURNAL"
     trace "${lancer[@]}"
     debut=$SECONDS
@@ -612,7 +612,7 @@ controler_journal() {
     erreurs=$(grep -cE ' (ERROR|CRITICAL) ' "$JOURNAL" || true)
     critiques=$(grep -cE ' CRITICAL ' "$JOURNAL" || true)
     if (( erreurs > 0 )); then
-        ko "${erreurs} ligne(s) ERROR/CRITICAL dans le journal de la mise à jour (${critiques} CRITICAL) — premières :"
+        ko "${erreurs} lignes ERROR/CRITICAL dans le journal de la mise à jour (${critiques} CRITICAL) — premières :"
         grep -E ' (ERROR|CRITICAL) ' "$JOURNAL" | head -n 10 | cut -c1-300 | en_retrait "$C_RED"
         return 1
     fi
@@ -662,7 +662,7 @@ prechauffer() {
     fi
     lignes=$(grep -cE '^  \[(OK|.CHEC)' "$log" || true)
     if grep -q '.CHEC ' "$log"; then
-        attn "préchauffage terminé avec des échecs (${lignes} appel(s)) :"
+        attn "préchauffage terminé avec des échecs (${lignes} appels) :"
         grep -E '^  \[.CHEC' "$log" | head -n 5 | cut -c1-160 | en_retrait "$C_YELLOW"
     else
         ok "cache préchauffé en ${resume#* en }"
@@ -791,16 +791,16 @@ site_reasons() {
     if [[ "$w_nombre" == "?" ]]; then
         printf 'W|%s\n' "journaux d'accès de nginx illisibles : écritures HTTP inconnues"
     elif (( w_nombre > 0 )); then
-        printf 'W|%s\n' "$w_nombre écriture(s) HTTP (POST…) dans les $(( ACTIVITY_WINDOW / 60 )) dernières minutes, la plus récente : $(tail -n 1 <<< "$w_sortie")"
+        printf 'W|%s\n' "$w_nombre écritures HTTP (POST…) dans les $(( ACTIVITY_WINDOW / 60 )) dernières minutes, la plus récente : $(tail -n 1 <<< "$w_sortie")"
     fi
     dbv=$(db_activity)
     read -r s l d <<< "$dbv"
     if [[ "$dbv" == "?" ]]; then
         printf 'W|%s\n' "base PostgreSQL illisible (psql ou « sudo -n -u postgres » refusé) : activité inconnue"
     else
-        if (( s > 0 )); then printf 'W|%s\n' "$s session(s) PostgreSQL en cours sur la base $DB"; fi
+        if (( s > 0 )); then printf 'W|%s\n' "$s sessions PostgreSQL en cours sur la base $DB"; fi
         if (( l > 0 )); then printf 'W|%s\n' "$l verrou(x) d'écriture sur ir_cron (tâche planifiée en cours)"; fi
-        if (( d > 0 )); then printf 'W|%s\n' "$d écriture(s) dans les tables d'activité pendant ${ACTIVITY_SAMPLE} s"; fi
+        if (( d > 0 )); then printf 'W|%s\n' "$d écritures dans les tables d'activité pendant ${ACTIVITY_SAMPLE} s"; fi
     fi
     return 0
 }
@@ -1009,7 +1009,7 @@ backup_modules() {
         return 1
     fi
     printf '%s\n' "${chemins[@]}" > "${MODULES_BACKUP%.tar.gz}.list"
-    ok "${#chemins[@]} module(s) copié(s) : ${C_BOLD}$MODULES_BACKUP${C_RESET} ${C_DIM}($(du -h "$MODULES_BACKUP" | cut -f1))${C_RESET}"
+    ok "${#chemins[@]} modules copiés : ${C_BOLD}$MODULES_BACKUP${C_RESET} ${C_DIM}($(du -h "$MODULES_BACKUP" | cut -f1))${C_RESET}"
     # shellcheck disable=SC2012  # noms produits par ce programme
     ls -1t "$MODULES_BACKUP_DIR"/modules-*.tar.gz 2>/dev/null | tail -n +11 | while IFS= read -r f; do rm -f -- "$f" "${f%.tar.gz}.list"; done
 }
@@ -1046,7 +1046,7 @@ check_after_start() {
     erreurs=$(grep -v '^$' <<< "$erreurs" || true)
     if [[ -z "$erreurs" ]]; then ok "aucune erreur (ERROR / CRITICAL) dans le journal d'Odoo depuis le démarrage"; return 0; fi
     n=$(grep -c . <<< "$erreurs")
-    ko "${n} ligne(s) ERROR/CRITICAL dans le journal d'Odoo depuis le démarrage — premières :"
+    ko "${n} lignes ERROR/CRITICAL dans le journal d'Odoo depuis le démarrage — premières :"
     head -n 8 <<< "$erreurs" | cut -c1-300 | en_retrait "$C_RED"
     return 1
 }
@@ -1156,7 +1156,7 @@ else
 fi
 if (( echecs > 0 )); then
     echo
-    ko "mise à jour terminée avec ${echecs} échec(s)"
+    ko "mise à jour terminée avec ${echecs} échecs"
     if rollback; then
         echo
         ko "mise à jour ANNULÉE : les modules d'avant sont en service (journal de l'échec : $JOURNAL)"

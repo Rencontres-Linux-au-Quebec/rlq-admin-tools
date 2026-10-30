@@ -187,11 +187,11 @@ msgstr "De : "
 msgid " ; envelope sender (SMTP account): "
 msgstr " ; expéditeur de l'enveloppe (compte SMTP) : "
 
-msgid " sending failure(s)"
-msgstr " échec(s) d'envoi"
+msgid " sending failures"
+msgstr " échecs d'envoi"
 
-msgid " distinct e-mail(s))"
-msgstr " courriel(s) distinct(s))"
+msgid " distinct e-mails)"
+msgstr " courriels distincts)"
 
 msgid "→ people did NOT receive their e-mail (registration, invitation…): cause and solution in [5]"
 msgstr "→ des personnes n'ont PAS reçu leur courriel (inscription, invitation…) : cause et solution en [5]"
@@ -202,20 +202,20 @@ msgstr " → cause et solution en [5]"
 msgid " → [2]"
 msgstr " → [2]"
 
-msgid " occurrence(s) in "
-msgstr " occurrence(s) en "
+msgid " occurrences in "
+msgstr " occurrences en "
 
 msgid " related to e-mails"
-msgstr " liée(s) aux courriels"
+msgstr " liées aux courriels"
 
 msgid " anomaly(ies) → [1]"
-msgstr " anomalie(s) → [1]"
+msgstr " anomalies → [1]"
 
-msgid " occurrence(s) → [3]"
-msgstr " occurrence(s) → [3]"
+msgid " occurrences → [3]"
+msgstr " occurrences → [3]"
 
-msgid " harmless message(s) → [4]"
-msgstr " message(s) sans gravité → [4]"
+msgid " harmless messages → [4]"
+msgstr " messages sans gravité → [4]"
 
 msgid "  E-mail status in Odoo (read-only, database "
 msgstr "  État des courriels dans Odoo (lecture seule, base "
@@ -260,7 +260,7 @@ msgid "    E-mails: "
 msgstr "    Courriels : "
 
 msgid " sent, "
-msgstr " envoyé(s), "
+msgstr " envoyés, "
 
 msgid " FAILED TO SEND (to resend), "
 msgstr " en ÉCHEC D'ENVOI (à renvoyer), "
@@ -269,7 +269,7 @@ msgid " queued"
 msgstr " en attente"
 
 msgid " cancelled"
-msgstr " annulé(s)"
+msgstr " annulés"
 
 msgid "    Failures per day: "
 msgstr "    Échecs par jour : "
@@ -310,8 +310,8 @@ msgstr " Fenêtre : tout le fichier actif (--init)."
 msgid ") — run again as root."
 msgstr ") — relancer en root."
 
-msgid " line(s), "
-msgstr " ligne(s), "
+msgid " lines, "
+msgstr " lignes, "
 
 msgid "        last: "
 msgstr "        dernière : "
@@ -322,8 +322,8 @@ msgstr " RÉSUMÉ : "
 msgid "nothing suspicious in this window."
 msgstr "rien de suspect dans cette fenêtre."
 
-msgid " error(s) to examine (section [1])."
-msgstr " erreur(s) à examiner (section [1])."
+msgid " errors to examine (section [1])."
+msgstr " erreurs à examiner (section [1])."
 
 msgid " (harmless)"
 msgstr " (sans gravité)"
@@ -394,8 +394,8 @@ msgstr "           par jour : "
 msgid "--- [3] Error and warning messages — the "
 msgstr "--- [3] Messages d'erreur et d'avertissement — les "
 
-msgid " event(s)) ← "
-msgstr " événement(s)) ← "
+msgid " events) ← "
+msgstr " événements) ← "
 
 msgid " signed in from "
 msgstr " connecté depuis "
@@ -430,8 +430,8 @@ msgstr " — à examiner : un module peut limiter les sessions par compte."
 msgid "  Installed modules whose name suggests sessions or sign-in: "
 msgstr "  Modules installés dont le nom évoque les sessions ou la connexion : "
 
-msgid " burst(s) out of "
-msgstr " rafale(s) sur "
+msgid " bursts out of "
+msgstr " rafales sur "
 
 msgid " The bursts do not follow a sign-in from another address: this is not a single session per account."
 msgstr " Les rafales ne suivent pas une connexion depuis une autre adresse : ce n'est pas une session unique par compte."
@@ -607,20 +607,20 @@ msgstr " — base "
 msgid "SUMMARY: nothing suspicious in this window."
 msgstr "RÉSUMÉ : rien de suspect dans cette fenêtre."
 
-msgid " message(s) of known noise, see [4].)"
-msgstr " message(s) de bruit connu, voir [4].)"
+msgid " messages of known noise, see [4].)"
+msgstr " messages de bruit connu, voir [4].)"
 
 msgid "SUMMARY: "
 msgstr "RÉSUMÉ : "
 
 msgid " entry(ies) to examine ("
-msgstr " entrée(s) à examiner ("
+msgstr " entrées à examiner ("
 
 msgid " — plus "
 msgstr " — plus "
 
-msgid " message(s) of known harmless noise (see [4])."
-msgstr " message(s) de bruit connu, sans gravité (voir [4])."
+msgid " messages of known harmless noise (see [4])."
+msgstr " messages de bruit connu, sans gravité (voir [4])."
 
 msgid " Causes and solutions: section [5]."
 msgstr " Causes et solutions : section [5]."
@@ -652,7 +652,7 @@ msgstr " commencent moins de 5 min après une connexion du même compte depuis u
 msgid " start right after a login of the same account from another address: logging in on one workstation seems to INVALIDATE the other's session (a single session per account). Odoo CE does not impose this: see the modules above, then the security settings (Preferences ▸ Security ▸ Devices)."
 msgstr " commencent juste après une connexion du même compte depuis une autre adresse : se connecter sur un poste semble INVALIDER la session de l'autre (une seule session par compte). Odoo CE n'impose pas cela : voir les modules ci-dessus, puis les réglages de sécurité (Préférences ▸ Sécurité ▸ Appareils)."
 
-msgid " %). Several people are behind this address: it is not necessarily a single tab. Look among them for the person(s) whose session became invalid (logout in another tab, password changed, database restored) and ask them to reload (Ctrl+F5) or to sign in again."
+msgid " %). Several people are behind this address: it is not necessarily a single tab. Look among them for the persons whose session became invalid (logout in another tab, password changed, database restored) and ask them to reload (Ctrl+F5) or to sign in again."
 msgstr " %). Plusieurs personnes se trouvent derrière cette adresse : ce n'est pas forcément un seul onglet. Chercher parmi elles la ou les personnes dont la session est devenue invalide (déconnexion dans un autre onglet, mot de passe changé, base restaurée) et leur demander de recharger (Ctrl+F5) ou de se reconnecter."
 
 msgid " %). A tab or application left open with a session that became invalid (logout in another tab, session expired or deleted, password changed, database restored) keeps requesting pages the server refuses. This is NOT a server defect: closing or reloading (Ctrl+F5) the Odoo tabs open from this address, or signing in again, stops the flood."
@@ -685,8 +685,8 @@ msgstr "rien"
 msgid "NOTHING"
 msgstr "RIEN"
 
-msgid " group(s)"
-msgstr " groupe(s)"
+msgid " groups"
+msgstr " groupes"
 
 msgid ", including "
 msgstr ", dont "
@@ -704,7 +704,7 @@ msgid "[2] Warnings (WARN)"
 msgstr "[2] Avertissements (WARN)"
 
 msgid " distinct"
-msgstr " distincte(s)"
+msgstr " distinctes"
 
 msgid "  Addresses (clients):"
 msgstr "  Adresses (clients) :"
@@ -718,11 +718,11 @@ msgstr "(fiche : /web#id="
 msgid " protocol, "
 msgstr " protocole, "
 
-msgid " Python trace(s), "
-msgstr " trace(s) Python, "
+msgid " Python traces, "
+msgstr " traces Python, "
 
-msgid " other(s))"
-msgstr " autre(s))"
+msgid " others)"
+msgstr " autres)"
 
 msgid "WARNING: {path} not found."
 msgstr "ATTENTION : {path} introuvable."

@@ -32,7 +32,7 @@ import sys
 import threading
 import time
 
-__version__ = "1.3.20261022.231529"
+__version__ = "1.4.20261030.153422"
 
 DEFAUT_ROOT = "/var/lib/nginx-tools/ip-cache.sqlite"
 JOUR = 86400.0
@@ -189,7 +189,7 @@ class Cache(object):
         if not self.actif:
             return f"Cache des adresses : {self.raison}"
         s = self.stats()
-        return f"Cache des adresses : {self.chemin} ({s['adresses']} adresse(s), {s['taille'] // 1024} Ko)"
+        return f"Cache des adresses : {self.chemin} ({s['adresses']} adresses, {s['taille'] // 1024} Ko)"
 
 
 def ouvrir(env=None, chemin=None):
@@ -232,7 +232,7 @@ def main():
     if "--purge" in args:
         i = args.index("--purge")
         jours = int(args[i + 1]) if len(args) > i + 1 and args[i + 1].isdigit() else RETENTION_JOURS
-        print(f"{cache.purger(jours)} adresse(s) non revue(s) depuis {jours} jours effacée(s).")
+        print(f"{cache.purger(jours)} adresses non revues depuis {jours} jours effacées.")
         return 0
     if "--clear" in args:
         cache.vider()

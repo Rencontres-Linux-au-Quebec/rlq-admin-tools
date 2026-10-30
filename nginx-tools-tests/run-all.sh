@@ -250,7 +250,7 @@ if [[ "$(basename "$TESTS_DIR")" != "tests" && -f tests/test_web_monitor.py && -
         if [[ "$(basename "$f")" != __pycache__ && -e "tests/$(basename "$f")" ]]; then communs+=("$(basename "$f")"); fi
     done
     echo "  ${C_YELLOW}[ATTN]${C_RESET}  ancienne copie de cette suite dans $PROG_DIR/tests/ (run-all.sh ${ancienne:-?}) : la suite est"
-    echo "          maintenant dans $(basename "$TESTS_DIR")/ — à retirer de tests/ (${#communs[@]} nom(s) en commun : ${communs[*]:0:8}…)"
+    echo "          maintenant dans $(basename "$TESTS_DIR")/ — à retirer de tests/ (${#communs[@]} noms en commun : ${communs[*]:0:8}…)"
 fi
 
 # RESIDUAL files of old versions: an archive extracted over an old folder removes nothing from it. These files (personal address lists,
@@ -271,7 +271,7 @@ done
 # 1.186: the test suite NEVER modifies the programs' folder (it only proposed, but that was outside its folder): residual files
 # are reported, with the command to remove them, and the tests continue (old lang/PROG.en.po are no longer read: apps/_i18n.py 1.15).
 if (( ${#RESIDUELS[@]} > 0 )); then
-    echo "  ${C_YELLOW}[ATTN]${C_RESET}  fichier(s) résiduel(s) d'une ancienne version (plus livrés, lus par aucun programme) :"
+    echo "  ${C_YELLOW}[ATTN]${C_RESET}  fichiers résiduels d'une ancienne version (plus livrés, lus par aucun programme) :"
     printf '          %s\n' "${RESIDUELS[@]}"
     echo "          Ils peuvent être retirés sans risque : rm -f ${RESIDUELS[*]}"
     echo "          (un lang/PROG.en.po date de l'époque où PROG était écrit en français ; PROG est écrit en anglais et lit lang/PROG.fr.po ; aucun autre programme ne le lit)"
@@ -290,7 +290,7 @@ if command -v shellcheck >/dev/null 2>&1; then
     for f in "${BASH_PROGS[@]}"; do
         out=$(shellcheck -f gcc "$f" 2>&1) || true
         if [[ -z "$out" ]]; then ok "shellcheck $(basename "$f") : 0 signalement"
-        else ko "shellcheck $(basename "$f") : $(printf '%s\n' "$out" | grep -c .) signalement(s)"; printf '%s\n' "$out" | sed 's/^/      /'; fi
+        else ko "shellcheck $(basename "$f") : $(printf '%s\n' "$out" | grep -c .) signalements"; printf '%s\n' "$out" | sed 's/^/      /'; fi
     done
 else
     skip "ShellCheck non installé (relancer avec --install-missing, ou apt install shellcheck, ou exécutable statique dans nginx-tools-tests/tools/)"
@@ -305,7 +305,7 @@ else
     skip "ruff non installé (relancer avec --install-missing, ou pipx install ruff, ou exécutable statique dans nginx-tools-tests/tools/)"
 fi
 
-titre "4) Suite de tests (une fois par awk disponible) — ${#MODULES[@]} module(s) : commun${ENV_APP:+ + $ENV_APP}"
+titre "4) Suite de tests (une fois par awk disponible) — ${#MODULES[@]} modules : commun${ENV_APP:+ + $ENV_APP}"
 TMP_AVANT=$(find "${TMPDIR:-/tmp}" -maxdepth 1 -name 'test-rlq-*' 2>/dev/null | sort) || true
 # Sentinel: the suite must NEVER create or modify a REAL configuration file (/etc/default, ~). Fingerprint before/after:
 # on a server these files legitimately exist - only a change DURING the suite is a fault.
@@ -392,7 +392,7 @@ for a in "${AWKS[@]}"; do
             [[ -z "$ligne" ]] && continue
             skip "$ligne"
         done < <(printf '%s\n' "$res" | grep -oE "skipped '[^']*'" | sed -E "s/^skipped '(.*)'$/\1/" | sort | uniq -c \
-                 | sed -E 's/^ *([0-9]+) (.*)$/\1 test(s) désactivé(s) : \2/')
+                 | sed -E 's/^ *([0-9]+) (.*)$/\1 tests désactivés : \2/')
     fi
 done
 [[ -n "$BB_WRAP" ]] && rm -rf "$(dirname "$BB_WRAP")"
@@ -410,11 +410,11 @@ while IFS= read -r f; do
 done < <(find /etc /var/backups -xdev -type f -newer "$MARQUE_SYSTEME" 2>/dev/null | sort)
 rm -f "$MARQUE_SYSTEME"
 if (( ${#ECRITS_PAR_TESTS[@]} > 0 )); then
-    ko "la suite de tests a ÉCRIT ${#ECRITS_PAR_TESTS[@]} fichier(s) du système (ils nomment un dossier de test) — à supprimer :"
+    ko "la suite de tests a ÉCRIT ${#ECRITS_PAR_TESTS[@]} fichiers du système (ils nomment un dossier de test) — à supprimer :"
     printf '      %s\n' "${ECRITS_PAR_TESTS[@]}"
 fi
 if (( ${#ECRITS_AUTRES[@]} > 0 )); then
-    echo "  [INFO]  ${#ECRITS_AUTRES[@]} fichier(s) de /etc ou /var/backups modifié(s) pendant la suite, sans lien avec un test (un service de la machine) : ${ECRITS_AUTRES[*]:0:5}"
+    echo "  [INFO]  ${#ECRITS_AUTRES[@]} fichiers de /etc ou /var/backups modifiés pendant la suite, sans lien avec un test (un service de la machine) : ${ECRITS_AUTRES[*]:0:5}"
 fi
 if [[ "$CONFIGS_AVANT" != "$CONFIGS_APRES" ]]; then
     ko "la suite de tests a MODIFIÉ un fichier de configuration réel (elle doit tout rediriger vers un dossier temporaire) :"
@@ -424,7 +424,7 @@ fi
 if [[ -n "$RESTES" ]]; then
     n_restes=$(printf '%s\n' "$RESTES" | grep -c .)
     while IFS= read -r r; do rm -rf "${r:?}"; done <<< "$RESTES"
-    echo "  ${C_YELLOW}[NETTOYÉ]${C_RESET} $n_restes répertoire(s) temporaire(s) de test laissé(s) dans /tmp — supprimé(s)"
+    echo "  ${C_YELLOW}[NETTOYÉ]${C_RESET} $n_restes répertoires temporaires de test laissés dans /tmp — supprimés"
 fi
 for requis in mawk gawk; do
     command -v "$requis" >/dev/null 2>&1 || skip "$requis absent : les différences d'interprétation awk ne sont pas couvertes (apt install $requis)"
@@ -453,7 +453,7 @@ else
         [[ -f "$REF/fail2ban/nginx-catchall.jail.conf" ]] && echo "$REF/fail2ban/nginx-catchall.jail.conf|/etc/fail2ban/jail.d/nginx-catchall.conf"
         [[ -f "$REF/maintenance/index.html" ]] && echo "$REF/maintenance/index.html|/var/www/maintenance/index.html"
     )
-    echo "  [INFO]  $n_id fichier(s) identique(s), $n_diff différent(s), $n_abs absent(s) de ce serveur (normal pour ceux d'un autre environnement)"
+    echo "  [INFO]  $n_id fichiers identiques, $n_diff différents, $n_abs absents de ce serveur (normal pour ceux d'un autre environnement)"
     (( n_diff > 0 )) && echo "          Voir une différence : diff <fichier testé> <fichier déployé> ; déployer : voir nginx-tools-tests/nginx-odoo/README.md"
 fi
 
@@ -465,7 +465,7 @@ controle_reel() {          # controle_reel LABEL COMMAND...: [OK]/[ATTN]/[FAIL] 
     sortie=$(timeout --foreground 300 "$@" 2>&1) || true
     n_fail=$(printf '%s\n' "$sortie" | grep -cE '^\s*(\x1b\[[0-9;]*m)?\[(FAIL|ÉCHEC)\]' || true)
     n_attn=$(printf '%s\n' "$sortie" | grep -cE '^\s*(\x1b\[[0-9;]*m)?\[ATTN\]' || true)
-    echo "  [INFO]  $libelle : $n_fail échec(s), $n_attn avertissement(s) sur ce serveur"
+    echo "  [INFO]  $libelle : $n_fail échecs, $n_attn avertissements sur ce serveur"
     printf '%s\n' "$sortie" | grep -E '^\s*(\x1b\[[0-9;]*m)?\[(FAIL|ÉCHEC|ATTN)\]' | sed -n '1,8s/^/          /p'
 }
 case "$ENV_APP" in
@@ -497,7 +497,7 @@ echo "=============================================================="
 if (( ECHECS > 0 )); then
     echo "${C_RED} VERDICT : $ECHECS ÉCHEC(S) — ne pas déployer.${C_RESET}"
 elif (( ${#NON_VERIFIE[@]} > 0 )); then
-    echo "${C_YELLOW} VERDICT : tout ce qui a été exécuté réussit — mais ${#NON_VERIFIE[@]} point(s) NON vérifié(s) (voir [IGNORÉ]).${C_RESET}"
+    echo "${C_YELLOW} VERDICT : tout ce qui a été exécuté réussit — mais ${#NON_VERIFIE[@]} points NON vérifiés (voir [IGNORÉ]).${C_RESET}"
 else
     echo "${C_GREEN} VERDICT : TOUT PASSE — validation complète.${C_RESET}"
 fi

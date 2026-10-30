@@ -46,8 +46,8 @@ msgstr "FAIBLE"
 msgid "PROCESSOR — "
 msgstr "PROCESSEUR — "
 
-msgid " logical core(s), governor "
-msgstr " cœur(s) logique(s), gouverneur "
+msgid " logical cores, governor "
+msgstr " cœurs logiques, gouverneur "
 
 msgid "  busy: average "
 msgstr "  occupé : moyenne "
@@ -67,8 +67,8 @@ msgstr " (pointe "
 msgid ") for "
 msgstr ") pour "
 
-msgid " core(s)"
-msgstr " cœur(s)"
+msgid " cores"
+msgstr " cœurs"
 
 msgid "  ZFS ARC: "
 msgstr "  ARC de ZFS : "
@@ -115,8 +115,8 @@ msgstr "Aucun échantillon : rien à analyser (interrompu trop tôt)."
 msgid "PERFORMANCE OF "
 msgstr "PERFORMANCES DE "
 
-msgid " sample(s) from "
-msgstr " échantillon(s) depuis "
+msgid " samples from "
+msgstr " échantillons depuis "
 
 msgid " over "
 msgstr " sur "
@@ -382,8 +382,8 @@ msgstr "\nInterrompu (Ctrl-C)."
 msgid "\nMeasurement interrupted (Ctrl-C) after "
 msgstr "\nMesure interrompue (Ctrl-C) après "
 
-msgid " sample(s): report on what was measured."
-msgstr " échantillon(s) : rapport sur ce qui a été mesuré."
+msgid " samples: report on what was measured."
+msgstr " échantillons : rapport sur ce qui a été mesuré."
 
 msgid " MiB shared)"
 msgstr " Mio partagés)"
@@ -391,7 +391,7 @@ msgstr " Mio partagés)"
 msgid " ARC memory throttle: "
 msgstr " limitation mémoire de l'ARC : "
 
-msgid " time(s) — the ARC had to give memory back under pressure"
+msgid " times — the ARC had to give memory back under pressure"
 msgstr " fois — l'ARC a dû rendre de la mémoire sous pression"
 
 msgid "memory short while the ZFS ARC may take up to "
@@ -502,11 +502,11 @@ msgstr "Mesure pendant "
 msgid ", one sample every "
 msgstr ", un échantillon toutes les "
 
-msgid " disk(s), "
-msgstr " disque(s), "
+msgid " disks, "
+msgstr " disques, "
 
-msgid " running guest(s)"
-msgstr " invité(s) en marche"
+msgid " running guests"
+msgstr " invités en marche"
 
 msgid "WARNING: CSV file not writable ("
 msgstr "ATTENTION : fichier CSV non modifiable ("
@@ -562,8 +562,8 @@ msgstr " % en moyenne, aucun disque saturé). La lenteur des premiers chargement
 msgid "\nRemaining settings not applied."
 msgstr "\nRéglages restants non appliqués."
 
-msgid ", ZFS pool(s): "
-msgstr ", pool(s) ZFS : "
+msgid ", ZFS pools: "
+msgstr ", pools ZFS : "
 
 msgid "--report-err unavailable ("
 msgstr "--report-err indisponible ("
@@ -583,8 +583,8 @@ msgstr " de RAM restent libres : un ARC plus grand ("
 msgid " GiB) serves more reads from RAM — the cheapest way to make HDD feel faster"
 msgstr " Gio) sert plus de lectures depuis la RAM — la façon la moins chère de rendre les HDD plus rapides"
 
-msgid "single disk(s)"
-msgstr "disque(s) seul(s)"
+msgid "single disks"
+msgstr "disques seuls"
 
 msgid " — tasks waited for the disk "
 msgstr " — des tâches ont attendu le disque "

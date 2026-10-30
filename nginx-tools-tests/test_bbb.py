@@ -85,7 +85,7 @@ X""")
         lignes, problemes = m.verifier(m.releve())
         texte = "\n".join(lignes)
         self.assertIn("[FAIL] nos règles ne sont pas chargées par nginx", texte)
-        self.assertIn("[ATTN] bbb-conf --check signale 1 problème(s) potentiel(s) : # Warning: mismatch IP", texte)
+        self.assertIn("[ATTN] bbb-conf --check signale 1 problèmes potentiels : # Warning: mismatch IP", texte)
 
     def test_mise_a_jour_de_bbb_entre_deux_passages(self):
         """--update écrit l'instantané ; une mise à jour de BBB qui régénère haproxy.cfg (sans HSTS) et change les versions
@@ -106,7 +106,7 @@ X""")
         lignes, _ = m.resume("before")
         texte = "\n".join(lignes)
         self.assertIn("[ATTN] BigBlueButton 2.7.12 → 2.7.14", texte)
-        self.assertIn("paquet(s) changé(s)", texte)
+        self.assertIn("paquets changés", texte)
         self.assertIn("bigbluebutton 1:2.7.12-1 → 1:2.7.14-1", texte)
         self.assertIn("configuration de BBB modifiée", texte)
         self.assertIn("haproxy.cfg", texte)

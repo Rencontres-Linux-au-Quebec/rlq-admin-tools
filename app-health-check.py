@@ -66,7 +66,7 @@ import sys
 import time
 from urllib.parse import urlparse, parse_qs, unquote
 
-__version__ = "2.32.20261029.195500"
+__version__ = "2.33.20261030.153422"
 # Marker added at the END of the "browser" User-Agent (2.2): our test requests are recognizable in all the
 # logs (nginx, Odoo) and excluded from the statistics by web-monitor.py. Matches no pattern of the bot filter.
 UA_MARKER = " app-health-check/" + ".".join(__version__.split(".")[:2])
@@ -250,7 +250,7 @@ def show_config_read(cfg, paths, explicit_given):
                 if cfg.get("SMTP_HOST") and cfg.get("NOTIFY_EMAIL_TO") else "not configured")
     tests = "credentials configured" if cfg.get("ODOO_TEST_USER") and cfg.get("ODOO_TEST_PASSWORD") else "credentials missing (ignored)"
     print(f"Configuration read: {read_files}")
-    print(f"  Options: --lang {LANGUAGE}{lang_origin()} · site {host_name}{f' + {others} other name(s)' if others else ''} · non-public instance: {yes_no('EXPECT_RESTRICTED_ACCESS')}"
+    print(f"  Options: --lang {LANGUAGE}{lang_origin()} · site {host_name}{f' + {others} other names' if others else ''} · non-public instance: {yes_no('EXPECT_RESTRICTED_ACCESS')}"
           f" · Google sign-in expected: {yes_no('EXPECT_GOOGLE_OAUTH')} · e-mail: {mail}{' (common configuration nginx-tools-mail.conf)' if cfg.get('_COURRIEL_COMMUN') else ''} · functional tests (JSON-RPC): {tests}")
 
 
@@ -632,7 +632,7 @@ def check_http(cfg, target, verbose=False):
         results.append((
             "Traversal in the query string blocked by nginx",
             blocked_by_nginx,
-            f"status: {status}, {len(body_trav)} byte(s) — {origin}",
+            f"status: {status}, {len(body_trav)} bytes — {origin}",
         ))
     except Exception as e:
         results.append(("Traversal in the query string blocked by nginx", False, f"exception: {e}"))
@@ -643,7 +643,7 @@ def check_http(cfg, target, verbose=False):
         for path in ("/.env", "/en_CA/.env", "/.git/config"):
             status, _, body = client().request("GET", path)
             if not (status in (403, 404, 444) and len(body) < 1000):
-                passes.append(f"{path} → {status}, {len(body)} octet(s)")
+                passes.append(f"{path} → {status}, {len(body)} octets")
         results.append(("Sensitive files denied by nginx (/.env, /en_CA/.env, /.git/config)", not passes,
                         "OK — minimal nginx response" if not passes else
                         "passed to the application: " + " ; ".join(passes) + " — check that the server block includes snippets/securite-commune.conf, with no regex location placed before it"))
@@ -761,9 +761,9 @@ def check_tls_certificate(cfg, target, verbose=False):
         elif days is None:
             results.append((label, False, "date d'expiration illisible"))
         elif days < 0:
-            results.append((label, False, f"EXPIRED since {-days} day(s) (on {date})"))
+            results.append((label, False, f"EXPIRED since {-days} days (on {date})"))
         elif days < TLS_DAYS_THRESHOLD:
-            results.append((label, False, f"expires in {days} day(s), on {date} — the automatic renewal (at 30 days) "
+            results.append((label, False, f"expires in {days} days, on {date} — the automatic renewal (at 30 days) "
                                           "seems to be failing: certbot renew --dry-run"))
         else:
             results.append((label, True, f"still valid for {days} days (until {date}), issued by {issuer}"))
@@ -1001,7 +1001,7 @@ def check_odoo_functional(cfg, target, verbose=False):
     for model in models_to_check:
         try:
             recs = call_kw(model, "search_read", [[], ["id"]], {"limit": 1})
-            results.append((f"Lecture {model} (limit 1)", True, f"{len(recs)} record(s) read without error"))
+            results.append((f"Lecture {model} (limit 1)", True, f"{len(recs)} records read without error"))
         except Exception as e:
             results.append((f"Lecture {model} (limit 1)", False, f"exception: {e}"))
 
@@ -1025,8 +1025,8 @@ def color(text, tty=None):
         return text
     text = re.sub(r"\[(OK *|SKIP|ATTN|FAIL|ERR[A-ZÉ]*)\]",
                    lambda m: f"{COLORS[m.group(1).strip()[:4].replace('ERRO', 'ERR')]}[{m.group(1)}]\x1b[0m", text)
-    return re.sub(r"(Summary: )([1-9]\d* failure\(s\))", "\\1\x1b[1;31m\\2\x1b[0m",
-                  re.sub(r"(Summary: )(0 failure\(s\))", "\\1\x1b[1;32m\\2\x1b[0m", text))
+    return re.sub(r"(Summary: )([1-9]\d* failures)", "\\1\x1b[1;31m\\2\x1b[0m",
+                  re.sub(r"(Summary: )(0 failures)", "\\1\x1b[1;32m\\2\x1b[0m", text))
 
 
 def format_report(target, all_results, changes=None):
@@ -1039,7 +1039,7 @@ def format_report(target, all_results, changes=None):
             n_fail += 1
         lines.append(f"[{symbol}] {label} — {detail}")
     lines.append("")
-    lines.append(f"Summary: {n_fail} failure(s) out of {len(all_results)} check(s).")
+    lines.append(f"Summary: {n_fail} failures out of {len(all_results)} checks.")
     if changes is not None:                              # 2.32 --changes: differences with the previous run
         lines.append("")
         lines.append(TR("Changes since the previous run:") if changes else TR("No change since the previous run."))
@@ -1676,7 +1676,7 @@ def main():
     if save_error:
         print(color(f"[ATTN] last run not saved ({state_file}): {save_error}"), file=sys.stderr)
 
-    subject = f"[{'ERROR' if n_fail else 'OK'}] Health check {profile['APP_LABEL']} ({args.target}) — {n_fail} failure(s)"
+    subject = f"[{'ERROR' if n_fail else 'OK'}] Health check {profile['APP_LABEL']} ({args.target}) — {n_fail} failures"
     try:
         send_alerts(cfg, subject, report, n_fail, changes)
     except Exception as e:

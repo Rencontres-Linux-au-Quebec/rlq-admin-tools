@@ -47,7 +47,7 @@ try:                    # line editing in prompts (backspace ^H or ^?, arrows)
 except ImportError:
     pass
 
-__version__ = "1.18.20261028.214122"
+__version__ = "1.19.20261030.153422"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
@@ -275,12 +275,12 @@ def warnings(db, database, failures):
     res = []
     invalid_list = [m for m in failures if m.get("invalide")]
     if invalid_list:
-        res.append(f"[ATTN] {len(invalid_list)} e-mail(s) addressed to an INVALID address: resent as is, they fail again — fix the address first "
+        res.append(f"[ATTN] {len(invalid_list)} e-mails addressed to an INVALID address: resent as is, they fail again — fix the address first "
                    "(menu of the invalid addresses above, odoo-mail-retry.py --invalid-emails, or the contact in Odoo).")
     permanents_list = [m for m in failures if m.get("permanente") and not m.get("invalide")]
     if permanents_list:
         causes_list = sorted({m["cause"] for m in permanents_list})
-        res.append(f"[ATTN] {len(permanents_list)} e-mail(s) have a PERMANENT cause ({' ; '.join(causes_list)}): they will fail again until the setting is fixed — "
+        res.append(f"[ATTN] {len(permanents_list)} e-mails have a PERMANENT cause ({' ; '.join(causes_list)}): they will fail again until the setting is fixed — "
                    "see app-log-check.py, section [5] (cause and solution).")
     parametres = db.parametres(database, "mail.") or {}
     batch_size = parametres.get("mail.session.batch.size", "")
@@ -303,7 +303,7 @@ def choose(failures, batch_size, details=False):
     """The resend menu (on a terminal): returns the list of e-mail numbers to resend."""
     n = len(failures)
     print()
-    print(f"Renvoyer ces {n} e-mail(s)?")
+    print(f"Renvoyer ces {n} e-mails?")
     answer = ask(f"  [a] all ({n})   [l] the {min(batch_size, n)} oldest   [c] choose one by one   [N] none: ")
     if answer in ("t", "tous", "o", "oui", "a", "all", "y", "yes"):
         return [m["id"] for m in failures]
@@ -341,7 +341,7 @@ def resend_mails(db, database, ids):
         return 2
     ignored = sorted(set(ids) - set(resent))
     print()
-    print(f"{len(resent)} e-mail(s) put back in the « Outgoing » state: {', '.join(f'#{i}' for i in resent) or 'none'}.")
+    print(f"{len(resent)} e-mails put back in the « Outgoing » state: {', '.join(f'#{i}' for i in resent) or 'none'}.")
     if ignored:
         print(f"  {len(ignored)} ignored: no longer failed (already resent or deleted): {', '.join(f'#{i}' for i in ignored)}.")
     if resent:
@@ -388,7 +388,7 @@ def find_invalid_registrations(db, database, days_list, checker):
 def show_invalid(database, invalid, details):
     print()
     print("=" * 100)
-    print(f" Invalid e-mail addresses of event registrations — database {database} — {len(invalid)} registration(s)")
+    print(f" Invalid e-mail addresses of event registrations — database {database} — {len(invalid)} registrations")
     if invalid and not details:
         print(" (addresses masked; --details to see them in full — the correction menu shows them in full)")
     print("=" * 100)
@@ -430,7 +430,7 @@ def fix_one(db, database, r, new, checker):
     record_fix(database, r, new, result)
     print(f"  Registration #{r['id']} — {r['email']} → {new} — registration {'fixed' if result['registration'] else 'unchanged (address already modified)'}"
           + (f", contact {'fixed' if result['partner'] else 'unchanged'}" if r.get("partner_id") and r.get("partner_email") == r["email"] else "")
-          + (f", {result['mails']} failed e-mail(s) put back in « Outgoing » (sent to the new address)" if result["mails"] else ", no failed e-mail to resend"))
+          + (f", {result['mails']} failed e-mails put back in « Outgoing » (sent to the new address)" if result["mails"] else ", no failed e-mail to resend"))
     if not result["mails"]:
         print("    (the confirmation e-mail was never created with this address: resend it from Odoo — Events ▸ registration ▸ « Send by e-mail », or the « Invalid e-mails » menu of the rlq_survey_report module)")
     if r.get("login") and r["login"] == r["email"]:
@@ -446,7 +446,7 @@ def fix_menu(db, database, invalid, yes, checker):
         print(f"{done} address(es) fixed; {len(invalid) - len(with_sug)} without automatic correction (to fix in the menu or in Odoo).")
         return 0
     print()
-    answer = ask(f"Fix these addresses?  [a] the {len(with_sug)} suggested correction(s)   [c] one by one   [N] none: ")
+    answer = ask(f"Fix these addresses?  [a] the {len(with_sug)} suggested corrections   [c] one by one   [N] none: ")
     if answer in ("a", "all", "t", "tous", "o", "oui", "y", "yes"):
         done = sum(fix_one(db, database, r, r["check"]["suggestion"], checker) for r in with_sug)
         print(f"{done} address(es) fixed.")

@@ -27,7 +27,7 @@ try:                    # line editing in all the input() prompts (backspace ^H 
 except ImportError:     # Windows, Python sans readline
     pass
 
-__version__ = "1.20.20261022.231529"
+__version__ = "1.21.20261030.153422"
 LANGUE_SOURCE = "fr"          # langue des messages dans le code
 
 
@@ -111,7 +111,7 @@ def langue_et_origine(argv=None, variable_programme="", defaut="fr", disponibles
     code, nom, valeur = choix
     ignorees = [f"{n}={v}" for n, v in definies if n != nom and (n != "LANGUAGE" or True) and
                 ((_first_code(v, disponibles) if n == "LANGUAGE" else (_code(v, disponibles) or "en")) != code)]
-    return code, f"{nom}={valeur}" + (f" ; {', '.join(ignorees)} ignorée(s)" if ignorees else "")
+    return code, f"{nom}={valeur}" + (f" ; {', '.join(ignorees)} ignorées" if ignorees else "")
 
 
 def _first_code(liste, disponibles):
@@ -216,7 +216,7 @@ class Traducteur:
         if motif is None:
             morceaux = []
             for cle in cles:
-                avant = r"(?<!\w)" if re.match(r"\w", cle[0]) else ""
+                avant = r"(?<!\w)(?<!--)" if re.match(r"\w", cle[0]) else ""     # never inside an option name: "--errors-only" keeps "errors"
                 apres = r"(?!\w)" if re.match(r"\w", cle[-1]) else ""
                 morceaux.append(avant + re.escape(cle) + apres)
             motif = self.motifs[id(cles)] = re.compile("(?:" + "|".join(morceaux) + ")(\ue000*)( {2,})?") if morceaux else False
@@ -473,8 +473,8 @@ def _analyseur(ctx):
         def error(self, message):
             message = ctx.tr(message)
             if ctx.langue == "fr":
-                message = re.sub(r"^the following arguments are required: (.+)$", r"argument(s) requis manquant(s) : \1", message)
-                message = re.sub(r"^unrecognized arguments: (.+)$", r"argument(s) non reconnu(s) : \1", message)
+                message = re.sub(r"^the following arguments are required: (.+)$", r"arguments requis manquants : \1", message)
+                message = re.sub(r"^unrecognized arguments: (.+)$", r"arguments non reconnus : \1", message)
                 message = re.sub(r"^argument (\S+): invalid int value: (.+)$", r"argument \1 : entier invalide : \2", message)
                 message = message.replace("invalid choice:", "valeur invalide :").replace("(choose from", "(choix possibles :").replace("expected one argument", "une valeur est attendue")
             self.print_usage(sys.stderr)

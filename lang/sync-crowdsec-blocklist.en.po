@@ -237,8 +237,8 @@ msgstr " (incompatible ipset, probably created without counters) — full replac
 msgid "ATTENTION : la liste n'a pas changé depuis "
 msgstr "WARNING: the list has not changed for "
 
-msgid " jour(s) (dernier changement : "
-msgstr " day(s) (last change: "
+msgid " jours (dernier changement : "
+msgstr " days (last change: "
 
 msgid "la source se met normalement à jour environ toutes les 2 h. Le dépôt qui la republie n'est probablement"
 msgstr "the source normally updates about every 2 h. The repository that republishes it is probably"
@@ -258,8 +258,8 @@ msgstr "no-log"
 msgid "Liste CrowdSec inchangee depuis "
 msgstr "CrowdSec list unchanged for "
 
-msgid " jour(s) (depuis "
-msgstr " day(s) (since "
+msgid " jours (depuis "
+msgstr " days (since "
 
 msgid ") : source probablement plus alimentee ("
 msgstr "): source probably no longer fed ("
@@ -267,16 +267,16 @@ msgstr "): source probably no longer fed ("
 msgid " (IP protégée) figurait dans la liste communautaire — exclue, jamais bloquée."
 msgstr " (protected IP) was in the community list — excluded, never blocked."
 
-msgid " IP protégée(s) (liste blanche nginx, adresses du serveur, "
-msgstr " protected IP(s) (nginx white list, server addresses, "
+msgid " IP protégées (liste blanche nginx, adresses du serveur, "
+msgstr " protected IPs (nginx white list, server addresses, "
 
-msgid ") : jamais bloquée(s)"
+msgid ") : jamais bloquées"
 msgstr "): never blocked"
 
 msgid " — dont "
 msgstr " — of which "
 
-msgid " présente(s) dans la liste communautaire"
+msgid " présentes dans la liste communautaire"
 msgstr " present in the community list"
 
 msgid "# after.init : si exécutable, appelé par ufw-init. Voir « man ufw-framework »."
@@ -339,7 +339,7 @@ msgstr "ipset is not installed — run this script with no option to install it.
 msgid "présent"
 msgstr "present"
 
-msgid " entrée(s)"
+msgid " entrées"
 msgstr " entry(ies)"
 
 msgid "absent"
@@ -378,8 +378,8 @@ msgstr "Last synchronisation: "
 msgid "ÉCHEC EN COURS : "
 msgstr "CURRENT FAILURE: "
 
-msgid " tentative(s) consécutive(s) depuis le "
-msgstr " consecutive attempt(s) since "
+msgid " tentatives consécutives depuis le "
+msgstr " consecutive attempts since "
 
 msgid " (dernière : "
 msgstr " (last: "
@@ -396,14 +396,14 @@ msgstr "List age: "
 msgid "inchangée depuis "
 msgstr "unchanged for "
 
-msgid " jour(s)"
-msgstr " day(s)"
+msgid " jours"
+msgstr " days"
 
 msgid "Âge de la liste : dernier changement il y a "
 msgstr "List age: last change "
 
-msgid " jour(s) (seuil d'alerte : "
-msgstr " day(s) ago (alert threshold: "
+msgid " jours (seuil d'alerte : "
+msgstr " days ago (alert threshold: "
 
 msgid " IP RÉELLEMENT BLOQUÉES PAR LA LISTE CROWDSEC"
 msgstr " IPs ACTUALLY BLOCKED BY THE CROWDSEC LIST"
@@ -420,8 +420,8 @@ msgstr "No IP from the list has tried to connect to this server yet (or the ipse
 msgid "depuis la synchro du "
 msgstr "since the sync of "
 
-msgid " IP distincte(s) bloquée(s) à ce jour. Dernière synchronisation : "
-msgstr " distinct IP(s) blocked so far. Last synchronisation: "
+msgid " IP distinctes bloquées à ce jour. Dernière synchronisation : "
+msgstr " distinct IPs blocked so far. Last synchronisation: "
 
 msgid "PREMIÈRE DÉTECTION"
 msgstr "FIRST DETECTION"
@@ -429,8 +429,8 @@ msgstr "FIRST DETECTION"
 msgid "DERNIÈRE DÉTECTION"
 msgstr "LAST DETECTION"
 
-msgid " autre(s) — --top 0 pour tout afficher)"
-msgstr " other(s) — --top 0 to show all)"
+msgid " autres — --top 0 pour tout afficher)"
+msgstr " others — --top 0 to show all)"
 
 msgid "Note : les dates sont celles de la synchronisation qui a constaté l'activité (un compteur ipset ne"
 msgstr "Note: dates are those of the synchronisation that noticed the activity (an ipset counter does not"
@@ -474,8 +474,8 @@ msgstr "# Explicit PATH: cron's (/usr/bin:/bin) contains neither ipset nor iptab
 msgid "# Synchronisation toutes les "
 msgstr "# Synchronisation every "
 
-msgid " heure(s), minute 17 (évite l'heure pile, où tout le monde tape la même source)."
-msgstr " hour(s), minute 17 (avoids the top of the hour, when everyone hits the same source)."
+msgid " heures, minute 17 (évite l'heure pile, où tout le monde tape la même source)."
+msgstr " hours, minute 17 (avoids the top of the hour, when everyone hits the same source)."
 
 msgid "# Au démarrage : recrée ipsets et règles (depuis la dernière liste en cache si le réseau n'est pas encore prêt)."
 msgstr "# At boot: recreates ipsets and rules (from the last cached list if the network is not ready yet)."
@@ -486,8 +486,8 @@ msgstr "Cron installed: "
 msgid " (toutes les "
 msgstr " (every "
 
-msgid " heure(s) + au démarrage ; sortie dans /var/log/sync-crowdsec-blocklist.log)."
-msgstr " hour(s) + at boot; output in /var/log/sync-crowdsec-blocklist.log)."
+msgid " heures + au démarrage ; sortie dans /var/log/sync-crowdsec-blocklist.log)."
+msgstr " hours + at boot; output in /var/log/sync-crowdsec-blocklist.log)."
 
 msgid "La synchronisation"
 msgstr "The synchronisation"
@@ -525,7 +525,7 @@ msgstr " — current ipsets kept as they are."
 msgid "Analyse de la liste"
 msgstr "Analysing the list"
 
-msgid " entrée(s) valide(s), contre "
+msgid " entrées valides, contre "
 msgstr " valid entry(ies), against "
 
 msgid " à la synchronisation précédente (baisse de plus de "
@@ -537,13 +537,13 @@ msgstr " %) — update CANCELLED."
 msgid "Vérifiez la source, puis relancez avec --max-drop 0 si cette baisse est attendue. Aucun ipset n'a été modifié."
 msgstr "Check the source, then run again with --max-drop 0 if this drop is expected. No ipset was changed."
 
-msgid " entrée(s) valide(s) ("
+msgid " entrées valides ("
 msgstr " valid entry(ies) ("
 
 msgid "ERREUR: seulement "
 msgstr "ERROR: only "
 
-msgid " entrée(s) valide(s), en dessous du minimum attendu ("
+msgid " entrées valides, en dessous du minimum attendu ("
 msgstr " valid entry(ies), below the expected minimum ("
 
 msgid " — voir --min-ips)."

@@ -85,7 +85,7 @@ class OdooUpdateModule(EnvTest):
         self._journal_exemple()
         rc, out, err = self.lancer("--check-activity", ODOO_UPDATE_MODULE_NOW=self._epoch("2026-10-22 16:09:00 UTC"))     # 12:09 EDT : soumissions de sondage
         self.assertEqual(rc, 3, out + err)
-        self.assertIn("écriture(s) HTTP", out)
+        self.assertIn("écritures HTTP", out)
         rc, out, err = self.lancer("--check-activity", ODOO_UPDATE_MODULE_NOW=self._epoch("2026-10-22 16:23:00 UTC"))     # 12:23 EDT: last write at 12:17
         self.assertEqual(rc, 0, out + err)
         self.assertIn("site calme", out)
@@ -182,7 +182,7 @@ open(__import__("os").environ["D"] + "/appels.log", "a").write("warmup " + " ".j
 print("odoo-warmup.py v1.1")
 print("  [OK    ] /event                                                               HTTP 200  plus lent :   0.2 s")
 %s
-print("Préchauffage terminé en 3 s : 12 appel(s), 4 asset(s) public(s), %d échec(s)" + "%s")
+print("Préchauffage terminé en 3 s : 12 appels, 4 assets publics, %d échecs" + "%s")
 sys.exit(%d)
 """
 
@@ -194,7 +194,7 @@ sys.exit(%d)
         rc, out, err = self.lancer()
         self.assertEqual(rc, 0, out + err)
         self.assertIn("[6/7] Préchauffage du cache", out)
-        self.assertIn("cache préchauffé en 3 s : 12 appel(s)", out)
+        self.assertIn("cache préchauffé en 3 s : 12 appels", out)
         a = self.appels()
         i_start = a.index("systemctl start erplibre_erplibre.service")
         i_warm = next(i for i, l in enumerate(a) if l.startswith("warmup "))
@@ -204,7 +204,7 @@ sys.exit(%d)
         self.assertIn("✔ mise à jour terminée", out)
 
     def test_prechauffage_echecs_et_absence_sont_des_avertissements(self):
-        self.faux_prechauffage('print("  [ÉCHEC ] /event/x                       HTTP 500  plus lent :   1.0 s  (1 échec(s) sur 1)")', 1, "", 1)
+        self.faux_prechauffage('print("  [ÉCHEC ] /event/x                       HTTP 500  plus lent :   1.0 s  (1 échecs sur 1)")', 1, "", 1)
         rc, out, err = self.lancer()
         self.assertEqual(rc, 0, out + err)                                              # never a failure of the update
         self.assertIn("[ATTN] préchauffage terminé avec des échecs", out)
@@ -481,7 +481,7 @@ while IFS='|' read -r n e v a m c; do printf '%s\n' "$n$SEP$e$SEP$v$SEP$a$SEP$m$
         self.assertEqual(rc, 0, out + err)
         copies = sorted(f for f in os.listdir(os.path.join(self.d, "copies")) if f.endswith(".tar.gz"))
         self.assertEqual(len(copies), 1)
-        self.assertIn("2 module(s) copié(s)", out)
+        self.assertIn("2 modules copiés", out)
         import tarfile
         with tarfile.open(os.path.join(self.d, "copies", copies[0])) as t:
             noms = t.getnames()

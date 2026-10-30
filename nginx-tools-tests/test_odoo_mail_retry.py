@@ -151,10 +151,10 @@ class OdooMailRetry(_Base):
 
     def test_menu_tous(self):
         sortie = self.menu([(b"[N] aucun : ", b"t\n", 0.1)])
-        self.assertIn("Renvoyer ces 5 courriel(s) ?", sortie)
+        self.assertIn("Renvoyer ces 5 courriels ?", sortie)
         self.assertIn("[t] tous (5)   [l] les 5 plus anciens   [c] choisir un par un   [N] aucun :", sortie)
         self.assertEqual(self.ids_remis(), [7171, 7404, 7405, 7406, 7500])
-        self.assertIn("5 courriel(s) remis à l'état « En attente » : #7171, #7404, #7405, #7406, #7500.", sortie)
+        self.assertIn("5 courriels remis à l'état « En attente » : #7171, #7404, #7405, #7406, #7500.", sortie)
         self.assertIn("Mail: Email Queue Manager", sortie)
         with open(self.path("journal-renvois.log")) as f:                                      # each resend is logged
             self.assertRegex(f.read(), r"^\d{4}-\d\d-\d\d \d\d:\d\d:\d\d\tlinux_meetup_odoo_18\t5\t7171,7404,7405,7406,7500\n$")
@@ -169,7 +169,7 @@ class OdooMailRetry(_Base):
                                                                   (b"#7405", b"\n", 0.1), (b"#7406", b"o\n", 0.1), (b"#7500", b"q\n", 0.1)])
         self.assertIn("renvoyer ? [o/N/q] :", sortie)
         self.assertEqual(self.ids_remis(), [7404, 7406])
-        self.assertIn("2 courriel(s) remis", sortie)
+        self.assertIn("2 courriels remis", sortie)
 
     def test_menu_un_par_un_dit_a_qui_est_destine_chaque_courriel(self):
         """Les titres se ressemblent (« Rapport de sondage » ×5) : chaque question dit À QUI le courriel est destiné — masqué comme la liste, entier avec --details."""
@@ -207,19 +207,19 @@ class OdooMailRetry(_Base):
         self.assertEqual(self.ids_remis(), [7171, 7404], "--batch N : seulement les N plus anciens")
         rc, out, err = self.lancer("--resend", "--yes")
         self.assertEqual(self.ids_remis(), [7171, 7404, 7405, 7406, 7500])
-        self.assertIn("5 courriel(s) remis à l'état « En attente »", out)
+        self.assertIn("5 courriels remis à l'état « En attente »", out)
 
     def test_courriel_deja_renvoye_ou_supprime_est_ignore(self):
         self.donnees(COURRIELS, deja=(7404, 7500))                                              # no longer failing at the time of writing
         rc, out, err = self.lancer("--resend", "--yes")
-        self.assertIn("3 courriel(s) remis à l'état « En attente » : #7171, #7405, #7406.", out)
-        self.assertIn("2 ignoré(s) : plus en échec d'envoi (déjà renvoyés ou supprimés) : #7404, #7500.", out)
+        self.assertIn("3 courriels remis à l'état « En attente » : #7171, #7405, #7406.", out)
+        self.assertIn("2 ignorés : plus en échec d'envoi (déjà renvoyés ou supprimés) : #7404, #7500.", out)
 
     # --- avertissements ----------------------------------------------------------------------------------------------------
     def test_avertissement_cause_permanente(self):
         rc, out, err = self.lancer("--resend", "--yes")
         a = " ".join(out.split())
-        self.assertIn("[ATTN] 1 courriel(s) ont une cause PERMANENTE (expéditeur refusé (550)) : ils échoueront de nouveau tant que le réglage n'est pas corrigé", a)
+        self.assertIn("[ATTN] 1 courriels ont une cause PERMANENTE (expéditeur refusé (550)) : ils échoueront de nouveau tant que le réglage n'est pas corrigé", a)
         self.assertIn("app-log-check.py, section [5]", a)
         self.assertNotIn("mail.session.batch.size", a, "5 courriels : pas d'avertissement sur la limite par connexion")
 
@@ -283,7 +283,7 @@ class OdooMailRetry(_Base):
     def test_journal_des_renvois_inscriptible_ou_non(self):
         rc, out, err = self.lancer("--resend", "--yes", env_extra={"ODOO_MAIL_RETRY_LOG": self.path("journal-renvois.log", "x")})
         self.assertEqual(rc, 0, err)                                                            # "folder" that is a file: the resend succeeds anyway
-        self.assertIn("5 courriel(s) remis", out)
+        self.assertIn("5 courriels remis", out)
 
     # --- configuration ---------------------------------------------------------------------------------------------------
     def test_configuration_fichiers_lus_et_ligne_de_commande_prioritaire(self):
@@ -331,7 +331,7 @@ class AdressesInvalides(_Base):
     def test_liste_des_adresses_invalides_avec_correction_suggeree(self):
         rc, out, err = self.lancer("--invalid-emails", "--no-prompt", "--details")
         self.assertEqual(rc, 0, err)
-        self.assertIn("Adresses courriel invalides des inscriptions aux événements — base linux_meetup_odoo_18 — 3 inscription(s)", out)
+        self.assertIn("Adresses courriel invalides des inscriptions aux événements — base linux_meetup_odoo_18 — 3 inscriptions", out)
         texte = " ".join(out.split())
         self.assertIn("Inscription #1965", texte)
         self.assertIn("Adresse : marieb.essai@gmail'com — caractère invalide dans le nom de domaine : ' — correction suggérée : marieb.essai@gmail.com", texte)
@@ -350,17 +350,17 @@ class AdressesInvalides(_Base):
         rc, out, err = self.lancer("--no-prompt", "--details")
         texte = " ".join(out.split())
         self.assertIn("cause : adresse invalide (caractère invalide dans le nom de domaine : '), suggérée : marieb.essai@gmail.com — PERMANENTE", texte)
-        self.assertIn("1 courriel(s) adressé(s) à une adresse INVALIDE : renvoyés tels quels, ils échoueront de nouveau", texte)
+        self.assertIn("1 courriels adressés à une adresse INVALIDE : renvoyés tels quels, ils échoueront de nouveau", texte)
         self.assertIn("Par cause : adresse invalide ×1", texte)
 
     def test_fix_yes_corrige_inscription_contact_et_renvoie(self):
         rc, out, err = self.lancer("--invalid-emails", "--fix", "--yes", "--details")
         self.assertEqual(rc, 0, err)
         texte = " ".join(out.split())
-        self.assertIn("Inscription #1965 — marieb.essai@gmail'com → marieb.essai@gmail.com — inscription corrigée, contact corrigée, 1 courriel(s) en échec remis « En attente »", texte)
+        self.assertIn("Inscription #1965 — marieb.essai@gmail'com → marieb.essai@gmail.com — inscription corrigée, contact corrigée, 1 courriels en échec remis « En attente »", texte)
         self.assertIn("Le compte Odoo garde son identifiant « marieb.essai@gmail'com »", texte)
         self.assertIn("Inscription #1966 — jean@gmial.com → jean@gmail.com", texte)
-        self.assertIn("2 adresse(s) corrigée(s) ; 1 sans correction automatique", texte)
+        self.assertIn("2 adresses corrigées ; 1 sans correction automatique", texte)
         maj = self.appels("UPDATE event_registration")
         self.assertEqual(len(maj), 2)
         self.assertIn("psql -1 ", maj[0])                                               # une seule transaction
@@ -377,7 +377,7 @@ class AdressesInvalides(_Base):
     def test_menu_une_par_une_accepter_saisir_passer(self):
         """Menu sur un vrai terminal : [c] une par une — Entrée accepte la suggestion, une adresse saisie remplace (casse conservée), s passe."""
         texte, n = self.run_pty(["python3", self.prog, "--details"],
-                                [(b"[N] aucune", b"c\r", 0.2), (b"#1965", b"\r", 0.2), (b"#1966", b"Jean.X@Videotron.ca\r", 0.2), (b"#1968", b"s\r", 0.2),
+                                [(b"aucune : ", b"c\r", 0.2), (b"#1965", b"\r", 0.2), (b"#1966", b"Jean.X@Videotron.ca\r", 0.2), (b"#1968", b"s\r", 0.2),
                                  (b"[N] aucun", b"\r", 0.3)])
         self.assertGreaterEqual(n, 4, texte)
         maj = self.appels("UPDATE event_registration")

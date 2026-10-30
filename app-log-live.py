@@ -114,7 +114,7 @@ from urllib.parse import unquote
 from collections import Counter, OrderedDict
 from concurrent.futures import Future
 
-__version__ = "1.121.20261030.143010"
+__version__ = "1.122.20261030.153422"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
@@ -941,7 +941,7 @@ def system_state(state=None):
     state = state or read_state()
     if not state:
         return ""
-    text = TR("load {load:.1f} out of {cores} core(s) · swap used {swap} MB · memory available {mem:.1f} GB").format(
+    text = TR("load {load:.1f} out of {cores} cores · swap used {swap} MB · memory available {mem:.1f} GB").format(
         load=state["load"], cores=state["cores"], swap=state["swap_mb"], mem=state["mem_gb"])
     io = state["io"]
     if io is not None:
@@ -950,7 +950,7 @@ def system_state(state=None):
     others = [(name, rotatif) for name, rotatif in state["disks"] if name not in zfs]
     chunks = [f"{name} {'hard disk (spinning)' if rotatif else 'SSD'}" for name, rotatif in others]
     if zfs:
-        chunks.append(f"{len(zfs)} ZFS volume(s) (real type: that of the pool disks)")
+        chunks.append(f"{len(zfs)} ZFS volumes (real type: that of the pool disks)")
     if chunks:
         text += " · disks: " + ", ".join(chunks)
     return text
@@ -1079,7 +1079,7 @@ def start_watchdog(proc, file, state, received, reader_thread):
             if time.time() - last_seen["t"] >= WATCHDOG_DELAY and not last_seen["alert"]:
                 last_seen["alert"] = True
                 case = ("the journal has lines ready but the reader thread does not take them" if ready
-                       else f"{waiting} line(s) read are waiting, the display loop does not process them")
+                       else f"{waiting} lines read are waiting, the display loop does not process them")
                 eprint(color_code(ORANGE, TR("⚠ Watchdog ({name} v{version}) : no progress for {delay} s — {case}. Stack of the blocked thread (copy it):").format(name="app-log-live", version=__version__, delay=f"{WATCHDOG_DELAY:g}", case=case)))
                 eprint(thread_stacks(("reader",) if ready else ("main",)))
     threading.Thread(target=keep_watch, daemon=True, name="watchdog").start()
@@ -1939,7 +1939,7 @@ class Presence:
             elif now_dt - e["last_seen"] >= self.idle_state:
                 kind_name, state, detail = "idle_state", "○ inactive", f"since {gap}"
             else:
-                kind_name, state, detail = "connection", "● signed in", TR("{gap} ago · {n} request(s) seen").format(gap=gap, n=e['requetes'])
+                kind_name, state, detail = "connection", "● signed in", TR("{gap} ago · {n} requests seen").format(gap=gap, n=e['requetes'])
             e["idle_state"] = kind_name == "idle_state"
             ranked.append((e["last_seen"], (kind_name, state, e["nom"], f"[{e['ip']}]", e.get("date") or e["hour"], detail)))
         ranked = [r for _, r in sorted(ranked, key=lambda x: x[0], reverse=True)]       # most recent last activity first
@@ -2084,7 +2084,7 @@ def check_certificate(name, host_name=None, port=443, delay=8):
         remaining = (ssl.cert_time_to_seconds(cert["notAfter"]) - time.time()) / 86400
         issuer = next((v for r in cert.get("issuer", ()) for k, v in r if k == "organizationName"), "?")
         if remaining < 15:
-            return ("WARN", f"Certificate of {target}: valid but expires in {remaining:.0f} day(s) (issued by {issuer}).",
+            return ("WARN", f"Certificate of {target}: valid but expires in {remaining:.0f} days (issued by {issuer}).",
                     "Automatic renewal is not working: certbot renew --dry-run; systemctl status certbot.timer.")
         return ("OK", f"Certificate of {target}: accepted (issued by {issuer}, expires in {remaining:.0f} days).", "")
     except ssl.SSLCertVerificationError as e:
@@ -2277,7 +2277,7 @@ def nginx_config_versions(limit=5):
         except OSError:
             pass
         if journal:
-            lines.append(f"  Latest changes of the nginx configuration (README.md journal, {len(journal)} dated line(s)):")
+            lines.append(f"  Latest changes of the nginx configuration (README.md journal, {len(journal)} dated lines):")
             for when, text_value in sorted(journal, key=lambda j: j[0], reverse=True)[:limit]:
                 lines.append(f"    {color_code('36', when)}  {text_value[:150]}")
         for part in NGINX_CONFIG_PARTS:
@@ -2312,7 +2312,7 @@ def nginx_config_versions(limit=5):
         files = [f for f in files if f[0]]
         lines.append(f"  Archive nginx-odoo-config: not found next to the programs ({os.path.join(SCRIPT_DIR, 'nginx-odoo')}/VERSION) — version unknown")
         if files:
-            lines.append(f"  Most recently modified files of {NGINX_ETC} ({len(files)} file(s)):")
+            lines.append(f"  Most recently modified files of {NGINX_ETC} ({len(files)} files):")
             for when, rel in sorted(files, reverse=True)[:limit]:
                 lines.append(f"    {color_code('36', when)}  {rel}")
         else:
@@ -2336,7 +2336,7 @@ def show_diagnostic(profile, service, write_line=print, color=True, extra_hosts=
             write_line(f"         What to do: {advice}")
     failures = [r for r in result if r[0] == "FAIL"]
     if failures:
-        write_line(f"  ⇒ {len(failures)} problem(s): fix them in the order above (the first is the most likely), then press the D key again.")
+        write_line(f"  ⇒ {len(failures)} problems: fix them in the order above (the first is the most likely), then press the D key again.")
     else:
         write_line("  ⇒ Everything answers. If your browser still shows the maintenance page: Ctrl+Shift+R (cache), or purge the cache of the CDN / proxy in front of the site. A certificate error in the browser (net::ERR_CERT_…) is read in the « Certificate » lines above.")
     write_line("──── nginx configuration: versions and dates ────")          # 1.86
@@ -2417,7 +2417,7 @@ def check_modules(odoo_db, conf, databases_seen):
     disk, missing_folders = modules_on_disk(conf)
     lines = []
     if missing_folders:
-        lines.append(color_code(ORANGE, "  ⚠ addons_path: folder(s) not found: " + ", ".join(missing_folders[:5]) + (" …" if len(missing_folders) > 5 else "")))
+        lines.append(color_code(ORANGE, "  ⚠ addons_path: folders not found: " + ", ".join(missing_folders[:5]) + (" …" if len(missing_folders) > 5 else "")))
     unreadable = []
     for database in databases_seen:
         state = odoo_db.modules_etat(database)
@@ -2437,7 +2437,7 @@ def check_modules(odoo_db, conf, databases_seen):
         pending = [(m["nom"], m["etat"]) for m in state if m["etat"] in ("to upgrade", "to install", "to remove")]
         good = not (not_found or different or pending or missing_folders)
         # ONE line per database: enough to see at a glance whether all is well; the detail appears only for what is wrong
-        lines.append("  " + color_code("1", f"Odoo modules (database {database})") + " : " + color_code("1;36", str(len(installed))) + " installed module(s)"
+        lines.append("  " + color_code("1", f"Odoo modules (database {database})") + " : " + color_code("1;36", str(len(installed))) + " installed modules"
                       + (f" · series {series}" if series else "") + color_code("90", f" · {len(disk)} on disk") + " · "
                       + (color_code("1;32", "✔ all present, at the installed version") if good else color_code("1;" + ORANGE, "⚠ to look at")))
         if not_found:
@@ -2445,7 +2445,7 @@ def check_modules(odoo_db, conf, databases_seen):
                           + ", ".join(not_found[:12]) + (" …" if len(not_found) > 12 else "")
                           + color_code("90", " — Odoo cannot load them: check addons_path or put the module back"))
         if different:
-            lines.append("    " + color_code(ORANGE, f"⚠ {len(different)} version(s) different from the disk: ")
+            lines.append("    " + color_code(ORANGE, f"⚠ {len(different)} versions different from the disk: ")
                           + " ; ".join(f"{n} installed {color_code('1;36', a)} ≠ disk {color_code('1;36', b)}" for n, a, b in different[:8]) + (" …" if len(different) > 8 else "")
                           + color_code("90", " — odoo -u NAME -d " + database + " (or odoo-update-module.sh)"))
         if pending:
@@ -2456,7 +2456,7 @@ def check_modules(odoo_db, conf, databases_seen):
         if personal or rlq:
             others = [m for m in personal if not m["nom"].lower().startswith("rlq")]
             recent_ones = sorted((m for m in others if m.get("maj")), key=lambda m: (m["maj"], m["nom"]), reverse=True)[:5]
-            lines.append("    " + color_code("33", "Non-Odoo S.A.") + " : " + color_code("1;36", str(len(personal))) + " module(s)"
+            lines.append("    " + color_code("33", "Non-Odoo S.A.") + " : " + color_code("1;36", str(len(personal))) + " modules"
                           + color_code("90", " — full table and sorting: M key or --modules"))
             width = max((len(m["nom"]) for m in rlq + recent_ones), default=0)
 
@@ -2472,7 +2472,7 @@ def check_modules(odoo_db, conf, databases_seen):
                 lines += [module_line(m) for m in recent_ones]
     if unreadable:
         lines.append(color_code(ORANGE, "  ⚠ ") + color_code("1", "Odoo modules") + ": reading PostgreSQL is impossible for " + color_code("1;36", str(len(unreadable)))
-                      + " database(s)" + color_code("90", " (root required, or database inaccessible)") + " : "
+                      + " databases" + color_code("90", " (root required, or database inaccessible)") + " : "
                       + ", ".join(color_code("1;33", b) for b in unreadable[:5]) + (" …" if len(unreadable) > 5 else ""))
     return lines
 
@@ -2998,12 +2998,12 @@ def ticket_report(rows):
             missing = len(active) - done - ongoing
             head = "      " + (TR("Ticket « {ticket} »").format(ticket=raw(ticket)) if ticket else TR("Without ticket"))
             if survey_id:
-                head += (TR(" → survey « {survey} »: {n} active registration(s) — ").format(survey=raw(survey), n=len(active))
+                head += (TR(" → survey « {survey} »: {n} active registrations — ").format(survey=raw(survey), n=len(active))
                          + color_code("1;32", TR("{n} confirmed").format(n=done)) + ", "
                          + color_code(ORANGE if ongoing else "90", TR("{n} unfinished").format(n=ongoing)) + ", "
                          + color_code(STYLES["error"] if missing else "90", TR("{n} without survey").format(n=missing)))
             else:
-                head += color_code("90", TR(": no survey linked to this ticket — {n} active registration(s)").format(n=len(active)))
+                head += color_code("90", TR(": no survey linked to this ticket — {n} active registrations").format(n=len(active)))
             out.append(head)
             for r in regs:
                 left = f"        {day(r['when'])}  {raw(r['name'])}{' ' * (width - display_width(r['name']))}  ({r['state']})"
@@ -3069,8 +3069,8 @@ def rlq_group_lines(odoo_db, databases_seen):
             res.append("  " + color_code("1", f"RLQ* groups (base {database})") + " : " + color_code(ORANGE, "no group whose name starts with RLQ"))
         else:
             total = sum(g["membres"] for g in grouped)
-            res.append("  " + color_code("1", f"RLQ* groups (base {database})") + " : " + color_code("1;36", str(len(grouped))) + " group(s), "
-                       + color_code("1;36", str(total)) + " membership(s)" + color_code("90", " (active accounts):"))
+            res.append("  " + color_code("1", f"RLQ* groups (base {database})") + " : " + color_code("1;36", str(len(grouped))) + " groups, "
+                       + color_code("1;36", str(total)) + " memberships" + color_code("90", " (active accounts):"))
             res += rlq_group_columns(grouped)
     return res
 
@@ -3110,8 +3110,8 @@ def customs_tracking_lines(odoo_db, conf, databases_seen, sort_by=None):
             res.append(f"Tracking of custom (non-standard) Odoo modules (database {database}) : reading PostgreSQL is impossible (root required, or database inaccessible).")
             continue
         customs = [m for m in state if m["etat"] in ("installed", "to upgrade", "to remove") and custom_module(m)]
-        header = lambda n_rlq, n_others, total, v, database=database: (f"Tracking of custom (non-standard) Odoo modules (database {database}, Odoo {color_code('1;36', v)}) : {color_code('1;36', str(n_rlq))} module(s) rlq* "
-                                                                 f"(first, with their version) then {color_code('1;36', str(n_others))} other(s) not by Odoo S.A.")
+        header = lambda n_rlq, n_others, total, v, database=database: (f"Tracking of custom (non-standard) Odoo modules (database {database}, Odoo {color_code('1;36', v)}) : {color_code('1;36', str(n_rlq))} modules rlq* "
+                                                                 f"(first, with their version) then {color_code('1;36', str(n_others))} others not by Odoo S.A.")
         res += modules_table(customs + [m for m in state if m["nom"] == "base"], database, (key_value, inverse, True), disk, len(customs), header)
     return res
 
@@ -3539,7 +3539,7 @@ class Resources:
         chunks = [f"CPU {cpu:.1f} %"]
         if after["rss"] is not None:
             chunks.append(f"memory {readable_bytes(after['rss'])} (peak {readable_bytes(after['peak'] or after['rss'])})")
-        chunks.append(f"{after['threads']} thread(s)")
+        chunks.append(f"{after['threads']} threads")
         res = ["  Program: " + " · ".join(chunks)]
         if after["was_read"] is not None and before["was_read"] is not None:
             res.append(f"  I/O: read {readable_bytes(after['was_read'] - before['was_read'])} ({readable_bytes((after['was_read'] - before['was_read']) / duration_s)}/s, of which disk "
@@ -3990,7 +3990,7 @@ class Stats:
         if n and ip not in self.suspect_ips and len(self.ip_not_found.get(ip, ())) >= THRESHOLD_404:
             return f"{n} different pages not found (404): probe sweep"
         if n:
-            return f"{n} suspicious request(s)"
+            return f"{n} suspicious requests"
         return "recommended by web-monitor.py" + (f" ({self.recommended[ip]})" if self.recommended.get(ip) else "")
 
     def count_conflict(self, L):
@@ -4144,7 +4144,7 @@ class Stats:
             minutes[int(instant // 60)] += 1
         all_items = t_sql + t_py
         if all_items > 0:
-            lines.append(f"Where the time goes: SQL {100 * t_sql / all_items:.0f} % · Python {100 * t_py / all_items:.0f} % (total {all_items:.0f} s over {len(self.slow_requests)} request(s))")
+            lines.append(f"Where the time goes: SQL {100 * t_sql / all_items:.0f} % · Python {100 * t_py / all_items:.0f} % (total {all_items:.0f} s over {len(self.slow_requests)} requests)")
         for url, g in sorted(grouped.items(), key=lambda kv: -kv[1]["total"])[:n]:
             lines.append(f"{short_url(url, 48)} ×{g['n']} — {g['total']:.0f} s in total, the worst {g['max']:.1f} s : "
                           + request_cause(g["req"], g["sql"], g["py"], g["size"], g["example"]))
@@ -4205,18 +4205,18 @@ class Stats:
             indicator(0, f"Slow requests (≥ {self.slowest:g} s) : " + (f"{len(self.slow_requests)}" if self.slow_requests else none_fem()),
                        [f"{t:.1f} s {short_url(u)} ({self.who(ip)})" + (f" — SQL {ts:.1f} s · Python {tp:.1f} s · {n} SQL queries" if ts or tp else "") + (f" · {clock_of(_instant)}" if _instant else "")
                         for (t, u, ip), (n, ts, tp, _size, _instant) in more]
-                      + ([TR("… and {n} other slow request(s)").format(n=len(self.slow_requests) - len(more))] if len(self.slow_requests) > len(more) else [])
+                      + ([TR("… and {n} other slow requests").format(n=len(self.slow_requests) - len(more))] if len(self.slow_requests) > len(more) else [])
                       + self.analyze_slow(), (1, 5), len(self.slow_requests))
         if self.watch_it:
             batch = self.watched
             errors = sum(1 for _, _, c, _, _ in batch if c >= 400)
             slow_requests = [(d, u) for _, d, _, u, _ in batch if d is not None and self.slowest and d >= self.slowest]
-            indicator(0, f"Watch ({', '.join(self.watch_it)}) : {len(batch)} request(s), {errors} error(s), {len(slow_requests)} slow",
+            indicator(0, f"Watch ({', '.join(self.watch_it)}) : {len(batch)} requests, {errors} errors, {len(slow_requests)} slow",
                        [f"{d:.1f} s {short_url(u)}" for d, u in sorted(slow_requests, reverse=True)[:3]]
                        + [f"{c} {short_url(u)}" for _, _, c, u, _ in batch if c >= 400][:3], (1, 10), errors + len(slow_requests))
         indicator(0, "Program: " + ("high resources" if program_alerts else "normal resources"), list(program_alerts), (1, 99), len(program_alerts))
         if self.probes:
-            lines.append("  " + color_code(STYLES["debug"], f"ℹ Probes from this server: {sum(self.probes.values())} local request(s) (app-health-check.py) ignored as suspicious — {self.top(self.probes, 3)}"))
+            lines.append("  " + color_code(STYLES["debug"], f"ℹ Probes from this server: {sum(self.probes.values())} local requests (app-health-check.py) ignored as suspicious — {self.top(self.probes, 3)}"))
         suspects = sum(self.suspect_urls.values())
         if suspects:
             lines.append("  " + color_code(STYLES["debug"], f"ℹ Suspicious requests seen: {suspects} de {len(self.suspect_ips)} address(es)"))
@@ -4235,13 +4235,13 @@ class Stats:
             errors = sum(1 for _, _, c, _, _ in batch if c >= 400)
             slow_requests = sum(1 for d in durations if self.slowest and d >= self.slowest)
             confirmed = sum(1 for _, _, c, u, _ in batch if "registration/confirm" in u and c < 400)
-            t = f"  Watch « {pattern} » : {len(batch)} request(s) · {errors} error(s)"
+            t = f"  Watch « {pattern} » : {len(batch)} requests · {errors} errors"
             if durations:
                 t += f" · median duration {durations[len(durations) // 2]:.2f} s · 95th percentile {durations[min(len(durations) - 1, int(0.95 * len(durations)))]:.2f} s · maximum {durations[-1]:.2f} s"
             if self.slowest:
                 t += f" · {slow_requests} slow (≥ {self.slowest:g} s)"
             if confirmed:
-                t += f" · {confirmed} confirmed registration(s)"
+                t += f" · {confirmed} confirmed registrations"
             res.append(numbers(t))
             res.extend(numbers(text_line) for text_line in self.watch_detail(batch))
         return res
@@ -4272,11 +4272,11 @@ class Stats:
         res = []
         if all_:
             robots = sum(1 for ip in all_ if self.is_robot(ip))
-            res.append(TR("    Visitors: {total} address(es) including {robots} probable robot(s)").format(total=len(all_), robots=robots))
+            res.append(TR("    Visitors: {total} address(es) including {robots} probable robots").format(total=len(all_), robots=robots))
         if pages:
-            res.append("    Pages : " + " · ".join(f"{short_url(c, 70)} ×{n} ({len(page_visitors[c])} visiteur(s))" for c, n in pages.most_common(5)))
+            res.append("    Pages : " + " · ".join(f"{short_url(c, 70)} ×{n} ({len(page_visitors[c])} visiteurs)" for c, n in pages.most_common(5)))
         for name, f in sorted(surveys.items(), key=lambda kv: -(kv[1]["access"] + kv[1]["posts"]))[:6]:
-            res.append(f"    Survey « {name} » : {f['access']} access(es) · {len(f['ips'])} visitor(s) · {f['posts']} answer submission(s)")
+            res.append(f"    Survey « {name} » : {f['access']} access(es) · {len(f['ips'])} visitors · {f['posts']} answer submissions")
         return res
 
     def agents_note(self, visitors):
@@ -4307,8 +4307,8 @@ class Stats:
         known_list = sum(1 for ip in visitors if ip in self.people)
         protected_ones = sum(1 for ip in visitors if ip not in self.people and ip in self.protected_ones)
         anonymous = len(visitors) - known_list - protected_ones
-        res = [numbers(f"  Site visits: {sum(self.visits.values())} visit(s) · {pages} page(s) viewed · {len(visitors)} visitor(s) "
-                        f"[{known_list} known person(s) · {protected_ones} team or place · {anonymous} anonymous] · {pages / len(visitors):.1f} page(s) per visitor")]
+        res = [numbers(f"  Site visits: {sum(self.visits.values())} visits · {pages} pages viewed · {len(visitors)} visitors "
+                        f"[{known_list} known persons · {protected_ones} team or place · {anonymous} anonymous] · {pages / len(visitors):.1f} pages per visitor")]
         pays = Counter(self.pays.get(ip) for ip in visitors if self.pays.get(ip))
         if pays:
             unknown_ones = len(visitors) - sum(pays.values())
@@ -4320,10 +4320,10 @@ class Stats:
         robot_pages = sum(self.pages_per_ip[ip] for ip in robots)
         real = len(visitors) - len(robots)
         names = Counter(re.sub(r"\s*\[.*$", "", self.names.get(ip, ip)) for ip in robots)
-        res.append(numbers(f"  Robots: {len(robots)} address(es) out of {len(visitors)} ({100 * len(robots) / len(visitors):.0f} %) · {robot_pages} page(s) seen "
+        res.append(numbers(f"  Robots: {len(robots)} address(es) out of {len(visitors)} ({100 * len(robots) / len(visitors):.0f} %) · {robot_pages} pages seen "
                             f"({100 * robot_pages / pages:.0f} % of pages)" + (" — " + " ; ".join(f"{n} ×{c}" for n, c in names.most_common(3)) if robots else "")))
-        res.append(numbers(f"  Real visitors: {real} out of {len(visitors)} ({100 * real / len(visitors):.0f} %) · {sum(self.visits[ip] for ip in visitors if ip not in robots)} visit(s) · "
-                            f"{(pages - robot_pages) / real:.1f} page(s) per real visitor" if real else "  Real visitors: none (all visitors are robots)")
+        res.append(numbers(f"  Real visitors: {real} out of {len(visitors)} ({100 * real / len(visitors):.0f} %) · {sum(self.visits[ip] for ip in visitors if ip not in robots)} visits · "
+                            f"{(pages - robot_pages) / real:.1f} pages per real visitor" if real else "  Real visitors: none (all visitors are robots)")
                    + color_code(STYLES["debug"], self.agents_note(visitors)))
         res.append("  Most visited pages (responses below 400): " + self.top(self.pages, 5))
         return [(self.visit_line_level(text_line), text_line) for text_line in res]
@@ -4342,9 +4342,9 @@ class Stats:
         """Levels 2 to 5: the essentials of the activity in one line (requests, pages, visitors including real ones and robots)."""
         pages, visitors = sum(self.pages.values()), list(self.pages_per_ip)
         if not pages:
-            return f"  Activity: {self.requests} request(s)"
+            return f"  Activity: {self.requests} requests"
         robots = sum(1 for ip in visitors if self.is_robot(ip))
-        return numbers(f"  Activity: {self.requests} request(s) · {pages} page(s) viewed · {len(visitors)} visitor(s) ({len(visitors) - robots} real, {robots} bot(s))")
+        return numbers(f"  Activity: {self.requests} requests · {pages} pages viewed · {len(visitors)} visitors ({len(visitors) - robots} real, {robots} bots)")
 
     def summary(self, extras=(), program_alerts=(), heading="Session summary", level=LEVEL_MAX, people=()):
         """Lines of the session summary (or of the period, for Ctrl-T): health, what happened, efficiency of the program (extras).
@@ -4356,7 +4356,7 @@ class Stats:
         end = getattr(self, "end", None) or time.time()
         start = self.start if self.period else (self.first or self.start)     # everything: from the oldest line seen (history included); Ctrl-T: from the last display
         duration_s = int(end - start)
-        res = [color_code(STYLES["title"], TR("──── {heading} ({name} v{version}) : since {start} for {duration} · {lines} line(s) shown · {requests} request(s) ────").format(
+        res = [color_code(STYLES["title"], TR("──── {heading} ({name} v{version}) : since {start} for {duration} · {lines} lines shown · {requests} requests ────").format(
                             heading=heading, name=os.path.basename(__file__), version=__version__, start=time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(start)),
                             duration=f"{duration_s // 3600:02d}:{duration_s % 3600 // 60:02d}:{duration_s % 60:02d}", lines=self.lines, requests=self.requests))]
         health = self.health(program_alerts)[1]
@@ -4379,7 +4379,7 @@ class Stats:
         blocks.extend((5, f"      {name}" + (f" [{pays_par_nom[name].most_common(1)[0][0]}]" if name in pays_par_nom else "") + " " + color_code("1;36", f"×{n}"))
                       for name, n in self.by_name.most_common(10))
         if len(self.by_name) > 10:
-            blocks.append((5, f"      +{len(self.by_name) - 10} name(s) not shown"))
+            blocks.append((5, f"      +{len(self.by_name) - 10} names not shown"))
         if self.suspect_ips:
             blocks.append((4, color_code(STYLES["suspect"], " Suspicious requests ") + f" {sum(self.suspect_urls.values())} de {len(self.suspect_ips)} address(es) — "
                           + self.top(self.suspect_urls)))
@@ -4388,7 +4388,7 @@ class Stats:
         else:
             blocks.append((9, f"  Suspicious requests: {none_found()}."))
         if self.probes:
-            blocks.append((9, f"  Probes from this server: {sum(self.probes.values())} local request(s) (app-health-check.py), not counted as suspicious — {self.top(self.probes, 3)}"))
+            blocks.append((9, f"  Probes from this server: {sum(self.probes.values())} local requests (app-health-check.py), not counted as suspicious — {self.top(self.probes, 3)}"))
         for class_, caption, style in ((5, "5xx errors (critical)", STYLES["url_critical"]), (4, "4xx errors (warnings)", STYLES["url_warning"])):
             if self.errors[class_]:
                 blocks.append((4, color_code(style, f" {caption} ") + f" {sum(self.errors[class_].values())} — " + self.top(self.errors[class_])))
@@ -4397,7 +4397,7 @@ class Stats:
             else:
                 blocks.append((9, f"  {caption} : {none_found()}."))
         if self.not_found and self.list_404:
-            blocks.append((1, color_code(STYLES["url_warning"], " Pages not found (404) ") + f" {len(self.not_found)} page(s), {sum(self.not_found.values())} response(s):"))
+            blocks.append((1, color_code(STYLES["url_warning"], " Pages not found (404) ") + f" {len(self.not_found)} pages, {sum(self.not_found.values())} responses:"))
             blocks.extend((1, f"      {short_url(u, 100)} ×{n}") for u, n in self.not_found.most_common())
         if self.slowest:
             if self.slow_requests:
@@ -4416,7 +4416,7 @@ class Stats:
             blocks.append((9 if not self.reco_diagnostic() else 4, f"  Addresses to ban: {none_found()} (key b to check)." + (f" Recommendations from web-monitor.py: {self.reco_diagnostic()}." if self.reco_diagnostic() else "")))
         pages = sum(self.languages.values())
         if pages:
-            blocks.append((5, numbers(f"  Pages by language ({pages} page(s)): " + " · ".join(f"{language_label(k)} {100 * v / pages:.0f} %" for k, v in self.languages.most_common()))))
+            blocks.append((5, numbers(f"  Pages by language ({pages} pages): " + " · ".join(f"{language_label(k)} {100 * v / pages:.0f} %" for k, v in self.languages.most_common()))))
         blocks.extend(self.visit_levels())
         blocks.extend((4, text_line) for text_line in self.watch_lines())
         total = sum(self.statuses.values())
@@ -4996,7 +4996,7 @@ def follow(cmd, people, resolver, options, output):
         if ip in stats.all_banned:
             return
         write_out([color_code(ORANGE, f"──── Address often banned: {n} fail2ban bans — verdict: ban justified ────"),
-                f"  {color_code(STYLES['suspect'], ' ' + ip + ' ')} {stats.who(ip)} — {stats.suspect_ips.get(ip, 0)} suspicious request(s) in this session"])
+                f"  {color_code(STYLES['suspect'], ' ' + ip + ' ')} {stats.who(ip)} — {stats.suspect_ips.get(ip, 0)} suspicious requests in this session"])
         rep = ask_with_delay(TR("Ban {ip} now? [y] yes  [N] no  ({delay} s, no answer: we continue): ").format(ip=ip, delay=BAN_DELAY), BAN_DELAY)
         if (rep or "").strip().lower() not in ("o", "oui", "y", "yes"):
             if rep is not None:
@@ -5085,7 +5085,7 @@ def follow(cmd, people, resolver, options, output):
         if not entries:
             write_out(["  " + TR("Nothing to refresh yet (the buffer keeps the last lines displayed: --buffer N).")])
             return
-        write_out([color_code(STYLES["title"], TR("──── last {n} line(s), displayed again with the current options ────").format(n=len(entries)))])
+        write_out([color_code(STYLES["title"], TR("──── last {n} lines, displayed again with the current options ────").format(n=len(entries)))])
         active = output.active
         output.active = False                             # display only: the daily journal already has these lines
         try:
@@ -5116,13 +5116,13 @@ def follow(cmd, people, resolver, options, output):
         try:
             descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0), 0o600)
             with os.fdopen(descriptor, "w", encoding="utf-8", errors="replace") as file_out:
-                file_out.write(color_code(STYLES["title"], f"──── {SCRIPT_NAME}.py v{__version__} : {count} line(s) printed {time.strftime('%Y-%m-%d %H:%M:%S')} ────") + "\n")
+                file_out.write(color_code(STYLES["title"], f"──── {SCRIPT_NAME}.py v{__version__} : {count} lines printed {time.strftime('%Y-%m-%d %H:%M:%S')} ────") + "\n")
                 for shown in available[-count:]:
                     file_out.write(shown + "\n")
         except OSError as error:
             write_out([color_code(STYLES["error"], "  " + TR("Print failed: {error}").format(error=error))])
             return
-        write_out(["  " + TR("{n} line(s) written to {path} (colors kept: less -R {path}; mode 600, names and addresses inside)").format(n=count, path=path)])
+        write_out(["  " + TR("{n} lines written to {path} (colors kept: less -R {path}; mode 600, names and addresses inside)").format(n=count, path=path)])
 
     def release_deferred(benign):
         if deferred[0] is not None:
@@ -5141,11 +5141,11 @@ def follow(cmd, people, resolver, options, output):
         without = d["fast"] + d["memory"] + d["cache"]
         permanent = "permanent cache active" if resolver.cache is not None else "permanent cache disabled (--no-cache or unreadable)"
         country = d["country_memory"] + d["country_cache"] + d["country"]
-        text = TR("  Address cache: {pct:.0f} % of the {total} request(s) without outside lookup — {mem} already seen in this session, "
-                  "{cache} in the permanent cache, {fast} by the lists (person, team, this server), {dns} DNS lookup(s), {rdap} RDAP ({permanent})").format(
+        text = TR("  Address cache: {pct:.0f} % of the {total} requests without outside lookup — {mem} already seen in this session, "
+                  "{cache} in the permanent cache, {fast} by the lists (person, team, this server), {dns} DNS lookups, {rdap} RDAP ({permanent})").format(
                       pct=100 * without / requests_made, total=requests_made, mem=d["memory"], cache=d["cache"], fast=d["fast"], dns=d["dns"], rdap=d["rdap"], permanent=TR(permanent))
         if country:
-            text += TR(" ; countries: {known} out of {total} already known, {lookups} lookup(s)").format(known=d["country_memory"] + d["country_cache"], total=country, lookups=d["country"])
+            text += TR(" ; countries: {known} out of {total} already known, {lookups} lookups").format(known=d["country_memory"] + d["country_cache"], total=country, lookups=d["country"])
         return [text]
 
     def socket_lines():
@@ -5322,7 +5322,7 @@ def follow(cmd, people, resolver, options, output):
                 lines.append("  " + reminder_text)
         if lines:
             since = earlier[0][1].ts_txt[11:19] if earlier[0][1].ts_txt else "?"
-            output.write(color_code("1;32", f"↻ {name} [{ip}] : {len(lines)} previous line(s) of this address (since {since}), "
+            output.write(color_code("1;32", f"↻ {name} [{ip}] : {len(lines)} previous lines of this address (since {since}), "
                                       "shown above without name:") + "\n" + "\n".join(lines) + "\n")
 
     # --- menu touches (? or h): command line options changed on the fly ------------------------------------------------------
@@ -5355,7 +5355,7 @@ def follow(cmd, people, resolver, options, output):
                 write_out(["  No error (ERROR / CRITICAL) or failed e-mail to detail."])
             return
         if ask_first:
-            rep = ask(f"{severe} Odoo error(s), {stats.mails} failed e-mail(s). More details on the errors? [y] yes  [N] no: ")
+            rep = ask(f"{severe} Odoo errors, {stats.mails} failed e-mails. More details on the errors? [y] yes  [N] no: ")
             if (rep or "").strip().lower() not in ("o", "oui", "y", "yes"):
                 return
         hour_values = max(1, math.ceil((time.time() - (stats.first or stats.start)) / 3600))
@@ -5523,7 +5523,7 @@ def follow(cmd, people, resolver, options, output):
         noise = sum(v for k, v in counts.items() if k != "kept")
         reasons = {"key": "R key", "duration": "maximum duration reached", "size": "maximum size reached", "end": "end of the stream", "interrupt": "Ctrl-C",
                    "test-log": "end of --record-test-log"}
-        lines = [color_code("1;32", "  ✔ " + TR("Recording stopped ({reason}): {seconds} s, {kept} line(s) kept, {noise} noise line(s) left out").format(
+        lines = [color_code("1;32", "  ✔ " + TR("Recording stopped ({reason}): {seconds} s, {kept} lines kept, {noise} noise lines left out").format(
                      reason=TR(reasons.get(result.get("reason"), result.get("reason") or "?")), seconds=f"{result.get('seconds', 0):.0f}", kept=counts.get("kept", 0), noise=noise)),
                  "    " + TR("Archive to send for analysis: {path} ({size})").format(path=result["path"], size=readable_bytes(result.get("size") or 0))]
         if result.get("notes"):
@@ -5584,7 +5584,7 @@ def follow(cmd, people, resolver, options, output):
         lines.append("  Command-line options, changed on the fly ([current state]):")
         chimes = {0: "any error (4xx, 5xx, Odoo ERROR)", 1: "4xx", 2: "5xx and 4xx"}
         for key, option, text in sorted((("a", "--accentuate-group NAME", f"contacts of the Odoo tag in bold white on dark blue [{options['group'] or 'none'}"
-                                                                      + (f", {len(options['membres'])} account(s)]" if options["group"] else "]")),
+                                                                      + (f", {len(options['membres'])} accounts]" if options["group"] else "]")),
                                       ("A", "--anonymize", f"pseudonyms on screen for the addresses, e-mails and names (membre-4f2a9c); the daily log keeps everything [{yes_no(output.anonymize is not None)}]"),
                                       ("c", "--chime N", f"beep on error: 0 all, 1 = 4xx, 2 = 5xx and 4xx [{chimes.get(options['chime'], 'none')}]"),
                                       ("d", "--dns-max N", f"width of the names column, without cutting them [{global_name}]"),
@@ -5842,7 +5842,7 @@ def follow(cmd, people, resolver, options, output):
                         write_out([color_code(STYLES["error"], f"  --accentuate-group : {err}")])
                     else:
                         options["group"], options["membres"] = name, member_list
-                        write_out([f"  --accentuate-group {name} : {len(member_list)} account(s) (the following lines): " + color_code(STYLES["accent"], " exemple ")])
+                        write_out([f"  --accentuate-group {name} : {len(member_list)} accounts (the following lines): " + color_code(STYLES["accent"], " exemple ")])
         elif key_value == "chime":
             rep = ask(TR("--chime N (0 = any error, 1 = 4xx, 2 = 5xx and 4xx, n = no beep; current: {current}, Enter = 0): ").format(current=options['chime'] if options['chime'] is not None else 'none'))
             if rep is not None:
@@ -5902,7 +5902,7 @@ def follow(cmd, people, resolver, options, output):
                 if choice in ("o", "oui", "y", "yes", "p"):
                     target = os.path.join(os.path.expanduser("~"), f".{SCRIPT_NAME}.conf") if choice == "p" else target
                     try:
-                        write_out([f"  {write_config(target, changes)} setting(s) written into {color_code('1;32', target)} (re-read at the next launch)."])
+                        write_out([f"  {write_config(target, changes)} settings written into {color_code('1;32', target)} (re-read at the next launch)."])
                         config_at_start.update(changes)
                     except OSError as e:
                         write_out([color_code(STYLES["error"], f"  Cannot write into {target} : {e.strerror or e}") + " — run again as root (sudo), or answer « p » for the personal file."])
@@ -6397,7 +6397,7 @@ def main():
     unwanted_countries = {c.upper() for value in (args.exclude_country or []) for c in re.split(r"[,\s]+", value) if c}
     invalid_countries = sorted(c for c in countries | unwanted_countries if not re.fullmatch(r"[A-Z]{2}", c))
     if invalid_countries:
-        parser.error(f"--country / --exclude-country: invalid country code(s): {', '.join(invalid_countries)}")
+        parser.error(f"--country / --exclude-country: invalid country codes: {', '.join(invalid_countries)}")
     if args.changelog:
         return show_changelog()
     profile_module = load_module("_profile")
@@ -6414,7 +6414,7 @@ def main():
         parser.error("--record-test-log needs the live stream (not with --no-follow)")
     exclusions, invalid = read_exclusions(",".join(args.exclude_ip or []))
     if invalid:
-        parser.error(f"--exclude-ip: invalid address(es) or network(s): {', '.join(invalid)}")
+        parser.error(f"--exclude-ip: invalid address(es) or networks: {', '.join(invalid)}")
     for option, value in (("--dns-max", args.dns_max), ("--dns-max-truncate", args.dns_max_truncate)):
         if value is not None and not 4 <= value <= 200:
             parser.error(f"{option} must be between 4 and 200")
@@ -6504,7 +6504,7 @@ def main():
                 return 2
             group_members = set()
         else:
-            eprint(f"Group « {args.accentuate_group} » : {len(group_members)} account(s) shown in " + color_code(STYLES["accent"], " bold white on dark blue "))
+            eprint(f"Group « {args.accentuate_group} » : {len(group_members)} accounts shown in " + color_code(STYLES["accent"], " bold white on dark blue "))
     resolver = Resolver(people, read_lists(), server_addresses(), not args.no_isp, load_module("_reseau"),
                           None if args.no_cache else open_cache())
     eprint("Replacing IP addresses: " + ", ".join([color_code(STYLES["person"], "person or team"),
@@ -6517,7 +6517,7 @@ def main():
                                                color_code(STYLES["url_warning"], "4xx error URL"), color_code(STYLES["blanche"], "allow-list address"),
                                                color_code(STYLES["place_ip"], "address of a place")]) + " · " + color_code(STYLES["banned"], "[banned: …]") + " · "
                + color_code(STYLES["slow_request"], "slow duration"))
-    eprint("Figures after the HTTP code — Odoo: « 200 - 105 0.046 0.426 » = response size in bytes (« - »: unknown) · number of SQL queries · SQL time (s) · Python time (s); websocket: « 101 494 14.602 » = size · connection duration (s, long by nature)")
+    eprint("Figures after the HTTP code — Odoo: « 200 - 105 0.046 0.426 » = response size in bytes (« - »: unknown) · number of SQL queries · SQL time s · Python time s; websocket: « 101 494 14.602 » = size · connection duration (s, long by nature)")
     if args.slow > 0:
         eprint("  Colors: " + ", ".join([color_code(STYLES["slow_request"], f"time ≥ {args.slow:g} s"), color_code(STYLES["slow_request"], f"SQL queries ≥ {SQL_HIGH}"),
                                             color_code(STYLES["slow_request"], f"size ≥ {SIZE_HIGH // 1_000_000} MB")]) + " in orange; "

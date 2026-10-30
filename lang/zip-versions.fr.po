@@ -52,8 +52,8 @@ msgstr "configuration nginx (journal)"
 msgid "no date in README.md"
 msgstr "aucune date dans README.md"
 
-msgid " file(s)"
-msgstr " fichier(s)"
+msgid " files"
+msgstr " fichiers"
 
 msgid "  (no declared version: no CHANGELOG, manifest or __version__; compared by file dates)"
 msgstr "  (aucune version déclarée : ni CHANGELOG, ni manifeste, ni __version__ ; comparée par la date de ses fichiers)"
@@ -121,29 +121,29 @@ msgstr " introuvable : configuration non comparée"
 msgid "configuration: "
 msgstr "configuration : "
 
-msgid " file(s) identical to the archive"
-msgstr " fichier(s) identique(s) à l'archive"
+msgid " files identical to the archive"
+msgstr " fichiers identiques à l'archive"
 
-msgid " file(s) different from the archive: "
-msgstr " fichier(s) différent(s) de l'archive : "
+msgid " files different from the archive: "
+msgstr " fichiers différents de l'archive : "
 
 msgid " absent from "
-msgstr " absent(s) de "
+msgstr " absents de "
 
 msgid " (normal for sites not used on this server): "
 msgstr " (normal pour les sites non utilisés sur ce serveur) : "
 
-msgid " common file(s) differ: "
-msgstr " fichier(s) commun(s) différent(s) : "
+msgid " common files differ: "
+msgstr " fichiers communs différents : "
 
 msgid " absent from the tested copy: "
-msgstr " absent(s) de la copie testée : "
+msgstr " absents de la copie testée : "
 
 msgid " — the tests do not cover exactly this version"
 msgstr " — les tests ne portent pas exactement sur cette version"
 
-msgid " common file(s), all identical"
-msgstr " fichier(s) commun(s), tous identiques"
+msgid " common files, all identical"
+msgstr " fichiers communs, tous identiques"
 
 msgid "CONSISTENCY OF THE TEST ARCHIVES WITH THEIR PROGRAM"
 msgstr "COHÉRENCE DES ARCHIVES DE TESTS AVEC LEUR PROGRAMME"

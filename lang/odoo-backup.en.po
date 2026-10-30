@@ -72,8 +72,8 @@ msgstr "#KEEP_WEEKLY=4                     #       the last one of each week for
 msgid "#KEEP_MONTHLY=6                    #           la dernière de chaque mois pendant N mois"
 msgstr "#KEEP_MONTHLY=6                    #       the last one of each month for N months"
 
-msgid "#TIMER_TIME=02:30                  # heure(s) de la sauvegarde automatique, une ou plusieurs : TIMER_TIME=09:00 16:00 23:00"
-msgstr "#TIMER_TIME=02:30                  # time(s) of the automatic backup, one or more: TIMER_TIME=09:00 16:00 23:00"
+msgid "#TIMER_TIME=02:30                  # heures de la sauvegarde automatique, une ou plusieurs : TIMER_TIME=09:00 16:00 23:00"
+msgstr "#TIMER_TIME=02:30                  # times of the automatic backup, one or more: TIMER_TIME=09:00 16:00 23:00"
 
 msgid "Configuration créée : "
 msgstr "Configuration created: "
@@ -153,8 +153,8 @@ msgstr "tar.xz archive unreadable or incomplete"
 msgid " — base "
 msgstr " — database "
 
-msgid " fichier(s)) — format "
-msgstr " file(s)) — format "
+msgid " fichiers) — format "
+msgstr " files) — format "
 
 msgid "  (--dry-run) écrirait "
 msgstr "  (--dry-run) would write "
@@ -246,10 +246,10 @@ msgstr " : last backup "
 msgid " h pour les heures "
 msgstr " h ago for databases "
 
-msgid " conservée(s)"
+msgid " conservées"
 msgstr " kept"
 
-msgid " conservée(s), "
+msgid " conservées, "
 msgstr " kept, "
 
 msgid "dernier échec : "
@@ -327,14 +327,14 @@ msgstr "filestores folder not found (FILESTORE_DIR, Odoo data_dir): filestore NO
 msgid " restaurée — "
 msgstr " restored — "
 
-msgid " module(s) installé(s), "
-msgstr " installed module(s), "
+msgid " modules installés, "
+msgstr " installed modules, "
 
-msgid " fichier(s) de filestore"
-msgstr " filestore file(s)"
+msgid " fichiers de filestore"
+msgstr " filestore files"
 
-msgid " erreur(s) SQL à examiner"
-msgstr " SQL error(s) to examine"
+msgid " erreurs SQL à examiner"
+msgstr " SQL errors to examine"
 
 msgid "  Copie d'une base de production : avant de démarrer Odoo dessus, la NEUTRALISER (courriels sortants, tâches"
 msgstr "  Copy of a production database: before starting Odoo on it, NEUTRALISE it (outgoing e-mails, scheduled"
@@ -369,8 +369,8 @@ msgstr "Description=Daily Odoo backup"
 msgid "Timer installé (arrêté puis relancé) : "
 msgstr "Timer installed (stopped then restarted): "
 
-msgid " sauvegarde(s) par jour, à "
-msgstr " backup(s) per day, at "
+msgid " sauvegardes par jour, à "
+msgstr " backups per day, at "
 
 msgid " (rattrapées au démarrage si le serveur était éteint). État : odoo-backup.sh --status"
 msgstr " (caught up at boot if the server was off). Status: odoo-backup.sh --status"
@@ -510,8 +510,8 @@ msgstr "  KEEP_DAILY=7 KEEP_WEEKLY=4 KEEP_MONTHLY=6   retention: then the last o
 msgid "  REMOTE=                       copie rsync facultative, ex. root@serveur-de-sauvegarde.exemple:/srv/sauvegardes/odoo"
 msgstr "  REMOTE=                       optional rsync copy, e.g. root@backup-server.example:/srv/backups/odoo"
 
-msgid "  TIMER_TIME=02:30              heure(s) de la sauvegarde automatique : une ou plusieurs HH:MM (ex. TIMER_TIME=09:00 16:00 23:00)"
-msgstr "  TIMER_TIME=02:30              time(s) of the automatic backup: one or more HH:MM (e.g. TIMER_TIME=09:00 16:00 23:00)"
+msgid "  TIMER_TIME=02:30              heures de la sauvegarde automatique : une ou plusieurs HH:MM (ex. TIMER_TIME=09:00 16:00 23:00)"
+msgstr "  TIMER_TIME=02:30              times of the automatic backup: one or more HH:MM (e.g. TIMER_TIME=09:00 16:00 23:00)"
 
 msgid ") (demandé par --config : ni /etc/default ni ~ ne sont lus)"
 msgstr ") (requested by --config: neither /etc/default nor ~ are read)"
@@ -543,8 +543,8 @@ msgstr "remote retention applied: "
 msgid " ("
 msgstr " ("
 
-msgid " sauvegarde(s) gardée(s))"
-msgstr " backup(s) kept)"
+msgid " sauvegardes gardées)"
+msgstr " backups kept)"
 
 msgid " : aucune sauvegarde locale — rétention distante ignorée (elle viderait la copie)"
 msgstr " : no local backup — remote retention skipped (it would empty the copy)"

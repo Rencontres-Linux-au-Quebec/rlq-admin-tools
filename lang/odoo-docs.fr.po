@@ -52,8 +52,8 @@ msgstr " » n'existe pas : le module "
 msgid " is incomplete or of an incompatible version"
 msgstr " est incomplet ou d'une version incompatible"
 
-msgid " lacks the field(s) "
-msgstr " n'a pas le(s) champ(s) "
+msgid " lacks the fields "
+msgstr " n'a pas les champs "
 
 msgid ": module version incompatible with odoo-docs.py"
 msgstr " : version du module incompatible avec odoo-docs.py"

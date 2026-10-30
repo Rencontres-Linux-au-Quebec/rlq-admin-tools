@@ -15,7 +15,7 @@ msgstr "unknown:"
 msgid "liste blanche "
 msgstr "white list "
 
-msgid " adresse(s))"
+msgid " adresses)"
 msgstr " address(es))"
 
 msgid " — ANCIEN emplacement, à migrer : nginx-hardening.sh --update"
@@ -33,5 +33,5 @@ msgstr "Lists: "
 msgid "lieux "
 msgstr "places "
 
-msgid " plage(s))"
-msgstr " range(s))"
+msgid " plages)"
+msgstr " ranges)"

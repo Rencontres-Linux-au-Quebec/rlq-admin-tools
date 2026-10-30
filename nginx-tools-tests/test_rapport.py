@@ -25,7 +25,7 @@ Configuration lue : /etc/default/app-health-check.conf
 [FAIL] courriel non configuré (SMTP_HOST et NOTIFY_EMAIL_TO vides)
 [ATTN] aucun DMARC pour exemple.org
 [SKIP] Tests fonctionnels Odoo (JSON-RPC) — identifiants non configures — ignore
-  [ÉCHEC] shellcheck nginx-hardening.sh : 1 signalement(s)
+  [ÉCHEC] shellcheck nginx-hardening.sh : 1 signalements
       ./nginx-hardening.sh:960:61: note: Note that A && B || C is not if-then-else. [SC2015]
       FAIL: test_x (test_y.Z)
 Erreurs Odoo (ERROR/CRITICAL)                                    0              40           1 895
@@ -44,7 +44,7 @@ Traceback (most recent call last):
     raise ValueError("boom")
 ValueError: boom
 open() "/srv/x" failed (13: Permission denied), client: 1.2.3.4
-  ⚠ 3 adresse(s) d'utilisateurs connectés bannie(s)
+  ⚠ 3 adresses d'utilisateurs connectés bannies
     bannissement à lever : nginx-log-audit.sh --unban-check
 Jails fail2ban installés, mais fail2ban n'est PAS démarré (inactive) : aucune jail n'est active.
 """
@@ -66,7 +66,7 @@ class Classement(unittest.TestCase):
         premiers = [e[0].strip() for e in self.c["echecs"]]
         self.assertEqual(premiers, [
             "[FAIL] courriel non configuré (SMTP_HOST et NOTIFY_EMAIL_TO vides)",     # only once despite the duplicate
-            "[ÉCHEC] shellcheck nginx-hardening.sh : 1 signalement(s)",
+            "[ÉCHEC] shellcheck nginx-hardening.sh : 1 signalements",
             'open() "/srv/x" failed (13: Permission denied), client: 1.2.3.4',
             "Jails fail2ban installés, mais fail2ban n'est PAS démarré (inactive) : aucune jail n'est active."])
         self.assertEqual([x.strip() for x in self.c["echecs"][0][1:]], ["voir doc/email-setup.md : choisir un relais SMTP"])
@@ -77,7 +77,7 @@ class Classement(unittest.TestCase):
 
     def test_avertissements_recommandations_ignores_et_trace(self):
         self.assertEqual([a[0].strip() for a in self.c["avertissements"]],
-                         ["[ATTN] aucun DMARC pour exemple.org", "⚠ 3 adresse(s) d'utilisateurs connectés bannie(s)"])
+                         ["[ATTN] aucun DMARC pour exemple.org", "⚠ 3 adresses d'utilisateurs connectés bannies"])
         self.assertIn("bannissement à lever", self.c["avertissements"][1][1])
         titres = [r[0].strip() for r in self.c["recommandations"]]
         self.assertEqual(titres, ["1. [HAUTE] Odoo sans limite mémoire (limit_memory_hard=0)",
@@ -143,7 +143,7 @@ class Rapport(unittest.TestCase):
         texte = "\n".join(r)
         self.assertIn("Suite     : ", texte)
         self.assertRegex(texte, r"Suite     : .*nginx-hardening\.sh \d+\.\d+\.\d{8}\.\d{6}")
-        self.assertIn("Bilan     : 5 échec(s), 2 avertissement(s), 2 recommandation(s) à traiter, 1 vérification(s) ignorée(s) — sortie de ", texte)
+        self.assertIn("Bilan     : 5 échecs, 2 avertissements, 2 recommandations à traiter, 1 vérifications ignorées — sortie de ", texte)
         self.assertIn("ÉCHECS (4) :", texte)
         self.assertIn("ERREURS PYTHON (trace d'appels) (1) :", texte)
         self.assertIn("AVERTISSEMENTS (2) :", texte)
@@ -155,7 +155,7 @@ class Rapport(unittest.TestCase):
         m = charger()
         ok = m.construire_rapport("x.py", "1.0", "x.py", "[OK] tout va bien\n", 0, 1, "", info=INFO)
         self.assertIn("Aucun échec ni avertissement détecté.", ok)
-        self.assertIn("Bilan     : 0 échec(s), 0 avertissement(s), 0 recommandation(s) à traiter — sortie de 1 ligne(s)", ok)
+        self.assertIn("Bilan     : 0 échecs, 0 avertissements, 0 recommandations à traiter — sortie de 1 lignes", ok)
         muet = m.construire_rapport("x.py", "1.0", "x.py", "\n".join(f"ligne {i}" for i in range(30)) + "\n", 2, 1, "", info=INFO)
         self.assertIn("Code de sortie 2 sans message d'échec reconnu — dernières lignes de la sortie :", muet)
         self.assertIn("  ligne 29", muet)
@@ -167,7 +167,7 @@ class Rapport(unittest.TestCase):
         r = m.construire_rapport("x.py", "1.0", "x.py", sortie, 1, 1, "", info=INFO)
         self.assertIn("ÉCHECS (45) :", r)
         self.assertIn("  30. [FAIL] échec numéro 29", r)
-        self.assertIn("… et 15 autre(s), non listé(s)", r)
+        self.assertIn("… et 15 autres, non listés", r)
 
     def test_versions_de_la_suite_et_fichiers_absents(self):
         import tempfile

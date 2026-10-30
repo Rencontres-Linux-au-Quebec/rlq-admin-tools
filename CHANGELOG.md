@@ -6,6 +6,16 @@ Earlier history was archived outside this repository when this file was created.
 
 ## admin-menu.sh
 
+### 1.1.20261030.153422 - No plural marker "(s)" in the displayed texts
+
+- Title: the texts shown by the program no longer contain "(s)": "requête(s)" becomes "requêtes", "adresse(s)" becomes "adresses", "lente(s)" becomes "lentes" (French and English).
+- Reason: the user asked for the plural marker "(s)" to be removed everywhere in what the programs display.
+- Changes: the "(s)" of every displayed text is replaced by "s": the texts of the code, the translations (lang/*.po, msgid and msgstr). Comments, docstrings and the CHANGELOG are not changed.
+- Bugs fixed: none.
+- Safeguards and edge cases: the plural form is used for every count, including 1 ("1 erreurs"); a singular form for 1 is not generated (not requested).
+- Checks: unit tests of the program (expected texts updated), test_i18n (every translated text has its entry).
+- Action required: none.
+
 ### 1.0.20261028.225816 - First version: one menu for all the programs that have --menu
 
 - Title: admin-menu.sh lists the repository programs that offer --menu and starts the menu of the one chosen.
@@ -143,6 +153,16 @@ Earlier history was archived outside this repository when this file was created.
 
 ## app-health-check.py
 
+### 2.33.20261030.153422 - No plural marker "(s)" in the displayed texts
+
+- Title: the texts shown by the program no longer contain "(s)": "requête(s)" becomes "requêtes", "adresse(s)" becomes "adresses", "lente(s)" becomes "lentes" (French and English).
+- Reason: the user asked for the plural marker "(s)" to be removed everywhere in what the programs display.
+- Changes: the "(s)" of every displayed text is replaced by "s": the texts of the code, the translations (lang/*.po, msgid and msgstr). Comments, docstrings and the CHANGELOG are not changed.
+- Bugs fixed: the regex that colours the "Summary: N failures" line still searched for "failure(s)", so the summary lost its colour. Diagnosis: test_couleurs_en_terminal_seulement failed. Fix: the regex searches for "failures".
+- Safeguards and edge cases: the plural form is used for every count, including 1 ("1 erreurs"); a singular form for 1 is not generated (not requested).
+- Checks: unit tests of the program (expected texts updated), test_i18n (every translated text has its entry).
+- Action required: none.
+
 ### 2.32.20261029.195500 - --json, --changes, alerts by ntfy or webhook
 
 - Title: machine-readable results, changes since the previous run, and alerts only when something happens.
@@ -254,6 +274,16 @@ Earlier history was archived outside this repository when this file was created.
 
 ## app-log-check.py
 
+### 2.28.20261030.153422 - No plural marker "(s)" in the displayed texts
+
+- Title: the texts shown by the program no longer contain "(s)": "requête(s)" becomes "requêtes", "adresse(s)" becomes "adresses", "lente(s)" becomes "lentes" (French and English).
+- Reason: the user asked for the plural marker "(s)" to be removed everywhere in what the programs display.
+- Changes: the "(s)" of every displayed text is replaced by "s": the texts of the code, the translations (lang/*.po, msgid and msgstr). Comments, docstrings and the CHANGELOG are not changed.
+- Bugs fixed: none.
+- Safeguards and edge cases: the plural form is used for every count, including 1 ("1 erreurs"); a singular form for 1 is not generated (not requested).
+- Checks: unit tests of the program (expected texts updated), test_i18n (every translated text has its entry).
+- Action required: none.
+
 ### 2.27.20261028.214122 - --menu: English programs translate the menu and its help through their catalogue
 
 - Title: --menu: English programs translate the menu and its help through their catalogue.
@@ -318,6 +348,16 @@ Earlier history was archived outside this repository when this file was created.
 ### 2.23.20261020.211944 - Current version. Earlier history archived outside the repository.
 
 ## app-log-live.py
+
+### 1.122.20261030.153422 - No plural marker "(s)" in the displayed texts
+
+- Title: the texts shown by the program no longer contain "(s)": "requête(s)" becomes "requêtes", "adresse(s)" becomes "adresses", "lente(s)" becomes "lentes" (French and English).
+- Reason: the user asked for the plural marker "(s)" to be removed everywhere in what the programs display.
+- Changes: the "(s)" of every displayed text is replaced by "s": the texts of the code, the translations (lang/*.po, msgid and msgstr). Comments, docstrings and the CHANGELOG are not changed.
+- Bugs fixed: the detail command of the Ctrl-C summary was shown as "--erreurs-only" instead of "--errors-only": the French catalogue key "errors" (made from "error(s)") was also replaced inside the option name. Diagnosis: test_ctrl_c_demande_confirmation_puis_detail_des_erreurs failed. Fix: the translator of apps/_i18n.py no longer replaces a word right after "--" (see the entry of apps/_i18n.py).
+- Safeguards and edge cases: the plural form is used for every count, including 1 ("1 erreurs"); a singular form for 1 is not generated (not requested).
+- Checks: unit tests of the program (expected texts updated), test_i18n (every translated text has its entry).
+- Action required: none.
 
 ### 1.121.20261030.143010 - Status bar on g and Ctrl-C, no quotes in requests, sizes in 4 characters, requests per port
 
@@ -897,6 +937,16 @@ Earlier history was archived outside this repository when this file was created.
 
 ## host-perf-audit.py
 
+### 1.8.20261030.153422 - No plural marker "(s)" in the displayed texts
+
+- Title: the texts shown by the program no longer contain "(s)": "requête(s)" becomes "requêtes", "adresse(s)" becomes "adresses", "lente(s)" becomes "lentes" (French and English).
+- Reason: the user asked for the plural marker "(s)" to be removed everywhere in what the programs display.
+- Changes: the "(s)" of every displayed text is replaced by "s": the texts of the code, the translations (lang/*.po, msgid and msgstr). Comments, docstrings and the CHANGELOG are not changed.
+- Bugs fixed: none.
+- Safeguards and edge cases: the plural form is used for every count, including 1 ("1 erreurs"); a singular form for 1 is not generated (not requested).
+- Checks: unit tests of the program (expected texts updated), test_i18n (every translated text has its entry).
+- Action required: none.
+
 ### 1.7.20261028.214122 - --menu: English programs translate the menu and its help through their catalogue
 
 - Title: --menu: English programs translate the menu and its help through their catalogue.
@@ -952,6 +1002,16 @@ Earlier history was archived outside this repository when this file was created.
 ### 1.4.20261020.211944 - Current version. Earlier history archived outside the repository.
 
 ## odoo-chat-post.py
+
+### 1.13.20261030.153422 - No plural marker "(s)" in the displayed texts
+
+- Title: the texts shown by the program no longer contain "(s)": "requête(s)" becomes "requêtes", "adresse(s)" becomes "adresses", "lente(s)" becomes "lentes" (French and English).
+- Reason: the user asked for the plural marker "(s)" to be removed everywhere in what the programs display.
+- Changes: the "(s)" of every displayed text is replaced by "s": the texts of the code, the translations (lang/*.po, msgid and msgstr). Comments, docstrings and the CHANGELOG are not changed.
+- Bugs fixed: none.
+- Safeguards and edge cases: the plural form is used for every count, including 1 ("1 erreurs"); a singular form for 1 is not generated (not requested).
+- Checks: unit tests of the program (expected texts updated), test_i18n (every translated text has its entry).
+- Action required: none.
 
 ### 1.12.20261028.214122 - --menu: English programs translate the menu and its help through their catalogue
 
@@ -1018,6 +1078,16 @@ Earlier history was archived outside this repository when this file was created.
 
 ## odoo-docs.py
 
+### 1.8.20261030.153422 - No plural marker "(s)" in the displayed texts
+
+- Title: the texts shown by the program no longer contain "(s)": "requête(s)" becomes "requêtes", "adresse(s)" becomes "adresses", "lente(s)" becomes "lentes" (French and English).
+- Reason: the user asked for the plural marker "(s)" to be removed everywhere in what the programs display.
+- Changes: the "(s)" of every displayed text is replaced by "s": the texts of the code, the translations (lang/*.po, msgid and msgstr). Comments, docstrings and the CHANGELOG are not changed.
+- Bugs fixed: none.
+- Safeguards and edge cases: the plural form is used for every count, including 1 ("1 erreurs"); a singular form for 1 is not generated (not requested).
+- Checks: unit tests of the program (expected texts updated), test_i18n (every translated text has its entry).
+- Action required: none.
+
 ### 1.7.20261028.214122 - --menu: English programs translate the menu and its help through their catalogue
 
 - Title: --menu: English programs translate the menu and its help through their catalogue.
@@ -1073,6 +1143,16 @@ Earlier history was archived outside this repository when this file was created.
 ### 1.4.20261020.211944 - Current version. Earlier history archived outside the repository.
 
 ## odoo-mail-retry.py
+
+### 1.19.20261030.153422 - No plural marker "(s)" in the displayed texts
+
+- Title: the texts shown by the program no longer contain "(s)": "requête(s)" becomes "requêtes", "adresse(s)" becomes "adresses", "lente(s)" becomes "lentes" (French and English).
+- Reason: the user asked for the plural marker "(s)" to be removed everywhere in what the programs display.
+- Changes: the "(s)" of every displayed text is replaced by "s": the texts of the code, the translations (lang/*.po, msgid and msgstr). Comments, docstrings and the CHANGELOG are not changed.
+- Bugs fixed: none.
+- Safeguards and edge cases: the plural form is used for every count, including 1 ("1 erreurs"); a singular form for 1 is not generated (not requested).
+- Checks: unit tests of the program (expected texts updated), test_i18n (every translated text has its entry).
+- Action required: none.
 
 ### 1.18.20261028.214122 - --menu: English programs translate the menu and its help through their catalogue
 
@@ -1137,6 +1217,16 @@ Earlier history was archived outside this repository when this file was created.
 ### 1.14.20261020.211944 - Current version. Earlier history archived outside the repository.
 
 ## odoo-warmup.py
+
+### 1.37.20261030.153422 - No plural marker "(s)" in the displayed texts
+
+- Title: the texts shown by the program no longer contain "(s)": "requête(s)" becomes "requêtes", "adresse(s)" becomes "adresses", "lente(s)" becomes "lentes" (French and English).
+- Reason: the user asked for the plural marker "(s)" to be removed everywhere in what the programs display.
+- Changes: the "(s)" of every displayed text is replaced by "s": the texts of the code, the translations (lang/*.po, msgid and msgstr). Comments, docstrings and the CHANGELOG are not changed.
+- Bugs fixed: none.
+- Safeguards and edge cases: the plural form is used for every count, including 1 ("1 erreurs"); a singular form for 1 is not generated (not requested).
+- Checks: unit tests of the program (expected texts updated), test_i18n (every translated text has its entry).
+- Action required: none.
 
 ### 1.35.20261028.222437 - Messages in English only: no French duplicate lines; catalogue entries updated
 
@@ -1670,6 +1760,16 @@ Earlier history was archived outside this repository when this file was created.
 
 ## web-monitor.py
 
+### 2.82.20261030.153422 - No plural marker "(s)" in the displayed texts
+
+- Title: the texts shown by the program no longer contain "(s)": "requête(s)" becomes "requêtes", "adresse(s)" becomes "adresses", "lente(s)" becomes "lentes" (French and English).
+- Reason: the user asked for the plural marker "(s)" to be removed everywhere in what the programs display.
+- Changes: the "(s)" of every displayed text is replaced by "s": the texts of the code, the translations (lang/*.po, msgid and msgstr). Comments, docstrings and the CHANGELOG are not changed.
+- Bugs fixed: the regex that reads the review summary of app-log-check.py expected "entrée(s)" or "erreur(s)" and no longer matched the plural words without marker. Fix: the regex accepts the plural with an optional "s".
+- Safeguards and edge cases: the plural form is used for every count, including 1 ("1 erreurs"); a singular form for 1 is not generated (not requested).
+- Checks: unit tests of the program (expected texts updated), test_i18n (every translated text has its entry).
+- Action required: none.
+
 ### 2.81.20261028.214122 - --menu: English programs translate the menu and its help through their catalogue
 
 - Title: --menu: English programs translate the menu and its help through their catalogue.
@@ -1766,6 +1866,16 @@ Earlier history was archived outside this repository when this file was created.
 
 ## zip-versions.py
 
+### 1.19.20261030.153422 - No plural marker "(s)" in the displayed texts
+
+- Title: the texts shown by the program no longer contain "(s)": "requête(s)" becomes "requêtes", "adresse(s)" becomes "adresses", "lente(s)" becomes "lentes" (French and English).
+- Reason: the user asked for the plural marker "(s)" to be removed everywhere in what the programs display.
+- Changes: the "(s)" of every displayed text is replaced by "s": the texts of the code, the translations (lang/*.po, msgid and msgstr). Comments, docstrings and the CHANGELOG are not changed.
+- Bugs fixed: none.
+- Safeguards and edge cases: the plural form is used for every count, including 1 ("1 erreurs"); a singular form for 1 is not generated (not requested).
+- Checks: unit tests of the program (expected texts updated), test_i18n (every translated text has its entry).
+- Action required: none.
+
 ### 1.18.20261028.214122 - --menu: English programs translate the menu and its help through their catalogue
 
 - Title: --menu: English programs translate the menu and its help through their catalogue.
@@ -1821,6 +1931,16 @@ Earlier history was archived outside this repository when this file was created.
 ### 1.15.20261020.211944 - Current version. Earlier history archived outside the repository.
 
 ## odoo-backup.sh
+
+### 1.25.20261030.153422 - No plural marker "(s)" in the displayed texts
+
+- Title: the texts shown by the program no longer contain "(s)": "requête(s)" becomes "requêtes", "adresse(s)" becomes "adresses", "lente(s)" becomes "lentes" (French and English).
+- Reason: the user asked for the plural marker "(s)" to be removed everywhere in what the programs display.
+- Changes: the "(s)" of every displayed text is replaced by "s": the texts of the code, the translations (lang/*.po, msgid and msgstr). Comments, docstrings and the CHANGELOG are not changed.
+- Bugs fixed: one marker was left in the TIMER_TIME comment of the configuration template ("heure(s)", found by test_i18n): it now says "heures", as its French catalogue entry already did.
+- Safeguards and edge cases: the plural form is used for every count, including 1 ("1 erreurs"); a singular form for 1 is not generated (not requested).
+- Checks: unit tests of the program (expected texts updated), test_i18n (every translated text has its entry).
+- Action required: none.
 
 ### 1.24.20261029.200500 - Retention on the remote copy, result of the restoration test in --status
 
@@ -1907,6 +2027,16 @@ Earlier history was archived outside this repository when this file was created.
 ### 1.19.20261020.211944 - Current version. Earlier history archived outside the repository.
 
 ## odoo-update-module.sh
+
+### 1.23.20261030.153422 - No plural marker "(s)" in the displayed texts
+
+- Title: the texts shown by the program no longer contain "(s)": "requête(s)" becomes "requêtes", "adresse(s)" becomes "adresses", "lente(s)" becomes "lentes" (French and English).
+- Reason: the user asked for the plural marker "(s)" to be removed everywhere in what the programs display.
+- Changes: the "(s)" of every displayed text is replaced by "s": the texts of the code, the translations (lang/*.po, msgid and msgstr). Comments, docstrings and the CHANGELOG are not changed.
+- Bugs fixed: none.
+- Safeguards and edge cases: the plural form is used for every count, including 1 ("1 erreurs"); a singular form for 1 is not generated (not requested).
+- Checks: unit tests of the program (expected texts updated), test_i18n (every translated text has its entry).
+- Action required: none.
 
 ### 1.22.20261028.214122 - --menu: catalogue entries for the menu and its help line (English)
 
@@ -2063,6 +2193,16 @@ Earlier history was archived outside this repository when this file was created.
 ### 1.14.20261020.211944 - Current version. Earlier history archived outside the repository.
 
 ## nginx-hardening.sh
+
+### 2.67.20261030.153422 - No plural marker "(s)" in the displayed texts
+
+- Title: the texts shown by the program no longer contain "(s)": "requête(s)" becomes "requêtes", "adresse(s)" becomes "adresses", "lente(s)" becomes "lentes" (French and English).
+- Reason: the user asked for the plural marker "(s)" to be removed everywhere in what the programs display.
+- Changes: the "(s)" of every displayed text is replaced by "s": the texts of the code, the translations (lang/*.po, msgid and msgstr). Comments, docstrings and the CHANGELOG are not changed.
+- Bugs fixed: the removal of the marker also renamed two functions of the awk program that checks the websocket locations (trim(s) became trims, unquote(s) became unquotes), so the awk program raised a syntax error and every correct websocket location was reported as [FAIL]. Diagnosis: 8 tests of test_nginx_hardening failed on the websocket checks. Fix: the two function definitions and their call are restored to their original names; only the displayed texts keep the change.
+- Safeguards and edge cases: the plural form is used for every count, including 1 ("1 erreurs"); a singular form for 1 is not generated (not requested).
+- Checks: unit tests of the program (expected texts updated), test_i18n (every translated text has its entry).
+- Action required: none.
 
 ### 2.66.20261029.205500 - Configuration model and catalogue complete for --help; changelog in version order
 
@@ -2381,6 +2521,16 @@ Earlier history was archived outside this repository when this file was created.
 - Current version. Earlier history archived outside the repository.
 
 ## nginx-log-audit.sh
+
+### 2.64.20261030.153422 - No plural marker "(s)" in the displayed texts
+
+- Title: the texts shown by the program no longer contain "(s)": "requête(s)" becomes "requêtes", "adresse(s)" becomes "adresses", "lente(s)" becomes "lentes" (French and English).
+- Reason: the user asked for the plural marker "(s)" to be removed everywhere in what the programs display.
+- Changes: the "(s)" of every displayed text is replaced by "s": the texts of the code, the translations (lang/*.po, msgid and msgstr). Comments, docstrings and the CHANGELOG are not changed.
+- Bugs fixed: none.
+- Safeguards and edge cases: the plural form is used for every count, including 1 ("1 erreurs"); a singular form for 1 is not generated (not requested).
+- Checks: unit tests of the program (expected texts updated), test_i18n (every translated text has its entry).
+- Action required: none.
 
 ### 2.63.20261029.210000 - --compare: the last 24 hours against the 24 hours before, written to a file
 
@@ -2789,6 +2939,16 @@ Earlier history was archived outside this repository when this file was created.
 
 ## sync-crowdsec-blocklist.sh
 
+### 1.31.20261030.153422 - No plural marker "(s)" in the displayed texts
+
+- Title: the texts shown by the program no longer contain "(s)": "requête(s)" becomes "requêtes", "adresse(s)" becomes "adresses", "lente(s)" becomes "lentes" (French and English).
+- Reason: the user asked for the plural marker "(s)" to be removed everywhere in what the programs display.
+- Changes: the "(s)" of every displayed text is replaced by "s": the texts of the code, the translations (lang/*.po, msgid and msgstr). Comments, docstrings and the CHANGELOG are not changed.
+- Bugs fixed: none.
+- Safeguards and edge cases: the plural form is used for every count, including 1 ("1 erreurs"); a singular form for 1 is not generated (not requested).
+- Checks: unit tests of the program (expected texts updated), test_i18n (every translated text has its entry).
+- Action required: none.
+
 ### 1.30.20261029.193900 - --max-drop: refuse a list much smaller than the last accepted one
 
 - Title: a sudden drop of the blocklist size stops the update, the ipsets are kept.
@@ -2883,6 +3043,16 @@ Earlier history was archived outside this repository when this file was created.
 
 ## apps/_bbb.py
 
+### 1.5.20261030.153422 - No plural marker "(s)" in the displayed texts
+
+- Title: the texts shown by the program no longer contain "(s)": "requête(s)" becomes "requêtes", "adresse(s)" becomes "adresses", "lente(s)" becomes "lentes" (French and English).
+- Reason: the user asked for the plural marker "(s)" to be removed everywhere in what the programs display.
+- Changes: the "(s)" of every displayed text is replaced by "s": the texts of the code, the translations (lang/*.po, msgid and msgstr). Comments, docstrings and the CHANGELOG are not changed.
+- Bugs fixed: none.
+- Safeguards and edge cases: the plural form is used for every count, including 1 ("1 erreurs"); a singular form for 1 is not generated (not requested).
+- Checks: unit tests of the program (expected texts updated), test_i18n (every translated text has its entry).
+- Action required: none.
+
 ### 1.4.20261022.231529 - Code comments translated to English
 
 - Title: Code comments translated to English (repository convention).
@@ -2904,6 +3074,16 @@ Earlier history was archived outside this repository when this file was created.
 ### 1.3.20261019.150215 - Current version. Earlier history archived outside the repository.
 
 ## apps/_cache_ip.py
+
+### 1.4.20261030.153422 - No plural marker "(s)" in the displayed texts
+
+- Title: the texts shown by the program no longer contain "(s)": "requête(s)" becomes "requêtes", "adresse(s)" becomes "adresses", "lente(s)" becomes "lentes" (French and English).
+- Reason: the user asked for the plural marker "(s)" to be removed everywhere in what the programs display.
+- Changes: the "(s)" of every displayed text is replaced by "s": the texts of the code, the translations (lang/*.po, msgid and msgstr). Comments, docstrings and the CHANGELOG are not changed.
+- Bugs fixed: none.
+- Safeguards and edge cases: the plural form is used for every count, including 1 ("1 erreurs"); a singular form for 1 is not generated (not requested).
+- Checks: unit tests of the program (expected texts updated), test_i18n (every translated text has its entry).
+- Action required: none.
 
 ### 1.3.20261022.231529 - Code comments translated to English
 
@@ -2957,6 +3137,16 @@ Earlier history was archived outside this repository when this file was created.
 ### 1.8.20261020.211944 - Current version. Earlier history archived outside the repository.
 
 ## apps/_connexions.py
+
+### 1.4.20261030.153422 - No plural marker "(s)" in the displayed texts
+
+- Title: the texts shown by the program no longer contain "(s)": "requête(s)" becomes "requêtes", "adresse(s)" becomes "adresses", "lente(s)" becomes "lentes" (French and English).
+- Reason: the user asked for the plural marker "(s)" to be removed everywhere in what the programs display.
+- Changes: the "(s)" of every displayed text is replaced by "s": the texts of the code, the translations (lang/*.po, msgid and msgstr). Comments, docstrings and the CHANGELOG are not changed.
+- Bugs fixed: none.
+- Safeguards and edge cases: the plural form is used for every count, including 1 ("1 erreurs"); a singular form for 1 is not generated (not requested).
+- Checks: unit tests of the program (expected texts updated), test_i18n (every translated text has its entry).
+- Action required: none.
 
 ### 1.3.20261022.231529 - Code comments translated to English
 
@@ -3028,6 +3218,16 @@ Earlier history was archived outside this repository when this file was created.
 
 ## apps/_i18n.py
 
+### 1.21.20261030.153422 - No plural marker "(s)" in the displayed texts
+
+- Title: the texts shown by the program no longer contain "(s)": "requête(s)" becomes "requêtes", "adresse(s)" becomes "adresses", "lente(s)" becomes "lentes" (French and English).
+- Reason: the user asked for the plural marker "(s)" to be removed everywhere in what the programs display.
+- Changes: the "(s)" of every displayed text is replaced by "s": the texts of the code, the translations (lang/*.po, msgid and msgstr). Comments, docstrings and the CHANGELOG are not changed.
+- Bugs fixed: a short catalogue key made from "error(s)" ("errors") was replaced inside option names ("--errors-only" became "--erreurs-only"). Fix: a key that starts with a letter is no longer replaced right after "--" (lookbehind on "--" in Traducteur._remplacer). Checked with test_app_log_live and test_i18n.
+- Safeguards and edge cases: the plural form is used for every count, including 1 ("1 erreurs"); a singular form for 1 is not generated (not requested).
+- Checks: unit tests of the program (expected texts updated), test_i18n (every translated text has its entry).
+- Action required: none.
+
 ### 1.20.20261022.231529 - Code comments translated to English
 
 - Title: Code comments translated to English (repository convention).
@@ -3059,6 +3259,16 @@ Earlier history was archived outside this repository when this file was created.
 
 ## apps/_limites.py
 
+### 1.3.20261030.153422 - No plural marker "(s)" in the displayed texts
+
+- Title: the texts shown by the program no longer contain "(s)": "requête(s)" becomes "requêtes", "adresse(s)" becomes "adresses", "lente(s)" becomes "lentes" (French and English).
+- Reason: the user asked for the plural marker "(s)" to be removed everywhere in what the programs display.
+- Changes: the "(s)" of every displayed text is replaced by "s": the texts of the code, the translations (lang/*.po, msgid and msgstr). Comments, docstrings and the CHANGELOG are not changed.
+- Bugs fixed: none.
+- Safeguards and edge cases: the plural form is used for every count, including 1 ("1 erreurs"); a singular form for 1 is not generated (not requested).
+- Checks: unit tests of the program (expected texts updated), test_i18n (every translated text has its entry).
+- Action required: none.
+
 ### 1.2.20261022.231529 - Code comments translated to English
 
 - Title: Code comments translated to English (repository convention).
@@ -3080,6 +3290,16 @@ Earlier history was archived outside this repository when this file was created.
 ### 1.1.20261019.150215 - Current version. Earlier history archived outside the repository.
 
 ## apps/_listes.py
+
+### 1.5.20261030.153422 - No plural marker "(s)" in the displayed texts
+
+- Title: the texts shown by the program no longer contain "(s)": "requête(s)" becomes "requêtes", "adresse(s)" becomes "adresses", "lente(s)" becomes "lentes" (French and English).
+- Reason: the user asked for the plural marker "(s)" to be removed everywhere in what the programs display.
+- Changes: the "(s)" of every displayed text is replaced by "s": the texts of the code, the translations (lang/*.po, msgid and msgstr). Comments, docstrings and the CHANGELOG are not changed.
+- Bugs fixed: none.
+- Safeguards and edge cases: the plural form is used for every count, including 1 ("1 erreurs"); a singular form for 1 is not generated (not requested).
+- Checks: unit tests of the program (expected texts updated), test_i18n (every translated text has its entry).
+- Action required: none.
 
 ### 1.4.20261022.231529 - Code comments translated to English
 
@@ -3212,6 +3432,16 @@ Earlier history was archived outside this repository when this file was created.
 
 ## apps/_rapport.py
 
+### 1.14.20261030.153422 - No plural marker "(s)" in the displayed texts
+
+- Title: the texts shown by the program no longer contain "(s)": "requête(s)" becomes "requêtes", "adresse(s)" becomes "adresses", "lente(s)" becomes "lentes" (French and English).
+- Reason: the user asked for the plural marker "(s)" to be removed everywhere in what the programs display.
+- Changes: the "(s)" of every displayed text is replaced by "s": the texts of the code, the translations (lang/*.po, msgid and msgstr). Comments, docstrings and the CHANGELOG are not changed.
+- Bugs fixed: none.
+- Safeguards and edge cases: the plural form is used for every count, including 1 ("1 erreurs"); a singular form for 1 is not generated (not requested).
+- Checks: unit tests of the program (expected texts updated), test_i18n (every translated text has its entry).
+- Action required: none.
+
 ### 1.13.20261022.231529 - Code comments translated to English
 
 - Title: Code comments translated to English (repository convention).
@@ -3233,6 +3463,16 @@ Earlier history was archived outside this repository when this file was created.
 ### 1.12.20261019.150215 - Current version. Earlier history archived outside the repository.
 
 ## apps/_record.py
+
+### 1.4.20261030.153422 - No plural marker "(s)" in the displayed texts
+
+- Title: the texts shown by the program no longer contain "(s)": "requête(s)" becomes "requêtes", "adresse(s)" becomes "adresses", "lente(s)" becomes "lentes" (French and English).
+- Reason: the user asked for the plural marker "(s)" to be removed everywhere in what the programs display.
+- Changes: the "(s)" of every displayed text is replaced by "s": the texts of the code, the translations (lang/*.po, msgid and msgstr). Comments, docstrings and the CHANGELOG are not changed.
+- Bugs fixed: none.
+- Safeguards and edge cases: the plural form is used for every count, including 1 ("1 erreurs"); a singular form for 1 is not generated (not requested).
+- Checks: unit tests of the program (expected texts updated), test_i18n (every translated text has its entry).
+- Action required: none.
 
 ### 1.3.20261022.231529 - Code comments translated to English
 

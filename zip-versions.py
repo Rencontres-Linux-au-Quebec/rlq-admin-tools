@@ -34,7 +34,7 @@ import signal
 import sys
 import zipfile
 
-__version__ = "1.18.20261028.214122"
+__version__ = "1.19.20261030.153422"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
@@ -429,7 +429,7 @@ def print_source(s):
         print("  " + color("1;32", "green = version or file dated today") + f" ({today()[:4]}-{today()[4:6]}-{today()[6:]})")
     if s["type"] == "nginx-odoo-config":
         print(f"  {'nginx configuration (log)':<32} {s['config_log'] or 'no date in README.md'}"
-              f" — {len(s['config_files'])} file(s)")
+              f" — {len(s['config_files'])} files")
     seen = set()
     for rel, kind, v in sorted(s.get("infos", [])):
         if (kind, v) in seen and kind == "code":
@@ -532,10 +532,10 @@ def compare_installation(kept, folder, nginx_dir):
                         identical += 1
                     else:
                         different.append(rel)
-            print("  " + OK(f"configuration: {identical} file(s) identical to the archive"))
+            print("  " + OK(f"configuration: {identical} files identical to the archive"))
             if different:
                 n_attn += 1
-                print("  " + ATTN(f"{len(different)} file(s) different from the archive: " + ", ".join(different[:6])
+                print("  " + ATTN(f"{len(different)} files different from the archive: " + ", ".join(different[:6])
                                   + (" …" if len(different) > 6 else "")))
             if absent:
                 print(f"         {len(absent)} absent from {nginx_dir} (normal for sites not used on this server): "
@@ -567,14 +567,14 @@ def consistency(kept):
         if different or absent:
             gaps += 1
             lines.append("  " + ATTN(f"{os.path.basename(a['path'])} ↔ {os.path.basename(b['path'])} : "
-                                      + (f"{len(different)} common file(s) differ: " + ", ".join(different[:5])
+                                      + (f"{len(different)} common files differ: " + ", ".join(different[:5])
                                          + (" …" if len(different) > 5 else "") if different else "")
                                       + (" ; " if different and absent else "")
                                       + (f"{len(absent)} absent from the tested copy: " + ", ".join(absent[:3]) if absent else "")
                                       + " — the tests do not cover exactly this version"))
         else:
             lines.append("  " + OK(f"{os.path.basename(a['path'])} ↔ {os.path.basename(b['path'])} : "
-                                    f"{len(common)} common file(s), all identical"))
+                                    f"{len(common)} common files, all identical"))
             if t_prog not in OUR_TYPES:          # tests archive without a version: it matches the program's
                 a["matches"] = f"{t_prog} {main_version(b) or fmt_date(b['date'])}"
     if lines:
@@ -622,7 +622,7 @@ def run(args):
             print(f"  {t:<{width}} {s['path']}  ({v})")
         missing = [t for t in ("nginx-tools", "nginx-tools-tests") if t not in kept]
         if missing and any(t in kept for t in OUR_TYPES):
-            print("  manquant(s) : " + ", ".join(missing) + " (always attach nginx-tools.zip and nginx-tools-tests.zip)")
+            print("  manquants : " + ", ".join(missing) + " (always attach nginx-tools.zip and nginx-tools-tests.zip)")
         if VIEWS["today"]:
             print("  " + color("1;32", "green = version or file dated today") + f" ({today()[:4]}-{today()[4:6]}-{today()[6:]})")
         if any(kept[t]["old_name"] for t in kept):

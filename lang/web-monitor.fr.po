@@ -28,14 +28,14 @@ msgstr "(impossible de lancer : "
 msgid "default (apps/ folder missing next to the program)"
 msgstr "par défaut (dossier apps/ absent à côté du programme)"
 
-msgid "app-health-check.py: failing check(s)"
-msgstr "app-health-check.py : vérification(s) en échec"
+msgid "app-health-check.py: failing checks"
+msgstr "app-health-check.py : vérifications en échec"
 
 msgid "app-health-check.py: the tool itself failed"
 msgstr "app-health-check.py : l'outil lui-même a échoué"
 
-msgid "app-log-check.py: item(s) to examine in the journal of "
-msgstr "app-log-check.py : entrée(s) à examiner dans le journal de "
+msgid "app-log-check.py: items to examine in the journal of "
+msgstr "app-log-check.py : entrées à examiner dans le journal de "
 
 msgid "RÉSUMÉ"
 msgstr "RÉSUMÉ"
@@ -49,14 +49,14 @@ msgstr "nginx-log-audit.sh : Odoo injoignable depuis nginx (erreurs upstream)"
 msgid " : ban recommended ("
 msgstr " : bannissement recommandé ("
 
-msgid " sign(s) of hostility)"
-msgstr " signe(s) d'hostilité)"
+msgid " signs of hostility)"
+msgstr " signes d'hostilité)"
 
 msgid "investigation: "
 msgstr "enquête : "
 
-msgid " sign(s) of hostility"
-msgstr " signe(s) d'hostilité"
+msgid " signs of hostility"
+msgstr " signes d'hostilité"
 
 msgid "nginx-log-audit.sh: ban recommended (investigation, section [10])"
 msgstr "nginx-log-audit.sh : bannissement recommandé (enquête section [10])"
@@ -67,8 +67,8 @@ msgstr "récidiviste : "
 msgid " — repeated temporary bans"
 msgstr " — bannissements temporaires répétés"
 
-msgid "nginx-log-audit.sh: repeat offender(s) to ban permanently"
-msgstr "nginx-log-audit.sh : récidiviste(s) à bannir de façon permanente"
+msgid "nginx-log-audit.sh: repeat offenders to ban permanently"
+msgstr "nginx-log-audit.sh : récidivistes à bannir de façon permanente"
 
 msgid "nginx-log-audit.sh: the tool itself failed"
 msgstr "nginx-log-audit.sh : l'outil lui-même a échoué"
@@ -154,20 +154,20 @@ msgstr " (ignorés) : "
 msgid "nothing to report"
 msgstr "rien à signaler"
 
-msgid " item(s) to examine:"
-msgstr " point(s) à examiner :"
+msgid " items to examine:"
+msgstr " points à examiner :"
 
 msgid "To ban the "
 msgstr "Pour bannir les "
 
-msgid " recommended IP(s) in one command (root, with confirmation):"
-msgstr " IP recommandée(s) en une commande (root, avec confirmation) :"
+msgid " recommended IPs in one command (root, with confirmation):"
+msgstr " IP recommandées en une commande (root, avec confirmation) :"
 
-msgid " item(s) to examine"
-msgstr " point(s) à examiner"
+msgid " items to examine"
+msgstr " points à examiner"
 
-msgid " alert(s), all already reported on "
-msgstr " alerte(s), toutes déjà signalées le "
+msgid " alerts, all already reported on "
+msgstr " alertes, toutes déjà signalées le "
 
 msgid "NEW since the e-mail of "
 msgstr "NOUVEAU depuis le courriel du "
@@ -175,8 +175,8 @@ msgstr "NOUVEAU depuis le courriel du "
 msgid "Full report on the server: "
 msgstr "Rapport complet sur le serveur : "
 
-msgid " alert(s) — e-mail "
-msgstr " alerte(s) — courriel "
+msgid " alerts — e-mail "
+msgstr " alertes — courriel "
 
 msgid "Result: "
 msgstr "Résultat : "
@@ -184,8 +184,8 @@ msgstr "Résultat : "
 msgid "Items to examine ("
 msgstr "Points à examiner ("
 
-msgid " more line(s) in the full report)"
-msgstr " ligne(s) de plus dans le rapport complet)"
+msgid " more lines in the full report)"
+msgstr " lignes de plus dans le rapport complet)"
 
 msgid "team"
 msgstr "équipe"
@@ -241,14 +241,14 @@ msgstr "    Signes de saturation ("
 msgid " days): "
 msgstr " jours) : "
 
-msgid " recycling(s) for memory · "
-msgstr " recyclage(s) pour mémoire · "
+msgid " recyclings for memory · "
+msgstr " recyclages pour mémoire · "
 
-msgid " stop(s) for real time · "
-msgstr " arrêt(s) pour temps réel · "
+msgid " stops for real time · "
+msgstr " arrêts pour temps réel · "
 
-msgid " 5xx error(s)"
-msgstr " erreur(s) 5xx"
+msgid " 5xx errors"
+msgstr " erreurs 5xx"
 
 msgid "), with proxy_mode = True behind nginx."
 msgstr "), avec proxy_mode = True derrière nginx."
@@ -587,7 +587,7 @@ msgid "Concentrated on "
 msgstr "Concentrées sur "
 
 msgid " address(es) (most active: "
-msgstr " adresse(s) (les plus actives : "
+msgstr " adresses (les plus actives : "
 
 msgid "): probably robots. Program investigation: "
 msgstr ") : probablement des robots. Enquête du programme : "
@@ -757,8 +757,8 @@ msgstr "Trafic          : aucune requête de ces adresses dans les journaux ngin
 msgid "0 errors"
 msgstr "0 erreur"
 
-msgid " error(s)"
-msgstr " erreur(s)"
+msgid " errors"
+msgstr " erreurs"
 
 msgid " requests · "
 msgstr " requêtes · "
@@ -811,8 +811,8 @@ msgstr " (partagée : "
 msgid " — last "
 msgstr " — dernière "
 
-msgid " other(s) — full list: web-monitor.py --list-users)"
-msgstr " autre(s) — liste complète : web-monitor.py --list-users)"
+msgid " others — full list: web-monitor.py --list-users)"
+msgstr " autres — liste complète : web-monitor.py --list-users)"
 
 msgid "  (traffic of the account's IP addresses over "
 msgstr "  (trafic des adresses IP du compte sur "
@@ -821,7 +821,7 @@ msgid " days — a shared address counts for each account)"
 msgstr " jours — une adresse partagée compte pour chaque compte)"
 
 msgid " banned address(es) of logged-in users: "
-msgstr " adresse(s) d'utilisateurs connectés bannie(s) : "
+msgstr " adresses d'utilisateurs connectés bannies : "
 
 msgid " — bans to lift:"
 msgstr " — bannissement à lever :"
@@ -907,8 +907,8 @@ msgstr "triés par "
 msgid "nginx access logs read ("
 msgstr "Journaux d'accès nginx lus ("
 
-msgid " file(s), rotations included): "
-msgstr " fichier(s), rotations comprises) : "
+msgid " files, rotations included): "
+msgstr " fichiers, rotations comprises) : "
 
 msgid "nginx access logs: no file read in "
 msgstr "Journaux d'accès nginx : aucun fichier lu dans "
@@ -928,11 +928,11 @@ msgstr "Dernière connexion"
 msgid " (reversed order)"
 msgstr " (ordre inversé)"
 
-msgid " login(s)"
-msgstr " connexion(s)"
+msgid " logins"
+msgstr " connexions"
 
-msgid " login minute(s) (≈ "
-msgstr " minute(s) de connexion (≈ "
+msgid " login minutes (≈ "
+msgstr " minutes de connexion (≈ "
 
 msgid "  (estimated minutes: a login lasts as long as its IP address makes a request at least every "
 msgstr "  (minutes estimées : une connexion dure tant que son adresse IP fait une requête au moins toutes les "
@@ -965,7 +965,7 @@ msgid "  (traffic of each account — pages, errors, modules, busiest day: web-m
 msgstr "  (trafic de chaque compte — pages, erreurs, modules, jour le plus actif : web-monitor.py --list-users --details)"
 
 msgid "⚠ banned address(es) of logged-in users: "
-msgstr "⚠ adresse(s) bannie(s) d'utilisateurs connectés : "
+msgstr "⚠ adresses bannies d'utilisateurs connectés : "
 
 msgid " — nginx-log-audit.sh --unban-check"
 msgstr " — nginx-log-audit.sh --unban-check"
@@ -1000,8 +1000,8 @@ msgstr "mémoire disponible faible ("
 msgid " (1/5/15 min) for "
 msgstr " (1/5/15 min) pour "
 
-msgid " core(s) — "
-msgstr " cœur(s) — "
+msgid " cores — "
+msgstr " cœurs — "
 
 msgid " % of capacity"
 msgstr " % de la capacité"
@@ -1033,11 +1033,11 @@ msgstr "  (lectures/écritures non mesurées : comptabilité des E/S désactivé
 msgid "nginx-log-audit.sh not found next to this program: banning impossible."
 msgstr "nginx-log-audit.sh introuvable à côté de ce programme : bannissement impossible."
 
-msgid " IP(s) banned (reversible: nginx-log-audit.sh --unban IP)."
-msgstr " IP bannie(s) (réversible : nginx-log-audit.sh --unban IP)."
+msgid " IPs banned (reversible: nginx-log-audit.sh --unban IP)."
+msgstr " IP bannies (réversible : nginx-log-audit.sh --unban IP)."
 
-msgid " IP(s) recommended for banning:"
-msgstr " IP recommandée(s) au bannissement :"
+msgid " IPs recommended for banning:"
+msgstr " IP recommandées au bannissement :"
 
 msgid "\nBan now? [y] all  [c] choose one by one (detailed investigation)  [N] none: "
 msgstr "\nBannir maintenant ? [o] toutes  [c] choisir une par une (enquête détaillée)  [N] aucune : "
@@ -1213,11 +1213,11 @@ msgstr "  fail2ban, IP par jail    : "
 msgid "LOG COVERAGE (oldest date available)"
 msgstr "COUVERTURE DES JOURNAUX (date la plus ancienne disponible)"
 
-msgid " file(s)"
-msgstr " fichier(s)"
+msgid " files"
+msgstr " fichiers"
 
 msgid " kept ≈ "
-msgstr " conservé(s) ≈ "
+msgstr " conservés ≈ "
 
 msgid " not detected"
 msgstr " non détecté"
@@ -1258,8 +1258,8 @@ msgstr "    « MaxRetentionSec=3month » et « SystemMaxUse=2G », puis systemct
 msgid "  (little space needed: the rotations are compressed)"
 msgstr "  (espace requis faible : les rotations sont compressées)"
 
-msgid " unreadable file(s) (run again as root): "
-msgstr " fichier(s) illisible(s) (relancer en root) : "
+msgid " unreadable files (run again as root): "
+msgstr " fichiers illisibles (relancer en root) : "
 
 msgid "No log read in "
 msgstr "Aucun journal lu dans "
@@ -1282,8 +1282,8 @@ msgstr "Timer installé et actif : "
 msgid ".timer (every "
 msgstr ".timer (toutes les "
 
-msgid " hour(s), at minute 5)."
-msgstr " heure(s), à la minute 5)."
+msgid " hours, at minute 5)."
+msgstr " heures, à la minute 5)."
 
 msgid "Remember to set SMTP_HOST and NOTIFY_EMAIL_TO in the app-health-check.py configuration to receive alerts by e-mail."
 msgstr "Pensez à renseigner SMTP_HOST et NOTIFY_EMAIL_TO dans la configuration de app-health-check.py pour recevoir les alertes par courriel."
@@ -1321,8 +1321,8 @@ msgstr "  État              : "
 msgid "  Interval          : every "
 msgstr "  Intervalle        : toutes les "
 
-msgid " hour(s) (at the 5th minute)"
-msgstr " heure(s) (à la 5e minute)"
+msgid " hours (at the 5th minute)"
+msgstr " heures (à la 5e minute)"
 
 msgid "none (timer stopped)"
 msgstr "aucun (timer arrêté)"
@@ -1366,8 +1366,8 @@ msgstr "  Pour l'activer : renseigner SMTP_HOST et NOTIFY_EMAIL_TO dans "
 msgid "  (see doc/en/app-health-check.conf.example for the other SMTP keys)."
 msgstr "  (voir doc/en/app-health-check.conf.example pour les autres clés SMTP)."
 
-msgid " report(s) in "
-msgstr " rapport(s) dans "
+msgid " reports in "
+msgstr " rapports dans "
 
 msgid "  no report in "
 msgstr "  aucun rapport dans "
@@ -1453,20 +1453,17 @@ msgstr "ERREUR : root requis (sudo) — seul --dry-run et --status fonctionnent 
 msgid "--interval-hours expects a value between 1 and 24"
 msgstr "--interval-hours attend une valeur entre 1 et 24"
 
-msgid " hour(s))."
-msgstr " heure(s))."
+msgid " hours)."
+msgstr " heures)."
 
-msgid " line(s))"
-msgstr " ligne(s))"
+msgid " lines)"
+msgstr " lignes)"
 
 msgid "Full report: "
 msgstr "Rapport complet : "
 
 msgid "  WARNING "
 msgstr "  ATTENTION "
-
-msgid " day(s)"
-msgstr " jour(s)"
 
 msgid "/day"
 msgstr "/jour"
@@ -1507,8 +1504,8 @@ msgstr "    Connexions      : aujourd'hui "
 msgid "    IP addresses    : "
 msgstr "    Adresses IP     : "
 
-msgid "account(s)"
-msgstr "compte(s)"
+msgid "accounts"
+msgstr "comptes"
 
 msgid "  Total: "
 msgstr "  Total : "
@@ -1690,8 +1687,8 @@ msgstr "Erreurs serveur (5xx)"
 msgid ", banned"
 msgstr ", bannie"
 
-msgid " alert(s)"
-msgstr " alerte(s)"
+msgid " alerts"
+msgstr " alertes"
 
 msgid "Monitoring "
 msgstr "Surveillance "
@@ -1734,9 +1731,6 @@ msgstr "Tablette"
 
 msgid "Errors "
 msgstr "Erreurs "
-
-msgid "day(s)"
-msgstr "jour(s)"
 
 msgid "HIGH"
 msgstr "HAUTE"
@@ -1813,8 +1807,8 @@ msgstr " — a aussi demandé des URL malveillantes"
 msgid "known user (successful Odoo login)"
 msgstr "utilisateur connu (connexion réussie à Odoo)"
 
-msgid " page(s) viewed, CSS/JS loaded, no malicious URL"
-msgstr " page(s) vue(s), CSS/JS chargés, aucune URL malveillante"
+msgid " pages viewed, CSS/JS loaded, no malicious URL"
+msgstr " pages vues, CSS/JS chargés, aucune URL malveillante"
 
 msgid "probable human visitor: "
 msgstr "visiteur humain probable : "
@@ -1852,11 +1846,11 @@ msgstr "paramètre à changer : "
 msgid "Unban "
 msgstr "Débannir "
 
-msgid " valid IP(s)"
-msgstr " IP valide(s)"
+msgid " valid IPs"
+msgstr " IP valides"
 
 msgid " certain: team or known user): "
-msgstr " certaine(s) : équipe ou utilisateur connu) : "
+msgstr " certaines : équipe ou utilisateur connu) : "
 
 msgid "a person who can no longer reach the site is a costlier false positive than one more robot"
 msgstr "une personne qui ne peut plus entrer sur le site est un faux positif plus coûteux qu'un robot de plus"
@@ -1876,8 +1870,8 @@ msgstr "probable"
 msgid "A ban from the CrowdSec community list comes back at the next synchronization: for a valid visitor, add the address to /etc/default/nginx-tools-white-list.conf."
 msgstr "Un bannissement de la liste communautaire de CrowdSec revient à la prochaine synchronisation : pour un visiteur valide, ajouter l'adresse à /etc/default/nginx-tools-white-list.conf."
 
-msgid " banned IP(s) look valid ("
-msgstr " IP bannie(s) semblent valides ("
+msgid " banned IPs look valid ("
+msgstr " IP bannies semblent valides ("
 
 msgid "Relaunch now with sudo to make these fixes (one question per fix)? [y/N]: "
 msgstr "Relancer maintenant avec sudo pour faire ces corrections (une question par correction) ? [o/N] : "
@@ -1903,8 +1897,8 @@ msgstr "courriel avant 24 h (sauf nouveau problème)"
 msgid "(unless a new problem)."
 msgstr "(sauf nouveau problème)."
 
-msgid " stop(s) for CPU time"
-msgstr " arrêt(s) pour temps processeur"
+msgid " stops for CPU time"
+msgstr " arrêts pour temps processeur"
 
 msgid "multithread mode (workers=0): a single process serves the whole site. In production, Odoo recommends "
 msgstr "mode multithread (workers=0) : un seul processus sert tout le site. En production, Odoo recommande "
@@ -1973,7 +1967,7 @@ msgid " different addresses: probably a RULE that refuses real "
 msgstr " adresses différentes : probablement une RÈGLE qui refuse de vrais "
 
 msgid "banned by it over the period); nothing to do"
-msgstr "bannie(s) par elle sur la période) ; rien à faire"
+msgstr "bannies par elle sur la période) ; rien à faire"
 
 msgid "manual bans"
 msgstr "bannissements manuels"
@@ -1999,8 +1993,8 @@ msgstr "inconnu"
 msgid "healthy"
 msgstr "sain"
 
-msgid "alert(s)"
-msgstr "alerte(s)"
+msgid "alerts"
+msgstr "alertes"
 
 msgid "unexpected"
 msgstr "inattendu"
@@ -2170,13 +2164,13 @@ msgstr ") — une personne lit une page à la fois"
 msgid "scripting tool in the User-Agent: "
 msgstr "outil de script dans le User-Agent : "
 
-msgid " request(s) (curl, python-requests…)"
-msgstr " requête(s) (curl, python-requests…)"
+msgid " requests (curl, python-requests…)"
+msgstr " requêtes (curl, python-requests…)"
 
 msgid "Odoo access refused: "
 msgstr "accès refusés par Odoo : "
 
-msgid " time(s) ("
+msgid " times ("
 msgstr " fois ("
 
 msgid ") — tries to read what it may not"
@@ -2206,20 +2200,20 @@ msgstr "nouveau compte : première connexion "
 msgid "      no sign over the period (account watched: its activity is listed here at every summary)"
 msgstr "      aucun indice sur la période (compte surveillé : son activité est listée ici à chaque sommaire)"
 
-msgid " other(s): web-monitor.py --suspect-users)"
-msgstr " autre(s) : web-monitor.py --suspect-users)"
+msgid " others: web-monitor.py --suspect-users)"
+msgstr " autres : web-monitor.py --suspect-users)"
 
 msgid "Investigate the "
 msgstr "Enquêter sur les "
 
-msgid " account(s) to watch or suspicious (all their addresses, their e-mail; ban or watch each one)"
-msgstr " compte(s) à surveiller ou suspects (toutes leurs adresses, leur courriel ; bannir ou surveiller chacun)"
+msgid " accounts to watch or suspicious (all their addresses, their e-mail; ban or watch each one)"
+msgstr " comptes à surveiller ou suspects (toutes leurs adresses, leur courriel ; bannir ou surveiller chacun)"
 
 msgid "Unknown choice."
 msgstr "Choix inconnu."
 
 msgid " other address(es) not investigated)"
-msgstr " autre(s) adresse(s) non examinée(s))"
+msgstr " autres adresses non examinées)"
 
 msgid "  no e-mail address to check"
 msgstr "  aucune adresse courriel à vérifier"
@@ -2261,7 +2255,7 @@ msgid "Odoo account unreadable (PostgreSQL, root): nothing banned."
 msgstr "Compte Odoo illisible (PostgreSQL, root) : rien n'est banni."
 
 msgid "  2. IP address(es) banned at the firewall: "
-msgstr "  2. adresse(s) IP bannie(s) au pare-feu : "
+msgstr "  2. adresses IP bannies au pare-feu : "
 
 msgid "     not banned: "
 msgstr "     non bannie : "
@@ -2290,8 +2284,8 @@ msgstr "rétabli"
 msgid "address shared with "
 msgstr "adresse partagée avec "
 
-msgid " other account(s): "
-msgstr " autre(s) compte(s) : "
+msgid " other accounts: "
+msgstr " autres comptes : "
 
 msgid " (several accounts from one place)"
 msgstr " (plusieurs comptes depuis un même endroit)"
@@ -2302,8 +2296,8 @@ msgstr "adresse courriel jetable ("
 msgid "      first login "
 msgstr "      première connexion "
 
-msgid " login(s) · IP: "
-msgstr " connexion(s) · IP : "
+msgid " logins · IP: "
+msgstr " connexions · IP : "
 
 msgid "  no account with the login « "
 msgstr "  aucun compte avec l'identifiant « "
@@ -2362,8 +2356,8 @@ msgstr "déjà actif : inchangé"
 msgid "login e-mail address: "
 msgstr "adresse courriel de l'identifiant : "
 
-msgid " login(s) recorded by Odoo, last "
-msgstr " connexion(s) enregistrée(s) par Odoo, dernière "
+msgid " logins recorded by Odoo, last "
+msgstr " connexions enregistrées par Odoo, dernière "
 
 msgid "  contact e-mail: "
 msgstr "  courriel du contact : "
@@ -2458,7 +2452,7 @@ msgstr "jamais signalé"
 msgid "e-mail reported "
 msgstr "courriel signalé "
 
-msgid " time(s) to StopForumSpam"
+msgid " times to StopForumSpam"
 msgstr " fois à StopForumSpam"
 
 msgid "unreachable"
@@ -2467,8 +2461,8 @@ msgstr "injoignable"
 msgid "  Web search of « "
 msgstr "  Recherche Web de « "
 
-msgid " result(s)"
-msgstr " résultat(s)"
+msgid " results"
+msgstr " résultats"
 
 msgid " (an address never published anywhere: common for a recent or private address)"
 msgstr " (adresse publiée nulle part : courant pour une adresse récente ou privée)"
@@ -2488,7 +2482,7 @@ msgstr "Rétablir le compte et débannir ses adresses ? [y/N] : "
 msgid "REPORTED "
 msgstr "SIGNALÉ "
 
-msgid " time(s), last "
+msgid " times, last "
 msgstr " fois, dernier "
 
 msgid ", confidence "
@@ -2596,8 +2590,8 @@ msgstr "pages lues"
 msgid "CSV written: "
 msgstr "CSV écrit : "
 
-msgid " column(s), separator « ; » (Excel: open it directly)"
-msgstr " colonne(s), séparateur « ; » (Excel : l'ouvrir directement)"
+msgid " columns, separator « ; » (Excel: open it directly)"
+msgstr " colonnes, séparateur « ; » (Excel : l'ouvrir directement)"
 
 msgid "ERROR: CSV file not writable: "
 msgstr "ERREUR : fichier CSV impossible à écrire : "
@@ -2611,11 +2605,11 @@ msgstr " (groupes : "
 msgid " (PostgreSQL unreadable: root required?)"
 msgstr " (PostgreSQL illisible : root requis ?)"
 
-msgid " member(s) with a login in the history"
-msgstr " membre(s) avec une connexion dans l'historique"
+msgid " members with a login in the history"
+msgstr " membres avec une connexion dans l'historique"
 
-msgid " member(s) without any login: "
-msgstr " membre(s) sans aucune connexion : "
+msgid " members without any login: "
+msgstr " membres sans aucune connexion : "
 
 msgid "With --list-users: compact numbered table, one column per field (--table-fields), each as narrow as its content (titles cut, on two lines), colors for today's logins and the busiest accounts"
 msgstr "Avec --list-users : tableau numéroté compact, une colonne par champ (--table-fields), chacune aussi étroite que son contenu (titres coupés, sur deux lignes), couleurs pour les connexions d'aujourd'hui et les comptes les plus actifs"
@@ -2647,8 +2641,8 @@ msgstr "sondages complétés"
 msgid "^--- \\[|^=====|^RÉSUMÉ"
 msgstr "^--- \\[|^=====|^RÉSUMÉ"
 
-msgid " stop(s) for CPU time · "
-msgstr " arrêt(s) pour temps processeur · "
+msgid " stops for CPU time · "
+msgstr " arrêts pour temps processeur · "
 
 msgid ", but nginx has not been reloaded since (configuration loaded at "
 msgstr ", mais nginx n'a pas été rechargé depuis (configuration chargée à "
@@ -2733,13 +2727,13 @@ msgid "Owner of the address blocks: "
 msgstr "Propriétaire des blocs d'adresses : "
 
 msgid " address(es) not in the cache, not looked up (NGINX_TOOLS_INTERNET=off) — « ? » in the table"
-msgstr " adresse(s) absente(s) du cache, non cherchée(s) (NGINX_TOOLS_INTERNET=off) — « ? » dans le tableau"
+msgstr " adresses absentes du cache, non cherchées (NGINX_TOOLS_INTERNET=off) — « ? » dans le tableau"
 
 msgid "Owner of the address blocks (RDAP, otherwise whois): "
 msgstr "Propriétaire des blocs d'adresses (RDAP, sinon whois) : "
 
 msgid " address(es) to look up on the Internet, "
-msgstr " adresse(s) à chercher sur Internet, "
+msgstr " adresses à chercher sur Internet, "
 
 msgid " in the cache …"
 msgstr " dans le cache …"
@@ -2748,11 +2742,11 @@ msgid "  … done in "
 msgstr "  … terminé en "
 
 msgid " unknown: rdap.org unreachable and no whois command?)"
-msgstr " inconnue(s) : rdap.org injoignable et pas de commande whois ?)"
+msgstr " inconnues : rdap.org injoignable et pas de commande whois ?)"
 
 # 2.71: message of --table-fields (keys kept in English)
-msgid "unknown field(s) « "
-msgstr "champ(s) inconnu(s) « "
+msgid "unknown fields « "
+msgstr "champs inconnus « "
 
 msgid " » (fields: "
 msgstr " » (champs : "
@@ -2763,8 +2757,8 @@ msgstr ", ou all)"
 msgid "REQUESTS BY DNS NAME (Host), SITE LOGS (this server's own tests excluded)"
 msgstr "REQUÊTES PAR NOM DNS (Host), JOURNAUX DU SITE (tests de ce serveur exclus)"
 
-msgid "{n} other name(s)"
-msgstr "{n} autre(s) nom(s)"
+msgid "{n} other names"
+msgstr "{n} autres noms"
 
 msgid "(no Host field: older log lines)"
 msgstr "(sans champ Host : anciennes lignes)"

@@ -49,8 +49,8 @@ msgstr "Configuration lue : "
 msgid "  Options: --lang "
 msgstr "  Options : --lang "
 
-msgid " other name(s)"
-msgstr " autre(s) nom(s)"
+msgid " other names"
+msgstr " autres noms"
 
 msgid " · Google sign-in expected: "
 msgstr " · connexion Google attendue : "
@@ -154,8 +154,8 @@ msgstr "/robots.txt exempte du blocage bad-bot"
 msgid "Traversal in the query string blocked by nginx"
 msgstr "Traversée dans la query string bloquée par nginx"
 
-msgid " byte(s) — "
-msgstr " octet(s) — "
+msgid " bytes — "
+msgstr " octets — "
 
 msgid "probably Odoo (page too large to be nginx's minimal 404 page)"
 msgstr "probablement Odoo (page trop volumineuse pour être la page 404 minimale de nginx)"
@@ -217,14 +217,14 @@ msgstr ", émetteur : "
 msgid "EXPIRED since "
 msgstr "EXPIRÉ depuis "
 
-msgid " day(s) (on "
-msgstr " jour(s) (le "
+msgid " days (on "
+msgstr " jours (le "
 
 msgid "expires in "
 msgstr "expire dans "
 
-msgid " day(s), on "
-msgstr " jour(s), le "
+msgid " days, on "
+msgstr " jours, le "
 
 msgid "still valid for "
 msgstr "valide encore "
@@ -310,8 +310,8 @@ msgstr "Authentification utilisateur de test"
 msgid "res.users read (self)"
 msgstr "Lecture res.users (soi-même)"
 
-msgid " record(s) read without error"
-msgstr " enregistrement(s) lu(s) sans erreur"
+msgid " records read without error"
+msgstr " enregistrements lus sans erreur"
 
 msgid ") — target: "
 msgstr ") — cible : "
@@ -319,11 +319,11 @@ msgstr ") — cible : "
 msgid "Summary: "
 msgstr "Résumé : "
 
-msgid " failure(s) out of "
-msgstr " échec(s) sur "
+msgid " failures out of "
+msgstr " échecs sur "
 
-msgid " check(s)."
-msgstr " vérification(s)."
+msgid " checks."
+msgstr " vérifications."
 
 msgid "SMTP_HOST not configured"
 msgstr "SMTP_HOST non configuré"
@@ -634,8 +634,8 @@ msgstr " impossible — app-health-check.py --create-config"
 msgid "] Health check "
 msgstr "] Vérification de santé "
 
-msgid " failure(s)"
-msgstr " échec(s)"
+msgid " failures"
+msgstr " échecs"
 
 msgid "ERROR"
 msgstr "ERREUR"

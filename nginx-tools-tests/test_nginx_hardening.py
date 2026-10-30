@@ -711,9 +711,9 @@ class SetupNginxOdoo(EnvTest):
             f.write("198.51.100.0/24   # Université exemple   [partagée]\n")
         out = re.sub(r"\x1b\[[0-9;]*m", "", self.setup("--update"))
         self.assertIn("[OK]   Liste blanche :", out)
-        self.assertIn("(4 adresse(s))", out)
+        self.assertIn("(4 adresses)", out)
         self.assertIn("[OK]   Lieux :", out)
-        self.assertIn("(1 plage(s))", out)
+        self.assertIn("(1 plages)", out)
         self.assertIn("192.0.2.77", open(blanche).read())
         self.assertEqual(open(lieux).read(), "198.51.100.0/24   # Université exemple   [partagée]\n")
         # Neither old list nor white list: an empty file to fill in is created (nothing is invented)
@@ -815,7 +815,7 @@ class SetupNginxOdoo(EnvTest):
         with open(liste, "a") as f:
             f.write("pas-une-adresse    # erreur de saisie\n")
         out = self.setup("--update")
-        self.assertIn("entrée(s) invalide(s) — ligne", out)
+        self.assertIn("entrées invalides — ligne", out)
         self.assertIn("« pas-une-adresse »", out)
         self.assertNotIn("pas-une-adresse", open(geo).read())
 
@@ -868,7 +868,7 @@ class SetupNginxOdoo(EnvTest):
         self.assertRegex(texte, r"(?m)^2001:db8::/32\s+1;")
         self.assertNotIn("198.51.100.7", texte)
         self.assertNotIn("nimporte", texte)
-        self.assertIn("à jour (2 réseau(x) partagé(s))", self.setup("--update"))
+        self.assertIn("à jour (2 réseau(x) partagés)", self.setup("--update"))
         with open(lieux, "w", encoding="utf-8") as f:
             f.write("198.51.100.7   # Bureau   [protégée]\n")
         self.mock("nginx", f'[[ "$1" == -T ]] && cat {self.d}/nginx-T; [[ "$1" == -t ]] && {{ echo "nginx: [emerg] boum" >&2; exit 1; }}; exit 0')
@@ -942,7 +942,7 @@ class SetupNginxOdoo(EnvTest):
         self.assertIn("--- 13)", out)                                                # the program ran entirely
         rapport = out[out.index("RAPPORT D'ERREURS"):]
         self.assertRegex(rapport, r"Programme : nginx-hardening\.sh v2\.\d+\.\d{8}\.\d{6} — commande : nginx-hardening\.sh --odoo-conf \S+\n")
-        self.assertRegex(rapport, r"Bilan     : \d+ échec\(s\), \d+ avertissement\(s\), 0 recommandation\(s\) à traiter — sortie de \d+ ligne")
+        self.assertRegex(rapport, r"Bilan     : \d+ échecs, \d+ avertissements, 0 recommandations à traiter — sortie de \d+ ligne")
         self.assertIn("Application : ", rapport)
         self.assertTrue(rapport.rstrip().endswith("FIN DU RAPPORT " + "=" * 38))
 

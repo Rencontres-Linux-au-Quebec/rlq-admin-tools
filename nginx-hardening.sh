@@ -89,7 +89,7 @@ run() {
     "$@"
 }
 
-readonly SCRIPT_VERSION="2.66.20261029.205500"
+readonly SCRIPT_VERSION="2.67.20261030.153422"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
 SCRIPT_NAME="$(basename "${BASH_SOURCE[0]}" .sh)"; readonly SCRIPT_NAME
 # Display language (en or fr): --lang, NGINX_HARDENING_LANG, LANGUAGE of the configuration file, LC_ALL / LANG - apps/_i18n.sh translates the output (nothing changes in French).
@@ -596,7 +596,7 @@ CAS
         done <<< "$cas"
     done <<< "$noms"
     echo
-    echo "Résultat : $nb_ok cas OK, $nb_ko en échec, sur $nb_noms nom(s) testé(s)."
+    echo "Résultat : $nb_ok cas OK, $nb_ko en échec, sur $nb_noms noms testés."
     if (( nb_ko > 0 )); then
         echo "En cas d'échec : nginx -T | grep -n include (les règles sont-elles incluses ?), puis nginx-hardening.sh --update."
         exit 1
@@ -738,7 +738,7 @@ migrer_listes() {
     local blanche="${NGINX_TOOLS_WHITE_LIST:-$LISTES_BLANCHE_DEFAUT}" lieux="${NGINX_TOOLS_IP_LOCATION:-$LISTES_LIEUX_DEFAUT}"
     local ancien="$SCRIPT_DIR/apps/team-ips.list"
     if [[ -f "$blanche" ]]; then
-        pass "Liste blanche : $blanche ($(listes_blanche | listes_valides | grep -c . || true) adresse(s))."
+        pass "Liste blanche : $blanche ($(listes_blanche | listes_valides | grep -c . || true) adresses)."
     elif [[ "$CHECK_ONLY" == "1" ]]; then
         if [[ -f "$ancien" ]]; then warn "Liste blanche : ANCIEN emplacement $ancien — --update la migre vers $blanche."
         else warn "Liste blanche absente ($blanche) — --update crée un modèle à remplir (sans elle, aucune adresse n'a accès à la gestion des bases de DEV ni à LAB)."; fi
@@ -752,7 +752,7 @@ migrer_listes() {
         warn "Liste blanche : impossible de créer $blanche (droits ?)."
     fi
     if [[ -f "$lieux" ]]; then
-        pass "Lieux : $lieux ($(listes_lieux | listes_valides | grep -c . || true) plage(s))."
+        pass "Lieux : $lieux ($(listes_lieux | listes_valides | grep -c . || true) plages)."
     elif [[ "$CHECK_ONLY" == "1" ]]; then
         warn "Lieux : aucun fichier ($lieux) — facultatif ; --update crée un modèle (université, bureau : nom d'une plage, affiché par app-log-live.py)."
     elif creer_modele "$lieux" nginx-tools-ip-location.conf.example; then
@@ -1460,7 +1460,7 @@ else
                 rn_ok=0
             else
                 nginx_appliquer || true
-                pass "nginx : $RENAME_FROM remplacé par $RENAME_TO dans ${#rn_fichiers[@]} fichier(s) ; nginx -t réussi, nginx rechargé. Sauvegardes : $rn_sauv"
+                pass "nginx : $RENAME_FROM remplacé par $RENAME_TO dans ${#rn_fichiers[@]} fichiers ; nginx -t réussi, nginx rechargé. Sauvegardes : $rn_sauv"
             fi
         fi
         if (( rn_ok && ! rn_cert_ok )); then
@@ -1554,10 +1554,10 @@ else
                 diff -u "$GEN_DEST/$rel" "$GEN_SRC/$rel" 2>/dev/null | sed -n '3,27p' | sed 's/^/      /' || true ;; esac
         done
         if [[ "$CHECK_ONLY" == "1" ]]; then
-            warn "Configuration nginx générique : ${#GEN_PLAN[@]} changement(s) en attente (relancer avec --update pour les appliquer après confirmation)."
+            warn "Configuration nginx générique : ${#GEN_PLAN[@]} changements en attente (relancer avec --update pour les appliquer après confirmation)."
         else
             GEN_REP=""
-            if [[ -t 0 ]]; then read -r -p "  Appliquer ces ${#GEN_PLAN[@]} changement(s) à la configuration nginx générique ? [o/N] " GEN_REP || GEN_REP=""
+            if [[ -t 0 ]]; then read -r -p "  Appliquer ces ${#GEN_PLAN[@]} changements à la configuration nginx générique ? [o/N] " GEN_REP || GEN_REP=""
             else warn "Pas de terminal : configuration nginx générique non modifiée (lancer --update dans un terminal pour confirmer)."; fi
             if [[ "$GEN_REP" =~ ^[oOyY]$ ]]; then
                 GEN_TS=$(date +%Y%m%d-%H%M%S); GEN_FAITS=()
@@ -1577,7 +1577,7 @@ else
                 done
                 fragments_generes_assurer || true
                 if nginx -t >/dev/null 2>&1; then
-                    pass "Configuration nginx générique installée (${#GEN_FAITS[@]} fichier(s)) ; nginx -t réussit."
+                    pass "Configuration nginx générique installée (${#GEN_FAITS[@]} fichiers) ; nginx -t réussit."
                     nginx_appliquer
                     echo "  nginx : $NGINX_APPLIQUE"
                 else
@@ -2819,14 +2819,14 @@ else
     snip="${NGINX_HARDENING_SNIPPETS_DIR:-/etc/nginx/snippets}"
     generer_equipe geo >/dev/null
     if [[ -n "$EQUIPE_INVALIDES" ]]; then
-        fail "liste blanche : entrée(s) invalide(s) —${EQUIPE_INVALIDES%;} — rien n'est écrit dans nginx tant qu'elles ne sont pas corrigées."
+        fail "liste blanche : entrées invalides —${EQUIPE_INVALIDES%;} — rien n'est écrit dans nginx tant qu'elles ne sont pas corrigées."
     else
         eq_change=0; declare -A eq_ancien=()
         for eq_type in geo allow; do
             eq_dst="$snip/team-ips-$eq_type.conf"
             eq_nouveau=$(generer_equipe "$eq_type")
             if [[ -f "$eq_dst" ]] && [[ "$(cat "$eq_dst")" == "$eq_nouveau" ]]; then
-                pass "$eq_dst à jour ($(grep -c '^[^#]' "$eq_dst") adresse(s))."
+                pass "$eq_dst à jour ($(grep -c '^[^#]' "$eq_dst") adresses)."
             elif [[ "$CHECK_ONLY" == "1" ]]; then
                 warn "$eq_dst $([[ -f "$eq_dst" ]] && echo "différent de la liste blanche" || echo "absent") — --update le régénérera."
             else
@@ -2893,7 +2893,7 @@ if [[ "$APP_NAME" == "odoo" ]]; then
     part_nouveau=$(generer_partages)
     part_n=$(printf '%s\n' "$part_nouveau" | grep -c '^[^#]' || true)
     if [[ -f "$part_dst" ]] && [[ "$(cat "$part_dst")" == "$part_nouveau" ]]; then
-        pass "$part_dst à jour ($part_n réseau(x) partagé(s))."
+        pass "$part_dst à jour ($part_n réseau(x) partagés)."
     elif [[ "$CHECK_ONLY" == "1" ]]; then
         warn "$part_dst $([[ -f "$part_dst" ]] && echo "différent des lieux [partagée]" || echo "absent") — --update le régénérera (nginx refuse l'include de odoo-global.conf sans ce fichier)."
     else
@@ -2955,10 +2955,10 @@ uri_verifier() {
         done
     done
     if (( echec == 0 )); then
-        pass "URI refusées : $total test(s) sur les noms publics — toutes répondent 404 (chemins : $chemins)."
+        pass "URI refusées : $total tests sur les noms publics — toutes répondent 404 (chemins : $chemins)."
         return 0
     fi
-    fail "URI refusées : $echec test(s) sur $total ne répondent pas 404 : le bloc server qui répond à ces noms n'applique pas la règle. Voir : nginx -T 2>/dev/null | grep -n uri-desactivees"
+    fail "URI refusées : $echec tests sur $total ne répondent pas 404 : le bloc server qui répond à ces noms n'applique pas la règle. Voir : nginx -T 2>/dev/null | grep -n uri-desactivees"
     return 1
 }
 
@@ -2998,7 +2998,7 @@ if [[ "$APP_NAME" == "odoo" ]]; then
     echo "  URI refusées actuellement : ${uri_actuelles:-aucune}"
     uri_actif=0
     if [[ -f "$uri_dst" ]] && [[ "$(cat "$uri_dst")" == "$uri_nouveau" ]]; then
-        pass "$uri_dst à jour ($uri_n URI refusée(s) : ${uri_futures:-aucune})."
+        pass "$uri_dst à jour ($uri_n URI refusées : ${uri_futures:-aucune})."
         uri_actif=1
     elif [[ "$CHECK_ONLY" == "1" ]]; then
         warn "URI refusées : ${uri_actuelles:-aucune} → ${uri_futures:-aucune} — --update appliquera ce changement après confirmation."
@@ -3151,9 +3151,9 @@ fi
 
 echo "=============================================================="
 if (( FAIL > 0 )); then
-    echo "${C_RED}RÉSUMÉ : $PASS OK, $WARN avertissement(s), $FAIL échec(s).${C_RESET}"
+    echo "${C_RED}RÉSUMÉ : $PASS OK, $WARN avertissements, $FAIL échecs.${C_RESET}"
 elif (( WARN > 0 )); then
-    echo "${C_YELLOW}RÉSUMÉ : $PASS OK, $WARN avertissement(s), aucun échec.${C_RESET}"
+    echo "${C_YELLOW}RÉSUMÉ : $PASS OK, $WARN avertissements, aucun échec.${C_RESET}"
 else
     echo "${C_GREEN}RÉSUMÉ : tout est en ordre ($PASS vérifications).${C_RESET}"
 fi

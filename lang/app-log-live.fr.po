@@ -50,10 +50,10 @@ msgid "Address cache: "
 msgstr "Cache des adresses : "
 
 msgid "address(es) not seen again for "
-msgstr "adresse(s) non revue(s) depuis "
+msgstr "adresses non revues depuis "
 
 msgid "days deleted"
-msgstr "jours effacée(s)"
+msgstr "jours effacées"
 
 msgid "Lists: component apps/_listes.py missing"
 msgstr "Listes : composant apps/_listes.py absent"
@@ -112,8 +112,8 @@ msgstr "depuis "
 msgid "● signed in"
 msgstr "● connecté(e)"
 
-msgid "request(s) seen"
-msgstr "requête(s) vue(s)"
+msgid "requests seen"
+msgstr "requêtes vues"
 
 msgid "State"
 msgstr "État"
@@ -131,10 +131,10 @@ msgid "no person signed in to the site in these messages"
 msgstr "aucune personne connectée au site dans ces messages"
 
 msgid "address(es)"
-msgstr "adresse(s)"
+msgstr "adresses"
 
 msgid "entry(ies)"
-msgstr "entrée(s)"
+msgstr "entrées"
 
 msgid "no readable source (fail2ban-client and ipset missing, or root required)"
 msgstr "aucune source lisible (fail2ban-client et ipset absents, ou root requis)"
@@ -160,8 +160,8 @@ msgstr "sans préfixe"
 msgid "too old"
 msgstr "trop ancien"
 
-msgid "suspicious request(s)"
-msgstr "requête(s) suspecte(s)"
+msgid "suspicious requests"
+msgstr "requêtes suspectes"
 
 msgid "recommended by web-monitor.py"
 msgstr "recommandée par web-monitor.py"
@@ -178,11 +178,11 @@ msgstr "odoo-mail-retry.py liste les courriels non envoyés et propose de les re
 msgid "Slow requests (≥ "
 msgstr "Requêtes lentes (≥ "
 
-msgid "request(s), "
-msgstr "requête(s), "
+msgid "requests, "
+msgstr "requêtes, "
 
-msgid "error(s), "
-msgstr "erreur(s), "
+msgid "errors, "
+msgstr "erreurs, "
 
 msgid "high resources"
 msgstr "ressources élevées"
@@ -190,8 +190,8 @@ msgstr "ressources élevées"
 msgid "ℹ Probes from this server: "
 msgstr "ℹ Sondes de ce serveur : "
 
-msgid "local request(s) (app-health-check.py) ignored as suspicious — "
-msgstr "requête(s) locale(s) (app-health-check.py) ignorée(s) des suspectes — "
+msgid "local requests (app-health-check.py) ignored as suspicious — "
+msgstr "requêtes locales (app-health-check.py) ignorées des suspectes — "
 
 msgid "ℹ Suspicious requests seen: "
 msgstr "ℹ Requêtes suspectes vues : "
@@ -211,17 +211,17 @@ msgstr "» : aucune requête"
 msgid "Watch « "
 msgstr "Surveillance « "
 
-msgid "request(s) · "
-msgstr "requête(s) · "
+msgid "requests · "
+msgstr "requêtes · "
 
-msgid "error(s)"
-msgstr "erreur(s)"
+msgid "errors"
+msgstr "erreurs"
 
 msgid "· median duration "
 msgstr "· durée médiane "
 
-msgid "confirmed registration(s)"
-msgstr "inscription(s) confirmée(s)"
+msgid "confirmed registrations"
+msgstr "inscriptions confirmées"
 
 msgid "(User-Agent read for "
 msgstr "(User-Agent lu pour "
@@ -241,8 +241,8 @@ msgstr "Visites du site : "
 msgid "team or place · "
 msgstr "équipe ou lieu · "
 
-msgid "page(s) per visitor"
-msgstr "page(s) par visiteur"
+msgid "pages per visitor"
+msgstr "pages par visiteur"
 
 msgid "Visitors' countries: "
 msgstr "Pays des visiteurs : "
@@ -251,7 +251,7 @@ msgid "· unknown country "
 msgstr "· pays inconnu "
 
 msgid "address(es) out of "
-msgstr "adresse(s) sur "
+msgstr "adresses sur "
 
 msgid "% of pages)"
 msgstr "% des pages)"
@@ -259,17 +259,17 @@ msgstr "% des pages)"
 msgid "Real visitors: none (all visitors are robots)"
 msgstr "Vrais visiteurs : aucun (tous les visiteurs sont des robots)"
 
-msgid "page(s) per real visitor"
-msgstr "page(s) par vrai visiteur"
+msgid "pages per real visitor"
+msgstr "pages par vrai visiteur"
 
 msgid "Session summary"
 msgstr "Résumé de la session"
 
-msgid "line(s) shown · "
-msgstr "ligne(s) affichée(s) · "
+msgid "lines shown · "
+msgstr "lignes affichées · "
 
-msgid "request(s) ────"
-msgstr "requête(s) ────"
+msgid "requests ────"
+msgstr "requêtes ────"
 
 msgid "No request in the lines shown."
 msgstr "Aucune requête dans les lignes affichées."
@@ -281,7 +281,7 @@ msgid "Suspicious requests "
 msgstr "Requêtes suspectes "
 
 msgid "address(es) — "
-msgstr "adresse(s) — "
+msgstr "adresses — "
 
 msgid "by address: "
 msgstr "par adresse : "
@@ -289,8 +289,8 @@ msgstr "par adresse : "
 msgid "Probes from this server: "
 msgstr "Sondes de ce serveur : "
 
-msgid "local request(s) (app-health-check.py), not counted as suspicious — "
-msgstr "requête(s) locale(s) (app-health-check.py), non comptées comme suspectes — "
+msgid "local requests (app-health-check.py), not counted as suspicious — "
+msgstr "requêtes locales (app-health-check.py), non comptées comme suspectes — "
 
 msgid "— the slowest: "
 msgstr "— la plus lente : "
@@ -346,8 +346,8 @@ msgstr "──── Adresse bannie souvent : "
 msgid "fail2ban bans — verdict: ban justified ────"
 msgstr "bannissements fail2ban — verdict : bannissement justifié ────"
 
-msgid "suspicious request(s) in this session"
-msgstr "requête(s) suspecte(s) dans cette session"
+msgid "suspicious requests in this session"
+msgstr "requêtes suspectes dans cette session"
 
 msgid "s, no answer: we continue): "
 msgstr "s, sans réponse : on continue) : "
@@ -358,11 +358,11 @@ msgstr "Cache des adresses : aucune demande sur la période."
 msgid "permanent cache disabled (--no-cache or unreadable)"
 msgstr "cache permanent désactivé (--no-cache ou illisible)"
 
-msgid "request(s) without outside lookup — "
-msgstr "demande(s) sans recherche extérieure — "
+msgid "requests without outside lookup — "
+msgstr "demandes sans recherche extérieure — "
 
 msgid "already seen in this session, "
-msgstr "déjà vue(s) dans cette session, "
+msgstr "déjà vues dans cette session, "
 
 msgid "in the permanent cache, "
 msgstr "dans le cache permanent, "
@@ -371,7 +371,7 @@ msgid "by the lists (person, team, this server), "
 msgstr "par les listes (personne, équipe, ce serveur), "
 
 msgid "already known, "
-msgstr "déjà connu(s), "
+msgstr "déjà connus, "
 
 msgid "Dashboard since start (history shown included)"
 msgstr "Tableau de bord depuis le démarrage (historique affiché compris)"
@@ -388,11 +388,11 @@ msgstr "Rapport périodique (toutes les "
 msgid "min): since the last display"
 msgstr "min) : depuis le dernier affichage"
 
-msgid "previous line(s) of this address (since "
-msgstr "ligne(s) précédente(s) de cette adresse (depuis "
+msgid "previous lines of this address (since "
+msgstr "lignes précédentes de cette adresse (depuis "
 
 msgid "), shown above without name:"
-msgstr "), affichée(s) plus haut sans nom :"
+msgstr "), affichées plus haut sans nom :"
 
 msgid "Monitoring continues."
 msgstr "Le suivi continue."
@@ -400,11 +400,11 @@ msgstr "Le suivi continue."
 msgid "No error (ERROR / CRITICAL) or failed e-mail to detail."
 msgstr "Aucune erreur (ERROR / CRITICAL) ni courriel en échec à détailler."
 
-msgid "Odoo error(s), "
-msgstr "erreur(s) d'Odoo, "
+msgid "Odoo errors, "
+msgstr "erreurs d'Odoo, "
 
-msgid "failed e-mail(s). More details on the errors? [y] yes  [N] no: "
-msgstr "courriel(s) en échec. Plus de détails sur les erreurs ? [o] oui  [N] non : "
+msgid "failed e-mails. More details on the errors? [y] yes  [N] no: "
+msgstr "courriels en échec. Plus de détails sur les erreurs ? [o] oui  [N] non : "
 
 msgid "not found next to this program: detail impossible."
 msgstr "introuvable à côté de ce programme : détail impossible."
@@ -542,7 +542,7 @@ msgid "Addresses to ban: none (no suspicious request seen here, nor any web-moni
 msgstr "Adresses à bannir : aucune (aucune requête suspecte vue ici ni recommandation de web-monitor.py d'une adresse qui ne soit pas déjà bannie, de l'équipe, d'un lieu ou d'une personne connue)."
 
 msgid "address(es) to ban ────"
-msgstr "adresse(s) à bannir ────"
+msgstr "adresses à bannir ────"
 
 msgid "nginx-log-audit.sh not found next to this program: banning impossible."
 msgstr "nginx-log-audit.sh introuvable à côté de ce programme : bannissement impossible."
@@ -554,7 +554,7 @@ msgid "No address banned."
 msgstr "Aucune adresse bannie."
 
 msgid "address(es) banned (reversible: nginx-log-audit.sh --unban IP)."
-msgstr "adresse(s) bannie(s) (réversible : nginx-log-audit.sh --unban IP)."
+msgstr "adresses bannies (réversible : nginx-log-audit.sh --unban IP)."
 
 msgid "Report unavailable: apps/_rapport.py is missing."
 msgstr "Rapport indisponible : apps/_rapport.py est absent."
@@ -587,7 +587,7 @@ msgid "--exclude-ip IP,IP… (addresses or networks such as 10.0.0.0/8 separated
 msgstr "--exclude-ip IP,IP… (adresses ou réseaux 10.0.0.0/8 séparés par des virgules, vide = aucune ; actuel : "
 
 msgid "Address(es) refused: "
-msgstr "Adresse(s) refusée(s) : "
+msgstr "Adresses refusées : "
 
 msgid "— nothing is changed."
 msgstr "— rien n'est changé."
@@ -598,8 +598,8 @@ msgstr "--accentuate-group NOM (étiquette de contact Odoo, vide = aucune ; actu
 msgid "--accentuate-group: none"
 msgstr "--accentuate-group : aucun"
 
-msgid "account(s) (the following lines): "
-msgstr "compte(s) (les lignes suivantes) : "
+msgid "accounts (the following lines): "
+msgstr "comptes (les lignes suivantes) : "
 
 msgid "--chime N (0 = any error, 1 = 4xx, 2 = 5xx and 4xx, n = no beep; current: "
 msgstr "--chime N (0 = toute erreur, 1 = 4xx, 2 = 5xx et 4xx, n = aucun bip ; actuel : "
@@ -770,8 +770,8 @@ msgstr "--lines doit être positif, --days compris entre 0 (tout) et 36500, --id
 msgid "--time-report must be between 0 and 1440 minutes"
 msgstr "--time-report doit être compris entre 0 et 1440 minutes"
 
-msgid "--exclude-ip: invalid address(es) or network(s): "
-msgstr "--exclude-ip : adresse(s) ou réseau(x) invalide(s) : "
+msgid "--exclude-ip: invalid address(es) or networks: "
+msgstr "--exclude-ip : adresses ou réseau(x) invalides : "
 
 msgid "must be between 4 and 200"
 msgstr "doit être compris entre 4 et 200"
@@ -807,13 +807,13 @@ msgid "(up to 3 minutes)"
 msgstr "(jusqu'à 3 minutes)"
 
 msgid "address(es) known from a sign-in to the site (in "
-msgstr "adresse(s) connue(s) par une connexion au site (en "
+msgstr "adresses connues par une connexion au site (en "
 
 msgid "Group « "
 msgstr "Groupe « "
 
-msgid "account(s) shown in "
-msgstr "compte(s) affiché(s) en "
+msgid "accounts shown in "
+msgstr "comptes affichés en "
 
 msgid "bold white on dark blue "
 msgstr "blanc gras sur bleu foncé "
@@ -857,8 +857,8 @@ msgstr "adresse d'un lieu"
 msgid "slow duration"
 msgstr "durée lente"
 
-msgid "Figures after the HTTP code — Odoo: « 200 - 105 0.046 0.426 » = response size in bytes (« - »: unknown) · number of SQL queries · SQL time (s) · Python time (s); websocket: « 101 494 14.602 » = size · connection duration (s, long by nature)"
-msgstr "Chiffres après le code HTTP — Odoo : « 200 - 105 0.046 0.426 » = taille de la réponse en octets (« - » : inconnue) · nombre de requêtes SQL · temps SQL (s) · temps Python (s) ; websocket : « 101 494 14.602 » = taille · durée de la connexion (s, longue par nature)"
+msgid "Figures after the HTTP code — Odoo: « 200 - 105 0.046 0.426 » = response size in bytes (« - »: unknown) · number of SQL queries · SQL time s · Python time s; websocket: « 101 494 14.602 » = size · connection duration (s, long by nature)"
+msgstr "Chiffres après le code HTTP — Odoo : « 200 - 105 0.046 0.426 » = taille de la réponse en octets (« - » : inconnue) · nombre de requêtes SQL · temps SQL s · temps Python s ; websocket : « 101 494 14.602 » = taille · durée de la connexion (s, longue par nature)"
 
 msgid "SQL queries ≥ "
 msgstr "requêtes SQL ≥ "
@@ -941,20 +941,20 @@ msgstr "s · 95e centile "
 msgid "s · maximum "
 msgstr "s · maximum "
 
-msgid "visit(s) · "
-msgstr "visite(s) · "
+msgid "visits · "
+msgstr "visites · "
 
-msgid "page(s) viewed · "
-msgstr "page(s) vue(s) · "
+msgid "pages viewed · "
+msgstr "pages vues · "
 
-msgid "visitor(s) ["
-msgstr "visiteur(s) ["
+msgid "visitors ["
+msgstr "visiteurs ["
 
-msgid "known person(s) · "
-msgstr "personne(s) connue(s) · "
+msgid "known persons · "
+msgstr "personnes connues · "
 
 msgid "anonymous] · "
-msgstr "anonyme(s)] · "
+msgstr "anonymes] · "
 
 msgid "Banned addresses seen: "
 msgstr "Adresses bannies vues : "
@@ -971,8 +971,8 @@ msgstr "sur "
 msgid "HTTP codes: "
 msgstr "Codes HTTP : "
 
-msgid "page(s)): "
-msgstr "page(s)) : "
+msgid "pages): "
+msgstr "pages) : "
 
 msgid "URL: "
 msgstr "URL : "
@@ -992,8 +992,8 @@ msgstr "(dont disque "
 msgid "CPU "
 msgstr "CPU "
 
-msgid "thread(s)"
-msgstr "thread(s)"
+msgid "threads"
+msgstr "threads"
 
 msgid "Excluded addresses (--exclude-ip): "
 msgstr "Adresses exclues (--exclude-ip) : "
@@ -1007,14 +1007,14 @@ msgstr "← lente : "
 msgid "Activity: "
 msgstr "Activité : "
 
-msgid "visitor(s) ("
-msgstr "visiteur(s) ("
+msgid "visitors ("
+msgstr "visiteurs ("
 
 msgid "real, "
-msgstr "vrai(s), "
+msgstr "vrais, "
 
-msgid "bot(s))"
-msgstr "robot(s))"
+msgid "bots)"
+msgstr "robots)"
 
 msgid "Level "
 msgstr "Niveau "
@@ -1040,8 +1040,8 @@ msgstr " ; touches 1 à 9 à la volée)"
 msgid "--level must be between 1 and "
 msgstr "--level doit être compris entre 1 et "
 
-msgid "request(s)"
-msgstr "requête(s)"
+msgid "requests"
+msgstr "requêtes"
 
 msgid "Recommendations from web-monitor.py: "
 msgstr "Recommandations de web-monitor.py : "
@@ -1082,8 +1082,8 @@ msgstr "personnes connues : "
 msgid "this server: "
 msgstr "ce serveur : "
 
-msgid "… and {n} other slow request(s)"
-msgstr "… et {n} autre(s) requête(s) lente(s)"
+msgid "… and {n} other slow requests"
+msgstr "… et {n} autres requêtes lentes"
 
 msgid "already banned"
 msgstr "déjà bannie"
@@ -1127,8 +1127,8 @@ msgstr "% (total "
 msgid "s over "
 msgstr "s sur "
 
-msgid "request(s))"
-msgstr "requête(s))"
+msgid "requests)"
+msgstr "requêtes)"
 
 msgid "s in total, the worst "
 msgstr "s en tout, la pire "
@@ -1184,8 +1184,8 @@ msgstr "(logfile de la configuration d'Odoo)"
 msgid ") : since "
 msgstr ") : depuis "
 
-msgid "response(s):"
-msgstr "réponse(s) :"
+msgid "responses:"
+msgstr "réponses :"
 
 msgid "GB) on "
 msgstr "Go) sur "
@@ -1214,8 +1214,8 @@ msgstr "Go libres seulement (seuil "
 msgid "Pages not found (404) "
 msgstr "Pages introuvables (404) "
 
-msgid "page(s), "
-msgstr "page(s), "
+msgid "pages, "
+msgstr "pages, "
 
 msgid "/var/log/journal"
 msgstr "/var/log/journal"
@@ -1352,8 +1352,8 @@ msgstr "— le site répond (pas de page de maintenance)."
 msgid "──── Site diagnosis (maintenance page, service, ports, nginx) ────"
 msgstr "──── Diagnostic du site (page de maintenance, service, ports, nginx) ────"
 
-msgid "problem(s): fix them in the order above (the first is the most likely), then press the D key again."
-msgstr "problème(s) : corriger dans l'ordre ci-dessus (le premier est le plus probable), puis relancer la touche D."
+msgid "problems: fix them in the order above (the first is the most likely), then press the D key again."
+msgstr "problèmes : corriger dans l'ordre ci-dessus (le premier est le plus probable), puis relancer la touche D."
 
 msgid "⇒ Everything answers. If your browser still shows the maintenance page: Ctrl+Shift+R (cache), or purge the cache of the CDN / proxy in front of the site."
 msgstr "⇒ Tout répond. Si votre navigateur affiche encore la maintenance : Ctrl+Maj+R (cache), ou purger le cache du CDN / proxy placé devant le site."
@@ -1424,8 +1424,8 @@ msgstr "est-il servi et ouvert (nginx démarré, pare-feu) ? Pour un autre serve
 msgid ": valid but expires in "
 msgstr " : valide mais expire dans "
 
-msgid "day(s) (issued by "
-msgstr "jour(s) (émis par "
+msgid "days (issued by "
+msgstr "jours (émis par "
 
 msgid "Automatic renewal is not working: certbot renew --dry-run; systemctl status certbot.timer."
 msgstr "Le renouvellement automatique ne fonctionne pas : certbot renew --dry-run ; systemctl status certbot.timer."
@@ -1467,7 +1467,7 @@ msgid "With --diagnose (or the D key): also check the certificate seen by the In
 msgstr "Avec --diagnose (ou la touche D) : vérifier aussi le certificat vu par Internet de ce nom (répétable), même s'il est servi par un AUTRE serveur"
 
 msgid "address(es) including "
-msgstr "adresse(s) dont "
+msgstr "adresses dont "
 
 msgid "Survey « "
 msgstr "Sondage « "
@@ -1475,14 +1475,14 @@ msgstr "Sondage « "
 msgid "access(es) · "
 msgstr "accès · "
 
-msgid "answer submission(s)"
-msgstr "envoi(s) de réponses"
+msgid "answer submissions"
+msgstr "envois de réponses"
 
 msgid "Watches the requests whose URL contains TEXT (comma = several; no value: registration, the event registrations): count, errors, median / 95th percentile / maximum duration, slow requests (--slow) and confirmed registrations, in Ctrl-G, Ctrl-T and the health state; most viewed pages with their visitors and robots, and for /survey/ addresses each survey (title read from PostgreSQL, ticket included) with its accesses and submissions (e.g. --watch journee-portes-ouvertes,/survey/)"
 msgstr "Surveille les requêtes dont l'URL contient TEXTE (virgule = plusieurs ; sans valeur : registration, les inscriptions aux événements) : nombre, erreurs, durée médiane / 95e centile / maximum, lenteurs (--slow) et inscriptions confirmées, dans Ctrl-G, Ctrl-T et l'état de santé ; pages les plus vues avec leurs visiteurs et robots, et pour les adresses /survey/ chaque sondage (titre lu dans PostgreSQL, billet compris) avec ses accès et envois (ex. --watch journee-portes-ouvertes,/survey/)"
 
-msgid "core(s) · swap used "
-msgstr "cœur(s) · swap utilisé "
+msgid "cores · swap used "
+msgstr "cœurs · swap utilisé "
 
 msgid "Python alone is to blame (not the database): right now "
 msgstr "Python seul en cause (pas la base) : à cet instant "
@@ -1511,8 +1511,8 @@ msgstr "vues ou menus recompilés (cache d'Odoo à froid) : normal une fois par 
 msgid "slow requests are assets or views (cold Odoo cache): Odoo has probably just restarted or been updated; they should no longer be slow on the second pass"
 msgstr "requêtes lentes sont des assets ou des vues (cache d'Odoo à froid) : Odoo vient probablement de redémarrer ou d'être mis à jour ; elles ne devraient plus être lentes au deuxième passage"
 
-msgid "ZFS volume(s) (real type: that of the pool disks)"
-msgstr "volume(s) ZFS (type réel : celui des disques du pool)"
+msgid "ZFS volumes (real type: that of the pool disks)"
+msgstr "volumes ZFS (type réel : celui des disques du pool)"
 
 msgid "server saturated (load equal to or above the number of cores)"
 msgstr "serveur saturé (charge égale ou supérieure au nombre de cœurs)"
@@ -1538,14 +1538,14 @@ msgstr "fait ce travail."
 msgid "(finds the old name in nginx, replaces it, obtains the certificate, reloads nginx)."
 msgstr "(trouve l'ancien nom dans nginx, le remplace, obtient le certificat, recharge nginx)."
 
-msgid "⚠ addons_path: folder(s) not found: "
-msgstr "⚠ addons_path : dossier(s) introuvable(s) : "
+msgid "⚠ addons_path: folders not found: "
+msgstr "⚠ addons_path : dossiers introuvables : "
 
 msgid ") : reading PostgreSQL is impossible (root required, or database inaccessible)."
 msgstr ") : lecture de PostgreSQL impossible (root requis, ou base inaccessible)."
 
 msgid "installed"
-msgstr "installé(s)"
+msgstr "installés"
 
 msgid "installed "
 msgstr "installé "
@@ -1595,8 +1595,8 @@ msgstr "» ---\n"
 msgid "the journal has lines ready but the reader thread does not take them"
 msgstr "le journal a des lignes prêtes mais le fil de lecture ne les prend pas"
 
-msgid "line(s) read are waiting, the display loop does not process them"
-msgstr "ligne(s) lue(s) attendent, la boucle d'affichage ne les traite pas"
+msgid "lines read are waiting, the display loop does not process them"
+msgstr "lignes lues attendent, la boucle d'affichage ne les traite pas"
 
 msgid ") : no progress for "
 msgstr ") : aucun progrès depuis "
@@ -1709,8 +1709,8 @@ msgstr "INTROUVABLE(S) sur le disque : "
 msgid "— Odoo cannot load them: check addons_path or put the module back"
 msgstr "— Odoo ne peut pas les charger : vérifier addons_path ou remettre le module"
 
-msgid "version(s) different from the disk: "
-msgstr "version(s) différente(s) du disque : "
+msgid "versions different from the disk: "
+msgstr "versions différentes du disque : "
 
 msgid "(or odoo-update-module.sh)"
 msgstr "(ou odoo-update-module.sh)"
@@ -1760,8 +1760,8 @@ msgstr "[N] non : "
 msgid "Save? [o] yes  [p] in my personal file "
 msgstr "Sauvegarder ? [o] oui  [p] dans mon fichier personnel "
 
-msgid "setting(s) written into "
-msgstr "réglage(s) écrit(s) dans "
+msgid "settings written into "
+msgstr "réglages écrits dans "
 
 msgid "— run again as root (sudo), or answer « p » for the personal file."
 msgstr "— relancer en root (sudo), ou répondre « p » pour le fichier personnel."
@@ -1862,11 +1862,11 @@ msgstr "ERREUR : apps/_limites.py est absent."
 msgid "At startup, first shows the tracking of custom (non-standard) modules (the rlq* with their version, then the others not by Odoo S.A.), sorted according to --modules-sort; L key to see them later"
 msgstr "Au démarrage, affiche d'abord le suivi des modules customs non-standard (les rlq* avec leur version, puis les autres hors Odoo S.A.), triés selon --modules-sort ; touche L pour les voir plus tard"
 
-msgid "other(s) not by Odoo S.A."
-msgstr "autre(s) hors Odoo S.A."
+msgid "others not by Odoo S.A."
+msgstr "autres hors Odoo S.A."
 
 msgid "installed, with their version"
-msgstr "installé(s), avec leur version"
+msgstr "installés, avec leur version"
 
 msgid "(last modification, local time):"
 msgstr "(dernière modification, heure locale) :"
@@ -1892,17 +1892,17 @@ msgstr "aucun groupe dont le nom commence par RLQ"
 msgid "number of members of each Odoo RLQ* group (also in the final summary, Ctrl-C)"
 msgstr "nombre de membres de chaque groupe RLQ* d'Odoo (aussi dans le résumé de fin, Ctrl-C)"
 
-msgid "group(s), "
-msgstr "groupe(s), "
+msgid "groups, "
+msgstr "groupes, "
 
-msgid "membership(s)"
-msgstr "appartenance(s)"
+msgid "memberships"
+msgstr "appartenances"
 
 msgid "(active accounts):"
 msgstr "(comptes actifs) :"
 
-msgid "member(s)"
-msgstr "membre(s)"
+msgid "members"
+msgstr "membres"
 
 msgid "WARNING {problem}"
 msgstr "ATTENTION {problem}"
@@ -1913,8 +1913,8 @@ msgstr "ERREUR : --accentuate-group : {err}"
 msgid "WARNING: --accentuate-group: {err}"
 msgstr "ATTENTION : --accentuate-group : {err}"
 
-msgid "load {load:.1f} out of {cores} core(s) · swap used {swap} MB · memory available {mem:.1f} GB"
-msgstr "charge {load:.1f} sur {cores} cœur(s) · swap utilisé {swap} Mo · mémoire disponible {mem:.1f} Go"
+msgid "load {load:.1f} out of {cores} cores · swap used {swap} MB · memory available {mem:.1f} GB"
+msgstr "charge {load:.1f} sur {cores} cœurs · swap utilisé {swap} Mo · mémoire disponible {mem:.1f} Go"
 
 msgid "nginx presents a SELF-SIGNED certificate for this name (often the fallback « snakeoil » certificate of a default server block): this name's server block is missing or its ssl_certificate is wrong. Check: nginx -T | grep -n -B2 -A12 'server_name {name}' ; then issue the real certificate: certbot --nginx -d {name} (or certbot certonly --webroot -w /var/www/letsencrypt -d {name}) and nginx -t && systemctl reload nginx. If the DNS name has just CHANGED (e.g. odoo-lab → odoo): nginx-hardening.sh --update --rename-to {name} does this work."
 msgstr "nginx présente un certificat AUTO-SIGNÉ pour ce nom (souvent le certificat de secours « snakeoil » d'un bloc server par défaut) : le bloc server de ce nom manque ou son ssl_certificate est faux. Vérifier : nginx -T | grep -n -B2 -A12 'server_name {name}' ; puis émettre le vrai certificat : certbot --nginx -d {name} (ou certbot certonly --webroot -w /var/www/letsencrypt -d {name}) et nginx -t && systemctl reload nginx. Si le nom DNS vient de CHANGER (ex. odoo-lab → odoo) : nginx-hardening.sh --update --rename-to {name} fait ce travail."
@@ -1934,8 +1934,8 @@ msgstr "Dans {file} : remplacer « server 127.0.0.1:{port}; » par « server 127
 msgid "Odoo modules"
 msgstr "Modules d'Odoo"
 
-msgid "database(s)"
-msgstr "base(s)"
+msgid "databases"
+msgstr "bases"
 
 msgid "(first, with their version) then "
 msgstr "(en premier, avec leur version) puis "
@@ -1950,7 +1950,7 @@ msgid "where the journals are written — risk of Odoo, nginx and the database s
 msgstr "où s'écrivent les journaux — risque d'arrêt d'Odoo, de nginx et de la base de données"
 
 msgid "shown above without name:"
-msgstr "affichée(s) plus haut sans nom :"
+msgstr "affichées plus haut sans nom :"
 
 msgid "Value refused « {value} »: a number between {mini} and {maximum} is expected."
 msgstr "Valeur refusée « {value} » : un nombre entre {mini} et {maximum} est attendu."
@@ -1994,11 +1994,11 @@ msgstr "(avant : "
 msgid "Modules sort: n name · d modification date · c creation · v version · a author · e state; capital letter or leading - = reverse order; p = non-Odoo S.A. only, all = all (current: "
 msgstr "Tri des modules : n nom · d date de modification · c création · v version · a auteur · e état ; majuscule ou - devant = ordre inverse ; p = non-Odoo S.A. seulement, tous = tous (actuel : "
 
-msgid "Address cache: {pct:.0f} % of the {total} request(s) without outside lookup — {mem} already seen in this session, {cache} in the permanent cache, {fast} by the lists (person, team, this server), {dns} DNS lookup(s), {rdap} RDAP ({permanent})"
-msgstr "Cache des adresses : {pct:.0f} % des {total} demande(s) sans recherche extérieure — {mem} déjà vue(s) dans cette session, {cache} dans le cache permanent, {fast} par les listes (personne, équipe, ce serveur), {dns} recherche(s) DNS, {rdap} RDAP ({permanent})"
+msgid "Address cache: {pct:.0f} % of the {total} requests without outside lookup — {mem} already seen in this session, {cache} in the permanent cache, {fast} by the lists (person, team, this server), {dns} DNS lookups, {rdap} RDAP ({permanent})"
+msgstr "Cache des adresses : {pct:.0f} % des {total} demandes sans recherche extérieure — {mem} déjà vues dans cette session, {cache} dans le cache permanent, {fast} par les listes (personne, équipe, ce serveur), {dns} recherches DNS, {rdap} RDAP ({permanent})"
 
-msgid "; countries: {known} out of {total} already known, {lookups} lookup(s)"
-msgstr "; pays : {known} sur {total} déjà connu(s), {lookups} recherche(s)"
+msgid "; countries: {known} out of {total} already known, {lookups} lookups"
+msgstr "; pays : {known} sur {total} déjà connus, {lookups} recherches"
 
 msgid "permanent cache active"
 msgstr "cache permanent actif"
@@ -2033,11 +2033,11 @@ msgstr "pare-feu"
 msgid "{cold} of the {total} slow requests are assets or views (cold Odoo cache): Odoo has probably just restarted or been updated; they should no longer be slow on the second pass"
 msgstr "{cold} des {total} requêtes lentes sont des assets ou des vues (cache d'Odoo à froid) : Odoo vient probablement de redémarrer ou d'être mis à jour ; elles ne devraient plus être lentes au deuxième passage"
 
-msgid "Visitors: {total} address(es) including {robots} probable robot(s)"
-msgstr "Visiteurs : {total} adresse(s) dont {robots} robot(s) probable(s)"
+msgid "Visitors: {total} address(es) including {robots} probable robots"
+msgstr "Visiteurs : {total} adresses dont {robots} robots probables"
 
-msgid "page(s) seen"
-msgstr "page(s) vue(s)"
+msgid "pages seen"
+msgstr "pages vues"
 
 msgid "⚠ beep: "
 msgstr "⚠ bip : "
@@ -2090,11 +2090,11 @@ msgstr "Groupes RLQ* (base "
 msgid "RLQ* groups (database "
 msgstr "Groupes RLQ* (base "
 
-msgid "installed module(s)"
-msgstr "installé(s)"
+msgid "installed modules"
+msgstr "installés"
 
-msgid "──── {heading} ({name} v{version}) : since {start} for {duration} · {lines} line(s) shown · {requests} request(s) ────"
-msgstr "──── {heading} ({name} v{version}) : depuis {start} pendant {duration} · {lines} ligne(s) affichée(s) · {requests} requête(s) ────"
+msgid "──── {heading} ({name} v{version}) : since {start} for {duration} · {lines} lines shown · {requests} requests ────"
+msgstr "──── {heading} ({name} v{version}) : depuis {start} pendant {duration} · {lines} lignes affichées · {requests} requêtes ────"
 
 msgid "--only TEXT"
 msgstr "--only TEXTE"
@@ -2105,8 +2105,8 @@ msgstr "--highlight MOTS"
 msgid "--watch TEXT"
 msgstr "--watch TEXTE"
 
-msgid "{gap} ago · {n} request(s) seen"
-msgstr "il y a {gap} · {n} requête(s) vue(s)"
+msgid "{gap} ago · {n} requests seen"
+msgstr "il y a {gap} · {n} requêtes vues"
 
 msgid "⚠ Watchdog ({name} v{version}) : no progress for {delay} s — {case}. Stack of the blocked thread (copy it):"
 msgstr "⚠ Chien de garde ({name} v{version}) : aucun progrès depuis {delay} s — {case}. Pile du fil bloqué (à copier) :"
@@ -2114,8 +2114,8 @@ msgstr "⚠ Chien de garde ({name} v{version}) : aucun progrès depuis {delay} s
 msgid "What to do: "
 msgstr "Quoi faire : "
 
-msgid "visitor(s) · "
-msgstr "visiteur(s) · "
+msgid "visitors · "
+msgstr "visiteurs · "
 
 msgid "Database {name}:"
 msgstr "Base {name} :"
@@ -2282,9 +2282,6 @@ msgstr "écriture "
 msgid "Per hour"
 msgstr "Par heure"
 
-msgid "requests"
-msgstr "requêtes"
-
 msgid "median"
 msgstr "médiane"
 
@@ -2333,20 +2330,20 @@ msgstr "Billet « {ticket} »"
 msgid "Without ticket"
 msgstr "Sans billet"
 
-msgid " → survey « {survey} »: {n} active registration(s) — "
-msgstr " → sondage « {survey} » : {n} inscription(s) active(s) — "
+msgid " → survey « {survey} »: {n} active registrations — "
+msgstr " → sondage « {survey} » : {n} inscriptions actives — "
 
 msgid "{n} confirmed"
-msgstr "{n} confirmée(s)"
+msgstr "{n} confirmées"
 
 msgid "{n} unfinished"
-msgstr "{n} non terminée(s)"
+msgstr "{n} non terminées"
 
 msgid "{n} without survey"
 msgstr "{n} sans sondage"
 
-msgid ": no survey linked to this ticket — {n} active registration(s)"
-msgstr " : aucun sondage lié à ce billet — {n} inscription(s) active(s)"
+msgid ": no survey linked to this ticket — {n} active registrations"
+msgstr " : aucun sondage lié à ce billet — {n} inscriptions actives"
 
 msgid "cancelled"
 msgstr "annulée"
@@ -2397,8 +2394,8 @@ msgstr " (VERSION modifié le "
 msgid "  Latest changes of the nginx configuration (README.md journal, "
 msgstr "  Dernières modifications de la configuration nginx (journal README.md, "
 
-msgid " dated line(s)):"
-msgstr " ligne(s) datée(s)) :"
+msgid " dated lines):"
+msgstr " lignes datées) :"
 
 msgid "  Deployed under "
 msgstr "  Déployé sous "
@@ -2430,8 +2427,8 @@ msgstr "/VERSION) — version inconnue"
 msgid "  Most recently modified files of "
 msgstr "  Fichiers modifiés le plus récemment dans "
 
-msgid " file(s)):"
-msgstr " fichier(s)) :"
+msgid " files):"
+msgstr " fichiers) :"
 
 msgid ": no configuration file readable (root required?)"
 msgstr " : aucun fichier de configuration lisible (root nécessaire ?)"
@@ -2556,8 +2553,8 @@ msgstr "fin du flux"
 msgid "end of --record-test-log"
 msgstr "fin de --record-test-log"
 
-msgid "Recording stopped ({reason}): {seconds} s, {kept} line(s) kept, {noise} noise line(s) left out"
-msgstr "Enregistrement arrêté ({reason}) : {seconds} s, {kept} ligne(s) gardée(s), {noise} ligne(s) de bruit laissée(s) de côté"
+msgid "Recording stopped ({reason}): {seconds} s, {kept} lines kept, {noise} noise lines left out"
+msgstr "Enregistrement arrêté ({reason}) : {seconds} s, {kept} lignes gardées, {noise} lignes de bruit laissées de côté"
 
 msgid "Archive to send for analysis: {path} ({size})"
 msgstr "Archive à envoyer pour analyse : {path} ({size})"
@@ -2666,8 +2663,8 @@ msgstr " identifiées, "
 msgid " by address only"
 msgstr " seulement par adresse"
 
-msgid " name(s) not shown"
-msgstr " nom(s) non affiché(s)"
+msgid " names not shown"
+msgstr " noms non affichés"
 
 msgid "default language of the site"
 msgstr "langue par défaut du site"
@@ -2760,8 +2757,8 @@ msgstr "Barre d'état : compteurs remis à zéro (nouvelle période à partir de
 msgid "Nothing to refresh yet (the buffer keeps the last lines displayed: --buffer N)."
 msgstr "Rien à rafraîchir pour l'instant (le tampon garde les dernières lignes affichées : --buffer N)."
 
-msgid "──── last {n} line(s), displayed again with the current options ────"
-msgstr "──── {n} dernière(s) ligne(s), affichée(s) de nouveau avec les options courantes ────"
+msgid "──── last {n} lines, displayed again with the current options ────"
+msgstr "──── {n} dernières lignes, affichées de nouveau avec les options courantes ────"
 
 msgid "Nothing to print yet (the buffer keeps the last lines displayed: --buffer N)."
 msgstr "Rien à imprimer pour l'instant (le tampon garde les dernières lignes affichées : --buffer N)."
@@ -2775,8 +2772,8 @@ msgstr "Fichier (Entrée = {name}) : "
 msgid "Print failed: {error}"
 msgstr "Impression impossible : {error}"
 
-msgid "{n} line(s) written to {path} (colors kept: less -R {path}; mode 600, names and addresses inside)"
-msgstr "{n} ligne(s) écrite(s) dans {path} (couleurs conservées : less -R {path} ; mode 600, contient des noms et des adresses)"
+msgid "{n} lines written to {path} (colors kept: less -R {path}; mode 600, names and addresses inside)"
+msgstr "{n} lignes écrites dans {path} (couleurs conservées : less -R {path} ; mode 600, contient des noms et des adresses)"
 
 msgid "Last displayed lines kept in memory for the f key (displayed again with the current options) and the P key (printed to a file): 0 = none (default: 200)"
 msgstr "Dernières lignes affichées gardées en mémoire pour la touche f (affichées de nouveau avec les options courantes) et la touche P (imprimées dans un fichier) : 0 = aucune (défaut : 200)"

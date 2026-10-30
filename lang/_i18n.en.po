@@ -32,7 +32,7 @@ msgstr "Anonymizes what is displayed (IP addresses, emails, identifiers, tokens)
 msgid " du fichier de configuration"
 msgstr " from the configuration file"
 
-msgid " ignorée(s)"
+msgid " ignorées"
 msgstr " ignored"
 
 msgid "défaut (aucune variable LANGUAGE, LC_ALL, LC_MESSAGES ni LANG)"

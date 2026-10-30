@@ -114,9 +114,9 @@ listes_resume() {
     fb=$(listes_fichier_blanche); lieux=$(listes_fichiers_lieux | paste -sd, - | sed 's/,/, /g')
     nb=$(listes_blanche | listes_valides | grep -c . || true); nl=$(listes_lieux | listes_valides | grep -c . || true)
     if [[ -n "$fb" ]]; then
-        a="liste blanche $fb ($nb adresse(s))"
+        a="liste blanche $fb ($nb adresses)"
         if [[ "$fb" == */apps/team-ips.list ]]; then a+=" — ANCIEN emplacement, à migrer : nginx-hardening.sh --update"; fi
     else a="liste blanche : aucun fichier"; fi
-    if [[ -n "$lieux" ]]; then b="lieux $lieux ($nl plage(s))"; else b="lieux : aucun fichier"; fi
+    if [[ -n "$lieux" ]]; then b="lieux $lieux ($nl plages)"; else b="lieux : aucun fichier"; fi
     printf 'Listes : %s ; %s\n' "$a" "$b"
 }

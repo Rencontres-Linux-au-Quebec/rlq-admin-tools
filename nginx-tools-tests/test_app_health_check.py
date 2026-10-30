@@ -213,7 +213,7 @@ class CertificatTLS(EnvTest):
         port, ca = self.serveur(10)
         label, ok, detail = self.verifier(port, ca)
         self.assertIs(ok, False)
-        self.assertRegex(detail, r"expires in (9|10) day\(s\).*certbot renew --dry-run")
+        self.assertRegex(detail, r"expires in (9|10) days.*certbot renew --dry-run")
         port, _ = self.serveur(60)
         label, ok, detail = self.verifier(port, ca)                        # authority not recognized
         self.assertIs(ok, False)
@@ -375,7 +375,7 @@ class ProgrammeComplet(EnvTest):
     def test_sans_smtp_jusqu_au_bout(self):
         rc, out, err = self.lancer()
         self.assertNotIn("Traceback", err)
-        self.assertRegex(out, r"Résumé : \d+ échec\(s\) sur \d+ vérification\(s\)\.")
+        self.assertRegex(out, r"Résumé : \d+ échecs sur \d+ vérifications\.")
         self.assertNotIn("\x1b[", out)                                   # captured output: never color
         self.assertIn("Rapport app-health-check.py v", out)
 
@@ -406,7 +406,7 @@ class ProgrammeComplet(EnvTest):
         self.assertNotIn("aucun fichier de config trouve", err)
         self.assertIn(f"Aucune configuration : création de {defaut}app-health-check.conf", out)
         self.assertTrue(os.path.isfile(defaut + "app-health-check.conf"))
-        self.assertRegex(out, r"Résumé : \d+ échec\(s\)")
+        self.assertRegex(out, r"Résumé : \d+ échecs")
         self.assertNotIn("Traceback", err)
         rc, out, err = self.run_cmd(["python3", prog, "--target", "local"])
         self.assertNotIn("Aucune configuration", out)                       # une seule fois
@@ -415,14 +415,14 @@ class ProgrammeComplet(EnvTest):
         spec = importlib.util.spec_from_file_location("ahc", script_path("app-health-check.py"))
         m = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(m)
-        texte = "[OK  ] site\n[SKIP] oauth\n[FAIL] tls\n[ATTN] dmarc\nSummary: 1 failure(s) out of 4 check(s)."
+        texte = "[OK  ] site\n[SKIP] oauth\n[FAIL] tls\n[ATTN] dmarc\nSummary: 1 failures out of 4 checks."
         c = m.color(texte, tty=True)
         self.assertIn("\x1b[1;32m[OK  ]\x1b[0m", c)
         self.assertIn("\x1b[1;33m[SKIP]\x1b[0m", c)
         self.assertIn("\x1b[1;31m[FAIL]\x1b[0m", c)
         self.assertIn("\x1b[1;33m[ATTN]\x1b[0m", c)
-        self.assertIn("\x1b[1;31m1 failure(s)\x1b[0m", c)
-        self.assertIn("\x1b[1;32m0 failure(s)\x1b[0m", m.color("Summary: 0 failure(s) out of 4 check(s).", tty=True))
+        self.assertIn("\x1b[1;31m1 failures\x1b[0m", c)
+        self.assertIn("\x1b[1;32m0 failures\x1b[0m", m.color("Summary: 0 failures out of 4 checks.", tty=True))
         self.assertEqual(m.color(texte, tty=False), texte)
 
 
@@ -525,7 +525,7 @@ class ConfigurationEnCouches(EnvTest):
             return f.getvalue()
         out = rendu([a, b])
         self.assertIn(f"Configuration lue : {a}, puis {b} (le dernier l'emporte)", sans_date(out))
-        self.assertIn("Options : --lang fr · site www.exemple.org + 2 autre(s) nom(s) · instance non publique : yes · connexion Google attendue : yes"
+        self.assertIn("Options : --lang fr · site www.exemple.org + 2 autres noms · instance non publique : yes · connexion Google attendue : yes"
                       " · courriel : smtp.exemple.org:465 → admin@exemple.org · tests fonctionnels (JSON-RPC) : identifiants configurés", sans_origine(out))
         out = rendu([a], explicite=True)
         self.assertIn(f"{a} (demandé par -c/--config : aucun autre fichier n'est lu)", sans_date(out))

@@ -270,8 +270,8 @@ msgstr " : fail2ban history (fail2ban.log and its rotations)"
 msgid "    aucun bannissement ni détection dans les journaux de fail2ban conservés"
 msgstr "    no ban or detection in the retained fail2ban logs"
 
-msgid " détection(s)"
-msgstr " detection(s)"
+msgid " détections"
+msgstr " detections"
 
 msgid "récidive : "
 msgstr "repeat offender: "
@@ -291,8 +291,8 @@ msgstr "  Requests received by nginx (logs and rotations)"
 msgid " : journaux du capteur catch-all"
 msgstr " : catch-all sensor logs"
 
-msgid " requête(s)"
-msgstr " request(s)"
+msgid " requêtes"
+msgstr " requests"
 
 msgid " (jours : "
 msgstr " (days: "
@@ -303,11 +303,11 @@ msgstr ") — raw IP address or unknown domain:"
 msgid "      aucun visiteur légitime ne passe par là (il arrive par le nom du site). Exemples :"
 msgstr "      no legitimate visitor comes this way (they arrive by the site name). Examples:"
 
-msgid " requête(s) au capteur catch-all (IP brute ou domaine inconnu), sur "
-msgstr " request(s) to the catch-all sensor (raw IP or unknown domain), over "
+msgid " requêtes au capteur catch-all (IP brute ou domaine inconnu), sur "
+msgstr " requests to the catch-all sensor (raw IP or unknown domain), over "
 
-msgid " jour(s)"
-msgstr " day(s)"
+msgid " jours"
+msgstr " days"
 
 msgid "    Capteur catch-all : aucune requête"
 msgstr "    Catch-all sensor: no request"
@@ -315,20 +315,20 @@ msgstr "    Catch-all sensor: no request"
 msgid " : journaux du site ("
 msgstr " : site logs ("
 
-msgid " fichier(s) et leurs rotations, un à la fois)"
-msgstr " file(s) and their rotations, one at a time)"
+msgid " fichiers et leurs rotations, un à la fois)"
+msgstr " files and their rotations, one at a time)"
 
-msgid " requête(s), dont "
-msgstr " request(s), of which "
+msgid " requêtes, dont "
+msgstr " requests, of which "
 
 msgid " d'accès à des fichiers sensibles ou à des failles et "
 msgstr " accesses to sensitive files or vulnerabilities and "
 
-msgid " tentative(s) d'accès à des fichiers sensibles ou à des failles sur le site"
-msgstr " attempt(s) to reach sensitive files or vulnerabilities on the site"
+msgid " tentatives d'accès à des fichiers sensibles ou à des failles sur le site"
+msgstr " attempts to reach sensitive files or vulnerabilities on the site"
 
-msgid " page(s) du site servie(s) avec succès : l'enquête ci-dessous dit s'il s'agit d'un robot légitime"
-msgstr " page(s) of the site served successfully: the investigation below says whether this is a legitimate robot"
+msgid " pages du site servies avec succès : l'enquête ci-dessous dit s'il s'agit d'un robot légitime"
+msgstr " pages of the site served successfully: the investigation below says whether this is a legitimate robot"
 
 msgid "    Site : aucune requête (les requêtes REFUSÉES par nginx ne sont pas dans ces journaux : voir ci-dessous)"
 msgstr "    Site: no request (requests REFUSED by nginx are not in these logs: see below)"
@@ -345,8 +345,8 @@ msgstr ") — this is what the nginx-blocked-probes jail sees."
 msgid "      Pages demandées (fichiers sensibles, failles, outils d'attaque) :"
 msgstr "      Pages requested (sensitive files, vulnerabilities, attack tools):"
 
-msgid " requête(s) refusée(s) par nginx (fichiers sensibles, failles, outils d'attaque), sur "
-msgstr " request(s) refused by nginx (sensitive files, vulnerabilities, attack tools), over "
+msgid " requêtes refusées par nginx (fichiers sensibles, failles, outils d'attaque), sur "
+msgstr " requests refused by nginx (sensitive files, vulnerabilities, attack tools), over "
 
 msgid "    Requêtes refusées par nginx (blocked-probes.log) : aucune dans les journaux conservés"
 msgstr "    Requests refused by nginx (blocked-probes.log): none in the retained logs"
@@ -357,11 +357,11 @@ msgstr "  System log (non-nginx jails: "
 msgid " : journal systemd (100 jours, jusqu'à 30 s)"
 msgstr " : systemd journal (100 days, up to 30 s)"
 
-msgid " ligne(s)"
-msgstr " line(s)"
+msgid " lignes"
+msgstr " lines"
 
-msgid " ligne(s) du journal système ("
-msgstr " line(s) of the system log ("
+msgid " lignes du journal système ("
+msgstr " lines of the system log ("
 
 msgid " : tentatives de connexion)"
 msgstr " : login attempts)"
@@ -399,8 +399,8 @@ msgstr " — some elements speak against it (see also the investigation below)."
 msgid "Lecture du journal systemd d'Odoo : connexions des 100 derniers jours (jusqu'à 60 s)"
 msgstr "Reading the Odoo systemd journal: logins of the last 100 days (up to 60 s)"
 
-msgid " connexion(s), dernière "
-msgstr " login(s), last "
+msgid " connexions, dernière "
+msgstr " logins, last "
 
 msgid "adresse de boucle locale : le serveur lui-même (app-health-check.py --target local, tests curl)"
 msgstr "local loopback address: the server itself (app-health-check.py --target local, curl tests)"
@@ -579,8 +579,8 @@ msgstr "# nginx-tools — manual bans exported from "
 msgid "# Import : nginx-log-audit.sh --import-bans FICHIER   (IP<TAB>date du bannissement<TAB>serveur d'origine)"
 msgstr "# Import: nginx-log-audit.sh --import-bans FILE   (IP<TAB>ban date<TAB>origin server)"
 
-msgid " bannissement(s) manuel(s) exporté(s) dans "
-msgstr " manual ban(s) exported to "
+msgid " bannissements manuels exportés dans "
+msgstr " manual bans exported to "
 
 msgid "ERREUR: --import-bans nécessite root (pare-feu)."
 msgstr "ERROR: --import-bans requires root (firewall)."
@@ -606,20 +606,20 @@ msgstr "[to ban]"
 msgid " à bannir, "
 msgstr " to ban, "
 
-msgid " déjà bannie(s) ici, "
+msgid " déjà bannies ici, "
 msgstr " already banned here, "
 
-msgid " protégée(s) ici (ignorées), "
+msgid " protégées ici (ignorées), "
 msgstr " protected here (ignored), "
 
-msgid " invalide(s)."
+msgid " invalides."
 msgstr " invalid."
 
 msgid "  Rien à faire."
 msgstr "  Nothing to do."
 
 msgid " IP sur "
-msgstr " IP(s) out of "
+msgstr " IPs out of "
 
 msgid " (blocage au pare-feu, réversible par --unban) ? [o/N] "
 msgstr " (firewall block, reversible with --unban)? [y/N] "
@@ -630,8 +630,8 @@ msgstr "imported"
 msgid "ÉCHEC du bannissement de "
 msgstr "FAILED to ban "
 
-msgid " IP bannie(s) sur "
-msgstr " IP(s) banned out of "
+msgid " IP bannies sur "
+msgstr " IPs banned out of "
 
 msgid "ATTENTION : le setup initial semble incomplet — étapes en échec :"
 msgstr "WARNING: the initial setup looks incomplete — failed steps:"
@@ -675,8 +675,8 @@ msgstr " (not even the expected active file)."
 msgid "Access log — "
 msgstr "Access log — "
 
-msgid " fichier(s) fusionné(s) :"
-msgstr " file(s) merged:"
+msgid " fichiers fusionnés :"
+msgstr " files merged:"
 
 msgid "Error log — "
 msgstr "Error log — "
@@ -732,17 +732,17 @@ msgstr ", address block owner"
 msgid "Enquête sur "
 msgstr "Investigation of "
 
-msgid " requête(s) "
-msgstr " request(s) "
+msgid " requêtes "
+msgstr " requests "
 
-msgid " autre(s) User-Agent(s) — tous visibles avec : nginx-log-audit.sh --investigate "
-msgstr " other User-Agent(s) — all visible with: nginx-log-audit.sh --investigate "
+msgid " autres User-Agents — tous visibles avec : nginx-log-audit.sh --investigate "
+msgstr " other User-Agents — all visible with: nginx-log-audit.sh --investigate "
 
 msgid "      URL demandées :"
 msgstr "      URLs requested:"
 
-msgid " autre(s) URL — toutes visibles avec : nginx-log-audit.sh --investigate "
-msgstr " other URL(s) — all visible with: nginx-log-audit.sh --investigate "
+msgid " autres URL — toutes visibles avec : nginx-log-audit.sh --investigate "
+msgstr " other URLs — all visible with: nginx-log-audit.sh --investigate "
 
 msgid " pages distinctes en 10 s ("
 msgstr " distinct pages in 10 s ("
@@ -753,14 +753,14 @@ msgstr "x) — a human reads one page at a time (assets excluded from the count)
 msgid " Rafale : au plus "
 msgstr " Burst: at most "
 
-msgid " page(s) distincte(s) en 10 s (seuil : "
-msgstr " distinct page(s) in 10 s (threshold: "
+msgid " pages distinctes en 10 s (seuil : "
+msgstr " distinct pages in 10 s (threshold: "
 
 msgid " Outil de script déclaré : "
 msgstr " Declared script tool: "
 
-msgid " requête(s) (bibliothèque HTTP, pas un navigateur)"
-msgstr " request(s) (HTTP library, not a browser)"
+msgid " requêtes (bibliothèque HTTP, pas un navigateur)"
+msgstr " requests (HTTP library, not a browser)"
 
 msgid " Outil de script : aucun"
 msgstr " Script tool: none"
@@ -780,8 +780,8 @@ msgstr " Double identity: no"
 msgid " Recherche de fichiers sensibles : "
 msgstr " Search for sensitive files: "
 
-msgid " requête(s) (ex. "
-msgstr " request(s) (e.g. "
+msgid " requêtes (ex. "
+msgstr " requests (e.g. "
 
 msgid " Taux d'erreurs élevé : "
 msgstr " High error rate: "
@@ -807,8 +807,8 @@ msgstr " Fake search engine: claims to be a robot of "
 msgid " mais la double vérification DNS (inverse puis directe) échoue"
 msgstr " but the double DNS check (reverse then forward) fails"
 
-msgid " tentative(s) par IP brute ou domaine inconnu (typique d'un scanner)"
-msgstr " attempt(s) via raw IP or unknown domain (typical of a scanner)"
+msgid " tentatives par IP brute ou domaine inconnu (typique d'un scanner)"
+msgstr " attempts via raw IP or unknown domain (typical of a scanner)"
 
 msgid " Capteur catch-all : aucune tentative"
 msgstr " Catch-all sensor: no attempt"
@@ -819,8 +819,8 @@ msgstr "[i] Logged in to Odoo with an account (log, 100 days):"
 msgid "[i] Session ouverte dans le back-office : "
 msgstr "[i] Session open in the back office: "
 
-msgid " appel(s) internes (/web/dataset, /mail…) — un utilisateur"
-msgstr " internal call(s) (/web/dataset, /mail…) — a LOGGED-IN"
+msgid " appels internes (/web/dataset, /mail…) — un utilisateur"
+msgstr " internal calls (/web/dataset, /mail…) — a LOGGED-IN"
 
 msgid "          CONNECTÉ, pas un robot anonyme : vérifier de qui il s'agit avant tout bannissement."
 msgstr "          user, not an anonymous robot: check who it is before any ban."
@@ -936,8 +936,8 @@ msgstr "/7, automation only) — see the URLs requested"
 msgid "→ Bannissement JUSTIFIÉ : "
 msgstr "→ Ban JUSTIFIED: "
 
-msgid " signe(s) d'hostilité — le garder."
-msgstr " sign(s) of hostility — keep it."
+msgid " signes d'hostilité — le garder."
+msgstr " signs of hostility — keep it."
 
 msgid "→ Levée RECOMMANDÉE : "
 msgstr "→ Lifting RECOMMENDED: "
@@ -993,8 +993,8 @@ msgstr " — whole history, rotations and .gz included)"
 msgid "Aucun bannissement manuel en place (iptables INPUT « -s IP -j DROP », ufw « deny from »)."
 msgstr "No manual ban in place (iptables INPUT « -s IP -j DROP », ufw « deny from »)."
 
-msgid " bannissement(s) manuel(s) à réévaluer avec la logique actuelle (bannissement justifié seulement"
-msgstr " manual ban(s) to re-evaluate with the current logic (ban justified only"
+msgid " bannissements manuels à réévaluer avec la logique actuelle (bannissement justifié seulement"
+msgstr " manual bans to re-evaluate with the current logic (ban justified only"
 
 msgid "s'il y a au moins un signe d'HOSTILITÉ : rafale, fichiers sensibles, erreurs en masse, faux moteur, capteur catch-all)."
 msgstr "if there is at least one sign of HOSTILITY: burst, sensitive files, mass errors, fake search engine, catch-all sensor)."
@@ -1008,8 +1008,8 @@ msgstr " — banned "
 msgid " — aucune requête sur le site, mais "
 msgstr " — no request on the site, but "
 
-msgid " tentative(s) sur le capteur catch-all"
-msgstr " attempt(s) on the catch-all sensor"
+msgid " tentatives sur le capteur catch-all"
+msgstr " attempts on the catch-all sensor"
 
 msgid "      URL tentées :"
 msgstr "      URLs tried:"
@@ -1029,16 +1029,16 @@ msgstr "      Re-evaluation impossible: manual decision (--unban "
 msgid " pour lever)."
 msgstr " to lift)."
 
-msgid " bannissement(s) — "
-msgstr " ban(s) — "
+msgid " bannissements — "
+msgstr " bans — "
 
-msgid " justifié(s), "
+msgid " justifiés, "
 msgstr " justified, "
 
-msgid " levée(s) recommandée(s)"
-msgstr " lifting(s) recommended"
+msgid " levées recommandées"
+msgstr " liftings recommended"
 
-msgid " effectuée(s))"
+msgid " effectuées)"
 msgstr " done)"
 
 msgid " sans trace"
@@ -1074,8 +1074,8 @@ msgstr " Last run: "
 msgid "Fichier access log : "
 msgstr "Access log file: "
 
-msgid " requête(s) de nos propres programmes exclues de ce rapport : boucle locale, adresses de ce"
-msgstr " request(s) from our own programs excluded from this report: loopback, addresses of this"
+msgid " requêtes de nos propres programmes exclues de ce rapport : boucle locale, adresses de ce"
+msgstr " requests from our own programs excluded from this report: loopback, addresses of this"
 
 msgid " serveur, User-Agent app-health-check — tests volontaires, pas des visiteurs ni des attaques.)"
 msgstr " server, app-health-check User-Agent — deliberate tests, not visitors or attacks.)"
@@ -1132,10 +1132,10 @@ msgid "ATTENTION — upstream injoignable (Odoo ou son worker gevent down au mom
 msgstr "WARNING — upstream unreachable (Odoo or its gevent worker down at the time of the request):"
 
 msgid " refus par règle d'accès (access forbidden by rule) — attendu : accès restreint par IP ; clients les plus actifs : "
-msgstr " refusal(s) by access rule (access forbidden by rule) — expected: IP-restricted access; most active clients: "
+msgstr " refusals by access rule (access forbidden by rule) — expected: IP-restricted access; most active clients: "
 
-msgid " requête(s) freinée(s) par la limitation de débit (voir [429])"
-msgstr " request(s) slowed by rate limiting (see [429])"
+msgid " requêtes freinées par la limitation de débit (voir [429])"
+msgstr " requests slowed by rate limiting (see [429])"
 
 msgid " introuvable ou illisible."
 msgstr " not found or unreadable."
@@ -1146,8 +1146,8 @@ msgstr "Section [8]: default_server sensor (catch-all, all domains combined)"
 msgid "--- [8] Capteur default_server (catch-all, tous domaines confondus) ---"
 msgstr "--- [8] default_server sensor (catch-all, all domains combined) ---"
 
-msgid " nouvelle(s) tentative(s) depuis le dernier passage."
-msgstr " new attempt(s) since the last run."
+msgid " nouvelles tentatives depuis le dernier passage."
+msgstr " new attempts since the last run."
 
 msgid "Sans objet : pas de capteur catch-all dans la configuration de "
 msgstr "Not applicable: no catch-all sensor in the configuration of "
@@ -1179,8 +1179,8 @@ msgstr " robots of different organisations ("
 msgid ") sur "
 msgstr ") over "
 
-msgid " requête(s) — usurpation d'identité probable"
-msgstr " request(s) — identity spoofing likely"
+msgid " requêtes — usurpation d'identité probable"
+msgstr " requests — identity spoofing likely"
 
 msgid " (seules des IP protégées — serveur lui-même, équipe, liste blanche — correspondaient)"
 msgstr " (only protected IPs — the server itself, team, white list — matched)"
@@ -1200,8 +1200,8 @@ msgstr "scan_ips (bursts, script tools, double identities, sensitive files, erro
 msgid "Section [10] : recherche des IP suspectes dans "
 msgstr "Section [10]: search for suspicious IPs in "
 
-msgid " ligne(s) (rafales, outils de script, fichiers sensibles, erreurs)"
-msgstr " line(s) (bursts, script tools, sensitive files, errors)"
+msgid " lignes (rafales, outils de script, fichiers sensibles, erreurs)"
+msgstr " lines (bursts, script tools, sensitive files, errors)"
 
 msgid "  (5 IP examinées au maximum par rapport — les suivantes au prochain passage)"
 msgstr "  (at most 5 IPs examined per report — the others at the next run)"
@@ -1365,11 +1365,11 @@ msgstr "No jail found (is fail2ban running with the rights needed for this user?
 msgid "Aucune IP actuellement bannie."
 msgstr "No IP currently banned."
 
-msgid " IP bannie(s) ; lecture des journaux surveillés ("
-msgstr " banned IP(s); reading the watched logs ("
+msgid " IP bannies ; lecture des journaux surveillés ("
+msgstr " banned IPs; reading the watched logs ("
 
-msgid " fichier(s) et leurs rotations)"
-msgstr " file(s) and their rotations)"
+msgid " fichiers et leurs rotations)"
+msgstr " files and their rotations)"
 
 msgid "Journal "
 msgstr "Log "
@@ -1419,8 +1419,8 @@ msgstr " days ("
 msgid ", a demandé : "
 msgstr ", requested: "
 
-msgid " requête(s) au total pour cette IP (fichiers surveillés + rotations connues) — répartition par statut :"
-msgstr " request(s) in total for this IP (watched files + known rotations) — breakdown by status:"
+msgid " requêtes au total pour cette IP (fichiers surveillés + rotations connues) — répartition par statut :"
+msgstr " requests in total for this IP (watched files + known rotations) — breakdown by status:"
 
 msgid "      Échantillon (5 premières) :"
 msgstr "      Sample (first 5):"
@@ -1434,8 +1434,8 @@ msgstr "       the offending activity may be in an older file already deleted by
 msgid "Bannissement PERMANENT recommandé : "
 msgstr "PERMANENT ban recommended: "
 
-msgid " IP récidiviste(s)"
-msgstr " repeat-offender IP(s)"
+msgid " IP récidivistes"
+msgstr " repeat-offender IPs"
 
 msgid "  Ces IP reviennent sur plusieurs jours : chaque bannissement fail2ban expire (bantime), puis elles"
 msgstr "  These IPs come back over several days: each fail2ban ban expires (bantime), then they"
@@ -1518,8 +1518,8 @@ msgstr "+ per second and per address)"
 msgid "--- [11] Requêtes dynamiques en parallèle depuis une même adresse (même cookie probable) ---"
 msgstr "--- [11] Parallel dynamic requests from one address (probably the same cookie) ---"
 
-msgid " seconde(s) avec "
-msgstr " second(s) with "
+msgid " secondes avec "
+msgstr " seconds with "
 
 msgid "+ requêtes dynamiques simultanées (jusqu'à "
 msgstr "+ simultaneous dynamic requests (up to "
@@ -1678,8 +1678,8 @@ msgstr "  History (local time, oldest first):"
 msgid "    aucun événement dans le journal des bannissements manuels ni dans les journaux de fail2ban conservés"
 msgstr "    no event in the journal of manual bans nor in the kept fail2ban logs"
 
-msgid " événement(s) plus ancien(s) non affiché(s))"
-msgstr " older event(s) not shown)"
+msgid " événements plus anciens non affichés)"
+msgstr " older events not shown)"
 
 msgid "  Pourquoi le jail "
 msgstr "  Why the jail "
@@ -1810,8 +1810,8 @@ msgstr "banned"
 msgid "(non enregistrée : avant la version 2.40)"
 msgstr "(not recorded: before version 2.40)"
 
-msgid " signe(s) d'hostilité — "
-msgstr " sign(s) of hostility — "
+msgid " signes d'hostilité — "
+msgstr " signs of hostility — "
 
 msgid "récidiviste fail2ban ("
 msgstr "fail2ban repeat offender ("
@@ -1819,8 +1819,8 @@ msgstr "fail2ban repeat offender ("
 msgid "réévaluation (--unban-check) : "
 msgstr "re-evaluation (--unban-check): "
 
-msgid " détection(s) par fail2ban (première : "
-msgstr " detection(s) by fail2ban (first: "
+msgid " détections par fail2ban (première : "
+msgstr " detections by fail2ban (first: "
 
 msgid ", dernière : "
 msgstr ", last: "
@@ -1865,8 +1865,8 @@ msgstr " pages in 10 s"
 msgid "outil de script ("
 msgstr "scripting tool ("
 
-msgid " requête(s))"
-msgstr " request(s))"
+msgid " requêtes)"
+msgstr " requests)"
 
 msgid "double identité"
 msgstr "double identity"
@@ -1877,14 +1877,11 @@ msgstr "double identity ("
 msgid " organisations de robots)"
 msgstr " robot organisations)"
 
-msgid " tentative(s) d'accès à des fichiers sensibles (ex. "
-msgstr " attempt(s) to access sensitive files (e.g. "
+msgid " tentatives d'accès à des fichiers sensibles (ex. "
+msgstr " attempts to access sensitive files (e.g. "
 
 msgid " erreurs sur "
 msgstr " errors out of "
-
-msgid " requêtes"
-msgstr " requests"
 
 msgid "serveur loué ("
 msgstr "rented server ("
@@ -1919,8 +1916,8 @@ msgstr "ERROR: --unban-low-score requires root (sudo)."
 msgid " IP BANNIES SOUS LE SEUIL DE PROPOSITION (score < "
 msgstr " BANNED IPS BELOW THE PROPOSAL THRESHOLD (score < "
 
-msgid " IP bannie(s) : calcul du score de chacune (lecture seule)…"
-msgstr " banned IP(s): computing the score of each (read-only)..."
+msgid " IP bannies : calcul du score de chacune (lecture seule)…"
+msgstr " banned IPs: computing the score of each (read-only)..."
 
 msgid " (enquête en lecture seule)"
 msgstr " (read-only lookup)"
@@ -1928,8 +1925,8 @@ msgstr " (read-only lookup)"
 msgid "Banni par"
 msgstr "Banned by"
 
-msgid " IP bannie(s) sous le seuil de "
-msgstr " banned IP(s) below the threshold of "
+msgid " IP bannies sous le seuil de "
+msgstr " banned IPs below the threshold of "
 
 msgid " : IP protégée ("
 msgstr " : protected IP ("
@@ -1986,8 +1983,8 @@ msgstr " is banned although it is protected: "
 msgid " aucune adresse protégée parmi les "
 msgstr " no protected address among the "
 
-msgid " IP bannie(s) en ce moment (commande : fail2ban-client status "
-msgstr " IP(s) banned right now (command: fail2ban-client status "
+msgid " IP bannies en ce moment (commande : fail2ban-client status "
+msgstr " IPs banned right now (command: fail2ban-client status "
 
 msgid " fail2ban inaccessible ou sans jail : les bannissements automatiques ne sont pas appliqués"
 msgstr " fail2ban unreachable or without any jail: automatic bans are not applied"
@@ -2046,7 +2043,7 @@ msgstr " without trace, "
 msgid " à vérifier, "
 msgstr " to check, "
 
-msgid " incohérente(s)"
+msgid " incohérentes"
 msgstr " inconsistent"
 
 msgid "SOMMAIRE DES IP À DÉBANNIR : "
@@ -2064,8 +2061,8 @@ msgstr "  (each lift asks for confirmation, one IP at a time)"
 msgid " IP BANNIES DONT --unban-check RECOMMANDE LA LEVÉE (lecture seule d'abord)"
 msgstr " BANNED IP ADDRESSES WHOSE LIFTING --unban-check RECOMMENDS (read-only first)"
 
-msgid " IP bannie(s) : réévaluation avec la logique de --unban-check (lecture seule)…"
-msgstr " banned IP(s): re-evaluation with the --unban-check logic (read-only)..."
+msgid " IP bannies : réévaluation avec la logique de --unban-check (lecture seule)…"
+msgstr " banned IPs: re-evaluation with the --unban-check logic (read-only)..."
 
 msgid "Réévaluation "
 msgstr "Re-evaluation "
@@ -2085,26 +2082,26 @@ msgstr "inconsistent"
 msgid "Aucune IP bannie n'a une levée recommandée par --unban-check."
 msgstr "No banned IP has a lift recommended by --unban-check."
 
-msgid " IP bannie(s) à lever (levée recommandée) : "
-msgstr " banned IP(s) to lift (lift recommended): "
+msgid " IP bannies à lever (levée recommandée) : "
+msgstr " banned IPs to lift (lift recommended): "
 
 msgid "levée recommandée par --unban-check (--unban-low-score)"
 msgstr "lift recommended by --unban-check (--unban-low-score)"
 
-msgid " requête(s) d'icône seulement (apple-touch-icon, favicon.ico) : non hostiles"
-msgstr " icon request(s) only (apple-touch-icon, favicon.ico): not hostile"
+msgid " requêtes d'icône seulement (apple-touch-icon, favicon.ico) : non hostiles"
+msgstr " icon requests only (apple-touch-icon, favicon.ico): not hostile"
 
 msgid "        (en plus, "
 msgstr "        (also, "
 
-msgid " requête(s) d'icône ignorée(s) : non hostiles)"
-msgstr " icon request(s) ignored: not hostile)"
+msgid " requêtes d'icône ignorées : non hostiles)"
+msgstr " icon requests ignored: not hostile)"
 
 msgid " — aucune requête sur le site ; "
 msgstr " - no request on the site; "
 
-msgid " requête(s) d'icône au capteur catch-all (apple-touch-icon, favicon.ico), non hostiles"
-msgstr " icon request(s) at the catch-all sensor (apple-touch-icon, favicon.ico), not hostile"
+msgid " requêtes d'icône au capteur catch-all (apple-touch-icon, favicon.ico), non hostiles"
+msgstr " icon requests at the catch-all sensor (apple-touch-icon, favicon.ico), not hostile"
 
 # 2.60 : --ban-sqli, contexte par adresse (DNS, propriétaire, connexions Odoo, commandes, URL)
 msgid "  --no-lookup                  avec --ban-sqli : aucune requête DNS ni RDAP (propriétaire, pays) ; seuls les journaux sont lus"
@@ -2137,8 +2134,8 @@ msgstr ": reverse DNS, owner of the address block (RDAP)"
 msgid "erreur"
 msgstr "error"
 
-msgid " requête(s), première : "
-msgstr " request(s), first: "
+msgid " requêtes, première : "
+msgstr " requests, first: "
 
 msgid "Contexte : comptes Odoo et URL lus dans les journaux ; DNS et propriétaire NON vérifiés (--no-lookup)."
 msgstr "Context: Odoo accounts and URLs read in the logs; DNS and owner NOT checked (--no-lookup)."
@@ -2170,13 +2167,13 @@ msgstr "!! normal Odoo activity: never banned in bulk (nginx-log-audit.sh --ban 
 msgid " pour le faire à la main)"
 msgstr " to do it by hand)"
 
-msgid " adresse(s) ont une activité Odoo normale (connexion ou commande) : elles ne seront PAS bannies en lot."
+msgid " adresses ont une activité Odoo normale (connexion ou commande) : elles ne seront PAS bannies en lot."
 msgstr " address(es) have normal Odoo activity (login or order): they will NOT be banned in bulk."
 
 msgid " non banni : activité Odoo normale (connexion ou commande). Bannissement à la main seulement : nginx-log-audit.sh --ban "
 msgstr " not banned: normal Odoo activity (login or order). Ban by hand only: nginx-log-audit.sh --ban "
 
-msgid " avec activité Odoo normale (non bannie(s)), "
+msgid " avec activité Odoo normale (non bannies), "
 msgstr " with normal Odoo activity (not banned), "
 
 msgid "  --ban-sqli                   bannir les adresses ayant envoyé une injection SQL dans le journal d'accès (liste et confirmation demandées, sauf --yes)"
@@ -2203,11 +2200,11 @@ msgstr " : nothing to ban."
 msgid "Adresses ayant tenté une injection SQL : "
 msgstr "Addresses that tried an SQL injection: "
 
-msgid " adresse(s), "
+msgid " adresses, "
 msgstr " address(es), "
 
-msgid " requête(s)."
-msgstr " request(s)."
+msgid " requêtes."
+msgstr " requests."
 
 msgid "   (ignorée : pas une adresse IP)"
 msgstr "   (ignored: not an IP address)"
@@ -2227,7 +2224,7 @@ msgstr "      request: "
 msgid "déjà bannie : "
 msgstr "already banned: "
 
-msgid " adresse(s) ont reçu une réponse 2xx : ces requêtes ont atteint Odoo (lignes en rouge)."
+msgid " adresses ont reçu une réponse 2xx : ces requêtes ont atteint Odoo (lignes en rouge)."
 msgstr " address(es) got a 2xx response: these requests reached Odoo (lines in red)."
 
 msgid "Annulé : aucune adresse bannie."
@@ -2242,8 +2239,8 @@ msgstr " already banned ("
 msgid ") : rien à faire"
 msgstr ") : nothing to do"
 
-msgid " requête(s) dans "
-msgstr " request(s) in "
+msgid " requêtes dans "
+msgstr " requests in "
 
 msgid " non banni (adresse protégée ou erreur : nginx-log-audit.sh --ban "
 msgstr " not banned (protected address or error: nginx-log-audit.sh --ban "
@@ -2251,13 +2248,13 @@ msgstr " not banned (protected address or error: nginx-log-audit.sh --ban "
 msgid " pour le détail)"
 msgstr " for details)"
 
-msgid " adresse(s) bannie(s) maintenant, "
+msgid " adresses bannies maintenant, "
 msgstr " address(es) banned now, "
 
-msgid " déjà bannie(s) (ignorée(s)), "
+msgid " déjà bannies (ignorées), "
 msgstr " already banned (ignored), "
 
-msgid " non bannie(s). Levée : nginx-log-audit.sh --unban IP"
+msgid " non bannies. Levée : nginx-log-audit.sh --unban IP"
 msgstr " not banned. Lifted: nginx-log-audit.sh --unban IP"
 msgid "|Rapport du jour (sans option)|Today's report (no option)|0"
 msgstr ""

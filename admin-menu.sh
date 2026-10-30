@@ -37,7 +37,7 @@
 
 set -euo pipefail
 
-readonly SCRIPT_VERSION="1.0.20261028.225816"
+readonly SCRIPT_VERSION="1.1.20261030.153422"
 readonly SCRIPT_NAME="admin-menu"
 SCRIPT_FILE="$(basename "${BASH_SOURCE[0]}")"
 readonly SCRIPT_FILE
@@ -127,7 +127,7 @@ config_resumer() {
     for cle in LANGUAGE PROGRAMS VERBOSE; do
         if [[ -n "${CFG[$cle]:-}" ]]; then options+=" $cle=${CFG[$cle]}"; fi
     done
-    printf '%s\n' "$(t "Fichier(s) de configuration lu(s) :" "Configuration file(s) read:") $lus"
+    printf '%s\n' "$(t "Fichiers de configuration lus :" "Configuration files read:") $lus"
     echo "  $(t "Options lues dans ces fichiers :" "Options read from these files:")${options:- $(t "aucune" "none")}"
     for cle in ${CFG_PROBLEMES[@]+"${CFG_PROBLEMES[@]}"}; do
         echo "  [ATTN] $(t "valeur ignorée" "value ignored"): $cle" >&2

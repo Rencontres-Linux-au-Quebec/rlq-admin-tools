@@ -23,7 +23,7 @@ import stat
 import sys
 import xmlrpc.client
 
-__version__ = "1.7.20261028.214122"
+__version__ = "1.8.20261030.153422"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
@@ -134,7 +134,7 @@ def check_wiki(odoo, write_test=True):
     fields = odoo.call(WIKI_MODEL, "fields_get", [], {"attributes": ["type", "readonly", "required"]})
     missing = [n for n in ("name", "type", "parent_id", "content") if n not in fields]
     if missing:
-        raise DocsError(f"{WIKI_MODEL} lacks the field(s) {', '.join(missing)}: module version incompatible with odoo-docs.py")
+        raise DocsError(f"{WIKI_MODEL} lacks the fields {', '.join(missing)}: module version incompatible with odoo-docs.py")
     if fields["content"].get("readonly"):
         raise DocsError(f"the content field of {WIKI_MODEL} is read-only: module version incompatible with odoo-docs.py")
     lines.append("models and fields present (name, type, parent_id, content)")
@@ -154,7 +154,7 @@ def check_wiki(odoo, write_test=True):
         if "test 2" not in str(back.get("content") or ""):
             raise DocsError("write test: the content read back does not match what was written (the module does not work as expected)")
         history = odoo.call(HISTORY_MODEL, "search_count", [[("page_id", "=", page)]])
-        lines.append(f"write test succeeded: creation, edit, read back, history ({history} version(s))")
+        lines.append(f"write test succeeded: creation, edit, read back, history ({history} versions)")
     finally:
         for model_id in (page, category):
             if model_id:
@@ -348,7 +348,7 @@ def run(args, parser):
         builder = load_builder(docs_dir)
         langs = tuple(builder.LANGS)
         pages = load_pages(builder, langs)
-        print(f"Publishing {sum(len(v) for v in pages.values())} page(s) ({', '.join(langs)}) — target: {target}" + (" [simulation]" if args.dry_run else "") + " :")
+        print(f"Publishing {sum(len(v) for v in pages.values())} pages ({', '.join(langs)}) — target: {target}" + (" [simulation]" if args.dry_run else "") + " :")
         lines = publish_wiki(odoo, builder, pages, args.root or ROOT_DEFAULT, args.dry_run) if target == "wiki" else publish_website(odoo, builder, pages, args.dry_run)
         for line in lines:
             print("  " + line)

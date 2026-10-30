@@ -170,7 +170,7 @@ esac''')
         self.assertEqual(rc, 0, out + err)
         self.assertIn("ENQUÊTE SUR LE COMPTE ODOO fantome5075@exemple.org", out)
         self.assertIn("[2] Ses adresses IP (2 dans tout le journal)", out)
-        self.assertIn("11.36.1.2 — 1 connexion(s) — aussi utilisée par : ana@exemple.org", out)
+        self.assertIn("11.36.1.2 — 1 connexions — aussi utilisée par : ana@exemple.org", out)
         self.assertIn("non cherché (--internet pour l'autoriser sans question)", out)       # --yes: never sent to third parties without agreement
         self.assertIn("BANNISSEMENT DU COMPTE ODOO fantome5075@exemple.org (UID 849, base base)", out)
         self.assertIn("non bannie : 11.36.1.2 (aussi utilisée par ana@exemple.org)", out)

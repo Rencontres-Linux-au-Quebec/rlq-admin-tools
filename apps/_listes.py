@@ -30,7 +30,7 @@ import os
 import re
 import sys
 
-__version__ = "1.4.20261022.231529"
+__version__ = "1.5.20261030.153422"
 
 BLANCHE_DEFAUT = "/etc/default/nginx-tools-white-list.conf"
 LIEUX_DEFAUT = "/etc/default/nginx-tools-ip-location.conf"
@@ -122,9 +122,9 @@ class Listes(object):
         """Une ligne : fichiers lus et nombre d'entrées (« Listes : … »)."""
         blanche = self.fichiers.get("blanche")
         lieux = self.fichiers.get("lieux") or []
-        a = (f"liste blanche {blanche} ({len(self.blanche)} adresse(s))" + (" — ANCIEN emplacement, à migrer : nginx-hardening.sh --update"
+        a = (f"liste blanche {blanche} ({len(self.blanche)} adresses)" + (" — ANCIEN emplacement, à migrer : nginx-hardening.sh --update"
                                                                           if self.ancien else "")) if blanche else "liste blanche : aucun fichier"
-        b = f"lieux {', '.join(lieux)} ({len(self.lieux)} plage(s))" if lieux else "lieux : aucun fichier"
+        b = f"lieux {', '.join(lieux)} ({len(self.lieux)} plages)" if lieux else "lieux : aucun fichier"
         return f"Listes : {a} ; {b}"
 
 

@@ -22,7 +22,7 @@ import os
 import re
 import subprocess
 
-__version__ = "1.3.20261022.231529"
+__version__ = "1.4.20261030.153422"
 POSTGRES_RUN = ["runuser", "-u", "postgres", "--"] if os.geteuid() == 0 else ["sudo", "-n", "-u", "postgres", "--"]     # 1.2: root or sudo -n (see _odoo_db.py)
 SEUIL_DEFAUT = 80          # % utilization from which a warning is shown
 SEUIL_CRITIQUE = 95
@@ -121,7 +121,7 @@ def diagnostiquer(m, seuil=SEUIL_DEFAUT, service="odoo.service"):
     if m.get("fd_gevent"):
         ouverts, limite = m["fd_gevent"]
         ajouter(100 * ouverts / limite, f"processus du chat d'Odoo (websocket, port {m['gevent_port']}) : {ouverts} descripteurs de fichiers sur {limite} "
-                f"({m['websockets'] if m['websockets'] is not None else '?'} connexion(s) établie(s))",
+                f"({m['websockets'] if m['websockets'] is not None else '?'} connexions établies)",
                 f"chaque connexion du chat en utilise un : augmenter la limite — {systemd}")
     if m.get("fd_http"):
         ouverts, limite = m["fd_http"]

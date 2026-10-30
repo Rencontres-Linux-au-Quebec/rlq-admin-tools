@@ -35,7 +35,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 PROG_DIR = os.environ.get("TEST_SCRIPTS_DIR") or os.path.dirname(HERE)
 KINDS = ("unit", "functional", "interactive", "conformity")
 TEXTS = {
-    "fr": {"title": "Statistiques des tests", "duration": "Durée", "whole": "Durée totale de run-all.sh", "of_tests": "dont tests", "passes": "passe(s) awk", "cpu": "CPU", "user": "utilisateur", "system": "système",
+    "fr": {"title": "Statistiques des tests", "duration": "Durée", "whole": "Durée totale de run-all.sh", "of_tests": "dont tests", "passes": "passes awk", "cpu": "CPU", "user": "utilisateur", "system": "système",
            "memory": "Mémoire max. d'un processus", "io": "Disque", "read": "lu", "written": "écrit", "processes": "Programmes lancés",
            "tests": "tests", "program": "Programme", "unit": "unitaires", "functional": "fonctionnels", "interactive": "interactifs", "conformity": "conformité",
            "skipped": "désactivés", "failed": "échecs", "total": "TOTAL", "slowest": "Les plus lents", "kinds": "Nature",

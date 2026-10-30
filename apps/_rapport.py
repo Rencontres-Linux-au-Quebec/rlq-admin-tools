@@ -31,7 +31,7 @@ import sys
 import time
 import traceback
 
-__version__ = "1.13.20261022.231529"
+__version__ = "1.14.20261030.153422"
 
 # Programs of the suite whose version is read (detects an incomplete deployment: files of different ages).
 FICHIERS_SUITE = ["nginx-hardening.sh", "nginx-log-audit.sh", "sync-crowdsec-blocklist.sh", "odoo-backup.sh",
@@ -222,9 +222,9 @@ def construire_rapport(programme, version, commande, sortie, code, duree, dossie
         r.append(("Contexte  : " if i == 0 else "            ") + ligne)
     if presentes:
         r.append("Suite     : " + " · ".join(presentes) + (f" — ABSENTS : {', '.join(absentes)}" if absentes else ""))
-    r.append(f"Bilan     : {n_echecs} échec(s), {n_attn} avertissement(s), {n_reco} recommandation(s) à traiter"
-             + (f", {len(classes['ignores'])} vérification(s) ignorée(s)" if classes["ignores"] else "")
-             + f" — sortie de {len(lignes)} ligne(s)")
+    r.append(f"Bilan     : {n_echecs} échecs, {n_attn} avertissements, {n_reco} recommandations à traiter"
+             + (f", {len(classes['ignores'])} vérifications ignorées" if classes["ignores"] else "")
+             + f" — sortie de {len(lignes)} lignes")
     r.append("-" * 118)
 
     def section(titre, elements):
@@ -237,7 +237,7 @@ def construire_rapport(programme, version, commande, sortie, code, duree, dossie
             r.append(f"  {n}. {premiere}")
             r.extend(f"       {x.strip()}" for x in element[1:])
         if len(elements) > MAX_ELEMENTS:
-            r.append(f"  … et {len(elements) - MAX_ELEMENTS} autre(s), non listé(s)")
+            r.append(f"  … et {len(elements) - MAX_ELEMENTS} autres, non listés")
 
     section("ÉCHECS", classes["echecs"])
     section("ERREURS PYTHON (trace d'appels)", classes["tracebacks"])

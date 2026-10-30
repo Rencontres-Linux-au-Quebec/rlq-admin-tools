@@ -61,8 +61,8 @@ msgstr "Par cause : "
 msgid "By day  : "
 msgstr "Par jour  : "
 
-msgid " e-mail(s) have a PERMANENT cause ("
-msgstr " courriel(s) ont une cause PERMANENTE ("
+msgid " e-mails have a PERMANENT cause ("
+msgstr " courriels ont une cause PERMANENTE ("
 
 msgid "): they will fail again until the setting is fixed — see app-log-check.py, section [5] (cause and solution)."
 msgstr ") : ils échoueront de nouveau tant que le réglage n'est pas corrigé — voir app-log-check.py, section [5] (cause et solution)."
@@ -79,8 +79,8 @@ msgstr "non défini"
 msgid "set to "
 msgstr "défini à "
 
-msgid " e-mail(s)?"
-msgstr " courriel(s) ?"
+msgid " e-mails?"
+msgstr " courriels ?"
 
 msgid ")   [l] the "
 msgstr ")   [l] les "
@@ -103,14 +103,14 @@ msgstr "ERREUR : impossible de remettre les courriels en attente (base "
 msgid " : PostgreSQL unreachable, or root required)."
 msgstr " : PostgreSQL inaccessible, ou root requis)."
 
-msgid " e-mail(s) put back in the « Outgoing » state: "
-msgstr " courriel(s) remis à l'état « En attente » : "
+msgid " e-mails put back in the « Outgoing » state: "
+msgstr " courriels remis à l'état « En attente » : "
 
 msgid "none"
 msgstr "aucun"
 
 msgid " ignored: no longer failed (already resent or deleted): "
-msgstr " ignoré(s) : plus en échec d'envoi (déjà renvoyés ou supprimés) : "
+msgstr " ignorés : plus en échec d'envoi (déjà renvoyés ou supprimés) : "
 
 msgid "Odoo will send them at the next run of the scheduled action « Mail: Email Queue Manager »; to do it right now: Settings ▸ Technical ▸ Scheduled Actions ▸ « Mail: Email Queue Manager » ▸ Run Manually. Then run odoo-mail-retry.py again: those that left are no longer in the list; those that fail again come back with their cause."
 msgstr "Odoo les enverra au prochain passage de la tâche planifiée « Mail: Email Queue Manager » ; pour tout de suite : Paramètres ▸ Technique ▸ Tâches planifiées ▸ « Mail: Email Queue Manager » ▸ Exécuter manuellement. Relancer ensuite odoo-mail-retry.py : ceux qui sont partis ne figurent plus dans la liste ; ceux qui échouent encore y reviennent avec leur cause."
@@ -280,8 +280,8 @@ msgstr "    (le courriel de confirmation n'a jamais été créé avec cette adre
 msgid "Fix these addresses?  [a] the "
 msgstr "Corriger ces adresses ?  [a] les "
 
-msgid " suggested correction(s)   [c] one by one   [N] none: "
-msgstr " correction(s) suggérée(s)   [c] une par une   [N] aucune : "
+msgid " suggested corrections   [c] one by one   [N] none: "
+msgstr " corrections suggérées   [c] une par une   [N] aucune : "
 
 msgid "With --yes: fix the invalid addresses of the registrations with the SUGGESTED correction and resend their e-mails, without questions"
 msgstr "Avec --yes : corriger les adresses invalides des inscriptions avec la correction SUGGÉRÉE et renvoyer leurs courriels, sans question"
@@ -292,8 +292,8 @@ msgstr "Seulement les inscriptions aux événements dont l'adresse courriel est 
 msgid "invalid address"
 msgstr "adresse invalide"
 
-msgid " e-mail(s) addressed to an INVALID address: resent as is, they fail again — fix the address first (menu of the invalid addresses above, odoo-mail-retry.py --invalid-emails, or the contact in Odoo)."
-msgstr " courriel(s) adressé(s) à une adresse INVALIDE : renvoyés tels quels, ils échoueront de nouveau — corriger d'abord l'adresse (menu des adresses invalides ci-dessus, odoo-mail-retry.py --invalid-emails, ou le contact dans Odoo)."
+msgid " e-mails addressed to an INVALID address: resent as is, they fail again — fix the address first (menu of the invalid addresses above, odoo-mail-retry.py --invalid-emails, or the contact in Odoo)."
+msgstr " courriels adressés à une adresse INVALIDE : renvoyés tels quels, ils échoueront de nouveau — corriger d'abord l'adresse (menu des adresses invalides ci-dessus, odoo-mail-retry.py --invalid-emails, ou le contact dans Odoo)."
 
 msgid " » is not a valid address either ("
 msgstr " » n'est pas non plus une adresse valide ("
@@ -317,13 +317,13 @@ msgid " » (the person logs in with it): change it in Odoo if needed (Settings �
 msgstr " » (la personne se connecte avec) : le changer dans Odoo au besoin (Paramètres ▸ Utilisateurs)."
 
 msgid " address(es) fixed; "
-msgstr " adresse(s) corrigée(s) ; "
+msgstr " adresses corrigées ; "
 
 msgid " without automatic correction (to fix in the menu or in Odoo)."
 msgstr " sans correction automatique (à corriger dans le menu ou dans Odoo)."
 
 msgid " address(es) fixed."
-msgstr " adresse(s) corrigée(s)."
+msgstr " adresses corrigées."
 
 msgid "No address fixed."
 msgstr "Aucune adresse corrigée."
@@ -340,8 +340,8 @@ msgstr "  Inscription #"
 msgid " — registration "
 msgstr " — inscription "
 
-msgid " failed e-mail(s) put back in « Outgoing » (sent to the new address)"
-msgstr " courriel(s) en échec remis « En attente » (envoyé(s) à la nouvelle adresse)"
+msgid " failed e-mails put back in « Outgoing » (sent to the new address)"
+msgstr " courriels en échec remis « En attente » (envoyés à la nouvelle adresse)"
 
 msgid ", suggested: "
 msgstr ", suggérée : "
@@ -391,8 +391,8 @@ msgstr " — correction suggérée : "
 msgid "unchanged"
 msgstr "inchangé"
 
-msgid " registration(s)"
-msgstr " inscription(s)"
+msgid " registrations"
+msgstr " inscriptions"
 
 msgid "List recent e-mails"
 msgstr "Lister les courriels récents"

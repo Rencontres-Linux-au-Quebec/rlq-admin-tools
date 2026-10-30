@@ -100,7 +100,7 @@ class ChkNginxLogs(EnvTest):
         s7 = out[out.index("--- [7]"):out.index("--- [8]")]
         self.assertIn("RIEN", s7)
         self.assertIn("4 refus par règle d'accès (access forbidden by rule) — attendu : accès restreint par IP ; clients les plus actifs : 11.160.68.185 (3), 11.59.36.114 (1)", s7)
-        self.assertIn("1 requête(s) freinée(s) par la limitation de débit (voir [429])", s7)
+        self.assertIn("1 requêtes freinées par la limitation de débit (voir [429])", s7)
         self.assertNotIn("access forbidden by rule, client", s7)                 # never listed as errors
         with open(err, "a") as f:
             f.write('2026/09/30 05:00:00 [error] 4#4: *7 open() "/srv/x" failed (13: Permission denied), client: 1.2.3.4, server: x, request: "GET /x HTTP/1.1"\n')
@@ -118,7 +118,7 @@ class ChkNginxLogs(EnvTest):
                                      f'echo \'`- File list:\t{self.logs}/odoo-catchall-444.log\';; esac')
         rc, out, err = self.report("--fail2ban", "--details")
         self.assertEqual(rc, 0, err)
-        self.assertIn("770 requête(s) au total", out)
+        self.assertIn("770 requêtes au total", out)
         self.assertIn("RÉSUMÉ", out)
 
     def test_champs_alignes_meme_si_champ_vide(self):
@@ -191,7 +191,7 @@ class ChkNginxLogs(EnvTest):
         _, out, _ = self.report()
         s11 = out[out.index("--- [11]"):]
         s11 = s11[:s11.index("\n\n")] if "\n\n" in s11 else s11
-        self.assertIn("203.0.113.50 : 3 seconde(s)", s11)
+        self.assertIn("203.0.113.50 : 3 secondes", s11)
         self.assertIn("dont 3 en erreur 5xx/429", s11)
         self.assertIn("aucun bannissement proposé", s11)
         for autre in ("203.0.113.90", "203.0.113.80", "203.0.113.60", "127.0.0.1"):
@@ -232,7 +232,7 @@ class ChkNginxLogs(EnvTest):
         rc, out, err = self.report("--fail2ban", "--verbose", "--details")
         self.assertEqual(rc, 0, err)
         lignes = [re.sub(r"^\[\s*\d+ s\] ", "", l) for l in err.splitlines() if re.match(r"^\[\s*\d+ s\] ", l)]
-        self.assertIn("Jail jail-a : 1 IP bannie(s) ; lecture des journaux surveillés (1 fichier(s) et leurs rotations)", lignes)
+        self.assertIn("Jail jail-a : 1 IP bannies ; lecture des journaux surveillés (1 fichiers et leurs rotations)", lignes)
         self.assertIn("Lecture du journal 1/3 : odoo-catchall-444.log (1 Ko)", lignes)
         self.assertIn("Lecture du journal 2/3 : odoo-catchall-444.log.1 (1 Ko)", lignes)
         self.assertTrue(any(l.startswith("Lecture du journal 3/3 : odoo-catchall-444.log.2.gz (1 Ko, compressé)") for l in lignes), lignes)
@@ -310,7 +310,7 @@ class ChkNginxLogs(EnvTest):
         self.add(*(acc("198.51.100.62", "26/Oct/2026", "10:00:00", f"/en_CA/event/page-{i}", 200, CHROME) for i in range(16)))
         _, prefetch, _ = self.run_cmd(["bash", self.prog, "prod", "--investigate", "198.51.100.61", "--no-prompt"])
         self.assertNotRegex(prefetch, r"Rafale : \d+ pages distinctes")
-        self.assertIn("au plus 0 page(s)", prefetch)
+        self.assertIn("au plus 0 pages", prefetch)
         _, vraie, err = self.run_cmd(["bash", self.prog, "prod", "--investigate", "198.51.100.62", "--no-prompt"])
         self.assertRegex(vraie, r"Rafale : 16 pages distinctes")
 
@@ -326,8 +326,8 @@ class ChkNginxLogs(EnvTest):
                          for p in ("/apple-touch-icon.png", "/apple-touch-icon-precomposed.png", "/favicon.ico"))
         rc, out, err = self.run_cmd(["bash", self.prog, "prod", "--unban-check", "--no-prompt"])
         self.assertEqual(rc, 0, err)
-        self.assertIn("3 requête(s) d'icône", out)
-        apres = out[out.index("3 requête(s) d'icône"):].split("\n  ▶")[0]
+        self.assertIn("3 requêtes d'icône", out)
+        apres = out[out.index("3 requêtes d'icône"):].split("\n  ▶")[0]
         self.assertIn("non hostiles", apres)
         self.assertNotIn("Bannissement JUSTIFIÉ", apres)
 
@@ -480,7 +480,7 @@ class ChkNginxLogs(EnvTest):
         self.mock("journalctl", 'echo "2026-09-20T09:00:00-0400 odoo18 odoo[1]: 2026-09-20 13:00:00,1 1 INFO base odoo.addons.base.models.res_users: '
                                 'Login successful for db:base login:benevole@exemple.org from 203.0.113.9"')
         rc, out, err = self.run_cmd(["bash", self.prog, "--investigate", "203.0.113.9"])
-        self.assertIn("benevole@exemple.org (1 connexion(s), dernière 2026-09-20T09:00)", out)
+        self.assertIn("benevole@exemple.org (1 connexions, dernière 2026-09-20T09:00)", out)
         self.assertIn("connectée à Odoo avec le compte benevole@exemple.org : un compte n'est pas une preuve de bonne foi", out)
         self.assertNotIn("bannissement recommandé", out)
         if os.geteuid() == 0:                                             # --ban: reason "against", verdict
@@ -514,11 +514,11 @@ class ChkNginxLogs(EnvTest):
         rc, out, err = self.run_cmd(["bash", self.prog, "--ban-sqli", "--no-lookup", "--yes"])
         self.assertEqual(rc, 0, out + err)
         self.assertIn("comptes Odoo connectés : benevole@exemple.org", out)
-        self.assertIn("panier, commande ou paiement : 1 requête(s)", out)
+        self.assertIn("panier, commande ou paiement : 1 requêtes", out)
         self.assertIn("URL les plus demandées : 1× ", out)
         self.assertIn("[NORMAL] 203.0.113.50", out)
         self.assertIn("[NORMAL] 198.51.100.7", out)
-        self.assertIn("2 avec activité Odoo normale (non bannie(s))", out)
+        self.assertIn("2 avec activité Odoo normale (non bannies)", out)
         self.assertEqual(out.count("!! réponse 2xx"), 2, out)               # 2 adresses seulement : la 404 n'est pas « réussie »
         self.assertIn("DNS inverse : non vérifié (--no-lookup)", out)
         with open(os.path.join(self.d, "iptables.log")) as f:
@@ -543,9 +543,9 @@ class ChkNginxLogs(EnvTest):
                                 'odoo.addons.base.models.res_users: Login successful for db:linux_meetup_odoo_18 login:jean@exemple.org from 11.97.88.180"')
         rc, out, err = self.run_cmd(["bash", self.prog, "--investigate", "11.97.88.180"])
         self.assertIn("[i] Connectée à Odoo avec un compte (journal, 100 jours) :", out)
-        self.assertIn("jean@exemple.org (1 connexion(s), dernière 2026-09-28T11:02)", out)
+        self.assertIn("jean@exemple.org (1 connexions, dernière 2026-09-28T11:02)", out)
         self.assertNotRegex(out, r"\[✓\] Rafale")                          # appels internes : pas des pages
-        self.assertIn("[i] Session ouverte dans le back-office : 325 appel(s) internes", out)
+        self.assertIn("[i] Session ouverte dans le back-office : 325 appels internes", out)
         self.assertRegex(out, r"\[i\] Répétition : 92 % des requêtes sur une seule URL \(300 x /web/dataset/call_kw/ir\.config_parameter/get_web_dialog_size_config\)")
 
     # --- 2.7: requests of our programs excluded; devices in --stats -----------------------------------------------------
@@ -562,7 +562,7 @@ class ChkNginxLogs(EnvTest):
                          + humain("24.1.1.1", IPHONE) + humain("24.1.1.2", IPHONE) + humain("24.1.1.3", PC)
                          + [L("35.1.1.1", "/event", 200, PC)] * 4)                                # scraper sans CSS/JS
         rc, out, err = self.run_cmd(["bash", self.prog, "prod", "--init", "--no-prompt"])
-        self.assertIn("3 requête(s) de nos propres programmes exclues de ce rapport", out)
+        self.assertIn("3 requêtes de nos propres programmes exclues de ce rapport", out)
         self.assertNotIn("127.0.0.1 - -", out)
         rc, out, err = self.run_cmd(["bash", self.prog, "prod", "--stats", "--no-prompt"])
         self.assertIn("(3 de nos propres programmes exclues", out)
@@ -570,7 +570,7 @@ class ChkNginxLogs(EnvTest):
         self.assertRegex(bloc, r"Ordinateur\s+1 \( *33\.3%\)")
         self.assertRegex(bloc, r"Cellulaire\s+2 \( *66\.7%\)")
         self.assertRegex(bloc, r"Tablette\s+0 \( *0\.0%\)")
-        self.assertRegex(bloc, r"Total\s+3 visiteur\(s\) humain\(s\) probable\(s\)")
+        self.assertRegex(bloc, r"Total\s+3 visiteurs humains probables")
 
     # --- 2.5 : preuves avant un bannissement (toutes les sources) ----------------------------------------------------
     def _preuves(self, ip, dig=None, getent="exit 2", journal="", f2b="", catchall="", site="", option="--ban"):
@@ -605,8 +605,8 @@ class ChkNginxLogs(EnvTest):
             catchall='11.134.146.52 - [23/Sep/2026:04:11:02 -0400] "GET / HTTP/1.1" 444 host="198.51.100.7"\n')
         self.assertIn("scanner-20.ch1.censys-scanner.com (confirmé", out)
         self.assertIn("Scanner Internet déclaré", out)
-        self.assertIn("Jail nginx-catchall : 2 bannissement(s) temporaire(s) les 2026-09-23, 2026-09-28", out)
-        self.assertIn("Capteur catch-all : 1 requête(s)", out)
+        self.assertIn("Jail nginx-catchall : 2 bannissements temporaires les 2026-09-23, 2026-09-28", out)
+        self.assertIn("Capteur catch-all : 1 requêtes", out)
         self.assertIn("Verdict : bannissement justifié", out)
         self.assertNotIn("Aucune occurrence trouvée", out)
         self.assertNotIn("enquête indisponible", out)
@@ -684,9 +684,9 @@ class ChkNginxLogs(EnvTest):
         self.assertRegex(out, r"\[protégée ici\] 11\.126\.46\.49")                        # liste blanche nginx locale
         self.assertRegex(out, r"\[protégée ici\] 10\.0\.0\.5")
         self.assertIn("[invalide] pas-une-ip", out)
-        self.assertIn("3 à bannir, 1 déjà bannie(s) ici, 2 protégée(s) ici (ignorées), 1 invalide(s).", out)
+        self.assertIn("3 à bannir, 1 déjà bannies ici, 2 protégées ici (ignorées), 1 invalides.", out)
         rc, out, err = self.run_cmd(["bash", self.prog, "--import-bans", "-", "--yes"], input_text=export)
-        self.assertIn("3 IP bannie(s)", out)
+        self.assertIn("3 IP bannies", out)
         regles = open(os.path.join(self.d, "rules")).read()
         for ip in ("11.55.161.77", "11.159.48.202", "198.51.100.99"):
             self.assertIn(ip, regles)
@@ -721,7 +721,7 @@ class ChkNginxLogs(EnvTest):
         self._bannissements()
         rc, out, err = self.run_cmd(["bash", self.prog, "prod", "--unban-check", "--no-prompt"])
         self.assertEqual(rc, 0, err)
-        self.assertIn("5 bannissement(s) manuel(s)", out)                 # port rules, ipset, fail2ban excluded
+        self.assertIn("5 bannissements manuels", out)                 # port rules, ipset, fail2ban excluded
         bloc = lambda ip: out[out.index(f"] {ip} —"):].split("\n--- [")[0]
         self.assertIn("Levée RECOMMANDÉE : aucun signe d'hostilité", bloc("11.68.110.86"))
         self.assertIn("1x /events", bloc("11.68.110.86"))
@@ -730,7 +730,7 @@ class ChkNginxLogs(EnvTest):
         self.assertIn("IP protégée", bloc("11.126.46.49"))
         self.assertIn("Réévaluation impossible", bloc("198.51.100.99"))
         self.assertNotRegex(out, r"banni le \S+ \S+\S+ \S+", "date doublée")
-        self.assertIn("2 justifié(s), 2 levée(s) recommandée(s)", out)
+        self.assertIn("2 justifiés, 2 levées recommandées", out)
 
     @unittest.skipUnless(os.geteuid() == 0, "--unban-check exige root")
     def test_unban_check_refus_repetes_justifient_le_bannissement(self):
@@ -842,13 +842,13 @@ class ChkNginxLogs(EnvTest):
         os.utime(os.path.join(self.logs, "blocked-probes.log.1"), (ancien, ancien))
         _, out, err = self.run_cmd(["bash", self.prog, "prod", "--ban", ip, "--no-prompt"], input_text="n\n")
         self.assertIn("Site : aucune requête (les requêtes REFUSÉES par nginx ne sont pas dans ces journaux : voir ci-dessous)", out)
-        self.assertIn("Requêtes REFUSÉES par nginx : 6 requête(s) (jours : 30/Sep/2026, 02/Oct/2026)", out)
+        self.assertIn("Requêtes REFUSÉES par nginx : 6 requêtes (jours : 30/Sep/2026, 02/Oct/2026)", out)
         self.assertIn("c'est ce que voit le jail nginx-blocked-probes", out)
         self.assertRegex(out, r"\s+3  /\.env \(404\)\n")
         self.assertRegex(out, r"\s+2  /wp-admin/ \(404\)\n")
         self.assertRegex(out, r"\s+1  /\.git/config \(404\)\n")                         # parameters removed
         self.assertNotIn("/autre", out)                                                  # another address is not mixed in
-        self.assertIn("+ 6 requête(s) refusée(s) par nginx (fichiers sensibles, failles, outils d'attaque), sur 2 jour(s)", out)
+        self.assertIn("+ 6 requêtes refusées par nginx (fichiers sensibles, failles, outils d'attaque), sur 2 jours", out)
         self.assertIn("Verdict : bannissement justifié", re.sub(r"\x1b\[[0-9;]*m", "", out))
         # No refused request kept: says it clearly, without inventing evidence
         for nom in ("blocked-probes.log", "blocked-probes.log.1"):
@@ -869,7 +869,7 @@ class ChkNginxLogs(EnvTest):
         self.assertIn("Lieu (/etc/default/nginx-tools-ip-location.conf)", propre)
         self.assertIn("ETS - Université (plage 11.105.0.0/16) — options : partagee", propre)
         self.assertIn("adresse PARTAGÉE (ETS - Université) : la bannir bloquerait toutes les personnes de ce lieu", propre)
-        self.assertIn("Requêtes REFUSÉES par nginx : 3 requête(s)", propre)                               # both arguments are presented
+        self.assertIn("Requêtes REFUSÉES par nginx : 3 requêtes", propre)                               # both arguments are presented
         self.assertIn("Listes : liste blanche : aucun fichier ; lieux ", err)                            # fichiers lus, sur la sortie d'erreur
         # Protected place: treated like the white list (warning, investigation: protected IP)
         with open(os.path.join(self.logs, "rencontres_linux_quebec_prod-access.log"), "w") as f:
