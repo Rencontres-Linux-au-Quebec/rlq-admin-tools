@@ -47,7 +47,7 @@ def ts(delta=0.0, fixe=None):
 
 def block(code="200", req="GET  /event", sql="105", t1="0.046", t2="0.426"):
     """Fin d'une ligne de werkzeug telle qu'elle est affichée : le bloc « HTTP/1.1 200 … » AVANT la requête."""
-    return f'HTTP/1.1 {code} {"-":>5} {sql:>4} {t1:>6} {t2:>6}  "{req}"'
+    return f'HTTP/1.1 {code} {"-":>7} {sql:>4} {t1:>6} {t2:>6}  "{req}"'
 
 
 def odoo(level, database, logger, text, delta=0.0, fixe=None):
@@ -339,10 +339,10 @@ class AppLogLive(EnvTest):
         self.journal(flux)
         text, _ = self.run_pty(["python3", self.prog, "--no-follow", "--no-history", "--no-isp", "--no-presence"], [], keep_ansi=True)
         orange = r"\x1b\[(?:33|38;5;208)m"
-        self.assertIn('\x1b[32m200\x1b[0m     -  105', text)                              # 200 : vert
-        self.assertIn('\x1b[36m303\x1b[0m     -  105', text)                              # 3xx : cyan
-        self.assertIn('\x1b[31m404\x1b[0m     -  105', text)                              # 404 : rouge
-        self.assertIn('\x1b[1;31m500\x1b[0m     -  105', text)                            # 5xx : rouge gras
+        self.assertIn('\x1b[32m200\x1b[0m       -  105', text)                              # 200 : vert
+        self.assertIn('\x1b[36m303\x1b[0m       -  105', text)                              # 3xx : cyan
+        self.assertIn('\x1b[31m404\x1b[0m       -  105', text)                              # 404 : rouge
+        self.assertIn('\x1b[1;31m500\x1b[0m       -  105', text)                            # 5xx : rouge gras
         self.assertIn("\x1b[1;37;44m/web/login\x1b[0m", text)                       # page de connexion
         self.assertIn("\x1b[1;37;44m/web/session/logout\x1b[0m", text)
         self.assertIn("\x1b[1;31mERROR\x1b[0m", text)                                # niveau
@@ -1024,7 +1024,7 @@ class AppLogLive(EnvTest):
         self.journal([werkzeug(DNS, "/wp-login.php", 500), werkzeug(self.equipe_ip, "/x", 404)])
         rc, out, err = self.lancer("--no-presence")
         self.assertNotIn("\x1b[", out + err, "dans un tube : aucune séquence, mais le même texte")
-        self.assertIn('HTTP/1.1 500     -  105  0.046  0.426  "GET  /wp-login.php"', out)
+        self.assertIn('HTTP/1.1 500       -  105  0.046  0.426  "GET  /wp-login.php"', out)
         self.assertNotIn("Vidéo inverse", err)
 
     def test_presentation_compacte_sans_deux_points_crochets_ni_tirets(self):
@@ -1116,7 +1116,7 @@ class AppLogLive(EnvTest):
         l = out.splitlines()
         self.assertNotIn(f"[{utc:%Y-%m-%d}", T(l[0]))
         self.assertIn(f"[{autre:%Y-%m-%d %H:%M:%S}]", T(l[1]))                                   # another instant: kept
-        self.assertRegex(T(l[0]), r'base longpolling srv\.exemple\.org {28}HTTP/1\.1 101   494 {13}14\.602  "GET  /websocket\?version=18\.0-7"$')
+        self.assertRegex(T(l[0]), r'base longpolling srv\.exemple\.org {28}HTTP/1\.1 101     494 {13}14\.602  "GET  /websocket\?version=18\.0-7"$')
         self.assertEqual(l[0].index('"GET'), l[2].index('"GET'), "le GET du websocket est aligné sur celui des autres lignes")
         m = self.lancer("--no-presence", "--no-isp", "--min")[1].splitlines()                 # 2.40 --min: neither "werkzeug" nor "longpolling" (a REQUEST): names aligned
         self.assertNotIn("longpolling", m[0])
@@ -2116,6 +2116,22 @@ class AppLogLive(EnvTest):
         self.assertNotIn("\x1b[1;36m2\x1b[0m", T(t))
         live.COLOR = False
         self.assertEqual(T(live.numbers("2xx 66 %")), "2xx 66 %")
+
+    def test_touche_f_redessine_les_lignes_soulignees(self):
+        """1.118 : la touche f réaffiche les dernières lignes AVEC le soulignement d'une ligne sur N (mêmes lignes que sur l'écran)."""
+        self.journal_tableau()
+        sequence = [(b"/event", b"f", 1.0), (b"/event", b"\x03", 0.6)]
+        text, envoyees = self.run_pty(["python3", self.prog, "--no-history", "--no-isp", "--no-presence", "--no-banned", "--lines", "3", "--underline", "1"],
+                                      sequence, timeout=60, colonnes=200, keep_ansi=True)
+        self.assertEqual(envoyees, len(sequence), text)
+        lignes = text.split("\n")
+        titres = [i for i, l in enumerate(lignes) if "────" in l]
+        self.assertTrue(titres, text)
+        fin = next((i for i in titres if i > titres[0]), len(lignes))
+        reaffichees = [l for l in lignes[titres[0] + 1:fin] if "odoo18" in l]
+        self.assertTrue(reaffichees, text)
+        for l in reaffichees:
+            self.assertIn("\x1b[4m", l, "la ligne réaffichée doit être soulignée")
 
     def test_menu_des_touches_et_options_a_la_volee(self):
         """[6] ? ouvre le menu ; i, m, s, v basculent ; d, H, o demandent une valeur ; V affiche la version."""

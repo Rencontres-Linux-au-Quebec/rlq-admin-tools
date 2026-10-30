@@ -114,7 +114,7 @@ from urllib.parse import unquote
 from collections import Counter, OrderedDict
 from concurrent.futures import Future
 
-__version__ = "1.117.20261029.233250"
+__version__ = "1.118.20261030.000133"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
@@ -317,7 +317,7 @@ def translate_protected(text):
     if kept:
         result = re.sub("\ue003(\\d+)\ue004", lambda m: kept[int(m.group(1))], result)
     return result.replace("\ue001", "").replace("\ue002", "")
-STYLES = {"person": "1;32", "team": "1;32", "place": "1;36", "server": "36", "dns": "36", "org": "33", "reseau": "33", "ip": "90", "connection": "1;37;44",
+STYLES = {"nginx": "1;35", "person": "1;32", "team": "1;32", "place": "1;36", "server": "36", "dns": "36", "org": "33", "reseau": "33", "ip": "90", "connection": "1;37;44",
           "failure": "1;" + ORANGE, "error": "1;31", "warning": ORANGE, "debug": "2", "highlight": "30;46",
           # INVERSE VIDEO (7): suspicious request; URL of a 5xx (red) or 4xx (yellow) error. Whitelist address (white background) or places file address (gray background):
           # EXPLICIT background AND text (black), never "7;90" (inverted gray): on a theme where bright black is black, the address became black on black
@@ -1522,8 +1522,8 @@ class Resolver:
 
 
 LEVEL_WIDTH = 8             # 1.117: the level is right-aligned on this width (CRITICAL is the longest): the country starts at the same column for every level
-SIZE_WIDTH = 5              # 1.117: width of the size column ("-" for Odoo, "15203" for a nginx response of 10 kB or more)
-NUMBERS_BLOCK_WIDTH = 40   # "HTTP/1.1 200    -    21  0.011  0.054  ": from the start of the numbers block to the "GET / POST" (see aligned_request)
+SIZE_WIDTH = 7              # 1.117/1.118: width of the size column ("-" for Odoo, up to 9 999 999 bytes for nginx)
+NUMBERS_BLOCK_WIDTH = 42   # "HTTP/1.1 200    -    21  0.011  0.054  ": from the start of the numbers block to the "GET / POST" (see aligned_request)
 COLUMN_WIDTH = 18        # "CC xxx.xxx.xxx.xxx": country code, space, longest IPv4 address (without brackets or comma)
 
 
@@ -1838,7 +1838,8 @@ class Formatting:
         header = []
         if L.ts_txt:
             header.append(L.ts_txt)
-            header.append(" ".join(x for x in (L.host_name, L.program_name) if x) + ("" if L.level else ":"))          # structured Odoo line: "odoo18 odoo INFO", without ":" (1.112: without host with --no-hostname)
+            shown_program = color_code(STYLES["nginx"], L.program_name) if (L.database == "nginx" and L.program_name) else L.program_name     # 1.118: nginx lines in colour
+            header.append(" ".join(x for x in (L.host_name, shown_program) if x) + ("" if L.level else ":"))          # structured Odoo line: "odoo18 odoo INFO", without ":" (1.112: without host with --no-hostname)
         if L.level:
             level_text = {"ERROR": color_code(STYLES["warning"] if benign else STYLES["error"], L.level), "CRITICAL": color_code(STYLES["error"], L.level),
                           "WARNING": color_code(STYLES["warning"], L.level), "DEBUG": color_code(STYLES["debug"], L.level)}.get(L.level, L.level)
@@ -1846,13 +1847,14 @@ class Formatting:
             if column:
                 header.append(column)
             field_list = ([] if self.minimal else [L.database]) + ([] if self.hidden_logger(L) else [L.logger])
+            shown_fields = ([] if self.minimal else [color_code(STYLES["nginx"], L.database) if L.database == "nginx" else L.database]) + ([] if self.hidden_logger(L) else [L.logger])     # 1.118: "nginx" in colour
             if WERKZEUG_RE.search(L.text) or (L.database == "nginx" and L.logger == "request"):      # 1.116: nginx request = Odoo request
-                header.extend(field_list)
+                header.extend(shown_fields)
             else:
                 # Odoo message that is NOT a request: its text starts at the column of the "GET / POST" of requests (after the numbers block), never
                 # above the number columns. "database logger" is padded up to that column (never truncated: a longer logger overflows).
                 target = (0 if self.minimal else len("base werkzeug") + 1) + NAME_WIDTH + NUMBERS_BLOCK_WIDTH
-                header.append(" ".join(field_list).ljust(target - 1))
+                header.append(" ".join(shown_fields) + " " * max(0, target - 1 - len(" ".join(field_list))))     # padding from the plain text (colours take no column)
         return (" ".join(header) + " " if header else "") + body
 
 
@@ -4914,7 +4916,7 @@ def follow(cmd, people, resolver, options, output):
         """1.113: writes one line and keeps it in the buffer of the f (refresh) and P (print) keys; `inputs` = (results, pays) to render it again."""
         shown = highlight_text(text, options["highlight_pattern"])
         if line_memory.maxlen:
-            line_memory.append({"L": L, "inputs": inputs, "benign": benign, "shown": shown})
+            line_memory.append({"L": L, "inputs": inputs, "benign": benign, "shown": shown, "n": state.get("emitted", 0)})
         output.write(shown + "\n", stream=True, underline=underline)       # 1.91: one line out of N underlined
 
     def emit(L, renderings, benign=False, inputs=None):
@@ -4964,7 +4966,7 @@ def follow(cmd, people, resolver, options, output):
                 if not keep(entry["L"], ANSI_RE.sub("", text)):
                     continue
                 entry["shown"] = highlight_text(text, options["highlight_pattern"])
-                output.write(entry["shown"] + "\n", stream=True)
+                output.write(entry["shown"] + "\n", stream=True, underline=bool(output.underline) and entry.get("n", 0) % output.underline == 0)   # 1.118: same lines underlined as on screen
         finally:
             output.active = active
 
