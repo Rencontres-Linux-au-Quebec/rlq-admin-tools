@@ -319,6 +319,30 @@ Earlier history was archived outside this repository when this file was created.
 
 ## app-log-live.py
 
+### 1.119.20261030.074937 - Dashboard title, status bar colour from slow connections only, nginx lines without quotes and with [BANNIE]
+
+- Title: the program shows "Tableau de bord en temps réel de APP" (APP = Odoo or BigBlueButton, from APP_LABEL) at startup and with Ctrl-T.
+- Reason: the user asked for a title at startup and on the Ctrl-T summary; the status bar changed colour for 4xx, 5xx, SQL injections and banned addresses, but only the slow connections should change it; the top addresses showed "(3)", and the user asked for no parentheses; the nginx lines had double quotes around the request, the referer and the agent; the banned addresses of nginx lines must be shown as [BANNIE] at the end; the truncation marker "..." had spaces around it, which made the URL longer.
+- Changes:
+  - Title: options["app_label"] (from APP_LABEL) and the line "Real-time dashboard of {app}" (translated in lang/app-log-live.fr.po); printed by main at startup, and before the table of the Ctrl-T key.
+  - StatusBar.color: follows ONLY the slow connections, those of more than STATUS_SLOW_S = 9 s (new constant): 1 to 4 green, 5 to 19 yellow, 20 and more red. StatusBar.observe counts them with the same rule. The other problems are still counted and shown in the text of the bar, but do not change its colour.
+  - StatusBar.top_ips: "IP ×2" instead of "IP (2)".
+  - Formatting.compose: a banned address of an nginx line is labelled [BANNED] (French: [BANNIE]) at the end of the line; Odoo lines keep "[banned: source]".
+  - shorten_line: the marker "..." has no space around it ("start...last two words").
+  - Formatting.aligned_nginx_request: the request, the referer, the agent and the host of nginx lines are shown without double quotes; the request keeps the column of the Odoo request (three spaces instead of two). Odoo lines keep their quotes.
+  - nginx-tools-tests/test_app_log_live.py: expectations updated (colour rules, ×, ...); nginx-tools-tests/test_logs_merge.py: no quotes in an nginx line, GET at the column of the Odoo GET.
+  - Files touched: app-log-live.py, lang/app-log-live.fr.po, nginx-tools-tests/test_app_log_live.py, nginx-tools-tests/test_logs_merge.py, CHANGELOG.md.
+- Bugs fixed:
+  - Symptom: Ctrl-G and Ctrl-T stopped the program (NameError). Diagnosis: the title was built from profile, which the key handler cannot see. Fix: the label is read from options["app_label"].
+- Safeguards and edge cases:
+  - The "[BANNED]" label is only for nginx lines; Odoo lines keep "[banned: fail2ban]" or "[banned: CrowdSec]".
+  - The quotes are removed from nginx lines only; the request of an Odoo line keeps its quotes, so the two kinds of lines stay different.
+  - The colour of the status bar no longer depends on --slow for its colour; --slow still colours the lines.
+- Checks:
+  - Rendering: the GET of the nginx request and of the Odoo request are in the same column; no quote in the nginx line.
+  - Full test_app_log_live run: 154 tests, only test_colonnes_jamais_tassees fails (already failing on the base branch because of the terminal width).
+- Action required: none.
+
 ### 1.118.20261030.000133 - Size column 2 characters wider, f key keeps the underlined lines, nginx words in colour
 
 - Title: the size column holds 7 characters (up to 9 999 999 bytes); the f (refresh) key underlines the same lines as the screen; the nginx program and database words are shown in bold magenta.

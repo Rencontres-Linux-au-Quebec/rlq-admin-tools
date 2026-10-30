@@ -114,7 +114,7 @@ from urllib.parse import unquote
 from collections import Counter, OrderedDict
 from concurrent.futures import Future
 
-__version__ = "1.118.20261030.000133"
+__version__ = "1.119.20261030.074937"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
@@ -1768,11 +1768,11 @@ class Formatting:
                     rendering = r
             return " " * max(0, width - len(value)) + rendering
         block = " ".join([http.ljust(8), token(3, code, 3), token(4, size, SIZE_WIDTH), " " * 4, " " * 6, " " * 6])
-        request_data = self.colored_text(text, retained, ouvrir, m.end(1)) + '"'
+        request_data = self.colored_text(text, retained, ouvrir + 1, m.end(1))      # 1.119: no quotes; the request keeps the column of the Odoo request
         before = self.colored_text(text, retained, 0, ouvrir)
         if not ANSI_RE.sub("", before).endswith(" "):
             before += " "
-        return before + block + "  " + request_data + self.colored_text(text, retained, m.end(4), len(text))
+        return before + block + "   " + request_data + self.colored_text(text, retained, m.end(4), len(text)).replace('"', "")
 
     def aligned_request(self, text, retained):
         """Werkzeug line: "… \"GET /url HTTP/1.1\" 200 - 13 0.006 0.066" becomes "… HTTP/1.1 200       - 13 0.006 0.066  \"GET /url\"": the block of numbers, of fixed width,
@@ -2713,8 +2713,8 @@ def shorten_line(text_line, limit):
     while tail_start < len(plain) and display_width(plain[tail_start:]) > tail_max:
         tail_start += 1
     tail = colored_suffix(text_line, tail_start)
-    head = colored_prefix(text_line, limit - display_width(plain[tail_start:]) - len(ELLIPSIS) - 2)
-    return head + " " + color_code("90", ELLIPSIS) + " " + tail
+    head = colored_prefix(text_line, limit - display_width(plain[tail_start:]) - len(ELLIPSIS))
+    return head + color_code("90", ELLIPSIS) + tail      # 1.119: no space around "..."
 
 
 def underline_line(text_line, width=None):
@@ -4396,6 +4396,9 @@ SQLI_RE = re.compile(r"union(?:\s|\+|/\*.*?\*/|%20)+(?:all(?:\s|\+|%20)+)?select
                      r"|\bxp_cmdshell\b|\bor\s*['\"]?\d+['\"]?\s*=\s*['\"]?\d+|'\s*(?:or|and)\s|;\s*(?:drop|insert|update|delete|shutdown)\b|\bconcat\s*\(\s*0x", re.IGNORECASE)
 
 
+STATUS_SLOW_S = 9.0            # 1.119: only the requests slower than this (seconds) change the colour of the status bar
+
+
 class StatusBar:
     """1.113: cumulative summary of the recent problems, drawn as a reverse-video bar every N displayed lines (--status-every N): SQL injection attempts,
     4xx and 5xx answers, addresses currently banned (seen), slow requests (--slow). Reset by the detailed reports (Ctrl-T and g).
@@ -4437,17 +4440,19 @@ class StatusBar:
         if ip and problem:
             self.problems_by_ip[ip] += 1
         total = request_duration(L.text or "")
-        if total is not None and slow_threshold and total >= slow_threshold:
+        if total is not None and total > STATUS_SLOW_S:               # 1.119: the bar counts only the slow connections of more than 9 s
             self.slow += 1
             self.slow_max = max(self.slow_max, total)
 
     def color(self):
-        """SGR code of the reverse-video bar: 37 white, 32 green, 33 yellow, 31 red."""
-        if self.sqli >= 3 or self.e5 >= 10 or self.slow >= 20:
+        """SGR code of the reverse-video bar: 37 white, 32 green, 33 yellow, 31 red.
+        1.119: the colour follows ONLY the slow connections (more than 9 s): 1 to 4 green, 5 to 19 yellow, 20 and more red.
+        The other problems (4xx, 5xx, SQL injection, banned addresses) are still counted and shown in the text of the bar."""
+        if self.slow >= 20:
             return "31"
-        if self.sqli or self.e5 or self.banned or self.slow >= 5 or self.e4 >= 100:
+        if self.slow >= 5:
             return "33"
-        if self.e4 or self.slow:
+        if self.slow:
             return "32"
         return "37"
 
@@ -4456,7 +4461,7 @@ class StatusBar:
         if not self.problems_by_ip or not self.show_ips:        # 1.116: nothing at all when the addresses are hidden (no "hidden" text)
             return ""
         best = self.problems_by_ip.most_common(self.TOP_IPS)
-        return TR("top IP") + " " + ", ".join(f"{ip} ({count})" for ip, count in best)
+        return TR("top IP") + " " + ", ".join(f"{ip} ×{count}" for ip, count in best)      # 1.119: no parentheses
 
     def summary(self):
         slow_text = f"{self.slow}" + (f" (max {self.slow_max:.1f} s)" if self.slow else "")
@@ -4929,7 +4934,8 @@ def follow(cmd, people, resolver, options, output):
         if banned_ips is not None and ips0 and ips0[0][2] in renderings and renderings[ips0[0][2]][3] is None:        # never for the whitelist or a place
             source = banned_ips.source_of(ips0[0][2])
             if source:
-                text += " " + color_code(STYLES["banned"], f"[banned: {source}]")
+                label = TR("[BANNED]") if L.database == "nginx" else f"[banned: {source}]"      # 1.119: nginx lines: [BANNIE] at the end
+                text += " " + color_code(STYLES["banned"], label)
         return base, text, ips0, source
 
     def paint(L, text, inputs, benign, underline=False):
@@ -5626,7 +5632,8 @@ def follow(cmd, people, resolver, options, output):
         """A keyboard key (menu or Ctrl-G / Ctrl-T)."""
         global VERBOSE, NAME_WIDTH, NAME_TRUNCATE
         if key_value in ("g", "t"):
-            write_out(["", *table_rows(delta=key_value == "t")])
+            title = [color_code(STYLES["title"], TR("Real-time dashboard of {app}").format(app=options.get("app_label", "application")))]      # 1.119
+            write_out(["", *(title if key_value == "t" else []), *table_rows(delta=key_value == "t")])
             status.reset()                                  # 1.113: a detailed report starts a new period for the status bar
             write_out(["  " + TR("Status bar: counters reset (new period from now).")])
         elif key_value == "refresh":                        # 1.113: f key - last lines displayed again with the current options
@@ -6357,6 +6364,7 @@ def main():
         return 2
     is_odoo = profile.get("APP_LOG_KIND") != "file"
     people = People(load_module("_odoo_db") if is_odoo else None)
+    eprint(color_code(STYLES["title"], TR("Real-time dashboard of {app}").format(app=profile.get("APP_LABEL", "application"))))      # 1.119: title of the program
     if LOGS_MERGE in cmd:                                       # 1.116: the nginx logs read are named (shown with --log-nginx or key x)
         state_text = TR("+ nginx logs, merged in time order") if args.log_nginx else TR("nginx logs read, hidden (key x shows them)")
         eprint(color_code("1;36", state_text) + ": " + ", ".join(os.path.basename(f) for f in nginx_log_files(profile)))
@@ -6433,7 +6441,7 @@ def main():
         eprint(banned_ips.summary())
     options = {"keep_ip": not args.hide_ip, "minimal": args.min, "hide_addons": args.hide_addons, "lines": args.lines, "recap": args.recap,
                "slow": max(0.0, args.slow), "only": [t.lower() for t in (args.only or []) if t], "highlight_words": read_highlight(args.highlight), "highlight_pattern": highlight_pattern(read_highlight(args.highlight)), "suspect": args.suspect, "disk_min": max(0.0, args.disk_min), "connections": max(0.0, min(100.0, args.connections)), "external_ip": not args.no_isp, "odoo_journal": profile.get("ODOO_LOGFILE"), "profile": profile, "service": service, "diag_hosts": args.diagnose_host, "not_found": args.not_found, "steps_line": args.steps_line, "summary": args.summary, "banned_ips": banned_ips,
-               "presence": Presence(args.idle) if is_odoo and not args.no_presence else None, "health": args.health, "keys": not args.no_keys and not args.no_follow, "app": profile.get("APP_NAME"), "log_nginx": bool(args.log_nginx), "nginx_merged": LOGS_MERGE in cmd, "propose_ban": not args.no_ban_prompt, "watch": [t.strip().lower() for t in (args.watch or "").split(",") if t.strip()], "agents": not args.no_user_agent and not args.no_follow, "acces_logs": profile.get("ACCESS_LOGS"),
+               "presence": Presence(args.idle) if is_odoo and not args.no_presence else None, "health": args.health, "keys": not args.no_keys and not args.no_follow, "app": profile.get("APP_NAME"), "app_label": profile.get("APP_LABEL", "application"), "log_nginx": bool(args.log_nginx), "nginx_merged": LOGS_MERGE in cmd, "propose_ban": not args.no_ban_prompt, "watch": [t.strip().lower() for t in (args.watch or "").split(",") if t.strip()], "agents": not args.no_user_agent and not args.no_follow, "acces_logs": profile.get("ACCESS_LOGS"),
                "exclude": exclusions, "chime": args.chime, "group": args.accentuate_group if group_members else None, "membres": group_members,
                "report_min": args.time_report or 0.0, "level": args.level, "modules_sort": modules_sort_state}
     options.update({"buffer": args.buffer, "status_every": args.status_every,                          # 1.113: buffer of the f and P keys, status bar
