@@ -398,7 +398,7 @@ class PlusieursSauvegardesParJour(EnvTest):
         self.assertIn("Contexte  : Configuration lue : ", rapport)
         self.assertRegex(rapport, r"Suite     : .*odoo-backup\.sh \d+\.\d+\.\d{8}\.\d{6}")
         self.assertIn("ÉCHECS (1) :\n  1. [FAIL] base1 : AUCUNE sauvegarde", rapport)
-        self.assertIn("AVERTISSEMENTS (2) :", rapport)                              # timer not installed, no copy off the server
+        self.assertIn("AVERTISSEMENTS (3) :", rapport)                              # timer not installed, no copy off the server, no restoration test yet (1.24)
         self.assertIn("[ATTN] Timer : NON INSTALLÉ", rapport)
         self.assertIn("[ATTN] Copie hors du serveur : aucune (REMOTE)", rapport)
         self.assertEqual([f for f in os.listdir(self.d) if f.startswith("report-err.")], [], "fichier temporaire oublié")

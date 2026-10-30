@@ -581,3 +581,9 @@ msgstr "last restoration test succeeded ("
 
 msgid "aucun test de restauration enregistré — lancer : "
 msgstr "no restoration test recorded — run: "
+
+msgid "#REMOTE_RETENTION=yes              # 1.24 : appliquer la même rétention sur la copie distante (REMOTE) ; no = la copie ne fait que grossir"
+msgstr "#REMOTE_RETENTION=yes              # 1.24: apply the same retention on the remote copy (REMOTE); no = the copy only grows"
+
+msgid "#MAX_REMOTE_DELETE=20              # 1.24 : nombre maximal de fichiers supprimés sur la copie distante en une passe (sécurité)"
+msgstr "#MAX_REMOTE_DELETE=20              # 1.24: maximum number of files deleted on the remote copy in one run (safety)"
