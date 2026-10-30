@@ -60,3 +60,12 @@
 #   --check       vérification seule (comportement par défaut)
 #   --report-err  afficher à la fin un rapport d'erreurs à copier-coller (programme, version, serveur, échecs, avertissements)
 #   --version     affiche la version et quitte
+#
+# --- 2.66 : options de ligne de commande non listées plus haut (le modèle doit couvrir toutes les options de --help) ---
+#   --backup      sauvegarde de la configuration nginx avant chaque --update (avec --rollback : restaurer une sauvegarde)
+#   --disable-uri CHEMIN   refuse un chemin du site Odoo (confirmation demandée ; --yes pour l'appliquer sans question)
+#   --enable-uri  CHEMIN   rétablit un chemin refusé auparavant (confirmation demandée ; --yes pour l'appliquer sans question)
+#   --menu        menu interactif des opérations courantes (dialog si installé ; terminal requis)
+#   --rollback    restaure la dernière sauvegarde de la configuration nginx (--yes : sans question)
+#   --test-rules  teste les règles nginx par des requêtes curl (lecture seule) : refus attendus et pages servies, sortie 1 si un cas échoue
+#   --yes         avec --rollback, --disable-uri ou --enable-uri : appliquer sans question
