@@ -2958,7 +2958,7 @@ uri_verifier() {
         pass "URI refusées : $total test(s) sur les noms publics — toutes répondent 404 (chemins : $chemins)."
         return 0
     fi
-    fail "URI refusées : $echec test(s) sur $total ne répondent pas 404 : le bloc server qui répond à ces noms n'applique pas la règle. Voir : nginx -T 2>/dev/null | grep -n 'uri-desactivees\|location ~'"
+    fail "URI refusées : $echec test(s) sur $total ne répondent pas 404 : le bloc server qui répond à ces noms n'applique pas la règle. Voir : nginx -T 2>/dev/null | grep -n uri-desactivees"
     return 1
 }
 
