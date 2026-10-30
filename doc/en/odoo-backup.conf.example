@@ -50,3 +50,10 @@
 #   --uninstall-timer    retirer la sauvegarde automatique
 #   --verbose            afficher chaque commande externe exécutée (psql, pg_dump, tar, rsync, systemctl)
 #   --version            affiche la version et quitte
+#
+# --- 1.24 : rétention sur la copie distante (REMOTE) ---
+# REMOTE_RETENTION=yes : la copie distante suit la même rétention que la sauvegarde locale (les fichiers qui ne sont plus gardés
+# localement sont supprimés sur la copie). no : la copie ne fait que grossir.
+#REMOTE_RETENTION=yes
+# MAX_REMOTE_DELETE=20 : nombre maximal de fichiers supprimés sur la copie distante en une passe ; au-delà, rsync s'arrête (sécurité).
+#MAX_REMOTE_DELETE=20

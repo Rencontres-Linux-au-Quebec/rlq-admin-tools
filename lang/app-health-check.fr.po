@@ -825,3 +825,36 @@ msgstr "Envoyer un courriel de test"
 
 msgid "interactive menu of the common operations (dialog if installed; terminal required)"
 msgstr "menu interactif des opérations courantes (dialog si installé ; terminal requis)"
+
+msgid "Changes since the previous run:"
+msgstr "Changements depuis le passage précédent :"
+
+msgid "No change since the previous run."
+msgstr "Aucun changement depuis le passage précédent."
+
+msgid "NEW FAILURE"
+msgstr "NOUVELLE PANNE"
+
+msgid "RESOLVED"
+msgstr "RÉSOLU"
+
+msgid "[FAIL] notification URL refused (http or https expected): "
+msgstr "[FAIL] adresse de notification refusée (http ou https attendu) : "
+
+msgid "[FAIL] notification impossible ("
+msgstr "[FAIL] notification impossible ("
+
+msgid "): "
+msgstr "): "
+
+msgid "[FAIL] notifications impossible: "
+msgstr "[FAIL] notifications impossibles : "
+
+msgid "[ATTN] last run not saved ("
+msgstr "[ATTN] dernier passage non enregistré ("
+
+msgid "Add to the report what changed since the previous run (new failures, resolved checks); every run is saved"
+msgstr "Ajoute au rapport ce qui a changé depuis le passage précédent (nouvelles pannes, contrôles résolus) ; chaque passage est enregistré"
+
+msgid "Print the results as JSON on standard output (the readable text goes to standard error)"
+msgstr "Affiche les résultats en JSON sur la sortie standard (le texte lisible va sur la sortie d'erreur)"

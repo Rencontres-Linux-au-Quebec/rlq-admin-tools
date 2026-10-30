@@ -30,7 +30,7 @@
 #
 #
 # Usage : sync-crowdsec-blocklist.sh [--dry-run] [--status] [--blocked [--top N]] [--source URL] [--install-cron
-#                                    [--cron-hours N]] [--uninstall] [--min-ips N] [-v|--verbose] [--version]
+#                                    [--cron-hours N]] [--uninstall] [--min-ips N] [--max-drop PCT] [-v|--verbose] [--version]
 #                                    [--changelog]
 #   - (aucune option) : installe au besoin les paquets manquants, telecharge la liste, met a jour les ipsets
 #                        (remplacement atomique), s'assure que les regles existent, sauvegarde l'etat. Root requis.
@@ -56,6 +56,8 @@
 #                        Copie de sauvegarde faite une fois ; ne peut jamais faire echouer ufw. Seule modification d'un
 #                        existing file of this whole project - hence an explicit option, never automatic. Root required.
 #   - --ufw-hook-remove : retire exactement ce bloc et remet le fichier dans son etat d'execution d'origine.
+#   - --max-drop PCT : 1.30: refuses an update whose list is smaller by more than PCT % than the last accepted one (default: 50; 0 = no check).
+#                      A sudden drop is the usual sign of a truncated download; the ipsets are then kept as they are.
 #   - --min-ips N     : minimum number of valid IPs expected before accepting an update (default: 50) - protects
 #                        contre un telechargement rate silencieusement qui debannirait tout le monde.
 #   - -v/--verbose    : affiche chaque commande systeme executee (apt, ipset, iptables, curl...).
@@ -79,7 +81,7 @@ grep_q() { grep "$@" >/dev/null; }
 #                              ne peut pas le voir, le texte etant entre apostrophes (faux positif).
 trap 'ec=$?; echo "" >&2; echo "*** ARRÊT INATTENDU DU SCRIPT (code $ec) À LA LIGNE $LINENO ***" >&2; echo "*** Commande fautive : $BASH_COMMAND" >&2' ERR
 
-readonly SCRIPT_VERSION="1.29.20261028.214122"
+readonly SCRIPT_VERSION="1.30.20261029.193900"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
 SCRIPT_NAME="$(basename "${BASH_SOURCE[0]}" .sh)"; readonly SCRIPT_NAME
 # Changelog dans le sous-repertoire doc/ ; repli sur l'ancien emplacement (a cote du programme) tant que
@@ -104,6 +106,7 @@ readonly SOURCE_URL_DEFAULT="https://raw.githubusercontent.com/Y3ll0w/CrowdSec-C
 readonly STATE_DIR="${SYNC_CROWDSEC_STATE_DIR:-/var/lib/sync-crowdsec-blocklist}"
 readonly CACHE_LIST="$STATE_DIR/last-list.txt"
 readonly CACHE_SHA="$STATE_DIR/last-list.sha256"
+readonly CACHE_COUNT="$STATE_DIR/last-list.count"      # 1.30: number of valid entries of the last ACCEPTED list (--max-drop)
 readonly BLOCKED_DB="$STATE_DIR/blocked-ips.tsv"
 readonly LAST_SYNC_FILE="$STATE_DIR/last-sync"
 readonly FAILURE_FILE="$STATE_DIR/last-failure"   # consecutive failures in progress (erased at the first success)
@@ -142,6 +145,7 @@ DO_UFW_START=0
 VERBOSE=0
 SOURCE_URL="$SOURCE_URL_DEFAULT"
 MIN_IPS=50
+MAX_DROP=50                  # 1.30: percentage of drop (compared with the last accepted list) above which an update is refused; 0 = no check
 TOP_N=50
 CRON_HOURS=1
 STALE_DAYS=3
@@ -158,11 +162,12 @@ case " $* " in *" --version "*) ;; *) echo "sync-crowdsec-blocklist.sh v$SCRIPT_
 # shellcheck source=/dev/null
 [[ -r "$SCRIPT_DIR/apps/_listes.sh" ]] && . "$SCRIPT_DIR/apps/_listes.sh"
 # Configuration (/etc/default/sync-crowdsec-blocklist.conf, then ~/.sync-crowdsec-blocklist.conf; -c/--config: this file ONLY): default values of the options, the command line wins.
-# Keys: CRON_HOURS, LANGUAGE, MIN_IPS, SOURCE, STALE_DAYS, TOP, VERBOSE.
+# Keys: CRON_HOURS, LANGUAGE, MAX_DROP, MIN_IPS, SOURCE, STALE_DAYS, TOP, VERBOSE.
 declare -F pad_cols >/dev/null || pad_cols() { printf '%-*s' "$2" "$1"; }     # 1.25 : sans apps/_i18n.sh, remplissage en octets (comme avant)
 if declare -F config_lire >/dev/null; then
     config_lire "$SCRIPT_NAME" "$@"
     config_defaut CRON_HOURS CRON_HOURS --cron-hours nombre
+    config_defaut MAX_DROP MAX_DROP --max-drop nombre
     config_defaut MIN_IPS MIN_IPS --min-ips nombre
     config_defaut SOURCE_URL SOURCE --source texte
     config_defaut STALE_DAYS STALE_DAYS --stale-days nombre
@@ -204,6 +209,7 @@ while [[ $# -gt 0 ]]; do
         --ufw-start) DO_UFW_START=1; shift ;;   # interne : appele par /etc/ufw/after.init
         --uninstall) DO_UNINSTALL=1; shift ;;
         --min-ips) MIN_IPS="${2:-}"; shift 2 ;;
+        --max-drop) MAX_DROP="${2:-}"; shift 2 ;;
         -v|--verbose) VERBOSE=1; shift ;;
         --version) echo "sync-crowdsec-blocklist.sh version $SCRIPT_VERSION"; exit 0 ;;
         --menu) shift ;;     # --menu (apps/_menu.sh) : traité avant la boucle
@@ -230,12 +236,13 @@ Options (par ordre alphabétique) :
   --blocked                    IP de la liste effectivement bloquées (compteurs du pare-feu)
   --changelog                  affiche le journal des modifications
   -c, --config FILE            fichier de configuration à lire SEUL (sinon : /etc/default/sync-crowdsec-blocklist.conf, puis ~/.sync-crowdsec-blocklist.conf ;
-                               clés : CRON_HOURS, LANGUAGE, MIN_IPS, SOURCE, STALE_DAYS, TOP, VERBOSE)
+                               clés : CRON_HOURS, LANGUAGE, MAX_DROP, MIN_IPS, SOURCE, STALE_DAYS, TOP, VERBOSE)
   --cron-hours N               avec --install-cron : intervalle en heures
   --dry-run                    télécharger et analyser la liste, sans rien modifier
   -h, --help                   affiche cette aide et quitte
   --install-cron               synchronisation automatique (fichier cron)
   --lang LANG                  langue d'affichage : en ou fr (défaut : selon LC_ALL / LC_MESSAGES / LANG)
+  --max-drop PCT               refuse une liste plus petite de PCT % que la dernière acceptée (défaut 50 ; 0 = pas de contrôle)
   --menu    menu interactif des opérations courantes (dialog si installé ; terminal requis)
   --min-ips N                  taille minimale acceptée de la liste (protection contre une liste tronquée)
   --report-err                 afficher à la fin un rapport d'erreurs à copier-coller (programme, version, serveur,
@@ -282,13 +289,17 @@ if [[ "$DO_STATUS" != "1" && "$DO_UFW_HOOK" != "1" ]]; then
     prendre_verrou 0 sync-crowdsec-blocklist
 fi
 
-for pair in "MIN_IPS:--min-ips" "TOP_N:--top" "CRON_HOURS:--cron-hours" "STALE_DAYS:--stale-days"; do
+for pair in "MIN_IPS:--min-ips" "MAX_DROP:--max-drop" "TOP_N:--top" "CRON_HOURS:--cron-hours" "STALE_DAYS:--stale-days"; do
     var="${pair%%:*}"; opt="${pair##*:}"
     if ! [[ "${!var}" =~ ^[0-9]+$ ]]; then
         echo "ERREUR: $opt attend un entier positif (reçu: '${!var}')" >&2
         exit 1
     fi
 done
+if (( MAX_DROP > 100 )); then
+    echo "ERREUR: --max-drop attend un pourcentage entre 0 et 100 (reçu: $MAX_DROP)" >&2
+    exit 1
+fi
 if (( CRON_HOURS < 1 || CRON_HOURS > 24 )); then
     echo "ERREUR: --cron-hours attend une valeur entre 1 et 24 (reçu: $CRON_HOURS)" >&2
     exit 1
@@ -1032,6 +1043,16 @@ if (( total < MIN_IPS )); then
     exit 1
 fi
 
+# 1.30 --max-drop: a list much smaller than the last accepted one is refused (truncated download), unless the cache fallback is used.
+if [[ "$USING_CACHE" != "1" && "$MAX_DROP" -gt 0 && -r "$CACHE_COUNT" ]]; then
+    previous_total=$(cat "$CACHE_COUNT" 2>/dev/null) || previous_total=0
+    if [[ "$previous_total" =~ ^[0-9]+$ ]] && (( previous_total > 0 )) && (( total * 100 < previous_total * (100 - MAX_DROP) )); then
+        echo "${C_RED}ERREUR: $total entrée(s) valide(s), contre $previous_total à la synchronisation précédente (baisse de plus de $MAX_DROP %) — mise à jour ANNULÉE.${C_RESET}" >&2
+        echo "${C_RED}Vérifiez la source, puis relancez avec --max-drop 0 si cette baisse est attendue. Aucun ipset n'a été modifié.${C_RESET}" >&2
+        [[ "$DO_DRY_RUN" == "1" ]] || exit 1
+    fi
+fi
+
 if [[ "$DO_DRY_RUN" == "1" ]]; then
     echo
     echo "Exemples (5 premières entrées de chaque famille) :"
@@ -1092,6 +1113,7 @@ else
             date +%s > "$LAST_CHANGE_FILE"
         fi
         echo "$new_sha" > "$CACHE_SHA"
+        echo "$total" > "$CACHE_COUNT"                 # 1.30: reference for --max-drop
     fi
     echo "      ${C_GREEN}Ipsets à jour : $IPSET_V4 ($count_v4), $IPSET_V6 ($count_v6).${C_RESET}"
 fi

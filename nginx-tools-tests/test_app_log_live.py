@@ -3314,7 +3314,9 @@ class AppLogLive(EnvTest):
         """1.82 : la touche G (membres des groupes RLQ*) était décrite dans le menu mais jamais reliée ; P = latence."""
         live = self.module_live()
         self.assertEqual(live.MENU_KEYS.get(b"G"), "G")
-        self.assertEqual(live.MENU_KEYS.get(b"P"), "latency")
+        self.assertEqual(live.MENU_KEYS.get(b"Y"), "latency")       # 1.113: P prints the buffer, Y is the latency report
+        self.assertEqual(live.MENU_KEYS.get(b"P"), "print")
+        self.assertEqual(live.MENU_KEYS.get(b"f"), "refresh")
         self.assertEqual(len(set(live.MENU_KEYS)), len(live.MENU_KEYS))
 
     def test_comptes_surveilles_et_bannis_marques(self):
@@ -3336,3 +3338,83 @@ class AppLogLive(EnvTest):
         finally:
             os.environ["NGINX_TOOLS_ODOO_USERS"] = ancien or "off"
         self.assertEqual(live.display_width("张三李四"), 8)
+
+    def test_112_temps_fractions_de_jour_fenetre_et_commandes_journalctl(self):
+        """1.112 : --since / --until (formats, relatifs, epoch), --days fractionnaire, options journalctl transmises en epoch."""
+        live = self.module_live()
+        now = time.time()
+        self.assertAlmostEqual(live.parse_time("-2h"), now - 7200, delta=5)
+        self.assertAlmostEqual(live.parse_time("0.5 hour"), now - 1800, delta=5)
+        self.assertAlmostEqual(live.parse_time("+1 day"), now + 86400, delta=5)
+        self.assertEqual(live.parse_time("@1700000000"), 1700000000.0)
+        with self.assertRaises(ValueError):
+            live.parse_time("n'importe quoi")
+        self.assertEqual(live.days_window(30), ["--since", "-30 days"], "un nombre entier de jours garde sa forme d'origine")
+        self.assertEqual(live.days_window(0.1)[0], "--since")
+        self.assertTrue(live.days_window(0.1)[1].startswith("@"), "0.1 jour = 2,4 heures : une date epoch")
+
+        class Args:
+            pass
+        args = Args()
+        args.lines, args.no_follow, args.since_epoch, args.until_epoch = 50, False, 1700000000.5, None
+        args.no_hostname, args.grep, args.grep_sensitive = True, "Foo", True
+        cmd = live.stream_command(args, {}, "odoo", None)
+        self.assertIn("--no-hostname", cmd)
+        self.assertIn("--case-sensitive=yes", cmd)
+        self.assertIn("@1700000000", cmd)
+        self.assertIn("Foo", cmd)
+
+    def test_112_fenetre_grep_et_pays_des_lignes(self):
+        """1.112 : --until arrete la fenetre, --grep teste chaque ligne, --country garde le pays de l'adresse du client."""
+        live = self.module_live()
+        opts = {"since": 100.0, "until": 200.0, "grep": re.compile("erreur", re.I), "countries": {"CA"}, "exclude_countries": None}
+        state = {}
+        L = live.Line("2026-10-29T10:00:00.000000-0400 odoo[1]: erreur B")
+        L.instant = 150.0
+        self.assertTrue(live.window_keep(L, state, opts))
+        L.instant = 250.0
+        self.assertFalse(live.window_keep(L, state, opts), "apres --until : hors fenetre")
+        pays = {"11.1.1.1": "CA", "8.8.8.8": "US"}
+        L.instant = 150.0
+        self.assertTrue(live.country_keep(L, [("11.1.1.1", None, None)], pays, {}, opts))
+        self.assertFalse(live.country_keep(L, [("8.8.8.8", None, None)], pays, {}, opts))
+        self.assertFalse(live.country_keep(L, [], {}, {}, opts), "ligne horodatee sans adresse : cachee par --country")
+
+    def test_113_barre_d_etat_couleur_et_injection_sql(self):
+        """1.113 : barre d'état (blanc, vert, jaune, rouge selon les problèmes comptés) et détection des injections SQL sur l'URL décodée."""
+        live = self.module_live()
+        bar = live.StatusBar()
+        self.assertEqual(bar.color(), "37", "rien à signaler : blanc")
+        attaque = live.Line('2026-10-29T10:00:00.000000-0400 odoo[1]: 2026-10-29 14:00:00,000 1 INFO db werkzeug: 11.1.1.1 - - "GET /shop?id=1%20UNION%20SELECT%20password HTTP/1.1" 500 - 1 0.1 0.2')
+        self.assertTrue(live.SQLI_RE.search("/shop?id=1 UNION SELECT password"), "UNION SELECT détecté")
+        self.assertTrue(live.SQLI_RE.search("/x?a=' or 1=1"), "tautologie détectée")
+        self.assertFalse(live.SQLI_RE.search("/web/image/12/logo.png"), "URL normale ignorée")
+        bar.observe(attaque, None, 5.0)
+        self.assertEqual((bar.sqli, bar.e5), (1, 1))
+        self.assertEqual(bar.color(), "33", "une injection et une erreur 5xx : jaune")
+        for _ in range(2):
+            bar.observe(attaque, None, 5.0)
+        self.assertEqual(bar.color(), "31", "trois injections : rouge")
+        bar.reset()
+        self.assertEqual((bar.sqli, bar.e5, bar.slow), (0, 0, 0), "Ctrl-T ou g : bilan remis à zéro")
+        self.assertIn("SQLi", bar.summary())
+
+    def test_114_ip_principales_et_alerte_rouge(self):
+        """1.114 : la barre d'état nomme les trois adresses les plus fautives (masquées sans --show-ip) et l'alerte rouge ne se répète pas."""
+        live = self.module_live()
+        bar = live.StatusBar(show_ips=True)
+        attaque = live.Line('2026-10-29T10:00:00.000000-0400 odoo[1]: 2026-10-29 14:00:00,000 1 INFO db werkzeug: 11.1.1.1 - - "GET /shop?id=1%20UNION%20SELECT%20password HTTP/1.1" 500 - 1 0.1 0.2')
+        for _ in range(3):
+            bar.observe(attaque, None, 5.0, "11.1.1.1")
+        bar.observe(attaque, None, 5.0, "22.2.2.2")
+        self.assertIn("11.1.1.1 (3)", bar.summary(), "l'adresse la plus fautive est nommée avec son compte")
+        self.assertIn("22.2.2.2 (1)", bar.summary())
+        cachee = live.StatusBar(show_ips=False)
+        cachee.observe(attaque, None, 5.0, "11.1.1.1")
+        self.assertNotIn("11.1.1.1", cachee.summary(), "adresse cachée sans --show-ip")
+        self.assertIn("(--show-ip)", cachee.summary())
+        self.assertFalse(bar.alerted, "pas d'alerte avant le passage au rouge")
+        bar.alerted = True
+        bar.reset()
+        self.assertFalse(bar.alerted, "Ctrl-T ou g réarme l'alerte")
+        self.assertEqual(bar.problems_by_ip, {}, "le palmarès repart à zéro")

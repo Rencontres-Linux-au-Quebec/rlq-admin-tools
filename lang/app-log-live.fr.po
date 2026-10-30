@@ -655,8 +655,6 @@ msgstr "Fichier de configuration à lire SEUL (sinon : /etc/default/app-log-live
 msgid "Beep (in byobu/tmux too: see the tips shown) when a displayed line is an error: 0 = any error (4xx, 5xx, Odoo ERROR), 1 = 4xx, 2 = 5xx and 4xx (0 without value)"
 msgstr "Bip (dans byobu/tmux aussi : voir les conseils affichés) quand une ligne affichée est une erreur : 0 = toute erreur (4xx, 5xx, ERROR d'Odoo), 1 = 4xx, 2 = 5xx et 4xx (0 sans valeur)"
 
-msgid "Days of sign-in history read from the log (default: 0 = the whole history of the log)"
-msgstr "Jours d'historique des connexions lus dans le journal (défaut : 0 = tout l'historique du journal)"
 
 msgid "Names column (DNS, person, place…) of N characters, never truncating a longer name (default: "
 msgstr "Colonne des noms (DNS, personne, lieu…) de N caractères, sans jamais tronquer un nom plus long (défaut : "
@@ -2694,3 +2692,103 @@ msgstr "Derniers messages, puis arrêt"
 
 msgid "interactive menu of the common operations (dialog if installed; terminal required)"
 msgstr "menu interactif des opérations courantes (dialog si installé ; terminal requis)"
+
+# 1.112: --since, --until, --utc, --grep, --country, --exclude-country, -f, --no-pager, --no-hostname
+
+msgid "Show only the lines whose first address is in these countries (two-letter codes such as CA,FR; repeatable). Lines without address are hidden"
+msgstr "N'affiche que les lignes dont la première adresse est dans ces pays (codes à deux lettres, par exemple CA,FR ; répétable). Les lignes sans adresse sont cachées"
+
+msgid "Hide the lines whose first address is in these countries (two-letter codes such as US,CN; repeatable). Addresses of unknown country are kept"
+msgstr "Cache les lignes dont la première adresse est dans ces pays (codes à deux lettres, par exemple US,CN ; répétable). Les adresses de pays inconnu sont gardées"
+
+msgid "Accepted for journalctl compatibility: the live stream is the default (use --no-follow to stop after the history)"
+msgstr "Accepté par compatibilité avec journalctl : le direct est le défaut (utiliser --no-follow pour s'arrêter après l'historique)"
+
+msgid "Show only the lines whose message matches this regular expression. Case-insensitive unless REGEX has an uppercase letter (as journalctl)"
+msgstr "N'affiche que les lignes dont le message correspond à cette expression régulière. Sans distinction de casse, sauf si REGEX contient une majuscule (comme journalctl)"
+
+msgid "Do not show the host name of the journal lines (as journalctl --no-hostname)"
+msgstr "N'affiche pas le nom de l'hôte des lignes du journal (comme journalctl --no-hostname)"
+
+msgid "Accepted for journalctl compatibility: the output is never paged"
+msgstr "Accepté par compatibilité avec journalctl : la sortie n'est jamais paginée"
+
+msgid "Show the lines from TIME: YYYY-MM-DD [HH:MM[:SS]] [Z or +HH:MM], HH:MM[:SS] (today), today, yesterday, @EPOCH, now, or relative (-2h, '-30 min', '0.5 day', '3 days ago'). Local time, or UTC with --utc"
+msgstr "Affiche les lignes à partir de TEMPS : AAAA-MM-JJ [HH:MM[:SS]] [Z ou +HH:MM], HH:MM[:SS] (aujourd'hui), today, yesterday, @EPOCH, now, ou relatif (-2h, '-30 min', '0.5 day', '3 days ago'). Heure locale, ou UTC avec --utc"
+
+msgid "Show only the lines BEFORE TIME (same formats as --since); a date alone includes the whole day. With the live stream, the program stops at that time"
+msgstr "N'affiche que les lignes AVANT TEMPS (mêmes formats que --since) ; une date seule inclut toute la journée. En direct, le programme s'arrête à ce moment"
+
+msgid "Times in UTC: the time of each line, and the times given to --since / --until without a time zone (default: local time)"
+msgstr "Heures en UTC : l'heure de chaque ligne, et les heures données à --since / --until sans fuseau (défaut : heure locale)"
+
+msgid "Days of sign-in history read from the log, fractions allowed: 0.1 = 2.4 hours (default: 0 = the whole history of the log)"
+msgstr "Jours d'historique des connexions lus dans le journal, fractions permises : 0.1 = 2,4 heures (défaut : 0 = tout l'historique du journal)"
+
+msgid "Filters (--since, --until, --grep, --country, --exclude-country): {filters}"
+msgstr "Filtres (--since, --until, --grep, --country, --exclude-country) : {filters}"
+
+msgid "from"
+msgstr "depuis"
+
+msgid "before"
+msgstr "avant"
+
+msgid "country"
+msgstr "pays"
+
+msgid "not country"
+msgstr "pas le pays"
+
+# 1.113: status bar, f (refresh), P (print), --buffer, --status-every
+
+msgid "STATUS"
+msgstr "ÉTAT"
+
+msgid "SQLi attacks"
+msgstr "attaques SQLi"
+
+msgid "banned"
+msgstr "bannies"
+
+msgid "since the last detailed report (Ctrl-T or g)"
+msgstr "depuis le dernier rapport détaillé (Ctrl-T ou g)"
+
+msgid "Status bar: counters reset (new period from now)."
+msgstr "Barre d'état : compteurs remis à zéro (nouvelle période à partir de maintenant)."
+
+msgid "Nothing to refresh yet (the buffer keeps the last lines displayed: --buffer N)."
+msgstr "Rien à rafraîchir pour l'instant (le tampon garde les dernières lignes affichées : --buffer N)."
+
+msgid "──── last {n} line(s), displayed again with the current options ────"
+msgstr "──── {n} dernière(s) ligne(s), affichée(s) de nouveau avec les options courantes ────"
+
+msgid "Nothing to print yet (the buffer keeps the last lines displayed: --buffer N)."
+msgstr "Rien à imprimer pour l'instant (le tampon garde les dernières lignes affichées : --buffer N)."
+
+msgid "Lines to print (1 to {n}, Enter = all): "
+msgstr "Lignes à imprimer (1 à {n}, Entrée = toutes) : "
+
+msgid "File (Enter = {name}): "
+msgstr "Fichier (Entrée = {name}) : "
+
+msgid "Print failed: {error}"
+msgstr "Impression impossible : {error}"
+
+msgid "{n} line(s) written to {path} (colors kept: less -R {path}; mode 600, names and addresses inside)"
+msgstr "{n} ligne(s) écrite(s) dans {path} (couleurs conservées : less -R {path} ; mode 600, contient des noms et des adresses)"
+
+msgid "Last displayed lines kept in memory for the f key (displayed again with the current options) and the P key (printed to a file): 0 = none (default: 200)"
+msgstr "Dernières lignes affichées gardées en mémoire pour la touche f (affichées de nouveau avec les options courantes) et la touche P (imprimées dans un fichier) : 0 = aucune (défaut : 200)"
+
+msgid "Status bar in reverse video after every N displayed lines: SQL injection attempts, 4xx, 5xx, banned addresses, slow requests since the last detailed report (Ctrl-T or g); 0 = never (default: 100)"
+msgstr "Barre d'état en vidéo inverse après toutes les N lignes affichées : tentatives d'injection SQL, 4xx, 5xx, adresses bannies, requêtes lentes depuis le dernier rapport détaillé (Ctrl-T ou g) ; 0 = jamais (défaut : 100)"
+
+msgid "top IP"
+msgstr "IP principales"
+
+msgid "hidden (--show-ip)"
+msgstr "masquées (--show-ip)"
+
+msgid "ALERT: the status bar turned red, investigate now (Ctrl-T or g to acknowledge)"
+msgstr "ALERTE : la barre d'état est passée au rouge, investiguer maintenant (Ctrl-T ou g pour acquitter)"

@@ -66,7 +66,7 @@ import sys
 import time
 from urllib.parse import urlparse, parse_qs, unquote
 
-__version__ = "2.31.20261028.214122"
+__version__ = "2.32.20261029.195500"
 # Marker added at the END of the "browser" User-Agent (2.2): our test requests are recognizable in all the
 # logs (nginx, Odoo) and excluded from the statistics by web-monitor.py. Matches no pattern of the bot filter.
 UA_MARKER = " app-health-check/" + ".".join(__version__.split(".")[:2])
@@ -1029,7 +1029,7 @@ def color(text, tty=None):
                   re.sub(r"(Summary: )(0 failure\(s\))", "\\1\x1b[1;32m\\2\x1b[0m", text))
 
 
-def format_report(target, all_results):
+def format_report(target, all_results, changes=None):
     lines = [f"Report app-health-check.py {'v' + __version__} ({REPORT_APP_LABEL[0]}) — target: {target} — "
              f"{time.strftime('%Y-%m-%d %H:%M:%S %Z')}", ""]
     n_fail = 0
@@ -1040,7 +1040,99 @@ def format_report(target, all_results):
         lines.append(f"[{symbol}] {label} — {detail}")
     lines.append("")
     lines.append(f"Summary: {n_fail} failure(s) out of {len(all_results)} check(s).")
+    if changes is not None:                              # 2.32 --changes: differences with the previous run
+        lines.append("")
+        lines.append(TR("Changes since the previous run:") if changes else TR("No change since the previous run."))
+        for kind, label in changes:
+            lines.append(f"  [{TR('NEW FAILURE') if kind == 'new-failure' else TR('RESOLVED')}] {label}")
     return "\n".join(lines), n_fail
+
+
+# ------------------------------------------------------------------------------------------------------------------
+# 2.32: memory of the runs (--changes, --json), and alerts by ntfy or webhook. The last run is saved in
+# last-run.json (mode 600: the details name the hosts and the certificates); a failed save is reported, never fatal.
+# ------------------------------------------------------------------------------------------------------------------
+STATE_FILE_NAME = "last-run.json"
+
+
+def state_path():
+    """APP_HEALTH_CHECK_STATE_DIR (environment) if set; else /var/lib/app-health-check when it exists or as root;
+    else ~/.local/state/app-health-check."""
+    folder = os.environ.get("APP_HEALTH_CHECK_STATE_DIR")
+    if not folder:
+        system = "/var/lib/app-health-check"
+        if os.path.isdir(system) or os.geteuid() == 0:
+            folder = system
+        else:
+            folder = os.path.join(os.path.expanduser("~"), ".local", "state", "app-health-check")
+    return os.path.join(folder, STATE_FILE_NAME)
+
+
+def read_previous_run(path):
+    """{label: ok} of the previous run, or None when there is none (or it is unreadable)."""
+    try:
+        with open(path, encoding="utf-8") as f:
+            data = json.load(f)
+        return {item["label"]: item["ok"] for item in data["results"]}
+    except (OSError, ValueError, KeyError, TypeError):
+        return None
+
+
+def compare_runs(previous, all_results):
+    """[(kind, label)]: 'new-failure' for a check that fails now and did not fail before (new check included),
+    'resolved' for a check that passed now and failed before. No previous run: no change."""
+    if previous is None:
+        return []
+    changes = []
+    for label, ok, _detail in all_results:
+        before = previous.get(label)
+        if ok is False and before is not False:
+            changes.append(("new-failure", label))
+        elif ok and before is False:
+            changes.append(("resolved", label))
+    return changes
+
+
+def save_run(path, target, all_results, n_fail):
+    """Writes the results of this run (replaced atomically, mode 600). Returns an error text, or None."""
+    data = {"program": "app-health-check.py", "version": __version__, "target": target,
+            "time": time.strftime("%Y-%m-%dT%H:%M:%S%z"), "failures": n_fail,
+            "results": [{"label": label, "ok": ok, "detail": detail} for label, ok, detail in all_results]}
+    try:
+        os.makedirs(os.path.dirname(path), mode=0o700, exist_ok=True)
+        temp = path + ".tmp"
+        descriptor = os.open(temp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+        with os.fdopen(descriptor, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=1)
+        os.replace(temp, path)
+        return None
+    except OSError as e:
+        return str(e)
+
+
+def send_alerts(cfg, subject, body, n_fail, changes):
+    """2.32: NOTIFY_NTFY_URL (an ntfy topic URL) and NOTIFY_WEBHOOK_URL (POST of {"title", "message"} as JSON).
+    Sent ONLY when there is a failure or a change: a healthy and unchanged server stays silent."""
+    if not (n_fail or changes):
+        return
+    import urllib.request
+    ntfy, webhook = cfg.get("NOTIFY_NTFY_URL", "").strip(), cfg.get("NOTIFY_WEBHOOK_URL", "").strip()
+    for url in [u for u in (ntfy, webhook) if u]:
+        if not url.lower().startswith(("https://", "http://")):
+            print(color(f"[FAIL] notification URL refused (http or https expected): {url[:40]}"))
+            continue
+        try:
+            if url == ntfy:
+                request = urllib.request.Request(url, data=body.encode("utf-8"), method="POST",
+                                                 headers={"Title": subject.encode("ascii", "replace").decode("ascii"),
+                                                          "Priority": "high" if n_fail else "default"})
+            else:
+                request = urllib.request.Request(url, data=json.dumps({"title": subject, "message": body}).encode("utf-8"),
+                                                 method="POST", headers={"Content-Type": "application/json"})
+            with urllib.request.urlopen(request, timeout=10) as response:
+                response.read(1)
+        except Exception as e:
+            print(color(f"[FAIL] notification impossible ({url.split('/')[2] if '//' in url else 'url'}): {e}"))
 
 
 def smtp_security(cfg):
@@ -1465,6 +1557,10 @@ def main():
                              f"(default: {DEFAULT_CONFIG_PATH})")
     parser.add_argument("--changelog", action="store_true",
                         help="Show the change log (version numbers in color on a terminal)")
+    parser.add_argument("--changes", action="store_true",
+                        help="Add to the report what changed since the previous run (new failures, resolved checks); every run is saved")
+    parser.add_argument("--json", action="store_true",
+                        help="Print the results as JSON on standard output (the readable text goes to standard error)")
     parser.add_argument("--app", metavar="NAME",
                         help="Application behind nginx (profile apps/NAME.conf: odoo, bbb…) — detected automatically by default")
     parser.add_argument("--force", action="store_true",
@@ -1539,6 +1635,9 @@ def main():
     if args.test_email:
         sys.exit(test_email(cfg))
 
+    real_stdout = sys.stdout
+    if args.json:                     # 2.32: the readable text of the checks goes to standard error, the JSON alone to standard output
+        sys.stdout = sys.stderr
     client_for_discuss = None
     all_results = check_restricted_coherence(cfg, os.path.abspath(config_path))
     if profile.get("HEALTH_CHECKS") == "bbb":
@@ -1559,10 +1658,29 @@ def main():
             all_results += odoo_check
 
     REPORT_APP_LABEL[0] = profile.get("APP_LABEL", "Odoo")
-    report, n_fail = format_report(args.target, all_results)
-    print(color(report))
+    state_file = state_path()
+    previous = read_previous_run(state_file)
+    changes = compare_runs(previous, all_results)
+    n_failed = sum(1 for _label, ok, _detail in all_results if ok is False)
+    save_error = save_run(state_file, args.target, all_results, n_failed)
+    report, n_fail = format_report(args.target, all_results, changes if args.changes else None)
+    if args.json:
+        payload = {"program": "app-health-check.py", "version": __version__, "target": args.target,
+                   "failures": n_fail, "checks": [{"label": label, "status": "SKIP" if ok is None else ("OK" if ok else "FAIL"),
+                                                    "detail": detail} for label, ok, detail in all_results],
+                   "changes": [{"kind": kind, "label": label} for kind, label in changes]}
+        sys.stdout = real_stdout
+        print(json.dumps(payload, ensure_ascii=False, indent=2))
+    else:
+        print(color(report))
+    if save_error:
+        print(color(f"[ATTN] last run not saved ({state_file}): {save_error}"), file=sys.stderr)
 
     subject = f"[{'ERROR' if n_fail else 'OK'}] Health check {profile['APP_LABEL']} ({args.target}) — {n_fail} failure(s)"
+    try:
+        send_alerts(cfg, subject, report, n_fail, changes)
+    except Exception as e:
+        print(color(f"[FAIL] notifications impossible: {e}"), file=sys.stderr)
     # E-mail report ONLY if SMTP is configured (2.9: 2.8 called send_email unconditionally and the
     # program stopped on "SMTP_HOST not configured" after checking everything). Sending failure: reported, no stop.
     if cfg.get("SMTP_HOST") and cfg.get("NOTIFY_EMAIL_TO"):

@@ -143,6 +143,29 @@ Earlier history was archived outside this repository when this file was created.
 
 ## app-health-check.py
 
+### 2.32.20261029.195500 - --json, --changes, alerts by ntfy or webhook
+
+- Title: machine-readable results, changes since the previous run, and alerts only when something happens.
+- Reason: the report is a text for people. A cron job or a monitoring tool needs the results in a structured form, and an operator who runs the check every day wants to know what is new instead of reading every line again. Alerts by e-mail or Discuss are sent at every run, so the noise hides real problems.
+- Changes:
+  - --json: the results (label, status OK / FAIL / SKIP, detail), the number of failures and the changes are printed as JSON on standard output. The readable text of the checks goes to standard error during the run (sys.stdout is redirected, restored before the JSON).
+  - --changes: the readable report gets a section listing the new failures and the resolved checks since the previous run.
+  - Memory of the runs (state_path, save_run): the results of every run are saved in last-run.json, mode 600 (the details name hosts and certificates). Folder: APP_HEALTH_CHECK_STATE_DIR if set; else /var/lib/app-health-check when it exists or when running as root; else ~/.local/state/app-health-check. Written through a temporary file then replaced.
+  - compare_runs: a check failing now and not failing before (new check included) is a new failure; a check passing now and failing before is resolved.
+  - Alerts (send_alerts): NOTIFY_NTFY_URL (ntfy topic) and NOTIFY_WEBHOOK_URL (JSON title and message), sent only when there is a failure or a change. Other keys and the e-mail / Discuss behaviour are unchanged.
+  - Files touched: app-health-check.py, lang/app-health-check.fr.po, doc/en and doc/fr app-health-check.conf.example.
+- Bugs fixed: none.
+- Safeguards and edge cases:
+  - No previous run: no change is reported (first run, unreadable or damaged file).
+  - A failed save is reported on standard error ([ATTN]), the check is not stopped.
+  - Notification URLs must start with http:// or https://; others are refused with a message.
+  - A notification error is reported and does not change the exit code (1 only for failed checks).
+  - The ntfy title is ASCII (HTTP headers): the accents of the subject are replaced.
+- Checks:
+  - py_compile OK; --version displays the dynamic version; --help lists --changes and --json.
+  - Unit checks on the comparison, the saved file (mode 600) and its reading, done by hand before the commit.
+- Action required: none. To receive alerts, set NOTIFY_NTFY_URL or NOTIFY_WEBHOOK_URL in the configuration file, and use --changes or --json in the cron job if wanted.
+
 ### 2.31.20261028.214122 - --menu: English programs translate the menu and its help through their catalogue
 
 - Title: --menu: English programs translate the menu and its help through their catalogue.
@@ -296,14 +319,85 @@ Earlier history was archived outside this repository when this file was created.
 
 ## app-log-live.py
 
-### 1.112.20261029.212344 - Connection, 404-probe and repeat thresholds read from apps/_seuils.py
+### 1.114.20261029.192022 - Status bar: top addresses, red alert once, status settings in the configuration file
 
-- Title: Connection, 404-probe and repeat thresholds read from apps/_seuils.py.
-- Reason: Same reason as web-monitor.py: one value per notion, shared by both programs.
+- Title: the status bar names the three addresses with the most problem lines, gives one alert when it turns red, and the --buffer and --status-every settings can be kept in the configuration file.
+- Reason: The status bar of 1.113 shows that something is wrong, but not where it comes from. The red colour was only visible in the bar, so an operator looking at another window could miss it. The two settings of the bar had to be given on the command line each time.
 - Changes:
-  - CONNECTIONS_THRESHOLD_DEFAULT (CONNECTIONS_PCT), THRESHOLD_404 (PROBE_404) and REPEAT_MIN come from apps/_seuils.py through seuil_commun(); built-in values kept without the module.
-  - The module is read before these constants are defined, so the values apply to the whole program.
-  - Files: app-log-live.py, apps/_seuils.py, nginx-tools-tests/test_seuils.py.
+  - StatusBar.observe (function observe): counts, for each displayed line that is a problem (4xx, 5xx, SQL injection attempt, banned address), the first address of the line (new parameter ip). StatusBar.top_ips (new method): "top IP" followed by the three addresses with the most problems, as "ip (count)".
+  - Privacy: the top addresses are shown only when the addresses are displayed (--show-ip, the H key). Otherwise the bar says that they are hidden (--show-ip). status_line reads the H key setting at each redraw, so the bar follows the key.
+  - Alert (emit, in follow): the first time the bar is red since the last reset, one beep (sonner, same mode as --chime, whatever --chime is) and one red line "ALERT: the status bar turned red...". The alert is not repeated until Ctrl-T or g resets the counters (StatusBar.alerted).
+  - Configuration: SCHEMA_CONFIG gets BUFFER (--buffer) and STATUS_EVERY (--status-every). They are read from /etc/default/app-log-live.conf, then from ~/.app-log-live.conf, and the command line keeps priority.
+  - Files touched: app-log-live.py, lang/app-log-live.fr.po (3 new messages), nginx-tools-tests/test_app_log_live.py, doc/fr/07-app-log-live.md and doc/en/07-app-log-live.md.
+- Bugs fixed: none.
+- Safeguards and edge cases:
+  - A line with no address (for example a line without a client address) is counted in the totals but not in the top addresses.
+  - The alert is given once per period: a bar that stays red does not beep on each line.
+  - The beep respects the terminal check of sonner: nothing is sent when the output is not a terminal (redirected output, tests).
+  - Only the bar is affected by --hide-ip: the daily journal keeps the same content as before.
+- Checks:
+  - py_compile OK; --version displays 1.114.20261029.192022.
+  - New unit test test_114_ip_principales_alerte_rouge_une_fois (see the verdict of the testeur agent in the pull request).
+- Action required: none. Optional: add BUFFER=... and STATUS_EVERY=... to app-log-live.conf to change the defaults (200 and 100).
+
+### 1.113.20261029.171832 - Real-time dashboard: status bar, refresh (f), print (P), key menu in order
+
+- Title: a status bar in reverse video every N lines, the refresh of the last lines (f), their printing to a file (P), and the key menu sorted by short key.
+- Reason: The program can run for several hours. Looking at the page after page of the stream to find the problems is not practical. A bar summarizing the recent problems (SQL injection attempts, 4xx and 5xx answers, banned addresses, slow requests) tells where to start an investigation. The keys of the menu (h) are listed by short key, the refresh of the last lines with the current options is a key of the menu like the toggles, and P prints the last lines (colors kept) to a file.
+- Changes:
+  - Status bar (class StatusBar, function status_line): printed after every N displayed lines (--status-every N, 100 by default, 0 = never). It counts since the last detailed report: SQL injection attempts (SQLI_RE, applied to the decoded URL: UNION SELECT, sleep/benchmark/extractvalue..., tautologies, stacked statements), 4xx and 5xx answers, addresses currently banned seen on the lines, slow requests (duration >= --slow) and the slowest one. Reset by Ctrl-T and g (key function). Reverse video (SGR 7), colour white (37, nothing to see), green (32, a little), yellow (33, to look at), red (31, investigate now). Thresholds in StatusBar.color(): red = 3 or more injections, 10 or more 5xx, 20 or more slow requests; yellow = one injection, one 5xx, one banned address, 5 or more slow requests, 100 or more 4xx; green = a 4xx or a slow request.
+  - Buffer (function paint): the displayed lines are kept with their source data (results and pays) in a deque of --buffer N lines (200 by default, 0 = none). emit() is split into compose() (rendering and banned label), paint() (writes and keeps) and emit() (counting, status bar, chime).
+  - f key (refresh_lines): the buffered lines are displayed again with the current options (IP, DNS, names, highlight, --only...). They are not counted again and not written again to the daily journal (output.active is set to False during the refresh).
+  - P key (print_lines): asks the number of lines (default: all of the buffer) and the file name (default: app-log-live-print-YYYYMMDD-HHMMSS.log in the log folder). The file is created with O_EXCL and mode 600, the colours are kept, the lines are the real ones (not anonymized).
+  - Y key: the latency report (LATENCY.lines) moved from the key P, which is now the print key. MENU_KEYS: Y latency, P print, f refresh.
+  - Key menu (h): the short keys are sorted alphabetically (case-insensitive, lowercase first on equal letters), in the options section and in the Others section. The f, P and Y entries are added.
+  - Options: --buffer N and --status-every N (new), validated (zero or positive).
+  - Ctrl-G and Ctrl-T also print a line saying that the counters of the status bar were reset.
+  - Files touched: app-log-live.py, lang/app-log-live.fr.po (French of the new messages and help), doc/fr/07-app-log-live.md and doc/en/07-app-log-live.md, nginx-tools-tests/test_app_log_live.py (key test updated: P is print, Y is latency; new test of the status bar and of the SQL injection detection), CHANGELOG.md.
+- Bugs fixed: none. Note: the key P was documented as latency; it is now Y (see above).
+- Safeguards and edge cases:
+  - Lines replayed by f are not counted in the status bar, the statistics or the record (test recording).
+  - Lines without a stored source (reminders of a visitor, deferred lines) are not refreshable: they are skipped by f.
+  - P refuses to overwrite an existing file (O_EXCL); a write error is shown, the program continues.
+  - The status bar colours are not anonymized (no address is shown in the bar).
+  - A bar without any line counted is white.
+- Checks:
+  - py_compile OK; the new unit tests pass (test_113_barre_d_etat_couleur_et_injection_sql and test_touches_g_et_p_reliees updated).
+  - Full module test_app_log_live: see the verdict of the run below.
+- Action required: note the new key assignment: P prints, Y shows the latency report. To have a status bar at another interval, use --status-every N; to keep more or fewer lines for f and P, use --buffer N.
+
+### 1.112.20261029.165811 - Time window, journalctl options, country filters, fractions of a day
+
+- Title: --since / -S, --until / -U, --utc, -n, --no-hostname, -g / --grep, --country, --exclude-country; --days accepts fractions (0.1 = 2.4 hours).
+- Reason: The administrator wanted to follow the Odoo journal for a precise period (for example the last 0.1 day) and to use the options of journalctl (-S, -U, -n, --utc, --no-hostname...). He also wanted to show or hide the addresses of one country, which the program did not offer.
+- Changes:
+  - --days is now a decimal number (type float). 0 keeps the whole history; a whole number of days keeps the form "--since -N days" sent to journalctl, a fraction is sent as an epoch.
+  - -S / --since TIME and -U / --until TIME (new function parse_time): "now", "today", "yesterday", "@EPOCH", "HH:MM[:SS]", "YYYY-MM-DD [HH:MM[:SS]] [Z or +HH:MM]", relative values ("-2h", "+1 day", "0.5 hour", "3 days ago", units s, min, h, d, w and long forms). A date alone is the start of its day, and the start of the next day for --until.
+  - --utc: the times of the log lines and the times given without a time zone are in UTC (default: local time). Parsed in Line._analyze.
+  - -n is an alias of --lines (same meaning as journalctl -n).
+  - --no-hostname (journalctl option, and the host name is left out of the header of the line; the lines without host are read: JOURNAL_RE host now optional).
+  - -g / --grep REGEX (new functions window_keep): the message of each line must match; case-insensitive unless the pattern has an uppercase letter (journalctl smart case). Also passed to journalctl with --case-sensitive for the live stream.
+  - --country CC,CC and --exclude-country CC,CC (new function country_keep): filter on the country of the FIRST address of the line (the client), the same address as --exclude-ip. Repeatable, two-letter codes, validated.
+  - -f / --follow and --no-pager: accepted for journalctl compatibility, no effect (the live stream is the default, the output is never paged).
+  - --until stops the live stream when a line reaches that time (the stream is in order).
+  - --days + --since together are refused; --until must be later than --since.
+  - Config key DAYS is read as a decimal number.
+  - journal_epoch, days_window, journal_options, read_history (new arguments since and until), stream_command, main (filter setup and eprint of the active filters).
+  - Files touched: app-log-live.py, lang/app-log-live.fr.po (French of the new messages and help; the old --days help entry removed), nginx-tools-tests/test_app_log_live.py (two new tests), CHANGELOG.md.
+- Bugs fixed: none.
+- Safeguards and edge cases:
+  - A line without time header (Python trace, BigBlueButton) follows the time window of the previous timed line; --grep is tested on every line.
+  - A timed line without address is hidden by --country and kept by --exclude-country; an address of unknown country is hidden by --country and kept by --exclude-country.
+  - Lines with an address whose country lookup is still pending when the line is shown (WAIT_DELAY) follow the rule for unknown countries.
+  - The --days message of the history keeps its wording; the file-based history (Odoo logfile) filters on the epoch of each line.
+  - --since with a value in the future gives no line (no error).
+- Checks:
+  - py_compile OK; --help lists the new options in alphabetical order (aide triée par le formateur).
+  - Manual checks of parse_time (formats, relative values, --utc, invalid values), of the journal line parsing with and without host, of window_keep and country_keep, and of the journalctl command built by stream_command.
+  - Unit tests: nginx-tools-tests/test_app_log_live.py, 151 tests run, one failure: test_colonnes_jamais_tassees_pays_noms_anonymises_et_souligne_tous_les_n. The same failure exists without this change (checked on the previous version): not caused by 1.112.
+  - test_i18n: the catalogue of app-log-live is complete; the failure of nginx-hardening (bash catalogue) is not related to this program.
+  - test_conventions (order of the versions in CHANGELOG.md): the 1.112.20261028.214122 section of this program was already placed after 1.111.20261028.225404; not changed here.
+- Action required: none. Example: app-log-live.py -S '-2h' --utc -n 500 ; app-log-live.py --exclude-country US,CN ; app-log-live.py --days 0.1 --no-follow.
 
 ### 1.112.20261028.214122 - --menu: English programs translate the menu and its help through their catalogue
 
@@ -1556,6 +1650,29 @@ Earlier history was archived outside this repository when this file was created.
 
 ## odoo-backup.sh
 
+### 1.24.20261029.200500 - Retention on the remote copy, result of the restoration test in --status
+
+- Title: the remote copy follows the local retention, and --status shows whether the last restoration test succeeded.
+- Reason: the retention only cleaned the local folder. The remote copy (REMOTE, for example on another server through Tailscale) grew without limit until its disk was full. The restoration test (--test-restore) existed, but its result was not kept: nothing said when it last ran or whether it succeeded.
+- Changes:
+  - retention_distante (new, after retention): after the local retention, the remote folder of each database is made equal to the local one with rsync --delete --delete-excluded and include filters (*.zip, *.tar.xz, *.sha256 only). --max-delete MAX_REMOTE_DELETE stops the run instead of deleting more.
+  - Configuration: REMOTE_RETENTION=yes|no (default yes) and MAX_REMOTE_DELETE=20 (integers checked). Both read from the configuration files; the example files document them.
+  - --test-restore: the result (date and success or failure) is written to last-restore-test in the state folder (not in dry-run).
+  - --status: shows the result of the last restoration test; a failure is an error, a success older than 7 days or no test at all is a warning. The remote retention setting is shown next to the remote copy.
+  - Files touched: odoo-backup.sh (version 1.24), lang/odoo-backup.en.po (15 fragments), doc/en and doc/fr odoo-backup.conf.example, CHANGELOG.md.
+- Bugs fixed: none, but the remote copy never being pruned was a growing risk: symptom = the remote disk fills; diagnosis = retention() only handles DEST; fix = retention_distante.
+- Safeguards and edge cases:
+  - No remote pruning when there is no local archive for the database: an empty local folder would empty the remote one. A warning is written instead.
+  - --max-delete: at most MAX_REMOTE_DELETE files are deleted in one run; above that rsync fails and the warning says so.
+  - REMOTE_RETENTION=no keeps the previous behaviour exactly.
+  - The remote folder is assumed dedicated to the backups of this program: with REMOTE_RETENTION=yes, files of other kinds in it are deleted.
+  - The rsync failure is recorded in last-failure (state read by --status and web-monitor.py).
+- Checks:
+  - bash -n OK; --version displays the dynamic version.
+  - Functional check of the guard (empty local folder) with the function extracted and stubs.
+  - NOT checked here: the rsync deletion itself, because rsync is not installed in the test environment. To be checked on the backup server: a remote folder with an extra old archive, run the backup once, and see it removed.
+- Action required: before the first run with REMOTE_RETENTION=yes, check the remote folder content (the files not produced by odoo-backup.sh would be deleted), or set REMOTE_RETENTION=no. After installation, run odoo-backup.sh --test-restore once so that --status has a result.
+
 ### 1.23.20261028.214122 - --menu: catalogue entries for the menu and its help line (English)
 
 - Title: --menu: catalogue entries for the menu and its help line (English).
@@ -1775,6 +1892,25 @@ Earlier history was archived outside this repository when this file was created.
 
 ## nginx-hardening.sh
 
+### 2.66.20261029.205500 - Configuration model and catalogue complete for --help; changelog in version order
+
+- Title: the options of --help are all in the configuration model, the --yes help line is translated, and the changelog is in descending version order.
+- Reason: three checks of the test suite failed on this program: --test-rules and six other options were missing from doc/en/nginx-hardening.conf.example; the English catalogue did not match the --yes help line (its wording changed in 2.61); the entries of the changelog were not in descending order for versions 2.61 to 2.63.
+- Changes:
+  - doc/en/nginx-hardening.conf.example: a block lists --backup, --disable-uri, --enable-uri, --menu, --rollback, --test-rules and --yes, as comments (no active line).
+  - lang/nginx-hardening.en.po: the msgid of the --yes help line is the text the program prints; the msgstr says the option applies to --rollback, --disable-uri and --enable-uri.
+  - CHANGELOG.md: the blocks of the nginx-hardening section are sorted by version, descending (the newest first).
+  - Files touched: nginx-hardening.sh (version 2.66), CHANGELOG.md, lang/nginx-hardening.en.po, doc/en/nginx-hardening.conf.example.
+- Bugs fixed:
+  - Symptom: test_config_defaut and test_i18n failed for nginx-hardening.sh, test_conventions for its changelog. Diagnosis: the tests read the configuration example and the catalogue, not only the program. Fix: as above.
+- Safeguards and edge cases:
+  - Program behaviour unchanged: only the example, the catalogue and the changelog order changed.
+  - Each changelog block keeps its own text; only the order of the blocks changed.
+- Checks:
+  - bash -n OK; --version displays the dynamic version; --help unchanged.
+  - Test suite: see the verdict of the testeur agent in the pull request.
+- Action required: none.
+
 ### 2.65.20261029.084500 - --test-rules: read-only curl checks of the nginx rules
 
 - Title: New option --test-rules sends a series of curl requests to the local nginx and reports whether each rule still refuses or serves what it should.
@@ -1823,32 +1959,6 @@ Earlier history was archived outside this repository when this file was created.
   - Not verified here: nginx -t on a real server, and the 500 count after deployment.
 - Action required: on each server (PROD Odoo, DEV Odoo), run nginx-hardening.sh --update. It runs nginx -t and reloads nginx itself (nginx_appliquer) when the configuration is valid; it does not test the site afterwards for this rule, so check by hand that a request with tags=stfD returns 404 and that /es/event/jornada-linux-2025-23/track?tags=[35,+40] still returns 200. Not done here: auto-ban in web-monitor.py (the recommendations file is 69 h old, the timer should be checked).
 
-### 2.63.20261028.190500 - A reload refused by nginx is reported as a failure
-
-- Title: After a reload, the error log is read: a new [emerg] line means nginx refused the new configuration and kept the old one.
-- Reason: On the server, nginx refused every reload since 11:11 (limit_req zone odoo_general: key changed from $limit_key_general to $limit_key_general_std), yet systemd reported "Reloaded" and the script announced "nginx rechargé". The rules of the last updates were never active.
-- Detail: nginx_appliquer keeps the reload exit code, waits NGINX_HARDENING_RELOAD_WAIT seconds (1 by default), compares the number of [emerg] lines in NGINX_HARDENING_ERROR_LOG (default /var/log/nginx/error.log) before and after, and prints the last [emerg] line. Callers already print "nginx n'a pas pu être rechargé" on failure, and the previous files are restored when nginx -t refuses.
-- Files: nginx-hardening.sh, CHANGELOG.md.
-- Checks: stub systemctl: reload without error reports success; reload that adds an [emerg] line reports the refusal. ShellCheck 0.11.0: clean.
-- Cause to fix on the server (not done by this version): a zone whose key changed needs a restart, or a new zone name so that a reload is accepted. Action required: decide between a short restart (sudo nginx -t then sudo systemctl restart nginx) and a renamed zone in the repository.
-
-### 2.62.20261028.181500 - --update checks over HTTP that refused paths answer 404
-
-- Title: After a change of refused paths, --update requests each refused path on every public name (and under /es) and reports any answer other than 404.
-- Reason: 2.61 reported "nginx rechargé" as success without checking the result. On the server, https://www.rencontres-linux.quebec/shop still answered 200 after the reload.
-- Detail: New functions uri_noms_testables (public names from nginx -T, same rules as the HSTS step) and uri_verifier (curl --resolve to 127.0.0.1, read-only GET). The check runs only with --update, after the file is written or was already up to date. It reports each test that does not answer 404 and prints the next command to run. No automatic restore: nginx -t already accepted the configuration, so the cause is a server block that does not apply the rule.
-- Files: nginx-hardening.sh, CHANGELOG.md, nginx-tools-tests/test_nginx_uri.py.
-- Checks: test_nginx_uri (8 tests: 404 on every name, 200 reported as a failure, and the earlier cases). ShellCheck 0.11.0: clean.
-- Action required: run sudo nginx-hardening.sh --update (the verification runs). If it reports a failure, send the lines it prints.
-
-### 2.61.20261028.180500 - --disable-uri / --enable-uri: confirmation and list of refused paths
-
-- Title: Changing the refused paths asks for confirmation, after showing the paths refused now and after the change.
-- Reason: 2.60 applied the refusal of /shop during --update without any question, and nothing showed the list of refused paths.
-- Detail: Step 12c prints "URI refusées actuellement" and the list after the change. With a terminal: question [o/N], default no. Without a terminal: nothing is changed unless --yes is given (--yes is shared with --rollback). --check shows the pending change. Same rule as before: nginx -t before the reload, previous file restored on refusal.
-- Files: nginx-hardening.sh, CHANGELOG.md, nginx-tools-tests/test_nginx_uri.py.
-- Checks: test_nginx_uri (6 tests, including: no terminal and no --yes = nothing changed); with a pseudo terminal: answer n changes nothing, answer o writes the file and reloads (stub nginx). ShellCheck 0.11.0: clean.
-- Action required: to check the current refusal: grep location /etc/nginx/snippets/uri-desactivees.conf. To undo: --enable-uri /shop --update (asks first).
 ### 2.63.20261028.222437 - Catalogue entries for the bash messages not yet translated (rollback, URI, backup, menu)
 
 - Title: English catalogue entries for the bash messages that were still French (backup, rollback, refused URIs, configuration reading, menu).
@@ -1860,6 +1970,15 @@ Earlier history was archived outside this repository when this file was created.
 - Safeguards and edge cases: the answers o/y and the words expected by the program are unchanged; the English prompt still accepts y.
 - Checks: test_i18n (catalogues of the bash programs), test_odoo_conf (English output without French).
 - Action required: none.
+
+### 2.63.20261028.190500 - A reload refused by nginx is reported as a failure
+
+- Title: After a reload, the error log is read: a new [emerg] line means nginx refused the new configuration and kept the old one.
+- Reason: On the server, nginx refused every reload since 11:11 (limit_req zone odoo_general: key changed from $limit_key_general to $limit_key_general_std), yet systemd reported "Reloaded" and the script announced "nginx rechargé". The rules of the last updates were never active.
+- Detail: nginx_appliquer keeps the reload exit code, waits NGINX_HARDENING_RELOAD_WAIT seconds (1 by default), compares the number of [emerg] lines in NGINX_HARDENING_ERROR_LOG (default /var/log/nginx/error.log) before and after, and prints the last [emerg] line. Callers already print "nginx n'a pas pu être rechargé" on failure, and the previous files are restored when nginx -t refuses.
+- Files: nginx-hardening.sh, CHANGELOG.md.
+- Checks: stub systemctl: reload without error reports success; reload that adds an [emerg] line reports the refusal. ShellCheck 0.11.0: clean.
+- Cause to fix on the server (not done by this version): a zone whose key changed needs a restart, or a new zone name so that a reload is accepted. Action required: decide between a short restart (sudo nginx -t then sudo systemctl restart nginx) and a renamed zone in the repository.
 
 ### 2.62.20261028.210125 - --menu: graphical menu with dialog, text menu as fallback
 
@@ -1890,6 +2009,15 @@ Earlier history was archived outside this repository when this file was created.
   - The accepted confirmation of --update was NOT run here (root on the test machine would have changed nginx and the firewall).
 - Action required: install dialog on the servers to get the graphical menu (sudo apt install dialog). Then sudo nginx-hardening.sh --menu.
 
+### 2.62.20261028.181500 - --update checks over HTTP that refused paths answer 404
+
+- Title: After a change of refused paths, --update requests each refused path on every public name (and under /es) and reports any answer other than 404.
+- Reason: 2.61 reported "nginx rechargé" as success without checking the result. On the server, https://www.rencontres-linux.quebec/shop still answered 200 after the reload.
+- Detail: New functions uri_noms_testables (public names from nginx -T, same rules as the HSTS step) and uri_verifier (curl --resolve to 127.0.0.1, read-only GET). The check runs only with --update, after the file is written or was already up to date. It reports each test that does not answer 404 and prints the next command to run. No automatic restore: nginx -t already accepted the configuration, so the cause is a server block that does not apply the rule.
+- Files: nginx-hardening.sh, CHANGELOG.md, nginx-tools-tests/test_nginx_uri.py.
+- Checks: test_nginx_uri (8 tests: 404 on every name, 200 reported as a failure, and the earlier cases). ShellCheck 0.11.0: clean.
+- Action required: run sudo nginx-hardening.sh --update (the verification runs). If it reports a failure, send the lines it prints.
+
 ### 2.61.20261028.203623 - --menu: interactive menu for the usual operations
 
 - Title: New option --menu: a text menu for the usual operations, so the options no longer have to be remembered.
@@ -1914,6 +2042,14 @@ Earlier history was archived outside this repository when this file was created.
   - Known failure before this change, not caused by it: test_config_defaut (options missing from doc/en/nginx-hardening.conf.example: --backup, --disable-uri, --enable-uri, --rollback, --yes; actions, not settings). Same for nginx-log-audit.sh, app-log-live.py and odoo-warmup.py.
 - Action required: none. Try it with: sudo nginx-hardening.sh --menu
 
+### 2.61.20261028.180500 - --disable-uri / --enable-uri: confirmation and list of refused paths
+
+- Title: Changing the refused paths asks for confirmation, after showing the paths refused now and after the change.
+- Reason: 2.60 applied the refusal of /shop during --update without any question, and nothing showed the list of refused paths.
+- Detail: Step 12c prints "URI refusées actuellement" and the list after the change. With a terminal: question [o/N], default no. Without a terminal: nothing is changed unless --yes is given (--yes is shared with --rollback). --check shows the pending change. Same rule as before: nginx -t before the reload, previous file restored on refusal.
+- Files: nginx-hardening.sh, CHANGELOG.md, nginx-tools-tests/test_nginx_uri.py.
+- Checks: test_nginx_uri (6 tests, including: no terminal and no --yes = nothing changed); with a pseudo terminal: answer n changes nothing, answer o writes the file and reloads (stub nginx). ShellCheck 0.11.0: clean.
+- Action required: to check the current refusal: grep location /etc/nginx/snippets/uri-desactivees.conf. To undo: --enable-uri /shop --update (asks first).
 ### 2.60.20261028.170500 - --disable-uri and --enable-uri: refuse a path of the Odoo site
 
 - Title: Refuse (404) a path of the Odoo site in every language, for example /shop, with --disable-uri; --enable-uri removes the refusal.
@@ -2074,17 +2210,26 @@ Earlier history was archived outside this repository when this file was created.
 
 ## nginx-log-audit.sh
 
-### 2.61.20261028.222437 - Catalogue entries for the --ban-sqli messages (English)
+### 2.63.20261029.210000 - --compare: the last 24 hours against the 24 hours before, written to a file
 
-- Title: English catalogue entries for the --ban-sqli messages.
-- Reason: The catalogue test (test_i18n) reported the --ban-sqli messages, added without catalogue entries.
+- Title: a read-only comparison report, written to a file with mode 600, to see whether the traffic, the blocked requests or the errors grow compared with the day before.
+- Reason: the reports of this program describe what happened, not what changed. The administrator wants the comparison now, and sending it by e-mail later.
 - Changes:
-  - lang/nginx-log-audit.en.po: entries for the messages and the help line of --ban-sqli. The program code is unchanged.
-  - Files: lang/nginx-log-audit.en.po, CHANGELOG.md.
-- Bugs fixed: symptom: with --lang en, the --ban-sqli messages stayed in French. Diagnosis: no catalogue entries. Correction: entries added.
-- Safeguards and edge cases: no change in behaviour.
-- Checks: test_i18n (catalogues of the bash programs).
-- Action required: none.
+  - New option --compare [FILE] (help line in the list of options). Without FILE, the report goes to compare-ENV-YYYYmmdd-HHMMSS.txt in the state folder.
+  - compare_report: reads the access log through filter_last_hours (48 hours), leaves out our own programs (filtrer_nos_programmes), and counts two windows: the last 24 hours and the 24 hours before. Blocked = 403, 404, 405, 429, 444 (the list of --stats). Writes the total, the 4xx and 5xx errors, the blocked requests, the distinct addresses, the 10 most blocked paths and the 10 most blocked addresses, each with its count in the 24 hours before.
+  - Dispatch: right before the main report; --compare exits after writing the file. No lock is taken for it (read-only), like --stats.
+  - Files touched: nginx-log-audit.sh (version 2.63), nginx-tools-tests/test_nginx_log_audit.py (test_263_compare_24_heures_contre_24_precedentes), CHANGELOG.md.
+- Bugs fixed: none.
+- Safeguards and edge cases:
+  - The file and its temporary files are created with umask 077; the final file is mode 600 (it contains addresses).
+  - Writes go to a temporary file then move: an interrupted run leaves no half-written report.
+  - Lines outside the 48 hours are ignored; lines without a readable date are skipped.
+  - The windows are sliding: the 24 hours before are the 24 hours ending 24 hours ago, not a fixed reference.
+  - Times are read in the local time of the server, as the filter --last does: a log written in another time zone shifts the windows.
+- Checks:
+  - bash -n OK; --version displays the dynamic version.
+  - Unit test test_263_compare_24_heures_contre_24_precedentes (see the verdict of the testeur agent in the pull request).
+- Action required: none. Nothing is sent by e-mail in this version; the file can be sent later with the existing mail tools.
 
 ### 2.62.20261028.214122 - --menu: catalogue entries for the menu and its help line (English)
 
@@ -2096,6 +2241,18 @@ Earlier history was archived outside this repository when this file was created.
 - Bugs fixed: symptom: test_i18n failure on this program. Diagnosis: the catalogue had no entries for the new strings. Correction: entries added. The program code is unchanged.
 - Safeguards and edge cases: no change in behaviour; the French and English menus are unchanged.
 - Checks: test_i18n (catalogues of bash programs).
+- Action required: none.
+
+### 2.61.20261028.222437 - Catalogue entries for the --ban-sqli messages (English)
+
+- Title: English catalogue entries for the --ban-sqli messages.
+- Reason: The catalogue test (test_i18n) reported the --ban-sqli messages, added without catalogue entries.
+- Changes:
+  - lang/nginx-log-audit.en.po: entries for the messages and the help line of --ban-sqli. The program code is unchanged.
+  - Files: lang/nginx-log-audit.en.po, CHANGELOG.md.
+- Bugs fixed: symptom: with --lang en, the --ban-sqli messages stayed in French. Diagnosis: no catalogue entries. Correction: entries added.
+- Safeguards and edge cases: no change in behaviour.
+- Checks: test_i18n (catalogues of the bash programs).
 - Action required: none.
 
 ### 2.61.20261028.211449 - --menu: interactive menu of the usual operations
@@ -2459,6 +2616,24 @@ Earlier history was archived outside this repository when this file was created.
 - Current version. Earlier history archived outside the repository.
 
 ## sync-crowdsec-blocklist.sh
+
+### 1.30.20261029.193900 - --max-drop: refuse a list much smaller than the last accepted one
+
+- Title: a sudden drop of the blocklist size stops the update, the ipsets are kept.
+- Reason: the script already keeps the current ipsets when the download fails and refuses a list under --min-ips. A truncated download that still passes --min-ips (for example 60 entries instead of 5000) would unban most of the addresses. A relative limit closes that gap.
+- Changes:
+  - New option --max-drop PCT (default 50, 0 = no check, 100 at most), also key MAX_DROP in the configuration file (config_defaut).
+  - New state file last-list.count in the state folder: number of valid entries of the last accepted list, written with last-list.sha256.
+  - Check placed after the analysis, before the ipset update, in normal and --dry-run modes (dry-run only reports it).
+  - Files touched: sync-crowdsec-blocklist.sh (version 1.30), CHANGELOG.md.
+- Bugs fixed: none.
+- Safeguards and edge cases:
+  - No check when the cache fallback is used, and none on the first run (no reference yet).
+  - A reference of zero is ignored.
+  - The message gives the way out (--max-drop 0) when the drop is expected.
+- Checks:
+  - bash -n OK; --version displays the dynamic version.
+- Action required: none. If a legitimate large cleanup of the source happens, run once with --max-drop 0.
 
 ### 1.29.20261028.214122 - --menu: catalogue entries for the menu and its help line (English)
 

@@ -37,7 +37,7 @@ Without a keyboard: `--record-test-log MIN` records MIN minutes from start-up, w
 
 ## Latency: is it the disk?
 
-Every 30 seconds a light sampler reads the kernel counters (no command): processor, waiting time (PSI) for the disk / processor / memory - the *container's own* cgroup when running in an LXC container - , and the disks' % busy and wait per operation. Each Odoo request (SQL time + Python time of its journal line) is filed in the bin of its hour, "disk busy" or "disk calm". Press **P** (or Ctrl-G at level 6 and more) after a few hours: the verdict says whether the disks slow the requests (SSD justified), only at times (startups, backups), or not at all (SATA enough), with the per-hour table at level 8. Inside a container the disk counters can be partial: run `host-perf-audit.py` on the Proxmox host for the real disks.
+Every 30 seconds a light sampler reads the kernel counters (no command): processor, waiting time (PSI) for the disk / processor / memory - the *container's own* cgroup when running in an LXC container - , and the disks' % busy and wait per operation. Each Odoo request (SQL time + Python time of its journal line) is filed in the bin of its hour, "disk busy" or "disk calm". Press **Y** (or Ctrl-G at level 6 and more) after a few hours: the verdict says whether the disks slow the requests (SSD justified), only at times (startups, backups), or not at all (SATA enough), with the per-hour table at level 8. Inside a container the disk counters can be partial: run `host-perf-audit.py` on the Proxmox host for the real disks.
 
 ## Design rules worth knowing
 
@@ -56,5 +56,34 @@ Every 30 seconds a light sampler reads the kernel counters (no command): process
 * A sent e-mail shows its recipient and subject: "E-mail #7573 sent to Ana Tremblay (a***n@...) - « subject » - registration ...".
 * **Ctrl+C** during a program started from the menu (nginx-log-audit.sh, web-monitor.py...): one question only, at once.
 
+## Time window, journalctl options and country filters (1.112)
+
+* `-S` / `--since TIME` and `-U` / `--until TIME`: `YYYY-MM-DD [HH:MM[:SS]] [Z or +HH:MM]`, `HH:MM[:SS]` (today), `today`, `yesterday`, `now`, `@EPOCH`, or relative (`-2h`, `'-30 min'`, `'0.5 day'`, `'3 days ago'`). Local time, or UTC with `--utc`. A date alone covers the whole day (`--until` stops at the start of the next day). With the live stream, `--until` stops the program at that time.
+* `--utc`: the times of the lines and the times given without a time zone are in UTC.
+* `-n` / `--lines N`: alias of `--lines`, as in journalctl. `--no-hostname`: without the host name.
+* `-g` / `--grep REGEX`: only the lines whose message matches. Case-insensitive unless REGEX has an uppercase letter (as journalctl).
+* `--country CC,CC`: only the lines whose first address (the client) is in these countries. `--exclude-country CC,CC`: hides them. Two-letter codes, repeatable. An address of unknown country is hidden by `--country` and kept by `--exclude-country`.
+* `--days` accepts fractions: `--days 0.1` = 2.4 hours of sign-in history.
+* `-f` and `--no-pager` are accepted for journalctl compatibility (no effect).
+
+Examples:
+
+```bash
+app-log-live.py -S '-2h' --utc -n 500          # last two hours, in UTC
+app-log-live.py -S yesterday -U today -g error  # yesterday only, lines containing "error"
+app-log-live.py --exclude-country US,CN         # hide the addresses of these countries
+app-log-live.py --days 0.1 --no-follow          # sign-ins of the last 2.4 hours
+```
+
+## Status bar, refresh and print (1.113)
+
+* **Status bar** (reverse video), after every N displayed lines (`--status-every N`, 100 by default; 0 = never): SQL injection attempts, 4xx and 5xx answers, banned addresses seen, slow requests (duration >= `--slow`) and the slowest one. The counters are cumulative since the last detailed report: **Ctrl-T** or **g** reset them. Colour: white = nothing to see; green = a little (4xx, a few slow requests); yellow = to look at (SQL injection, 5xx, banned address, many slow requests); red = investigate now (repeated injections, many 5xx or slow requests).
+* **f** (refresh): the last lines of the buffer are displayed again with the current options (addresses, DNS, names, highlight, `--only`...). They are not counted again and not written again to the daily journal.
+* **P** (print): the last lines of the buffer (`--buffer N`, 200 by default; 0 = none) are written to a file, colors kept (`less -R file`). The program asks for the number of lines and the file name. The file is created with mode 600: it holds addresses and names.
+* **Y**: latency report (formerly the P key).
+
 ## Options
+* **1.114 - status bar details**: the bar also names the three addresses with the most problem lines (`top IP`), only when addresses are displayed (`--show-ip`, or the **H** key); otherwise it says they are hidden. The first time the bar turns red, one beep and one red **ALERT** line are shown; the alert is given again only after **Ctrl-T** or **g**.
+* **1.114 - configuration file**: `BUFFER=` (`--buffer`) and `STATUS_EVERY=` (`--status-every`) can be set in `/etc/default/app-log-live.conf` or `~/.app-log-live.conf`. The command line keeps priority.
+
 {{HELP}}

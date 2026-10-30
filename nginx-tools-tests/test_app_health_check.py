@@ -564,3 +564,38 @@ class ConfigurationEnCouches(EnvTest):
         self.assertIn("site www.exemple.org", out)
         self.assertIn("instance non publique : yes", out)                       # vient du fichier de ~
         self.assertIn("courriel : smtp.exemple.org:587 → a@exemple.org", out)   # vient de /etc/default
+
+
+class MemoireDesPassages(EnvTest):
+    """2.32 : --changes (comparaison avec le passage précédent), enregistrement en mode 600, alertes seulement en cas de changement."""
+
+    def module(self):
+        spec = importlib.util.spec_from_file_location("ahc232", script_path("app-health-check.py"))
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        return module
+
+    def test_232_nouvelles_pannes_et_resolues(self):
+        ahc = self.module()
+        self.assertEqual(ahc.compare_runs(None, [("A", True, "")]), [], "pas de passage précédent : aucun changement")
+        precedent = {"A": True, "B": False, "C": None}
+        now = [("A", False, "panne"), ("B", True, "rétabli"), ("D", False, "nouveau")]
+        self.assertEqual(ahc.compare_runs(precedent, now), [("new-failure", "A"), ("resolved", "B"), ("new-failure", "D")])
+        self.assertEqual(ahc.compare_runs(precedent, [("C", None, "")]), [], "un contrôle ignoré n'est pas un changement")
+
+    def test_232_fichier_de_passage_en_mode_600(self):
+        ahc = self.module()
+        chemin = os.path.join(self.d, "etat", "last-run.json")
+        self.assertIsNone(ahc.save_run(chemin, "local", [("A", True, "ok")], 0))
+        self.assertEqual(stat.S_IMODE(os.stat(chemin).st_mode), 0o600, "les détails nomment des hôtes : mode 600")
+        self.assertEqual(ahc.read_previous_run(chemin), {"A": True})
+        open(chemin, "w").write("pas du json")
+        self.assertIsNone(ahc.read_previous_run(chemin), "fichier illisible : pas de passage précédent")
+
+    def test_232_alertes_seulement_en_cas_de_changement(self):
+        ahc = self.module()
+        with unittest.mock.patch("urllib.request.urlopen") as envoi:
+            ahc.send_alerts({"NOTIFY_WEBHOOK_URL": "https://example.invalid/hook"}, "titre", "corps", 0, [])
+            self.assertFalse(envoi.called, "sain et inchangé : silence")
+            ahc.send_alerts({"NOTIFY_WEBHOOK_URL": "ftp://example.invalid/hook"}, "titre", "corps", 1, [])
+            self.assertFalse(envoi.called, "adresse refusée : rien n'est envoyé")

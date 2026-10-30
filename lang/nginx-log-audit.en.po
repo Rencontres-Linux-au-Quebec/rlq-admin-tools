@@ -2279,3 +2279,48 @@ msgstr ""
 
 msgid "  --menu                       menu interactif des opérations courantes (dialog si installé ; terminal requis)"
 msgstr "  --menu                       interactive menu of the common operations (dialog if installed; terminal required)"
+
+msgid "  --compare [FICHIER]          compare les dernières 24 h avec les 24 h précédentes (codes, blocages, IP, chemins) et écrit le rapport dans FICHIER (mode 600) ; lecture seule"
+msgstr "  --compare [FILE]             compare the last 24 hours with the 24 hours before (codes, blocks, IP, paths) and writes the report to FILE (mode 600); read-only"
+
+msgid " Comparaison nginx — "
+msgstr " Nginx comparison — "
+
+msgid " Dernières 24 h comparées aux 24 h précédentes. Lecture seule. Ce fichier contient des adresses IP (mode 600)."
+msgstr " Last 24 h compared with the 24 h before. Read-only. This file contains IP addresses (mode 600)."
+
+msgid "Requêtes         : "
+msgstr "Requests         : "
+
+msgid "Erreurs 4xx      : "
+msgstr "4xx errors      : "
+
+msgid "Erreurs 5xx      : "
+msgstr "5xx errors      : "
+
+msgid "  (24 h précédentes : "
+msgstr "  (previous 24 h: "
+
+msgid "Bloquées (403/404/405/429/444) : "
+msgstr "Blocked (403/404/405/429/444): "
+
+msgid "Adresses IP distinctes : "
+msgstr "Distinct IP addresses : "
+
+msgid "--- Chemins bloqués les plus fréquents (24 dernières heures) ---"
+msgstr "--- Most frequently blocked paths (last 24 hours) ---"
+
+msgid "--- Adresses IP bloquées les plus fréquentes (24 dernières heures) ---"
+msgstr "--- Most frequently blocked IP addresses (last 24 hours) ---"
+
+msgid "Les 24 heures précédentes sont une fenêtre glissante : un pic de la période en cours se lit par rapport à elles,"
+msgstr "The previous 24 hours form a sliding window: a peak in the current period is read against them,"
+
+msgid "pas à une référence fixe. Un 404 est souvent Odoo qui répond « introuvable » : vérifiez le détail avec --stats --last 24."
+msgstr "not against a fixed reference. A 404 is often Odoo answering \"not found\": check the detail with --stats --last 24."
+
+msgid "ERREUR: écriture impossible : "
+msgstr "ERROR: cannot write: "
+
+msgid "Comparaison écrite dans "
+msgstr "Comparison written to "

@@ -130,7 +130,7 @@ grep_q() { grep "$@" >/dev/null; }
 #                              ne peut pas le voir, le texte etant entre apostrophes (faux positif).
 trap 'ec=$?; echo "" >&2; echo "*** ARRÊT INATTENDU DU SCRIPT (code $ec) À LA LIGNE $LINENO ***" >&2; echo "*** Commande fautive : $BASH_COMMAND" >&2; echo "*** Si le rapport ci-dessus semble incomplet (ex. sections Top 10 absentes), c'\''est probablement la cause." >&2' ERR
 
-readonly SCRIPT_VERSION="2.62.20261028.214122"
+readonly SCRIPT_VERSION="2.63.20261029.210000"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
 # Chemin de ce programme (relances --investigate, --ban, --unban) : defini ICI, avant le bloc --ban qui l'utilise.
 SELF_PATH="$SCRIPT_DIR/$(basename "${BASH_SOURCE[0]}")"
@@ -161,6 +161,8 @@ TARGET_IP=""
 ENV=""
 DO_INIT=0
 DO_STATS=0
+DO_COMPARE=0            # 2.63 --compare [FILE]: last 24 hours against the 24 hours before, written to FILE (no lock, read-only)
+COMPARE_FILE=""
 DO_DETAILS=0
 DO_FAIL2BAN=0
 DO_INIT_ALL=0
@@ -236,6 +238,8 @@ while [[ $# -gt 0 ]]; do
         --ip) TARGET_IP="${2:-}"; shift 2 ;;
         --init) DO_INIT=1; shift ;;
         --stats) DO_STATS=1; shift ;;
+        --compare) DO_COMPARE=1
+            if [[ -n "${2:-}" && "${2:0:2}" != "--" ]]; then COMPARE_FILE="$2"; shift 2; else COMPARE_FILE=""; shift; fi ;;   # 2.63: read-only, written to a file (mode 600)
         --last) LAST_HOURS="${2:-}"; shift 2 ;;
         --details) DO_DETAILS=1; shift ;;
         --fail2ban) DO_FAIL2BAN=1; shift ;;
@@ -299,6 +303,7 @@ Options (par ordre alphabétique) :
   --ban-sqli                   bannir les adresses ayant envoyé une injection SQL dans le journal d'accès (liste et confirmation demandées, sauf --yes)
   --ban-threshold N            nombre d'indices à partir duquel le bannissement est proposé (défaut : 3)
   --changelog                  affiche le journal des modifications
+  --compare [FICHIER]          compare les dernières 24 h avec les 24 h précédentes (codes, blocages, IP, chemins) et écrit le rapport dans FICHIER (mode 600) ; lecture seule
   -c, --config FILE            fichier de configuration à lire SEUL (sinon : /etc/default/nginx-log-audit.conf, puis ~/.nginx-log-audit.conf ;
                                clés : APP, BAN_THRESHOLD, LANGUAGE, NO_PROMPT, PAGE_BURST, PARALLEL_THRESHOLD, UA_ROTATION_THRESHOLD, VERBOSE)
   --details                    avec --stats : détail de chaque indicateur
@@ -357,7 +362,7 @@ prendre_verrou() {
 }
 # Lecture seule (--stats, --investigate, --evidence, --export-bans, --ban-history) : sans verrou ; sinon (rapport, positions, --ban, --unban,
 # --unban-check, --import-bans): wait for NGINX_TOOLS_LOCK_WAIT seconds at most (120 by default).
-if [[ "$DO_STATS" != "1" && -z "$INVESTIGATE_IP" && -z "$EVIDENCE_IP" && -z "$EXPORT_BANS" && "$DO_BAN_HISTORY" != "1" ]]; then
+if [[ "$DO_STATS" != "1" && "$DO_COMPARE" != "1" && -z "$INVESTIGATE_IP" && -z "$EVIDENCE_IP" && -z "$EXPORT_BANS" && "$DO_BAN_HISTORY" != "1" ]]; then
     prendre_verrou "${NGINX_TOOLS_LOCK_WAIT:-120}" nginx-log-audit
 fi
 
@@ -2595,6 +2600,85 @@ NOS_IPS="127.0.0.1 ::1 $(hostname -I 2>/dev/null || true)"
 NOS_PROGRAMMES_RE="^($(tr ' ' '\n' <<< "$NOS_IPS" | grep . | sort -u | sed 's/[.]/\\./g' | paste -sd'|')) |app-health-check/"
 filtrer_nos_programmes() { grep -vE "$NOS_PROGRAMMES_RE" || true; }
 compter_nos_programmes() { grep -cE "$NOS_PROGRAMMES_RE" || true; }
+
+# --- 2.63 --compare : the last 24 hours against the 24 hours before (read-only; the file holds addresses: mode 600) -------------
+# Windows: "now" = [now - 24 h, now] ; "before" = [now - 48 h, now - 24 h[. Blocked = 403, 404, 405, 429, 444 (same list as --stats).
+# The times of the access log are read in the local time of this server, as the filter --last does. Our own programs
+# (filtrer_nos_programmes) are left out, as in the other reports.
+compare_report() {
+    local file="$1" now src counts
+    umask 077                       # the report and the temporary files hold addresses: never readable by others
+    now=$(date +%s)
+    src=$(mktemp "$STATE_DIR/.compare-src.XXXXXX")
+    counts=$(mktemp "$STATE_DIR/.compare-counts.XXXXXX")
+    filter_last_hours "$ACCESS_LOG" 48 | filtrer_nos_programmes > "$src"
+    awk -v now="$now" -F'"' '
+    BEGIN {
+        split("Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec", M, " ")
+        for (i = 1; i <= 12; i++) mois[M[i]] = i
+    }
+    {
+        if (!match($0, /\[[0-9]+\/[A-Za-z]+\/[0-9]+:[0-9:]+ [+-][0-9]+\]/)) next
+        d = substr($0, RSTART + 1, RLENGTH - 2)
+        split(d, p, /[\/: ]/)
+        if (!(p[2] in mois)) next
+        t = mktime(p[3] " " mois[p[2]] " " p[1] " " p[4] " " p[5] " " p[6])
+        if (t < now - 172800 || t > now) next
+        w = (t >= now - 86400) ? "now" : "before"
+        split($3, st, " "); code = st[1] + 0
+        split($1, ipf, " "); ip = ipf[1]
+        chemin = $2
+        total[w]++
+        if (code >= 400 && code < 500) e4[w]++
+        if (code >= 500) e5[w]++
+        if (code == 403 || code == 404 || code == 405 || code == 429 || code == 444) {
+            bloques[w]++
+            bloque_chemin[w SUBSEP chemin]++; bloque_ip[w SUBSEP ip]++
+            cles_chemin[chemin] = 1; cles_ip[ip] = 1
+        }
+        ips[w SUBSEP ip] = 1
+    }
+    END {
+        printf "T\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\n", total["now"] + 0, total["before"] + 0, e4["now"] + 0, e4["before"] + 0,
+               e5["now"] + 0, e5["before"] + 0, bloques["now"] + 0, bloques["before"] + 0
+        for (k in ips) { split(k, kk, SUBSEP); if (kk[1] == "now") ip_now++; else ip_avant++ }
+        printf "U\t%d\t%d\n", ip_now + 0, ip_avant + 0
+        for (c in cles_chemin) printf "C\t%d\t%d\t%s\n", bloque_chemin["now" SUBSEP c] + 0, bloque_chemin["before" SUBSEP c] + 0, c
+        for (a in cles_ip) printf "I\t%d\t%d\t%s\n", bloque_ip["now" SUBSEP a] + 0, bloque_ip["before" SUBSEP a] + 0, a
+    }' "$src" > "$counts"
+    {
+        echo "=============================================================="
+        echo " Comparaison nginx — $ENV — $(hostname) — $(date '+%Y-%m-%d %H:%M:%S %Z')"
+        echo " Dernières 24 h comparées aux 24 h précédentes. Lecture seule. Ce fichier contient des adresses IP (mode 600)."
+        echo "=============================================================="
+        awk -F'\t' '
+        function variation(a, b) {
+            if (b == 0) return (a == 0) ? "stable" : "nouveau"
+            return sprintf("%+.0f %%", (a - b) * 100 / b)
+        }
+        $1 == "T" {
+            printf "Requêtes         : %8d  (24 h précédentes : %8d)  variation %s\n", $2, $3, variation($2, $3)
+            printf "Erreurs 4xx      : %8d  (24 h précédentes : %8d)  variation %s\n", $4, $5, variation($4, $5)
+            printf "Erreurs 5xx      : %8d  (24 h précédentes : %8d)  variation %s\n", $6, $7, variation($6, $7)
+            printf "Bloquées (403/404/405/429/444) : %d  (24 h précédentes : %d)  variation %s\n", $8, $9, variation($8, $9)
+        }
+        $1 == "U" { printf "Adresses IP distinctes : %d  (24 h précédentes : %d)\n", $2, $3 }' "$counts"
+        echo
+        echo "--- Chemins bloqués les plus fréquents (24 dernières heures) ---"
+        awk -F'\t' '$1 == "C"' "$counts" | sort -t$'\t' -k2,2nr | head -10 | awk -F'\t' '{ printf "  %6d  (avant : %6d)  %s\n", $2, $3, $4 }'
+        echo
+        echo "--- Adresses IP bloquées les plus fréquentes (24 dernières heures) ---"
+        awk -F'\t' '$1 == "I"' "$counts" | sort -t$'\t' -k2,2nr | head -10 | awk -F'\t' '{ printf "  %6d  (avant : %6d)  %s\n", $2, $3, $4 }'
+        echo
+        echo "Les 24 heures précédentes sont une fenêtre glissante : un pic de la période en cours se lit par rapport à elles,"
+        echo "pas à une référence fixe. Un 404 est souvent Odoo qui répond « introuvable » : vérifiez le détail avec --stats --last 24."
+    } > "$file.tmp.$$"
+    mv -f "$file.tmp.$$" "$file" 2>/dev/null || { rm -f "$file.tmp.$$"; rm -f "$src" "$counts"; echo "ERREUR: écriture impossible : $file" >&2; return 1; }
+    chmod 600 "$file" 2>/dev/null || true
+    rm -f "$src" "$counts"
+    echo "Comparaison écrite dans $file (mode 600)."
+    return 0
+}
 if ! [[ "$PUBLIC_IP" =~ ^[0-9]{1,3}(\.[0-9]{1,3}){3}$ || "$PUBLIC_IP" =~ ^[0-9a-fA-F:]+$ ]]; then
     PUBLIC_IP="indisponible (pas d'accès sortant, ou réponse inattendue du service de détection)"
 fi
@@ -2662,6 +2746,13 @@ filter_last_hours() {
     paste -d'\t' "$epochs_tmp" "$file" | awk -F'\t' -v c="$cutoff" '$1+0 >= c {sub($1"\t","",$0); print}'
     rm -f "$dates_tmp" "$epochs_tmp"
 }
+
+# 2.63 --compare: read-only report written to a file, then the program stops (no lock, no change to the state of the other reports)
+if [[ "$DO_COMPARE" == "1" ]]; then
+    [[ -n "$COMPARE_FILE" ]] || COMPARE_FILE="$STATE_DIR/compare-${ENV:-site}-$(date +%Y%m%d-%H%M%S).txt"
+    compare_report "$COMPARE_FILE"
+    exit $?
+fi
 
 echo "=============================================================="
 echo " Rapport nginx — $ENV — $(date '+%Y-%m-%d %H:%M:%S %Z')"
