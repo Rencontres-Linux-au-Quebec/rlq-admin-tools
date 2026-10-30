@@ -82,6 +82,25 @@ app-log-live.py --days 0.1 --no-follow          # historique des connexions des 
 * **P** (imprimer) : les dernières lignes du tampon (`--buffer N`, 200 par défaut ; 0 = aucun) sont écrites dans un fichier, couleurs conservées (`less -R fichier`). Le programme demande le nombre de lignes et le nom du fichier. Le fichier est créé en mode 600 : il contient des adresses et des noms.
 * **Y** : rapport de latence (anciennement la touche P).
 
+## Journaux nginx dans le même flux (1.115)
+
+`--logs-nginx` (ou `LOGS_NGINX=yes` dans le fichier de configuration) ajoute au flux de l'application les journaux
+d'accès et d'erreurs du site : `ACCESS_LOGS` et `ERROR_LOGS` du profil de l'application, dans `/var/log/nginx`. Les lignes
+nginx reçoivent le même préfixe que les lignes de l'application (date et heure locales, hôte, programme `nginx`), et
+toutes les lignes sont affichées dans l'ordre des heures, la plus ancienne d'abord :
+
+```
+app-log-live.py --logs-nginx                      # en direct : Odoo et nginx ensemble
+app-log-live.py --logs-nginx --no-follow -S '-1h' # la dernière heure des deux, puis arrêt
+app-log-live.py --logs-nginx -g ' 404 '           # les réponses 404 de nginx et d'Odoo
+```
+
+- Le message de départ nomme les fichiers nginx fusionnés.
+- `-S`, `-U` et `-g` s'appliquent aussi aux lignes nginx (les lignes de l'application sont déjà filtrées par journalctl).
+- Un journal nginx silencieux ne retient pas les lignes d'Odoo : il est attendu `APP_LOG_MERGE_WAIT` secondes (2 par défaut),
+  puis il n'est plus attendu tant qu'il ne parle pas.
+- La fusion est faite par `apps/_logs_merge.py`, qui peut aussi être lancé seul (`--help`, `--version`).
+
 ## Options
 * **1.114 - détail de la barre d'état** : la barre nomme aussi les trois adresses qui ont le plus de lignes problématiques (`IP principales`), seulement lorsque les adresses sont affichées (`--show-ip`, ou la touche **H**) ; sinon elle indique qu'elles sont masquées. La première fois que la barre passe au rouge, un bip et une ligne rouge **ALERTE** sont affichés ; l'alerte n'est redonnée qu'après **Ctrl-T** ou **g**.
 * **1.114 - fichier de configuration** : `BUFFER=` (`--buffer`) et `STATUS_EVERY=` (`--status-every`) se règlent dans `/etc/default/app-log-live.conf` ou `~/.app-log-live.conf`. La ligne de commande reste prioritaire.

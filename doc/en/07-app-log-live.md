@@ -82,6 +82,25 @@ app-log-live.py --days 0.1 --no-follow          # sign-ins of the last 2.4 hours
 * **P** (print): the last lines of the buffer (`--buffer N`, 200 by default; 0 = none) are written to a file, colors kept (`less -R file`). The program asks for the number of lines and the file name. The file is created with mode 600: it holds addresses and names.
 * **Y**: latency report (formerly the P key).
 
+## nginx logs in the same stream (1.115)
+
+`--logs-nginx` (or `LOGS_NGINX=yes` in the configuration file) adds the access and error logs of the site to the
+application stream: `ACCESS_LOGS` and `ERROR_LOGS` of the application profile, in `/var/log/nginx`. The nginx lines get
+the same prefix as the application lines (local date and time, host, program `nginx`), and all the lines are printed
+in time order, the oldest first:
+
+```
+app-log-live.py --logs-nginx                      # live: Odoo and nginx together
+app-log-live.py --logs-nginx --no-follow -S '-1h' # the last hour of both, then stop
+app-log-live.py --logs-nginx -g ' 404 '           # the 404 answers of nginx and of Odoo
+```
+
+- The start message names the nginx files that are merged.
+- `-S`, `-U` and `-g` apply to the nginx lines too (the application lines are already filtered by journalctl).
+- A nginx log that is silent does not hold back the Odoo lines: it is waited for `APP_LOG_MERGE_WAIT` seconds (2 by default),
+  then it is not waited for again until it speaks.
+- The merge is done by `apps/_logs_merge.py`, which can also be run alone (`--help`, `--version`).
+
 ## Options
 * **1.114 - status bar details**: the bar also names the three addresses with the most problem lines (`top IP`), only when addresses are displayed (`--show-ip`, or the **H** key); otherwise it says they are hidden. The first time the bar turns red, one beep and one red **ALERT** line are shown; the alert is given again only after **Ctrl-T** or **g**.
 * **1.114 - configuration file**: `BUFFER=` (`--buffer`) and `STATUS_EVERY=` (`--status-every`) can be set in `/etc/default/app-log-live.conf` or `~/.app-log-live.conf`. The command line keeps priority.

@@ -649,8 +649,8 @@ msgstr "Contacts Odoo de l'ÉTIQUETTE de contact NOM (ex. Collaborateurs-2026) a
 msgid "Show the change log"
 msgstr "Affiche le journal des modifications"
 
-msgid "Configuration file to read ALONE (otherwise: /etc/default/app-log-live.conf, then the personal file .app-log-live.conf; options in UPPERCASE: APP, CONNECTIONS, DAYS, DNS_MAX, HEALTH, HIDE_IP, IDLE, LANGUAGE, LINES, LOG_DIR, LOG_KEEP_DAYS, MIN, NAMESPACE, NO_BANNED, NO_BAN_PROMPT, NO_CACHE, NO_HISTORY, NO_ISP, NO_KEYS, NO_LOG_FILE, NO_PRESENCE, NO_USER_AGENT, RECAP, SERVICE, SLOW, VERBOSE)"
-msgstr "Fichier de configuration à lire SEUL (sinon : /etc/default/app-log-live.conf, puis le fichier personnel .app-log-live.conf ; options en MAJUSCULES : APP, CONNECTIONS, DAYS, DNS_MAX, HEALTH, HIDE_IP, IDLE, LANGUAGE, LINES, LOG_DIR, LOG_KEEP_DAYS, MIN, NAMESPACE, NO_BANNED, NO_BAN_PROMPT, NO_CACHE, NO_HISTORY, NO_ISP, NO_KEYS, NO_LOG_FILE, NO_PRESENCE, NO_USER_AGENT, RECAP, SERVICE, SLOW, VERBOSE)"
+msgid "Configuration file to read ALONE (otherwise: /etc/default/app-log-live.conf, then the personal file .app-log-live.conf; options in UPPERCASE: APP, CONNECTIONS, DAYS, DNS_MAX, HEALTH, HIDE_IP, IDLE, LANGUAGE, LINES, LOG_DIR, LOG_KEEP_DAYS, LOGS_NGINX, MIN, NAMESPACE, NO_BANNED, NO_BAN_PROMPT, NO_CACHE, NO_HISTORY, NO_ISP, NO_KEYS, NO_LOG_FILE, NO_PRESENCE, NO_USER_AGENT, RECAP, SERVICE, SLOW, VERBOSE)"
+msgstr "Fichier de configuration à lire SEUL (sinon : /etc/default/app-log-live.conf, puis le fichier personnel .app-log-live.conf ; options en MAJUSCULES : APP, CONNECTIONS, DAYS, DNS_MAX, HEALTH, HIDE_IP, IDLE, LANGUAGE, LINES, LOG_DIR, LOG_KEEP_DAYS, LOGS_NGINX, MIN, NAMESPACE, NO_BANNED, NO_BAN_PROMPT, NO_CACHE, NO_HISTORY, NO_ISP, NO_KEYS, NO_LOG_FILE, NO_PRESENCE, NO_USER_AGENT, RECAP, SERVICE, SLOW, VERBOSE)"
 
 msgid "Beep (in byobu/tmux too: see the tips shown) when a displayed line is an error: 0 = any error (4xx, 5xx, Odoo ERROR), 1 = 4xx, 2 = 5xx and 4xx (0 without value)"
 msgstr "Bip (dans byobu/tmux aussi : voir les conseils affichés) quand une ligne affichée est une erreur : 0 = toute erreur (4xx, 5xx, ERROR d'Odoo), 1 = 4xx, 2 = 5xx et 4xx (0 sans valeur)"
@@ -2789,6 +2789,12 @@ msgstr "IP principales"
 
 msgid "hidden (--show-ip)"
 msgstr "masquées (--show-ip)"
+
+msgid "Also the nginx logs of the site (access and error) in the same stream, in time order, with the same date and time prefix as the application (LOGS_NGINX in the configuration file)"
+msgstr "Ajoute les journaux nginx du site (accès et erreurs) dans le même flux, dans l'ordre des heures, avec le même préfixe de date et d'heure que l'application (LOGS_NGINX du fichier de configuration)"
+
+msgid "+ nginx logs, merged in time order"
+msgstr "+ journaux nginx, fusionnés dans l'ordre des heures"
 
 msgid "ALERT: the status bar turned red, investigate now (Ctrl-T or g to acknowledge)"
 msgstr "ALERTE : la barre d'état est passée au rouge, investiguer maintenant (Ctrl-T ou g pour acquitter)"
