@@ -296,18 +296,14 @@ Earlier history was archived outside this repository when this file was created.
 
 ## app-log-live.py
 
-### 1.111.20261028.225404 - --keep-ip: the old name of --show-ip works again
+### 1.112.20261029.212344 - Connection, 404-probe and repeat thresholds read from apps/_seuils.py
 
-- Title: --keep-ip (old name of --show-ip) had no effect since the address became hidden by default (1.107); it now shows the IP address again.
-- Reason: The test of the default address (test_ip_gardee_par_defaut_hide_ip_et_libelle_court) found that --keep-ip did not show the IP, and the default expectations of the tests were out of date.
+- Title: Connection, 404-probe and repeat thresholds read from apps/_seuils.py.
+- Reason: Same reason as web-monitor.py: one value per notion, shared by both programs.
 - Changes:
-  - --keep-ip is the same option as --show-ip (hidden from --help, as before).
-  - nginx-tools-tests/test_app_log_live.py: tests that read addresses ask for --show-ip (the default is now masked, HIDE_IP=yes); the default test checks the masked default; the summary wording of « Adresses à bannir » and the web-monitor reasons are the current ones; the key-menu test waits for the current prompts with a wide terminal.
-  - Files: app-log-live.py, nginx-tools-tests/test_app_log_live.py, CHANGELOG.md.
-- Bugs fixed: symptom: --keep-ip accepted but ignored, so the address stayed hidden. Diagnosis: the option stored a value that nothing read. Correction: same destination as --show-ip.
-- Safeguards and edge cases: the default (masked address) is unchanged; --show-ip and --hide-ip keep their meaning.
-- Checks: test_app_log_live (one test still fails: column alignment, the order of the lines in the output, see the pull request).
-- Action required: none.
+  - CONNECTIONS_THRESHOLD_DEFAULT (CONNECTIONS_PCT), THRESHOLD_404 (PROBE_404) and REPEAT_MIN come from apps/_seuils.py through seuil_commun(); built-in values kept without the module.
+  - The module is read before these constants are defined, so the values apply to the whole program.
+  - Files: app-log-live.py, apps/_seuils.py, nginx-tools-tests/test_seuils.py.
 
 ### 1.112.20261028.214122 - --menu: English programs translate the menu and its help through their catalogue
 
@@ -321,6 +317,19 @@ Earlier history was archived outside this repository when this file was created.
 - Bugs fixed: symptom: test_i18n reported French text in the code of this English program. Diagnosis: the new menu strings were French in the code, but this program's code is English and its texts are translated through lang/. Correction: English strings plus catalogue entries.
 - Safeguards and edge cases: the menu labels, its confirmation and cancel messages follow the language of the program; the entries still run the same options as before.
 - Checks: test_i18n (catalogues), test_menu, test_config_defaut, the English help test of this program where it exists.
+- Action required: none.
+
+### 1.111.20261028.225404 - --keep-ip: the old name of --show-ip works again
+
+- Title: --keep-ip (old name of --show-ip) had no effect since the address became hidden by default (1.107); it now shows the IP address again.
+- Reason: The test of the default address (test_ip_gardee_par_defaut_hide_ip_et_libelle_court) found that --keep-ip did not show the IP, and the default expectations of the tests were out of date.
+- Changes:
+  - --keep-ip is the same option as --show-ip (hidden from --help, as before).
+  - nginx-tools-tests/test_app_log_live.py: tests that read addresses ask for --show-ip (the default is now masked, HIDE_IP=yes); the default test checks the masked default; the summary wording of « Adresses à bannir » and the web-monitor reasons are the current ones; the key-menu test waits for the current prompts with a wide terminal.
+  - Files: app-log-live.py, nginx-tools-tests/test_app_log_live.py, CHANGELOG.md.
+- Bugs fixed: symptom: --keep-ip accepted but ignored, so the address stayed hidden. Diagnosis: the option stored a value that nothing read. Correction: same destination as --show-ip.
+- Safeguards and edge cases: the default (masked address) is unchanged; --show-ip and --hide-ip keep their meaning.
+- Checks: test_app_log_live (one test still fails: column alignment, the order of the lines in the output, see the pull request).
 - Action required: none.
 
 ### 1.111.20261028.211449 - --menu: interactive menu of the usual operations
@@ -1385,6 +1394,15 @@ Earlier history was archived outside this repository when this file was created.
 ### 1.9.20261020.211944 - Current version. Earlier history archived outside the repository.
 
 ## web-monitor.py
+
+### 2.82.20261029.212344 - Burst and shared thresholds read from apps/_seuils.py
+
+- Title: Burst and shared thresholds read from apps/_seuils.py.
+- Reason: Burst thresholds must match app-log-live.py and the shared file, so that one change applies to both programs.
+- Changes:
+  - BURST_PAGES and BURST_WINDOW_S now come from apps/_seuils.py through charger_seuils_communs(); the built-in values are kept without the module.
+  - Warnings from the shared file are printed on stderr.
+  - Files: web-monitor.py, apps/_seuils.py, nginx-tools-tests/test_seuils.py.
 
 ### 2.81.20261028.214122 - --menu: English programs translate the menu and its help through their catalogue
 
@@ -2493,6 +2511,20 @@ Earlier history was archived outside this repository when this file was created.
 
 
 ### 1.26.20261020.211944 - Current version. Earlier history archived outside the repository.
+
+## apps/_seuils.py
+
+### 1.0.20261029.212344 - Shared thresholds for web-monitor.py and app-log-live.py
+
+- Title: Shared thresholds for web-monitor.py and app-log-live.py.
+- Reason: The same notions were written twice with values that could drift apart (burst: 15 pages in web-monitor.py; the 404 probe threshold and the connection percentage in app-log-live.py). One module now holds them.
+- Changes:
+  - New module apps/_seuils.py: BURST_PAGES (15), BURST_WINDOW_S (10), CONNECTIONS_PCT (80), PROBE_404 (5), REPEAT_MIN (2). Defaults unchanged.
+  - Optional overrides read in order: /etc/default/app-seuils.conf, then ~/.app-seuils.conf (KEY=value; the last one read wins).
+  - Invalid or unknown values are ignored with a bilingual warning on stderr; the default is kept.
+  - Functions: lire(), valide(), charger() returning (values, files read, warnings).
+  - Files: apps/_seuils.py, nginx-tools-tests/test_seuils.py (8 tests).
+  - Not changed: nginx-log-audit.sh keeps its own bash values (its --page-burst default is 8 against 15 here; this difference is still to be decided).
 
 ## apps/_anonymiser.py
 
