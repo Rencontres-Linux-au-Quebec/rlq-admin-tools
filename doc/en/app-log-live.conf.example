@@ -55,6 +55,8 @@
 #LOG_DIR=
 # --log-keep-days (défaut : 30 ; 0 = jamais)
 #LOG_KEEP_DAYS=30
+# --logs-nginx : the nginx logs of the site (access and error) in the same stream as the application, in time order
+#LOGS_NGINX=no
 # --min (par défaut depuis 1.98) : le minimum d'information : sans nom de base ni « werkzeug », sans les lignes de fetchmail (sauf erreur) ; no = tout (comme --no-min)
 #MIN=yes
 # --modules-custom : le tableau des modules (--modules, touche M) ne montre que les modules hors Odoo S.A.

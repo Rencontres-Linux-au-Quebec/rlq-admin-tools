@@ -319,6 +319,31 @@ Earlier history was archived outside this repository when this file was created.
 
 ## app-log-live.py
 
+### 1.115.20261029.215532 - nginx logs merged with the application stream (--logs-nginx)
+
+- Title: `--logs-nginx` adds the access and error logs of the site to the application stream, in time order, with the same date and time prefix.
+- Reason: The nginx logs and the Odoo log were read in two windows. A request that failed on nginx (404, 502, a refused upload) could not be placed in time next to the Odoo message it caused. The request was for the nginx lines to have the same format and the same date as the Odoo lines.
+- Changes:
+  - app-log-live.py: new option --logs-nginx, and the key LOGS_NGINX of the configuration file (SCHEMA_CONFIG). New function nginx_log_files: the ACCESS_LOGS and ERROR_LOGS of the profile, in NGINX_DIR, existing files only. Function stream_command: with the option, it returns the command of apps/_logs_merge.py, which runs the application command after "--" and one tail per nginx file; --since, --until and -g are passed on (they apply to the nginx lines; the application lines are already filtered by journalctl). Function check_service: the idle-stream check also applies to a merged journal ("journalctl" in the command). main: a line at startup names the nginx files merged. New constant LOGS_MERGE. The --config help lists the new key.
+  - apps/_logs_merge.py (new): merges the streams by time. Each nginx line receives the journal prefix "2026-10-29T21:52:03.000000-0400 host nginx: " in local time. Access log: the date of the request is removed from the text (it is in the prefix), as for the werkzeug lines of Odoo. Error log: the date and time at the start of the line are removed.
+  - lang/app-log-live.fr.po: two new messages; the list of configuration keys in the --config help is updated.
+  - nginx-tools-tests/test_logs_merge.py (new): 8 tests.
+  - doc/en/07-app-log-live.md and doc/fr/07-app-log-live.md: new section "nginx logs in the same stream"; doc/en and doc/fr app-log-live.conf.example: key LOGS_NGINX.
+- Bugs fixed: none.
+- Safeguards and edge cases:
+  - A silent stream is waited for APP_LOG_MERGE_WAIT seconds (2 by default), then it is "stalled": it is not waited for again until one of its lines arrives. A quiet nginx does not hold back the Odoo lines. Consequence: a nginx line that arrives after a stall can appear a little out of order (at most the waiting time).
+  - A line whose time is unknown (traceback continuation, nginx line in an unknown format) takes the time of the previous line of its stream and is printed as it is.
+  - Without the option, the command is unchanged. BigBlueButton (file journals): its nginx logs are still followed by tail, as before, unless --logs-nginx is given.
+  - SIGTERM (sent when app-log-live stops) stops the merger and the commands it started; a closed output pipe ends the program without a message.
+  - Python 3.8 compatible (the test test_aucune_fonction_posterieure_a_python_3_8 passes).
+- Checks:
+  - py_compile OK for app-log-live.py and apps/_logs_merge.py; --version gives 1.115.20261029.215532 (dynamic).
+  - nginx-tools-tests/test_logs_merge.py: 8 tests OK (order of the two streams, prefix, local time, nginx error line, --grep / --since / --until on nginx only, line without time, dynamic --version, command built by stream_command with and without the option).
+  - test_conventions, test_docs and test_i18n: all OK, except two checks of the CHANGELOG version: app-log-live.py (fixed by this entry) and odoo-warmup.py (code 1.36, first CHANGELOG entry 1.35; this change does not touch odoo-warmup.py).
+  - Manual test on simulated logs (no Odoo server here): chronological order, the nginx line printed at its own time between two Odoo lines, the commands stopped on SIGTERM.
+  - Not tested here: a real journalctl stream of an Odoo server.
+- Action required: none. Optional: LOGS_NGINX=yes in /etc/default/app-log-live.conf to make the merge the default.
+
 ### 1.114.20261029.192022 - Status bar: top addresses, red alert once, status settings in the configuration file
 
 - Title: the status bar names the three addresses with the most problem lines, gives one alert when it turns red, and the --buffer and --status-every settings can be kept in the configuration file.
@@ -2942,6 +2967,18 @@ Earlier history was archived outside this repository when this file was created.
 
 
 ### 1.3.20261020.211944 - Current version. Earlier history archived outside the repository.
+
+## apps/_logs_merge.py
+
+### 1.0.20261029.215532 - Merge of several log streams in time order
+
+- Title: new helper that merges the application journal and the nginx logs in time order, with the same prefix (used by app-log-live.py --logs-nginx).
+- Reason: see app-log-live.py 1.115.
+- Changes: new file apps/_logs_merge.py (functions journal_instant, nginx_pair, journal_line, Merger, read_stream, main; options --grep, --grep-sensitive, --lines, --nginx, --no-follow, --since, --until, --version, --wait).
+- Bugs fixed: none.
+- Safeguards and edge cases: see app-log-live.py 1.115 (stalled streams, lines without time, SIGTERM, closed pipe).
+- Checks: unit tests in nginx-tools-tests/test_logs_merge.py; manual run on simulated logs.
+- Action required: none.
 
 ## apps/_odoo_conf.py
 

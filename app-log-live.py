@@ -65,6 +65,8 @@
 # person behind the same address counts too). The session itself stays valid for up to 7 days without activity.
 # The stream is never blocked by a slow lookup: a line waits at most 3 s, then keeps the IP address.
 # BigBlueButton (file journals): the nginx and bbb-web journals are followed (tail -F), without names of people or presence.
+# NGINX LOGS (1.115, --logs-nginx, LOGS_NGINX): the access and error logs of the site are merged with the application stream, in time
+#   order, with the same date and time prefix (apps/_logs_merge.py); --since, --until and -g apply to them too.
 #
 #
 #   (--no-cache: neither reading nor writing of the permanent address cache, /var/lib/nginx-tools/ip-cache.sqlite)
@@ -77,6 +79,7 @@
 #   app-log-live.py --no-anonymize           real IP addresses, e-mails and names on screen (by default: stable pseudonyms IP-4f2a9c, membre-4f2a9c; A key on the fly)
 #   app-log-live.py --underline 3            one log line out of 3 underlined to the end of the screen line (by default 10; --no-underline: none)
 #   app-log-live.py --no-follow              displays the last messages then stops (for a pipe or a file)
+#   app-log-live.py --logs-nginx             the nginx logs of the site in the same stream, in time order (-S, -U, -g apply to them)
 #   app-log-live.py --no-isp --no-history    no outside request, without the login history
 #   app-log-live.py -S '-2h' -U now --utc   lines of the last two hours, in UTC (or -S 'yesterday', --since '2026-10-29 08:00')
 #   app-log-live.py -g 'erreur|timeout' -n 500   messages matching a regular expression (--grep), 500 lines of history
@@ -111,7 +114,7 @@ from urllib.parse import unquote
 from collections import Counter, OrderedDict
 from concurrent.futures import Future
 
-__version__ = "1.114.20261029.192022"
+__version__ = "1.115.20261029.215532"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
@@ -207,7 +210,7 @@ UNDERLINE_DEFAULT = 10                                                # --underl
 SCHEMA_CONFIG = {"ACCENTUATE_GROUP": ("accentuate_group", str), "CHIME": ("chime", _chime_config), "DNS_MAX_TRUNCATE": ("dns_max_truncate", int), "EXCLUDE_IP": ("exclude_ip", _comma_list),
                  "ONLY": ("only", _comma_list), "STEPS_LINE": ("steps_line", bool), "SUSPECT": ("suspect", bool), "SUMMARY": ("summary", bool), "TIME_REPORT": ("time_report", float), "TRUNCATE": ("truncate", _truncate_config), "WATCH": ("watch", str), "ANONYMIZE": ("anonymize", bool), "UNDERLINE": ("underline", _underline_config),
                  "APP": ("app", str), "CMS": ("cms", str), "CONNECTIONS": ("connections", float), "DAYS": ("days", float),"DISK_MIN": ("disk_min", float), "DNS_MAX": ("dns_max", int), "HEALTH": ("health", float), "HIDE_ADDONS": ("hide_addons", bool), "HIDE_IP": ("hide_ip", bool), "HIGHLIGHT": ("highlight", str), "IDLE": ("idle", float),
-                 "LINES": ("lines", int), "LOG_DIR": ("log_dir", str), "LOG_KEEP_DAYS": ("log_keep_days", int), "MIN": ("min", bool), "MODULES_CUSTOM": ("modules_custom", bool), "MODULES_SORT": ("modules_sort", str), "MODULES_STARTUP": ("modules_startup", bool), "NAMESPACE": ("namespace", str),
+                 "LINES": ("lines", int), "LOG_DIR": ("log_dir", str), "LOG_KEEP_DAYS": ("log_keep_days", int), "LOGS_NGINX": ("logs_nginx", bool), "MIN": ("min", bool), "MODULES_CUSTOM": ("modules_custom", bool), "MODULES_SORT": ("modules_sort", str), "MODULES_STARTUP": ("modules_startup", bool), "NAMESPACE": ("namespace", str),
                  "NO_BANNED": ("no_banned", bool), "NOT_FOUND": ("not_found", bool), "NO_BAN_PROMPT": ("no_ban_prompt", bool), "NO_CACHE": ("no_cache", bool), "NO_HISTORY": ("no_history", bool),
                  "NO_ISP": ("no_isp", bool), "NO_KEYS": ("no_keys", bool), "NO_LOG_FILE": ("no_log_file", bool), "NO_PRESENCE": ("no_presence", bool),
                  "LEVEL": ("level", int), "BUFFER": ("buffer", int), "STATUS_EVERY": ("status_every", int), "NO_USER_AGENT": ("no_user_agent", bool), "RECAP": ("recap", float), "RECORD_MAX": ("record_max", float), "SERVICE": ("service", str), "SLOW": ("slow", float), "VERBOSE": ("verbose", bool)}
@@ -2334,6 +2337,7 @@ def detect_service(profile):
 # Odoo journal written to a FILE (logfile of its configuration, read by apps/_odoo_conf.py): apps/_odoo_journal.py gives each line the
 # prefix of a systemd journal (Odoo's UTC time converted to local time): everything else in the program then works unchanged.
 FILE_CONVERTER = os.path.join(SCRIPT_DIR, "apps", "_odoo_journal.py")
+LOGS_MERGE = os.path.join(SCRIPT_DIR, "apps", "_logs_merge.py")          # 1.115 --logs-nginx: streams merged in time order
 
 
 def modules_on_disk(conf):
@@ -3088,25 +3092,47 @@ def journal_options(args):
     return options_
 
 
+def nginx_log_files(profile):
+    """1.115 --logs-nginx: the access and error logs of the site (ACCESS_LOGS and ERROR_LOGS of the profile, in NGINX_DIR); existing files only."""
+    found = []
+    for key in ("ACCESS_LOGS", "ERROR_LOGS"):
+        for pattern in (profile.get(key) or "").split():
+            found += sorted(glob.glob(os.path.join(NGINX_DIR, pattern)))
+    return [f for f in OrderedDict.fromkeys(found) if os.path.isfile(f)]
+
+
 def stream_command(args, profile, service, ns):
-    """Command that produces the stream: journalctl (systemd journal) or tail (file journals, BigBlueButton)."""
+    """Command that produces the stream: journalctl (systemd journal), the converter of the Odoo file journal, or tail (file journals,
+    BigBlueButton). 1.115 --logs-nginx: the nginx logs of the site are merged with it in time order (apps/_logs_merge.py)."""
+    nginx_files = nginx_log_files(profile) if getattr(args, "logs_nginx", False) else []
     if profile.get("APP_LOG_KIND") == "file":
         files_read = []
         for pattern in (profile.get("APP_LOG_FILES") or "").split():
             files_read += sorted(glob.glob(pattern))
-        for pattern in (profile.get("ACCESS_LOGS") or "").split():
-            files_read += sorted(glob.glob(os.path.join(NGINX_DIR, pattern)))
+        if not nginx_files:                                  # BigBlueButton: its nginx logs are followed here, unless merged below
+            for pattern in (profile.get("ACCESS_LOGS") or "").split():
+                files_read += sorted(glob.glob(os.path.join(NGINX_DIR, pattern)))
         files_read = [f for f in OrderedDict.fromkeys(files_read) if os.path.isfile(f)]
-        if not files_read:
-            return None
-        return ["tail", "-n", str(args.lines)] + (["-F"] if not args.no_follow else []) + files_read
-    file_path = odoo_journal_file(profile)
-    if file_path:
-        return [sys.executable, "-u", FILE_CONVERTER, file_path, str(args.lines), "0" if args.no_follow else "1"]
-    cmd = ["journalctl", "--lines", str(args.lines), "--no-pager", "-u", service, "-o", "short-iso-precise"]
-    if not args.no_follow:
-        cmd.insert(3, "--follow")
-    return cmd + journal_options(args) + (["--namespace", ns] if ns else [])
+        base = (["tail", "-n", str(args.lines)] + (["-F"] if not args.no_follow else []) + files_read) if files_read else None
+    else:
+        file_path = odoo_journal_file(profile)
+        if file_path:
+            base = [sys.executable, "-u", FILE_CONVERTER, file_path, str(args.lines), "0" if args.no_follow else "1"]
+        else:
+            cmd = ["journalctl", "--lines", str(args.lines), "--no-pager", "-u", service, "-o", "short-iso-precise"]
+            if not args.no_follow:
+                cmd.insert(3, "--follow")
+            base = cmd + journal_options(args) + (["--namespace", ns] if ns else [])
+    if not nginx_files:
+        return base
+    merge = [sys.executable, "-u", LOGS_MERGE, "--lines", str(args.lines)] + (["--no-follow"] if args.no_follow else [])
+    if getattr(args, "since_epoch", None) is not None:
+        merge.append(f"--since={args.since_epoch}")
+    if getattr(args, "until_epoch", None) is not None:
+        merge.append(f"--until={args.until_epoch}")
+    if getattr(args, "grep", None):
+        merge += [f"--grep={args.grep}"] + (["--grep-sensitive"] if args.grep_sensitive else [])
+    return merge + ["--nginx"] + nginx_files + ["--"] + (base or [])
 
 
 def is_failed_request(L):
@@ -4669,7 +4695,7 @@ def follow(cmd, people, resolver, options, output):
         """Idle stream (journal of a systemd service): if the service is NOT active, no line will ever arrive from its journal. Odoo may be started by hand (odoo-bin) or under
         another unit: a single alert (re-armed when the service becomes active again) that says so and tells what to do."""
         service = options.get("service")
-        if not service or not cmd or cmd[0] != "journalctl" or now_dt < service_state["next_one"]:
+        if not service or not cmd or "journalctl" not in cmd or now_dt < service_state["next_one"]:
             return
         service_state["next_one"] = now_dt + 60
         code, text = lancer(["systemctl", "is-active", service], 5)
@@ -6023,7 +6049,7 @@ def main():
                         help=f"Every minute, WARNING in the stream when a connection limit (Odoo chat / websocket, HTTP, PostgreSQL, nginx) is used at PCT %% or more, "
                              f"with the setting to change (default: {CONNECTIONS_THRESHOLD_DEFAULT:g}; 0 = never)")
     parser.add_argument("-c", "--config", metavar="FILE",
-                        help="Configuration file to read ALONE (otherwise: /etc/default/app-log-live.conf, then the personal file .app-log-live.conf; options in UPPERCASE: APP, CONNECTIONS, DAYS, DNS_MAX, HEALTH, HIDE_IP, IDLE, LANGUAGE, LINES, LOG_DIR, LOG_KEEP_DAYS, MIN, NAMESPACE, NO_BANNED, NO_BAN_PROMPT, NO_CACHE, NO_HISTORY, NO_ISP, NO_KEYS, NO_LOG_FILE, NO_PRESENCE, NO_USER_AGENT, RECAP, SERVICE, SLOW, VERBOSE)")
+                        help="Configuration file to read ALONE (otherwise: /etc/default/app-log-live.conf, then the personal file .app-log-live.conf; options in UPPERCASE: APP, CONNECTIONS, DAYS, DNS_MAX, HEALTH, HIDE_IP, IDLE, LANGUAGE, LINES, LOG_DIR, LOG_KEEP_DAYS, LOGS_NGINX, MIN, NAMESPACE, NO_BANNED, NO_BAN_PROMPT, NO_CACHE, NO_HISTORY, NO_ISP, NO_KEYS, NO_LOG_FILE, NO_PRESENCE, NO_USER_AGENT, RECAP, SERVICE, SLOW, VERBOSE)")
     parser.add_argument("--chime", type=int, nargs="?", const=0, default=None, choices=(0, 1, 2), metavar="N",
                         help="Beep (in byobu/tmux too: see the tips shown) when a displayed line is an error: 0 = any error (4xx, 5xx, Odoo ERROR), 1 = 4xx, 2 = 5xx and 4xx (0 without value)")
     parser.add_argument("--days", type=float, default=DAYS_DEFAULT, metavar="N",
@@ -6064,6 +6090,8 @@ def main():
                         help="Folder of the daily log with colors (default: /var/log/app-log-live for root, otherwise ~/.local/state/app-log-live; APP_LOG_LIVE_LOG_DIR, « off »: none)")
     parser.add_argument("--log-keep-days", type=int, default=None, metavar="N",
                         help=f"Daily logs kept N days, the oldest are deleted (default: LOG_KEEP_DAYS from /etc/default/app-default.conf, otherwise {JOURNAL_DAYS_DEFAULT} ; 0 = never)")
+    parser.add_argument("--logs-nginx", action="store_true",
+                        help="Also the nginx logs of the site (access and error) in the same stream, in time order, with the same date and time prefix as the application (LOGS_NGINX in the configuration file)")
     parser.add_argument("--menu", action="store_true", help="interactive menu of the common operations (dialog if installed; terminal required)")
     parser.add_argument("--min", action="store_true", help="The minimum of information: without database name or « werkzeug », without the fetchmail lines (except errors); default since 1.98 (MIN key; --no-min: everything)")
     parser.add_argument("--modules", action="store_true",
@@ -6274,6 +6302,8 @@ def main():
         return 2
     is_odoo = profile.get("APP_LOG_KIND") != "file"
     people = People(load_module("_odoo_db") if is_odoo else None)
+    if args.logs_nginx and LOGS_MERGE in cmd:                   # 1.115: the nginx logs merged in time order are named
+        eprint(color_code("1;36", TR("+ nginx logs, merged in time order")) + ": " + ", ".join(os.path.basename(f) for f in nginx_log_files(profile)))
     eprint(color_code("1;36", profile.get('APP_LABEL', 'application')) + " — "
            + ((f"log: file {odoo_file} (logfile from the Odoo configuration)" if odoo_file
                else f"service {service}" + (f" (namespace {ns})" if ns else "")) if is_odoo
