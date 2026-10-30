@@ -28,8 +28,8 @@ msgstr "ÉCHEC "
 msgid "  slowest: "
 msgstr "  plus lent : "
 
-msgid " failure(s) out of "
-msgstr " échec(s) sur "
+msgid " failures out of "
+msgstr " échecs sur "
 
 msgid ") refused"
 msgstr ") refusée"
@@ -134,11 +134,11 @@ msgstr "  Options : --lang "
 msgid " · administration: not configured (LOGIN and KEY_FILE)"
 msgstr " · administration : non configurée (LOGIN et KEY_FILE)"
 
-msgid " model(s), "
-msgstr " modèle(s), "
+msgid " models, "
+msgstr " modèles, "
 
 msgid " pass(es)"
-msgstr " passage(s)"
+msgstr " passages"
 
 msgid "to be specified"
 msgstr "à préciser"
@@ -170,8 +170,8 @@ msgstr "ERREUR : base à préciser (clé DB ou --db) pour l'administration."
 msgid "Warm-up finished in "
 msgstr "Préchauffage terminé en "
 
-msgid " failure(s)"
-msgstr " échec(s)"
+msgid " failures"
+msgstr " échecs"
 
 msgid " ; administration not warmed up (set LOGIN and KEY_FILE)."
 msgstr " ; administration non préchauffée (définir LOGIN et KEY_FILE)."
@@ -206,8 +206,8 @@ msgstr " ; 0 : aucune). Clé LINKS"
 msgid "--links and --latest must be positive numbers or zero"
 msgstr "--links et --latest doivent être des nombres positifs ou zéro"
 
-msgid " latest event(s)/survey(s), "
-msgstr " dernier(s) événement(s)/sondage(s), "
+msgid " latest events/surveys, "
+msgstr " derniers événements/sondages, "
 
 msgid " » (VERBOSE: yes/no; DEBUG_LEVEL: number)"
 msgstr " » (VERBOSE : oui/non ; DEBUG_LEVEL : nombre)"
@@ -242,8 +242,8 @@ msgstr "non public"
 msgid "no variants"
 msgstr "sans variante"
 
-msgid " page(s) in "
-msgstr " page(s) dans "
+msgid " pages in "
+msgstr " pages dans "
 
 msgid "fr,en,es"
 msgstr "fr,en,es"

@@ -34,14 +34,14 @@ msgstr " requests in one second: typical of a page load with many resources or o
 msgid "ajouter l'adresse à la liste blanche (nginx-tools-white-list.conf) si c'est un lieu connu, ou augmenter burst (ex. burst=100 nodelay) pour la zone odoo_general"
 msgstr "add the address to the white list (nginx-tools-white-list.conf) if it is a known place, or raise burst (e.g. burst=100 nodelay) for the odoo_general zone"
 
-msgid " action(s) POST refusée(s) : un formulaire ou une inscription a pu être perdu"
-msgstr " POST action(s) refused: a form or a registration may have been lost"
+msgid " actions POST refusées : un formulaire ou une inscription a pu être perdu"
+msgstr " POST actions refused: a form or a registration may have been lost"
 
 msgid "ne jamais limiter les POST de formulaires de la même façon que les pages : zone séparée avec burst, ou exemption pour les adresses connues"
 msgstr "never limit form POSTs the same way as pages: separate zone with burst, or exemption for known addresses"
 
-msgid " ressource(s) (JS, CSS, images) refusée(s) : page mal affichée chez la personne"
-msgstr " resource(s) (JS, CSS, images) refused: page badly displayed for the person"
+msgid " ressources (JS, CSS, images) refusées : page mal affichée chez la personne"
+msgstr " resources (JS, CSS, images) refused: page badly displayed for the person"
 
 msgid "exclure /web/static/, /web/assets/ et /website/static/ de limit_req (location avec limit_req off ; ou cache navigateur : expires 7d)"
 msgstr "exclude /web/static/, /web/assets/ and /website/static/ from limit_req (location with limit_req off; or browser cache: expires 7d)"
@@ -64,8 +64,8 @@ msgstr "  nginx logs unreadable or missing (root required? folder "
 msgid "Limitation de débit (429) pour "
 msgstr "Rate limiting (429) for "
 
-msgid " fichier(s) de journal lu(s)"
-msgstr " log file(s) read"
+msgid " fichiers de journal lus"
+msgstr " log files read"
 
 msgid "  Aucune requête de cette adresse dans les journaux lus."
 msgstr "  No request from this address in the logs read."
@@ -82,8 +82,8 @@ msgstr "  Most refused URLs (refusals / requests from this address on this URL):
 msgid " ; dépassement maximal vu : "
 msgstr "; maximum excess seen: "
 
-msgid " requête(s)"
-msgstr " request(s)"
+msgid " requêtes"
+msgstr " requests"
 
 msgid " requêtes en une seconde ("
 msgstr " requests in one second ("

@@ -249,7 +249,7 @@ class AppLogLive(EnvTest):
         self.assertEqual(len({l.index("base werkzeug") for l in lines}), 1, "les messages doivent être alignés :\n" + out)
         self.assertNotIn("(équipe)", out)
         self.assertNotIn("\x1b[", out, "pas de couleur dans un tube")
-        self.assertIn("1 adresse(s) connue(s) par une connexion au site", err)
+        self.assertIn("1 adresses connues par une connexion au site", err)
         with open(os.path.join(self.d, "journalctl.log")) as f:
             commands = f.read()
         self.assertIn("--lines 50 --no-pager -u erplibre.service -o short-iso-precise", commands)
@@ -450,7 +450,7 @@ class AppLogLive(EnvTest):
         self.assertRegex(T(l[2]), r'127\.0\.0\.1\s+base werkzeug app-health-check\.py\s+HTTP/1\.1 \d+[ \d.-]*GET  /web/health\?db_server_status=1')
         self.assertRegex(T(l[3]), r'127\.0\.0\.1\s+base werkzeug ce serveur\s+HTTP/1\.1 \d+[ \d.-]*GET  /web/assets/1/x\.js')
         self.assertNotIn("Étienne", T("\n".join(l[:4])))
-        self.assertNotIn("autre(s) compte(s)", out)
+        self.assertNotIn("autres comptes", out)
         self.assertRegex(T(l[4]), rf"{PERSONNE}\s+base werkzeug Étienne Dupont")                  # une vraie personne reste une personne
 
     def test_le_nom_apparait_meme_quand_les_recherches_lentes_sont_saturees(self):
@@ -476,7 +476,7 @@ class AppLogLive(EnvTest):
                 werkzeug(AUTRE, "/page-2", delta=40), login(AUTRE, "alice@exemple.org", delta=30), werkzeug(AUTRE, "/apres", delta=20)]
         self.journal(flux)
         rc, out, err = self.lancer("--no-history", "--no-isp", "--no-presence", "--recap", "120")
-        self.assertIn(f"↻ Alice A [{AUTRE}] : 2 ligne(s) précédente(s) de cette adresse (depuis ", out)
+        self.assertIn(f"↻ Alice A [{AUTRE}] : 2 lignes précédentes de cette adresse (depuis ", out)
         reminder = out.split("↻")[1]
         self.assertRegex(T(reminder), r'11\.101\.16\.52\s+base werkzeug Alice A\s+HTTP/1\.1 \d+[ \d.-]*GET  /page-1')
         self.assertRegex(T(reminder), r'11\.101\.16\.52\s+base werkzeug Alice A\s+HTTP/1\.1 \d+[ \d.-]*GET  /page-2')
@@ -768,7 +768,7 @@ class AppLogLive(EnvTest):
                          "la colonne des noms est alignée")
         self.assertEqual(len({l.index("[") for l in columns[1:]}), 1, "la colonne des adresses est alignée")
         r = " ".join(summary.split())
-        self.assertRegex(T(r), rf"● connecté\(e\) Alice A \[{PERSONNE}\] \d{{4}}-\d\d-\d\d \d\d:\d\d:\d\d il y a 2 min · 1 requête\(s\) vue\(s\)")
+        self.assertRegex(T(r), rf"● connecté\(e\) Alice A \[{PERSONNE}\] \d{{4}}-\d\d-\d\d \d\d:\d\d:\d\d il y a 2 min · 1 requêtes vues")
         self.assertRegex(T(r), rf"○ inactif\(ve\) Bob B \[{AUTRE}\] \d{{4}}-\d\d-\d\d \d\d:\d\d:\d\d depuis 40 min")
         self.assertRegex(T(r), rf"✕ déconnecté\(e\) Carl C \[{TROISIEME}\] \d{{4}}-\d\d-\d\d \d\d:\d\d:\d\d à la déconnexion")
         self.assertNotIn("anonyme", T(summary))                                    # visiteur non reconnu : pas une personne
@@ -846,9 +846,9 @@ class AppLogLive(EnvTest):
         spec.loader.exec_module(i18n)
         tr = i18n.traducteur("fr", SCRIPTS_DIR, "app-log-live", ("_bbb", "nginx-log-audit"))
         lines = ["  ✔ HTTP 5xx errors: none", "  ⚠ Odoo errors (ERROR / CRITICAL): 2", "  ✔ Program: normal resources",
-                  "  Robots: 338 address(es) out of 1624", "  Real visitors: 1286 out of 1624 (79 %)", "  Site visits: 1712 visit(s) · 3306 page(s) viewed · 1624 visitor(s) [2 known person(s)]",
-                  "  Banned addresses seen: 0.", "  Activity: 120 request(s)", "  Level 5 of 9", "  HTTP codes: 1xx 1 % · 2xx 57 %",
-                  "  Pages by language (3306 page(s)): without prefix 45 %"]
+                  "  Robots: 338 address(es) out of 1624", "  Real visitors: 1286 out of 1624 (79 %)", "  Site visits: 1712 visits · 3306 pages viewed · 1624 visitors [2 known persons]",
+                  "  Banned addresses seen: 0.", "  Activity: 120 requests", "  Level 5 of 9", "  HTTP codes: 1xx 1 % · 2xx 57 %",
+                  "  Pages by language (3306 pages): without prefix 45 %"]
         anglais = re.compile(r"(?i:\b(none|visitors?|banned|activity|level|language|real|visits?|efficiency|resources|out of|without)\b)|\berrors\b")
         for l in lines:
             with self.subTest(text_line=l):
@@ -875,13 +875,13 @@ class AppLogLive(EnvTest):
         self.assertRegex(T(l[2]), r'INFO +11\.101\.16\.52\s+base werkzeug Alice A \| Quartier Rosemont\s+HTTP/1\.1 \d+[ \d.-]*GET  /odoo')         # non-shared place: the person AND the place
         self.assertRegex(T(l[3]), rf'INFO +{self.equipe_ip}\s+base werkzeug Étienne \(cellulaire')          # liste blanche avant un lieu
         self.assertRegex(T(l[4]), rf'INFO +{DNS}\s+base werkzeug srv\.exemple\.org')
-        self.assertNotIn("autre(s) compte(s)", out)
+        self.assertNotIn("autres comptes", out)
         self.assertNotIn("Bob B", out)                                                                       # no person name for a shared place
         presence = out.split("Présence d'après")[1]
         self.assertIn("Alice A", T(presence))
         self.assertNotIn("ETS", T(presence))                                                                    # no individual presence for a shared place
         self.assertIn("lieux ", err)                                                                         # French output text shown as an example: "Listes: ... lieux ...(4 plage(s))"
-        self.assertIn("(4 plage(s))", err)
+        self.assertIn("(4 plages)", err)
         # Non-shared and with no known person (--no-history): the place replaces the DNS
         out = self.lancer("--no-history", "--no-presence")[1].splitlines()
         self.assertRegex(out[2], r'INFO +11\.101\.16\.52\s+base werkzeug Quartier Rosemont\s+')
@@ -1077,7 +1077,7 @@ class AppLogLive(EnvTest):
         for absent in ("/a\"", "/interdite", "Caches invalidated"):
             self.assertNotIn(absent, body)
         r = " ".join(out.split())
-        self.assertIn("Pages introuvables (404) 2 page(s), 3 réponse(s) :", T(r))
+        self.assertIn("Pages introuvables (404) 2 pages, 3 réponses :", T(r))
         self.assertIn("/absente ×2", T(r))
         self.assertIn("/autre ×1", T(r))
 
@@ -1183,7 +1183,7 @@ class AppLogLive(EnvTest):
         rc, out, err = self.lancer("--no-presence")
         self.assertIn("taille de la réponse en octets", err)
         self.assertIn("nombre de requêtes SQL", err)
-        self.assertIn("temps SQL (s) · temps Python (s)", err)
+        self.assertIn("temps SQL s · temps Python s", err)
         self.assertIn("websocket", err)
         database = werkzeug(DNS, "/p")
         self.journal([database.replace("200 - 105 0.046", "200 - 400 0.046"), database.replace("200 - 105 0.046", "200 - 1500 0.046"),
@@ -1305,8 +1305,8 @@ class AppLogLive(EnvTest):
         self.assertIn("Efficacité du programme", T(t))
         self.assertRegex(T(t), r"Programme : CPU \d+\.\d %")
         self.assertRegex(T(t), r"mémoire \d+(\.\d)? (Ko|Mo)")
-        self.assertRegex(T(t), r"Cache des adresses : \d+ % des \d+ demande\(s\) sans recherche extérieure")
-        self.assertRegex(T(t), r"Pages par langue \(\d+ page\(s\)\) : .*FR \d+ %")
+        self.assertRegex(T(t), r"Cache des adresses : \d+ % des \d+ demandes sans recherche extérieure")
+        self.assertRegex(T(t), r"Pages par langue \(\d+ pages\) : .*FR \d+ %")
         for lang in ("EN", "ES", "sans préfixe"):
             self.assertIn(lang, t)
         self.assertIn("Codes HTTP : 2xx", T(t))
@@ -1314,7 +1314,7 @@ class AppLogLive(EnvTest):
         self.assertRegex(T(t), r"2 /event")                                                      # most requested first, with its count
         # Ctrl-T right after: nothing changed since the last display
         after = " ".join(text[text.index("Depuis le dernier affichage"):].split())
-        self.assertIn("0 ligne(s) affichée(s) · 0 requête(s)", T(after))
+        self.assertIn("0 lignes affichées · 0 requêtes", T(after))
         self.assertIn("Santé : ✔ tout va bien", T(after))
 
     def test_diagnostic_des_recommandations_de_web_monitor(self):
@@ -1422,20 +1422,20 @@ class AppLogLive(EnvTest):
             def modules_etat(database):
                 return Faux.state if database == "b1" else None
         text = "\n".join(ANSI.sub("", l) for l in live.check_modules(Faux, conf, ["b1", "b2"]))
-        self.assertIn("addons_path : dossier(s) introuvable(s)", T(text))
-        self.assertIn("Modules d'Odoo (base b1) : 5 installé(s) · série 18.0", T(text))
+        self.assertIn("addons_path : dossiers introuvables", T(text))
+        self.assertIn("Modules d'Odoo (base b1) : 5 installés · série 18.0", T(text))
         self.assertIn("⚠ à regarder", T(text))
         self.assertIn("2 INTROUVABLE(S) sur le disque : perdu, web_x", T(text))
         self.assertIn("rlq_survey_report installé 18.0.1.96.0 ≠ disque 18.0.1.97.0", T(text))
         self.assertIn("web_x (to upgrade)", T(text))
-        self.assertIn("Hors Odoo S.A. : 2 module(s)", T(text))                                       # 1.66 : compte + 5 derniers en colonnes, plus la longue liste
+        self.assertIn("Hors Odoo S.A. : 2 modules", T(text))                                       # 1.66 : compte + 5 derniers en colonnes, plus la longue liste
         self.assertIn("touche M ou --modules", T(text))
-        self.assertIn("Modules rlq* : 1 installé(s), avec leur version", T(text))
+        self.assertIn("Modules rlq* : 1 installés, avec leur version", T(text))
         self.assertIn("Derniers modifiés parmi les autres (heure locale) :", T(text))
         self.assertRegex(T(text), r"rlq_survey_report\s+18\.0\.1\.96\.0\s+2026-10-14 09:12")
         self.assertRegex(T(text), r"perdu\s+18\.0\.1\.0\s+2026-09-02 16:40")
         self.assertLess(text.index("rlq_survey_report  "), text.index("perdu  "))                # les rlq* d'abord, puis les autres
-        self.assertIn("Modules d'Odoo : lecture de PostgreSQL impossible pour 1 base(s) (root requis, ou base inaccessible) : b2", T(text))      # bases illisibles : UNE ligne
+        self.assertIn("Modules d'Odoo : lecture de PostgreSQL impossible pour 1 bases (root requis, ou base inaccessible) : b2", T(text))      # bases illisibles : UNE ligne
         self.assertEqual(T(text).count("Modules d'Odoo (base"), 1)
         self.assertNotIn("Modules hors Odoo S.A. (version installée)", T(text))
         live.COLOR = True
@@ -1494,7 +1494,7 @@ class AppLogLive(EnvTest):
         self.assertIn("Santé :", T(text(1)))
         self.assertIn("Erreurs HTTP 5xx", T(text(1)))                       # what goes wrong is visible from level 1
         self.assertNotIn("Activité :", T(text(1)))
-        self.assertIn("Activité : 4 requête(s)", T(text(2)))
+        self.assertIn("Activité : 4 requêtes", T(text(2)))
         self.assertNotIn("Activité :", T(text(6)))                           # one-line activity is replaced by the detail
         self.assertNotIn("Adresses les plus actives", T(text(4)))
         self.assertIn("Adresses les plus actives", T(text(5)))
@@ -1643,7 +1643,7 @@ class AppLogLive(EnvTest):
         self.assertNotIn("banned", T(l[4]))                                                 # adresse non bannie
         self.assertNotIn("banned", T(l[5]))                                                 # white list: never, even if fail2ban contains it
         self.assertTrue(l[6].endswith('[banni : fail2ban]'), l[6])                      # IPv6
-        self.assertIn("Adresses bannies : fail2ban 3 adresse(s), CrowdSec 2 entrée(s)", err)
+        self.assertIn("Adresses bannies : fail2ban 3 adresses, CrowdSec 2 entrées", err)
         self.assertIn("\x1b[1;91m[banni : fail2ban]\x1b[0m", self.en_couleur())
 
     def test_bannis_repli_sur_status_no_banned_et_sources_illisibles(self):
@@ -1654,7 +1654,7 @@ class AppLogLive(EnvTest):
         self.assertTrue(l[0].endswith("[banni : fail2ban]"), l[0])
         self.assertTrue(l[1].endswith("[banni : fail2ban]"), l[1])
         self.assertNotIn("banned", T(l[2]))
-        self.assertIn("Adresses bannies : fail2ban 3 adresse(s)", err)
+        self.assertIn("Adresses bannies : fail2ban 3 adresses", err)
         self.assertNotIn("CrowdSec", err)                                               # ipset illisible : source absente
         os.remove(os.path.join(self.d, "bans.log"))
         rc, out, err = self.lancer("--no-presence", "--no-banned")
@@ -1841,7 +1841,7 @@ class AppLogLive(EnvTest):
         self.assertEqual(envoyees, 6, text)
         self.assertIn("Le suivi continue.", text)
         self.assertRegex(text, r"Résumé de la session \(app-log-live\.py v1\.\d+")
-        self.assertIn("1 erreur(s) d'Odoo, 0 courriel(s) en échec", text)
+        self.assertIn("1 erreurs d'Odoo, 0 courriels en échec", text)
         self.assertIn("DETAIL-ERREURS --errors-only --full-trace --last 1", text)
 
     def test_resume_de_la_session_avec_summary_et_filtres(self):
@@ -1849,9 +1849,9 @@ class AppLogLive(EnvTest):
         self.journal_resume()
         rc, out, err = self.lancer("--no-presence", "--summary")
         r = " ".join(out[out.index("──── Résumé"):].split())
-        self.assertRegex(r, r"──── Résumé de la session \(app-log-live\.py v1\.\d+\.\d{8}\.\d{6}\) : depuis \d{4}-\d\d-\d\d \d\d:\d\d:\d\d pendant \d\d:\d\d:\d\d · 8 ligne\(s\) affichée\(s\) · 8 requête\(s\) ────")
+        self.assertRegex(r, r"──── Résumé de la session \(app-log-live\.py v1\.\d+\.\d{8}\.\d{6}\) : depuis \d{4}-\d\d-\d\d \d\d:\d\d:\d\d pendant \d\d:\d\d:\d\d · 8 lignes affichées · 8 requêtes ────")
         self.assertIn(f"Adresses les plus actives : srv.exemple.org [{DNS}] ×6 ; Étienne Dupont [{PERSONNE}] ×2", r)
-        self.assertIn("Requêtes suspectes 3 de 1 adresse(s) — /wp-login.php ×2 ; /.env ×1", r)
+        self.assertIn("Requêtes suspectes 3 de 1 adresses — /wp-login.php ×2 ; /.env ×1", r)
         self.assertIn(f"par adresse : srv.exemple.org [{DNS}] ×3 [banni : fail2ban]", r)
         self.assertIn("Erreurs 5xx (critiques) 1 — /boum ×1", r)
         self.assertIn("Erreurs 4xx (avertissements) 3 — /wp-login.php ×2 ; /absent ×1", r)
@@ -1860,12 +1860,12 @@ class AppLogLive(EnvTest):
         out2 = self.lancer("--no-presence")[1]
         self.assertNotIn("Résumé de la session", out2, "sans --summary : jamais au bout d'un --no-follow (le résumé est pour Ctrl-C)")
         r = " ".join(self.lancer("--no-presence", "--summary", "--suspect")[1].split())              # the summary only counts DISPLAYED lines
-        self.assertIn("3 ligne(s) affichée(s) · 3 requête(s)", r)
+        self.assertIn("3 lignes affichées · 3 requêtes", r)
         self.assertRegex(r, r": depuis \d{4}-\d\d-\d\d \d\d:\d\d:\d\d pendant \d\d:\d\d:\d\d · 3 ligne", "la période des statistiques : début et durée")
         self.assertIn("Erreurs 5xx (critiques) : aucune.", r)
         self.assertIn("Requêtes lentes (≥ 5 s) : aucune.", r)
         r = " ".join(self.lancer("--no-presence", "--summary", "--only", "zzz")[1].split())
-        self.assertIn("0 ligne(s) affichée(s)", r)
+        self.assertIn("0 lignes affichées", r)
         self.assertIn("Aucune requête dans les lignes affichées.", r)
 
     def test_ctrl_c_affiche_le_resume_de_la_session_puis_s_arrete_proprement(self):
@@ -1874,8 +1874,8 @@ class AppLogLive(EnvTest):
         self.assertNotIn("Traceback", text, text)
         r = " ".join(text.split())
         self.assertIn("Résumé de la session", T(r))
-        self.assertIn("8 requête(s)", T(r))
-        self.assertIn("Requêtes suspectes 3 de 1 adresse(s)", T(r))
+        self.assertIn("8 requêtes", T(r))
+        self.assertIn("Requêtes suspectes 3 de 1 adresses", T(r))
         self.assertIn("Interrompu (Ctrl-C).", T(r))
 
     # --- cache permanent des adresses -------------------------------------------------------------------------------
@@ -1896,7 +1896,7 @@ class AppLogLive(EnvTest):
         self.geoip()
         self.journal([werkzeug(DNS), werkzeug(ISP), werkzeug(DNS, "/encore")])
         rc, out1, err1 = self.avec_cache("--no-presence", "--no-history")
-        self.assertIn(f"Cache des adresses : {os.path.join(self.d, 'ip-cache.sqlite')} (0 adresse(s)", T(err1))
+        self.assertIn(f"Cache des adresses : {os.path.join(self.d, 'ip-cache.sqlite')} (0 adresses", T(err1))
         rc, out1, err1 = self.avec_cache("--no-presence", "--no-history")                 # 2nd pass to fix the reference state with the cache already filled
         getent, curl, geo = self.account("getent.log"), self.account("curl.log"), self.account("geoip.log")
         self.assertEqual(getent, 2, "un seul DNS par adresse au tout premier passage (deux adresses)")
@@ -1906,7 +1906,7 @@ class AppLogLive(EnvTest):
         self.assertEqual((self.account("getent.log"), self.account("curl.log"), self.account("geoip.log")), (getent, curl, geo), "aucune recherche au 2e passage")
         self.assertRegex(T(out2), rf"INFO US {DNS}\s+base werkzeug srv\.exemple\.org\s+")
         self.assertRegex(T(out2), rf"INFO CA {ISP}\s+base werkzeug Videotron Ltee \(org\)\s+")
-        self.assertIn("(2 adresse(s)", T(err2))
+        self.assertIn("(2 adresses", T(err2))
 
     def test_cache_no_cache_ne_lit_ni_n_ecrit(self):
         self.geoip()
@@ -1949,7 +1949,7 @@ class AppLogLive(EnvTest):
         before = self.account("getent.log")
         rc, out, err = self.avec_cache("--no-presence", "--no-history")
         self.assertEqual(self.account("getent.log"), before + 1, "nom périmé : redemandé")
-        self.assertIn("1 adresse(s) non revue(s) depuis 180 jours effacée(s)", T(err))
+        self.assertIn("1 adresses non revues depuis 180 jours effacées", T(err))
         database = sqlite3.connect(path)
         self.assertEqual([r[0] for r in database.execute("SELECT ip FROM ip ORDER BY ip")], [DNS])
         database.close()
@@ -2107,7 +2107,7 @@ class AppLogLive(EnvTest):
         """[3] Pages par langue et Codes HTTP : les nombres (et leur %) en couleur ; « 2xx » et les langues restent tels quels."""
         live = self.module_live()
         live.COLOR = True
-        t = live.numbers("  Pages par langue (8782 page(s)) : sans préfixe 52 % · EN 32 % · FR 0 %")
+        t = live.numbers("  Pages par langue (8782 pages) : sans préfixe 52 % · EN 32 % · FR 0 %")
         self.assertIn("\x1b[1;36m8782\x1b[0m", T(t))
         self.assertIn("\x1b[1;36m52 %\x1b[0m", T(t))
         self.assertIn("EN \x1b[1;36m32 %\x1b[0m", T(t))
@@ -2208,10 +2208,10 @@ class AppLogLive(EnvTest):
         live = self.module_live()
         st = live.Stats(3.0)
         st.mails = 1
-        st.mail_detail = lambda: [f"À renvoyer : x{i}@exemple.org" for i in range(10)] + ["… et 3 autre(s) : odoo-mail-retry.py --details"]
+        st.mail_detail = lambda: [f"À renvoyer : x{i}@exemple.org" for i in range(10)] + ["… et 3 autres : odoo-mail-retry.py --details"]
         text = " ".join(st.health()[1])
         self.assertIn("x9@exemple.org", T(text))
-        self.assertIn("… et 3 autre(s)", T(text))
+        self.assertIn("… et 3 autres", T(text))
         st.mail_detail = lambda: 1 / 0
         self.assertIn("odoo-mail-retry.py liste", T(" ".join(st.health()[1])))
 
@@ -2242,7 +2242,7 @@ class AppLogLive(EnvTest):
         wm = os.path.join(os.path.dirname(self.prog), "web-monitor.py")                  # faux web-monitor.py : note chaque lancement
         with open(wm, "w") as f:
             f.write(f'import sys\nopen("{self.d}/wm.log", "a").write(" ".join(sys.argv[1:]) + "\\n")\n')
-        sequence = [(b"/.env", b"\x07", 0.5), (b"Top 10 des URLs", b"b", 0.5), (b"Bannir maintenant", b"o\r", 0.2), (b"adresse(s) bannie(s)", b"b", 0.5),
+        sequence = [(b"/.env", b"\x07", 0.5), (b"Top 10 des URLs", b"b", 0.5), (b"Bannir maintenant", b"o\r", 0.2), (b"adresses bannies", b"b", 0.5),
                     (b"aucune requ", b"\x07", 0.5), (b"Top 10 des URLs", b"\x03", 0.3)]
         text, envoyees = self.run_pty(["python3", self.prog, "--no-isp", "--no-presence", "--no-banned", "--lines", "1"], sequence, timeout=60)
         self.assertEqual(envoyees, 6, text)
@@ -2252,15 +2252,15 @@ class AppLogLive(EnvTest):
         self.assertEqual(len(appels), 1, appels)
         self.assertIn("--save-recommended", appels[0])
         self.assertEqual(t.count("Mise à jour des recommandations de web-monitor.py"), 1, t)
-        self.assertLess(t.index("1/1 adresse(s) bannie(s)"), t.index("Mise à jour des recommandations"))
-        self.assertIn("Adresses à bannir : 1 — srv.exemple.org [93.184.216.34] (2 requête(s) suspecte(s))", T(t))          # the known person is never proposed
+        self.assertLess(t.index("1/1 adresses bannies"), t.index("Mise à jour des recommandations"))
+        self.assertIn("Adresses à bannir : 1 — srv.exemple.org [93.184.216.34] (2 requêtes suspectes)", T(t))          # the known person is never proposed
         self.assertNotIn(f"[{PERSONNE}] ×", T(t.split("Adresses à bannir")[1].split("Top 10")[0]))
-        self.assertIn("1 adresse(s) à bannir", T(t))
+        self.assertIn("1 adresses à bannir", T(t))
         self.assertNotRegex(T(t), r"(\d+\.\d+\.\d+\.\d+) \1 —")                              # 1.49: the address is never repeated when its unknown name is the address itself
         self.assertIn(f"{DNS} : banni — Règle ajoutée", T(t))
-        self.assertIn("1/1 adresse(s) bannie(s)", T(t))
+        self.assertIn("1/1 adresses bannies", T(t))
         self.assertIn(f"--ban {DNS} --yes", open(os.path.join(self.d, "ban.log")).read())
-        self.assertIn("Adresses à bannir : aucune", T(t.split("1/1 adresse(s) bannie(s)")[1]))        # after the ban: nothing left to ban
+        self.assertIn("Adresses à bannir : aucune", T(t.split("1/1 adresses bannies")[1]))        # after the ban: nothing left to ban
 
     def test_sondes_wordpress_debug_et_balayage_de_404_a_bannir(self):
         """1.37 : /wp, /wordpress, /_ignition, /debug/default sont suspects (même sous /en_CA) ; 5 pages DIFFÉRENTES en 404 pour une adresse = à bannir, sans autre signe."""
@@ -2478,7 +2478,7 @@ class AppLogLive(EnvTest):
         self.assertEqual(sorted(ip for ip, _ in st.to_ban()), ["11.65.131.103", "11.76.10.40"])
         self.assertEqual(dict(st.to_ban()), {"11.65.131.103": 0, "11.76.10.40": 0})
         self.assertEqual(T(st.ban_reason("11.65.131.103", 0)), "recommandée par web-monitor.py (enquête : Score 4/7)")
-        self.assertEqual(T(st.ban_reason("9.9.9.9", 3)), "3 requête(s) suspecte(s)")
+        self.assertEqual(T(st.ban_reason("9.9.9.9", 3)), "3 requêtes suspectes")
         L = live.Line(werkzeug("8.8.8.8", "/a", 200))
         L.instant = time.time()
         st.ajouter(L, {"8.8.8.8": ("ok.exemple.org", [], False, None)}, None)
@@ -2518,7 +2518,7 @@ class AppLogLive(EnvTest):
         request_data("4.4.4.4", "/b", "108-174-8-25.fwd.linkedin.com")
         request_data("5.5.5.5", "/news_sitemap.xml", "x.exemple.net", 404)
         lines = " ".join(" ".join(st.visit_lines()).split())
-        self.assertIn("Robots : 2 adresse(s) sur 4 (50 %) · 3 page(s) vue(s) (60 % des pages)", T(lines))
+        self.assertIn("Robots : 2 adresses sur 4 (50 %) · 3 pages vues (60 % des pages)", T(lines))
         self.assertIn("Vrais visiteurs : 2 sur 4 (50 %)", T(lines))
         self.assertFalse(st.is_robot("1.1.1.1"))
         self.assertTrue(st.is_robot("5.5.5.5"))                           # sitemap requested, even in a 404
@@ -2551,7 +2551,7 @@ class AppLogLive(EnvTest):
         self.assertFalse(st.is_robot(ISP))
         self.assertTrue(st.is_robot(LENT))
         lines = " ".join(" ".join(st.visit_lines()).split())
-        self.assertIn("Robots : 2 adresse(s) sur 3 (67 %)", T(lines))
+        self.assertIn("Robots : 2 adresses sur 3 (67 %)", T(lines))
         self.assertIn("Vrais visiteurs : 1 sur 3 (33 %)", T(lines))
         self.assertIn("User-Agent lu pour 100 % des visiteurs", T(lines))
 
@@ -2569,13 +2569,13 @@ class AppLogLive(EnvTest):
         request_data("/event/jpo-1/registration/confirm", 500, 0.1, 0.2)
         request_data("/web/login", 200, 0.1, 0.1)                                  # hors surveillance
         lines = " ".join(" ".join(st.watch_lines()).split())
-        self.assertIn("Surveillance « registration » : 4 requête(s) · 1 erreur(s) · durée médiane 0.60 s · 95e centile 5.90 s · maximum 5.90 s · 1 lentes (≥ 3 s) · 2 inscription(s) confirmée(s)", T(lines))
+        self.assertIn("Surveillance « registration » : 4 requêtes · 1 erreurs · durée médiane 0.60 s · 95e centile 5.90 s · maximum 5.90 s · 1 lentes (≥ 3 s) · 2 inscriptions confirmées", T(lines))
         health = " ".join(" ".join(st.health()[1]).split())
-        self.assertIn("Surveillance (registration) : 4 requête(s), 1 erreur(s), 1 lentes", T(health))
+        self.assertIn("Surveillance (registration) : 4 requêtes, 1 erreurs, 1 lentes", T(health))
         before = st.snapshot()
         request_data("/event/jpo-1/registration/confirm", 303, 0.1, 0.1)
         period = st.since(before)
-        self.assertIn("1 requête(s) · 0 erreur(s)", T(" ".join(" ".join(period.watch_lines()).split())))
+        self.assertIn("1 requêtes · 0 erreurs", T(" ".join(" ".join(period.watch_lines()).split())))
 
     def test_watch_pages_visiteurs_et_sondages_par_billet(self):
         """1.45 : --watch détaille les pages les plus vues (visiteurs, robots) et chaque sondage /survey/<jeton> (titre lu dans PostgreSQL, accès, visiteurs, envois) ;
@@ -2599,11 +2599,11 @@ class AppLogLive(EnvTest):
         request_data(f"/survey/submit/{token}/def", autre)
         request_data("/survey/start/ffffffff-0000-1111-2222-333344445555", autre)
         lines = "\n".join(" ".join(x.split()) for x in st.watch_lines())
-        self.assertIn("Visiteurs : 2 adresse(s) dont", T(lines))
-        self.assertIn("/event/journee-portes-ouvertes-sur-linux-2026-125/page/introduction ×2 (2 visiteur(s))", T(lines))
+        self.assertIn("Visiteurs : 2 adresses dont", T(lines))
+        self.assertIn("/event/journee-portes-ouvertes-sur-linux-2026-125/page/introduction ×2 (2 visiteurs)", T(lines))
         self.assertNotIn("static.css", T(lines))
         self.assertNotIn("absente", T(lines))
-        self.assertIn("Sondage « Portes ouvertes (Bénévole) — billet Bénévole » : 2 accès · 2 visiteur(s) · 1 envoi(s) de réponses", T(lines))
+        self.assertIn("Sondage « Portes ouvertes (Bénévole) — billet Bénévole » : 2 accès · 2 visiteurs · 1 envois de réponses", T(lines))
         self.assertIn("Sondage « sondage ffffffff… » : 1 accès", T(lines))
         spec = importlib.util.spec_from_file_location("odoo_db", os.path.join(SCRIPTS_DIR, "apps", "_odoo_db.py"))
         db = importlib.util.module_from_spec(spec)
@@ -2631,8 +2631,8 @@ class AppLogLive(EnvTest):
         for url in ("/odoo/action-908/128", "/web/assets/1/bc7974c/web.assets_frontend_lazy.min.js", "/web/dataset/call_kw/event.event/get_views"):
             st.ajouter(live.Line(f'2026-10-13 14:00:00.00 odoo18 odoo INFO base werkzeug {PERSONNE} "GET {url} HTTP/1.1" 200 - 77 0.0 5.2'), {PERSONNE: ("inconnu", [], False, None)}, None)
         text = " ".join(" ".join(st.analyze_slow()).split())
-        self.assertIn("Python seul en cause (pas la base) : à cet instant charge 1.4 sur 6 cœur(s) · swap utilisé 0 Mo · mémoire disponible 12.9 Go · attente disque 0 % (pression I/O sur 10 s : 1 %)", T(text))
-        self.assertIn("disques : sda disque dur (rotatif), 2 volume(s) ZFS (type réel : celui des disques du pool)", T(text))
+        self.assertIn("Python seul en cause (pas la base) : à cet instant charge 1.4 sur 6 cœurs · swap utilisé 0 Mo · mémoire disponible 12.9 Go · attente disque 0 % (pression I/O sur 10 s : 1 %)", T(text))
+        self.assertIn("disques : sda disque dur (rotatif), 2 volumes ZFS (type réel : celui des disques du pool)", T(text))
         self.assertIn("la charge, le swap et le disque ne sont PAS en cause à cet instant ; il reste : cache d'Odoo à froid", T(text))
         self.assertIn("assets (JS/CSS) recalculés", T(text))
         self.assertIn("vues ou menus recompilés (cache d'Odoo à froid)", T(text))
@@ -2759,7 +2759,7 @@ class AppLogLive(EnvTest):
         text, _ = self.run_pty(["python3", self.prog, "--no-follow", "--no-isp", "--no-presence", "--accentuate-group", "Collaborateurs-2026"], [], keep_ansi=True)
         self.assertRegex(text, r"\x1b\[1;97;(?:48;5;18|44)mÉtienne Dupont")
         self.assertNotRegex(text, r"\x1b\[1;97;(?:48;5;18|44)msrv\.exemple")
-        self.assertIn("Groupe « Collaborateurs-2026 » : 1 compte(s)", text)
+        self.assertIn("Groupe « Collaborateurs-2026 » : 1 comptes", text)
         rc, out, err = self.run_cmd(["python3", self.prog, "--no-follow", "--no-isp", "--no-presence", "--accentuate-group", "Inexistant"])
         self.assertEqual(rc, 2, err)
         self.assertIn("l'étiquette de contact « Inexistant » n'existe dans aucune base d'Odoo. Étiquettes existantes : Bénévoles, VIP", T(err))
@@ -2809,8 +2809,8 @@ class AppLogLive(EnvTest):
         self.groupe_mock()
         self.journal_tableau(waiting=45)
         sequence = [(b"/event", b"?", 0.4), (b"adresses \xc3\xa0 bannir : 0", b"e", 0.4), (b"vide = aucune", b"93.184.216.34\r", 0.2), (b"--exclude-ip : 93.184.216.34/32", b"e", 0.4),
-                    (b"vide = aucune", b"pas-une-adresse\r", 0.2), (b"Adresse(s) refus", b"a", 0.4), (b"vide = aucune ; actuel : aucune", b"Collaborateurs-2026\r", 0.2),
-                    (b"1 compte(s) (les lignes", b"a", 0.4), (b"vide = aucune ; actuel : Collab", b"Inexistant\r", 0.2), (b"existe dans aucune base", b"c", 0.4),
+                    (b"vide = aucune", b"pas-une-adresse\r", 0.2), (b"Adresses refus", b"a", 0.4), (b"vide = aucune ; actuel : aucune", b"Collaborateurs-2026\r", 0.2),
+                    (b"1 comptes (les lignes", b"a", 0.4), (b"vide = aucune ; actuel : Collab", b"Inexistant\r", 0.2), (b"existe dans aucune base", b"c", 0.4),
                     (b"Entr\xc3\xa9e = 0", b"1\r", 0.2), (b"--chime 1 (bip", b"T", 0.4), (b"Entr\xc3\xa9e = 60", b"5\r", 0.2), (b"--time-report 5", b"\x03", 0.4)]
         text, envoyees = self.run_pty(["python3", self.prog, "--no-isp", "--no-presence", "--no-banned", "--lines", "1"], sequence, timeout=60, colonnes=200)
         self.assertEqual(envoyees, len(sequence), text)
@@ -2842,14 +2842,14 @@ class AppLogLive(EnvTest):
         request_data("4.4.4.4", "/wp-login.php", 404, offset=30)              # erreur : pas une page
         request_data("4.4.4.4", "/x.php", 200, offset=31)                     # suspect : pas une page
         lines = " ".join(" ".join(st.visit_lines()).split())
-        self.assertIn("Visites du site : 4 visite(s) · 5 page(s) vue(s) · 3 visiteur(s) [1 personne(s) connue(s) · 1 équipe ou lieu · 1 anonyme(s)] · 1.7 page(s) par visiteur", T(lines))
+        self.assertIn("Visites du site : 4 visites · 5 pages vues · 3 visiteurs [1 personnes connues · 1 équipe ou lieu · 1 anonymes] · 1.7 pages par visiteur", T(lines))
         self.assertIn("Pays des visiteurs : CA 1 · FR 1 · pays inconnu 1", T(lines))
         self.assertIn("Pages les plus visitées (réponses sous 400) : /a ×2 ; /fr_CA/a ×1 ; /b ×1 ; /c ×1", T(lines))
         # Ctrl-T: only the period
         before = st.snapshot()
         request_data("2.2.2.2", "/d", offset=7300)
         period = " ".join(" ".join(st.since(before).visit_lines()).split())
-        self.assertIn("Visites du site : 1 visite(s) · 1 page(s) vue(s) · 1 visiteur(s) [0 personne(s) connue(s) · 0 équipe ou lieu · 1 anonyme(s)]", T(period))
+        self.assertIn("Visites du site : 1 visites · 1 pages vues · 1 visiteurs [0 personnes connues · 0 équipe ou lieu · 1 anonymes]", T(period))
         self.assertIn("Pages les plus visitées (réponses sous 400) : /d ×1", T(period))
         self.assertEqual(live.Stats(5.0).visit_lines(), [])
 
@@ -2860,7 +2860,7 @@ class AppLogLive(EnvTest):
                                        [(b"/event", b"\x07", 0.8), (b"Top 10 des URLs", b"\x03", 0.5)], timeout=60)
         self.assertEqual(envoyees, 2, text)
         t = " ".join(text.split())
-        self.assertRegex(T(t), r"Visites du site : 2 visite\(s\) · 6 page\(s\) vue\(s\) · 2 visiteur\(s\) \[0 personne\(s\) connue\(s\) · 0 équipe ou lieu · 2 anonyme\(s\)\] · 3\.0 page\(s\) par visiteur")
+        self.assertRegex(T(t), r"Visites du site : 2 visites · 6 pages vues · 2 visiteurs \[0 personnes connues · 0 équipe ou lieu · 2 anonymes\] · 3\.0 pages par visiteur")
         self.assertIn("Pages les plus visitées (réponses sous 400) : /event ×2", T(t))
 
     # ---- 1.65: modules table (--modules, M key) and colored figures of "Program efficiency" ----
@@ -2980,12 +2980,12 @@ class AppLogLive(EnvTest):
         self.assertIn("b2, b3", T(raw))
         colored_text = "\n".join(live.check_modules(Faux, self.conf_modules(), ["b2", "b3"]))
         self.assertIn(live.color_code("1;33", "b2"), colored_text)
-        info = live.color_info("Listes : liste blanche /etc/default/nginx-tools-white-list.conf (8 adresse(s)) ; lieux /etc/x.conf (0 plage(s))")
-        self.assertEqual(T(ANSI.sub("", info)), "Listes : liste blanche /etc/default/nginx-tools-white-list.conf (8 adresse(s)) ; lieux /etc/x.conf (0 plage(s))")
+        info = live.color_info("Listes : liste blanche /etc/default/nginx-tools-white-list.conf (8 adresses) ; lieux /etc/x.conf (0 plages)")
+        self.assertEqual(T(ANSI.sub("", info)), "Listes : liste blanche /etc/default/nginx-tools-white-list.conf (8 adresses) ; lieux /etc/x.conf (0 plages)")
         self.assertIn(live.color_code("1", "Listes"), info)
         self.assertIn(live.color_code("36", "/etc/default/nginx-tools-white-list.conf"), info)
         self.assertIn(live.color_code("1;36", "8"), info)
-        cache = live.color_info("Cache des adresses : /var/lib/nginx-tools/ip-cache.sqlite (16 adresse(s), 4 Ko)")
+        cache = live.color_info("Cache des adresses : /var/lib/nginx-tools/ip-cache.sqlite (16 adresses, 4 Ko)")
         self.assertIn(live.color_code("1;36", "4 Ko"), cache)
         self.assertIn(live.color_code("36", "/var/lib/nginx-tools/ip-cache.sqlite"), cache)
 
@@ -3012,9 +3012,9 @@ class AppLogLive(EnvTest):
     def test_chiffres_mesures_en_couleurs(self):
         live = self.module_live()
         live.COLOR = True
-        lines = ["  Programme : CPU 0.4 % · mémoire 39.8 Mo (pic 39.8 Mo) · 15 thread(s)",
+        lines = ["  Programme : CPU 0.4 % · mémoire 39.8 Mo (pic 39.8 Mo) · 15 threads",
                   "  Entrées-sorties : lu 2.6 Mo (55.5 Ko/s, dont disque 0 o) · écrit 168.1 Ko (dont disque 101.5 Ko)",
-                  "  Cache des adresses : 99 % des 194 demande(s) sans recherche extérieure — 147 déjà vue(s) dans cette session, 0 RDAP (cache permanent actif) ; pays : 174 sur 175 déjà connu(s)"]
+                  "  Cache des adresses : 99 % des 194 demandes sans recherche extérieure — 147 déjà vues dans cette session, 0 RDAP (cache permanent actif) ; pays : 174 sur 175 déjà connus"]
         for l in lines:
             colored = live.measured_numbers(l)
             self.assertEqual(ANSI.sub("", colored), l)                                       # the text is not modified
@@ -3043,7 +3043,7 @@ class AppLogLive(EnvTest):
         self.assertIsNone(odoo_db.groupes_rlq("b2"))
         self.assertIsNone(odoo_db.groupes_rlq("b1", prefixe="x'; DROP"))                                                            # prefix never injected
         text = "\n".join(ANSI.sub("", l) for l in live.rlq_group_lines(odoo_db, ["b1", "b2"]))
-        self.assertIn("Groupes RLQ* (base b1) : 2 groupe(s), 12 appartenance(s)", T(text))
+        self.assertIn("Groupes RLQ* (base b1) : 2 groupes, 12 appartenances", T(text))
         self.assertIn("RLQ-JPOL26-Visiteur = 12", T(text))                                    # 1.85: "name = number"
         self.assertIn("RLQ-JPOL26-Bénévole = 0", T(text))
         self.assertIn("Groupes RLQ* (base b2) : lecture de PostgreSQL impossible", T(text))
@@ -3111,7 +3111,7 @@ class AppLogLive(EnvTest):
         for anglais in (" under ", "at most", "on average", "in Python", "all tasks", "busiest disk", "types: "):
             self.assertNotIn(anglais, ecran, ecran)
         self.assertIn("95 % en moins de", ecran)
-        robots = ANSI.sub("", live.translate_protected(live.numbers("  Robots: 2 address(es) out of 4 (50 %) · 3 page(s) seen (23 % of pages)")))
+        robots = ANSI.sub("", live.translate_protected(live.numbers("  Robots: 2 address(es) out of 4 (50 %) · 3 pages seen (23 % of pages)")))
         self.assertIn("(23 % des pages)", robots)
         es = ANSI.sub("", live.translate_protected(live.measured_numbers("  Odoo network connections: chat descriptors: 26/1024 · HTTP descriptors: 59/1024")))
         self.assertIn("descripteurs du chat : 26/1024 · descripteurs HTTP : 59/1024", es)
@@ -3264,15 +3264,15 @@ class AppLogLive(EnvTest):
                   dict(r("Ana Tremblay", "Gratuit", 4, 0, ""), event_id=2, event="Rencontre de novembre", event_start=0)]
         texte = "\n".join(ANSI.sub("", live.translate_protected(l)) for l in live.ticket_report(lignes))
         self.assertIn("Journée portes ouvertes sur Linux 2026  (2026-10-24)", texte)
-        self.assertIn("Billet « Visiteur » → sondage « Portes ouvertes Linux, 24 oct 2026 (Visiteur) » : 3 inscription(s) active(s) — 1 confirmée(s), 1 non terminée(s), 1 sans sondage", texte)
+        self.assertIn("Billet « Visiteur » → sondage « Portes ouvertes Linux, 24 oct 2026 (Visiteur) » : 3 inscriptions actives — 1 confirmées, 1 non terminées, 1 sans sondage", texte)
         self.assertRegex(texte, r"Frédéric Lapointe\s+\(open\)  ✔ sondage complété 2026-")
         self.assertIn("⚠ sondage NON terminé", texte)
         self.assertIn("répondu sous le nom 张三李四", texte)
         self.assertRegex(texte, r"Chloé Poirier\s+\(open\)  ✖ aucun sondage de ce billet — inscription non confirmée")
         self.assertRegex(texte, r"MWIKIZA CISIRIKA\s+\(cancel\)  annulée")
-        self.assertIn("Billet « Bénévole » → sondage « Portes ouvertes Linux 24 oct 2026 (Bénévole) » : 1 inscription(s) active(s) — 0 confirmée(s)", texte)
+        self.assertIn("Billet « Bénévole » → sondage « Portes ouvertes Linux 24 oct 2026 (Bénévole) » : 1 inscriptions actives — 0 confirmées", texte)
         self.assertIn("(a répondu à un AUTRE sondage, non compté : « Aidez-nous à améliorer la Journée Portes Ouvertes Linux 2025 », 2025-10-27", texte)
-        self.assertIn("Billet « Gratuit » : aucun sondage lié à ce billet — 1 inscription(s) active(s)", texte)
+        self.assertIn("Billet « Gratuit » : aucun sondage lié à ce billet — 1 inscriptions actives", texte)
         noms = [l for l in texte.splitlines() if "(open)" in l or "(cancel)" in l]
         self.assertEqual(len({l.index("(") for l in noms}), 1, noms)                      # state column aligned (Chinese names included)
         self.assertEqual(live.ticket_report([]), ["    none"])

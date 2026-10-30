@@ -19,8 +19,8 @@ msgstr "Odoo chat process (websocket, port "
 msgid " descripteurs de fichiers sur "
 msgstr " file descriptors out of "
 
-msgid " connexion(s) établie(s))"
-msgstr " established connection(s))"
+msgid " connexions établies)"
+msgstr " established connections)"
 
 msgid "chaque connexion du chat en utilise un : augmenter la limite — "
 msgstr "each chat connection uses one: raise the limit — "

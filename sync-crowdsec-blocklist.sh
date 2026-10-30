@@ -81,7 +81,7 @@ grep_q() { grep "$@" >/dev/null; }
 #                              ne peut pas le voir, le texte etant entre apostrophes (faux positif).
 trap 'ec=$?; echo "" >&2; echo "*** ARRÊT INATTENDU DU SCRIPT (code $ec) À LA LIGNE $LINENO ***" >&2; echo "*** Commande fautive : $BASH_COMMAND" >&2' ERR
 
-readonly SCRIPT_VERSION="1.30.20261029.193900"
+readonly SCRIPT_VERSION="1.31.20261030.153422"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
 SCRIPT_NAME="$(basename "${BASH_SOURCE[0]}" .sh)"; readonly SCRIPT_NAME
 # Changelog dans le sous-repertoire doc/ ; repli sur l'ancien emplacement (a cote du programme) tant que
@@ -577,7 +577,7 @@ warn_if_stale() {
     (( age >= STALE_DAYS )) || return 0
     local since_h
     since_h=$(date -d "@$(cat "$LAST_CHANGE_FILE")" '+%Y-%m-%d %H:%M' 2>/dev/null) || since_h="?"
-    echo "${C_YELLOW}ATTENTION : la liste n'a pas changé depuis $age jour(s) (dernier changement : $since_h), alors que${C_RESET}"
+    echo "${C_YELLOW}ATTENTION : la liste n'a pas changé depuis $age jours (dernier changement : $since_h), alors que${C_RESET}"
     echo "${C_YELLOW}la source se met normalement à jour environ toutes les 2 h. Le dépôt qui la republie n'est probablement${C_RESET}"
     echo "${C_YELLOW}plus alimenté — vérifiez ses derniers commits : https://github.com/Y3ll0w/CrowdSec-CAPI-Decisions/commits/main${C_RESET}"
     echo "${C_YELLOW}Les ipsets restent chargés avec cette liste de plus en plus périmée (aucune IP retirée ni ajoutée).${C_RESET}"
@@ -585,7 +585,7 @@ warn_if_stale() {
     # Journal systeme seulement lors d'une synchronisation (le cron), pas a chaque consultation de --status.
     if [[ "${1:-}" != "sans-journal" ]] && command -v logger >/dev/null 2>&1; then
         run logger -t sync-crowdsec-blocklist -p user.warning \
-            "Liste CrowdSec inchangee depuis $age jour(s) (depuis $since_h) : source probablement plus alimentee ($SOURCE_URL)" || true
+            "Liste CrowdSec inchangee depuis $age jours (depuis $since_h) : source probablement plus alimentee ($SOURCE_URL)" || true
     fi
 }
 
@@ -641,7 +641,7 @@ apply_protected() {
         run ipset add "$set" "$ip" nomatch -exist >/dev/null 2>&1 || true
         n=$((n + 1))
     done <<< "$PROTECTED_LIST"
-    [[ -z "$quiet" ]] && echo "      $n IP protégée(s) (liste blanche nginx, adresses du serveur, $ALLOW_FILE) : jamais bloquée(s)$([[ $hits -gt 0 ]] && echo " — dont $hits présente(s) dans la liste communautaire")."
+    [[ -z "$quiet" ]] && echo "      $n IP protégées (liste blanche nginx, adresses du serveur, $ALLOW_FILE) : jamais bloquées$([[ $hits -gt 0 ]] && echo " — dont $hits présentes dans la liste communautaire")."
     return 0
 }
 
@@ -805,7 +805,7 @@ if [[ "$DO_STATUS" == "1" ]]; then
     for set_name in "$IPSET_V4" "$IPSET_V6"; do
         if set_exists "$set_name"; then
             count=$(ipset list "$set_name" 2>/dev/null | awk '/^Members:/{m=1;next} m && NF{n++} END{print n+0}') || count=0
-            echo "Ipset $set_name : ${C_GREEN}présent${C_RESET}, $count entrée(s)"
+            echo "Ipset $set_name : ${C_GREEN}présent${C_RESET}, $count entrées"
         else
             echo "Ipset $set_name : ${C_YELLOW}absent${C_RESET}"
         fi
@@ -839,7 +839,7 @@ if [[ "$DO_STATUS" == "1" ]]; then
     fi
     [[ -r "$LAST_SYNC_FILE" ]] && echo "Dernière synchronisation : $(cat "$LAST_SYNC_FILE")"
     if [[ -r "$FAILURE_FILE" ]]; then
-        echo "${C_RED}ÉCHEC EN COURS : $(sed -n 's/^count=//p' "$FAILURE_FILE") tentative(s) consécutive(s) depuis le $(sed -n 's/^since=//p' "$FAILURE_FILE") (dernière : $(sed -n 's/^last=//p' "$FAILURE_FILE"))${C_RESET}"
+        echo "${C_RED}ÉCHEC EN COURS : $(sed -n 's/^count=//p' "$FAILURE_FILE") tentatives consécutives depuis le $(sed -n 's/^since=//p' "$FAILURE_FILE") (dernière : $(sed -n 's/^last=//p' "$FAILURE_FILE"))${C_RESET}"
         echo "${C_RED}  $(sed -n 's/^message=//p' "$FAILURE_FILE")${C_RESET}"
         echo "  Détail : tail -n 40 /var/log/sync-crowdsec-blocklist.log"
     fi
@@ -848,10 +848,10 @@ if [[ "$DO_STATUS" == "1" ]]; then
     age=$(list_age_days)
     if [[ -n "$age" ]]; then
         if (( age >= STALE_DAYS )); then
-            echo "Âge de la liste : ${C_YELLOW}inchangée depuis $age jour(s)${C_RESET} (seuil d'alerte : $STALE_DAYS)"
+            echo "Âge de la liste : ${C_YELLOW}inchangée depuis $age jours${C_RESET} (seuil d'alerte : $STALE_DAYS)"
             warn_if_stale sans-journal
         else
-            echo "Âge de la liste : dernier changement il y a $age jour(s) (seuil d'alerte : $STALE_DAYS)"
+            echo "Âge de la liste : dernier changement il y a $age jours (seuil d'alerte : $STALE_DAYS)"
         fi
     fi
     exit 0
@@ -885,7 +885,7 @@ if [[ "$DO_BLOCKED" == "1" ]]; then
         END { for (ip in p) print p[ip], b[ip], ip, f[ip], l[ip] }
     ' <(printf '%s\n' "$history") <(printf '%s\n' "$current") | sort -t$'\t' -k1,1 -rn) || true
     n_total=$(printf '%s\n' "$merged" | grep -c . || true)
-    echo "$n_total IP distincte(s) bloquée(s) à ce jour. Dernière synchronisation : $last_sync"
+    echo "$n_total IP distinctes bloquées à ce jour. Dernière synchronisation : $last_sync"
     echo
     # 1.25: accented header completed in COLUMNS (bash's printf counts bytes: "PREMIERE DETECTION" was 2 columns too short)
     printf '%-40s %10s %12s  %s %s\n' "IP" "PAQUETS" "OCTETS" "$(pad_cols "PREMIÈRE DÉTECTION" 38)" "DERNIÈRE DÉTECTION"
@@ -896,7 +896,7 @@ if [[ "$DO_BLOCKED" == "1" ]]; then
     fi
     printf '%s\n' "$shown" | awk -F'\t' '{ printf "%-40s %10s %12s  %-38s %s\n", $3, $1, $2, $4, $5 }'
     if [[ "$TOP_N" -gt 0 && "$n_total" -gt "$TOP_N" ]]; then
-        echo "(… $((n_total - TOP_N)) autre(s) — --top 0 pour tout afficher)"
+        echo "(… $((n_total - TOP_N)) autres — --top 0 pour tout afficher)"
     fi
     echo
     echo "Note : les dates sont celles de la synchronisation qui a constaté l'activité (un compteur ipset ne"
@@ -956,13 +956,13 @@ if [[ "$DO_INSTALL_CRON" == "1" ]]; then
         echo "# Généré par sync-crowdsec-blocklist.sh --install-cron — ne pas éditer à la main."
         echo "# PATH explicite : celui de cron (/usr/bin:/bin) ne contient ni ipset ni iptables (dans /usr/sbin)."
         echo "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
-        echo "# Synchronisation toutes les $CRON_HOURS heure(s), minute 17 (évite l'heure pile, où tout le monde tape la même source)."
+        echo "# Synchronisation toutes les $CRON_HOURS heures, minute 17 (évite l'heure pile, où tout le monde tape la même source)."
         echo "17 $hour_field * * * root $REAL_SCRIPT_PATH >>/var/log/sync-crowdsec-blocklist.log 2>&1"
         echo "# Au démarrage : recrée ipsets et règles (depuis la dernière liste en cache si le réseau n'est pas encore prêt)."
         echo "@reboot root sleep 60 && $REAL_SCRIPT_PATH >>/var/log/sync-crowdsec-blocklist.log 2>&1"
     } > "$CRON_FILE"
     chmod 644 "$CRON_FILE"
-    echo "Cron installé : $CRON_FILE (toutes les $CRON_HOURS heure(s) + au démarrage ; sortie dans /var/log/sync-crowdsec-blocklist.log)."
+    echo "Cron installé : $CRON_FILE (toutes les $CRON_HOURS heures + au démarrage ; sortie dans /var/log/sync-crowdsec-blocklist.log)."
     exit 0
 fi
 
@@ -1034,10 +1034,10 @@ grep -E '^[0-9a-fA-F:]+:[0-9a-fA-F:]*(/[0-9]{1,3})?$' "$TMP_DOWNLOAD" | grep -vE
 count_v4=$(grep -c . "${TMP_DOWNLOAD}.v4" 2>/dev/null) || count_v4=0
 count_v6=$(grep -c . "${TMP_DOWNLOAD}.v6" 2>/dev/null) || count_v6=0
 total=$((count_v4 + count_v6))
-echo "      $total entrée(s) valide(s) ($count_v4 IPv4, $count_v6 IPv6)."
+echo "      $total entrées valides ($count_v4 IPv4, $count_v6 IPv6)."
 
 if (( total < MIN_IPS )); then
-    echo "${C_RED}ERREUR: seulement $total entrée(s) valide(s), en dessous du minimum attendu ($MIN_IPS — voir --min-ips).${C_RESET}" >&2
+    echo "${C_RED}ERREUR: seulement $total entrées valides, en dessous du minimum attendu ($MIN_IPS — voir --min-ips).${C_RESET}" >&2
     echo "${C_RED}Symptôme typique d'un téléchargement raté silencieusement — mise à jour ANNULÉE pour ne pas${C_RESET}" >&2
     echo "${C_RED}débannir tout le monde par erreur. Aucun ipset n'a été modifié.${C_RESET}" >&2
     exit 1
@@ -1047,7 +1047,7 @@ fi
 if [[ "$USING_CACHE" != "1" && "$MAX_DROP" -gt 0 && -r "$CACHE_COUNT" ]]; then
     previous_total=$(cat "$CACHE_COUNT" 2>/dev/null) || previous_total=0
     if [[ "$previous_total" =~ ^[0-9]+$ ]] && (( previous_total > 0 )) && (( total * 100 < previous_total * (100 - MAX_DROP) )); then
-        echo "${C_RED}ERREUR: $total entrée(s) valide(s), contre $previous_total à la synchronisation précédente (baisse de plus de $MAX_DROP %) — mise à jour ANNULÉE.${C_RESET}" >&2
+        echo "${C_RED}ERREUR: $total entrées valides, contre $previous_total à la synchronisation précédente (baisse de plus de $MAX_DROP %) — mise à jour ANNULÉE.${C_RESET}" >&2
         echo "${C_RED}Vérifiez la source, puis relancez avec --max-drop 0 si cette baisse est attendue. Aucun ipset n'a été modifié.${C_RESET}" >&2
         [[ "$DO_DRY_RUN" == "1" ]] || exit 1
     fi

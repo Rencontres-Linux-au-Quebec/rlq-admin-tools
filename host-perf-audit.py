@@ -40,7 +40,7 @@ import subprocess
 import sys
 import time
 
-__version__ = "1.7.20261028.214122"
+__version__ = "1.8.20261030.153422"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
@@ -378,7 +378,7 @@ def sample_loop(duration, interval, guests, csv_path):
                 eprint(f"  [{human_duration(time.monotonic() - start)} / {human_duration(duration)}] sample {len(samples)}: CPU {r['cpu']['busy'] if r['cpu'] else 0:.0f} %"
                        f" · busiest disk {dev or '-'} {util:.0f} % · I/O wait {r['psi'].get('io', {}).get('some', 0):.1f} % · memory wait {r['psi'].get('memory', {}).get('some', 0):.1f} %")
     except KeyboardInterrupt:
-        eprint(f"\nMeasurement interrupted (Ctrl-C) after {len(samples)} sample(s): report on what was measured.")
+        eprint(f"\nMeasurement interrupted (Ctrl-C) after {len(samples)} samples: report on what was measured.")
     finally:
         if csv:
             csv.close()
@@ -423,9 +423,9 @@ def analyze_cpu(samples, facts, fd, out):
     iow = [s["cpu"]["iowait"] for s in samples if s["cpu"]]
     some = [s["psi"].get("cpu", {}).get("some") for s in samples]
     load = [s.get("load") for s in samples]
-    out.append(f"PROCESSOR — {facts['cpu_model'] or '?'}, {facts['cores']} logical core(s), governor {facts['governor'] or '?'}")
+    out.append(f"PROCESSOR — {facts['cpu_model'] or '?'}, {facts['cores']} logical cores, governor {facts['governor'] or '?'}")
     out.append(f"  busy: average {avg(busy) or 0:.0f} %, 95 % of the time under {pct(busy, 95) or 0:.0f} %, peak {max(busy or [0]):.0f} % · iowait {avg(iow) or 0:.1f} % · steal {avg(steal) or 0:.1f} %"
-               f" · load {avg(load) or 0:.1f} (peak {max([x for x in load if x is not None] or [0]):.1f}) for {facts['cores']} core(s)")
+               f" · load {avg(load) or 0:.1f} (peak {max([x for x in load if x is not None] or [0]):.1f}) for {facts['cores']} cores")
     a, p = avg(some), pct(some, 95)
     if a is not None:
         out.append(f"  waiting for a processor (PSI cpu some): average {a:.1f} %, 95 % of the time under {p:.1f} %")
@@ -461,7 +461,7 @@ def analyze_memory(samples, facts, zfs, fd, out):
         out.append(arc_line)
         throttle = sum(x.get("throttle", 0) for x in arcs)
         if throttle:
-            out.append(f"  {tag('warn')} ARC memory throttle: {throttle} time(s) — the ARC had to give memory back under pressure")
+            out.append(f"  {tag('warn')} ARC memory throttle: {throttle} times — the ARC had to give memory back under pressure")
     level = "bad" if (a or 0) >= MEM_PSI_BAD else "warn" if (a or 0) >= MEM_PSI_WARN or (avail and min(x for x in avail if x) < total * 0.05) else "ok"
     fd.verdict("memory", level, {"ok": "memory is not a limit", "warn": "memory is tight (reclaim or swap at times)",
                                  "bad": "memory is the LIMIT: tasks wait for memory (reclaim, swap) a large part of the time"}[level])
@@ -542,7 +542,7 @@ def analyze_zfs(zfs, facts, worst, io_avg, fd, out):
         kinds = sorted({facts["disks"].get(d, {}).get("kind", "?") for d in facts["disks"]})
         extra = [x for x in ("special", "log", "cache") if p[x]]
         out.append(f"  pool {name} — {p['size'] / 1e12:.2f} TB, used {p['cap']} %, fragmentation {p['frag']} %, {p['health']}, ashift {p['ashift'] or '?'}, vdevs "
-                   f"{', '.join(sorted(set(p['vdevs']))) or 'single disk(s)'}" + (f", devices: {', '.join(extra)}" if extra else ", no special / log / cache device"))
+                   f"{', '.join(sorted(set(p['vdevs']))) or 'single disks'}" + (f", devices: {', '.join(extra)}" if extra else ", no special / log / cache device"))
         lat = p.get("latency") or {}
         if lat:
             names_l = {"total_r": "total read", "total_w": "total write", "disk_r": "disk read", "disk_w": "disk write", "syncq_w": "sync queue write", "asyncq_w": "async queue write"}
@@ -738,7 +738,7 @@ def report(samples, facts, zfs, smart, names, guests_rows_cb, args, cost):
     dur = samples[-1]["wall"] - samples[0]["wall"] + samples[0]["dt"]
     first = datetime.datetime.fromtimestamp(samples[0]["wall"] - samples[0]["dt"])
     print()
-    print(f"PERFORMANCE OF {facts['host']} — {facts['pve'] or 'Linux ' + facts['kernel']} — {len(samples)} sample(s) from {first:%Y-%m-%d %H:%M} over {human_duration(dur)}")
+    print(f"PERFORMANCE OF {facts['host']} — {facts['pve'] or 'Linux ' + facts['kernel']} — {len(samples)} samples from {first:%Y-%m-%d %H:%M} over {human_duration(dur)}")
     print(f"  (waiting times from {samples[-1].get('psi_source', '/proc/pressure')}; this program used {cost:.2f} s of processor in all)")
     print()
     analyze_cpu(samples, facts, fd, out)
@@ -910,8 +910,8 @@ def main():
         eprint("Note: not a Proxmox VE host (pveversion not found): guests are not named; the measurement of the machine itself stays valid.")
     if os.path.exists("/run/systemd/container") or os.path.exists(SYSPERF._p("/run/systemd/container")):
         eprint("WARNING: this program runs inside a container: the disks shown are not the real ones — run it on the Proxmox host.")
-    print(f"Measuring for {human_duration(duration)}, one sample every {interval:g} s ({len(facts['disks'])} disk(s), {len(guests)} running guest(s)"
-          + (f", ZFS pool(s): {', '.join(zfs['pools'])}" if zfs else "") + ") — Ctrl-C stops early and still gives the report.")
+    print(f"Measuring for {human_duration(duration)}, one sample every {interval:g} s ({len(facts['disks'])} disks, {len(guests)} running guests"
+          + (f", ZFS pools: {', '.join(zfs['pools'])}" if zfs else "") + ") — Ctrl-C stops early and still gives the report.")
     samples = sample_loop(duration, interval, guests, args.csv)
     t1 = os.times()
     cost = (t1.user + t1.system + t1.children_user + t1.children_system) - (t0.user + t0.system + t0.children_user + t0.children_system)

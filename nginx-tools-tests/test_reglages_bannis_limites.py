@@ -256,7 +256,7 @@ class Limites429(Base):
         self.assertIn("odoo_general ×1", T(text))
         self.assertIn("odoo_visiteur (limit_conn) ×1", T(text))
         self.assertIn("limit_conn odoo_visiteur 16", T(text))
-        self.assertIn("action(s) POST refusée(s)", T(text))
+        self.assertIn("actions POST refusées", T(text))
         self.assertIn("burst", T(text))
 
     def test_aucun_journal(self):

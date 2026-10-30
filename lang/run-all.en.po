@@ -126,11 +126,11 @@ msgstr "          now in "
 msgid "/ — à retirer de tests/ ("
 msgstr "/ — to remove from tests/ ("
 
-msgid " nom(s) en commun : "
-msgstr " name(s) in common: "
+msgid " noms en commun : "
+msgstr " names in common: "
 
-msgid "  fichier(s) résiduel(s) d'une ancienne version (plus livrés, lus par aucun programme) :"
-msgstr "  leftover file(s) from an old version (no longer shipped, read by no program):"
+msgid "  fichiers résiduels d'une ancienne version (plus livrés, lus par aucun programme) :"
+msgstr "  leftover files from an old version (no longer shipped, read by no program):"
 
 msgid "          Ils peuvent être retirés sans risque : rm -f "
 msgstr "          They can be removed safely: rm -f "
@@ -175,8 +175,8 @@ msgstr " — awk: "
 msgid " : a échoué dans la suite, réussi seul — détail : "
 msgstr " : failed in the suite, passed alone — detail: "
 
-msgid "s/^ *([0-9]+) (.*)$/\\1 test(s) désactivé(s) : \\2/"
-msgstr "s/^ *([0-9]+) (.*)$/\\1 test(s) disabled: \\2/"
+msgid "s/^ *([0-9]+) (.*)$/\\1 tests désactivés : \\2/"
+msgstr "s/^ *([0-9]+) (.*)$/\\1 tests disabled: \\2/"
 
 msgid "la suite de tests a MODIFIÉ un fichier de configuration réel (elle doit tout rediriger vers un dossier temporaire) :"
 msgstr "the test suite MODIFIED a real configuration file (it must redirect everything to a temporary folder):"
@@ -187,8 +187,8 @@ msgstr "      Most likely cause: a real program (e.g. nginx-hardening.sh --updat
 msgid "[NETTOYÉ]"
 msgstr "[CLEANED]"
 
-msgid " répertoire(s) temporaire(s) de test laissé(s) dans /tmp — supprimé(s)"
-msgstr " temporary test folder(s) left in /tmp — removed"
+msgid " répertoires temporaires de test laissés dans /tmp — supprimés"
+msgstr " temporary test folders left in /tmp — removed"
 
 msgid " absent : les différences d'interprétation awk ne sont pas couvertes (apt install "
 msgstr " missing: awk interpretation differences are not covered (apt install "
@@ -211,13 +211,13 @@ msgstr " missing — comparison impossible"
 msgid "  différent de la version testée : "
 msgstr "  different from the tested version: "
 
-msgid " fichier(s) identique(s), "
-msgstr " identical file(s), "
+msgid " fichiers identiques, "
+msgstr " identical files, "
 
-msgid " différent(s), "
+msgid " différents, "
 msgstr " different, "
 
-msgid " absent(s) de ce serveur (normal pour ceux d'un autre environnement)"
+msgid " absents de ce serveur (normal pour ceux d'un autre environnement)"
 msgstr " missing from this server (normal for those of another environment)"
 
 msgid "          Voir une différence : diff <fichier testé> <fichier déployé> ; déployer : voir nginx-tools-tests/nginx-odoo/README.md"
@@ -229,11 +229,11 @@ msgstr "6) Real server checks, read-only ("
 msgid "^\\s*(\\x1b\\[[0-9;]*m)?\\[(FAIL|ÉCHEC)\\]"
 msgstr "^\\s*(\\x1b\\[[0-9;]*m)?\\[(FAIL|ÉCHEC)\\]"
 
-msgid " échec(s), "
-msgstr " failure(s), "
+msgid " échecs, "
+msgstr " failures, "
 
-msgid " avertissement(s) sur ce serveur"
-msgstr " warning(s) on this server"
+msgid " avertissements sur ce serveur"
+msgstr " warnings on this server"
 
 msgid "^\\s*(\\x1b\\[[0-9;]*m)?\\[(FAIL|ÉCHEC|ATTN)\\]"
 msgstr "^\\s*(\\x1b\\[[0-9;]*m)?\\[(FAIL|ÉCHEC|ATTN)\\]"
@@ -259,8 +259,8 @@ msgstr " FAILURE(S) — do not deploy."
 msgid " VERDICT : tout ce qui a été exécuté réussit — mais "
 msgstr " VERDICT: everything that was run passes — but "
 
-msgid " point(s) NON vérifié(s) (voir [IGNORÉ])."
-msgstr " point(s) NOT verified (see [SKIPPED])."
+msgid " points NON vérifiés (voir [IGNORÉ])."
+msgstr " points NOT verified (see [SKIPPED])."
 
 msgid " VERDICT : TOUT PASSE — validation complète."
 msgstr " VERDICT: EVERYTHING PASSES — complete validation."
@@ -286,14 +286,14 @@ msgstr "Modules retained ("
 msgid "Programmes : "
 msgstr "Programs: "
 
-msgid " module(s) : commun"
-msgstr " module(s): common"
+msgid " modules : commun"
+msgstr " modules: common"
 
 msgid "tests sous "
 msgstr "tests under "
 
-msgid " test(s) désactivé(s) : "
-msgstr " test(s) disabled: "
+msgid " tests désactivés : "
+msgstr " tests disabled: "
 
 msgid "fail2ban-regex absent (installé sur les serveurs : test réel là-bas)"
 msgstr "fail2ban-regex missing (installed on the servers: real test there)"
@@ -339,8 +339,8 @@ msgstr "          (a lang/PROG.en.po dates from when PROG was written in French;
 msgid "la suite de tests a ÉCRIT "
 msgstr "the test suite WROTE "
 
-msgid " fichier(s) du système (ils nomment un dossier de test) — à supprimer :"
-msgstr " system file(s) (they name a test folder) — to delete:"
+msgid " fichiers du système (ils nomment un dossier de test) — à supprimer :"
+msgstr " system files (they name a test folder) — to delete:"
 
-msgid " fichier(s) de /etc ou /var/backups modifié(s) pendant la suite, sans lien avec un test (un service de la machine) : "
-msgstr " file(s) of /etc or /var/backups modified during the suite, not related to a test (a service of the machine): "
+msgid " fichiers de /etc ou /var/backups modifiés pendant la suite, sans lien avec un test (un service de la machine) : "
+msgstr " files of /etc or /var/backups modified during the suite, not related to a test (a service of the machine): "

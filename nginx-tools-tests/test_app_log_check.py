@@ -218,10 +218,10 @@ class ChkOdooLogs(EnvTest):
         self.assertIn(f"{self.PC1} 60 (78 %) [compte : m@exemple.org]", d)
         self.assertIn(f"{self.PC2} 17 (22 %) [compte : m@exemple.org]", d)
         self.assertIn("Rafales (séries espacées de moins de 10 min) : 3 ; 3 commencent moins de 5 min après une connexion du même compte depuis une autre adresse.", d)
-        self.assertIn(f"{self.PC1} (30 événement(s)) ← m@exemple.org connecté depuis {self.PC2}", d)
+        self.assertIn(f"{self.PC1} (30 événements) ← m@exemple.org connecté depuis {self.PC2}", d)
         self.assertIn("Modules installés dont le nom évoque les sessions ou la connexion : auth_session_timeout, base_user_login_one_session", d)
         self.assertIn(f"VERDICT : UN SEUL COMPTE (m@exemple.org) sur 2 adresses ({self.PC1}, {self.PC2})", d)
-        self.assertIn("3 rafale(s) sur 3 commencent juste après une connexion du même compte depuis une autre adresse : se connecter sur un poste "
+        self.assertIn("3 rafales sur 3 commencent juste après une connexion du même compte depuis une autre adresse : se connecter sur un poste "
                       "semble INVALIDER la session de l'autre (une seule session par compte). Odoo CE n'impose pas cela", d)
         with open(os.path.join(self.d, "runuser.log")) as f:
             appel = f.read()
@@ -327,24 +327,24 @@ esac''')
         propre = " ".join(out.replace("\u00a0", " ").split())
         sommaire = out[out.index("--- SOMMAIRE ---"):out.index("--- [1]")]
         self.assertLess(out.index("--- SOMMAIRE ---"), out.index("--- [1]"))                      # the summary is AT THE TOP
-        self.assertIn("[!]  COURRIEL        10 échec(s) d'envoi (10 courriel(s) distinct(s)), du 2026-09-08 22:30:48 au 2026-10-06 20:51:16 : "
+        self.assertIn("[!]  COURRIEL        10 échecs d'envoi (10 courriels distincts), du 2026-09-08 22:30:48 au 2026-10-06 20:51:16 : "
                       "5 × limite de messages par connexion (452), 4 × « MAIL multiple » (503), 1 × expéditeur refusé (550)", sommaire)
         self.assertIn("des personnes n'ont PAS reçu leur courriel (inscription, invitation…) : cause et solution en [5]", sommaire)
-        self.assertIn("[!]  TRACES PYTHON   10 occurrence(s) en 3 groupe(s), dont 10 liée(s) aux courriels → [2]", sommaire)
+        self.assertIn("[!]  TRACES PYTHON   10 occurrences en 3 groupes, dont 10 liées aux courriels → [2]", sommaire)
         self.assertIn("[ok] PROTOCOLE       rien", sommaire)
-        self.assertIn("[i]  BRUIT CONNU     3 message(s) sans gravité → [4]", sommaire)
+        self.assertIn("[i]  BRUIT CONNU     3 messages sans gravité → [4]", sommaire)
         d5 = " ".join(self.section(out, 5).replace("\u00a0", " ").split())
         # 452 : limite par connexion
-        self.assertIn("le serveur SMTP limite le nombre de messages par connexion (452 4.4.5) — 5 occurrence(s)", d5)
+        self.assertIn("le serveur SMTP limite le nombre de messages par connexion (452 4.4.5) — 5 occurrences", d5)
         self.assertIn("courriels (id) : 7404, 7405, 7406, 7407, 7408", d5)
         self.assertIn("réutilisant UNE connexion SMTP pour tout le lot", d5)
         self.assertIn("créer ou modifier la clé « mail.session.batch.size » avec une valeur INFÉRIEURE à la limite du serveur de courriel (essayer 10", d5)
         self.assertIn("Renvoyer les courriels déjà en échec", d5)
         # 503 : cascade du 452
-        self.assertIn("« Multiple MAIL commands not allowed » (503), en cascade après un autre échec — 4 occurrence(s)", d5)
+        self.assertIn("« Multiple MAIL commands not allowed » (503), en cascade après un autre échec — 4 occurrences", d5)
         self.assertIn("Conséquence du refus 452", d5)
         # 550: sender, with the two addresses found in the error
-        self.assertIn("l'adresse « De » n'est pas celle de l'expéditeur autorisé par le serveur de courriel (550) — 1 occurrence(s)", d5)
+        self.assertIn("l'adresse « De » n'est pas celle de l'expéditeur autorisé par le serveur de courriel (550) — 1 occurrences", d5)
         self.assertIn("Constaté : De : etienne@exemple.org ; expéditeur de l'enveloppe (compte SMTP) : admin@exemple.org (1×)", d5)
         self.assertIn("Filtre De » (From filter)", d5)
         # state read in Odoo
@@ -352,7 +352,7 @@ esac''')
         self.assertIn("Serveurs de courrier sortant : AUCUN enregistré — Odoo utilise les réglages smtp_* de odoo.conf", d5)
         self.assertIn("mail.session.batch.size : non défini — Odoo envoie jusqu'à 1000 courriels par connexion SMTP", d5)
         self.assertIn("Autres paramètres mail.* : mail.catchall.domain = exemple.org ; mail.default.from = notifications", d5)
-        self.assertIn("Courriels : 120 envoyé(s), 9 en ÉCHEC D'ENVOI (à renvoyer), 3 en attente", d5)
+        self.assertIn("Courriels : 120 envoyés, 9 en ÉCHEC D'ENVOI (à renvoyer), 3 en attente", d5)
         self.assertIn("Échecs par jour : 2026-10-06 (9)", d5)
         self.assertIn("Sujets en échec : « Bienvenue sur la plateforme » (7) ; « Votre inscription » (2)", d5)
         self.assertIn("Causes et solutions : section [5].", propre)
@@ -392,13 +392,13 @@ esac''')
         self.write("journal.txt", "\n".join(l) + "\n")
         out = self.lancer()
         sommaire = out[out.index("--- SOMMAIRE ---"):out.index("--- [1]")]
-        self.assertIn("3 échec(s) d'envoi", sommaire)
+        self.assertIn("3 échecs d'envoi", sommaire)
         self.assertIn("1 × authentification refusée (535), 1 × relais refusé, 1 × serveur SMTP injoignable", sommaire)
         d5 = " ".join(self.section(out, 5).replace("\u00a0", " ").split())
         for titre in ("le serveur SMTP refuse l'identifiant ou le mot de passe (535)", "le serveur SMTP refuse de relayer", "le serveur SMTP est injoignable"):
             self.assertIn(titre, d5)
         self.assertIn("mot de passe d'application", d5)
-        self.assertIn("TRACES PYTHON   4 occurrence(s) en 4 groupe(s), dont 3 liée(s) aux courriels", sommaire)        # la 4e (sans contexte SMTP) n'en fait pas partie
+        self.assertIn("TRACES PYTHON   4 occurrences en 4 groupes, dont 3 liées aux courriels", sommaire)        # la 4e (sans contexte SMTP) n'en fait pas partie
 
     def test_sans_erreur_connue_pas_de_section_5(self):
         """Sans erreur reconnue : le sommaire existe (tout « rien » ou bruit), aucune section [5] ni accès à PostgreSQL."""

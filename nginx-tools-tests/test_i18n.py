@@ -79,9 +79,9 @@ class LangueEtTraducteur(unittest.TestCase):
     def test_traducteur_fragments_mots_entiers_et_lignes_francaises(self):
         """Fragments les plus longs d'abord ; mot entier pour les fragments qui commencent ou finissent par une lettre ; une ligne encore à moitié
         française est rendue intacte ; sans catalogue : texte inchangé."""
-        t = self.i18n.Traducteur({"banni": "banned", "aucune": "none", " ligne(s)": " line(s)", "aucune ligne": "no line"})
+        t = self.i18n.Traducteur({"banni": "banned", "aucune": "none", " lignes": " lines", "aucune ligne": "no line"})
         self.assertEqual(t("aucune ligne"), "no line")                                       # le plus long d'abord
-        self.assertEqual(t("3 ligne(s), banni"), "3 line(s), banned")
+        self.assertEqual(t("3 lignes, banni"), "3 lines, banned")
         self.assertEqual(t("bannies"), "bannies")                                            # never inside a word
         self.assertEqual(t("aucune\nil y a des bannis"), "none\nil y a des bannis")        # per line: the 2nd stays French, the 1st translated
         self.assertEqual(t("banni et bannies"), "banni et bannies")                          # half translated: intact
@@ -231,11 +231,11 @@ class LangueDeLEnvironnement(EnvTest):
         self.assertEqual(self.choix(LANG="fr_CA.UTF-8")[0], "fr")
         self.assertEqual(self.choix(LANG="C"), ("en", "LANG=C"))
         self.assertEqual(self.choix(LANG="en"), ("en", "LANG=en"))
-        self.assertEqual(self.choix(LANG="fr_CA.UTF-8", LC_ALL="C.UTF-8"), ("en", "LC_ALL=C.UTF-8 ; LANG=fr_CA.UTF-8 ignorée(s)"))
+        self.assertEqual(self.choix(LANG="fr_CA.UTF-8", LC_ALL="C.UTF-8"), ("en", "LC_ALL=C.UTF-8 ; LANG=fr_CA.UTF-8 ignorées"))
         self.assertEqual(self.choix(LANG="en_US.UTF-8", LC_MESSAGES="fr_CA.UTF-8")[0], "fr")
-        self.assertEqual(self.choix(LANG="en_US.UTF-8", LANGUAGE="fr_CA:fr"), ("fr", "LANGUAGE=fr_CA:fr ; LANG=en_US.UTF-8 ignorée(s)"))
-        self.assertEqual(self.choix(LANG="C", LANGUAGE="fr"), ("en", "LANG=C ; LANGUAGE=fr ignorée(s)"))         # gettext : LANGUAGE sans effet sous la locale C
-        self.assertEqual(self.choix(LANG="fr", LANGUAGE="de:es"), ("fr", "LANG=fr ; LANGUAGE=de:es ignorée(s)"))   # aucune langue de LANGUAGE disponible : dit
+        self.assertEqual(self.choix(LANG="en_US.UTF-8", LANGUAGE="fr_CA:fr"), ("fr", "LANGUAGE=fr_CA:fr ; LANG=en_US.UTF-8 ignorées"))
+        self.assertEqual(self.choix(LANG="C", LANGUAGE="fr"), ("en", "LANG=C ; LANGUAGE=fr ignorées"))         # gettext : LANGUAGE sans effet sous la locale C
+        self.assertEqual(self.choix(LANG="fr", LANGUAGE="de:es"), ("fr", "LANG=fr ; LANGUAGE=de:es ignorées"))   # aucune langue de LANGUAGE disponible : dit
         self.assertEqual(self.choix(LANG="en", WEB_MONITOR_LANG="fr"), ("fr", "WEB_MONITOR_LANG=fr"))
         self.assertEqual(self.choix()[0], "fr")
 

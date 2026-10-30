@@ -182,7 +182,7 @@ class OdooWarmup(EnvTest):
         self.assertIn(("GET", "/introuvable"), FauxOdoo.appels)
         self.assertEqual(code, 1, out + err)                                              # /introuvable : 404
         self.assertIn("ligne ignorée « mauvaise »", err)
-        self.assertIn("3 page(s) dans", out)
+        self.assertIn("3 pages dans", out)
 
     def test_fichier_des_pages_cree_au_premier_lancement(self):
         self.env["NGINX_TOOLS_CONFIG_CREER"] = "1"

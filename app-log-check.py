@@ -60,7 +60,7 @@ import urllib.parse
 from collections import Counter, OrderedDict
 from datetime import datetime, timedelta
 
-__version__ = "2.27.20261028.214122"
+__version__ = "2.28.20261030.153422"
 
 DEFAULT_SERVICE = "erplibre_erplibre.service"
 STATE_DIR = os.environ.get("APP_LOG_CHECK_STATE_DIR") or os.path.expanduser("~/.local/state/app-log-check")
@@ -500,20 +500,20 @@ def show_summary(protocol_issues, traceback_groups, other_errors, benign, diag):
         total = sum(g["n"] for g in mails)
         ids = {i for g in mails for i in g["ids"]}
         detail = ", ".join(f"{g['n']} × {g['diag']['short']}" for g in sorted(mails, key=lambda g: -g["n"]))
-        print(summary_line("[!]", "E-MAIL", f"{total} sending failure(s)" + (f" ({len(ids)} distinct e-mail(s))" if ids else "")
+        print(summary_line("[!]", "E-MAIL", f"{total} sending failures" + (f" ({len(ids)} distinct e-mails)" if ids else "")
                              + ", " + TR("from {first} to {last}").format(first=min(g['first'] for g in mails), last=max(g['last'] for g in mails)) + f" : {detail}"))
         print(summary_line("", "", "→ people did NOT receive their e-mail (registration, invitation…): cause and solution in [5]"))
     for g in [g for g in diag.values() if g["diag"]["family"] != "e-mail"]:
-        print(summary_line("[!]", g["diag"]["family"].upper(), f"{g['n']} occurrence(s) : {g['diag']['short']} → cause and solution in [5]"))
+        print(summary_line("[!]", g["diag"]["family"].upper(), f"{g['n']} occurrences : {g['diag']['short']} → cause and solution in [5]"))
     if n_trace:
         linked_count = sum(g["n"] for g in mails)
-        print(summary_line("[!]", "PYTHON TRACES", f"{n_trace} occurrence(s) in {len(traceback_groups)} group(s)" + (f", including {linked_count} related to e-mails" if linked_count else "") + " → [2]"))
+        print(summary_line("[!]", "PYTHON TRACES", f"{n_trace} occurrences in {len(traceback_groups)} groups" + (f", including {linked_count} related to e-mails" if linked_count else "") + " → [2]"))
     else:
         print(summary_line("[ok]", "PYTHON TRACES", "nothing"))
     print(summary_line("[!]" if protocol_issues else "[ok]", "PROTOCOL", f"{len(protocol_issues)} anomaly(ies) → [1]" if protocol_issues else "nothing"))
-    print(summary_line("[!]" if n_other else "[ok]", "OTHER ERRORS", f"{n_other} occurrence(s) → [3]" if n_other else "nothing"))
+    print(summary_line("[!]" if n_other else "[ok]", "OTHER ERRORS", f"{n_other} occurrences → [3]" if n_other else "nothing"))
     if n_benign:
-        print(summary_line("[i]", "KNOWN NOISE", f"{n_benign} harmless message(s) → [4]"))
+        print(summary_line("[i]", "KNOWN NOISE", f"{n_benign} harmless messages → [4]"))
 
 
 def load_odoo_db():
@@ -573,7 +573,7 @@ def show_diagnostics(diag):
     for g in sorted(diag.values(), key=lambda g: -g["n"]):
         d = g["diag"]
         print()
-        print(f"  ▶ {d['title']} — {g['n']} occurrence(s)")
+        print(f"  ▶ {d['title']} — {g['n']} occurrences")
         database = g["databases"].most_common(1)[0][0] if g["databases"] else ""
         if d["family"] == "e-mail" and database:
             mail_database = mail_database or database
@@ -715,7 +715,7 @@ def analyze_files(profile, args):
                 e.write(f"{st.st_ino} {end}\n")
     for level, heading in (("error", "[1] Errors (ERROR / FATAL)"), ("warning", "[2] Warnings (WARN)")):
         g = grouped[level]
-        print_section(f"{heading} — {sum(v[0] for v in g.values())} line(s), {len(g)} distinct")
+        print_section(f"{heading} — {sum(v[0] for v in g.values())} lines, {len(g)} distinct")
         if not g:
             print("NOTHING")
             continue
@@ -726,7 +726,7 @@ def analyze_files(profile, args):
     n_err = sum(v[0] for v in grouped["error"].values())
     print()
     print("=" * 100)
-    print(" SUMMARY: " + (f"{n_err} error(s) to examine (section [1])." if n_err else "nothing suspicious in this window."))
+    print(" SUMMARY: " + (f"{n_err} errors to examine (section [1])." if n_err else "nothing suspicious in this window."))
     print("=" * 100)
     return 0
 
@@ -1061,7 +1061,7 @@ def bursts_after_login(a, delay=300):
             triggered += 1
             if len(examples) < 3:
                 f = lambda x: time.strftime("%m-%d %H:%M", time.localtime(x))
-                examples.append(f"{f(start)}  {ip} ({thousands(n)} event(s)) ← {hit[1]} signed in from {hit[2]} (at {time.strftime('%H:%M', time.localtime(hit[0]))})")
+                examples.append(f"{f(start)}  {ip} ({thousands(n)} events) ← {hit[1]} signed in from {hit[2]} (at {time.strftime('%H:%M', time.localtime(hit[0]))})")
     return len(items), triggered, examples
 
 
@@ -1115,7 +1115,7 @@ def session_diagnostics(a, total_s):
         print("  Installed modules whose name suggests sessions or sign-in: " + ", ".join(modules) + " — to examine: a module may limit sessions per account.")
     correlation = ""
     if bursts_count >= 2 and triggered / bursts_count >= 0.5:
-        correlation = (f" {triggered} burst(s) out of {bursts_count} start right after a login of the same account from another address: logging in "
+        correlation = (f" {triggered} bursts out of {bursts_count} start right after a login of the same account from another address: logging in "
                        "on one workstation seems to INVALIDATE the other's session (a single session per account). Odoo CE does not impose this: see the modules "
                        "above, then the security settings (Preferences ▸ Security ▸ Devices).")
     elif bursts_count >= 2:
@@ -1123,7 +1123,7 @@ def session_diagnostics(a, total_s):
     place_max = lists().lieu(ip_max)
     if part >= 0.8 and place_max is not None and place_max.partagee:
         verdict = (f"SHARED ADDRESS ({ip_max} — {place_max.libelle}, {100 * part:.0f} %). Several people are behind this address: it is not "
-                   "necessarily a single tab. Look among them for the person(s) whose session became invalid (logout in another "
+                   "necessarily a single tab. Look among them for the persons whose session became invalid (logout in another "
                    "tab, password changed, database restored) and ask them to reload (Ctrl+F5) or to sign in again." + correlation)
     elif part >= 0.8:
         lib = ip_label(ip_max)
@@ -1322,7 +1322,7 @@ def main():
             for ip, kinds in sorted(by_ip.items(), key=lambda kv: -len(kv[1])):
                 print(f"  {len(kinds):4d}  {BAD}{ip:20s}{END_BAD}  {', '.join(sorted(set(kinds)))}")
 
-    print_section(f"[2] Python tracebacks — {sum(g['count'] for g in traceback_groups.values())} occurrence(s), {len(traceback_groups)} distinct")
+    print_section(f"[2] Python tracebacks — {sum(g['count'] for g in traceback_groups.values())} occurrences, {len(traceback_groups)} distinct")
     if not traceback_groups:
         print("NOTHING")
     else:
@@ -1340,7 +1340,7 @@ def main():
                 print("      (run again with --full-trace for the full traceback of each group)")
 
     n_other = sum(g["count"] for g in other_errors.values())
-    print_section(f"[3] Other uncategorized errors (ERROR/CRITICAL) — {n_other} occurrence(s), "
+    print_section(f"[3] Other uncategorized errors (ERROR/CRITICAL) — {n_other} occurrences, "
                   f"{len(other_errors)} distinct")
     if not other_errors:
         print("NOTHING")
@@ -1384,11 +1384,11 @@ def main():
     print("=" * 100)
     n_issues = len(protocol_issues) + sum(g["count"] for g in traceback_groups.values()) + n_other
     if n_issues == 0:
-        print("SUMMARY: nothing suspicious in this window." + (f" ({n_benign} message(s) of known noise, see [4].)" if n_benign else ""))
+        print("SUMMARY: nothing suspicious in this window." + (f" ({n_benign} messages of known noise, see [4].)" if n_benign else ""))
     else:
         print(f"SUMMARY: {n_issues} entry(ies) to examine ({len(protocol_issues)} protocol, "
-              f"{sum(g['count'] for g in traceback_groups.values())} Python trace(s), {n_other} other(s))"
-              + (f" — plus {n_benign} message(s) of known harmless noise (see [4])." if n_benign else ".")
+              f"{sum(g['count'] for g in traceback_groups.values())} Python traces, {n_other} others)"
+              + (f" — plus {n_benign} messages of known harmless noise (see [4])." if n_benign else ".")
               + (" Causes and solutions: section [5]." if diag else ""))
     print("=" * 100)
 

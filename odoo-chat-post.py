@@ -48,7 +48,7 @@ import urllib.error
 import urllib.request
 import xmlrpc.client
 
-__version__ = "1.12.20261028.214122"
+__version__ = "1.13.20261030.153422"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
@@ -318,7 +318,7 @@ def create_all(channels, catalogue, dry):
             return
         added = channels.sync_members(cid)
         if added:
-            res.append(f"{margin}{added} member(s) added to {name}")
+            res.append(f"{margin}{added} members added to {name}")
         wanted = channels.restricted_group_id()
         if not thread and wanted and channels.channel_group(cid) != wanted:
             res.append(f"{margin}WARNING: {name} is visible to another group than \"{RESTRICTED_GROUP}\" (unchanged: change it in Odoo, Discuss → channel settings)")
@@ -335,7 +335,7 @@ def create_all(channels, catalogue, dry):
             channels.publish(cid, first_message(c["nom"], c["raison"], c["alimente"]))
             added = channels.add_members(cid) if (channels.member_list or restricted) else 0
             new_ones += 1
-            res.append(f"  Channel created: {c['nom']} (id {cid}, first message written, {added} member(s) added)")
+            res.append(f"  Channel created: {c['nom']} (id {cid}, first message written, {added} members added)")
         for f in c["fils"]:
             name = f["nom"] if channels.subchannels else channels.flat_name(c["nom"], f["nom"])
             fid = channels.find(f["nom"], cid) if (cid and channels.subchannels) else (None if channels.subchannels else channels.find(name))
@@ -351,7 +351,7 @@ def create_all(channels, catalogue, dry):
                     channels.sync_members(fid)
                 new_ones += 1
                 res.append(f"    Thread created: {f['nom']} (id {fid}, first message written)")
-    res.append(("  Dry run: nothing was written to Odoo." if dry else f"  {new_ones} channel(s) / thread(s) created."))
+    res.append(("  Dry run: nothing was written to Odoo." if dry else f"  {new_ones} channels / threads created."))
     if not channels.subchannels:
         res.append("  This Odoo version has no sub-channels: each thread is a channel named \"Channel — Thread\".")
     return res
@@ -490,7 +490,7 @@ def make_bot(channels, login, dry, args=None):
     if not key_value:
         return res + make_bot_next(login)
     expire = datetime.date.today() + datetime.timedelta(days=jours)
-    res.append(f"  API key created for {login} : valable {jours} day(s), until {expire}" + ("" if jours == KEY_DURATIONS[0] else " (longest duration Odoo accepts for this account)"))
+    res.append(f"  API key created for {login} : valable {jours} days, until {expire}" + ("" if jours == KEY_DURATIONS[0] else " (longest duration Odoo accepts for this account)"))
     for f in files_read:
         res += [f"  {c}" for c in write_key_config(f, login, key_value, expire)]
     res.append(f"  The account password was replaced by a discarded random password; the key is not displayed. Renew before {expire} : odoo-chat-post.py --create-bot --renew-key")

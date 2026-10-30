@@ -46,7 +46,7 @@ import tempfile
 import threading
 import time
 
-__version__ = "1.3.20261022.231529"
+__version__ = "1.4.20261030.153422"
 
 SAMPLE_S = 10                               # seconds between two network / PostgreSQL samples
 RAW_MAX_BYTES = 50 * 1024 * 1024            # at most this much read from ONE log file (the beginning of the window is kept, the rest is noted as cut)
@@ -416,7 +416,7 @@ class Recorder:
                     if cols[0] == "ESTAB":
                         key = local_port if local_port in ports or local_port == "5432" else "5432"
                         per_port[key] = per_port.get(key, 0) + 1
-            self._write("network/ss.log", f"=== {stamp} ({len(rows)} connection(s))\n" + "".join(self.mask(r) + "\n" for r in rows))
+            self._write("network/ss.log", f"=== {stamp} ({len(rows)} connections)\n" + "".join(self.mask(r) + "\n" for r in rows))
             self._write("network/summary.tsv", stamp + "\t" + "\t".join(f"{p}={n}" for p, n in sorted(per_port.items())) + "\n")
         elif "ss" not in " ".join(self.notes):
             self.notes.append("network samples: ss unavailable")
@@ -431,7 +431,7 @@ class Recorder:
                 if "PostgreSQL" not in " ".join(self.notes):
                     self.notes.append("PostgreSQL samples: unreachable (psql missing or not root)")
                 return
-            self._write(f"db/activity-{base}.log", f"=== {stamp} ({len(rows)} connection(s)) pid · application · state · wait · transaction age s · query age s · query\n"
+            self._write(f"db/activity-{base}.log", f"=== {stamp} ({len(rows)} connections) pid · application · state · wait · transaction age s · query age s · query\n"
                         + "".join(" · ".join(r[:6]) + " · " + self.mask_sql(r[6] if len(r) > 6 else "")[:200] + "\n" for r in rows))
             locks = self.query(base, "SELECT l.pid, l.mode, l.granted FROM pg_locks l JOIN pg_class c ON c.oid = l.relation WHERE c.relname = 'ir_cron'")
             if locks:

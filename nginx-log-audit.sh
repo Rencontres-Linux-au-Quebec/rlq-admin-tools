@@ -130,7 +130,7 @@ grep_q() { grep "$@" >/dev/null; }
 #                              ne peut pas le voir, le texte etant entre apostrophes (faux positif).
 trap 'ec=$?; echo "" >&2; echo "*** ARRÊT INATTENDU DU SCRIPT (code $ec) À LA LIGNE $LINENO ***" >&2; echo "*** Commande fautive : $BASH_COMMAND" >&2; echo "*** Si le rapport ci-dessus semble incomplet (ex. sections Top 10 absentes), c'\''est probablement la cause." >&2' ERR
 
-readonly SCRIPT_VERSION="2.63.20261029.210000"
+readonly SCRIPT_VERSION="2.64.20261030.153422"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
 # Chemin de ce programme (relances --investigate, --ban, --unban) : defini ICI, avant le bloc --ban qui l'utilise.
 SELF_PATH="$SCRIPT_DIR/$(basename "${BASH_SOURCE[0]}")"
@@ -762,7 +762,7 @@ preuves_ip() {
         local jail nb nf dates
         while IFS=$'\t' read -r jail nb nf dates; do
             dates=$(printf '%s' "$dates" | tr ',' '\n' | sed 's/^ *//' | sort -u | paste -sd ',' | sed 's/,/, /g')
-            echo "    Jail ${C_MAL}$jail${C_RESET} : $nb bannissement(s) temporaire(s)${dates:+ les $dates}, $nf détection(s)"
+            echo "    Jail ${C_MAL}$jail${C_RESET} : $nb bannissements temporaires${dates:+ les $dates}, $nf détections"
             total_bans=$((total_bans + nb)); jails="$jails${jails:+, }$jail"
             [[ "$jail" == nginx-* ]] || JAILS_HORS_NGINX+=("$jail")
         done <<< "$hist"
@@ -781,25 +781,25 @@ preuves_ip() {
     [[ -n "$ca" ]] && n_ca=$(printf '%s\n' "$ca" | wc -l)
     if (( n_ca > 0 )); then
         jours_ca=$(printf '%s\n' "$ca" | grep -oE '\[[0-9]{2}/[A-Za-z]{3}/[0-9]{4}' | tr -d '[' | awk '!vu[$0]++' | paste -sd' ' | sed 's/ /, /g') || jours_ca=""
-        echo "    Capteur catch-all : ${C_MAL}$n_ca requête(s)${C_RESET} (jours : $jours_ca) — adresse IP brute ou domaine inconnu :"
+        echo "    Capteur catch-all : ${C_MAL}$n_ca requêtes${C_RESET} (jours : $jours_ca) — adresse IP brute ou domaine inconnu :"
         echo "      aucun visiteur légitime ne passe par là (il arrive par le nom du site). Exemples :"
         printf '%s\n' "$ca" | tail -n 3 | cut -c1-150 | sed 's/^/        /'
-        pour+=("$n_ca requête(s) au capteur catch-all (IP brute ou domaine inconnu), sur $(printf '%s' "$jours_ca" | awk -F', ' '{print NF}') jour(s)")
+        pour+=("$n_ca requêtes au capteur catch-all (IP brute ou domaine inconnu), sur $(printf '%s' "$jours_ca" | awk -F', ' '{print NF}') jours")
     else
         echo "    Capteur catch-all : aucune requête"
     fi
     local -a fichiers_site=()
     for f in /var/log/nginx/*access.log*; do case "$f" in *catchall*) ;; *) [[ -e "$f" ]] && fichiers_site+=("$f") ;; esac; done
     site=""
-    progres "Preuves pour $ip : journaux du site (${#fichiers_site[@]} fichier(s) et leurs rotations, un à la fois)"
+    progres "Preuves pour $ip : journaux du site (${#fichiers_site[@]} fichiers et leurs rotations, un à la fois)"
     (( ${#fichiers_site[@]} > 0 )) && site=$(lire_chrono "${fichiers_site[@]}" | { grep -E "^$ipre " || true; })
     if [[ -n "$site" ]]; then
         n_site=$(printf '%s\n' "$site" | wc -l)
         n_sens=$(printf '%s\n' "$site" | awk '$7 ~ /\.env|\.git\/|\/wp-|wp-login|\.php|cgi-bin|\.\.\/|%2e%2e|\.(bak|old|sql|swp)$/' | wc -l)
         n_ok=$(printf '%s\n' "$site" | awk '$6 == "\"GET" && $9 ~ /^2/ && $7 !~ /\.env|\.git\/|\/wp-|\.php|cgi-bin|\.\.\//' | wc -l)
-        echo "    Site : $n_site requête(s), dont ${C_MAL}$n_sens tentative(s)${C_RESET} d'accès à des fichiers sensibles ou à des failles et $n_ok page(s) servie(s)"
-        (( n_sens > 0 )) && pour+=("$n_sens tentative(s) d'accès à des fichiers sensibles ou à des failles sur le site")
-        (( n_ok > 0 )) && contre+=("$n_ok page(s) du site servie(s) avec succès : l'enquête ci-dessous dit s'il s'agit d'un robot légitime")
+        echo "    Site : $n_site requêtes, dont ${C_MAL}$n_sens tentatives${C_RESET} d'accès à des fichiers sensibles ou à des failles et $n_ok pages servies"
+        (( n_sens > 0 )) && pour+=("$n_sens tentatives d'accès à des fichiers sensibles ou à des failles sur le site")
+        (( n_ok > 0 )) && contre+=("$n_ok pages du site servies avec succès : l'enquête ci-dessous dit s'il s'agit d'un robot légitime")
     else
         echo "    Site : aucune requête (les requêtes REFUSÉES par nginx ne sont pas dans ces journaux : voir ci-dessous)"
     fi
@@ -811,10 +811,10 @@ preuves_ip() {
     [[ -n "$refus" ]] && n_refus=$(printf '%s\n' "$refus" | wc -l)
     if (( n_refus > 0 )); then
         jours_refus=$(printf '%s\n' "$refus" | grep -oE '\[[0-9]{2}/[A-Za-z]{3}/[0-9]{4}' | tr -d '[' | awk '!vu[$0]++' | paste -sd' ' | sed 's/ /, /g') || jours_refus=""
-        echo "    Requêtes REFUSÉES par nginx : ${C_MAL}$n_refus requête(s)${C_RESET} (jours : $jours_refus) — c'est ce que voit le jail nginx-blocked-probes."
+        echo "    Requêtes REFUSÉES par nginx : ${C_MAL}$n_refus requêtes${C_RESET} (jours : $jours_refus) — c'est ce que voit le jail nginx-blocked-probes."
         echo "      Pages demandées (fichiers sensibles, failles, outils d'attaque) :"
         urls_refusees "$ip" 8 | awk -F'\t' '{ printf "        %5d  %s\n", $1, $2 }'
-        pour+=("$n_refus requête(s) refusée(s) par nginx (fichiers sensibles, failles, outils d'attaque), sur $(printf '%s' "$jours_refus" | awk -F', ' '{print NF}') jour(s)")
+        pour+=("$n_refus requêtes refusées par nginx (fichiers sensibles, failles, outils d'attaque), sur $(printf '%s' "$jours_refus" | awk -F', ' '{print NF}') jours")
     else
         echo "    Requêtes refusées par nginx (blocked-probes.log) : aucune dans les journaux conservés"
     fi
@@ -827,9 +827,9 @@ preuves_ip() {
         jn=$(timeout --foreground 30 journalctl -q --no-pager -o short-iso --since "-100 days" -g "$ipre" 2>/dev/null) || jn=""
         [[ -n "$jn" ]] && n_jn=$(printf '%s\n' "$jn" | wc -l)
         if (( n_jn > 0 )); then
-            echo "    ${C_MAL}$n_jn ligne(s)${C_RESET} mentionnent $ip. Exemples :"
+            echo "    ${C_MAL}$n_jn lignes${C_RESET} mentionnent $ip. Exemples :"
             printf '%s\n' "$jn" | tail -n 3 | cut -c1-150 | sed 's/^/        /'
-            pour+=("$n_jn ligne(s) du journal système (${JAILS_HORS_NGINX[*]} : tentatives de connexion)")
+            pour+=("$n_jn lignes du journal système (${JAILS_HORS_NGINX[*]} : tentatives de connexion)")
         else
             echo "    aucune ligne (journal peut-être plus court que l'historique de fail2ban)"
         fi
@@ -951,7 +951,7 @@ afficher_bannissements() {
     else
         trouve=1
         n=$(printf '%s\n' "$hist" | grep -c .)
-        (( n > 30 )) && echo "${ind}    ($((n - 30)) événement(s) plus ancien(s) non affiché(s))"
+        (( n > 30 )) && echo "${ind}    ($((n - 30)) événements plus anciens non affichés)"
         printf '%s\n' "$hist" | sort -s -t"$(printf '\t')" -k1,1 | tail -n 30 | awk -F'\t' -v ind="$ind" -v m="$C_MAL" -v r="$C_RESET" '
             { t = $2; if (t ~ /BANNIE/) t = m t r; printf "%s    %-19s  %s\n", ind, $1, t }'
     fi
@@ -966,7 +966,7 @@ afficher_bannissements() {
                 | awk '{ n++; if (!p) p = $1 " " substr($2, 1, 8); d = $1 " " substr($2, 1, 8) } END { if (n) printf "%d\t%s\t%s\n", n, p, d }')
         if [[ -n "$found" ]]; then
             IFS=$'\t' read -r n quand d <<< "$found"
-            echo "${ind}    $n détection(s) par fail2ban (première : $quand, dernière : $d)"
+            echo "${ind}    $n détections par fail2ban (première : $quand, dernière : $d)"
         fi
         case "$j" in
             nginx-blocked-probes)
@@ -1029,7 +1029,7 @@ comptes_surveilles() {
 logins_odoo() {       # "account (N login(s), last YYYY-MM-DDTHH:MM)" for each account logged in from the IP
     [[ -z "$LOGINS_TABLE" ]] && return 0
     printf '%s\n' "$LOGINS_TABLE" | awk -v ip="$1" '$1 == ip { n[$2]++; d[$2] = $3 }
-        END { for (l in n) printf "%s (%d connexion(s), dernière %s)\n", l, n[l], substr(d[l], 1, 16) }'
+        END { for (l in n) printf "%s (%d connexions, dernière %s)\n", l, n[l], substr(d[l], 1, 16) }'
 }
 
 # ip_dans IP ENTRY: true if ENTRY is the IP address itself, or an IPv4 range (a.b.c.d/n) that contains it.
@@ -1374,7 +1374,7 @@ if [[ -n "$EXPORT_BANS" ]]; then
             printf '%s\t%s\t%s\n' "$ip" "${quand:-inconnue}" "$(hostname)"
         done
     } > "$( [[ "$EXPORT_BANS" == "-" ]] && echo /dev/stdout || echo "$EXPORT_BANS")"
-    [[ "$EXPORT_BANS" != "-" ]] && echo "${#EXP[@]} bannissement(s) manuel(s) exporté(s) dans $EXPORT_BANS" >&2
+    [[ "$EXPORT_BANS" != "-" ]] && echo "${#EXP[@]} bannissements manuels exportés dans $EXPORT_BANS" >&2
     exit 0
 fi
 
@@ -1422,7 +1422,7 @@ if [[ -n "$IMPORT_BANS" ]]; then
         echo "  ${C_MAL}[à bannir]${C_RESET} $ip  (banni ${quand:-date inconnue}${origine:+ sur $origine})"
     done <<< "$CONTENU"
     echo
-    echo "  ${#A_BANNIR[@]} à bannir, $n_deja déjà bannie(s) ici, $n_prot protégée(s) ici (ignorées), $n_inval invalide(s)."
+    echo "  ${#A_BANNIR[@]} à bannir, $n_deja déjà bannies ici, $n_prot protégées ici (ignorées), $n_inval invalides."
     if (( ${#A_BANNIR[@]} == 0 )); then
         echo "  Rien à faire."
         exit 0
@@ -1441,7 +1441,7 @@ if [[ -n "$IMPORT_BANS" ]]; then
             echo "  ${C_RED}ÉCHEC du bannissement de $ip${C_RESET} (relancer : nginx-log-audit.sh --ban $ip)"
         fi
     done
-    echo "  ${C_GREEN}$n_ok IP bannie(s) sur $(hostname).${C_RESET}"
+    echo "  ${C_GREEN}$n_ok IP bannies sur $(hostname).${C_RESET}"
     exit 0
 fi
 
@@ -1622,7 +1622,7 @@ sqli_contexte() {
         IFS=$'\037' read -r _ _ ncmd pc dc <<< "$ligne_t" || true
         ncmd=${ncmd:-0}
         cmds=""
-        if (( ncmd > 0 )); then cmds="$ncmd requête(s), première : $pc, dernière : $dc"; fi
+        if (( ncmd > 0 )); then cmds="$ncmd requêtes, première : $pc, dernière : $dc"; fi
         urls=$(awk -F'\037' -v ip="$ip" '$1 == "U" && $2 == ip { print $3 "\037" $5 "\037" $4 }' "$brut" \
             | sort -t$'\037' -k1,1nr | awk -F'\037' 'NR <= 5 { s = s (s == "" ? "" : " ; ") $1 "× " $2 " (" $3 ")" } END { print s }') || urls=""
         normal=0
@@ -1704,7 +1704,7 @@ if [[ "$DO_BAN_SQLI" == "1" ]]; then
     fi
     sqli_contexte "$sqli_dir/ips.txt" "$sqli_ctx" "$sqli_dir/brut.txt" "${ctx_fichiers[@]}"
     echo
-    echo "Adresses ayant tenté une injection SQL : $(wc -l < "$sqli_sum") adresse(s), $(wc -l < "$sqli_detail") requête(s)."
+    echo "Adresses ayant tenté une injection SQL : $(wc -l < "$sqli_sum") adresses, $(wc -l < "$sqli_detail") requêtes."
     echo
     # Rouge : la requête a reçu une réponse 2xx, donc elle a atteint Odoo (les refus nginx en 404 restent en magenta).
     RE_REUSSI='(^|, )2[0-9][0-9]($|,)'
@@ -1716,12 +1716,12 @@ if [[ "$DO_BAN_SQLI" == "1" ]]; then
         # reussi=1 (et non « couleur == C_RED ») : hors terminal, les couleurs sont vides et la comparaison serait toujours vraie.
         couleur="$C_MAL"; reussi=0
         if [[ "$sts" =~ $RE_REUSSI ]]; then couleur="$C_RED"; reussi=1; fi
-        printf '  %s%s%s   %s requête(s)\n' "$couleur" "$ip" "$C_RESET" "$nb"
+        printf '  %s%s%s   %s requêtes\n' "$couleur" "$ip" "$C_RESET" "$nb"
         if (( reussi )); then printf '      %s!! réponse 2xx : la requête a atteint Odoo%s\n' "$C_RED" "$C_RESET"; fi
         printf '      première : %s\t\tdernière : %s\n' "$premiere" "$derniere"
-        printf '      statut(s) : %s%s%s   source(s) : %s\n' "$couleur" "$sts" "$C_RESET" "$srcs"
-        printf '      motif(s) SQL : %s%s%s\n' "$C_BOLD" "$toks" "$C_RESET"
-        printf '      agent(s) : %s\n' "$uas"
+        printf '      statuts : %s%s%s   sources : %s\n' "$couleur" "$sts" "$C_RESET" "$srcs"
+        printf '      motifs SQL : %s%s%s\n' "$C_BOLD" "$toks" "$C_RESET"
+        printf '      agents : %s\n' "$uas"
         printf '      requête : %s\n' "$ex"
         printf '      DNS inverse : %s\n' "$(champ_ctx "$ip" 2)"
         printf '      propriétaire du bloc (≈ fournisseur Internet) : %s\n' "$(champ_ctx "$ip" 3)"
@@ -1740,12 +1740,12 @@ if [[ "$DO_BAN_SQLI" == "1" ]]; then
     echo
     n_reussi=$(awk -F'\037' -v re="$RE_REUSSI" '$5 ~ re' "$sqli_sum" | wc -l)
     if (( n_reussi > 0 )); then
-        echo "${C_RED}ATTENTION : $n_reussi adresse(s) ont reçu une réponse 2xx : ces requêtes ont atteint Odoo (lignes en rouge).${C_RESET}"
+        echo "${C_RED}ATTENTION : $n_reussi adresses ont reçu une réponse 2xx : ces requêtes ont atteint Odoo (lignes en rouge).${C_RESET}"
         echo
     fi
     n_normal_pre=$(awk -F'\037' '$7 == "1"' "$sqli_ctx" | wc -l)
     if (( n_normal_pre > 0 )); then
-        echo "${C_YELLOW}ATTENTION : $n_normal_pre adresse(s) ont une activité Odoo normale (connexion ou commande) : elles ne seront PAS bannies en lot.${C_RESET}"
+        echo "${C_YELLOW}ATTENTION : $n_normal_pre adresses ont une activité Odoo normale (connexion ou commande) : elles ne seront PAS bannies en lot.${C_RESET}"
         echo
     fi
     if [[ "$ASSUME_YES" != "1" ]]; then
@@ -1768,9 +1768,9 @@ if [[ "$DO_BAN_SQLI" == "1" ]]; then
             n_normal=$((n_normal+1))
             continue
         fi
-        why="injection SQL (--ban-sqli) : $nb requête(s) dans $(basename "$ACCESS_LOG")"
+        why="injection SQL (--ban-sqli) : $nb requêtes dans $(basename "$ACCESS_LOG")"
         if bash "$SELF_PATH" --ban "$ip" --yes --reason "$why" ${APP_FORCE:+--app "$APP_FORCE"} >/dev/null 2>&1; then
-            echo "${C_GREEN}[OK]${C_RESET} $ip banni ($nb requête(s))"
+            echo "${C_GREEN}[OK]${C_RESET} $ip banni ($nb requêtes)"
             n_ok=$((n_ok+1))
         else
             echo "${C_YELLOW}[SKIP]${C_RESET} $ip non banni (adresse protégée ou erreur : nginx-log-audit.sh --ban $ip pour le détail)"
@@ -1779,7 +1779,7 @@ if [[ "$DO_BAN_SQLI" == "1" ]]; then
     done < "$sqli_sum"
     rm -rf "$sqli_dir"
     echo
-    echo "$n_ok adresse(s) bannie(s) maintenant, $n_deja déjà bannie(s) (ignorée(s)), $n_normal avec activité Odoo normale (non bannie(s)), $n_ko non bannie(s). Levée : nginx-log-audit.sh --unban IP"
+    echo "$n_ok adresses bannies maintenant, $n_deja déjà bannies (ignorées), $n_normal avec activité Odoo normale (non bannies), $n_ko non bannies. Levée : nginx-log-audit.sh --unban IP"
     exit 0
 fi
 ORIG_ACCESS_LOG="$ACCESS_LOG"
@@ -1796,7 +1796,7 @@ if [[ "$DO_INIT_ALL" == "1" ]]; then
         echo "ERREUR: aucun fichier access log trouvé pour $ENV (même pas le fichier actif attendu)." >&2
         exit 1
     fi
-    echo "Access log — ${#ACCESS_FILES_USED[@]} fichier(s) fusionné(s) :"
+    echo "Access log — ${#ACCESS_FILES_USED[@]} fichiers fusionnés :"
     printf '  - %s\n' "${ACCESS_FILES_USED[@]}"
     ACCESS_LOG="$MERGED_ACCESS"
 
@@ -1805,7 +1805,7 @@ if [[ "$DO_INIT_ALL" == "1" ]]; then
         mapfile -t ERROR_FILES_USED < <(merge_all_rotations "$ERROR_LOG" "$MERGED_ERROR")
         INIT_ALL_TMP_FILES+=("$MERGED_ERROR")
         if [[ ${#ERROR_FILES_USED[@]} -gt 0 ]]; then
-            echo "Error log — ${#ERROR_FILES_USED[@]} fichier(s) fusionné(s) :"
+            echo "Error log — ${#ERROR_FILES_USED[@]} fichiers fusionnés :"
             printf '  - %s\n' "${ERROR_FILES_USED[@]}"
             ERROR_LOG="$MERGED_ERROR"
         fi
@@ -1816,7 +1816,7 @@ if [[ "$DO_INIT_ALL" == "1" ]]; then
         mapfile -t CATCHALL_FILES_USED < <(merge_all_rotations "$CATCHALL_LOG" "$MERGED_CATCHALL")
         INIT_ALL_TMP_FILES+=("$MERGED_CATCHALL")
         if [[ ${#CATCHALL_FILES_USED[@]} -gt 0 ]]; then
-            echo "Catch-all log — ${#CATCHALL_FILES_USED[@]} fichier(s) fusionné(s) :"
+            echo "Catch-all log — ${#CATCHALL_FILES_USED[@]} fichiers fusionnés :"
             printf '  - %s\n' "${CATCHALL_FILES_USED[@]}"
             CATCHALL_LOG="$MERGED_CATCHALL"
         fi
@@ -2004,7 +2004,7 @@ investigate_and_propose() {
     local score=0 ok="${C_RED}[✓]${C_RESET}" no="[ ]" verified_engine=0 ptr fwd engines
     local -a motifs=()                 # clues retained: justification proposed if the ban is accepted (2.40)
     echo
-    echo "  ▶ ${C_YELLOW}$ip${C_RESET} — $total requête(s) $scope"
+    echo "  ▶ ${C_YELLOW}$ip${C_RESET} — $total requêtes $scope"
     if [[ -n "$INVESTIGATE_IP" ]]; then infos_reseau "$ip"; fi
     echo "      Codes HTTP : $codes" | surligner
     echo "      User-Agents :"
@@ -2013,24 +2013,24 @@ investigate_and_propose() {
     [[ -n "$INVESTIGATE_IP" ]] && ua_max=100000
     { printf '%s\n' "$uas" | tr '\001' '\n' | sed '/^$/d' | sort -t x -k1,1nr | head -n "$ua_max" | sed 's/^/        /'; } || true
     n_ua=$(printf '%s\n' "$uas" | tr '\001' '\n' | grep -c . || true)
-    if (( n_ua > ua_max )); then echo "        (+$((n_ua - ua_max)) autre(s) User-Agent(s) — tous visibles avec : nginx-log-audit.sh --investigate $ip)"; fi
+    if (( n_ua > ua_max )); then echo "        (+$((n_ua - ua_max)) autres User-Agents — tous visibles avec : nginx-log-audit.sh --investigate $ip)"; fi
     # requested URLs: what the IP really did, to judge at a glance (e.g. "3x /events": nothing hostile).
     echo "      URL demandées :"
     { printf '%s\n' "$urls" | tr '\001' '\n' | sed '/^$/d' | sort -t x -k1,1nr | head -n "$ua_max" | sed 's/^/        /' | surligner; } || true
     n_url=$(printf '%s\n' "$urls" | tr '\001' '\n' | grep -c . || true)
-    if (( n_url > ua_max )); then echo "        (+$((n_url - ua_max)) autre(s) URL — toutes visibles avec : nginx-log-audit.sh --investigate $ip)"; fi
+    if (( n_url > ua_max )); then echo "        (+$((n_url - ua_max)) autres URL — toutes visibles avec : nginx-log-audit.sh --investigate $ip)"; fi
 
     echo
     echo "      Indices :"
     if (( maxp >= PAGE_BURST )); then score=$((score+1)); hostile=$((hostile+1)); motifs+=("rafale de $maxp pages en 10 s"); echo "      $ok Rafale : $maxp pages distinctes en 10 s ($maxb""x) — un humain lit une page à la fois (assets exclus du compte)"
-    else echo "      $no Rafale : au plus $maxp page(s) distincte(s) en 10 s (seuil : $PAGE_BURST)"; fi
-    if (( nscript > 0 )); then score=$((score+1)); motifs+=("outil de script ($nscript requête(s))"); echo "      $ok Outil de script déclaré : $nscript requête(s) (bibliothèque HTTP, pas un navigateur)"
+    else echo "      $no Rafale : au plus $maxp pages distinctes en 10 s (seuil : $PAGE_BURST)"; fi
+    if (( nscript > 0 )); then score=$((score+1)); motifs+=("outil de script ($nscript requêtes)"); echo "      $ok Outil de script déclaré : $nscript requêtes (bibliothèque HTTP, pas un navigateur)"
     else echo "      $no Outil de script : aucun"; fi
     if (( nscript > 0 && nbrowser > 0 )); then score=$((score+1)); motifs+=("double identité"); echo "      $ok Double identité : outil de script ET User-Agent de navigateur depuis la même IP (client automatisé qui change d'identité)"
     elif (( nf >= 2 )); then score=$((score+1)); motifs+=("double identité ($nf organisations de robots)"); echo "      $ok Double identité : se réclame de $nf organisations de robots (${fams//|/, })"
     else echo "      $no Double identité : non"; fi
-    if (( nprobe >= 3 )); then score=$((score+1)); hostile=$((hostile+1)); SIGNE_FORT=1; motifs+=("$nprobe tentative(s) d'accès à des fichiers sensibles (ex. $probes)"); echo "      $ok Recherche de fichiers sensibles : $nprobe requête(s) (ex. $probes)"
-    else echo "      $no Recherche de fichiers sensibles : ${nprobe} requête(s)"; fi
+    if (( nprobe >= 3 )); then score=$((score+1)); hostile=$((hostile+1)); SIGNE_FORT=1; motifs+=("$nprobe tentatives d'accès à des fichiers sensibles (ex. $probes)"); echo "      $ok Recherche de fichiers sensibles : $nprobe requêtes (ex. $probes)"
+    else echo "      $no Recherche de fichiers sensibles : ${nprobe} requêtes"; fi
     if (( nerr >= 20 && nerr * 2 >= total )); then score=$((score+1)); hostile=$((hostile+1)); SIGNE_FORT=1; motifs+=("$nerr erreurs sur $total requêtes"); echo "      $ok Taux d'erreurs élevé : $nerr/$total (4xx/5xx/444)"
     else echo "      $no Taux d'erreurs : $nerr/$total"; fi
 
@@ -2062,15 +2062,15 @@ investigate_and_propose() {
         local n_ca n_ico
         read -r n_ca n_ico <<< "$(compter_catchall "$ip")"
         if (( n_ca > 0 )); then
-            score=$((score+1)); hostile=$((hostile+1)); SIGNE_FORT=1; motifs+=("$n_ca tentative(s) au capteur catch-all")
-            echo "      $ok Capteur catch-all : $n_ca tentative(s) par IP brute ou domaine inconnu (typique d'un scanner)"
+            score=$((score+1)); hostile=$((hostile+1)); SIGNE_FORT=1; motifs+=("$n_ca tentatives au capteur catch-all")
+            echo "      $ok Capteur catch-all : $n_ca tentatives par IP brute ou domaine inconnu (typique d'un scanner)"
         elif (( n_ico > 0 )); then
-            echo "      $no Capteur catch-all : $n_ico requête(s) d'icône seulement (apple-touch-icon, favicon.ico) : non hostiles"
+            echo "      $no Capteur catch-all : $n_ico requêtes d'icône seulement (apple-touch-icon, favicon.ico) : non hostiles"
         else
             echo "      $no Capteur catch-all : aucune tentative"
         fi
         if (( n_ca > 0 && n_ico > 0 )); then
-            echo "        (en plus, $n_ico requête(s) d'icône ignorée(s) : non hostiles)"
+            echo "        (en plus, $n_ico requêtes d'icône ignorées : non hostiles)"
         fi
     fi
     echo
@@ -2086,7 +2086,7 @@ investigate_and_propose() {
         printf '%s\n' "$logins" | sed 's/^/            /'
     fi
     if (( n_bo >= 20 )); then
-        echo "      ${C_GREEN}[i] Session ouverte dans le back-office : $n_bo appel(s) internes (/web/dataset, /mail…) — un utilisateur"
+        echo "      ${C_GREEN}[i] Session ouverte dans le back-office : $n_bo appels internes (/web/dataset, /mail…) — un utilisateur"
         echo "          CONNECTÉ, pas un robot anonyme : vérifier de qui il s'agit avant tout bannissement.${C_RESET}"
     fi
     if (( total > 0 && top_n >= 100 && top_n * 2 >= total )); then
@@ -2161,7 +2161,7 @@ investigate_and_propose() {
         return 0
     fi
     echo "      ${C_MAL}→ Score $score/7 : bannissement recommandé.${C_RESET}"
-    PROP_RAISON="enquête $(date '+%Y-%m-%d %H:%M') : score $score/7, $hostile signe(s) d'hostilité — $(printf '%s ; ' "${motifs[@]}")"
+    PROP_RAISON="enquête $(date '+%Y-%m-%d %H:%M') : score $score/7, $hostile signes d'hostilité — $(printf '%s ; ' "${motifs[@]}")"
     PROP_RAISON="${PROP_RAISON% ; }"
     confirm_and_ban "$ip"
 }
@@ -2225,7 +2225,7 @@ decide_unban() {
     fi
     if [[ -z "$raison" ]]; then
         UNBAN_VERDICT="garder"
-        echo "      ${C_RED}→ Bannissement JUSTIFIÉ : $hostile signe(s) d'hostilité — le garder.${C_RESET}"
+        echo "      ${C_RED}→ Bannissement JUSTIFIÉ : $hostile signes d'hostilité — le garder.${C_RESET}"
         return 0
     fi
     UNBAN_VERDICT="lever"
@@ -2267,7 +2267,7 @@ evaluer_bannissement() {
     else
         read -r n_ca n_ico <<< "$(compter_catchall "$ip")"
         if (( n_ca > 0 )); then
-            echo "  ▶ ${C_YELLOW}$ip${C_RESET} — aucune requête sur le site, mais $n_ca tentative(s) sur le capteur catch-all"
+            echo "  ▶ ${C_YELLOW}$ip${C_RESET} — aucune requête sur le site, mais $n_ca tentatives sur le capteur catch-all"
             echo "      URL tentées :"
             { awk -F'"' -v ip="$ip" '{ split($1, a, " ") } a[1] == ip { split($2, r, " "); print substr(r[2], 1, 100) }' "$CATCHALL_MERGED" \
                 | sort | uniq -c | sort -rn | head -n 8 | sed -E 's/^ *([0-9]+) /\1x /; s/^/        /'; } || true
@@ -2283,7 +2283,7 @@ evaluer_bannissement() {
         elif (( n_ico > 0 )); then
             # 2.52: only browser icon requests reached the catch-all sensor: not hostile, the ban can be lifted.
             UNBAN_VERDICT="lever"
-            echo "  ▶ ${C_GREEN}$ip${C_RESET} — aucune requête sur le site ; $n_ico requête(s) d'icône au capteur catch-all (apple-touch-icon, favicon.ico), non hostiles"
+            echo "  ▶ ${C_GREEN}$ip${C_RESET} — aucune requête sur le site ; $n_ico requêtes d'icône au capteur catch-all (apple-touch-icon, favicon.ico), non hostiles"
         else
             # No evidence left in the logs: show the ban history (fail2ban jails, ban log) instead of a bare "no trace".
             UNBAN_VERDICT="trace"
@@ -2324,7 +2324,7 @@ if [[ "$DO_UNBAN_LOW_SCORE" == "1" ]]; then
         echo "${C_GREEN}Aucune IP bannie (fail2ban ni bannissement manuel).${C_RESET}"
         exit 0
     fi
-    echo "${#BAN_SOURCE[@]} IP bannie(s) : réévaluation avec la logique de --unban-check (lecture seule)…"
+    echo "${#BAN_SOURCE[@]} IP bannies : réévaluation avec la logique de --unban-check (lecture seule)…"
     preparer_journaux_unban
     MODE_EVALUATION=1
     n_ip=0
@@ -2363,7 +2363,7 @@ if [[ "$DO_UNBAN_LOW_SCORE" == "1" ]]; then
         echo "${C_GREEN}Aucune IP bannie n'a une levée recommandée par --unban-check.${C_RESET}"
         exit 0
     fi
-    echo "${C_YELLOW}${#LOW_IPS[@]} IP bannie(s) à lever (levée recommandée) : ${LOW_IPS[*]}${C_RESET}"
+    echo "${C_YELLOW}${#LOW_IPS[@]} IP bannies à lever (levée recommandée) : ${LOW_IPS[*]}${C_RESET}"
     interactif=0
     [[ "$NO_PROMPT" != "1" && -t 0 && -t 1 ]] && interactif=1
     for ip in "${LOW_IPS[@]}"; do
@@ -2446,7 +2446,7 @@ revue_controles() {
             echo "   ${C_RED}[ATTN]${C_RESET} $ip est bannie alors qu'elle est protégée : $(protected_ip_reason "$ip" | head -n 1)"
         fi
     done
-    if (( n_att == 0 )); then echo "   ${C_GREEN}[OK]${C_RESET} aucune adresse protégée parmi les ${#bans[@]} bannissement(s) manuel(s)"; fi
+    if (( n_att == 0 )); then echo "   ${C_GREEN}[OK]${C_RESET} aucune adresse protégée parmi les ${#bans[@]} bannissements manuels"; fi
     # 2) fail2ban: the jails that ban automatically (refusals, failed logins, catch-all)
     echo
     echo "${C_BOLD}2) Jails fail2ban${C_RESET}"
@@ -2459,7 +2459,7 @@ revue_controles() {
         echo "   ${C_GREEN}[OK]${C_RESET} jails actives : $jails"
         for j in $jails; do
             nb=$(run fail2ban-client status "$j" 2>/dev/null | sed -n 's/.*Currently banned:[[:space:]]*//p') || nb=""
-            echo "   [i] $j : ${nb:-?} IP bannie(s) en ce moment (commande : fail2ban-client status $j)"
+            echo "   [i] $j : ${nb:-?} IP bannies en ce moment (commande : fail2ban-client status $j)"
         done
     else
         echo "   ${C_RED}[FAIL]${C_RESET} fail2ban inaccessible ou sans jail : les bannissements automatiques ne sont pas appliqués"
@@ -2531,7 +2531,7 @@ if [[ "$DO_UNBAN_CHECK" == "1" ]]; then
         revue_controles
         exit 0
     fi
-    echo "${#BANS[@]} bannissement(s) manuel(s) à réévaluer avec la logique actuelle (bannissement justifié seulement"
+    echo "${#BANS[@]} bannissements manuels à réévaluer avec la logique actuelle (bannissement justifié seulement"
     echo "s'il y a au moins un signe d'HOSTILITÉ : rafale, fichiers sensibles, erreurs en masse, faux moteur, capteur catch-all)."
     preparer_journaux_unban
     n_lever=0; n_garder=0; n_trace=0; n_leve=0; n_verif=0; n_incoh=0; i=0
@@ -2559,7 +2559,7 @@ if [[ "$DO_UNBAN_CHECK" == "1" ]]; then
     done
     echo
     echo "=============================================================="
-    echo " BILAN : ${#BANS[@]} bannissement(s) — $n_garder justifié(s), $n_lever levée(s) recommandée(s)$([[ $n_leve -gt 0 ]] && echo " (dont $n_leve effectuée(s))"), $n_trace sans trace, $n_verif à vérifier, $n_incoh incohérente(s)"
+    echo " BILAN : ${#BANS[@]} bannissements — $n_garder justifiés, $n_lever levées recommandées$([[ $n_leve -gt 0 ]] && echo " (dont $n_leve effectuées)"), $n_trace sans trace, $n_verif à vérifier, $n_incoh incohérentes"
     echo "=============================================================="
     # Sommaire (2.45) : au-dela de UNBAN_SUMMARY_MIN IP a lever, la liste est repetee ici pour la relecture.
     if (( ${#UNBAN_SUMMARY[@]} > UNBAN_SUMMARY_MIN )); then
@@ -2786,7 +2786,7 @@ N_NOS_PROGRAMMES=$(printf '%s\n' "$ACCESS_NEW" | compter_nos_programmes)
 ACCESS_NEW=$(printf '%s\n' "$ACCESS_NEW" | filtrer_nos_programmes)
 if (( N_NOS_PROGRAMMES > 0 )); then
     echo
-    echo "($N_NOS_PROGRAMMES requête(s) de nos propres programmes exclues de ce rapport : boucle locale, adresses de ce"
+    echo "($N_NOS_PROGRAMMES requêtes de nos propres programmes exclues de ce rapport : boucle locale, adresses de ce"
     echo " serveur, User-Agent app-health-check — tests volontaires, pas des visiteurs ni des attaques.)"
 fi
 
@@ -2872,7 +2872,7 @@ if [[ -r "$ERROR_LOG" ]]; then
     fi
     N_LIMITES_DEBIT=$(printf '%s\n' "$LIMITES_DEBIT" | grep -c . || true)
     if (( N_LIMITES_DEBIT > 0 )); then
-        echo "  ${N_LIMITES_DEBIT} requête(s) freinée(s) par la limitation de débit (voir [429])"
+        echo "  ${N_LIMITES_DEBIT} requêtes freinées par la limitation de débit (voir [429])"
     fi
 else
     echo "ATTENTION: $ERROR_LOG introuvable ou illisible."
@@ -2885,7 +2885,7 @@ if [[ -r "$CATCHALL_LOG" ]]; then
     log "tail incrémental sur $CATCHALL_LOG"
     CATCHALL_NEW=$(new_lines "$CATCHALL_LOG" "$STATE_DIR/catchall.pos" | filtrer_nos_programmes)
     COUNT=$(printf '%s\n' "$CATCHALL_NEW" | grep -c . || true)
-    echo "$COUNT nouvelle(s) tentative(s) depuis le dernier passage."
+    echo "$COUNT nouvelles tentatives depuis le dernier passage."
     if (( COUNT > 0 )); then
         echo "Top 5 IP :"
         printf '%s\n' "$CATCHALL_NEW" | awk '{print $1}' | sort | uniq -c | sort -rn | head -5 \
@@ -2953,7 +2953,7 @@ else
         # liste blanche nginx.
         protected_ip_reason "$rot_ip" >/dev/null && continue
         n9=$((n9 + 1))
-        echo "${C_YELLOW}  $rot_ip : se présente comme $nb_fam robots d'organisations différentes (${fam_list//|/, }) sur $nb_total requête(s) — usurpation d'identité probable${C_RESET}"
+        echo "${C_YELLOW}  $rot_ip : se présente comme $nb_fam robots d'organisations différentes (${fam_list//|/, }) sur $nb_total requêtes — usurpation d'identité probable${C_RESET}"
         printf '%s\n' "$ua_blob" | tr '\001' '\n' | sed '/^$/d; s/^/      - /'
     done <<< "$UA_ROTATION_SUMMARY"
     if (( n9 == 0 )); then
@@ -2972,7 +2972,7 @@ printf '%s\n' "$ACCESS_NEW" > "$SUSPECT_SRC"
 INIT_ALL_TMP_FILES+=("$SUSPECT_SRC")
 trap 'rm -f "${INIT_ALL_TMP_FILES[@]}"' EXIT
 log "scan_ips (rafales, outils de script, doubles identités, fichiers sensibles, erreurs) sur la fenêtre analysée"
-progres "Section [10] : recherche des IP suspectes dans $(printf '%s\n' "$ACCESS_NEW" | grep -c . || true) ligne(s) (rafales, outils de script, fichiers sensibles, erreurs)"
+progres "Section [10] : recherche des IP suspectes dans $(printf '%s\n' "$ACCESS_NEW" | grep -c . || true) lignes (rafales, outils de script, fichiers sensibles, erreurs)"
 SUSPECTS=$(scan_ips "$SUSPECT_SRC" "" "$((BAN_THRESHOLD > 1 ? BAN_THRESHOLD - 1 : 1))") || true
 n_shown=0
 if [[ -n "$SUSPECTS" ]]; then
@@ -3025,7 +3025,7 @@ if [[ -n "$PARALLELES" ]]; then
         protected_ip_reason "$par_ip" >/dev/null && continue
         [[ -n "$(lieu_de_ip "$par_ip")" ]] && continue                    # known place (shared network): never reported
         n11=$((n11 + 1))
-        echo "${C_YELLOW}  $par_ip : $nb_sec seconde(s) avec ${PARALLEL_THRESHOLD}+ requêtes dynamiques simultanées (jusqu'à $par_max), dont $par_err en erreur 5xx/429 — même cookie de visiteur probable${C_RESET}"
+        echo "${C_YELLOW}  $par_ip : $nb_sec secondes avec ${PARALLEL_THRESHOLD}+ requêtes dynamiques simultanées (jusqu'à $par_max), dont $par_err en erreur 5xx/429 — même cookie de visiteur probable${C_RESET}"
     done <<< "$PARALLELES"
 fi
 if (( n11 == 0 )); then
@@ -3208,7 +3208,7 @@ if [[ "$DO_STATS" == "1" ]]; then
             if (!tot) { print "  aucun visiteur humain identifiable"; exit }
             split("Ordinateur Cellulaire Tablette", o, " ")
             for (i = 1; i <= 3; i++) printf "  %-11s %6d (%5.1f%%)\n", o[i], t[o[i]], 100 * t[o[i]] / tot
-            printf "  %-11s %6d visiteur(s) humain(s) probable(s)\n", "Total", tot
+            printf "  %-11s %6d visiteurs humains probables\n", "Total", tot
         }' "$STATS_SOURCE_FILE"
 
     echo
@@ -3308,7 +3308,7 @@ if [[ "$DO_FAIL2BAN" == "1" ]]; then
             INIT_ALL_TMP_FILES+=("$JAIL_MERGED")
             read -ra ips_bannies <<< "$BANNED"; read -ra fichiers_jail <<< "$JAIL_FILES"
             n_banned=${#ips_bannies[@]}
-            progres "Jail $jail : $n_banned IP bannie(s) ; lecture des journaux surveillés (${#fichiers_jail[@]} fichier(s) et leurs rotations)"
+            progres "Jail $jail : $n_banned IP bannies ; lecture des journaux surveillés (${#fichiers_jail[@]} fichiers et leurs rotations)"
             for jf in $JAIL_FILES; do
                 [[ -n "$jf" ]] || continue
                 if [[ -z "${FICHIER_FUSIONNE[$jf]:-}" ]]; then
@@ -3393,7 +3393,7 @@ if [[ "$DO_FAIL2BAN" == "1" ]]; then
                 if [[ "$DO_DETAILS" == "1" ]]; then
                     if [[ -n "$all_lines" ]]; then
                         total=$(printf '%s\n' "$all_lines" | grep -c .)
-                        echo "      $total requête(s) au total pour cette IP (fichiers surveillés + rotations connues) — répartition par statut :"
+                        echo "      $total requêtes au total pour cette IP (fichiers surveillés + rotations connues) — répartition par statut :"
                         printf '%s\n' "$all_lines" | awk -F'"' '{print $3}' | awk '{print $1}' | sort | uniq -c | sort -rn | sed 's/^/        /' || true
                         echo "      Échantillon (5 premières) :"
                         # Protege contre SIGPIPE : une IP tres active (ex. 770 requetes, > 64 Ko) remplit le tube,
@@ -3410,7 +3410,7 @@ if [[ "$DO_FAIL2BAN" == "1" ]]; then
 
         if (( ${#RECIDIVIST_ORDER[@]} > 0 )); then
             echo
-            echo "--- ${C_RED}Bannissement PERMANENT recommandé : ${#RECIDIVIST_ORDER[@]} IP récidiviste(s)${C_RESET} ---"
+            echo "--- ${C_RED}Bannissement PERMANENT recommandé : ${#RECIDIVIST_ORDER[@]} IP récidivistes${C_RESET} ---"
             echo "  Ces IP reviennent sur plusieurs jours : chaque bannissement fail2ban expire (bantime), puis elles"
             echo "  recommencent. Un bannissement permanent (--ban) les bloque définitivement au pare-feu."
             for rip in "${RECIDIVIST_ORDER[@]}"; do

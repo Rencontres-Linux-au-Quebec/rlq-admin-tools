@@ -276,11 +276,11 @@ class BigBlueButton(EnvTest):
         self.env["APP_LOG_CHECK_STATE_DIR"] = os.path.dirname(self.path("st", "x"))
         rc, out, err = self.run_cmd(["python3", prog])
         self.assertIn("[2x] 2026-09-27T10:00:01.456-04:00 bbb-web ERROR", out)          # same error, different numbers
-        self.assertIn("RÉSUMÉ : 2 erreur(s) à examiner", out)
+        self.assertIn("RÉSUMÉ : 2 erreurs à examiner", out)
         with open(log, "a") as f:
             f.write("2026-09-27T11:00:00.000-04:00 bbb-web ERROR o.b.w.c.RecordingService - Recording 777 not found\n")
         rc, out, err = self.run_cmd(["python3", prog])
-        self.assertIn("RÉSUMÉ : 1 erreur(s) à examiner", out)                         # seulement la nouvelle ligne
+        self.assertIn("RÉSUMÉ : 1 erreurs à examiner", out)                         # seulement la nouvelle ligne
 
     def test_nginx_hardening_etapes_odoo_sans_objet_et_retention(self):
         prog = self.prepare("nginx-hardening.sh", {"/etc/default/": os.path.dirname(self.path("etc-default", "x")) + "/",

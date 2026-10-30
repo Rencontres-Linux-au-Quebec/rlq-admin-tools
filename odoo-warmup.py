@@ -56,7 +56,7 @@ try:                    # line editing in prompts
 except ImportError:
     pass
 
-__version__ = "1.36.20261028.214122"
+__version__ = "1.37.20261030.153422"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
@@ -342,7 +342,7 @@ class Tally:
     def display(self):
         for name, code, slowest, bad, attempts in self.lines:
             state = "OK    " if bad == 0 else "FAILED "
-            print(f"  [{state}] {name[:70]:<70} HTTP {code}  slowest: {slowest:5.1f} s" + (f"  ({bad} failure(s) out of {attempts})" if bad else ""))
+            print(f"  [{state}] {name[:70]:<70} HTTP {code}  slowest: {slowest:5.1f} s" + (f"  ({bad} failures out of {attempts})" if bad else ""))
         return sum(1 for line in self.lines if line[3])
 
 
@@ -1045,8 +1045,8 @@ def main():
     if created and created in files_read:
         read_files += " (file just created: every option is in a comment, default values)"
     print(f"Configuration read: {read_files}")
-    print(f"  Options: --lang {LANGUAGE}{lang_origin()} · Odoo {url} · {len(pages)} page(s) publique(s) + {links_count} lien(s) · {len(extra_pages)} page(s) in {pages_file} · site languages: {', '.join(languages) or 'no variants'}"
-          + (f" · administration : {login} (base {database or 'to be specified'}), {len(models)} model(s), {latest} latest event(s)/survey(s), {repetitions} pass(es)" if login and key_file else " · administration: not configured (LOGIN and KEY_FILE)"))
+    print(f"  Options: --lang {LANGUAGE}{lang_origin()} · Odoo {url} · {len(pages)} pages publiques + {links_count} liens · {len(extra_pages)} pages in {pages_file} · site languages: {', '.join(languages) or 'no variants'}"
+          + (f" · administration : {login} (base {database or 'to be specified'}), {len(models)} models, {latest} latest events/surveys, {repetitions} pass(es)" if login and key_file else " · administration: not configured (LOGIN and KEY_FILE)"))
     for p in problems:
         eprint(f"  ATTENTION {p}")
     if args.systemd_install and args.systemd_remove:
@@ -1088,7 +1088,7 @@ def main():
             return 2
         administration = warm_admin(client, database, login, key, models, repetitions, tally, latest, languages)
     failures = tally.display()
-    print(f"Warm-up finished in {time.time() - start:.0f} s : {len(tally.lines)} appel(s), {n_assets} asset(s) public(s), {failures} failure(s)"
+    print(f"Warm-up finished in {time.time() - start:.0f} s : {len(tally.lines)} appels, {n_assets} assets publics, {failures} failures"
           + ("" if administration is not None else " ; administration not warmed up (set LOGIN and KEY_FILE)."))
     return 1 if failures or administration is False else 0
 

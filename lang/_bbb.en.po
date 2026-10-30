@@ -60,8 +60,8 @@ msgstr "HSTS absent from HAProxy (http-after-response) — bbb-install.sh regene
 msgid "nginx-hardening.sh --check indique la ligne à remettre dans la section « frontend » du 443"
 msgstr "nginx-hardening.sh --check shows the line to put back in the « frontend » section of 443"
 
-msgid " autre(s) paquet(s) bbb-* (détail : dpkg -l 'bbb-*')"
-msgstr " other bbb-* package(s) (detail: dpkg -l 'bbb-*')"
+msgid " autres paquets bbb-* (détail : dpkg -l 'bbb-*')"
+msgstr " other bbb-* packages (detail: dpkg -l 'bbb-*')"
 
 msgid " présents"
 msgstr " present"
@@ -105,8 +105,8 @@ msgstr " — Greenlight: "
 msgid "       Configuration de BBB surveillée : "
 msgstr "       BBB configuration watched: "
 
-msgid " fichier(s)"
-msgstr " file(s)"
+msgid " fichiers"
+msgstr " files"
 
 msgid "       configuration de BBB modifiée ("
 msgstr "       BBB configuration modified ("
@@ -135,11 +135,11 @@ msgstr " of BBB: https://"
 msgid " → 404 minimal (refus de nginx : nos règles captent-elles cette URL ?)"
 msgstr " → minimal 404 (nginx refusal: do our rules catch this URL?)"
 
-msgid " livré(s) par un paquet"
+msgid " livrés par un paquet"
 msgstr " shipped by a package"
 
-msgid " paquet(s) changé(s) ("
-msgstr " package(s) changed ("
+msgid " paquets changés ("
+msgstr " packages changed ("
 
 msgid " … (+"
 msgstr " … (+"
@@ -174,8 +174,8 @@ msgstr "BigBlueButton was updated since the last nginx-hardening.sh --update"
 msgid "nginx-hardening.sh --update (vérifie et réapplique nos règles, puis enregistre l'état), puis une réunion de test"
 msgstr "nginx-hardening.sh --update (checks and reapplies our rules, then records the state), then a test meeting"
 
-msgid " problème(s) potentiel(s) : "
-msgstr " potential problem(s): "
+msgid " problèmes potentiels : "
+msgstr " potential problems: "
 
 msgid "créé"
 msgstr "created"
@@ -183,8 +183,8 @@ msgstr "created"
 msgid "modifié"
 msgstr "modified"
 
-msgid "paquet(s) changé(s)"
-msgstr "package(s) changed"
+msgid "paquets changés"
+msgstr "packages changed"
 
 msgid "# configuration file "
 msgstr "# configuration file "

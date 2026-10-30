@@ -74,7 +74,7 @@ class OdooBackup(EnvTest):
         self.assertIn("base1 : dernière sauvegarde il y a 0 h", out)
         rc, out, err = self.lancer("--test-restore")
         self.assertEqual(rc, 0, out + err)
-        self.assertRegex(out, r"base base1_restore_test_\d+ restaurée — 2 module\(s\) installé\(s\), 3 fichier\(s\) de filestore")
+        self.assertRegex(out, r"base base1_restore_test_\d+ restaurée — 2 modules installés, 3 fichiers de filestore")
 
     @unittest.skipUnless(os.geteuid() == 0, "exige root")
     def test_verbose_affiche_chaque_commande_externe(self):
@@ -112,7 +112,7 @@ class OdooBackup(EnvTest):
                 self.assertIn(f"--owner odoo18 {cible}", open(self.path("createdb.log")).read())
                 self.assertIn('SET ROLE "odoo18"', open(self.path("psql.log")).read())
                 self.assertEqual(len(os.listdir(os.path.join(os.path.dirname(self.fsdir), cible, "ab"))), 3)
-                self.assertIn("Manifest : base d'origine base1, Odoo 18.0, PostgreSQL 16.4, 2 module(s)", out)
+                self.assertIn("Manifest : base d'origine base1, Odoo 18.0, PostgreSQL 16.4, 2 modules", out)
                 self.assertIn("odoo-bin neutralize", out)
         # Base existante : refus ; filestore non vide : refus
         with open(self.path("bases_existantes"), "w") as f:
@@ -436,13 +436,13 @@ class PlusieursSauvegardesParJour(EnvTest):
         self.assertEqual(rc, 0, out + err)
         lignes = [l for l in open(unite).read().splitlines() if l.startswith("OnCalendar=")]
         self.assertEqual(lignes, ["OnCalendar=*-*-* 09:00", "OnCalendar=*-*-* 16:00", "OnCalendar=*-*-* 23:00"])
-        self.assertIn("3 sauvegarde(s) par jour, à 09:00, 16:00, 23:00", out)
+        self.assertIn("3 sauvegardes par jour, à 09:00, 16:00, 23:00", out)
         self.assertIn('ligne de commande (prioritaire) : --times "23:00 9:00 16:00"', out)
         self.assertIn("Persistent=true", open(unite).read())                     # catch-up if the server was off
         # Une seule heure : une seule ligne (comportement d'avant)
         rc, out, err = self.run_cmd(["bash", self.prog, "--install-timer"])
         self.assertEqual([l for l in open(unite).read().splitlines() if l.startswith("OnCalendar=")], ["OnCalendar=*-*-* 02:30"])
-        self.assertIn("1 sauvegarde(s) par jour, à 02:30", out)
+        self.assertIn("1 sauvegardes par jour, à 02:30", out)
 
     @unittest.skipUnless(os.geteuid() == 0, "exige root")
     def test_statut_timer_different_de_la_configuration(self):

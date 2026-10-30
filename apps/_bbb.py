@@ -32,7 +32,7 @@ import ssl
 import subprocess
 import sys
 
-__version__ = "1.4.20261022.231529"
+__version__ = "1.5.20261030.153422"
 
 ETC_BBB = os.environ.get("NGINX_TOOLS_BBB_ETC", "/etc/bigbluebutton")
 NGINX_BBB = os.environ.get("NGINX_HARDENING_BBB_NGINX_DIR", os.path.join(ETC_BBB, "nginx"))
@@ -262,7 +262,7 @@ def verifier(etat, avec_bbb_conf=True):
             bloc = out.split("# Potential problems", 1)
             if len(bloc) == 2:
                 pbs = [l.strip() for l in bloc[1].splitlines()[1:] if l.strip() and not set(l.strip()) <= {"#", "-", "="}]
-                attn(f"bbb-conf --check signale {len(pbs)} problème(s) potentiel(s) : " + " | ".join(pbs[:4])
+                attn(f"bbb-conf --check signale {len(pbs)} problèmes potentiels : " + " | ".join(pbs[:4])
                      + (" …" if len(pbs) > 4 else ""), "voir bbb-conf --check")
             else:
                 ok("bbb-conf --check : aucun problème potentiel signalé")
@@ -281,10 +281,10 @@ def lignes_etat(etat):
     for i in range(0, len(cles), 3):
         r.append("       " + " · ".join(cles[i:i + 3]))
     if autres:
-        r.append(f"       et {len(autres)} autre(s) paquet(s) bbb-* (détail : dpkg -l 'bbb-*')")
+        r.append(f"       et {len(autres)} autres paquets bbb-* (détail : dpkg -l 'bbb-*')")
     modifies = [f for f, h in etat["fichiers_bbb"].items() if h and f in etat["proprietaires"]]
-    r.append(f"       Configuration de BBB surveillée : {len(etat['fichiers_bbb'])} fichier(s)"
-             + (f", dont {len(modifies)} livré(s) par un paquet" if modifies else "")
+    r.append(f"       Configuration de BBB surveillée : {len(etat['fichiers_bbb'])} fichiers"
+             + (f", dont {len(modifies)} livrés par un paquet" if modifies else "")
              + f" ; nos fichiers : {sum(1 for h in etat['fichiers_nous'].values() if h)}/{len(etat['fichiers_nous'])} présents")
     return r
 
@@ -297,7 +297,7 @@ def differences(ancien, nouveau, quoi):
     pa, pn = ancien.get("paquets", {}), nouveau.get("paquets", {})
     changes = [f"{n} {pa.get(n, '—')} → {pn.get(n, '—')}" for n in sorted(set(pa) | set(pn)) if pa.get(n) != pn.get(n)]
     if changes:
-        r.append(f"       {len(changes)} paquet(s) changé(s) ({quoi}) : " + " ; ".join(changes[:6])
+        r.append(f"       {len(changes)} paquets changés ({quoi}) : " + " ; ".join(changes[:6])
                  + (f" … (+{len(changes) - 6})" if len(changes) > 6 else ""))
     if ancien.get("greenlight") != nouveau.get("greenlight"):
         r.append(f"       Greenlight : {', '.join(ancien.get('greenlight') or ['—'])} → {', '.join(nouveau.get('greenlight') or ['—'])}")
@@ -351,7 +351,7 @@ def resume(mode="summary", sauver=False):
             for l in diff:
                 if l.startswith("[FAIL]"):
                     problemes.append((1, l[7:], "nginx-hardening.sh --update"))
-            if any("BigBlueButton" in l and "→" in l for l in diff) or any("paquet(s) changé(s)" in l for l in diff):
+            if any("BigBlueButton" in l and "→" in l for l in diff) or any("paquets changés" in l for l in diff):
                 problemes.append((2, "BigBlueButton a été mis à jour depuis le dernier nginx-hardening.sh --update",
                                   "nginx-hardening.sh --update (vérifie et réapplique nos règles, puis enregistre l'état), "
                                   "puis une réunion de test"))

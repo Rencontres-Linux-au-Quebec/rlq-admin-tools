@@ -57,7 +57,7 @@
 #   KEEP_RECENT_DAYS=2            garder TOUTES les sauvegardes des N derniers jours (utile avec plusieurs sauvegardes par jour)
 #   KEEP_DAILY=7 KEEP_WEEKLY=4 KEEP_MONTHLY=6   rétention : ensuite la dernière de chaque jour, semaine ISO, mois
 #   REMOTE=                       copie rsync facultative, ex. root@serveur-de-sauvegarde.exemple:/srv/sauvegardes/odoo
-#   TIMER_TIME=02:30              heure(s) de la sauvegarde automatique : une ou plusieurs HH:MM (ex. TIMER_TIME=09:00 16:00 23:00)
+#   TIMER_TIME=02:30              heures de la sauvegarde automatique : une ou plusieurs HH:MM (ex. TIMER_TIME=09:00 16:00 23:00)
 #
 # ========================================================================================================================
 
@@ -68,7 +68,7 @@ for _d in /usr/local/sbin /usr/sbin /sbin; do [[ -n "${NGINX_TOOLS_TESTS:-}" ]] 
 # (During the test suite, NGINX_TOOLS_TESTS disables this addition: /usr/sbin/ufw & co would otherwise remain reachable.)
 export PATH
 
-readonly SCRIPT_VERSION="1.24.20261029.200500"
+readonly SCRIPT_VERSION="1.25.20261030.153422"
 SCRIPT_NAME="$(basename "${BASH_SOURCE[0]}" .sh)"; readonly SCRIPT_NAME
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
 SCRIPT_PATH="$SCRIPT_DIR/$(basename "${BASH_SOURCE[0]}")"; readonly SCRIPT_PATH
@@ -237,7 +237,7 @@ creer_config_defaut() {
 #KEEP_DAILY=7                      # ensuite : la dernière de chaque jour pendant N jours,
 #KEEP_WEEKLY=4                     #           la dernière de chaque semaine pendant N semaines,
 #KEEP_MONTHLY=6                    #           la dernière de chaque mois pendant N mois
-#TIMER_TIME=02:30                  # heure(s) de la sauvegarde automatique, une ou plusieurs : TIMER_TIME=09:00 16:00 23:00
+#TIMER_TIME=02:30                  # heures de la sauvegarde automatique, une ou plusieurs : TIMER_TIME=09:00 16:00 23:00
 #REMOTE_RETENTION=yes              # 1.24 : appliquer la même rétention sur la copie distante (REMOTE) ; no = la copie ne fait que grossir
 #MAX_REMOTE_DELETE=20              # 1.24 : nombre maximal de fichiers supprimés sur la copie distante en une passe (sécurité)
 EOF
@@ -488,7 +488,7 @@ sauvegarder() {
     taille_db=$(pg psql -Atc "SELECT pg_database_size('$db')" 2>/dev/null) || taille_db=0
     [[ "$taille_db" =~ ^[0-9]+$ ]] || taille_db=0
     if [[ -n "$fs" ]]; then taille_fs=$(du -sb "$fs" 2>/dev/null | cut -f1) || taille_fs=0; nb_fichiers=$(find "$fs" -type f | wc -l); fi
-    echo "Base $db — base $(octets "$taille_db"), filestore ${fs:-INTROUVABLE} ($(octets "$taille_fs"), $nb_fichiers fichier(s)) — format $FORMAT"
+    echo "Base $db — base $(octets "$taille_db"), filestore ${fs:-INTROUVABLE} ($(octets "$taille_fs"), $nb_fichiers fichiers) — format $FORMAT"
     if [[ "$DO_DRY_RUN" == "1" ]]; then
         echo "  (--dry-run) écrirait $final (dump.sql, manifest.json, filestore/) et $final.sha256"
         return 0
@@ -546,7 +546,7 @@ retention_distante() {  # retention_distante BASE
     journal=$(mktemp "${TMPDIR:-/var/tmp}/odoo-backup-prune.XXXXXX")
     trace rsync -a --delete --delete-excluded --max-delete="$MAX_REMOTE_DELETE" --include='*.zip' --include='*.tar.xz' --include='*.sha256' --exclude='*' "$DEST/$db/" "$REMOTE/$db/"
     if run_interruptible rsync -a --delete --delete-excluded --max-delete="$MAX_REMOTE_DELETE" --include='*.zip' --include='*.tar.xz' --include='*.sha256' --exclude='*' "$DEST/$db/" "$REMOTE/$db/" 2>"$journal"; then
-        ok "rétention distante appliquée : $REMOTE/$db ($nb_locales sauvegarde(s) gardée(s))"
+        ok "rétention distante appliquée : $REMOTE/$db ($nb_locales sauvegardes gardées)"
     else
         attn "rétention distante en échec pour $db ($(head -c 200 "$journal")) — copie distante inchangée au-delà de ce qui a été fait ; limite MAX_REMOTE_DELETE=$MAX_REMOTE_DELETE"
         noter failure "rétention distante en échec pour $db"
@@ -604,8 +604,8 @@ afficher_statut() {
         if [[ -z "$dernier" ]]; then ko "$db : AUCUNE sauvegarde"; rc=1; continue; fi
         age=$(( ($(date +%s) - $(stat -c %Y "$DEST/$db/$dernier")) / 3600 ))
         n=$(archives "$db" | wc -l)
-        if (( age > SEUIL_HEURES )); then ko "$db : dernière sauvegarde il y a $age h ($dernier ; seuil $SEUIL_HEURES h pour les heures $TIMER_TIME) — $n conservée(s)"; rc=1
-        else ok "$db : dernière sauvegarde il y a $age h ($dernier, $(octets "$(stat -c %s "$DEST/$db/$dernier")")) — $n conservée(s), $(octets "$(du -sb "$DEST/$db" | cut -f1)") au total"; fi
+        if (( age > SEUIL_HEURES )); then ko "$db : dernière sauvegarde il y a $age h ($dernier ; seuil $SEUIL_HEURES h pour les heures $TIMER_TIME) — $n conservées"; rc=1
+        else ok "$db : dernière sauvegarde il y a $age h ($dernier, $(octets "$(stat -c %s "$DEST/$db/$dernier")")) — $n conservées, $(octets "$(du -sb "$DEST/$db" | cut -f1)") au total"; fi
     done
     [[ -r "$STATE_DIR/last-failure" ]] && attn "dernier échec : $(cut -f2- "$STATE_DIR/last-failure" | tr '\t' ' ')"
     if [[ -f "$SYSTEMD_DIR/odoo-backup.timer" ]]; then
@@ -669,7 +669,7 @@ PY
         echo "  Manifest : $(python3 - "$tmp/manifest.json" 2>/dev/null <<'PY'
 import json, sys
 m = json.load(open(sys.argv[1]))
-print("base d'origine {}, Odoo {}, PostgreSQL {}, {} module(s)".format(
+print("base d'origine {}, Odoo {}, PostgreSQL {}, {} modules".format(
     m.get("db_name"), m.get("version"), m.get("pg_version"), len(m.get("modules", {}))))
 PY
 )"
@@ -709,7 +709,7 @@ PY
         attn "dossier des filestores introuvable (FILESTORE_DIR, data_dir d'Odoo) : filestore NON restauré"
     fi
     rm -rf "$tmp"
-    ok "base $cible restaurée — $nb module(s) installé(s), $n_fs fichier(s) de filestore${fs_cible:+ ($fs_cible)}$( (( erreurs > 0 )) && echo " ; $erreurs erreur(s) SQL à examiner")"
+    ok "base $cible restaurée — $nb modules installés, $n_fs fichiers de filestore${fs_cible:+ ($fs_cible)}$( (( erreurs > 0 )) && echo " ; $erreurs erreurs SQL à examiner")"
     if [[ -z "$essai" ]]; then
         echo "  Copie d'une base de production : avant de démarrer Odoo dessus, la NEUTRALISER (courriels sortants, tâches"
         echo "  planifiées, connecteurs) : odoo-bin neutralize -c <configuration> -d $cible (Odoo 16 et suivants)."
@@ -767,7 +767,7 @@ EOF
     trace systemctl daemon-reload; systemctl daemon-reload
     trace systemctl enable odoo-backup.timer; systemctl enable odoo-backup.timer
     trace systemctl restart odoo-backup.timer; systemctl restart odoo-backup.timer
-    echo "Timer installé (arrêté puis relancé) : ${#HEURES[@]} sauvegarde(s) par jour, à ${TIMER_TIME// /, } (rattrapées au démarrage si le serveur était éteint). État : odoo-backup.sh --status"
+    echo "Timer installé (arrêté puis relancé) : ${#HEURES[@]} sauvegardes par jour, à ${TIMER_TIME// /, } (rattrapées au démarrage si le serveur était éteint). État : odoo-backup.sh --status"
 }
 desinstaller_timer() {
     [[ "$EUID" -eq 0 ]] || { echo "ERREUR: root requis pour --uninstall-timer." >&2; exit 1; }

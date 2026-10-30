@@ -91,7 +91,7 @@ class SyncCrowdsec(EnvTest):
         rc, out, err = self.run_cmd(["bash", self.prog, "--status", "--report-err"])
         rapport = out[out.index("RAPPORT D'ERREURS"):]
         self.assertRegex(rapport, r"Programme : sync-crowdsec-blocklist\.sh v1\.\d+\.\d{8}\.\d{6} — commande : sync-crowdsec-blocklist\.sh --status\n")
-        self.assertRegex(rapport, r"ÉCHECS \(\d+\) :\n(?:.*\n)*?  \d+\. .*ÉCHEC EN COURS : 1 tentative\(s\) consécutive\(s\)")
+        self.assertRegex(rapport, r"ÉCHECS \(\d+\) :\n(?:.*\n)*?  \d+\. .*ÉCHEC EN COURS : 1 tentatives consécutives")
 
     # --- 1.10: visible failures, dated and tracked; PATH under cron ------------------------------------------------------
     @unittest.skipUnless(os.geteuid() == 0, "la synchronisation exige root")
@@ -112,7 +112,7 @@ class SyncCrowdsec(EnvTest):
         rc, out, err = self.sync()
         self.assertIn("ÉCHEC n° 2 consécutif, depuis le ", err)
         rc, out, err = self.run_cmd(["bash", self.prog, "--status"])
-        self.assertIn("ÉCHEC EN COURS : 2 tentative(s) consécutive(s)", out)
+        self.assertIn("ÉCHEC EN COURS : 2 tentatives consécutives", out)
         # Insufficient rights: other diagnosis (no more systematic LXC accusation)
         self.mock("ipset", 'echo "ipset v7.19: Operation not permitted" >&2; exit 1')
         rc, out, err = self.sync()
@@ -208,7 +208,7 @@ class SyncCrowdsec(EnvTest):
             import time
             f.write(str(int(time.time()) - 4 * 86400))
         _, out, _ = self.sync()
-        self.assertIn("la liste n'a pas changé depuis 4 jour(s)", out)
+        self.assertIn("la liste n'a pas changé depuis 4 jours", out)
 
     def test_ufw_installe_jamais_iptables_persistent(self):
         """1.1 : installer iptables-persistent supprimerait ufw."""

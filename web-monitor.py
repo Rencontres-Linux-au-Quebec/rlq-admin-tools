@@ -85,7 +85,7 @@ import time
 import unicodedata
 import urllib.parse
 
-__version__ = "2.82.20261029.212344"
+__version__ = "2.82.20261030.153422"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
@@ -241,7 +241,7 @@ def migrate_installation():
                 os.remove(os.path.join(SYSTEMD_DIR, f"surveillance-odoo.{ext}"))
             except FileNotFoundError:
                 pass
-        eprint(f"Migration: timer surveillance-odoo removed, replaced by {UNIT} (every {hour_values} hour(s)).")
+        eprint(f"Migration: timer surveillance-odoo removed, replaced by {UNIT} (every {hour_values} hours).")
         install_timer(hour_values)
 
 
@@ -325,7 +325,7 @@ def detect_odoo_service():
 def analyze_sanity(code, out):
     fails = [l.strip() for l in out.splitlines() if l.strip().startswith("[FAIL]")]
     if code != 0 and fails:
-        return [("app-health-check.py: failing check(s)", fails,
+        return [("app-health-check.py: failing checks", fails,
                  ["sanity:" + f.replace("[FAIL]", "").split(" — ")[0].strip() for f in fails])]
     if code not in (0, 1):
         return [("app-health-check.py: the tool itself failed", out.strip().splitlines()[-8:], ["sanity:outil"])]
@@ -334,7 +334,7 @@ def analyze_sanity(code, out):
 
 def analyze_odoo_logs(code, out):
     # "N entries to review" (Odoo journal) or "N errors to review" (file journal, e.g. BBB)
-    m = re.search(r"RÉSUMÉ : (\d+) (?:entrée|erreur)\(s\) à examiner.*", out)
+    m = re.search(r"RÉSUMÉ : (\d+) (?:entrée|erreur)s? à examiner.*", out)
     if m and int(m.group(1)) > 0:
         lines = [m.group(0)]
         for marker in ("--- [1]", "--- [2]", "--- [3]"):
@@ -349,7 +349,7 @@ def analyze_odoo_logs(code, out):
                 mm = re.match(r"\s*\[\d+x\]\s*(.+)", l)
                 if mm:
                     keys.append("odoo:" + re.sub(r"\d+", "N", mm.group(1))[:120])
-        return [(f"app-log-check.py: item(s) to examine in the journal of {PROFILE.get('APP_LABEL', 'Odoo')}",
+        return [(f"app-log-check.py: items to examine in the journal of {PROFILE.get('APP_LABEL', 'Odoo')}",
                  lines, keys or ["odoo:entrees"])]
     if code not in (0, 1) and "RÉSUMÉ" not in out:
         return [("app-log-check.py: the tool itself failed", out.strip().splitlines()[-8:], ["odoo:outil"])]
@@ -385,8 +385,8 @@ def analyze_nginx_logs(code, out):
         score = next((re.search(r"Score \d+/7", l).group(0) for l in block if re.search(r"Score \d+/7", l)), "")
         hostile = next((re.search(r"Signes d'hostilité : (\d+)", l).group(1) for l in block if "Signes d'hostilité" in l), "?")
         ips.append(ip)
-        proposals += [block[0], f"    → {score} : ban recommended ({hostile} sign(s) of hostility)"]
-        RECOMMENDED.append((ip, TR(f"investigation: {score}, {hostile} sign(s) of hostility".replace(" : ,", " :"))))
+        proposals += [block[0], f"    → {score} : ban recommended ({hostile} signs of hostility)"]
+        RECOMMENDED.append((ip, TR(f"investigation: {score}, {hostile} signs of hostility".replace(" : ,", " :"))))
     if ips:
         alerts.append(("nginx-log-audit.sh: ban recommended (investigation, section [10])", proposals[:12],
                        ["nginx:ban:" + ip for ip in ips]))
@@ -408,7 +408,7 @@ def analyze_nginx_logs(code, out):
             m = re.match(r"^▶\s*(\S+)\s*—\s*(.+)$", l)
             if m and m.group(1) not in [r[0] for r in RECOMMENDED]:
                 RECOMMENDED.append((m.group(1), TR(f"repeat offender: {m.group(2)} — repeated temporary bans")))
-        alerts.append(("nginx-log-audit.sh: repeat offender(s) to ban permanently", repeat_offender[:14],
+        alerts.append(("nginx-log-audit.sh: repeat offenders to ban permanently", repeat_offender[:14],
                        ["nginx:recidive:" + ip for ip in ips] or ["nginx:recidive"]))
     if code != 0 and "RÉSUMÉ" not in out:
         alerts.append(("nginx-log-audit.sh: the tool itself failed", out.strip().splitlines()[-8:], ["nginx:outil"]))
@@ -535,7 +535,7 @@ def journal(lines, priority="user.notice"):
     if not shutil.which("logger"):
         return
     if VERBOSE:
-        eprint(f"+ logger -t {SCRIPT_NAME} -p {priority} ({len(lines)} line(s))")
+        eprint(f"+ logger -t {SCRIPT_NAME} -p {priority} ({len(lines)} lines)")
     try:
         subprocess.run(["logger", "-t", SCRIPT_NAME, "-p", priority], input=TR("\n".join(lines[:120]) + "\n"),
                        text=True, timeout=10, capture_output=True)
@@ -630,13 +630,13 @@ def do_run(dry_run):
         report.append("")
         report.append("=" * 100)
         report.append(f" {label} — code {code}, {time.time() - t0:.0f} s — "
-                      + (f"{len(found)} alert(s)" if found else "nothing to report"))
+                      + (f"{len(found)} alerts" if found else "nothing to report"))
         report.append("=" * 100)
         report.append(out.rstrip())
     timers_found = analyze_timers()
     if timers_found:
         alerts += timers_found
-        report += ["", "=" * 100, f" timers of our tools — {len(timers_found)} alert(s)", "=" * 100]
+        report += ["", "=" * 100, f" timers of our tools — {len(timers_found)} alerts", "=" * 100]
         report += [f"{heading}\n  {text_lines[0]}" for heading, text_lines, _ in timers_found]
     missing = [n for n in ("app-health-check.py", "app-log-check.py", "nginx-log-audit.sh", "sync-crowdsec-blocklist.sh") if not tool(n)]
     if missing:
@@ -648,15 +648,15 @@ def do_run(dry_run):
         remember_recommendations(now)
     status = "nothing to report"
     if alerts:
-        body_lines = [f"Monitoring {host} — {now:%Y-%m-%d %H:%M %Z} — {len(alerts)} item(s) to examine:", ""]
+        body_lines = [f"Monitoring {host} — {now:%Y-%m-%d %H:%M %Z} — {len(alerts)} items to examine:", ""]
         for title, lines, _ in alerts:
             body_lines.append(f"■ {title}")
             body_lines += [f"    {l}" for l in lines]
             body_lines.append("")
         if RECOMMENDED:
-            body_lines += [f"To ban the {len(RECOMMENDED)} recommended IP(s) in one command (root, with confirmation):",
+            body_lines += [f"To ban the {len(RECOMMENDED)} recommended IPs in one command (root, with confirmation):",
                            "    web-monitor.py --ban-recommended", ""]
-        subject = f"[web-monitor] {host} : {len(alerts)} item(s) to examine"
+        subject = f"[web-monitor] {host} : {len(alerts)} items to examine"
         # Comparison on the TITLES (the details - hours, counters - change on every run). New e-mail
         # only if a NEW problem appears, or 24 h after the previous one: a problem that disappears (resolved)
         # does not justify writing again for the others, already reported.
@@ -670,7 +670,7 @@ def do_run(dry_run):
             pass
         new_keys = [k for k in keys if k not in previous.get("keys", [])]
         if not new_keys and time.time() - previous.get("time", 0) < REALERT_AFTER_S:
-            status = (f"{len(alerts)} alert(s), all already reported on {previous.get('when', '?')} — no new "
+            status = (f"{len(alerts)} alerts, all already reported on {previous.get('when', '?')} — no new "
                       "e-mail before 24 h (unless a new problem)")
         else:
             log_path_hint = os.path.join(LOG_DIR, f"{now:%Y-%m-%d_%H%M%S}.log")
@@ -678,7 +678,7 @@ def do_run(dry_run):
                 body_lines.insert(1, f"NEW since the e-mail of {previous.get('when', '?')} : "
                                      + "; ".join(human_key(k) for k in new_keys))
             body_lines.append(f"Full report on the server: {log_path_hint}")
-            status = f"{len(alerts)} alert(s) — e-mail {notify(subject, chr(10).join(body_lines), dry_run)}"
+            status = f"{len(alerts)} alerts — e-mail {notify(subject, chr(10).join(body_lines), dry_run)}"
             if not dry_run:
                 os.makedirs(STATE_DIR, exist_ok=True)
                 json.dump({"digest": digest, "time": time.time(), "when": f"{now:%Y-%m-%d %H:%M}",
@@ -713,7 +713,7 @@ def do_run(dry_run):
                 for l in lines[:6]:
                     print(f"      {l[:160]}")
                 if len(lines) > 6:
-                    print(f"      (… {len(lines) - 6} more line(s) in the full report)")
+                    print(f"      (… {len(lines) - 6} more lines in the full report)")
             print()
         print(f"Full report: {path}")
         offer_ban()
@@ -1043,7 +1043,7 @@ def log_space(sources, svc, ns, today_date):
         day_count = max(1, (today_date - src.oldest).days + 1) if src.oldest else 1
         total += byte_count
         per_day += byte_count / day_count
-        print(f"  {src.libelle:<30} {_bytes(byte_count):>10}  ≈ {_bytes(byte_count / day_count)}/day on {day_count} day(s){detail}")
+        print(f"  {src.libelle:<30} {_bytes(byte_count):>10}  ≈ {_bytes(byte_count / day_count)}/day on {day_count} days{detail}")
     if not total:
         print("  no measurable log")
         return
@@ -1190,8 +1190,8 @@ def workers_advice(svc, c, mem_odoo, mem_pg):
           f"limit_memory_hard={_bytes(v['limit_memory_hard'])}, limit_time_cpu={v['limit_time_cpu']} s, "
           f"limit_time_real={v['limit_time_real']} s")
     rec, cpu_kill, elapsed = (c.get(k, 2) for k in ("workers_memoire", "workers_cpu", "workers_temps"))
-    print(f"    Signs of saturation ({DAYS} days): {rec} recycling(s) for memory · {cpu_kill} stop(s) for CPU time"
-          f" · {elapsed} stop(s) for real time · {c.get('erreurs5xx', 2)} 5xx error(s)")
+    print(f"    Signs of saturation ({DAYS} days): {rec} recyclings for memory · {cpu_kill} stops for CPU time"
+          f" · {elapsed} stops for real time · {c.get('erreurs5xx', 2)} 5xx errors")
     notice = []
     if w == 0:
         processes = 1
@@ -1629,7 +1629,7 @@ def valid_reason(ip, facts):
         return ("certain", "known user (successful Odoo login)" + (" — also requested malicious URLs" if bad else ""))
     pages = (facts.get("pages_ip") or {}).get(ip, 0)
     if ip in facts.get("ips_humaines", ()) and pages >= 2 and not bad:
-        return ("probable", f"probable human visitor: {pages} page(s) viewed, CSS/JS loaded, no malicious URL")
+        return ("probable", f"probable human visitor: {pages} pages viewed, CSS/JS loaded, no malicious URL")
     return None
 
 
@@ -1806,8 +1806,8 @@ def recommendations(c, facts, policies):
     to_unban = facts.get("a_debannir") or []
     if to_unban:
         certain_ones = [x for x in to_unban if x[1] == "certain"]
-        add_action(f"Unban {len(to_unban)} valid IP(s)", "debannir", lambda: unban(to_unban))
-        R.append((1 if certain_ones else 2, f"{len(to_unban)} banned IP(s) look valid ({len(certain_ones)} certain: team or known user): {', '.join(x[0] for x in to_unban[:5])}",
+        add_action(f"Unban {len(to_unban)} valid IPs", "debannir", lambda: unban(to_unban))
+        R.append((1 if certain_ones else 2, f"{len(to_unban)} banned IPs look valid ({len(certain_ones)} certain: team or known user): {', '.join(x[0] for x in to_unban[:5])}",
                   "a person who can no longer reach the site is a costlier false positive than one more robot",
                   "lifting offered at the end of the summary (commands in the « Banned IPs that look valid » section)"))
     # LOADED jails (fail2ban-client status), not only those that already banned: a new jail counts.
@@ -2117,7 +2117,7 @@ def detail_lines(a, day_count=1):
     n_err = sum(a["err"].values())
     codes = ", ".join(color_code("31" if k.startswith("5") else "33" if k == "429" else "0", f"{k} : {fmt(v)}")
                       for k, v in sorted(a["err"].items(), key=lambda x: -x[1])[:3])
-    error_list = color_code("31" if any(k.startswith("5") for k in a["err"]) else "33", f"{fmt(n_err)} error(s)") if n_err else "0 errors"
+    error_list = color_code("31" if any(k.startswith("5") for k in a["err"]) else "33", f"{fmt(n_err)} errors") if n_err else "0 errors"
     day, n_day = max(a["days"].items(), key=lambda x: (x[1], x[0]))
     text_lines = [f"Traffic         : {fmt(a['pages'])} pages viewed · {fmt(a['req'])} requests · {error_list}" + (f" ({codes})" if n_err else "")]
     if day_count <= 1:
@@ -2260,7 +2260,7 @@ def show_accounts(facts, banned):
                 print(f"    {text_line}")
     if len(sorted_items) > 20:
         print()
-        print(f"  (+{len(sorted_items) - 20} other(s) — full list: web-monitor.py --list-users)")
+        print(f"  (+{len(sorted_items) - 20} others — full list: web-monitor.py --list-users)")
     print()
     if "stats_ip" in facts:
         print(f"  (traffic of the account's IP addresses over {DAYS} days — a shared address counts for each account)")
@@ -2447,7 +2447,7 @@ FIELD_KEYS = [f[0] for f in TABLE_FIELDS]
 DEFAULT_TABLE_FIELDS = [k for k in FIELD_KEYS if k not in ("email", "tags")]     # the login is already the e-mail of most accounts; 2.69: tags often repeat the groups
 PROFILE_FIELDS = {"events", "surveys", "phone", "country", "city", "groups", "tags", "email", "created"}      # read in PostgreSQL (apps/_odoo_db.py user_profiles)
 # 2.71: French names of the fields, accepted for the English keys (until 2.70 the French help displayed "navigateurs", "envoye(s)"... instead of the keys)
-FIELD_ALIASES = {"navigateurs": "browsers", "systemes": "systems", "envoye(s)": "sent", "envoyes": "sent", "recus": "received", "lues": "read",
+FIELD_ALIASES = {"navigateurs": "browsers", "systemes": "systems", "envoyes": "sent", "envoyes": "sent", "recus": "received", "lues": "read",
                  "ecrites": "written", "pays": "country", "ville": "city", "groupes": "groups", "etiquettes": "tags", "telephone": "phone",
                  "evenements": "events", "sondages": "surveys", "courriel": "email", "nom": "name", "identifiant": "login", "connexions": "logins",
                  "premiere": "first", "derniere": "last", "cree": "created", "ip-vue": "ipseen", "pays-ip": "ipcountry"}
@@ -2462,7 +2462,7 @@ def table_fields(value):
         return list(FIELD_KEYS)
     wrong = [k for k in keys if k not in FIELD_KEYS]
     if wrong or not keys:
-        raise argparse.ArgumentTypeError(f"unknown field(s) « {literal(', '.join(wrong) or value)} » (fields: {literal(', '.join(FIELD_KEYS))}, or all)")
+        raise argparse.ArgumentTypeError(f"unknown fields « {literal(', '.join(wrong) or value)} » (fields: {literal(', '.join(FIELD_KEYS))}, or all)")
     return list(dict.fromkeys(keys))
 
 
@@ -2788,8 +2788,8 @@ def users_table(order, accounts, infos, fields, bbb, compute_minutes, banned, so
             print(l)
         print()
         total_minutes = sum(r["minutes"] or 0 for r in records)
-        print(f"  Total: {len(records)} {'participant(s)' if bbb else 'account(s)'}, {sum(r['logins'] for r in records)} login(s)"
-              + (f", {total_minutes} login minute(s) (≈ {total_minutes / 60:.1f} h)" if compute_minutes else ""))
+        print(f"  Total: {len(records)} {'participants' if bbb else 'accounts'}, {sum(r['logins'] for r in records)} logins"
+              + (f", {total_minutes} login minutes (≈ {total_minutes / 60:.1f} h)" if compute_minutes else ""))
         print("  (colors: last login today in green, account created today in cyan, the busiest accounts in yellow — bold: top 10 %; 0 in grey)")
         if "created" in fields:
             print(f"  (account created: date of creation of the Odoo account; cyan: less than {NEW_ACCOUNT_DAYS} days)")
@@ -2888,7 +2888,7 @@ def write_users_csv(path, records, fields):
         if f is not sys.stdout:
             f.close()
     if path != "-":
-        print(f"CSV written: {os.path.abspath(path)} — {len(records)} line(s), {len(keys)} column(s), separator « ; » (Excel: open it directly)")
+        print(f"CSV written: {os.path.abspath(path)} — {len(records)} lines, {len(keys)} columns, separator « ; » (Excel: open it directly)")
     return 0
 
 
@@ -2903,7 +2903,7 @@ def print_user_stats(records, bbb):
     if not n:
         return
 
-    def section(title, counter, limit=15, unit="account(s)"):
+    def section(title, counter, limit=15, unit="accounts"):
         print(f"  {color_code('1', title)}" + ("" if counter else " : -"))
         width = max([display_width(str(k)) for k in counter] or [0])
         for k, c in sorted(counter.items(), key=lambda kv: (-kv[1], str(kv[0])))[:limit]:
@@ -2911,7 +2911,7 @@ def print_user_stats(records, bbb):
         if len(counter) > limit:
             print(f"    … (+{len(counter) - limit})")
     print()
-    print(color_code("1;36", f"──── Statistics of the {n} {'participant(s)' if bbb else 'account(s)'} listed ────"))
+    print(color_code("1;36", f"──── Statistics of the {n} {'participants' if bbb else 'accounts'} listed ────"))
     if not bbb:
         section("Members per group", collections.Counter(g for r in records for g in r["groups"]))
         section("Members per tag", collections.Counter(t for r in records for t in r["tags"]))
@@ -3026,10 +3026,10 @@ def list_users(details=False, table_rows=False, sort_order="name", invert=False,
     except OSError:
         pass
     print(f"{'BigBlueButton participants' if bbb else 'Connections to ' + PROFILE.get('APP_LABEL', 'Odoo')} — {source}")
-    print(f"{len(accounts)} {'participant(s)' if bbb else 'account(s)'}, "
+    print(f"{len(accounts)} {'participants' if bbb else 'accounts'}, "
           + ("in alphabetical order" if sort_order == "name" and not invert else f"sorted by {USER_SORTS[sort_order][0]}{' (reversed order)' if invert else ''}"))
     if logs_read:
-        print(f"nginx access logs read ({len(logs_read)} file(s), rotations included): {', '.join(logs_read[:4])}"
+        print(f"nginx access logs read ({len(logs_read)} files, rotations included): {', '.join(logs_read[:4])}"
               + (f" … (+{len(logs_read) - 4})" if len(logs_read) > 4 else ""))
     elif compute_minutes or details:
         print(f"nginx access logs: no file read in {NGINX_DIR} ({PROFILE.get('ACCESS_LOGS', '*-access.log')}) — login minutes = 1 per login at minimum")
@@ -3105,8 +3105,8 @@ def list_users(details=False, table_rows=False, sort_order="name", invert=False,
         accounts = {n: v for n, v in accounts.items() if chosen & set(infos[n]["profile"].get("all_groups", []))}
         members = {login for p in profiles.values() for login, f in (p or {}).items() if chosen & set(f.get("all_groups", []))}
         absent = sorted(members - set(accounts))
-        print(f"Group {', '.join(sorted(chosen))} — {len(accounts)} member(s) with a login in the history"
-              + (f", {len(absent)} member(s) without any login: {', '.join(absent[:10])}{' …' if len(absent) > 10 else ''}" if absent else ""))
+        print(f"Group {', '.join(sorted(chosen))} — {len(accounts)} members with a login in the history"
+              + (f", {len(absent)} members without any login: {', '.join(absent[:10])}{' …' if len(absent) > 10 else ''}" if absent else ""))
         print()
         if not accounts:
             return 0
@@ -3224,11 +3224,11 @@ def suspicion(login, acc, facts, user, history, shared, banned_ips):
     if a["burst"] >= BURST_PAGES:
         add("burst", f"burst: {a['burst']} pages in {BURST_WINDOW_S} s ({a['burst_when']}) — a person reads one page at a time")
     if a["tools"]:
-        add("tool", f"scripting tool in the User-Agent: {a['tools']} request(s) (curl, python-requests…)")
+        add("tool", f"scripting tool in the User-Agent: {a['tools']} requests (curl, python-requests…)")
     uid = str((user or {}).get("uid", ""))
     denied = facts.get("odoo_denied", {}).get(uid, {}) if uid else {}
     if sum(denied.values()) >= DENIED_MIN:
-        add("denied", f"Odoo access refused: {sum(denied.values())} time(s) ({', '.join(f'{k} ×{n}' for k, n in sorted(denied.items(), key=lambda x: -x[1])[:3])}) — tries to read what it may not")
+        add("denied", f"Odoo access refused: {sum(denied.values())} times ({', '.join(f'{k} ×{n}' for k, n in sorted(denied.items(), key=lambda x: -x[1])[:3])}) — tries to read what it may not")
     days_active = max(1, len(a["days"]))
     n_posts = sum(a["posts"].values())
     if n_posts >= POSTS_PER_DAY_MIN * days_active or n_posts >= POSTS_PER_DAY_MIN * 3:
@@ -3244,7 +3244,7 @@ def suspicion(login, acc, facts, user, history, shared, banned_ips):
     if (user or {}).get("type") != "interne":
         farm = [ip for ip in acc["ips"] if isinstance(shared.get(ip), int) and shared[ip] >= FARM_ACCOUNTS_MIN and not in_whitelist(ip)]
         if farm:
-            add("farm", f"address shared with {max(shared[ip] for ip in farm) - 1} other account(s): {', '.join(farm[:3])} (several accounts from one place)")
+            add("farm", f"address shared with {max(shared[ip] for ip in farm) - 1} other accounts: {', '.join(farm[:3])} (several accounts from one place)")
     on_banned = [ip for ip in acc["ips"] if ip in banned_ips]
     if on_banned:
         add("banned_ip", f"uses banned address(es): {', '.join(on_banned[:3])}")
@@ -3309,19 +3309,19 @@ def show_suspects(facts, banned_ips):
         print()
         print(f"  {color_code(style, '▶ ' + login)} — {who} — score {score} — {color_code(style, level_text(score))}{marks}")
         first = (hist or {}).get("first", "?")
-        print(f"      first login {first} · {(hist or {}).get('n', sum(acc['n']))} login(s) · IP: {', '.join(sorted(acc['ips'], key=lambda i: -acc['ips'][i])[:4])}"
+        print(f"      first login {first} · {(hist or {}).get('n', sum(acc['n']))} logins · IP: {', '.join(sorted(acc['ips'], key=lambda i: -acc['ips'][i])[:4])}"
               + (f" (+{len(acc['ips']) - 4})" if len(acc["ips"]) > 4 else ""))
         for r in reasons:
             print(f"      {r}")
         if not reasons:
             print("      no sign over the period (account watched: its activity is listed here at every summary)")
     if len(suspects) > 15:
-        print(f"\n  (+{len(suspects) - 15} other(s): web-monitor.py --suspect-users)")
+        print(f"\n  (+{len(suspects) - 15} others: web-monitor.py --suspect-users)")
     print()
     print(f"  (score = sum of the signs; {WATCH_LEVEL}-{SUSPECT_LEVEL - 1}: to watch, {SUSPECT_LEVEL} and more: suspicious. Each sign alone can be innocent: investigate before banning.)")
     if suspects:
         print("  Investigation of an account (all its addresses, e-mail, Internet), then ban or watch: web-monitor.py --suspect-users")
-        add_action(f"Investigate the {len(suspects)} account(s) to watch or suspicious (all their addresses, their e-mail; ban or watch each one)",
+        add_action(f"Investigate the {len(suspects)} accounts to watch or suspicious (all their addresses, their e-mail; ban or watch each one)",
                    "web-monitor.py --suspect-users", lambda: suspect_menu(suspects, yes=YES))
     return suspects
 
@@ -3458,7 +3458,7 @@ def investigate_user(login, ask=True, internet=None, offer_actions=True):
         kind = "portal/public" if detail["share"] else "internal"
         print(f"  {detail['name']} — UID {detail['uid']}, {TR(kind)}, database {database}, {'account active' if detail['active'] else color_code('35', 'ARCHIVED (cannot log in)')}")
         print(f"  created {_ts(detail['created'])}" + (f" through {detail['oauth']} (OAuth)" if detail["oauth"] else "")
-              + f" · {detail['logins']} login(s) recorded by Odoo, last {_ts(detail['last_login'])}")
+              + f" · {detail['logins']} logins recorded by Odoo, last {_ts(detail['last_login'])}")
         if detail["email"] and detail["email"].lower() != login.lower():
             print(f"  contact e-mail: {detail['email']} (different from the login)")
         regs = detail["registrations"]
@@ -3486,7 +3486,7 @@ def investigate_user(login, ask=True, internet=None, offer_actions=True):
         extra = f" — also used by: {', '.join(others[ip][:4])}" + (f" (+{len(others[ip]) - 4})" if len(others[ip]) > 4 else "") if others[ip] else ""
         place = lists().lieu(ip)
         tag = " (whitelist)" if in_whitelist(ip) else f" ({place.libelle})" if place else ""
-        print(f"  {ip}{tag} — {history['ips'][ip]} login(s){extra}")
+        print(f"  {ip}{tag} — {history['ips'][ip]} logins{extra}")
         if verdict:
             print(f"      {verdict}")
         if recommended:
@@ -3548,13 +3548,13 @@ def investigate_user(login, ask=True, internet=None, offer_actions=True):
                 print("  StopForumSpam: unreachable")
             else:
                 e = sfs.get("email") or {}
-                print("  StopForumSpam, e-mail: " + (color_code("31", f"REPORTED {e['frequency']} time(s), last {e['lastseen']}, confidence {e['confidence']:.0f} %")
+                print("  StopForumSpam, e-mail: " + (color_code("31", f"REPORTED {e['frequency']} times, last {e['lastseen']}, confidence {e['confidence']:.0f} %")
                                                     if e.get("appears") else "never reported"))
                 if e.get("appears"):
-                    sign(3, f"e-mail reported {e['frequency']} time(s) to StopForumSpam")
+                    sign(3, f"e-mail reported {e['frequency']} times to StopForumSpam")
                 for ip, x in sfs.get("ip", {}).items():
                     if x.get("appears"):
-                        print(f"  StopForumSpam, {ip} — " + color_code("31", f"REPORTED {x['frequency']} time(s), last {x['lastseen']}, confidence {x['confidence']:.0f} %"))
+                        print(f"  StopForumSpam, {ip} — " + color_code("31", f"REPORTED {x['frequency']} times, last {x['lastseen']}, confidence {x['confidence']:.0f} %"))
                         if x.get("confidence", 0) >= 25:
                             sign(2, f"{ip} reported to StopForumSpam")
                 if not any(x.get("appears") for x in sfs.get("ip", {}).values()):
@@ -3565,7 +3565,7 @@ def investigate_user(login, ask=True, internet=None, offer_actions=True):
             if w is None:
                 print(f"  Web search: not available (search engine refused or unreachable) — to open in a browser: {em.search_url(email)}")
             else:
-                print(f"  Web search of « {email} » — {w['count']} result(s)" + (" (an address never published anywhere: common for a recent or private address)" if not w["count"] else ""))
+                print(f"  Web search of « {email} » — {w['count']} results" + (" (an address never published anywhere: common for a recent or private address)" if not w["count"] else ""))
                 for title, url in w["results"]:
                     print(f"      - {title} — {url}")
                 print(f"      (all the results: {w['url']})")
@@ -4147,7 +4147,7 @@ def show_resources(c=None, svc=None):
         c1, c5, c15 = os.getloadavg()
         cores = len(os.sched_getaffinity(0))
         pct = int(100 * c1 / cores)
-        print(f"  Load         : {c1:.2f} · {c5:.2f} · {c15:.2f} (1/5/15 min) for {cores} core(s) — {pct} % of capacity".replace(".", ","))
+        print(f"  Load         : {c1:.2f} · {c5:.2f} · {c15:.2f} (1/5/15 min) for {cores} cores — {pct} % of capacity".replace(".", ","))
         if c5 >= cores:
             alert_items.append(f"5-min load ({c5:.2f}) higher than the number of cores ({cores})")
     except (OSError, AttributeError):
@@ -4297,13 +4297,13 @@ def ban(items, choose):
                            if re.search(r"Règle|Déjà|REFUSÉ|ÉCHEC", l)), "")
             print(f"  {ip} : {'banni' if code == 0 else BAD + 'NOT banned' + END_BAD}{' — ' + detail if detail else ''}")
         n_ok += code == 0
-    print(f"\n{n_ok}/{len(items)} IP(s) banned (reversible: nginx-log-audit.sh --unban IP).")
+    print(f"\n{n_ok}/{len(items)} IPs banned (reversible: nginx-log-audit.sh --unban IP).")
     return 0
 
 
 def ask_ban(items, yes=False):
     """A single question for all the IPs: [o] all, [c] one by one (detailed investigation), [N] nothing."""
-    print(f"\n{len(items)} IP(s) recommended for banning:")
+    print(f"\n{len(items)} IPs recommended for banning:")
     for ip, reason in items:
         print(f"  {BAD}▶ {ip}{END_BAD} — {reason}")
     if yes:
@@ -4517,7 +4517,7 @@ def show_summary():
         for h in shown:
             host_line(h, host_rows[h])
         if others:
-            host_line(TR("{n} other name(s)").format(n=len(others)), [sum(host_rows[h][i] for h in others) for i in range(Periods.N)])
+            host_line(TR("{n} other names").format(n=len(others)), [sum(host_rows[h][i] for h in others) for i in range(Periods.N)])
         if "" in host_rows:
             host_line(TR("(no Host field: older log lines)"), host_rows[""])
 
@@ -4555,7 +4555,7 @@ def show_summary():
     policies = {"site": logrotate_policy("nginx"), "catchall": logrotate_policy("nginx"), "fail2ban": logrotate_policy("fail2ban")}
     for key_value, src in sources.items():
         date_text = f"{src.oldest:%Y-%m-%d}" if src.oldest else "—"
-        info = f"{src.files} file(s)" if src.files else ""
+        info = f"{src.files} files" if src.files else ""
         pol = policies.get(key_value)
         if pol:
             freq = {"daily": "daily", "weekly": "weekly", "monthly": "monthly"}[pol[0]]
@@ -4591,7 +4591,7 @@ def show_summary():
 
     print()
     if unreadable:
-        print(f"{len(set(unreadable))} unreadable file(s) (run again as root): " + ", ".join(sorted(set(unreadable))[:4])
+        print(f"{len(set(unreadable))} unreadable files (run again as root): " + ", ".join(sorted(set(unreadable))[:4])
               + (" …" if len(set(unreadable)) > 4 else ""))
     if not sources["site"].files:
         print(f"No log read in {NGINX_DIR} — is this really the nginx + Odoo server?")
@@ -4610,7 +4610,7 @@ def show_summary():
 def install_timer(hours):
     service = f"""# Generated by web-monitor.py --install-timer — do not edit by hand.\n[Unit]\nDescription=Automatic nginx + Odoo monitoring (alert only if an action is needed)\nAfter=network-online.target\nWants=network-online.target\n\n[Service]\nType=oneshot\nExecStart={sys.executable} {os.path.realpath(__file__)}\nNice=10\nIOSchedulingClass=idle\nTimeoutStartSec=30min\n# Exit code 1 = "alert raised" (not a service failure): do not mark the unit as failed because of it.\nSuccessExitStatus=1\n"""
     calendar = "*-*-* *:05:00" if hours == 1 else f"*-*-* 00/{hours}:05:00"
-    timer = f"""# Generated by web-monitor.py --install-timer — do not edit by hand.\n[Unit]\nDescription=Runs web-monitor every {hours} hour(s)\n\n[Timer]\nOnCalendar={calendar}\n# Catches up a missed run (server off at the scheduled time).\nPersistent=true\nRandomizedDelaySec=120\n\n[Install]\nWantedBy=timers.target\n"""
+    timer = f"""# Generated by web-monitor.py --install-timer — do not edit by hand.\n[Unit]\nDescription=Runs web-monitor every {hours} hours\n\n[Timer]\nOnCalendar={calendar}\n# Catches up a missed run (server off at the scheduled time).\nPersistent=true\nRandomizedDelaySec=120\n\n[Install]\nWantedBy=timers.target\n"""
     os.makedirs(SYSTEMD_DIR, exist_ok=True)
     with open(os.path.join(SYSTEMD_DIR, f"{UNIT}.service"), "w") as f:
         f.write(service)
@@ -4621,7 +4621,7 @@ def install_timer(hours):
         if code != 0:
             print(f"ERROR: {' '.join(cmd)} failed: {out.strip()}", file=sys.stderr)
             return 1
-    print(f"Timer installed and active: {SYSTEMD_DIR}/{UNIT}.timer (every {hours} hour(s), at minute 5).")
+    print(f"Timer installed and active: {SYSTEMD_DIR}/{UNIT}.timer (every {hours} hours, at minute 5).")
     print(f"Next run: systemctl list-timers {UNIT}.timer; journal: journalctl -u {UNIT}.service")
     print("Remember to set SMTP_HOST and NOTIFY_EMAIL_TO in the app-health-check.py configuration to receive alerts by e-mail.")
     return 0
@@ -4641,7 +4641,7 @@ def uninstall_timer():
 
 def _age(seconds):
     seconds = int(seconds)
-    for unit, size in (("day(s)", 86400), ("h", 3600), ("min", 60)):
+    for unit, size in (("days", 86400), ("h", 3600), ("min", 60)):
         if seconds >= size:
             return f"{seconds // size} {unit} ago" if LANGUAGE == "en" else f"il y a {seconds // size} {unit}"
     return "just now"
@@ -4679,12 +4679,12 @@ def show_status():
                    "ExecMainStatus,Result"], timeout=20)[1].splitlines() if "=" in l)
         state = f"{active}, {'enabled at boot' if enabled_at_boot == 'enabled' else 'NOT enabled at boot'}"
         print(f"  State             : {state if active == 'active' else BAD + state + END_BAD}")
-        print(f"  Interval          : every {interval_h} hour(s) (at the 5th minute)")
+        print(f"  Interval          : every {interval_h} hours (at the 5th minute)")
         print(f"  Next run          : {fields.get('NextElapseUSecRealtime') or 'none (timer stopped)'}")
         print(f"  Last start        : {fields.get('LastTriggerUSec') or 'never'}")
         code_sortie = svc.get("ExecMainStatus", "")
         if code_sortie:
-            direction = {"0": "healthy", "1": "alert(s)", "2": "tool ERROR"}.get(code_sortie, "unexpected")
+            direction = {"0": "healthy", "1": "alerts", "2": "tool ERROR"}.get(code_sortie, "unexpected")
             print(f"  Last result       : code {code_sortie} ({direction})")
         if active != "active" or enabled_at_boot != "enabled":
             print("  To (re)enable it: systemctl enable --now web-monitor.timer")
@@ -4745,7 +4745,7 @@ def show_status():
     except OSError:
         reports = []
     if reports:
-        print(f"  {len(reports)} report(s) in {LOG_DIR} ({journal_days() or 'all'} days kept); latest: {os.path.join(LOG_DIR, reports[-1])}")
+        print(f"  {len(reports)} reports in {LOG_DIR} ({journal_days() or 'all'} days kept); latest: {os.path.join(LOG_DIR, reports[-1])}")
     else:
         print(f"  no report in {LOG_DIR}")
     print("  System journal: journalctl -t web-monitor -n 50")
@@ -4853,7 +4853,7 @@ class LocalizedArgumentParser(argparse.ArgumentParser):
         message = whole if whole != message and all(re.search(rf"(?<![\w-]){re.escape(o)}(?![\w-])", whole) for o in options) else \
             TR(re.sub(r"(?<![\w-])--[a-z][\w-]*", lambda m: literal(m.group(0)), message))
         if LANGUAGE == "fr":
-            message = re.sub(r"^unrecognized arguments: (.+)$", r"argument(s) non reconnu(s) : \1", message)
+            message = re.sub(r"^unrecognized arguments: (.+)$", r"arguments non reconnus : \1", message)
             message = re.sub(r"^argument (\S+): invalid int value: (.+)$", r"argument \1 : entier invalide : \2", message)
             message = message.replace("expected one argument", "une valeur est attendue")
         self.print_usage(sys.stderr)

@@ -20,7 +20,7 @@ import gzip
 import os
 import re
 
-__version__ = "1.2.20261022.231529"
+__version__ = "1.3.20261030.153422"
 DOSSIER_DEFAUT = "/var/log/nginx"
 ACCES_RE = re.compile(r'^(\S+) \S+ \S+ \[([^\]]+)\] "([^"]*)" (\d{3}) (\S+)')
 ERREUR_RE = re.compile(r'^(\d{4}/\d\d/\d\d \d\d:\d\d:\d\d) .*limiting (requests|connections)(?:, excess: ([\d.]+))? by zone "([^"]+)", client: (\S+),.*?request: "(\S+) (\S+)')
@@ -121,10 +121,10 @@ def recommandations(faits, zones_connues=None):
         res.append((f"pointe de {pointe} requêtes en une seconde : typique d'un chargement de page avec beaucoup de ressources ou de plusieurs personnes derrière la même adresse (université, entreprise)",
                     "ajouter l'adresse à la liste blanche (nginx-tools-white-list.conf) si c'est un lieu connu, ou augmenter burst (ex. burst=100 nodelay) pour la zone odoo_general"))
     if faits["effets"].get("action"):
-        res.append((f"{faits['effets']['action']} action(s) POST refusée(s) : un formulaire ou une inscription a pu être perdu",
+        res.append((f"{faits['effets']['action']} actions POST refusées : un formulaire ou une inscription a pu être perdu",
                     "ne jamais limiter les POST de formulaires de la même façon que les pages : zone séparée avec burst, ou exemption pour les adresses connues"))
     if faits["effets"].get("ressource", 0) >= 20:
-        res.append((f"{faits['effets']['ressource']} ressource(s) (JS, CSS, images) refusée(s) : page mal affichée chez la personne",
+        res.append((f"{faits['effets']['ressource']} ressources (JS, CSS, images) refusées : page mal affichée chez la personne",
                     "exclure /web/static/, /web/assets/ et /website/static/ de limit_req (location avec limit_req off ; ou cache navigateur : expires 7d)"))
     conn = sum(n for z, n in faits["zones"].items() if "(limit_conn)" in z)
     if conn:
@@ -143,7 +143,7 @@ def lignes(faits):
     if faits is None:
         return ["  Journaux nginx illisibles ou absents (root requis ? dossier " + DOSSIER_DEFAUT + ")."]
     n429, total = faits["codes"].get("429", 0), faits["requetes"]
-    res = [f"Limitation de débit (429) pour {faits['ip']} — {faits['files']} fichier(s) de journal lu(s)"]
+    res = [f"Limitation de débit (429) pour {faits['ip']} — {faits['files']} fichiers de journal lus"]
     if not total:
         return res + ["  Aucune requête de cette adresse dans les journaux lus."]
     res.append(f"  Requêtes : {total} (du {faits['premiere']:%Y-%m-%d %H:%M} au {faits['derniere']:%Y-%m-%d %H:%M}, heure locale) ; refusées en 429 : {n429} ({100 * n429 / total:.1f} %)")
@@ -152,7 +152,7 @@ def lignes(faits):
         res.append("  URL les plus refusées (refus / requêtes de cette adresse sur cette URL) :")
         res += [f"    {n:>5} / {faits['total_url'][u]:<5} {u}" for u, n in faits["par_url"].most_common(8)]
         if faits["zones"]:
-            res.append("  Zones limit_req (error.log) : " + ", ".join(f"{z} ×{n}" for z, n in faits["zones"].most_common()) + f" ; dépassement maximal vu : {faits['excess_max']:g} requête(s)")
+            res.append("  Zones limit_req (error.log) : " + ", ".join(f"{z} ×{n}" for z, n in faits["zones"].most_common()) + f" ; dépassement maximal vu : {faits['excess_max']:g} requêtes")
         pointe = faits["par_seconde"].most_common(1)
         if pointe:
             res.append(f"  Pointe : {pointe[0][1]} requêtes en une seconde ({pointe[0][0]}) ; jusqu'à {max(faits['limites_seconde'].values(), default=0)} refus en une seconde ; "

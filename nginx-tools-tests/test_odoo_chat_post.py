@@ -180,7 +180,7 @@ class Canaux(EnvTest):
         r = self.lancer("--create")
         self.assertEqual((len(self.faux.canaux), len(self.faux.messages)), (n, m))
         self.assertIn("déjà présent", r.stdout)
-        self.assertIn("0 canal(aux) / fil(s) créé(s)", r.stdout)
+        self.assertIn("0 canal(aux) / fils créés", r.stdout)
 
     def test_a_blanc_n_ecrit_rien(self):
         self.demarrer()
@@ -304,7 +304,7 @@ class Canaux(EnvTest):
         self.assertEqual((len(self.faux.canaux), len(self.faux.messages)), (n_canaux, n_messages))
         self.assertEqual({p for c, p in self.faux.membres}, {10, 11})
         self.assertEqual(len(self.faux.groupes), 1)                                  # group reused, not recreated
-        self.assertIn("membre(s) ajouté(s) à Odoo-Erreurs", r.stdout)
+        self.assertIn("membres ajoutés à Odoo-Erreurs", r.stdout)
         self.assertNotIn("ATTENTION", r.stdout)
 
     def test_acces_restreint_canal_existant_trop_ouvert_signale(self):
@@ -377,7 +377,7 @@ class Canaux(EnvTest):
         r = self.lancer("--create-bot")
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertEqual(self.faux.durees_demandees, [365])                           # un an
-        self.assertIn("valable 365 jour(s)", r.stdout)
+        self.assertIn("valable 365 jours", r.stdout)
         texte = self.conf()
         self.assertIn("API_KEY=CLE-SECRETE-DU-ROBOT", texte)
         self.assertIn("LOGIN=tux-bot", texte)
@@ -398,7 +398,7 @@ class Canaux(EnvTest):
         self.faux.duree_max = 90
         r = self.lancer("--create-bot")
         self.assertEqual(self.faux.durees_demandees, [365, 180, 90])
-        self.assertIn("valable 90 jour(s)", r.stdout)
+        self.assertIn("valable 90 jours", r.stdout)
         self.assertIn("durée maximale acceptée", r.stdout)
         self.assertIn("API_KEY=CLE-SECRETE-DU-ROBOT", self.conf())
 
