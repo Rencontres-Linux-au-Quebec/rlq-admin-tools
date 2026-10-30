@@ -1,4 +1,4 @@
-"""_logs_merge.py (apps/) and app-log-live.py --logs-nginx: nginx lines merged in time order, with the journal prefix of the application."""
+"""_logs_merge.py (apps/) and app-log-live.py --log-nginx: nginx lines merged in time order, with the journal prefix of the application."""
 import datetime
 import importlib.util
 import os
@@ -75,7 +75,7 @@ class LogsMergeTest(EnvTest):
         lignes = self.fusion("--no-follow", "--nginx", self.acces, "--", "cat", self.app)
         self.assertEqual(len(lignes), 1)
         self.assertRegex(lignes[0], PREFIXE_JOURNAL)
-        self.assertIn(" nginx: ", lignes[0])
+        self.assertIn(" http: ", lignes[0])
         # la date de la requête est dans le préfixe : elle n'est plus répétée dans le texte
         self.assertNotIn("[29/Oct/2026", lignes[0])
         self.assertIn('1.2.3.4 - - "GET /web HTTP/1.1" 200', lignes[0])
@@ -103,7 +103,7 @@ class LogsMergeTest(EnvTest):
         self.assertIn("/.env", lignes[1])
         debut = datetime.datetime(2026, 10, 29, 10, 0, 5, tzinfo=FUSEAU).timestamp()
         lignes = self.fusion("--no-follow", "--since", str(debut), "--nginx", self.acces, "--", "cat", self.app)
-        self.assertEqual([l for l in lignes if "nginx:" in l], [lignes[-1]])   # seule la ligne de 10:00:09 reste
+        self.assertEqual([l for l in lignes if "http:" in l], [lignes[-1]])   # seule la ligne de 10:00:09 reste
 
     def test_ligne_sans_horodatage_suit_son_flux(self):
         self.ecrire(self.app, [application("10:00:05", "Traceback (most recent call last):"),
@@ -119,7 +119,7 @@ class LogsMergeTest(EnvTest):
         self.assertIn(version, result.stdout)
 
     def test_app_log_live_construit_la_fusion(self):
-        """--logs-nginx : la commande du flux est celle du fusionneur (journalctl ou convertisseur après « -- »)."""
+        """--log-nginx : la commande du flux est celle du fusionneur (journalctl ou convertisseur après « -- »)."""
         spec = importlib.util.spec_from_file_location("live_logs", script_path("app-log-live.py"))
         module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(module)
@@ -128,7 +128,7 @@ class LogsMergeTest(EnvTest):
             open(os.path.join(nginx_dir, "site-error.log"), "w").close()
             module.NGINX_DIR = nginx_dir
             profil = {"APP_LOG_KIND": "journal", "ACCESS_LOGS": "*-access.log", "ERROR_LOGS": "*-error.log"}
-            args = type("A", (), {"lines": 20, "no_follow": True, "logs_nginx": True, "since_epoch": None,
+            args = type("A", (), {"lines": 20, "no_follow": True, "log_nginx": True, "since_epoch": None,
                                   "until_epoch": None, "grep": None, "grep_sensitive": False, "since": None, "until": None})()
             cmd = module.stream_command(args, profil, "odoo.service", None)
             self.assertIn(module.LOGS_MERGE, cmd)
@@ -137,8 +137,28 @@ class LogsMergeTest(EnvTest):
             self.assertEqual(cmd[cmd.index("--") + 1], "journalctl")
             self.assertEqual(sorted(os.path.basename(f) for f in cmd[cmd.index("--nginx") + 1:cmd.index("--")]),
                              ["site-access.log", "site-error.log"])
-            args.logs_nginx = False
+            args.log_nginx = False                              # la touche x : les lignes sont lues, elles ne sont pas forcément affichées
+            self.assertIn(module.LOGS_MERGE, module.stream_command(args, profil, "odoo.service", None))
+            module.NGINX_DIR = os.path.join(nginx_dir, "absent")
             self.assertEqual(module.stream_command(args, profil, "odoo.service", None)[0], "journalctl")
+
+    def test_alignement_pays_ip_nom_comme_odoo(self):
+        """Une ligne nginx et une ligne de requête d'Odoo : pays, adresse et nom tombent dans les mêmes colonnes (mode normal et --min)."""
+        spec = importlib.util.spec_from_file_location("live_align", script_path("app-log-live.py"))
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        ip = "11.191.124.32"
+        odoo = module.Line("2026-10-29T22:07:12.270000-0400 odoo18 odoo[1]: 2026-10-29 02:07:12,270 1 INFO base werkzeug: "
+                           + ip + ' - - [29/Oct/2026 02:07:12] "GET /web HTTP/1.1" 200 - 105 0.046 0.426')
+        nginx = module.Line('2026-10-29T22:07:12.000000-0400 odoo18 http: ' + ip + ' - - "GET /web HTTP/1.1" 200 10 "-" "Mozilla"')
+        renderings = {ip: ("srv.exemple.org", ["CA", ip], False, None)}
+        ansi = re.compile(r"\x1b\[[0-9;]*m")
+        for minimal in (False, True):
+            form = module.Formatting(minimal, module.COLUMN_WIDTH, 0.0)
+            lignes = [ansi.sub("", form.format_value(L, renderings)) for L in (odoo, nginx)]
+            positions = [(t.find("CA"), t.find(ip), t.find("srv.exemple.org")) for t in lignes]
+            self.assertEqual(positions[0], positions[1], lignes)                  # Odoo et nginx : mêmes colonnes
+            self.assertEqual(positions[0], (40, 43, 59 if minimal else 73), lignes)   # 1.116 : programme "http" de 4 caractères
 
 
 if __name__ == "__main__":

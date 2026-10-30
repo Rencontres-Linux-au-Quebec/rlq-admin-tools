@@ -319,6 +319,33 @@ Earlier history was archived outside this repository when this file was created.
 
 ## app-log-live.py
 
+### 1.116.20261029.225312 - nginx lines aligned with Odoo, key x, --log-nginx renamed, status bar without hidden-address text
+
+- Title: the nginx lines take the columns of the Odoo lines (country, address, name); the option is renamed --log-nginx; the key x shows or hides the nginx lines; the status bar no longer says that the addresses are hidden.
+- Reason: The nginx lines were not aligned with the Odoo lines: their address was not in the address column, so the country and the name moved. The status bar text "IP principales masquees (--show-ip)" was noise when the addresses are hidden. The option name had an extra "s" (--logs-nginx). An option to show the nginx lines was needed in the key menu.
+- Changes:
+  - Line.nginx_fields (new method): a nginx line (program "http") gets the level INFO, the database "nginx" and the logger "request" (13 characters, like "base werkzeug"). An error line gets the level of its [error] or [warn] tag and the logger "error". NGINX_ERROR_TAG_RE and NGINX_LEVELS (new constants).
+  - The nginx lines use the journal program name "http" (4 characters, like "odoo"; apps/_logs_merge.py JOURNAL_PROGRAM), so their header columns are the same as the Odoo lines. Formatting.format_value is unchanged for the Odoo lines. Formatting.hidden_logger: the logger "request" of nginx is hidden with --min, as "werkzeug". The header keeps the request fields of an nginx request as for an Odoo request.
+  - StatusBar.top_ips: returns nothing when the addresses are hidden (the text "top IP ... hidden (--show-ip)" is gone). StatusBar.summary adds the part only if it is not empty.
+  - Option --log-nginx (renamed from --logs-nginx) and key LOG_NGINX of the configuration file (SCHEMA_CONFIG). Function stream_command: on a journal application the nginx logs are always read with the application stream when they exist (so that key x can show them at any time); BigBlueButton is unchanged.
+  - Key x (MENU_KEYS "lognginx", new handler, new line in the key menu): shows or hides the nginx lines from the next line on. Hidden nginx lines are dropped in the consumer loop before any lookup or count (options "log_nginx" and "nginx_merged").
+  - Start message: "+ nginx logs, merged in time order" with --log-nginx, otherwise "nginx logs read, hidden (key x shows them)".
+  - Files touched: app-log-live.py, lang/app-log-live.fr.po (the --show-ip message removed, two messages added, LOG_NGINX in the list of configuration keys), doc/en/07-app-log-live.md and doc/fr/07-app-log-live.md (section rewritten), doc/en and doc/fr app-log-live.conf.example, nginx-tools-tests/test_logs_merge.py (alignment test added).
+- Bugs fixed:
+  - Symptom: a nginx line did not align with the Odoo lines (country and name shifted). Diagnosis: the nginx line had no level, so Formatting did not put its address in the address column; and the program name "nginx" is one character longer than "odoo", so the name was shifted by one column. Fix: nginx_fields, and the program name "http" (4 characters).
+  - Symptom: "IP principales masquees (--show-ip)" in the status bar. Diagnosis: top_ips always returned a text when the addresses were hidden. Fix: top_ips returns nothing.
+- Safeguards and edge cases:
+  - Lines read while the nginx lines were hidden are not shown when key x turns them on: the stream is not restarted.
+  - The request text of a nginx line does not line up with the GET of an Odoo request: Odoo shows a block of SQL and time numbers before the request, which nginx does not provide. Country, address and name are aligned.
+  - An error line keeps the level width compensation of Odoo (ERROR is one character wider than INFO).
+  - BigBlueButton (file journals): no merge and no gate; its nginx lines stay displayed.
+- Checks:
+  - py_compile OK; --version gives 1.116.20261029.225312 (dynamic).
+  - Rendering check with the real Formatting: the country, the address and the name of an nginx request and of an Odoo request fall in the same columns (normal mode and --min).
+  - nginx-tools-tests/test_logs_merge.py: 9 tests OK (including the alignment test).
+  - Other suites: see the pull request.
+- Action required: none. Optional: LOG_NGINX=yes in /etc/default/app-log-live.conf to show the nginx lines by default. Users of --logs-nginx (1.115): replace it with --log-nginx.
+
 ### 1.115.20261029.215532 - nginx logs merged with the application stream (--logs-nginx)
 
 - Title: `--logs-nginx` adds the access and error logs of the site to the application stream, in time order, with the same date and time prefix.
@@ -2946,6 +2973,21 @@ Earlier history was archived outside this repository when this file was created.
 ### 1.3.20261020.211944 - Current version. Earlier history archived outside the repository.
 
 ## apps/_logs_merge.py
+
+### 1.1.20261029.230225 - nginx program name "http" (4 characters) so the columns line up with Odoo
+
+- Title: the nginx lines of the merged stream carry the program name "http" instead of "nginx".
+- Reason: "nginx" is one character longer than "odoo", so the nginx lines were shifted by one column against the Odoo lines in app-log-live.py --log-nginx. Renaming the program to 4 characters keeps the Odoo lines unchanged.
+- Changes:
+  - JOURNAL_PROGRAM = "http": the prefix of each nginx line is "<time> <host> http: ".
+  - Comment of the header and of the option help updated for --log-nginx.
+- Bugs fixed:
+  - Symptom: the country, the address and the name of nginx lines were one column to the left of those of the Odoo lines. Diagnosis: the program field "nginx" has 5 characters, "odoo" has 4. Fix: program "http".
+- Safeguards and edge cases:
+  - The journal format of the prefix is unchanged (same date, offset, host and colon); only the program word changes.
+- Checks:
+  - nginx-tools-tests/test_logs_merge.py: 9 tests OK (the prefix test expects " http: ").
+- Action required: none.
 
 ### 1.0.20261029.215532 - Merge of several log streams in time order
 
