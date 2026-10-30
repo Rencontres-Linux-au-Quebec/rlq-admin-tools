@@ -2409,8 +2409,8 @@ msgstr " test(s) on the public names: all answer 404 (paths: "
 msgid " test(s) sur "
 msgstr " test(s) on "
 
-msgid " ne répondent pas 404 : le bloc server qui répond à ces noms n'applique pas la règle. Voir : nginx "
-msgstr " do not answer 404: the server block answering these names does not apply the rule. See: nginx "
+msgid "\" ne répondent pas 404 : le bloc server qui répond à ces noms n'applique pas la règle. Voir : nginx "
+msgstr "\" do not answer 404: the server block answering these names does not apply the rule. See: nginx "
 
 msgid "  URI refusées actuellement : "
 msgstr "  Refused URIs currently: "
