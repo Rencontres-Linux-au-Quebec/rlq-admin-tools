@@ -158,7 +158,12 @@ class LogsMergeTest(EnvTest):
             lignes = [ansi.sub("", form.format_value(L, renderings)) for L in (odoo, nginx)]
             positions = [(t.find("CA"), t.find(ip), t.find("srv.exemple.org")) for t in lignes]
             self.assertEqual(positions[0], positions[1], lignes)                  # Odoo et nginx : mêmes colonnes
-            self.assertEqual(positions[0], (40, 43, 59 if minimal else 73), lignes)   # 1.116 : programme "http" de 4 caractères
+            self.assertEqual(positions[0], (44, 47, 63 if minimal else 77), lignes)   # 1.117 : niveau sur 8 caractères, programme "http" de 4
+            codes = [(t.find("HTTP/1.1"), t.find('"GET')) for t in lignes]          # 1.117 : code HTTP et requête à la même colonne
+            self.assertEqual(codes[0], codes[1], lignes)
+            fin_odoo = lignes[0].find("-", lignes[0].find("200"))                  # le « - » (taille) d'Odoo
+            fin_nginx = lignes[1].find("10", lignes[1].find("200")) + len("10") - 1  # le dernier chiffre de la taille nginx
+            self.assertEqual(fin_nginx, fin_odoo, lignes)
 
 
 if __name__ == "__main__":

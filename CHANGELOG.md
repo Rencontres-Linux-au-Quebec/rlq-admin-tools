@@ -319,6 +319,28 @@ Earlier history was archived outside this repository when this file was created.
 
 ## app-log-live.py
 
+### 1.117.20261029.233250 - nginx requests aligned on the status, the size and the request of Odoo lines
+
+- Title: the status code, the size and the request of nginx access lines are in the same columns as those of the Odoo request lines; the level is right-aligned on 8 characters for every line (option A chosen by the user).
+- Reason: the user pasted nginx and Odoo lines of the same request: the country and the name were aligned, but the HTTP code, the size and the request were not, and the ERROR and CRITICAL lines shifted the country by 1 and 3 columns. The user asked that everything be aligned, with option A (the level in a fixed 8-character field, which moves the Odoo lines too).
+- Changes:
+  - Formatting.format_value: the level is right-aligned on 8 characters (LEVEL_WIDTH, new constant): INFO, ERROR and CRITICAL keep the country, the address and the name in the same columns. The width compensation after the address is removed (it was the cause of the shift).
+  - NGINX_REQUEST_RE (new regex) and Formatting.aligned_nginx_request (new method): an nginx access line gets the same block as an Odoo request, status and size first, then the request, then the referer, agent and host as text. The SQL and time columns stay empty (nginx does not log them).
+  - Formatting.aligned_request: the size column is SIZE_WIDTH (5 characters, new constant) instead of 4, so a size of 10 kB or more does not move the request; NUMBERS_BLOCK_WIDTH is 40 (was 39).
+  - nginx-tools-tests/test_logs_merge.py: the alignment test also checks the HTTP code, the request and the end of the size against the Odoo line.
+  - Files touched: app-log-live.py, nginx-tools-tests/test_logs_merge.py, CHANGELOG.md.
+- Bugs fixed:
+  - Symptom: "HTTP/1.1 200" and the request of an nginx line were not in the columns of the Odoo line (the nginx line stayed as plain text). Diagnosis: WERKZEUG_RE needs the Odoo tail (time, SQL count), which nginx does not have. Fix: NGINX_REQUEST_RE.
+  - Symptom: the country of ERROR lines was one column to the right and that of CRITICAL lines three columns to the right. Diagnosis: the compensation of the level width was applied after the address, so it moved the request but not the country. Fix: the level is right-aligned in a fixed field.
+- Safeguards and edge cases:
+  - A line that does not match NGINX_REQUEST_RE (other request forms, error lines) keeps its display.
+  - The Odoo lines move 4 columns to the right, as chosen by the user; the text of the Odoo messages that are not requests keeps its column (NUMBERS_BLOCK_WIDTH is adjusted).
+  - A size of 100 kB or more (6 digits) still pushes the request by one column: not seen in the logs of this site.
+  - nginx does not log the time of a request: to show it, add $request_time to the access log_format of nginx (not done by this program).
+- Checks:
+  - Rendering with the real Formatting on an Odoo request and on the nginx request of the same page: country at 44, address at 47, name at 77 (normal mode) or 63 (--min), HTTP code at 134 (120 with --min), request at 165 (151), size ending at the same column as the Odoo dash.
+  - nginx-tools-tests/test_logs_merge.py: 9 tests OK.
+
 ### 1.116.20261029.225312 - nginx lines aligned with Odoo, key x, --log-nginx renamed, status bar without hidden-address text
 
 - Title: the nginx lines take the columns of the Odoo lines (country, address, name); the option is renamed --log-nginx; the key x shows or hides the nginx lines; the status bar no longer says that the addresses are hidden.

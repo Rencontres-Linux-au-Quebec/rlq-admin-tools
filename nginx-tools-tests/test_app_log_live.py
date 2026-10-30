@@ -47,7 +47,7 @@ def ts(delta=0.0, fixe=None):
 
 def block(code="200", req="GET  /event", sql="105", t1="0.046", t2="0.426"):
     """Fin d'une ligne de werkzeug telle qu'elle est affichée : le bloc « HTTP/1.1 200 … » AVANT la requête."""
-    return f'HTTP/1.1 {code} {"-":>4} {sql:>4} {t1:>6} {t2:>6}  "{req}"'
+    return f'HTTP/1.1 {code} {"-":>5} {sql:>4} {t1:>6} {t2:>6}  "{req}"'
 
 
 def odoo(level, database, logger, text, delta=0.0, fixe=None):
@@ -260,7 +260,7 @@ class AppLogLive(EnvTest):
         fixe = datetime.datetime(2026, 10, 2, 10, 7, 18, 326421, FUSEAU)
         self.journal([werkzeug(PERSONNE, fixe=fixe)])
         rc, out, err = self.lancer("--no-presence")
-        self.assertEqual(out.strip(), '2026-10-02 10:07:18.33 odoo18 odoo INFO ' + column(PERSONNE)
+        self.assertEqual(out.strip(), '2026-10-02 10:07:18.33 odoo18 odoo     INFO ' + column(PERSONNE)
                                       + 'base werkzeug ' + 'Étienne Dupont'.ljust(45) + ' ' + block())       # name on 45 characters
         for doublon in ("14:07:18", "02/Oct/2026", "502385", "[]"):
             self.assertNotIn(doublon, out)
@@ -268,7 +268,7 @@ class AppLogLive(EnvTest):
         self.journal([werkzeug(PERSONNE, fixe=datetime.datetime(2026, 10, 2, 10, 7, 18, 996400, FUSEAU)),
                       f"{ts(fixe=fixe)} odoo18 systemd[1]: Started erplibre.service - ERPLibre."])
         out = self.lancer("--no-presence")[1]
-        self.assertTrue(out.startswith("2026-10-02 10:07:19.00 odoo18 odoo INFO"), out)
+        self.assertTrue(out.startswith("2026-10-02 10:07:19.00 odoo18 odoo     INFO"), out)
         self.assertIn("2026-10-02 10:07:18.33 odoo18 systemd: Started erplibre.service - ERPLibre.", out)
 
     def test_min_sans_base_ni_werkzeug_et_sans_le_bruit_de_fetchmail(self):
@@ -281,7 +281,7 @@ class AppLogLive(EnvTest):
                       odoo("INFO", "base", "odoo.addons.base.models.ir_cron", "Job 'Autovacuum' (3) starting", fixe=fixe)])
         out = self.lancer("--min", "--show-ip", "--no-presence")[1]
         lines = out.splitlines()
-        self.assertEqual(lines[0], '2026-10-02 10:07:18.33 odoo18 odoo INFO ' + column(PERSONNE)
+        self.assertEqual(lines[0], '2026-10-02 10:07:18.33 odoo18 odoo     INFO ' + column(PERSONNE)
                                     + 'Étienne Dupont'.ljust(45) + ' ' + block())
         self.assertNotIn("werkzeug", out)
         self.assertNotIn("Fetching mail", out)                                                    # INFO noise discarded
@@ -339,10 +339,10 @@ class AppLogLive(EnvTest):
         self.journal(flux)
         text, _ = self.run_pty(["python3", self.prog, "--no-follow", "--no-history", "--no-isp", "--no-presence"], [], keep_ansi=True)
         orange = r"\x1b\[(?:33|38;5;208)m"
-        self.assertIn('\x1b[32m200\x1b[0m    -  105', text)                              # 200 : vert
-        self.assertIn('\x1b[36m303\x1b[0m    -  105', text)                              # 3xx : cyan
-        self.assertIn('\x1b[31m404\x1b[0m    -  105', text)                              # 404 : rouge
-        self.assertIn('\x1b[1;31m500\x1b[0m    -  105', text)                            # 5xx : rouge gras
+        self.assertIn('\x1b[32m200\x1b[0m     -  105', text)                              # 200 : vert
+        self.assertIn('\x1b[36m303\x1b[0m     -  105', text)                              # 3xx : cyan
+        self.assertIn('\x1b[31m404\x1b[0m     -  105', text)                              # 404 : rouge
+        self.assertIn('\x1b[1;31m500\x1b[0m     -  105', text)                            # 5xx : rouge gras
         self.assertIn("\x1b[1;37;44m/web/login\x1b[0m", text)                       # page de connexion
         self.assertIn("\x1b[1;37;44m/web/session/logout\x1b[0m", text)
         self.assertIn("\x1b[1;31mERROR\x1b[0m", text)                                # niveau
@@ -1024,7 +1024,7 @@ class AppLogLive(EnvTest):
         self.journal([werkzeug(DNS, "/wp-login.php", 500), werkzeug(self.equipe_ip, "/x", 404)])
         rc, out, err = self.lancer("--no-presence")
         self.assertNotIn("\x1b[", out + err, "dans un tube : aucune séquence, mais le même texte")
-        self.assertIn('HTTP/1.1 500    -  105  0.046  0.426  "GET  /wp-login.php"', out)
+        self.assertIn('HTTP/1.1 500     -  105  0.046  0.426  "GET  /wp-login.php"', out)
         self.assertNotIn("Vidéo inverse", err)
 
     def test_presentation_compacte_sans_deux_points_crochets_ni_tirets(self):
@@ -1035,9 +1035,9 @@ class AppLogLive(EnvTest):
         rc, out, err = self.lancer("--no-presence")
         l = out.splitlines()
         horloge = r"\d{4}-\d\d-\d\d \d\d:\d\d:\d\d\.\d\d "
-        self.assertRegex(l[0], "^" + horloge + "odoo18 odoo INFO " + re.escape(f"US {DNS}".ljust(18)) + " base werkzeug " + re.escape("srv.exemple.org".ljust(45))
+        self.assertRegex(l[0], "^" + horloge + "odoo18 odoo     INFO " + re.escape(f"US {DNS}".ljust(18)) + " base werkzeug " + re.escape("srv.exemple.org".ljust(45))
                          + " " + re.escape(block()) + "$")
-        self.assertRegex(l[1], "^" + horloge + "odoo18 odoo INFO " + " " * 18 + " base odoo\\.addons\\.base\\.models\\.ir_cron\\s+Job 'Mail' \\(9\\) starting$")
+        self.assertRegex(l[1], "^" + horloge + "odoo18 odoo     INFO " + " " * 18 + " base odoo\\.addons\\.base\\.models\\.ir_cron\\s+Job 'Mail' \\(9\\) starting$")
         for text_line in l:
             self.assertNotIn(" - - ", T(text_line))                                           # identity and user: always "-"
             self.assertNotIn("odoo:", T(text_line))                                           # ":" after the program
@@ -1116,7 +1116,7 @@ class AppLogLive(EnvTest):
         l = out.splitlines()
         self.assertNotIn(f"[{utc:%Y-%m-%d}", T(l[0]))
         self.assertIn(f"[{autre:%Y-%m-%d %H:%M:%S}]", T(l[1]))                                   # another instant: kept
-        self.assertRegex(T(l[0]), r'base longpolling srv\.exemple\.org {28}HTTP/1\.1 101  494 {13}14\.602  "GET  /websocket\?version=18\.0-7"$')
+        self.assertRegex(T(l[0]), r'base longpolling srv\.exemple\.org {28}HTTP/1\.1 101   494 {13}14\.602  "GET  /websocket\?version=18\.0-7"$')
         self.assertEqual(l[0].index('"GET'), l[2].index('"GET'), "le GET du websocket est aligné sur celui des autres lignes")
         m = self.lancer("--no-presence", "--no-isp", "--min")[1].splitlines()                 # 2.40 --min: neither "werkzeug" nor "longpolling" (a REQUEST): names aligned
         self.assertNotIn("longpolling", m[0])

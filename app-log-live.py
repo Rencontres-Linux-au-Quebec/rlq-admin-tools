@@ -114,7 +114,7 @@ from urllib.parse import unquote
 from collections import Counter, OrderedDict
 from concurrent.futures import Future
 
-__version__ = "1.116.20261029.225312"
+__version__ = "1.117.20261029.233250"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
@@ -328,6 +328,8 @@ STYLES = {"person": "1;32", "team": "1;32", "place": "1;36", "server": "36", "dn
 DURATION_RE = re.compile(r'"\s\d{3}\s\S+\s(\d+)\s(\d+\.\d+)\s(\d+\.\d+)\s*$')
 # Same line: the size (bytes or "-") and the number of SQL queries, to color them when they are high
 # Whole werkzeug request: '"GET /url HTTP/1.1" 200 - 13 0.006 0.066' - the block "HTTP/1.1 200 - 13 0.006 0.066" is displayed BEFORE "GET /url" (aligned columns)
+# 1.117: nginx access line (no SQL or time columns): the request, the status and the size, then the referer, agent and host that stay as text
+NGINX_REQUEST_RE = re.compile(r'"((?:GET|POST|HEAD|PUT|DELETE|OPTIONS|PATCH|CONNECT|TRACE)\s.*?) (HTTP/\d(?:\.\d)?)"\s(\d{3})\s(\S+)')
 WERKZEUG_RE = re.compile(r'"((?:GET|POST|HEAD|PUT|DELETE|OPTIONS|PATCH|CONNECT|TRACE)\s.*?) (HTTP/\d(?:\.\d)?)"\s(\d{3})\s(\S+)(?:\s(\d+)\s(\d+\.\d+))?\s(\d+\.\d+)\s*$')
 SQL_SIZE_RE = re.compile(r'"\s\d{3}\s(\S+)\s(\d+)\s\d+\.\d+\s\d+\.\d+\s*$')
 
@@ -1519,7 +1521,9 @@ class Resolver:
             future.set_result(pays)
 
 
-NUMBERS_BLOCK_WIDTH = 39   # "HTTP/1.1 200    -   21  0.011  0.054  ": from the start of the numbers block to the "GET / POST" (see aligned_request)
+LEVEL_WIDTH = 8             # 1.117: the level is right-aligned on this width (CRITICAL is the longest): the country starts at the same column for every level
+SIZE_WIDTH = 5              # 1.117: width of the size column ("-" for Odoo, "15203" for a nginx response of 10 kB or more)
+NUMBERS_BLOCK_WIDTH = 40   # "HTTP/1.1 200    -    21  0.011  0.054  ": from the start of the numbers block to the "GET / POST" (see aligned_request)
 COLUMN_WIDTH = 18        # "CC xxx.xxx.xxx.xxx": country code, space, longest IPv4 address (without brackets or comma)
 
 
@@ -1727,6 +1731,29 @@ class Formatting:
                 position = f
         return "".join(chunks) + raw(text[position:end])
 
+    def aligned_nginx_request(self, text, retained):
+        """1.117: nginx access line: "\"GET /url HTTP/1.1\" 200 15203 \"-\" \"agent\" host=..." becomes "HTTP/1.1 200 15203      \"GET /url\" \"-\" \"agent\" host=...":
+        the status and the size are in the same columns as the status and the size of an Odoo request line. nginx gives no SQL or time
+        columns: they stay empty, so the Odoo times are not repeated. Other line form: None (display unchanged)."""
+        m = NGINX_REQUEST_RE.search(text)
+        if not m:
+            return None
+        ouvrir = m.start()
+        http, code, size = m.group(2), m.group(3), m.group(4)
+
+        def token(group, value, width):
+            rendering = value
+            for d, f, r in retained:
+                if (d, f) == (m.start(group), m.end(group)):
+                    rendering = r
+            return " " * max(0, width - len(value)) + rendering
+        block = " ".join([http.ljust(8), token(3, code, 3), token(4, size, SIZE_WIDTH), " " * 4, " " * 6, " " * 6])
+        request_data = self.colored_text(text, retained, ouvrir, m.end(1)) + '"'
+        before = self.colored_text(text, retained, 0, ouvrir)
+        if not ANSI_RE.sub("", before).endswith(" "):
+            before += " "
+        return before + block + "  " + request_data + self.colored_text(text, retained, m.end(4), len(text))
+
     def aligned_request(self, text, retained):
         """Werkzeug line: "… \"GET /url HTTP/1.1\" 200 - 13 0.006 0.066" becomes "… HTTP/1.1 200       - 13 0.006 0.066  \"GET /url\"": the block of numbers, of fixed width,
         goes BEFORE the request (columns aligned from one line to the next). Other line form: None (display unchanged)."""
@@ -1747,7 +1774,7 @@ class Formatting:
                     rendering = color_code(style, value)
             empty = " " * max(0, width - len(shown or value))
             return empty + rendering if right else rendering + empty
-        start = [http.ljust(8), token(3, code, 3), token(4, size, 4)]
+        start = [http.ljust(8), token(3, code, 3), token(4, size, SIZE_WIDTH)]
         if sql:
             block = " ".join(start + [token(5, sql, 4), token(6, t_sql, 6), token(7, t_py, 6)])
         else:                                                   # websocket: only the duration, right-aligned on the width of the three columns SQL / SQL time / Python time
@@ -1789,7 +1816,9 @@ class Formatting:
             body = color_code(STYLES["warning"], raw(L.text))
         else:
             retained = self.spans(L, renderings, benign)
-            body = self.aligned_request(L.text, retained) or self.colored_text(L.text, retained, 0, len(L.text))
+            body = (self.aligned_request(L.text, retained)
+                    or (self.aligned_nginx_request(L.text, retained) if L.database == "nginx" and L.logger == "request" else None)
+                    or self.colored_text(L.text, retained, 0, len(L.text)))
             if benign:
                 body += color_code(STYLES["debug"], " (concurrent update conflict: Odoo retries automatically)")
             total = request_duration(L.text)
@@ -1805,15 +1834,15 @@ class Formatting:
                 colored = crochets(renderings[ip0][1], ip0, renderings[ip0][3], surrounded=False)
                 if renderings[ip0][1][0] == ip0:                        # 1.91: no country (loopback, private network, lookup too slow): the address stays
                     visible, colored = "   " + visible, "   " + colored  # under the addresses of the other lines ("CA 11.191.124.32")
-            # Level longer than INFO (WARNING, ERROR...): the difference is taken from the padding of the address column, so that everything stays aligned
-            column = colored + " " * max(0, self.width - len(visible) - max(0, len(L.level) - 4))
+            column = colored + " " * max(0, self.width - len(visible))                 # 1.117: the level has a fixed width (LEVEL_WIDTH), nothing to take back here
         header = []
         if L.ts_txt:
             header.append(L.ts_txt)
             header.append(" ".join(x for x in (L.host_name, L.program_name) if x) + ("" if L.level else ":"))          # structured Odoo line: "odoo18 odoo INFO", without ":" (1.112: without host with --no-hostname)
         if L.level:
-            header.append({"ERROR": color_code(STYLES["warning"] if benign else STYLES["error"], L.level), "CRITICAL": color_code(STYLES["error"], L.level),
-                           "WARNING": color_code(STYLES["warning"], L.level), "DEBUG": color_code(STYLES["debug"], L.level)}.get(L.level, L.level))
+            level_text = {"ERROR": color_code(STYLES["warning"] if benign else STYLES["error"], L.level), "CRITICAL": color_code(STYLES["error"], L.level),
+                          "WARNING": color_code(STYLES["warning"], L.level), "DEBUG": color_code(STYLES["debug"], L.level)}.get(L.level, L.level)
+            header.append(" " * max(0, LEVEL_WIDTH - len(L.level)) + level_text)                  # 1.117: right-aligned, same column for INFO, ERROR and CRITICAL
             if column:
                 header.append(column)
             field_list = ([] if self.minimal else [L.database]) + ([] if self.hidden_logger(L) else [L.logger])
