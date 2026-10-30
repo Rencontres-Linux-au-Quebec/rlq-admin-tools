@@ -2201,17 +2201,26 @@ Earlier history was archived outside this repository when this file was created.
 
 ## nginx-log-audit.sh
 
-### 2.61.20261028.222437 - Catalogue entries for the --ban-sqli messages (English)
+### 2.63.20261029.210000 - --compare: the last 24 hours against the 24 hours before, written to a file
 
-- Title: English catalogue entries for the --ban-sqli messages.
-- Reason: The catalogue test (test_i18n) reported the --ban-sqli messages, added without catalogue entries.
+- Title: a read-only comparison report, written to a file with mode 600, to see whether the traffic, the blocked requests or the errors grow compared with the day before.
+- Reason: the reports of this program describe what happened, not what changed. The administrator wants the comparison now, and sending it by e-mail later.
 - Changes:
-  - lang/nginx-log-audit.en.po: entries for the messages and the help line of --ban-sqli. The program code is unchanged.
-  - Files: lang/nginx-log-audit.en.po, CHANGELOG.md.
-- Bugs fixed: symptom: with --lang en, the --ban-sqli messages stayed in French. Diagnosis: no catalogue entries. Correction: entries added.
-- Safeguards and edge cases: no change in behaviour.
-- Checks: test_i18n (catalogues of the bash programs).
-- Action required: none.
+  - New option --compare [FILE] (help line in the list of options). Without FILE, the report goes to compare-ENV-YYYYmmdd-HHMMSS.txt in the state folder.
+  - compare_report: reads the access log through filter_last_hours (48 hours), leaves out our own programs (filtrer_nos_programmes), and counts two windows: the last 24 hours and the 24 hours before. Blocked = 403, 404, 405, 429, 444 (the list of --stats). Writes the total, the 4xx and 5xx errors, the blocked requests, the distinct addresses, the 10 most blocked paths and the 10 most blocked addresses, each with its count in the 24 hours before.
+  - Dispatch: right before the main report; --compare exits after writing the file. No lock is taken for it (read-only), like --stats.
+  - Files touched: nginx-log-audit.sh (version 2.63), nginx-tools-tests/test_nginx_log_audit.py (test_263_compare_24_heures_contre_24_precedentes), CHANGELOG.md.
+- Bugs fixed: none.
+- Safeguards and edge cases:
+  - The file and its temporary files are created with umask 077; the final file is mode 600 (it contains addresses).
+  - Writes go to a temporary file then move: an interrupted run leaves no half-written report.
+  - Lines outside the 48 hours are ignored; lines without a readable date are skipped.
+  - The windows are sliding: the 24 hours before are the 24 hours ending 24 hours ago, not a fixed reference.
+  - Times are read in the local time of the server, as the filter --last does: a log written in another time zone shifts the windows.
+- Checks:
+  - bash -n OK; --version displays the dynamic version.
+  - Unit test test_263_compare_24_heures_contre_24_precedentes (see the verdict of the testeur agent in the pull request).
+- Action required: none. Nothing is sent by e-mail in this version; the file can be sent later with the existing mail tools.
 
 ### 2.62.20261028.214122 - --menu: catalogue entries for the menu and its help line (English)
 
@@ -2223,6 +2232,18 @@ Earlier history was archived outside this repository when this file was created.
 - Bugs fixed: symptom: test_i18n failure on this program. Diagnosis: the catalogue had no entries for the new strings. Correction: entries added. The program code is unchanged.
 - Safeguards and edge cases: no change in behaviour; the French and English menus are unchanged.
 - Checks: test_i18n (catalogues of bash programs).
+- Action required: none.
+
+### 2.61.20261028.222437 - Catalogue entries for the --ban-sqli messages (English)
+
+- Title: English catalogue entries for the --ban-sqli messages.
+- Reason: The catalogue test (test_i18n) reported the --ban-sqli messages, added without catalogue entries.
+- Changes:
+  - lang/nginx-log-audit.en.po: entries for the messages and the help line of --ban-sqli. The program code is unchanged.
+  - Files: lang/nginx-log-audit.en.po, CHANGELOG.md.
+- Bugs fixed: symptom: with --lang en, the --ban-sqli messages stayed in French. Diagnosis: no catalogue entries. Correction: entries added.
+- Safeguards and edge cases: no change in behaviour.
+- Checks: test_i18n (catalogues of the bash programs).
 - Action required: none.
 
 ### 2.61.20261028.211449 - --menu: interactive menu of the usual operations

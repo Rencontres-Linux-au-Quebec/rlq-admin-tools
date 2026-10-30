@@ -32,6 +32,7 @@
 # Les voici, pour mémoire (« nginx-log-audit --help » donne le détail). Elles se donnent sur la ligne de commande, jamais dans ce fichier.
 #   --ban-history         journal des bannissements et levées manuels (date, heure, IP, justification, origine), lecture seule
 #   --changelog           affiche le journal des modifications
+#   --compare [FICHIER]   compare les 24 dernières heures aux 24 précédentes (codes, blocages, IP, chemins), écrit dans FICHIER (mode 600) ; lecture seule
 #   --details             avec --stats : détail de chaque indicateur
 #   --evidence IP         preuves pour ou contre le bannissement d'une IP et verdict, sans rien demander ni bannir (lecture seule)
 #   --export-bans [FILE]  exporter les bannissements manuels (sortie standard par défaut)
