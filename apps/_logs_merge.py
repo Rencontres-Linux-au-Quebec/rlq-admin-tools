@@ -6,7 +6,7 @@
 # License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
 # Full text: https://www.gnu.org/licenses/agpl-3.0.html
 # ========================================================================================================================
-# _logs_merge.py - merges several log streams into ONE stream, in time order (app-log-live.py --logs-nginx).
+# _logs_merge.py - merges several log streams into ONE stream, in time order (app-log-live.py --log-nginx).
 #
 # Usage:
 #   python3 _logs_merge.py [--grep REGEX] [--grep-sensitive] [--lines N] [--nginx FILE [FILE ...]] [--no-follow]
@@ -15,7 +15,7 @@
 # COMMAND (optional) is the application stream: "journalctl -o short-iso-precise ..." or the converter of the Odoo file
 # journal (apps/_odoo_journal.py). Its lines already begin with a systemd journal prefix: they are printed as they are.
 # Each nginx FILE is followed with "tail -n N" (and "-F" unless --no-follow). Its lines receive the SAME prefix, in local
-# time, "2026-10-29T21:52:03.000000-0400 host nginx: ", so that app-log-live.py reads them like the application lines:
+# time, "2026-10-29T21:52:03.000000-0400 host http: ", so that app-log-live.py reads them like the application lines:
 #   * access log: the "[29/Oct/2026:21:52:03 -0400]" of the request is removed (it is already in the prefix), as for the
 #     werkzeug lines of Odoo: "1.2.3.4 - - "GET /web HTTP/1.1" 200 ...";
 #   * error log: the date and time at the start of the line are removed (already in the prefix); the rest is kept.
@@ -42,10 +42,10 @@ import sys
 import threading
 import time
 
-__version__ = "1.0.20261029.215532"
+__version__ = "1.1.20261029.230225"
 
 WAIT_DEFAULT = float(os.environ.get("APP_LOG_MERGE_WAIT", "2"))         # seconds a silent stream is waited for, then "stalled"
-JOURNAL_PROGRAM = "nginx"                                              # program name of the nginx lines in the journal format
+JOURNAL_PROGRAM = "http"                                               # program name of the nginx lines in the journal format (4 characters, like "odoo")
 
 # Journal prefix of "journalctl -o short-iso-precise" and of apps/_odoo_journal.py: 2026-10-29T21:52:03.123456-0400 ...
 JOURNAL_TIME_RE = re.compile(r"^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})\.(\d+)([+-])(\d{2}):?(\d{2})")

@@ -3412,7 +3412,7 @@ class AppLogLive(EnvTest):
         cachee = live.StatusBar(show_ips=False)
         cachee.observe(attaque, None, 5.0, "11.1.1.1")
         self.assertNotIn("11.1.1.1", cachee.summary(), "adresse cachée sans --show-ip")
-        self.assertIn("(--show-ip)", cachee.summary())
+        self.assertNotIn("(--show-ip)", cachee.summary(), "1.116 : aucun texte sur les adresses masquees")
         self.assertFalse(bar.alerted, "pas d'alerte avant le passage au rouge")
         bar.alerted = True
         bar.reset()
