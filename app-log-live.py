@@ -114,7 +114,7 @@ from urllib.parse import unquote
 from collections import Counter, OrderedDict
 from concurrent.futures import Future
 
-__version__ = "1.120.20261030.104109"
+__version__ = "1.121.20261030.143010"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
@@ -331,6 +331,8 @@ DURATION_RE = re.compile(r'"\s\d{3}\s\S+\s(\d+)\s(\d+\.\d+)\s(\d+\.\d+)\s*$')
 # 1.117: nginx access line (no SQL or time columns): the request, the status and the size, then the referer, agent and host that stay as text
 NGINX_REQUEST_RE = re.compile(r'"((?:GET|POST|HEAD|PUT|DELETE|OPTIONS|PATCH|CONNECT|TRACE)\s.*?) (HTTP/\d(?:\.\d)?)"\s(\d{3})\s(\S+)')
 WERKZEUG_RE = re.compile(r'"((?:GET|POST|HEAD|PUT|DELETE|OPTIONS|PATCH|CONNECT|TRACE)\s.*?) (HTTP/\d(?:\.\d)?)"\s(\d{3})\s(\S+)(?:\s(\d+)\s(\d+\.\d+))?\s(\d+\.\d+)\s*$')
+PORT_RE = re.compile(r"\bport=(\d{1,5})\b")          # 1.121: $server_port of an nginx access line (log_format: port=$server_port)
+UPSTREAM_PORT_RE = re.compile(r"\bupstream=\S*?:(\d{1,5})\b")      # 1.121: port of the Odoo upstream (log_format: upstream=$upstream_addr)
 SQL_SIZE_RE = re.compile(r'"\s\d{3}\s(\S+)\s(\d+)\s\d+\.\d+\s\d+\.\d+\s*$')
 
 
@@ -1522,8 +1524,8 @@ class Resolver:
 
 
 LEVEL_WIDTH = 8             # 1.117: the level is right-aligned on this width (CRITICAL is the longest): the country starts at the same column for every level
-SIZE_WIDTH = 7              # 1.117/1.118: width of the size column ("-" for Odoo, up to 9 999 999 bytes for nginx)
-NUMBERS_BLOCK_WIDTH = 42   # "HTTP/1.1 200    -    21  0.011  0.054  ": from the start of the numbers block to the "GET / POST" (see aligned_request)
+SIZE_WIDTH = 4              # 1.121: width of the size column: at most 4 characters ("-" for Odoo; 9999, then 2.9k, 600k, 4.5M)
+NUMBERS_BLOCK_WIDTH = 40   # (1.121: 2 characters less than 42: the size column is narrower, the request keeps its column) # "HTTP/1.1 200    -    21  0.011  0.054  ": from the start of the numbers block to the "GET / POST" (see aligned_request)
 COLUMN_WIDTH = 18        # "CC xxx.xxx.xxx.xxx": country code, space, longest IPv4 address (without brackets or comma)
 
 
@@ -1747,7 +1749,7 @@ class Formatting:
                 if (d, f) == (m.start(group), m.end(group)):
                     rendering = r
             return " " * max(0, width - len(value)) + rendering
-        block = " ".join([http.ljust(8), token(3, code, 3), token(4, size, SIZE_WIDTH), " " * 4, " " * 6, " " * 6])
+        block = " ".join([http.ljust(8), token(3, code, 3), token(4, size_text(size), SIZE_WIDTH), " " * 4, " " * 6, " " * 6])
         request_data = self.colored_text(text, retained, ouvrir + 1, m.end(1))      # 1.119: no quotes; the request keeps the column of the Odoo request
         before = self.colored_text(text, retained, 0, ouvrir)
         if not ANSI_RE.sub("", before).endswith(" "):
@@ -1774,16 +1776,16 @@ class Formatting:
                     rendering = color_code(style, value)
             empty = " " * max(0, width - len(shown or value))
             return empty + rendering if right else rendering + empty
-        start = [http.ljust(8), token(3, code, 3), token(4, size, SIZE_WIDTH)]
+        start = [http.ljust(8), token(3, code, 3), token(4, size_text(size), SIZE_WIDTH)]
         if sql:
             block = " ".join(start + [token(5, sql, 4), token(6, t_sql, 6), token(7, t_py, 6)])
         else:                                                   # websocket: only the duration, right-aligned on the width of the three columns SQL / SQL time / Python time
             block = " ".join(start + [" " * 4, token(7, t_py, 13, shown=f"{float(t_py):.3f}")])      # 3 decimals like the other columns: the decimal points are aligned
-        request_data = self.colored_text(text, retained, ouvrir, m.end(1)) + '"'
+        request_data = self.colored_text(text, retained, ouvrir + 1, m.end(1))      # 1.121: no quotes, nothing put in their place
         before = self.colored_text(text, retained, 0, ouvrir)
         if not ANSI_RE.sub("", before).endswith(" "):          # name as wide as its column: never "this serverHTTP/1.1" stuck together, at least one space before HTTP
             before += " "
-        return before + block + "  " + request_data
+        return before + block + "   " + request_data
 
     def slowness_style(self, total):
         """Bold orange from the --slow threshold, bold red from 3 times the threshold; None under the threshold (or without a threshold)."""
@@ -2586,6 +2588,22 @@ def display_width(text):
     if text.isascii():
         return len(text)
     return sum(0 if unicodedata.combining(c) or unicodedata.category(c) in ("Mn", "Me", "Cf") else 2 if unicodedata.east_asian_width(c) in ("W", "F") else 1 for c in text)
+
+
+def size_text(value):
+    """1.121: the size of a line in at most 4 characters: "1234", then "2.9k", "600k", "4.5M" (decimal units: 1 k = 1 000 bytes); "-" unchanged."""
+    if not value.isdigit():
+        return value
+    n = int(value)
+    if n <= 9999:
+        return str(n)
+    for divisor, unit in ((1000, "k"), (1000000, "M"), (1000000000, "G")):
+        v = n / divisor
+        if round(v, 1) < 10:
+            return f"{round(v, 1):.1f}{unit}"
+        if round(v) < 1000:
+            return f"{round(v)}{unit}"
+    return f"{min(n // 1000000000, 999)}G"
 
 
 def terminal_rows():
@@ -4442,6 +4460,7 @@ class StatusBar:
 
     def reset(self):
         self.sql_max = self.odoo_err = 0                 # 1.120: most SQL queries of one request; Odoo ERROR and CRITICAL lines
+        self.ports = collections.Counter()               # 1.121: nginx requests per port (server port and Odoo upstream port)
         self.sqli = self.e4 = self.e5 = self.slow = 0
         self.slow_max = 0.0
         self.banned = set()
@@ -4456,6 +4475,11 @@ class StatusBar:
             self.sql_max = max(self.sql_max, int(werk.group(5)))           # 1.120: the most SQL queries of one request (its "transaction")
         if L.level in ("ERROR", "CRITICAL") and L.database != "nginx":
             self.odoo_err += 1                                              # 1.120: Odoo errors (nginx errors are not counted here)
+        if L.database == "nginx" and L.logger == "request":
+            for port_re in (PORT_RE, UPSTREAM_PORT_RE):                     # 1.121: each nginx request counted for its port(s)
+                found = port_re.search(L.text or "")
+                if found:
+                    self.ports[found.group(1)] += 1
         request = REQUEST_RE.search(L.text or "")
         if request:
             code = int(request.group(2))
@@ -4511,6 +4535,7 @@ class StatusBar:
                  TR("max SQL") + f" {self.sql_max}", TR("Odoo errors") + f" {self.odoo_err}"]
         if users is not None:
             parts.append(TR("Odoo users") + f" {users}")
+        parts.append(TR("per port") + " " + (" · ".join(f"{p}: {n}" for p, n in sorted(self.ports.items())) if self.ports else TR("no port data")))      # 1.121
         if ssh is not None:
             parts.append(TR("SSH") + f" {ssh}")
         top = self.top_ips()
@@ -5315,6 +5340,7 @@ def follow(cmd, people, resolver, options, output):
 
     def confirm_exit():
         """Ctrl-C: "Quit?" — No: the tracking resumes; Yes, or a second Ctrl-C during the question: stop and summary."""
+        write_out([status_line()])                          # 1.121: Ctrl-C shows the status bar before the question
         rep = ask("\nQuit " + os.path.basename(__file__) + " ? [y] yes  [N] no, continue  (Ctrl-C again = quit): ")
         if rep is None or rep.strip().lower() in ("o", "oui", "y", "yes"):
             raise KeyboardInterrupt
@@ -5712,6 +5738,7 @@ def follow(cmd, people, resolver, options, output):
         if key_value in ("g", "t"):
             title = [color_code(STYLES["title"], TR("Real-time dashboard of {app}").format(app=options.get("app_label", "application")))]      # 1.119
             write_out(["", *(title if key_value == "t" else []), *table_rows(delta=key_value == "t")])
+            write_out([status_line()])                      # 1.121: the bar is shown first, with the counters of the period just reported
             status.reset()                                  # 1.113: a detailed report starts a new period for the status bar
             write_out(["  " + TR("Status bar: counters reset (new period from now).")])
         elif key_value == "refresh":                        # 1.113: f key - last lines displayed again with the current options

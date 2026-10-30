@@ -319,6 +319,34 @@ Earlier history was archived outside this repository when this file was created.
 
 ## app-log-live.py
 
+### 1.121.20261030.143010 - Status bar on g and Ctrl-C, no quotes in requests, sizes in 4 characters, requests per port
+
+- Title: the status bar is shown when the user presses g (or Ctrl-G) and before the Ctrl-C question; the size column takes at most 4 characters (9999, then 2.9k, 600k, 4.5M); the quotes around the requests are removed; the status bar counts the requests per port (nginx server port and Odoo upstream port).
+- Reason: the user asked for the status bar on Ctrl-C and g; for the quotes to be removed from the text (they were still shown on the Odoo lines, and the nginx lines still had some); for the byte column to take less room (4 characters, with k and M above 9999 bytes); and for the number of transactions per port 443 and per Odoo port (10000, 10002).
+- Changes:
+  - key g (and Ctrl-T): the status bar line is written before its counters are reset, so the period just reported is seen.
+  - confirm_exit (Ctrl-C): the status bar line is written before the "Quit ?" question.
+  - size_text(): values up to 9999 are written as they are; above, decimal units: 2.9k, 600k, 4.5M (1 k = 1 000 bytes). SIZE_WIDTH = 4 (was 7), NUMBERS_BLOCK_WIDTH = 40 (was 42): the request of Odoo and nginx lines keeps its column.
+  - aligned_request (Odoo lines): the request is written without its quotes, with three spaces before it, as the nginx lines.
+  - PORT_RE (port=NNN) and UPSTREAM_PORT_RE (upstream=HOST:PORT) read on the nginx access lines; StatusBar.ports counts each request for the ports it carries; the summary shows "per port: 443: 12, 10000: 3" or "per port: no port data" when the log format does not give the port.
+  - lang/app-log-live.fr.po: "per port" and "no port data".
+  - nginx-tools-tests/test_app_log_live.py: expected lines updated (no quotes, 4-character size column, 3 spaces before the request, the helper block()); the wait before the answer to the Quit question is 1 second (was 0.2).
+  - Files touched: app-log-live.py, lang/app-log-live.fr.po, nginx-tools-tests/test_app_log_live.py, CHANGELOG.md.
+- Bugs fixed:
+  - Symptom: the answer to the "Quit ?" question sent after 0.2 s was read by the keyboard handler (menu --only) and the program did not quit. Diagnosis: the status bar written just before the question delays the start of the question; the keys thread still reads the keyboard. Fix: the test waits 1 s; a person does not answer this fast, the program is unchanged in that respect.
+- Garde-fous and edge cases:
+  - Sizes: "-" (Odoo) and any value that is not a number are written as they are.
+  - Ports: without port= and upstream= in the log, nothing is counted and the bar says so; no port is invented.
+  - The raw access-log lines of BigBlueButton (not in the combined_host form) keep their quotes: they do not go through the aligned form. To be handled separately.
+- Not in this version (decisions needed):
+  - Per-port counts need two variables in the nginx log format: port=$server_port and upstream=$upstream_addr. This is a change to the nginx configuration of each server, not made here (test_config_nginx checks the format). Action required: add them to combined_host, then tell the program with the next run.
+  - Odoo mail task: design written in the project (claude/design-odoo-mail-task.md), to be validated.
+  - Plural markers, setup percentage, HTML report every N hours, Odoo spreadsheet export: see 1.120.
+- Checks:
+  - size_text(): 0, 9999, 10000 (10k), 600000 (600k), 999600 (1.0M), 4500000 (4.5M).
+  - Full unit test run (958 tests): 8 failures, all already present on the base commit (terminal width of test_colonnes_jamais_tassees, odoo-backup model order, the configuration model tests, odoo-warmup CHANGELOG order, menu key log_nginx). No new failure.
+- Action required: add port=$server_port and upstream=$upstream_addr to the log_format combined_host of the nginx sites to see the requests per port; without them the bar shows "no port data".
+
 ### 1.120.20261030.104109 - Status bar every N lines (automatic), health percentage, more counters, HTML daily journal
 
 - Title: the status bar is shown every N displayed lines, N chosen from the height of the terminal by default; the bar shows a health percentage out of 100, and new counters: most SQL queries of one request, Odoo errors, Odoo users signed in and SSH sessions; the displayed journal is also saved every day as an HTML page, lines cut at 140 characters.

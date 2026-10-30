@@ -2819,3 +2819,9 @@ msgstr "utilisateurs Odoo"
 
 msgid "SSH"
 msgstr "SSH"
+
+msgid "per port"
+msgstr "par port"
+
+msgid "no port data"
+msgstr "aucune donnée par port"
