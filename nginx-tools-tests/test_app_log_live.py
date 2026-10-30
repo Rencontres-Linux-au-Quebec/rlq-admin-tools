@@ -206,7 +206,7 @@ class AppLogLive(EnvTest):
         self.assertTrue(all(DNS not in ANSI.sub("", l) and "IP-" in ANSI.sub("", l) for l in lignes), "\n".join(lignes))
         cinquieme = ANSI.sub("", lignes[9]).rstrip()
         self.assertLessEqual(len(cinquieme), 220, cinquieme)
-        self.assertIn(" ... ", cinquieme)
+        self.assertIn("...", cinquieme)
         self.assertTrue(cinquieme.endswith("journee\""), cinquieme)                                      # la fin de l'URL reste visible
         rc, out, err = self.lancer("--show-ip", "--no-history", "--no-isp", "--no-presence", "--no-banned")
         self.assertIn(longue, out)
@@ -3180,7 +3180,7 @@ class AppLogLive(EnvTest):
         visible = ANSI.sub("", court)
         self.assertLessEqual(live.display_width(visible), 160)
         self.assertTrue(visible.startswith("2026-10-20 09:05 INFO 11.85.88.10  base werkzeug Hélène Côté" + " " * 30 + "GET /e"), visible)
-        self.assertIn(" ... ", visible)
+        self.assertIn("...", visible)
         self.assertTrue(visible.endswith('/fin" [banned: CrowdSec]'), visible)
         self.assertIn("\x1b[31m[banned: CrowdSec]", court)                               # label color kept
         aere = "début" + " " * 80 + "suite et fin"
@@ -3211,7 +3211,7 @@ class AppLogLive(EnvTest):
         self.assertEqual(sum("equipe-" in v for v in visibles), 3, "\n".join(visibles))
         self.assertEqual(len({v.index("HTTP/1.1") for v in visibles[:4]}), 1, "\n".join(visibles))         # aligned columns, even the cut line
         self.assertEqual(visibles[1].index("127.0.0.1"), visibles[0].index("IP-"), "\n".join(visibles))    # l'adresse sans pays sous les autres
-        self.assertIn(" ... ", visibles[2])
+        self.assertIn("...", visibles[2])
         debut_message = [v.index("User #1") for v in visibles[4:]]
         self.assertEqual(debut_message, [visibles[0].index('"GET')], "\n".join(visibles))                 # Odoo message cut, logger not squeezed
         self.assertEqual([l.startswith("\x1b[4m") for l in lignes], [False, True, False, True, False])
@@ -3407,11 +3407,20 @@ class AppLogLive(EnvTest):
         self.assertFalse(live.SQLI_RE.search("/web/image/12/logo.png"), "URL normale ignorée")
         bar.observe(attaque, None, 5.0)
         self.assertEqual((bar.sqli, bar.e5), (1, 1))
-        self.assertEqual(bar.color(), "33", "une injection et une erreur 5xx : jaune")
-        for _ in range(2):
-            bar.observe(attaque, None, 5.0)
-        self.assertEqual(bar.color(), "31", "trois injections : rouge")
+        self.assertEqual(bar.color(), "37", "1.119 : une injection et une erreur 5xx ne changent pas la couleur (seules les connexions de plus de 9 s)")
+        lente = live.Line('2026-10-29T10:00:00.000000-0400 odoo[1]: 2026-10-29 14:00:00,000 1 INFO db werkzeug: 11.1.1.1 - - "GET /lent HTTP/1.1" 200 - 1 5.0 6.0')
+        bar.observe(lente, None, 5.0)
+        self.assertEqual(bar.color(), "32", "une connexion de plus de 9 s : vert")
+        for _ in range(4):
+            bar.observe(lente, None, 5.0)
+        self.assertEqual(bar.color(), "33", "cinq connexions de plus de 9 s : jaune")
+        for _ in range(15):
+            bar.observe(lente, None, 5.0)
+        self.assertEqual(bar.color(), "31", "vingt connexions de plus de 9 s : rouge")
+        rapide = live.Line('2026-10-29T10:00:00.000000-0400 odoo[1]: 2026-10-29 14:00:00,000 1 INFO db werkzeug: 11.1.1.1 - - "GET /vite HTTP/1.1" 200 - 1 0.1 8.0')
         bar.reset()
+        bar.observe(rapide, None, 5.0)
+        self.assertEqual(bar.color(), "37", "8 s : pas plus de 9 s, la barre ne change pas")
         self.assertEqual((bar.sqli, bar.e5, bar.slow), (0, 0, 0), "Ctrl-T ou g : bilan remis à zéro")
         self.assertIn("SQLi", bar.summary())
 
@@ -3423,8 +3432,8 @@ class AppLogLive(EnvTest):
         for _ in range(3):
             bar.observe(attaque, None, 5.0, "11.1.1.1")
         bar.observe(attaque, None, 5.0, "22.2.2.2")
-        self.assertIn("11.1.1.1 (3)", bar.summary(), "l'adresse la plus fautive est nommée avec son compte")
-        self.assertIn("22.2.2.2 (1)", bar.summary())
+        self.assertIn("11.1.1.1 ×3", bar.summary(), "l'adresse la plus fautive est nommée avec son compte")
+        self.assertIn("22.2.2.2 ×1", bar.summary())
         cachee = live.StatusBar(show_ips=False)
         cachee.observe(attaque, None, 5.0, "11.1.1.1")
         self.assertNotIn("11.1.1.1", cachee.summary(), "adresse cachée sans --show-ip")

@@ -2787,6 +2787,12 @@ msgstr "Barre d'état en vidéo inverse après toutes les N lignes affichées : 
 msgid "top IP"
 msgstr "IP principales"
 
+msgid "Real-time dashboard of {app}"
+msgstr "Tableau de bord en temps réel de {app}"
+
+msgid "[BANNED]"
+msgstr "[BANNIE]"
+
 msgid "Also the nginx logs of the site (access and error) in the same stream, in time order, with the same date and time prefix as the application (LOG_NGINX in the configuration file)"
 msgstr "Ajoute les journaux nginx du site (accès et erreurs) dans le même flux, dans l'ordre des heures, avec le même préfixe de date et d'heure que l'application (LOG_NGINX du fichier de configuration)"
 

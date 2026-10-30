@@ -159,11 +159,12 @@ class LogsMergeTest(EnvTest):
             positions = [(t.find("CA"), t.find(ip), t.find("srv.exemple.org")) for t in lignes]
             self.assertEqual(positions[0], positions[1], lignes)                  # Odoo et nginx : mêmes colonnes
             self.assertEqual(positions[0], (44, 47, 63 if minimal else 77), lignes)   # 1.117 : niveau sur 8 caractères, programme "http" de 4
-            codes = [(t.find("HTTP/1.1"), t.find('"GET')) for t in lignes]          # 1.117 : code HTTP et requête à la même colonne
+            codes = [(t.find("HTTP/1.1"), t.find("GET")) for t in lignes]          # 1.117 : code HTTP et requête à la même colonne
             self.assertEqual(codes[0], codes[1], lignes)
             fin_odoo = lignes[0].find("-", lignes[0].find("200"))                  # le « - » (taille) d'Odoo
             fin_nginx = lignes[1].find("10", lignes[1].find("200")) + len("10") - 1  # le dernier chiffre de la taille nginx
             self.assertEqual(fin_nginx, fin_odoo, lignes)
+            self.assertNotIn('"', lignes[1], lignes[1])                          # 1.119 : pas de guillemets dans une ligne nginx
 
 
 if __name__ == "__main__":
