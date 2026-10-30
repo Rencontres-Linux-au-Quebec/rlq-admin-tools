@@ -319,6 +319,38 @@ Earlier history was archived outside this repository when this file was created.
 
 ## app-log-live.py
 
+### 1.120.20261030.104109 - Status bar every N lines (automatic), health percentage, more counters, HTML daily journal
+
+- Title: the status bar is shown every N displayed lines, N chosen from the height of the terminal by default; the bar shows a health percentage out of 100, and new counters: most SQL queries of one request, Odoo errors, Odoo users signed in and SSH sessions; the displayed journal is also saved every day as an HTML page, lines cut at 140 characters.
+- Reason: the user asked for a status bar that is shown regularly whatever the terminal size, a health percentage that falls with attacks and is reset with Ctrl-T, more counters (maximum transactions, banned addresses, Odoo users, SSH, Odoo errors), and a copy of the display in HTML, one file per day, with lines cut at 140 characters.
+- Changes:
+  - --status-every: the default is now -1 = automatic, which means the terminal height minus 2 lines (at least 5). 0 still means never; any other number is taken as it is. Validation accepts -1 and above.
+  - terminal_rows(): height of the terminal ($LINES, then the terminal itself), 24 when unknown, at least 10.
+  - StatusBar.health(): 100 minus 3 points per SQL injection attempt, 2 per 5xx, 0.1 per 4xx, 2 per banned address and 1 per slow connection; never below 0. Reset by Ctrl-T and g with the other counters.
+  - StatusBar.observe: the most SQL queries of one request (group 5 of WERKZEUG_RE) and the Odoo ERROR and CRITICAL lines (nginx errors are not counted).
+  - StatusBar.summary(users, ssh): the health, the new counters, and the users and SSH sessions when the caller gives them (status_line() computes them: odoo_logged_in() and ssh_sessions()).
+  - Output: a copy of the daily journal in HTML, app-log-live-DATE.html in the same folder as the .log file (mode 600, file not followed when it is a link). ansi_to_html() turns the colours and the bold and underline styles into spans, html_line() cuts each line at HTML_LINE_WIDTH = 140 visible characters. The page is closed with its end tags when the day changes and at exit. purge() also removes the old HTML pages.
+  - --no-html-journal: no HTML copy. Not in the configuration file: this option can only be given on the command line for now.
+  - lang/app-log-live.fr.po: "lente(s)" becomes "lentes"; new entries for health, max SQL, Odoo errors, Odoo users and SSH.
+  - nginx-tools-tests/test_app_log_live.py: class AppLogLive120 (6 tests: HTML cut at 140 characters, escaping and colours, health and reset, new counters, one HTML file per day with its end, automatic interval).
+  - Files touched: app-log-live.py, lang/app-log-live.fr.po, nginx-tools-tests/test_app_log_live.py, CHANGELOG.md.
+- Bugs fixed:
+  - Symptom: the HTML page of the previous day was left without its end tags and its file kept open when the day changed. Diagnosis: _open() started the new page without closing the old one. Fix: close_html() is called first, in _open_html() and in close().
+  - Symptom: the French screen showed "app-santé-check.py" and "--santé MIN", and the settings test could not find options["health"]. Diagnosis: the translation replaces each msgid wherever it appears, so the msgid "health" changed the words of other texts. Fix: the msgid is "health state", which appears in no other text.
+- Not done in this version (to be decided with the user):
+  - The "(s)" plural markers still appear in the other messages of app-log-live.py and in the other programs (about 400 places); a single count-aware helper is proposed for the next step.
+  - Setup completion percentage, Odoo task to send e-mail without Postfix, HTML summary report every N hours, and export of statistics to the Odoo spreadsheet module: design needed first.
+- Safeguards and edge cases:
+  - Automatic status interval: a very small or unknown terminal gives at least 5 lines between two bars, never a division by zero.
+  - Health cannot go below 0; a huge number of attacks only gives 0 %.
+  - The max SQL count is a maximum since the last reset, not an average.
+  - HTML text is escaped; no external resource is loaded by the page.
+- Checks:
+  - Functional check of the HTML lines (140 characters, colours kept), of the health formula and reset, of the summary text, and of two HTML pages with their end tags.
+  - Unit tests: AppLogLive120, 6 tests, all pass.
+  - Full run (958 tests): the failures that remain are the same as on the base commit: the terminal width of test_colonnes_jamais_tassees, the configuration model tests (options --buffer, --country and others, BUFFER and STATUS_EVERY missing from the model; --no-html-journal joins them), odoo-backup model order, odoo-warmup.py CHANGELOG order, and the menu key log_nginx.
+- Action required: none.
+
 ### 1.119.20261030.074937 - Dashboard title, status bar colour from slow connections only, nginx lines without quotes and with [BANNIE]
 
 - Title: the program shows "Tableau de bord en temps réel de APP" (APP = Odoo or BigBlueButton, from APP_LABEL) at startup and with Ctrl-T.

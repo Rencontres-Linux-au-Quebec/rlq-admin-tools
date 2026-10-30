@@ -2569,9 +2569,9 @@ class AppLogLive(EnvTest):
         request_data("/event/jpo-1/registration/confirm", 500, 0.1, 0.2)
         request_data("/web/login", 200, 0.1, 0.1)                                  # hors surveillance
         lines = " ".join(" ".join(st.watch_lines()).split())
-        self.assertIn("Surveillance « registration » : 4 requête(s) · 1 erreur(s) · durée médiane 0.60 s · 95e centile 5.90 s · maximum 5.90 s · 1 lente(s) (≥ 3 s) · 2 inscription(s) confirmée(s)", T(lines))
+        self.assertIn("Surveillance « registration » : 4 requête(s) · 1 erreur(s) · durée médiane 0.60 s · 95e centile 5.90 s · maximum 5.90 s · 1 lentes (≥ 3 s) · 2 inscription(s) confirmée(s)", T(lines))
         health = " ".join(" ".join(st.health()[1]).split())
-        self.assertIn("Surveillance (registration) : 4 requête(s), 1 erreur(s), 1 lente(s)", T(health))
+        self.assertIn("Surveillance (registration) : 4 requête(s), 1 erreur(s), 1 lentes", T(health))
         before = st.snapshot()
         request_data("/event/jpo-1/registration/confirm", 303, 0.1, 0.1)
         period = st.since(before)
@@ -3443,3 +3443,68 @@ class AppLogLive(EnvTest):
         bar.reset()
         self.assertFalse(bar.alerted, "Ctrl-T ou g réarme l'alerte")
         self.assertEqual(bar.problems_by_ip, {}, "le palmarès repart à zéro")
+
+
+class AppLogLive120(unittest.TestCase):
+    """1.120: santé sur 100, compteurs de la barre d'état, copie HTML du journal (140 caractères par ligne), ligne de statut automatique."""
+
+    @classmethod
+    def setUpClass(cls):
+        spec = importlib.util.spec_from_file_location("live120", script_path("app-log-live.py"))
+        cls.m = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(cls.m)
+
+    def test_120_ligne_html_coupee_a_140_caracteres(self):
+        texte = "\x1b[33m" + "x" * 300
+        out = self.m.html_line(texte)
+        self.assertEqual(out.count("x"), 140)
+        self.assertIn('<span style="color:#c69026">', out)
+
+    def test_120_html_echappe_et_couleurs(self):
+        out = self.m.ansi_to_html("\x1b[1;31mERR\x1b[0m <a> \x1b[4mu\x1b[0m")
+        self.assertIn('<span style="font-weight:bold;color:#e5534b">ERR</span>', out)
+        self.assertIn("&lt;a&gt;", out)
+        self.assertIn("text-decoration:underline", out)
+
+    def test_120_sante_baisse_avec_les_attaques_et_se_reinitialise(self):
+        sb = self.m.StatusBar()
+        self.assertEqual(sb.health(), 100)
+        sb.sqli, sb.e5, sb.e4, sb.banned, sb.slow = 2, 1, 10, {"1.2.3.4"}, 3
+        self.assertEqual(sb.health(), 100 - (6 + 2 + 1 + 2 + 3))
+        sb.reset()
+        self.assertEqual((sb.health(), sb.sql_max, sb.odoo_err), (100, 0, 0))
+
+    def test_120_barre_d_etat_contient_les_nouveaux_compteurs(self):
+        sb = self.m.StatusBar()
+        sb.sql_max, sb.odoo_err = 7, 2
+        texte = sb.summary(users=3, ssh=1)
+        for morceau in (self.m.TR("health state") + " 100 %", self.m.TR("max SQL") + " 7", self.m.TR("Odoo errors") + " 2",
+                        self.m.TR("Odoo users") + " 3", self.m.TR("SSH") + " 1"):
+            self.assertIn(morceau, texte)
+
+    def test_120_journal_html_un_fichier_par_jour(self):
+        import tempfile
+        dossier = tempfile.mkdtemp()
+
+        class Ecran:
+            def write(self, texte):
+                pass
+
+        sortie = self.m.Output(Ecran(), folder=dossier, keep_days=30, screen_color=False)
+        sortie._open("2026-10-30")
+        sortie.active = True
+        sortie.write("bonjour <b>\n")
+        sortie._open("2026-10-31")
+        sortie.close()
+        with open(os.path.join(dossier, "app-log-live-2026-10-30.html"), encoding="utf-8") as f:
+            jour1 = f.read()
+        with open(os.path.join(dossier, "app-log-live-2026-10-31.html"), encoding="utf-8") as f:
+            jour2 = f.read()
+        self.assertIn("bonjour &lt;b&gt;", jour1)
+        self.assertTrue(jour1.rstrip().endswith("</html>"))
+        self.assertEqual(jour2.count("<!doctype html>"), 1)
+        self.assertTrue(jour2.rstrip().endswith("</html>"))
+
+    def test_120_lignes_de_statut_automatiques(self):
+        self.assertGreaterEqual(self.m.terminal_rows(), 10)
+        self.assertEqual(self.m.STATUS_EVERY_DEFAULT, -1)
