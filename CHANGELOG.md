@@ -349,6 +349,47 @@ Earlier history was archived outside this repository when this file was created.
 
 ## app-log-live.py
 
+### 1.127.20261031.133408 - Domain name shown as ".RLQ." (colour) in the names
+
+- Title: in the names of the lines, the domain ".rencontres-linux.quebec" is shown as ".RLQ." in colour, to save room on the line (for example "odoo18.RLQ." instead of "odoo18.rencontres-linux.quebec").
+- Reason: the user asked to save space on the display; the long domain takes many characters of each name.
+- Changes:
+  - app-log-live.py, render(): a name that ends with ".rencontres-linux.quebec" (case ignored) is shown with ".RLQ." instead, the tag in the colour of the places (STYLES["place"]); the cut of --dns-max-truncate is applied on the shorter text. Constants RLQ_DOMAIN_SUFFIX and RLQ_TAG.
+  - app-log-live.py, consumer: state "consumed" (set when a line is really processed), used by the startup bar (see 1.126).
+  - nginx-tools-tests/test_app_log_live.py: test_nom_du_domaine_rlq_affiche_en_tag_RLQ (the tag is in colour; other names are unchanged).
+  - Files touched: app-log-live.py, CHANGELOG.md, nginx-tools-tests/test_app_log_live.py.
+- Bugs fixed: none in this version (the startup bar fix is described in 1.126).
+- Safeguards and edge cases:
+  - The bare domain "rencontres-linux.quebec" (without a subdomain) is not changed: the match needs the leading dot.
+  - Only the names are changed; the text of the Odoo messages and the addresses are not.
+  - Without colour (output redirected) the tag stays ".RLQ.".
+- Checks performed:
+  - python3 -m py_compile on app-log-live.py and the test file.
+  - Test modules test_app_log_live and the others, with the testeur agent.
+- Action required: none.
+
+### 1.126.20261031.132627 - Status bar at startup: after all the history lines, with date and host
+
+- Title: the status bar shown at startup comes after ALL the history lines, and its first display carries the date and the host name (with --status-header).
+- Reason: the user saw the first status bar before the last history lines, and without the date and the server name; the following bars were correct.
+- Changes:
+  - app-log-live.py, startup_status_bar(): new function, called from the idle branch of the consumer (queue empty for one second) and at the end of the stream. The bar is written once, when at least one line was read, and no line is held by --log-merge.
+  - show_summary(): the bar is no longer written there (it was written when the N-th line was counted, before the last history lines).
+  - Files touched: app-log-live.py, CHANGELOG.md, nginx-tools-tests/test_app_log_live.py.
+- Bugs fixed:
+  - Symptom: the bar appeared in the middle of the history, before the last lines. Diagnosis: the bar was written when read_files (lines counted after the filters) reached --lines; the lines after it (deferred failed requests, lines held by --log-merge) were printed later. Fix: the bar waits for the queue to be empty.
+  - Symptom: the first bar had no date and no host with --status-header. Diagnosis: the reader counts a line BEFORE queuing it, so the idle test "a line was read" was true while the queue was still empty: the bar was written before any history line had set the stamp. Fix: the test uses the lines really processed by the consumer (state "consumed"), so the stamp of the last displayed line is known.
+- Safeguards and edge cases:
+  - A history shorter than --lines (the journal has fewer lines) also gets its bar: the first idle moment ends the history.
+  - A history line held by --log-merge or deferred (failed request) delays the bar until it is displayed.
+  - --status-every 0 still means never.
+  - With --no-follow, the bar is written at the end of the stream, before the session summary.
+- Checks performed:
+  - python3 -m py_compile on app-log-live.py and the test file.
+  - Test test_bout_en_bout_bar_de_statut_apres_l_historique: the bar comes after the last history line and carries the date and the host with --status-header.
+  - Test modules test_app_log_live and the others, with the testeur agent.
+- Action required: none.
+
 ### 1.125.20261031.124344 - --config-merge, status bar figures in colour, time on the lines with --status-header, status bar at startup
 
 - Title: new option --config-merge (rewrites the configuration file from the new default configuration, keeping the values already set); with --status-header the time stays on each line and the date (without time) and the host name go to the status bar; each figure of the status bar has its own colour (green, yellow, red) according to its criticality; the status bar is shown once after the history at startup.

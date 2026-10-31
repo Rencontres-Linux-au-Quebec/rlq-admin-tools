@@ -114,7 +114,7 @@ from urllib.parse import unquote
 from collections import Counter, OrderedDict
 from concurrent.futures import Future
 
-__version__ = "1.125.20261031.124344"
+__version__ = "1.127.20261031.133408"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
@@ -1671,6 +1671,10 @@ COLUMN_WIDTH = 18        # "CC xxx.xxx.xxx.xxx": country code, space, longest IP
 CATEGORY_STYLE = {"blanche": "blanche", "place": "place_ip"}
 
 
+RLQ_DOMAIN_SUFFIX = ".rencontres-linux.quebec"                   # 1.127: names of the domain are shown with this tag instead
+RLQ_TAG = ".RLQ."
+
+
 def render(kind_name, text, ip, keep_ip, pays=None, category=None, accent=False):
     """(name, parts, raw, category): the colored NAME that replaces the address in the text; the "parts" [country, address (except --hide-ip)] for the
     address column; raw: true if nothing is known about the address (the name is the address itself); category: "whitelist" (whitelist), "place" (places
@@ -1681,9 +1685,17 @@ def render(kind_name, text, ip, keep_ip, pays=None, category=None, accent=False)
     if accent and kind_name == "person":                         # member of the --accentuate-group group: bold white on dark blue
         style = STYLES["accent"]
     shown = text + suffix
+    rlq = shown.lower().endswith(RLQ_DOMAIN_SUFFIX)                 # 1.127: ".rencontres-linux.quebec" is shown as ".RLQ." (in colour), to save room
+    if rlq:
+        shown = shown[:-len(RLQ_DOMAIN_SUFFIX)] + RLQ_TAG
     if NAME_TRUNCATE and len(shown) > NAME_TRUNCATE:               # --dns-max-truncate N: at most N characters, the last one is "..."
         shown = shown[:NAME_TRUNCATE - 1] + "…"
-    name = ip if raw else color_code(style, shown)
+    if raw:
+        name = ip
+    elif rlq and shown.endswith(RLQ_TAG):
+        name = color_code(style, shown[:-len(RLQ_TAG)]) + color_code(STYLES["place"], RLQ_TAG)
+    else:
+        name = color_code(style, shown)
     return name, ([pays] if pays else []) + ([ip] if keep_ip else []), raw, category
 
 
@@ -5503,8 +5515,16 @@ def follow(cmd, people, resolver, options, output):
         if hasattr(output, "active") and not output.active:      # end of the history: the daily journal receives only the live stream
             output.active = True
             alert.update(stats=stats.snapshot(), res=Resources.measure(), next_one=time.time() + options["health"] * 60)
-            if options["status_every"]:                          # 1.125: the status bar is shown after the history, before the live lines (--status-every 0 = never)
-                output.write(status_line() + "\n")
+
+    def startup_status_bar():
+        """1.126: the status bar once, after ALL the history lines are displayed: called when the queue is empty (idle), after at least one line was read,
+        and no line is held by --log-merge. The journal gives fewer than N lines when the history is shorter: the idle moment is then the end too."""
+        if state.get("startup_bar") or not state.get("consumed") or merge_held:
+            return
+        state["startup_bar"] = True
+        if options["status_every"]:                              # --status-every 0 = never
+            output.write(status_line() + "\n")
+            output.flush()
 
     def reminder(L, ip, name):
         """A person has just logged in from ip: their recent lines, displayed higher up without a name, are displayed again with the name."""
@@ -6220,6 +6240,7 @@ def follow(cmd, people, resolver, options, output):
                     continue
                 release_deferred(False)
                 show_summary()
+                startup_status_bar()                    # 1.126: after the history lines
                 check_service(time.time())
                 check_health(time.time())
                 check_disk(time.time())
@@ -6258,6 +6279,7 @@ def follow(cmd, people, resolver, options, output):
                 item = ready_now[0]
                 merge_ready.extendleft(reversed(ready_now[1:]))
             L, ips, arrival, is_login = item
+            state["consumed"] = True                    # 1.127: at least one line really processed (the reader counts before queuing)
             if options["until"] is not None and L.instant is not None and L.instant >= options["until"]:
                 state["until_reached"] = True           # 1.112 --until: the stream is in order, nothing more is displayed after this line
                 break
@@ -6328,6 +6350,7 @@ def follow(cmd, people, resolver, options, output):
         release_deferred(False)
         finish_recording("end")
         show_summary()
+        startup_status_bar()
         check_external_ip(time.time(), wait=True)  # end of the stream (--no-follow): at least one check, we wait for its result
         if options["summary"]:
             output.write("\n".join(table_rows(heading="Session summary")) + "\n")

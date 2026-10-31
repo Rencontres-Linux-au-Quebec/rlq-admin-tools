@@ -3638,6 +3638,15 @@ class AppLogLive123(EnvTest):
         self.assertIn(("0", "32"), pieces)                                           # 0 banni, 0 injection : vert
         self.assertEqual("".join(t for t, _ in pieces), bar.summary())
 
+    def test_nom_du_domaine_rlq_affiche_en_tag_RLQ(self):
+        """1.127 : ".rencontres-linux.quebec" est affiché ".RLQ." (en couleur) ; le reste du nom ne change pas ; les autres noms restent intacts."""
+        name, _parts, _raw, _cat = self.m.render("dns", "odoo18.rencontres-linux.quebec", "1.2.3.4", False)
+        plain = re.sub(r"\x1b\[[0-9;]*m", "", name)
+        self.assertEqual(plain, "odoo18.RLQ.")
+        self.assertIn(self.m.color_code(self.m.STYLES["place"], ".RLQ."), name)     # the tag is in colour
+        autre, _p, _r, _c = self.m.render("dns", "srv.exemple.org", "1.2.3.4", False)
+        self.assertEqual(re.sub(r"\x1b\[[0-9;]*m", "", autre), "srv.exemple.org")
+
     def test_config_merge_garde_les_valeurs_et_sauvegarde(self):
         """1.125 : --config-merge réécrit depuis la nouvelle configuration, garde les valeurs réglées, sauvegarde l'ancien fichier."""
         conf = os.path.join(self.d, "merge.conf")
@@ -3659,11 +3668,12 @@ class AppLogLive123(EnvTest):
         """1.125 : la barre de statut est affichée une fois au démarrage, après les lignes de l'historique (sans barre périodique : --status-every -1 seulement)."""
         self.journal_123([self.ODOO])
         rc, out, err = self.run_cmd(["python3", self.prog, "--no-follow", "--log-nginx", "--no-isp", "--no-presence", "--no-banned", "--show-ip",
-                                     "--no-min", "--service", "erplibre.service", "--status-every", "-1"])
+                                     "--no-min", "--service", "erplibre.service", "--status-every", "-1", "--status-header"])
         self.assertEqual(rc, 0, err)
         barre = re.search(r"ÉTAT|STATUS", out)
         self.assertIsNotNone(barre, out)
-        self.assertGreater(barre.start(), out.index("GET"), out)                    # après la ligne de l'historique
+        self.assertGreater(barre.start(), out.rindex("GET"), out)                   # après TOUTES les lignes de l'historique
+        self.assertRegex(out, r"(?m)^ 2026-10-31 odoo18  ÉTAT", out)                # 1.126: la date et l'hôte sont au début de la barre (avant ÉTAT)
 
     def test_barre_de_statut_4xx_et_5xx_par_code(self):
         """1.124 : la barre d'état sépare les réponses 4xx et 5xx par code (403, 404, 500...)."""
