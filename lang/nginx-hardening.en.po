@@ -2432,3 +2432,9 @@ msgstr ")  Add --yes to confirm without asking."
 
 msgid "URI refusées non modifiées ("
 msgstr "Refused URIs not changed ("
+
+msgid "URI refusées inchangées ("
+msgstr "Refused URIs unchanged ("
+
+msgid " ne demande aucune modification."
+msgstr " needs no change."
