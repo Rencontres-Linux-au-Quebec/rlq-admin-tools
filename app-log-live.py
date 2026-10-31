@@ -114,7 +114,7 @@ from urllib.parse import unquote
 from collections import Counter, OrderedDict
 from concurrent.futures import Future
 
-__version__ = "1.128.20261031.141237"
+__version__ = "1.129.20261031.172912"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
@@ -251,7 +251,7 @@ COLORS_256 = "256color" in os.environ.get("TERM", "") or bool(os.environ.get("CO
 ORANGE = "38;5;208" if COLORS_256 else "33"
 VERBOSE = False
 
-IPV4_RE = re.compile(r"(?<![\w.])(?:(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)\.){3}(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(?!\w|\.\d)")
+IPV4_RE = re.compile(r"(?<![\w.])(?<![^/]/)(?:(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)\.){3}(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(?!\w|\.\d)")
 IPV6_RE = re.compile(r"(?<![\w:.])[0-9A-Fa-f:]{2,39}(?![\w:])")
 LOGIN_RE = re.compile(r"Login successful for db:(\S+) login:(\S+) from ([0-9A-Fa-f:.]+)")
 HISTORY_RE = re.compile(r"^(\S+) .*Login successful for db:(\S+) login:(\S+) from ([0-9A-Fa-f:.]+)")

@@ -349,6 +349,28 @@ Earlier history was archived outside this repository when this file was created.
 
 ## app-log-live.py
 
+### 1.129.20261031.172912 - Browser version numbers are no longer taken for IP addresses
+
+- Title: in the User-Agent, the version after the browser name (Chrome/146.0.0.0) is shown as it is, and is no longer replaced by the owner and the country of an address.
+- Reason: the user saw, after "Chrome/", a name of an organisation and a country (for example "Chrome/RIPE Network Coordination Centre (org) [NL 146.0.0.0]") instead of the version: the version was read as an IP address.
+- Changes:
+  - app-log-live.py, IPV4_RE: an address preceded by a single "/" is no longer an address (lookbehind (?<![^/]/)). "//" stays allowed, so https://1.2.3.4/ is still found.
+  - nginx-tools-tests/test_app_log_live.py: test_version_du_navigateur_n_est_pas_une_adresse (Chrome/146.0.0.0 is not an address; addresses in URLs and in the text are still found).
+  - Files touched: app-log-live.py, CHANGELOG.md, nginx-tools-tests/test_app_log_live.py.
+- Bugs fixed:
+  - Symptom: "Chrome/" followed by an organisation name and a country code, in the User-Agent of nginx lines.
+  - Diagnosis: the version 146.0.0.0 matches the IPv4 pattern; the program then renders it as an address (owner of its block, country) in place of the text.
+  - Fix: the address is not detected when it follows a single "/".
+- Safeguards and edge cases:
+  - A real address written after a single "/" in a path (for example /whitelist/1.2.3.4) is no longer replaced by its name. Such paths are rare; say if it matters.
+  - IPv6 detection is unchanged.
+  - The address of the client in the column is unchanged (it is not after a "/").
+- Checks performed:
+  - python3 -m py_compile on app-log-live.py and the test file.
+  - find_ips on the User-Agent of the attached log (no address found), on https://1.2.3.4/ and on plain text (addresses found).
+  - Test modules test_app_log_live and the others, with the testeur agent.
+- Action required: none.
+
 ### 1.128.20261031.141237 - Domain shown as ".RLQ" in the text of the lines, URLs shown decoded
 
 - Title: in the text of the lines, ".rencontres-linux.quebec" is shown as ".RLQ" in colour (referer and host=...); a URL written with %XX codes is shown decoded (%20 becomes a space).
