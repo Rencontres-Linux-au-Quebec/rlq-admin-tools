@@ -89,7 +89,7 @@ run() {
     "$@"
 }
 
-readonly SCRIPT_VERSION="2.67.20261030.153422"
+readonly SCRIPT_VERSION="2.68.20261031.180855"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
 SCRIPT_NAME="$(basename "${BASH_SOURCE[0]}" .sh)"; readonly SCRIPT_NAME
 # Display language (en or fr): --lang, NGINX_HARDENING_LANG, LANGUAGE of the configuration file, LC_ALL / LANG - apps/_i18n.sh translates the output (nothing changes in French).

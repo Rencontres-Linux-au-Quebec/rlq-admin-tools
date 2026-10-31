@@ -28,7 +28,7 @@ import re
 import subprocess
 import sys
 
-__version__ = "1.22.20261025.113933"
+__version__ = "1.23.20261031.180855"
 # 1.20: PostgreSQL commands run as the postgres user: runuser under root, "sudo -n" otherwise (the account needs no root)
 POSTGRES_RUN = ["runuser", "-u", "postgres", "--"] if os.geteuid() == 0 else ["sudo", "-n", "-u", "postgres", "--"]
 
@@ -662,6 +662,69 @@ def fix_registration_email(base, registration_id, partner_id, old, new, mail_ids
     return res
 
 
+def connexions_proches(base, instants, marge=7200, delai=30):
+    """Comptes Odoo ACTIFS dans la fenêtre des requêtes (instants en epoch, marge en secondes), LECTURE SEULE : journal des connexions
+    (res_users_log), dernière connexion (res_users.login_date), dernière présence (bus_presence). Liste de (login, nom, source, date UTC),
+    triée par date ; None si PostgreSQL est illisible. Odoo ne note pas l'adresse IP des sessions : c'est la seule correspondance possible."""
+    if not instants:
+        return []
+    debut, fin = int(min(instants) - marge), int(max(instants) + marge)
+
+    def fenetre(colonne):
+        return (f"{colonne} BETWEEN (to_timestamp({debut}) AT TIME ZONE 'UTC') "
+                f"AND (to_timestamp({fin}) AT TIME ZONE 'UTC')")
+
+    sources = (
+        ("connexion (journal Odoo)", "SELECT u.login, p.name, to_char(l.create_date, 'YYYY-MM-DD HH24:MI:SS') FROM res_users_log l "
+         "JOIN res_users u ON u.id = l.create_uid JOIN res_partner p ON p.id = u.partner_id WHERE " + fenetre("l.create_date")),
+        ("dernière connexion", "SELECT u.login, p.name, to_char(u.login_date, 'YYYY-MM-DD HH24:MI:SS') FROM res_users u "
+         "JOIN res_partner p ON p.id = u.partner_id WHERE " + fenetre("u.login_date")),
+        ("activité (bus_presence)", "SELECT u.login, p.name, to_char(b.last_poll, 'YYYY-MM-DD HH24:MI:SS') FROM bus_presence b "
+         "JOIN res_users u ON u.id = b.user_id JOIN res_partner p ON p.id = u.partner_id WHERE " + fenetre("b.last_poll")),
+    )
+    resultats, lu = [], False
+    for source, sql in sources:
+        lignes = _requete(base, sql + " ORDER BY 3", delai)
+        if lignes is None:
+            continue                      # table absente selon la version d'Odoo, ou lecture refusée : on passe
+        lu = True
+        for ligne in lignes:
+            if len(ligne) >= 3:
+                resultats.append((ligne[0], ligne[1], source, ligne[2]))
+    if not lu:
+        return None
+    return sorted(resultats, key=lambda r: r[3])
+
+
+def correlate_cli():
+    """--correlate : lit sur l'entrée standard des dates de requêtes nginx ("31/Oct/2026:14:06:09 +0000", une par ligne) et affiche, pour
+    chaque base Odoo, les comptes actifs dans la fenêtre : BASE, LOGIN, NOM, SOURCE, DATE (heure locale du serveur)."""
+    import datetime as dt
+    instants = []
+    for ligne in sys.stdin:
+        ligne = ligne.strip()
+        if not ligne:
+            continue
+        try:
+            instants.append(dt.datetime.strptime(ligne, "%d/%b/%Y:%H:%M:%S %z").timestamp())
+        except ValueError:
+            continue
+    if not instants:
+        return 0
+    bases = bases_odoo()
+    if bases is None:
+        print("bases illisibles (psql absent, PostgreSQL inaccessible, ou root requis)", file=sys.stderr)
+        return 1
+    for base in bases:
+        resultats = connexions_proches(base, instants)
+        if resultats is None:
+            continue
+        for login, nom, source, quand in resultats:
+            locale = dt.datetime.strptime(quand, "%Y-%m-%d %H:%M:%S").replace(tzinfo=dt.timezone.utc).astimezone()
+            print("\t".join((base, login, nom, source, locale.strftime("%Y-%m-%d %H:%M"))))
+    return 0
+
+
 def main():
     global VERBOSE
     arguments = sys.argv[1:]
@@ -679,8 +742,10 @@ def main():
         for m in etat:
             print("\t".join((m["nom"], m["etat"], m["version"], m["maj"], m["auteur"].replace("\t", " "))))
         return 0
+    if arguments == ["--correlate"]:                                   # dates nginx sur l'entrée standard (voir correlate_cli)
+        return correlate_cli()
     if len(arguments) != 1 or arguments[0].startswith("-"):
-        print("usage : _odoo_db.py [-v|--verbose] BASE   |   _odoo_db.py --modules BASE", file=sys.stderr)
+        print("usage : _odoo_db.py [-v|--verbose] BASE   |   _odoo_db.py --modules BASE   |   _odoo_db.py --correlate < dates", file=sys.stderr)
         return 2
     u = utilisateurs(arguments[0])
     if u is None:

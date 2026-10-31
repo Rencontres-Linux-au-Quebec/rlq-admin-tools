@@ -81,6 +81,9 @@ msgstr "  --init-all                   analyse the whole history, rotations incl
 msgid "  --investigate IP             enquête complète sur une IP (tout l'historique), avec le propriétaire de son bloc d'adresses (RDAP)"
 msgstr "  --investigate IP             full investigation of an IP (whole history), with the owner of its address block (RDAP)"
 
+msgid "                               et les comptes Odoo actifs pendant ses requêtes (base PostgreSQL, lecture seule)"
+msgstr "                               and the active Odoo accounts during its requests (PostgreSQL database, read-only)"
+
 msgid "  --ip ADDRESS                 limiter le rapport à une adresse"
 msgstr "  --ip ADDRESS                 limit the report to one address"
 
@@ -2321,3 +2324,30 @@ msgstr "ERROR: cannot write: "
 
 msgid "Comparaison écrite dans "
 msgstr "Comparison written to "
+
+msgid " refus par la zone "
+msgstr " refusals in zone "
+
+msgid "      [i] Comptes Odoo (base) : apps/_odoo_db.py ou python3 absent."
+msgstr "      [i] Odoo accounts (database): apps/_odoo_db.py or python3 missing."
+
+msgid "Comptes Odoo actifs pendant les requêtes de "
+msgstr "Odoo accounts active during the requests of "
+
+msgid "      [i] Comptes Odoo actifs pendant ces requêtes : aucun trouvé (ou base illisible : lancer en root sur le serveur)."
+msgstr "      [i] Odoo accounts active during these requests: none found (or database unreadable: run as root on the server)."
+
+msgid "[i] Comptes Odoo ACTIFS pendant les requêtes de cette IP (base, marge 2 h) - à vérifier, Odoo ne note pas l'IP des sessions :"
+msgstr "[i] Odoo accounts ACTIVE during this IP's requests (database, 2 h margin) - to be checked, Odoo does not record the IP of sessions:"
+
+msgid " requêtes (hors 429)"
+msgstr " requests (excluding 429)"
+
+msgid "[i] Limitation de débit nginx (429) : "
+msgstr "[i] nginx rate limiting (429): "
+
+msgid " requête(s) refusée(s) - non comptée comme hostilité"
+msgstr " request(s) refused - not counted as hostility"
+
+msgid "          Un client légitime (éditeur Odoo, rafale d'images) peut en recevoir : vérifier la zone avant tout bannissement."
+msgstr "          A legitimate client (Odoo editor, burst of images) can receive some: check the zone before any ban."
