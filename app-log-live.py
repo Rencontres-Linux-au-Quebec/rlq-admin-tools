@@ -114,7 +114,7 @@ from urllib.parse import unquote
 from collections import Counter, OrderedDict
 from concurrent.futures import Future
 
-__version__ = "1.127.20261031.133408"
+__version__ = "1.128.20261031.141237"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
@@ -1673,6 +1673,17 @@ CATEGORY_STYLE = {"blanche": "blanche", "place": "place_ip"}
 
 RLQ_DOMAIN_SUFFIX = ".rencontres-linux.quebec"                   # 1.127: names of the domain are shown with this tag instead
 RLQ_TAG = ".RLQ."
+def display_url(url):
+    """1.128: the URL decoded for the display (%20 -> space). Kept as it was sent when the decoding gives a control character or a quote
+    (%0A, %22...): the line would be broken, and those codes are the very thing to see."""
+    if "%" not in url:
+        return url
+    decoded = unquote(url)
+    return url if any(ord(c) < 32 or c in '"\\' for c in decoded) else decoded
+
+
+RLQ_TEXT_TAG = ".RLQ"                                              # 1.128: the same domain in the text of the lines (referer, host=...)
+RLQ_DOMAIN_RE = re.compile(re.escape(RLQ_DOMAIN_SUFFIX), re.IGNORECASE)
 
 
 def render(kind_name, text, ip, keep_ip, pays=None, category=None, accent=False):
@@ -1846,16 +1857,21 @@ class Formatting:
         # URL in INVERSE VIDEO: SUSPICIOUS request (terminal color); otherwise critical 5xx error (red); the login page keeps its style; then 4xx error
         # (yellow). Only the URL is touched (the HTTP code keeps its color).
         r = REQUEST_RE.search(text)
+        shown_url = display_url(r.group(1)) if r else ""                                              # 1.128: the URL as it is really requested (%20 -> space)
         if r:
             code = int(r.group(2))
             if suspect_url(r.group(1)):
-                ajouter(r.start(1), r.end(1), color_code(STYLES["suspect"], r.group(1)))
+                ajouter(r.start(1), r.end(1), color_code(STYLES["suspect"], r.group(1)))              # suspect: the URL as it was sent (%2e%2e stays visible)
             elif code >= 500:
-                ajouter(r.start(1), r.end(1), color_code(STYLES["url_critical"], r.group(1)))
+                ajouter(r.start(1), r.end(1), color_code(STYLES["url_critical"], shown_url))
         for m in LOGIN_PATH_RE.finditer(text):
             ajouter(m.start(1), m.end(1), color_code(STYLES["connection"], m.group(1)))
         if r and 400 <= int(r.group(2)) < 500:
-            ajouter(r.start(1), r.end(1), color_code(STYLES["url_warning"], r.group(1)))
+            ajouter(r.start(1), r.end(1), color_code(STYLES["url_warning"], shown_url))
+        if r and not suspect_url(r.group(1)) and shown_url != r.group(1):      # 1.128: a URL coded in %XX and not coloured above: shown decoded
+            ajouter(r.start(1), r.end(1), shown_url)
+        for m in RLQ_DOMAIN_RE.finditer(text):             # 1.128: the domain is shown as ".RLQ" in the text too (in colour)
+            ajouter(m.start(), m.end(), color_code(STYLES["place"], RLQ_TEXT_TAG))
         style = STYLES["warning"] if (L.level == "WARNING" or soft) else STYLES["error"]
         for m in ERROR_WORDS_RE.finditer(text):
             ajouter(m.start(), m.end(), color_code(style, m.group()))

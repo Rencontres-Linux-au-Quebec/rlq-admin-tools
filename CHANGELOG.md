@@ -349,6 +349,28 @@ Earlier history was archived outside this repository when this file was created.
 
 ## app-log-live.py
 
+### 1.128.20261031.141237 - Domain shown as ".RLQ" in the text of the lines, URLs shown decoded
+
+- Title: in the text of the lines, ".rencontres-linux.quebec" is shown as ".RLQ" in colour (referer and host=...); a URL written with %XX codes is shown decoded (%20 becomes a space).
+- Reason: the user saw that the domain was only changed in the name column; the text of the line (referer, host=) still had the full domain. The user also asked to show the real URL instead of the encoded form of /web/image/... (the percent codes).
+- Changes:
+  - app-log-live.py, detection of the highlighting (function that colours the text of a line): RLQ_DOMAIN_RE and RLQ_TEXT_TAG (".RLQ"); every occurrence of the domain in the text gets the place colour.
+  - app-log-live.py, display_url(): the URL decoded with unquote() when it contains "%". It is NOT decoded when the result has a control character or a quote (%0A, %22...: the line would be broken). Used by the colours of the 5xx and 4xx URLs and by a URL with "%" and no other colour. A suspect URL (suspect_url) keeps its raw form (%2e%2e stays visible). The raw URL is still used for the checks.
+  - nginx-tools-tests/test_app_log_live.py: test_texte_de_la_ligne_domaine_RLQ_et_url_decodee.
+  - Files touched: app-log-live.py, CHANGELOG.md, nginx-tools-tests/test_app_log_live.py.
+- Bugs fixed: the domain stayed in full in the text of the lines (see 1.127, which changed only the names). Symptom: "odoo-dev.rencontres-linux.quebec" in the referer and host=. Diagnosis: the name tag was applied only in render(). Fix: a detection on the text.
+- Safeguards and edge cases:
+  - The tag in the text is ".RLQ" (as asked), while the names keep ".RLQ." (1.127). The two forms are kept apart on purpose; say if both must be the same.
+  - The match needs the leading dot: a bare "rencontres-linux.quebec" is not changed.
+  - The decoded URL can contain spaces: the display is only a view, the columns of the line are computed before the decoding.
+  - Detection is case-insensitive for the domain only; the URL is decoded with unquote (the + sign stays a plus).
+  - Two tests of the earlier version failed (suspect URL with %2e%2e, URL with %0A and %3D"): fixed by the rules above.
+- Checks performed:
+  - python3 -m py_compile on app-log-live.py and the test file.
+  - Manual reproduction of the line of the request (nginx form) with the parser and the formatter: referer and host= show ".RLQ", the URL is decoded.
+  - Test modules test_app_log_live and the others, with the testeur agent.
+- Action required: none.
+
 ### 1.127.20261031.133408 - Domain name shown as ".RLQ." (colour) in the names
 
 - Title: in the names of the lines, the domain ".rencontres-linux.quebec" is shown as ".RLQ." in colour, to save room on the line (for example "odoo18.RLQ." instead of "odoo18.rencontres-linux.quebec").

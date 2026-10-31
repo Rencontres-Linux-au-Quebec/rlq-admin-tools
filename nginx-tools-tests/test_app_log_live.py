@@ -3647,6 +3647,19 @@ class AppLogLive123(EnvTest):
         autre, _p, _r, _c = self.m.render("dns", "srv.exemple.org", "1.2.3.4", False)
         self.assertEqual(re.sub(r"\x1b\[[0-9;]*m", "", autre), "srv.exemple.org")
 
+    def test_texte_de_la_ligne_domaine_RLQ_et_url_decodee(self):
+        """1.128 : dans le texte de la ligne, le domaine devient .RLQ (referer et host=) ; une URL codée en %XX est affichée décodée."""
+        raw = ("2026-10-31T13:02:01.000000-0400 odoo18 nginx[123]: 1.2.3.4 - - [31/Oct/2026:13:02:01 -0400] "
+               "\"GET /web/image/8982-89f82e4c/Article%20de%20blog%20'Saint-Hyacinthe,%2015%20juin%202026'%20cover%20image.webp HTTP/1.1\" 200 15203 "
+               "\"https://odoo-dev.rencontres-linux.quebec/\" \"Mozilla/5.0\" host=odoo-dev.rencontres-linux.quebec rl=95")
+        shown = self.m.Formatting(False, 40, 0.0, False).format_value(self.m.Line(raw), {}, False)
+        plain = re.sub(r"\x1b\[[0-9;]*m|[\ue000-\uf8ff]", "", shown)           # colours (and their markers, without colour) removed
+        self.assertIn('"https://odoo-dev.RLQ/"', plain)
+        self.assertIn("host=odoo-dev.RLQ rl=95", plain)
+        self.assertNotIn("rencontres-linux", plain)
+        self.assertIn("/web/image/8982-89f82e4c/Article de blog 'Saint-Hyacinthe, 15 juin 2026' cover image.webp", plain)
+        self.assertNotIn("%20", plain)
+
     def test_config_merge_garde_les_valeurs_et_sauvegarde(self):
         """1.125 : --config-merge réécrit depuis la nouvelle configuration, garde les valeurs réglées, sauvegarde l'ancien fichier."""
         conf = os.path.join(self.d, "merge.conf")
