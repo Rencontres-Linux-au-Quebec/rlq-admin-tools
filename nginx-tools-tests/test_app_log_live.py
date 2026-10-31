@@ -3611,3 +3611,33 @@ class AppLogLive123(EnvTest):
         self.assertNotIn("2026-10-31 09:53:27.79", sans)
         self.assertNotIn("odoo18", sans)
         self.assertIn("INFO", sans)
+
+    def test_barre_de_statut_4xx_et_5xx_par_code(self):
+        """1.124 : la barre d'état sépare les réponses 4xx et 5xx par code (403, 404, 500...)."""
+        bar = self.m.StatusBar(show_ips=False)
+        for code in (403, 404, 404, 500):
+            line = self.m.Line(f'2026-10-31T09:53:27.790000-0400 odoo18 odoo[1]: 2026-10-31 05:53:27,790 1 INFO base werkzeug: 1.2.3.4 - - '
+                               f'[31/Oct/2026 09:53:27] "GET /x HTTP/1.1" {code} - 1 0.000 0.002')
+            bar.observe(line, None, 9.0)
+        text = bar.summary()
+        self.assertIn("4xx 3 (403: 1 · 404: 2)", text)
+        self.assertIn("5xx 1 (500: 1)", text)
+        self.assertIn("4xx 0", self.m.StatusBar(show_ips=False).summary())           # rien à séparer : le total seul
+
+    def test_cles_de_configuration_log_merge_et_status_header(self):
+        """1.124 : LOG_MERGE et STATUS_HEADER sont lues dans le fichier de configuration (comme les autres options)."""
+        self.assertEqual(self.m.SCHEMA_CONFIG["LOG_MERGE"][0], "log_merge")
+        self.assertEqual(self.m.SCHEMA_CONFIG["STATUS_HEADER"][0], "status_header")
+
+    def test_bout_en_bout_configuration_fusion_et_en_tete(self):
+        """1.124 : LOG_MERGE=yes et STATUS_HEADER=yes dans un fichier (-c) donnent la même sortie que les options de la ligne de commande."""
+        self.journal_123([self.NGINX, self.ODOO])
+        conf = os.path.join(self.d, "app-log-live.conf")
+        with open(conf, "w", encoding="utf-8") as f:
+            f.write("LOG_NGINX=yes\nLOG_MERGE=yes\nSTATUS_HEADER=yes\nSTATUS_EVERY=1\n")
+        rc, out, err = self.run_cmd(["python3", self.prog, "--no-follow", "-c", conf, "--no-history", "--no-isp", "--no-presence",
+                                     "--no-banned", "--show-ip", "--no-min", "--service", "erplibre.service"])
+        requetes = [l for l in out.splitlines() if "GET" in l]
+        self.assertEqual(len(requetes), 1, out + err)
+        self.assertIn("H1.1 303", requetes[0])
+        self.assertNotIn("odoo18", requetes[0])

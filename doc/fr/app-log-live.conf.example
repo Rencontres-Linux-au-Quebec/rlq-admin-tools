@@ -56,6 +56,7 @@
 # --log-keep-days (défaut : 30 ; 0 = jamais)
 #LOG_KEEP_DAYS=30
 # --log-nginx : les journaux nginx du site (accès et erreurs) dans le même flux que l'application, dans l'ordre des heures
+#LOG_MERGE=no
 #LOG_NGINX=no
 # --min (par défaut depuis 1.98) : le minimum d'information : sans nom de base ni « werkzeug », sans les lignes de fetchmail (sauf erreur) ; no = tout (comme --no-min)
 #MIN=yes
@@ -98,6 +99,7 @@
 #SERVICE=
 # --slow : secondes (défaut : 5 secondes ; 0 = désactivé)
 #SLOW=5
+#STATUS_HEADER=no
 
 # --steps-line (1.99) / STEPS_LINE : toutes les étapes d'un enregistrement de test sur UNE ligne blanche (touche F), mise à jour à chaque étape: all the steps of a test recording on ONE white line (F key), updated at each step
 #STEPS_LINE=no

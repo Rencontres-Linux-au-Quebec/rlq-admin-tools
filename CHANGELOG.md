@@ -349,6 +349,30 @@ Earlier history was archived outside this repository when this file was created.
 
 ## app-log-live.py
 
+### 1.124.20261031.115734 - 4xx and 5xx by code in the status bar, configuration keys for --log-merge and --status-header
+
+- Title: the status bar shows the 4xx and the 5xx answers by code (for example "4xx 3 (403: 1 - 404: 2)" and "5xx 1 (500: 1)"); the options --log-merge and --status-header can be set in the configuration file (keys LOG_MERGE and STATUS_HEADER).
+- Reason: the user asked to see the 403 and 404 answers separately in the status bar, and the same for the 5xx answers; and asked that each option added on the command line has a key in the configuration file (LOG_MERGE for --log-merge, STATUS_HEADER for --status-header).
+- Changes:
+  - StatusBar.codes (Counter): observe() counts each 4xx and 5xx answer by its code, next to the existing totals e4 and e5 (which are unchanged: the health and the colours do not change).
+  - StatusBar.codes_text(first, total): "4xx 172 (403: 3 - 404: 169)"; without any answer of the class, the total alone ("4xx 0"). summary() uses it for 4xx and 5xx.
+  - SCHEMA_CONFIG: "LOG_MERGE" -> log_merge and "STATUS_HEADER" -> status_header (boolean keys, as LOG_NGINX). The value of the file becomes the default of the option; the command line still has priority.
+  - Help of --config: the list of the keys in UPPERCASE now includes LOG_MERGE and STATUS_HEADER (lang/app-log-live.fr.po updated, msgid and msgstr).
+  - doc/en/app-log-live.conf.example and doc/fr/app-log-live.conf.example: #LOG_MERGE=no and #STATUS_HEADER=no.
+  - doc/en/07-app-log-live.md and doc/fr/07-app-log-live.md: configuration keys and the split of the 4xx and 5xx answers.
+  - nginx-tools-tests/test_app_log_live.py: new tests in class AppLogLive123 (status split by code, the two keys in SCHEMA_CONFIG, end-to-end reading of LOG_NGINX, LOG_MERGE and STATUS_HEADER from a file given with -c).
+  - Files touched: app-log-live.py, CHANGELOG.md, lang/app-log-live.fr.po, doc/en/app-log-live.conf.example, doc/fr/app-log-live.conf.example, doc/en/07-app-log-live.md, doc/fr/07-app-log-live.md, nginx-tools-tests/test_app_log_live.py.
+- Bugs fixed: none.
+- Safeguards and edge cases:
+  - A code outside 400-599 is never counted here (only the 4xx and 5xx answers reach codes).
+  - With many different codes, the status bar is longer: it is still cut at the width of the terminal, as before.
+  - The two new keys are booleans: LOG_MERGE=yes works only with LOG_NGINX=yes (see the option help).
+  - The status bar counters are still reset by Ctrl-T and g, with the codes.
+- Checks performed:
+  - python3 -m py_compile; the unit and end-to-end tests of class AppLogLive123 (10 tests, all pass).
+  - Earlier failures of the full suite that already existed before the change: test_colonnes_jamais_tassees_pays_noms_anonymises_et_souligne_tous_les_n and test_120_journal_html_un_fichier_par_jour (not touched).
+- Action required: none. To use the keys: add LOG_MERGE=yes and STATUS_HEADER=yes in /etc/default/app-log-live.conf or in ~/.app-log-live.conf.
+
 ### 1.123.20261031.105019 - Shorter lines (ERR, WARN, H1.1, "..."), --status-header, --log-merge
 
 - Title: the lines are shorter: the level is written in 4 characters (ERR, WARN, CRIT, DBUG, INFO), the HTTP protocol as H1.1, and the marker of a shortened line is the single character "..." instead of "...". Two new options: --status-header (date and host name moved from each line to the start of the status bar) and --log-merge (the nginx line and the Odoo line of the same request become ONE line).

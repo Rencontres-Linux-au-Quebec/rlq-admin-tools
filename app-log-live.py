@@ -114,7 +114,7 @@ from urllib.parse import unquote
 from collections import Counter, OrderedDict
 from concurrent.futures import Future
 
-__version__ = "1.123.20261031.105019"
+__version__ = "1.124.20261031.115734"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
@@ -208,9 +208,9 @@ UNDERLINE_DEFAULT = 10                                                # --underl
 
 
 SCHEMA_CONFIG = {"ACCENTUATE_GROUP": ("accentuate_group", str), "CHIME": ("chime", _chime_config), "DNS_MAX_TRUNCATE": ("dns_max_truncate", int), "EXCLUDE_IP": ("exclude_ip", _comma_list),
-                 "ONLY": ("only", _comma_list), "STEPS_LINE": ("steps_line", bool), "SUSPECT": ("suspect", bool), "SUMMARY": ("summary", bool), "TIME_REPORT": ("time_report", float), "TRUNCATE": ("truncate", _truncate_config), "WATCH": ("watch", str), "ANONYMIZE": ("anonymize", bool), "UNDERLINE": ("underline", _underline_config),
+                 "ONLY": ("only", _comma_list), "STATUS_HEADER": ("status_header", bool), "STEPS_LINE": ("steps_line", bool), "SUSPECT": ("suspect", bool), "SUMMARY": ("summary", bool), "TIME_REPORT": ("time_report", float), "TRUNCATE": ("truncate", _truncate_config), "WATCH": ("watch", str), "ANONYMIZE": ("anonymize", bool), "UNDERLINE": ("underline", _underline_config),
                  "APP": ("app", str), "CMS": ("cms", str), "CONNECTIONS": ("connections", float), "DAYS": ("days", float),"DISK_MIN": ("disk_min", float), "DNS_MAX": ("dns_max", int), "HEALTH": ("health", float), "HIDE_ADDONS": ("hide_addons", bool), "HIDE_IP": ("hide_ip", bool), "HIGHLIGHT": ("highlight", str), "IDLE": ("idle", float),
-                 "LINES": ("lines", int), "LOG_DIR": ("log_dir", str), "LOG_KEEP_DAYS": ("log_keep_days", int), "LOG_NGINX": ("log_nginx", bool), "MIN": ("min", bool), "MODULES_CUSTOM": ("modules_custom", bool), "MODULES_SORT": ("modules_sort", str), "MODULES_STARTUP": ("modules_startup", bool), "NAMESPACE": ("namespace", str),
+                 "LINES": ("lines", int), "LOG_DIR": ("log_dir", str), "LOG_KEEP_DAYS": ("log_keep_days", int), "LOG_MERGE": ("log_merge", bool), "LOG_NGINX": ("log_nginx", bool), "MIN": ("min", bool), "MODULES_CUSTOM": ("modules_custom", bool), "MODULES_SORT": ("modules_sort", str), "MODULES_STARTUP": ("modules_startup", bool), "NAMESPACE": ("namespace", str),
                  "NO_BANNED": ("no_banned", bool), "NOT_FOUND": ("not_found", bool), "NO_BAN_PROMPT": ("no_ban_prompt", bool), "NO_CACHE": ("no_cache", bool), "NO_HISTORY": ("no_history", bool),
                  "NO_ISP": ("no_isp", bool), "NO_KEYS": ("no_keys", bool), "NO_LOG_FILE": ("no_log_file", bool), "NO_PRESENCE": ("no_presence", bool),
                  "LEVEL": ("level", int), "BUFFER": ("buffer", int), "STATUS_EVERY": ("status_every", int), "NO_USER_AGENT": ("no_user_agent", bool), "RECAP": ("recap", float), "RECORD_MAX": ("record_max", float), "SERVICE": ("service", str), "SLOW": ("slow", float), "VERBOSE": ("verbose", bool)}
@@ -4560,6 +4560,7 @@ class StatusBar:
         self.sql_max = self.odoo_err = 0                 # 1.120: most SQL queries of one request; Odoo ERROR and CRITICAL lines
         self.ports = collections.Counter()               # 1.121: nginx requests per port (server port and Odoo upstream port)
         self.sqli = self.e4 = self.e5 = self.slow = 0
+        self.codes = collections.Counter()               # 1.124: 4xx and 5xx answers by code (403, 404, 500...)
         self.slow_max = 0.0
         self.banned = set()
         self.problems_by_ip = collections.Counter()
@@ -4583,9 +4584,11 @@ class StatusBar:
             code = int(request.group(2))
             if 400 <= code < 500:
                 self.e4 += 1
+                self.codes[code] += 1
                 problem = True
             elif code >= 500:
                 self.e5 += 1
+                self.codes[code] += 1
                 problem = True
             if SQLI_RE.search(unquote(request.group(1))):
                 self.sqli += 1
@@ -4625,10 +4628,15 @@ class StatusBar:
         best = self.problems_by_ip.most_common(self.TOP_IPS)
         return TR("top IP") + " " + ", ".join(f"{ip} ×{count}" for ip, count in best)      # 1.119: no parentheses
 
+    def codes_text(self, first, total):
+        """1.124: the 4xx (first=400) or 5xx (first=500) answers, split by code: "4xx 172 (403: 3 · 404: 169)"; no split when there is none."""
+        parts = [f"{code}: {n}" for code, n in sorted(self.codes.items()) if first <= code < first + 100]
+        return f"{first // 100}xx {total}" + (f" ({' · '.join(parts)})" if parts else "")
+
     def summary(self, users=None, ssh=None):
         """1.120: users and ssh (number of people signed in to Odoo, of SSH sessions) are given by the caller when known."""
         slow_text = f"{self.slow}" + (f" (max {self.slow_max:.1f} s)" if self.slow else "")
-        parts = [TR("health state") + f" {self.health()} %", TR("SQLi attacks") + f" {self.sqli}", f"4xx {self.e4}", f"5xx {self.e5}",
+        parts = [TR("health state") + f" {self.health()} %", TR("SQLi attacks") + f" {self.sqli}", self.codes_text(400, self.e4), self.codes_text(500, self.e5),
                  TR("banned") + f" {len(self.banned)}", TR("slow") + f" {slow_text}",
                  TR("max SQL") + f" {self.sql_max}", TR("Odoo errors") + f" {self.odoo_err}"]
         if users is not None:
@@ -6334,7 +6342,7 @@ def main():
                         help=f"Every minute, WARNING in the stream when a connection limit (Odoo chat / websocket, HTTP, PostgreSQL, nginx) is used at PCT %% or more, "
                              f"with the setting to change (default: {CONNECTIONS_THRESHOLD_DEFAULT:g}; 0 = never)")
     parser.add_argument("-c", "--config", metavar="FILE",
-                        help="Configuration file to read ALONE (otherwise: /etc/default/app-log-live.conf, then the personal file .app-log-live.conf; options in UPPERCASE: APP, CONNECTIONS, DAYS, DNS_MAX, HEALTH, HIDE_IP, IDLE, LANGUAGE, LINES, LOG_DIR, LOG_KEEP_DAYS, LOG_NGINX, MIN, NAMESPACE, NO_BANNED, NO_BAN_PROMPT, NO_CACHE, NO_HISTORY, NO_ISP, NO_KEYS, NO_LOG_FILE, NO_PRESENCE, NO_USER_AGENT, RECAP, SERVICE, SLOW, VERBOSE)")
+                        help="Configuration file to read ALONE (otherwise: /etc/default/app-log-live.conf, then the personal file .app-log-live.conf; options in UPPERCASE: APP, CONNECTIONS, DAYS, DNS_MAX, HEALTH, HIDE_IP, IDLE, LANGUAGE, LINES, LOG_DIR, LOG_KEEP_DAYS, LOG_MERGE, LOG_NGINX, MIN, NAMESPACE, NO_BANNED, NO_BAN_PROMPT, NO_CACHE, NO_HISTORY, NO_ISP, NO_KEYS, NO_LOG_FILE, NO_PRESENCE, NO_USER_AGENT, RECAP, SERVICE, SLOW, STATUS_HEADER, VERBOSE)")
     parser.add_argument("--chime", type=int, nargs="?", const=0, default=None, choices=(0, 1, 2), metavar="N",
                         help="Beep (in byobu/tmux too: see the tips shown) when a displayed line is an error: 0 = any error (4xx, 5xx, Odoo ERROR), 1 = 4xx, 2 = 5xx and 4xx (0 without value)")
     parser.add_argument("--days", type=float, default=DAYS_DEFAULT, metavar="N",
