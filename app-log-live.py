@@ -114,7 +114,7 @@ from urllib.parse import unquote
 from collections import Counter, OrderedDict
 from concurrent.futures import Future
 
-__version__ = "1.129.20261031.172912"
+__version__ = "1.130.20261031.194927"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
@@ -3997,6 +3997,20 @@ ROBOT_NAME_RE = re.compile(r"bot|crawl|spider|scrap|linkedin|facebook|fbsv|meta-
 ACCESS_AGENT_RE = re.compile(r'^(\S+) \S+ \S+ \[[^\]]*\] "[^"]*" \d{3} \S+ "[^"]*" "([^"]*)"')
 STATIC_RE = re.compile(r"\.(?:css|js|map|png|jpe?g|gif|svg|ico|webp|woff2?|ttf|eot|mp4|webm)$|^/(?:web/assets|web/static|web/image|web/content)/", re.I)
 SURVEY_TOKEN_RE = re.compile(r"^/survey/(?:(?:start|submit|fill|print|results|begin|prefill|retry|test|get_certification)/)?([0-9a-fA-F][0-9a-fA-F-]{7,})(?:/|$)")
+# 1.130: User-Agents refused with 403 by nginx/conf.d/bot_blocker.conf (same list as that file). Such a 403 is a POLICY, not a fault: it is
+# shown with the [BOT] label, counted apart ("bots refused") and it does not lower the health percentage.
+BOT_BLOCKED_UA_RE = re.compile(r"Bytespider|CCBot|GPTBot|Amazonbot|ClaudeBot|Claude-SearchBot", re.I)
+REQUEST_CODE_RE = re.compile(r'"(?:GET|POST|HEAD|PUT|DELETE|OPTIONS|PATCH|CONNECT|TRACE)\s[^"]*" (\d{3})\s')
+
+
+def is_bot_403(L):
+    """1.130: True for an nginx request answered 403 to a User-Agent of the bot_blocker.conf list (a policy, not an error)."""
+    if L.database != "nginx" or not L.text:
+        return False
+    m = REQUEST_CODE_RE.search(L.text)
+    return bool(m and m.group(1) == "403" and BOT_BLOCKED_UA_RE.search(L.text))
+
+
 ROBOT_UA_RE = re.compile(r"bot\b|bot/|crawl|spider|slurp|scrap|facebookexternalhit|meta-external|python-|python/|curl/|wget/|go-http-client|httpx|java/|libwww|okhttp|headless|phantom|"
                          r"http[-_ ]?client|axios|node-fetch|monitor|uptime|preview|scan|censys|zgrab|masscan|semrush|ahrefs|mj12|dotbot|petal|bytespider|gptbot|claudebot|ccbot|amazonbot|"
                          r"applebot|yandex|baidu|duckduck|sogou|seznam|ia_archiver|archive\.org|linkedin|twitter|whatsapp|telegram|discord|pinterest|embedly|google-|googlebot|adsbot|"
@@ -4649,6 +4663,7 @@ class StatusBar:
         self.sql_max = self.odoo_err = 0                 # 1.120: most SQL queries of one request; Odoo ERROR and CRITICAL lines
         self.ports = collections.Counter()               # 1.121: nginx requests per port (server port and Odoo upstream port)
         self.sqli = self.e4 = self.e5 = self.slow = 0
+        self.bots403 = 0                                                       # 1.130: 403 answered to the bots refused by policy
         self.codes = collections.Counter()               # 1.124: 4xx and 5xx answers by code (403, 404, 500...)
         self.slow_max = 0.0
         self.banned = set()
@@ -4671,7 +4686,9 @@ class StatusBar:
         request = REQUEST_RE.search(L.text or "")
         if request:
             code = int(request.group(2))
-            if 400 <= code < 500:
+            if 400 <= code < 500 and is_bot_403(L):
+                self.bots403 += 1                                               # 1.130: policy, not an error: no health penalty, no problem address
+            elif 400 <= code < 500:
                 self.e4 += 1
                 self.codes[code] += 1
                 problem = True
@@ -4700,6 +4717,7 @@ class StatusBar:
             self.codes_pieces(400, self.e4),
             self.codes_pieces(500, self.e5),
             [(TR("banned") + " ", None), (f"{len(self.banned)}", criticite(len(self.banned), 1, 5))],
+            ([(TR("bots refused (403)") + " ", None), (f"{self.bots403}", None)] if self.bots403 else []),
             [(TR("slow") + " ", None), (f"{self.slow}", criticite(self.slow, 5, 20))] + ([(f" (max {self.slow_max:.1f} s)", None)] if self.slow else []),
             [(TR("max SQL") + " ", None), (f"{self.sql_max}", criticite(self.sql_max, 300, 1000))],
             [(TR("Odoo errors") + " ", None), (f"{self.odoo_err}", criticite(self.odoo_err, 1, 10))],
@@ -4733,7 +4751,8 @@ class StatusBar:
 
     def health(self):
         """1.120: health of the bar, out of 100 %: SQL injection attempts (3 points), 5xx (2), banned addresses (2 each), 4xx (0.1 each) and
-        connections slower than 9 s (1 each) take points off. Reset by Ctrl-T and g, like the other counters."""
+        connections slower than 9 s (1 each) take points off. 1.130: the 403 answered to the bots refused by policy take none (counted apart).
+        Reset by Ctrl-T and g, like the other counters."""
         penalty = 3 * self.sqli + 2 * self.e5 + 0.1 * self.e4 + 2 * len(self.banned) + self.slow
         return max(0, round(100 - penalty))
 
@@ -5256,6 +5275,8 @@ def follow(cmd, people, resolver, options, output):
         """1.113: (base, text, first address, banned source) of a line: base = the line as rendered; text = base plus the [banned: ...] label of its address."""
         base = form.format_value(L, renderings, benign)
         text, ips0, source = base, find_ips(L.text), None
+        if is_bot_403(L):                                                       # 1.130: [BOT] at the end: refused by policy, not a fault
+            text += " " + color_code(STYLES["debug"], TR("[BOT]"))
         if banned_ips is not None and ips0 and ips0[0][2] in renderings and renderings[ips0[0][2]][3] is None:        # never for the whitelist or a place
             source = banned_ips.source_of(ips0[0][2])
             if source:

@@ -2858,3 +2858,9 @@ msgstr "  valeurs conservées : {n}"
 
 msgid "  unknown keys left out: {keys}"
 msgstr "  clés inconnues écartées : {keys}"
+
+msgid "bots refused (403)"
+msgstr "robots refusés (403)"
+
+msgid "[BOT]"
+msgstr "[BOT]"
