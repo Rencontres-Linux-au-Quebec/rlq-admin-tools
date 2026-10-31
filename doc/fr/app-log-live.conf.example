@@ -99,6 +99,7 @@
 #SERVICE=
 # --slow : secondes (défaut : 5 secondes ; 0 = désactivé)
 #SLOW=5
+# 1.125 --status-header : l'heure reste sur chaque ligne ; la date et le nom de l'hôte sont dans la barre d'état
 #STATUS_HEADER=no
 
 # --steps-line (1.99) / STEPS_LINE : toutes les étapes d'un enregistrement de test sur UNE ligne blanche (touche F), mise à jour à chaque étape: all the steps of a test recording on ONE white line (F key), updated at each step

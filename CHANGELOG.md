@@ -349,6 +349,38 @@ Earlier history was archived outside this repository when this file was created.
 
 ## app-log-live.py
 
+### 1.125.20261031.124344 - --config-merge, status bar figures in colour, time on the lines with --status-header, status bar at startup
+
+- Title: new option --config-merge (rewrites the configuration file from the new default configuration, keeping the values already set); with --status-header the time stays on each line and the date (without time) and the host name go to the status bar; each figure of the status bar has its own colour (green, yellow, red) according to its criticality; the status bar is shown once after the history at startup.
+- Reason: the user asked for a --config-merge option to use the new default configuration while keeping the values changed in the current configuration; asked that, with STATUS_HEADER, only the date (not the time) and the server name are in the status bar, and the time is back on the lines; asked that the digits of the status bar change colour from green to red according to their criticality; and asked that the status bar be displayed at startup, after the history.
+- Changes:
+  - app-log-live.py, --config-merge (new option, alphabetical place after -c/--config): config_merge() reads the configuration files that the program reads (the given one with -c, otherwise /etc/default/app-log-live.conf and then ~/.app-log-live.conf, the last one wins), takes the keys set (uncommented) in them, and rewrites the file (the last one read, or the personal file when none exists) from doc/fr or doc/en/app-log-live.conf.example (language of the program). The keys unknown to the program are listed and left out. The program then exits.
+  - app-log-live.py, apply_values() (lines of a configuration file with the values applied) and write_lines() (temporary file then replacement, rights kept): factored out of write_config(), which keeps its behaviour.
+  - Formatting.format_value(): with --status-header (STATUS_HEADER), the time of the line is shown (ts_txt without the date); the host name is no longer on the line.
+  - emit(): the stamp of the status bar is the date and the host name of the last line (the time is no longer in the bar).
+  - StatusBar.pieces(): the bar as (text, colour) pieces; criticite(value, yellow, red) gives 32, 33 or 31. Thresholds: SQL injection 1 and 5; 4xx 20 and 100 (total and by code); 5xx 1 and 5 (total and by code); banned addresses 1 and 5; slow requests 5 and 20; max SQL 300 and 1000; Odoo errors 1 and 10; health 90 and 70 (green from 90, yellow from 70, red below). summary() is the text of pieces(), unchanged for the other callers. codes_pieces() replaces codes_text() in the pieces (codes_text() keeps its text).
+  - status_line(): each coloured piece is drawn with its own colour (reverse video, as the bar), then the bar colour again; the cut at the width of the terminal counts the visible characters only (the escape sequences are not counted).
+  - Startup: the status bar is written once when the history has been displayed (end of the history, before the live lines), unless --status-every is 0 (never).
+  - --status-header help text (msgid and msgstr in lang/app-log-live.fr.po) and new msgids for --config-merge and its messages (French translation added).
+  - doc/en/07-app-log-live.md and doc/fr/07-app-log-live.md: --config-merge, STATUS_HEADER behaviour, figures in colour, status bar at startup.
+  - doc/en/app-log-live.conf.example and doc/fr/app-log-live.conf.example: comment above #STATUS_HEADER=no.
+  - nginx-tools-tests/test_app_log_live.py: the two STATUS_HEADER tests are updated (time on the line, date and host in the bar); new tests: criticite(), coloured pieces, --config-merge (values kept, unknown key reported, backup), status bar at startup. The debugging print of an earlier test is removed.
+  - Files touched: app-log-live.py, CHANGELOG.md, lang/app-log-live.fr.po, doc/en/07-app-log-live.md, doc/fr/07-app-log-live.md, doc/en/app-log-live.conf.example, doc/fr/app-log-live.conf.example, nginx-tools-tests/test_app_log_live.py.
+- Bugs fixed: the French help of --log-merge, --status-header and --config-merge mixed French and English words (for example "depuis the NEW default"): the msgids were missing from lang/app-log-live.fr.po. Symptom: a translator substitutes word by word when the msgid is missing. Diagnosis: the catalogue had no entry for these texts. Fix: the entries were added.
+- Safeguards and edge cases:
+  - --config-merge never writes without a backup when the file exists: FILE.bak-YYYYMMDD-HHMMSS (local time) is a copy made before the rewrite.
+  - A file that cannot be written (rights, /etc/default without root) is reported, with exit status 1; the backup is then kept.
+  - A missing example file is reported (exit status 1) and nothing is written.
+  - Keys of the old file that are neither known to the program nor in the example are left out and listed, never silently lost in the message.
+  - A value that contains "#" or spaces at the edges is written between quotes, as before.
+  - Colours are disabled when the output is redirected: the figures are plain text then (the text is identical).
+  - Startup status bar: only when the history has been displayed and --status-every is not 0; with --no-history (no history) there is no bar until the first periodic one.
+- Checks performed:
+  - python3 -m py_compile on app-log-live.py and the test file.
+  - Manual run: python3 app-log-live.py -c FILE --config-merge on a temporary file (values kept, unknown key listed, backup created).
+  - Unit and end-to-end tests of class AppLogLive123 (test_app_log_live.py), with the testeur agent.
+- Action required: to keep the configuration file up to date, run once: app-log-live.py --config-merge (add -c FILE for a particular file). Otherwise none.
+
 ### 1.124.20261031.115734 - 4xx and 5xx by code in the status bar, configuration keys for --log-merge and --status-header
 
 - Title: the status bar shows the 4xx and the 5xx answers by code (for example "4xx 3 (403: 1 - 404: 2)" and "5xx 1 (500: 1)"); the options --log-merge and --status-header can be set in the configuration file (keys LOG_MERGE and STATUS_HEADER).
