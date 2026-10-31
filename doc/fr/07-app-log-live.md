@@ -89,6 +89,9 @@ avec le journal de l'application. Leurs lignes ont le même préfixe et les mêm
 locales, hôte, programme `http`, niveau, pays et adresse, nom). Ils sont masqués par défaut sur un serveur Odoo.
 
 - `--log-nginx` (ou `LOG_NGINX=yes` dans le fichier de configuration) les affiche dès le départ.
+- `--log-merge` (1.123) : la ligne nginx et la ligne Odoo de la MÊME requête (même URL et même statut, à 2 secondes près) s'affichent en UNE seule ligne, avec les requêtes SQL et les temps d'Odoo. Demande `--log-nginx` ; une ligne nginx qui attend encore sa ligne Odoo après 3 secondes est affichée seule.
+- `--status-header` (1.123) : la date et le nom de l'hôte ne sont plus au début de chaque ligne ; ils s'affichent au début de la barre d'état (date et hôte de la dernière ligne).
+- Affichage (1.123) : le niveau s'écrit en 4 caractères (`ERR`, `WARN`, `CRIT`, `DBUG`, `INFO`), le protocole en `H1.1`, et une ligne raccourcie est marquée par `…`.
 - La touche `x` les affiche ou les masque à chaud, à partir de la ligne suivante (le menu `?` indique s'ils sont affichés). Les lignes
   masquées ne sont ni comptées ni recherchées. Les lignes lues pendant qu'ils étaient masqués ne sont pas affichées après coup.
 

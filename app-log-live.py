@@ -114,7 +114,7 @@ from urllib.parse import unquote
 from collections import Counter, OrderedDict
 from concurrent.futures import Future
 
-__version__ = "1.122.20261030.153422"
+__version__ = "1.123.20261031.105019"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
@@ -353,6 +353,68 @@ WERKZEUG_RE = re.compile(r'"((?:GET|POST|HEAD|PUT|DELETE|OPTIONS|PATCH|CONNECT|T
 PORT_RE = re.compile(r"\bport=(\d{1,5})\b")          # 1.121: $server_port of an nginx access line (log_format: port=$server_port)
 UPSTREAM_PORT_RE = re.compile(r"\bupstream=\S*?:(\d{1,5})\b")      # 1.121: port of the Odoo upstream (log_format: upstream=$upstream_addr)
 SQL_SIZE_RE = re.compile(r'"\s\d{3}\s(\S+)\s(\d+)\s\d+\.\d+\s\d+\.\d+\s*$')
+
+
+# ------------------------------------------------------------------------------------------------------------------
+# --log-merge (1.123): the nginx line and the Odoo line of the same request are shown as ONE line
+# ------------------------------------------------------------------------------------------------------------------
+MERGE_WINDOW = 2.0      # seconds (log time) between the nginx line and the Odoo line of one request (Odoo logs when its answer is ready)
+MERGE_HOLD = 3.0        # seconds (wall clock) an nginx line waits for its Odoo line, then it is shown alone (static file, no Odoo...)
+
+
+def is_nginx_request(L):
+    return L.database == "nginx" and L.logger == "request" and L.instant is not None and bool(NGINX_REQUEST_RE.search(L.text or ""))
+
+
+def is_odoo_request(L):
+    """Odoo line of a request WITH its SQL queries and times (the numbers the merged line takes from it)."""
+    if L.database == "nginx" or L.instant is None:
+        return False
+    m = WERKZEUG_RE.search(L.text or "")
+    return bool(m and m.group(5))
+
+
+def request_key(L):
+    """(method and URL, status code): the same request in the nginx line and in the Odoo line."""
+    m = WERKZEUG_RE.search(L.text or "") or NGINX_REQUEST_RE.search(L.text or "")
+    return (m.group(1), m.group(3))
+
+
+def merge_step(item, held):
+    """1.123 --log-merge: `held` = nginx request lines waiting for their Odoo line, as (item, key, log time, wall time).
+    Returns the items to show now, in order (maybe none). An Odoo line whose nginx line waits is ABSORBED: the nginx line is shown with
+    the SQL queries and the times of Odoo. An nginx request line is HELD. A held line whose Odoo line can no longer come is released."""
+    L = item[0]
+    ready = []
+    while held and L.instant is not None and held[0][2] + MERGE_WINDOW < L.instant:
+        ready.append(held.popleft()[0])
+    if is_odoo_request(L):
+        key = request_key(L)
+        for index, (held_item, held_key, held_instant, _wall) in enumerate(held):
+            if held_key == key and abs(L.instant - held_instant) <= MERGE_WINDOW:
+                del held[index]
+                m = WERKZEUG_RE.search(L.text)
+                held_item[0].odoo_times = (m.group(5), m.group(6) or "", m.group(7))
+                ready.append(held_item)
+                return ready
+    if is_nginx_request(L):
+        held.append((item, request_key(L), L.instant, time.time()))
+        return ready
+    ready.append(item)
+    return ready
+
+
+def merge_release(held, now):
+    """1.123: the nginx lines held for more than MERGE_HOLD seconds (wall clock) are shown alone, in order."""
+    released = []
+    while held and held[0][3] + MERGE_HOLD <= now:
+        released.append(held.popleft()[0])
+    return released
+
+
+def short_http(protocol):
+    """1.123: "HTTP/1.1" is shown "H1.1" (the request columns are narrower)."""
+    return "H" + protocol[5:] if protocol.startswith("HTTP/") else protocol
 
 
 def color_code(code, text):
@@ -744,6 +806,7 @@ class Line:
         self.raw_line = raw_line
         self.ts_txt = self.instant = self.host_name = self.program_name = self.level = self.database = self.logger = None
         self.text = raw_line
+        self.odoo_times = None                                                     # 1.123 --log-merge: (SQL queries, SQL time, Python time) of the Odoo line of the same request
         self._analyze(raw_line)
         self.nginx_fields()
         block = BASE64_BLOCK_RE.match((self.text or "").strip())
@@ -1543,9 +1606,10 @@ class Resolver:
             future.set_result(pays)
 
 
-LEVEL_WIDTH = 8             # 1.117: the level is right-aligned on this width (CRITICAL is the longest): the country starts at the same column for every level
+LEVEL_WIDTH = 4             # 1.123: the level is shown in 4 characters (LEVEL_SHORT), right-aligned on this width: the country starts at the same column for every level
+LEVEL_SHORT = {"CRITICAL": "CRIT", "DEBUG": "DBUG", "ERROR": "ERR", "WARNING": "WARN"}      # 1.123: INFO stays INFO; the names of the logs are unchanged
 SIZE_WIDTH = 4              # 1.121: width of the size column: at most 4 characters ("-" for Odoo; 9999, then 2.9k, 600k, 4.5M)
-NUMBERS_BLOCK_WIDTH = 40   # (1.121: 2 characters less than 42: the size column is narrower, the request keeps its column) # "HTTP/1.1 200    -    21  0.011  0.054  ": from the start of the numbers block to the "GET / POST" (see aligned_request)
+NUMBERS_BLOCK_WIDTH = 36   # (1.123: 4 characters less than 40: the protocol is shown as "H1.1") # "H1.1 200    -    21  0.011  0.054  ": from the start of the numbers block to the "GET / POST" (see aligned_request)
 COLUMN_WIDTH = 18        # "CC xxx.xxx.xxx.xxx": country code, space, longest IPv4 address (without brackets or comma)
 
 
@@ -1668,7 +1732,8 @@ def request_cause(sql_n, t_sql, t_py, size, url=""):
 class Formatting:
     """Builds the displayed line: normalized header, then the text with its words in color. All the detection is done on the
     RAW text (never on already colored text); a detection that overlaps a higher-priority one (the IP address first) is ignored."""
-    def __init__(self, minimal=False, width=COLUMN_WIDTH, slowest=0.0):
+    def __init__(self, minimal=False, width=COLUMN_WIDTH, slowest=0.0, status_header=False):
+        self.status_header = status_header                                  # 1.123 --status-header
         self.minimal = minimal
         self.slowest = slowest                            # threshold (seconds) of slow requests; 0 = no highlighting
         self.width = width                      # width of the address column, after the level
@@ -1753,7 +1818,7 @@ class Formatting:
                 position = f
         return "".join(chunks) + raw(text[position:end])
 
-    def aligned_nginx_request(self, text, retained):
+    def aligned_nginx_request(self, text, retained, times=None):
         """1.117: nginx access line: "\"GET /url HTTP/1.1\" 200 15203 \"-\" \"agent\" host=..." becomes "HTTP/1.1 200 15203      \"GET /url\" \"-\" \"agent\" host=...":
         the status and the size are in the same columns as the status and the size of an Odoo request line. nginx gives no SQL or time
         columns: they stay empty, so the Odoo times are not repeated. Other line form: None (display unchanged)."""
@@ -1769,7 +1834,16 @@ class Formatting:
                 if (d, f) == (m.start(group), m.end(group)):
                     rendering = r
             return " " * max(0, width - len(value)) + rendering
-        block = " ".join([http.ljust(8), token(3, code, 3), token(4, size_text(size), SIZE_WIDTH), " " * 4, " " * 6, " " * 6])
+        if times:                                                # 1.123 --log-merge: SQL queries and times of the Odoo line of the same request
+            sql_s, t_sql_s, t_py_s = times[0].rjust(4), times[1].rjust(6), times[2].rjust(6)
+            total = (float(times[1]) + float(times[2])) if times[1] and times[2] else 0.0
+            style = self.slowness_style(total) if total else None
+            if style:
+                t_sql_s, t_py_s = color_code(style, t_sql_s), color_code(style, t_py_s)
+            numbers = [sql_s, t_sql_s, t_py_s]
+        else:
+            numbers = [" " * 4, " " * 6, " " * 6]
+        block = " ".join([short_http(http).ljust(4), token(3, code, 3), token(4, size_text(size), SIZE_WIDTH)] + numbers)
         request_data = self.colored_text(text, retained, ouvrir + 1, m.end(1))      # 1.119: no quotes; the request keeps the column of the Odoo request
         before = self.colored_text(text, retained, 0, ouvrir)
         if not ANSI_RE.sub("", before).endswith(" "):
@@ -1796,7 +1870,7 @@ class Formatting:
                     rendering = color_code(style, value)
             empty = " " * max(0, width - len(shown or value))
             return empty + rendering if right else rendering + empty
-        start = [http.ljust(8), token(3, code, 3), token(4, size_text(size), SIZE_WIDTH)]
+        start = [short_http(http).ljust(4), token(3, code, 3), token(4, size_text(size), SIZE_WIDTH)]
         if sql:
             block = " ".join(start + [token(5, sql, 4), token(6, t_sql, 6), token(7, t_py, 6)])
         else:                                                   # websocket: only the duration, right-aligned on the width of the three columns SQL / SQL time / Python time
@@ -1839,11 +1913,11 @@ class Formatting:
         else:
             retained = self.spans(L, renderings, benign)
             body = (self.aligned_request(L.text, retained)
-                    or (self.aligned_nginx_request(L.text, retained) if L.database == "nginx" and L.logger == "request" else None)
+                    or (self.aligned_nginx_request(L.text, retained, L.odoo_times) if L.database == "nginx" and L.logger == "request" else None)
                     or self.colored_text(L.text, retained, 0, len(L.text)))
             if benign:
                 body += color_code(STYLES["debug"], " (concurrent update conflict: Odoo retries automatically)")
-            total = request_duration(L.text)
+            total = (float(L.odoo_times[1] or 0) + float(L.odoo_times[2] or 0)) if L.odoo_times else request_duration(L.text)     # 1.123: merged line: the Odoo times
             if total is not None and self.slowness_style(total):
                 body += color_code(self.slowness_style(total), f" ← slow: {total:.1f} s")
         column = ""
@@ -1859,13 +1933,17 @@ class Formatting:
             column = colored + " " * max(0, self.width - len(visible))                 # 1.117: the level has a fixed width (LEVEL_WIDTH), nothing to take back here
         header = []
         if L.ts_txt:
-            header.append(L.ts_txt)
             shown_program = color_code(STYLES["nginx"], L.program_name) if (L.database == "nginx" and L.program_name) else L.program_name     # 1.118: nginx lines in colour
-            header.append(" ".join(x for x in (L.host_name, shown_program) if x) + ("" if L.level else ":"))          # structured Odoo line: "odoo18 odoo INFO", without ":" (1.112: without host with --no-hostname)
+            if self.status_header:                              # 1.123 --status-header: date and host name are in the status bar, not in the line
+                header.append((shown_program or "") + ("" if L.level else ":"))
+            else:
+                header.append(L.ts_txt)
+                header.append(" ".join(x for x in (L.host_name, shown_program) if x) + ("" if L.level else ":"))          # structured Odoo line: "odoo18 odoo INFO", without ":" (1.112: without host with --no-hostname)
         if L.level:
-            level_text = {"ERROR": color_code(STYLES["warning"] if benign else STYLES["error"], L.level), "CRITICAL": color_code(STYLES["error"], L.level),
-                          "WARNING": color_code(STYLES["warning"], L.level), "DEBUG": color_code(STYLES["debug"], L.level)}.get(L.level, L.level)
-            header.append(" " * max(0, LEVEL_WIDTH - len(L.level)) + level_text)                  # 1.117: right-aligned, same column for INFO, ERROR and CRITICAL
+            short = LEVEL_SHORT.get(L.level, L.level)                                            # 1.123: 4 characters
+            level_text = {"ERROR": color_code(STYLES["warning"] if benign else STYLES["error"], short), "CRITICAL": color_code(STYLES["error"], short),
+                          "WARNING": color_code(STYLES["warning"], short), "DEBUG": color_code(STYLES["debug"], short)}.get(L.level, short)
+            header.append(" " * max(0, LEVEL_WIDTH - len(short)) + level_text)                   # 1.117: right-aligned, same column for INFO, ERROR and CRITICAL
             if column:
                 header.append(column)
             field_list = ([] if self.minimal else [L.database]) + ([] if self.hidden_logger(L) else [L.logger])
@@ -2669,7 +2747,7 @@ def truncate_line(text_line, limit):
 
 TAIL_RE = re.compile(r"(?:\[[^\]]*\]|\S+)\s+(?:\[[^\]]*\]|\S+)\s*$")      # last two words; "[banned: CrowdSec]" counts as ONE word (the URL stays visible)
 TRUNCATE_AUTO = -2                                      # --truncate not given: on a terminal only (argparse would apply type=int to a text default)
-ELLIPSIS = "..."                                        # 1.88: marker between the start of a shortened line and its last two words
+ELLIPSIS = "…"                                         # 1.88 (1.123: one character): marker between the start of a shortened line and its last two words
 
 
 def colored_suffix(text, start):
@@ -4815,7 +4893,7 @@ def follow(cmd, people, resolver, options, output):
     file = queue.Queue(maxsize=5000)
     def address_width():
         return COLUMN_WIDTH if options["keep_ip"] else 2
-    form, presence = Formatting(options["minimal"], address_width(), options["slow"]), options["presence"]
+    form, presence = Formatting(options["minimal"], address_width(), options["slow"], options.get("status_header", False)), options["presence"]
     state = {"read_files": 0, "summarized": False, "keep_going": True}
     stats, banned_ips = Stats(options["slow"]), options["banned_ips"]
     LATENCY.start()                                         # 1.82: kernel counters every LATENCY_SAMPLE_S seconds (latency report: key P, Ctrl-G, summary)
@@ -5077,6 +5155,8 @@ def follow(cmd, people, resolver, options, output):
         stats.ajouter(L, renderings, source, benign)
         watch_repeat(ips0[0][2] if ips0 else None, L)
         state["emitted"] = state.get("emitted", 0) + 1
+        if L.ts_txt:
+            state["stamp"] = " ".join(x for x in (L.ts_txt, L.host_name) if x)      # 1.123: for the status bar (--status-header)
         paint(L, text, inputs, benign, underline=bool(output.underline) and state["emitted"] % output.underline == 0)
         status.observe(L, ips0[0][2] if source else None, options["slow"], ips0[0][2] if ips0 else None)
         if status.color() == "31" and not status.alerted:      # 1.114: the bar turns red: one beep and one line, until the next reset (Ctrl-T or g)
@@ -5095,7 +5175,9 @@ def follow(cmd, people, resolver, options, output):
         columns = terminal_columns()
         status.show_ips = bool(options.get("keep_ip"))          # 1.114: follows the H key (--hide-ip / --show-ip) on the fly
         users = len(odoo_logged_in(options.get("presence"), time.time())) if options.get("presence") is not None else None      # 1.120
-        text = f" {TR('STATUS')}  {status.summary(users, len(ssh_sessions()))}  ·  {TR('since the last detailed report (Ctrl-T or g)')} "
+        stamp = state.get("stamp") if options.get("status_header") else None      # 1.123 --status-header: date and host of the last line, first
+        head = f" {stamp}  " if stamp else " "
+        text = f"{head}{TR('STATUS')}  {status.summary(users, len(ssh_sessions()))}  ·  {TR('since the last detailed report (Ctrl-T or g)')} "
         return color_code(f"7;1;{status.color()}", text[:max(20, columns - 1)].ljust(columns - 1))
 
     def refresh_lines():
@@ -5319,7 +5401,7 @@ def follow(cmd, people, resolver, options, output):
         recent_ones[:] = [e for e in recent_ones if e[2] != ip]
         if not earlier or not options["recap"]:
             return
-        reminder_form, lines = Formatting(options["minimal"], address_width(), options["slow"]), []
+        reminder_form, lines = Formatting(options["minimal"], address_width(), options["slow"], options.get("status_header", False)), []
         for _, old_one, _ in earlier[-50:]:
             if (options["minimal"] and old_one.discard_in_min()) or (options["hide_addons"] and old_one.discard_addons()):
                 continue
@@ -6003,6 +6085,7 @@ def follow(cmd, people, resolver, options, output):
         output.active = True
     if keys is not None and keys.start():
         eprint("Keys: ? (or h) keys and options menu · Ctrl-G dashboard (health, efficiency, top 10 URLs…) · 1 to 9 dashboard detail level · Ctrl-T only what changed since last time · R record a test · N step while recording · Ctrl-C stop and summary")
+    merge_ready, merge_held, merge_ended = collections.deque(), collections.deque(), [False]      # 1.123 --log-merge: lines to show now, held nginx lines, end of stream
     old_sigint = None
     if keys is not None and keys.old is not None:
         try:
@@ -6014,9 +6097,15 @@ def follow(cmd, people, resolver, options, output):
             if sig["requested"]:
                 sig["requested"] = False
                 confirm_exit()
+            skip_merge = bool(merge_ready)              # 1.123: a line released by --log-merge is shown as it is (already merged)
+            if not merge_ready and merge_ended[0]:
+                break
             try:
-                item = file.get(timeout=1.0)
+                item = merge_ready.popleft() if merge_ready else file.get(timeout=1.0)
             except queue.Empty:                         # idle stream: summary after the history, then inactivities
+                merge_ready.extend(merge_release(merge_held, time.time()))      # 1.123: held nginx lines shown alone after MERGE_HOLD seconds
+                if merge_ready:
+                    continue
                 release_deferred(False)
                 show_summary()
                 check_service(time.time())
@@ -6031,8 +6120,11 @@ def follow(cmd, people, resolver, options, output):
                         output.write(presence.event(kind_name, text) + "\n")
                     output.flush()
                 continue
-            if item is None:
-                break
+            if item is None:                            # end of the stream: the lines still held are shown alone (1.123)
+                merge_ended[0] = True
+                merge_ready.extend(entry[0] for entry in merge_held)
+                merge_held.clear()
+                continue
             if item[0] == PROPOSAL:               # often banned address, verdict "ban justified" (computed in the background)
                 with interaction():
                     propose_ban(item[1], item[2])
@@ -6047,6 +6139,12 @@ def follow(cmd, people, resolver, options, output):
                 if record["exit_after"]:                # --record-test-log: the recording was the purpose of this run
                     break
                 continue
+            if options.get("log_merge") and options.get("log_nginx") and not skip_merge:       # 1.123 --log-merge
+                ready_now = merge_step(item, merge_held)
+                if not ready_now:                       # held (waiting for the Odoo line) or absorbed into the line before
+                    continue
+                item = ready_now[0]
+                merge_ready.extendleft(reversed(ready_now[1:]))
             L, ips, arrival, is_login = item
             if options["until"] is not None and L.instant is not None and L.instant >= options["until"]:
                 state["until_reached"] = True           # 1.112 --until: the stream is in order, nothing more is displayed after this line
@@ -6332,7 +6430,7 @@ def main():
                         help=f"Every MIN minutes, the same report as Ctrl-T (what changed since the last display) ({REPORT_DEFAULT:g} without value)")
     parser.add_argument("-v", "--verbose", action="store_true", help="Show each external command run")
     parser.add_argument("--truncate", type=int, nargs="?", const=0, default=TRUNCATE_AUTO, metavar="N",
-                        help="By default on a terminal: a log line wider than N columns (without N: $COLUMNS - 10) is shortened to « start ... last two words » (long URLs); menus and reports are never cut; the daily log keeps the whole lines. TRUNCATE key; --no-truncate: whole lines")
+                        help="By default on a terminal: a log line wider than N columns (without N: $COLUMNS - 10) is shortened to « start … last two words » (long URLs); menus and reports are never cut; the daily log keeps the whole lines. TRUNCATE key; --no-truncate: whole lines")
     parser.add_argument("--no-min", dest="min", action="store_false", help="Show everything: database name, « werkzeug », fetchmail lines (cancels --min; MIN=no)")
     parser.add_argument("--no-truncate", dest="truncate", action="store_const", const=None, help="Whole log lines on screen, even very long ones (cancels --truncate)")
     if "--anonymize" not in parser._option_string_actions:       # added by apps/_i18n.py; fallback parser: added here
@@ -6361,6 +6459,11 @@ def main():
                         help="Show only the lines whose message matches this regular expression. Case-insensitive unless REGEX has an uppercase letter (as journalctl)")
     parser.add_argument("--no-hostname", action="store_true",
                         help="Do not show the host name of the journal lines (as journalctl --no-hostname)")
+    parser.add_argument("--log-merge", action="store_true",
+                        help="Show the nginx line and the Odoo line of the SAME request (same URL and status, within 2 seconds) as ONE line: "
+                             "the nginx part, then the SQL queries and the times of Odoo. Needs --log-nginx; an nginx line waiting for its Odoo line is shown alone after 3 seconds")
+    parser.add_argument("--status-header", action="store_true",
+                        help="The date and the host name are not shown at the start of each line: they are shown at the start of the status bar instead (date and host of the last line)")
     parser.add_argument("--no-pager", action="store_true", dest="journalctl_no_pager",
                         help="Accepted for journalctl compatibility: the output is never paged")
     parser.add_argument("-S", "--since", metavar="TIME",
@@ -6567,7 +6670,7 @@ def main():
         eprint(banned_ips.summary())
     options = {"keep_ip": not args.hide_ip, "minimal": args.min, "hide_addons": args.hide_addons, "lines": args.lines, "recap": args.recap,
                "slow": max(0.0, args.slow), "only": [t.lower() for t in (args.only or []) if t], "highlight_words": read_highlight(args.highlight), "highlight_pattern": highlight_pattern(read_highlight(args.highlight)), "suspect": args.suspect, "disk_min": max(0.0, args.disk_min), "connections": max(0.0, min(100.0, args.connections)), "external_ip": not args.no_isp, "odoo_journal": profile.get("ODOO_LOGFILE"), "profile": profile, "service": service, "diag_hosts": args.diagnose_host, "not_found": args.not_found, "steps_line": args.steps_line, "summary": args.summary, "banned_ips": banned_ips,
-               "presence": Presence(args.idle) if is_odoo and not args.no_presence else None, "health": args.health, "keys": not args.no_keys and not args.no_follow, "app": profile.get("APP_NAME"), "app_label": profile.get("APP_LABEL", "application"), "log_nginx": bool(args.log_nginx), "nginx_merged": LOGS_MERGE in cmd, "propose_ban": not args.no_ban_prompt, "watch": [t.strip().lower() for t in (args.watch or "").split(",") if t.strip()], "agents": not args.no_user_agent and not args.no_follow, "acces_logs": profile.get("ACCESS_LOGS"),
+               "presence": Presence(args.idle) if is_odoo and not args.no_presence else None, "health": args.health, "keys": not args.no_keys and not args.no_follow, "app": profile.get("APP_NAME"), "app_label": profile.get("APP_LABEL", "application"), "log_nginx": bool(args.log_nginx), "log_merge": bool(args.log_merge), "status_header": bool(args.status_header), "nginx_merged": LOGS_MERGE in cmd, "propose_ban": not args.no_ban_prompt, "watch": [t.strip().lower() for t in (args.watch or "").split(",") if t.strip()], "agents": not args.no_user_agent and not args.no_follow, "acces_logs": profile.get("ACCESS_LOGS"),
                "exclude": exclusions, "chime": args.chime, "group": args.accentuate_group if group_members else None, "membres": group_members,
                "report_min": args.time_report or 0.0, "level": args.level, "modules_sort": modules_sort_state}
     options.update({"buffer": args.buffer, "status_every": args.status_every,                          # 1.113: buffer of the f and P keys, status bar
@@ -6616,8 +6719,8 @@ def main():
             eprint("ERROR: anonymization requested but apps/_anonymiser.py is unreadable: nothing is displayed (--no-anonymize: real values).")
             return 2
         output.anonymize = output.anonymiser = new_anonymiser(anonymiser)
-    eprint("Screen: " + ("log lines shortened to " + (f"{output.truncate} columns (« start ... last two words »; --no-truncate: whole lines)" if output.truncate
-                                                       else "$COLUMNS - 10 (« start ... last two words »; --no-truncate: whole lines)")
+    eprint("Screen: " + ("log lines shortened to " + (f"{output.truncate} columns (« start … last two words »; --no-truncate: whole lines)" if output.truncate
+                                                       else "$COLUMNS - 10 (« start … last two words »; --no-truncate: whole lines)")
                          if output.truncate is not None else "whole log lines (--truncate: shortened)")
            + " · " + ("addresses, e-mails and names anonymized (--no-anonymize: real values)" if output.anonymize else "real addresses, e-mails and names (--anonymize: pseudonyms)")
            + (" · " + TR("one log line out of {n} underlined (--underline N, --no-underline: none)").format(n=output.underline) if output.underline else ""))

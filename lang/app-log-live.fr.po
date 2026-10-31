@@ -2445,8 +2445,8 @@ msgstr " — ⚠ plus ancien qu'un fichier déployé ("
 msgid "): nginx -t && systemctl reload nginx"
 msgstr ") : nginx -t && systemctl reload nginx"
 
-msgid "By default on a terminal: a log line wider than N columns (without N: $COLUMNS - 10) is shortened to « start ... last two words » (long URLs); menus and reports are never cut; the daily log keeps the whole lines. TRUNCATE key; --no-truncate: whole lines"
-msgstr "Par défaut dans un terminal : une ligne du journal plus large que N colonnes (sans N : $COLUMNS - 10) est raccourcie en « début ... deux derniers mots » (URL longues) ; les menus et les rapports ne sont jamais coupés ; le journal quotidien garde les lignes entières. Clé TRUNCATE ; --no-truncate : lignes entières"
+msgid "By default on a terminal: a log line wider than N columns (without N: $COLUMNS - 10) is shortened to « start … last two words » (long URLs); menus and reports are never cut; the daily log keeps the whole lines. TRUNCATE key; --no-truncate: whole lines"
+msgstr "Par défaut dans un terminal : une ligne du journal plus large que N colonnes (sans N : $COLUMNS - 10) est raccourcie en « début … deux derniers mots » (URL longues) ; les menus et les rapports ne sont jamais coupés ; le journal quotidien garde les lignes entières. Clé TRUNCATE ; --no-truncate : lignes entières"
 
 msgid "Whole log lines on screen, even very long ones (cancels --truncate)"
 msgstr "Lignes du journal entières à l'écran, même très longues (annule --truncate)"
@@ -2466,11 +2466,11 @@ msgstr "Écran : "
 msgid "log lines shortened to "
 msgstr "lignes du journal raccourcies à "
 
-msgid " columns (« start ... last two words »; --no-truncate: whole lines)"
-msgstr " colonnes (« début ... deux derniers mots » ; --no-truncate : lignes entières)"
+msgid " columns (« start … last two words »; --no-truncate: whole lines)"
+msgstr " colonnes (« début … deux derniers mots » ; --no-truncate : lignes entières)"
 
-msgid " (« start ... last two words »; --no-truncate: whole lines)"
-msgstr " (« début ... deux derniers mots » ; --no-truncate : lignes entières)"
+msgid " (« start … last two words »; --no-truncate: whole lines)"
+msgstr " (« début … deux derniers mots » ; --no-truncate : lignes entières)"
 
 msgid "whole log lines (--truncate: shortened)"
 msgstr "lignes du journal entières (--truncate : raccourcies)"
@@ -2822,3 +2822,9 @@ msgstr "par port"
 
 msgid "no port data"
 msgstr "aucune donnée par port"
+
+msgid "Show the nginx line and the Odoo line of the SAME request (same URL and status, within 2 seconds) as ONE line: the nginx part, then the SQL queries and the times of Odoo. Needs --log-nginx; an nginx line waiting for its Odoo line is shown alone after 3 seconds"
+msgstr "Affiche la ligne nginx et la ligne Odoo de la MÊME requête (même URL et même statut, à 2 secondes près) en UNE seule ligne : la partie nginx, puis les requêtes SQL et les temps d'Odoo. Demande --log-nginx ; une ligne nginx qui attend sa ligne Odoo est affichée seule après 3 secondes"
+
+msgid "The date and the host name are not shown at the start of each line: they are shown at the start of the status bar instead (date and host of the last line)"
+msgstr "La date et le nom de l'hôte ne sont pas affichés au début de chaque ligne : ils le sont au début de la barre d'état (date et hôte de la dernière ligne)"
