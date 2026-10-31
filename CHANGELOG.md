@@ -349,6 +349,40 @@ Earlier history was archived outside this repository when this file was created.
 
 ## app-log-live.py
 
+### 1.123.20261031.105019 - Shorter lines (ERR, WARN, H1.1, "..."), --status-header, --log-merge
+
+- Title: the lines are shorter: the level is written in 4 characters (ERR, WARN, CRIT, DBUG, INFO), the HTTP protocol as H1.1, and the marker of a shortened line is the single character "..." instead of "...". Two new options: --status-header (date and host name moved from each line to the start of the status bar) and --log-merge (the nginx line and the Odoo line of the same request become ONE line).
+- Reason: the user asked to save characters on each line (level column limited to 4 characters, "H1.1" instead of "HTTP/1.1", "..." instead of "..."), to remove the date and the server name from each line when they are already shown elsewhere, and to combine the nginx line and the Odoo line of one request (the name --log-merge was proposed by the user).
+- Changes:
+  - LEVEL_WIDTH 8 -> 4 and LEVEL_SHORT (CRITICAL -> CRIT, DEBUG -> DBUG, ERROR -> ERR, WARNING -> WARN). format_value() writes the short level; the colours are unchanged.
+  - short_http() ("HTTP/1.1" -> "H1.1"), used by aligned_request() (Odoo lines) and aligned_nginx_request() (nginx lines). NUMBERS_BLOCK_WIDTH 40 -> 36 so that the requests keep their column.
+  - ELLIPSIS = "..." (one character): shorten_line() (--truncate, default on a terminal), the help texts of --truncate and the messages of the screen (lang/app-log-live.fr.po updated: msgid and msgstr). The names cut by --dns-max-truncate already used "...".
+  - --status-header: format_value() writes only the program name (no date, no host name) when set; the status bar starts with the date and the host name of the last displayed line (state["stamp"], set by emit()). Formatting takes the new argument status_header.
+  - --log-merge: merge_step() and merge_release() (module level) and the consumer loop of main(): an nginx request line is held up to MERGE_HOLD (3 seconds, wall clock) waiting for the Odoo line with the same method and URL and the same status, whose log time is within MERGE_WINDOW (2 seconds). When found, the Odoo line is absorbed and its SQL queries and times are stored on the nginx line (Line.odoo_times): aligned_nginx_request() shows them in the empty columns of the nginx line, and the slowness colour uses them. An nginx line without its Odoo line is shown alone after 3 seconds, at the end of the stream, or when the next line is more than 2 seconds later. --log-merge only works with --log-nginx (both are needed to see the two lines).
+  - Options added in the help (sorted alphabetically with the others, in colour): --log-merge, --status-header.
+  - doc/en/07-app-log-live.md and doc/fr/07-app-log-live.md: the two options and the display changes.
+  - lang/app-log-live.fr.po: texts of the two new options, and the "..." texts.
+  - nginx-tools-tests/test_app_log_live.py: expected texts updated (H1.1, ERR, WARN, "...", column positions shifted by 4 characters); new class AppLogLive123 (5 unit tests and 2 end-to-end tests: one line per request with --log-merge, status bar with --status-header).
+  - nginx-tools-tests/test_logs_merge.py: column positions of the nginx and Odoo lines shifted by 4 characters (level on 4 characters).
+  - Files touched: app-log-live.py, CHANGELOG.md, lang/app-log-live.fr.po, doc/en/07-app-log-live.md, doc/fr/07-app-log-live.md, nginx-tools-tests/test_app_log_live.py, nginx-tools-tests/test_logs_merge.py.
+- Bugs fixed: none in this version. Note: a merged line keeps the name, address and country of the nginx line; the Odoo line is not displayed on its own (its numbers are in the merged line). Its errors, if any, are separate log lines and are still shown.
+- Safeguards and edge cases:
+  - Without --log-nginx, --log-merge does nothing (the nginx lines are then hidden: merging them would hide the requests).
+  - The key x (show or hide the nginx lines) turns the merge on and off with the option: the merge only runs while the nginx lines are shown.
+  - A request without SQL numbers (websocket, longpolling) is not merged.
+  - An nginx line whose Odoo line is missing (static file, request served by nginx alone) is shown as before, alone, after 3 seconds.
+  - Lines are shown in the order of their arrival; a merged line appears at the position of its Odoo line, so a line may come out up to 2 seconds late compared to the lines that were not held.
+  - The filters (--only, --grep, --since, --country) apply to the merged line, as they do to each line.
+  - At the end of the stream (--no-follow), every held line is shown.
+  - Level names of the logs are unchanged: only the display uses the short names (the summary keeps "ERROR / CRITICAL").
+- Checks performed:
+  - python3 -m py_compile; ruff: same 60 findings as before the change (no new finding).
+  - Unit tests: test_app_log_live (all modules, 246 tests run, the failures listed below are expected texts that were updated), test_logs_merge, test_alignement, test_i18n, test_conventions, test_docs. Before the change: 3 failures already present (test_changelog_plus_recent_en_premier for web-monitor.py and odoo-warmup.py, test_colonnes_jamais_tassees_pays_noms_anonymises_et_souligne_tous_les_n) and test_120_journal_html_un_fichier_par_jour (also failing before the change, not touched).
+  - New tests: AppLogLive123 (7 tests, all pass).
+  - Manual check on lines in the real journal format (nginx "http:" and Odoo "werkzeug" lines): 6 lines gave 4 lines with --log-merge; the H1.1 block carries the SQL and time numbers of Odoo.
+  - Not verified here: the display on a real Odoo and nginx server (the logs of the server were not available in this session), and the screen rendering with --status-header in a terminal.
+- Action required: none. New options if wanted: --log-merge (with --log-nginx) and --status-header.
+
 ### 1.122.20261030.153422 - No plural marker "(s)" in the displayed texts
 
 - Title: the texts shown by the program no longer contain "(s)": "requête(s)" becomes "requêtes", "adresse(s)" becomes "adresses", "lente(s)" becomes "lentes" (French and English).

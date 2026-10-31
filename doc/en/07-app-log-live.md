@@ -89,6 +89,9 @@ with the application log. Their lines get the same prefix and the same columns a
 `http`, level, country and address, name). They are hidden by default on an Odoo server.
 
 - `--log-nginx` (or `LOG_NGINX=yes` in the configuration file) shows them from the start.
+- `--log-merge` (1.123): the nginx line and the Odoo line of the SAME request (same URL and status, within 2 seconds) are shown as ONE line, with the SQL queries and the times of Odoo. It needs `--log-nginx`; an nginx line still waiting for its Odoo line after 3 seconds is shown alone.
+- `--status-header` (1.123): the date and the host name are no longer at the start of each line; they are shown at the start of the status bar (date and host of the last line).
+- Display (1.123): the level is written in 4 characters (`ERR`, `WARN`, `CRIT`, `DBUG`, `INFO`), the protocol as `H1.1`, and a shortened line is marked with `…`.
 - The key `x` shows or hides them on the fly, from the next line on (the menu `?` says whether they are shown). Hidden lines are not
   counted and not looked up. Lines read while they were hidden are not shown later.
 
