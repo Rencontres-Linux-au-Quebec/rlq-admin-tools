@@ -1,5 +1,6 @@
 """app-log-live.py — journal de l'application en temps réel : heure ISO locale sans doublons, adresses IP remplacées (personne,
 équipe, DNS, ISP) suivies de l'adresse, --min, couleurs, présence des personnes, flux jamais bloqué par une recherche lente."""
+import contextlib
 import datetime
 import collections
 import importlib.util
@@ -131,6 +132,8 @@ class AppLogLive(EnvTest):
         return cmd
 
     def lancer(self, *args, env_extra=None):
+        if "--status-every" not in args:                                   # 1.125: the status bar is shown at startup; the tests that count the lines do not want it
+            args = (*args, "--status-every", "0")
         rc, out, err = self.run_cmd(["python3", self.prog, "--no-follow", *args], env_extra)
         self.assertNotIn("Traceback", err, err)
         return rc, out, err
@@ -3556,13 +3559,15 @@ class AppLogLive123(EnvTest):
         self.assertEqual(len([l for l in out.splitlines() if "GET" in l]), 2, out)
 
     def test_bout_en_bout_status_header_date_et_hote_dans_la_barre(self):
+        """1.125 : l'heure reste sur la ligne ; la date (sans l'heure) et l'hôte sont au début de la barre d'état."""
         self.journal_123([self.ODOO])
         rc, out, err = self.lancer_123("--status-header", "--status-every", "1")
-        print("DBG", rc, repr(out[:600]), repr(err[:900]))
         ligne = [l for l in out.splitlines() if "GET" in l]
         self.assertEqual(len(ligne), 1, out)
         self.assertNotIn("odoo18", ligne[0])                                         # l'hôte n'est plus dans la ligne
-        self.assertRegex(out, r"(?m)^ 2026-10-31 09:53:27\.79 odoo18  ", out)       # ... mais au début de la barre d'état
+        self.assertNotIn("2026-10-31", ligne[0])                                     # ni la date
+        self.assertIn("09:53:27.79", ligne[0])                                       # mais l'heure, oui
+        self.assertRegex(out, r"(?m)^ 2026-10-31 odoo18  ", out)                     # date et hôte au début de la barre d
 
     def _item(self, raw):
         L = self.m.Line(raw)
@@ -3603,14 +3608,62 @@ class AppLogLive123(EnvTest):
         self.assertIn("ERR", shown)
         self.assertNotIn("ERROR", shown)
 
-    def test_status_header_sans_date_ni_hote_dans_la_ligne(self):
+    def test_status_header_heure_sans_date_ni_hote_dans_la_ligne(self):
+        """1.125 : avec STATUS_HEADER la ligne garde l'heure (sans la date) ; l'hôte n'est pas dans la ligne."""
         ligne = self.m.Line(self.ODOO)
         normal = self.m.Formatting(False, 40, 0.0, False).format_value(ligne, {}, False)
         sans = self.m.Formatting(False, 40, 0.0, True).format_value(ligne, {}, False)
         self.assertIn("2026-10-31 09:53:27.79", normal)
-        self.assertNotIn("2026-10-31 09:53:27.79", sans)
+        self.assertIn("09:53:27.79", sans)
+        self.assertNotIn("2026-10-31", sans)
         self.assertNotIn("odoo18", sans)
         self.assertIn("INFO", sans)
+
+    def test_criticite_vert_jaune_rouge(self):
+        """1.125 : couleur d'un chiffre de la barre selon sa criticité."""
+        self.assertEqual(self.m.criticite(0, 1, 5), "32")
+        self.assertEqual(self.m.criticite(1, 1, 5), "33")
+        self.assertEqual(self.m.criticite(4, 1, 5), "33")
+        self.assertEqual(self.m.criticite(5, 1, 5), "31")
+
+    def test_barre_chiffres_colores_par_criticite(self):
+        """1.125 : le total 5xx (5 réponses) et chaque code sont des morceaux colorés en rouge ; les libellés restent sans couleur."""
+        bar = self.m.StatusBar(show_ips=False)
+        for _ in range(5):
+            line = self.m.Line('2026-10-31T09:53:27.790000-0400 odoo18 odoo[1]: 2026-10-31 05:53:27,790 1 INFO base werkzeug: 1.2.3.4 - - '
+                               '[31/Oct/2026 09:53:27] "GET /x HTTP/1.1" 500 - 1 0.000 0.002')
+            bar.observe(line, None, 9.0)
+        pieces = bar.pieces()
+        self.assertIn(("5", "31"), pieces)
+        self.assertIn(("0", "32"), pieces)                                           # 0 banni, 0 injection : vert
+        self.assertEqual("".join(t for t, _ in pieces), bar.summary())
+
+    def test_config_merge_garde_les_valeurs_et_sauvegarde(self):
+        """1.125 : --config-merge réécrit depuis la nouvelle configuration, garde les valeurs réglées, sauvegarde l'ancien fichier."""
+        conf = os.path.join(self.d, "merge.conf")
+        with open(conf, "w", encoding="utf-8") as f:
+            f.write("SLOW=7\nFOO=bar\n")
+        with contextlib.redirect_stdout(io.StringIO()) as out:
+            rc = self.m.config_merge(conf)
+        self.assertEqual(rc, 0)
+        texte = open(conf, encoding="utf-8").read()
+        self.assertRegex(texte, r"(?m)^SLOW=7$")
+        self.assertNotIn("FOO", texte)                                               # clé inconnue : écartée
+        self.assertRegex(texte, r"(?m)^#STATUS_HEADER=no$")                          # la nouvelle valeur par défaut est présente
+        backups = [n for n in os.listdir(self.d) if n.startswith("merge.conf.bak-")]
+        self.assertEqual(len(backups), 1, backups)
+        self.assertIn("FOO=bar", open(os.path.join(self.d, backups[0]), encoding="utf-8").read())
+        self.assertIn("FOO", out.getvalue())                                         # signalée
+
+    def test_bout_en_bout_bar_de_statut_apres_l_historique(self):
+        """1.125 : la barre de statut est affichée une fois au démarrage, après les lignes de l'historique (sans barre périodique : --status-every -1 seulement)."""
+        self.journal_123([self.ODOO])
+        rc, out, err = self.run_cmd(["python3", self.prog, "--no-follow", "--log-nginx", "--no-isp", "--no-presence", "--no-banned", "--show-ip",
+                                     "--no-min", "--service", "erplibre.service", "--status-every", "-1"])
+        self.assertEqual(rc, 0, err)
+        barre = re.search(r"ÉTAT|STATUS", out)
+        self.assertIsNotNone(barre, out)
+        self.assertGreater(barre.start(), out.index("GET"), out)                    # après la ligne de l'historique
 
     def test_barre_de_statut_4xx_et_5xx_par_code(self):
         """1.124 : la barre d'état sépare les réponses 4xx et 5xx par code (403, 404, 500...)."""

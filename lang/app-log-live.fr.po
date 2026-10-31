@@ -2826,5 +2826,35 @@ msgstr "aucune donnée par port"
 msgid "Show the nginx line and the Odoo line of the SAME request (same URL and status, within 2 seconds) as ONE line: the nginx part, then the SQL queries and the times of Odoo. Needs --log-nginx; an nginx line waiting for its Odoo line is shown alone after 3 seconds"
 msgstr "Affiche la ligne nginx et la ligne Odoo de la MÊME requête (même URL et même statut, à 2 secondes près) en UNE seule ligne : la partie nginx, puis les requêtes SQL et les temps d'Odoo. Demande --log-nginx ; une ligne nginx qui attend sa ligne Odoo est affichée seule après 3 secondes"
 
-msgid "The date and the host name are not shown at the start of each line: they are shown at the start of the status bar instead (date and host of the last line)"
-msgstr "La date et le nom de l'hôte ne sont pas affichés au début de chaque ligne : ils le sont au début de la barre d'état (date et hôte de la dernière ligne)"
+msgid "The date and the host name are not shown at the start of each line: the time stays on each line, and the date and the host name are shown in the status bar instead (date and host of the last line)"
+msgstr "La date et le nom de l'hôte ne sont pas affichés au début de chaque ligne : l'heure reste sur chaque ligne, et la date et le nom de l'hôte sont affichés dans la barre d'état (date et hôte de la dernière ligne)"
+
+msgid "Rewrite the configuration file from the NEW default configuration (example of the current language), keeping the values set in the file read until now; the old file is copied first to FILE.bak-YYYYMMDD-HHMMSS (with -c: that file only). Then exit"
+msgstr "Réécrit le fichier de configuration à partir de la NOUVELLE configuration par défaut (exemple de la langue courante), en gardant les valeurs réglées dans le fichier lu jusqu'ici ; l'ancien fichier est d'abord copié en FICHIER.bak-AAAAMMJJ-HHMMSS (avec -c : ce fichier seulement). Puis fin du programme"
+
+msgid "Example configuration not found: {path}"
+msgstr "Exemple de configuration introuvable : {path}"
+
+msgid "Cannot write {path}: {error}"
+msgstr "Écriture impossible de {path} : {error}"
+
+msgid "Configuration merged into {path}"
+msgstr "Configuration fusionnée dans {path}"
+
+msgid "  read: {files}"
+msgstr "  lu : {files}"
+
+msgid "none (new file)"
+msgstr "aucun (nouveau fichier)"
+
+msgid "  new default configuration: {path}"
+msgstr "  nouvelle configuration par défaut : {path}"
+
+msgid "  backup of the previous file: {path}"
+msgstr "  sauvegarde de l'ancien fichier : {path}"
+
+msgid "  values kept: {n}"
+msgstr "  valeurs conservées : {n}"
+
+msgid "  unknown keys left out: {keys}"
+msgstr "  clés inconnues écartées : {keys}"

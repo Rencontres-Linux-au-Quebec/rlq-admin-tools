@@ -114,7 +114,7 @@ from urllib.parse import unquote
 from collections import Counter, OrderedDict
 from concurrent.futures import Future
 
-__version__ = "1.124.20261031.115734"
+__version__ = "1.125.20261031.124344"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
@@ -717,6 +717,50 @@ def system_config_path(program_name=None):
     return os.path.join(os.environ.get("NGINX_TOOLS_ETC_DEFAULT", "/etc/default"), f"{program_name or SCRIPT_NAME}.conf")
 
 
+def config_merge(explicit=None):
+    """1.125 --config-merge: the file read until now (or `explicit`) is rewritten from the NEW default configuration (doc/LANGUAGE/PROGRAM.conf.example),
+    keeping the values set (uncommented) in it. Keys unknown to the program are left out and listed. The old file is copied first to
+    FILE.bak-YYYYMMDD-HHMMSS (local time). Returns 0, or 1 when the example is missing or the file cannot be written."""
+    cfg_lib = load_module("_config")
+    if explicit:
+        files = [explicit] if os.path.isfile(explicit) else []
+        target = explicit
+    else:
+        files = [c for c, existe in cfg_lib.chemins_regle(SCRIPT_NAME) if existe] if cfg_lib else []
+        target = files[-1] if files else cfg_lib.personnel(SCRIPT_NAME) if cfg_lib else os.path.expanduser(f"~/.{SCRIPT_NAME}.conf")
+    old = {}
+    for c in files:
+        old.update(cfg_lib.lire_fichier(c) if cfg_lib else {})
+    model = os.path.join(SCRIPT_DIR, "doc", "fr" if LANGUAGE == "fr" else "en", f"{SCRIPT_NAME}.conf.example")
+    try:
+        with open(model, encoding="utf-8") as f:
+            model_lines = f.read().splitlines()
+    except OSError:
+        eprint(TR("Example configuration not found: {path}").format(path=model))
+        return 1
+    known = set(SCHEMA_CONFIG) | set(re.findall(r"^#?\s*([A-Z][A-Z0-9_]*)\s*=", "\n".join(model_lines), re.M))
+    kept = {k: v for k, v in old.items() if k in known}
+    dropped = sorted(k for k in old if k not in known)
+    backup, mode = None, 0o644
+    try:
+        if os.path.isfile(target):
+            mode = os.stat(target).st_mode & 0o777
+            backup = f"{target}.bak-{datetime.datetime.now():%Y%m%d-%H%M%S}"
+            shutil.copy2(target, backup)
+        write_lines(target, apply_values(model_lines, kept), mode)
+    except OSError as e:
+        eprint(TR("Cannot write {path}: {error}").format(path=target, error=e))
+        return 1
+    print(TR("Configuration merged into {path}").format(path=target))
+    print(TR("  read: {files}").format(files=", ".join(files) if files else TR("none (new file)")))
+    print(TR("  new default configuration: {path}").format(path=model))
+    print(TR("  backup of the previous file: {path}").format(path=backup or TR("none")))
+    print(TR("  values kept: {n}").format(n=len(kept)) + (f" ({', '.join(sorted(kept))})" if kept else ""))
+    if dropped:
+        print(TR("  unknown keys left out: {keys}").format(keys=", ".join(dropped)))
+    return 0
+
+
 def write_config(path, values):
     """Updates `path`: the active line KEY=… is replaced; otherwise the first commented line #KEY=… is activated; otherwise KEY=… is added at the end. The other lines
     (comments included) are kept as they are. File absent: copy of doc/PROGRAM.conf.example (if it exists). Written through a temporary file then
@@ -733,6 +777,13 @@ def write_config(path, values):
         except OSError:
             lines = []
         mode = 0o644
+    write_lines(path, apply_values(lines, values), mode)
+    return len(values)
+
+
+def apply_values(lines, values):
+    """1.125: the lines of a configuration file with {KEY: value} applied (see write_config); the lines are not written here."""
+    lines = list(lines)
     for key_value, value in values.items():
         text = f'"{value}"' if value != value.strip() or "#" in value else value
         new_one = f"{key_value}={text}"
@@ -744,6 +795,11 @@ def write_config(path, values):
             lines[commented[0]] = new_one
         else:
             lines.append(new_one)
+    return lines
+
+
+def write_lines(path, lines, mode=0o644):
+    """1.125: writes the lines to `path` through a temporary file, then replacement; rights `mode`. OSError if impossible."""
     temp = f"{path}.tmp{os.getpid()}"
     try:
         with open(temp, "w", encoding="utf-8") as f:
@@ -754,7 +810,6 @@ def write_config(path, values):
         with contextlib.suppress(OSError):
             os.unlink(temp)
         raise
-    return len(values)
 
 
 def read_highlight(text, database=None):
@@ -1934,7 +1989,8 @@ class Formatting:
         header = []
         if L.ts_txt:
             shown_program = color_code(STYLES["nginx"], L.program_name) if (L.database == "nginx" and L.program_name) else L.program_name     # 1.118: nginx lines in colour
-            if self.status_header:                              # 1.123 --status-header: date and host name are in the status bar, not in the line
+            if self.status_header:                              # 1.125 --status-header: the time stays on the line; the date and the host name are in the status bar
+                header.append(L.ts_txt.rpartition(" ")[2])
                 header.append((shown_program or "") + ("" if L.level else ":"))
             else:
                 header.append(L.ts_txt)
@@ -4543,6 +4599,11 @@ SQLI_RE = re.compile(r"union(?:\s|\+|/\*.*?\*/|%20)+(?:all(?:\s|\+|%20)+)?select
 STATUS_SLOW_S = 9.0            # 1.119: only the requests slower than this (seconds) change the colour of the status bar
 
 
+def criticite(valeur, jaune, rouge):
+    """1.125: SGR of a status bar figure: 32 green below `jaune`, 33 yellow from `jaune`, 31 red from `rouge` (more is worse)."""
+    return "31" if valeur >= rouge else "33" if valeur >= jaune else "32"
+
+
 class StatusBar:
     """1.113: cumulative summary of the recent problems, drawn as a reverse-video bar every N displayed lines (--status-every N): SQL injection attempts,
     4xx and 5xx answers, addresses currently banned (seen), slow requests (--slow). Reset by the detailed reports (Ctrl-T and g).
@@ -4603,6 +4664,33 @@ class StatusBar:
             self.slow += 1
             self.slow_max = max(self.slow_max, total)
 
+    def pieces(self, users=None, ssh=None):
+        """1.125: the bar as [(text, SGR)]: the figures are coloured by criticality (32 green, 33 yellow, 31 red); SGR None = colour of the bar."""
+        groups = [
+            [(TR("health state") + " ", None), (f"{self.health()} %", "32" if self.health() >= 90 else "33" if self.health() >= 70 else "31")],
+            [(TR("SQLi attacks") + " ", None), (f"{self.sqli}", criticite(self.sqli, 1, 5))],
+            self.codes_pieces(400, self.e4),
+            self.codes_pieces(500, self.e5),
+            [(TR("banned") + " ", None), (f"{len(self.banned)}", criticite(len(self.banned), 1, 5))],
+            [(TR("slow") + " ", None), (f"{self.slow}", criticite(self.slow, 5, 20))] + ([(f" (max {self.slow_max:.1f} s)", None)] if self.slow else []),
+            [(TR("max SQL") + " ", None), (f"{self.sql_max}", criticite(self.sql_max, 300, 1000))],
+            [(TR("Odoo errors") + " ", None), (f"{self.odoo_err}", criticite(self.odoo_err, 1, 10))],
+        ]
+        if users is not None:
+            groups.append([(TR("Odoo users") + " ", None), (f"{users}", None)])
+        groups.append([(TR("per port") + " ", None), ((" · ".join(f"{p}: {n}" for p, n in sorted(self.ports.items())) if self.ports else TR("no port data")), None)])      # 1.121
+        if ssh is not None:
+            groups.append([(TR("SSH") + f" {ssh}", None)])
+        top = self.top_ips()
+        if top:
+            groups.append([(top, None)])
+        out = []
+        for i, group in enumerate(groups):
+            if i:
+                out.append((" · ", None))
+            out.extend(group)
+        return out
+
     def color(self):
         """SGR code of the reverse-video bar: 37 white, 32 green, 33 yellow, 31 red.
         1.119: the colour follows ONLY the slow connections (more than 9 s): 1 to 4 green, 5 to 19 yellow, 20 and more red.
@@ -4628,26 +4716,28 @@ class StatusBar:
         best = self.problems_by_ip.most_common(self.TOP_IPS)
         return TR("top IP") + " " + ", ".join(f"{ip} ×{count}" for ip, count in best)      # 1.119: no parentheses
 
+    def codes_pieces(self, first, total):
+        """1.124: the 4xx (first=400) or 5xx (first=500) answers, split by code: "4xx 172 (403: 3 · 404: 169)"; no split when there is none. 1.125: coloured pieces."""
+        thresholds = (20, 100) if first == 400 else (1, 5)
+        codes = [(code, n) for code, n in sorted(self.codes.items()) if first <= code < first + 100]
+        out = [(f"{first // 100}xx ", None), (f"{total}", criticite(total, *thresholds))]
+        if codes:
+            out.append((" (", None))
+            for i, (code, n) in enumerate(codes):
+                if i:
+                    out.append((" · ", None))
+                out.append((f"{code}: ", None))
+                out.append((f"{n}", criticite(n, *thresholds)))
+            out.append((")", None))
+        return out
+
     def codes_text(self, first, total):
-        """1.124: the 4xx (first=400) or 5xx (first=500) answers, split by code: "4xx 172 (403: 3 · 404: 169)"; no split when there is none."""
-        parts = [f"{code}: {n}" for code, n in sorted(self.codes.items()) if first <= code < first + 100]
-        return f"{first // 100}xx {total}" + (f" ({' · '.join(parts)})" if parts else "")
+        """1.124: text of codes_pieces (no colour)."""
+        return "".join(text for text, _ in self.codes_pieces(first, total))
 
     def summary(self, users=None, ssh=None):
-        """1.120: users and ssh (number of people signed in to Odoo, of SSH sessions) are given by the caller when known."""
-        slow_text = f"{self.slow}" + (f" (max {self.slow_max:.1f} s)" if self.slow else "")
-        parts = [TR("health state") + f" {self.health()} %", TR("SQLi attacks") + f" {self.sqli}", self.codes_text(400, self.e4), self.codes_text(500, self.e5),
-                 TR("banned") + f" {len(self.banned)}", TR("slow") + f" {slow_text}",
-                 TR("max SQL") + f" {self.sql_max}", TR("Odoo errors") + f" {self.odoo_err}"]
-        if users is not None:
-            parts.append(TR("Odoo users") + f" {users}")
-        parts.append(TR("per port") + " " + (" · ".join(f"{p}: {n}" for p, n in sorted(self.ports.items())) if self.ports else TR("no port data")))      # 1.121
-        if ssh is not None:
-            parts.append(TR("SSH") + f" {ssh}")
-        top = self.top_ips()
-        if top:
-            parts.append(top)
-        return " · ".join(parts)
+        """1.120: users and ssh (number of people signed in to Odoo, of SSH sessions) are given by the caller when known. 1.125: text of pieces()."""
+        return "".join(text for text, _ in self.pieces(users, ssh))
 
 
 class Output:
@@ -5164,7 +5254,7 @@ def follow(cmd, people, resolver, options, output):
         watch_repeat(ips0[0][2] if ips0 else None, L)
         state["emitted"] = state.get("emitted", 0) + 1
         if L.ts_txt:
-            state["stamp"] = " ".join(x for x in (L.ts_txt, L.host_name) if x)      # 1.123: for the status bar (--status-header)
+            state["stamp"] = " ".join(x for x in (L.ts_txt.rpartition(" ")[0], L.host_name) if x)      # 1.125: date and host for the status bar (--status-header)
         paint(L, text, inputs, benign, underline=bool(output.underline) and state["emitted"] % output.underline == 0)
         status.observe(L, ips0[0][2] if source else None, options["slow"], ips0[0][2] if ips0 else None)
         if status.color() == "31" and not status.alerted:      # 1.114: the bar turns red: one beep and one line, until the next reset (Ctrl-T or g)
@@ -5179,14 +5269,26 @@ def follow(cmd, people, resolver, options, output):
             sonner(beep["mode"], output.screen)
 
     def status_line():
-        """1.113: the status bar, reverse video, its colour according to the problems counted since the last detailed report."""
+        """1.113: the status bar, reverse video, its colour according to the problems counted since the last detailed report.
+        1.125: each figure is coloured on its own (reverse video too); the text is cut by its visible length, the escape codes do not count."""
         columns = terminal_columns()
         status.show_ips = bool(options.get("keep_ip"))          # 1.114: follows the H key (--hide-ip / --show-ip) on the fly
         users = len(odoo_logged_in(options.get("presence"), time.time())) if options.get("presence") is not None else None      # 1.120
-        stamp = state.get("stamp") if options.get("status_header") else None      # 1.123 --status-header: date and host of the last line, first
+        stamp = state.get("stamp") if options.get("status_header") else None      # 1.123 --status-header: date and host of the last line, first (1.125: date only)
         head = f" {stamp}  " if stamp else " "
-        text = f"{head}{TR('STATUS')}  {status.summary(users, len(ssh_sessions()))}  ·  {TR('since the last detailed report (Ctrl-T or g)')} "
-        return color_code(f"7;1;{status.color()}", text[:max(20, columns - 1)].ljust(columns - 1))
+        bar = status.color()
+        pieces = [(head + TR("STATUS") + "  ", None)] + status.pieces(users, len(ssh_sessions())) + [("  ·  " + TR("since the last detailed report (Ctrl-T or g)") + " ", None)]
+        limit = max(20, columns - 1)
+        out, left = [], limit
+        for text, code in pieces:
+            if left <= 0:
+                break
+            chunk = text[:left]
+            left -= len(chunk)
+            out.append(color_code(f"7;1;{code}" if code else f"7;1;{bar}", chunk))
+        visible = limit - left
+        out.append(color_code(f"7;1;{bar}", " " * max(0, columns - 1 - visible)))
+        return "".join(out)
 
     def refresh_lines():
         """f key: the lines of the buffer are displayed again with the CURRENT options (addresses, names, highlight, --only...). They are not counted again,
@@ -5401,6 +5503,8 @@ def follow(cmd, people, resolver, options, output):
         if hasattr(output, "active") and not output.active:      # end of the history: the daily journal receives only the live stream
             output.active = True
             alert.update(stats=stats.snapshot(), res=Resources.measure(), next_one=time.time() + options["health"] * 60)
+            if options["status_every"]:                          # 1.125: the status bar is shown after the history, before the live lines (--status-every 0 = never)
+                output.write(status_line() + "\n")
 
     def reminder(L, ip, name):
         """A person has just logged in from ip: their recent lines, displayed higher up without a name, are displayed again with the name."""
@@ -6343,6 +6447,9 @@ def main():
                              f"with the setting to change (default: {CONNECTIONS_THRESHOLD_DEFAULT:g}; 0 = never)")
     parser.add_argument("-c", "--config", metavar="FILE",
                         help="Configuration file to read ALONE (otherwise: /etc/default/app-log-live.conf, then the personal file .app-log-live.conf; options in UPPERCASE: APP, CONNECTIONS, DAYS, DNS_MAX, HEALTH, HIDE_IP, IDLE, LANGUAGE, LINES, LOG_DIR, LOG_KEEP_DAYS, LOG_MERGE, LOG_NGINX, MIN, NAMESPACE, NO_BANNED, NO_BAN_PROMPT, NO_CACHE, NO_HISTORY, NO_ISP, NO_KEYS, NO_LOG_FILE, NO_PRESENCE, NO_USER_AGENT, RECAP, SERVICE, SLOW, STATUS_HEADER, VERBOSE)")
+    parser.add_argument("--config-merge", action="store_true",
+                        help="Rewrite the configuration file from the NEW default configuration (example of the current language), keeping the values set in the file read until now; "
+                             "the old file is copied first to FILE.bak-YYYYMMDD-HHMMSS (with -c: that file only). Then exit")
     parser.add_argument("--chime", type=int, nargs="?", const=0, default=None, choices=(0, 1, 2), metavar="N",
                         help="Beep (in byobu/tmux too: see the tips shown) when a displayed line is an error: 0 = any error (4xx, 5xx, Odoo ERROR), 1 = 4xx, 2 = 5xx and 4xx (0 without value)")
     parser.add_argument("--days", type=float, default=DAYS_DEFAULT, metavar="N",
@@ -6471,7 +6578,7 @@ def main():
                         help="Show the nginx line and the Odoo line of the SAME request (same URL and status, within 2 seconds) as ONE line: "
                              "the nginx part, then the SQL queries and the times of Odoo. Needs --log-nginx; an nginx line waiting for its Odoo line is shown alone after 3 seconds")
     parser.add_argument("--status-header", action="store_true",
-                        help="The date and the host name are not shown at the start of each line: they are shown at the start of the status bar instead (date and host of the last line)")
+                        help="The date and the host name are not shown at the start of each line: the time stays on each line, and the date and the host name are shown in the status bar instead (date and host of the last line)")
     parser.add_argument("--no-pager", action="store_true", dest="journalctl_no_pager",
                         help="Accepted for journalctl compatibility: the output is never paged")
     parser.add_argument("-S", "--since", metavar="TIME",
@@ -6531,6 +6638,8 @@ def main():
         parser.error(f"--country / --exclude-country: invalid country codes: {', '.join(invalid_countries)}")
     if args.changelog:
         return show_changelog()
+    if args.config_merge:
+        return config_merge(args.config)
     profile_module = load_module("_profile")
     regler_cms(profile_module.cms(None if args.cms == "auto" else args.cms) if profile_module is not None else (args.cms if args.cms != "auto" else "odoo"))
     if args.lines < 0 or not 0 <= args.days <= 36500 or args.idle <= 0 or args.recap < 0 or args.health < 0 or args.log_keep_days < 0:
