@@ -89,7 +89,7 @@ run() {
     "$@"
 }
 
-readonly SCRIPT_VERSION="2.68.20261031.180855"
+readonly SCRIPT_VERSION="2.69.20261031.191441"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
 SCRIPT_NAME="$(basename "${BASH_SOURCE[0]}" .sh)"; readonly SCRIPT_NAME
 # Display language (en or fr): --lang, NGINX_HARDENING_LANG, LANGUAGE of the configuration file, LC_ALL / LANG - apps/_i18n.sh translates the output (nothing changes in French).
@@ -2997,7 +2997,11 @@ if [[ "$APP_NAME" == "odoo" ]]; then
     uri_n=${#uri_liste[@]}
     echo "  URI refusées actuellement : ${uri_actuelles:-aucune}"
     uri_actif=0
-    if [[ -f "$uri_dst" ]] && [[ "$(cat "$uri_dst")" == "$uri_nouveau" ]]; then
+    if [[ "$uri_futures" == "$uri_actuelles" ]]; then
+        # 2.69 : liste inchangée : aucune question, aucune écriture. Le fichier est créé vide par fragments_generes_assurer (étape 0f).
+        pass "URI refusées inchangées (${uri_futures:-aucune}) ; $uri_dst ne demande aucune modification."
+        uri_actif=1
+    elif [[ -f "$uri_dst" ]] && [[ "$(cat "$uri_dst")" == "$uri_nouveau" ]]; then
         pass "$uri_dst à jour ($uri_n URI refusées : ${uri_futures:-aucune})."
         uri_actif=1
     elif [[ "$CHECK_ONLY" == "1" ]]; then

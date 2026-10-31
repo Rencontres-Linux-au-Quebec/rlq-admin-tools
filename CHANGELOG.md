@@ -2377,6 +2377,17 @@ Earlier history was archived outside this repository when this file was created.
 
 ## nginx-hardening.sh
 
+### 2.69.20261031.191441 - No 404 question when the list of refused URIs does not change
+
+- Title: the question "Refuser (404) : ... ? [o/N]" is no longer asked when the list of refused URIs does not change.
+- Reason: the administrator saw "URI refusées actuellement : aucune" followed by the question for an unchanged empty list, which is confusing.
+- Cause: the program compared the content of snippets/uri-desactivees.conf with the text it would generate. A missing file, or a different header, made the comparison fail, so the question was asked even when no URI was added or removed.
+- Changes: section 12c (URI refusées), nginx-hardening.sh: when the list before and after is the same, the step reports it and writes nothing. The question remains for real changes (--disable-uri, --enable-uri).
+- Bugs fixed: symptom: question for an unchanged list; diagnosis: comparison of the whole file instead of the list; fix: comparison of the lists first.
+- Safeguards and edge cases: the file uri-desactivees.conf is still created empty by fragments_generes_assurer (step 0f) when missing, so nginx -t does not fail; a changed list still asks for confirmation (o/N), or is applied with --yes; without a terminal nothing changes, as before.
+- Checks performed: bash -n on nginx-hardening.sh.
+- Action required: none. The question disappears on the next --update when the list is unchanged. To refuse a path, use --disable-uri CHEMIN and confirm.
+
 ### 2.68.20261031.180855 - Odoo editor shapes: no more 429 on normal loading (nginx configuration 1.16)
 
 - Title: the shapes of the Odoo site editor (/web_editor/shape/) use the general limit instead of the strict zone odoo_shapes.
