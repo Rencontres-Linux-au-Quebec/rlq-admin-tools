@@ -3660,6 +3660,12 @@ class AppLogLive123(EnvTest):
         self.assertIn("/web/image/8982-89f82e4c/Article de blog 'Saint-Hyacinthe, 15 juin 2026' cover image.webp", plain)
         self.assertNotIn("%20", plain)
 
+    def test_version_du_navigateur_n_est_pas_une_adresse(self):
+        """1.129 : Chrome/146.0.0.0 dans le User-Agent n'est pas une adresse IP (pas de nom ni de pays à la place de la version) ;
+        une adresse dans une URL (https://1.2.3.4/) ou en texte reste reconnue."""
+        self.assertEqual(self.m.find_ips("GET /x - Mozilla/5.0 (Macintosh) Chrome/146.0.0.0 Safari/537.36 host=rencontres-linux.quebec"), [])
+        self.assertEqual([ip for _, _, ip in self.m.find_ips("GET https://1.2.3.4/ from 87.192.109.76")], ["1.2.3.4", "87.192.109.76"])
+
     def test_config_merge_garde_les_valeurs_et_sauvegarde(self):
         """1.125 : --config-merge réécrit depuis la nouvelle configuration, garde les valeurs réglées, sauvegarde l'ancien fichier."""
         conf = os.path.join(self.d, "merge.conf")
