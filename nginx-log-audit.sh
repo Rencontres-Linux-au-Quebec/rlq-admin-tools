@@ -130,7 +130,7 @@ grep_q() { grep "$@" >/dev/null; }
 #                              ne peut pas le voir, le texte etant entre apostrophes (faux positif).
 trap 'ec=$?; echo "" >&2; echo "*** ARRÊT INATTENDU DU SCRIPT (code $ec) À LA LIGNE $LINENO ***" >&2; echo "*** Commande fautive : $BASH_COMMAND" >&2; echo "*** Si le rapport ci-dessus semble incomplet (ex. sections Top 10 absentes), c'\''est probablement la cause." >&2' ERR
 
-readonly SCRIPT_VERSION="2.65.20261031.180855"
+readonly SCRIPT_VERSION="2.66.20261031.193551"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
 # Chemin de ce programme (relances --investigate, --ban, --unban) : defini ICI, avant le bloc --ban qui l'utilise.
 SELF_PATH="$SCRIPT_DIR/$(basename "${BASH_SOURCE[0]}")"
@@ -2050,12 +2050,12 @@ investigate_and_propose() {
     # Rapport normal : les 5 plus frequents (+ le nombre de ceux masques) ; --investigate : tous.
     local n_ua ua_max=5
     [[ -n "$INVESTIGATE_IP" ]] && ua_max=100000
-    { printf '%s\n' "$uas" | tr '\001' '\n' | sed '/^$/d' | sort -t x -k1,1nr | head -n "$ua_max" | sed 's/^/        /'; } || true
+    { printf '%s\n' "$uas" | tr '\001' '\n' | sed '/^$/d' | sort -t x -k1,1nr | awk -v n="$ua_max" 'NR <= n' | sed 's/^/        /'; } || true
     n_ua=$(printf '%s\n' "$uas" | tr '\001' '\n' | grep -c . || true)
     if (( n_ua > ua_max )); then echo "        (+$((n_ua - ua_max)) autres User-Agents — tous visibles avec : nginx-log-audit.sh --investigate $ip)"; fi
     # requested URLs: what the IP really did, to judge at a glance (e.g. "3x /events": nothing hostile).
     echo "      URL demandées :"
-    { printf '%s\n' "$urls" | tr '\001' '\n' | sed '/^$/d' | sort -t x -k1,1nr | head -n "$ua_max" | sed 's/^/        /' | surligner; } || true
+    { printf '%s\n' "$urls" | tr '\001' '\n' | sed '/^$/d' | sort -t x -k1,1nr | awk -v n="$ua_max" 'NR <= n' | sed 's/^/        /' | surligner; } || true
     n_url=$(printf '%s\n' "$urls" | tr '\001' '\n' | grep -c . || true)
     if (( n_url > ua_max )); then echo "        (+$((n_url - ua_max)) autres URL — toutes visibles avec : nginx-log-audit.sh --investigate $ip)"; fi
 
@@ -2126,7 +2126,7 @@ investigate_and_propose() {
     # Indications (outside the score): session open in the back office, URL repeated in a loop.
     local n_bo top_n top_u logins=""
     n_bo=$(printf '%s\n' "$urls" | tr '\001' '\n' | awk '$2 ~ /^\/(web\/(dataset|action|webclient)|mail\/|discuss\/|bus\/)/ { s += $1 } END { print s + 0 }')
-    read -r top_n top_u < <(printf '%s\n' "$urls" | tr '\001' '\n' | sed '/^$/d' | sort -t x -k1,1nr | head -1 | sed 's/x / /') || true
+    read -r top_n top_u < <(printf '%s\n' "$urls" | tr '\001' '\n' | sed '/^$/d' | sort -t x -k1,1nr | awk 'NR == 1' | sed 's/x / /') || true
     top_n=${top_n:-0}
     charger_logins
     logins=$(logins_odoo "$ip")
@@ -2155,7 +2155,7 @@ investigate_and_propose() {
     fi
     echo "      Pour vérifier soi-même :"
     echo "        host $ip"
-    echo "        grep -F \"$ip \" $src | awk -F'\"' '{print \$6}' | sort | uniq -c"
+    echo "        zgrep -F \"$ip \" ${src%%  (*} | awk -F'\"' '{print \$6}' | sort | uniq -c"
     echo
 
     local blocked prot

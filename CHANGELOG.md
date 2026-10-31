@@ -2736,6 +2736,19 @@ Earlier history was archived outside this repository when this file was created.
 
 ## nginx-log-audit.sh
 
+### 2.66.20261031.193551 - No "Broken pipe" message; verification command uses zgrep
+
+- Title: the investigation output no longer shows "sort: write failed: Broken pipe", and the suggested command reads the compressed logs too.
+- Reason: during --investigate, the message "sort: write failed: 'standard output': Broken pipe" appeared in the report. The suggested command was a grep, which does not read the .gz rotations, although the explanation said so.
+- Cause: "head" closed its input before "sort" had finished writing (in the lists of URLs and User-Agents, and in the top URL), so sort received SIGPIPE.
+- Changes:
+  - investigate_and_propose: "head -n" and "head -1" replaced by awk, which reads all its input (same output).
+  - investigate_and_propose: the verification command is now zgrep -F "IP " PATH | awk ... | sort | uniq -c, with the path without the "(zgrep pour les .gz)" suffix.
+- Bugs fixed: symptom: Broken pipe message; diagnosis: head closes the pipe early; fix: awk.
+- Safeguards and edge cases: zgrep also reads uncompressed files; the output lists are unchanged; the path is cut at the first "  (" so callers without the suffix are unaffected.
+- Checks performed: bash -n; unit tests of nginx-log-audit and i18n (see the commit).
+- Action required: none.
+
 ### 2.65.20261031.180855 - 429 separated from hostility; Odoo accounts identified in --investigate
 
 - Title: a 429 (nginx rate limiting) is no longer counted as an error of hostility; --investigate shows which nginx zone refused the address and which Odoo accounts were active during its requests.
