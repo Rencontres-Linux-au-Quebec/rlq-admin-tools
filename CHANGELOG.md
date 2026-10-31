@@ -2377,6 +2377,26 @@ Earlier history was archived outside this repository when this file was created.
 
 ## nginx-hardening.sh
 
+### 2.68.20261031.180855 - Odoo editor shapes: no more 429 on normal loading (nginx configuration 1.16)
+
+- Title: the shapes of the Odoo site editor (/web_editor/shape/) use the general limit instead of the strict zone odoo_shapes.
+- Reason: a logged-in administrator editing the "Partenaires" page received 331 HTTP 429 responses. The editor loads about sixty decorative shapes at once; the zone odoo_shapes allowed one request every 3 seconds per address after a burst of 10.
+- Changes (files of nginx/, installed by --update):
+  - nginx/snippets/odoo/_odoo-common.conf: location ~ ^/web_editor/shape/ uses limit_req zone=odoo_general burst=120 nodelay (30 requests/s, shared with the rest of the site) instead of odoo_shapes burst=10. The curl limit (odoo_curl) is kept: it only applies to the curl user agent.
+  - nginx/conf.d/odoo-global.conf: comment added to the odoo_shapes zone (no longer used).
+  - nginx/VERSION: 1.16.20261031.180855.
+  - nginx-hardening.sh: version bumped because this program installs these files.
+- Bugs fixed:
+  - Symptom: 429 responses on /web_editor/shape/ for a session connected to the back office.
+  - Diagnosis: error.log: "limiting requests, excess: 10.x by zone odoo_shapes" for the same address, requests about one second apart within a page load.
+  - Fix: general limit instead of the strict zone for this location only.
+- Safeguards and edge cases:
+  - Trade-off, to decide with the administrator: the zone odoo_shapes was created against an automated enumeration of shape variants (one request every 2 to 3 seconds). That enumeration would no longer be refused by this location. The general limit (30 requests/s) still caps abuse. If the enumeration returns, a zone with rate=60r/m and burst=40 would be a middle ground (not applied in this version).
+  - The routes /web/image/ and the static assets are not changed.
+  - The nginx file test test_config_nginx still passes (route not refused by the security rules).
+- Checks performed: test_config_nginx OK. nginx -t was not run here: this sandbox has no access to the nginx server.
+- Action required: on each Odoo server (production, then development), run as root "nginx-hardening.sh --update" and approve the displayed diff. The program tests the configuration (nginx -t) and reloads nginx. Then check the error log: "grep 'odoo_shapes' /var/log/nginx/*error.log" should stop growing.
+
 ### 2.67.20261030.153422 - No plural marker "(s)" in the displayed texts
 
 - Title: the texts shown by the program no longer contain "(s)": "requête(s)" becomes "requêtes", "adresse(s)" becomes "adresses", "lente(s)" becomes "lentes" (French and English).
@@ -2704,6 +2724,27 @@ Earlier history was archived outside this repository when this file was created.
 - Current version. Earlier history archived outside the repository.
 
 ## nginx-log-audit.sh
+
+### 2.65.20261031.180855 - 429 separated from hostility; Odoo accounts identified in --investigate
+
+- Title: a 429 (nginx rate limiting) is no longer counted as an error of hostility; --investigate shows which nginx zone refused the address and which Odoo accounts were active during its requests.
+- Reason: the address 174.94.93.49 was scored with its 331 HTTP 429 responses, although it was a logged-in back-office session (the Odoo editor loading shapes, page "Partenaires"). The program could not say which rule had produced the 429. The administrator also asked to identify the Odoo user from the database.
+- Changes:
+  - investigate_and_propose: the number of 429 is read from the HTTP codes; the "error rate" criterion of the score uses the errors without the 429 (line "hors 429"); a [i] line shows the 429 count and the zones read from error.log.
+  - New function limites_debit_ip IP: counts the "limiting requests" lines of the address per nginx zone, in error.log and its rotations (.gz included).
+  - New function comptes_bd_ip IP (only with --investigate): sends the request times of the address to apps/_odoo_db.py --correlate and lists the Odoo accounts active within 2 hours of them.
+  - --investigate help text: one line added (lang/nginx-log-audit.en.po updated, all new messages translated).
+- Bugs fixed:
+  - Symptom: the report gave "Taux d'erreurs : 331/1116" and a session identified as a human was reported without an account.
+  - Diagnosis: the 429 were in the error count; the error log showed "limiting requests" in zone odoo_shapes for this address; the journal of Odoo did not contain a login for this address in 100 days.
+  - Fix: separation of the 429, zone display, and database correlation.
+- Safeguards and edge cases:
+  - A 429 alone never adds to the hostility signs; the score is computed on the other signs.
+  - The database is read only (default_transaction_read_only forced by PostgreSQL, see apps/_odoo_db.py). Without root, the program prints a message and continues.
+  - Odoo does not store the IP address of its sessions: the account list is a lead based on the time (margin of 2 hours), never a proof. The message says so.
+  - If a table is missing in the Odoo version (bus_presence), that source is skipped.
+- Checks performed: bash -n on the script; test_i18n and test_nginx_log_audit OK; --version shows the new version; the correlation command returns the expected message without root. Full suite (run-all.sh): the remaining failures are in other programs (ruff on nginx-tools-tests/test_menu.py and web-monitor.py, app-log-live tests and models, odoo-warmup and web-monitor changelog order, odoo-backup model); none in the files changed here.
+- Action required: as root on the production server, run "nginx-log-audit.sh --investigate 174.94.93.49" to see the accounts found in the database. Then apply the nginx fix described in the nginx-hardening.sh 2.68 entry.
 
 ### 2.64.20261030.153422 - No plural marker "(s)" in the displayed texts
 
@@ -3568,6 +3609,19 @@ Earlier history was archived outside this repository when this file was created.
 ### 1.3.20261020.211944 - Current version. Earlier history archived outside the repository.
 
 ## apps/_odoo_db.py
+
+### 1.23.20261031.180855 - --correlate: active Odoo accounts at given request times
+
+- Title: new option --correlate reads nginx request times and lists the Odoo accounts active in these times.
+- Reason: --investigate of nginx-log-audit.sh must identify the Odoo user behind an address, read from the database (Odoo does not store IP addresses of sessions).
+- Changes:
+  - New function connexions_proches (base, instants, margin 2 hours): reads, read only, res_users_log (logins), res_users.login_date (last login) and bus_presence (last activity) in the time window. Missing sources are skipped.
+  - New function correlate_cli: reads one nginx date per line on standard input, lists BASE, LOGIN, NAME, SOURCE and DATE (local time of the server) for each Odoo database found.
+  - main(): option --correlate (alone); usage line updated.
+- Bugs fixed: none (new function).
+- Safeguards and edge cases: all SQL goes through _requete (read-only transaction forced by PostgreSQL); the time window is built from integers; unreadable databases give an error message and exit code 1; no date means no query.
+- Checks performed: py_compile; --version; without root the command prints "bases illisibles" and exits with code 1 (expected in this sandbox).
+- Action required: none. Reading the database requires root on the server (PostgreSQL local, as before).
 
 ### 1.22.20261025.113933 - New read-only function langue_defaut() (default language of the website)
 

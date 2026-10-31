@@ -130,7 +130,7 @@ grep_q() { grep "$@" >/dev/null; }
 #                              ne peut pas le voir, le texte etant entre apostrophes (faux positif).
 trap 'ec=$?; echo "" >&2; echo "*** ARRÊT INATTENDU DU SCRIPT (code $ec) À LA LIGNE $LINENO ***" >&2; echo "*** Commande fautive : $BASH_COMMAND" >&2; echo "*** Si le rapport ci-dessus semble incomplet (ex. sections Top 10 absentes), c'\''est probablement la cause." >&2' ERR
 
-readonly SCRIPT_VERSION="2.64.20261030.153422"
+readonly SCRIPT_VERSION="2.65.20261031.180855"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
 # Chemin de ce programme (relances --investigate, --ban, --unban) : defini ICI, avant le bloc --ban qui l'utilise.
 SELF_PATH="$SCRIPT_DIR/$(basename "${BASH_SOURCE[0]}")"
@@ -315,6 +315,7 @@ Options (par ordre alphabétique) :
   --init                       analyser tout le fichier actif (et non seulement le nouveau depuis le dernier passage)
   --init-all                   analyser tout l'historique, rotations comprises
   --investigate IP             enquête complète sur une IP (tout l'historique), avec le propriétaire de son bloc d'adresses (RDAP)
+                               et les comptes Odoo actifs pendant ses requêtes (base PostgreSQL, lecture seule)
   --ip ADDRESS                 limiter le rapport à une adresse
   --lang LANG                  langue d'affichage : en ou fr (défaut : selon LC_ALL / LC_MESSAGES / LANG)
   --last HOURS                 limiter toutes les sections aux HOURS dernières heures
@@ -1030,6 +1031,44 @@ logins_odoo() {       # "account (N login(s), last YYYY-MM-DDTHH:MM)" for each a
     [[ -z "$LOGINS_TABLE" ]] && return 0
     printf '%s\n' "$LOGINS_TABLE" | awk -v ip="$1" '$1 == ip { n[$2]++; d[$2] = $3 }
         END { for (l in n) printf "%s (%d connexions, dernière %s)\n", l, n[l], substr(d[l], 1, 16) }'
+}
+
+# limites_debit_ip IP (2.65) : zones de limitation nginx ("limiting requests") qui ont refusé l'IP, lues dans error.log et ses rotations
+# (.gz compris). Dit QUELLE règle a produit le 429 avant de conclure à une attaque.
+limites_debit_ip() {
+    local ip="$1" f
+    [[ -n "${ERROR_LOG:-}" ]] || return 0
+    for f in "$ERROR_LOG"*; do
+        [[ -r "$f" ]] || continue
+        zcat -f -- "$f" 2>/dev/null
+    done | grep -F "client: $ip," | grep -F 'limiting requests' \
+         | sed -nE 's/.*by zone "([^"]+)".*/\1/p' | sort | uniq -c | sort -rn \
+         | awk '{ printf "%s refus par la zone %s\n", $1, $2 }' || true
+}
+
+# comptes_bd_ip IP (2.65, --investigate) : comptes Odoo ACTIFS pendant les requêtes de l'IP, lus dans la base PostgreSQL (lecture seule,
+# root requis, module apps/_odoo_db.py --correlate). Odoo n'enregistre pas l'adresse IP de ses sessions : la correspondance se fait par
+# l'HEURE des requêtes (marge de 2 h), donc c'est une piste à vérifier, pas une preuve.
+comptes_bd_ip() {
+    local ip="$1" lignes base login nom source quand
+    if [[ ! -r "$APPS_DIR/_odoo_db.py" ]] || ! command -v python3 >/dev/null 2>&1; then
+        echo "      [i] Comptes Odoo (base) : apps/_odoo_db.py ou python3 absent."
+        echo
+        return 0
+    fi
+    progres "Comptes Odoo actifs pendant les requêtes de $ip (base PostgreSQL, lecture seule)"
+    lignes=$(grep -E "^${ip//./\\.} " "${INV_SRC:-/dev/null}" 2>/dev/null | awk -F'[][]' '{ print $2 }' \
+             | timeout --foreground 90 python3 "$APPS_DIR/_odoo_db.py" --correlate 2>/dev/null) || lignes=""
+    if [[ -z "$lignes" ]]; then
+        echo "      [i] Comptes Odoo actifs pendant ces requêtes : aucun trouvé (ou base illisible : lancer en root sur le serveur)."
+        echo
+        return 0
+    fi
+    echo "      ${C_GREEN}[i] Comptes Odoo ACTIFS pendant les requêtes de cette IP (base, marge 2 h) - à vérifier, Odoo ne note pas l'IP des sessions :${C_RESET}"
+    printf '%s\n' "$lignes" | while IFS=$'\t' read -r base login nom source quand; do
+        printf '            %s : %s (%s), %s, %s\n' "$base" "$login" "$nom" "$source" "$quand"
+    done
+    echo
 }
 
 # ip_dans IP ENTRY: true if ENTRY is the IP address itself, or an IPv4 range (a.b.c.d/n) that contains it.
@@ -2031,8 +2070,18 @@ investigate_and_propose() {
     else echo "      $no Double identité : non"; fi
     if (( nprobe >= 3 )); then score=$((score+1)); hostile=$((hostile+1)); SIGNE_FORT=1; motifs+=("$nprobe tentatives d'accès à des fichiers sensibles (ex. $probes)"); echo "      $ok Recherche de fichiers sensibles : $nprobe requêtes (ex. $probes)"
     else echo "      $no Recherche de fichiers sensibles : ${nprobe} requêtes"; fi
-    if (( nerr >= 20 && nerr * 2 >= total )); then score=$((score+1)); hostile=$((hostile+1)); SIGNE_FORT=1; motifs+=("$nerr erreurs sur $total requêtes"); echo "      $ok Taux d'erreurs élevé : $nerr/$total (4xx/5xx/444)"
-    else echo "      $no Taux d'erreurs : $nerr/$total"; fi
+    # 2.65 : le 429 (limitation de débit nginx) n'est PAS une erreur hostile : compté à part, et croisé avec error.log (zone déclenchée).
+    local n429 nerr_hostile zones
+    n429=$(printf '%s' "$codes" | tr ',' '\n' | awk '/x429/ { split($0, a, "x"); s += a[1] } END { print s + 0 }') || n429=0
+    nerr_hostile=$(( nerr - n429 )); (( nerr_hostile < 0 )) && nerr_hostile=0
+    if (( nerr_hostile >= 20 && nerr_hostile * 2 >= total )); then score=$((score+1)); hostile=$((hostile+1)); SIGNE_FORT=1; motifs+=("$nerr_hostile erreurs sur $total requêtes (hors 429)"); echo "      $ok Taux d'erreurs élevé : $nerr_hostile/$total (4xx/5xx/444, hors 429)"
+    else echo "      $no Taux d'erreurs : $nerr_hostile/$total (hors 429)"; fi
+    if (( n429 > 0 )); then
+        echo "      ${C_YELLOW}[i] Limitation de débit nginx (429) : $n429 requête(s) refusée(s) - non comptée comme hostilité${C_RESET}"
+        zones=$(limites_debit_ip "$ip") || zones=""
+        if [[ -n "$zones" ]]; then printf '%s\n' "$zones" | sed 's/^/          /'; fi
+        echo "          Un client légitime (éditeur Odoo, rafale d'images) peut en recevoir : vérifier la zone avant tout bannissement."
+    fi
 
     ptr=$(run timeout --foreground 3 host "$ip" 2>/dev/null | awk '/pointer/{print $NF}' | sed 's/\.$//' | head -1) || true
     if [[ -z "$ptr" ]]; then
@@ -2085,6 +2134,8 @@ investigate_and_propose() {
         echo "      ${C_GREEN}[i] Connectée à Odoo avec un compte (journal, 100 jours) :${C_RESET}"
         printf '%s\n' "$logins" | sed 's/^/            /'
     fi
+    # 2.65 : --investigate identifie aussi les comptes Odoo ACTIFS pendant les requêtes de l'IP (base PostgreSQL, lecture seule).
+    if [[ -n "$INVESTIGATE_IP" ]]; then comptes_bd_ip "$ip"; fi
     if (( n_bo >= 20 )); then
         echo "      ${C_GREEN}[i] Session ouverte dans le back-office : $n_bo appels internes (/web/dataset, /mail…) — un utilisateur"
         echo "          CONNECTÉ, pas un robot anonyme : vérifier de qui il s'agit avant tout bannissement.${C_RESET}"
