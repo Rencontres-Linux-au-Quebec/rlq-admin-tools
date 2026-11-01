@@ -110,11 +110,13 @@ import sys
 import threading
 import time
 import unicodedata
-from urllib.parse import unquote
+import urllib.request
+import xml.etree.ElementTree as ET
+from urllib.parse import unquote, urlsplit
 from collections import Counter, OrderedDict
 from concurrent.futures import Future
 
-__version__ = "1.141.20261031.232038"
+__version__ = "1.142.20261101.103302"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
@@ -213,7 +215,7 @@ SCHEMA_CONFIG = {"ACCENTUATE_GROUP": ("accentuate_group", str), "CHIME": ("chime
                  "LINES": ("lines", int), "LOG_DIR": ("log_dir", str), "LOG_KEEP_DAYS": ("log_keep_days", int), "LOG_MERGE": ("log_merge", bool), "LOG_NGINX": ("log_nginx", bool), "MIN": ("min", bool), "MODULES_CUSTOM": ("modules_custom", bool), "MODULES_SORT": ("modules_sort", str), "MODULES_STARTUP": ("modules_startup", bool), "NAMESPACE": ("namespace", str),
                  "NO_BANNED": ("no_banned", bool), "NOT_FOUND": ("not_found", bool), "NO_BAN_PROMPT": ("no_ban_prompt", bool), "NO_CACHE": ("no_cache", bool), "NO_HISTORY": ("no_history", bool),
                  "NO_ISP": ("no_isp", bool), "NO_KEYS": ("no_keys", bool), "NO_LOG_FILE": ("no_log_file", bool), "NO_PRESENCE": ("no_presence", bool),
-                 "LEVEL": ("level", int), "BUFFER": ("buffer", int), "STATUS_EVERY": ("status_every", int), "NO_USER_AGENT": ("no_user_agent", bool), "HIDE_USER_AGENT": ("hide_user_agent", bool), "REQUEST_LENGTH": ("request_length", bool), "RECAP": ("recap", float), "RECORD_MAX": ("record_max", float), "SERVICE": ("service", str), "SLOW": ("slow", float), "VERBOSE": ("verbose", bool)}
+                 "LEVEL": ("level", int), "BUFFER": ("buffer", int), "STATUS_EVERY": ("status_every", int), "NO_USER_AGENT": ("no_user_agent", bool), "HIDE_USER_AGENT": ("hide_user_agent", bool), "REQUEST_LENGTH": ("request_length", bool), "RECAP": ("recap", float), "RECORD_MAX": ("record_max", float), "SERVICE": ("service", str), "SITEMAP": ("sitemap", str), "SLOW": ("slow", float), "VERBOSE": ("verbose", bool)}
 CHANGELOG_FILE = os.path.join(SCRIPT_DIR, "CHANGELOG.md")
 LINES_DEFAULT = 50
 DAYS_DEFAULT = 0                                                      # 0 = the whole journal history
@@ -1756,8 +1758,11 @@ def column_header(request_length=False, minimal=False, width=COLUMN_WIDTH, colum
     if start is None:
         start = sample_start
     labels = [(0, "HTTP"), (5, "STA"), (9, "SIZE"), (14, "SQL"), (19, "SQL s"), (26, "PY s")]
+    slot_at = os_at - (SITEMAP_WIDTH + 1 if SITEMAP is not None else 0)      # 1.142: the tag column sits just before the OS column (RL column before it)
     if request_length:
-        labels.append((os_at - 6, "RL"))
+        labels.append((slot_at - 6, "RL"))
+    if SITEMAP is not None:
+        labels.append((slot_at, TR("SITEMAP")))
     labels += [(os_at, "OS"), (get_at, TR("REQUEST"))]
     row = [" "] * (get_at + len(TR("REQUEST")) + 1)
     for offset, label in labels:
@@ -2058,7 +2063,9 @@ class Formatting:
             position = cut_end
         pieces.append(self.colored_text(text, retained, position, len(text)))
         tail = re.sub(" {2,}", " ", "".join(pieces)).replace('"', "")
-        return before + block + "   " + rl_column + os_column + " " + request_data + tail
+        slot = sitemap_cell(code, m.group(1).split(" ", 1)[-1])          # 1.142 --sitemap: tag of a 404, before the OS column
+        slot_column = slot + " " if slot is not None else ""
+        return before + block + "   " + rl_column + slot_column + os_column + " " + request_data + tail
 
     def aligned_request(self, text, retained):
         """Werkzeug line: "… \"GET /url HTTP/1.1\" 200 - 13 0.006 0.066" becomes "… HTTP/1.1 200       - 13 0.006 0.066  \"GET /url\"": the block of numbers, of fixed width,
@@ -2090,7 +2097,9 @@ class Formatting:
         if not ANSI_RE.sub("", before).endswith(" "):          # name as wide as its column: never "this serverHTTP/1.1" stuck together, at least one space before HTTP
             before += " "
         rl_blank = " " * (RL_WIDTH + 1) if self.request_length else ""          # 1.136: same column as nginx lines (blank in an Odoo line)
-        return before + block + "   " + rl_blank + OS_BLANK + " " + request_data          # 1.133: the same column as nginx lines (blank: no User-Agent in the Odoo line)
+        slot = sitemap_cell(code, m.group(1).split(" ", 1)[-1])          # 1.142 --sitemap: the tag of a 404 Odoo line too (blank otherwise)
+        slot_column = slot + " " if slot is not None else ""
+        return before + block + "   " + rl_blank + slot_column + OS_BLANK + " " + request_data          # 1.133: the same column as nginx lines (blank: no User-Agent in the Odoo line)
 
     def slowness_style(self, total):
         """Bold orange from the --slow threshold, bold red from 3 times the threshold; None under the threshold (or without a threshold)."""
@@ -2165,7 +2174,8 @@ class Formatting:
             else:
                 # Odoo message that is NOT a request: its text starts at the column of the "GET / POST" of requests (after the numbers block), never
                 # above the number columns. "database logger" is padded up to that column (never truncated: a longer logger overflows).
-                target = (0 if self.minimal else len("base werkzeug") + 1) + NAME_WIDTH + NUMBERS_BLOCK_WIDTH + (RL_WIDTH + 1 if self.request_length else 0)
+                target = ((0 if self.minimal else len("base werkzeug") + 1) + NAME_WIDTH + NUMBERS_BLOCK_WIDTH + (RL_WIDTH + 1 if self.request_length else 0)
+                          + (SITEMAP_WIDTH + 1 if SITEMAP is not None else 0))                  # 1.142: the tag column (--sitemap) is before the OS column
                 header.append(" ".join(shown_fields) + " " * max(0, target - 1 - len(" ".join(field_list))))     # padding from the plain text (colours take no column)
         return (" ".join(header) + " " if header else "") + body
 
@@ -4228,10 +4238,93 @@ def language_label(code):
     return TR("without prefix") + " (" + TR("default language not read (database unreachable)") + ")"
 
 
+# ------------------------------------------------------------------------------------------------------------------
+# 1.142 --sitemap URL: the 404 pages of the Odoo sitemap.xml. A 404 on a page LISTED in the sitemap is an important page that no longer exists
+# (counted in the health percentage); a 404 on any other URL is a page that never existed (attacks, probes): counted apart, never in the health.
+# ------------------------------------------------------------------------------------------------------------------
+SITEMAP = None                                   # the Sitemap of --sitemap (set by main); None: the check is off
+SITEMAP_WIDTH = 22                               # width of the tag column before the OS: "[pas dans sitemap.xml]" (22 characters)
+SITEMAP_TIMEOUT_S = 15                           # seconds to wait for the sitemap
+SITEMAP_REFRESH_S = 3600                         # the sitemap is read again every hour
+SITEMAP_RETRY_S = 60                             # ... and again after 60 s when it could not be read
+SITEMAP_MAX_BYTES = 50 * 1024 * 1024             # a larger file is refused
+SITEMAP_MAX_FILES = 50                           # sitemap index: at most this many sitemaps read
+LANGUAGE_PREFIX_RE = re.compile(r"^/[a-z]{2}(?:_[A-Z]{2})?(?=/|$)")      # /fr_CA/, /en/...: Odoo's language prefix, removed on both sides of the comparison
+
+
+def sitemap_path(url):
+    """1.142: path of a URL, as compared with the sitemap: no scheme, host, query or fragment; no language prefix (/fr_CA/); no trailing slash."""
+    path = unquote(urlsplit(url.strip()).path or "/")
+    path = LANGUAGE_PREFIX_RE.sub("", path) or "/"
+    return path[:-1] if len(path) > 1 and path.endswith("/") else path
+
+
+class Sitemap:
+    """1.142: paths of the sitemap.xml of the site, read in a background thread (the dashboard never waits for it) and read again every hour.
+    paths: None until the first successful read (then the 404 are shown with the tag [disabled]); error: why the last read failed (None when good)."""
+    def __init__(self, url, start=True):
+        scheme = urlsplit(url).scheme.lower()
+        if scheme not in ("http", "https"):
+            raise ValueError(f"not an http(s) address: {url}")
+        self.url, self.paths, self.error, self.read_at = url, None, None, None
+        if start:
+            threading.Thread(target=self.run, daemon=True, name="sitemap").start()
+
+    def run(self):
+        while True:
+            try:
+                paths = self.read(self.url, 0)
+                self.paths, self.error, self.read_at = frozenset(paths), None, time.time()
+                wait = SITEMAP_REFRESH_S
+            except Exception as problem:                      # network, HTTP, XML: the dashboard keeps running, the reason is shown in the health
+                self.error = str(problem) or problem.__class__.__name__
+                wait = SITEMAP_RETRY_S
+            time.sleep(wait)
+
+    def read(self, url, depth):
+        """Paths of the URLs of one sitemap; a sitemap index (depth 0) gives the paths of the sitemaps it lists (SITEMAP_MAX_FILES at most)."""
+        request = urllib.request.Request(url, headers={"User-Agent": "app-log-live (sitemap check)"})
+        with urllib.request.urlopen(request, timeout=SITEMAP_TIMEOUT_S) as answer:
+            data = answer.read(SITEMAP_MAX_BYTES + 1)
+        if len(data) > SITEMAP_MAX_BYTES:
+            raise ValueError("sitemap too large")
+        root = ET.fromstring(data)
+        locs = [(el.text or "").strip() for el in root.iter() if el.tag.rsplit("}", 1)[-1] == "loc"]
+        locs = [loc for loc in locs if loc]
+        if depth == 0 and root.tag.rsplit("}", 1)[-1] == "sitemapindex":
+            paths = set()
+            for child in locs[:SITEMAP_MAX_FILES]:
+                paths |= self.read(child, 1)
+            return paths
+        return {sitemap_path(loc) for loc in locs}
+
+    def listed(self, url):
+        """True: the page is in the sitemap; False: it is not; None: the sitemap is not read yet."""
+        paths = self.paths
+        if paths is None:
+            return None
+        return sitemap_path(url) in paths
+
+
+def sitemap_cell(code, url):
+    """1.142 --sitemap: the tag before the OS column, SITEMAP_WIDTH wide: [in sitemap.xml] (important page, counted in the health) or [not in sitemap.xml]
+    (never existed, not counted) for a 404; [disabled] when the sitemap is not read yet; blanks for the other lines. None: no column (--sitemap not given)."""
+    if SITEMAP is None:
+        return None
+    if str(code) != "404":
+        return " " * SITEMAP_WIDTH
+    listed = SITEMAP.listed(url)
+    if listed is None:
+        return color_code(STYLES["debug"], TR("[disabled]").ljust(SITEMAP_WIDTH))
+    if listed:
+        return color_code(STYLES["warning"], TR("[in sitemap.xml]").ljust(SITEMAP_WIDTH))
+    return color_code(STYLES["debug"], TR("[not in sitemap.xml]").ljust(SITEMAP_WIDTH))
+
+
 class Stats:
     """What happened during the session, for the summary (Ctrl-C, --summary) and the dashboard (Ctrl-G, Ctrl-T): most active addresses, suspicious requests,
     5xx and 4xx errors, slow requests, banned addresses, pages per language, most requested URLs, Odoo errors. Counts only the DISPLAYED lines (after --only and --suspect)."""
-    COUNTERS = ("par_ip", "by_name", "suspect_ips", "suspect_urls", "urls", "languages", "statuses", "odoo_errors", "pages", "pages_per_ip", "visits", "probes", "not_found", "conflict_codes", "failure_codes")
+    COUNTERS = ("par_ip", "by_name", "suspect_ips", "suspect_urls", "urls", "languages", "statuses", "odoo_errors", "pages", "pages_per_ip", "visits", "probes", "not_found", "gone_404", "unknown_404", "conflict_codes", "failure_codes")
     VISIT_PAUSE = 1800                                 # seconds without a page view after which the return of an address is a NEW visit
 
     def __init__(self, slowest):
@@ -4246,6 +4339,8 @@ class Stats:
         self.suspect_ips, self.suspect_urls = Counter(), Counter()
         self.list_404 = False                                                      # --not-found: the summary lists ALL the 404 pages
         self.not_found = Counter()                                               # URL -> number of 404 responses
+        self.gone_404 = Counter()                 # 1.142 --sitemap: URL listed in sitemap.xml that answers 404 (important: counted in the health)
+        self.unknown_404 = Counter()              # 1.142 --sitemap: URL NOT in sitemap.xml answering 404 (never existed: not counted in the health)
         self.ip_not_found = {}                                                   # address -> set of the DIFFERENT pages it requested in 404 (probe sweep)
         self.probes = Counter()                           # "suspicious" URLs requested by THIS server itself (health probes): counted apart, never to ban
         self.errors = {5: Counter(), 4: Counter()}
@@ -4411,6 +4506,8 @@ class Stats:
         if code == 404:
             self.not_found[url] += 1
             self.ip_not_found.setdefault(ip, set()).add(url.split("?", 1)[0])
+            if SITEMAP is not None and SITEMAP.paths is not None:               # 1.142: listed in the sitemap = important; any other = never existed
+                (self.gone_404 if SITEMAP.listed(url) else self.unknown_404)[url] += 1
         total = request_duration(L.text)
         if not self.period:
             LATENCY.request(L.instant, request_detail(L.text))
@@ -4537,6 +4634,15 @@ class Stats:
                 lines.extend("        " + d for d in detail)
         n5 = sum(self.errors[5].values())
         indicator(0, "HTTP 5xx errors: " + (f"{n5}" if n5 else none_fem()), ["URL: " + self.top(self.errors[5], 5)] + self.http_error_detail(5) if n5 else (), (1, 5), n5)
+        if SITEMAP is not None:                                 # 1.142 --sitemap: the two kinds of 404
+            if SITEMAP.paths is None:
+                indicator(1, TR("Sitemap not read yet: ") + (SITEMAP.error or TR("waiting for the first read")) + f" ({SITEMAP.url})", (), (1, 5), 0)
+            else:
+                gone = sum(self.gone_404.values())
+                indicator(0, TR("404 on pages of sitemap.xml (important, in the health): ") + (f"{gone}" if gone else none_fem()),
+                          ["URL: " + self.top(self.gone_404, 5)] if gone else (), (1, 5), gone)
+                never = sum(self.unknown_404.values())
+                indicator(0, TR("404 on URLs never in sitemap.xml (attacks, not in the health): ") + (f"{never}" if never else none_fem()), (), (10 ** 9, 10 ** 9), never)
         severe = Counter({k: v for k, v in self.odoo_errors.items() if k[0] in ("ERROR", "CRITICAL")})
         ng = sum(severe.values())
         detail = [f"{k[0]} {k[1]} ×{v} : {k[2]}" + self.odoo_error_times(k) for k, v in severe.most_common(3)]
@@ -4824,6 +4930,7 @@ class StatusBar:
         self.sql_max = self.odoo_err = 0                 # 1.120: most SQL queries of one request; Odoo ERROR and CRITICAL lines
         self.ports = collections.Counter()               # 1.121: nginx requests per port (server port and Odoo upstream port)
         self.sqli = self.e4 = self.e5 = self.slow = 0
+        self.gone_404 = self.unknown_404 = 0            # 1.142 --sitemap: 404 on a page of sitemap.xml (important, in the health) / on any other URL (never existed)
         self.bots403 = 0                                                       # 1.130: 403 answered to the bots refused by policy
         self.codes = collections.Counter()               # 1.124: 4xx and 5xx answers by code (403, 404, 500...)
         self.slow_max = 0.0
@@ -4853,6 +4960,11 @@ class StatusBar:
                 self.e4 += 1
                 self.codes[code] += 1
                 problem = True
+                if code == 404 and request and SITEMAP is not None and SITEMAP.paths is not None:      # 1.142: listed = important; any other = never existed
+                    if SITEMAP.listed(request.group(1)):
+                        self.gone_404 += 1
+                    else:
+                        self.unknown_404 += 1
             elif code >= 500:
                 self.e5 += 1
                 self.codes[code] += 1
@@ -4914,7 +5026,8 @@ class StatusBar:
         """1.120: health of the bar, out of 100 %: SQL injection attempts (3 points), 5xx (2), banned addresses (2 each), 4xx (0.1 each) and
         connections slower than 9 s (1 each) take points off. 1.130: the 403 answered to the bots refused by policy take none (counted apart).
         Reset by Ctrl-T and g, like the other counters."""
-        penalty = 3 * self.sqli + 2 * self.e5 + 0.1 * self.e4 + 2 * len(self.banned) + self.slow
+        never = self.unknown_404                                  # 1.142: 404 on URLs never in the sitemap (attacks): no penalty
+        penalty = 3 * self.sqli + 2 * self.e5 + 0.1 * (self.e4 - never) + 2 * len(self.banned) + self.slow
         return max(0, round(100 - penalty))
 
     def top_ips(self):
@@ -6688,7 +6801,7 @@ MENU_ENTREES = [
 
 
 def main():
-    global VERBOSE, NAME_WIDTH, NAME_TRUNCATE, COLOR, TIME_UTC
+    global VERBOSE, NAME_WIDTH, NAME_TRUNCATE, COLOR, TIME_UTC, SITEMAP
     parser = (I18N.parser if I18N else LocalizedArgumentParser)(
         description="Real-time application log: local ISO time without duplicates, each IP address replaced by the name of the person already signed in (otherwise DNS name, otherwise owner of the address block), presence of people, colors.")
     parser.add_argument("--app", metavar="NAME", help="Application behind nginx (profile apps/NAME.conf: odoo, bbb…) — detected automatically by default")
@@ -6798,6 +6911,9 @@ def main():
     parser.add_argument("--report-err", action="store_true",
                         help="Print at the end an error report to copy and paste (program, version, server, failures, warnings)")
     parser.add_argument("--service", default=None, help="Systemd unit to follow (default: detected)")
+    parser.add_argument("--sitemap", default=None, metavar="URL",
+                        help="Odoo sitemap.xml (http or https address): the 404 pages listed in it are important pages that no longer exist (counted in the health); "
+                             "the other 404 pages never existed (attacks: not counted). Tag [in / not in sitemap.xml] before the OS column (default: off)")     # 1.142
     parser.add_argument("--time-report", type=float, nargs="?", const=REPORT_DEFAULT, default=None, metavar="MIN",
                         help=f"Every MIN minutes, the same report as Ctrl-T (what changed since the last display) ({REPORT_DEFAULT:g} without value)")
     parser.add_argument("-v", "--verbose", action="store_true", help="Show each external command run")
@@ -7042,6 +7158,11 @@ def main():
         banned_ips = Bans()
         banned_ips.start()
         eprint(banned_ips.summary())
+    if args.sitemap:                                                  # 1.142 --sitemap: read in the background; a wrong address stops the program at once
+        try:
+            SITEMAP = Sitemap(args.sitemap)
+        except ValueError as problem:
+            parser.error(f"--sitemap: {problem}")
     options = {"keep_ip": not args.hide_ip, "minimal": args.min, "hide_addons": args.hide_addons, "lines": args.lines, "recap": args.recap,
                "slow": max(0.0, args.slow), "only": [t.lower() for t in (args.only or []) if t], "highlight_words": read_highlight(args.highlight), "highlight_pattern": highlight_pattern(read_highlight(args.highlight)), "suspect": args.suspect, "disk_min": max(0.0, args.disk_min), "connections": max(0.0, min(100.0, args.connections)), "external_ip": not args.no_isp, "odoo_journal": profile.get("ODOO_LOGFILE"), "profile": profile, "service": service, "diag_hosts": args.diagnose_host, "not_found": args.not_found, "steps_line": args.steps_line, "summary": args.summary, "banned_ips": banned_ips,
                "presence": Presence(args.idle) if is_odoo and not args.no_presence else None, "health": args.health, "keys": not args.no_keys and not args.no_follow, "app": profile.get("APP_NAME"), "app_label": profile.get("APP_LABEL", "application"), "hide_user_agent": args.hide_user_agent, "request_length": args.request_length, "log_nginx": bool(args.log_nginx), "log_merge": bool(args.log_merge), "status_header": bool(args.status_header), "nginx_merged": LOGS_MERGE in cmd, "propose_ban": not args.no_ban_prompt, "watch": [t.strip().lower() for t in (args.watch or "").split(",") if t.strip()], "agents": not args.no_user_agent and not args.no_follow, "acces_logs": profile.get("ACCESS_LOGS"),

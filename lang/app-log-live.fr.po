@@ -2891,3 +2891,30 @@ msgstr "robots refusés (403)"
 
 msgid "[BOT]"
 msgstr "[BOT]"
+
+msgid "SITEMAP"
+msgstr "SITEMAP"
+
+msgid "[disabled]"
+msgstr "[désactivé]"
+
+msgid "[in sitemap.xml]"
+msgstr "[dans sitemap.xml]"
+
+msgid "[not in sitemap.xml]"
+msgstr "[pas dans sitemap.xml]"
+
+msgid "Sitemap not read yet: "
+msgstr "Sitemap non lu pour l'instant : "
+
+msgid "waiting for the first read"
+msgstr "attente de la première lecture"
+
+msgid "404 on pages of sitemap.xml (important, in the health): "
+msgstr "404 sur les pages du sitemap.xml (importantes, dans la santé) : "
+
+msgid "404 on URLs never in sitemap.xml (attacks, not in the health): "
+msgstr "404 sur des URL absentes du sitemap.xml (attaques, hors santé) : "
+
+msgid "Odoo sitemap.xml (http or https address): the 404 pages listed in it are important pages that no longer exist (counted in the health); the other 404 pages never existed (attacks: not counted). Tag [in / not in sitemap.xml] before the OS column (default: off)"
+msgstr "sitemap.xml d'Odoo (adresse http ou https) : les pages 404 qui y figurent sont des pages importantes qui n'existent plus (comptées dans la santé) ; les autres pages 404 n'ont jamais existé (attaques : non comptées). Étiquette [dans / pas dans sitemap.xml] avant la colonne OS (par défaut : désactivé)"
