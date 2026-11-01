@@ -114,7 +114,7 @@ from urllib.parse import unquote
 from collections import Counter, OrderedDict
 from concurrent.futures import Future
 
-__version__ = "1.137.20261031.222230"
+__version__ = "1.138.20261031.224650"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
@@ -1735,11 +1735,16 @@ def column_header(request_length=False, minimal=False, width=COLUMN_WIDTH, colum
     if request_length:
         labels.append((os_at - 6, "RL"))
     labels += [(os_at, "OS"), (get_at, TR("REQUEST"))]
-    row = [" "] * (get_at + len(TR("REQUEST")) + 1)
+    row = [" "] * (get_at + len(TR("REQUEST")) + 1)                     # the request labels, relative to the start of the numbers block
     for offset, label in labels:
         for i, letter in enumerate(label):
             row[offset + i] = letter
-    text = " " * start + "".join(row).rstrip()
+    line = [" "] * (start + len(row))                                       # 1.138: one line: the four first columns (no alignment) then the labels above the request columns
+    prefix = " ".join([TR("DATE"), TR("PROG"), TR("LEVEL"), TR("ADDRESS/NAME")])
+    if len(prefix) < start - 1:
+        line[:len(prefix)] = list(prefix)
+    line[start:] = row
+    text = "".join(line).rstrip()
     return text[:columns] if columns else text        # 1.137: never wider than the terminal (the labels beyond it are not shown)
 
 
@@ -6406,7 +6411,6 @@ def follow(cmd, people, resolver, options, output):
     start_watchdog(proc, file, state, received, reader_thread)
     if options["lines"] == 0 and hasattr(output, "active"):      # no history: everything is live
         output.active = True
-    eprint(color_code("1;36", TR("Columns: date and time · host · level · program · address (name) · request columns below")))
     if keys is not None and keys.start():
         eprint("Keys: ? (or h) keys and options menu · Ctrl-G dashboard (health, efficiency, top 10 URLs…) · 1 to 9 dashboard detail level · Ctrl-T only what changed since last time · R record a test · N step while recording · Ctrl-C stop and summary")
     merge_ready, merge_held, merge_ended = collections.deque(), collections.deque(), [False]      # 1.123 --log-merge: lines to show now, held nginx lines, end of stream

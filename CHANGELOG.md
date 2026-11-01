@@ -349,6 +349,19 @@ Earlier history was archived outside this repository when this file was created.
 
 ## app-log-live.py
 
+### 1.138.20261031.225800 - Column header on one line; start-up legend removed
+
+- Title: the column header is ONE line: DATE, PROG, LEVEL and ADDRESS/NAME for the first columns, then the labels above the request columns (HTTP, STA, SIZE, SQL, SQL s, PY s, RL, OS, REQUEST).
+- Reason: the header was shown on two lines (a legend "Colonnes : ..." then the labels), and the labels did not say what the first columns are.
+- Changes:
+  - column_header(): builds one line; the four labels of the first columns are written at the start of the line when they fit before the numbers block (no alignment with the fields of the line, which vary); the request labels stay above their columns.
+  - The start-up legend line (stderr) is removed.
+  - lang/app-log-live.fr.po: entries for DATE, PROG, LEVEL (NIVEAU), ADDRESS/NAME (ADRESSE/NOM); the entry of the removed legend is removed (test_i18n).
+- Bugs fixed: none (layout).
+- Safeguards and edge cases: when the first labels would overlap the numbers block (a very narrow prefix), they are not written; the line is cut to the terminal width.
+- Checks performed: py_compile; --version; rendering of the header (full, minimal, narrow); test_i18n (32 tests OK); test_app_log_live: 186 tests, 2 failures, both already present before 1.138 (test_colonnes_jamais_tassees..., test_120_journal_html...); test_logs_merge OK.
+- Action required: none. Restart app-log-live.py.
+
 ### 1.137.20261031.222230 - Refresh (f) applies --min and --hide-addons; header before the first request line and cut to the terminal; times under 1 s in white
 
 - Title: the refresh key f applies the current --min and --hide-addons; the column header is printed just before the first request line, measured on that line, and never wider than the terminal; the times under 1 s are white again (yellow from 1 s, red from 3 s).
