@@ -349,6 +349,20 @@ Earlier history was archived outside this repository when this file was created.
 
 ## app-log-live.py
 
+### 1.132.20261031.202634 - [BOT] follows the bot policy read from bot_blocker.conf (SemrushBot and all refused robots)
+
+- Title: the robots refused by nginx/conf.d/bot_blocker.conf (SemrushBot, AhrefsBot, and the full list) get the [BOT] label and the "bots refused (403)" counter, not only the AI crawlers.
+- Reason: a 403 for SemrushBot showed no [BOT] label and lowered the health percentage. Version 1.131 only listed the AI crawlers, while the site policy refuses many more user agents.
+- Changes:
+  - BOT_BLOCKED_CONF (/etc/nginx/conf.d/bot_blocker.conf) and bot_blocked_re(): the user agent names are read from the "~*(A|B) 1;" lines of the policy file at start-up, so the label follows later changes of the policy.
+  - BOT_BLOCKED_DEFAULT: built-in list (same names as the policy at version 1.132), used when the file cannot be read.
+  - Comments only elsewhere: is_bot_403() and the BOT_BLOCKED_UA_RE definition.
+  - No new user-visible text: lang/app-log-live.fr.po unchanged.
+- Bugs fixed: symptom: SemrushBot 403 without [BOT]; diagnosis: BOT_BLOCKED_UA_RE contained only Bytespider, CCBot, GPTBot, Amazonbot, ClaudeBot and Claude-SearchBot, while bot_blocker.conf also refuses AhrefsBot, MJ12bot, SemrushBot, DotBot, DataForSeoBot, PetalBot, SERankingBacklinksBot, GeedoShopProductFinder, and the scanners; fix: take the list from the policy file.
+- Safeguards and edge cases: a missing or unreadable policy file falls back to the built-in list; comment lines in the policy file are ignored; names are escaped with re.escape(), so "Palo Alto Networks" (escaped in the policy) matches literally; the match is case-insensitive as in nginx "~*".
+- Checks performed: py_compile; loaded the module and checked that the policy file yields the expected names; SemrushBot 403 line recognized; fallback list tested with a missing file.
+- Action required: none. Restart app-log-live.py to load the new version.
+
 ### 1.131.20261031.200112 - --log-merge shows the Odoo time; automatic status bar at two thirds of the terminal
 
 - Title: with --log-merge, a merged line shows the time of the Odoo line (with hundredths); the automatic status bar appears after two thirds of the terminal height.
