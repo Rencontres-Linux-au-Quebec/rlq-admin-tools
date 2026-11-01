@@ -740,6 +740,18 @@ msgstr "Pas de journal quotidien (le direct n'est écrit nulle part, sauf à l'�
 msgid "No outside request: no lookup of the address block owner or country (rdap.org, whois)"
 msgstr "Aucune requête extérieure : pas de recherche du propriétaire du bloc d'adresses ni du pays (rdap.org, whois)"
 
+msgid "REQUEST"
+msgstr "REQUÊTE"
+
+msgid "Columns: date and time · host · level · program · address (name) · request columns below"
+msgstr "Colonnes : date et heure · hôte · niveau · programme · adresse (nom) · colonnes de la requête ci-dessous"
+
+msgid "the request length of the nginx lines (rl=) is shown in its own column before the GET"
+msgstr "la longueur de la requête des lignes nginx (rl=) est affichée dans sa propre colonne avant le GET"
+
+msgid "Show the request length of the nginx lines (rl=) in its own column before the GET (default: not shown)"
+msgstr "Affiche la longueur de la requête des lignes nginx (rl=) dans sa propre colonne avant le GET (par défaut : non affichée)"
+
 msgid "the User-Agent text of the nginx lines is not shown (the OS column stays)"
 msgstr "le texte du User-Agent des lignes nginx n'est pas affiché (la colonne du système d'exploitation reste)"
 

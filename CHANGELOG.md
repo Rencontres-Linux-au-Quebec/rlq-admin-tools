@@ -349,6 +349,22 @@ Earlier history was archived outside this repository when this file was created.
 
 ## app-log-live.py
 
+### 1.136.20261031.220401 - rl= in its own column (--request-length); column header at start; LIN in green, AND in cyan
+
+- Title: the request length (rl=) of nginx lines leaves the end of the line for its own column before the GET, shown with --request-length (option and menu key j); a header labels the request columns at start-up; in the OS column LIN is green and AND is cyan.
+- Reason: 1) rl= at the end of the line is not useful for every reader; a column is easier to scan. 2) the columns of the request lines are not labelled. 3) the two most common systems stand out at a glance.
+- Changes:
+  - --request-length (new option, configuration key REQUEST_LENGTH, default: not shown); Formatting(request_length=...); the column is RL_WIDTH (5) characters + 1 space before the OS; Odoo lines keep a blank in the same column; the NUMBERS block target of the Odoo texts grows by the same width.
+  - rl= is removed from the end of the nginx lines in every case (shown in its column with the option).
+  - column_header(): one line of labels (HTTP, STA, SIZE, SQL, SQL s, PY s, RL when shown, OS, REQUEST) placed on the columns of a sample Odoo request line; printed on stderr at start-up with a short legend line.
+  - OS_COLORS: LIN green (32), AND cyan (36); other systems unchanged.
+  - Menu key j ("reqlen") toggles --request-length; the configuration save (C) writes REQUEST_LENGTH when it changed.
+  - lang/app-log-live.fr.po: entries for the header and the new texts.
+- Bugs fixed: none (new features).
+- Safeguards and edge cases: the header is on stderr, so a pipe of the stream (stdout) is unchanged. The start of the columns is measured on the sample, so the header follows changes of the date, host and name widths. An nginx line without rl= leaves the RL column blank. The colours of OS are added after the alignment is computed (no effect on the widths).
+- Checks performed: py_compile; --version; rendering of the header and of nginx lines with and without the column (rl= moved, OS colours in the code); test_i18n (32 tests OK); test_app_log_live: 186 tests, 2 failures, both already present before 1.136 (test_colonnes_jamais_tassees..., test_120_journal_html...); test_logs_merge OK.
+- Action required: none. Restart app-log-live.py. Use --request-length (or menu key j) to see rl=.
+
 ### 1.135.20261031.215149 - Menu key u for --hide-user-agent; Odoo line merged when it comes before its nginx line; periodic checks while the stream is busy
 
 - Title: the menu gets the key u for --hide-user-agent; with --log-merge an Odoo request line that arrives before its nginx line is merged with it; the periodic checks (health alert, disk, connections, external IP) run while the stream is busy.

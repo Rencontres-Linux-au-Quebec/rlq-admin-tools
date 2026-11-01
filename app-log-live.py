@@ -114,7 +114,7 @@ from urllib.parse import unquote
 from collections import Counter, OrderedDict
 from concurrent.futures import Future
 
-__version__ = "1.135.20261031.215149"
+__version__ = "1.136.20261031.220401"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
@@ -213,7 +213,7 @@ SCHEMA_CONFIG = {"ACCENTUATE_GROUP": ("accentuate_group", str), "CHIME": ("chime
                  "LINES": ("lines", int), "LOG_DIR": ("log_dir", str), "LOG_KEEP_DAYS": ("log_keep_days", int), "LOG_MERGE": ("log_merge", bool), "LOG_NGINX": ("log_nginx", bool), "MIN": ("min", bool), "MODULES_CUSTOM": ("modules_custom", bool), "MODULES_SORT": ("modules_sort", str), "MODULES_STARTUP": ("modules_startup", bool), "NAMESPACE": ("namespace", str),
                  "NO_BANNED": ("no_banned", bool), "NOT_FOUND": ("not_found", bool), "NO_BAN_PROMPT": ("no_ban_prompt", bool), "NO_CACHE": ("no_cache", bool), "NO_HISTORY": ("no_history", bool),
                  "NO_ISP": ("no_isp", bool), "NO_KEYS": ("no_keys", bool), "NO_LOG_FILE": ("no_log_file", bool), "NO_PRESENCE": ("no_presence", bool),
-                 "LEVEL": ("level", int), "BUFFER": ("buffer", int), "STATUS_EVERY": ("status_every", int), "NO_USER_AGENT": ("no_user_agent", bool), "HIDE_USER_AGENT": ("hide_user_agent", bool), "RECAP": ("recap", float), "RECORD_MAX": ("record_max", float), "SERVICE": ("service", str), "SLOW": ("slow", float), "VERBOSE": ("verbose", bool)}
+                 "LEVEL": ("level", int), "BUFFER": ("buffer", int), "STATUS_EVERY": ("status_every", int), "NO_USER_AGENT": ("no_user_agent", bool), "HIDE_USER_AGENT": ("hide_user_agent", bool), "REQUEST_LENGTH": ("request_length", bool), "RECAP": ("recap", float), "RECORD_MAX": ("record_max", float), "SERVICE": ("service", str), "SLOW": ("slow", float), "VERBOSE": ("verbose", bool)}
 CHANGELOG_FILE = os.path.join(SCRIPT_DIR, "CHANGELOG.md")
 LINES_DEFAULT = 50
 DAYS_DEFAULT = 0                                                      # 0 = the whole journal history
@@ -710,7 +710,7 @@ def config_values(options, verbose, widths=None):
     yes_no = lambda b: "yes" if b else "no"
     sort_by = options["modules_sort"]
     width, truncated = widths if widths else (None, None)
-    res = {"HEALTH": f"{options['health']:g}", "HIDE_ADDONS": yes_no(options.get("hide_addons")), "HIDE_IP": yes_no(not options["keep_ip"]), "HIDE_USER_AGENT": yes_no(options.get("hide_user_agent")), "HIGHLIGHT": ",".join(options["highlight_words"]) or "none",
+    res = {"HEALTH": f"{options['health']:g}", "HIDE_ADDONS": yes_no(options.get("hide_addons")), "HIDE_IP": yes_no(not options["keep_ip"]), "HIDE_USER_AGENT": yes_no(options.get("hide_user_agent")), "REQUEST_LENGTH": yes_no(options.get("request_length")), "HIGHLIGHT": ",".join(options["highlight_words"]) or "none",
            "LEVEL": str(options["level"]), "MIN": yes_no(options["minimal"]), "MODULES_CUSTOM": yes_no(sort_by[2]), "MODULES_SORT": ("-" if sort_by[1] else "") + sort_by[0],
            "NOT_FOUND": yes_no(options["not_found"]), "VERBOSE": yes_no(verbose),
            "ACCENTUATE_GROUP": options.get("group") or "", "CHIME": "" if options.get("chime") is None else str(options["chime"]),
@@ -1702,6 +1702,9 @@ OS_CODES = (("AND", re.compile(r"Android", re.I)), ("IOS", re.compile(r"iPhone|i
             ("WIN", re.compile(r"Windows", re.I)), ("LIN", re.compile(r"Linux", re.I)), ("MAC", re.compile(r"Macintosh|Mac OS X", re.I)))
 NGINX_AGENT_RE = re.compile(r'"[^"]*" "([^"]*)"')                  # 1.133: after the request and the size of an nginx line: the referer, then the User-Agent
 OS_BLANK = "   "
+OS_COLORS = {"LIN": "32", "AND": "36"}                             # 1.136: LIN in green, AND in cyan
+RL_WIDTH = 5                                                       # 1.136: width of the request length column (rl=, nginx)
+RL_RE = re.compile(r"\srl=(\d+)")
 
 
 def os_code(agent):
@@ -1713,6 +1716,28 @@ def os_code(agent):
         if pattern.search(agent):
             return code
     return "OTH"
+
+
+def column_header(request_length=False):
+    """1.136: the labels of the request columns, placed above the same columns of a sample Odoo request line (the start of the columns is
+    measured on that sample, so that the header stays aligned whatever the width of the date, host and name columns)."""
+    sample = Formatting(False, COLUMN_WIDTH, 0.0, False, request_length=request_length).format_value(Line(
+        '2026-10-31T09:53:27.790000-0400 odoo18 odoo[1]: 2026-10-31 05:53:27,790 1 INFO base werkzeug: 179.201.24.98 - - '
+        '[31/Oct/2026 09:53:27] "GET /web/abc?lang=en_CA HTTP/1.1" 303 - 1 0.000 0.002'), {}, False)
+    plain = ANSI_RE.sub("", sample)
+    start = plain.index("H1.1")
+    get_at = plain.index("GET", start)
+    os_at = get_at - 4 - start                              # offsets from the start of the numbers block
+    get_at -= start
+    labels = [(0, "HTTP"), (5, "STA"), (9, "SIZE"), (14, "SQL"), (19, "SQL s"), (26, "PY s")]
+    if request_length:
+        labels.append((os_at - 6, "RL"))
+    labels += [(os_at, "OS"), (get_at, TR("REQUEST"))]
+    row = [" "] * (get_at + len(TR("REQUEST")) + 1)
+    for offset, label in labels:
+        for i, letter in enumerate(label):
+            row[offset + i] = letter
+    return " " * start + "".join(row).rstrip()
 
 
 def transfer_style(total):
@@ -1850,7 +1875,8 @@ def request_cause(sql_n, t_sql, t_py, size, url=""):
 class Formatting:
     """Builds the displayed line: normalized header, then the text with its words in color. All the detection is done on the
     RAW text (never on already colored text); a detection that overlaps a higher-priority one (the IP address first) is ignored."""
-    def __init__(self, minimal=False, width=COLUMN_WIDTH, slowest=0.0, status_header=False, hide_user_agent=False):
+    def __init__(self, minimal=False, width=COLUMN_WIDTH, slowest=0.0, status_header=False, hide_user_agent=False, request_length=False):
+        self.request_length = request_length                                # 1.136 --request-length: rl= of the nginx lines in its own column before the GET
         self.hide_user_agent = hide_user_agent                              # 1.134 --hide-user-agent: the User-Agent text is not shown (the OS column stays)
         self.status_header = status_header                                  # 1.123 --status-header
         self.minimal = minimal
@@ -1975,17 +2001,26 @@ class Formatting:
         if code == "403" and agent and BOT_BLOCKED_UA_RE.search(agent.group(1)):      # 1.134: a robot refused by policy: [BOT] in the transfer-time column
             numbers[2] = color_code(STYLES["debug"], "[BOT]".rjust(6))
         block = " ".join([short_http(http).ljust(4), token(3, code, 3), token(4, size_text(size), SIZE_WIDTH)] + numbers)
-        os_column = os_code(agent.group(1) if agent else "")                       # 1.133: OS of the client, 3 characters before the GET
+        os_name = os_code(agent.group(1) if agent else "")                         # 1.133: OS of the client, 3 characters before the GET
+        os_column = color_code(OS_COLORS[os_name], os_name) if os_name in OS_COLORS else os_name      # 1.136: LIN green, AND cyan
+        rl = RL_RE.search(text, m.end(4))
+        rl_column = (rl.group(1).rjust(RL_WIDTH) if rl else " " * RL_WIDTH) + " " if self.request_length else ""     # 1.136: its own column
         request_data = self.colored_text(text, retained, ouvrir + 1, m.end(1))      # 1.119: no quotes; the request keeps the column of the Odoo request
         before = self.colored_text(text, retained, 0, ouvrir)
         if not ANSI_RE.sub("", before).endswith(" "):
             before += " "
-        if self.hide_user_agent and agent:                       # 1.134: the User-Agent text (with its quotes) is left out of the line
-            referer = self.colored_text(text, retained, m.end(4), agent.start(1) - 1).rstrip(" ")
-            tail = referer + self.colored_text(text, retained, agent.end(1) + 1, len(text))
-        else:
-            tail = self.colored_text(text, retained, m.end(4), len(text))
-        return before + block + "   " + os_column + " " + request_data + tail.replace('"', "")
+        cuts = []                                                # 1.134: the User-Agent text (with its quotes) is left out; 1.136: so is rl= when it has its column
+        if self.hide_user_agent and agent:
+            cuts.append((agent.start(1) - 1, agent.end(1) + 1))
+        if rl:                                           # 1.136: rl= leaves the end of the line: its column (--request-length) or nothing
+            cuts.append((rl.start(0), rl.end(0)))
+        pieces, position = [], m.end(4)
+        for cut_start, cut_end in sorted(cuts):
+            pieces.append(self.colored_text(text, retained, position, cut_start))
+            position = cut_end
+        pieces.append(self.colored_text(text, retained, position, len(text)))
+        tail = re.sub(" {2,}", " ", "".join(pieces)).replace('"', "")
+        return before + block + "   " + rl_column + os_column + " " + request_data + tail
 
     def aligned_request(self, text, retained):
         """Werkzeug line: "… \"GET /url HTTP/1.1\" 200 - 13 0.006 0.066" becomes "… HTTP/1.1 200       - 13 0.006 0.066  \"GET /url\"": the block of numbers, of fixed width,
@@ -2016,7 +2051,8 @@ class Formatting:
         before = self.colored_text(text, retained, 0, ouvrir)
         if not ANSI_RE.sub("", before).endswith(" "):          # name as wide as its column: never "this serverHTTP/1.1" stuck together, at least one space before HTTP
             before += " "
-        return before + block + "   " + OS_BLANK + " " + request_data          # 1.133: the same column as nginx lines (blank: no User-Agent in the Odoo line)
+        rl_blank = " " * (RL_WIDTH + 1) if self.request_length else ""          # 1.136: same column as nginx lines (blank in an Odoo line)
+        return before + block + "   " + rl_blank + OS_BLANK + " " + request_data          # 1.133: the same column as nginx lines (blank: no User-Agent in the Odoo line)
 
     def slowness_style(self, total):
         """Bold orange from the --slow threshold, bold red from 3 times the threshold; None under the threshold (or without a threshold)."""
@@ -2091,7 +2127,7 @@ class Formatting:
             else:
                 # Odoo message that is NOT a request: its text starts at the column of the "GET / POST" of requests (after the numbers block), never
                 # above the number columns. "database logger" is padded up to that column (never truncated: a longer logger overflows).
-                target = (0 if self.minimal else len("base werkzeug") + 1) + NAME_WIDTH + NUMBERS_BLOCK_WIDTH
+                target = (0 if self.minimal else len("base werkzeug") + 1) + NAME_WIDTH + NUMBERS_BLOCK_WIDTH + (RL_WIDTH + 1 if self.request_length else 0)
                 header.append(" ".join(shown_fields) + " " * max(0, target - 1 - len(" ".join(field_list))))     # padding from the plain text (colours take no column)
         return (" ".join(header) + " " if header else "") + body
 
@@ -5017,7 +5053,7 @@ KEYS = {b"\x07": "g", b"\x14": "t"}      # Ctrl-G: dashboard; Ctrl-T: only what 
 # Simple keys of the menu (? or h): toggles and settings of the command-line options, and a few commands
 MENU_KEYS = {b"?": "help", b"h": "help", b"i": "i", b"m": "m", b"n": "n", b"r": "r", b"s": "s", b"v": "v", b"d": "dns", b"t": "dnst", b"H": "H", b"o": "o", b"V": "V",
                 b"S": "S", b"I": "I", b"b": "b", b"a": "accent", b"c": "chime", b"e": "exclude", b"T": "report", b"E": "E", b"w": "watch", b"D": "D", b"l": "highlight", b"M": "modules", b"C": "save", b"L": "recent",
-                b"G": "G", b"Y": "latency", b"P": "print", b"f": "refresh", b"A": "anonymize", b"R": "record", b"N": "step", b"F": "steps_line", b"q": "addons", b"U": "underline", b"x": "lognginx", b"u": "hideua"}
+                b"G": "G", b"Y": "latency", b"P": "print", b"f": "refresh", b"A": "anonymize", b"R": "record", b"N": "step", b"F": "steps_line", b"q": "addons", b"U": "underline", b"x": "lognginx", b"u": "hideua", b"j": "reqlen"}
 MENU_KEYS.update({str(n).encode(): f"level{n}" for n in range(1, LEVEL_MAX + 1)})   # 1 to 9: dashboard at the chosen level
 KEYS.update(MENU_KEYS)
 
@@ -5117,7 +5153,7 @@ def follow(cmd, people, resolver, options, output):
     file = queue.Queue(maxsize=5000)
     def address_width():
         return COLUMN_WIDTH if options["keep_ip"] else 2
-    form, presence = Formatting(options["minimal"], address_width(), options["slow"], options.get("status_header", False), hide_user_agent=options.get("hide_user_agent", False)), options["presence"]
+    form, presence = Formatting(options["minimal"], address_width(), options["slow"], options.get("status_header", False), hide_user_agent=options.get("hide_user_agent", False), request_length=options.get("request_length", False)), options["presence"]
     state = {"read_files": 0, "summarized": False, "keep_going": True}
     stats, banned_ips = Stats(options["slow"]), options["banned_ips"]
     LATENCY.start()                                         # 1.82: kernel counters every LATENCY_SAMPLE_S seconds (latency report: key P, Ctrl-G, summary)
@@ -5647,7 +5683,7 @@ def follow(cmd, people, resolver, options, output):
         recent_ones[:] = [e for e in recent_ones if e[2] != ip]
         if not earlier or not options["recap"]:
             return
-        reminder_form, lines = Formatting(options["minimal"], address_width(), options["slow"], options.get("status_header", False), hide_user_agent=options.get("hide_user_agent", False)), []
+        reminder_form, lines = Formatting(options["minimal"], address_width(), options["slow"], options.get("status_header", False), hide_user_agent=options.get("hide_user_agent", False), request_length=options.get("request_length", False)), []
         for _, old_one, _ in earlier[-50:]:
             if (options["minimal"] and old_one.discard_in_min()) or (options["hide_addons"] and old_one.discard_addons()):
                 continue
@@ -5940,6 +5976,7 @@ def follow(cmd, people, resolver, options, output):
                                       ("e", "--exclude-ip IP,IP", f"hide the lines of these addresses or networks [{', '.join(str(r) for r in options['exclude']) or 'none'}]"),
                                       ("H", "--health MIN", f"minutes between two health alerts, 0 = never [{options['health']:g}]"),
                                       ("q", "--hide-addons", f"hide the INFO lines of the Odoo modules (odoo.addons.*), except errors, e-mails sent and generated files (PDF…) [{yes_no(options['hide_addons'])}]"),
+                                      ("j", "--request-length", TR("the request length of the nginx lines (rl=) is shown in its own column before the GET") + f" [{yes_no(options['request_length'])}]"),
                                       ("u", "--hide-user-agent", TR("the User-Agent text of the nginx lines is not shown (the OS column stays)") + f" [{yes_no(options['hide_user_agent'])}]"),
                                       ("i", "--hide-ip", f"hide the IP address [{yes_no(not options['keep_ip'])}]"),
                                       ("l", "--highlight WORDS", f"highlight these words in cyan (+word adds, -word removes; comma = several, none = nothing) [{', '.join(options['highlight_words']) or 'none'}]"),
@@ -6119,6 +6156,10 @@ def follow(cmd, people, resolver, options, output):
                     output.anonymize = output.anonymiser
                     write_out(["  --anonymize : yes — pseudonyms IP-xxxxxx, usager-xxxxxx, membre-xxxxxx (the following lines)"])
             options["anonymize"] = output.anonymize is not None
+        elif key_value == "reqlen":                # 1.136: the request length column (key j)
+            options["request_length"] = not options["request_length"]
+            form.request_length = options["request_length"]
+            write_out([f"  --request-length : {yes_no(options['request_length'])} (the following lines)"])
         elif key_value == "hideua":                # 1.135: the User-Agent text of the nginx lines (key u)
             options["hide_user_agent"] = not options["hide_user_agent"]
             form.hide_user_agent = options["hide_user_agent"]
@@ -6334,6 +6375,8 @@ def follow(cmd, people, resolver, options, output):
     start_watchdog(proc, file, state, received, reader_thread)
     if options["lines"] == 0 and hasattr(output, "active"):      # no history: everything is live
         output.active = True
+    eprint(color_code("1;36", TR("Columns: date and time · host · level · program · address (name) · request columns below")))
+    eprint(color_code("1;36", column_header(bool(options.get("request_length")))))
     if keys is not None and keys.start():
         eprint("Keys: ? (or h) keys and options menu · Ctrl-G dashboard (health, efficiency, top 10 URLs…) · 1 to 9 dashboard detail level · Ctrl-T only what changed since last time · R record a test · N step while recording · Ctrl-C stop and summary")
     merge_ready, merge_held, merge_ended = collections.deque(), collections.deque(), [False]      # 1.123 --log-merge: lines to show now, held nginx lines, end of stream
@@ -6673,6 +6716,7 @@ def main():
     parser.add_argument("--no-html-journal", action="store_true", help="No HTML copy of the daily journal (app-log-live-DATE.html, lines cut to 140 characters)")
     parser.add_argument("--no-isp", action="store_true", help="No outside request: no lookup of the address block owner or country (rdap.org, whois)")
     parser.add_argument("--hide-user-agent", action="store_true", help="Do not show the User-Agent text of the nginx lines (the OS column stays)")     # 1.134
+    parser.add_argument("--request-length", action="store_true", help="Show the request length of the nginx lines (rl=) in its own column before the GET (default: not shown)")     # 1.136
     parser.add_argument("--no-user-agent", action="store_true", help="Do not read the User-Agent in the nginx access log (robots are then recognized only by name or robots.txt)")
     parser.add_argument("--no-presence", action="store_true", help="No presence tracking (sign-ins, sign-outs, inactivity)")
     parser.add_argument("--record-max", type=float, default=RECORD_MAX_DEFAULT, metavar="MIN",
@@ -6934,7 +6978,7 @@ def main():
         eprint(banned_ips.summary())
     options = {"keep_ip": not args.hide_ip, "minimal": args.min, "hide_addons": args.hide_addons, "lines": args.lines, "recap": args.recap,
                "slow": max(0.0, args.slow), "only": [t.lower() for t in (args.only or []) if t], "highlight_words": read_highlight(args.highlight), "highlight_pattern": highlight_pattern(read_highlight(args.highlight)), "suspect": args.suspect, "disk_min": max(0.0, args.disk_min), "connections": max(0.0, min(100.0, args.connections)), "external_ip": not args.no_isp, "odoo_journal": profile.get("ODOO_LOGFILE"), "profile": profile, "service": service, "diag_hosts": args.diagnose_host, "not_found": args.not_found, "steps_line": args.steps_line, "summary": args.summary, "banned_ips": banned_ips,
-               "presence": Presence(args.idle) if is_odoo and not args.no_presence else None, "health": args.health, "keys": not args.no_keys and not args.no_follow, "app": profile.get("APP_NAME"), "app_label": profile.get("APP_LABEL", "application"), "hide_user_agent": args.hide_user_agent, "log_nginx": bool(args.log_nginx), "log_merge": bool(args.log_merge), "status_header": bool(args.status_header), "nginx_merged": LOGS_MERGE in cmd, "propose_ban": not args.no_ban_prompt, "watch": [t.strip().lower() for t in (args.watch or "").split(",") if t.strip()], "agents": not args.no_user_agent and not args.no_follow, "acces_logs": profile.get("ACCESS_LOGS"),
+               "presence": Presence(args.idle) if is_odoo and not args.no_presence else None, "health": args.health, "keys": not args.no_keys and not args.no_follow, "app": profile.get("APP_NAME"), "app_label": profile.get("APP_LABEL", "application"), "hide_user_agent": args.hide_user_agent, "request_length": args.request_length, "log_nginx": bool(args.log_nginx), "log_merge": bool(args.log_merge), "status_header": bool(args.status_header), "nginx_merged": LOGS_MERGE in cmd, "propose_ban": not args.no_ban_prompt, "watch": [t.strip().lower() for t in (args.watch or "").split(",") if t.strip()], "agents": not args.no_user_agent and not args.no_follow, "acces_logs": profile.get("ACCESS_LOGS"),
                "exclude": exclusions, "chime": args.chime, "group": args.accentuate_group if group_members else None, "membres": group_members,
                "report_min": args.time_report or 0.0, "level": args.level, "modules_sort": modules_sort_state}
     options.update({"buffer": args.buffer, "status_every": args.status_every,                          # 1.113: buffer of the f and P keys, status bar
