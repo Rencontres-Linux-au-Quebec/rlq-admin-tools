@@ -1297,7 +1297,7 @@ class AppLogLive(EnvTest):
         text, envoyees = self.run_pty(["python3", self.prog, "--no-history", "--no-isp", "--no-presence", "--no-banned", "--lines", "1"],
                                        [(b"/event", b"\x07", 0.8), (b"Top 10 des URLs", b"\x14", 0.8), (b"Depuis le dernier affichage", b"\x03", 0.5)], timeout=60)
         self.assertEqual(envoyees, 3, text)
-        self.assertIn("Touches : ? (ou h) menu", text)
+        self.assertIn("Touches : h menu", text)
         self.assertIn("Ctrl-G tableau de bord", text)
         table_rows = text[text.index("Tableau de bord depuis le démarrage"):text.index("Depuis le dernier affichage")]
         t = " ".join(table_rows.split())
@@ -2142,13 +2142,13 @@ class AppLogLive(EnvTest):
     def test_menu_des_touches_et_options_a_la_volee(self):
         """[6] ? ouvre le menu ; i, m, s, v basculent ; d, H, o demandent une valeur ; V affiche la version."""
         self.journal_tableau()
-        sequence = [(b"/event", b"?", 0.4), (b"inscriptions aux \xc3\xa9v\xc3\xa9nements", b"i", 0.4), (b"--hide-ip : no", b"m", 0.4), (b"--min : yes", b"s", 0.4),
+        sequence = [(b"/event", b"h", 0.4), (b"inscriptions aux \xc3\xa9v\xc3\xa9nements", b"i", 0.4), (b"--hide-ip : no", b"m", 0.4), (b"--min : yes", b"s", 0.4),
                     (b"--suspect : yes", b"d", 0.4), (b"Entr\xc3\xa9e = 20", b"30\r", 0.2), (b"--dns-max 30", b"t", 0.4), (b"Entr\xc3\xa9e = 32", b"\r", 0.2),
                     (b"--dns-max-truncate 32", b"H", 0.4), (b"Entr\xc3\xa9e = 10", b"0\r", 0.2), (b"alertes automatiques arr\xc3\xaat\xc3\xa9es", b"o", 0.4),
                     (b"tout afficher", b"zzz\r", 0.2), (b"--only : zzz", b"V", 0.4), (b"app-log-live.py version", b"v", 0.4), (b"--verbose : yes", b"\x03", 0.4)]
         text, envoyees = self.run_pty(["python3", self.prog, "--no-history", "--no-isp", "--no-presence", "--no-banned", "--lines", "1"], sequence, timeout=60, colonnes=200)
         self.assertEqual(envoyees, len(sequence), text)
-        menu = text[text.index("Touches (? ou h"):text.index("--hide-ip : no")]
+        menu = text[text.index("Touches (h : ce menu"):text.index("--hide-ip : no")]
         for attendu in ("Ctrl-G", "Ctrl-T", "Ctrl-C", "--dns-max N", "--dns-max-truncate N", "--health MIN", "--hide-ip", "--min", "--only TEXTE", "--report-err", "--suspect",
                         "--verbose", "--version", "inscriptions aux sondages", "inscriptions aux événements", "adresses à bannir : 0"):
             self.assertIn(attendu, menu)
@@ -2814,13 +2814,13 @@ class AppLogLive(EnvTest):
         """[1][2][3][4] Touches e, a, c, T du menu."""
         self.groupe_mock()
         self.journal_tableau(waiting=45)
-        sequence = [(b"/event", b"?", 0.4), (b"adresses \xc3\xa0 bannir : 0", b"e", 0.4), (b"vide = aucune", b"93.184.216.34\r", 0.2), (b"--exclude-ip : 93.184.216.34/32", b"e", 0.4),
+        sequence = [(b"/event", b"h", 0.4), (b"adresses \xc3\xa0 bannir : 0", b"e", 0.4), (b"vide = aucune", b"93.184.216.34\r", 0.2), (b"--exclude-ip : 93.184.216.34/32", b"e", 0.4),
                     (b"vide = aucune", b"pas-une-adresse\r", 0.2), (b"Adresses refus", b"a", 0.4), (b"vide = aucune ; actuel : aucune", b"Collaborateurs-2026\r", 0.2),
                     (b"1 comptes (les lignes", b"a", 0.4), (b"vide = aucune ; actuel : Collab", b"Inexistant\r", 0.2), (b"existe dans aucune base", b"c", 0.4),
                     (b"Entr\xc3\xa9e = 0", b"1\r", 0.2), (b"--chime 1 (bip", b"T", 0.4), (b"Entr\xc3\xa9e = 60", b"5\r", 0.2), (b"--time-report 5", b"\x03", 0.4)]
         text, envoyees = self.run_pty(["python3", self.prog, "--no-isp", "--no-presence", "--no-banned", "--lines", "1"], sequence, timeout=60, colonnes=200)
         self.assertEqual(envoyees, len(sequence), text)
-        menu = text[text.index("Touches (? ou h"):text.index("--exclude-ip : 93.184")]
+        menu = text[text.index("Touches (h : ce menu"):text.index("--exclude-ip : 93.184")]
         for attendu in ("--accentuate-group NOM", "--chime N", "--exclude-ip IP,IP", "--time-report MIN"):
             self.assertIn(attendu, menu)
 
@@ -3902,7 +3902,7 @@ class AppLogLive143(unittest.TestCase):
         self.assertEqual(len(held), 0)
         shown = self.m.Formatting(False, 40, 0.0, False).format_value(ready[0][0], {}, False)
         self.assertEqual(shown.count("GET"), 1, shown)
-        self.assertIn("1730.6", shown)                 # 1.144: more than 100 s: one decimal
+        self.assertIn("1731", shown)                    # 1.147: more than 1000 s: no decimal (5 columns, websocket included)
 
     def test_143_chemins_refuses_volontairement(self):
         """--disable-uri : "# uri : /shop" couvre /shop et /es/shop/panier, pas /shopping."""
@@ -4101,7 +4101,7 @@ class AppLogLive146(unittest.TestCase):
         m = self.m
         self.assertEqual(m.hundredths("0.046"), "0.05")
         self.assertEqual(m.hundredths("1.2"), "1.20")
-        self.assertEqual(m.hundredths("2186.246226"), "2186.2")
+        self.assertEqual(m.hundredths("2186.246226"), "2186")          # 1.147: above 1000 s, no decimal (5 columns)
         texte = ANSI.sub("", m.Formatting(False, 40, 0.0, False).format_value(m.Line(self.ODOO), {}, False))
         self.assertNotIn("0.046", texte)
         self.assertIn("0.05", texte)
@@ -4111,13 +4111,14 @@ class AppLogLive146(unittest.TestCase):
         m = self.m
         bar = m.StatusBar()
         bar.gone_404, bar.disabled_404, bar.unknown_404 = 3, 2, 40
+        bar.e4, bar.codes = 45, m.collections.Counter({404: 45})
         texte = "".join(part for part, _ in bar.pieces())
-        self.assertIn("404s 3", texte)
-        self.assertIn("404b 2", texte)
-        self.assertIn("404o 40", texte)
+        self.assertIn("4xx 45 (404s=3 · 404b=2 · 404o=40)", texte)          # 1.147: the 404s inside the 4xx detail
+        self.assertNotIn("404: 45", texte)
         # 404b and 404o take no point off the health (only the 404s of the sitemap count, at 0.1 each)
-        bar.e4 = 45                                   # 3 sitemap + 40 never listed + 2 refused: penalty 0.1 x 3
         self.assertEqual(bar.health(), 100)
+        bar.gone_404 = 1                                                    # not every 404 classified any more: the plain form
+        self.assertIn("(404: 45)", "".join(part for part, _ in bar.pieces()))
 
     def test_146_avertissement_odoo_non_structure_sur_toute_la_largeur(self):
         m = self.m

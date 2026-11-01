@@ -349,6 +349,29 @@ Earlier history was archived outside this repository when this file was created.
 
 ## app-log-live.py
 
+### 1.147.20261101.172052 - Times within 5 columns, 404 kinds in the 4xx detail, new header labels, ? for the startup information, W to save, menu entries
+
+- Title: a BOT label and a total above 1000 s no longer shift the line; the 404s appear inside the 4xx detail of the status bar; the header uses HOUR, LVL, CC and IP BLOCK (ISP); h opens the keys menu and ? shows the startup information; W saves the settings; --menu gets two sorted modules tables and --not-found.
+- Reason: the user's review of 1.146: (1) the [BOT] label moved the rest of the line by one character, and so did a time above 1000 s (2186.2 is 6 characters); (2) the status bar should read "4xx 9 (404s=0, 404b=0, 404o=9)" instead of a separate "(404: 9)" and a separate 404 group; (3) the header must show the time, the level, the country, and the owner of the address block (ISP); (4) the startup information (lists, modules, cache, colours, keys) must not be printed at startup but on demand with ?; h opens the menu; (5) the save key is W, not C; (6) the --menu entries: modules sorted by name and by date, and --not-found.
+- Changes:
+  - hundredths(): a time of 1000 s or more has no decimal (2186), a time from 100 s to 1000 s has one decimal, below 100 s two decimals. The value always fits the 5 columns.
+  - aligned_request and aligned_nginx_request: "[BOT]" is 5 characters wide (rjust(5), was 6). The merged and Odoo times are never wider than their column.
+  - StatusBar.codes_pieces(): for the 4xx group, the 404 answers are split when every one of them is classified (StatusBar.kinds_404(): sitemap, refused on purpose, never in the sitemap): "4xx 45 (403: 3 · 404s=3 · 404b=2 · 404o=40)". Otherwise (sitemap not read yet), the former "404: n" form. The separate 404 group of 1.146 is removed.
+  - column_header(): labels HOUR (time), PROG, LVL (level), CC (country code) over the name column, then IP BLOCK (ISP) 3 characters further. The name column is found after the logger ("base werkzeug "), as the address and name are displayed there. Checked on a rendered line: the labels sit over the fields of the data (time, level, name).
+  - Startup information: while the startup runs, the lines that are not important are kept (STARTUP_LINES, STARTUP_INFO) and shown by the ? key ("Startup information"). The important lines stay on screen: warnings, errors, filters, excluded addresses, group of accounts, reading progress, the configuration and options lines. A hint says so. A pipe or a file, and --no-keys, print everything as before (no key to ask for it).
+  - Keys: h opens the menu (help), ? shows the startup information (legend key). The menu title and the hint line name both keys. The --no-keys help text changed.
+  - Save: the key is W in the menu (was C); the menu line shows W.
+  - --menu: "Odoo modules table (sorted by date)" (the former entry: --modules --modules-sort date), "Odoo modules table (sorted by name)" (--modules --modules-sort name), "404 answers only (--not-found)".
+  - Files: app-log-live.py, lang/app-log-live.fr.po (new strings, the changed --no-keys help and keys menu strings), nginx-tools-tests/test_app_log_live.py (AppLogLive146 test for the 404 detail; updated expectations: keys h and not ?, websocket 1731, hundredths 2186).
+- Bugs fixed:
+  - symptom: a line with [BOT] (or a time above 1000 s) was shifted by one character. Diagnosis: "[BOT]" was rjust(6) after the time columns became 5 wide, and "2186.2" is 6 characters. Fix: width 5 for [BOT] and an integer above 1000 s.
+- Safeguards and edge cases: a time of exactly 100 s to 999.9 s keeps one decimal (5 characters). A websocket duration (merged or not) above 1000 s is an integer too (the merged column is 5 wide): 1730.555 is shown 1731. The 404 split needs every 404 to be classified: when the sitemap is not read yet, the plain "404: n" stays. The startup information is only deferred on a terminal without --no-keys: a test or a pipe still prints it. The header is aligned on the name column of the Odoo request lines; the lines without a request keep their own alignment.
+- Checks performed: py_compile; --help runs; testeur on test_app_log_live and test_i18n: 238 tests, 236 pass, 2 failures already present before 1.141 (test_colonnes_jamais_tassees_pays_noms_anonymises_et_souligne_tous_les_n, test_120_journal_html_un_fichier_par_jour); AppLogLive146 covers hundredths and the 404 split; the header was rendered in both modes (IP and no IP) and checked against the data columns.
+- Action required:
+  1. Restart app-log-live.py. Press ? to see the startup information, h for the keys menu, W to save the settings.
+  2. Check the header in your terminal: the labels should sit over the time, level, country and owner (ISP) columns. Tell me if one is off by a few characters.
+  3. Still open from 1.146: the 404 on "/" (send me one nginx line of it: IP, Host, User-Agent), and whether the header should keep an IP label when the addresses are shown (--keep-ip).
+
 ### 1.146.20261101.140404 - Hundredths for the times, three kinds of 404 in the status bar, full-width Odoo warnings, --days for --log-chk-sitemap
 
 - Title: response times to the hundredth (5 columns instead of 6), three 404 counters in the status bar (404s, 404b, 404o), warnings of Odoo on the whole width, and --days honoured by --log-chk-sitemap.
