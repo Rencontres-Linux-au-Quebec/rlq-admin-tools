@@ -740,6 +740,9 @@ msgstr "Pas de journal quotidien (le direct n'est écrit nulle part, sauf à l'�
 msgid "No outside request: no lookup of the address block owner or country (rdap.org, whois)"
 msgstr "Aucune requête extérieure : pas de recherche du propriétaire du bloc d'adresses ni du pays (rdap.org, whois)"
 
+msgid "Do not show the User-Agent text of the nginx lines (the OS column stays)"
+msgstr "Ne montre pas le texte du User-Agent des lignes nginx (la colonne du système d'exploitation reste)"
+
 msgid "Do not read the User-Agent in the nginx access log (robots are then recognized only by name or robots.txt)"
 msgstr "Ne lit pas le User-Agent dans le journal d'accès nginx (les robots ne sont alors reconnus que par leur nom ou robots.txt)"
 
