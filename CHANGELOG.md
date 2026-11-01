@@ -349,6 +349,21 @@ Earlier history was archived outside this repository when this file was created.
 
 ## app-log-live.py
 
+### 1.139.20261031.230500 - Header labels on the real fields of the line; times from 1 s in green
+
+- Title: the labels DATE, PROG, LEVEL and ADDRESS/NAME are placed on the fields of the first real request line, so they follow the options (--min, names, width); the times from 1 s are green (white under 1 s, red from 3 s).
+- Reason: 1) the four first labels were not aligned with the fields. 2) the times from 1 s must be green (yellow of 1.134 removed; if another colour from 1 s is wanted, say so).
+- Changes:
+  - line_fields(plain): column of DATE, PROG (program), LEVEL and ADDRESS/NAME in a rendered line.
+  - column_header(..., plain=None): the four labels are written at those columns; a label that would overlap another one or the numbers block is left out. Without a line, a sample rendered with the same options is used.
+  - show_header(plain): measured on the line being displayed (start = "H1.1" of that line).
+  - After a change of --min or --request-length (keys m and j) the header is printed again at the next request line, measured on it.
+  - transfer_style(): under 1 s white; 1 to 3 s green (STYLES transfer_mid = 32); from 3 s red.
+- Bugs fixed: symptom: the first labels not above their fields; diagnosis: they were placed at fixed offsets of a sample line rendered with other options; fix: measured on the real line.
+- Safeguards and edge cases: a line without DATE, PROG or LEVEL (non-Odoo, nginx variants) has fewer labels. The header is cut to the terminal width.
+- Checks performed: py_compile; --version; check of the label columns against the fields of rendered lines (--min and --request-length on and off); test_i18n (32 tests OK); test_app_log_live: 186 tests, 2 failures, both already present before 1.139 (test_colonnes_jamais_tassees..., test_120_journal_html...); test_logs_merge OK.
+- Action required: none. Restart app-log-live.py.
+
 ### 1.138.20261031.225800 - Column header on one line; start-up legend removed
 
 - Title: the column header is ONE line: DATE, PROG, LEVEL and ADDRESS/NAME for the first columns, then the labels above the request columns (HTTP, STA, SIZE, SQL, SQL s, PY s, RL, OS, REQUEST).

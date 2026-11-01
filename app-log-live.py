@@ -114,7 +114,7 @@ from urllib.parse import unquote
 from collections import Counter, OrderedDict
 from concurrent.futures import Future
 
-__version__ = "1.138.20261031.224650"
+__version__ = "1.139.20261031.230013"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
@@ -342,7 +342,7 @@ STYLES = {"nginx": "1;35", "person": "1;32", "team": "1;32", "place": "1;36", "s
           # EXPLICIT background AND text (black), never "7;90" (inverted gray): on a theme where bright black is black, the address became black on black
           "suspect": "7;35", "url_critical": "7;91", "url_warning": "7;93", "blanche": "107;30", "place_ip": ("48;5;245" if COLORS_256 else "47") + ";30",
           "accent": "1;97;48;5;18" if COLORS_256 else "1;97;44",       # contact of the --accentuate-group group: bold white on dark blue
-          "banned": "1;91", "slow_request": "1;" + ORANGE, "very_slow_request": "1;31", "title": "1;36", "transfer_mid": "33", "transfer_slow": "1;31"}
+          "banned": "1;91", "slow_request": "1;" + ORANGE, "very_slow_request": "1;31", "title": "1;36", "transfer_mid": "32", "transfer_slow": "1;31"}
 # Duration of an Odoo request (werkzeug): "... 200 - 105 0.046 0.426" = code, size, SQL queries, SQL time, Python time (seconds)
 DURATION_RE = re.compile(r'"\s\d{3}\s\S+\s(\d+)\s(\d+\.\d+)\s(\d+\.\d+)\s*$')
 # Same line: the size (bytes or "-") and the number of SQL queries, to color them when they are high
@@ -1718,31 +1718,57 @@ def os_code(agent):
     return "OTH"
 
 
-def column_header(request_length=False, minimal=False, width=COLUMN_WIDTH, columns=None, start=None):
-    """1.136: the labels of the request columns, placed above the same columns of a sample Odoo request line (the start of the columns is
-    measured on that sample, so that the header stays aligned whatever the width of the date, host and name columns)."""
-    sample = Formatting(minimal, width, 0.0, False, request_length=request_length).format_value(Line(
-        '2026-10-31T09:53:27.790000-0400 odoo18 odoo[1]: 2026-10-31 05:53:27,790 1 INFO base werkzeug: 179.201.24.98 - - '
-        '[31/Oct/2026 09:53:27] "GET /web/abc?lang=en_CA HTTP/1.1" 303 - 1 0.000 0.002'), {}, False)
-    plain = ANSI_RE.sub("", sample)
+def line_fields(plain):
+    """1.139: start of the fields DATE, PROG, LEVEL and ADDRESS/NAME in a rendered line (plain text): {label: column}. A field not found is left out."""
+    fields = {}
+    date = re.match(r"(?:\d{4}-\d\d-\d\d )?\S+", plain)
+    end = date.end() if date else 0
+    if date:
+        fields["DATE"] = 0
+    level = re.search(r"(?<=\s)(DEBUG|INFO|WARNING|WARN|ERROR|ERR|CRITICAL|CRIT|ALERT|EMERG|NOTICE|DEB|INF|WAR|CRI|NOT|DBG)(?=\s)", plain[end:])
+    if level:
+        level_at = end + level.start(1)
+        fields["LEVEL"] = level_at
+        program = re.search(r"\S+$", plain[:level_at].rstrip())
+        if program and program.start() > end:
+            fields["PROG"] = program.start()
+        after_level = level_at + len(level.group(1))
+        address = re.search(r"\S", plain[after_level:])
+        if address:
+            fields["ADDRESS/NAME"] = after_level + address.start()
+    return fields
+
+
+def column_header(request_length=False, minimal=False, width=COLUMN_WIDTH, columns=None, start=None, plain=None):
+    """1.136-1.139: labels of the request columns above the same columns of a rendered Odoo request line (the line given, or a sample rendered with
+    the same options). `start`: column of "H1.1" in that line. The four first labels (DATE, PROG, LEVEL, ADDRESS/NAME) sit on the fields of the same
+    line; a label that would overlap another one or the numbers block is left out."""
+    if plain is None:
+        sample = Formatting(minimal, width, 0.0, False, request_length=request_length).format_value(Line(
+            '2026-10-31T09:53:27.790000-0400 odoo18 odoo[1]: 2026-10-31 05:53:27,790 1 INFO base werkzeug: 179.201.24.98 - - '
+            '[31/Oct/2026 09:53:27] "GET /web/abc?lang=en_CA HTTP/1.1" 303 - 1 0.000 0.002'), {}, False)
+        plain = ANSI_RE.sub("", sample)
     sample_start = plain.index("H1.1")
     get_at = plain.index("GET", sample_start)
     os_at = get_at - 4 - sample_start                       # offsets from the start of the numbers block
     get_at -= sample_start
-    if start is None:                                       # the real start of the numbers block when known (first request line), else the sample's
+    if start is None:
         start = sample_start
     labels = [(0, "HTTP"), (5, "STA"), (9, "SIZE"), (14, "SQL"), (19, "SQL s"), (26, "PY s")]
     if request_length:
         labels.append((os_at - 6, "RL"))
     labels += [(os_at, "OS"), (get_at, TR("REQUEST"))]
-    row = [" "] * (get_at + len(TR("REQUEST")) + 1)                     # the request labels, relative to the start of the numbers block
+    row = [" "] * (get_at + len(TR("REQUEST")) + 1)
     for offset, label in labels:
         for i, letter in enumerate(label):
             row[offset + i] = letter
-    line = [" "] * (start + len(row))                                       # 1.138: one line: the four first columns (no alignment) then the labels above the request columns
-    prefix = " ".join([TR("DATE"), TR("PROG"), TR("LEVEL"), TR("ADDRESS/NAME")])
-    if len(prefix) < start - 1:
-        line[:len(prefix)] = list(prefix)
+    line = [" "] * (start + len(row))
+    fields = line_fields(plain)
+    for name in ("DATE", "PROG", "LEVEL", "ADDRESS/NAME"):          # 1.139: on the fields of the line, left to right
+        at, word = fields.get(name), TR(name)
+        if at is None or at + len(word) >= start - 1 or any(line[at + i] != " " for i in range(len(word))):
+            continue
+        line[at:at + len(word)] = list(word)
     line[start:] = row
     text = "".join(line).rstrip()
     return text[:columns] if columns else text        # 1.137: never wider than the terminal (the labels beyond it are not shown)
@@ -1751,8 +1777,8 @@ def column_header(request_length=False, minimal=False, width=COLUMN_WIDTH, colum
 def transfer_style(total):
     """1.134/1.137: traffic light of the transfer time: white under 1 s, yellow from 1 s to 3 s, red from 3 s (None = no colour)."""
     if total < 1:
-        return None                                  # under 1 s: white, as before
-    return STYLES["transfer_mid"] if total < 3 else STYLES["transfer_slow"]
+        return None                                  # under 1 s: white
+    return STYLES["transfer_mid"] if total < 3 else STYLES["transfer_slow"]      # 1.139: 1 to 3 s green (was yellow)
 
 
 RLQ_TEXT_TAG = ".RLQ"                                              # 1.128: the same domain in the text of the lines (referer, host=...)
@@ -5416,9 +5442,9 @@ def follow(cmd, people, resolver, options, output):
     def paint(L, text, inputs, benign, underline=False):
         """1.113: writes one line and keeps it in the buffer of the f (refresh) and P (print) keys; `inputs` = (results, pays) to render it again."""
         if not state.get("header_shown"):                     # 1.137: the column labels just before the first request line (its real columns)
-            at = ANSI_RE.sub("", text).find("H1.1")
-            if at >= 0:
-                show_header(at)
+            plain_line = ANSI_RE.sub("", text)
+            if "H1.1" in plain_line:
+                show_header(plain_line)
         shown = highlight_text(text, options["highlight_pattern"])
         if line_memory.maxlen:
             line_memory.append({"L": L, "inputs": inputs, "benign": benign, "shown": shown, "n": state.get("emitted", 0)})
@@ -5472,10 +5498,11 @@ def follow(cmd, people, resolver, options, output):
         out.append(color_code(f"7;1;{bar}", " " * max(0, columns - 1 - visible)))
         return "".join(out)
 
-    def show_header(start=None):
-        """1.137: column labels of the request columns, above the lines (before the first one, and again when a column is switched on or off).
-        `start`: column of "H1.1" in a real request line (the prefix of the lines depends on the options); None: measured on a sample."""
-        text = column_header(bool(options["request_length"]), bool(options["minimal"]), address_width(), terminal_columns(), start)
+    def show_header(plain=None):
+        """1.137-1.139: column labels above the request columns, printed before the first request line and again after a change of --min or
+        --request-length (at the next request line, measured on it). `plain`: that rendered line (None: measured on a sample)."""
+        start = plain.index("H1.1") if plain is not None and "H1.1" in plain else None
+        text = column_header(bool(options["request_length"]), bool(options["minimal"]), address_width(), terminal_columns(), start, plain)
         output.flush()                                          # the lines already written come first (stdout and stderr share the terminal)
         if text:
             eprint(color_code("1;36", text))                 # stderr: the lines of the stream (stdout) keep their own layout
@@ -6191,8 +6218,7 @@ def follow(cmd, people, resolver, options, output):
             options["request_length"] = not options["request_length"]
             form.request_length = options["request_length"]
             write_out([f"  --request-length : {yes_no(options['request_length'])} (the following lines)"])
-            if state.get("header_shown"):
-                show_header()                                  # 1.137
+            state["header_shown"] = False                  # 1.139: printed again at the next request line, on its real fields
         elif key_value == "hideua":                # 1.135: the User-Agent text of the nginx lines (key u)
             options["hide_user_agent"] = not options["hide_user_agent"]
             form.hide_user_agent = options["hide_user_agent"]
@@ -6204,8 +6230,7 @@ def follow(cmd, people, resolver, options, output):
         elif key_value == "m":
             options["minimal"] = form.minimal = not options["minimal"]
             write_out([f"  --min : {yes_no(options['minimal'])} (the following lines)"])
-            if state.get("header_shown"):
-                show_header()                                  # 1.137: the labels follow the columns shown
+            state["header_shown"] = False                  # 1.139: printed again at the next request line, on its real fields
 
         elif key_value == "n":
             options["not_found"] = not options["not_found"]
