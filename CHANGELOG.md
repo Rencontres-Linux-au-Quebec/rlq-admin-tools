@@ -349,6 +349,18 @@ Earlier history was archived outside this repository when this file was created.
 
 ## app-log-live.py
 
+### 1.140.20261031.231025 - Fix crash on a POST line in the header; header never stops the stream
+
+- Title: a crash (ValueError) when the first request line shown was a POST: the header was measured on the line itself, which has no "GET"; it stopped app-log-live.
+- Reason: the user's run stopped with a Python traceback at the first request line (line 6539, emit -> paint -> show_header -> column_header).
+- Changes:
+  - column_header(): the offsets of the labels are always taken from a GET sample rendered with the same options; the line given is used only for the fields (DATE, PROG, LEVEL, ADDRESS/NAME) and for the start of the numbers block ("H1.1").
+  - paint(): a failure while printing the header is caught (ValueError, IndexError, KeyError): the header is then not shown for that line and the stream goes on.
+- Bugs fixed: symptom: traceback "substring not found" at the first POST line, program stopped; diagnosis: plain.index("GET") on a POST line; fix: sample offsets and the guard.
+- Safeguards and edge cases: any other line form without "H1.1" gets no header. The guard does not hide programming errors elsewhere in the stream.
+- Checks performed: py_compile; --version; header of a POST line rendered with --min (fields and labels aligned); test_app_log_live: 218 tests, 2 failures, both already present before 1.140 (test_colonnes_jamais_tassees..., test_120_journal_html...); test_logs_merge and test_i18n OK.
+- Action required: none. Restart app-log-live.py.
+
 ### 1.139.20261031.230500 - Header labels on the real fields of the line; times from 1 s in green
 
 - Title: the labels DATE, PROG, LEVEL and ADDRESS/NAME are placed on the fields of the first real request line, so they follow the options (--min, names, width); the times from 1 s are green (white under 1 s, red from 3 s).
