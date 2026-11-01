@@ -114,7 +114,7 @@ from urllib.parse import unquote
 from collections import Counter, OrderedDict
 from concurrent.futures import Future
 
-__version__ = "1.139.20261031.230013"
+__version__ = "1.140.20261031.231025"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
@@ -1743,15 +1743,16 @@ def column_header(request_length=False, minimal=False, width=COLUMN_WIDTH, colum
     """1.136-1.139: labels of the request columns above the same columns of a rendered Odoo request line (the line given, or a sample rendered with
     the same options). `start`: column of "H1.1" in that line. The four first labels (DATE, PROG, LEVEL, ADDRESS/NAME) sit on the fields of the same
     line; a label that would overlap another one or the numbers block is left out."""
-    if plain is None:
-        sample = Formatting(minimal, width, 0.0, False, request_length=request_length).format_value(Line(
-            '2026-10-31T09:53:27.790000-0400 odoo18 odoo[1]: 2026-10-31 05:53:27,790 1 INFO base werkzeug: 179.201.24.98 - - '
-            '[31/Oct/2026 09:53:27] "GET /web/abc?lang=en_CA HTTP/1.1" 303 - 1 0.000 0.002'), {}, False)
-        plain = ANSI_RE.sub("", sample)
-    sample_start = plain.index("H1.1")
-    get_at = plain.index("GET", sample_start)
+    sample = Formatting(minimal, width, 0.0, False, request_length=request_length).format_value(Line(      # the offsets of the labels: from a GET sample
+        '2026-10-31T09:53:27.790000-0400 odoo18 odoo[1]: 2026-10-31 05:53:27,790 1 INFO base werkzeug: 179.201.24.98 - - '
+        '[31/Oct/2026 09:53:27] "GET /web/abc?lang=en_CA HTTP/1.1" 303 - 1 0.000 0.002'), {}, False)
+    sample_plain = ANSI_RE.sub("", sample)
+    sample_start = sample_plain.index("H1.1")
+    get_at = sample_plain.index("GET", sample_start)
     os_at = get_at - 4 - sample_start                       # offsets from the start of the numbers block
     get_at -= sample_start
+    if plain is None:
+        plain = sample_plain
     if start is None:
         start = sample_start
     labels = [(0, "HTTP"), (5, "STA"), (9, "SIZE"), (14, "SQL"), (19, "SQL s"), (26, "PY s")]
@@ -5444,7 +5445,10 @@ def follow(cmd, people, resolver, options, output):
         if not state.get("header_shown"):                     # 1.137: the column labels just before the first request line (its real columns)
             plain_line = ANSI_RE.sub("", text)
             if "H1.1" in plain_line:
-                show_header(plain_line)
+                try:
+                    show_header(plain_line)
+                except (ValueError, IndexError, KeyError):   # 1.140: the header is decoration: a line it cannot read never stops the stream
+                    state["header_shown"] = True
         shown = highlight_text(text, options["highlight_pattern"])
         if line_memory.maxlen:
             line_memory.append({"L": L, "inputs": inputs, "benign": benign, "shown": shown, "n": state.get("emitted", 0)})
