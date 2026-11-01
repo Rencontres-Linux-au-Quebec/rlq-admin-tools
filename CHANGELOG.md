@@ -349,6 +349,23 @@ Earlier history was archived outside this repository when this file was created.
 
 ## app-log-live.py
 
+### 1.142.20261101.103302 - Sitemap check of the 404 pages: --sitemap URL, two 404 counters, tag before the OS column
+
+- Title: pages 404 listed in the Odoo sitemap.xml are counted in the health (important pages that no longer exist); the other 404 pages (never existed: attacks) are counted apart and do not lower the health; each 404 line shows whether its page is in the sitemap.
+- Reason: the user wants the 404 URLs that matter for SEO identified first, because they belong to the sitemap.xml of Odoo. The URLs that never existed (probes, attacks) must not change the health percentage.
+- Changes:
+  - Option --sitemap URL (configuration key SITEMAP). Class Sitemap: the file is read in a background thread (timeout 15 s), read again every hour, and again after 60 s while it fails. A sitemap index is followed (50 sitemaps at most). Only http and https addresses are accepted (otherwise the program stops with a message).
+  - sitemap_path(): the path compared with the sitemap has no scheme, host, query or fragment, no language prefix (/fr_CA/, /en/) and no trailing slash. The same rule is applied to the sitemap and to the 404 URLs.
+  - sitemap_cell(): tag column of SITEMAP_WIDTH (22) characters, placed after the RL column and before the OS column. 404 lines: [in sitemap.xml] (orange, counted in the health) or [not in sitemap.xml] (grey, not counted); [disabled] (grey) while the sitemap is not read yet. Other lines: blank. French: [dans sitemap.xml], [pas dans sitemap.xml], [désactivé].
+  - Stats.observe(): a 404 is counted in gone_404 (URL listed) or unknown_404 (URL not listed) once the sitemap is read.
+  - Stats.health(): two indicators. "404 on pages of sitemap.xml" (counted: warning from 1 page, alert from 5). "404 on URLs never in sitemap.xml" (informative, never changes the state). The score takes 0.1 point per 4xx as before, except the unknown 404 pages.
+  - column_header(): label SITEMAP over the tag column, RL label before it when --request-length is given. The Odoo message text keeps its column (the tag column is counted in its padding).
+  - Files: app-log-live.py, lang/app-log-live.fr.po (9 new entries), nginx-tools-tests/test_app_log_live.py (class AppLogLive142).
+- Bugs fixed: none (new feature).
+- Safeguards and edge cases: without --sitemap the layout, the counters and the score are unchanged. A network, HTTP or XML error keeps the last good list and shows the reason in the health (warning). A sitemap larger than 50 MB is refused. Comparison ignores the query string, so /page?x=1 is the page /page. A first path segment of two letters (/ab/) is taken for a language prefix on both sides, so such a page is compared without it. The sitemap is read in a thread, so a slow server never blocks the stream.
+- Checks performed: py_compile; --version; rendering of 404 and 200 lines with the sitemap off, on, with --request-length and with --min; alignment of the header labels (RL, SITEMAP, OS) on the rendered lines; test class AppLogLive142 (8 tests) OK; test_i18n OK; test_app_log_live: 2 failures, both already present before 1.141 (test_colonnes_jamais_tassees..., test_120_journal_html...), not touched by this version.
+- Action required: to enable the check, add --sitemap https://www.rencontres-linux.quebec/sitemap.xml (or SITEMAP=... in the configuration file), then restart app-log-live.py. The tag [désactivé] is shown when the sitemap is not read yet (the address is wrong or unreachable).
+
 ### 1.141.20261031.232600 - Time colours: white under 1 s, green 1 to 3 s, yellow 3 to 6 s, red above 6 s; websocket durations coloured
 
 - Title: the traffic light of the times follows the thresholds given by the user; the duration of a websocket (no SQL time) is coloured too.

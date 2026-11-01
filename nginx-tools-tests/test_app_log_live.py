@@ -3725,3 +3725,132 @@ class AppLogLive123(EnvTest):
         self.assertEqual(len(requetes), 1, out + err)
         self.assertIn("H1.1 303", requetes[0])
         self.assertNotIn("odoo18", requetes[0])
+
+
+class AppLogLive142(unittest.TestCase):
+    """1.142 --sitemap : pages 404 listées dans le sitemap.xml (importantes, comptées dans la santé) et pages 404 jamais existantes (non comptées),
+    étiquette [dans / pas dans sitemap.xml] avant la colonne OS, en-tête SITEMAP, lecture du sitemap (index compris)."""
+
+    @classmethod
+    def setUpClass(cls):
+        spec = importlib.util.spec_from_file_location("live142", script_path("app-log-live.py"))
+        cls.m = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(cls.m)
+
+    def setUp(self):
+        self.m.SITEMAP = None
+
+    def tearDown(self):
+        self.m.SITEMAP = None
+
+    class Fixe:
+        """Sitemap sans lecture réseau : chemins donnés (None : pas encore lu)."""
+        def __init__(self, paths):
+            self.url, self.error = "https://www.example.org/sitemap.xml", None
+            self.paths = None if paths is None else frozenset(paths)
+
+        def listed(self, url):
+            return None if self.paths is None else self.m_path(url) in self.paths
+
+        @staticmethod
+        def m_path(url):
+            return AppLogLive142.m.sitemap_path(url)
+
+    def ligne_nginx(self, chemin, code="404"):
+        return ('2026-10-31T20:42:41.000000-0400 odoo18 http: 4.4.4.4 - - "GET ' + chemin + ' HTTP/1.1" ' + code +
+                ' 7576 "-" "Mozilla/5.0 (X11; Linux x86_64)" host=www.example.org rl=1')
+
+    def test_142_chemin_sans_langue_ni_requete(self):
+        """Le chemin comparé : sans schéma, hôte, requête, préfixe de langue (/fr_CA/) ni barre finale."""
+        self.assertEqual(self.m.sitemap_path("https://www.example.org/fr_CA/a-propos/?x=1"), "/a-propos")
+        self.assertEqual(self.m.sitemap_path("/en_US/about-us"), "/about-us")
+        self.assertEqual(self.m.sitemap_path("/fr"), "/")
+        self.assertEqual(self.m.sitemap_path("/web/abc?lang=en_CA"), "/web/abc")
+        self.assertEqual(self.m.sitemap_path("/blog/x%20y"), "/blog/x y")
+
+    def test_142_adresse_non_http_refusee(self):
+        with self.assertRaises(ValueError):
+            self.m.Sitemap("ftp://www.example.org/sitemap.xml", start=False)
+
+    def test_142_liste_non_liste_pas_encore_lu(self):
+        sm = self.m.Sitemap("https://www.example.org/sitemap.xml", start=False)
+        self.assertIsNone(sm.listed("/about-us"))
+        sm.paths = frozenset({"/about-us"})
+        self.assertTrue(sm.listed("/fr_CA/about-us?x=1"))
+        self.assertFalse(sm.listed("/wp-login.php"))
+
+    def test_142_lecture_du_sitemap_et_de_l_index(self):
+        """Un sitemap simple et un index de sitemaps (les sitemaps listés sont lus à leur tour)."""
+        pages = {
+            "https://www.example.org/index.xml": b'<?xml version="1.0"?><sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">'
+                                                 b'<sitemap><loc>https://www.example.org/s1.xml</loc></sitemap></sitemapindex>',
+            "https://www.example.org/s1.xml": b'<?xml version="1.0"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">'
+                                              b'<url><loc>https://www.example.org/fr_CA/a-propos</loc></url>'
+                                              b'<url><loc>https://www.example.org/blog/</loc></url></urlset>',
+        }
+
+        class Reponse:
+            def __init__(self, data):
+                self.data = data
+
+            def read(self, n=-1):
+                return self.data
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *args):
+                return False
+
+        def ouvrir(request, timeout=None):
+            return Reponse(pages[request.full_url])
+        sm = self.m.Sitemap("https://www.example.org/index.xml", start=False)
+        with unittest.mock.patch("urllib.request.urlopen", side_effect=ouvrir):
+            self.assertEqual(sm.read(sm.url, 0), {"/a-propos", "/blog"})
+
+    def test_142_etiquette_404_avant_la_colonne_os(self):
+        """Ligne nginx 404 : [in sitemap.xml] ou [not in sitemap.xml] avant OS ; ligne 200 : colonne vide ; sans --sitemap : aucune colonne."""
+        m = self.m
+        sans = m.Formatting(False, 40, 0.0, False).format_value(m.Line(self.ligne_nginx("/about-us")), {}, False)
+        self.assertNotIn(m.TR("[in sitemap.xml]"), sans)
+        m.SITEMAP = self.Fixe({"/about-us"})
+        for chemin, attendu in (("/fr_CA/about-us", m.TR("[in sitemap.xml]")), ("/wp-login.php", m.TR("[not in sitemap.xml]"))):
+            texte = ANSI.sub("", m.Formatting(False, 40, 0.0, False).format_value(m.Line(self.ligne_nginx(chemin)), {}, False))
+            self.assertIn(attendu, texte)
+            self.assertLess(texte.index(attendu), texte.index("MAC") if "MAC" in texte else texte.index("LIN"))
+        ok = ANSI.sub("", m.Formatting(False, 40, 0.0, False).format_value(m.Line(self.ligne_nginx("/about-us", "200")), {}, False))
+        self.assertNotIn(m.TR("[not in sitemap.xml]"), ok)
+
+    def test_142_etiquette_desactive_tant_que_non_lu(self):
+        m = self.m
+        m.SITEMAP = self.Fixe(None)
+        texte = ANSI.sub("", m.Formatting(False, 40, 0.0, False).format_value(m.Line(self.ligne_nginx("/about-us")), {}, False))
+        self.assertIn(m.TR("[disabled]"), texte)
+
+    def test_142_entete_SITEMAP_sur_la_colonne_de_l_etiquette(self):
+        """L'en-tête SITEMAP est au-dessus de l'étiquette, et RL juste avant elle (--request-length)."""
+        m = self.m
+        m.SITEMAP = self.Fixe({"/about-us"})
+        for rl in (False, True):
+            plain = ANSI.sub("", m.Formatting(False, 40, 0.0, False, request_length=rl).format_value(m.Line(self.ligne_nginx("/about-us")), {}, False))
+            debut = plain.index("H1.1")
+            entete = m.column_header(rl, False, 400, None, debut, plain)
+            tag = plain.index(m.TR("[in sitemap.xml]"))
+            self.assertEqual(entete.index(m.TR("SITEMAP")), tag, entete)
+            if rl:
+                self.assertLess(entete.index("RL"), entete.index(m.TR("SITEMAP")))
+
+    def test_142_404_listee_comptee_inconnue_non_comptee(self):
+        """Pourcentage de santé (barre d'état) : une page du sitemap qui répond 404 le baisse ; une URL absente du sitemap (attaque) ne le baisse pas."""
+        m = self.m
+        m.SITEMAP = self.Fixe({"/about-us"})
+        barre = m.StatusBar()
+        for _ in range(30):                                  # 30 x 0.1 point = 3 points off
+            barre.observe(m.Line(self.ligne_nginx("/about-us")), None, 0.0, "4.4.4.4")
+        self.assertEqual(barre.gone_404, 30)
+        sante_avant = barre.health()
+        self.assertEqual(sante_avant, 97)
+        for i in range(40):
+            barre.observe(m.Line(self.ligne_nginx(f"/wp-login-{i}.php")), None, 0.0, "4.4.4.5")
+        self.assertEqual(barre.unknown_404, 40)
+        self.assertEqual(barre.health(), sante_avant)
