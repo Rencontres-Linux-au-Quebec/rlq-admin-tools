@@ -51,7 +51,7 @@ def ts(delta=0.0, fixe=None):
 
 def block(code="200", req="GET  /event", sql="105", t1="0.046", t2="0.426"):
     """Fin d'une ligne de werkzeug telle qu'elle est affichée : le bloc « H1.1 200 … » AVANT la requête."""
-    return f'H1.1 {code} {"-":>4} {sql:>4} {t1:>6} {t2:>6}       {req}'  # 1.133: 4 more blanks: the OS column (3 characters) sits before the GET; 1.121: size column 4 wide
+    return f'H1.1 {code} {"-":>4} {sql:>4} {float(t1):>5.2f} {float(t2):>5.2f}       {req}'  # 1.146: times to the hundredth, 5 columns; 1.133: 4 more blanks: the OS column (3 characters) sits before the GET; 1.121: size column 4 wide
 
 
 def odoo(level, database, logger, text, delta=0.0, fixe=None):
@@ -1030,7 +1030,7 @@ class AppLogLive(EnvTest):
         self.journal([werkzeug(DNS, "/wp-login.php", 500), werkzeug(self.equipe_ip, "/x", 404)])
         rc, out, err = self.lancer("--no-presence")
         self.assertNotIn("\x1b[", out + err, "dans un tube : aucune séquence, mais le même texte")
-        self.assertIn('H1.1 500    -  105  0.046  0.426       GET  /wp-login.php', out)
+        self.assertIn('H1.1 500    -  105  0.05  0.43       GET  /wp-login.php', out)          # 1.146: hundredths
         self.assertNotIn("Vidéo inverse", err)
 
     def test_presentation_compacte_sans_deux_points_crochets_ni_tirets(self):
@@ -1122,7 +1122,7 @@ class AppLogLive(EnvTest):
         l = out.splitlines()
         self.assertNotIn(f"[{utc:%Y-%m-%d}", T(l[0]))
         self.assertIn(f"[{autre:%Y-%m-%d %H:%M:%S}]", T(l[1]))                                   # another instant: kept
-        self.assertRegex(T(l[0]), r'base longpolling srv\.exemple\.org {28}H1\.1 101  494 {13}14\.602       GET  /websocket\?version=18\.0-7$')
+        self.assertRegex(T(l[0]), r'base longpolling srv\.exemple\.org {28}H1\.1 101  494 {11}14\.602       GET  /websocket\?version=18\.0-7$')
         self.assertEqual(l[0].index('GET'), l[2].index('GET'), "le GET du websocket est aligné sur celui des autres lignes")
         m = self.lancer("--no-presence", "--no-isp", "--min")[1].splitlines()                 # 2.40 --min: neither "werkzeug" nor "longpolling" (a REQUEST): names aligned
         self.assertNotIn("longpolling", m[0])
@@ -1743,12 +1743,12 @@ class AppLogLive(EnvTest):
         rc, out, err = self.lancer("--no-presence")
         l = out.splitlines()
         self.assertNotIn("lente :", T(l[0]))                                               # 4.9 s : sous le seuil
-        self.assertTrue(l[1].endswith("← lente : 5.5 s") and " 2.100  3.400  " in l[1], l[1])
-        self.assertTrue(l[2].endswith("← lente : 15.0 s") and "   4.0   11.0  " in l[2], l[2])
+        self.assertTrue(l[1].endswith("← lente : 5.5 s") and " 2.10  3.40  " in l[1], l[1])          # 1.146: hundredths
+        self.assertTrue(l[2].endswith("← lente : 15.0 s") and "  4.00 11.00  " in l[2], l[2])
         self.assertNotIn("lente :", T(l[3]))
         text = self.en_couleur()
-        self.assertRegex(text, r"\x1b\[33m2\.100\x1b\[0m +\x1b\[33m3\.400\x1b\[0m")        # 1.134: feu tricolore : 5.5 s = rouge (3 s et plus)
-        self.assertRegex(text, r"\x1b\[1;31m4\.0\x1b\[0m +\x1b\[1;31m11\.0\x1b\[0m")                               # rouge gras : 15 s = 3 fois le seuil
+        self.assertRegex(text, r"\x1b\[33m2\.10\x1b\[0m +\x1b\[33m3\.40\x1b\[0m")        # 1.134: feu tricolore : 5.5 s = rouge (3 s et plus)
+        self.assertRegex(text, r"\x1b\[1;31m4\.00\x1b\[0m +\x1b\[1;31m11\.00\x1b\[0m")                               # rouge gras : 15 s = 3 fois le seuil
         self.assertNotIn("lente :", self.lancer("--no-presence", "--slow", "0")[1])     # disabled
         self.assertEqual(self.lancer("--no-presence", "--slow", "20")[1].count("lente :"), 0)
         self.assertEqual(self.lancer("--no-presence", "--slow", "1")[1].count("lente :"), 3)
@@ -3556,7 +3556,7 @@ class AppLogLive123(EnvTest):
         requetes = [l for l in out.splitlines() if "GET" in l]
         self.assertEqual(len(requetes), 1, out)
         self.assertIn("H1.1 303", requetes[0])
-        self.assertIn("0.002", requetes[0])
+        self.assertIn("0.00", requetes[0])                                              # 1.146: the Python time (0.002) to the hundredth
         rc, out, err = self.lancer_123()                                             # sans --log-merge : les deux lignes restent
         self.assertEqual(len([l for l in out.splitlines() if "GET" in l]), 2, out)
 
@@ -4082,3 +4082,45 @@ class AppLogLive145(unittest.TestCase):
         self.assertFalse(m.status_bar_due(17, 5, 16, 90, 90))                   # 12 lines since the last bar, unchanged
         self.assertFalse(m.status_bar_due(14, 5, 16, 95, 90))                   # changed by 5, but only 9 lines: never two bars so close
         self.assertTrue(m.status_bar_due(20, 5, 16, 94, 90))
+
+
+class AppLogLive146(unittest.TestCase):
+    """1.146 : temps de réponse au centième (SQL et Python sur 5 colonnes) ; barre de statut avec 404s, 404b et 404o ; --days du rapport
+    --log-chk-sitemap ; messages Odoo sur toute la largeur."""
+
+    @classmethod
+    def setUpClass(cls):
+        spec = importlib.util.spec_from_file_location("live146", script_path("app-log-live.py"))
+        cls.m = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(cls.m)
+
+    ODOO = ('2026-11-01T11:46:47.240000-0500 odoo18 odoo[1]: 2026-11-01 11:46:47,240 1 INFO base werkzeug: 52.7.118.208 - - '
+            '[01/Nov/2026 11:46:47] "GET /en_CA/event/x/track/cloture-41 HTTP/1.1" 200 - 67 0.046 0.426')
+
+    def test_146_centiemes_des_temps(self):
+        m = self.m
+        self.assertEqual(m.hundredths("0.046"), "0.05")
+        self.assertEqual(m.hundredths("1.2"), "1.20")
+        self.assertEqual(m.hundredths("2186.246226"), "2186.2")
+        texte = ANSI.sub("", m.Formatting(False, 40, 0.0, False).format_value(m.Line(self.ODOO), {}, False))
+        self.assertNotIn("0.046", texte)
+        self.assertIn("0.05", texte)
+        self.assertIn("0.43", texte)
+
+    def test_146_barre_compte_les_trois_sortes_de_404(self):
+        m = self.m
+        bar = m.StatusBar()
+        bar.gone_404, bar.disabled_404, bar.unknown_404 = 3, 2, 40
+        texte = "".join(part for part, _ in bar.pieces())
+        self.assertIn("404s 3", texte)
+        self.assertIn("404b 2", texte)
+        self.assertIn("404o 40", texte)
+        # 404b and 404o take no point off the health (only the 404s of the sitemap count, at 0.1 each)
+        bar.e4 = 45                                   # 3 sitemap + 40 never listed + 2 refused: penalty 0.1 x 3
+        self.assertEqual(bar.health(), 100)
+
+    def test_146_avertissement_odoo_non_structure_sur_toute_la_largeur(self):
+        m = self.m
+        self.assertTrue(m.WARN_START_RE.match("07:00:13.24 root WARN    odoo.http    No CSRF validation token provided"))
+        self.assertFalse(m.WARN_START_RE.match("07:00:13.24 root:   token in the form"))         # a continuation line, not a new warning
+        self.assertTrue(m.WARN_CONT_RE.match("07:00:13.24 root:   token in the form"))

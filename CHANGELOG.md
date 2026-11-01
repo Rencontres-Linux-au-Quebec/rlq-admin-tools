@@ -349,6 +349,28 @@ Earlier history was archived outside this repository when this file was created.
 
 ## app-log-live.py
 
+### 1.146.20261101.140404 - Hundredths for the times, three kinds of 404 in the status bar, full-width Odoo warnings, --days for --log-chk-sitemap
+
+- Title: response times to the hundredth (5 columns instead of 6), three 404 counters in the status bar (404s, 404b, 404o), warnings of Odoo on the whole width, and --days honoured by --log-chk-sitemap.
+- Reason: the user's review of 1.145: (1) the times are shown to the hundredth and the column is 2 characters narrower; (2) the 404s must be told apart: 404s (page of the sitemap), 404b (blocked by our programs), and the others; their details are shown with Ctrl-G and Ctrl-T; (3) the Odoo warnings and errors (CSRF, for example) must use the whole width ($COLUMNS) instead of being cut at $COLUMNS - 10; (4) "--log-chk-sitemap --days 1" did not limit the report: all 110 files were read.
+- Changes:
+  - hundredths(): a SQL or Python time is shown to the hundredth (0.046 -> 0.05); above 100 s, one decimal as before (short_time rule). Used by aligned_request (Odoo lines) and aligned_nginx_request (merged lines).
+  - Time columns: 5 characters each (was 6). NUMBERS_BLOCK_WIDTH 40 -> 38, so the GET column and the text of the lines without a request stay aligned. The websocket duration uses 11 columns (was 13). The header label "PY s" moved from column 26 to 25 (column_header).
+  - StatusBar.pieces_404(): "404s" (gone: a page of the sitemap, counted in the health), "404b" (refused on purpose by --disable-uri, not in the health), "404o" (other URL never in the sitemap, not in the health). Shown after the 4xx group.
+  - Dashboard (Ctrl-G, Ctrl-T): the URL details are also listed for 404o and 404b (the 404s already were).
+  - WARN_START_RE and WARN_CONT_RE: an Odoo message without structure ("07:00:13.24 root WARN odoo.http ...") starts a warning, and its continuation lines ("07:00:13.24 root: ...") stay in it. While the warning is on, the stream line is shortened at $COLUMNS - 1 instead of $COLUMNS - 10 (Output.write, wide=True), unless --no-truncate. Structured WARNING, ERROR and CRITICAL lines are included.
+  - sitemap_report(url, folder, days): --days N keeps only the nginx lines of the last N days (their own time, NGINX_TIME_RE) and skips the files last written before that day. The report shows the period ("Period: the last N days", or "the whole nginx logs").
+  - Files: app-log-live.py, lang/app-log-live.fr.po (5 new strings), nginx-tools-tests/test_app_log_live.py (AppLogLive146, and expectations of the time columns updated in several tests).
+- Bugs fixed:
+  - symptom: "--log-chk-sitemap --days 1" reads all the logs ("Fichiers lus : 110"). Diagnosis: main() called sitemap_report() without the value of --days. Fix: days parameter, file filter by modification time and line filter by the time of the line.
+  - symptom: 404 on "/" counted as an error of the sitemap. Diagnosis: "/" is a page of the sitemap, so any 404 on it is counted as important, even when the client is a bot. Not changed in this version: see Action required.
+- Safeguards and edge cases: a line without a readable time is kept (the period is not applied to it). A file of rotated logs written before the period is not opened. Without --days, the report is unchanged. A time of 100 s or more keeps the one decimal of 1.144. The websocket duration keeps its three decimals (it is not a response time). The warning width applies only with the full-width rule of the stream (--truncate 0 or automatic); --no-truncate is unchanged.
+- Checks performed: py_compile; --help runs; testeur on test_app_log_live and test_i18n: 237 tests, 235 pass, 2 failures already present before 1.141 (test_colonnes_jamais_tassees_pays_noms_anonymises_et_souligne_tous_les_n, test_120_journal_html_un_fichier_par_jour); AppLogLive146 (3 tests: hundredths, the three 404 counters and the health, the warning regexes) pass; the --days filter of the report was not run against real logs (no nginx log in the test environment).
+- Action required:
+  1. Restart app-log-live.py to load 1.146. Odoo warnings now take the whole width: tell me if a line is still cut.
+  2. Not done in this version, waiting for your answer: (a) header PAY, IP and ISP labels and the 5-character narrower IP block (which column exactly: the address block of 18 characters, or the name column); (b) the "h" key that shows the startup legend (currently "h" opens the help menu; should "h" show the legend, and should "?" keep the menu?).
+  3. 404 on "/": send me one or two nginx lines of this 404 (IP, Host, User-Agent). If the IP is banned at that time, I can exclude the 404s of banned addresses from the sitemap report; say so, because the logs do not record bans.
+
 ### 1.145.20261101.122458 - Status bar when the health moves; wider merge windows; host= hidden by default (--display-host); websockets are never slow
 
 - Title: the status bar also appears when the health moves by more than 3 points; pairs of lines are merged over a wider window; the host= of the nginx lines is hidden unless --display-host (key k); a websocket duration is no longer a slowness.

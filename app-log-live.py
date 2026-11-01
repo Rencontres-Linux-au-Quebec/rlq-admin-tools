@@ -117,7 +117,7 @@ from urllib.parse import unquote, urlsplit
 from collections import Counter, OrderedDict
 from concurrent.futures import Future
 
-__version__ = "1.145.20261101.122458"
+__version__ = "1.146.20261101.140404"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
@@ -1697,7 +1697,7 @@ class Resolver:
 LEVEL_WIDTH = 4             # 1.123: the level is shown in 4 characters (LEVEL_SHORT), right-aligned on this width: the country starts at the same column for every level
 LEVEL_SHORT = {"CRITICAL": "CRIT", "DEBUG": "DBUG", "ERROR": "ERR", "WARNING": "WARN"}      # 1.123: INFO stays INFO; the names of the logs are unchanged
 SIZE_WIDTH = 4              # 1.121: width of the size column: at most 4 characters ("-" for Odoo; 9999, then 2.9k, 600k, 4.5M)
-NUMBERS_BLOCK_WIDTH = 40   # (1.133: 4 characters more for the OS column before the GET; 1.123: the protocol is shown as "H1.1") # "H1.1 200    -    21  0.011  0.054  ": from the start of the numbers block to the "GET / POST" (see aligned_request)
+NUMBERS_BLOCK_WIDTH = 38   # (1.146: 2 characters less, the two time columns are 5 wide; 1.133: 4 characters more for the OS column before the GET; 1.123: the protocol is shown as "H1.1") # "H1.1 200    -    21  0.011  0.054  ": from the start of the numbers block to the "GET / POST" (see aligned_request)
 COLUMN_WIDTH = 18        # "CC xxx.xxx.xxx.xxx": country code, space, longest IPv4 address (without brackets or comma)
 
 
@@ -1774,7 +1774,7 @@ def column_header(request_length=False, minimal=False, width=COLUMN_WIDTH, colum
         plain = sample_plain
     if start is None:
         start = sample_start
-    labels = [(0, "HTTP"), (5, "STA"), (9, "SIZE"), (14, "SQL"), (19, "SQL s"), (26, "PY s")]
+    labels = [(0, "HTTP"), (5, "STA"), (9, "SIZE"), (14, "SQL"), (19, "SQL s"), (25, "PY s")]
     if request_length:
         labels.append((os_at - 6, "RL"))
     labels += [(os_at, "OS"), (get_at, TR("REQUEST"))]
@@ -1812,6 +1812,16 @@ def short_time(text):
     except (TypeError, ValueError):
         return text
     return f"{value:.1f}" if value > 100 else text
+
+
+def hundredths(text):
+    """1.146: a response time (SQL, Python) to the hundredth of a second (0.046 -> 0.05; 1.2 -> 1.20). Above 100 s: one decimal, as short_time.
+    Other text is returned unchanged."""
+    try:
+        value = float(text)
+    except (TypeError, ValueError):
+        return text
+    return short_time(text) if value > 100 else f"{value:.2f}"
 
 
 RLQ_TEXT_TAG = ".RLQ"                                              # 1.128: the same domain in the text of the lines (referer, host=...)
@@ -2064,14 +2074,14 @@ class Formatting:
             return " " * max(0, width - len(value)) + rendering
         agent = NGINX_AGENT_RE.search(text, m.end(4))
         if times:                                                # 1.123 --log-merge: SQL queries and times of the Odoo line of the same request
-            sql_s, t_sql_s, t_py_s = times[0].rjust(4), short_time(times[1]).rjust(6), short_time(times[2]).rjust(6)
+            sql_s, t_sql_s, t_py_s = times[0].rjust(4), hundredths(times[1]).rjust(5), hundredths(times[2]).rjust(5)     # 1.146: hundredths, 5 columns
             total = (float(times[1] or 0) + float(times[2])) if times[2] else 0.0      # 1.141: a websocket has no SQL time
             if total:                                            # 1.141: white under 1 s, green 1 to 3 s, yellow 3 to 6 s, red above 6 s
                 style = transfer_style(total)
                 t_sql_s, t_py_s = color_code(style, t_sql_s), color_code(style, t_py_s)
             numbers = [sql_s, t_sql_s, t_py_s]
         else:
-            numbers = [" " * 4, " " * 6, " " * 6]
+            numbers = [" " * 4, " " * 5, " " * 5]                  # 1.146: the time columns are 5 wide
         if code == "403" and agent and BOT_BLOCKED_UA_RE.search(agent.group(1)):      # 1.134: a robot refused by policy: [BOT] in the transfer-time column
             numbers[2] = color_code(STYLES["debug"], "[BOT]".rjust(6))
         block = " ".join([short_http(http).ljust(4), token(3, code, 3), token(4, size_text(size), SIZE_WIDTH)] + numbers)
@@ -2123,10 +2133,10 @@ class Formatting:
             return empty + rendering if right else rendering + empty
         start = [short_http(http).ljust(4), token(3, code, 3), token(4, size_text(size), SIZE_WIDTH)]
         if sql:
-            block = " ".join(start + [token(5, sql, 4), token(6, t_sql, 6, shown=short_time(t_sql) if t_sql else None),
-                                      token(7, t_py, 6, shown=short_time(t_py) if t_py else None)])
+            block = " ".join(start + [token(5, sql, 4), token(6, t_sql, 5, shown=hundredths(t_sql) if t_sql else None),      # 1.146: hundredths, 5 columns
+                                      token(7, t_py, 5, shown=hundredths(t_py) if t_py else None)])
         else:                                                   # websocket: only the duration, right-aligned on the width of the three columns SQL / SQL time / Python time
-            block = " ".join(start + [" " * 4, token(7, t_py, 13, shown=short_time(f"{float(t_py):.3f}"))])      # 3 decimals like the other columns: the decimal points are aligned
+            block = " ".join(start + [" " * 4, token(7, t_py, 11, shown=short_time(f"{float(t_py):.3f}"))])     # 1.146: 16 columns as the three numbers      # 3 decimals like the other columns: the decimal points are aligned
         request_data = self.colored_text(text, retained, ouvrir + 1, m.end(1))      # 1.121: no quotes, nothing put in their place
         before = self.colored_text(text, retained, 0, ouvrir)
         if not ANSI_RE.sub("", before).endswith(" "):          # name as wide as its column: never "this serverHTTP/1.1" stuck together, at least one space before HTTP
@@ -4397,7 +4407,12 @@ def sitemap_tag(code, url):
     return " " + color_code(STYLES["debug"], TR("[not in sitemap.xml]"))
 
 
-def sitemap_report(url, folder=NGINX_LOG_DIR):
+WARN_START_RE = re.compile(r"^\d{2}:\d{2}:\d{2}\.\d{2} \S+ (WARN|WARNING|ERROR|CRITICAL)\b")    # 1.146: unstructured Odoo message, first line
+WARN_CONT_RE = re.compile(r"^\d{2}:\d{2}:\d{2}\.\d{2} \S+:")                                    # 1.146: its continuation lines ("07:00:13.24 root: ...")
+NGINX_TIME_RE = re.compile(r"\[(\d{2}/[A-Za-z]{3}/\d{4}:\d{2}:\d{2}:\d{2} [+-]\d{4})\]")    # 1.146: the time of an nginx line, [dd/Mon/yyyy:hh:mm:ss +zzzz]
+
+
+def sitemap_report(url, folder=NGINX_LOG_DIR, days=0):
     """1.143 --log-chk-sitemap: the 404 answers of the nginx access logs (current and rotated, .gz), by URL: the pages LISTED in the sitemap (important:
     a page that no longer exists), those refused on purpose (--disable-uri) and the others (never existed). Returns (lines to show, exit code)."""
     try:
@@ -4407,6 +4422,8 @@ def sitemap_report(url, folder=NGINX_LOG_DIR):
     files = sorted(set(glob.glob(os.path.join(folder, "*access.log")) + glob.glob(os.path.join(folder, "*access.log.*"))))
     if not files:
         return [TR("No nginx access log in {folder}").format(folder=folder)], 2
+    since = time.time() - days * 86400 if days else 0                 # 1.146 --days N: only the last N days (0 = whole logs)
+    files = [name for name in files if not since or os.path.getmtime(name) >= since]     # a file last written before the period holds no line of it
     listed, others, refused = Counter(), Counter(), Counter()
     for name in files:
         try:
@@ -4416,6 +4433,14 @@ def sitemap_report(url, folder=NGINX_LOG_DIR):
                     m = NGINX_REQUEST_RE.search(line)
                     if not m or m.group(3) != "404":
                         continue
+                    if since:                                         # 1.146 --days: the line's own time, not the file's
+                        stamp = NGINX_TIME_RE.search(line)
+                        try:
+                            when = datetime.datetime.strptime(stamp.group(1), "%d/%b/%Y:%H:%M:%S %z").timestamp() if stamp else since
+                        except ValueError:
+                            when = since
+                        if when < since:
+                            continue
                     raw_page = unquote(m.group(1).split(" ", 1)[-1].split("?", 1)[0])
                     page = sitemap_path(raw_page)                 # 1.143: the page, whatever its language prefix or query string
                     if is_disabled(raw_page):
@@ -4427,6 +4452,7 @@ def sitemap_report(url, folder=NGINX_LOG_DIR):
         except OSError:
             continue                                          # an unreadable file (rights, rotation in progress): the others are read
     lines = [color_code(STYLES["title"], TR("Sitemap: {url} ({n} pages)").format(url=url, n=len(paths)))]
+    lines.append(TR("Period: the last {n} days (--days N)").format(n=days) if days else TR("Period: the whole nginx logs (--days N to limit)"))
     lines.append(color_code(STYLES["url_warning"], TR("404 on pages of the sitemap (important: a page that no longer exists): {n} answers, {m} URLs")
                             .format(n=sum(listed.values()), m=len(listed))))
     lines += [f"  {count:>6}  {page}" for page, count in listed.most_common()] or [f"  {TR('none')}"]
@@ -4792,9 +4818,11 @@ class Stats:
                 indicator(0, TR("404 on pages of sitemap.xml (important, in the health): ") + (f"{gone}" if gone else none_fem()),
                           ["URL: " + self.top(self.gone_404, 5)] if gone else (), (1, 5), gone)
                 never = sum(self.unknown_404.values())
-                indicator(0, TR("404 on URLs never in sitemap.xml (attacks, not in the health): ") + (f"{never}" if never else none_fem()), (), (10 ** 9, 10 ** 9), never)
+                indicator(0, TR("404 on URLs never in sitemap.xml (attacks, not in the health): ") + (f"{never}" if never else none_fem()),
+                          ["URL: " + self.top(self.unknown_404, 5)] if never else (), (10 ** 9, 10 ** 9), never)
             refused = sum(self.disabled_404.values())
-            indicator(0, TR("404 refused on purpose (--disable-uri, not in the health): ") + (f"{refused}" if refused else none_fem()), (), (10 ** 9, 10 ** 9), refused)
+            indicator(0, TR("404 refused on purpose (--disable-uri, not in the health): ") + (f"{refused}" if refused else none_fem()),
+                      ["URL: " + self.top(self.disabled_404, 5)] if refused else (), (10 ** 9, 10 ** 9), refused)
         severe = Counter({k: v for k, v in self.odoo_errors.items() if k[0] in ("ERROR", "CRITICAL")})
         ng = sum(severe.values())
         detail = [f"{k[0]} {k[1]} ×{v} : {k[2]}" + self.odoo_error_times(k) for k, v in severe.most_common(3)]
@@ -5145,6 +5173,7 @@ class StatusBar:
             [(TR("health state") + " ", None), (f"{self.health()} %", "32" if self.health() >= 90 else "33" if self.health() >= 70 else "31")],
             [(TR("SQLi attacks") + " ", None), (f"{self.sqli}", criticite(self.sqli, 1, 5))],
             self.codes_pieces(400, self.e4),
+            self.pieces_404(),
             self.codes_pieces(500, self.e5),
             [(TR("banned") + " ", None), (f"{len(self.banned)}", criticite(len(self.banned), 1, 5))],
             ([(TR("bots refused (403)") + " ", None), (f"{self.bots403}", None)] if self.bots403 else []),
@@ -5208,6 +5237,13 @@ class StatusBar:
                 out.append((f"{n}", criticite(n, *thresholds)))
             out.append((")", None))
         return out
+
+    def pieces_404(self):
+        """1.146: the three kinds of 404 answers: 404s (page of the sitemap: important), 404b (refused on purpose: --disable-uri), 404o (other URL, never
+        in the sitemap: attacks). Details (URL) in the dashboard, Ctrl-G and Ctrl-T."""
+        return [(TR("404s") + " ", None), (f"{self.gone_404}", criticite(self.gone_404, 1, 5)), (" · ", None),
+                (TR("404b") + " ", None), (f"{self.disabled_404}", None), (" · ", None),
+                (TR("404o") + " ", None), (f"{self.unknown_404}", None)]
 
     def codes_text(self, first, total):
         """1.124: text of codes_pieces (no colour)."""
@@ -5292,7 +5328,7 @@ class Output:
         text = self.anonymize.names_sub(text) if hasattr(self.anonymize, "names_sub") else text      # 1.91: names of people, colored and padded (whole line)
         return "".join(part if ANSI_SPLIT_RE.fullmatch(part) else self.anonymize(part) for part in ANSI_SPLIT_RE.split(text))
 
-    def write(self, text, stream=False, underline=False):
+    def write(self, text, stream=False, underline=False, wide=False):
         """`stream`: a line of the journal (1.88: shortened by --truncate, underlined if `underline`); other texts (menus, reports) are never cut."""
         text = translate_protected(text)
         self.buffer.append(ANSI_RE.sub("", self.screen_text(text)))
@@ -5301,6 +5337,8 @@ class Output:
         shown = self.screen_text(text)
         if stream and self.truncate is not None:
             width = self.truncate if self.truncate > 0 else max(20, terminal_columns() - 10)
+            if wide and self.truncate <= 0:                         # 1.146: an Odoo warning or error (and its continuation lines): whole width
+                width = max(20, terminal_columns() - 1)
             shown = "\n".join(shorten_line(l, width) if l else l for l in shown.split("\n"))
         rec = stream and self.rec_marker
         if underline and self.underline:
@@ -5713,6 +5751,8 @@ def follow(cmd, people, resolver, options, output):
                 text += " " + color_code(STYLES["banned"], label)
         return base, text, ips0, source
 
+    wide_state = {"on": False}                            # 1.146: an Odoo warning or error in progress (its continuation lines follow it)
+
     def paint(L, text, inputs, benign, underline=False):
         """1.113: writes one line and keeps it in the buffer of the f (refresh) and P (print) keys; `inputs` = (results, pays) to render it again."""
         if not state.get("header_shown"):                     # 1.137: the column labels just before the first request line (its real columns)
@@ -5725,7 +5765,15 @@ def follow(cmd, people, resolver, options, output):
         shown = highlight_text(text, options["highlight_pattern"])
         if line_memory.maxlen:
             line_memory.append({"L": L, "inputs": inputs, "benign": benign, "shown": shown, "n": state.get("emitted", 0)})
-        output.write(shown + "\n", stream=True, underline=underline)       # 1.91: one line out of N underlined
+        if L.database == "nginx":                               # 1.146: the Odoo message in progress (WARN, WARNING, ERROR, CRITICAL, and its continuation lines)
+            wide_state["on"] = False
+        elif L.level is not None:
+            wide_state["on"] = L.level in ("WARN", "WARNING", "ERROR", "CRITICAL")
+        elif WARN_START_RE.match(L.text or ""):                 # unstructured "07:00:13.24 root WARN odoo.http ..." line: a warning starts
+            wide_state["on"] = True
+        elif not WARN_CONT_RE.match(L.text or ""):              # not a continuation ("07:00:13.24 root: ..."): back to the normal width
+            wide_state["on"] = False
+        output.write(shown + "\n", stream=True, underline=underline, wide=wide_state["on"])       # 1.91: one line out of N underlined
 
     def emit(L, renderings, benign=False, inputs=None):
         """Writes the line (if --only / --suspect keep it), with the [banned: …] label of its address and counting it for the summary.
@@ -7235,7 +7283,7 @@ def main():
         return 0
     DISABLED_RE = disabled_uri_re()                                   # 1.143: the paths refused on purpose (--disable-uri)
     if args.log_chk_sitemap:                                          # 1.143: report of the 404 answers in the sitemap, then exits
-        report_lines, report_code = sitemap_report(args.sitemap or DEFAULT_SITEMAP_URL)
+        report_lines, report_code = sitemap_report(args.sitemap or DEFAULT_SITEMAP_URL, days=args.days)
         for text_line in report_lines:
             print(text_line)
         return report_code
