@@ -114,7 +114,7 @@ from urllib.parse import unquote
 from collections import Counter, OrderedDict
 from concurrent.futures import Future
 
-__version__ = "1.140.20261031.231025"
+__version__ = "1.141.20261031.232038"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
@@ -342,7 +342,7 @@ STYLES = {"nginx": "1;35", "person": "1;32", "team": "1;32", "place": "1;36", "s
           # EXPLICIT background AND text (black), never "7;90" (inverted gray): on a theme where bright black is black, the address became black on black
           "suspect": "7;35", "url_critical": "7;91", "url_warning": "7;93", "blanche": "107;30", "place_ip": ("48;5;245" if COLORS_256 else "47") + ";30",
           "accent": "1;97;48;5;18" if COLORS_256 else "1;97;44",       # contact of the --accentuate-group group: bold white on dark blue
-          "banned": "1;91", "slow_request": "1;" + ORANGE, "very_slow_request": "1;31", "title": "1;36", "transfer_mid": "32", "transfer_slow": "1;31"}
+          "banned": "1;91", "slow_request": "1;" + ORANGE, "very_slow_request": "1;31", "title": "1;36", "transfer_low": "32", "transfer_mid": "33", "transfer_slow": "1;31"}
 # Duration of an Odoo request (werkzeug): "... 200 - 105 0.046 0.426" = code, size, SQL queries, SQL time, Python time (seconds)
 DURATION_RE = re.compile(r'"\s\d{3}\s\S+\s(\d+)\s(\d+\.\d+)\s(\d+\.\d+)\s*$')
 # Same line: the size (bytes or "-") and the number of SQL queries, to color them when they are high
@@ -1776,10 +1776,13 @@ def column_header(request_length=False, minimal=False, width=COLUMN_WIDTH, colum
 
 
 def transfer_style(total):
-    """1.134/1.137: traffic light of the transfer time: white under 1 s, yellow from 1 s to 3 s, red from 3 s (None = no colour)."""
+    """1.141: traffic light of the time (SQL + Python, or the duration of a websocket): white under 1 s, green from 1 s to under 3 s,
+    yellow from 3 s to 6 s, red above 6 s (None = no colour)."""
     if total < 1:
-        return None                                  # under 1 s: white
-    return STYLES["transfer_mid"] if total < 3 else STYLES["transfer_slow"]      # 1.139: 1 to 3 s green (was yellow)
+        return None
+    if total < 3:
+        return STYLES["transfer_low"]
+    return STYLES["transfer_mid"] if total <= 6 else STYLES["transfer_slow"]
 
 
 RLQ_TEXT_TAG = ".RLQ"                                              # 1.128: the same domain in the text of the lines (referer, host=...)
@@ -2026,8 +2029,8 @@ class Formatting:
         agent = NGINX_AGENT_RE.search(text, m.end(4))
         if times:                                                # 1.123 --log-merge: SQL queries and times of the Odoo line of the same request
             sql_s, t_sql_s, t_py_s = times[0].rjust(4), times[1].rjust(6), times[2].rjust(6)
-            total = (float(times[1]) + float(times[2])) if times[1] and times[2] else 0.0
-            if total:                                            # 1.134: green under 1 s, yellow to 3 s, red from 3 s
+            total = (float(times[1] or 0) + float(times[2])) if times[2] else 0.0      # 1.141: a websocket has no SQL time
+            if total:                                            # 1.141: white under 1 s, green 1 to 3 s, yellow 3 to 6 s, red above 6 s
                 style = transfer_style(total)
                 t_sql_s, t_py_s = color_code(style, t_sql_s), color_code(style, t_py_s)
             numbers = [sql_s, t_sql_s, t_py_s]
@@ -2071,10 +2074,10 @@ class Formatting:
             for d, f, r in retained:
                 if shown is None and (d, f) == (m.start(hint), m.end(hint)):
                     rendering = r
-            if hint in (6, 7) and t_sql:                              # 1.134: traffic light of the transfer time (green, yellow, red)
-                style = transfer_style(float(t_sql) + float(t_py))
+            if hint in (6, 7) and value and t_py:                     # 1.141: traffic light of the time; a websocket duration (no SQL time) too
+                style = transfer_style(float(t_sql or 0) + float(t_py))
                 if style:
-                    rendering = color_code(style, value)
+                    rendering = color_code(style, shown or value)      # 1.141: the shown text (a websocket duration: 3 decimals)
             empty = " " * max(0, width - len(shown or value))
             return empty + rendering if right else rendering + empty
         start = [short_http(http).ljust(4), token(3, code, 3), token(4, size_text(size), SIZE_WIDTH)]
