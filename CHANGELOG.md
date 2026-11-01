@@ -349,6 +349,23 @@ Earlier history was archived outside this repository when this file was created.
 
 ## app-log-live.py
 
+### 1.133.20261031.205650 - OS column (AND, IOS, WIN, LIN) before the GET; every URL of the line decoded
+
+- Title: each nginx request line shows the system of the client in 3 characters before the GET (AND, IOS, WIN, LIN); all the URLs of the line (requested page and referer) are shown decoded.
+- Reason: the referers were shown with their percent codes (%5B, %2C, %2B), hard to read; the operating system of the visitor helps to see which phones or computers request the pages.
+- Changes:
+  - OS_CODES and os_code(agent): AND (Android, tested before Linux), IOS (iPhone, iPad, iPod), WIN (Windows), LIN (Linux); three blanks when unknown.
+  - NGINX_AGENT_RE: takes the User-Agent after the referer of an nginx line.
+  - aligned_nginx_request(): the OS column is placed between the numbers and the GET.
+  - aligned_request() (Odoo werkzeug lines): three blanks in the same column, so the GET stays aligned.
+  - URL_IN_TEXT_RE and Formatting.spans(): every URL of the line has its path and query decoded with display_url(); the host is kept (so the .RLQ tag still applies). Suspicious URLs keep their codes, as for the requested page.
+  - nginx-tools-tests/test_app_log_live.py: expected layout of the request columns (4 more blanks before the GET).
+  - NUMBERS_BLOCK_WIDTH: 36 to 40 (4 characters for the OS column), so the texts of the Odoo messages stay aligned with the GET.
+- Bugs fixed: symptom: referer "%5B8%2C%2B4...%5D" hard to read; diagnosis: only the requested page was decoded (1.128), not the referer; fix: decode every URL of the line.
+- Safeguards and edge cases: display_url() still keeps the URL as sent when the decoding gives a control character or a quote (%0A, %22). Mac and other systems show blanks (no MAC code requested). Odoo lines have no User-Agent, so they show blanks in the OS column.
+- Checks performed: py_compile; rendering of sample lines (Windows, iPhone, Android, Linux, Mac; %5B, %2C, %20 decoded); test_app_log_live: 177 tests, 2 failures, both already present before 1.133 (test_colonnes_jamais_tassees..., test_120_journal_html...); test_logs_merge and test_i18n OK.
+- Action required: none. Restart app-log-live.py to load the new version. The lines are 4 characters longer before the GET.
+
 ### 1.132.20261031.202634 - [BOT] follows the bot policy read from bot_blocker.conf (SemrushBot and all refused robots)
 
 - Title: the robots refused by nginx/conf.d/bot_blocker.conf (SemrushBot, AhrefsBot, and the full list) get the [BOT] label and the "bots refused (403)" counter, not only the AI crawlers.

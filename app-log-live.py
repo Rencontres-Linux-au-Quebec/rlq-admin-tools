@@ -114,7 +114,7 @@ from urllib.parse import unquote
 from collections import Counter, OrderedDict
 from concurrent.futures import Future
 
-__version__ = "1.132.20261031.202634"
+__version__ = "1.133.20261031.205650"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
@@ -1666,7 +1666,7 @@ class Resolver:
 LEVEL_WIDTH = 4             # 1.123: the level is shown in 4 characters (LEVEL_SHORT), right-aligned on this width: the country starts at the same column for every level
 LEVEL_SHORT = {"CRITICAL": "CRIT", "DEBUG": "DBUG", "ERROR": "ERR", "WARNING": "WARN"}      # 1.123: INFO stays INFO; the names of the logs are unchanged
 SIZE_WIDTH = 4              # 1.121: width of the size column: at most 4 characters ("-" for Odoo; 9999, then 2.9k, 600k, 4.5M)
-NUMBERS_BLOCK_WIDTH = 36   # (1.123: 4 characters less than 40: the protocol is shown as "H1.1") # "H1.1 200    -    21  0.011  0.054  ": from the start of the numbers block to the "GET / POST" (see aligned_request)
+NUMBERS_BLOCK_WIDTH = 40   # (1.133: 4 characters more for the OS column before the GET; 1.123: the protocol is shown as "H1.1") # "H1.1 200    -    21  0.011  0.054  ": from the start of the numbers block to the "GET / POST" (see aligned_request)
 COLUMN_WIDTH = 18        # "CC xxx.xxx.xxx.xxx": country code, space, longest IPv4 address (without brackets or comma)
 
 
@@ -1682,6 +1682,21 @@ def display_url(url):
         return url
     decoded = unquote(url)
     return url if any(ord(c) < 32 or c in '"\\' for c in decoded) else decoded
+
+
+URL_IN_TEXT_RE = re.compile(r'(https?://[^/\s"]+)([^\s"]*)')      # 1.133: every URL of the text (referer...): the host stays (.RLQ), the path and the query are decoded
+OS_CODES = (("AND", re.compile(r"Android", re.I)), ("IOS", re.compile(r"iPhone|iPad|iPod", re.I)),       # 1.133: 3-letter system of the User-Agent (Android before Linux)
+            ("WIN", re.compile(r"Windows", re.I)), ("LIN", re.compile(r"Linux", re.I)))
+NGINX_AGENT_RE = re.compile(r'"[^"]*" "([^"]*)"')                  # 1.133: after the request and the size of an nginx line: the referer, then the User-Agent
+OS_BLANK = "   "
+
+
+def os_code(agent):
+    """1.133: AND (Android), IOS (iPhone, iPad, iPod), WIN (Windows), LIN (Linux) from the User-Agent; three blanks when unknown or absent (Odoo lines)."""
+    for code, pattern in OS_CODES:
+        if pattern.search(agent or ""):
+            return code
+    return OS_BLANK
 
 
 RLQ_TEXT_TAG = ".RLQ"                                              # 1.128: the same domain in the text of the lines (referer, host=...)
@@ -1872,6 +1887,10 @@ class Formatting:
             ajouter(r.start(1), r.end(1), color_code(STYLES["url_warning"], shown_url))
         if r and not suspect_url(r.group(1)) and shown_url != r.group(1):      # 1.128: a URL coded in %XX and not coloured above: shown decoded
             ajouter(r.start(1), r.end(1), shown_url)
+        for m in URL_IN_TEXT_RE.finditer(text):           # 1.133: every URL of the line (referer...): path and query decoded (%5B -> [, %2C -> ,), the host kept
+            shown_part = display_url(m.group(2))
+            if m.group(2) and shown_part != m.group(2) and not suspect_url(m.group(2)):
+                ajouter(m.start(2), m.end(2), shown_part)
         for m in RLQ_DOMAIN_RE.finditer(text):             # 1.128: the domain is shown as ".RLQ" in the text too (in colour)
             ajouter(m.start(), m.end(), color_code(STYLES["place"], RLQ_TEXT_TAG))
         style = STYLES["warning"] if (L.level == "WARNING" or soft) else STYLES["error"]
@@ -1929,11 +1948,13 @@ class Formatting:
         else:
             numbers = [" " * 4, " " * 6, " " * 6]
         block = " ".join([short_http(http).ljust(4), token(3, code, 3), token(4, size_text(size), SIZE_WIDTH)] + numbers)
+        agent = NGINX_AGENT_RE.search(text, m.end(4))
+        os_column = os_code(agent.group(1) if agent else "")                       # 1.133: OS of the client, 3 characters before the GET
         request_data = self.colored_text(text, retained, ouvrir + 1, m.end(1))      # 1.119: no quotes; the request keeps the column of the Odoo request
         before = self.colored_text(text, retained, 0, ouvrir)
         if not ANSI_RE.sub("", before).endswith(" "):
             before += " "
-        return before + block + "   " + request_data + self.colored_text(text, retained, m.end(4), len(text)).replace('"', "")
+        return before + block + "   " + os_column + " " + request_data + self.colored_text(text, retained, m.end(4), len(text)).replace('"', "")
 
     def aligned_request(self, text, retained):
         """Werkzeug line: "… \"GET /url HTTP/1.1\" 200 - 13 0.006 0.066" becomes "… HTTP/1.1 200       - 13 0.006 0.066  \"GET /url\"": the block of numbers, of fixed width,
@@ -1964,7 +1985,7 @@ class Formatting:
         before = self.colored_text(text, retained, 0, ouvrir)
         if not ANSI_RE.sub("", before).endswith(" "):          # name as wide as its column: never "this serverHTTP/1.1" stuck together, at least one space before HTTP
             before += " "
-        return before + block + "   " + request_data
+        return before + block + "   " + OS_BLANK + " " + request_data          # 1.133: the same column as nginx lines (blank: no User-Agent in the Odoo line)
 
     def slowness_style(self, total):
         """Bold orange from the --slow threshold, bold red from 3 times the threshold; None under the threshold (or without a threshold)."""
