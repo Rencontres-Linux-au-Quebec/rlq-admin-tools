@@ -349,6 +349,21 @@ Earlier history was archived outside this repository when this file was created.
 
 ## app-log-live.py
 
+### 1.134.20261031.212623 - --hide-user-agent; [BOT] in the transfer-time column; traffic light for the transfer time; MAC and OTH; RLQ without www
+
+- Title: the User-Agent text can be hidden (--hide-user-agent); a 403 for a refused robot shows [BOT] in the column before the OS instead of at the end of the line; the transfer time is green under 1 s, yellow from 1 s to 3 s, red from 3 s; the OS column shows MAC (macOS) and OTH (other systems); "rencontres-linux.quebec" without www is shown as RLQ (host=RLQ).
+- Reason: 1) the User-Agent text is long and hides the rest of the line. 2) [BOT] at the end of the line is hard to see; the column before the OS is the place of the time. 3) a slow transfer must stand out at a glance. 4) macOS and other systems have no code; the domain without www was not replaced.
+- Changes:
+  - --hide-user-agent (new option, configuration key HIDE_USER_AGENT): Formatting(hide_user_agent=...) leaves the quoted User-Agent out of the nginx line; the OS column is still computed from it. The existing option --no-user-agent is NOT changed: it stops the reading of the User-Agent (robot detection), which is another thing. Help text and French catalogue updated.
+  - aligned_nginx_request(): a 403 answered to a robot of the bot_blocker.conf list (User-Agent read from the line) shows [BOT] in the transfer-time column; the [BOT] label at the end of the line (compose(), since 1.130) is removed.
+  - transfer_style(total) and the STYLES keys transfer_ok (green), transfer_mid (yellow), transfer_slow (red): used for the time columns of nginx lines (--log-merge) and of the Odoo requests (werkzeug). Replaces the --slow colour of these columns; --slow keeps its other uses.
+  - nginx-tools-tests/test_app_log_live.py: colour expectation of the slow Odoo time (5.5 s is now red, traffic light).
+  - os_code(): MAC (Macintosh, Mac OS X; iPhone UAs stay IOS), OTH for any other User-Agent, blanks without User-Agent or with "-".
+  - RLQ_DOMAIN_RE: matches the domain with or without the leading dot: "www.rencontres-linux.quebec" shows ".RLQ" (as before), "rencontres-linux.quebec" shows "RLQ".
+- Bugs fixed: symptom: host=rencontres-linux.quebec was not replaced (the pattern required a dot before the name); diagnosis: RLQ_DOMAIN_SUFFIX starts with a dot; fix: the dot is optional in the pattern.
+- Safeguards and edge cases: --hide-user-agent removes only the User-Agent field with its quotes; the referer and the host stay. A nginx line without the quoted User-Agent is displayed as before. The transfer time of nginx lines is shown only in --log-merge mode: the nginx access format has no request time ($request_time is not logged), so a plain nginx line has no time to colour.
+- Checks performed: py_compile; rendering of sample lines (Windows, macOS, SemrushBot 403, python-requests; with and without --hide-user-agent); test_i18n (32 tests OK); test_app_log_live: 186 tests, 2 failures, both already present before 1.134 (test_colonnes_jamais_tassees..., test_120_journal_html...); test_logs_merge OK.
+- Action required: none for the program. To see the transfer time on nginx lines outside --log-merge, $request_time would have to be added to the nginx log format (nginx/conf.d/odoo-global.conf) and the program would have to read it: not done.
 ### 1.133.20261031.205650 - OS column (AND, IOS, WIN, LIN) before the GET; every URL of the line decoded
 
 - Title: each nginx request line shows the system of the client in 3 characters before the GET (AND, IOS, WIN, LIN); all the URLs of the line (requested page and referer) are shown decoded.

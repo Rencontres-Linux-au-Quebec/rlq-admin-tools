@@ -114,7 +114,7 @@ from urllib.parse import unquote
 from collections import Counter, OrderedDict
 from concurrent.futures import Future
 
-__version__ = "1.133.20261031.205650"
+__version__ = "1.134.20261031.212623"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
@@ -213,7 +213,7 @@ SCHEMA_CONFIG = {"ACCENTUATE_GROUP": ("accentuate_group", str), "CHIME": ("chime
                  "LINES": ("lines", int), "LOG_DIR": ("log_dir", str), "LOG_KEEP_DAYS": ("log_keep_days", int), "LOG_MERGE": ("log_merge", bool), "LOG_NGINX": ("log_nginx", bool), "MIN": ("min", bool), "MODULES_CUSTOM": ("modules_custom", bool), "MODULES_SORT": ("modules_sort", str), "MODULES_STARTUP": ("modules_startup", bool), "NAMESPACE": ("namespace", str),
                  "NO_BANNED": ("no_banned", bool), "NOT_FOUND": ("not_found", bool), "NO_BAN_PROMPT": ("no_ban_prompt", bool), "NO_CACHE": ("no_cache", bool), "NO_HISTORY": ("no_history", bool),
                  "NO_ISP": ("no_isp", bool), "NO_KEYS": ("no_keys", bool), "NO_LOG_FILE": ("no_log_file", bool), "NO_PRESENCE": ("no_presence", bool),
-                 "LEVEL": ("level", int), "BUFFER": ("buffer", int), "STATUS_EVERY": ("status_every", int), "NO_USER_AGENT": ("no_user_agent", bool), "RECAP": ("recap", float), "RECORD_MAX": ("record_max", float), "SERVICE": ("service", str), "SLOW": ("slow", float), "VERBOSE": ("verbose", bool)}
+                 "LEVEL": ("level", int), "BUFFER": ("buffer", int), "STATUS_EVERY": ("status_every", int), "NO_USER_AGENT": ("no_user_agent", bool), "HIDE_USER_AGENT": ("hide_user_agent", bool), "RECAP": ("recap", float), "RECORD_MAX": ("record_max", float), "SERVICE": ("service", str), "SLOW": ("slow", float), "VERBOSE": ("verbose", bool)}
 CHANGELOG_FILE = os.path.join(SCRIPT_DIR, "CHANGELOG.md")
 LINES_DEFAULT = 50
 DAYS_DEFAULT = 0                                                      # 0 = the whole journal history
@@ -342,7 +342,7 @@ STYLES = {"nginx": "1;35", "person": "1;32", "team": "1;32", "place": "1;36", "s
           # EXPLICIT background AND text (black), never "7;90" (inverted gray): on a theme where bright black is black, the address became black on black
           "suspect": "7;35", "url_critical": "7;91", "url_warning": "7;93", "blanche": "107;30", "place_ip": ("48;5;245" if COLORS_256 else "47") + ";30",
           "accent": "1;97;48;5;18" if COLORS_256 else "1;97;44",       # contact of the --accentuate-group group: bold white on dark blue
-          "banned": "1;91", "slow_request": "1;" + ORANGE, "very_slow_request": "1;31", "title": "1;36"}
+          "banned": "1;91", "slow_request": "1;" + ORANGE, "very_slow_request": "1;31", "title": "1;36", "transfer_ok": "32", "transfer_mid": "33", "transfer_slow": "1;31"}
 # Duration of an Odoo request (werkzeug): "... 200 - 105 0.046 0.426" = code, size, SQL queries, SQL time, Python time (seconds)
 DURATION_RE = re.compile(r'"\s\d{3}\s\S+\s(\d+)\s(\d+\.\d+)\s(\d+\.\d+)\s*$')
 # Same line: the size (bytes or "-") and the number of SQL queries, to color them when they are high
@@ -1686,21 +1686,31 @@ def display_url(url):
 
 URL_IN_TEXT_RE = re.compile(r'(https?://[^/\s"]+)([^\s"]*)')      # 1.133: every URL of the text (referer...): the host stays (.RLQ), the path and the query are decoded
 OS_CODES = (("AND", re.compile(r"Android", re.I)), ("IOS", re.compile(r"iPhone|iPad|iPod", re.I)),       # 1.133: 3-letter system of the User-Agent (Android before Linux)
-            ("WIN", re.compile(r"Windows", re.I)), ("LIN", re.compile(r"Linux", re.I)))
+            ("WIN", re.compile(r"Windows", re.I)), ("LIN", re.compile(r"Linux", re.I)), ("MAC", re.compile(r"Macintosh|Mac OS X", re.I)))
 NGINX_AGENT_RE = re.compile(r'"[^"]*" "([^"]*)"')                  # 1.133: after the request and the size of an nginx line: the referer, then the User-Agent
 OS_BLANK = "   "
 
 
 def os_code(agent):
-    """1.133: AND (Android), IOS (iPhone, iPad, iPod), WIN (Windows), LIN (Linux) from the User-Agent; three blanks when unknown or absent (Odoo lines)."""
+    """1.133/1.134: AND (Android), IOS (iPhone, iPad, iPod), WIN (Windows), LIN (Linux), MAC (macOS) from the User-Agent; OTH for any other
+    User-Agent; three blanks without User-Agent (Odoo lines, "-" of nginx)."""
+    if not agent or agent.strip() in ("", "-"):
+        return OS_BLANK
     for code, pattern in OS_CODES:
-        if pattern.search(agent or ""):
+        if pattern.search(agent):
             return code
-    return OS_BLANK
+    return "OTH"
+
+
+def transfer_style(total):
+    """1.134: traffic light of the transfer time: green under 1 s, yellow from 1 s to 3 s, red from 3 s."""
+    if total < 1:
+        return STYLES["transfer_ok"]
+    return STYLES["transfer_mid"] if total < 3 else STYLES["transfer_slow"]
 
 
 RLQ_TEXT_TAG = ".RLQ"                                              # 1.128: the same domain in the text of the lines (referer, host=...)
-RLQ_DOMAIN_RE = re.compile(re.escape(RLQ_DOMAIN_SUFFIX), re.IGNORECASE)
+RLQ_DOMAIN_RE = re.compile(r"(\.?)(?<![\w-])rencontres-linux\.quebec", re.IGNORECASE)     # 1.134: with or without the dot (www. / host=): ".RLQ" or "RLQ"
 
 
 def render(kind_name, text, ip, keep_ip, pays=None, category=None, accent=False):
@@ -1827,7 +1837,8 @@ def request_cause(sql_n, t_sql, t_py, size, url=""):
 class Formatting:
     """Builds the displayed line: normalized header, then the text with its words in color. All the detection is done on the
     RAW text (never on already colored text); a detection that overlaps a higher-priority one (the IP address first) is ignored."""
-    def __init__(self, minimal=False, width=COLUMN_WIDTH, slowest=0.0, status_header=False):
+    def __init__(self, minimal=False, width=COLUMN_WIDTH, slowest=0.0, status_header=False, hide_user_agent=False):
+        self.hide_user_agent = hide_user_agent                              # 1.134 --hide-user-agent: the User-Agent text is not shown (the OS column stays)
         self.status_header = status_header                                  # 1.123 --status-header
         self.minimal = minimal
         self.slowest = slowest                            # threshold (seconds) of slow requests; 0 = no highlighting
@@ -1891,8 +1902,8 @@ class Formatting:
             shown_part = display_url(m.group(2))
             if m.group(2) and shown_part != m.group(2) and not suspect_url(m.group(2)):
                 ajouter(m.start(2), m.end(2), shown_part)
-        for m in RLQ_DOMAIN_RE.finditer(text):             # 1.128: the domain is shown as ".RLQ" in the text too (in colour)
-            ajouter(m.start(), m.end(), color_code(STYLES["place"], RLQ_TEXT_TAG))
+        for m in RLQ_DOMAIN_RE.finditer(text):             # 1.128: the domain is shown as ".RLQ" in the text too (in colour); 1.134: "RLQ" without a dot
+            ajouter(m.start(), m.end(), color_code(STYLES["place"], RLQ_TEXT_TAG if m.group(1) else "RLQ"))
         style = STYLES["warning"] if (L.level == "WARNING" or soft) else STYLES["error"]
         for m in ERROR_WORDS_RE.finditer(text):
             ajouter(m.start(), m.end(), color_code(style, m.group()))
@@ -1938,23 +1949,30 @@ class Formatting:
                 if (d, f) == (m.start(group), m.end(group)):
                     rendering = r
             return " " * max(0, width - len(value)) + rendering
+        agent = NGINX_AGENT_RE.search(text, m.end(4))
         if times:                                                # 1.123 --log-merge: SQL queries and times of the Odoo line of the same request
             sql_s, t_sql_s, t_py_s = times[0].rjust(4), times[1].rjust(6), times[2].rjust(6)
             total = (float(times[1]) + float(times[2])) if times[1] and times[2] else 0.0
-            style = self.slowness_style(total) if total else None
-            if style:
+            if total:                                            # 1.134: green under 1 s, yellow to 3 s, red from 3 s
+                style = transfer_style(total)
                 t_sql_s, t_py_s = color_code(style, t_sql_s), color_code(style, t_py_s)
             numbers = [sql_s, t_sql_s, t_py_s]
         else:
             numbers = [" " * 4, " " * 6, " " * 6]
+        if code == "403" and agent and BOT_BLOCKED_UA_RE.search(agent.group(1)):      # 1.134: a robot refused by policy: [BOT] in the transfer-time column
+            numbers[2] = color_code(STYLES["debug"], "[BOT]".rjust(6))
         block = " ".join([short_http(http).ljust(4), token(3, code, 3), token(4, size_text(size), SIZE_WIDTH)] + numbers)
-        agent = NGINX_AGENT_RE.search(text, m.end(4))
         os_column = os_code(agent.group(1) if agent else "")                       # 1.133: OS of the client, 3 characters before the GET
         request_data = self.colored_text(text, retained, ouvrir + 1, m.end(1))      # 1.119: no quotes; the request keeps the column of the Odoo request
         before = self.colored_text(text, retained, 0, ouvrir)
         if not ANSI_RE.sub("", before).endswith(" "):
             before += " "
-        return before + block + "   " + os_column + " " + request_data + self.colored_text(text, retained, m.end(4), len(text)).replace('"', "")
+        if self.hide_user_agent and agent:                       # 1.134: the User-Agent text (with its quotes) is left out of the line
+            referer = self.colored_text(text, retained, m.end(4), agent.start(1) - 1).rstrip(" ")
+            tail = referer + self.colored_text(text, retained, agent.end(1) + 1, len(text))
+        else:
+            tail = self.colored_text(text, retained, m.end(4), len(text))
+        return before + block + "   " + os_column + " " + request_data + tail.replace('"', "")
 
     def aligned_request(self, text, retained):
         """Werkzeug line: "… \"GET /url HTTP/1.1\" 200 - 13 0.006 0.066" becomes "… HTTP/1.1 200       - 13 0.006 0.066  \"GET /url\"": the block of numbers, of fixed width,
@@ -1970,8 +1988,8 @@ class Formatting:
             for d, f, r in retained:
                 if shown is None and (d, f) == (m.start(hint), m.end(hint)):
                     rendering = r
-            if hint in (6, 7) and self.slowest and t_sql:
-                style = self.slowness_style(float(t_sql) + float(t_py))
+            if hint in (6, 7) and t_sql:                              # 1.134: traffic light of the transfer time (green, yellow, red)
+                style = transfer_style(float(t_sql) + float(t_py))
                 if style:
                     rendering = color_code(style, value)
             empty = " " * max(0, width - len(shown or value))
@@ -5086,7 +5104,7 @@ def follow(cmd, people, resolver, options, output):
     file = queue.Queue(maxsize=5000)
     def address_width():
         return COLUMN_WIDTH if options["keep_ip"] else 2
-    form, presence = Formatting(options["minimal"], address_width(), options["slow"], options.get("status_header", False)), options["presence"]
+    form, presence = Formatting(options["minimal"], address_width(), options["slow"], options.get("status_header", False), hide_user_agent=options.get("hide_user_agent", False)), options["presence"]
     state = {"read_files": 0, "summarized": False, "keep_going": True}
     stats, banned_ips = Stats(options["slow"]), options["banned_ips"]
     LATENCY.start()                                         # 1.82: kernel counters every LATENCY_SAMPLE_S seconds (latency report: key P, Ctrl-G, summary)
@@ -5323,8 +5341,6 @@ def follow(cmd, people, resolver, options, output):
         """1.113: (base, text, first address, banned source) of a line: base = the line as rendered; text = base plus the [banned: ...] label of its address."""
         base = form.format_value(L, renderings, benign)
         text, ips0, source = base, find_ips(L.text), None
-        if is_bot_403(L):                                                       # 1.130: [BOT] at the end: refused by policy, not a fault
-            text += " " + color_code(STYLES["debug"], TR("[BOT]"))
         if banned_ips is not None and ips0 and ips0[0][2] in renderings and renderings[ips0[0][2]][3] is None:        # never for the whitelist or a place
             source = banned_ips.source_of(ips0[0][2])
             if source:
@@ -5618,7 +5634,7 @@ def follow(cmd, people, resolver, options, output):
         recent_ones[:] = [e for e in recent_ones if e[2] != ip]
         if not earlier or not options["recap"]:
             return
-        reminder_form, lines = Formatting(options["minimal"], address_width(), options["slow"], options.get("status_header", False)), []
+        reminder_form, lines = Formatting(options["minimal"], address_width(), options["slow"], options.get("status_header", False), hide_user_agent=options.get("hide_user_agent", False)), []
         for _, old_one, _ in earlier[-50:]:
             if (options["minimal"] and old_one.discard_in_min()) or (options["hide_addons"] and old_one.discard_addons()):
                 continue
@@ -6634,6 +6650,7 @@ def main():
     parser.add_argument("--no-log-file", action="store_true", help="No daily log (the live stream is written nowhere, except on screen)")
     parser.add_argument("--no-html-journal", action="store_true", help="No HTML copy of the daily journal (app-log-live-DATE.html, lines cut to 140 characters)")
     parser.add_argument("--no-isp", action="store_true", help="No outside request: no lookup of the address block owner or country (rdap.org, whois)")
+    parser.add_argument("--hide-user-agent", action="store_true", help="Do not show the User-Agent text of the nginx lines (the OS column stays)")     # 1.134
     parser.add_argument("--no-user-agent", action="store_true", help="Do not read the User-Agent in the nginx access log (robots are then recognized only by name or robots.txt)")
     parser.add_argument("--no-presence", action="store_true", help="No presence tracking (sign-ins, sign-outs, inactivity)")
     parser.add_argument("--record-max", type=float, default=RECORD_MAX_DEFAULT, metavar="MIN",
@@ -6895,7 +6912,7 @@ def main():
         eprint(banned_ips.summary())
     options = {"keep_ip": not args.hide_ip, "minimal": args.min, "hide_addons": args.hide_addons, "lines": args.lines, "recap": args.recap,
                "slow": max(0.0, args.slow), "only": [t.lower() for t in (args.only or []) if t], "highlight_words": read_highlight(args.highlight), "highlight_pattern": highlight_pattern(read_highlight(args.highlight)), "suspect": args.suspect, "disk_min": max(0.0, args.disk_min), "connections": max(0.0, min(100.0, args.connections)), "external_ip": not args.no_isp, "odoo_journal": profile.get("ODOO_LOGFILE"), "profile": profile, "service": service, "diag_hosts": args.diagnose_host, "not_found": args.not_found, "steps_line": args.steps_line, "summary": args.summary, "banned_ips": banned_ips,
-               "presence": Presence(args.idle) if is_odoo and not args.no_presence else None, "health": args.health, "keys": not args.no_keys and not args.no_follow, "app": profile.get("APP_NAME"), "app_label": profile.get("APP_LABEL", "application"), "log_nginx": bool(args.log_nginx), "log_merge": bool(args.log_merge), "status_header": bool(args.status_header), "nginx_merged": LOGS_MERGE in cmd, "propose_ban": not args.no_ban_prompt, "watch": [t.strip().lower() for t in (args.watch or "").split(",") if t.strip()], "agents": not args.no_user_agent and not args.no_follow, "acces_logs": profile.get("ACCESS_LOGS"),
+               "presence": Presence(args.idle) if is_odoo and not args.no_presence else None, "health": args.health, "keys": not args.no_keys and not args.no_follow, "app": profile.get("APP_NAME"), "app_label": profile.get("APP_LABEL", "application"), "hide_user_agent": args.hide_user_agent, "log_nginx": bool(args.log_nginx), "log_merge": bool(args.log_merge), "status_header": bool(args.status_header), "nginx_merged": LOGS_MERGE in cmd, "propose_ban": not args.no_ban_prompt, "watch": [t.strip().lower() for t in (args.watch or "").split(",") if t.strip()], "agents": not args.no_user_agent and not args.no_follow, "acces_logs": profile.get("ACCESS_LOGS"),
                "exclude": exclusions, "chime": args.chime, "group": args.accentuate_group if group_members else None, "membres": group_members,
                "report_min": args.time_report or 0.0, "level": args.level, "modules_sort": modules_sort_state}
     options.update({"buffer": args.buffer, "status_every": args.status_every,                          # 1.113: buffer of the f and P keys, status bar
