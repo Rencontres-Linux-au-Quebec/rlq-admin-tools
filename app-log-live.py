@@ -117,7 +117,7 @@ from urllib.parse import unquote, urlsplit
 from collections import Counter, OrderedDict
 from concurrent.futures import Future
 
-__version__ = "1.146.20261101.140404"
+__version__ = "1.147.20261101.172052"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
@@ -599,7 +599,17 @@ def is_reportable_error(L, level):
     return level == 0 and (L.level in ("ERROR", "CRITICAL") or "Traceback (most recent call last)" in (L.text or ""))
 
 
+STARTUP_LINES = None            # 1.147: while the startup information is collected: the lines that are not kept on screen (shown by the ? key)
+STARTUP_INFO = []               # 1.147: those lines, once the startup is over
+STARTUP_KEEP_RE = re.compile(r"WARN|ERROR|ALERT|FAIL|RECOMMENDED|reading|Reading|lecture|Filters|Live:|cannot|impossible|unreadable|missing|not found|not read|"
+                             r"No nginx|Sitemap not|Excluded|Group|Configuration|Options :", re.I)
+
+
 def eprint(*args):
+    text = " ".join(str(a) for a in args)
+    if STARTUP_LINES is not None and not STARTUP_KEEP_RE.search(ANSI_RE.sub("", text)):
+        STARTUP_LINES.append(text)                                 # 1.147: not on screen at startup: the ? key shows it
+        return
     print(*args, file=sys.stderr, flush=True)
 
 
@@ -1784,8 +1794,15 @@ def column_header(request_length=False, minimal=False, width=COLUMN_WIDTH, colum
             row[offset + i] = letter
     line = [" "] * (start + len(row))
     fields = line_fields(plain)
-    for name in ("DATE", "PROG", "LEVEL", "ADDRESS/NAME"):          # 1.139: on the fields of the line, left to right
-        at, word = fields.get(name), TR(name)
+    # 1.147: "PA" (country code) over the address or name column, "BLOC IP (FAI)" (owner of the block) 3 characters further: the address and name
+    # start after the logger ("base werkzeug "), with a 3-character gap ("CA ") in front of the address
+    labels_at = [(fields.get("DATE"), TR("HOUR")), (fields.get("PROG"), TR("PROG")), (fields.get("LEVEL"), TR("LVL"))]
+    base = fields.get("ADDRESS/NAME")
+    if base is not None:
+        logger = re.match(r"\S+\s+\S+\s", plain[base:])
+        name_at = base + (logger.end() if logger else 0)
+        labels_at += [(name_at, TR("CC")), (name_at + 3, TR("IP BLOCK (ISP)"))]
+    for at, word in labels_at:                                    # 1.139: on the fields of the line, left to right
         if at is None or at + len(word) >= start - 1 or any(line[at + i] != " " for i in range(len(word))):
             continue
         line[at:at + len(word)] = list(word)
@@ -1815,13 +1832,15 @@ def short_time(text):
 
 
 def hundredths(text):
-    """1.146: a response time (SQL, Python) to the hundredth of a second (0.046 -> 0.05; 1.2 -> 1.20). Above 100 s: one decimal, as short_time.
-    Other text is returned unchanged."""
+    """1.146: a response time (SQL, Python) to the hundredth of a second (0.046 -> 0.05; 1.2 -> 1.20). Above 100 s: one decimal (123.4); above
+    1000 s: no decimal (2186), so that the value stays within the 5 columns of the time (1.147: "2186.2" pushed the rest of the line by one character)."""
     try:
         value = float(text)
     except (TypeError, ValueError):
         return text
-    return short_time(text) if value > 100 else f"{value:.2f}"
+    if value >= 1000:
+        return f"{value:.0f}"
+    return f"{value:.1f}" if value > 100 else f"{value:.2f}"
 
 
 RLQ_TEXT_TAG = ".RLQ"                                              # 1.128: the same domain in the text of the lines (referer, host=...)
@@ -2083,7 +2102,7 @@ class Formatting:
         else:
             numbers = [" " * 4, " " * 5, " " * 5]                  # 1.146: the time columns are 5 wide
         if code == "403" and agent and BOT_BLOCKED_UA_RE.search(agent.group(1)):      # 1.134: a robot refused by policy: [BOT] in the transfer-time column
-            numbers[2] = color_code(STYLES["debug"], "[BOT]".rjust(6))
+            numbers[2] = color_code(STYLES["debug"], "[BOT]".rjust(5))          # 1.147: 5 columns (was 6: the rest of the line moved by one character)
         block = " ".join([short_http(http).ljust(4), token(3, code, 3), token(4, size_text(size), SIZE_WIDTH)] + numbers)
         os_name = os_code(agent.group(1) if agent else "")                         # 1.133: OS of the client, 3 characters before the GET
         os_column = color_code(OS_COLORS[os_name], os_name) if os_name in OS_COLORS else os_name      # 1.136: LIN green, AND cyan
@@ -5173,7 +5192,6 @@ class StatusBar:
             [(TR("health state") + " ", None), (f"{self.health()} %", "32" if self.health() >= 90 else "33" if self.health() >= 70 else "31")],
             [(TR("SQLi attacks") + " ", None), (f"{self.sqli}", criticite(self.sqli, 1, 5))],
             self.codes_pieces(400, self.e4),
-            self.pieces_404(),
             self.codes_pieces(500, self.e5),
             [(TR("banned") + " ", None), (f"{len(self.banned)}", criticite(len(self.banned), 1, 5))],
             ([(TR("bots refused (403)") + " ", None), (f"{self.bots403}", None)] if self.bots403 else []),
@@ -5228,22 +5246,30 @@ class StatusBar:
         thresholds = (20, 100) if first == 400 else (1, 5)
         codes = [(code, n) for code, n in sorted(self.codes.items()) if first <= code < first + 100]
         out = [(f"{first // 100}xx ", None), (f"{total}", criticite(total, *thresholds))]
-        if codes:
+        split = self.kinds_404() if first == 400 else None                 # 1.147: the 404s by kind when every 404 is classified
+        if split is not None:
+            codes = [(code, n) for code, n in codes if code != 404]
+        if codes or split:
             out.append((" (", None))
-            for i, (code, n) in enumerate(codes):
+            pieces = []
+            if split is not None:
+                pieces = [([(f"{TR('404s')}=", None), (f"{split[0]}", criticite(split[0], 1, 5))]),
+                          ([(f"{TR('404b')}=", None), (f"{split[1]}", None)]),
+                          ([(f"{TR('404o')}=", None), (f"{split[2]}", None)])]
+            for code, n in codes:
+                pieces.append([(f"{code}: ", None), (f"{n}", criticite(n, *thresholds))])
+            for i, piece in enumerate(pieces):
                 if i:
                     out.append((" · ", None))
-                out.append((f"{code}: ", None))
-                out.append((f"{n}", criticite(n, *thresholds)))
+                out.extend(piece)
             out.append((")", None))
         return out
 
-    def pieces_404(self):
-        """1.146: the three kinds of 404 answers: 404s (page of the sitemap: important), 404b (refused on purpose: --disable-uri), 404o (other URL, never
-        in the sitemap: attacks). Details (URL) in the dashboard, Ctrl-G and Ctrl-T."""
-        return [(TR("404s") + " ", None), (f"{self.gone_404}", criticite(self.gone_404, 1, 5)), (" · ", None),
-                (TR("404b") + " ", None), (f"{self.disabled_404}", None), (" · ", None),
-                (TR("404o") + " ", None), (f"{self.unknown_404}", None)]
+    def kinds_404(self):
+        """1.147: (sitemap, refused on purpose, never in the sitemap) when every 404 of the 4xx count is classified, else None (the sitemap is not read yet)."""
+        if self.gone_404 + self.disabled_404 + self.unknown_404 != self.codes.get(404, 0):
+            return None
+        return self.gone_404, self.disabled_404, self.unknown_404
 
     def codes_text(self, first, total):
         """1.124: text of codes_pieces (no colour)."""
@@ -5405,8 +5431,8 @@ REPEAT_MIN = seuil_commun("REPEAT_MIN", 2)            # past fail2ban bans from 
 BAN_DELAY = 10              # seconds left to answer the ban proposal; without an answer, the tracking continues
 KEYS = {b"\x07": "g", b"\x14": "t"}      # Ctrl-G: dashboard; Ctrl-T: only what changed since the last time
 # Simple keys of the menu (? or h): toggles and settings of the command-line options, and a few commands
-MENU_KEYS = {b"?": "help", b"h": "help", b"i": "i", b"m": "m", b"n": "n", b"r": "r", b"s": "s", b"v": "v", b"d": "dns", b"t": "dnst", b"H": "H", b"o": "o", b"V": "V",
-                b"S": "S", b"I": "I", b"b": "b", b"a": "accent", b"c": "chime", b"e": "exclude", b"T": "report", b"E": "E", b"w": "watch", b"D": "D", b"l": "highlight", b"M": "modules", b"C": "save", b"L": "recent",
+MENU_KEYS = {b"?": "legend", b"h": "help", b"i": "i", b"m": "m", b"n": "n", b"r": "r", b"s": "s", b"v": "v", b"d": "dns", b"t": "dnst", b"H": "H", b"o": "o", b"V": "V",
+                b"S": "S", b"I": "I", b"b": "b", b"a": "accent", b"c": "chime", b"e": "exclude", b"T": "report", b"E": "E", b"w": "watch", b"D": "D", b"l": "highlight", b"M": "modules", b"W": "save", b"L": "recent",
                 b"G": "G", b"Y": "latency", b"P": "print", b"f": "refresh", b"A": "anonymize", b"R": "record", b"N": "step", b"F": "steps_line", b"q": "addons", b"U": "underline", b"x": "lognginx", b"u": "hideua", b"j": "reqlen", b"k": "hostshow"}
 MENU_KEYS.update({str(n).encode(): f"level{n}" for n in range(1, LEVEL_MAX + 1)})   # 1 to 9: dashboard at the chosen level
 KEYS.update(MENU_KEYS)
@@ -6347,7 +6373,7 @@ def follow(cmd, people, resolver, options, output):
         global_name = f"{NAME_WIDTH}" + (f", names cut at {NAME_TRUNCATE}" if NAME_TRUNCATE else ", names never cut")
         to_ban = len(stats.to_ban())
         bold = lambda t: color_code("1;36", t)
-        lines = [color_code(STYLES["title"], "──── Keys (? or h: this menu) ────"), "  " + color_code(STYLES["debug"], version_with_date())]
+        lines = [color_code(STYLES["title"], TR("──── Keys (h: this menu, ?: startup information) ────")), "  " + color_code(STYLES["debug"], version_with_date())]
         for key, text in (("Ctrl-G", "dashboard: health, program efficiency, pages by language, top 10 URLs…"),
                               ("1 to 9", "dashboard at the chosen level: 1 = one-line verdict, 5 = the essentials, 9 = everything (the level is kept for Ctrl-G, Ctrl-T and the final summary)"),
                               ("Ctrl-T", "only what changed since last time"),
@@ -6397,7 +6423,7 @@ def follow(cmd, people, resolver, options, output):
         lines.append(f"    {bold('Y')}  latency: what slows the requests since start (disk, processor, memory: % of waiting time, % of disk use, per hour) and whether SSD disks are justified")
         lines.append(f"    {bold('P')}  print the last lines of the buffer (--buffer N) to a file, colors kept (asks the number of lines and the file name)")
         lines.append(f"    {bold('f')}  refresh: the last lines of the buffer are displayed again with the current options (IP, DNS, names, --only...), not counted again")
-        lines.append(f"    {bold('C')}  save the settings changed since startup into {system_config_path()} (every option changeable on the fly: ACCENTUATE_GROUP, ANONYMIZE, CHIME, DNS_MAX*, EXCLUDE_IP, HEALTH, HIDE_IP, HIGHLIGHT, LEVEL, MIN, MODULES_*, NOT_FOUND, ONLY, SUSPECT, TIME_REPORT, UNDERLINE, VERBOSE, WATCH)")
+        lines.append(f"    {bold('W')}  save the settings changed since startup into {system_config_path()} (every option changeable on the fly: ACCENTUATE_GROUP, ANONYMIZE, CHIME, DNS_MAX*, EXCLUDE_IP, HEALTH, HIDE_IP, HIGHLIGHT, LEVEL, MIN, MODULES_*, NOT_FOUND, ONLY, SUSPECT, TIME_REPORT, UNDERLINE, VERBOSE, WATCH)")
         lines.append(f"    {bold('b')}  addresses to ban: {to_ban} — asks, then nginx-log-audit.sh --ban (like web-monitor.py)")
         others_at = lines.index("  Others:") + 1                 # 1.113: the other keys are also in alphabetical order
         lines[others_at:] = sorted(lines[others_at:], key=lambda text_line: (ANSI_RE.sub("", text_line).strip()[:1].lower(), ANSI_RE.sub("", text_line).strip()[:1].isupper()))
@@ -6531,6 +6557,8 @@ def follow(cmd, people, resolver, options, output):
             write_out(["", *table_rows(level=options["level"])])
         elif key_value == "help":
             menu()
+        elif key_value == "legend":                              # 1.147: ? key: the startup information (lists, modules, cache, colours...)
+            write_out([color_code(STYLES["title"], TR("──── Startup information ────"))] + (STARTUP_INFO or [TR("  Nothing to show.")]))
         elif key_value == "i":
             options["keep_ip"] = not options["keep_ip"]
             form.width = address_width()
@@ -6778,7 +6806,7 @@ def follow(cmd, people, resolver, options, output):
     if options["lines"] == 0 and hasattr(output, "active"):      # no history: everything is live
         output.active = True
     if keys is not None and keys.start():
-        eprint("Keys: ? (or h) keys and options menu · Ctrl-G dashboard (health, efficiency, top 10 URLs…) · 1 to 9 dashboard detail level · Ctrl-T only what changed since last time · R record a test · N step while recording · Ctrl-C stop and summary")
+        eprint(TR("Keys: h keys and options menu · ? startup information · Ctrl-G dashboard (health, efficiency, top 10 URLs…) · 1 to 9 dashboard detail level · Ctrl-T only what changed since last time · R record a test · N step while recording · Ctrl-C stop and summary"))
     merge_ready, merge_held, merge_ended = collections.deque(), collections.deque(), [False]      # 1.123 --log-merge: lines to show now, held nginx lines, end of stream
     old_sigint = None
     if keys is not None and keys.old is not None:
@@ -7016,7 +7044,9 @@ class LocalizedArgumentParser(argparse.ArgumentParser):
 MENU_ENTREES = [
     ([], 'Live follow', 'Live follow', False),
     (['--diagnose'], 'Site diagnosis (maintenance page)', 'Site diagnosis (maintenance page)', False),
-    (['--modules'], 'Odoo modules table', 'Odoo modules table', False),
+    (['--modules', '--modules-sort', 'date'], 'Odoo modules table (sorted by date)', 'Odoo modules table (sorted by date)', False),
+    (['--modules', '--modules-sort', 'name'], 'Odoo modules table (sorted by name)', 'Odoo modules table (sorted by name)', False),
+    (['--not-found'], '404 answers only (--not-found)', '404 answers only (--not-found)', False),
     (['--no-follow'], 'Last messages, then stop', 'Last messages, then stop', False),
 ]
 
@@ -7111,7 +7141,7 @@ def main():
     parser.add_argument("--suspect", action="store_true", help="Only the suspicious requests (WordPress, .php, .env, .git, backups, directory traversal…)")
     parser.add_argument("--no-follow", action="store_true", help="Show the last messages then stop (no live stream)")
     parser.add_argument("--no-history", action="store_true", help="Do not read the sign-in history (people names learned only live)")
-    parser.add_argument("--no-keys", action="store_true", help="Do not listen to the keyboard (? or h: keys menu, Ctrl-G: dashboard, Ctrl-T: changes since last time)")
+    parser.add_argument("--no-keys", action="store_true", help="Do not listen to the keyboard (h: keys menu, ?: startup information, Ctrl-G: dashboard, Ctrl-T: changes since last time)")
     parser.add_argument("--no-log-file", action="store_true", help="No daily log (the live stream is written nowhere, except on screen)")
     parser.add_argument("--no-html-journal", action="store_true", help="No HTML copy of the daily journal (app-log-live-DATE.html, lines cut to 140 characters)")
     parser.add_argument("--no-isp", action="store_true", help="No outside request: no lookup of the address block owner or country (rdap.org, whois)")
@@ -7327,6 +7357,10 @@ def main():
     if is_odoo and args.modules_startup:                   # on request (--modules-startup) and FIRST: the rlq* modules (with their version), then the other custom modules
         for text_line in customs_tracking_lines(people.odoo_db, profile.get("ODOO_CONF"), [], modules_sort_state):
             eprint(text_line)
+    global STARTUP_LINES
+    # 1.147: on a terminal with the keyboard, the information is kept for the ? key (the important lines stay on screen); a pipe or a file, or
+    # --no-keys, has no key to ask for it: everything is printed as before
+    STARTUP_LINES = [] if (sys.stderr.isatty() and not args.no_keys) else None
     if is_odoo and not args.no_history:
         extent = (f"from {args.since}" if args.since is not None else f"{args.days:g} days" if args.days else "the whole log")       # 1.112: --since, fractions of --days
         if args.until is not None:
@@ -7396,6 +7430,10 @@ def main():
             SITEMAP = Sitemap(args.sitemap or DEFAULT_SITEMAP_URL)
         except ValueError as problem:                                 # a wrong address stops the program at once
             parser.error(f"--sitemap: {problem}")
+    if STARTUP_LINES is not None:
+        STARTUP_INFO[:] = STARTUP_LINES
+        STARTUP_LINES = None
+        eprint(TR("Startup information (lists, modules, cache, colours, keys): press ? (h: keys menu)"))
     options = {"keep_ip": not args.hide_ip, "minimal": args.min, "hide_addons": args.hide_addons, "lines": args.lines, "recap": args.recap,
                "slow": max(0.0, args.slow), "only": [t.lower() for t in (args.only or []) if t], "highlight_words": read_highlight(args.highlight), "highlight_pattern": highlight_pattern(read_highlight(args.highlight)), "suspect": args.suspect, "disk_min": max(0.0, args.disk_min), "connections": max(0.0, min(100.0, args.connections)), "external_ip": not args.no_isp, "odoo_journal": profile.get("ODOO_LOGFILE"), "profile": profile, "service": service, "diag_hosts": args.diagnose_host, "not_found": args.not_found, "steps_line": args.steps_line, "summary": args.summary, "banned_ips": banned_ips,
                "presence": Presence(args.idle) if is_odoo and not args.no_presence else None, "health": args.health, "keys": not args.no_keys and not args.no_follow, "app": profile.get("APP_NAME"), "app_label": profile.get("APP_LABEL", "application"), "hide_user_agent": args.hide_user_agent, "request_length": args.request_length, "log_nginx": bool(args.log_nginx), "log_merge": bool(args.log_merge), "status_header": bool(args.status_header), "nginx_merged": LOGS_MERGE in cmd, "propose_ban": not args.no_ban_prompt, "watch": [t.strip().lower() for t in (args.watch or "").split(",") if t.strip()], "agents": not args.no_user_agent and not args.no_follow, "acces_logs": profile.get("ACCESS_LOGS"),

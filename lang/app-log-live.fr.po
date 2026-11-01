@@ -433,8 +433,8 @@ msgstr ", noms jamais coupés"
 msgid ", names cut at "
 msgstr ", noms coupés à "
 
-msgid "──── Keys (? or h: this menu) ────"
-msgstr "──── Touches (? ou h : ce menu) ────"
+msgid "──── Keys (h: this menu, ?: startup information) ────"
+msgstr "──── Touches (h : ce menu, ? : informations de démarrage) ────"
 
 msgid "dashboard: health, program efficiency, pages by language, top 10 URLs…"
 msgstr "tableau de bord : santé, efficacité du programme, pages par langue, top 10 des URLs…"
@@ -731,8 +731,8 @@ msgstr "Affiche les derniers messages puis s'arrête (pas de direct)"
 msgid "Do not read the sign-in history (people names learned only live)"
 msgstr "Ne lit pas l'historique des connexions (noms de personnes appris seulement en direct)"
 
-msgid "Do not listen to the keyboard (? or h: keys menu, Ctrl-G: dashboard, Ctrl-T: changes since last time)"
-msgstr "N'écoute pas le clavier (? ou h : menu des touches, Ctrl-G : tableau de bord, Ctrl-T : changements depuis la dernière fois)"
+msgid "Do not listen to the keyboard (h: keys menu, ?: startup information, Ctrl-G: dashboard, Ctrl-T: changes since last time)"
+msgstr "N'écoute pas le clavier (h : menu des touches, ? : informations de démarrage, Ctrl-G : tableau de bord, Ctrl-T : changements depuis la dernière fois)"
 
 msgid "No daily log (the live stream is written nowhere, except on screen)"
 msgstr "Pas de journal quotidien (le direct n'est écrit nulle part, sauf à l'écran)"
@@ -1121,8 +1121,8 @@ msgstr "protégée (équipe ou lieu)"
 msgid "known person"
 msgstr "personne connue"
 
-msgid "Keys: ? (or h) keys and options menu · Ctrl-G dashboard (health, efficiency, top 10 URLs…) · 1 to 9 dashboard detail level · Ctrl-T only what changed since last time · R record a test · N step while recording · Ctrl-C stop and summary"
-msgstr "Touches : ? (ou h) menu des touches et des options · Ctrl-G tableau de bord (santé, efficacité, top 10 des URLs…) · 1 à 9 niveau de détail du tableau de bord · Ctrl-T seulement ce qui a changé depuis la dernière fois · R enregistrer un test · N étape pendant un enregistrement · Ctrl-C arrêt et résumé"
+msgid "Keys: h keys and options menu · ? startup information · Ctrl-G dashboard (health, efficiency, top 10 URLs…) · 1 to 9 dashboard detail level · Ctrl-T only what changed since last time · R record a test · N step while recording · Ctrl-C stop and summary"
+msgstr "Touches : h menu des touches et des options · ? informations de démarrage · Ctrl-G tableau de bord (santé, efficacité, top 10 des URLs…) · 1 à 9 niveau de détail du tableau de bord · Ctrl-T seulement ce qui a changé depuis la dernière fois · R enregistrer un test · N étape pendant un enregistrement · Ctrl-C arrêt et résumé"
 
 msgid "without a value; by default names are cut at "
 msgstr "sans valeur ; par défaut les noms sont coupés à "
@@ -2708,8 +2708,6 @@ msgstr "Suivi en direct"
 msgid "Site diagnosis (maintenance page)"
 msgstr "Diagnostic du site (page de maintenance)"
 
-msgid "Odoo modules table"
-msgstr "Tableau des modules Odoo"
 
 msgid "Last messages, then stop"
 msgstr "Derniers messages, puis arrêt"
@@ -2979,3 +2977,34 @@ msgstr "Période : les {n} derniers jours (--days N)"
 
 msgid "Period: the whole nginx logs (--days N to limit)"
 msgstr "Période : tous les journaux nginx (--days N pour limiter)"
+
+#: app-log-live.py (1.147)
+msgid "HOUR"
+msgstr "HEURE"
+
+msgid "LVL"
+msgstr "NIV"
+
+msgid "CC"
+msgstr "PA"
+
+msgid "IP BLOCK (ISP)"
+msgstr "BLOC IP (FAI)"
+
+msgid "Startup information (lists, modules, cache, colours, keys): press ? (h: keys menu)"
+msgstr "Informations de démarrage (listes, modules, cache, couleurs, touches) : appuyez sur ? (h : menu des touches)"
+
+msgid "──── Startup information ────"
+msgstr "──── Informations de démarrage ────"
+
+msgid "  Nothing to show."
+msgstr "  Rien à afficher."
+
+msgid "Odoo modules table (sorted by date)"
+msgstr "Tableau des modules Odoo (trié par date)"
+
+msgid "Odoo modules table (sorted by name)"
+msgstr "Tableau des modules Odoo (trié par nom)"
+
+msgid "404 answers only (--not-found)"
+msgstr "Réponses 404 seulement (--not-found)"
