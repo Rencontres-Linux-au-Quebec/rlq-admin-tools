@@ -119,6 +119,17 @@ class ConfigNginx(unittest.TestCase):
         n = sum(len(re.findall(r"^\s*location\s*=\s*/robots\.txt", open(f, encoding="utf-8").read(), re.M)) for f in conf_files())
         self.assertEqual(n, 1)
 
+    def test_billets_sans_parametres_renvoient_404(self):
+        """2026-11-01 : /event/<id>/my_tickets sans parametres faisait une TypeError Odoo 18 (500). Le location doit repondre 404 si la chaine
+        de requete est vide, transmettre sinon, et ne pas viser les autres chemins /event/."""
+        texte = lire("snippets/odoo/_odoo-common.conf")
+        m = re.search(r'^location ~ "\^\(\?:/\[a-z\]\{2\}_\[A-Z\]\{2\}\)\?/event/\[0-9\]\+/my_tickets\$" \{\n(.*?)^\}', texte, re.M | re.S)
+        self.assertIsNotNone(m, "location my_tickets absent")
+        corps = m.group(1)
+        self.assertIn('if ($args = "") {\n        return 404;\n    }', corps)
+        self.assertIn("proxy_pass http://$odoo_backend;", corps)
+        self.assertLess(texte.index(m.group(0)), texte.index("\nlocation / {"), "le location my_tickets doit preceder location /")
+
     def test_filtre_a_robots(self):
         texte = lire("conf.d/bot_blocker.conf")
         # "(?:\\ |\S)+": a pattern may contain escaped spaces ("Palo\ Alto\ Networks"), valid for nginx.
