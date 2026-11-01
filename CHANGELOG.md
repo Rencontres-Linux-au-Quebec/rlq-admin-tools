@@ -349,6 +349,19 @@ Earlier history was archived outside this repository when this file was created.
 
 ## app-log-live.py
 
+### 1.137.20261031.222230 - Refresh (f) applies --min and --hide-addons; header before the first request line and cut to the terminal; times under 1 s in white
+
+- Title: the refresh key f applies the current --min and --hide-addons; the column header is printed just before the first request line, measured on that line, and never wider than the terminal; the times under 1 s are white again (yellow from 1 s, red from 3 s).
+- Reason: 1) after --hide-addons was switched on, f showed the addon lines again. 2) the header was printed at start-up, above the presence summary and the help, and its columns did not match the real lines (the sample prefix is not the real one, e.g. with --min). 3) the times under 1 s must stay white, as before.
+- Changes:
+  - refresh_lines(): the buffered lines discarded by the current --min (discard_in_min) or --hide-addons (discard_addons) are not displayed again.
+  - column_header(request_length, minimal, width, columns, start): the start of the columns is the column of "H1.1" in the first real request line (paint(): show_header(at)); a sample is used only for the offsets and when no start is known. The header is cut to the terminal width (terminal_columns(), new). The header is written on stderr (the stream on stdout keeps its layout, and the tests that read the stream are unchanged), after flushing stdout, just before the first request line. It is printed again when --min or --request-length is switched (keys m and j).
+  - transfer_style(): under 1 s returns None (no colour); the transfer_ok style is removed.
+- Bugs fixed: symptom: lines hidden by --hide-addons shown again with f; diagnosis: refresh_lines() only applied the --only / highlight filter, the discards were done when reading; fix: same discards in refresh. Symptom: header not aligned with the lines, and printed far from the first line; diagnosis: measured on a sample line with other options; fix: measured on the first real request line.
+- Safeguards and edge cases: no request line yet: no header. A terminal narrower than the labels: the labels beyond the width are not shown. Toggling --min or j re-prints the header with the sample offsets (the next real line is the reference only at the first display).
+- Checks performed: py_compile; --version; rendering of the header (full, minimal, narrow) and of transfer_style(0.4 / 2 / 5); test_app_log_live: 218 tests, 2 failures, both already present before 1.137 (test_colonnes_jamais_tassees..., test_120_journal_html...); test_logs_merge and test_i18n OK.
+- Action required: none. Restart app-log-live.py.
+
 ### 1.136.20261031.220401 - rl= in its own column (--request-length); column header at start; LIN in green, AND in cyan
 
 - Title: the request length (rl=) of nginx lines leaves the end of the line for its own column before the GET, shown with --request-length (option and menu key j); a header labels the request columns at start-up; in the OS column LIN is green and AND is cyan.
