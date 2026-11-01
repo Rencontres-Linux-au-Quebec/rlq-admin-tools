@@ -3810,16 +3810,16 @@ class AppLogLive142(unittest.TestCase):
         with unittest.mock.patch("urllib.request.urlopen", side_effect=ouvrir):
             self.assertEqual(sm.read(sm.url, 0), {"/a-propos", "/blog"})
 
-    def test_142_etiquette_404_avant_la_colonne_os(self):
-        """Ligne nginx 404 : [in sitemap.xml] ou [not in sitemap.xml] avant OS ; ligne 200 : colonne vide ; sans --sitemap : aucune colonne."""
+    def test_142_etiquette_404_en_fin_de_ligne(self):
+        """1.144 : ligne nginx 404 : [in sitemap.xml] ou [not in sitemap.xml] en FIN de ligne ; ligne 200 : aucune étiquette ; sans --sitemap : aucune."""
         m = self.m
         sans = m.Formatting(False, 40, 0.0, False).format_value(m.Line(self.ligne_nginx("/about-us")), {}, False)
         self.assertNotIn(m.TR("[in sitemap.xml]"), sans)
         m.SITEMAP = self.Fixe({"/about-us"})
         for chemin, attendu in (("/fr_CA/about-us", m.TR("[in sitemap.xml]")), ("/wp-login.php", m.TR("[not in sitemap.xml]"))):
             texte = ANSI.sub("", m.Formatting(False, 40, 0.0, False).format_value(m.Line(self.ligne_nginx(chemin)), {}, False))
-            self.assertIn(attendu, texte)
-            self.assertLess(texte.index(attendu), texte.index("MAC") if "MAC" in texte else texte.index("LIN"))
+            self.assertTrue(texte.endswith(attendu), texte[-60:])
+            self.assertNotIn(attendu, texte[:texte.index("GET")])
         ok = ANSI.sub("", m.Formatting(False, 40, 0.0, False).format_value(m.Line(self.ligne_nginx("/about-us", "200")), {}, False))
         self.assertNotIn(m.TR("[not in sitemap.xml]"), ok)
 
@@ -3829,18 +3829,17 @@ class AppLogLive142(unittest.TestCase):
         texte = ANSI.sub("", m.Formatting(False, 40, 0.0, False).format_value(m.Line(self.ligne_nginx("/about-us")), {}, False))
         self.assertIn(m.TR("[not read yet]"), texte)
 
-    def test_142_entete_SITEMAP_sur_la_colonne_de_l_etiquette(self):
-        """L'en-tête SITEMAP est au-dessus de l'étiquette, et RL juste avant elle (--request-length)."""
+    def test_142_entete_sans_colonne_sitemap(self):
+        """1.144 : plus de colonne avant OS : l'en-tête n'a pas de libellé SITEMAP ; RL reste avant OS (--request-length)."""
         m = self.m
         m.SITEMAP = self.Fixe({"/about-us"})
         for rl in (False, True):
             plain = ANSI.sub("", m.Formatting(False, 40, 0.0, False, request_length=rl).format_value(m.Line(self.ligne_nginx("/about-us")), {}, False))
             debut = plain.index("H1.1")
             entete = m.column_header(rl, False, 400, None, debut, plain)
-            tag = plain.index(m.TR("[in sitemap.xml]"))
-            self.assertEqual(entete.index(m.TR("SITEMAP")), tag, entete)
+            self.assertNotIn(m.TR("SITEMAP"), entete)
             if rl:
-                self.assertLess(entete.index("RL"), entete.index(m.TR("SITEMAP")))
+                self.assertLess(entete.index("RL"), entete.index("OS"))
 
     def test_142_404_listee_comptee_inconnue_non_comptee(self):
         """Pourcentage de santé (barre d'état) : une page du sitemap qui répond 404 le baisse ; une URL absente du sitemap (attaque) ne le baisse pas."""
@@ -3903,7 +3902,7 @@ class AppLogLive143(unittest.TestCase):
         self.assertEqual(len(held), 0)
         shown = self.m.Formatting(False, 40, 0.0, False).format_value(ready[0][0], {}, False)
         self.assertEqual(shown.count("GET"), 1, shown)
-        self.assertIn("1730.555", shown)
+        self.assertIn("1730.6", shown)                 # 1.144: more than 100 s: one decimal
 
     def test_143_chemins_refuses_volontairement(self):
         """--disable-uri : "# uri : /shop" couvre /shop et /es/shop/panier, pas /shopping."""
@@ -3966,3 +3965,72 @@ class AppLogLive143(unittest.TestCase):
         self.assertEqual(m.SCHEMA_CONFIG["NO_SITEMAP"][0], "no_sitemap")
         self.assertEqual(m.SCHEMA_CONFIG["SITEMAP"][0], "sitemap")
         self.assertTrue(m.SITEMAP_OFF_BY_ENV or m.DEFAULT_SITEMAP_URL)
+
+
+class AppLogLive144(unittest.TestCase):
+    """1.144 : le tableau de bord ne propose pas de bannir un relais partagé (Cloudflare...) ; un balayage 404 que web-monitor.py ne recommande
+    pas (fichier récent) n'est pas proposé ; ces adresses sont nommées dans « Non proposées au bannissement »."""
+
+    @classmethod
+    def setUpClass(cls):
+        spec = importlib.util.spec_from_file_location("live144", script_path("app-log-live.py"))
+        cls.m = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(cls.m)
+
+    def stats(self):
+        st = self.m.Stats(0.0)
+        st._reco_t = time.time()                  # no reading of the real web-monitor.py file: the test sets it
+        st.names = {"104.28.221.221": "Cloudflare, Inc. (org)", "54.36.150.170": "ip170.ip-54-36-150.eu", "1.2.3.4": "exemple.net"}
+        st.ip_not_found = {ip: {f"/p{i}" for i in range(n)} for ip, n in (("104.28.221.221", 8), ("54.36.150.170", 5), ("1.2.3.4", 6))}
+        return st
+
+    def test_144_relais_cloudflare_jamais_propose(self):
+        st = self.stats()
+        st.reco_loaded, st.recommended = False, {"104.28.221.221": "balayage"}
+        self.assertNotIn("104.28.221.221", [ip for ip, _ in st.to_ban()])
+        self.assertTrue(any(ip == "104.28.221.221" for ip, _ in st.not_proposed))
+
+    def test_144_balayage_non_recommande_par_web_monitor_non_propose(self):
+        st = self.stats()
+        st.reco_loaded, st.recommended = True, {}
+        self.assertEqual([ip for ip, _ in st.to_ban()], [])
+        self.assertEqual({ip for ip, _ in st.not_proposed}, {"54.36.150.170", "1.2.3.4", "104.28.221.221"})
+
+    def test_144_recommande_par_web_monitor_proposee(self):
+        st = self.stats()
+        st.reco_loaded, st.recommended = True, {"54.36.150.170": "scanner"}
+        self.assertEqual([ip for ip, _ in st.to_ban()], ["54.36.150.170"])
+
+    def test_144_sans_fichier_web_monitor_balayage_propose_comme_avant(self):
+        st = self.stats()
+        st.reco_loaded = False
+        self.assertEqual({ip for ip, _ in st.to_ban()}, {"54.36.150.170", "1.2.3.4"})
+
+    def test_144_temps_superieurs_a_100_s_un_chiffre(self):
+        """2186.246226 s -> 2186.2 ; une valeur de 100 s ou moins ne change pas ; un texte qui n'est pas un nombre non plus."""
+        m = self.m
+        self.assertEqual(m.short_time("2186.246226"), "2186.2")
+        self.assertEqual(m.short_time("12.345678"), "12.345678")
+        self.assertEqual(m.short_time("100.000"), "100.000")
+        self.assertEqual(m.short_time(""), "")
+        self.assertEqual(m.short_time("abc"), "abc")
+
+    def test_144_websocket_longue_arrondie_dans_la_colonne(self):
+        m = self.m
+        raw = ('2026-11-01T10:51:06.620000-0500 odoo18 odoo[1]: 2026-11-01 10:51:06,620 1 INFO base longpolling: 1.2.3.4 - - '
+               '[01/Nov/2026 10:51:06] "GET /websocket?version=18.0-7 HTTP/1.1" 101 494 2186.246226')
+        texte = ANSI.sub("", m.Formatting(False, 40, 0.0, False).format_value(m.Line(raw), {}, False))
+        self.assertIn("2186.2 ", texte)
+        self.assertNotIn("2186.246", texte)
+
+    def test_144_etiquette_sitemap_en_fin_de_ligne_werkzeug(self):
+        m = self.m
+        class Fixe:
+            paths = frozenset({"/about-us"})
+            def listed(self, url):
+                return m.sitemap_path(url) in self.paths
+        m.SITEMAP = Fixe()
+        raw = ('2026-10-31T20:42:44.000000-0400 odoo18 odoo[1]: 2026-10-31 05:53:27,790 1 INFO base werkzeug: 179.201.24.98 - - '
+               '[31/Oct/2026 09:53:27] "GET /en_CA/about-us HTTP/1.1" 404 - 1 0.000 0.002')
+        texte = ANSI.sub("", m.Formatting(False, 40, 0.0, False).format_value(m.Line(raw), {}, False))
+        self.assertTrue(texte.endswith(m.TR("[in sitemap.xml]")), texte[-60:])

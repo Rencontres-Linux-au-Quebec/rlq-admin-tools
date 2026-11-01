@@ -117,7 +117,7 @@ from urllib.parse import unquote, urlsplit
 from collections import Counter, OrderedDict
 from concurrent.futures import Future
 
-__version__ = "1.143.20261101.111357"
+__version__ = "1.144.20261101.120235"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
@@ -1760,11 +1760,8 @@ def column_header(request_length=False, minimal=False, width=COLUMN_WIDTH, colum
     if start is None:
         start = sample_start
     labels = [(0, "HTTP"), (5, "STA"), (9, "SIZE"), (14, "SQL"), (19, "SQL s"), (26, "PY s")]
-    slot_at = os_at - (SITEMAP_WIDTH + 1 if SITEMAP is not None else 0)      # 1.142: the tag column sits just before the OS column (RL column before it)
     if request_length:
-        labels.append((slot_at - 6, "RL"))
-    if SITEMAP is not None:
-        labels.append((slot_at, TR("SITEMAP")))
+        labels.append((os_at - 6, "RL"))
     labels += [(os_at, "OS"), (get_at, TR("REQUEST"))]
     row = [" "] * (get_at + len(TR("REQUEST")) + 1)
     for offset, label in labels:
@@ -1792,7 +1789,18 @@ def transfer_style(total):
     return STYLES["transfer_mid"] if total <= 6 else STYLES["transfer_slow"]
 
 
+def short_time(text):
+    """1.144: a duration of more than 100 s is shown with one decimal (2186.246226 -> 2186.2): the time columns keep their width.
+    Other values, and text that is not a number, are returned unchanged."""
+    try:
+        value = float(text)
+    except (TypeError, ValueError):
+        return text
+    return f"{value:.1f}" if value > 100 else text
+
+
 RLQ_TEXT_TAG = ".RLQ"                                              # 1.128: the same domain in the text of the lines (referer, host=...)
+CDN_NAME_RE = re.compile(r"cloudflare|akamai|fastly|incapsula|imperva|bunnycdn", re.I)   # 1.144: relays shared by many visitors (their name, from DNS or RDAP)
 RLQ_DOMAIN_RE = re.compile(r"(\.?)(?<![\w-])rencontres-linux\.quebec", re.IGNORECASE)     # 1.134: with or without the dot (www. / host=): ".RLQ" or "RLQ"
 
 
@@ -2035,7 +2043,7 @@ class Formatting:
             return " " * max(0, width - len(value)) + rendering
         agent = NGINX_AGENT_RE.search(text, m.end(4))
         if times:                                                # 1.123 --log-merge: SQL queries and times of the Odoo line of the same request
-            sql_s, t_sql_s, t_py_s = times[0].rjust(4), times[1].rjust(6), times[2].rjust(6)
+            sql_s, t_sql_s, t_py_s = times[0].rjust(4), short_time(times[1]).rjust(6), short_time(times[2]).rjust(6)
             total = (float(times[1] or 0) + float(times[2])) if times[2] else 0.0      # 1.141: a websocket has no SQL time
             if total:                                            # 1.141: white under 1 s, green 1 to 3 s, yellow 3 to 6 s, red above 6 s
                 style = transfer_style(total)
@@ -2065,9 +2073,8 @@ class Formatting:
             position = cut_end
         pieces.append(self.colored_text(text, retained, position, len(text)))
         tail = re.sub(" {2,}", " ", "".join(pieces)).replace('"', "")
-        slot = sitemap_cell(code, m.group(1).split(" ", 1)[-1])          # 1.142 --sitemap: tag of a 404, before the OS column
-        slot_column = slot + " " if slot is not None else ""
-        return before + block + "   " + rl_column + slot_column + os_column + " " + request_data + tail
+        tag = sitemap_tag(code, m.group(1).split(" ", 1)[-1])            # 1.144: the sitemap tag of a 404 goes at the END of the line
+        return before + block + "   " + rl_column + os_column + " " + request_data + tail + tag
 
     def aligned_request(self, text, retained):
         """Werkzeug line: "… \"GET /url HTTP/1.1\" 200 - 13 0.006 0.066" becomes "… HTTP/1.1 200       - 13 0.006 0.066  \"GET /url\"": the block of numbers, of fixed width,
@@ -2091,17 +2098,17 @@ class Formatting:
             return empty + rendering if right else rendering + empty
         start = [short_http(http).ljust(4), token(3, code, 3), token(4, size_text(size), SIZE_WIDTH)]
         if sql:
-            block = " ".join(start + [token(5, sql, 4), token(6, t_sql, 6), token(7, t_py, 6)])
+            block = " ".join(start + [token(5, sql, 4), token(6, t_sql, 6, shown=short_time(t_sql) if t_sql else None),
+                                      token(7, t_py, 6, shown=short_time(t_py) if t_py else None)])
         else:                                                   # websocket: only the duration, right-aligned on the width of the three columns SQL / SQL time / Python time
-            block = " ".join(start + [" " * 4, token(7, t_py, 13, shown=f"{float(t_py):.3f}")])      # 3 decimals like the other columns: the decimal points are aligned
+            block = " ".join(start + [" " * 4, token(7, t_py, 13, shown=short_time(f"{float(t_py):.3f}"))])      # 3 decimals like the other columns: the decimal points are aligned
         request_data = self.colored_text(text, retained, ouvrir + 1, m.end(1))      # 1.121: no quotes, nothing put in their place
         before = self.colored_text(text, retained, 0, ouvrir)
         if not ANSI_RE.sub("", before).endswith(" "):          # name as wide as its column: never "this serverHTTP/1.1" stuck together, at least one space before HTTP
             before += " "
         rl_blank = " " * (RL_WIDTH + 1) if self.request_length else ""          # 1.136: same column as nginx lines (blank in an Odoo line)
-        slot = sitemap_cell(code, m.group(1).split(" ", 1)[-1])          # 1.142 --sitemap: the tag of a 404 Odoo line too (blank otherwise)
-        slot_column = slot + " " if slot is not None else ""
-        return before + block + "   " + rl_blank + slot_column + OS_BLANK + " " + request_data          # 1.133: the same column as nginx lines (blank: no User-Agent in the Odoo line)
+        tag = sitemap_tag(code, m.group(1).split(" ", 1)[-1])            # 1.144: the sitemap tag of a 404 Odoo line, at the end too
+        return before + block + "   " + rl_blank + OS_BLANK + " " + request_data + tag          # 1.133: the same column as nginx lines (blank: no User-Agent in the Odoo line)
 
     def slowness_style(self, total):
         """Bold orange from the --slow threshold, bold red from 3 times the threshold; None under the threshold (or without a threshold)."""
@@ -2177,7 +2184,7 @@ class Formatting:
                 # Odoo message that is NOT a request: its text starts at the column of the "GET / POST" of requests (after the numbers block), never
                 # above the number columns. "database logger" is padded up to that column (never truncated: a longer logger overflows).
                 target = ((0 if self.minimal else len("base werkzeug") + 1) + NAME_WIDTH + NUMBERS_BLOCK_WIDTH + (RL_WIDTH + 1 if self.request_length else 0)
-                          + (SITEMAP_WIDTH + 1 if SITEMAP is not None else 0))                  # 1.142: the tag column (--sitemap) is before the OS column
+                          )
                 header.append(" ".join(shown_fields) + " " * max(0, target - 1 - len(" ".join(field_list))))     # padding from the plain text (colours take no column)
         return (" ".join(header) + " " if header else "") + body
 
@@ -4245,7 +4252,6 @@ def language_label(code):
 # (counted in the health percentage); a 404 on any other URL is a page that never existed (attacks, probes): counted apart, never in the health.
 # ------------------------------------------------------------------------------------------------------------------
 SITEMAP = None                                   # the Sitemap of --sitemap (set by main); None: the check is off
-SITEMAP_WIDTH = 22                               # width of the tag column before the OS: "[pas dans sitemap.xml]" (22 characters)
 SITEMAP_TIMEOUT_S = 15                           # seconds to wait for the sitemap
 SITEMAP_REFRESH_S = 3600                         # the sitemap is read again every hour
 SITEMAP_RETRY_S = 60                             # ... and again after 60 s when it could not be read
@@ -4348,21 +4354,20 @@ class Sitemap:
         return sitemap_path(url) in paths
 
 
-def sitemap_cell(code, url):
-    """1.142 --sitemap: the tag before the OS column, SITEMAP_WIDTH wide: [in sitemap.xml] (important page, counted in the health) or [not in sitemap.xml]
-    (never existed, not counted) for a 404; [disabled] when the sitemap is not read yet; blanks for the other lines. None: no column (--sitemap not given)."""
-    if SITEMAP is None:
-        return None
-    if str(code) != "404":
-        return " " * SITEMAP_WIDTH
-    if is_disabled(url):                                          # 1.143: refused on purpose by our configuration (--disable-uri)
-        return color_code(STYLES["debug"], TR("[disabled]").ljust(SITEMAP_WIDTH))
+def sitemap_tag(code, url):
+    """1.144 --sitemap: the tag shown at the END of a 404 line: [in sitemap.xml] (important page, counted in the health), [not in sitemap.xml] (never
+    existed, not counted), [disabled] (refused on purpose by our configuration), [not read yet] (sitemap not read). "" for the other lines and when
+    --sitemap is off. French: [dans sitemap.xml], [pas dans sitemap.xml], [désactivé], [pas encore lu]."""
+    if SITEMAP is None or str(code) != "404":
+        return ""
+    if is_disabled(url):                                          # refused on purpose by our configuration (--disable-uri)
+        return " " + color_code(STYLES["debug"], TR("[disabled]"))
     listed = SITEMAP.listed(url)
     if listed is None:
-        return color_code(STYLES["debug"], TR("[not read yet]").ljust(SITEMAP_WIDTH))
+        return " " + color_code(STYLES["debug"], TR("[not read yet]"))
     if listed:
-        return color_code(STYLES["warning"], TR("[in sitemap.xml]").ljust(SITEMAP_WIDTH))
-    return color_code(STYLES["debug"], TR("[not in sitemap.xml]").ljust(SITEMAP_WIDTH))
+        return " " + color_code(STYLES["warning"], TR("[in sitemap.xml]"))
+    return " " + color_code(STYLES["debug"], TR("[not in sitemap.xml]"))
 
 
 def sitemap_report(url, folder=NGINX_LOG_DIR):
@@ -4416,6 +4421,8 @@ class Stats:
         self.lines = self.requests = self.mails = 0
         self.conflicts = self.final_failures = 0          # conflicts retried by Odoo (harmless) / final failures after all the retries (the request failed)
         self.conflict_codes, self.failure_codes = Counter(), Counter()      # PostgreSQL code -> number
+        self.reco_loaded = False                  # 1.144: True when the last run of web-monitor.py is read (less than 48 h old)
+        self.not_proposed = []                    # 1.144: (address, reason) of the addresses NOT proposed for a ban (relays, sweeps web-monitor does not recommend)
         self.recommended, self._reco_t, self.reco_state = {}, 0.0, ""            # {address: reason}: bans recommended by the last run of web-monitor.py (re-read every 60 s)
         self.mail_detail = None                      # function () -> lines: recipients of the failed e-mails to resend (set by follow(), reads PostgreSQL)
         self.par_ip, self.names = Counter(), {}
@@ -4461,20 +4468,45 @@ class Stats:
 
     def to_ban(self):
         """Addresses that made suspicious requests and that remain to be banned: neither already banned, nor of the whitelist or of a place,
-        nor of a known person, nor of this server (127.0.0.1, ::1 or one of its addresses: never ban oneself)."""
+        nor of a known person, nor of this server (127.0.0.1, ::1 or one of its addresses: never ban oneself). 1.144: not a relay of many visitors
+        (CDN, proxy); a 404 sweep is proposed only when the last run of web-monitor.py does not judge it otherwise (self.not_proposed: the others)."""
         self.load_recommended()
-        res = [(ip, n) for ip, n in self.suspect_ips.most_common()
-               if ip != "?" and not self.already_banned(ip) and ip not in self.protected_ones and ip not in self.people
-               and ip not in self.server and not local_address(ip)]
+        self.not_proposed = []
+
+        def candidate(ip):
+            return ip != "?" and not self.already_banned(ip) and ip not in self.protected_ones and ip not in self.people \
+                and ip not in self.server and not local_address(ip)
+
+        def hold(ip, reason):                             # 1.144: named in the health line, never proposed
+            if all(ip != other for other, _ in self.not_proposed):
+                self.not_proposed.append((ip, reason))
+
+        relay = TR("shared relay (CDN or proxy): the visitors behind it would be banned too")
+        res = []
+        for ip, n in self.suspect_ips.most_common():
+            if not candidate(ip):
+                continue
+            if CDN_NAME_RE.search(self.who(ip)):          # 1.144: a relay of many visitors: banning it blocks them all
+                hold(ip, relay)
+                continue
+            res.append((ip, n))
         views = {ip for ip, _ in res}
-        for ip, pages in sorted(self.ip_not_found.items(), key=lambda kv: -len(kv[1])):          # sweep: 5 DIFFERENT pages in 404 (WordPress, debug, .env... ; a visitor's address almost never does that)
-            if len(pages) >= THRESHOLD_404 and ip not in views and ip != "?" and not self.already_banned(ip) and ip not in self.protected_ones and ip not in self.people \
-                    and ip not in self.server and not local_address(ip):
+        for ip, pages in sorted(self.ip_not_found.items(), key=lambda kv: -len(kv[1])):          # sweep: 5 DIFFERENT pages in 404 (WordPress, debug, .env...)
+            if len(pages) >= THRESHOLD_404 and ip not in views and candidate(ip):
+                if CDN_NAME_RE.search(self.who(ip)):      # 1.144: a relay: the pages come from the visitors behind it
+                    hold(ip, relay)
+                    continue
+                if self.reco_loaded and ip not in self.recommended:      # 1.144: a fresh web-monitor.py run has judged it and does not recommend it
+                    hold(ip, TR("404 sweep, not recommended by web-monitor.py"))
+                    continue
                 res.append((ip, len(pages)))
                 views.add(ip)
         for ip in self.recommended:                      # recommended by web-monitor.py (probes seen only by nginx: never in Odoo's journal): n = 0
             if ip not in views and ip != "?" and not self.already_banned(ip) and ip not in self.protected_ones and ip not in self.people \
                     and ip not in self.server and not local_address(ip):
+                if CDN_NAME_RE.search(self.who(ip)):      # 1.144: even recommended, a relay of many visitors is not proposed
+                    hold(ip, relay)
+                    continue
                 res.append((ip, 0))
         return res
 
@@ -4493,14 +4525,18 @@ class Stats:
                 self.reco_state = f"the last web-monitor.py run ({path}) is {age_h:.0f} h old: too old (48 h at most)"
                 raise ValueError("too old")
             self.recommended = {x["ip"]: str(x.get("raison", "")) for x in d.get("ips", []) if isinstance(x, dict) and isinstance(x.get("ip"), str)}
+            self.reco_loaded = True                # 1.144: a fresh run: web-monitor.py decides on the 404 sweeps
         except PermissionError:
             self.recommended = {}
+            self.reco_loaded = False
             self.reco_state = f"{path} unreadable: permission denied (run app-log-live.py with sudo, like web-monitor.py)"
         except FileNotFoundError:
             self.recommended = {}
+            self.reco_loaded = False
             self.reco_state = f"{path} missing: web-monitor.py has not run here yet, or it writes elsewhere (WEB_MONITOR_STATE_DIR)"
         except (OSError, ValueError, TypeError, AttributeError):
             self.recommended = {}
+            self.reco_loaded = False
             self.reco_state = self.reco_state or f"{path} unreadable"
 
     def reco_diagnostic(self):
@@ -4961,6 +4997,8 @@ class Stats:
         views = {ip: src for ip, src in self.banned.items()}
         blocks.append((4 if views else 9, "  Banned addresses seen: " + color_code(ORANGE if views else "32", str(len(views))) + (" — " + " ; ".join(f"{self.who(ip)} ({src})" for ip, src in list(views.items())[:5]) if views else ".")))
         to_ban = self.to_ban()
+        if self.not_proposed:                             # 1.144: why some addresses are NOT proposed
+            blocks.append((9, "  " + TR("Not proposed for banning: ") + " ; ".join(f"{self.who(ip)} ({reason})" for ip, reason in self.not_proposed[:5])))
         if to_ban:
             blocks.append((4, color_code(ORANGE, f"  Addresses to ban: {len(to_ban)}") + " — " + " ; ".join(f"{self.who(ip)} ({self.ban_reason(ip, n)})" for ip, n in to_ban[:5])
                           + "  (key b: ban them with nginx-log-audit.sh --ban, like web-monitor.py)"))

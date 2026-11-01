@@ -349,6 +349,22 @@ Earlier history was archived outside this repository when this file was created.
 
 ## app-log-live.py
 
+### 1.144.20261101.120235 - Ban suggestions: no CDN relays, no sweep web-monitor.py does not recommend; sitemap tag at the end of the line; times over 100 s with one decimal
+
+- Title: the dashboard no longer proposes to ban a shared relay (Cloudflare) or an address that a fresh web-monitor.py run judged harmless; the sitemap tag moves to the end of the line; long durations show one decimal.
+- Reason: the user's dashboard proposed five addresses to ban (Cloudflare edge addresses among them) with 404 counts of 5 to 8 pages, while web-monitor.py scores them 0/7, 1/7 and 3/7 (its investigation score). The user asked to remove the new column before OS and to put the sitemap tag at the end of the line, and to show durations over 100 s with one decimal (2186.246226 becomes 2186.2).
+- Changes:
+  - CDN_NAME_RE: an address whose name (DNS or RDAP) names a CDN or relay (cloudflare, akamai, fastly, incapsula, imperva, bunnycdn) is never proposed for a ban, neither by the 404 sweep nor by web-monitor.py.
+  - Stats.to_ban(): a 404 sweep is proposed only when the last run of web-monitor.py is fresh (less than 48 h, Stats.reco_loaded) and recommends it; without a fresh run, the rule is unchanged (5 different pages in 404).
+  - Stats.not_proposed: the addresses held back and the reason; the dashboard shows them on the line "Not proposed for banning".
+  - Sitemap tag ([in sitemap.xml], [not in sitemap.xml], [disabled], [not read yet]) moved to the END of the 404 line (sitemap_tag() replaces sitemap_cell()). The column before OS, its header label SITEMAP and the padding are removed. The RL column (--request-length) is unchanged.
+  - short_time(): a duration over 100 s is shown with one decimal (2186.246226 becomes 2186.2), in the SQL time, the Python time and the websocket duration columns; other values are unchanged.
+  - Files: app-log-live.py, lang/app-log-live.fr.po (SITEMAP label removed, new strings), nginx-tools-tests/test_app_log_live.py (class AppLogLive144; tests 142 and 143 updated for the tag at the end of the line).
+- Bugs fixed: symptom: the dashboard proposed banning Cloudflare edge addresses and addresses that web-monitor.py scores 0/7 to 3/7. Diagnosis: to_ban() took any address with 5 different 404 pages, and the relay of many visitors and the web-monitor.py judgement were not consulted. Fix: the relay exclusion and the fresh-run rule above.
+- Safeguards and edge cases: banning a Cloudflare address would block every visitor who goes through it, so relays are never proposed, even when web-monitor.py recommends them (they are named in "Not proposed for banning"). Without a web-monitor.py run from the last 48 h, the 404 sweep rule is the old one: run web-monitor.py so that its judgement is used. The web-monitor.py score (x/7) is not read by this program, only its recommendation list. A duration of exactly 100 s keeps three decimals.
+- Checks performed: py_compile; rendering of 404 lines (tag at the end, nothing before OS), werkzeug line, websocket line (2186.2); short_time on 2186.246226, 12.345678, 100.000, empty and text values; test classes AppLogLive142, AppLogLive143 and AppLogLive144 (relays never proposed, sweep held without a recommendation, recommended address proposed, rule unchanged without a fresh file); test_i18n OK. test_app_log_live: 2 failures, both already present before 1.141 (test_colonnes_jamais_tassees..., test_120_journal_html...).
+- Action required: restart app-log-live.py. Run web-monitor.py so that its judgement is available for the 404 sweeps. To ban the real visitors behind Cloudflare, the ban must use the client address (CF-Connecting-IP), which this version does not do.
+
 ### 1.143.20261101.111357 - Sitemap on by default, refused paths tagged [disabled], merge of encoded URLs and websockets, status bar at 80 %, --log-chk-sitemap
 
 - Title: the sitemap check is on by default; the tag column shows the paths refused on purpose; the merge of the same request now works with different URL encodings and for websockets; the status bar is 80 % of the width; f re-reads the window size; new report option --log-chk-sitemap.

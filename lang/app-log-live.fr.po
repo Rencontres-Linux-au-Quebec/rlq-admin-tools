@@ -2892,9 +2892,6 @@ msgstr "robots refusés (403)"
 msgid "[BOT]"
 msgstr "[BOT]"
 
-msgid "SITEMAP"
-msgstr "SITEMAP"
-
 msgid "[disabled]"
 msgstr "[désactivé]"
 
@@ -2951,3 +2948,12 @@ msgstr "Pas de vérification du sitemap : pas de colonne d'étiquette ; les page
 
 msgid "Report of the 404 answers of the nginx logs: the pages listed in the sitemap (important), the paths refused on purpose and the others (never existed); then exits"
 msgstr "Rapport des réponses 404 des journaux nginx : les pages listées dans le sitemap (importantes), les chemins refusés volontairement et les autres (jamais existé) ; puis fin du programme"
+
+msgid "shared relay (CDN or proxy): the visitors behind it would be banned too"
+msgstr "relais partagé (CDN ou proxy) : les visiteurs qui passent par lui seraient bannis aussi"
+
+msgid "404 sweep, not recommended by web-monitor.py"
+msgstr "balayage 404, non recommandé par web-monitor.py"
+
+msgid "Not proposed for banning: "
+msgstr "Non proposées au bannissement : "
