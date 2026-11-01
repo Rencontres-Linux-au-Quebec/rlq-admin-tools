@@ -95,6 +95,7 @@ import contextlib
 import copy
 import datetime
 import glob
+import gzip
 import importlib.util
 import json
 import ipaddress
@@ -116,7 +117,7 @@ from urllib.parse import unquote, urlsplit
 from collections import Counter, OrderedDict
 from concurrent.futures import Future
 
-__version__ = "1.142.20261101.103302"
+__version__ = "1.143.20261101.111357"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
@@ -215,7 +216,7 @@ SCHEMA_CONFIG = {"ACCENTUATE_GROUP": ("accentuate_group", str), "CHIME": ("chime
                  "LINES": ("lines", int), "LOG_DIR": ("log_dir", str), "LOG_KEEP_DAYS": ("log_keep_days", int), "LOG_MERGE": ("log_merge", bool), "LOG_NGINX": ("log_nginx", bool), "MIN": ("min", bool), "MODULES_CUSTOM": ("modules_custom", bool), "MODULES_SORT": ("modules_sort", str), "MODULES_STARTUP": ("modules_startup", bool), "NAMESPACE": ("namespace", str),
                  "NO_BANNED": ("no_banned", bool), "NOT_FOUND": ("not_found", bool), "NO_BAN_PROMPT": ("no_ban_prompt", bool), "NO_CACHE": ("no_cache", bool), "NO_HISTORY": ("no_history", bool),
                  "NO_ISP": ("no_isp", bool), "NO_KEYS": ("no_keys", bool), "NO_LOG_FILE": ("no_log_file", bool), "NO_PRESENCE": ("no_presence", bool),
-                 "LEVEL": ("level", int), "BUFFER": ("buffer", int), "STATUS_EVERY": ("status_every", int), "NO_USER_AGENT": ("no_user_agent", bool), "HIDE_USER_AGENT": ("hide_user_agent", bool), "REQUEST_LENGTH": ("request_length", bool), "RECAP": ("recap", float), "RECORD_MAX": ("record_max", float), "SERVICE": ("service", str), "SITEMAP": ("sitemap", str), "SLOW": ("slow", float), "VERBOSE": ("verbose", bool)}
+                 "LEVEL": ("level", int), "BUFFER": ("buffer", int), "STATUS_EVERY": ("status_every", int), "NO_USER_AGENT": ("no_user_agent", bool), "HIDE_USER_AGENT": ("hide_user_agent", bool), "REQUEST_LENGTH": ("request_length", bool), "RECAP": ("recap", float), "RECORD_MAX": ("record_max", float), "SERVICE": ("service", str), "SITEMAP": ("sitemap", str), "NO_SITEMAP": ("no_sitemap", bool), "SLOW": ("slow", float), "VERBOSE": ("verbose", bool)}
 CHANGELOG_FILE = os.path.join(SCRIPT_DIR, "CHANGELOG.md")
 LINES_DEFAULT = 50
 DAYS_DEFAULT = 0                                                      # 0 = the whole journal history
@@ -373,13 +374,14 @@ def is_odoo_request(L):
     if L.database == "nginx" or L.instant is None:
         return False
     m = WERKZEUG_RE.search(L.text or "")
-    return bool(m and m.group(5))
+    return bool(m)                                  # 1.143: a websocket line (no SQL count, a duration only) merges too
 
 
 def request_key(L):
-    """(method and URL, status code): the same request in the nginx line and in the Odoo line."""
+    """(method and URL, status code): the same request in the nginx line and in the Odoo line. 1.143: the URL is decoded on both sides, because nginx
+    keeps the encoding of the client (%20, %C3%A9) and Odoo's log may show the characters: they must give the same key."""
     m = WERKZEUG_RE.search(L.text or "") or NGINX_REQUEST_RE.search(L.text or "")
-    return (m.group(1), m.group(3))
+    return (unquote(m.group(1)), m.group(3))
 
 
 def merge_step(item, held):
@@ -397,7 +399,7 @@ def merge_step(item, held):
             if is_nginx_request(held_item[0]) and held_key == key and abs(L.instant - held_instant) <= MERGE_WINDOW:
                 del held[index]
                 m = WERKZEUG_RE.search(L.text)
-                held_item[0].odoo_times = (m.group(5), m.group(6) or "", m.group(7))
+                held_item[0].odoo_times = (m.group(5) or "", m.group(6) or "", m.group(7))
                 if L.ts_txt:                      # 1.131: the merged line shows the time of the Odoo line (hundredths), nginx has only seconds
                     held_item[0].ts_txt = L.ts_txt
                 ready.append(held_item)
@@ -410,7 +412,7 @@ def merge_step(item, held):
             if is_odoo_request(held_item[0]) and held_key == key and abs(L.instant - held_instant) <= MERGE_WINDOW:
                 del held[index]                   # 1.135: the Odoo line came first: it is absorbed into this nginx line
                 m = WERKZEUG_RE.search(held_item[0].text)
-                L.odoo_times = (m.group(5), m.group(6) or "", m.group(7))
+                L.odoo_times = (m.group(5) or "", m.group(6) or "", m.group(7))
                 if held_item[0].ts_txt:
                     L.ts_txt = held_item[0].ts_txt
                 ready.append(item)
@@ -4250,6 +4252,46 @@ SITEMAP_RETRY_S = 60                             # ... and again after 60 s when
 SITEMAP_MAX_BYTES = 50 * 1024 * 1024             # a larger file is refused
 SITEMAP_MAX_FILES = 50                           # sitemap index: at most this many sitemaps read
 LANGUAGE_PREFIX_RE = re.compile(r"^/[a-z]{2}(?:_[A-Z]{2})?(?=/|$)")      # /fr_CA/, /en/...: Odoo's language prefix, removed on both sides of the comparison
+DEFAULT_SITEMAP_URL = "https://www.rencontres-linux.quebec/sitemap.xml"     # 1.143: read by default; --sitemap URL gives another one, --no-sitemap turns it off
+SITEMAP_OFF_BY_ENV = os.environ.get("APP_LOG_LIVE_SITEMAP", "").strip().lower() in ("off", "no", "0")   # 1.143: APP_LOG_LIVE_SITEMAP=off: no default sitemap (tests, offline servers); --sitemap still works
+DISABLED_URI_CONF = "/etc/nginx/snippets/uri-desactivees.conf"               # 1.143: written by nginx-hardening.sh --disable-uri: one "# uri : CHEMIN" line per path
+NGINX_LOG_DIR = "/var/log/nginx"                                             # 1.143 --log-chk-sitemap: the nginx access logs (current and rotated, .gz)
+DISABLED_RE = None                                                           # 1.143: the paths refused on purpose (set by main); None: none
+
+
+def disabled_uri_re(path=DISABLED_URI_CONF):
+    """1.143: the paths refused on purpose by nginx-hardening.sh --disable-uri (same rule as the nginx location: optional language prefix, then the path
+    and "/" or the end). None when the file is absent or lists no path."""
+    chemins = []
+    try:
+        with open(path, encoding="utf-8", errors="replace") as conf:
+            for line in conf:
+                if line.startswith("# uri : "):
+                    chemins.append(line[len("# uri : "):].strip())
+    except OSError:
+        return None
+    chemins = [c for c in chemins if c]
+    if not chemins:
+        return None
+    return re.compile("|".join(f"^(/[A-Za-z0-9_-]+)?{re.escape(c)}(/|$)" for c in chemins))
+
+
+def is_disabled(url):
+    """1.143: True when the URL is one that our configuration refuses on purpose (--disable-uri): not a problem, not counted in the health."""
+    return DISABLED_RE is not None and bool(DISABLED_RE.search(unquote(url.split("?", 1)[0])))
+
+
+def reload_terminal_size():
+    """1.143 f key: $COLUMNS and $LINES are read again from the terminal (the window may have been resized since the start). Returns False when no
+    terminal answers (the sizes already known stay)."""
+    for fd in (1, 2, 0):
+        try:
+            size = os.get_terminal_size(fd)
+        except OSError:
+            continue
+        os.environ["COLUMNS"], os.environ["LINES"] = str(size.columns), str(size.lines)
+        return True
+    return False
 
 
 def sitemap_path(url):
@@ -4313,18 +4355,60 @@ def sitemap_cell(code, url):
         return None
     if str(code) != "404":
         return " " * SITEMAP_WIDTH
+    if is_disabled(url):                                          # 1.143: refused on purpose by our configuration (--disable-uri)
+        return color_code(STYLES["debug"], TR("[disabled]").ljust(SITEMAP_WIDTH))
     listed = SITEMAP.listed(url)
     if listed is None:
-        return color_code(STYLES["debug"], TR("[disabled]").ljust(SITEMAP_WIDTH))
+        return color_code(STYLES["debug"], TR("[not read yet]").ljust(SITEMAP_WIDTH))
     if listed:
         return color_code(STYLES["warning"], TR("[in sitemap.xml]").ljust(SITEMAP_WIDTH))
     return color_code(STYLES["debug"], TR("[not in sitemap.xml]").ljust(SITEMAP_WIDTH))
 
 
+def sitemap_report(url, folder=NGINX_LOG_DIR):
+    """1.143 --log-chk-sitemap: the 404 answers of the nginx access logs (current and rotated, .gz), by URL: the pages LISTED in the sitemap (important:
+    a page that no longer exists), those refused on purpose (--disable-uri) and the others (never existed). Returns (lines to show, exit code)."""
+    try:
+        paths = Sitemap(url, start=False).read(url, 0)
+    except Exception as problem:                              # network, HTTP, XML: a message, not a traceback
+        return [TR("The sitemap cannot be read: {url} ({problem})").format(url=url, problem=problem or problem.__class__.__name__)], 2
+    files = sorted(set(glob.glob(os.path.join(folder, "*access.log")) + glob.glob(os.path.join(folder, "*access.log.*"))))
+    if not files:
+        return [TR("No nginx access log in {folder}").format(folder=folder)], 2
+    listed, others, refused = Counter(), Counter(), Counter()
+    for name in files:
+        try:
+            opener = gzip.open(name, "rt", encoding="utf-8", errors="replace") if name.endswith(".gz") else open(name, encoding="utf-8", errors="replace")
+            with opener as f:
+                for line in f:
+                    m = NGINX_REQUEST_RE.search(line)
+                    if not m or m.group(3) != "404":
+                        continue
+                    raw_page = unquote(m.group(1).split(" ", 1)[-1].split("?", 1)[0])
+                    page = sitemap_path(raw_page)                 # 1.143: the page, whatever its language prefix or query string
+                    if is_disabled(raw_page):
+                        refused[page] += 1
+                    elif page in paths:
+                        listed[page] += 1
+                    else:
+                        others[page] += 1
+        except OSError:
+            continue                                          # an unreadable file (rights, rotation in progress): the others are read
+    lines = [color_code(STYLES["title"], TR("Sitemap: {url} ({n} pages)").format(url=url, n=len(paths)))]
+    lines.append(color_code(STYLES["url_warning"], TR("404 on pages of the sitemap (important: a page that no longer exists): {n} answers, {m} URLs")
+                            .format(n=sum(listed.values()), m=len(listed))))
+    lines += [f"  {count:>6}  {page}" for page, count in listed.most_common()] or [f"  {TR('none')}"]
+    lines.append(TR("404 refused on purpose (--disable-uri, not a problem): {n} answers, {m} URLs").format(n=sum(refused.values()), m=len(refused)))
+    lines.append(TR("404 on URLs never in the sitemap (attacks, not in the health): {n} answers, {m} URLs").format(n=sum(others.values()), m=len(others)))
+    lines += [f"  {count:>6}  {page}" for page, count in others.most_common(10)]
+    lines.append(TR("Files read: {n}").format(n=len(files)))
+    return lines, 0
+
+
 class Stats:
     """What happened during the session, for the summary (Ctrl-C, --summary) and the dashboard (Ctrl-G, Ctrl-T): most active addresses, suspicious requests,
     5xx and 4xx errors, slow requests, banned addresses, pages per language, most requested URLs, Odoo errors. Counts only the DISPLAYED lines (after --only and --suspect)."""
-    COUNTERS = ("par_ip", "by_name", "suspect_ips", "suspect_urls", "urls", "languages", "statuses", "odoo_errors", "pages", "pages_per_ip", "visits", "probes", "not_found", "gone_404", "unknown_404", "conflict_codes", "failure_codes")
+    COUNTERS = ("par_ip", "by_name", "suspect_ips", "suspect_urls", "urls", "languages", "statuses", "odoo_errors", "pages", "pages_per_ip", "visits", "probes", "not_found", "gone_404", "unknown_404", "disabled_404", "conflict_codes", "failure_codes")
     VISIT_PAUSE = 1800                                 # seconds without a page view after which the return of an address is a NEW visit
 
     def __init__(self, slowest):
@@ -4341,6 +4425,7 @@ class Stats:
         self.not_found = Counter()                                               # URL -> number of 404 responses
         self.gone_404 = Counter()                 # 1.142 --sitemap: URL listed in sitemap.xml that answers 404 (important: counted in the health)
         self.unknown_404 = Counter()              # 1.142 --sitemap: URL NOT in sitemap.xml answering 404 (never existed: not counted in the health)
+        self.disabled_404 = Counter()             # 1.143: 404 on a path refused on purpose (--disable-uri): not counted in the health
         self.ip_not_found = {}                                                   # address -> set of the DIFFERENT pages it requested in 404 (probe sweep)
         self.probes = Counter()                           # "suspicious" URLs requested by THIS server itself (health probes): counted apart, never to ban
         self.errors = {5: Counter(), 4: Counter()}
@@ -4506,7 +4591,9 @@ class Stats:
         if code == 404:
             self.not_found[url] += 1
             self.ip_not_found.setdefault(ip, set()).add(url.split("?", 1)[0])
-            if SITEMAP is not None and SITEMAP.paths is not None:               # 1.142: listed in the sitemap = important; any other = never existed
+            if is_disabled(url):                                                # 1.143: refused on purpose by our configuration: neither important nor an attack
+                self.disabled_404[url] += 1
+            elif SITEMAP is not None and SITEMAP.paths is not None:             # 1.142: listed in the sitemap = important; any other = never existed
                 (self.gone_404 if SITEMAP.listed(url) else self.unknown_404)[url] += 1
         total = request_duration(L.text)
         if not self.period:
@@ -4643,6 +4730,8 @@ class Stats:
                           ["URL: " + self.top(self.gone_404, 5)] if gone else (), (1, 5), gone)
                 never = sum(self.unknown_404.values())
                 indicator(0, TR("404 on URLs never in sitemap.xml (attacks, not in the health): ") + (f"{never}" if never else none_fem()), (), (10 ** 9, 10 ** 9), never)
+            refused = sum(self.disabled_404.values())
+            indicator(0, TR("404 refused on purpose (--disable-uri, not in the health): ") + (f"{refused}" if refused else none_fem()), (), (10 ** 9, 10 ** 9), refused)
         severe = Counter({k: v for k, v in self.odoo_errors.items() if k[0] in ("ERROR", "CRITICAL")})
         ng = sum(severe.values())
         detail = [f"{k[0]} {k[1]} ×{v} : {k[2]}" + self.odoo_error_times(k) for k, v in severe.most_common(3)]
@@ -4930,7 +5019,7 @@ class StatusBar:
         self.sql_max = self.odoo_err = 0                 # 1.120: most SQL queries of one request; Odoo ERROR and CRITICAL lines
         self.ports = collections.Counter()               # 1.121: nginx requests per port (server port and Odoo upstream port)
         self.sqli = self.e4 = self.e5 = self.slow = 0
-        self.gone_404 = self.unknown_404 = 0            # 1.142 --sitemap: 404 on a page of sitemap.xml (important, in the health) / on any other URL (never existed)
+        self.gone_404 = self.unknown_404 = self.disabled_404 = 0    # 1.142 --sitemap: 404 on a page of sitemap.xml (important, in the health) / on any other URL (never existed); 1.143: refused on purpose
         self.bots403 = 0                                                       # 1.130: 403 answered to the bots refused by policy
         self.codes = collections.Counter()               # 1.124: 4xx and 5xx answers by code (403, 404, 500...)
         self.slow_max = 0.0
@@ -4960,11 +5049,14 @@ class StatusBar:
                 self.e4 += 1
                 self.codes[code] += 1
                 problem = True
-                if code == 404 and request and SITEMAP is not None and SITEMAP.paths is not None:      # 1.142: listed = important; any other = never existed
-                    if SITEMAP.listed(request.group(1)):
-                        self.gone_404 += 1
-                    else:
-                        self.unknown_404 += 1
+                if code == 404 and request:
+                    if is_disabled(request.group(1)):                                 # 1.143: refused on purpose: no penalty
+                        self.disabled_404 += 1
+                    elif SITEMAP is not None and SITEMAP.paths is not None:          # 1.142: listed = important; any other = never existed
+                        if SITEMAP.listed(request.group(1)):
+                            self.gone_404 += 1
+                        else:
+                            self.unknown_404 += 1
             elif code >= 500:
                 self.e5 += 1
                 self.codes[code] += 1
@@ -5026,7 +5118,7 @@ class StatusBar:
         """1.120: health of the bar, out of 100 %: SQL injection attempts (3 points), 5xx (2), banned addresses (2 each), 4xx (0.1 each) and
         connections slower than 9 s (1 each) take points off. 1.130: the 403 answered to the bots refused by policy take none (counted apart).
         Reset by Ctrl-T and g, like the other counters."""
-        never = self.unknown_404                                  # 1.142: 404 on URLs never in the sitemap (attacks): no penalty
+        never = self.unknown_404 + self.disabled_404              # 1.142: 404 on URLs never in the sitemap (attacks) and 1.143: refused on purpose: no penalty
         penalty = 3 * self.sqli + 2 * self.e5 + 0.1 * (self.e4 - never) + 2 * len(self.banned) + self.slow
         return max(0, round(100 - penalty))
 
@@ -5606,7 +5698,8 @@ def follow(cmd, people, resolver, options, output):
         head = f" {stamp}  " if stamp else " "
         bar = status.color()
         pieces = [(head + TR("STATUS") + "  ", None)] + status.pieces(users, len(ssh_sessions())) + [("  ·  " + TR("since the last detailed report (Ctrl-T or g)") + " ", None)]
-        limit = max(20, columns - 1)
+        width = max(20, int(columns * UNDERLINE_RATIO))      # 1.143: 80 % of the width, as the underlined lines
+        limit = width
         out, left = [], limit
         for text, code in pieces:
             if left <= 0:
@@ -5615,7 +5708,7 @@ def follow(cmd, people, resolver, options, output):
             left -= len(chunk)
             out.append(color_code(f"7;1;{code}" if code else f"7;1;{bar}", chunk))
         visible = limit - left
-        out.append(color_code(f"7;1;{bar}", " " * max(0, columns - 1 - visible)))
+        out.append(color_code(f"7;1;{bar}", " " * max(0, width - visible)))
         return "".join(out)
 
     def show_header(plain=None):
@@ -6306,7 +6399,13 @@ def follow(cmd, people, resolver, options, output):
             status.reset()                                  # 1.113: a detailed report starts a new period for the status bar
             write_out(["  " + TR("Status bar: counters reset (new period from now).")])
         elif key_value == "refresh":                        # 1.113: f key - last lines displayed again with the current options
+            columns_before = terminal_columns()
+            reload_terminal_size()                          # 1.143: $COLUMNS and $LINES read again (the window may have been resized)
+            if terminal_columns() != columns_before:
+                state["header_shown"] = False               # the labels are measured again on the next request line
+                form.width = address_width()
             refresh_lines()
+            write_out([status_line()])                      # 1.143: the status bar comes back after the refreshed lines
         elif key_value == "print":                          # 1.113: P key - last lines printed to a file, colors kept
             print_lines()
         elif key_value.startswith("level"):
@@ -6801,7 +6900,7 @@ MENU_ENTREES = [
 
 
 def main():
-    global VERBOSE, NAME_WIDTH, NAME_TRUNCATE, COLOR, TIME_UTC, SITEMAP
+    global VERBOSE, NAME_WIDTH, NAME_TRUNCATE, COLOR, TIME_UTC, SITEMAP, DISABLED_RE
     parser = (I18N.parser if I18N else LocalizedArgumentParser)(
         description="Real-time application log: local ISO time without duplicates, each IP address replaced by the name of the person already signed in (otherwise DNS name, otherwise owner of the address block), presence of people, colors.")
     parser.add_argument("--app", metavar="NAME", help="Application behind nginx (profile apps/NAME.conf: odoo, bbb…) — detected automatically by default")
@@ -6912,8 +7011,13 @@ def main():
                         help="Print at the end an error report to copy and paste (program, version, server, failures, warnings)")
     parser.add_argument("--service", default=None, help="Systemd unit to follow (default: detected)")
     parser.add_argument("--sitemap", default=None, metavar="URL",
-                        help="Odoo sitemap.xml (http or https address): the 404 pages listed in it are important pages that no longer exist (counted in the health); "
-                             "the other 404 pages never existed (attacks: not counted). Tag [in / not in sitemap.xml] before the OS column (default: off)")     # 1.142
+                        help="Odoo sitemap.xml (http or https address; default: https://www.rencontres-linux.quebec/sitemap.xml): the 404 pages listed in it are important pages that no "
+                             "longer exist (counted in the health); the other 404 pages never existed (attacks: not counted); the paths refused on purpose by "
+                             "--disable-uri are tagged [disabled] (not counted). Tag before the OS column")     # 1.142, 1.143
+    parser.add_argument("--no-sitemap", action="store_true", help="No sitemap check: no tag column; the 404 pages are counted as before")     # 1.143
+    parser.add_argument("--log-chk-sitemap", action="store_true",
+                        help="Report of the 404 answers of the nginx logs: the pages listed in the sitemap (important), the paths refused on purpose and the "
+                             "others (never existed); then exits")     # 1.143
     parser.add_argument("--time-report", type=float, nargs="?", const=REPORT_DEFAULT, default=None, metavar="MIN",
                         help=f"Every MIN minutes, the same report as Ctrl-T (what changed since the last display) ({REPORT_DEFAULT:g} without value)")
     parser.add_argument("-v", "--verbose", action="store_true", help="Show each external command run")
@@ -7054,6 +7158,12 @@ def main():
         for text_line in module_lines(odoo_db, profile.get("ODOO_CONF"), databases_seen, modules_sort_state if args.modules else (MODULES_SORT_DEFAULT, False, args.modules_custom), None if args.modules else args.modules_latest):
             print(text_line)
         return 0
+    DISABLED_RE = disabled_uri_re()                                   # 1.143: the paths refused on purpose (--disable-uri)
+    if args.log_chk_sitemap:                                          # 1.143: report of the 404 answers in the sitemap, then exits
+        report_lines, report_code = sitemap_report(args.sitemap or DEFAULT_SITEMAP_URL)
+        for text_line in report_lines:
+            print(text_line)
+        return report_code
     if args.rate_limit:
         limits_module = load_module("_limites")
         try:
@@ -7158,10 +7268,10 @@ def main():
         banned_ips = Bans()
         banned_ips.start()
         eprint(banned_ips.summary())
-    if args.sitemap:                                                  # 1.142 --sitemap: read in the background; a wrong address stops the program at once
+    if not args.no_sitemap and (args.sitemap or not SITEMAP_OFF_BY_ENV):      # 1.142-1.143 --sitemap (default: the site's sitemap): read in the background
         try:
-            SITEMAP = Sitemap(args.sitemap)
-        except ValueError as problem:
+            SITEMAP = Sitemap(args.sitemap or DEFAULT_SITEMAP_URL)
+        except ValueError as problem:                                 # a wrong address stops the program at once
             parser.error(f"--sitemap: {problem}")
     options = {"keep_ip": not args.hide_ip, "minimal": args.min, "hide_addons": args.hide_addons, "lines": args.lines, "recap": args.recap,
                "slow": max(0.0, args.slow), "only": [t.lower() for t in (args.only or []) if t], "highlight_words": read_highlight(args.highlight), "highlight_pattern": highlight_pattern(read_highlight(args.highlight)), "suspect": args.suspect, "disk_min": max(0.0, args.disk_min), "connections": max(0.0, min(100.0, args.connections)), "external_ip": not args.no_isp, "odoo_journal": profile.get("ODOO_LOGFILE"), "profile": profile, "service": service, "diag_hosts": args.diagnose_host, "not_found": args.not_found, "steps_line": args.steps_line, "summary": args.summary, "banned_ips": banned_ips,

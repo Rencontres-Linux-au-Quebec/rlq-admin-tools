@@ -10,6 +10,7 @@ import os
 import re
 import shutil
 import subprocess
+import tempfile
 import time
 import unittest.mock
 
@@ -24,6 +25,7 @@ FUSEAU = datetime.timezone(datetime.timedelta(hours=-4))
 
 
 ANSI = re.compile(r"\x1b\[[0-9;]*m|[\ue001\ue002]")
+os.environ.setdefault("APP_LOG_LIVE_SITEMAP", "off")      # 1.143: the programs run here have no network: no default sitemap read
 
 
 _LIVE_TR = None
@@ -3821,11 +3823,11 @@ class AppLogLive142(unittest.TestCase):
         ok = ANSI.sub("", m.Formatting(False, 40, 0.0, False).format_value(m.Line(self.ligne_nginx("/about-us", "200")), {}, False))
         self.assertNotIn(m.TR("[not in sitemap.xml]"), ok)
 
-    def test_142_etiquette_desactive_tant_que_non_lu(self):
+    def test_142_etiquette_pas_encore_lu(self):
         m = self.m
         m.SITEMAP = self.Fixe(None)
         texte = ANSI.sub("", m.Formatting(False, 40, 0.0, False).format_value(m.Line(self.ligne_nginx("/about-us")), {}, False))
-        self.assertIn(m.TR("[disabled]"), texte)
+        self.assertIn(m.TR("[not read yet]"), texte)
 
     def test_142_entete_SITEMAP_sur_la_colonne_de_l_etiquette(self):
         """L'en-tête SITEMAP est au-dessus de l'étiquette, et RL juste avant elle (--request-length)."""
@@ -3854,3 +3856,113 @@ class AppLogLive142(unittest.TestCase):
             barre.observe(m.Line(self.ligne_nginx(f"/wp-login-{i}.php")), None, 0.0, "4.4.4.5")
         self.assertEqual(barre.unknown_404, 40)
         self.assertEqual(barre.health(), sante_avant)
+
+
+class AppLogLive143(unittest.TestCase):
+    """1.143 : fusion des URL encodées différemment (nginx / Odoo) et des websockets ; chemins refusés volontairement (--disable-uri) étiquetés
+    [désactivé] et non comptés ; --log-chk-sitemap ; sitemap lu par défaut."""
+
+    @classmethod
+    def setUpClass(cls):
+        spec = importlib.util.spec_from_file_location("live143", script_path("app-log-live.py"))
+        cls.m = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(cls.m)
+
+    def setUp(self):
+        self.m.SITEMAP = None
+        self.m.DISABLED_RE = None
+
+    def tearDown(self):
+        self.m.SITEMAP = None
+        self.m.DISABLED_RE = None
+
+    def nginx(self, requete, code="200"):
+        return ('2026-11-01T10:21:02.000000-0500 odoo18 http: 1.2.3.4 - - "' + requete + ' HTTP/1.1" ' + code +
+                ' 112k "https://www.example.org/en_CA" "Mozilla/5.0 (Linux)" host=www.example.org rl=300')
+
+    def odoo(self, requete, code="200", sql="5 0.001 0.007"):
+        taille = "-" if sql.count(" ") == 2 else ""               # a websocket line has its size, then one duration
+        return ('2026-11-01T10:21:02.410000-0500 odoo18 odoo[1]: 2026-11-01 10:21:02,410 1 INFO base werkzeug: 1.2.3.4 - - '
+                '[01/Nov/2026 10:21:02] "' + requete + ' HTTP/1.1" ' + code + ' ' + (taille + " " if taille else "") + sql)
+
+    def test_143_fusion_url_encodee_differemment(self):
+        """nginx garde %20 et %C3%A9 du client ; Odoo peut montrer les caractères : une seule ligne doit sortir."""
+        held = collections.deque()
+        self.assertEqual(self.m.merge_step([self.m.Line(self.nginx("GET /web/image/9079/EDIT%20(1).webp%20%C3%89"))], held), [])
+        ready = self.m.merge_step([self.m.Line(self.odoo("GET /web/image/9079/EDIT (1).webp É"))], held)
+        self.assertEqual(len(ready), 1)
+        self.assertEqual(len(held), 0)
+        self.assertEqual(ready[0][0].odoo_times, ("5", "0.001", "0.007"))
+
+    def test_143_fusion_websocket(self):
+        """Une ligne websocket Odoo (une seule durée, sans requêtes SQL) se fusionne avec sa ligne nginx 101."""
+        held = collections.deque()
+        self.m.merge_step([self.m.Line(self.nginx("GET /websocket?version=18.0-7", "101"))], held)
+        ready = self.m.merge_step([self.m.Line(self.odoo("GET /websocket?version=18.0-7", "101", "494 1730.555"))], held)
+        self.assertEqual(len(ready), 1)
+        self.assertEqual(len(held), 0)
+        shown = self.m.Formatting(False, 40, 0.0, False).format_value(ready[0][0], {}, False)
+        self.assertEqual(shown.count("GET"), 1, shown)
+        self.assertIn("1730.555", shown)
+
+    def test_143_chemins_refuses_volontairement(self):
+        """--disable-uri : "# uri : /shop" couvre /shop et /es/shop/panier, pas /shopping."""
+        with tempfile.TemporaryDirectory() as dossier:
+            conf = os.path.join(dossier, "uri-desactivees.conf")
+            with open(conf, "w", encoding="utf-8") as f:
+                f.write("# Généré\n# uri : /shop\nlocation ~ x { return 404; }\n")
+            self.m.DISABLED_RE = self.m.disabled_uri_re(conf)
+        self.assertTrue(self.m.is_disabled("/es/shop/panier?x=1"))
+        self.assertFalse(self.m.is_disabled("/shopping"))
+        self.assertIsNone(self.m.disabled_uri_re(os.path.join(tempfile.gettempdir(), "absent-app-log-live.conf")))
+
+    def test_143_refuse_non_compte_dans_la_sante(self):
+        """404 sur un chemin refusé volontairement : étiquette [désactivé], aucune pénalité."""
+        m = self.m
+        with tempfile.TemporaryDirectory() as dossier:
+            conf = os.path.join(dossier, "uri.conf")
+            with open(conf, "w", encoding="utf-8") as f:
+                f.write("# uri : /shop\n")
+            m.DISABLED_RE = m.disabled_uri_re(conf)
+        m.SITEMAP = AppLogLive142.Fixe({"/about-us"})
+        barre = m.StatusBar()
+        for _ in range(50):
+            barre.observe(m.Line(self.nginx("GET /shop/panier", "404")), None, 0.0, "4.4.4.4")
+        self.assertEqual(barre.disabled_404, 50)
+        self.assertEqual(barre.health(), 100)
+        texte = ANSI.sub("", m.Formatting(False, 40, 0.0, False).format_value(m.Line(self.nginx("GET /shop/panier", "404")), {}, False))
+        self.assertIn(m.TR("[disabled]"), texte)
+
+    def test_143_etiquette_non_lu(self):
+        m = self.m
+        m.SITEMAP = AppLogLive142.Fixe(None)
+        texte = ANSI.sub("", m.Formatting(False, 40, 0.0, False).format_value(m.Line(self.nginx("GET /about-us", "404")), {}, False))
+        self.assertIn(m.TR("[not read yet]"), texte)
+
+    def test_143_rapport_log_chk_sitemap(self):
+        """--log-chk-sitemap : pages 404 listées (avec les variantes ?query et /fr_CA/), refusées volontairement, jamais existantes ; sitemap non lu : code 2."""
+        m = self.m
+        with tempfile.TemporaryDirectory() as dossier:
+            with open(os.path.join(dossier, "access.log"), "w", encoding="utf-8") as f:
+                f.write('1.2.3.4 - - [01/Nov/2026:10:00:00 -0400] "GET /en_CA/about-us HTTP/1.1" 404 7576 "-" "x" host=a rl=1\n')
+                f.write('1.2.3.4 - - [01/Nov/2026:10:00:01 -0400] "GET /about-us?x=1 HTTP/1.1" 404 7576 "-" "x" host=a rl=1\n')
+                f.write('5.6.7.8 - - [01/Nov/2026:10:00:02 -0400] "GET /wp-login.php HTTP/1.1" 404 7576 "-" "x" host=a rl=1\n')
+                f.write('5.6.7.8 - - [01/Nov/2026:10:00:03 -0400] "GET /about-us HTTP/1.1" 200 7576 "-" "x" host=a rl=1\n')
+            m.DISABLED_RE = None
+            with unittest.mock.patch.object(m.Sitemap, "read", return_value={"/about-us"}):
+                lignes, code = m.sitemap_report("https://www.example.org/sitemap.xml", dossier)
+            self.assertEqual(code, 0)
+            texte = "\n".join(ANSI.sub("", x) for x in lignes)
+            self.assertIn(f"{2:>6}  /about-us", texte)                # /en_CA/about-us et /about-us?x=1 : une seule page, deux réponses
+            self.assertIn("/wp-login.php", texte)                     # jamais existante : listée à part
+            with unittest.mock.patch.object(m.Sitemap, "read", side_effect=OSError("hors ligne")):
+                lignes, code = m.sitemap_report("https://www.example.org/sitemap.xml", dossier)
+            self.assertEqual(code, 2)
+
+    def test_143_option_sitemap_par_defaut_et_desactivation(self):
+        """Le sitemap du site est lu par défaut ; --no-sitemap le désactive (configuration SITEMAP et NO_SITEMAP)."""
+        m = self.m
+        self.assertEqual(m.DEFAULT_SITEMAP_URL, "https://www.rencontres-linux.quebec/sitemap.xml")
+        self.assertEqual(m.SCHEMA_CONFIG["NO_SITEMAP"][0], "no_sitemap")
+        self.assertEqual(m.SCHEMA_CONFIG["SITEMAP"][0], "sitemap")
+        self.assertTrue(m.SITEMAP_OFF_BY_ENV or m.DEFAULT_SITEMAP_URL)

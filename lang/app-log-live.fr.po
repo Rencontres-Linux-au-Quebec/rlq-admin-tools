@@ -2916,5 +2916,38 @@ msgstr "404 sur les pages du sitemap.xml (importantes, dans la santé) : "
 msgid "404 on URLs never in sitemap.xml (attacks, not in the health): "
 msgstr "404 sur des URL absentes du sitemap.xml (attaques, hors santé) : "
 
-msgid "Odoo sitemap.xml (http or https address): the 404 pages listed in it are important pages that no longer exist (counted in the health); the other 404 pages never existed (attacks: not counted). Tag [in / not in sitemap.xml] before the OS column (default: off)"
-msgstr "sitemap.xml d'Odoo (adresse http ou https) : les pages 404 qui y figurent sont des pages importantes qui n'existent plus (comptées dans la santé) ; les autres pages 404 n'ont jamais existé (attaques : non comptées). Étiquette [dans / pas dans sitemap.xml] avant la colonne OS (par défaut : désactivé)"
+msgid "[not read yet]"
+msgstr "[pas encore lu]"
+
+msgid "The sitemap cannot be read: {url} ({problem})"
+msgstr "Le sitemap ne peut pas être lu : {url} ({problem})"
+
+msgid "No nginx access log in {folder}"
+msgstr "Aucun journal d'accès nginx dans {folder}"
+
+msgid "Sitemap: {url} ({n} pages)"
+msgstr "Sitemap : {url} ({n} pages)"
+
+msgid "404 on pages of the sitemap (important: a page that no longer exists): {n} answers, {m} URLs"
+msgstr "404 sur les pages du sitemap (importantes : une page qui n'existe plus) : {n} réponses, {m} URL"
+
+msgid "404 refused on purpose (--disable-uri, not a problem): {n} answers, {m} URLs"
+msgstr "404 refusés volontairement (--disable-uri, sans gravité) : {n} réponses, {m} URL"
+
+msgid "404 on URLs never in the sitemap (attacks, not in the health): {n} answers, {m} URLs"
+msgstr "404 sur des URL absentes du sitemap (attaques, hors santé) : {n} réponses, {m} URL"
+
+msgid "Files read: {n}"
+msgstr "Fichiers lus : {n}"
+
+msgid "404 refused on purpose (--disable-uri, not in the health): "
+msgstr "404 refusés volontairement (--disable-uri, hors santé) : "
+
+msgid "Odoo sitemap.xml (http or https address; default: https://www.rencontres-linux.quebec/sitemap.xml): the 404 pages listed in it are important pages that no longer exist (counted in the health); the other 404 pages never existed (attacks: not counted); the paths refused on purpose by --disable-uri are tagged [disabled] (not counted). Tag before the OS column"
+msgstr "sitemap.xml d'Odoo (adresse http ou https ; par défaut : https://www.rencontres-linux.quebec/sitemap.xml) : les pages 404 qui y figurent sont des pages importantes qui n'existent plus (comptées dans la santé) ; les autres pages 404 n'ont jamais existé (attaques : non comptées) ; les chemins refusés volontairement par --disable-uri sont étiquetés [désactivé] (non comptés). Étiquette avant la colonne OS"
+
+msgid "No sitemap check: no tag column; the 404 pages are counted as before"
+msgstr "Pas de vérification du sitemap : pas de colonne d'étiquette ; les pages 404 sont comptées comme avant"
+
+msgid "Report of the 404 answers of the nginx logs: the pages listed in the sitemap (important), the paths refused on purpose and the others (never existed); then exits"
+msgstr "Rapport des réponses 404 des journaux nginx : les pages listées dans le sitemap (importantes), les chemins refusés volontairement et les autres (jamais existé) ; puis fin du programme"
