@@ -49,7 +49,7 @@ def ts(delta=0.0, fixe=None):
 
 def block(code="200", req="GET  /event", sql="105", t1="0.046", t2="0.426"):
     """Fin d'une ligne de werkzeug telle qu'elle est affichée : le bloc « H1.1 200 … » AVANT la requête."""
-    return f'H1.1 {code} {"-":>4} {sql:>4} {t1:>6} {t2:>6}   {req}'      # 1.121: size column 4 wide, request without quotes
+    return f'H1.1 {code} {"-":>4} {sql:>4} {t1:>6} {t2:>6}       {req}'  # 1.133: 4 more blanks: the OS column (3 characters) sits before the GET; 1.121: size column 4 wide
 
 
 def odoo(level, database, logger, text, delta=0.0, fixe=None):
@@ -1028,7 +1028,7 @@ class AppLogLive(EnvTest):
         self.journal([werkzeug(DNS, "/wp-login.php", 500), werkzeug(self.equipe_ip, "/x", 404)])
         rc, out, err = self.lancer("--no-presence")
         self.assertNotIn("\x1b[", out + err, "dans un tube : aucune séquence, mais le même texte")
-        self.assertIn('H1.1 500    -  105  0.046  0.426   GET  /wp-login.php', out)
+        self.assertIn('H1.1 500    -  105  0.046  0.426       GET  /wp-login.php', out)
         self.assertNotIn("Vidéo inverse", err)
 
     def test_presentation_compacte_sans_deux_points_crochets_ni_tirets(self):
@@ -1120,7 +1120,7 @@ class AppLogLive(EnvTest):
         l = out.splitlines()
         self.assertNotIn(f"[{utc:%Y-%m-%d}", T(l[0]))
         self.assertIn(f"[{autre:%Y-%m-%d %H:%M:%S}]", T(l[1]))                                   # another instant: kept
-        self.assertRegex(T(l[0]), r'base longpolling srv\.exemple\.org {28}H1\.1 101  494 {13}14\.602   GET  /websocket\?version=18\.0-7$')
+        self.assertRegex(T(l[0]), r'base longpolling srv\.exemple\.org {28}H1\.1 101  494 {13}14\.602       GET  /websocket\?version=18\.0-7$')
         self.assertEqual(l[0].index('GET'), l[2].index('GET'), "le GET du websocket est aligné sur celui des autres lignes")
         m = self.lancer("--no-presence", "--no-isp", "--min")[1].splitlines()                 # 2.40 --min: neither "werkzeug" nor "longpolling" (a REQUEST): names aligned
         self.assertNotIn("longpolling", m[0])
