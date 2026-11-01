@@ -1745,7 +1745,7 @@ class AppLogLive(EnvTest):
         self.assertTrue(l[2].endswith("← lente : 15.0 s") and "   4.0   11.0  " in l[2], l[2])
         self.assertNotIn("lente :", T(l[3]))
         text = self.en_couleur()
-        self.assertRegex(text, r"\x1b\[1;31m2\.100\x1b\[0m +\x1b\[1;31m3\.400\x1b\[0m")        # 1.134: feu tricolore : 5.5 s = rouge (3 s et plus)
+        self.assertRegex(text, r"\x1b\[33m2\.100\x1b\[0m +\x1b\[33m3\.400\x1b\[0m")        # 1.134: feu tricolore : 5.5 s = rouge (3 s et plus)
         self.assertRegex(text, r"\x1b\[1;31m4\.0\x1b\[0m +\x1b\[1;31m11\.0\x1b\[0m")                               # rouge gras : 15 s = 3 fois le seuil
         self.assertNotIn("lente :", self.lancer("--no-presence", "--slow", "0")[1])     # disabled
         self.assertEqual(self.lancer("--no-presence", "--slow", "20")[1].count("lente :"), 0)

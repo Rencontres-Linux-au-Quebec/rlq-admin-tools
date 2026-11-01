@@ -349,6 +349,21 @@ Earlier history was archived outside this repository when this file was created.
 
 ## app-log-live.py
 
+### 1.141.20261031.232600 - Time colours: white under 1 s, green 1 to 3 s, yellow 3 to 6 s, red above 6 s; websocket durations coloured
+
+- Title: the traffic light of the times follows the thresholds given by the user; the duration of a websocket (no SQL time) is coloured too.
+- Reason: the thresholds of 1.139 (green 1 to 3 s, yellow above 3 s) were not the ones wanted: green 1 to 2 s, yellow 3 to 6 s, red above 6 s. A websocket line (4035.985 s) was not coloured at all.
+- Changes:
+  - transfer_style(): under 1 s none (white); from 1 s to under 3 s green (transfer_low, 32); from 3 s to 6 s yellow (transfer_mid, 33); above 6 s red (transfer_slow, 1;31). The gap between 2 and 3 s is green.
+  - Werkzeug lines: the time column is coloured when it has a value, with SQL time or without (websocket: duration in the last column).
+  - Merged lines: the total is SQL time + Python time, or the Python time alone when there is no SQL time.
+  - nginx-tools-tests/test_app_log_live.py: expected colour of the 5.5 s request (yellow now).
+- Bugs fixed: symptom: the websocket duration was not coloured; a first version of this change showed the raw value (6 decimals): the shown text is coloured now.
+  symptom: websocket duration never coloured; diagnosis: the colour required an SQL time, which a websocket line does not have; fix: the condition is the value of the Python time.
+- Safeguards and edge cases: a non-numeric value is not coloured (the test is on the value of the time column only). Thresholds are fixed; say if they must be options.
+- Checks performed: py_compile; --version; transfer_style at 0.5, 1.5, 2.9, 3, 5.9, 6, 6.1 and 4035.985; test_requetes_lentes_surlignees_avec_leur_duree_et_slow; test_app_log_live: 218 tests, 2 failures, both already present before 1.141 (test_colonnes_jamais_tassees..., test_120_journal_html...); test_logs_merge and test_i18n OK.
+- Action required: none. Restart app-log-live.py.
+
 ### 1.140.20261031.231025 - Fix crash on a POST line in the header; header never stops the stream
 
 - Title: a crash (ValueError) when the first request line shown was a POST: the header was measured on the line itself, which has no "GET"; it stopped app-log-live.
