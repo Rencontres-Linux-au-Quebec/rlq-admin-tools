@@ -2778,8 +2778,8 @@ msgstr "{n} lignes écrites dans {path} (couleurs conservées : less -R {path} ;
 msgid "Last displayed lines kept in memory for the f key (displayed again with the current options) and the P key (printed to a file): 0 = none (default: 200)"
 msgstr "Dernières lignes affichées gardées en mémoire pour la touche f (affichées de nouveau avec les options courantes) et la touche P (imprimées dans un fichier) : 0 = aucune (défaut : 200)"
 
-msgid "Status bar in reverse video after every N displayed lines: SQL injection attempts, 4xx, 5xx, banned addresses, slow requests since the last detailed report (Ctrl-T or g); 0 = never; default: automatic, the terminal height minus 2 lines"
-msgstr "Barre d'état en vidéo inverse après toutes les N lignes affichées : tentatives d'injection SQL, 4xx, 5xx, adresses bannies, requêtes lentes depuis le dernier rapport détaillé (Ctrl-T ou g) ; 0 = jamais (défaut : automatique, la hauteur du terminal moins 2 lignes)"
+msgid "Status bar in reverse video after every N displayed lines: SQL injection attempts, 4xx, 5xx, banned addresses, slow requests since the last detailed report (Ctrl-T or g); 0 = never; default: automatic, two thirds of the terminal height"
+msgstr "Barre d'état en vidéo inverse après toutes les N lignes affichées : tentatives d'injection SQL, 4xx, 5xx, adresses bannies, requêtes lentes depuis le dernier rapport détaillé (Ctrl-T ou g) ; 0 = jamais (défaut : automatique, les deux tiers de la hauteur du terminal)"
 
 msgid "top IP"
 msgstr "IP principales"

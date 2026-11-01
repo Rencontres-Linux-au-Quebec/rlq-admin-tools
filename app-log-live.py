@@ -114,7 +114,7 @@ from urllib.parse import unquote
 from collections import Counter, OrderedDict
 from concurrent.futures import Future
 
-__version__ = "1.130.20261031.194927"
+__version__ = "1.131.20261031.200112"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
@@ -395,6 +395,8 @@ def merge_step(item, held):
                 del held[index]
                 m = WERKZEUG_RE.search(L.text)
                 held_item[0].odoo_times = (m.group(5), m.group(6) or "", m.group(7))
+                if L.ts_txt:                      # 1.131: the merged line shows the time of the Odoo line (hundredths), nginx has only seconds
+                    held_item[0].ts_txt = L.ts_txt
                 ready.append(held_item)
                 return ready
     if is_nginx_request(L):
@@ -4632,7 +4634,7 @@ class Stats:
 
 
 BUFFER_DEFAULT = 200                # 1.113 --buffer N: last displayed lines kept in memory (f: displayed again with the current options; P: printed to a file)
-STATUS_EVERY_DEFAULT = -1          # 1.113 --status-every N: status bar (reverse video) after every N displayed lines; 0 = never; -1 (1.120): automatic = terminal height minus 2 lines
+STATUS_EVERY_DEFAULT = -1          # 1.113 --status-every N: status bar (reverse video) after every N displayed lines; 0 = never; -1 (1.120, 1.131): automatic = two thirds of the terminal height
 # 1.113 SQL injection attempts, on the decoded URL: UNION SELECT, time or error functions (sleep, benchmark, extractvalue...), tautologies (' or 1=1), stacked statements
 SQLI_RE = re.compile(r"union(?:\s|\+|/\*.*?\*/|%20)+(?:all(?:\s|\+|%20)+)?select|information_schema|\b(?:sleep|benchmark|pg_sleep|load_file|extractvalue|updatexml)\s*\("
                      r"|\bxp_cmdshell\b|\bor\s*['\"]?\d+['\"]?\s*=\s*['\"]?\d+|'\s*(?:or|and)\s|;\s*(?:drop|insert|update|delete|shutdown)\b|\bconcat\s*\(\s*0x", re.IGNORECASE)
@@ -5310,7 +5312,7 @@ def follow(cmd, people, resolver, options, output):
             status.alerted = True
             sonner(beep["mode"], output.screen)
             output.write(color_code("1;31", "  " + TR("ALERT: the status bar turned red, investigate now (Ctrl-T or g to acknowledge)")) + "\n")
-        every = options["status_every"] if options["status_every"] >= 0 else max(5, terminal_rows() - 2)      # 1.120: automatic = the terminal height
+        every = options["status_every"] if options["status_every"] >= 0 else max(5, terminal_rows() * 2 // 3)      # 1.131: automatic = 2/3 of the terminal height (1.120: height minus 2)
         if every and state["emitted"] % every == 0:
             output.write(status_line() + "\n")
         if options["chime"] is not None and is_reportable_error(L, options["chime"]) and time.time() - beep["last"] >= 2.0:       # at most one beep every 2 s
@@ -6623,7 +6625,7 @@ def main():
     parser.add_argument("--buffer", type=int, default=BUFFER_DEFAULT, metavar="N",
                         help="Last displayed lines kept in memory for the f key (displayed again with the current options) and the P key (printed to a file): 0 = none (default: 200)")
     parser.add_argument("--status-every", type=int, default=STATUS_EVERY_DEFAULT, metavar="N",
-                        help="Status bar in reverse video after every N displayed lines: SQL injection attempts, 4xx, 5xx, banned addresses, slow requests since the last detailed report (Ctrl-T or g); 0 = never; default: automatic, the terminal height minus 2 lines")
+                        help="Status bar in reverse video after every N displayed lines: SQL injection attempts, 4xx, 5xx, banned addresses, slow requests since the last detailed report (Ctrl-T or g); 0 = never; default: automatic, two thirds of the terminal height")
     parser.add_argument("--country", action="append", default=None, metavar="CC,CC",
                         help="Show only the lines whose first address is in these countries (two-letter codes such as CA,FR; repeatable). Lines without address are hidden")
     parser.add_argument("--exclude-country", action="append", default=None, metavar="CC,CC",

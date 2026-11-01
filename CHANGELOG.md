@@ -349,6 +349,18 @@ Earlier history was archived outside this repository when this file was created.
 
 ## app-log-live.py
 
+### 1.131.20261031.200112 - --log-merge shows the Odoo time; automatic status bar at two thirds of the terminal
+
+- Title: with --log-merge, a merged line shows the time of the Odoo line (with hundredths); the automatic status bar appears after two thirds of the terminal height.
+- Reason: 1) the nginx time has only seconds (.00), while the Odoo line of the same request has hundredths: the merged line should show the Odoo time. 2) the status bar every (terminal height minus 2) lines was too rare: two thirds of the height is wanted.
+- Changes:
+  - merge_step(): when an Odoo line is absorbed by its nginx line, the merged line takes the time of the Odoo line (ts_txt).
+  - Automatic --status-every: max(5, terminal_rows() * 2 // 3) instead of terminal_rows() - 2. Help text, comment and French catalogue updated.
+- Bugs fixed: symptom: no hundredths on the merged lines; diagnosis: the merged line keeps the nginx time; fix: take the Odoo time.
+- Safeguards and edge cases: only the displayed time changes; the timing logic (L.instant) is unchanged. Minimum of 5 lines kept for very small terminals. --status-every N still overrides the automatic value.
+- Checks performed: py_compile, --version, test_i18n, test_logs_merge (41 tests OK).
+- Action required: none. Restart app-log-live.py to load the new version.
+
 ### 1.130.20261031.194927 - Robots refused by policy: [BOT] label and own counter, not counted in health
 
 - Title: the 403 answered to the crawlers refused by nginx/conf.d/bot_blocker.conf (Amazonbot, ClaudeBot, GPTBot, CCBot, Bytespider, Claude-SearchBot) are shown with [BOT] at the end of the line, counted apart as "bots refused (403)", and no longer lower the health percentage.
