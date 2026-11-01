@@ -2682,6 +2682,20 @@ Earlier history was archived outside this repository when this file was created.
 
 ## nginx-hardening.sh
 
+### 2.71.20261101.181555 - Odoo event tickets without parameters answer 404 (--update)
+
+- Title: /event/<id>/my_tickets requested without parameters now gets a 404 from nginx instead of a 500 from Odoo.
+- Reason: on 2026-11-01 Odoo 18 CE logged a TypeError for GET /event/119/my_tickets (requested by cache.google.com). The request had no registration_ids nor tickets_hash, so the controller raised an exception and the visitor got a 500.
+- Changes:
+  - nginx/snippets/odoo/_odoo-common.conf: new location ~ for ^(/xx_XX)?/event/<id>/my_tickets$, placed before location /. If the query string is empty, "return 404"; otherwise the request goes to Odoo with the same proxy headers as location /.
+  - nginx/VERSION: 1.17.20261101.181555.
+  - nginx-hardening.sh: SCRIPT_VERSION 2.71.20261101.181555. The file is deployed by --update (step 0f, with confirmation, backup and nginx -t).
+  - nginx-tools-tests/test_config_nginx.py: test_billets_sans_parametres_renvoient_404.
+- Bugs fixed: symptom: 500 and an Odoo traceback for each unparameterized request. Diagnosis: EventController.event_my_tickets() requires registration_ids and tickets_hash; Odoo does not check them before the call. Fix: nginx answers the malformed request itself.
+- Safeguards and edge cases: only the exact path /event/<digits>/my_tickets is matched; the 404 happens only when $args is empty; valid links with parameters are unchanged. The location declares its own proxy_set_header lines, so the inheritance problem described in location / does not apply. No ban is involved, so the CDN rules do not apply.
+- Checks: test_config_nginx (new test). Structural check only; nginx -t must be run on the server after --update.
+- Action required: run sudo nginx-hardening.sh --update on each Odoo server, review the diff shown for /etc/nginx/snippets/odoo/_odoo-common.conf, confirm, then test: curl -sI https://<domaine>/event/119/my_tickets must return 404.
+
 ### 2.70.20261101.174000 - Visitor address behind Cloudflare (option --cdn cloudflare)
 
 - Title: with --cdn cloudflare, nginx takes the visitor's real address from the CF-Connecting-IP header, only for connections coming from Cloudflare's published ranges.
