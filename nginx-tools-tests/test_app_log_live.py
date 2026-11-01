@@ -3598,9 +3598,11 @@ class AppLogLive123(EnvTest):
         autre = self.ODOO.replace("303 - 1", "404 - 1")                               # même URL, statut différent
         self.m.merge_step(self._item(self.NGINX), held)
         ready = self.m.merge_step(self._item(autre), held)
-        self.assertEqual(len(ready), 1)                                               # la ligne Odoo reste seule ...
-        self.assertEqual(len(held), 1)                                                # ... et la ligne nginx attend toujours
-        self.assertIsNone(ready[0][0].odoo_times)
+        self.assertEqual(ready, [])                                                   # 1.135: la ligne Odoo attend, elle aussi, sa ligne nginx
+        self.assertEqual(len(held), 2)                                                # les deux attendent ...
+        released = self.m.merge_release(held, time.time() + 10)                       # ... puis sont affichées seules après MERGE_HOLD
+        self.assertEqual(len(released), 2)
+        self.assertTrue(all(item[0].odoo_times is None for item in released))
 
     def test_niveau_sur_4_caracteres(self):
         erreur = self.m.Line("2026-10-31T09:53:28.000000-0400 odoo18 odoo[1]: 2026-10-31 05:53:28,000 1 ERROR base odoo.http: Exception")

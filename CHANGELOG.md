@@ -349,6 +349,20 @@ Earlier history was archived outside this repository when this file was created.
 
 ## app-log-live.py
 
+### 1.135.20261031.215149 - Menu key u for --hide-user-agent; Odoo line merged when it comes before its nginx line; periodic checks while the stream is busy
+
+- Title: the menu gets the key u for --hide-user-agent; with --log-merge an Odoo request line that arrives before its nginx line is merged with it; the periodic checks (health alert, disk, connections, external IP) run while the stream is busy.
+- Reason: 1) the last options must be reachable from the menu. 2) two lines of the same websocket request (21:33:15.00 nginx, 21:33:15.36 Odoo) were not merged: the Odoo line was shown alone and the nginx line came after it. 3) a health alert printed at 21:19:30 reported errors from 14:06:06: the alert covers the period "since" the previous check; the check had not run for hours.
+- Changes:
+  - MENU_KEYS: key u ("hideua"); the handler toggles options["hide_user_agent"] and the Formatting of the stream; the menu line "--hide-user-agent" is listed with its state; the configuration save (C) writes HIDE_USER_AGENT when it changed.
+  - merge_step(): an Odoo request line with no nginx line waiting is HELD (MERGE_WINDOW in log time, MERGE_HOLD in wall-clock time, as the nginx lines); when its nginx line comes, the two are merged. Before, only the nginx line was held.
+  - nginx-tools-tests/test_app_log_live.py: test_requete_differente_pas_fusionnee updated (an unmatched Odoo line now waits for MERGE_HOLD).
+  - main loop: check_health(), check_disk(), check_connections() and check_external_ip() are called at the top of each loop turn. Each one returns at once when not due.
+- Bugs fixed: symptom: merge missed when the Odoo line comes first; diagnosis: the nginx and journal sources are read at different speeds; the Odoo line was shown alone (no nginx line held yet); fix: hold the Odoo line too. Symptom: health alert late (21:19 for errors from 14:06, "since 14:06:06"); diagnosis: the periodic checks ran only when the queue was empty or at the end of a line that was not discarded; with --min (default), a busy stream of discarded lines never reached them; fix: checks at the top of each loop turn.
+- Safeguards and edge cases: only --log-merge changes behaviour for Odoo lines (the Odoo line is shown later, at most MERGE_WINDOW in log time, or MERGE_HOLD in wall-clock time when no nginx line comes, e.g. a request that did not pass through nginx). The merged line takes the Odoo times and time as before. The checks keep their own timers (no extra alert).
+- Checks performed: py_compile; --version; merge check with the Odoo line first and with the nginx line first (both give one merged line with the SQL and time columns); test_i18n (32 tests OK); test_app_log_live: 218 tests, 2 failures, both already present before 1.135 (test_colonnes_jamais_tassees..., test_120_journal_html...); the merge test test_requete_differente_pas_fusionnee updated (the Odoo line now waits too).
+- Action required: none. Restart app-log-live.py to load the new version. The [BOT] label of a 403 is already in the column before the OS (since 1.134) for refused robots; a 403 from another user agent has no label.
+
 ### 1.134.20261031.212623 - --hide-user-agent; [BOT] in the transfer-time column; traffic light for the transfer time; MAC and OTH; RLQ without www
 
 - Title: the User-Agent text can be hidden (--hide-user-agent); a 403 for a refused robot shows [BOT] in the column before the OS instead of at the end of the line; the transfer time is green under 1 s, yellow from 1 s to 3 s, red from 3 s; the OS column shows MAC (macOS) and OTH (other systems); "rencontres-linux.quebec" without www is shown as RLQ (host=RLQ).

@@ -114,7 +114,7 @@ from urllib.parse import unquote
 from collections import Counter, OrderedDict
 from concurrent.futures import Future
 
-__version__ = "1.134.20261031.212623"
+__version__ = "1.135.20261031.215149"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
@@ -381,9 +381,10 @@ def request_key(L):
 
 
 def merge_step(item, held):
-    """1.123 --log-merge: `held` = nginx request lines waiting for their Odoo line, as (item, key, log time, wall time).
-    Returns the items to show now, in order (maybe none). An Odoo line whose nginx line waits is ABSORBED: the nginx line is shown with
-    the SQL queries and the times of Odoo. An nginx request line is HELD. A held line whose Odoo line can no longer come is released."""
+    """1.123 --log-merge: `held` = request lines waiting for their partner, as (item, key, log time, wall time): nginx lines wait for their Odoo line,
+    and (1.135) Odoo lines wait for their nginx line, because the two sources are read at different speeds (the Odoo line can come first).
+    Returns the items to show now, in order (maybe none). A pair becomes ONE line (the nginx line with the SQL queries and the times of Odoo).
+    A held line whose partner can no longer come is released alone."""
     L = item[0]
     ready = []
     while held and L.instant is not None and held[0][2] + MERGE_WINDOW < L.instant:
@@ -391,7 +392,7 @@ def merge_step(item, held):
     if is_odoo_request(L):
         key = request_key(L)
         for index, (held_item, held_key, held_instant, _wall) in enumerate(held):
-            if held_key == key and abs(L.instant - held_instant) <= MERGE_WINDOW:
+            if is_nginx_request(held_item[0]) and held_key == key and abs(L.instant - held_instant) <= MERGE_WINDOW:
                 del held[index]
                 m = WERKZEUG_RE.search(L.text)
                 held_item[0].odoo_times = (m.group(5), m.group(6) or "", m.group(7))
@@ -399,7 +400,19 @@ def merge_step(item, held):
                     held_item[0].ts_txt = L.ts_txt
                 ready.append(held_item)
                 return ready
+        held.append((item, key, L.instant, time.time()))      # 1.135: the Odoo line waits for its nginx line
+        return ready
     if is_nginx_request(L):
+        key = request_key(L)
+        for index, (held_item, held_key, held_instant, _wall) in enumerate(held):
+            if is_odoo_request(held_item[0]) and held_key == key and abs(L.instant - held_instant) <= MERGE_WINDOW:
+                del held[index]                   # 1.135: the Odoo line came first: it is absorbed into this nginx line
+                m = WERKZEUG_RE.search(held_item[0].text)
+                L.odoo_times = (m.group(5), m.group(6) or "", m.group(7))
+                if held_item[0].ts_txt:
+                    L.ts_txt = held_item[0].ts_txt
+                ready.append(item)
+                return ready
         held.append((item, request_key(L), L.instant, time.time()))
         return ready
     ready.append(item)
@@ -697,7 +710,7 @@ def config_values(options, verbose, widths=None):
     yes_no = lambda b: "yes" if b else "no"
     sort_by = options["modules_sort"]
     width, truncated = widths if widths else (None, None)
-    res = {"HEALTH": f"{options['health']:g}", "HIDE_ADDONS": yes_no(options.get("hide_addons")), "HIDE_IP": yes_no(not options["keep_ip"]), "HIGHLIGHT": ",".join(options["highlight_words"]) or "none",
+    res = {"HEALTH": f"{options['health']:g}", "HIDE_ADDONS": yes_no(options.get("hide_addons")), "HIDE_IP": yes_no(not options["keep_ip"]), "HIDE_USER_AGENT": yes_no(options.get("hide_user_agent")), "HIGHLIGHT": ",".join(options["highlight_words"]) or "none",
            "LEVEL": str(options["level"]), "MIN": yes_no(options["minimal"]), "MODULES_CUSTOM": yes_no(sort_by[2]), "MODULES_SORT": ("-" if sort_by[1] else "") + sort_by[0],
            "NOT_FOUND": yes_no(options["not_found"]), "VERBOSE": yes_no(verbose),
            "ACCENTUATE_GROUP": options.get("group") or "", "CHIME": "" if options.get("chime") is None else str(options["chime"]),
@@ -5004,7 +5017,7 @@ KEYS = {b"\x07": "g", b"\x14": "t"}      # Ctrl-G: dashboard; Ctrl-T: only what 
 # Simple keys of the menu (? or h): toggles and settings of the command-line options, and a few commands
 MENU_KEYS = {b"?": "help", b"h": "help", b"i": "i", b"m": "m", b"n": "n", b"r": "r", b"s": "s", b"v": "v", b"d": "dns", b"t": "dnst", b"H": "H", b"o": "o", b"V": "V",
                 b"S": "S", b"I": "I", b"b": "b", b"a": "accent", b"c": "chime", b"e": "exclude", b"T": "report", b"E": "E", b"w": "watch", b"D": "D", b"l": "highlight", b"M": "modules", b"C": "save", b"L": "recent",
-                b"G": "G", b"Y": "latency", b"P": "print", b"f": "refresh", b"A": "anonymize", b"R": "record", b"N": "step", b"F": "steps_line", b"q": "addons", b"U": "underline", b"x": "lognginx"}
+                b"G": "G", b"Y": "latency", b"P": "print", b"f": "refresh", b"A": "anonymize", b"R": "record", b"N": "step", b"F": "steps_line", b"q": "addons", b"U": "underline", b"x": "lognginx", b"u": "hideua"}
 MENU_KEYS.update({str(n).encode(): f"level{n}" for n in range(1, LEVEL_MAX + 1)})   # 1 to 9: dashboard at the chosen level
 KEYS.update(MENU_KEYS)
 
@@ -5927,6 +5940,7 @@ def follow(cmd, people, resolver, options, output):
                                       ("e", "--exclude-ip IP,IP", f"hide the lines of these addresses or networks [{', '.join(str(r) for r in options['exclude']) or 'none'}]"),
                                       ("H", "--health MIN", f"minutes between two health alerts, 0 = never [{options['health']:g}]"),
                                       ("q", "--hide-addons", f"hide the INFO lines of the Odoo modules (odoo.addons.*), except errors, e-mails sent and generated files (PDF…) [{yes_no(options['hide_addons'])}]"),
+                                      ("u", "--hide-user-agent", TR("the User-Agent text of the nginx lines is not shown (the OS column stays)") + f" [{yes_no(options['hide_user_agent'])}]"),
                                       ("i", "--hide-ip", f"hide the IP address [{yes_no(not options['keep_ip'])}]"),
                                       ("l", "--highlight WORDS", f"highlight these words in cyan (+word adds, -word removes; comma = several, none = nothing) [{', '.join(options['highlight_words']) or 'none'}]"),
                                       ("m", "--min", f"the minimum of information [{yes_no(options['minimal'])}]"),
@@ -6105,6 +6119,10 @@ def follow(cmd, people, resolver, options, output):
                     output.anonymize = output.anonymiser
                     write_out(["  --anonymize : yes — pseudonyms IP-xxxxxx, usager-xxxxxx, membre-xxxxxx (the following lines)"])
             options["anonymize"] = output.anonymize is not None
+        elif key_value == "hideua":                # 1.135: the User-Agent text of the nginx lines (key u)
+            options["hide_user_agent"] = not options["hide_user_agent"]
+            form.hide_user_agent = options["hide_user_agent"]
+            write_out([f"  --hide-user-agent : {yes_no(options['hide_user_agent'])} (the following lines)"])
         elif key_value == "addons":
             options["hide_addons"] = not options["hide_addons"]
             hidden = state.get("addons_hidden", 0)
@@ -6330,6 +6348,10 @@ def follow(cmd, people, resolver, options, output):
             if sig["requested"]:
                 sig["requested"] = False
                 confirm_exit()
+            check_health(time.time())                   # 1.135: the periodic checks also run while the stream is busy (lines discarded by --min
+            check_disk(time.time())                     # and the filters never reached them: the health alert came hours late); each one
+            check_connections(time.time())              # returns at once when not due
+            check_external_ip(time.time())
             skip_merge = bool(merge_ready)              # 1.123: a line released by --log-merge is shown as it is (already merged)
             if not merge_ready and merge_ended[0]:
                 break
