@@ -114,7 +114,7 @@ from urllib.parse import unquote
 from collections import Counter, OrderedDict
 from concurrent.futures import Future
 
-__version__ = "1.131.20261031.200112"
+__version__ = "1.132.20261031.202634"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
@@ -4001,7 +4001,32 @@ STATIC_RE = re.compile(r"\.(?:css|js|map|png|jpe?g|gif|svg|ico|webp|woff2?|ttf|e
 SURVEY_TOKEN_RE = re.compile(r"^/survey/(?:(?:start|submit|fill|print|results|begin|prefill|retry|test|get_certification)/)?([0-9a-fA-F][0-9a-fA-F-]{7,})(?:/|$)")
 # 1.130: User-Agents refused with 403 by nginx/conf.d/bot_blocker.conf (same list as that file). Such a 403 is a POLICY, not a fault: it is
 # shown with the [BOT] label, counted apart ("bots refused") and it does not lower the health percentage.
-BOT_BLOCKED_UA_RE = re.compile(r"Bytespider|CCBot|GPTBot|Amazonbot|ClaudeBot|Claude-SearchBot", re.I)
+BOT_BLOCKED_CONF = "/etc/nginx/conf.d/bot_blocker.conf"                    # 1.132: read at start, so the label follows the policy
+BOT_BLOCKED_DEFAULT = (r"AhrefsBot|MJ12bot|SemrushBot|DotBot|DataForSeoBot|PetalBot|SERankingBacklinksBot|GeedoShopProductFinder|"
+                       r"Bytespider|CCBot|GPTBot|Amazonbot|ClaudeBot|Claude-SearchBot|CensysInspect|shodan|masscan|zgrab|Palo Alto Networks|"
+                       r"LeakIX|l9scan|jscrawler|poc-suite|AteveSearchSourceUrlDiscovery|CyberConvoyScout|ForestEngine|Infrawatch|"
+                       r"Reflectionbot|visionheight|python-requests|python-httpx|python-urllib|Wget")
+
+
+def bot_blocked_re(path=BOT_BLOCKED_CONF):
+    """1.132: the User-Agent names that bot_blocker.conf refuses ("~*(A|B) 1;" and "~*^(A|B)/ 1;" lines); the built-in list when the file is absent."""
+    names = []
+    try:
+        with open(path, encoding="utf-8", errors="replace") as conf:
+            for line in conf:
+                if line.lstrip().startswith("#"):
+                    continue
+                found = re.search(r"~\*\^?\((.*?)\)/?\s+1;", line)
+                if found:
+                    names += [name.replace("\\ ", " ") for name in found.group(1).split("|") if name]
+    except OSError:
+        names = []
+    if not names:
+        return re.compile(BOT_BLOCKED_DEFAULT, re.I)
+    return re.compile("|".join(re.escape(name) for name in names), re.I)
+
+
+BOT_BLOCKED_UA_RE = bot_blocked_re()
 REQUEST_CODE_RE = re.compile(r'"(?:GET|POST|HEAD|PUT|DELETE|OPTIONS|PATCH|CONNECT|TRACE)\s[^"]*" (\d{3})\s')
 
 
@@ -4010,7 +4035,7 @@ def is_bot_403(L):
     if L.database != "nginx" or not L.text:
         return False
     m = REQUEST_CODE_RE.search(L.text)
-    return bool(m and m.group(1) == "403" and BOT_BLOCKED_UA_RE.search(L.text))
+    return bool(m and m.group(1) == "403" and BOT_BLOCKED_UA_RE.search(L.text))      # robots and scanners refused by policy
 
 
 ROBOT_UA_RE = re.compile(r"bot\b|bot/|crawl|spider|slurp|scrap|facebookexternalhit|meta-external|python-|python/|curl/|wget/|go-http-client|httpx|java/|libwww|okhttp|headless|phantom|"
