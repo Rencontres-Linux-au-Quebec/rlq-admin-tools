@@ -35,6 +35,13 @@
 - Always in English, sorted alphabetically in the help output.
 - Options are displayed in colour.
 
+### Bans and CDNs
+- Behind Cloudflare, nginx sees the address of the CDN node, not the visitor's. Never ban an address whose DNS or RDAP name
+  designates a CDN (cloudflare, akamai, fastly, incapsula, imperva, bunnycdn) without a clear attack signature.
+- An automatic ban must go through the score of nginx-log-audit.sh (threshold 3). No ban without checking the white list first.
+- Every fail2ban rule must have a test in `nginx-tools-tests/` before it is proposed.
+- Mail notifications (SMTP_HOST, NOTIFY_EMAIL_TO) must be configured before any automatic ban is enabled.
+
 ## Pull requests
 
 Create them and give the link. Never merge or approve them: the user validates them.

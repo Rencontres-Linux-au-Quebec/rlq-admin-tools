@@ -4,6 +4,18 @@ Version numbers follow `MAJOR.MINOR.YYYYMMDD.HHMMSS` (local time of the change).
 Each program has its own section; the most recent version comes first.
 Earlier history was archived outside this repository when this file was created.
 
+## Repository conventions (CLAUDE.md)
+
+### 0.1.20261101.173400 - Rules for bans behind CDNs and automatic bans
+
+- Title: CLAUDE.md now forbids bans of CDN addresses without an attack signature and requires the audit score and notifications before automatic bans.
+- Reason: on 2026-11-01, fail2ban banned an address of Cloudflare (CLOUDFLARENET 104.16.0.0/12) through the nginx-badrequests jail. The 14 counted hits were ordinary 404 and 30x responses on old event pages, and a real visitor behind the same node was affected. No notification was received because SMTP was not configured.
+- Changes: CLAUDE.md, new section "Bans and CDNs" (four rules). No program code changed, so no program version was bumped.
+- Bugs fixed: none in code. The rules describe the missing safeguards: CDN names are only filtered in app-log-live.py (CDN_NAME_RE) for the 404 sweep and web-monitor.py, not for the fail2ban jails; nginx sees the CDN node address instead of the visitor address (the CF-Connecting-IP header is not yet used).
+- Safeguards and edge cases: rules only, nothing enforced by code yet. Follow-up work (real_ip configuration, filter regex, threshold) is not part of this change.
+- Checks: text review of CLAUDE.md; no tests affected.
+- Action required: none. Review the wording of the rules before merging.
+
 ## admin-menu.sh
 
 ### 1.1.20261030.153422 - No plural marker "(s)" in the displayed texts
