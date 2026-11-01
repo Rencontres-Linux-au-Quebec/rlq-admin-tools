@@ -2963,3 +2963,19 @@ msgstr "l'hôte des lignes nginx (host=...) est affiché en fin de ligne"
 
 msgid "Show the host of the nginx lines (host=...) at the end of the line (default: not shown)"
 msgstr "Affiche l'hôte des lignes nginx (host=...) en fin de ligne (par défaut : non affiché)"
+
+#: app-log-live.py (1.146)
+msgid "404s"
+msgstr "404s"
+
+msgid "404b"
+msgstr "404b"
+
+msgid "404o"
+msgstr "404o"
+
+msgid "Period: the last {n} days (--days N)"
+msgstr "Période : les {n} derniers jours (--days N)"
+
+msgid "Period: the whole nginx logs (--days N to limit)"
+msgstr "Période : tous les journaux nginx (--days N pour limiter)"
