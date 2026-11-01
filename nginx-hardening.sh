@@ -16,7 +16,7 @@
 # format and comments specific to each installation, too risky to edit blindly.
 #
 # Usage : nginx-hardening.sh [--update] [--check] [--odoo-http-port PORT] [--odoo-gevent-port PORT]
-#                              [--odoo-service NOM] [--odoo-conf CHEMIN] [--odoo-conf-paths LISTE] [--timezone ZONE] [--workers N] [-v|--verbose] [--version]
+#                              [--odoo-service NOM] [--odoo-conf CHEMIN] [--odoo-conf-paths LISTE] [--timezone ZONE] [--cdn none|cloudflare] [--workers N] [-v|--verbose] [--version]
 #                              [--changelog] [--menu]
 #   - (no option)          : CHECK ONLY - changes NOTHING, same behavior as --check. This is the
 #                            default behavior since 1.7 (before: applied the changes by
@@ -39,6 +39,9 @@
 #   - --odoo-conf-paths L  : candidate paths (space separated, * patterns allowed). Default: /etc/odoo/odoo-linux_meetup.conf
 #                            /opt/odoo/erplibre/config.conf /home/utilisateur/git/erplibre/config.conf /etc/odoo/*.conf.
 #                            ODOO_CONF_PATHS key of /etc/default/nginx-hardening.conf or ~/.nginx-hardening.conf.
+#   - --cdn NOM            : CDN in front of the sites (none by default, or cloudflare). With cloudflare, nginx takes the visitor's
+#                            address from CF-Connecting-IP, ONLY for connections from Cloudflare's published ranges
+#                            (nginx/cdn/cloudflare-ips.txt). Without it, fail2ban and the rate limits see the CDN node address.
 #   - --timezone ZONE      : server time zone (step 0b; default America/Montreal, asked at the first --update, stored in TIMEZONE;
 #                            "none": change nothing).
 #   - --mail-host/--mail-port/--mail-security/--mail-user/--mail-from/--mail-to, --mail-setup : mail of the Python and Bash programs (step 0d);
@@ -89,7 +92,7 @@ run() {
     "$@"
 }
 
-readonly SCRIPT_VERSION="2.69.20261031.191441"
+readonly SCRIPT_VERSION="2.70.20261101.174000"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
 SCRIPT_NAME="$(basename "${BASH_SOURCE[0]}" .sh)"; readonly SCRIPT_NAME
 # Display language (en or fr): --lang, NGINX_HARDENING_LANG, LANGUAGE of the configuration file, LC_ALL / LANG - apps/_i18n.sh translates the output (nothing changes in French).
@@ -147,6 +150,7 @@ ENABLE_URI_LIST=()      # --enable-uri CHEMIN (repeatable): the refusal is remov
 ODOO_HTTP_PORT=""      # empty: read from the Odoo configuration ("configuration" step), otherwise 10000 / 10002
 ODOO_GEVENT_PORT=""
 ODOO_CONF_PATHS="${ODOO_CONF_PATHS:-}"
+CDN="${CDN:-none}"       # --cdn none|cloudflare (step 12c: cdn-realip.conf)
 ODOO_SERVICE=""
 TIMEZONE=""            # empty: default below (asked the first time); "none": change nothing
 TIMEZONE_DEFAUT="America/Montreal"
@@ -233,6 +237,7 @@ while [[ $# -gt 0 ]]; do
         --rename-from) RENAME_FROM="${2:-}"; shift 2 ;;
         --rename-to) RENAME_TO="${2:-}"; shift 2 ;;
         --timezone) TIMEZONE="${2:-}"; shift 2 ;;
+        --cdn) CDN="${2:-}"; shift 2 ;;
         --odoo-conf) ODOO_CONF="${2:-}"; shift 2 ;;
         --odoo-conf-paths) ODOO_CONF_PATHS="${2:-}"; shift 2 ;;
         --workers) ODOO_WORKERS_OVERRIDE="${2:-}"; shift 2 ;;
@@ -291,6 +296,7 @@ Options (par ordre alphabétique) :
                                échecs, avertissements) ; désactive couleurs et questions interactives
   --rollback                   restaure la sauvegarde la plus récente (ou --backup NAME) de la configuration nginx et fail2ban, après confirmation
   --test-rules                 teste les règles nginx par des requêtes curl (lecture seule) : refus attendus et pages servies, sortie 1 si un cas échoue
+  --cdn NOM                    CDN devant les sites : none (défaut) ou cloudflare (adresse réelle du visiteur par CF-Connecting-IP)
   --timezone ZONE              fuseau horaire du serveur (défaut : America/Montreal, demandé la première fois ; none = ne pas toucher)
   --update                     installer ou mettre à jour ce qui manque (sauvegarde des fichiers modifiés)
   -v, --verbose                affiche chaque commande lancée
@@ -677,6 +683,24 @@ generer_partages() {
     done < <(listes_lieux | listes_valides | awk -F'\037' '$3 ~ /partagee/ && !vu[$1]++')
 }
 
+# generer_cdn: content of cdn-realip.conf (nginx http context). With --cdn cloudflare: set_real_ip_from for each published range, so that
+# CF-Connecting-IP is believed ONLY from Cloudflare (any client could forge the header otherwise). Without a CDN: a comment only.
+generer_cdn() {
+    local ligne
+    echo "# GÉNÉRÉ par nginx-hardening.sh (--cdn $CDN) — NE PAS MODIFIER À LA MAIN."
+    if [[ "$CDN" != "cloudflare" ]]; then
+        echo "# Aucun CDN déclaré : l'adresse du visiteur est celle de la connexion (\$remote_addr)."
+        return 0
+    fi
+    echo "# Cloudflare : CF-Connecting-IP n'est lu QUE si la connexion vient d'une plage publiée par Cloudflare (nginx/cdn/cloudflare-ips.txt)."
+    while IFS= read -r ligne; do
+        [[ -z "$ligne" || "$ligne" == \#* ]] && continue
+        printf 'set_real_ip_from %s;\n' "$ligne"
+    done < "$SCRIPT_DIR/nginx/cdn/cloudflare-ips.txt"
+    echo "real_ip_header CF-Connecting-IP;"
+    echo "real_ip_recursive on;"
+}
+
 # fragments_generes_assurer: the THREE generated fragments (team-ips-geo.conf, team-ips-allow.conf, shared-ips-geo.conf) are included by their exact name in
 # odoo-global.conf and env-*.conf: it is enough that ONE is missing for nginx -t to refuse the WHOLE configuration - including during step 12, which writes the
 # first two and tests nginx before step 12b has written the third (real case: nginx stopped, white list erased by the restore).
@@ -685,7 +709,7 @@ generer_partages() {
 fragments_generes_assurer() {
     local snip="${NGINX_HARDENING_SNIPPETS_DIR:-/etc/nginx/snippets}" f cree=1
     [[ "$CHECK_ONLY" == "1" || "$APP_NAME" != "odoo" ]] && return 1
-    for f in team-ips-geo.conf team-ips-allow.conf shared-ips-geo.conf uri-desactivees.conf; do
+    for f in team-ips-geo.conf team-ips-allow.conf shared-ips-geo.conf uri-desactivees.conf cdn-realip.conf; do
         [[ -e "$snip/$f" ]] && continue
         if mkdir -p "$snip" 2>/dev/null && printf '%s\n' "# vide — créé par nginx-hardening.sh --update (nginx refuse un include sans fichier) ; rempli aux étapes 12 et 12b" > "$snip/$f" 2>/dev/null; then
             chmod 644 "$snip/$f" 2>/dev/null || true
@@ -2911,6 +2935,38 @@ if [[ "$APP_NAME" == "odoo" ]]; then
             if [[ -n "$part_ancien" ]]; then printf '%s\n' "$part_ancien" > "$part_dst"; else printf '%s\n' "# vide — restauré après refus de nginx -t" > "$part_dst"; fi
             fail "nginx -t refuse la configuration avec les réseaux partagés régénérés — ancienne version restaurée, nginx NON rechargé."
             printf '%s\n' "$part_erreur" | head -8 | sed 's/^/        nginx -t : /'
+        fi
+    fi
+fi
+# --- 12c) CDN (--cdn) -> cdn-realip.conf: the visitor's address behind Cloudflare (set_real_ip_from + CF-Connecting-IP) ---
+if [[ "$APP_NAME" == "odoo" ]]; then
+    snip="${NGINX_HARDENING_SNIPPETS_DIR:-/etc/nginx/snippets}"
+    cdn_dst="$snip/cdn-realip.conf"
+    if [[ "$CDN" != "none" && "$CDN" != "cloudflare" ]]; then
+        fail "--cdn « $CDN » inconnu (valeurs : none, cloudflare) — cdn-realip.conf n'est pas modifié."
+    else
+        cdn_nouveau=$(generer_cdn)
+        cdn_n=$(printf '%s\n' "$cdn_nouveau" | grep -c 'set_real_ip_from' || true)
+        if [[ -f "$cdn_dst" ]] && [[ "$(cat "$cdn_dst")" == "$cdn_nouveau" ]]; then
+            pass "$cdn_dst à jour (--cdn $CDN, $cdn_n plage(s) de confiance)."
+        elif [[ "$CHECK_ONLY" == "1" ]]; then
+            warn "$cdn_dst $([[ -f "$cdn_dst" ]] && echo "différent de --cdn $CDN" || echo "absent") — --update le régénérera."
+        else
+            cdn_ancien=""; [[ -f "$cdn_dst" ]] && cdn_ancien=$(cat "$cdn_dst")
+            mkdir -p "$snip"
+            cdn_tmp=$(mktemp "$snip/.cdn-realip.XXXXXX")
+            printf '%s\n' "$cdn_nouveau" > "$cdn_tmp" && chmod 644 "$cdn_tmp" && mv -f "$cdn_tmp" "$cdn_dst"
+            if cdn_erreur=$(run nginx -t 2>&1); then
+                if nginx_appliquer; then
+                    pass "CDN « $CDN » appliqué ($cdn_n plage(s)) dans $cdn_dst ; nginx -t réussi, nginx $NGINX_APPLIQUE."
+                else
+                    warn "CDN « $CDN » écrit et nginx -t réussi, mais nginx n'a pas pu être $NGINX_APPLIQUE — systemctl status nginx --no-pager ; journalctl -u nginx -n 30 --no-pager."
+                fi
+            else
+                if [[ -n "$cdn_ancien" ]]; then printf '%s\n' "$cdn_ancien" > "$cdn_dst"; else printf '%s\n' "# vide — restauré après refus de nginx -t" > "$cdn_dst"; fi
+                fail "nginx -t refuse la configuration avec --cdn $CDN — ancienne version restaurée, nginx NON rechargé."
+                printf '%s\n' "$cdn_erreur" | head -8 | sed 's/^/        nginx -t : /'
+            fi
         fi
     fi
 fi

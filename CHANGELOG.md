@@ -2682,7 +2682,27 @@ Earlier history was archived outside this repository when this file was created.
 
 ## nginx-hardening.sh
 
-### 2.69.20261031.191441 - No 404 question when the list of refused URIs does not change
+### 2.70.20261101.174000 - Visitor address behind Cloudflare (option --cdn cloudflare)
+
+- Title: with --cdn cloudflare, nginx takes the visitor's real address from the CF-Connecting-IP header, only for connections coming from Cloudflare's published ranges.
+- Reason: on 2026-11-01, nginx-log-audit.sh saw only the Cloudflare node address. The nginx-badrequests jail banned that node on ordinary 404 and 30x responses, which blocked a real visitor behind the same node. The fix must make fail2ban and the rate limits see the visitor, not the node.
+- Changes:
+  - nginx-hardening.sh: new option --cdn (none by default, or cloudflare), read from the configuration like the other options (CDN key). New function generer_cdn (content of the file). New step 12c that writes /etc/nginx/snippets/cdn-realip.conf, tests nginx -t, applies it, and restores the previous version if nginx -t refuses it. cdn-realip.conf is added to the fragments created empty by fragments_generes_assurer.
+  - nginx/cdn/cloudflare-ips.txt (new): the published Cloudflare ranges (22 CIDR, IPv4 and IPv6).
+  - nginx/conf.d/odoo-global.conf: include of cdn-realip.conf in the http context.
+  - nginx-tools-tests/test_cdn_realip.py (new): 6 tests (valid ranges, generated output with and without CDN, include, fragment list, option read and checked).
+- Bugs fixed: none in code. The problem is the missing feature described above (CF-Connecting-IP not used).
+- Safeguards and edge cases:
+  - The header is believed only from the listed ranges: a client outside Cloudflare cannot forge it.
+  - Without --cdn (default), cdn-realip.conf contains only comments: $remote_addr is unchanged, no behaviour change.
+  - An unknown --cdn value is refused before anything is written.
+  - An existing file is replaced only after nginx -t accepts the new version; otherwise the previous content is restored.
+  - Behind Cloudflare, the team and shared-network lists (geo blocks on $remote_addr) now compare visitor addresses, which is the intended effect.
+- Checks: nginx-tools-tests test_cdn_realip (6 tests, OK); test_config_nginx and test_nginx_hardening (78 tests, OK, same result as main); generer_cdn output checked by hand for both values; syntax checked with bash -n.
+- Not verified here: the end-to-end run (nginx -t and reload on a real server with a real Cloudflare connection); the ranges must be checked against https://www.cloudflare.com/ips-v4 and ips-v6 before merge, because the sandbox could not reach those pages.
+- Action required: after merge, run nginx-hardening.sh --update --cdn cloudflare on the production server (the CDN key can also be set in /etc/default/nginx-hardening.conf). Check with a few requests that nginx-log-audit.sh shows visitor addresses, not 104.16.x.x / 172.64.x.x nodes.
+
+### 2.69.20261031.191441 - No 404 question when the list of refused URIs does not change - No 404 question when the list of refused URIs does not change
 
 - Title: the question "Refuser (404) : ... ? [o/N]" is no longer asked when the list of refused URIs does not change.
 - Reason: the administrator saw "URI refusées actuellement : aucune" followed by the question for an unchanged empty list, which is confusing.
