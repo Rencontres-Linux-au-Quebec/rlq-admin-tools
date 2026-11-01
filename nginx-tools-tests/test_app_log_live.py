@@ -4034,3 +4034,51 @@ class AppLogLive144(unittest.TestCase):
                '[31/Oct/2026 09:53:27] "GET /en_CA/about-us HTTP/1.1" 404 - 1 0.000 0.002')
         texte = ANSI.sub("", m.Formatting(False, 40, 0.0, False).format_value(m.Line(raw), {}, False))
         self.assertTrue(texte.endswith(m.TR("[in sitemap.xml]")), texte[-60:])
+
+
+class AppLogLive145(unittest.TestCase):
+    """1.145 : barre de statut due aux 2/3 des lignes ou dès que la santé bouge de plus de 3 points (10 lignes au moins entre deux) ; fusion d'une
+    ligne Odoo arrivée 4 s après la ligne nginx ; host= masqué par défaut (--display-host) ; un websocket n'est jamais « lent »."""
+
+    @classmethod
+    def setUpClass(cls):
+        spec = importlib.util.spec_from_file_location("live145", script_path("app-log-live.py"))
+        cls.m = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(cls.m)
+
+    NGINX = ('2026-11-01T11:46:43.000000-0500 odoo18 http: 52.7.118.208 - - "GET /en_CA/event/x/track/cloture-41 HTTP/1.1" 200 14000 "-" '
+             '"Mozilla/5.0 (Linux)" host="www.rencontres-linux.quebec" rl=300')
+    ODOO = ('2026-11-01T11:46:47.240000-0500 odoo18 odoo[1]: 2026-11-01 11:46:47,240 1 INFO base werkzeug: 52.7.118.208 - - '
+            '[01/Nov/2026 11:46:47] "GET /en_CA/event/x/track/cloture-41 HTTP/1.1" 200 - 67 0.023 0.237')
+    WEBSOCKET = ('2026-11-01T11:50:00.620000-0500 odoo18 odoo[1]: 2026-11-01 11:50:00,620 1 INFO base longpolling: 1.2.3.4 - - '
+                 '[01/Nov/2026 11:50:00] "GET /websocket?version=18.0-7 HTTP/1.1" 101 494 6000.5')
+
+    def test_145_host_masque_par_defaut_et_affiche_avec_l_option(self):
+        m = self.m
+        cache = ANSI.sub("", m.Formatting(False, 40, 0.0, False).format_value(m.Line(self.NGINX), {}, False))
+        self.assertNotIn("host=", cache)
+        affiche = ANSI.sub("", m.Formatting(False, 40, 0.0, False, display_host=True).format_value(m.Line(self.NGINX), {}, False))
+        self.assertTrue(affiche.rstrip().endswith("host=www.RLQ") or affiche.rstrip().endswith("host=www.rencontres-linux.quebec"), affiche[-60:])
+
+    def test_145_fusion_a_4_s_d_ecart(self):
+        m = self.m
+        held = collections.deque()
+        self.assertEqual(m.merge_step([m.Line(self.NGINX)], held), [])
+        ready = m.merge_step([m.Line(self.ODOO)], held)
+        self.assertEqual(len(ready), 1)
+        self.assertEqual(len(held), 0)
+
+    def test_145_websocket_jamais_lente(self):
+        m = self.m
+        self.assertIsNone(m.request_duration(self.WEBSOCKET))
+        texte = ANSI.sub("", m.Formatting(False, 40, 0.0, False).format_value(m.Line(self.WEBSOCKET), {}, False))
+        self.assertNotIn("slow", texte.lower())
+        self.assertNotIn("lente", texte.lower())
+
+    def test_145_barre_due_aux_deux_tiers_ou_au_changement_de_sante(self):
+        m = self.m
+        self.assertFalse(m.status_bar_due(10, 0, 16, 90, None))                 # no bar before 2/3 of the lines
+        self.assertTrue(m.status_bar_due(16, 0, 16, 90, 90))                    # 2/3 reached, health unchanged
+        self.assertFalse(m.status_bar_due(17, 5, 16, 90, 90))                   # 12 lines since the last bar, unchanged
+        self.assertFalse(m.status_bar_due(14, 5, 16, 95, 90))                   # changed by 5, but only 9 lines: never two bars so close
+        self.assertTrue(m.status_bar_due(20, 5, 16, 94, 90))

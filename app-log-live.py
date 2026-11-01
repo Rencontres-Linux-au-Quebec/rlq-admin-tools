@@ -117,7 +117,7 @@ from urllib.parse import unquote, urlsplit
 from collections import Counter, OrderedDict
 from concurrent.futures import Future
 
-__version__ = "1.144.20261101.120235"
+__version__ = "1.145.20261101.122458"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
@@ -216,7 +216,7 @@ SCHEMA_CONFIG = {"ACCENTUATE_GROUP": ("accentuate_group", str), "CHIME": ("chime
                  "LINES": ("lines", int), "LOG_DIR": ("log_dir", str), "LOG_KEEP_DAYS": ("log_keep_days", int), "LOG_MERGE": ("log_merge", bool), "LOG_NGINX": ("log_nginx", bool), "MIN": ("min", bool), "MODULES_CUSTOM": ("modules_custom", bool), "MODULES_SORT": ("modules_sort", str), "MODULES_STARTUP": ("modules_startup", bool), "NAMESPACE": ("namespace", str),
                  "NO_BANNED": ("no_banned", bool), "NOT_FOUND": ("not_found", bool), "NO_BAN_PROMPT": ("no_ban_prompt", bool), "NO_CACHE": ("no_cache", bool), "NO_HISTORY": ("no_history", bool),
                  "NO_ISP": ("no_isp", bool), "NO_KEYS": ("no_keys", bool), "NO_LOG_FILE": ("no_log_file", bool), "NO_PRESENCE": ("no_presence", bool),
-                 "LEVEL": ("level", int), "BUFFER": ("buffer", int), "STATUS_EVERY": ("status_every", int), "NO_USER_AGENT": ("no_user_agent", bool), "HIDE_USER_AGENT": ("hide_user_agent", bool), "REQUEST_LENGTH": ("request_length", bool), "RECAP": ("recap", float), "RECORD_MAX": ("record_max", float), "SERVICE": ("service", str), "SITEMAP": ("sitemap", str), "NO_SITEMAP": ("no_sitemap", bool), "SLOW": ("slow", float), "VERBOSE": ("verbose", bool)}
+                 "LEVEL": ("level", int), "BUFFER": ("buffer", int), "STATUS_EVERY": ("status_every", int), "NO_USER_AGENT": ("no_user_agent", bool), "HIDE_USER_AGENT": ("hide_user_agent", bool), "DISPLAY_HOST": ("display_host", bool), "REQUEST_LENGTH": ("request_length", bool), "RECAP": ("recap", float), "RECORD_MAX": ("record_max", float), "SERVICE": ("service", str), "SITEMAP": ("sitemap", str), "NO_SITEMAP": ("no_sitemap", bool), "SLOW": ("slow", float), "VERBOSE": ("verbose", bool)}
 CHANGELOG_FILE = os.path.join(SCRIPT_DIR, "CHANGELOG.md")
 LINES_DEFAULT = 50
 DAYS_DEFAULT = 0                                                      # 0 = the whole journal history
@@ -361,8 +361,9 @@ SQL_SIZE_RE = re.compile(r'"\s\d{3}\s(\S+)\s(\d+)\s\d+\.\d+\s\d+\.\d+\s*$')
 # ------------------------------------------------------------------------------------------------------------------
 # --log-merge (1.123): the nginx line and the Odoo line of the same request are shown as ONE line
 # ------------------------------------------------------------------------------------------------------------------
-MERGE_WINDOW = 2.0      # seconds (log time) between the nginx line and the Odoo line of one request (Odoo logs when its answer is ready)
-MERGE_HOLD = 3.0        # seconds (wall clock) an nginx line waits for its Odoo line, then it is shown alone (static file, no Odoo...)
+MERGE_WINDOW = 5.0      # seconds (log time) between the nginx line and the Odoo line of one request (Odoo logs when its answer is ready); 1.145: 2 to 5 s,
+                        # the Odoo journal is read more slowly than the nginx file, so a pair was split when the Odoo line came more than 2 s later
+MERGE_HOLD = 8.0        # seconds (wall clock) an nginx line waits for its Odoo line, then it is shown alone (static file, no Odoo...); 1.145: 3 to 8 s
 
 
 def is_nginx_request(L):
@@ -421,6 +422,19 @@ def merge_step(item, held):
         return ready
     ready.append(item)
     return ready
+
+
+BAR_CHANGE_POINTS = 3         # 1.145: the status bar is shown when the health has moved by MORE than this many points since the last bar ...
+BAR_MIN_GAP = 10              # ... but never two bars closer than this many displayed lines
+
+
+def status_bar_due(emitted, last_at, every, health_now, last_health):
+    """1.145: True when the status bar must be written: `every` lines since the last one (2/3 of the terminal height by default), or, sooner, the
+    health moved by more than BAR_CHANGE_POINTS since the last bar and at least BAR_MIN_GAP lines have passed (no bar twice in a few lines)."""
+    gap = emitted - last_at
+    if gap >= every:
+        return True
+    return last_health is not None and abs(health_now - last_health) > BAR_CHANGE_POINTS and gap >= BAR_MIN_GAP
 
 
 def merge_release(held, now):
@@ -1709,6 +1723,7 @@ OS_BLANK = "   "
 OS_COLORS = {"LIN": "32", "AND": "36"}                             # 1.136: LIN in green, AND in cyan
 RL_WIDTH = 5                                                       # 1.136: width of the request length column (rl=, nginx)
 RL_RE = re.compile(r"\srl=(\d+)")
+HOST_TEXT_RE = re.compile(r'\shost="[^"]*"')                       # 1.145: the host of an nginx line (--display-host shows it, at the end of the line)
 
 
 def os_code(agent):
@@ -1880,8 +1895,13 @@ def request_not_found(text):
     return bool(r and r.group(2) == "404")
 
 
+LONG_CONNECTION_RE = re.compile(r"/(?:websocket|longpolling)(?:[/?\s\"]|$)")     # 1.145: a connection kept open (chat, bus): its duration is not a slowness
+
+
 def request_duration(text):
-    """Total duration (seconds: SQL + Python) of an Odoo request, or None."""
+    """Total duration (seconds: SQL + Python) of an Odoo request, or None. 1.145: None for a long connection (websocket, longpolling)."""
+    if LONG_CONNECTION_RE.search(text):
+        return None
     m = DURATION_RE.search(text)
     return float(m.group(2)) + float(m.group(3)) if m else None
 
@@ -1928,7 +1948,8 @@ def request_cause(sql_n, t_sql, t_py, size, url=""):
 class Formatting:
     """Builds the displayed line: normalized header, then the text with its words in color. All the detection is done on the
     RAW text (never on already colored text); a detection that overlaps a higher-priority one (the IP address first) is ignored."""
-    def __init__(self, minimal=False, width=COLUMN_WIDTH, slowest=0.0, status_header=False, hide_user_agent=False, request_length=False):
+    def __init__(self, minimal=False, width=COLUMN_WIDTH, slowest=0.0, status_header=False, hide_user_agent=False, request_length=False, display_host=False):
+        self.display_host = display_host                                    # 1.145 --display-host: the host= of the nginx lines is shown (default: hidden)
         self.request_length = request_length                                # 1.136 --request-length: rl= of the nginx lines in its own column before the GET
         self.hide_user_agent = hide_user_agent                              # 1.134 --hide-user-agent: the User-Agent text is not shown (the OS column stays)
         self.status_header = status_header                                  # 1.123 --status-header
@@ -2063,10 +2084,14 @@ class Formatting:
         if not ANSI_RE.sub("", before).endswith(" "):
             before += " "
         cuts = []                                                # 1.134: the User-Agent text (with its quotes) is left out; 1.136: so is rl= when it has its column
+        host = HOST_TEXT_RE.search(text, m.end(4))              # 1.145: host="..." of the nginx line: hidden unless --display-host
+        if host and not self.display_host:
+            cuts.append((host.start(0), host.end(0)))
         if self.hide_user_agent and agent:
             cuts.append((agent.start(1) - 1, agent.end(1) + 1))
         if rl:                                           # 1.136: rl= leaves the end of the line: its column (--request-length) or nothing
             cuts.append((rl.start(0), rl.end(0)))
+        cuts.sort()
         pieces, position = [], m.end(4)
         for cut_start, cut_end in sorted(cuts):
             pieces.append(self.colored_text(text, retained, position, cut_start))
@@ -2147,6 +2172,8 @@ class Formatting:
             if benign:
                 body += color_code(STYLES["debug"], " (concurrent update conflict: Odoo retries automatically)")
             total = (float(L.odoo_times[1] or 0) + float(L.odoo_times[2] or 0)) if L.odoo_times else request_duration(L.text)     # 1.123: merged line: the Odoo times
+            if LONG_CONNECTION_RE.search(L.text):             # 1.145: a websocket is never "slow" (its merged line has the Odoo times too)
+                total = None
             if total is not None and self.slowness_style(total):
                 body += color_code(self.slowness_style(total), f" ← slow: {total:.1f} s")
         column = ""
@@ -5342,7 +5369,7 @@ KEYS = {b"\x07": "g", b"\x14": "t"}      # Ctrl-G: dashboard; Ctrl-T: only what 
 # Simple keys of the menu (? or h): toggles and settings of the command-line options, and a few commands
 MENU_KEYS = {b"?": "help", b"h": "help", b"i": "i", b"m": "m", b"n": "n", b"r": "r", b"s": "s", b"v": "v", b"d": "dns", b"t": "dnst", b"H": "H", b"o": "o", b"V": "V",
                 b"S": "S", b"I": "I", b"b": "b", b"a": "accent", b"c": "chime", b"e": "exclude", b"T": "report", b"E": "E", b"w": "watch", b"D": "D", b"l": "highlight", b"M": "modules", b"C": "save", b"L": "recent",
-                b"G": "G", b"Y": "latency", b"P": "print", b"f": "refresh", b"A": "anonymize", b"R": "record", b"N": "step", b"F": "steps_line", b"q": "addons", b"U": "underline", b"x": "lognginx", b"u": "hideua", b"j": "reqlen"}
+                b"G": "G", b"Y": "latency", b"P": "print", b"f": "refresh", b"A": "anonymize", b"R": "record", b"N": "step", b"F": "steps_line", b"q": "addons", b"U": "underline", b"x": "lognginx", b"u": "hideua", b"j": "reqlen", b"k": "hostshow"}
 MENU_KEYS.update({str(n).encode(): f"level{n}" for n in range(1, LEVEL_MAX + 1)})   # 1 to 9: dashboard at the chosen level
 KEYS.update(MENU_KEYS)
 
@@ -5442,7 +5469,7 @@ def follow(cmd, people, resolver, options, output):
     file = queue.Queue(maxsize=5000)
     def address_width():
         return COLUMN_WIDTH if options["keep_ip"] else 2
-    form, presence = Formatting(options["minimal"], address_width(), options["slow"], options.get("status_header", False), hide_user_agent=options.get("hide_user_agent", False), request_length=options.get("request_length", False)), options["presence"]
+    form, presence = Formatting(options["minimal"], address_width(), options["slow"], options.get("status_header", False), hide_user_agent=options.get("hide_user_agent", False), request_length=options.get("request_length", False), display_host=options.get("display_host", False)), options["presence"]
     state = {"read_files": 0, "summarized": False, "keep_going": True}
     stats, banned_ips = Stats(options["slow"]), options["banned_ips"]
     LATENCY.start()                                         # 1.82: kernel counters every LATENCY_SAMPLE_S seconds (latency report: key P, Ctrl-G, summary)
@@ -5720,8 +5747,11 @@ def follow(cmd, people, resolver, options, output):
             sonner(beep["mode"], output.screen)
             output.write(color_code("1;31", "  " + TR("ALERT: the status bar turned red, investigate now (Ctrl-T or g to acknowledge)")) + "\n")
         every = options["status_every"] if options["status_every"] >= 0 else max(5, terminal_rows() * 2 // 3)      # 1.131: automatic = 2/3 of the terminal height (1.120: height minus 2)
-        if every and state["emitted"] % every == 0:
-            output.write(status_line() + "\n")
+        if every:                                                  # 1.145: the bar is due after `every` lines, or sooner when the health moved
+            health_now = status.health()
+            if status_bar_due(state["emitted"], state.get("bar_at", 0), every, health_now, state.get("bar_health")):
+                output.write(status_line() + "\n")
+                state["bar_at"], state["bar_health"] = state["emitted"], health_now
         if options["chime"] is not None and is_reportable_error(L, options["chime"]) and time.time() - beep["last"] >= 2.0:       # at most one beep every 2 s
             beep["last"] = time.time()
             sonner(beep["mode"], output.screen)
@@ -5984,6 +6014,7 @@ def follow(cmd, people, resolver, options, output):
         if options["status_every"]:                              # --status-every 0 = never
             output.write(status_line() + "\n")
             output.flush()
+            state["bar_at"], state["bar_health"] = state.get("emitted", 0), status.health()      # 1.145: the next bar counts from here (no second bar at once)
 
     def reminder(L, ip, name):
         """A person has just logged in from ip: their recent lines, displayed higher up without a name, are displayed again with the name."""
@@ -5992,7 +6023,7 @@ def follow(cmd, people, resolver, options, output):
         recent_ones[:] = [e for e in recent_ones if e[2] != ip]
         if not earlier or not options["recap"]:
             return
-        reminder_form, lines = Formatting(options["minimal"], address_width(), options["slow"], options.get("status_header", False), hide_user_agent=options.get("hide_user_agent", False), request_length=options.get("request_length", False)), []
+        reminder_form, lines = Formatting(options["minimal"], address_width(), options["slow"], options.get("status_header", False), hide_user_agent=options.get("hide_user_agent", False), request_length=options.get("request_length", False), display_host=options.get("display_host", False)), []
         for _, old_one, _ in earlier[-50:]:
             if (options["minimal"] and old_one.discard_in_min()) or (options["hide_addons"] and old_one.discard_addons()):
                 continue
@@ -6287,6 +6318,7 @@ def follow(cmd, people, resolver, options, output):
                                       ("q", "--hide-addons", f"hide the INFO lines of the Odoo modules (odoo.addons.*), except errors, e-mails sent and generated files (PDF…) [{yes_no(options['hide_addons'])}]"),
                                       ("j", "--request-length", TR("the request length of the nginx lines (rl=) is shown in its own column before the GET") + f" [{yes_no(options['request_length'])}]"),
                                       ("u", "--hide-user-agent", TR("the User-Agent text of the nginx lines is not shown (the OS column stays)") + f" [{yes_no(options['hide_user_agent'])}]"),
+                                      ("k", "--display-host", TR("the host of the nginx lines (host=...) is shown at the end of the line") + f" [{yes_no(options['display_host'])}]"),
                                       ("i", "--hide-ip", f"hide the IP address [{yes_no(not options['keep_ip'])}]"),
                                       ("l", "--highlight WORDS", f"highlight these words in cyan (+word adds, -word removes; comma = several, none = nothing) [{', '.join(options['highlight_words']) or 'none'}]"),
                                       ("m", "--min", f"the minimum of information [{yes_no(options['minimal'])}]"),
@@ -6480,6 +6512,10 @@ def follow(cmd, people, resolver, options, output):
             options["hide_user_agent"] = not options["hide_user_agent"]
             form.hide_user_agent = options["hide_user_agent"]
             write_out([f"  --hide-user-agent : {yes_no(options['hide_user_agent'])} (the following lines)"])
+        elif key_value == "hostshow":                       # 1.145: the host= of the nginx lines (key k)
+            options["display_host"] = not options["display_host"]
+            form.display_host = options["display_host"]
+            write_out([f"  --display-host : {yes_no(options['display_host'])} (the following lines)"])
         elif key_value == "addons":
             options["hide_addons"] = not options["hide_addons"]
             hidden = state.get("addons_hidden", 0)
@@ -7032,6 +7068,7 @@ def main():
     parser.add_argument("--no-html-journal", action="store_true", help="No HTML copy of the daily journal (app-log-live-DATE.html, lines cut to 140 characters)")
     parser.add_argument("--no-isp", action="store_true", help="No outside request: no lookup of the address block owner or country (rdap.org, whois)")
     parser.add_argument("--hide-user-agent", action="store_true", help="Do not show the User-Agent text of the nginx lines (the OS column stays)")     # 1.134
+    parser.add_argument("--display-host", action="store_true", help="Show the host of the nginx lines (host=...) at the end of the line (default: not shown)")     # 1.145
     parser.add_argument("--request-length", action="store_true", help="Show the request length of the nginx lines (rl=) in its own column before the GET (default: not shown)")     # 1.136
     parser.add_argument("--no-user-agent", action="store_true", help="Do not read the User-Agent in the nginx access log (robots are then recognized only by name or robots.txt)")
     parser.add_argument("--no-presence", action="store_true", help="No presence tracking (sign-ins, sign-outs, inactivity)")
@@ -7316,7 +7353,7 @@ def main():
                "presence": Presence(args.idle) if is_odoo and not args.no_presence else None, "health": args.health, "keys": not args.no_keys and not args.no_follow, "app": profile.get("APP_NAME"), "app_label": profile.get("APP_LABEL", "application"), "hide_user_agent": args.hide_user_agent, "request_length": args.request_length, "log_nginx": bool(args.log_nginx), "log_merge": bool(args.log_merge), "status_header": bool(args.status_header), "nginx_merged": LOGS_MERGE in cmd, "propose_ban": not args.no_ban_prompt, "watch": [t.strip().lower() for t in (args.watch or "").split(",") if t.strip()], "agents": not args.no_user_agent and not args.no_follow, "acces_logs": profile.get("ACCESS_LOGS"),
                "exclude": exclusions, "chime": args.chime, "group": args.accentuate_group if group_members else None, "membres": group_members,
                "report_min": args.time_report or 0.0, "level": args.level, "modules_sort": modules_sort_state}
-    options.update({"buffer": args.buffer, "status_every": args.status_every,                          # 1.113: buffer of the f and P keys, status bar
+    options.update({"display_host": args.display_host, "buffer": args.buffer, "status_every": args.status_every,                          # 1.113: buffer of the f and P keys, status bar
                     "since": args.since_epoch, "until": args.until_epoch, "grep": grep_re,            # 1.112 filters of the stream loop
                     "countries": countries or None, "exclude_countries": unwanted_countries or None})
     # 1.93: test recording (R key, --record-test-log): log files read over the window, Odoo ports sampled, folder of the archives

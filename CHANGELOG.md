@@ -349,6 +349,22 @@ Earlier history was archived outside this repository when this file was created.
 
 ## app-log-live.py
 
+### 1.145.20261101.122458 - Status bar when the health moves; wider merge windows; host= hidden by default (--display-host); websockets are never slow
+
+- Title: the status bar also appears when the health moves by more than 3 points; pairs of lines are merged over a wider window; the host= of the nginx lines is hidden unless --display-host (key k); a websocket duration is no longer a slowness.
+- Reason: the user's review of the dashboard: (1) the bar should come more often when the health changes by more than 3 points, and stay at 2/3 of $LINES otherwise, without two bars in the first 10 lines; (2) pairs of lines were still not merged; (3) the Cloudflare visitors cannot be banned from the relay address; (4) an option to show host= at the end of the line, hidden by default; (5) a websocket (chat) is not a slow connection.
+- Changes:
+  - status_bar_due(): the bar is written after `every` displayed lines (2/3 of the terminal height by default), or sooner when the health moved by more than BAR_CHANGE_POINTS (3) since the last bar, provided BAR_MIN_GAP (10) lines have passed. The last bar is kept in state["bar_at"] and state["bar_health"].
+  - startup_status_bar(): sets the baseline, so the periodic bar does not come again within the first lines.
+  - MERGE_WINDOW 2.0 -> 5.0 s (log time) and MERGE_HOLD 3.0 -> 8.0 s (wall clock). An nginx-only line (no Odoo partner) can now show up to 8 s later when the stream is idle.
+  - --display-host (configuration DISPLAY_HOST, menu key k, Formatting.display_host): the host="..." of an nginx line is removed from the line unless this option is on (HOST_TEXT_RE, same cut as the User-Agent).
+  - LONG_CONNECTION_RE: request_duration() returns None for /websocket and /longpolling; a merged websocket line gets no slowness marker. The colour of its duration (transfer_style) is kept.
+  - Files: app-log-live.py, lang/app-log-live.fr.po (2 new strings), nginx-tools-tests/test_app_log_live.py (class AppLogLive145).
+- Bugs fixed: symptom: a second status bar within the first 10 lines at start; diagnosis: the bar written after the history and the periodic bar every 2/3 of the lines were not coordinated; fix: the baseline above. symptom: an nginx line shown alone, then its Odoo line shown alone a moment later (same URL, status 200, 0.24 s apart in the log); diagnosis: the Odoo journal is read more slowly, so the nginx line was released (2 s of log time or 3 s of wall clock) before its partner came; fix: the wider windows. symptom: "lente : 2186.2 s" on a websocket; diagnosis: a websocket is a connection kept open, its duration is not a request time; fix: LONG_CONNECTION_RE.
+- Safeguards and edge cases: the status bar health rule needs a previous bar: the first bar is at 2/3 of the lines. The two constants can be changed in one place. A pair with a different status (nginx 304, Odoo 200 for another request, for example a service worker fetch) is still NOT merged: they are two requests. Without --display-host the host is not shown; the 404 sitemap tag stays at the end of the line. The Cloudflare relay (CF-Connecting-IP) is not handled here: nginx bans by $remote_addr, so the client address needs nginx real_ip configuration (not in this version).
+- Checks performed: py_compile; --help shows --display-host; rendering with and without display_host; websocket with a 6000.5 s duration: no slowness marker and request_duration None; merge of an nginx line and an Odoo line 4.2 s later (one line); status_bar_due reviewed for the 2/3 rule, the 3-point rule, the 10-line minimum and the missing-baseline case; test_i18n OK. test_app_log_live: 2 failures, both already present before 1.141 (test_colonnes_jamais_tassees..., test_120_journal_html...).
+- Action required: restart app-log-live.py. Press k to show the host, or add DISPLAY_HOST=yes in the configuration file. If the pairs are still split, tell me the time gap between the two lines.
+
 ### 1.144.20261101.120235 - Ban suggestions: no CDN relays, no sweep web-monitor.py does not recommend; sitemap tag at the end of the line; times over 100 s with one decimal
 
 - Title: the dashboard no longer proposes to ban a shared relay (Cloudflare) or an address that a fresh web-monitor.py run judged harmless; the sitemap tag moves to the end of the line; long durations show one decimal.
