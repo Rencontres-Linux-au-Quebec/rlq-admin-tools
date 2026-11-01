@@ -2957,3 +2957,9 @@ msgstr "balayage 404, non recommandé par web-monitor.py"
 
 msgid "Not proposed for banning: "
 msgstr "Non proposées au bannissement : "
+
+msgid "the host of the nginx lines (host=...) is shown at the end of the line"
+msgstr "l'hôte des lignes nginx (host=...) est affiché en fin de ligne"
+
+msgid "Show the host of the nginx lines (host=...) at the end of the line (default: not shown)"
+msgstr "Affiche l'hôte des lignes nginx (host=...) en fin de ligne (par défaut : non affiché)"
