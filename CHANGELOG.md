@@ -349,6 +349,40 @@ Earlier history was archived outside this repository when this file was created.
 
 ## app-log-live.py
 
+### 1.131.20261031.200112 - --log-merge shows the Odoo time; automatic status bar at two thirds of the terminal
+
+- Title: with --log-merge, a merged line shows the time of the Odoo line (with hundredths); the automatic status bar appears after two thirds of the terminal height.
+- Reason: 1) the nginx time has only seconds (.00), while the Odoo line of the same request has hundredths: the merged line should show the Odoo time. 2) the status bar every (terminal height minus 2) lines was too rare: two thirds of the height is wanted.
+- Changes:
+  - merge_step(): when an Odoo line is absorbed by its nginx line, the merged line takes the time of the Odoo line (ts_txt).
+  - Automatic --status-every: max(5, terminal_rows() * 2 // 3) instead of terminal_rows() - 2. Help text, comment and French catalogue updated.
+- Bugs fixed: symptom: no hundredths on the merged lines; diagnosis: the merged line keeps the nginx time; fix: take the Odoo time.
+- Safeguards and edge cases: only the displayed time changes; the timing logic (L.instant) is unchanged. Minimum of 5 lines kept for very small terminals. --status-every N still overrides the automatic value.
+- Checks performed: py_compile, --version, test_i18n, test_logs_merge (41 tests OK).
+- Action required: none. Restart app-log-live.py to load the new version.
+
+### 1.130.20261031.194927 - Robots refused by policy: [BOT] label and own counter, not counted in health
+
+- Title: the 403 answered to the crawlers refused by nginx/conf.d/bot_blocker.conf (Amazonbot, ClaudeBot, GPTBot, CCBot, Bytespider, Claude-SearchBot) are shown with [BOT] at the end of the line, counted apart as "bots refused (403)", and no longer lower the health percentage.
+- Reason: a 403 for Amazonbot and ClaudeBot was shown without explanation, and it counted as an error in the health percentage, although it is the expected result of the site policy.
+- Changes:
+  - BOT_BLOCKED_UA_RE (same list as bot_blocker.conf), REQUEST_CODE_RE and is_bot_403(L): recognizes an nginx request answered 403 to one of these User-Agents.
+  - compose(): adds the [BOT] label (style "debug") at the end of such lines.
+  - Stats.observe(): these 403 go to self.bots403 instead of e4 and codes; they do not make the address a "problem" address.
+  - Stats.pieces(): line "bots refused (403): N", only when N is not zero.
+  - Stats.health(): unchanged formula, the bot 403 take no points (docstring updated).
+  - lang/app-log-live.fr.po: entries for the new messages.
+- Bugs fixed:
+  - Symptom: 403 lines for the bots with no label, and a lower health percentage.
+  - Diagnosis: every 4xx counted in e4, and e4 weighs 0.1 point each in the health percentage.
+  - Fix: the 403 of the bot policy are counted apart.
+- Safeguards and edge cases:
+  - Only nginx lines (database "nginx") and only the 403 code: a 403 from another reason or a 403 to a normal browser is still counted as an error.
+  - The list must follow bot_blocker.conf: if a bot is added there, add it to BOT_BLOCKED_UA_RE too (see comments).
+  - The UA is searched in the whole line: a URL containing one of these names would be matched as well (very rare).
+- Checks performed: py_compile, --version; is_bot_403 on the two lines of the report (True), on a 403 to a browser (False), on a 200 to ClaudeBot (False), on an Odoo line (False); test_i18n OK; test_app_log_live and test_logs_merge: 186 tests, the 2 failures are the ones already present before this change (test_colonnes_jamais_tassees..., test_120_journal_html_un_fichier_par_jour).
+- Action required: none. The new behaviour applies at the next start of app-log-live.py.
+
 ### 1.129.20261031.172912 - Browser version numbers are no longer taken for IP addresses
 
 - Title: in the User-Agent, the version after the browser name (Chrome/146.0.0.0) is shown as it is, and is no longer replaced by the owner and the country of an address.
@@ -2735,6 +2769,19 @@ Earlier history was archived outside this repository when this file was created.
 - Current version. Earlier history archived outside the repository.
 
 ## nginx-log-audit.sh
+
+### 2.66.20261031.193551 - No "Broken pipe" message; verification command uses zgrep
+
+- Title: the investigation output no longer shows "sort: write failed: Broken pipe", and the suggested command reads the compressed logs too.
+- Reason: during --investigate, the message "sort: write failed: 'standard output': Broken pipe" appeared in the report. The suggested command was a grep, which does not read the .gz rotations, although the explanation said so.
+- Cause: "head" closed its input before "sort" had finished writing (in the lists of URLs and User-Agents, and in the top URL), so sort received SIGPIPE.
+- Changes:
+  - investigate_and_propose: "head -n" and "head -1" replaced by awk, which reads all its input (same output).
+  - investigate_and_propose: the verification command is now zgrep -F "IP " PATH | awk ... | sort | uniq -c, with the path without the "(zgrep pour les .gz)" suffix.
+- Bugs fixed: symptom: Broken pipe message; diagnosis: head closes the pipe early; fix: awk.
+- Safeguards and edge cases: zgrep also reads uncompressed files; the output lists are unchanged; the path is cut at the first "  (" so callers without the suffix are unaffected.
+- Checks performed: bash -n; unit tests of nginx-log-audit and i18n (see the commit).
+- Action required: none.
 
 ### 2.65.20261031.180855 - 429 separated from hostility; Odoo accounts identified in --investigate
 
