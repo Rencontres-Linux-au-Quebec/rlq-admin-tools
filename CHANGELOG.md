@@ -2240,6 +2240,28 @@ Earlier history was archived outside this repository when this file was created.
 
 ## web-monitor.py
 
+### 2.83.20261101.220544 - No bulk ban; repeat offenders recommended only after their own investigation
+
+- Title: web-monitor.py never bans several addresses at once. A repeat offender is recommended only if its investigation (nginx-log-audit.sh --investigate) recommends the ban.
+- Reason: on 2026-11-01 the pass recommended 132.196.59.85 and 45.138.12.41 as "récidivistes", with the question "Bannir maintenant ? [o] toutes". The recidivism alone was the reason, and the group answer banned them at once, without the investigation of each address. The investigation of 132.196.59.85 gave 0/7.
+- Changes:
+  - web-monitor.py, analyze_nginx_logs: a repeat offender from the nginx-log-audit.sh report is added to the recommendations only if investigate_ip returns a recommendation (score 3/7 or more). Otherwise it stays in the alerts as information.
+  - ban(items): one address at a time, each with nginx-log-audit.sh --ban (investigation, evidence, confirmation). The --yes option is no longer used for bans from this program.
+  - ask_ban(items): the group answer "[o] all" is removed. The only choices are [c] one by one and [N] none.
+  - --ban-recommended: refused with --yes (ERROR, exit 2) and without a terminal. On a terminal: one by one.
+  - --apply --yes: other fixes still run; the recommended addresses are listed but not banned.
+  - Help text (--help, header comment) updated: --yes is no longer listed for --ban-recommended.
+  - lang/web-monitor.fr.po: French entries for the new messages.
+  - nginx-tools-tests/test_web_monitor.py: test of the recidivist (recommended only if the investigation says so); test of --ban-recommended with --yes (refused); test of the one-by-one answer with no --yes in the command; --apply --yes test adapted.
+  - Version 2.83 (minor, +0.1).
+- Bugs fixed: symptom: the group answer banned all recommended addresses without investigation. Diagnosis: the recidivism rule read the report and did not call the investigation. Fix: see above.
+- Safeguards and edge cases:
+  - --ban-odoo-user still calls nginx-log-audit.sh --ban IP --yes for one address after its own investigation; the gate of nginx-log-audit.sh (2.70) still requires the score 3/7.
+  - The browser 403 path already called investigate_ip and is unchanged.
+  - Without a terminal, no address is banned by this program.
+- Checks: test_web_monitor (85 tests OK); py_compile OK.
+- Action required: none. After the update, the next pass no longer offers a group ban. 132.196.59.85 and 45.138.12.41 are not banned by this change; answer N unless their investigation gives 3/7 or more.
+
 ### 2.82.20261030.153422 - No plural marker "(s)" in the displayed texts
 
 - Title: the texts shown by the program no longer contain "(s)": "requête(s)" becomes "requêtes", "adresse(s)" becomes "adresses", "lente(s)" becomes "lentes" (French and English).

@@ -2786,3 +2786,18 @@ msgstr "Installer le timer systemd"
 
 msgid "interactive menu of the common operations (dialog if installed; terminal required)"
 msgstr "menu interactif des opérations courantes (dialog si installé ; terminal requis)"
+
+msgid "\nBan now, one by one (detailed investigation for each)? [c] yes  [N] none: "
+msgstr "\nBannir maintenant, une par une (enquête détaillée pour chacune) ? [c] oui  [N] aucune : "
+
+msgid "ERROR: --yes does not ban in bulk (2.83). Run web-monitor.py --ban-recommended on a terminal: one address at a time."
+msgstr "ERREUR : --yes ne bannit jamais en lot (2.83). Lancer web-monitor.py --ban-recommended sur un terminal : une adresse à la fois."
+
+msgid "ERROR: no terminal: the addresses are banned one by one, on a terminal."
+msgstr "ERREUR : pas de terminal : les adresses sont bannies une par une, sur un terminal."
+
+msgid "recommended IP(s) not banned: no bulk ban (2.83). On a terminal: "
+msgstr "IP recommandée(s) non bannie(s) : pas de bannissement en lot (2.83). Sur un terminal : "
+
+msgid ", one by one."
+msgstr ", une par une."
