@@ -3075,6 +3075,31 @@ Earlier history was archived outside this repository when this file was created.
 
 ## nginx-log-audit.sh
 
+### 2.69.20261101.204354 - No bulk ban: every ban re-checked, evidence required, typed exception
+
+- Title: no program bans several addresses at once any more. Each --ban runs the full investigation first and is refused unless the evidence justifies it; the only exception is a typed confirmation.
+- Reason: on 2026-11-01 the address 62.34.251.225 was banned by --ban-sqli in a group, with a recorded justification that the logs contradict (its only request that day was an ordinary page). The user asked that no ban be made in bulk and that every ban be re-validated with --investigate, with a detailed justification.
+- Changes:
+  - nginx-log-audit.sh, preuves_ip: the SQL injection lines of the site log are evidence FOR a ban (counted over all rotations). The function sets PREUVES_VERDICT: "justifie" (evidence for, no strong reason against), "examiner" (both), or "aucune" (no evidence for).
+  - nginx-log-audit.sh, --ban: preuves_ip always runs, even with --yes, and the investigation is always shown. The ban is refused unless PREUVES_VERDICT is "justifie" or the investigation recommends it (score of at least 3/7, the threshold of CLAUDE.md).
+  - Exception: --reason TEXT, then the word BANNIR typed by hand on a terminal. --yes does not bypass the gate. Without a terminal the exception is refused. The reason is recorded with the prefix "EXCEPTION (verdict ...)".
+  - nginx-log-audit.sh, --ban-sqli: --yes is refused. Without a terminal the program only lists the addresses and bans nothing. On a terminal, each address goes through --ban one by one (the group question is removed).
+  - SQLI_RE is defined near the top of the script (see bugs fixed).
+  - nginx-tools-tests/test_ban_gate.py (new): 7 static tests (evidence always verified, refusal condition, exception requires reason, terminal and BANNIR, confirmation skipped only with the exception, SQL injections counted as evidence, --ban-sqli without --yes and without group question, version string).
+  - nginx-tools-tests/test_nginx_log_audit.py: 5 ban scenarios adapted to the gate. Evidence added where a ban is expected (helper _preuves_sqli, three SQL injection requests with 404). The reasoning test now asserts the refusal. The --ban-sqli test asserts the listing without insertion and the refusal of --yes. Listing text updated to the current wording. Import test: evidence for 198.51.100.99.
+- Bugs fixed:
+  - Symptom: --ban stopped silently after the line "Site : N requêtes" with exit code 1 and no message.
+  - Diagnosis: SQLI_RE was defined at the end of the script, but the --ban path (preuves_ip) runs before that point. With set -u, the unbound variable aborted the script. This bug was in the unreleased 2.69 draft; the tests found it before any commit.
+  - Fix: SQLI_RE is defined right after set -euo pipefail.
+- Safeguards and edge cases:
+  - A ban without a terminal and without the exception is always refused, whatever --yes says.
+  - The investigation recommendation is accepted only with the score of CLAUDE.md (3/7); a score of 2/7 or less does not authorise a ban.
+  - An address with strong reasons against (for example normal navigation) is never "justifie" on the injections alone.
+  - fail2ban and CrowdSec automatic bans are unchanged (decision: automatic, with a daily review, not yet implemented).
+  - web-monitor.py and app-log-live.py are not changed by this version. They still call --ban IP --yes, so until their own pull requests are merged, their bans are refused when there is no evidence. This is intended.
+- Checks: test_nginx_log_audit (50 tests OK, awk); test_ban_gate (7 tests OK); bash -n OK; ruff clean on test_ban_gate.py. The full run-all.sh still shows failures that are not caused by this change (see the pull request description). --ban-sqli has not been tested on a real terminal with real logs.
+- Action required: do not lift 62.34.251.225 without a fresh --investigate. Use --ban only on a terminal, one address at a time. Until web-monitor.py and app-log-live.py are updated, their ban buttons will be refused without evidence.
+
 ### 2.68.20261101.195800 - SQL injection kept as a reason to ban; encoded parentheses recognized
 
 - Title: an address with an SQL injection in the logs is never proposed for lifting by --unban-check or --unban-low-score; the injection pattern now also matches encoded parentheses.
