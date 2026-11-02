@@ -3075,7 +3075,25 @@ Earlier history was archived outside this repository when this file was created.
 
 ## nginx-log-audit.sh
 
-### 2.67.20261101.192900 - Lift the bans of Cloudflare addresses (option --unban-cdn)
+### 2.68.20261101.195800 - SQL injection kept as a reason to ban; encoded parentheses recognized
+
+- Title: an address with an SQL injection in the logs is never proposed for lifting by --unban-check or --unban-low-score; the injection pattern now also matches encoded parentheses.
+- Reason: on 2026-11-01, --unban-check proposed lifting 37.65.66.209, banned on 2026-10-28 by --ban-sqli for SQL injection (URL with UNION ALL SELECT and EXTRACTVALUE). The score was 0/7 because the score does not count injections, and the EXTRACTVALUE requests were not recognized at all.
+- Diagnosis:
+  - decide_unban judged only the score criteria (burst, scripts, errors, sensitive files, catch-all). An injection gives 200 responses and triggers none of them.
+  - SQLI_RE required a literal parenthesis after EXTRACTVALUE, UPDATEXML, ELT, CONCAT, SLEEP and BENCHMARK. Browsers and the log send it encoded as %28, so those requests were missed. The UNION SELECT request was recognized, which is why the ban itself was justified.
+- Changes:
+  - nginx-log-audit.sh: SQLI_RE accepts ( or %28 after the function names. New function sqli_hits_ip (counts the lines of the full history, INV_SRC, from one address that match SQLI_RE). decide_unban calls it first: if there is a hit, the verdict is "garder" with the message "injection SQL dans les journaux", before any other criterion (protection, search engine, score, login). Used by --unban-check and --unban-low-score.
+  - nginx-tools-tests/test_sqli_unban.py (new): 5 tests, including the three URL of 37.65.66.209 and normal URL that must not match.
+- Bugs fixed: a banned attacker proposed for lifting (see diagnosis).
+- Safeguards and edge cases:
+  - A literal parenthesis still matches (no regression).
+  - Ordinary URL with order=... and asc do not match.
+  - The check reads the full history (all rotations), so an old injection keeps the ban.
+  - decide_unban is the only place that decides, so the interactive question and --unban-low-score cannot lift an address with an injection.
+- Checks: test_sqli_unban (5 tests OK); test_nginx_log_audit (50 tests OK); sqli_hits_ip run on a sample access log (2 hits, 0 for a normal address, 0 for an unknown address); bash -n OK.
+- Action required: do not lift 37.65.66.209. Other addresses banned earlier for SQL injection are kept after this version; check the list with --unban-check before any --unban-low-score --yes.
+ - Lift the bans of Cloudflare addresses (option --unban-cdn)
 
 - Title: new option --unban-cdn lifts, in one operation, the bans (fail2ban and manual firewall) of addresses inside Cloudflare's published ranges, after a preview and one confirmation.
 - Reason: on 2026-11-01 a Cloudflare node was banned by mistake (nginx-badrequests jail, 14 ordinary 404 and 30x responses). Other Cloudflare addresses may have been banned the same way. Lifting them one by one with --unban and fail2ban-client was slow and error-prone.
