@@ -33,7 +33,8 @@ class BanGate(unittest.TestCase):
     def test_refus_si_verdict_non_justifie(self):
         """Sans verdict « justifie », le programme refuse (exit 1) si aucune exception n'est possible."""
         b = bloc_ban(script())
-        self.assertIn('if [[ "$PREUVES_VERDICT" != "justifie" && "$BAN_RECOMMANDE" != "1" ]]; then', b)
+        self.assertIn('if [[ "$BAN_RECOMMANDE" != "1" ]]; then', b)            # 2.70: l'enquête (score 3/7) est obligatoire
+        self.assertNotIn('"$PREUVES_VERDICT" != "justifie"', b)                 # 2.70: les seules preuves ne suffisent plus
         self.assertIn('grep_q "Score [0-9]/7 : bannissement recommandé"', b)
         self.assertRegex(b, r'Refusé\. Pour une exception[^\n]*\n\s*exit 1')
 
@@ -62,8 +63,19 @@ class BanGate(unittest.TestCase):
         self.assertIn('"$SELF_PATH" --ban "$ip" --reason "$why"', s)
         self.assertNotIn('--ban "$ip" --yes --reason "$why"', s)
 
+    def test_recidive_jamais_une_preuve_a_elle_seule(self):
+        s = script()
+        self.assertIn('faible+=("récidive', s)
+        self.assertNotIn('pour+=("récidive', s)
+
+    def test_php_seulement_pages_php_reelles(self):
+        self.assertIn(r'\.php([?]|$)', script())
+        ligne = [l for l in script().splitlines() if 'n_sens=$(' in l]
+        self.assertEqual(len(ligne), 1)
+        self.assertNotIn(r'|\.php|', ligne[0])                                 # 2.70: md5.php3 n'est plus une tentative sensible
+
     def test_version_dynamique(self):
-        self.assertIn('readonly SCRIPT_VERSION="2.69.20261101.204354"', script())
+        self.assertIn('readonly SCRIPT_VERSION="2.70.20261101.215908"', script())
 
 
 if __name__ == "__main__":

@@ -135,7 +135,7 @@ grep_q() { grep "$@" >/dev/null; }
 #                              ne peut pas le voir, le texte etant entre apostrophes (faux positif).
 trap 'ec=$?; echo "" >&2; echo "*** ARRÊT INATTENDU DU SCRIPT (code $ec) À LA LIGNE $LINENO ***" >&2; echo "*** Commande fautive : $BASH_COMMAND" >&2; echo "*** Si le rapport ci-dessus semble incomplet (ex. sections Top 10 absentes), c'\''est probablement la cause." >&2' ERR
 
-readonly SCRIPT_VERSION="2.69.20261101.204354"
+readonly SCRIPT_VERSION="2.70.20261101.215908"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
 # Chemin de ce programme (relances --investigate, --ban, --unban) : defini ICI, avant le bloc --ban qui l'utilise.
 SELF_PATH="$SCRIPT_DIR/$(basename "${BASH_SOURCE[0]}")"
@@ -778,7 +778,7 @@ preuves_ip() {
             [[ "$jail" == nginx-* ]] || JAILS_HORS_NGINX+=("$jail")
         done <<< "$hist"
         if (( total_bans >= 2 )); then
-            pour+=("récidive : $total_bans bannissements temporaires par fail2ban ($jails) — revient après chaque levée")
+            faible+=("récidive : $total_bans bannissements temporaires par fail2ban ($jails) — les mêmes requêtes en sont la cause")
         elif (( total_bans == 1 )); then
             pour+=("déjà bannie une fois par fail2ban ($jails)")
         fi
@@ -806,7 +806,7 @@ preuves_ip() {
     (( ${#fichiers_site[@]} > 0 )) && site=$(lire_chrono "${fichiers_site[@]}" | { grep -E "^$ipre " || true; })
     if [[ -n "$site" ]]; then
         n_site=$(printf '%s\n' "$site" | wc -l)
-        n_sens=$(printf '%s\n' "$site" | awk '$7 ~ /\.env|\.git\/|\/wp-|wp-login|\.php|cgi-bin|\.\.\/|%2e%2e|\.(bak|old|sql|swp)$/' | wc -l)
+        n_sens=$(printf '%s\n' "$site" | awk '$7 ~ /\.env|\.git\/|\/wp-|wp-login|\.php([?]|$)|cgi-bin|\.\.\/|%2e%2e|\.(bak|old|sql|swp)$/' | wc -l)
         n_ok=$(printf '%s\n' "$site" | awk '$6 == "\"GET" && $9 ~ /^2/ && $7 !~ /\.env|\.git\/|\/wp-|\.php|cgi-bin|\.\.\//' | wc -l)
         echo "    Site : $n_site requêtes, dont ${C_MAL}$n_sens tentatives${C_RESET} d'accès à des fichiers sensibles ou à des failles et $n_ok pages servies"
         (( n_sens > 0 )) && pour+=("$n_sens tentatives d'accès à des fichiers sensibles ou à des failles sur le site")
@@ -878,7 +878,7 @@ preuves_ip() {
     elif (( ${#pour[@]} == 0 )); then
         echo "    ${C_YELLOW}Aucune preuve dans les journaux conservés : ne pas bannir sans raison connue par ailleurs.${C_RESET}"
     elif (( ${#contre[@]} == 0 )); then
-        echo "    ${C_GREEN}Verdict : bannissement justifié${C_RESET} (aucune raison contraire trouvée)."
+        echo "    ${C_GREEN}Preuves : pas de raison contraire trouvée${C_RESET} (le bannissement exige aussi un score de 3/7 dans l'enquête)."
     else
         echo "    ${C_YELLOW}Verdict : à examiner${C_RESET} — des éléments plaident contre (voir aussi l'enquête ci-dessous)."
     fi
@@ -1291,9 +1291,9 @@ if [[ -n "$BAN_IP" ]]; then
     BAN_RECOMMANDE=0
     if printf '%s\n' "${enquete:-}" | grep_q "Score [0-9]/7 : bannissement recommandé"; then BAN_RECOMMANDE=1; fi
     BAN_OVERRIDE=0
-    if [[ "$PREUVES_VERDICT" != "justifie" && "$BAN_RECOMMANDE" != "1" ]]; then
+    if [[ "$BAN_RECOMMANDE" != "1" ]]; then
         echo
-        echo "${C_RED}LES PREUVES NE JUSTIFIENT PAS CE BANNISSEMENT (verdict : ${PREUVES_VERDICT:-inconnu}).${C_RESET}"
+        echo "${C_RED}LES PREUVES NE JUSTIFIENT PAS CE BANNISSEMENT (verdict des preuves : ${PREUVES_VERDICT:-inconnu} ; l'enquête ne recommande pas le bannissement, score inférieur à 3/7).${C_RESET}"
         if [[ -z "$BAN_REASON" ]]; then
             echo "Refusé. Pour une exception : --reason TEXTE, puis taper BANNIR dans un terminal (--yes ne suffit pas)." >&2
             exit 1

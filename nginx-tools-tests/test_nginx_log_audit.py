@@ -408,9 +408,10 @@ class ChkNginxLogs(EnvTest):
             self.add(*(acc("11.83.10.20", "25/Sep/2026", f"07:12:1{k}", f"{p}?x={k}", 403, "curl/8.5.0") for k in range(4)))
 
     def _preuves_sqli(self, ip):
-        """2.69 : --ban exige des preuves ; trois tentatives d'injection SQL (404) de cette IP en fournissent."""
-        self.add(*(acc(ip, "27/Sep/2026", f"09:0{k}:00", f"/es/shop?order={k}%20union%20select%201,2", 404, "Mozilla/5.0")
-                   for k in range(3)))
+        """2.70 : --ban exige que l'enquête recommande (score 3/7) ; 20 sondes de fichiers sensibles de cette IP le permettent."""
+        sondes = [(p, k) for p in ("/.env", "/.git/HEAD", "/wp-login.php", "/phpmyadmin/", "/config.php") for k in range(4)]
+        self.add(*(acc(ip, "27/Sep/2026", f"09:{i // 60:02d}:{i % 60:02d}", f"{p}?x={k}", 403, "curl/8.5.0")
+                   for i, (p, k) in enumerate(sondes)))
 
     @unittest.skipUnless(os.geteuid() == 0, "--ban exige root")
     def test_ban_affiche_le_raisonnement_et_avertit_sans_hostilite(self):
@@ -619,7 +620,7 @@ class ChkNginxLogs(EnvTest):
         self.assertIn("Scanner Internet déclaré", out)
         self.assertIn("Jail nginx-catchall : 2 bannissements temporaires les 2026-09-23, 2026-09-28", out)
         self.assertIn("Capteur catch-all : 1 requêtes", out)
-        self.assertIn("Verdict : bannissement justifié", out)
+        self.assertIn("Preuves : pas de raison contraire trouvée", out)
         self.assertNotIn("Aucune occurrence trouvée", out)
         self.assertNotIn("enquête indisponible", out)
 
@@ -634,7 +635,7 @@ class ChkNginxLogs(EnvTest):
             catchall='11.134.146.52 - [23/Sep/2026:04:11:02 -0400] "GET / HTTP/1.1" 444 host="198.51.100.7"\n', option="--evidence")
         self.assertIn("PREUVES RASSEMBLÉES POUR 11.134.146.52", out)
         self.assertIn("récidive : 2 bannissements temporaires par fail2ban (nginx-catchall)", out)
-        self.assertIn("Verdict : bannissement justifié", out)
+        self.assertIn("Preuves : pas de raison contraire trouvée", out)
         self.assertNotIn("Ceci va bloquer", out)                                         # aucune question de bannissement
 
     @unittest.skipUnless(os.geteuid() == 0, "--ban exige root")
@@ -647,7 +648,7 @@ class ChkNginxLogs(EnvTest):
         self.assertIn("PTR : aucun", out)
         self.assertIn("Journal système (jails hors nginx : sshd)", out)
         self.assertIn("Invalid user admin from 11.110.46.244", out)
-        self.assertIn("+ récidive : 2 bannissements temporaires par fail2ban (sshd)", out)
+        self.assertIn("· récidive : 2 bannissements temporaires par fail2ban (sshd)", out)
 
     @unittest.skipUnless(os.geteuid() == 0, "--ban exige root")
     def test_preuves_dns_injoignable_ou_absent(self):
@@ -697,8 +698,8 @@ class ChkNginxLogs(EnvTest):
         self.assertRegex(out, r"\[protégée ici\] 10\.0\.0\.5")
         self.assertIn("[invalide] pas-une-ip", out)
         self.assertIn("3 à bannir, 1 déjà bannies ici, 2 protégées ici (ignorées), 1 invalides.", out)
-        self.add(*(acc("198.51.100.99", "27/Sep/2026", f"10:0{k}:00", "/es/shop?x=1%20union%20select%201,2", 404, "Mozilla/5.0")
-                   for k in range(3)))                                                            # 2.69 : preuves avant le bannissement importé
+        self._preuves_sqli("198.51.100.99")
+        self._preuves_sqli("11.159.48.202")                                                # 2.70 : enquête favorable (score 3/7) requise                                                # 2.70 : enquête favorable avant le bannissement importé
         rc, out, err = self.run_cmd(["bash", self.prog, "--import-bans", "-", "--yes"], input_text=export)
         self.assertIn("3 IP bannies", out)
         regles = open(os.path.join(self.d, "rules")).read()
@@ -863,7 +864,7 @@ class ChkNginxLogs(EnvTest):
         self.assertRegex(out, r"\s+1  /\.git/config \(404\)\n")                         # parameters removed
         self.assertNotIn("/autre", out)                                                  # another address is not mixed in
         self.assertIn("+ 6 requêtes refusées par nginx (fichiers sensibles, failles, outils d'attaque), sur 2 jours", out)
-        self.assertIn("Verdict : bannissement justifié", re.sub(r"\x1b\[[0-9;]*m", "", out))
+        self.assertIn("Preuves : pas de raison contraire trouvée", re.sub(r"\x1b\[[0-9;]*m", "", out))
         # No refused request kept: says it clearly, without inventing evidence
         for nom in ("blocked-probes.log", "blocked-probes.log.1"):
             os.remove(os.path.join(self.logs, nom))

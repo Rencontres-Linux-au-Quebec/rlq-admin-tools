@@ -3109,6 +3109,31 @@ Earlier history was archived outside this repository when this file was created.
 
 ## nginx-log-audit.sh
 
+### 2.70.20261101.215908 - A ban needs the investigation score, not only the evidence
+
+- Title: --ban is refused unless the investigation recommends the ban (score 3/7 or more), and three weak signals no longer count as evidence.
+- Reason: on 2026-11-01, --ban 132.196.59.85 said "Verdict : bannissement justifié" while the investigation in the same report gave 0/7 with "aucun signe d'hostilité". The gate of 2.69 accepted the evidence verdict alone, which made the two verdicts contradict each other.
+- Diagnosis:
+  - The fail2ban recidivism was counted as evidence "for". It comes from the same requests as the ones it is supposed to justify (circular).
+  - The sensitive-files pattern matched any ".php" in the URL, so /md5.php3 (a plain 404) was counted as an attempt to reach sensitive files.
+  - The gate tested PREUVES_VERDICT "justifie" or the score; the verdict alone was enough.
+- Changes:
+  - nginx-log-audit.sh, preuves_ip: the fail2ban recidivism goes to the weak hints ("Indice faible"), never to the evidence "for".
+  - nginx-log-audit.sh, sensitive-files pattern: ".php" replaced by "\.php([?]|$)" (a PHP page, not php3 or other suffixes).
+  - nginx-log-audit.sh, --ban gate: refused unless BAN_RECOMMANDE=1 (investigation score 3/7). The exception (--reason, then BANNIR on a terminal) is unchanged.
+  - Evidence verdict line: "Preuves : pas de raison contraire trouvée" with a reminder that the score of 3/7 is also required (the label "Verdict : bannissement justifié" is removed).
+  - nginx-tools-tests/test_ban_gate.py: static tests updated (gate condition, recidivism not evidence, .php pattern); version 2.70.
+  - nginx-tools-tests/test_nginx_log_audit.py: ban scenarios use sensitive-file probes (20 requests from the address) instead of SQL injection only, which does not reach the score alone; labels updated.
+- Bugs fixed:
+  - Symptom: a ban recommended with the investigation at 0/7 and "bannissement justifié" in the same report.
+  - Diagnosis and fix: see above.
+- Safeguards and edge cases:
+  - Evidence alone never bans; the investigation score is required, as in CLAUDE.md (threshold 3).
+  - The exception path is unchanged: --reason, then BANNIR typed on a terminal; --yes does not bypass it.
+  - The count of sensitive requests now ignores plain .php3/.php4 suffixes; genuine probes of WordPress and .env paths are still counted.
+- Checks: test_ban_gate (9 tests OK); test_nginx_log_audit (50 tests OK); bash -n OK.
+- Action required: web-monitor.py still recommends bans from recidivism without the investigation; that is a separate pull request to come. Do not ban 132.196.59.85 (answer N).
+
 ### 2.69.20261101.204354 - No bulk ban: every ban re-checked, evidence required, typed exception
 
 - Title: no program bans several addresses at once any more. Each --ban runs the full investigation first and is refused unless the evidence justifies it; the only exception is a typed confirmation.
