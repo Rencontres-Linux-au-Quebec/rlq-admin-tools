@@ -2685,7 +2685,10 @@ revue_controles() {
         echo "   ${C_GREEN}[OK]${C_RESET} jails actives : $jails"
         for j in $jails; do
             nb=$(run fail2ban-client status "$j" 2>/dev/null | sed -n 's/.*Currently banned:[[:space:]]*//p') || nb=""
+            # 2.69 : la liste des adresses bannies (ligne « Banned IP list » de fail2ban), pas seulement leur nombre
+            ips_j=$(run fail2ban-client status "$j" 2>/dev/null | sed -n 's/.*Banned IP list:[[:space:]]*//p') || ips_j=""
             echo "   [i] $j : ${nb:-?} IP bannies en ce moment (commande : fail2ban-client status $j)"
+            if [[ -n "$ips_j" ]]; then echo "       ${ips_j}"; fi
         done
     else
         echo "   ${C_RED}[FAIL]${C_RESET} fail2ban inaccessible ou sans jail : les bannissements automatiques ne sont pas appliqués"

@@ -415,6 +415,13 @@ class RegleWordPress(unittest.TestCase):
             with self.subTest(chemin=chemin):
                 self.assertTrue(self.refuse(chemin), f"{chemin} devrait être refusé par nginx")
 
+    def test_security_txt_seul_fichier_de_well_known_autorise(self):
+        """2026-11-01 : /.well-known/security.txt (RFC 9116) n'est plus refusé ; le reste de /.well-known/ et les autres .txt le restent."""
+        self.assertFalse(self.refuse("/.well-known/security.txt"))
+        for chemin in ("/.well-known/x.txt", "/.well-known/.env", "/.well-known/security.txt.php", "/config.txt", "/.well-known/security.txt.bak"):
+            with self.subTest(chemin=chemin):
+                self.assertTrue(self.refuse(chemin), f"{chemin} devrait être refusé par nginx")
+
     def test_routes_d_odoo_jamais_refusees(self):
         """Vraies routes tirées du journal du site : aucune règle de sécurité ne doit les capter."""
         for chemin in ("/", "/event", "/event/service-worker.js", "/event/manifest.webmanifest", "/web/login", "/web/session/logout",

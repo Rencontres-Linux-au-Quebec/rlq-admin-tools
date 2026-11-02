@@ -2774,6 +2774,20 @@ Earlier history was archived outside this repository when this file was created.
 
 ## nginx-hardening.sh
 
+### 2.72.20261101.234513 - Visitor's security.txt file no longer refused (/.well-known/security.txt)
+
+- Title: /.well-known/security.txt (RFC 9116) is served by Odoo again instead of a 404 from nginx; the other files of /.well-known/ stay refused.
+- Reason: on 2026-11-01 a visitor requested /.well-known/security.txt (a standard file for reporting security issues). nginx refused it with a 404 and counted it as a probe in blocked-probes.log. On the DEV server nginx-catchall logged this address 16 times between 2026-10-04 and 2026-10-28; it was never banned, but the counts were false.
+- Changes:
+  - nginx/snippets/securite-commune.conf, rule "location ~ /\." (hidden files): exemption of the exact path /.well-known/security.txt only.
+  - nginx/snippets/securite-commune.conf, rule 5 (extensions .txt, .php, .env, etc.): the same exact path is excluded from the lookahead.
+  - nginx/VERSION: 1.18.20261101.234513.
+  - nginx-tools-tests/test_config_nginx.py: test_security_txt_seul_fichier_de_well_known_autorise (security.txt allowed; /.well-known/x.txt, /.well-known/.env, /.well-known/security.txt.php, /config.txt and /.well-known/security.txt.bak still refused).
+  - nginx-hardening.sh: SCRIPT_VERSION 2.72.20261101.234513 (the program installs the files of nginx/).
+- Bugs fixed: symptom: 404 and false probe counts for /.well-known/security.txt. Diagnosis: two rules refuse it, the hidden-files rule (any "/." in the path) and the extension rule (".txt"). Fix: an exemption limited to this one path in both rules.
+- Safeguards and edge cases: the exemption is an exact path (no prefix), so /.well-known/.env, /.well-known/x.txt or /.well-known/security.txt.php stay refused. The file itself is not created by this change: a site without security.txt still answers 404, through Odoo.
+- Checks performed: test_config_nginx, class RegleWordPress: 4 tests OK, with NGINX_ODOO_DIR pointing to nginx/. The module as a whole gives the same 4 failures and 8 errors as before this change, because the private nginx-odoo configuration is not in the repository (checked by running the tests before and after the change). bash -n on nginx-hardening.sh.
+- Action required: run sudo nginx-hardening.sh --update on each Odoo server to deploy the new securite-commune.conf (review the diff, then confirm). Then curl -sI https://<domaine>/.well-known/security.txt must no longer return a 404 from nginx (Odoo's answer, 404 or 200, is normal). Creating a security.txt file on the site is a separate decision, not part of this change.
 ### 2.74.20261101.231500 - Retour arrière : écho et effacement rétablis avant chaque réponse
 
 - Title: each question of nginx-hardening.sh (yes/no, menus, text answers, the SMTP setup question) restores echo and erase first.
@@ -3211,6 +3225,15 @@ Earlier history was archived outside this repository when this file was created.
 
 ## nginx-log-audit.sh
 
+### 2.69.20261101.234513 - Fail2ban section lists the banned addresses, not only their number
+
+- Title: the fail2ban check of the "AUTRES POINTS A RE-VERIFIER" report now shows the banned addresses of each jail.
+- Reason: the report gave the number of banned addresses per jail (for example "4 IP bannies en ce moment") but not the addresses, so the administrator had to run fail2ban-client status for each jail by hand to check them.
+- Changes: revue_controles(), section 2 (jails fail2ban): the line "Banned IP list" of fail2ban-client status <jail> is printed under the count of each jail. Read-only, no change of ban.
+- Bugs fixed: none (enhancement).
+- Safeguards and edge cases: if a jail has no banned address, nothing more is printed. The count line is unchanged.
+- Checks performed: bash -n on nginx-log-audit.sh. No new text is displayed, so the translation catalogues are unchanged.
+- Action required: none.
 ### 2.71.20261101.231500 - Retour arrière : écho et effacement rétablis avant chaque réponse
 
 - Title: the answer questions (demander_oui, demander_texte, the ban exception word) restore echo and erase first.
