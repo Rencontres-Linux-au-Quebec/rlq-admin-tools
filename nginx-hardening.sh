@@ -92,7 +92,7 @@ run() {
     "$@"
 }
 
-readonly SCRIPT_VERSION="2.75.20261102.090139"
+readonly SCRIPT_VERSION="2.76.20261102.104500"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
 SCRIPT_NAME="$(basename "${BASH_SOURCE[0]}" .sh)"; readonly SCRIPT_NAME
 # Display language (en or fr): --lang, NGINX_HARDENING_LANG, LANGUAGE of the configuration file, LC_ALL / LANG - apps/_i18n.sh translates the output (nothing changes in French).
@@ -146,6 +146,7 @@ read -r -a BACKUP_ROOTS <<< "${NGINX_HARDENING_BACKUP_ROOTS:-/etc/nginx /etc/fai
 ROLLBACK=0
 ROLLBACK_BACKUP=""
 ROLLBACK_YES=0
+DNS_RAFRAICHIR=0            # --dns-refresh: resolve the DNS names of the white list; full --update only if an address changed (cron every 15 min)
 DISABLE_URI_LIST=()     # --disable-uri CHEMIN (repeatable): refused with 404 in the Odoo site, every language
 ENABLE_URI_LIST=()      # --enable-uri CHEMIN (repeatable): the refusal is removed
 ODOO_HTTP_PORT=""      # empty: read from the Odoo configuration ("configuration" step), otherwise 10000 / 10002
@@ -221,6 +222,7 @@ while [[ $# -gt 0 ]]; do
         --backup) ROLLBACK_BACKUP="${2:-}"; shift 2 ;;
         --rollback) ROLLBACK=1; shift ;;
         --disable-uri) DISABLE_URI_LIST+=("${2:-}"); shift 2 ;;
+        --dns-refresh) DNS_RAFRAICHIR=1; shift ;;
         --enable-uri) ENABLE_URI_LIST+=("${2:-}"); shift 2 ;;
         --yes) ROLLBACK_YES=1; shift ;;
         --app) APP_FORCE="${2:-}"; shift 2 ;;
@@ -278,6 +280,7 @@ Options (par ordre alphabétique) :
   --check                      vérification seule (comportement par défaut)
   -c, --config FILE            fichier de configuration à lire SEUL (défaut : /etc/default/nginx-hardening.conf puis ~/.nginx-hardening.conf)
   --disable-uri CHEMIN         refuse (404) ce chemin dans le site Odoo, toutes les langues (ex. /shop) : fichier snippets/uri-desactivees.conf ; répétable
+  --dns-refresh                résout les noms DNS de la liste blanche (adresses dynamiques) ; --update seulement si une adresse a changé (cron toutes les 15 min)
   --enable-uri CHEMIN          rétablit un chemin refusé par --disable-uri ; répétable
   -h, --help                   affiche cette aide et quitte
   --lang LANG                  langue d'affichage : en ou fr (défaut : selon LC_ALL / LC_MESSAGES / LANG)
@@ -659,13 +662,94 @@ sans_objet() { echo "  [--]   Sans objet pour $APP_LABEL : $1"; }
 # $1 = geo (table $is_trusted_ip: "ADDRESS 1; ") or allow (allow lists: "allow ADDRESS; "). Invalid entries:
 # noted in EQUIPE_INVALIDES (never written to nginx, which would otherwise refuse its whole configuration).
 EQUIPE_INVALIDES=""
+# temporaires_verifier: signale les entrées [temporaire] valables, expirées (retirées de nginx et de fail2ban) ou sans date valide (ignorées).
+temporaires_verifier() {
+    local adr lib opts n maint v valides=0 expirees="" invalides=""
+    maint=$(listes_maintenant)
+    while IFS=$'\037' read -r adr lib opts n; do
+        [[ ",$opts," == *",temporaire="* ]] || continue
+        v=${opts##*temporaire=}; v=${v%%,*}
+        if [[ "$v" == invalide ]]; then invalides="$invalides ligne $n ($adr);"
+        elif [[ ! "$maint" < "$v" ]]; then expirees="$expirees $adr (le $v);"
+        else valides=$((valides + 1)); fi
+    done < <(listes_temporaires)
+    if [[ -n "$invalides" ]]; then warn "Liste blanche [temporaire] : date absente ou invalide (AAAA-MM-JJ HH:MM:SS), entrée(s) ignorée(s) :${invalides%;}"; fi
+    if [[ -n "$expirees" ]]; then warn "Liste blanche [temporaire] : expirée(s), retirée(s) de nginx et de fail2ban au prochain --update :${expirees%;}"; fi
+    if (( valides > 0 )); then pass "Liste blanche [temporaire] : $valides adresse(s) valable(s) jusqu'à leur date."; fi
+}
+
+# dns_cron_installer: /etc/cron.d/nginx-tools-dns runs --dns-refresh every 15 minutes, while the white list has DNS names or [temporaire] entries (removed otherwise).
+dns_cron_installer() {
+    local cron="/etc/cron.d/nginx-tools-dns" script contenu
+    script=$(readlink -f "${BASH_SOURCE[0]}")
+    if [[ -z "$(listes_noms_dns)" && -z "$(listes_temporaires)" ]]; then
+        if [[ -f "$cron" ]]; then
+            if [[ "$CHECK_ONLY" == "1" ]]; then warn "$cron inutile (aucun nom DNS dans la liste blanche) — --update le supprimera."
+            else rm -f "$cron" && pass "$cron supprimé (aucun nom DNS dans la liste blanche)."; fi
+        fi
+        return 0
+    fi
+    contenu="# GÉNÉRÉ par nginx-hardening.sh --update : noms DNS de la liste blanche (adresses dynamiques) et entrées [temporaire] (expiration), toutes les 15 minutes.
+SHELL=/bin/sh
+*/15 * * * * root \"$script\" --dns-refresh >> /var/log/nginx-tools-dns.log 2>&1"
+    if [[ "$(cat "$cron" 2>/dev/null)" == "$contenu" ]]; then pass "$cron à jour."
+    elif [[ "$CHECK_ONLY" == "1" ]]; then warn "$cron absent ou différent — --update l'écrira."
+    else printf '%s\n' "$contenu" > "$cron" && chmod 644 "$cron" && pass "$cron écrit (noms DNS et [temporaire] vérifiés toutes les 15 minutes)."; fi
+}
+
+# dns_etat: state file of the DNS names of the white list: one line per name, "NAME<TAB>ADDRESS ADDRESS..." (written by dns_rafraichir).
+dns_etat() { printf '%s\n' "${NGINX_TOOLS_DNS_STATE:-/var/lib/nginx-tools/white-list-dns.tsv}"; }
+
+# dns_ips_du_nom NAME: addresses last resolved for NAME, one per line (nothing if unknown).
+dns_ips_du_nom() {
+    awk -F'\t' -v n="$1" '$1 == n { print $2 }' "$(dns_etat)" 2>/dev/null | tr ' ' '\n' | grep . || true
+}
+
+# dns_resoudre NAME: addresses (IPv4 and IPv6) the system resolver gives for NAME, one per line; nothing if the resolution fails.
+dns_resoudre() {
+    ${NGINX_TOOLS_GETENT:-getent} ahosts "$1" 2>/dev/null | awk '{ print $1 }' | grep -E '^[0-9A-Fa-f:.]+$' | sort -u || true
+}
+
+# dns_rafraichir: resolves every DNS name of the white list. A name that does not resolve keeps its last known addresses (a DNS outage must
+# not cut the team off). Writes the state when the addresses changed (never with --check). Returns 0 if they changed, 1 otherwise.
+dns_rafraichir() {
+    local etat ancien nouveau="" nom ips
+    etat=$(dns_etat); ancien=$(cat "$etat" 2>/dev/null || true)
+    while IFS= read -r nom; do
+        [[ -z "$nom" ]] && continue
+        ips=$(dns_resoudre "$nom" | tr '\n' ' '); ips="${ips% }"
+        if [[ -z "$ips" ]]; then
+            ips=$(dns_ips_du_nom "$nom" | tr '\n' ' '); ips="${ips% }"
+            warn "DNS : $nom non résolu — dernière adresse connue conservée (${ips:-aucune})."
+        fi
+        nouveau+="$nom"$'\t'"$ips"$'\n'
+    done < <(listes_noms_dns)
+    # signature de la liste effective : une date [temporaire] atteinte, une étiquette ou une liste modifiée déclenchent aussi --update
+    nouveau+="#liste"$'\t'"$(listes_blanche | sha256sum | cut -c1-64)"$'\n'
+    if [[ "${nouveau%$'\n'}" == "$ancien" ]]; then return 1; fi      # cat ne garde pas le saut de ligne final
+    if [[ "$CHECK_ONLY" != "1" ]]; then
+        local tmp; mkdir -p "$(dirname "$etat")" 2>/dev/null || true
+        tmp=$(mktemp "$(dirname "$etat")/.dns.XXXXXX") && printf '%s' "$nouveau" > "$tmp" && chmod 644 "$tmp" && mv -f "$tmp" "$etat"
+    fi
+    return 0
+}
+
 generer_equipe() {
-    local type="$1" adr lib n
+    local type="$1" adr lib n ip
     EQUIPE_INVALIDES=""
     echo "# GÉNÉRÉ par nginx-hardening.sh à partir de la liste blanche (/etc/default/nginx-tools-white-list.conf) — NE PAS MODIFIER À LA MAIN."
     echo "# Pour ajouter ou retirer une adresse : modifier la liste blanche, puis nginx-hardening.sh --update."
     while IFS=$'\037' read -r adr lib _ n; do
         [[ -z "$adr" ]] && continue
+        if listes_nom_dns "$adr"; then
+            # DNS name (dynamic address): nginx takes the addresses last resolved for it (--dns-refresh), never the name.
+            while IFS= read -r ip; do
+                [[ -z "$ip" ]] && continue
+                if [[ "$type" == "geo" ]]; then printf '%-18s 1;   # %s\n' "$ip" "${lib:-équipe} ($adr)"
+                else printf 'allow %-18s # %s\n' "$ip;" "${lib:-équipe} ($adr)"; fi
+            done < <(dns_ips_du_nom "$adr")
+            continue
+        fi
         if ! listes_adresse_valide "$adr"; then
             EQUIPE_INVALIDES="$EQUIPE_INVALIDES ligne $n : « $adr »;"
             continue
@@ -764,40 +848,6 @@ creer_modele() {
 
 # migrer_listes: the white list and the places live in /etc/default (outside the archives, publishable without personal data).
 # --update: migrates the old list apps/team-ips.list (copied, then renamed .migre) or creates a template; existing files: never modified.
-# temporaires_enregistrer: entrees [temporaire] de la liste blanche. La date d'inscription (premier --update qui les voit) est gardee
-# dans l'etat (listes_etat_temporaire : AAAA-MM-JJ TAB adresse ; une ligne par adresse). Une adresse qui n'est plus [temporaire] sort de
-# l'etat : si elle y revient, elle repart pour LISTES_TEMP_JOURS jours. Expiree : retiree de nginx et de fail2ban (listes_blanche filtre).
-# En --check : rien n'est ecrit, seul le constat est affiche. Ecriture atomique (fichier temporaire puis mv).
-temporaires_enregistrer() {
-    local f etat aujourd adr date_ajout nouveau="" brut="" valides="" expirees="" actuel=""
-    f=$(listes_fichier_blanche); [[ -n "$f" ]] || return 0
-    etat=$(listes_etat_temporaire); aujourd=$(listes_aujourdhui)
-    while IFS="$LISTES_SEP" read -r adr _ opts _; do
-        [[ ",$opts," == *",temporaire,"* ]] || continue
-        date_ajout=$(awk -F'\t' -v a="$adr" '$1 == a { print $2; exit }' "$etat" 2>/dev/null || true)
-        nouveau+="$adr"$'\t'"${date_ajout:-$aujourd}"$'\n'
-        brut+="$adr"$'\n'
-    done < <(listes_lire "$f")
-    [[ -n "$brut" ]] || { [[ -f "$etat" ]] && [[ "$CHECK_ONLY" != "1" ]] && rm -f "$etat"; return 0; }
-    valides=$(listes_blanche | cut -d "$LISTES_SEP" -f1)
-    expirees=$(grep -vxF -f <(printf '%s' "$valides" | sed '/^$/d') <(printf '%s' "$brut") | sed '/^$/d' | tr '\n' ' ' || true)
-    actuel=$(cat "$etat" 2>/dev/null || true)
-    if [[ "$actuel" != "$nouveau" ]]; then
-        if [[ "$CHECK_ONLY" == "1" ]]; then
-            warn "Liste blanche [temporaire] : état des dates à mettre à jour ($etat) — --update l'écrira."
-        else
-            mkdir -p "$(dirname "$etat")" || true
-            chmod 755 "$(dirname "$etat")" 2>/dev/null || true
-            local tmp; tmp=$(mktemp "$(dirname "$etat")/.liste-temporaire.XXXXXX")
-            printf '%s' "$nouveau" > "$tmp" && chmod 644 "$tmp" && mv -f "$tmp" "$etat"
-        fi
-    fi
-    if [[ -n "${expirees// /}" ]]; then
-        warn "Liste blanche [temporaire] : expirée(e)s après $LISTES_TEMP_JOURS jours, retirée(s) de nginx et de fail2ban : ${expirees% } — pour les garder, retirer [temporaire] de la ligne (adresse permanente)."
-    else
-        pass "Liste blanche [temporaire] : $(grep -c . <<< "$brut") adresse(s) temporaire(s), aucune expirée (délai de $LISTES_TEMP_JOURS jours)."
-    fi
-}
 migrer_listes() {
     local blanche="${NGINX_TOOLS_WHITE_LIST:-$LISTES_BLANCHE_DEFAUT}" lieux="${NGINX_TOOLS_IP_LOCATION:-$LISTES_LIEUX_DEFAUT}"
     local ancien="$SCRIPT_DIR/apps/team-ips.list"
@@ -925,7 +975,8 @@ verifier_ignoreip() {
     # the other. Correction (--update) in a separate file, read last (jail.d/*.local), which TAKES OVER the addresses
     # already ignored: never a change to jail.local.
     f2b_equipe=$({ run nginx -T 2>/dev/null | awk '/^[[:space:]]*geo[[:space:]].*\$is_trusted_ip[[:space:]]*\{/ { dans = 1; next }
-        dans && /^[[:space:]]*\}/ { dans = 0 } dans && $2 ~ /^1;/ && $1 != "127.0.0.1" && $1 != "::1" { print $1 }'; listes_ne_pas_bannir ; } | sort -u) || f2b_equipe=""
+        dans && /^[[:space:]]*\}/ { dans = 0 } dans && $2 ~ /^1;/ && $1 != "127.0.0.1" && $1 != "::1" { print $1 }'; listes_ne_pas_bannir
+        while IFS= read -r nom; do dns_ips_du_nom "$nom"; done < <(listes_noms_dns) ; } | sort -u) || f2b_equipe=""
     f2b_jails=$(run fail2ban-client status 2>/dev/null | sed -n 's/.*Jail list:[[:space:]]*//p' | tr ',' ' ') || f2b_jails=""
     if [[ -n "$f2b_equipe" && -n "${f2b_jails// /}" ]]; then
         f2b_manquants=(); f2b_connues=""
@@ -1113,6 +1164,25 @@ if [[ "$APP_NAME" == "bbb" && -r "$APPS_DIR/_bbb.py" ]] && command -v python3 >/
     echo "--- BigBlueButton AVANT ce passage : versions et configuration, changements depuis le dernier --update ---"
     bbb_etat --before
     echo
+fi
+
+# --- --dns-refresh (cron every 15 minutes): resolves the DNS names of the white list. Silent when nothing changed. When an address changed,
+# the state is written and a full --update applies it to nginx and fail2ban; if that update fails, the previous state is restored, so the
+# next run tries again.
+if [[ "$DNS_RAFRAICHIR" == "1" ]]; then
+    if [[ -z "$(listes_noms_dns)" && -z "$(listes_temporaires)" ]]; then exit 0; fi
+    CHECK_ONLY=0
+    dns_ancien=$(cat "$(dns_etat)" 2>/dev/null || true)
+    if dns_rafraichir; then
+        echo "$(date '+%F %T') adresses DNS modifiées : nginx-hardening.sh --update"
+        if "$SCRIPT_DIR/nginx-hardening.sh" --update; then
+            exit 0
+        fi
+        echo "$(date '+%F %T') --update en échec : état DNS restauré, nouvel essai à la prochaine exécution" >&2
+        printf '%s' "$dns_ancien" > "$(dns_etat)" 2>/dev/null || true
+        exit 1
+    fi
+    exit 0
 fi
 
 # --- 0) Required programs: installed by --update if missing (apt) ---
@@ -2863,7 +2933,8 @@ fi
 # reload; on refusal, the old version is restored and nginx is not reloaded.
 echo "--- 12) Listes d'adresses : liste blanche et lieux (/etc/default/nginx-tools-*.conf) → nginx ---"
 migrer_listes
-temporaires_enregistrer
+dns_cron_installer
+temporaires_verifier
 listes_resume >&2
 if [[ "$APP_NAME" != "odoo" ]]; then
     sans_objet "fichiers team-ips-*.conf de la configuration nginx-odoo (les listes restent lues par les outils)"

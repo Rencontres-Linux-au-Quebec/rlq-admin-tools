@@ -16,16 +16,6 @@
 LISTES_BLANCHE_DEFAUT="/etc/default/nginx-tools-white-list.conf"
 LISTES_LIEUX_DEFAUT="/etc/default/nginx-tools-ip-location.conf"
 LISTES_SEP=$'\037'             # field separator of listes_lire (never a tab: read merges it when a field is empty)
-# Liste blanche [temporaire] : expire LISTES_TEMP_JOURS jours après l'inscription (AAAA-MM-JJ, TAB, adresse : une ligne par adresse, écrite
-# par nginx-hardening.sh --update dans LISTES_ETAT_TEMP_DEFAUT). Même règle que apps/_listes.py (TEMPORAIRE_JOURS).
-LISTES_TEMP_JOURS=28
-LISTES_ETAT_TEMP_DEFAUT="/var/lib/nginx-tools/white-list-temporary.tsv"
-
-# listes_etat_temporaire: path of the state file of the temporary entries (NGINX_TOOLS_TEMP_STATE overrides it: tests).
-listes_etat_temporaire() { printf '%s\n' "${NGINX_TOOLS_TEMP_STATE:-$LISTES_ETAT_TEMP_DEFAUT}"; }
-
-# listes_aujourdhui: today (AAAA-MM-JJ); NGINX_TOOLS_AUJOURDHUI replaces it (tests).
-listes_aujourdhui() { printf '%s\n' "${NGINX_TOOLS_AUJOURDHUI:-$(date +%F)}"; }
 
 # listes_fichier_blanche: path of the white list READ - the new file; otherwise the old list apps/team-ips.list
 # (transition, seulement sans surcharge d'environnement) ; rien si aucun n'existe.
@@ -59,7 +49,7 @@ listes_fichiers_lieux() {
 # listes_lire FILE: one line per entry, "ADDRESS LABEL OPTIONS LINE-NUMBER" separated by the character 037 (octal: never a tab, which read would merge when a field is empty) (options: partagee, protegee,
 # separated by commas; "inconnue:xxx" for an unknown option). The address is NOT validated here (see listes_adresse_valide).
 listes_lire() {
-    local fichier="$1" ligne adr com opts reste opt lib n=0
+    local fichier="$1" ligne adr com opts reste opt bloc lib n=0
     [[ -r "$fichier" ]] || return 0
     while IFS= read -r ligne || [[ -n "$ligne" ]]; do
         n=$((n + 1)); ligne=${ligne%$'\r'}
@@ -68,12 +58,17 @@ listes_lire() {
         com=""; if [[ "$ligne" == *"#"* ]]; then com=${ligne#*#}; fi
         opts=""; reste=$com
         while [[ "$reste" =~ \[([^]]*)\] ]]; do
-            opt=${BASH_REMATCH[1],,}; opt=${opt//é/e}; opt=${opt## }; opt=${opt%% }
+            bloc=${BASH_REMATCH[0]}; opt=${BASH_REMATCH[1],,}; opt=${opt//é/e}; opt=${opt## }; opt=${opt%% }
             case "$opt" in
-                partagee|protegee|temporaire) opts+="${opts:+,}$opt" ;;
+                partagee|protegee) opts+="${opts:+,}$opt" ;;
+                temporaire|temporaire\ *)
+                    # [temporaire AAAA-MM-JJ HH:MM:SS] : valable jusqu'à cette date et heure locales ; sans date valide : "invalide" (ignorée)
+                    d=${opt#temporaire}; d=${d## }
+                    if [[ "$d" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}[[:space:]][0-9]{2}:[0-9]{2}:[0-9]{2}$ ]]; then opts+="${opts:+,}temporaire=$d"
+                    else opts+="${opts:+,}temporaire=invalide"; fi ;;
                 *) opts+="${opts:+,}inconnue:$opt" ;;
             esac
-            reste=${reste/"${BASH_REMATCH[0]}"/}
+            reste=${reste/"$bloc"/}                 # BASH_REMATCH a pu être écrasé par les tests de la date
         done
         lib=${reste#"${reste%%[![:space:]]*}"}; lib=${lib%"${lib##*[![:space:]]}"}
         printf '%s\037%s\037%s\037%s\n' "$adr" "$lib" "$opts" "$n"
@@ -86,6 +81,22 @@ listes_adresse_valide() {
     [[ "$1" =~ ^[0-9]{1,3}(\.[0-9]{1,3}){3}(/[0-9]{1,2})?$ || "$1" =~ ^[0-9a-fA-F]*:[0-9a-fA-F]*:[0-9a-fA-F:]*(/[0-9]{1,3})?$ ]]
 }
 
+# listes_nom_dns NAME: DNS name of the white list (dynamic address: resolved by nginx-hardening.sh --dns-refresh). At least one letter,
+# dots, not an IP address. Never written to nginx or to fail2ban as is: the resolved addresses are.
+listes_nom_dns() {
+    listes_adresse_valide "$1" && return 1
+    [[ "$1" =~ ^[A-Za-z0-9]([A-Za-z0-9-]*[A-Za-z0-9])?(\.[A-Za-z0-9]([A-Za-z0-9-]*[A-Za-z0-9])?)+$ && "$1" == *[A-Za-z]* ]]
+}
+
+# listes_noms_dns: DNS names of the white list, one per line.
+listes_noms_dns() {
+    local adr
+    while IFS= read -r adr; do
+        if listes_nom_dns "$adr"; then printf '%s\n' "$adr"; fi
+    done < <(listes_blanche | cut -d "$LISTES_SEP" -f1)
+    return 0
+}
+
 # listes_valides: filter (standard input -> standard output): keeps only the entries whose address is of correct form.
 listes_valides() {
     local ligne adr
@@ -96,23 +107,32 @@ listes_valides() {
     return 0
 }
 
-# listes_blanche: white list entries (listes_lire format), without the [temporaire] entries past LISTES_TEMP_JOURS days.
-# An entry without a recorded date (not yet written by --update) stays valid; an unreadable date is treated the same way.
+# listes_maintenant: local date and time, AAAA-MM-JJ HH:MM:SS (NGINX_TOOLS_MAINTENANT replaces it: tests).
+listes_maintenant() { printf '%s\n' "${NGINX_TOOLS_MAINTENANT:-$(date '+%Y-%m-%d %H:%M:%S')}"; }
+
+# listes_blanche: white list entries (listes_lire format), without the [temporaire] entries past their date and those without a valid date.
 listes_blanche() {
-    local f ligne adr lib opts n etat aujourd date_ajout fin
+    local f ligne adr lib opts n maint v
     f=$(listes_fichier_blanche)
     [[ -n "$f" ]] || return 0
-    etat=$(listes_etat_temporaire); aujourd=$(listes_aujourdhui)
+    maint=$(listes_maintenant)
     while IFS= read -r ligne; do
         IFS="$LISTES_SEP" read -r adr lib opts n <<< "$ligne"
-        if [[ ",$opts," == *",temporaire,"* ]]; then
-            date_ajout=$(awk -F'\t' -v a="$adr" '$1 == a { print $2; exit }' "$etat" 2>/dev/null || true)
-            fin=""
-            [[ -n "$date_ajout" ]] && fin=$(date -d "$date_ajout + $LISTES_TEMP_JOURS days" +%F 2>/dev/null || true)
-            if [[ -n "$fin" && ! "$aujourd" < "$fin" ]]; then continue; fi        # aujourd'hui >= fin : expirée
+        if [[ ",$opts," == *",temporaire="* ]]; then
+            v=${opts##*temporaire=}; v=${v%%,*}
+            if [[ "$v" == invalide || ! "$maint" < "$v" ]]; then continue; fi     # sans date valide, ou date atteinte
         fi
         printf '%s%s%s%s%s%s%s\n' "$adr" "$LISTES_SEP" "$lib" "$LISTES_SEP" "$opts" "$LISTES_SEP" "$n"
     done < <(listes_lire "$f")
+    return 0
+}
+
+# listes_temporaires: raw white list entries marked [temporaire] (listes_lire format, with their date or "invalide").
+listes_temporaires() {
+    local f
+    f=$(listes_fichier_blanche)
+    [[ -n "$f" ]] || return 0
+    listes_lire "$f" | awk -F'\037' '$3 ~ /temporaire=/'
     return 0
 }
 

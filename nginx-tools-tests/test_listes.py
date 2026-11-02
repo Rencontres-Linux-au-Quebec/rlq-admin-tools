@@ -26,10 +26,15 @@ LIEUX = """192.0.2.0/24        # Université exemple     [partagée]
 """
 
 
-TEMPORAIRE = """203.0.113.70        # Stagiaire  [temporaire]
-203.0.113.71        # Permanent
-203.0.113.72        # Sans date   [temporaire]
+TEMPORAIRE = """203.0.113.70        # Stagiaire  [temporaire 2026-11-30 18:00:00]
+203.0.113.71        # Passé      [temporaire 2026-10-01 00:00:00]
+203.0.113.72        # Sans date  [temporaire]
 """
+
+def adresses(entrees):
+    """Adresses (sans /32) d'une liste d'entrées, triées."""
+    return sorted(str(e.reseau).split("/")[0] for e in entrees)
+
 
 ABSENT = "/nonexistent-rlq-tests/absent.conf"
 
@@ -139,23 +144,19 @@ class ListesPython(EnvTest):
         r = subprocess.run([sys.executable, script_path("apps/_listes.py"), "--version"], capture_output=True, text=True, env=env)
         self.assertRegex(r.stdout, r"^_listes\.py version 1\.\d+\.\d{8}\.\d{6}$")
 
-    def test_temporaire_expire_apres_28_jours(self):
-        """Une entree [temporaire] vaut 28 jours a partir de sa date d'inscription (etat), puis n'est plus valable. Sans date : valable."""
+    def test_temporaire_jusqu_a_une_date(self):
+        """[temporaire AAAA-MM-JJ HH:MM:SS] : valable jusqu'à cette date, puis ignorée ; sans date valide : ignorée et signalée."""
         blanche = self.write("temporaire.conf", TEMPORAIRE)
-        etat = self.write("etat.tsv", "203.0.113.70\t2026-10-01\n")
-        lieux = self.write("lieux.conf", "")
-        def charge(aujourd):
+        lieux = self.write("lieux-vide.conf", "")
+        def charge(maint):
             return module().charger(os.path.join(SCRIPTS_DIR, "apps"), {"NGINX_TOOLS_WHITE_LIST": blanche, "NGINX_TOOLS_IP_LOCATION": lieux,
-                                                                        "NGINX_TOOLS_TEMP_STATE": etat, "NGINX_TOOLS_AUJOURDHUI": aujourd})
-        L = charge("2026-10-28")                                                               # jour 27 : encore valable
-        self.assertEqual(sorted(e.adresse for e in L.blanche), ["203.0.113.70", "203.0.113.71", "203.0.113.72"])
-        L = charge("2026-10-29")                                                               # jour 28 : expirée
-        self.assertEqual(sorted(e.adresse for e in L.blanche), ["203.0.113.71", "203.0.113.72"])
-        self.assertEqual([e.adresse for e in L.expirees], ["203.0.113.70"])
-        self.assertFalse(L.protegee("203.0.113.70"))                                           # expirée : plus protégée
-        self.assertTrue(L.protegee("203.0.113.72"))                                            # sans date : toujours valable
-        L = charge("2026-10-29")
-        self.assertEqual(L.etiquette("203.0.113.71"), "Permanent")
+                                                                        "NGINX_TOOLS_MAINTENANT": maint})
+        L = charge("2026-11-02 10:40:00")
+        self.assertEqual(adresses(L.blanche), ["203.0.113.70"])
+        self.assertEqual(adresses(L.expirees), ["203.0.113.71", "203.0.113.72"])
+        self.assertTrue(any("sans date valide" in p for p in L.problemes))
+        L = charge("2026-11-30 18:00:00")                                                       # la date exacte : expirée
+        self.assertEqual(L.blanche, [])
 
 
 class ListesBash(EnvTest):
@@ -221,16 +222,13 @@ class ListesBash(EnvTest):
         r = subprocess.run(["bash", "-c", f'. "{listes_sh(self.d)}"; listes_resume'], capture_output=True, text=True, env=env)
         self.assertIn("(1 adresses) — ANCIEN emplacement, à migrer : nginx-hardening.sh --update", r.stdout)
 
-    def test_temporaire_expire_en_bash_comme_en_python(self):
-        """Meme resultat que Python pour les entrees [temporaire] : valables le jour 27, expirees le jour 28, sans date toujours valables."""
+    def test_temporaire_jusqu_a_une_date_en_bash_comme_en_python(self):
         blanche = self.write("temporaire.conf", TEMPORAIRE)
-        etat = self.write("etat.tsv", "203.0.113.70\t2026-10-01\n")
-        lieux = self.write("lieux.conf", "")
-        for aujourd, attendu in (("2026-10-28", ["203.0.113.70", "203.0.113.71", "203.0.113.72"]), ("2026-10-29", ["203.0.113.71", "203.0.113.72"])):
-            with self.subTest(aujourd=aujourd):
-                sortie = self.bash("listes_blanche | cut -d $'\\037' -f1", NGINX_TOOLS_WHITE_LIST=blanche, NGINX_TOOLS_IP_LOCATION=lieux,
-                                   NGINX_TOOLS_TEMP_STATE=etat, NGINX_TOOLS_AUJOURDHUI=aujourd)
-                self.assertEqual(sorted(sortie.split()), attendu)
+        lieux = self.write("lieux-vide.conf", "")
+        for maint in ("2026-11-02 10:40:00", "2026-11-30 18:00:00"):
+            with self.subTest(maint=maint):
+                bash = self.bash("listes_blanche | cut -d $'\\037' -f1", NGINX_TOOLS_WHITE_LIST=blanche, NGINX_TOOLS_IP_LOCATION=lieux,
+                                 NGINX_TOOLS_MAINTENANT=maint).split()
                 L = module().charger(os.path.join(SCRIPTS_DIR, "apps"), {"NGINX_TOOLS_WHITE_LIST": blanche, "NGINX_TOOLS_IP_LOCATION": lieux,
-                                                                         "NGINX_TOOLS_TEMP_STATE": etat, "NGINX_TOOLS_AUJOURDHUI": aujourd})
-                self.assertEqual(sorted(e.adresse for e in L.blanche), attendu)
+                                                                         "NGINX_TOOLS_MAINTENANT": maint})
+                self.assertEqual(sorted(bash), adresses(L.blanche))

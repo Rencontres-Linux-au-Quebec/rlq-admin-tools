@@ -2792,21 +2792,40 @@ Earlier history was archived outside this repository when this file was created.
 
 ## nginx-hardening.sh
 
-### 2.75.20261102.090139 - Temporary white list entries expire after 4 weeks
+### 2.76.20261102.104500 - Dated [temporaire] entries and 15-minute check
 
-- Title: a white list entry marked [temporaire] is trusted for 28 days from its first registration, then no longer trusted by nginx or fail2ban. No date is written by hand.
-- Reason: the administrator asked not to keep a home (residential) address permanently in the fail2ban ignore list, because such addresses change. The expiry must be automatic: no manual configuration change each time.
+- Title: a white list entry marked [temporaire AAAA-MM-JJ HH:MM:SS] is valid until that local date and time, then removed from nginx and fail2ban. The check runs every 15 minutes.
+- Reason: the administrator asked to keep the temporary option, with an explicit expiry date instead of a 4-week counter, and to check every 15 minutes instead of 10.
 - Changes:
-  - apps/_listes.sh and apps/_listes.py: the option [temporaire] is accepted; listes_blanche (and charger in Python) drop the entries whose registration date is 28 days old or more. A state file gives the date: /var/lib/nginx-tools/white-list-temporary.tsv (AAAA-MM-JJ TAB address), overridable with NGINX_TOOLS_TEMP_STATE. The day is taken from NGINX_TOOLS_AUJOURDHUI when set (tests).
-  - nginx-hardening.sh: new function temporaires_enregistrer, called in step 12 after migrer_listes. It writes the registration date of each new [temporaire] address (atomic write), drops addresses that are no longer [temporaire], and reports the expired ones. In --check it writes nothing.
-  - doc/fr and doc/en nginx-tools-white-list.conf.example: description of [temporaire].
+  - apps/_listes.sh and apps/_listes.py (version 1.7): option [temporaire DATE TIME] read; listes_maintenant / maintenant (NGINX_TOOLS_MAINTENANT for tests); entries past their date, or without a valid date, are left out of the effective list.
+  - nginx-hardening.sh: --dns-refresh checks DNS names and [temporaire] entries; the state file holds a signature of the effective list, so an expired entry triggers a full --update just like an address change. Cron every 15 minutes (installed while there are DNS names or [temporaire] entries). Step 12 function temporaires_verifier warns about expired and invalid entries.
+  - doc/fr and doc/en nginx-tools-white-list.conf.example: format of the option and the DNS names.
 - Bugs fixed: none.
 - Safeguards and edge cases:
-  - An entry with no recorded date (never seen by --update) stays valid; an unreadable date is treated the same way. Expiry therefore never removes an address by surprise.
-  - The rule applies to nginx (team-ips-*.conf) and fail2ban (ignoreip) alike, since both read the same filtered list.
-  - To keep an address, remove [temporaire] from its line and run --update. Removing [temporaire] also removes its state row, so a later re-addition starts a new 4-week period.
-- Checks: nginx-tools-tests/test_listes.py (new: expiry on day 27 and day 28, same result in Python and bash, entry without date kept).
-- Action required: none. Existing white-list entries are not marked [temporaire]; add the option to the lines that should expire.
+  - An option without a valid date is ignored and reported, never trusted indefinitely.
+  - The date comparison uses the local time of the server.
+  - When a name does not resolve, the last known addresses stay, as before.
+- Checks: nginx-tools-tests/test_listes.py (dated entries, Python and bash agree at two dates); test_dns_blanche.py; test_alignement, test_nginx_hardening, test_ban_gate: OK.
+- Action required: none. Write the expiry on the lines that should expire, for example [temporaire 2026-11-30 18:00:00]. Run nginx-hardening.sh --update once after the merge to install the 15-minute cron.
+
+### 2.75.20261102.102600 - DNS names in the white list (dynamic addresses)
+
+- Title: a white list entry can be a DNS name (for example a DynDNS name) instead of an IP address. The addresses it resolves to are kept in nginx and fail2ban up to date.
+- Reason: a team member's home address changes. Writing the name avoids editing the configuration each time the address changes.
+- Changes:
+  - nginx-hardening.sh: new options --dns-refresh (resolves the names; runs a full --update only when an address changed; silent otherwise). Functions dns_etat, dns_ips_du_nom, dns_resoudre, dns_rafraichir, dns_cron_installer. generer_equipe writes the resolved addresses, never the name. verifier_ignoreip includes them in the fail2ban ignore list.
+  - Step 12 installs /etc/cron.d/nginx-tools-dns (every 10 minutes) while the white list has names, and removes it otherwise.
+  - State file: /var/lib/nginx-tools/white-list-dns.tsv (NAME TAB ADDRESS ADDRESS...), overridable with NGINX_TOOLS_DNS_STATE; resolver overridable with NGINX_TOOLS_GETENT (tests).
+  - apps/_listes.sh: listes_nom_dns, listes_noms_dns. Address functions still accept only IP addresses.
+  - doc/fr and doc/en nginx-tools-white-list.conf.example: description of DNS names.
+- Bugs fixed: none.
+- Safeguards and edge cases:
+  - nginx never receives a name (its allow and geo directives require an address): an unresolved name keeps its last known addresses; a DNS outage does not remove access.
+  - --dns-refresh restores the previous state if the full --update fails, so the next run retries.
+  - fail2ban receives the resolved addresses rather than the name, so it does not depend on how fail2ban itself refreshes names.
+  - A change is applied within about 10 minutes; the log is /var/log/nginx-tools-dns.log.
+- Checks: nginx-tools-tests/test_dns_blanche.py (names read by Python and bash, change detection, outage fallback, --check writes nothing, option present); test_listes, test_alignement, test_ban_gate, test_nginx_hardening: OK.
+- Action required: none, unless a white list entry should be a DNS name: write the name in place of the IP.
 
 ### 2.72.20261101.234513 - Visitor's security.txt file no longer refused (/.well-known/security.txt)
 
@@ -4211,14 +4230,24 @@ Earlier history was archived outside this repository when this file was created.
 
 ## apps/_listes.py
 
-### 1.6.20261102.090139 - Temporary option [temporaire] for white list entries
+### 1.7.20261102.104500 - Dated [temporaire] entries
 
-- Title: the reader of the white list and places accepts the option [temporaire] and drops expired entries.
-- Reason: see nginx-hardening.sh 2.75.
-- Changes: option [temporaire] added to OPTIONS; Entree gains temporaire and adresse; new functions aujourdhui, dates_temporaires, expiree; charger removes expired entries and keeps them in Listes.expirees. The message for an unknown option lists [temporaire].
-- Bugs fixed: none.
-- Safeguards and edge cases: same rule as the bash reader (checked by a test comparing both). Invalid or missing dates keep the entry valid.
+- Title: the readers of the white list read the option [temporaire AAAA-MM-JJ HH:MM:SS] and leave out expired or undated entries.
+- Reason: see nginx-hardening.sh 2.76.
+- Changes: Entree gains temporaire and expiration; DATE_RE; maintenant(); charger removes the expired ones and sets Listes.expirees. Bash: listes_lire reads the option as temporaire=DATE (or temporaire=invalide); listes_blanche applies the same rule; listes_maintenant; listes_temporaires.
+- Bugs fixed: in listes_lire, the bash loop over the bracketed options was reading BASH_REMATCH after the date test had overwritten it, and never terminated. The match is now saved first.
+- Safeguards and edge cases: same rule in both readers, checked by the tests at two dates; an invalid date is reported.
 - Checks: nginx-tools-tests/test_listes.py.
+- Action required: none.
+
+### 1.6.20261102.102600 - DNS names are recognised, not read as addresses
+
+- Title: the readers of the white list recognise DNS names and leave them to nginx-hardening.sh.
+- Reason: see nginx-hardening.sh 2.75.
+- Changes: est_nom_dns, noms_dns (Python); listes_nom_dns, listes_noms_dns (bash). A name is never reported as an invalid address and is never returned by the address functions.
+- Bugs fixed: none.
+- Safeguards and edge cases: an IPv4 or IPv6 address is never a name (a name needs a letter and a dot).
+- Checks: nginx-tools-tests/test_dns_blanche.py, test_listes.
 - Action required: none.
 
 ### 1.5.20261030.153422 - No plural marker "(s)" in the displayed texts
