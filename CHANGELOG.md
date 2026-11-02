@@ -371,6 +371,32 @@ Earlier history was archived outside this repository when this file was created.
 
 ## app-log-live.py
 
+### 1.151.20261102.151239 - Bans read from the fail2ban journal: the report shows when an attacker was banned
+
+- Title: app-log-live.py reads the fail2ban journal, so an address banned after an attack is shown with its ban time and its jails.
+- Reason: request of the administrator on 2026-11-02. The address 34.173.12.79 (reverse name 79.12.173.34.bc.googleusercontent.com) sent about 43 probes for sensitive files (.env, credential files, /proc/self/environ) between 07:41:22 and 07:41:23. Three fail2ban jails banned it at 07:41:23 (nginx-badrequests, nginx-blocked-probes, nginx-sensitive-files). The dashboard showed "banned: 0" and "Addresses to ban: none", with no trace of that ban. The administrator asked for the program to read the fail2ban journal too, so that an attack followed by a ban is visible.
+- Changes:
+  - Version 1.150 -> 1.151.
+  - New Bans.read_fail2ban_journal(): reads the lines "NOTICE [jail] Ban IP" of the fail2ban journal (last 20 MB), per address, with their local time and jail. Read at startup and every 60 seconds with the other bans, in refresh().
+  - New Bans.ban_before() (last ban of an address at or before a line, within BAN_LABEL_WINDOW = 86400 seconds) and Bans.first_ban_of() (first ban and jails of an address). Constants: FAIL2BAN_LOG, FAIL2BAN_TAIL, FAIL2BAN_BAN_RE, BAN_LABEL_WINDOW.
+  - compose(): a line of an address banned by fail2ban after that request is labelled "[banned: fail2ban HH:MM:SS]" (nginx lines: [BANNIE]). Such an address counts as banned in "Banned addresses seen".
+  - Stats.fail2ban_note(): the "by address" line of the suspicious requests shows " [fail2ban: banned at DATE TIME (jails)]".
+  - Environment variable APP_LOG_LIVE_FAIL2BAN_LOG (default /var/log/fail2ban.log): the same variable already names the journal recorded with --record. No new option, no new configuration key.
+  - Files touched: app-log-live.py, lang/app-log-live.fr.po (new message "fail2ban: banned at"), nginx-tools-tests/test_app_log_live_fail2ban.py (new), nginx-tools-tests/test_app_log_live_ban.py (version test), CHANGELOG.md.
+- Bugs fixed:
+  - Symptom: an address banned a few seconds after a burst of attack requests was shown as "banned: 0" and "Addresses to ban: none"; the ban did not appear anywhere in the report.
+  - Diagnosis: class Bans only read the bans active at the moment of each read (fail2ban-client banned, every 60 seconds). The attack lines, read before the ban, never received a label, and no source gave the time of the ban. Separately, test_app_log_live_ban.py asserted the hard-coded version 1.149, already outdated when 1.150 was released.
+  - Fix: the fail2ban journal is read (ban lines only); the ban time and jails are shown on the lines that follow it and in the report. The version test now checks the format of the version, not its value.
+- Safeguards and edge cases:
+  - Read only: the new code calls no fail2ban-client set, banip or unbanip (a test checks it). Nothing is banned or unbanned by this change.
+  - Precision: fail2ban writes milliseconds, the time is kept to the second. A request in the same second as the ban can be labelled.
+  - Unreadable journal (no root, no file, no fail2ban): None, no label, no error.
+  - Labels only for 86400 seconds after a ban. Only the last 20 MB of the journal are read; older rotations are not read.
+  - Whitelist and places are never labelled, as before.
+  - Several jails banning the same address in the same second: the jail with the largest name is shown (deterministic).
+- Checks performed: py_compile; --version prints 1.151.20261102.151239; --help exits 0; sample journal (three jails, one IPv6 address, one Unban line ignored) parsed as expected; test_app_log_live_ban and test_app_log_live_fail2ban: 19 tests OK. Full run of nginx-tools-tests/run-all.sh: see the pull request.
+- Action required from the user: none for this change. Separately, the investigation of 34.173.12.79 reported that SMTP is not configured (SMTP_HOST and NOTIFY_EMAIL_TO empty) and that /opt/odoo/erplibre/run.sh still passes --limit-memory-hard=0. These are outside this change and must be fixed on the server (nginx-hardening.sh --check). The address is already banned by three jails until 2026-11-03 07:41:23. The address 79.12.173.34, which was banned by mistake through the manual command, must be unbanned: sudo fail2ban-client set nginx-blocked-probes unbanip 79.12.173.34.
+
 ### 1.150.20261102.080324 - Nginx and Odoo lines in time order: a late line is placed, not shown out of order
 
 - Title: the nginx lines merged with the Odoo lines (--log-nginx) are no longer displayed out of order.
