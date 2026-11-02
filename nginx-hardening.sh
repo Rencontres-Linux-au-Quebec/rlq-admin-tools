@@ -92,7 +92,7 @@ run() {
     "$@"
 }
 
-readonly SCRIPT_VERSION="2.71.20261101.181555"
+readonly SCRIPT_VERSION="2.72.20261101.213902"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
 SCRIPT_NAME="$(basename "${BASH_SOURCE[0]}" .sh)"; readonly SCRIPT_NAME
 # Display language (en or fr): --lang, NGINX_HARDENING_LANG, LANGUAGE of the configuration file, LC_ALL / LANG - apps/_i18n.sh translates the output (nothing changes in French).
@@ -171,6 +171,7 @@ RETENTION_EXPLICITE=0
 # /etc/default/nginx-hardening.conf ALSO serves as the state file (SETUP_* lines, rewritten by --update): the other lines are kept there.
 if declare -F config_lire >/dev/null; then
     config_lire nginx-hardening "$@"
+    config_defaut CDN CDN --cdn texte
     config_defaut APP_FORCE APP --app texte
     config_defaut LOG_RETENTION_MONTHS LOG_RETENTION_MONTHS --log-retention-months nombre
     config_defaut MAIL_FROM MAIL_FROM --mail-from texte

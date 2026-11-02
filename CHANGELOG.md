@@ -2682,6 +2682,23 @@ Earlier history was archived outside this repository when this file was created.
 
 ## nginx-hardening.sh
 
+### 2.72.20261101.213902 - CDN setting read from the configuration file
+
+- Title: the key CDN of /etc/default/nginx-hardening.conf (or ~/.nginx-hardening.conf) is now read, so --update no longer needs --cdn cloudflare.
+- Reason: after an --update without --cdn cloudflare, cdn-realip.conf was regenerated with 0 range (CDN "none"), and nginx again saw the Cloudflare nodes instead of the visitors. Setting CDN=cloudflare in the configuration file had no effect.
+- Diagnosis: config_lire loads every key of the file into CFG, but the script only copies the keys it declares with config_defaut. CDN was not declared, so the file value was ignored and the default "none" was used.
+- Changes:
+  - nginx-hardening.sh: config_defaut CDN CDN --cdn texte, placed right after config_lire. A command-line --cdn still wins, as with the other options.
+  - nginx-tools-tests/test_cdn_config.py (new): 4 tests reproducing the script sequence in a temporary directory (CDN in the file applied; no key keeps none; no file keeps none) and a static check of the order.
+  - Version 2.72 (minor, +0.1).
+- Bugs fixed: symptom: CDN=cloudflare in the file ignored. Diagnosis and fix as above.
+- Safeguards and edge cases:
+  - An invalid value in the file (for example CDN=akamai) is refused by step 12c, as on the command line; cdn-realip.conf is not modified.
+  - Empty value or missing key: the default "none" is kept.
+  - The key is not written by --update; only the reading is added.
+- Checks: test_cdn_config (4 tests); test_cdn_realip and test_nginx_hardening unchanged; bash -n OK; the isolated sequence was reproduced before the change (CDN stayed none with the key present).
+- Action required: to make cloudflare permanent, add the line CDN=cloudflare to /etc/default/nginx-hardening.conf on each server (after this version is installed). Until then, keep --cdn cloudflare on the command line.
+
 ### 2.71.20261101.181555 - Odoo event tickets without parameters answer 404 (--update)
 
 - Title: /event/<id>/my_tickets requested without parameters now gets a 404 from nginx instead of a 500 from Odoo.
