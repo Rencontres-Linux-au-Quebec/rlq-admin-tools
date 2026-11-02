@@ -3026,6 +3026,26 @@ Earlier history was archived outside this repository when this file was created.
 
 ## nginx-log-audit.sh
 
+### 2.67.20261101.192900 - Lift the bans of Cloudflare addresses (option --unban-cdn)
+
+- Title: new option --unban-cdn lifts, in one operation, the bans (fail2ban and manual firewall) of addresses inside Cloudflare's published ranges, after a preview and one confirmation.
+- Reason: on 2026-11-01 a Cloudflare node was banned by mistake (nginx-badrequests jail, 14 ordinary 404 and 30x responses). Other Cloudflare addresses may have been banned the same way. Lifting them one by one with --unban and fail2ban-client was slow and error-prone.
+- Changes:
+  - nginx-log-audit.sh: new option --unban-cdn (root required). Variable DO_UNBAN_CDN, block placed before --investigate. It collects the current bans (fail2ban jails and manual firewall rules), keeps those inside nginx/cdn/cloudflare-ips.txt (one python3 call for IPv4 and IPv6), and shows a preview table: address, range, source, decision.
+  - Confirmation: one question for the whole set ([o/N]). With --yes, no question. Without a terminal, the preview is shown and nothing is lifted.
+  - Lifting: fail2ban bans with fail2ban-client set JAIL unbanip; manual firewall bans with --unban --yes and the reason "bannissement Cloudflare levé (--unban-cdn)" (recorded in bans.tsv).
+  - Help text (--help), usage line and header comment updated. The option is listed before --unban-check (alphabetical order).
+- Bugs fixed: none. Missing feature.
+- Safeguards and edge cases:
+  - Protected addresses (protected_ip_reason: loopback, private networks, white list and [protected] places) are shown as "protégée : jamais levée" and never lifted.
+  - Addresses outside the listed ranges are never touched, even if they belong to another CDN.
+  - If nginx does not yet read CF-Connecting-IP (no set_real_ip_from in /etc/nginx/snippets/cdn-realip.conf), a warning is shown before the preview: a lifted address can be banned again. Deploy --cdn cloudflare first.
+  - Root is required; a failing fail2ban unbanip or --unban is counted and gives exit code 1.
+  - Without a confirmation, nothing is changed.
+- Checks: bash -n on the script; --version and --help show the new option; the range matching was run on 104.28.221.220 (now matched by 104.16.0.0/12), 172.64.1.1 (matched) and 8.8.8.8 (not matched); the protection check was read in the code. Not run: a real lift on a server (needs root and fail2ban/ufw).
+- Depends on: the Cloudflare ranges of nginx/cdn/cloudflare-ips.txt, added by PR 141 (feature/cf-connecting-ip). Merge PR 141 first.
+- Action required: after merge, run `sudo nginx-log-audit.sh --unban-cdn` to see the preview, then answer [o/N].
+
 ### 2.66.20261031.193551 - No "Broken pipe" message; verification command uses zgrep
 
 - Title: the investigation output no longer shows "sort: write failed: Broken pipe", and the suggested command reads the compressed logs too.
