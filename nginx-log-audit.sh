@@ -133,7 +133,7 @@ grep_q() { grep "$@" >/dev/null; }
 #                              ne peut pas le voir, le texte etant entre apostrophes (faux positif).
 trap 'ec=$?; echo "" >&2; echo "*** ARRÊT INATTENDU DU SCRIPT (code $ec) À LA LIGNE $LINENO ***" >&2; echo "*** Commande fautive : $BASH_COMMAND" >&2; echo "*** Si le rapport ci-dessus semble incomplet (ex. sections Top 10 absentes), c'\''est probablement la cause." >&2' ERR
 
-readonly SCRIPT_VERSION="2.68.20261101.195800"
+readonly SCRIPT_VERSION="2.69.20261101.234513"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
 # Chemin de ce programme (relances --investigate, --ban, --unban) : defini ICI, avant le bloc --ban qui l'utilise.
 SELF_PATH="$SCRIPT_DIR/$(basename "${BASH_SOURCE[0]}")"
@@ -2648,7 +2648,10 @@ revue_controles() {
         echo "   ${C_GREEN}[OK]${C_RESET} jails actives : $jails"
         for j in $jails; do
             nb=$(run fail2ban-client status "$j" 2>/dev/null | sed -n 's/.*Currently banned:[[:space:]]*//p') || nb=""
+            # 2.69 : la liste des adresses bannies (ligne « Banned IP list » de fail2ban), pas seulement leur nombre
+            ips_j=$(run fail2ban-client status "$j" 2>/dev/null | sed -n 's/.*Banned IP list:[[:space:]]*//p') || ips_j=""
             echo "   [i] $j : ${nb:-?} IP bannies en ce moment (commande : fail2ban-client status $j)"
+            if [[ -n "$ips_j" ]]; then echo "       ${ips_j}"; fi
         done
     else
         echo "   ${C_RED}[FAIL]${C_RESET} fail2ban inaccessible ou sans jail : les bannissements automatiques ne sont pas appliqués"
