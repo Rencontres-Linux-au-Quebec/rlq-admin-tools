@@ -2702,7 +2702,7 @@ Earlier history was archived outside this repository when this file was created.
 - Reason: on 2026-11-01, nginx-log-audit.sh saw only the Cloudflare node address. The nginx-badrequests jail banned that node on ordinary 404 and 30x responses, which blocked a real visitor behind the same node. The fix must make fail2ban and the rate limits see the visitor, not the node.
 - Changes:
   - nginx-hardening.sh: new option --cdn (none by default, or cloudflare), read from the configuration like the other options (CDN key). New function generer_cdn (content of the file). New step 12c that writes /etc/nginx/snippets/cdn-realip.conf, tests nginx -t, applies it, and restores the previous version if nginx -t refuses it. cdn-realip.conf is added to the fragments created empty by fragments_generes_assurer.
-  - nginx/cdn/cloudflare-ips.txt (new): the published Cloudflare ranges (22 CIDR, IPv4 and IPv6).
+  - nginx/cdn/cloudflare-ips.txt (new): the Cloudflare ranges (21 CIDR, IPv4 and IPv6). IPv4 block 104.16.0.0/12 (CLOUDFLARENET, RDAP) replaces 104.16.0.0/13 and 104.24.0.0/14, which did not cover 104.28.x.x (found by a test on 104.28.221.220).
   - nginx/conf.d/odoo-global.conf: include of cdn-realip.conf in the http context.
   - nginx-tools-tests/test_cdn_realip.py (new): 6 tests (valid ranges, generated output with and without CDN, include, fragment list, option read and checked).
 - Bugs fixed: none in code. The problem is the missing feature described above (CF-Connecting-IP not used).
@@ -3074,6 +3074,26 @@ Earlier history was archived outside this repository when this file was created.
 - Current version. Earlier history archived outside the repository.
 
 ## nginx-log-audit.sh
+
+### 2.67.20261101.192900 - Lift the bans of Cloudflare addresses (option --unban-cdn)
+
+- Title: new option --unban-cdn lifts, in one operation, the bans (fail2ban and manual firewall) of addresses inside Cloudflare's published ranges, after a preview and one confirmation.
+- Reason: on 2026-11-01 a Cloudflare node was banned by mistake (nginx-badrequests jail, 14 ordinary 404 and 30x responses). Other Cloudflare addresses may have been banned the same way. Lifting them one by one with --unban and fail2ban-client was slow and error-prone.
+- Changes:
+  - nginx-log-audit.sh: new option --unban-cdn (root required). Variable DO_UNBAN_CDN, block placed before --investigate. It collects the current bans (fail2ban jails and manual firewall rules), keeps those inside nginx/cdn/cloudflare-ips.txt (one python3 call for IPv4 and IPv6), and shows a preview table: address, range, source, decision.
+  - Confirmation: one question for the whole set ([o/N]). With --yes, no question. Without a terminal, the preview is shown and nothing is lifted.
+  - Lifting: fail2ban bans with fail2ban-client set JAIL unbanip; manual firewall bans with --unban --yes and the reason "bannissement Cloudflare levé (--unban-cdn)" (recorded in bans.tsv).
+  - Help text (--help), usage line and header comment updated. The option is listed before --unban-check (alphabetical order).
+- Bugs fixed: none. Missing feature.
+- Safeguards and edge cases:
+  - Protected addresses (protected_ip_reason: loopback, private networks, white list and [protected] places) are shown as "protégée : jamais levée" and never lifted.
+  - Addresses outside the listed ranges are never touched, even if they belong to another CDN.
+  - If nginx does not yet read CF-Connecting-IP (no set_real_ip_from in /etc/nginx/snippets/cdn-realip.conf), a warning is shown before the preview: a lifted address can be banned again. Deploy --cdn cloudflare first.
+  - Root is required; a failing fail2ban unbanip or --unban is counted and gives exit code 1.
+  - Without a confirmation, nothing is changed.
+- Checks: bash -n on the script; --version and --help show the new option; the range matching was run on 104.28.221.220 (now matched by 104.16.0.0/12), 172.64.1.1 (matched) and 8.8.8.8 (not matched); the protection check was read in the code. Not run: a real lift on a server (needs root and fail2ban/ufw).
+- Depends on: the Cloudflare ranges of nginx/cdn/cloudflare-ips.txt, added by PR 141 (feature/cf-connecting-ip). Merge PR 141 first.
+- Action required: after merge, run `sudo nginx-log-audit.sh --unban-cdn` to see the preview, then answer [o/N].
 
 ### 2.66.20261031.193551 - No "Broken pipe" message; verification command uses zgrep
 

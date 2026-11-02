@@ -14,7 +14,7 @@
 #
 # Usage : nginx-log-audit.sh [dev|lab|prod] [-v|--verbose] [--ip ADRESSE] [--init] [--init-all] [--stats] [--last HEURES]
 #                            [--details] [--fail2ban] [--ban IP [--yes] [--reason TEXT]] [--unban IP] [--ban-history] [--investigate IP] [--evidence IP]
-#                            [--unban-check] [--unban-low-score] [--ban-threshold N] [--page-burst N] [--parallel-threshold N] [--no-prompt] [--version]
+#                            [--unban-check] [--unban-cdn] [--unban-low-score] [--ban-threshold N] [--page-burst N] [--parallel-threshold N] [--no-prompt] [--version]
 #                            [--changelog]
 #   - [dev|lab|prod]  : optional, auto-detected from the files present in /var/log/nginx/.
 #   - -v/--verbose    : affiche aussi la commande shell exacte utilisee pour chaque verification.
@@ -89,6 +89,9 @@
 #                        User-Agents are ignored (a company or university NAT legitimately shows many of them);
 #                        legitimately many); only an IP claiming several bot organizations at
 #                        once is reported - no organization operates the bots of another.
+#   - --unban-cdn     : lists the BANS (fail2ban and manual firewall) of addresses inside Cloudflare's published ranges
+#                        (nginx/cdn/cloudflare-ips.txt), shows a preview, then asks ONCE before lifting them
+#                        (--yes: no question; no terminal: preview only). Protected addresses are never lifted.
 #   - --unban-low-score : liste les IP BANNIES (fail2ban et pare-feu manuel) dont --unban-check recommande la LEVEE
 #                        (same verdict, same process, logs read once); asks for each one whether it can be unbanned
 #                        (--yes: without question; without terminal: list only). The score is shown for information.
@@ -130,7 +133,7 @@ grep_q() { grep "$@" >/dev/null; }
 #                              ne peut pas le voir, le texte etant entre apostrophes (faux positif).
 trap 'ec=$?; echo "" >&2; echo "*** ARRÊT INATTENDU DU SCRIPT (code $ec) À LA LIGNE $LINENO ***" >&2; echo "*** Commande fautive : $BASH_COMMAND" >&2; echo "*** Si le rapport ci-dessus semble incomplet (ex. sections Top 10 absentes), c'\''est probablement la cause." >&2' ERR
 
-readonly SCRIPT_VERSION="2.66.20261031.193551"
+readonly SCRIPT_VERSION="2.67.20261101.192900"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
 # Chemin de ce programme (relances --investigate, --ban, --unban) : defini ICI, avant le bloc --ban qui l'utilise.
 SELF_PATH="$SCRIPT_DIR/$(basename "${BASH_SOURCE[0]}")"
@@ -175,6 +178,7 @@ BAN_REASON=""
 DO_BAN_HISTORY=0
 DO_UNBAN_CHECK=0
 DO_UNBAN_LOW_SCORE=0
+DO_UNBAN_CDN=0           # --unban-cdn: lift the bans of Cloudflare addresses (preview first)
 # Set by investigate_and_propose: ENQUETE_INCOHERENTE=1 when the address changed during the investigation (no verdict then);
 # SIGNE_FORT=1 when a strong sign of hostility was found (sensitive files, errors, fake search engine, catch-all).
 ENQUETE_INCOHERENTE=0
@@ -255,6 +259,7 @@ while [[ $# -gt 0 ]]; do
         --investigate) INVESTIGATE_IP="${2:-}"; shift 2 ;;
         --evidence) EVIDENCE_IP="${2:-}"; shift 2 ;;
         --unban-check) DO_UNBAN_CHECK=1; shift ;;
+        --unban-cdn) DO_UNBAN_CDN=1; shift ;;
         --unban-low-score) DO_UNBAN_LOW_SCORE=1; shift ;;
         --export-bans) if [[ -n "${2:-}" && "${2:0:2}" != "--" ]]; then EXPORT_BANS="$2"; shift 2; else EXPORT_BANS="-"; shift; fi ;;
         --import-bans) IMPORT_BANS="${2:-}"; shift 2 ;;
@@ -330,6 +335,7 @@ Options (par ordre alphabétique) :
   --stats                      statistiques du trafic (codes, IP, User-Agents, appareils des visiteurs)
   --ua-rotation-threshold N    identités de robots différentes pour l'indice « double identité »
   --unban IP                   lever un bannissement manuel (justification demandée)
+  --unban-cdn                  lever les bannissements des adresses Cloudflare (aperçu, puis confirmation)
   --unban-check                réévaluer chaque bannissement manuel (levée proposée si injustifié)
   --unban-low-score            lister les IP bannies que --unban-check recommande de lever, et proposer de les débannir
   -v, --verbose                affiche chaque commande lancée
@@ -2448,6 +2454,125 @@ if [[ "$DO_UNBAN_LOW_SCORE" == "1" ]]; then
             esac
         fi
     done
+    exit 0
+fi
+
+# --- --unban-cdn : bannissements (fail2ban et pare-feu manuel) des adresses dans les plages publiees par Cloudflare --------
+# Aperçu d'abord (rien n'est modifié), puis UNE question, puis levée. Les adresses protégées ne sont jamais levées.
+if [[ "$DO_UNBAN_CDN" == "1" ]]; then
+    if [[ "$EUID" -ne 0 ]]; then
+        echo "ERREUR: --unban-cdn nécessite root (sudo)." >&2
+        exit 1
+    fi
+    plages_cdn="$SCRIPT_DIR/nginx/cdn/cloudflare-ips.txt"
+    if [[ ! -r "$plages_cdn" ]]; then
+        echo "ERREUR: plages Cloudflare introuvables : $plages_cdn (lancer le programme depuis le dépôt)." >&2
+        exit 1
+    fi
+    echo "=============================================================="
+    echo " BANNISSEMENTS D'ADRESSES CLOUDFLARE (aperçu : rien n'est encore levé)"
+    echo "=============================================================="
+    declare -A BAN_SOURCE=()
+    declare -A PLAGE_OF=()
+    declare -a CDN_IPS=() LIFT_IPS=()
+    if command -v fail2ban-client >/dev/null 2>&1 && run fail2ban-client ping >/dev/null 2>&1; then
+        for j in $(run fail2ban-client status 2>/dev/null | sed -n 's/.*Jail list:[[:space:]]*//p' | tr ',' ' '); do
+            for b in $(run fail2ban-client status "$j" 2>/dev/null | sed -n 's/.*Banned IP list:[[:space:]]*//p'); do
+                BAN_SOURCE["$b"]="fail2ban:$j"
+            done
+        done
+    fi
+    mapfile -t MANUAL_BANS < <(list_manual_bans)
+    for m in "${MANUAL_BANS[@]}"; do
+        [[ -n "$m" && -z "${BAN_SOURCE[$m]:-}" ]] && BAN_SOURCE["$m"]="pare-feu"
+    done
+    if (( ${#BAN_SOURCE[@]} == 0 )); then
+        echo "${C_GREEN}Aucune IP bannie (fail2ban ni bannissement manuel).${C_RESET}"
+        exit 0
+    fi
+    # One python3 call for all addresses (IPv4 and IPv6): prints "ADRESSE PLAGE" for each address inside a published range.
+    while read -r ip plage; do
+        [[ -n "$plage" ]] && PLAGE_OF["$ip"]="$plage"
+    done < <(printf '%s\n' "${!BAN_SOURCE[@]}" | python3 -c '
+import ipaddress, sys
+plages = [ipaddress.ip_network(l.strip()) for l in open(sys.argv[1], encoding="utf-8") if l.strip() and not l.startswith("#")]
+for ligne in sys.stdin:
+    ip = ligne.strip()
+    try:
+        adresse = ipaddress.ip_address(ip)
+    except ValueError:
+        continue
+    for p in plages:
+        if adresse in p:
+            print(ip, p)
+            break
+' "$plages_cdn")
+    for ip in $(printf '%s\n' "${!BAN_SOURCE[@]}" | sort -V); do
+        [[ -n "${PLAGE_OF[$ip]:-}" ]] && CDN_IPS+=("$ip")
+    done
+    if (( ${#CDN_IPS[@]} == 0 )); then
+        echo "${C_GREEN}Aucune IP bannie n'appartient aux plages Cloudflare : rien à lever.${C_RESET}"
+        exit 0
+    fi
+    # Safeguard: while nginx sees the node address (no cdn-realip.conf with set_real_ip_from), a lifted address can be banned again.
+    if ! grep -qs '^set_real_ip_from' /etc/nginx/snippets/cdn-realip.conf; then
+        echo "${C_YELLOW}[ATTN] nginx ne lit pas encore CF-Connecting-IP (cdn-realip.conf absent ou vide) : nginx voit l'adresse du nœud Cloudflare,${C_RESET}"
+        echo "${C_YELLOW}       et une levée peut être suivie d'un nouveau bannissement. Déployer d'abord : nginx-hardening.sh --update --cdn cloudflare${C_RESET}"
+        echo
+    fi
+    printf '  %-40s %-22s %-14s %s\n' "IP" "Plage Cloudflare" "Banni par" "Décision"
+    for ip in "${CDN_IPS[@]}"; do
+        if prot=$(protected_ip_reason "$ip"); then
+            printf '  %-40s %-22s %-14s %s\n' "$ip" "${PLAGE_OF[$ip]}" "${BAN_SOURCE[$ip]}" "protégée : jamais levée"
+        else
+            LIFT_IPS+=("$ip")
+            printf '  %-40s %-22s %-14s %s\n' "$ip" "${PLAGE_OF[$ip]}" "${BAN_SOURCE[$ip]}" "à lever"
+        fi
+    done
+    echo
+    if (( ${#LIFT_IPS[@]} == 0 )); then
+        echo "${C_GREEN}Toutes les adresses Cloudflare bannies sont protégées : rien à lever.${C_RESET}"
+        exit 0
+    fi
+    echo "${C_YELLOW}${#LIFT_IPS[@]} bannissement(s) à lever (aperçu : aucune modification faite).${C_RESET}"
+    interactif=0
+    [[ "$NO_PROMPT" != "1" && -t 0 && -t 1 ]] && interactif=1
+    ok=0
+    if [[ "$ASSUME_YES" == "1" ]]; then
+        ok=1
+    elif (( interactif )); then
+        if demander_oui "Lever ces ${#LIFT_IPS[@]} bannissements Cloudflare ? [o/N] "; then ok=1; fi
+    else
+        echo "Aperçu seulement : relancer dans un terminal pour confirmer, ou avec --yes pour lever sans question."
+        exit 0
+    fi
+    if (( ok == 0 )); then
+        echo "Aucune levée : réponse négative."
+        exit 0
+    fi
+    reussis=0; echecs=0
+    for ip in "${LIFT_IPS[@]}"; do
+        src="${BAN_SOURCE[$ip]}"
+        case "$src" in
+            fail2ban:*)
+                jail="${src#fail2ban:}"
+                if run fail2ban-client set "$jail" unbanip "$ip" >/dev/null 2>&1; then
+                    echo "  ${C_GREEN}✓ $ip levée (jail $jail).${C_RESET}"; reussis=$((reussis + 1))
+                else
+                    echo "  ${C_RED}✗ échec de la levée de $ip dans le jail $jail.${C_RESET}"; echecs=$((echecs + 1))
+                fi
+                ;;
+            *)
+                if relancer_action --unban "$ip" --yes --reason "bannissement Cloudflare levé (--unban-cdn)"; then
+                    reussis=$((reussis + 1))
+                else
+                    echecs=$((echecs + 1))
+                fi
+                ;;
+        esac
+    done
+    echo "Bilan : $reussis levée(s), $echecs échec(s)."
+    (( echecs == 0 )) || exit 1
     exit 0
 fi
 
