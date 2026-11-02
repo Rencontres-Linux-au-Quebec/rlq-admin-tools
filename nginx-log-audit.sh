@@ -135,7 +135,7 @@ grep_q() { grep "$@" >/dev/null; }
 #                              ne peut pas le voir, le texte etant entre apostrophes (faux positif).
 trap 'ec=$?; echo "" >&2; echo "*** ARRÊT INATTENDU DU SCRIPT (code $ec) À LA LIGNE $LINENO ***" >&2; echo "*** Commande fautive : $BASH_COMMAND" >&2; echo "*** Si le rapport ci-dessus semble incomplet (ex. sections Top 10 absentes), c'\''est probablement la cause." >&2' ERR
 
-readonly SCRIPT_VERSION="2.70.20261101.215908"
+readonly SCRIPT_VERSION="2.71.20261101.231500"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
 # Chemin de ce programme (relances --investigate, --ban, --unban) : defini ICI, avant le bloc --ban qui l'utilise.
 SELF_PATH="$SCRIPT_DIR/$(basename "${BASH_SOURCE[0]}")"
@@ -463,19 +463,20 @@ surligner() {
 # principal ne suffit pas : bash 5.2 execute le piege puis REPREND l'attente.) Hors terminal (reponse par un tube,
 # e.g. "printf 'o\n' | ... --ban IP"): simple read.
 DEMANDER_INTERROMPU=0
+declare -F tty_ligne >/dev/null || tty_ligne() { :; }   # 1.x: apps/_i18n.sh absent: no terminal preparation
 demander_oui() {
     local question="$1" reply="" tmp rc=0
     DEMANDER_INTERROMPU=0
     if [[ -t 0 ]]; then
         tmp=$(mktemp)
         trap ':' INT
-        ( trap - INT; read -e -r -p "$question" r && printf '%s' "$r" > "$tmp" ) || rc=$?
+        ( trap - INT; tty_ligne; read -e -r -p "$question" r && printf '%s' "$r" > "$tmp" ) || rc=$?
         trap - INT; ctrl_c_installer        # remet la confirmation de Ctrl+C
         reply=$(cat "$tmp" 2>/dev/null) || reply=""
         rm -f "$tmp"
         if (( rc == 130 )); then DEMANDER_INTERROMPU=1; echo; fi
     else
-        read -r -p "$question" reply || reply=""
+        tty_ligne; read -r -p "$question" reply || reply=""
     fi
     case "$reply" in o|O|oui|Oui|OUI) return 0 ;; *) return 1 ;; esac
 }
@@ -615,7 +616,7 @@ demander_texte() {
     if [[ ! -t 0 ]]; then printf '%s' "$defaut"; return 0; fi
     tmp=$(mktemp)
     trap ':' INT
-    ( trap - INT; read -e -r -i "$defaut" -p "$question" r && printf '%s' "$r" > "$tmp" ) </dev/tty >/dev/tty 2>&1 || rc=$?
+    ( trap - INT; tty_ligne; read -e -r -i "$defaut" -p "$question" r && printf '%s' "$r" > "$tmp" ) </dev/tty >/dev/tty 2>&1 || rc=$?
     trap - INT; declare -F ctrl_c_installer >/dev/null && ctrl_c_installer
     reponse=$(cat "$tmp" 2>/dev/null) || reponse=""
     rm -f "$tmp"
@@ -1303,7 +1304,7 @@ if [[ -n "$BAN_IP" ]]; then
             exit 1
         fi
         echo "Exception demandée (justification : $BAN_REASON). Tapez exactement BANNIR en majuscules pour bannir malgré tout."
-        read -r -e -p "> " confirmation_exception || confirmation_exception=""
+        tty_ligne; read -r -e -p "> " confirmation_exception || confirmation_exception=""
         if [[ "$confirmation_exception" != "BANNIR" ]]; then echo "Annulé : aucune adresse bannie."; exit 0; fi
         BAN_OVERRIDE=1
     fi

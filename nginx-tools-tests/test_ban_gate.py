@@ -75,7 +75,7 @@ class BanGate(unittest.TestCase):
         self.assertNotIn(r'|\.php|', ligne[0])                                 # 2.70: md5.php3 n'est plus une tentative sensible
 
     def test_version_dynamique(self):
-        self.assertIn('readonly SCRIPT_VERSION="2.70.20261101.215908"', script())
+        self.assertIn('readonly SCRIPT_VERSION="2.71.20261101.231500"', script())
 
 
 if __name__ == "__main__":

@@ -63,7 +63,7 @@ class CdnConfigFile(unittest.TestCase):
         self.assertIn('echo "CDN=$CDN_A_ENREGISTRER"', script)
 
     def test_version_dynamique_et_a_jour(self):
-        self.assertIn('readonly SCRIPT_VERSION="2.73.20261101.214534"', lire("nginx-hardening.sh"))
+        self.assertIn('readonly SCRIPT_VERSION="2.74.20261101.231500"', lire("nginx-hardening.sh"))
 
 
 if __name__ == "__main__":

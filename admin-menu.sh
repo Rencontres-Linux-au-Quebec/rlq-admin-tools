@@ -37,7 +37,7 @@
 
 set -euo pipefail
 
-readonly SCRIPT_VERSION="1.1.20261030.153422"
+readonly SCRIPT_VERSION="1.2.20261101.231500"
 readonly SCRIPT_NAME="admin-menu"
 SCRIPT_FILE="$(basename "${BASH_SOURCE[0]}")"
 readonly SCRIPT_FILE
@@ -178,7 +178,7 @@ installer_dialog() {
 # confirmer QUESTION: true when the answer is yes (o, oui, y, yes).
 confirmer() {
     local rep=""
-    read -r -p "$1 $(t "[o/N] " "[y/N] ")" rep || return 1
+    tty_ligne; read -r -p "$1 $(t "[o/N] " "[y/N] ")" rep || return 1
     case "${rep,,}" in
         o|oui|y|yes) return 0 ;;
     esac
@@ -321,14 +321,14 @@ menu_principal() {
             done
             printf '  %sq%s   %s\n' "$C_GREEN" "$C_RESET" "$(t "Quitter" "Quit")"
             echo
-            read -r -p "$(t "Votre choix : " "Your choice: ")" choix || { echo; break; }
+            tty_ligne; read -r -p "$(t "Votre choix : " "Your choice: ")" choix || { echo; break; }
         fi
         case "$choix" in
             q|Q) break ;;
         esac
         if [[ "$choix" =~ ^[0-9]+$ ]] && (( choix < n )); then
             lancer_programme "${PROGRAMMES[choix]}"
-            read -r -p "$(t "Entrée pour revenir au menu..." "Enter to return to the menu...")" _ || break
+            tty_ligne; read -r -p "$(t "Entrée pour revenir au menu..." "Enter to return to the menu...")" _ || break
         else
             printf '%s\n' "$(t "Choix inconnu : " "Unknown choice: ")« $choix »."
         fi

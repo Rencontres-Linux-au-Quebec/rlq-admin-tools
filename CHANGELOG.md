@@ -18,6 +18,16 @@ Earlier history was archived outside this repository when this file was created.
 
 ## admin-menu.sh
 
+### 1.2.20261101.231500 - Retour arrière : écho et effacement rétablis avant chaque réponse
+
+- Title: the menus of admin-menu.sh (choice, Enter to return, yes/no) restore echo and erase first.
+- Reason: Request of the administrator: in nginx-hardening.sh, at the prompt "Faire le setup du courriel (relais SMTP) maintenant ? [o/N] :", the Backspace key shows "d^H^H^H^H" and erases nothing. The same problem can hit every program that asks a question, so every interactive prompt of the Bash and Python programs must be checked and fixed.
+- Changes: tty_ligne before the three reads of admin-menu.sh (yes/no helper, the choice, the return key). The menu libraries apps/_menu.sh (4 reads, tty_ligne and fallback) and apps/_menu.py (its own line reader _saisie(), with ICANON, ECHO, ECHOE set, then restored) are changed the same way.
+- Bugs fixed: same symptom as nginx-hardening.sh 2.74. Diagnosis and fix as in apps/_i18n.py 1.22.
+- Safeguards and edge cases: Without a terminal (pipe, cron, stdin not a tty): nothing is changed, the programs behave as before. Stdin and /dev/tty redirections are guarded with || true (set -e). Password prompts (read -s) are not changed. The helper is defined in apps/_i18n.sh; a program without that file gets a no-op fallback. apps/_menu.py: without termios (Windows) input() is used.
+- Checks performed: bash -n; nginx-tools-tests/test_saisie_terminal.py (new, static): every interactive read -p / read -e of the Bash programs has tty_ligne on its line; tty_ligne is defined and sets icanon echo echoe; saisie() is defined and used by the i18n context; apps/_menu.py has its own line reader; versions.
+- Action required from the user: none.
+
 ### 1.1.20261030.153422 - No plural marker "(s)" in the displayed texts
 
 - Title: the texts shown by the program no longer contain "(s)": "requête(s)" becomes "requêtes", "adresse(s)" becomes "adresses", "lente(s)" becomes "lentes" (French and English).
@@ -2240,6 +2250,16 @@ Earlier history was archived outside this repository when this file was created.
 
 ## web-monitor.py
 
+### 2.85.20261101.231500 - Retour arrière : écho et effacement rétablis avant chaque réponse
+
+- Title: every question of web-monitor.py is answered in line mode (echo and erase).
+- Reason: Request of the administrator: in nginx-hardening.sh, at the prompt "Faire le setup du courriel (relais SMTP) maintenant ? [o/N] :", the Backspace key shows "d^H^H^H^H" and erases nothing. The same problem can hit every program that asks a question, so every interactive prompt of the Bash and Python programs must be checked and fixed.
+- Changes: the input() wrapper of the program now calls _saisie_ligne(), which uses saisie() of apps/_i18n.py (loaded once; input() if the module is missing). Its 12 questions go through it.
+- Bugs fixed: same symptom as nginx-hardening.sh 2.74 (the erase key shows ^H). Diagnosis and fix as in apps/_i18n.py 1.22.
+- Safeguards and edge cases: Without a terminal (pipe, cron, stdin not a tty): nothing is changed, the programs behave as before. Stdin and /dev/tty redirections are guarded with || true (set -e). Password prompts (read -s) are not changed. The helper is defined in apps/_i18n.sh; a program without that file gets a no-op fallback. Its bulk-ban refusals (2.83) are unchanged.
+- Checks performed: py_compile; nginx-tools-tests/test_saisie_terminal.py (new, static): every interactive read -p / read -e of the Bash programs has tty_ligne on its line; tty_ligne is defined and sets icanon echo echoe; saisie() is defined and used by the i18n context; apps/_menu.py has its own line reader; versions.
+- Action required from the user: none. Note: PR 151 (2.84) is based on 2.83; the version line of the newer PR is kept when merging.
+
 ### 2.83.20261101.220544 - No bulk ban; repeat offenders recommended only after their own investigation
 
 - Title: web-monitor.py never bans several addresses at once. A repeat offender is recommended only if its investigation (nginx-log-audit.sh --investigate) recommends the ban.
@@ -2538,6 +2558,16 @@ Earlier history was archived outside this repository when this file was created.
 
 ## odoo-update-module.sh
 
+### 1.24.20261101.231500 - Retour arrière : écho et effacement rétablis avant chaque réponse
+
+- Title: the backup-restore question restores echo and erase first.
+- Reason: Request of the administrator: in nginx-hardening.sh, at the prompt "Faire le setup du courriel (relais SMTP) maintenant ? [o/N] :", the Backspace key shows "d^H^H^H^H" and erases nothing. The same problem can hit every program that asks a question, so every interactive prompt of the Bash and Python programs must be checked and fixed.
+- Changes: tty_ligne placed before the read of "Retour arrière vers les versions d'avant". Fallback definition after apps/_i18n.sh is loaded.
+- Bugs fixed: same symptom as nginx-hardening.sh 2.74. Diagnosis and fix as in apps/_i18n.py 1.22.
+- Safeguards and edge cases: Without a terminal (pipe, cron, stdin not a tty): nothing is changed, the programs behave as before. Stdin and /dev/tty redirections are guarded with || true (set -e). Password prompts (read -s) are not changed. The helper is defined in apps/_i18n.sh; a program without that file gets a no-op fallback.
+- Checks performed: bash -n; nginx-tools-tests/test_saisie_terminal.py (new, static): every interactive read -p / read -e of the Bash programs has tty_ligne on its line; tty_ligne is defined and sets icanon echo echoe; saisie() is defined and used by the i18n context; apps/_menu.py has its own line reader; versions.
+- Action required from the user: none.
+
 ### 1.23.20261030.153422 - No plural marker "(s)" in the displayed texts
 
 - Title: the texts shown by the program no longer contain "(s)": "requête(s)" becomes "requêtes", "adresse(s)" becomes "adresses", "lente(s)" becomes "lentes" (French and English).
@@ -2703,6 +2733,16 @@ Earlier history was archived outside this repository when this file was created.
 ### 1.14.20261020.211944 - Current version. Earlier history archived outside the repository.
 
 ## nginx-hardening.sh
+
+### 2.74.20261101.231500 - Retour arrière : écho et effacement rétablis avant chaque réponse
+
+- Title: each question of nginx-hardening.sh (yes/no, menus, text answers, the SMTP setup question) restores echo and erase first.
+- Reason: Request of the administrator: in nginx-hardening.sh, at the prompt "Faire le setup du courriel (relais SMTP) maintenant ? [o/N] :", the Backspace key shows "d^H^H^H^H" and erases nothing. The same problem can hit every program that asks a question, so every interactive prompt of the Bash and Python programs must be checked and fixed.
+- Changes: tty_ligne; placed before the 13 interactive reads (read -r -p) of the program: confirmation helper, menus, the SMTP setup, test mail, GENERIC plan, fail2ban SQLi change, 404 refusals, rename, restore, time zone. Fallback definition of tty_ligne after the loading of apps/_i18n.sh.
+- Bugs fixed: symptom: at "Faire le setup du courriel (relais SMTP) maintenant ? [o/N] :" the Backspace key showed "d^H^H^H^H" instead of erasing. Diagnosis: ECHOE off on the terminal (see apps/_i18n.py 1.22). Fix: tty_ligne before the read.
+- Safeguards and edge cases: Without a terminal (pipe, cron, stdin not a tty): nothing is changed, the programs behave as before. Stdin and /dev/tty redirections are guarded with || true (set -e). Password prompts (read -s) are not changed. The helper is defined in apps/_i18n.sh; a program without that file gets a no-op fallback. The password read (read -r -s) is not changed.
+- Checks performed: bash -n; nginx-tools-tests/test_saisie_terminal.py (new, static): every interactive read -p / read -e of the Bash programs has tty_ligne on its line; tty_ligne is defined and sets icanon echo echoe; saisie() is defined and used by the i18n context; apps/_menu.py has its own line reader; versions.
+- Action required from the user: none. Version 2.73 -> 2.74.
 
 ### 2.73.20261101.214534 - --cdn on the command line is saved to the configuration file
 
@@ -3130,6 +3170,16 @@ Earlier history was archived outside this repository when this file was created.
 - Current version. Earlier history archived outside the repository.
 
 ## nginx-log-audit.sh
+
+### 2.71.20261101.231500 - Retour arrière : écho et effacement rétablis avant chaque réponse
+
+- Title: the answer questions (demander_oui, demander_texte, the ban exception word) restore echo and erase first.
+- Reason: Request of the administrator: in nginx-hardening.sh, at the prompt "Faire le setup du courriel (relais SMTP) maintenant ? [o/N] :", the Backspace key shows "d^H^H^H^H" and erases nothing. The same problem can hit every program that asks a question, so every interactive prompt of the Bash and Python programs must be checked and fixed.
+- Changes: tty_ligne placed before the four interactive reads: the fallback of demander_oui (read -r -p), the read -e of demander_oui and demander_texte (in their subshells), and the BANNIR confirmation (read -r -e -p). Fallback definition after apps/_i18n.sh is loaded. The sum of this change is independent of the recidivist section of 2.71 (PR 150): if PR 150 is merged first, the version lines conflict and the newer one is kept.
+- Bugs fixed: same symptom as nginx-hardening.sh 2.74 (erase shows ^H). Diagnosis and fix as in apps/_i18n.py 1.22.
+- Safeguards and edge cases: Without a terminal (pipe, cron, stdin not a tty): nothing is changed, the programs behave as before. Stdin and /dev/tty redirections are guarded with || true (set -e). Password prompts (read -s) are not changed. The helper is defined in apps/_i18n.sh; a program without that file gets a no-op fallback. The BANNIR typing is unchanged in its rule (it still refuses without a terminal).
+- Checks performed: bash -n; nginx-tools-tests/test_saisie_terminal.py (new, static): every interactive read -p / read -e of the Bash programs has tty_ligne on its line; tty_ligne is defined and sets icanon echo echoe; saisie() is defined and used by the i18n context; apps/_menu.py has its own line reader; versions.
+- Action required from the user: none.
 
 ### 2.70.20261101.215908 - A ban needs the investigation score, not only the evidence
 
@@ -3962,6 +4012,16 @@ Earlier history was archived outside this repository when this file was created.
 ### 1.2.20261019.150215 - Current version. Earlier history archived outside the repository.
 
 ## apps/_i18n.py
+
+### 1.22.20261101.231500 - Retour arrière : écho et effacement rétablis avant chaque réponse
+
+- Title: a new function saisie(invite) reads the answer in line mode with echo and erase (ECHOE), then restores the terminal. The context's input() (I18N.input) uses it, so every program that prints its questions through the translator gets the fix.
+- Reason: Request of the administrator: in nginx-hardening.sh, at the prompt "Faire le setup du courriel (relais SMTP) maintenant ? [o/N] :", the Backspace key shows "d^H^H^H^H" and erases nothing. The same problem can hit every program that asks a question, so every interactive prompt of the Bash and Python programs must be checked and fixed.
+- Changes: saisie() in apps/_i18n.py (uses _lire_reponse_terminal(), EOFError at end of file, input() without a terminal); the context's _input is saisie. apps/_i18n.sh: new function tty_ligne() (stty icanon echo echoe icrnl on /dev/tty, nothing without a terminal).
+- Bugs fixed: symptom: "d^H^H^H^H" on screen when erasing, the characters are gone from the answer but not from the screen. Diagnosis: ECHOE off with ICANON on (see the explanation above). Fix: the terminal is set again before each answer.
+- Safeguards and edge cases: Without a terminal (pipe, cron, stdin not a tty): nothing is changed, the programs behave as before. Stdin and /dev/tty redirections are guarded with || true (set -e). Password prompts (read -s) are not changed. The helper is defined in apps/_i18n.sh; a program without that file gets a no-op fallback.
+- Checks performed: nginx-tools-tests/test_saisie_terminal.py (new, static): every interactive read -p / read -e of the Bash programs has tty_ligne on its line; tty_ligne is defined and sets icanon echo echoe; saisie() is defined and used by the i18n context; apps/_menu.py has its own line reader; versions.
+- Action required from the user: none.
 
 ### 1.21.20261030.153422 - No plural marker "(s)" in the displayed texts
 
