@@ -92,7 +92,7 @@ run() {
     "$@"
 }
 
-readonly SCRIPT_VERSION="2.72.20261101.234513"
+readonly SCRIPT_VERSION="2.74.20261101.231500"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
 SCRIPT_NAME="$(basename "${BASH_SOURCE[0]}" .sh)"; readonly SCRIPT_NAME
 # Display language (en or fr): --lang, NGINX_HARDENING_LANG, LANGUAGE of the configuration file, LC_ALL / LANG - apps/_i18n.sh translates the output (nothing changes in French).
@@ -101,6 +101,7 @@ if [[ -r "$SCRIPT_DIR/apps/_i18n.sh" ]]; then
     . "$SCRIPT_DIR/apps/_i18n.sh"
     i18n_relancer nginx-hardening NGINX_HARDENING_LANG "$0" "$@"
 fi
+declare -F tty_ligne >/dev/null || tty_ligne() { :; }   # 1.x: apps/_i18n.sh absent: no terminal preparation
 # Changelog dans le sous-repertoire doc/ ; repli sur l'ancien emplacement (a cote du programme) tant que
 # l'installation n'a pas ete reorganisee.
 CHANGELOG_FILE="$SCRIPT_DIR/CHANGELOG.md"
@@ -151,6 +152,7 @@ ODOO_HTTP_PORT=""      # empty: read from the Odoo configuration ("configuration
 ODOO_GEVENT_PORT=""
 ODOO_CONF_PATHS="${ODOO_CONF_PATHS:-}"
 CDN="${CDN:-none}"       # --cdn none|cloudflare (step 12c: cdn-realip.conf)
+CDN_A_ENREGISTRER=""     # 2.73: --cdn given on the command line (none|cloudflare) -> written as CDN= in the state file
 ODOO_SERVICE=""
 TIMEZONE=""            # empty: default below (asked the first time); "none": change nothing
 TIMEZONE_DEFAUT="America/Montreal"
@@ -171,6 +173,7 @@ RETENTION_EXPLICITE=0
 # /etc/default/nginx-hardening.conf ALSO serves as the state file (SETUP_* lines, rewritten by --update): the other lines are kept there.
 if declare -F config_lire >/dev/null; then
     config_lire nginx-hardening "$@"
+    config_defaut CDN CDN --cdn texte
     config_defaut APP_FORCE APP --app texte
     config_defaut LOG_RETENTION_MONTHS LOG_RETENTION_MONTHS --log-retention-months nombre
     config_defaut MAIL_FROM MAIL_FROM --mail-from texte
@@ -237,7 +240,10 @@ while [[ $# -gt 0 ]]; do
         --rename-from) RENAME_FROM="${2:-}"; shift 2 ;;
         --rename-to) RENAME_TO="${2:-}"; shift 2 ;;
         --timezone) TIMEZONE="${2:-}"; shift 2 ;;
-        --cdn) CDN="${2:-}"; shift 2 ;;
+        --cdn) CDN="${2:-}"
+               CDN_A_ENREGISTRER=""
+               if [[ "$CDN" == none || "$CDN" == cloudflare ]]; then CDN_A_ENREGISTRER="$CDN"; fi
+               shift 2 ;;
         --odoo-conf) ODOO_CONF="${2:-}"; shift 2 ;;
         --odoo-conf-paths) ODOO_CONF_PATHS="${2:-}"; shift 2 ;;
         --workers) ODOO_WORKERS_OVERRIDE="${2:-}"; shift 2 ;;
@@ -345,7 +351,7 @@ menu_confirmer() {    # menu_confirmer QUESTION : 0 si la réponse est oui (o, o
         "$DIALOG_BIN" --title "nginx-hardening.sh" --yesno "$1" 8 72 || rc=$?
         return "$rc"
     fi
-    read -r -p "$1 [o/N] " rep || return 1
+    tty_ligne; read -r -p "$1 [o/N] " rep || return 1
     case "${rep,,}" in o|oui|y|yes) return 0 ;; esac
     return 1
 }
@@ -435,7 +441,7 @@ menu_dialog() {       # menu graphique (dialog) : une fenêtre de choix, puis l'
         [[ "$choix" == "q" ]] && break
         menu_action "$choix" || true
         if [[ "$choix" != "4" ]]; then
-            read -r -p "Entrée pour revenir au menu..." _ || break
+            tty_ligne; read -r -p "Entrée pour revenir au menu..." _ || break
         fi
     done
 }
@@ -454,12 +460,12 @@ menu_texte() {        # menu en mode texte (repli, quand dialog n'est pas instal
         echo "  ${C_GREEN}5${C_RESET}  Voir le journal des modifications (${C_GREEN}--changelog${C_RESET})"
         echo "  ${C_GREEN}q${C_RESET}  Quitter"
         echo
-        read -r -p "Votre choix : " choix || { echo; break; }
+        tty_ligne; read -r -p "Votre choix : " choix || { echo; break; }
         case "$choix" in
             q|Q) break ;;
             *) menu_action "$choix" || echo "Choix inconnu : « $choix »." ;;
         esac
-        read -r -p "Entrée pour revenir au menu..." _ || break
+        tty_ligne; read -r -p "Entrée pour revenir au menu..." _ || break
     done
 }
 
@@ -1032,7 +1038,7 @@ rollback_executer() {    # --rollback: restores an archive (the newest by defaul
         if [[ -e "$tmp/${racine#/}" ]]; then diff -rq "$tmp/${racine#/}" "$racine" 2>/dev/null || true; fi
     done | head -n 30 | sed 's/^/      /' || true
     if [[ "$ROLLBACK_YES" != "1" ]]; then
-        if [[ -t 0 ]]; then read -r -p "  Restaurer cette sauvegarde ? L'état actuel est sauvegardé d'abord. [o/N] " rep || rep=""
+        if [[ -t 0 ]]; then tty_ligne; read -r -p "  Restaurer cette sauvegarde ? L'état actuel est sauvegardé d'abord. [o/N] " rep || rep=""
         else echo "Pas de terminal : rien restauré (ajouter --yes pour confirmer sans question)." >&2; rm -rf "$tmp"; exit 1; fi
         if [[ ! "$rep" =~ ^[oOyY]$ ]]; then echo "Annulé : rien restauré."; rm -rf "$tmp"; exit 0; fi
     fi
@@ -1181,7 +1187,7 @@ else
     else
         reponse="o"
         if [[ -z "$TIMEZONE" && -t 0 && -t 2 ]]; then
-            read -r -p "  Régler le fuseau horaire du serveur à $tz_voulu (actuel : ${tz_actuel:-inconnu}) ? [O/n/autre zone] " reponse || reponse="o"
+            tty_ligne; read -r -p "  Régler le fuseau horaire du serveur à $tz_voulu (actuel : ${tz_actuel:-inconnu}) ? [O/n/autre zone] " reponse || reponse="o"
             case "$reponse" in
                 ""|[oOyY]*) reponse="o" ;;
                 [nN]*) reponse="n" ;;
@@ -1258,7 +1264,7 @@ mail_demander() {      # mail_demander VARIABLE "question" [default]: sets the a
     local nom="$1" question="$2" defaut="${3:-}" reponse=""
     [[ -n "${!nom}" ]] && return 0
     if mail_terminal; then
-        read -r -p "  $question${defaut:+ [$defaut]} : " reponse || reponse=""
+        tty_ligne; read -r -p "  $question${defaut:+ [$defaut]} : " reponse || reponse=""
     fi
     printf -v "$nom" '%s' "${reponse:-$defaut}"
 }
@@ -1266,7 +1272,7 @@ mail_terminal() { [[ -t 0 && -t 2 ]]; }       # questions asked on the terminal 
 mail_valide() { [[ "$1" != *[\"\$\`\\]* && "$1" != *$'\n'* ]]; }
 mail_non=0      # "no" answer (default) to the question: the SMTP setup is skipped for this run
 if [[ "$CHECK_ONLY" != "1" ]] && ! (( mail_deja && ! MAIL_SETUP )) && (( ! MAIL_SETUP )) && [[ -z "$MAIL_HOST" && -z "${NGINX_TOOLS_MAIL_PASSWORD:-}" ]] && mail_terminal; then
-    read -r -p "  Faire le setup du courriel (relais SMTP) maintenant ? [o/N] : " mail_rep || mail_rep=""
+    tty_ligne; read -r -p "  Faire le setup du courriel (relais SMTP) maintenant ? [o/N] : " mail_rep || mail_rep=""
     case "${mail_rep,,}" in o|oui|y|yes) ;; *) mail_non=1 ;; esac
 fi
 if [[ "$CHECK_ONLY" == "1" ]]; then
@@ -1365,7 +1371,7 @@ tls_starttls on" ;;
                 pass "$MSMTPRC écrit (commandes sendmail et mail des programmes Bash)."
             fi
             if mail_terminal; then
-                read -r -p "  Envoyer un courriel de test à $MAIL_TO maintenant ? [O/n] " mail_rep || mail_rep="n"
+                tty_ligne; read -r -p "  Envoyer un courriel de test à $MAIL_TO maintenant ? [O/n] " mail_rep || mail_rep="n"
                 case "$mail_rep" in
                     [nN]*) ;;
                     *)  if mail_sortie=$(timeout --foreground 60 python3 "$SCRIPT_DIR/apps/_courriel.py" --test 2>&1); then pass "Courriel de test envoyé à $MAIL_TO."
@@ -1419,7 +1425,7 @@ if [[ -z "$RENAME_FROM" && -n "$RENAME_TO" ]] && renom_valide "$RENAME_TO"; then
     elif (( ${#rn_cands[@]} > 1 )); then
         echo "  Noms trouvés dans les server_name de nginx : ${rn_cands[*]}"
         if [[ "$CHECK_ONLY" != "1" ]] && mail_terminal; then
-            read -r -p "  Ancien nom à remplacer par $RENAME_TO : " RENAME_FROM || RENAME_FROM=""
+            tty_ligne; read -r -p "  Ancien nom à remplacer par $RENAME_TO : " RENAME_FROM || RENAME_FROM=""
         fi
         [[ -n "$RENAME_FROM" ]] || warn "Plusieurs anciens noms possibles : préciser lequel avec --rename-from NOM."
     else
@@ -1581,7 +1587,7 @@ else
             warn "Configuration nginx générique : ${#GEN_PLAN[@]} changements en attente (relancer avec --update pour les appliquer après confirmation)."
         else
             GEN_REP=""
-            if [[ -t 0 ]]; then read -r -p "  Appliquer ces ${#GEN_PLAN[@]} changements à la configuration nginx générique ? [o/N] " GEN_REP || GEN_REP=""
+            if [[ -t 0 ]]; then tty_ligne; read -r -p "  Appliquer ces ${#GEN_PLAN[@]} changements à la configuration nginx générique ? [o/N] " GEN_REP || GEN_REP=""
             else warn "Pas de terminal : configuration nginx générique non modifiée (lancer --update dans un terminal pour confirmer)."; fi
             if [[ "$GEN_REP" =~ ^[oOyY]$ ]]; then
                 GEN_TS=$(date +%Y%m%d-%H%M%S); GEN_FAITS=()
@@ -2521,7 +2527,7 @@ else
             warn "Jail $F2B_SQLI_JAIL : journal $F2B_SQLI_LOG non lu (relancer avec --update pour l'ajouter après confirmation)."
         else
             F2B_REP=""
-            if [[ -t 0 ]]; then read -r -p "  Appliquer ce changement à $F2B_SQLI_FICHIER et recharger fail2ban ? [o/N] " F2B_REP || F2B_REP=""
+            if [[ -t 0 ]]; then tty_ligne; read -r -p "  Appliquer ce changement à $F2B_SQLI_FICHIER et recharger fail2ban ? [o/N] " F2B_REP || F2B_REP=""
             else warn "Pas de terminal : jail $F2B_SQLI_JAIL non modifiée (lancer --update dans un terminal pour confirmer)."; fi
             if [[ "$F2B_REP" =~ ^[oOyY]$ ]]; then
                 F2B_BAK="$F2B_SQLI_FICHIER.before-logpath-$(date +%Y%m%d-%H%M%S)"
@@ -3067,7 +3073,7 @@ if [[ "$APP_NAME" == "odoo" ]]; then
         if [[ "$ROLLBACK_YES" == "1" ]]; then
             uri_ok=1
         elif [[ -t 0 ]]; then
-            read -r -p "  Refuser (404) : ${uri_futures:-aucune} (actuellement : ${uri_actuelles:-aucune}) ? [o/N] " uri_rep || uri_rep=""
+            tty_ligne; read -r -p "  Refuser (404) : ${uri_futures:-aucune} (actuellement : ${uri_actuelles:-aucune}) ? [o/N] " uri_rep || uri_rep=""
             [[ "$uri_rep" =~ ^[oOyY] ]] && uri_ok=1
         else
             warn "Pas de terminal : URI refusées inchangées (${uri_actuelles:-aucune}). Ajouter --yes pour confirmer sans question."
@@ -3236,6 +3242,10 @@ if [[ "$CHECK_ONLY" != "1" ]]; then
         if [[ -n "$TIMEZONE_A_ENREGISTRER" ]]; then
             conserve="$(printf '%s\n' "$conserve" | grep -vE '^TIMEZONE=' || true)"
             echo "TIMEZONE=$TIMEZONE_A_ENREGISTRER"
+        fi
+        if [[ -n "$CDN_A_ENREGISTRER" ]]; then
+            conserve="$(printf '%s\n' "$conserve" | grep -vE '^CDN=' || true)"
+            echo "CDN=$CDN_A_ENREGISTRER"
         fi
         [[ -n "$conserve" ]] && printf '%s\n' "$conserve"
     } > "$STATE_FILE"

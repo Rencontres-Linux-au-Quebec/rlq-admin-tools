@@ -1434,8 +1434,8 @@ msgstr "      (no request from this IP found, even including known rotated/compr
 msgid "       l'activité fautive est peut-être dans un fichier plus ancien déjà supprimé par la rotation)"
 msgstr "       the offending activity may be in an older file already deleted by rotation)"
 
-msgid "Bannissement PERMANENT recommandé : "
-msgstr "PERMANENT ban recommended: "
+msgid "Récidivistes fail2ban à surveiller : "
+msgstr "Repeat offenders (fail2ban) to watch: "
 
 msgid " IP récidivistes"
 msgstr " repeat-offender IPs"
@@ -1443,8 +1443,14 @@ msgstr " repeat-offender IPs"
 msgid "  Ces IP reviennent sur plusieurs jours : chaque bannissement fail2ban expire (bantime), puis elles"
 msgstr "  These IPs come back over several days: each fail2ban ban expires (bantime), then they"
 
-msgid "  recommencent. Un bannissement permanent (--ban) les bloque définitivement au pare-feu."
-msgstr "  start again. A permanent ban (--ban) blocks them for good at the firewall."
+msgid "  recommencent. Aucun bannissement n'est fait ici : l'enquête de chaque adresse décide."
+msgstr "  start again. No ban is made here: the investigation of each address decides."
+
+msgid "      Enquête : bannissement recommandé — pour le faire après relecture : nginx-log-audit.sh --ban "
+msgstr "      Investigation: ban recommended — to do it after review: nginx-log-audit.sh --ban "
+
+msgid "      Enquête : pas de bannissement recommandé (score inférieur à 3/7) — à surveiller."
+msgstr "      Investigation: no ban recommended (score below 3/7) — to watch."
 
 msgid "Rappel : le DNS inverse ET le whois peuvent mentir (n'importe qui peut configurer un PTR, et whois ne"
 msgstr "Reminder: reverse DNS AND whois can lie (anyone can configure a PTR, and whois only"

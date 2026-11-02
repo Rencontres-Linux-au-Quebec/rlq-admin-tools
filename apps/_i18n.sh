@@ -93,6 +93,14 @@ ctrl_c_installer() {
     return 0
 }
 
+# 1.x: put the terminal back in line mode (echo, erase ECHOE, ICANON) before each answer. Without ECHOE, the erase key deletes the
+# character but shows "^H" on screen ("d^H^H^H^H"): a program that left the terminal in another mode made the prompts of nginx-hardening.sh
+# unusable. No terminal (pipe, cron): nothing. Used before every "read -r -p" and "read -e" of the programs.
+tty_ligne() {
+    [[ -t 0 ]] || return 0
+    stty icanon echo echoe icrnl 2>/dev/null </dev/tty || true
+}
+
 _ctrl_c_demande() {
     local rep=""
     if (( _ctrl_c_en_cours )); then _ctrl_c_arret; fi             # second Ctrl+C during the question: confirmed

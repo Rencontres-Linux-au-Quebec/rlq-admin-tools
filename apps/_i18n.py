@@ -27,7 +27,7 @@ try:                    # line editing in all the input() prompts (backspace ^H 
 except ImportError:     # Windows, Python sans readline
     pass
 
-__version__ = "1.21.20261030.153422"
+__version__ = "1.22.20261101.231500"
 LANGUE_SOURCE = "fr"          # langue des messages dans le code
 
 
@@ -397,7 +397,7 @@ class Contexte:
         self.disponibles = langues_disponibles(dossier, programme)
         self.langue, self.origine_langue = langue_et_origine(self.argv, variable, disponibles=self.disponibles, configuration=self.config.get("LANGUAGE", ""))
         self.tr = traducteur(self.langue, dossier, programme, supplementaires)
-        self._print, self._input = print, input
+        self._print, self._input = print, saisie
         if argv is None:                                  # real execution of the program (not an analysis of another program's arguments): --anonymize relaunches behind the filter
             try:
                 anonymiser = _module_voisin("_anonymiser")
@@ -520,6 +520,17 @@ def _lire_reponse_terminal():
     if ligne == "":
         raise EOFError
     return ligne
+
+
+def saisie(invite=""):
+    """Une réponse tapée (remplace input() dans tous les programmes) : l'invite est affichée, puis la ligne est lue le terminal en mode ligne,
+    avec écho et touche d'effacement (ECHOE). Sans ce réglage, un programme précédent ou un terminal laissé sans ECHOE affichait « ^H » au lieu
+    d'effacer le caractère (1.22). Sans terminal : input() ordinaire. EOFError à la fin de fichier."""
+    if not sys.stdin.isatty():
+        return input(invite)
+    sys.stdout.write(invite)
+    sys.stdout.flush()
+    return _lire_reponse_terminal().rstrip("\r\n")
 
 
 @contextlib.contextmanager

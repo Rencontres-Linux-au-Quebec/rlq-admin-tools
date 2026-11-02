@@ -18,6 +18,16 @@ Earlier history was archived outside this repository when this file was created.
 
 ## admin-menu.sh
 
+### 1.2.20261101.231500 - Retour arrière : écho et effacement rétablis avant chaque réponse
+
+- Title: the menus of admin-menu.sh (choice, Enter to return, yes/no) restore echo and erase first.
+- Reason: Request of the administrator: in nginx-hardening.sh, at the prompt "Faire le setup du courriel (relais SMTP) maintenant ? [o/N] :", the Backspace key shows "d^H^H^H^H" and erases nothing. The same problem can hit every program that asks a question, so every interactive prompt of the Bash and Python programs must be checked and fixed.
+- Changes: tty_ligne before the three reads of admin-menu.sh (yes/no helper, the choice, the return key). The menu libraries apps/_menu.sh (4 reads, tty_ligne and fallback) and apps/_menu.py (its own line reader _saisie(), with ICANON, ECHO, ECHOE set, then restored) are changed the same way.
+- Bugs fixed: same symptom as nginx-hardening.sh 2.74. Diagnosis and fix as in apps/_i18n.py 1.22.
+- Safeguards and edge cases: Without a terminal (pipe, cron, stdin not a tty): nothing is changed, the programs behave as before. Stdin and /dev/tty redirections are guarded with || true (set -e). Password prompts (read -s) are not changed. The helper is defined in apps/_i18n.sh; a program without that file gets a no-op fallback. apps/_menu.py: without termios (Windows) input() is used.
+- Checks performed: bash -n; nginx-tools-tests/test_saisie_terminal.py (new, static): every interactive read -p / read -e of the Bash programs has tty_ligne on its line; tty_ligne is defined and sets icanon echo echoe; saisie() is defined and used by the i18n context; apps/_menu.py has its own line reader; versions.
+- Action required from the user: none.
+
 ### 1.1.20261030.153422 - No plural marker "(s)" in the displayed texts
 
 - Title: the texts shown by the program no longer contain "(s)": "requête(s)" becomes "requêtes", "adresse(s)" becomes "adresses", "lente(s)" becomes "lentes" (French and English).
@@ -360,6 +370,33 @@ Earlier history was archived outside this repository when this file was created.
 ### 2.23.20261020.211944 - Current version. Earlier history archived outside the repository.
 
 ## app-log-live.py
+
+### 1.149.20261101.231500 - Answers typed in line mode (echo and erase)
+
+- Title: the answer to the questions of app-log-live.py (b key, ban justified proposal, keys) goes through saisie() of apps/_i18n.py: echo and erase (ECHOE) are set before reading.
+- Reason: the Backspace key showed "^H" instead of erasing, on every prompt of the administration programs (see nginx-hardening.sh 2.74 and apps/_i18n.py 1.22, PR 154).
+- Changes: ask() calls I18N_MODULE.saisie(prompt_text) when the module is loaded, input() otherwise. Version 1.148 -> 1.149. Test: test_app_log_live_ban.py checks the call.
+- Bugs fixed: symptom: "^H" displayed when erasing. Diagnosis: ECHOE off on the terminal with ICANON on. Fix: the terminal is put back in line mode before each answer (tty.setcbreak is restored by keys.interactive() first).
+- Safeguards and edge cases: without the module (apps/_i18n.py missing), input() as before; without a terminal, saisie() calls input().
+- Checks performed: py_compile; static test test_app_log_live_ban.py.
+- Action required from the user: none.
+
+
+### 1.148.20261101.225430 - One address at a time: no bulk ban, no --yes
+
+- Title: app-log-live.py no longer bans several addresses at once. Each ban goes through nginx-log-audit.sh --ban, in the foreground, on a terminal.
+- Reason: request of the administrator: no bulk ban anywhere; each ban must be justified again by the detailed investigation (nginx-log-audit.sh --investigate), with the --reason exception and the word BANNIR typed by hand. app-log-live.py still called "--ban IP --yes" in two places, which bypassed that gate.
+- Changes:
+  - ban() (key b): the question is now "[c] yes  [N] none"; the "[y] all" choice is removed. Each address is banned by "nginx-log-audit.sh --ban IP --reason ..." in the foreground (keys.interactive() and foreground_child()), with its own investigation and its own BANNIR gate. No "--yes" anywhere in the program.
+  - ban() without a terminal (no keys, stdin not a terminal): nothing is banned; the program says so.
+  - propose_ban() (often banned address, verdict "ban justified"): the same foreground call for that one address, after the yes answer. The gate of nginx-log-audit.sh decides; the program no longer forces the ban.
+  - Catalogue lang/app-log-live.fr.po: the prompt, the summary line and the no-terminal message are translated.
+  - Version 1.147 -> 1.148.
+  - Test: nginx-tools-tests/test_app_log_live_ban.py (new): no "--yes" in the program, no "[y] all" choice, terminal check before the ban, two foreground calls to "nginx-log-audit.sh --ban", version.
+- Bugs fixed: symptom: pressing b and answering "y" banned every candidate in a row, with --yes, without the investigation gate. Diagnosis: the bulk branch called "--ban IP --yes" through run_captured. Fix: the branch is removed (see Changes).
+- Safeguards and edge cases: a candidate banned by hand stays in stats.all_banned; an interrupted ban (Ctrl-C) is handled by nginx-log-audit.sh, which asks its own confirmation; no nginx-log-audit.sh file: nothing is attempted; no terminal: refused.
+- Checks performed: py_compile of app-log-live.py; static tests of test_app_log_live_ban.py (to be run by the testeur agent with the module list); catalogue entries used by test_i18n.py.
+- Action required from the user: none. To ban an address now, use "b" on a terminal and answer "c", then answer each investigation.
 
 ### 1.147.20261101.172052 - Times within 5 columns, 404 kinds in the 4xx detail, new header labels, ? for the startup information, W to save, menu entries
 
@@ -2240,6 +2277,51 @@ Earlier history was archived outside this repository when this file was created.
 
 ## web-monitor.py
 
+### 2.85.20261101.231500 - Retour arrière : écho et effacement rétablis avant chaque réponse
+
+- Title: every question of web-monitor.py is answered in line mode (echo and erase).
+- Reason: Request of the administrator: in nginx-hardening.sh, at the prompt "Faire le setup du courriel (relais SMTP) maintenant ? [o/N] :", the Backspace key shows "d^H^H^H^H" and erases nothing. The same problem can hit every program that asks a question, so every interactive prompt of the Bash and Python programs must be checked and fixed.
+- Changes: the input() wrapper of the program now calls _saisie_ligne(), which uses saisie() of apps/_i18n.py (loaded once; input() if the module is missing). Its 12 questions go through it.
+- Bugs fixed: same symptom as nginx-hardening.sh 2.74 (the erase key shows ^H). Diagnosis and fix as in apps/_i18n.py 1.22.
+- Safeguards and edge cases: Without a terminal (pipe, cron, stdin not a tty): nothing is changed, the programs behave as before. Stdin and /dev/tty redirections are guarded with || true (set -e). Password prompts (read -s) are not changed. The helper is defined in apps/_i18n.sh; a program without that file gets a no-op fallback. Its bulk-ban refusals (2.83) are unchanged.
+- Checks performed: py_compile; nginx-tools-tests/test_saisie_terminal.py (new, static): every interactive read -p / read -e of the Bash programs has tty_ligne on its line; tty_ligne is defined and sets icanon echo echoe; saisie() is defined and used by the i18n context; apps/_menu.py has its own line reader; versions.
+- Action required from the user: none. Note: PR 151 (2.84) is based on 2.83; the version line of the newer PR is kept when merging.
+### 2.84.20261101.222800 - Repeat-offender alert: to watch, no ban command
+
+- Title: the alert of the repeat offenders says "à surveiller" and no longer shows the --ban commands.
+- Reason: the alert "récidivistes à bannir de façon permanente" was shown even when the investigation did not recommend the ban, and its lines included "Pour bannir" commands (see the report of 2026-11-01 22:18).
+- Changes:
+  - web-monitor.py: reads the new header of nginx-log-audit.sh ("Récidivistes fail2ban à surveiller"); the alert keeps the address lines and the "Enquête :" lines only.
+  - The alert title becomes "nginx-log-audit.sh: repeat offenders to watch" (French entry in lang/web-monitor.fr.po).
+  - The recommendation itself is unchanged since 2.83: a repeat offender is recommended only if its investigation says so.
+  - Version 2.84 (minor, +0.1).
+- Bugs fixed: symptom: the alert suggested banning repeat offenders without investigation. Fix: see above.
+- Safeguards and edge cases: no ban is started by the alert; the decision remains with the investigation and with --ban-recommended (one by one, on a terminal).
+- Checks: test_web_monitor (see the pull request for the results).
+- Action required: none.
+
+### 2.83.20261101.220544 - No bulk ban; repeat offenders recommended only after their own investigation
+
+- Title: web-monitor.py never bans several addresses at once. A repeat offender is recommended only if its investigation (nginx-log-audit.sh --investigate) recommends the ban.
+- Reason: on 2026-11-01 the pass recommended 132.196.59.85 and 45.138.12.41 as "récidivistes", with the question "Bannir maintenant ? [o] toutes". The recidivism alone was the reason, and the group answer banned them at once, without the investigation of each address. The investigation of 132.196.59.85 gave 0/7.
+- Changes:
+  - web-monitor.py, analyze_nginx_logs: a repeat offender from the nginx-log-audit.sh report is added to the recommendations only if investigate_ip returns a recommendation (score 3/7 or more). Otherwise it stays in the alerts as information.
+  - ban(items): one address at a time, each with nginx-log-audit.sh --ban (investigation, evidence, confirmation). The --yes option is no longer used for bans from this program.
+  - ask_ban(items): the group answer "[o] all" is removed. The only choices are [c] one by one and [N] none.
+  - --ban-recommended: refused with --yes (ERROR, exit 2) and without a terminal. On a terminal: one by one.
+  - --apply --yes: other fixes still run; the recommended addresses are listed but not banned.
+  - Help text (--help, header comment) updated: --yes is no longer listed for --ban-recommended.
+  - lang/web-monitor.fr.po: French entries for the new messages.
+  - nginx-tools-tests/test_web_monitor.py: test of the recidivist (recommended only if the investigation says so); test of --ban-recommended with --yes (refused); test of the one-by-one answer with no --yes in the command; --apply --yes test adapted.
+  - Version 2.83 (minor, +0.1).
+- Bugs fixed: symptom: the group answer banned all recommended addresses without investigation. Diagnosis: the recidivism rule read the report and did not call the investigation. Fix: see above.
+- Safeguards and edge cases:
+  - --ban-odoo-user still calls nginx-log-audit.sh --ban IP --yes for one address after its own investigation; the gate of nginx-log-audit.sh (2.70) still requires the score 3/7.
+  - The browser 403 path already called investigate_ip and is unchanged.
+  - Without a terminal, no address is banned by this program.
+- Checks: test_web_monitor (85 tests OK); py_compile OK.
+- Action required: none. After the update, the next pass no longer offers a group ban. 132.196.59.85 and 45.138.12.41 are not banned by this change; answer N unless their investigation gives 3/7 or more.
+
 ### 2.82.20261030.153422 - No plural marker "(s)" in the displayed texts
 
 - Title: the texts shown by the program no longer contain "(s)": "requête(s)" becomes "requêtes", "adresse(s)" becomes "adresses", "lente(s)" becomes "lentes" (French and English).
@@ -2516,6 +2598,16 @@ Earlier history was archived outside this repository when this file was created.
 
 ## odoo-update-module.sh
 
+### 1.24.20261101.231500 - Retour arrière : écho et effacement rétablis avant chaque réponse
+
+- Title: the backup-restore question restores echo and erase first.
+- Reason: Request of the administrator: in nginx-hardening.sh, at the prompt "Faire le setup du courriel (relais SMTP) maintenant ? [o/N] :", the Backspace key shows "d^H^H^H^H" and erases nothing. The same problem can hit every program that asks a question, so every interactive prompt of the Bash and Python programs must be checked and fixed.
+- Changes: tty_ligne placed before the read of "Retour arrière vers les versions d'avant". Fallback definition after apps/_i18n.sh is loaded.
+- Bugs fixed: same symptom as nginx-hardening.sh 2.74. Diagnosis and fix as in apps/_i18n.py 1.22.
+- Safeguards and edge cases: Without a terminal (pipe, cron, stdin not a tty): nothing is changed, the programs behave as before. Stdin and /dev/tty redirections are guarded with || true (set -e). Password prompts (read -s) are not changed. The helper is defined in apps/_i18n.sh; a program without that file gets a no-op fallback.
+- Checks performed: bash -n; nginx-tools-tests/test_saisie_terminal.py (new, static): every interactive read -p / read -e of the Bash programs has tty_ligne on its line; tty_ligne is defined and sets icanon echo echoe; saisie() is defined and used by the i18n context; apps/_menu.py has its own line reader; versions.
+- Action required from the user: none.
+
 ### 1.23.20261030.153422 - No plural marker "(s)" in the displayed texts
 
 - Title: the texts shown by the program no longer contain "(s)": "requête(s)" becomes "requêtes", "adresse(s)" becomes "adresses", "lente(s)" becomes "lentes" (French and English).
@@ -2696,6 +2788,49 @@ Earlier history was archived outside this repository when this file was created.
 - Safeguards and edge cases: the exemption is an exact path (no prefix), so /.well-known/.env, /.well-known/x.txt or /.well-known/security.txt.php stay refused. The file itself is not created by this change: a site without security.txt still answers 404, through Odoo.
 - Checks performed: test_config_nginx, class RegleWordPress: 4 tests OK, with NGINX_ODOO_DIR pointing to nginx/. The module as a whole gives the same 4 failures and 8 errors as before this change, because the private nginx-odoo configuration is not in the repository (checked by running the tests before and after the change). bash -n on nginx-hardening.sh.
 - Action required: run sudo nginx-hardening.sh --update on each Odoo server to deploy the new securite-commune.conf (review the diff, then confirm). Then curl -sI https://<domaine>/.well-known/security.txt must no longer return a 404 from nginx (Odoo's answer, 404 or 200, is normal). Creating a security.txt file on the site is a separate decision, not part of this change.
+### 2.74.20261101.231500 - Retour arrière : écho et effacement rétablis avant chaque réponse
+
+- Title: each question of nginx-hardening.sh (yes/no, menus, text answers, the SMTP setup question) restores echo and erase first.
+- Reason: Request of the administrator: in nginx-hardening.sh, at the prompt "Faire le setup du courriel (relais SMTP) maintenant ? [o/N] :", the Backspace key shows "d^H^H^H^H" and erases nothing. The same problem can hit every program that asks a question, so every interactive prompt of the Bash and Python programs must be checked and fixed.
+- Changes: tty_ligne; placed before the 13 interactive reads (read -r -p) of the program: confirmation helper, menus, the SMTP setup, test mail, GENERIC plan, fail2ban SQLi change, 404 refusals, rename, restore, time zone. Fallback definition of tty_ligne after the loading of apps/_i18n.sh.
+- Bugs fixed: symptom: at "Faire le setup du courriel (relais SMTP) maintenant ? [o/N] :" the Backspace key showed "d^H^H^H^H" instead of erasing. Diagnosis: ECHOE off on the terminal (see apps/_i18n.py 1.22). Fix: tty_ligne before the read.
+- Safeguards and edge cases: Without a terminal (pipe, cron, stdin not a tty): nothing is changed, the programs behave as before. Stdin and /dev/tty redirections are guarded with || true (set -e). Password prompts (read -s) are not changed. The helper is defined in apps/_i18n.sh; a program without that file gets a no-op fallback. The password read (read -r -s) is not changed.
+- Checks performed: bash -n; nginx-tools-tests/test_saisie_terminal.py (new, static): every interactive read -p / read -e of the Bash programs has tty_ligne on its line; tty_ligne is defined and sets icanon echo echoe; saisie() is defined and used by the i18n context; apps/_menu.py has its own line reader; versions.
+- Action required from the user: none. Version 2.73 -> 2.74.
+
+### 2.73.20261101.214534 - --cdn on the command line is saved to the configuration file
+
+- Title: --update --cdn none|cloudflare writes CDN= in /etc/default/nginx-hardening.conf, so the choice survives the next --update.
+- Reason: after 2.72, the file key is read, but nothing wrote it: the administrator still had to add CDN=cloudflare by hand on each server.
+- Changes:
+  - nginx-hardening.sh: variable CDN_A_ENREGISTRER, set when --cdn is given on the command line with a valid value (none or cloudflare). An invalid value is not saved (step 12c still refuses it).
+  - State file (same logic as TIMEZONE): the old CDN= lines are removed, then CDN=<value> is written with the SETUP_* lines. The other lines (options, LANGUAGE) are kept.
+  - nginx-tools-tests/test_cdn_config.py: 2 static tests added (write logic, version updated).
+  - Version 2.73 (minor, +0.1).
+- Bugs fixed: none.
+- Safeguards and edge cases:
+  - Without --cdn on the command line, the file is not changed (the value read from the file or the default is used as before).
+  - --cdn invalid: nothing written, cdn-realip.conf not modified.
+  - --check (CHECK_ONLY) writes nothing, as before.
+- Checks: test_cdn_config (6 tests); bash -n OK. The writing itself was not run on a real server.
+- Action required: none. To set cloudflare permanently, run --update --cdn cloudflare once on each server.
+
+### 2.72.20261101.213902 - CDN setting read from the configuration file
+
+- Title: the key CDN of /etc/default/nginx-hardening.conf (or ~/.nginx-hardening.conf) is now read, so --update no longer needs --cdn cloudflare.
+- Reason: after an --update without --cdn cloudflare, cdn-realip.conf was regenerated with 0 range (CDN "none"), and nginx again saw the Cloudflare nodes instead of the visitors. Setting CDN=cloudflare in the configuration file had no effect.
+- Diagnosis: config_lire loads every key of the file into CFG, but the script only copies the keys it declares with config_defaut. CDN was not declared, so the file value was ignored and the default "none" was used.
+- Changes:
+  - nginx-hardening.sh: config_defaut CDN CDN --cdn texte, placed right after config_lire. A command-line --cdn still wins, as with the other options.
+  - nginx-tools-tests/test_cdn_config.py (new): 4 tests reproducing the script sequence in a temporary directory (CDN in the file applied; no key keeps none; no file keeps none) and a static check of the order.
+  - Version 2.72 (minor, +0.1).
+- Bugs fixed: symptom: CDN=cloudflare in the file ignored. Diagnosis and fix as above.
+- Safeguards and edge cases:
+  - An invalid value in the file (for example CDN=akamai) is refused by step 12c, as on the command line; cdn-realip.conf is not modified.
+  - Empty value or missing key: the default "none" is kept.
+  - The key is not written by --update; only the reading is added.
+- Checks: test_cdn_config (4 tests); test_cdn_realip and test_nginx_hardening unchanged; bash -n OK; the isolated sequence was reproduced before the change (CDN stayed none with the key present).
+- Action required: to make cloudflare permanent, add the line CDN=cloudflare to /etc/default/nginx-hardening.conf on each server (after this version is installed). Until then, keep --cdn cloudflare on the command line.
 
 ### 2.71.20261101.181555 - Odoo event tickets without parameters answer 404 (--update)
 
@@ -3099,6 +3234,83 @@ Earlier history was archived outside this repository when this file was created.
 - Safeguards and edge cases: if a jail has no banned address, nothing more is printed. The count line is unchanged.
 - Checks performed: bash -n on nginx-log-audit.sh. No new text is displayed, so the translation catalogues are unchanged.
 - Action required: none.
+### 2.71.20261101.231500 - Retour arrière : écho et effacement rétablis avant chaque réponse
+
+- Title: the answer questions (demander_oui, demander_texte, the ban exception word) restore echo and erase first.
+- Reason: Request of the administrator: in nginx-hardening.sh, at the prompt "Faire le setup du courriel (relais SMTP) maintenant ? [o/N] :", the Backspace key shows "d^H^H^H^H" and erases nothing. The same problem can hit every program that asks a question, so every interactive prompt of the Bash and Python programs must be checked and fixed.
+- Changes: tty_ligne placed before the four interactive reads: the fallback of demander_oui (read -r -p), the read -e of demander_oui and demander_texte (in their subshells), and the BANNIR confirmation (read -r -e -p). Fallback definition after apps/_i18n.sh is loaded. The sum of this change is independent of the recidivist section of 2.71 (PR 150): if PR 150 is merged first, the version lines conflict and the newer one is kept.
+- Bugs fixed: same symptom as nginx-hardening.sh 2.74 (erase shows ^H). Diagnosis and fix as in apps/_i18n.py 1.22.
+- Safeguards and edge cases: Without a terminal (pipe, cron, stdin not a tty): nothing is changed, the programs behave as before. Stdin and /dev/tty redirections are guarded with || true (set -e). Password prompts (read -s) are not changed. The helper is defined in apps/_i18n.sh; a program without that file gets a no-op fallback. The BANNIR typing is unchanged in its rule (it still refuses without a terminal).
+- Checks performed: bash -n; nginx-tools-tests/test_saisie_terminal.py (new, static): every interactive read -p / read -e of the Bash programs has tty_ligne on its line; tty_ligne is defined and sets icanon echo echoe; saisie() is defined and used by the i18n context; apps/_menu.py has its own line reader; versions.
+- Action required from the user: none.
+### 2.71.20261101.222709 - Repeat offenders are investigated, never banned in this report
+
+- Title: the section "Récidivistes fail2ban à surveiller" investigates each repeat offender and no longer bans from the report.
+- Reason: on 2026-11-01 the report of 132.196.59.85 and 45.138.12.41 said "Bannissement PERMANENT recommandé" and offered the ban on the recurrence alone (fail2ban bans expire, then the same address comes back). The investigation of 132.196.59.85 gave 0/7. The section also called confirm_and_ban, a question that did not pass through the investigation.
+- Changes:
+  - nginx-log-audit.sh, section of the repeat offenders: the call to confirm_and_ban is removed. Each address runs --investigate ... --no-prompt; the command nginx-log-audit.sh --ban IP is shown only if the investigation recommends the ban (score 3/7 or more). Otherwise the line says "à surveiller".
+  - The wording of the header and of the explanation is corrected: a ban is never made here, and "définitivement" is removed (a ban is reversible with --unban).
+  - lang/nginx-log-audit.en.po: the old entries are replaced; the English texts of the new lines are added.
+  - nginx-tools-tests/test_ban_gate.py: static test (no confirm_and_ban in the section, investigation and score check present); version 2.71.
+  - nginx-tools-tests/test_nginx_log_audit.py and test_i18n.py: header text updated.
+  - web-monitor.py 2.84 reads the new header (see its CHANGELOG entry).
+- Bugs fixed: symptom: the report offered a permanent ban on recurrence alone, with a question that bypassed the investigation. Diagnosis: the section was written before the investigation gate (2.69/2.70). Fix: see above.
+- Safeguards and edge cases:
+  - The investigation is run with --no-prompt: no question is asked by the report.
+  - An investigation that fails (empty output) is shown as "à surveiller", never as a ban.
+  - --ban still runs its own gate (2.70): the score and the confirmation are required.
+- Checks: test_ban_gate (10 tests OK, after the update); test_nginx_log_audit and test_i18n adapted (see the pull request for the results).
+- Action required: none. For 132.196.59.85 and 45.138.12.41, read the investigation line and answer N unless the score is 3/7 or more.
+
+### 2.70.20261101.215908 - A ban needs the investigation score, not only the evidence
+
+- Title: --ban is refused unless the investigation recommends the ban (score 3/7 or more), and three weak signals no longer count as evidence.
+- Reason: on 2026-11-01, --ban 132.196.59.85 said "Verdict : bannissement justifié" while the investigation in the same report gave 0/7 with "aucun signe d'hostilité". The gate of 2.69 accepted the evidence verdict alone, which made the two verdicts contradict each other.
+- Diagnosis:
+  - The fail2ban recidivism was counted as evidence "for". It comes from the same requests as the ones it is supposed to justify (circular).
+  - The sensitive-files pattern matched any ".php" in the URL, so /md5.php3 (a plain 404) was counted as an attempt to reach sensitive files.
+  - The gate tested PREUVES_VERDICT "justifie" or the score; the verdict alone was enough.
+- Changes:
+  - nginx-log-audit.sh, preuves_ip: the fail2ban recidivism goes to the weak hints ("Indice faible"), never to the evidence "for".
+  - nginx-log-audit.sh, sensitive-files pattern: ".php" replaced by "\.php([?]|$)" (a PHP page, not php3 or other suffixes).
+  - nginx-log-audit.sh, --ban gate: refused unless BAN_RECOMMANDE=1 (investigation score 3/7). The exception (--reason, then BANNIR on a terminal) is unchanged.
+  - Evidence verdict line: "Preuves : pas de raison contraire trouvée" with a reminder that the score of 3/7 is also required (the label "Verdict : bannissement justifié" is removed).
+  - nginx-tools-tests/test_ban_gate.py: static tests updated (gate condition, recidivism not evidence, .php pattern); version 2.70.
+  - nginx-tools-tests/test_nginx_log_audit.py: ban scenarios use sensitive-file probes (20 requests from the address) instead of SQL injection only, which does not reach the score alone; labels updated.
+- Bugs fixed:
+  - Symptom: a ban recommended with the investigation at 0/7 and "bannissement justifié" in the same report.
+  - Diagnosis and fix: see above.
+- Safeguards and edge cases:
+  - Evidence alone never bans; the investigation score is required, as in CLAUDE.md (threshold 3).
+  - The exception path is unchanged: --reason, then BANNIR typed on a terminal; --yes does not bypass it.
+  - The count of sensitive requests now ignores plain .php3/.php4 suffixes; genuine probes of WordPress and .env paths are still counted.
+- Checks: test_ban_gate (9 tests OK); test_nginx_log_audit (50 tests OK); bash -n OK.
+- Action required: web-monitor.py still recommends bans from recidivism without the investigation; that is a separate pull request to come. Do not ban 132.196.59.85 (answer N).
+
+### 2.69.20261101.204354 - No bulk ban: every ban re-checked, evidence required, typed exception
+
+- Title: no program bans several addresses at once any more. Each --ban runs the full investigation first and is refused unless the evidence justifies it; the only exception is a typed confirmation.
+- Reason: on 2026-11-01 the address 62.34.251.225 was banned by --ban-sqli in a group, with a recorded justification that the logs contradict (its only request that day was an ordinary page). The user asked that no ban be made in bulk and that every ban be re-validated with --investigate, with a detailed justification.
+- Changes:
+  - nginx-log-audit.sh, preuves_ip: the SQL injection lines of the site log are evidence FOR a ban (counted over all rotations). The function sets PREUVES_VERDICT: "justifie" (evidence for, no strong reason against), "examiner" (both), or "aucune" (no evidence for).
+  - nginx-log-audit.sh, --ban: preuves_ip always runs, even with --yes, and the investigation is always shown. The ban is refused unless PREUVES_VERDICT is "justifie" or the investigation recommends it (score of at least 3/7, the threshold of CLAUDE.md).
+  - Exception: --reason TEXT, then the word BANNIR typed by hand on a terminal. --yes does not bypass the gate. Without a terminal the exception is refused. The reason is recorded with the prefix "EXCEPTION (verdict ...)".
+  - nginx-log-audit.sh, --ban-sqli: --yes is refused. Without a terminal the program only lists the addresses and bans nothing. On a terminal, each address goes through --ban one by one (the group question is removed).
+  - SQLI_RE is defined near the top of the script (see bugs fixed).
+  - nginx-tools-tests/test_ban_gate.py (new): 7 static tests (evidence always verified, refusal condition, exception requires reason, terminal and BANNIR, confirmation skipped only with the exception, SQL injections counted as evidence, --ban-sqli without --yes and without group question, version string).
+  - nginx-tools-tests/test_nginx_log_audit.py: 5 ban scenarios adapted to the gate. Evidence added where a ban is expected (helper _preuves_sqli, three SQL injection requests with 404). The reasoning test now asserts the refusal. The --ban-sqli test asserts the listing without insertion and the refusal of --yes. Listing text updated to the current wording. Import test: evidence for 198.51.100.99.
+- Bugs fixed:
+  - Symptom: --ban stopped silently after the line "Site : N requêtes" with exit code 1 and no message.
+  - Diagnosis: SQLI_RE was defined at the end of the script, but the --ban path (preuves_ip) runs before that point. With set -u, the unbound variable aborted the script. This bug was in the unreleased 2.69 draft; the tests found it before any commit.
+  - Fix: SQLI_RE is defined right after set -euo pipefail.
+- Safeguards and edge cases:
+  - A ban without a terminal and without the exception is always refused, whatever --yes says.
+  - The investigation recommendation is accepted only with the score of CLAUDE.md (3/7); a score of 2/7 or less does not authorise a ban.
+  - An address with strong reasons against (for example normal navigation) is never "justifie" on the injections alone.
+  - fail2ban and CrowdSec automatic bans are unchanged (decision: automatic, with a daily review, not yet implemented).
+  - web-monitor.py and app-log-live.py are not changed by this version. They still call --ban IP --yes, so until their own pull requests are merged, their bans are refused when there is no evidence. This is intended.
+- Checks: test_nginx_log_audit (50 tests OK, awk); test_ban_gate (7 tests OK); bash -n OK; ruff clean on test_ban_gate.py. The full run-all.sh still shows failures that are not caused by this change (see the pull request description). --ban-sqli has not been tested on a real terminal with real logs.
+- Action required: do not lift 62.34.251.225 without a fresh --investigate. Use --ban only on a terminal, one address at a time. Until web-monitor.py and app-log-live.py are updated, their ban buttons will be refused without evidence.
 
 ### 2.68.20261101.195800 - SQL injection kept as a reason to ban; encoded parentheses recognized
 
@@ -3881,6 +4093,16 @@ Earlier history was archived outside this repository when this file was created.
 ### 1.2.20261019.150215 - Current version. Earlier history archived outside the repository.
 
 ## apps/_i18n.py
+
+### 1.22.20261101.231500 - Retour arrière : écho et effacement rétablis avant chaque réponse
+
+- Title: a new function saisie(invite) reads the answer in line mode with echo and erase (ECHOE), then restores the terminal. The context's input() (I18N.input) uses it, so every program that prints its questions through the translator gets the fix.
+- Reason: Request of the administrator: in nginx-hardening.sh, at the prompt "Faire le setup du courriel (relais SMTP) maintenant ? [o/N] :", the Backspace key shows "d^H^H^H^H" and erases nothing. The same problem can hit every program that asks a question, so every interactive prompt of the Bash and Python programs must be checked and fixed.
+- Changes: saisie() in apps/_i18n.py (uses _lire_reponse_terminal(), EOFError at end of file, input() without a terminal); the context's _input is saisie. apps/_i18n.sh: new function tty_ligne() (stty icanon echo echoe icrnl on /dev/tty, nothing without a terminal).
+- Bugs fixed: symptom: "d^H^H^H^H" on screen when erasing, the characters are gone from the answer but not from the screen. Diagnosis: ECHOE off with ICANON on (see the explanation above). Fix: the terminal is set again before each answer.
+- Safeguards and edge cases: Without a terminal (pipe, cron, stdin not a tty): nothing is changed, the programs behave as before. Stdin and /dev/tty redirections are guarded with || true (set -e). Password prompts (read -s) are not changed. The helper is defined in apps/_i18n.sh; a program without that file gets a no-op fallback.
+- Checks performed: nginx-tools-tests/test_saisie_terminal.py (new, static): every interactive read -p / read -e of the Bash programs has tty_ligne on its line; tty_ligne is defined and sets icanon echo echoe; saisie() is defined and used by the i18n context; apps/_menu.py has its own line reader; versions.
+- Action required from the user: none.
 
 ### 1.21.20261030.153422 - No plural marker "(s)" in the displayed texts
 

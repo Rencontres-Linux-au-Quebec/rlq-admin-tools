@@ -46,7 +46,7 @@
 #                  [--sort KEY] [--reverse]   sort: name, login, uid, ip, first, last, logins, minutes, type, os, pages, written, received, sent (French synonyms accepted)
 #   --lang en|fr   display language (default: WEB_MONITOR_LANG, LC_ALL, LC_MESSAGES, LANG; no variable: fr); catalog lang/web-monitor.fr.po
 #   web-monitor.py --unban-check        reassess the manual bans (nginx-log-audit.sh --unban-check)
-#   web-monitor.py --ban-recommended    ban the IPs recommended by the last run (--yes: without question)
+#   web-monitor.py --ban-recommended    ban the IPs recommended by the last run, ONE BY ONE on a terminal (no --yes, no bulk)
 #   web-monitor.py --apply [--yes]      summary, then the program makes the recommended fixes (--yes: without question)
 #   web-monitor.py --summary [--days N]  figures summary: today, D-1, D-2, 7 days, 30 days (or N days) (traffic, blocks and
 #                                             attacks, errors), highlights, log coverage; root
@@ -85,7 +85,7 @@ import time
 import unicodedata
 import urllib.parse
 
-__version__ = "2.82.20261030.153422"
+__version__ = "2.85.20261101.231500"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
@@ -204,8 +204,24 @@ def print(*a, **k):            # noqa: A001 - all displayed text goes through th
     _system_print(*(TR(x) if isinstance(x, str) else x for x in a), **k)
 
 
+_SAISIE = []                          # 2.85: apps/_i18n.py saisie, loaded once (empty list: not tried yet; [None]: module missing)
+
+
+def _saisie_ligne(invite):
+    """2.85: answer typed in line mode, with echo and erase (apps/_i18n.py saisie): a terminal left without ECHOE showed ^H instead of erasing.
+    Without the module: input()."""
+    if not _SAISIE:
+        try:
+            _SAISIE.append(_load_module("_i18n").saisie)
+        except Exception:
+            _SAISIE.append(None)
+    if _SAISIE[0] is None:
+        return _system_input(invite)
+    return _SAISIE[0](invite)
+
+
 def input(prompt_text=""):          # noqa: A001
-    return _system_input(TR(prompt_text))
+    return _saisie_ligne(TR(prompt_text))
 
 
 def migrate_path(old, new):
@@ -393,22 +409,25 @@ def analyze_nginx_logs(code, out):
     repeat_offender = []
     grab = False
     for l in out.splitlines():
-        if "Bannissement PERMANENT recommandé" in l:
+        if "Récidivistes fail2ban à surveiller" in l:
             grab = True
             repeat_offender.append(l.strip())
             continue
         if grab:
             if l.startswith("Rappel :") or l.startswith("=====") or "LISTE COMMUNAUTAIRE" in l:
                 break
-            if l.strip().startswith("▶") or "Pour bannir" in l:
+            if l.strip():                                   # 2.84: the address lines and their investigation lines (no literal to translate here)
                 repeat_offender.append(l.strip())
     if repeat_offender:
         ips = [re.sub(r"^▶\s*(\S+).*", r"\1", l) for l in repeat_offender if l.startswith("▶")]
         for l in repeat_offender:
             m = re.match(r"^▶\s*(\S+)\s*—\s*(.+)$", l)
             if m and m.group(1) not in [r[0] for r in RECOMMENDED]:
-                RECOMMENDED.append((m.group(1), TR(f"repeat offender: {m.group(2)} — repeated temporary bans")))
-        alerts.append(("nginx-log-audit.sh: repeat offenders to ban permanently", repeat_offender[:14],
+                # 2.83: a repeat offender is recommended only if its own investigation (nginx-log-audit.sh --investigate) says so (score 3/7 or more)
+                verdict, recommended_flag = investigate_ip(m.group(1))
+                if recommended_flag:
+                    RECOMMENDED.append((m.group(1), TR("repeat offender: ") + TR("investigation: ") + verdict))
+        alerts.append(("nginx-log-audit.sh: repeat offenders to watch", repeat_offender[:14],
                        ["nginx:recidive:" + ip for ip in ips] or ["nginx:recidive"]))
     if code != 0 and "RÉSUMÉ" not in out:
         alerts.append(("nginx-log-audit.sh: the tool itself failed", out.strip().splitlines()[-8:], ["nginx:outil"]))
@@ -1726,7 +1745,8 @@ def offer_fixes():
         return 0
     if APPLY and YES:
         if RECOMMENDED:
-            ban(RECOMMENDED, choose=False)
+            print(f"\n{len(RECOMMENDED)} " + TR("recommended IP(s) not banned: no bulk ban (2.83). On a terminal: ")
+                  + "web-monitor.py --ban-recommended" + TR(", one by one."))
         for lib, cmd, func in ACTIONS:
             print(f"\n{'=' * 70}\n{lib} ({cmd})")
             func()
@@ -4272,9 +4292,9 @@ def remember_recommendations(now, merge=True):
         pass
 
 
-def ban(items, choose):
-    """Bans the IPs of the list with nginx-log-audit.sh. choose=True: one by one, with the investigation and the
-    confirmation of --ban (full reasoning). Otherwise: all, without a new question (--ban --yes)."""
+def ban(items):
+    """Bans the IPs of the list with nginx-log-audit.sh, ONE BY ONE: each --ban runs the investigation, checks the
+    evidence and asks for confirmation (2.83: never in bulk, never with --yes)."""
     nla = os.path.join(SCRIPT_DIR, "nginx-log-audit.sh")
     if not os.path.isfile(nla):
         print("nginx-log-audit.sh not found next to this program: banning impossible.")
@@ -4283,40 +4303,26 @@ def ban(items, choose):
     n_ok = 0
     for ip, reason in items:
         why = ["--reason", f"web-monitor.py: {reason}"]          # 2.73: the reason is kept in the ban journal (date, time, justification)
-        if choose:
-            print(f"\n{'=' * 70}\n{ip} — {reason}")
-            with foreground_child():
-                code = subprocess.run(["bash", nla, "--ban", ip] + why + app + verbose_args()).returncode
-        else:                                      # 2.66: own session: Ctrl-C asks web-monitor's question and never kills a ban halfway
-            r = subprocess.run(["bash", nla, "--ban", ip, "--yes"] + why + app + verbose_args(), capture_output=True, text=True, env=dict(os.environ, NGINX_TOOLS_LANG="fr"),
-                               start_new_session=True)
-            if VERBOSE and r.stderr:
-                sys.stderr.write(r.stderr)
-            code = r.returncode
-            detail = next((l.strip() for l in r.stdout.splitlines() + r.stderr.splitlines()
-                           if re.search(r"Règle|Déjà|REFUSÉ|ÉCHEC", l)), "")
-            print(f"  {ip} : {'banni' if code == 0 else BAD + 'NOT banned' + END_BAD}{' — ' + detail if detail else ''}")
+        print(f"\n{'=' * 70}\n{ip} — {reason}")
+        with foreground_child():
+            code = subprocess.run(["bash", nla, "--ban", ip] + why + app + verbose_args()).returncode
         n_ok += code == 0
     print(f"\n{n_ok}/{len(items)} IPs banned (reversible: nginx-log-audit.sh --unban IP).")
     return 0
 
 
-def ask_ban(items, yes=False):
-    """A single question for all the IPs: [o] all, [c] one by one (detailed investigation), [N] nothing."""
+def ask_ban(items):
+    """2.83: one question, then ONE BY ONE only: [c] each address goes through its own investigation and confirmation, [N] nothing."""
     print(f"\n{len(items)} IPs recommended for banning:")
     for ip, reason in items:
         print(f"  {BAD}▶ {ip}{END_BAD} — {reason}")
-    if yes:
-        return ban(items, choose=False)
     try:
-        rep = input("\nBan now? [y] all  [c] choose one by one (detailed investigation)  [N] none: ").strip().lower()
+        rep = input(TR("\nBan now, one by one (detailed investigation for each)? [c] yes  [N] none: ")).strip().lower()
     except (KeyboardInterrupt, EOFError):
         print()
         rep = ""
-    if rep in ("o", "oui", "y", "yes"):
-        return ban(items, choose=False)
-    if rep in ("c", "choisir", "choose"):
-        return ban(items, choose=True)
+    if rep in ("c", "o", "oui", "y", "yes", "choisir", "choose"):
+        return ban(items)
     print("No IP banned. Later: web-monitor.py --ban-recommended")
     return 0
 
@@ -4346,12 +4352,14 @@ def ban_recommended(yes):
     if not items:
         print("No IP recommended for banning.")
         return 0
-    if not yes and not (sys.stdin.isatty() and sys.stdout.isatty()):
-        eprint("ERROR: no terminal to confirm — add --yes to ban without questions.")
-        return 2
-    code = ask_ban(items, yes=yes)
     if yes:
-        remember_recommendations(datetime.datetime.now().astimezone(), merge=False)      # list processed: emptied
+        eprint(TR("ERROR: --yes does not ban in bulk (2.83). Run web-monitor.py --ban-recommended on a terminal: one address at a time."))
+        return 2
+    if not (sys.stdin.isatty() and sys.stdout.isatty()):
+        eprint(TR("ERROR: no terminal: the addresses are banned one by one, on a terminal."))
+        return 2
+    code = ask_ban(items)
+    remember_recommendations(datetime.datetime.now().astimezone(), merge=False)          # list processed: emptied
     return code
 
 
@@ -4978,8 +4986,8 @@ def main():
     parser.add_argument("--unban-check", action="store_true",
                         help="Re-evaluate manual bans (runs nginx-log-audit.sh --unban-check)")
     parser.add_argument("--ban-recommended", action="store_true",
-                        help="Ban the IPs recommended by the last pass (e.g. the timer's), with confirmation")
-    parser.add_argument("--yes", action="store_true", help="With --apply, --ban-recommended, --ban-odoo-user, --unban-odoo-user: without questions (--suspect-users: every account investigated, none banned)")
+                        help="Ban the IPs recommended by the last pass, ONE BY ONE on a terminal, each with its own investigation (no --yes, no bulk)")
+    parser.add_argument("--yes", action="store_true", help="With --apply, --ban-odoo-user, --unban-odoo-user: without questions (--suspect-users: every account investigated, none banned)")
     parser.add_argument("--apply", action="store_true",
                         help="Summary, then the program makes the recommended fixes itself (bans, nginx reload, nginx-hardening.sh --update, timer…): one question per fix, --yes without questions")
     parser.add_argument("--no-prompt", action="store_true",

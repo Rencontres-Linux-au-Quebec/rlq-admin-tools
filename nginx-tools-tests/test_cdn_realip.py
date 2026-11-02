@@ -62,7 +62,8 @@ class CdnRealIp(unittest.TestCase):
     def test_option_cdn_documentee_et_lue(self):
         """L'option --cdn est lue, documentee dans l'aide et dans l'en-tete, et valeur inconnue refusee."""
         script = lire("nginx-hardening.sh")
-        self.assertIn('--cdn) CDN="${2:-}"; shift 2 ;;', script)
+        self.assertIn('--cdn) CDN="${2:-}"', script)                 # 2.73: suite sur plusieurs lignes (CDN_A_ENREGISTRER)
+        self.assertIn('shift 2 ;;', script)
         self.assertIn("--cdn NOM", script)
         self.assertIn('[[ "$CDN" != "none" && "$CDN" != "cloudflare" ]]', script)
 
