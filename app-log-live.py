@@ -117,7 +117,7 @@ from urllib.parse import unquote, urlsplit
 from collections import Counter, OrderedDict
 from concurrent.futures import Future
 
-__version__ = "1.148.20261101.225430"
+__version__ = "1.149.20261101.231500"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
@@ -6224,6 +6224,8 @@ def follow(cmd, people, resolver, options, output):
             output.flush()
             sig["prompt_count"] += 1
             try:
+                if I18N_MODULE is not None and hasattr(I18N_MODULE, "saisie"):     # 1.149: line mode with echo and erase (apps/_i18n.py saisie)
+                    return I18N_MODULE.saisie(prompt_text)
                 return input(prompt_text)
             except (EOFError, KeyboardInterrupt):
                 print()

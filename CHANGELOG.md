@@ -361,6 +361,17 @@ Earlier history was archived outside this repository when this file was created.
 
 ## app-log-live.py
 
+### 1.149.20261101.231500 - Answers typed in line mode (echo and erase)
+
+- Title: the answer to the questions of app-log-live.py (b key, ban justified proposal, keys) goes through saisie() of apps/_i18n.py: echo and erase (ECHOE) are set before reading.
+- Reason: the Backspace key showed "^H" instead of erasing, on every prompt of the administration programs (see nginx-hardening.sh 2.74 and apps/_i18n.py 1.22, PR 154).
+- Changes: ask() calls I18N_MODULE.saisie(prompt_text) when the module is loaded, input() otherwise. Version 1.148 -> 1.149. Test: test_app_log_live_ban.py checks the call.
+- Bugs fixed: symptom: "^H" displayed when erasing. Diagnosis: ECHOE off on the terminal with ICANON on. Fix: the terminal is put back in line mode before each answer (tty.setcbreak is restored by keys.interactive() first).
+- Safeguards and edge cases: without the module (apps/_i18n.py missing), input() as before; without a terminal, saisie() calls input().
+- Checks performed: py_compile; static test test_app_log_live_ban.py.
+- Action required from the user: none.
+
+
 ### 1.148.20261101.225430 - One address at a time: no bulk ban, no --yes
 
 - Title: app-log-live.py no longer bans several addresses at once. Each ban goes through nginx-log-audit.sh --ban, in the foreground, on a terminal.

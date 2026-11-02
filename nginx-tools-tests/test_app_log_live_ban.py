@@ -40,8 +40,12 @@ class BanUneAUneAppLogLive(unittest.TestCase):
         self.assertEqual(len(appels), 2, "une fois dans propose_ban, une fois dans ban")
         self.assertEqual(self.source.count('run_captured(["bash", nla, "--ban"'), 0)
 
+    def test_reponses_tapees_en_mode_ligne(self):
+        """1.149 : la réponse à la question de la touche b passe par saisie() (écho et effacement), pas par input() nu."""
+        self.assertIn("I18N_MODULE.saisie(prompt_text)", self.source)
+
     def test_version_dynamique_et_a_jour(self):
-        self.assertIn('__version__ = "1.148.20261101.225430"', self.source)
+        self.assertIn('__version__ = "1.149.20261101.231500"', self.source)
 
 
 if __name__ == "__main__":
