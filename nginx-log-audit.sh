@@ -133,7 +133,7 @@ grep_q() { grep "$@" >/dev/null; }
 #                              ne peut pas le voir, le texte etant entre apostrophes (faux positif).
 trap 'ec=$?; echo "" >&2; echo "*** ARRÊT INATTENDU DU SCRIPT (code $ec) À LA LIGNE $LINENO ***" >&2; echo "*** Commande fautive : $BASH_COMMAND" >&2; echo "*** Si le rapport ci-dessus semble incomplet (ex. sections Top 10 absentes), c'\''est probablement la cause." >&2' ERR
 
-readonly SCRIPT_VERSION="2.67.20261101.192900"
+readonly SCRIPT_VERSION="2.68.20261101.195800"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
 # Chemin de ce programme (relances --investigate, --ban, --unban) : defini ICI, avant le bloc --ban qui l'utilise.
 SELF_PATH="$SCRIPT_DIR/$(basename "${BASH_SOURCE[0]}")"
@@ -1565,7 +1565,7 @@ fi
 # --ban-sqli (2.53) : adresses ayant envoyé une injection SQL (UNION SELECT, EXTRACTVALUE, ORDER BY n, etc.) dans le journal
 # d'accès. Chaque adresse passe par --ban (mêmes protections : adresses de l'équipe, serveur, journal des bannissements).
 # Signature volontairement précise : un tri légitime (order=website_sequence asc) ne doit jamais correspondre.
-SQLI_RE='union([[:space:]]|%20|[+]|/[*])+(all([[:space:]]|%20|[+])+)?select|extractvalue[(]|updatexml[(]|order([[:space:]]|%20|[+])+by([[:space:]]|%20|[+])+[0-9]|elt[(][0-9]|concat[(]0x7e|sleep[(][0-9]|benchmark[(][0-9]|information_schema|waitfor([[:space:]]|%20|[+])+delay'
+SQLI_RE='union([[:space:]]|%20|[+]|/[*])+(all([[:space:]]|%20|[+])+)?select|extractvalue([(]|%28)|updatexml([(]|%28)|order([[:space:]]|%20|[+])+by([[:space:]]|%20|[+])+[0-9]|elt([(]|%28)[0-9]|concat([(]|%28)0x7e|sleep([(]|%28)[0-9]|benchmark([(]|%28)[0-9]|information_schema|waitfor([[:space:]]|%20|[+])+delay'
 # ip_deja_bannie IP : affiche où l'adresse est déjà bannie (pare-feu iptables, ufw, jails fail2ban) et retourne 0 ; sinon retourne 1.
 ip_deja_bannie() {
     local ip="$1" ou=() j
@@ -2258,11 +2258,24 @@ DERNIER_SCORE=""           # score of the last investigation evaluated (for --un
 MODE_EVALUATION=0           # 1: decide_unban never asks (--unban-low-score evaluates first, lifts after)
 readonly UNBAN_SUMMARY_MIN=5
 UNBAN_SUMMARY=()
+# sqli_hits_ip IP : number of lines of the full history (INV_SRC) from this address that match SQLI_RE (encoded or not).
+sqli_hits_ip() {
+    [[ -r "${INV_SRC:-/nonexistent}" ]] || { echo 0; return 0; }
+    awk -v ip="$1" '$1 == ip' "$INV_SRC" | grep -Eic -- "$SQLI_RE" || true
+}
+
 decide_unban() {
-    local ip="$1" hostile="$2" score="$3" verified="$4" prot raison=""
+    local ip="$1" hostile="$2" score="$3" verified="$4" prot raison="" n_sqli
     if [[ "$ENQUETE_INCOHERENTE" == "1" ]]; then
         UNBAN_VERDICT="incoherente"
         echo "      ${C_YELLOW}→ Aucun verdict : enquête incohérente, à relancer (nginx-log-audit.sh --investigate $ip).${C_RESET}"
+        return 0
+    fi
+    # 2.68: an SQL injection in the logs (UNION SELECT, EXTRACTVALUE...) is a strong sign: the ban is kept, whatever the score.
+    n_sqli=$(sqli_hits_ip "$ip")
+    if (( n_sqli > 0 )); then
+        UNBAN_VERDICT="garder"
+        echo "      ${C_RED}→ Bannissement JUSTIFIÉ : $n_sqli requête(s) d'injection SQL dans les journaux — le garder.${C_RESET}"
         return 0
     fi
     if prot=$(protected_ip_reason "$ip"); then
