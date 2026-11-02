@@ -25,7 +25,8 @@ class CdnRealIp(unittest.TestCase):
         for p in plages:
             ipaddress.ip_network(p)   # leve ValueError si invalide
         self.assertGreaterEqual(len(plages), 20)
-        self.assertIn("104.16.0.0/13", plages)
+        self.assertIn("104.16.0.0/12", plages)   # bloc CLOUDFLARENET (RDAP, enquete du 2026-11-01)
+        self.assertTrue(any(ipaddress.ip_address("104.28.221.220") in ipaddress.ip_network(p) for p in plages))
 
     def test_generer_cdn_cloudflare(self):
         """La fonction generer_cdn du script produit un set_real_ip_from par plage, puis CF-Connecting-IP."""

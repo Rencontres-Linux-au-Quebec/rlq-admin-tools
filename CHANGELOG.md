@@ -2653,7 +2653,7 @@ Earlier history was archived outside this repository when this file was created.
 - Reason: on 2026-11-01, nginx-log-audit.sh saw only the Cloudflare node address. The nginx-badrequests jail banned that node on ordinary 404 and 30x responses, which blocked a real visitor behind the same node. The fix must make fail2ban and the rate limits see the visitor, not the node.
 - Changes:
   - nginx-hardening.sh: new option --cdn (none by default, or cloudflare), read from the configuration like the other options (CDN key). New function generer_cdn (content of the file). New step 12c that writes /etc/nginx/snippets/cdn-realip.conf, tests nginx -t, applies it, and restores the previous version if nginx -t refuses it. cdn-realip.conf is added to the fragments created empty by fragments_generes_assurer.
-  - nginx/cdn/cloudflare-ips.txt (new): the published Cloudflare ranges (22 CIDR, IPv4 and IPv6).
+  - nginx/cdn/cloudflare-ips.txt (new): the Cloudflare ranges (21 CIDR, IPv4 and IPv6). IPv4 block 104.16.0.0/12 (CLOUDFLARENET, RDAP) replaces 104.16.0.0/13 and 104.24.0.0/14, which did not cover 104.28.x.x (found by a test on 104.28.221.220).
   - nginx/conf.d/odoo-global.conf: include of cdn-realip.conf in the http context.
   - nginx-tools-tests/test_cdn_realip.py (new): 6 tests (valid ranges, generated output with and without CDN, include, fragment list, option read and checked).
 - Bugs fixed: none in code. The problem is the missing feature described above (CF-Connecting-IP not used).
