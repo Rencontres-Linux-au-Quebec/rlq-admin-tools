@@ -2792,22 +2792,6 @@ Earlier history was archived outside this repository when this file was created.
 
 ## nginx-hardening.sh
 
-### 2.75.20261102.090139 - Temporary white list entries expire after 4 weeks
-
-- Title: a white list entry marked [temporaire] is trusted for 28 days from its first registration, then no longer trusted by nginx or fail2ban. No date is written by hand.
-- Reason: the administrator asked not to keep a home (residential) address permanently in the fail2ban ignore list, because such addresses change. The expiry must be automatic: no manual configuration change each time.
-- Changes:
-  - apps/_listes.sh and apps/_listes.py: the option [temporaire] is accepted; listes_blanche (and charger in Python) drop the entries whose registration date is 28 days old or more. A state file gives the date: /var/lib/nginx-tools/white-list-temporary.tsv (AAAA-MM-JJ TAB address), overridable with NGINX_TOOLS_TEMP_STATE. The day is taken from NGINX_TOOLS_AUJOURDHUI when set (tests).
-  - nginx-hardening.sh: new function temporaires_enregistrer, called in step 12 after migrer_listes. It writes the registration date of each new [temporaire] address (atomic write), drops addresses that are no longer [temporaire], and reports the expired ones. In --check it writes nothing.
-  - doc/fr and doc/en nginx-tools-white-list.conf.example: description of [temporaire].
-- Bugs fixed: none.
-- Safeguards and edge cases:
-  - An entry with no recorded date (never seen by --update) stays valid; an unreadable date is treated the same way. Expiry therefore never removes an address by surprise.
-  - The rule applies to nginx (team-ips-*.conf) and fail2ban (ignoreip) alike, since both read the same filtered list.
-  - To keep an address, remove [temporaire] from its line and run --update. Removing [temporaire] also removes its state row, so a later re-addition starts a new 4-week period.
-- Checks: nginx-tools-tests/test_listes.py (new: expiry on day 27 and day 28, same result in Python and bash, entry without date kept).
-- Action required: none. Existing white-list entries are not marked [temporaire]; add the option to the lines that should expire.
-
 ### 2.72.20261101.234513 - Visitor's security.txt file no longer refused (/.well-known/security.txt)
 
 - Title: /.well-known/security.txt (RFC 9116) is served by Odoo again instead of a 404 from nginx; the other files of /.well-known/ stay refused.
@@ -4210,16 +4194,6 @@ Earlier history was archived outside this repository when this file was created.
 ### 1.1.20261019.150215 - Current version. Earlier history archived outside the repository.
 
 ## apps/_listes.py
-
-### 1.6.20261102.090139 - Temporary option [temporaire] for white list entries
-
-- Title: the reader of the white list and places accepts the option [temporaire] and drops expired entries.
-- Reason: see nginx-hardening.sh 2.75.
-- Changes: option [temporaire] added to OPTIONS; Entree gains temporaire and adresse; new functions aujourdhui, dates_temporaires, expiree; charger removes expired entries and keeps them in Listes.expirees. The message for an unknown option lists [temporaire].
-- Bugs fixed: none.
-- Safeguards and edge cases: same rule as the bash reader (checked by a test comparing both). Invalid or missing dates keep the entry valid.
-- Checks: nginx-tools-tests/test_listes.py.
-- Action required: none.
 
 ### 1.5.20261030.153422 - No plural marker "(s)" in the displayed texts
 

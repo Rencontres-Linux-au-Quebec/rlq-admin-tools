@@ -92,7 +92,7 @@ run() {
     "$@"
 }
 
-readonly SCRIPT_VERSION="2.75.20261102.090139"
+readonly SCRIPT_VERSION="2.74.20261101.231500"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
 SCRIPT_NAME="$(basename "${BASH_SOURCE[0]}" .sh)"; readonly SCRIPT_NAME
 # Display language (en or fr): --lang, NGINX_HARDENING_LANG, LANGUAGE of the configuration file, LC_ALL / LANG - apps/_i18n.sh translates the output (nothing changes in French).
@@ -764,40 +764,6 @@ creer_modele() {
 
 # migrer_listes: the white list and the places live in /etc/default (outside the archives, publishable without personal data).
 # --update: migrates the old list apps/team-ips.list (copied, then renamed .migre) or creates a template; existing files: never modified.
-# temporaires_enregistrer: entrees [temporaire] de la liste blanche. La date d'inscription (premier --update qui les voit) est gardee
-# dans l'etat (listes_etat_temporaire : AAAA-MM-JJ TAB adresse ; une ligne par adresse). Une adresse qui n'est plus [temporaire] sort de
-# l'etat : si elle y revient, elle repart pour LISTES_TEMP_JOURS jours. Expiree : retiree de nginx et de fail2ban (listes_blanche filtre).
-# En --check : rien n'est ecrit, seul le constat est affiche. Ecriture atomique (fichier temporaire puis mv).
-temporaires_enregistrer() {
-    local f etat aujourd adr date_ajout nouveau="" brut="" valides="" expirees="" actuel=""
-    f=$(listes_fichier_blanche); [[ -n "$f" ]] || return 0
-    etat=$(listes_etat_temporaire); aujourd=$(listes_aujourdhui)
-    while IFS="$LISTES_SEP" read -r adr _ opts _; do
-        [[ ",$opts," == *",temporaire,"* ]] || continue
-        date_ajout=$(awk -F'\t' -v a="$adr" '$1 == a { print $2; exit }' "$etat" 2>/dev/null || true)
-        nouveau+="$adr"$'\t'"${date_ajout:-$aujourd}"$'\n'
-        brut+="$adr"$'\n'
-    done < <(listes_lire "$f")
-    [[ -n "$brut" ]] || { [[ -f "$etat" ]] && [[ "$CHECK_ONLY" != "1" ]] && rm -f "$etat"; return 0; }
-    valides=$(listes_blanche | cut -d "$LISTES_SEP" -f1)
-    expirees=$(grep -vxF -f <(printf '%s' "$valides" | sed '/^$/d') <(printf '%s' "$brut") | sed '/^$/d' | tr '\n' ' ' || true)
-    actuel=$(cat "$etat" 2>/dev/null || true)
-    if [[ "$actuel" != "$nouveau" ]]; then
-        if [[ "$CHECK_ONLY" == "1" ]]; then
-            warn "Liste blanche [temporaire] : état des dates à mettre à jour ($etat) — --update l'écrira."
-        else
-            mkdir -p "$(dirname "$etat")" || true
-            chmod 755 "$(dirname "$etat")" 2>/dev/null || true
-            local tmp; tmp=$(mktemp "$(dirname "$etat")/.liste-temporaire.XXXXXX")
-            printf '%s' "$nouveau" > "$tmp" && chmod 644 "$tmp" && mv -f "$tmp" "$etat"
-        fi
-    fi
-    if [[ -n "${expirees// /}" ]]; then
-        warn "Liste blanche [temporaire] : expirée(e)s après $LISTES_TEMP_JOURS jours, retirée(s) de nginx et de fail2ban : ${expirees% } — pour les garder, retirer [temporaire] de la ligne (adresse permanente)."
-    else
-        pass "Liste blanche [temporaire] : $(grep -c . <<< "$brut") adresse(s) temporaire(s), aucune expirée (délai de $LISTES_TEMP_JOURS jours)."
-    fi
-}
 migrer_listes() {
     local blanche="${NGINX_TOOLS_WHITE_LIST:-$LISTES_BLANCHE_DEFAUT}" lieux="${NGINX_TOOLS_IP_LOCATION:-$LISTES_LIEUX_DEFAUT}"
     local ancien="$SCRIPT_DIR/apps/team-ips.list"
@@ -2863,7 +2829,6 @@ fi
 # reload; on refusal, the old version is restored and nginx is not reloaded.
 echo "--- 12) Listes d'adresses : liste blanche et lieux (/etc/default/nginx-tools-*.conf) → nginx ---"
 migrer_listes
-temporaires_enregistrer
 listes_resume >&2
 if [[ "$APP_NAME" != "odoo" ]]; then
     sans_objet "fichiers team-ips-*.conf de la configuration nginx-odoo (les listes restent lues par les outils)"
