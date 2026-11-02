@@ -25,27 +25,34 @@
 #   python3 apps/_listes.py --ip ADRESSE      libelles connus pour cette adresse
 #   python3 apps/_listes.py --version
 
+import datetime
 import ipaddress
 import os
 import re
 import sys
+import time
 
-__version__ = "1.5.20261030.153422"
+__version__ = "1.6.20261102.090139"
 
 BLANCHE_DEFAUT = "/etc/default/nginx-tools-white-list.conf"
 LIEUX_DEFAUT = "/etc/default/nginx-tools-ip-location.conf"
 LIEUX_UTILISATEUR = "~/.nginx-tools-ip-location.conf"
 LIGNE_RE = re.compile(r"^\s*([0-9A-Fa-f:.]+(?:/\d{1,3})?)\s*(?:#(.*))?$")
 OPTION_RE = re.compile(r"\[([^\]]*)\]")
-OPTIONS = {"partagee": "partagee", "partagée": "partagee", "protegee": "protegee", "protégée": "protegee"}
+OPTIONS = {"partagee": "partagee", "partagée": "partagee", "protegee": "protegee", "protégée": "protegee", "temporaire": "temporaire"}
+# Liste blanche [temporaire] : l'adresse expire TEMPORAIRE_JOURS jours après sa première inscription dans ETAT_TEMPORAIRE
+# (AAAA-MM-JJ, une ligne par adresse, écrite par nginx-hardening.sh --update). Même règle dans apps/_listes.sh.
+TEMPORAIRE_JOURS = 28
+ETAT_TEMPORAIRE_DEFAUT = "/var/lib/nginx-tools/white-list-temporary.tsv"
 
 
 class Entree(object):
     """Une ligne d'une liste : réseau, libellé, options, et d'où elle vient (fichier:ligne)."""
-    __slots__ = ("reseau", "libelle", "partagee", "protegee", "source")
+    __slots__ = ("adresse", "libelle", "partagee", "protegee", "reseau", "source", "temporaire")
 
-    def __init__(self, reseau, libelle, partagee, protegee, source):
+    def __init__(self, reseau, libelle, partagee, protegee, source, temporaire=False, adresse=""):
         self.reseau, self.libelle, self.partagee, self.protegee, self.source = reseau, libelle, partagee, protegee, source
+        self.temporaire, self.adresse = temporaire, adresse      # adresse : le texte tel qu'écrit (clé de l'état des dates)
 
 
 def lire_fichier(chemin):
@@ -74,9 +81,10 @@ def lire_fichier(chemin):
             if nom:
                 options.add(nom)
             else:
-                problemes.append(f"{chemin}:{n} : option inconnue « [{brut}] » (options : [partagée] [protégée])")
+                problemes.append(f"{chemin}:{n} : option inconnue « [{brut}] » (options : [partagée] [protégée] [temporaire])")
         libelle = OPTION_RE.sub("", commentaire).strip()
-        entrees.append(Entree(reseau, libelle, "partagee" in options, "protegee" in options, f"{chemin}:{n}"))
+        entrees.append(Entree(reseau, libelle, "partagee" in options, "protegee" in options, f"{chemin}:{n}",
+                              temporaire="temporaire" in options, adresse=m.group(1)))
     return entrees, problemes
 
 
@@ -91,6 +99,42 @@ def _plus_specifique(entrees, ip):
         if e.reseau.version == adresse.version and adresse in e.reseau and (meilleure is None or e.reseau.prefixlen >= meilleure.reseau.prefixlen):
             meilleure = e
     return meilleure
+
+
+def aujourdhui(env=None):
+    """Date du jour (AAAA-MM-JJ) ; NGINX_TOOLS_AUJOURDHUI la remplace (tests)."""
+    env = os.environ if env is None else env
+    if env.get("NGINX_TOOLS_AUJOURDHUI"):
+        return datetime.date.fromisoformat(env["NGINX_TOOLS_AUJOURDHUI"])
+    annee, mois, jour = time.localtime()[:3]                    # date locale du serveur
+    return datetime.date(annee, mois, jour)
+
+
+def dates_temporaires(env=None):
+    """{adresse telle qu'écrite : date d'inscription} depuis l'état des entrées [temporaire] ; fichier absent : {}."""
+    env = os.environ if env is None else env
+    chemin = env.get("NGINX_TOOLS_TEMP_STATE") or ETAT_TEMPORAIRE_DEFAUT
+    dates = {}
+    try:
+        with open(chemin, encoding="utf-8") as f:
+            for ligne in f:
+                adresse, _, date = ligne.rstrip("\n").partition("\t")
+                if adresse and date:
+                    dates[adresse] = date
+    except OSError:
+        pass
+    return dates
+
+
+def expiree(entree, dates, aujourd):
+    """True si une entrée [temporaire] a atteint TEMPORAIRE_JOURS depuis son inscription. Sans date, ou date illisible : valable."""
+    if not entree.temporaire or entree.adresse not in dates:
+        return False
+    try:
+        fin = datetime.date.fromisoformat(dates[entree.adresse]) + datetime.timedelta(days=TEMPORAIRE_JOURS)
+    except ValueError:
+        return False
+    return aujourd >= fin
 
 
 class Listes(object):
@@ -165,6 +209,9 @@ def charger(dossier_apps=None, env=None):
         entrees_blanche, p = lire_fichier(ancien_chemin)
         problemes += p
         fichiers["blanche"], est_ancien = ancien_chemin, True
+    dates, aujourd = dates_temporaires(env), aujourdhui(env)
+    expirees = [e for e in entrees_blanche if expiree(e, dates, aujourd)]
+    entrees_blanche = [e for e in entrees_blanche if e not in expirees]
     entrees_lieux = []
     for chemin in lieux:
         e, p = lire_fichier(chemin)
@@ -172,7 +219,9 @@ def charger(dossier_apps=None, env=None):
         problemes += p
         if os.path.isfile(chemin):
             fichiers.setdefault("lieux", []).append(chemin)
-    return Listes(entrees_blanche, entrees_lieux, fichiers, est_ancien, problemes)
+    listes = Listes(entrees_blanche, entrees_lieux, fichiers, est_ancien, problemes)
+    listes.expirees = expirees                                # adresses [temporaire] expirées (non valables)
+    return listes
 
 
 def main():

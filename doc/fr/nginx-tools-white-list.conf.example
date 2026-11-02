@@ -5,4 +5,8 @@
 #   203.0.113.10        # Étienne (maison)
 #   198.51.100.0/24     # Bureau
 # Fichier lu SEULEMENT dans /etc/default (jamais dans ~) : il donne accès. Après une modification : nginx-hardening.sh --update
+# Option [temporaire] : adresse valable 28 jours (4 semaines) a partir de sa premiere inscription, puis retiree de nginx et de fail2ban
+# automatiquement : aucune date a ecrire. La date est gardee dans /var/lib/nginx-tools/white-list-temporary.tsv (nginx-hardening.sh --update).
+# Pour la garder : retirer [temporaire] de la ligne, puis --update.
+#   198.51.100.7        # Testeur (stagiaire)  [temporaire]
 # Pour NOMMER un lieu sans donner d'accès (université, bureau...) : voir /etc/default/nginx-tools-ip-location.conf
