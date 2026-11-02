@@ -85,7 +85,7 @@ import time
 import unicodedata
 import urllib.parse
 
-__version__ = "2.84.20261101.222800"
+__version__ = "2.85.20261101.231500"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
@@ -204,8 +204,24 @@ def print(*a, **k):            # noqa: A001 - all displayed text goes through th
     _system_print(*(TR(x) if isinstance(x, str) else x for x in a), **k)
 
 
+_SAISIE = []                          # 2.85: apps/_i18n.py saisie, loaded once (empty list: not tried yet; [None]: module missing)
+
+
+def _saisie_ligne(invite):
+    """2.85: answer typed in line mode, with echo and erase (apps/_i18n.py saisie): a terminal left without ECHOE showed ^H instead of erasing.
+    Without the module: input()."""
+    if not _SAISIE:
+        try:
+            _SAISIE.append(_load_module("_i18n").saisie)
+        except Exception:
+            _SAISIE.append(None)
+    if _SAISIE[0] is None:
+        return _system_input(invite)
+    return _SAISIE[0](invite)
+
+
 def input(prompt_text=""):          # noqa: A001
-    return _system_input(TR(prompt_text))
+    return _saisie_ligne(TR(prompt_text))
 
 
 def migrate_path(old, new):

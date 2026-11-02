@@ -92,7 +92,7 @@ set -euo pipefail
 for _d in /usr/local/sbin /usr/sbin /sbin; do [[ -n "${NGINX_TOOLS_TESTS:-}" ]] && break; case ":$PATH:" in *":$_d:"*) ;; *) PATH="$PATH:$_d" ;; esac; done
 export PATH
 
-readonly SCRIPT_VERSION="1.23.20261030.153422"
+readonly SCRIPT_VERSION="1.24.20261101.231500"
 SCRIPT_NAME="$(basename "${BASH_SOURCE[0]}" .sh)"; readonly SCRIPT_NAME
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
 SCRIPT_PATH="$SCRIPT_DIR/$(basename "${BASH_SOURCE[0]}")"; readonly SCRIPT_PATH
@@ -109,6 +109,7 @@ if [[ -r "$SCRIPT_DIR/apps/_i18n.sh" ]]; then
     . "$SCRIPT_DIR/apps/_i18n.sh"
     i18n_relancer "$SCRIPT_NAME" ODOO_UPDATE_MODULE_LANG "$0" "$@"
 fi
+declare -F tty_ligne >/dev/null || tty_ligne() { :; }   # 1.x: apps/_i18n.sh absent: no terminal preparation
 # 1.11: without apps/_i18n.sh, plain execution (no Ctrl+C question).
 declare -F pad_cols >/dev/null || pad_cols() { printf '%-*s' "$2" "$1"; }     # 1.13 : sans apps/_i18n.sh, remplissage en octets (comme avant)
 declare -F run_interruptible >/dev/null || run_interruptible() { "$@"; }
@@ -1061,7 +1062,7 @@ rollback() {
     if [[ -z "$MODULES_BACKUP" ]]; then attn "pas de retour arrière : aucune copie des modules d'avant (nouveaux modules seulement)"; return 1; fi
     echo
     if [[ -t 0 && -t 1 ]]; then
-        read -r -p "  Retour arrière vers les versions d'avant (copie $(basename "$MODULES_BACKUP")) ? [O/n] " rep || rep=""
+        tty_ligne; read -r -p "  Retour arrière vers les versions d'avant (copie $(basename "$MODULES_BACKUP")) ? [O/n] " rep || rep=""
         case "${rep,,}" in n|non|no) attn "pas de retour arrière : copie d'avant disponible : $MODULES_BACKUP (tar -xzPf, puis mise à jour)"; return 1 ;; esac
     fi
     ETAPE=0; ETAPES=5; if (( DO_WARMUP )); then ETAPES=6; fi

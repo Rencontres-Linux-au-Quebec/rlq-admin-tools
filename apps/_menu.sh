@@ -21,6 +21,7 @@ MENU_UI=""
 DIALOG_BIN="${DIALOG_BIN:-dialog}"
 MENU_ENTREES=("${MENU_ENTREES[@]+"${MENU_ENTREES[@]}"}")
 
+declare -F tty_ligne >/dev/null || tty_ligne() { :; }   # 1.x: apps/_i18n.sh absent: no terminal preparation
 _menu_langue_en() { [[ "${NGINX_TOOLS_I18N_LANGUE:-fr}" == en* ]]; }
 
 # menu_si_demande PROGRAMME ARGS... : si --menu est demandé (et pas --help / --version / --changelog), lance le menu et quitte.
@@ -55,7 +56,7 @@ _menu_confirmer() {     # _menu_confirmer QUESTION : 0 si oui
         "$DIALOG_BIN" --title "${MENU_TITRE:-menu}" --yesno "$1" 8 72 || rc=$?
         return "$rc"
     fi
-    read -r -p "$1 [o/N] " rep || return 1
+    tty_ligne; read -r -p "$1 [o/N] " rep || return 1
     case "${rep,,}" in o|oui|y|yes) return 0 ;; esac
     return 1
 }
@@ -150,7 +151,7 @@ menu_principal() {
                 22 76 14 "${items[@]}" || break
             [[ "$choix" == "q" ]] && break
             _menu_action "$programme" "$choix" || true
-            read -r -p "$(_menu_langue_en && echo "Enter to return to the menu..." || echo "Entrée pour revenir au menu...")" _ || break
+            tty_ligne; read -r -p "$(_menu_langue_en && echo "Enter to return to the menu..." || echo "Entrée pour revenir au menu...")" _ || break
         else
             echo
             echo "=============================================================="
@@ -165,14 +166,14 @@ menu_principal() {
             echo "  ${C_GREEN:-}l${C_RESET:-}  $(_menu_langue_en && echo "Change log (--changelog)" || echo "Journal des modifications (--changelog)")"
             echo "  ${C_GREEN:-}q${C_RESET:-}  $(_menu_langue_en && echo "Quit" || echo "Quitter")"
             echo
-            read -r -p "$(_menu_langue_en && echo "Your choice: " || echo "Votre choix : ")" choix || { echo; break; }
+            tty_ligne; read -r -p "$(_menu_langue_en && echo "Your choice: " || echo "Votre choix : ")" choix || { echo; break; }
             case "$choix" in
                 q|Q) break ;;
                 c|C) choix="config" ;;
                 l|L) choix="changelog" ;;
             esac
             _menu_action "$programme" "$choix" || echo "$(_menu_langue_en && echo "Unknown choice: " || echo "Choix inconnu : ")« $choix »."
-            read -r -p "$(_menu_langue_en && echo "Enter to return to the menu..." || echo "Entrée pour revenir au menu...")" _ || break
+            tty_ligne; read -r -p "$(_menu_langue_en && echo "Enter to return to the menu..." || echo "Entrée pour revenir au menu...")" _ || break
         fi
     done
     exit 0

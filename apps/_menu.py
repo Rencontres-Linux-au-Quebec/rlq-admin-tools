@@ -62,12 +62,38 @@ def _dialog(args):
         return rc, f.read().strip()
 
 
+def _saisie(invite=""):
+    """1.x: answer typed in line mode, with echo and erase (same rule as apps/_i18n.py saisie): a terminal left without ECHOE showed ^H
+    instead of erasing. Without a terminal (or without termios): the builtin reader."""
+    try:
+        import termios
+    except ImportError:
+        return input(invite)
+    if not sys.stdin.isatty():
+        return input(invite)
+    sys.stdout.write(invite)
+    sys.stdout.flush()
+    fd = sys.stdin.fileno()
+    ancien = termios.tcgetattr(fd)
+    nouveau = list(ancien)
+    nouveau[3] |= termios.ICANON | termios.ECHO | termios.ECHOE | termios.ISIG
+    nouveau[0] |= termios.ICRNL
+    termios.tcsetattr(fd, termios.TCSADRAIN, nouveau)
+    try:
+        ligne = sys.stdin.readline()
+    finally:
+        termios.tcsetattr(fd, termios.TCSADRAIN, ancien)
+    if ligne == "":
+        raise EOFError
+    return ligne.rstrip("\r\n")
+
+
 def _confirmer(question):
     if _dialog_disponible() and _UI["mode"] == "dialog":
         rc, _ = _dialog(["--title", _UI["titre"], "--yesno", question, "8", "72"])
         return rc == 0
     try:
-        rep = input(question + " [o/N] ")
+        rep = _saisie(question + " [o/N] ")
     except EOFError:
         return False
     return rep.strip().lower() in ("o", "oui", "y", "yes")
@@ -144,7 +170,7 @@ def menu(programme, argv, entrees, configuration=None, nom="", traduire=None, la
             print(f"  q   {_t('Quitter', 'Quit')}")
             print()
             try:
-                choix = input(_t("Votre choix : ", "Your choice: ")).strip().lower()
+                choix = _saisie(_t("Votre choix : ", "Your choice: ")).strip().lower()
             except EOFError:
                 print()
                 break
@@ -167,7 +193,7 @@ def menu(programme, argv, entrees, configuration=None, nom="", traduire=None, la
         else:
             print(_t(f"Choix inconnu : « {choix} ».", f"Unknown choice: « {choix} »."))
         try:
-            input(_t("Entrée pour revenir au menu...", "Enter to return to the menu..."))
+            _saisie(_t("Entrée pour revenir au menu...", "Enter to return to the menu..."))
         except EOFError:
             break
     sys.exit(0)
