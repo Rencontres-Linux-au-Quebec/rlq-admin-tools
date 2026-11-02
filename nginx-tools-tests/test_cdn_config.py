@@ -55,8 +55,15 @@ class CdnConfigFile(unittest.TestCase):
         self.assertIn("config_defaut CDN CDN --cdn texte", script)
         self.assertLess(script.index("config_lire nginx-hardening"), script.index("config_defaut CDN CDN --cdn texte"))
 
+    def test_cdn_de_la_ligne_de_commande_ecrit_dans_l_etat(self):
+        """2.73 (statique) : --cdn valide est écrit comme CDN= dans le fichier d'état, en remplaçant l'ancienne ligne."""
+        script = lire("nginx-hardening.sh")
+        self.assertIn('if [[ "$CDN" == none || "$CDN" == cloudflare ]]; then CDN_A_ENREGISTRER="$CDN"; fi', script)
+        self.assertIn('conserve="$(printf \'%s\\n\' "$conserve" | grep -vE \'^CDN=\' || true)"', script)
+        self.assertIn('echo "CDN=$CDN_A_ENREGISTRER"', script)
+
     def test_version_dynamique_et_a_jour(self):
-        self.assertIn('readonly SCRIPT_VERSION="2.72.20261101.213902"', lire("nginx-hardening.sh"))
+        self.assertIn('readonly SCRIPT_VERSION="2.73.20261101.214534"', lire("nginx-hardening.sh"))
 
 
 if __name__ == "__main__":

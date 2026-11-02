@@ -2682,6 +2682,23 @@ Earlier history was archived outside this repository when this file was created.
 
 ## nginx-hardening.sh
 
+### 2.73.20261101.214534 - --cdn on the command line is saved to the configuration file
+
+- Title: --update --cdn none|cloudflare writes CDN= in /etc/default/nginx-hardening.conf, so the choice survives the next --update.
+- Reason: after 2.72, the file key is read, but nothing wrote it: the administrator still had to add CDN=cloudflare by hand on each server.
+- Changes:
+  - nginx-hardening.sh: variable CDN_A_ENREGISTRER, set when --cdn is given on the command line with a valid value (none or cloudflare). An invalid value is not saved (step 12c still refuses it).
+  - State file (same logic as TIMEZONE): the old CDN= lines are removed, then CDN=<value> is written with the SETUP_* lines. The other lines (options, LANGUAGE) are kept.
+  - nginx-tools-tests/test_cdn_config.py: 2 static tests added (write logic, version updated).
+  - Version 2.73 (minor, +0.1).
+- Bugs fixed: none.
+- Safeguards and edge cases:
+  - Without --cdn on the command line, the file is not changed (the value read from the file or the default is used as before).
+  - --cdn invalid: nothing written, cdn-realip.conf not modified.
+  - --check (CHECK_ONLY) writes nothing, as before.
+- Checks: test_cdn_config (6 tests); bash -n OK. The writing itself was not run on a real server.
+- Action required: none. To set cloudflare permanently, run --update --cdn cloudflare once on each server.
+
 ### 2.72.20261101.213902 - CDN setting read from the configuration file
 
 - Title: the key CDN of /etc/default/nginx-hardening.conf (or ~/.nginx-hardening.conf) is now read, so --update no longer needs --cdn cloudflare.
