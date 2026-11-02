@@ -547,14 +547,17 @@ msgstr "adresses à bannir ────"
 msgid "nginx-log-audit.sh not found next to this program: banning impossible."
 msgstr "nginx-log-audit.sh introuvable à côté de ce programme : bannissement impossible."
 
-msgid "Ban now? [y] all  [c] one by one (detailed investigation)  [N] none: "
-msgstr "Bannir maintenant ? [o] toutes  [c] une par une (enquête détaillée)  [N] aucune : "
+msgid "Ban now, one by one (detailed investigation for each)? [c] yes  [N] none: "
+msgstr "Bannir maintenant, une par une (enquête détaillée pour chacune) ? [c] oui  [N] aucune : "
+
+msgid "No terminal: the addresses are banned one by one, on a terminal (nginx-log-audit.sh --ban IP, each with its investigation)."
+msgstr "Pas de terminal : les adresses sont bannies une par une, sur un terminal (nginx-log-audit.sh --ban IP, chacune avec son enquête)."
 
 msgid "No address banned."
 msgstr "Aucune adresse bannie."
 
-msgid "address(es) banned (reversible: nginx-log-audit.sh --unban IP)."
-msgstr "adresses bannies (réversible : nginx-log-audit.sh --unban IP)."
+msgid "address(es) banned, one by one (reversible: nginx-log-audit.sh --unban IP)."
+msgstr "adresses bannies une par une (réversible : nginx-log-audit.sh --unban IP)."
 
 msgid "Report unavailable: apps/_rapport.py is missing."
 msgstr "Rapport indisponible : apps/_rapport.py est absent."

@@ -361,6 +361,22 @@ Earlier history was archived outside this repository when this file was created.
 
 ## app-log-live.py
 
+### 1.148.20261101.225430 - One address at a time: no bulk ban, no --yes
+
+- Title: app-log-live.py no longer bans several addresses at once. Each ban goes through nginx-log-audit.sh --ban, in the foreground, on a terminal.
+- Reason: request of the administrator: no bulk ban anywhere; each ban must be justified again by the detailed investigation (nginx-log-audit.sh --investigate), with the --reason exception and the word BANNIR typed by hand. app-log-live.py still called "--ban IP --yes" in two places, which bypassed that gate.
+- Changes:
+  - ban() (key b): the question is now "[c] yes  [N] none"; the "[y] all" choice is removed. Each address is banned by "nginx-log-audit.sh --ban IP --reason ..." in the foreground (keys.interactive() and foreground_child()), with its own investigation and its own BANNIR gate. No "--yes" anywhere in the program.
+  - ban() without a terminal (no keys, stdin not a terminal): nothing is banned; the program says so.
+  - propose_ban() (often banned address, verdict "ban justified"): the same foreground call for that one address, after the yes answer. The gate of nginx-log-audit.sh decides; the program no longer forces the ban.
+  - Catalogue lang/app-log-live.fr.po: the prompt, the summary line and the no-terminal message are translated.
+  - Version 1.147 -> 1.148.
+  - Test: nginx-tools-tests/test_app_log_live_ban.py (new): no "--yes" in the program, no "[y] all" choice, terminal check before the ban, two foreground calls to "nginx-log-audit.sh --ban", version.
+- Bugs fixed: symptom: pressing b and answering "y" banned every candidate in a row, with --yes, without the investigation gate. Diagnosis: the bulk branch called "--ban IP --yes" through run_captured. Fix: the branch is removed (see Changes).
+- Safeguards and edge cases: a candidate banned by hand stays in stats.all_banned; an interrupted ban (Ctrl-C) is handled by nginx-log-audit.sh, which asks its own confirmation; no nginx-log-audit.sh file: nothing is attempted; no terminal: refused.
+- Checks performed: py_compile of app-log-live.py; static tests of test_app_log_live_ban.py (to be run by the testeur agent with the module list); catalogue entries used by test_i18n.py.
+- Action required from the user: none. To ban an address now, use "b" on a terminal and answer "c", then answer each investigation.
+
 ### 1.147.20261101.172052 - Times within 5 columns, 404 kinds in the 4xx detail, new header labels, ? for the startup information, W to save, menu entries
 
 - Title: a BOT label and a total above 1000 s no longer shift the line; the 404s appear inside the 4xx detail of the status bar; the header uses HOUR, LVL, CC and IP BLOCK (ISP); h opens the keys menu and ? shows the startup information; W saves the settings; --menu gets two sorted modules tables and --not-found.

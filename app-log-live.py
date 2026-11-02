@@ -117,7 +117,7 @@ from urllib.parse import unquote, urlsplit
 from collections import Counter, OrderedDict
 from concurrent.futures import Future
 
-__version__ = "1.147.20261101.172052"
+__version__ = "1.148.20261101.225430"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
@@ -5730,7 +5730,7 @@ def follow(cmd, people, resolver, options, output):
                 sig["prompt_count"] -= 1
 
     def propose_ban(ip, n):
-        """Often-banned address whose verdict is "ban justified": a question with a delay; yes → nginx-log-audit.sh --ban IP --yes."""
+        """Often-banned address whose verdict is "ban justified": a question with a delay; yes → nginx-log-audit.sh --ban IP in the foreground (its investigation and gate decide; never --yes)."""
         if ip in stats.all_banned:
             return
         write_out([color_code(ORANGE, f"──── Address often banned: {n} fail2ban bans — verdict: ban justified ────"),
@@ -5741,12 +5741,18 @@ def follow(cmd, people, resolver, options, output):
                 write_out(["  Not banned."])
             return
         nla = os.path.join(SCRIPT_DIR, "nginx-log-audit.sh")
+        if not os.path.isfile(nla):
+            write_out(["  nginx-log-audit.sh not found next to this program: banning impossible."])
+            return
         app = ["--app", options["app"]] if options.get("app") else []
         why = ["--reason", f"app-log-live.py: address often banned ({n} fail2ban bans), verdict: ban justified"]   # 1.87: kept in the ban journal
-        r = run_captured(["bash", nla, "--ban", ip, "--yes"] + why + app, "nginx-log-audit.sh", env=dict(os.environ, NGINX_TOOLS_LANG="fr"))
-        detail = next((l.strip() for l in r.stdout.splitlines() + r.stderr.splitlines() if re.search(r"Règle|Déjà|REFUSÉ|ÉCHEC", l)), "")
-        write_out([f"  {ip} : {('already banned' if 'Déjà' in detail else 'now banned') if r.returncode == 0 else color_code(STYLES['error'], 'NOT banned')}{' — ' + detail if detail else ''}"])
-        if r.returncode == 0:
+        # 1.148: one address, in the foreground: nginx-log-audit.sh --ban re-runs the investigation; its gate asks for the word BANNIR when not recommended
+        with keys.interactive():
+            print(f"\n{'=' * 70}\n{ip}")
+            with foreground_child():
+                code = subprocess.run(["bash", nla, "--ban", ip] + why + app).returncode
+        write_out([f"  {ip} : " + (color_code(STYLES['error'], "NOT banned") if code != 0 else "now banned")])
+        if code == 0:
             stats.all_banned.add(ip)
 
     def noise_category(L):
@@ -6499,29 +6505,26 @@ def follow(cmd, people, resolver, options, output):
         if not os.path.isfile(nla):
             write_out(["  nginx-log-audit.sh not found next to this program: banning impossible."])
             return
-        rep = ask("Ban now? [y] all  [c] one by one (detailed investigation)  [N] none: ")
+        if keys is None or not sys.stdin.isatty():      # 1.148: no bulk ban, no --yes: a terminal is needed for each investigation and its BANNIR gate
+            write_out(["  No terminal: the addresses are banned one by one, on a terminal (nginx-log-audit.sh --ban IP, each with its investigation)."])
+            return
+        rep = ask("Ban now, one by one (detailed investigation for each)? [c] yes  [N] none: ")
         rep = (rep or "").strip().lower()
-        if rep not in ("o", "oui", "y", "yes", "c", "choisir", "choose"):
+        if rep not in ("c", "o", "oui", "y", "yes", "choisir", "choose"):
             write_out(["  No address banned."])
             return
         app = ["--app", options["app"]] if options.get("app") else []
         n_ok = 0
         for ip, n_seen in candidates:
             why = ["--reason", f"app-log-live.py: {stats.ban_reason(ip, n_seen)}"]   # 1.87: kept in the ban journal (date, time, justification)
-            if rep in ("c", "choisir"):
-                with keys.interactive():
-                    print(f"\n{'=' * 70}\n{ip}" + (f" — {stats.who(ip)}" if stats.who(ip) != ip else ""))
-                    with foreground_child():                # 1.84: Ctrl-C goes to nginx-log-audit.sh, which asks its own confirmation
-                        code = subprocess.run(["bash", nla, "--ban", ip] + why + app).returncode
-            else:
-                r = run_captured(["bash", nla, "--ban", ip, "--yes"] + why + app, "nginx-log-audit.sh", env=dict(os.environ, NGINX_TOOLS_LANG="fr"))
-                code = r.returncode
-                detail = next((l.strip() for l in r.stdout.splitlines() + r.stderr.splitlines() if re.search(r"Règle|Déjà|REFUSÉ|ÉCHEC", l)), "")
-                write_out([f"  {ip} : {('already banned' if 'Déjà' in detail else 'now banned') if code == 0 else color_code(STYLES['error'], 'NOT banned')}{' — ' + detail if detail else ''}"])
+            with keys.interactive():
+                print(f"\n{'=' * 70}\n{ip}" + (f" — {stats.who(ip)}" if stats.who(ip) != ip else ""))
+                with foreground_child():                # 1.84: Ctrl-C goes to nginx-log-audit.sh, which asks its own confirmation
+                    code = subprocess.run(["bash", nla, "--ban", ip] + why + app).returncode
             if code == 0:
                 stats.all_banned.add(ip)
                 n_ok += 1
-        write_out([f"  {n_ok}/{len(candidates)} address(es) banned (reversible: nginx-log-audit.sh --unban IP)."])
+        write_out([f"  {n_ok}/{len(candidates)} address(es) banned, one by one (reversible: nginx-log-audit.sh --unban IP)."])
 
     def error_report():
         """r key: the error report (like --report-err) according to what has been displayed so far."""
