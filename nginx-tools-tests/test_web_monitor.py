@@ -1152,7 +1152,7 @@ class Surveillance(EnvTest):
         wm.ACTIONS[:] = [("Recharger nginx", "nginx -t && systemctl reload nginx", lambda: faits_par.append("reload")),
                          ("Installer le timer", "web-monitor.py --install-timer", lambda: faits_par.append("timer"))]
         wm.RECOMMENDED[:] = [("203.0.113.9", "enquête : Score 5/7")]
-        wm.ban = lambda liste, choose: faits_par.append(("ban", [i for i, _ in liste], choose))
+        wm.ban = lambda liste: faits_par.append(("ban", [i for i, _ in liste]))     # 2.83: une par une, jamais en lot
         with unittest.mock.patch("os.geteuid", return_value=0):
             f = io.StringIO()
             with contextlib.redirect_stdout(f):
@@ -1162,7 +1162,7 @@ class Surveillance(EnvTest):
             wm.APPLY, wm.YES = True, True
             with contextlib.redirect_stdout(io.StringIO()):
                 wm.offer_fixes()
-        self.assertEqual(faits_par, [("ban", ["203.0.113.9"], False), "reload", "timer"])
+        self.assertEqual(faits_par, ["reload", "timer"])                     # 2.83: --apply --yes ne bannit plus en lot
         with unittest.mock.patch("os.geteuid", return_value=1000), unittest.mock.patch.dict(os.environ, {"NGINX_TOOLS_TEST_EUID": ""}):   # run-all 1.190: without simulated root
             f = io.StringIO()
             with contextlib.redirect_stdout(f):
@@ -1545,14 +1545,21 @@ class Surveillance(EnvTest):
         wm.RECOMMENDED.clear()
 
     def test_raison_detaillee_d_un_recidiviste(self):
+        """2.83 : un récidiviste n'est recommandé que si SON enquête (nginx-log-audit.sh --investigate) recommande le bannissement."""
         spec = __import__("importlib.util").util.spec_from_file_location("wm", self.prog)
         wm = __import__("importlib.util").util.module_from_spec(spec)
         spec.loader.exec_module(wm)
+        rapport = ("--- Bannissement PERMANENT recommandé : 1 IP récidivistes ---\n"
+                   "  ▶ 11.134.146.52 — 2 jours (23/Sep, 28/Sep), jail nginx-catchall\n RÉSUMÉ\n")
         wm.RECOMMENDED.clear()
-        wm.analyze_nginx_logs(0, "--- Bannissement PERMANENT recommandé : 1 IP récidivistes ---\n"
-                                 "  ▶ 11.134.146.52 — 2 jours (23/Sep, 28/Sep), jail nginx-catchall\n RÉSUMÉ\n")
-        self.assertEqual(wm.RECOMMENDED, [("11.134.146.52", "récidiviste : 2 jours (23/Sep, 28/Sep), jail nginx-catchall"
-                                                             " — bannissements temporaires répétés")])
+        wm.investigate_ip = lambda ip: ("Score 0/7 : à surveiller", False)
+        wm.analyze_nginx_logs(0, rapport)
+        self.assertEqual(wm.RECOMMENDED, [])                                # enquête sans recommandation : rien à bannir
+        wm.RECOMMENDED.clear()
+        wm.investigate_ip = lambda ip: ("Score 4/7 : bannissement recommandé", True)
+        wm.analyze_nginx_logs(0, rapport)
+        self.assertEqual([r[0] for r in wm.RECOMMENDED], ["11.134.146.52"])
+        self.assertIn("Score 4/7", wm.RECOMMENDED[0][1])
 
     def test_seules_les_ip_recommandees_et_commande_dans_le_courriel(self):
         """Avant la 2.5, toutes les IP de la section [10] étaient retenues dès qu'une seule était recommandée."""
@@ -1564,14 +1571,16 @@ class Surveillance(EnvTest):
         self.assertIn("web-monitor.py --ban-recommended", self.courriels()[-1])
 
     @unittest.skipUnless(os.geteuid() == 0, "la question exige root")
-    def test_fin_de_passage_o_bannit_toutes_n_aucune(self):
+    def test_fin_de_passage_c_bannit_une_par_une_sans_yes(self):
+        """2.83 : une seule réponse « c » lance l'enquête et la confirmation de --ban pour chaque adresse ; jamais --yes, jamais en lot."""
         self.write("fails.txt", "")
         self.env["TEST_BAN_IP"] = "45.9.8.7"
-        texte, envoye = self.run_pty(["python3", self.prog, "--no-pager"], [(b"[N]", b"o\n", 0.2)])
+        texte, envoye = self.run_pty(["python3", self.prog, "--no-pager"], [(b"[N]", b"c\n", 0.2)])
         self.assertEqual(envoye, 1)
         self.assertIn("▶ 45.9.8.7", texte)
         self.assertNotIn("▶ 11.68.110.86 —", texte.split("recommandées au bannissement")[-1])
-        self.assertIn("--ban 45.9.8.7 --yes", self.bans())
+        self.assertIn("--ban 45.9.8.7", self.bans())
+        self.assertNotIn("--yes", self.bans())
         self.assertIn("1/1 IP bannies", texte)
         os.remove(self.path("bans.log"))
         texte, _ = self.run_pty(["python3", self.prog, "--no-pager"], [(b"[N]", b"\n", 0.2)])
@@ -1592,12 +1601,12 @@ class Surveillance(EnvTest):
         self.assertEqual(self.bans(), "")
         rc, out, err = self.run_cmd(["python3", self.prog, "--ban-recommended"])
         self.assertEqual(rc, 2)
-        self.assertIn("ajouter --yes", err)
+        self.assertIn("une par une", err)                                   # 2.83 : sans terminal, jamais de bannissement
+        self.assertEqual(self.bans(), "")
         rc, out, err = self.run_cmd(["python3", self.prog, "--ban-recommended", "--yes"])
-        self.assertEqual(rc, 0, err)
-        self.assertIn("--ban 45.9.8.7 --yes", self.bans())
-        rc, out, err = self.run_cmd(["python3", self.prog, "--ban-recommended", "--yes"])
-        self.assertIn("Aucune IP recommandée", out)                         # list processed: emptied
+        self.assertEqual(rc, 2)                                             # 2.83 : --yes ne bannit jamais en lot
+        self.assertIn("ne bannit jamais en lot", err)                      # 2.83 (message en français, langue par défaut des tests)
+        self.assertEqual(self.bans(), "")
 
     def test_verbose_transmis_a_tous_les_programmes_lances(self):
         """2.39 : « web-monitor.py --verbose » n'affichait que SES commandes ; les programmes qu'il lance (app-health-check.py,
