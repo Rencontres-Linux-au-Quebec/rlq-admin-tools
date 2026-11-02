@@ -2238,6 +2238,22 @@ Earlier history was archived outside this repository when this file was created.
 
 ### 1.9.20261020.211944 - Current version. Earlier history archived outside the repository.
 
+## web-monitor.py
+
+### 2.84.20261101.222800 - Repeat-offender alert: to watch, no ban command
+
+- Title: the alert of the repeat offenders says "à surveiller" and no longer shows the --ban commands.
+- Reason: the alert "récidivistes à bannir de façon permanente" was shown even when the investigation did not recommend the ban, and its lines included "Pour bannir" commands (see the report of 2026-11-01 22:18).
+- Changes:
+  - web-monitor.py: reads the new header of nginx-log-audit.sh ("Récidivistes fail2ban à surveiller"); the alert keeps the address lines and the "Enquête :" lines only.
+  - The alert title becomes "nginx-log-audit.sh: repeat offenders to watch" (French entry in lang/web-monitor.fr.po).
+  - The recommendation itself is unchanged since 2.83: a repeat offender is recommended only if its investigation says so.
+  - Version 2.84 (minor, +0.1).
+- Bugs fixed: symptom: the alert suggested banning repeat offenders without investigation. Fix: see above.
+- Safeguards and edge cases: no ban is started by the alert; the decision remains with the investigation and with --ban-recommended (one by one, on a terminal).
+- Checks: test_web_monitor (see the pull request for the results).
+- Action required: none.
+
 ### 2.83.20261101.220544 - No bulk ban; repeat offenders recommended only after their own investigation
 
 - Title: web-monitor.py never bans several addresses at once. A repeat offender is recommended only if its investigation (nginx-log-audit.sh --investigate) recommends the ban.

@@ -85,7 +85,7 @@ import time
 import unicodedata
 import urllib.parse
 
-__version__ = "2.83.20261101.220544"
+__version__ = "2.84.20261101.222800"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
@@ -393,14 +393,14 @@ def analyze_nginx_logs(code, out):
     repeat_offender = []
     grab = False
     for l in out.splitlines():
-        if "Bannissement PERMANENT recommandé" in l:
+        if "Récidivistes fail2ban à surveiller" in l:
             grab = True
             repeat_offender.append(l.strip())
             continue
         if grab:
             if l.startswith("Rappel :") or l.startswith("=====") or "LISTE COMMUNAUTAIRE" in l:
                 break
-            if l.strip().startswith("▶") or "Pour bannir" in l:
+            if l.strip():                                   # 2.84: the address lines and their investigation lines (no literal to translate here)
                 repeat_offender.append(l.strip())
     if repeat_offender:
         ips = [re.sub(r"^▶\s*(\S+).*", r"\1", l) for l in repeat_offender if l.startswith("▶")]
@@ -411,7 +411,7 @@ def analyze_nginx_logs(code, out):
                 verdict, recommended_flag = investigate_ip(m.group(1))
                 if recommended_flag:
                     RECOMMENDED.append((m.group(1), TR("repeat offender: ") + TR("investigation: ") + verdict))
-        alerts.append(("nginx-log-audit.sh: repeat offenders to ban permanently", repeat_offender[:14],
+        alerts.append(("nginx-log-audit.sh: repeat offenders to watch", repeat_offender[:14],
                        ["nginx:recidive:" + ip for ip in ips] or ["nginx:recidive"]))
     if code != 0 and "RÉSUMÉ" not in out:
         alerts.append(("nginx-log-audit.sh: the tool itself failed", out.strip().splitlines()[-8:], ["nginx:outil"]))
