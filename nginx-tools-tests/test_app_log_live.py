@@ -1815,7 +1815,8 @@ class AppLogLive(EnvTest):
         self.assertIn("Adresse bannie souvent : 3 bannissements fail2ban — verdict : bannissement justifié", T(t))
         journal = open(os.path.join(self.d, "ban.log")).read()
         self.assertIn(f"--evidence {DNS}", journal)
-        self.assertIn(f"--ban {DNS} --yes", journal)
+        self.assertIn(f"--ban {DNS} --reason", journal)          # 1.148: one address, foreground, no --yes
+        self.assertNotIn("--yes", journal)
 
     def test_adresse_bannie_souvent_sans_reponse_ou_verdict_different_ou_option(self):
         """Sans réponse en 10 s : le suivi continue, rien n'est banni ; verdict « à examiner » ou une seule fois : aucune question ; --no-ban-prompt : aucune enquête."""
@@ -2263,9 +2264,10 @@ class AppLogLive(EnvTest):
         self.assertNotIn(f"[{PERSONNE}] ×", T(t.split("Adresses à bannir")[1].split("Top 10")[0]))
         self.assertIn("1 adresses à bannir", T(t))
         self.assertNotRegex(T(t), r"(\d+\.\d+\.\d+\.\d+) \1 —")                              # 1.49: the address is never repeated when its unknown name is the address itself
-        self.assertIn(f"{DNS} : banni — Règle ajoutée", T(t))
+        self.assertIn("Règle ajoutée", t)                       # 1.148: the investigation of nginx-log-audit.sh shows on the terminal
         self.assertIn("1/1 adresses bannies", T(t))
-        self.assertIn(f"--ban {DNS} --yes", open(os.path.join(self.d, "ban.log")).read())
+        self.assertIn(f"--ban {DNS} --reason", open(os.path.join(self.d, "ban.log")).read())
+        self.assertNotIn("--yes", open(os.path.join(self.d, "ban.log")).read())
         self.assertIn("Adresses à bannir : aucune", T(t.split("1/1 adresses bannies")[1]))        # after the ban: nothing left to ban
 
     def test_sondes_wordpress_debug_et_balayage_de_404_a_bannir(self):

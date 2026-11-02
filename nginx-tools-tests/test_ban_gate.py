@@ -74,6 +74,15 @@ class BanGate(unittest.TestCase):
         self.assertEqual(len(ligne), 1)
         self.assertNotIn(r'|\.php|', ligne[0])                                 # 2.70: md5.php3 n'est plus une tentative sensible
 
+    def test_recidivistes_jamais_bannis_sans_enquete(self):
+        """2.71 : la section récidivistes n'appelle plus confirm_and_ban ; elle lance l'enquête et ne propose --ban que si elle recommande."""
+        s = script()
+        bloc = s[s.index("if (( ${#RECIDIVIST_ORDER[@]} > 0 )); then"):]
+        bloc = bloc[:bloc.index("# --- Liste communautaire")] if "# --- Liste communautaire" in bloc else bloc[:3000]
+        self.assertNotIn('confirm_and_ban "$rip"', bloc)
+        self.assertIn('--investigate "$rip" --no-prompt', bloc)
+        self.assertIn('grep_q "Score [0-9]/7 : bannissement recommandé"', bloc)
+
     def test_version_dynamique(self):
         self.assertIn('readonly SCRIPT_VERSION="2.71.20261101.231500"', script())
 

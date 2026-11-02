@@ -371,6 +371,33 @@ Earlier history was archived outside this repository when this file was created.
 
 ## app-log-live.py
 
+### 1.149.20261101.231500 - Answers typed in line mode (echo and erase)
+
+- Title: the answer to the questions of app-log-live.py (b key, ban justified proposal, keys) goes through saisie() of apps/_i18n.py: echo and erase (ECHOE) are set before reading.
+- Reason: the Backspace key showed "^H" instead of erasing, on every prompt of the administration programs (see nginx-hardening.sh 2.74 and apps/_i18n.py 1.22, PR 154).
+- Changes: ask() calls I18N_MODULE.saisie(prompt_text) when the module is loaded, input() otherwise. Version 1.148 -> 1.149. Test: test_app_log_live_ban.py checks the call.
+- Bugs fixed: symptom: "^H" displayed when erasing. Diagnosis: ECHOE off on the terminal with ICANON on. Fix: the terminal is put back in line mode before each answer (tty.setcbreak is restored by keys.interactive() first).
+- Safeguards and edge cases: without the module (apps/_i18n.py missing), input() as before; without a terminal, saisie() calls input().
+- Checks performed: py_compile; static test test_app_log_live_ban.py.
+- Action required from the user: none.
+
+
+### 1.148.20261101.225430 - One address at a time: no bulk ban, no --yes
+
+- Title: app-log-live.py no longer bans several addresses at once. Each ban goes through nginx-log-audit.sh --ban, in the foreground, on a terminal.
+- Reason: request of the administrator: no bulk ban anywhere; each ban must be justified again by the detailed investigation (nginx-log-audit.sh --investigate), with the --reason exception and the word BANNIR typed by hand. app-log-live.py still called "--ban IP --yes" in two places, which bypassed that gate.
+- Changes:
+  - ban() (key b): the question is now "[c] yes  [N] none"; the "[y] all" choice is removed. Each address is banned by "nginx-log-audit.sh --ban IP --reason ..." in the foreground (keys.interactive() and foreground_child()), with its own investigation and its own BANNIR gate. No "--yes" anywhere in the program.
+  - ban() without a terminal (no keys, stdin not a terminal): nothing is banned; the program says so.
+  - propose_ban() (often banned address, verdict "ban justified"): the same foreground call for that one address, after the yes answer. The gate of nginx-log-audit.sh decides; the program no longer forces the ban.
+  - Catalogue lang/app-log-live.fr.po: the prompt, the summary line and the no-terminal message are translated.
+  - Version 1.147 -> 1.148.
+  - Test: nginx-tools-tests/test_app_log_live_ban.py (new): no "--yes" in the program, no "[y] all" choice, terminal check before the ban, two foreground calls to "nginx-log-audit.sh --ban", version.
+- Bugs fixed: symptom: pressing b and answering "y" banned every candidate in a row, with --yes, without the investigation gate. Diagnosis: the bulk branch called "--ban IP --yes" through run_captured. Fix: the branch is removed (see Changes).
+- Safeguards and edge cases: a candidate banned by hand stays in stats.all_banned; an interrupted ban (Ctrl-C) is handled by nginx-log-audit.sh, which asks its own confirmation; no nginx-log-audit.sh file: nothing is attempted; no terminal: refused.
+- Checks performed: py_compile of app-log-live.py; static tests of test_app_log_live_ban.py (to be run by the testeur agent with the module list); catalogue entries used by test_i18n.py.
+- Action required from the user: none. To ban an address now, use "b" on a terminal and answer "c", then answer each investigation.
+
 ### 1.147.20261101.172052 - Times within 5 columns, 404 kinds in the 4xx detail, new header labels, ? for the startup information, W to save, menu entries
 
 - Title: a BOT label and a total above 1000 s no longer shift the line; the 404s appear inside the 4xx detail of the status bar; the header uses HOUR, LVL, CC and IP BLOCK (ISP); h opens the keys menu and ? shows the startup information; W saves the settings; --menu gets two sorted modules tables and --not-found.
@@ -2259,6 +2286,19 @@ Earlier history was archived outside this repository when this file was created.
 - Safeguards and edge cases: Without a terminal (pipe, cron, stdin not a tty): nothing is changed, the programs behave as before. Stdin and /dev/tty redirections are guarded with || true (set -e). Password prompts (read -s) are not changed. The helper is defined in apps/_i18n.sh; a program without that file gets a no-op fallback. Its bulk-ban refusals (2.83) are unchanged.
 - Checks performed: py_compile; nginx-tools-tests/test_saisie_terminal.py (new, static): every interactive read -p / read -e of the Bash programs has tty_ligne on its line; tty_ligne is defined and sets icanon echo echoe; saisie() is defined and used by the i18n context; apps/_menu.py has its own line reader; versions.
 - Action required from the user: none. Note: PR 151 (2.84) is based on 2.83; the version line of the newer PR is kept when merging.
+### 2.84.20261101.222800 - Repeat-offender alert: to watch, no ban command
+
+- Title: the alert of the repeat offenders says "à surveiller" and no longer shows the --ban commands.
+- Reason: the alert "récidivistes à bannir de façon permanente" was shown even when the investigation did not recommend the ban, and its lines included "Pour bannir" commands (see the report of 2026-11-01 22:18).
+- Changes:
+  - web-monitor.py: reads the new header of nginx-log-audit.sh ("Récidivistes fail2ban à surveiller"); the alert keeps the address lines and the "Enquête :" lines only.
+  - The alert title becomes "nginx-log-audit.sh: repeat offenders to watch" (French entry in lang/web-monitor.fr.po).
+  - The recommendation itself is unchanged since 2.83: a repeat offender is recommended only if its investigation says so.
+  - Version 2.84 (minor, +0.1).
+- Bugs fixed: symptom: the alert suggested banning repeat offenders without investigation. Fix: see above.
+- Safeguards and edge cases: no ban is started by the alert; the decision remains with the investigation and with --ban-recommended (one by one, on a terminal).
+- Checks: test_web_monitor (see the pull request for the results).
+- Action required: none.
 
 ### 2.83.20261101.220544 - No bulk ban; repeat offenders recommended only after their own investigation
 
@@ -3180,6 +3220,24 @@ Earlier history was archived outside this repository when this file was created.
 - Safeguards and edge cases: Without a terminal (pipe, cron, stdin not a tty): nothing is changed, the programs behave as before. Stdin and /dev/tty redirections are guarded with || true (set -e). Password prompts (read -s) are not changed. The helper is defined in apps/_i18n.sh; a program without that file gets a no-op fallback. The BANNIR typing is unchanged in its rule (it still refuses without a terminal).
 - Checks performed: bash -n; nginx-tools-tests/test_saisie_terminal.py (new, static): every interactive read -p / read -e of the Bash programs has tty_ligne on its line; tty_ligne is defined and sets icanon echo echoe; saisie() is defined and used by the i18n context; apps/_menu.py has its own line reader; versions.
 - Action required from the user: none.
+### 2.71.20261101.222709 - Repeat offenders are investigated, never banned in this report
+
+- Title: the section "Récidivistes fail2ban à surveiller" investigates each repeat offender and no longer bans from the report.
+- Reason: on 2026-11-01 the report of 132.196.59.85 and 45.138.12.41 said "Bannissement PERMANENT recommandé" and offered the ban on the recurrence alone (fail2ban bans expire, then the same address comes back). The investigation of 132.196.59.85 gave 0/7. The section also called confirm_and_ban, a question that did not pass through the investigation.
+- Changes:
+  - nginx-log-audit.sh, section of the repeat offenders: the call to confirm_and_ban is removed. Each address runs --investigate ... --no-prompt; the command nginx-log-audit.sh --ban IP is shown only if the investigation recommends the ban (score 3/7 or more). Otherwise the line says "à surveiller".
+  - The wording of the header and of the explanation is corrected: a ban is never made here, and "définitivement" is removed (a ban is reversible with --unban).
+  - lang/nginx-log-audit.en.po: the old entries are replaced; the English texts of the new lines are added.
+  - nginx-tools-tests/test_ban_gate.py: static test (no confirm_and_ban in the section, investigation and score check present); version 2.71.
+  - nginx-tools-tests/test_nginx_log_audit.py and test_i18n.py: header text updated.
+  - web-monitor.py 2.84 reads the new header (see its CHANGELOG entry).
+- Bugs fixed: symptom: the report offered a permanent ban on recurrence alone, with a question that bypassed the investigation. Diagnosis: the section was written before the investigation gate (2.69/2.70). Fix: see above.
+- Safeguards and edge cases:
+  - The investigation is run with --no-prompt: no question is asked by the report.
+  - An investigation that fails (empty output) is shown as "à surveiller", never as a ban.
+  - --ban still runs its own gate (2.70): the score and the confirmation are required.
+- Checks: test_ban_gate (10 tests OK, after the update); test_nginx_log_audit and test_i18n adapted (see the pull request for the results).
+- Action required: none. For 132.196.59.85 and 45.138.12.41, read the investigation line and answer N unless the score is 3/7 or more.
 
 ### 2.70.20261101.215908 - A ban needs the investigation score, not only the evidence
 

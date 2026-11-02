@@ -1549,7 +1549,7 @@ class Surveillance(EnvTest):
         spec = __import__("importlib.util").util.spec_from_file_location("wm", self.prog)
         wm = __import__("importlib.util").util.module_from_spec(spec)
         spec.loader.exec_module(wm)
-        rapport = ("--- Bannissement PERMANENT recommandé : 1 IP récidivistes ---\n"
+        rapport = ("--- Récidivistes fail2ban à surveiller : 1 IP récidivistes ---\n"
                    "  ▶ 11.134.146.52 — 2 jours (23/Sep, 28/Sep), jail nginx-catchall\n RÉSUMÉ\n")
         wm.RECOMMENDED.clear()
         wm.investigate_ip = lambda ip: ("Score 0/7 : à surveiller", False)
