@@ -26,6 +26,16 @@ LIEUX = """192.0.2.0/24        # Université exemple     [partagée]
 """
 
 
+TEMPORAIRE = """203.0.113.70        # Stagiaire  [temporaire 2026-11-30 18:00:00]
+203.0.113.71        # Passé      [temporaire 2026-10-01 00:00:00]
+203.0.113.72        # Sans date  [temporaire]
+"""
+
+def adresses(entrees):
+    """Adresses (sans /32) d'une liste d'entrées, triées."""
+    return sorted(str(e.reseau).split("/")[0] for e in entrees)
+
+
 ABSENT = "/nonexistent-rlq-tests/absent.conf"
 
 
@@ -134,6 +144,20 @@ class ListesPython(EnvTest):
         r = subprocess.run([sys.executable, script_path("apps/_listes.py"), "--version"], capture_output=True, text=True, env=env)
         self.assertRegex(r.stdout, r"^_listes\.py version 1\.\d+\.\d{8}\.\d{6}$")
 
+    def test_temporaire_jusqu_a_une_date(self):
+        """[temporaire AAAA-MM-JJ HH:MM:SS] : valable jusqu'à cette date, puis ignorée ; sans date valide : ignorée et signalée."""
+        blanche = self.write("temporaire.conf", TEMPORAIRE)
+        lieux = self.write("lieux-vide.conf", "")
+        def charge(maint):
+            return module().charger(os.path.join(SCRIPTS_DIR, "apps"), {"NGINX_TOOLS_WHITE_LIST": blanche, "NGINX_TOOLS_IP_LOCATION": lieux,
+                                                                        "NGINX_TOOLS_MAINTENANT": maint})
+        L = charge("2026-11-02 10:40:00")
+        self.assertEqual(adresses(L.blanche), ["203.0.113.70"])
+        self.assertEqual(adresses(L.expirees), ["203.0.113.71", "203.0.113.72"])
+        self.assertTrue(any("sans date valide" in p for p in L.problemes))
+        L = charge("2026-11-30 18:00:00")                                                       # la date exacte : expirée
+        self.assertEqual(L.blanche, [])
+
 
 class ListesBash(EnvTest):
     def bash(self, commande, **env):
@@ -197,3 +221,14 @@ class ListesBash(EnvTest):
         env["SCRIPT_DIR"] = os.path.dirname(dossier)
         r = subprocess.run(["bash", "-c", f'. "{listes_sh(self.d)}"; listes_resume'], capture_output=True, text=True, env=env)
         self.assertIn("(1 adresses) — ANCIEN emplacement, à migrer : nginx-hardening.sh --update", r.stdout)
+
+    def test_temporaire_jusqu_a_une_date_en_bash_comme_en_python(self):
+        blanche = self.write("temporaire.conf", TEMPORAIRE)
+        lieux = self.write("lieux-vide.conf", "")
+        for maint in ("2026-11-02 10:40:00", "2026-11-30 18:00:00"):
+            with self.subTest(maint=maint):
+                bash = self.bash("listes_blanche | cut -d $'\\037' -f1", NGINX_TOOLS_WHITE_LIST=blanche, NGINX_TOOLS_IP_LOCATION=lieux,
+                                 NGINX_TOOLS_MAINTENANT=maint).split()
+                L = module().charger(os.path.join(SCRIPTS_DIR, "apps"), {"NGINX_TOOLS_WHITE_LIST": blanche, "NGINX_TOOLS_IP_LOCATION": lieux,
+                                                                         "NGINX_TOOLS_MAINTENANT": maint})
+                self.assertEqual(sorted(bash), adresses(L.blanche))

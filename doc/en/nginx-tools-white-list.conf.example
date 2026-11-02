@@ -4,9 +4,12 @@
 # Une adresse ou une plage par ligne, suivie de son libellé après « # » :
 #   203.0.113.10        # Étienne (maison)
 #   198.51.100.0/24     # Bureau
-# DNS name (dynamic address, for example DynDNS): write the name instead of an IP. It is resolved every 10 minutes
+# DNS name (dynamic address, for example DynDNS): write the name instead of an IP. It is resolved every 15 minutes
 # (cron /etc/cron.d/nginx-tools-dns, nginx-hardening.sh --dns-refresh); nginx and fail2ban receive the resolved addresses, never the name.
 # If the resolution fails, the last known address stays allowed.
 #   odoo-etienne.example.net  # Etienne (dynamic DNS)
+# Option [temporaire AAAA-MM-DD HH:MM:SS]: address valid until this local date and time, then removed from nginx and fail2ban
+# (checked every 15 minutes). Without a valid date, the entry is ignored and reported by nginx-hardening.sh --update.
+#   198.51.100.7        # Tester (intern)  [temporaire 2026-11-30 18:00:00]
 # Fichier lu SEULEMENT dans /etc/default (jamais dans ~) : il donne accès. Après une modification : nginx-hardening.sh --update
 # Pour NOMMER un lieu sans donner d'accès (université, bureau...) : voir /etc/default/nginx-tools-ip-location.conf

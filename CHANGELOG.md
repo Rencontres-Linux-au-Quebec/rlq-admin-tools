@@ -2792,6 +2792,22 @@ Earlier history was archived outside this repository when this file was created.
 
 ## nginx-hardening.sh
 
+### 2.76.20261102.104500 - Dated [temporaire] entries and 15-minute check
+
+- Title: a white list entry marked [temporaire AAAA-MM-JJ HH:MM:SS] is valid until that local date and time, then removed from nginx and fail2ban. The check runs every 15 minutes.
+- Reason: the administrator asked to keep the temporary option, with an explicit expiry date instead of a 4-week counter, and to check every 15 minutes instead of 10.
+- Changes:
+  - apps/_listes.sh and apps/_listes.py (version 1.7): option [temporaire DATE TIME] read; listes_maintenant / maintenant (NGINX_TOOLS_MAINTENANT for tests); entries past their date, or without a valid date, are left out of the effective list.
+  - nginx-hardening.sh: --dns-refresh checks DNS names and [temporaire] entries; the state file holds a signature of the effective list, so an expired entry triggers a full --update just like an address change. Cron every 15 minutes (installed while there are DNS names or [temporaire] entries). Step 12 function temporaires_verifier warns about expired and invalid entries.
+  - doc/fr and doc/en nginx-tools-white-list.conf.example: format of the option and the DNS names.
+- Bugs fixed: none.
+- Safeguards and edge cases:
+  - An option without a valid date is ignored and reported, never trusted indefinitely.
+  - The date comparison uses the local time of the server.
+  - When a name does not resolve, the last known addresses stay, as before.
+- Checks: nginx-tools-tests/test_listes.py (dated entries, Python and bash agree at two dates); test_dns_blanche.py; test_alignement, test_nginx_hardening, test_ban_gate: OK.
+- Action required: none. Write the expiry on the lines that should expire, for example [temporaire 2026-11-30 18:00:00]. Run nginx-hardening.sh --update once after the merge to install the 15-minute cron.
+
 ### 2.75.20261102.102600 - DNS names in the white list (dynamic addresses)
 
 - Title: a white list entry can be a DNS name (for example a DynDNS name) instead of an IP address. The addresses it resolves to are kept in nginx and fail2ban up to date.
@@ -4213,6 +4229,16 @@ Earlier history was archived outside this repository when this file was created.
 ### 1.1.20261019.150215 - Current version. Earlier history archived outside the repository.
 
 ## apps/_listes.py
+
+### 1.7.20261102.104500 - Dated [temporaire] entries
+
+- Title: the readers of the white list read the option [temporaire AAAA-MM-JJ HH:MM:SS] and leave out expired or undated entries.
+- Reason: see nginx-hardening.sh 2.76.
+- Changes: Entree gains temporaire and expiration; DATE_RE; maintenant(); charger removes the expired ones and sets Listes.expirees. Bash: listes_lire reads the option as temporaire=DATE (or temporaire=invalide); listes_blanche applies the same rule; listes_maintenant; listes_temporaires.
+- Bugs fixed: in listes_lire, the bash loop over the bracketed options was reading BASH_REMATCH after the date test had overwritten it, and never terminated. The match is now saved first.
+- Safeguards and edge cases: same rule in both readers, checked by the tests at two dates; an invalid date is reported.
+- Checks: nginx-tools-tests/test_listes.py.
+- Action required: none.
 
 ### 1.6.20261102.102600 - DNS names are recognised, not read as addresses
 

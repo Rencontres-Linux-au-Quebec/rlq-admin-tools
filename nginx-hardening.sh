@@ -92,7 +92,7 @@ run() {
     "$@"
 }
 
-readonly SCRIPT_VERSION="2.75.20261102.102600"
+readonly SCRIPT_VERSION="2.76.20261102.104500"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
 SCRIPT_NAME="$(basename "${BASH_SOURCE[0]}" .sh)"; readonly SCRIPT_NAME
 # Display language (en or fr): --lang, NGINX_HARDENING_LANG, LANGUAGE of the configuration file, LC_ALL / LANG - apps/_i18n.sh translates the output (nothing changes in French).
@@ -146,7 +146,7 @@ read -r -a BACKUP_ROOTS <<< "${NGINX_HARDENING_BACKUP_ROOTS:-/etc/nginx /etc/fai
 ROLLBACK=0
 ROLLBACK_BACKUP=""
 ROLLBACK_YES=0
-DNS_RAFRAICHIR=0            # --dns-refresh: resolve the DNS names of the white list; full --update only if an address changed (cron every 10 min)
+DNS_RAFRAICHIR=0            # --dns-refresh: resolve the DNS names of the white list; full --update only if an address changed (cron every 15 min)
 DISABLE_URI_LIST=()     # --disable-uri CHEMIN (repeatable): refused with 404 in the Odoo site, every language
 ENABLE_URI_LIST=()      # --enable-uri CHEMIN (repeatable): the refusal is removed
 ODOO_HTTP_PORT=""      # empty: read from the Odoo configuration ("configuration" step), otherwise 10000 / 10002
@@ -280,7 +280,7 @@ Options (par ordre alphabétique) :
   --check                      vérification seule (comportement par défaut)
   -c, --config FILE            fichier de configuration à lire SEUL (défaut : /etc/default/nginx-hardening.conf puis ~/.nginx-hardening.conf)
   --disable-uri CHEMIN         refuse (404) ce chemin dans le site Odoo, toutes les langues (ex. /shop) : fichier snippets/uri-desactivees.conf ; répétable
-  --dns-refresh                résout les noms DNS de la liste blanche (adresses dynamiques) ; --update seulement si une adresse a changé (cron toutes les 10 min)
+  --dns-refresh                résout les noms DNS de la liste blanche (adresses dynamiques) ; --update seulement si une adresse a changé (cron toutes les 15 min)
   --enable-uri CHEMIN          rétablit un chemin refusé par --disable-uri ; répétable
   -h, --help                   affiche cette aide et quitte
   --lang LANG                  langue d'affichage : en ou fr (défaut : selon LC_ALL / LC_MESSAGES / LANG)
@@ -662,23 +662,39 @@ sans_objet() { echo "  [--]   Sans objet pour $APP_LABEL : $1"; }
 # $1 = geo (table $is_trusted_ip: "ADDRESS 1; ") or allow (allow lists: "allow ADDRESS; "). Invalid entries:
 # noted in EQUIPE_INVALIDES (never written to nginx, which would otherwise refuse its whole configuration).
 EQUIPE_INVALIDES=""
-# dns_cron_installer: /etc/cron.d/nginx-tools-dns runs --dns-refresh every 10 minutes, only while the white list has DNS names (removed otherwise).
+# temporaires_verifier: signale les entrées [temporaire] valables, expirées (retirées de nginx et de fail2ban) ou sans date valide (ignorées).
+temporaires_verifier() {
+    local adr lib opts n maint v valides=0 expirees="" invalides=""
+    maint=$(listes_maintenant)
+    while IFS=$'\037' read -r adr lib opts n; do
+        [[ ",$opts," == *",temporaire="* ]] || continue
+        v=${opts##*temporaire=}; v=${v%%,*}
+        if [[ "$v" == invalide ]]; then invalides="$invalides ligne $n ($adr);"
+        elif [[ ! "$maint" < "$v" ]]; then expirees="$expirees $adr (le $v);"
+        else valides=$((valides + 1)); fi
+    done < <(listes_temporaires)
+    if [[ -n "$invalides" ]]; then warn "Liste blanche [temporaire] : date absente ou invalide (AAAA-MM-JJ HH:MM:SS), entrée(s) ignorée(s) :${invalides%;}"; fi
+    if [[ -n "$expirees" ]]; then warn "Liste blanche [temporaire] : expirée(s), retirée(s) de nginx et de fail2ban au prochain --update :${expirees%;}"; fi
+    if (( valides > 0 )); then pass "Liste blanche [temporaire] : $valides adresse(s) valable(s) jusqu'à leur date."; fi
+}
+
+# dns_cron_installer: /etc/cron.d/nginx-tools-dns runs --dns-refresh every 15 minutes, while the white list has DNS names or [temporaire] entries (removed otherwise).
 dns_cron_installer() {
     local cron="/etc/cron.d/nginx-tools-dns" script contenu
     script=$(readlink -f "${BASH_SOURCE[0]}")
-    if [[ -z "$(listes_noms_dns)" ]]; then
+    if [[ -z "$(listes_noms_dns)" && -z "$(listes_temporaires)" ]]; then
         if [[ -f "$cron" ]]; then
             if [[ "$CHECK_ONLY" == "1" ]]; then warn "$cron inutile (aucun nom DNS dans la liste blanche) — --update le supprimera."
             else rm -f "$cron" && pass "$cron supprimé (aucun nom DNS dans la liste blanche)."; fi
         fi
         return 0
     fi
-    contenu="# GÉNÉRÉ par nginx-hardening.sh --update : résolution des noms DNS de la liste blanche (adresses dynamiques), toutes les 10 minutes.
+    contenu="# GÉNÉRÉ par nginx-hardening.sh --update : noms DNS de la liste blanche (adresses dynamiques) et entrées [temporaire] (expiration), toutes les 15 minutes.
 SHELL=/bin/sh
-*/10 * * * * root \"$script\" --dns-refresh >> /var/log/nginx-tools-dns.log 2>&1"
+*/15 * * * * root \"$script\" --dns-refresh >> /var/log/nginx-tools-dns.log 2>&1"
     if [[ "$(cat "$cron" 2>/dev/null)" == "$contenu" ]]; then pass "$cron à jour."
     elif [[ "$CHECK_ONLY" == "1" ]]; then warn "$cron absent ou différent — --update l'écrira."
-    else printf '%s\n' "$contenu" > "$cron" && chmod 644 "$cron" && pass "$cron écrit (résolution des noms DNS toutes les 10 minutes)."; fi
+    else printf '%s\n' "$contenu" > "$cron" && chmod 644 "$cron" && pass "$cron écrit (noms DNS et [temporaire] vérifiés toutes les 15 minutes)."; fi
 }
 
 # dns_etat: state file of the DNS names of the white list: one line per name, "NAME<TAB>ADDRESS ADDRESS..." (written by dns_rafraichir).
@@ -708,6 +724,8 @@ dns_rafraichir() {
         fi
         nouveau+="$nom"$'\t'"$ips"$'\n'
     done < <(listes_noms_dns)
+    # signature de la liste effective : une date [temporaire] atteinte, une étiquette ou une liste modifiée déclenchent aussi --update
+    nouveau+="#liste"$'\t'"$(listes_blanche | sha256sum | cut -c1-64)"$'\n'
     if [[ "${nouveau%$'\n'}" == "$ancien" ]]; then return 1; fi      # cat ne garde pas le saut de ligne final
     if [[ "$CHECK_ONLY" != "1" ]]; then
         local tmp; mkdir -p "$(dirname "$etat")" 2>/dev/null || true
@@ -1148,11 +1166,11 @@ if [[ "$APP_NAME" == "bbb" && -r "$APPS_DIR/_bbb.py" ]] && command -v python3 >/
     echo
 fi
 
-# --- --dns-refresh (cron every 10 minutes): resolves the DNS names of the white list. Silent when nothing changed. When an address changed,
+# --- --dns-refresh (cron every 15 minutes): resolves the DNS names of the white list. Silent when nothing changed. When an address changed,
 # the state is written and a full --update applies it to nginx and fail2ban; if that update fails, the previous state is restored, so the
 # next run tries again.
 if [[ "$DNS_RAFRAICHIR" == "1" ]]; then
-    if [[ -z "$(listes_noms_dns)" ]]; then exit 0; fi
+    if [[ -z "$(listes_noms_dns)" && -z "$(listes_temporaires)" ]]; then exit 0; fi
     CHECK_ONLY=0
     dns_ancien=$(cat "$(dns_etat)" 2>/dev/null || true)
     if dns_rafraichir; then
@@ -2916,6 +2934,7 @@ fi
 echo "--- 12) Listes d'adresses : liste blanche et lieux (/etc/default/nginx-tools-*.conf) → nginx ---"
 migrer_listes
 dns_cron_installer
+temporaires_verifier
 listes_resume >&2
 if [[ "$APP_NAME" != "odoo" ]]; then
     sans_objet "fichiers team-ips-*.conf de la configuration nginx-odoo (les listes restent lues par les outils)"

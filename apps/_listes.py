@@ -25,12 +25,13 @@
 #   python3 apps/_listes.py --ip ADRESSE      libelles connus pour cette adresse
 #   python3 apps/_listes.py --version
 
+import datetime
 import ipaddress
 import os
 import re
 import sys
 
-__version__ = "1.6.20261102.102600"
+__version__ = "1.7.20261102.104500"
 
 BLANCHE_DEFAUT = "/etc/default/nginx-tools-white-list.conf"
 LIEUX_DEFAUT = "/etc/default/nginx-tools-ip-location.conf"
@@ -39,14 +40,16 @@ NOM_DNS_RE = re.compile(r"^(?=.*[A-Za-z])[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])
 LIGNE_RE = re.compile(r"^\s*([0-9A-Fa-f:.]+(?:/\d{1,3})?)\s*(?:#(.*))?$")
 OPTION_RE = re.compile(r"\[([^\]]*)\]")
 OPTIONS = {"partagee": "partagee", "partagée": "partagee", "protegee": "protegee", "protégée": "protegee"}
+DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$")     # [temporaire AAAA-MM-JJ HH:MM:SS] (heure locale)
 
 
 class Entree(object):
     """Une ligne d'une liste : réseau, libellé, options, et d'où elle vient (fichier:ligne)."""
-    __slots__ = ("reseau", "libelle", "partagee", "protegee", "source")
+    __slots__ = ("reseau", "libelle", "partagee", "protegee", "source", "temporaire", "expiration")
 
-    def __init__(self, reseau, libelle, partagee, protegee, source):
+    def __init__(self, reseau, libelle, partagee, protegee, source, temporaire=False, expiration=""):
         self.reseau, self.libelle, self.partagee, self.protegee, self.source = reseau, libelle, partagee, protegee, source
+        self.temporaire, self.expiration = temporaire, expiration      # expiration : "AAAA-MM-JJ HH:MM:SS" ; "" si absente ou invalide
 
 
 def est_nom_dns(ligne):
@@ -88,15 +91,29 @@ def lire_fichier(chemin):
             continue
         commentaire = m.group(2) or ""
         options = set()
+        expiration, temporaire = "", False
         for brut in OPTION_RE.findall(commentaire):
+            if brut.strip().lower().startswith("temporaire"):
+                temporaire = True
+                date = brut.strip()[len("temporaire"):].strip()
+                expiration = date if DATE_RE.match(date) else ""
+                if not expiration:
+                    problemes.append(f"{chemin}:{n} : [temporaire] sans date valide (AAAA-MM-JJ HH:MM:SS) : ligne ignorée")
+                continue
             nom = OPTIONS.get(brut.strip().lower())
             if nom:
                 options.add(nom)
             else:
                 problemes.append(f"{chemin}:{n} : option inconnue « [{brut}] » (options : [partagée] [protégée])")
         libelle = OPTION_RE.sub("", commentaire).strip()
-        entrees.append(Entree(reseau, libelle, "partagee" in options, "protegee" in options, f"{chemin}:{n}"))
+        entrees.append(Entree(reseau, libelle, "partagee" in options, "protegee" in options, f"{chemin}:{n}", temporaire, expiration))
     return entrees, problemes
+
+
+def maintenant(env=None):
+    """Date et heure locales (AAAA-MM-JJ HH:MM:SS) ; NGINX_TOOLS_MAINTENANT la remplace (tests)."""
+    env = os.environ if env is None else env
+    return env.get("NGINX_TOOLS_MAINTENANT") or datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
 
 def _plus_specifique(entrees, ip):
@@ -184,6 +201,10 @@ def charger(dossier_apps=None, env=None):
         entrees_blanche, p = lire_fichier(ancien_chemin)
         problemes += p
         fichiers["blanche"], est_ancien = ancien_chemin, True
+    maint = maintenant(env)
+    # [temporaire] : entrées dont la date est atteinte, ou sans date valide, ignorées (nginx et fail2ban ne les reçoivent pas)
+    expirees = [e for e in entrees_blanche if e.temporaire and (not e.expiration or maint >= e.expiration)]
+    entrees_blanche = [e for e in entrees_blanche if e not in expirees]
     entrees_lieux = []
     for chemin in lieux:
         e, p = lire_fichier(chemin)
@@ -192,6 +213,7 @@ def charger(dossier_apps=None, env=None):
         if os.path.isfile(chemin):
             fichiers.setdefault("lieux", []).append(chemin)
     listes = Listes(entrees_blanche, entrees_lieux, fichiers, est_ancien, problemes)
+    listes.expirees = expirees                                          # entrées [temporaire] ignorées
     listes.noms = [] if est_ancien else noms_dns(blanche)     # noms DNS de la liste blanche (résolus par nginx-hardening.sh)
     return listes
 
