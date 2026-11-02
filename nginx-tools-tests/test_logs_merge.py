@@ -7,6 +7,8 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import threading
+import time
 import unittest
 
 ENVIRONNEMENT = "commun"   # tous les serveurs (Odoo et BigBlueButton)
@@ -169,3 +171,62 @@ class LogsMergeTest(EnvTest):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class MergerFenetreTest(unittest.TestCase):
+    """1.2: the merge holds each line for `wait` seconds, in time order; a silent stream never holds back the others."""
+    @classmethod
+    def setUpClass(cls):
+        spec = importlib.util.spec_from_file_location("_logs_merge_test", MERGE)
+        cls.lm = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(cls.lm)
+
+    def test_ligne_en_retard_rangee_dans_la_fenetre(self):
+        # "b" (log time: now) is delivered first; "a" (log time: 0.05 s earlier) is delivered 0.1 s later, still within the window.
+        m = self.lm.Merger(2, 0.5)
+        m.started = time.time() - 10
+        base = time.time()
+        m.shared.put((1, base, "b"))
+
+        def late():
+            time.sleep(0.1)
+            m.shared.put((0, base - 0.05, "a"))
+            m.shared.put((0, None, None))
+            m.shared.put((1, None, None))
+        threading.Thread(target=late, daemon=True).start()
+        self.assertEqual(m.next_message(), "a")
+        self.assertEqual(m.next_message(), "b")
+        self.assertIsNone(m.next_message())
+        self.assertEqual(m.late, 0)
+
+    def test_flux_silencieux_ne_retient_pas_les_autres(self):
+        m = self.lm.Merger(2, 0.2)
+        m.started = time.time() - 10
+        m.shared.put((1, time.time() - 5, "x"))            # stream 0 never speaks
+        began = time.time()
+        self.assertEqual(m.next_message(), "x")
+        self.assertLess(time.time() - began, 1.0)
+
+    def test_demarrage_attend_l_historique_des_deux_flux(self):
+        # the history of stream 1 (older) arrives a little after the one of stream 0: it still comes first.
+        m = self.lm.Merger(2, 0.5)
+        m.started = time.time()
+        m.shared.put((0, 100.0, "second"))
+
+        def later():
+            time.sleep(0.1)
+            m.shared.put((1, 50.0, "first"))
+            m.shared.put((0, None, None))
+            m.shared.put((1, None, None))
+        threading.Thread(target=later, daemon=True).start()
+        self.assertEqual(m.next_message(), "first")
+        self.assertEqual(m.next_message(), "second")
+        self.assertIsNone(m.next_message())
+
+    def test_fin_de_tous_les_flux_vide_la_file(self):
+        m = self.lm.Merger(2, 60)
+        m.shared.put((0, time.time(), "reste"))
+        m.shared.put((0, None, None))
+        m.shared.put((1, None, None))
+        self.assertEqual(m.next_message(), "reste")         # released at once: every stream has ended
+        self.assertIsNone(m.next_message())

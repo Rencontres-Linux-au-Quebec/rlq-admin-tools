@@ -21,17 +21,18 @@
 #   * error log: the date and time at the start of the line are removed (already in the prefix); the rest is kept.
 # --grep, --since and --until apply to the nginx lines only (the application stream is already filtered by journalctl).
 #
-# Order: each stream is in time order, and the lines are merged by time (the oldest first). A stream that is silent is
-# waited for at most --wait seconds, then it is "stalled": not waited for again until one of its lines arrives, so a quiet
-# nginx does not hold back the lines of Odoo. A line without a time (Python traceback continuation) takes the time of the
-# previous line of its stream.
+# Order (1.2): the lines are merged by log time, the oldest first. A line is held for --wait seconds (APP_LOG_MERGE_WAIT,
+# 1.5 by default) before it is released, so that a line a stream delivers late, within that time, still comes in its place.
+# No stream is waited for: a silent stream never holds back the others. A line without a time (Python traceback continuation)
+# takes the time of the previous line of its stream. Lines of the same second (nginx has no finer time) keep their arrival order.
 #
 # SIGTERM (sent by app-log-live.py when it stops) stops the commands started here. A closed output pipe ends the program
 # without a message.
 # ========================================================================================================================
 import argparse
-import collections
 import datetime
+import heapq
+import itertools
 import os
 import queue
 import re
@@ -42,9 +43,9 @@ import sys
 import threading
 import time
 
-__version__ = "1.1.20261029.230225"
+__version__ = "1.2.20261102.080324"
 
-WAIT_DEFAULT = float(os.environ.get("APP_LOG_MERGE_WAIT", "2"))         # seconds a silent stream is waited for, then "stalled"
+WAIT_DEFAULT = float(os.environ.get("APP_LOG_MERGE_WAIT", "1.5"))       # seconds a line is held to be placed in time order (1.2)
 JOURNAL_PROGRAM = "http"                                               # program name of the nginx lines in the journal format (4 characters, like "odoo")
 
 # Journal prefix of "journalctl -o short-iso-precise" and of apps/_odoo_journal.py: 2026-10-29T21:52:03.123456-0400 ...
@@ -128,17 +129,25 @@ class Filters:
 
 
 class Merger:
-    """k-way merge of the streams. The shared queue receives (stream index, instant, message), and (index, None, None) at the
-    end of a stream. The buffers hold the lines already read, in order, of each stream."""
+    """Time-ordered merge of the streams (1.2). The lines wait in a heap, sorted by log time, and a line is released only when
+    its log time is at least `wait` seconds in the past (wall clock): a line that a stream delivers late, within that window,
+    is still placed in time order. No stream is waited for: a silent stream never holds back the others. At the start, nothing
+    is released before every stream has delivered a line or ended (or `wait` seconds have passed), so that the history of
+    several files is merged too. When every stream has ended, what remains is released in order at once.
+    `late` counts the lines that arrived after a later line had been released (they are printed in place, not dropped)."""
     def __init__(self, count, wait):
         self.wait = wait
         self.shared = queue.Queue()
-        self.buffers = [collections.deque() for _ in range(count)]
+        self.heap = []
+        self.sequence = itertools.count()
         self.finished = [False] * count
-        self.stalled = [False] * count
+        self.seen = [False] * count
+        self.started = time.time()
+        self.last_released = None
+        self.late = 0
 
     def pump(self, timeout):
-        """Takes one item of the shared queue into the buffer of its stream; False if nothing arrived within timeout."""
+        """Takes one item of the shared queue into the heap; False if nothing arrived within timeout."""
         try:
             index, instant, message = self.shared.get(timeout=timeout) if timeout > 0 else self.shared.get_nowait()
         except queue.Empty:
@@ -146,35 +155,38 @@ class Merger:
         if message is None:
             self.finished[index] = True
         else:
-            self.buffers[index].append((instant, message))
-            self.stalled[index] = False
+            self.seen[index] = True
+            heapq.heappush(self.heap, (instant, next(self.sequence), index, message))
         return True
 
-    def fill(self):
-        """Makes sure every open stream has a waiting line, or is stalled."""
-        while self.pump(0):
-            pass
-        for index in range(len(self.buffers)):
-            if self.buffers[index] or self.finished[index] or self.stalled[index]:
-                continue
-            deadline = time.time() + self.wait
-            while not self.buffers[index] and not self.finished[index]:
-                remaining = deadline - time.time()
-                if remaining <= 0 or not self.pump(remaining):
-                    break
-            self.stalled[index] = not self.buffers[index] and not self.finished[index]
+    def releasable(self, now):
+        """True when the oldest waiting line may be released (see the class documentation)."""
+        if not self.heap:
+            return False
+        if all(self.finished):
+            return True
+        if not all(seen or done for seen, done in zip(self.seen, self.finished)) and now - self.started < self.wait:
+            return False                                    # start: the history of every stream is awaited, for `wait` seconds at most
+        return self.heap[0][0] + self.wait <= now
 
     def next_message(self):
-        """The oldest waiting line (ties: the lower stream index first), or None when every stream has ended."""
+        """The oldest line that may be released, or None when every stream has ended and nothing waits."""
         while True:
-            self.fill()
-            waiting = [(buffer[0][0], index) for index, buffer in enumerate(self.buffers) if buffer]
-            if waiting:
-                _, index = min(waiting)
-                return self.buffers[index].popleft()[1]
-            if all(self.finished):
+            while self.pump(0):
+                pass
+            now = time.time()
+            if self.releasable(now):
+                instant, _, _, message = heapq.heappop(self.heap)
+                if self.last_released is not None and instant < self.last_released:
+                    self.late += 1
+                self.last_released = instant if self.last_released is None else max(self.last_released, instant)
+                return message
+            if not self.heap and all(self.finished):
                 return None
-            self.pump(0.5)                                # every open stream is silent: wait for the next line
+            timeout = 0.2                                   # a new line is taken as it comes; the oldest one is re-checked at its due time
+            if self.heap:
+                timeout = min(timeout, max(0.01, self.heap[0][0] + self.wait - now))
+            self.pump(timeout)
 
 
 def read_stream(index, process, convert, host, shared):

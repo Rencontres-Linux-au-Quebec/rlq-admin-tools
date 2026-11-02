@@ -66,7 +66,8 @@
 # The stream is never blocked by a slow lookup: a line waits at most 3 s, then keeps the IP address.
 # BigBlueButton (file journals): the nginx and bbb-web journals are followed (tail -F), without names of people or presence.
 # NGINX LOGS (1.115, --log-nginx, LOG_NGINX): the access and error logs of the site are merged with the application stream, in time
-#   order, with the same date and time prefix (apps/_logs_merge.py); --since, --until and -g apply to them too.
+#   order, with the same date and time prefix (apps/_logs_merge.py: a line is held APP_LOG_MERGE_WAIT seconds, 1.5 by default,
+#   so that a late line of either stream is still placed in time order); --since, --until and -g apply to them too.
 #
 #
 #   (--no-cache: neither reading nor writing of the permanent address cache, /var/lib/nginx-tools/ip-cache.sqlite)
@@ -117,7 +118,7 @@ from urllib.parse import unquote, urlsplit
 from collections import Counter, OrderedDict
 from concurrent.futures import Future
 
-__version__ = "1.149.20261101.231500"
+__version__ = "1.150.20261102.080324"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
