@@ -64,11 +64,8 @@ msgstr "nginx-log-audit.sh : bannissement recommandé (enquête section [10])"
 msgid "repeat offender: "
 msgstr "récidiviste : "
 
-msgid " — repeated temporary bans"
-msgstr " — bannissements temporaires répétés"
-
-msgid "nginx-log-audit.sh: repeat offenders to ban permanently"
-msgstr "nginx-log-audit.sh : récidivistes à bannir de façon permanente"
+msgid "nginx-log-audit.sh: repeat offenders to watch"
+msgstr "nginx-log-audit.sh : récidivistes à surveiller"
 
 msgid "nginx-log-audit.sh: the tool itself failed"
 msgstr "nginx-log-audit.sh : l'outil lui-même a échoué"
@@ -1039,9 +1036,6 @@ msgstr " IP bannies (réversible : nginx-log-audit.sh --unban IP)."
 msgid " IPs recommended for banning:"
 msgstr " IP recommandées au bannissement :"
 
-msgid "\nBan now? [y] all  [c] choose one by one (detailed investigation)  [N] none: "
-msgstr "\nBannir maintenant ? [o] toutes  [c] choisir une par une (enquête détaillée)  [N] aucune : "
-
 msgid "No IP banned. Later: web-monitor.py --ban-recommended"
 msgstr "Aucune IP bannie. Plus tard : web-monitor.py --ban-recommended"
 
@@ -1059,9 +1053,6 @@ msgstr "⚠ plus de 24 h : relancer un passage (web-monitor.py) donne une liste 
 
 msgid "No IP recommended for banning."
 msgstr "Aucune IP recommandée au bannissement."
-
-msgid "ERROR: no terminal to confirm — add --yes to ban without questions."
-msgstr "ERREUR : pas de terminal pour confirmer — ajouter --yes pour bannir sans question."
 
 msgid "\nPress Enter to open the full report in less (q to quit), or Ctrl-C to finish: "
 msgstr "\nAppuyez sur Entrée pour ouvrir le rapport complet dans less (q pour quitter), ou Ctrl-C pour terminer : "
@@ -1420,8 +1411,8 @@ msgstr "Avec --sort : inverser l'ordre du tri"
 msgid "Re-evaluate manual bans (runs nginx-log-audit.sh --unban-check)"
 msgstr "Réévaluer les bannissements manuels (lance nginx-log-audit.sh --unban-check)"
 
-msgid "Ban the IPs recommended by the last pass (e.g. the timer's), with confirmation"
-msgstr "Bannir les IP recommandées par le dernier passage (ex. celui du timer), avec confirmation"
+msgid "Ban the IPs recommended by the last pass, ONE BY ONE on a terminal, each with its own investigation (no --yes, no bulk)"
+msgstr "Bannit les IP recommandées par le dernier passage, UNE PAR UNE sur un terminal, chacune avec sa propre enquête (pas de --yes, pas de lot)"
 
 msgid "Summary, then the program makes the recommended fixes itself (bans, nginx reload, nginx-hardening.sh --update, timer…): one question per fix, --yes without questions"
 msgstr "Sommaire, puis le programme fait lui-même les corrections recommandées (bannissements, rechargement de nginx, nginx-hardening.sh --update, timer…) : une question par correction, --yes sans question"
@@ -2143,8 +2134,8 @@ msgstr "Ne plus surveiller un compte Odoo"
 msgid "With --suspect-users, --investigate-user, --ban-odoo-user: search the e-mail and the IP addresses on the Internet (StopForumSpam, Gravatar, DuckDuckGo) without asking — they are sent to these services"
 msgstr "Avec --suspect-users, --investigate-user, --ban-odoo-user : chercher le courriel et les adresses IP sur Internet (StopForumSpam, Gravatar, DuckDuckGo) sans demander — ils sont envoyés à ces services"
 
-msgid "With --apply, --ban-recommended, --ban-odoo-user, --unban-odoo-user: without questions (--suspect-users: every account investigated, none banned)"
-msgstr "Avec --apply, --ban-recommended, --ban-odoo-user, --unban-odoo-user : sans question (--suspect-users : chaque compte examiné, aucun banni)"
+msgid "With --apply, --ban-odoo-user, --unban-odoo-user: without questions (--suspect-users: every account investigated, none banned)"
+msgstr "Avec --apply, --ban-odoo-user, --unban-odoo-user : sans question (--suspect-users : chaque compte examiné, aucun banni)"
 
 msgid "malicious URLs requested: "
 msgstr "URL malveillantes demandées : "
