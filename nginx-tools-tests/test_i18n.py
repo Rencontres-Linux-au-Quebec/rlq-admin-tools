@@ -262,7 +262,7 @@ class Catalogues(unittest.TestCase):
         francais = re.compile(r"[àâçéèêëîïôûùüœÀÉÈÊ]|\b(le|la|les|des|du|pas|sont|avec|sans|pour|dans|depuis|erreur|fichiers?|connexion|jours|cette|déjà|ligne|lignes|nom|noms|rapport)\b")
         # French wanted in the code: name of the language in its own language; FRENCH texts read in the output of the other tools (parsed in NGINX_TOOLS_LANG=fr);
         # French synonyms accepted for the --sort keys; argparse messages and labels of the French branch
-        voulus = ("RÉSUMÉ", "Signes d'hostilité", "Bannissement PERMANENT recommandé", "Pour bannir", "dernier échec", "inchangée depuis", "bannissement recommandé",
+        voulus = ("RÉSUMÉ", "Signes d'hostilité", "Récidivistes fail2ban à surveiller", "Pour bannir", "dernier échec", "inchangée depuis", "bannissement recommandé",
                   "affiche cette aide et quitte", "affiche la version et quitte", " : erreur : ", "Première connexion", "Dernière connexion", "Systèmes",
                   "désactivé", "Verdict : bannissement justifié", "Déjà", "Pages écrites", "Mo reçus", "Mo envoyés",
                   "Événements", "Téléphone", "Étiquettes", "Nom du pays", "Navigateurs", "Adresses IP vues", "Compte créé", "Pays des adresses IP", "VPN, Tor, relais, hébergeur")      # 2.67: French column titles (--table, --csv), written in both languages       # app-log-live: French text read in the output of the other tools / of the shared cache

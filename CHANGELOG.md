@@ -2238,8 +2238,6 @@ Earlier history was archived outside this repository when this file was created.
 
 ### 1.9.20261020.211944 - Current version. Earlier history archived outside the repository.
 
-## web-monitor.py
-
 ### 2.83.20261101.220544 - No bulk ban; repeat offenders recommended only after their own investigation
 
 - Title: web-monitor.py never bans several addresses at once. A repeat offender is recommended only if its investigation (nginx-log-audit.sh --investigate) recommends the ban.
@@ -3130,6 +3128,25 @@ Earlier history was archived outside this repository when this file was created.
 - Current version. Earlier history archived outside the repository.
 
 ## nginx-log-audit.sh
+
+### 2.71.20261101.222709 - Repeat offenders are investigated, never banned in this report
+
+- Title: the section "Récidivistes fail2ban à surveiller" investigates each repeat offender and no longer bans from the report.
+- Reason: on 2026-11-01 the report of 132.196.59.85 and 45.138.12.41 said "Bannissement PERMANENT recommandé" and offered the ban on the recurrence alone (fail2ban bans expire, then the same address comes back). The investigation of 132.196.59.85 gave 0/7. The section also called confirm_and_ban, a question that did not pass through the investigation.
+- Changes:
+  - nginx-log-audit.sh, section of the repeat offenders: the call to confirm_and_ban is removed. Each address runs --investigate ... --no-prompt; the command nginx-log-audit.sh --ban IP is shown only if the investigation recommends the ban (score 3/7 or more). Otherwise the line says "à surveiller".
+  - The wording of the header and of the explanation is corrected: a ban is never made here, and "définitivement" is removed (a ban is reversible with --unban).
+  - lang/nginx-log-audit.en.po: the old entries are replaced; the English texts of the new lines are added.
+  - nginx-tools-tests/test_ban_gate.py: static test (no confirm_and_ban in the section, investigation and score check present); version 2.71.
+  - nginx-tools-tests/test_nginx_log_audit.py and test_i18n.py: header text updated.
+  - web-monitor.py 2.84 reads the new header (see its CHANGELOG entry).
+- Bugs fixed: symptom: the report offered a permanent ban on recurrence alone, with a question that bypassed the investigation. Diagnosis: the section was written before the investigation gate (2.69/2.70). Fix: see above.
+- Safeguards and edge cases:
+  - The investigation is run with --no-prompt: no question is asked by the report.
+  - An investigation that fails (empty output) is shown as "à surveiller", never as a ban.
+  - --ban still runs its own gate (2.70): the score and the confirmation are required.
+- Checks: test_ban_gate (10 tests OK, after the update); test_nginx_log_audit and test_i18n adapted (see the pull request for the results).
+- Action required: none. For 132.196.59.85 and 45.138.12.41, read the investigation line and answer N unless the score is 3/7 or more.
 
 ### 2.70.20261101.215908 - A ban needs the investigation score, not only the evidence
 
