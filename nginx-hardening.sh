@@ -92,7 +92,7 @@ run() {
     "$@"
 }
 
-readonly SCRIPT_VERSION="2.71.20261101.181555"
+readonly SCRIPT_VERSION="2.73.20261101.214534"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
 SCRIPT_NAME="$(basename "${BASH_SOURCE[0]}" .sh)"; readonly SCRIPT_NAME
 # Display language (en or fr): --lang, NGINX_HARDENING_LANG, LANGUAGE of the configuration file, LC_ALL / LANG - apps/_i18n.sh translates the output (nothing changes in French).
@@ -151,6 +151,7 @@ ODOO_HTTP_PORT=""      # empty: read from the Odoo configuration ("configuration
 ODOO_GEVENT_PORT=""
 ODOO_CONF_PATHS="${ODOO_CONF_PATHS:-}"
 CDN="${CDN:-none}"       # --cdn none|cloudflare (step 12c: cdn-realip.conf)
+CDN_A_ENREGISTRER=""     # 2.73: --cdn given on the command line (none|cloudflare) -> written as CDN= in the state file
 ODOO_SERVICE=""
 TIMEZONE=""            # empty: default below (asked the first time); "none": change nothing
 TIMEZONE_DEFAUT="America/Montreal"
@@ -171,6 +172,7 @@ RETENTION_EXPLICITE=0
 # /etc/default/nginx-hardening.conf ALSO serves as the state file (SETUP_* lines, rewritten by --update): the other lines are kept there.
 if declare -F config_lire >/dev/null; then
     config_lire nginx-hardening "$@"
+    config_defaut CDN CDN --cdn texte
     config_defaut APP_FORCE APP --app texte
     config_defaut LOG_RETENTION_MONTHS LOG_RETENTION_MONTHS --log-retention-months nombre
     config_defaut MAIL_FROM MAIL_FROM --mail-from texte
@@ -237,7 +239,10 @@ while [[ $# -gt 0 ]]; do
         --rename-from) RENAME_FROM="${2:-}"; shift 2 ;;
         --rename-to) RENAME_TO="${2:-}"; shift 2 ;;
         --timezone) TIMEZONE="${2:-}"; shift 2 ;;
-        --cdn) CDN="${2:-}"; shift 2 ;;
+        --cdn) CDN="${2:-}"
+               CDN_A_ENREGISTRER=""
+               if [[ "$CDN" == none || "$CDN" == cloudflare ]]; then CDN_A_ENREGISTRER="$CDN"; fi
+               shift 2 ;;
         --odoo-conf) ODOO_CONF="${2:-}"; shift 2 ;;
         --odoo-conf-paths) ODOO_CONF_PATHS="${2:-}"; shift 2 ;;
         --workers) ODOO_WORKERS_OVERRIDE="${2:-}"; shift 2 ;;
@@ -3236,6 +3241,10 @@ if [[ "$CHECK_ONLY" != "1" ]]; then
         if [[ -n "$TIMEZONE_A_ENREGISTRER" ]]; then
             conserve="$(printf '%s\n' "$conserve" | grep -vE '^TIMEZONE=' || true)"
             echo "TIMEZONE=$TIMEZONE_A_ENREGISTRER"
+        fi
+        if [[ -n "$CDN_A_ENREGISTRER" ]]; then
+            conserve="$(printf '%s\n' "$conserve" | grep -vE '^CDN=' || true)"
+            echo "CDN=$CDN_A_ENREGISTRER"
         fi
         [[ -n "$conserve" ]] && printf '%s\n' "$conserve"
     } > "$STATE_FILE"

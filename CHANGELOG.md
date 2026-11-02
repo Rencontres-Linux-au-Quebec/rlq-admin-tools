@@ -2682,6 +2682,40 @@ Earlier history was archived outside this repository when this file was created.
 
 ## nginx-hardening.sh
 
+### 2.73.20261101.214534 - --cdn on the command line is saved to the configuration file
+
+- Title: --update --cdn none|cloudflare writes CDN= in /etc/default/nginx-hardening.conf, so the choice survives the next --update.
+- Reason: after 2.72, the file key is read, but nothing wrote it: the administrator still had to add CDN=cloudflare by hand on each server.
+- Changes:
+  - nginx-hardening.sh: variable CDN_A_ENREGISTRER, set when --cdn is given on the command line with a valid value (none or cloudflare). An invalid value is not saved (step 12c still refuses it).
+  - State file (same logic as TIMEZONE): the old CDN= lines are removed, then CDN=<value> is written with the SETUP_* lines. The other lines (options, LANGUAGE) are kept.
+  - nginx-tools-tests/test_cdn_config.py: 2 static tests added (write logic, version updated).
+  - Version 2.73 (minor, +0.1).
+- Bugs fixed: none.
+- Safeguards and edge cases:
+  - Without --cdn on the command line, the file is not changed (the value read from the file or the default is used as before).
+  - --cdn invalid: nothing written, cdn-realip.conf not modified.
+  - --check (CHECK_ONLY) writes nothing, as before.
+- Checks: test_cdn_config (6 tests); bash -n OK. The writing itself was not run on a real server.
+- Action required: none. To set cloudflare permanently, run --update --cdn cloudflare once on each server.
+
+### 2.72.20261101.213902 - CDN setting read from the configuration file
+
+- Title: the key CDN of /etc/default/nginx-hardening.conf (or ~/.nginx-hardening.conf) is now read, so --update no longer needs --cdn cloudflare.
+- Reason: after an --update without --cdn cloudflare, cdn-realip.conf was regenerated with 0 range (CDN "none"), and nginx again saw the Cloudflare nodes instead of the visitors. Setting CDN=cloudflare in the configuration file had no effect.
+- Diagnosis: config_lire loads every key of the file into CFG, but the script only copies the keys it declares with config_defaut. CDN was not declared, so the file value was ignored and the default "none" was used.
+- Changes:
+  - nginx-hardening.sh: config_defaut CDN CDN --cdn texte, placed right after config_lire. A command-line --cdn still wins, as with the other options.
+  - nginx-tools-tests/test_cdn_config.py (new): 4 tests reproducing the script sequence in a temporary directory (CDN in the file applied; no key keeps none; no file keeps none) and a static check of the order.
+  - Version 2.72 (minor, +0.1).
+- Bugs fixed: symptom: CDN=cloudflare in the file ignored. Diagnosis and fix as above.
+- Safeguards and edge cases:
+  - An invalid value in the file (for example CDN=akamai) is refused by step 12c, as on the command line; cdn-realip.conf is not modified.
+  - Empty value or missing key: the default "none" is kept.
+  - The key is not written by --update; only the reading is added.
+- Checks: test_cdn_config (4 tests); test_cdn_realip and test_nginx_hardening unchanged; bash -n OK; the isolated sequence was reproduced before the change (CDN stayed none with the key present).
+- Action required: to make cloudflare permanent, add the line CDN=cloudflare to /etc/default/nginx-hardening.conf on each server (after this version is installed). Until then, keep --cdn cloudflare on the command line.
+
 ### 2.71.20261101.181555 - Odoo event tickets without parameters answer 404 (--update)
 
 - Title: /event/<id>/my_tickets requested without parameters now gets a 404 from nginx instead of a 500 from Odoo.
