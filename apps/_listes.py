@@ -30,11 +30,12 @@ import os
 import re
 import sys
 
-__version__ = "1.5.20261030.153422"
+__version__ = "1.6.20261102.102600"
 
 BLANCHE_DEFAUT = "/etc/default/nginx-tools-white-list.conf"
 LIEUX_DEFAUT = "/etc/default/nginx-tools-ip-location.conf"
 LIEUX_UTILISATEUR = "~/.nginx-tools-ip-location.conf"
+NOM_DNS_RE = re.compile(r"^(?=.*[A-Za-z])[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?)+$")
 LIGNE_RE = re.compile(r"^\s*([0-9A-Fa-f:.]+(?:/\d{1,3})?)\s*(?:#(.*))?$")
 OPTION_RE = re.compile(r"\[([^\]]*)\]")
 OPTIONS = {"partagee": "partagee", "partagée": "partagee", "protegee": "protegee", "protégée": "protegee"}
@@ -48,6 +49,22 @@ class Entree(object):
         self.reseau, self.libelle, self.partagee, self.protegee, self.source = reseau, libelle, partagee, protegee, source
 
 
+def est_nom_dns(ligne):
+    """True si la première colonne de la ligne est un nom DNS (une adresse IP n'en est jamais un)."""
+    premier = ligne.split("#")[0].split()
+    return bool(premier) and NOM_DNS_RE.match(premier[0]) is not None
+
+
+def noms_dns(chemin):
+    """Noms DNS d'un fichier de liste (adresses dynamiques) ; fichier absent : []."""
+    try:
+        with open(chemin, encoding="utf-8") as f:
+            lignes = f.read().splitlines()
+    except OSError:
+        return []
+    return [ligne.split("#")[0].split()[0] for ligne in lignes if ligne.strip() and not ligne.lstrip().startswith("#") and est_nom_dns(ligne)]
+
+
 def lire_fichier(chemin):
     """(entrées, problèmes) d'un fichier ; problèmes : « fichier:ligne : texte ». Fichier absent ou illisible : ([], [])."""
     entrees, problemes = [], []
@@ -58,6 +75,8 @@ def lire_fichier(chemin):
         return entrees, problemes
     for n, ligne in enumerate(lignes, 1):
         if not ligne.strip() or ligne.lstrip().startswith("#"):
+            continue
+        if est_nom_dns(ligne):                                # nom DNS (adresse dynamique) : résolu par nginx-hardening.sh, pas ici
             continue
         m = LIGNE_RE.match(ligne)
         try:
@@ -172,7 +191,9 @@ def charger(dossier_apps=None, env=None):
         problemes += p
         if os.path.isfile(chemin):
             fichiers.setdefault("lieux", []).append(chemin)
-    return Listes(entrees_blanche, entrees_lieux, fichiers, est_ancien, problemes)
+    listes = Listes(entrees_blanche, entrees_lieux, fichiers, est_ancien, problemes)
+    listes.noms = [] if est_ancien else noms_dns(blanche)     # noms DNS de la liste blanche (résolus par nginx-hardening.sh)
+    return listes
 
 
 def main():

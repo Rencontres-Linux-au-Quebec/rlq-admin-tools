@@ -2792,6 +2792,25 @@ Earlier history was archived outside this repository when this file was created.
 
 ## nginx-hardening.sh
 
+### 2.75.20261102.102600 - DNS names in the white list (dynamic addresses)
+
+- Title: a white list entry can be a DNS name (for example a DynDNS name) instead of an IP address. The addresses it resolves to are kept in nginx and fail2ban up to date.
+- Reason: a team member's home address changes. Writing the name avoids editing the configuration each time the address changes.
+- Changes:
+  - nginx-hardening.sh: new options --dns-refresh (resolves the names; runs a full --update only when an address changed; silent otherwise). Functions dns_etat, dns_ips_du_nom, dns_resoudre, dns_rafraichir, dns_cron_installer. generer_equipe writes the resolved addresses, never the name. verifier_ignoreip includes them in the fail2ban ignore list.
+  - Step 12 installs /etc/cron.d/nginx-tools-dns (every 10 minutes) while the white list has names, and removes it otherwise.
+  - State file: /var/lib/nginx-tools/white-list-dns.tsv (NAME TAB ADDRESS ADDRESS...), overridable with NGINX_TOOLS_DNS_STATE; resolver overridable with NGINX_TOOLS_GETENT (tests).
+  - apps/_listes.sh: listes_nom_dns, listes_noms_dns. Address functions still accept only IP addresses.
+  - doc/fr and doc/en nginx-tools-white-list.conf.example: description of DNS names.
+- Bugs fixed: none.
+- Safeguards and edge cases:
+  - nginx never receives a name (its allow and geo directives require an address): an unresolved name keeps its last known addresses; a DNS outage does not remove access.
+  - --dns-refresh restores the previous state if the full --update fails, so the next run retries.
+  - fail2ban receives the resolved addresses rather than the name, so it does not depend on how fail2ban itself refreshes names.
+  - A change is applied within about 10 minutes; the log is /var/log/nginx-tools-dns.log.
+- Checks: nginx-tools-tests/test_dns_blanche.py (names read by Python and bash, change detection, outage fallback, --check writes nothing, option present); test_listes, test_alignement, test_ban_gate, test_nginx_hardening: OK.
+- Action required: none, unless a white list entry should be a DNS name: write the name in place of the IP.
+
 ### 2.72.20261101.234513 - Visitor's security.txt file no longer refused (/.well-known/security.txt)
 
 - Title: /.well-known/security.txt (RFC 9116) is served by Odoo again instead of a 404 from nginx; the other files of /.well-known/ stay refused.
@@ -4194,6 +4213,16 @@ Earlier history was archived outside this repository when this file was created.
 ### 1.1.20261019.150215 - Current version. Earlier history archived outside the repository.
 
 ## apps/_listes.py
+
+### 1.6.20261102.102600 - DNS names are recognised, not read as addresses
+
+- Title: the readers of the white list recognise DNS names and leave them to nginx-hardening.sh.
+- Reason: see nginx-hardening.sh 2.75.
+- Changes: est_nom_dns, noms_dns (Python); listes_nom_dns, listes_noms_dns (bash). A name is never reported as an invalid address and is never returned by the address functions.
+- Bugs fixed: none.
+- Safeguards and edge cases: an IPv4 or IPv6 address is never a name (a name needs a letter and a dot).
+- Checks: nginx-tools-tests/test_dns_blanche.py, test_listes.
+- Action required: none.
 
 ### 1.5.20261030.153422 - No plural marker "(s)" in the displayed texts
 

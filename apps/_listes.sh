@@ -76,6 +76,22 @@ listes_adresse_valide() {
     [[ "$1" =~ ^[0-9]{1,3}(\.[0-9]{1,3}){3}(/[0-9]{1,2})?$ || "$1" =~ ^[0-9a-fA-F]*:[0-9a-fA-F]*:[0-9a-fA-F:]*(/[0-9]{1,3})?$ ]]
 }
 
+# listes_nom_dns NAME: DNS name of the white list (dynamic address: resolved by nginx-hardening.sh --dns-refresh). At least one letter,
+# dots, not an IP address. Never written to nginx or to fail2ban as is: the resolved addresses are.
+listes_nom_dns() {
+    listes_adresse_valide "$1" && return 1
+    [[ "$1" =~ ^[A-Za-z0-9]([A-Za-z0-9-]*[A-Za-z0-9])?(\.[A-Za-z0-9]([A-Za-z0-9-]*[A-Za-z0-9])?)+$ && "$1" == *[A-Za-z]* ]]
+}
+
+# listes_noms_dns: DNS names of the white list, one per line.
+listes_noms_dns() {
+    local adr
+    while IFS= read -r adr; do
+        if listes_nom_dns "$adr"; then printf '%s\n' "$adr"; fi
+    done < <(listes_blanche | cut -d "$LISTES_SEP" -f1)
+    return 0
+}
+
 # listes_valides: filter (standard input -> standard output): keeps only the entries whose address is of correct form.
 listes_valides() {
     local ligne adr
