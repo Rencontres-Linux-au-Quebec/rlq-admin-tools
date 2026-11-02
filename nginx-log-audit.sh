@@ -135,7 +135,7 @@ grep_q() { grep "$@" >/dev/null; }
 #                              ne peut pas le voir, le texte etant entre apostrophes (faux positif).
 trap 'ec=$?; echo "" >&2; echo "*** ARRÊT INATTENDU DU SCRIPT (code $ec) À LA LIGNE $LINENO ***" >&2; echo "*** Commande fautive : $BASH_COMMAND" >&2; echo "*** Si le rapport ci-dessus semble incomplet (ex. sections Top 10 absentes), c'\''est probablement la cause." >&2' ERR
 
-readonly SCRIPT_VERSION="2.70.20261101.215908"
+readonly SCRIPT_VERSION="2.71.20261101.222709"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
 # Chemin de ce programme (relances --investigate, --ban, --unban) : defini ICI, avant le bloc --ban qui l'utilise.
 SELF_PATH="$SCRIPT_DIR/$(basename "${BASH_SOURCE[0]}")"
@@ -3635,14 +3635,20 @@ if [[ "$DO_FAIL2BAN" == "1" ]]; then
 
         if (( ${#RECIDIVIST_ORDER[@]} > 0 )); then
             echo
-            echo "--- ${C_RED}Bannissement PERMANENT recommandé : ${#RECIDIVIST_ORDER[@]} IP récidivistes${C_RESET} ---"
+            echo "--- ${C_YELLOW}Récidivistes fail2ban à surveiller : ${#RECIDIVIST_ORDER[@]} IP récidivistes${C_RESET} ---"
             echo "  Ces IP reviennent sur plusieurs jours : chaque bannissement fail2ban expire (bantime), puis elles"
-            echo "  recommencent. Un bannissement permanent (--ban) les bloque définitivement au pare-feu."
+            echo "  recommencent. Aucun bannissement n'est fait ici : l'enquête de chaque adresse décide."
             for rip in "${RECIDIVIST_ORDER[@]}"; do
                 echo
                 echo "  ▶ ${C_YELLOW}$rip${C_RESET} — ${RECIDIVISTS[$rip]}"
-                PROP_RAISON="récidiviste fail2ban ($(date '+%Y-%m-%d %H:%M')) : ${RECIDIVISTS[$rip]}"
-                confirm_and_ban "$rip"
+                # 2.71: the recidivism is not a reason on its own: the investigation of this address decides (score 3/7 or more).
+                # The ban itself is never made here: the command is shown, and --ban runs its own gate (2.70).
+                enquete_rip=$(bash "$SELF_PATH" --investigate "$rip" --no-prompt ${APP_FORCE:+--app "$APP_FORCE"} 2>&1) || enquete_rip=""
+                if printf '%s\n' "$enquete_rip" | grep_q "Score [0-9]/7 : bannissement recommandé"; then
+                    echo "      Enquête : bannissement recommandé — pour le faire après relecture : nginx-log-audit.sh --ban $rip"
+                else
+                    echo "      Enquête : pas de bannissement recommandé (score inférieur à 3/7) — à surveiller."
+                fi
             done
         fi
     fi

@@ -212,7 +212,7 @@ class ChkNginxLogs(EnvTest):
                                      f'echo \'`- File list:\t{self.logs}/odoo-catchall-444.log\';; esac')
         _, out, _ = self.report("--fail2ban")
         self.assertIn("actif sur 3 jours distincts (15/Sep, 18/Sep, 25/Sep)", out)
-        recap = out[out.index("Bannissement PERMANENT recommandé"):]
+        recap = out[out.index("Récidivistes fail2ban à surveiller"):]
         self.assertEqual(recap.count("▶ 11.89.160.73"), 1, "doublon dans le récapitulatif")
 
     def test_fail2ban_progression_un_fichier_a_la_fois_sans_relecture(self):
