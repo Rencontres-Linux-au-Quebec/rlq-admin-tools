@@ -3011,3 +3011,6 @@ msgstr "Tableau des modules Odoo (trié par nom)"
 
 msgid "404 answers only (--not-found)"
 msgstr "Réponses 404 seulement (--not-found)"
+
+msgid "fail2ban: banned at"
+msgstr "fail2ban : bannie le"

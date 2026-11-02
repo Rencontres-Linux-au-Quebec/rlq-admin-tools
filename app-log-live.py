@@ -118,7 +118,7 @@ from urllib.parse import unquote, urlsplit
 from collections import Counter, OrderedDict
 from concurrent.futures import Future
 
-__version__ = "1.150.20261102.080324"
+__version__ = "1.151.20261102.151239"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
@@ -3730,12 +3730,69 @@ class Bans:
     exceptions). Read at startup then every 60 s. Root (or « sudo -n » for the advanced commands) is needed; without fail2ban-client or readable ipset: no label, never an error."""
     DELAY = 60
     IPSETS = ("crowdsec-blocklist-v4", "crowdsec-blocklist-v6")
+    FAIL2BAN_LOG = os.environ.get("APP_LOG_LIVE_FAIL2BAN_LOG", "/var/log/fail2ban.log")      # 1.151: fail2ban journal read for the bans made by an attack
+    FAIL2BAN_TAIL = 20 * 1024 * 1024     # 1.151: the last 20 MB of the journal (older rotations are not read)
+    FAIL2BAN_BAN_RE = re.compile(r"^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}),\d+ fail2ban\.actions\s+(?:\[\d+\]:\s+)?NOTICE\s+\[([^\]]+)\]\s+Ban\s+(\S+)")
+    BAN_LABEL_WINDOW = 86400             # 1.151: the lines of a banned address are labelled this many seconds after its ban (fail2ban default bantime)
 
     def __init__(self):
         self.lock = threading.Lock()
         self.f2b = None                      # set of ipaddress, or None (unreadable source)
         self.cs = None                       # (addresses, networks, exceptions), or None
         self.pf = None                       # addresses blocked by a firewall rule (iptables / ip6tables / ufw: nginx-log-audit.sh --ban), or None (unreadable)
+        self.journal = None                  # 1.151: {ipaddress: [(epoch, jail), ...]} of the bans in the fail2ban journal, or None (unreadable)
+
+    @classmethod
+    def read_fail2ban_journal(cls):
+        """1.151: every ban of the fail2ban journal ("NOTICE [jail] Ban IP"), within the last FAIL2BAN_TAIL bytes: {ipaddress: [(epoch, jail), ...]}.
+        None when the journal cannot be read (root required, or no fail2ban on this server). Lines that are not bans are ignored."""
+        try:
+            with open(cls.FAIL2BAN_LOG, "rb") as f:
+                f.seek(0, os.SEEK_END)
+                f.seek(max(0, f.tell() - cls.FAIL2BAN_TAIL))
+                text = f.read().decode("utf-8", "replace")
+        except OSError:
+            return None
+        bans = {}
+        for text_line in text.splitlines():
+            m = cls.FAIL2BAN_BAN_RE.match(text_line)
+            if not m:
+                continue
+            try:
+                epoch = time.mktime(time.strptime(m.group(1), "%Y-%m-%d %H:%M:%S"))          # the journal is in local time
+                address = ipaddress.ip_address(m.group(3))
+            except (ValueError, OverflowError):
+                continue
+            bans.setdefault(address, []).append((epoch, m.group(2)))
+        return bans
+
+    def ban_before(self, ip, instant):
+        """1.151: (epoch, jail) of the last fail2ban ban of this address at or before the instant, when it is at most BAN_LABEL_WINDOW old; None otherwise."""
+        try:
+            address = ipaddress.ip_address(ip)
+        except ValueError:
+            return None
+        with self.lock:
+            events = (self.journal or {}).get(address)
+        if not events or instant is None:
+            return None
+        before = [e for e in events if e[0] <= instant]
+        if not before:
+            return None
+        epoch, jail = max(before)
+        return (epoch, jail) if instant - epoch <= self.BAN_LABEL_WINDOW else None
+
+    def first_ban_of(self, ip):
+        """1.151: (epoch of the first ban, sorted jails) of this address in the fail2ban journal, or None. Used by the summary of the suspicious addresses."""
+        try:
+            address = ipaddress.ip_address(ip)
+        except ValueError:
+            return None
+        with self.lock:
+            events = (self.journal or {}).get(address)
+        if not events:
+            return None
+        return min(e[0] for e in events), sorted({jail for _, jail in events})
 
     @staticmethod
     def read_fail2ban():
@@ -3843,8 +3900,9 @@ class Bans:
 
     def refresh(self):
         f2b, cs, pf = self.read_fail2ban(), self.read_ipsets(), self.read_firewall()
+        journal = self.read_fail2ban_journal()
         with self.lock:
-            self.f2b, self.cs, self.pf = f2b, cs, pf
+            self.f2b, self.cs, self.pf, self.journal = f2b, cs, pf, journal
 
     def start(self):
         """First read immediately (the first lines benefit), then re-read every 60 s in the background."""
@@ -4518,6 +4576,7 @@ class Stats:
         self.pages, self.pages_per_ip, self.visits = Counter(), Counter(), Counter()   # pages viewed (path), pages viewed per address, visits (resumed after VISIT_PAUSE) per address
         self.last_seen_at, self.pays = {}, {}                                         # address -> instant of its last page view; address -> country (shared by the copies)
         self.is_banned = None                                                      # function(address) -> ban source or None (fail2ban, firewall, CrowdSec): checks the addresses never seen in the journal
+        self.ban_info = None                                                       # 1.151: function(address) -> (epoch, jails) of its first fail2ban ban in the journal, or None
         self.all_banned, self.protected_ones, self.people = set(), set(), set()      # shared (shallow copy): banned addresses, of the team or of a place, of known people
         self.watch_it, self.watched = [], []                                  # --watch: patterns (lowercase); (pattern, duration or None, code, URL, address) of the matching requests
         self.survey_titles = {}                                                   # {access token (lowercase): survey title} read from PostgreSQL, to name the surveys seen in --watch
@@ -4768,6 +4827,14 @@ class Stats:
     def who(self, ip):
         name = self.names.get(ip, ip)
         return name if name == ip else f"{name} [{ip}]"
+
+    def fail2ban_note(self, ip):
+        """1.151: " [fail2ban: banned at DATE TIME (jails)]" when the fail2ban journal holds a ban of this address (the attack is then followed by a ban), "" otherwise."""
+        info = self.ban_info(ip) if self.ban_info else None
+        if not info:
+            return ""
+        epoch, jails = info
+        return color_code(STYLES["banned"], f" [{TR('fail2ban: banned at')} {clock_of(epoch)} ({', '.join(jails)})]")
 
     @staticmethod
     def top(counter, n=5, width=60):
@@ -5047,6 +5114,7 @@ class Stats:
             blocks.append((4, color_code(STYLES["suspect"], " Suspicious requests ") + f" {sum(self.suspect_urls.values())} de {len(self.suspect_ips)} address(es) — "
                           + self.top(self.suspect_urls)))
             blocks.append((4, "      by address: " + " ; ".join(f"{self.who(ip)} " + color_code("1;36", f"×{n}") + (color_code(STYLES["banned"], f" [banned: {self.banned[ip]}]") if ip in self.banned else "")
+                                                               + self.fail2ban_note(ip)
                                                                for ip, n in self.suspect_ips.most_common(5))))
         else:
             blocks.append((9, f"  Suspicious requests: {none_found()}."))
@@ -5539,6 +5607,7 @@ def follow(cmd, people, resolver, options, output):
     stats, banned_ips = Stats(options["slow"]), options["banned_ips"]
     LATENCY.start()                                         # 1.82: kernel counters every LATENCY_SAMPLE_S seconds (latency report: key P, Ctrl-G, summary)
     stats.is_banned = banned_ips.source_of if banned_ips is not None else None
+    stats.ban_info = banned_ips.first_ban_of if banned_ips is not None else None        # 1.151: bans of the fail2ban journal, for the summary
     stats.watch_it = list(options.get("watch") or [])
 
     def load_survey_titles():
@@ -5782,6 +5851,12 @@ def follow(cmd, people, resolver, options, output):
             if source:
                 label = TR("[BANNED]") if L.database == "nginx" else f"[banned: {source}]"      # 1.119: nginx lines: [BANNIE] at the end
                 text += " " + color_code(STYLES["banned"], label)
+            else:
+                history = banned_ips.ban_before(ips0[0][2], L.instant)      # 1.151: banned by fail2ban after this request (fail2ban journal), still within its window
+                if history:
+                    source = "fail2ban"
+                    label = TR("[BANNED]") if L.database == "nginx" else f"[banned: fail2ban {clock_of(history[0])}]"
+                    text += " " + color_code(STYLES["banned"], label)
         return base, text, ips0, source
 
     wide_state = {"on": False}                            # 1.146: an Odoo warning or error in progress (its continuation lines follow it)

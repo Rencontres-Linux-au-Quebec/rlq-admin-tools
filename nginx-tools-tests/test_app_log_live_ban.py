@@ -45,7 +45,8 @@ class BanUneAUneAppLogLive(unittest.TestCase):
         self.assertIn("I18N_MODULE.saisie(prompt_text)", self.source)
 
     def test_version_dynamique_et_a_jour(self):
-        self.assertIn('__version__ = "1.149.20261101.231500"', self.source)
+        """1.151 : le test ne fige plus un numéro de version (il vérifie seulement le format MAJEUR.MINEUR.AAAAMMJJ.HHMMSS)."""
+        self.assertRegex(self.source, r'__version__ = "\d+\.\d+\.\d{8}\.\d{6}"')
 
 
 if __name__ == "__main__":
