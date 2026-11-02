@@ -114,6 +114,8 @@
 # ========================================================================================================================
 
 set -euo pipefail
+# 2.69: SQLI_RE is used by the --ban path (preuves_ip), which runs before the --ban-sqli section: define it first.
+SQLI_RE='union([[:space:]]|%20|[+]|/[*])+(all([[:space:]]|%20|[+])+)?select|extractvalue([(]|%28)|updatexml([(]|%28)|order([[:space:]]|%20|[+])+by([[:space:]]|%20|[+])+[0-9]|elt([(]|%28)[0-9]|concat([(]|%28)0x7e|sleep([(]|%28)[0-9]|benchmark([(]|%28)[0-9]|information_schema|waitfor([[:space:]]|%20|[+])+delay'
 # PATH completed (2.x): under cron, PATH is limited to /usr/bin:/bin - ipset, iptables, nft, fail2ban-client, nginx
 # (in /usr/sbin, /sbin) were then not found. Added AT THE END: never hide a command already found.
 for _d in /usr/local/sbin /usr/sbin /sbin; do [[ -n "${NGINX_TOOLS_TESTS:-}" ]] && break; case ":$PATH:" in *":$_d:"*) ;; *) PATH="$PATH:$_d" ;; esac; done
@@ -133,7 +135,7 @@ grep_q() { grep "$@" >/dev/null; }
 #                              ne peut pas le voir, le texte etant entre apostrophes (faux positif).
 trap 'ec=$?; echo "" >&2; echo "*** ARRÊT INATTENDU DU SCRIPT (code $ec) À LA LIGNE $LINENO ***" >&2; echo "*** Commande fautive : $BASH_COMMAND" >&2; echo "*** Si le rapport ci-dessus semble incomplet (ex. sections Top 10 absentes), c'\''est probablement la cause." >&2' ERR
 
-readonly SCRIPT_VERSION="2.68.20261101.195800"
+readonly SCRIPT_VERSION="2.69.20261101.204354"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
 # Chemin de ce programme (relances --investigate, --ban, --unban) : defini ICI, avant le bloc --ban qui l'utilise.
 SELF_PATH="$SCRIPT_DIR/$(basename "${BASH_SOURCE[0]}")"
@@ -662,6 +664,7 @@ list_manual_bans() {
 # system for jails other than nginx (sshd, odoo-auth), then "for / against" summary and verdict. All the sources:
 # une IP bannie par la jail nginx-catchall n'apparait QUE dans le journal du capteur, jamais dans celui du site.
 PREUVES_SITE=0
+PREUVES_VERDICT=""   # 2.69: "justifie" | "examiner" | "aucune" (verdict des preuves pour --ban)
 # Fichiers du plus ancien au plus recent (rotations d'abord), pour des exemples et des dates dans l'ordre chronologique.
 lire_chrono() {
     local f
@@ -685,6 +688,7 @@ urls_refusees() {
 preuves_ip() {
     local ip="$1" ipre out rc ptr="" dns="" f
     local -a pour=() contre=() faible=()
+    PREUVES_VERDICT=""
     ipre=$(printf '%s' "$ip" | sed 's/[.]/\\./g')
     echo "${C_BOLD}PREUVES RASSEMBLÉES POUR $ip${C_RESET}"
     # --- 1) Identite ---
@@ -782,7 +786,7 @@ preuves_ip() {
     # --- 3) nginx : capteur catch-all et site ---
     echo
     echo "  Requêtes reçues par nginx (journaux et rotations)"
-    local ca n_ca=0 jours_ca site n_site=0 n_sens=0 n_ok=0
+    local ca n_ca=0 jours_ca site n_site=0 n_sens=0 n_ok=0 n_sqli=0
     progres "Preuves pour $ip : journaux du capteur catch-all"
     ca=$(lire_chrono /var/log/nginx/*catchall*.log* | { grep -E "^$ipre " || true; })
     [[ -n "$ca" ]] && n_ca=$(printf '%s\n' "$ca" | wc -l)
@@ -807,6 +811,9 @@ preuves_ip() {
         echo "    Site : $n_site requêtes, dont ${C_MAL}$n_sens tentatives${C_RESET} d'accès à des fichiers sensibles ou à des failles et $n_ok pages servies"
         (( n_sens > 0 )) && pour+=("$n_sens tentatives d'accès à des fichiers sensibles ou à des failles sur le site")
         (( n_ok > 0 )) && contre+=("$n_ok pages du site servies avec succès : l'enquête ci-dessous dit s'il s'agit d'un robot légitime")
+        # 2.69: an SQL injection in the site log is evidence FOR a ban (counted over all rotations, see the investigation)
+        n_sqli=$(printf '%s\n' "$site" | grep -Eic -- "$SQLI_RE" || true)
+        (( n_sqli > 0 )) && pour+=("$n_sqli requête(s) d'injection SQL dans le journal du site (UNION SELECT, EXTRACTVALUE...)")
     else
         echo "    Site : aucune requête (les requêtes REFUSÉES par nginx ne sont pas dans ces journaux : voir ci-dessous)"
     fi
@@ -857,6 +864,12 @@ preuves_ip() {
         echo "    Contre :"
         for r in "${contre[@]}"; do echo "      ${C_YELLOW}− $r${C_RESET}"; done
     fi
+    # 2.69: verdict of the --ban gate. "justifie": evidence FOR and no strong reason AGAINST (the 2xx alone is not a strong reason).
+    local contre_forts=${#contre[@]}
+    (( n_ok > 0 )) && contre_forts=$((contre_forts - 1))
+    if (( ${#pour[@]} == 0 )); then PREUVES_VERDICT="aucune"
+    elif (( contre_forts == 0 )); then PREUVES_VERDICT="justifie"
+    else PREUVES_VERDICT="examiner"; fi
     # Justification proposal for --ban (2.40): the "for" evidence, on one line.
     PREUVES_RESUME=""
     if (( ${#pour[@]} > 0 )); then PREUVES_RESUME=$(printf '%s ; ' "${pour[@]}"); PREUVES_RESUME="${PREUVES_RESUME% ; }"; fi
@@ -1245,14 +1258,15 @@ if [[ -n "$BAN_IP" ]]; then
     echo
     # Preuves de TOUTES les sources avant la confirmation (demande interactive seulement : avec --yes, l'appel vient
     # of a question that already presented the IPs - and the DNS queries would slow down a group ban).
-    [[ "$ASSUME_YES" != "1" ]] && preuves_ip "$BAN_IP"
+    # 2.69: always, even with --yes: a group ban or a caller's question never skips the verification.
+    preuves_ip "$BAN_IP"
     if [[ -n "$BAN_PROTECTED_WARNING" ]]; then
         echo "${C_RED}ATTENTION : $BAN_IP — $BAN_PROTECTED_WARNING. La bannir est très probablement une erreur.${C_RESET}"
     fi
     # Raisonnement AVANT la confirmation (demande interactive seulement : avec --yes, l'appel vient d'une question du
     # rapport ou de --unban-check, qui ont deja affiche l'enquete) : enquete complete sur tout l'historique, avec la
     # current logic - requested URLs, clues, signs of hostility, verdict.
-    if [[ "$ASSUME_YES" != "1" ]]; then
+    if true; then
         echo "Enquête détaillée sur les requêtes au site (même logique que --investigate) :"
         echo
         enquete=$(bash "$SELF_PATH" --investigate "$BAN_IP" --no-prompt ${APP_FORCE:+--app "$APP_FORCE"} 2>&1 \
@@ -1273,12 +1287,32 @@ if [[ -n "$BAN_IP" ]]; then
             echo
         fi
     fi
+    # 2.69: the gate accepts the investigation's recommendation (score, rule of CLAUDE.md) OR evidence judged "justifie".
+    BAN_RECOMMANDE=0
+    if printf '%s\n' "${enquete:-}" | grep_q "Score [0-9]/7 : bannissement recommandé"; then BAN_RECOMMANDE=1; fi
+    BAN_OVERRIDE=0
+    if [[ "$PREUVES_VERDICT" != "justifie" && "$BAN_RECOMMANDE" != "1" ]]; then
+        echo
+        echo "${C_RED}LES PREUVES NE JUSTIFIENT PAS CE BANNISSEMENT (verdict : ${PREUVES_VERDICT:-inconnu}).${C_RESET}"
+        if [[ -z "$BAN_REASON" ]]; then
+            echo "Refusé. Pour une exception : --reason TEXTE, puis taper BANNIR dans un terminal (--yes ne suffit pas)." >&2
+            exit 1
+        fi
+        if [[ ! -t 0 ]]; then
+            echo "Refusé : une exception exige un terminal (taper BANNIR à la main)." >&2
+            exit 1
+        fi
+        echo "Exception demandée (justification : $BAN_REASON). Tapez exactement BANNIR en majuscules pour bannir malgré tout."
+        read -r -e -p "> " confirmation_exception || confirmation_exception=""
+        if [[ "$confirmation_exception" != "BANNIR" ]]; then echo "Annulé : aucune adresse bannie."; exit 0; fi
+        BAN_OVERRIDE=1
+    fi
     echo "Ceci va bloquer TOUT le trafic depuis $BAN_IP au niveau du pare-feu (toutes routes, tous ports gérés"
     echo "par ce pare-feu), immédiatement et indéfiniment — jusqu'à un --unban explicite ou un redémarrage si la"
     echo "règle n'est pas rendue persistante. Un vrai visiteur derrière cette IP (rare mais possible si l'IP a"
     echo "changé de main entre-temps) serait bloqué exactement pareil qu'un attaquant."
 
-    if [[ "$ASSUME_YES" != "1" ]]; then
+    if [[ "$ASSUME_YES" != "1" && "$BAN_OVERRIDE" != "1" ]]; then
         echo
         if ! demander_oui "Confirmer le bannissement de $BAN_IP ? [o/N] "; then echo "Annulé."; exit 0; fi
     fi
@@ -1291,6 +1325,7 @@ if [[ -n "$BAN_IP" ]]; then
     fi
     BAN_REASON=$(nettoyer_texte "$BAN_REASON")
     [[ -z "$BAN_REASON" ]] && BAN_REASON="automatique : aucune justification fournie"
+    [[ "$BAN_OVERRIDE" == "1" ]] && BAN_REASON="EXCEPTION (verdict $PREUVES_VERDICT) : $BAN_REASON"
 
     if ufw_active; then
         if run ufw status 2>/dev/null | grep_q -F "$BAN_IP"; then
@@ -1565,7 +1600,6 @@ fi
 # --ban-sqli (2.53) : adresses ayant envoyé une injection SQL (UNION SELECT, EXTRACTVALUE, ORDER BY n, etc.) dans le journal
 # d'accès. Chaque adresse passe par --ban (mêmes protections : adresses de l'équipe, serveur, journal des bannissements).
 # Signature volontairement précise : un tri légitime (order=website_sequence asc) ne doit jamais correspondre.
-SQLI_RE='union([[:space:]]|%20|[+]|/[*])+(all([[:space:]]|%20|[+])+)?select|extractvalue([(]|%28)|updatexml([(]|%28)|order([[:space:]]|%20|[+])+by([[:space:]]|%20|[+])+[0-9]|elt([(]|%28)[0-9]|concat([(]|%28)0x7e|sleep([(]|%28)[0-9]|benchmark([(]|%28)[0-9]|information_schema|waitfor([[:space:]]|%20|[+])+delay'
 # ip_deja_bannie IP : affiche où l'adresse est déjà bannie (pare-feu iptables, ufw, jails fail2ban) et retourne 0 ; sinon retourne 1.
 ip_deja_bannie() {
     local ip="$1" ou=() j
@@ -1793,12 +1827,14 @@ if [[ "$DO_BAN_SQLI" == "1" ]]; then
         echo "${C_YELLOW}ATTENTION : $n_normal_pre adresses ont une activité Odoo normale (connexion ou commande) : elles ne seront PAS bannies en lot.${C_RESET}"
         echo
     fi
-    if [[ "$ASSUME_YES" != "1" ]]; then
-        if ! demander_oui "Bannir ces adresses au pare-feu ? [o/N] "; then
-            echo "Annulé : aucune adresse bannie."
-            rm -rf "$sqli_dir"
-            exit 0
-        fi
+    # 2.69: no bulk question. Each address is verified and confirmed one by one, by --ban, in the terminal.
+    if [[ "$ASSUME_YES" == "1" ]]; then
+        echo "ERREUR: --ban-sqli n'accepte pas --yes : chaque adresse est vérifiée et confirmée une à une (--ban IP pour une seule)." >&2
+        rm -rf "$sqli_dir"; exit 1
+    fi
+    if [[ ! -t 0 ]]; then
+        echo "Aucune adresse bannie : --ban-sqli demande une confirmation par adresse, dans un terminal."
+        rm -rf "$sqli_dir"; exit 0
     fi
     n_ok=0; n_ko=0; n_deja=0; n_normal=0
     while IFS=$'\037' read -r nb ip _; do
@@ -1814,11 +1850,11 @@ if [[ "$DO_BAN_SQLI" == "1" ]]; then
             continue
         fi
         why="injection SQL (--ban-sqli) : $nb requêtes dans $(basename "$ACCESS_LOG")"
-        if bash "$SELF_PATH" --ban "$ip" --yes --reason "$why" ${APP_FORCE:+--app "$APP_FORCE"} >/dev/null 2>&1; then
-            echo "${C_GREEN}[OK]${C_RESET} $ip banni ($nb requêtes)"
+        echo "${C_BOLD}-- $ip : vérification et question individuelle (--ban) --${C_RESET}"
+        if bash "$SELF_PATH" --ban "$ip" --reason "$why" ${APP_FORCE:+--app "$APP_FORCE"} < /dev/tty; then
             n_ok=$((n_ok+1))
         else
-            echo "${C_YELLOW}[SKIP]${C_RESET} $ip non banni (adresse protégée ou erreur : nginx-log-audit.sh --ban $ip pour le détail)"
+            echo "${C_YELLOW}[NON BANNIE]${C_RESET} $ip : non banni (preuves insuffisantes, refus, ou réponse négative)."
             n_ko=$((n_ko+1))
         fi
     done < "$sqli_sum"
