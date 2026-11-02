@@ -371,6 +371,24 @@ Earlier history was archived outside this repository when this file was created.
 
 ## app-log-live.py
 
+### 1.150.20261102.080324 - Nginx and Odoo lines in time order: a late line is placed, not shown out of order
+
+- Title: the nginx lines merged with the Odoo lines (--log-nginx) are no longer displayed out of order.
+- Reason: the merge of nginx and Odoo lines was out of order in the live display (lines of 01:45:44 before lines of 01:45:43). The owner asked for the merge code to be fixed in this program; the merge itself lives in apps/_logs_merge.py, changed in version 1.2 of that program.
+- Changes:
+  - Version 1.149 -> 1.150. The comment of the NGINX LOGS section describes the merge window (APP_LOG_MERGE_WAIT, 1.5 seconds by default). The merge is not reconfigured: no new option, no new configuration key.
+  - Files touched: app-log-live.py, apps/_logs_merge.py, nginx-tools-tests/test_logs_merge.py, CHANGELOG.md.
+- Bugs fixed:
+  - Symptom: a nginx line appeared after an Odoo line that had a later log time (for example 01:45:44 before 01:45:43), in the merged stream.
+  - Diagnosis: apps/_logs_merge.py declared a silent stream "stalled" after 2 seconds and released the lines of the other streams at once. A nginx line delivered after that moment came out after the Odoo lines that had a later time. The 1.115 entry accepted this as a trade-off.
+  - Fix: see apps/_logs_merge.py 1.2.
+- Safeguards and edge cases:
+  - The reader threads never wait: the display loop only takes the lines that are due.
+  - A silent stream never holds back the others (the wait is per line, not per stream).
+  - A line that arrives later than the window is still displayed, in its arrival place, and counted (Merger.late); it is not dropped.
+- Checks performed: py_compile; --version gives 1.150.20261102.080324; test_logs_merge: 13 tests OK (4 new ones on the window: late line placed in time order, silent stream, start with the history of each file, end of every stream).
+- Action required from the user: none. The merge is updated on the next run of app-log-live.py; the nginx access log still has one-second precision (see the next version of nginx-odoo-config for $msec).
+
 ### 1.149.20261101.231500 - Answers typed in line mode (echo and erase)
 
 - Title: the answer to the questions of app-log-live.py (b key, ban justified proposal, keys) goes through saisie() of apps/_i18n.py: echo and erase (ECHOE) are set before reading.
@@ -4208,6 +4226,29 @@ Earlier history was archived outside this repository when this file was created.
 ### 1.3.20261020.211944 - Current version. Earlier history archived outside the repository.
 
 ## apps/_logs_merge.py
+
+### 1.2.20261102.080324 - Time window instead of "stalled" streams: lines placed in time order
+
+- Title: the merge holds each line APP_LOG_MERGE_WAIT seconds (1.5 by default) before releasing it, instead of declaring a silent stream stalled.
+- Reason: the nginx and Odoo lines of the live display were out of order (see app-log-live.py 1.150).
+- Changes:
+  - Merger: the lines wait in a heap sorted by log time; a line is released when its log time is at least --wait seconds in the past (wall clock). The "stalled" state and the per-stream buffers are removed.
+  - Start: nothing is released before every stream has delivered a line or ended (or --wait seconds have passed), so that the history of several files is merged in order.
+  - End: when every stream has ended, what remains is released in order.
+  - Merger.late counts the lines that arrive after a later line was released; they are printed in place, not dropped.
+  - WAIT_DEFAULT: 2 -> 1.5 seconds (APP_LOG_MERGE_WAIT). Header comment updated.
+  - Files touched: apps/_logs_merge.py, nginx-tools-tests/test_logs_merge.py.
+- Bugs fixed:
+  - Symptom: out-of-order lines in the merged stream when one source is quiet for more than 2 seconds.
+  - Diagnosis: a stream silent for 2 seconds was marked "stalled" and no longer waited for; the lines of the other streams were released first, so a late line of the stalled stream came out after them.
+  - Fix: the lines are held for a short window instead, in a heap sorted by log time.
+- Safeguards and edge cases:
+  - A silent stream does not hold back the others: each line is released after its window, whatever the other streams do.
+  - Lines of the same second (nginx has only one-second precision) keep their arrival order.
+  - A line without a time takes the time of the previous line of its stream (as before).
+  - --no-follow: every line is released in time order once every stream has ended.
+- Checks performed: py_compile; test_logs_merge: 13 tests OK (9 existing ones unchanged, 4 new ones: late line placed in order, silent stream does not hold back the others, start waits for the history of each file, end of every stream empties the queue).
+- Action required from the user: none.
 
 ### 1.1.20261029.230225 - nginx program name "http" (4 characters) so the columns line up with Odoo
 
