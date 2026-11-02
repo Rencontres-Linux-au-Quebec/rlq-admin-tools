@@ -17,7 +17,6 @@
 - `__version__` (or `SCRIPT_VERSION`) kept up to date; the `--version` option displays it dynamically, never a hard-coded string.
 
 ### Files and publication
-- After each change, update the GitHub repository, then produce a `.zip` archive named without the date: `program.MAJOR.MINOR.zip`.
 - CHANGELOG.md: most recent version FIRST. Version header: `### MAJOR.MINOR.YYYYMMDD.HHMMSS - Short title`
   (the version number is always followed by the title). For each version: reason for the request,
   details of the changes (functions, options, files), bugs fixed (symptom, diagnosis, fix), safeguards and edge cases,
