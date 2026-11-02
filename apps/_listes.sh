@@ -16,6 +16,16 @@
 LISTES_BLANCHE_DEFAUT="/etc/default/nginx-tools-white-list.conf"
 LISTES_LIEUX_DEFAUT="/etc/default/nginx-tools-ip-location.conf"
 LISTES_SEP=$'\037'             # field separator of listes_lire (never a tab: read merges it when a field is empty)
+# Liste blanche [temporaire] : expire LISTES_TEMP_JOURS jours après l'inscription (AAAA-MM-JJ, TAB, adresse : une ligne par adresse, écrite
+# par nginx-hardening.sh --update dans LISTES_ETAT_TEMP_DEFAUT). Même règle que apps/_listes.py (TEMPORAIRE_JOURS).
+LISTES_TEMP_JOURS=28
+LISTES_ETAT_TEMP_DEFAUT="/var/lib/nginx-tools/white-list-temporary.tsv"
+
+# listes_etat_temporaire: path of the state file of the temporary entries (NGINX_TOOLS_TEMP_STATE overrides it: tests).
+listes_etat_temporaire() { printf '%s\n' "${NGINX_TOOLS_TEMP_STATE:-$LISTES_ETAT_TEMP_DEFAUT}"; }
+
+# listes_aujourdhui: today (AAAA-MM-JJ); NGINX_TOOLS_AUJOURDHUI replaces it (tests).
+listes_aujourdhui() { printf '%s\n' "${NGINX_TOOLS_AUJOURDHUI:-$(date +%F)}"; }
 
 # listes_fichier_blanche: path of the white list READ - the new file; otherwise the old list apps/team-ips.list
 # (transition, seulement sans surcharge d'environnement) ; rien si aucun n'existe.
@@ -60,7 +70,7 @@ listes_lire() {
         while [[ "$reste" =~ \[([^]]*)\] ]]; do
             opt=${BASH_REMATCH[1],,}; opt=${opt//é/e}; opt=${opt## }; opt=${opt%% }
             case "$opt" in
-                partagee|protegee) opts+="${opts:+,}$opt" ;;
+                partagee|protegee|temporaire) opts+="${opts:+,}$opt" ;;
                 *) opts+="${opts:+,}inconnue:$opt" ;;
             esac
             reste=${reste/"${BASH_REMATCH[0]}"/}
@@ -86,11 +96,23 @@ listes_valides() {
     return 0
 }
 
-# listes_blanche: white list entries (listes_lire format).
+# listes_blanche: white list entries (listes_lire format), without the [temporaire] entries past LISTES_TEMP_JOURS days.
+# An entry without a recorded date (not yet written by --update) stays valid; an unreadable date is treated the same way.
 listes_blanche() {
-    local f
+    local f ligne adr lib opts n etat aujourd date_ajout fin
     f=$(listes_fichier_blanche)
-    [[ -n "$f" ]] && listes_lire "$f"
+    [[ -n "$f" ]] || return 0
+    etat=$(listes_etat_temporaire); aujourd=$(listes_aujourdhui)
+    while IFS= read -r ligne; do
+        IFS="$LISTES_SEP" read -r adr lib opts n <<< "$ligne"
+        if [[ ",$opts," == *",temporaire,"* ]]; then
+            date_ajout=$(awk -F'\t' -v a="$adr" '$1 == a { print $2; exit }' "$etat" 2>/dev/null || true)
+            fin=""
+            [[ -n "$date_ajout" ]] && fin=$(date -d "$date_ajout + $LISTES_TEMP_JOURS days" +%F 2>/dev/null || true)
+            if [[ -n "$fin" && ! "$aujourd" < "$fin" ]]; then continue; fi        # aujourd'hui >= fin : expirée
+        fi
+        printf '%s%s%s%s%s%s%s\n' "$adr" "$LISTES_SEP" "$lib" "$LISTES_SEP" "$opts" "$LISTES_SEP" "$n"
+    done < <(listes_lire "$f")
     return 0
 }
 
