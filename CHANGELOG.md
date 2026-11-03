@@ -371,6 +371,23 @@ Earlier history was archived outside this repository when this file was created.
 
 ## app-log-live.py
 
+### 1.155.20261102.230844 - An address is proposed for banning only if nginx-log-audit.sh --investigate recommends it
+
+- Title: the b key, the summary and the background proposal ask nginx-log-audit.sh --investigate, the program that bans, before proposing an address; only its verdict "BANNIR" is proposed, the others are listed with that verdict.
+- Reason: request of the administrator on 2026-11-02: "app-log-live.py suggested banning two IPs, but the program it calls, nginx-log-audit.sh, does not; adjust and synchronise the logic." 132.196.59.85 and 45.138.12.41 came from recommended-bans.json (an old recommendation of web-monitor.py, kept 48 h, reason "récidiviste : ... bannissements temporaires répétés"), and the background proposal used the verdict of --evidence ("bannissement justifié"), while --ban requires the score of the investigation.
+- Changes:
+  - New function audit_verdict(ip, app_args): runs nginx-log-audit.sh --investigate IP --no-prompt (background, NGINX_TOOLS_LANG=fr, INV_RESUME_FILE) and reads its line "RÉSUMÉ|ip|verdict|reason|bans"; with an older nginx-log-audit.sh, its line "Score N/7 : bannissement recommandé". New constant AUDIT_TTL (30 minutes).
+  - Stats: new shared dictionary audit (address -> instant, verdict, reason, fail2ban bans) and method audit_fresh; to_ban() leaves out an address whose fresh verdict is not "BANNIR" and names it in not_proposed ("nginx-log-audit.sh : AUCUNE ACTION - ..."), so the dashboard, the menu count and the summary follow the same verdict.
+  - b key (ban()): the candidates not yet checked are checked first ("Vérification de N adresse(s) par nginx-log-audit.sh --investigate (le programme qui bannit décide)..."), one at a time (investigation_lock); then the addresses not proposed are listed with the verdict, and each proposed one shows the reason of the investigation.
+  - evaluate_repeat() (background proposal of an often-banned address): the verdict of --investigate instead of --evidence; proposed when "BANNIR" and at least REPEAT_MIN fail2ban bans. Texts "verdict : bannissement justifié" -> "verdict de l'enquête : bannir"; help of --no-ban-prompt.
+  - lang/app-log-live.fr.po: the new and changed messages; doc/fr and doc/en 07-app-log-live.md: the b key.
+  - nginx-tools-tests/test_app_log_live.py: new class AppLogLive155 (5 tests).
+- Bugs fixed:
+  - Symptom: "2 adresses à bannir", then "LES PREUVES NE JUSTIFIENT PAS CE BANNISSEMENT ... Tapez exactement BANNIR". Diagnosis: three sources (suspicious requests seen here, 404 sweeps, recommended-bans.json) and the --evidence verdict were trusted without the rule of --ban. Fix: the verdict of --investigate decides.
+- Safeguards and edge cases: the investigation runs only when the b key is pressed (or in the background for an often-banned address), never for each line; a verdict is kept 30 minutes; investigation impossible (program missing, timeout): the address stays proposed and --ban still checks it, as before. Older nginx-log-audit.sh without the summary line: its "Score" line is read.
+- Checks performed: python3 -m py_compile; AppLogLive155 (5 tests) [OK]; test_app_log_live: same failures as main; test_i18n: catalogue of app-log-live [OK].
+- Action required: none (with nginx-log-audit.sh 2.79 or later next to it, the verdicts match exactly).
+
 ### 1.154.20261102.220415 - Column header: country and IP block labels with --min, and the header again after each status bar
 
 - Title: the header line shows "PA BLOC-IP" (English "CC IP-BLOCK") over the country code and the name, also with --min; it is shown again right after each status bar.
@@ -3397,6 +3414,22 @@ Earlier history was archived outside this repository when this file was created.
 
 ## nginx-log-audit.sh
 
+### 2.79.20261102.230844 - The investigation counts the requests refused by nginx (blocked-probes.log)
+
+- Title: --investigate (and the investigation run by --ban) adds the requests of the address found in blocked-probes.log to those of the site log, so that the refused probes count in the score like the others; its summary line gives the number of fail2ban bans too.
+- Reason: request of the administrator on 2026-11-02: app-log-live.py proposed to ban 132.196.59.85 and 45.138.12.41, then nginx-log-audit.sh --ban refused them. For 132.196.59.85, the evidence said "justifié" (28 requests refused by nginx: .php files, wp-content/plugins/.../wp_filemanager.php) but the investigation, which read only the site log (2 requests), gave 1/7.
+- Changes:
+  - --investigate block: after merging the site log, the lines of the address in /var/log/nginx/blocked-probes.log* (same combined_host format) are added to the merged file (INV_REFUS); the header says "N requêtes dans tout l'historique disponible, dont M refusées par nginx (blocked-probes.log)".
+  - recommander(): the line "RÉSUMÉ|ip|verdict|reason" gets a fifth field, the number of fail2ban bans (read by app-log-live.py 1.155); the summary of several addresses reads it with one more field.
+  - vpn_lire(): passes the abuse mailbox of the block to apps/_vpn.py 1.1 (132.196.59.85: abuse@microsoft.com -> "hébergeur (Microsoft)", consistent with the rented-server clue).
+  - lang/nginx-log-audit.en.po: the new fragments.
+  - nginx-tools-tests/test_nginx_log_audit.py: new class ChkNginxLogs279 (the case of 132.196.59.85: score 3/7, BANNIR, summary line with 5 fields); test_ban_gate.py: version.
+- Bugs fixed:
+  - Symptom: "LES PREUVES NE JUSTIFIENT PAS CE BANNISSEMENT (verdict des preuves : justifie ; l'enquête ne recommande pas le bannissement, score inférieur à 3/7)" for an address that sent 28 webshell probes. Diagnosis: the refusals of our nginx rules go to blocked-probes.log, which preuves_ip reads but the investigation did not; the score saw 2 requests. Fix: those lines are part of the investigation.
+- Safeguards and edge cases: only the lines that start with the address are added; no blocked-probes.log: unchanged; the daily report (section [10]) is unchanged (fail2ban handles the refused probes there). The --ban gate keeps its rule (score 3/7), now computed on all the requests of the address.
+- Checks performed: bash -n; test_nginx_log_audit and test_ban_gate [OK] (with ChkNginxLogs279); test_i18n: catalogue of nginx-log-audit [OK].
+- Action required: none.
+
 ### 2.78.20261102.224544 - --investigate ends with a verdict and a recommendation; several addresses with a summary
 
 - Title: --investigate re-reads its own findings and ends with "ANALYSE ET RECOMMANDATION": one verdict (NE PAS BANNIR, LEVER LE BANNISSEMENT, GARDER LE BANNISSEMENT, BANNIR, LAISSER À FAIL2BAN, REFUSER LE ROBOT PAR SON NOM, AUCUNE ACTION, À EXAMINER), its reasons, notes and the command to run. --investigate IP1 IP2 (or IP1,IP2) investigates each address and ends with a summary table and the commands.
@@ -4744,6 +4777,16 @@ Earlier history was archived outside this repository when this file was created.
 ### 1.0.20261020.230008 - Current version. Earlier history archived outside the repository.
 
 ## apps/_vpn.py
+
+### 1.1.20261102.230844 - The abuse mailbox of the block is read too
+
+- Title: kind_of() also reads the abuse mailbox of the block; option --abuse of the command line.
+- Reason: 132.196.59.85 (organisation "Divya Quamara", network "cloud", abuse@microsoft.com) was a rented server for the investigation but "aucun indice" for the type of address.
+- Changes: kind_of(organisation, network, short, abuse); main(): --abuse.
+- Bugs fixed: inconsistency described above.
+- Safeguards and edge cases: web-monitor.py keeps calling kind_of without the mailbox (unchanged results there).
+- Checks performed: test_279_sondes_refusees_comptent_dans_l_enquete [OK].
+- Action required: none.
 
 ### 1.0.20261102.224544 - New module: VPN, Tor, relay or hosting provider behind an address
 

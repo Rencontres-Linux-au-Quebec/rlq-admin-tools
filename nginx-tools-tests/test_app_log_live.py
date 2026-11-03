@@ -4260,3 +4260,60 @@ class AppLogLive154(unittest.TestCase):
         self.assertEqual(s.count("output.write(status_line() + \"\\n\")\n                header_after_bar()"), 1)      # periodic bar
         self.assertEqual(s.count("output.write(status_line() + \"\\n\")\n            header_after_bar()"), 1)          # bar after the history
         self.assertIn('state["header_plain"] = plain_request', s)
+
+
+class AppLogLive155(unittest.TestCase):
+    """1.155 : une adresse n'est proposée au bannissement que si nginx-log-audit.sh --investigate (le programme qui bannit) dit « BANNIR » : les anciennes
+    recommandations de web-monitor.py et le verdict de --evidence ne suffisent plus."""
+
+    @classmethod
+    def setUpClass(cls):
+        spec = importlib.util.spec_from_file_location("live155", script_path("app-log-live.py"))
+        cls.m = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(cls.m)
+
+    def setUp(self):
+        self.dossier = tempfile.mkdtemp(prefix="test-rlq-155-")
+        self.addCleanup(shutil.rmtree, self.dossier, True)
+        self.ancien = self.m.SCRIPT_DIR
+        self.m.SCRIPT_DIR = self.dossier
+        self.addCleanup(setattr, self.m, "SCRIPT_DIR", self.ancien)
+
+    def faux_nla(self, corps):
+        with open(os.path.join(self.dossier, "nginx-log-audit.sh"), "w") as f:
+            f.write("#!/bin/bash\n" + corps + "\n")
+
+    def test_155_verdict_lu_dans_la_ligne_resume(self):
+        self.faux_nla('echo "  RÉSUMÉ|$2|BANNIR|faux moteur de recherche (Google) ; 60 tentatives au capteur catch-all|5" >> "$INV_RESUME_FILE"')
+        self.assertEqual(self.m.audit_verdict("11.1.1.1"), ("BANNIR", "faux moteur de recherche (Google) ; 60 tentatives au capteur catch-all", 5))
+
+    def test_155_ancien_nginx_log_audit_ligne_score(self):
+        self.faux_nla('echo "      → Score 1/7 (seuil de proposition : 3) — à surveiller, pas de bannissement proposé."')
+        verdict, raison, _ = self.m.audit_verdict("11.1.1.1")
+        self.assertEqual(verdict, "AUCUNE ACTION")
+        self.assertIn("Score 1/7", raison)
+        self.faux_nla('echo "      → Score 4/7 : bannissement recommandé."')
+        self.assertEqual(self.m.audit_verdict("11.1.1.1")[0], "BANNIR")
+
+    def test_155_programme_absent(self):
+        self.assertIsNone(self.m.audit_verdict("11.1.1.1")[0])
+
+    def test_155_to_ban_ecarte_ce_que_l_enquete_refuse(self):
+        st = self.m.Stats(5.0)
+        st.load_recommended = lambda: None
+        st.reco_loaded, st.recommended = True, {"11.196.59.85": "récidiviste : 2 jours", "11.138.12.41": "récidiviste : 6 jours", "11.5.5.5": "x"}
+        maintenant = time.time()
+        st.audit["11.196.59.85"] = (maintenant, "AUCUNE ACTION", "à surveiller seulement", 2)
+        st.audit["11.138.12.41"] = (maintenant, "BANNIR", "faux moteur de recherche", 5)
+        st.audit["11.5.5.5"] = (maintenant - 2 * self.m.AUDIT_TTL, "AUCUNE ACTION", "trop vieux", 0)      # expired: proposed until checked again
+        proposees = [ip for ip, _ in st.to_ban()]
+        self.assertEqual(sorted(proposees), ["11.138.12.41", "11.5.5.5"])
+        self.assertTrue(any(ip == "11.196.59.85" and "AUCUNE ACTION" in why for ip, why in st.not_proposed), st.not_proposed)
+
+    def test_155_proposition_en_arriere_plan_par_l_enquete(self):
+        with open(script_path("app-log-live.py"), encoding="utf-8") as f:
+            s = f.read()
+        bloc = s[s.index("    def evaluate_repeat(ip):"):s.index("    def watch_repeat(ip, L):")]
+        self.assertIn("audit_verdict(ip, app)", bloc)
+        self.assertNotIn("--evidence", bloc.split('"""', 2)[2])                 # the code no longer asks --evidence (the docstring says why)
+        self.assertIn('verdict == "BANNIR" and bans >= REPEAT_MIN', bloc)

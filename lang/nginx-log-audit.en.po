@@ -2915,3 +2915,9 @@ msgstr "BAN"
 
 msgid "  --investigate IP [IP...]     enquête complète (tout l'historique, propriétaire du bloc, VPN ou Tor), puis verdict et recommandation ; plusieurs IP : synthèse"
 msgstr "  --investigate IP [IP...]     full investigation (whole history, block owner, VPN or Tor), then verdict and recommendation; several IPs: summary"
+
+msgid ", dont "
+msgstr ", of which "
+
+msgid " refusées par nginx (blocked-probes.log)"
+msgstr " refused by nginx (blocked-probes.log)"

@@ -109,6 +109,7 @@ import shutil
 import signal
 import subprocess
 import sys
+import tempfile
 import threading
 import time
 import unicodedata
@@ -118,7 +119,7 @@ from urllib.parse import unquote, urlsplit
 from collections import Counter, OrderedDict
 from concurrent.futures import Future
 
-__version__ = "1.154.20261102.220415"
+__version__ = "1.155.20261102.230844"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
@@ -4615,6 +4616,7 @@ class Stats:
         self.robots_ips = set()                                                      # shared: addresses that requested robots.txt or a sitemap
         self.first = None                                                         # instant of the oldest line seen (window of the error detail)
         self.server = set()                                                        # shared: addresses of THIS server (local probes) - never to ban
+        self.audit = {}                                                            # 1.155, shared: address -> (instant, verdict, reason, fail2ban bans) of nginx-log-audit.sh --investigate
 
     def already_banned(self, ip):
         """True if the address is already banned (seen banned in the journal, or blocked now by fail2ban, an iptables / ufw rule or CrowdSec)."""
@@ -4671,7 +4673,21 @@ class Stats:
                     hold(ip, relay)
                     continue
                 res.append((ip, 0))
-        return res
+        # 1.155: the program that bans decides. An address whose fresh verdict of nginx-log-audit.sh --investigate is not "BANNIR" is not proposed
+        # (it was proposed here, then --ban refused it: 132.196.59.85 and 45.138.12.41, recommended by an old run of web-monitor.py).
+        kept = []
+        for ip, n in res:
+            verdict = self.audit_fresh(ip)
+            if verdict is not None and verdict[1] != "BANNIR":
+                hold(ip, TR("nginx-log-audit.sh: {verdict}").format(verdict=verdict[1]) + (f" — {verdict[2]}" if verdict[2] else ""))
+                continue
+            kept.append((ip, n))
+        return kept
+
+    def audit_fresh(self, ip):
+        """1.155: the verdict of nginx-log-audit.sh --investigate for this address, if it is less than AUDIT_TTL old; None otherwise."""
+        verdict = self.audit.get(ip)
+        return verdict if verdict is not None and time.time() - verdict[0] < AUDIT_TTL else None
 
     def load_recommended(self):
         """Addresses recommended for banning by the LAST run of web-monitor.py (recommended-bans.json, less than 48 h); unreadable or absent: none."""
@@ -5527,6 +5543,41 @@ RECORD_STATIC_RE = re.compile(r'"(?:GET|HEAD) +(?:/web/assets/|/web/static/|/[\w
 WEBSOCKET_RE = re.compile(r'"GET +/(?:websocket|longpolling)\b')     # 1.93: chat / bus connections of an open tab (recording noise)
 RECORD_MAX_LIMIT = 60.0        # 1.99: a test recording (R key) lasts 60 minutes at most: --record-max and RECORD_MAX cannot exceed it, nor be 0 (no limit)
 RECORD_MAX_DEFAULT = RECORD_MAX_LIMIT     # 1.93: minutes after which a recording stops by itself (--record-max, RECORD_MAX)
+AUDIT_TTL = 1800                                    # 1.155: a verdict of nginx-log-audit.sh --investigate is kept 30 minutes
+
+
+def audit_verdict(ip, app_args=()):
+    """1.155: (verdict, reason, fail2ban bans) of nginx-log-audit.sh --investigate IP: the same rules as its --ban gate, so that an address is proposed
+    here only if the program that bans would accept it. Read from its summary line (INV_RESUME_FILE: "RÉSUMÉ|ip|verdict|reason|bans"); with an older
+    nginx-log-audit.sh, from its line "Score N/7 : bannissement recommandé". (None, reason, 0) when the investigation is impossible."""
+    nla = os.path.join(SCRIPT_DIR, "nginx-log-audit.sh")
+    if not os.path.isfile(nla):
+        return None, "nginx-log-audit.sh missing", 0
+    fd, resume = tempfile.mkstemp(prefix="app-log-live-audit-")
+    os.close(fd)
+    try:
+        r = subprocess.run(["bash", nla, "--investigate", ip, "--no-prompt"] + list(app_args), capture_output=True, text=True, errors="replace",
+                           stdin=subprocess.DEVNULL, timeout=300, start_new_session=True,      # background work: the user's Ctrl-C is not for it
+                           env=dict(os.environ, NGINX_TOOLS_LANG="fr", INV_RESUME_FILE=resume))
+        with open(resume, encoding="utf-8", errors="replace") as f:
+            summary = f.read()
+    except (OSError, subprocess.TimeoutExpired):
+        return None, "investigation impossible", 0
+    finally:
+        try:
+            os.unlink(resume)
+        except OSError:
+            pass
+    m = re.search(r"RÉSUMÉ\|[^|]*\|([^|\n]*)\|([^|\n]*)(?:\|(\d+))?", summary)
+    if m:
+        return m.group(1).strip(), m.group(2).strip(), int(m.group(3) or 0)
+    text = ANSI_RE.sub("", r.stdout)
+    score = re.search(r"→ (Score \d+/7[^\n]*)", text)
+    if score:
+        return ("BANNIR" if "bannissement recommandé" in score.group(1) else "AUCUNE ACTION"), score.group(1).strip(), 0
+    return None, "investigation inconclusive", 0
+
+
 REPEAT_MIN = seuil_commun("REPEAT_MIN", 2)            # past fail2ban bans from which an address is "often banned" (same threshold as nginx-log-audit.sh: "recidivism")
 BAN_DELAY = 10              # seconds left to answer the ban proposal; without an answer, the tracking continues
 KEYS = {b"\x07": "g", b"\x14": "t"}      # Ctrl-G: dashboard; Ctrl-T: only what changed since the last time
@@ -5782,19 +5833,14 @@ def follow(cmd, people, resolver, options, output):
     investigation_lock = threading.Lock()                   # one investigation at a time (reading the journals)
 
     def evaluate_repeat(ip):
-        """Background thread: verdict of nginx-log-audit.sh --evidence; if "ban justified" AND often banned (≥ RECIDIVE_MIN times by fail2ban), proposes the ban."""
-        nla = os.path.join(SCRIPT_DIR, "nginx-log-audit.sh")
+        """Background thread: verdict of nginx-log-audit.sh --investigate (1.155: the same rules as its --ban gate, no longer the verdict of --evidence,
+        which could say "justified" for an address that --ban then refused); if "BANNIR" AND often banned (≥ REPEAT_MIN times by fail2ban), proposes the ban."""
         app = ["--app", options["app"]] if options.get("app") else []
-        try:
-            with investigation_lock:
-                r = subprocess.run(["bash", nla, "--evidence", ip] + app, capture_output=True, text=True, errors="replace", stdin=subprocess.DEVNULL, timeout=180,
-                                   env=dict(os.environ, NGINX_TOOLS_LANG="fr"), start_new_session=True)      # 1.84: background work, the user's Ctrl-C is not for it
-        except (OSError, subprocess.TimeoutExpired):
-            return
-        text = ANSI_RE.sub("", r.stdout)
-        m = re.search(r"récidive : (\d+) bannissements", text)
-        if r.returncode == 0 and "Verdict : bannissement justifié" in text and m and int(m.group(1)) >= REPEAT_MIN:
-            file.put((PROPOSAL, ip, int(m.group(1))))
+        with investigation_lock:
+            verdict, reason, bans = audit_verdict(ip, app)
+        stats.audit[ip] = (time.time(), verdict, reason, bans)
+        if verdict == "BANNIR" and bans >= REPEAT_MIN:
+            file.put((PROPOSAL, ip, bans))
 
     def watch_repeat(ip, L):
         """An address with suspicious requests, not yet banned or protected: verdict in the background (once per session). Without a terminal or with --no-ban-prompt: nothing."""
@@ -5834,7 +5880,7 @@ def follow(cmd, people, resolver, options, output):
         """Often-banned address whose verdict is "ban justified": a question with a delay; yes → nginx-log-audit.sh --ban IP in the foreground (its investigation and gate decide; never --yes)."""
         if ip in stats.all_banned:
             return
-        write_out([color_code(ORANGE, f"──── Address often banned: {n} fail2ban bans — verdict: ban justified ────"),
+        write_out([color_code(ORANGE, f"──── Address often banned: {n} fail2ban bans — investigation verdict: ban ────"),
                 f"  {color_code(STYLES['suspect'], ' ' + ip + ' ')} {stats.who(ip)} — {stats.suspect_ips.get(ip, 0)} suspicious requests in this session"])
         rep = ask_with_delay(TR("Ban {ip} now? [y] yes  [N] no  ({delay} s, no answer: we continue): ").format(ip=ip, delay=BAN_DELAY), BAN_DELAY)
         if (rep or "").strip().lower() not in ("o", "oui", "y", "yes"):
@@ -5846,7 +5892,7 @@ def follow(cmd, people, resolver, options, output):
             write_out(["  nginx-log-audit.sh not found next to this program: banning impossible."])
             return
         app = ["--app", options["app"]] if options.get("app") else []
-        why = ["--reason", f"app-log-live.py: address often banned ({n} fail2ban bans), verdict: ban justified"]   # 1.87: kept in the ban journal
+        why = ["--reason", f"app-log-live.py: address often banned ({n} fail2ban bans), investigation verdict: ban"]   # 1.87: kept in the ban journal
         # 1.148: one address, in the foreground: nginx-log-audit.sh --ban re-runs the investigation; its gate asks for the word BANNIR when not recommended
         with keys.interactive():
             print(f"\n{'=' * 70}\n{ip}")
@@ -6617,12 +6663,27 @@ def follow(cmd, people, resolver, options, output):
         if not candidates:                              # addresses are already to ban (dashboard): no relaunch of web-monitor.py; otherwise a relaunch may find new ones
             refresh_recommendations()
             candidates = stats.to_ban()
+        # 1.155: each candidate is checked first by nginx-log-audit.sh --investigate, the program that bans: only its "BANNIR" is proposed here.
+        unchecked = [ip for ip, _ in candidates if stats.audit_fresh(ip) is None]
+        if unchecked:
+            write_out(["  " + TR("Checking {n} address(es) with nginx-log-audit.sh --investigate (the program that bans decides)…").format(n=len(unchecked))])
+            app_args = ["--app", options["app"]] if options.get("app") else []
+            for ip in unchecked:
+                with investigation_lock:
+                    verdict, reason, bans = audit_verdict(ip, app_args)
+                stats.audit[ip] = (time.time(), verdict, reason, bans)
+            candidates = stats.to_ban()
+        held = [(ip, why) for ip, why in stats.not_proposed if why.startswith(TR("nginx-log-audit.sh: {verdict}").split("{")[0])]
+        if held:
+            write_out(["  " + TR("Not proposed (verdict of nginx-log-audit.sh --investigate):")]
+                   + [f"    {ip} — {why}" for ip, why in held])
         if not candidates:
             write_out(["  Addresses to ban: none (no suspicious request seen here, nor any web-monitor.py recommendation of an address that is not already banned, from the team, a place or a known person)."]
                    + ([f"  Recommendations from web-monitor.py: {stats.reco_diagnostic()}."] if stats.reco_diagnostic() else []))
             return
         write_out([color_code(ORANGE, f"──── {len(candidates)} address(es) to ban ────")]
-               + [f"  {color_code(STYLES['suspect'], ' ' + ip + ' ')} " + (f"{stats.who(ip)} " if stats.who(ip) != ip else "") + f"— {stats.ban_reason(ip, n)}" for ip, n in candidates])
+               + [f"  {color_code(STYLES['suspect'], ' ' + ip + ' ')} " + (f"{stats.who(ip)} " if stats.who(ip) != ip else "") + f"— {stats.ban_reason(ip, n)}"
+                  + (f" — {TR('investigation')}: {stats.audit_fresh(ip)[2]}" if stats.audit_fresh(ip) and stats.audit_fresh(ip)[2] else "") for ip, n in candidates])
         nla = os.path.join(SCRIPT_DIR, "nginx-log-audit.sh")
         if not os.path.isfile(nla):
             write_out(["  nginx-log-audit.sh not found next to this program: banning impossible."])
@@ -7252,7 +7313,7 @@ def main():
     parser.add_argument("--no-cache", action="store_true", help="Neither read nor write the permanent address cache (DNS name, block owner, country: apps/_cache_ip.py)")
     parser.add_argument("--watch", nargs="?", const="registration", default=None, metavar="TEXT",
                         help="Watches the requests whose URL contains TEXT (comma = several; no value: registration, the event registrations): count, errors, median / 95th percentile / maximum duration, slow requests (--slow) and confirmed registrations, in Ctrl-G, Ctrl-T and the health state; most viewed pages with their visitors and robots, and for /survey/ addresses each survey (title read from PostgreSQL, ticket included) with its accesses and submissions (e.g. --watch journee-portes-ouvertes,/survey/). Does NOT filter the display: to see only those lines, add --only with the same text")
-    parser.add_argument("--no-ban-prompt", action="store_true", help="Do not offer to ban an address often banned (verdict « ban justified » of nginx-log-audit.sh --evidence)")
+    parser.add_argument("--no-ban-prompt", action="store_true", help="Do not offer to ban an address often banned (verdict « ban » of nginx-log-audit.sh --investigate)")
     parser.add_argument("--no-banned", action="store_true", help="No [banned: …] label (reads neither fail2ban nor the CrowdSec ipsets)")
     parser.add_argument("--only", action="append", default=None, metavar="TEXT",
                         help="Only the lines that contain TEXT (name, address, URL, module…, case-insensitive); repeatable: one OR the other")
