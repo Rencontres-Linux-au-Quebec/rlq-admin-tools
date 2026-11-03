@@ -3029,3 +3029,30 @@ msgstr "  --theme N                    color theme: 0 terminal colors (default),
 
 msgid "ERREUR: --theme attend un nombre de 0 à 4 (reçu: '"
 msgstr "ERROR: --theme expects a number from 0 to 4 (received: '"
+
+msgid "  Réponse attendue : o (oui) ou n (non)."
+msgstr "  Expected answer: o (yes) or n (no)."
+
+msgid " : non levée (réponse : non)."
+msgstr ": not lifted (answer: no)."
+
+msgid " IP bannies que --investigate recommande de BANNIR durablement : "
+msgstr " banned IP(s) that --investigate recommends to BAN durably: "
+
+msgid " (banni par "
+msgstr " (banned by "
+
+msgid ") - jamais bannie par ce programme."
+msgstr ") - never banned by this program."
+
+msgid "/7, enquête : bannir, banni par "
+msgstr "/7, investigation: ban, banned by "
+
+msgid "bannissement recommandé par --investigate (--unban-low-score)"
+msgstr "ban recommended by --investigate (--unban-low-score)"
+
+msgid " : non banni durablement (réponse : non)."
+msgstr ": not banned durably (answer: no)."
+
+msgid " : pas de question (bannissement jamais automatique). Pour bannir : nginx-log-audit.sh --ban "
+msgstr ": no question (a ban is never automatic). To ban: nginx-log-audit.sh --ban "

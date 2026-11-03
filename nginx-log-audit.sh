@@ -146,7 +146,7 @@ grep_q() { grep "$@" >/dev/null; }
 #                              ne peut pas le voir, le texte etant entre apostrophes (faux positif).
 trap 'ec=$?; echo "" >&2; echo "*** ARRÊT INATTENDU DU SCRIPT (code $ec) À LA LIGNE $LINENO ***" >&2; echo "*** Commande fautive : $BASH_COMMAND" >&2; echo "*** Si le rapport ci-dessus semble incomplet (ex. sections Top 10 absentes), c'\''est probablement la cause." >&2' ERR
 
-readonly SCRIPT_VERSION="2.86.20261103.112227"
+readonly SCRIPT_VERSION="2.87.20261103.114021"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
 # theme_sgr CODE (2.86) : the SGR code as the color theme shows it (--theme N, THEME, NGINX_TOOLS_THEME; apps/_theme.py). Theme 0, no module or no python3: unchanged.
 theme_sgr() {
@@ -577,6 +577,24 @@ demander_oui() {
         tty_ligne; read -r -p "$question" reply || reply=""
     fi
     case "$reply" in o|O|oui|Oui|OUI) return 0 ;; *) return 1 ;; esac
+}
+
+# 2.87: strict confirmation. No default answer: asks again until the reply is o/oui/y/yes or n/non/no. Ctrl+C or end of input counts as "no".
+# Return 0 = yes, 1 = no. Only used on a terminal (callers check it first).
+demander_oui_strict() {
+    local question="$1" reply="" rc
+    DEMANDER_INTERROMPU=0
+    while true; do
+        reply=""; rc=0
+        tty_ligne
+        read -e -r -p "$question" reply || rc=$?
+        if (( rc != 0 )); then DEMANDER_INTERROMPU=1; echo; return 1; fi
+        case "${reply,,}" in
+            o|oui|y|yes) return 0 ;;
+            n|non|no) return 1 ;;
+            *) echo "  Réponse attendue : o (oui) ou n (non)." ;;
+        esac
+    done
 }
 
 # --- Firewall: ufw only if it is ACTIVE (installed but inactive, "ufw deny" records the rule without
@@ -2781,6 +2799,7 @@ if [[ "$DO_UNBAN_LOW_SCORE" == "1" ]]; then
     declare -A VERDICT_OF=()
     declare -A BLOC_OF=()
     declare -a LOW_IPS=()
+    declare -a BAN_IPS=()
     if command -v fail2ban-client >/dev/null 2>&1 && run fail2ban-client ping >/dev/null 2>&1; then
         for j in $(run fail2ban-client status 2>/dev/null | sed -n 's/.*Jail list:[[:space:]]*//p' | tr ',' ' '); do
             for b in $(run fail2ban-client status "$j" 2>/dev/null | sed -n 's/.*Banned IP list:[[:space:]]*//p'); do
@@ -2807,6 +2826,8 @@ if [[ "$DO_UNBAN_LOW_SCORE" == "1" ]]; then
         BLOC_OF["$ip"]="$ENQUETE_BLOC"
         if [[ "$ENQUETE_VERDICT" == "LEVER LE BANNISSEMENT" ]]; then
             LOW_IPS+=("$ip")
+        elif [[ "$ENQUETE_VERDICT" == "BANNIR" ]]; then
+            BAN_IPS+=("$ip")
         fi
     done
     echo
@@ -2815,10 +2836,11 @@ if [[ "$DO_UNBAN_LOW_SCORE" == "1" ]]; then
         printf '  %-40s %-8s %-26s %s\n' "$ip" "${SCORE_OF[$ip]}/7" "${VERDICT_OF[$ip]}" "${BAN_SOURCE[$ip]}"
     done
     echo
+    interactif=0
+    [[ "$NO_PROMPT" != "1" && -t 0 && -t 1 ]] && interactif=1
     if (( ${#LOW_IPS[@]} == 0 )); then
         echo "${C_GREEN}Aucune IP bannie n'a une levée recommandée par --investigate.${C_RESET}"
-        exit 0
-    fi
+    else
     echo "${C_YELLOW}${#LOW_IPS[@]} IP bannies à lever (levée recommandée) : ${LOW_IPS[*]}${C_RESET}"
     echo
     echo "${C_BOLD}Enquêtes avant la levée (lancées par ce programme : verdict et recommandation de --investigate)${C_RESET}"
@@ -2827,8 +2849,6 @@ if [[ "$DO_UNBAN_LOW_SCORE" == "1" ]]; then
         printf '%s\n' "${BLOC_OF[$ip]}" | sed 's/^/   /'
     done
     echo
-    interactif=0
-    [[ "$NO_PROMPT" != "1" && -t 0 && -t 1 ]] && interactif=1
     for ip in "${LOW_IPS[@]}"; do
         src="${BAN_SOURCE[$ip]}"; sc="${SCORE_OF[$ip]}"
         if prot=$(protected_ip_reason "$ip"); then
@@ -2844,7 +2864,7 @@ if [[ "$DO_UNBAN_LOW_SCORE" == "1" ]]; then
         if [[ "$ASSUME_YES" == "1" ]]; then
             ok=1
         elif (( interactif )); then
-            if demander_oui "Débannir $ip (score $sc/7, enquête : lever, banni par $src) ? [o/N] "; then ok=1; fi
+            if demander_oui_strict "Débannir $ip (score $sc/7, enquête : lever, banni par $src) ? [o/n] "; then ok=1; else echo "  $ip : non levée (réponse : non)."; fi
         else
             echo "  $ip : non levée (aucun terminal interactif ; relancer avec --yes pour la lever sans question)."
             continue
@@ -2865,6 +2885,30 @@ if [[ "$DO_UNBAN_LOW_SCORE" == "1" ]]; then
             esac
         fi
     done
+    fi
+    # 2.87: addresses whose investigation says BANNIR (for instance banned only temporarily by fail2ban): offer a durable ban.
+    # Never automatic: --yes or a missing terminal only prints the command.
+    if (( ${#BAN_IPS[@]} > 0 )); then
+        echo
+        echo "${C_BOLD}${#BAN_IPS[@]} IP bannies que --investigate recommande de BANNIR durablement : ${BAN_IPS[*]}${C_RESET}"
+        for ip in "${BAN_IPS[@]}"; do
+            echo "   ${C_YELLOW}▶ $ip${C_RESET} (banni par ${BAN_SOURCE[$ip]}, score ${SCORE_OF[$ip]}/7)"
+            printf '%s\n' "${BLOC_OF[$ip]}" | sed 's/^/   /'
+            if prot=$(protected_ip_reason "$ip"); then
+                echo "  $ip : IP protégée ($(printf '%s\n' "$prot" | head -1)) - jamais bannie par ce programme."
+                continue
+            fi
+            if (( interactif )) && [[ "$ASSUME_YES" != "1" ]]; then
+                if demander_oui_strict "Bannir durablement $ip (score ${SCORE_OF[$ip]}/7, enquête : bannir, banni par ${BAN_SOURCE[$ip]}) ? [o/n] "; then
+                    relancer_action --ban "$ip" --yes --reason "bannissement recommandé par --investigate (--unban-low-score)" || true
+                else
+                    echo "  $ip : non banni durablement (réponse : non)."
+                fi
+            else
+                echo "  $ip : pas de question (bannissement jamais automatique). Pour bannir : nginx-log-audit.sh --ban $ip"
+            fi
+        done
+    fi
     exit 0
 fi
 
