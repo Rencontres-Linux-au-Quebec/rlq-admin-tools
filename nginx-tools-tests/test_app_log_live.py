@@ -1814,37 +1814,38 @@ class AppLogLive(EnvTest):
                       werkzeug(DNS, "/absent", 404), self.lente(DNS, "/lente", "2.0", "10.0"), werkzeug(PERSONNE, "/event"), werkzeug(PERSONNE, "/event")],
                      after=after)
 
-    def faux_audit_recidive(self, verdict="bannissement justifié", bans=3):
+    def faux_audit_recidive(self, verdict="BANNIR", bans=3):
+        """1.155: the verdict comes from nginx-log-audit.sh --investigate (its summary line in $INV_RESUME_FILE), no longer from --evidence."""
         faux = os.path.join(os.path.dirname(self.prog), "nginx-log-audit.sh")
         with open(faux, "w") as f:
-            f.write(f'#!/usr/bin/env bash\necho "$@" >> {self.d}/ban.log\ncase "$1" in --evidence)\n'
-                    f'  echo "    Pour le bannissement :"; echo "      + récidive : {bans} bannissements temporaires par fail2ban (nginx-botsearch)"\n'
-                    f'  echo "    Verdict : {verdict} (aucune raison contraire trouvée)." ;;\n--ban) echo "Règle ajoutée" ;;\nesac\nexit 0\n')
+            f.write(f'#!/usr/bin/env bash\necho "$@" >> {self.d}/ban.log\ncase "$1" in --investigate)\n'
+                    f'  echo "  RÉSUMÉ|$2|{verdict}|récidive ; sondes|{bans}" >> "$INV_RESUME_FILE" ;;\n--ban) echo "Règle ajoutée" ;;\nesac\nexit 0\n')
         os.chmod(faux, 0o755)
 
     def test_adresse_bannie_souvent_proposee_avec_delai(self):
-        """1.19 : adresse à requêtes suspectes, bannie ≥ 2 fois (fail2ban) et verdict « bannissement justifié » : question avec délai de 10 s ; oui → --ban IP --yes ; sans réponse : on continue."""
+        """1.19 : adresse à requêtes suspectes, bannie ≥ 2 fois (fail2ban) et verdict de l'enquête « BANNIR » (1.155, avant : « bannissement justifié » de --evidence) :
+        question avec délai de 10 s ; oui → --ban IP ; sans réponse : on continue."""
         self.faux_audit_recidive()
         self.journal([werkzeug(DNS, "/wp-login.php", 404), werkzeug(DNS, "/.env", 404)], after="sleep 40")
         sequence = [(b"Bannir " + DNS.encode() + b" maintenant", b"o\r", 0.3), (b"banni", b"\x03", 0.5)]
         text, envoyees = self.run_pty(["python3", self.prog, "--no-history", "--no-isp", "--no-presence", "--no-banned", "--lines", "5"], sequence, timeout=60)
         self.assertEqual(envoyees, 2, text)
         t = " ".join(text.split())
-        self.assertIn("Adresse bannie souvent : 3 bannissements fail2ban — verdict : bannissement justifié", T(t))
+        self.assertIn("Adresse bannie souvent : 3 bannissements fail2ban — verdict de l'enquête : bannir", T(t))
         journal = open(os.path.join(self.d, "ban.log")).read()
-        self.assertIn(f"--evidence {DNS}", journal)
+        self.assertIn(f"--investigate {DNS} --no-prompt", journal)
         self.assertIn(f"--ban {DNS} --reason", journal)          # 1.148: one address, foreground, no --yes
         self.assertNotIn("--yes", journal)
 
     def test_adresse_bannie_souvent_sans_reponse_ou_verdict_different_ou_option(self):
-        """Sans réponse en 10 s : le suivi continue, rien n'est banni ; verdict « à examiner » ou une seule fois : aucune question ; --no-ban-prompt : aucune enquête."""
+        """Sans réponse en 10 s : le suivi continue, rien n'est banni ; verdict autre que « BANNIR » ou une seule fois : aucune question ; --no-ban-prompt : aucune enquête."""
         self.faux_audit_recidive()
         self.journal([werkzeug(DNS, "/wp-login.php", 404)], after="sleep 40")
         sequence = [(b"Pas de r\xc3\xa9ponse en 10 s", b"\x03", 0.5)]
         text, envoyees = self.run_pty(["python3", self.prog, "--no-history", "--no-isp", "--no-presence", "--no-banned", "--lines", "5"], sequence, timeout=70)
         self.assertEqual(envoyees, 1, text)
         self.assertNotIn("--ban", open(os.path.join(self.d, "ban.log")).read())
-        for verdict, bans, extra in (("à examiner", 3, []), ("bannissement justifié", 1, []), ("bannissement justifié", 3, ["--no-ban-prompt"])):
+        for verdict, bans, extra in (("AUCUNE ACTION", 3, []), ("BANNIR", 1, []), ("BANNIR", 3, ["--no-ban-prompt"])):
             os.remove(os.path.join(self.d, "ban.log"))
             self.faux_audit_recidive(verdict, bans)
             self.journal([werkzeug(DNS, "/wp-login.php", 404)], after="sleep 8")

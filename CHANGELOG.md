@@ -381,11 +381,11 @@ Earlier history was archived outside this repository when this file was created.
   - b key (ban()): the candidates not yet checked are checked first ("Vérification de N adresse(s) par nginx-log-audit.sh --investigate (le programme qui bannit décide)..."), one at a time (investigation_lock); then the addresses not proposed are listed with the verdict, and each proposed one shows the reason of the investigation.
   - evaluate_repeat() (background proposal of an often-banned address): the verdict of --investigate instead of --evidence; proposed when "BANNIR" and at least REPEAT_MIN fail2ban bans. Texts "verdict : bannissement justifié" -> "verdict de l'enquête : bannir"; help of --no-ban-prompt.
   - lang/app-log-live.fr.po: the new and changed messages; doc/fr and doc/en 07-app-log-live.md: the b key.
-  - nginx-tools-tests/test_app_log_live.py: new class AppLogLive155 (5 tests).
+  - nginx-tools-tests/test_app_log_live.py: new class AppLogLive155 (5 tests); test_adresse_bannie_souvent_proposee_avec_delai and test_adresse_bannie_souvent_sans_reponse_ou_verdict_different_ou_option adapted to the new contract (their fake nginx-log-audit.sh answers --investigate with a summary line instead of --evidence).
 - Bugs fixed:
   - Symptom: "2 adresses à bannir", then "LES PREUVES NE JUSTIFIENT PAS CE BANNISSEMENT ... Tapez exactement BANNIR". Diagnosis: three sources (suspicious requests seen here, 404 sweeps, recommended-bans.json) and the --evidence verdict were trusted without the rule of --ban. Fix: the verdict of --investigate decides.
 - Safeguards and edge cases: the investigation runs only when the b key is pressed (or in the background for an often-banned address), never for each line; a verdict is kept 30 minutes; investigation impossible (program missing, timeout): the address stays proposed and --ban still checks it, as before. Older nginx-log-audit.sh without the summary line: its "Score" line is read.
-- Checks performed: python3 -m py_compile; AppLogLive155 (5 tests) [OK]; test_app_log_live: same failures as main; test_i18n: catalogue of app-log-live [OK].
+- Checks performed: python3 -m py_compile; AppLogLive155 (5 tests) and the two adapted tests [OK]; test_app_log_live: 221 tests, the 7 failures already present on main; test_i18n: catalogue of app-log-live [OK].
 - Action required: none (with nginx-log-audit.sh 2.79 or later next to it, the verdicts match exactly).
 
 ### 1.154.20261102.220415 - Column header: country and IP block labels with --min, and the header again after each status bar
