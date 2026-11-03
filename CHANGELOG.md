@@ -3523,6 +3523,16 @@ Earlier history was archived outside this repository when this file was created.
 
 ## nginx-log-audit.sh
 
+### 2.87.20261103.114021 - --unban-low-score: ban offer for BANNIR verdicts and strict o/n questions
+
+- Title: --unban-low-score now offers a durable ban when --investigate says BANNIR, and its questions require an explicit o or n.
+- Reason: on dev, 185.218.86.26 had the verdict BANNIR (3/7, banned only temporarily by the fail2ban jail nginx-blocked-probes) and the user was never asked to ban it. The lift question "Debannir ... [o/N]" also accepted any key as "no" (and Enter), so an answer was easy to lose.
+- Changes: nginx-log-audit.sh: new function demander_oui_strict (no default; asks again until o/oui/y/yes or n/non/no; Ctrl-C or end of input counts as no). In the --unban-low-score block: addresses with the verdict BANNIR are collected in BAN_IPS; the "no lift recommended" case no longer exits early so the ban offer is always reached; for each BANNIR address the investigation block is shown and the question "Bannir durablement IP ... [o/n]" runs `--ban IP --yes --reason ...` (which keeps its own score gate); the lift question uses demander_oui_strict and prints a line for a "no" answer. lang/nginx-log-audit.en.po: 9 new entries. Files: nginx-log-audit.sh, lang/nginx-log-audit.en.po, doc/fr and doc/en 02-nginx-log-audit.md, tests.
+- Bugs fixed: symptom: a BANNIR address stayed only under its temporary fail2ban ban with no question. Diagnosis: the block only handled LEVER LE BANNISSEMENT and left early when nothing had to be lifted. Fix: ban offer step added after the lift step.
+- Safeguards and edge cases: a ban is never automatic: with --yes, --no-prompt or no terminal the program only prints the command `nginx-log-audit.sh --ban IP`. Protected IPs (white list, team, server) are never offered. The ban itself still goes through the --ban gate (score and CDN checks) and its journal.
+- Checks: bash -n; test_i18n (nginx-log-audit catalogue complete); new tests test_unban_low_score_question_stricte_o_ou_n (pseudo-terminal: invalid answer asked again, then o lifts and prints the result) and test_unban_low_score_propose_le_bannissement_des_ip_a_bannir; test_ban_gate version string updated.
+- Action required: none. Run `sudo nginx-log-audit.sh dev --unban-low-score` and answer o or n for 185.218.86.26.
+
 ### 2.86.20261103.112227 - --theme N: color themes
 
 - Title: --theme N: color themes.

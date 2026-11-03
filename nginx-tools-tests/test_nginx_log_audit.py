@@ -297,6 +297,34 @@ class ChkNginxLogs(EnvTest):
         self.assertLess(out.index("Enquêtes avant la levée"), out.index("levée (jail"))
         self.assertNotIn("Commandes à lancer", out, "--unban-low-score agit lui-même : pas de commandes à copier")
 
+    @unittest.skipUnless(os.geteuid() == 0, "--unban-low-score exige root")
+    def test_unban_low_score_question_stricte_o_ou_n(self):
+        """2.87 : la question de levée n'a pas de réponse par défaut : une réponse autre que o/n est redemandée ; n laisse l'IP bannie ; o la lève et l'affiche."""
+        lever = "11.89.160.80"
+        self.add(*(acc(lever, "25/Sep/2026", f"08:00:0{k}", f"/page-{k}", 200, "Mozilla/5.0 (X11; Linux x86_64) Firefox/120.0") for k in range(3)))
+        self.mock("fail2ban-client", f'case "$1 $2" in "ping ") exit 0;; "status ") echo \'`- Jail list:\tjail-a\';; '
+                                     f'"status jail-a") echo "|- Banned IP list:\t{lever}"; echo \'`- File list:\t{self.logs}/odoo-catchall-444.log\';; '
+                                     f'"set jail-a") echo "$*" >> {self.d}/f2b-set.log;; '
+                                     f'*) exit 0;; esac')
+        texte, _ = self.run_pty(["bash", self.prog, "prod", "--unban-low-score"],
+                                [(b"[o/n]", b"peut-etre\r", 1.0), ("Réponse attendue".encode(), b"o\r", 1.0)], timeout=120)
+        self.assertIn("Réponse attendue : o (oui) ou n (non).", texte)
+        self.assertIn(f"{lever} levée (jail jail-a)", texte)
+        with open(f"{self.d}/f2b-set.log") as f:
+            self.assertIn(f"unbanip {lever}", f.read())
+
+    def test_unban_low_score_propose_le_bannissement_des_ip_a_bannir(self):
+        """2.87 : une IP dont l'enquête dit BANNIR reçoit une question (jamais automatique) ; --yes ou sans terminal : seulement la commande --ban."""
+        with open(self.prog, encoding="utf-8") as f:
+            src = f.read()
+        bloc = src[src.index("# --- --unban-low-score :"):src.index("# --- --unban-expired")]
+        self.assertIn('BAN_IPS+=("$ip")', bloc)
+        self.assertIn('demander_oui_strict "Bannir durablement $ip', bloc)
+        self.assertIn('relancer_action --ban "$ip" --yes', bloc)
+        self.assertIn('if (( interactif )) && [[ "$ASSUME_YES" != "1" ]]', bloc)
+        self.assertIn("nginx-log-audit.sh --ban $ip", bloc)
+        self.assertNotIn('demander_oui "Débannir', bloc, "la question de levée est stricte")
+
     def test_unban_low_score_la_levee_exige_le_verdict_de_l_enquete(self):
         """2.81 : le code ne lève une adresse que si l'enquête dit « LEVER LE BANNISSEMENT », même avec --yes."""
         with open(self.prog, encoding="utf-8") as f:
