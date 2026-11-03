@@ -371,6 +371,23 @@ Earlier history was archived outside this repository when this file was created.
 
 ## app-log-live.py
 
+### 1.154.20261102.220415 - Column header: country and IP block labels with --min, and the header again after each status bar
+
+- Title: the header line shows "PA BLOC-IP" (English "CC IP-BLOCK") over the country code and the name, also with --min; it is shown again right after each status bar.
+- Reason: request of the administrator on 2026-11-02: the header "HEURE PROG NIV ... HTTP STA SIZE..." lacked the country and the IP block over "CA JoséR+MartialB+Rencontres-LinuxQ+Administrat..." of an http line; and the header should come after the status line.
+- Changes:
+  - column_header(): one label TR("CC IP-BLOCK") placed on the country code of the measured line (two capital letters followed by the name), or on the address when there is no country code; it replaces the two labels TR("CC") and TR("IP BLOCK (ISP)").
+  - New inner function header_after_bar(): show_header() measured on the last request line written (state["header_plain"], kept by paint()), or on a sample before the first one. Called after the periodic status bar (emit) and after the status bar shown once after the history (startup_status_bar).
+  - lang/app-log-live.fr.po: "CC IP-BLOCK" -> "PA BLOC-IP" (the entries "CC" and "IP BLOCK (ISP)" removed).
+  - doc/fr and doc/en 07-app-log-live.md: the header after the status bar and the label.
+  - nginx-tools-tests/test_app_log_live.py: new class AppLogLive154 (4 tests).
+- Bugs fixed:
+  - Symptom: no country / IP block label over the name of an http line with --min. Diagnosis: column_header() skipped two words after the level, the logger ("base werkzeug") of a normal line; with --min there is no logger, so the label landed on "H1.1" and was left out (or, with a country and a name, after the name). Fix: the label is placed on the country code found in the line.
+  - Symptom: the label "CC" stayed "CC" in French. Diagnosis: the shared translator (apps/_i18n.py) leaves texts shorter than 3 characters untranslated. Fix: one longer label "CC IP-BLOCK".
+- Safeguards and edge cases: logger names are in lower case, so they are never taken for a country code; a label that would overlap the request columns is still left out (narrow terminal); the header is decoration, an error while measuring it never stops the stream; it goes to the error output as before, not to the daily journal. --status-every 0: no status bar, so no extra header.
+- Checks performed: python3 -m py_compile; AppLogLive154 (4 tests), AppLogLive153 and AppLogLive143 [OK]; header previewed with and without --min, with and without a country and a name.
+- Action required: none.
+
 ### 1.153.20261102.201101 - --log-merge: an nginx 304 or 499 merges with the Odoo line of the same request
 
 - Title: the nginx line and the Odoo line of one request are merged even when their status codes differ in the two ways nginx produces: 304 for a 200 of Odoo, 499 for any status of Odoo.
