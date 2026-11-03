@@ -652,8 +652,8 @@ msgstr "Contacts Odoo de l'ÉTIQUETTE de contact NOM (ex. Collaborateurs-2026) a
 msgid "Show the change log"
 msgstr "Affiche le journal des modifications"
 
-msgid "Configuration file to read ALONE (otherwise: /etc/default/app-log-live.conf, then the personal file .app-log-live.conf; options in UPPERCASE: APP, CONNECTIONS, DAYS, DNS_MAX, HEALTH, HIDE_IP, IDLE, LANGUAGE, LINES, LOG_DIR, LOG_KEEP_DAYS, LOG_MERGE, LOG_NGINX, MIN, NAMESPACE, NO_BANNED, NO_BAN_PROMPT, NO_CACHE, NO_HISTORY, NO_ISP, NO_KEYS, NO_LOG_FILE, NO_PRESENCE, NO_USER_AGENT, RECAP, SERVICE, SLOW, STATUS_HEADER, VERBOSE)"
-msgstr "Fichier de configuration à lire SEUL (sinon : /etc/default/app-log-live.conf, puis le fichier personnel .app-log-live.conf ; options en MAJUSCULES : APP, CONNECTIONS, DAYS, DNS_MAX, HEALTH, HIDE_IP, IDLE, LANGUAGE, LINES, LOG_DIR, LOG_KEEP_DAYS, LOG_MERGE, LOG_NGINX, MIN, NAMESPACE, NO_BANNED, NO_BAN_PROMPT, NO_CACHE, NO_HISTORY, NO_ISP, NO_KEYS, NO_LOG_FILE, NO_PRESENCE, NO_USER_AGENT, RECAP, SERVICE, SLOW, STATUS_HEADER, VERBOSE)"
+msgid "Configuration file to read ALONE (otherwise: /etc/default/app-log-live.conf, then the personal file .app-log-live.conf; options in UPPERCASE: APP, CONNECTIONS, DAYS, DNS_MAX, ERRORS_ONLY, HEALTH, HIDE_IP, IDLE, LANGUAGE, LINES, LOG_DIR, LOG_KEEP_DAYS, LOG_MERGE, LOG_NGINX, MIN, NAMESPACE, NO_BANNED, NO_BAN_PROMPT, NO_CACHE, NO_HISTORY, NO_ISP, NO_KEYS, NO_LOG_FILE, NO_PRESENCE, NO_USER_AGENT, RECAP, SERVICE, SLOW, STATUS_HEADER, VERBOSE)"
+msgstr "Fichier de configuration à lire SEUL (sinon : /etc/default/app-log-live.conf, puis le fichier personnel .app-log-live.conf ; options en MAJUSCULES : APP, CONNECTIONS, DAYS, DNS_MAX, ERRORS_ONLY, HEALTH, HIDE_IP, IDLE, LANGUAGE, LINES, LOG_DIR, LOG_KEEP_DAYS, LOG_MERGE, LOG_NGINX, MIN, NAMESPACE, NO_BANNED, NO_BAN_PROMPT, NO_CACHE, NO_HISTORY, NO_ISP, NO_KEYS, NO_LOG_FILE, NO_PRESENCE, NO_USER_AGENT, RECAP, SERVICE, SLOW, STATUS_HEADER, VERBOSE)"
 
 msgid "Beep (in byobu/tmux too: see the tips shown) when a displayed line is an error: 0 = any error (4xx, 5xx, Odoo ERROR), 1 = 4xx, 2 = 5xx and 4xx (0 without value)"
 msgstr "Bip (dans byobu/tmux aussi : voir les conseils affichés) quand une ligne affichée est une erreur : 0 = toute erreur (4xx, 5xx, ERROR d'Odoo), 1 = 4xx, 2 = 5xx et 4xx (0 sans valeur)"
@@ -3032,3 +3032,18 @@ msgstr " requête(s) de "
 
 msgid " address(es) (password reset, sign-up) — "
 msgstr " adresse(s) (mot de passe oublié, inscription) — "
+
+msgid "Only the errors and the suspicious requests (HTTP 400 and above, Odoo WARNING / ERROR, traces, failed logins), not the normal transactions; starts with the last 100 errors found in the history (at least 3000 lines read); key X to switch it on and off while running"
+msgstr "Seulement les erreurs et les requêtes suspectes (HTTP 400 et plus, WARNING / ERROR d'Odoo, traces, connexions échouées), pas les transactions normales ; commence par les 100 dernières erreurs trouvées dans l'historique (au moins 3000 lignes lues) ; touche X pour l'activer et la désactiver en cours d'exécution"
+
+msgid "only the errors and the suspicious requests, no normal transaction (the last 100 errors are shown)"
+msgstr "seulement les erreurs et les requêtes suspectes, aucune transaction normale (les 100 dernières erreurs s'affichent)"
+
+msgid "──── "
+msgstr "──── "
+
+msgid " last errors (--errors-only) ────"
+msgstr " dernières erreurs (--errors-only) ────"
+
+msgid "──── no error in the history (--errors-only) ────"
+msgstr "──── aucune erreur dans l'historique (--errors-only) ────"

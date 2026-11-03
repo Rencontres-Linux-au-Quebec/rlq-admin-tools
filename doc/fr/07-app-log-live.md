@@ -117,4 +117,6 @@ app-log-live.py --log-nginx -g ' 404 '           # les réponses 404 de nginx et
 
 * **1.157 - formulaires de compte** : une requête à `/web/reset_password` ou `/web/signup` (avec ou sans préfixe de langue) s'affiche en **vidéo inverse rouge**. Le résumé (Ctrl-G, Ctrl-T, Ctrl-C) ajoute la ligne « Formulaires de compte » : nombre de requêtes par adresse (cinq premières) et par page. Un robot qui suit les liens de la page de connexion les lit sans rien soumettre ; ce repère sert à voir une adresse qui les demande en rafale.
 
+* **1.158 - seulement les erreurs** : `--errors-only` (`ERRORS_ONLY`) ou la touche `X` (bascule) n'affiche que les erreurs et les requêtes suspectes : code HTTP 400 et plus, requête suspecte, WARNING / ERROR / CRITICAL d'Odoo, traces, connexions échouées. Les transactions normales (2xx, 3xx, INFO) sont cachées. Au démarrage (au moins 3000 lignes d'historique lues) et à chaque activation par `X`, les **100 dernières erreurs** s'affichent d'abord. Le résumé ne compte que ce qui est affiché.
+
 {{HELP}}

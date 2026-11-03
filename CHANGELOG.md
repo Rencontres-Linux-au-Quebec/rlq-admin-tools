@@ -371,6 +371,22 @@ Earlier history was archived outside this repository when this file was created.
 
 ## app-log-live.py
 
+### 1.158.20261103.085742 - --errors-only: only the errors and the suspicious requests (X key)
+
+- Title: new option --errors-only (ERRORS_ONLY, X key as a toggle while the program runs) that hides the normal transactions and shows only the errors and the suspicious requests, starting with the last 100 errors.
+- Reason: request of the administrator on 2026-11-03: "add an option (command line and in the menu as a toggle) to see only the errors (or suspicious requests), not the normal transactions without errors (show the last 100 errors); in the menu while the program runs it must be a toggle."
+- Changes:
+  - New is_error_line(): HTTP code 400 and above, suspicious request (SUSPECT_RE, even answered 200), Odoo WARNING / ERROR / CRITICAL, trace, failed login. A continuation line (Python trace) follows the line before it (error_flag).
+  - keep(): the filter also requires an error when the mode is on (it combines with --suspect, --only, --not-found, --exclude-ip).
+  - A buffer of the last 100 errors (ERRORS_SHOWN) is kept all the time. At the start the history is held and its last 100 errors are shown first ("──── N dernières erreurs (--errors-only) ────"; "aucune erreur dans l'historique" if none); at least 3000 lines of history are read (ERRORS_HISTORY_LINES). The history ends at the first recent line, at the end of the stream, or when the stream is idle after some lines.
+  - X key (MENU_KEYS "errors"): toggles the mode; switching it on shows the last 100 errors already seen again (not counted twice in the summary). Menu line and ERRORS_ONLY in the configuration file (saved by the W key), in the list of the --config help.
+  - lang/app-log-live.fr.po, doc/fr and doc/en 07-app-log-live.md and app-log-live.conf.example. nginx-tools-tests/test_app_log_live.py: new class AppLogLive158 (5 tests).
+- Bugs fixed:
+  - Found while testing: a first version stored its flag in the attribute L.err, which hid the method Line.err() used by --min; renamed L.error_seen.
+- Safeguards and edge cases: the summary counts only the displayed lines, as with --suspect; the history is held only for lines older than the start of the program; an idle stream without any line does not print "no error" before 15 s; the key does nothing else (no restart).
+- Checks performed: AppLogLive156, 157 and 158 (11 tests); test_i18n catalogue of app-log-live.
+- Action required from the user: none.
+
 ### 1.157.20261103.081106 - Password reset and sign-up forms in red reverse video, counted per address
 
 - Title: requests to /web/reset_password and /web/signup are shown in red reverse video and counted in the summary.
@@ -2924,6 +2940,20 @@ Earlier history was archived outside this repository when this file was created.
 ### 1.14.20261020.211944 - Current version. Earlier history archived outside the repository.
 
 ## nginx-hardening.sh
+
+### 2.79.20261103.085601 - SofyaBot refused by bot_blocker.conf
+
+- Title: the User-Agent "SofyaBot" (sofya.co) is refused with a 403, like the other commercial crawlers.
+- Reason: request of the administrator on 2026-11-03, after nginx-log-audit.sh --investigate of 206.42.109.58 (811 requests in 12 minutes, one burst, score 1/7, verdict "REFUSER LE ROBOT PAR SON NOM"): the robot follows the login, password reset and sign-up links of every blog article.
+- Changes:
+  - nginx/conf.d/bot_blocker.conf: "SofyaBot" added to the line of commercial crawlers, with its comment.
+  - nginx/VERSION: 1.21.20261103.085601.
+  - nginx-tools-tests/test_config_nginx.py: test_filtre_a_robots checks the User-Agent.
+  - nginx-hardening.sh: SCRIPT_VERSION 2.79.20261103.085601 (the program installs the files of nginx/).
+- Bugs fixed: none.
+- Safeguards and edge cases: case-insensitive match anywhere in the User-Agent; the name does not appear in a browser User-Agent (test_filtre_a_robots still checks that real browsers and an isolated curl are not blocked).
+- Checks performed: test_config_nginx.ConfigNginx.test_filtre_a_robots.
+- Action required: after the merge, nginx-hardening.sh --update.
 
 ### 2.78.20261102.212810 - Job offer robots (CareerScout, jobs_v1) refused by bot_blocker.conf
 
