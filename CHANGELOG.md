@@ -2856,6 +2856,20 @@ Earlier history was archived outside this repository when this file was created.
 
 ## nginx-hardening.sh
 
+### 2.77.20261102.205839 - Webz.io robot (webzio) refused by bot_blocker.conf
+
+- Title: the User-Agent "webzio" (Webz.io, commercial collector of web data) is refused with a 403, like the other content harvesters.
+- Reason: request of the administrator on 2026-11-02, after nginx-log-audit.sh --investigate 82.166.33.79 (manual ban of 2026-09-27, score 3/7). The address, at an Israeli access provider (Cellcom / Barak), sent 15 requests in one burst on 2026-09-27 at 19:48: 12 feed names (/rss, /feed, /atom.xml, /index.rss...) in 10 s, alternating "webzio (+https://webz.io/bot.html)", python-requests (already refused, 9 x 403) and a Chrome User-Agent. Nothing sensitive was requested; the robot declares its name, so refusing it by User-Agent is more fitting than a permanent firewall ban of an access-provider address that will be reassigned.
+- Changes:
+  - nginx/conf.d/bot_blocker.conf: "webzio" added to the line of AI training / content harvesting robots, with its comment.
+  - nginx/VERSION: 1.19.20261102.205839.
+  - nginx-tools-tests/test_config_nginx.py: test_filtre_a_robots also checks "webzio (+https://webz.io/bot.html)".
+  - nginx-hardening.sh: SCRIPT_VERSION 2.77.20261102.205839 (the program installs the files of nginx/).
+- Bugs fixed: none.
+- Safeguards and edge cases: case-insensitive match anywhere in the User-Agent, like the other names of the line; "webzio" does not appear in browser User-Agents (test_filtre_a_robots still checks that real browsers and an isolated curl pass). /robots.txt stays readable by the robot ($is_bad_bot_enforced exemption). app-log-live.py reads the list from /etc/nginx/conf.d/bot_blocker.conf at start, so these 403 are labelled [BOT] without a change of the program (checked with bot_blocked_re() on the new file); its built-in list BOT_BLOCKED_DEFAULT, used only when the file is absent, is left unchanged to avoid a conflict with the open pull request of app-log-live 1.153. The Chrome User-Agent of the same robot is not caught by this rule (no way to tell it from a browser by name).
+- Checks performed: test_config_nginx.ConfigNginx.test_filtre_a_robots [OK] (NGINX_ODOO_DIR=nginx/). The other failures of test_config_nginx with that folder come from the site files absent from the repository (vhosts, cdn-realip.conf, robots-disallow.conf, uri-desactivees.conf) and are identical without this change.
+- Action required: after the merge, nginx-hardening.sh --update (installs bot_blocker.conf, nginx -t and reload). Then, if wanted, lift the firewall ban: nginx-log-audit.sh --unban 82.166.33.79.
+
 ### 2.76.20261102.104500 - Dated [temporaire] entries and 15-minute check
 
 - Title: a white list entry marked [temporaire AAAA-MM-JJ HH:MM:SS] is valid until that local date and time, then removed from nginx and fail2ban. The check runs every 15 minutes.
