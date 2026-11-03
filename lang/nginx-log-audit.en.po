@@ -3068,3 +3068,15 @@ msgstr "Waiting for the last investigations (up to "
 
 msgid " en parallèle)"
 msgstr " in parallel)"
+
+msgid "==== Résultat complet de nginx-log-audit.sh --investigate "
+msgstr "==== Full result of nginx-log-audit.sh --investigate "
+
+msgid " ===="
+msgstr " ===="
+
+msgid "==== Fin du résultat pour "
+msgstr "==== End of the result for "
+
+msgid "/ENQU.TE SUR /,$p"
+msgstr ""
