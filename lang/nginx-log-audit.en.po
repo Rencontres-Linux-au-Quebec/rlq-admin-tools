@@ -2921,3 +2921,42 @@ msgstr ", of which "
 
 msgid " refusées par nginx (blocked-probes.log)"
 msgstr " refused by nginx (blocked-probes.log)"
+
+msgid "aucune trace dans les journaux conservés (site, refus de nginx, capteur catch-all) : rien ne justifie plus ce bannissement"
+msgstr "no trace in the logs kept (site, nginx refusals, catch-all sensor): nothing justifies this ban any more"
+
+msgid "6) Enquêtes sur ces bannissements (lancées par ce programme : verdict et recommandation de --investigate)"
+msgstr "6) Investigations of these bans (run by this program: verdict and recommendation of --investigate)"
+
+msgid " adresses : les "
+msgstr " addresses: the first "
+
+msgid " premières seulement (UNBAN_CHECK_INVESTIGATIONS) ; les autres : commandes de la section 5."
+msgstr " only (UNBAN_CHECK_INVESTIGATIONS); the others: commands of section 5."
+
+msgid "Enquête "
+msgstr "Investigation "
+
+msgid "/ANALYSE ET RECOMMANDATION/,$p"
+msgstr ""
+
+msgid "     (enquête sans verdict : nginx-log-audit.sh --investigate "
+msgstr "     (investigation without a verdict: nginx-log-audit.sh --investigate "
+
+msgid "   Synthèse :"
+msgstr "   Summary:"
+
+msgid "   Commandes à lancer (chacune vérifie de nouveau et demande confirmation) :"
+msgstr "   Commands to run (each one checks again and asks for confirmation):"
+
+msgid "   Aucune commande à lancer : ni bannissement ni levée recommandés."
+msgstr "   No command to run: no ban and no lift recommended."
+
+msgid "   Pour une relecture : copiez les sections 1 à 6 de ce rapport."
+msgstr "   For a review: copy sections 1 to 6 of this report."
+
+msgid "  Commande : "
+msgstr "  Command: "
+
+msgid "Raison principale"
+msgstr "Main reason"

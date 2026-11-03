@@ -3414,6 +3414,23 @@ Earlier history was archived outside this repository when this file was created.
 
 ## nginx-log-audit.sh
 
+### 2.80.20261102.233751 - --unban-check runs the investigations of the bans to check (section 6)
+
+- Title: at the end of its report, --unban-check runs nginx-log-audit.sh --investigate for each ban of section 5 and shows its verdict, its reasons and the command to run, then a summary table and the --ban / --unban commands.
+- Reason: request of the administrator on 2026-11-02: "--unban-check should start the investigations at the end of its report" instead of listing the commands to run by hand for each address (18.226.62.38, 34.179.188.26, 35.246.245.129, 51.75.119.168, 82.166.33.79).
+- Changes:
+  - New function enquetes_compactes IP...: runs --investigate for each address (this program, --no-prompt, NGINX_TOOLS_LANG=fr so the block is found by its French title, then translated with the rest of the output; INV_RESUME_FILE for the summary), shows only the block ANALYSE ET RECOMMANDATION, then "Synthèse" (IP, verdict, main reason) and the commands. At most UNBAN_CHECK_INVESTIGATIONS addresses (environment variable, 20 by default).
+  - revue_controles(): new section 6 after section 5 (which keeps its commands, for the full report); "copiez les sections 1 à 6".
+  - recommander(): an address with no trace left in the logs kept (site, nginx refusals, catch-all sensor) says so, instead of "aucun signe d'hostilité".
+  - lang/nginx-log-audit.en.po: the new messages, and "  Commande : " and "Raison principale", which stayed in French in English output (sections 1 to 4 of the review and the advice).
+  - doc/fr and doc/en 02-nginx-log-audit.md: section 6.
+  - nginx-tools-tests/test_nginx_log_audit.py: test_unban_check_une_seule_rafale_a_verifier checks section 6 (verdict, summary, command); test_ban_gate.py: version.
+- Bugs fixed:
+  - Symptom: in English, "Commande :" and "Raison principale" stayed in French. Diagnosis: no catalogue entry (the extraction of the test does not see them as French). Fix: entries added.
+- Safeguards and edge cases: read-only (the investigations ban nothing; the commands check again and ask); an investigation without a verdict says so with its command; more than 20 addresses: the first 20, the others with the commands of section 5. Each investigation takes a few seconds: with 5 addresses the report is about a minute longer (cron included).
+- Checks performed: bash -n; test_nginx_log_audit and test_ban_gate [OK]; test_i18n: catalogue of nginx-log-audit [OK]; section 6 previewed in French and in English.
+- Action required: none.
+
 ### 2.79.20261102.230844 - The investigation counts the requests refused by nginx (blocked-probes.log)
 
 - Title: --investigate (and the investigation run by --ban) adds the requests of the address found in blocked-probes.log to those of the site log, so that the refused probes count in the score like the others; its summary line gives the number of fail2ban bans too.
