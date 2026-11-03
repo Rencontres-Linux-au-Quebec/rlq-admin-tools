@@ -3161,6 +3161,24 @@ class AppLogLive(EnvTest):
         live.lancer = lambda cmd, delay=10: (1, "")
         self.assertEqual(T(ANSI.sub("", live.logged_in_lines(None)[-1])), "  Connectés en SSH : 0")
 
+    def test_162_barre_ssh_ps_et_who_utilisateurs_du_serveur_et_touche_entree(self):
+        """1.162 : la barre compte les sessions SSH comme les rapports (ps ET who : 0 seulement si les deux sont vides), affiche les comptes de who
+        (sessions avec ou sans adresse d'origine) ; la touche Entrée est reconnue."""
+        live = self.module_live()
+        ps = "sshd: etienne@pts/0\nsshd-session: root@notty\nbash\n"
+        who = "etienne  pts/0   2026-11-03 11:00\nroot     tty1   2026-11-03 09:00\n"      # who sans adresse d'origine (console, tmux, sans utmp réseau)
+        live.lancer = lambda cmd, delay=10: (0, ps) if cmd[0] == "ps" else (0, who) if cmd[0] == "who" else (1, "")
+        self.assertEqual(live.ssh_count(), 2)
+        self.assertEqual(live.who_users(), ["etienne", "root"])
+        texte = "".join(part for part, _ in live.StatusBar().pieces(None, live.ssh_count(), live.who_users()))
+        self.assertIn("SSH 2", texte)
+        self.assertIn("connectés (who) 2 (etienne, root)", texte)
+        live.lancer = lambda cmd, delay=10: (1, "")
+        self.assertEqual(live.ssh_count(), 0)
+        self.assertEqual(live.who_users(), [])
+        self.assertEqual(live.KEYS[b"\r"], "enter")
+        self.assertEqual(live.KEYS[b"\n"], "enter")
+
     def test_groupes_rlq_sur_2_ou_4_colonnes(self):
         """1.85 : groupes RLQ* écrits « RLQ23-Bénévole = 11 » (sans « membre(s) »), sur 4 colonnes (terminal large), 2 (moyen) ou 1 (étroit), de haut en bas
         puis de gauche à droite, colonnes équilibrées (9 groupes sur 4 colonnes : 3 + 2 + 2 + 2), alignées même avec un nom chinois."""

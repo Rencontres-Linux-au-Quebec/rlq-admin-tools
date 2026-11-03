@@ -126,3 +126,5 @@ app-log-live.py --log-nginx -g ' 404 '           # the 404 answers of nginx and 
 * **1.161 - themes**: `--theme N` (0 to 4) or `THEME` in the configuration: every color is replaced by the nearest one that reads on the chosen background (see `00-overview.md`).
 
 {{HELP}}
+
+* **1.162 - Enter key and logged-in users**: while waiting for new lines, **Enter** prints the status bar with the date and time of the action (no legend, counters not reset). The bar counts SSH sessions like the reports (sshd processes and `who` together: it stayed at 0 when `who` gave no origin address) and adds "logged in (who) N (accounts)".
