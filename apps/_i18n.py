@@ -27,7 +27,7 @@ try:                    # line editing in all the input() prompts (backspace ^H 
 except ImportError:     # Windows, Python sans readline
     pass
 
-__version__ = "1.22.20261101.231500"
+__version__ = "1.23.20261102.225620"
 LANGUE_SOURCE = "fr"          # langue des messages dans le code
 
 
@@ -513,13 +513,32 @@ def _lire_reponse_terminal():
         nouveau[0] |= termios.ICRNL
         termios.tcsetattr(fd, termios.TCSADRAIN, nouveau)
     try:
-        ligne = sys.stdin.readline()
+        ligne = _lire_ligne_descripteur(fd) if fd is not None else sys.stdin.readline()
     finally:
         if ancien is not None:
             termios.tcsetattr(fd, termios.TCSADRAIN, ancien)
     if ligne == "":
         raise EOFError
     return ligne
+
+
+def _lire_ligne_descripteur(fd):
+    """1.23: one line read DIRECTLY on the descriptor of the terminal (os.read), not through sys.stdin: when Ctrl+C arrives while the program waits in
+    sys.stdin.readline(), the question « Interrupt the program? » is asked by the signal handler, and a second sys.stdin.readline() there raised
+    « RuntimeError: reentrant call inside <_io.BufferedReader name='<stdin>'> » (Python 3.13: web-monitor.py, "Press Enter to open the full report").
+    os.read has no buffer and no lock: the handler reads its answer, then the interrupted read resumes. In line mode (ICANON) a read returns at Enter."""
+    morceaux = []
+    while True:
+        try:
+            bloc = os.read(fd, 4096)
+        except InterruptedError:
+            continue
+        if not bloc:
+            break
+        morceaux.append(bloc)
+        if b"\n" in bloc:
+            break
+    return b"".join(morceaux).decode(getattr(sys.stdin, "encoding", None) or "utf-8", "replace")
 
 
 def saisie(invite=""):

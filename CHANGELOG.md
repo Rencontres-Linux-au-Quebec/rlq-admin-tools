@@ -4374,6 +4374,19 @@ Earlier history was archived outside this repository when this file was created.
 
 ## apps/_i18n.py
 
+### 1.23.20261102.225620 - Ctrl-C during a question: no more "reentrant call" traceback (Python 3.13)
+
+- Title: the answer to "Interrompre le programme ? [o/N]" is read directly on the descriptor of the terminal, so a Ctrl-C pressed while a program waits for an answer no longer ends with a Python traceback.
+- Reason: request of the administrator on 2026-11-02: in web-monitor.py, Ctrl-C at "Appuyez sur Entrée pour ouvrir le rapport complet dans less (q pour quitter), ou Ctrl-C pour terminer" printed the question, then "RuntimeError: reentrant call inside <_io.BufferedReader name='<stdin>'>". Every Python and bash program must stop cleanly on Ctrl-C.
+- Changes: new function _lire_ligne_descripteur(fd) (os.read until the end of the line, decoded with the encoding of stdin); _lire_reponse_terminal() uses it when the terminal has a descriptor (sys.stdin.readline() otherwise, as before).
+- Bugs fixed:
+  - Symptom: traceback "RuntimeError: reentrant call inside <_io.BufferedReader name='<stdin>'>" after Ctrl-C during any question of a Python program (saisie(), ctx.input(), web-monitor.py offer_less).
+  - Diagnosis: the program waits in sys.stdin.readline(); Ctrl-C runs the handler of installer_confirmation_ctrl_c, which read its answer with sys.stdin.readline() too. Python 3.13 refuses a second read on the same buffered object while the first one is in progress. The test test_python_ctrl_c_pendant_une_question_sans_trace failed on main with Python 3.13 for this reason.
+  - Fix: os.read on the descriptor: no buffer and no lock; the handler reads its answer, then the interrupted read resumes (or KeyboardInterrupt stops the program when the answer is yes).
+- Safeguards and edge cases: line mode, echo and erase key are still set during the answer and restored afterwards; end of file still means yes; a read interrupted by a signal is retried; without a terminal descriptor, the previous reading is kept. A second Ctrl-C during the question still confirms. Bash programs are not affected (apps/_i18n.sh unchanged; their Ctrl-C tests pass).
+- Checks performed: nginx-tools-tests/test_ctrl_c.py: 17 tests [OK], including test_python_ctrl_c_pendant_une_question_sans_trace (no, then the question is answered; yes, clean stop; English), which failed before this change.
+- Action required: none.
+
 ### 1.22.20261101.231500 - Retour arrière : écho et effacement rétablis avant chaque réponse
 
 - Title: a new function saisie(invite) reads the answer in line mode with echo and erase (ECHOE), then restores the terminal. The context's input() (I18N.input) uses it, so every program that prints its questions through the translator gets the fix.
