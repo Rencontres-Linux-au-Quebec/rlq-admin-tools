@@ -31,6 +31,8 @@
 #PAGE_BURST=8
 # --parallel-threshold (défaut : 5)
 #PARALLEL_THRESHOLD=5
+# --theme (2.86) : thème de couleurs 0 à 4 (0 = couleurs du terminal ; voir app-default.conf pour tous les programmes)
+#THEME=0
 # --ua-rotation-threshold (défaut : 2)
 #UA_ROTATION_THRESHOLD=2
 # --verbose

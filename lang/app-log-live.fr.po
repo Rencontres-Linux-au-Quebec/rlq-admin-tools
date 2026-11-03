@@ -652,8 +652,8 @@ msgstr "Contacts Odoo de l'ÉTIQUETTE de contact NOM (ex. Collaborateurs-2026) a
 msgid "Show the change log"
 msgstr "Affiche le journal des modifications"
 
-msgid "Configuration file to read ALONE (otherwise: /etc/default/app-log-live.conf, then the personal file .app-log-live.conf; options in UPPERCASE: APP, CONNECTIONS, DAYS, DNS_MAX, ERRORS_ONLY, HEALTH, HIDE_IP, IDLE, LANGUAGE, LINES, LOG_DIR, LOG_KEEP_DAYS, LOG_MERGE, LOG_NGINX, MIN, NAMESPACE, NO_BANNED, NO_BAN_PROMPT, NO_CACHE, NO_HISTORY, NO_ISP, NO_KEYS, NO_LOG_FILE, NO_PRESENCE, NO_USER_AGENT, RECAP, SERVICE, SLOW, STATUS_HEADER, VERBOSE)"
-msgstr "Fichier de configuration à lire SEUL (sinon : /etc/default/app-log-live.conf, puis le fichier personnel .app-log-live.conf ; options en MAJUSCULES : APP, CONNECTIONS, DAYS, DNS_MAX, ERRORS_ONLY, HEALTH, HIDE_IP, IDLE, LANGUAGE, LINES, LOG_DIR, LOG_KEEP_DAYS, LOG_MERGE, LOG_NGINX, MIN, NAMESPACE, NO_BANNED, NO_BAN_PROMPT, NO_CACHE, NO_HISTORY, NO_ISP, NO_KEYS, NO_LOG_FILE, NO_PRESENCE, NO_USER_AGENT, RECAP, SERVICE, SLOW, STATUS_HEADER, VERBOSE)"
+msgid "Configuration file to read ALONE (otherwise: /etc/default/app-log-live.conf, then the personal file .app-log-live.conf; options in UPPERCASE: APP, CONNECTIONS, DAYS, DNS_MAX, ERRORS_ONLY, HEALTH, HIDE_IP, IDLE, LANGUAGE, LINES, LOG_DIR, LOG_KEEP_DAYS, LOG_MERGE, LOG_NGINX, MIN, NAMESPACE, NO_BANNED, NO_BAN_PROMPT, NO_CACHE, NO_HISTORY, NO_ISP, NO_KEYS, NO_LOG_FILE, NO_PRESENCE, NO_USER_AGENT, RECAP, SERVICE, SLOW, STATUS_HEADER, THEME, VERBOSE)"
+msgstr "Fichier de configuration à lire SEUL (sinon : /etc/default/app-log-live.conf, puis le fichier personnel .app-log-live.conf ; options en MAJUSCULES : APP, CONNECTIONS, DAYS, DNS_MAX, ERRORS_ONLY, HEALTH, HIDE_IP, IDLE, LANGUAGE, LINES, LOG_DIR, LOG_KEEP_DAYS, LOG_MERGE, LOG_NGINX, MIN, NAMESPACE, NO_BANNED, NO_BAN_PROMPT, NO_CACHE, NO_HISTORY, NO_ISP, NO_KEYS, NO_LOG_FILE, NO_PRESENCE, NO_USER_AGENT, RECAP, SERVICE, SLOW, STATUS_HEADER, THEME, VERBOSE)"
 
 msgid "Beep (in byobu/tmux too: see the tips shown) when a displayed line is an error: 0 = any error (4xx, 5xx, Odoo ERROR), 1 = 4xx, 2 = 5xx and 4xx (0 without value)"
 msgstr "Bip (dans byobu/tmux aussi : voir les conseils affichés) quand une ligne affichée est une erreur : 0 = toute erreur (4xx, 5xx, ERROR d'Odoo), 1 = 4xx, 2 = 5xx et 4xx (0 sans valeur)"
@@ -3042,3 +3042,6 @@ msgstr " dernières erreurs (--errors-only) ────"
 
 msgid "──── no error in the history (--errors-only) ────"
 msgstr "──── aucune erreur dans l'historique (--errors-only) ────"
+
+msgid "Color theme (1.161): 0 = the colors of the terminal (default); 1 = dark background; 2 = light background; 3 = dark background, high contrast; 4 = light background, high contrast. Every color is replaced by the nearest one that reads on that background (python3 apps/_theme.py --demo shows them). THEME in the configuration file; also in /etc/default/app-default.conf for all the programs"
+msgstr "Thème de couleurs (1.161) : 0 = les couleurs du terminal (défaut) ; 1 = fond sombre ; 2 = fond clair ; 3 = fond sombre, contraste élevé ; 4 = fond clair, contraste élevé. Chaque couleur est remplacée par la plus proche qui se lit sur ce fond (python3 apps/_theme.py --demo les montre). THEME dans le fichier de configuration ; aussi dans /etc/default/app-default.conf pour tous les programmes"

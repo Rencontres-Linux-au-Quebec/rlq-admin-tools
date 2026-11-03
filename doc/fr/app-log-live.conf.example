@@ -110,6 +110,8 @@
 #SUMMARY=no
 # --suspect : seulement les requêtes suspectes (touche s à la volée)
 #SUSPECT=no
+# --theme (1.161) / THEME : thème de couleurs. 0 = les couleurs du terminal (défaut) ; 1 = fond sombre ; 2 = fond clair ; 3 = fond sombre, contraste élevé ; 4 = fond clair, contraste élevé. Une seule valeur pour tous les programmes : THEME=2 dans /etc/default/app-default.conf
+#THEME=0
 # --time-report : minutes entre deux rapports comme Ctrl-T (0 = jamais ; touche T à la volée : sauvegardé par la touche C)
 #TIME_REPORT=0
 # --truncate (par défaut depuis 1.88) : une ligne du journal plus large que N colonnes est raccourcie en « début ... deux derniers mots » (0 ou yes = $COLUMNS - 10 ;

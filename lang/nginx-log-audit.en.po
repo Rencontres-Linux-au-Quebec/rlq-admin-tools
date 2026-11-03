@@ -51,8 +51,8 @@ msgstr "  --changelog                  show the change log"
 msgid "  -c, --config FILE            fichier de configuration à lire SEUL (sinon : /etc/default/nginx-log-audit.conf, puis ~/.nginx-log-audit.conf ;"
 msgstr "  -c, --config FILE            configuration file to read ALONE (otherwise: /etc/default/nginx-log-audit.conf, then ~/.nginx-log-audit.conf;"
 
-msgid "                               clés : APP, BAN_THRESHOLD, LANGUAGE, NO_PROMPT, PAGE_BURST, PARALLEL_THRESHOLD, UA_ROTATION_THRESHOLD, VERBOSE)"
-msgstr "                               keys: APP, BAN_THRESHOLD, LANGUAGE, NO_PROMPT, PAGE_BURST, PARALLEL_THRESHOLD, UA_ROTATION_THRESHOLD, VERBOSE)"
+msgid "                               clés : APP, BAN_THRESHOLD, LANGUAGE, NO_PROMPT, PAGE_BURST, PARALLEL_THRESHOLD, THEME, UA_ROTATION_THRESHOLD, VERBOSE)"
+msgstr "                               keys: APP, BAN_THRESHOLD, LANGUAGE, NO_PROMPT, PAGE_BURST, PARALLEL_THRESHOLD, THEME, UA_ROTATION_THRESHOLD, VERBOSE)"
 
 msgid "  --details                    avec --stats : détail de chaque indicateur"
 msgstr "  --details                    with --stats: detail of each indicator"
@@ -3023,3 +3023,9 @@ msgstr " SQL injection request(s) in the logs: the ban is kept, whatever the sco
 
 msgid "selon l'enquête --investigate de chaque adresse : le même verdict, la même logique)."
 msgstr "according to the --investigate investigation of each address: the same verdict, the same logic)."
+
+msgid "  --theme N                    thème de couleurs : 0 couleurs du terminal (défaut), 1 fond sombre, 2 fond clair, 3 fond sombre contrasté, 4 fond clair contrasté (THEME dans la configuration)"
+msgstr "  --theme N                    color theme: 0 terminal colors (default), 1 dark background, 2 light background, 3 dark background high contrast, 4 light background high contrast (THEME in the configuration)"
+
+msgid "ERREUR: --theme attend un nombre de 0 à 4 (reçu: '"
+msgstr "ERROR: --theme expects a number from 0 to 4 (received: '"

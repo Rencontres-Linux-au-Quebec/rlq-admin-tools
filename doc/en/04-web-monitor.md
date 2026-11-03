@@ -58,4 +58,6 @@ web-monitor.py --unban-odoo-user user@example.org   # account restored, addresse
 * `--group NAME` (members of an Odoo group, accents ignored), `--csv FILE` (every value, never cut; `;` separator, decimal comma in French: Excel opens it directly), `--repeat-header` (titles also at the bottom), `--stats` (members per group and tag, internal / portal, countries, e-mail domains, systems, browsers, top 10 of the most active accounts).
 
 ## Options
+`--theme N` (2.87) chooses a color theme (0 = terminal colors, 1 dark background, 2 light background, 3 and 4: high contrast); `THEME` in the configuration; see `00-overview.md`.
+
 {{HELP}}

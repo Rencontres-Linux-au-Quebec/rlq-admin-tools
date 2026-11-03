@@ -58,4 +58,6 @@ web-monitor.py --unban-odoo-user user@example.org   # compte rétabli, adresses 
 * `--group NOM` (membres d'un groupe Odoo, accents ignorés), `--csv FICHIER` (toutes les valeurs, jamais coupées ; séparateur `;`, virgule décimale en français : Excel l'ouvre directement), `--repeat-header` (titres aussi en bas), `--stats` (membres par groupe et par étiquette, interne / portail, pays, domaines de courriel, systèmes, navigateurs, les 10 comptes les plus actifs).
 
 ## Options
+`--theme N` (2.87) choisit un thème de couleurs (0 = couleurs du terminal, 1 fond sombre, 2 fond clair, 3 et 4 : contraste élevé) ; `THEME` dans la configuration ; voir `00-overview.md`.
+
 {{HELP}}

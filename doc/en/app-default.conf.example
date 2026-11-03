@@ -25,5 +25,7 @@
 # d'un programme l'emporte. Les journaux d'nginx, de fail2ban et d'Odoo ont leur propre rotation (nginx-hardening.sh --log-retention-months N). Ces journaux contiennent
 # des adresses IP et des noms de personnes (Loi 25) : ne pas garder plus longtemps que nécessaire.
 #LOG_KEEP_DAYS=180
+# Thème de couleurs (2.86 / 2.87 / 1.161) : 0 = couleurs du terminal (défaut), 1 = fond sombre, 2 = fond clair, 3 = fond sombre contrasté, 4 = fond clair contrasté. Une seule valeur pour tous les programmes. Ordre de choix : --theme, THEME du programme, cette clé, NGINX_TOOLS_THEME, 0. Aperçu : python3 apps/_theme.py --demo
+#THEME=0
 # yes : afficher chaque commande externe exécutée (équivalent de --verbose pour tous les programmes).
 #VERBOSE=no

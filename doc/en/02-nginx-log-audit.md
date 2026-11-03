@@ -90,3 +90,5 @@ A firewall ban is no longer permanent: an address changes hands over time (a clo
 
 ## Options
 {{HELP}}
+
+`--theme N` (2.86) chooses a color theme (0 = terminal colors, 1 dark background, 2 light background, 3 and 4: high contrast); `THEME` in the configuration; see `00-overview.md`.

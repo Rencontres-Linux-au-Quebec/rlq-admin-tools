@@ -371,6 +371,19 @@ Earlier history was archived outside this repository when this file was created.
 
 ## app-log-live.py
 
+### 1.161.20261103.112057 - --theme N: color themes
+
+- Title: --theme N: color themes.
+- Reason: request of the administrator on 2026-11-03: a --theme N option for all the programs (dark background, light background, etc.), making sure that every color reads on the chosen background. Delivered first for app-log-live.py, web-monitor.py and nginx-log-audit.sh; the other programs follow on request.
+- Changes:
+  - New option --theme N (0 to 4) and key THEME of the configuration (SCHEMA_CONFIG, common key of app-default.conf).
+  - theme_sgr(): color_code(), highlight and the version numbers of --changelog go through apps/_theme.py; THEME_MODULE is loaded after the options are read and exports NGINX_TOOLS_THEME to the programs started.
+  - lang/app-log-live.fr.po, doc/fr and doc/en (07-app-log-live.md, 00-overview.md, app-log-live.conf.example); tests: test_theme.py.
+- Bugs fixed: none.
+- Safeguards and edge cases: theme 0 changes nothing (default); without the module apps/_theme.py the colors of the terminal are kept; NO_COLOR and redirected output still remove every color; the priority is --theme, THEME of the file, THEME of app-default.conf, NGINX_TOOLS_THEME.
+- Checks performed: test_theme.py (every color code of the program, for each theme), test_i18n, app-log-live tests AppLogLive156 to 160.
+- Action required from the user: none. To use a theme everywhere: THEME=2 in /etc/default/app-default.conf (or ~/.app-default.conf), or --theme N on one run; python3 apps/_theme.py --demo shows the themes.
+
 ### 1.160.20261103.100730 - Startup lines in the ? key, backslash requests merged
 
 - Title: startup information moved to the ? key; nginx and Odoo lines of a request with a backslash merge.
@@ -2462,6 +2475,19 @@ Earlier history was archived outside this repository when this file was created.
 
 ## web-monitor.py
 
+### 2.87.20261103.112153 - --theme N: color themes
+
+- Title: --theme N: color themes.
+- Reason: request of the administrator on 2026-11-03: a --theme N option for all the programs (dark background, light background, etc.), making sure that every color reads on the chosen background. Delivered first for app-log-live.py, web-monitor.py and nginx-log-audit.sh; the other programs follow on request.
+- Changes:
+  - New option --theme N (0 to 4) and key THEME of the configuration.
+  - theme_sgr(): color_code(), the [OK] [ATTN] [FAIL] tags, the magenta of the alerts (BAD) and the version numbers of --changelog go through apps/_theme.py.
+  - lang/web-monitor.fr.po, doc/fr and doc/en (04-web-monitor.md, web-monitor.conf.example).
+- Bugs fixed: none.
+- Safeguards and edge cases: theme 0 changes nothing; a missing apps/_theme.py is not an error; colors stay limited to a terminal (colors_on).
+- Checks performed: test_theme.py (every color code of the program, for each theme), test_i18n.
+- Action required from the user: none. To use a theme everywhere: THEME=2 in /etc/default/app-default.conf (or ~/.app-default.conf), or --theme N on one run; python3 apps/_theme.py --demo shows the themes.
+
 ### 2.86.20261102.224544 - VPN, Tor, relay and hosting owners read from the shared module apps/_vpn.py
 
 - Title: the list of owners of VPN, Tor, relay and hosting blocks (VPN_OWNERS) moved to apps/_vpn.py, shared with nginx-log-audit.sh --investigate.
@@ -3497,6 +3523,19 @@ Earlier history was archived outside this repository when this file was created.
 
 ## nginx-log-audit.sh
 
+### 2.86.20261103.112227 - --theme N: color themes
+
+- Title: --theme N: color themes.
+- Reason: request of the administrator on 2026-11-03: a --theme N option for all the programs (dark background, light background, etc.), making sure that every color reads on the chosen background. Delivered first for app-log-live.py, web-monitor.py and nginx-log-audit.sh; the other programs follow on request.
+- Changes:
+  - New option --theme N (0 to 4) and key THEME of the configuration (config_defaut); new function theme_sgr; C_RED, C_YELLOW, C_GREEN, C_BOLD, C_MAL and the colors of --changelog come from the theme.
+  - The theme is validated (error message and exit code 1 for a value other than 0 to 4) and exported as NGINX_TOOLS_THEME for the programs launched.
+  - lang/nginx-log-audit.en.po, doc/fr and doc/en (02-nginx-log-audit.md, nginx-log-audit.conf.example).
+- Bugs fixed: none.
+- Safeguards and edge cases: theme 0 changes nothing; without python3 or without apps/_theme.py the original codes are kept; colors stay limited to a terminal.
+- Checks performed: test_theme.py (invalid theme, --changelog on a terminal with each theme, configuration and environment), test_i18n for nginx-log-audit.
+- Action required from the user: none. To use a theme everywhere: THEME=2 in /etc/default/app-default.conf (or ~/.app-default.conf), or --theme N on one run; python3 apps/_theme.py --demo shows the themes.
+
 ### 2.85.20261103.103805 - One verdict for bans: --unban-low-score and --unban-check call --investigate
 
 - Title: the recommendations to ban or lift come from a single engine, the one of --investigate.
@@ -4363,6 +4402,21 @@ Earlier history was archived outside this repository when this file was created.
 
 ### 1.26.20261020.211944 - Current version. Earlier history archived outside the repository.
 
+## apps/_theme.py
+
+### 1.0.20261103.112517 - Color themes shared by the programs
+
+- Title: Color themes shared by the programs.
+- Reason: request of the administrator on 2026-11-03: a --theme N option for all the programs (dark background, light background, etc.), making sure that every color reads on the chosen background. Delivered first for app-log-live.py, web-monitor.py and nginx-log-audit.sh; the other programs follow on request.
+- Changes:
+  - New module apps/_theme.py: themes 0 (terminal colors), 1 (dark background), 2 (light background), 3 and 4 (high contrast). sgr(code) replaces each color of an SGR code by the nearest color of the 256-color palette whose WCAG contrast with the background of the theme reaches 4.5 (themes 1 and 2) or 7 (themes 3 and 4); a reverse video becomes an explicit text and background; faint text becomes a gray that reads; a background gets a black or white text.
+  - Command line: --demo [N] (each theme drawn on its reference background), --bash N (variables for the bash programs), --sgr N CODE.
+  - Reference backgrounds: #262626 (dark) and #eeeeee (light), the worst plausible ones; a pure black or white background reads better.
+- Bugs fixed: none.
+- Safeguards and edge cases: theme 0 returns every code unchanged; a value outside 0 to 4 is an error (parse_theme); an invalid NGINX_TOOLS_THEME in the environment means theme 0; no color is written by the module itself except in --demo.
+- Checks performed: test_theme.py checks, for each theme, the contrast of every color code written by app-log-live.py, web-monitor.py and nginx-log-audit.sh (and of the style tables), reverse videos, backgrounds, priority of the sources.
+- Action required from the user: none.
+
 ## apps/_seuils.py
 
 ### 1.0.20261029.212344 - Shared thresholds for web-monitor.py and app-log-live.py
@@ -4464,6 +4518,17 @@ Earlier history was archived outside this repository when this file was created.
 ### 1.2.20261019.150215 - Current version. Earlier history archived outside the repository.
 
 ## apps/_config.py
+
+### 1.11.20261103.112517 - THEME is a common key of app-default.conf
+
+- Title: THEME is a common key of app-default.conf.
+- Reason: request of the administrator on 2026-11-03: a --theme N option for all the programs (dark background, light background, etc.), making sure that every color reads on the chosen background. Delivered first for app-log-live.py, web-monitor.py and nginx-log-audit.sh; the other programs follow on request.
+- Changes:
+  - CLES_COMMUNES gets THEME (apps/_i18n.sh reads it for the bash programs): one value for all the programs.
+- Bugs fixed: none.
+- Safeguards and edge cases: a program without --theme ignores the key as before; the program's own file wins over the common file.
+- Checks performed: test_theme.py (the key is common in both readers), test_conventions.
+- Action required from the user: none. To use a theme everywhere: THEME=2 in /etc/default/app-default.conf (or ~/.app-default.conf), or --theme N on one run; python3 apps/_theme.py --demo shows the themes.
 
 ### 1.10.20261022.231529 - Code comments translated to English
 

@@ -123,4 +123,6 @@ app-log-live.py --log-nginx -g ' 404 '           # the 404 answers of nginx and 
 
 * **1.160 - startup and backslash**: the startup lines (nginx logs, Odoo service, sign-in history, modules PostgreSQL warning, colour legends, banned addresses, screen, daily log) are in the `?` key and no longer on screen; the line "Startup information: press ?" is removed. A request with a backslash (`register%5C` in nginx, `register\\` in Odoo) is seen as the same request and merges into one line.
 
+* **1.161 - themes**: `--theme N` (0 to 4) or `THEME` in the configuration: every color is replaced by the nearest one that reads on the chosen background (see `00-overview.md`).
+
 {{HELP}}
