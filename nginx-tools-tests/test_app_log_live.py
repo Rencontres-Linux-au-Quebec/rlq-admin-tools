@@ -4145,3 +4145,70 @@ class AppLogLive146(unittest.TestCase):
         self.assertTrue(m.WARN_START_RE.match("07:00:13.24 root WARN    odoo.http    No CSRF validation token provided"))
         self.assertFalse(m.WARN_START_RE.match("07:00:13.24 root:   token in the form"))         # a continuation line, not a new warning
         self.assertTrue(m.WARN_CONT_RE.match("07:00:13.24 root:   token in the form"))
+
+
+class AppLogLive153(unittest.TestCase):
+    """1.153 : fusion nginx / Odoo quand les codes diffèrent pour la même requête : 304 de nginx (réponse conditionnelle) pour un 200 d'Odoo,
+    499 de nginx (client parti) pour n'importe quel code d'Odoo ; un code identique reste prioritaire."""
+
+    @classmethod
+    def setUpClass(cls):
+        spec = importlib.util.spec_from_file_location("live153", script_path("app-log-live.py"))
+        cls.m = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(cls.m)
+
+    def nginx(self, requete, code):
+        return ('2026-11-02T13:26:47.000000-0500 odoo18 http: 1.2.3.4 - - "' + requete + ' HTTP/1.1" ' + code +
+                ' 0 "https://www.example.org/inventaire" "Mozilla/5.0 (X11; Linux x86_64)" host=www.example.org rl=300')
+
+    def odoo(self, requete, code, sql="0 0.000 0.000"):
+        return ('2026-11-02T13:26:47.560000-0500 odoo18 odoo[1]: 2026-11-02 13:26:47,560 1 INFO base werkzeug: 1.2.3.4 - - '
+                '[02/Nov/2026 13:26:47] "' + requete + ' HTTP/1.0" ' + code + ' - ' + sql)
+
+    def paire(self, nginx_ligne, odoo_ligne, odoo_dabord=False):
+        held = collections.deque()
+        premier, second = (odoo_ligne, nginx_ligne) if odoo_dabord else (nginx_ligne, odoo_ligne)
+        self.assertEqual(self.m.merge_step([self.m.Line(premier)], held), [])
+        return self.m.merge_step([self.m.Line(second)], held), held
+
+    def test_153_nginx_304_odoo_200(self):
+        url = "GET /base/static/img/country_flags/ca.png"
+        for odoo_dabord in (False, True):
+            ready, held = self.paire(self.nginx(url, "304"), self.odoo(url, "200"), odoo_dabord)
+            self.assertEqual(len(ready), 1)
+            self.assertEqual(len(held), 0)
+            self.assertIn('" 304 ', ready[0][0].text)                   # the code seen by the browser is kept
+            self.assertEqual(ready[0][0].odoo_times, ("0", "0.000", "0.000"))
+
+    def test_153_nginx_499_odoo_200(self):
+        url = "GET /en_CA/blog/presentations-3/tag/montreal-12"
+        ready, held = self.paire(self.nginx(url, "499"), self.odoo(url, "200", "40 0.010 0.160"))
+        self.assertEqual(len(ready), 1)
+        self.assertEqual(len(held), 0)
+        self.assertEqual(ready[0][0].odoo_times, ("40", "0.010", "0.160"))
+
+    def test_153_autre_url_meme_instant_pas_fusionnee(self):
+        """Cas du 19:03:47 : es.png d'Odoo ne doit pas prendre la ligne nginx de ca.png ; ca.png se fusionne avec la bonne."""
+        held = collections.deque()
+        self.m.merge_step([self.m.Line(self.nginx("GET /base/static/img/country_flags/ca.png?height=25", "304"))], held)
+        self.assertEqual(self.m.merge_step([self.m.Line(self.odoo("GET /base/static/img/country_flags/es.png?height=25", "200"))], held), [])
+        ready = self.m.merge_step([self.m.Line(self.odoo("GET /base/static/img/country_flags/ca.png?height=25", "200"))], held)
+        self.assertEqual(len(ready), 1)
+        self.assertIn("ca.png", ready[0][0].text)
+        self.assertEqual(len(held), 1)                                  # es.png still waits for its own nginx line
+
+    def test_153_code_identique_prioritaire(self):
+        url = "GET /web/image/1"
+        held = collections.deque()
+        self.m.merge_step([self.m.Line(self.nginx(url, "304"))], held)
+        self.m.merge_step([self.m.Line(self.nginx(url, "200"))], held)
+        ready = self.m.merge_step([self.m.Line(self.odoo(url, "200"))], held)
+        self.assertEqual(len(ready), 1)
+        self.assertIn('" 200 ', ready[0][0].text)
+        self.assertIn('" 304 ', held[0][0][0].text)
+
+    def test_153_codes_incompatibles_pas_fusionnes(self):
+        self.assertFalse(self.m.merge_codes_compatible("200", "404"))
+        self.assertFalse(self.m.merge_codes_compatible("304", "500"))
+        self.assertFalse(self.m.merge_codes_compatible("200", "304"))   # Odoo 304, nginx 200: never produced by nginx
+        self.assertTrue(self.m.merge_codes_compatible("499", "500"))

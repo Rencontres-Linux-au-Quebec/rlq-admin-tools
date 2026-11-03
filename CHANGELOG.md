@@ -371,6 +371,25 @@ Earlier history was archived outside this repository when this file was created.
 
 ## app-log-live.py
 
+### 1.153.20261102.201101 - --log-merge: an nginx 304 or 499 merges with the Odoo line of the same request
+
+- Title: the nginx line and the Odoo line of one request are merged even when their status codes differ in the two ways nginx produces: 304 for a 200 of Odoo, 499 for any status of Odoo.
+- Reason: request of the administrator on 2026-11-02. The merge worked for 99% of the requests, but some pairs were shown as two lines: 12:59:45 GET /en_CA/blog/presentations-3/tag/montreal-12 (nginx 499, Odoo 200), 13:26:47 GET /base/static/img/country_flags/ca.png (nginx 304, Odoo 200), 19:03:47 GET /base/static/img/country_flags/ca.png?height=25 (nginx 304, Odoo 200).
+- Changes:
+  - Version 1.152 -> 1.153.
+  - New function merge_codes_compatible(nginx_code, odoo_code): same code, nginx 499 (any Odoo code), or nginx 304 with Odoo 200.
+  - New function merge_partner(held, key, instant, partner_is_nginx): finds the held partner of a request line; same URL and within MERGE_WINDOW, an identical status code is preferred, otherwise the first compatible one.
+  - merge_step(): both directions (nginx first, Odoo first) use merge_partner() instead of comparing the whole key (URL, status).
+  - Documentation: doc/en/07-app-log-live.md, doc/fr/07-app-log-live.md (--log-merge): the 304 and 499 rule; the window and the wait shown as 5 s and 8 s (values of 1.145, the text still said 2 s and 3 s).
+  - nginx-tools-tests/test_app_log_live.py: new class AppLogLive153 (5 tests).
+- Bugs fixed:
+  - Symptom: with --log-merge, some requests were shown twice, once as an nginx line (304 or 499, no SQL times) and once as an Odoo line (200).
+  - Diagnosis: request_key() is (method and URL, status code) and merge_step() required the whole key to be equal. nginx answers 304 itself when Odoo's 200 carries an ETag or Last-Modified matching the browser's If-None-Match / If-Modified-Since, and writes 499 when the client closes the connection before Odoo answers; Odoo logs 200 in both cases.
+  - Fix: the URL must still be equal, the status codes only compatible (merge_codes_compatible).
+- Safeguards and edge cases: an identical status code always wins over a compatible one, so two requests of the same URL at the same second (one 200, one 304) are not crossed. The merged line keeps the status of nginx (304 or 499, what the browser got) and takes the SQL queries and times of Odoo. A different URL never merges (19:03:47: es.png of Odoo does not take the nginx line of ca.png). Other differences (nginx 200 / Odoo 404, nginx 304 / Odoo 500, Odoo 304 / nginx 200) never merge. The window (5 s) and the wait (8 s) are unchanged.
+- Checks performed: python3 -m py_compile; AppLogLive153 (5 tests) and AppLogLive143 (merge of encoded URLs and websockets) [OK]; modules test_app_log_live and test_i18n: 244 tests, the failures are those already present on origin/main before this change (test_app_log_live: menu, Ctrl-C, addresses to ban, HTML journal 1.120, columns never squeezed, checked on main; test_i18n: nginx-log-audit, nginx-hardening, apps/_listes.sh).
+- Action required: none.
+
 ### 1.152.20261102.185714 - --hide-addons also hides the lines of odoo.models.unlink and odoo.modules.registry
 
 - Title: with --hide-addons (key q), the INFO lines "User #1 deleted ... records with IDs: [...]" (logger odoo.models.unlink) and "Invalidating caches after database signaling: [...]" (logger odoo.modules.registry) are hidden.
