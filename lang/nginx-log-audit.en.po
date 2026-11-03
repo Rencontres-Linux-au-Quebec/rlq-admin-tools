@@ -2357,3 +2357,15 @@ msgstr " request(s) refused - not counted as hostility"
 
 msgid "          Un client légitime (éditeur Odoo, rafale d'images) peut en recevoir : vérifier la zone avant tout bannissement."
 msgstr "          A legitimate client (Odoo editor, burst of images) can receive some: check the zone before any ban."
+
+msgid " (propriétaire du bloc, RDAP ; DNS inverse : "
+msgstr " (owner of the address block, RDAP; reverse DNS: "
+
+msgid ") — pas une connexion d'internaute"
+msgstr ") — not a home Internet connection"
+
+msgid "      [i] Comptes Odoo actifs pendant ces requêtes : non recherchés (aucune page de connexion, de compte client ni du back-office demandée :"
+msgstr "      [i] Odoo accounts active during these requests: not searched (no login, customer account or back office page requested:"
+
+msgid "          rien ne relie cette adresse à une session ; Odoo ne note pas l'adresse IP des sessions)."
+msgstr "          nothing links this address to a session; Odoo does not record the IP address of sessions)."

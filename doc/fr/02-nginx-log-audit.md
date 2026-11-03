@@ -24,6 +24,8 @@ Chaque `--ban` et `--unban` enregistre dans `~/.local/state/nginx-log-audit/bans
 
 `--investigate IP` commence par la section **Bannissements** : état actuel (règle du pare-feu, jails fail2ban avec début et fin, liste CrowdSec) et historique chronologique (journal des bannissements manuels et `fail2ban.log` avec ses rotations), puis, pour chaque jail en cause, sa raison et ce que l'adresse a fait (pages refusées de `blocked-probes.log`, requêtes au capteur catch-all...). Une adresse bloquée seulement par fail2ban ou par la liste CrowdSec n'apparaît pas dans `--unban-check`, qui ne traite que les bannissements manuels.
 
+L'indice **serveur loué** est coché quand le DNS inverse désigne un hébergeur (AWS, OVH, Hetzner...) ; avec `--investigate`, il l'est aussi quand le **propriétaire du bloc d'adresses** (RDAP) en est un, même si le DNS inverse ne le montre pas (exemple : Vultr derrière un nom quelconque). La liste des **comptes Odoo actifs** pendant les requêtes n'est cherchée que si l'adresse a demandé une page de session (connexion, back-office, compte client, discussion) : Odoo ne note pas l'adresse IP des sessions, et pour un robot qui ne lit que des pages publiques cette coïncidence d'horaire désignerait des membres à tort. Les connexions trouvées dans le journal d'Odoo pour l'adresse elle-même restent toujours affichées.
+
 Les refus produits par nos règles nginx sont journalisés dans `blocked-probes.log`, pas dans les journaux des sites ; les enquêtes et les preuves le lisent aussi (« Requêtes REFUSÉES par nginx »), sinon une adresse bannie semblerait n'avoir fait aucune requête.
 
 ## Revue quotidienne des bannissements manuels (`--unban-check`)

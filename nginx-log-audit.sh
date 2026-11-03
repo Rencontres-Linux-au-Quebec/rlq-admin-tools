@@ -135,7 +135,7 @@ grep_q() { grep "$@" >/dev/null; }
 #                              ne peut pas le voir, le texte etant entre apostrophes (faux positif).
 trap 'ec=$?; echo "" >&2; echo "*** ARRÊT INATTENDU DU SCRIPT (code $ec) À LA LIGNE $LINENO ***" >&2; echo "*** Commande fautive : $BASH_COMMAND" >&2; echo "*** Si le rapport ci-dessus semble incomplet (ex. sections Top 10 absentes), c'\''est probablement la cause." >&2' ERR
 
-readonly SCRIPT_VERSION="2.71.20261101.231500"
+readonly SCRIPT_VERSION="2.72.20261102.213548"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
 # Chemin de ce programme (relances --investigate, --ban, --unban) : defini ICI, avant le bloc --ban qui l'utilise.
 SELF_PATH="$SCRIPT_DIR/$(basename "${BASH_SOURCE[0]}")"
@@ -557,6 +557,34 @@ ETAT_MIGR="${NGINX_LOG_AUDIT_STATE_DIR:-$HOME/.local/state/nginx-log-audit}"
 migrer_chemin "$ETAT_MIGR/bannissements.tsv" "$ETAT_MIGR/bans.tsv"
 migrer_chemin "$ETAT_MIGR/ip-publique" "$ETAT_MIGR/public-ip"
 PUBLIC_IP_CACHE="${NGINX_LOG_AUDIT_STATE_DIR:-$HOME/.local/state/nginx-log-audit}/public-ip"
+# --- Hosting providers (rented servers): reverse DNS (PTR) and, 2.72, owner of the address block (RDAP) -----------------------------------
+# Defined here, before the --ban block, which uses them too (2.73: duration of the ban by origin).
+CLOUD_PTR_RE='ip-[0-9]{1,3}-[0-9]{1,3}-[0-9]{1,3}\.(eu|net|us)$|amazonaws\.com|googleusercontent\.com|compute\.|cloudapp\.|azure|ovh\.(net|com|ca)|hetzner|your-server\.de|digitalocean|linode|akamai|vultr|contabo|scaleway|oraclecloud|aliyun|alibaba|tencent|leaseweb|m247|choopa|hwclouds|kimsufi|hostinger|ionos'
+# 2.72: owner of the address block (RDAP organisation, network name or abuse mailbox), when the reverse DNS does not show the provider
+# (140.82.7.85: Vultr Holdings, LLC, PTR valtrona.eu). Names of providers, plus a few generic words of the trade.
+CLOUD_ORG_RE='amazon|(^|[^a-z])aws([^a-z]|$)|vultr|choopa|digitalocean|linode|akamai connected cloud|(^|[^a-z])ovh|hetzner|scaleway|online s\.?a\.?s|contabo|leaseweb|m247|oracle|google cloud|google llc|microsoft|alibaba|aliyun|tencent|huawei cloud|ionos|hostinger|kamatera|hostwinds|colocrossing|datacamp|cdn77|g-core|gcore|interserver|quadranet|selectel|timeweb|netcup|hostkey|hosting|data ?cent(er|re)|colocation'
+# reseau_lire IP (2.72): owner of the address block through apps/_reseau.py (RDAP, then whois; cache of addresses), without display.
+# Sets RESEAU_ORG, RESEAU_NET, RESEAU_PLAGE, RESEAU_PAYS, RESEAU_ABUS, RESEAU_REGISTRE, RESEAU_SOURCE (all empty when unknown).
+reseau_lire() {
+    local ip="$1" ligne="" reseau_py="${APPS_DIR:-$SCRIPT_DIR/apps}/_reseau.py"
+    RESEAU_ORG=""; RESEAU_NET=""; RESEAU_PLAGE=""; RESEAU_PAYS=""; RESEAU_ABUS=""; RESEAU_REGISTRE=""; RESEAU_SOURCE=""
+    if [[ -r "$reseau_py" ]] && command -v python3 >/dev/null 2>&1; then
+        if [[ "$VERBOSE" == "1" ]]; then     # --verbose is passed to the component: its commands (curl, whois) are displayed
+            ligne=$(run python3 "$reseau_py" --verbose --raw "$ip" 2>&3) || ligne=""
+        else
+            ligne=$(run python3 "$reseau_py" --raw "$ip" 2>/dev/null) || ligne=""
+        fi
+    fi
+    [[ -n "$ligne" ]] || return 1
+    IFS=$'\037' read -r RESEAU_ORG RESEAU_NET RESEAU_PLAGE RESEAU_PAYS RESEAU_ABUS RESEAU_REGISTRE RESEAU_SOURCE <<< "$ligne"
+    return 0
+}
+# reseau_hebergeur (2.72): 0 when the owner read by reseau_lire is a hosting provider (CLOUD_ORG_RE on the organisation, the network name
+# and the abuse mailbox), 1 otherwise or when unknown.
+reseau_hebergeur() {
+    [[ -n "$RESEAU_ORG$RESEAU_NET$RESEAU_ABUS" ]] || return 1
+    printf '%s %s %s' "$RESEAU_ORG" "$RESEAU_NET" "$RESEAU_ABUS" | grep -qiE "$CLOUD_ORG_RE"
+}
 # Journal des bannissements et levees manuels : --unban-check, --investigate et --ban-history affichent la date, l'heure et la
 # justification. Colonnes (TAB) : date heure | evenement (banni / leve) | IP | justification | origine (compte et programme).
 # Les 3 premieres colonnes ne changent jamais : web-monitor.py --summary et --list-users les lisent. 4e colonne : avant la 2.40,
@@ -1952,7 +1980,6 @@ SENSITIVE_WP='/wp-|wp-login|xmlrpc\.php|/wp(/|\?|$)|/wordpress(/|\?|$)'
 SENSITIVE_CMS_BBB='/administrator(/|$)|/joomla|/drupal|/sites/default|/typo3|/magento|/prestashop|/bitrix|/umbraco|/ghost/|/user/login|/node/[0-9]+|/components/com_|/index\.php|\.(asp|aspx|jsp|cgi|php)(\?|$)|/admin/login|/wp-json|/typo3conf'
 if [[ "$APP_NAME" == "bbb" ]]; then SENSITIVE_RE="$SENSITIVE_BASE|$SENSITIVE_WP|$SENSITIVE_CMS_BBB"      # BigBlueButton hosts no CMS: anything that falls under it is sensitive
 elif cms_wordpress; then SENSITIVE_RE="$SENSITIVE_BASE"; else SENSITIVE_RE="$SENSITIVE_BASE|$SENSITIVE_WP"; fi
-CLOUD_PTR_RE='ip-[0-9]{1,3}-[0-9]{1,3}-[0-9]{1,3}\.(eu|net|us)$|amazonaws\.com|googleusercontent\.com|compute\.|cloudapp\.|azure|ovh\.(net|com|ca)|hetzner|your-server\.de|digitalocean|linode|akamai|vultr|contabo|scaleway|oraclecloud|aliyun|alibaba|tencent|leaseweb|m247|choopa|hwclouds|kimsufi|hostinger|ionos'
 
 # Field separator: ASCII character 31 (\037), NOT the tab - with IFS=$'\t', "read" merges the
 # tabulations consecutives (la tabulation est un espace pour lui) et un champ vide ferait glisser tous les suivants.
@@ -2041,19 +2068,12 @@ ip_already_blocked() {
 # apps/_reseau.py (shared with app-log-live.py): RDAP via https://rdap.org (which redirects to the right registry),
 # otherwise the whois command. Only the investigated address is sent, and only with --investigate.
 infos_reseau() {
-    local ip="$1" ligne="" org net plage pays abus registre source
-    if [[ -r "$APPS_DIR/_reseau.py" ]] && command -v python3 >/dev/null 2>&1; then
-        if [[ "$VERBOSE" == "1" ]]; then     # --verbose is passed to the component: its commands (curl, whois) are displayed
-            ligne=$(run python3 "$APPS_DIR/_reseau.py" --verbose --raw "$ip" 2>&3) || ligne=""
-        else
-            ligne=$(run python3 "$APPS_DIR/_reseau.py" --raw "$ip" 2>/dev/null) || ligne=""
-        fi
-    fi
-    if [[ -z "$ligne" ]]; then
+    local ip="$1" org net plage pays abus registre source
+    if ! reseau_lire "$ip"; then
         echo "      Propriétaire du bloc d'adresses : inconnu (ni rdap.org joignable par curl/wget, ni commande whois)"
         return 0
     fi
-    IFS=$'\037' read -r org net plage pays abus registre source <<< "$ligne"
+    org="$RESEAU_ORG"; net="$RESEAU_NET"; plage="$RESEAU_PLAGE"; pays="$RESEAU_PAYS"; abus="$RESEAU_ABUS"; registre="$RESEAU_REGISTRE"; source="$RESEAU_SOURCE"
     local genre="nom du réseau"
     if [[ -n "$org" ]]; then genre="organisation"; fi
     echo "      Propriétaire du bloc d'adresses : ${C_YELLOW}${org:-$net}${C_RESET} ($genre ; pas forcément un fournisseur d'accès)${pays:+ — pays $pays}"
@@ -2132,6 +2152,9 @@ investigate_and_propose() {
     fi
     if [[ -n "$ptr" ]] && printf '%s' "$ptr" | grep_q -iE "$CLOUD_PTR_RE" && ! printf '%s' "$ptr" | grep_q -i 'gae\.googleusercontent'; then
         score=$((score+1)); motifs+=("serveur loué ($ptr)"); echo "      $ok Serveur loué chez un hébergeur : $ptr (DNS inverse) — pas une connexion d'internaute"
+    elif [[ -n "$INVESTIGATE_IP" ]] && reseau_hebergeur; then     # 2.72: the owner of the block (RDAP, read above by infos_reseau) is a hosting provider
+        score=$((score+1)); motifs+=("serveur loué (${RESEAU_ORG:-$RESEAU_NET})")
+        echo "      $ok Serveur loué chez un hébergeur : ${RESEAU_ORG:-$RESEAU_NET} (propriétaire du bloc, RDAP ; DNS inverse : ${ptr:-aucun}) — pas une connexion d'internaute"
     else
         echo "      $no Serveur loué : ${ptr:-aucun DNS inverse}"
     fi
@@ -2178,7 +2201,19 @@ investigate_and_propose() {
         printf '%s\n' "$logins" | sed 's/^/            /'
     fi
     # 2.65 : --investigate identifie aussi les comptes Odoo ACTIFS pendant les requêtes de l'IP (base PostgreSQL, lecture seule).
-    if [[ -n "$INVESTIGATE_IP" ]]; then comptes_bd_ip "$ip"; fi
+    # 2.72: only when the address asked for a page that needs a session (login, back office, chat, customer account): Odoo does not record the
+    # address of a session, so the list is a time coincidence, and for a robot that only reads public pages it designates members wrongly.
+    if [[ -n "$INVESTIGATE_IP" ]]; then
+        local n_session
+        n_session=$(printf '%s\n' "$urls" | tr '\001' '\n' | awk '$2 ~ /^(\/[a-z][a-z](_[A-Z][A-Z])?)?\/(web(\/(login|session|dataset|action|webclient|signup|reset_password)|[?#]|$)|odoo([\/?#]|$)|my([\/?#]|$)|mail\/|discuss\/|bus\/|websocket|longpolling)/ { s += $1 } END { print s + 0 }') || n_session=0
+        if (( n_session > 0 )); then
+            comptes_bd_ip "$ip"
+        else
+            echo "      [i] Comptes Odoo actifs pendant ces requêtes : non recherchés (aucune page de connexion, de compte client ni du back-office demandée :"
+            echo "          rien ne relie cette adresse à une session ; Odoo ne note pas l'adresse IP des sessions)."
+            echo
+        fi
+    fi
     if (( n_bo >= 20 )); then
         echo "      ${C_GREEN}[i] Session ouverte dans le back-office : $n_bo appels internes (/web/dataset, /mail…) — un utilisateur"
         echo "          CONNECTÉ, pas un robot anonyme : vérifier de qui il s'agit avant tout bannissement.${C_RESET}"

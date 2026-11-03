@@ -84,7 +84,7 @@ class BanGate(unittest.TestCase):
         self.assertIn('grep_q "Score [0-9]/7 : bannissement recommandé"', bloc)
 
     def test_version_dynamique(self):
-        self.assertIn('readonly SCRIPT_VERSION="2.71.20261101.231500"', script())
+        self.assertIn('readonly SCRIPT_VERSION="2.72.20261102.213548"', script())
 
 
 if __name__ == "__main__":

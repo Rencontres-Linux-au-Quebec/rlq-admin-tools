@@ -3370,6 +3370,26 @@ Earlier history was archived outside this repository when this file was created.
 
 ## nginx-log-audit.sh
 
+### 2.72.20261102.213548 - Investigation: rented server recognized by the block owner (RDAP); Odoo accounts searched only after a session page
+
+- Title: --investigate checks the clue "rented server" when the owner of the address block (RDAP) is a hosting provider, even if the reverse DNS does not show it; the list of Odoo accounts active during the requests is searched only when the address asked for a page that needs a session.
+- Reason: request of the administrator on 2026-11-02, after the investigations of 140.82.7.85, 192.54.244.135 and 192.54.244.141 (job offer robots). 140.82.7.85 belongs to "Vultr Holdings, LLC" (RDAP) but its reverse DNS is valtrona.eu: the clue was not checked. The three reports listed 1, 12 and 2 members of the site as "accounts active during the requests" of robots that only guessed public job pages: a time coincidence that designates members wrongly.
+- Changes:
+  - New constant CLOUD_ORG_RE (names of hosting providers and a few generic words of the trade: hosting, datacenter, colocation), matched on the organisation, the network name and the abuse mailbox of the block.
+  - New function reseau_lire IP: reads the owner of the block through apps/_reseau.py (RDAP, whois, cache of addresses) into RESEAU_ORG, RESEAU_NET, RESEAU_PLAGE, RESEAU_PAYS, RESEAU_ABUS, RESEAU_REGISTRE, RESEAU_SOURCE, without display. infos_reseau() uses it (same display as before).
+  - New function reseau_hebergeur: 0 when that owner is a hosting provider.
+  - CLOUD_PTR_RE moved up, next to these functions (defined before the --ban block, which will use them).
+  - investigate_and_propose(): clue "Serveur loué chez un hébergeur : ORGANISATION (propriétaire du bloc, RDAP ; DNS inverse : ...)" when the PTR does not match but the owner does (--investigate only: the daily report makes no RDAP query). Odoo accounts (comptes_bd_ip) searched only when the requested URLs include a session page (/web/login, /web/session, /web/dataset, /web/action, /web/webclient, /web/signup, /web/reset_password, /web, /odoo, /my, /mail/, /discuss/, /bus/, /websocket, /longpolling, with or without language prefix); otherwise one line says why they were not searched.
+  - lang/nginx-log-audit.en.po: the new messages.
+  - doc/fr and doc/en 02-nginx-log-audit.md: the two rules.
+  - nginx-tools-tests/test_nginx_log_audit.py: new class ChkNginxLogs272 (owner Vultr from a simulated RDAP answer, owner unknown, accounts searched or not); test_ban_gate.py: version.
+- Bugs fixed:
+  - Symptom: "[ ] Serveur loué : valtrona.eu" for an address of Vultr. Diagnosis: only the reverse DNS was compared with CLOUD_PTR_RE. Fix: the owner of the block, already read by --investigate, is compared too.
+  - Symptom: members of the site listed for robots that never logged in. Diagnosis: comptes_bd_ip correlates the time of the requests with the sessions in the database; Odoo does not record the address of a session. Fix: only after a request that needs a session.
+- Safeguards and edge cases: the score can rise by 1 for a hosted address whose reverse DNS does not show the provider (140.82.7.85: 1 -> 2/7, still under the threshold of 3); the daily report and --unban-check are unchanged (no RDAP query there). A member behind a VPN at a hosting provider who uses the back office still gets the list (session pages requested). Logins recorded in the Odoo journal for the address itself (logins_odoo) are always shown. Unknown owner (no RDAP, no whois): clue not checked, as before. Generic words are limited to hosting, datacenter and colocation, to avoid catching access providers.
+- Checks performed: bash -n; ChkNginxLogs272 (3 tests) [OK]; the new messages have their English entry (the other missing entries of lang/nginx-log-audit.en.po already exist on main).
+- Action required: none.
+
 ### 2.69.20261101.234513 - Fail2ban section lists the banned addresses, not only their number
 
 - Title: the fail2ban check of the "AUTRES POINTS A RE-VERIFIER" report now shows the banned addresses of each jail.

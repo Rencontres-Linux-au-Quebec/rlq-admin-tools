@@ -973,3 +973,49 @@ class ChkNginxLogs(EnvTest):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+VULTR_RDAP = ('{"name": "NET-140-82-6-0-23", "country": "US", "port43": "whois.arin.net",'
+              ' "cidr0_cidrs": [{"v4prefix": "11.82.6.0", "length": 23}],'
+              ' "entities": [{"roles": ["registrant"], "vcardArray": ["vcard", [["fn", {}, "text", "Vultr Holdings, LLC"]]]},'
+              ' {"roles": ["abuse"], "vcardArray": ["vcard", [["email", {}, "text", "abuse@vultr.com"]]]}]}')
+
+
+class ChkNginxLogs272(ChkNginxLogs):
+    """2.72 : serveur loué reconnu par le propriétaire du bloc (RDAP) quand le DNS inverse ne le montre pas ; comptes Odoo cherchés seulement si
+    l'adresse a demandé une page de session (connexion, back-office, compte client)."""
+
+    def setUp(self):
+        super().setUp()
+        self.env["NGINX_TOOLS_IP_CACHE"] = self.path("cache-ip", "x")[:-2]
+        self.mock("curl", 'for a in "$@"; do case "$a" in *rdap.org/ip/11.82.7.85) echo \'' + VULTR_RDAP + '\'; exit 0;; esac; done; exit 1')
+
+    def pages_emploi(self, ip, extra=()):
+        pages = ["/careers", "/jobs", "/join-us", "/about/careers", "/company/careers", "/en_CA/careers", "/en_CA/jobs", "/work-with-us",
+                 "/careers/openings", "/en/careers"]
+        self.add(*(acc(ip, "15/Oct/2026", f"00:14:0{k % 10}", p, 404) for k, p in enumerate(pages)), *extra)
+
+    def test_272_hebergeur_reconnu_par_rdap(self):
+        self.pages_emploi("11.82.7.85")
+        rc, out, err = self.run_cmd(["bash", self.prog, "prod", "--investigate", "11.82.7.85", "--no-prompt"])
+        self.assertEqual(rc, 0, err)
+        self.assertIn("Serveur loué chez un hébergeur : Vultr Holdings, LLC (propriétaire du bloc, RDAP ; DNS inverse : aucun)", out)
+        self.assertIn("Score 2/7", out)                                   # burst + rented server
+
+    def test_272_sans_proprietaire_hebergeur_indice_non_coche(self):
+        self.pages_emploi("11.82.7.86")                                   # curl fails for this address: owner unknown
+        _, out, _ = self.run_cmd(["bash", self.prog, "prod", "--investigate", "11.82.7.86", "--no-prompt"])
+        self.assertIn("[ ] Serveur loué : aucun DNS inverse", out)
+
+    def test_272_comptes_odoo_seulement_avec_une_page_de_session(self):
+        self.pages_emploi("11.82.7.85")
+        _, out, _ = self.run_cmd(["bash", self.prog, "prod", "--investigate", "11.82.7.85", "--no-prompt"])
+        self.assertIn("Comptes Odoo actifs pendant ces requêtes : non recherchés", out)
+        self.pages_emploi("11.82.7.87", extra=[acc("11.82.7.87", "15/Oct/2026", "00:15:00", "/en_CA/web/login", 200)])
+        _, out, _ = self.run_cmd(["bash", self.prog, "prod", "--investigate", "11.82.7.87", "--no-prompt"])
+        self.assertNotIn("non recherchés", out)
+        self.assertRegex(out, r"Comptes Odoo (actifs pendant ces requêtes : aucun trouvé|\(base\))")
+
+
+for _nom in [n for n in vars(ChkNginxLogs) if n.startswith("test")]:
+    setattr(ChkNginxLogs272, _nom, None)                                  # same fixtures as ChkNginxLogs, without running its tests twice
