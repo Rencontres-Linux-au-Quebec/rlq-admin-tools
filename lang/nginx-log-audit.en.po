@@ -3056,3 +3056,15 @@ msgstr ": not banned durably (answer: no)."
 
 msgid " : pas de question (bannissement jamais automatique). Pour bannir : nginx-log-audit.sh --ban "
 msgstr ": no question (a ban is never automatic). To ban: nginx-log-audit.sh --ban "
+
+msgid "Lecture unique des journaux pour les "
+msgstr "Reading the logs once for the "
+
+msgid " adresses (partagée par toutes les enquêtes)"
+msgstr " addresses (shared by all the investigations)"
+
+msgid "Attente des dernières enquêtes (jusqu'à "
+msgstr "Waiting for the last investigations (up to "
+
+msgid " en parallèle)"
+msgstr " in parallel)"

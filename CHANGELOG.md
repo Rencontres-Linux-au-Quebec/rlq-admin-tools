@@ -3533,6 +3533,16 @@ Earlier history was archived outside this repository when this file was created.
 
 ## nginx-log-audit.sh
 
+### 2.88.20261103.121008 - --unban-low-score: logs read once, investigations in parallel
+
+- Title: --unban-low-score reads the logs and the Odoo journal once for all banned addresses and runs the investigations in parallel.
+- Reason: with 128 banned addresses the command took about 20 s per address (more than 40 minutes). Each address started a full --investigate that decompressed all the site, catch-all and fail2ban logs again, read the Odoo journal for 100 days again (journalctl, up to 60 s) and waited for the network one step at a time. The user asked why it was so long and why Odoo was queried every time.
+- Changes: nginx-log-audit.sh: lire_enquete (reads the output and the RÉSUMÉ line of one run; verdict_par_enquete now uses it), lot_preparer (one read of fail2ban.log, catch-all logs, blocked-probes.log, site log and Odoo logins, pre-filtered on the banned addresses, shared through NGINX_TOOLS_BATCH_CACHE), lot_chrono, enqueter_lot (parallel runs, NGINX_TOOLS_JOBS, 4 at most by default, nproc otherwise), lot_nettoyer. lire_chrono, charger_logins and the --investigate block use the shared copies when the variable is set. lang/nginx-log-audit.en.po: 4 entries. Files: nginx-log-audit.sh, lang/nginx-log-audit.en.po, doc/fr and doc/en 02-nginx-log-audit.md, tests.
+- Bugs fixed: none in the verdicts. Performance symptom: the Odoo journal and the logs were read again for each address. Diagnosis: every --investigate is a separate process with no shared data. Fix: shared pre-filtered copies and parallel runs.
+- Safeguards and edge cases: each investigation still runs the same code on the lines of its own address (exact filter on the first field), so the verdict is unchanged; the catch-all copy stays non-empty when the sensor log is non-empty (the code tells "no sensor log" from "no request"); if the temporary folder cannot be created the old sequential path is used; the temporary folder is removed on exit and the children are stopped on interruption; the shared copy is removed before any ban or lift so --ban and --unban read fresh data. The Odoo database is queried only for addresses that asked for a page needing a session (rule of 2.72, unchanged).
+- Checks: bash -n; test_unban_low_score (verdicts unchanged); new test: journalctl called once for 3 addresses; test_i18n for this program; test_ban_gate version string.
+- Action required: none. Optional: NGINX_TOOLS_JOBS=N to set the number of parallel investigations.
+
 ### 2.87.20261103.114021 - --unban-low-score: ban offer for BANNIR verdicts and strict o/n questions
 
 - Title: --unban-low-score now offers a durable ban when --investigate says BANNIR, and its questions require an explicit o or n.
