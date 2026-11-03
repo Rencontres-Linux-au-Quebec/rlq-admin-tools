@@ -137,7 +137,8 @@ class ConfigNginx(unittest.TestCase):
         self.assertGreaterEqual(len(motifs), 5)
         bloque = lambda ua: any(m.search(ua) for m in motifs)
         for ua in ("python-httpx/0.28.1", "Python-urllib/3.11", "python-requests/2.32", "Wget/1.21",
-                   "Mozilla/5.0 (compatible; SERankingBacklinksBot/1.0)", "Mozilla/5.0 (compatible; GeedoShopProductFinder/1.0)"):
+                   "Mozilla/5.0 (compatible; SERankingBacklinksBot/1.0)", "Mozilla/5.0 (compatible; GeedoShopProductFinder/1.0)",
+                   "webzio (+https://webz.io/bot.html)"):
             with self.subTest(bloque=ua):
                 self.assertTrue(bloque(ua))
         for ua in list(NAVIGATEURS) + ["curl/8.5.0"]:
