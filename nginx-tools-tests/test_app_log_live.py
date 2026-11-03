@@ -4338,7 +4338,7 @@ class AppLogLive156(unittest.TestCase):
     def test_156_le_systeme_a_priorite_et_le_reste_est_oth(self):
         self.assertEqual(self.m.os_code("Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120"), "WIN")
         self.assertEqual(self.m.os_code("Mozilla/5.0 (X11; Linux x86_64) Firefox/120.0"), "LIN")
-        self.assertEqual(self.m.os_code("Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)"), "OTH")
+        self.assertEqual(self.m.os_code("Ecosia/3425 CFNetwork/3896.100.1.2.1 Darwin/27.0.0"), "OTH")
         self.assertEqual(self.m.os_code("-"), "   ")
         self.assertEqual(self.m.os_code(""), "   ")
 
@@ -4443,3 +4443,41 @@ class AppLogLive158(AppLogLive):
 
 for _nom in [n for n in vars(AppLogLive) if n.startswith("test")]:
     setattr(AppLogLive158, _nom, None)                                    # same fixtures as AppLogLive, without running its tests twice
+
+
+class AppLogLive159(unittest.TestCase):
+    """1.159 : BOT pour un robot qui se nomme (avant le système), programmes en jaune gras, 403 de robot en jaune sans vidéo inverse."""
+
+    @classmethod
+    def setUpClass(cls):
+        spec = importlib.util.spec_from_file_location("live159", script_path("app-log-live.py"))
+        cls.m = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(cls.m)
+
+    def test_159_robots_nommes(self):
+        for agent in ("[NVIDIA]-[PSIRT@nvidia.com]-[NSPECT-I05S-FIEU]-[NVIDIABOT]", "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; Amazonbot/0.1; +https://developer.amazon.com/support/amazonbot) Chrome/119.0 Safari/537.36",
+                      "Mozilla/5.0 (compatible; SemrushBot/7~bl; +http://www.semrush.com/bot.html)", "facebookexternalhit/1.1 (+http://www.facebook.com/externalhit_uatext.php)",
+                      "meta-webindexer/1.1 (+https://developers.facebook.com/docs/sharing/webmasters/crawler)", "Mozilla/5.0 (compatible; BacklinksExtendedBot)",
+                      "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)", "Mozilla/5.0 (Linux; Android 6.0.1; Nexus 5X) Googlebot/2.1"):
+            self.assertEqual(self.m.os_code(agent), "BOT", agent)
+
+    def test_159_navigateurs_et_outils_inchanges(self):
+        self.assertEqual(self.m.os_code("Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/152.0.0.0 Safari/537.36"), "LIN")
+        self.assertEqual(self.m.os_code("Mozilla/5.0 (Linux; Android 9; CUBOT X19) Chrome/110 Mobile"), "AND")
+        self.assertEqual(self.m.os_code("curl/8.5.0"), "CUR")
+        self.assertEqual(self.m.os_code("PHP/8.2"), "PHP")
+        self.assertEqual(self.m.os_code("app-log-live (sitemap check)"), "OTH")
+
+    def test_159_couleurs_des_codes(self):
+        for code in ("CUR", "PYT", "WGT", "GOL", "JAV", "PHP", "NOD", "RUB", "PER"):
+            self.assertEqual(self.m.OS_COLORS[code], "1;33", code)
+        self.assertEqual(self.m.OS_COLORS["BOT"], "35")
+
+    def test_159_403_de_robot_en_jaune_sans_video_inverse(self):
+        self.assertEqual(self.m.STYLES["url_bot"], "93")                       # yellow text, no reverse video (7)
+        self.assertEqual(self.m.STYLES["url_warning"], "7;93")                 # the other 4xx errors keep their reverse video
+        with open(script_path("app-log-live.py"), encoding="utf-8") as f:
+            src = f.read()
+        i = src.index('STYLES["url_bot"] if (int(r.group(2)) == 403 and is_bot_403(L))')
+        self.assertLess(src.index('ajouter(r.start(1), r.end(1), color_code(STYLES["suspect"], r.group(1)))'), i)     # a sensitive file is painted first: it keeps its reverse video
+

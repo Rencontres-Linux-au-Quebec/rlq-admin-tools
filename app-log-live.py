@@ -119,7 +119,7 @@ from urllib.parse import unquote, urlsplit
 from collections import Counter, OrderedDict
 from concurrent.futures import Future
 
-__version__ = "1.158.20261103.085742"
+__version__ = "1.159.20261103.100102"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
@@ -362,7 +362,7 @@ STYLES = {"nginx": "1;35", "person": "1;32", "team": "1;32", "place": "1;36", "s
           "failure": "1;" + ORANGE, "error": "1;31", "warning": ORANGE, "debug": "2", "highlight": "30;46",
           # INVERSE VIDEO (7): suspicious request; URL of a 5xx (red) or 4xx (yellow) error. Whitelist address (white background) or places file address (gray background):
           # EXPLICIT background AND text (black), never "7;90" (inverted gray): on a theme where bright black is black, the address became black on black
-          "suspect": "7;35", "account": "7;31", "url_critical": "7;91", "url_warning": "7;93", "blanche": "107;30", "place_ip": ("48;5;245" if COLORS_256 else "47") + ";30",
+          "suspect": "7;35", "account": "7;31", "url_bot": "93", "url_critical": "7;91", "url_warning": "7;93", "blanche": "107;30", "place_ip": ("48;5;245" if COLORS_256 else "47") + ";30",
           "accent": "1;97;48;5;18" if COLORS_256 else "1;97;44",       # contact of the --accentuate-group group: bold white on dark blue
           "banned": "1;91", "slow_request": "1;" + ORANGE, "very_slow_request": "1;31", "title": "1;36", "transfer_low": "32", "transfer_mid": "33", "transfer_slow": "1;31"}
 # Duration of an Odoo request (werkzeug): "... 200 - 105 0.046 0.426" = code, size, SQL queries, SQL time, Python time (seconds)
@@ -1774,12 +1774,13 @@ OS_CODES = (("AND", re.compile(r"Android", re.I)), ("IOS", re.compile(r"iPhone|i
             ("WIN", re.compile(r"Windows", re.I)), ("LIN", re.compile(r"Linux", re.I)), ("MAC", re.compile(r"Macintosh|Mac OS X", re.I)))
 PROGRAM_CODES = (("CUR", re.compile(r"\bcurl\b", re.I)), ("PYT", re.compile(r"python|aiohttp|httpx|scrapy", re.I)),     # 1.156: a User-Agent without a system: the program
                  ("WGT", re.compile(r"\bwget\b", re.I)), ("GOL", re.compile(r"Go-http-client|\bgolang\b|fasthttp", re.I)),
-                 ("JAV", re.compile(r"\bjava\b|okhttp|apache-httpclient", re.I)), ("PHP", re.compile(r"\bphp\b", re.I)),
+                 ("JAV", re.compile(r"\bjava\b|okhttp|apache-httpclient", re.I)), ("PHP", re.compile(r"^php(?:/|-|\s|$)|\bphp/\d", re.I)),
                  ("NOD", re.compile(r"\bnode\b|axios|node-fetch|undici", re.I)), ("RUB", re.compile(r"\bruby\b", re.I)),
                  ("PER", re.compile(r"libwww-perl|\bperl\b", re.I)))
+BOT_UA_RE = re.compile(r"(?<![a-z])(?!cubot)[a-z]*(?:bot|crawler|spider)(?![a-z])|crawl|slurp|externalhit|webindexer|bingpreview|nvidia", re.I)       # 1.159: a robot that gives its name
 NGINX_AGENT_RE = re.compile(r'"[^"]*" "([^"]*)"')                  # 1.133: after the request and the size of an nginx line: the referer, then the User-Agent
 OS_BLANK = "   "
-OS_COLORS = {"LIN": "32", "AND": "36"}                             # 1.136: LIN in green, AND in cyan
+OS_COLORS = {"LIN": "32", "AND": "36", "BOT": "35", **{code: "1;33" for code, _ in PROGRAM_CODES}}                             # 1.136: LIN in green, AND in cyan
 RL_WIDTH = 5                                                       # 1.136: width of the request length column (rl=, nginx)
 RL_RE = re.compile(r"\srl=(\d+)")
 HOST_TEXT_RE = re.compile(r'\shost="[^"]*"')                       # 1.145: the host of an nginx line (--display-host shows it, at the end of the line)
@@ -1787,10 +1788,13 @@ HOST_TEXT_RE = re.compile(r'\shost="[^"]*"')                       # 1.145: the 
 
 def os_code(agent):
     """1.133/1.134: AND (Android), IOS (iPhone, iPad, iPod), WIN (Windows), LIN (Linux), MAC (macOS) from the User-Agent; 1.156: without a system,
-    the program that makes the request (CUR curl, PYT Python, WGT wget, GOL Go, JAV Java, PHP, NOD Node.js, RUB Ruby, PER Perl); OTH for any
+    the program that makes the request (CUR curl, PYT Python, WGT wget, GOL Go, JAV Java, PHP, NOD Node.js, RUB Ruby, PER Perl; in bold yellow); 1.159: BOT (magenta)
+    for a robot that gives its name, checked FIRST; OTH for any
     other User-Agent; three blanks without User-Agent (Odoo lines, "-" of nginx)."""
     if not agent or agent.strip() in ("", "-"):
         return OS_BLANK
+    if BOT_UA_RE.search(agent):                                      # 1.159: a named robot (Googlebot, Amazonbot, SemrushBot, NVIDIABOT, facebookexternalhit...), even with a system in its text
+        return "BOT"
     for code, pattern in OS_CODES:
         if pattern.search(agent):
             return code
@@ -2096,7 +2100,8 @@ class Formatting:
         for m in LOGIN_PATH_RE.finditer(text):
             ajouter(m.start(1), m.end(1), color_code(STYLES["connection"], m.group(1)))
         if r and 400 <= int(r.group(2)) < 500:
-            ajouter(r.start(1), r.end(1), color_code(STYLES["url_warning"], shown_url))
+            # 1.159: a 403 produced by a robot refused by policy is not critical: yellow text, not reverse video (a sensitive file keeps its reverse video, above)
+            ajouter(r.start(1), r.end(1), color_code(STYLES["url_bot"] if (int(r.group(2)) == 403 and is_bot_403(L)) else STYLES["url_warning"], shown_url))
         if r and not suspect_url(r.group(1)) and shown_url != r.group(1):      # 1.128: a URL coded in %XX and not coloured above: shown decoded
             ajouter(r.start(1), r.end(1), shown_url)
         for m in URL_IN_TEXT_RE.finditer(text):           # 1.133: every URL of the line (referer...): path and query decoded (%5B -> [, %2C -> ,), the host kept

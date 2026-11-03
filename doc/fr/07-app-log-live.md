@@ -119,4 +119,6 @@ app-log-live.py --log-nginx -g ' 404 '           # les réponses 404 de nginx et
 
 * **1.158 - seulement les erreurs** : `--errors-only` (`ERRORS_ONLY`) ou la touche `X` (bascule) n'affiche que les erreurs et les requêtes suspectes : code HTTP 400 et plus, requête suspecte, WARNING / ERROR / CRITICAL d'Odoo, traces, connexions échouées. Les transactions normales (2xx, 3xx, INFO) sont cachées. Au démarrage (au moins 3000 lignes d'historique lues) et à chaque activation par `X`, les **100 dernières erreurs** s'affichent d'abord. Le résumé ne compte que ce qui est affiché.
 
+* **1.159 - robots** : la colonne du système affiche `BOT` (magenta) pour un robot qui se nomme dans son User-Agent (Googlebot, Amazonbot, SemrushBot, NVIDIABOT, facebookexternalhit...), vérifié avant le système ; les programmes `CUR`, `PYT`, `WGT`, `GOL`, `JAV`, `PHP`, `NOD`, `RUB`, `PER` s'affichent en **jaune gras** (outil de script). Un **403 produit par un robot refusé** (liste de `bot_blocker.conf`, `[BOT]`) n'est pas critique : l'URL s'affiche en jaune, sans vidéo inverse ; une requête à un fichier sensible garde sa vidéo inverse.
+
 {{HELP}}
