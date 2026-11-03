@@ -146,8 +146,16 @@ grep_q() { grep "$@" >/dev/null; }
 #                              ne peut pas le voir, le texte etant entre apostrophes (faux positif).
 trap 'ec=$?; echo "" >&2; echo "*** ARRÊT INATTENDU DU SCRIPT (code $ec) À LA LIGNE $LINENO ***" >&2; echo "*** Commande fautive : $BASH_COMMAND" >&2; echo "*** Si le rapport ci-dessus semble incomplet (ex. sections Top 10 absentes), c'\''est probablement la cause." >&2' ERR
 
-readonly SCRIPT_VERSION="2.85.20261103.103805"
+readonly SCRIPT_VERSION="2.86.20261103.112227"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
+# theme_sgr CODE (2.86) : the SGR code as the color theme shows it (--theme N, THEME, NGINX_TOOLS_THEME; apps/_theme.py). Theme 0, no module or no python3: unchanged.
+theme_sgr() {
+    local n="${THEME:-${NGINX_TOOLS_THEME:-0}}" mapped=""
+    if [[ "$n" =~ ^[1-4]$ && -r "$SCRIPT_DIR/apps/_theme.py" ]] && command -v python3 >/dev/null 2>&1; then
+        mapped=$(python3 "$SCRIPT_DIR/apps/_theme.py" --sgr "$n" "$1" 2>/dev/null) || mapped=""
+    fi
+    printf '%s' "${mapped:-$1}"
+}
 # Chemin de ce programme (relances --investigate, --ban, --unban) : defini ICI, avant le bloc --ban qui l'utilise.
 SELF_PATH="$SCRIPT_DIR/$(basename "${BASH_SOURCE[0]}")"
 # Display language (en or fr): --lang, NGINX_LOG_AUDIT_LANG, LANGUAGE of the configuration file, LC_ALL / LANG - apps/_i18n.sh translates the output (nothing changes in French).
@@ -211,6 +219,7 @@ EVIDENCE_IP=""
 APP_FORCE=""
 NO_PROMPT=0
 BAN_THRESHOLD=3
+THEME=""                    # 2.86: color theme 0 to 4 (--theme, THEME of the configuration, NGINX_TOOLS_THEME, then 0); see apps/_theme.py
 PAGE_BURST=8
 PARALLEL_THRESHOLD=5
 UA_ROTATION_THRESHOLD=2
@@ -225,7 +234,7 @@ fi
 # --export-bans writes a LIST of addresses meant to be redirected into a file then re-imported: the version goes to the error output.
 case " $* " in *" --version "*) ;; *" --export-bans "*) echo "nginx-log-audit.sh v$SCRIPT_VERSION" >&2 ;; *) echo "nginx-log-audit.sh v$SCRIPT_VERSION" ;; esac
 # Configuration (/etc/default/nginx-log-audit.conf, then ~/.nginx-log-audit.conf; -c/--config: this file ONLY): default values of the options, the command line wins.
-# Keys: APP, BAN_DAYS_HOSTING, BAN_DAYS_ISP, BAN_DAYS_OTHER, BAN_THRESHOLD, LANGUAGE, NO_PROMPT, PAGE_BURST, PARALLEL_THRESHOLD, UA_ROTATION_THRESHOLD, VERBOSE.
+# Keys: APP, BAN_DAYS_HOSTING, BAN_DAYS_ISP, BAN_DAYS_OTHER, BAN_THRESHOLD, LANGUAGE, NO_PROMPT, PAGE_BURST, PARALLEL_THRESHOLD, THEME, UA_ROTATION_THRESHOLD, VERBOSE.
 if declare -F config_lire >/dev/null; then
     config_lire nginx-log-audit "$@"
     config_defaut APP_FORCE APP --app texte
@@ -236,6 +245,7 @@ if declare -F config_lire >/dev/null; then
     config_defaut NO_PROMPT NO_PROMPT --no-prompt booleen
     config_defaut PAGE_BURST PAGE_BURST --page-burst nombre
     config_defaut PARALLEL_THRESHOLD PARALLEL_THRESHOLD --parallel-threshold nombre
+    config_defaut THEME THEME --theme nombre
     config_defaut UA_ROTATION_THRESHOLD UA_ROTATION_THRESHOLD --ua-rotation-threshold nombre
     config_defaut VERBOSE VERBOSE --verbose booleen
     case " $* " in *" --version "*|*" --help "*|*" -h "*|*" --changelog "*) ;; *" --export-bans "*) config_afficher >&2 ;; *) config_afficher ;; esac
@@ -299,6 +309,8 @@ while [[ $# -gt 0 ]]; do
         --no-prompt) NO_PROMPT=1; shift ;;
         --ban-threshold) BAN_THRESHOLD="${2:-}"; shift 2 ;;
         --page-burst) PAGE_BURST="${2:-}"; shift 2 ;;
+        --theme) THEME="${2:-}"; shift 2 ;;
+        --theme=*) THEME="${1#--theme=}"; shift ;;
         --parallel-threshold) PARALLEL_THRESHOLD="${2:-}"; shift 2 ;;
         --version) echo "nginx-log-audit.sh version $SCRIPT_VERSION"; exit 0 ;;
         --menu) shift ;;     # --menu (apps/_menu.sh) : traité avant la boucle
@@ -310,7 +322,7 @@ while [[ $# -gt 0 ]]; do
             if [[ -t 1 ]]; then
                 # Version numbers (X.Y.AAAAMMDD.HHMMSS) in bold cyan - standard ANSI colors, adapt to
                 # theme clair/sombre du terminal plutot que d'imposer une couleur fixe potentiellement illisible.
-                changelog_section | sed -E $'s/([0-9]+\\.[0-9]+\\.[0-9]{8}\\.[0-9]{6})/\\x1b[1;36m\\1\\x1b[0m/' 2>/dev/null || true  # lecteur ferme plus tot (| head) : SIGPIPE attendu, pas une erreur
+                changelog_section | sed -E $'s/([0-9]+\\.[0-9]+\\.[0-9]{8}\\.[0-9]{6})/\\x1b['"$(theme_sgr '1;36')"$'m\\1\\x1b[0m/' 2>/dev/null || true  # lecteur ferme plus tot (| head) : SIGPIPE attendu, pas une erreur
             else
                 changelog_section 2>/dev/null || true  # lecteur ferme plus tot (| head) : SIGPIPE attendu, pas une erreur
             fi
@@ -341,7 +353,7 @@ Options (par ordre alphabétique) :
   --changelog                  affiche le journal des modifications
   --compare [FICHIER]          compare les dernières 24 h avec les 24 h précédentes (codes, blocages, IP, chemins) et écrit le rapport dans FICHIER (mode 600) ; lecture seule
   -c, --config FILE            fichier de configuration à lire SEUL (sinon : /etc/default/nginx-log-audit.conf, puis ~/.nginx-log-audit.conf ;
-                               clés : APP, BAN_THRESHOLD, LANGUAGE, NO_PROMPT, PAGE_BURST, PARALLEL_THRESHOLD, UA_ROTATION_THRESHOLD, VERBOSE)
+                               clés : APP, BAN_THRESHOLD, LANGUAGE, NO_PROMPT, PAGE_BURST, PARALLEL_THRESHOLD, THEME, UA_ROTATION_THRESHOLD, VERBOSE)
   --details                    avec --stats : détail de chaque indicateur
   --evidence IP                preuves pour ou contre le bannissement d'une IP et verdict, sans rien demander ni bannir (lecture seule)
   --export-bans [FILE]         exporter les bannissements manuels (sortie standard par défaut)
@@ -364,6 +376,7 @@ Options (par ordre alphabétique) :
   --report-err                 afficher à la fin un rapport d'erreurs à copier-coller (programme, version, serveur,
                                échecs, avertissements) ; désactive couleurs et questions interactives
   --stats                      statistiques du trafic (codes, IP, User-Agents, appareils des visiteurs)
+  --theme N                    thème de couleurs : 0 couleurs du terminal (défaut), 1 fond sombre, 2 fond clair, 3 fond sombre contrasté, 4 fond clair contrasté (THEME dans la configuration)
   --ua-rotation-threshold N    identités de robots différentes pour l'indice « double identité »
   --unban IP                   lever TOUS les bannissements de IP : pare-feu, jails fail2ban, liste CrowdSec (justification demandée)
   --unban-cdn                  lever les bannissements des adresses Cloudflare (aperçu, puis confirmation)
@@ -474,10 +487,18 @@ if ! [[ "$UA_ROTATION_THRESHOLD" =~ ^[0-9]+$ ]] || [[ "$UA_ROTATION_THRESHOLD" -
     exit 1
 fi
 
+# --- Theme de couleurs (2.86) : --theme N, puis THEME (configuration), puis NGINX_TOOLS_THEME, puis 0 ; exporte pour les programmes lances ------
+THEME="${THEME:-${NGINX_TOOLS_THEME:-0}}"
+if ! [[ "$THEME" =~ ^[0-4]$ ]]; then
+    echo "ERREUR: --theme attend un nombre de 0 à 4 (reçu: '$THEME')" >&2
+    exit 1
+fi
+export NGINX_TOOLS_THEME="$THEME"
+
 # --- Couleur conditionnelle : jamais si la sortie n'est pas un terminal (fichier, mail, pipe) -------------------
 if [[ -t 1 || -n "${REPORT_ERR_COULEUR:-}" ]]; then
-    C_RED=$'\x1b[1;31m'; C_YELLOW=$'\x1b[1;33m'; C_GREEN=$'\x1b[1;32m'; C_RESET=$'\x1b[0m'; C_BOLD=$'\x1b[1m'
-    C_MAL=$'\x1b[1;35m'     # magenta : elements malveillants (URL sensibles, codes de blocage ou d'erreur, IP a bannir)
+    C_RED=$'\x1b['"$(theme_sgr '1;31')"m; C_YELLOW=$'\x1b['"$(theme_sgr '1;33')"m; C_GREEN=$'\x1b['"$(theme_sgr '1;32')"m; C_RESET=$'\x1b[0m'; C_BOLD=$'\x1b['"$(theme_sgr '1')"m
+    C_MAL=$'\x1b['"$(theme_sgr '1;35')"m     # magenta : elements malveillants (URL sensibles, codes de blocage ou d'erreur, IP a bannir)
 else
     C_RED=""; C_YELLOW=""; C_GREEN=""; C_RESET=""; C_MAL=""; C_BOLD=""
 fi

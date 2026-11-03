@@ -19,7 +19,7 @@ import sys
 import tempfile
 import time
 
-__version__ = "1.10.20261022.231529"
+__version__ = "1.11.20261103.112517"
 OUI = ("1", "true", "yes", "oui", "on", "vrai")
 NON = ("0", "false", "no", "non", "off", "faux", "")
 # 1.9: values are written in English only; these old French values are still read (same meaning), with a warning (valeurs_francaises).
@@ -27,7 +27,7 @@ FRANCAIS = {"oui": "yes", "non": "no", "vrai": "true", "faux": "false", "aucun":
 
 
 COMMUN = "app-default"                                         # common file for all the programs: /etc/default/app-default.conf, ~/.app-default.conf
-CLES_COMMUNES = ("LANGUAGE", "VERBOSE", "DEBUG_LEVEL", "LOG_KEEP_DAYS", "ANONYMIZE")         # the only keys read in the common file (the program's file wins)
+CLES_COMMUNES = ("LANGUAGE", "VERBOSE", "DEBUG_LEVEL", "LOG_KEEP_DAYS", "ANONYMIZE", "THEME")         # the only keys read in the common file (the program's file wins)
 
 
 def chemins_communs():

@@ -85,7 +85,7 @@ import time
 import unicodedata
 import urllib.parse
 
-__version__ = "2.86.20261102.224544"
+__version__ = "2.87.20261103.112153"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
@@ -110,7 +110,8 @@ PERSONAL_CONFIG = ".web-monitor.conf"
 SCHEMA_CONFIG = {"APP": ("app", str), "DAYS": ("days", int), "DETAILS": ("details", bool), "INTERVAL_HOURS": ("interval_hours", int), "NO_PAGER": ("no_pager", bool),
                  "NO_PROMPT": ("no_prompt", bool), "REVERSE": ("reverse", bool), "SORT": ("sort", None), "TABLE": ("table", bool), "VERBOSE": ("verbose", bool),
                  "REPEAT_HEADER": ("repeat_header", bool), "STATS": ("stats", bool), "TABLE_FIELDS": ("table_fields", lambda v: table_fields(v)),    # 2.67
-                 "CSV": ("csv", str), "GROUP": ("group", str), "INTERNET": ("internet", bool)}                                                             # 2.69
+                 "CSV": ("csv", str), "GROUP": ("group", str), "INTERNET": ("internet", bool),
+                 "THEME": ("theme", int)}                                                             # 2.69
 
 
 def _explicit_config(argv):
@@ -766,12 +767,20 @@ def colors_on():
     return sys.stdout.isatty() and not os.environ.get("NO_COLOR") and os.environ.get("TERM") != "dumb"
 
 
+THEME_MODULE = None     # 2.87: apps/_theme.py once the theme is chosen (--theme); None = the colors of the terminal
+
+
+def theme_sgr(code):
+    """2.87: the SGR code as the theme shows it (theme 0 or no module: unchanged)."""
+    return THEME_MODULE.sgr(code) if THEME_MODULE is not None and code else code
+
+
 def color_code(code, text_value):
     """Colored text ONLY if the output is a terminal at display time (never in a captured report
     or one sent by e-mail, nor with NO_COLOR). code: 32 green, 33 yellow, 31 red, 1 bold, 35 magenta."""
     if not colors_on():
         return str(text_value)
-    return f"\x1b[1;{code}m{text_value}\x1b[0m" if code != "1" else f"\x1b[1m{text_value}\x1b[0m"
+    return f"\x1b[{theme_sgr('1;' + str(code))}m{text_value}\x1b[0m" if code != "1" else f"\x1b[{theme_sgr('1')}m{text_value}\x1b[0m"
 # Group 8: requested domain name (nginx combined_host format: host="..." at the end of the line; absent from old lines).
 TIME_RE = re.compile(r'\[(\d{2}/\w{3}/\d{4}:\d{2}:\d{2}):\d{2} ([+-]\d{4})\]')     # minute and time zone of an access line (--list-users --table)
 ACCESS_RE = re.compile(r'^(\S+) \S+ \S+ \[(\d{2}/\w{3}/\d{4}):[^\]]*\] "(\S+) (\S+)[^"]*" (\d{3})(?: (\S+) "[^"]*" "([^"]*)")?(?: host="([^"]*)")?(?: rl=(\d+))?')
@@ -4382,7 +4391,7 @@ def show_bbb_state():
     for text_line in text_lines:
         tag_match = re.match(r"\[(OK|ATTN|FAIL)\] ", text_line)
         if tag_match:
-            color = {"OK": "\x1b[1;32m", "ATTN": "\x1b[1;33m", "FAIL": "\x1b[1;31m"}[tag_match.group(1)]
+            color = "\x1b[" + theme_sgr({"OK": "1;32", "ATTN": "1;33", "FAIL": "1;31"}[tag_match.group(1)]) + "m"
             tag = f"[{tag_match.group(1)}]"
             print("  " + (f"{color}{tag}\x1b[0m" if sys.stdout.isatty() else tag) + " " + text_line[len(tag) + 1:])
         else:
@@ -4789,7 +4798,7 @@ def show_changelog():
         print(f"Changelog not found: {CHANGELOG_FILE}", file=sys.stderr)
         return 1
     if sys.stdout.isatty():
-        text = re.sub(r"(\d+\.\d+\.\d{8}\.\d{6})", "\x1b[1;36m\\1\x1b[0m", text)
+        text = re.sub(r"(\d+\.\d+\.\d{8}\.\d{6})", "\x1b[" + theme_sgr("1;36") + "m\\1\x1b[0m", text)
     try:
         sys.stdout.write(text)
         sys.stdout.flush()
@@ -4908,7 +4917,7 @@ MENU_ENTREES = [
 
 
 def main():
-    global VERBOSE
+    global VERBOSE, THEME_MODULE, BAD
     parser = LocalizedArgumentParser(
         description="Automatic nginx + Odoo monitoring: runs the project's tools, alerts only if action is needed.")
     parser.add_argument("-c", "--config", metavar="FILE",
@@ -4978,6 +4987,10 @@ def main():
     parser.add_argument("--summary", action="store_true",
                         help="Numbered summary (today, D-1, D-2, 7 days, 30 days or --days N): traffic, blocks and attacks, errors, highlights, log coverage")
     parser.add_argument("-v", "--verbose", action="store_true", help="Show each command run")
+    parser.add_argument("--theme", type=int, choices=(0, 1, 2, 3, 4), default=None, metavar="N",
+                        help="Color theme (2.87): 0 = the colors of the terminal (default); 1 = dark background; 2 = light background; 3 = dark background, high contrast; "
+                             "4 = light background, high contrast. Every color is replaced by the nearest one that reads on that background (python3 apps/_theme.py --demo shows them). "
+                             "THEME in the configuration file; also in /etc/default/app-default.conf for all the programs")
     parser.add_argument("--version", action="version", version=f"web-monitor.py version {__version__}")
     parser.add_argument("--changelog", action="store_true", help="Show the changelog")
     if "--version" not in sys.argv[1:]:       # first line of EVERY run, even --help: name and version (--version displays it itself)
@@ -4989,6 +5002,14 @@ def main():
     except Exception as e:
         defaults, problems = {}, [f"apps/_config.py unreadable ({e})"]
     args = parser.parse_args()
+    try:                                                                     # 2.87: --theme, then THEME (configuration), then NGINX_TOOLS_THEME, then 0
+        THEME_MODULE = _load_module("_theme")
+    except OSError:
+        THEME_MODULE = None                                                  # module missing: the colors of the terminal, no error
+    if THEME_MODULE is not None:
+        THEME_MODULE.set_theme(args.theme if args.theme is not None else THEME_MODULE.current())
+        if sys.stdout.isatty():
+            BAD = "\x1b[" + theme_sgr("1;35") + "m"
     if args.menu:
         import importlib.util as _ilu
         _spec = _ilu.spec_from_file_location("_menu", os.path.join(SCRIPT_DIR, "apps", "_menu.py"))

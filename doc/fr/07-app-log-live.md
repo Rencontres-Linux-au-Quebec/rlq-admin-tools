@@ -123,4 +123,6 @@ app-log-live.py --log-nginx -g ' 404 '           # les réponses 404 de nginx et
 
 * **1.160 - démarrage et antislash** : les lignes de démarrage (journaux nginx, service Odoo, historique des connexions, avertissement PostgreSQL des modules, légendes des couleurs, adresses bannies, écran, journal quotidien) sont dans la touche `?` et plus à l'écran ; la ligne « Informations de démarrage : appuyez sur ? » est retirée. Une requête avec un antislash (`register%5C` chez nginx, `register\\` chez Odoo) est vue comme la même requête et fusionne en une seule ligne.
 
+* **1.161 - thèmes** : `--theme N` (0 à 4) ou `THEME` dans la configuration : toutes les couleurs sont remplacées par les plus proches qui se lisent sur le fond choisi (voir `00-overview.md`).
+
 {{HELP}}

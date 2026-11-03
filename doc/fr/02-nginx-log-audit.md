@@ -90,3 +90,5 @@ Un bannissement au pare-feu n'est plus permanent : une adresse change de main av
 
 ## Options
 {{HELP}}
+
+`--theme N` (2.86) choisit un thème de couleurs (0 = couleurs du terminal, 1 fond sombre, 2 fond clair, 3 et 4 : contraste élevé) ; `THEME` dans la configuration ; voir `00-overview.md`.

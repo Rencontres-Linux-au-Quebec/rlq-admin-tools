@@ -326,7 +326,7 @@ config_lire() {
             [[ -z "$ligne" || "$ligne" == "#"* || "$ligne" != *=* ]] && continue
             cle="${ligne%%=*}"; valeur="${ligne#*=}"
             cle="${cle//[[:space:]]/}"; cle="${cle^^}"
-            if (( commun )); then case "$cle" in LANGUAGE|VERBOSE|DEBUG_LEVEL|LOG_KEEP_DAYS|ANONYMIZE) ;; *) continue ;; esac; fi
+            if (( commun )); then case "$cle" in LANGUAGE|VERBOSE|DEBUG_LEVEL|LOG_KEEP_DAYS|ANONYMIZE|THEME) ;; *) continue ;; esac; fi
             valeur="${valeur#"${valeur%%[![:space:]]*}"}"; valeur="${valeur%"${valeur##*[![:space:]]}"}"
             if [[ "${valeur:0:1}" == '"' || "${valeur:0:1}" == "'" ]] && [[ "${valeur: -1}" == "${valeur:0:1}" && ${#valeur} -ge 2 ]]; then
                 valeur="${valeur:1:${#valeur}-2}"

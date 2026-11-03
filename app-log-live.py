@@ -119,7 +119,7 @@ from urllib.parse import unquote, urlsplit
 from collections import Counter, OrderedDict
 from concurrent.futures import Future
 
-__version__ = "1.160.20261103.100730"
+__version__ = "1.161.20261103.112057"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
@@ -214,7 +214,7 @@ UNDERLINE_DEFAULT = 10                                                # --underl
 
 SCHEMA_CONFIG = {"ACCENTUATE_GROUP": ("accentuate_group", str), "CHIME": ("chime", _chime_config), "DNS_MAX_TRUNCATE": ("dns_max_truncate", int), "EXCLUDE_IP": ("exclude_ip", _comma_list),
                  "ERRORS_ONLY": ("errors_only", bool), "ONLY": ("only", _comma_list), "STATUS_HEADER": ("status_header", bool), "STEPS_LINE": ("steps_line", bool), "SUSPECT": ("suspect", bool), "SUMMARY": ("summary", bool), "TIME_REPORT": ("time_report", float), "TRUNCATE": ("truncate", _truncate_config), "WATCH": ("watch", str), "ANONYMIZE": ("anonymize", bool), "UNDERLINE": ("underline", _underline_config),
-                 "APP": ("app", str), "CMS": ("cms", str), "CONNECTIONS": ("connections", float), "DAYS": ("days", float),"DISK_MIN": ("disk_min", float), "DNS_MAX": ("dns_max", int), "HEALTH": ("health", float), "HIDE_ADDONS": ("hide_addons", bool), "HIDE_IP": ("hide_ip", bool), "HIGHLIGHT": ("highlight", str), "IDLE": ("idle", float),
+                 "APP": ("app", str), "CMS": ("cms", str), "CONNECTIONS": ("connections", float), "DAYS": ("days", float),"DISK_MIN": ("disk_min", float), "DNS_MAX": ("dns_max", int), "HEALTH": ("health", float), "HIDE_ADDONS": ("hide_addons", bool), "HIDE_IP": ("hide_ip", bool), "HIGHLIGHT": ("highlight", str), "THEME": ("theme", int), "IDLE": ("idle", float),
                  "LINES": ("lines", int), "LOG_DIR": ("log_dir", str), "LOG_KEEP_DAYS": ("log_keep_days", int), "LOG_MERGE": ("log_merge", bool), "LOG_NGINX": ("log_nginx", bool), "MIN": ("min", bool), "MODULES_CUSTOM": ("modules_custom", bool), "MODULES_SORT": ("modules_sort", str), "MODULES_STARTUP": ("modules_startup", bool), "NAMESPACE": ("namespace", str),
                  "NO_BANNED": ("no_banned", bool), "NOT_FOUND": ("not_found", bool), "NO_BAN_PROMPT": ("no_ban_prompt", bool), "NO_CACHE": ("no_cache", bool), "NO_HISTORY": ("no_history", bool),
                  "NO_ISP": ("no_isp", bool), "NO_KEYS": ("no_keys", bool), "NO_LOG_FILE": ("no_log_file", bool), "NO_PRESENCE": ("no_presence", bool),
@@ -499,8 +499,16 @@ def short_http(protocol):
     return "H" + protocol[5:] if protocol.startswith("HTTP/") else protocol
 
 
+THEME_MODULE = None             # 1.161: apps/_theme.py once the theme is chosen (--theme); None = the colors of the terminal
+
+
+def theme_sgr(code):
+    """1.161: the SGR code as the theme shows it (every code goes through here: color_code, highlight, version of --changelog)."""
+    return THEME_MODULE.sgr(code) if THEME_MODULE is not None and code else code
+
+
 def color_code(code, text):
-    return f"\x1b[{code}m{text}\x1b[0m" if COLOR and code else text
+    return f"\x1b[{theme_sgr(code)}m{text}\x1b[0m" if COLOR and code else text
 
 
 NUMBER_RE = re.compile(r"(?<![\w.])\d+(?!\w)(?: %)?")
@@ -929,7 +937,7 @@ def highlight_text(text, pattern, code=None):
     """Words of the pattern in black on a cyan background. Never touches the color codes of the line: after each word, the current color is restored. Without color (pipe): text unchanged."""
     if pattern is None or not COLOR:
         return text
-    code = code or STYLES["highlight"]
+    code = theme_sgr(code or STYLES["highlight"])
     sortie_, pos, active = [], 0, ""
     for m in SGR_RE.finditer(text):
         segment = text[pos:m.start()]
@@ -7292,7 +7300,7 @@ def show_changelog():
         eprint(f"Changelog not found: {CHANGELOG_FILE}")
         return 1
     if sys.stdout.isatty():
-        text = re.sub(r"(\d+\.\d+\.\d{8}\.\d{6})", "\x1b[1;36m\\1\x1b[0m", text)
+        text = re.sub(r"(\d+\.\d+\.\d{8}\.\d{6})", "\x1b[" + theme_sgr("1;36") + "m\\1\x1b[0m", text)
     try:
         sys.stdout.write(text)
         sys.stdout.flush()
@@ -7333,7 +7341,7 @@ MENU_ENTREES = [
 
 
 def main():
-    global VERBOSE, NAME_WIDTH, NAME_TRUNCATE, COLOR, TIME_UTC, SITEMAP, DISABLED_RE
+    global VERBOSE, NAME_WIDTH, NAME_TRUNCATE, COLOR, TIME_UTC, SITEMAP, DISABLED_RE, THEME_MODULE
     parser = (I18N.parser if I18N else LocalizedArgumentParser)(
         description="Real-time application log: local ISO time without duplicates, each IP address replaced by the name of the person already signed in (otherwise DNS name, otherwise owner of the address block), presence of people, colors.")
     parser.add_argument("--app", metavar="NAME", help="Application behind nginx (profile apps/NAME.conf: odoo, bbb…) — detected automatically by default")
@@ -7346,7 +7354,7 @@ def main():
                         help=f"Every minute, WARNING in the stream when a connection limit (Odoo chat / websocket, HTTP, PostgreSQL, nginx) is used at PCT %% or more, "
                              f"with the setting to change (default: {CONNECTIONS_THRESHOLD_DEFAULT:g}; 0 = never)")
     parser.add_argument("-c", "--config", metavar="FILE",
-                        help="Configuration file to read ALONE (otherwise: /etc/default/app-log-live.conf, then the personal file .app-log-live.conf; options in UPPERCASE: APP, CONNECTIONS, DAYS, DNS_MAX, ERRORS_ONLY, HEALTH, HIDE_IP, IDLE, LANGUAGE, LINES, LOG_DIR, LOG_KEEP_DAYS, LOG_MERGE, LOG_NGINX, MIN, NAMESPACE, NO_BANNED, NO_BAN_PROMPT, NO_CACHE, NO_HISTORY, NO_ISP, NO_KEYS, NO_LOG_FILE, NO_PRESENCE, NO_USER_AGENT, RECAP, SERVICE, SLOW, STATUS_HEADER, VERBOSE)")
+                        help="Configuration file to read ALONE (otherwise: /etc/default/app-log-live.conf, then the personal file .app-log-live.conf; options in UPPERCASE: APP, CONNECTIONS, DAYS, DNS_MAX, ERRORS_ONLY, HEALTH, HIDE_IP, IDLE, LANGUAGE, LINES, LOG_DIR, LOG_KEEP_DAYS, LOG_MERGE, LOG_NGINX, MIN, NAMESPACE, NO_BANNED, NO_BAN_PROMPT, NO_CACHE, NO_HISTORY, NO_ISP, NO_KEYS, NO_LOG_FILE, NO_PRESENCE, NO_USER_AGENT, RECAP, SERVICE, SLOW, STATUS_HEADER, THEME, VERBOSE)")
     parser.add_argument("--config-merge", action="store_true",
                         help="Rewrite the configuration file from the NEW default configuration (example of the current language), keeping the values set in the file read until now; "
                              "the old file is copied first to FILE.bak-YYYYMMDD-HHMMSS (with -c: that file only). Then exit")
@@ -7455,6 +7463,10 @@ def main():
     parser.add_argument("--log-chk-sitemap", action="store_true",
                         help="Report of the 404 answers of the nginx logs: the pages listed in the sitemap (important), the paths refused on purpose and the "
                              "others (never existed); then exits")     # 1.143
+    parser.add_argument("--theme", type=int, choices=(0, 1, 2, 3, 4), default=None, metavar="N",
+                        help="Color theme (1.161): 0 = the colors of the terminal (default); 1 = dark background; 2 = light background; 3 = dark background, high contrast; "
+                             "4 = light background, high contrast. Every color is replaced by the nearest one that reads on that background (python3 apps/_theme.py --demo shows them). "
+                             "THEME in the configuration file; also in /etc/default/app-default.conf for all the programs")
     parser.add_argument("--time-report", type=float, nargs="?", const=REPORT_DEFAULT, default=None, metavar="MIN",
                         help=f"Every MIN minutes, the same report as Ctrl-T (what changed since the last display) ({REPORT_DEFAULT:g} without value)")
     parser.add_argument("-v", "--verbose", action="store_true", help="Show each external command run")
@@ -7506,6 +7518,9 @@ def main():
         eprint(f"app-log-live.py v{__version__}")
     defaults, problems = I18N.defauts(parser, SCHEMA_CONFIG) if I18N else ({}, [])
     args = parser.parse_args()
+    THEME_MODULE = load_module("_theme")                                  # 1.161: --theme, then THEME (configuration), then NGINX_TOOLS_THEME, then 0
+    if THEME_MODULE is not None:
+        THEME_MODULE.set_theme(args.theme if args.theme is not None else THEME_MODULE.current())
     if args.menu:
         import importlib.util as _ilu
         _spec = _ilu.spec_from_file_location("_menu", os.path.join(SCRIPT_DIR, "apps", "_menu.py"))
