@@ -117,4 +117,6 @@ app-log-live.py --log-nginx -g ' 404 '           # the 404 answers of nginx and 
 
 * **1.157 - account forms**: a request to `/web/reset_password` or `/web/signup` (with or without a language prefix) is shown in **red reverse video**. The summary (Ctrl-G, Ctrl-T, Ctrl-C) adds the line "Account forms": number of requests per address (first five) and per page. A robot that follows the links of the login page reads them without submitting anything; this mark shows an address that asks for them in bursts.
 
+* **1.158 - errors only**: `--errors-only` (`ERRORS_ONLY`) or the `X` key (toggle) shows only the errors and the suspicious requests: HTTP code 400 and above, suspicious request, Odoo WARNING / ERROR / CRITICAL, traces, failed logins. Normal transactions (2xx, 3xx, INFO) are hidden. At startup (at least 3000 lines of history read) and each time `X` switches it on, the **last 100 errors** are shown first. The summary counts only what is displayed.
+
 {{HELP}}

@@ -119,7 +119,7 @@ from urllib.parse import unquote, urlsplit
 from collections import Counter, OrderedDict
 from concurrent.futures import Future
 
-__version__ = "1.157.20261103.081106"
+__version__ = "1.158.20261103.085742"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
@@ -213,7 +213,7 @@ UNDERLINE_DEFAULT = 10                                                # --underl
 
 
 SCHEMA_CONFIG = {"ACCENTUATE_GROUP": ("accentuate_group", str), "CHIME": ("chime", _chime_config), "DNS_MAX_TRUNCATE": ("dns_max_truncate", int), "EXCLUDE_IP": ("exclude_ip", _comma_list),
-                 "ONLY": ("only", _comma_list), "STATUS_HEADER": ("status_header", bool), "STEPS_LINE": ("steps_line", bool), "SUSPECT": ("suspect", bool), "SUMMARY": ("summary", bool), "TIME_REPORT": ("time_report", float), "TRUNCATE": ("truncate", _truncate_config), "WATCH": ("watch", str), "ANONYMIZE": ("anonymize", bool), "UNDERLINE": ("underline", _underline_config),
+                 "ERRORS_ONLY": ("errors_only", bool), "ONLY": ("only", _comma_list), "STATUS_HEADER": ("status_header", bool), "STEPS_LINE": ("steps_line", bool), "SUSPECT": ("suspect", bool), "SUMMARY": ("summary", bool), "TIME_REPORT": ("time_report", float), "TRUNCATE": ("truncate", _truncate_config), "WATCH": ("watch", str), "ANONYMIZE": ("anonymize", bool), "UNDERLINE": ("underline", _underline_config),
                  "APP": ("app", str), "CMS": ("cms", str), "CONNECTIONS": ("connections", float), "DAYS": ("days", float),"DISK_MIN": ("disk_min", float), "DNS_MAX": ("dns_max", int), "HEALTH": ("health", float), "HIDE_ADDONS": ("hide_addons", bool), "HIDE_IP": ("hide_ip", bool), "HIGHLIGHT": ("highlight", str), "IDLE": ("idle", float),
                  "LINES": ("lines", int), "LOG_DIR": ("log_dir", str), "LOG_KEEP_DAYS": ("log_keep_days", int), "LOG_MERGE": ("log_merge", bool), "LOG_NGINX": ("log_nginx", bool), "MIN": ("min", bool), "MODULES_CUSTOM": ("modules_custom", bool), "MODULES_SORT": ("modules_sort", str), "MODULES_STARTUP": ("modules_startup", bool), "NAMESPACE": ("namespace", str),
                  "NO_BANNED": ("no_banned", bool), "NOT_FOUND": ("not_found", bool), "NO_BAN_PROMPT": ("no_ban_prompt", bool), "NO_CACHE": ("no_cache", bool), "NO_HISTORY": ("no_history", bool),
@@ -273,6 +273,20 @@ WERKZEUG_DATE_RE = re.compile(r"^(.*? - - )\[\d{2}/\w{3}/\d{4} \d{2}:\d{2}:\d{2}
 DATE_ISO_RE = re.compile(r"^(.*? - - )\[(\d{4})-(\d{2})-(\d{2}) (\d{2}):(\d{2}):(\d{2})\] (\".*)$")
 STATUS_RE = re.compile(r'"(?:GET|POST|HEAD|PUT|DELETE|OPTIONS|PATCH|CONNECT|TRACE)\s.*"\s(\d{3})\b')
 LOGIN_PATH_RE = re.compile(r'(?<=[\s"])(/(?:[a-z]{2}(?:_[A-Z]{2})?/)?web/(?:login|session/(?:authenticate|logout)|reset_password|signup)[^\s"]*)')
+ERRORS_SHOWN = 100          # 1.158 --errors-only: number of last errors shown at the start and when the mode is switched on
+ERRORS_HISTORY_LINES = 3000     # 1.158: at least this many lines of history are read to find them
+
+
+def is_error_line(L):
+    """1.158 --errors-only: an ERROR line, in the wide sense of the word: HTTP code 400 and above, suspicious request (SUSPECT_RE), Odoo WARNING / ERROR / CRITICAL,
+    trace, failed login. A normal transaction (2xx, 3xx, INFO) is not."""
+    text = L.text or ""
+    r = REQUEST_RE.search(text)
+    if r:
+        return int(r.group(2)) >= 400 or suspect_url(r.group(1))
+    return L.level in ("WARN", "WARNING", "ERROR", "CRITICAL") or "Traceback (most recent call last)" in text or bool(LOGIN_FAILED_RE.search(text))
+
+
 ACCOUNT_FORM_RE = re.compile(r"/(?:[a-z]{2}(?:_[A-Z]{2})?/)?web/(?:reset_password|signup)(?![\w-])")      # 1.157: password reset and sign-up forms: red reverse video, counted per address
 LOGOUT_RE = re.compile(r'"(?:GET|POST)\s/(?:[a-z]{2}(?:_[A-Z]{2})?/)?web/session/logout[^"]*"')
 LOGIN_OK_RE = re.compile(r"(Login successful) for db:\S+ (login:\S+)")
@@ -771,7 +785,7 @@ def config_values(options, verbose, widths=None):
            "LEVEL": str(options["level"]), "MIN": yes_no(options["minimal"]), "MODULES_CUSTOM": yes_no(sort_by[2]), "MODULES_SORT": ("-" if sort_by[1] else "") + sort_by[0],
            "NOT_FOUND": yes_no(options["not_found"]), "VERBOSE": yes_no(verbose),
            "ACCENTUATE_GROUP": options.get("group") or "", "CHIME": "" if options.get("chime") is None else str(options["chime"]),
-           "EXCLUDE_IP": ",".join(str(r) for r in options.get("exclude") or []), "ONLY": ",".join(options.get("only") or []),
+           "EXCLUDE_IP": ",".join(str(r) for r in options.get("exclude") or []), "ERRORS_ONLY": yes_no(options.get("errors_only")), "ONLY": ",".join(options.get("only") or []),
            "STEPS_LINE": yes_no(options.get("steps_line")), "UNDERLINE": str(options.get("underline", UNDERLINE_DEFAULT)), "SUSPECT": yes_no(options.get("suspect")), "ANONYMIZE": yes_no(options.get("anonymize")), "TIME_REPORT": f"{options.get('report_min') or 0:g}", "WATCH": ",".join(options.get("watch") or [])}
     if width is not None:
         res["DNS_MAX"] = "" if truncated else str(width)                    # one or the other: column without cut, or cut at N
@@ -5605,7 +5619,7 @@ KEYS = {b"\x07": "g", b"\x14": "t"}      # Ctrl-G: dashboard; Ctrl-T: only what 
 # Simple keys of the menu (? or h): toggles and settings of the command-line options, and a few commands
 MENU_KEYS = {b"?": "legend", b"h": "help", b"i": "i", b"m": "m", b"n": "n", b"r": "r", b"s": "s", b"v": "v", b"d": "dns", b"t": "dnst", b"H": "H", b"o": "o", b"V": "V",
                 b"S": "S", b"I": "I", b"b": "b", b"a": "accent", b"c": "chime", b"e": "exclude", b"T": "report", b"E": "E", b"w": "watch", b"D": "D", b"l": "highlight", b"M": "modules", b"W": "save", b"L": "recent",
-                b"G": "G", b"Y": "latency", b"P": "print", b"f": "refresh", b"A": "anonymize", b"R": "record", b"N": "step", b"F": "steps_line", b"q": "addons", b"U": "underline", b"x": "lognginx", b"u": "hideua", b"j": "reqlen", b"k": "hostshow"}
+                b"G": "G", b"Y": "latency", b"P": "print", b"f": "refresh", b"A": "anonymize", b"R": "record", b"N": "step", b"F": "steps_line", b"q": "addons", b"U": "underline", b"x": "lognginx", b"u": "hideua", b"j": "reqlen", b"k": "hostshow", b"X": "errors"}
 MENU_KEYS.update({str(n).encode(): f"level{n}" for n in range(1, LEVEL_MAX + 1)})   # 1 to 9: dashboard at the chosen level
 KEYS.update(MENU_KEYS)
 
@@ -5836,15 +5850,45 @@ def follow(cmd, people, resolver, options, output):
                 stats.pays[ip] = pays[ip]
         return res
 
+    error_buffer = collections.deque(maxlen=ERRORS_SHOWN)      # 1.158: (line, renderings, benign, inputs) of the last errors
+    state["errors_hold"] = bool(options.get("errors_only"))      # 1.158: history held back until the last errors are shown
+    state["errors_start"] = time.time() - 1
+
+    def error_flag(L):
+        """1.158: is the line an error (is_error_line)? A continuation line (Python trace...) follows the previous line. Computed once per line."""
+        flag = getattr(L, "error_seen", None)
+        if flag is None:
+            flag = state.get("err_prev", False) if (L.level is None and L.ts_txt is not None) else is_error_line(L)
+            state["err_prev"], L.error_seen = flag, flag
+        return flag
+
+    def show_last_errors(count_stats):
+        """1.158: shows the last ERRORS_SHOWN errors remembered (start of --errors-only: the history; key X: what was already seen, not counted again)."""
+        entries = list(error_buffer)
+        write_out([color_code(ORANGE, f"──── {len(entries)} last errors (--errors-only) ────" if entries else "──── no error in the history (--errors-only) ────")])
+        for L, renderings, benign, inputs in entries:
+            base, text, ips0, source = compose(L, renderings, benign)
+            if count_stats:
+                stats.ajouter(L, renderings, source, benign)
+            paint(L, text, inputs, benign)
+
+    def flush_errors_history():
+        """1.158: end of the history (a recent line arrived, or the stream is idle): the held errors are shown, then the mode follows the live lines."""
+        if state.get("errors_hold"):
+            state["errors_hold"] = False
+            if options.get("errors_only"):
+                show_last_errors(True)
+
     def keep(L, raw_text, isolated=False):
         """--suspect and --only: is the line displayed? A continuation line (Python trace…) follows the decision of the previous line; an "isolated" line
         (reminder of an address) does not change that decision."""
-        if not options["suspect"] and not options["only"] and not options["exclude"] and not options["not_found"]:
+        if not options["suspect"] and not options["only"] and not options["exclude"] and not options["not_found"] and not options.get("errors_only"):
             return True
         if not isolated and L.level is None and L.ts_txt is not None:
             return state["keep_going"]
         line_ips = find_ips(L.text) if options["exclude"] else []
-        ok = ((not options["not_found"] or request_not_found(L.text)) and (not options["suspect"] or suspicious_request(L.text)) and (not options["only"] or any(t in raw_text.lower() for t in options["only"]))
+        ok = ((not options["not_found"] or request_not_found(L.text)) and (not options["suspect"] or suspicious_request(L.text))
+              and (not options.get("errors_only") or (is_error_line(L) if isolated else error_flag(L))) and (not options["only"] or any(t in raw_text.lower() for t in options["only"]))
               and not (line_ips and excluded_address(line_ips[0][2], options["exclude"])))
         if not isolated:
             state["keep_going"] = ok
@@ -5998,6 +6042,10 @@ def follow(cmd, people, resolver, options, output):
         base, text, ips0, source = compose(L, renderings, benign)
         if record["r"] is not None:                       # 1.93: recorded whatever the display filters (--only, --suspect...): the analysis needs the whole test
             record["r"].add(ANSI_RE.sub("", base), noise_category(L))
+        if error_flag(L):                                 # 1.158: the last errors are always remembered (--errors-only shows them when it starts or is switched on)
+            error_buffer.append((L, renderings, benign, inputs))
+        if options.get("errors_only") and state.get("errors_hold") and L.instant is not None and L.instant < state["errors_start"]:
+            return                                        # 1.158: history: shown (the last ERRORS_SHOWN errors) by flush_errors_history
         if not keep(L, ANSI_RE.sub("", text)):
             return
         stats.ajouter(L, renderings, source, benign)
@@ -6598,6 +6646,7 @@ def follow(cmd, people, resolver, options, output):
                                       ("r", "--report-err", "error report to copy and paste, based on what has been displayed so far"),
                                       ("F", "--steps-line", TR("the steps of the recording (or of the last one) on one white line, updated at each step; works without R") + f" [{yes_no(options['steps_line'])}]"),
                                       ("s", "--suspect", f"only the suspicious requests [{yes_no(options['suspect'])}]"),
+                                      ("X", "--errors-only", TR("only the errors and the suspicious requests, no normal transaction (the last 100 errors are shown)") + f" [{yes_no(options.get('errors_only'))}]"),
                                       ("x", "--log-nginx", f"the nginx logs of the site (read with the application log, in time order; from the next line on) [{yes_no(options['log_nginx'])}]"),
                                       ("U", "--underline N", TR("one log line out of N underlined on screen, up to the end of the screen line (0 = none); UNDERLINE of the configuration file") + f" [{output.underline or 'none'}]"),
                                       ("T", "--time-report MIN", f"report like Ctrl-T every MIN minutes, 0 = never [{options['report_min']:g}]"),
@@ -6815,6 +6864,12 @@ def follow(cmd, people, resolver, options, output):
         elif key_value == "lognginx":                                  # 1.116: nginx lines shown or hidden, from the next line on
             options["log_nginx"] = not options["log_nginx"]
             write_out([f"  --log-nginx : {yes_no(options['log_nginx'])}" + (" (the following lines)" if options["nginx_merged"] else " (no nginx log is read: nothing changes)")])
+        elif key_value == "errors":
+            options["errors_only"] = not options.get("errors_only")
+            state["errors_hold"] = False
+            write_out([f"  --errors-only : {yes_no(options['errors_only'])} (the following lines)"])
+            if options["errors_only"]:
+                show_last_errors(False)
         elif key_value == "s":
             options["suspect"] = not options["suspect"]
             write_out([f"  --suspect : {yes_no(options['suspect'])} (the following lines)"])
@@ -7040,6 +7095,8 @@ def follow(cmd, people, resolver, options, output):
                 if merge_ready:
                     continue
                 release_deferred(False)
+                if state.get("consumed") or time.time() - state["errors_start"] > 15:      # 1.158: idle stream after some history (or 15 s without any line) = end of the history
+                    flush_errors_history()
                 show_summary()
                 startup_status_bar()                    # 1.126: after the history lines
                 check_service(time.time())
@@ -7055,6 +7112,7 @@ def follow(cmd, people, resolver, options, output):
                     output.flush()
                 continue
             if item is None:                            # end of the stream: the lines still held are shown alone (1.123)
+                flush_errors_history()                  # 1.158: --no-follow: the history errors are shown before the end
                 merge_ended[0] = True
                 merge_ready.extend(entry[0] for entry in merge_held)
                 merge_held.clear()
@@ -7080,6 +7138,8 @@ def follow(cmd, people, resolver, options, output):
                 item = ready_now[0]
                 merge_ready.extendleft(reversed(ready_now[1:]))
             L, ips, arrival, is_login = item
+            if state.get("errors_hold") and L.instant is not None and L.instant >= state["errors_start"]:
+                flush_errors_history()                   # 1.158: first live line: the history errors come first
             state["consumed"] = True                    # 1.127: at least one line really processed (the reader counts before queuing)
             if options["until"] is not None and L.instant is not None and L.instant >= options["until"]:
                 state["until_reached"] = True           # 1.112 --until: the stream is in order, nothing more is displayed after this line
@@ -7272,7 +7332,7 @@ def main():
                         help=f"Every minute, WARNING in the stream when a connection limit (Odoo chat / websocket, HTTP, PostgreSQL, nginx) is used at PCT %% or more, "
                              f"with the setting to change (default: {CONNECTIONS_THRESHOLD_DEFAULT:g}; 0 = never)")
     parser.add_argument("-c", "--config", metavar="FILE",
-                        help="Configuration file to read ALONE (otherwise: /etc/default/app-log-live.conf, then the personal file .app-log-live.conf; options in UPPERCASE: APP, CONNECTIONS, DAYS, DNS_MAX, HEALTH, HIDE_IP, IDLE, LANGUAGE, LINES, LOG_DIR, LOG_KEEP_DAYS, LOG_MERGE, LOG_NGINX, MIN, NAMESPACE, NO_BANNED, NO_BAN_PROMPT, NO_CACHE, NO_HISTORY, NO_ISP, NO_KEYS, NO_LOG_FILE, NO_PRESENCE, NO_USER_AGENT, RECAP, SERVICE, SLOW, STATUS_HEADER, VERBOSE)")
+                        help="Configuration file to read ALONE (otherwise: /etc/default/app-log-live.conf, then the personal file .app-log-live.conf; options in UPPERCASE: APP, CONNECTIONS, DAYS, DNS_MAX, ERRORS_ONLY, HEALTH, HIDE_IP, IDLE, LANGUAGE, LINES, LOG_DIR, LOG_KEEP_DAYS, LOG_MERGE, LOG_NGINX, MIN, NAMESPACE, NO_BANNED, NO_BAN_PROMPT, NO_CACHE, NO_HISTORY, NO_ISP, NO_KEYS, NO_LOG_FILE, NO_PRESENCE, NO_USER_AGENT, RECAP, SERVICE, SLOW, STATUS_HEADER, VERBOSE)")
     parser.add_argument("--config-merge", action="store_true",
                         help="Rewrite the configuration file from the NEW default configuration (example of the current language), keeping the values set in the file read until now; "
                              "the old file is copied first to FILE.bak-YYYYMMDD-HHMMSS (with -c: that file only). Then exit")
@@ -7335,6 +7395,9 @@ def main():
     parser.add_argument("--watch", nargs="?", const="registration", default=None, metavar="TEXT",
                         help="Watches the requests whose URL contains TEXT (comma = several; no value: registration, the event registrations): count, errors, median / 95th percentile / maximum duration, slow requests (--slow) and confirmed registrations, in Ctrl-G, Ctrl-T and the health state; most viewed pages with their visitors and robots, and for /survey/ addresses each survey (title read from PostgreSQL, ticket included) with its accesses and submissions (e.g. --watch journee-portes-ouvertes,/survey/). Does NOT filter the display: to see only those lines, add --only with the same text")
     parser.add_argument("--no-ban-prompt", action="store_true", help="Do not offer to ban an address often banned (verdict « ban » of nginx-log-audit.sh --investigate)")
+    parser.add_argument("--errors-only", action="store_true",
+                        help="Only the errors and the suspicious requests (HTTP 400 and above, Odoo WARNING / ERROR, traces, failed logins), not the normal transactions; "
+                             "starts with the last 100 errors found in the history (at least 3000 lines read); key X to switch it on and off while running")
     parser.add_argument("--no-banned", action="store_true", help="No [banned: …] label (reads neither fail2ban nor the CrowdSec ipsets)")
     parser.add_argument("--only", action="append", default=None, metavar="TEXT",
                         help="Only the lines that contain TEXT (name, address, URL, module…, case-insensitive); repeatable: one OR the other")
@@ -7479,6 +7542,8 @@ def main():
         return config_merge(args.config)
     profile_module = load_module("_profile")
     regler_cms(profile_module.cms(None if args.cms == "auto" else args.cms) if profile_module is not None else (args.cms if args.cms != "auto" else "odoo"))
+    if args.errors_only:
+        args.lines = max(args.lines, ERRORS_HISTORY_LINES)             # 1.158: enough history to find the last errors
     if args.lines < 0 or not 0 <= args.days <= 36500 or args.idle <= 0 or args.recap < 0 or args.health < 0 or args.log_keep_days < 0:
         parser.error("--lines must be positive, --days between 0 (all) and 36500, --idle greater than 0, --recap, --health and --log-keep-days positive or zero")
     if not 1 <= args.level <= LEVEL_MAX:
@@ -7642,7 +7707,7 @@ def main():
         STARTUP_LINES = None
         eprint(TR("Startup information (lists, modules, cache, colours, keys): press ? (h: keys menu)"))
     options = {"keep_ip": not args.hide_ip, "minimal": args.min, "hide_addons": args.hide_addons, "lines": args.lines, "recap": args.recap,
-               "slow": max(0.0, args.slow), "only": [t.lower() for t in (args.only or []) if t], "highlight_words": read_highlight(args.highlight), "highlight_pattern": highlight_pattern(read_highlight(args.highlight)), "suspect": args.suspect, "disk_min": max(0.0, args.disk_min), "connections": max(0.0, min(100.0, args.connections)), "external_ip": not args.no_isp, "odoo_journal": profile.get("ODOO_LOGFILE"), "profile": profile, "service": service, "diag_hosts": args.diagnose_host, "not_found": args.not_found, "steps_line": args.steps_line, "summary": args.summary, "banned_ips": banned_ips,
+               "slow": max(0.0, args.slow), "only": [t.lower() for t in (args.only or []) if t], "highlight_words": read_highlight(args.highlight), "highlight_pattern": highlight_pattern(read_highlight(args.highlight)), "suspect": args.suspect, "errors_only": args.errors_only, "disk_min": max(0.0, args.disk_min), "connections": max(0.0, min(100.0, args.connections)), "external_ip": not args.no_isp, "odoo_journal": profile.get("ODOO_LOGFILE"), "profile": profile, "service": service, "diag_hosts": args.diagnose_host, "not_found": args.not_found, "steps_line": args.steps_line, "summary": args.summary, "banned_ips": banned_ips,
                "presence": Presence(args.idle) if is_odoo and not args.no_presence else None, "health": args.health, "keys": not args.no_keys and not args.no_follow, "app": profile.get("APP_NAME"), "app_label": profile.get("APP_LABEL", "application"), "hide_user_agent": args.hide_user_agent, "request_length": args.request_length, "log_nginx": bool(args.log_nginx), "log_merge": bool(args.log_merge), "status_header": bool(args.status_header), "nginx_merged": LOGS_MERGE in cmd, "propose_ban": not args.no_ban_prompt, "watch": [t.strip().lower() for t in (args.watch or "").split(",") if t.strip()], "agents": not args.no_user_agent and not args.no_follow, "acces_logs": profile.get("ACCESS_LOGS"),
                "exclude": exclusions, "chime": args.chime, "group": args.accentuate_group if group_members else None, "membres": group_members,
                "report_min": args.time_report or 0.0, "level": args.level, "modules_sort": modules_sort_state}
@@ -7666,7 +7731,7 @@ def main():
         except Exception:                               # noqa: BLE001 - unreadable configuration: the default Odoo ports are not guessed, only 80 / 443
             record_ports = {}
     filters = [f"--only {', '.join(options['only'])}"] if options["only"] else []
-    filters += [name for name, active in (("--suspect", args.suspect), ("--not-found", args.not_found), ("--min", args.min), ("--hide-addons", args.hide_addons)) if active]
+    filters += [name for name, active in (("--suspect", args.suspect), ("--errors-only", args.errors_only), ("--not-found", args.not_found), ("--min", args.min), ("--hide-addons", args.hide_addons)) if active]
     options.update(record_max=args.record_max or 0.0, record_test_log=args.record_test_log, namespace=ns, record_ports=record_ports, filters_text=" ".join(filters),
                    record_logs=[f for f in OrderedDict.fromkeys(record_logs) if f and os.path.isfile(f)], journal_folder=journal_folder(args.log_dir, False))
     if args.record_test_log:

@@ -4373,3 +4373,73 @@ class AppLogLive157(unittest.TestCase):
         self.assertEqual(len(st.account_ips), 0)
         self.assertIn("account_ips", self.m.Stats.COUNTERS)
 
+
+class AppLogLive158(AppLogLive):
+    """1.158 : --errors-only (touche X) n'affiche que les erreurs et les requêtes suspectes, après les 100 dernières erreurs de l'historique."""
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        spec = importlib.util.spec_from_file_location("live158", script_path("app-log-live.py"))
+        cls.m = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(cls.m)
+
+    def test_158_is_error_line(self):
+        L = self.m.Line
+        self.assertTrue(self.m.is_error_line(L('127.0.0.1 - - [01/Nov/2026:10:00:00 -0400] "GET /nope HTTP/1.1" 404 10')))
+        self.assertTrue(self.m.is_error_line(L('127.0.0.1 - - [01/Nov/2026:10:00:00 -0400] "GET /x HTTP/1.1" 500 10')))
+        self.assertTrue(self.m.is_error_line(L('127.0.0.1 - - [01/Nov/2026:10:00:00 -0400] "GET /.env HTTP/1.1" 200 10')))       # suspicious, even answered 200
+        self.assertFalse(self.m.is_error_line(L('127.0.0.1 - - [01/Nov/2026:10:00:00 -0400] "GET /event HTTP/1.1" 200 10')))
+        self.assertFalse(self.m.is_error_line(L('127.0.0.1 - - [01/Nov/2026:10:00:00 -0400] "GET /event HTTP/1.1" 303 10')))
+
+    def journal_ancien(self, lignes):
+        """History: lines older than the program start (600 s), as journalctl --lines gives them."""
+        self.journal(lignes)
+
+    def test_158_ne_garde_que_les_erreurs_et_leurs_traces(self):
+        d = 600
+        self.journal_ancien([werkzeug(PERSONNE, "/event", delta=d), werkzeug(DNS, "/wp-login.php", 404, delta=d), werkzeug(DNS, "/web/login", delta=d),
+                             werkzeug(DNS, "/.env", 404, delta=d), odoo("INFO", "base", "odoo.addons.mail.models.mail_mail", "Courriel envoyé à Alice", delta=d),
+                             odoo("ERROR", "base", "odoo.addons.base.models.ir_mail_server", "Échec boum", delta=d),
+                             f"{ts(d)} odoo18 odoo[1]: Traceback (most recent call last):", f"{ts(d)} odoo18 odoo[1]: ValueError: boum",
+                             odoo("ERROR", "base", "odoo.addons.base.models.autre", "Autre échec", delta=d),
+                             f"{ts(d)} odoo18 odoo[1]: KeyError: autre"])
+        out = T(self.lancer("--no-presence", "--errors-only")[1])
+        self.assertIn("7 dernières erreurs (--errors-only)", out)               # /wp-login.php, /.env, 2 ERROR and their 3 trace lines
+        self.assertIn("/wp-login.php", out)
+        self.assertIn("/.env", out)
+        self.assertIn("Échec boum", out)
+        self.assertIn("ValueError: boum", out)                                  # the trace follows its error
+        self.assertIn("KeyError: autre", out)
+        self.assertNotIn("/web/login", out)                                     # normal transactions are hidden
+        self.assertNotIn("/event", out)
+        self.assertNotIn("Courriel envoyé", out)
+
+    def test_158_sans_erreur_le_dit(self):
+        d = 600
+        self.journal([werkzeug(PERSONNE, "/event", delta=d), werkzeug(DNS, "/web/login", delta=d)])
+        out = T(self.lancer("--no-presence", "--errors-only")[1])
+        self.assertIn("aucune erreur dans l'historique (--errors-only)", out)
+        self.assertNotIn("/event", out)
+
+    def test_158_cent_dernieres_erreurs_seulement(self):
+        self.journal([werkzeug(DNS, f"/absent-{k}", 404, delta=600 - k * 0.01) for k in range(130)])
+        out = T(self.lancer("--no-presence", "--errors-only")[1])
+        self.assertIn("100 dernières erreurs", out)
+        self.assertNotIn("/absent-29 ", out + " ")
+        self.assertIn("/absent-129", out)
+        self.assertIn("/absent-30", out)
+
+    def test_158_option_cle_x_et_configuration(self):
+        with open(script_path("app-log-live.py"), encoding="utf-8") as f:
+            src = f.read()
+        self.assertIn('b"X": "errors"', src)
+        self.assertIn('"ERRORS_ONLY": ("errors_only", bool)', src)
+        self.assertIn('("X", "--errors-only"', src)
+        rc, out, _ = self.run_cmd(["python3", self.prog, "--help"])
+        self.assertIn("--errors-only", out)
+
+
+
+for _nom in [n for n in vars(AppLogLive) if n.startswith("test")]:
+    setattr(AppLogLive158, _nom, None)                                    # same fixtures as AppLogLive, without running its tests twice
