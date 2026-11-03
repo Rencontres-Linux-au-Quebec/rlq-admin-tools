@@ -3533,6 +3533,16 @@ Earlier history was archived outside this repository when this file was created.
 
 ## nginx-log-audit.sh
 
+### 2.91.20261103.133244 - Systematic sweep and incomplete User-Agent signs; exact-IP Odoo logins; short account list
+
+- Title: --investigate detects systematic sweeps and incomplete browser User-Agents, never proposes to lift them, and answers "which account logged in from this address" directly.
+- Reason: --unban-low-score proposed to lift 125.59.124.161, which had read 440 distinct URLs (every combination of the event tag filters, under several language prefixes) with a User-Agent "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36" (no "KHTML, like Gecko", which a real browser always sends), and had been detected 13 times by fail2ban over 8 days. The verdict said "a robot that reads fast". The list of 50+ Odoo accounts (time coincidence over 2 hours) was long and useless, and the user wanted to know which logged-in account had used this address.
+- Changes: nginx-log-audit.sh: investigate_and_propose has two new clues, "Balayage systematique" (at least 30 query variants of one page, or 100 distinct URLs repeated under 2 or more language prefixes) and "User-Agent de navigateur incomplet" (AppleWebKit without KHTML, 20 requests or more); each adds 1 to the score and to the hostility signs. recommander: with a sweep the verdict is never "lever" (GARDER LE BANNISSEMENT with a firewall ban, LAISSER A FAIL2BAN with a temporary fail2ban ban, A EXAMINER when not banned) and the text "a robot that reads fast" is not given. New line "Aucun compte Odoo ne s'est connecte DEPUIS cette adresse (journal d'Odoo, 100 jours, N connexions lues)" (or the list of accounts that did, as before). comptes_bd_ip: more than 5 accounts in the 2 hour margin are only counted, not listed. lang/nginx-log-audit.en.po: 17 entries. Files: nginx-log-audit.sh, lang/nginx-log-audit.en.po, doc/fr and doc/en 02-nginx-log-audit.md, tests.
+- Bugs fixed: symptom: a scraper proposed for a lift. Diagnosis: the engine only counted bursts, sensitive files, errors and fake engines; enumeration of filters and a truncated User-Agent were not signs. Fix: the two clues above and the rule in recommander.
+- Safeguards and edge cases: verified search engines, protected addresses and addresses with an Odoo login keep their earlier verdicts (those branches come first); the language-prefix test only counts a prefix whose pages also exist without prefix (at least 5 shared pages), so "/js/..." style paths are not taken for languages; a score of 3 with a sign still proposes a ban only with the usual question (never automatic).
+- Checks: new test_291 (sweep fixture gets both clues and no lift; a visitor with 3 pages gets neither); test_unban_low_score_*; i18n catalogue; test_ban_gate version string.
+- Action required: none. Run `sudo nginx-log-audit.sh prod --unban-low-score` again: 125.59.124.161 should no longer be proposed for a lift.
+
 ### 2.90.20261103.131310 - --unban-low-score: suspicious URLs behind each ban
 
 - Title: --unban-low-score lists the suspicious URLs that may have caused the ban, above each question.
