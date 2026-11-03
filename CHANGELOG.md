@@ -371,6 +371,20 @@ Earlier history was archived outside this repository when this file was created.
 
 ## app-log-live.py
 
+### 1.160.20261103.100730 - Startup lines in the ? key, backslash requests merged
+
+- Title: startup information moved to the ? key; nginx and Odoo lines of a request with a backslash merge.
+- Reason: request of the administrator on 2026-11-03: (1) the nginx line "register%5C" and the Odoo line "register\\" were shown apart although they are the same request; (2) the startup lines (nginx logs, Odoo service, sign-in history, modules warning, colour legends, banned addresses, screen, daily log) must be in the ? key, and the line "Startup information: press ?" removed.
+- Changes:
+  - New key_url() used by request_key(): decoded URL where %5C, a literal x5C escape and a doubled backslash give one backslash.
+  - STARTUP_HIDE_RE (lines always kept for the ? key); the capture starts right after the title and ends just before follow(); STARTUP_KEEP_RE gets "Test recording"; the pointer line "Startup information ... press ?" and its catalogue entry are removed (the "Keys:" line names the ? key); the --modules-startup lines stay on screen.
+  - doc/fr and doc/en 07-app-log-live.md; tests: class AppLogLive160 (3 tests).
+- Bugs fixed:
+  - Symptom: GET /x/register%5C (nginx) and GET /x/register\\ (Odoo) stayed as two lines. Diagnosis: request_key() decoded %5C into one backslash but Odoo's log shows two. Fix: key_url() collapses every spelling.
+- Safeguards and edge cases: real problems (ERROR, WARNING, RECOMMENDED, filters, excluded addresses) stay on screen; without a terminal, with --no-keys or in a pipe everything is printed as before; the PostgreSQL warning of the modules is now only in the ? key.
+- Checks performed: AppLogLive156 to 160; test_i18n and changelog checks for app-log-live.
+- Action required from the user: none.
+
 ### 1.159.20261103.100102 - BOT code for named robots, tool codes in yellow, robot 403 in yellow text
 
 - Title: the system column shows BOT for named robots and colours the tool codes; a 403 from a refused robot no longer uses reverse video.

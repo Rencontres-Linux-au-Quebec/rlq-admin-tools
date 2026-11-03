@@ -121,4 +121,6 @@ app-log-live.py --log-nginx -g ' 404 '           # les réponses 404 de nginx et
 
 * **1.159 - robots** : la colonne du système affiche `BOT` (magenta) pour un robot qui se nomme dans son User-Agent (Googlebot, Amazonbot, SemrushBot, NVIDIABOT, facebookexternalhit...), vérifié avant le système ; les programmes `CUR`, `PYT`, `WGT`, `GOL`, `JAV`, `PHP`, `NOD`, `RUB`, `PER` s'affichent en **jaune gras** (outil de script). Un **403 produit par un robot refusé** (liste de `bot_blocker.conf`, `[BOT]`) n'est pas critique : l'URL s'affiche en jaune, sans vidéo inverse ; une requête à un fichier sensible garde sa vidéo inverse.
 
+* **1.160 - démarrage et antislash** : les lignes de démarrage (journaux nginx, service Odoo, historique des connexions, avertissement PostgreSQL des modules, légendes des couleurs, adresses bannies, écran, journal quotidien) sont dans la touche `?` et plus à l'écran ; la ligne « Informations de démarrage : appuyez sur ? » est retirée. Une requête avec un antislash (`register%5C` chez nginx, `register\\` chez Odoo) est vue comme la même requête et fusionne en une seule ligne.
+
 {{HELP}}

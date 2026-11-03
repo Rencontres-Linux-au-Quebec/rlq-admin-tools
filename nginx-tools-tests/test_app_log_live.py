@@ -4481,3 +4481,34 @@ class AppLogLive159(unittest.TestCase):
         i = src.index('STYLES["url_bot"] if (int(r.group(2)) == 403 and is_bot_403(L))')
         self.assertLess(src.index('ajouter(r.start(1), r.end(1), color_code(STYLES["suspect"], r.group(1)))'), i)     # a sensitive file is painted first: it keeps its reverse video
 
+
+class AppLogLive160(unittest.TestCase):
+    """1.160: a backslash gives the same merge key in nginx (%5C) and Odoo (doubled), the startup lines go to the ? key."""
+
+    @classmethod
+    def setUpClass(cls):
+        spec = importlib.util.spec_from_file_location("live160", script_path("app-log-live.py"))
+        cls.m = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(cls.m)
+
+    def test_160_antislash_meme_cle(self):
+        url = "/event/pause-cafe-linux-75/register"
+        bs = chr(92)
+        self.assertEqual(self.m.key_url(url + "%5C"), self.m.key_url(url + bs * 2))
+        self.assertEqual(self.m.key_url(url + "%5C"), self.m.key_url(url + bs + "x5C"))
+        self.assertNotEqual(self.m.key_url(url + "%5C"), self.m.key_url(url))
+        self.assertEqual(self.m.key_url("/a%20b"), "/a b")
+
+    def test_160_lignes_de_demarrage_cachees(self):
+        for text in ("+ nginx logs, merged in time order: a-access.log, a-error.log", "nginx logs read, hidden (key x shows them)", "Sign-in history (the whole log) : reading the log...",
+                     "  12 address(es) known from a sign-in to the site (in 3 s).", "  Odoo modules: cannot read PostgreSQL for this application.",
+                     "Banned addresses: fail2ban 7", "Reverse video: URL suspect", "Screen: log lines shortened", "Daily log (colors kept, permissions 600, 180 days kept): /var/log"):
+            self.assertTrue(self.m.STARTUP_HIDE_RE.search(text), text)
+        self.assertFalse(self.m.STARTUP_HIDE_RE.search("ERROR: no log to follow"))
+        self.assertTrue(self.m.STARTUP_KEEP_RE.search("ERROR: no log to follow"))
+
+    def test_160_plus_de_ligne_pointeur(self):
+        with open(script_path("app-log-live.py"), encoding="utf-8") as f:
+            src = f.read()
+        self.assertNotIn('eprint(TR("Startup information (lists', src)
+
