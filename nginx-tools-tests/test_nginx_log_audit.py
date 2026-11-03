@@ -310,6 +310,8 @@ class ChkNginxLogs(EnvTest):
                                 [(b"[o/n]", b"peut-etre\r", 1.0), ("Réponse attendue".encode(), b"o\r", 1.0)], timeout=120)
         self.assertIn("Réponse attendue : o (oui) ou n (non).", texte)
         self.assertIn(f"Résultat complet de nginx-log-audit.sh --investigate {lever}", texte)          # 2.89: the whole investigation above the question
+        self.assertIn("URL suspectes à l'origine du bannissement", texte)
+        self.assertIn("aucune URL suspecte retrouvée", texte)          # 2.90: three normal pages, nothing suspicious to list
         self.assertIn(f"{lever} levée (jail jail-a)", texte)
         with open(f"{self.d}/f2b-set.log") as f:
             self.assertIn(f"unbanip {lever}", f.read())
@@ -355,6 +357,17 @@ class ChkNginxLogs(EnvTest):
         rc, out, err = self.run_cmd(["bash", self.prog, "prod", "--unban-low-score", "--no-prompt"])
         self.assertEqual(rc, 0, err)
         self.assertNotIn("ARRÊT INATTENDU", err)
+
+    def test_unban_low_score_liste_les_url_suspectes_de_l_origine_du_bannissement(self):
+        """2.90 : avant chaque question, les URL suspectes (refus de nginx, pages sensibles du site, capteur catch-all) qui ont pu causer le bannissement."""
+        with open(self.prog, encoding="utf-8") as f:
+            src = f.read()
+        bloc = src[src.index("# --- --unban-low-score :"):src.index("# --- --unban-expired")]
+        self.assertEqual(bloc.count("URL suspectes à l'origine du bannissement"), 2, "avant la question de levée et avant la question de bannissement")
+        self.assertEqual(bloc.count('URLS_OF["$ip"]=$(urls_suspectes_ip "$ip")'), 2)
+        fonction = src[src.index("urls_suspectes_ip() {"):src.index("lire_enquete() {")]
+        for source in ("urls_refusees", "access.sel", "catchall"):
+            self.assertIn(source, fonction)
 
     def test_unban_low_score_la_levee_exige_le_verdict_de_l_enquete(self):
         """2.81 : le code ne lève une adresse que si l'enquête dit « LEVER LE BANNISSEMENT », même avec --yes."""

@@ -3533,6 +3533,16 @@ Earlier history was archived outside this repository when this file was created.
 
 ## nginx-log-audit.sh
 
+### 2.90.20261103.131310 - --unban-low-score: suspicious URLs behind each ban
+
+- Title: --unban-low-score lists the suspicious URLs that may have caused the ban, above each question.
+- Reason: to confirm the verdict by eye before lifting or banning, the user wanted some of the suspicious URLs that got the address banned in the first place.
+- Changes: nginx-log-audit.sh: new function urls_suspectes_ip (pages refused by nginx from blocked-probes.log through urls_refusees, sensitive pages of the site log from the shared copy, pages asked at the catch-all sensor; at most 8 lines, "Nx page (code)", most frequent first). The list is collected while the shared log copy exists (URLS_OF) and printed after the full --investigate result, before the lift question and before the ban question. lang/nginx-log-audit.en.po: 2 entries. Files: nginx-log-audit.sh, lang/nginx-log-audit.en.po, doc/fr and doc/en 02-nginx-log-audit.md, tests.
+- Bugs fixed: none.
+- Safeguards and edge cases: only the addresses that get a question are listed (no extra cost for the others); with no suspicious URL the line says so, which is what a lift should look like; the sensitive pages use the same SENSITIVE_RE as the scan (Odoo or WordPress aware); read-only.
+- Checks: question test checks the "no suspicious URL" case; structure test for the two displays and the three sources; test_unban_low_score_*, test_ban_gate; i18n catalogue of this program.
+- Action required: none.
+
 ### 2.89.20261103.130619 - --unban-low-score: exit code fixed, full --investigate result before each question
 
 - Title: --unban-low-score no longer ends with an "unexpected stop" error, and shows the whole result of --investigate above each question.
