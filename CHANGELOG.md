@@ -371,6 +371,19 @@ Earlier history was archived outside this repository when this file was created.
 
 ## app-log-live.py
 
+### 1.157.20261103.081106 - Password reset and sign-up forms in red reverse video, counted per address
+
+- Title: requests to /web/reset_password and /web/signup are shown in red reverse video and counted in the summary.
+- Reason: request of the administrator on 2026-11-03: address 206.42.109.58 (SofyaBot) made hundreds of requests to the password reset, sign-up and login pages; "watch these Odoo URLs and show them in red reverse video".
+- Changes:
+  - New ACCOUNT_FORM_RE (with or without language prefix) and style STYLES["account"] = "7;31" (red reverse video); render() paints the URL with it before the login style (suspect URLs and 5xx errors keep their own style).
+  - Stats: new counters account_ips and account_urls (in COUNTERS, so Ctrl-T and the periods reset them); the summary shows the line "Account forms" with the first five addresses; the addresses of the server itself are not counted.
+  - lang/app-log-live.fr.po: the new messages. doc/fr and doc/en 07-app-log-live.md. nginx-tools-tests/test_app_log_live.py: new class AppLogLive157 (4 tests).
+- Bugs fixed: none.
+- Safeguards and edge cases: /web/login and /web/session/authenticate keep the blue login style (a normal member logs in); a longer path that only starts like the forms (e.g. /web/signup-x) is not matched; the colour is added without changing the text, so the columns stay aligned.
+- Checks performed: test_app_log_live.AppLogLive157; syntax check.
+- Action required from the user: none.
+
 ### 1.156.20261102.235216 - System column: the program (CUR, PYT...) replaces OTH
 
 - Title: in the system column of the nginx lines, a User-Agent without a system now shows the program that makes the request (CUR curl, PYT Python, WGT wget, GOL Go, JAV Java, PHP, NOD Node.js, RUB Ruby, PER Perl) instead of OTH.
@@ -3425,6 +3438,18 @@ Earlier history was archived outside this repository when this file was created.
 - Current version. Earlier history archived outside the repository.
 
 ## nginx-log-audit.sh
+
+### 2.84.20261103.081135 - The analysis reports requests to the password reset and sign-up forms
+
+- Title: --investigate notes 10 or more requests to /web/reset_password or /web/signup, as information.
+- Reason: request of the administrator on 2026-11-03: "why was 206.42.109.58 not seen as malicious? It made many attempts to change a password." The investigation showed SofyaBot (811 GET requests, one burst, no sensitive file): a crawler that follows the links of the login pages, score 1/7.
+- Changes:
+  - recommander(): note "formulaires de compte : N requêtes à /web/reset_password ou /web/signup" when N >= 10, with the explanation and the advice to check Odoo's failed logins if the address is not a known robot. No hostility point is added.
+  - lang/nginx-log-audit.en.po: the new messages. doc/fr and doc/en 02-nginx-log-audit.md. nginx-tools-tests/test_nginx_log_audit.py: test_284_formulaires_de_compte_signales_sans_score.
+- Bugs fixed: none (the verdict REFUSER LE ROBOT PAR SON NOM for a named crawler was right).
+- Safeguards and edge cases: the access logs do not tell a form shown (GET) from a form sent (POST) in the URL list, so a score would ban crawlers that only read the links; below 10 requests there is no note.
+- Checks performed: test_nginx_log_audit and test_ban_gate (87 tests).
+- Action required from the user: none.
 
 ### 2.83.20261103.071054 - awk warnings in the recommendation fixed (static files regex)
 

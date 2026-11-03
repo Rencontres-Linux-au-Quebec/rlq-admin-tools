@@ -4342,3 +4342,34 @@ class AppLogLive156(unittest.TestCase):
         self.assertEqual(self.m.os_code("-"), "   ")
         self.assertEqual(self.m.os_code(""), "   ")
 
+
+class AppLogLive157(unittest.TestCase):
+    """1.157 : les formulaires de mot de passe oublié et d'inscription d'Odoo s'affichent en vidéo inverse ROUGE et sont comptés par adresse."""
+
+    @classmethod
+    def setUpClass(cls):
+        spec = importlib.util.spec_from_file_location("live157", script_path("app-log-live.py"))
+        cls.m = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(cls.m)
+
+    def test_157_formulaires_de_compte_reconnus(self):
+        for url in ("/web/reset_password", "/fr/web/reset_password", "/en_CA/web/signup?redirect=%2Fblog%2Fx", "/es/web/signup", "/web/signup"):
+            self.assertTrue(self.m.ACCOUNT_FORM_RE.search(url), url)
+        for url in ("/web/login", "/web/login?redirect=%2Fweb%2Fsignup%2F", "/web/session/authenticate", "/blog/reset_password-guide"):
+            self.assertFalse(self.m.ACCOUNT_FORM_RE.search(url.split("?")[0]), url)
+
+    def test_157_style_rouge_en_video_inverse(self):
+        self.assertEqual(self.m.STYLES["account"], "7;31")
+
+    def test_157_la_ligne_rendue_colore_l_url_en_rouge_inverse(self):
+        with open(script_path("app-log-live.py"), encoding="utf-8") as f:
+            src = f.read()
+        bloc = src[src.index('if r and ACCOUNT_FORM_RE.search(r.group(1)):'):src.index("for m in LOGIN_PATH_RE.finditer(text):")]
+        self.assertIn('STYLES["account"]', bloc)                                   # before the login style, so that it wins
+        self.assertLess(src.index('STYLES["account"], shown_url'), src.index('color_code(STYLES["connection"], m.group(1)))\n        if r and 400'))
+
+    def test_157_statistiques_par_adresse(self):
+        st = self.m.Stats(5.0)
+        self.assertEqual(len(st.account_ips), 0)
+        self.assertIn("account_ips", self.m.Stats.COUNTERS)
+

@@ -2987,3 +2987,9 @@ msgstr "warning: --unban ALSO lifts the CrowdSec list (permanent exception in "
 
 msgid "LAISSER À CROWDSEC"
 msgstr "LEAVE TO CROWDSEC"
+
+msgid "formulaires de compte : "
+msgstr "account forms: "
+
+msgid " requêtes à /web/reset_password ou /web/signup (mot de passe oublié, inscription) ; un robot qui suit les liens de la page de connexion les lit sans rien soumettre, mais les journaux ne distinguent pas un formulaire affiché d'un formulaire envoyé : vérifier les connexions échouées d'Odoo si l'adresse n'est pas un robot connu"
+msgstr " requests to /web/reset_password or /web/signup (password reset, sign-up); a robot that follows the links of the login page reads them without submitting anything, but the logs do not tell a form shown from a form sent: check Odoo's failed logins if the address is not a known robot"
