@@ -119,7 +119,7 @@ from urllib.parse import unquote, urlsplit
 from collections import Counter, OrderedDict
 from concurrent.futures import Future
 
-__version__ = "1.161.20261103.112057"
+__version__ = "1.162.20261103.121212"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
@@ -3343,6 +3343,29 @@ def ssh_sessions():
     return res
 
 
+def ssh_by_user(ssh=None):
+    """1.162: {account: number of SSH sessions}: the sshd processes (ps) AND who, the larger count wins for each account. The status bar counted only the lines of who
+    that carry an origin address, hence a count of 0 on servers without utmp (who empty) or with sessions without a terminal."""
+    ssh = ssh_sessions() if ssh is None else ssh
+    users = ssh_users()
+    for u, _t, _d, _h in ssh:
+        users.setdefault(u, 0)
+    for u in users:
+        users[u] = max(users[u], sum(1 for x in ssh if x[0] == u))
+    return users
+
+
+def ssh_count():
+    """1.162: number of SSH sessions, as in the reports (ps and who combined)."""
+    return sum(ssh_by_user().values())
+
+
+def who_users():
+    """1.162: [account, ...] one per session listed by who (every session, with or without an origin address); [] if who is absent or sees none."""
+    code, output = lancer(["who"], 10)
+    return [text_line.split()[0] for text_line in output.splitlines() if text_line.split()] if code == 0 else []
+
+
 SSH_PORTS_CACHE = {"when": 0.0, "ports": None}      # ssh_ports(): the ports hardly ever change, looked up at most every 5 minutes
 
 
@@ -3384,11 +3407,7 @@ def logged_in_lines(presence, now_dt=None):
     ports = ssh_ports()
     code, output = lancer(["ss", "-Htn", "state", "established", "( " + " or ".join(f"sport = :{p}" for p in ports) + " )"], 10)
     tcp = len([l for l in output.splitlines() if l.strip()]) if code == 0 else None
-    users = ssh_users()
-    for u, _t, _d, _h in ssh:
-        users.setdefault(u, 0)
-    for u in users:                                    # who may see more terminals than ps lists (other namespace): the larger count wins
-        users[u] = max(users[u], sum(1 for x in ssh if x[0] == u))
+    users = ssh_by_user(ssh)
     sessions = sum(users.values())
     by_user = ", ".join(f"{u} " + color_code("1;36", f"×{n}") for u, n in sorted(users.items(), key=lambda x: (-x[1], x[0])))
     res.append("  Connected over SSH: " + color_code("1;36", str(sessions)) + (f" ({by_user})" if users else "")
@@ -5359,7 +5378,7 @@ class StatusBar:
             self.slow += 1
             self.slow_max = max(self.slow_max, total)
 
-    def pieces(self, users=None, ssh=None):
+    def pieces(self, users=None, ssh=None, who=None):
         """1.125: the bar as [(text, SGR)]: the figures are coloured by criticality (32 green, 33 yellow, 31 red); SGR None = colour of the bar."""
         groups = [
             [(TR("health state") + " ", None), (f"{self.health()} %", "32" if self.health() >= 90 else "33" if self.health() >= 70 else "31")],
@@ -5377,6 +5396,9 @@ class StatusBar:
         groups.append([(TR("per port") + " ", None), ((" · ".join(f"{p}: {n}" for p, n in sorted(self.ports.items())) if self.ports else TR("no port data")), None)])      # 1.121
         if ssh is not None:
             groups.append([(TR("SSH") + f" {ssh}", None)])
+        if who is not None:                                   # 1.162: the accounts listed by who (SSH, console, tmux...), whatever the way in
+            names = sorted(set(who))
+            groups.append([(TR("logged in (who)") + f" {len(who)}" + (f" ({', '.join(names[:5])}" + (f", +{len(names) - 5}" if len(names) > 5 else "") + ")" if names else ""), None)])
         top = self.top_ips()
         if top:
             groups.append([(top, None)])
@@ -5448,9 +5470,9 @@ class StatusBar:
         """1.124: text of codes_pieces (no colour)."""
         return "".join(text for text, _ in self.codes_pieces(first, total))
 
-    def summary(self, users=None, ssh=None):
+    def summary(self, users=None, ssh=None, who=None):
         """1.120: users and ssh (number of people signed in to Odoo, of SSH sessions) are given by the caller when known. 1.125: text of pieces()."""
-        return "".join(text for text, _ in self.pieces(users, ssh))
+        return "".join(text for text, _ in self.pieces(users, ssh, who))
 
 
 class Output:
@@ -5637,7 +5659,7 @@ def audit_verdict(ip, app_args=()):
 
 REPEAT_MIN = seuil_commun("REPEAT_MIN", 2)            # past fail2ban bans from which an address is "often banned" (same threshold as nginx-log-audit.sh: "recidivism")
 BAN_DELAY = 10              # seconds left to answer the ban proposal; without an answer, the tracking continues
-KEYS = {b"\x07": "g", b"\x14": "t"}      # Ctrl-G: dashboard; Ctrl-T: only what changed since the last time
+KEYS = {b"\x07": "g", b"\x14": "t", b"\r": "enter", b"\n": "enter"}      # Ctrl-G: dashboard; Ctrl-T: only what changed since the last time; Enter: status bar with the time (1.162)
 # Simple keys of the menu (? or h): toggles and settings of the command-line options, and a few commands
 MENU_KEYS = {b"?": "legend", b"h": "help", b"i": "i", b"m": "m", b"n": "n", b"r": "r", b"s": "s", b"v": "v", b"d": "dns", b"t": "dnst", b"H": "H", b"o": "o", b"V": "V",
                 b"S": "S", b"I": "I", b"b": "b", b"a": "accent", b"c": "chime", b"e": "exclude", b"T": "report", b"E": "E", b"w": "watch", b"D": "D", b"l": "highlight", b"M": "modules", b"W": "save", b"L": "recent",
@@ -6092,16 +6114,17 @@ def follow(cmd, people, resolver, options, output):
             beep["last"] = time.time()
             sonner(beep["mode"], output.screen)
 
-    def status_line():
-        """1.113: the status bar, reverse video, its colour according to the problems counted since the last detailed report.
+    def status_line(now_stamp=False):
+        """1.162: now_stamp=True (Enter key): the date and time of the action come first and the legend "since the last detailed report" is left out.
+        1.113: the status bar, reverse video, its colour according to the problems counted since the last detailed report.
         1.125: each figure is coloured on its own (reverse video too); the text is cut by its visible length, the escape codes do not count."""
         columns = terminal_columns()
         status.show_ips = bool(options.get("keep_ip"))          # 1.114: follows the H key (--hide-ip / --show-ip) on the fly
         users = len(odoo_logged_in(options.get("presence"), time.time())) if options.get("presence") is not None else None      # 1.120
-        stamp = state.get("stamp") if options.get("status_header") else None      # 1.123 --status-header: date and host of the last line, first (1.125: date only)
+        stamp = time.strftime("%Y-%m-%d %H:%M:%S") if now_stamp else state.get("stamp") if options.get("status_header") else None      # 1.123 --status-header: date and host of the last line, first (1.125: date only)
         head = f" {stamp}  " if stamp else " "
         bar = status.color()
-        pieces = [(head + TR("STATUS") + "  ", None)] + status.pieces(users, len(ssh_sessions())) + [("  ·  " + TR("since the last detailed report (Ctrl-T or g)") + " ", None)]
+        pieces = [(head + TR("STATUS") + "  ", None)] + status.pieces(users, ssh_count(), who_users()) + ([] if now_stamp else [("  ·  " + TR("since the last detailed report (Ctrl-T or g)") + " ", None)])
         width = max(20, int(columns * UNDERLINE_RATIO))      # 1.143: 80 % of the width, as the underlined lines
         limit = width
         out, left = [], limit
@@ -6642,6 +6665,7 @@ def follow(cmd, people, resolver, options, output):
         for key, text in (("Ctrl-G", "dashboard: health, program efficiency, pages by language, top 10 URLs…"),
                               ("1 to 9", "dashboard at the chosen level: 1 = one-line verdict, 5 = the essentials, 9 = everything (the level is kept for Ctrl-G, Ctrl-T and the final summary)"),
                               ("Ctrl-T", "only what changed since last time"),
+                              ("Enter", "status bar with the current date and time (counters are not reset)"),
                               ("Ctrl-C", "stop and session summary")):
             lines.append(f"  {bold(key):<{6 + len(bold('') )}}  {text}")
         lines.append("  Command-line options, changed on the fly ([current state]):")
@@ -6820,6 +6844,8 @@ def follow(cmd, people, resolver, options, output):
             write_out([status_line()])                      # 1.121: the bar is shown first, with the counters of the period just reported
             status.reset()                                  # 1.113: a detailed report starts a new period for the status bar
             write_out(["  " + TR("Status bar: counters reset (new period from now).")])
+        elif key_value == "enter":                          # 1.162: Enter while waiting for new lines: the status bar with the date and time of this action, no legend, no reset
+            write_out([status_line(now_stamp=True)])
         elif key_value == "refresh":                        # 1.113: f key - last lines displayed again with the current options
             columns_before = terminal_columns()
             reload_terminal_size()                          # 1.143: $COLUMNS and $LINES read again (the window may have been resized)

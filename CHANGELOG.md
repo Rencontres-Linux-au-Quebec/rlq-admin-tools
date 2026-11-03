@@ -371,6 +371,16 @@ Earlier history was archived outside this repository when this file was created.
 
 ## app-log-live.py
 
+### 1.162.20261103.121212 - Enter shows the status bar with the time; SSH count fixed; users logged in (who)
+
+- Title: Enter prints the status bar with the current date and time, the SSH count is fixed and the accounts listed by who are shown.
+- Reason: three requests: (1) when waiting for new lines, a way to see that the program is alive and the counters, with the time of the action; (2) add the users logged in to the server (visible with who); (3) the SSH count in the status bar was always 0.
+- Changes: app-log-live.py: KEYS maps Enter (CR and LF) to "enter"; key() prints status_line(now_stamp=True): date and time first, no legend "since the last detailed report", counters not reset. New functions ssh_by_user, ssh_count (ps and who combined, as in the reports) and who_users (every session of who). StatusBar.pieces and summary take a third argument and show "logged in (who) N (names)". The keys menu lists Enter. lang/app-log-live.fr.po: 2 entries. Files: app-log-live.py, lang/app-log-live.fr.po, doc/fr and doc/en 07-app-log-live.md, tests.
+- Bugs fixed: symptom: "SSH 0" in the status bar while sessions were open. Diagnosis: the bar used only the lines of who that carry an origin address, so a server whose who is empty or without origin (no utmp, console, sessions without a terminal) always gave 0, while the reports also counted the sshd processes. Fix: the bar uses the same count as the reports.
+- Safeguards and edge cases: Enter is read only while the live stream runs (questions and the menu take the terminal back, so their answers are not affected); who or ps absent gives 0 and an empty list, never an error; at most 5 account names are shown, then "+N".
+- Checks: new test_162 (ps only, who without origin, both absent, Enter mapping); test_utilisateurs_ssh_et_nombre_de_sessions unchanged; catalogue test for this program.
+- Action required: none.
+
 ### 1.161.20261103.112057 - --theme N: color themes
 
 - Title: --theme N: color themes.
