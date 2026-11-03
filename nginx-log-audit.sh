@@ -146,7 +146,7 @@ grep_q() { grep "$@" >/dev/null; }
 #                              ne peut pas le voir, le texte etant entre apostrophes (faux positif).
 trap 'ec=$?; echo "" >&2; echo "*** ARRÊT INATTENDU DU SCRIPT (code $ec) À LA LIGNE $LINENO ***" >&2; echo "*** Commande fautive : $BASH_COMMAND" >&2; echo "*** Si le rapport ci-dessus semble incomplet (ex. sections Top 10 absentes), c'\''est probablement la cause." >&2' ERR
 
-readonly SCRIPT_VERSION="2.90.20261103.131310"
+readonly SCRIPT_VERSION="2.91.20261103.133244"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
 # theme_sgr CODE (2.86) : the SGR code as the color theme shows it (--theme N, THEME, NGINX_TOOLS_THEME; apps/_theme.py). Theme 0, no module or no python3: unchanged.
 theme_sgr() {
@@ -1365,6 +1365,14 @@ comptes_bd_ip() {
         echo
         return 0
     fi
+    local n_comptes
+    n_comptes=$(printf '%s\n' "$lignes" | grep -c .) || n_comptes=0
+    if (( n_comptes > 5 )); then          # 2.91: a long list is a time coincidence (the server has many members), not a lead
+        echo "      [i] Comptes Odoo actifs pendant les requêtes de cette IP (base, marge 2 h) : $n_comptes comptes, trop nombreux pour désigner quelqu'un"
+        echo "          (Odoo ne note pas l'IP des sessions). La vérification fiable est la ligne « connectée DEPUIS cette adresse » (journal d'Odoo) ci-dessus."
+        echo
+        return 0
+    fi
     echo "      ${C_GREEN}[i] Comptes Odoo ACTIFS pendant les requêtes de cette IP (base, marge 2 h) - à vérifier, Odoo ne note pas l'IP des sessions :${C_RESET}"
     printf '%s\n' "$lignes" | while IFS=$'\t' read -r base login nom source quand; do
         printf '            %s : %s (%s), %s, %s\n' "$base" "$login" "$nom" "$source" "$quand"
@@ -2478,6 +2486,35 @@ investigate_and_propose() {
     else echo "      $no Double identité : non"; fi
     if (( nprobe >= 3 )); then score=$((score+1)); hostile=$((hostile+1)); SIGNE_FORT=1; motifs+=("$nprobe tentatives d'accès à des fichiers sensibles (ex. $probes)"); echo "      $ok Recherche de fichiers sensibles : $nprobe requêtes (ex. $probes)"
     else echo "      $no Recherche de fichiers sensibles : ${nprobe} requêtes"; fi
+    # 2.91: systematic sweep. A visitor reads the pages that interest him; a scraper enumerates: every combination of the filters of a listing
+    # (/event?tags=[1,+10]...) and the same pages again under each language prefix (/es/..., /en_CA/...). 125.59.124.161 read 440 distinct URLs this way
+    # and was proposed for a lift as "a robot that reads fast".
+    local sweep_n=0 sweep_var=0 sweep_loc=0 sweep_chemin="" sweep_langs=""
+    INV_SWEEP=0
+    read -r sweep_n sweep_var sweep_loc sweep_chemin sweep_langs <<< "$(printf '%s\n' "$urls" | tr '\001' '\n' | awk '
+        NF >= 2 { u = $2; loc = ""
+            if (match(u, /^\/[a-z][a-z](_[A-Z][A-Z])?(\/|$)/)) { loc = substr(u, 2, RLENGTH - 1); sub(/\/$/, "", loc); u = "/" substr(u, RLENGTH + 1) }
+            q = index(u, "?"); path = q ? substr(u, 1, q - 1) : u
+            n++
+            if (loc == "") base[path] = 1
+            else { lp[loc, path] = 1; locs[loc] = 1 }
+            if (q) { v[path]++; if (v[path] > vmax) { vmax = v[path]; vpath = path } } }
+        END { nl = 0; langs = ""
+            for (k in lp) { split(k, a, SUBSEP); if (a[2] in base) hit[a[1]]++ }
+            for (l in hit) if (hit[l] >= 5) { nl++; langs = langs (langs == "" ? "" : ",") l }
+            print n + 0, vmax + 0, nl, (vpath == "" ? "-" : vpath), (langs == "" ? "-" : langs) }')" || true
+    [[ "$sweep_langs" == "-" ]] && sweep_langs=""
+    if (( sweep_var >= 30 || (sweep_loc >= 2 && sweep_n >= 100) )); then
+        INV_SWEEP=1; score=$((score+1)); hostile=$((hostile+1)); motifs+=("balayage systématique ($sweep_n URL distinctes)")
+        echo "      $ok Balayage systématique : $sweep_n URL distinctes, dont $sweep_var variantes de requête de $sweep_chemin${sweep_langs:+, reprises sous $sweep_loc préfixes de langue (${sweep_langs//,/, })} — un visiteur ne parcourt pas toutes les combinaisons de filtres"
+    else echo "      $no Balayage systématique : non ($sweep_n URL distinctes)"; fi
+    # 2.91: a real browser always sends "(KHTML, like Gecko)" after AppleWebKit; a client that omits it is a script that copies a User-Agent badly.
+    local n_ua_incomplet
+    n_ua_incomplet=$(printf '%s\n' "$uas" | tr '\001' '\n' | awk '/AppleWebKit/ && !/KHTML/ { split($1, a, "x"); s += a[1] } END { print s + 0 }') || n_ua_incomplet=0
+    if (( n_ua_incomplet >= 20 )); then
+        score=$((score+1)); hostile=$((hostile+1)); motifs+=("User-Agent de navigateur incomplet ($n_ua_incomplet requêtes)")
+        echo "      $ok User-Agent de navigateur incomplet : $n_ua_incomplet requêtes (AppleWebKit sans « KHTML, like Gecko » : un navigateur réel l'envoie toujours ; script qui imite un navigateur)"
+    else echo "      $no User-Agent de navigateur incomplet : non"; fi
     # 2.65 : le 429 (limitation de débit nginx) n'est PAS une erreur hostile : compté à part, et croisé avec error.log (zone déclenchée).
     local n429 nerr_hostile zones
     n429=$(printf '%s' "$codes" | tr ',' '\n' | awk '/x429/ { split($0, a, "x"); s += a[1] } END { print s + 0 }') || n429=0
@@ -2544,6 +2581,10 @@ investigate_and_propose() {
     if [[ -n "$logins" ]]; then
         echo "      ${C_GREEN}[i] Connectée à Odoo avec un compte (journal, 100 jours) :${C_RESET}"
         printf '%s\n' "$logins" | sed 's/^/            /'
+    elif [[ -n "$LOGINS_TABLE" ]]; then       # 2.91: the reliable answer to "which logged-in user already used this address"
+        echo "      [i] Aucun compte Odoo ne s'est connecté DEPUIS cette adresse (journal d'Odoo, 100 jours, $(printf '%s\n' "$LOGINS_TABLE" | grep -c .) connexions lues)."
+    else
+        echo "      [i] Connexions Odoo depuis cette adresse : journal d'Odoo vide ou illisible (lancer en root sur le serveur)."
     fi
     # 2.65 : --investigate identifie aussi les comptes Odoo ACTIFS pendant les requêtes de l'IP (base PostgreSQL, lecture seule).
     # 2.72: only when the address asked for a page that needs a session (login, back office, chat, customer account): Odoo does not record the
@@ -2583,6 +2624,7 @@ investigate_and_propose() {
 
     # 2.78: the facts of the investigation, for the advice (recommander) printed by --investigate after this function.
     INV_IP="$ip"; INV_TOTAL="$total"; INV_SCORE="$score"; INV_HOSTILE="$hostile"; INV_ENGINE="$verified_engine"; INV_LOGINS="$logins"
+    INV_SWEEP="${INV_SWEEP:-0}"
     INV_FAMS="$fams"; INV_UAS="$uas"; INV_URLS="$urls"; INV_NSCRIPT="$nscript"; INV_MAXP="$maxp"; INV_NPROBE="$nprobe"; INV_NERR="$nerr_hostile"
     INV_NCA="$n_ca"; INV_PTR="$ptr"; INV_MOTIFS="$(printf '%s ; ' "${motifs[@]}")"; INV_MOTIFS="${INV_MOTIFS% ; }"; INV_NSESSION="${n_session:-0}"
     INV_MOTIFS_LISTE=("${motifs[@]}")
@@ -3312,7 +3354,7 @@ recommander() {
         elif (( INV_HOSTILE == 0 )); then
             raisons+=("aucun signe d'hostilité (fichiers sensibles, erreurs en masse, faux moteur, capteur catch-all)")
         fi
-        (( INV_HOSTILE > 0 )) && raisons+=("une seule rafale de pages, sans signe fort : un robot qui lit vite, pas une attaque")
+        (( INV_HOSTILE > 0 && ${INV_SWEEP:-0} == 0 )) && raisons+=("une seule rafale de pages, sans signe fort : un robot qui lit vite, pas une attaque")
         if [[ -n "$noms_libres" ]]; then
             raisons+=("il se nomme dans son User-Agent : $noms_libres")
             if (( banni_local )); then verdict="LEVER LE BANNISSEMENT"; cmd="nginx-log-audit.sh --unban $ip"
@@ -3326,6 +3368,12 @@ recommander() {
             verdict="LAISSER À CROWDSEC"
             raisons+=("seule la liste communautaire CrowdSec la bloque : elle vient d'autres serveurs, l'absence de trace ici ne l'innocente pas")
             notes+=("la lever demande une décision à la main : nginx-log-audit.sh --unban $ip ajoute une exception PERMANENTE dans $CROWDSEC_ALLOW_FILE")
+        elif (( ${INV_SWEEP:-0} )); then
+            # 2.91: a systematic sweep is not "a robot that reads fast": no lift, a close watch. fail2ban's temporary ban expires by itself.
+            raisons+=("balayage systématique des pages (toutes les combinaisons de filtres, plusieurs langues) : un robot d'extraction, à surveiller de près")
+            if (( ETAT_PARE_FEU )); then verdict="GARDER LE BANNISSEMENT"
+            elif (( banni )); then verdict="LAISSER À FAIL2BAN"; notes+=("ne pas lever : laisser expirer le bannissement temporaire, puis surveiller si elle revient (nginx-log-audit.sh --investigate $ip)")
+            else verdict="À EXAMINER"; notes+=("pas bannie : surveiller (app-log-live.py, web-monitor.py) ; le seuil de bannissement n'est pas atteint (score $INV_SCORE/$BAN_THRESHOLD)"); fi
         elif (( banni )); then
             verdict="LEVER LE BANNISSEMENT"; cmd="nginx-log-audit.sh --unban $ip"
             raisons+=("fail2ban rattrape seul une nouvelle rafale (bannissement temporaire) : un bannissement long n'apporte rien")
@@ -3414,7 +3462,7 @@ if [[ -n "$INVESTIGATE_IP" ]]; then
         # 2.78: the advice still uses what is known - the bans, the catch-all sensor, the owner of the block.
         read -r INV_NCA _ <<< "$(compter_catchall "$INVESTIGATE_IP")"
         INV_IP="$INVESTIGATE_IP"; INV_TOTAL=0; INV_SCORE=0; INV_HOSTILE=0; INV_ENGINE=0; INV_LOGINS=""; INV_FAMS=""; INV_UAS=""; INV_URLS=""
-        INV_NSCRIPT=0; INV_MAXP=0; INV_NPROBE=0; INV_NERR=0; INV_NSESSION=0; INV_MOTIFS=""; SIGNE_FORT=0
+        INV_NSCRIPT=0; INV_MAXP=0; INV_NPROBE=0; INV_NERR=0; INV_NSESSION=0; INV_MOTIFS=""; SIGNE_FORT=0; INV_SWEEP=0
         INV_PTR=$(run timeout --foreground 3 host "$INVESTIGATE_IP" 2>/dev/null | awk '/pointer/{print $NF}' | sed 's/\.$//' | head -1) || INV_PTR=""
         reseau_lire "$INVESTIGATE_IP" || true
         vpn_lire "$INVESTIGATE_IP"

@@ -3086,3 +3086,57 @@ msgstr "Suspicious URLs behind the ban (to confirm the verdict):"
 
 msgid "      aucune URL suspecte retrouvée dans les journaux conservés (site, refus de nginx, capteur catch-all)"
 msgstr "      no suspicious URL found in the kept logs (site, nginx refusals, catch-all sensor)"
+
+msgid "      [i] Comptes Odoo actifs pendant les requêtes de cette IP (base, marge 2 h) : "
+msgstr "      [i] Odoo accounts active during the requests of this IP (database, 2 h margin): "
+
+msgid " comptes, trop nombreux pour désigner quelqu'un"
+msgstr " accounts, too many to point at anyone"
+
+msgid "          (Odoo ne note pas l'IP des sessions). La vérification fiable est la ligne « connectée DEPUIS cette adresse » (journal d'Odoo) ci-dessus."
+msgstr "          (Odoo does not record the IP of sessions). The reliable check is the line \"logged in FROM this address\" (Odoo journal) above."
+
+msgid "balayage systématique ("
+msgstr "systematic sweep ("
+
+msgid " Balayage systématique : "
+msgstr " Systematic sweep: "
+
+msgid " variantes de requête de "
+msgstr " query variants of "
+
+msgid " préfixes de langue ("
+msgstr " language prefixes ("
+
+msgid " — un visiteur ne parcourt pas toutes les combinaisons de filtres"
+msgstr " - a visitor does not browse every combination of filters"
+
+msgid " Balayage systématique : non ("
+msgstr " Systematic sweep: no ("
+
+msgid "User-Agent de navigateur incomplet ("
+msgstr "incomplete browser User-Agent ("
+
+msgid " User-Agent de navigateur incomplet : "
+msgstr " Incomplete browser User-Agent: "
+
+msgid " requêtes (AppleWebKit sans « KHTML, like Gecko » : un navigateur réel l'envoie toujours ; script qui imite un navigateur)"
+msgstr " requests (AppleWebKit without \"KHTML, like Gecko\": a real browser always sends it; a script imitating a browser)"
+
+msgid " User-Agent de navigateur incomplet : non"
+msgstr " Incomplete browser User-Agent: no"
+
+msgid "      [i] Aucun compte Odoo ne s'est connecté DEPUIS cette adresse (journal d'Odoo, 100 jours, "
+msgstr "      [i] No Odoo account logged in FROM this address (Odoo journal, 100 days, "
+
+msgid "      [i] Connexions Odoo depuis cette adresse : journal d'Odoo vide ou illisible (lancer en root sur le serveur)."
+msgstr "      [i] Odoo logins from this address: Odoo journal empty or unreadable (run as root on the server)."
+
+msgid "balayage systématique des pages (toutes les combinaisons de filtres, plusieurs langues) : un robot d'extraction, à surveiller de près"
+msgstr "systematic sweep of the pages (every combination of filters, several languages): a scraping robot, to watch closely"
+
+msgid "ne pas lever : laisser expirer le bannissement temporaire, puis surveiller si elle revient (nginx-log-audit.sh --investigate "
+msgstr "do not lift: let the temporary ban expire, then watch whether it comes back (nginx-log-audit.sh --investigate "
+
+msgid "pas bannie : surveiller (app-log-live.py, web-monitor.py) ; le seuil de bannissement n'est pas atteint (score "
+msgstr "not banned: watch it (app-log-live.py, web-monitor.py); the ban threshold is not reached (score "

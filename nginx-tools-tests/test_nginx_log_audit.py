@@ -478,6 +478,26 @@ class ChkNginxLogs(EnvTest):
         self.assertIn("pas de bannissement proposé", out)
         self.assertNotIn("bannissement recommandé", out)
 
+    def test_291_balayage_systematique_et_ua_incomplet_jamais_leves(self):
+        """2.91 : toutes les combinaisons de filtres d'une liste, reprises sous plusieurs préfixes de langue, avec un User-Agent sans « KHTML, like Gecko »
+        (cas de 125.59.124.161) : signes d'hostilité, verdict jamais « lever ». Un visiteur qui lit quelques pages n'en reçoit aucun."""
+        ip = "11.68.110.90"
+        faux_ua = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+        urls = ["/event", "/blog", "/contactus", "/shop/cart", "/web/login"]
+        urls += [f"/event?tags=%5B{a}%5D" for a in range(1, 14)] + [f"/event?tags=%5B{a},+{b}%5D" for a in range(1, 14) for b in range(1, 14) if a != b]
+        urls += [f"/es{u}" for u in urls[:5]] + [f"/en_CA{u}" for u in urls[:5]] + [f"/es/event?tags=%5B{a}%5D" for a in range(1, 14)]
+        self.add(*(acc(ip, "27/Sep/2026", f"05:{(k // 60) % 60:02d}:{k % 60:02d}", u, 200, faux_ua) for k, u in enumerate(urls * 1)))
+        rc, out, err = self.run_cmd(["bash", self.prog, "prod", "--investigate", ip, "--no-prompt"])
+        self.assertEqual(rc, 0, out + err)
+        self.assertRegex(out, r"\[✓\] Balayage systématique : \d+ URL distinctes, dont \d+ variantes de requête de /event")
+        self.assertIn("User-Agent de navigateur incomplet", out)
+        self.assertNotIn("Verdict : LEVER LE BANNISSEMENT", out)
+        calme = "11.68.110.91"
+        self.add(*(acc(calme, "27/Sep/2026", f"06:00:0{k}", u, 200, CHROME) for k, u in enumerate(["/event", "/blog", "/es/event"])))
+        rc, out, err = self.run_cmd(["bash", self.prog, "prod", "--investigate", calme, "--no-prompt"])
+        self.assertIn("[ ] Balayage systématique : non", out)
+        self.assertIn("[ ] User-Agent de navigateur incomplet : non", out)
+
     def test_283_aucun_avertissement_awk_et_nature_des_requetes(self):
         """2.83 : STATIC_RE passe à awk par ENVIRON (pas -v : « awk: warning: escape sequence » et expression déformée). Les fichiers statiques
         restent écartés de la nature des requêtes, qui reste détectée (découverte de flux RSS)."""
