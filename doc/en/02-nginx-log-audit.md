@@ -30,6 +30,23 @@ The **rented server** clue is checked when the reverse DNS names a hosting provi
 
 Refusals produced by our nginx rules are logged to `blocked-probes.log`, not to the site logs; investigations and evidence read it too ("Requests REFUSED by nginx"), otherwise a banned address would look as if it had made no request.
 
+## Verdict and recommendation of `--investigate`
+
+`--investigate` ends with **ANALYSIS AND RECOMMENDATION**: it re-reads the investigation as a person would and gives one verdict, its reasons and the command to run.
+
+| Verdict | When |
+|---|---|
+| DO NOT BAN / LIFT THE BAN | protected address (white list, protected place), verified search engine, logged-in Odoo account, CDN node |
+| BAN / KEEP THE BAN | strong sign (sensitive files, mass errors, fake engine, catch-all sensor) or score at the threshold with a sign of hostility; the duration by origin is given |
+| LEAVE IT TO FAIL2BAN | strong sign, but score under the threshold: a firewall ban would need an exception |
+| REFUSE THE ROBOT BY ITS NAME | no sign of hostility, but the robot gives its name in its User-Agent ("CareerScout/1.0", "webzio (+https://...)") and `bot_blocker.conf` does not refuse it: refusing it by name follows the robot when it changes address |
+| LIFT THE BAN | banned address with no sign of hostility: fail2ban catches a new burst on its own |
+| NO ACTION | nothing to report |
+
+Notes are added: name already refused in `bot_blocker.conf`, probable nature of the requests (job offers, RSS feeds, forms), **type of address** (VPN, Tor exit, relay, hosting provider, from the block owner and the official list of Tor exits, cached one day), access provider address, current fail2ban and CrowdSec bans. The country is not a criterion: it is the server's, not the person's. When the RDAP organisation says nothing ("Admin"), the network name is shown instead.
+
+Several addresses at once: `nginx-log-audit.sh --investigate 203.0.113.7 198.51.100.4` (or `203.0.113.7,198.51.100.4`). Each address is investigated in turn, then a **summary** gives the verdict of each and the commands to run (`--ban`, `--unban`), which check again and ask for confirmation.
+
 ## Reviewing manual bans every day (`--unban-check`)
 
 `--unban-check` (run as root) re-evaluates each manual ban with the current rules and proposes lifting the unjustified ones. Its verdicts:

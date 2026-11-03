@@ -2726,3 +2726,192 @@ msgstr " lift(s) failed — see above."
 
 msgid " n'est plus bannie : "
 msgstr " is no longer banned: "
+
+msgid " SYNTHÈSE DES "
+msgstr " SUMMARY OF THE "
+
+msgid " ADRESSES ENQUÊTÉES"
+msgstr " ADDRESSES INVESTIGATED"
+
+msgid "(enquête incomplète)"
+msgstr "(incomplete investigation)"
+
+msgid "LEVER LE BANNISSEMENT"
+msgstr "LIFT THE BAN"
+
+msgid "Commandes à lancer (chacune vérifie de nouveau et demande confirmation) :"
+msgstr "Commands to run (each one checks again and asks for confirmation):"
+
+msgid "Aucune commande à lancer : ni bannissement ni levée recommandés."
+msgstr "No command to run: no ban and no lift recommended."
+
+msgid "BANNIE par le jail"
+msgstr ""
+
+msgid "nom du réseau ; organisation RDAP « "
+msgstr "network name; RDAP organisation \""
+
+msgid " », sans information"
+msgstr "\", no information"
+
+msgid "      Type d'adresse : "
+msgstr "      Type of address: "
+
+msgid " (liste officielle du projet Tor"
+msgstr " (official list of the Tor project"
+
+msgid ") — partagée par de nombreux utilisateurs anonymes"
+msgstr ") — shared by many anonymous users"
+
+msgid ") — l'adresse réelle de la personne est cachée ; partagée par les clients du VPN"
+msgstr ") — the real address of the person is hidden; shared by the customers of the VPN"
+
+msgid " : iCloud Private Relay, Cloudflare WARP...) — l'adresse réelle est cachée ; partagée"
+msgstr ": iCloud Private Relay, Cloudflare WARP...) — the real address is hidden; shared"
+
+msgid "      Type d'adresse : hébergeur ("
+msgstr "      Type of address: hosting provider ("
+
+msgid ") — serveur loué, ou sortie d'un VPN ou d'un proxy (impossible de distinguer)"
+msgstr ") — rented server, or exit of a VPN or a proxy (impossible to tell apart)"
+
+msgid "      Type d'adresse : aucun indice de VPN, de Tor ni d'hébergeur (fournisseur d'accès, entreprise, établissement...)"
+msgstr "      Type of address: no sign of VPN, Tor or hosting provider (access provider, company, institution...)"
+
+msgid " ; pas une sortie Tor (liste du "
+msgstr "; not a Tor exit (list of "
+
+msgid "NE PAS BANNIR"
+msgstr "DO NOT BAN"
+
+msgid "adresse protégée : "
+msgstr "protected address: "
+
+msgid "moteur de recherche vérifié (DNS inverse puis direct) : le bannir retirerait le site de ses résultats"
+msgstr "verified search engine (reverse then forward DNS): banning it would remove the site from its results"
+
+msgid ") : un membre ou un bénévole"
+msgstr "): a member or a volunteer"
+
+msgid "activité du compte : web-monitor.py --investigate-user "
+msgstr "activity of the account: web-monitor.py --investigate-user "
+
+msgid "nœud d'un CDN ("
+msgstr "node of a CDN ("
+
+msgid ") : derrière lui, de nombreux visiteurs ; nginx doit lire l'adresse réelle (CF-Connecting-IP)"
+msgstr "): many visitors behind it; nginx must read the real address (CF-Connecting-IP)"
+
+msgid "À EXAMINER"
+msgstr "TO EXAMINE"
+
+msgid "un signe fort existe, mais il vient peut-être d'un seul des visiteurs du CDN"
+msgstr "a strong sign exists, but it may come from a single visitor of the CDN"
+
+msgid "signes d'hostilité"
+msgstr "signs of hostility"
+
+msgid "revient malgré "
+msgstr "comes back despite "
+
+msgid " bannissements temporaires de fail2ban"
+msgstr " temporary bans by fail2ban"
+
+msgid "GARDER LE BANNISSEMENT"
+msgstr "KEEP THE BAN"
+
+msgid "bannissement manuel en place : "
+msgstr "manual ban in place: "
+
+msgid "durée : sans expiration ("
+msgstr "duration: no expiry ("
+
+msgid "durée : "
+msgstr "duration: "
+
+msgid "LAISSER À FAIL2BAN"
+msgstr "LEAVE IT TO FAIL2BAN"
+
+msgid "le score de l'enquête ("
+msgstr "the score of the investigation ("
+
+msgid "/7) est sous le seuil de "
+msgstr "/7) is under the threshold of "
+
+msgid " : un bannissement au pare-feu demanderait une exception (--reason, puis BANNIR)"
+msgstr ": a firewall ban would need an exception (--reason, then BANNIR)"
+
+msgid "aucun signe d'hostilité (fichiers sensibles, erreurs en masse, faux moteur, capteur catch-all)"
+msgstr "no sign of hostility (sensitive files, mass errors, fake engine, catch-all sensor)"
+
+msgid "une seule rafale de pages, sans signe fort : un robot qui lit vite, pas une attaque"
+msgstr "a single burst of pages, no strong sign: a robot that reads fast, not an attack"
+
+msgid "il se nomme dans son User-Agent : "
+msgstr "it gives its name in its User-Agent: "
+
+msgid "puis, si ce robot n'est pas voulu : ajouter "
+msgstr "then, if this robot is not wanted: add "
+
+msgid " à nginx/conf.d/bot_blocker.conf (refusé partout par son nom, quelle que soit son adresse)"
+msgstr " to nginx/conf.d/bot_blocker.conf (refused everywhere by its name, whatever its address)"
+
+msgid "REFUSER LE ROBOT PAR SON NOM"
+msgstr "REFUSE THE ROBOT BY ITS NAME"
+
+msgid "si ce robot n'est pas voulu : ajouter "
+msgstr "if this robot is not wanted: add "
+
+msgid " à nginx/conf.d/bot_blocker.conf, puis nginx-hardening.sh --update ; sinon, aucune action"
+msgstr " to nginx/conf.d/bot_blocker.conf, then nginx-hardening.sh --update; otherwise, no action"
+
+msgid "fail2ban rattrape seul une nouvelle rafale (bannissement temporaire) : un bannissement long n'apporte rien"
+msgstr "fail2ban catches a new burst on its own (temporary ban): a long ban adds nothing"
+
+msgid "AUCUNE ACTION"
+msgstr "NO ACTION"
+
+msgid "à surveiller seulement"
+msgstr "to watch only"
+
+msgid "déjà refusé par son nom dans bot_blocker.conf : "
+msgstr "already refused by its name in bot_blocker.conf: "
+
+msgid " (ses requêtes reçoivent un 403)"
+msgstr " (its requests get a 403)"
+
+msgid "sortie Tor : partagée par de nombreux utilisateurs ; un bannissement temporaire (fail2ban) convient mieux qu'un bannissement long"
+msgstr "Tor exit: shared by many users; a temporary ban (fail2ban) suits better than a long ban"
+
+msgid ") : les autres clients de ce VPN partagent l'adresse"
+msgstr "): the other customers of this VPN share the address"
+
+msgid ") : l'adresse est partagée, la personne réelle est derrière"
+msgstr "): the address is shared, the real person is behind it"
+
+msgid "adresse d'un fournisseur d'accès : réattribuée à d'autres abonnés avec le temps"
+msgstr "access provider address: reassigned to other subscribers over time"
+
+msgid "fail2ban la bannit en ce moment (jail "
+msgstr "fail2ban bans it right now (jail "
+
+msgid "bloquée par la liste communautaire CrowdSec ("
+msgstr "blocked by the CrowdSec community list ("
+
+msgid "état des bannissements non lisible sans root : verdict à confirmer avec sudo"
+msgstr "ban state not readable without root: verdict to confirm with sudo"
+
+msgid "ANALYSE ET RECOMMANDATION"
+msgstr "ANALYSIS AND RECOMMENDATION"
+
+msgid "  RÉSUMÉ|"
+msgstr ""
+
+msgid " tentatives au capteur catch-all (IP brute ou domaine inconnu)"
+msgstr " attempts at the catch-all sensor (raw IP or unknown domain)"
+
+msgid "BANNIR"
+msgstr "BAN"
+
+msgid "  --investigate IP [IP...]     enquête complète (tout l'historique, propriétaire du bloc, VPN ou Tor), puis verdict et recommandation ; plusieurs IP : synthèse"
+msgstr "  --investigate IP [IP...]     full investigation (whole history, block owner, VPN or Tor), then verdict and recommendation; several IPs: summary"

@@ -1184,6 +1184,126 @@ esac""")
         self.assertIn("Aucun bannissement trouvé pour " + self.IP + " (pare-feu manuel, jails fail2ban, liste CrowdSec)", out)
 
 
-for _classe in (ChkNginxLogs272, ChkNginxLogs273, ChkNginxLogs274):
+
+TC_RDAP = ('{"name": "TC-DATACENTER-LIMITED", "country": "HK", "port43": "whois.ripe.net",'
+           ' "entities": [{"roles": ["registrant"], "vcardArray": ["vcard", [["fn", {}, "text", "Admin"]]]},'
+           ' {"roles": ["abuse"], "vcardArray": ["vcard", [["email", {}, "text", "abuse@tcdatacenter.com"]]]}]}')
+GOOGLEBOT = "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)"
+
+
+class ChkNginxLogs278(ChkNginxLogs):
+    """2.75 à 2.78 : type d'adresse (VPN, Tor, hébergeur, apps/_vpn.py), nom du réseau quand l'organisation RDAP ne dit rien (« Admin »), verdict et
+    recommandation de --investigate, plusieurs adresses avec synthèse."""
+
+    def setUp(self):
+        super().setUp()
+        d = self.d
+        self.mock("iptables", f'F={d}/rules; touch $F; o=$1; shift; case $o in -C) grep -qxF "$*" $F;; '
+                              f'-I) echo "$*" >> $F;; -D) grep -vxF "$*" $F > $F.t; mv $F.t $F;; -S) sed "s/^/-A /" $F;; esac')
+        tor = "\\n".join(["11.200.0.%d" % i for i in range(1, 12)] + ["11.66.6.6"])
+        self.mock("curl", 'for a in "$@"; do case "$a" in\n'
+                          f'  *rdap.org/ip/11.138.12.41) echo \'{TC_RDAP}\'; exit 0;;\n'
+                          f'  *torbulkexitlist) printf "{tor}\\n"; exit 0;;\n'
+                          'esac; done; exit 1')
+        self.env["NGINX_TOOLS_IP_CACHE"] = self.path("cache-ip", "x")[:-2]
+        self.env["NGINX_TOOLS_TOR_CACHE"] = os.path.join(d, "tor-exits.txt")
+        self.bots = os.path.join(d, "bot_blocker.conf")
+        with open(self.bots, "w") as f:
+            f.write("map $http_user_agent $is_bad_bot {\n    ~*(AhrefsBot|webzio) 1;\n}\n")
+        self.env["NGINX_TOOLS_BOT_BLOCKER"] = self.bots
+        self.env["NGINX_LOG_AUDIT_CRON_DIR"] = self.path("cron.d", "x")[:-2]
+        os.makedirs(self.env["NGINX_LOG_AUDIT_CRON_DIR"], exist_ok=True)
+
+    def enquete(self, *ips):
+        rc, out, err = self.run_cmd(["bash", self.prog, "prod", "--investigate", *ips, "--no-prompt"])
+        self.assertEqual(rc, 0, out + err)
+        return out
+
+    def test_278_faux_googlebot_catch_all_hebergeur_bannir(self):
+        """Le cas de 45.138.12.41 : faux Googlebot, 58 requêtes au capteur, réseau TC-DATACENTER-LIMITED (organisation « Admin »)."""
+        with open(os.path.join(self.logs, "odoo-catchall-444.log"), "w") as f:
+            f.writelines(catchall("11.138.12.41", "31/Oct/2026", p) for p in ("/register", "/contact", "/forgot-password") * 20)
+        self.add(acc("11.138.12.41", "31/Oct/2026", "23:31:00", "/", 301, GOOGLEBOT))
+        out = self.enquete("11.138.12.41")
+        self.assertIn("Propriétaire du bloc d'adresses : TC-DATACENTER-LIMITED (nom du réseau ; organisation RDAP « Admin », sans information", out)
+        self.assertIn("Serveur loué chez un hébergeur : TC-DATACENTER-LIMITED", out)
+        self.assertIn("Type d'adresse : hébergeur (TC-DATACENTER-LIMITED)", out)
+        self.assertIn("Verdict : BANNIR", out)
+        self.assertIn("durée : 365 jours (BAN_DAYS_HOSTING) ; hébergeur : TC-DATACENTER-LIMITED", out)
+        self.assertIn("Commande : nginx-log-audit.sh --ban 11.138.12.41", out)
+        self.assertIn("Score 3/7 : bannissement recommandé.", out)       # the --ban gate still finds its line
+
+    def test_278_robot_qui_se_nomme_banni_lever_puis_bot_blocker(self):
+        ua = "Mozilla/5.0 (X11; Linux x86_64) Chrome/120.0 Safari/537.36 (widget_v1/1.0)"
+        self.add(*(acc("11.54.244.135", "01/Oct/2026", f"19:34:3{k}", p, 404, ua) for k, p in enumerate(("/careers", "/jobs", "/join-us", "/en_CA/careers"))))
+        with open(os.path.join(self.d, "rules"), "w") as f:
+            f.write("INPUT -s 11.54.244.135 -j DROP\n")
+        out = self.enquete("11.54.244.135")
+        self.assertIn("Verdict : LEVER LE BANNISSEMENT", out)
+        self.assertIn("il se nomme dans son User-Agent : widget_v1", out)
+        self.assertIn("ajouter widget_v1 à nginx/conf.d/bot_blocker.conf", out)
+        self.assertIn("nature probable : robot d'offres d'emploi", out)
+        self.assertIn("Commande : nginx-log-audit.sh --unban 11.54.244.135", out)
+
+    def test_278_robot_deja_refuse_et_robot_libre_non_banni(self):
+        self.add(acc("11.66.33.79", "27/Sep/2026", "19:48:00", "/rss", 403, "webzio (+https://webz.io/bot.html)"),
+                 acc("11.66.33.79", "27/Sep/2026", "19:48:01", "/feed", 200, "FeedSniffer/2.0"))
+        out = self.enquete("11.66.33.79")
+        self.assertIn("Verdict : REFUSER LE ROBOT PAR SON NOM", out)
+        self.assertIn("déjà refusé par son nom dans bot_blocker.conf : webzio", out)
+        self.assertIn("ajouter FeedSniffer à nginx/conf.d/bot_blocker.conf", out)
+        self.assertIn("nature probable : découverte de flux RSS", out)
+
+    def test_278_moteur_verifie_ne_pas_bannir(self):
+        self.add(acc("66.249.66.1", "27/Sep/2026", "10:00:00", "/", 200, GOOGLEBOT))
+        out = self.enquete("66.249.66.1")
+        self.assertIn("Verdict : NE PAS BANNIR", out)
+        self.assertIn("moteur de recherche vérifié", out)
+
+    def test_278_sortie_tor_reconnue(self):
+        self.add(acc("11.66.6.6", "27/Sep/2026", "10:00:00", "/", 200))
+        out = self.enquete("11.66.6.6")
+        self.assertRegex(out, r"Type d'adresse : sortie Tor \(liste officielle du projet Tor du \d{4}-\d\d-\d\d \d\d:\d\d\)")
+        self.assertIn("sortie Tor : partagée par de nombreux utilisateurs", out)
+        self.assertIn("11.66.6.6", open(self.env["NGINX_TOOLS_TOR_CACHE"]).read())
+
+    def test_278_plusieurs_adresses_et_synthese(self):
+        with open(os.path.join(self.logs, "odoo-catchall-444.log"), "w") as f:
+            f.writelines(catchall("11.138.12.41", "31/Oct/2026", "/register") for _ in range(10))
+        self.add(acc("11.138.12.41", "31/Oct/2026", "23:31:00", "/", 301, GOOGLEBOT), acc("11.9.8.7", "31/Oct/2026", "10:00:00", "/", 200))
+        out = self.enquete("11.138.12.41", "11.9.8.7")
+        synthese = out[out.index("SYNTHÈSE DES 2 ADRESSES ENQUÊTÉES"):]
+        self.assertRegex(synthese, r"11\.138\.12\.41\s+BANNIR")
+        self.assertRegex(synthese, r"11\.9\.8\.7\s+AUCUNE ACTION")
+        self.assertIn("  nginx-log-audit.sh --ban 11.138.12.41", synthese)
+        self.assertEqual(out.count("ANALYSE ET RECOMMANDATION"), 2)
+        out2 = self.enquete("11.138.12.41,11.9.8.7")
+        self.assertIn("SYNTHÈSE DES 2 ADRESSES ENQUÊTÉES", out2)
+
+    def test_278_vpn_module_partage(self):
+        import importlib.util
+        spec = importlib.util.spec_from_file_location("_vpn", os.path.join(os.path.dirname(self.prog), "apps", "_vpn.py"))
+        v = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(v)
+        self.assertEqual(v.owner_label("Admin", "TC-DATACENTER-LIMITED"), "TC-DATACENTER-LIMITED")
+        self.assertEqual(v.owner_label("Vultr Holdings, LLC", "NET-1"), "Vultr Holdings, LLC")
+        self.assertEqual(v.kind_of("Tefincom S.A.", "NORDVPN"), ("VPN", "NordVPN"))
+        self.assertEqual(v.kind_of("Admin", "TC-DATACENTER-LIMITED"), ("Hosting", "TC-DATACENTE"))
+        self.assertIsNone(v.kind_of("Bell Canada", "BELL-NET"))
+        cache = os.path.join(self.d, "tor-unit.txt")
+        with open(cache, "w") as f:
+            f.write("1.2.3.4\n")
+        from unittest import mock
+        with mock.patch.dict(os.environ, {"PATH": self.env["PATH"]}):     # the fake curl of this test
+            os.utime(cache, (0, 0))                                      # too old: refresh tried; curl gives the list
+            exits, date = v.tor_exits(cache)
+            self.assertIn("11.66.6.6", exits)
+            self.mock_exit("curl", 1)
+            os.utime(cache, (0, 0))
+            exits, _ = v.tor_exits(cache)                                 # download fails: the previous list is kept
+            self.assertIn("11.66.6.6", exits)
+
+
+for _classe in (ChkNginxLogs272, ChkNginxLogs273, ChkNginxLogs274, ChkNginxLogs278):
     for _nom in [n for n in vars(ChkNginxLogs) if n.startswith("test")]:
         setattr(_classe, _nom, None)                                      # same fixtures as ChkNginxLogs, without running its tests twice

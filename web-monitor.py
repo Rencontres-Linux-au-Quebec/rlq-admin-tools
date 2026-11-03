@@ -85,7 +85,7 @@ import time
 import unicodedata
 import urllib.parse
 
-__version__ = "2.85.20261101.231500"
+__version__ = "2.86.20261102.224544"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
@@ -2642,32 +2642,13 @@ def seen_text(minute, short=True):
 IP_LOOKUPS_PER_ACCOUNT = 5            # addresses of an account looked up: its most used ones (logins) and the latest seen
 IP_LOOKUP_TIMEOUT_S = 8
 IP_LOOKUP_THREADS = 8
-# Owner of the block (RDAP organisation and network name) -> (kind, short name; empty: the owner's first word). The first match wins.
-# Kinds: VPN, Tor, Relay (iCloud Private Relay, Cloudflare WARP: the user's real address is hidden too), Hosting (data center: the exit of most VPNs
-# and proxies - a person does not browse from a data center, a VPN does).
-VPN_OWNERS = (
-    (r"nordvpn|tefincom", "VPN", "NordVPN"), (r"surfshark", "VPN", "Surfshark"), (r"expressvpn|express vpn", "VPN", "ExpressVPN"),
-    (r"proton ?(ag|vpn|technologies)", "VPN", "Proton"), (r"mullvad|31173 services", "VPN", "Mullvad"), (r"private internet access", "VPN", "PIA"),
-    (r"cyberghost", "VPN", "CyberGhost"), (r"ipvanish", "VPN", "IPVanish"), (r"windscribe", "VPN", "Windscribe"), (r"hide\.?me\b|eventure", "VPN", "hide.me"),
-    (r"purevpn|gz systems", "VPN", "PureVPN"), (r"torguard|vpnetworks", "VPN", "TorGuard"), (r"vyprvpn|golden frog", "VPN", "VyprVPN"),
-    (r"hotspot shield|\bpango\b", "VPN", "HotspotShield"), (r"tunnelbear", "VPN", "TunnelBear"), (r"astrill", "VPN", "Astrill"), (r"airvpn", "VPN", "AirVPN"),
-    (r"\bivpn\b|privatus", "VPN", "IVPN"), (r"perfect privacy", "VPN", "PerfectPrivacy"), (r"\bovpn\b", "VPN", "OVPN"), (r"privado", "VPN", "Privado"),
-    (r"strongvpn", "VPN", "StrongVPN"), (r"vpn", "VPN", ""),
-    (r"torservers|tor[-_ ]?exit|emerald onion|applied privacy|calyx institute|tor project", "Tor", ""),
-    (r"private[-_ ]?relay", "Relay", "iCloud"), (r"cloudflare", "Relay", "Cloudflare"), (r"fastly", "Relay", "Fastly"),
-    (r"m247", "Hosting", "M247"), (r"datacamp|cdn77", "Hosting", "DataCamp"), (r"packethub", "Hosting", "PacketHub"), (r"clouvider", "Hosting", "Clouvider"),
-    (r"zenlayer", "Hosting", "Zenlayer"), (r"leaseweb", "Hosting", "Leaseweb"), (r"\bovh", "Hosting", "OVH"), (r"hetzner", "Hosting", "Hetzner"),
-    (r"digitalocean|digital ocean", "Hosting", "DigitalOcean"), (r"amazon|\baws\b", "Hosting", "Amazon"), (r"google (llc|cloud)|google-cloud|googlecloud", "Hosting", "Google"),
-    (r"microsoft|azure", "Hosting", "Microsoft"), (r"linode|akamai", "Hosting", "Akamai"), (r"vultr|choopa|constant company", "Hosting", "Vultr"),
-    (r"contabo", "Hosting", "Contabo"), (r"scaleway|online s\.?a\.?s", "Hosting", "Scaleway"), (r"hostinger", "Hosting", "Hostinger"), (r"psychz", "Hosting", "Psychz"),
-    (r"xtom", "Hosting", "xTom"), (r"tzulo", "Hosting", "Tzulo"), (r"performive", "Hosting", "Performive"), (r"gsl networks", "Hosting", "GSL"),
-    (r"datapacket", "Hosting", "DataPacket"), (r"quadranet", "Hosting", "QuadraNet"), (r"colocrossing", "Hosting", "ColoCrossing"), (r"worldstream", "Hosting", "WorldStream"),
-    (r"frantech|buyvm|ponynet", "Hosting", "BuyVM"), (r"g-?core", "Hosting", "G-Core"), (r"stark industries", "Hosting", "Stark"), (r"\baeza\b", "Hosting", "Aeza"),
-    (r"alibaba|aliyun", "Hosting", "Alibaba"), (r"tencent", "Hosting", "Tencent"), (r"oracle", "Hosting", "Oracle"), (r"ionos|1&1", "Hosting", "IONOS"),
-    (r"netcup", "Hosting", "netcup"), (r"hivelocity", "Hosting", "Hivelocity"),
-    (r"hosting|hoster|data ?cent(er|re)|datacent|\bvps\b|colocation|server", "Hosting", ""))
-VPN_OWNERS_RE = [(re.compile(pattern), kind, name) for pattern, kind, name in VPN_OWNERS]
-VPN_PRIORITY = {"VPN": 4, "Tor": 4, "Relay": 2, "Hosting": 1}
+# 2.86: the owners of VPN, Tor, relay and hosting blocks (VPN_OWNERS, VPN_PRIORITY) live in apps/_vpn.py, shared with nginx-log-audit.sh --investigate.
+# Module missing or broken: no VPN guess (the column shows "-"), never an error.
+try:
+    _VPN = _load_module("_vpn")
+    VPN_OWNERS_RE, VPN_PRIORITY = _VPN.VPN_OWNERS_RE, _VPN.VPN_PRIORITY
+except Exception:  # noqa: BLE001
+    _VPN, VPN_OWNERS_RE, VPN_PRIORITY = None, [], {"VPN": 4, "Tor": 4, "Relay": 2, "Hosting": 1}
 
 
 def public_address(ip):
@@ -2727,13 +2708,9 @@ def owner_name(owner):
 def vpn_kind(owner):
     """(kind, short name) of the owner of an address block — VPN, Tor, Relay, Hosting (see VPN_OWNERS) — or None: an access provider (home, mobile),
     a company, a school… A guess from the NAME of the owner, not a proof: a VPN on a network of unknown name is not seen."""
-    if not owner:
+    if not owner or _VPN is None:
         return None
-    text_value = " ".join(owner.get(k) or "" for k in ("organisation", "reseau")).lower()
-    for pattern, kind, name in VPN_OWNERS_RE:
-        if pattern.search(text_value):
-            return kind, name or owner_name(owner)
-    return None
+    return _VPN.kind_of(owner.get("organisation"), owner.get("reseau"))         # 2.86: apps/_vpn.py
 
 
 def account_lookups(v, seen):

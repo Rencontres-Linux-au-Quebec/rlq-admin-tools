@@ -30,6 +30,23 @@ L'indice **serveur loué** est coché quand le DNS inverse désigne un hébergeu
 
 Les refus produits par nos règles nginx sont journalisés dans `blocked-probes.log`, pas dans les journaux des sites ; les enquêtes et les preuves le lisent aussi (« Requêtes REFUSÉES par nginx »), sinon une adresse bannie semblerait n'avoir fait aucune requête.
 
+## Verdict et recommandation de `--investigate`
+
+`--investigate` se termine par **ANALYSE ET RECOMMANDATION** : il relit l'enquête comme le ferait une personne et donne un seul verdict, ses raisons et la commande à lancer.
+
+| Verdict | Quand |
+|---|---|
+| NE PAS BANNIR / LEVER LE BANNISSEMENT | adresse protégée (liste blanche, lieu protégé), moteur de recherche vérifié, compte Odoo connecté, nœud d'un CDN |
+| BANNIR / GARDER LE BANNISSEMENT | signe fort (fichiers sensibles, erreurs en masse, faux moteur, capteur catch-all) ou score au seuil avec un signe d'hostilité ; la durée selon la provenance est indiquée |
+| LAISSER À FAIL2BAN | signe fort, mais score sous le seuil : un bannissement au pare-feu demanderait une exception |
+| REFUSER LE ROBOT PAR SON NOM | aucun signe d'hostilité, mais le robot se nomme dans son User-Agent (« CareerScout/1.0 », « webzio (+https://...) ») absent de `bot_blocker.conf` : le refuser par son nom suit le robot quand il change d'adresse |
+| LEVER LE BANNISSEMENT | adresse bannie sans signe d'hostilité : fail2ban rattrape seul une nouvelle rafale |
+| AUCUNE ACTION | rien à signaler |
+
+S'y ajoutent des notes : nom déjà refusé dans `bot_blocker.conf`, nature probable des requêtes (offres d'emploi, flux RSS, formulaires), **type d'adresse** (VPN, sortie Tor, relais, hébergeur, d'après le propriétaire du bloc et la liste officielle des sorties Tor, mise en cache un jour), adresse de fournisseur d'accès, bannissements fail2ban et CrowdSec en cours. Le pays n'est pas un critère : c'est celui du serveur, pas de la personne. Quand l'organisation RDAP ne dit rien (« Admin »), le nom du réseau est affiché à sa place.
+
+Plusieurs adresses d'un coup : `nginx-log-audit.sh --investigate 203.0.113.7 198.51.100.4` (ou `203.0.113.7,198.51.100.4`). Chaque adresse est enquêtée à tour de rôle, puis une **synthèse** donne le verdict de chacune et les commandes à lancer (`--ban`, `--unban`), qui vérifient de nouveau et demandent confirmation.
+
 ## Revue quotidienne des bannissements manuels (`--unban-check`)
 
 `--unban-check` (lancé en root) réévalue chaque bannissement manuel avec les règles actuelles et propose de lever ceux qui ne sont plus justifiés. Ses verdicts :
