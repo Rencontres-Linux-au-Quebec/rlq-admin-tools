@@ -2357,3 +2357,279 @@ msgstr " request(s) refused - not counted as hostility"
 
 msgid "          Un client légitime (éditeur Odoo, rafale d'images) peut en recevoir : vérifier la zone avant tout bannissement."
 msgstr "          A legitimate client (Odoo editor, burst of images) can receive some: check the zone before any ban."
+
+msgid " (propriétaire du bloc, RDAP ; DNS inverse : "
+msgstr " (owner of the address block, RDAP; reverse DNS: "
+
+msgid ") — pas une connexion d'internaute"
+msgstr ") — not a home Internet connection"
+
+msgid "      [i] Comptes Odoo actifs pendant ces requêtes : non recherchés (aucune page de connexion, de compte client ni du back-office demandée :"
+msgstr "      [i] Odoo accounts active during these requests: not searched (no login, customer account or back office page requested:"
+
+msgid "          rien ne relie cette adresse à une session ; Odoo ne note pas l'adresse IP des sessions)."
+msgstr "          nothing links this address to a session; Odoo does not record the IP address of sessions)."
+
+msgid "--unban-expired|Lever les bannissements échus|Lift expired bans|0"
+msgstr ""
+
+msgid "  --ban-days N                 avec --ban : durée de CE bannissement en jours, quelle que soit la provenance (0 : sans expiration)"
+msgstr "  --ban-days N                 with --ban: duration of THIS ban in days, whatever the origin (0: no expiry)"
+
+msgid "  --ban-days-hosting N         durée d'un bannissement d'une adresse d'hébergeur ou de nuage, en jours (défaut : 365 ; 0 : sans expiration)"
+msgstr "  --ban-days-hosting N         duration of a ban of a hosting or cloud address, in days (default: 365; 0: no expiry)"
+
+msgid "  --ban-days-isp N             durée d'un bannissement d'une adresse de fournisseur d'accès, en jours (défaut : 90 ; 0 : sans expiration)"
+msgstr "  --ban-days-isp N             duration of a ban of an access provider address, in days (default: 90; 0: no expiry)"
+
+msgid "  --ban-days-other N           durée d'un bannissement d'une adresse de provenance inconnue, en jours (défaut : 365 ; 0 : sans expiration)"
+msgstr "  --ban-days-other N           duration of a ban of an address of unknown origin, in days (default: 365; 0: no expiry)"
+
+msgid "  --unban-cdn                  lever les bannissements des adresses Cloudflare (aperçu, puis confirmation)"
+msgstr "  --unban-cdn                  lift the bans of Cloudflare addresses (preview, then confirmation)"
+
+msgid "  --unban-expired              lever les bannissements manuels dont l'échéance est passée (aperçu, puis confirmation ; lancé chaque jour par cron)"
+msgstr "  --unban-expired              lift the manual bans whose expiry date has passed (preview, then confirmation; run every day by cron)"
+
+msgid " attend un nombre de jours entre 0 et 36500 (reçu: '"
+msgstr " expects a number of days between 0 and 36500 (got: '"
+
+msgid "ERREUR: --ban-days s'utilise avec --ban IP (durée de ce bannissement)."
+msgstr "ERROR: --ban-days goes with --ban IP (duration of that ban)."
+
+msgid "provenance inconnue"
+msgstr "unknown origin"
+
+msgid "hébergeur : "
+msgstr "hosting provider: "
+
+msgid "fournisseur d'accès : "
+msgstr "access provider: "
+
+msgid "provenance inconnue : "
+msgstr "unknown origin: "
+
+msgid "échéance non fixée (--unban-expired la calcule)"
+msgstr "expiry not set (--unban-expired computes it)"
+
+msgid "sans expiration (durée 0)"
+msgstr "no expiry (duration 0)"
+
+msgid "échéance "
+msgstr "expires "
+
+msgid "Échéances : "
+msgstr "Expiry: "
+
+msgid " écrit (levée des bannissements échus chaque jour à 04:23 ; journal /var/log/nginx-log-audit-expiry.log)."
+msgstr " written (expired bans lifted every day at 04:23; log /var/log/nginx-log-audit-expiry.log)."
+
+msgid "Échéance fixée : "
+msgstr "Expiry set: "
+
+msgid ") — les mêmes requêtes en sont la cause"
+msgstr ") — the same requests are the cause"
+
+msgid " requête(s) d'injection SQL dans le journal du site (UNION SELECT, EXTRACTVALUE...)"
+msgstr " SQL injection request(s) in the site log (UNION SELECT, EXTRACTVALUE...)"
+
+msgid "aucune"
+msgstr "none"
+
+msgid "Preuves : pas de raison contraire trouvée"
+msgstr "Evidence: no reason against found"
+
+msgid " (le bannissement exige aussi un score de 3/7 dans l'enquête)."
+msgstr " (the ban also needs a score of 3/7 in the investigation)."
+
+msgid " ; levée : nginx-log-audit.sh --unban "
+msgstr "; lift: nginx-log-audit.sh --unban "
+
+msgid "échéance fixée"
+msgstr "expiry set"
+
+msgid " — sans expiration"
+msgstr " — no expiry"
+
+msgid " — échéance "
+msgstr " — expires "
+
+msgid "échéance"
+msgstr "expiry"
+
+msgid "Score [0-9]/7 : bannissement recommandé"
+msgstr ""
+
+msgid "LES PREUVES NE JUSTIFIENT PAS CE BANNISSEMENT (verdict des preuves : "
+msgstr "THE EVIDENCE DOES NOT JUSTIFY THIS BAN (verdict of the evidence: "
+
+msgid " ; l'enquête ne recommande pas le bannissement, score inférieur à 3/7)."
+msgstr "; the investigation does not recommend the ban, score below 3/7)."
+
+msgid "Refusé. Pour une exception : --reason TEXTE, puis taper BANNIR dans un terminal (--yes ne suffit pas)."
+msgstr "Refused. For an exception: --reason TEXT, then type BANNIR in a terminal (--yes is not enough)."
+
+msgid "Refusé : une exception exige un terminal (taper BANNIR à la main)."
+msgstr "Refused: an exception needs a terminal (type BANNIR by hand)."
+
+msgid "Exception demandée (justification : "
+msgstr "Exception requested (justification: "
+
+msgid "). Tapez exactement BANNIR en majuscules pour bannir malgré tout."
+msgstr "). Type exactly BANNIR in capitals to ban anyway."
+
+msgid "par ce pare-feu), immédiatement et sans expiration ("
+msgstr "by this firewall), immediately and with no expiry ("
+
+msgid "=0) — jusqu'à un --unban explicite."
+msgstr "=0) — until an explicit --unban."
+
+msgid "par ce pare-feu), immédiatement, jusqu'au "
+msgstr "by this firewall), immediately, until "
+
+msgid " jours, "
+msgstr " days, "
+
+msgid ") ou un --unban explicite."
+msgstr ") or an explicit --unban."
+
+msgid "Un vrai visiteur derrière cette IP (rare mais possible si l'IP a changé de main entre-temps) serait bloqué"
+msgstr "A real visitor behind this IP (rare but possible if the IP changed hands meanwhile) would be blocked"
+
+msgid "exactement pareil qu'un attaquant."
+msgstr "exactly like an attacker."
+
+msgid "ERREUR: --ban-sqli n'accepte pas --yes : chaque adresse est vérifiée et confirmée une à une (--ban IP pour une seule)."
+msgstr "ERROR: --ban-sqli does not accept --yes: each address is checked and confirmed one by one (--ban IP for a single one)."
+
+msgid "Aucune adresse bannie : --ban-sqli demande une confirmation par adresse, dans un terminal."
+msgstr "No address banned: --ban-sqli asks for a confirmation per address, in a terminal."
+
+msgid " : vérification et question individuelle (--ban) --"
+msgstr ": individual check and question (--ban) --"
+
+msgid "[NON BANNIE]"
+msgstr "[NOT BANNED]"
+
+msgid " : non banni (preuves insuffisantes, refus, ou réponse négative)."
+msgstr ": not banned (insufficient evidence, refusal, or negative answer)."
+
+msgid " requête(s) d'injection SQL dans les journaux — le garder."
+msgstr " SQL injection request(s) in the logs — keep it."
+
+msgid "ERREUR: --unban-expired nécessite root (sudo)."
+msgstr "ERROR: --unban-expired needs root (sudo)."
+
+msgid " BANNISSEMENTS MANUELS ÉCHUS (échéance passée)"
+msgstr " EXPIRED MANUAL BANS (expiry date passed)"
+
+msgid "Durées : hébergeur "
+msgstr "Durations: hosting provider "
+
+msgid " j (BAN_DAYS_HOSTING), fournisseur d'accès "
+msgstr " d (BAN_DAYS_HOSTING), access provider "
+
+msgid " j (BAN_DAYS_ISP), inconnue "
+msgstr " d (BAN_DAYS_ISP), unknown "
+
+msgid " j (BAN_DAYS_OTHER) ; 0 = sans expiration."
+msgstr " d (BAN_DAYS_OTHER); 0 = no expiry."
+
+msgid "Aucun bannissement manuel en place."
+msgstr "No manual ban in place."
+
+msgid "Banni le"
+msgstr "Banned on"
+
+msgid "Échéance"
+msgstr "Expiry"
+
+msgid "Décision"
+msgstr "Decision"
+
+msgid "date inconnue (absente du journal) : inchangé"
+msgstr "date unknown (not in the journal): unchanged"
+
+msgid "échéance calculée : "
+msgstr "expiry computed: "
+
+msgid " jours après le bannissement ("
+msgstr " days after the ban ("
+
+msgid "date illisible : inchangé"
+msgstr "unreadable date: unchanged"
+
+msgid "sans expiration : inchangé"
+msgstr "no expiry: unchanged"
+
+msgid "échue : à lever"
+msgstr "expired: to lift"
+
+msgid "échéance atteinte (bannie le "
+msgstr "expiry reached (banned on "
+
+msgid ", échéance "
+msgstr ", expiry "
+
+msgid "en vigueur"
+msgstr "in force"
+
+msgid " bannissement(s) sans date dans le journal : « nginx-log-audit.sh --ban IP --reason TEXTE » leur fixe une échéance à partir d'aujourd'hui."
+msgstr " ban(s) without a date in the journal: \"nginx-log-audit.sh --ban IP --reason TEXT\" sets their expiry from today."
+
+msgid "Aucun bannissement échu : rien à lever."
+msgstr "No expired ban: nothing to lift."
+
+msgid " bannissement(s) échu(s) à lever."
+msgstr " expired ban(s) to lift."
+
+msgid "Aperçu seulement : relancer dans un terminal pour confirmer, ou avec --yes pour lever sans question."
+msgstr "Preview only: run again in a terminal to confirm, or with --yes to lift without a question."
+
+msgid " bannissements échus ? [o/N] "
+msgstr " expired bans? [y/N] "
+
+msgid "Aucune levée : réponse négative."
+msgstr "Nothing lifted: negative answer."
+
+msgid " levée(s), "
+msgstr " lifted, "
+
+msgid " échec(s)."
+msgstr " failed."
+
+msgid "ERREUR: --unban-cdn nécessite root (sudo)."
+msgstr "ERROR: --unban-cdn needs root (sudo)."
+
+msgid "ERREUR: plages Cloudflare introuvables : "
+msgstr "ERROR: Cloudflare ranges not found: "
+
+msgid " (lancer le programme depuis le dépôt)."
+msgstr " (run the program from the repository)."
+
+msgid " BANNISSEMENTS D'ADRESSES CLOUDFLARE (aperçu : rien n'est encore levé)"
+msgstr " BANS OF CLOUDFLARE ADDRESSES (preview: nothing lifted yet)"
+
+msgid "Aucune IP bannie n'appartient aux plages Cloudflare : rien à lever."
+msgstr "No banned IP belongs to the Cloudflare ranges: nothing to lift."
+
+msgid "[ATTN] nginx ne lit pas encore CF-Connecting-IP (cdn-realip.conf absent ou vide) : nginx voit l'adresse du nœud Cloudflare,"
+msgstr "[ATTN] nginx does not read CF-Connecting-IP yet (cdn-realip.conf missing or empty): nginx sees the address of the Cloudflare node,"
+
+msgid "       et une levée peut être suivie d'un nouveau bannissement. Déployer d'abord : nginx-hardening.sh --update --cdn cloudflare"
+msgstr "       and a lift may be followed by a new ban. Deploy first: nginx-hardening.sh --update --cdn cloudflare"
+
+msgid "protégée : jamais levée"
+msgstr "protected: never lifted"
+
+msgid "à lever"
+msgstr "to lift"
+
+msgid "Toutes les adresses Cloudflare bannies sont protégées : rien à lever."
+msgstr "All the banned Cloudflare addresses are protected: nothing to lift."
+
+msgid " bannissement(s) à lever (aperçu : aucune modification faite)."
+msgstr " ban(s) to lift (preview: no change made)."
+
+msgid "bannissement Cloudflare levé (--unban-cdn)"
+msgstr "Cloudflare ban lifted (--unban-cdn)"

@@ -12,6 +12,14 @@
 #ANONYMIZE=no
 # --app (défaut : détectée automatiquement)
 #APP=
+# --ban-days-hosting: duration in days of a firewall ban of a hosting or cloud address (AWS, Vultr, OVH...), recognized by the reverse DNS
+# or the owner of the block (RDAP). Such an address changes tenant over time: the ban expires. 0 = no expiry.
+#BAN_DAYS_HOSTING=365
+# --ban-days-isp: duration in days for an access provider address (subscriber line: reassigned more often). 0 = no expiry.
+#BAN_DAYS_ISP=90
+# --ban-days-other: duration in days for an address of unknown origin. 0 = no expiry.
+# The expiry date is written in bans.tsv when banning; --unban-expired lifts the expired bans (cron /etc/cron.d/nginx-log-audit-expiry, every day).
+#BAN_DAYS_OTHER=365
 # --ban-threshold
 #BAN_THRESHOLD=3
 # en, fr ou auto (suivre LC_ALL / LC_MESSAGES / LANG). Ordre de choix : --lang, NGINX_TOOLS_LANG, NGINX_LOG_AUDIT_LANG, cette clé, LC_ALL, LC_MESSAGES, LANG.
@@ -30,6 +38,7 @@
 
 # --- Options de la ligne de commande SEULEMENT (actions ou réglages ponctuels : aucune clé ici) ---
 # Les voici, pour mémoire (« nginx-log-audit --help » donne le détail). Elles se donnent sur la ligne de commande, jamais dans ce fichier.
+#   --ban-days N          with --ban: duration of THIS ban in days, whatever the origin (0: no expiry)
 #   --ban-history         journal des bannissements et levées manuels (date, heure, IP, justification, origine), lecture seule
 #   --changelog           affiche le journal des modifications
 #   --compare [FICHIER]   compare les 24 dernières heures aux 24 précédentes (codes, blocages, IP, chemins), écrit dans FICHIER (mode 600) ; lecture seule
@@ -47,7 +56,9 @@
 #   --report-err          afficher à la fin un rapport d'erreurs à copier-coller (programme, version, serveur, échecs, avertissements)
 #   --stats               statistiques du trafic (codes, IP, User-Agents, appareils des visiteurs)
 #   --unban IP            lever un bannissement manuel
+#   --unban-cdn           lift the bans of Cloudflare addresses (preview, then confirmation)
 #   --unban-check         réévaluer chaque bannissement manuel (levée proposée si injustifié)
+#   --unban-expired       lift the manual bans whose expiry date has passed (preview, then confirmation; run every day by cron)
 #   --unban-low-score     lister les IP bannies que --unban-check recommande de lever, et proposer de les débannir
 #   --version             affiche la version et quitte
 #   --yes                 avec --ban : bannir sans question

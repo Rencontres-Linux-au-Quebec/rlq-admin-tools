@@ -24,6 +24,8 @@ Chaque `--ban` et `--unban` enregistre dans `~/.local/state/nginx-log-audit/bans
 
 `--investigate IP` commence par la section **Bannissements** : état actuel (règle du pare-feu, jails fail2ban avec début et fin, liste CrowdSec) et historique chronologique (journal des bannissements manuels et `fail2ban.log` avec ses rotations), puis, pour chaque jail en cause, sa raison et ce que l'adresse a fait (pages refusées de `blocked-probes.log`, requêtes au capteur catch-all...). Une adresse bloquée seulement par fail2ban ou par la liste CrowdSec n'apparaît pas dans `--unban-check`, qui ne traite que les bannissements manuels.
 
+L'indice **serveur loué** est coché quand le DNS inverse désigne un hébergeur (AWS, OVH, Hetzner...) ; avec `--investigate`, il l'est aussi quand le **propriétaire du bloc d'adresses** (RDAP) en est un, même si le DNS inverse ne le montre pas (exemple : Vultr derrière un nom quelconque). La liste des **comptes Odoo actifs** pendant les requêtes n'est cherchée que si l'adresse a demandé une page de session (connexion, back-office, compte client, discussion) : Odoo ne note pas l'adresse IP des sessions, et pour un robot qui ne lit que des pages publiques cette coïncidence d'horaire désignerait des membres à tort. Les connexions trouvées dans le journal d'Odoo pour l'adresse elle-même restent toujours affichées.
+
 Les refus produits par nos règles nginx sont journalisés dans `blocked-probes.log`, pas dans les journaux des sites ; les enquêtes et les preuves le lisent aussi (« Requêtes REFUSÉES par nginx »), sinon une adresse bannie semblerait n'avoir fait aucune requête.
 
 ## Revue quotidienne des bannissements manuels (`--unban-check`)
@@ -42,6 +44,22 @@ Pour le lancer chaque matin, en root :
 ```
 0 7 * * * root /root/scripts/nginx-log-audit.sh prod --unban-check --no-prompt
 ```
+
+## Durée des bannissements (échéance)
+
+Un bannissement au pare-feu n'est plus permanent : une adresse change de main avec le temps (une instance de nuage passe à un autre client, une ligne d'abonné à un autre abonné). Sa durée dépend de la **provenance** de l'adresse, décidée au bannissement :
+
+| Provenance | Reconnue par | Clé (option) | Défaut |
+|---|---|---|---|
+| hébergeur, nuage | DNS inverse (AWS, OVH, Vultr...) ou propriétaire du bloc (RDAP) | `BAN_DAYS_HOSTING` (`--ban-days-hosting`) | 365 jours |
+| fournisseur d'accès | DNS inverse d'une ligne d'abonné (dsl, cable, pool, dyn..., ou l'adresse écrite dans le nom) | `BAN_DAYS_ISP` (`--ban-days-isp`) | 90 jours |
+| inconnue | aucun des deux | `BAN_DAYS_OTHER` (`--ban-days-other`) | 365 jours |
+
+`0` = sans expiration. `--ban IP --ban-days N` fixe la durée de ce bannissement seulement, quelle que soit la provenance. L'échéance et la provenance sont écrites dans `bans.tsv` (colonnes 6 et 7) et affichées par `--investigate` et `--ban-history`.
+
+`--unban-expired` (root) affiche chaque bannissement manuel avec sa date, son échéance et la décision, puis demande une seule confirmation (`--yes` : aucune) et lève ceux dont l'échéance est passée, par `--unban` (journal et règles persistantes mis à jour). Un bannissement enregistré avant la version 2.73 reçoit une échéance calculée depuis sa date de bannissement, écrite une fois dans le journal. Une règle absente du journal (posée à la main) n'a pas de date connue : elle reste en place ; `--ban IP --reason TEXTE` lui fixe une échéance à partir d'aujourd'hui.
+
+`--ban` et `--unban-expired` écrivent `/etc/cron.d/nginx-log-audit-expiry`, qui lance `--unban-expired --yes` chaque jour à 4 h 23 (journal : `/var/log/nginx-log-audit-expiry.log`).
 
 ## Options
 {{HELP}}
