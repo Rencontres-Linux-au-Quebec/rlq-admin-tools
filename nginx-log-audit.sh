@@ -146,7 +146,7 @@ grep_q() { grep "$@" >/dev/null; }
 #                              ne peut pas le voir, le texte etant entre apostrophes (faux positif).
 trap 'ec=$?; echo "" >&2; echo "*** ARRÊT INATTENDU DU SCRIPT (code $ec) À LA LIGNE $LINENO ***" >&2; echo "*** Commande fautive : $BASH_COMMAND" >&2; echo "*** Si le rapport ci-dessus semble incomplet (ex. sections Top 10 absentes), c'\''est probablement la cause." >&2' ERR
 
-readonly SCRIPT_VERSION="2.79.20261102.230844"
+readonly SCRIPT_VERSION="2.80.20261102.233751"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
 # Chemin de ce programme (relances --investigate, --ban, --unban) : defini ICI, avant le bloc --ban qui l'utilise.
 SELF_PATH="$SCRIPT_DIR/$(basename "${BASH_SOURCE[0]}")"
@@ -3116,7 +3116,11 @@ recommander() {
             raisons+=("le score de l'enquête ($INV_SCORE/7) est sous le seuil de $BAN_THRESHOLD : un bannissement au pare-feu demanderait une exception (--reason, puis BANNIR)")
         fi
     else
-        (( INV_HOSTILE == 0 )) && raisons+=("aucun signe d'hostilité (fichiers sensibles, erreurs en masse, faux moteur, capteur catch-all)")
+        if (( INV_TOTAL == 0 && ${INV_NCA:-0} == 0 )); then
+            raisons+=("aucune trace dans les journaux conservés (site, refus de nginx, capteur catch-all) : rien ne justifie plus ce bannissement")
+        elif (( INV_HOSTILE == 0 )); then
+            raisons+=("aucun signe d'hostilité (fichiers sensibles, erreurs en masse, faux moteur, capteur catch-all)")
+        fi
         (( INV_HOSTILE > 0 )) && raisons+=("une seule rafale de pages, sans signe fort : un robot qui lit vite, pas une attaque")
         if [[ -n "$noms_libres" ]]; then
             raisons+=("il se nomme dans son User-Agent : $noms_libres")
@@ -3206,6 +3210,53 @@ if [[ -n "$INVESTIGATE_IP" ]]; then
     if [[ "$INV_PROPOSER" == "1" && "$INV_VERDICT" == BANNIR && "$NO_PROMPT" != "1" && -t 0 && -t 1 && "$EUID" -eq 0 ]]; then confirm_and_ban "$INVESTIGATE_IP"; fi
     exit 0
 fi
+
+# enquetes_compactes IP... (2.80, section 6 of --unban-check): runs nginx-log-audit.sh --investigate for each address (this program, --no-prompt), shows
+# only its block ANALYSE ET RECOMMANDATION, then a summary table and the commands to run. At most UNBAN_CHECK_INVESTIGATIONS addresses (20 by default).
+enquetes_compactes() {
+    local -a ips=("$@") args
+    local max="${UNBAN_CHECK_INVESTIGATIONS:-20}" resume ip sortie bloc ligne verdict raison i=0 cmds
+    echo
+    echo "${C_BOLD}6) Enquêtes sur ces bannissements (lancées par ce programme : verdict et recommandation de --investigate)${C_RESET}"
+    if (( ${#ips[@]} > max )); then
+        echo "   ${C_YELLOW}[i]${C_RESET} ${#ips[@]} adresses : les $max premières seulement (UNBAN_CHECK_INVESTIGATIONS) ; les autres : commandes de la section 5."
+        ips=("${ips[@]:0:$max}")
+    fi
+    resume=$(mktemp)
+    for ip in "${ips[@]}"; do
+        i=$((i + 1))
+        progres "Enquête $i/${#ips[@]} : $ip (nginx-log-audit.sh --investigate)"
+        args=(--investigate "$ip" --no-prompt)
+        [[ -n "${ENV:-}" ]] && args=("$ENV" "${args[@]}")
+        [[ -n "$APP_FORCE" ]] && args+=(--app "$APP_FORCE")
+        # French output whatever the display language: the block is found by its French title, then translated with the rest of this output.
+        sortie=$(INV_RESUME_FILE="$resume" NGINX_TOOLS_LANG=fr bash "$SELF_PATH" "${args[@]}" 2>&1) || true
+        bloc=$(printf '%s\n' "$sortie" | sed -n '/ANALYSE ET RECOMMANDATION/,$p' | sed '1d')
+        echo "   ${C_YELLOW}▶ $ip${C_RESET}"
+        if [[ -n "$bloc" ]]; then
+            printf '%s\n' "$bloc" | sed '/^[[:space:]]*$/d' | sed 's/^/   /'
+        else
+            echo "     (enquête sans verdict : nginx-log-audit.sh --investigate $ip --no-prompt)"
+        fi
+    done
+    echo
+    echo "   Synthèse :"
+    printf '     %-40s %-30s %s\n' "IP" "Verdict" "Raison principale"
+    for ip in "${ips[@]}"; do
+        ligne=$(grep -F "|$ip|" "$resume" | tail -1)
+        IFS='|' read -r _ _ verdict raison _ <<< "$ligne"
+        printf '     %-40s %-30s %s\n' "$ip" "${verdict:-(enquête incomplète)}" "$(printf '%s' "${raison%% ; *}" | cut -c1-90)"
+    done
+    cmds=$(awk -F'|' '$3 == "BANNIR" { print "     nginx-log-audit.sh --ban " $2 } $3 == "LEVER LE BANNISSEMENT" { print "     nginx-log-audit.sh --unban " $2 }' "$resume" | sort -u)
+    echo
+    if [[ -n "$cmds" ]]; then
+        echo "   Commandes à lancer (chacune vérifie de nouveau et demande confirmation) :"
+        printf '%s\n' "$cmds"
+    else
+        echo "   Aucune commande à lancer : ni bannissement ni levée recommandés."
+    fi
+    rm -f "$resume"
+}
 
 # --- --unban-check : other points to re-check every day (read-only; this program runs them and shows the commands) ------
 # Each check prints [OK], [ATTN] or [FAIL] and the command that shows the same thing by hand. The section can be copied
@@ -3297,8 +3348,15 @@ revue_controles() {
             echo "       grep -h -F \"$ip\" ${FAIL2BAN_LOG_FILE:-/var/log/fail2ban.log}*"
         done
     fi
-    echo
-    echo "   Pour une relecture : copiez les sections 1 à 5 de ce rapport."
+    # 6) 2.80: the investigations of those bans, run by this program (the full report of each: the command of section 5).
+    if (( ${#REVOIR_IPS[@]} > 0 )); then
+        enquetes_compactes "${REVOIR_IPS[@]}"
+        echo
+        echo "   Pour une relecture : copiez les sections 1 à 6 de ce rapport."
+    else
+        echo
+        echo "   Pour une relecture : copiez les sections 1 à 5 de ce rapport."
+    fi
 }
 
 # --- --unban-check : reevalue chaque bannissement manuel avec la logique ACTUELLE, sur tout l'historique --------------

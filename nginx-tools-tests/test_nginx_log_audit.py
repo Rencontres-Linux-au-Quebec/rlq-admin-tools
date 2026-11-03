@@ -781,6 +781,13 @@ class ChkNginxLogs(EnvTest):
         self.assertIn("nginx-log-audit.sh --investigate 198.51.100.97 --no-prompt", revue)
         self.assertIn("1) Adresses de l'équipe", revue)
         self.assertIn("5) Bannissements à vérifier à la main", revue)
+        # 2.80: section 6, the investigation run by the program itself, its verdict and the command to run
+        enquetes = revue[revue.index("6) Enquêtes sur ces bannissements"):]
+        self.assertIn("▶ 198.51.100.97", enquetes)
+        self.assertIn("Verdict : LEVER LE BANNISSEMENT", enquetes)
+        self.assertRegex(enquetes, r"Synthèse :\n\s+IP\s+Verdict\s+Raison principale\n\s+198\.51\.100\.97\s+LEVER LE BANNISSEMENT")
+        self.assertIn("nginx-log-audit.sh --unban 198.51.100.97", enquetes)
+        self.assertIn("copiez les sections 1 à 6", enquetes)
 
     @unittest.skipUnless(os.geteuid() == 0, "--unban-check exige root")
     def test_unban_check_leve_meme_si_le_fichier_n_est_pas_executable(self):

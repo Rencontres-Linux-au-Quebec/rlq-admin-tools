@@ -58,6 +58,8 @@ Plusieurs adresses d'un coup : `nginx-log-audit.sh --investigate 203.0.113.7 198
 
 Après la liste, la section **AUTRES POINTS À RE-VÉRIFIER** lance des contrôles en lecture seule et affiche la commande de chacun : adresses de l'équipe parmi les bannissements, jails fail2ban, adresses refusées par nginx qui ont aussi reçu des pages normales (faux positif possible), journaux utilisés, et les commandes à lancer à la main pour chaque adresse à vérifier. Ses sections 1 à 5 peuvent être copiées telles quelles pour une relecture.
 
+Section **6** (2.80) : le programme lance lui-même `--investigate` pour chaque adresse de la section 5 (20 au plus, variable `UNBAN_CHECK_INVESTIGATIONS`) et n'affiche que son bloc **ANALYSE ET RECOMMANDATION** (verdict, raisons, commande), puis une synthèse et les commandes `--ban` ou `--unban` à lancer. Le rapport complet d'une adresse : la commande de la section 5.
+
 Pour le lancer chaque matin, en root :
 
 ```
