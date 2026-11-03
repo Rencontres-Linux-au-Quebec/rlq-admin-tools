@@ -55,7 +55,7 @@
 #   --reason TEXT         justification de --ban / --unban, enregistrée avec la date et l'heure dans bans.tsv
 #   --report-err          afficher à la fin un rapport d'erreurs à copier-coller (programme, version, serveur, échecs, avertissements)
 #   --stats               statistiques du trafic (codes, IP, User-Agents, appareils des visiteurs)
-#   --unban IP            lever un bannissement manuel
+#   --unban IP            lever tous les bannissements de IP : pare-feu, jails fail2ban, liste CrowdSec
 #   --unban-cdn           lever les bannissements des adresses Cloudflare (aperçu, puis confirmation)
 #   --unban-check         réévaluer chaque bannissement manuel (levée proposée si injustifié)
 #   --unban-expired       lever les bannissements manuels dont l'échéance est passée (aperçu, puis confirmation ; lancé chaque jour par cron)

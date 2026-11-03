@@ -45,9 +45,9 @@
 #                        independent of the existing fail2ban jails: none of them watches the catch-all sensor,
 #                        which is typically the justification for a manual ban by volume. Idempotent
 #                        (never duplicates a rule already present).
-#   - --unban IP      : removes a ban set by --ban (ufw or iptables). Asks for confirmation like
-#                        --ban (skipped with --yes). No effect on a fail2ban ban - use
-#                        "fail2ban-client set <jail> unbanip IP" for those.
+#   - --unban IP      : (2.74) lifts EVERY ban of IP: manual firewall rule (ufw or iptables), the fail2ban jails that hold it (found by
+#                        the program), the CrowdSec community list (ipset, and an exception in /etc/default/sync-crowdsec-blocklist.allow so that
+#                        the next synchronisation does not block it again). Asks for confirmation like --ban (skipped with --yes).
 #   - --ban-days N    : (2.73) duration in days of THIS ban, whatever the origin of the address (0 = no expiry). Without it, the duration
 #                        depends on the origin: --ban-days-hosting (BAN_DAYS_HOSTING, default 365: hosting provider, cloud), --ban-days-isp
 #                        (BAN_DAYS_ISP, default 90: access provider, address reassigned more often), --ban-days-other (BAN_DAYS_OTHER, default
@@ -143,7 +143,7 @@ grep_q() { grep "$@" >/dev/null; }
 #                              ne peut pas le voir, le texte etant entre apostrophes (faux positif).
 trap 'ec=$?; echo "" >&2; echo "*** ARRÊT INATTENDU DU SCRIPT (code $ec) À LA LIGNE $LINENO ***" >&2; echo "*** Commande fautive : $BASH_COMMAND" >&2; echo "*** Si le rapport ci-dessus semble incomplet (ex. sections Top 10 absentes), c'\''est probablement la cause." >&2' ERR
 
-readonly SCRIPT_VERSION="2.73.20261102.214543"
+readonly SCRIPT_VERSION="2.74.20261102.220025"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
 # Chemin de ce programme (relances --investigate, --ban, --unban) : defini ICI, avant le bloc --ban qui l'utilise.
 SELF_PATH="$SCRIPT_DIR/$(basename "${BASH_SOURCE[0]}")"
@@ -362,7 +362,7 @@ Options (par ordre alphabétique) :
                                échecs, avertissements) ; désactive couleurs et questions interactives
   --stats                      statistiques du trafic (codes, IP, User-Agents, appareils des visiteurs)
   --ua-rotation-threshold N    identités de robots différentes pour l'indice « double identité »
-  --unban IP                   lever un bannissement manuel (justification demandée)
+  --unban IP                   lever TOUS les bannissements de IP : pare-feu, jails fail2ban, liste CrowdSec (justification demandée)
   --unban-cdn                  lever les bannissements des adresses Cloudflare (aperçu, puis confirmation)
   --unban-check                réévaluer chaque bannissement manuel (levée proposée si injustifié)
   --unban-expired              lever les bannissements manuels dont l'échéance est passée (aperçu, puis confirmation ; lancé chaque jour par cron)
@@ -1540,7 +1540,11 @@ if [[ -n "$BAN_IP" ]]; then
     exit 0
 fi
 
-# --- --unban IP: lifts a manual ban set by --ban (ufw or iptables) ---
+# --- --unban IP: lifts EVERY ban of the address (2.74): manual firewall rule (ufw or iptables), fail2ban jails (each jail found by itself),
+# CrowdSec community list (ipset; the address is added to the exception file of sync-crowdsec-blocklist.sh, otherwise the next synchronisation
+# would block it again). NGINX_LOG_AUDIT_UNBAN_SCOPE=manual (set by --unban-check and --unban-expired, which judge the manual ban only): the manual
+# rule alone, as before 2.74.
+CROWDSEC_ALLOW_FILE="${SYNC_CROWDSEC_ALLOW_FILE:-/etc/default/sync-crowdsec-blocklist.allow}"
 if [[ -n "$UNBAN_IP" ]]; then
     if [[ "$EUID" -ne 0 ]]; then
         echo "ERREUR: --unban nécessite root (sudo)." >&2
@@ -1550,33 +1554,58 @@ if [[ -n "$UNBAN_IP" ]]; then
         echo "ERREUR: '$UNBAN_IP' ne ressemble pas à une adresse IP valide." >&2
         exit 1
     fi
+    unban_manuel_seul=0
+    [[ "${NGINX_LOG_AUDIT_UNBAN_SCOPE:-}" == manual ]] && unban_manuel_seul=1
 
     echo "=============================================================="
-    echo " LEVÉE DE BANNISSEMENT MANUEL : $UNBAN_IP"
+    if (( unban_manuel_seul )); then
+        echo " LEVÉE DE BANNISSEMENT MANUEL : $UNBAN_IP"
+    else
+        echo " LEVÉE DE TOUS LES BANNISSEMENTS : $UNBAN_IP"
+    fi
     echo "=============================================================="
 
-    already_banned=0
-    if command -v ufw >/dev/null 2>&1 && run ufw status 2>/dev/null | grep_q -F "$UNBAN_IP"; then
-        already_banned=1
+    # What bans the address: manual rule, fail2ban jails, CrowdSec sets.
+    manuel_present=0
+    if command -v ufw >/dev/null 2>&1 && run ufw status 2>/dev/null | grep_q -F "$UNBAN_IP"; then manuel_present=1; fi
+    if command -v iptables >/dev/null 2>&1 && run iptables -C INPUT -s "$UNBAN_IP" -j DROP 2>/dev/null; then manuel_present=1; fi
+    if command -v ip6tables >/dev/null 2>&1 && [[ "$UNBAN_IP" == *:* ]] && run ip6tables -C INPUT -s "$UNBAN_IP" -j DROP 2>/dev/null; then manuel_present=1; fi
+    UNBAN_JAILS=(); UNBAN_SETS=()
+    if (( ! unban_manuel_seul )); then
+        if command -v fail2ban-client >/dev/null 2>&1 && run fail2ban-client ping >/dev/null 2>&1; then
+            for j in $(run fail2ban-client status 2>/dev/null | sed -n 's/.*Jail list:[[:space:]]*//p' | tr ',' ' '); do
+                if run fail2ban-client status "$j" 2>/dev/null | sed -n 's/.*Banned IP list:[[:space:]]*//p' | tr ' ' '\n' | grep_q -xF -- "$UNBAN_IP"; then
+                    UNBAN_JAILS+=("$j")
+                fi
+            done
+        fi
+        if command -v ipset >/dev/null 2>&1; then
+            for set_cs in crowdsec-blocklist-v4 crowdsec-blocklist-v6; do
+                run ipset test "$set_cs" "$UNBAN_IP" >/dev/null 2>&1 && UNBAN_SETS+=("$set_cs")
+            done
+        fi
     fi
-    if command -v iptables >/dev/null 2>&1 && run iptables -C INPUT -s "$UNBAN_IP" -j DROP 2>/dev/null; then
-        already_banned=1
-    fi
-    if [[ "$already_banned" == "0" ]]; then
-        echo "${C_YELLOW}Aucune règle de bannissement manuel (ufw/iptables) trouvée pour $UNBAN_IP — rien à lever.${C_RESET}"
-        echo "(Si cette IP a été bannie par fail2ban plutôt que par --ban, utilisez :"
-        echo " fail2ban-client set <jail> unbanip $UNBAN_IP)"
+    if (( manuel_present == 0 && ${#UNBAN_JAILS[@]} == 0 && ${#UNBAN_SETS[@]} == 0 )); then
+        if (( unban_manuel_seul )); then
+            echo "${C_YELLOW}Aucune règle de bannissement manuel (ufw/iptables) trouvée pour $UNBAN_IP — rien à lever.${C_RESET}"
+        else
+            echo "${C_YELLOW}Aucun bannissement trouvé pour $UNBAN_IP (pare-feu manuel, jails fail2ban, liste CrowdSec) — rien à lever.${C_RESET}"
+        fi
         exit 0
     fi
-
-    echo "Ceci va retirer le blocage pare-feu pour $UNBAN_IP — le trafic de cette IP redeviendra possible"
+    echo "Bannissements trouvés pour $UNBAN_IP :"
+    (( manuel_present )) && echo "  - pare-feu : règle manuelle (ufw ou iptables)"
+    for j in "${UNBAN_JAILS[@]}"; do echo "  - fail2ban : jail $j — $(raison_jail "$j")"; done
+    for set_cs in "${UNBAN_SETS[@]}"; do echo "  - liste CrowdSec : ipset $set_cs (l'adresse sera ajoutée à $CROWDSEC_ALLOW_FILE pour ne pas être rebloquée)"; done
+    echo
+    echo "Ceci va retirer ces blocages pour $UNBAN_IP — le trafic de cette IP redeviendra possible"
     echo "immédiatement. Ne faites ça que si vous êtes sûr que ce bannissement était une erreur (IP mal notée,"
-    echo "IP réattribuée à un usage légitime depuis) — sinon l'IP reste bloquée jusqu'à expiration naturelle ou"
-    echo "un futur --unban."
+    echo "IP réattribuée à un usage légitime depuis). Un jail fail2ban peut la bannir de nouveau si elle"
+    echo "recommence ce qui l'a fait bannir."
 
     if [[ "$ASSUME_YES" != "1" ]]; then
         echo
-        if ! demander_oui "Confirmer la levée du bannissement de $UNBAN_IP ? [o/N] "; then echo "Annulé."; exit 0; fi
+        if ! demander_oui "Confirmer la levée des bannissements de $UNBAN_IP ? [o/N] "; then echo "Annulé."; exit 0; fi
         echo
         echo "Justification de la levée (enregistrée avec la date et l'heure ; Entrée accepte la proposition) :"
         BAN_REASON=$(demander_texte "> " "$BAN_REASON")
@@ -1584,36 +1613,74 @@ if [[ -n "$UNBAN_IP" ]]; then
     BAN_REASON=$(nettoyer_texte "$BAN_REASON")
     [[ -z "$BAN_REASON" ]] && BAN_REASON="automatique : aucune justification fournie"
 
-    removed=0
-    if command -v ufw >/dev/null 2>&1 && run ufw status 2>/dev/null | grep_q -F "$UNBAN_IP"; then
-        run ufw delete deny from "$UNBAN_IP" >/dev/null 2>&1 && { echo "${C_GREEN}Règle ufw retirée pour $UNBAN_IP.${C_RESET}"; removed=1; }
+    removed=0; leves=(); echecs=0
+    if (( manuel_present )); then
+        if command -v ufw >/dev/null 2>&1 && run ufw status 2>/dev/null | grep_q -F "$UNBAN_IP"; then
+            run ufw delete deny from "$UNBAN_IP" >/dev/null 2>&1 && { echo "${C_GREEN}Règle ufw retirée pour $UNBAN_IP.${C_RESET}"; removed=1; }
+        fi
+        for ipt in iptables ip6tables; do
+            command -v "$ipt" >/dev/null 2>&1 || continue
+            attempts=0
+            while run "$ipt" -C INPUT -s "$UNBAN_IP" -j DROP 2>/dev/null; do
+                if run "$ipt" -D INPUT -s "$UNBAN_IP" -j DROP 2>/dev/null; then
+                    echo "${C_GREEN}Règle $ipt retirée pour $UNBAN_IP.${C_RESET}"
+                    removed=1
+                else
+                    echo "${C_RED}Échec lors du retrait de la règle $ipt pour $UNBAN_IP.${C_RESET}" >&2
+                    break
+                fi
+                attempts=$((attempts + 1))
+                if (( attempts >= 20 )); then
+                    echo "${C_YELLOW}Arrêt de sécurité après 20 tentatives (répétitions inattendues).${C_RESET}" >&2
+                    break
+                fi
+            done
+        done
+        if (( removed )); then leves+=("pare-feu"); else
+            echo "${C_RED}Une règle manuelle avait été détectée pour $UNBAN_IP mais son retrait a échoué — vérifiez manuellement.${C_RESET}" >&2
+            echecs=$((echecs + 1))
+        fi
     fi
-    if command -v iptables >/dev/null 2>&1; then
-        attempts=0
-        while run iptables -C INPUT -s "$UNBAN_IP" -j DROP 2>/dev/null; do
-            if run iptables -D INPUT -s "$UNBAN_IP" -j DROP 2>/dev/null; then
-                echo "${C_GREEN}Règle iptables retirée pour $UNBAN_IP.${C_RESET}"
-                removed=1
+    for j in "${UNBAN_JAILS[@]}"; do
+        if run fail2ban-client set "$j" unbanip "$UNBAN_IP" >/dev/null 2>&1; then
+            echo "${C_GREEN}fail2ban : $UNBAN_IP levée du jail $j.${C_RESET}"; leves+=("fail2ban $j")
+        else
+            echo "${C_RED}fail2ban : échec de la levée de $UNBAN_IP dans le jail $j (fail2ban-client set $j unbanip $UNBAN_IP).${C_RESET}" >&2
+            echecs=$((echecs + 1))
+        fi
+    done
+    if (( ${#UNBAN_SETS[@]} > 0 )); then
+        # Exception first: without it, the next synchronisation of the community list blocks the address again.
+        if ! grep -qsxF -- "$UNBAN_IP" <(sed -e 's/#.*//' -e 's/[[:space:]]//g' "$CROWDSEC_ALLOW_FILE" 2>/dev/null); then
+            if printf '%s  # %s nginx-log-audit.sh --unban : %s\n' "$UNBAN_IP" "$(date '+%Y-%m-%d %H:%M')" "$BAN_REASON" >> "$CROWDSEC_ALLOW_FILE" 2>/dev/null; then
+                echo "${C_GREEN}Liste CrowdSec : $UNBAN_IP ajoutée aux exceptions ($CROWDSEC_ALLOW_FILE) : jamais rebloquée par la synchronisation.${C_RESET}"
             else
-                echo "${C_RED}Échec lors du retrait de la règle iptables pour $UNBAN_IP.${C_RESET}" >&2
-                break
+                echo "${C_RED}Liste CrowdSec : impossible d'écrire $CROWDSEC_ALLOW_FILE — la prochaine synchronisation rebloquera $UNBAN_IP.${C_RESET}" >&2
+                echecs=$((echecs + 1))
             fi
-            attempts=$((attempts + 1))
-            if (( attempts >= 20 )); then
-                echo "${C_YELLOW}Arrêt de sécurité après 20 tentatives (répétitions inattendues).${C_RESET}" >&2
-                break
+        fi
+        for set_cs in "${UNBAN_SETS[@]}"; do
+            if run ipset del "$set_cs" "$UNBAN_IP" >/dev/null 2>&1; then
+                echo "${C_GREEN}Liste CrowdSec : $UNBAN_IP retirée de l'ipset $set_cs.${C_RESET}"; leves+=("CrowdSec $set_cs")
+            else
+                echo "${C_RED}Liste CrowdSec : échec du retrait de $UNBAN_IP de l'ipset $set_cs.${C_RESET}" >&2
+                echecs=$((echecs + 1))
             fi
         done
     fi
-    if [[ "$removed" -eq 0 ]]; then
-        echo "${C_RED}Une règle avait été détectée pour $UNBAN_IP mais son retrait a échoué — vérifiez manuellement.${C_RESET}" >&2
-    else
-        note_ban leve "$UNBAN_IP"
+    if (( ${#leves[@]} > 0 )); then
+        # One line in the journal; the sources lifted come first in the justification (the manual-ban history and web-monitor.py read "leve").
+        BAN_NOTE="levé : $(printf '%s, ' "${leves[@]}" | sed 's/, $//')" note_ban leve "$UNBAN_IP"
         echo "Justification enregistrée ($(date '+%Y-%m-%d %H:%M')) : $BAN_REASON"
-        # Sans resauvegarde, l'ancienne sauvegarde persistante contiendrait encore la regle retiree : l'IP
-        # redeviendrait bannie au prochain redemarrage.
-        persist_firewall
+        # Without saving again, the persistent backup would still contain the rule or the ipset entry removed: the address would be
+        # banned again at the next reboot. (fail2ban chains are excluded from that backup.)
+        if (( removed )) || (( ${#UNBAN_SETS[@]} > 0 )); then persist_firewall; fi
     fi
+    if (( echecs > 0 )); then
+        echo "${C_RED}$UNBAN_IP : $echecs levée(s) en échec — voir ci-dessus.${C_RESET}" >&2
+        exit 1
+    fi
+    echo "${C_GREEN}$UNBAN_IP n'est plus bannie : $(printf '%s, ' "${leves[@]}" | sed 's/, $//').${C_RESET}"
     exit 0
 fi
 
@@ -2527,7 +2594,7 @@ decide_unban() {
     echo "        (Gardez-le si vous l'aviez banni pour une raison connue qui n'apparaît pas dans ces journaux.)"
     if [[ "$NO_PROMPT" != "1" && "$MODE_EVALUATION" != "1" && -t 0 && -t 1 && "$EUID" -eq 0 ]]; then
         if demander_oui "      Lever le bannissement de $ip maintenant ? [o/N] "; then
-            relancer_action --unban "$ip" --yes --reason "réévaluation (--unban-check) : $raison"
+            NGINX_LOG_AUDIT_UNBAN_SCOPE=manual relancer_action --unban "$ip" --yes --reason "réévaluation (--unban-check) : $raison"
             UNBAN_VERDICT="levé"
         elif [[ "$DEMANDER_INTERROMPU" == "1" ]]; then
             echo "      (Ctrl-C : bannissement conservé, la réévaluation continue)"
@@ -2759,7 +2826,7 @@ if [[ "$DO_UNBAN_EXPIRED" == "1" ]]; then
     fi
     n_ok=0; n_ko=0
     for i in "${!EXP_LIFT[@]}"; do
-        relancer_action --unban "${EXP_LIFT[$i]}" --yes --reason "${EXP_WHY[$i]}"
+        NGINX_LOG_AUDIT_UNBAN_SCOPE=manual relancer_action --unban "${EXP_LIFT[$i]}" --yes --reason "${EXP_WHY[$i]}"      # the expiry concerns the manual ban only
         if list_manual_bans | grep -qxF -- "${EXP_LIFT[$i]}"; then n_ko=$((n_ko + 1)); else n_ok=$((n_ok + 1)); fi      # relancer_action never fails: check the rule
     done
     echo "$n_ok levée(s), $n_ko échec(s)."
