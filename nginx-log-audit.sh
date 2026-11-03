@@ -146,7 +146,7 @@ grep_q() { grep "$@" >/dev/null; }
 #                              ne peut pas le voir, le texte etant entre apostrophes (faux positif).
 trap 'ec=$?; echo "" >&2; echo "*** ARRÊT INATTENDU DU SCRIPT (code $ec) À LA LIGNE $LINENO ***" >&2; echo "*** Commande fautive : $BASH_COMMAND" >&2; echo "*** Si le rapport ci-dessus semble incomplet (ex. sections Top 10 absentes), c'\''est probablement la cause." >&2' ERR
 
-readonly SCRIPT_VERSION="2.83.20261103.071054"
+readonly SCRIPT_VERSION="2.84.20261103.081135"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
 # Chemin de ce programme (relances --investigate, --ban, --unban) : defini ICI, avant le bloc --ban qui l'utilise.
 SELF_PATH="$SCRIPT_DIR/$(basename "${BASH_SOURCE[0]}")"
@@ -3137,6 +3137,7 @@ nature_requetes() {
 recommander() {
     local ip="$INV_IP" verdict="" cmd="" prot="" cdn=0 nom noms_libres="" noms_refuses="" nature duree j
     local -a raisons=() notes=()
+    local nforms=0
     local banni_local=$(( ETAT_PARE_FEU || ${#ETAT_JAILS[@]} > 0 )) banni cs_seul=0       # 2.82: banni_local = firewall rule or fail2ban jail; cs_seul = only the CrowdSec list blocks
     banni=$banni_local ; [[ -n "$ETAT_CROWDSEC" ]] && banni=1
     (( banni_local == 0 )) && [[ -n "$ETAT_CROWDSEC" ]] && cs_seul=1
@@ -3209,6 +3210,10 @@ recommander() {
     fi
     [[ -n "$noms_refuses" ]] && notes+=("déjà refusé par son nom dans bot_blocker.conf : $noms_refuses (ses requêtes reçoivent un 403)")
     [[ -n "$nature" ]] && notes+=("nature probable : $nature")
+    # 2.84: requests to the password reset and sign-up forms (shown red in app-log-live.py). Information only: a crawler that follows the links of the login page
+    # reads these forms (GET) without submitting anything; the logs of the sites do not tell a form shown from a form submitted, so no hostility score is added.
+    nforms=$(printf '%s\n' "$INV_URLS" | tr '\001' '\n' | awk '$2 ~ /^(\/[a-z][a-z](_[A-Z][A-Z])?)?\/web\/(reset_password|signup)/ { s += $1 } END { print s + 0 }') || nforms=0
+    (( nforms >= 10 )) && notes+=("formulaires de compte : $nforms requêtes à /web/reset_password ou /web/signup (mot de passe oublié, inscription) ; un robot qui suit les liens de la page de connexion les lit sans rien soumettre, mais les journaux ne distinguent pas un formulaire affiché d'un formulaire envoyé : vérifier les connexions échouées d'Odoo si l'adresse n'est pas un robot connu")
     case "$VPN_TYPE" in
         Tor) notes+=("sortie Tor : partagée par de nombreux utilisateurs ; un bannissement temporaire (fail2ban) convient mieux qu'un bannissement long") ;;
         VPN) notes+=("VPN ($VPN_NOM) : les autres clients de ce VPN partagent l'adresse") ;;

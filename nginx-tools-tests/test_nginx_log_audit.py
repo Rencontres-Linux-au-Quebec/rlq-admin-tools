@@ -414,6 +414,20 @@ class ChkNginxLogs(EnvTest):
         self.assertNotIn("awk:", out + err)
         self.assertIn("découverte de flux RSS", out)
 
+    def test_284_formulaires_de_compte_signales_sans_score(self):
+        """2.84 : 10 requêtes ou plus à /web/reset_password et /web/signup sont signalées dans l'analyse (information), sans ajouter de signe d'hostilité."""
+        ip = "11.68.110.88"
+        self.add(*(acc(ip, "27/Sep/2026", f"03:{k // 60:02d}:{k % 60:02d}", u, 200, "SofyaBot/1.0 (+https://sofya.co/bot)")
+                   for k, u in enumerate(["/web/reset_password", "/fr/web/reset_password", "/web/signup", "/en_CA/web/signup?redirect=%2Fblog%2Fa"] * 4)))
+        rc, out, err = self.run_cmd(["bash", self.prog, "prod", "--investigate", ip, "--no-prompt"])
+        self.assertEqual(rc, 0, out + err)
+        self.assertIn("formulaires de compte : 16 requêtes à /web/reset_password ou /web/signup", out)
+        self.assertIn("Signes d'hostilité : 0", out)
+        ip2 = "11.68.110.89"
+        self.add(*(acc(ip2, "27/Sep/2026", f"04:00:0{k}", "/web/signup", 200, "Mozilla/5.0") for k in range(3)))
+        _, out2, _ = self.run_cmd(["bash", self.prog, "prod", "--investigate", ip2, "--no-prompt"])
+        self.assertNotIn("formulaires de compte", out2, "sous 10 requêtes : pas de note")
+
     def test_signe_d_hostilite_toujours_propose(self):
         """Un vrai scanner (recherches de .env, .git… en 403) reste proposé : la nouvelle règle ne rate pas les attaques."""
         for p in ("/.env", "/.git/HEAD", "/wp-login.php", "/phpmyadmin/", "/config.php"):

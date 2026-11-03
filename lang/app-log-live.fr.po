@@ -3023,3 +3023,12 @@ msgstr "Non proposées (verdict de nginx-log-audit.sh --investigate) :"
 
 msgid "investigation"
 msgstr "enquête"
+
+msgid "Account forms "
+msgstr "Formulaires de compte "
+
+msgid " request(s) from "
+msgstr " requête(s) de "
+
+msgid " address(es) (password reset, sign-up) — "
+msgstr " adresse(s) (mot de passe oublié, inscription) — "

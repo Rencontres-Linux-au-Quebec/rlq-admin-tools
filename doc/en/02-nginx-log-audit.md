@@ -32,6 +32,8 @@ Refusals produced by our nginx rules are logged to `blocked-probes.log`, not to 
 
 `--unban-low-score` (2.81) investigates (like `--investigate`) each address whose lift `--unban-check` recommends, **before** lifting it: the verdict and the reasons are shown, and an address is lifted only if the investigation says "LEVER LE BANNISSEMENT" (otherwise it stays banned, even with `--yes`, with a message that points to `--investigate`).
 
+Since 2.84, the analysis reports, as information only (no hostility point), 10 or more requests to `/web/reset_password` or `/web/signup`: the logs do not tell a form shown from a form sent, and a robot that follows the links of the login page reads them without submitting anything.
+
 An address blocked **only** by the CrowdSec community list gets the verdict "LAISSER À CROWDSEC" (2.82), with no lift command: the list comes from other servers, and the absence of a local trace does not clear it. `--unban` also removes the CrowdSec list (permanent exception in `sync-crowdsec-blocklist.allow`); the lift recommendation for a manual ban warns about it when CrowdSec blocks too.
 
 ## Verdict and recommendation of `--investigate`

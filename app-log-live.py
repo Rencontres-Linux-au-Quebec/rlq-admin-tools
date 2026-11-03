@@ -119,7 +119,7 @@ from urllib.parse import unquote, urlsplit
 from collections import Counter, OrderedDict
 from concurrent.futures import Future
 
-__version__ = "1.156.20261102.235216"
+__version__ = "1.157.20261103.081106"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
@@ -273,6 +273,7 @@ WERKZEUG_DATE_RE = re.compile(r"^(.*? - - )\[\d{2}/\w{3}/\d{4} \d{2}:\d{2}:\d{2}
 DATE_ISO_RE = re.compile(r"^(.*? - - )\[(\d{4})-(\d{2})-(\d{2}) (\d{2}):(\d{2}):(\d{2})\] (\".*)$")
 STATUS_RE = re.compile(r'"(?:GET|POST|HEAD|PUT|DELETE|OPTIONS|PATCH|CONNECT|TRACE)\s.*"\s(\d{3})\b')
 LOGIN_PATH_RE = re.compile(r'(?<=[\s"])(/(?:[a-z]{2}(?:_[A-Z]{2})?/)?web/(?:login|session/(?:authenticate|logout)|reset_password|signup)[^\s"]*)')
+ACCOUNT_FORM_RE = re.compile(r"/(?:[a-z]{2}(?:_[A-Z]{2})?/)?web/(?:reset_password|signup)(?![\w-])")      # 1.157: password reset and sign-up forms: red reverse video, counted per address
 LOGOUT_RE = re.compile(r'"(?:GET|POST)\s/(?:[a-z]{2}(?:_[A-Z]{2})?/)?web/session/logout[^"]*"')
 LOGIN_OK_RE = re.compile(r"(Login successful) for db:\S+ (login:\S+)")
 LOGIN_FAILED_RE = re.compile(r"(Login failed|Login attempt failed|authentication failed)\b(?: for db:\S+ (login:\S+))?", re.I)
@@ -347,7 +348,7 @@ STYLES = {"nginx": "1;35", "person": "1;32", "team": "1;32", "place": "1;36", "s
           "failure": "1;" + ORANGE, "error": "1;31", "warning": ORANGE, "debug": "2", "highlight": "30;46",
           # INVERSE VIDEO (7): suspicious request; URL of a 5xx (red) or 4xx (yellow) error. Whitelist address (white background) or places file address (gray background):
           # EXPLICIT background AND text (black), never "7;90" (inverted gray): on a theme where bright black is black, the address became black on black
-          "suspect": "7;35", "url_critical": "7;91", "url_warning": "7;93", "blanche": "107;30", "place_ip": ("48;5;245" if COLORS_256 else "47") + ";30",
+          "suspect": "7;35", "account": "7;31", "url_critical": "7;91", "url_warning": "7;93", "blanche": "107;30", "place_ip": ("48;5;245" if COLORS_256 else "47") + ";30",
           "accent": "1;97;48;5;18" if COLORS_256 else "1;97;44",       # contact of the --accentuate-group group: bold white on dark blue
           "banned": "1;91", "slow_request": "1;" + ORANGE, "very_slow_request": "1;31", "title": "1;36", "transfer_low": "32", "transfer_mid": "33", "transfer_slow": "1;31"}
 # Duration of an Odoo request (werkzeug): "... 200 - 105 0.046 0.426" = code, size, SQL queries, SQL time, Python time (seconds)
@@ -2076,6 +2077,8 @@ class Formatting:
                 ajouter(r.start(1), r.end(1), color_code(STYLES["suspect"], r.group(1)))              # suspect: the URL as it was sent (%2e%2e stays visible)
             elif code >= 500:
                 ajouter(r.start(1), r.end(1), color_code(STYLES["url_critical"], shown_url))
+        if r and ACCOUNT_FORM_RE.search(r.group(1)):                    # 1.157: password reset / sign-up form: the URL in RED reverse video (before the login style)
+            ajouter(r.start(1), r.end(1), color_code(STYLES["account"], shown_url))
         for m in LOGIN_PATH_RE.finditer(text):
             ajouter(m.start(1), m.end(1), color_code(STYLES["connection"], m.group(1)))
         if r and 400 <= int(r.group(2)) < 500:
@@ -4585,7 +4588,7 @@ def sitemap_report(url, folder=NGINX_LOG_DIR, days=0):
 class Stats:
     """What happened during the session, for the summary (Ctrl-C, --summary) and the dashboard (Ctrl-G, Ctrl-T): most active addresses, suspicious requests,
     5xx and 4xx errors, slow requests, banned addresses, pages per language, most requested URLs, Odoo errors. Counts only the DISPLAYED lines (after --only and --suspect)."""
-    COUNTERS = ("par_ip", "by_name", "suspect_ips", "suspect_urls", "urls", "languages", "statuses", "odoo_errors", "pages", "pages_per_ip", "visits", "probes", "not_found", "gone_404", "unknown_404", "disabled_404", "conflict_codes", "failure_codes")
+    COUNTERS = ("par_ip", "by_name", "suspect_ips", "suspect_urls", "account_ips", "account_urls", "urls", "languages", "statuses", "odoo_errors", "pages", "pages_per_ip", "visits", "probes", "not_found", "gone_404", "unknown_404", "disabled_404", "conflict_codes", "failure_codes")
     VISIT_PAUSE = 1800                                 # seconds without a page view after which the return of an address is a NEW visit
 
     def __init__(self, slowest):
@@ -4600,6 +4603,7 @@ class Stats:
         self.par_ip, self.names = Counter(), {}
         self.by_name = Counter()                                                  # identified name (DNS column, person, team, server…) -> requests; bare addresses not counted
         self.suspect_ips, self.suspect_urls = Counter(), Counter()
+        self.account_ips, self.account_urls = Counter(), Counter()                 # 1.157: requests to the password reset and sign-up forms, per address and per page
         self.list_404 = False                                                      # --not-found: the summary lists ALL the 404 pages
         self.not_found = Counter()                                               # URL -> number of 404 responses
         self.gone_404 = Counter()                 # 1.142 --sitemap: URL listed in sitemap.xml that answers 404 (important: counted in the health)
@@ -4808,6 +4812,9 @@ class Stats:
         elif suspect_url(url):
             self.suspect_ips[ip] += 1
             self.suspect_urls[url] += 1
+        if ACCOUNT_FORM_RE.search(url) and not (ip in self.server or local_address(ip)):
+            self.account_ips[ip] += 1
+            self.account_urls[url.split("?", 1)[0]] += 1
         if code >= 400:
             self.errors[5 if code >= 500 else 4][url] += 1
             self.http_errors.append((L.instant or time.time(), code, url, ip))
@@ -5166,6 +5173,11 @@ class Stats:
                       for name, n in self.by_name.most_common(10))
         if len(self.by_name) > 10:
             blocks.append((5, f"      +{len(self.by_name) - 10} names not shown"))
+        if self.account_ips:                                                      # 1.157: password reset and sign-up forms (a robot that follows the links, or an attempt)
+            blocks.append((4, color_code(STYLES["account"], " Account forms ") + f" {sum(self.account_urls.values())} request(s) from {len(self.account_ips)} address(es) (password reset, sign-up) — "
+                          + self.top(self.account_urls)))
+            blocks.append((4, "      by address: " + " ; ".join(f"{self.who(ip)} " + color_code("1;36", f"×{n}") + (color_code(STYLES["banned"], f" [banned: {self.banned[ip]}]") if ip in self.banned else "")
+                                                               for ip, n in self.account_ips.most_common(5))))
         if self.suspect_ips:
             blocks.append((4, color_code(STYLES["suspect"], " Suspicious requests ") + f" {sum(self.suspect_urls.values())} de {len(self.suspect_ips)} address(es) — "
                           + self.top(self.suspect_urls)))

@@ -115,4 +115,6 @@ app-log-live.py --log-nginx -g ' 404 '           # les réponses 404 de nginx et
 
 * **1.156 - colonne du système** : le User-Agent donne `AND`, `IOS`, `WIN`, `LIN` ou `MAC` ; sans système, le programme qui fait la requête : `CUR` (curl), `PYT` (Python), `WGT` (wget), `GOL` (Go), `JAV` (Java), `PHP`, `NOD` (Node.js), `RUB` (Ruby), `PER` (Perl) ; `OTH` pour tout autre User-Agent.
 
+* **1.157 - formulaires de compte** : une requête à `/web/reset_password` ou `/web/signup` (avec ou sans préfixe de langue) s'affiche en **vidéo inverse rouge**. Le résumé (Ctrl-G, Ctrl-T, Ctrl-C) ajoute la ligne « Formulaires de compte » : nombre de requêtes par adresse (cinq premières) et par page. Un robot qui suit les liens de la page de connexion les lit sans rien soumettre ; ce repère sert à voir une adresse qui les demande en rafale.
+
 {{HELP}}
