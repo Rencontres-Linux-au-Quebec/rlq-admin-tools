@@ -290,6 +290,21 @@ class ChkNginxLogs(EnvTest):
             levees = f.read()
         self.assertIn(f"unbanip {lever}", levees)
         self.assertNotIn(f"unbanip {garder}", levees, "une IP « garder » ne doit jamais être levée")
+        # 2.81: the investigation of each address to lift is run and shown BEFORE the lift, and it confirms it
+        self.assertIn("Enquêtes avant la levée", out)
+        self.assertEqual(out.count("     Verdict : "), 1, "une seule enquête : seule l'IP à lever est enquêtée")
+        self.assertRegex(out, r"\s" + re.escape(lever) + r"\s+LEVER LE BANNISSEMENT\s", out)
+        self.assertLess(out.index("Enquêtes avant la levée"), out.index("levée (jail"))
+        self.assertNotIn("Commandes à lancer", out, "--unban-low-score agit lui-même : pas de commandes à copier")
+
+    def test_unban_low_score_la_levee_exige_le_verdict_de_l_enquete(self):
+        """2.81 : le code ne lève une adresse que si l'enquête dit « LEVER LE BANNISSEMENT », même avec --yes."""
+        with open(self.prog, encoding="utf-8") as f:
+            src = f.read()
+        bloc = src[src.index("# --- --unban-low-score :"):src.index("# --- --unban-expired")]
+        self.assertIn('ENQUETE_VERDICT_OF[$ip]:-}" != "LEVER LE BANNISSEMENT"', bloc)
+        self.assertLess(bloc.index("enquetes_compactes"), bloc.index("ENQUETE_VERDICT_OF[$ip]"))
+        self.assertLess(bloc.index("ENQUETE_VERDICT_OF[$ip]"), bloc.index('if [[ "$ASSUME_YES" == "1" ]]'))
 
     @unittest.skipUnless(os.geteuid() == 0, "--unban-low-score exige root")
     def test_unban_low_score_ordre_numerique_des_ip(self):

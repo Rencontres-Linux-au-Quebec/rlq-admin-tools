@@ -119,7 +119,7 @@ from urllib.parse import unquote, urlsplit
 from collections import Counter, OrderedDict
 from concurrent.futures import Future
 
-__version__ = "1.155.20261102.230844"
+__version__ = "1.156.20261102.235216"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
@@ -1757,6 +1757,11 @@ def display_url(url):
 URL_IN_TEXT_RE = re.compile(r'(https?://[^/\s"]+)([^\s"]*)')      # 1.133: every URL of the text (referer...): the host stays (.RLQ), the path and the query are decoded
 OS_CODES = (("AND", re.compile(r"Android", re.I)), ("IOS", re.compile(r"iPhone|iPad|iPod", re.I)),       # 1.133: 3-letter system of the User-Agent (Android before Linux)
             ("WIN", re.compile(r"Windows", re.I)), ("LIN", re.compile(r"Linux", re.I)), ("MAC", re.compile(r"Macintosh|Mac OS X", re.I)))
+PROGRAM_CODES = (("CUR", re.compile(r"\bcurl\b", re.I)), ("PYT", re.compile(r"python|aiohttp|httpx|scrapy", re.I)),     # 1.156: a User-Agent without a system: the program
+                 ("WGT", re.compile(r"\bwget\b", re.I)), ("GOL", re.compile(r"Go-http-client|\bgolang\b|fasthttp", re.I)),
+                 ("JAV", re.compile(r"\bjava\b|okhttp|apache-httpclient", re.I)), ("PHP", re.compile(r"\bphp\b", re.I)),
+                 ("NOD", re.compile(r"\bnode\b|axios|node-fetch|undici", re.I)), ("RUB", re.compile(r"\bruby\b", re.I)),
+                 ("PER", re.compile(r"libwww-perl|\bperl\b", re.I)))
 NGINX_AGENT_RE = re.compile(r'"[^"]*" "([^"]*)"')                  # 1.133: after the request and the size of an nginx line: the referer, then the User-Agent
 OS_BLANK = "   "
 OS_COLORS = {"LIN": "32", "AND": "36"}                             # 1.136: LIN in green, AND in cyan
@@ -1766,11 +1771,15 @@ HOST_TEXT_RE = re.compile(r'\shost="[^"]*"')                       # 1.145: the 
 
 
 def os_code(agent):
-    """1.133/1.134: AND (Android), IOS (iPhone, iPad, iPod), WIN (Windows), LIN (Linux), MAC (macOS) from the User-Agent; OTH for any other
-    User-Agent; three blanks without User-Agent (Odoo lines, "-" of nginx)."""
+    """1.133/1.134: AND (Android), IOS (iPhone, iPad, iPod), WIN (Windows), LIN (Linux), MAC (macOS) from the User-Agent; 1.156: without a system,
+    the program that makes the request (CUR curl, PYT Python, WGT wget, GOL Go, JAV Java, PHP, NOD Node.js, RUB Ruby, PER Perl); OTH for any
+    other User-Agent; three blanks without User-Agent (Odoo lines, "-" of nginx)."""
     if not agent or agent.strip() in ("", "-"):
         return OS_BLANK
     for code, pattern in OS_CODES:
+        if pattern.search(agent):
+            return code
+    for code, pattern in PROGRAM_CODES:
         if pattern.search(agent):
             return code
     return "OTH"

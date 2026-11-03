@@ -2960,3 +2960,15 @@ msgstr "  Command: "
 
 msgid "Raison principale"
 msgstr "Main reason"
+
+msgid "Enquêtes avant la levée (lancées par ce programme : verdict et recommandation de --investigate)"
+msgstr "Investigations before the lift (run by this program: verdict and recommendation of --investigate)"
+
+msgid " : non levée, l'enquête ne confirme pas la levée (verdict : "
+msgstr " : not lifted, the investigation does not confirm the lift (verdict: "
+
+msgid "). Détail : nginx-log-audit.sh --investigate "
+msgstr "). Details: nginx-log-audit.sh --investigate "
+
+msgid "/7, enquête : lever, banni par "
+msgstr "/7, investigation: lift, banned by "
