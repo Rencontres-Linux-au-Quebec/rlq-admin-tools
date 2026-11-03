@@ -3426,6 +3426,18 @@ Earlier history was archived outside this repository when this file was created.
 
 ## nginx-log-audit.sh
 
+### 2.83.20261103.071054 - awk warnings in the recommendation fixed (static files regex)
+
+- Title: the analysis block of --investigate no longer prints "awk: warning: escape sequence" and the static-file filter of the request nature works as written.
+- Reason: request of the administrator on 2026-11-03: "there is an AWK error" (two warnings "escape sequence `\.' / `\?' treated as plain" before ANALYSE ET RECOMMANDATION).
+- Changes: nature_requetes() passes STATIC_RE to awk through ENVIRON instead of -v. nginx-tools-tests/test_nginx_log_audit.py: new test_283_aucun_avertissement_awk_et_nature_des_requetes.
+- Bugs fixed:
+  - Symptom: two awk warnings in every --investigate output. Diagnosis: awk -v interprets backslash sequences, so \. and \? of STATIC_RE (written for the regex) were changed to . and ?, and the pattern was altered. Fix: ENVIRON, which does not interpret the value (the same method already used at the other STATIC_RE use of the program).
+  - Side effect fixed: with the altered pattern, static files (.js, .png...) were not always set aside, so the nature of the requests (e.g. RSS discovery) could be missed.
+- Safeguards and edge cases: other awk -v regex variables (SQLI_RE) contain no backslash and are unchanged.
+- Checks performed: the new test fails with -v (nature missed) and passes with ENVIRON; test_nginx_log_audit and test_ban_gate run.
+- Action required from the user: none.
+
 ### 2.82.20261103.065758 - CrowdSec alone is no reason to recommend a lift
 
 - Title: an address blocked only by the CrowdSec community list gets the verdict LAISSER À CROWDSEC and no lift command; a lift recommended for a manual ban or fail2ban jail warns that --unban also removes the CrowdSec list.
