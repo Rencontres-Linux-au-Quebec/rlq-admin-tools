@@ -371,6 +371,18 @@ Earlier history was archived outside this repository when this file was created.
 
 ## app-log-live.py
 
+### 1.156.20261102.235216 - System column: the program (CUR, PYT...) replaces OTH
+
+- Title: in the system column of the nginx lines, a User-Agent without a system now shows the program that makes the request (CUR curl, PYT Python, WGT wget, GOL Go, JAV Java, PHP, NOD Node.js, RUB Ruby, PER Perl) instead of OTH.
+- Reason: request of the administrator on 2026-11-02: "for the User-Agent, you show the OS as WIN and OTH for others; replace OTH by the program used, CUR for curl or PYT for Python."
+- Changes:
+  - New table PROGRAM_CODES; os_code() looks at the system first (AND, IOS, WIN, LIN, MAC), then at the program, and keeps OTH for any other User-Agent (browsers of unknown systems, crawlers such as Googlebot).
+  - doc/fr and doc/en 07-app-log-live.md: the codes. nginx-tools-tests/test_app_log_live.py: new class AppLogLive156 (2 tests).
+- Bugs fixed: none.
+- Safeguards and edge cases: the system has priority (a browser User-Agent that mentions a tool name stays WIN or LIN); no User-Agent ("-", Odoo lines) keeps three blanks; the column width does not change (3 characters); words are matched as whole words (curl, wget, java, php, node...) so a name inside another word does not match.
+- Checks performed: test_app_log_live.AppLogLive156; syntax check.
+- Action required from the user: none.
+
 ### 1.155.20261102.230844 - An address is proposed for banning only if nginx-log-audit.sh --investigate recommends it
 
 - Title: the b key, the summary and the background proposal ask nginx-log-audit.sh --investigate, the program that bans, before proposing an address; only its verdict "BANNIR" is proposed, the others are listed with that verdict.
@@ -3413,6 +3425,19 @@ Earlier history was archived outside this repository when this file was created.
 - Current version. Earlier history archived outside the repository.
 
 ## nginx-log-audit.sh
+
+### 2.81.20261102.235220 - --unban-low-score investigates each address before lifting its ban
+
+- Title: before asking to lift a ban, --unban-low-score runs nginx-log-audit.sh --investigate for each address whose lift --unban-check recommends, shows the verdict and the reasons, and lifts only if the investigation agrees.
+- Reason: request of the administrator on 2026-11-02: "before unbanning, can you investigate the IPs that --unban-low-score wants to unban?"
+- Changes:
+  - enquetes_compactes moved before the --unban-low-score block (it was defined after it, so it could not be called there). It now stores the verdict of each address in ENQUETE_VERDICT_OF, takes its title from ENQUETES_TITRE and can hide the final commands (ENQUETES_SANS_COMMANDES=1).
+  - --unban-low-score: after the table, a block "Enquêtes avant la levée" (the same compact view as section 6 of --unban-check); the question now reads "Débannir IP (score N/7, enquête : lever, banni par SOURCE) ?".
+  - lang/nginx-log-audit.en.po: the new messages. doc/fr and doc/en 02-nginx-log-audit.md. nginx-tools-tests/test_nginx_log_audit.py: the existing --unban-low-score test checks the investigation, and a new test checks that the lift depends on the verdict.
+- Bugs fixed: none.
+- Safeguards and edge cases: an address is lifted only if the investigation says "LEVER LE BANNISSEMENT"; any other verdict (BANNIR, GARDER LE BANNISSEMENT, LAISSER À FAIL2BAN...) or no verdict leaves the ban in place, even with --yes, and the program names the verdict and the --investigate command. All the addresses to lift are investigated (no limit of UNBAN_CHECK_INVESTIGATIONS here, since each one is about to be lifted). Protected addresses are still never lifted. The investigations are read-only.
+- Checks performed: test_nginx_log_audit and test_ban_gate (82 tests OK); test_i18n: only the failures already present on main (nginx-hardening, apps/_listes.sh).
+- Action required from the user: none.
 
 ### 2.80.20261102.233751 - --unban-check runs the investigations of the bans to check (section 6)
 

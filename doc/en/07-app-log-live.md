@@ -113,4 +113,6 @@ app-log-live.py --log-nginx -g ' 404 '           # the 404 answers of nginx and 
 * **1.114 - status bar details**: the bar also names the three addresses with the most problem lines (`top IP`), only when addresses are displayed (`--show-ip`, or the **H** key); otherwise it says they are hidden. The first time the bar turns red, one beep and one red **ALERT** line are shown; the alert is given again only after **Ctrl-T** or **g**.
 * **1.114 - configuration file**: `BUFFER=` (`--buffer`) and `STATUS_EVERY=` (`--status-every`) can be set in `/etc/default/app-log-live.conf` or `~/.app-log-live.conf`. The command line keeps priority.
 
+* **1.156 - system column**: the User-Agent gives `AND`, `IOS`, `WIN`, `LIN` or `MAC`; without a system, the program that makes the request: `CUR` (curl), `PYT` (Python), `WGT` (wget), `GOL` (Go), `JAV` (Java), `PHP`, `NOD` (Node.js), `RUB` (Ruby), `PER` (Perl); `OTH` for any other User-Agent.
+
 {{HELP}}

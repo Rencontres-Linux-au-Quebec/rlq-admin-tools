@@ -146,7 +146,7 @@ grep_q() { grep "$@" >/dev/null; }
 #                              ne peut pas le voir, le texte etant entre apostrophes (faux positif).
 trap 'ec=$?; echo "" >&2; echo "*** ARRÊT INATTENDU DU SCRIPT (code $ec) À LA LIGNE $LINENO ***" >&2; echo "*** Commande fautive : $BASH_COMMAND" >&2; echo "*** Si le rapport ci-dessus semble incomplet (ex. sections Top 10 absentes), c'\''est probablement la cause." >&2' ERR
 
-readonly SCRIPT_VERSION="2.80.20261102.233751"
+readonly SCRIPT_VERSION="2.81.20261102.235220"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
 # Chemin de ce programme (relances --investigate, --ban, --unban) : defini ICI, avant le bloc --ban qui l'utilise.
 SELF_PATH="$SCRIPT_DIR/$(basename "${BASH_SOURCE[0]}")"
@@ -2738,6 +2738,58 @@ evaluer_bannissement() {
     fi
 }
 
+# enquetes_compactes IP... (2.80, section 6 of --unban-check; 2.81, also used by --unban-low-score): runs nginx-log-audit.sh --investigate for each
+# address (this program, --no-prompt), shows only its block ANALYSE ET RECOMMANDATION, then a summary table and the commands to run. At most
+# UNBAN_CHECK_INVESTIGATIONS addresses (20 by default). 2.81: ENQUETE_VERDICT_OF[ip] keeps the verdict of each investigation; ENQUETES_TITRE
+# replaces the title and ENQUETES_SANS_COMMANDES=1 hides the final commands (the caller acts by itself).
+enquetes_compactes() {
+    local -a ips=("$@") args
+    local max="${UNBAN_CHECK_INVESTIGATIONS:-20}" resume ip sortie bloc ligne verdict raison i=0 cmds
+    declare -gA ENQUETE_VERDICT_OF=()
+    echo
+    echo "${C_BOLD}${ENQUETES_TITRE:-6) Enquêtes sur ces bannissements (lancées par ce programme : verdict et recommandation de --investigate)}${C_RESET}"
+    if (( ${#ips[@]} > max )); then
+        echo "   ${C_YELLOW}[i]${C_RESET} ${#ips[@]} adresses : les $max premières seulement (UNBAN_CHECK_INVESTIGATIONS) ; les autres : commandes de la section 5."
+        ips=("${ips[@]:0:$max}")
+    fi
+    resume=$(mktemp)
+    for ip in "${ips[@]}"; do
+        i=$((i + 1))
+        progres "Enquête $i/${#ips[@]} : $ip (nginx-log-audit.sh --investigate)"
+        args=(--investigate "$ip" --no-prompt)
+        [[ -n "${ENV:-}" ]] && args=("$ENV" "${args[@]}")
+        [[ -n "$APP_FORCE" ]] && args+=(--app "$APP_FORCE")
+        # French output whatever the display language: the block is found by its French title, then translated with the rest of this output.
+        sortie=$(INV_RESUME_FILE="$resume" NGINX_TOOLS_LANG=fr bash "$SELF_PATH" "${args[@]}" 2>&1) || true
+        bloc=$(printf '%s\n' "$sortie" | sed -n '/ANALYSE ET RECOMMANDATION/,$p' | sed '1d')
+        echo "   ${C_YELLOW}▶ $ip${C_RESET}"
+        if [[ -n "$bloc" ]]; then
+            printf '%s\n' "$bloc" | sed '/^[[:space:]]*$/d' | sed 's/^/   /'
+        else
+            echo "     (enquête sans verdict : nginx-log-audit.sh --investigate $ip --no-prompt)"
+        fi
+    done
+    echo
+    echo "   Synthèse :"
+    printf '     %-40s %-30s %s\n' "IP" "Verdict" "Raison principale"
+    for ip in "${ips[@]}"; do
+        ligne=$(grep -F "|$ip|" "$resume" | tail -1)
+        IFS='|' read -r _ _ verdict raison _ <<< "$ligne"
+        ENQUETE_VERDICT_OF["$ip"]="$verdict"
+        printf '     %-40s %-30s %s\n' "$ip" "${verdict:-(enquête incomplète)}" "$(printf '%s' "${raison%% ; *}" | cut -c1-90)"
+    done
+    if [[ "${ENQUETES_SANS_COMMANDES:-0}" == "1" ]]; then rm -f "$resume"; return 0; fi
+    cmds=$(awk -F'|' '$3 == "BANNIR" { print "     nginx-log-audit.sh --ban " $2 } $3 == "LEVER LE BANNISSEMENT" { print "     nginx-log-audit.sh --unban " $2 }' "$resume" | sort -u)
+    echo
+    if [[ -n "$cmds" ]]; then
+        echo "   Commandes à lancer (chacune vérifie de nouveau et demande confirmation) :"
+        printf '%s\n' "$cmds"
+    else
+        echo "   Aucune commande à lancer : ni bannissement ni levée recommandés."
+    fi
+    rm -f "$resume"
+}
+
 # --- --unban-low-score : IP bannies (fail2ban ou pare-feu manuel) dont --unban-check recommande la LEVEE ---------------
 # 2.50: the same verdict as --unban-check (evaluer_bannissement), in this process: the logs are read once, no sub-process
 # per address. Only an address whose verdict is "lever" is proposed for lifting; the score is shown for information.
@@ -2808,6 +2860,10 @@ if [[ "$DO_UNBAN_LOW_SCORE" == "1" ]]; then
         exit 0
     fi
     echo "${C_YELLOW}${#LOW_IPS[@]} IP bannies à lever (levée recommandée) : ${LOW_IPS[*]}${C_RESET}"
+    # 2.81: before any lift, each address is investigated (--investigate, read-only): the lift is offered only when the investigation agrees.
+    ENQUETES_TITRE="Enquêtes avant la levée (lancées par ce programme : verdict et recommandation de --investigate)" \
+        ENQUETES_SANS_COMMANDES=1 UNBAN_CHECK_INVESTIGATIONS="${#LOW_IPS[@]}" enquetes_compactes "${LOW_IPS[@]}"
+    echo
     interactif=0
     [[ "$NO_PROMPT" != "1" && -t 0 && -t 1 ]] && interactif=1
     for ip in "${LOW_IPS[@]}"; do
@@ -2816,11 +2872,16 @@ if [[ "$DO_UNBAN_LOW_SCORE" == "1" ]]; then
             echo "  $ip : IP protégée ($(printf '%s\n' "$prot" | head -1)) — jamais levée par ce programme."
             continue
         fi
+        # 2.81: the investigation must confirm the lift (verdict LEVER LE BANNISSEMENT); otherwise the ban stays, even with --yes.
+        if [[ "${ENQUETE_VERDICT_OF[$ip]:-}" != "LEVER LE BANNISSEMENT" ]]; then
+            echo "  ${C_YELLOW}[ATTN]${C_RESET} $ip : non levée, l'enquête ne confirme pas la levée (verdict : ${ENQUETE_VERDICT_OF[$ip]:-aucun}). Détail : nginx-log-audit.sh --investigate $ip"
+            continue
+        fi
         ok=0
         if [[ "$ASSUME_YES" == "1" ]]; then
             ok=1
         elif (( interactif )); then
-            if demander_oui "Débannir $ip (score $sc/7, banni par $src) ? [o/N] "; then ok=1; fi
+            if demander_oui "Débannir $ip (score $sc/7, enquête : lever, banni par $src) ? [o/N] "; then ok=1; fi
         else
             echo "  $ip : non levée (aucun terminal interactif ; relancer avec --yes pour la lever sans question)."
             continue
@@ -3210,53 +3271,6 @@ if [[ -n "$INVESTIGATE_IP" ]]; then
     if [[ "$INV_PROPOSER" == "1" && "$INV_VERDICT" == BANNIR && "$NO_PROMPT" != "1" && -t 0 && -t 1 && "$EUID" -eq 0 ]]; then confirm_and_ban "$INVESTIGATE_IP"; fi
     exit 0
 fi
-
-# enquetes_compactes IP... (2.80, section 6 of --unban-check): runs nginx-log-audit.sh --investigate for each address (this program, --no-prompt), shows
-# only its block ANALYSE ET RECOMMANDATION, then a summary table and the commands to run. At most UNBAN_CHECK_INVESTIGATIONS addresses (20 by default).
-enquetes_compactes() {
-    local -a ips=("$@") args
-    local max="${UNBAN_CHECK_INVESTIGATIONS:-20}" resume ip sortie bloc ligne verdict raison i=0 cmds
-    echo
-    echo "${C_BOLD}6) Enquêtes sur ces bannissements (lancées par ce programme : verdict et recommandation de --investigate)${C_RESET}"
-    if (( ${#ips[@]} > max )); then
-        echo "   ${C_YELLOW}[i]${C_RESET} ${#ips[@]} adresses : les $max premières seulement (UNBAN_CHECK_INVESTIGATIONS) ; les autres : commandes de la section 5."
-        ips=("${ips[@]:0:$max}")
-    fi
-    resume=$(mktemp)
-    for ip in "${ips[@]}"; do
-        i=$((i + 1))
-        progres "Enquête $i/${#ips[@]} : $ip (nginx-log-audit.sh --investigate)"
-        args=(--investigate "$ip" --no-prompt)
-        [[ -n "${ENV:-}" ]] && args=("$ENV" "${args[@]}")
-        [[ -n "$APP_FORCE" ]] && args+=(--app "$APP_FORCE")
-        # French output whatever the display language: the block is found by its French title, then translated with the rest of this output.
-        sortie=$(INV_RESUME_FILE="$resume" NGINX_TOOLS_LANG=fr bash "$SELF_PATH" "${args[@]}" 2>&1) || true
-        bloc=$(printf '%s\n' "$sortie" | sed -n '/ANALYSE ET RECOMMANDATION/,$p' | sed '1d')
-        echo "   ${C_YELLOW}▶ $ip${C_RESET}"
-        if [[ -n "$bloc" ]]; then
-            printf '%s\n' "$bloc" | sed '/^[[:space:]]*$/d' | sed 's/^/   /'
-        else
-            echo "     (enquête sans verdict : nginx-log-audit.sh --investigate $ip --no-prompt)"
-        fi
-    done
-    echo
-    echo "   Synthèse :"
-    printf '     %-40s %-30s %s\n' "IP" "Verdict" "Raison principale"
-    for ip in "${ips[@]}"; do
-        ligne=$(grep -F "|$ip|" "$resume" | tail -1)
-        IFS='|' read -r _ _ verdict raison _ <<< "$ligne"
-        printf '     %-40s %-30s %s\n' "$ip" "${verdict:-(enquête incomplète)}" "$(printf '%s' "${raison%% ; *}" | cut -c1-90)"
-    done
-    cmds=$(awk -F'|' '$3 == "BANNIR" { print "     nginx-log-audit.sh --ban " $2 } $3 == "LEVER LE BANNISSEMENT" { print "     nginx-log-audit.sh --unban " $2 }' "$resume" | sort -u)
-    echo
-    if [[ -n "$cmds" ]]; then
-        echo "   Commandes à lancer (chacune vérifie de nouveau et demande confirmation) :"
-        printf '%s\n' "$cmds"
-    else
-        echo "   Aucune commande à lancer : ni bannissement ni levée recommandés."
-    fi
-    rm -f "$resume"
-}
 
 # --- --unban-check : other points to re-check every day (read-only; this program runs them and shows the commands) ------
 # Each check prints [OK], [ATTN] or [FAIL] and the command that shows the same thing by hand. The section can be copied

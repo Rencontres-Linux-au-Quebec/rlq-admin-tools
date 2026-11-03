@@ -30,6 +30,8 @@ L'indice **serveur loué** est coché quand le DNS inverse désigne un hébergeu
 
 Les refus produits par nos règles nginx sont journalisés dans `blocked-probes.log`, pas dans les journaux des sites ; les enquêtes et les preuves le lisent aussi (« Requêtes REFUSÉES par nginx »), sinon une adresse bannie semblerait n'avoir fait aucune requête.
 
+`--unban-low-score` (2.81) enquête (comme `--investigate`) sur chaque adresse dont `--unban-check` recommande la levée, **avant** de la lever : le verdict et les raisons s'affichent, et une adresse n'est levée que si l'enquête dit « LEVER LE BANNISSEMENT » (sinon elle reste bannie, même avec `--yes`, avec un message qui renvoie à `--investigate`).
+
 ## Verdict et recommandation de `--investigate`
 
 `--investigate` se termine par **ANALYSE ET RECOMMANDATION** : il relit l'enquête comme le ferait une personne et donne un seul verdict, ses raisons et la commande à lancer.

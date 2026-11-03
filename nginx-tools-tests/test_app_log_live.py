@@ -4318,3 +4318,27 @@ class AppLogLive155(unittest.TestCase):
         self.assertIn("audit_verdict(ip, app)", bloc)
         self.assertNotIn("--evidence", bloc.split('"""', 2)[2])                 # the code no longer asks --evidence (the docstring says why)
         self.assertIn('verdict == "BANNIR" and bans >= REPEAT_MIN', bloc)
+
+
+class AppLogLive156(unittest.TestCase):
+    """1.156 : sans système dans le User-Agent, la colonne indique le programme (CUR curl, PYT Python...) au lieu de OTH."""
+
+    @classmethod
+    def setUpClass(cls):
+        spec = importlib.util.spec_from_file_location("live156", script_path("app-log-live.py"))
+        cls.m = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(cls.m)
+
+    def test_156_programmes(self):
+        for agent, code in (("curl/8.5.0", "CUR"), ("python-requests/2.31.0", "PYT"), ("Python-urllib/3.11", "PYT"), ("aiohttp/3.9", "PYT"),
+                            ("Wget/1.21.4", "WGT"), ("Go-http-client/1.1", "GOL"), ("Java/17.0.2", "JAV"), ("okhttp/4.12.0", "JAV"),
+                            ("PHP/8.2", "PHP"), ("axios/1.6.0", "NOD"), ("node-fetch/1.0", "NOD"), ("libwww-perl/6.67", "PER")):
+            self.assertEqual(self.m.os_code(agent), code, agent)
+
+    def test_156_le_systeme_a_priorite_et_le_reste_est_oth(self):
+        self.assertEqual(self.m.os_code("Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120"), "WIN")
+        self.assertEqual(self.m.os_code("Mozilla/5.0 (X11; Linux x86_64) Firefox/120.0"), "LIN")
+        self.assertEqual(self.m.os_code("Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)"), "OTH")
+        self.assertEqual(self.m.os_code("-"), "   ")
+        self.assertEqual(self.m.os_code(""), "   ")
+
