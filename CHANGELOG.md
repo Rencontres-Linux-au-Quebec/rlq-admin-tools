@@ -2856,6 +2856,20 @@ Earlier history was archived outside this repository when this file was created.
 
 ## nginx-hardening.sh
 
+### 2.78.20261102.212810 - Job offer robots (CareerScout, jobs_v1) refused by bot_blocker.conf
+
+- Title: the User-Agents "CareerScout" and "jobs_v1" (job offer aggregator) are refused with a 403, like the other commercial crawlers.
+- Reason: request of the administrator on 2026-11-02, after nginx-log-audit.sh --investigate of 192.54.244.135 and 192.54.244.141 (score 1/7 each, banned by the jail nginx-badrequests, then manually at the firewall without expiry). Same block 192.54.244.0/24 (Fiberway / Bullionet, France), same User-Agent "Mozilla/5.0 (X11; Linux x86_64) ... Chrome/120.0 Safari/537.36 (jobs_v1/1.0)" and "Mozilla/5.0 (compatible; CareerScout/1.0)", 150 requests from 2026-09-20 to 2026-10-05, all guesses of job pages (/careers, /jobs, /join-us, /work-with-us, /about/careers..., with and without /en_CA), hence bursts of 404. The robot changes address inside its block, so banning addresses one by one does not stop it; its User-Agent does.
+- Changes:
+  - nginx/conf.d/bot_blocker.conf: "CareerScout" and "jobs_v1" added to the line of commercial crawlers, with their comment.
+  - nginx/VERSION: 1.20.20261102.212810.
+  - nginx-tools-tests/test_config_nginx.py: test_filtre_a_robots checks the two User-Agents.
+  - nginx-hardening.sh: SCRIPT_VERSION 2.78.20261102.212810 (the program installs the files of nginx/).
+- Bugs fixed: none.
+- Safeguards and edge cases: case-insensitive match anywhere in the User-Agent; neither name appears in a browser User-Agent (test_filtre_a_robots still checks that real browsers and an isolated curl pass). /robots.txt stays readable. app-log-live.py reads the list from /etc/nginx/conf.d/bot_blocker.conf, so these 403 are labelled [BOT] (checked with bot_blocked_re()). 140.82.7.85 (Vultr, same kind of job page guesses on 2026-10-15) sends a plain Chrome User-Agent: it is not caught by this rule; the jail nginx-badrequests banned it within 6 s.
+- Checks performed: test_config_nginx.ConfigNginx.test_filtre_a_robots [OK] (NGINX_ODOO_DIR=nginx/).
+- Action required: after the merge, nginx-hardening.sh --update. Then, if wanted: nginx-log-audit.sh --unban 192.54.244.135, --unban 192.54.244.141 and --unban 140.82.7.85.
+
 ### 2.77.20261102.205839 - Webz.io robot (webzio) refused by bot_blocker.conf
 
 - Title: the User-Agent "webzio" (Webz.io, commercial collector of web data) is refused with a 403, like the other content harvesters.
