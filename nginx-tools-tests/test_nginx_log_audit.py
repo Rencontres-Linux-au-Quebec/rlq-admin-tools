@@ -1363,8 +1363,38 @@ class ChkNginxLogs279(ChkNginxLogs278):
         self.assertEqual(ligne.rsplit("|", 1)[1], "0")                          # fifth field: fail2ban bans (none here)
 
 
-for _classe in (ChkNginxLogs272, ChkNginxLogs273, ChkNginxLogs274, ChkNginxLogs278, ChkNginxLogs279):
+class ChkNginxLogs282(ChkNginxLogs274):
+    """2.82 : une adresse bloquée SEULEMENT par la liste CrowdSec n'a pas de levée recommandée sur la seule foi de l'absence de trace locale ; si un
+    bannissement manuel s'y ajoute, la recommandation prévient que la levée retire aussi la liste CrowdSec."""
+
+    def test_282_crowdsec_seul_pas_de_levee_recommandee(self):
+        with open(os.path.join(self.d, "ipset"), "w") as f:
+            f.write(f"crowdsec-blocklist-v4 {self.IP}\n")
+        resume = os.path.join(self.d, "resume.txt")
+        rc, out, err = self.run_cmd(["bash", self.prog, "--investigate", self.IP, "--no-prompt"], env_extra={"INV_RESUME_FILE": resume})
+        self.assertEqual(rc, 0, out + err)
+        self.assertIn("Verdict : LAISSER À CROWDSEC", out)
+        self.assertNotIn("Verdict : LEVER", out)
+        self.assertNotIn("Commande : nginx-log-audit.sh --unban", out)
+        self.assertIn("exception PERMANENTE", out)
+        self.assertTrue(open(resume, encoding="utf-8").read().strip().startswith(f"RÉSUMÉ|{self.IP}|LAISSER À CROWDSEC|"))
+
+    def test_282_pare_feu_et_crowdsec_la_levee_previent(self):
+        with open(os.path.join(self.d, "rules"), "w") as f:
+            f.write(f"INPUT -s {self.IP} -j DROP\n")
+        with open(os.path.join(self.d, "ipset"), "w") as f:
+            f.write(f"crowdsec-blocklist-v4 {self.IP}\n")
+        rc, out, err = self.run_cmd(["bash", self.prog, "--investigate", self.IP, "--no-prompt"])
+        self.assertEqual(rc, 0, out + err)
+        self.assertIn("Verdict : LEVER LE BANNISSEMENT", out)
+        self.assertIn("Commande : nginx-log-audit.sh --unban " + self.IP, out)
+        self.assertIn("lève AUSSI la liste CrowdSec", out)
+
+
+for _classe in (ChkNginxLogs272, ChkNginxLogs273, ChkNginxLogs274, ChkNginxLogs278, ChkNginxLogs279, ChkNginxLogs282):
     for _nom in [n for n in vars(ChkNginxLogs) if n.startswith("test")]:
         setattr(_classe, _nom, None)                                      # same fixtures as ChkNginxLogs, without running its tests twice
 for _nom in [n for n in vars(ChkNginxLogs278) if n.startswith("test")]:
     setattr(ChkNginxLogs279, _nom, None)
+for _nom in [n for n in vars(ChkNginxLogs274) if n.startswith("test")]:
+    setattr(ChkNginxLogs282, _nom, None)

@@ -3426,6 +3426,19 @@ Earlier history was archived outside this repository when this file was created.
 
 ## nginx-log-audit.sh
 
+### 2.82.20261103.065758 - CrowdSec alone is no reason to recommend a lift
+
+- Title: an address blocked only by the CrowdSec community list gets the verdict LAISSER À CROWDSEC and no lift command; a lift recommended for a manual ban or fail2ban jail warns that --unban also removes the CrowdSec list.
+- Reason: request of the administrator on 2026-11-03: "why suggest unbanning 51.75.119.168 if it is blocked by the CrowdSec community list (crowdsec-blocklist-v4)?"
+- Changes:
+  - recommander(): banni_local (firewall rule or fail2ban jail) is separated from the CrowdSec state; new case cs_seul (only CrowdSec blocks) with the verdict LAISSER À CROWDSEC, the reason "the list comes from other servers" and the note on the permanent exception in the allow file; when a local ban and CrowdSec both exist, the LEVER verdict adds a warning that --unban also lifts CrowdSec. A robot that names itself is lifted only if a local ban exists.
+  - lang/nginx-log-audit.en.po: the new messages. doc/fr and doc/en 02-nginx-log-audit.md. nginx-tools-tests/test_nginx_log_audit.py: new class ChkNginxLogs282 (2 tests).
+- Bugs fixed:
+  - Symptom: --investigate (and section 6 of --unban-check) recommended LEVER LE BANNISSEMENT, with the reason "fail2ban catches a new burst by itself", for an address blocked by CrowdSec. Diagnosis: recommander() counted the CrowdSec list as a ban and, with no local trace, concluded that nothing justified it any more; the command --unban also adds a permanent exception to the CrowdSec allow file. Fix: see Changes.
+- Safeguards and edge cases: protected addresses, search engines, logged-in members and CDN addresses are still lifted when CrowdSec alone blocks them (the program's own rules decide there); no automatic action changes, only the advice; app-log-live.py is not affected (it proposes bans only when the verdict is BANNIR).
+- Checks performed: test_nginx_log_audit and test_ban_gate (85 tests OK); test_i18n: only the failures already present on main.
+- Action required from the user: none.
+
 ### 2.81.20261102.235220 - --unban-low-score investigates each address before lifting its ban
 
 - Title: before asking to lift a ban, --unban-low-score runs nginx-log-audit.sh --investigate for each address whose lift --unban-check recommends, shows the verdict and the reasons, and lifts only if the investigation agrees.

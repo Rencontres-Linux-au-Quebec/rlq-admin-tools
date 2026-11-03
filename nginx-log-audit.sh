@@ -146,7 +146,7 @@ grep_q() { grep "$@" >/dev/null; }
 #                              ne peut pas le voir, le texte etant entre apostrophes (faux positif).
 trap 'ec=$?; echo "" >&2; echo "*** ARRÊT INATTENDU DU SCRIPT (code $ec) À LA LIGNE $LINENO ***" >&2; echo "*** Commande fautive : $BASH_COMMAND" >&2; echo "*** Si le rapport ci-dessus semble incomplet (ex. sections Top 10 absentes), c'\''est probablement la cause." >&2' ERR
 
-readonly SCRIPT_VERSION="2.81.20261102.235220"
+readonly SCRIPT_VERSION="2.82.20261103.065758"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
 # Chemin de ce programme (relances --investigate, --ban, --unban) : defini ICI, avant le bloc --ban qui l'utilise.
 SELF_PATH="$SCRIPT_DIR/$(basename "${BASH_SOURCE[0]}")"
@@ -3136,7 +3136,9 @@ nature_requetes() {
 recommander() {
     local ip="$INV_IP" verdict="" cmd="" prot="" cdn=0 nom noms_libres="" noms_refuses="" nature duree j
     local -a raisons=() notes=()
-    local banni=$(( ETAT_PARE_FEU || ${#ETAT_JAILS[@]} > 0 )) ; [[ -n "$ETAT_CROWDSEC" ]] && banni=1
+    local banni_local=$(( ETAT_PARE_FEU || ${#ETAT_JAILS[@]} > 0 )) banni cs_seul=0       # 2.82: banni_local = firewall rule or fail2ban jail; cs_seul = only the CrowdSec list blocks
+    banni=$banni_local ; [[ -n "$ETAT_CROWDSEC" ]] && banni=1
+    (( banni_local == 0 )) && [[ -n "$ETAT_CROWDSEC" ]] && cs_seul=1
     prot=$(protected_ip_reason "$ip" 2>/dev/null | head -1) || prot=""
     if printf '%s %s %s' "$INV_PTR" "$RESEAU_ORG" "$RESEAU_NET" | grep_q -iE 'cloudflare|akamai|fastly|incapsula|imperva|bunnycdn'; then cdn=1; fi
     while IFS= read -r nom; do
@@ -3185,14 +3187,21 @@ recommander() {
         (( INV_HOSTILE > 0 )) && raisons+=("une seule rafale de pages, sans signe fort : un robot qui lit vite, pas une attaque")
         if [[ -n "$noms_libres" ]]; then
             raisons+=("il se nomme dans son User-Agent : $noms_libres")
-            if (( banni )); then verdict="LEVER LE BANNISSEMENT"; cmd="nginx-log-audit.sh --unban $ip"
+            if (( banni_local )); then verdict="LEVER LE BANNISSEMENT"; cmd="nginx-log-audit.sh --unban $ip"
                 notes+=("puis, si ce robot n'est pas voulu : ajouter $noms_libres à nginx/conf.d/bot_blocker.conf (refusé partout par son nom, quelle que soit son adresse)")
             else verdict="REFUSER LE ROBOT PAR SON NOM"
                 notes+=("si ce robot n'est pas voulu : ajouter $noms_libres à nginx/conf.d/bot_blocker.conf, puis nginx-hardening.sh --update ; sinon, aucune action")
             fi
+        elif (( cs_seul )); then
+            # 2.82: only the CrowdSec community list blocks. The absence of local evidence does not clear the address: the list comes from other
+            # servers. No lift command is proposed (--unban would add a permanent exception to the CrowdSec allow file): a decision to take by hand.
+            verdict="LAISSER À CROWDSEC"
+            raisons+=("seule la liste communautaire CrowdSec la bloque : elle vient d'autres serveurs, l'absence de trace ici ne l'innocente pas")
+            notes+=("la lever demande une décision à la main : nginx-log-audit.sh --unban $ip ajoute une exception PERMANENTE dans $CROWDSEC_ALLOW_FILE")
         elif (( banni )); then
             verdict="LEVER LE BANNISSEMENT"; cmd="nginx-log-audit.sh --unban $ip"
             raisons+=("fail2ban rattrape seul une nouvelle rafale (bannissement temporaire) : un bannissement long n'apporte rien")
+            [[ -n "$ETAT_CROWDSEC" ]] && notes+=("attention : --unban lève AUSSI la liste CrowdSec (exception permanente dans $CROWDSEC_ALLOW_FILE)")
         else
             verdict="AUCUNE ACTION"; raisons+=("à surveiller seulement")
         fi
@@ -3214,7 +3223,7 @@ recommander() {
     echo "  ${C_BOLD}ANALYSE ET RECOMMANDATION${C_RESET}"
     case "$verdict" in
         BANNIR|"À EXAMINER") echo "  Verdict : ${C_MAL}$verdict${C_RESET}" ;;
-        "GARDER LE BANNISSEMENT"|"LAISSER À FAIL2BAN"|"REFUSER LE ROBOT PAR SON NOM") echo "  Verdict : ${C_YELLOW}$verdict${C_RESET}" ;;
+        "GARDER LE BANNISSEMENT"|"LAISSER À FAIL2BAN"|"LAISSER À CROWDSEC"|"REFUSER LE ROBOT PAR SON NOM") echo "  Verdict : ${C_YELLOW}$verdict${C_RESET}" ;;
         *) echo "  Verdict : ${C_GREEN}$verdict${C_RESET}" ;;
     esac
     for j in "${raisons[@]}"; do echo "    - $j"; done

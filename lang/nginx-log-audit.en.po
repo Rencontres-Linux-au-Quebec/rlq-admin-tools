@@ -2972,3 +2972,18 @@ msgstr "). Details: nginx-log-audit.sh --investigate "
 
 msgid "/7, enquête : lever, banni par "
 msgstr "/7, investigation: lift, banned by "
+
+msgid "seule la liste communautaire CrowdSec la bloque : elle vient d'autres serveurs, l'absence de trace ici ne l'innocente pas"
+msgstr "only the CrowdSec community list blocks it: the list comes from other servers, the absence of a trace here does not clear it"
+
+msgid "la lever demande une décision à la main : nginx-log-audit.sh --unban "
+msgstr "lifting it needs a manual decision: nginx-log-audit.sh --unban "
+
+msgid " ajoute une exception PERMANENTE dans "
+msgstr " adds a PERMANENT exception in "
+
+msgid "attention : --unban lève AUSSI la liste CrowdSec (exception permanente dans "
+msgstr "warning: --unban ALSO lifts the CrowdSec list (permanent exception in "
+
+msgid "LAISSER À CROWDSEC"
+msgstr "LEAVE TO CROWDSEC"
