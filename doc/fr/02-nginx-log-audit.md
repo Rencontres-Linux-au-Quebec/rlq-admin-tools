@@ -32,6 +32,8 @@ Les refus produits par nos règles nginx sont journalisés dans `blocked-probes.
 
 `--unban-low-score` (2.81) enquête (comme `--investigate`) sur chaque adresse dont `--unban-check` recommande la levée, **avant** de la lever : le verdict et les raisons s'affichent, et une adresse n'est levée que si l'enquête dit « LEVER LE BANNISSEMENT » (sinon elle reste bannie, même avec `--yes`, avec un message qui renvoie à `--investigate`).
 
+Une adresse bloquée **seulement** par la liste communautaire CrowdSec reçoit le verdict « LAISSER À CROWDSEC » (2.82), sans commande de levée : la liste vient d'autres serveurs, l'absence de trace locale ne l'innocente pas. `--unban` retire aussi la liste CrowdSec (exception permanente dans `sync-crowdsec-blocklist.allow`) ; la recommandation de levée d'un bannissement manuel en prévient quand CrowdSec bloque aussi.
+
 ## Verdict et recommandation de `--investigate`
 
 `--investigate` se termine par **ANALYSE ET RECOMMANDATION** : il relit l'enquête comme le ferait une personne et donne un seul verdict, ses raisons et la commande à lancer.
