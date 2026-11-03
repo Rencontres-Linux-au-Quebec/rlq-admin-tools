@@ -658,7 +658,6 @@ msgstr "Fichier de configuration à lire SEUL (sinon : /etc/default/app-log-live
 msgid "Beep (in byobu/tmux too: see the tips shown) when a displayed line is an error: 0 = any error (4xx, 5xx, Odoo ERROR), 1 = 4xx, 2 = 5xx and 4xx (0 without value)"
 msgstr "Bip (dans byobu/tmux aussi : voir les conseils affichés) quand une ligne affichée est une erreur : 0 = toute erreur (4xx, 5xx, ERROR d'Odoo), 1 = 4xx, 2 = 5xx et 4xx (0 sans valeur)"
 
-
 msgid "Names column (DNS, person, place…) of N characters, never truncating a longer name (default: "
 msgstr "Colonne des noms (DNS, personne, lieu…) de N caractères, sans jamais tronquer un nom plus long (défaut : "
 
@@ -2711,7 +2710,6 @@ msgstr "Suivi en direct"
 msgid "Site diagnosis (maintenance page)"
 msgstr "Diagnostic du site (page de maintenance)"
 
-
 msgid "Last messages, then stop"
 msgstr "Derniers messages, puis arrêt"
 
@@ -2990,9 +2988,6 @@ msgstr "NIV"
 
 msgid "CC IP-BLOCK"
 msgstr "PA BLOC-IP"
-
-msgid "Startup information (lists, modules, cache, colours, keys): press ? (h: keys menu)"
-msgstr "Informations de démarrage (listes, modules, cache, couleurs, touches) : appuyez sur ? (h : menu des touches)"
 
 msgid "──── Startup information ────"
 msgstr "──── Informations de démarrage ────"

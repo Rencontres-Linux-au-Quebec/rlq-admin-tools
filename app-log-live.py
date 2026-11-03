@@ -119,7 +119,7 @@ from urllib.parse import unquote, urlsplit
 from collections import Counter, OrderedDict
 from concurrent.futures import Future
 
-__version__ = "1.159.20261103.100102"
+__version__ = "1.160.20261103.100730"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
@@ -401,7 +401,13 @@ def request_key(L):
     """(method and URL, status code): the same request in the nginx line and in the Odoo line. 1.143: the URL is decoded on both sides, because nginx
     keeps the encoding of the client (%20, %C3%A9) and Odoo's log may show the characters: they must give the same key."""
     m = WERKZEUG_RE.search(L.text or "") or NGINX_REQUEST_RE.search(L.text or "")
-    return (unquote(m.group(1)), m.group(3))
+    return (key_url(m.group(1)), m.group(3))
+
+
+def key_url(url):
+    """1.160: decoded URL for the key. Odoo's log doubles a backslash (register\\\\) where nginx keeps what the client sent (register%5C, or \\x5C):
+    all the spellings of a backslash give ONE character, so the nginx and Odoo lines of the same request merge."""
+    return re.sub(r"\\+", lambda m: "\\", unquote(url).replace("\\x5C", "\\").replace("\\x5c", "\\"))
 
 
 def merge_codes_compatible(nginx_code, odoo_code):
@@ -645,12 +651,15 @@ def is_reportable_error(L, level):
 STARTUP_LINES = None            # 1.147: while the startup information is collected: the lines that are not kept on screen (shown by the ? key)
 STARTUP_INFO = []               # 1.147: those lines, once the startup is over
 STARTUP_KEEP_RE = re.compile(r"WARN|ERROR|ALERT|FAIL|RECOMMENDED|reading|Reading|lecture|Filters|Live:|cannot|impossible|unreadable|missing|not found|not read|"
-                             r"No nginx|Sitemap not|Excluded|Group|Configuration|Options :", re.I)
+                             r"No nginx|Sitemap not|Excluded|Group|Configuration|Options :|Test recording", re.I)
+STARTUP_HIDE_RE = re.compile(r"merged in time order|nginx logs read, hidden|Sign-in history|address\(es\) known from a sign-in|Odoo modules: cannot read PostgreSQL|"
+                             r"Banned addresses|Reverse video: |Screen: |Daily log \(colors kept")          # 1.160: always kept for the ? key, never on screen
 
 
 def eprint(*args):
     text = " ".join(str(a) for a in args)
-    if STARTUP_LINES is not None and not STARTUP_KEEP_RE.search(ANSI_RE.sub("", text)):
+    plain = ANSI_RE.sub("", text)
+    if STARTUP_LINES is not None and (STARTUP_HIDE_RE.search(plain) or not STARTUP_KEEP_RE.search(plain)):
         STARTUP_LINES.append(text)                                 # 1.147: not on screen at startup: the ? key shows it
         return
     print(*args, file=sys.stderr, flush=True)
@@ -7624,6 +7633,11 @@ def main():
     is_odoo = profile.get("APP_LOG_KIND") != "file"
     people = People(load_module("_odoo_db") if is_odoo else None)
     eprint(color_code(STYLES["title"], TR("Real-time dashboard of {app}").format(app=profile.get("APP_LABEL", "application"))))      # 1.119: title of the program
+    global STARTUP_LINES
+    # 1.147: on a terminal with the keyboard, the information is kept for the ? key (the important lines stay on screen); a pipe or a file, or
+    # --no-keys, has no key to ask for it: everything is printed as before. 1.160: the capture starts right after the title and ends just before the
+    # live stream (the nginx logs, the service, the history, the colour legends, the screen and the daily journal lines are all in the ? key)
+    STARTUP_LINES = [] if (sys.stderr.isatty() and not args.no_keys) else None
     if LOGS_MERGE in cmd:                                       # 1.116: the nginx logs read are named (shown with --log-nginx or key x)
         state_text = TR("+ nginx logs, merged in time order") if args.log_nginx else TR("nginx logs read, hidden (key x shows them)")
         eprint(color_code("1;36", state_text) + ": " + ", ".join(os.path.basename(f) for f in nginx_log_files(profile)))
@@ -7633,11 +7647,7 @@ def main():
               else "logs: " + " ".join(os.path.basename(c) for c in cmd if os.path.isfile(c))))
     if is_odoo and args.modules_startup:                   # on request (--modules-startup) and FIRST: the rlq* modules (with their version), then the other custom modules
         for text_line in customs_tracking_lines(people.odoo_db, profile.get("ODOO_CONF"), [], modules_sort_state):
-            eprint(text_line)
-    global STARTUP_LINES
-    # 1.147: on a terminal with the keyboard, the information is kept for the ? key (the important lines stay on screen); a pipe or a file, or
-    # --no-keys, has no key to ask for it: everything is printed as before
-    STARTUP_LINES = [] if (sys.stderr.isatty() and not args.no_keys) else None
+            print(text_line, file=sys.stderr, flush=True)          # asked for by --modules-startup: always on screen
     if is_odoo and not args.no_history:
         extent = (f"from {args.since}" if args.since is not None else f"{args.days:g} days" if args.days else "the whole log")       # 1.112: --since, fractions of --days
         if args.until is not None:
@@ -7707,10 +7717,6 @@ def main():
             SITEMAP = Sitemap(args.sitemap or DEFAULT_SITEMAP_URL)
         except ValueError as problem:                                 # a wrong address stops the program at once
             parser.error(f"--sitemap: {problem}")
-    if STARTUP_LINES is not None:
-        STARTUP_INFO[:] = STARTUP_LINES
-        STARTUP_LINES = None
-        eprint(TR("Startup information (lists, modules, cache, colours, keys): press ? (h: keys menu)"))
     options = {"keep_ip": not args.hide_ip, "minimal": args.min, "hide_addons": args.hide_addons, "lines": args.lines, "recap": args.recap,
                "slow": max(0.0, args.slow), "only": [t.lower() for t in (args.only or []) if t], "highlight_words": read_highlight(args.highlight), "highlight_pattern": highlight_pattern(read_highlight(args.highlight)), "suspect": args.suspect, "errors_only": args.errors_only, "disk_min": max(0.0, args.disk_min), "connections": max(0.0, min(100.0, args.connections)), "external_ip": not args.no_isp, "odoo_journal": profile.get("ODOO_LOGFILE"), "profile": profile, "service": service, "diag_hosts": args.diagnose_host, "not_found": args.not_found, "steps_line": args.steps_line, "summary": args.summary, "banned_ips": banned_ips,
                "presence": Presence(args.idle) if is_odoo and not args.no_presence else None, "health": args.health, "keys": not args.no_keys and not args.no_follow, "app": profile.get("APP_NAME"), "app_label": profile.get("APP_LABEL", "application"), "hide_user_agent": args.hide_user_agent, "request_length": args.request_length, "log_nginx": bool(args.log_nginx), "log_merge": bool(args.log_merge), "status_header": bool(args.status_header), "nginx_merged": LOGS_MERGE in cmd, "propose_ban": not args.no_ban_prompt, "watch": [t.strip().lower() for t in (args.watch or "").split(",") if t.strip()], "agents": not args.no_user_agent and not args.no_follow, "acces_logs": profile.get("ACCESS_LOGS"),
@@ -7772,6 +7778,9 @@ def main():
         eprint(f"Daily log (colors kept, permissions 600, {args.log_keep_days or 'all the'} days kept): {folder}/{SCRIPT_NAME}-YYYY-MM-DD{'-filter' if args.only else ''}.log — "
                f"read with: less -R FILE or tail -f FILE")
     options["anonymize"] = output.anonymize is not None              # 1.91: A key and C key (ANONYMIZE saved like the other settings)
+    if STARTUP_LINES is not None:                               # 1.160: end of the capture; no pointer line (the "Keys:" line names the ? key)
+        STARTUP_INFO[:] = STARTUP_LINES
+        STARTUP_LINES = None
     return follow(cmd, people, resolver, options, output)
 
 
