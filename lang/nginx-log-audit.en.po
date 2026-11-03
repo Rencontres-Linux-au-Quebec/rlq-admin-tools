@@ -1916,8 +1916,8 @@ msgstr "protected IP"
 msgid "aucun terminal interactif ; relancer avec --yes pour la lever sans question"
 msgstr "no interactive terminal; rerun with --yes to lift it without asking"
 
-msgid "  --unban-low-score            lister les IP bannies que --unban-check recommande de lever, et proposer de les débannir"
-msgstr "  --unban-low-score            list banned IPs that --unban-check recommends lifting, and offer to unban them"
+msgid "  --unban-low-score            lister les IP bannies que --investigate recommande de lever (même verdict que --investigate), et proposer de les débannir"
+msgstr "  --unban-low-score            list banned IPs that --investigate recommends lifting (same verdict as --investigate), and offer to unban them"
 
 msgid "ERREUR: --unban-low-score nécessite root (sudo)."
 msgstr "ERROR: --unban-low-score requires root (sudo)."
@@ -2067,11 +2067,11 @@ msgstr "lifting recommended"
 msgid "  (Chaque levée demande confirmation, IP par IP / each lift asks for confirmation, one IP at a time)"
 msgstr "  (each lift asks for confirmation, one IP at a time)"
 
-msgid " IP BANNIES DONT --unban-check RECOMMANDE LA LEVÉE (lecture seule d'abord)"
-msgstr " BANNED IP ADDRESSES WHOSE LIFTING --unban-check RECOMMENDS (read-only first)"
+msgid " IP BANNIES DONT --investigate RECOMMANDE LA LEVÉE (lecture seule d'abord)"
+msgstr " BANNED IP ADDRESSES WHOSE LIFTING --investigate RECOMMENDS (read-only first)"
 
-msgid " IP bannies : réévaluation avec la logique de --unban-check (lecture seule)…"
-msgstr " banned IPs: re-evaluation with the --unban-check logic (read-only)..."
+msgid " IP bannies : enquête de --investigate sur chacune (lecture seule)…"
+msgstr " banned IPs: --investigate run on each one (read-only)..."
 
 msgid "Réévaluation "
 msgstr "Re-evaluation "
@@ -2094,8 +2094,8 @@ msgstr "No banned IP has a lift recommended by --unban-check."
 msgid " IP bannies à lever (levée recommandée) : "
 msgstr " banned IPs to lift (lift recommended): "
 
-msgid "levée recommandée par --unban-check (--unban-low-score)"
-msgstr "lift recommended by --unban-check (--unban-low-score)"
+msgid "levée recommandée par --investigate (--unban-low-score)"
+msgstr "lift recommended by --investigate (--unban-low-score)"
 
 msgid " requêtes d'icône seulement (apple-touch-icon, favicon.ico) : non hostiles"
 msgstr " icon requests only (apple-touch-icon, favicon.ico): not hostile"
@@ -2993,3 +2993,33 @@ msgstr "account forms: "
 
 msgid " requêtes à /web/reset_password ou /web/signup (mot de passe oublié, inscription) ; un robot qui suit les liens de la page de connexion les lit sans rien soumettre, mais les journaux ne distinguent pas un formulaire affiché d'un formulaire envoyé : vérifier les connexions échouées d'Odoo si l'adresse n'est pas un robot connu"
 msgstr " requests to /web/reset_password or /web/signup (password reset, sign-up); a robot that follows the links of the login page reads them without submitting anything, but the logs do not tell a form shown from a form sent: check Odoo's failed logins if the address is not a known robot"
+
+msgid "Enquête incohérente"
+msgstr "Inconsistent investigation"
+
+msgid " — enquête de nginx-log-audit.sh --investigate (score "
+msgstr " - investigation of nginx-log-audit.sh --investigate (score "
+
+msgid "→ Bannissement JUSTIFIÉ (verdict : "
+msgstr "-> Ban JUSTIFIED (verdict: "
+
+msgid ") — le garder."
+msgstr "): keep it."
+
+msgid "→ À VÉRIFIER (verdict : "
+msgstr "-> TO CHECK (verdict: "
+
+msgid ") : décision manuelle, voir le détail : nginx-log-audit.sh --investigate "
+msgstr "): manual decision, see the detail: nginx-log-audit.sh --investigate "
+
+msgid "(aucun verdict)"
+msgstr "(no verdict)"
+
+msgid "Aucune IP bannie n'a une levée recommandée par --investigate."
+msgstr "No banned IP has a lift recommended by --investigate."
+
+msgid " requête(s) d'injection SQL dans les journaux : le bannissement est gardé, quel que soit le score"
+msgstr " SQL injection request(s) in the logs: the ban is kept, whatever the score"
+
+msgid "selon l'enquête --investigate de chaque adresse : le même verdict, la même logique)."
+msgstr "according to the --investigate investigation of each address: the same verdict, the same logic)."

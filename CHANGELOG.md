@@ -3497,6 +3497,25 @@ Earlier history was archived outside this repository when this file was created.
 
 ## nginx-log-audit.sh
 
+### 2.85.20261103.103805 - One verdict for bans: --unban-low-score and --unban-check call --investigate
+
+- Title: the recommendations to ban or lift come from a single engine, the one of --investigate.
+- Reason: request of the administrator on 2026-11-03: --unban-low-score showed 185.218.86.26 as 0/7 "LEVÉE recommandée" while --investigate gave 3/7 "BANNIR"; the recommendations differed from one option to the other. --unban-low-score must call --investigate, and the programs must be checked and made uniform.
+- Audit of the programs: app-log-live.py (ban proposals) and web-monitor.py (repeat offenders) already ask `nginx-log-audit.sh --investigate --no-prompt` and follow its verdict: nothing to change. The only second logic was inside nginx-log-audit.sh (decide_unban, used by --unban-check and --unban-low-score, with a score computed without the RDAP owner of the block, without blocked-probes.log and without the same catch-all counts).
+- Changes:
+  - New verdict_par_enquete IP: runs `--investigate IP --no-prompt` (sub-process, French) and reads its RÉSUMÉ line (verdict, reason, score). UNBAN_VERDICT: lever (LEVER LE BANNISSEMENT), garder (BANNIR, GARDER LE BANNISSEMENT, LAISSER À FAIL2BAN, LAISSER À CROWDSEC), verifier (other verdicts), incoherente, trace (no verdict).
+  - --unban-low-score rewritten on verdict_par_enquete: one step "Enquête i/N" per address; the table shows the score and the verdict of --investigate (no more "?/7"); the blocks of the addresses to lift are shown; the lift needs the verdict LEVER LE BANNISSEMENT (checked again before each lift, even with --yes).
+  - --unban-check: evaluer_bannissement shows the block of --investigate then the conclusion and the offer to lift (new proposer_levee); the logs are no longer prepared in this process.
+  - recommander(): SQL injection rule (2.68) moved here: a verdict LEVER LE BANNISSEMENT becomes GARDER LE BANNISSEMENT when the logs hold an injection (protected addresses excepted), so --investigate says the same.
+  - RÉSUMÉ line: score added as 6th field (app-log-live.py reads the first fields only).
+  - Removed: decide_unban, preparer_journaux_unban, the unban-check branch of investigate_and_propose, INV_MODE, DERNIER_SCORE, MODE_EVALUATION.
+  - lang/nginx-log-audit.en.po, doc/fr and doc/en 02-nginx-log-audit.md; tests: class ChkNginxLogs285 (3 tests), unban tests adapted, test_sqli_unban follows recommander, test_ban_gate version.
+- Bugs fixed:
+  - Symptom: 185.218.86.26 listed 0/7 and "LEVÉE recommandée" by --unban-low-score, 3/7 "BANNIR" by --investigate. Diagnosis: two separate logics (the in-process one ignored the RDAP hosting owner and the refusals of blocked-probes.log). Fix: one engine.
+- Safeguards and edge cases: an address is never lifted unless --investigate says LEVER LE BANNISSEMENT; protected addresses are never lifted by --unban-low-score; the SQL injection rule keeps the ban; without verdict the address is "trace" (manual decision). Cost: one --investigate per banned address (about 5 s each, 29 addresses: 2 to 3 minutes), shown by one progress line per address.
+- Checks performed: ChkNginxLogs285, all the --unban tests of test_nginx_log_audit, test_sqli_unban, test_ban_gate, test_i18n catalogue of nginx-log-audit.
+- Action required from the user: none.
+
 ### 2.84.20261103.081135 - The analysis reports requests to the password reset and sign-up forms
 
 - Title: --investigate notes 10 or more requests to /web/reset_password or /web/signup, as information.
