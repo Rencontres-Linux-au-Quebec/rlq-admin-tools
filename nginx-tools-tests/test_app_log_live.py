@@ -301,6 +301,24 @@ class AppLogLive(EnvTest):
         self.assertIn("Fetching mail", complete)
         self.assertRegex(complete, rf"INFO +{PERSONNE}\s+base werkzeug ")
 
+    def test_hide_addons_cache_unlink_et_registry_sauf_erreurs(self):
+        fixe = datetime.datetime(2026, 11, 2, 18, 44, 43, 180000, FUSEAU)
+        self.journal([werkzeug(PERSONNE, fixe=fixe),
+                      odoo("INFO", "base", "odoo.models.unlink", "User #1 deleted ir.cron.progress records with IDs: [194547, 194548]", fixe=fixe),
+                      odoo("INFO", "base", "odoo.models.unlink", "User #1 deleted bus.presence records with IDs: [399, 407, 408]", fixe=fixe),
+                      odoo("INFO", "base", "odoo.modules.registry", "Invalidating caches after database signaling: ['templates', 'templates.cached_values']", fixe=fixe),
+                      odoo("ERROR", "base", "odoo.models.unlink", "User #1 could not delete ir.attachment records", fixe=fixe),
+                      odoo("INFO", "base", "odoo.modules.loading", "Modules loaded.", fixe=fixe)])
+        out = self.lancer("--hide-addons", "--no-presence", "--no-isp")[1]
+        self.assertNotIn("deleted ir.cron.progress", out)                                         # unlink noise: hidden
+        self.assertNotIn("deleted bus.presence", out)
+        self.assertNotIn("Invalidating caches", out)                                              # registry noise: hidden
+        self.assertIn("could not delete ir.attachment", out)                                      # errors: never hidden
+        self.assertIn("Modules loaded.", out)                                                     # other loggers: kept
+        complete = self.lancer("--no-presence", "--no-isp")[1]                                      # sans l'option : tout
+        self.assertIn("deleted ir.cron.progress", complete)
+        self.assertIn("Invalidating caches", complete)
+
     def test_hide_addons_cache_le_bruit_des_modules_sauf_erreurs_courriels_et_pdf(self):
         fixe = datetime.datetime(2026, 10, 2, 10, 7, 18, 326421, FUSEAU)
         self.journal([werkzeug(PERSONNE, fixe=fixe),
