@@ -37,14 +37,17 @@ class SqliUnbanCheck(unittest.TestCase):
         self.assertFalse(correspond("/shop/tasse-du-22e-11-onces-19?order=website_sequence%20asc"))
         self.assertFalse(correspond("/web/assets/1/bc7974c/web.assets_frontend_lazy.min.js"))
 
-    def test_decide_unban_garde_si_injection(self):
-        """decide_unban appelle sqli_hits_ip avant tout autre critere et garde le bannissement."""
+    def test_recommander_garde_si_injection(self):
+        """2.85 : la règle est dans recommander() (le moteur de verdict unique de --investigate, --unban-check et --unban-low-score) :
+        un verdict LEVER LE BANNISSEMENT devient GARDER LE BANNISSEMENT si sqli_hits_ip trouve une injection (sauf adresse protégée)."""
         with open(os.path.join(RACINE, "nginx-log-audit.sh"), encoding="utf-8") as f:
             s = f.read()
-        corps = re.search(r"^decide_unban\(\) \{(.*?)^\}", s, re.S | re.M).group(1)
+        corps = re.search(r"^recommander\(\) \{(.*?)^\}", s, re.S | re.M).group(1)
         self.assertIn('n_sqli=$(sqli_hits_ip "$ip")', corps)
-        self.assertLess(corps.index("sqli_hits_ip"), corps.index("protected_ip_reason"))
-        self.assertIn('UNBAN_VERDICT="garder"', corps.split("sqli_hits_ip")[1].split("return 0")[0])
+        garde = corps[corps.index("sqli_hits_ip"):]
+        self.assertIn('verdict="GARDER LE BANNISSEMENT"', garde.split("noms_refuses")[0])
+        self.assertIn('"$verdict" == "LEVER LE BANNISSEMENT" && -z "$prot"', corps)
+        self.assertNotIn("decide_unban", s)
 
 
 if __name__ == "__main__":

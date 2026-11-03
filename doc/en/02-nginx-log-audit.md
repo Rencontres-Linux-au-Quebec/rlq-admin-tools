@@ -30,7 +30,7 @@ The **rented server** clue is checked when the reverse DNS names a hosting provi
 
 Refusals produced by our nginx rules are logged to `blocked-probes.log`, not to the site logs; investigations and evidence read it too ("Requests REFUSED by nginx"), otherwise a banned address would look as if it had made no request.
 
-`--unban-low-score` (2.81) investigates (like `--investigate`) each address whose lift `--unban-check` recommends, **before** lifting it: the verdict and the reasons are shown, and an address is lifted only if the investigation says "LEVER LE BANNISSEMENT" (otherwise it stays banned, even with `--yes`, with a message that points to `--investigate`).
+`--unban-low-score` (2.85) runs `--investigate` on EVERY banned address (sub-process: the same code, the same logs including `blocked-probes.log`, the same RDAP, the same verdict engine): the score and the verdict in the table are those of `--investigate`, word for word. An address is lifted only if the verdict is "LEVER LE BANNISSEMENT" (otherwise it stays banned, even with `--yes`). `--unban-check` follows the same logic: it no longer has a verdict of its own (before, it gave 0/7 and "lift" where `--investigate` gave 3/7 and "BANNIR"). An SQL injection in the logs keeps a ban in all three commands. The line `RÉSUMÉ|ip|verdict|reason|bans|score` now carries the score as 6th field.
 
 Since 2.84, the analysis reports, as information only (no hostility point), 10 or more requests to `/web/reset_password` or `/web/signup`: the logs do not tell a form shown from a form sent, and a robot that follows the links of the login page reads them without submitting anything.
 

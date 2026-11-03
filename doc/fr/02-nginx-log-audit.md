@@ -30,7 +30,7 @@ L'indice **serveur loué** est coché quand le DNS inverse désigne un hébergeu
 
 Les refus produits par nos règles nginx sont journalisés dans `blocked-probes.log`, pas dans les journaux des sites ; les enquêtes et les preuves le lisent aussi (« Requêtes REFUSÉES par nginx »), sinon une adresse bannie semblerait n'avoir fait aucune requête.
 
-`--unban-low-score` (2.81) enquête (comme `--investigate`) sur chaque adresse dont `--unban-check` recommande la levée, **avant** de la lever : le verdict et les raisons s'affichent, et une adresse n'est levée que si l'enquête dit « LEVER LE BANNISSEMENT » (sinon elle reste bannie, même avec `--yes`, avec un message qui renvoie à `--investigate`).
+`--unban-low-score` (2.85) lance `--investigate` sur CHAQUE adresse bannie (sous-processus : le même code, les mêmes journaux dont `blocked-probes.log`, le même RDAP, le même moteur de verdict) : le score et le verdict du tableau sont ceux de `--investigate`, mot pour mot. Une adresse n'est levée que si le verdict est « LEVER LE BANNISSEMENT » (sinon elle reste bannie, même avec `--yes`). `--unban-check` suit la même logique : il n'a plus de verdict propre (avant, il donnait 0/7 et « lever » là où `--investigate` donnait 3/7 et « BANNIR »). Une injection SQL dans les journaux garde un bannissement dans les trois commandes. La ligne `RÉSUMÉ|ip|verdict|raison|bans|score` porte maintenant le score en 6e champ.
 
 Depuis 2.84, l'analyse signale en information (sans point d'hostilité) 10 requêtes ou plus à `/web/reset_password` ou `/web/signup` : les journaux ne distinguent pas un formulaire affiché d'un formulaire envoyé, et un robot qui suit les liens de la page de connexion les lit sans rien soumettre.
 

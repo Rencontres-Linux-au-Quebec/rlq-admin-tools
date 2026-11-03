@@ -103,7 +103,7 @@
 #   - --unban-cdn     : lists the BANS (fail2ban and manual firewall) of addresses inside Cloudflare's published ranges
 #                        (nginx/cdn/cloudflare-ips.txt), shows a preview, then asks ONCE before lifting them
 #                        (--yes: no question; no terminal: preview only). Protected addresses are never lifted.
-#   - --unban-low-score : liste les IP BANNIES (fail2ban et pare-feu manuel) dont --unban-check recommande la LEVEE
+#   - --unban-low-score : liste les IP BANNIES (fail2ban et pare-feu manuel) dont --investigate recommande la LEVEE
 #                        (same verdict, same process, logs read once); asks for each one whether it can be unbanned
 #                        (--yes: without question; without terminal: list only). The score is shown for information.
 #   - --version       : affiche la version et quitte.
@@ -146,7 +146,7 @@ grep_q() { grep "$@" >/dev/null; }
 #                              ne peut pas le voir, le texte etant entre apostrophes (faux positif).
 trap 'ec=$?; echo "" >&2; echo "*** ARRÊT INATTENDU DU SCRIPT (code $ec) À LA LIGNE $LINENO ***" >&2; echo "*** Commande fautive : $BASH_COMMAND" >&2; echo "*** Si le rapport ci-dessus semble incomplet (ex. sections Top 10 absentes), c'\''est probablement la cause." >&2' ERR
 
-readonly SCRIPT_VERSION="2.84.20261103.081135"
+readonly SCRIPT_VERSION="2.85.20261103.103805"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
 # Chemin de ce programme (relances --investigate, --ban, --unban) : defini ICI, avant le bloc --ban qui l'utilise.
 SELF_PATH="$SCRIPT_DIR/$(basename "${BASH_SOURCE[0]}")"
@@ -204,7 +204,6 @@ SIGNE_FORT=0
 REVOIR_IPS=()                  # --unban-check: addresses whose ban must be checked by hand (section 5 of the review)
 EXPORT_BANS=""
 IMPORT_BANS=""
-INV_MODE=""
 CATCHALL_MERGED=""
 ASSUME_YES=0
 INVESTIGATE_IP=""
@@ -370,7 +369,7 @@ Options (par ordre alphabétique) :
   --unban-cdn                  lever les bannissements des adresses Cloudflare (aperçu, puis confirmation)
   --unban-check                réévaluer chaque bannissement manuel (levée proposée si injustifié)
   --unban-expired              lever les bannissements manuels dont l'échéance est passée (aperçu, puis confirmation ; lancé chaque jour par cron)
-  --unban-low-score            lister les IP bannies que --unban-check recommande de lever, et proposer de les débannir
+  --unban-low-score            lister les IP bannies que --investigate recommande de lever (même verdict que --investigate), et proposer de les débannir
   -v, --verbose                affiche chaque commande lancée
   --version                    affiche la version et quitte
   --yes                        avec --ban ou --unban : sans question (justification : --reason, sinon automatique)
@@ -2538,18 +2537,6 @@ investigate_and_propose() {
     INV_NCA="$n_ca"; INV_PTR="$ptr"; INV_MOTIFS="$(printf '%s ; ' "${motifs[@]}")"; INV_MOTIFS="${INV_MOTIFS% ; }"; INV_NSESSION="${n_session:-0}"
     INV_MOTIFS_LISTE=("${motifs[@]}")
     local blocked prot
-    if [[ "$INV_MODE" == "unban-check" ]]; then
-        DERNIER_SCORE="$score"
-        if [[ -n "$logins" ]]; then
-            # Banned WHILE it logged in to Odoo with an account: ban to lift (volunteer, member).
-            echo "      ${C_YELLOW}⚠ Cette IP bannie s'est connectée à Odoo avec un compte ($(printf '%s\n' "$logins" | head -1 | cut -d' ' -f1)) :${C_RESET}"
-            echo "      ${C_YELLOW}  un utilisateur légitime — bannissement à lever.${C_RESET}"
-            decide_unban "$ip" 0 0 "$verified_engine"
-        else
-            decide_unban "$ip" "$hostile" "$score" "$verified_engine"
-        fi
-        return 0
-    fi
     if prot=$(protected_ip_reason "$ip"); then
         echo "      ${C_GREEN}→ Score $score/7 — IP protégée ($(printf '%s\n' "$prot" | head -1)) : jamais proposée au bannissement.${C_RESET}"
         return 0
@@ -2628,8 +2615,6 @@ confirm_and_ban() {
 
 # --- --unban-check : reevaluation d'un bannissement manuel avec la logique actuelle ---------------------------------
 UNBAN_VERDICT=""
-DERNIER_SCORE=""           # score of the last investigation evaluated (for --unban-low-score)
-MODE_EVALUATION=0           # 1: decide_unban never asks (--unban-low-score evaluates first, lifts after)
 readonly UNBAN_SUMMARY_MIN=5
 UNBAN_SUMMARY=()
 # sqli_hits_ip IP : number of lines of the full history (INV_SRC) from this address that match SQLI_RE (encoded or not).
@@ -2638,44 +2623,10 @@ sqli_hits_ip() {
     awk -v ip="$1" '$1 == ip' "$INV_SRC" | grep -Eic -- "$SQLI_RE" || true
 }
 
-decide_unban() {
-    local ip="$1" hostile="$2" score="$3" verified="$4" prot raison="" n_sqli
-    if [[ "$ENQUETE_INCOHERENTE" == "1" ]]; then
-        UNBAN_VERDICT="incoherente"
-        echo "      ${C_YELLOW}→ Aucun verdict : enquête incohérente, à relancer (nginx-log-audit.sh --investigate $ip).${C_RESET}"
-        return 0
-    fi
-    # 2.68: an SQL injection in the logs (UNION SELECT, EXTRACTVALUE...) is a strong sign: the ban is kept, whatever the score.
-    n_sqli=$(sqli_hits_ip "$ip")
-    if (( n_sqli > 0 )); then
-        UNBAN_VERDICT="garder"
-        echo "      ${C_RED}→ Bannissement JUSTIFIÉ : $n_sqli requête(s) d'injection SQL dans les journaux — le garder.${C_RESET}"
-        return 0
-    fi
-    if prot=$(protected_ip_reason "$ip"); then
-        raison="IP protégée ($(printf '%s\n' "$prot" | head -1)) : bannie par erreur"
-    elif [[ "$verified" == "1" ]]; then
-        raison="moteur de recherche VÉRIFIÉ : le bannir le retire de l'indexation du site"
-    elif (( hostile == 0 )); then
-        raison="aucun signe d'hostilité (score $score/7, automatisation seulement) — voir les URL demandées"
-    fi
-    # A single sign of hostility that is only a burst of pages (no strong sign) is not enough to keep a ban: a browser or a
-    # monitoring tool can load many pages in 10 seconds. The reader decides.
-    if [[ -z "$raison" && "$hostile" == "1" && "$SIGNE_FORT" != "1" ]]; then
-        UNBAN_VERDICT="verifier"
-        echo "      ${C_YELLOW}→ À VÉRIFIER : un seul signe d'hostilité, une rafale de pages, sans signe fort (fichiers sensibles,"
-        echo "        erreurs, faux moteur, capteur catch-all). Gardez-le seulement si vous reconnaissez cet outil.${C_RESET}"
-        return 0
-    fi
-    if [[ -z "$raison" ]]; then
-        UNBAN_VERDICT="garder"
-        echo "      ${C_RED}→ Bannissement JUSTIFIÉ : $hostile signes d'hostilité — le garder.${C_RESET}"
-        return 0
-    fi
-    UNBAN_VERDICT="lever"
-    echo "      ${C_GREEN}→ Levée RECOMMANDÉE : $raison.${C_RESET}"
-    echo "        (Gardez-le si vous l'aviez banni pour une raison connue qui n'apparaît pas dans ces journaux.)"
-    if [[ "$NO_PROMPT" != "1" && "$MODE_EVALUATION" != "1" && -t 0 && -t 1 && "$EUID" -eq 0 ]]; then
+# proposer_levee IP RAISON : asks (terminal, root, no --no-prompt) whether to lift the ban of IP now; UNBAN_VERDICT becomes "levé" when it is lifted.
+proposer_levee() {
+    local ip="$1" raison="$2"
+    if [[ "$NO_PROMPT" != "1" && -t 0 && -t 1 && "$EUID" -eq 0 ]]; then
         if demander_oui "      Lever le bannissement de $ip maintenant ? [o/N] "; then
             NGINX_LOG_AUDIT_UNBAN_SCOPE=manual relancer_action --unban "$ip" --yes --reason "réévaluation (--unban-check) : $raison"
             UNBAN_VERDICT="levé"
@@ -2689,53 +2640,56 @@ decide_unban() {
     fi
 }
 
-# --- Preparation des journaux pour la reevaluation (une seule fois par execution) -------------------------------------
-preparer_journaux_unban() {
-    INV_SRC="$STATE_DIR/.unban-check.$$"
-    CATCHALL_MERGED="$STATE_DIR/.unban-check-catchall.$$"
-    INIT_ALL_TMP_FILES+=("$INV_SRC" "$CATCHALL_MERGED")
-    trap 'rm -f "${INIT_ALL_TMP_FILES[@]}"' EXIT
-    merge_all_rotations "${ORIG_ACCESS_LOG:-$ACCESS_LOG}" "$INV_SRC" > /dev/null
-    [[ -n "$CATCHALL_LOG" ]] && { merge_all_rotations "$CATCHALL_LOG" "$CATCHALL_MERGED" > /dev/null 2>&1 || true; }
-    INV_MODE="unban-check"
+# --- Single source of the ban decisions (2.85) -----------------------------------------------------------------------------
+# verdict_par_enquete IP : runs nginx-log-audit.sh --investigate IP --no-prompt (this program, in a sub-process, in French) and keeps its result:
+# the SAME code, the same logs (site, rotations, blocked-probes.log, catch-all), the same RDAP, CrowdSec and fail2ban data and the same verdict
+# engine (recommander) as a person who types --investigate. --unban-check and --unban-low-score no longer have a logic of their own (it gave 0/7 and
+# "LEVER" where --investigate gave 3/7 and "BANNIR"). Sets ENQUETE_BLOC (block ANALYSE ET RECOMMANDATION), ENQUETE_VERDICT, ENQUETE_RAISON,
+# ENQUETE_SCORE (N of N/7) and UNBAN_VERDICT: lever (LEVER LE BANNISSEMENT), garder (BANNIR, GARDER..., LAISSER À...), verifier (any other verdict),
+# incoherente or trace (no verdict).
+ENQUETE_BLOC=""; ENQUETE_VERDICT=""; ENQUETE_RAISON=""; ENQUETE_SCORE=""
+verdict_par_enquete() {
+    local ip="$1" resume sortie ligne
+    local -a args=(--investigate "$ip" --no-prompt)
+    [[ -n "${ENV:-}" ]] && args=("$ENV" "${args[@]}")
+    [[ -n "$APP_FORCE" ]] && args+=(--app "$APP_FORCE")
+    resume=$(mktemp)
+    sortie=$(INV_RESUME_FILE="$resume" NGINX_TOOLS_LANG=fr bash "$SELF_PATH" "${args[@]}" 2>&1) || true
+    ENQUETE_BLOC=$(printf '%s\n' "$sortie" | sed -n '/ANALYSE ET RECOMMANDATION/,$p' | sed '1d' | sed '/^[[:space:]]*$/d')
+    ligne=$(grep -F "|$ip|" "$resume" | tail -1) || ligne=""
+    rm -f "$resume"
+    ENQUETE_VERDICT=""; ENQUETE_RAISON=""; ENQUETE_SCORE=""
+    IFS='|' read -r _ _ ENQUETE_VERDICT ENQUETE_RAISON _ ENQUETE_SCORE <<< "$ligne"
+    case "$ENQUETE_VERDICT" in
+        "LEVER LE BANNISSEMENT") UNBAN_VERDICT="lever" ;;
+        BANNIR|"GARDER LE BANNISSEMENT"|"LAISSER À FAIL2BAN"|"LAISSER À CROWDSEC") UNBAN_VERDICT="garder" ;;
+        "") if printf '%s\n' "$sortie" | grep -q "Enquête incohérente"; then UNBAN_VERDICT="incoherente"; else UNBAN_VERDICT="trace"; fi ;;
+        *) UNBAN_VERDICT="verifier" ;;
+    esac
 }
 
 # --- Verdict de --unban-check pour UNE adresse bannie (sortie sur stdout, verdict dans UNBAN_VERDICT) ---------------
-# Shared by --unban-check and --unban-low-score: the same logic, in the same process (logs read once).
+# 2.85: the verdict is the one of --investigate (verdict_par_enquete); this function only displays it and offers the lift.
 evaluer_bannissement() {
-    local ip="$1" rec n_ca n_ico refus
+    local ip="$1"
     UNBAN_VERDICT=""
-    rec=$(scan_ips "$INV_SRC" "$ip") || true
-    if [[ -n "$rec" ]]; then
-        investigate_and_propose "$rec" "$(dirname "$ORIG_ACCESS_LOG")/$(basename "$ORIG_ACCESS_LOG")*" "dans tout l'historique disponible"
+    verdict_par_enquete "$ip"
+    echo "  ▶ ${C_YELLOW}$ip${C_RESET} — enquête de nginx-log-audit.sh --investigate (score ${ENQUETE_SCORE:-?}/7)"
+    if [[ -n "$ENQUETE_BLOC" ]]; then
+        printf '%s\n' "$ENQUETE_BLOC" | sed 's/^/   /'
     else
-        read -r n_ca n_ico <<< "$(compter_catchall "$ip")"
-        if (( n_ca > 0 )); then
-            echo "  ▶ ${C_YELLOW}$ip${C_RESET} — aucune requête sur le site, mais $n_ca tentatives sur le capteur catch-all"
-            echo "      URL tentées :"
-            { awk -F'"' -v ip="$ip" '{ split($1, a, " ") } a[1] == ip { split($2, r, " "); print substr(r[2], 1, 100) }' "$CATCHALL_MERGED" \
-                | sort | uniq -c | sort -rn | head -n 8 | sed -E 's/^ *([0-9]+) /\1x /; s/^/        /'; } || true
-            UNBAN_VERDICT="garder"
-            echo "      ${C_RED}→ Bannissement JUSTIFIÉ : scanner (accès par IP brute ou domaine inconnu) — le garder.${C_RESET}"
-        elif refus=$(urls_refusees "$ip" 3) && [[ -n "$refus" ]]; then
-            # Refused requests (blocked-probes.log) are certain evidence: they are what the nginx-blocked-probes jail counts.
-            echo "  ▶ ${C_YELLOW}$ip${C_RESET} — aucune requête sur le site, mais requêtes REFUSÉES par nginx (blocked-probes.log) :"
-            echo "      URL refusées :"
-            awk -F'\t' '{ printf "        %sx %s\n", $1, $2 }' <<< "$refus"
-            UNBAN_VERDICT="garder"
-            echo "      ${C_RED}→ Bannissement JUSTIFIÉ : requêtes répétées refusées par les règles de sécurité — le garder.${C_RESET}"
-        elif (( n_ico > 0 )); then
-            # 2.52: only browser icon requests reached the catch-all sensor: not hostile, the ban can be lifted.
-            UNBAN_VERDICT="lever"
-            echo "  ▶ ${C_GREEN}$ip${C_RESET} — aucune requête sur le site ; $n_ico requêtes d'icône au capteur catch-all (apple-touch-icon, favicon.ico), non hostiles"
-        else
-            # No evidence left in the logs: show the ban history (fail2ban jails, ban log) instead of a bare "no trace".
-            UNBAN_VERDICT="trace"
-            echo "      Aucune requête de $ip dans les journaux du site, du capteur catch-all ni de blocked-probes.log."
-            afficher_bannissements "$ip" "      "
-            echo "      Réévaluation impossible : décision manuelle (--unban $ip pour lever)."
-        fi
+        echo "     (enquête sans verdict : nginx-log-audit.sh --investigate $ip --no-prompt)"
     fi
+    case "$UNBAN_VERDICT" in
+        lever)
+            echo "      ${C_GREEN}→ Levée RECOMMANDÉE : ${ENQUETE_RAISON%% ; *}.${C_RESET}"
+            echo "        (Gardez-le si vous l'aviez banni pour une raison connue qui n'apparaît pas dans ces journaux.)"
+            proposer_levee "$ip" "${ENQUETE_RAISON%% ; *}" ;;
+        garder) echo "      ${C_RED}→ Bannissement JUSTIFIÉ (verdict : $ENQUETE_VERDICT) — le garder.${C_RESET}" ;;
+        verifier) echo "      ${C_YELLOW}→ À VÉRIFIER (verdict : $ENQUETE_VERDICT) : décision manuelle, voir le détail : nginx-log-audit.sh --investigate $ip${C_RESET}" ;;
+        incoherente) echo "      ${C_YELLOW}→ Aucun verdict : enquête incohérente, à relancer (nginx-log-audit.sh --investigate $ip).${C_RESET}" ;;
+        *) echo "      Réévaluation impossible : décision manuelle (--unban $ip pour lever)." ;;
+    esac
 }
 
 # enquetes_compactes IP... (2.80, section 6 of --unban-check; 2.81, also used by --unban-low-score): runs nginx-log-audit.sh --investigate for each
@@ -2791,19 +2745,20 @@ enquetes_compactes() {
 }
 
 # --- --unban-low-score : IP bannies (fail2ban ou pare-feu manuel) dont --unban-check recommande la LEVEE ---------------
-# 2.50: the same verdict as --unban-check (evaluer_bannissement), in this process: the logs are read once, no sub-process
-# per address. Only an address whose verdict is "lever" is proposed for lifting; the score is shown for information.
+# 2.85: the verdict of each banned address is the one of nginx-log-audit.sh --investigate (verdict_par_enquete: the same code, no logic of its own).
+# Only an address whose verdict is LEVER LE BANNISSEMENT is lifted; the score and the verdict shown are those of the investigation.
 if [[ "$DO_UNBAN_LOW_SCORE" == "1" ]]; then
     if [[ "$EUID" -ne 0 ]]; then
         echo "ERREUR: --unban-low-score nécessite root (sudo)." >&2
         exit 1
     fi
     echo "=============================================================="
-    echo " IP BANNIES DONT --unban-check RECOMMANDE LA LEVÉE (lecture seule d'abord)"
+    echo " IP BANNIES DONT --investigate RECOMMANDE LA LEVÉE (lecture seule d'abord)"
     echo "=============================================================="
     declare -A BAN_SOURCE=()
     declare -A SCORE_OF=()
     declare -A VERDICT_OF=()
+    declare -A BLOC_OF=()
     declare -a LOW_IPS=()
     if command -v fail2ban-client >/dev/null 2>&1 && run fail2ban-client ping >/dev/null 2>&1; then
         for j in $(run fail2ban-client status 2>/dev/null | sed -n 's/.*Jail list:[[:space:]]*//p' | tr ',' ' '); do
@@ -2820,49 +2775,36 @@ if [[ "$DO_UNBAN_LOW_SCORE" == "1" ]]; then
         echo "${C_GREEN}Aucune IP bannie (fail2ban ni bannissement manuel).${C_RESET}"
         exit 0
     fi
-    echo "${#BAN_SOURCE[@]} IP bannies : réévaluation avec la logique de --unban-check (lecture seule)…"
-    preparer_journaux_unban
-    MODE_EVALUATION=1
+    echo "${#BAN_SOURCE[@]} IP bannies : enquête de --investigate sur chacune (lecture seule)…"
     n_ip=0
     for ip in $(printf '%s\n' "${!BAN_SOURCE[@]}" | sort -V); do
         n_ip=$((n_ip + 1))
-        # One progress step per address, on the error output (terminal or --verbose only).
-        progres "Réévaluation $n_ip/${#BAN_SOURCE[@]} : $ip (lecture seule)"
-        DERNIER_SCORE=""
-        UNBAN_VERDICT=""
-        saved_progres=$PROGRES_ACTIF
-        PROGRES_ACTIF=0           # the investigation's own steps are not shown: one line per address
-        evaluer_bannissement "$ip" >/dev/null || true
-        PROGRES_ACTIF=$saved_progres
-        SCORE_OF["$ip"]="${DERNIER_SCORE:-?}"
-        VERDICT_OF["$ip"]="${UNBAN_VERDICT:-?}"
-        if [[ "$UNBAN_VERDICT" == "lever" ]]; then
+        progres "Enquête $n_ip/${#BAN_SOURCE[@]} : $ip (nginx-log-audit.sh --investigate)"
+        verdict_par_enquete "$ip"
+        SCORE_OF["$ip"]="${ENQUETE_SCORE:-?}"
+        VERDICT_OF["$ip"]="${ENQUETE_VERDICT:-(aucun verdict)}"
+        BLOC_OF["$ip"]="$ENQUETE_BLOC"
+        if [[ "$ENQUETE_VERDICT" == "LEVER LE BANNISSEMENT" ]]; then
             LOW_IPS+=("$ip")
         fi
     done
-    MODE_EVALUATION=0
     echo
-    printf '  %-40s %-8s %-24s %s\n' "IP" "Score" "--unban-check" "Banni par"
+    printf '  %-40s %-8s %-26s %s\n' "IP" "Score" "Verdict (--investigate)" "Banni par"
     for ip in $(printf '%s\n' "${!BAN_SOURCE[@]}" | sort -V); do
-        case "${VERDICT_OF[$ip]}" in
-            lever)        libelle="LEVÉE recommandée" ;;
-            garder)       libelle="garder" ;;
-            verifier)     libelle="à vérifier" ;;
-            trace)        libelle="sans trace" ;;
-            incoherente)  libelle="incohérente" ;;
-            *)            libelle="?" ;;
-        esac
-        printf '  %-40s %-8s %-24s %s\n' "$ip" "${SCORE_OF[$ip]}/7" "$libelle" "${BAN_SOURCE[$ip]}"
+        printf '  %-40s %-8s %-26s %s\n' "$ip" "${SCORE_OF[$ip]}/7" "${VERDICT_OF[$ip]}" "${BAN_SOURCE[$ip]}"
     done
     echo
     if (( ${#LOW_IPS[@]} == 0 )); then
-        echo "${C_GREEN}Aucune IP bannie n'a une levée recommandée par --unban-check.${C_RESET}"
+        echo "${C_GREEN}Aucune IP bannie n'a une levée recommandée par --investigate.${C_RESET}"
         exit 0
     fi
     echo "${C_YELLOW}${#LOW_IPS[@]} IP bannies à lever (levée recommandée) : ${LOW_IPS[*]}${C_RESET}"
-    # 2.81: before any lift, each address is investigated (--investigate, read-only): the lift is offered only when the investigation agrees.
-    ENQUETES_TITRE="Enquêtes avant la levée (lancées par ce programme : verdict et recommandation de --investigate)" \
-        ENQUETES_SANS_COMMANDES=1 UNBAN_CHECK_INVESTIGATIONS="${#LOW_IPS[@]}" enquetes_compactes "${LOW_IPS[@]}"
+    echo
+    echo "${C_BOLD}Enquêtes avant la levée (lancées par ce programme : verdict et recommandation de --investigate)${C_RESET}"
+    for ip in "${LOW_IPS[@]}"; do
+        echo "   ${C_YELLOW}▶ $ip${C_RESET}"
+        printf '%s\n' "${BLOC_OF[$ip]}" | sed 's/^/   /'
+    done
     echo
     interactif=0
     [[ "$NO_PROMPT" != "1" && -t 0 && -t 1 ]] && interactif=1
@@ -2872,9 +2814,9 @@ if [[ "$DO_UNBAN_LOW_SCORE" == "1" ]]; then
             echo "  $ip : IP protégée ($(printf '%s\n' "$prot" | head -1)) — jamais levée par ce programme."
             continue
         fi
-        # 2.81: the investigation must confirm the lift (verdict LEVER LE BANNISSEMENT); otherwise the ban stays, even with --yes.
-        if [[ "${ENQUETE_VERDICT_OF[$ip]:-}" != "LEVER LE BANNISSEMENT" ]]; then
-            echo "  ${C_YELLOW}[ATTN]${C_RESET} $ip : non levée, l'enquête ne confirme pas la levée (verdict : ${ENQUETE_VERDICT_OF[$ip]:-aucun}). Détail : nginx-log-audit.sh --investigate $ip"
+        # 2.81, 2.85: the lift needs the verdict LEVER LE BANNISSEMENT of the investigation (it is the only way an address gets here); checked again, even with --yes.
+        if [[ "${VERDICT_OF[$ip]:-}" != "LEVER LE BANNISSEMENT" ]]; then
+            echo "  ${C_YELLOW}[ATTN]${C_RESET} $ip : non levée, l'enquête ne confirme pas la levée (verdict : ${VERDICT_OF[$ip]:-aucun}). Détail : nginx-log-audit.sh --investigate $ip"
             continue
         fi
         ok=0
@@ -2897,7 +2839,7 @@ if [[ "$DO_UNBAN_LOW_SCORE" == "1" ]]; then
                     fi
                     ;;
                 *)
-                    relancer_action --unban "$ip" --yes --reason "levée recommandée par --unban-check (--unban-low-score)" || true
+                    relancer_action --unban "$ip" --yes --reason "levée recommandée par --investigate (--unban-low-score)" || true
                     ;;
             esac
         fi
@@ -3208,6 +3150,16 @@ recommander() {
             verdict="AUCUNE ACTION"; raisons+=("à surveiller seulement")
         fi
     fi
+    # 2.85: an SQL injection in the logs (UNION SELECT, EXTRACTVALUE...) keeps a ban whatever the score (rule of 2.68, now in the single verdict engine,
+    # so that --investigate, --unban-check and --unban-low-score all say the same thing).
+    if [[ "$verdict" == "LEVER LE BANNISSEMENT" && -z "$prot" ]]; then
+        local n_sqli
+        n_sqli=$(sqli_hits_ip "$ip")
+        if (( n_sqli > 0 )); then
+            verdict="GARDER LE BANNISSEMENT"; cmd=""
+            raisons+=("$n_sqli requête(s) d'injection SQL dans les journaux : le bannissement est gardé, quel que soit le score")
+        fi
+    fi
     [[ -n "$noms_refuses" ]] && notes+=("déjà refusé par son nom dans bot_blocker.conf : $noms_refuses (ses requêtes reçoivent un 403)")
     [[ -n "$nature" ]] && notes+=("nature probable : $nature")
     # 2.84: requests to the password reset and sign-up forms (shown red in app-log-live.py). Information only: a crawler that follows the links of the login page
@@ -3235,7 +3187,7 @@ recommander() {
     for j in "${raisons[@]}"; do echo "    - $j"; done
     for j in "${notes[@]}"; do echo "    · $j"; done
     [[ -n "$cmd" ]] && echo "  Commande : $cmd"
-    echo "  RÉSUMÉ|$ip|$verdict|$INV_RAISON|${ETAT_F2B_BANS:-0}" >> "${INV_RESUME_FILE:-/dev/null}"      # 2.79: read by app-log-live.py too
+    echo "  RÉSUMÉ|$ip|$verdict|$INV_RAISON|${ETAT_F2B_BANS:-0}|${INV_SCORE:-0}" >> "${INV_RESUME_FILE:-/dev/null}"      # 2.79: read by app-log-live.py too; 2.85: score as 6th field
 }
 
 # --- --investigate IP : enquete complete sur TOUT l'historique disponible (actif + rotations + .gz) ------------------
@@ -3404,8 +3356,7 @@ if [[ "$DO_UNBAN_CHECK" == "1" ]]; then
         exit 0
     fi
     echo "${#BANS[@]} bannissements manuels à réévaluer avec la logique actuelle (bannissement justifié seulement"
-    echo "s'il y a au moins un signe d'HOSTILITÉ : rafale, fichiers sensibles, erreurs en masse, faux moteur, capteur catch-all)."
-    preparer_journaux_unban
+    echo "selon l'enquête --investigate de chaque adresse : le même verdict, la même logique)."
     n_lever=0; n_garder=0; n_trace=0; n_leve=0; n_verif=0; n_incoh=0; i=0
     REVOIR_IPS=()
     for bip in "${BANS[@]}"; do

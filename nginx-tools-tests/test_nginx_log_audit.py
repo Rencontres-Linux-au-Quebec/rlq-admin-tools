@@ -269,9 +269,9 @@ class ChkNginxLogs(EnvTest):
 
     @unittest.skipUnless(os.geteuid() == 0, "--unban-low-score exige root")
     def test_unban_low_score_leve_seulement_si_unban_check_recommande(self):
-        """2.50 : --unban-low-score applique le verdict de --unban-check (même processus, journaux lus une fois).
-        Une IP « garder » n'est JAMAIS levée (même avec un score bas) ; une IP « lever » l'est avec --yes.
-        Une étape par adresse est affichée (erreur standard, terminal ou --verbose)."""
+        """2.85 : --unban-low-score applique le verdict de --investigate (sous-processus : le même code, aucune logique propre).
+        Une IP dont le verdict n'est pas LEVER LE BANNISSEMENT n'est JAMAIS levée ; l'autre l'est avec --yes.
+        Une étape par adresse est affichée (erreur standard, terminal ou --verbose), et le score est celui de l'enquête."""
         garder = "11.89.160.73"      # 3 refus sur le site : indices d'hostilité, verdict « garder »
         lever = "11.89.160.80"       # 3 pages normales, sans rafale ni signe d'hostilité : verdict « lever »
         self.add(*(acc(garder, "25/Sep/2026", f"07:12:1{k}", f"{p}?x={k}", 403, "curl/8.5.0") for k, p in enumerate(["/.env", "/.git/config", "/wp-admin/"] * 2)))
@@ -282,18 +282,18 @@ class ChkNginxLogs(EnvTest):
                                      f'*) exit 0;; esac')
         rc, out, err = self.run_cmd(["bash", self.prog, "prod", "--unban-low-score", "--no-prompt", "--yes", "--verbose"])
         self.assertEqual(rc, 0, err)
-        self.assertRegex(out, r"\s" + re.escape(garder) + r"\s+\d/7\s+garder\s+fail2ban:jail-a\n", out)
-        self.assertRegex(out, r"\s" + re.escape(lever) + r"\s+\d/7\s+LEVÉE recommandée\s+fail2ban:jail-a\n", out)
-        self.assertIn(f"Réévaluation 1/2 : {garder} (lecture seule)", err)                # a step is shown per address
-        self.assertIn(f"Réévaluation 2/2 : {lever} (lecture seule)", err)
+        self.assertRegex(out, r"\s" + re.escape(garder) + r"\s+\d/7\s+(BANNIR|LAISSER À FAIL2BAN|GARDER LE BANNISSEMENT)\s+fail2ban:jail-a\n", out)
+        self.assertRegex(out, r"\s" + re.escape(lever) + r"\s+\d/7\s+LEVER LE BANNISSEMENT\s+fail2ban:jail-a\n", out)
+        self.assertNotRegex(out, r"\s\?/7\s", "every address has the score of its investigation")
+        self.assertIn(f"Enquête 1/2 : {garder} (nginx-log-audit.sh --investigate)", err)       # a step is shown per address
+        self.assertIn(f"Enquête 2/2 : {lever} (nginx-log-audit.sh --investigate)", err)
         with open(f"{self.d}/f2b-set.log") as f:
             levees = f.read()
         self.assertIn(f"unbanip {lever}", levees)
         self.assertNotIn(f"unbanip {garder}", levees, "une IP « garder » ne doit jamais être levée")
         # 2.81: the investigation of each address to lift is run and shown BEFORE the lift, and it confirms it
         self.assertIn("Enquêtes avant la levée", out)
-        self.assertEqual(out.count("     Verdict : "), 1, "une seule enquête : seule l'IP à lever est enquêtée")
-        self.assertRegex(out, r"\s" + re.escape(lever) + r"\s+LEVER LE BANNISSEMENT\s", out)
+        self.assertEqual(out.count("     Verdict : "), 1, "le bloc de l'enquête n'est affiché que pour l'IP à lever")
         self.assertLess(out.index("Enquêtes avant la levée"), out.index("levée (jail"))
         self.assertNotIn("Commandes à lancer", out, "--unban-low-score agit lui-même : pas de commandes à copier")
 
@@ -302,9 +302,10 @@ class ChkNginxLogs(EnvTest):
         with open(self.prog, encoding="utf-8") as f:
             src = f.read()
         bloc = src[src.index("# --- --unban-low-score :"):src.index("# --- --unban-expired")]
-        self.assertIn('ENQUETE_VERDICT_OF[$ip]:-}" != "LEVER LE BANNISSEMENT"', bloc)
-        self.assertLess(bloc.index("enquetes_compactes"), bloc.index("ENQUETE_VERDICT_OF[$ip]"))
-        self.assertLess(bloc.index("ENQUETE_VERDICT_OF[$ip]"), bloc.index('if [[ "$ASSUME_YES" == "1" ]]'))
+        self.assertIn('VERDICT_OF[$ip]:-}" != "LEVER LE BANNISSEMENT"', bloc)
+        self.assertLess(bloc.index("verdict_par_enquete"), bloc.index('VERDICT_OF[$ip]:-}" != "LEVER'))
+        self.assertLess(bloc.index('VERDICT_OF[$ip]:-}" != "LEVER'), bloc.index('if [[ "$ASSUME_YES" == "1" ]]'))
+        self.assertNotIn("evaluer_bannissement", bloc, "2.85: no logic of its own, only the investigation")
 
     @unittest.skipUnless(os.geteuid() == 0, "--unban-low-score exige root")
     def test_unban_low_score_ordre_numerique_des_ip(self):
@@ -341,9 +342,9 @@ class ChkNginxLogs(EnvTest):
                          for p in ("/apple-touch-icon.png", "/apple-touch-icon-precomposed.png", "/favicon.ico"))
         rc, out, err = self.run_cmd(["bash", self.prog, "prod", "--unban-check", "--no-prompt"])
         self.assertEqual(rc, 0, err)
-        self.assertIn("3 requêtes d'icône", out)
-        apres = out[out.index("3 requêtes d'icône"):].split("\n  ▶")[0]
-        self.assertIn("non hostiles", apres)
+        # 2.85: the verdict is the one of --investigate (the icon requests are not hostile: nothing justifies the ban any more)
+        apres = out[out.index("] 198.51.100.60 "):].split("\n--- [")[0]
+        self.assertIn("Verdict : LEVER LE BANNISSEMENT", apres)
         self.assertNotIn("Bannissement JUSTIFIÉ", apres)
 
     def test_ban_ufw_inactif_utilise_iptables_et_sauvegarde_sans_f2b(self):
@@ -776,14 +777,17 @@ class ChkNginxLogs(EnvTest):
         self.assertEqual(rc, 0, err)
         self.assertIn("5 bannissements manuels", out)                 # port rules, ipset, fail2ban excluded
         bloc = lambda ip: out[out.index(f"] {ip} —"):].split("\n--- [")[0]
+        # 2.85: every verdict is the one of --investigate (verdict_par_enquete), displayed under the address
+        self.assertIn("Verdict : LEVER LE BANNISSEMENT", bloc("11.68.110.86"))
         self.assertIn("Levée RECOMMANDÉE : aucun signe d'hostilité", bloc("11.68.110.86"))
-        self.assertIn("1x /events", bloc("11.68.110.86"))
-        self.assertIn("Bannissement JUSTIFIÉ", bloc("11.55.161.77"))
-        self.assertIn("Bannissement JUSTIFIÉ : scanner", bloc("11.159.48.202"))   # catch-all seulement
-        self.assertIn("IP protégée", bloc("11.126.46.49"))
-        self.assertIn("Réévaluation impossible", bloc("198.51.100.99"))
+        self.assertIn("(score ", bloc("11.68.110.86"))
+        self.assertIn("Bannissement JUSTIFIÉ (verdict : GARDER LE BANNISSEMENT)", bloc("11.55.161.77"))
+        self.assertIn("Bannissement JUSTIFIÉ", bloc("11.159.48.202"))             # catch-all seulement
+        self.assertIn("capteur catch-all", bloc("11.159.48.202"))
+        self.assertIn("adresse protégée", bloc("11.126.46.49"))
+        self.assertIn("aucune trace dans les journaux conservés", bloc("198.51.100.99"))
         self.assertNotRegex(out, r"banni le \S+ \S+\S+ \S+", "date doublée")
-        self.assertIn("2 justifiés, 2 levées recommandées", out)
+        self.assertIn("2 justifiés, 3 levées recommandées", out)
 
     @unittest.skipUnless(os.geteuid() == 0, "--unban-check exige root")
     def test_unban_check_refus_repetes_justifient_le_bannissement(self):
@@ -797,14 +801,14 @@ class ChkNginxLogs(EnvTest):
         rc, out, err = self.run_cmd(["bash", self.prog, "prod", "--unban-check", "--no-prompt"])
         self.assertEqual(rc, 0, err)
         bloc = out[out.index("] 198.51.100.98 "):].split("\n--- [")[0]
-        self.assertIn("requêtes REFUSÉES par nginx", bloc)
-        self.assertIn("Bannissement JUSTIFIÉ : requêtes répétées refusées", bloc)
+        self.assertIn("tentatives d'accès à des fichiers sensibles", bloc)       # 2.85: the refusals of blocked-probes.log are read by --investigate
+        self.assertIn("Bannissement JUSTIFIÉ", bloc)
         self.assertNotIn("Réévaluation impossible", bloc)
 
     @unittest.skipUnless(os.geteuid() == 0, "--unban-check exige root")
-    def test_unban_check_une_seule_rafale_a_verifier(self):
-        """2.45 : une seule rafale de pages, sans signe fort, n'est plus un motif suffisant pour garder le bannissement :
-        « à vérifier » ; la section de revue liste l'adresse avec les commandes à lancer."""
+    def test_unban_check_une_seule_rafale_suit_le_verdict_de_investigate(self):
+        """2.85 : une seule rafale de pages, sans signe fort : --unban-check donne le verdict de --investigate (LEVER LE BANNISSEMENT),
+        plus un verdict « à vérifier » propre à --unban-check ; plus rien à revoir à la main."""
         self._bannissements()
         with open(os.path.join(self.d, "rules"), "a") as f:
             f.write("INPUT -s 198.51.100.97 -j DROP\n")
@@ -812,20 +816,17 @@ class ChkNginxLogs(EnvTest):
         rc, out, err = self.run_cmd(["bash", self.prog, "prod", "--unban-check", "--no-prompt"])
         self.assertEqual(rc, 0, err)
         bloc = out[out.index("] 198.51.100.97 "):].split("\n--- [")[0]
-        self.assertIn("À VÉRIFIER : un seul signe d'hostilité", bloc)
+        self.assertIn("Verdict : LEVER LE BANNISSEMENT", bloc)
+        self.assertIn("une seule rafale de pages, sans signe fort", bloc)
         self.assertNotIn("Bannissement JUSTIFIÉ", bloc)
-        self.assertIn("1 à vérifier", out)
+        self.assertIn("0 à vérifier", out)
         revue = out[out.index("AUTRES POINTS À RE-VÉRIFIER"):]
-        self.assertIn("nginx-log-audit.sh --investigate 198.51.100.97 --no-prompt", revue)
         self.assertIn("1) Adresses de l'équipe", revue)
         self.assertIn("5) Bannissements à vérifier à la main", revue)
-        # 2.80: section 6, the investigation run by the program itself, its verdict and the command to run
-        enquetes = revue[revue.index("6) Enquêtes sur ces bannissements"):]
-        self.assertIn("▶ 198.51.100.97", enquetes)
-        self.assertIn("Verdict : LEVER LE BANNISSEMENT", enquetes)
-        self.assertRegex(enquetes, r"Synthèse :\n\s+IP\s+Verdict\s+Raison principale\n\s+198\.51\.100\.97\s+LEVER LE BANNISSEMENT")
-        self.assertIn("nginx-log-audit.sh --unban 198.51.100.97", enquetes)
-        self.assertIn("copiez les sections 1 à 6", enquetes)
+        self.assertIn("aucun bannissement à revoir", revue)
+        # the verdict shown by --unban-check is the one of --investigate, word for word
+        _, inv, _ = self.run_cmd(["bash", self.prog, "prod", "--investigate", "198.51.100.97", "--no-prompt"])
+        self.assertIn("Verdict : LEVER LE BANNISSEMENT", inv)
 
     @unittest.skipUnless(os.geteuid() == 0, "--unban-check exige root")
     def test_unban_check_leve_meme_si_le_fichier_n_est_pas_executable(self):
@@ -836,7 +837,8 @@ class ChkNginxLogs(EnvTest):
         # 2.51: addresses are in numeric order (11.68 before 11.126), so the answers follow that order.
         text, sent = self.run_pty(["bash", self.prog, "prod", "--unban-check"],
                                   [(b"Lever le bannissement de 11.68.110.86", b"n\n", 0.3),
-                                   (b"Lever le bannissement de 11.126.46.49", b"o\n", 0.3)])
+                                   (b"Lever le bannissement de 11.126.46.49", b"o\n", 0.3),
+                                   (b"Lever le bannissement de 198.51.100.99", b"n\n", 0.3)])      # 2.85: no trace = lift recommended by --investigate
         self.assertIn("Règle iptables retirée pour 11.126.46.49", text)
         self.assertIn("Bannissement conservé", text)
         self.assertIn("dont 1 effectuée", text)
@@ -1383,7 +1385,9 @@ class ChkNginxLogs279(ChkNginxLogs278):
         self.assertIn("Verdict : BANNIR", out)
         ligne = open(resume, encoding="utf-8").read().strip()
         self.assertTrue(ligne.startswith(f"RÉSUMÉ|{ip}|BANNIR|"), ligne)
-        self.assertEqual(ligne.rsplit("|", 1)[1], "0")                          # fifth field: fail2ban bans (none here)
+        champs = ligne.split("|")
+        self.assertEqual(champs[4], "0")                                        # fifth field: fail2ban bans (none here)
+        self.assertEqual(champs[5], "3")                                        # 2.85: sixth field: score of the investigation
 
 
 class ChkNginxLogs282(ChkNginxLogs274):
@@ -1414,10 +1418,61 @@ class ChkNginxLogs282(ChkNginxLogs274):
         self.assertIn("lève AUSSI la liste CrowdSec", out)
 
 
-for _classe in (ChkNginxLogs272, ChkNginxLogs273, ChkNginxLogs274, ChkNginxLogs278, ChkNginxLogs279, ChkNginxLogs282):
+class ChkNginxLogs285(ChkNginxLogs282):
+    """2.85 : --unban-low-score et --unban-check donnent le verdict de --investigate (une seule logique) ; le score est le 6e champ du RÉSUMÉ ;
+    une injection SQL garde un bannissement dans --investigate comme ailleurs."""
+
+    def _banni(self, ip):
+        self.mock("iptables", f'F={self.d}/rules; touch $F; o=$1; shift\ncase $o in\n -S) echo "-P INPUT ACCEPT"; '
+                              f'sed -E "s#^INPUT -s ([^ ]+) -j DROP\\$#-A INPUT -s \\1/32 -j DROP#" $F;;\n -C) grep -qxF "$*" $F;; -I) echo "$*" >> $F;; '
+                              f'-D) grep -qxF "$*" $F || exit 1; grep -vxF "$*" $F > $F.t; mv $F.t $F;;\nesac')
+        with open(os.path.join(self.d, "rules"), "a") as f:
+            f.write(f"INPUT -s {ip} -j DROP\n")
+
+    def test_285_le_resume_porte_le_score(self):
+        ip = "11.89.160.90"
+        self.add(*(acc(ip, "25/Sep/2026", f"08:00:0{k}", f"/page-{k}", 200, "Mozilla/5.0 (X11; Linux x86_64) Firefox/120.0") for k in range(3)))
+        resume = os.path.join(self.d, "resume285.txt")
+        rc, out, err = self.run_cmd(["bash", self.prog, "prod", "--investigate", ip, "--no-prompt"], env_extra={"INV_RESUME_FILE": resume})
+        self.assertEqual(rc, 0, out + err)
+        champs = open(resume, encoding="utf-8").read().strip().split("|")
+        self.assertEqual(champs[1], ip)
+        self.assertRegex(champs[5], r"^\d$", champs)                  # RÉSUMÉ|ip|verdict|reason|f2b_bans|score
+        self.assertEqual(len(champs), 6)
+
+    def test_285_injection_sql_garde_le_bannissement_dans_investigate(self):
+        ip = "11.89.160.91"
+        self._banni(ip)
+        self.add(acc(ip, "25/Sep/2026", "08:00:00", "/shop/x?order=website_sequence%20asc%27%20UNION%20ALL%20SELECT%20%27ndwcjm", 200, "Mozilla/5.0 (X11; Linux x86_64) Firefox/120.0"))
+        rc, out, err = self.run_cmd(["bash", self.prog, "prod", "--investigate", ip, "--no-prompt"])
+        self.assertEqual(rc, 0, out + err)
+        self.assertIn("Verdict : GARDER LE BANNISSEMENT", out)
+        self.assertIn("injection SQL dans les journaux", out)
+        self.assertNotIn("Verdict : LEVER", out)
+
+    @unittest.skipUnless(os.geteuid() == 0, "--unban-low-score exige root")
+    def test_285_low_score_et_investigate_disent_la_meme_chose(self):
+        """The case of 2026-11-03: --unban-low-score said 0/7 (lift) where --investigate said 3/7 (BANNIR). Same verdict and same score now."""
+        ip = "11.89.160.92"
+        self.add(*(acc(ip, "03/Nov/2026", "09:49:3" + str(k % 10), p, 404, CHROME) for k, p in enumerate(
+            ["/.env", "/.env.production", "/.gitlab-ci.yml", "/backend/.env", "/deploy.sh", "/wp-login.php", "/WEB-INF/web.xml", "/", "/", "/x"])))
+        self.mock("fail2ban-client", f'case "$1 $2" in "ping ") exit 0;; "status ") echo \'`- Jail list:\tjail-a\';; '
+                                     f'"status jail-a") echo "|- Banned IP list:\t{ip}";; *) exit 0;; esac')
+        _, inv, _ = self.run_cmd(["bash", self.prog, "prod", "--investigate", ip, "--no-prompt"])
+        verdict = re.search(r"Verdict : (.+)", inv).group(1).strip()
+        score = re.search(r"Score (\d)/7", inv).group(1)
+        rc, out, err = self.run_cmd(["bash", self.prog, "prod", "--unban-low-score", "--no-prompt", "--yes"])
+        self.assertEqual(rc, 0, err)
+        self.assertRegex(out, r"\s" + re.escape(ip) + r"\s+" + score + r"/7\s+" + re.escape(verdict) + r"\s")
+        self.assertNotIn("levée (jail", out, "an address that --investigate keeps is never lifted")
+
+
+for _classe in (ChkNginxLogs272, ChkNginxLogs273, ChkNginxLogs274, ChkNginxLogs278, ChkNginxLogs279, ChkNginxLogs282, ChkNginxLogs285):
     for _nom in [n for n in vars(ChkNginxLogs) if n.startswith("test")]:
         setattr(_classe, _nom, None)                                      # same fixtures as ChkNginxLogs, without running its tests twice
 for _nom in [n for n in vars(ChkNginxLogs278) if n.startswith("test")]:
     setattr(ChkNginxLogs279, _nom, None)
 for _nom in [n for n in vars(ChkNginxLogs274) if n.startswith("test")]:
     setattr(ChkNginxLogs282, _nom, None)
+for _nom in [n for n in vars(ChkNginxLogs282) if n.startswith("test")]:
+    setattr(ChkNginxLogs285, _nom, None)
