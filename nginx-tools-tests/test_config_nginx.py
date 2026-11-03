@@ -138,7 +138,7 @@ class ConfigNginx(unittest.TestCase):
         bloque = lambda ua: any(m.search(ua) for m in motifs)
         for ua in ("python-httpx/0.28.1", "Python-urllib/3.11", "python-requests/2.32", "Wget/1.21",
                    "Mozilla/5.0 (compatible; SERankingBacklinksBot/1.0)", "Mozilla/5.0 (compatible; GeedoShopProductFinder/1.0)",
-                   "webzio (+https://webz.io/bot.html)", "Mozilla/5.0 (compatible; CareerScout/1.0)",
+                   "webzio (+https://webz.io/bot.html)", "Mozilla/5.0 (compatible; CareerScout/1.0)", "SofyaBot/1.0 (+https://sofya.co/bot)",
                    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36 (jobs_v1/1.0)"):
             with self.subTest(bloque=ua):
                 self.assertTrue(bloque(ua))
