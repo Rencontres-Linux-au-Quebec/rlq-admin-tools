@@ -325,6 +325,25 @@ class ChkNginxLogs(EnvTest):
         self.assertIn("nginx-log-audit.sh --ban $ip", bloc)
         self.assertNotIn('demander_oui "Débannir', bloc, "la question de levée est stricte")
 
+    @unittest.skipUnless(os.geteuid() == 0, "--unban-low-score exige root")
+    def test_unban_low_score_lit_les_journaux_une_seule_fois(self):
+        """2.88 : le journal d'Odoo (journalctl, 100 jours) est lu UNE fois pour toutes les adresses, pas une fois par enquête ;
+        les enquêtes tournent en parallèle et le verdict reste celui de --investigate."""
+        ips = ["11.89.160.80", "11.89.160.81", "11.89.160.82"]
+        for i, ip in enumerate(ips):
+            self.add(*(acc(ip, "25/Sep/2026", f"08:00:0{k}", f"/page-{k}", 200, "Mozilla/5.0 (X11; Linux x86_64) Firefox/120.0") for k in range(3)))
+        self.mock("journalctl", f'echo x >> {self.d}/journalctl.count; exit 0')
+        self.mock("fail2ban-client", f'case "$1 $2" in "ping ") exit 0;; "status ") echo \'`- Jail list:\tjail-a\';; '
+                                     f'"status jail-a") echo "|- Banned IP list:\t{" ".join(ips)}"; echo \'`- File list:\t{self.logs}/odoo-catchall-444.log\';; '
+                                     f'*) exit 0;; esac')
+        rc, out, err = self.run_cmd(["bash", self.prog, "prod", "--unban-low-score", "--no-prompt", "--verbose"])
+        self.assertEqual(rc, 0, err)
+        with open(f"{self.d}/journalctl.count") as f:
+            self.assertEqual(len(f.read().split()), 1, "journalctl lu une seule fois pour les 3 adresses")
+        for ip in ips:
+            self.assertRegex(out, r"\s" + re.escape(ip) + r"\s+\d/7\s+\S", out)
+        self.assertIn("Lecture unique des journaux pour les 3 adresses", err)
+
     def test_unban_low_score_la_levee_exige_le_verdict_de_l_enquete(self):
         """2.81 : le code ne lève une adresse que si l'enquête dit « LEVER LE BANNISSEMENT », même avec --yes."""
         with open(self.prog, encoding="utf-8") as f:

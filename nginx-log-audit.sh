@@ -146,7 +146,7 @@ grep_q() { grep "$@" >/dev/null; }
 #                              ne peut pas le voir, le texte etant entre apostrophes (faux positif).
 trap 'ec=$?; echo "" >&2; echo "*** ARRÊT INATTENDU DU SCRIPT (code $ec) À LA LIGNE $LINENO ***" >&2; echo "*** Commande fautive : $BASH_COMMAND" >&2; echo "*** Si le rapport ci-dessus semble incomplet (ex. sections Top 10 absentes), c'\''est probablement la cause." >&2' ERR
 
-readonly SCRIPT_VERSION="2.87.20261103.114021"
+readonly SCRIPT_VERSION="2.88.20261103.121008"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
 # theme_sgr CODE (2.86) : the SGR code as the color theme shows it (--theme N, THEME, NGINX_TOOLS_THEME; apps/_theme.py). Theme 0, no module or no python3: unchanged.
 theme_sgr() {
@@ -930,7 +930,13 @@ PREUVES_SITE=0
 PREUVES_VERDICT=""   # 2.69: "justifie" | "examiner" | "aucune" (verdict des preuves pour --ban)
 # Fichiers du plus ancien au plus recent (rotations d'abord), pour des exemples et des dates dans l'ordre chronologique.
 lire_chrono() {
-    local f
+    local f cle
+    # 2.88: during --unban-low-score the logs are read ONCE for all the banned addresses (lot_preparer); the investigations then read the
+    # pre-filtered copy (same arguments = same file; only lines that mention one of the addresses, which is all the callers keep).
+    if [[ -n "${NGINX_TOOLS_BATCH_CACHE:-}" ]]; then
+        cle=$(printf '%s\0' "$@" | cksum | cut -d' ' -f1)
+        if [[ -r "$NGINX_TOOLS_BATCH_CACHE/chrono.$cle" ]]; then cat -- "$NGINX_TOOLS_BATCH_CACHE/chrono.$cle"; return 0; fi
+    fi
     # shellcheck disable=SC2012  # noms de fichiers de journaux maitrises (pas d'espaces) : ls -tr suffit
     ls -1tr -- "$@" 2>/dev/null | while IFS= read -r f; do
         if [[ -r "$f" ]]; then progres_detail "  lecture de $(basename "$f") ($(taille_lisible "$f"))"; zcat -f -- "$f"; fi
@@ -1292,6 +1298,11 @@ LOGINS_TABLE=""
 charger_logins() {
     (( LOGINS_CHARGES )) && return 0
     LOGINS_CHARGES=1
+    # 2.88: table already read once by lot_preparer (--unban-low-score): no journalctl per address
+    if [[ -n "${NGINX_TOOLS_BATCH_CACHE:-}" && -e "$NGINX_TOOLS_BATCH_CACHE/logins.ok" ]]; then
+        LOGINS_TABLE=$(cat -- "$NGINX_TOOLS_BATCH_CACHE/logins.tsv" 2>/dev/null) || LOGINS_TABLE=""
+        return 0
+    fi
     local unites=() u
     for u in ${SERVICES:-erplibre.service erplibre_erplibre.service odoo.service}; do
         [[ "$u" == postgresql* ]] || unites+=(-u "$u")
@@ -2687,24 +2698,88 @@ proposer_levee() {
 # ENQUETE_SCORE (N of N/7) and UNBAN_VERDICT: lever (LEVER LE BANNISSEMENT), garder (BANNIR, GARDER..., LAISSER À...), verifier (any other verdict),
 # incoherente or trace (no verdict).
 ENQUETE_BLOC=""; ENQUETE_VERDICT=""; ENQUETE_RAISON=""; ENQUETE_SCORE=""
-verdict_par_enquete() {
-    local ip="$1" resume sortie ligne
-    local -a args=(--investigate "$ip" --no-prompt)
-    [[ -n "${ENV:-}" ]] && args=("$ENV" "${args[@]}")
-    [[ -n "$APP_FORCE" ]] && args+=(--app "$APP_FORCE")
-    resume=$(mktemp)
-    sortie=$(INV_RESUME_FILE="$resume" NGINX_TOOLS_LANG=fr bash "$SELF_PATH" "${args[@]}" 2>&1) || true
-    ENQUETE_BLOC=$(printf '%s\n' "$sortie" | sed -n '/ANALYSE ET RECOMMANDATION/,$p' | sed '1d' | sed '/^[[:space:]]*$/d')
+lire_enquete() {      # lire_enquete IP SORTIE RESUME: reads the output and the RÉSUMÉ line of one --investigate run
+    local ip="$1" sortie="$2" resume="$3" ligne
+    ENQUETE_BLOC=$(sed -n '/ANALYSE ET RECOMMANDATION/,$p' "$sortie" | sed '1d' | sed '/^[[:space:]]*$/d')
     ligne=$(grep -F "|$ip|" "$resume" | tail -1) || ligne=""
-    rm -f "$resume"
     ENQUETE_VERDICT=""; ENQUETE_RAISON=""; ENQUETE_SCORE=""
     IFS='|' read -r _ _ ENQUETE_VERDICT ENQUETE_RAISON _ ENQUETE_SCORE <<< "$ligne"
     case "$ENQUETE_VERDICT" in
         "LEVER LE BANNISSEMENT") UNBAN_VERDICT="lever" ;;
         BANNIR|"GARDER LE BANNISSEMENT"|"LAISSER À FAIL2BAN"|"LAISSER À CROWDSEC") UNBAN_VERDICT="garder" ;;
-        "") if printf '%s\n' "$sortie" | grep -q "Enquête incohérente"; then UNBAN_VERDICT="incoherente"; else UNBAN_VERDICT="trace"; fi ;;
+        "") if grep -q "Enquête incohérente" "$sortie"; then UNBAN_VERDICT="incoherente"; else UNBAN_VERDICT="trace"; fi ;;
         *) UNBAN_VERDICT="verifier" ;;
     esac
+}
+verdict_par_enquete() {
+    local ip="$1" resume sortie
+    local -a args=(--investigate "$ip" --no-prompt)
+    [[ -n "${ENV:-}" ]] && args=("$ENV" "${args[@]}")
+    [[ -n "$APP_FORCE" ]] && args+=(--app "$APP_FORCE")
+    resume=$(mktemp); sortie=$(mktemp)
+    INV_RESUME_FILE="$resume" NGINX_TOOLS_LANG=fr bash "$SELF_PATH" "${args[@]}" > "$sortie" 2>&1 || true
+    lire_enquete "$ip" "$sortie" "$resume"
+    rm -f "$resume" "$sortie"
+}
+
+# --- 2.88: batch of investigations (--unban-low-score) --------------------------------------------------------------
+# Before: every address started a full --investigate that decompressed all the logs, read the Odoo journal for 100 days (up to 60 s) and
+# queried the network one step after the other: about 20 s per address. Now: (1) the logs and the Odoo logins are read ONCE for all the
+# addresses (lot_preparer, shared through NGINX_TOOLS_BATCH_CACHE), (2) the investigations run in parallel (NGINX_TOOLS_JOBS, 4 at most
+# by default), (3) the verdict is the same since each investigation still runs the same code on the lines of its own address.
+LOT_DIR=""
+lot_chrono() {        # lot_chrono FILE...: keeps in the cache the lines of lire_chrono FILE... that mention one of the addresses
+    local cle
+    cle=$(printf '%s\0' "$@" | cksum | cut -d' ' -f1)
+    lire_chrono "$@" 2>/dev/null | { grep -F -f "$LOT_DIR/ips.txt" || true; } > "$LOT_DIR/chrono.$cle"
+}
+lot_preparer() {      # lot_preparer IP...
+    LOT_DIR=$(mktemp -d "${TMPDIR:-/tmp}/nginx-log-audit-lot.XXXXXX") || { LOT_DIR=""; return 0; }
+    trap 'jobs -p | xargs -r kill 2>/dev/null; rm -rf "${LOT_DIR:-/nonexistent-lot-dir}"' EXIT
+    printf '%s\n' "$@" > "$LOT_DIR/ips.txt"
+    progres "Lecture unique des journaux pour les $# adresses (partagée par toutes les enquêtes)"
+    lot_chrono "${FAIL2BAN_LOG_FILE:-/var/log/fail2ban.log}"*
+    if compgen -G "/var/log/nginx/*catchall*.log*" >/dev/null; then lot_chrono /var/log/nginx/*catchall*.log*; fi
+    if compgen -G "/var/log/nginx/blocked-probes.log*" >/dev/null; then lot_chrono /var/log/nginx/blocked-probes.log*; fi
+    merge_all_rotations "${ORIG_ACCESS_LOG:-$ACCESS_LOG}" "$LOT_DIR/access.all" > /dev/null 2>&1 || true
+    { grep -F -f "$LOT_DIR/ips.txt" "$LOT_DIR/access.all" || true; } > "$LOT_DIR/access.sel"
+    rm -f "$LOT_DIR/access.all"
+    if [[ -n "$CATCHALL_LOG" ]]; then
+        merge_all_rotations "$CATCHALL_LOG" "$LOT_DIR/catchall.all" > /dev/null 2>&1 || true
+        if [[ -s "$LOT_DIR/catchall.all" ]]; then
+            { grep -F -f "$LOT_DIR/ips.txt" "$LOT_DIR/catchall.all" || true; echo '#'; } > "$LOT_DIR/catchall.sel"
+        fi
+        rm -f "$LOT_DIR/catchall.all"
+    fi
+    charger_logins
+    printf '%s\n' "$LOGINS_TABLE" > "$LOT_DIR/logins.tsv"
+    : > "$LOT_DIR/logins.ok"
+    export NGINX_TOOLS_BATCH_CACHE="$LOT_DIR"
+}
+lot_nettoyer() {
+    unset NGINX_TOOLS_BATCH_CACHE
+    [[ -n "$LOT_DIR" ]] && rm -rf "$LOT_DIR"
+    LOT_DIR=""
+}
+# enqueter_lot IP...: runs the investigations in parallel; output and RÉSUMÉ line of each in $LOT_DIR/out.IP and $LOT_DIR/res.IP
+enqueter_lot() {
+    local jobs="${NGINX_TOOLS_JOBS:-}" ip n=0 total=$#
+    local -a args
+    if ! [[ "$jobs" =~ ^[0-9]+$ ]] || (( jobs < 1 )); then
+        jobs=$(nproc 2>/dev/null || echo 2); (( jobs > 4 )) && jobs=4; (( jobs < 1 )) && jobs=1
+    fi
+    for ip in "$@"; do
+        n=$((n + 1))
+        while (( $(jobs -rp | wc -l) >= jobs )); do wait -n 2>/dev/null || true; done
+        progres "Enquête $n/$total : $ip (nginx-log-audit.sh --investigate)"
+        args=(--investigate "$ip" --no-prompt)
+        [[ -n "${ENV:-}" ]] && args=("$ENV" "${args[@]}")
+        [[ -n "$APP_FORCE" ]] && args+=(--app "$APP_FORCE")
+        : > "$LOT_DIR/res.$ip"
+        ( INV_RESUME_FILE="$LOT_DIR/res.$ip" NGINX_TOOLS_LANG=fr bash "$SELF_PATH" "${args[@]}" > "$LOT_DIR/out.$ip" 2>&1 || true ) &
+    done
+    progres "Attente des dernières enquêtes (jusqu'à $jobs en parallèle)"
+    wait || true
 }
 
 # --- Verdict de --unban-check pour UNE adresse bannie (sortie sur stdout, verdict dans UNBAN_VERDICT) ---------------
@@ -2816,11 +2891,15 @@ if [[ "$DO_UNBAN_LOW_SCORE" == "1" ]]; then
         exit 0
     fi
     echo "${#BAN_SOURCE[@]} IP bannies : enquête de --investigate sur chacune (lecture seule)…"
-    n_ip=0
-    for ip in $(printf '%s\n' "${!BAN_SOURCE[@]}" | sort -V); do
-        n_ip=$((n_ip + 1))
-        progres "Enquête $n_ip/${#BAN_SOURCE[@]} : $ip (nginx-log-audit.sh --investigate)"
-        verdict_par_enquete "$ip"
+    mapfile -t IPS_TRIEES < <(printf '%s\n' "${!BAN_SOURCE[@]}" | sort -V)
+    lot_preparer "${IPS_TRIEES[@]}"
+    if [[ -n "$LOT_DIR" ]]; then enqueter_lot "${IPS_TRIEES[@]}"; fi
+    for ip in "${IPS_TRIEES[@]}"; do
+        if [[ -n "$LOT_DIR" ]]; then
+            lire_enquete "$ip" "$LOT_DIR/out.$ip" "$LOT_DIR/res.$ip"
+        else
+            verdict_par_enquete "$ip"
+        fi
         SCORE_OF["$ip"]="${ENQUETE_SCORE:-?}"
         VERDICT_OF["$ip"]="${ENQUETE_VERDICT:-(aucun verdict)}"
         BLOC_OF["$ip"]="$ENQUETE_BLOC"
@@ -2830,6 +2909,7 @@ if [[ "$DO_UNBAN_LOW_SCORE" == "1" ]]; then
             BAN_IPS+=("$ip")
         fi
     done
+    lot_nettoyer
     echo
     printf '  %-40s %-8s %-26s %s\n' "IP" "Score" "Verdict (--investigate)" "Banni par"
     for ip in $(printf '%s\n' "${!BAN_SOURCE[@]}" | sort -V); do
@@ -3266,7 +3346,11 @@ if [[ -n "$INVESTIGATE_IP" ]]; then
     INV_SRC="$STATE_DIR/.investigate.$$"
     INIT_ALL_TMP_FILES+=("$INV_SRC")
     trap 'rm -f "${INIT_ALL_TMP_FILES[@]}"' EXIT
-    merge_all_rotations "${ORIG_ACCESS_LOG:-$ACCESS_LOG}" "$INV_SRC" > /dev/null
+    if [[ -n "${NGINX_TOOLS_BATCH_CACHE:-}" && -e "$NGINX_TOOLS_BATCH_CACHE/access.sel" ]]; then
+        awk -v ip="$INVESTIGATE_IP" '$1 == ip' "$NGINX_TOOLS_BATCH_CACHE/access.sel" > "$INV_SRC"      # 2.88: shared read of the site log
+    else
+        merge_all_rotations "${ORIG_ACCESS_LOG:-$ACCESS_LOG}" "$INV_SRC" > /dev/null
+    fi
     # 2.79: the requests REFUSED by our nginx rules are logged to blocked-probes.log (same format), not to the site log: they are requests of the
     # address too. Without them, 132.196.59.85 (28 probes of .php files refused, 2 requests in the site log) scored 1/7 while its evidence said
     # "justifié", and --ban refused what app-log-live.py and web-monitor.py proposed.
@@ -3277,7 +3361,12 @@ if [[ -n "$INVESTIGATE_IP" ]]; then
     fi
     CATCHALL_MERGED="$STATE_DIR/.investigate-catchall.$$"
     INIT_ALL_TMP_FILES+=("$CATCHALL_MERGED")
-    [[ -n "$CATCHALL_LOG" ]] && { merge_all_rotations "$CATCHALL_LOG" "$CATCHALL_MERGED" > /dev/null 2>&1 || true; }
+    if [[ -n "${NGINX_TOOLS_BATCH_CACHE:-}" && -e "$NGINX_TOOLS_BATCH_CACHE/catchall.sel" ]]; then
+        # 2.88: a non-empty file stays non-empty (comment line "#"), as the code below tells "no sensor log" from "no request from this address"
+        { awk -v ip="$INVESTIGATE_IP" '$1 == ip' "$NGINX_TOOLS_BATCH_CACHE/catchall.sel"; [[ -s "$NGINX_TOOLS_BATCH_CACHE/catchall.sel" ]] && echo '#'; } > "$CATCHALL_MERGED" || true
+    else
+        [[ -n "$CATCHALL_LOG" ]] && { merge_all_rotations "$CATCHALL_LOG" "$CATCHALL_MERGED" > /dev/null 2>&1 || true; }
+    fi
     INV_REC=$(scan_ips "$INV_SRC" "$INVESTIGATE_IP") || true
     INV_PROPOSER=0
     if [[ -z "$INV_REC" ]]; then
