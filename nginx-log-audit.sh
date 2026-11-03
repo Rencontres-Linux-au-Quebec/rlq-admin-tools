@@ -146,7 +146,7 @@ grep_q() { grep "$@" >/dev/null; }
 #                              ne peut pas le voir, le texte etant entre apostrophes (faux positif).
 trap 'ec=$?; echo "" >&2; echo "*** ARRÊT INATTENDU DU SCRIPT (code $ec) À LA LIGNE $LINENO ***" >&2; echo "*** Commande fautive : $BASH_COMMAND" >&2; echo "*** Si le rapport ci-dessus semble incomplet (ex. sections Top 10 absentes), c'\''est probablement la cause." >&2' ERR
 
-readonly SCRIPT_VERSION="2.88.20261103.121008"
+readonly SCRIPT_VERSION="2.90.20261103.131310"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
 # theme_sgr CODE (2.86) : the SGR code as the color theme shows it (--theme N, THEME, NGINX_TOOLS_THEME; apps/_theme.py). Theme 0, no module or no python3: unchanged.
 theme_sgr() {
@@ -2698,8 +2698,27 @@ proposer_levee() {
 # ENQUETE_SCORE (N of N/7) and UNBAN_VERDICT: lever (LEVER LE BANNISSEMENT), garder (BANNIR, GARDER..., LAISSER À...), verifier (any other verdict),
 # incoherente or trace (no verdict).
 ENQUETE_BLOC=""; ENQUETE_VERDICT=""; ENQUETE_RAISON=""; ENQUETE_SCORE=""
+# urls_suspectes_ip IP (2.90): the suspicious URLs that may have caused the ban, to confirm the verdict by eye: pages REFUSED by nginx
+# (blocked-probes.log), sensitive pages in the site log, pages asked at the catch-all sensor. "<count>x <page> (<code>) [<source>]", most frequent first.
+urls_suspectes_ip() {
+    local ip="$1" ipre site="" f
+    ipre=$(printf '%s' "$ip" | sed 's/[.]/\\./g')
+    {
+        urls_refusees "$ip" 6 | awk -F'\t' '{ printf "%d\t%s [nginx]\n", $1, $2 }'
+        site="${NGINX_TOOLS_BATCH_CACHE:-}/access.sel"
+        if [[ -r "$site" ]]; then
+            SENSITIVE_RE="$SENSITIVE_RE" awk -v ip="$ip" '$1 == ip { u = $7; sub(/\?.*/, "", u); if (u ~ ENVIRON["SENSITIVE_RE"]) c[u " (" $9 ")"]++ }
+                END { for (k in c) printf "%d\t%s [site]\n", c[k], k }' "$site"
+        fi
+        lire_chrono /var/log/nginx/*catchall*.log* 2>/dev/null | { grep -E "^$ipre " || true; } \
+            | awk '{ u = $7; sub(/\?.*/, "", u); c[u " (" $9 ")"]++ } END { for (k in c) printf "%d\t%s [catch-all]\n", c[k], k }'
+    } | sort -t"$(printf '\t')" -k1,1nr -k2,2 | awk -F'\t' 'NR <= 8 { printf "%dx %s\n", $1, $2 }'
+}
+
 lire_enquete() {      # lire_enquete IP SORTIE RESUME: reads the output and the RÉSUMÉ line of one --investigate run
     local ip="$1" sortie="$2" resume="$3" ligne
+    ENQUETE_SORTIE=$(sed -n '/ENQU.TE SUR /,$p' "$sortie")          # 2.89: the whole result of --investigate, shown before a question
+    [[ -n "$ENQUETE_SORTIE" ]] || ENQUETE_SORTIE=$(cat "$sortie")
     ENQUETE_BLOC=$(sed -n '/ANALYSE ET RECOMMANDATION/,$p' "$sortie" | sed '1d' | sed '/^[[:space:]]*$/d')
     ligne=$(grep -F "|$ip|" "$resume" | tail -1) || ligne=""
     ENQUETE_VERDICT=""; ENQUETE_RAISON=""; ENQUETE_SCORE=""
@@ -2735,7 +2754,7 @@ lot_chrono() {        # lot_chrono FILE...: keeps in the cache the lines of lire
 }
 lot_preparer() {      # lot_preparer IP...
     LOT_DIR=$(mktemp -d "${TMPDIR:-/tmp}/nginx-log-audit-lot.XXXXXX") || { LOT_DIR=""; return 0; }
-    trap 'jobs -p | xargs -r kill 2>/dev/null; rm -rf "${LOT_DIR:-/nonexistent-lot-dir}"' EXIT
+    trap 'ec=$?; lot_arreter; exit "$ec"' EXIT          # 2.89: keeps the exit code (a failing kill used to turn "exit 0" into code 123 and fire the ERR trap)
     printf '%s\n' "$@" > "$LOT_DIR/ips.txt"
     progres "Lecture unique des journaux pour les $# adresses (partagée par toutes les enquêtes)"
     lot_chrono "${FAIL2BAN_LOG_FILE:-/var/log/fail2ban.log}"*
@@ -2755,6 +2774,12 @@ lot_preparer() {      # lot_preparer IP...
     printf '%s\n' "$LOGINS_TABLE" > "$LOT_DIR/logins.tsv"
     : > "$LOT_DIR/logins.ok"
     export NGINX_TOOLS_BATCH_CACHE="$LOT_DIR"
+}
+lot_arreter() {       # EXIT trap: stops the investigations still running and removes the shared folder; never fails
+    local p
+    for p in $(jobs -p 2>/dev/null); do kill "$p" 2>/dev/null || true; done
+    [[ -n "${LOT_DIR:-}" ]] && rm -rf "$LOT_DIR" 2>/dev/null
+    return 0
 }
 lot_nettoyer() {
     unset NGINX_TOOLS_BATCH_CACHE
@@ -2873,6 +2898,8 @@ if [[ "$DO_UNBAN_LOW_SCORE" == "1" ]]; then
     declare -A SCORE_OF=()
     declare -A VERDICT_OF=()
     declare -A BLOC_OF=()
+    declare -A SORTIE_OF=()
+    declare -A URLS_OF=()
     declare -a LOW_IPS=()
     declare -a BAN_IPS=()
     if command -v fail2ban-client >/dev/null 2>&1 && run fail2ban-client ping >/dev/null 2>&1; then
@@ -2904,9 +2931,9 @@ if [[ "$DO_UNBAN_LOW_SCORE" == "1" ]]; then
         VERDICT_OF["$ip"]="${ENQUETE_VERDICT:-(aucun verdict)}"
         BLOC_OF["$ip"]="$ENQUETE_BLOC"
         if [[ "$ENQUETE_VERDICT" == "LEVER LE BANNISSEMENT" ]]; then
-            LOW_IPS+=("$ip")
+            LOW_IPS+=("$ip"); SORTIE_OF["$ip"]="$ENQUETE_SORTIE"; URLS_OF["$ip"]=$(urls_suspectes_ip "$ip")
         elif [[ "$ENQUETE_VERDICT" == "BANNIR" ]]; then
-            BAN_IPS+=("$ip")
+            BAN_IPS+=("$ip"); SORTIE_OF["$ip"]="$ENQUETE_SORTIE"; URLS_OF["$ip"]=$(urls_suspectes_ip "$ip")
         fi
     done
     lot_nettoyer
@@ -2941,6 +2968,13 @@ if [[ "$DO_UNBAN_LOW_SCORE" == "1" ]]; then
             continue
         fi
         ok=0
+        # 2.89: the whole result of --investigate for this address, right above the question
+        echo
+        echo "${C_BOLD}==== Résultat complet de nginx-log-audit.sh --investigate $ip ====${C_RESET}"
+        printf '%s\n' "${SORTIE_OF[$ip]:-}" | sed 's/^/   /'
+        echo "${C_BOLD}==== Fin du résultat pour $ip ====${C_RESET}"
+        echo "${C_BOLD}URL suspectes à l'origine du bannissement (pour confirmer le verdict) :${C_RESET}"
+        if [[ -n "${URLS_OF[$ip]:-}" ]]; then printf '%s\n' "${URLS_OF[$ip]}" | sed 's/^/      /'; else echo "      aucune URL suspecte retrouvée dans les journaux conservés (site, refus de nginx, capteur catch-all)"; fi
         if [[ "$ASSUME_YES" == "1" ]]; then
             ok=1
         elif (( interactif )); then
@@ -2973,7 +3007,12 @@ if [[ "$DO_UNBAN_LOW_SCORE" == "1" ]]; then
         echo "${C_BOLD}${#BAN_IPS[@]} IP bannies que --investigate recommande de BANNIR durablement : ${BAN_IPS[*]}${C_RESET}"
         for ip in "${BAN_IPS[@]}"; do
             echo "   ${C_YELLOW}▶ $ip${C_RESET} (banni par ${BAN_SOURCE[$ip]}, score ${SCORE_OF[$ip]}/7)"
-            printf '%s\n' "${BLOC_OF[$ip]}" | sed 's/^/   /'
+            echo
+            echo "${C_BOLD}==== Résultat complet de nginx-log-audit.sh --investigate $ip ====${C_RESET}"
+            printf '%s\n' "${SORTIE_OF[$ip]:-}" | sed 's/^/   /'
+            echo "${C_BOLD}==== Fin du résultat pour $ip ====${C_RESET}"
+            echo "${C_BOLD}URL suspectes à l'origine du bannissement (pour confirmer le verdict) :${C_RESET}"
+            if [[ -n "${URLS_OF[$ip]:-}" ]]; then printf '%s\n' "${URLS_OF[$ip]}" | sed 's/^/      /'; else echo "      aucune URL suspecte retrouvée dans les journaux conservés (site, refus de nginx, capteur catch-all)"; fi
             if prot=$(protected_ip_reason "$ip"); then
                 echo "  $ip : IP protégée ($(printf '%s\n' "$prot" | head -1)) - jamais bannie par ce programme."
                 continue

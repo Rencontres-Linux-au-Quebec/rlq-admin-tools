@@ -293,7 +293,7 @@ class ChkNginxLogs(EnvTest):
         self.assertNotIn(f"unbanip {garder}", levees, "une IP « garder » ne doit jamais être levée")
         # 2.81: the investigation of each address to lift is run and shown BEFORE the lift, and it confirms it
         self.assertIn("Enquêtes avant la levée", out)
-        self.assertEqual(out.count("     Verdict : "), 1, "le bloc de l'enquête n'est affiché que pour l'IP à lever")
+        self.assertEqual(out.count("     Verdict : "), 2, "le bloc de l'enquête (résumé, puis résultat complet) n'est affiché que pour l'IP à lever")
         self.assertLess(out.index("Enquêtes avant la levée"), out.index("levée (jail"))
         self.assertNotIn("Commandes à lancer", out, "--unban-low-score agit lui-même : pas de commandes à copier")
 
@@ -309,6 +309,9 @@ class ChkNginxLogs(EnvTest):
         texte, _ = self.run_pty(["bash", self.prog, "prod", "--unban-low-score"],
                                 [(b"[o/n]", b"peut-etre\r", 1.0), ("Réponse attendue".encode(), b"o\r", 1.0)], timeout=120)
         self.assertIn("Réponse attendue : o (oui) ou n (non).", texte)
+        self.assertIn(f"Résultat complet de nginx-log-audit.sh --investigate {lever}", texte)          # 2.89: the whole investigation above the question
+        self.assertIn("URL suspectes à l'origine du bannissement", texte)
+        self.assertIn("aucune URL suspecte retrouvée", texte)          # 2.90: three normal pages, nothing suspicious to list
         self.assertIn(f"{lever} levée (jail jail-a)", texte)
         with open(f"{self.d}/f2b-set.log") as f:
             self.assertIn(f"unbanip {lever}", f.read())
@@ -343,6 +346,28 @@ class ChkNginxLogs(EnvTest):
         for ip in ips:
             self.assertRegex(out, r"\s" + re.escape(ip) + r"\s+\d/7\s+\S", out)
         self.assertIn("Lecture unique des journaux pour les 3 adresses", err)
+
+    @unittest.skipUnless(os.geteuid() == 0, "--unban-low-score exige root")
+    def test_unban_low_score_sans_ip_a_lever_sort_sans_erreur(self):
+        """2.89 : aucune levée recommandée : code 0 et pas de « ARRÊT INATTENDU » (le piège de sortie rendait 123 quand kill échouait)."""
+        garder = "11.89.160.73"
+        self.add(*(acc(garder, "25/Sep/2026", f"07:12:1{k}", f"{p}?x={k}", 403, "curl/8.5.0") for k, p in enumerate(["/.env", "/.git/config", "/wp-admin/"] * 2)))
+        self.mock("fail2ban-client", f'case "$1 $2" in "ping ") exit 0;; "status ") echo \'`- Jail list:\tjail-a\';; '
+                                     f'"status jail-a") echo "|- Banned IP list:\t{garder}"; echo \'`- File list:\t{self.logs}/odoo-catchall-444.log\';; *) exit 0;; esac')
+        rc, out, err = self.run_cmd(["bash", self.prog, "prod", "--unban-low-score", "--no-prompt"])
+        self.assertEqual(rc, 0, err)
+        self.assertNotIn("ARRÊT INATTENDU", err)
+
+    def test_unban_low_score_liste_les_url_suspectes_de_l_origine_du_bannissement(self):
+        """2.90 : avant chaque question, les URL suspectes (refus de nginx, pages sensibles du site, capteur catch-all) qui ont pu causer le bannissement."""
+        with open(self.prog, encoding="utf-8") as f:
+            src = f.read()
+        bloc = src[src.index("# --- --unban-low-score :"):src.index("# --- --unban-expired")]
+        self.assertEqual(bloc.count("URL suspectes à l'origine du bannissement"), 2, "avant la question de levée et avant la question de bannissement")
+        self.assertEqual(bloc.count('URLS_OF["$ip"]=$(urls_suspectes_ip "$ip")'), 2)
+        fonction = src[src.index("urls_suspectes_ip() {"):src.index("lire_enquete() {")]
+        for source in ("urls_refusees", "access.sel", "catchall"):
+            self.assertIn(source, fonction)
 
     def test_unban_low_score_la_levee_exige_le_verdict_de_l_enquete(self):
         """2.81 : le code ne lève une adresse que si l'enquête dit « LEVER LE BANNISSEMENT », même avec --yes."""

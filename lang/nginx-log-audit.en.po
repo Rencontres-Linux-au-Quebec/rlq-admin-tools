@@ -3068,3 +3068,21 @@ msgstr "Waiting for the last investigations (up to "
 
 msgid " en parallèle)"
 msgstr " in parallel)"
+
+msgid "==== Résultat complet de nginx-log-audit.sh --investigate "
+msgstr "==== Full result of nginx-log-audit.sh --investigate "
+
+msgid " ===="
+msgstr " ===="
+
+msgid "==== Fin du résultat pour "
+msgstr "==== End of the result for "
+
+msgid "/ENQU.TE SUR /,$p"
+msgstr ""
+
+msgid "URL suspectes à l'origine du bannissement (pour confirmer le verdict) :"
+msgstr "Suspicious URLs behind the ban (to confirm the verdict):"
+
+msgid "      aucune URL suspecte retrouvée dans les journaux conservés (site, refus de nginx, capteur catch-all)"
+msgstr "      no suspicious URL found in the kept logs (site, nginx refusals, catch-all sensor)"

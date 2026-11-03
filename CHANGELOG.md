@@ -3533,6 +3533,26 @@ Earlier history was archived outside this repository when this file was created.
 
 ## nginx-log-audit.sh
 
+### 2.90.20261103.131310 - --unban-low-score: suspicious URLs behind each ban
+
+- Title: --unban-low-score lists the suspicious URLs that may have caused the ban, above each question.
+- Reason: to confirm the verdict by eye before lifting or banning, the user wanted some of the suspicious URLs that got the address banned in the first place.
+- Changes: nginx-log-audit.sh: new function urls_suspectes_ip (pages refused by nginx from blocked-probes.log through urls_refusees, sensitive pages of the site log from the shared copy, pages asked at the catch-all sensor; at most 8 lines, "Nx page (code)", most frequent first). The list is collected while the shared log copy exists (URLS_OF) and printed after the full --investigate result, before the lift question and before the ban question. lang/nginx-log-audit.en.po: 2 entries. Files: nginx-log-audit.sh, lang/nginx-log-audit.en.po, doc/fr and doc/en 02-nginx-log-audit.md, tests.
+- Bugs fixed: none.
+- Safeguards and edge cases: only the addresses that get a question are listed (no extra cost for the others); with no suspicious URL the line says so, which is what a lift should look like; the sensitive pages use the same SENSITIVE_RE as the scan (Odoo or WordPress aware); read-only.
+- Checks: question test checks the "no suspicious URL" case; structure test for the two displays and the three sources; test_unban_low_score_*, test_ban_gate; i18n catalogue of this program.
+- Action required: none.
+
+### 2.89.20261103.130619 - --unban-low-score: exit code fixed, full --investigate result before each question
+
+- Title: --unban-low-score no longer ends with an "unexpected stop" error, and shows the whole result of --investigate above each question.
+- Reason: (1) with 2.88 the command ended with "ARRET INATTENDU DU SCRIPT (code 123) ... Commande fautive : exit 0" when no address had to be lifted. (2) Before lifting or banning, the user wanted more information, namely the result of --investigate.
+- Changes: nginx-log-audit.sh: lot_arreter (EXIT trap that stops running investigations and removes the shared folder, always returns 0 and keeps the exit code); lire_enquete keeps the whole output of the investigation (ENQUETE_SORTIE); in --unban-low-score the block "Resultat complet de nginx-log-audit.sh --investigate IP" is printed right above each lift question and each ban question. lang/nginx-log-audit.en.po: 4 entries. Files: nginx-log-audit.sh, lang/nginx-log-audit.en.po, doc/fr and doc/en 02-nginx-log-audit.md, tests.
+- Bugs fixed: symptom: code 123 and the ERR message on a normal "exit 0". Diagnosis: the 2.88 EXIT trap ran "jobs -p | xargs -r kill"; kill failed on a finished process, xargs returned 123 and the failing trap replaced the exit code and fired the ERR trap. Fix: a loop with "kill ... || true" and "exit $ec" in the trap.
+- Safeguards and edge cases: the full result is shown for the addresses that get a question (lift or ban) even with --yes, for the record; protected addresses are still skipped; the summary list before the questions is kept.
+- Checks: new test: no address to lift gives code 0 and no "ARRET INATTENDU"; the question test checks the full result header; test_unban_low_score_* and test_ban_gate; i18n catalogue of this program.
+- Action required: none.
+
 ### 2.88.20261103.121008 - --unban-low-score: logs read once, investigations in parallel
 
 - Title: --unban-low-score reads the logs and the Odoo journal once for all banned addresses and runs the investigations in parallel.
