@@ -1108,6 +1108,82 @@ class ChkNginxLogs273(ChkNginxLogs):
         self.assertIn("échéance non fixée (--unban-expired la calcule)", out)
 
 
-for _classe in (ChkNginxLogs272, ChkNginxLogs273):
+
+class ChkNginxLogs274(ChkNginxLogs):
+    """2.74 : --unban lève TOUS les bannissements de l'adresse (règle manuelle, jails fail2ban trouvés par le programme, liste CrowdSec avec une exception
+    pour la synchronisation), sauf pour --unban-check et --unban-expired (bannissement manuel seulement)."""
+    IP = "11.231.237.214"
+
+    def setUp(self):
+        super().setUp()
+        d = self.d
+        self.mock("iptables", f'F={d}/rules; touch $F; o=$1; shift; case $o in -C) grep -qxF "$*" $F;; '
+                              f'-I) echo "$*" >> $F;; -D) grep -vxF "$*" $F > $F.t; mv $F.t $F;; -S) sed "s/^/-A /" $F;; esac')
+        self.mock("fail2ban-client", f"""L={d}/f2b.log; touch $L
+case "$1" in
+  ping) exit 0;;
+  status) if [ -z "$2" ]; then printf '%s\\n' '|- Number of jail:	2' '`- Jail list:	nginx-badrequests, sshd'
+          elif [ "$2" = nginx-badrequests ] && [ -f {d}/f2b-banni ] && ! grep -q unbanip $L; then printf '%s\\n' '   `- Banned IP list:	{self.IP}'
+          else printf '%s\\n' '   `- Banned IP list:	'; fi;;
+  set) echo "$*" >> $L;;
+esac""")
+        self.mock("ipset", f'F={d}/ipset; touch $F; case "$1" in test) grep -qxF "$2 $3" $F;; del) grep -vxF "$2 $3" $F > $F.t; mv $F.t $F;; *) exit 0;; esac')
+        self.allow = os.path.join(d, "sync-crowdsec-blocklist.allow")
+        self.env["SYNC_CROWDSEC_ALLOW_FILE"] = self.allow
+        self.journal = os.path.join(self.env["NGINX_LOG_AUDIT_STATE_DIR"], "bans.tsv")
+
+    def lire(self, nom):
+        chemin = os.path.join(self.d, nom)
+        return open(chemin, encoding="utf-8").read() if os.path.exists(chemin) else ""
+
+    @unittest.skipUnless(os.geteuid() == 0, "--unban exige root")
+    def test_274_unban_leve_le_jail_fail2ban_lui_meme(self):
+        open(os.path.join(self.d, "f2b-banni"), "w").close()
+        rc, out, err = self.run_cmd(["bash", self.prog, "--unban", self.IP, "--yes", "--reason", "visiteur légitime"])
+        self.assertEqual(rc, 0, out + err)
+        self.assertIn("fail2ban : jail nginx-badrequests", out)
+        self.assertIn(f"set nginx-badrequests unbanip {self.IP}", self.lire("f2b.log"))
+        self.assertNotIn("set sshd", self.lire("f2b.log"))
+        self.assertNotIn("fail2ban-client set <jail>", out)               # no command left to the administrator
+        self.assertIn(f"{self.IP} n'est plus bannie : fail2ban nginx-badrequests.", out)
+        leve = [l.split("\t") for l in open(self.journal, encoding="utf-8") if l.split("\t")[1] == "leve"][-1]
+        self.assertEqual(leve[2], self.IP)
+        self.assertIn("levé : fail2ban nginx-badrequests — visiteur légitime", leve[3])
+
+    @unittest.skipUnless(os.geteuid() == 0, "--unban exige root")
+    def test_274_unban_pare_feu_et_crowdsec_avec_exception(self):
+        with open(os.path.join(self.d, "rules"), "w") as f:
+            f.write(f"INPUT -s {self.IP} -j DROP\n")
+        with open(os.path.join(self.d, "ipset"), "w") as f:
+            f.write(f"crowdsec-blocklist-v4 {self.IP}\n")
+        rc, out, err = self.run_cmd(["bash", self.prog, "--unban", self.IP, "--yes"])
+        self.assertEqual(rc, 0, out + err)
+        self.assertNotIn(self.IP, self.lire("rules"))
+        self.assertNotIn(self.IP, self.lire("ipset"))
+        self.assertRegex(open(self.allow, encoding="utf-8").read(), rf"^{re.escape(self.IP)}  # \d{{4}}-\d\d-\d\d \d\d:\d\d nginx-log-audit\.sh --unban")
+        self.assertIn("pare-feu, CrowdSec crowdsec-blocklist-v4", out)
+        rc, out, _ = self.run_cmd(["bash", self.prog, "--unban", self.IP, "--yes"])           # nothing left: no second exception line
+        self.assertIn("rien à lever", out)
+        self.assertEqual(open(self.allow, encoding="utf-8").read().count(self.IP), 1)
+
+    @unittest.skipUnless(os.geteuid() == 0, "--unban exige root")
+    def test_274_portee_manuelle_pour_unban_check_et_unban_expired(self):
+        open(os.path.join(self.d, "f2b-banni"), "w").close()
+        rc, out, _ = self.run_cmd(["bash", self.prog, "--unban", self.IP, "--yes"], env_extra={"NGINX_LOG_AUDIT_UNBAN_SCOPE": "manual"})
+        self.assertEqual(rc, 0, out)
+        self.assertIn("Aucune règle de bannissement manuel", out)
+        self.assertNotIn("unbanip", self.lire("f2b.log"))
+        s = open(self.prog, encoding="utf-8").read()
+        self.assertIn('NGINX_LOG_AUDIT_UNBAN_SCOPE=manual relancer_action --unban "$ip" --yes --reason "réévaluation (--unban-check)', s)
+        self.assertIn('NGINX_LOG_AUDIT_UNBAN_SCOPE=manual relancer_action --unban "${EXP_LIFT[$i]}"', s)
+
+    @unittest.skipUnless(os.geteuid() == 0, "--unban exige root")
+    def test_274_rien_a_lever(self):
+        rc, out, _ = self.run_cmd(["bash", self.prog, "--unban", self.IP, "--yes"])
+        self.assertEqual(rc, 0, out)
+        self.assertIn("Aucun bannissement trouvé pour " + self.IP + " (pare-feu manuel, jails fail2ban, liste CrowdSec)", out)
+
+
+for _classe in (ChkNginxLogs272, ChkNginxLogs273, ChkNginxLogs274):
     for _nom in [n for n in vars(ChkNginxLogs) if n.startswith("test")]:
         setattr(_classe, _nom, None)                                      # same fixtures as ChkNginxLogs, without running its tests twice

@@ -118,7 +118,7 @@ from urllib.parse import unquote, urlsplit
 from collections import Counter, OrderedDict
 from concurrent.futures import Future
 
-__version__ = "1.153.20261102.201101"
+__version__ = "1.154.20261102.220415"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
@@ -1822,14 +1822,18 @@ def column_header(request_length=False, minimal=False, width=COLUMN_WIDTH, colum
             row[offset + i] = letter
     line = [" "] * (start + len(row))
     fields = line_fields(plain)
-    # 1.147: "PA" (country code) over the address or name column, "BLOC IP (FAI)" (owner of the block) 3 characters further: the address and name
-    # start after the logger ("base werkzeug "), with a 3-character gap ("CA ") in front of the address
+    # 1.147: "PA" (country code) over the country column, the owner of the block (or the name) after it. 1.154: ONE label "PA BLOC-IP" ("CC" alone
+    # is never translated: the translator leaves texts shorter than 3 characters), placed on the country code of the line itself (two capital letters
+    # followed by the name), and no longer two words after the level: with --min there is no logger ("http INFO CA JoséR..."), so the label fell on
+    # "H1.1" and was left out. Without a country code (address not located): on the address, the last word before the request columns.
     labels_at = [(fields.get("DATE"), TR("HOUR")), (fields.get("PROG"), TR("PROG")), (fields.get("LEVEL"), TR("LVL"))]
     base = fields.get("ADDRESS/NAME")
     if base is not None:
-        logger = re.match(r"\S+\s+\S+\s", plain[base:])
-        name_at = base + (logger.end() if logger else 0)
-        labels_at += [(name_at, TR("CC")), (name_at + 3, TR("IP BLOCK (ISP)"))]
+        segment = plain[base:start] if start is not None else plain[base:]
+        country = re.search(r"(?:^|\s)([A-Z]{2}) (?=\S)", segment)
+        address = re.search(r"(\S+)\s*$", segment)
+        name_at = base + (country.start(1) if country else address.start(1) if address else 0)
+        labels_at.append((name_at, TR("CC IP-BLOCK")))
     for at, word in labels_at:                                    # 1.139: on the fields of the line, left to right
         if at is None or at + len(word) >= start - 1 or any(line[at + i] != " " for i in range(len(word))):
             continue
@@ -5888,8 +5892,19 @@ def follow(cmd, people, resolver, options, output):
 
     wide_state = {"on": False}                            # 1.146: an Odoo warning or error in progress (its continuation lines follow it)
 
+    def header_after_bar():
+        """1.154: the column labels again right after a status bar, measured on the last request line written (a sample before the first one)."""
+        try:
+            show_header(state.get("header_plain"))
+        except (ValueError, IndexError, KeyError):            # decoration: never stops the stream
+            pass
+
     def paint(L, text, inputs, benign, underline=False):
         """1.113: writes one line and keeps it in the buffer of the f (refresh) and P (print) keys; `inputs` = (results, pays) to render it again."""
+        if "H1." in text:                                     # 1.154: last request line, on which header_after_bar measures the labels
+            plain_request = ANSI_RE.sub("", text)
+            if "H1.1" in plain_request:
+                state["header_plain"] = plain_request
         if not state.get("header_shown"):                     # 1.137: the column labels just before the first request line (its real columns)
             plain_line = ANSI_RE.sub("", text)
             if "H1.1" in plain_line:
@@ -5934,6 +5949,7 @@ def follow(cmd, people, resolver, options, output):
             health_now = status.health()
             if status_bar_due(state["emitted"], state.get("bar_at", 0), every, health_now, state.get("bar_health")):
                 output.write(status_line() + "\n")
+                header_after_bar()                                 # 1.154: the column labels follow the status bar
                 state["bar_at"], state["bar_health"] = state["emitted"], health_now
         if options["chime"] is not None and is_reportable_error(L, options["chime"]) and time.time() - beep["last"] >= 2.0:       # at most one beep every 2 s
             beep["last"] = time.time()
@@ -6196,6 +6212,7 @@ def follow(cmd, people, resolver, options, output):
         state["startup_bar"] = True
         if options["status_every"]:                              # --status-every 0 = never
             output.write(status_line() + "\n")
+            header_after_bar()                                     # 1.154: the column labels follow the status bar
             output.flush()
             state["bar_at"], state["bar_health"] = state.get("emitted", 0), status.health()      # 1.145: the next bar counts from here (no second bar at once)
 

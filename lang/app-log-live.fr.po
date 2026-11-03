@@ -2988,11 +2988,8 @@ msgstr "HEURE"
 msgid "LVL"
 msgstr "NIV"
 
-msgid "CC"
-msgstr "PA"
-
-msgid "IP BLOCK (ISP)"
-msgstr "BLOC IP (FAI)"
+msgid "CC IP-BLOCK"
+msgstr "PA BLOC-IP"
 
 msgid "Startup information (lists, modules, cache, colours, keys): press ? (h: keys menu)"
 msgstr "Informations de démarrage (listes, modules, cache, couleurs, touches) : appuyez sur ? (h : menu des touches)"

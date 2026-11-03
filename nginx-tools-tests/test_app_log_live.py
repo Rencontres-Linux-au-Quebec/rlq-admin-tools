@@ -4212,3 +4212,51 @@ class AppLogLive153(unittest.TestCase):
         self.assertFalse(self.m.merge_codes_compatible("304", "500"))
         self.assertFalse(self.m.merge_codes_compatible("200", "304"))   # Odoo 304, nginx 200: never produced by nginx
         self.assertTrue(self.m.merge_codes_compatible("499", "500"))
+
+
+class AppLogLive154(unittest.TestCase):
+    """1.154 : l'en-tête montre « PA BLOC-IP » au-dessus du pays et du nom, aussi avec --min (pas de logger) ; il revient juste après la barre d'état."""
+
+    @classmethod
+    def setUpClass(cls):
+        spec = importlib.util.spec_from_file_location("live154", script_path("app-log-live.py"))
+        cls.m = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(cls.m)
+
+    NGINX = ('2026-11-02T10:58:22.000000-0500 odoo18 http: 179.201.24.98 - - "GET /websocket?version=18.0-7 HTTP/1.1" 101 422 "-" '
+             '"Mozilla/5.0 (X11; Linux x86_64)" host=www.example.org rl=300')
+    NOM = "CA JoséR+MartialB+Rencontres-LinuxQ+Administrat…"
+
+    def rendu(self, minimal, nom):
+        m = self.m
+        plain = ANSI.sub("", m.Formatting(minimal, 46, 0.0, False).format_value(m.Line(self.NGINX), {}, False))
+        return plain.replace("179.201.24.98", nom, 1) if nom else plain
+
+    def test_154_libelle_sur_le_pays_avec_et_sans_min(self):
+        m = self.m
+        for minimal in (True, False):
+            with self.subTest(minimal=minimal):
+                plain = self.rendu(minimal, self.NOM)
+                entete = m.column_header(False, minimal, 46, None, plain.index("H1.1"), plain)
+                self.assertEqual(entete.index(m.TR("CC IP-BLOCK")), plain.index(self.NOM), entete)
+
+    def test_154_sans_pays_libelle_sur_l_adresse(self):
+        m = self.m
+        plain = self.rendu(True, None)
+        entete = m.column_header(False, True, 46, None, plain.index("H1.1"), plain)
+        self.assertEqual(entete.index(m.TR("CC IP-BLOCK")), plain.index("179.201.24.98"))
+
+    def test_154_libelle_assez_long_pour_etre_traduit(self):
+        """Le traducteur laisse les textes de moins de 3 caractères : « CC » seul restait « CC » en français."""
+        self.assertGreaterEqual(len("CC IP-BLOCK"), 3)
+        with open(script_path("lang/app-log-live.fr.po"), encoding="utf-8") as f:
+            po = f.read()
+        self.assertIn('msgid "CC IP-BLOCK"\nmsgstr "PA BLOC-IP"', po)
+        self.assertNotIn('msgid "CC"\n', po)
+
+    def test_154_entete_apres_chaque_barre_d_etat(self):
+        with open(script_path("app-log-live.py"), encoding="utf-8") as f:
+            s = f.read()
+        self.assertEqual(s.count("output.write(status_line() + \"\\n\")\n                header_after_bar()"), 1)      # periodic bar
+        self.assertEqual(s.count("output.write(status_line() + \"\\n\")\n            header_after_bar()"), 1)          # bar after the history
+        self.assertIn('state["header_plain"] = plain_request', s)

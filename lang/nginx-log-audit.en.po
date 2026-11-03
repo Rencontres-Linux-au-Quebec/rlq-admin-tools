@@ -2633,3 +2633,96 @@ msgstr " ban(s) to lift (preview: no change made)."
 
 msgid "bannissement Cloudflare levé (--unban-cdn)"
 msgstr "Cloudflare ban lifted (--unban-cdn)"
+
+msgid "  --unban IP                   lever TOUS les bannissements de IP : pare-feu, jails fail2ban, liste CrowdSec (justification demandée)"
+msgstr "  --unban IP                   lift EVERY ban of IP: firewall, fail2ban jails, CrowdSec list (justification asked)"
+
+msgid " LEVÉE DE TOUS LES BANNISSEMENTS : "
+msgstr " LIFT OF EVERY BAN: "
+
+msgid "Aucun bannissement trouvé pour "
+msgstr "No ban found for "
+
+msgid " (pare-feu manuel, jails fail2ban, liste CrowdSec) — rien à lever."
+msgstr " (manual firewall, fail2ban jails, CrowdSec list) — nothing to lift."
+
+msgid "Bannissements trouvés pour "
+msgstr "Bans found for "
+
+msgid "  - pare-feu : règle manuelle (ufw ou iptables)"
+msgstr "  - firewall: manual rule (ufw or iptables)"
+
+msgid "  - liste CrowdSec : ipset "
+msgstr "  - CrowdSec list: ipset "
+
+msgid " (l'adresse sera ajoutée à "
+msgstr " (the address will be added to "
+
+msgid " pour ne pas être rebloquée)"
+msgstr " so as not to be blocked again)"
+
+msgid "Ceci va retirer ces blocages pour "
+msgstr "This will remove these blocks for "
+
+msgid "IP réattribuée à un usage légitime depuis). Un jail fail2ban peut la bannir de nouveau si elle"
+msgstr "IP reassigned to a legitimate use since). A fail2ban jail can ban it again if it"
+
+msgid "recommence ce qui l'a fait bannir."
+msgstr "does again what got it banned."
+
+msgid "Confirmer la levée des bannissements de "
+msgstr "Confirm lifting the bans of "
+
+msgid "Règle "
+msgstr "Rule "
+
+msgid " retirée pour "
+msgstr " removed for "
+
+msgid "Échec lors du retrait de la règle "
+msgstr "Failure while removing the rule "
+
+msgid " pour "
+msgstr " for "
+
+msgid "Une règle manuelle avait été détectée pour "
+msgstr "A manual rule had been detected for "
+
+msgid " levée du jail "
+msgstr " lifted from the jail "
+
+msgid "fail2ban : échec de la levée de "
+msgstr "fail2ban: failure lifting "
+
+msgid "Liste CrowdSec : "
+msgstr "CrowdSec list: "
+
+msgid " ajoutée aux exceptions ("
+msgstr " added to the exceptions ("
+
+msgid ") : jamais rebloquée par la synchronisation."
+msgstr "): never blocked again by the synchronisation."
+
+msgid "Liste CrowdSec : impossible d'écrire "
+msgstr "CrowdSec list: cannot write "
+
+msgid " — la prochaine synchronisation rebloquera "
+msgstr " — the next synchronisation will block again "
+
+msgid " retirée de l'ipset "
+msgstr " removed from the ipset "
+
+msgid "Liste CrowdSec : échec du retrait de "
+msgstr "CrowdSec list: failure removing "
+
+msgid " de l'ipset "
+msgstr " from the ipset "
+
+msgid "levé : "
+msgstr "lifted: "
+
+msgid " levée(s) en échec — voir ci-dessus."
+msgstr " lift(s) failed — see above."
+
+msgid " n'est plus bannie : "
+msgstr " is no longer banned: "

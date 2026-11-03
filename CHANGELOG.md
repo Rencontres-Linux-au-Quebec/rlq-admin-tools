@@ -371,6 +371,23 @@ Earlier history was archived outside this repository when this file was created.
 
 ## app-log-live.py
 
+### 1.154.20261102.220415 - Column header: country and IP block labels with --min, and the header again after each status bar
+
+- Title: the header line shows "PA BLOC-IP" (English "CC IP-BLOCK") over the country code and the name, also with --min; it is shown again right after each status bar.
+- Reason: request of the administrator on 2026-11-02: the header "HEURE PROG NIV ... HTTP STA SIZE..." lacked the country and the IP block over "CA JoséR+MartialB+Rencontres-LinuxQ+Administrat..." of an http line; and the header should come after the status line.
+- Changes:
+  - column_header(): one label TR("CC IP-BLOCK") placed on the country code of the measured line (two capital letters followed by the name), or on the address when there is no country code; it replaces the two labels TR("CC") and TR("IP BLOCK (ISP)").
+  - New inner function header_after_bar(): show_header() measured on the last request line written (state["header_plain"], kept by paint()), or on a sample before the first one. Called after the periodic status bar (emit) and after the status bar shown once after the history (startup_status_bar).
+  - lang/app-log-live.fr.po: "CC IP-BLOCK" -> "PA BLOC-IP" (the entries "CC" and "IP BLOCK (ISP)" removed).
+  - doc/fr and doc/en 07-app-log-live.md: the header after the status bar and the label.
+  - nginx-tools-tests/test_app_log_live.py: new class AppLogLive154 (4 tests).
+- Bugs fixed:
+  - Symptom: no country / IP block label over the name of an http line with --min. Diagnosis: column_header() skipped two words after the level, the logger ("base werkzeug") of a normal line; with --min there is no logger, so the label landed on "H1.1" and was left out (or, with a country and a name, after the name). Fix: the label is placed on the country code found in the line.
+  - Symptom: the label "CC" stayed "CC" in French. Diagnosis: the shared translator (apps/_i18n.py) leaves texts shorter than 3 characters untranslated. Fix: one longer label "CC IP-BLOCK".
+- Safeguards and edge cases: logger names are in lower case, so they are never taken for a country code; a label that would overlap the request columns is still left out (narrow terminal); the header is decoration, an error while measuring it never stops the stream; it goes to the error output as before, not to the daily journal. --status-every 0: no status bar, so no extra header.
+- Checks performed: python3 -m py_compile; AppLogLive154 (4 tests), AppLogLive153 and AppLogLive143 [OK]; header previewed with and without --min, with and without a country and a name.
+- Action required: none.
+
 ### 1.153.20261102.201101 - --log-merge: an nginx 304 or 499 merges with the Odoo line of the same request
 
 - Title: the nginx line and the Odoo line of one request are merged even when their status codes differ in the two ways nginx produces: 304 for a 200 of Odoo, 499 for any status of Odoo.
@@ -3369,6 +3386,23 @@ Earlier history was archived outside this repository when this file was created.
 - Current version. Earlier history archived outside the repository.
 
 ## nginx-log-audit.sh
+
+### 2.74.20261102.220025 - --unban lifts every ban of the address itself: firewall, fail2ban jails, CrowdSec list
+
+- Title: --unban IP finds and lifts every ban of the address (manual firewall rule, each fail2ban jail that holds it, CrowdSec community list) instead of telling the administrator to run "fail2ban-client set <jail> unbanip IP".
+- Reason: request of the administrator on 2026-11-02: "nginx-log-audit.sh --unban 170.231.237.214" answered "no manual rule found, nothing to lift" and gave a fail2ban command to run by hand; the program should find the right jail and lift it itself.
+- Changes:
+  - --unban block rewritten: it lists what bans the address (ufw / iptables / ip6tables rule, jails whose "Banned IP list" contains it, ipsets crowdsec-blocklist-v4 and -v6), shows the list, asks once (--yes: no question) and a justification, then lifts each one: rule removed, "fail2ban-client set JAIL unbanip IP" for each jail, "ipset del" for each set. One "leve" line in bans.tsv, its justification starting with the sources lifted ("levé : pare-feu, fail2ban nginx-badrequests - ..."). persist_firewall when a rule or an ipset entry was removed. Exit code 1 when a lift failed; a final line names what was lifted.
+  - CrowdSec list: the address is first added to the exception file of sync-crowdsec-blocklist.sh (CROWDSEC_ALLOW_FILE, from SYNC_CROWDSEC_ALLOW_FILE, default /etc/default/sync-crowdsec-blocklist.allow), with the date and the justification as a comment, once; without it the next synchronisation would block the address again.
+  - NGINX_LOG_AUDIT_UNBAN_SCOPE=manual: the manual rule only, as before. Set by --unban-check (re-evaluation of a manual ban) and --unban-expired (expiry of a manual ban), so that they never lift a fail2ban ban that a jail has just set.
+  - ip6tables rules of an IPv6 address are found and removed too.
+  - Help, header comment, doc/fr and doc/en nginx-log-audit.conf.example and 02-nginx-log-audit.md (new paragraph on --unban); lang/nginx-log-audit.en.po: the new messages.
+  - nginx-tools-tests/test_nginx_log_audit.py: new class ChkNginxLogs274 (4 tests: jail found and lifted, firewall and CrowdSec with exception written once, manual scope, nothing to lift); test_ban_gate.py: version.
+- Bugs fixed:
+  - Symptom: "Aucune règle de bannissement manuel (ufw/iptables) trouvée pour 170.231.237.214 - rien à lever", then a command to run by hand. Diagnosis: --unban handled only the manual firewall rule. Fix: the jails and the CrowdSec sets are searched and lifted by the program.
+- Safeguards and edge cases: the list of bans found is shown before the question; nothing is lifted on a negative answer. A jail can ban the address again if it does the same again (said before the question). The exception for the CrowdSec list is written only when the address was in that list, and not twice. --unban-low-score and --unban-cdn keep their own lifting of fail2ban bans; their call of --unban for a manual ban may now also lift the other bans of that address, which is what they ask for. fail2ban stopped or absent: only the other sources are searched.
+- Checks performed: bash -n; ChkNginxLogs274 (4 tests) [OK]; test_i18n: catalogue of nginx-log-audit [OK] (failures for nginx-hardening and apps/_listes.sh already exist on main).
+- Action required: none.
 
 ### 2.73.20261102.214543 - Firewall bans expire; duration by origin of the address (BAN_DAYS_HOSTING, BAN_DAYS_ISP, BAN_DAYS_OTHER)
 
