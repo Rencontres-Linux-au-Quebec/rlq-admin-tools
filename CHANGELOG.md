@@ -2376,6 +2376,16 @@ Earlier history was archived outside this repository when this file was created.
 
 ## web-monitor.py
 
+### 2.86.20261102.224544 - VPN, Tor, relay and hosting owners read from the shared module apps/_vpn.py
+
+- Title: the list of owners of VPN, Tor, relay and hosting blocks (VPN_OWNERS) moved to apps/_vpn.py, shared with nginx-log-audit.sh --investigate.
+- Reason: request of the administrator on 2026-11-02: show the same type of address in the investigations of nginx-log-audit.sh.
+- Changes: VPN_OWNERS, VPN_OWNERS_RE and VPN_PRIORITY come from apps/_vpn.py (loaded with _load_module); vpn_kind() calls _vpn.kind_of(). The list itself is unchanged. The short name of a hosting provider without a known name is the first word of the network name when the organisation says nothing ("Admin").
+- Bugs fixed: none.
+- Safeguards and edge cases: module missing or broken: no VPN guess (column "-"), never an error.
+- Checks performed: test_web_monitor (85 tests) [OK].
+- Action required: none.
+
 ### 2.85.20261101.231500 - Retour arrière : écho et effacement rétablis avant chaque réponse
 
 - Title: every question of web-monitor.py is answered in line mode (echo and erase).
@@ -3386,6 +3396,54 @@ Earlier history was archived outside this repository when this file was created.
 - Current version. Earlier history archived outside the repository.
 
 ## nginx-log-audit.sh
+
+### 2.78.20261102.224544 - --investigate ends with a verdict and a recommendation; several addresses with a summary
+
+- Title: --investigate re-reads its own findings and ends with "ANALYSE ET RECOMMANDATION": one verdict (NE PAS BANNIR, LEVER LE BANNISSEMENT, GARDER LE BANNISSEMENT, BANNIR, LAISSER À FAIL2BAN, REFUSER LE ROBOT PAR SON NOM, AUCUNE ACTION, À EXAMINER), its reasons, notes and the command to run. --investigate IP1 IP2 (or IP1,IP2) investigates each address and ends with a summary table and the commands.
+- Reason: request of the administrator on 2026-11-02: "instead of sending you the investigation report every time, can nginx-log-audit.sh --investigate re-validate as you do and give me recommendations? There are several IPs a day to investigate."
+- Changes:
+  - New functions: recommander (decision tree below), robots_declares (names that robots give in their User-Agent: "Name/1.0" or "name (+https://...)", browser and system words and HTTP libraries left out), robot_refuse (name already in bot_blocker.conf: NGINX_TOOLS_BOT_BLOCKER, default /etc/nginx/conf.d/bot_blocker.conf, otherwise the copy of the repository), nature_requetes (job offers, RSS feeds or forms when one kind makes at least half of the pages).
+  - Decision tree, in this order: protected address, verified search engine, Odoo account logged in, CDN node -> NE PAS BANNIR (LEVER LE BANNISSEMENT if banned; À EXAMINER for a CDN with a strong sign); strong sign or score at the threshold with hostility -> GARDER (manual ban in place), BANNIR (duration by origin given) or LAISSER À FAIL2BAN (score under the threshold); otherwise -> robot that names itself and is not refused yet: REFUSER LE ROBOT PAR SON NOM (or LEVER then add it to bot_blocker.conf, when banned); banned without hostility: LEVER (fail2ban catches a new burst); else AUCUNE ACTION. Notes: name already refused, nature of the requests, VPN / Tor / relay, access provider, fail2ban and CrowdSec bans in progress, state not readable without root.
+  - investigate_and_propose(): keeps the facts (INV_*: score, signs, User-Agents, URLs, catch-all count, motifs) for the advice; with --investigate, the ban question comes after the advice, and only in a terminal, as root, without --no-prompt (otherwise the command is in the advice).
+  - afficher_bannissements(): keeps the ban state (ETAT_PARE_FEU, ETAT_JAILS, ETAT_CROWDSEC, ETAT_F2B_BANS, ETAT_ECHEANCE).
+  - Address with no request to the site: the advice still uses the bans, the catch-all sensor and the owner of the block.
+  - Option parsing: --investigate takes several addresses (following arguments that look like addresses, or a comma list); each is validated; with more than one, each is run as a child (--no-prompt) and its verdict collected (INV_RESUME_FILE), then "SYNTHÈSE DES N ADRESSES ENQUÊTÉES" and the --ban / --unban commands to run.
+  - Help, header comment, doc/fr and doc/en nginx-log-audit.conf.example; doc/fr and doc/en 02-nginx-log-audit.md: new section on the verdict; lang/nginx-log-audit.en.po: the new messages ("BANNIR" -> "BAN" for the verdict; the word to type for an exception stays BANNIR in its own sentences).
+  - nginx-tools-tests/test_nginx_log_audit.py: new class ChkNginxLogs278 (7 tests: fake Googlebot + catch-all + hosting -> BANNIR with 365 days; robot naming itself, banned -> LEVER then bot_blocker.conf; name already refused and free name -> REFUSER LE ROBOT PAR SON NOM; verified engine -> NE PAS BANNIR; Tor exit; several addresses and summary; module apps/_vpn.py).
+- Bugs fixed: none.
+- Safeguards and edge cases: the advice never bans or lifts anything: it gives the command, and --ban / --unban still check again and ask. The line "Score N/7 : bannissement recommandé." stays (the --ban gate reads it). The country is not a criterion (it is the server's, not the person's). An inconsistent investigation (address changed) gets no advice. A CDN is never advised for a ban without a strong sign (CLAUDE.md rule).
+- Checks performed: bash -n; test_nginx_log_audit and test_ban_gate: 86 tests [OK]; test_i18n: catalogue of nginx-log-audit [OK]; English output of the advice previewed.
+- Action required: none.
+
+### 2.77.20261102.224544 - Network name shown when the RDAP organisation says nothing ("Admin")
+
+- Title: when the RDAP organisation of a block is generic ("Admin", "Abuse", "NOC", "-"...), the network name is shown instead, in the owner line, the rented-server clue and the origin of a ban.
+- Reason: request of the administrator on 2026-11-02, after "Provenance : hébergeur : Admin" for 45.138.12.41 (network TC-DATACENTER-LIMITED).
+- Changes: reseau_lire() sets RESEAU_LABEL (organisation, or network name when GENERIC_ORG_RE matches); infos_reseau() shows it and says "nom du réseau ; organisation RDAP « Admin », sans information"; the rented-server clue and provenance_ip() use it. Same rule in apps/_vpn.py (owner_label).
+- Bugs fixed: symptom "Provenance : hébergeur : Admin"; diagnosis: the organisation field was shown as it is; fix above.
+- Safeguards and edge cases: a real organisation name is never replaced; an empty organisation already showed the network name.
+- Checks performed: test_278_faux_googlebot_catch_all_hebergeur_bannir [OK].
+- Action required: none.
+
+### 2.76.20261102.224544 - Tor exits recognized (official list of the Tor project, cached one day)
+
+- Title: --investigate says when the address is a Tor exit, from the official list (https://check.torproject.org/torbulkexitlist), and the advice notes that the address is shared by many users.
+- Reason: request of the administrator on 2026-11-02 ("can you know whether a VPN is used?"), improvement 2 proposed.
+- Changes: apps/_vpn.py tor_exits(): list downloaded with curl (otherwise wget), cached in NGINX_TOOLS_TOR_CACHE, /var/cache/nginx-tools/tor-exits.txt (root) or ~/.cache/nginx-tools/tor-exits.txt, refreshed when older than one day; vpn_lire() reads it; the line "Type d'adresse" says "sortie Tor (liste officielle du projet Tor du DATE)".
+- Bugs fixed: none.
+- Safeguards and edge cases: a failed download keeps the previous list; a download of fewer than 10 addresses (an error page) never replaces the cache; without network and without cache, nothing is said about Tor. Information only, outside the score.
+- Checks performed: test_278_sortie_tor_reconnue, test_278_vpn_module_partage (refresh, failure keeps the list) [OK].
+- Action required: none (the server must reach check.torproject.org once a day).
+
+### 2.75.20261102.224544 - Type of address in the investigation: VPN, relay or hosting provider (shared with web-monitor.py)
+
+- Title: --investigate shows "Type d'adresse": VPN (NordVPN, Mullvad, Proton...), relay (iCloud Private Relay, Cloudflare WARP), hosting provider, or no sign of any, from the owner of the block.
+- Reason: request of the administrator on 2026-11-02, improvement 1 proposed: web-monitor.py already classified the addresses of the accounts, nginx-log-audit.sh did not.
+- Changes: new module apps/_vpn.py (the list VPN_OWNERS moved from web-monitor.py, kind_of, owner_label); new function vpn_lire (VPN_TYPE, VPN_NOM); investigate_and_propose() prints the line after the owner of the block.
+- Bugs fixed: none.
+- Safeguards and edge cases: a guess from the owner's name, said as such ("serveur loué, ou sortie d'un VPN ou d'un proxy (impossible de distinguer)"); information only, outside the score; module missing: no line about the type, no error.
+- Checks performed: ChkNginxLogs278 [OK]; web-monitor tests [OK].
+- Action required: none.
 
 ### 2.74.20261102.220025 - --unban lifts every ban of the address itself: firewall, fail2ban jails, CrowdSec list
 
@@ -4671,6 +4729,18 @@ Earlier history was archived outside this repository when this file was created.
 - Action required: None.
 
 ### 1.0.20261020.230008 - Current version. Earlier history archived outside the repository.
+
+## apps/_vpn.py
+
+### 1.0.20261102.224544 - New module: VPN, Tor, relay or hosting provider behind an address
+
+- Title: shared module that guesses what hides behind an address from the owner of its block (VPN, Tor, relay, hosting provider), checks the official list of Tor exits, and gives the owner's name to show.
+- Reason: request of the administrator on 2026-11-02 (improvements 1, 2 and 3 after the investigation of 45.138.12.41).
+- Changes: VPN_OWNERS, VPN_OWNERS_RE, VPN_PRIORITY (moved from web-monitor.py 2.85, unchanged); kind_of(organisation, network, short); owner_label() and first_word() (network name when the organisation is generic: GENERIC_ORG_RE); tor_exits() with a cache of one day; command line "_vpn.py IP --org ORG --net NET [--no-tor] [--verbose] [--version]" printing KIND, NAME, TOR, TOR_LIST_DATE, LABEL separated by ASCII 31.
+- Bugs fixed: none.
+- Safeguards and edge cases: never an exception; failed download keeps the cache; a list of fewer than 10 addresses never replaces it.
+- Checks performed: test_278_vpn_module_partage [OK].
+- Action required: none.
 
 ## apps/_reseau.py
 

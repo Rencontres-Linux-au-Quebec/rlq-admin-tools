@@ -49,7 +49,7 @@
 #   --import-bans FILE|-  importer des bannissements (- : entrée standard)
 #   --init                analyser tout le fichier actif (et non seulement le nouveau depuis le dernier passage)
 #   --init-all            analyser tout l'historique, rotations comprises
-#   --investigate IP      enquête complète sur une IP (tout l'historique), avec le propriétaire de son bloc d'adresses (RDAP)
+#   --investigate IP [IP...]  full investigation (whole history, block owner, VPN or Tor), then verdict and recommendation; several IPs: summary
 #   --ip ADDRESS          limiter le rapport à une adresse
 #   --last HOURS          limiter toutes les sections aux HOURS dernières heures
 #   --reason TEXT         justification de --ban / --unban, enregistrée avec la date et l'heure dans bans.tsv

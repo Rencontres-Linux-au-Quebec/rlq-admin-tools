@@ -13,7 +13,7 @@
 #
 #
 # Usage : nginx-log-audit.sh [dev|lab|prod] [-v|--verbose] [--ip ADRESSE] [--init] [--init-all] [--stats] [--last HEURES]
-#                            [--details] [--fail2ban] [--ban IP [--yes] [--reason TEXT]] [--unban IP] [--ban-history] [--investigate IP] [--evidence IP]
+#                            [--details] [--fail2ban] [--ban IP [--yes] [--reason TEXT]] [--unban IP] [--ban-history] [--investigate IP [IP...]] [--evidence IP]
 #                            [--ban-days N] [--ban-days-hosting N] [--ban-days-isp N] [--ban-days-other N] [--unban-expired]
 #                            [--unban-check] [--unban-cdn] [--unban-low-score] [--ban-threshold N] [--page-burst N] [--parallel-threshold N] [--no-prompt] [--version]
 #                            [--changelog]
@@ -59,6 +59,9 @@
 #   - --reason TEXT   : justification for --ban / --unban, recorded with the date and time in bans.tsv (2.40). Without --reason :
 #                        asked at the keyboard (editable proposal: the evidence), automatic with --yes.
 #   - --ban-history   : log of manual bans and lifts (date, time, IP, justification, origin), read-only.
+#   - --investigate IP [IP...] : (2.78) ends with ANALYSE ET RECOMMANDATION (verdict, reasons, command); several addresses (IP1 IP2 or
+#                        IP1,IP2): each one in turn, then a summary table and the commands to run. Type of address (VPN, Tor, relay,
+#                        hosting) from apps/_vpn.py (2.75, 2.76).
 #   - --investigate IP : enquete complete sur une IP dans TOUT l'historique disponible (journal actif, rotations et
 #                        .gz) : preuves une par une, commandes equivalentes, score, puis proposition de bannissement
 #                        avec confirmation. La section [10] du rapport normal fait la meme enquete, automatiquement,
@@ -143,7 +146,7 @@ grep_q() { grep "$@" >/dev/null; }
 #                              ne peut pas le voir, le texte etant entre apostrophes (faux positif).
 trap 'ec=$?; echo "" >&2; echo "*** ARRÊT INATTENDU DU SCRIPT (code $ec) À LA LIGNE $LINENO ***" >&2; echo "*** Commande fautive : $BASH_COMMAND" >&2; echo "*** Si le rapport ci-dessus semble incomplet (ex. sections Top 10 absentes), c'\''est probablement la cause." >&2' ERR
 
-readonly SCRIPT_VERSION="2.74.20261102.220025"
+readonly SCRIPT_VERSION="2.78.20261102.224544"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
 # Chemin de ce programme (relances --investigate, --ban, --unban) : defini ICI, avant le bloc --ban qui l'utilise.
 SELF_PATH="$SCRIPT_DIR/$(basename "${BASH_SOURCE[0]}")"
@@ -275,7 +278,8 @@ while [[ $# -gt 0 ]]; do
         --ban-history) DO_BAN_HISTORY=1; shift ;;
         --yes) ASSUME_YES=1; shift ;;
         --ua-rotation-threshold) UA_ROTATION_THRESHOLD="${2:-}"; shift 2 ;;
-        --investigate) INVESTIGATE_IP="${2:-}"; shift 2 ;;
+        --investigate) INVESTIGATE_IP="${2:-}"; shift 2      # 2.78: several addresses: --investigate IP1 IP2 ... or IP1,IP2
+            while [[ $# -gt 0 && "$1" =~ ^[0-9a-fA-F.:,]+$ && "$1" == *[.:]* ]]; do INVESTIGATE_IP="$INVESTIGATE_IP,$1"; shift; done ;;
         --evidence) EVIDENCE_IP="${2:-}"; shift 2 ;;
         --unban-check) DO_UNBAN_CHECK=1; shift ;;
         --unban-cdn) DO_UNBAN_CDN=1; shift ;;
@@ -347,7 +351,7 @@ Options (par ordre alphabétique) :
   --import-bans FILE|-         importer des bannissements (- : entrée standard) ; aperçu, puis confirmation
   --init                       analyser tout le fichier actif (et non seulement le nouveau depuis le dernier passage)
   --init-all                   analyser tout l'historique, rotations comprises
-  --investigate IP             enquête complète sur une IP (tout l'historique), avec le propriétaire de son bloc d'adresses (RDAP)
+  --investigate IP [IP...]     enquête complète (tout l'historique, propriétaire du bloc, VPN ou Tor), puis verdict et recommandation ; plusieurs IP : synthèse
                                et les comptes Odoo actifs pendant ses requêtes (base PostgreSQL, lecture seule)
   --ip ADDRESS                 limiter le rapport à une adresse
   --lang LANG                  langue d'affichage : en ou fr (défaut : selon LC_ALL / LC_MESSAGES / LANG)
@@ -425,9 +429,45 @@ if [[ -n "$BAN_DAYS" && -z "$BAN_IP" ]]; then
     echo "ERREUR: --ban-days s'utilise avec --ban IP (durée de ce bannissement)." >&2
     exit 1
 fi
-if [[ -n "$INVESTIGATE_IP" ]] && ! [[ "$INVESTIGATE_IP" =~ ^[0-9]{1,3}(\.[0-9]{1,3}){3}$ || "$INVESTIGATE_IP" =~ ^[0-9a-fA-F:]+:[0-9a-fA-F:]*$ ]]; then
-    echo "ERREUR: --investigate attend une adresse IP (reçu: '$INVESTIGATE_IP')" >&2
-    exit 1
+# 2.78: --investigate with several addresses: each one is investigated in turn (same program, --no-prompt), then a summary table gives the verdict
+# of each and the commands to run. No ban question in this mode: the commands are shown.
+IFS=', ' read -r -a INV_LISTE <<< "$INVESTIGATE_IP"
+for inv_ip in "${INV_LISTE[@]}"; do
+    if ! [[ "$inv_ip" =~ ^[0-9]{1,3}(\.[0-9]{1,3}){3}$ || "$inv_ip" =~ ^[0-9a-fA-F:]+:[0-9a-fA-F:]*$ ]]; then
+        echo "ERREUR: --investigate attend une adresse IP (reçu: '$inv_ip')" >&2
+        exit 1
+    fi
+done
+if (( ${#INV_LISTE[@]} > 1 )); then
+    INV_RESUME_FILE=$(mktemp)
+    export INV_RESUME_FILE
+    for inv_ip in "${INV_LISTE[@]}"; do
+        inv_args=(--investigate "$inv_ip" --no-prompt)
+        [[ -n "${ENV:-}" ]] && inv_args=("$ENV" "${inv_args[@]}")
+        [[ -n "$APP_FORCE" ]] && inv_args+=(--app "$APP_FORCE")
+        [[ "$VERBOSE" == "1" ]] && inv_args+=(--verbose)
+        bash "$SELF_PATH" "${inv_args[@]}" || true
+        echo
+    done
+    echo "=============================================================="
+    echo " SYNTHÈSE DES ${#INV_LISTE[@]} ADRESSES ENQUÊTÉES"
+    echo "=============================================================="
+    printf '  %-40s %-30s %s\n' "IP" "Verdict" "Raison principale"
+    for inv_ip in "${INV_LISTE[@]}"; do
+        ligne=$(grep -F "|$inv_ip|" "$INV_RESUME_FILE" | tail -1)
+        IFS='|' read -r _ _ inv_verdict inv_raison <<< "$ligne"
+        printf '  %-40s %-30s %s\n' "$inv_ip" "${inv_verdict:-(enquête incomplète)}" "$(printf '%s' "${inv_raison%% ; *}" | cut -c1-100)"
+    done
+    echo
+    inv_cmds=$(awk -F'|' '$3 == "BANNIR" { print "  nginx-log-audit.sh --ban " $2 } $3 == "LEVER LE BANNISSEMENT" { print "  nginx-log-audit.sh --unban " $2 }' "$INV_RESUME_FILE" | sort -u)
+    if [[ -n "$inv_cmds" ]]; then
+        echo "Commandes à lancer (chacune vérifie de nouveau et demande confirmation) :"
+        printf '%s\n' "$inv_cmds"
+    else
+        echo "Aucune commande à lancer : ni bannissement ni levée recommandés."
+    fi
+    rm -f "$INV_RESUME_FILE"
+    exit 0
 fi
 
 if ! [[ "$UA_ROTATION_THRESHOLD" =~ ^[0-9]+$ ]] || [[ "$UA_ROTATION_THRESHOLD" -lt 2 ]]; then
@@ -613,8 +653,29 @@ reseau_lire() {
             ligne=$(run python3 "$reseau_py" --raw "$ip" 2>/dev/null) || ligne=""
         fi
     fi
-    [[ -n "$ligne" ]] || return 1
+    [[ -n "$ligne" ]] || { RESEAU_LABEL=""; return 1; }
     IFS=$'\037' read -r RESEAU_ORG RESEAU_NET RESEAU_PLAGE RESEAU_PAYS RESEAU_ABUS RESEAU_REGISTRE RESEAU_SOURCE <<< "$ligne"
+    # 2.77: the name to show - the organisation, unless it says nothing ("Admin", "Abuse", "-"...), then the network name (same rule as apps/_vpn.py).
+    RESEAU_LABEL="$RESEAU_ORG"
+    if [[ -z "$RESEAU_ORG" ]] || printf '%s' "$RESEAU_ORG" | grep -qiE "$GENERIC_ORG_RE"; then RESEAU_LABEL="${RESEAU_NET:-$RESEAU_ORG}"; fi
+    return 0
+}
+# RDAP organisation names that say nothing about the owner (2.77; 45.138.12.41: organisation "Admin", network TC-DATACENTER-LIMITED).
+GENERIC_ORG_RE='^[^[:alnum:]]*(admin(istrator)?|abuse|noc|hostmaster|network( operations?)?|support|technical( contact)?|tech|n/?a|none|private|unknown|not disclosed|redacted( for privacy)?|data protected|-+)[^[:alnum:]]*$'
+# vpn_lire IP (2.75, 2.76): VPN, Tor, relay or hosting provider behind the address, through apps/_vpn.py (owner read by reseau_lire, official
+# list of the Tor exits cached one day). Sets VPN_TYPE (VPN, Tor, Relay, Hosting or empty), VPN_NOM, VPN_TOR (1/0), VPN_TOR_DATE. Never an error.
+vpn_lire() {
+    local ip="$1" ligne="" vpn_py="${APPS_DIR:-$SCRIPT_DIR/apps}/_vpn.py" label
+    VPN_TYPE=""; VPN_NOM=""; VPN_TOR=0; VPN_TOR_DATE=""
+    if [[ -r "$vpn_py" ]] && command -v python3 >/dev/null 2>&1; then
+        if [[ "$VERBOSE" == "1" ]]; then
+            ligne=$(run python3 "$vpn_py" "$ip" --org "$RESEAU_ORG" --net "$RESEAU_NET" --verbose 2>&3) || ligne=""
+        else
+            ligne=$(run python3 "$vpn_py" "$ip" --org "$RESEAU_ORG" --net "$RESEAU_NET" 2>/dev/null) || ligne=""
+        fi
+    fi
+    [[ -n "$ligne" ]] || return 0
+    IFS=$'\037' read -r VPN_TYPE VPN_NOM VPN_TOR VPN_TOR_DATE label <<< "$ligne"
     return 0
 }
 # reseau_hebergeur (2.72): 0 when the owner read by reseau_lire is a hosting provider (CLOUD_ORG_RE on the organisation, the network name
@@ -693,15 +754,15 @@ provenance_ip() {
         PROV_TYPE="hebergeur"; PROV_TEXTE="hébergeur : $ptr"; return 0
     fi
     if reseau_lire "$ip" && reseau_hebergeur; then
-        PROV_TYPE="hebergeur"; PROV_TEXTE="hébergeur : ${RESEAU_ORG:-$RESEAU_NET}"; return 0
+        PROV_TYPE="hebergeur"; PROV_TEXTE="hébergeur : ${RESEAU_LABEL:-$RESEAU_NET}"; return 0
     fi
     if [[ -n "$ptr" && "$ip" != *:* ]]; then
         IFS=. read -r a b c d <<< "$ip"
         if printf '%s' "$ptr" | grep_q -iE "$ISP_PTR_RE" || printf '%s' "$ptr" | grep_q -E "(^|[^0-9])($a[.-]$b[.-]$c[.-]$d|$d[.-]$c[.-]$b[.-]$a)([^0-9]|$)"; then
-            PROV_TYPE="acces"; PROV_TEXTE="fournisseur d'accès : $ptr${RESEAU_ORG:+ ($RESEAU_ORG)}"; return 0
+            PROV_TYPE="acces"; PROV_TEXTE="fournisseur d'accès : $ptr${RESEAU_LABEL:+ ($RESEAU_LABEL)}"; return 0
         fi
     fi
-    [[ -n "$RESEAU_ORG$ptr" ]] && PROV_TEXTE="provenance inconnue : ${ptr:-$RESEAU_ORG}"
+    [[ -n "$RESEAU_LABEL$ptr" ]] && PROV_TEXTE="provenance inconnue : ${ptr:-$RESEAU_LABEL}"
     return 0
 }
 # duree_ban_jours TYPE: days of a ban for that origin (--ban-days wins); 0 = no expiry.
@@ -1059,6 +1120,7 @@ PROP_RAISON=""
 afficher_bannissements() {
     local ip="$1" ind="${2:-  }" ipre trouve=0 j quand n=0 d=""
     local -a jails_actuels=() jails_hist=()
+    ETAT_PARE_FEU=0; ETAT_JAILS=(); ETAT_CROWDSEC=""; ETAT_F2B_BANS=0; ETAT_ECHEANCE=""; ETAT_LISIBLE=0      # 2.78: for the advice of --investigate
     ipre=$(printf '%s' "$ip" | sed 's/[.]/\\./g')
     progres "Bannissements de $ip : pare-feu, fail2ban, liste CrowdSec, journal des bannissements manuels"
     echo "${ind}${C_BOLD}Bannissements de $ip${C_RESET} (quand, et pourquoi)"
@@ -1079,6 +1141,7 @@ afficher_bannissements() {
             local eb_debut eb_fin
             IFS=$'\t' read -r eb_debut eb_fin <<< "$(echeance_ban "$ip")"
             echo "${ind}    Pare-feu : ${C_MAL}BANNIE${C_RESET} — $pf (bannissement manuel, $(texte_echeance "$eb_fin") ; levée : nginx-log-audit.sh --unban $ip)"
+            ETAT_PARE_FEU=1; ETAT_ECHEANCE="$eb_fin"
         else
             echo "${ind}    Pare-feu : pas de bannissement manuel"
         fi
@@ -1093,6 +1156,7 @@ afficher_bannissements() {
                 fi
             done
             if (( ${#jails_actuels[@]} == 0 )); then echo "${ind}    fail2ban : pas bannie actuellement"; else trouve=1; fi
+            ETAT_JAILS=("${jails_actuels[@]}")
         else
             echo "${ind}    fail2ban : non installé ou arrêté"
         fi
@@ -1102,6 +1166,7 @@ afficher_bannissements() {
                 run ipset test "$s" "$ip" >/dev/null 2>&1 && cs="$s"
             done
         fi
+        ETAT_LISIBLE=1; ETAT_CROWDSEC="$cs"
         if [[ -n "$cs" ]]; then
             trouve=1
             local maj liste="${SYNC_CROWDSEC_STATE_DIR:-/var/lib/sync-crowdsec-blocklist}/last-list.txt"
@@ -1129,6 +1194,7 @@ afficher_bannissements() {
                   printf "%s %s\t%s\t%s\n", $1, substr($2, 1, 8), t, j } }')
     if [[ -n "$f2b" ]]; then
         mapfile -t jails_hist < <(printf '%s\n' "$f2b" | awk -F'\t' '$2 ~ /BANNIE/ { print $3 }' | sort -u)
+        ETAT_F2B_BANS=$(printf '%s\n' "$f2b" | grep -c 'BANNIE par le jail' || true)
         f2b=$(printf '%s\n' "$f2b" | cut -f1,2)
         hist="$hist${hist:+$'\n'}$f2b"
     fi
@@ -2294,8 +2360,9 @@ infos_reseau() {
     fi
     org="$RESEAU_ORG"; net="$RESEAU_NET"; plage="$RESEAU_PLAGE"; pays="$RESEAU_PAYS"; abus="$RESEAU_ABUS"; registre="$RESEAU_REGISTRE"; source="$RESEAU_SOURCE"
     local genre="nom du réseau"
-    if [[ -n "$org" ]]; then genre="organisation"; fi
-    echo "      Propriétaire du bloc d'adresses : ${C_YELLOW}${org:-$net}${C_RESET} ($genre ; pas forcément un fournisseur d'accès)${pays:+ — pays $pays}"
+    if [[ -n "$org" && "$RESEAU_LABEL" == "$org" ]]; then genre="organisation"
+    elif [[ -n "$org" ]]; then genre="nom du réseau ; organisation RDAP « $org », sans information"; fi      # 2.77
+    echo "      Propriétaire du bloc d'adresses : ${C_YELLOW}${RESEAU_LABEL:-$net}${C_RESET} ($genre ; pas forcément un fournisseur d'accès)${pays:+ — pays $pays}"
     echo "        réseau ${net:-?}${plage:+ ($plage)} — source $source${registre:+ ($registre)}"
     if [[ -n "$abus" ]]; then echo "        signalement d'abus : $abus"; fi
 }
@@ -2326,7 +2393,17 @@ investigate_and_propose() {
     local -a motifs=()                 # clues retained: justification proposed if the ban is accepted (2.40)
     echo
     echo "  ▶ ${C_YELLOW}$ip${C_RESET} — $total requêtes $scope"
-    if [[ -n "$INVESTIGATE_IP" ]]; then infos_reseau "$ip"; fi
+    if [[ -n "$INVESTIGATE_IP" ]]; then
+        infos_reseau "$ip"
+        vpn_lire "$ip"                                   # 2.75, 2.76: VPN, Tor, relay or hosting provider (information, outside the score)
+        case "$VPN_TYPE" in
+            Tor)     echo "      Type d'adresse : ${C_YELLOW}sortie Tor${C_RESET} (liste officielle du projet Tor${VPN_TOR_DATE:+ du $VPN_TOR_DATE}) — partagée par de nombreux utilisateurs anonymes" ;;
+            VPN)     echo "      Type d'adresse : ${C_YELLOW}VPN${C_RESET} ($VPN_NOM) — l'adresse réelle de la personne est cachée ; partagée par les clients du VPN" ;;
+            Relay)   echo "      Type d'adresse : ${C_YELLOW}relais${C_RESET} ($VPN_NOM : iCloud Private Relay, Cloudflare WARP...) — l'adresse réelle est cachée ; partagée" ;;
+            Hosting) echo "      Type d'adresse : hébergeur ($VPN_NOM) — serveur loué, ou sortie d'un VPN ou d'un proxy (impossible de distinguer)" ;;
+            *)       echo "      Type d'adresse : aucun indice de VPN, de Tor ni d'hébergeur (fournisseur d'accès, entreprise, établissement...)${VPN_TOR_DATE:+ ; pas une sortie Tor (liste du $VPN_TOR_DATE)}" ;;
+        esac
+    fi
     echo "      Codes HTTP : $codes" | surligner
     echo "      User-Agents :"
     # Rapport normal : les 5 plus frequents (+ le nombre de ceux masques) ; --investigate : tous.
@@ -2372,8 +2449,8 @@ investigate_and_propose() {
     if [[ -n "$ptr" ]] && printf '%s' "$ptr" | grep_q -iE "$CLOUD_PTR_RE" && ! printf '%s' "$ptr" | grep_q -i 'gae\.googleusercontent'; then
         score=$((score+1)); motifs+=("serveur loué ($ptr)"); echo "      $ok Serveur loué chez un hébergeur : $ptr (DNS inverse) — pas une connexion d'internaute"
     elif [[ -n "$INVESTIGATE_IP" ]] && reseau_hebergeur; then     # 2.72: the owner of the block (RDAP, read above by infos_reseau) is a hosting provider
-        score=$((score+1)); motifs+=("serveur loué (${RESEAU_ORG:-$RESEAU_NET})")
-        echo "      $ok Serveur loué chez un hébergeur : ${RESEAU_ORG:-$RESEAU_NET} (propriétaire du bloc, RDAP ; DNS inverse : ${ptr:-aucun}) — pas une connexion d'internaute"
+        score=$((score+1)); motifs+=("serveur loué (${RESEAU_LABEL:-$RESEAU_NET})")
+        echo "      $ok Serveur loué chez un hébergeur : ${RESEAU_LABEL:-$RESEAU_NET} (propriétaire du bloc, RDAP ; DNS inverse : ${ptr:-aucun}) — pas une connexion d'internaute"
     else
         echo "      $no Serveur loué : ${ptr:-aucun DNS inverse}"
     fi
@@ -2392,8 +2469,8 @@ investigate_and_propose() {
     fi
     # Capteur catch-all (enquetes sur tout l'historique : --investigate, --unban-check) : une IP qui frappe le serveur
     # by its raw address or an unknown domain is almost always a scanner - a sign of hostility.
+    local n_ca=0 n_ico=0
     if [[ -n "$CATCHALL_MERGED" && -s "$CATCHALL_MERGED" ]]; then
-        local n_ca n_ico
         read -r n_ca n_ico <<< "$(compter_catchall "$ip")"
         if (( n_ca > 0 )); then
             score=$((score+1)); hostile=$((hostile+1)); SIGNE_FORT=1; motifs+=("$n_ca tentatives au capteur catch-all")
@@ -2422,8 +2499,8 @@ investigate_and_propose() {
     # 2.65 : --investigate identifie aussi les comptes Odoo ACTIFS pendant les requêtes de l'IP (base PostgreSQL, lecture seule).
     # 2.72: only when the address asked for a page that needs a session (login, back office, chat, customer account): Odoo does not record the
     # address of a session, so the list is a time coincidence, and for a robot that only reads public pages it designates members wrongly.
+    local n_session=0
     if [[ -n "$INVESTIGATE_IP" ]]; then
-        local n_session
         n_session=$(printf '%s\n' "$urls" | tr '\001' '\n' | awk '$2 ~ /^(\/[a-z][a-z](_[A-Z][A-Z])?)?\/(web(\/(login|session|dataset|action|webclient|signup|reset_password)|[?#]|$)|odoo([\/?#]|$)|my([\/?#]|$)|mail\/|discuss\/|bus\/|websocket|longpolling)/ { s += $1 } END { print s + 0 }') || n_session=0
         if (( n_session > 0 )); then
             comptes_bd_ip "$ip"
@@ -2455,6 +2532,11 @@ investigate_and_propose() {
     echo "        zgrep -F \"$ip \" ${src%%  (*} | awk -F'\"' '{print \$6}' | sort | uniq -c"
     echo
 
+    # 2.78: the facts of the investigation, for the advice (recommander) printed by --investigate after this function.
+    INV_IP="$ip"; INV_TOTAL="$total"; INV_SCORE="$score"; INV_HOSTILE="$hostile"; INV_ENGINE="$verified_engine"; INV_LOGINS="$logins"
+    INV_FAMS="$fams"; INV_UAS="$uas"; INV_URLS="$urls"; INV_NSCRIPT="$nscript"; INV_MAXP="$maxp"; INV_NPROBE="$nprobe"; INV_NERR="$nerr_hostile"
+    INV_NCA="$n_ca"; INV_PTR="$ptr"; INV_MOTIFS="$(printf '%s ; ' "${motifs[@]}")"; INV_MOTIFS="${INV_MOTIFS% ; }"; INV_NSESSION="${n_session:-0}"
+    INV_MOTIFS_LISTE=("${motifs[@]}")
     local blocked prot
     if [[ "$INV_MODE" == "unban-check" ]]; then
         DERNIER_SCORE="$score"
@@ -2511,6 +2593,7 @@ investigate_and_propose() {
     echo "      ${C_MAL}→ Score $score/7 : bannissement recommandé.${C_RESET}"
     PROP_RAISON="enquête $(date '+%Y-%m-%d %H:%M') : score $score/7, $hostile signes d'hostilité — $(printf '%s ; ' "${motifs[@]}")"
     PROP_RAISON="${PROP_RAISON% ; }"
+    if [[ -n "$INVESTIGATE_IP" ]]; then INV_PROPOSER=1; return 0; fi      # 2.78: --investigate asks after its advice
     confirm_and_ban "$ip"
 }
 
@@ -2952,6 +3035,129 @@ for ligne in sys.stdin:
     exit 0
 fi
 
+# --- Advice of --investigate (2.78): the investigation is re-read and turned into ONE verdict with its reasons and the commands to run ------------
+# Verdicts: NE PAS BANNIR, LEVER LE BANNISSEMENT, GARDER LE BANNISSEMENT, BANNIR, REFUSER LE ROBOT PAR SON NOM, LAISSER À FAIL2BAN, AUCUNE ACTION.
+# The same rules as the score and --unban-check, plus what a person checks by hand: who the address is (protected place, account, verified
+# search engine, CDN), whether a strong sign of hostility exists, whether the robot declares its name (bot_blocker.conf refuses it then better than
+# a ban of an address that changes), what kind of address it is (VPN, Tor, access provider: shared or reassigned) and its bans so far.
+BOT_BLOCKER_CONF="${NGINX_TOOLS_BOT_BLOCKER:-/etc/nginx/conf.d/bot_blocker.conf}"
+# robots_declares UAS: the names that robots give in their User-Agent ("CareerScout/1.0", "(jobs_v1/1.0)", "webzio (+https://...)"), browser and
+# system words and HTTP libraries left out (the script tools are counted apart). One name per line.
+robots_declares() {
+    printf '%s\n' "$1" | tr '\001' '\n' | sed -E 's/^[0-9]+x //' | awk '
+        BEGIN { split("mozilla applewebkit khtml gecko chrome chromium safari firefox edg edge edga edgios opr opera version mobile trident msie headlesschrome crios fxios samsungbrowser yabrowser ucbrowser vivaldi brave windows linux android iphone ipad macintosh x11 like compatible curl wget python-requests python-httpx python-urllib go-http-client okhttp java php ruby node-fetch axios aiohttp scrapy libwww-perl httpclient apache-httpclient python mobile/15e148 build", w, " "); for (i in w) skip[w[i]] = 1 }
+        { line = $0
+          while (match(line, /[A-Za-z][A-Za-z0-9_.-]+\/[0-9]/)) { t = substr(line, RSTART, RLENGTH - 2); line = substr(line, RSTART + RLENGTH)
+              if (!(tolower(t) in skip) && length(t) >= 3 && !(t in seen)) { seen[t] = 1; print t } }
+          line = $0
+          while (match(line, /[A-Za-z][A-Za-z0-9_.-]+ \(\+?https?:/)) { t = substr(line, RSTART, RLENGTH); sub(/ \(.*/, "", t); line = substr(line, RSTART + RLENGTH)
+              if (!(tolower(t) in skip) && length(t) >= 3 && !(t in seen)) { seen[t] = 1; print t } } }'
+}
+# robot_refuse NAME: 0 when bot_blocker.conf (installed, otherwise the copy of the repository) already refuses that User-Agent name.
+robot_refuse() {
+    local conf="$BOT_BLOCKER_CONF"
+    [[ -r "$conf" ]] || conf="$SCRIPT_DIR/nginx/conf.d/bot_blocker.conf"
+    [[ -r "$conf" ]] || return 1
+    grep -v '^[[:space:]]*#' "$conf" | grep -qiF -- "$1"
+}
+# nature_requetes URLS: what the pages asked for say, when one kind makes at least half of the pages (files and assets left out).
+nature_requetes() {
+    printf '%s\n' "$1" | tr '\001' '\n' | sed '/^$/d' | awk -v sr="$STATIC_RE" '
+        { n = $1 + 0; u = $2; if (u ~ sr) next; t += n; l = tolower(u)
+          if (l ~ /\/(careers?|jobs?|join(-?us)?|joinus|work-with-us|openings)(\/|\?|$)/) e += n
+          else if (l ~ /\/(rss|feeds?|atom|index\.(rss|xml|atom|rdf)|rss\.xml|atom\.xml)(\/|\?|$)/) f += n
+          else if (l ~ /\/(register|signup|sign-up|forgot-password|reset-password|reset_password|contact(us|-us)?|login)(\/|\?|$)/) c += n }
+        END { if (t == 0) exit
+              if (e * 2 >= t) print "robot d'"'"'offres d'"'"'emploi : il devine des pages /careers, /jobs, /join-us..."
+              else if (f * 2 >= t) print "découverte de flux RSS : il essaie les noms habituels (/rss, /feed, /atom.xml...)"
+              else if (c * 2 >= t) print "formulaires visés (inscription, contact, mot de passe oublié) : pourriel ou création de comptes" }'
+}
+recommander() {
+    local ip="$INV_IP" verdict="" cmd="" prot="" cdn=0 nom noms_libres="" noms_refuses="" nature duree j
+    local -a raisons=() notes=()
+    local banni=$(( ETAT_PARE_FEU || ${#ETAT_JAILS[@]} > 0 )) ; [[ -n "$ETAT_CROWDSEC" ]] && banni=1
+    prot=$(protected_ip_reason "$ip" 2>/dev/null | head -1) || prot=""
+    if printf '%s %s %s' "$INV_PTR" "$RESEAU_ORG" "$RESEAU_NET" | grep_q -iE 'cloudflare|akamai|fastly|incapsula|imperva|bunnycdn'; then cdn=1; fi
+    while IFS= read -r nom; do
+        [[ -n "$nom" ]] || continue
+        if robot_refuse "$nom"; then noms_refuses="$noms_refuses${noms_refuses:+, }$nom"; else noms_libres="$noms_libres${noms_libres:+, }$nom"; fi
+    done < <(robots_declares "$INV_UAS")
+    nature=$(nature_requetes "$INV_URLS")
+    provenance_ip "$ip"
+    duree=$(duree_ban_jours "$PROV_TYPE")
+
+    if [[ -n "$prot" ]]; then
+        verdict="NE PAS BANNIR"; raisons+=("adresse protégée : $prot")
+        (( banni )) && { verdict="LEVER LE BANNISSEMENT"; cmd="nginx-log-audit.sh --unban $ip"; }
+    elif [[ "$INV_ENGINE" == "1" ]]; then
+        verdict="NE PAS BANNIR"; raisons+=("moteur de recherche vérifié (DNS inverse puis direct) : le bannir retirerait le site de ses résultats")
+        (( banni )) && { verdict="LEVER LE BANNISSEMENT"; cmd="nginx-log-audit.sh --unban $ip"; }
+    elif [[ -n "$INV_LOGINS" ]]; then
+        verdict="NE PAS BANNIR"; raisons+=("connectée à Odoo avec un compte ($(printf '%s\n' "$INV_LOGINS" | head -1 | cut -d' ' -f1)) : un membre ou un bénévole")
+        notes+=("activité du compte : web-monitor.py --investigate-user $(printf '%s\n' "$INV_LOGINS" | head -1 | cut -d' ' -f1)")
+        (( banni )) && { verdict="LEVER LE BANNISSEMENT"; cmd="nginx-log-audit.sh --unban $ip"; }
+    elif (( cdn )); then
+        raisons+=("nœud d'un CDN (${RESEAU_LABEL:-$INV_PTR}) : derrière lui, de nombreux visiteurs ; nginx doit lire l'adresse réelle (CF-Connecting-IP)")
+        if [[ "$SIGNE_FORT" == "1" ]]; then verdict="À EXAMINER"; raisons+=("un signe fort existe, mais il vient peut-être d'un seul des visiteurs du CDN")
+        else verdict="NE PAS BANNIR"; fi
+        (( banni )) && { verdict="LEVER LE BANNISSEMENT"; cmd="nginx-log-audit.sh --unban-cdn"; }
+    elif [[ "$SIGNE_FORT" == "1" ]] || (( INV_SCORE >= BAN_THRESHOLD && INV_HOSTILE > 0 )); then
+        if (( ${#INV_MOTIFS_LISTE[@]} > 0 )); then raisons+=("${INV_MOTIFS_LISTE[@]}")
+        elif [[ -n "$INV_MOTIFS" ]]; then raisons+=("$INV_MOTIFS"); else raisons+=("signes d'hostilité"); fi
+        (( ETAT_F2B_BANS >= 2 )) && raisons+=("revient malgré $ETAT_F2B_BANS bannissements temporaires de fail2ban")
+        if (( ETAT_PARE_FEU )); then
+            verdict="GARDER LE BANNISSEMENT"; notes+=("bannissement manuel en place : $(texte_echeance "$ETAT_ECHEANCE")")
+        elif (( INV_TOTAL > 0 && INV_SCORE >= BAN_THRESHOLD )); then
+            verdict="BANNIR"; cmd="nginx-log-audit.sh --ban $ip"
+            if [[ "$duree" == 0 ]]; then notes+=("durée : sans expiration ($(cle_duree "$PROV_TYPE")=0) ; $PROV_TEXTE")
+            else notes+=("durée : $duree jours ($(cle_duree "$PROV_TYPE")) ; $PROV_TEXTE"); fi
+        else
+            verdict="LAISSER À FAIL2BAN"
+            raisons+=("le score de l'enquête ($INV_SCORE/7) est sous le seuil de $BAN_THRESHOLD : un bannissement au pare-feu demanderait une exception (--reason, puis BANNIR)")
+        fi
+    else
+        (( INV_HOSTILE == 0 )) && raisons+=("aucun signe d'hostilité (fichiers sensibles, erreurs en masse, faux moteur, capteur catch-all)")
+        (( INV_HOSTILE > 0 )) && raisons+=("une seule rafale de pages, sans signe fort : un robot qui lit vite, pas une attaque")
+        if [[ -n "$noms_libres" ]]; then
+            raisons+=("il se nomme dans son User-Agent : $noms_libres")
+            if (( banni )); then verdict="LEVER LE BANNISSEMENT"; cmd="nginx-log-audit.sh --unban $ip"
+                notes+=("puis, si ce robot n'est pas voulu : ajouter $noms_libres à nginx/conf.d/bot_blocker.conf (refusé partout par son nom, quelle que soit son adresse)")
+            else verdict="REFUSER LE ROBOT PAR SON NOM"
+                notes+=("si ce robot n'est pas voulu : ajouter $noms_libres à nginx/conf.d/bot_blocker.conf, puis nginx-hardening.sh --update ; sinon, aucune action")
+            fi
+        elif (( banni )); then
+            verdict="LEVER LE BANNISSEMENT"; cmd="nginx-log-audit.sh --unban $ip"
+            raisons+=("fail2ban rattrape seul une nouvelle rafale (bannissement temporaire) : un bannissement long n'apporte rien")
+        else
+            verdict="AUCUNE ACTION"; raisons+=("à surveiller seulement")
+        fi
+    fi
+    [[ -n "$noms_refuses" ]] && notes+=("déjà refusé par son nom dans bot_blocker.conf : $noms_refuses (ses requêtes reçoivent un 403)")
+    [[ -n "$nature" ]] && notes+=("nature probable : $nature")
+    case "$VPN_TYPE" in
+        Tor) notes+=("sortie Tor : partagée par de nombreux utilisateurs ; un bannissement temporaire (fail2ban) convient mieux qu'un bannissement long") ;;
+        VPN) notes+=("VPN ($VPN_NOM) : les autres clients de ce VPN partagent l'adresse") ;;
+        Relay) notes+=("relais ($VPN_NOM) : l'adresse est partagée, la personne réelle est derrière") ;;
+    esac
+    [[ "$PROV_TYPE" == acces ]] && notes+=("adresse d'un fournisseur d'accès : réattribuée à d'autres abonnés avec le temps")
+    for j in "${ETAT_JAILS[@]}"; do notes+=("fail2ban la bannit en ce moment (jail $j, temporaire)"); done
+    [[ -n "$ETAT_CROWDSEC" ]] && notes+=("bloquée par la liste communautaire CrowdSec ($ETAT_CROWDSEC)")
+    (( ETAT_LISIBLE == 0 && EUID != 0 )) && notes+=("état des bannissements non lisible sans root : verdict à confirmer avec sudo")
+
+    INV_VERDICT="$verdict"; INV_RAISON="$(printf '%s ; ' "${raisons[@]}")"; INV_RAISON="${INV_RAISON% ; }"
+    echo
+    echo "  ${C_BOLD}ANALYSE ET RECOMMANDATION${C_RESET}"
+    case "$verdict" in
+        BANNIR|"À EXAMINER") echo "  Verdict : ${C_MAL}$verdict${C_RESET}" ;;
+        "GARDER LE BANNISSEMENT"|"LAISSER À FAIL2BAN"|"REFUSER LE ROBOT PAR SON NOM") echo "  Verdict : ${C_YELLOW}$verdict${C_RESET}" ;;
+        *) echo "  Verdict : ${C_GREEN}$verdict${C_RESET}" ;;
+    esac
+    for j in "${raisons[@]}"; do echo "    - $j"; done
+    for j in "${notes[@]}"; do echo "    · $j"; done
+    [[ -n "$cmd" ]] && echo "  Commande : $cmd"
+    echo "  RÉSUMÉ|$ip|$verdict|$INV_RAISON" >> "${INV_RESUME_FILE:-/dev/null}"
+}
+
 # --- --investigate IP : enquete complete sur TOUT l'historique disponible (actif + rotations + .gz) ------------------
 if [[ -n "$INVESTIGATE_IP" ]]; then
     echo "=============================================================="
@@ -2968,12 +3174,26 @@ if [[ -n "$INVESTIGATE_IP" ]]; then
     INIT_ALL_TMP_FILES+=("$CATCHALL_MERGED")
     [[ -n "$CATCHALL_LOG" ]] && { merge_all_rotations "$CATCHALL_LOG" "$CATCHALL_MERGED" > /dev/null 2>&1 || true; }
     INV_REC=$(scan_ips "$INV_SRC" "$INVESTIGATE_IP") || true
+    INV_PROPOSER=0
     if [[ -z "$INV_REC" ]]; then
         echo "Aucune requête de $INVESTIGATE_IP dans l'historique disponible du site ($ENV) : les requêtes refusées par nginx et"
         echo "celles du capteur catch-all n'y sont pas — voir « Bannissements » ci-dessus, ou : nginx-log-audit.sh --evidence $INVESTIGATE_IP"
+        # 2.78: the advice still uses what is known - the bans, the catch-all sensor, the owner of the block.
+        read -r INV_NCA _ <<< "$(compter_catchall "$INVESTIGATE_IP")"
+        INV_IP="$INVESTIGATE_IP"; INV_TOTAL=0; INV_SCORE=0; INV_HOSTILE=0; INV_ENGINE=0; INV_LOGINS=""; INV_FAMS=""; INV_UAS=""; INV_URLS=""
+        INV_NSCRIPT=0; INV_MAXP=0; INV_NPROBE=0; INV_NERR=0; INV_NSESSION=0; INV_MOTIFS=""; SIGNE_FORT=0
+        INV_PTR=$(run timeout --foreground 3 host "$INVESTIGATE_IP" 2>/dev/null | awk '/pointer/{print $NF}' | sed 's/\.$//' | head -1) || INV_PTR=""
+        reseau_lire "$INVESTIGATE_IP" || true
+        vpn_lire "$INVESTIGATE_IP"
+        INV_MOTIFS_LISTE=()
+        if (( ${INV_NCA:-0} > 0 )); then SIGNE_FORT=1; INV_HOSTILE=1; INV_MOTIFS="${INV_NCA} tentatives au capteur catch-all (IP brute ou domaine inconnu)"; fi
+        recommander
         exit 0
     fi
     investigate_and_propose "$INV_REC" "$(dirname "${ORIG_ACCESS_LOG:-$ACCESS_LOG}")/$(basename "${ORIG_ACCESS_LOG:-$ACCESS_LOG}")*  (zgrep pour les .gz)" "dans tout l'historique disponible"
+    if [[ "$ENQUETE_INCOHERENTE" != "1" ]]; then recommander; fi
+    # The question only in a terminal, as root, without --no-prompt (otherwise the advice already gives the command).
+    if [[ "$INV_PROPOSER" == "1" && "$INV_VERDICT" == BANNIR && "$NO_PROMPT" != "1" && -t 0 && -t 1 && "$EUID" -eq 0 ]]; then confirm_and_ban "$INVESTIGATE_IP"; fi
     exit 0
 fi
 
