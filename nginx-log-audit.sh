@@ -146,7 +146,7 @@ grep_q() { grep "$@" >/dev/null; }
 #                              ne peut pas le voir, le texte etant entre apostrophes (faux positif).
 trap 'ec=$?; echo "" >&2; echo "*** ARRÊT INATTENDU DU SCRIPT (code $ec) À LA LIGNE $LINENO ***" >&2; echo "*** Commande fautive : $BASH_COMMAND" >&2; echo "*** Si le rapport ci-dessus semble incomplet (ex. sections Top 10 absentes), c'\''est probablement la cause." >&2' ERR
 
-readonly SCRIPT_VERSION="2.82.20261103.065758"
+readonly SCRIPT_VERSION="2.83.20261103.071054"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
 # Chemin de ce programme (relances --investigate, --ban, --unban) : defini ICI, avant le bloc --ban qui l'utilise.
 SELF_PATH="$SCRIPT_DIR/$(basename "${BASH_SOURCE[0]}")"
@@ -3123,7 +3123,8 @@ robot_refuse() {
 }
 # nature_requetes URLS: what the pages asked for say, when one kind makes at least half of the pages (files and assets left out).
 nature_requetes() {
-    printf '%s\n' "$1" | tr '\001' '\n' | sed '/^$/d' | awk -v sr="$STATIC_RE" '
+    printf '%s\n' "$1" | tr '\001' '\n' | sed '/^$/d' | STATIC_RE="$STATIC_RE" awk '
+        BEGIN { sr = ENVIRON["STATIC_RE"] }                      # 2.83: not -v, which interprets \. and \? and prints "awk: warning: escape sequence"
         { n = $1 + 0; u = $2; if (u ~ sr) next; t += n; l = tolower(u)
           if (l ~ /\/(careers?|jobs?|join(-?us)?|joinus|work-with-us|openings)(\/|\?|$)/) e += n
           else if (l ~ /\/(rss|feeds?|atom|index\.(rss|xml|atom|rdf)|rss\.xml|atom\.xml)(\/|\?|$)/) f += n

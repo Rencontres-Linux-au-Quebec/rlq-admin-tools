@@ -405,6 +405,15 @@ class ChkNginxLogs(EnvTest):
         self.assertIn("pas de bannissement proposé", out)
         self.assertNotIn("bannissement recommandé", out)
 
+    def test_283_aucun_avertissement_awk_et_nature_des_requetes(self):
+        """2.83 : STATIC_RE passe à awk par ENVIRON (pas -v : « awk: warning: escape sequence » et expression déformée). Les fichiers statiques
+        restent écartés de la nature des requêtes, qui reste détectée (découverte de flux RSS)."""
+        ip = "11.68.110.87"
+        self.add(*(acc(ip, "27/Sep/2026", f"03:0{k}:00", u, 404, "Mozilla/5.0") for k, u in enumerate(["/rss", "/feed", "/atom.xml", "/main.js", "/logo.png"])))
+        rc, out, err = self.run_cmd(["bash", self.prog, "prod", "--investigate", ip, "--no-prompt"])
+        self.assertNotIn("awk:", out + err)
+        self.assertIn("découverte de flux RSS", out)
+
     def test_signe_d_hostilite_toujours_propose(self):
         """Un vrai scanner (recherches de .env, .git… en 403) reste proposé : la nouvelle règle ne rate pas les attaques."""
         for p in ("/.env", "/.git/HEAD", "/wp-login.php", "/phpmyadmin/", "/config.php"):
