@@ -118,7 +118,7 @@ from urllib.parse import unquote, urlsplit
 from collections import Counter, OrderedDict
 from concurrent.futures import Future
 
-__version__ = "1.151.20261102.151239"
+__version__ = "1.152.20261102.185714"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
@@ -284,6 +284,8 @@ MIN_EXCLUDED_RE = re.compile(r"^(?:odoo\.addons\.mail\.models\.fetchmail: |odoo\
 # errors (WARNING, ERROR, CRITICAL, traces) are never hidden. Searched on "logger: text".
 ADDONS_KEEP_RE = re.compile(r"successfully sent|\bmail_mail\b|\bir_mail_server\b|mail delivery|\bsmtp\b|ir_actions_report|wkhtmltopdf|\bpdf\b|\.(?:pdf|xlsx?|docx?|csv|zip)\b"
                             r"|report has been generated|\breport\b.*\bgenerat", re.IGNORECASE)
+# 1.152 --hide-addons also hides the INFO / DEBUG lines of these Odoo loggers (records deleted, cache invalidations); errors are still shown.
+ADDONS_HIDDEN_LOGGERS = ("odoo.models.unlink", "odoo.modules.registry")
 # Access request (nginx / werkzeug journal): the URL and the HTTP code
 REQUEST_RE = re.compile(r'"(?:GET|POST|HEAD|PUT|DELETE|OPTIONS|PATCH|CONNECT|TRACE)\s(\S+).*"\s(\d{3})\b')
 # 3-letter methods (GET, PUT): one more space after them so that their URL aligns with that of POST / HEAD (4 letters)
@@ -972,8 +974,9 @@ class Line:
                 and bool(MIN_EXCLUDED_RE.match(f"{self.logger}: {self.text}")))
 
     def discard_addons(self):
-        """--hide-addons: INFO / DEBUG line of an Odoo module (logger odoo.addons.*) discarded, EXCEPT errors, e-mails sent and generated files (PDF…)."""
-        return (self.level in ("INFO", "DEBUG") and (self.logger or "").startswith("odoo.addons.") and not self.err()
+        """--hide-addons: INFO / DEBUG line of an Odoo module (logger odoo.addons.*, or ADDONS_HIDDEN_LOGGERS) discarded, EXCEPT errors, e-mails sent and generated files (PDF…)."""
+        logger = self.logger or ""
+        return (self.level in ("INFO", "DEBUG") and (logger.startswith("odoo.addons.") or logger in ADDONS_HIDDEN_LOGGERS) and not self.err()
                 and not ADDONS_KEEP_RE.search(f"{self.logger}: {self.text}"))
 
 
@@ -6473,7 +6476,7 @@ def follow(cmd, people, resolver, options, output):
                                       ("t", "--dns-max-truncate N", "width AND limit of the names column (the rest is cut, « … »)"),
                                       ("e", "--exclude-ip IP,IP", f"hide the lines of these addresses or networks [{', '.join(str(r) for r in options['exclude']) or 'none'}]"),
                                       ("H", "--health MIN", f"minutes between two health alerts, 0 = never [{options['health']:g}]"),
-                                      ("q", "--hide-addons", f"hide the INFO lines of the Odoo modules (odoo.addons.*), except errors, e-mails sent and generated files (PDF…) [{yes_no(options['hide_addons'])}]"),
+                                      ("q", "--hide-addons", f"hide the INFO lines of the Odoo modules (odoo.addons.*, odoo.models.unlink, odoo.modules.registry), except errors, e-mails sent and generated files (PDF…) [{yes_no(options['hide_addons'])}]"),
                                       ("j", "--request-length", TR("the request length of the nginx lines (rl=) is shown in its own column before the GET") + f" [{yes_no(options['request_length'])}]"),
                                       ("u", "--hide-user-agent", TR("the User-Agent text of the nginx lines is not shown (the OS column stays)") + f" [{yes_no(options['hide_user_agent'])}]"),
                                       ("k", "--display-host", TR("the host of the nginx lines (host=...) is shown at the end of the line") + f" [{yes_no(options['display_host'])}]"),
@@ -7172,7 +7175,7 @@ def main():
                         help=f"Every MIN minutes, IF something is wrong (5xx or Odoo errors, failed e-mails, slow requests, greedy program), show the health and "
                              f"details in the stream (default: {HEALTH_DEFAULT:g}; 0 = never)")
     parser.add_argument("--hide-addons", action="store_true",
-                        help="Hide the INFO lines of the Odoo modules (odoo.addons.*), except errors (WARNING, ERROR, traces), e-mails sent and generated files (PDF reports…); q key on the fly")
+                        help="Hide the INFO lines of the Odoo modules (odoo.addons.*, odoo.models.unlink, odoo.modules.registry), except errors (WARNING, ERROR, traces), e-mails sent and generated files (PDF reports…); q key on the fly")
     parser.add_argument("--hide-ip", dest="hide_ip", action="store_true", help="Do not show the IP address in brackets after the name (default)")
     parser.add_argument("--highlight", default=None, metavar="WORDS",
                         help=f"Words highlighted in cyan in the displayed lines (comma = several; an ALL-CAPS word, like POST, must be in caps in the line; others are case-insensitive); "

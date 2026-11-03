@@ -371,6 +371,25 @@ Earlier history was archived outside this repository when this file was created.
 
 ## app-log-live.py
 
+### 1.152.20261102.185714 - --hide-addons also hides the lines of odoo.models.unlink and odoo.modules.registry
+
+- Title: with --hide-addons (key q), the INFO lines "User #1 deleted ... records with IDs: [...]" (logger odoo.models.unlink) and "Invalidating caches after database signaling: [...]" (logger odoo.modules.registry) are hidden.
+- Reason: request of the administrator on 2026-11-02. These lines filled the stream (for example 18:44:43 to 18:44:44: ir.cron.progress, bus.presence, mail.compose.message, mail.activity.schedule, ir.attachment, rlq.survey.report.wizard) although --hide-addons was given.
+- Changes:
+  - Version 1.151 -> 1.152.
+  - New constant ADDONS_HIDDEN_LOGGERS = ("odoo.models.unlink", "odoo.modules.registry").
+  - Line.discard_addons(): a line is also discarded when its logger is in ADDONS_HIDDEN_LOGGERS (exact name), with the same rules as for odoo.addons.*: level INFO or DEBUG only, never an error, never a line kept by ADDONS_KEEP_RE (e-mails sent, generated files).
+  - Help of --hide-addons (command line and key q menu) names the two loggers; lang/app-log-live.fr.po: the two entries updated (msgid and msgstr).
+  - Documentation: doc/en/07-app-log-live.md, doc/fr/07-app-log-live.md, doc/en/app-log-live.conf.example, doc/fr/app-log-live.conf.example.
+  - nginx-tools-tests/test_app_log_live.py: new test test_hide_addons_cache_unlink_et_registry_sauf_erreurs.
+- Bugs fixed:
+  - Symptom: with --hide-addons, the lines of odoo.models.unlink and odoo.modules.registry were still shown.
+  - Diagnosis: discard_addons() only tested the prefix "odoo.addons."; these two loggers belong to the Odoo core (odoo.models, odoo.modules), not to a module.
+  - Fix: the two logger names are added to the test (ADDONS_HIDDEN_LOGGERS).
+- Safeguards and edge cases: WARNING, ERROR, CRITICAL lines and traces of these loggers are never hidden. Exact names only: odoo.modules.loading ("Modules loaded.") and the other loggers of the core are still shown. Without --hide-addons nothing changes. The lines hidden are counted with the others (key q shows the count). Same filter for the lines refreshed on screen and for the history.
+- Checks performed: python3 -m py_compile; new test and existing test test_hide_addons_cache_le_bruit_des_modules_sauf_erreurs_courriels_et_pdf [OK]; test_i18n: the app-log-live catalogue [OK]. Failures also present on origin/main before this change, not caused by it: 6 tests of test_app_log_live.py (menu, Ctrl-C, addresses to ban, HTML journal 1.120) and 3 of test_i18n (nginx-log-audit, nginx-hardening, apps/_listes.sh).
+- Action required: none.
+
 ### 1.151.20261102.151239 - Bans read from the fail2ban journal: the report shows when an attacker was banned
 
 - Title: app-log-live.py reads the fail2ban journal, so an address banned after an attack is shown with its ban time and its jails.
