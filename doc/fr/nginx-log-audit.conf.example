@@ -12,6 +12,14 @@
 #ANONYMIZE=no
 # --app (défaut : détectée automatiquement)
 #APP=
+# --ban-days-hosting : durée en jours d'un bannissement au pare-feu d'une adresse d'hébergeur ou de nuage (AWS, Vultr, OVH...), reconnue par le DNS inverse
+# ou le propriétaire du bloc (RDAP). Une telle adresse change de locataire avec le temps : le bannissement expire. 0 = sans expiration.
+#BAN_DAYS_HOSTING=365
+# --ban-days-isp : durée en jours pour une adresse de fournisseur d'accès (ligne d'abonné : réattribuée plus souvent). 0 = sans expiration.
+#BAN_DAYS_ISP=90
+# --ban-days-other : durée en jours pour une adresse de provenance inconnue. 0 = sans expiration.
+# L'échéance est écrite dans bans.tsv au bannissement ; --unban-expired lève les bannissements échus (cron /etc/cron.d/nginx-log-audit-expiry, chaque jour).
+#BAN_DAYS_OTHER=365
 # --ban-threshold
 #BAN_THRESHOLD=3
 # en, fr ou auto (suivre LC_ALL / LC_MESSAGES / LANG). Ordre de choix : --lang, NGINX_TOOLS_LANG, NGINX_LOG_AUDIT_LANG, cette clé, LC_ALL, LC_MESSAGES, LANG.
@@ -30,6 +38,7 @@
 
 # --- Options de la ligne de commande SEULEMENT (actions ou réglages ponctuels : aucune clé ici) ---
 # Les voici, pour mémoire (« nginx-log-audit --help » donne le détail). Elles se donnent sur la ligne de commande, jamais dans ce fichier.
+#   --ban-days N          avec --ban : durée de CE bannissement en jours, quelle que soit la provenance (0 : sans expiration)
 #   --ban-history         journal des bannissements et levées manuels (date, heure, IP, justification, origine), lecture seule
 #   --changelog           affiche le journal des modifications
 #   --compare [FICHIER]   compare les 24 dernières heures aux 24 précédentes (codes, blocages, IP, chemins), écrit dans FICHIER (mode 600) ; lecture seule
@@ -47,6 +56,8 @@
 #   --report-err          afficher à la fin un rapport d'erreurs à copier-coller (programme, version, serveur, échecs, avertissements)
 #   --stats               statistiques du trafic (codes, IP, User-Agents, appareils des visiteurs)
 #   --unban IP            lever un bannissement manuel
+#   --unban-cdn           lever les bannissements des adresses Cloudflare (aperçu, puis confirmation)
 #   --unban-check         réévaluer chaque bannissement manuel (levée proposée si injustifié)
+#   --unban-expired       lever les bannissements manuels dont l'échéance est passée (aperçu, puis confirmation ; lancé chaque jour par cron)
 #   --version             affiche la version et quitte
 #   --yes                 avec --ban : bannir sans question

@@ -14,6 +14,7 @@
 #
 # Usage : nginx-log-audit.sh [dev|lab|prod] [-v|--verbose] [--ip ADRESSE] [--init] [--init-all] [--stats] [--last HEURES]
 #                            [--details] [--fail2ban] [--ban IP [--yes] [--reason TEXT]] [--unban IP] [--ban-history] [--investigate IP] [--evidence IP]
+#                            [--ban-days N] [--ban-days-hosting N] [--ban-days-isp N] [--ban-days-other N] [--unban-expired]
 #                            [--unban-check] [--unban-cdn] [--unban-low-score] [--ban-threshold N] [--page-burst N] [--parallel-threshold N] [--no-prompt] [--version]
 #                            [--changelog]
 #   - [dev|lab|prod]  : optional, auto-detected from the files present in /var/log/nginx/.
@@ -47,6 +48,13 @@
 #   - --unban IP      : removes a ban set by --ban (ufw or iptables). Asks for confirmation like
 #                        --ban (skipped with --yes). No effect on a fail2ban ban - use
 #                        "fail2ban-client set <jail> unbanip IP" for those.
+#   - --ban-days N    : (2.73) duration in days of THIS ban, whatever the origin of the address (0 = no expiry). Without it, the duration
+#                        depends on the origin: --ban-days-hosting (BAN_DAYS_HOSTING, default 365: hosting provider, cloud), --ban-days-isp
+#                        (BAN_DAYS_ISP, default 90: access provider, address reassigned more often), --ban-days-other (BAN_DAYS_OTHER, default
+#                        365: origin unknown). The expiry date is written in bans.tsv (columns 6 and 7: expiry, origin).
+#   - --unban-expired : (2.73) lifts the manual bans whose expiry date has passed (preview, then one question; --yes: none). A ban
+#                        recorded before 2.73 gets its expiry date from its ban date and its origin, written once in bans.tsv. Run every
+#                        day by /etc/cron.d/nginx-log-audit-expiry, written by --ban and --unban-expired (root).
 #   - --yes           : saute la confirmation interactive de --ban ET --unban.
 #   - --reason TEXT   : justification for --ban / --unban, recorded with the date and time in bans.tsv (2.40). Without --reason :
 #                        asked at the keyboard (editable proposal: the evidence), automatic with --yes.
@@ -135,7 +143,7 @@ grep_q() { grep "$@" >/dev/null; }
 #                              ne peut pas le voir, le texte etant entre apostrophes (faux positif).
 trap 'ec=$?; echo "" >&2; echo "*** ARRÊT INATTENDU DU SCRIPT (code $ec) À LA LIGNE $LINENO ***" >&2; echo "*** Commande fautive : $BASH_COMMAND" >&2; echo "*** Si le rapport ci-dessus semble incomplet (ex. sections Top 10 absentes), c'\''est probablement la cause." >&2' ERR
 
-readonly SCRIPT_VERSION="2.72.20261102.213548"
+readonly SCRIPT_VERSION="2.73.20261102.214543"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
 # Chemin de ce programme (relances --investigate, --ban, --unban) : defini ICI, avant le bloc --ban qui l'utilise.
 SELF_PATH="$SCRIPT_DIR/$(basename "${BASH_SOURCE[0]}")"
@@ -181,6 +189,11 @@ DO_BAN_HISTORY=0
 DO_UNBAN_CHECK=0
 DO_UNBAN_LOW_SCORE=0
 DO_UNBAN_CDN=0           # --unban-cdn: lift the bans of Cloudflare addresses (preview first)
+DO_UNBAN_EXPIRED=0       # 2.73 --unban-expired: lift the manual bans whose expiry date has passed
+BAN_DAYS=""              # 2.73 --ban-days N: duration of THIS ban (any origin); empty = by origin (below)
+BAN_DAYS_HOSTING=365     # 2.73 hosting provider / cloud (BAN_DAYS_HOSTING)
+BAN_DAYS_ISP=90          # 2.73 access provider: addresses reassigned to other customers more often (BAN_DAYS_ISP)
+BAN_DAYS_OTHER=365       # 2.73 origin unknown (BAN_DAYS_OTHER)
 # Set by investigate_and_propose: ENQUETE_INCOHERENTE=1 when the address changed during the investigation (no verdict then);
 # SIGNE_FORT=1 when a strong sign of hostility was found (sensitive files, errors, fake search engine, catch-all).
 ENQUETE_INCOHERENTE=0
@@ -210,10 +223,13 @@ fi
 # --export-bans writes a LIST of addresses meant to be redirected into a file then re-imported: the version goes to the error output.
 case " $* " in *" --version "*) ;; *" --export-bans "*) echo "nginx-log-audit.sh v$SCRIPT_VERSION" >&2 ;; *) echo "nginx-log-audit.sh v$SCRIPT_VERSION" ;; esac
 # Configuration (/etc/default/nginx-log-audit.conf, then ~/.nginx-log-audit.conf; -c/--config: this file ONLY): default values of the options, the command line wins.
-# Keys: APP, BAN_THRESHOLD, LANGUAGE, NO_PROMPT, PAGE_BURST, PARALLEL_THRESHOLD, UA_ROTATION_THRESHOLD, VERBOSE.
+# Keys: APP, BAN_DAYS_HOSTING, BAN_DAYS_ISP, BAN_DAYS_OTHER, BAN_THRESHOLD, LANGUAGE, NO_PROMPT, PAGE_BURST, PARALLEL_THRESHOLD, UA_ROTATION_THRESHOLD, VERBOSE.
 if declare -F config_lire >/dev/null; then
     config_lire nginx-log-audit "$@"
     config_defaut APP_FORCE APP --app texte
+    config_defaut BAN_DAYS_HOSTING BAN_DAYS_HOSTING --ban-days-hosting nombre
+    config_defaut BAN_DAYS_ISP BAN_DAYS_ISP --ban-days-isp nombre
+    config_defaut BAN_DAYS_OTHER BAN_DAYS_OTHER --ban-days-other nombre
     config_defaut BAN_THRESHOLD BAN_THRESHOLD --ban-threshold nombre
     config_defaut NO_PROMPT NO_PROMPT --no-prompt booleen
     config_defaut PAGE_BURST PAGE_BURST --page-burst nombre
@@ -233,6 +249,7 @@ MENU_ENTREES=(
     "--fail2ban|État de fail2ban et historique des bannissements|fail2ban state and ban history|0"
     "--ban-history|Journal des bannissements manuels|Manual ban journal|0"
     "--unban-check|Réévaluer les bannissements manuels|Re-check manual bans|0"
+    "--unban-expired|Lever les bannissements échus|Lift expired bans|0"
     "--export-bans|Exporter les bannissements manuels|Export manual bans|0"
 )
 declare -F menu_si_demande >/dev/null && menu_si_demande "$SCRIPT_DIR/$(basename "${BASH_SOURCE[0]}")" "$@"
@@ -263,6 +280,11 @@ while [[ $# -gt 0 ]]; do
         --unban-check) DO_UNBAN_CHECK=1; shift ;;
         --unban-cdn) DO_UNBAN_CDN=1; shift ;;
         --unban-low-score) DO_UNBAN_LOW_SCORE=1; shift ;;
+        --unban-expired) DO_UNBAN_EXPIRED=1; shift ;;
+        --ban-days) BAN_DAYS="${2:-}"; shift 2 ;;
+        --ban-days-hosting) BAN_DAYS_HOSTING="${2:-}"; shift 2 ;;
+        --ban-days-isp) BAN_DAYS_ISP="${2:-}"; shift 2 ;;
+        --ban-days-other) BAN_DAYS_OTHER="${2:-}"; shift 2 ;;
         --export-bans) if [[ -n "${2:-}" && "${2:0:2}" != "--" ]]; then EXPORT_BANS="$2"; shift 2; else EXPORT_BANS="-"; shift; fi ;;
         --import-bans) IMPORT_BANS="${2:-}"; shift 2 ;;
         -c|--config) shift 2 ;;                # lus avant (apps/_i18n.sh : config_lire)
@@ -306,6 +328,10 @@ Options (par ordre alphabétique) :
   --anonymize                  anonymise ce qui est affiché (adresses IP, courriels, identifiants, jetons) par des pseudonymes stables ; clé ANONYMIZE
   --app NAME                   application derrière nginx (profil apps/NAME.conf : odoo, bbb…) ; détectée par défaut
   --ban IP                     bannir IP au pare-feu (preuves affichées, justification et confirmation demandées)
+  --ban-days N                 avec --ban : durée de CE bannissement en jours, quelle que soit la provenance (0 : sans expiration)
+  --ban-days-hosting N         durée d'un bannissement d'une adresse d'hébergeur ou de nuage, en jours (défaut : 365 ; 0 : sans expiration)
+  --ban-days-isp N             durée d'un bannissement d'une adresse de fournisseur d'accès, en jours (défaut : 90 ; 0 : sans expiration)
+  --ban-days-other N           durée d'un bannissement d'une adresse de provenance inconnue, en jours (défaut : 365 ; 0 : sans expiration)
   --ban-history                journal des bannissements et levées manuels : date, heure, justification, origine (lecture seule)
   --ban-sqli                   bannir les adresses ayant envoyé une injection SQL dans le journal d'accès (liste et confirmation demandées, sauf --yes)
   --ban-threshold N            nombre d'indices à partir duquel le bannissement est proposé (défaut : 3)
@@ -339,6 +365,7 @@ Options (par ordre alphabétique) :
   --unban IP                   lever un bannissement manuel (justification demandée)
   --unban-cdn                  lever les bannissements des adresses Cloudflare (aperçu, puis confirmation)
   --unban-check                réévaluer chaque bannissement manuel (levée proposée si injustifié)
+  --unban-expired              lever les bannissements manuels dont l'échéance est passée (aperçu, puis confirmation ; lancé chaque jour par cron)
   --unban-low-score            lister les IP bannies que --unban-check recommande de lever, et proposer de les débannir
   -v, --verbose                affiche chaque commande lancée
   --version                    affiche la version et quitte
@@ -387,6 +414,17 @@ for pair in "BAN_THRESHOLD:--ban-threshold" "PAGE_BURST:--page-burst" "PARALLEL_
         exit 1
     fi
 done
+for pair in "BAN_DAYS:--ban-days" "BAN_DAYS_HOSTING:--ban-days-hosting" "BAN_DAYS_ISP:--ban-days-isp" "BAN_DAYS_OTHER:--ban-days-other"; do
+    var="${pair%%:*}"; opt="${pair##*:}"
+    if [[ -n "${!var}" ]] && ! [[ "${!var}" =~ ^[0-9]+$ && "${!var}" -le 36500 ]]; then        # 2.73: 0 = no expiry; 100 years at most
+        echo "ERREUR: $opt attend un nombre de jours entre 0 et 36500 (reçu: '${!var}')" >&2
+        exit 1
+    fi
+done
+if [[ -n "$BAN_DAYS" && -z "$BAN_IP" ]]; then
+    echo "ERREUR: --ban-days s'utilise avec --ban IP (durée de ce bannissement)." >&2
+    exit 1
+fi
 if [[ -n "$INVESTIGATE_IP" ]] && ! [[ "$INVESTIGATE_IP" =~ ^[0-9]{1,3}(\.[0-9]{1,3}){3}$ || "$INVESTIGATE_IP" =~ ^[0-9a-fA-F:]+:[0-9a-fA-F:]*$ ]]; then
     echo "ERREUR: --investigate attend une adresse IP (reçu: '$INVESTIGATE_IP')" >&2
     exit 1
@@ -625,15 +663,112 @@ origine_appel() {
     done
     printf '%s via ligne de commande' "$qui"
 }
+# note_ban EVENT IP [EXPIRY ORIGIN]: one line of the journal. 2.73: EXPIRY ("YYYY-MM-DD HH:MM" or "jamais") and ORIGIN (e.g. "hébergeur : Vultr
+# Holdings, LLC") are columns 6 and 7, written for the events "banni" and "echeance" (expiry date fixed for a ban recorded before 2.73).
 note_ban() {
     mkdir -p "$(dirname "$BAN_LOG")" 2>/dev/null || return 0
     local raison
     raison=$(nettoyer_texte "${BAN_NOTE:+$BAN_NOTE${BAN_REASON:+ — }}${BAN_REASON}")
-    printf '%s\t%s\t%s\t%s\t%s\n' "$(date '+%Y-%m-%d %H:%M')" "$1" "$2" "${raison:--}" "$(nettoyer_texte "$(origine_appel)")" >> "$BAN_LOG" 2>/dev/null || true
+    if [[ -n "${3:-}" ]]; then
+        printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$(date '+%Y-%m-%d %H:%M')" "$1" "$2" "${raison:--}" "$(nettoyer_texte "$(origine_appel)")" \
+            "$3" "$(nettoyer_texte "${4:--}")" >> "$BAN_LOG" 2>/dev/null || true
+    else
+        printf '%s\t%s\t%s\t%s\t%s\n' "$(date '+%Y-%m-%d %H:%M')" "$1" "$2" "${raison:--}" "$(nettoyer_texte "$(origine_appel)")" >> "$BAN_LOG" 2>/dev/null || true
+    fi
+}
+
+# --- Expiry of manual bans (2.73) ----------------------------------------------------------------------------------------------------------
+# A firewall ban is no longer kept forever: an address is reassigned (a cloud instance to another customer, a home line to another subscriber).
+# The duration depends on the origin of the address, decided by provenance_ip; the expiry is written in bans.tsv; --unban-expired lifts it.
+# Reverse DNS of an access provider's customer line (words of the trade, or the address itself written in the name).
+ISP_PTR_RE='(^|[.-])(dyn|dynamic|dhcp|dsl|adsl|vdsl|xdsl|cable|pool|ppp|pppoe|ftth|fttx|fibre|fiber|broadband|cust|customer|client|clients|res|resi|residential|home|subscriber|cpe|wireless|mobile|lte|cgnat)([0-9.-]|$)'
+# provenance_ip IP: sets PROV_TYPE ("hebergeur", "acces" or "inconnue") and PROV_TEXTE (shown and written in bans.tsv). Reverse DNS first, then
+# the owner of the block (RDAP, reseau_lire) for a hosting provider. Never an error; without network, "inconnue".
+provenance_ip() {
+    local ip="$1" ptr="" a b c d
+    PROV_TYPE="inconnue"; PROV_TEXTE="provenance inconnue"
+    ptr=$(run timeout --foreground 3 host "$ip" 2>/dev/null | awk '/pointer/{print $NF}' | sed 's/\.$//' | head -1) || ptr=""
+    [[ -n "$ptr" ]] || ptr=$(run timeout --foreground 3 getent hosts "$ip" 2>/dev/null | awk '{print $2}' | head -1) || ptr=""
+    if [[ -n "$ptr" ]] && printf '%s' "$ptr" | grep_q -iE "$CLOUD_PTR_RE"; then
+        PROV_TYPE="hebergeur"; PROV_TEXTE="hébergeur : $ptr"; return 0
+    fi
+    if reseau_lire "$ip" && reseau_hebergeur; then
+        PROV_TYPE="hebergeur"; PROV_TEXTE="hébergeur : ${RESEAU_ORG:-$RESEAU_NET}"; return 0
+    fi
+    if [[ -n "$ptr" && "$ip" != *:* ]]; then
+        IFS=. read -r a b c d <<< "$ip"
+        if printf '%s' "$ptr" | grep_q -iE "$ISP_PTR_RE" || printf '%s' "$ptr" | grep_q -E "(^|[^0-9])($a[.-]$b[.-]$c[.-]$d|$d[.-]$c[.-]$b[.-]$a)([^0-9]|$)"; then
+            PROV_TYPE="acces"; PROV_TEXTE="fournisseur d'accès : $ptr${RESEAU_ORG:+ ($RESEAU_ORG)}"; return 0
+        fi
+    fi
+    [[ -n "$RESEAU_ORG$ptr" ]] && PROV_TEXTE="provenance inconnue : ${ptr:-$RESEAU_ORG}"
+    return 0
+}
+# duree_ban_jours TYPE: days of a ban for that origin (--ban-days wins); 0 = no expiry.
+duree_ban_jours() {
+    if [[ -n "$BAN_DAYS" ]]; then echo "$BAN_DAYS"; return 0; fi
+    case "$1" in
+        hebergeur) echo "$BAN_DAYS_HOSTING" ;;
+        acces) echo "$BAN_DAYS_ISP" ;;
+        *) echo "$BAN_DAYS_OTHER" ;;
+    esac
+}
+# cle_duree TYPE: the configuration key that gives that duration (shown next to the expiry date).
+cle_duree() {
+    if [[ -n "$BAN_DAYS" ]]; then echo "--ban-days"; return 0; fi
+    case "$1" in hebergeur) echo "BAN_DAYS_HOSTING" ;; acces) echo "BAN_DAYS_ISP" ;; *) echo "BAN_DAYS_OTHER" ;; esac
+}
+# echeance_calcul START DAYS: "YYYY-MM-DD HH:MM" (local time), or "jamais" for 0 days; empty when START is unreadable.
+echeance_calcul() {
+    (( $2 == 0 )) && { echo "jamais"; return 0; }
+    date -d "$1 $2 days" '+%Y-%m-%d %H:%M' 2>/dev/null || true      # no sign: "21:38 +365" would be read as a time zone
+}
+# echeance_ban IP: "BAN_DATE<TAB>EXPIRY" of the ban in place, from bans.tsv (last "banni", then a later "echeance"; a "leve" resets).
+# BAN_DATE empty: no line in the journal ("?" when only an "echeance" line exists); EXPIRY empty: ban recorded before 2.73.
+echeance_ban() {
+    [[ -r "$BAN_LOG" ]] || { printf '\t\n'; return 0; }
+    awk -F'\t' -v ip="$1" '$3 == ip {
+            if ($2 == "banni") { debut = $1; fin = (NF >= 6 && $6 != "-") ? $6 : "" }
+            else if ($2 == "echeance") { if (debut == "") debut = "?"; fin = $6 }
+            else if ($2 == "leve") { debut = ""; fin = "" } }
+        END { printf "%s\t%s\n", debut, fin }' "$BAN_LOG" 2>/dev/null || printf '\t\n'
+}
+# texte_echeance EXPIRY: how the expiry is shown.
+texte_echeance() {
+    case "$1" in
+        "") echo "échéance non fixée (--unban-expired la calcule)" ;;
+        jamais) echo "sans expiration (durée 0)" ;;
+        *) echo "échéance $1" ;;
+    esac
+}
+# cron_echeances_installer: /etc/cron.d/nginx-log-audit-expiry runs --unban-expired every day at 04:23 (root). Not written when every duration
+# is 0 (no ban expires). Written only if absent or different; never an error.
+cron_echeances_installer() {
+    local dossier="${NGINX_LOG_AUDIT_CRON_DIR:-/etc/cron.d}" cron contenu
+    cron="$dossier/nginx-log-audit-expiry"
+    [[ "$EUID" -eq 0 && -d "$dossier" ]] || return 0
+    (( BAN_DAYS_HOSTING + BAN_DAYS_ISP + BAN_DAYS_OTHER > 0 )) || return 0
+    contenu="# nginx-log-audit.sh $SCRIPT_VERSION: lifts every day the manual bans whose expiry date has passed (BAN_DAYS_HOSTING, BAN_DAYS_ISP, BAN_DAYS_OTHER).
+SHELL=/bin/bash
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+23 4 * * * root bash $SELF_PATH --unban-expired --yes --no-prompt >> /var/log/nginx-log-audit-expiry.log 2>&1"
+    if [[ "$(sed 1d "$cron" 2>/dev/null)" != "$(printf '%s\n' "$contenu" | sed 1d)" ]]; then
+        printf '%s\n' "$contenu" > "$cron" 2>/dev/null && chmod 644 "$cron" 2>/dev/null \
+            && echo "Échéances : $cron écrit (levée des bannissements échus chaque jour à 04:23 ; journal /var/log/nginx-log-audit-expiry.log)."
+    fi
+    return 0
 }
 # Address ALREADY banned: a justification given (at the keyboard or --reason, not the automatic one) is added to the log by an event
 # "justifies" (the ban date does not change) - this is how a ban prior to 2.40 is justified after the fact.
 ajouter_justification() {
+    # 2.73: a ban in place without an expiry date (recorded before 2.73, or rule set by hand) gets one now, from today.
+    local eb_debut eb_fin
+    IFS=$'\t' read -r eb_debut eb_fin <<< "$(echeance_ban "$1")"
+    if [[ -z "$eb_fin" && -n "${BAN_ECHEANCE:-}" ]]; then
+        note_ban echeance "$1" "$BAN_ECHEANCE" "$PROV_TEXTE"
+        echo "Échéance fixée : $(texte_echeance "$BAN_ECHEANCE") ($PROV_TEXTE)."
+        cron_echeances_installer
+    fi
     [[ -z "$BAN_REASON" || "$BAN_REASON" == automatique* ]] && return 0
     note_ban justifie "$1"
     echo "Justification ajoutée au bannissement existant ($(date '+%Y-%m-%d %H:%M')) : $BAN_REASON"
@@ -941,7 +1076,9 @@ afficher_bannissements() {
         if [[ -z "$pf" ]] && ufw_active && run ufw status 2>/dev/null | awk '/DENY/ {print $NF}' | grep_q -xF -- "$ip"; then pf="règle ufw « deny from »"; fi
         if [[ -n "$pf" ]]; then
             trouve=1
-            echo "${ind}    Pare-feu : ${C_MAL}BANNIE${C_RESET} — $pf (bannissement manuel, sans expiration ; levée : nginx-log-audit.sh --unban $ip)"
+            local eb_debut eb_fin
+            IFS=$'\t' read -r eb_debut eb_fin <<< "$(echeance_ban "$ip")"
+            echo "${ind}    Pare-feu : ${C_MAL}BANNIE${C_RESET} — $pf (bannissement manuel, $(texte_echeance "$eb_fin") ; levée : nginx-log-audit.sh --unban $ip)"
         else
             echo "${ind}    Pare-feu : pas de bannissement manuel"
         fi
@@ -979,9 +1116,10 @@ afficher_bannissements() {
     local hist="" f2b
     if [[ -r "$BAN_LOG" ]]; then
         hist=$(awk -F'\t' -v ip="$ip" '$3 == ip {
-                   ev = ($2 == "banni") ? "BANNIE au pare-feu" : (($2 == "leve") ? "bannissement LEVÉ" : (($2 == "justifie") ? "justification ajoutée" : $2))
+                   ev = ($2 == "banni") ? "BANNIE au pare-feu" : (($2 == "leve") ? "bannissement LEVÉ" : (($2 == "justifie") ? "justification ajoutée" : (($2 == "echeance") ? "échéance fixée" : $2)))
                    r = (NF >= 4 && $4 != "" && $4 != "-") ? "justification : " $4 : "justification : non enregistrée (avant la version 2.40)"
-                   printf "%s\t%s — %s%s\n", $1, ev, r, (NF >= 5 && $5 != "") ? " — par " $5 : "" }' "$BAN_LOG" 2>/dev/null) || hist=""
+                   e = (NF >= 6 && $6 != "" && $6 != "-") ? (($6 == "jamais") ? " — sans expiration" : " — échéance " $6) (NF >= 7 && $7 != "-" ? " (" $7 ")" : "") : ""
+                   printf "%s\t%s%s — %s%s\n", $1, ev, e, r, (NF >= 5 && $5 != "") ? " — par " $5 : "" }' "$BAN_LOG" 2>/dev/null) || hist=""
     fi
     f2b=$(lire_chrono "${FAIL2BAN_LOG_FILE:-/var/log/fail2ban.log}"* | { grep -E "\] (Restore Ban|Ban|Unban) $ipre( |$)" || true; } | awk '
             { if (match($0, /\[[^]]+\] (Restore Ban|Ban|Unban) /)) {
@@ -1249,9 +1387,10 @@ if [[ "$DO_BAN_HISTORY" == "1" ]]; then
     awk -F'\t' -v m="$C_MAL" -v g="$C_GREEN" -v r="$C_RESET" -v b="$C_BOLD" '
         BEGIN { printf "%s%-16s  %-8s  %-15s  %s%s\n", b, "Date", "Action", "IP", "Justification — origine", r }
         NF >= 3 {
-            if ($2 == "banni") { a = m "banni" r "   " } else if ($2 == "leve") { a = g "levé" r "    " } else if ($2 == "justifie") { a = "justifié" } else { a = sprintf("%-8s", $2) }
+            if ($2 == "banni") { a = m "banni" r "   " } else if ($2 == "leve") { a = g "levé" r "    " } else if ($2 == "justifie") { a = "justifié" } else if ($2 == "echeance") { a = "échéance" } else { a = sprintf("%-8s", $2) }
             j = (NF >= 4 && $4 != "" && $4 != "-") ? $4 : "(non enregistrée : avant la version 2.40)"
-            printf "%-16s  %s  %-15s  %s%s\n", $1, a, $3, j, (NF >= 5 && $5 != "") ? " — " $5 : "" }' "$BAN_LOG"
+            e = (NF >= 6 && $6 != "" && $6 != "-") ? (($6 == "jamais") ? " — sans expiration" : " — échéance " $6) (NF >= 7 && $7 != "-" ? " (" $7 ")" : "") : ""
+            printf "%-16s  %s  %-15s  %s%s%s\n", $1, a, $3, j, e, (NF >= 5 && $5 != "") ? " — " $5 : "" }' "$BAN_LOG"
     exit 0
 fi
 
@@ -1336,10 +1475,19 @@ if [[ -n "$BAN_IP" ]]; then
         if [[ "$confirmation_exception" != "BANNIR" ]]; then echo "Annulé : aucune adresse bannie."; exit 0; fi
         BAN_OVERRIDE=1
     fi
+    # 2.73: the duration depends on the origin of the address (an address changes hands); the expiry is written in bans.tsv.
+    provenance_ip "$BAN_IP"
+    BAN_JOURS=$(duree_ban_jours "$PROV_TYPE")
+    BAN_ECHEANCE=$(echeance_calcul "$(date '+%Y-%m-%d %H:%M')" "$BAN_JOURS")
     echo "Ceci va bloquer TOUT le trafic depuis $BAN_IP au niveau du pare-feu (toutes routes, tous ports gérés"
-    echo "par ce pare-feu), immédiatement et indéfiniment — jusqu'à un --unban explicite ou un redémarrage si la"
-    echo "règle n'est pas rendue persistante. Un vrai visiteur derrière cette IP (rare mais possible si l'IP a"
-    echo "changé de main entre-temps) serait bloqué exactement pareil qu'un attaquant."
+    if [[ "$BAN_ECHEANCE" == "jamais" ]]; then
+        echo "par ce pare-feu), immédiatement et sans expiration ($(cle_duree "$PROV_TYPE")=0) — jusqu'à un --unban explicite."
+    else
+        echo "par ce pare-feu), immédiatement, jusqu'au $BAN_ECHEANCE ($BAN_JOURS jours, $(cle_duree "$PROV_TYPE")) ou un --unban explicite."
+    fi
+    echo "Provenance : $PROV_TEXTE."
+    echo "Un vrai visiteur derrière cette IP (rare mais possible si l'IP a changé de main entre-temps) serait bloqué"
+    echo "exactement pareil qu'un attaquant."
 
     if [[ "$ASSUME_YES" != "1" && "$BAN_OVERRIDE" != "1" ]]; then
         echo
@@ -1363,9 +1511,11 @@ if [[ -n "$BAN_IP" ]]; then
         else
             run ufw deny from "$BAN_IP" >/dev/null
             echo "${C_GREEN}Règle ufw ajoutée : deny from $BAN_IP${C_RESET}"
-            note_ban banni "$BAN_IP"
+            note_ban banni "$BAN_IP" "$BAN_ECHEANCE" "$PROV_TEXTE"
             echo "Justification enregistrée ($(date '+%Y-%m-%d %H:%M')) : $BAN_REASON"
+            echo "Bannissement : $(texte_echeance "$BAN_ECHEANCE")."
             persist_firewall
+            cron_echeances_installer
         fi
     elif command -v iptables >/dev/null 2>&1; then
         if run iptables -C INPUT -s "$BAN_IP" -j DROP 2>/dev/null; then
@@ -1377,9 +1527,11 @@ if [[ -n "$BAN_IP" ]]; then
         else
             run iptables -I INPUT -s "$BAN_IP" -j DROP
             echo "${C_GREEN}Règle iptables ajoutée : DROP depuis $BAN_IP${C_RESET}"
-            note_ban banni "$BAN_IP"
+            note_ban banni "$BAN_IP" "$BAN_ECHEANCE" "$PROV_TEXTE"
             echo "Justification enregistrée ($(date '+%Y-%m-%d %H:%M')) : $BAN_REASON"
+            echo "Bannissement : $(texte_echeance "$BAN_ECHEANCE")."
             persist_firewall
+            cron_echeances_installer
         fi
     else
         echo "ERREUR: ni ufw ni iptables trouvés — bannissement impossible." >&2
@@ -2539,6 +2691,78 @@ if [[ "$DO_UNBAN_LOW_SCORE" == "1" ]]; then
             esac
         fi
     done
+    exit 0
+fi
+
+# --- --unban-expired (2.73): lifts the manual bans whose expiry date has passed -------------------------------------------------------------
+# Preview of every manual ban in place (ban date, origin, expiry), then ONE question (--yes: none, for cron). A ban recorded before 2.73 gets its
+# expiry date from its ban date and the duration for its origin, written once in bans.tsv (event "echeance"). A rule absent from the journal
+# (set by hand) has no known date: it is shown and left in place. Each lift goes through --unban (journal, persistent rules).
+if [[ "$DO_UNBAN_EXPIRED" == "1" ]]; then
+    if [[ "$EUID" -ne 0 ]]; then
+        echo "ERREUR: --unban-expired nécessite root (sudo)." >&2
+        exit 1
+    fi
+    echo "=============================================================="
+    echo " BANNISSEMENTS MANUELS ÉCHUS (échéance passée)"
+    echo "=============================================================="
+    echo "Durées : hébergeur $BAN_DAYS_HOSTING j (BAN_DAYS_HOSTING), fournisseur d'accès $BAN_DAYS_ISP j (BAN_DAYS_ISP), inconnue $BAN_DAYS_OTHER j (BAN_DAYS_OTHER) ; 0 = sans expiration."
+    mapfile -t EXP_BANS < <(list_manual_bans)
+    if (( ${#EXP_BANS[@]} == 0 )); then
+        echo "${C_GREEN}Aucun bannissement manuel en place.${C_RESET}"
+        exit 0
+    fi
+    maintenant=$(date '+%Y-%m-%d %H:%M')
+    EXP_LIFT=(); EXP_WHY=(); n_inconnus=0
+    printf '  %-40s %-16s %-16s %s\n' "IP" "Banni le" "Échéance" "Décision"
+    for ip in "${EXP_BANS[@]}"; do
+        IFS=$'\t' read -r eb_debut eb_fin <<< "$(echeance_ban "$ip")"
+        if [[ -z "$eb_debut" ]]; then
+            n_inconnus=$((n_inconnus + 1))
+            printf '  %-40s %-16s %-16s %s\n' "$ip" "?" "?" "date inconnue (absente du journal) : inchangé"
+            continue
+        fi
+        if [[ -z "$eb_fin" ]]; then              # recorded before 2.73: expiry from the ban date and the origin, written once
+            provenance_ip "$ip"
+            eb_fin=$(echeance_calcul "$eb_debut" "$(duree_ban_jours "$PROV_TYPE")")
+            if [[ -n "$eb_fin" ]]; then
+                BAN_REASON="échéance calculée : $(duree_ban_jours "$PROV_TYPE") jours après le bannissement ($(cle_duree "$PROV_TYPE"))" note_ban echeance "$ip" "$eb_fin" "$PROV_TEXTE"
+            fi
+        fi
+        if [[ -z "$eb_fin" ]]; then
+            printf '  %-40s %-16s %-16s %s\n' "$ip" "$eb_debut" "?" "date illisible : inchangé"
+        elif [[ "$eb_fin" == "jamais" ]]; then
+            printf '  %-40s %-16s %-16s %s\n' "$ip" "$eb_debut" "-" "sans expiration : inchangé"
+        elif [[ ! "$eb_fin" > "$maintenant" ]]; then
+            printf '  %-40s %-16s %-16s %s\n' "$ip" "$eb_debut" "$eb_fin" "${C_YELLOW}échue : à lever${C_RESET}"
+            EXP_LIFT+=("$ip"); EXP_WHY+=("échéance atteinte (bannie le $eb_debut, échéance $eb_fin)")
+        else
+            printf '  %-40s %-16s %-16s %s\n' "$ip" "$eb_debut" "$eb_fin" "en vigueur"
+        fi
+    done
+    echo
+    if (( n_inconnus > 0 )); then
+        echo "$n_inconnus bannissement(s) sans date dans le journal : « nginx-log-audit.sh --ban IP --reason TEXTE » leur fixe une échéance à partir d'aujourd'hui."
+    fi
+    cron_echeances_installer
+    if (( ${#EXP_LIFT[@]} == 0 )); then
+        echo "${C_GREEN}Aucun bannissement échu : rien à lever.${C_RESET}"
+        exit 0
+    fi
+    echo "${#EXP_LIFT[@]} bannissement(s) échu(s) à lever."
+    if [[ "$ASSUME_YES" != "1" ]]; then
+        if [[ ! -t 0 ]]; then
+            echo "Aperçu seulement : relancer dans un terminal pour confirmer, ou avec --yes pour lever sans question."
+            exit 0
+        fi
+        if ! demander_oui "Lever ces ${#EXP_LIFT[@]} bannissements échus ? [o/N] "; then echo "Aucune levée : réponse négative."; exit 0; fi
+    fi
+    n_ok=0; n_ko=0
+    for i in "${!EXP_LIFT[@]}"; do
+        relancer_action --unban "${EXP_LIFT[$i]}" --yes --reason "${EXP_WHY[$i]}"
+        if list_manual_bans | grep -qxF -- "${EXP_LIFT[$i]}"; then n_ko=$((n_ko + 1)); else n_ok=$((n_ok + 1)); fi      # relancer_action never fails: check the rule
+    done
+    echo "$n_ok levée(s), $n_ko échec(s)."
     exit 0
 fi
 

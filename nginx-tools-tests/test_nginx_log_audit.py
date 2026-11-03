@@ -1017,5 +1017,97 @@ class ChkNginxLogs272(ChkNginxLogs):
         self.assertRegex(out, r"Comptes Odoo (actifs pendant ces requêtes : aucun trouvé|\(base\))")
 
 
-for _nom in [n for n in vars(ChkNginxLogs) if n.startswith("test")]:
-    setattr(ChkNginxLogs272, _nom, None)                                  # same fixtures as ChkNginxLogs, without running its tests twice
+
+class ChkNginxLogs273(ChkNginxLogs):
+    """2.73 : un bannissement au pare-feu expire ; durée selon la provenance de l'adresse (hébergeur, fournisseur d'accès, inconnue), échéance écrite
+    dans bans.tsv, levée par --unban-expired (cron quotidien)."""
+
+    def setUp(self):
+        super().setUp()
+        self.mock("iptables", f'F={self.d}/rules; touch $F; o=$1; shift; case $o in -C) grep -qxF "$*" $F;; '
+                              f'-I) echo "$*" >> $F;; -D) grep -vxF "$*" $F > $F.t; mv $F.t $F;; -S) sed "s/^/-A /" $F;; esac')
+        self.cron = self.path("cron.d", "x")[:-2]
+        os.makedirs(self.cron, exist_ok=True)
+        self.env["NGINX_LOG_AUDIT_CRON_DIR"] = self.cron
+        self.journal = os.path.join(self.env["NGINX_LOG_AUDIT_STATE_DIR"], "bans.tsv")
+
+    def lignes_journal(self, ip):
+        return [l.rstrip("\n").split("\t") for l in open(self.journal, encoding="utf-8") if l.split("\t")[2] == ip]
+
+    def regles(self):
+        return open(os.path.join(self.d, "rules"), encoding="utf-8").read()
+
+    @unittest.skipUnless(os.geteuid() == 0, "--ban exige root")
+    def test_273_ban_hebergeur_echeance_selon_la_provenance(self):
+        import datetime
+        self._preuves_sqli("11.22.62.38")                                  # reverse DNS: ec2-...amazonaws.com
+        rc, out, err = self.run_cmd(["bash", self.prog, "--ban", "11.22.62.38", "--yes"])
+        self.assertEqual(rc, 0, out + err)
+        jour = (datetime.datetime.now() + datetime.timedelta(days=365)).strftime("%Y-%m-%d")
+        self.assertIn(f"jusqu'au {jour}", out)
+        self.assertIn("(365 jours, BAN_DAYS_HOSTING)", out)
+        self.assertIn("Provenance : hébergeur : ec2-11-22-62-38.us-east-2.compute.amazonaws.com.", out)
+        banni = [c for c in self.lignes_journal("11.22.62.38") if c[1] == "banni"][-1]
+        self.assertTrue(banni[5].startswith(jour), banni)
+        self.assertEqual(banni[6], "hébergeur : ec2-11-22-62-38.us-east-2.compute.amazonaws.com")
+        cron = open(os.path.join(self.cron, "nginx-log-audit-expiry"), encoding="utf-8").read()
+        self.assertRegex(cron, r"23 4 \* \* \* root bash \S+nginx-log-audit\.sh --unban-expired --yes --no-prompt")
+
+    @unittest.skipUnless(os.geteuid() == 0, "--ban exige root")
+    def test_273_ban_days_par_bannissement_et_par_cle(self):
+        self._preuves_sqli("11.22.62.38")
+        rc, out, _ = self.run_cmd(["bash", self.prog, "--ban", "11.22.62.38", "--yes", "--ban-days", "0"])
+        self.assertEqual(rc, 0, out)
+        self.assertIn("sans expiration (--ban-days=0)", out)
+        self.assertEqual([c for c in self.lignes_journal("11.22.62.38") if c[1] == "banni"][-1][5], "jamais")
+        rc, _, err = self.run_cmd(["bash", self.prog, "--ban-days", "-3", "--ban", "11.22.62.38", "--yes"])
+        self.assertNotEqual(rc, 0)
+        self.assertIn("entre 0 et 36500", err)
+        rc, _, err = self.run_cmd(["bash", self.prog, "--ban-days", "30", "--unban-expired"])
+        self.assertNotEqual(rc, 0)
+        self.assertIn("--ban-days s'utilise avec --ban", err)
+
+    def _trois_bannissements(self):
+        with open(os.path.join(self.d, "rules"), "w") as f:
+            f.write("INPUT -s 11.9.9.1 -j DROP\nINPUT -s 11.9.9.2 -j DROP\nINPUT -s 11.9.9.3 -j DROP\n")
+        os.makedirs(os.path.dirname(self.journal), exist_ok=True)
+        with open(self.journal, "w", encoding="utf-8") as f:
+            f.write("2025-01-01 10:00\tbanni\t11.9.9.1\t-\troot via ligne de commande\n")               # before 2.73: no expiry
+            f.write("2026-10-01 10:00\tbanni\t11.9.9.2\tsondes\troot via ligne de commande\t2099-01-01 00:00\tinconnue\n")
+
+    @unittest.skipUnless(os.geteuid() == 0, "--unban-expired exige root")
+    def test_273_unban_expired_leve_seulement_les_echus(self):
+        self._trois_bannissements()
+        rc, out, err = self.run_cmd(["bash", self.prog, "--unban-expired", "--yes", "--no-prompt"])
+        self.assertEqual(rc, 0, out + err)
+        self.assertNotIn("11.9.9.1", self.regles())                       # 2025-01-01 + 365 days (origin unknown): expired, lifted
+        self.assertIn("11.9.9.2", self.regles())                          # expiry 2099: kept
+        self.assertIn("11.9.9.3", self.regles())                          # absent from the journal: date unknown, kept
+        self.assertIn("1 levée(s), 0 échec(s).", out)
+        self.assertIn("date inconnue (absente du journal) : inchangé", out)
+        evenements = [c[1] for c in self.lignes_journal("11.9.9.1")]
+        self.assertEqual(evenements, ["banni", "echeance", "leve"])
+        echeance = [c for c in self.lignes_journal("11.9.9.1") if c[1] == "echeance"][0]
+        self.assertEqual(echeance[5], "2026-01-01 10:00")
+        self.assertIn("BAN_DAYS_OTHER", echeance[3])
+
+    @unittest.skipUnless(os.geteuid() == 0, "--unban-expired exige root")
+    def test_273_unban_expired_sans_terminal_ni_yes_apercu_seulement(self):
+        self._trois_bannissements()
+        rc, out, _ = self.run_cmd(["bash", self.prog, "--unban-expired", "--no-prompt"], input_text="")
+        self.assertEqual(rc, 0, out)
+        self.assertIn("Aperçu seulement", out)
+        self.assertIn("11.9.9.1", self.regles())
+
+    @unittest.skipUnless(os.geteuid() == 0, "--investigate lit le pare-feu en root")
+    def test_273_investigate_affiche_l_echeance(self):
+        self._trois_bannissements()
+        _, out, _ = self.run_cmd(["bash", self.prog, "prod", "--investigate", "11.9.9.2", "--no-prompt"])
+        self.assertIn("(bannissement manuel, échéance 2099-01-01 00:00 ; levée : nginx-log-audit.sh --unban 11.9.9.2)", out)
+        _, out, _ = self.run_cmd(["bash", self.prog, "prod", "--investigate", "11.9.9.1", "--no-prompt"])
+        self.assertIn("échéance non fixée (--unban-expired la calcule)", out)
+
+
+for _classe in (ChkNginxLogs272, ChkNginxLogs273):
+    for _nom in [n for n in vars(ChkNginxLogs) if n.startswith("test")]:
+        setattr(_classe, _nom, None)                                      # same fixtures as ChkNginxLogs, without running its tests twice

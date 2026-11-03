@@ -45,5 +45,21 @@ To run it every morning, as root:
 0 7 * * * root /root/scripts/nginx-log-audit.sh prod --unban-check --no-prompt
 ```
 
+## Duration of bans (expiry)
+
+A firewall ban is no longer permanent: an address changes hands over time (a cloud instance goes to another customer, a subscriber line to another subscriber). Its duration depends on the **origin** of the address, decided when banning:
+
+| Origin | Recognized by | Key (option) | Default |
+|---|---|---|---|
+| hosting provider, cloud | reverse DNS (AWS, OVH, Vultr...) or owner of the block (RDAP) | `BAN_DAYS_HOSTING` (`--ban-days-hosting`) | 365 days |
+| access provider | reverse DNS of a subscriber line (dsl, cable, pool, dyn..., or the address written in the name) | `BAN_DAYS_ISP` (`--ban-days-isp`) | 90 days |
+| unknown | neither | `BAN_DAYS_OTHER` (`--ban-days-other`) | 365 days |
+
+`0` = no expiry. `--ban IP --ban-days N` sets the duration of that ban only, whatever the origin. The expiry date and the origin are written in `bans.tsv` (columns 6 and 7) and shown by `--investigate` and `--ban-history`.
+
+`--unban-expired` (root) shows each manual ban with its date, its expiry date and the decision, then asks once (`--yes`: no question) and lifts those whose expiry date has passed, through `--unban` (journal and persistent rules updated). A ban recorded before version 2.73 gets an expiry date computed from its ban date, written once in the journal. A rule absent from the journal (set by hand) has no known date: it stays in place; `--ban IP --reason TEXT` sets its expiry from today.
+
+`--ban` and `--unban-expired` write `/etc/cron.d/nginx-log-audit-expiry`, which runs `--unban-expired --yes` every day at 4:23 (log: `/var/log/nginx-log-audit-expiry.log`).
+
 ## Options
 {{HELP}}
