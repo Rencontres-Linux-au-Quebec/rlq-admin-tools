@@ -118,7 +118,7 @@ from urllib.parse import unquote, urlsplit
 from collections import Counter, OrderedDict
 from concurrent.futures import Future
 
-__version__ = "1.152.20261102.185714"
+__version__ = "1.153.20261102.201101"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
@@ -388,6 +388,28 @@ def request_key(L):
     return (unquote(m.group(1)), m.group(3))
 
 
+def merge_codes_compatible(nginx_code, odoo_code):
+    """1.153: the status code of nginx may differ from Odoo's for the SAME request: 304 when nginx answers the browser's If-None-Match /
+    If-Modified-Since itself from Odoo's 200 (ETag, Last-Modified), 499 when the client closed the connection before Odoo's answer (any code)."""
+    return nginx_code == odoo_code or nginx_code == "499" or (nginx_code == "304" and odoo_code == "200")
+
+
+def merge_partner(held, key, instant, partner_is_nginx):
+    """1.153: index in `held` of the partner of a request line (`key` = its request_key), or None. An identical status code is preferred;
+    otherwise a compatible one (merge_codes_compatible), so that two requests of the same URL are not crossed."""
+    compatible = None
+    for index, (held_item, held_key, held_instant, _wall) in enumerate(held):
+        is_partner = is_nginx_request(held_item[0]) if partner_is_nginx else is_odoo_request(held_item[0])
+        if not is_partner or held_key[0] != key[0] or abs(instant - held_instant) > MERGE_WINDOW:
+            continue
+        if held_key[1] == key[1]:
+            return index
+        codes = (held_key[1], key[1]) if partner_is_nginx else (key[1], held_key[1])
+        if compatible is None and merge_codes_compatible(*codes):
+            compatible = index
+    return compatible
+
+
 def merge_step(item, held):
     """1.123 --log-merge: `held` = request lines waiting for their partner, as (item, key, log time, wall time): nginx lines wait for their Odoo line,
     and (1.135) Odoo lines wait for their nginx line, because the two sources are read at different speeds (the Odoo line can come first).
@@ -399,29 +421,31 @@ def merge_step(item, held):
         ready.append(held.popleft()[0])
     if is_odoo_request(L):
         key = request_key(L)
-        for index, (held_item, held_key, held_instant, _wall) in enumerate(held):
-            if is_nginx_request(held_item[0]) and held_key == key and abs(L.instant - held_instant) <= MERGE_WINDOW:
-                del held[index]
-                m = WERKZEUG_RE.search(L.text)
-                held_item[0].odoo_times = (m.group(5) or "", m.group(6) or "", m.group(7))
-                if L.ts_txt:                      # 1.131: the merged line shows the time of the Odoo line (hundredths), nginx has only seconds
-                    held_item[0].ts_txt = L.ts_txt
-                ready.append(held_item)
-                return ready
+        index = merge_partner(held, key, L.instant, True)      # 1.153: 304 or 499 of nginx for a 200 of Odoo merge too
+        if index is not None:
+            held_item = held[index][0]
+            del held[index]
+            m = WERKZEUG_RE.search(L.text)
+            held_item[0].odoo_times = (m.group(5) or "", m.group(6) or "", m.group(7))
+            if L.ts_txt:                          # 1.131: the merged line shows the time of the Odoo line (hundredths), nginx has only seconds
+                held_item[0].ts_txt = L.ts_txt
+            ready.append(held_item)
+            return ready
         held.append((item, key, L.instant, time.time()))      # 1.135: the Odoo line waits for its nginx line
         return ready
     if is_nginx_request(L):
         key = request_key(L)
-        for index, (held_item, held_key, held_instant, _wall) in enumerate(held):
-            if is_odoo_request(held_item[0]) and held_key == key and abs(L.instant - held_instant) <= MERGE_WINDOW:
-                del held[index]                   # 1.135: the Odoo line came first: it is absorbed into this nginx line
-                m = WERKZEUG_RE.search(held_item[0].text)
-                L.odoo_times = (m.group(5) or "", m.group(6) or "", m.group(7))
-                if held_item[0].ts_txt:
-                    L.ts_txt = held_item[0].ts_txt
-                ready.append(item)
-                return ready
-        held.append((item, request_key(L), L.instant, time.time()))
+        index = merge_partner(held, key, L.instant, False)
+        if index is not None:
+            held_item = held[index][0]
+            del held[index]                       # 1.135: the Odoo line came first: it is absorbed into this nginx line
+            m = WERKZEUG_RE.search(held_item[0].text)
+            L.odoo_times = (m.group(5) or "", m.group(6) or "", m.group(7))
+            if held_item[0].ts_txt:
+                L.ts_txt = held_item[0].ts_txt
+            ready.append(item)
+            return ready
+        held.append((item, key, L.instant, time.time()))
         return ready
     ready.append(item)
     return ready
