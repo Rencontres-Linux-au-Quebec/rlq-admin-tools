@@ -1814,37 +1814,38 @@ class AppLogLive(EnvTest):
                       werkzeug(DNS, "/absent", 404), self.lente(DNS, "/lente", "2.0", "10.0"), werkzeug(PERSONNE, "/event"), werkzeug(PERSONNE, "/event")],
                      after=after)
 
-    def faux_audit_recidive(self, verdict="bannissement justifié", bans=3):
+    def faux_audit_recidive(self, verdict="BANNIR", bans=3):
+        """1.155: the verdict comes from nginx-log-audit.sh --investigate (its summary line in $INV_RESUME_FILE), no longer from --evidence."""
         faux = os.path.join(os.path.dirname(self.prog), "nginx-log-audit.sh")
         with open(faux, "w") as f:
-            f.write(f'#!/usr/bin/env bash\necho "$@" >> {self.d}/ban.log\ncase "$1" in --evidence)\n'
-                    f'  echo "    Pour le bannissement :"; echo "      + récidive : {bans} bannissements temporaires par fail2ban (nginx-botsearch)"\n'
-                    f'  echo "    Verdict : {verdict} (aucune raison contraire trouvée)." ;;\n--ban) echo "Règle ajoutée" ;;\nesac\nexit 0\n')
+            f.write(f'#!/usr/bin/env bash\necho "$@" >> {self.d}/ban.log\ncase "$1" in --investigate)\n'
+                    f'  echo "  RÉSUMÉ|$2|{verdict}|récidive ; sondes|{bans}" >> "$INV_RESUME_FILE" ;;\n--ban) echo "Règle ajoutée" ;;\nesac\nexit 0\n')
         os.chmod(faux, 0o755)
 
     def test_adresse_bannie_souvent_proposee_avec_delai(self):
-        """1.19 : adresse à requêtes suspectes, bannie ≥ 2 fois (fail2ban) et verdict « bannissement justifié » : question avec délai de 10 s ; oui → --ban IP --yes ; sans réponse : on continue."""
+        """1.19 : adresse à requêtes suspectes, bannie ≥ 2 fois (fail2ban) et verdict de l'enquête « BANNIR » (1.155, avant : « bannissement justifié » de --evidence) :
+        question avec délai de 10 s ; oui → --ban IP ; sans réponse : on continue."""
         self.faux_audit_recidive()
         self.journal([werkzeug(DNS, "/wp-login.php", 404), werkzeug(DNS, "/.env", 404)], after="sleep 40")
         sequence = [(b"Bannir " + DNS.encode() + b" maintenant", b"o\r", 0.3), (b"banni", b"\x03", 0.5)]
         text, envoyees = self.run_pty(["python3", self.prog, "--no-history", "--no-isp", "--no-presence", "--no-banned", "--lines", "5"], sequence, timeout=60)
         self.assertEqual(envoyees, 2, text)
         t = " ".join(text.split())
-        self.assertIn("Adresse bannie souvent : 3 bannissements fail2ban — verdict : bannissement justifié", T(t))
+        self.assertIn("Adresse bannie souvent : 3 bannissements fail2ban — verdict de l'enquête : bannir", T(t))
         journal = open(os.path.join(self.d, "ban.log")).read()
-        self.assertIn(f"--evidence {DNS}", journal)
+        self.assertIn(f"--investigate {DNS} --no-prompt", journal)
         self.assertIn(f"--ban {DNS} --reason", journal)          # 1.148: one address, foreground, no --yes
         self.assertNotIn("--yes", journal)
 
     def test_adresse_bannie_souvent_sans_reponse_ou_verdict_different_ou_option(self):
-        """Sans réponse en 10 s : le suivi continue, rien n'est banni ; verdict « à examiner » ou une seule fois : aucune question ; --no-ban-prompt : aucune enquête."""
+        """Sans réponse en 10 s : le suivi continue, rien n'est banni ; verdict autre que « BANNIR » ou une seule fois : aucune question ; --no-ban-prompt : aucune enquête."""
         self.faux_audit_recidive()
         self.journal([werkzeug(DNS, "/wp-login.php", 404)], after="sleep 40")
         sequence = [(b"Pas de r\xc3\xa9ponse en 10 s", b"\x03", 0.5)]
         text, envoyees = self.run_pty(["python3", self.prog, "--no-history", "--no-isp", "--no-presence", "--no-banned", "--lines", "5"], sequence, timeout=70)
         self.assertEqual(envoyees, 1, text)
         self.assertNotIn("--ban", open(os.path.join(self.d, "ban.log")).read())
-        for verdict, bans, extra in (("à examiner", 3, []), ("bannissement justifié", 1, []), ("bannissement justifié", 3, ["--no-ban-prompt"])):
+        for verdict, bans, extra in (("AUCUNE ACTION", 3, []), ("BANNIR", 1, []), ("BANNIR", 3, ["--no-ban-prompt"])):
             os.remove(os.path.join(self.d, "ban.log"))
             self.faux_audit_recidive(verdict, bans)
             self.journal([werkzeug(DNS, "/wp-login.php", 404)], after="sleep 8")
@@ -4260,3 +4261,60 @@ class AppLogLive154(unittest.TestCase):
         self.assertEqual(s.count("output.write(status_line() + \"\\n\")\n                header_after_bar()"), 1)      # periodic bar
         self.assertEqual(s.count("output.write(status_line() + \"\\n\")\n            header_after_bar()"), 1)          # bar after the history
         self.assertIn('state["header_plain"] = plain_request', s)
+
+
+class AppLogLive155(unittest.TestCase):
+    """1.155 : une adresse n'est proposée au bannissement que si nginx-log-audit.sh --investigate (le programme qui bannit) dit « BANNIR » : les anciennes
+    recommandations de web-monitor.py et le verdict de --evidence ne suffisent plus."""
+
+    @classmethod
+    def setUpClass(cls):
+        spec = importlib.util.spec_from_file_location("live155", script_path("app-log-live.py"))
+        cls.m = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(cls.m)
+
+    def setUp(self):
+        self.dossier = tempfile.mkdtemp(prefix="test-rlq-155-")
+        self.addCleanup(shutil.rmtree, self.dossier, True)
+        self.ancien = self.m.SCRIPT_DIR
+        self.m.SCRIPT_DIR = self.dossier
+        self.addCleanup(setattr, self.m, "SCRIPT_DIR", self.ancien)
+
+    def faux_nla(self, corps):
+        with open(os.path.join(self.dossier, "nginx-log-audit.sh"), "w") as f:
+            f.write("#!/bin/bash\n" + corps + "\n")
+
+    def test_155_verdict_lu_dans_la_ligne_resume(self):
+        self.faux_nla('echo "  RÉSUMÉ|$2|BANNIR|faux moteur de recherche (Google) ; 60 tentatives au capteur catch-all|5" >> "$INV_RESUME_FILE"')
+        self.assertEqual(self.m.audit_verdict("11.1.1.1"), ("BANNIR", "faux moteur de recherche (Google) ; 60 tentatives au capteur catch-all", 5))
+
+    def test_155_ancien_nginx_log_audit_ligne_score(self):
+        self.faux_nla('echo "      → Score 1/7 (seuil de proposition : 3) — à surveiller, pas de bannissement proposé."')
+        verdict, raison, _ = self.m.audit_verdict("11.1.1.1")
+        self.assertEqual(verdict, "AUCUNE ACTION")
+        self.assertIn("Score 1/7", raison)
+        self.faux_nla('echo "      → Score 4/7 : bannissement recommandé."')
+        self.assertEqual(self.m.audit_verdict("11.1.1.1")[0], "BANNIR")
+
+    def test_155_programme_absent(self):
+        self.assertIsNone(self.m.audit_verdict("11.1.1.1")[0])
+
+    def test_155_to_ban_ecarte_ce_que_l_enquete_refuse(self):
+        st = self.m.Stats(5.0)
+        st.load_recommended = lambda: None
+        st.reco_loaded, st.recommended = True, {"11.196.59.85": "récidiviste : 2 jours", "11.138.12.41": "récidiviste : 6 jours", "11.5.5.5": "x"}
+        maintenant = time.time()
+        st.audit["11.196.59.85"] = (maintenant, "AUCUNE ACTION", "à surveiller seulement", 2)
+        st.audit["11.138.12.41"] = (maintenant, "BANNIR", "faux moteur de recherche", 5)
+        st.audit["11.5.5.5"] = (maintenant - 2 * self.m.AUDIT_TTL, "AUCUNE ACTION", "trop vieux", 0)      # expired: proposed until checked again
+        proposees = [ip for ip, _ in st.to_ban()]
+        self.assertEqual(sorted(proposees), ["11.138.12.41", "11.5.5.5"])
+        self.assertTrue(any(ip == "11.196.59.85" and "AUCUNE ACTION" in why for ip, why in st.not_proposed), st.not_proposed)
+
+    def test_155_proposition_en_arriere_plan_par_l_enquete(self):
+        with open(script_path("app-log-live.py"), encoding="utf-8") as f:
+            s = f.read()
+        bloc = s[s.index("    def evaluate_repeat(ip):"):s.index("    def watch_repeat(ip, L):")]
+        self.assertIn("audit_verdict(ip, app)", bloc)
+        self.assertNotIn("--evidence", bloc.split('"""', 2)[2])                 # the code no longer asks --evidence (the docstring says why)
+        self.assertIn('verdict == "BANNIR" and bans >= REPEAT_MIN', bloc)

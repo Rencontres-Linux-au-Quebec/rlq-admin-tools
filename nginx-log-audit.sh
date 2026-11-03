@@ -146,7 +146,7 @@ grep_q() { grep "$@" >/dev/null; }
 #                              ne peut pas le voir, le texte etant entre apostrophes (faux positif).
 trap 'ec=$?; echo "" >&2; echo "*** ARRÊT INATTENDU DU SCRIPT (code $ec) À LA LIGNE $LINENO ***" >&2; echo "*** Commande fautive : $BASH_COMMAND" >&2; echo "*** Si le rapport ci-dessus semble incomplet (ex. sections Top 10 absentes), c'\''est probablement la cause." >&2' ERR
 
-readonly SCRIPT_VERSION="2.78.20261102.224544"
+readonly SCRIPT_VERSION="2.79.20261102.230844"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
 # Chemin de ce programme (relances --investigate, --ban, --unban) : defini ICI, avant le bloc --ban qui l'utilise.
 SELF_PATH="$SCRIPT_DIR/$(basename "${BASH_SOURCE[0]}")"
@@ -455,7 +455,7 @@ if (( ${#INV_LISTE[@]} > 1 )); then
     printf '  %-40s %-30s %s\n' "IP" "Verdict" "Raison principale"
     for inv_ip in "${INV_LISTE[@]}"; do
         ligne=$(grep -F "|$inv_ip|" "$INV_RESUME_FILE" | tail -1)
-        IFS='|' read -r _ _ inv_verdict inv_raison <<< "$ligne"
+        IFS='|' read -r _ _ inv_verdict inv_raison _ <<< "$ligne"
         printf '  %-40s %-30s %s\n' "$inv_ip" "${inv_verdict:-(enquête incomplète)}" "$(printf '%s' "${inv_raison%% ; *}" | cut -c1-100)"
     done
     echo
@@ -669,9 +669,9 @@ vpn_lire() {
     VPN_TYPE=""; VPN_NOM=""; VPN_TOR=0; VPN_TOR_DATE=""
     if [[ -r "$vpn_py" ]] && command -v python3 >/dev/null 2>&1; then
         if [[ "$VERBOSE" == "1" ]]; then
-            ligne=$(run python3 "$vpn_py" "$ip" --org "$RESEAU_ORG" --net "$RESEAU_NET" --verbose 2>&3) || ligne=""
+            ligne=$(run python3 "$vpn_py" "$ip" --org "$RESEAU_ORG" --net "$RESEAU_NET" --abuse "$RESEAU_ABUS" --verbose 2>&3) || ligne=""
         else
-            ligne=$(run python3 "$vpn_py" "$ip" --org "$RESEAU_ORG" --net "$RESEAU_NET" 2>/dev/null) || ligne=""
+            ligne=$(run python3 "$vpn_py" "$ip" --org "$RESEAU_ORG" --net "$RESEAU_NET" --abuse "$RESEAU_ABUS" 2>/dev/null) || ligne=""
         fi
     fi
     [[ -n "$ligne" ]] || return 0
@@ -3155,7 +3155,7 @@ recommander() {
     for j in "${raisons[@]}"; do echo "    - $j"; done
     for j in "${notes[@]}"; do echo "    · $j"; done
     [[ -n "$cmd" ]] && echo "  Commande : $cmd"
-    echo "  RÉSUMÉ|$ip|$verdict|$INV_RAISON" >> "${INV_RESUME_FILE:-/dev/null}"
+    echo "  RÉSUMÉ|$ip|$verdict|$INV_RAISON|${ETAT_F2B_BANS:-0}" >> "${INV_RESUME_FILE:-/dev/null}"      # 2.79: read by app-log-live.py too
 }
 
 # --- --investigate IP : enquete complete sur TOUT l'historique disponible (actif + rotations + .gz) ------------------
@@ -3170,6 +3170,14 @@ if [[ -n "$INVESTIGATE_IP" ]]; then
     INIT_ALL_TMP_FILES+=("$INV_SRC")
     trap 'rm -f "${INIT_ALL_TMP_FILES[@]}"' EXIT
     merge_all_rotations "${ORIG_ACCESS_LOG:-$ACCESS_LOG}" "$INV_SRC" > /dev/null
+    # 2.79: the requests REFUSED by our nginx rules are logged to blocked-probes.log (same format), not to the site log: they are requests of the
+    # address too. Without them, 132.196.59.85 (28 probes of .php files refused, 2 requests in the site log) scored 1/7 while its evidence said
+    # "justifié", and --ban refused what app-log-live.py and web-monitor.py proposed.
+    INV_REFUS=0
+    if compgen -G "/var/log/nginx/blocked-probes.log*" >/dev/null; then
+        inv_ipre=$(printf '%s' "$INVESTIGATE_IP" | sed 's/[.]/\\./g')
+        INV_REFUS=$(lire_chrono /var/log/nginx/blocked-probes.log* | { grep -E "^$inv_ipre " || true; } | tee -a "$INV_SRC" | wc -l)
+    fi
     CATCHALL_MERGED="$STATE_DIR/.investigate-catchall.$$"
     INIT_ALL_TMP_FILES+=("$CATCHALL_MERGED")
     [[ -n "$CATCHALL_LOG" ]] && { merge_all_rotations "$CATCHALL_LOG" "$CATCHALL_MERGED" > /dev/null 2>&1 || true; }
@@ -3190,7 +3198,9 @@ if [[ -n "$INVESTIGATE_IP" ]]; then
         recommander
         exit 0
     fi
-    investigate_and_propose "$INV_REC" "$(dirname "${ORIG_ACCESS_LOG:-$ACCESS_LOG}")/$(basename "${ORIG_ACCESS_LOG:-$ACCESS_LOG}")*  (zgrep pour les .gz)" "dans tout l'historique disponible"
+    inv_portee="dans tout l'historique disponible"
+    (( INV_REFUS > 0 )) && inv_portee="$inv_portee, dont $INV_REFUS refusées par nginx (blocked-probes.log)"
+    investigate_and_propose "$INV_REC" "$(dirname "${ORIG_ACCESS_LOG:-$ACCESS_LOG}")/$(basename "${ORIG_ACCESS_LOG:-$ACCESS_LOG}")*  (zgrep pour les .gz)" "$inv_portee"
     if [[ "$ENQUETE_INCOHERENTE" != "1" ]]; then recommander; fi
     # The question only in a terminal, as root, without --no-prompt (otherwise the advice already gives the command).
     if [[ "$INV_PROPOSER" == "1" && "$INV_VERDICT" == BANNIR && "$NO_PROMPT" != "1" && -t 0 && -t 1 && "$EUID" -eq 0 ]]; then confirm_and_ban "$INVESTIGATE_IP"; fi

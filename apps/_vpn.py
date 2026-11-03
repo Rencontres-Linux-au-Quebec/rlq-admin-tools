@@ -26,7 +26,7 @@ import subprocess
 import sys
 import time
 
-__version__ = "1.0.20261102.224544"
+__version__ = "1.1.20261102.230844"
 
 SEP = "\x1f"
 # Owner of the block (RDAP organisation and network name) -> (kind, short name; empty: the owner's first word). The first match wins.
@@ -79,11 +79,12 @@ def first_word(organisation, network):
     return (words[0] if words else "?")[:12]
 
 
-def kind_of(organisation, network, short=True):
+def kind_of(organisation, network, short=True, abuse=""):
     """(kind, name) of the owner of an address block - VPN, Tor, Relay, Hosting (see VPN_OWNERS) - or None: an access provider (home,
     mobile), a company, a school... A guess from the NAME of the owner, not a proof. Name: the provider's name when known, otherwise the first
-    word of the owner (short=True, for a table column) or its whole name (short=False)."""
-    text = " ".join(x or "" for x in (organisation, network)).lower()
+    word of the owner (short=True, for a table column) or its whole name (short=False). 1.1: `abuse`, the abuse mailbox of the block, is read too
+    (132.196.59.85: organisation "Divya Quamara", network "cloud", abuse@microsoft.com)."""
+    text = " ".join(x or "" for x in (organisation, network, abuse)).lower()
     if not text.strip():
         return None
     for pattern, kind, name in VPN_OWNERS_RE:
@@ -159,6 +160,7 @@ def main():
     global VERBOSE
     p = argparse.ArgumentParser(prog="_vpn.py", description="VPN, Tor, relay or hosting provider behind an address (guess from the block owner, official Tor list).")
     p.add_argument("ip")
+    p.add_argument("--abuse", default="", help="abuse mailbox of the block (RDAP)")
     p.add_argument("--net", default="", help="network name of the block (RDAP)")
     p.add_argument("--no-tor", action="store_true", help="do not read the Tor exit list")
     p.add_argument("--org", default="", help="organisation owning the block (RDAP)")
@@ -166,7 +168,7 @@ def main():
     p.add_argument("--version", action="version", version="%(prog)s " + __version__)
     a = p.parse_args()
     VERBOSE = a.verbose
-    kind = kind_of(a.org, a.net, short=False)
+    kind = kind_of(a.org, a.net, short=False, abuse=a.abuse)
     tor, date = 0, ""
     if not a.no_tor:
         exits, date = tor_exits()

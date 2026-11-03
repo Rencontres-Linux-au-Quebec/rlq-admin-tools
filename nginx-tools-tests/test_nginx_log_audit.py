@@ -1304,6 +1304,45 @@ class ChkNginxLogs278(ChkNginxLogs):
             self.assertIn("11.66.6.6", exits)
 
 
-for _classe in (ChkNginxLogs272, ChkNginxLogs273, ChkNginxLogs274, ChkNginxLogs278):
+
+AZURE_RDAP = ('{"name": "cloud", "country": "US", "port43": "whois.ripe.net",'
+              ' "entities": [{"roles": ["registrant"], "vcardArray": ["vcard", [["fn", {}, "text", "Divya Quamara"]]]},'
+              ' {"roles": ["abuse"], "vcardArray": ["vcard", [["email", {}, "text", "abuse@microsoft.com"]]]}]}')
+
+
+class ChkNginxLogs279(ChkNginxLogs278):
+    """2.79 : l'enquête compte aussi les requêtes REFUSÉES par nginx (blocked-probes.log) ; la ligne RÉSUMÉ donne le nombre de bannissements fail2ban."""
+
+    def setUp(self):
+        super().setUp()
+        tor = "\\n".join("11.200.0.%d" % i for i in range(1, 12))
+        self.mock("curl", 'for a in "$@"; do case "$a" in\n'
+                          f'  *rdap.org/ip/11.196.59.85) echo \'{AZURE_RDAP}\'; exit 0;;\n'
+                          f'  *torbulkexitlist) printf "{tor}\\n"; exit 0;;\n'
+                          'esac; done; exit 1')
+
+    def test_279_sondes_refusees_comptent_dans_l_enquete(self):
+        ip = "11.196.59.85"
+        self.add(acc(ip, "30/Oct/2026", "03:00:00", "/md5.php3", 404, "-"), acc(ip, "30/Oct/2026", "03:00:01", "/en_CA/md5.php3", 303, "-"))
+        pages = ["/this_is_a_new_hello_world.php", "/wp-content/plugins/hellopress/wp_filemanager.php", "/3PJcpMFsD8B.php", "/ab.php"] * 7
+        with open(os.path.join(self.logs, "blocked-probes.log"), "w") as f:
+            f.writelines(f'{ip} - - [01/Nov/2026:04:{i // 60:02d}:{i % 60:02d} -0400] "GET {p} HTTP/1.1" 404 146 "-" "-" host="www.exemple.org"\n'
+                         for i, p in enumerate(pages))
+        resume = os.path.join(self.d, "resume.txt")
+        rc, out, err = self.run_cmd(["bash", self.prog, "prod", "--investigate", ip, "--no-prompt"], env_extra={"INV_RESUME_FILE": resume})
+        self.assertEqual(rc, 0, out + err)
+        self.assertIn("30 requêtes dans tout l'historique disponible, dont 28 refusées par nginx (blocked-probes.log)", out)
+        self.assertRegex(out, r"\[✓\] Recherche de fichiers sensibles : \d+ requêtes")
+        self.assertIn("Type d'adresse : hébergeur (Microsoft)", out)            # 1.1 of apps/_vpn.py: the abuse mailbox is read too
+        self.assertIn("Score 3/7 : bannissement recommandé.", out)              # the --ban gate accepts it now
+        self.assertIn("Verdict : BANNIR", out)
+        ligne = open(resume, encoding="utf-8").read().strip()
+        self.assertTrue(ligne.startswith(f"RÉSUMÉ|{ip}|BANNIR|"), ligne)
+        self.assertEqual(ligne.rsplit("|", 1)[1], "0")                          # fifth field: fail2ban bans (none here)
+
+
+for _classe in (ChkNginxLogs272, ChkNginxLogs273, ChkNginxLogs274, ChkNginxLogs278, ChkNginxLogs279):
     for _nom in [n for n in vars(ChkNginxLogs) if n.startswith("test")]:
         setattr(_classe, _nom, None)                                      # same fixtures as ChkNginxLogs, without running its tests twice
+for _nom in [n for n in vars(ChkNginxLogs278) if n.startswith("test")]:
+    setattr(ChkNginxLogs279, _nom, None)

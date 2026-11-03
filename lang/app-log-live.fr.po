@@ -343,8 +343,8 @@ msgstr "\n  Pas de réponse en "
 msgid "──── Address often banned: "
 msgstr "──── Adresse bannie souvent : "
 
-msgid "fail2ban bans — verdict: ban justified ────"
-msgstr "bannissements fail2ban — verdict : bannissement justifié ────"
+msgid "fail2ban bans — investigation verdict: ban ────"
+msgstr "bannissements fail2ban — verdict de l'enquête : bannir ────"
 
 msgid "suspicious requests in this session"
 msgstr "requêtes suspectes dans cette session"
@@ -710,8 +710,8 @@ msgstr "Namespace de journal (défaut : celui du service, détecté)"
 msgid "Neither read nor write the permanent address cache (DNS name, block owner, country: apps/_cache_ip.py)"
 msgstr "Ne lit ni n'écrit le cache permanent des adresses (nom DNS, propriétaire du bloc, pays : apps/_cache_ip.py)"
 
-msgid "Do not offer to ban an address often banned (verdict « ban justified » of nginx-log-audit.sh --evidence)"
-msgstr "Ne propose pas de bannir une adresse bannie souvent (verdict « bannissement justifié » de nginx-log-audit.sh --evidence)"
+msgid "Do not offer to ban an address often banned (verdict « ban » of nginx-log-audit.sh --investigate)"
+msgstr "Ne propose pas de bannir une adresse bannie souvent (verdict « bannir » de nginx-log-audit.sh --investigate)"
 
 msgid "No [banned: …] label (reads neither fail2ban nor the CrowdSec ipsets)"
 msgstr "Pas d'étiquette [banni : …] (ne lit ni fail2ban ni les ipsets CrowdSec)"
@@ -3011,3 +3011,15 @@ msgstr "Réponses 404 seulement (--not-found)"
 
 msgid "fail2ban: banned at"
 msgstr "fail2ban : bannie le"
+
+msgid "nginx-log-audit.sh: {verdict}"
+msgstr "nginx-log-audit.sh : {verdict}"
+
+msgid "Checking {n} address(es) with nginx-log-audit.sh --investigate (the program that bans decides)…"
+msgstr "Vérification de {n} adresse(s) par nginx-log-audit.sh --investigate (le programme qui bannit décide)…"
+
+msgid "Not proposed (verdict of nginx-log-audit.sh --investigate):"
+msgstr "Non proposées (verdict de nginx-log-audit.sh --investigate) :"
+
+msgid "investigation"
+msgstr "enquête"
