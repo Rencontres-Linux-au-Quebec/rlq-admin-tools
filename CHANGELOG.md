@@ -371,6 +371,19 @@ Earlier history was archived outside this repository when this file was created.
 
 ## app-log-live.py
 
+### 1.164.20261104.162540 - A language prefix is only a code of ISO 639-1: "/ev" is no longer a sitemap page
+
+- Title: the comparison with sitemap.xml removes a first segment of two letters only when it is a language code of ISO 639-1.
+- Reason: request of the administrator on 2026-11-04, after the analysis of the z key (1.163): the health was "to look at" because of one 404 on "/ev" counted as a page of sitemap.xml.
+- Changes: new constant ISO_639_1; sitemap_path() removes the language prefix only when its two letters are in it (used by Sitemap.read, Sitemap.listed, the health and --log-chk-sitemap); doc/fr and doc/en 07-app-log-live.md; tests: class AppLogLive164 (2 tests).
+- Bugs fixed:
+  - Symptom: "404 on pages of sitemap.xml (important, in the health): 1 - URL: /ev", health "to look at".
+  - Diagnosis: LANGUAGE_PREFIX_RE takes any two-letter first segment for a language prefix; "/ev" (a truncated "/event") became "/", the home page, which is in the sitemap.
+  - Fix: only a code of ISO 639-1 (with or without region, "fr", "es", "fr_CA") is removed; "/ev" stays "/ev" and is counted with the 404 never in sitemap.xml (not in the health).
+- Safeguards and edge cases: "/fr", "/es", "/fr_CA/...", "/en_US/..." are compared as before; a two-letter path that is a real language code the site does not offer (e.g. "/de") is still compared as the home page: the z key reports it as information.
+- Checks performed: AppLogLive164 (new), AppLogLive142 and AppLogLive143 (sitemap) unchanged, test_advisor, catalogue tests.
+- Action required from the user: none.
+
 ### 1.163.20261104.135312 - z key: analysis of the problems raised, with recommended solutions and history
 
 - Title: new z key: the program analyzes the problems raised by its dashboard, reads their details in the logs and recommends solutions, compared with the previous analyses.
@@ -4508,6 +4521,16 @@ Earlier history was archived outside this repository when this file was created.
   - Not changed: nginx-log-audit.sh keeps its own bash values (its --page-burst default is 8 against 15 here; this difference is still to be decided).
 
 ## apps/_advisor.py
+
+### 1.1.20261104.162540 - Advice of the two-letter false alarm updated for app-log-live.py 1.164
+
+- Title: the advice of the false alarm "404 counted as a sitemap page" no longer asks for a fix of the program.
+- Reason: app-log-live.py 1.164 takes only the codes of ISO 639-1 for language prefixes; the false alarm can now only come from a real language code that the site does not offer.
+- Changes: rule_sitemap_404(): new text of the advice; lang/_advisor.fr.po: entry replaced.
+- Bugs fixed: none.
+- Safeguards and edge cases: the rule still recognizes a two-letter path, so older versions of app-log-live.py are still explained.
+- Checks performed: test_advisor (catalogue test included).
+- Action required from the user: none.
 
 ### 1.0.20261104.135312 - First version: analysis of the problems raised by app-log-live.py
 

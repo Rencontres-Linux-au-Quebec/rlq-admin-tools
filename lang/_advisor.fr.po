@@ -177,8 +177,8 @@ msgstr "Problèmes vus le plus souvent (à corriger en premier) : "
 msgid "HTTP 5xx errors on {url}"
 msgstr "Erreurs HTTP 5xx sur {url}"
 
-msgid "nothing to fix on the site; the counting of app-log-live.py should not take this path for a language prefix (to correct in the program)"
-msgstr "rien à corriger sur le site ; le décompte d'app-log-live.py ne devrait pas prendre ce chemin pour un préfixe de langue (à corriger dans le programme)"
+msgid "nothing to fix on the site; since app-log-live.py 1.164 only the codes of ISO 639-1 are taken for language prefixes"
+msgstr "rien à corriger sur le site ; depuis app-log-live.py 1.164, seuls les codes ISO 639-1 sont pris pour des préfixes de langue"
 
 msgid "correct the link at its source (see the referers); optional: a 301 redirect to the full page (Website > Configuration > Redirects)"
 msgstr "corriger le lien à sa source (voir les référents) ; facultatif : une redirection 301 vers la page complète (Site Web > Configuration > Redirections)"
