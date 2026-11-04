@@ -119,7 +119,7 @@ from urllib.parse import unquote, urlsplit
 from collections import Counter, OrderedDict
 from concurrent.futures import Future
 
-__version__ = "1.162.20261103.121212"
+__version__ = "1.163.20261104.135312"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
@@ -136,7 +136,7 @@ def _start():
         # behind the output filter of apps/_traduire.py, which saw "\x1b[...m11.191.124.32" as a word and left colored addresses and names in clear
         os.environ["NGINX_TOOLS_ANON_SELF"] = "1"
         try:
-            return module.demarrer(SCRIPT_DIR, SCRIPT_NAME, "APP_LOG_LIVE_LANG", ("_bbb", "_listes", "nginx-log-audit", "_connexions", "_limites"))
+            return module.demarrer(SCRIPT_DIR, SCRIPT_NAME, "APP_LOG_LIVE_LANG", ("_bbb", "_listes", "nginx-log-audit", "_connexions", "_limites", "_advisor"))
         finally:
             os.environ.pop("NGINX_TOOLS_ANON_SELF", None)            # the programs launched by this one keep the usual rule
     except Exception:
@@ -5291,6 +5291,47 @@ class Stats:
         return res + (list(people) if level >= 5 else []) + (list(extras) if level >= 9 else [])
 
 
+def advisor_facts(stats):
+    """1.163: the counters of the summary as a plain dictionary for apps/_advisor.py (z key): the module never reads the Stats object itself."""
+    codes = {}
+    for _t, code, url, _ip in stats.http_errors:
+        codes.setdefault(url, Counter())[str(code)] += 1
+    try:
+        latency_n = LATENCY.totals()[0].get("n")
+    except Exception:                                    # no latency monitor in this run: no sample rule
+        latency_n = None
+    to_ban = stats.to_ban()
+    odoo_errors = []
+    for (level, logger, message), n in stats.odoo_errors.most_common(20):
+        seen = stats.odoo_errors_time.get((level, logger, message))
+        odoo_errors.append({"level": level, "logger": logger or "", "message": message, "n": n, "first": seen[0] if seen else None,
+                            "last": seen[1] if seen else None, "when": clock_of(seen[1]) if seen else ""})
+    slow = [{"total": total, "url": url, "ip": ip, "sql_n": info[0], "t_sql": info[1], "t_py": info[2], "size": info[3], "t": info[4]}
+            for (total, url, ip), info in zip(stats.slow_requests, stats.slow_info)]
+    return {"start": stats.first or stats.start, "requests": stats.requests, "lines": stats.lines,
+            "errors5": dict(stats.errors[5]), "codes_by_url": codes,
+            "plain_4xx": {u: n for u, n in stats.errors[4].items() if not suspect_url(u) and not is_disabled(u)},
+            "gone_404": dict(stats.gone_404), "sitemap_paths": SITEMAP.paths if SITEMAP is not None else None,
+            "odoo_errors": odoo_errors, "conflicts": stats.conflicts, "conflict_codes": dict(stats.conflict_codes),
+            "final_failures": stats.final_failures, "failure_codes": dict(stats.failure_codes), "mails": stats.mails, "slow": slow,
+            "to_ban": [(ip, stats.who(ip), stats.ban_reason(ip, n)) for ip, n in to_ban],
+            "not_proposed": [(ip, stats.who(ip), reason) for ip, reason in stats.not_proposed],
+            "account_ips": dict(stats.account_ips), "who": {ip: stats.who(ip) for ip in stats.account_ips}, "latency_n": latency_n}
+
+
+def advisor_history_file():
+    """1.163: advisor-history.json, in the state folder of the program (APP_LOG_LIVE_STATE_DIR, /var/lib/app-log-live, ~/.cache/app-log-live); None if none is writable."""
+    for folder in (os.environ.get("APP_LOG_LIVE_STATE_DIR"), "/var/lib/app-log-live", os.path.join(os.path.expanduser("~"), ".cache", "app-log-live")):
+        if folder:
+            try:
+                os.makedirs(folder, exist_ok=True)
+                if os.access(folder, os.W_OK):
+                    return os.path.join(folder, "advisor-history.json")
+            except OSError:
+                continue
+    return None
+
+
 BUFFER_DEFAULT = 200                # 1.113 --buffer N: last displayed lines kept in memory (f: displayed again with the current options; P: printed to a file)
 STATUS_EVERY_DEFAULT = -1          # 1.113 --status-every N: status bar (reverse video) after every N displayed lines; 0 = never; -1 (1.120, 1.131): automatic = two thirds of the terminal height
 # 1.113 SQL injection attempts, on the decoded URL: UNION SELECT, time or error functions (sleep, benchmark, extractvalue...), tautologies (' or 1=1), stacked statements
@@ -5663,7 +5704,7 @@ KEYS = {b"\x07": "g", b"\x14": "t", b"\r": "enter", b"\n": "enter"}      # Ctrl-
 # Simple keys of the menu (? or h): toggles and settings of the command-line options, and a few commands
 MENU_KEYS = {b"?": "legend", b"h": "help", b"i": "i", b"m": "m", b"n": "n", b"r": "r", b"s": "s", b"v": "v", b"d": "dns", b"t": "dnst", b"H": "H", b"o": "o", b"V": "V",
                 b"S": "S", b"I": "I", b"b": "b", b"a": "accent", b"c": "chime", b"e": "exclude", b"T": "report", b"E": "E", b"w": "watch", b"D": "D", b"l": "highlight", b"M": "modules", b"W": "save", b"L": "recent",
-                b"G": "G", b"Y": "latency", b"P": "print", b"f": "refresh", b"A": "anonymize", b"R": "record", b"N": "step", b"F": "steps_line", b"q": "addons", b"U": "underline", b"x": "lognginx", b"u": "hideua", b"j": "reqlen", b"k": "hostshow", b"X": "errors"}
+                b"G": "G", b"Y": "latency", b"P": "print", b"f": "refresh", b"A": "anonymize", b"R": "record", b"N": "step", b"F": "steps_line", b"q": "addons", b"U": "underline", b"x": "lognginx", b"u": "hideua", b"j": "reqlen", b"k": "hostshow", b"X": "errors", b"z": "advise"}
 MENU_KEYS.update({str(n).encode(): f"level{n}" for n in range(1, LEVEL_MAX + 1)})   # 1 to 9: dashboard at the chosen level
 KEYS.update(MENU_KEYS)
 
@@ -6715,6 +6756,8 @@ def follow(cmd, people, resolver, options, output):
         lines.append(f"    {bold('f')}  refresh: the last lines of the buffer are displayed again with the current options (IP, DNS, names, --only...), not counted again")
         lines.append(f"    {bold('W')}  save the settings changed since startup into {system_config_path()} (every option changeable on the fly: ACCENTUATE_GROUP, ANONYMIZE, CHIME, DNS_MAX*, EXCLUDE_IP, HEALTH, HIDE_IP, HIGHLIGHT, LEVEL, MIN, MODULES_*, NOT_FOUND, ONLY, SUSPECT, TIME_REPORT, UNDERLINE, VERBOSE, WATCH)")
         lines.append(f"    {bold('b')}  addresses to ban: {to_ban} — asks, then nginx-log-audit.sh --ban (like web-monitor.py)")
+        lines.append(f"    {bold('z')}  " + TR("analysis of the problems raised: details read in the logs (Odoo tracebacks, referers of the 404), probable causes and recommended solutions, "
+                                             "compared with the previous analyses (new, recurring, resolved)"))
         others_at = lines.index("  Others:") + 1                 # 1.113: the other keys are also in alphabetical order
         lines[others_at:] = sorted(lines[others_at:], key=lambda text_line: (ANSI_RE.sub("", text_line).strip()[:1].lower(), ANSI_RE.sub("", text_line).strip()[:1].isupper()))
         write_out(lines)
@@ -6834,6 +6877,44 @@ def follow(cmd, people, resolver, options, output):
         text = "".join(output.buffer) if hasattr(output, "buffer") else ""
         command = " ".join([os.path.basename(__file__)] + [a for a in sys.argv[1:] if a != "--report-err"])
         write_out(["", module.construire_rapport(os.path.basename(__file__), __version__, command, text, 0, int(time.time() - session_start), SCRIPT_DIR)])
+
+    def advise():
+        """1.163, z key: analysis of the problems raised by the dashboard (apps/_advisor.py). The details are read in the logs only for these problems: the Odoo
+        traceback of each error (logfile, otherwise the systemd journal around its time) and, for the 4xx URLs, the codes, referers and User-Agents of the nginx
+        access logs. The result is compared with the previous analyses (advisor-history.json) for continuous improvement."""
+        module = load_module("_advisor")
+        if module is None:
+            write_out(["  " + TR("Analysis unavailable: apps/_advisor.py is missing.")])
+            return
+        write_out(["  " + TR("Reading the details in the logs (Odoo tracebacks, nginx referers)...")])
+        facts = advisor_facts(stats)
+        details = {"tracebacks": {}, "nginx": {}}
+        wanted = [e for e in facts["odoo_errors"] if e["level"] in ("ERROR", "CRITICAL") or "Exception during request handling" in e["message"]]
+        logfile = options.get("odoo_journal")
+        file_lines = module.read_tail(logfile) if wanted and logfile and os.path.isfile(logfile) else None
+        for e in wanted[:10]:
+            lines_e = file_lines
+            if not lines_e and e["last"]:
+                cmd = ["journalctl", "-u", options["service"], "-q", "--no-pager", "-o", "cat", "--since", f"@{math.floor(e['last'] - 5)}",
+                       "--until", f"@{math.ceil(e['last'] + 5)}"] + (["--namespace", options["ns"]] if options.get("ns") else [])
+                lines_e = lancer(cmd, 30)[1].splitlines()
+            trace = module.odoo_trace(lines_e or [], e["logger"], e["message"])
+            if trace:
+                details["tracebacks"][(e["level"], e["logger"], e["message"])] = trace
+        access = [f for f in nginx_log_files(options["profile"]) if "access" in os.path.basename(f)]
+        urls = list(facts["gone_404"]) + [u for u, _n in Counter(facts["plain_4xx"]).most_common(6)]
+        if access and urls:
+            details["nginx"] = module.nginx_details(access, urls, since=facts["start"])
+        findings = module.analyze(facts, details, TR, raw)
+        path = advisor_history_file()
+        history = module.History(path)
+        trend = history.record(findings, f"{os.getpid()}-{int(session_start)}")
+        kept = history.save()
+        start = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(facts["start"]))
+        title = color_code(STYLES["title"], TR("──── Analysis of the problems raised ({name} v{version}): since {start} ────").format(
+            name=os.path.basename(__file__), version=__version__, start=start))
+        write_out(["", title] + module.render(findings, trend, TR, color_code, path if kept else None,
+                                              history.error or (TR("no writable state folder") if not path else None)))
 
     def key(key_value):
         """A keyboard key (menu or Ctrl-G / Ctrl-T)."""
@@ -7059,6 +7140,8 @@ def follow(cmd, people, resolver, options, output):
             write_out(module_lines(people.odoo_db, options["profile"].get("ODOO_CONF"), databases_seen, (MODULES_SORT_DEFAULT, False, options["modules_sort"][2]), 10))
         elif key_value == "E":
             error_details(False)
+        elif key_value == "advise":                          # 1.163: z key - analysis of the problems raised, with recommendations and history
+            advise()
         elif key_value == "record":                          # 1.93: R key - start / stop a test recording
             if record["r"] is None:
                 if record["pending"] is not None:
@@ -7759,7 +7842,7 @@ def main():
         except ValueError as problem:                                 # a wrong address stops the program at once
             parser.error(f"--sitemap: {problem}")
     options = {"keep_ip": not args.hide_ip, "minimal": args.min, "hide_addons": args.hide_addons, "lines": args.lines, "recap": args.recap,
-               "slow": max(0.0, args.slow), "only": [t.lower() for t in (args.only or []) if t], "highlight_words": read_highlight(args.highlight), "highlight_pattern": highlight_pattern(read_highlight(args.highlight)), "suspect": args.suspect, "errors_only": args.errors_only, "disk_min": max(0.0, args.disk_min), "connections": max(0.0, min(100.0, args.connections)), "external_ip": not args.no_isp, "odoo_journal": profile.get("ODOO_LOGFILE"), "profile": profile, "service": service, "diag_hosts": args.diagnose_host, "not_found": args.not_found, "steps_line": args.steps_line, "summary": args.summary, "banned_ips": banned_ips,
+               "slow": max(0.0, args.slow), "only": [t.lower() for t in (args.only or []) if t], "highlight_words": read_highlight(args.highlight), "highlight_pattern": highlight_pattern(read_highlight(args.highlight)), "suspect": args.suspect, "errors_only": args.errors_only, "disk_min": max(0.0, args.disk_min), "connections": max(0.0, min(100.0, args.connections)), "external_ip": not args.no_isp, "odoo_journal": profile.get("ODOO_LOGFILE"), "profile": profile, "service": service, "ns": ns, "diag_hosts": args.diagnose_host, "not_found": args.not_found, "steps_line": args.steps_line, "summary": args.summary, "banned_ips": banned_ips,
                "presence": Presence(args.idle) if is_odoo and not args.no_presence else None, "health": args.health, "keys": not args.no_keys and not args.no_follow, "app": profile.get("APP_NAME"), "app_label": profile.get("APP_LABEL", "application"), "hide_user_agent": args.hide_user_agent, "request_length": args.request_length, "log_nginx": bool(args.log_nginx), "log_merge": bool(args.log_merge), "status_header": bool(args.status_header), "nginx_merged": LOGS_MERGE in cmd, "propose_ban": not args.no_ban_prompt, "watch": [t.strip().lower() for t in (args.watch or "").split(",") if t.strip()], "agents": not args.no_user_agent and not args.no_follow, "acces_logs": profile.get("ACCESS_LOGS"),
                "exclude": exclusions, "chime": args.chime, "group": args.accentuate_group if group_members else None, "membres": group_members,
                "report_min": args.time_report or 0.0, "level": args.level, "modules_sort": modules_sort_state}

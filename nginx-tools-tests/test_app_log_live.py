@@ -1303,6 +1303,29 @@ class AppLogLive(EnvTest):
         self.assertRegex(l[2], r"INFO +127\.0\.0\.1\s+base werkzeug ce serveur")
 
     # --- 1.11: dashboard (Ctrl-G, Ctrl-T), health, daily log ---
+    def test_163_touche_z_analyse_et_historique(self):
+        """1.163 : touche z, analyse des problèmes soulevés (apps/_advisor.py) avec recommandations et historique (advisor-history.json)."""
+        self.journal_tableau(waiting=12)
+        # the analysis reads the systemd journal around each error (-o cat): answered at once here, never the 12 s of the stream
+        self.mock("journalctl", f'echo "$@" >> {self.d}/journalctl.log; case "$*" in *" -g "*) cat {self.d}/history.txt;; *"-o cat"*) exit 0;; '
+                                f'*) cat {self.d}/stream.txt; sleep 12;; esac')
+        etat = os.path.join(self.d, "etat")
+        sequence = [(b"/event", b"h", 0.8), (b"analyse des probl\xc3\xa8mes soulev\xc3\xa9s", b"z", 0.4), (b"Historique :", b"\x03", 0.5)]
+        text, envoyees = self.run_pty(["python3", self.prog, "--no-history", "--no-isp", "--no-presence", "--no-banned", "--lines", "1"], sequence,
+                                      env_extra={"APP_LOG_LIVE_STATE_DIR": etat, "WEB_MONITOR_STATE_DIR": self.d}, timeout=60)
+        self.assertEqual(envoyees, 3, text)
+        t = " ".join(text.split())
+        self.assertIn("Analyse des problèmes soulevés (app-log-live.py v", t)
+        self.assertRegex(t, r"Sommaire : \d+ problèmes, \d+ à regarder")
+        self.assertIn("Erreurs HTTP 5xx sur /boum", t)
+        self.assertIn("Première analyse conservée", t)
+        self.assertIn("Courriels en échec : 1", t)
+        self.assertNotIn("Traceback (most recent call last)", text)
+        with open(os.path.join(etat, "advisor-history.json"), encoding="utf-8") as f:
+            historique = json.load(f)
+        self.assertEqual(len(historique["runs"]), 1)
+        self.assertIn("-o cat", open(os.path.join(self.d, "journalctl.log")).read())       # the details are read in the journal
+
     def journal_tableau(self, waiting=12):
         self.journal([werkzeug(PERSONNE, "/event"), werkzeug(DNS, "/fr_CA/event"), werkzeug(DNS, "/en_US/shop"), werkzeug(DNS, "/es/x"), werkzeug(DNS, "/web/assets/1/a.js"),
                       werkzeug(DNS, "/absent", 404), werkzeug(DNS, "/boum", 500), werkzeug(DNS, "/boum?x=1", 500),
@@ -4529,4 +4552,5 @@ class AppLogLive160(unittest.TestCase):
         with open(script_path("app-log-live.py"), encoding="utf-8") as f:
             src = f.read()
         self.assertNotIn('eprint(TR("Startup information (lists', src)
+
 

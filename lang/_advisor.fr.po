@@ -1,0 +1,388 @@
+# French translation of the messages of apps/_advisor.py (msgid = English text of the code, msgstr = French translation).
+# Standard PO format. Empty msgstr = untranslated (English stays). Keep the {placeholders} and the leading/trailing spaces.
+msgid ""
+msgstr ""
+"Project-Id-Version: _advisor\n"
+"Language: fr\n"
+"Source-Language: en\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+msgid "Rule {name} could not run: {problem}"
+msgstr "La règle {name} n'a pas pu s'exécuter : {problem}"
+
+msgid "Nothing to fix in this window: no error that needs an action"
+msgstr "Rien à corriger dans cette période : aucune erreur qui demande une action"
+
+msgid "the mail server refused or could not be reached"
+msgstr "le serveur de courriel a refusé ou n'a pas pu être joint"
+
+msgid "cold cache after a restart or an update: assets and views computed once"
+msgstr "cache froid après un redémarrage ou une mise à jour : assets et vues calculés une première fois"
+
+msgid "most requests are answered without an Odoo line that gives its duration (static files, cache, chat websocket)"
+msgstr "la plupart des requêtes reçoivent une réponse sans ligne d'Odoo qui donne leur durée (fichiers statiques, cache, websocket du clavardage)"
+
+msgid "nginx got no answer from Odoo (502, 503, 504): service stopped or restarting, every worker busy, or a request longer than the timeout"
+msgstr "nginx n'a pas eu de réponse d'Odoo (502, 503, 504) : service arrêté ou en redémarrage, tous les workers occupés, ou une requête plus longue que le délai"
+
+msgid "Odoo answered with an internal error (500): an exception in a module"
+msgstr "Odoo a répondu par une erreur interne (500) : une exception dans un module"
+
+msgid "the page was deleted, unpublished or renamed while the sitemap or a link still lists it"
+msgstr "la page a été supprimée, dépubliée ou renommée alors que le sitemap ou un lien la mentionne encore"
+
+msgid "a link of the site itself points to a page that no longer answers"
+msgstr "un lien du site lui-même pointe vers une page qui ne répond plus"
+
+msgid "an error of Odoo not yet known to this analysis"
+msgstr "une erreur d'Odoo encore inconnue de cette analyse"
+
+msgid "Odoo gave up after 5 tries: two writers on the same record (scheduled action and users, or the same user on several devices)"
+msgstr "Odoo a abandonné après 5 essais : deux écritures sur le même enregistrement (action planifiée et utilisateurs, ou le même utilisateur sur plusieurs appareils)"
+
+msgid "often the same user on several devices, or a very busy chat channel"
+msgstr "souvent le même utilisateur sur plusieurs appareils, ou un canal de clavardage très actif"
+
+msgid "odoo-mail-retry.py lists the unsent e-mails and offers to resend them; app-log-check.py explains the causes"
+msgstr "odoo-mail-retry.py liste les courriels non envoyés et propose de les renvoyer ; app-log-check.py explique les causes"
+
+msgid "Pages: "
+msgstr "Pages : "
+
+msgid "odoo-warmup.py right after each restart or update of Odoo"
+msgstr "odoo-warmup.py juste après chaque redémarrage ou mise à jour d'Odoo"
+
+msgid "the database: heavy searches, missing indexes or tables to clean"
+msgstr "la base de données : recherches lourdes, index manquants ou tables à nettoyer"
+
+msgid "Python: heavy computation or report, or too few workers for the load"
+msgstr "Python : calcul ou rapport lourd, ou trop peu de workers pour la charge"
+
+msgid "suspicious requests (.env, wp-includes, probes) from addresses that are neither banned nor protected"
+msgstr "requêtes suspectes (.env, wp-includes, sondages) d'adresses ni bannies ni protégées"
+
+msgid "shared relays (CDN) or a verdict of nginx-log-audit.sh other than BANNIR"
+msgstr "relais partagés (CDN) ou verdict de nginx-log-audit.sh autre que BANNIR"
+
+msgid "By address: "
+msgstr "Par adresse : "
+
+msgid "a robot that creates accounts or tests addresses"
+msgstr "un robot qui crée des comptes ou qui teste des adresses"
+
+msgid "normal use and search engines following the links"
+msgstr "usage normal et moteurs de recherche qui suivent les liens"
+
+msgid "the latency verdict is indicative; let the program run longer before deciding on hardware"
+msgstr "le verdict de latence est indicatif ; laisser tourner le programme plus longtemps avant de décider du matériel"
+
+msgid "First analysis kept: the next ones will say what is new, recurring or resolved"
+msgstr "Première analyse conservée : les suivantes diront ce qui est nouveau, récurrent ou réglé"
+
+msgid "Linked from the site itself: "
+msgstr "Lien depuis le site lui-même : "
+
+msgid "Linked from other sites: "
+msgstr "Lien depuis d'autres sites : "
+
+msgid "key D: site diagnosis (service, Odoo ports, nginx upstream)"
+msgstr "touche D : diagnostic du site (service, ports d'Odoo, upstream de nginx)"
+
+msgid "app-health-check.py: workers, memory and PostgreSQL connections"
+msgstr "app-health-check.py : workers, mémoire et connexions PostgreSQL"
+
+msgid "key E: the traceback of the error (app-log-check.py --errors-only --full-trace)"
+msgstr "touche E : la trace de l'erreur (app-log-check.py --errors-only --full-trace)"
+
+msgid "fix or update the module named in the traceback"
+msgstr "corriger ou mettre à jour le module nommé dans la trace"
+
+msgid "not a language code"
+msgstr "pas un code de langue"
+
+msgid "a language code that the site may not offer"
+msgstr "un code de langue que le site n'offre peut-être pas"
+
+msgid "a truncated or mistyped URL, not a page of the site that disappeared"
+msgstr "une URL tronquée ou mal tapée, pas une page du site qui a disparu"
+
+msgid "a link cut in an e-mail, a message or a post"
+msgstr "un lien coupé dans un courriel, un message ou une publication"
+
+msgid "publish the page again, or add a 301 redirect to its replacement (Website > Configuration > Redirects)"
+msgstr "republier la page, ou ajouter une redirection 301 vers sa remplaçante (Site Web > Configuration > Redirections)"
+
+msgid "then correct the menus and links that point to it (see the referers)"
+msgstr "puis corriger les menus et les liens qui pointent vers elle (voir les référents)"
+
+msgid "product or event unpublished, archived or renamed, still reached from search engines or old links"
+msgstr "produit ou événement dépublié, archivé ou renommé, encore atteint par les moteurs de recherche ou d'anciens liens"
+
+msgid "old or mistyped link; not in sitemap.xml, so not counted in the health"
+msgstr "lien ancien ou mal tapé ; absent de sitemap.xml, donc hors santé"
+
+msgid "add a 301 redirect to the replacement page (Website > Configuration > Redirects), or publish it again"
+msgstr "ajouter une redirection 301 vers la page de remplacement (Site Web > Configuration > Redirections), ou la republier"
+
+msgid "correct the page that holds the link (Linked from the site itself), if any"
+msgstr "corriger la page qui contient le lien (Lien depuis le site lui-même), s'il y en a une"
+
+msgid "find the record in the traceback that follows in the log; spread the scheduled actions that write the same model"
+msgstr "trouver l'enregistrement dans la trace qui suit dans le journal ; étaler les actions planifiées qui écrivent le même modèle"
+
+msgid "nothing to do while the final failures stay at zero"
+msgstr "rien à faire tant que les échecs définitifs restent à zéro"
+
+msgid "Failed e-mails: {n}"
+msgstr "Courriels en échec : {n}"
+
+msgid "odoo-sql-maint: VACUUM ANALYZE and the index checks"
+msgstr "odoo-sql-maint : VACUUM ANALYZE et la vérification des index"
+
+msgid "look at the filters and the number of records of the slow pages"
+msgstr "regarder les filtres et le nombre d'enregistrements des pages lentes"
+
+msgid "app-health-check.py: workers, memory, processor"
+msgstr "app-health-check.py : workers, mémoire, processeur"
+
+msgid "check workers, limit_time_cpu and limit_time_real in odoo.conf"
+msgstr "vérifier workers, limit_time_cpu et limit_time_real dans odoo.conf"
+
+msgid "Slow requests: {n}"
+msgstr "Requêtes lentes : {n}"
+
+msgid "key b: nginx-log-audit.sh --ban checks the white list and its score (threshold 3) before banning; CDN relays are never proposed"
+msgstr "touche b : nginx-log-audit.sh --ban vérifie la liste blanche et son score (seuil 3) avant de bannir ; les relais CDN ne sont jamais proposés"
+
+msgid "nothing to do: banning them would block legitimate visitors"
+msgstr "rien à faire : les bannir bloquerait des visiteurs légitimes"
+
+msgid "enable reCAPTCHA or Cloudflare Turnstile (Website > Configuration > Settings), or set the sign-up to « On invitation »"
+msgstr "activer reCAPTCHA ou Cloudflare Turnstile (Site Web > Configuration > Paramètres), ou passer l'inscription à « Sur invitation »"
+
+msgid "nothing to do"
+msgstr "rien à faire"
+
+msgid "Latency measured on {n} Odoo requests only, for {total} requests"
+msgstr "Latence mesurée sur {n} requêtes d'Odoo seulement, pour {total} requêtes"
+
+msgid "Summary: {p} problems, {l} to look at, {i} for information"
+msgstr "Sommaire : {p} problèmes, {l} à regarder, {i} pour information"
+
+msgid "Problems seen most often (to fix first): "
+msgstr "Problèmes vus le plus souvent (à corriger en premier) : "
+
+msgid "HTTP 5xx errors on {url}"
+msgstr "Erreurs HTTP 5xx sur {url}"
+
+msgid "nothing to fix on the site; the counting of app-log-live.py should not take this path for a language prefix (to correct in the program)"
+msgstr "rien à corriger sur le site ; le décompte d'app-log-live.py ne devrait pas prendre ce chemin pour un préfixe de langue (à corriger dans le programme)"
+
+msgid "correct the link at its source (see the referers); optional: a 301 redirect to the full page (Website > Configuration > Redirects)"
+msgstr "corriger le lien à sa source (voir les référents) ; facultatif : une redirection 301 vers la page complète (Site Web > Configuration > Redirections)"
+
+msgid "404 on {url}, a page listed in sitemap.xml"
+msgstr "404 sur {url}, une page listée dans sitemap.xml"
+
+msgid "sitemap.xml refused (403) to robots of the blocking list"
+msgstr "sitemap.xml refusé (403) aux robots de la liste de blocage"
+
+msgid "bot_blocker.conf refuses these robots: expected"
+msgstr "bot_blocker.conf refuse ces robots : c'est voulu"
+
+msgid "Odoo builds sitemap.xml for the domain of the website: a request for another host name, or nginx not passing it to Odoo"
+msgstr "Odoo construit sitemap.xml pour le domaine du site web : une requête pour un autre nom d'hôte, ou nginx qui ne la transmet pas à Odoo"
+
+msgid "{n} answers 404 on {url}"
+msgstr "{n} réponses 404 sur {url}"
+
+msgid "Exception: "
+msgstr "Exception : "
+
+msgid "Traceback not found in the logs read (logfile or systemd journal around this time)"
+msgstr "Trace introuvable dans les journaux lus (fichier journal ou journal systemd autour de cette heure)"
+
+msgid "key E shows the complete traces (app-log-check.py --errors-only --full-trace)"
+msgstr "la touche E montre les traces complètes (app-log-check.py --errors-only --full-trace)"
+
+msgid "key E for the traceback; then fix or update the module concerned"
+msgstr "touche E pour la trace ; puis corriger ou mettre à jour le module concerné"
+
+msgid "Odoo {level}: {message}"
+msgstr "Odoo {level} : {message}"
+
+msgid "Final failures of concurrent updates: {n}"
+msgstr "Échecs définitifs de mise à jour simultanée : {n}"
+
+msgid "Many retried update conflicts: {n}"
+msgstr "Beaucoup de conflits de mise à jour réessayés : {n}"
+
+msgid "Time in SQL {sql} %, in Python {py} %"
+msgstr "Temps dans SQL {sql} %, dans Python {py} %"
+
+msgid "Addresses to ban: {n}"
+msgstr "Adresses à bannir : {n}"
+
+msgid "Addresses not proposed for banning: {n}"
+msgstr "Adresses non proposées au bannissement : {n}"
+
+msgid "Sign-up and password reset forms used a lot: {n} requests"
+msgstr "Formulaires d'inscription et de mot de passe oublié très utilisés : {n} requêtes"
+
+msgid "Sign-up and password reset forms: {n} requests from {k} addresses"
+msgstr "Formulaires d'inscription et de mot de passe oublié : {n} requêtes de {k} adresses"
+
+msgid "Compared with the previous analysis ({when}): {new} new, {again} seen before, {resolved} resolved"
+msgstr "Par rapport à l'analyse précédente ({when}) : {new} nouveaux, {again} déjà vus, {resolved} réglés"
+
+msgid "[new]"
+msgstr "[nouveau]"
+
+msgid "[no new occurrence since the last analysis]"
+msgstr "[rien de nouveau depuis la dernière analyse]"
+
+msgid "Probable cause: "
+msgstr "Cause probable : "
+
+msgid "Codes: "
+msgstr "Codes : "
+
+msgid "404 on {url} counted as a sitemap page: false alarm"
+msgstr "404 sur {url} compté comme page du sitemap : fausse alerte"
+
+msgid "404 on {url}: beginning of a real page, a truncated link"
+msgstr "404 sur {url} : début d'une vraie page, un lien tronqué"
+
+msgid "nothing to do, unless a search engine you want is refused"
+msgstr "rien à faire, sauf si un moteur de recherche voulu est refusé"
+
+msgid "check the domain of the website (Website > Configuration > Settings > Domain) and that nginx sends /sitemap.xml to Odoo"
+msgstr "vérifier le domaine du site web (Site Web > Configuration > Paramètres > Domaine) et que nginx transmet /sitemap.xml à Odoo"
+
+msgid "open https://YOUR-SITE/sitemap.xml in a browser: it must answer 200"
+msgstr "ouvrir https://VOTRE-SITE/sitemap.xml dans un navigateur : il doit répondre 200"
+
+msgid "Resolved since the previous analysis: "
+msgstr "Réglés depuis l'analyse précédente : "
+
+msgid "History: {path} ({n} analyses kept)"
+msgstr "Historique : {path} ({n} analyses conservées)"
+
+msgid "Pages of the sitemap that start the same way: "
+msgstr "Pages du sitemap qui commencent de la même façon : "
+
+msgid "sitemap.xml answers {codes}"
+msgstr "sitemap.xml répond {codes}"
+
+msgid "Module of the last frame: {module} ({frame})"
+msgstr "Module du dernier appel : {module} ({frame})"
+
+msgid "[recurring: {k} analyses in a row]"
+msgstr "[récurrent : {k} analyses de suite]"
+
+msgid "[back: seen in {k} analyses]"
+msgstr "[revenu : vu dans {k} analyses]"
+
+msgid "[seen in {k} analyses]"
+msgstr "[vu dans {k} analyses]"
+
+msgid "History not kept: {problem}"
+msgstr "Historique non conservé : {problem}"
+
+msgid "The path is a single segment of two letters ({kind}): app-log-live.py removes it as a language prefix and compares the home page (/), which is in the sitemap"
+msgstr "Le chemin est un seul segment de deux lettres ({kind}) : app-log-live.py le retire comme préfixe de langue et compare la page d'accueil (/), qui est dans le sitemap"
+
+msgid "User-Agents: "
+msgstr "User-Agents : "
+
+msgid "a browser with its developer tools open asked for a source map (.map) of the assets: harmless"
+msgstr "un navigateur avec ses outils de développement ouverts a demandé une source map (.map) des assets : sans gravité"
+
+msgid "nothing to do; it disappears when nobody opens the developer tools (or in debug=assets mode)"
+msgstr "rien à faire ; cela disparaît quand personne n'ouvre les outils de développement (ou en mode debug=assets)"
+
+msgid "a browser sent an argument that this version of Odoo no longer expects: an old copy of the web client kept in the browser cache"
+msgstr "un navigateur a envoyé un argument que cette version d'Odoo n'attend plus : une vieille copie du client web gardée dans le cache du navigateur"
+
+msgid "nothing to do if it is rare; frequent after an update: the users reload the page (Ctrl-Shift-R)"
+msgstr "rien à faire si c'est rare ; fréquent après une mise à jour : les utilisateurs rechargent la page (Ctrl-Maj-R)"
+
+msgid "a visitor of the live chat came back with an expired guest session (cookie of an old conversation)"
+msgstr "un visiteur du clavardage est revenu avec une session d'invité expirée (témoin d'une ancienne conversation)"
+
+msgid "nothing to do if it is rare; many times a day: check the live chat module and the cookie settings"
+msgstr "rien à faire si c'est rare ; plusieurs fois par jour : vérifier le module de clavardage et les réglages des témoins"
+
+msgid "a request raised an exception: the cause is in the traceback that follows the message"
+msgstr "une requête a levé une exception : la cause est dans la trace qui suit le message"
+
+msgid "read the traceback below (or key E); fix the module named in the last frame, or report it to its author"
+msgstr "lire la trace ci-dessous (ou touche E) ; corriger le module nommé dans le dernier appel, ou le signaler à son auteur"
+
+msgid "concurrent update retried by Odoo"
+msgstr "mise à jour simultanée réessayée par Odoo"
+
+msgid "the user had no right on a record (access rule or group missing)"
+msgstr "l'utilisateur n'avait pas de droit sur un enregistrement (règle d'accès ou groupe manquant)"
+
+msgid "check the groups of the user and the record rules of the model named in the message; normal when a visitor follows an old link"
+msgstr "vérifier les groupes de l'utilisateur et les règles d'enregistrement du modèle nommé dans le message ; normal quand un visiteur suit un ancien lien"
+
+msgid "the record no longer exists (deleted) while a page or a link still points to it"
+msgstr "l'enregistrement n'existe plus (supprimé) alors qu'une page ou un lien pointe encore vers lui"
+
+msgid "find who points to it (link, menu, e-mail, scheduled action) and remove or update the reference"
+msgstr "trouver ce qui pointe vers lui (lien, menu, courriel, action planifiée) et retirer ou mettre à jour la référence"
+
+msgid "a validation of the module refused the data entered"
+msgstr "une validation du module a refusé les données saisies"
+
+msgid "usually a user message, not a bug; if it repeats, read the message: a constraint or a mandatory field"
+msgstr "habituellement un message pour l'utilisateur, pas un bogue ; si cela se répète, lire le message : une contrainte ou un champ obligatoire"
+
+msgid "concurrent updates of the same record"
+msgstr "mises à jour simultanées du même enregistrement"
+
+msgid "Odoo retries by itself; repeated final failures: a scheduled action and users write the same record at the same time"
+msgstr "Odoo réessaie de lui-même ; échecs définitifs répétés : une action planifiée et des utilisateurs écrivent le même enregistrement en même temps"
+
+msgid "PostgreSQL connection lost or refused"
+msgstr "connexion à PostgreSQL perdue ou refusée"
+
+msgid "check PostgreSQL (systemctl status postgresql), max_connections and db_maxconn of odoo.conf"
+msgstr "vérifier PostgreSQL (systemctl status postgresql), max_connections et db_maxconn d'odoo.conf"
+
+msgid "an Odoo worker ran out of memory"
+msgstr "un worker d'Odoo a manqué de mémoire"
+
+msgid "raise limit_memory_soft / limit_memory_hard in odoo.conf, or find the heavy report or export"
+msgstr "augmenter limit_memory_soft / limit_memory_hard dans odoo.conf, ou trouver le rapport ou l'export lourd"
+
+msgid "a request ran longer than the allowed time"
+msgstr "une requête a duré plus longtemps que le temps permis"
+
+msgid "find the slow page (slow requests, key Y); raise limit_time_real only if the page is legitimately long"
+msgstr "trouver la page lente (requêtes lentes, touche Y) ; augmenter limit_time_real seulement si la page est longue avec raison"
+
+msgid "a client asked for something that does not exist or is not allowed"
+msgstr "un client a demandé quelque chose qui n'existe pas ou qui n'est pas permis"
+
+msgid "nothing to fix in Odoo if the URL is not one of the site's pages"
+msgstr "rien à corriger dans Odoo si l'URL n'est pas une page du site"
+
+msgid "a programming error in a module"
+msgstr "une erreur de programmation dans un module"
+
+msgid "the module named in the last frame of the traceback has a bug: update it, or report it to its author with the traceback"
+msgstr "le module nommé dans le dernier appel de la trace a un bogue : le mettre à jour, ou le signaler à son auteur avec la trace"
+
+msgid "the mail server refuses for now (quota, rate limit): retry later"
+msgstr "le serveur de courriel refuse pour l'instant (quota, limite de débit) : réessayer plus tard"
+
+msgid "the mail server refuses the order of the commands (authentication missing?)"
+msgstr "le serveur de courriel refuse l'ordre des commandes (authentification manquante ?)"
+
+msgid "the recipient or the sender is refused: check the address and the sender domain (SPF, DKIM)"
+msgstr "le destinataire ou l'expéditeur est refusé : vérifier l'adresse et le domaine d'envoi (SPF, DKIM)"
