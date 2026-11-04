@@ -371,6 +371,21 @@ Earlier history was archived outside this repository when this file was created.
 
 ## app-log-live.py
 
+### 1.165.20261104.183145 - --advise [DAYS]: the analysis of the z key over the last weeks of logs
+
+- Title: new option --advise [DAYS]: the analysis of the problems raised (z key) over a window of several days, without the live stream.
+- Reason: request of the administrator on 2026-11-04: an option that runs what the z key does, to find things to fix over the last weeks of logs.
+- Changes:
+  - New option --advise [DAYS] (14 by default, at most 366): --no-follow, --no-keys and --status-every 0 implied; the window is the last DAYS days unless --since / --until are given; no line limit inside the window (ADVISE_LINES).
+  - follow(): with --advise, the first read of sitemap.xml is awaited (20 s at most) so that the 404 are classified, the lines are counted with the screen sent to /dev/null, then the screen comes back and advise(batch=True) prints the analysis; --summary still prints the session summary after it; Ctrl-C brings the screen back for the summary.
+  - advise(batch): with batch=True, the rotated nginx access logs written during the window (.1, .2.gz...) are read for the referers, and the history is advisor-history-advise.json; advisor_history_file(name).
+  - New constants ADVISE_DAYS_DEFAULT, ADVISE_DAYS_MAX, ADVISE_LINES, ADVISE_SITEMAP_WAIT_S; lang/app-log-live.fr.po: 4 entries; doc/fr and doc/en 07-app-log-live.md.
+  - Files: app-log-live.py, apps/_advisor.py, lang/app-log-live.fr.po, doc, tests.
+- Bugs fixed: none.
+- Safeguards and edge cases: refused with --record-test-log and outside 0 < DAYS <= 366; no daily journal is written (as with --no-follow); the history of the z key is never mixed with that of --advise (windows of different lengths); the journal of a server keeps only what its retention allows (journald SystemMaxUse / MaxRetentionSec): an older window gives fewer lines, never an error.
+- Checks performed: new tests test_165_option_advise_periode_sans_afficher_les_lignes and test_165_option_advise_valeurs_refusees; test_advisor (gzip logs); help sorted alphabetically.
+- Action required from the user: none. Suggested: sudo app-log-live.py --advise once a week (or as a scheduled task) and fix the problems listed first in "to fix first".
+
 ### 1.164.20261104.162540 - A language prefix is only a code of ISO 639-1: "/ev" is no longer a sitemap page
 
 - Title: the comparison with sitemap.xml removes a first segment of two letters only when it is a language code of ISO 639-1.
@@ -4521,6 +4536,16 @@ Earlier history was archived outside this repository when this file was created.
   - Not changed: nginx-log-audit.sh keeps its own bash values (its --page-burst default is 8 against 15 here; this difference is still to be decided).
 
 ## apps/_advisor.py
+
+### 1.2.20261104.183145 - Rotated nginx logs compressed with gzip are read
+
+- Title: read_tail() reads the rotated logs compressed with gzip (.gz).
+- Reason: app-log-live.py 1.165 --advise reads the nginx access logs of a window of several weeks, most of them rotated and compressed.
+- Changes: read_tail(): a .gz file is decompressed and the end of its text kept (same limit); nginx_details() therefore accepts .gz files.
+- Bugs fixed: none.
+- Safeguards and edge cases: a damaged .gz file gives no line, never an error.
+- Checks performed: test_advisor (test_journal_compresse_gz).
+- Action required from the user: none.
 
 ### 1.1.20261104.162540 - Advice of the two-letter false alarm updated for app-log-live.py 1.164
 

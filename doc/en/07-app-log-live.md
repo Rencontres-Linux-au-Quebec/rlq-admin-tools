@@ -30,6 +30,16 @@ Severity: ✖ problem, ⚠ to look at, ℹ information. Nothing is modified on t
 
 1.164: in the comparison with sitemap.xml (health, `--log-chk-sitemap`), a first segment of two letters is removed as a language prefix only when it is a code of ISO 639-1 (`/fr`, `/es`, `/fr_CA`...). Before, `/ev` (a truncated `/event`) was compared as the home page and counted as a 404 "in sitemap.xml".
 
+### Over several weeks: --advise (1.165)
+
+```
+sudo app-log-live.py --advise          # the last 14 days
+sudo app-log-live.py --advise 30       # the last 30 days
+sudo app-log-live.py --advise --since 2026-10-01 --until 2026-10-31
+```
+
+The same analysis as the z key, without the live stream: the logs of the window are read without being shown (this can take a few minutes for several weeks), then the analysis is printed. The rotated nginx access logs of the window (`.1`, `.2.gz`...) are read for the referers. Each run is kept in `advisor-history-advise.json` (separate from the history of the z key, whose windows are not comparable), so that two runs a week apart say what is new, recurring or resolved. With `--summary`, the session summary follows. Without sudo, the systemd journal and `/var/lib/app-log-live` may not be readable.
+
 ## Recording a test (R key)
 
 To analyze a test of the site (an abandoned survey, a registration, a talk proposal...) without the noise:

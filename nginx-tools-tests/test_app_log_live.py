@@ -1326,6 +1326,33 @@ class AppLogLive(EnvTest):
         self.assertEqual(len(historique["runs"]), 1)
         self.assertIn("-o cat", open(os.path.join(self.d, "journalctl.log")).read())       # the details are read in the journal
 
+    def test_165_option_advise_periode_sans_afficher_les_lignes(self):
+        """1.165 : --advise 7 lit la période sans afficher les lignes, puis l'analyse de la touche z ; historique séparé (advisor-history-advise.json)."""
+        self.journal([werkzeug(PERSONNE, "/event"), werkzeug(DNS, "/absent-de-tout", 404), werkzeug(DNS, "/boum", 500), werkzeug(DNS, "/boum", 500),
+                      odoo("ERROR", "base", "odoo.http", "Exception during request handling.")])
+        self.mock("journalctl", f'echo "$@" >> {self.d}/journalctl.log; case "$*" in *" -g "*) cat {self.d}/history.txt;; *"-o cat"*) exit 0;; '
+                                f'*) cat {self.d}/stream.txt;; esac')
+        etat = os.path.join(self.d, "etat")
+        rc, out, err = self.lancer("--advise", "7", "--no-history", "--no-isp", "--no-presence", "--no-banned",
+                                   env_extra={"APP_LOG_LIVE_STATE_DIR": etat, "WEB_MONITOR_STATE_DIR": self.d})
+        self.assertEqual(rc, 0, err)
+        t = " ".join(out.split())
+        self.assertIn("Analyse des problèmes soulevés", t)
+        self.assertIn("Erreurs HTTP 5xx sur /boum", t)
+        self.assertIn("Odoo ERROR : Exception during request handling.", t)
+        self.assertNotIn("GET /absent-de-tout", out)                                     # the lines are counted, not shown
+        self.assertIn("--advise : lecture des journaux", err)
+        journal = open(os.path.join(self.d, "journalctl.log")).read()
+        self.assertRegex(journal, r"--since @\d+")                                       # the window of 7 days is given to journalctl
+        with open(os.path.join(etat, "advisor-history-advise.json"), encoding="utf-8") as f:
+            self.assertEqual(len(json.load(f)["runs"]), 1)
+        self.assertFalse(os.path.exists(os.path.join(etat, "advisor-history.json")))     # the z key keeps its own history
+
+    def test_165_option_advise_valeurs_refusees(self):
+        rc, _out, err = self.run_cmd(["python3", self.prog, "--advise", "0"])
+        self.assertEqual(rc, 2)
+        self.assertIn("--advise", err)
+
     def journal_tableau(self, waiting=12):
         self.journal([werkzeug(PERSONNE, "/event"), werkzeug(DNS, "/fr_CA/event"), werkzeug(DNS, "/en_US/shop"), werkzeug(DNS, "/es/x"), werkzeug(DNS, "/web/assets/1/a.js"),
                       werkzeug(DNS, "/absent", 404), werkzeug(DNS, "/boum", 500), werkzeug(DNS, "/boum?x=1", 500),
