@@ -1,0 +1,334 @@
+"""apps/_advisor.py et touche z d'app-log-live.py (1.163) : analyse des problèmes soulevés, détails lus dans les journaux (trace d'Odoo, référents de nginx),
+recommandations, historique des analyses (nouveau, récurrent, réglé) ; catalogue lang/_advisor.fr.po ; dictionnaire de faits construit depuis Stats."""
+import ast
+import importlib.util
+import json
+import os
+import re
+import stat
+import tempfile
+import time
+import unittest
+from collections import Counter
+
+from helpers import SCRIPTS_DIR
+
+ENVIRONNEMENT = "commun"
+PROGRAMME = "app-log-live.py"                               # nom du programme (lu par stats_runner)
+os.environ.setdefault("APP_LOG_LIVE_SITEMAP", "off")
+
+
+def charger(nom, chemin):
+    spec = importlib.util.spec_from_file_location(nom, chemin)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+ADV = charger("_advisor_t", os.path.join(SCRIPTS_DIR, "apps", "_advisor.py"))
+
+TRACE = """2026-11-04 12:21:15,001 1234 INFO prod werkzeug: 1.2.3.4 - - "GET / HTTP/1.1" 200 - 10 0.01 0.02
+2026-11-04 12:21:16,123 1234 ERROR prod odoo.http: Exception during request handling.
+Traceback (most recent call last):
+  File "/usr/lib/python3/dist-packages/odoo/http.py", line 2367, in __call__
+    response = request._serve_db()
+  File "/opt/odoo/rlq-addons/rlq_event_extra/controllers/main.py", line 88, in track_page
+    tags = json.loads(kw['tags'])[0]
+KeyError: 'tags'
+2026-11-04 12:21:17,000 1234 INFO prod werkzeug: done
+""".splitlines()
+
+ACCESS = """1.1.1.1 - - [04/Nov/2026:09:10:00 -0500] "GET /en_CA/shop/tasse HTTP/1.1" 404 1234 "https://site.example/en_CA/shop" "Mozilla/5.0" host=site.example
+1.1.1.2 - - [04/Nov/2026:09:11:00 -0500] "GET /en_CA/shop/tasse?x=1 HTTP/1.1" 404 1234 "https://www.google.com/" "Mozilla/5.0" host=site.example
+1.1.1.3 - - [04/Nov/2026:09:12:00 -0500] "GET /sitemap.xml HTTP/1.1" 403 12 "-" "SemrushBot" host=site.example
+1.1.1.4 - - [01/Nov/2026:09:13:00 -0500] "GET /en_CA/shop/tasse HTTP/1.1" 404 12 "https://old.example/" "Mozilla/5.0" host=site.example
+"""
+
+
+def faits(**k):
+    base = {"start": time.time() - 3600, "requests": 100, "lines": 120, "errors5": {}, "codes_by_url": {}, "plain_4xx": {}, "gone_404": {}, "sitemap_paths": None,
+            "odoo_errors": [], "conflicts": 0, "conflict_codes": {}, "final_failures": 0, "failure_codes": {}, "mails": 0, "slow": [], "to_ban": [], "not_proposed": [],
+            "account_ips": {}, "who": {}, "latency_n": None}
+    base.update(k)
+    return base
+
+
+def erreur(level, logger, message, n=1):
+    return {"level": level, "logger": logger, "message": message, "n": n, "first": time.time(), "last": time.time(), "when": "07:21:16"}
+
+
+def par_id(findings):
+    return {f["id"]: f for f in findings}
+
+
+class Details(unittest.TestCase):
+    """Lecture des détails : trace d'Odoo, en-têtes de nginx."""
+
+    def test_trace_trouvee_et_analysee(self):
+        trace = ADV.odoo_trace(TRACE, "odoo.http", "Exception during request handling.")
+        self.assertEqual(len(trace), 7)
+        self.assertTrue(trace[-1].startswith("KeyError"))
+        p = ADV.parse_traceback(trace)
+        self.assertEqual(p["exception"], "KeyError")
+        self.assertEqual(p["message"], "'tags'")
+        self.assertEqual(p["module"], "rlq_event_extra")                   # dossier rlq-addons/ reconnu
+        self.assertEqual(p["frame"], "main.py:88 in track_page")
+
+    def test_message_avec_nombres_normalises(self):
+        lignes = ["2026-11-04 12:00:00,1 9 ERROR prod odoo.addons.mail: Mail Delivery Failed pour 12 destinataires", "suite"]
+        self.assertEqual(len(ADV.odoo_trace(lignes, "odoo.addons.mail", "Mail Delivery Failed pour N destinataires")), 2)
+        self.assertEqual(ADV.odoo_trace(lignes, "odoo.http", "Mail Delivery Failed pour N destinataires"), [])
+        self.assertEqual(ADV.parse_traceback(["une ligne"]), {})
+
+    def test_nginx_referents_codes_et_fenetre(self):
+        with tempfile.TemporaryDirectory() as d:
+            chemin = os.path.join(d, "site-access.log")
+            with open(chemin, "w") as f:
+                f.write(ACCESS)
+            debut = ADV.calendar.timegm((2026, 11, 2, 0, 0, 0, 0, 0, 0))
+            r = ADV.nginx_details([chemin, os.path.join(d, "absent.log")], ["/en_CA/shop/tasse?y=2", "/sitemap.xml"], since=debut)
+        tasse = r["/en_CA/shop/tasse"]
+        self.assertEqual(tasse["codes"], Counter({"404": 2}))                   # la ligne du 1er novembre est avant la fenêtre
+        self.assertEqual(ADV.internal_referers(tasse), Counter({"https://site.example/en_CA/shop": 1}))
+        self.assertIn("https://www.google.com/", tasse["referers"])
+        self.assertEqual(r["/sitemap.xml"]["codes"], Counter({"403": 1}))
+
+    def test_fin_de_fichier_seulement(self):
+        with tempfile.TemporaryDirectory() as d:
+            chemin = os.path.join(d, "x.log")
+            with open(chemin, "w") as f:
+                f.write("A" * 50 + "\npremiere\nderniere\n")
+            self.assertEqual(ADV.read_tail(chemin, 20), ["premiere", "derniere"])     # la ligne coupée au début est retirée
+            self.assertEqual(ADV.read_tail(os.path.join(d, "absent")), [])
+
+
+class Regles(unittest.TestCase):
+    def test_slash_ev_fausse_alerte(self):
+        f = par_id(ADV.analyze(faits(gone_404={"/ev": 1}, sitemap_paths=frozenset({"/", "/event"}))))
+        self.assertEqual(f["sitemap-404-false:/ev"]["severity"], ADV.INFO)
+        self.assertIn("not a language code", " ".join(f["sitemap-404-false:/ev"]["evidence"]))
+        self.assertIn("all-clear", f)
+
+    def test_lien_tronque_et_vraie_page_disparue(self):
+        f = par_id(ADV.analyze(faits(gone_404={"/even": 2, "/vieille-page": 3}, sitemap_paths=frozenset({"/", "/event", "/event/jpo"}))))
+        self.assertEqual(f["sitemap-404-truncated:/even"]["severity"], ADV.LOOK)
+        self.assertIn("/event", f["sitemap-404-truncated:/even"]["evidence"][0])
+        self.assertEqual(f["sitemap-404:/vieille-page"]["severity"], ADV.LOOK)
+        self.assertNotIn("all-clear", f)
+
+    def test_lien_mort_du_site_et_produit(self):
+        details = {"nginx": {"/a": {"codes": Counter({"404": 4}), "referers": Counter({"https://s.example/page": 4}), "hosts": Counter({"s.example": 4}), "agents": Counter()},
+                             "/shop/tasse": {"codes": Counter({"404": 6}), "referers": Counter(), "hosts": Counter(), "agents": Counter()},
+                             "/bots": {"codes": Counter({"403": 9}), "referers": Counter(), "hosts": Counter(), "agents": Counter()}}}
+        f = par_id(ADV.analyze(faits(plain_4xx={"/a": 4, "/shop/tasse": 6, "/bots": 9, "/rare": 2}), details))
+        self.assertEqual(f["dead-link:/a"]["severity"], ADV.LOOK)
+        self.assertIn("a link of the site itself", f["dead-link:/a"]["cause"])
+        self.assertEqual(f["dead-link:/shop/tasse"]["severity"], ADV.LOOK)
+        self.assertNotIn("dead-link:/bots", f)                                  # 403 : robots refusés, pas une page morte
+        self.assertNotIn("dead-link:/rare", f)                                  # moins de 3
+
+    def test_sitemap_xml_403_et_404(self):
+        f = par_id(ADV.analyze(faits(plain_4xx={"/sitemap.xml": 12}, codes_by_url={"/sitemap.xml": {"403": 12}})))
+        self.assertEqual(f["sitemap-xml-403"]["severity"], ADV.INFO)
+        f = par_id(ADV.analyze(faits(plain_4xx={"/sitemap.xml": 5}, codes_by_url={"/sitemap.xml": {"404": 5}})))
+        self.assertEqual(f["sitemap-xml-4xx"]["severity"], ADV.LOOK)
+
+    def test_5xx_passerelle_ou_erreur_interne(self):
+        f = par_id(ADV.analyze(faits(errors5={"/a": 6, "/b": 1}, codes_by_url={"/a": {"502": 6}, "/b": {"500": 1}})))
+        self.assertEqual(f["http-5xx:/a"]["severity"], ADV.PROBLEM)
+        self.assertIn("nginx got no answer", f["http-5xx:/a"]["cause"])
+        self.assertEqual(f["http-5xx:/b"]["severity"], ADV.LOOK)
+        self.assertIn("internal error", f["http-5xx:/b"]["cause"])
+
+    def test_erreurs_odoo_connues_et_trace(self):
+        e = [erreur("ERROR", "odoo.addons.web.controllers.binary", ".map should have been generated through debug assets"),
+             erreur("ERROR", "odoo.http", "Exception during request handling."),
+             erreur("WARNING", "odoo.http", "<function x> called ignoring args {'token'}"),
+             erreur("WARNING", "odoo.models", "un avertissement inconnu"),
+             erreur("CRITICAL", "odoo.service", "inconnu")]
+        trace = ADV.odoo_trace(TRACE, "odoo.http", "Exception during request handling.")
+        f = par_id(ADV.analyze(faits(odoo_errors=e), {"tracebacks": {("ERROR", "odoo.http", "Exception during request handling."): trace}}))
+        carte = next(v for k, v in f.items() if k.startswith("odoo:odoo.addons.web"))
+        self.assertEqual(carte["severity"], ADV.INFO)
+        exc = f["odoo:odoo.http:Exception during request handling."]
+        self.assertEqual(exc["severity"], ADV.LOOK)
+        self.assertIn("programming error", exc["cause"])
+        self.assertTrue(any("rlq_event_extra" in x for x in exc["evidence"]))
+        self.assertFalse(any(k.startswith("odoo:odoo.models") for k in f))        # avertissement inconnu : pas de conseil
+        crit = f["odoo:odoo.service:inconnu"]
+        self.assertEqual(crit["severity"], ADV.PROBLEM)
+        self.assertTrue(any("key E" in a for a in crit["advice"]))               # trace introuvable : touche E
+
+    def test_conflits_courriels_lenteurs_bannissements_formulaires_latence(self):
+        slow_sql = [{"total": 6, "url": "/shop", "ip": "x", "t_sql": 5.0, "t_py": 1.0} for _ in range(5)]
+        f = par_id(ADV.analyze(faits(final_failures=3, failure_codes={"40001": 3}, conflicts=60, mails=1,
+                                     odoo_errors=[erreur("ERROR", "odoo.addons.base.models.ir_mail_server", "550 5.1.1 user unknown")],
+                                     slow=slow_sql, to_ban=[("1.2.3.4", "x [1.2.3.4]", "27 suspicious requests")], not_proposed=[("5.6.7.8", "cdn", "relay")],
+                                     account_ips={"a": 6, "b": 1, "c": 1, "d": 1, "e": 1}, requests=20000, latency_n=30)))
+        self.assertEqual(f["final-conflicts"]["severity"], ADV.PROBLEM)
+        self.assertEqual(f["many-retries"]["severity"], ADV.INFO)
+        self.assertIn("550", " ".join(ADV.SMTP_HINTS[2]))
+        self.assertTrue(any("recipient or the sender" in x for x in f["mail-failures"]["evidence"]))
+        self.assertIn("database", f["slow-requests"]["cause"])
+        self.assertEqual(f["slow-requests"]["severity"], ADV.PROBLEM)
+        self.assertTrue(any("white list" in a for a in f["ban-pending"]["advice"]))
+        self.assertEqual(f["ban-held"]["severity"], ADV.INFO)
+        self.assertEqual(f["account-forms"]["severity"], ADV.LOOK)
+        self.assertEqual(f["latency-sample"]["severity"], ADV.INFO)
+
+    def test_cache_froid(self):
+        cold = [{"total": 6, "url": "/web/assets/1/web.assets.js", "ip": "x", "t_sql": 0.1, "t_py": 5.0}] * 3
+        self.assertIn("cold cache", par_id(ADV.analyze(faits(slow=cold)))["slow-requests"]["cause"])
+
+    def test_une_regle_en_erreur_n_arrete_pas_les_autres(self):
+        f = par_id(ADV.analyze(faits(errors5=None, to_ban=[("1", "x", "y")], gone_404=5)))
+        self.assertTrue(any(k.startswith("advisor-rule-failed:") for k in f))
+        self.assertIn("ban-pending", f)
+
+    def test_ordre_par_gravite(self):
+        f = ADV.analyze(faits(errors5={"/a": 6}, gone_404={"/ev": 1}, to_ban=[("1", "x", "y")]))
+        self.assertEqual([x["severity"] for x in f], sorted([x["severity"] for x in f], reverse=True))
+
+
+class Historique(unittest.TestCase):
+    def setUp(self):
+        self.d = tempfile.mkdtemp()
+        self.path = os.path.join(self.d, "advisor-history.json")
+
+    def tour(self, findings, session, t):
+        h = ADV.History(self.path)
+        trend = h.record(findings, session, t)
+        self.assertTrue(h.save())
+        return trend
+
+    def f(self, *items):
+        return [{"id": i, "severity": ADV.LOOK, "title": "T " + i, "count": c, "evidence": [], "cause": "", "advice": []} for i, c in items]
+
+    def test_nouveau_recurrent_calme_regle_priorites(self):
+        t0 = time.time()
+        r = self.tour(self.f(("a", 2), ("b", 1)), "s1", t0)
+        self.assertIsNone(r["previous"])
+        self.assertEqual(r["tags"], {"a": ("new", 0), "b": ("new", 0)})
+        r = self.tour(self.f(("a", 2), ("b", 3)), "s1", t0 + 60)                   # même session : a n'a pas bougé, b a grandi
+        self.assertEqual(r["tags"]["a"], ("quiet", 0))
+        self.assertEqual(r["tags"]["b"], ("streak", 2))
+        r = self.tour(self.f(("b", 1), ("c", 1)), "s2", t0 + 120)                  # autre session : a a disparu
+        self.assertEqual(r["tags"]["c"], ("new", 0))
+        self.assertEqual(r["tags"]["b"], ("streak", 3))
+        self.assertEqual(r["resolved"], [])                                         # a n'avait rien de nouveau au tour précédent
+        r = self.tour(self.f(("c", 1)), "s3", t0 + 180)
+        self.assertEqual(r["resolved"], ["T b"])
+        self.assertEqual(r["top"][0], ("T b", 3))
+        self.assertEqual(r["runs"], 4)
+        self.assertEqual(stat.S_IMODE(os.stat(self.path).st_mode), 0o600)
+
+    def test_revenu_apres_une_absence(self):
+        t0 = time.time()
+        self.tour(self.f(("a", 1)), "s1", t0)
+        self.tour(self.f(("z", 1)), "s2", t0 + 1)
+        r = self.tour(self.f(("a", 1)), "s3", t0 + 2)
+        self.assertEqual(r["tags"]["a"], ("back", 2))
+
+    def test_fichier_illisible_vieux_et_limite(self):
+        with open(self.path, "w") as f:
+            f.write("{pas du json")
+        h = ADV.History(self.path)
+        self.assertIsNotNone(h.error)
+        self.assertEqual(h.data["runs"], [])
+        vieux = time.time() - (ADV.HISTORY_MAX_DAYS + 1) * 86400
+        with open(self.path, "w") as f:
+            json.dump({"runs": [{"t": vieux, "session": "x", "counts": {"a": 1}, "new": {"a": 1}}] + [{"t": time.time() - 10, "session": str(i), "new": {}} for i in range(ADV.HISTORY_MAX_RUNS + 5)]}, f)
+        h = ADV.History(self.path)
+        r = h.record(self.f(("a", 1)), "neuve")
+        self.assertEqual(r["tags"]["a"], ("new", 0))                                # l'analyse trop vieille est oubliée
+        self.assertEqual(len(h.data["runs"]), ADV.HISTORY_MAX_RUNS)
+        self.assertFalse(ADV.History(None).save())
+
+    def test_affichage(self):
+        findings = ADV.analyze(faits(gone_404={"/ev": 1}, to_ban=[("1", "x [1]", "27 suspicious requests")]))
+        h = ADV.History(self.path)
+        lignes = ADV.render(findings, h.record(findings, "s"), history_path=self.path)
+        texte = "\n".join(lignes)
+        self.assertIn("Summary: 0 problems, 1 to look at", texte)
+        self.assertIn("First analysis kept", texte)
+        self.assertIn("[new]", texte)
+        self.assertIn("→ key b", texte)
+        self.assertIn(self.path, texte)
+        self.assertIn("History not kept: lecture seule", "\n".join(ADV.render(findings, {}, history_error="lecture seule")))
+
+
+class Catalogue(unittest.TestCase):
+    """lang/_advisor.fr.po : chaque texte passé à tr() a sa traduction, chaque entrée existe dans le code, les {variables} sont conservées."""
+
+    def test_catalogue_complet_et_a_jour(self):
+        source = open(os.path.join(SCRIPTS_DIR, "apps", "_advisor.py"), encoding="utf-8").read()
+        arbre = ast.parse(source)
+        textes = set()
+        for n in ast.walk(arbre):
+            if isinstance(n, ast.Call) and n.args and isinstance(n.args[0], ast.Constant) and isinstance(n.args[0].value, str) \
+                    and (getattr(n.func, "id", None) == "tr" or getattr(n.func, "attr", None) == "tr"):
+                textes.add(n.args[0].value)
+        for n in arbre.body:
+            if isinstance(n, ast.Assign) and isinstance(n.targets[0], ast.Name) and n.targets[0].id in ("KNOWN_MESSAGES", "TRACEBACK_HINTS", "SMTP_HINTS"):
+                for t in n.value.elts:
+                    textes.update(e.value for e in t.elts[1:] if isinstance(e, ast.Constant) and isinstance(e.value, str))
+        i18n = charger("_i18n_adv", os.path.join(SCRIPTS_DIR, "apps", "_i18n.py"))
+        po = os.path.join(SCRIPTS_DIR, "lang", "_advisor.fr.po")
+        entrees = dict(i18n.lire_po(po))
+        self.assertIn('"Source-Language: en\\n"', open(po, encoding="utf-8").read())
+        self.assertEqual(sorted(t for t in textes if not entrees.get(t)), [], "textes sans traduction dans lang/_advisor.fr.po")
+        self.assertEqual(sorted(k for k in entrees if k and k not in source), [], "entrées absentes du code")
+        for en, fr in entrees.items():
+            with self.subTest(msgid=en[:50]):
+                self.assertEqual(sorted(re.findall(r"\{\w+\}", en)), sorted(re.findall(r"\{\w+\}", fr)))
+                self.assertNotRegex(fr, "—")                                   # pas de tiret cadratin
+
+    def test_traduction_francaise_par_app_log_live(self):
+        live = charger("live_adv_tr", os.path.join(SCRIPTS_DIR, "app-log-live.py"))
+        self.assertEqual(live.TR("Summary: {p} problems, {l} to look at, {i} for information"), "Sommaire : {p} problèmes, {l} à regarder, {i} pour information")
+
+
+class FaitsEtTouche(unittest.TestCase):
+    """app-log-live.py : touche z, dictionnaire de faits pour le module."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.d = tempfile.mkdtemp()
+        os.environ["WEB_MONITOR_STATE_DIR"] = cls.d               # jamais la vraie recommandation de web-monitor.py du serveur de test
+        cls.m = charger("live_adv", os.path.join(SCRIPTS_DIR, "app-log-live.py"))
+
+    def test_touche_z(self):
+        self.assertEqual(self.m.MENU_KEYS.get(b"z"), "advise")
+        self.assertIsNotNone(self.m.load_module("_advisor"))
+
+    def test_faits(self):
+        s = self.m.Stats(5.0)
+        s.errors[5]["/boum"] = 2
+        s.errors[4].update({"/.env": 3, "/shop/tasse": 7})
+        s.http_errors = [(time.time(), 500, "/boum", "11.1.1.1"), (time.time(), 404, "/shop/tasse", "11.1.1.2")]
+        s.odoo_errors[("ERROR", "odoo.http", "Exception during request handling.")] = 1
+        s.odoo_errors_time[("ERROR", "odoo.http", "Exception during request handling.")] = [time.time(), time.time()]
+        s.slow_requests, s.slow_info = [(6.0, "/lente", "11.1.1.3")], [(10, 1.0, 5.0, 100, time.time())]
+        s.suspect_ips["11.1.1.4"] = 27
+        s.account_ips["11.1.1.5"] = 2
+        f = self.m.advisor_facts(s)
+        self.assertEqual(f["errors5"], {"/boum": 2})
+        self.assertEqual(f["plain_4xx"], {"/shop/tasse": 7})                  # requête suspecte retirée
+        self.assertEqual(f["codes_by_url"]["/boum"], Counter({"500": 1}))
+        self.assertEqual(f["odoo_errors"][0]["logger"], "odoo.http")
+        self.assertEqual(f["slow"][0]["t_py"], 5.0)
+        self.assertEqual([ip for ip, _w, _r in f["to_ban"]], ["11.1.1.4"])
+        self.assertIn("suspicious requests", f["to_ban"][0][2])
+        ADV.analyze(f)                                                         # le module accepte le dictionnaire tel quel
+
+    def test_dossier_d_etat(self):
+        with tempfile.TemporaryDirectory() as d:
+            os.environ["APP_LOG_LIVE_STATE_DIR"] = d
+            try:
+                self.assertEqual(self.m.advisor_history_file(), os.path.join(d, "advisor-history.json"))
+            finally:
+                os.environ.pop("APP_LOG_LIVE_STATE_DIR", None)
+
+
+if __name__ == "__main__":
+    unittest.main()

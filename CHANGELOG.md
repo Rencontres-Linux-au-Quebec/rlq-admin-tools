@@ -371,6 +371,22 @@ Earlier history was archived outside this repository when this file was created.
 
 ## app-log-live.py
 
+### 1.163.20261104.135312 - z key: analysis of the problems raised, with recommended solutions and history
+
+- Title: new z key: the program analyzes the problems raised by its dashboard, reads their details in the logs and recommends solutions, compared with the previous analyses.
+- Reason: request of the administrator on 2026-11-04: add an option to the menu that analyzes the problems raised, looks at the detail of the logs to understand them and recommends leads for solutions, instead of sending the logs for analysis; the analysis of the summaries must allow continuous improvement.
+- Changes:
+  - New key z (MENU_KEYS "advise") and its line in the keys menu (Others, alphabetical order kept).
+  - New closure advise() in follow(): builds the facts, reads the details (Odoo traceback of each ERROR / CRITICAL message in the Odoo logfile, otherwise journalctl -u SERVICE -o cat around its time, at most 10 errors; codes, referers and User-Agents of the 4xx URLs in the nginx access logs of the profile), calls apps/_advisor.py, records the analysis in the history and prints the result.
+  - New functions advisor_facts(stats) (counters of the summary as a plain dictionary: 5xx, 4xx without the suspicious and disabled URLs, codes per URL, 404 of the sitemap, Odoo errors with their times, conflicts, e-mails, slow requests, addresses to ban and not proposed, account forms, latency sample) and advisor_history_file() (advisor-history.json in APP_LOG_LIVE_STATE_DIR, /var/lib/app-log-live or ~/.cache/app-log-live).
+  - The options of follow() carry the journal namespace ("ns") so that the journal read for the tracebacks is the one of the service.
+  - The catalogue lang/_advisor.fr.po is loaded with the program (module written in English, French display); lang/app-log-live.fr.po: 5 entries.
+  - Files: app-log-live.py, apps/_advisor.py (new), lang/_advisor.fr.po (new), lang/app-log-live.fr.po, doc/fr and doc/en 07-app-log-live.md, nginx-tools-tests/test_advisor.py (new), nginx-tools-tests/test_app_log_live.py, nginx-tools-tests/test_conventions.py.
+- Bugs fixed: none in the program. The analysis explains a false alarm of the health: a 404 on "/ev" was counted as a page of sitemap.xml because LANGUAGE_PREFIX_RE takes any two-letter segment for a language prefix and compares the home page; the analysis says so (information, not a problem). The counting itself is not changed in this version (separate request).
+- Safeguards and edge cases: read-only (the logs are only read; the only file written is the history, mode 600, written atomically); module missing: one message, no error; no writable state folder or unreadable history: the analysis is shown, the reason is given; journalctl absent or not root: "traceback not found" and the advice of the E key; at most 30 MB read at the end of each log file; a rule that fails is reported and never stops the others; addresses to ban are only proposed (key b, nginx-log-audit.sh keeps the white list and the score threshold 3; CDN relays are never proposed); log data (URLs, messages, names) is never translated.
+- Checks performed: new nginx-tools-tests/test_advisor.py (details, rules, history, catalogue, facts, z key); new test test_163_touche_z_analyse_et_historique (pseudo-terminal: z key, French display, history written, journal read with -o cat); test_i18n and test_conventions: no new failure (the failures seen are the same on main before this change); the 8 failures of test_app_log_live seen in this environment are the same on main before this change.
+- Action required from the user: none. Optional: run app-log-live.py with sudo so that the systemd journal (tracebacks) and /var/lib/app-log-live (history) are readable.
+
 ### 1.162.20261103.121212 - Enter shows the status bar with the time; SSH count fixed; users logged in (who)
 
 - Title: Enter prints the status bar with the current date and time, the SSH count is fixed and the accounts listed by who are shown.
@@ -4490,6 +4506,23 @@ Earlier history was archived outside this repository when this file was created.
   - Functions: lire(), valide(), charger() returning (values, files read, warnings).
   - Files: apps/_seuils.py, nginx-tools-tests/test_seuils.py (8 tests).
   - Not changed: nginx-log-audit.sh keeps its own bash values (its --page-burst default is 8 against 15 here; this difference is still to be decided).
+
+## apps/_advisor.py
+
+### 1.0.20261104.135312 - First version: analysis of the problems raised by app-log-live.py
+
+- Title: shared module that turns the counters of the dashboard of app-log-live.py into findings with causes and recommended solutions, and keeps a history of the analyses.
+- Reason: request of the administrator on 2026-11-04 (z key of app-log-live.py 1.163): analyze the problems raised, look at the detail of the logs and recommend solutions, with continuous improvement.
+- Changes:
+  - read_tail(), odoo_trace(), parse_traceback() (exception, message, module of the last frame in an addons folder, rlq-addons included), nginx_details() and internal_referers(): details read in the logs.
+  - Analyzer and analyze(): rules for the 5xx errors, the 404 of sitemap.xml (false alarm of a two-letter path, truncated link, page gone), the repeated 404 outside the sitemap (dead internal link, unpublished product or event), sitemap.xml refused or missing, the Odoo messages (KNOWN_MESSAGES) and the exceptions of their tracebacks (TRACEBACK_HINTS), the concurrent update failures, the failed e-mails (SMTP_HINTS), the slow requests (SQL, Python, cold cache), the addresses to ban and those held back, the account forms, the latency sample. Severity: problem, to look at, information.
+  - History: advisor-history.json, new occurrences per analysis (difference with the previous analysis of the same session), tags new, recurring, back, quiet; resolved problems; problems seen most often.
+  - render(): summary, comparison with the previous analysis, findings with evidence, probable cause and recommendations.
+  - lang/_advisor.fr.po: French translation (Source-Language: en).
+- Bugs fixed: none (new module).
+- Safeguards and edge cases: Python 3.8; every text through the translator given by the program, every piece of log data protected from translation; unreadable or corrupt history: started again empty, reason kept; history limited to 200 analyses and 90 days; one failing rule never stops the others.
+- Checks performed: nginx-tools-tests/test_advisor.py.
+- Action required from the user: none.
 
 ## apps/_anonymiser.py
 

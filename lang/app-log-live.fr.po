@@ -3051,3 +3051,18 @@ msgstr "connectés (who)"
 
 msgid "status bar with the current date and time (counters are not reset)"
 msgstr "barre d'état avec la date et l'heure actuelles (les compteurs ne sont pas remis à zéro)"
+
+msgid "analysis of the problems raised: details read in the logs (Odoo tracebacks, referers of the 404), probable causes and recommended solutions, compared with the previous analyses (new, recurring, resolved)"
+msgstr "analyse des problèmes soulevés : détails lus dans les journaux (traces d'Odoo, référents des 404), causes probables et solutions recommandées, comparées aux analyses précédentes (nouveau, récurrent, réglé)"
+
+msgid "Analysis unavailable: apps/_advisor.py is missing."
+msgstr "Analyse indisponible : apps/_advisor.py est absent."
+
+msgid "Reading the details in the logs (Odoo tracebacks, nginx referers)..."
+msgstr "Lecture des détails dans les journaux (traces d'Odoo, référents de nginx)..."
+
+msgid "──── Analysis of the problems raised ({name} v{version}): since {start} ────"
+msgstr "──── Analyse des problèmes soulevés ({name} v{version}) : depuis {start} ────"
+
+msgid "no writable state folder"
+msgstr "aucun dossier d'état accessible en écriture"
