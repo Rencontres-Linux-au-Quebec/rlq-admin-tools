@@ -30,7 +30,7 @@ import re
 import time
 from collections import Counter
 
-__version__ = "1.0.20261104.135312"
+__version__ = "1.1.20261104.162540"
 
 PROBLEM, LOOK, INFO = 2, 1, 0                         # severities: problem, to look at, information
 
@@ -293,7 +293,7 @@ class Analyzer:
                 self.add("sitemap-404-false:" + path, INFO, tr("404 on {url} counted as a sitemap page: false alarm").format(url=raw(url)), n,
                          [tr("The path is a single segment of two letters ({kind}): app-log-live.py removes it as a language prefix and compares the home page (/), which is in the sitemap").format(kind=kind)] + refs,
                          tr("a truncated or mistyped URL, not a page of the site that disappeared"),
-                         [tr("nothing to fix on the site; the counting of app-log-live.py should not take this path for a language prefix (to correct in the program)")])
+                         [tr("nothing to fix on the site; since app-log-live.py 1.164 only the codes of ISO 639-1 are taken for language prefixes")])
                 continue
             longer = sorted(p for p in (paths or ()) if p.startswith(path) and p != path)[:3] if paths else []
             if longer:

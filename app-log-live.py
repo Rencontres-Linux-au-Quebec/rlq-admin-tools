@@ -119,7 +119,7 @@ from urllib.parse import unquote, urlsplit
 from collections import Counter, OrderedDict
 from concurrent.futures import Future
 
-__version__ = "1.163.20261104.135312"
+__version__ = "1.164.20261104.162540"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
@@ -4472,6 +4472,13 @@ SITEMAP_RETRY_S = 60                             # ... and again after 60 s when
 SITEMAP_MAX_BYTES = 50 * 1024 * 1024             # a larger file is refused
 SITEMAP_MAX_FILES = 50                           # sitemap index: at most this many sitemaps read
 LANGUAGE_PREFIX_RE = re.compile(r"^/[a-z]{2}(?:_[A-Z]{2})?(?=/|$)")      # /fr_CA/, /en/...: Odoo's language prefix, removed on both sides of the comparison
+# 1.164: two-letter codes of ISO 639-1. A first segment of two letters is a language prefix only when it is one of them: "/ev" (a truncated "/event")
+# was taken for a language, removed, and compared as the home page "/", which is in the sitemap: a false 404 "in sitemap.xml" in the health.
+ISO_639_1 = frozenset("aa ab ae af ak am an ar as av ay az ba be bg bh bi bm bn bo br bs ca ce ch co cr cs cu cv cy da de dv dz ee el en eo es et eu "
+                      "fa ff fi fj fo fr fy ga gd gl gn gu gv ha he hi ho hr ht hu hy hz ia id ie ig ii ik io is it iu ja jv ka kg ki kj kk kl km kn ko "
+                      "kr ks ku kv kw ky la lb lg li ln lo lt lu lv mg mh mi mk ml mn mr ms mt my na nb nd ne ng nl nn no nr nv ny oc oj om or os pa "
+                      "pi pl ps pt qu rm rn ro ru rw sa sc sd se sg si sk sl sm sn so sq sr ss st su sv sw ta te tg th ti tk tl tn to tr ts tt tw ty "
+                      "ug uk ur uz ve vi vo wa wo xh yi yo za zh zu".split())
 DEFAULT_SITEMAP_URL = "https://www.rencontres-linux.quebec/sitemap.xml"     # 1.143: read by default; --sitemap URL gives another one, --no-sitemap turns it off
 SITEMAP_OFF_BY_ENV = os.environ.get("APP_LOG_LIVE_SITEMAP", "").strip().lower() in ("off", "no", "0")   # 1.143: APP_LOG_LIVE_SITEMAP=off: no default sitemap (tests, offline servers); --sitemap still works
 DISABLED_URI_CONF = "/etc/nginx/snippets/uri-desactivees.conf"               # 1.143: written by nginx-hardening.sh --disable-uri: one "# uri : CHEMIN" line per path
@@ -4515,9 +4522,12 @@ def reload_terminal_size():
 
 
 def sitemap_path(url):
-    """1.142: path of a URL, as compared with the sitemap: no scheme, host, query or fragment; no language prefix (/fr_CA/); no trailing slash."""
+    """1.142: path of a URL, as compared with the sitemap: no scheme, host, query or fragment; no language prefix (/fr_CA/; 1.164: only a code of ISO 639-1);
+    no trailing slash."""
     path = unquote(urlsplit(url.strip()).path or "/")
-    path = LANGUAGE_PREFIX_RE.sub("", path) or "/"
+    m = LANGUAGE_PREFIX_RE.match(path)
+    if m and m.group(0)[1:3] in ISO_639_1:                    # 1.164: a real language code only ("/ev" stays "/ev", "/es" becomes "/")
+        path = path[m.end():] or "/"
     return path[:-1] if len(path) > 1 and path.endswith("/") else path
 
 

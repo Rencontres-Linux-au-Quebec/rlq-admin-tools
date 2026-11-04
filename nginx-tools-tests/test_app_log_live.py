@@ -4554,3 +4554,28 @@ class AppLogLive160(unittest.TestCase):
         self.assertNotIn('eprint(TR("Startup information (lists', src)
 
 
+class AppLogLive164(unittest.TestCase):
+    """1.164 : seul un code ISO 639-1 est un préfixe de langue ; « /ev » (un « /event » tronqué) n'est plus comparé comme la page d'accueil."""
+
+    @classmethod
+    def setUpClass(cls):
+        spec = importlib.util.spec_from_file_location("live164", script_path("app-log-live.py"))
+        cls.m = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(cls.m)
+
+    def test_164_prefixe_de_langue_iso_seulement(self):
+        p = self.m.sitemap_path
+        self.assertEqual(p("/ev"), "/ev")
+        self.assertEqual(p("/ev/"), "/ev")
+        self.assertEqual(p("/zz_ZZ/page"), "/zz_ZZ/page")
+        self.assertEqual(p("/es"), "/")
+        self.assertEqual(p("/fr_CA/event"), "/event")
+        self.assertEqual(p("/en/event/jpo?x=1"), "/event/jpo")
+
+    def test_164_slash_ev_hors_du_sitemap(self):
+        sm = self.m.Sitemap("https://www.example.org/sitemap.xml", start=False)
+        sm.paths = frozenset({"/", "/event"})
+        self.assertFalse(sm.listed("/ev"))                       # 1.163 : True (fausse alerte dans la santé)
+        self.assertTrue(sm.listed("/es"))
+        self.assertTrue(sm.listed("/fr_CA/event"))
+
