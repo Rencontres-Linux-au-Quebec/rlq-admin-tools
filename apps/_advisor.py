@@ -24,13 +24,14 @@
 Every text goes through `tr` (catalogue lang/_advisor.fr.po, the module is written in English) and every piece of log data through
 `raw` (never translated). Nothing is modified on the server; the only file written is the history."""
 import calendar
+import gzip
 import json
 import os
 import re
 import time
 from collections import Counter
 
-__version__ = "1.1.20261104.162540"
+__version__ = "1.2.20261104.183145"
 
 PROBLEM, LOOK, INFO = 2, 1, 0                         # severities: problem, to look at, information
 
@@ -124,7 +125,16 @@ def _norm(text):
 # Details read in the logs
 # ------------------------------------------------------------------------------------------------------------------
 def read_tail(path, max_bytes=TAIL_BYTES):
-    """Lines of the end of a file (max_bytes at most, the first partial line dropped); [] if unreadable."""
+    """Lines of the end of a file (max_bytes at most, the first partial line dropped); [] if unreadable.
+    1.2: a rotated log compressed with gzip (.gz) is decompressed, and the end of its text is kept the same way."""
+    if path.endswith(".gz"):
+        try:
+            with gzip.open(path, "rb") as f:
+                data = f.read()
+        except (OSError, EOFError):
+            return []
+        lines = data[-max_bytes:].decode("utf-8", "replace").splitlines()
+        return lines[1:] if len(data) > max_bytes and lines else lines
     try:
         with open(path, "rb") as f:
             f.seek(0, os.SEEK_END)

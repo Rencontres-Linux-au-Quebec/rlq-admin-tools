@@ -30,6 +30,16 @@ Gravité : ✖ problème, ⚠ à regarder, ℹ information. Rien n'est modifié 
 
 1.164 : dans la comparaison avec sitemap.xml (santé, `--log-chk-sitemap`), un premier segment de deux lettres n'est retiré comme préfixe de langue que s'il est un code ISO 639-1 (`/fr`, `/es`, `/fr_CA`...). Avant, `/ev` (un `/event` tronqué) était comparé comme la page d'accueil et compté comme un 404 « dans sitemap.xml ».
 
+### Sur plusieurs semaines : --advise (1.165)
+
+```
+sudo app-log-live.py --advise          # les 14 derniers jours
+sudo app-log-live.py --advise 30       # les 30 derniers jours
+sudo app-log-live.py --advise --since 2026-10-01 --until 2026-10-31
+```
+
+La même analyse que la touche z, sans le flux en direct : les journaux de la période sont lus sans être affichés (cela peut prendre quelques minutes pour plusieurs semaines), puis l'analyse est affichée. Les journaux d'accès de nginx déjà tournés pendant la période (`.1`, `.2.gz`...) sont lus pour les référents. Chaque exécution est gardée dans `advisor-history-advise.json` (séparé de l'historique de la touche z, dont les périodes ne sont pas comparables) : deux exécutions à une semaine d'écart disent ce qui est nouveau, récurrent ou réglé. Avec `--summary`, le résumé de la session suit. Sans sudo, le journal systemd et `/var/lib/app-log-live` peuvent être illisibles.
+
 ## Enregistrer un test (touche R)
 
 Pour analyser un test du site (un sondage abandonné, une inscription, une proposition de présentation...) sans le bruit :

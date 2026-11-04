@@ -3066,3 +3066,15 @@ msgstr "──── Analyse des problèmes soulevés ({name} v{version}) : depu
 
 msgid "no writable state folder"
 msgstr "aucun dossier d'état accessible en écriture"
+
+msgid "Analysis of the problems of the last DAYS days (14 by default), like the z key: the logs are read without being shown, then the problems, their probable causes and the recommended solutions are printed, compared with the previous --advise runs; --since / --until choose another window"
+msgstr "Analyse des problèmes des DAYS derniers jours (14 par défaut), comme la touche z : les journaux sont lus sans être affichés, puis les problèmes, leurs causes probables et les solutions recommandées sont affichés, comparés aux exécutions précédentes de --advise ; --since / --until choisissent une autre période"
+
+msgid "--advise: reading the logs of the window without showing them (this can take a few minutes for several weeks)..."
+msgstr "--advise : lecture des journaux de la période sans les afficher (cela peut prendre quelques minutes pour plusieurs semaines)..."
+
+msgid "--advise reads past logs: not with --record-test-log"
+msgstr "--advise lit des journaux passés : pas avec --record-test-log"
+
+msgid "--advise must be greater than 0 and at most 366 days"
+msgstr "--advise doit être plus grand que 0 et au plus 366 jours"

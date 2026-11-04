@@ -119,7 +119,7 @@ from urllib.parse import unquote, urlsplit
 from collections import Counter, OrderedDict
 from concurrent.futures import Future
 
-__version__ = "1.164.20261104.162540"
+__version__ = "1.165.20261104.183145"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
@@ -5329,18 +5329,23 @@ def advisor_facts(stats):
             "account_ips": dict(stats.account_ips), "who": {ip: stats.who(ip) for ip in stats.account_ips}, "latency_n": latency_n}
 
 
-def advisor_history_file():
-    """1.163: advisor-history.json, in the state folder of the program (APP_LOG_LIVE_STATE_DIR, /var/lib/app-log-live, ~/.cache/app-log-live); None if none is writable."""
+def advisor_history_file(name="advisor-history.json"):
+    """1.163: advisor-history.json (1.165: advisor-history-advise.json for --advise, whose windows are not comparable with those of the z key), in the state folder of the program (APP_LOG_LIVE_STATE_DIR, /var/lib/app-log-live, ~/.cache/app-log-live); None if none is writable."""
     for folder in (os.environ.get("APP_LOG_LIVE_STATE_DIR"), "/var/lib/app-log-live", os.path.join(os.path.expanduser("~"), ".cache", "app-log-live")):
         if folder:
             try:
                 os.makedirs(folder, exist_ok=True)
                 if os.access(folder, os.W_OK):
-                    return os.path.join(folder, "advisor-history.json")
+                    return os.path.join(folder, name)
             except OSError:
                 continue
     return None
 
+
+ADVISE_DAYS_DEFAULT = 14           # 1.165 --advise without a value: the last 14 days
+ADVISE_DAYS_MAX = 366
+ADVISE_LINES = 100000000           # 1.165 --advise: no line limit inside the window (journalctl --lines, tail -n)
+ADVISE_SITEMAP_WAIT_S = 20         # 1.165 --advise: seconds to wait for the first read of sitemap.xml before counting the 404
 
 BUFFER_DEFAULT = 200                # 1.113 --buffer N: last displayed lines kept in memory (f: displayed again with the current options; P: printed to a file)
 STATUS_EVERY_DEFAULT = -1          # 1.113 --status-every N: status bar (reverse video) after every N displayed lines; 0 = never; -1 (1.120, 1.131): automatic = two thirds of the terminal height
@@ -6888,8 +6893,10 @@ def follow(cmd, people, resolver, options, output):
         command = " ".join([os.path.basename(__file__)] + [a for a in sys.argv[1:] if a != "--report-err"])
         write_out(["", module.construire_rapport(os.path.basename(__file__), __version__, command, text, 0, int(time.time() - session_start), SCRIPT_DIR)])
 
-    def advise():
-        """1.163, z key: analysis of the problems raised by the dashboard (apps/_advisor.py). The details are read in the logs only for these problems: the Odoo
+    def advise(batch=False):
+        """1.165: batch=True for --advise (window of several days read without the live stream): rotated nginx access logs of the window are read too,
+        and the history is advisor-history-advise.json.
+        1.163, z key: analysis of the problems raised by the dashboard (apps/_advisor.py). The details are read in the logs only for these problems: the Odoo
         traceback of each error (logfile, otherwise the systemd journal around its time) and, for the 4xx URLs, the codes, referers and User-Agents of the nginx
         access logs. The result is compared with the previous analyses (advisor-history.json) for continuous improvement."""
         module = load_module("_advisor")
@@ -6912,11 +6919,13 @@ def follow(cmd, people, resolver, options, output):
             if trace:
                 details["tracebacks"][(e["level"], e["logger"], e["message"])] = trace
         access = [f for f in nginx_log_files(options["profile"]) if "access" in os.path.basename(f)]
+        if batch:                                            # 1.165: the rotated logs (.1, .2.gz...) written during the window
+            access += sorted(r for f in list(access) for r in glob.glob(f + ".*") if os.path.isfile(r) and os.path.getmtime(r) >= facts["start"])
         urls = list(facts["gone_404"]) + [u for u, _n in Counter(facts["plain_4xx"]).most_common(6)]
         if access and urls:
             details["nginx"] = module.nginx_details(access, urls, since=facts["start"])
         findings = module.analyze(facts, details, TR, raw)
-        path = advisor_history_file()
+        path = advisor_history_file("advisor-history-advise.json" if batch else "advisor-history.json")
         history = module.History(path)
         trend = history.record(findings, f"{os.getpid()}-{int(session_start)}")
         kept = history.save()
@@ -7199,6 +7208,14 @@ def follow(cmd, people, resolver, options, output):
                 write_out(["  --watch : " + (", ".join(options["watch"]) if options["watch"] else "none") + " (duration, errors and slowness in Ctrl-G / Ctrl-T)"])
 
     session_start = time.time()
+    real_screen = output.screen
+    if options.get("advise"):                             # 1.165 --advise: the lines are counted, not shown; the analysis is printed at the end
+        if SITEMAP is not None:
+            waited = time.time()
+            while SITEMAP.paths is None and SITEMAP.error is None and time.time() - waited < ADVISE_SITEMAP_WAIT_S:
+                time.sleep(0.2)
+        eprint(TR("--advise: reading the logs of the window without showing them (this can take a few minutes for several weeks)..."))
+        output.screen = open(os.devnull, "w", encoding="utf-8")
     if options["chime"] is not None:
         beep["mode"], advices = prepare_beep()
         for c in advices:
@@ -7354,12 +7371,16 @@ def follow(cmd, people, resolver, options, output):
         show_summary()
         startup_status_bar()
         check_external_ip(time.time(), wait=True)  # end of the stream (--no-follow): at least one check, we wait for its result
+        if options.get("advise"):                       # 1.165: back to the screen for the analysis (and the summary if asked)
+            output.screen = real_screen
+            advise(batch=True)
         if options["summary"]:
             output.write("\n".join(table_rows(heading="Session summary")) + "\n")
             if people is not None and people.odoo_db is not None:
                 output.write("\n".join(rlq_groups_lines()) + "\n")
             output.flush()
     except KeyboardInterrupt:                           # Ctrl-C confirmed: the session summary, the error detail if requested, then the normal stop (protected_main)
+        output.screen = real_screen                    # 1.165 --advise: the summary of an interrupted analysis is shown
         if old_sigint is not None:
             signal.signal(signal.SIGINT, signal.default_int_handler)  # the rest: one more Ctrl-C interrupts immediately (never a second "Interrupt the program?" question)
         try:
@@ -7467,6 +7488,9 @@ def main():
     parser.add_argument("--accentuate-group", default=None, metavar="NAME",
                         help="Odoo contacts with the contact TAG NAME (e.g. Staff-2026) shown in bold white on dark blue; the tag must exist, otherwise stop")
     parser.add_argument("--changelog", action="store_true", help="Show the change log")
+    parser.add_argument("--advise", type=float, nargs="?", const=ADVISE_DAYS_DEFAULT, default=None, metavar="DAYS",
+                        help="Analysis of the problems of the last DAYS days (14 by default), like the z key: the logs are read without being shown, then the problems, "
+                             "their probable causes and the recommended solutions are printed, compared with the previous --advise runs; --since / --until choose another window")
     parser.add_argument("--cms", choices=["auto", "odoo", "wordpress"], default="auto", metavar="CMS",
                         help="Site CMS: odoo (/wp-admin, xmlrpc.php, *.php… are suspect), wordpress (normal pages) or auto (default: a wp-config.php under /var/www, /srv, /opt…)")
     parser.add_argument("--connections", type=float, default=CONNECTIONS_THRESHOLD_DEFAULT, metavar="PCT",
@@ -7692,6 +7716,16 @@ def main():
     regler_cms(profile_module.cms(None if args.cms == "auto" else args.cms) if profile_module is not None else (args.cms if args.cms != "auto" else "odoo"))
     if args.errors_only:
         args.lines = max(args.lines, ERRORS_HISTORY_LINES)             # 1.158: enough history to find the last errors
+    if args.advise is not None:                                        # 1.165: --advise reads a window without the live stream
+        if not 0 < args.advise <= ADVISE_DAYS_MAX:
+            parser.error("--advise must be greater than 0 and at most 366 days")
+        if args.record_test_log is not None:
+            parser.error("--advise reads past logs: not with --record-test-log")
+        args.no_follow = args.no_keys = True
+        args.status_every = 0
+        if args.since_epoch is None:
+            args.since_epoch = time.time() - args.advise * 86400
+        args.lines = max(args.lines, ADVISE_LINES)
     if args.lines < 0 or not 0 <= args.days <= 36500 or args.idle <= 0 or args.recap < 0 or args.health < 0 or args.log_keep_days < 0:
         parser.error("--lines must be positive, --days between 0 (all) and 36500, --idle greater than 0, --recap, --health and --log-keep-days positive or zero")
     if not 1 <= args.level <= LEVEL_MAX:
@@ -7852,7 +7886,7 @@ def main():
         except ValueError as problem:                                 # a wrong address stops the program at once
             parser.error(f"--sitemap: {problem}")
     options = {"keep_ip": not args.hide_ip, "minimal": args.min, "hide_addons": args.hide_addons, "lines": args.lines, "recap": args.recap,
-               "slow": max(0.0, args.slow), "only": [t.lower() for t in (args.only or []) if t], "highlight_words": read_highlight(args.highlight), "highlight_pattern": highlight_pattern(read_highlight(args.highlight)), "suspect": args.suspect, "errors_only": args.errors_only, "disk_min": max(0.0, args.disk_min), "connections": max(0.0, min(100.0, args.connections)), "external_ip": not args.no_isp, "odoo_journal": profile.get("ODOO_LOGFILE"), "profile": profile, "service": service, "ns": ns, "diag_hosts": args.diagnose_host, "not_found": args.not_found, "steps_line": args.steps_line, "summary": args.summary, "banned_ips": banned_ips,
+               "slow": max(0.0, args.slow), "only": [t.lower() for t in (args.only or []) if t], "highlight_words": read_highlight(args.highlight), "highlight_pattern": highlight_pattern(read_highlight(args.highlight)), "suspect": args.suspect, "errors_only": args.errors_only, "disk_min": max(0.0, args.disk_min), "connections": max(0.0, min(100.0, args.connections)), "external_ip": not args.no_isp, "odoo_journal": profile.get("ODOO_LOGFILE"), "profile": profile, "service": service, "ns": ns, "advise": args.advise is not None, "diag_hosts": args.diagnose_host, "not_found": args.not_found, "steps_line": args.steps_line, "summary": args.summary, "banned_ips": banned_ips,
                "presence": Presence(args.idle) if is_odoo and not args.no_presence else None, "health": args.health, "keys": not args.no_keys and not args.no_follow, "app": profile.get("APP_NAME"), "app_label": profile.get("APP_LABEL", "application"), "hide_user_agent": args.hide_user_agent, "request_length": args.request_length, "log_nginx": bool(args.log_nginx), "log_merge": bool(args.log_merge), "status_header": bool(args.status_header), "nginx_merged": LOGS_MERGE in cmd, "propose_ban": not args.no_ban_prompt, "watch": [t.strip().lower() for t in (args.watch or "").split(",") if t.strip()], "agents": not args.no_user_agent and not args.no_follow, "acces_logs": profile.get("ACCESS_LOGS"),
                "exclude": exclusions, "chime": args.chime, "group": args.accentuate_group if group_members else None, "membres": group_members,
                "report_min": args.time_report or 0.0, "level": args.level, "modules_sort": modules_sort_state}

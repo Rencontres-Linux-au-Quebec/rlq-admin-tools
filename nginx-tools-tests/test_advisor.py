@@ -93,6 +93,18 @@ class Details(unittest.TestCase):
         self.assertIn("https://www.google.com/", tasse["referers"])
         self.assertEqual(r["/sitemap.xml"]["codes"], Counter({"403": 1}))
 
+    def test_journal_compresse_gz(self):
+        import gzip
+        with tempfile.TemporaryDirectory() as d:
+            chemin = os.path.join(d, "site-access.log.2.gz")
+            with gzip.open(chemin, "wt") as f:
+                f.write(ACCESS)
+            r = ADV.nginx_details([chemin], ["/en_CA/shop/tasse"])
+            self.assertEqual(r["/en_CA/shop/tasse"]["codes"], Counter({"404": 3}))
+            with open(os.path.join(d, "abime.gz"), "wb") as f:
+                f.write(b"pas du gzip")
+            self.assertEqual(ADV.read_tail(os.path.join(d, "abime.gz")), [])
+
     def test_fin_de_fichier_seulement(self):
         with tempfile.TemporaryDirectory() as d:
             chemin = os.path.join(d, "x.log")
