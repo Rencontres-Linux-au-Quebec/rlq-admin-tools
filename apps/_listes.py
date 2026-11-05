@@ -26,12 +26,13 @@
 #   python3 apps/_listes.py --version
 
 import datetime
+import functools
 import ipaddress
 import os
 import re
 import sys
 
-__version__ = "1.7.20261102.104500"
+__version__ = "1.8.20261104.204925"
 
 BLANCHE_DEFAUT = "/etc/default/nginx-tools-white-list.conf"
 LIEUX_DEFAUT = "/etc/default/nginx-tools-ip-location.conf"
@@ -116,10 +117,17 @@ def maintenant(env=None):
     return env.get("NGINX_TOOLS_MAINTENANT") or datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
 
+@functools.lru_cache(maxsize=8192)
+def _adresse(ip):
+    """1.8 : adresse analysée une seule fois (app-log-live.py --advise cherchait la même adresse des centaines de milliers de fois) ;
+    l'objet est immuable, le cache ne peut pas donner une réponse périmée. ValueError n'est pas gardé en cache."""
+    return ipaddress.ip_address(ip)
+
+
 def _plus_specifique(entrees, ip):
     """L'entrée dont la plage contient ip, la plus précise (préfixe le plus long) ; à égalité, la dernière lue."""
     try:
-        adresse = ipaddress.ip_address(ip)
+        adresse = _adresse(ip)
     except ValueError:
         return None
     meilleure = None
