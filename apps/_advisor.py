@@ -31,7 +31,7 @@ import re
 import time
 from collections import Counter
 
-__version__ = "1.2.20261104.183145"
+__version__ = "1.3.20261105.071311"
 
 PROBLEM, LOOK, INFO = 2, 1, 0                         # severities: problem, to look at, information
 
@@ -56,9 +56,17 @@ ODOO_HEADER_RE = re.compile(r"^(?:\S+\s+)?\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2}
 EXCEPTION_RE = re.compile(r"^([A-Za-z_][\w.]*(?:Error|Exception|Warning|Failure|NotFound|Timeout|Exit|Interrupt|Forbidden|Unauthorized|Conflict))(?::\s*(.*))?$")
 FRAME_RE = re.compile(r'^\s*File "([^"]+)", line (\d+), in (\S+)')
 ADDON_RE = re.compile(r"[/_-]addons/([A-Za-z0-9_]+)/")          # .../addons/MODULE/, .../rlq-addons/MODULE/, .../custom_addons/MODULE/
-NGINX_LINE_RE = re.compile(r'\[(\d{2})/([A-Za-z]{3})/(\d{4}):(\d{2}):(\d{2}):(\d{2}) ([+-])(\d{2})(\d{2})\]\s+"(?:GET|POST|HEAD|PUT|DELETE|OPTIONS|PATCH)\s+(\S+)'
+NGINX_LINE_RE = re.compile(r'\[(\d{2})/([A-Za-z]{3})/(\d{4}):(\d{2}):(\d{2}):(\d{2}) ([+-])(\d{2})(\d{2})\]\s+"(GET|POST|HEAD|PUT|DELETE|OPTIONS|PATCH)\s+(\S+)'
                            r'[^"]*"\s+(\d{3})\s+\S+\s+"([^"]*)"\s+"([^"]*)"')
-HOST_RE = re.compile(r"\bhost=(\S+)")
+HOST_RE = re.compile(r'\bhost="?([^"\s]+)"?')          # 1.3: host="$host" of the nginx log format is QUOTED (the quotes made every referer "another site")
+# 1.3: query strings of a vulnerability scanner (fuzzing): quotes and brackets, "zqzz" markers, SQL and script fragments
+FUZZ_RE = re.compile(r"zqzz|[\"'](?:\)|\()|\(\(|%2[27]|%3[Cc]|<script|\bsleep\(|\bunion\b.*\bselect\b|\.\./|\bor\b\s*\d+\s*=\s*\d+", re.I)
+NGINX_TAG_RE = re.compile(r"^\[(?:error|crit|alert|emerg|warn)\]\s+N#N:\s*(?:\*N\s+)?")
+UPSTREAM_RE = re.compile(r"while connecting to upstream|upstream timed out|no live upstreams|upstream prematurely closed|while reading response header from upstream")
+EVENT_ID_RE = re.compile(r"^(?:/[a-z]{2}(?:_[A-Z]{2})?)?/event/[^/]*?-(\d+)(?:/|$)")
+PRODUCT_ID_RE = re.compile(r"^(?:/[a-z]{2}(?:_[A-Z]{2})?)?/shop/(?:product/)?[^/]*?-(\d+)(?:/|$)")
+WP_SITEMAP_RE = re.compile(r"/(?:sitemap_index|wp-sitemap|sitemap-index|post-sitemap|page-sitemap)\.xml$|/sitemap\.xml\.gz$")
+ODOO_DEFAULTS = {"workers": 0, "max_cron_threads": 2, "limit_time_cpu": 60, "limit_time_real": 120, "limit_memory_soft": 2048, "limit_memory_hard": 2560}
 MONTHS = {m: i for i, m in enumerate(("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"), 1)}
 
 # Known Odoo messages: (pattern on "logger: message", severity, cause, recommendation). The first match wins.
@@ -98,6 +106,9 @@ TRACEBACK_HINTS = (
      "find the slow page (slow requests, key Y); raise limit_time_real only if the page is legitimately long"),
     (r"werkzeug\.exceptions\.(?:NotFound|BadRequest|Forbidden)", "a client asked for something that does not exist or is not allowed",
      "nothing to fix in Odoo if the URL is not one of the site's pages"),
+    (r"InvalidVapidError|Invalid VAPID public key",
+     "a browser registered for push notifications with a VAPID public key different from the one stored in Odoo (ir.config_parameter mail.web_push_vapid_public_key): usually after a database restore or copy, or a regenerated key",
+     "harmless for the site: only the push notifications of these browsers fail; nothing to fix if the key was changed on purpose, the browsers subscribe again when their site data is cleared"),
     (r"KeyError|AttributeError|TypeError|IndexError|ValueError|NameError", "a programming error in a module",
      "the module named in the last frame of the traceback has a bug: update it, or report it to its author with the traceback"),
 )
@@ -168,6 +179,23 @@ def odoo_trace(lines, logger, message):
     return trace
 
 
+def exception_counts(lines, logger, message):
+    """Counter {"Exception: message": n} of the exceptions that end the tracebacks of EVERY occurrence of the message (not only the last one): the same
+    « Exception during request handling » hides different causes. Works on a complete log and on the output of journalctl -g (headers and exception lines only)."""
+    parts = [p for p in re.split(r"(?<![A-Za-z\d])N(?![A-Za-z\d])", _norm(message)[:80]) if p.strip()] or [_norm(message)[:80]]
+    res, inside = Counter(), False
+    for text_line in lines:
+        if ODOO_HEADER_RE.match(text_line):
+            inside = (not logger or logger in text_line) and all(p.strip() in text_line for p in parts)
+            continue
+        if inside:
+            m = EXCEPTION_RE.match(text_line.strip())
+            if m:
+                res[m.group(1).rsplit(".", 1)[-1] + (": " + _cut(m.group(2).strip(), 80) if m.group(2) else "")] += 1
+                inside = False
+    return res
+
+
 def parse_traceback(trace):
     """{"exception": type, "message": text, "module": addon of the last frame in an addons folder, "frame": "file:line in function"} or {}."""
     if len(trace) < 2:
@@ -190,10 +218,10 @@ def parse_traceback(trace):
 
 
 def nginx_details(files, urls, since=None, max_bytes=TAIL_BYTES):
-    """For each URL of `urls` (path, without the query): {"codes": Counter, "referers": Counter, "agents": Counter, "hosts": Counter}
-    read in the nginx access logs (end of each file, lines after `since` when given)."""
+    """For each URL of `urls` (path, without the query): {"codes", "referers", "agents", "hosts", "methods": Counter} read in the nginx access logs
+    (end of each file, lines after `since` when given)."""
     wanted = {u.split("?", 1)[0] for u in urls}
-    res = {u: {"codes": Counter(), "referers": Counter(), "agents": Counter(), "hosts": Counter()} for u in wanted}
+    res = {u: {"codes": Counter(), "referers": Counter(), "agents": Counter(), "hosts": Counter(), "methods": Counter()} for u in wanted}
     if not wanted:
         return res
     for path in files:
@@ -201,7 +229,7 @@ def nginx_details(files, urls, since=None, max_bytes=TAIL_BYTES):
             m = NGINX_LINE_RE.search(text_line)
             if not m:
                 continue
-            url = m.group(10).split("?", 1)[0]
+            url = m.group(11).split("?", 1)[0]
             if url not in wanted:
                 continue
             if since is not None:
@@ -213,45 +241,119 @@ def nginx_details(files, urls, since=None, max_bytes=TAIL_BYTES):
                 if t is not None and t < since:
                     continue
             d = res[url]
-            d["codes"][m.group(11)] += 1
-            if m.group(12) and m.group(12) != "-":
-                d["referers"][m.group(12)] += 1
-            d["agents"][m.group(13)[:80]] += 1
+            d["methods"][m.group(10)] += 1
+            d["codes"][m.group(12)] += 1
+            if m.group(13) and m.group(13) != "-":
+                d["referers"][m.group(13)] += 1
+            d["agents"][m.group(14)[:80]] += 1
             h = HOST_RE.search(text_line)
             if h:
                 d["hosts"][h.group(1)] += 1
     return res
 
 
-def internal_referers(detail):
-    """Referers of the site itself (same host as the request): the page that holds the dead link."""
-    hosts = set(detail.get("hosts") or ())
+def _bare_host(host):
+    """www.example.org:443 -> example.org (the site is the same with or without www, on any port)."""
+    host = (host or "").strip('"').lower().split(":", 1)[0]
+    return host[4:] if host.startswith("www.") else host
+
+
+def internal_referers(detail, site_hosts=()):
+    """Referers of the site itself (same host as the request, or one of `site_hosts`, with or without www): the page that holds the dead link."""
+    hosts = {_bare_host(h) for h in list(detail.get("hosts") or ()) + list(site_hosts or ()) if h}
     res = Counter()
     for ref, n in (detail.get("referers") or {}).items():
         m = re.match(r"^https?://([^/]+)", ref)
-        if m and (not hosts or m.group(1) in hosts):
+        if m and (not hosts or _bare_host(m.group(1)) in hosts):
             res[ref] += n
     return res
+
+
+ODOO_TIME_RE = re.compile(r"^(?:\S+\s+)?(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2}):(\d{2})")
+
+
+def trace_near(lines, instant, margin=3):
+    """The first ERROR / CRITICAL traceback of Odoo whose header time (UTC, as Odoo writes it) is within `margin` seconds of `instant`; [] if none."""
+    for i, text_line in enumerate(lines):
+        if not ODOO_HEADER_RE.match(text_line) or not re.search(r"\s(?:ERROR|CRITICAL)\s", text_line[:80]):
+            continue
+        m = ODOO_TIME_RE.match(text_line)
+        if not m:
+            continue
+        t = calendar.timegm(tuple(int(x) for x in m.groups()) + (0, 0, 0))
+        if abs(t - instant) <= margin:
+            return first_error_trace(lines[i:])
+    return []
+
+
+def first_error_trace(lines):
+    """The first ERROR / CRITICAL line of Odoo in `lines` and the lines that follow it (its traceback); [] if none."""
+    for i, text_line in enumerate(lines):
+        if ODOO_HEADER_RE.match(text_line) and re.search(r"\s(?:ERROR|CRITICAL)\s", text_line[:80]):
+            trace = [text_line]
+            for following in lines[i + 1:i + 1 + TRACE_MAX_LINES]:
+                if ODOO_HEADER_RE.match(following):
+                    break
+                trace.append(following)
+            return trace
+    return []
+
+
+def odoo_settings_advice(conf, cpus, mem_mb, slowest=None):
+    """(evidence, advice, cause or "") from the settings of odoo.conf (`conf`: key -> text), the processors and the memory of the machine, following the
+    rules of the Odoo deployment guide: at most (2 x CPU) + 1 workers; about 150 MB per light worker and 1 GB per heavy one (80 % / 20 %)."""
+    def number(key):
+        value = (conf.get(key) or "").strip()
+        try:
+            return int(float(value))
+        except ValueError:
+            return None
+    evidence, advice, cause = [], [], ""
+    workers = number("workers") if number("workers") is not None else ODOO_DEFAULTS["workers"]
+    cron = number("max_cron_threads") if number("max_cron_threads") is not None else ODOO_DEFAULTS["max_cron_threads"]
+    t_cpu = number("limit_time_cpu") or ODOO_DEFAULTS["limit_time_cpu"]
+    t_real = number("limit_time_real") or ODOO_DEFAULTS["limit_time_real"]
+    soft = (number("limit_memory_soft") or ODOO_DEFAULTS["limit_memory_soft"] * 1048576) // 1048576
+    hard = (number("limit_memory_hard") or ODOO_DEFAULTS["limit_memory_hard"] * 1048576) // 1048576
+    evidence.append("odoo.conf : workers={w} · max_cron_threads={c} · limit_time_cpu={tc} s · limit_time_real={tr} s · limit_memory_soft={ms} MB · limit_memory_hard={mh} MB".format(
+        w=workers, c=cron, tc=t_cpu, tr=t_real, ms=soft, mh=hard))
+    best = 2 * cpus + 1 if cpus else None
+    need = round(workers * (0.8 * 150 + 0.2 * 1024) + cron * 150) if workers else None
+    if workers == 0:
+        cause = "workers=0"
+        advice.append(("workers0", best, max(1, int((mem_mb or 0) * 0.7 // 325)) if mem_mb else None))
+    elif best and workers > best:
+        cause = "too-many"
+        advice.append(("too-many", best, workers))
+    elif best and workers < cpus:
+        advice.append(("few", min(best, int((mem_mb or 10 ** 9) * 0.7 // 325)) if mem_mb else best, workers))
+    if need and mem_mb and need > 0.8 * mem_mb:
+        advice.append(("memory", need, mem_mb))
+    if slowest and slowest >= 0.8 * t_real:
+        advice.append(("limit-real", round(slowest), t_real))
+    return evidence, advice, cause
 
 
 # ------------------------------------------------------------------------------------------------------------------
 # Rules
 # ------------------------------------------------------------------------------------------------------------------
 class Analyzer:
-    """analyze(facts, details) -> list of findings {"id", "severity", "title", "count", "evidence": [...], "cause": text, "advice": [...]}."""
+    """analyze(facts, details) -> list of findings {"id", "severity", "title", "count", "evidence": [...], "cause": text, "advice": [...], "fix": (kind, data) or None}.
+    `details` holds what app-log-live.py read for these problems: logs (tracebacks, nginx), Odoo settings, database, current answer of the site."""
 
     def __init__(self, tr=_identity, raw=_identity):
         self.tr, self.raw = tr, raw
         self.findings = []
 
-    def add(self, fid, severity, title, count=1, evidence=(), cause="", advice=()):
-        self.findings.append({"id": fid, "severity": severity, "title": title, "count": count, "evidence": list(evidence), "cause": cause, "advice": list(advice)})
+    def add(self, fid, severity, title, count=1, evidence=(), cause="", advice=(), fix=None):
+        self.findings.append({"id": fid, "severity": severity, "title": title, "count": count, "evidence": [e for e in evidence if e], "cause": cause,
+                              "advice": list(advice), "fix": fix})
 
     def run(self, facts, details=None):
         details = details or {}
         self.findings = []
-        for rule in (self.rule_5xx, self.rule_sitemap_404, self.rule_repeated_4xx, self.rule_odoo_errors, self.rule_conflicts, self.rule_mails,
-                     self.rule_slow, self.rule_bans, self.rule_account_forms, self.rule_latency_sample):
+        for rule in (self.rule_5xx, self.rule_nginx_upstream, self.rule_sitemap_404, self.rule_repeated_4xx, self.rule_odoo_errors, self.rule_conflicts,
+                     self.rule_mails, self.rule_slow, self.rule_bans, self.rule_account_forms, self.rule_latency_sample):
             try:
                 rule(facts, details)
             except Exception as problem:                     # one rule never stops the others
@@ -261,10 +363,11 @@ class Analyzer:
         self.findings.sort(key=lambda f: (-f["severity"], -f["count"], f["id"]))
         return self.findings
 
-    def referer_lines(self, detail):
+    # --- shared pieces ---------------------------------------------------------------------------------------------------------------
+    def referer_lines(self, detail, facts):
         tr, raw = self.tr, self.raw
         lines = []
-        inside = internal_referers(detail)
+        inside = internal_referers(detail, facts.get("site_hosts") or ())
         if inside:
             lines.append(tr("Linked from the site itself: ") + " ; ".join(f"{raw(r)} ×{n}" for r, n in inside.most_common(3)))
         outside = Counter({r: n for r, n in (detail.get("referers") or {}).items() if r not in inside})
@@ -272,21 +375,144 @@ class Analyzer:
             lines.append(tr("Linked from other sites: ") + " ; ".join(f"{raw(r)} ×{n}" for r, n in outside.most_common(3)))
         return lines
 
-    # --- 5xx ---------------------------------------------------------------------------------------------------------------------
+    def codes_line(self, codes):
+        """'Codes: 404 ×25, 403 ×3 (and 7 redirects 301 / 303 to the secure address or with www, normal)'."""
+        tr = self.tr
+        errors = {c: k for c, k in codes.items() if str(c)[:1] in ("4", "5")}
+        redirects = sum(k for c, k in codes.items() if str(c)[:1] == "3")
+        if not errors and not redirects:
+            return ""
+        text = tr("Codes: ") + ", ".join(f"{c} ×{k}" for c, k in sorted(errors.items(), key=lambda ck: -ck[1]))
+        if redirects:
+            text += " " + tr("(and {n} redirections 3xx before, normal: secure address or www)").format(n=redirects)
+        return text
+
+    def site_lines(self, path, details):
+        """What app-log-live.py checked for this page: its answer now, the record in Odoo, a redirect already defined."""
+        tr, raw = self.tr, self.raw
+        lines, state = [], {}
+        now = (details.get("now") or {}).get(path)
+        if now is not None:
+            state["now"] = now
+            lines.append(tr("Answer of the site now: {code}").format(code=now))
+        rec = (details.get("records") or {}).get(path)
+        if rec:
+            state["record"] = rec
+            flags = lambda r: ((" · " + (tr("published") if r.get("published") else tr("NOT published"))) + ("" if r.get("active", True) else " · " + tr("archived"))
+                               + (" · " + tr("ended on {end}").format(end=r["end"]) if r.get("end") else ""))
+            if rec.get("kind") == "missing":
+                lines.append((tr("In Odoo: no event with the number {id} (deleted)") if rec.get("what") == "event" else tr("In Odoo: no product with the number {id} (deleted)")).format(id=rec.get("id")))
+            elif rec.get("kind") in ("event", "product"):
+                lines.append((tr("In Odoo: event n° {id} « {title} »") if rec["kind"] == "event" else tr("In Odoo: product n° {id} « {title} »")).format(
+                    id=rec.get("id"), title=raw(_cut(rec.get("name") or "", 60))) + flags(rec))
+            elif rec.get("kind") == "page":
+                lines.append(tr("In Odoo: web page {url}").format(url=raw(rec.get("url") or path)) + flags(rec))
+            elif rec.get("kind") == "no-page":
+                lines.append(tr("In Odoo: no web page at this address") + (" · " + tr("similar pages: ") + " ; ".join(raw(u) for u in rec.get("similar") or ()) if rec.get("similar") else ""))
+        rewrite = (details.get("rewrites") or {}).get(path)
+        if rewrite:
+            state["rewrite"] = rewrite
+            lines.append(tr("Redirect already defined in Odoo: {kind} to {target}").format(kind=rewrite[1], target=raw(rewrite[0])))
+        return lines, state
+
+    # --- 5xx, grouped by page --------------------------------------------------------------------------------------------------------
     def rule_5xx(self, facts, details):
         tr, raw = self.tr, self.raw
-        codes = facts.get("codes_by_url") or {}
-        for url, n in Counter(facts.get("errors5") or {}).most_common(3):
-            by_code = {c: k for c, k in (codes.get(url) or {}).items() if int(c) >= 500}
-            gateway = sum(k for c, k in by_code.items() if int(c) in (502, 503, 504))
-            if gateway and gateway >= n / 2:
+        groups = {}
+        for url, n in Counter(facts.get("errors5") or {}).items():
+            g = groups.setdefault(url.split("?", 1)[0], {"n": 0, "urls": Counter(), "codes": Counter(), "ips": Counter(), "times": []})
+            g["n"] += n
+            g["urls"][url] += n
+        for t, code, url, ip in facts.get("http_errors5") or ():
+            g = groups.get(url.split("?", 1)[0])
+            if g is not None:
+                g["codes"][str(code)] += 1
+                g["ips"][ip] += 1
+                g["times"].append(t)
+        for path, g in groups.items():                       # no time-stamped answer kept (older facts): the codes counted per URL
+            if not g["codes"]:
+                for url in g["urls"]:
+                    g["codes"].update({str(c): k for c, k in ((facts.get("codes_by_url") or {}).get(url) or {}).items() if int(c) >= 500})
+        who = facts.get("who") or {}
+        traces = details.get("traces_5xx") or {}
+        for path, g in sorted(groups.items(), key=lambda pg: -pg[1]["n"])[:5]:
+            n = g["n"]
+            fuzz = sum(k for u, k in g["urls"].items() if FUZZ_RE.search(u))
+            gateway = sum(k for c, k in g["codes"].items() if c in ("502", "503", "504"))
+            evidence = [tr("Codes: ") + ", ".join(f"{c} ×{k}" for c, k in g["codes"].most_common())] if g["codes"] else []
+            if len(g["urls"]) > 1 or next(iter(g["urls"])) != path:
+                evidence.append(tr("Addresses asked: ") + " ; ".join(f"{raw(_cut(u, 90))} ×{k}" for u, k in g["urls"].most_common(3)))
+            if g["ips"]:
+                evidence.append(tr("Requested by: ") + " ; ".join(f"{raw(who.get(ip, ip))} ×{k}" for ip, k in g["ips"].most_common(3)))
+            parsed = parse_traceback(traces.get(path) or [])
+            if parsed:
+                evidence.append(tr("Exception: ") + raw(_cut(parsed["exception"] + (": " + parsed["message"] if parsed["message"] else ""), 200)))
+                if parsed["module"]:
+                    evidence.append(tr("Module of the last frame: {module} ({frame})").format(module=raw(parsed["module"]), frame=raw(parsed["frame"])))
+            elif traces.get(path) is not None:
+                evidence.append(tr("Traceback not found in the logs read (logfile or systemd journal around this time)"))
+            if fuzz and fuzz >= n / 2:
+                severity = LOOK
+                cause = tr("a vulnerability scanner sends malformed parameters (quotes, brackets, « zqzz »): Odoo answers 500 instead of 400, the site is not harmed")
+                advice = [tr("ban the address if it keeps going (key b, or --apply with --advise); nothing to fix in Odoo")]
+            elif gateway and gateway >= n / 2:
+                severity = PROBLEM if n >= 5 else LOOK
                 cause = tr("nginx got no answer from Odoo (502, 503, 504): service stopped or restarting, every worker busy, or a request longer than the timeout")
                 advice = [tr("key D: site diagnosis (service, Odoo ports, nginx upstream)"), tr("app-health-check.py: workers, memory and PostgreSQL connections")]
             else:
+                severity = PROBLEM if n >= 3 else LOOK
                 cause = tr("Odoo answered with an internal error (500): an exception in a module")
-                advice = [tr("key E: the traceback of the error (app-log-check.py --errors-only --full-trace)"), tr("fix or update the module named in the traceback")]
-            self.add("http-5xx:" + url, PROBLEM if n >= 5 else LOOK, tr("HTTP 5xx errors on {url}").format(url=raw(url)), n,
-                     [tr("Codes: ") + ", ".join(f"{c} ×{k}" for c, k in sorted(by_code.items()))] if by_code else [], cause, advice)
+                hint = next((h for h in TRACEBACK_HINTS if parsed and re.search(h[0], parsed["exception"] + " " + parsed["message"])), None)
+                if hint:
+                    cause = tr(hint[1])
+                advice = ([tr(hint[2])] if hint else []) + ([tr("fix or update the module named in the traceback")] if parsed and parsed.get("module")
+                                                            else [tr("key E: the traceback of the error (app-log-check.py --errors-only --full-trace)")])
+                if "/post" in path or "/submit" in path or "/register" in path:
+                    advice.insert(0, tr("a form of the site fails for its visitors: test it yourself, the visitors' data is lost at each error"))
+            self.add("http-5xx:" + path, severity, tr("HTTP 5xx errors on {url}: {n}").format(url=raw(path), n=n), n, evidence, cause, advice)
+
+    # --- nginx could not reach Odoo --------------------------------------------------------------------------------------------------
+    def rule_nginx_upstream(self, facts, details):
+        tr, raw = self.tr, self.raw
+        groups = {}
+        others = Counter()
+        for e in facts.get("nginx_errors") or ():
+            message = NGINX_TAG_RE.sub("", e["message"])
+            kind = message.split(", client:", 1)[0]
+            if UPSTREAM_RE.search(message):
+                g = groups.setdefault(kind, {"n": 0, "first": None, "last": None})
+                g["n"] += e["n"]
+                for key, pick in (("first", min), ("last", max)):
+                    if e.get(key):
+                        g[key] = pick(g[key], e[key]) if g[key] else e[key]
+            else:
+                others[kind] += e["n"]
+        restarts = (details.get("service") or {}).get("events") or []
+        state = (details.get("service") or {}).get("state")
+        for kind, g in sorted(groups.items(), key=lambda kg: -kg[1]["n"]):
+            evidence = [raw(_cut(kind, 160))]
+            if g["first"] and g["last"]:
+                evidence.append(tr("From {first} to {last}").format(first=time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(g["first"])),
+                                                                      last=time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(g["last"]))))
+            near = [(t, text) for t, text in restarts if g["first"] and g["last"] and g["first"] - 600 <= t <= g["last"] + 600]
+            if near:
+                evidence.append(tr("Service journal at that time: ") + " ; ".join(f"{time.strftime('%H:%M:%S', time.localtime(t))} {raw(_cut(text, 70))}" for t, text in near[:4]))
+                cause = tr("Odoo was stopped or restarting at that time (see the service journal): nginx found its port closed")
+                severity = LOOK
+                advice = [tr("nothing to do if the restart was wanted (update, maintenance); otherwise read why the service stopped: journalctl -u SERVICE --since the time above")]
+            else:
+                cause = tr("nginx could not reach Odoo: service stopped, restarting or crashed, or its port is not the one nginx uses")
+                severity = PROBLEM
+                advice = [tr("key D: site diagnosis (service, Odoo ports, nginx upstream)"), tr("journalctl -u SERVICE around these times: why Odoo stopped")]
+            if state:
+                evidence.append(tr("Service now: {svc}").format(svc=raw(state)))
+            if "Connection refused" in kind and g["n"] >= 1:
+                evidence.append(tr("These lines come from the nginx error log; before app-log-live.py 1.167 they were counted as Odoo errors and as failed e-mails"))
+            self.add("nginx-upstream:" + kind[:80], severity, tr("Odoo unreachable from nginx: {n} times").format(n=g["n"]), g["n"], evidence, cause, advice)
+        if others and sum(others.values()) >= 20:
+            self.add("nginx-errors", INFO, tr("Other messages of the nginx error log: {n}").format(n=sum(others.values())), sum(others.values()),
+                     [f"{raw(_cut(k, 120))} ×{v}" for k, v in others.most_common(3)], tr("files not found, clients that left, invalid requests: usually harmless"),
+                     [tr("nothing to do unless one message repeats a lot")])
 
     # --- 404 of the sitemap ------------------------------------------------------------------------------------------------------
     def rule_sitemap_404(self, facts, details):
@@ -296,7 +522,7 @@ class Analyzer:
         for url, n in Counter(facts.get("gone_404") or {}).most_common(5):
             path = url.split("?", 1)[0]
             detail = nginx.get(path) or {}
-            refs = self.referer_lines(detail)
+            refs = self.referer_lines(detail, facts)
             if LANGUAGE_PATH_RE.match(path):
                 code = path.strip("/").split("_")[0]
                 kind = tr("not a language code") if code not in ISO_639_1 else tr("a language code that the site may not offer")
@@ -305,94 +531,171 @@ class Analyzer:
                          tr("a truncated or mistyped URL, not a page of the site that disappeared"),
                          [tr("nothing to fix on the site; since app-log-live.py 1.164 only the codes of ISO 639-1 are taken for language prefixes")])
                 continue
+            site, state = self.site_lines(path, details)
             longer = sorted(p for p in (paths or ()) if p.startswith(path) and p != path)[:3] if paths else []
+            if state.get("now") == 200:
+                self.add("sitemap-404-now-ok:" + path, INFO, tr("{n} answers 404 on {url} (sitemap page), but it answers 200 now").format(n=n, url=raw(url)), n, site + refs,
+                         tr("the 404 were temporary: the page was published or restored since, or Odoo was restarting"), [tr("nothing to do")])
+                continue
             if longer:
                 self.add("sitemap-404-truncated:" + path, LOOK, tr("404 on {url}: beginning of a real page, a truncated link").format(url=raw(url)), n,
-                         [tr("Pages of the sitemap that start the same way: ") + " ; ".join(raw(p) for p in longer)] + refs,
+                         [tr("Pages of the sitemap that start the same way: ") + " ; ".join(raw(p) for p in longer)] + site + refs,
                          tr("a link cut in an e-mail, a message or a post"),
                          [tr("correct the link at its source (see the referers); optional: a 301 redirect to the full page (Website > Configuration > Redirects)")])
                 continue
-            self.add("sitemap-404:" + path, LOOK, tr("404 on {url}, a page listed in sitemap.xml").format(url=raw(url)), n, refs,
-                     tr("the page was deleted, unpublished or renamed while the sitemap or a link still lists it"),
-                     [tr("publish the page again, or add a 301 redirect to its replacement (Website > Configuration > Redirects)"),
-                      tr("then correct the menus and links that point to it (see the referers)")])
+            cause, advice = self.record_cause(state)
+            self.add("sitemap-404:" + path, LOOK, tr("{n} answers 404 on {url}, a page listed in sitemap.xml").format(n=n, url=raw(url)), n, site + refs,
+                     cause or tr("the page was deleted, unpublished or renamed while the sitemap or a link still lists it"),
+                     advice or [tr("publish the page again, or add a 301 redirect to its replacement (Website > Configuration > Redirects)"),
+                                tr("then correct the menus and links that point to it (see the referers)")])
+
+    def record_cause(self, state):
+        """(cause, advice) from the record found in Odoo for a page answering 404; ("", []) when nothing is known."""
+        tr = self.tr
+        rec, rewrite = state.get("record") or {}, state.get("rewrite")
+        if rewrite:
+            return (tr("a redirect is defined in Odoo for this address, but the visitors still get 404: the redirect may point to a page that does not exist either"),
+                    [tr("check the target of the redirect (Website > Configuration > Redirects)")])
+        if rec.get("kind") == "missing":
+            return (tr("the record was deleted while links still point to it"),
+                    [tr("add a 301 redirect to its replacement (Website > Configuration > Redirects), or leave the 404 if it is gone for good")])
+        if rec.get("kind") in ("event", "product", "page") and not rec.get("published"):
+            return (tr("the record exists but is not published: Odoo answers 404 to visitors"),
+                    [tr("publish it again if it should be visible, or add a 301 redirect to its replacement")])
+        if rec.get("kind") in ("event", "product") and not rec.get("active"):
+            return (tr("the record is archived: Odoo answers 404 to visitors"), [tr("restore it, or add a 301 redirect to its replacement")])
+        if rec.get("kind") == "no-page" and rec.get("similar"):
+            return (tr("the page was renamed or replaced: a similar page exists"), [tr("add a 301 redirect to the similar page (Website > Configuration > Redirects)")])
+        return "", []
 
     # --- repeated 4xx outside the sitemap -----------------------------------------------------------------------------------------
     def rule_repeated_4xx(self, facts, details):
         tr, raw = self.tr, self.raw
         nginx = details.get("nginx") or {}
         gone = {u.split("?", 1)[0] for u in (facts.get("gone_404") or {})}
-        for url, n in Counter(facts.get("plain_4xx") or {}).most_common(6):
-            path = url.split("?", 1)[0]
+        by_path = Counter()
+        for url, n in (facts.get("plain_4xx") or {}).items():
+            by_path[url.split("?", 1)[0]] += n
+        for path, n in by_path.most_common(8):
             if path in gone or n < 3:
                 continue
             detail = nginx.get(path) or {}
-            codes = Counter(detail.get("codes") or (facts.get("codes_by_url") or {}).get(url) or {})
-            evidence = ([tr("Codes: ") + ", ".join(f"{c} ×{k}" for c, k in sorted(codes.items()))] if codes else []) + self.referer_lines(detail)
+            codes = Counter(detail.get("codes") or {})
+            if not codes:
+                for url, c in (facts.get("codes_by_url") or {}).items():
+                    if url.split("?", 1)[0] == path:
+                        codes.update(c)
+            n404 = codes.get("404", 0) + codes.get("410", 0)
+            evidence = [self.codes_line(codes)] + self.referer_lines(detail, facts)
             agents = Counter(detail.get("agents") or {})
-            if path.rstrip("/").endswith("sitemap.xml"):
-                if codes and all(str(c) == "403" for c in codes):
+            if path.rstrip("/").endswith("sitemap.xml") and not WP_SITEMAP_RE.search(path):
+                if codes and all(str(c) == "403" or str(c)[:1] == "3" for c in codes):
                     self.add("sitemap-xml-403", INFO, tr("sitemap.xml refused (403) to robots of the blocking list"), n, evidence,
                              tr("bot_blocker.conf refuses these robots: expected"), [tr("nothing to do, unless a search engine you want is refused")])
                 else:
-                    self.add("sitemap-xml-4xx", LOOK, tr("sitemap.xml answers {codes}").format(codes=", ".join(sorted(str(c) for c in codes)) or "4xx"), n,
+                    self.add("sitemap-xml-4xx", LOOK, tr("sitemap.xml answers {codes}").format(codes=", ".join(sorted(str(c) for c in codes if str(c)[:1] == "4")) or "4xx"), n,
                              evidence + ([tr("User-Agents: ") + " ; ".join(f"{raw(a)} ×{k}" for a, k in agents.most_common(3))] if agents else []),
                              tr("Odoo builds sitemap.xml for the domain of the website: a request for another host name, or nginx not passing it to Odoo"),
                              [tr("check the domain of the website (Website > Configuration > Settings > Domain) and that nginx sends /sitemap.xml to Odoo"),
                               tr("open https://YOUR-SITE/sitemap.xml in a browser: it must answer 200")])
                 continue
-            if codes and not any(str(c) == "404" or str(c) == "410" for c in codes):
+            if codes and not n404:
                 continue                                                # 403 / 405 / 499...: robots refused, clients gone: not a dead page
-            inside = internal_referers(detail)
-            if inside:
+            count = n404 or n
+            if WP_SITEMAP_RE.search(path):
+                self.add("wp-sitemap:" + path, INFO, tr("{n} answers 404 on {url}: a WordPress sitemap name").format(n=count, url=raw(path)), count, evidence,
+                         tr("robots look for the sitemap of a WordPress site (Yoast, WordPress): Odoo's is /sitemap.xml"),
+                         [tr("nothing to fix; optional: a 301 redirect from this address to /sitemap.xml (Website > Configuration > Redirects)")])
+                continue
+            site, state = self.site_lines(path, details)
+            if state.get("now") == 200:
+                self.add("dead-link-now-ok:" + path, INFO, tr("{n} answers 404 on {url}, but it answers 200 now").format(n=count, url=raw(path)), count, evidence + site,
+                         tr("the 404 were temporary: the page was published or restored since, or Odoo was restarting"), [tr("nothing to do")])
+                continue
+            inside = internal_referers(detail, facts.get("site_hosts") or ())
+            cause, advice = self.record_cause(state)
+            if cause:
+                severity = LOOK
+            elif inside:
                 cause = tr("a link of the site itself points to a page that no longer answers")
                 severity = LOOK
             elif SHOP_EVENT_RE.search(path):
                 cause = tr("product or event unpublished, archived or renamed, still reached from search engines or old links")
-                severity = LOOK if n >= 5 else INFO
+                severity = LOOK if count >= 5 else INFO
             else:
                 cause = tr("old or mistyped link; not in sitemap.xml, so not counted in the health")
-                severity = LOOK if n >= 10 else INFO
-            self.add("dead-link:" + path, severity, tr("{n} answers 404 on {url}").format(n=n, url=raw(url)), n, evidence, cause,
-                     [tr("add a 301 redirect to the replacement page (Website > Configuration > Redirects), or publish it again"),
-                      tr("correct the page that holds the link (Linked from the site itself), if any")])
+                severity = LOOK if count >= 10 else INFO
+            if inside:
+                advice = advice + [tr("correct the link in the page that holds it (Linked from the site itself)")]
+            advice = advice or [tr("add a 301 redirect to the replacement page (Website > Configuration > Redirects), or publish it again")]
+            self.add("dead-link:" + path, severity, tr("{n} answers 404 on {url}").format(n=count, url=raw(path)), count, evidence + site, cause, advice)
 
     # --- Odoo errors ---------------------------------------------------------------------------------------------------------------
     def rule_odoo_errors(self, facts, details):
         tr, raw = self.tr, self.raw
         traces = details.get("tracebacks") or {}
+        merged = {}
         for e in facts.get("odoo_errors") or ():
             level, logger, message, n = e["level"], e["logger"] or "", e["message"] or "", e["n"]
+            if NGINX_TAG_RE.match(message):
+                continue                                                # a line of the nginx error log: rule_nginx_upstream
             text = f"{logger}: {message}"
             known = next((k for k in KNOWN_MESSAGES if re.search(k[0], text, re.I)), None)
             if level not in ("ERROR", "CRITICAL") and not known:
                 continue                                                # unknown warnings: the dashboard lists them, no advice here
+            trace = traces.get((level, logger, message)) or []
+            parsed = parse_traceback(trace)
+            key = (level, logger, known[0] if known and known[1] == INFO else message, parsed.get("exception") if parsed else "")
+            m = merged.setdefault(key, {"e": e, "n": 0, "known": known, "parsed": parsed, "trace": trace, "messages": Counter()})
+            m["n"] += n
+            m["messages"][message] += n
+            if (e.get("last") or 0) > (m["e"].get("last") or 0):
+                m["e"] = e
+        for (level, logger, _k, _x), m in merged.items():
+            e, n, known, parsed = m["e"], m["n"], m["known"], m["parsed"]
+            message = e["message"] or ""
             when = e.get("when") or ""
-            evidence = [f"{level} {raw(logger)} ×{n} : {raw(_cut(message, 160))}" + (f" ({when})" if when else "")]
+            evidence = [f"{level} {raw(logger)} ×{n} : {raw(_cut(message, 160))}" + (" (" + tr("last on {when}").format(when=when) + ")" if when else "")]
+            if len(m["messages"]) > 1:
+                evidence.append(tr("{k} variants of the message (numbers or versions differ)").format(k=len(m["messages"])))
             severity = PROBLEM if level == "CRITICAL" or n >= 5 else LOOK
             cause, advice = "", []
             if known:
                 severity = min(severity, known[1]) if known[1] == INFO else severity
                 cause, advice = tr(known[2]), [tr(known[3])]
-            trace = traces.get((level, logger, message)) or []
-            parsed = parse_traceback(trace)
+            counts = (details.get("exceptions") or {}).get((level, logger, message)) or Counter()
+            if len(counts) > 1:
+                evidence.append(tr("Exceptions of all the occurrences: ") + " ; ".join(f"{raw(x)} ×{k}" for x, k in counts.most_common(4)))
+            elif counts:
+                evidence.append(tr("All the occurrences read end with the same exception ({k})").format(k=sum(counts.values())))
             if parsed:
-                evidence.append(tr("Exception: ") + raw(parsed["exception"] + (": " + parsed["message"] if parsed["message"] else "")))
+                evidence.append(tr("Exception of the last occurrence: ") + raw(_cut(parsed["exception"] + (": " + parsed["message"] if parsed["message"] else ""), 200)))
                 if parsed["module"]:
                     evidence.append(tr("Module of the last frame: {module} ({frame})").format(module=raw(parsed["module"]), frame=raw(parsed["frame"])))
                 hint = next((h for h in TRACEBACK_HINTS if re.search(h[0], parsed["exception"] + " " + parsed["message"])), None)
+                if hint and len(counts) > 1 and counts.most_common(1)[0][0].split(":", 1)[0] != parsed["exception"].rsplit(".", 1)[-1]:
+                    hint = None                                         # the last occurrence is not the usual one: no cause drawn from it
                 if hint:
                     cause, advice = tr(hint[1]), [tr(hint[2])]
                     if "werkzeug" in parsed["exception"] and severity < PROBLEM:
                         severity = INFO
+                    if "Vapid" in parsed["exception"] or "VAPID" in parsed["message"]:
+                        severity = INFO if n < 50 else LOOK
+                        vapid = details.get("vapid")
+                        if vapid:
+                            evidence.append(tr("Key stored in Odoo: written on {when}").format(when=raw(vapid)))
+                elif known and "Exception during request handling" in known[0]:
+                    cause = tr("an exception in the module named above, while handling a request")
+                    advice = [tr("update the module {module}, or report the exception to its author with the traceback (key E)").format(module=raw(parsed.get("module") or "?"))]
             elif level in ("ERROR", "CRITICAL") and (not known or known[1] != INFO):
                 evidence.append(tr("Traceback not found in the logs read (logfile or systemd journal around this time)"))
                 advice.append(tr("key E shows the complete traces (app-log-check.py --errors-only --full-trace)"))
             if not cause:
                 cause = tr("an error of Odoo not yet known to this analysis")
                 advice = advice or [tr("key E for the traceback; then fix or update the module concerned")]
-            fid = "odoo:" + logger + ":" + re.sub(r"\s+", " ", message)[:80]
-            self.add(fid, severity, tr("Odoo {level}: {message}").format(level=level, message=raw(_cut(message, 90))), n, evidence, cause, advice)
+            title = parsed["exception"].rsplit(".", 1)[-1] if parsed else _cut(message, 90)
+            fid = "odoo:" + logger + ":" + (parsed["exception"] if parsed else re.sub(r"\s+", " ", message)[:80])
+            self.add(fid, severity, tr("Odoo {level}: {message}").format(level=level, message=raw(title)), n, evidence, cause, advice)
 
     # --- conflicts ---------------------------------------------------------------------------------------------------------------
     def rule_conflicts(self, facts, details):
@@ -408,17 +711,41 @@ class Analyzer:
             self.add("many-retries", INFO, tr("Many retried update conflicts: {n}").format(n=retried), retried, [],
                      tr("often the same user on several devices, or a very busy chat channel"), [tr("nothing to do while the final failures stay at zero")])
 
-    # --- e-mails -----------------------------------------------------------------------------------------------------------------
+    # --- e-mails: the database decides ---------------------------------------------------------------------------------------------
     def rule_mails(self, facts, details):
-        tr = self.tr
-        n = facts.get("mails") or 0
-        if not n:
+        tr, raw = self.tr, self.raw
+        n_log = facts.get("mails") or 0
+        db = details.get("mail_db")
+        if db is None:
+            if not n_log:
+                return
+            texts = " ".join(e.get("message", "") for e in facts.get("odoo_errors") or ())
+            hints = [tr(h) for code, h in SMTP_HINTS if re.search(r"\b" + code + r"\b", texts)]
+            self.add("mail-failures", PROBLEM if n_log >= 3 else LOOK, tr("Failed e-mails (journal): {n}").format(n=n_log), n_log,
+                     hints + [tr("Database not read (run with sudo): the count comes from the journal lines only")],
+                     tr("the mail server refused or could not be reached"),
+                     [tr("odoo-mail-retry.py lists the unsent e-mails and offers to resend them; app-log-check.py explains the causes")], fix=("mail", None))
             return
-        texts = " ".join(e.get("message", "") for e in facts.get("odoo_errors") or ())
-        hints = [tr(h) for code, h in SMTP_HINTS if re.search(r"\b" + code + r"\b", texts)]
-        self.add("mail-failures", PROBLEM if n >= 3 else LOOK, tr("Failed e-mails: {n}").format(n=n), n, hints,
-                 tr("the mail server refused or could not be reached"),
-                 [tr("odoo-mail-retry.py lists the unsent e-mails and offers to resend them; app-log-check.py explains the causes")])
+        failed = db.get("exception", 0)
+        waiting = db.get("outgoing", 0)
+        evidence = [tr("Database, last {nd} days: {failed} in failure, {waiting} waiting, {sent} sent").format(
+            nd=db.get("days", "?"), failed=failed, waiting=waiting, sent=db.get("sent", 0))]
+        evidence += [tr("Cause: ") + f"{raw(_cut(r, 140))} ×{k}" for r, k in (db.get("reasons") or [])[:3]]
+        if db.get("servers"):
+            evidence.append(tr("Outgoing mail servers of Odoo: ") + " ; ".join(raw(x) for x in db["servers"]))
+        if failed:
+            joined = " ".join(r for r, _k in db.get("reasons") or ())
+            hints = [tr(h) for code, h in SMTP_HINTS if re.search(r"\b" + code + r"\b", joined)]
+            self.add("mail-failures", PROBLEM if failed >= 3 else LOOK, tr("Failed e-mails: {n}").format(n=failed), failed, evidence + hints,
+                     tr("the mail server refused these e-mails (see the cause above)"),
+                     [tr("odoo-mail-retry.py lists them and offers to resend them, once the cause is fixed")], fix=("mail", db.get("days")))
+        elif n_log:
+            self.add("mail-failures-not-confirmed", INFO, tr("Failed e-mails in the journal not confirmed: the database has none"), n_log, evidence,
+                     tr("the journal lines counted were not failures of Odoo's mail queue"), [tr("nothing to do")])
+        if waiting >= 20:
+            self.add("mail-queue", LOOK, tr("E-mails waiting to be sent: {n}").format(n=waiting), waiting, evidence[:1],
+                     tr("the scheduled action that sends the e-mails is late or stopped (Mail: Email Queue Manager)"),
+                     [tr("check that the scheduled action « Mail: Email Queue Manager » is active, and the cron threads of odoo.conf (max_cron_threads)")])
 
     # --- slow requests -----------------------------------------------------------------------------------------------------------
     def rule_slow(self, facts, details):
@@ -432,18 +759,53 @@ class Analyzer:
         pages = Counter(s.get("url", "").split("?", 1)[0] for s in slow)
         evidence = [tr("Pages: ") + " ; ".join(f"{raw(u)} ×{k}" for u, k in pages.most_common(3))]
         if t_sql + t_py > 0:
-            evidence.append(tr("Time in SQL {sql} %, in Python {py} %").format(sql=round(100 * t_sql / (t_sql + t_py)), py=round(100 * t_py / (t_sql + t_py))))
-        if cold >= 2 and 2 * cold >= len(slow):
+            evidence.append(tr("Time in SQL {sql} %, outside SQL {py} % (Python computation, templates, waiting for a lock or for the processor)").format(
+                sql=round(100 * t_sql / (t_sql + t_py)), py=round(100 * t_py / (t_sql + t_py))))
+        slowest = max((s.get("total") or 0) for s in slow)
+        hours = Counter(time.strftime("%Y-%m-%d %Hh", time.localtime(s["t"])) for s in slow if s.get("t"))
+        if hours:
+            top = hours.most_common(3)
+            evidence.append(tr("Busiest hours: ") + " ; ".join(f"{h} ×{k}" for h, k in top) + " (" + tr("the slowest: {s} s").format(s=f"{slowest:.1f}") + ")")
+        restarts = [t for t, text in ((details.get("service") or {}).get("events") or []) if re.search(r"Started|Starting", text)]
+        after = sum(1 for s in slow if s.get("t") and any(0 <= s["t"] - r <= 600 for r in restarts))
+        if restarts:
+            evidence.append(tr("{k} of them in the 10 minutes after a start of Odoo ({r} starts in the window)").format(k=after, r=len(restarts)))
+        conf = details.get("odoo_conf")
+        conf_advice, conf_cause = [], ""
+        if conf is not None:
+            ev, adv, conf_cause = odoo_settings_advice(conf.get("values") or {}, conf.get("cpus"), conf.get("mem_mb"), slowest)
+            evidence += [tr("Settings read in ") + raw(conf.get("path") or "odoo.conf") + " : " + ev[0].split(" : ", 1)[1]] + [tr("Machine: {cpus} processors, {mem} MB of memory").format(
+                cpus=conf.get("cpus") or "?", mem=conf.get("mem_mb") or "?")]
+            for kind, a, b in adv:
+                if kind == "workers0":
+                    conf_advice.append(tr("workers=0: Odoo runs in ONE process (threads): a slow request holds the others, and limit_time_* do not apply; set workers to {best} at most for this processor count (the memory allows about {mem} workers)").format(best=a or "2 x CPU + 1", mem=b or "?"))
+                elif kind == "too-many":
+                    conf_advice.append(tr("workers={now} is more than (2 x CPU) + 1 = {best}: the workers fight for the processor and each request gets slower; lower workers to {best}").format(now=b, best=a))
+                elif kind == "few":
+                    conf_advice.append(tr("workers={now} for this machine: up to {best} workers are possible (Odoo guide: (2 x CPU) + 1, about 325 MB each)").format(now=b, best=a))
+                elif kind == "memory":
+                    conf_advice.append(tr("the workers may need about {need} MB, close to the {mem} MB of the machine: add memory or lower workers").format(need=a, mem=b))
+                elif kind == "limit-real":
+                    conf_advice.append(tr("the slowest request took {s} s, close to limit_time_real={limit} s: beyond it, Odoo stops the request (the visitor gets an error)").format(s=a, limit=b))
+        if cold >= 2 and 2 * cold >= len(slow) or (restarts and after * 2 >= len(slow)):
             cause = tr("cold cache after a restart or an update: assets and views computed once")
-            advice = [tr("odoo-warmup.py right after each restart or update of Odoo")]
+            advice = [tr("odoo-warmup.py right after each restart or update of Odoo (odoo-update-module.sh does it)")]
+            fix = ("warmup", None)
         elif t_sql > t_py:
             cause = tr("the database: heavy searches, missing indexes or tables to clean")
             advice = [tr("odoo-sql-maint: VACUUM ANALYZE and the index checks"), tr("look at the filters and the number of records of the slow pages")]
+            fix = None
         else:
-            cause = tr("Python: heavy computation or report, or too few workers for the load")
-            advice = [tr("app-health-check.py: workers, memory, processor"), tr("check workers, limit_time_cpu and limit_time_real in odoo.conf")]
+            cause = tr("time spent outside the database: heavy pages, too few or too many workers for the processor, or the machine busy with something else at these hours")
+            advice = conf_advice or [tr("app-health-check.py: workers, memory, processor")]
+            if not conf_advice and conf is None:
+                advice.append(tr("odoo.conf not read (run with sudo): workers, limit_time_cpu and limit_time_real not checked"))
+            advice.append(tr("host-perf-audit.py on the Proxmox host during the busy hours above: is the processor or the disk the limit?"))
+            fix = None
+        if conf_advice and advice is not conf_advice:
+            advice = advice + [a for a in conf_advice if a not in advice]
         n = len(slow)
-        self.add("slow-requests", PROBLEM if n >= 5 else LOOK, tr("Slow requests: {n}").format(n=n), n, evidence, cause, advice)
+        self.add("slow-requests", PROBLEM if n >= 5 else LOOK, tr("Slow requests: {n}").format(n=n), n, evidence, cause, advice, fix=fix)
 
     # --- bans ---------------------------------------------------------------------------------------------------------------------
     def rule_bans(self, facts, details):
@@ -451,9 +813,10 @@ class Analyzer:
         to_ban = facts.get("to_ban") or []
         if to_ban:
             self.add("ban-pending", LOOK, tr("Addresses to ban: {n}").format(n=len(to_ban)), len(to_ban),
-                     [f"{raw(who)} : {reason}" for _ip, who, reason in to_ban[:5]],
+                     [f"{raw(who)} : {reason}" for _ip, who, reason in to_ban[:5]] + ([tr("… and {n} more").format(n=len(to_ban) - 5)] if len(to_ban) > 5 else []),
                      tr("suspicious requests (.env, wp-includes, probes) from addresses that are neither banned nor protected"),
-                     [tr("key b: nginx-log-audit.sh --ban checks the white list and its score (threshold 3) before banning; CDN relays are never proposed")])
+                     [tr("key b: nginx-log-audit.sh --ban checks the white list and its score (threshold 3) before banning; CDN relays are never proposed")],
+                     fix=("ban", [(ip, who, reason) for ip, who, reason in to_ban]))
         held = facts.get("not_proposed") or []
         if held:
             self.add("ban-held", INFO, tr("Addresses not proposed for banning: {n}").format(n=len(held)), len(held),
@@ -467,13 +830,30 @@ class Analyzer:
         total = sum(ips.values())
         if total < 10:
             return
-        busiest = ips.most_common(1)[0][1] if ips else 0
         who = facts.get("who") or {}
         evidence = [tr("By address: ") + " ; ".join(f"{raw(who.get(ip, ip))} ×{k}" for ip, k in ips.most_common(3))]
-        if busiest >= 5 or total >= 30:
+        nginx = details.get("nginx") or {}
+        methods = Counter()
+        for url in facts.get("account_urls") or ():
+            methods.update((nginx.get(url.split("?", 1)[0]) or {}).get("methods") or {})
+        posts = methods.get("POST", 0)
+        if methods:
+            evidence.append(tr("Forms sent (POST): {posts} · pages only shown (GET): {gets}").format(posts=posts, gets=methods.get("GET", 0)))
+        signup = details.get("signup") or {}
+        if signup:
+            scope = signup.get("scope")
+            evidence.append((tr("Sign-up in Odoo: free (anyone can create an account)") if scope == "b2c" else tr("Sign-up in Odoo: on invitation") if scope == "b2b"
+                             else tr("Sign-up in Odoo: {scope}").format(scope=raw(str(scope or "?"))))
+                            + (" · " + tr("portal accounts created in the window: {n}").format(n=signup["new_users"]) if signup.get("new_users") is not None else ""))
+        if methods and posts < 5:
+            self.add("account-forms", INFO, tr("Sign-up and password reset forms: {n} requests, almost all only shown").format(n=total), total, evidence,
+                     tr("robots and search engines following the links of the site: no account attempts"), [tr("nothing to do")])
+        elif posts >= 10 or (not methods and (ips.most_common(1)[0][1] >= 5 or total >= 30)):
+            advice = [tr("enable reCAPTCHA or Cloudflare Turnstile (Website > Configuration > Settings), or set the sign-up to « On invitation »")]
+            if signup.get("new_users"):
+                advice.append(tr("look at the portal accounts created recently (Settings > Users, filter « Portal »): remove the fake ones"))
             self.add("account-forms", LOOK, tr("Sign-up and password reset forms used a lot: {n} requests").format(n=total), total, evidence,
-                     tr("a robot that creates accounts or tests addresses"),
-                     [tr("enable reCAPTCHA or Cloudflare Turnstile (Website > Configuration > Settings), or set the sign-up to « On invitation »")])
+                     tr("a robot that creates accounts or tests addresses"), advice)
         else:
             self.add("account-forms", INFO, tr("Sign-up and password reset forms: {n} requests from {k} addresses").format(n=total, k=len(ips)), total, evidence,
                      tr("normal use and search engines following the links"), [tr("nothing to do")])
@@ -585,7 +965,7 @@ class History:
 # ------------------------------------------------------------------------------------------------------------------
 # Display
 # ------------------------------------------------------------------------------------------------------------------
-def render(findings, trend=None, tr=_identity, color=lambda style, text: text, history_path=None, history_error=None):
+def render(findings, trend=None, tr=_identity, color=lambda style, text: text, history_path=None, history_error=None, apply_hint=""):
     """Lines of the analysis: summary, each finding (evidence, cause, recommendations, trend), resolved problems and priorities."""
     trend = trend or {}
     symbols = {PROBLEM: ("✖", "1;31"), LOOK: ("⚠", "1;33"), INFO: ("ℹ", "2")}
@@ -616,6 +996,8 @@ def render(findings, trend=None, tr=_identity, color=lambda style, text: text, h
             lines.append("        " + tr("Probable cause: ") + f["cause"])
         for a in f["advice"]:
             lines.append("        " + color("1;36", "→ ") + a)
+        if f.get("fix") and apply_hint:
+            lines.append("        " + color("1;32", "⚙ ") + apply_hint)
     if trend.get("resolved"):
         lines.append("  " + color("1;32", "✔ " + tr("Resolved since the previous analysis: ")) + " ; ".join(trend["resolved"][:8]))
     if trend.get("top"):

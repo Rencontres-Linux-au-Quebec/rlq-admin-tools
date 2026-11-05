@@ -120,7 +120,7 @@ from urllib.parse import unquote, urlsplit
 from collections import Counter, OrderedDict
 from concurrent.futures import Future
 
-__version__ = "1.166.20261104.204925"
+__version__ = "1.167.20261105.071311"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
@@ -4442,6 +4442,10 @@ ROBOT_UA_RE = re.compile(r"bot\b|bot/|crawl|spider|slurp|scrap|facebookexternalh
 AGENTS_MAX = 300_000                                 # addresses kept in memory (known User-Agent)
 
 NON_PAGE_RE = re.compile(r"^/(?:web/(?!login)|websocket|longpolling|bus/|mail/|jsonrpc|favicon|robots|apple-touch|static/|\.well-known)|\.(?:js|css|png|jpe?g|gif|svg|ico|woff2?|ttf|map|webp)$", re.I)
+# 1.167: nginx could not reach Odoo (service stopped or restarting, every worker busy): lines of the nginx error log
+EVENT_PATH_ID_RE = re.compile(r"^(?:/[a-z]{2}(?:_[A-Z]{2})?)?/event/[^/]*?-(\d+)(?:/|$)")          # 1.167: /event/name-119 -> event 119
+PRODUCT_PATH_ID_RE = re.compile(r"^(?:/[a-z]{2}(?:_[A-Z]{2})?)?/shop/(?:product/)?[^/]*?-(\d+)(?:/|$)")  # 1.167: /shop/name-12 -> product template 12
+UPSTREAM_ERROR_RE = re.compile(r"while connecting to upstream|upstream timed out|no live upstreams|upstream prematurely closed|while reading response header from upstream")
 MAIL_ERROR_RE = re.compile(r"Mail Delivery Failed|SMTP|Failed to send|mail\.session|Connection refused", re.I)
 # Odoo transaction retries (odoo/service/model.py, retrying function): "SERIALIZATION_FAILURE, 4 tries left, try again in 0.13 sec..." = retried conflict;
 # "SERIALIZATION_FAILURE, maximum number of tries reached!" = final failure (the request fails). Same for DEADLOCK_DETECTED and LOCK_NOT_AVAILABLE.
@@ -4683,7 +4687,7 @@ def sitemap_report(url, folder=NGINX_LOG_DIR, days=0):
 class Stats:
     """What happened during the session, for the summary (Ctrl-C, --summary) and the dashboard (Ctrl-G, Ctrl-T): most active addresses, suspicious requests,
     5xx and 4xx errors, slow requests, banned addresses, pages per language, most requested URLs, Odoo errors. Counts only the DISPLAYED lines (after --only and --suspect)."""
-    COUNTERS = ("par_ip", "by_name", "suspect_ips", "suspect_urls", "account_ips", "account_urls", "urls", "languages", "statuses", "odoo_errors", "pages", "pages_per_ip", "visits", "probes", "not_found", "gone_404", "unknown_404", "disabled_404", "conflict_codes", "failure_codes")
+    COUNTERS = ("par_ip", "by_name", "suspect_ips", "suspect_urls", "account_ips", "account_urls", "urls", "languages", "statuses", "odoo_errors", "pages", "pages_per_ip", "visits", "probes", "not_found", "gone_404", "unknown_404", "disabled_404", "conflict_codes", "failure_codes", "nginx_errors")
     VISIT_PAUSE = 1800                                 # seconds without a page view after which the return of an address is a NEW visit
 
     def __init__(self, slowest):
@@ -4710,6 +4714,8 @@ class Stats:
         self.urls, self.languages, self.statuses = Counter(), Counter(), Counter()
         self.odoo_errors = Counter()                     # (level, logger, message) -> number
         self.odoo_errors_time = {}                       # same key -> [first instant, last instant]
+        self.nginx_errors = Counter()                    # 1.167: (level, message) -> number, lines of the nginx ERROR log (never counted as Odoo errors or e-mails)
+        self.nginx_errors_time = {}                      # 1.167: same key -> [first instant, last instant]
         self.http_errors = []                             # (instant, code, url, address) of each 4xx / 5xx response, in order of arrival
         self.slow_requests, self.banned = [], {}
         self.slow_info = []                              # same order as `slow_requests`: (SQL queries, SQL time, Python time, size, instant)
@@ -4867,7 +4873,15 @@ class Stats:
 
     def ajouter(self, L, renderings, ban_source, benign=False):
         self.lines += 1
-        if L.level in ("WARNING", "ERROR", "CRITICAL") and not benign:          # "bad query" of a retried conflict: counted in the conflicts, NOT in the errors
+        if L.database == "nginx" and L.level in ("WARNING", "ERROR", "CRITICAL"):
+            # 1.167: a line of the nginx error log. Before, it was counted as an Odoo error and, with "Connection refused" in it (nginx could not reach
+            # Odoo), as a failed e-mail: the dashboard showed "Failed e-mails: 40" while Odoo had not failed to send any.
+            message = re.sub(r"(?<![A-Za-z\d])\d+", "N", (L.text or "").strip())[:200]
+            self.nginx_errors[(L.level, message)] += 1
+            t = L.instant or time.time()
+            seen = self.nginx_errors_time.setdefault((L.level, message), [t, t])
+            seen[1] = max(seen[1], t)
+        elif L.level in ("WARNING", "ERROR", "CRITICAL") and not benign:          # "bad query" of a retried conflict: counted in the conflicts, NOT in the errors
             message = re.sub(r"(?<![A-Za-z\d])\d+", "N", (L.text or "").strip())[:200]
             self.odoo_errors[(L.level, L.logger, message)] += 1
             t = L.instant or time.time()
@@ -4947,6 +4961,7 @@ class Stats:
         c.slow_requests, c.slow_info, c.banned, c.end = list(self.slow_requests), list(self.slow_info), dict(self.banned), time.time()
         c.watched, c.watch_it = list(self.watched), list(self.watch_it)
         c.http_errors, c.odoo_errors_time = list(self.http_errors), {k: list(v) for k, v in self.odoo_errors_time.items()}
+        c.nginx_errors_time = {k: list(v) for k, v in self.nginx_errors_time.items()}
         return c
 
     def since(self, old):
@@ -5068,6 +5083,13 @@ class Stats:
             refused = sum(self.disabled_404.values())
             indicator(0, TR("404 refused on purpose (--disable-uri, not in the health): ") + (f"{refused}" if refused else none_fem()),
                       ["URL: " + self.top(self.disabled_404, 5)] if refused else (), (10 ** 9, 10 ** 9), refused)
+        upstream = Counter({k: v for k, v in self.nginx_errors.items() if UPSTREAM_ERROR_RE.search(k[1])})      # 1.167: nginx could not reach Odoo
+        nu = sum(upstream.values())
+        if nu:
+            times = [t for k in upstream for t in self.nginx_errors_time.get(k, ())]
+            indicator(0, TR("Odoo unreachable from nginx (upstream errors): ") + f"{nu}",
+                      [TR("from {first} to {last}: Odoo stopped, restarting or too busy (see systemctl status and the service journal)").format(
+                          first=clock_of(min(times)), last=clock_of(max(times)))] if times else [], (1, 20), nu)
         severe = Counter({k: v for k, v in self.odoo_errors.items() if k[0] in ("ERROR", "CRITICAL")})
         ng = sum(severe.values())
         detail = [f"{k[0]} {k[1]} ×{v} : {k[2]}" + self.odoo_error_times(k) for k, v in severe.most_common(3)]
@@ -5321,6 +5343,9 @@ class Stats:
         blocks.append((8, "  Top 10 URLs (all requests, errors included):"))
         for url, n in self.urls.most_common(10):
             blocks.append((8, "    " + color_code("1;36", f"{n:>6}") + f"  {short_url(url, 90)}"))
+        if self.nginx_errors:                                                       # 1.167: the nginx error log, apart from Odoo
+            blocks.append((8, "  " + TR("nginx errors (error log): ") + f"{sum(self.nginx_errors.values())} — "
+                          + " ; ".join(f"{k[0]} ×{v} : {cut_words(k[1], 160)}" for k, v in self.nginx_errors.most_common(3))))
         if self.odoo_errors:
             blocks.append((8, f"  Odoo errors and warnings: {sum(self.odoo_errors.values())} — "
                           + " ; ".join(f"{k[0]} {k[1]} ×{v} : {cut_words(k[2], 200)}" for k, v in self.odoo_errors.most_common(5))))
@@ -5348,6 +5373,13 @@ def advisor_facts(stats):
                             "last": seen[1] if seen else None, "when": clock_of(seen[1]) if seen else ""})
     slow = [{"total": total, "url": url, "ip": ip, "sql_n": info[0], "t_sql": info[1], "t_py": info[2], "size": info[3], "t": info[4]}
             for (total, url, ip), info in zip(stats.slow_requests, stats.slow_info)]
+    nginx_errors = []                                    # 1.167: the nginx error log, apart from Odoo
+    for (level, message), n in stats.nginx_errors.most_common(40):
+        seen = stats.nginx_errors_time.get((level, message))
+        nginx_errors.append({"level": level, "message": message, "n": n, "first": seen[0] if seen else None, "last": seen[1] if seen else None})
+    errors5 = [(t, code, url, ip) for t, code, url, ip in stats.http_errors if code >= 500][-500:]
+    shown_ips = {ip for _t, _c, _u, ip in errors5} | set(stats.account_ips) | {ip for ip, _n in to_ban}
+    site = urlsplit(SITEMAP.url if SITEMAP is not None else DEFAULT_SITEMAP_URL).hostname
     return {"start": stats.first or stats.start, "requests": stats.requests, "lines": stats.lines,
             "errors5": dict(stats.errors[5]), "codes_by_url": codes,
             "plain_4xx": {u: n for u, n in stats.errors[4].items() if not suspect_url(u) and not is_disabled(u)},
@@ -5356,7 +5388,59 @@ def advisor_facts(stats):
             "final_failures": stats.final_failures, "failure_codes": dict(stats.failure_codes), "mails": stats.mails, "slow": slow,
             "to_ban": [(ip, stats.who(ip), stats.ban_reason(ip, n)) for ip, n in to_ban],
             "not_proposed": [(ip, stats.who(ip), reason) for ip, reason in stats.not_proposed],
-            "account_ips": dict(stats.account_ips), "who": {ip: stats.who(ip) for ip in stats.account_ips}, "latency_n": latency_n}
+            "account_ips": dict(stats.account_ips), "account_urls": list(stats.account_urls), "who": {ip: stats.who(ip) for ip in shown_ips}, "latency_n": latency_n,
+            "nginx_errors": nginx_errors, "http_errors5": errors5, "site_hosts": [site] if site else []}
+
+
+def unit_events(service, ns, since):
+    """1.167: (epoch, message) of the starts and stops of the service since `since` (systemd messages of its journal), oldest first."""
+    if not service:
+        return []
+    cmd = ["journalctl", "-u", service, "-q", "--no-pager", "-o", "short-unix", "--since", f"@{math.floor(since)}",
+           "-g", "Started|Starting|Stopped|Stopping|Main process exited|Failed with result|Scheduled restart|Killing process"] + (["--namespace", ns] if ns else [])
+    res = []
+    for text_line in lancer(cmd, 60)[1].splitlines():
+        m = re.match(r"^(\d+(?:\.\d+)?)\s+\S+\s+\S+?:\s+(.*)$", text_line)
+        if m:
+            res.append((float(m.group(1)), m.group(2).strip()))
+    return res[-200:]
+
+
+def unit_state(service):
+    """1.167: "active (running) since ..." of the service, or ""."""
+    if not service:
+        return ""
+    values = dict(l.split("=", 1) for l in lancer(["systemctl", "show", service, "-p", "ActiveState", "-p", "SubState", "-p", "ActiveEnterTimestamp"], 10)[1].splitlines() if "=" in l)
+    if not values.get("ActiveState"):
+        return ""
+    state = f"{values['ActiveState']} ({values.get('SubState', '?')})"
+    return TR("{svc}, started on {when}").format(svc=state, when=values["ActiveEnterTimestamp"]) if values.get("ActiveEnterTimestamp") else state
+
+
+ODOO_PERF_KEYS = ("workers", "max_cron_threads", "limit_time_cpu", "limit_time_real", "limit_memory_soft", "limit_memory_hard", "db_maxconn")
+
+
+def odoo_perf_settings(profile):
+    """1.167: {"path", "values", "cpus", "mem_mb"} - the workers and limits of odoo.conf, the processors this program may use (cpuset of a container
+    included) and the memory (MemTotal, that of the container with lxcfs); None when odoo.conf is not readable (then nothing is assumed)."""
+    module = load_module("_odoo_conf")
+    path = (profile or {}).get("ODOO_CONF") or (module.trouver() if module is not None else None)
+    if not path or not os.path.isfile(path) or not os.access(path, os.R_OK) or module is None:
+        return None
+    try:
+        cpus = len(os.sched_getaffinity(0))
+    except (AttributeError, OSError):
+        cpus = os.cpu_count() or 0
+    mem_mb = 0
+    try:
+        with open("/proc/meminfo", encoding="utf-8") as f:
+            for text_line in f:
+                if text_line.startswith("MemTotal:"):
+                    mem_mb = int(text_line.split()[1]) // 1024
+                    break
+    except (OSError, ValueError, IndexError):
+        mem_mb = 0
+    return {"path": path, "values": {k: module.valeur(path, k) for k in ODOO_PERF_KEYS}, "cpus": cpus, "mem_mb": mem_mb}
 
 
 def advisor_history_file(name="advisor-history.json"):
@@ -6966,6 +7050,204 @@ def follow(cmd, people, resolver, options, output):
             if pays:
                 stats.pays[ip] = pays
 
+    def db_rows(sql, timeout=30):
+        """1.167: rows of a read-only query in each Odoo database known here (the transaction is read-only in PostgreSQL itself); [] when unreadable."""
+        odoo_db = people.odoo_db if people is not None else None
+        if odoo_db is None or options.get("app") not in (None, "odoo"):
+            return []
+        bases = sorted(people.databases_seen) or (odoo_db.bases_odoo() or [])
+        rows = []
+        for base in bases[:3]:
+            got = odoo_db._requete(base, sql, delai=timeout)
+            rows.extend(got or [])
+        return rows
+
+    def odoo_bases():
+        odoo_db = people.odoo_db if people is not None else None
+        if odoo_db is None or options.get("app") not in (None, "odoo"):
+            return odoo_db, []
+        return odoo_db, (sorted(people.databases_seen) or (odoo_db.bases_odoo() or []))[:3]
+
+    def record_of(path):
+        """1.167: what Odoo holds for a page answering 404: the event or the product of its number, or the web page of its address (read-only)."""
+        odoo_db, bases = odoo_bases()
+        if odoo_db is None or not bases:
+            return None
+        base = bases[0]
+        for regex, table, kind in ((EVENT_PATH_ID_RE, "event_event", "event"), (PRODUCT_PATH_ID_RE, "product_template", "product")):
+            m = regex.match(path)
+            if not m:
+                continue
+            published = "is_published" if odoo_db._column_exists(base, table, "is_published") else ("website_published" if odoo_db._column_exists(base, table, "website_published") else "true")
+            end = "to_char(date_end, 'YYYY-MM-DD')" if table == "event_event" else "''"
+            rows = odoo_db._requete(base, f"SELECT id, name::text, COALESCE({published}, false), COALESCE(active, true), {end} FROM {table} WHERE id = {int(m.group(1))}")
+            if rows is None:
+                return None
+            if not rows:
+                return {"kind": "missing", "what": kind, "id": int(m.group(1))}
+            r = rows[0] + [""] * 5
+            return {"kind": kind, "id": int(m.group(1)), "name": odoo_db.nom_traduit(r[1]), "published": r[2] in ("t", "true"), "active": r[3] in ("t", "true"), "end": r[4]}
+        plain = sitemap_path(path)
+        if plain.count("/") != 1 or re.match(r"^/(?:event|shop|blog|web|forum|slides|survey|my|im_livechat|website|odoo|jobs|appointment|calendar)\b", plain):
+            return None
+        rows = odoo_db._requete(base, f"SELECT url, COALESCE(is_published, false) FROM website_page WHERE url = {odoo_db._sql_text(plain)}")
+        if rows is None:
+            return None
+        if rows:
+            return {"kind": "page", "url": rows[0][0], "published": rows[0][1] in ("t", "true")}
+        stem = re.sub(r"-\d+$", "", plain)
+        similar = odoo_db._requete(base, f"SELECT url FROM website_page WHERE url LIKE {odoo_db._sql_text(stem.replace('%', '').replace('_', '') + '%')} "
+                                         f"AND url <> {odoo_db._sql_text(plain)} AND COALESCE(is_published, false) ORDER BY write_date DESC LIMIT 3") or []
+        return {"kind": "no-page", "similar": [r[0] for r in similar]}
+
+    def gather_details(module, facts, batch):
+        """1.167: everything the analysis needs to explain the problems raised, read here once, read-only: Odoo tracebacks (of each error, of each
+        5xx page, the exceptions of every occurrence), nginx referers and methods, the starts and stops of the service, the workers and limits of
+        odoo.conf, the e-mails of the database, the records of the pages answering 404, the redirects already defined, the answer of the site now."""
+        details = {"tracebacks": {}, "nginx": {}, "exceptions": {}, "traces_5xx": {}, "records": {}, "rewrites": {}, "now": {}}
+        service, ns = options.get("service"), options.get("ns") or ""
+        journal = lambda since, until, extra=(): lancer(["journalctl", "-u", service, "-q", "--no-pager", "-o", "cat", "--since", f"@{math.floor(since)}",
+                                                         "--until", f"@{math.ceil(until)}"] + list(extra) + (["--namespace", ns] if ns else []), 120)[1].splitlines()
+        wanted = [e for e in facts["odoo_errors"] if e["level"] in ("ERROR", "CRITICAL") or "Exception during request handling" in e["message"]]
+        logfile = options.get("odoo_journal")
+        file_lines = module.read_tail(logfile) if (wanted or facts["http_errors5"]) and logfile and os.path.isfile(logfile) else None
+        for e in wanted[:10]:
+            lines_e = file_lines
+            if not lines_e and e["last"] and service:
+                lines_e = journal(e["last"] - 5, e["last"] + 5)
+            trace = module.odoo_trace(lines_e or [], e["logger"], e["message"])
+            if trace:
+                details["tracebacks"][(e["level"], e["logger"], e["message"])] = trace
+            if "Exception during request handling" in e["message"] and e["n"] > 1:      # every occurrence, not only the last one
+                if file_lines:
+                    every = file_lines
+                elif e["first"] and e["last"] and service:
+                    every = journal(e["first"] - 1, e["last"] + 30, ["-g", r"Exception during request handling|^[A-Za-z_][\w.]*(Error|Exception|Warning|Failure)(:|$)"])
+                else:
+                    every = []
+                counts = module.exception_counts(every, e["logger"], e["message"])
+                if counts:
+                    details["exceptions"][(e["level"], e["logger"], e["message"])] = counts
+        by_path = {}
+        for t, _code, url, _ip in facts["http_errors5"]:
+            by_path.setdefault(url.split("?", 1)[0], []).append(t)
+        for path, times in sorted(by_path.items(), key=lambda pt: -len(pt[1]))[:5]:
+            trace = []
+            for t in reversed(times[-3:]):                      # the last three answers 500 of this page
+                lines_t = file_lines if file_lines else (journal(t - 4, t + 4) if service else [])
+                trace = module.trace_near(lines_t, t, 4)
+                if trace:
+                    break
+            details["traces_5xx"][path] = trace
+        access = [f for f in nginx_log_files(options["profile"]) if "access" in os.path.basename(f)]
+        if batch:                                            # 1.165: the rotated logs (.1, .2.gz...) written during the window
+            access += sorted(r for f in list(access) for r in glob.glob(f + ".*") if os.path.isfile(r) and os.path.getmtime(r) >= facts["start"])
+        by_4xx = Counter()
+        for url, n in facts["plain_4xx"].items():
+            by_4xx[url.split("?", 1)[0]] += n
+        pages_404 = list(OrderedDict.fromkeys([u.split("?", 1)[0] for u in facts["gone_404"]] + [u for u, n in by_4xx.most_common(8) if n >= 3]))
+        urls = pages_404 + list(facts["account_urls"])
+        if access and urls:
+            details["nginx"] = module.nginx_details(access, urls, since=facts["start"])
+        details["service"] = {"events": unit_events(service, ns, facts["start"]), "state": unit_state(service)}
+        details["odoo_conf"] = odoo_perf_settings(options["profile"]) if facts["slow"] else None
+        odoo_db, bases = odoo_bases()
+        if odoo_db is not None and bases:
+            days = max(1, math.ceil((time.time() - facts["start"]) / 86400))
+            states, reasons, servers = Counter(), Counter(), []
+            for base in bases:
+                got = odoo_db.courriels(base, days)
+                if got is None:
+                    continue
+                states.update(got.get("etats") or {})
+                reasons.update(dict(got.get("raisons") or []))
+                servers += [f"{x['hote']}:{x['port']} ({x['chiffrement'] or 'none'}){'' if x['actif'] else ' ' + TR('(inactive server)')}" for x in (odoo_db.serveurs_courriel(base) or [])]
+            if states or reasons:
+                details["mail_db"] = dict(states, days=days, reasons=reasons.most_common(3), servers=servers[:3])
+            if any("Vapid" in " ".join(t) for t in details["tracebacks"].values()):
+                rows = db_rows("SELECT to_char(write_date, 'YYYY-MM-DD HH24:MI') FROM ir_config_parameter WHERE key = 'mail.web_push_vapid_public_key'")
+                details["vapid"] = (rows[0][0] + " UTC") if rows and rows[0] and rows[0][0] else None
+            if sum(facts["account_ips"].values()) >= 10:
+                params = odoo_db.parametres(bases[0], "auth_signup.") or {}
+                rows = odoo_db._requete(bases[0], f"SELECT count(*) FROM res_users WHERE share AND create_date > now() - interval '{days} days'")
+                details["signup"] = {"scope": params.get("auth_signup.invitation_scope", "b2b"),
+                                     "new_users": int(rows[0][0]) if rows and rows[0] and rows[0][0].isdigit() else None}
+            for path in pages_404[:10]:
+                rec = record_of(path)
+                if rec:
+                    details["records"][path] = rec
+                plain = sitemap_path(path)
+                rows = odoo_db._requete(bases[0], f"SELECT url_to, redirect_type FROM website_rewrite WHERE active AND url_from IN ({odoo_db._sql_text(path)}, {odoo_db._sql_text(plain)}) LIMIT 1")
+                if rows:
+                    details["rewrites"][path] = (rows[0][0], rows[0][1] if len(rows[0]) > 1 else "?")
+        host = (facts["site_hosts"] or [None])[0]
+        if host and not os.environ.get("NGINX_TOOLS_TESTS"):
+            for path in pages_404[:10]:
+                code, _body = local_request(443, host, True, path, delay=6)
+                if code:
+                    details["now"][path] = code
+        elif host and os.environ.get("APP_LOG_LIVE_TEST_NOW"):            # tests: the answer of the site now, given by the test
+            details["now"] = json.loads(os.environ["APP_LOG_LIVE_TEST_NOW"])
+        return details
+
+    def apply_corrections(findings, facts):
+        """1.167 --apply (with --advise): the corrections of the analysis, ONE question each, on a terminal. Bans go through nginx-log-audit.sh --ban, which
+        investigates the address, checks the white list and its score (threshold 3) and asks its own confirmation; the e-mails through odoo-mail-retry.py,
+        which lists them and asks before resending; the warm-up through odoo-warmup.py. Nothing is done without a « yes »."""
+        fixes = [f for f in findings if f.get("fix")]
+        write_out(["", color_code(STYLES["title"], TR("──── Corrections (--apply) ────"))])
+        if not fixes:
+            write_out(["  " + TR("No correction to offer for this window.")])
+            return
+        if not (sys.stdin.isatty() and sys.stdout.isatty()):
+            write_out(["  " + TR("--apply needs a terminal (one question for each correction): nothing applied.")])
+            return
+
+        def question(text):
+            output.flush()
+            try:
+                if I18N_MODULE is not None and hasattr(I18N_MODULE, "saisie"):
+                    answer = I18N_MODULE.saisie(text)
+                else:
+                    answer = input(text)
+            except (EOFError, KeyboardInterrupt):
+                print()
+                return "q"
+            return (answer or "").strip().lower()
+        yes = ("o", "oui", "y", "yes")
+        app = ["--app", options["app"]] if options.get("app") else []
+        for f in fixes:
+            kind, data = f["fix"]
+            write_out(["", "  " + color_code("1;36", f["title"])])
+            if kind == "ban":
+                nla = os.path.join(SCRIPT_DIR, "nginx-log-audit.sh")
+                if not os.path.isfile(nla):
+                    write_out(["  " + TR("nginx-log-audit.sh not found next to this program: banning impossible.")])
+                    continue
+                done = 0
+                for i, (ip, who, reason) in enumerate(data):
+                    answer = question(TR("Ban {who} ({reason})? nginx-log-audit.sh investigates it first [y] yes  [N] no  [q] stop the bans: ").format(who=who, reason=reason))
+                    if answer in ("q", "quit", "quitter"):
+                        break
+                    if answer not in yes:
+                        continue
+                    with foreground_child():
+                        code = subprocess.run(["bash", nla, "--ban", ip, "--reason", f"app-log-live.py --advise: {reason}"] + app).returncode
+                    if code == 0:
+                        done += 1
+                        stats.all_banned.add(ip)
+                write_out(["  " + TR("Addresses banned: {n} (reversible: nginx-log-audit.sh --unban IP).").format(n=done)])
+            elif kind == "mail":
+                tool = os.path.join(SCRIPT_DIR, "odoo-mail-retry.py")
+                if os.path.isfile(tool) and question(TR("Open odoo-mail-retry.py (it lists the failed e-mails and asks before resending)? [y] yes  [N] no: ")) in yes:
+                    with foreground_child():
+                        subprocess.run([sys.executable, tool, "--days", str(data or 30)])
+            elif kind == "warmup":
+                tool = os.path.join(SCRIPT_DIR, "odoo-warmup.py")
+                if os.path.isfile(tool) and question(TR("Warm up Odoo now with odoo-warmup.py (reads the main pages once)? [y] yes  [N] no: ")) in yes:
+                    with foreground_child():
+                        subprocess.run([sys.executable, tool])
+
     def advise(batch=False):
         """1.165: batch=True for --advise (window of several days read without the live stream): rotated nginx access logs of the window are read too,
         and the history is advisor-history-advise.json.
@@ -6980,25 +7262,7 @@ def follow(cmd, people, resolver, options, output):
         if batch:
             name_addresses()                                  # 1.166: the names (and CDN relays) of the addresses the analysis shows
         facts = advisor_facts(stats)
-        details = {"tracebacks": {}, "nginx": {}}
-        wanted = [e for e in facts["odoo_errors"] if e["level"] in ("ERROR", "CRITICAL") or "Exception during request handling" in e["message"]]
-        logfile = options.get("odoo_journal")
-        file_lines = module.read_tail(logfile) if wanted and logfile and os.path.isfile(logfile) else None
-        for e in wanted[:10]:
-            lines_e = file_lines
-            if not lines_e and e["last"]:
-                cmd = ["journalctl", "-u", options["service"], "-q", "--no-pager", "-o", "cat", "--since", f"@{math.floor(e['last'] - 5)}",
-                       "--until", f"@{math.ceil(e['last'] + 5)}"] + (["--namespace", options["ns"]] if options.get("ns") else [])
-                lines_e = lancer(cmd, 30)[1].splitlines()
-            trace = module.odoo_trace(lines_e or [], e["logger"], e["message"])
-            if trace:
-                details["tracebacks"][(e["level"], e["logger"], e["message"])] = trace
-        access = [f for f in nginx_log_files(options["profile"]) if "access" in os.path.basename(f)]
-        if batch:                                            # 1.165: the rotated logs (.1, .2.gz...) written during the window
-            access += sorted(r for f in list(access) for r in glob.glob(f + ".*") if os.path.isfile(r) and os.path.getmtime(r) >= facts["start"])
-        urls = list(facts["gone_404"]) + [u for u, _n in Counter(facts["plain_4xx"]).most_common(6)]
-        if access and urls:
-            details["nginx"] = module.nginx_details(access, urls, since=facts["start"])
+        details = gather_details(module, facts, batch)
         findings = module.analyze(facts, details, TR, raw)
         path = advisor_history_file("advisor-history-advise.json" if batch else "advisor-history.json")
         history = module.History(path)
@@ -7007,8 +7271,11 @@ def follow(cmd, people, resolver, options, output):
         start = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(facts["start"]))
         title = color_code(STYLES["title"], TR("──── Analysis of the problems raised ({name} v{version}): since {start} ────").format(
             name=os.path.basename(__file__), version=__version__, start=start))
+        hint = TR("correction offered by --apply (with --advise)") if not options.get("apply") else TR("correction offered below (--apply)")
         write_out(["", title] + module.render(findings, trend, TR, color_code, path if kept else None,
-                                              history.error or (TR("no writable state folder") if not path else None)))
+                                              history.error or (TR("no writable state folder") if not path else None), apply_hint=hint))
+        if batch and options.get("apply"):
+            apply_corrections(findings, facts)
 
     def key(key_value):
         """A keyboard key (menu or Ctrl-G / Ctrl-T)."""
@@ -7565,6 +7832,9 @@ def main():
     parser.add_argument("--accentuate-group", default=None, metavar="NAME",
                         help="Odoo contacts with the contact TAG NAME (e.g. Staff-2026) shown in bold white on dark blue; the tag must exist, otherwise stop")
     parser.add_argument("--changelog", action="store_true", help="Show the change log")
+    parser.add_argument("--apply", action="store_true",
+                        help="With --advise: after the analysis, offer the corrections one by one, one question each (ban the addresses with nginx-log-audit.sh --ban, which "
+                             "checks the white list and its score; open odoo-mail-retry.py for the failed e-mails; warm Odoo up with odoo-warmup.py); terminal required")
     parser.add_argument("--advise", type=float, nargs="?", const=ADVISE_DAYS_DEFAULT, default=None, metavar="DAYS",
                         help="Analysis of the problems of the last DAYS days (14 by default), like the z key: the logs are read without being shown, then the problems, "
                              "their probable causes and the recommended solutions are printed, compared with the previous --advise runs; --since / --until choose another window")
@@ -7793,6 +8063,8 @@ def main():
     regler_cms(profile_module.cms(None if args.cms == "auto" else args.cms) if profile_module is not None else (args.cms if args.cms != "auto" else "odoo"))
     if args.errors_only:
         args.lines = max(args.lines, ERRORS_HISTORY_LINES)             # 1.158: enough history to find the last errors
+    if args.apply and args.advise is None:
+        parser.error("--apply goes with --advise")
     if args.advise is not None:                                        # 1.165: --advise reads a window without the live stream
         if not 0 < args.advise <= ADVISE_DAYS_MAX:
             parser.error("--advise must be greater than 0 and at most 366 days")
@@ -7964,7 +8236,7 @@ def main():
         except ValueError as problem:                                 # a wrong address stops the program at once
             parser.error(f"--sitemap: {problem}")
     options = {"keep_ip": not args.hide_ip, "minimal": args.min, "hide_addons": args.hide_addons, "lines": args.lines, "recap": args.recap,
-               "slow": max(0.0, args.slow), "only": [t.lower() for t in (args.only or []) if t], "highlight_words": read_highlight(args.highlight), "highlight_pattern": highlight_pattern(read_highlight(args.highlight)), "suspect": args.suspect, "errors_only": args.errors_only, "disk_min": max(0.0, args.disk_min), "connections": max(0.0, min(100.0, args.connections)), "external_ip": not args.no_isp, "odoo_journal": profile.get("ODOO_LOGFILE"), "profile": profile, "service": service, "ns": ns, "advise": args.advise is not None, "diag_hosts": args.diagnose_host, "not_found": args.not_found, "steps_line": args.steps_line, "summary": args.summary, "banned_ips": banned_ips,
+               "slow": max(0.0, args.slow), "only": [t.lower() for t in (args.only or []) if t], "highlight_words": read_highlight(args.highlight), "highlight_pattern": highlight_pattern(read_highlight(args.highlight)), "suspect": args.suspect, "errors_only": args.errors_only, "disk_min": max(0.0, args.disk_min), "connections": max(0.0, min(100.0, args.connections)), "external_ip": not args.no_isp, "odoo_journal": profile.get("ODOO_LOGFILE"), "profile": profile, "service": service, "ns": ns, "advise": args.advise is not None, "apply": args.apply, "diag_hosts": args.diagnose_host, "not_found": args.not_found, "steps_line": args.steps_line, "summary": args.summary, "banned_ips": banned_ips,
                "presence": Presence(args.idle) if is_odoo and not args.no_presence else None, "health": args.health, "keys": not args.no_keys and not args.no_follow, "app": profile.get("APP_NAME"), "app_label": profile.get("APP_LABEL", "application"), "hide_user_agent": args.hide_user_agent, "request_length": args.request_length, "log_nginx": bool(args.log_nginx), "log_merge": bool(args.log_merge), "status_header": bool(args.status_header), "nginx_merged": LOGS_MERGE in cmd, "propose_ban": not args.no_ban_prompt, "watch": [t.strip().lower() for t in (args.watch or "").split(",") if t.strip()], "agents": not args.no_user_agent and not args.no_follow, "acces_logs": profile.get("ACCESS_LOGS"),
                "exclude": exclusions, "chime": args.chime, "group": args.accentuate_group if group_members else None, "membres": group_members,
                "report_min": args.time_report or 0.0, "level": args.level, "modules_sort": modules_sort_state}

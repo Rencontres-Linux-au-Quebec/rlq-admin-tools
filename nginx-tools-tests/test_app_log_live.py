@@ -1319,7 +1319,7 @@ class AppLogLive(EnvTest):
         self.assertRegex(t, r"Sommaire : \d+ problèmes, \d+ à regarder")
         self.assertIn("Erreurs HTTP 5xx sur /boum", t)
         self.assertIn("Première analyse conservée", t)
-        self.assertIn("Courriels en échec : 1", t)
+        self.assertIn("Courriels en échec (journal) : 1", t)                  # 1.167: the database is not readable here: the count of the journal, said so
         self.assertNotIn("Traceback (most recent call last)", text)
         with open(os.path.join(etat, "advisor-history.json"), encoding="utf-8") as f:
             historique = json.load(f)
@@ -1366,6 +1366,43 @@ class AppLogLive(EnvTest):
         getent = open(os.path.join(self.d, "getent.log")).read()
         self.assertIn(DNS, getent)
         self.assertNotIn(PERSONNE, getent)                                 # an address the analysis does not show is never looked up
+
+    def ligne_nginx_erreur(self, delta, texte):
+        dt = datetime.datetime.now(FUSEAU) - datetime.timedelta(seconds=delta)
+        return f"{dt:%Y-%m-%dT%H:%M:%S}.000000{dt:%z}"[:-2] + ":" + f"{dt:%z}"[-2:] + " odoo18 http[1]: " + texte
+
+    def test_167_erreurs_nginx_hors_odoo_et_hors_courriels(self):
+        """1.167 : une ligne du journal d'erreurs de nginx (« Connection refused » vers Odoo) n'est plus une erreur d'Odoo ni un courriel en échec."""
+        refus = '[error] 1234#1234: *5 connect() failed (111: Connection refused) while connecting to upstream, client: 11.2.3.4, server: www.site.example, request: "GET / HTTP/1.1"'
+        self.journal([werkzeug(PERSONNE, "/event"), self.ligne_nginx_erreur(30, refus), self.ligne_nginx_erreur(20, refus)])
+        rc, out, err = self.lancer("--summary", "--no-history", "--no-isp", "--no-presence", "--no-banned")
+        self.assertEqual(rc, 0, err)
+        t = " ".join(T(out).split())
+        self.assertIn("Courriels en échec : aucun", t)
+        self.assertIn("Erreurs d'Odoo (ERROR / CRITICAL) : aucune", t)
+        self.assertIn("Odoo injoignable depuis nginx (erreurs upstream) : 2", t)
+
+    def test_167_apply_bannit_avec_nginx_log_audit(self):
+        """1.167 : --advise --apply propose le bannissement, une question par adresse ; nginx-log-audit.sh --ban fait le reste (liste blanche, score)."""
+        self.journal([werkzeug(DNS, "/.env", 404), werkzeug(DNS, "/wp-login.php", 404), werkzeug(DNS, "/.git/config", 404), werkzeug(PERSONNE, "/event")])
+        self.mock("journalctl", f'case "$*" in *" -g "*Login*) cat {self.d}/history.txt;; *"-o cat"*|*short-unix*) exit 0;; *) cat {self.d}/stream.txt;; esac')
+        faux = os.path.join(os.path.dirname(self.prog), "nginx-log-audit.sh")
+        with open(faux, "w") as f:
+            f.write(f'echo "$@" >> {self.d}/ban.log\n')
+        sequence = [(b"Bannir ", b"o\r", 0.3), (b"Adresses bannies", b"", 0.3)]
+        text, envoyees = self.run_pty(["python3", self.prog, "--no-follow", "--advise", "7", "--apply", "--no-history", "--no-isp", "--no-presence", "--no-banned",
+                                       "--status-every", "0"], sequence, env_extra={"APP_LOG_LIVE_STATE_DIR": os.path.join(self.d, "etat"), "WEB_MONITOR_STATE_DIR": self.d}, timeout=60)
+        self.assertGreaterEqual(envoyees, 1, text)
+        self.assertIn("correction proposée plus bas (--apply)", text)
+        self.assertIn("Corrections (--apply)", text)
+        journal = open(os.path.join(self.d, "ban.log")).read()
+        self.assertIn(f"--ban {DNS} --reason", journal)
+        self.assertIn("Adresses bannies : 1", text)
+
+    def test_167_apply_sans_advise_refuse(self):
+        rc, _out, err = self.run_cmd(["python3", self.prog, "--apply"])
+        self.assertEqual(rc, 2)
+        self.assertIn("--apply", err)
 
     def journal_tableau(self, waiting=12):
         self.journal([werkzeug(PERSONNE, "/event"), werkzeug(DNS, "/fr_CA/event"), werkzeug(DNS, "/en_US/shop"), werkzeug(DNS, "/es/x"), werkzeug(DNS, "/web/assets/1/a.js"),
