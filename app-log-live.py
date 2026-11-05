@@ -95,6 +95,7 @@ import collections
 import contextlib
 import copy
 import datetime
+import functools
 import glob
 import gzip
 import importlib.util
@@ -119,7 +120,7 @@ from urllib.parse import unquote, urlsplit
 from collections import Counter, OrderedDict
 from concurrent.futures import Future
 
-__version__ = "1.165.20261104.183145"
+__version__ = "1.166.20261104.204925"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
@@ -727,8 +728,20 @@ def new_anonymiser(module):
     return module.Anonymiseur(**kwargs)
 
 
+@functools.lru_cache(maxsize=8192)
+def ip_obj(ip):
+    """1.166: ipaddress.ip_address(ip), parsed once per address (immutable object; ValueError is not cached)."""
+    return ipaddress.ip_address(ip)
+
+
 def find_ips(text_line):
-    """[(start, end, ip)] of the IPv4 and IPv6 addresses of the text (IPv6 validated: "03:02:14" is not one)."""
+    """[(start, end, ip)] of the IPv4 and IPv6 addresses of the text (IPv6 validated: "03:02:14" is not one). 1.166: the same line is examined
+    several times (reader, display, counters, filters): the result of the last lines is kept (a copy is returned, the caller may change it)."""
+    return list(_find_ips(text_line))
+
+
+@functools.lru_cache(maxsize=4096)
+def _find_ips(text_line):
     found_items = [(m.start(), m.end(), m.group()) for m in IPV4_RE.finditer(text_line)]
     for m in IPV6_RE.finditer(text_line):
         text = m.group()
@@ -739,7 +752,7 @@ def find_ips(text_line):
         except ValueError:
             continue
         found_items.append((m.start(), m.end(), text))
-    return sorted(found_items)
+    return tuple(sorted(found_items))
 
 
 # ------------------------------------------------------------------------------------------------------------------
@@ -1330,7 +1343,7 @@ def start_watchdog(proc, file, state, received, reader_thread):
 def local_address(ip):
     """Loopback address (127.0.0.0/8, ::1)?"""
     try:
-        return ipaddress.ip_address(ip.split("%")[0]).is_loopback
+        return ip_obj(ip.split("%")[0]).is_loopback
     except ValueError:
         return False
 
@@ -1558,6 +1571,7 @@ class Resolver:
         self.cache = cache                                       # permanent address cache (apps/_cache_ip.py) or None
         self.futures, self.pays, self.rdaps = {}, {}, {}
         self.counters = Counter()                               # efficiency: fast, memory, cache, dns, rdap, memory_country, cache_country, country (dashboard)
+        self.lazy = False                                       # 1.166 --advise: no external lookup while the window is read (lists and cache only)
         self.lock = threading.Lock()
         self.dns_queue, self.isp_queue, self.country_queue = queue.Queue(), queue.Queue(), queue.Queue()
         for target, file, n in ((self._dns, self.dns_queue, 4), (self._isp, self.isp_queue, 2), (self._country, self.country_queue, 3)):
@@ -1568,7 +1582,7 @@ class Resolver:
         """Address without country or provider lookup: invalid, local loopback, private. (The team is no longer part of it since 1.11, nor the PUBLIC
         addresses of this server since 1.91: their country is also displayed, in front of the address like the others.)"""
         try:
-            a = ipaddress.ip_address(ip)
+            a = ip_obj(ip)
         except ValueError:
             return True
         return a.is_loopback or a.is_private or a.is_link_local
@@ -1579,7 +1593,7 @@ class Resolver:
         if self.lists is None:
             return None
         try:
-            a = ipaddress.ip_address(ip)
+            a = ip_obj(ip)
             if a.is_loopback or ip in self.server:
                 return None
             if self.lists.blanche_de(ip) is not None:
@@ -1592,7 +1606,7 @@ class Resolver:
         """(kind, text, account) immediately, or (Future, account, place, number of accounts) if the person's name is being read, or None if a slow
         lookup is needed. Order: this server, SHARED place (never a person's name), known person (followed by the place if defined), whitelist, other place."""
         try:
-            a = ipaddress.ip_address(ip)
+            a = ip_obj(ip)
         except ValueError:
             return ("unknown", ip, None)
         if a.is_loopback or ip in self.server:                  # never a person: several programs, sometimes a tunnel
@@ -1638,6 +1652,15 @@ class Resolver:
             else:
                 f.set_result(r)
             return f
+        if self.lazy:                                             # 1.166 --advise: cache only; the addresses shown by the analysis are named at the end
+            f = Future()
+            with self.lock:
+                known = self.futures.get(ip)
+            if known is not None and known.done():
+                return known
+            if not self.from_cache(ip, f):
+                f.set_result(("unknown", ip, None))
+            return f
         with self.lock:
             f = self.futures.get(ip)
             new = f is None
@@ -1681,9 +1704,16 @@ class Resolver:
         return True
 
     def country_future(self, ip):
-        """Future of the country code, or None for a local address (no lookup)."""
+        """Future of the country code, or None for a local address (no lookup). 1.166 --advise (lazy): the cache only, otherwise None."""
         if self.local(ip):
             return None
+        if self.lazy:
+            memorized = self.cache.pays(ip) if self.cache is not None else None
+            if not memorized:
+                return None
+            f = Future()
+            f.set_result(memorized)
+            return f
         with self.lock:
             f = self.pays.get(ip)
             new = f is None
@@ -5342,6 +5372,17 @@ def advisor_history_file(name="advisor-history.json"):
     return None
 
 
+def lower_priority():
+    """1.166 --advise: lowest processor priority (nice 19) and idle disk class (ionice -c3) for this program and the commands it starts (journalctl,
+    the log merge); best effort: a refusal never stops the analysis."""
+    try:
+        os.nice(19 - os.nice(0))
+    except (OSError, AttributeError):
+        pass
+    if shutil.which("ionice"):
+        lancer(["ionice", "-c3", "-p", str(os.getpid())], 5)
+
+
 ADVISE_DAYS_DEFAULT = 14           # 1.165 --advise without a value: the last 14 days
 ADVISE_DAYS_MAX = 366
 ADVISE_LINES = 100000000           # 1.165 --advise: no line limit inside the window (journalctl --lines, tail -n)
@@ -5537,6 +5578,7 @@ class Output:
     each launch would copy it again). Files older than `keep_days` days are deleted (0: never). A write error disables the journal, never the program."""
     def __init__(self, screen, folder=None, keep_days=30, screen_color=True, suffix=""):
         self.screen, self.folder, self.keep_days, self.screen_color, self.suffix = screen, folder, keep_days, screen_color, suffix
+        self.muted = False                                # 1.166 --advise: True while the window is read (see write)
         self.active = False                               # true after the startup history
         self.file_path, self.day, self.path = None, None, None
         self.buffer = collections.deque(maxlen=4000)      # last chunks displayed, without colors: error report of the r key
@@ -5606,7 +5648,10 @@ class Output:
         return "".join(part if ANSI_SPLIT_RE.fullmatch(part) else self.anonymize(part) for part in ANSI_SPLIT_RE.split(text))
 
     def write(self, text, stream=False, underline=False, wide=False):
-        """`stream`: a line of the journal (1.88: shortened by --truncate, underlined if `underline`); other texts (menus, reports) are never cut."""
+        """`stream`: a line of the journal (1.88: shortened by --truncate, underlined if `underline`); other texts (menus, reports) are never cut.
+        1.166: `muted` (--advise while the window is read): nothing is translated, kept or written - the translation of each line took most of the processor."""
+        if self.muted:
+            return
         text = translate_protected(text)
         self.buffer.append(ANSI_RE.sub("", self.screen_text(text)))
         if self.folder and self.active:
@@ -6086,7 +6131,8 @@ def follow(cmd, people, resolver, options, output):
 
     def compose(L, renderings, benign):
         """1.113: (base, text, first address, banned source) of a line: base = the line as rendered; text = base plus the [banned: ...] label of its address."""
-        base = form.format_value(L, renderings, benign)
+        # 1.166 --advise: nothing is shown while the window is read: the plain text is enough (except --only, which looks for its words in the shown line)
+        base = L.text if output.muted and not options["only"] else form.format_value(L, renderings, benign)
         text, ips0, source = base, find_ips(L.text), None
         if banned_ips is not None and ips0 and ips0[0][2] in renderings and renderings[ips0[0][2]][3] is None:        # never for the whitelist or a place
             source = banned_ips.source_of(ips0[0][2])
@@ -6149,6 +6195,8 @@ def follow(cmd, people, resolver, options, output):
         if not keep(L, ANSI_RE.sub("", text)):
             return
         stats.ajouter(L, renderings, source, benign)
+        if output.muted:                                  # 1.166 --advise: counted, never shown (no painting, status bar, beep or repeat watch)
+            return
         watch_repeat(ips0[0][2] if ips0 else None, L)
         state["emitted"] = state.get("emitted", 0) + 1
         if L.ts_txt:
@@ -6893,6 +6941,31 @@ def follow(cmd, people, resolver, options, output):
         command = " ".join([os.path.basename(__file__)] + [a for a in sys.argv[1:] if a != "--report-err"])
         write_out(["", module.construire_rapport(os.path.basename(__file__), __version__, command, text, 0, int(time.time() - session_start), SCRIPT_DIR)])
 
+    def name_addresses(limit=60, wait_s=20.0):
+        """1.166 --advise: the window was read without external lookups (Resolver.lazy). The addresses the analysis can show (candidates to ban, suspicious
+        requests, 404 sweeps, account forms) are named now: DNS, RDAP and country, at most `limit` addresses and `wait_s` seconds in all. A name is needed before
+        to_ban(): it is how a CDN relay is recognized and never proposed."""
+        wanted = [ip for ip, _n in stats.suspect_ips.most_common(limit)]
+        wanted += [ip for ip, pages in sorted(stats.ip_not_found.items(), key=lambda kv: -len(kv[1])) if len(pages) >= THRESHOLD_404][:limit]
+        wanted += [ip for ip, _n in stats.account_ips.most_common(10)] + list(stats.recommended)[:limit]
+        wanted = [ip for ip in OrderedDict.fromkeys(wanted) if ip != "?" and stats.names.get(ip, ip) == ip][:limit]
+        futures = {ip: (resolver.future(ip), resolver.country_future(ip)) for ip in wanted}
+        deadline = time.time() + wait_s
+        for ip, (f, country) in futures.items():
+            try:
+                kind_name, text, account = f.result(timeout=max(0.1, deadline - time.time()))
+            except Exception:                                 # too slow or failed: the address stays bare
+                continue
+            pays = None
+            if country is not None:
+                try:
+                    pays = country.result(timeout=max(0.1, deadline - time.time()))
+                except Exception:
+                    pays = None
+            stats.names[ip] = ANSI_RE.sub("", render(kind_name, text, ip, options["keep_ip"], pays, resolver.category(ip), False)[0])
+            if pays:
+                stats.pays[ip] = pays
+
     def advise(batch=False):
         """1.165: batch=True for --advise (window of several days read without the live stream): rotated nginx access logs of the window are read too,
         and the history is advisor-history-advise.json.
@@ -6904,6 +6977,8 @@ def follow(cmd, people, resolver, options, output):
             write_out(["  " + TR("Analysis unavailable: apps/_advisor.py is missing.")])
             return
         write_out(["  " + TR("Reading the details in the logs (Odoo tracebacks, nginx referers)...")])
+        if batch:
+            name_addresses()                                  # 1.166: the names (and CDN relays) of the addresses the analysis shows
         facts = advisor_facts(stats)
         details = {"tracebacks": {}, "nginx": {}}
         wanted = [e for e in facts["odoo_errors"] if e["level"] in ("ERROR", "CRITICAL") or "Exception during request handling" in e["message"]]
@@ -7208,14 +7283,14 @@ def follow(cmd, people, resolver, options, output):
                 write_out(["  --watch : " + (", ".join(options["watch"]) if options["watch"] else "none") + " (duration, errors and slowness in Ctrl-G / Ctrl-T)"])
 
     session_start = time.time()
-    real_screen = output.screen
     if options.get("advise"):                             # 1.165 --advise: the lines are counted, not shown; the analysis is printed at the end
         if SITEMAP is not None:
             waited = time.time()
             while SITEMAP.paths is None and SITEMAP.error is None and time.time() - waited < ADVISE_SITEMAP_WAIT_S:
                 time.sleep(0.2)
         eprint(TR("--advise: reading the logs of the window without showing them (this can take a few minutes for several weeks)..."))
-        output.screen = open(os.devnull, "w", encoding="utf-8")
+        output.muted = True                               # 1.166: before, the lines were formatted and translated, then sent to /dev/null
+        resolver.lazy = True                              # 1.166: DNS, RDAP and country lookups only for the addresses the analysis shows
     if options["chime"] is not None:
         beep["mode"], advices = prepare_beep()
         for c in advices:
@@ -7372,7 +7447,8 @@ def follow(cmd, people, resolver, options, output):
         startup_status_bar()
         check_external_ip(time.time(), wait=True)  # end of the stream (--no-follow): at least one check, we wait for its result
         if options.get("advise"):                       # 1.165: back to the screen for the analysis (and the summary if asked)
-            output.screen = real_screen
+            output.muted = False
+            resolver.lazy = False
             advise(batch=True)
         if options["summary"]:
             output.write("\n".join(table_rows(heading="Session summary")) + "\n")
@@ -7380,7 +7456,8 @@ def follow(cmd, people, resolver, options, output):
                 output.write("\n".join(rlq_groups_lines()) + "\n")
             output.flush()
     except KeyboardInterrupt:                           # Ctrl-C confirmed: the session summary, the error detail if requested, then the normal stop (protected_main)
-        output.screen = real_screen                    # 1.165 --advise: the summary of an interrupted analysis is shown
+        output.muted = False                           # 1.165 --advise: the summary of an interrupted analysis is shown
+        resolver.lazy = False
         if old_sigint is not None:
             signal.signal(signal.SIGINT, signal.default_int_handler)  # the rest: one more Ctrl-C interrupts immediately (never a second "Interrupt the program?" question)
         try:
@@ -7726,6 +7803,7 @@ def main():
         if args.since_epoch is None:
             args.since_epoch = time.time() - args.advise * 86400
         args.lines = max(args.lines, ADVISE_LINES)
+        lower_priority()                                               # 1.166: a batch analysis never slows Odoo down
     if args.lines < 0 or not 0 <= args.days <= 36500 or args.idle <= 0 or args.recap < 0 or args.health < 0 or args.log_keep_days < 0:
         parser.error("--lines must be positive, --days between 0 (all) and 36500, --idle greater than 0, --recap, --health and --log-keep-days positive or zero")
     if not 1 <= args.level <= LEVEL_MAX:

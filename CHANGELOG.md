@@ -371,6 +371,26 @@ Earlier history was archived outside this repository when this file was created.
 
 ## app-log-live.py
 
+### 1.166.20261104.204925 - --advise about 15 times faster, with the lowest priority
+
+- Title: --advise reads the window about 15 times faster and with the lowest processor and disk priority.
+- Reason: request of the administrator on 2026-11-04: app-log-live.py --advise took all the processor for several minutes.
+- Changes:
+  - Output.muted (new): while --advise reads the window, write() returns at once: nothing is translated, kept in the buffer or written. Before, each line was formatted, translated then sent to /dev/null.
+  - emit(): with the output muted, the line is counted (Stats.ajouter) then left: no painting, status bar, beep or repeat watch; compose() keeps the plain text instead of the screen formatting (except with --only, which looks for its words in the shown line).
+  - Resolver.lazy (new): while the window is read, no DNS, RDAP or country lookup; the fast path (this server, known people, whitelist, places) and the permanent cache stay, so the protected addresses are still recognized. New closure name_addresses(): at the end, the addresses the analysis can show (suspicious requests, 404 sweeps, account forms, recommendations of web-monitor.py; 60 at most, 20 s at most) are named, before to_ban(): a CDN relay is still recognized by its name and never proposed.
+  - find_ips(): the result of the last 4096 lines is kept (_find_ips, functools.lru_cache), a copy is returned; ip_obj(): parsed addresses kept (local_address, Resolver.local, category, fast).
+  - lower_priority() (new): nice 19 and ionice -c3 for --advise and the commands it starts.
+  - apps/_listes.py 1.8: parsed addresses kept in the list lookups (see its section).
+  - doc/fr and doc/en 07-app-log-live.md; tests: test_166_advise_nomme_les_adresses_a_la_fin and class AppLogLive166 (4 tests).
+- Bugs fixed:
+  - Symptom: --advise kept a processor busy for several minutes for two weeks of logs.
+  - Diagnosis (cProfile on a synthetic journal of 3,000 and 20,000 lines in the test environment): 74 % of the time in the translation of each line written to /dev/null (apps/_i18n.py _remplacer); then one DNS, geoiplookup and RDAP lookup per new address (external commands); then the screen formatting of each line, find_ips() called five times per line and each address parsed eight times per line.
+  - Fix: see Changes. Measured: 3,000 lines 23.4 s -> 1.6 s; 20,000 lines more than 120 s -> 7.9 s. The analysis is the same (compared line by line with the previous version on the same journal).
+- Safeguards and edge cases: the live stream and the z key are unchanged (the output is muted only by --advise, the lookups are lazy only while it reads); the addresses shown by the analysis still get their names; with --only the line is still formatted to be filtered; a refused nice or a missing ionice never stops the analysis; the caches hold immutable values only (no stale answer).
+- Checks performed: AppLogLive166 (copy of find_ips, muted output, lazy lookups, priority), test_166 (names looked up at the end, an address not shown never looked up), test_165 and test_163 unchanged, test_advisor, test_listes; profile and comparison of the analysis before and after.
+- Action required from the user: none.
+
 ### 1.165.20261104.183145 - --advise [DAYS]: the analysis of the z key over the last weeks of logs
 
 - Title: new option --advise [DAYS]: the analysis of the problems raised (z key) over a window of several days, without the live stream.
@@ -4897,6 +4917,16 @@ Earlier history was archived outside this repository when this file was created.
 ### 1.1.20261019.150215 - Current version. Earlier history archived outside the repository.
 
 ## apps/_listes.py
+
+### 1.8.20261104.204925 - Parsed addresses kept in the list lookups
+
+- Title: _plus_specifique() parses each address once.
+- Reason: app-log-live.py 1.166 --advise looked up the same addresses hundreds of thousands of times in the whitelist and the places file.
+- Changes: new _adresse() (functools.lru_cache, 8192 addresses) used by _plus_specifique().
+- Bugs fixed: none (speed).
+- Safeguards and edge cases: the parsed address is immutable, the entries are still read at each call (a reloaded list is seen at once); an invalid address is not cached and still gives None.
+- Checks performed: test_listes, app-log-live tests.
+- Action required from the user: none.
 
 ### 1.7.20261102.104500 - Dated [temporaire] entries
 

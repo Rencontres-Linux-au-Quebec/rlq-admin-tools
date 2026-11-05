@@ -1353,6 +1353,20 @@ class AppLogLive(EnvTest):
         self.assertEqual(rc, 2)
         self.assertIn("--advise", err)
 
+    def test_166_advise_nomme_les_adresses_a_la_fin(self):
+        """1.166 : --advise lit la période sans recherche externe ; les adresses que l'analyse affiche sont nommées à la fin (DNS), avant les propositions de bannissement."""
+        self.journal([werkzeug(DNS, "/.env", 404), werkzeug(DNS, "/wp-login.php", 404), werkzeug(DNS, "/.git/config", 404), werkzeug(PERSONNE, "/event")])
+        self.mock("journalctl", f'case "$*" in *" -g "*) cat {self.d}/history.txt;; *"-o cat"*) exit 0;; *) cat {self.d}/stream.txt;; esac')
+        rc, out, err = self.lancer("--advise", "7", "--no-history", "--no-isp", "--no-presence", "--no-banned",
+                                   env_extra={"APP_LOG_LIVE_STATE_DIR": os.path.join(self.d, "etat"), "WEB_MONITOR_STATE_DIR": self.d})
+        self.assertEqual(rc, 0, err)
+        t = " ".join(out.split())
+        self.assertIn("Adresses à bannir : 1", t)
+        self.assertIn(f"srv.exemple.org [{DNS}]", t)                      # named at the end, not during the reading
+        getent = open(os.path.join(self.d, "getent.log")).read()
+        self.assertIn(DNS, getent)
+        self.assertNotIn(PERSONNE, getent)                                 # an address the analysis does not show is never looked up
+
     def journal_tableau(self, waiting=12):
         self.journal([werkzeug(PERSONNE, "/event"), werkzeug(DNS, "/fr_CA/event"), werkzeug(DNS, "/en_US/shop"), werkzeug(DNS, "/es/x"), werkzeug(DNS, "/web/assets/1/a.js"),
                       werkzeug(DNS, "/absent", 404), werkzeug(DNS, "/boum", 500), werkzeug(DNS, "/boum?x=1", 500),
@@ -4605,4 +4619,51 @@ class AppLogLive164(unittest.TestCase):
         self.assertFalse(sm.listed("/ev"))                       # 1.163 : True (fausse alerte dans la santé)
         self.assertTrue(sm.listed("/es"))
         self.assertTrue(sm.listed("/fr_CA/event"))
+
+
+class AppLogLive166(unittest.TestCase):
+    """1.166 : --advise rapide - sortie muette pendant la lecture, recherches externes reportées, résultat de find_ips gardé en mémoire, priorité abaissée."""
+
+    @classmethod
+    def setUpClass(cls):
+        spec = importlib.util.spec_from_file_location("live166", script_path("app-log-live.py"))
+        cls.m = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(cls.m)
+
+    def test_166_find_ips_copie_independante(self):
+        ligne = "11.2.3.4 - - GET / et 2001:db8::1"
+        premier = self.m.find_ips(ligne)
+        premier.append((0, 0, "modifie"))
+        self.assertEqual([ip for _d, _f, ip in self.m.find_ips(ligne)], ["11.2.3.4", "2001:db8::1"])
+        self.assertEqual(self.m.find_ips("03:02:14 aucune adresse"), [])
+
+    def test_166_sortie_muette(self):
+        ecran = io.StringIO()
+        out = self.m.Output(ecran, None)
+        out.muted = True
+        out.write("ligne du journal\n", stream=True)
+        out.write("autre texte\n")
+        self.assertEqual(ecran.getvalue(), "")
+        self.assertEqual(list(out.buffer), [])
+        out.muted = False
+        out.write("visible\n")
+        self.assertIn("visible", ecran.getvalue())
+
+    def test_166_recherches_paresseuses(self):
+        r = self.m.Resolver(self.m.People(None), None, set(), False, None)
+        r.lazy = True
+        self.assertEqual(r.future("11.2.3.4").result(timeout=1), ("unknown", "11.2.3.4", None))
+        self.assertTrue(r.dns_queue.empty())
+        self.assertIsNone(r.country_future("11.2.3.4"))
+        self.assertEqual(r.future("127.0.0.1").result(timeout=1)[0], "server")      # the fast path (lists, this server) stays
+        self.assertEqual(self.m.ip_obj("11.2.3.4"), self.m.ip_obj("11.2.3.4"))
+        with self.assertRaises(ValueError):
+            self.m.ip_obj("pas une adresse")
+
+    def test_166_priorite_abaissee(self):
+        code = ("import importlib.util, os, sys; spec = importlib.util.spec_from_file_location('l', sys.argv[1]); m = importlib.util.module_from_spec(spec); "
+                "spec.loader.exec_module(m); m.lower_priority(); print(os.nice(0))")
+        r = subprocess.run(["python3", "-c", code, script_path("app-log-live.py")], capture_output=True, text=True,
+                           env=dict(os.environ, APP_LOG_LIVE_SITEMAP="off"), timeout=60)
+        self.assertEqual(r.stdout.strip().splitlines()[-1], "19", r.stderr)
 
