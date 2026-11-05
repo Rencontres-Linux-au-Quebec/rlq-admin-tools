@@ -371,6 +371,22 @@ Earlier history was archived outside this repository when this file was created.
 
 ## app-log-live.py
 
+### 1.170.20261105.130658 - Menu switches for every option that can change while running
+
+- Title: new menu keys J (--log-merge), B (--status-header), C (--truncate), O (--utc), Q (--slow), Z (--status-every), K (--no-ban-prompt), y (--no-sitemap); the menu lists the options set at startup only.
+- Reason: request of the administrator on 2026-11-05: "une option bascule qui fera LOG_MERGE et hide/show user agent. S'assurer qu'il y ait des bascules pour toutes les options possibles".
+- Changes:
+  - app-log-live.py: MENU_KEYS (J B C O Q Z K y); key() handles logmerge, statusheader, truncate, utc, slow, statusevery, banprompt, sitemap; menu() shows each switch with its current value, keeps u (--hide-user-agent) and x (--log-nginx), and adds the line "Set at startup only".
+  - config_values(): the W key also saves LOG_MERGE, LOG_NGINX, STATUS_HEADER, SLOW, STATUS_EVERY, NO_BAN_PROMPT, DISPLAY_HOST and NO_SITEMAP when they changed.
+  - lang/app-log-live.fr.po: French texts of the new lines.
+  - doc/fr/07-app-log-live.md, doc/en/07-app-log-live.md: the new keys.
+  - nginx-tools-tests/test_app_log_live.py: class AppLogLive170.
+  - nginx-tools-tests/test_config_commune.py: test_touche_c_dans_le_menu checks W (save) and C (--truncate); it still looked for the save under C.
+- Bugs fixed: none.
+- Safeguards and edge cases: J turned off shows at once the nginx lines waiting for their Odoo partner (nothing is lost); J warns when --log-nginx (key x) is off; Q and Z ask a number and refuse a value out of range (Q 0 to 3600, Z -1 to 100000); y turned on again reads the sitemap.xml given at startup, or the default one, in the background; B shows the column labels again.
+- Checks performed: run-all.sh (mawk and gawk): no new failure, only the failures already present on main; AppLogLive170 (5 tests), test_config_commune, test_nginx_uri.
+- Action required: none.
+
 ### 1.169.20261105.083208 - Dashboard: Odoo times of merged lines counted, cold cache and probes apart, interruptions, stopped monitoring
 
 - Title: the dashboard counts the Odoo times of the lines merged by --log-merge, sets apart the slow requests after a start of Odoo and the probes of this server, groups the nginx upstream errors into interruptions and says when web-monitor.py has stopped.
@@ -3119,6 +3135,23 @@ Earlier history was archived outside this repository when this file was created.
 ### 1.14.20261020.211944 - Current version. Earlier history archived outside the repository.
 
 ## nginx-hardening.sh
+
+### 2.80.20261105.130658 - Encoded brackets of ?tags= accepted on the event pages (rule 3 bis)
+
+- Title: securite-commune.conf rule 3 bis now accepts ?tags=%5B3%5D as well as ?tags=[3].
+- Reason: request of the administrator on 2026-11-05: the dashboard of app-log-live.py showed many "404 548" answers on /event/journee-portes-ouvertes-sur-linux-2026-125/track?tags=%5B3%5D (referer service-worker.js) and on /es/event?tags=%5B8%2C%2B13%5D&trk=public_post_comment-text (LinkedIn link).
+- Changes:
+  - nginx/snippets/securite-commune.conf: rule 3 bis, the brackets may be written "[" "]" or "%5B" "%5D"; the content is still limited to digits, commas, "+", %2B, %2C and %20. Comment updated.
+  - nginx/VERSION: 1.22.20261105.130658.
+  - nginx-hardening.sh: SCRIPT_VERSION 2.80.20261105.130658; live check "GET /event?tags=%5B35%5D -> 2xx/3xx" added to the checks after installation.
+  - nginx-tools-tests/test_nginx_uri.py: FiltreTagsEvenements, encoded legitimate values accepted (the two URLs of the dashboard), encoded malformed values still refused.
+- Bugs fixed:
+  - Symptom: legitimate visitors of the event track pages received a 404 (548 bytes, the page of nginx).
+  - Diagnosis: the Odoo web application service worker (website_event_track) and the links shared on LinkedIn encode the brackets of ?tags=; rule 3 bis wanted the brackets in clear.
+  - Fix: the negative look-ahead accepts both forms of the brackets.
+- Safeguards and edge cases: Odoo decodes the URL before literal_eval, so [3] and %5B3%5D give the same list and cannot produce an error 500; %5Bx%5D, %5B35%5Dx and a quoted text stay refused; the match is case-insensitive (%5b and %5B).
+- Checks performed: test_nginx_uri (10 tests).
+- Action required: after the merge, sudo nginx-hardening.sh --update.
 
 ### 2.79.20261103.085601 - SofyaBot refused by bot_blocker.conf
 

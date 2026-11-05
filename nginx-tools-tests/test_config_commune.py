@@ -188,7 +188,8 @@ class SauvegardeDesReglages(EnvTest):
 
     def test_touche_c_dans_le_menu(self):
         live = self.live()
-        self.assertEqual(T(live.MENU_KEYS[b"C"]), "save")
+        self.assertEqual(T(live.MENU_KEYS[b"W"]), "save")              # the save moved from C to W; C is --truncate since 1.170
+        self.assertEqual(live.MENU_KEYS[b"C"], "truncate")
 
 
 if __name__ == "__main__":
