@@ -371,6 +371,16 @@ Earlier history was archived outside this repository when this file was created.
 
 ## app-log-live.py
 
+### 1.168.20261105.081634 - --advise shows its progress
+
+- Title: --advise shows where the reading of the window is, then each step of the analysis.
+- Reason: request of the administrator on 2026-11-05: with app-log-live.py --advise nothing is shown for several minutes.
+- Changes: new class AdviseProgress (line(), done(), step()) and function clock_span(); follow() creates it when the output is muted and gives it each line read; the end of the reading and each step of advise() and gather_details() (names of the addresses, Odoo tracebacks, nginx access logs, service journal and odoo.conf, Odoo database, answer of the site, rules and history) are shown with the time since the start; lang/app-log-live.fr.po: 11 entries; doc/fr and doc/en 07-app-log-live.md; tests: class AppLogLive168 (3 tests).
+- Bugs fixed: none.
+- Safeguards and edge cases: the progress goes to the error output (the analysis on the standard output stays clean); on a terminal one line is rewritten at most once a second; without a terminal (log file, mail of a scheduled task) one line every 30 s; the percentage follows the date of the lines read within the window (--since / --until included), the time left is shown only after 5 s and between 2 and 100 %; the z key of the live stream is unchanged.
+- Checks performed: AppLogLive168; a synthetic run of --advise (steps in order).
+- Action required from the user: none.
+
 ### 1.167.20261105.071311 - --advise checks the facts itself, true counts, --apply for the corrections
 
 - Title: the analysis of --advise and of the z key reads the details of each problem itself (odoo.conf, database, service journal, answer of the site), the counts of the dashboard are true, and --apply offers the corrections one by one.
@@ -4548,6 +4558,16 @@ Earlier history was archived outside this repository when this file was created.
 ### 1.26.20261020.211944 - Current version. Earlier history archived outside the repository.
 
 ## system-hardening.sh
+
+### 1.1.20261105.081634 - AIDE: SHA-512 instead of every checksum compiled in
+
+- Title: --update sets Checksums = sha512 in /etc/aide/aide.conf instead of Checksums = H.
+- Reason: question of the administrator on 2026-11-05: why several checksums in the AIDE configuration, it is very long and SHA-512 should be enough ("H specifies that all checksums compiled in are used").
+- Changes: new configuration key AIDE_CHECKSUMS (sha512 by default, keep = the distribution value); new functions aide_checksums_now(), aide_checksums_set(), aide_checksums_restore(), aide_checksums_check(); aide_check() reports the current value (warning for H); aide_apply() changes the line, then creates the baseline again when the checksums changed (old one kept as aide.db.previous); rollback() puts the old line back. Files: system-hardening.sh, doc/en and doc/fr system-hardening.conf.example and 19-system-hardening.md, tests.
+- Bugs fixed: symptom: the creation and the daily check of the AIDE baseline took a long time and a lot of processor. Diagnosis: Checksums = H computes every checksum compiled in AIDE (md5, sha1, sha256, sha512, rmd160, tiger, whirlpool, gost...) for every file. Fix: SHA-512 alone, which is enough to detect a changed file.
+- Safeguards and edge cases: the line is changed where it is (the groups of aide.conf take the value of Checksums when they are defined: a definition in aide.conf.d would change nothing); the old line is kept in a comment above it and --rollback restores the file exactly; no change when there is no Checksums line or when the value is already the one wanted; a baseline made with the old checksums is never kept (every file would be reported as changed), it is renamed aide.db.previous and a message says to read the last AIDE report first; aide.conf is a conffile of the package: an upgrade of aide keeps the changed file (dpkg asks, unattended-upgrades keeps it).
+- Checks performed: shellcheck 0.11.0 (no finding); test_condenses_d_aide_sha512_et_retour_arriere, test_condenses_d_aide_gardes_avec_keep; test_system_hardening (17 tests).
+- Action required from the user: none; the next sudo system-hardening.sh --update changes the line and creates the baseline again (5 to 30 minutes, shorter than before).
 
 ### 1.0.20261104.185853 - First version: security updates, audit and file integrity of the system
 

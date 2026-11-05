@@ -228,6 +228,42 @@ class SystemHardening(EnvTest):
         rc, out, err = self.lancer("--rollback")
         self.assertIn("rien à retirer", out)
 
+    def test_condenses_d_aide_sha512_et_retour_arriere(self):
+        """1.1 : « Checksums = H » (tous les condensés compilés) devient sha512 ; l'ancienne ligne est gardée et remise par --rollback ; base recréée."""
+        self.machine("debian12", "lxc")
+        conf = self.chemins["SYSTEM_HARDENING_AIDE_CONF"]
+        with open(conf, "w") as f:
+            f.write("# H specifies that all checksums compiled in are used\nChecksums = H\nStaticFile = m+c+Checksums\n")
+        self.write(os.path.join("lib-aide", "aide.db"), "ancienne")
+        with open(self.installed, "w") as f:
+            f.write("aide\n")                                                             # AIDE installed: its configuration is checked
+        rc, out, err = self.lancer()
+        self.assertIn("Checksums = H : TOUS les condensés compilés", out)
+        rc, out, err = self.lancer("--update")
+        self.assertEqual(rc, 0, out + err)
+        texte = self.lire(conf)
+        self.assertIn("Checksums = sha512\nStaticFile = m+c+Checksums", texte)        # changed where the groups are defined, before them
+        self.assertIn("# Checksums = H", texte)
+        self.assertIn("la base de référence est recréée", out)
+        self.assertEqual(self.lire(self.fichier("SYSTEM_HARDENING_AIDE_DB", "aide.db.previous")), "ancienne")
+        self.assertEqual(self.lire(self.fichier("SYSTEM_HARDENING_AIDE_DB", "aide.db")).strip(), "base")
+        rc, out, err = self.lancer()
+        self.assertIn("condensés d'AIDE : Checksums = sha512", out)
+        rc, out, err = self.lancer("--update")
+        self.assertNotIn("recréée", out)                                               # nothing changed: the baseline stays
+        rc, out, err = self.lancer("--rollback")
+        self.assertIn("ligne Checksums d'origine remise", out)
+        self.assertEqual(self.lire(conf), "# H specifies that all checksums compiled in are used\nChecksums = H\nStaticFile = m+c+Checksums\n")
+
+    def test_condenses_d_aide_gardes_avec_keep(self):
+        self.machine("debian12", "lxc")
+        conf = self.chemins["SYSTEM_HARDENING_AIDE_CONF"]
+        with open(conf, "w") as f:
+            f.write("Checksums = H\n")
+        self.write("etc-default-vide/system-hardening.conf", "AIDE_CHECKSUMS=keep\n")
+        self.lancer("--update")
+        self.assertEqual(self.lire(conf), "Checksums = H\n")
+
     def test_baseline_update_nouvelle_reference(self):
         self.machine("debian12", "lxc")
         self.write(os.path.join("lib-aide", "aide.db"), "ancienne")

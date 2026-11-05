@@ -9,6 +9,7 @@
 #AUDITD=yes                     # règles d'audit rlq-* (sudo, clés SSH, cron, comptes, PAM, sshd, services systemd) ; pas dans un conteneur LXC
 #AUDIT_WATCH_CONTAINERS=yes     # sur un hôte Proxmox : surveiller aussi les fichiers sensibles des conteneurs LXC en marche
 #AIDE=yes                       # intégrité des fichiers (AIDE) : base de référence, vérification quotidienne
+#AIDE_CHECKSUMS=sha512          # condensés d'AIDE (ligne Checksums de /etc/aide/aide.conf) : sha512 suffit ; keep = garder la valeur de la distribution (H = tous, beaucoup plus long)
 #AIDE_EXCLUDE=                  # autres dossiers qu'AIDE doit ignorer, séparés par des espaces (ex. /srv/odoo-data /opt/backups)
 #NOTIFY=yes                     # sommaire quotidien par courriel (system-hardening-notify.timer, réglages de nginx-tools-mail.conf)
 #NOTIFY_TIME=07:30              # heure de ce sommaire (HH:MM, heure locale)

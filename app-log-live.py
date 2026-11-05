@@ -120,7 +120,7 @@ from urllib.parse import unquote, urlsplit
 from collections import Counter, OrderedDict
 from concurrent.futures import Future
 
-__version__ = "1.167.20261105.071311"
+__version__ = "1.168.20261105.081634"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
@@ -5456,6 +5456,71 @@ def advisor_history_file(name="advisor-history.json"):
     return None
 
 
+def clock_span(seconds):
+    """1.168: "45 s", "3 min 05 s", "1 h 02 min"."""
+    seconds = int(max(0, seconds))
+    if seconds < 60:
+        return f"{seconds} s"
+    if seconds < 3600:
+        return f"{seconds // 60} min {seconds % 60:02d} s"
+    return f"{seconds // 3600} h {seconds % 3600 // 60:02d} min"
+
+
+class AdviseProgress:
+    """1.168 --advise: where the reading of the window is, on the error output - one line rewritten in place on a terminal (every second), one line
+    every 30 s otherwise (a log file, a cron mail). Then the steps of the analysis, each with its duration."""
+    def __init__(self, since, until, stream=None):
+        self.stream = stream or sys.stderr
+        self.tty = bool(getattr(self.stream, "isatty", lambda: False)())
+        self.since, self.until = since, until or time.time()
+        self.started = self.step_at = time.time()
+        self.lines, self.last, self.shown_at, self.width, self.reached = 0, None, 0.0, 0, None
+        self.every = 1.0 if self.tty else 30.0
+
+    def write(self, text, final=False):
+        text = translate_protected(text)
+        if self.tty:
+            pad = max(0, self.width - display_width(text))
+            self.stream.write("\r" + text + " " * pad + ("\n" if final else ""))
+            self.width = 0 if final else display_width(text)
+        else:
+            self.stream.write(text + "\n")
+        try:
+            self.stream.flush()
+        except (OSError, ValueError):
+            pass
+
+    def line(self, instant):
+        """One line of the stream read (its instant, or None)."""
+        self.lines += 1
+        if instant:
+            self.reached = instant
+        now = time.time()
+        if now - self.shown_at < self.every:
+            return
+        self.shown_at = now
+        elapsed = now - self.started
+        rate = self.lines / elapsed if elapsed > 0 else 0
+        text = TR("--advise: {n} lines read ({rate}/s) · {elapsed}").format(n=f"{self.lines:,}".replace(",", " "), rate=f"{rate:,.0f}".replace(",", " "), elapsed=clock_span(elapsed))
+        if self.reached and self.until > self.since:
+            pct = min(100.0, max(0.0, 100 * (self.reached - self.since) / (self.until - self.since)))
+            text = TR("--advise: {pct} % · log read up to {when} · {n} lines ({rate}/s) · {elapsed}").format(
+                pct=f"{pct:.0f}", when=time.strftime("%Y-%m-%d %H:%M", time.localtime(self.reached)), n=f"{self.lines:,}".replace(",", " "),
+                rate=f"{rate:,.0f}".replace(",", " "), elapsed=clock_span(elapsed))
+            if 2 <= pct < 100 and elapsed >= 5:
+                text += " · " + TR("about {left} left").format(left=clock_span(elapsed * (100 - pct) / pct))
+        self.write(text)
+
+    def done(self):
+        """End of the reading: the total, then the steps of the analysis follow."""
+        self.write(TR("--advise: window read: {n} lines in {elapsed}").format(n=f"{self.lines:,}".replace(",", " "), elapsed=clock_span(time.time() - self.started)), final=True)
+        self.step_at = time.time()
+
+    def step(self, text):
+        """A step of the analysis (Odoo tracebacks, nginx logs, database...) when it starts, with the time since the start of --advise."""
+        self.write(f"  [{clock_span(time.time() - self.started)}] " + text + "...", final=True)
+
+
 def lower_priority():
     """1.166 --advise: lowest processor priority (nice 19) and idle disk class (ionice -c3) for this program and the commands it starts (journalctl,
     the log merge); best effort: a refusal never stops the analysis."""
@@ -7108,6 +7173,8 @@ def follow(cmd, people, resolver, options, output):
         service, ns = options.get("service"), options.get("ns") or ""
         journal = lambda since, until, extra=(): lancer(["journalctl", "-u", service, "-q", "--no-pager", "-o", "cat", "--since", f"@{math.floor(since)}",
                                                          "--until", f"@{math.ceil(until)}"] + list(extra) + (["--namespace", ns] if ns else []), 120)[1].splitlines()
+        if advise_progress["p"] is not None:
+            advise_progress["p"].step(TR("Odoo tracebacks and exceptions"))
         wanted = [e for e in facts["odoo_errors"] if e["level"] in ("ERROR", "CRITICAL") or "Exception during request handling" in e["message"]]
         logfile = options.get("odoo_journal")
         file_lines = module.read_tail(logfile) if (wanted or facts["http_errors5"]) and logfile and os.path.isfile(logfile) else None
@@ -7139,6 +7206,8 @@ def follow(cmd, people, resolver, options, output):
                 if trace:
                     break
             details["traces_5xx"][path] = trace
+        if advise_progress["p"] is not None:
+            advise_progress["p"].step(TR("nginx access logs (referers, methods)"))
         access = [f for f in nginx_log_files(options["profile"]) if "access" in os.path.basename(f)]
         if batch:                                            # 1.165: the rotated logs (.1, .2.gz...) written during the window
             access += sorted(r for f in list(access) for r in glob.glob(f + ".*") if os.path.isfile(r) and os.path.getmtime(r) >= facts["start"])
@@ -7149,8 +7218,12 @@ def follow(cmd, people, resolver, options, output):
         urls = pages_404 + list(facts["account_urls"])
         if access and urls:
             details["nginx"] = module.nginx_details(access, urls, since=facts["start"])
+        if advise_progress["p"] is not None:
+            advise_progress["p"].step(TR("service journal, odoo.conf"))
         details["service"] = {"events": unit_events(service, ns, facts["start"]), "state": unit_state(service)}
         details["odoo_conf"] = odoo_perf_settings(options["profile"]) if facts["slow"] else None
+        if advise_progress["p"] is not None:
+            advise_progress["p"].step(TR("Odoo database (e-mails, pages, events, redirects)"))
         odoo_db, bases = odoo_bases()
         if odoo_db is not None and bases:
             days = max(1, math.ceil((time.time() - facts["start"]) / 86400))
@@ -7180,6 +7253,8 @@ def follow(cmd, people, resolver, options, output):
                 rows = odoo_db._requete(bases[0], f"SELECT url_to, redirect_type FROM website_rewrite WHERE active AND url_from IN ({odoo_db._sql_text(path)}, {odoo_db._sql_text(plain)}) LIMIT 1")
                 if rows:
                     details["rewrites"][path] = (rows[0][0], rows[0][1] if len(rows[0]) > 1 else "?")
+        if advise_progress["p"] is not None:
+            advise_progress["p"].step(TR("answer of the site now (pages answering 404)"))
         host = (facts["site_hosts"] or [None])[0]
         if host and not os.environ.get("NGINX_TOOLS_TESTS"):
             for path in pages_404[:10]:
@@ -7260,9 +7335,13 @@ def follow(cmd, people, resolver, options, output):
             return
         write_out(["  " + TR("Reading the details in the logs (Odoo tracebacks, nginx referers)...")])
         if batch:
+            if advise_progress["p"] is not None:
+                advise_progress["p"].step(TR("names of the addresses shown (DNS, RDAP, country)"))
             name_addresses()                                  # 1.166: the names (and CDN relays) of the addresses the analysis shows
         facts = advisor_facts(stats)
         details = gather_details(module, facts, batch)
+        if advise_progress["p"] is not None:
+            advise_progress["p"].step(TR("rules and history"))
         findings = module.analyze(facts, details, TR, raw)
         path = advisor_history_file("advisor-history-advise.json" if batch else "advisor-history.json")
         history = module.History(path)
@@ -7550,6 +7629,7 @@ def follow(cmd, people, resolver, options, output):
                 write_out(["  --watch : " + (", ".join(options["watch"]) if options["watch"] else "none") + " (duration, errors and slowness in Ctrl-G / Ctrl-T)"])
 
     session_start = time.time()
+    advise_progress = {"p": None}                        # 1.168 --advise: progress of the reading and of the steps (AdviseProgress)
     if options.get("advise"):                             # 1.165 --advise: the lines are counted, not shown; the analysis is printed at the end
         if SITEMAP is not None:
             waited = time.time()
@@ -7557,6 +7637,7 @@ def follow(cmd, people, resolver, options, output):
                 time.sleep(0.2)
         eprint(TR("--advise: reading the logs of the window without showing them (this can take a few minutes for several weeks)..."))
         output.muted = True                               # 1.166: before, the lines were formatted and translated, then sent to /dev/null
+        advise_progress["p"] = AdviseProgress(options.get("since") or session_start, options.get("until") or session_start)
         resolver.lazy = True                              # 1.166: DNS, RDAP and country lookups only for the addresses the analysis shows
     if options["chime"] is not None:
         beep["mode"], advices = prepare_beep()
@@ -7638,6 +7719,8 @@ def follow(cmd, people, resolver, options, output):
                 item = ready_now[0]
                 merge_ready.extendleft(reversed(ready_now[1:]))
             L, ips, arrival, is_login = item
+            if advise_progress["p"] is not None and output.muted:      # 1.168: where the reading is (--advise)
+                advise_progress["p"].line(L.instant)
             if state.get("errors_hold") and L.instant is not None and L.instant >= state["errors_start"]:
                 flush_errors_history()                   # 1.158: first live line: the history errors come first
             state["consumed"] = True                    # 1.127: at least one line really processed (the reader counts before queuing)
@@ -7714,6 +7797,8 @@ def follow(cmd, people, resolver, options, output):
         startup_status_bar()
         check_external_ip(time.time(), wait=True)  # end of the stream (--no-follow): at least one check, we wait for its result
         if options.get("advise"):                       # 1.165: back to the screen for the analysis (and the summary if asked)
+            if advise_progress["p"] is not None:
+                advise_progress["p"].done()
             output.muted = False
             resolver.lazy = False
             advise(batch=True)

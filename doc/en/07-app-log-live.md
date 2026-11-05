@@ -40,6 +40,8 @@ sudo app-log-live.py --advise --since 2026-10-01 --until 2026-10-31
 
 The same analysis as the z key, without the live stream: the logs of the window are read without being shown (this can take a few minutes for several weeks), then the analysis is printed. The rotated nginx access logs of the window (`.1`, `.2.gz`...) are read for the referers. Each run is kept in `advisor-history-advise.json` (separate from the history of the z key, whose windows are not comparable), so that two runs a week apart say what is new, recurring or resolved. With `--summary`, the session summary follows. 1.166: the window is read about 15 times faster (20,000 lines in 8 s instead of more than 2 minutes on the test machine) and with the lowest priority (nice 19, idle disk class), so the analysis never slows Odoo down: the lines are counted without being formatted or translated, and the names (DNS, RDAP, country) are looked up at the end only for the addresses the analysis shows. Without sudo, the systemd journal and `/var/lib/app-log-live` may not be readable.
 
+1.168: while the window is read, the error output shows the progress: the share of the window already read, the date reached, the lines read per second and the time left (one line rewritten in place on a terminal, one line every 30 s otherwise), then each step of the analysis (names of the addresses, Odoo tracebacks, nginx logs, service journal, database, answer of the site, rules) with the time since the start.
+
 ### Details checked and corrections (1.167)
 
 For each problem, the analysis now checks the facts itself instead of only pointing to a tool (read-only):

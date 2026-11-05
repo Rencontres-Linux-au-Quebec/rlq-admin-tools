@@ -17,13 +17,17 @@ sudo system-hardening.sh --rollback  # remove the files written by --update (pac
 3. **AIDE**: file integrity. The folders that change all the time are excluded (logs, caches, PostgreSQL, Docker, BigBlueButton recordings, Odoo filestore and the `data_dir` of each Odoo configuration found, Proxmox storage and `/etc/pve`); `AIDE_EXCLUDE` adds others. The baseline is created once (5 to 30 minutes), then checked every day by the distribution (`dailyaidecheck.timer` or `/etc/cron.daily/aide`).
 4. **Daily summary by e-mail**: `system-hardening-notify.timer` runs `--notify` every day (`NOTIFY_TIME`, 07:30 by default). The mail goes through the mail settings of the suite (`/etc/default/nginx-tools-mail.conf`, set up by `nginx-hardening.sh --update --mail-setup`): no local mail server is needed. A mail is sent only when something needs attention (security updates installed, reboot pending, AIDE differences, sensitive audit events), or every day with `NOTIFY_ALWAYS=yes`.
 
+### Checksums of AIDE (1.1)
+
+The distribution sets `Checksums = H` in `/etc/aide/aide.conf`: every checksum compiled in AIDE (md5, sha1, sha256, sha512, rmd160, tiger, whirlpool, gost...) is computed for every file, several times the processor time of one, for no real gain: **SHA-512 alone is enough** to detect a changed file. `--update` sets `Checksums = sha512` (key `AIDE_CHECKSUMS`; `keep` leaves the distribution value). The line is changed where it is, because the groups of `aide.conf` (`Full`, `VarFile`...) take the value of `Checksums` when they are defined: a new definition in `aide.conf.d` would change nothing. The old line is kept in a comment just above it, and `--rollback` puts it back. The baseline is then created again (the old one, kept as `aide.db.previous`, holds the old checksums: every file would be reported as changed): read the last AIDE report first.
+
 ## LXC containers and the Proxmox host
 
 The kernel audit cannot run in an unprivileged LXC container: the kernel belongs to the host. In a container, the program sets up unattended-upgrades, AIDE and the daily summary, and says that the audit is done on the host. On the **Proxmox host**, `--update` also writes watches for the sensitive files of each **running** container (seen in `/var/lib/lxc/ID/rootfs`): sudoers, `.ssh`, cron, passwd, shadow, sshd. After a container is restarted, run `--update` again on the host so that the watches follow its new mount (`AUDIT_WATCH_CONTAINERS=no` to leave the containers out).
 
 ## Files written
 
-Only files of its own, removed by `--rollback`: `/etc/apt/apt.conf.d/52rlq-unattended-upgrades`, `/etc/audit/rules.d/60-rlq-hardening.rules`, `/etc/aide/aide.conf.d/99_rlq_exclusions`, `/etc/systemd/system/system-hardening-notify.service` and `.timer`. No file of the distribution is modified. The packages (`unattended-upgrades`, `auditd`, `aide`) and the AIDE database stay after `--rollback`.
+Only files of its own, removed by `--rollback`, and the `Checksums` line of `/etc/aide/aide.conf` (old line kept in a comment, put back by `--rollback`): `/etc/apt/apt.conf.d/52rlq-unattended-upgrades`, `/etc/audit/rules.d/60-rlq-hardening.rules`, `/etc/aide/aide.conf.d/99_rlq_exclusions`, `/etc/systemd/system/system-hardening-notify.service` and `.timer`. No other file of the distribution is modified. The packages (`unattended-upgrades`, `auditd`, `aide`) and the AIDE database stay after `--rollback`.
 
 ## Options
 {{HELP}}

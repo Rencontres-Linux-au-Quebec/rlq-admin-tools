@@ -9,6 +9,7 @@
 #AUDITD=yes                     # audit rules rlq-* (sudo, SSH keys, cron, accounts, PAM, sshd, systemd units); not in an LXC container
 #AUDIT_WATCH_CONTAINERS=yes     # on a Proxmox host: also watch the sensitive files of the running LXC containers
 #AIDE=yes                       # file integrity (AIDE): baseline, daily check
+#AIDE_CHECKSUMS=sha512          # checksums of AIDE (Checksums line of /etc/aide/aide.conf): sha512 is enough; keep = leave the distribution value (H = every one, much longer)
 #AIDE_EXCLUDE=                  # more folders AIDE must ignore, separated by spaces (e.g. /srv/odoo-data /opt/backups)
 #NOTIFY=yes                     # daily summary by e-mail (system-hardening-notify.timer, mail settings of nginx-tools-mail.conf)
 #NOTIFY_TIME=07:30              # time of that summary (HH:MM, local time)

@@ -3126,3 +3126,36 @@ msgstr "Avec --advise : après l'analyse, propose les corrections une à une, un
 
 msgid "--apply goes with --advise"
 msgstr "--apply s'utilise avec --advise"
+
+msgid "--advise: {n} lines read ({rate}/s) · {elapsed}"
+msgstr "--advise : {n} lignes lues ({rate}/s) · {elapsed}"
+
+msgid "--advise: {pct} % · log read up to {when} · {n} lines ({rate}/s) · {elapsed}"
+msgstr "--advise : {pct} % · journal lu jusqu'au {when} · {n} lignes ({rate}/s) · {elapsed}"
+
+msgid "about {left} left"
+msgstr "reste environ {left}"
+
+msgid "--advise: window read: {n} lines in {elapsed}"
+msgstr "--advise : période lue : {n} lignes en {elapsed}"
+
+msgid "names of the addresses shown (DNS, RDAP, country)"
+msgstr "noms des adresses affichées (DNS, RDAP, pays)"
+
+msgid "Odoo tracebacks and exceptions"
+msgstr "traces et exceptions d'Odoo"
+
+msgid "nginx access logs (referers, methods)"
+msgstr "journaux d'accès de nginx (référents, méthodes)"
+
+msgid "service journal, odoo.conf"
+msgstr "journal du service, odoo.conf"
+
+msgid "Odoo database (e-mails, pages, events, redirects)"
+msgstr "base de données d'Odoo (courriels, pages, événements, redirections)"
+
+msgid "answer of the site now (pages answering 404)"
+msgstr "réponse du site maintenant (pages qui répondent 404)"
+
+msgid "rules and history"
+msgstr "règles et historique"
