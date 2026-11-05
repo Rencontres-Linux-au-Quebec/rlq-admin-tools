@@ -20,8 +20,8 @@
 #      security updates installed, reboot pending, AIDE differences, audit events.
 #
 # NO DANGER BY DEFAULT: without --update, it ONLY checks and changes nothing. --update installs the packages and writes ONLY files
-# of its own (52rlq-unattended-upgrades, 60-rlq-hardening.rules, 99_rlq_exclusions, system-hardening-notify.*): --rollback removes
-# them (the packages stay installed). Must be run as root for --update, --rollback and --baseline-update.
+# of its own (52rlq-unattended-upgrades, 60-rlq-hardening.rules, 99_rlq_exclusions, system-hardening-notify.*), plus ONE line of
+# /etc/aide/aide.conf (Checksums, the old value kept in a comment above it): --rollback removes them and restores the line (the packages stay). Must be run as root for --update, --rollback and --baseline-update.
 #
 # Usage : system-hardening.sh [OPTION]...
 #
@@ -42,7 +42,7 @@
 #
 # Configuration (/etc/default/system-hardening.conf, then ~/.system-hardening.conf if it exists; the last one wins):
 #   LANGUAGE, VERBOSE, UNATTENDED_UPGRADES, AUTOMATIC_REBOOT, AUTOMATIC_REBOOT_TIME, AUDITD, AUDIT_WATCH_CONTAINERS,
-#   AIDE, AIDE_EXCLUDE, NOTIFY, NOTIFY_TIME, NOTIFY_ALWAYS (see doc/en/system-hardening.conf.example)
+#   AIDE, AIDE_CHECKSUMS, AIDE_EXCLUDE, NOTIFY, NOTIFY_TIME, NOTIFY_ALWAYS (see doc/en/system-hardening.conf.example)
 #
 # ========================================================================================================================
 
@@ -52,7 +52,7 @@ for _d in /usr/local/sbin /usr/sbin /sbin; do [[ -n "${NGINX_TOOLS_TESTS:-}" ]] 
 # (During the test suite, NGINX_TOOLS_TESTS disables this addition: the real system commands stay out of reach.)
 export PATH
 
-readonly SCRIPT_VERSION="1.0.20261104.185853"
+readonly SCRIPT_VERSION="1.1.20261105.081634"
 readonly SCRIPT_NAME="system-hardening"
 SCRIPT_FILE="$(basename "${BASH_SOURCE[0]}")"
 readonly SCRIPT_FILE
@@ -191,7 +191,7 @@ usage() {
         "Configuration (keys, one per line; template: doc/en/system-hardening.conf.example):")"
     local key
     for key in "LANGUAGE=auto" "VERBOSE=no" "UNATTENDED_UPGRADES=yes" "AUTOMATIC_REBOOT=no" "AUTOMATIC_REBOOT_TIME=03:30" "AUDITD=yes" \
-               "AUDIT_WATCH_CONTAINERS=yes" "AIDE=yes" "AIDE_EXCLUDE=" "NOTIFY=yes" "NOTIFY_TIME=07:30" "NOTIFY_ALWAYS=no"; do
+               "AUDIT_WATCH_CONTAINERS=yes" "AIDE=yes" "AIDE_CHECKSUMS=sha512" "AIDE_EXCLUDE=" "NOTIFY=yes" "NOTIFY_TIME=07:30" "NOTIFY_ALWAYS=no"; do
         printf '  %s%s%s=%s\n' "$C_CYAN" "${key%%=*}" "$C_RESET" "${key#*=}"
     done
 }
@@ -218,6 +218,8 @@ load_settings() {
     if [[ ! "$REBOOT_TIME" =~ ^([01][0-9]|2[0-3]):[0-5][0-9]$ ]]; then CFG_PROBLEMES+=("AUTOMATIC_REBOOT_TIME=$REBOOT_TIME"); REBOOT_TIME="03:30"; fi
     if [[ ! "$NOTIFY_TIME" =~ ^([01][0-9]|2[0-3]):[0-5][0-9]$ ]]; then CFG_PROBLEMES+=("NOTIFY_TIME=$NOTIFY_TIME"); NOTIFY_TIME="07:30"; fi
     AIDE_EXTRA="${CFG[AIDE_EXCLUDE]:-}"
+    AIDE_SUMS="${CFG[AIDE_CHECKSUMS]:-sha512}"                    # 1.1: one strong checksum instead of every one compiled in (Checksums = H)
+    if [[ ! "$AIDE_SUMS" =~ ^(keep|[a-z0-9]+(\+[a-z0-9]+)*)$ ]]; then CFG_PROBLEMES+=("AIDE_CHECKSUMS=$AIDE_SUMS"); AIDE_SUMS="sha512"; fi
 }
 
 # show_config: the configuration file(s) really read, and a one-line summary of the important options.
@@ -232,7 +234,7 @@ show_config() {
         if (( ${#CFG_FICHIERS[@]} > 1 )); then read_files+=" ($(t "le dernier l'emporte" "the last one wins"))"; fi
     fi
     echo "$(t "Configuration lue :" "Configuration read:") $read_files"
-    echo "  $(t "Options :" "Options:") --lang $UI_LANG · unattended-upgrades $(onoff "$DO_UU") · $(t "redémarrage automatique" "automatic reboot") $(onoff "$AUTO_REBOOT")$( (( AUTO_REBOOT == 1 )) && echo " ($REBOOT_TIME)") · auditd $(onoff "$DO_AUDIT") · AIDE $(onoff "$DO_AIDE")${AIDE_EXTRA:+ (+$AIDE_EXTRA)} · $(t "courriel quotidien" "daily mail") $(onoff "$DO_NOTIFY_TIMER") ($NOTIFY_TIME) · $(t "ligne de commande prioritaire" "command line has priority")"
+    echo "  $(t "Options :" "Options:") --lang $UI_LANG · unattended-upgrades $(onoff "$DO_UU") · $(t "redémarrage automatique" "automatic reboot") $(onoff "$AUTO_REBOOT")$( (( AUTO_REBOOT == 1 )) && echo " ($REBOOT_TIME)") · auditd $(onoff "$DO_AUDIT") · AIDE $(onoff "$DO_AIDE") ($AIDE_SUMS)${AIDE_EXTRA:+ (+$AIDE_EXTRA)} · $(t "courriel quotidien" "daily mail") $(onoff "$DO_NOTIFY_TIMER") ($NOTIFY_TIME) · $(t "ligne de commande prioritaire" "command line has priority")"
     for f in ${CFG_PROBLEMES[@]+"${CFG_PROBLEMES[@]}"}; do
         echo "  [ATTN] $(t "valeur de configuration ignorée :" "configuration value ignored:") $f" >&2
     done
@@ -659,6 +661,62 @@ aide_last_result() {
     return 0
 }
 
+# ------------------------------------------------------------------------------------------------------------------------
+# 1.1: the checksums of AIDE. The distribution sets "Checksums = H": EVERY checksum compiled in (md5, sha1, sha256, sha512, rmd160, tiger, whirlpool,
+# gost, stribog, crc32...) is computed for every file, several times the processor time of one, for no real gain: SHA-512 alone is enough to detect a
+# changed file. The groups of aide.conf (Full, VarFile...) take the value of Checksums when THEY are defined, so the line must be changed where it is
+# (a later definition in aide.conf.d would change nothing). The old line is kept in a comment just above, --rollback puts it back.
+# ------------------------------------------------------------------------------------------------------------------------
+AIDE_SUMS_MARK="# system-hardening.sh: Checksums changed, the line before was:"
+aide_checksums_now() {
+    [[ -r "$AIDE_MAIN_CONF" ]] || return 0
+    sed -nE 's/^[[:space:]]*Checksums[[:space:]]*=[[:space:]]*([^#]*[^#[:space:]])[[:space:]]*(#.*)?$/\1/p' "$AIDE_MAIN_CONF" | tail -n 1
+}
+
+# aide_checksums_set: puts "Checksums = $AIDE_SUMS" in aide.conf (old line in a comment above it); true when the file was changed.
+aide_checksums_set() {
+    local now tmp
+    [[ "$AIDE_SUMS" == keep ]] && return 1
+    now="$(aide_checksums_now)"
+    [[ -z "$now" || "$now" == "$AIDE_SUMS" ]] && return 1
+    tmp="$(mktemp "$(dirname "$AIDE_MAIN_CONF")/.aide.conf.XXXXXX")"
+    awk -v mark="$AIDE_SUMS_MARK" -v sums="$AIDE_SUMS" '
+        /^[[:space:]]*Checksums[[:space:]]*=/ && !done { print mark; print "# " $0; print "Checksums = " sums; done = 1; next }
+        { print }' "$AIDE_MAIN_CONF" > "$tmp"
+    chmod --reference="$AIDE_MAIN_CONF" "$tmp" 2>/dev/null || chmod 644 "$tmp"
+    mv -f -- "$tmp" "$AIDE_MAIN_CONF"
+    return 0
+}
+
+# aide_checksums_restore: the line kept by aide_checksums_set comes back (--rollback); true when the file was changed.
+aide_checksums_restore() {
+    local tmp
+    if [[ ! -r "$AIDE_MAIN_CONF" ]] || ! grep -qF "$AIDE_SUMS_MARK" "$AIDE_MAIN_CONF"; then return 1; fi
+    tmp="$(mktemp "$(dirname "$AIDE_MAIN_CONF")/.aide.conf.XXXXXX")"
+    awk -v mark="$AIDE_SUMS_MARK" '
+        $0 == mark { restore = 1; next }
+        restore == 1 { sub(/^# /, ""); print; restore = 2; next }
+        restore == 2 && /^[[:space:]]*Checksums[[:space:]]*=/ { restore = 0; next }
+        { print }' "$AIDE_MAIN_CONF" > "$tmp"
+    chmod --reference="$AIDE_MAIN_CONF" "$tmp" 2>/dev/null || chmod 644 "$tmp"
+    mv -f -- "$tmp" "$AIDE_MAIN_CONF"
+    return 0
+}
+
+aide_checksums_check() {
+    local now
+    now="$(aide_checksums_now)"
+    if [[ -z "$now" ]]; then
+        info "$(t "aucune ligne Checksums dans" "no Checksums line in") $AIDE_MAIN_CONF"
+    elif [[ "$AIDE_SUMS" == keep || "$now" == "$AIDE_SUMS" ]]; then
+        pass "$(t "condensés d'AIDE :" "AIDE checksums:") Checksums = $now"
+    elif [[ "$now" == H ]]; then
+        warn "$(t "Checksums = H : TOUS les condensés compilés sont calculés pour chaque fichier (md5, sha1, sha256, sha512, rmd160, tiger, whirlpool, gost...), plusieurs fois plus long qu'un seul, sans gain réel ; --update met Checksums =" "Checksums = H: EVERY checksum compiled in is computed for each file (md5, sha1, sha256, sha512, rmd160, tiger, whirlpool, gost...), several times longer than one, for no real gain; --update sets Checksums =") $AIDE_SUMS"
+    else
+        warn "$(t "Checksums = $now : --update met Checksums =" "Checksums = $now: --update sets Checksums =") $AIDE_SUMS (AIDE_CHECKSUMS)"
+    fi
+}
+
 aide_check() {
     title "3. AIDE ($(t "intégrité des fichiers" "file integrity"))"
     if (( DO_AIDE == 0 )); then skip "$(t "désactivé (AIDE=no)" "disabled (AIDE=no)")"; return 0; fi
@@ -671,6 +729,7 @@ aide_check() {
     else
         fail "$(t "exclusions absentes :" "exclusions missing:") $AIDE_FILE : system-hardening.sh --update"
     fi
+    aide_checksums_check
     if [[ -f "$AIDE_DB_DIR/aide.db" || -f "$AIDE_DB_DIR/aide.db.gz" ]]; then
         pass "$(t "base de référence présente" "baseline present") ($AIDE_DB_DIR)"
     else
@@ -696,6 +755,11 @@ aide_apply() {
     else
         pass "$(t "exclusions déjà à jour :" "exclusions already up to date:") $AIDE_FILE"
     fi
+    local sums_changed=0
+    if aide_checksums_set; then
+        sums_changed=1
+        pass "$(t "condensés d'AIDE : Checksums =" "AIDE checksums: Checksums =") $AIDE_SUMS ($AIDE_MAIN_CONF ; $(t "l'ancienne ligne est gardée en commentaire, --rollback la remet" "the old line is kept in a comment, --rollback puts it back"))"
+    fi
     if have update-aide.conf; then run update-aide.conf >/dev/null 2>&1 || warn "update-aide.conf $(t "a échoué" "failed")"; fi
     if have aide && ! run aide --config-check -c "$(aide_config_file)" >/dev/null 2>&1; then
         fail "$(t "configuration d'AIDE refusée : aide --config-check -c" "AIDE configuration refused: aide --config-check -c") $(aide_config_file)"
@@ -704,7 +768,13 @@ aide_apply() {
     if have systemctl && systemd_running && systemctl list-unit-files dailyaidecheck.timer >/dev/null 2>&1; then
         run systemctl enable --now dailyaidecheck.timer >/dev/null 2>&1 || true
     fi
-    if [[ -f "$AIDE_DB_DIR/aide.db" || -f "$AIDE_DB_DIR/aide.db.gz" ]]; then
+    if [[ -f "$AIDE_DB_DIR/aide.db" || -f "$AIDE_DB_DIR/aide.db.gz" ]] && (( sums_changed == 1 )); then
+        # The old baseline holds the old checksums: every file would be reported as changed. It is created again with the new ones.
+        warn "$(t "les condensés ont changé : la base de référence est recréée (lire d'abord le dernier rapport d'AIDE :" "the checksums changed: the baseline is created again (read the last AIDE report first:") $AIDE_LOG)"
+        for f in "$AIDE_DB_DIR"/aide.db "$AIDE_DB_DIR"/aide.db.gz; do
+            if [[ -f "$f" ]]; then mv -f -- "$f" "$f.previous"; fi
+        done
+    elif [[ -f "$AIDE_DB_DIR/aide.db" || -f "$AIDE_DB_DIR/aide.db.gz" ]]; then
         pass "$(t "base de référence déjà présente (après des changements voulus : --baseline-update)" "baseline already present (after wanted changes: --baseline-update)")"
         return 0
     fi
@@ -875,6 +945,7 @@ rollback() {
     if ! is_root; then fail "$(t "il faut root" "root is needed")"; return 0; fi
     local f removed=0
     if have systemctl && systemd_running && [[ -f "$NOTIFY_TIMER" ]]; then run systemctl disable --now system-hardening-notify.timer >/dev/null 2>&1 || true; fi
+    if aide_checksums_restore; then pass "$(t "ligne Checksums d'origine remise :" "original Checksums line restored:") $AIDE_MAIN_CONF"; removed=1; fi
     for f in "$UU_FILE" "$AUDIT_FILE" "$AIDE_FILE" "$NOTIFY_TIMER" "$NOTIFY_SERVICE"; do
         if [[ -f "$f" ]]; then rm -f -- "$f"; pass "$(t "retiré :" "removed:") $f"; removed=1; fi
     done

@@ -4704,3 +4704,52 @@ class AppLogLive166(unittest.TestCase):
                            env=dict(os.environ, APP_LOG_LIVE_SITEMAP="off"), timeout=60)
         self.assertEqual(r.stdout.strip().splitlines()[-1], "19", r.stderr)
 
+
+class AppLogLive168(unittest.TestCase):
+    """1.168 : --advise montre où en est la lecture (une ligne réécrite dans un terminal, une ligne toutes les 30 s sinon) et chaque étape de l'analyse."""
+
+    @classmethod
+    def setUpClass(cls):
+        spec = importlib.util.spec_from_file_location("live168", script_path("app-log-live.py"))
+        cls.m = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(cls.m)
+
+    class Flux(io.StringIO):
+        def __init__(self, tty):
+            super().__init__()
+            self.tty = tty
+
+        def isatty(self):
+            return self.tty
+
+    def test_168_terminal_ligne_reecrite(self):
+        flux = self.Flux(True)
+        debut = time.time() - 1000
+        p = self.m.AdviseProgress(debut, debut + 1000, flux)
+        p.started -= 10                                                   # 10 s of reading: the time left is estimated
+        p.line(debut + 250)
+        texte = T(ANSI.sub("", flux.getvalue()))
+        self.assertTrue(texte.startswith("\r--advise : 25 % · journal lu jusqu'au "), texte)
+        self.assertIn("1 lignes", texte)
+        self.assertIn("reste environ 30 s", texte)
+        p.line(debut + 500)                                               # less than a second later: not written again
+        self.assertEqual(flux.getvalue().count("\r"), 1)
+        p.done()
+        self.assertTrue(flux.getvalue().endswith("\n"))
+        self.assertIn("période lue : 2 lignes", T(flux.getvalue()))
+        p.step("base de données")
+        self.assertRegex(T(ANSI.sub("", flux.getvalue())), r"\[\d+ s\] base de données\.\.\.\n$")
+
+    def test_168_sans_terminal_une_ligne_toutes_les_30_s(self):
+        flux = self.Flux(False)
+        p = self.m.AdviseProgress(time.time() - 100, time.time(), flux)
+        for _ in range(1000):
+            p.line(time.time() - 50)
+        self.assertEqual(flux.getvalue().count("\n"), 1)                 # the first line only (then one every 30 s)
+        self.assertNotIn("\r", flux.getvalue())
+
+    def test_168_duree_lisible(self):
+        self.assertEqual(self.m.clock_span(45), "45 s")
+        self.assertEqual(self.m.clock_span(185), "3 min 05 s")
+        self.assertEqual(self.m.clock_span(3720), "1 h 02 min")
+
