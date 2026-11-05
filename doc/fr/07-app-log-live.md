@@ -40,6 +40,20 @@ sudo app-log-live.py --advise --since 2026-10-01 --until 2026-10-31
 
 La même analyse que la touche z, sans le flux en direct : les journaux de la période sont lus sans être affichés (cela peut prendre quelques minutes pour plusieurs semaines), puis l'analyse est affichée. Les journaux d'accès de nginx déjà tournés pendant la période (`.1`, `.2.gz`...) sont lus pour les référents. Chaque exécution est gardée dans `advisor-history-advise.json` (séparé de l'historique de la touche z, dont les périodes ne sont pas comparables) : deux exécutions à une semaine d'écart disent ce qui est nouveau, récurrent ou réglé. Avec `--summary`, le résumé de la session suit. 1.166 : la période est lue environ 15 fois plus vite (20 000 lignes en 8 s au lieu de plus de 2 minutes sur la machine de test) et avec la priorité la plus basse (nice 19, classe disque « idle »), pour que l'analyse ne ralentisse jamais Odoo : les lignes sont comptées sans être mises en forme ni traduites, et les noms (DNS, RDAP, pays) sont cherchés à la fin, seulement pour les adresses que l'analyse affiche. Sans sudo, le journal systemd et `/var/lib/app-log-live` peuvent être illisibles.
 
+### Détails vérifiés et corrections (1.167)
+
+Pour chaque problème, l'analyse vérifie maintenant les faits elle-même au lieu de seulement renvoyer vers un outil (lecture seule) :
+
+* **Requêtes lentes** : les workers et les limites d'`odoo.conf` (`workers`, `max_cron_threads`, `limit_time_cpu`, `limit_time_real`, `limit_memory_*`), les processeurs et la mémoire de la machine (ceux du conteneur), comparés au guide de déploiement d'Odoo ((2 x CPU) + 1 workers au plus, environ 325 Mo chacun) ; les heures les plus chargées ; les requêtes arrivées dans les 10 minutes après un démarrage d'Odoo (cache froid).
+* **Odoo injoignable depuis nginx** : les lignes du journal d'erreurs de nginx ne sont plus comptées comme erreurs d'Odoo ni comme courriels en échec ; elles sont regroupées et comparées aux démarrages et arrêts du service (son journal) et à son état actuel.
+* **Exceptions d'Odoo** : l'exception de chaque occurrence (pas seulement de la dernière), le module du dernier appel ; causes connues (clé VAPID des notifications, droits d'accès, enregistrements supprimés, mémoire, délais...).
+* **Erreurs 5xx** : regroupées par page, avec la trace écrite à la même seconde et les adresses ; un scanneur de vulnérabilités (guillemets, parenthèses, « zqzz ») est reconnu.
+* **Courriels en échec** : la base de données décide (état de la file de courriels, causes, serveurs sortants) : un nombre du journal que la base ne confirme pas est affiché comme information.
+* **404** : la réponse du site maintenant, l'événement ou le produit du numéro de l'adresse (publié, archivé, supprimé), la page web et une page semblable, une redirection déjà définie ; les référents du site lui-même (avec ou sans www) sont reconnus.
+* **Formulaires de compte** : formulaires vraiment envoyés (POST) ou seulement affichés (GET), inscription libre ou sur invitation, comptes portail créés dans la période.
+
+Avec **`--apply`** (avec `--advise`, dans un terminal), les corrections sont proposées une à une après l'analyse, une question chacune : bannir les adresses avec `nginx-log-audit.sh --ban` (il examine chaque adresse, vérifie la liste blanche et son score, et demande sa propre confirmation), ouvrir `odoo-mail-retry.py` pour les courriels en échec (il les liste et demande avant de les renvoyer), préchauffer Odoo avec `odoo-warmup.py` après un redémarrage. Rien n'est fait sans un « oui », et `odoo.conf` n'est jamais modifié.
+
 ## Enregistrer un test (touche R)
 
 Pour analyser un test du site (un sondage abandonné, une inscription, une proposition de présentation...) sans le bruit :

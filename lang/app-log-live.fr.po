@@ -3078,3 +3078,51 @@ msgstr "--advise lit des journaux passés : pas avec --record-test-log"
 
 msgid "--advise must be greater than 0 and at most 366 days"
 msgstr "--advise doit être plus grand que 0 et au plus 366 jours"
+
+msgid "Odoo unreachable from nginx (upstream errors): "
+msgstr "Odoo injoignable depuis nginx (erreurs upstream) : "
+
+msgid "from {first} to {last}: Odoo stopped, restarting or too busy (see systemctl status and the service journal)"
+msgstr "de {first} à {last} : Odoo arrêté, en redémarrage ou trop occupé (voir systemctl status et le journal du service)"
+
+msgid "nginx errors (error log): "
+msgstr "Erreurs de nginx (journal d'erreurs) : "
+
+msgid "{svc}, started on {when}"
+msgstr "{svc}, démarré le {when}"
+
+msgid "(inactive server)"
+msgstr "(serveur inactif)"
+
+msgid "correction offered by --apply (with --advise)"
+msgstr "correction proposée par --apply (avec --advise)"
+
+msgid "correction offered below (--apply)"
+msgstr "correction proposée plus bas (--apply)"
+
+msgid "──── Corrections (--apply) ────"
+msgstr "──── Corrections (--apply) ────"
+
+msgid "No correction to offer for this window."
+msgstr "Aucune correction à proposer pour cette période."
+
+msgid "--apply needs a terminal (one question for each correction): nothing applied."
+msgstr "--apply demande un terminal (une question pour chaque correction) : rien n'est appliqué."
+
+msgid "Ban {who} ({reason})? nginx-log-audit.sh investigates it first [y] yes  [N] no  [q] stop the bans: "
+msgstr "Bannir {who} ({reason}) ? nginx-log-audit.sh l'examine d'abord [o] oui  [N] non  [q] arrêter les bannissements : "
+
+msgid "Addresses banned: {n} (reversible: nginx-log-audit.sh --unban IP)."
+msgstr "Adresses bannies : {n} (réversible : nginx-log-audit.sh --unban IP)."
+
+msgid "Open odoo-mail-retry.py (it lists the failed e-mails and asks before resending)? [y] yes  [N] no: "
+msgstr "Ouvrir odoo-mail-retry.py (il liste les courriels en échec et demande avant de les renvoyer) ? [o] oui  [N] non : "
+
+msgid "Warm up Odoo now with odoo-warmup.py (reads the main pages once)? [y] yes  [N] no: "
+msgstr "Préchauffer Odoo maintenant avec odoo-warmup.py (lit une fois les pages principales) ? [o] oui  [N] non : "
+
+msgid "With --advise: after the analysis, offer the corrections one by one, one question each (ban the addresses with nginx-log-audit.sh --ban, which checks the white list and its score; open odoo-mail-retry.py for the failed e-mails; warm Odoo up with odoo-warmup.py); terminal required"
+msgstr "Avec --advise : après l'analyse, propose les corrections une à une, une question chacune (bannir les adresses avec nginx-log-audit.sh --ban, qui vérifie la liste blanche et son score ; ouvrir odoo-mail-retry.py pour les courriels en échec ; préchauffer Odoo avec odoo-warmup.py) ; terminal requis"
+
+msgid "--apply goes with --advise"
+msgstr "--apply s'utilise avec --advise"

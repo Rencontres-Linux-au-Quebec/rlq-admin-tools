@@ -162,7 +162,7 @@ class Regles(unittest.TestCase):
         f = par_id(ADV.analyze(faits(odoo_errors=e), {"tracebacks": {("ERROR", "odoo.http", "Exception during request handling."): trace}}))
         carte = next(v for k, v in f.items() if k.startswith("odoo:odoo.addons.web"))
         self.assertEqual(carte["severity"], ADV.INFO)
-        exc = f["odoo:odoo.http:Exception during request handling."]
+        exc = f["odoo:odoo.http:KeyError"]
         self.assertEqual(exc["severity"], ADV.LOOK)
         self.assertIn("programming error", exc["cause"])
         self.assertTrue(any("rlq_event_extra" in x for x in exc["evidence"]))
@@ -344,3 +344,159 @@ class FaitsEtTouche(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class Version167(unittest.TestCase):
+    """1.3 (app-log-live.py 1.167) : sortie vérifiée sur la vraie analyse de 14 jours du serveur — référents de son propre site, 404 comptés par nginx,
+    5xx groupés par page avec la trace, balayage de vulnérabilités, nginx sans Odoo, VAPID, courriels confirmés par la base, réglages d'odoo.conf."""
+
+    def test_referents_du_site_avec_host_entre_guillemets_et_sans_www(self):
+        ligne = ('1.1.1.1 - - [04/Nov/2026:09:10:00 -0500] "GET /en_CA/appel HTTP/1.1" 404 12 "https://rencontres-linux.quebec/a-propos/x" "Mozilla/5.0" '
+                 'host="www.rencontres-linux.quebec" rl=500')
+        with tempfile.TemporaryDirectory() as d:
+            chemin = os.path.join(d, "a-access.log")
+            with open(chemin, "w") as f:
+                f.write(ligne + "\n" + ligne.replace('"GET', '"POST') + "\n")
+            r = ADV.nginx_details([chemin], ["/en_CA/appel"])["/en_CA/appel"]
+        self.assertEqual(r["hosts"], Counter({"www.rencontres-linux.quebec": 2}))       # without the quotes
+        self.assertEqual(r["methods"], Counter({"GET": 1, "POST": 1}))
+        self.assertEqual(ADV.internal_referers(r), Counter({"https://rencontres-linux.quebec/a-propos/x": 2}))   # same site, without www
+        self.assertEqual(ADV.internal_referers({"referers": Counter({"https://autre.example/": 1}), "hosts": Counter()}, ["www.site.example"]), Counter())
+
+    def test_404_compte_par_nginx_et_redirections_a_part(self):
+        details = {"nginx": {"/en_CA/appel": {"codes": Counter({"404": 25, "403": 3, "301": 7}), "referers": Counter(), "hosts": Counter(), "agents": Counter(), "methods": Counter()}}}
+        f = par_id(ADV.analyze(faits(plain_4xx={"/en_CA/appel": 20, "/en_CA/appel?x=1": 5}), details))
+        lien = f["dead-link:/en_CA/appel"]
+        self.assertEqual(lien["count"], 25)                                              # the 404 of nginx, the query strings grouped
+        self.assertIn("404 ×25, 403 ×3", lien["evidence"][0])
+        self.assertIn("7 redirections 3xx", lien["evidence"][0])
+
+    def test_404_repond_200_maintenant_et_evenement_non_publie(self):
+        details = {"now": {"/event/rencontre-119": 200, "/event/rencontre-58": 404},
+                   "records": {"/event/rencontre-58": {"kind": "event", "id": 58, "name": "Rencontre", "published": False, "active": True, "end": "2026-11-03"}}}
+        f = par_id(ADV.analyze(faits(gone_404={"/event/rencontre-119": 4}, plain_4xx={"/event/rencontre-58": 16}, sitemap_paths=frozenset({"/event/rencontre-119"})), details))
+        self.assertEqual(f["sitemap-404-now-ok:/event/rencontre-119"]["severity"], ADV.INFO)
+        mort = f["dead-link:/event/rencontre-58"]
+        self.assertIn("not published", mort["cause"])
+        self.assertTrue(any("event n° 58" in e and "NOT published" in e and "ended on 2026-11-03" in e for e in mort["evidence"]))
+
+    def test_plan_du_site_wordpress(self):
+        f = par_id(ADV.analyze(faits(plain_4xx={"/sitemap_index.xml": 24})))
+        self.assertEqual(f["wp-sitemap:/sitemap_index.xml"]["severity"], ADV.INFO)
+        self.assertNotIn("sitemap-xml-4xx", f)
+
+    def test_5xx_groupes_par_page_balayage_et_formulaire(self):
+        maintenant = time.time()
+        fuzz = '/en_CA/event?search=zqzz"()((,)\').&tags=stfD'
+        trace = TRACE[1:8]
+        f = par_id(ADV.analyze(faits(errors5={"/en_CA/event?search=zqzz&tags=stfD": 5, fuzz: 1, "/event/125/track_proposal/post": 5},
+                                     http_errors5=[(maintenant, 500, "/en_CA/event?search=zqzz&tags=stfD", "6.6.6.6")] * 5 + [(maintenant, 500, fuzz, "6.6.6.6")]
+                                     + [(maintenant, 500, "/event/125/track_proposal/post", "1.2.3.4")] * 5, who={"6.6.6.6": "scan.example [6.6.6.6]"}),
+                               {"traces_5xx": {"/event/125/track_proposal/post": trace}}))
+        balayage = f["http-5xx:/en_CA/event"]
+        self.assertEqual(balayage["count"], 6)                                           # the two URLs of the same page together
+        self.assertEqual(balayage["severity"], ADV.LOOK)
+        self.assertIn("vulnerability scanner", balayage["cause"])
+        self.assertTrue(any("scan.example [6.6.6.6] ×6" in e for e in balayage["evidence"]))
+        formulaire = f["http-5xx:/event/125/track_proposal/post"]
+        self.assertEqual(formulaire["severity"], ADV.PROBLEM)
+        self.assertIn("a form of the site fails", formulaire["advice"][0])
+        self.assertTrue(any("KeyError" in e for e in formulaire["evidence"]))
+        self.assertTrue(any("rlq_event_extra" in e for e in formulaire["evidence"]))
+
+    def test_nginx_sans_odoo_relie_au_redemarrage(self):
+        t = time.time() - 3600
+        erreurs = [{"level": "ERROR", "message": f"[error] N#N: *N connect() failed (N: Connection refused) while connecting to upstream, client: N.N.N.N, request: \"GET /{x} HTTP/N.N\"",
+                    "n": 10, "first": t, "last": t + 11} for x in ("a", "b")] + [{"level": "ERROR", "message": "[error] N#N: *N open() \"/x\" failed", "n": 25, "first": t, "last": t}]
+        details = {"service": {"events": [(t - 9, "Stopping erplibre.service - Odoo..."), (t + 11, "Started erplibre.service - Odoo.")], "state": "active (running)"}}
+        f = par_id(ADV.analyze(faits(nginx_errors=erreurs, odoo_errors=[erreur("ERROR", "error", erreurs[0]["message"], 10)]), details))
+        amont = next(v for k, v in f.items() if k.startswith("nginx-upstream:"))
+        self.assertEqual(amont["count"], 20)                                            # the requests of every client grouped
+        self.assertEqual(amont["severity"], ADV.LOOK)
+        self.assertIn("restarting", amont["cause"])
+        self.assertTrue(any("Started erplibre.service" in e for e in amont["evidence"]))
+        self.assertIn("nginx-errors", f)
+        self.assertFalse(any(k.startswith("odoo:error") for k in f))                    # never an "Odoo error"
+        sans = par_id(ADV.analyze(faits(nginx_errors=erreurs[:1])))
+        self.assertEqual(next(v for k, v in sans.items() if k.startswith("nginx-upstream:"))["severity"], ADV.PROBLEM)
+
+    def test_vapid_et_exceptions_de_toutes_les_occurrences(self):
+        lignes = []
+        for exc in ["odoo.addons.mail.tools.jwt.InvalidVapidError: Invalid VAPID public key"] * 3 + ["KeyError: 'tags'"]:
+            lignes += ["2026-11-04 12:21:16,123 1 ERROR prod odoo.http: Exception during request handling.", "Traceback (most recent call last):", exc]
+        self.assertEqual(ADV.exception_counts(lignes, "odoo.http", "Exception during request handling."),
+                         Counter({"InvalidVapidError: Invalid VAPID public key": 3, "KeyError: 'tags'": 1}))
+        vapid = ["2026-11-04 12:21:16,123 1 ERROR prod odoo.http: Exception during request handling.", "Traceback (most recent call last):",
+                 '  File "/opt/odoo/odoo/addons/mail/models/mail_push_device.py", line 49, in register_devices', "odoo.addons.mail.tools.jwt.InvalidVapidError: Invalid VAPID public key"]
+        cle = ("ERROR", "odoo.http", "Exception during request handling.")
+        f = par_id(ADV.analyze(faits(odoo_errors=[erreur(*cle, n=20)]), {"tracebacks": {cle: vapid}, "exceptions": {cle: Counter({"InvalidVapidError: Invalid VAPID public key": 20})},
+                                                                         "vapid": "2026-10-27 04:31 UTC"}))
+        e = f["odoo:odoo.http:odoo.addons.mail.tools.jwt.InvalidVapidError"]
+        self.assertEqual(e["severity"], ADV.INFO)
+        self.assertIn("VAPID public key", e["cause"])
+        self.assertTrue(any("2026-10-27 04:31 UTC" in x for x in e["evidence"]))
+        melange = par_id(ADV.analyze(faits(odoo_errors=[erreur(*cle, n=20)]), {"tracebacks": {cle: vapid}, "exceptions": {cle: Counter({"KeyError: 'x'": 15, "InvalidVapidError: y": 5})}}))
+        m = next(v for k, v in melange.items() if k.startswith("odoo:odoo.http"))
+        self.assertNotIn("VAPID public key", m["cause"])                                 # the last occurrence is not the usual one: no cause drawn from it
+        self.assertTrue(any("KeyError: 'x' ×15" in x for x in m["evidence"]))
+
+    def test_trace_pres_d_une_heure(self):
+        t = ADV.calendar.timegm((2026, 11, 4, 12, 21, 16, 0, 0, 0))
+        self.assertTrue(ADV.trace_near(TRACE, t + 2, 3)[-1].startswith("KeyError"))
+        self.assertEqual(ADV.trace_near(TRACE, t + 60, 3), [])
+
+    def test_courriels_confirmes_ou_non_par_la_base(self):
+        base = {"days": 14, "exception": 0, "outgoing": 0, "sent": 120, "reasons": [], "servers": ["smtp.example:587 (starttls)"]}
+        f = par_id(ADV.analyze(faits(mails=40), {"mail_db": base}))
+        self.assertNotIn("mail-failures", f)
+        self.assertEqual(f["mail-failures-not-confirmed"]["severity"], ADV.INFO)
+        f = par_id(ADV.analyze(faits(mails=0), {"mail_db": dict(base, exception=3, reasons=[("550 5.1.1 user unknown", 3)])}))
+        echec = f["mail-failures"]
+        self.assertEqual(echec["count"], 3)
+        self.assertEqual(echec["fix"], ("mail", 14))
+        self.assertTrue(any("recipient or the sender" in x for x in echec["evidence"]))
+        f = par_id(ADV.analyze(faits(), {"mail_db": dict(base, outgoing=30)}))
+        self.assertEqual(f["mail-queue"]["severity"], ADV.LOOK)
+
+    def test_reglages_d_odoo_workers_et_limites(self):
+        _ev, conseils, cause = ADV.odoo_settings_advice({"workers": "0"}, 4, 8000)
+        self.assertEqual(cause, "workers=0")
+        self.assertEqual(conseils[0][:2], ("workers0", 9))
+        _ev, conseils, cause = ADV.odoo_settings_advice({"workers": "20", "limit_time_real": "120"}, 2, 16000, slowest=110)
+        self.assertEqual(cause, "too-many")
+        self.assertIn(("too-many", 5, 20), conseils)
+        self.assertIn(("limit-real", 110, 120), conseils)
+        ev, conseils, _c = ADV.odoo_settings_advice({"workers": "4", "limit_memory_soft": "2147483648"}, 4, 1500)
+        self.assertIn("limit_memory_soft=2048 MB", ev[0])
+        self.assertTrue(any(c[0] == "memory" for c in conseils))
+        lent = [{"total": 6, "url": "/web/login", "ip": "x", "t_sql": 0.1, "t_py": 5.9, "t": time.time()}] * 6
+        f = par_id(ADV.analyze(faits(slow=lent), {"odoo_conf": {"path": "/etc/odoo/odoo.conf", "values": {"workers": "0"}, "cpus": 2, "mem_mb": 4000}}))
+        s = f["slow-requests"]
+        self.assertTrue(any("/etc/odoo/odoo.conf" in e and "workers=0" in e for e in s["evidence"]))
+        self.assertTrue(any("workers=0: Odoo runs in ONE process" in a for a in s["advice"]))
+        self.assertTrue(any("Busiest hours" in e for e in s["evidence"]))
+        self.assertIsNone(s["fix"])
+
+    def test_lenteurs_apres_un_demarrage_prechauffage(self):
+        t = time.time() - 3000
+        lent = [{"total": 7, "url": "/", "ip": "x", "t_sql": 0.1, "t_py": 6.9, "t": t + 60}] * 4
+        f = par_id(ADV.analyze(faits(slow=lent), {"service": {"events": [(t, "Started erplibre.service - Odoo.")]}}))
+        self.assertIn("cold cache", f["slow-requests"]["cause"])
+        self.assertEqual(f["slow-requests"]["fix"], ("warmup", None))
+
+    def test_formulaires_consultes_seulement(self):
+        details = {"nginx": {"/web/signup": {"methods": Counter({"GET": 150}), "codes": Counter(), "referers": Counter(), "hosts": Counter(), "agents": Counter()}},
+                   "signup": {"scope": "b2c", "new_users": 0}}
+        f = par_id(ADV.analyze(faits(account_ips={"a": 150, "b": 7}, account_urls=["/web/signup"]), details))
+        self.assertEqual(f["account-forms"]["severity"], ADV.INFO)
+        self.assertIn("no account attempts", f["account-forms"]["cause"])
+        self.assertTrue(any("free (anyone can create an account)" in e for e in f["account-forms"]["evidence"]))
+
+    def test_correction_proposee_affichee(self):
+        findings = ADV.analyze(faits(to_ban=[("1.2.3.4", "x [1.2.3.4]", "3 suspicious requests")]))
+        ban = par_id(findings)["ban-pending"]
+        self.assertEqual(ban["fix"][0], "ban")
+        self.assertEqual(ban["fix"][1][0][0], "1.2.3.4")
+        texte = "\n".join(ADV.render(findings, {}, apply_hint="correction offered by --apply"))
+        self.assertIn("⚙ correction offered by --apply", texte)
+

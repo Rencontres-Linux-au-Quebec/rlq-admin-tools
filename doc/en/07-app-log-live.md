@@ -40,6 +40,20 @@ sudo app-log-live.py --advise --since 2026-10-01 --until 2026-10-31
 
 The same analysis as the z key, without the live stream: the logs of the window are read without being shown (this can take a few minutes for several weeks), then the analysis is printed. The rotated nginx access logs of the window (`.1`, `.2.gz`...) are read for the referers. Each run is kept in `advisor-history-advise.json` (separate from the history of the z key, whose windows are not comparable), so that two runs a week apart say what is new, recurring or resolved. With `--summary`, the session summary follows. 1.166: the window is read about 15 times faster (20,000 lines in 8 s instead of more than 2 minutes on the test machine) and with the lowest priority (nice 19, idle disk class), so the analysis never slows Odoo down: the lines are counted without being formatted or translated, and the names (DNS, RDAP, country) are looked up at the end only for the addresses the analysis shows. Without sudo, the systemd journal and `/var/lib/app-log-live` may not be readable.
 
+### Details checked and corrections (1.167)
+
+For each problem, the analysis now checks the facts itself instead of only pointing to a tool (read-only):
+
+* **Slow requests**: the workers and limits of `odoo.conf` (`workers`, `max_cron_threads`, `limit_time_cpu`, `limit_time_real`, `limit_memory_*`), the processors and memory of the machine (those of the container), compared with the Odoo deployment guide ((2 x CPU) + 1 workers at most, about 325 MB each); the busiest hours; the requests that came in the 10 minutes after a start of Odoo (cold cache).
+* **Odoo unreachable from nginx**: the lines of the nginx error log are no longer counted as Odoo errors nor as failed e-mails; they are grouped and compared with the starts and stops of the service (its journal) and its state now.
+* **Odoo exceptions**: the exception of every occurrence (not only the last one), the module of the last frame; known causes (VAPID key of the push notifications, access rights, deleted records, memory, timeouts...).
+* **5xx errors**: grouped by page, with the traceback logged at the same second and the addresses; a vulnerability scanner (quotes, brackets, « zqzz ») is recognized.
+* **Failed e-mails**: the database decides (state of the mail queue, causes, outgoing servers): a count of the journal that the database does not confirm is shown as information.
+* **404**: the answer of the site now, the event or product of the number in the address (published, archived, deleted), the web page and a similar one, a redirect already defined; the referers of the site itself (with or without www) are recognized.
+* **Account forms**: forms really sent (POST) or only shown (GET), sign-up free or on invitation, portal accounts created in the window.
+
+With **`--apply`** (with `--advise`, on a terminal), the corrections are offered one by one after the analysis, one question each: ban the addresses through `nginx-log-audit.sh --ban` (it investigates each address, checks the white list and its score, and asks its own confirmation), open `odoo-mail-retry.py` for the failed e-mails (it lists them and asks before resending), warm Odoo up with `odoo-warmup.py` after a restart. Nothing is done without a « yes », and `odoo.conf` is never modified.
+
 ## Recording a test (R key)
 
 To analyze a test of the site (an abandoned survey, a registration, a talk proposal...) without the noise:

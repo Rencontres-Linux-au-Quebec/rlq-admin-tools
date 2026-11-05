@@ -57,8 +57,6 @@ msgstr "odoo-warmup.py juste après chaque redémarrage ou mise à jour d'Odoo"
 msgid "the database: heavy searches, missing indexes or tables to clean"
 msgstr "la base de données : recherches lourdes, index manquants ou tables à nettoyer"
 
-msgid "Python: heavy computation or report, or too few workers for the load"
-msgstr "Python : calcul ou rapport lourd, ou trop peu de workers pour la charge"
 
 msgid "suspicious requests (.env, wp-includes, probes) from addresses that are neither banned nor protected"
 msgstr "requêtes suspectes (.env, wp-includes, sondages) d'adresses ni bannies ni protégées"
@@ -126,8 +124,6 @@ msgstr "lien ancien ou mal tapé ; absent de sitemap.xml, donc hors santé"
 msgid "add a 301 redirect to the replacement page (Website > Configuration > Redirects), or publish it again"
 msgstr "ajouter une redirection 301 vers la page de remplacement (Site Web > Configuration > Redirections), ou la republier"
 
-msgid "correct the page that holds the link (Linked from the site itself), if any"
-msgstr "corriger la page qui contient le lien (Lien depuis le site lui-même), s'il y en a une"
 
 msgid "find the record in the traceback that follows in the log; spread the scheduled actions that write the same model"
 msgstr "trouver l'enregistrement dans la trace qui suit dans le journal ; étaler les actions planifiées qui écrivent le même modèle"
@@ -147,8 +143,6 @@ msgstr "regarder les filtres et le nombre d'enregistrements des pages lentes"
 msgid "app-health-check.py: workers, memory, processor"
 msgstr "app-health-check.py : workers, mémoire, processeur"
 
-msgid "check workers, limit_time_cpu and limit_time_real in odoo.conf"
-msgstr "vérifier workers, limit_time_cpu et limit_time_real dans odoo.conf"
 
 msgid "Slow requests: {n}"
 msgstr "Requêtes lentes : {n}"
@@ -219,8 +213,6 @@ msgstr "Échecs définitifs de mise à jour simultanée : {n}"
 msgid "Many retried update conflicts: {n}"
 msgstr "Beaucoup de conflits de mise à jour réessayés : {n}"
 
-msgid "Time in SQL {sql} %, in Python {py} %"
-msgstr "Temps dans SQL {sql} %, dans Python {py} %"
 
 msgid "Addresses to ban: {n}"
 msgstr "Adresses à bannir : {n}"
@@ -386,3 +378,291 @@ msgstr "le serveur de courriel refuse l'ordre des commandes (authentification ma
 
 msgid "the recipient or the sender is refused: check the address and the sender domain (SPF, DKIM)"
 msgstr "le destinataire ou l'expéditeur est refusé : vérifier l'adresse et le domaine d'envoi (SPF, DKIM)"
+
+msgid "a vulnerability scanner sends malformed parameters (quotes, brackets, « zqzz »): Odoo answers 500 instead of 400, the site is not harmed"
+msgstr "un scanneur de vulnérabilités envoie des paramètres malformés (guillemets, parenthèses, « zqzz ») : Odoo répond 500 au lieu de 400, le site n'est pas atteint"
+
+msgid "Odoo was stopped or restarting at that time (see the service journal): nginx found its port closed"
+msgstr "Odoo était arrêté ou en redémarrage à ce moment (voir le journal du service) : nginx a trouvé son port fermé"
+
+msgid "nginx could not reach Odoo: service stopped, restarting or crashed, or its port is not the one nginx uses"
+msgstr "nginx n'a pas pu joindre Odoo : service arrêté, en redémarrage ou planté, ou son port n'est pas celui qu'utilise nginx"
+
+msgid "files not found, clients that left, invalid requests: usually harmless"
+msgstr "fichiers introuvables, clients partis, requêtes invalides : habituellement sans gravité"
+
+msgid "a redirect is defined in Odoo for this address, but the visitors still get 404: the redirect may point to a page that does not exist either"
+msgstr "une redirection est définie dans Odoo pour cette adresse, mais les visiteurs reçoivent encore 404 : la redirection pointe peut-être vers une page qui n'existe pas non plus"
+
+msgid "the record was deleted while links still point to it"
+msgstr "l'enregistrement a été supprimé alors que des liens pointent encore vers lui"
+
+msgid "the record exists but is not published: Odoo answers 404 to visitors"
+msgstr "l'enregistrement existe mais n'est pas publié : Odoo répond 404 aux visiteurs"
+
+msgid "the record is archived: Odoo answers 404 to visitors"
+msgstr "l'enregistrement est archivé : Odoo répond 404 aux visiteurs"
+
+msgid "the page was renamed or replaced: a similar page exists"
+msgstr "la page a été renommée ou remplacée : une page semblable existe"
+
+msgid "Cause: "
+msgstr "Cause : "
+
+msgid "the mail server refused these e-mails (see the cause above)"
+msgstr "le serveur de courriel a refusé ces courriels (voir la cause plus haut)"
+
+msgid "the scheduled action that sends the e-mails is late or stopped (Mail: Email Queue Manager)"
+msgstr "l'action planifiée qui envoie les courriels est en retard ou arrêtée (Mail: Email Queue Manager)"
+
+msgid "odoo-warmup.py right after each restart or update of Odoo (odoo-update-module.sh does it)"
+msgstr "odoo-warmup.py juste après chaque redémarrage ou mise à jour d'Odoo (odoo-update-module.sh le fait)"
+
+msgid "time spent outside the database: heavy pages, too few or too many workers for the processor, or the machine busy with something else at these hours"
+msgstr "temps passé hors de la base de données : pages lourdes, trop peu ou trop de workers pour le processeur, ou machine occupée à autre chose à ces heures"
+
+msgid "robots and search engines following the links of the site: no account attempts"
+msgstr "robots et moteurs de recherche qui suivent les liens du site : aucune tentative de compte"
+
+msgid "ban the address if it keeps going (key b, or --apply with --advise); nothing to fix in Odoo"
+msgstr "bannir l'adresse si elle continue (touche b, ou --apply avec --advise) ; rien à corriger dans Odoo"
+
+msgid "nothing to do if the restart was wanted (update, maintenance); otherwise read why the service stopped: journalctl -u SERVICE --since the time above"
+msgstr "rien à faire si le redémarrage était voulu (mise à jour, maintenance) ; sinon, lire pourquoi le service s'est arrêté : journalctl -u SERVICE --since l'heure ci-dessus"
+
+msgid "journalctl -u SERVICE around these times: why Odoo stopped"
+msgstr "journalctl -u SERVICE autour de ces heures : pourquoi Odoo s'est arrêté"
+
+msgid "These lines come from the nginx error log; before app-log-live.py 1.167 they were counted as Odoo errors and as failed e-mails"
+msgstr "Ces lignes viennent du journal d'erreurs de nginx ; avant app-log-live.py 1.167, elles étaient comptées comme erreurs d'Odoo et comme courriels en échec"
+
+msgid "nothing to do unless one message repeats a lot"
+msgstr "rien à faire, sauf si un message se répète beaucoup"
+
+msgid "the 404 were temporary: the page was published or restored since, or Odoo was restarting"
+msgstr "les 404 étaient passagers : la page a été publiée ou restaurée depuis, ou Odoo redémarrait"
+
+msgid "check the target of the redirect (Website > Configuration > Redirects)"
+msgstr "vérifier la cible de la redirection (Site Web > Configuration > Redirections)"
+
+msgid "add a 301 redirect to its replacement (Website > Configuration > Redirects), or leave the 404 if it is gone for good"
+msgstr "ajouter une redirection 301 vers son remplaçant (Site Web > Configuration > Redirections), ou laisser le 404 s'il a disparu pour de bon"
+
+msgid "publish it again if it should be visible, or add a 301 redirect to its replacement"
+msgstr "le republier s'il doit être visible, ou ajouter une redirection 301 vers son remplaçant"
+
+msgid "restore it, or add a 301 redirect to its replacement"
+msgstr "le restaurer, ou ajouter une redirection 301 vers son remplaçant"
+
+msgid "add a 301 redirect to the similar page (Website > Configuration > Redirects)"
+msgstr "ajouter une redirection 301 vers la page semblable (Site Web > Configuration > Redirections)"
+
+msgid "robots look for the sitemap of a WordPress site (Yoast, WordPress): Odoo's is /sitemap.xml"
+msgstr "des robots cherchent le plan du site d'un site WordPress (Yoast, WordPress) : celui d'Odoo est /sitemap.xml"
+
+msgid "Database, last {nd} days: {failed} in failure, {waiting} waiting, {sent} sent"
+msgstr "Base de données, {nd} derniers jours : {failed} en échec, {waiting} en attente, {sent} envoyés"
+
+msgid "Outgoing mail servers of Odoo: "
+msgstr "Serveurs de courriel sortant d'Odoo : "
+
+msgid "odoo-mail-retry.py lists them and offers to resend them, once the cause is fixed"
+msgstr "odoo-mail-retry.py les liste et propose de les renvoyer, une fois la cause corrigée"
+
+msgid "Failed e-mails in the journal not confirmed: the database has none"
+msgstr "Courriels en échec du journal non confirmés : la base de données n'en a aucun"
+
+msgid "the journal lines counted were not failures of Odoo's mail queue"
+msgstr "les lignes du journal comptées n'étaient pas des échecs de la file de courriels d'Odoo"
+
+msgid "check that the scheduled action « Mail: Email Queue Manager » is active, and the cron threads of odoo.conf (max_cron_threads)"
+msgstr "vérifier que l'action planifiée « Mail: Email Queue Manager » est active, et les fils des tâches planifiées d'odoo.conf (max_cron_threads)"
+
+msgid "host-perf-audit.py on the Proxmox host during the busy hours above: is the processor or the disk the limit?"
+msgstr "host-perf-audit.py sur l'hôte Proxmox pendant les heures chargées ci-dessus : est-ce le processeur ou le disque qui limite ?"
+
+msgid "(and {n} redirections 3xx before, normal: secure address or www)"
+msgstr "(et {n} redirections 3xx avant, normal : adresse sécurisée ou www)"
+
+msgid "Answer of the site now: {code}"
+msgstr "Réponse du site maintenant : {code}"
+
+msgid "Redirect already defined in Odoo: {kind} to {target}"
+msgstr "Redirection déjà définie dans Odoo : {kind} vers {target}"
+
+msgid "Addresses asked: "
+msgstr "Adresses demandées : "
+
+msgid "Requested by: "
+msgstr "Demandé par : "
+
+msgid "HTTP 5xx errors on {url}: {n}"
+msgstr "Erreurs HTTP 5xx sur {url} : {n}"
+
+msgid "Service journal at that time: "
+msgstr "Journal du service à ce moment : "
+
+msgid "Odoo unreachable from nginx: {n} times"
+msgstr "Odoo injoignable depuis nginx : {n} fois"
+
+msgid "Other messages of the nginx error log: {n}"
+msgstr "Autres messages du journal d'erreurs de nginx : {n}"
+
+msgid "{n} answers 404 on {url}, a page listed in sitemap.xml"
+msgstr "{n} réponses 404 sur {url}, une page listée dans sitemap.xml"
+
+msgid "nothing to fix; optional: a 301 redirect from this address to /sitemap.xml (Website > Configuration > Redirects)"
+msgstr "rien à corriger ; facultatif : une redirection 301 de cette adresse vers /sitemap.xml (Site Web > Configuration > Redirections)"
+
+msgid "correct the link in the page that holds it (Linked from the site itself)"
+msgstr "corriger le lien dans la page qui le contient (Lien depuis le site lui-même)"
+
+msgid "Exceptions of all the occurrences: "
+msgstr "Exceptions de toutes les occurrences : "
+
+msgid "Exception of the last occurrence: "
+msgstr "Exception de la dernière occurrence : "
+
+msgid "an exception in the module named above, while handling a request"
+msgstr "une exception dans le module nommé ci-dessus, pendant le traitement d'une requête"
+
+msgid "Failed e-mails (journal): {n}"
+msgstr "Courriels en échec (journal) : {n}"
+
+msgid "Database not read (run with sudo): the count comes from the journal lines only"
+msgstr "Base de données non lue (lancer avec sudo) : le nombre vient seulement des lignes du journal"
+
+msgid "E-mails waiting to be sent: {n}"
+msgstr "Courriels en attente d'envoi : {n}"
+
+msgid "Time in SQL {sql} %, outside SQL {py} % (Python computation, templates, waiting for a lock or for the processor)"
+msgstr "Temps dans SQL {sql} %, hors SQL {py} % (calcul Python, gabarits, attente d'un verrou ou du processeur)"
+
+msgid "Busiest hours: "
+msgstr "Heures les plus chargées : "
+
+msgid "{k} of them in the 10 minutes after a start of Odoo ({r} starts in the window)"
+msgstr "{k} d'entre elles dans les 10 minutes après un démarrage d'Odoo ({r} démarrages dans la période)"
+
+msgid "odoo.conf not read (run with sudo): workers, limit_time_cpu and limit_time_real not checked"
+msgstr "odoo.conf non lu (lancer avec sudo) : workers, limit_time_cpu et limit_time_real non vérifiés"
+
+msgid "Forms sent (POST): {posts} · pages only shown (GET): {gets}"
+msgstr "Formulaires envoyés (POST) : {posts} · pages seulement affichées (GET) : {gets}"
+
+msgid "Sign-up and password reset forms: {n} requests, almost all only shown"
+msgstr "Formulaires d'inscription et de mot de passe oublié : {n} requêtes, presque toutes seulement affichées"
+
+msgid "look at the portal accounts created recently (Settings > Users, filter « Portal »): remove the fake ones"
+msgstr "regarder les comptes portail créés récemment (Configuration > Utilisateurs, filtre « Portail ») : supprimer les faux"
+
+msgid "In Odoo: no event with the number {id} (deleted)"
+msgstr "Dans Odoo : aucun événement portant le numéro {id} (supprimé)"
+
+msgid "In Odoo: no product with the number {id} (deleted)"
+msgstr "Dans Odoo : aucun produit portant le numéro {id} (supprimé)"
+
+msgid "In Odoo: event n° {id} « {title} »"
+msgstr "Dans Odoo : événement n° {id} « {title} »"
+
+msgid "In Odoo: product n° {id} « {title} »"
+msgstr "Dans Odoo : produit n° {id} « {title} »"
+
+msgid "In Odoo: web page {url}"
+msgstr "Dans Odoo : page web {url}"
+
+msgid "In Odoo: no web page at this address"
+msgstr "Dans Odoo : aucune page web à cette adresse"
+
+msgid "published"
+msgstr "publié"
+
+msgid "NOT published"
+msgstr "NON publié"
+
+msgid "archived"
+msgstr "archivé"
+
+msgid "a form of the site fails for its visitors: test it yourself, the visitors' data is lost at each error"
+msgstr "un formulaire du site échoue pour ses visiteurs : le tester soi-même, les données des visiteurs sont perdues à chaque erreur"
+
+msgid "From {first} to {last}"
+msgstr "Du {first} au {last}"
+
+msgid "Service now: {svc}"
+msgstr "Service maintenant : {svc}"
+
+msgid "{n} answers 404 on {url} (sitemap page), but it answers 200 now"
+msgstr "{n} réponses 404 sur {url} (page du sitemap), mais elle répond 200 maintenant"
+
+msgid "{n} answers 404 on {url}: a WordPress sitemap name"
+msgstr "{n} réponses 404 sur {url} : un nom de plan du site de WordPress"
+
+msgid "{n} answers 404 on {url}, but it answers 200 now"
+msgstr "{n} réponses 404 sur {url}, mais elle répond 200 maintenant"
+
+msgid "{k} variants of the message (numbers or versions differ)"
+msgstr "{k} variantes du message (les nombres ou les versions diffèrent)"
+
+msgid "the slowest: {s} s"
+msgstr "la plus lente : {s} s"
+
+msgid "Machine: {cpus} processors, {mem} MB of memory"
+msgstr "Machine : {cpus} processeurs, {mem} Mo de mémoire"
+
+msgid "Sign-up in Odoo: {scope}"
+msgstr "Inscription dans Odoo : {scope}"
+
+msgid "Sign-up in Odoo: free (anyone can create an account)"
+msgstr "Inscription dans Odoo : libre (n'importe qui peut créer un compte)"
+
+msgid "Sign-up in Odoo: on invitation"
+msgstr "Inscription dans Odoo : sur invitation"
+
+msgid "last on {when}"
+msgstr "dernière le {when}"
+
+msgid "All the occurrences read end with the same exception ({k})"
+msgstr "Toutes les occurrences lues finissent par la même exception ({k})"
+
+msgid "Settings read in "
+msgstr "Réglages lus dans "
+
+msgid "workers=0: Odoo runs in ONE process (threads): a slow request holds the others, and limit_time_* do not apply; set workers to {best} at most for this processor count (the memory allows about {mem} workers)"
+msgstr "workers=0 : Odoo tourne dans UN seul processus (fils) : une requête lente retient les autres, et limit_time_* ne s'appliquent pas ; régler workers à {best} au plus pour ce nombre de processeurs (la mémoire permet environ {mem} workers)"
+
+msgid "update the module {module}, or report the exception to its author with the traceback (key E)"
+msgstr "mettre à jour le module {module}, ou signaler l'exception à son auteur avec la trace (touche E)"
+
+msgid "workers={now} is more than (2 x CPU) + 1 = {best}: the workers fight for the processor and each request gets slower; lower workers to {best}"
+msgstr "workers={now} dépasse (2 x CPU) + 1 = {best} : les workers se disputent le processeur et chaque requête ralentit ; baisser workers à {best}"
+
+msgid "… and {n} more"
+msgstr "… et {n} autres"
+
+msgid "portal accounts created in the window: {n}"
+msgstr "comptes portail créés dans la période : {n}"
+
+msgid "Key stored in Odoo: written on {when}"
+msgstr "Clé enregistrée dans Odoo : écrite le {when}"
+
+msgid "workers={now} for this machine: up to {best} workers are possible (Odoo guide: (2 x CPU) + 1, about 325 MB each)"
+msgstr "workers={now} pour cette machine : jusqu'à {best} workers sont possibles (guide d'Odoo : (2 x CPU) + 1, environ 325 Mo chacun)"
+
+msgid "ended on {end}"
+msgstr "terminé le {end}"
+
+msgid "the workers may need about {need} MB, close to the {mem} MB of the machine: add memory or lower workers"
+msgstr "les workers peuvent demander environ {need} Mo, près des {mem} Mo de la machine : ajouter de la mémoire ou baisser workers"
+
+msgid "similar pages: "
+msgstr "pages semblables : "
+
+msgid "the slowest request took {s} s, close to limit_time_real={limit} s: beyond it, Odoo stops the request (the visitor gets an error)"
+msgstr "la requête la plus lente a pris {s} s, près de limit_time_real={limit} s : au-delà, Odoo arrête la requête (le visiteur reçoit une erreur)"
+
+msgid "a browser registered for push notifications with a VAPID public key different from the one stored in Odoo (ir.config_parameter mail.web_push_vapid_public_key): usually after a database restore or copy, or a regenerated key"
+msgstr "un navigateur s'est abonné aux notifications avec une clé publique VAPID différente de celle enregistrée dans Odoo (ir.config_parameter mail.web_push_vapid_public_key) : habituellement après une restauration ou une copie de la base, ou une clé régénérée"
+
+msgid "harmless for the site: only the push notifications of these browsers fail; nothing to fix if the key was changed on purpose, the browsers subscribe again when their site data is cleared"
+msgstr "sans gravité pour le site : seules les notifications de ces navigateurs échouent ; rien à corriger si la clé a été changée volontairement, les navigateurs se réabonnent quand leurs données du site sont effacées"

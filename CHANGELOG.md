@@ -371,6 +371,27 @@ Earlier history was archived outside this repository when this file was created.
 
 ## app-log-live.py
 
+### 1.167.20261105.071311 - --advise checks the facts itself, true counts, --apply for the corrections
+
+- Title: the analysis of --advise and of the z key reads the details of each problem itself (odoo.conf, database, service journal, answer of the site), the counts of the dashboard are true, and --apply offers the corrections one by one.
+- Reason: request of the administrator on 2026-11-05, after the first --advise run on 14 days of the production server: check that the output is correct and true; check the advice by itself (for example "check workers, limit_time_cpu and limit_time_real in odoo.conf"); an option to ask to apply some corrections (addresses to ban, failed e-mails...).
+- Changes:
+  - Stats.ajouter(): the lines of the nginx error log (database "nginx") are counted in the new counters nginx_errors and nginx_errors_time (COUNTERS, snapshot), never in odoo_errors nor in mails. New health indicator "Odoo unreachable from nginx (upstream errors)" (UPSTREAM_ERROR_RE) with the first and last time; level 8 line "nginx errors (error log)".
+  - advisor_facts(): nginx_errors, http_errors5 (time, code, URL, address of each 5xx), account_urls, site_hosts (host of the sitemap), names of the addresses of the 5xx and of the bans.
+  - New closures gather_details(), record_of(), db_rows(), odoo_bases() and apply_corrections(); new functions unit_events() (starts and stops of the service: journalctl -u -o short-unix -g), unit_state() (systemctl show), odoo_perf_settings() (workers and limits of odoo.conf, processors of the cpuset, MemTotal); EVENT_PATH_ID_RE, PRODUCT_PATH_ID_RE.
+  - gather_details(): Odoo tracebacks (logfile or journal around the time), the exceptions of every occurrence of "Exception during request handling" (journalctl -g on the window), the traceback of each 5xx page (at most 5 pages, the last 3 answers), nginx referers and methods (pages answering 404 and account forms), the mail queue of each database (_odoo_db.courriels, outgoing servers), the write date of the VAPID key, the sign-up setting and the portal accounts created, the record of each page answering 404 (event_event, product_template, website_page and a similar page), the redirects already defined (website_rewrite), and the answer of the site now (local_request to 127.0.0.1:443 with the host of the site). PostgreSQL is read in read-only transactions.
+  - New option --apply (with --advise; refused without it): after the analysis, one question per correction: ban each address through nginx-log-audit.sh --ban IP --reason (investigation, white list, score threshold 3, its own confirmation), open odoo-mail-retry.py --days N, run odoo-warmup.py. The analysis shows "correction offered by --apply" under each finding that has one.
+  - apps/_advisor.py 1.3 (see its section); lang/app-log-live.fr.po and lang/_advisor.fr.po; doc/fr and doc/en 07-app-log-live.md; tests.
+- Bugs fixed:
+  - Symptom: "Failed e-mails: 40" on the dashboard and in the analysis, while Odoo had not failed to send them. Diagnosis: the nginx error lines "connect() failed (111: Connection refused) while connecting to upstream" (Odoo restarting) have the level ERROR and match MAIL_ERROR_RE ("Connection refused"): Stats.ajouter() counted them as failed e-mails and as Odoo errors. Fix: the nginx error lines are counted apart; the analysis takes the number of failed e-mails from the database.
+  - Symptom: the same nginx message shown as three "Odoo ERROR" findings, "an error of Odoo not yet known". Diagnosis: same cause; one key per client and request. Fix: rule_nginx_upstream groups them and links them to the restart of the service.
+  - Symptom: "Linked from other sites: https://rencontres-linux.quebec/..." for the site's own pages. Diagnosis: the log format writes host="$host" with quotes, the quotes stayed in the host compared, and www was not ignored. Fix: see apps/_advisor.py 1.3.
+  - Symptom: "25 answers 404" while the codes said 404 x25, 403 x3 and the redirects 301 were listed as errors; the same page counted once per query string. Fix: the title counts the 404 read by nginx, the query strings of a page are grouped and the 3xx are shown apart.
+  - Symptom: the cause of "Exception during request handling" was drawn from the LAST occurrence only, the 5xx of the same page with different query strings were separate findings, a vulnerability scanner (search=zqzz, tags=stfD) was reported as an Odoo bug to fix. Fix: see apps/_advisor.py 1.3.
+- Safeguards and edge cases: everything gathered is read-only (PostgreSQL read-only transactions, logs read, one GET per page answering 404, at most 10, 6 s each; never during the tests); without root (odoo.conf, database or journal unreadable) the analysis says what was not checked instead of assuming defaults; at most 3 databases; --apply needs a terminal and asks for each correction (no unattended mode, no bulk ban); odoo.conf is never modified; bans keep the rules of the suite (nginx-log-audit.sh checks the white list and the score, CDN relays are never proposed).
+- Checks performed: test_167_erreurs_nginx_hors_odoo_et_hors_courriels, test_167_apply_bannit_avec_nginx_log_audit, test_167_apply_sans_advise_refuse; test_advisor (class Version167, 13 tests); a synthetic journal like the production one (nginx upstream errors during a restart, VAPID tracebacks, 500 on a form and on a fuzzed search, 404 with referers) checked line by line.
+- Action required from the user: none. Suggested: sudo app-log-live.py --advise --apply (sudo: odoo.conf, the database and the service journal are read).
+
 ### 1.166.20261104.204925 - --advise about 15 times faster, with the lowest priority
 
 - Title: --advise reads the window about 15 times faster and with the lowest processor and disk priority.
@@ -4576,6 +4597,21 @@ Earlier history was archived outside this repository when this file was created.
   - Not changed: nginx-log-audit.sh keeps its own bash values (its --page-burst default is 8 against 15 here; this difference is still to be decided).
 
 ## apps/_advisor.py
+
+### 1.3.20261105.071311 - Rules checked against a real analysis, details gathered, proposed corrections
+
+- Title: the rules use the details read by app-log-live.py (odoo.conf, database, service journal, answer of the site) and each finding may carry a correction (fix) for --apply.
+- Reason: request of the administrator on 2026-11-05 (app-log-live.py 1.167): output checked, advice verified by the program itself, corrections on request.
+- Changes:
+  - HOST_RE reads host="..." without its quotes; _bare_host() and internal_referers(detail, site_hosts): the site with or without www, on any port; nginx_details() counts the methods (GET, POST).
+  - New exception_counts() (the exception of every occurrence of a message), trace_near() (the traceback logged within a few seconds of a time, UTC header of Odoo), first_error_trace(), odoo_settings_advice() (workers=0, too many workers for (2 x CPU) + 1, memory, slowest request close to limit_time_real).
+  - New rule rule_nginx_upstream (nginx could not reach Odoo, linked to the starts and stops of the service; the other nginx messages as information); rule_5xx grouped by page, with addresses, traceback, scanner recognized (FUZZ_RE), forms; rule_sitemap_404 and rule_repeated_4xx: 404 counted by nginx, query strings grouped, redirects apart, answer of the site now, record in Odoo (event, product, page, similar page), redirect already defined, WordPress sitemap names (WP_SITEMAP_RE); rule_odoo_errors: nginx lines left out, known messages grouped (versions of the .map), cause drawn from the exception only when it is the usual one, VAPID key (TRACEBACK_HINTS); rule_mails: the database decides (failures, waiting queue, causes, servers); rule_slow: outside-SQL time explained, busiest hours, starts of Odoo, odoo.conf; rule_account_forms: POST and GET, sign-up setting, new portal accounts.
+  - Findings carry fix = ("ban", addresses), ("mail", days) or ("warmup", None); render(apply_hint) prints it.
+  - lang/_advisor.fr.po: new entries, stale ones removed.
+- Bugs fixed: see app-log-live.py 1.167 (quoted host, 404 counts, 5xx not grouped, cause drawn from the last occurrence, nginx lines taken for Odoo errors).
+- Safeguards and edge cases: every detail is optional (an absent one changes nothing); no single-word translation entry (they would translate URLs); placeholders never named like a word of the catalogues.
+- Checks performed: test_advisor (37 tests).
+- Action required from the user: none.
 
 ### 1.2.20261104.183145 - Rotated nginx logs compressed with gzip are read
 
