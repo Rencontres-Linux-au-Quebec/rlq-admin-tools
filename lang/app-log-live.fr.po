@@ -3181,3 +3181,46 @@ msgstr "requêtes : {n} · adresses : {k} (mot de passe oublié, inscription) �
 
 msgid "requests: {n} · addresses: {k} — "
 msgstr "requêtes : {n} · adresses : {k} — "
+
+# 1.170: switches of the menu
+msgid "the nginx line and the Odoo line of the same request as ONE line (with --log-nginx)"
+msgstr "la ligne nginx et la ligne Odoo d'une même requête en UNE seule ligne (avec --log-nginx)"
+
+msgid "the date and the host in the status bar instead of on each line"
+msgstr "la date et l'hôte dans la barre d'état au lieu de sur chaque ligne"
+
+msgid "log lines shortened to the width of the screen, or whole"
+msgstr "lignes du journal raccourcies à la largeur de l'écran, ou entières"
+
+msgid "times in UTC instead of local time (the following lines)"
+msgstr "heures en UTC au lieu de l'heure locale (lignes suivantes)"
+
+msgid "threshold of the slow requests (colours, health, summary); 0 = none"
+msgstr "seuil des requêtes lentes (couleurs, santé, sommaire) ; 0 = aucun"
+
+msgid "status bar every N lines; 0 = never, -1 = automatic"
+msgstr "barre d'état toutes les N lignes ; 0 = jamais, -1 = automatique"
+
+msgid "do not offer to ban an address often banned"
+msgstr "ne pas proposer de bannir une adresse souvent bannie"
+
+msgid "no check of sitemap.xml: no tag on the 404, counted as before"
+msgstr "aucune vérification de sitemap.xml : pas d'étiquette sur les 404, comptés comme avant"
+
+msgid "Set at startup only (they decide what is read): --since, --until, --grep, --country, --lines, --days, --app, --service, --namespace, --sitemap URL, --log-dir, --no-log-file, --no-history, --no-isp, --no-cache, --no-banned, --no-user-agent, --no-presence, --theme, --lang, --buffer, --idle, --recap, --record-*"
+msgstr "Réglées au démarrage seulement (elles décident de ce qui est lu) : --since, --until, --grep, --country, --lines, --days, --app, --service, --namespace, --sitemap URL, --log-dir, --no-log-file, --no-history, --no-isp, --no-cache, --no-banned, --no-user-agent, --no-presence, --theme, --lang, --buffer, --idle, --recap, --record-*"
+
+msgid " (the following lines)"
+msgstr " (lignes suivantes)"
+
+msgid " (it needs --log-nginx: key x)"
+msgstr " (il faut --log-nginx : touche x)"
+
+msgid "Threshold of the slow requests in seconds (0 = none, Enter = {value}): "
+msgstr "Seuil des requêtes lentes en secondes (0 = aucun, Entrée = {value}) : "
+
+msgid "Status bar every N lines (0 = never, -1 = automatic, Enter = {value}): "
+msgstr "Barre d'état toutes les N lignes (0 = jamais, -1 = automatique, Entrée = {value}) : "
+
+msgid " (sitemap.xml read in the background; the following lines)"
+msgstr " (sitemap.xml lu en arrière-plan ; lignes suivantes)"

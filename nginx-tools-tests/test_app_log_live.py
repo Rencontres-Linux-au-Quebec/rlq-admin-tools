@@ -4839,3 +4839,50 @@ class AppLogLive169(unittest.TestCase):
         self.assertNotIn("request(s) from {len(self.account_ips)} address(es)", src)
         self.assertNotIn("de {len(self.suspect_ips)} address(es)", src)
 
+
+
+class AppLogLive170(unittest.TestCase):
+    """1.170 : bascules du menu pour toutes les options modifiables à chaud (J --log-merge, B, C, O, Q, Z, K, y), enregistrées par W."""
+
+    @classmethod
+    def setUpClass(cls):
+        spec = importlib.util.spec_from_file_location("live170", script_path("app-log-live.py"))
+        cls.m = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(cls.m)
+        with open(script_path("app-log-live.py"), encoding="utf-8") as f:
+            cls.src = f.read()
+
+    def test_170_nouvelles_touches(self):
+        attendu = {b"J": "logmerge", b"B": "statusheader", b"C": "truncate", b"O": "utc", b"Q": "slow", b"Z": "statusevery",
+                   b"K": "banprompt", b"y": "sitemap", b"u": "hideua", b"x": "lognginx"}
+        for touche, action in attendu.items():
+            self.assertEqual(self.m.MENU_KEYS.get(touche), action, touche)
+
+    def test_170_chaque_touche_a_son_action(self):
+        for action in ("logmerge", "statusheader", "truncate", "utc", "slow", "statusevery", "banprompt", "sitemap", "hideua", "lognginx"):
+            self.assertIn(f'key_value == "{action}"', self.src, action)
+
+    def test_170_bascules_dans_le_menu(self):
+        for option in ("--log-merge", "--status-header", "--truncate", "--utc", "--slow SECONDS", "--status-every N", "--no-ban-prompt", "--no-sitemap",
+                       "--hide-user-agent", "--log-nginx"):
+            self.assertIn(f'", "{option}", ', self.src, option)
+        self.assertIn("Set at startup only", self.src)
+
+    def test_170_log_merge_coupe_libere_les_lignes_tenues(self):
+        bloc = self.src.split('key_value == "logmerge"')[1].split("elif key_value")[0]
+        self.assertIn("merge_ready.extend", bloc)
+        self.assertIn("merge_held.clear()", bloc)
+
+    def test_170_enregistrement_par_W(self):
+        options = {"log_merge": True, "log_nginx": True, "status_header": True, "slow": 3.0, "status_every": 0, "propose_ban": False,
+                   "display_host": True}
+        try:
+            v = self.m.config_values(options, 0)
+        except KeyError:                                     # config_values reads other keys of the options too: check the source instead
+            v = None
+        if v is not None:
+            self.assertEqual((v["LOG_MERGE"], v["LOG_NGINX"], v["STATUS_HEADER"], v["SLOW"], v["STATUS_EVERY"], v["NO_BAN_PROMPT"], v["DISPLAY_HOST"]),
+                             ("yes", "yes", "yes", "3", "0", "yes", "yes"))
+        for cle in ("LOG_MERGE", "LOG_NGINX", "STATUS_HEADER", "SLOW", "STATUS_EVERY", "NO_BAN_PROMPT", "DISPLAY_HOST", "NO_SITEMAP"):
+            self.assertIn(cle, self.m.SCHEMA_CONFIG, cle)
+            self.assertIn(f'"{cle}": ', self.src.split("def config_values")[1].split("\ndef ")[0], cle)

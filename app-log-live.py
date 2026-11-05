@@ -120,7 +120,7 @@ from urllib.parse import unquote, urlsplit
 from collections import Counter, OrderedDict
 from concurrent.futures import Future
 
-__version__ = "1.169.20261105.083208"
+__version__ = "1.170.20261105.130658"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
@@ -816,7 +816,11 @@ def config_values(options, verbose, widths=None):
            "NOT_FOUND": yes_no(options["not_found"]), "VERBOSE": yes_no(verbose),
            "ACCENTUATE_GROUP": options.get("group") or "", "CHIME": "" if options.get("chime") is None else str(options["chime"]),
            "EXCLUDE_IP": ",".join(str(r) for r in options.get("exclude") or []), "ERRORS_ONLY": yes_no(options.get("errors_only")), "ONLY": ",".join(options.get("only") or []),
-           "STEPS_LINE": yes_no(options.get("steps_line")), "UNDERLINE": str(options.get("underline", UNDERLINE_DEFAULT)), "SUSPECT": yes_no(options.get("suspect")), "ANONYMIZE": yes_no(options.get("anonymize")), "TIME_REPORT": f"{options.get('report_min') or 0:g}", "WATCH": ",".join(options.get("watch") or [])}
+           "STEPS_LINE": yes_no(options.get("steps_line")), "UNDERLINE": str(options.get("underline", UNDERLINE_DEFAULT)), "SUSPECT": yes_no(options.get("suspect")), "ANONYMIZE": yes_no(options.get("anonymize")), "TIME_REPORT": f"{options.get('report_min') or 0:g}", "WATCH": ",".join(options.get("watch") or []),
+           # 1.170: the new switches of the menu
+           "LOG_MERGE": yes_no(options.get("log_merge")), "LOG_NGINX": yes_no(options.get("log_nginx")), "STATUS_HEADER": yes_no(options.get("status_header")),
+           "SLOW": f"{options.get('slow', 5.0):g}", "STATUS_EVERY": str(options.get("status_every", STATUS_EVERY_DEFAULT)), "NO_BAN_PROMPT": yes_no(not options.get("propose_ban", True)),
+           "DISPLAY_HOST": yes_no(options.get("display_host")), "NO_SITEMAP": yes_no(SITEMAP is None)}
     if width is not None:
         res["DNS_MAX"] = "" if truncated else str(width)                    # one or the other: column without cut, or cut at N
         res["DNS_MAX_TRUNCATE"] = str(truncated) if truncated else ""
@@ -5999,7 +6003,8 @@ KEYS = {b"\x07": "g", b"\x14": "t", b"\r": "enter", b"\n": "enter"}      # Ctrl-
 # Simple keys of the menu (? or h): toggles and settings of the command-line options, and a few commands
 MENU_KEYS = {b"?": "legend", b"h": "help", b"i": "i", b"m": "m", b"n": "n", b"r": "r", b"s": "s", b"v": "v", b"d": "dns", b"t": "dnst", b"H": "H", b"o": "o", b"V": "V",
                 b"S": "S", b"I": "I", b"b": "b", b"a": "accent", b"c": "chime", b"e": "exclude", b"T": "report", b"E": "E", b"w": "watch", b"D": "D", b"l": "highlight", b"M": "modules", b"W": "save", b"L": "recent",
-                b"G": "G", b"Y": "latency", b"P": "print", b"f": "refresh", b"A": "anonymize", b"R": "record", b"N": "step", b"F": "steps_line", b"q": "addons", b"U": "underline", b"x": "lognginx", b"u": "hideua", b"j": "reqlen", b"k": "hostshow", b"X": "errors", b"z": "advise"}
+                b"G": "G", b"Y": "latency", b"P": "print", b"f": "refresh", b"A": "anonymize", b"R": "record", b"N": "step", b"F": "steps_line", b"q": "addons", b"U": "underline", b"x": "lognginx", b"u": "hideua", b"j": "reqlen", b"k": "hostshow", b"X": "errors", b"z": "advise",
+             b"J": "logmerge", b"B": "statusheader", b"C": "truncate", b"O": "utc", b"Q": "slow", b"Z": "statusevery", b"K": "banprompt", b"y": "sitemap"}      # 1.170
 MENU_KEYS.update({str(n).encode(): f"level{n}" for n in range(1, LEVEL_MAX + 1)})   # 1 to 9: dashboard at the chosen level
 KEYS.update(MENU_KEYS)
 
@@ -7038,8 +7043,17 @@ def follow(cmd, people, resolver, options, output):
                                       ("T", "--time-report MIN", f"report like Ctrl-T every MIN minutes, 0 = never [{options['report_min']:g}]"),
                                       ("v", "--verbose", f"show every external command [{yes_no(VERBOSE)}]"),
                                       ("V", "--version", "program version"),
-                                      ("w", "--watch TEXT", f"watch the requests whose URL contains the text: duration, errors, slowness [{', '.join(options['watch']) or 'none'}]")), key=lambda item: (item[0].lower(), item[0].isupper())):      # 1.113: alphabetical order of the short keys
+                                      ("w", "--watch TEXT", f"watch the requests whose URL contains the text: duration, errors, slowness [{', '.join(options['watch']) or 'none'}]"),
+                                      ("J", "--log-merge", TR("the nginx line and the Odoo line of the same request as ONE line (with --log-nginx)") + f" [{yes_no(options.get('log_merge'))}]"),
+                                      ("B", "--status-header", TR("the date and the host in the status bar instead of on each line") + f" [{yes_no(options.get('status_header'))}]"),
+                                      ("C", "--truncate", TR("log lines shortened to the width of the screen, or whole") + f" [{yes_no(output.truncate is not None)}]"),
+                                      ("O", "--utc", TR("times in UTC instead of local time (the following lines)") + f" [{yes_no(TIME_UTC)}]"),
+                                      ("Q", "--slow SECONDS", TR("threshold of the slow requests (colours, health, summary); 0 = none") + f" [{options['slow']:g}]"),
+                                      ("Z", "--status-every N", TR("status bar every N lines; 0 = never, -1 = automatic") + f" [{options['status_every']}]"),
+                                      ("K", "--no-ban-prompt", TR("do not offer to ban an address often banned") + f" [{yes_no(not options.get('propose_ban'))}]"),
+                                      ("y", "--no-sitemap", TR("no check of sitemap.xml: no tag on the 404, counted as before") + f" [{yes_no(SITEMAP is None)}]")), key=lambda item: (item[0].lower(), item[0].isupper())):      # 1.113: alphabetical order of the short keys
             lines.append(f"    {bold(key)}  {option:<22} {text}")
+        lines.append("  " + TR("Set at startup only (they decide what is read): --since, --until, --grep, --country, --lines, --days, --app, --service, --namespace, --sitemap URL, --log-dir, --no-log-file, --no-history, --no-isp, --no-cache, --no-banned, --no-user-agent, --no-presence, --theme, --lang, --buffer, --idle, --recap, --record-*"))
         lines.append("  Others:")
         lines.append(f"    {bold('G')}  number of members of each Odoo RLQ* group (also in the final summary, Ctrl-C)")
         lines.append(f"    {bold('S')}  survey registrations of the last 30 days")
@@ -7445,7 +7459,7 @@ def follow(cmd, people, resolver, options, output):
 
     def key(key_value):
         """A keyboard key (menu or Ctrl-G / Ctrl-T)."""
-        global VERBOSE, NAME_WIDTH, NAME_TRUNCATE
+        global VERBOSE, NAME_WIDTH, NAME_TRUNCATE, TIME_UTC, SITEMAP
         if key_value in ("g", "t"):
             title = [color_code(STYLES["title"], TR("Real-time dashboard of {app}").format(app=options.get("app_label", "application")))]      # 1.119
             write_out(["", *(title if key_value == "t" else []), *table_rows(delta=key_value == "t")])
@@ -7517,6 +7531,48 @@ def follow(cmd, people, resolver, options, output):
             options["not_found"] = not options["not_found"]
             stats.list_404 = options["not_found"]
             write_out([f"  --not-found : {yes_no(options['not_found'])} (the following lines)"])
+        elif key_value == "logmerge":                       # 1.170: J key - --log-merge on the fly
+            options["log_merge"] = not options.get("log_merge")
+            if not options["log_merge"]:                    # the nginx lines waiting for their Odoo partner are shown now, alone
+                merge_ready.extend(entry[0] for entry in merge_held)
+                merge_held.clear()
+            write_out([f"  --log-merge : {yes_no(options['log_merge'])}" + (TR(" (the following lines)") if options.get("log_nginx") else TR(" (it needs --log-nginx: key x)"))])
+        elif key_value == "statusheader":                   # 1.170: B key
+            options["status_header"] = not options.get("status_header")
+            form.status_header = options["status_header"]
+            state["header_shown"] = False
+            write_out([f"  --status-header : {yes_no(options['status_header'])}" + TR(" (the following lines)")])
+        elif key_value == "truncate":                       # 1.170: C key - shortened lines (0 = width of the screen) or whole
+            output.truncate = None if output.truncate is not None else 0
+            write_out([f"  --truncate : {yes_no(output.truncate is not None)}" + TR(" (the following lines)")])
+        elif key_value == "utc":                            # 1.170: O key
+            TIME_UTC = not TIME_UTC
+            write_out([f"  --utc : {yes_no(TIME_UTC)}" + TR(" (the following lines)")])
+        elif key_value == "slow":                           # 1.170: Q key - threshold of the slow requests
+            n = requested_int(TR("Threshold of the slow requests in seconds (0 = none, Enter = {value}): ").format(value=f"{options['slow']:g}"), int(options["slow"]), 0, 3600)
+            if n is not None:
+                options["slow"] = float(n)
+                form.slowest = stats.slowest = float(n)
+                write_out([f"  --slow {n}" + TR(" (the following lines)")])
+        elif key_value == "statusevery":                    # 1.170: Z key
+            n = requested_int(TR("Status bar every N lines (0 = never, -1 = automatic, Enter = {value}): ").format(value=options["status_every"]), options["status_every"], -1, 100000)
+            if n is not None:
+                options["status_every"] = n
+                write_out([f"  --status-every {n}"])
+        elif key_value == "banprompt":                      # 1.170: K key
+            options["propose_ban"] = not options.get("propose_ban")
+            write_out([f"  --no-ban-prompt : {yes_no(not options['propose_ban'])}"])
+        elif key_value == "sitemap":                        # 1.170: y key - the 404 tags of sitemap.xml
+            if SITEMAP is None:
+                try:
+                    SITEMAP = Sitemap(options.get("sitemap_url") or DEFAULT_SITEMAP_URL)
+                    write_out(["  --no-sitemap : no" + TR(" (sitemap.xml read in the background; the following lines)")])
+                except ValueError as problem:
+                    write_out([color_code(STYLES["error"], f"  --sitemap : {problem}")])
+            else:
+                options["sitemap_url"] = SITEMAP.url
+                SITEMAP = None
+                write_out(["  --no-sitemap : yes" + TR(" (the following lines)")])
         elif key_value == "lognginx":                                  # 1.116: nginx lines shown or hidden, from the next line on
             options["log_nginx"] = not options["log_nginx"]
             write_out([f"  --log-nginx : {yes_no(options['log_nginx'])}" + (" (the following lines)" if options["nginx_merged"] else " (no nginx log is read: nothing changes)")])
