@@ -21,6 +21,7 @@
 | `odoo-docs.py` | python | publie cette documentation dans Odoo (wiki OCA `document_page` ou pages du site web) | non |
 | `zip-versions.py` | python | versions contenues dans les archives livrées, comparaison avec l'installation | non |
 | `host-perf-audit.py` | python | sur un hôte Proxmox (ou tout serveur Linux) : ce qui limite les performances - processeur, mémoire, disques, ZFS, réseau, invités - et si des disques SSD sont justifiés | pour un rapport complet |
+| `system-hardening.sh` | bash | durcissement du système (hôte Proxmox, VM, conteneur LXC) : correctifs de sécurité (unattended-upgrades), audit (auditd), intégrité des fichiers (AIDE), sommaire quotidien par courriel | `--update` seulement |
 
 Les composants partagés sont dans `apps/` (détection du profil, générateur de rapport, i18n, anonymiseur, RDAP/whois, cache d'IP, courriel...). Ils sont internes : ne pas les lancer directement, sauf `apps/_anonymiser.py` (un filtre).
 

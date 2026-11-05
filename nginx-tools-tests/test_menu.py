@@ -11,7 +11,7 @@ import unittest
 
 from helpers import script_path
 
-PROGRAMMES = ["nginx-log-audit.sh", "sync-crowdsec-blocklist.sh", "odoo-backup.sh", "odoo-update-module.sh",
+PROGRAMMES = ["nginx-log-audit.sh", "sync-crowdsec-blocklist.sh", "odoo-backup.sh", "odoo-update-module.sh", "system-hardening.sh",
               "app-health-check.py", "app-log-check.py", "app-log-live.py", "web-monitor.py", "zip-versions.py",
               "odoo-mail-retry.py", "odoo-chat-post.py", "odoo-docs.py", "odoo-warmup.py", "host-perf-audit.py"]
 
