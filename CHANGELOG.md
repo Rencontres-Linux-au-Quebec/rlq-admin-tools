@@ -4506,6 +4506,26 @@ Earlier history was archived outside this repository when this file was created.
 
 ### 1.26.20261020.211944 - Current version. Earlier history archived outside the repository.
 
+## system-hardening.sh
+
+### 1.0.20261104.185853 - First version: security updates, audit and file integrity of the system
+
+- Title: new program system-hardening.sh: hardening of the operating system on a Proxmox VE 9 host (Debian 13), a virtual machine (Ubuntu 20.04 and later, Debian 12 and later) or an LXC container (Debian 12 and later).
+- Reason: request of the administrator on 2026-11-04, after the discussion about an EDR (Wazuh, Falco, osquery): start with unattended-upgrades for the security updates, auditd with a few rules (sudo, SSH keys, cron, /etc) and AIDE for file integrity, in a separate program (not nginx-hardening.sh: these settings concern every machine, the Proxmox host included, which has no nginx) whose name does not suggest the host of a container.
+- Changes:
+  - Check only by default (--check); --update applies; --rollback removes the files written; --baseline-update accepts the current files as the new AIDE baseline; --notify prints the daily summary and mails it when something needs attention; --menu (apps/_menu.sh); --lang; --changelog; --report-err; --version; -c/--config; -v/--verbose. Options sorted alphabetically and in colour, messages in French and English.
+  - Detection: /etc/os-release (Debian 12+, Ubuntu 20.04+), systemd-detect-virt (LXC container, VM), pveversion (Proxmox host); another system: check only, --update refused.
+  - unattended-upgrades: own file 52rlq-unattended-upgrades that clears the lists of 50unattended-upgrades and keeps the security origins only (Debian Security; Ubuntu security, ESM apps and infra), Automatic-Reboot from AUTOMATIC_REBOOT (no by default) at AUTOMATIC_REBOOT_TIME; apt-daily timers enabled; pending security updates counted with apt-get -s; reboot pending (reboot-required, or a newer kernel in /lib/modules than the running one, not in a container).
+  - auditd (not in a container): own file 60-rlq-hardening.rules with the keys rlq-sudo, rlq-sudo-exec, rlq-ssh-keys (root and every user), rlq-sshd, rlq-cron, rlq-identity, rlq-pam, rlq-preload, rlq-systemd, rlq-apt; only existing paths; augenrules --load; on a Proxmox host, watches on the sensitive files of each running container (/var/lib/lxc/ID/rootfs, AUDIT_WATCH_CONTAINERS); events of the last 24 h counted with ausearch.
+  - AIDE: own file 99_rlq_exclusions (logs, caches, PostgreSQL, Docker, BigBlueButton, Odoo filestore and the data_dir of the Odoo configurations found, Proxmox storage and /etc/pve, AIDE_EXCLUDE); update-aide.conf when present (Ubuntu 20.04); aide --config-check; baseline with aideinit; daily check of the distribution (dailyaidecheck.timer or /etc/cron.daily/aide) and its last result read in /var/log/aide/aide.log.
+  - Daily summary: system-hardening-notify.service and .timer (NOTIFY_TIME, 07:30 by default) run --notify; the mail goes through apps/_courriel.py with the mail settings of the suite (nginx-tools-mail.conf), only when something needs attention (security updates installed, reboot pending, AIDE differences, sensitive audit events) or every day with NOTIFY_ALWAYS=yes.
+  - Configuration keys: LANGUAGE, VERBOSE, UNATTENDED_UPGRADES, AUTOMATIC_REBOOT, AUTOMATIC_REBOOT_TIME, AUDITD, AUDIT_WATCH_CONTAINERS, AIDE, AIDE_EXCLUDE, NOTIFY, NOTIFY_TIME, NOTIFY_ALWAYS.
+  - Files: system-hardening.sh, doc/en and doc/fr system-hardening.conf.example and 19-system-hardening.md, doc/en and doc/fr 00-overview.md, nginx-tools-tests/test_system_hardening.py, test_conventions.py and test_menu.py (program registered).
+- Bugs fixed: none (new program).
+- Safeguards and edge cases: no file of the distribution is modified (only files of its own, rewritten only when their content changes); --rollback keeps the packages and the AIDE database; a missing path is never put in the audit rules (augenrules would refuse the whole set); no automatic reboot unless AUTOMATIC_REBOOT=yes; on a Proxmox host only the Debian security updates are applied (the Proxmox packages are updated by hand); invalid times in the configuration are reported and the defaults kept; the mail never needs a local mail server; without root, the loaded rules are reported as not checked.
+- Checks performed: shellcheck 0.11.0 (no finding); nginx-tools-tests/test_system_hardening.py (LXC Debian 12, Proxmox Debian 13, Ubuntu 20.04 VM, unsupported system, without root, configuration, English, idempotence, rollback, AIDE baseline, daily summary with and without mail); convention and menu tests; doc/build_docs.py --check.
+- Action required from the user: none to install. To use it: sudo system-hardening.sh (check), then sudo system-hardening.sh --update on each machine, the Proxmox host included; the daily mail needs the mail settings of the suite (nginx-hardening.sh --update --mail-setup).
+
 ## apps/_theme.py
 
 ### 1.0.20261103.112517 - Color themes shared by the programs
