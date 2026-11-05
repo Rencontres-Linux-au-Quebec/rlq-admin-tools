@@ -56,6 +56,14 @@ Pour chaque problème, l'analyse vérifie maintenant les faits elle-même au lie
 
 Avec **`--apply`** (avec `--advise`, dans un terminal), les corrections sont proposées une à une après l'analyse, une question chacune : bannir les adresses avec `nginx-log-audit.sh --ban` (il examine chaque adresse, vérifie la liste blanche et son score, et demande sa propre confirmation), ouvrir `odoo-mail-retry.py` pour les courriels en échec (il les liste et demande avant de les renvoyer), préchauffer Odoo avec `odoo-warmup.py` après un redémarrage. Rien n'est fait sans un « oui », et `odoo.conf` n'est jamais modifié.
 
+## Tableau de bord : ce que change 1.169
+
+* Avec `--log-merge`, la ligne de nginx et la ligne d'Odoo d'une même requête forment une seule ligne ; les temps d'Odoo de cette ligne (requêtes SQL, temps SQL, temps Python) sont maintenant comptés : avant, les requêtes lentes, la latence et le maximum de requêtes SQL du tableau de bord ne voyaient que les lignes d'Odoo restées sans partenaire nginx (67 requêtes mesurées pour 2 603 vues).
+* Les requêtes lentes des 10 minutes après le démarrage d'Odoo (cache froid) sont affichées mais ne comptent pas dans la santé ; les sondes de ce serveur (`app-health-check.py`) sont nommées comme telles : elles ont mesuré la lenteur, elles ne l'ont pas causée. L'état du serveur « à cet instant » n'explique des requêtes lentes que si elles datent de moins de 5 minutes.
+* « Odoo injoignable depuis nginx » compte les interruptions (erreurs à moins de 5 minutes d'écart) : une courte interruption (un redémarrage) est « à regarder », plusieurs, ou une de plus de 15 minutes, sont un « problème », avec l'heure de démarrage d'Odoo.
+* « Surveillance automatique (web-monitor.py) : dernier passage il y a N h » quand le dernier passage date de plus de 48 heures : son minuteur est arrêté ou en échec.
+* Comptes sans marque de pluriel : « requêtes : 4 · adresses : 1 ».
+
 ## Enregistrer un test (touche R)
 
 Pour analyser un test du site (un sondage abandonné, une inscription, une proposition de présentation...) sans le bruit :

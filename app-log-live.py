@@ -120,7 +120,7 @@ from urllib.parse import unquote, urlsplit
 from collections import Counter, OrderedDict
 from concurrent.futures import Future
 
-__version__ = "1.168.20261105.081634"
+__version__ = "1.169.20261105.083208"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
@@ -2052,6 +2052,34 @@ def request_detail(text):
     if not m:
         return None
     return (int(m.group(2)) if m.group(2).isdigit() else None, int(m.group(3)), float(m.group(4)), float(m.group(5)))
+
+
+def line_detail(L):
+    """1.169: (size, SQL queries, SQL time, Python time) of a request line: the Odoo line itself, or a line merged by --log-merge, whose Odoo times
+    are kept in L.odoo_times (its text is the nginx line, without any time). Before, the merged lines had no duration at all: the slow requests and
+    the latency of the dashboard only saw the Odoo lines that had not found their nginx partner."""
+    d = request_detail(L.text or "")
+    if d is not None:
+        return d
+    times = getattr(L, "odoo_times", None)
+    if not times:
+        return None
+    try:
+        sql_n = int(times[0]) if times[0] else 0
+        sql_t = float(times[1]) if times[1] else 0.0
+        py_t = float(times[2])
+    except (TypeError, ValueError, IndexError):
+        return None
+    m = NGINX_REQUEST_RE.search(L.text or "")
+    return (int(m.group(4)) if m and m.group(4).isdigit() else None, sql_n, sql_t, py_t)
+
+
+def line_duration(L):
+    """1.169: duration of a request line in seconds (Odoo times of a merged line included), or None."""
+    d = line_detail(L)
+    if d is not None and getattr(L, "odoo_times", None) and request_detail(L.text or "") is None:
+        return d[2] + d[3]
+    return request_duration(L.text or "")
 
 
 def url_template(url):
@@ -4698,6 +4726,8 @@ class Stats:
         self.reco_loaded = False                  # 1.144: True when the last run of web-monitor.py is read (less than 48 h old)
         self.not_proposed = []                    # 1.144: (address, reason) of the addresses NOT proposed for a ban (relays, sweeps web-monitor does not recommend)
         self.recommended, self._reco_t, self.reco_state = {}, 0.0, ""            # {address: reason}: bans recommended by the last run of web-monitor.py (re-read every 60 s)
+        self.reco_age_h = None                    # 1.169: age in hours of the last run of web-monitor.py (None: file absent or unreadable)
+        self.service_start = None                 # 1.169: function () -> epoch of the start of the Odoo service, or None (set by follow)
         self.mail_detail = None                      # function () -> lines: recipients of the failed e-mails to resend (set by follow(), reads PostgreSQL)
         self.par_ip, self.names = Counter(), {}
         self.by_name = Counter()                                                  # identified name (DNS column, person, team, server…) -> requests; bare addresses not counted
@@ -4814,6 +4844,7 @@ class Stats:
             with open(path, encoding="utf-8") as f:
                 d = json.load(f)
             age_h = (time.time() - float(d.get("time", 0))) / 3600
+            self.reco_age_h = age_h
             if age_h > 48:
                 self.reco_state = f"the last web-monitor.py run ({path}) is {age_h:.0f} h old: too old (48 h at most)"
                 raise ValueError("too old")
@@ -4935,12 +4966,13 @@ class Stats:
                 self.disabled_404[url] += 1
             elif SITEMAP is not None and SITEMAP.paths is not None:             # 1.142: listed in the sitemap = important; any other = never existed
                 (self.gone_404 if SITEMAP.listed(url) else self.unknown_404)[url] += 1
-        total = request_duration(L.text)
+        total = line_duration(L)                                                 # 1.169: a line merged by --log-merge keeps the Odoo times
+        detail = line_detail(L)
         if not self.period:
-            LATENCY.request(L.instant, request_detail(L.text))
+            LATENCY.request(L.instant, detail)
         if self.slowest and total is not None and total >= self.slowest:
             self.slow_requests.append((total, url, ip))
-            d = request_detail(L.text) or (None, 0, 0.0, total)
+            d = detail or (None, 0, 0.0, total)
             self.slow_info.append((d[1], d[2], d[3], d[0], L.instant or time.time()))
         for pattern in self.watch_it:
             if pattern in url.lower():
@@ -5043,7 +5075,10 @@ class Stats:
         cold = sum(1 for _t, u, _ip in self.slow_requests if COLD_RE.search(u))
         if cold >= 2 and 2 * cold >= len(self.slow_requests):
             lines.append(TR("{cold} of the {total} slow requests are assets or views (cold Odoo cache): Odoo has probably just restarted or been updated; they should no longer be slow on the second pass").format(cold=cold, total=len(self.slow_requests)))
-        if all_items > 0 and t_py >= 0.8 * all_items:
+        latest = max((info[4] for info in self.slow_info if info[4]), default=0)
+        if all_items > 0 and t_py >= 0.8 * all_items and time.time() - latest <= 300:
+            # 1.169: the state of the server NOW explains a slow request only if it is recent (before: shown hours later, "disk too slow" at 08:30
+            # for requests of 22:15 the day before)
             state = read_state()
             if state:
                 lines.append(f"Python alone is to blame (not the database): right now {system_state(state)} — {python_conclusion(state)}")
@@ -5086,10 +5121,23 @@ class Stats:
         upstream = Counter({k: v for k, v in self.nginx_errors.items() if UPSTREAM_ERROR_RE.search(k[1])})      # 1.167: nginx could not reach Odoo
         nu = sum(upstream.values())
         if nu:
-            times = [t for k in upstream for t in self.nginx_errors_time.get(k, ())]
-            indicator(0, TR("Odoo unreachable from nginx (upstream errors): ") + f"{nu}",
-                      [TR("from {first} to {last}: Odoo stopped, restarting or too busy (see systemctl status and the service journal)").format(
-                          first=clock_of(min(times)), last=clock_of(max(times)))] if times else [], (1, 20), nu)
+            # 1.169: the errors grouped into INTERRUPTIONS (less than 5 minutes apart): one short interruption is a restart (to look at), several or a
+            # long one are a problem; before, 26 lines of one 5-minute restart made the health "problem"
+            spans = sorted(tuple(self.nginx_errors_time[k]) for k in upstream if k in self.nginx_errors_time)
+            cuts = []
+            for first, last in spans:
+                if cuts and first - cuts[-1][1] <= 300:
+                    cuts[-1][1] = max(cuts[-1][1], last)
+                else:
+                    cuts.append([first, last])
+            long_one = any(last - first > 900 for first, last in cuts)
+            level = 2 if len(cuts) > 1 or long_one else 1
+            detail = [TR("interruption from {first} to {last} ({span}): Odoo stopped, restarting or too busy").format(
+                first=clock_of(first), last=clock_of(last), span=clock_span(last - first)) for first, last in cuts[-3:]]
+            started = self.service_start() if self.service_start else None
+            if started:
+                detail.append(TR("Odoo started at {when}").format(when=clock_of(started)))
+            indicator(level, TR("Odoo unreachable from nginx (upstream errors): ") + f"{nu} · " + TR("interruptions: {k}").format(k=len(cuts)), detail, (10 ** 9, 10 ** 9), nu)
         severe = Counter({k: v for k, v in self.odoo_errors.items() if k[0] in ("ERROR", "CRITICAL")})
         ng = sum(severe.values())
         detail = [f"{k[0]} {k[1]} ×{v} : {k[2]}" + self.odoo_error_times(k) for k, v in severe.most_common(3)]
@@ -5112,11 +5160,22 @@ class Stats:
         if self.slowest:
             info_lines = self.slow_info if len(self.slow_info) == len(self.slow_requests) else [(0, 0.0, 0.0, None, 0.0)] * len(self.slow_requests)
             more = sorted(zip(self.slow_requests, info_lines), key=lambda p: p[0], reverse=True)[:3]
+            # 1.169: the slow requests of the 10 minutes after a start of Odoo are the cold cache (assets, views computed once): shown, not counted
+            # in the health; the probes of this server (app-health-check.py) are said apart
+            started = self.service_start() if self.service_start else None
+            cold_n = sum(1 for info in info_lines if started and info[4] and 0 <= info[4] - started <= 600)
+            probes_n = sum(1 for _t, _u, ip in self.slow_requests if ip in self.server or local_address(ip))
+            extra = []
+            if cold_n:
+                extra.append(TR("{k} in the 10 minutes after the start of Odoo at {when} (cold cache: assets and views computed once), not counted in the health").format(
+                    k=cold_n, when=clock_of(started)))
+            if probes_n:
+                extra.append(TR("{k} of them are the probes of this server (app-health-check.py): they measured the slowness, they did not cause it").format(k=probes_n))
             indicator(0, f"Slow requests (≥ {self.slowest:g} s) : " + (f"{len(self.slow_requests)}" if self.slow_requests else none_fem()),
                        [f"{t:.1f} s {short_url(u)} ({self.who(ip)})" + (f" — SQL {ts:.1f} s · Python {tp:.1f} s · {n} SQL queries" if ts or tp else "") + (f" · {clock_of(_instant)}" if _instant else "")
                         for (t, u, ip), (n, ts, tp, _size, _instant) in more]
                       + ([TR("… and {n} other slow requests").format(n=len(self.slow_requests) - len(more))] if len(self.slow_requests) > len(more) else [])
-                      + self.analyze_slow(), (1, 5), len(self.slow_requests))
+                      + extra + self.analyze_slow(), (1, 5), len(self.slow_requests) - cold_n)
         if self.watch_it:
             batch = self.watched
             errors = sum(1 for _, _, c, _, _ in batch if c >= 400)
@@ -5125,11 +5184,15 @@ class Stats:
                        [f"{d:.1f} s {short_url(u)}" for d, u in sorted(slow_requests, reverse=True)[:3]]
                        + [f"{c} {short_url(u)}" for _, _, c, u, _ in batch if c >= 400][:3], (1, 10), errors + len(slow_requests))
         indicator(0, "Program: " + ("high resources" if program_alerts else "normal resources"), list(program_alerts), (1, 99), len(program_alerts))
+        self.load_recommended()
+        if self.reco_age_h is not None and self.reco_age_h > 48:             # 1.169: the automatic monitoring has stopped (its timer, or an error)
+            indicator(1, TR("Automatic monitoring (web-monitor.py): last run {h} h ago").format(h=f"{self.reco_age_h:.0f}"),
+                      [TR("its timer may be stopped or failing: systemctl list-timers 'web-monitor*' ; journalctl -u 'web-monitor*' -n 30")], (1, 2), 1)
         if self.probes:
             lines.append("  " + color_code(STYLES["debug"], f"ℹ Probes from this server: {sum(self.probes.values())} local requests (app-health-check.py) ignored as suspicious — {self.top(self.probes, 3)}"))
         suspects = sum(self.suspect_urls.values())
         if suspects:
-            lines.append("  " + color_code(STYLES["debug"], f"ℹ Suspicious requests seen: {suspects} de {len(self.suspect_ips)} address(es)"))
+            lines.append("  " + color_code(STYLES["debug"], TR("ℹ Suspicious requests seen: {n} · addresses: {k}").format(n=suspects, k=len(self.suspect_ips))))
         header = {0: color_code("1;32", "✔ everything is fine"), 1: color_code(ORANGE, "⚠ to look at"), 2: color_code("1;31", "✖ problem")}[worst]
         return worst, [f"Health: {header}"] + lines
 
@@ -5291,12 +5354,12 @@ class Stats:
         if len(self.by_name) > 10:
             blocks.append((5, f"      +{len(self.by_name) - 10} names not shown"))
         if self.account_ips:                                                      # 1.157: password reset and sign-up forms (a robot that follows the links, or an attempt)
-            blocks.append((4, color_code(STYLES["account"], " Account forms ") + f" {sum(self.account_urls.values())} request(s) from {len(self.account_ips)} address(es) (password reset, sign-up) — "
+            blocks.append((4, color_code(STYLES["account"], " Account forms ") + " " + TR("requests: {n} · addresses: {k} (password reset, sign-up) — ").format(n=sum(self.account_urls.values()), k=len(self.account_ips))
                           + self.top(self.account_urls)))
             blocks.append((4, "      by address: " + " ; ".join(f"{self.who(ip)} " + color_code("1;36", f"×{n}") + (color_code(STYLES["banned"], f" [banned: {self.banned[ip]}]") if ip in self.banned else "")
                                                                for ip, n in self.account_ips.most_common(5))))
         if self.suspect_ips:
-            blocks.append((4, color_code(STYLES["suspect"], " Suspicious requests ") + f" {sum(self.suspect_urls.values())} de {len(self.suspect_ips)} address(es) — "
+            blocks.append((4, color_code(STYLES["suspect"], " Suspicious requests ") + " " + TR("requests: {n} · addresses: {k} — ").format(n=sum(self.suspect_urls.values()), k=len(self.suspect_ips))
                           + self.top(self.suspect_urls)))
             blocks.append((4, "      by address: " + " ; ".join(f"{self.who(ip)} " + color_code("1;36", f"×{n}") + (color_code(STYLES["banned"], f" [banned: {self.banned[ip]}]") if ip in self.banned else "")
                                                                + self.fail2ban_note(ip)
@@ -5390,6 +5453,27 @@ def advisor_facts(stats):
             "not_proposed": [(ip, stats.who(ip), reason) for ip, reason in stats.not_proposed],
             "account_ips": dict(stats.account_ips), "account_urls": list(stats.account_urls), "who": {ip: stats.who(ip) for ip in shown_ips}, "latency_n": latency_n,
             "nginx_errors": nginx_errors, "http_errors5": errors5, "site_hosts": [site] if site else []}
+
+
+_SERVICE_START = {}
+
+
+def service_started_at(service):
+    """1.169: epoch of the last start of the service (ActiveEnterTimestamp, read again every 60 s), or None."""
+    if not service:
+        return None
+    now = time.time()
+    cached = _SERVICE_START.get(service)
+    if cached and now - cached[0] < 60:
+        return cached[1]
+    epoch = None
+    text = lancer(["systemctl", "show", service, "-p", "ActiveEnterTimestamp", "--value"], 10)[1].strip()
+    if text and text.lower() != "n/a":
+        code, out = lancer(["date", "-d", text, "+%s"], 5)
+        if code == 0 and out.strip().isdigit():
+            epoch = float(out.strip())
+    _SERVICE_START[service] = (now, epoch)
+    return epoch
 
 
 def unit_events(service, ns, since):
@@ -5583,6 +5667,8 @@ class StatusBar:
         werk = WERKZEUG_RE.search(L.text or "")
         if werk and werk.group(5):
             self.sql_max = max(self.sql_max, int(werk.group(5)))           # 1.120: the most SQL queries of one request (its "transaction")
+        elif getattr(L, "odoo_times", None) and str(L.odoo_times[0]).isdigit():
+            self.sql_max = max(self.sql_max, int(L.odoo_times[0]))         # 1.169: a line merged by --log-merge
         if L.level in ("ERROR", "CRITICAL") and L.database != "nginx":
             self.odoo_err += 1                                              # 1.120: Odoo errors (nginx errors are not counted here)
         if L.database == "nginx" and L.logger == "request":
@@ -5619,7 +5705,7 @@ class StatusBar:
             problem = True
         if ip and problem:
             self.problems_by_ip[ip] += 1
-        total = request_duration(L.text or "")
+        total = line_duration(L)                                       # 1.169: merged lines included
         if total is not None and total > STATUS_SLOW_S:               # 1.119: the bar counts only the slow connections of more than 9 s
             self.slow += 1
             self.slow_max = max(self.slow_max, total)
@@ -6058,6 +6144,7 @@ def follow(cmd, people, resolver, options, output):
         mail_cache.update(t=time.time(), lines=lines)
         return lines
     stats.mail_detail = mails_to_resend
+    stats.service_start = lambda: service_started_at(options.get("service"))      # 1.169: slow requests of the cold cache, interruptions
     resources0 = Resources.measure()
     ref = {"stats": stats.snapshot(), "res": resources0, "cache": Counter()}              # last display (Ctrl-G / Ctrl-T): base of the difference
     stats.list_404 = options["not_found"]

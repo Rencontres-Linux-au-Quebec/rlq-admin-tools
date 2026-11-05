@@ -1978,7 +1978,7 @@ class AppLogLive(EnvTest):
         r = " ".join(out[out.index("──── Résumé"):].split())
         self.assertRegex(r, r"──── Résumé de la session \(app-log-live\.py v1\.\d+\.\d{8}\.\d{6}\) : depuis \d{4}-\d\d-\d\d \d\d:\d\d:\d\d pendant \d\d:\d\d:\d\d · 8 lignes affichées · 8 requêtes ────")
         self.assertIn(f"Adresses les plus actives : srv.exemple.org [{DNS}] ×6 ; Étienne Dupont [{PERSONNE}] ×2", r)
-        self.assertIn("Requêtes suspectes 3 de 1 adresses — /wp-login.php ×2 ; /.env ×1", r)
+        self.assertIn("Requêtes suspectes requêtes : 3 · adresses : 1 — /wp-login.php ×2 ; /.env ×1", r)          # 1.169: no plural marker
         self.assertIn(f"par adresse : srv.exemple.org [{DNS}] ×3 [banni : fail2ban]", r)
         self.assertIn("Erreurs 5xx (critiques) 1 — /boum ×1", r)
         self.assertIn("Erreurs 4xx (avertissements) 3 — /wp-login.php ×2 ; /absent ×1", r)
@@ -2002,7 +2002,7 @@ class AppLogLive(EnvTest):
         r = " ".join(text.split())
         self.assertIn("Résumé de la session", T(r))
         self.assertIn("8 requêtes", T(r))
-        self.assertIn("Requêtes suspectes 3 de 1 adresses", T(r))
+        self.assertIn("requêtes : 3 · adresses : 1", T(r))
         self.assertIn("Interrompu (Ctrl-C).", T(r))
 
     # --- cache permanent des adresses -------------------------------------------------------------------------------
@@ -4752,4 +4752,90 @@ class AppLogLive168(unittest.TestCase):
         self.assertEqual(self.m.clock_span(45), "45 s")
         self.assertEqual(self.m.clock_span(185), "3 min 05 s")
         self.assertEqual(self.m.clock_span(3720), "1 h 02 min")
+
+
+class AppLogLive169(unittest.TestCase):
+    """1.169 : durées d'Odoo des lignes fusionnées (--log-merge) comptées ; lenteurs du cache froid et sondes de ce serveur à part ; coupures d'Odoo
+    regroupées ; surveillance automatique arrêtée signalée ; plus de « (s) » dans les comptes."""
+
+    @classmethod
+    def setUpClass(cls):
+        spec = importlib.util.spec_from_file_location("live169", script_path("app-log-live.py"))
+        cls.m = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(cls.m)
+
+    NGINX = '2026-11-01T10:21:02.000000-0500 odoo18 http: 11.2.3.4 - - "GET /event HTTP/1.1" 200 1234 "-" "Mozilla/5.0" host=www.example.org rl=300'
+    ODOO = ('2026-11-01T10:21:02.410000-0500 odoo18 odoo[1]: 2026-11-01 15:21:02,410 1 INFO base werkzeug: 11.2.3.4 - - [01/Nov/2026 15:21:02] '
+            '"GET /event HTTP/1.1" 200 - 412 1.250 6.300')
+
+    def fusion(self):
+        held = collections.deque()
+        self.m.merge_step((self.m.Line(self.NGINX), [], time.time(), False), held)
+        return self.m.merge_step((self.m.Line(self.ODOO), [], time.time(), False), held)[0][0]
+
+    def test_169_ligne_fusionnee_garde_ses_durees(self):
+        L = self.fusion()
+        self.assertEqual(self.m.line_detail(L), (1234, 412, 1.25, 6.3))
+        self.assertAlmostEqual(self.m.line_duration(L), 7.55)
+        self.assertIsNone(self.m.request_duration(L.text))                             # before 1.169: no duration for a merged line
+        s = self.m.Stats(5.0)
+        s.ajouter(L, {}, None)
+        self.assertEqual(len(s.slow_requests), 1)
+        self.assertEqual(s.slow_info[0][:3], (412, 1.25, 6.3))
+        barre = self.m.StatusBar()
+        barre.observe(L, None, 5.0, "11.2.3.4")
+        self.assertEqual(barre.sql_max, 412)
+
+    def test_169_lenteurs_apres_demarrage_et_sondes(self):
+        s = self.m.Stats(5.0)
+        t = time.time() - 3600
+        s.service_start = lambda: t
+        s.server.add("127.0.0.1")
+        s.slow_requests = [(7.9, "/web/assets/x.css", "127.0.0.1"), (7.7, "/web/image/favicon", "11.2.3.4"), (6.0, "/event", "11.2.3.5")]
+        s.slow_info = [(9, 0.0, 7.9, None, t + 120), (23, 0.0, 7.7, None, t + 300), (5, 0.0, 6.0, None, t + 2000)]
+        niveau, lignes = s.health()
+        texte = T(ANSI.sub("", "\n".join(lignes)))
+        self.assertIn("2 dans les 10 minutes après le démarrage d'Odoo", texte)
+        self.assertIn("1 d'entre elles sont les sondes de ce serveur", texte)
+        self.assertIn("⚠ Requêtes lentes (≥ 5 s) : 3", texte)                          # 1 counted in the health: under the « problem » threshold
+        self.assertNotIn("à cet instant", texte)                                         # the state of the server NOW is not shown for old requests
+
+    def test_169_coupures_regroupees(self):
+        s = self.m.Stats(5.0)
+        t = time.time() - 7200
+        refus = "[error] N#N: *N connect() failed (N: Connection refused) while connecting to upstream, client: N.N.N.N, request: \"GET / HTTP/N.N\""
+        s.nginx_errors[("ERROR", refus)] = 20
+        s.nginx_errors_time[("ERROR", refus)] = [t, t + 286]
+        s.nginx_errors[("ERROR", refus + " x")] = 6
+        s.nginx_errors_time[("ERROR", refus + " x")] = [t + 60, t + 200]
+        _n, lignes = s.health()
+        texte = T(ANSI.sub("", "\n".join(lignes)))
+        self.assertIn("⚠ Odoo injoignable depuis nginx (erreurs upstream) : 26 · interruptions : 1", texte)
+        self.assertIn("(4 min 46 s)", texte)
+        s.nginx_errors[("ERROR", refus + " y")] = 3
+        s.nginx_errors_time[("ERROR", refus + " y")] = [t + 3000, t + 3010]
+        _n, lignes = s.health()
+        self.assertIn("✖ Odoo injoignable depuis nginx (erreurs upstream) : 29 · interruptions : 2", T(ANSI.sub("", "\n".join(lignes))))
+
+    def test_169_surveillance_arretee(self):
+        with tempfile.TemporaryDirectory() as d:
+            with open(os.path.join(d, "recommended-bans.json"), "w") as f:
+                json.dump({"time": time.time() - 82 * 3600, "ips": []}, f)
+            ancien = os.environ.get("WEB_MONITOR_STATE_DIR")
+            os.environ["WEB_MONITOR_STATE_DIR"] = d
+            try:
+                s = self.m.Stats(5.0)
+                _n, lignes = s.health()
+            finally:
+                if ancien is None:
+                    os.environ.pop("WEB_MONITOR_STATE_DIR", None)
+                else:
+                    os.environ["WEB_MONITOR_STATE_DIR"] = ancien
+        self.assertIn("⚠ Surveillance automatique (web-monitor.py) : dernier passage il y a 82 h", T(ANSI.sub("", "\n".join(lignes))))
+
+    def test_169_plus_de_marque_de_pluriel(self):
+        with open(script_path("app-log-live.py"), encoding="utf-8") as f:
+            src = f.read()
+        self.assertNotIn("request(s) from {len(self.account_ips)} address(es)", src)
+        self.assertNotIn("de {len(self.suspect_ips)} address(es)", src)
 
