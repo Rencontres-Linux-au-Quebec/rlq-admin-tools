@@ -371,6 +371,26 @@ Earlier history was archived outside this repository when this file was created.
 
 ## app-log-live.py
 
+### 1.169.20261105.083208 - Dashboard: Odoo times of merged lines counted, cold cache and probes apart, interruptions, stopped monitoring
+
+- Title: the dashboard counts the Odoo times of the lines merged by --log-merge, sets apart the slow requests after a start of Odoo and the probes of this server, groups the nginx upstream errors into interruptions and says when web-monitor.py has stopped.
+- Reason: request of the administrator on 2026-11-05: improvements seen in a dashboard of 10 h 49 of the production server (app-log-live.py 1.166).
+- Changes:
+  - New functions line_detail() and line_duration(): the Odoo times of a merged line (L.odoo_times); used by Stats.ajouter() (slow requests, latency) and StatusBar.observe() (slow, most SQL queries).
+  - New function service_started_at() (systemctl show ActiveEnterTimestamp, date -d, read again every 60 s) and Stats.service_start (set by follow()).
+  - Stats.health(): slow requests of the 10 minutes after the start of Odoo shown and left out of the health level; probes of this server named; upstream errors grouped into interruptions (5 minutes apart), level "to look at" for one short interruption, "problem" for several or one of more than 15 minutes; new indicator "Automatic monitoring (web-monitor.py): last run N h ago" (Stats.reco_age_h) beyond 48 hours.
+  - analyze_slow(): the state of the server now is shown only when the latest slow request is less than 5 minutes old.
+  - Account forms, suspicious requests: "requests: N · addresses: K" instead of "request(s)", "address(es)" and the French "de" in the English code.
+  - lang/app-log-live.fr.po (10 entries, one stale removed); doc/fr and doc/en 07-app-log-live.md; tests: class AppLogLive169 (5 tests).
+- Bugs fixed:
+  - Symptom: "Odoo requests: 67" in the latency and 3 slow requests for 2,603 requests in 10 hours, with --log-merge. Diagnosis: a merged line has the text of the nginx line; Stats.ajouter() and StatusBar.observe() read the duration in the text (request_duration, request_detail), only the display read L.odoo_times. Fix: line_detail() and line_duration().
+  - Symptom: "Python alone is to blame: right now ... probable causes: disk too slow" for requests of the evening before, with "disk wait 0 %". Diagnosis: the state of the server at the time of the display was used to explain requests of hours before. Fix: only for requests of the last 5 minutes.
+  - Symptom: the health "problem" for one restart of Odoo of 5 minutes (26 lines of the nginx error log); 2 of the 3 slow requests were the probes of app-health-check.py right after that restart. Fix: interruptions and cold cache.
+  - Symptom: "4 request(s) from 1 address(es)" and "51 de 4 adresses". Fix: counts with a colon.
+- Safeguards and edge cases: a line without any time stays without duration (as before); without systemctl or without a start time, nothing is left out of the health; the monitoring warning appears only when the file of web-monitor.py exists (a server without web-monitor.py is not warned).
+- Checks performed: AppLogLive169 (5 tests); the tests of the merge (AppLogLive123, 143, 153), of the dashboard and of --advise.
+- Action required from the user: none. On the server: the last web-monitor.py run is 82 h old: systemctl list-timers 'web-monitor*' to see why.
+
 ### 1.168.20261105.081634 - --advise shows its progress
 
 - Title: --advise shows where the reading of the window is, then each step of the analysis.

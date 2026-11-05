@@ -56,6 +56,14 @@ For each problem, the analysis now checks the facts itself instead of only point
 
 With **`--apply`** (with `--advise`, on a terminal), the corrections are offered one by one after the analysis, one question each: ban the addresses through `nginx-log-audit.sh --ban` (it investigates each address, checks the white list and its score, and asks its own confirmation), open `odoo-mail-retry.py` for the failed e-mails (it lists them and asks before resending), warm Odoo up with `odoo-warmup.py` after a restart. Nothing is done without a « yes », and `odoo.conf` is never modified.
 
+## Dashboard: what 1.169 changes
+
+* With `--log-merge`, the line of nginx and the line of Odoo of one request make one line; the Odoo times (SQL queries, SQL time, Python time) of that line are now counted: before, the slow requests, the latency and the most SQL queries of the dashboard only saw the Odoo lines that had not found their nginx partner (67 requests measured for 2,603 seen).
+* The slow requests of the 10 minutes after the start of Odoo (cold cache) are shown but not counted in the health; the probes of this server (`app-health-check.py`) are named as such: they measured the slowness, they did not cause it. The state of the server "right now" is used to explain slow requests only if they are less than 5 minutes old.
+* "Odoo unreachable from nginx" counts interruptions (errors less than 5 minutes apart): one short interruption (a restart) is "to look at", several or one longer than 15 minutes are a "problem", with the start of Odoo.
+* "Automatic monitoring (web-monitor.py): last run N h ago" when the last run is more than 48 hours old: its timer is stopped or failing.
+* Counts without plural markers: "requests: 4 · addresses: 1".
+
 ## Recording a test (R key)
 
 To analyze a test of the site (an abandoned survey, a registration, a talk proposal...) without the noise:

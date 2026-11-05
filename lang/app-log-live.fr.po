@@ -280,8 +280,6 @@ msgstr "Adresses les plus actives : "
 msgid "Suspicious requests "
 msgstr "Requêtes suspectes "
 
-msgid "address(es) — "
-msgstr "adresses — "
 
 msgid "by address: "
 msgstr "par adresse : "
@@ -3022,11 +3020,7 @@ msgstr "enquête"
 msgid "Account forms "
 msgstr "Formulaires de compte "
 
-msgid " request(s) from "
-msgstr " requête(s) de "
 
-msgid " address(es) (password reset, sign-up) — "
-msgstr " adresse(s) (mot de passe oublié, inscription) — "
 
 msgid "Only the errors and the suspicious requests (HTTP 400 and above, Odoo WARNING / ERROR, traces, failed logins), not the normal transactions; starts with the last 100 errors found in the history (at least 3000 lines read); key X to switch it on and off while running"
 msgstr "Seulement les erreurs et les requêtes suspectes (HTTP 400 et plus, WARNING / ERROR d'Odoo, traces, connexions échouées), pas les transactions normales ; commence par les 100 dernières erreurs trouvées dans l'historique (au moins 3000 lignes lues) ; touche X pour l'activer et la désactiver en cours d'exécution"
@@ -3082,8 +3076,6 @@ msgstr "--advise doit être plus grand que 0 et au plus 366 jours"
 msgid "Odoo unreachable from nginx (upstream errors): "
 msgstr "Odoo injoignable depuis nginx (erreurs upstream) : "
 
-msgid "from {first} to {last}: Odoo stopped, restarting or too busy (see systemctl status and the service journal)"
-msgstr "de {first} à {last} : Odoo arrêté, en redémarrage ou trop occupé (voir systemctl status et le journal du service)"
 
 msgid "nginx errors (error log): "
 msgstr "Erreurs de nginx (journal d'erreurs) : "
@@ -3159,3 +3151,33 @@ msgstr "réponse du site maintenant (pages qui répondent 404)"
 
 msgid "rules and history"
 msgstr "règles et historique"
+
+msgid "interruption from {first} to {last} ({span}): Odoo stopped, restarting or too busy"
+msgstr "interruption de {first} à {last} ({span}) : Odoo arrêté, en redémarrage ou trop occupé"
+
+msgid "Odoo started at {when}"
+msgstr "Odoo démarré à {when}"
+
+msgid "interruptions: {k}"
+msgstr "interruptions : {k}"
+
+msgid "{k} in the 10 minutes after the start of Odoo at {when} (cold cache: assets and views computed once), not counted in the health"
+msgstr "{k} dans les 10 minutes après le démarrage d'Odoo à {when} (cache froid : assets et vues calculés une première fois), hors santé"
+
+msgid "{k} of them are the probes of this server (app-health-check.py): they measured the slowness, they did not cause it"
+msgstr "{k} d'entre elles sont les sondes de ce serveur (app-health-check.py) : elles ont mesuré la lenteur, elles ne l'ont pas causée"
+
+msgid "Automatic monitoring (web-monitor.py): last run {h} h ago"
+msgstr "Surveillance automatique (web-monitor.py) : dernier passage il y a {h} h"
+
+msgid "its timer may be stopped or failing: systemctl list-timers 'web-monitor*' ; journalctl -u 'web-monitor*' -n 30"
+msgstr "son minuteur est peut-être arrêté ou en échec : systemctl list-timers 'web-monitor*' ; journalctl -u 'web-monitor*' -n 30"
+
+msgid "ℹ Suspicious requests seen: {n} · addresses: {k}"
+msgstr "ℹ Requêtes suspectes vues : {n} · adresses : {k}"
+
+msgid "requests: {n} · addresses: {k} (password reset, sign-up) — "
+msgstr "requêtes : {n} · adresses : {k} (mot de passe oublié, inscription) — "
+
+msgid "requests: {n} · addresses: {k} — "
+msgstr "requêtes : {n} · adresses : {k} — "
