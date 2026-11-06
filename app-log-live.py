@@ -120,7 +120,7 @@ from urllib.parse import unquote, urlsplit
 from collections import Counter, OrderedDict
 from concurrent.futures import Future
 
-__version__ = "1.175.20261106.104955"
+__version__ = "1.176.20261106.110050"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
@@ -5491,7 +5491,7 @@ def advisor_facts(stats):
             "final_failures": stats.final_failures, "failure_codes": dict(stats.failure_codes), "mails": stats.mails, "slow": slow,
             "to_ban": [(ip, stats.who(ip), stats.ban_reason(ip, n)) for ip, n in to_ban],
             "not_proposed": [(ip, stats.who(ip), reason) for ip, reason in stats.not_proposed],
-            "account_ips": dict(stats.account_ips), "account_urls": list(stats.account_urls), "who": {ip: stats.who(ip) for ip in shown_ips}, "latency_n": latency_n,
+            "server_ips": sorted(stats.server), "account_ips": dict(stats.account_ips), "account_urls": list(stats.account_urls), "who": {ip: stats.who(ip) for ip in shown_ips}, "latency_n": latency_n,
             "nginx_errors": nginx_errors, "http_errors5": errors5, "site_hosts": [site] if site else []}
 
 
