@@ -371,6 +371,19 @@ Earlier history was archived outside this repository when this file was created.
 
 ## app-log-live.py
 
+### 1.175.20261106.104955 - --advise --days N analyses N days; the analysed period is said
+
+- Title: `--advise` without a value uses the window of `--days` when it is given; the program prints the period it analyses.
+- Reason: report of the administrator on 2026-11-06: "J'ai demande de verifier sur une journee seulement et c'est long" with `app-log-live.py --advise --days 1`, which read the logs since 2026-10-23.
+- Changes:
+  - app-log-live.py: --advise const -1 (no value): window = --days if greater than 0, otherwise 14 days (ADVISE_DAYS_DEFAULT); new line "--advise: period analysed from DATE (N days; ...)" before the reading; help text.
+  - lang/app-log-live.fr.po, doc/fr/07-app-log-live.md, doc/en/07-app-log-live.md: the rule. nginx-tools-tests/test_app_log_live.py: class AppLogLive175.
+- Bugs fixed:
+  - Symptom: `--advise --days 1` read 14 days of logs (about 40 minutes). Diagnosis: the value of --advise is its own argument (14 days by default); --days only sets the sign-in history, so the two options were independent and the user thought --days limited the analysis. Fix: --advise alone takes the value of --days.
+- Safeguards and edge cases: `--advise 7 --days 1` keeps 7 days for the analysis (the explicit value wins); `--since` still chooses another window; --days 0 (all, the default) keeps the 14 days; the limit of 366 days is unchanged; the DAYS of the configuration file counts like --days.
+- Checks performed: AppLogLive175 (3 tests), test_i18n and test_docs (only the failures already present on main).
+- Action required: none. For a quick check of one day: `app-log-live.py --advise 1`.
+
 ### 1.174.20261106.095903 - Password reset and sign-up forms in red only from the 4th request of an address
 
 - Title: /web/reset_password and /web/signup are shown in red reverse video only when the same address asks them more than three times.

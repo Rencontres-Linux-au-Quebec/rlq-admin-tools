@@ -120,7 +120,7 @@ from urllib.parse import unquote, urlsplit
 from collections import Counter, OrderedDict
 from concurrent.futures import Future
 
-__version__ = "1.174.20261106.095903"
+__version__ = "1.175.20261106.104955"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
@@ -7844,6 +7844,10 @@ def follow(cmd, people, resolver, options, output):
             waited = time.time()
             while SITEMAP.paths is None and SITEMAP.error is None and time.time() - waited < ADVISE_SITEMAP_WAIT_S:
                 time.sleep(0.2)
+        window_start = options.get("since")                                    # 1.175: the period is said, not guessed from the "Filters" line
+        if window_start:
+            eprint(TR("--advise: period analysed from {from_time} ({nd} days; --advise N or --since choose another one)").format(
+                from_time=time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(window_start)), nd=f"{max(0.0, (time.time() - window_start) / 86400):.3g}"))
         eprint(TR("--advise: reading the logs of the window without showing them (this can take a few minutes for several weeks)..."))
         output.muted = True                               # 1.166: before, the lines were formatted and translated, then sent to /dev/null
         advise_progress["p"] = AdviseProgress(options.get("since") or session_start, options.get("until") or session_start)
@@ -8129,8 +8133,8 @@ def main():
     parser.add_argument("--apply", action="store_true",
                         help="With --advise: after the analysis, offer the corrections one by one, one question each (ban the addresses with nginx-log-audit.sh --ban, which "
                              "checks the white list and its score; open odoo-mail-retry.py for the failed e-mails; warm Odoo up with odoo-warmup.py); terminal required")
-    parser.add_argument("--advise", type=float, nargs="?", const=ADVISE_DAYS_DEFAULT, default=None, metavar="DAYS",
-                        help="Analysis of the problems of the last DAYS days (14 by default), like the z key: the logs are read without being shown, then the problems, "
+    parser.add_argument("--advise", type=float, nargs="?", const=-1.0, default=None, metavar="DAYS",
+                        help="Analysis of the problems of the last DAYS days (without a value: --days if given, otherwise 14), like the z key: the logs are read without being shown, then the problems, "
                              "their probable causes and the recommended solutions are printed, compared with the previous --advise runs; --since / --until choose another window")
     parser.add_argument("--cms", choices=["auto", "odoo", "wordpress"], default="auto", metavar="CMS",
                         help="Site CMS: odoo (/wp-admin, xmlrpc.php, *.php… are suspect), wordpress (normal pages) or auto (default: a wp-config.php under /var/www, /srv, /opt…)")
@@ -8360,6 +8364,8 @@ def main():
     if args.apply and args.advise is None:
         parser.error("--apply goes with --advise")
     if args.advise is not None:                                        # 1.165: --advise reads a window without the live stream
+        if args.advise == -1.0:                                        # 1.175: --advise alone: the window of --days when it is given (--advise --days 1 = one day), otherwise 14 days
+            args.advise = args.days if args.days > 0 else ADVISE_DAYS_DEFAULT
         if not 0 < args.advise <= ADVISE_DAYS_MAX:
             parser.error("--advise must be greater than 0 and at most 366 days")
         if args.record_test_log is not None:
