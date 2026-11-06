@@ -4886,3 +4886,52 @@ class AppLogLive170(unittest.TestCase):
         for cle in ("LOG_MERGE", "LOG_NGINX", "STATUS_HEADER", "SLOW", "STATUS_EVERY", "NO_BAN_PROMPT", "DISPLAY_HOST", "NO_SITEMAP"):
             self.assertIn(cle, self.m.SCHEMA_CONFIG, cle)
             self.assertIn(f'"{cle}": ', self.src.split("def config_values")[1].split("\ndef ")[0], cle)
+
+
+class AppLogLive171(unittest.TestCase):
+    """1.171 : [BANNIE PLUS TARD] pour une requête passée avant le bannissement de son adresse ; websocket jamais lent (ligne fusionnée comprise) ;
+    pages à paramètres obligatoires jamais sondées sans eux."""
+
+    @classmethod
+    def setUpClass(cls):
+        spec = importlib.util.spec_from_file_location("live171", script_path("app-log-live.py"))
+        cls.m = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(cls.m)
+        with open(script_path("app-log-live.py"), encoding="utf-8") as f:
+            cls.src = f.read()
+
+    NGINX = '2026-11-01T10:21:02.000000-0500 odoo18 http: 11.2.3.4 - - "GET /websocket HTTP/1.1" 101 1234 "-" "Mozilla/5.0" host=www.example.org rl=300'
+    ODOO = ('2026-11-01T10:21:02.410000-0500 odoo18 odoo[1]: 2026-11-01 15:21:02,410 1 INFO base werkzeug: 11.2.3.4 - - [01/Nov/2026 15:21:02] '
+            '"GET /websocket HTTP/1.1" 101 - 0 0.000 4911.000')
+
+    def test_171_websocket_fusionne_jamais_lent(self):
+        held = collections.deque()
+        self.m.merge_step((self.m.Line(self.NGINX), [], time.time(), False), held)
+        L = self.m.merge_step((self.m.Line(self.ODOO), [], time.time(), False), held)[0][0]
+        self.assertIsNone(self.m.line_duration(L))
+        s = self.m.Stats(5.0)
+        s.ajouter(L, {}, None)
+        self.assertEqual(len(s.slow_requests), 0)
+
+    def test_171_ban_apres_la_requete(self):
+        bans = self.m.Bans()
+        t = time.time()
+        bans.journal = {self.m.ipaddress.ip_address("65.93.168.160"): [(t, "nginx-badrequests")]}
+        self.assertEqual(bans.ban_after("65.93.168.160", t - 600), t)           # request 10 minutes before the ban: it went through
+        self.assertIsNone(bans.ban_before("65.93.168.160", t - 600))
+        self.assertIsNone(bans.ban_after("65.93.168.160", t + 5))               # after the ban: banned as before
+        self.assertIsNotNone(bans.ban_before("65.93.168.160", t + 5))
+        self.assertIsNone(bans.ban_after("9.9.9.9", t - 600))
+        self.assertIsNone(bans.ban_after("pas une adresse", t))
+
+    def test_171_etiquette_et_catalogue(self):
+        self.assertIn('TR("[BANNED LATER]")', self.src)
+        with open(os.path.join(os.path.dirname(script_path("app-log-live.py")), "lang", "app-log-live.fr.po"), encoding="utf-8") as f:
+            self.assertIn('msgstr "[BANNIE PLUS TARD]"', f.read())
+
+    def test_171_pages_a_parametres_obligatoires_non_sondees(self):
+        r = self.m.NO_PROBE_RE
+        self.assertTrue(r.search("/en_CA/event/journee-2026-125/registration/success"))
+        self.assertTrue(r.search("/event/125/my_tickets"))
+        self.assertFalse(r.search("/event/page/2"))
+        self.assertIn("sent_url.get(path, path)", self.src)                      # asked again with the parameters that were sent

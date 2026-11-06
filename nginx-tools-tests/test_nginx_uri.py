@@ -113,7 +113,8 @@ class FiltreTagsEvenements(unittest.TestCase):
     def test_valeurs_malformees_refusees(self):
         for uri in ("/event?tags=stfD", "/en_CA/event?search=zqzz&tags=stfD", "/event?tags=[x]", "/event?tags=[35]x",
                     "/event?tags=[35]&tags=stfD", "/event?date=upcoming&tags=[zz]", "/event?tags=%5Bx%5D",
-                    "/event?tags=%5B35%5Dx", "/event?tags=%5B35%2C%27a%27%5D"):
+                    "/event?tags=%5B35%5Dx", "/event?tags=%5B35%2C%27a%27%5D", "/event?tags=x&search=", "/event?tags=&tags=stfD",
+                    "/event?tags=[]x"):
             self.assertTrue(self.refuse(uri), uri)
 
     def test_liens_legitimes_du_site_acceptes(self):
@@ -121,7 +122,9 @@ class FiltreTagsEvenements(unittest.TestCase):
                     "/event?tags=[1,2,3]", "/event?tags=[35,%2B40]", "/event", "/event/x/track", "/shop?tags=stfD",
                     # v1.22: brackets encoded by the Odoo service worker and by shared links (LinkedIn)
                     "/event/journee-portes-ouvertes-sur-linux-2026-125/track?tags=%5B3%5D", "/es/event?tags=%5B35%5D",
-                    "/es/event?tags=%5B8%2C%2B13%5D&trk=public_post_comment-text", "/event?tags=%5b1,2%5d"):
+                    "/es/event?tags=%5B8%2C%2B13%5D&trk=public_post_comment-text", "/event?tags=%5b1,2%5d",
+                    # v1.23: empty value sent by the filter form of the events page when no filter is chosen
+                    "/event/page/2?date=all&search=&tags=&type=all&pays=all", "/event?tags=", "/en_CA/event?date=all&tags="):
             self.assertFalse(self.refuse(uri), uri)
 
 

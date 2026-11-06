@@ -31,7 +31,7 @@ import re
 import time
 from collections import Counter
 
-__version__ = "1.3.20261105.071311"
+__version__ = "1.4.20261106.083524"
 
 PROBLEM, LOOK, INFO = 2, 1, 0                         # severities: problem, to look at, information
 
@@ -66,6 +66,7 @@ UPSTREAM_RE = re.compile(r"while connecting to upstream|upstream timed out|no li
 EVENT_ID_RE = re.compile(r"^(?:/[a-z]{2}(?:_[A-Z]{2})?)?/event/[^/]*?-(\d+)(?:/|$)")
 PRODUCT_ID_RE = re.compile(r"^(?:/[a-z]{2}(?:_[A-Z]{2})?)?/shop/(?:product/)?[^/]*?-(\d+)(?:/|$)")
 WP_SITEMAP_RE = re.compile(r"/(?:sitemap_index|wp-sitemap|sitemap-index|post-sitemap|page-sitemap)\.xml$|/sitemap\.xml\.gz$")
+LONG_CONNECTION_RE = re.compile(r"/(?:websocket|longpolling)(?:[/?\s\"]|$)")          # 1.4: a connection kept open (chat, bus): its duration is not a slowness
 ODOO_DEFAULTS = {"workers": 0, "max_cron_threads": 2, "limit_time_cpu": 60, "limit_time_real": 120, "limit_memory_soft": 2048, "limit_memory_hard": 2560}
 MONTHS = {m: i for i, m in enumerate(("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"), 1)}
 
@@ -589,7 +590,8 @@ class Analyzer:
             evidence = [self.codes_line(codes)] + self.referer_lines(detail, facts)
             agents = Counter(detail.get("agents") or {})
             if path.rstrip("/").endswith("sitemap.xml") and not WP_SITEMAP_RE.search(path):
-                if codes and all(str(c) == "403" or str(c)[:1] == "3" for c in codes):
+                refused = {str(c) for c in codes if str(c)[:1] in ("4", "5")}          # 1.4: the 200 of the visitors and of the program itself do not count
+                if refused and refused <= {"403"}:
                     self.add("sitemap-xml-403", INFO, tr("sitemap.xml refused (403) to robots of the blocking list"), n, evidence,
                              tr("bot_blocker.conf refuses these robots: expected"), [tr("nothing to do, unless a search engine you want is refused")])
                 else:
@@ -750,7 +752,7 @@ class Analyzer:
     # --- slow requests -----------------------------------------------------------------------------------------------------------
     def rule_slow(self, facts, details):
         tr, raw = self.tr, self.raw
-        slow = facts.get("slow") or []
+        slow = [s for s in (facts.get("slow") or []) if not LONG_CONNECTION_RE.search(s.get("url") or "")]          # 1.4: a websocket is open for hours: not slow
         if not slow:
             return
         t_sql = sum(s.get("t_sql") or 0 for s in slow)
@@ -786,7 +788,10 @@ class Analyzer:
                 elif kind == "memory":
                     conf_advice.append(tr("the workers may need about {need} MB, close to the {mem} MB of the machine: add memory or lower workers").format(need=a, mem=b))
                 elif kind == "limit-real":
-                    conf_advice.append(tr("the slowest request took {s} s, close to limit_time_real={limit} s: beyond it, Odoo stops the request (the visitor gets an error)").format(s=a, limit=b))
+                    if a > b:
+                        conf_advice.append(tr("the slowest request took {s} s, more than limit_time_real={limit} s: Odoo stops such a request (the visitor gets an error), unless it is a long connection (websocket)").format(s=a, limit=b))
+                    else:
+                        conf_advice.append(tr("the slowest request took {s} s, close to limit_time_real={limit} s: beyond it, Odoo stops the request (the visitor gets an error)").format(s=a, limit=b))
         if cold >= 2 and 2 * cold >= len(slow) or (restarts and after * 2 >= len(slow)):
             cause = tr("cold cache after a restart or an update: assets and views computed once")
             advice = [tr("odoo-warmup.py right after each restart or update of Odoo (odoo-update-module.sh does it)")]

@@ -3224,3 +3224,7 @@ msgstr "Barre d'état toutes les N lignes (0 = jamais, -1 = automatique, Entrée
 
 msgid " (sitemap.xml read in the background; the following lines)"
 msgstr " (sitemap.xml lu en arrière-plan ; lignes suivantes)"
+
+# 1.171
+msgid "[BANNED LATER]"
+msgstr "[BANNIE PLUS TARD]"

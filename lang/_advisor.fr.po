@@ -666,3 +666,7 @@ msgstr "un navigateur s'est abonné aux notifications avec une clé publique VAP
 
 msgid "harmless for the site: only the push notifications of these browsers fail; nothing to fix if the key was changed on purpose, the browsers subscribe again when their site data is cleared"
 msgstr "sans gravité pour le site : seules les notifications de ces navigateurs échouent ; rien à corriger si la clé a été changée volontairement, les navigateurs se réabonnent quand leurs données du site sont effacées"
+
+# 1.4
+msgid "the slowest request took {s} s, more than limit_time_real={limit} s: Odoo stops such a request (the visitor gets an error), unless it is a long connection (websocket)"
+msgstr "la requête la plus lente a pris {s} s, plus que limit_time_real={limit} s : Odoo arrête une telle requête (le visiteur reçoit une erreur), sauf une connexion longue (websocket)"

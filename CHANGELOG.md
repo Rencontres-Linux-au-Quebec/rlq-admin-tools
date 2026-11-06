@@ -371,6 +371,23 @@ Earlier history was archived outside this repository when this file was created.
 
 ## app-log-live.py
 
+### 1.171.20261106.083524 - [BANNIE PLUS TARD], websocket never slow, pages asked again with their parameters
+
+- Title: a request made before the ban of its address is labelled [BANNIE PLUS TARD] (it went through); the websocket of a merged line is never a slow request; the analysis asks a page again with the parameters that were sent.
+- Reason: request of the administrator on 2026-11-06: lines marked [BANNIE] with answers 200, 303 and 304 (a logged-in user), and review of the analysis of the night.
+- Changes:
+  - app-log-live.py: Bans.ban_after(); compose() compares the instant of the request with the fail2ban journal: banned only later -> [BANNIE PLUS TARD] (Odoo lines: [banned later: jail HH:MM]), and the line is no longer counted as a request of a banned address; line_duration() returns None for /websocket and /longpolling; NO_PROBE_RE and sent_url in the page re-check of the analysis.
+  - lang/app-log-live.fr.po: "[BANNED LATER]".
+  - nginx-tools-tests/test_app_log_live.py: class AppLogLive171.
+- Bugs fixed:
+  - Symptom: [BANNIE] on lines answered 200, 303, 304. Diagnosis: the label was the state of the ban when the line is displayed (history read at start included), not the state when the request was made. Fix: the ban time of the fail2ban journal is compared with the time of the request. Bans of the firewall and of CrowdSec have no time in their lists: they keep [BANNIE].
+  - Symptom: "slow requests: /websocket x10, 4911 s" in the analysis. Diagnosis: since 1.169 the duration of a merged line was taken without the long connection test of 1.145. Fix: the test is done first.
+  - Symptom: "Response of the site now: 303" for a page that answered 404 with its filters. Diagnosis: the page was asked again without its query string. Fix: it is asked with the first query string seen.
+  - Symptom: an Odoo error (TypeError, 500) written by the analysis itself on /registration/success. Diagnosis: the page was asked again without registration_ids. Fix: /registration/success and /my_tickets are not asked again.
+- Safeguards and edge cases: without a readable fail2ban journal the label is unchanged; a ban before the request (within 24 h) is still [BANNIE]; the 4xx page is asked again only on the local nginx.
+- Checks performed: AppLogLive171 (4 tests), AppLogLive170, test_advisor, test_i18n.
+- Action required: none. To check one address: sudo fail2ban-client banned | grep ADDRESS and sudo grep ADDRESS /var/log/fail2ban.log.
+
 ### 1.170.20261105.130658 - Menu switches for every option that can change while running
 
 - Title: new menu keys J (--log-merge), B (--status-header), C (--truncate), O (--utc), Q (--slow), Z (--status-every), K (--no-ban-prompt), y (--no-sitemap); the menu lists the options set at startup only.
@@ -3136,6 +3153,23 @@ Earlier history was archived outside this repository when this file was created.
 
 ## nginx-hardening.sh
 
+### 2.81.20261106.083524 - Empty ?tags= accepted on the event pages (rule 3 bis)
+
+- Title: securite-commune.conf rule 3 bis now accepts an empty value, ?tags=, as well as the lists of numbers.
+- Reason: request of the administrator on 2026-11-06: the dashboard still showed 404 answers (146 bytes, the page of nginx) on /event/page/2?date=all&search=&tags=&type=all&pays=all (referers /event/service-worker.js and /event?date=all).
+- Changes:
+  - nginx/snippets/securite-commune.conf: rule 3 bis, the value may be empty, or a list in brackets (clear or %5B %5D) of digits, commas, "+", %2B, %2C and %20. Comment updated.
+  - nginx/VERSION: 1.23.20261106.083524.
+  - nginx-hardening.sh: SCRIPT_VERSION 2.81.20261106.083524; live check "GET /event/page/2?date=all&search=&tags=&type=all -> 2xx/3xx" added.
+  - nginx-tools-tests/test_nginx_uri.py: empty value accepted (three URLs), "tags=x", "tags=&tags=stfD" and "tags=[]x" still refused.
+- Bugs fixed:
+  - Symptom: visitors of the pages 2, 3, 4... of the events list received a 404.
+  - Diagnosis: the filter form of the events page sends tags= with no value when no filter is chosen; the look-ahead of rule 3 bis required a bracketed list, so the empty value was refused like a malformed one. The 548 byte 404 of 2.80 had the same cause for the encoded brackets.
+  - Fix: the bracketed list of the look-ahead is optional (empty value).
+- Safeguards and edge cases: Odoo ignores an empty tags (no literal_eval, so no error 500); every non-empty malformed value stays refused, also when an empty tags= comes first (tags=&tags=stfD).
+- Checks performed: test_nginx_uri (10 tests).
+- Action required: after the merge, sudo nginx-hardening.sh --update.
+
 ### 2.80.20261105.130658 - Encoded brackets of ?tags= accepted on the event pages (rule 3 bis)
 
 - Title: securite-commune.conf rule 3 bis now accepts ?tags=%5B3%5D as well as ?tags=[3].
@@ -4670,6 +4704,18 @@ Earlier history was archived outside this repository when this file was created.
   - Not changed: nginx-log-audit.sh keeps its own bash values (its --page-burst default is 8 against 15 here; this difference is still to be decided).
 
 ## apps/_advisor.py
+
+### 1.4.20261106.083524 - sitemap.xml 403 information, websocket not slow, limit_time_real wording
+
+- Title: three false alarms of the analysis corrected.
+- Reason: review on 2026-11-06 of the analysis of the night of the administrator.
+- Changes:
+  - apps/_advisor.py: the 403 of sitemap.xml are judged on the refused codes only (the 200 answers of the visitors and of the program no longer turn it into "sitemap.xml answers 403"); slow requests on /websocket and /longpolling ignored (LONG_CONNECTION_RE); a slowest request longer than limit_time_real says "more than" instead of "close to".
+  - lang/_advisor.fr.po: new sentence. nginx-tools-tests/test_advisor.py: two tests.
+- Bugs fixed: the three false alarms above (ClaudeBot refused by bot_blocker.conf made the point "sitemap.xml answers 403" to look at; a websocket of 4911 s was a "slow request close to limit_time_real=600 s").
+- Safeguards and edge cases: a 404 or a 5xx on sitemap.xml still gives "to look at"; a real request beyond limit_time_real is still reported.
+- Checks performed: test_advisor (39 tests).
+- Action required: none.
 
 ### 1.3.20261105.071311 - Rules checked against a real analysis, details gathered, proposed corrections
 

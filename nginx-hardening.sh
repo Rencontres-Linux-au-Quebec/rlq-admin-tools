@@ -92,7 +92,7 @@ run() {
     "$@"
 }
 
-readonly SCRIPT_VERSION="2.80.20261105.130658"
+readonly SCRIPT_VERSION="2.81.20261106.083524"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
 SCRIPT_NAME="$(basename "${BASH_SOURCE[0]}" .sh)"; readonly SCRIPT_NAME
 # Display language (en or fr): --lang, NGINX_HARDENING_LANG, LANGUAGE of the configuration file, LC_ALL / LANG - apps/_i18n.sh translates the output (nothing changes in French).
@@ -585,6 +585,7 @@ tester_regles() {
 GET|/en_CA/event?search=test&tags=stfD|$ua_nav|404|tags malformé refusé (règle 3 bis)
 GET|/event?tags=[35,+40]|$ua_nav|2xx3xx|tags légitime accepté
 GET|/event?tags=%5B35%5D|$ua_nav|2xx3xx|tags encodé (service worker Odoo, LinkedIn) accepté (règle 3 bis, v1.22)
+GET|/event/page/2?date=all&search=&tags=&type=all|$ua_nav|2xx3xx|tags vide du formulaire de filtres accepté (règle 3 bis, v1.23)
 GET|/.env|$ua_nav|404|fichier caché refusé (règle 4)
 GET|/%2e%2e/etc/passwd|$ua_nav|404|traversée de répertoire encodée refusée (règle 3)
 TRACE|/|$ua_nav|405|méthode TRACE refusée (règle 2)

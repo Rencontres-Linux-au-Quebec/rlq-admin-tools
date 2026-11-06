@@ -139,6 +139,25 @@ class Regles(unittest.TestCase):
         self.assertNotIn("dead-link:/bots", f)                                  # 403 : robots refusés, pas une page morte
         self.assertNotIn("dead-link:/rare", f)                                  # moins de 3
 
+    def test_sitemap_xml_403_avec_des_200_reste_une_information(self):
+        """1.4: the 200 answers of the visitors and of the program itself do not turn the 403 of the refused robots into a point to look at."""
+        details = {"nginx": {"/sitemap.xml": {"codes": Counter({"403": 5, "200": 20}), "referers": Counter(), "hosts": Counter(),
+                                              "agents": Counter({"ClaudeBot/1.0": 4, "app-log-live (sitemap check)": 15})}}}
+        f = par_id(ADV.analyze(faits(plain_4xx={"/sitemap.xml": 5}, codes_by_url={"/sitemap.xml": {"403": 5, "200": 20}}), details))
+        self.assertEqual(f["sitemap-xml-403"]["severity"], ADV.INFO)
+        self.assertNotIn("sitemap-xml-4xx", f)
+
+    def test_websocket_jamais_lent_et_limite_depassee(self):
+        """1.4: a websocket open for hours is not a slow request; a real request beyond limit_time_real is not described as « close to » it."""
+        ws = [{"total": 4911.0, "url": "/websocket", "ip": "x", "t_sql": 0.0, "t_py": 4911.0, "t": time.time()} for _ in range(10)]
+        self.assertNotIn("slow-requests", par_id(ADV.analyze(faits(slow=ws))))
+        _ev, conseils, _cause = ADV.odoo_settings_advice({"workers": "13", "limit_time_real": "600"}, 6, 16000, slowest=4911)
+        lent = [{"total": 4911.0, "url": "/shop", "ip": "x", "t_sql": 0.0, "t_py": 4911.0, "t": time.time()}]
+        conf = {"odoo_conf": {"path": "/etc/odoo/odoo.conf", "values": {"workers": "13", "limit_time_real": "600"}, "cpus": 6, "mem_mb": 16000}}
+        texte = " ".join(par_id(ADV.analyze(faits(slow=lent), conf))["slow-requests"]["advice"])
+        self.assertIn("more than limit_time_real=600", texte)
+        self.assertNotIn("close to limit_time_real", texte)
+
     def test_sitemap_xml_403_et_404(self):
         f = par_id(ADV.analyze(faits(plain_4xx={"/sitemap.xml": 12}, codes_by_url={"/sitemap.xml": {"403": 12}})))
         self.assertEqual(f["sitemap-xml-403"]["severity"], ADV.INFO)
