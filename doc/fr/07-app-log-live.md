@@ -34,7 +34,8 @@ Gravité : ✖ problème, ⚠ à regarder, ℹ information. Rien n'est modifié 
 ### Sur plusieurs semaines : --advise (1.165)
 
 ```
-sudo app-log-live.py --advise          # les 14 derniers jours
+sudo app-log-live.py --advise          # les 14 derniers jours (ou la valeur de --days si elle est donnée)
+sudo app-log-live.py --advise --days 1 # 1 jour (1.175 ; avant : 14 jours, --days ne réglait que l'historique des connexions)
 sudo app-log-live.py --advise 30       # les 30 derniers jours
 sudo app-log-live.py --advise --since 2026-10-01 --until 2026-10-31
 ```

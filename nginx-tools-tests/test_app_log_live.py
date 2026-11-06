@@ -5024,3 +5024,30 @@ class AppLogLive174(unittest.TestCase):
         forme.account_count = lambda ip: 3
         self.assertFalse(self.rouge(forme))
         self.assertTrue(self.rouge(self.m.Formatting(False, 20, 5.0, False)))              # no counter: as before 1.174
+
+
+class AppLogLive175(unittest.TestCase):
+    """1.175 : --advise sans valeur prend la fenêtre de --days (--advise --days 1 = une journée, pas 14 jours) ; la période analysée est annoncée."""
+
+    @classmethod
+    def setUpClass(cls):
+        with open(script_path("app-log-live.py"), encoding="utf-8") as f:
+            cls.src = f.read()
+
+
+    def test_175_advise_sans_valeur_prend_days(self):
+        bloc = self.src.split("if args.advise == -1.0:", 1)[1].split("if not 0 < args.advise", 1)[0]
+        self.assertIn("args.days if args.days > 0 else ADVISE_DAYS_DEFAULT", bloc)
+        self.assertIn('nargs="?", const=-1.0', self.src)
+
+    def test_175_valeur_explicite_prioritaire_et_defaut_14(self):
+        # the rule alone: an explicit value is never -1, so it is kept; days 0 (all) keeps the 14 days
+        resolu = lambda advise, days: (days if days > 0 else 14) if advise == -1.0 else advise
+        self.assertEqual(resolu(-1.0, 1.0), 1.0)
+        self.assertEqual(resolu(-1.0, 0.0), 14)
+        self.assertEqual(resolu(7.0, 1.0), 7.0)
+
+    def test_175_periode_annoncee(self):
+        self.assertIn("--advise: period analysed from {from_time}", self.src)
+        with open(os.path.join(os.path.dirname(script_path("app-log-live.py")), "lang", "app-log-live.fr.po"), encoding="utf-8") as f:
+            self.assertIn("période analysée depuis le {from_time}", f.read())

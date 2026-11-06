@@ -34,7 +34,8 @@ Severity: ✖ problem, ⚠ to look at, ℹ information. Nothing is modified on t
 ### Over several weeks: --advise (1.165)
 
 ```
-sudo app-log-live.py --advise          # the last 14 days
+sudo app-log-live.py --advise          # the last 14 days (or the value of --days when it is given)
+sudo app-log-live.py --advise --days 1 # 1 day (1.175; before: 14 days, --days only set the sign-in history)
 sudo app-log-live.py --advise 30       # the last 30 days
 sudo app-log-live.py --advise --since 2026-10-01 --until 2026-10-31
 ```
