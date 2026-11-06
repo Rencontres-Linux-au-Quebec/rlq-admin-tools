@@ -371,6 +371,19 @@ Earlier history was archived outside this repository when this file was created.
 
 ## app-log-live.py
 
+### 1.173.20261106.095017 - Security tests of this server are not 404 errors
+
+- Title: the 404 answers of the hourly security tests of app-health-check.py (launched by web-monitor.py) are no longer counted as errors, nor tagged for sitemap.xml.
+- Reason: question of the administrator on 2026-11-06: "pourquoi les tests a toutes les heures generent des erreurs 404", with the line "ce serveur 404 548 GET /some/page?file=../conf/conf.php [pas dans sitemap.xml]".
+- Changes:
+  - app-log-live.py: local_probe() (suspicious URL asked from the loopback address); Stats.ajouter() counts it in the probes only (not in the 4xx errors, the 404 of the sitemap, nor the problem addresses); StatusBar.observe() gives it no penalty (health, 4xx counter); the line shows [probe of this server] (French: [sonde de ce serveur]) instead of the sitemap tag.
+  - lang/app-log-live.fr.po: the new tag. nginx-tools-tests/test_app_log_live.py: class AppLogLive173.
+- Bugs fixed:
+  - Symptom: every hour the dashboard counted one more 404 "not in sitemap.xml" (and the analysis could mention it). Diagnosis: app-health-check.py asks /some/page?file=../conf/conf.php, /.env, /en_CA/.env and /.git/config to check that nginx refuses them (404 of 548 bytes, expected); the loopback address was only excluded from the suspicious addresses, not from the error counters. Fix: same exclusion for the error counters, the health and the line tag.
+- Safeguards and edge cases: only a SUSPICIOUS URL from the loopback address is concerned: a real broken link requested by this server (404 on a normal page) stays counted; the same request from an external address stays counted and tagged as before; a 5xx on such a URL is still counted.
+- Checks performed: AppLogLive173 (3 tests), AppLogLive172, test_i18n (only the failures already present on main).
+- Action required: none.
+
 ### 1.172.20261106.094106 - Analysis (z): the program checks who asked, who answered, and the registrations in the database
 
 - Title: for the 404 pages, the analysis reads itself in the access log and in the Odoo database what the administrator had to look for by hand.
