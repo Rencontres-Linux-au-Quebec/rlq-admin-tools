@@ -4935,3 +4935,16 @@ class AppLogLive171(unittest.TestCase):
         self.assertTrue(r.search("/event/125/my_tickets"))
         self.assertFalse(r.search("/event/page/2"))
         self.assertIn("sent_url.get(path, path)", self.src)                      # asked again with the parameters that were sent
+
+
+class AppLogLive172(unittest.TestCase):
+    """1.172 : l'analyse (z) lit elle-même les inscriptions des liens de confirmation en 404 dans la base d'Odoo (lecture seule)."""
+
+    def test_172_inscriptions_lues_dans_la_base(self):
+        with open(script_path("app-log-live.py"), encoding="utf-8") as f:
+            src = f.read()
+        self.assertIn("module.REGISTRATION_SUCCESS_RE.search(path)", src)
+        self.assertIn('details["registrations"]', src)
+        bloc = src.split("reg_ids = set()", 1)[1].split("for path in pages_404[:10]:", 1)[0]
+        self.assertIn("SELECT id, state, visitor_id IS NOT NULL FROM event_registration", bloc)
+        self.assertNotRegex(bloc, r"\b(?:UPDATE|DELETE|INSERT)\b")              # reading only (the PostgreSQL transaction is also forced read-only)

@@ -670,3 +670,49 @@ msgstr "sans gravité pour le site : seules les notifications de ces navigateurs
 # 1.4
 msgid "the slowest request took {s} s, more than limit_time_real={limit} s: Odoo stops such a request (the visitor gets an error), unless it is a long connection (websocket)"
 msgstr "la requête la plus lente a pris {s} s, plus que limit_time_real={limit} s : Odoo arrête une telle requête (le visiteur reçoit une erreur), sauf une connexion longue (websocket)"
+
+# 1.5: checks made by the program itself
+msgid "The 404 page is the one of nginx ({n} bytes): a rule or a location of nginx refuses this address (securite-commune.conf, bot_blocker.conf...), not Odoo"
+msgstr "La page 404 est celle de nginx ({n} octets) : une règle ou un location de nginx refuse cette adresse (securite-commune.conf, bot_blocker.conf...), pas Odoo"
+
+msgid "The 404 page is the one of Odoo ({kb} KB): the request reached Odoo, nginx did not refuse it"
+msgstr "La page 404 est celle d'Odoo ({kb} Ko) : la requête est arrivée à Odoo, nginx ne l'a pas refusée"
+
+msgid "Asked by: "
+msgstr "Demandée par : "
+
+msgid "{n} robots, link previews or tools"
+msgstr "{n} robots, aperçus de liens ou outils"
+
+msgid "{n} browsers from {k} addresses"
+msgstr "{n} navigateurs de {k} adresses"
+
+msgid "The same address asked again by browsers: "
+msgstr "La même adresse redemandée par des navigateurs : "
+
+msgid "Registrations of these links in Odoo: {found} found of {asked}, {nov} with no visitor recorded (no cookie at the registration)"
+msgstr "Inscriptions de ces liens dans Odoo : {found} trouvées sur {asked}, {nov} sans visiteur enregistré (pas de cookie à l'inscription)"
+
+msgid "{n} people registered several times for the same event (they probably tried again after the 404)"
+msgstr "{n} personnes inscrites plusieurs fois au même événement (elles ont probablement réessayé après le 404)"
+
+msgid "{n} answers 404 on {url}: confirmation page opened by robots or link previews"
+msgstr "{n} réponses 404 sur {url} : page de confirmation ouverte par des robots ou des aperçus de liens"
+
+msgid "Odoo shows the confirmation of a registration only to the visitor who registered (cookie): a robot or a link preview has none"
+msgstr "Odoo montre la confirmation d'une inscription seulement au visiteur qui s'est inscrit (cookie) : un robot ou un aperçu de lien n'en a pas"
+
+msgid "rlq-odoo-addons: show a thank-you page (the confirmation e-mail was sent) instead of the 404 when the visitor is unknown"
+msgstr "rlq-odoo-addons : afficher une page de remerciement (le courriel de confirmation est parti) au lieu du 404 quand le visiteur est inconnu"
+
+msgid "check the cookies bar of the website (Website > Configuration > Settings): without the cookie, Odoo cannot recognise the visitor"
+msgstr "vérifier la barre des témoins (cookies) du site (Site Web > Configuration > Paramètres) : sans le témoin, Odoo ne reconnaît pas le visiteur"
+
+msgid "Events > Registrations: look for the same e-mail registered twice for the same event"
+msgstr "Événements > Inscriptions : chercher le même courriel inscrit deux fois au même événement"
+
+msgid "{n} answers 404 on {url}: confirmation page of a registration"
+msgstr "{n} réponses 404 sur {url} : page de confirmation d'une inscription"
+
+msgid "the registration exists, but Odoo shows its confirmation only to the visitor (cookie) who made it: private browsing, blocked cookies or another browser give a 404"
+msgstr "l'inscription existe, mais Odoo n'en montre la confirmation qu'au visiteur (cookie) qui l'a faite : navigation privée, témoins bloqués ou autre navigateur donnent un 404"

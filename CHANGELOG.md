@@ -371,6 +371,19 @@ Earlier history was archived outside this repository when this file was created.
 
 ## app-log-live.py
 
+### 1.172.20261106.094106 - Analysis (z): the program checks who asked, who answered, and the registrations in the database
+
+- Title: for the 404 pages, the analysis reads itself in the access log and in the Odoo database what the administrator had to look for by hand.
+- Reason: request of the administrator on 2026-11-06: "avec analyse des problemes soulevés (z), peux-tu rajouter plus de validation (...) le programme peut le faire lui-même afin de donner un meilleur diagnostique", after an investigation of the 404 on /event/<id>/registration/success done with grep, awk and curl.
+- Changes:
+  - app-log-live.py: the details of the analysis read, for the confirmation links in 404, the registration_ids in the database (read only): registrations found, without visitor recorded (visitor_id empty), people registered several times for the same event (details["registrations"]).
+  - apps/_advisor.py 1.5: nginx_details() also keeps the robots and the browsers (with their addresses), the queries and the size of the 4xx answers; origin_lines() adds to every 404 finding: who answered (page of nginx of about 150 bytes: a rule of nginx; page of several KB: Odoo), who asked (robots, link previews, tools, or browsers from N addresses) and the addresses asked again by browsers; registration_success(): finding "registration-404" (information when only robots and link previews, "to look at" when browsers, with the cause and the corrections).
+  - lang/_advisor.fr.po: the new sentences. nginx-tools-tests/test_advisor.py: two tests; test_app_log_live.py: class AppLogLive172.
+- Bugs fixed: none.
+- Safeguards and edge cases: the SQL queries are SELECT only, and PostgreSQL itself forces the read-only transaction; at most 200 registration numbers; without database access the lines on registrations are simply not shown; a finding keeps its previous form when the access log has no detail for the page.
+- Checks performed: test_advisor (41 tests), AppLogLive172, test_i18n (only the failures already present on main).
+- Action required: none. The corrections proposed for the registration pages (thank-you page instead of the 404) are for rlq-odoo-addons, on request.
+
 ### 1.171.20261106.083524 - [BANNIE PLUS TARD], websocket never slow, pages asked again with their parameters
 
 - Title: a request made before the ban of its address is labelled [BANNIE PLUS TARD] (it went through); the websocket of a merged line is never a slow request; the analysis asks a page again with the parameters that were sent.
@@ -4704,6 +4717,16 @@ Earlier history was archived outside this repository when this file was created.
   - Not changed: nginx-log-audit.sh keeps its own bash values (its --page-burst default is 8 against 15 here; this difference is still to be decided).
 
 ## apps/_advisor.py
+
+### 1.5.20261106.094106 - Who asked, who answered, retries, registrations of the confirmation links
+
+- Title: the 404 findings show the origin of the answer and the kind of visitors; new finding for the confirmation page of an event registration.
+- Reason: request of the administrator on 2026-11-06 (see app-log-live.py 1.172).
+- Changes: nginx_details() (robots, browsers, queries, sizes), origin_lines(), registration_success(), REGISTRATION_SUCCESS_RE, ROBOT_AGENT_RE, BYTES_RE; French sentences in lang/_advisor.fr.po.
+- Bugs fixed: none.
+- Safeguards and edge cases: the classification of the robots is by the User-Agent only (a robot that pretends to be a browser counts as a browser); the median size of the 4xx answers decides between nginx (400 bytes or less) and Odoo.
+- Checks performed: test_advisor (41 tests).
+- Action required: none.
 
 ### 1.4.20261106.083524 - sitemap.xml 403 information, websocket not slow, limit_time_real wording
 

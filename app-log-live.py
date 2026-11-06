@@ -120,7 +120,7 @@ from urllib.parse import unquote, urlsplit
 from collections import Counter, OrderedDict
 from concurrent.futures import Future
 
-__version__ = "1.171.20261106.083524"
+__version__ = "1.172.20261106.094106"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
@@ -7369,6 +7369,20 @@ def follow(cmd, people, resolver, options, output):
                 rows = odoo_db._requete(bases[0], f"SELECT count(*) FROM res_users WHERE share AND create_date > now() - interval '{days} days'")
                 details["signup"] = {"scope": params.get("auth_signup.invitation_scope", "b2b"),
                                      "new_users": int(rows[0][0]) if rows and rows[0] and rows[0][0].isdigit() else None}
+            reg_ids = set()                                               # 1.172: registrations of the 404 confirmation links: does the registration exist, and was a visitor recorded?
+            for path, d in (details.get("nginx") or {}).items():
+                if module.REGISTRATION_SUCCESS_RE.search(path):
+                    for q in d.get("queries") or ():
+                        if "registration_ids=" in q:
+                            reg_ids |= {int(x) for x in re.findall(r"\d+", q.split("registration_ids=", 1)[1].split("&", 1)[0])}
+            if reg_ids:
+                id_list = ",".join(str(i) for i in sorted(reg_ids)[:200])
+                rows = odoo_db._requete(bases[0], f"SELECT id, state, visitor_id IS NOT NULL FROM event_registration WHERE id IN ({id_list})")
+                twice = odoo_db._requete(bases[0], f"SELECT count(*) FROM (SELECT 1 FROM event_registration r WHERE r.email IN (SELECT email FROM event_registration WHERE id IN ({id_list})) "
+                                                   f"GROUP BY r.event_id, r.email HAVING count(*) > 1) d")
+                if rows is not None:
+                    details["registrations"] = {"asked": len(reg_ids), "found": len(rows), "no_visitor": sum(1 for r in rows if len(r) > 2 and r[2] in ("f", "false")),
+                                                "duplicates": int(twice[0][0]) if twice and twice[0] and twice[0][0].isdigit() else 0}
             for path in pages_404[:10]:
                 rec = record_of(path)
                 if rec:
