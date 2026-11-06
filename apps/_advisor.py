@@ -31,7 +31,7 @@ import re
 import time
 from collections import Counter
 
-__version__ = "1.3.20261105.071311"
+__version__ = "1.5.20261106.094106"
 
 PROBLEM, LOOK, INFO = 2, 1, 0                         # severities: problem, to look at, information
 
@@ -58,6 +58,11 @@ FRAME_RE = re.compile(r'^\s*File "([^"]+)", line (\d+), in (\S+)')
 ADDON_RE = re.compile(r"[/_-]addons/([A-Za-z0-9_]+)/")          # .../addons/MODULE/, .../rlq-addons/MODULE/, .../custom_addons/MODULE/
 NGINX_LINE_RE = re.compile(r'\[(\d{2})/([A-Za-z]{3})/(\d{4}):(\d{2}):(\d{2}):(\d{2}) ([+-])(\d{2})(\d{2})\]\s+"(GET|POST|HEAD|PUT|DELETE|OPTIONS|PATCH)\s+(\S+)'
                            r'[^"]*"\s+(\d{3})\s+\S+\s+"([^"]*)"\s+"([^"]*)"')
+BYTES_RE = re.compile(r'"\s\d{3}\s(\d+)\s')                 # 1.5: size of the response (a 404 of nginx is about 150 bytes, a 404 page of Odoo several KB)
+# 1.5: robots, link previews and tools (they have no cookie: Odoo pages reserved to a visitor answer them 404)
+ROBOT_AGENT_RE = re.compile(r"bot\b|bot/|crawl|spider|slurp|Google-Read-Aloud|WhatsApp|facebookexternalhit|LinkedInBot|Twitterbot|Slackbot|Telegram|Discord|preview|"
+                            r"curl/|python|wget|Go-http|okhttp|\bJava/|axios|node-fetch|HeadlessChrome|Lighthouse", re.I)
+REGISTRATION_SUCCESS_RE = re.compile(r"/event/[^/]+/registration/success$")
 HOST_RE = re.compile(r'\bhost="?([^"\s]+)"?')          # 1.3: host="$host" of the nginx log format is QUOTED (the quotes made every referer "another site")
 # 1.3: query strings of a vulnerability scanner (fuzzing): quotes and brackets, "zqzz" markers, SQL and script fragments
 FUZZ_RE = re.compile(r"zqzz|[\"'](?:\)|\()|\(\(|%2[27]|%3[Cc]|<script|\bsleep\(|\bunion\b.*\bselect\b|\.\./|\bor\b\s*\d+\s*=\s*\d+", re.I)
@@ -66,6 +71,7 @@ UPSTREAM_RE = re.compile(r"while connecting to upstream|upstream timed out|no li
 EVENT_ID_RE = re.compile(r"^(?:/[a-z]{2}(?:_[A-Z]{2})?)?/event/[^/]*?-(\d+)(?:/|$)")
 PRODUCT_ID_RE = re.compile(r"^(?:/[a-z]{2}(?:_[A-Z]{2})?)?/shop/(?:product/)?[^/]*?-(\d+)(?:/|$)")
 WP_SITEMAP_RE = re.compile(r"/(?:sitemap_index|wp-sitemap|sitemap-index|post-sitemap|page-sitemap)\.xml$|/sitemap\.xml\.gz$")
+LONG_CONNECTION_RE = re.compile(r"/(?:websocket|longpolling)(?:[/?\s\"]|$)")          # 1.4: a connection kept open (chat, bus): its duration is not a slowness
 ODOO_DEFAULTS = {"workers": 0, "max_cron_threads": 2, "limit_time_cpu": 60, "limit_time_real": 120, "limit_memory_soft": 2048, "limit_memory_hard": 2560}
 MONTHS = {m: i for i, m in enumerate(("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"), 1)}
 
@@ -221,7 +227,8 @@ def nginx_details(files, urls, since=None, max_bytes=TAIL_BYTES):
     """For each URL of `urls` (path, without the query): {"codes", "referers", "agents", "hosts", "methods": Counter} read in the nginx access logs
     (end of each file, lines after `since` when given)."""
     wanted = {u.split("?", 1)[0] for u in urls}
-    res = {u: {"codes": Counter(), "referers": Counter(), "agents": Counter(), "hosts": Counter(), "methods": Counter()} for u in wanted}
+    res = {u: {"codes": Counter(), "referers": Counter(), "agents": Counter(), "hosts": Counter(), "methods": Counter(), "robots": Counter(), "browser_hits": 0,
+               "browser_ips": set(), "browser_queries": Counter(), "queries": Counter(), "bytes_4xx": []} for u in wanted}
     if not wanted:
         return res
     for path in files:
@@ -249,6 +256,20 @@ def nginx_details(files, urls, since=None, max_bytes=TAIL_BYTES):
             h = HOST_RE.search(text_line)
             if h:
                 d["hosts"][h.group(1)] += 1
+            query = m.group(11).partition("?")[2]
+            if query:
+                d["queries"][query[:200]] += 1
+            if m.group(12)[:1] == "4":
+                b = BYTES_RE.search(text_line)
+                if b and len(d["bytes_4xx"]) < 200:
+                    d["bytes_4xx"].append(int(b.group(1)))
+            if ROBOT_AGENT_RE.search(m.group(14)):
+                d["robots"][m.group(14)[:60]] += 1
+            else:
+                d["browser_hits"] += 1
+                d["browser_ips"].add(text_line.split(" ", 1)[0])
+                if query:
+                    d["browser_queries"][query[:200]] += 1
     return res
 
 
@@ -373,6 +394,33 @@ class Analyzer:
         outside = Counter({r: n for r, n in (detail.get("referers") or {}).items() if r not in inside})
         if outside:
             lines.append(tr("Linked from other sites: ") + " ; ".join(f"{raw(r)} ×{n}" for r, n in outside.most_common(3)))
+        return lines
+
+    def origin_lines(self, detail):
+        """1.5: what the program checks itself in the access log, instead of asking the administrator: WHO asked (robots / link previews or browsers), WHAT answered
+        (the 404 page of nginx is about 150 bytes: a rule of nginx; a page of several KB is Odoo's) and whether a visitor retried the same address."""
+        tr, raw = self.tr, self.raw
+        lines = []
+        sizes = sorted(detail.get("bytes_4xx") or [])
+        if sizes:
+            middle = sizes[len(sizes) // 2]
+            if middle <= 400:
+                lines.append(tr("The 404 page is the one of nginx ({n} bytes): a rule or a location of nginx refuses this address (securite-commune.conf, bot_blocker.conf...), not Odoo").format(n=middle))
+            else:
+                lines.append(tr("The 404 page is the one of Odoo ({kb} KB): the request reached Odoo, nginx did not refuse it").format(kb=f"{middle / 1024:.1f}"))
+        robots = detail.get("robots") or Counter()
+        browsers = detail.get("browser_hits") or 0
+        if robots or browsers:
+            text = tr("Asked by: ")
+            parts = []
+            if robots:
+                parts.append(tr("{n} robots, link previews or tools").format(n=sum(robots.values())) + " (" + " ; ".join(f"{raw(a)} ×{k}" for a, k in robots.most_common(2)) + ")")
+            if browsers:
+                parts.append(tr("{n} browsers from {k} addresses").format(n=browsers, k=len(detail.get("browser_ips") or ())))
+            lines.append(text + " ; ".join(parts))
+        repeated = [(q, k) for q, k in (detail.get("browser_queries") or Counter()).most_common(3) if k >= 2]
+        if repeated:
+            lines.append(tr("The same address asked again by browsers: ") + " ; ".join(f"?{raw(_cut(q, 60))} ×{k}" for q, k in repeated))
         return lines
 
     def codes_line(self, codes):
@@ -586,10 +634,14 @@ class Analyzer:
                     if url.split("?", 1)[0] == path:
                         codes.update(c)
             n404 = codes.get("404", 0) + codes.get("410", 0)
-            evidence = [self.codes_line(codes)] + self.referer_lines(detail, facts)
+            evidence = [self.codes_line(codes)] + self.referer_lines(detail, facts) + (self.origin_lines(detail) if n404 else [])
             agents = Counter(detail.get("agents") or {})
+            if REGISTRATION_SUCCESS_RE.search(path) and n404:
+                self.registration_success(path, n404, detail, evidence, details.get("registrations"))
+                continue
             if path.rstrip("/").endswith("sitemap.xml") and not WP_SITEMAP_RE.search(path):
-                if codes and all(str(c) == "403" or str(c)[:1] == "3" for c in codes):
+                refused = {str(c) for c in codes if str(c)[:1] in ("4", "5")}          # 1.4: the 200 of the visitors and of the program itself do not count
+                if refused and refused <= {"403"}:
                     self.add("sitemap-xml-403", INFO, tr("sitemap.xml refused (403) to robots of the blocking list"), n, evidence,
                              tr("bot_blocker.conf refuses these robots: expected"), [tr("nothing to do, unless a search engine you want is refused")])
                 else:
@@ -629,6 +681,29 @@ class Analyzer:
                 advice = advice + [tr("correct the link in the page that holds it (Linked from the site itself)")]
             advice = advice or [tr("add a 301 redirect to the replacement page (Website > Configuration > Redirects), or publish it again")]
             self.add("dead-link:" + path, severity, tr("{n} answers 404 on {url}").format(n=count, url=raw(path)), count, evidence + site, cause, advice)
+
+    def registration_success(self, path, count, detail, evidence, regs):
+        """1.5: 404 on the confirmation page of an event registration. Odoo 18 shows it only to the visitor (cookie) who registered and answers 404 to anybody else, even
+        when the registration exists. `regs` = what app-log-live.py read in the database for the registration_ids of these links (None: database not readable)."""
+        tr, raw = self.tr, self.raw
+        evidence = list(evidence)
+        browsers = detail.get("browser_hits") or 0
+        if regs and regs.get("asked"):
+            evidence.append(tr("Registrations of these links in Odoo: {found} found of {asked}, {nov} with no visitor recorded (no cookie at the registration)").format(
+                found=regs["found"], asked=regs["asked"], nov=regs["no_visitor"]))
+            if regs.get("duplicates"):
+                evidence.append(tr("{n} people registered several times for the same event (they probably tried again after the 404)").format(n=regs["duplicates"]))
+        if not browsers:
+            self.add("registration-404:" + path, INFO, tr("{n} answers 404 on {url}: confirmation page opened by robots or link previews").format(n=count, url=raw(path)), count, evidence,
+                     tr("Odoo shows the confirmation of a registration only to the visitor who registered (cookie): a robot or a link preview has none"),
+                     [tr("nothing to do")])
+            return
+        advice = [tr("rlq-odoo-addons: show a thank-you page (the confirmation e-mail was sent) instead of the 404 when the visitor is unknown"),
+                  tr("check the cookies bar of the website (Website > Configuration > Settings): without the cookie, Odoo cannot recognise the visitor"),
+                  tr("Events > Registrations: look for the same e-mail registered twice for the same event")]
+        self.add("registration-404:" + path, LOOK, tr("{n} answers 404 on {url}: confirmation page of a registration").format(n=count, url=raw(path)), count, evidence,
+                 tr("the registration exists, but Odoo shows its confirmation only to the visitor (cookie) who made it: private browsing, blocked cookies or another browser give a 404"),
+                 advice)
 
     # --- Odoo errors ---------------------------------------------------------------------------------------------------------------
     def rule_odoo_errors(self, facts, details):
@@ -750,7 +825,7 @@ class Analyzer:
     # --- slow requests -----------------------------------------------------------------------------------------------------------
     def rule_slow(self, facts, details):
         tr, raw = self.tr, self.raw
-        slow = facts.get("slow") or []
+        slow = [s for s in (facts.get("slow") or []) if not LONG_CONNECTION_RE.search(s.get("url") or "")]          # 1.4: a websocket is open for hours: not slow
         if not slow:
             return
         t_sql = sum(s.get("t_sql") or 0 for s in slow)
@@ -786,7 +861,10 @@ class Analyzer:
                 elif kind == "memory":
                     conf_advice.append(tr("the workers may need about {need} MB, close to the {mem} MB of the machine: add memory or lower workers").format(need=a, mem=b))
                 elif kind == "limit-real":
-                    conf_advice.append(tr("the slowest request took {s} s, close to limit_time_real={limit} s: beyond it, Odoo stops the request (the visitor gets an error)").format(s=a, limit=b))
+                    if a > b:
+                        conf_advice.append(tr("the slowest request took {s} s, more than limit_time_real={limit} s: Odoo stops such a request (the visitor gets an error), unless it is a long connection (websocket)").format(s=a, limit=b))
+                    else:
+                        conf_advice.append(tr("the slowest request took {s} s, close to limit_time_real={limit} s: beyond it, Odoo stops the request (the visitor gets an error)").format(s=a, limit=b))
         if cold >= 2 and 2 * cold >= len(slow) or (restarts and after * 2 >= len(slow)):
             cause = tr("cold cache after a restart or an update: assets and views computed once")
             advice = [tr("odoo-warmup.py right after each restart or update of Odoo (odoo-update-module.sh does it)")]

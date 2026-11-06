@@ -120,7 +120,7 @@ from urllib.parse import unquote, urlsplit
 from collections import Counter, OrderedDict
 from concurrent.futures import Future
 
-__version__ = "1.170.20261105.130658"
+__version__ = "1.172.20261106.094106"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
@@ -2080,6 +2080,8 @@ def line_detail(L):
 
 def line_duration(L):
     """1.169: duration of a request line in seconds (Odoo times of a merged line included), or None."""
+    if LONG_CONNECTION_RE.search(L.text or ""):          # 1.171: a websocket kept open for hours is not a slow request (merged line included)
+        return None
     d = line_detail(L)
     if d is not None and getattr(L, "odoo_times", None) and request_detail(L.text or "") is None:
         return d[2] + d[3]
@@ -2091,6 +2093,7 @@ def url_template(url):
     return re.sub(r"\d+", "N", url.split("?", 1)[0])
 
 
+NO_PROBE_RE = re.compile(r"/registration/success$|/my_tickets$")        # 1.171: pages that Odoo 18 serves only with their parameters (registration_ids, tickets_hash)
 COLD_RE = re.compile(r"/web/assets/|/web/bundle/|/get_views\b|/web/webclient/(?:load_menus|translations)")      # work that Odoo redoes once after a restart or a module update
 
 
@@ -3942,6 +3945,19 @@ class Bans:
             return None
         epoch, jail = max(before)
         return (epoch, jail) if instant - epoch <= self.BAN_LABEL_WINDOW else None
+
+    def ban_after(self, ip, instant):
+        """1.171: epoch of the first fail2ban ban of this address AFTER the instant (journal), or None. A request made before its ban was not blocked."""
+        try:
+            address = ipaddress.ip_address(ip)
+        except ValueError:
+            return None
+        with self.lock:
+            events = (self.journal or {}).get(address)
+        if not events or instant is None:
+            return None
+        later = [e[0] for e in events if e[0] > instant]
+        return min(later) if later else None
 
     def first_ban_of(self, ip):
         """1.151: (epoch of the first ban, sorted jails) of this address in the fail2ban journal, or None. Used by the summary of the suspicious addresses."""
@@ -6377,7 +6393,14 @@ def follow(cmd, people, resolver, options, output):
         text, ips0, source = base, find_ips(L.text), None
         if banned_ips is not None and ips0 and ips0[0][2] in renderings and renderings[ips0[0][2]][3] is None:        # never for the whitelist or a place
             source = banned_ips.source_of(ips0[0][2])
-            if source:
+            later = None
+            if source and banned_ips.ban_before(ips0[0][2], L.instant) is None:
+                later = banned_ips.ban_after(ips0[0][2], L.instant)          # 1.171: banned NOW, but only after this request: it went through (200, 303...)
+            if later is not None:
+                label = TR("[BANNED LATER]") if L.database == "nginx" else f"[banned later: {source} {clock_of(later)}]"
+                text += " " + color_code(STYLES["banned"], label)
+                source = None                                                # not a request of a banned address: not counted as one
+            elif source:
                 label = TR("[BANNED]") if L.database == "nginx" else f"[banned: {source}]"      # 1.119: nginx lines: [BANNIE] at the end
                 text += " " + color_code(STYLES["banned"], label)
             else:
@@ -7346,6 +7369,20 @@ def follow(cmd, people, resolver, options, output):
                 rows = odoo_db._requete(bases[0], f"SELECT count(*) FROM res_users WHERE share AND create_date > now() - interval '{days} days'")
                 details["signup"] = {"scope": params.get("auth_signup.invitation_scope", "b2b"),
                                      "new_users": int(rows[0][0]) if rows and rows[0] and rows[0][0].isdigit() else None}
+            reg_ids = set()                                               # 1.172: registrations of the 404 confirmation links: does the registration exist, and was a visitor recorded?
+            for path, d in (details.get("nginx") or {}).items():
+                if module.REGISTRATION_SUCCESS_RE.search(path):
+                    for q in d.get("queries") or ():
+                        if "registration_ids=" in q:
+                            reg_ids |= {int(x) for x in re.findall(r"\d+", q.split("registration_ids=", 1)[1].split("&", 1)[0])}
+            if reg_ids:
+                id_list = ",".join(str(i) for i in sorted(reg_ids)[:200])
+                rows = odoo_db._requete(bases[0], f"SELECT id, state, visitor_id IS NOT NULL FROM event_registration WHERE id IN ({id_list})")
+                twice = odoo_db._requete(bases[0], f"SELECT count(*) FROM (SELECT 1 FROM event_registration r WHERE r.email IN (SELECT email FROM event_registration WHERE id IN ({id_list})) "
+                                                   f"GROUP BY r.event_id, r.email HAVING count(*) > 1) d")
+                if rows is not None:
+                    details["registrations"] = {"asked": len(reg_ids), "found": len(rows), "no_visitor": sum(1 for r in rows if len(r) > 2 and r[2] in ("f", "false")),
+                                                "duplicates": int(twice[0][0]) if twice and twice[0] and twice[0][0].isdigit() else 0}
             for path in pages_404[:10]:
                 rec = record_of(path)
                 if rec:
@@ -7358,8 +7395,13 @@ def follow(cmd, people, resolver, options, output):
             advise_progress["p"].step(TR("answer of the site now (pages answering 404)"))
         host = (facts["site_hosts"] or [None])[0]
         if host and not os.environ.get("NGINX_TOOLS_TESTS"):
+            sent_url = {}                                                 # 1.171: the page is asked again WITH the parameters that were sent (a filter form has ?tags=&type=all...)
+            for full_url in list(facts["gone_404"]) + list(facts.get("plain_4xx") or {}):
+                sent_url.setdefault(full_url.split("?", 1)[0], full_url)
             for path in pages_404[:10]:
-                code, _body = local_request(443, host, True, path, delay=6)
+                if NO_PROBE_RE.search(path):                              # 1.171: these pages need parameters: asked without them, Odoo raises a TypeError (500) of our own making
+                    continue
+                code, _body = local_request(443, host, True, sent_url.get(path, path), delay=6)
                 if code:
                     details["now"][path] = code
         elif host and os.environ.get("APP_LOG_LIVE_TEST_NOW"):            # tests: the answer of the site now, given by the test

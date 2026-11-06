@@ -139,6 +139,69 @@ class Regles(unittest.TestCase):
         self.assertNotIn("dead-link:/bots", f)                                  # 403 : robots refusés, pas une page morte
         self.assertNotIn("dead-link:/rare", f)                                  # moins de 3
 
+    def test_nginx_details_qui_a_demande_et_qui_a_repondu(self):
+        """1.5: robots / browsers, repeated addresses and the size of the 404 are read in the access log by the program itself."""
+        ligne = ('{ip} - - [20/Oct/2026:14:49:04 -0400] "GET /en_CA/event/x-129/registration/success?registration_ids={i} HTTP/1.1" 404 {b} "{ref}" "{ua}" host="s.example"')
+        ua_nav = "Mozilla/5.0 (iPhone; CPU iPhone OS 26_6_1 like Mac OS X) AppleWebKit/605.1.15 Mobile/15E148"
+        ua_bot = "Mozilla/5.0 (Linux; Android 10; K) Chrome/138.0.0.0 Mobile Safari/537.36 (compatible; Google-Read-Aloud; +https://support.google.com)"
+        lignes = [ligne.format(ip="24.1.1.1", i=1913, b=6910, ref="https://s.example/register", ua=ua_nav),
+                  ligne.format(ip="24.1.1.2", i=1913, b=6911, ref="https://s.example/register", ua=ua_nav),
+                  ligne.format(ip="66.249.1.1", i=1986, b=7578, ref="-", ua=ua_bot)]
+        with tempfile.TemporaryDirectory() as d:
+            chemin = os.path.join(d, "access.log")
+            with open(chemin, "w", encoding="utf-8") as f:
+                f.write("\n".join(lignes) + "\n")
+            res = ADV.nginx_details([chemin], ["/en_CA/event/x-129/registration/success"])
+        detail = res["/en_CA/event/x-129/registration/success"]
+        self.assertEqual(detail["browser_hits"], 2)
+        self.assertEqual(detail["browser_ips"], {"24.1.1.1", "24.1.1.2"})
+        self.assertEqual(sum(detail["robots"].values()), 1)
+        self.assertEqual(detail["browser_queries"]["registration_ids=1913"], 2)
+        self.assertEqual(sorted(detail["bytes_4xx"]), [6910, 6911, 7578])
+        f = par_id(ADV.analyze(faits(plain_4xx={"/en_CA/event/x-129/registration/success": 3},
+                                     codes_by_url={"/en_CA/event/x-129/registration/success": {"404": 3}}),
+                               {"nginx": res, "registrations": {"asked": 2, "found": 2, "no_visitor": 1, "duplicates": 1}}))
+        trouve = f["registration-404:/en_CA/event/x-129/registration/success"]
+        self.assertEqual(trouve["severity"], ADV.LOOK)
+        texte = " ".join(trouve["evidence"])
+        self.assertIn("page is the one of Odoo (6.7 KB)", texte)
+        self.assertIn("1 robots, link previews or tools", texte)
+        self.assertIn("2 browsers from 2 addresses", texte)
+        self.assertIn("?registration_ids=1913 ×2", texte)
+        self.assertIn("2 found of 2, 1 with no visitor recorded", texte)
+        self.assertIn("1 people registered several times", texte)
+
+    def test_page_404_de_nginx_et_confirmation_ouverte_par_des_robots(self):
+        d = {"codes": Counter({"404": 3}), "referers": Counter(), "hosts": Counter(), "agents": Counter(), "bytes_4xx": [146, 146, 146],
+             "robots": Counter({"WhatsApp/2.23": 3}), "browser_hits": 0, "browser_ips": set(), "browser_queries": Counter()}
+        chemin = "/event/x-119/registration/success"
+        f = par_id(ADV.analyze(faits(plain_4xx={chemin: 3}, codes_by_url={chemin: {"404": 3}}), {"nginx": {chemin: d}}))
+        self.assertEqual(f["registration-404:" + chemin]["severity"], ADV.INFO)
+        self.assertIn("the one of nginx (146 bytes)", " ".join(f["registration-404:" + chemin]["evidence"]))
+        autre = "/shop/tasse"
+        d2 = dict(d, bytes_4xx=[146] * 6, codes=Counter({"404": 6}))
+        f = par_id(ADV.analyze(faits(plain_4xx={autre: 6}, codes_by_url={autre: {"404": 6}}), {"nginx": {autre: d2}}))
+        self.assertIn("a rule or a location of nginx refuses", " ".join(f["dead-link:" + autre]["evidence"]))
+
+    def test_sitemap_xml_403_avec_des_200_reste_une_information(self):
+        """1.4: the 200 answers of the visitors and of the program itself do not turn the 403 of the refused robots into a point to look at."""
+        details = {"nginx": {"/sitemap.xml": {"codes": Counter({"403": 5, "200": 20}), "referers": Counter(), "hosts": Counter(),
+                                              "agents": Counter({"ClaudeBot/1.0": 4, "app-log-live (sitemap check)": 15})}}}
+        f = par_id(ADV.analyze(faits(plain_4xx={"/sitemap.xml": 5}, codes_by_url={"/sitemap.xml": {"403": 5, "200": 20}}), details))
+        self.assertEqual(f["sitemap-xml-403"]["severity"], ADV.INFO)
+        self.assertNotIn("sitemap-xml-4xx", f)
+
+    def test_websocket_jamais_lent_et_limite_depassee(self):
+        """1.4: a websocket open for hours is not a slow request; a real request beyond limit_time_real is not described as « close to » it."""
+        ws = [{"total": 4911.0, "url": "/websocket", "ip": "x", "t_sql": 0.0, "t_py": 4911.0, "t": time.time()} for _ in range(10)]
+        self.assertNotIn("slow-requests", par_id(ADV.analyze(faits(slow=ws))))
+        _ev, conseils, _cause = ADV.odoo_settings_advice({"workers": "13", "limit_time_real": "600"}, 6, 16000, slowest=4911)
+        lent = [{"total": 4911.0, "url": "/shop", "ip": "x", "t_sql": 0.0, "t_py": 4911.0, "t": time.time()}]
+        conf = {"odoo_conf": {"path": "/etc/odoo/odoo.conf", "values": {"workers": "13", "limit_time_real": "600"}, "cpus": 6, "mem_mb": 16000}}
+        texte = " ".join(par_id(ADV.analyze(faits(slow=lent), conf))["slow-requests"]["advice"])
+        self.assertIn("more than limit_time_real=600", texte)
+        self.assertNotIn("close to limit_time_real", texte)
+
     def test_sitemap_xml_403_et_404(self):
         f = par_id(ADV.analyze(faits(plain_4xx={"/sitemap.xml": 12}, codes_by_url={"/sitemap.xml": {"403": 12}})))
         self.assertEqual(f["sitemap-xml-403"]["severity"], ADV.INFO)
