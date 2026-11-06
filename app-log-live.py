@@ -120,7 +120,7 @@ from urllib.parse import unquote, urlsplit
 from collections import Counter, OrderedDict
 from concurrent.futures import Future
 
-__version__ = "1.172.20261106.094106"
+__version__ = "1.173.20261106.095017"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
@@ -2273,7 +2273,7 @@ class Formatting:
             position = cut_end
         pieces.append(self.colored_text(text, retained, position, len(text)))
         tail = re.sub(" {2,}", " ", "".join(pieces)).replace('"', "")
-        tag = sitemap_tag(code, m.group(1).split(" ", 1)[-1])            # 1.144: the sitemap tag of a 404 goes at the END of the line
+        tag = sitemap_tag(code, m.group(1).split(" ", 1)[-1], local_probe(text, m.group(1).split(" ", 1)[-1]))            # 1.144: the sitemap tag of a 404 goes at the END of the line
         return before + block + "   " + rl_column + os_column + " " + request_data + tail + tag
 
     def aligned_request(self, text, retained):
@@ -2307,7 +2307,7 @@ class Formatting:
         if not ANSI_RE.sub("", before).endswith(" "):          # name as wide as its column: never "this serverHTTP/1.1" stuck together, at least one space before HTTP
             before += " "
         rl_blank = " " * (RL_WIDTH + 1) if self.request_length else ""          # 1.136: same column as nginx lines (blank in an Odoo line)
-        tag = sitemap_tag(code, m.group(1).split(" ", 1)[-1])            # 1.144: the sitemap tag of a 404 Odoo line, at the end too
+        tag = sitemap_tag(code, m.group(1).split(" ", 1)[-1], local_probe(text, m.group(1).split(" ", 1)[-1]))            # 1.144: the sitemap tag of a 404 Odoo line, at the end too
         return before + block + "   " + rl_blank + OS_BLANK + " " + request_data + tag          # 1.133: the same column as nginx lines (blank: no User-Agent in the Odoo line)
 
     def slowness_style(self, total):
@@ -4660,10 +4660,19 @@ class Sitemap:
         return sitemap_path(url) in paths
 
 
-def sitemap_tag(code, url):
+def local_probe(text, url):
+    """1.173: a security test of THIS server (app-health-check.py: traversal in the query string, /.env, /.git/config...): a suspicious URL asked from the
+    loopback address. It answers 404 on purpose (nginx blocks it): neither an error to correct nor a page to look for in sitemap.xml."""
+    ips = find_ips(text)
+    return bool(ips) and local_address(ips[0][2]) and suspect_url(url)
+
+
+def sitemap_tag(code, url, probe=False):
     """1.144 --sitemap: the tag shown at the END of a 404 line: [in sitemap.xml] (important page, counted in the health), [not in sitemap.xml] (never
     existed, not counted), [disabled] (refused on purpose by our configuration), [not read yet] (sitemap not read). "" for the other lines and when
     --sitemap is off. French: [dans sitemap.xml], [pas dans sitemap.xml], [désactivé], [pas encore lu]."""
+    if str(code) == "404" and probe:                              # 1.173: blocked on purpose, by the test of this server
+        return " " + color_code(STYLES["debug"], TR("[probe of this server]"))
     if SITEMAP is None or str(code) != "404":
         return ""
     if is_disabled(url):                                          # refused on purpose by our configuration (--disable-uri)
@@ -4967,7 +4976,8 @@ class Stats:
                 if instant - self.last_seen_at.get(ip, float("-inf")) > self.VISIT_PAUSE:
                     self.visits[ip] += 1
                 self.last_seen_at[ip] = max(instant, self.last_seen_at.get(ip, instant))
-        if suspect_url(url) and (ip in self.server or local_address(ip)):
+        probe = suspect_url(url) and (ip in self.server or local_address(ip))
+        if probe:
             self.probes[url] += 1
         elif suspect_url(url):
             self.suspect_ips[ip] += 1
@@ -4975,11 +4985,11 @@ class Stats:
         if ACCOUNT_FORM_RE.search(url) and not (ip in self.server or local_address(ip)):
             self.account_ips[ip] += 1
             self.account_urls[url.split("?", 1)[0]] += 1
-        if code >= 400:
+        if code >= 400 and not (probe and code < 500):                # 1.173: the 404 of the security tests of this server (app-health-check.py) are expected
             self.errors[5 if code >= 500 else 4][url] += 1
             self.http_errors.append((L.instant or time.time(), code, url, ip))
             del self.http_errors[:-2000]
-        if code == 404:
+        if code == 404 and not probe:
             self.not_found[url] += 1
             self.ip_not_found.setdefault(ip, set()).add(url.split("?", 1)[0])
             if is_disabled(url):                                                # 1.143: refused on purpose by our configuration: neither important nor an attack
@@ -5701,6 +5711,8 @@ class StatusBar:
             code = int(request.group(2))
             if 400 <= code < 500 and is_bot_403(L):
                 self.bots403 += 1                                               # 1.130: policy, not an error: no health penalty, no problem address
+            elif 400 <= code < 500 and local_probe(L.text or "", request.group(1)):
+                pass                                                            # 1.173: security test of this server (app-health-check.py): blocked on purpose, no penalty
             elif 400 <= code < 500:
                 self.e4 += 1
                 self.codes[code] += 1

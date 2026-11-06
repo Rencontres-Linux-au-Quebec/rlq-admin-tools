@@ -3228,3 +3228,7 @@ msgstr " (sitemap.xml lu en arrière-plan ; lignes suivantes)"
 # 1.171
 msgid "[BANNED LATER]"
 msgstr "[BANNIE PLUS TARD]"
+
+# 1.173
+msgid "[probe of this server]"
+msgstr "[sonde de ce serveur]"

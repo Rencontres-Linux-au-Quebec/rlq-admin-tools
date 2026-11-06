@@ -4948,3 +4948,42 @@ class AppLogLive172(unittest.TestCase):
         bloc = src.split("reg_ids = set()", 1)[1].split("for path in pages_404[:10]:", 1)[0]
         self.assertIn("SELECT id, state, visitor_id IS NOT NULL FROM event_registration", bloc)
         self.assertNotRegex(bloc, r"\b(?:UPDATE|DELETE|INSERT)\b")              # reading only (the PostgreSQL transaction is also forced read-only)
+
+
+class AppLogLive173(unittest.TestCase):
+    """1.173 : le 404 voulu des tests de sécurité de ce serveur (app-health-check.py, chaque heure) n'est ni une erreur, ni un 404 à corriger."""
+
+    @classmethod
+    def setUpClass(cls):
+        spec = importlib.util.spec_from_file_location("live173", script_path("app-log-live.py"))
+        cls.m = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(cls.m)
+
+    NGINX = ('2026-11-06T08:06:03.000000-0500 odoo18 http: {ip} - - "GET /some/page?file=../conf/conf.php HTTP/1.1" 404 548 "-" '
+             '"Mozilla/5.0 app-health-check/2.3" host=www.example.org')
+
+    def test_173_test_local_pas_une_erreur(self):
+        L = self.m.Line(self.NGINX.format(ip="127.0.0.1"))
+        s = self.m.Stats(5.0)
+        s.ajouter(L, {}, None)
+        self.assertEqual(dict(s.errors[4]), {})
+        self.assertEqual(len(s.not_found), 0)
+        self.assertEqual(sum(s.probes.values()), 1)
+        barre = self.m.StatusBar()
+        barre.observe(L, None, 5.0, "127.0.0.1")
+        self.assertEqual(barre.e4, 0)
+
+    def test_173_meme_requete_d_une_adresse_externe_comptee(self):
+        L = self.m.Line(self.NGINX.format(ip="11.2.3.4"))
+        s = self.m.Stats(5.0)
+        s.ajouter(L, {}, None)
+        self.assertEqual(sum(s.errors[4].values()), 1)
+        barre = self.m.StatusBar()
+        barre.observe(L, None, 5.0, "11.2.3.4")
+        self.assertEqual(barre.e4, 1)
+
+    def test_173_etiquette_sonde(self):
+        self.assertIn("[sonde de ce serveur]", self.m.ANSI_RE.sub("", self.m.sitemap_tag("404", "/x?file=../a", True)))      # French by default, like the screen
+        self.assertEqual(self.m.sitemap_tag("200", "/x", True), "")
+        with open(script_path("app-log-live.py"), encoding="utf-8") as f:
+            self.assertGreaterEqual(f.read().count("local_probe(text, m.group(1)"), 2)       # nginx line and Odoo line
