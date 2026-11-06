@@ -4987,3 +4987,40 @@ class AppLogLive173(unittest.TestCase):
         self.assertEqual(self.m.sitemap_tag("200", "/x", True), "")
         with open(script_path("app-log-live.py"), encoding="utf-8") as f:
             self.assertGreaterEqual(f.read().count("local_probe(text, m.group(1)"), 2)       # nginx line and Odoo line
+
+
+class AppLogLive174(unittest.TestCase):
+    """1.174 : /web/reset_password et /web/signup en rouge inversé seulement à partir de la 4e demande de la même adresse."""
+
+    @classmethod
+    def setUpClass(cls):
+        spec = importlib.util.spec_from_file_location("live174", script_path("app-log-live.py"))
+        cls.m = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(cls.m)
+
+    LIGNE = ('2026-11-06T08:06:03.000000-0500 odoo18 http: 11.2.3.4 - - "GET /web/reset_password HTTP/1.1" 200 5000 "-" "Mozilla/5.0" host=www.example.org')
+
+    def rouge(self, forme):
+        ancien, self.m.COLOR = self.m.COLOR, True
+        try:
+            return "[7;31m" in forme.format_value(self.m.Line(self.LIGNE), {}, False)
+        finally:
+            self.m.COLOR = ancien
+
+    def test_174_rouge_a_partir_de_la_quatrieme_demande(self):
+        compte = {}
+        forme = self.m.Formatting(False, 20, 5.0, False)
+        forme.account_count, forme.account_pending = (lambda ip: compte.get(ip, 0)), 1
+        vus = []
+        for n in range(1, 6):
+            vus.append(self.rouge(forme))
+            compte["11.2.3.4"] = n
+        self.assertEqual(vus, [False, False, False, True, True])
+
+    def test_174_lignes_deja_comptees_et_sans_compteur(self):
+        forme = self.m.Formatting(False, 20, 5.0, False)
+        forme.account_count = lambda ip: 4                 # shown again (f key): already counted, pending 0 -> 4 > 3
+        self.assertTrue(self.rouge(forme))
+        forme.account_count = lambda ip: 3
+        self.assertFalse(self.rouge(forme))
+        self.assertTrue(self.rouge(self.m.Formatting(False, 20, 5.0, False)))              # no counter: as before 1.174

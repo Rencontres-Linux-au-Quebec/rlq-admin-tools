@@ -120,7 +120,7 @@ from urllib.parse import unquote, urlsplit
 from collections import Counter, OrderedDict
 from concurrent.futures import Future
 
-__version__ = "1.173.20261106.095017"
+__version__ = "1.174.20261106.095903"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
@@ -288,6 +288,7 @@ def is_error_line(L):
     return L.level in ("WARN", "WARNING", "ERROR", "CRITICAL") or "Traceback (most recent call last)" in text or bool(LOGIN_FAILED_RE.search(text))
 
 
+ACCOUNT_FORM_ALERT_N = 3          # 1.174: one password reset or sign-up form is normal (a visitor, a link followed): red only from the 4th request of the SAME address
 ACCOUNT_FORM_RE = re.compile(r"/(?:[a-z]{2}(?:_[A-Z]{2})?/)?web/(?:reset_password|signup)(?![\w-])")      # 1.157: password reset and sign-up forms: red reverse video, counted per address
 LOGOUT_RE = re.compile(r'"(?:GET|POST)\s/(?:[a-z]{2}(?:_[A-Z]{2})?/)?web/session/logout[^"]*"')
 LOGIN_OK_RE = re.compile(r"(Login successful) for db:\S+ (login:\S+)")
@@ -2121,6 +2122,8 @@ class Formatting:
     """Builds the displayed line: normalized header, then the text with its words in color. All the detection is done on the
     RAW text (never on already colored text); a detection that overlaps a higher-priority one (the IP address first) is ignored."""
     def __init__(self, minimal=False, width=COLUMN_WIDTH, slowest=0.0, status_header=False, hide_user_agent=False, request_length=False, display_host=False):
+        self.account_count = None                                           # 1.174: function(address) -> requests of the account forms already counted for it (None: always red)
+        self.account_pending = 0                                            # 1.174: 1 when the line is formatted BEFORE it is counted (the live display), 0 when it already is
         self.display_host = display_host                                    # 1.145 --display-host: the host= of the nginx lines is shown (default: hidden)
         self.request_length = request_length                                # 1.136 --request-length: rl= of the nginx lines in its own column before the GET
         self.hide_user_agent = hide_user_agent                              # 1.134 --hide-user-agent: the User-Agent text is not shown (the OS column stays)
@@ -2177,7 +2180,7 @@ class Formatting:
                 ajouter(r.start(1), r.end(1), color_code(STYLES["suspect"], r.group(1)))              # suspect: the URL as it was sent (%2e%2e stays visible)
             elif code >= 500:
                 ajouter(r.start(1), r.end(1), color_code(STYLES["url_critical"], shown_url))
-        if r and ACCOUNT_FORM_RE.search(r.group(1)):                    # 1.157: password reset / sign-up form: the URL in RED reverse video (before the login style)
+        if r and ACCOUNT_FORM_RE.search(r.group(1)) and self.account_form_repeated(text):      # 1.157: password reset / sign-up form: RED reverse video, 1.174: from the 4th request of an address
             ajouter(r.start(1), r.end(1), color_code(STYLES["account"], shown_url))
         for m in LOGIN_PATH_RE.finditer(text):
             ajouter(m.start(1), m.end(1), color_code(STYLES["connection"], m.group(1)))
@@ -2275,6 +2278,13 @@ class Formatting:
         tail = re.sub(" {2,}", " ", "".join(pieces)).replace('"', "")
         tag = sitemap_tag(code, m.group(1).split(" ", 1)[-1], local_probe(text, m.group(1).split(" ", 1)[-1]))            # 1.144: the sitemap tag of a 404 goes at the END of the line
         return before + block + "   " + rl_column + os_column + " " + request_data + tail + tag
+
+    def account_form_repeated(self, text):
+        """1.174: True when the address of the line asked the password reset / sign-up forms MORE than ACCOUNT_FORM_ALERT_N times (this request included)."""
+        if self.account_count is None:
+            return True
+        ips = find_ips(text)
+        return bool(ips) and self.account_count(ips[0][2]) + self.account_pending > ACCOUNT_FORM_ALERT_N
 
     def aligned_request(self, text, retained):
         """Werkzeug line: "… \"GET /url HTTP/1.1\" 200 - 13 0.006 0.066" becomes "… HTTP/1.1 200       - 13 0.006 0.066  \"GET /url\"": the block of numbers, of fixed width,
@@ -6135,6 +6145,7 @@ def follow(cmd, people, resolver, options, output):
     form, presence = Formatting(options["minimal"], address_width(), options["slow"], options.get("status_header", False), hide_user_agent=options.get("hide_user_agent", False), request_length=options.get("request_length", False), display_host=options.get("display_host", False)), options["presence"]
     state = {"read_files": 0, "summarized": False, "keep_going": True}
     stats, banned_ips = Stats(options["slow"]), options["banned_ips"]
+    form.account_count, form.account_pending = (lambda address: stats.account_ips.get(address, 0)), 1          # 1.174: the live lines are formatted just before they are counted
     LATENCY.start()                                         # 1.82: kernel counters every LATENCY_SAMPLE_S seconds (latency report: key P, Ctrl-G, summary)
     stats.is_banned = banned_ips.source_of if banned_ips is not None else None
     stats.ban_info = banned_ips.first_ban_of if banned_ips is not None else None        # 1.151: bans of the fail2ban journal, for the summary
@@ -6764,6 +6775,7 @@ def follow(cmd, people, resolver, options, output):
         if not earlier or not options["recap"]:
             return
         reminder_form, lines = Formatting(options["minimal"], address_width(), options["slow"], options.get("status_header", False), hide_user_agent=options.get("hide_user_agent", False), request_length=options.get("request_length", False), display_host=options.get("display_host", False)), []
+        reminder_form.account_count = form.account_count                    # 1.174: lines already counted (pending 0)
         for _, old_one, _ in earlier[-50:]:
             if (options["minimal"] and old_one.discard_in_min()) or (options["hide_addons"] and old_one.discard_addons()):
                 continue

@@ -371,6 +371,18 @@ Earlier history was archived outside this repository when this file was created.
 
 ## app-log-live.py
 
+### 1.174.20261106.095903 - Password reset and sign-up forms in red only from the 4th request of an address
+
+- Title: /web/reset_password and /web/signup are shown in red reverse video only when the same address asks them more than three times.
+- Reason: request of the administrator on 2026-11-06: "/web/reset_password affiche en inverse video en rouge, mais ce n'est pas encore une erreur, mais seulement si on retrouve cela plus que trois fois".
+- Changes:
+  - app-log-live.py: ACCOUNT_FORM_ALERT_N = 3; Formatting.account_form_repeated(), account_count and account_pending (the live line is formatted just before it is counted by Stats, the lines shown again by the f and P keys are already counted); follow() connects the counter of Stats.account_ips to both formatters.
+  - doc/fr/07-app-log-live.md, doc/en/07-app-log-live.md: the rule. nginx-tools-tests/test_app_log_live.py: class AppLogLive174.
+- Bugs fixed: none.
+- Safeguards and edge cases: the count is per address (a robot that follows the link of each page is red from its 4th request, the summary "Account forms" still counts them all); this server's own addresses are never counted; without a counter (a Formatting used alone) the form stays red as before.
+- Checks performed: AppLogLive174 (2 tests), AppLogLive173, test_i18n (only the failures already present on main), test_docs.
+- Action required: none.
+
 ### 1.173.20261106.095017 - Security tests of this server are not 404 errors
 
 - Title: the 404 answers of the hourly security tests of app-health-check.py (launched by web-monitor.py) are no longer counted as errors, nor tagged for sitemap.xml.
