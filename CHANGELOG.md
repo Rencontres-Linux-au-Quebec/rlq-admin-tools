@@ -371,6 +371,16 @@ Earlier history was archived outside this repository when this file was created.
 
 ## app-log-live.py
 
+### 1.176.20261106.110050 - Analysis: facts about the addresses of this server
+
+- Title: the analysis knows which addresses are the ones of this server.
+- Reason: review on 2026-11-06 of the report of one day of the administrator (see apps/_advisor.py 1.6).
+- Changes: app-log-live.py hands over facts["server_ips"] (Stats.server) to the analysis. nginx-tools-tests/test_advisor.py: three tests.
+- Bugs fixed: none in this program (see apps/_advisor.py 1.6).
+- Safeguards and edge cases: loopback addresses are recognised by the analysis even when the list is empty.
+- Checks performed: test_advisor (44 tests), test_i18n (only the failures already present on main).
+- Action required: none.
+
 ### 1.175.20261106.104955 - --advise --days N analyses N days; the analysed period is said
 
 - Title: `--advise` without a value uses the window of `--days` when it is given; the program prints the period it analyses.
@@ -4755,6 +4765,24 @@ Earlier history was archived outside this repository when this file was created.
   - Not changed: nginx-log-audit.sh keeps its own bash values (its --page-burst default is 8 against 15 here; this difference is still to be decided).
 
 ## apps/_advisor.py
+
+### 1.6.20261106.110050 - Analysis: tests of this server, robot names, 404 of nginx, known people
+
+- Title: six findings of the report of one day corrected so that the analysis tells the truth.
+- Reason: review on 2026-11-06 of the report of one day (app-log-live.py --advise --days 1) of the administrator.
+- Changes (apps/_advisor.py, lang/_advisor.fr.po, nginx-tools-tests/test_advisor.py):
+  - rule_5xx: when every requester is an address of this server (loopback, facts["server_ips"]), the finding is an information ("made by this server itself: a test, a probe or a curl") and the exception is remembered; rule_odoo_errors: the Odoo ERROR with the same exception, and no visitor with it, is an information too.
+  - server_name(): "this server" translated (it stayed in English), a loopback address is named "this server" instead of the first program seen on it.
+  - ROBOT_NAME_RE: the robots are named by their token (Google-Read-Aloud, WhatsApp/2.23.20.0) and not by the first 60 characters of the User-Agent.
+  - rule_repeated_4xx: a 404 whose page is the small one of nginx (about 150 bytes) and that the site itself links to: cause "nginx refuses an address that the site offers" and advice nginx-hardening.sh --update, instead of "correct the link".
+  - registration_success(): when every registration has a visitor, the cause says that Odoo does not recognise this visitor on the second opening; the duplicates are "to check" and no longer "probably tried again".
+  - rule_account_forms(): when half of the requests come from addresses that have an account (they have a name), the finding is an information "mostly from people already known" and no longer "a robot that creates accounts".
+- Bugs fixed:
+  - Symptom: "HTTP 5xx on registration/success: 6, problem" and "Odoo ERROR TypeError". Diagnosis: all of them were the tests of the administrator (probes of the analysis before 1.171, curl from the server); the requesters were shown as app-health-check.py and "this server". Fix: see above.
+  - Symptom: "Qinghe Sun x9, cecchino x8" described as a robot creating accounts. Diagnosis: the rule counted the requests, not who makes them. Fix: known people.
+- Safeguards and edge cases: an exception that visitors also cause stays a problem (a 5xx from an external address is never downgraded); the nginx origin needs the sizes of the 4xx answers read in the access log; without them the previous advice is kept.
+- Checks performed: test_advisor (44 tests), test_i18n (only the failures already present on main).
+- Action required: none. On the server: sudo nginx-hardening.sh --update (2.81) for the /event/page/N 404 shown by the report.
 
 ### 1.5.20261106.094106 - Who asked, who answered, retries, registrations of the confirmation links
 

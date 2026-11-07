@@ -693,9 +693,6 @@ msgstr "La même adresse redemandée par des navigateurs : "
 msgid "Registrations of these links in Odoo: {found} found of {asked}, {nov} with no visitor recorded (no cookie at the registration)"
 msgstr "Inscriptions de ces liens dans Odoo : {found} trouvées sur {asked}, {nov} sans visiteur enregistré (pas de cookie à l'inscription)"
 
-msgid "{n} people registered several times for the same event (they probably tried again after the 404)"
-msgstr "{n} personnes inscrites plusieurs fois au même événement (elles ont probablement réessayé après le 404)"
-
 msgid "{n} answers 404 on {url}: confirmation page opened by robots or link previews"
 msgstr "{n} réponses 404 sur {url} : page de confirmation ouverte par des robots ou des aperçus de liens"
 
@@ -716,3 +713,43 @@ msgstr "{n} réponses 404 sur {url} : page de confirmation d'une inscription"
 
 msgid "the registration exists, but Odoo shows its confirmation only to the visitor (cookie) who made it: private browsing, blocked cookies or another browser give a 404"
 msgstr "l'inscription existe, mais Odoo n'en montre la confirmation qu'au visiteur (cookie) qui l'a faite : navigation privée, témoins bloqués ou autre navigateur donnent un 404"
+
+# 1.6
+msgid "this server"
+msgstr "ce serveur"
+
+msgid "requests made by this server itself (a test, a probe or a curl of the administrator), no visitor involved"
+msgstr "requêtes faites par ce serveur lui-même (un test, une sonde ou un curl de l'administrateur), aucun visiteur en cause"
+
+msgid "nothing to do; if the page needs parameters (registration_ids...), Odoo answers 500 instead of 404 when they are missing: a robot could do the same"
+msgstr "rien à faire ; si la page exige des paramètres (registration_ids...), Odoo répond 500 au lieu de 404 quand ils manquent : un robot pourrait faire pareil"
+
+msgid "the same exception as the HTTP 5xx made by this server itself (tests): no visitor was affected"
+msgstr "la même exception que les erreurs HTTP 5xx faites par ce serveur lui-même (tests) : aucun visiteur touché"
+
+msgid "nginx refuses an address that the site itself offers: a rule of nginx is too strict, or the nginx configuration is not up to date"
+msgstr "nginx refuse une adresse que le site propose lui-même : une règle de nginx est trop stricte, ou la configuration de nginx n'est pas à jour"
+
+msgid "sudo nginx-hardening.sh --update (installs the latest rules of nginx/), then run this analysis again"
+msgstr "sudo nginx-hardening.sh --update (installe les dernières règles de nginx/), puis relancer cette analyse"
+
+msgid "if it still answers 404: find the rule with sudo nginx -T | grep -n 'return 404' and the address in the access log"
+msgstr "si elle répond encore 404 : trouver la règle avec sudo nginx -T | grep -n 'return 404' et l'adresse dans le journal d'accès"
+
+msgid "{n} people registered several times for the same event (to check: a new try after the 404, or the form sent twice)"
+msgstr "{n} personnes inscrites plusieurs fois au même événement (à vérifier : un nouvel essai après le 404, ou le formulaire envoyé deux fois)"
+
+msgid "the registrations were made WITH a visitor, but Odoo does not recognise it when the page is opened again: cookie replaced (sign-in, another browser or device, in-app browser) or page reopened later"
+msgstr "les inscriptions ont été faites AVEC un visiteur, mais Odoo ne le reconnaît plus quand la page est rouverte : témoin remplacé (connexion, autre navigateur ou appareil, navigateur intégré à une application) ou page rouverte plus tard"
+
+msgid "Requests of people already known to the site (an account signed in from this address): {kn} of {all_n}"
+msgstr "Requêtes de personnes déjà connues du site (un compte s'est connecté depuis cette adresse) : {kn} sur {all_n}"
+
+msgid "Sign-up and password reset forms: {n} requests, mostly from people already known"
+msgstr "Formulaires d'inscription et de mot de passe oublié : {n} requêtes, surtout de personnes déjà connues"
+
+msgid "people who have an account use the forms (forgotten password, sign-up for an event): not a robot"
+msgstr "des personnes qui ont un compte utilisent les formulaires (mot de passe oublié, inscription à un événement) : pas un robot"
+
+msgid "nothing to do; if the same person comes back often, check that the sign-in works for them"
+msgstr "rien à faire ; si la même personne revient souvent, vérifier que la connexion fonctionne pour elle"

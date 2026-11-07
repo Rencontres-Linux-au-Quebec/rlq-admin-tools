@@ -183,6 +183,50 @@ class Regles(unittest.TestCase):
         f = par_id(ADV.analyze(faits(plain_4xx={autre: 6}, codes_by_url={autre: {"404": 6}}), {"nginx": {autre: d2}}))
         self.assertIn("a rule or a location of nginx refuses", " ".join(f["dead-link:" + autre]["evidence"]))
 
+    def test_5xx_faits_par_ce_serveur_sont_une_information(self):
+        """1.6: the 500 made by the tests of the administrator (curl, probes) are not a problem, and the same exception of Odoo is not either."""
+        chemin = "/en_CA/event/x-125/registration/success"
+        trace = ["2026-11-06 13:30:51,000 1 ERROR db odoo.http: Exception during request handling.", "Traceback (most recent call last):",
+                 "  File \"/opt/odoo/odoo/odoo/http.py\", line 754, in route_wrapper", "    result = endpoint(self, *args, **params_ok)",
+                 "TypeError: WebsiteEventController.event_registration_success() missing 1 required positional argument: 'registration_ids'"]
+        f = faits(errors5={chemin: 3}, http_errors5=[(time.time(), 500, chemin, "127.0.0.1")] * 2 + [(time.time(), 500, chemin, "51.1.2.3")],
+                  server_ips=["51.1.2.3"], who={"127.0.0.1": "app-health-check.py", "51.1.2.3": "this server"},
+                  odoo_errors=[{"level": "ERROR", "logger": "odoo.http", "message": "Exception during request handling.", "n": 3, "last": time.time(), "when": "x"}])
+        res = par_id(ADV.analyze(f, {"traces_5xx": {chemin: trace}, "tracebacks": {("ERROR", "odoo.http", "Exception during request handling."): trace}}))
+        self.assertEqual(res["http-5xx:" + chemin]["severity"], ADV.INFO)
+        self.assertIn("made by this server itself", res["http-5xx:" + chemin]["cause"])
+        texte = " ".join(res["http-5xx:" + chemin]["evidence"])
+        self.assertIn("this server [127.0.0.1] ×2", texte)                       # not « app-health-check.py »: it was the tests of the administrator
+        self.assertNotIn("app-health-check.py", texte)
+        erreur = next(v for k, v in res.items() if k.startswith("odoo:"))
+        self.assertEqual(erreur["severity"], ADV.INFO)
+        self.assertIn("same exception", erreur["cause"])
+        # a visitor causing the same page to fail keeps the problem
+        f2 = faits(errors5={chemin: 3}, http_errors5=[(time.time(), 500, chemin, "11.2.3.4")] * 3, server_ips=["51.1.2.3"])
+        self.assertEqual(par_id(ADV.analyze(f2, {"traces_5xx": {chemin: trace}}))["http-5xx:" + chemin]["severity"], ADV.PROBLEM)
+
+    def test_noms_de_robots_et_404_de_nginx_avec_lien_du_site(self):
+        self.assertEqual(ADV.ROBOT_NAME_RE.search("Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (compatible; Google-Read-Aloud; +https://support.google.com)").group(0), "Google-Read-Aloud")
+        self.assertEqual(ADV.ROBOT_NAME_RE.search("WhatsApp/2.23.20.0").group(0), "WhatsApp/2.23.20.0")
+        chemin = "/event/page/2"
+        d = {"codes": Counter({"404": 5}), "referers": Counter({"https://s.example/event?date=all": 5}), "hosts": Counter({"s.example": 5}), "agents": Counter(),
+             "bytes_4xx": [146] * 5, "robots": Counter(), "browser_hits": 5, "browser_ips": {"1.1.1.1"}, "browser_queries": Counter()}
+        f = par_id(ADV.analyze(faits(plain_4xx={chemin: 5}, codes_by_url={chemin: {"404": 5}}, site_hosts=["s.example"]), {"nginx": {chemin: d}}))
+        trouve = f["dead-link:" + chemin]
+        self.assertIn("nginx refuses an address that the site itself offers", trouve["cause"])
+        self.assertTrue(any("nginx-hardening.sh --update" in a for a in trouve["advice"]))
+        self.assertFalse(any("correct the link" in a for a in trouve["advice"]))
+
+    def test_formulaires_de_compte_de_personnes_connues(self):
+        ips = {"65.93.168.160": 9, "142.116.31.94": 8, "67.69.76.24": 6, "9.9.9.9": 3}
+        who = {"65.93.168.160": "Qinghe Sun [65.93.168.160]", "142.116.31.94": "cecchino [142.116.31.94]", "67.69.76.24": "Fernando [67.69.76.24]", "9.9.9.9": "9.9.9.9"}
+        f = par_id(ADV.analyze(faits(account_ips=ips, who=who, account_urls=["/web/reset_password"]), {"nginx": {"/web/reset_password": {"methods": Counter({"GET": 20, "POST": 6})}}}))
+        self.assertEqual(f["account-forms"]["severity"], ADV.INFO)
+        self.assertIn("mostly from people already known", f["account-forms"]["title"])
+        inconnus = {"1.1.1.%d" % i: 3 for i in range(10)}
+        f = par_id(ADV.analyze(faits(account_ips=inconnus, who={}, account_urls=["/web/signup"]), {"nginx": {"/web/signup": {"methods": Counter({"POST": 30})}}}))
+        self.assertEqual(f["account-forms"]["severity"], ADV.LOOK)
+
     def test_sitemap_xml_403_avec_des_200_reste_une_information(self):
         """1.4: the 200 answers of the visitors and of the program itself do not turn the 403 of the refused robots into a point to look at."""
         details = {"nginx": {"/sitemap.xml": {"codes": Counter({"403": 5, "200": 20}), "referers": Counter(), "hosts": Counter(),

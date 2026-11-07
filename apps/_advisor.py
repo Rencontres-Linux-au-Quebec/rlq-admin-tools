@@ -31,7 +31,7 @@ import re
 import time
 from collections import Counter
 
-__version__ = "1.5.20261106.094106"
+__version__ = "1.6.20261106.110050"
 
 PROBLEM, LOOK, INFO = 2, 1, 0                         # severities: problem, to look at, information
 
@@ -60,8 +60,10 @@ NGINX_LINE_RE = re.compile(r'\[(\d{2})/([A-Za-z]{3})/(\d{4}):(\d{2}):(\d{2}):(\d
                            r'[^"]*"\s+(\d{3})\s+\S+\s+"([^"]*)"\s+"([^"]*)"')
 BYTES_RE = re.compile(r'"\s\d{3}\s(\d+)\s')                 # 1.5: size of the response (a 404 of nginx is about 150 bytes, a 404 page of Odoo several KB)
 # 1.5: robots, link previews and tools (they have no cookie: Odoo pages reserved to a visitor answer them 404)
-ROBOT_AGENT_RE = re.compile(r"bot\b|bot/|crawl|spider|slurp|Google-Read-Aloud|WhatsApp|facebookexternalhit|LinkedInBot|Twitterbot|Slackbot|Telegram|Discord|preview|"
-                            r"curl/|python|wget|Go-http|okhttp|\bJava/|axios|node-fetch|HeadlessChrome|Lighthouse", re.I)
+ROBOT_PATTERN = (r"bot\b|bot/|crawl|spider|slurp|Google-Read-Aloud|WhatsApp|facebookexternalhit|LinkedInBot|Twitterbot|Slackbot|Telegram|Discord|preview|"
+                 r"curl/|python|wget|Go-http|okhttp|\bJava/|axios|node-fetch|HeadlessChrome|Lighthouse")
+ROBOT_AGENT_RE = re.compile(ROBOT_PATTERN, re.I)
+ROBOT_NAME_RE = re.compile(r"[\w.-]*(?:" + ROBOT_PATTERN + r")[\w./-]*", re.I)          # 1.6: the NAME of the robot (Google-Read-Aloud, WhatsApp/2.23...), not the start of the User-Agent
 REGISTRATION_SUCCESS_RE = re.compile(r"/event/[^/]+/registration/success$")
 HOST_RE = re.compile(r'\bhost="?([^"\s]+)"?')          # 1.3: host="$host" of the nginx log format is QUOTED (the quotes made every referer "another site")
 # 1.3: query strings of a vulnerability scanner (fuzzing): quotes and brackets, "zqzz" markers, SQL and script fragments
@@ -264,7 +266,8 @@ def nginx_details(files, urls, since=None, max_bytes=TAIL_BYTES):
                 if b and len(d["bytes_4xx"]) < 200:
                     d["bytes_4xx"].append(int(b.group(1)))
             if ROBOT_AGENT_RE.search(m.group(14)):
-                d["robots"][m.group(14)[:60]] += 1
+                name = ROBOT_NAME_RE.search(m.group(14))
+                d["robots"][(name.group(0) if name else m.group(14))[:60]] += 1
             else:
                 d["browser_hits"] += 1
                 d["browser_ips"].add(text_line.split(" ", 1)[0])
@@ -396,6 +399,23 @@ class Analyzer:
             lines.append(tr("Linked from other sites: ") + " ; ".join(f"{raw(r)} ×{n}" for r, n in outside.most_common(3)))
         return lines
 
+    @staticmethod
+    def origin_kind(detail):
+        """1.6: "nginx" when the 404 page is the small one of nginx (median size of the 4xx answers of 400 bytes or less), "odoo" when it is a page of several KB, None if unknown."""
+        sizes = sorted(detail.get("bytes_4xx") or [])
+        if not sizes:
+            return None
+        return "nginx" if sizes[len(sizes) // 2] <= 400 else "odoo"
+
+    def server_name(self, who, ip):
+        """1.6: how a requester is named: the name known by the dashboard, "this server" translated, a loopback address as this server."""
+        name = who.get(ip, ip)
+        if name.startswith("this server"):
+            name = self.tr("this server") + name[len("this server"):]
+        elif ip.startswith("127.") or ip == "::1":
+            name = self.tr("this server") + f" [{ip}]"
+        return name
+
     def origin_lines(self, detail):
         """1.5: what the program checks itself in the access log, instead of asking the administrator: WHO asked (robots / link previews or browsers), WHAT answered
         (the 404 page of nginx is about 150 bytes: a rule of nginx; a page of several KB is Odoo's) and whether a visitor retried the same address."""
@@ -404,7 +424,7 @@ class Analyzer:
         sizes = sorted(detail.get("bytes_4xx") or [])
         if sizes:
             middle = sizes[len(sizes) // 2]
-            if middle <= 400:
+            if self.origin_kind(detail) == "nginx":
                 lines.append(tr("The 404 page is the one of nginx ({n} bytes): a rule or a location of nginx refuses this address (securite-commune.conf, bot_blocker.conf...), not Odoo").format(n=middle))
             else:
                 lines.append(tr("The 404 page is the one of Odoo ({kb} KB): the request reached Odoo, nginx did not refuse it").format(kb=f"{middle / 1024:.1f}"))
@@ -483,6 +503,9 @@ class Analyzer:
                     g["codes"].update({str(c): k for c, k in ((facts.get("codes_by_url") or {}).get(url) or {}).items() if int(c) >= 500})
         who = facts.get("who") or {}
         traces = details.get("traces_5xx") or {}
+        server = set(facts.get("server_ips") or ())
+        is_server = lambda ip: ip in server or ip.startswith("127.") or ip == "::1"
+        self.server_exceptions, self.visitor_exceptions = set(), set()          # 1.6: exceptions of the 5xx made by this server itself / by visitors
         for path, g in sorted(groups.items(), key=lambda pg: -pg[1]["n"])[:5]:
             n = g["n"]
             fuzz = sum(k for u, k in g["urls"].items() if FUZZ_RE.search(u))
@@ -491,15 +514,22 @@ class Analyzer:
             if len(g["urls"]) > 1 or next(iter(g["urls"])) != path:
                 evidence.append(tr("Addresses asked: ") + " ; ".join(f"{raw(_cut(u, 90))} ×{k}" for u, k in g["urls"].most_common(3)))
             if g["ips"]:
-                evidence.append(tr("Requested by: ") + " ; ".join(f"{raw(who.get(ip, ip))} ×{k}" for ip, k in g["ips"].most_common(3)))
+                evidence.append(tr("Requested by: ") + " ; ".join(f"{raw(self.server_name(who, ip))} ×{k}" for ip, k in g["ips"].most_common(3)))
             parsed = parse_traceback(traces.get(path) or [])
+            made_here = bool(g["ips"]) and all(is_server(ip) for ip in g["ips"])
+            if parsed:
+                (self.server_exceptions if made_here else self.visitor_exceptions).add(parsed["exception"] + ": " + parsed["message"])
             if parsed:
                 evidence.append(tr("Exception: ") + raw(_cut(parsed["exception"] + (": " + parsed["message"] if parsed["message"] else ""), 200)))
                 if parsed["module"]:
                     evidence.append(tr("Module of the last frame: {module} ({frame})").format(module=raw(parsed["module"]), frame=raw(parsed["frame"])))
             elif traces.get(path) is not None:
                 evidence.append(tr("Traceback not found in the logs read (logfile or systemd journal around this time)"))
-            if fuzz and fuzz >= n / 2:
+            if made_here:
+                severity = INFO
+                cause = tr("requests made by this server itself (a test, a probe or a curl of the administrator), no visitor involved")
+                advice = [tr("nothing to do; if the page needs parameters (registration_ids...), Odoo answers 500 instead of 404 when they are missing: a robot could do the same")]
+            elif fuzz and fuzz >= n / 2:
                 severity = LOOK
                 cause = tr("a vulnerability scanner sends malformed parameters (quotes, brackets, « zqzz »): Odoo answers 500 instead of 400, the site is not harmed")
                 advice = [tr("ban the address if it keeps going (key b, or --apply with --advise); nothing to fix in Odoo")]
@@ -668,6 +698,11 @@ class Analyzer:
             cause, advice = self.record_cause(state)
             if cause:
                 severity = LOOK
+            elif inside and self.origin_kind(detail) == "nginx":
+                cause = tr("nginx refuses an address that the site itself offers: a rule of nginx is too strict, or the nginx configuration is not up to date")
+                advice = [tr("sudo nginx-hardening.sh --update (installs the latest rules of nginx/), then run this analysis again"),
+                          tr("if it still answers 404: find the rule with sudo nginx -T | grep -n 'return 404' and the address in the access log")]
+                severity = LOOK
             elif inside:
                 cause = tr("a link of the site itself points to a page that no longer answers")
                 severity = LOOK
@@ -677,7 +712,7 @@ class Analyzer:
             else:
                 cause = tr("old or mistyped link; not in sitemap.xml, so not counted in the health")
                 severity = LOOK if count >= 10 else INFO
-            if inside:
+            if inside and self.origin_kind(detail) != "nginx":
                 advice = advice + [tr("correct the link in the page that holds it (Linked from the site itself)")]
             advice = advice or [tr("add a 301 redirect to the replacement page (Website > Configuration > Redirects), or publish it again")]
             self.add("dead-link:" + path, severity, tr("{n} answers 404 on {url}").format(n=count, url=raw(path)), count, evidence + site, cause, advice)
@@ -692,7 +727,7 @@ class Analyzer:
             evidence.append(tr("Registrations of these links in Odoo: {found} found of {asked}, {nov} with no visitor recorded (no cookie at the registration)").format(
                 found=regs["found"], asked=regs["asked"], nov=regs["no_visitor"]))
             if regs.get("duplicates"):
-                evidence.append(tr("{n} people registered several times for the same event (they probably tried again after the 404)").format(n=regs["duplicates"]))
+                evidence.append(tr("{n} people registered several times for the same event (to check: a new try after the 404, or the form sent twice)").format(n=regs["duplicates"]))
         if not browsers:
             self.add("registration-404:" + path, INFO, tr("{n} answers 404 on {url}: confirmation page opened by robots or link previews").format(n=count, url=raw(path)), count, evidence,
                      tr("Odoo shows the confirmation of a registration only to the visitor who registered (cookie): a robot or a link preview has none"),
@@ -701,9 +736,12 @@ class Analyzer:
         advice = [tr("rlq-odoo-addons: show a thank-you page (the confirmation e-mail was sent) instead of the 404 when the visitor is unknown"),
                   tr("check the cookies bar of the website (Website > Configuration > Settings): without the cookie, Odoo cannot recognise the visitor"),
                   tr("Events > Registrations: look for the same e-mail registered twice for the same event")]
+        if regs and regs.get("found") and not regs.get("no_visitor"):
+            cause = tr("the registrations were made WITH a visitor, but Odoo does not recognise it when the page is opened again: cookie replaced (sign-in, another browser or device, in-app browser) or page reopened later")
+        else:
+            cause = tr("the registration exists, but Odoo shows its confirmation only to the visitor (cookie) who made it: private browsing, blocked cookies or another browser give a 404")
         self.add("registration-404:" + path, LOOK, tr("{n} answers 404 on {url}: confirmation page of a registration").format(n=count, url=raw(path)), count, evidence,
-                 tr("the registration exists, but Odoo shows its confirmation only to the visitor (cookie) who made it: private browsing, blocked cookies or another browser give a 404"),
-                 advice)
+                 cause, advice)
 
     # --- Odoo errors ---------------------------------------------------------------------------------------------------------------
     def rule_odoo_errors(self, facts, details):
@@ -768,6 +806,11 @@ class Analyzer:
             if not cause:
                 cause = tr("an error of Odoo not yet known to this analysis")
                 advice = advice or [tr("key E for the traceback; then fix or update the module concerned")]
+            if parsed:
+                signature = parsed["exception"] + ": " + parsed["message"]
+                if signature in getattr(self, "server_exceptions", ()) and signature not in getattr(self, "visitor_exceptions", ()):
+                    severity, cause = INFO, tr("the same exception as the HTTP 5xx made by this server itself (tests): no visitor was affected")
+                    advice = [tr("nothing to do")]
             title = parsed["exception"].rsplit(".", 1)[-1] if parsed else _cut(message, 90)
             fid = "odoo:" + logger + ":" + (parsed["exception"] if parsed else re.sub(r"\s+", " ", message)[:80])
             self.add(fid, severity, tr("Odoo {level}: {message}").format(level=level, message=raw(title)), n, evidence, cause, advice)
@@ -923,7 +966,13 @@ class Analyzer:
             evidence.append((tr("Sign-up in Odoo: free (anyone can create an account)") if scope == "b2c" else tr("Sign-up in Odoo: on invitation") if scope == "b2b"
                              else tr("Sign-up in Odoo: {scope}").format(scope=raw(str(scope or "?"))))
                             + (" · " + tr("portal accounts created in the window: {n}").format(n=signup["new_users"]) if signup.get("new_users") is not None else ""))
-        if methods and posts < 5:
+        known = sum(k for ip, k in ips.items() if who.get(ip, ip) != ip and not who.get(ip, "").startswith("this server"))          # 1.6: an address that has signed in to the site has a name
+        if known * 2 >= total and posts < 30:
+            evidence.append(tr("Requests of people already known to the site (an account signed in from this address): {kn} of {all_n}").format(kn=known, all_n=total))
+            self.add("account-forms", INFO, tr("Sign-up and password reset forms: {n} requests, mostly from people already known").format(n=total), total, evidence,
+                     tr("people who have an account use the forms (forgotten password, sign-up for an event): not a robot"),
+                     [tr("nothing to do; if the same person comes back often, check that the sign-in works for them")])
+        elif methods and posts < 5:
             self.add("account-forms", INFO, tr("Sign-up and password reset forms: {n} requests, almost all only shown").format(n=total), total, evidence,
                      tr("robots and search engines following the links of the site: no account attempts"), [tr("nothing to do")])
         elif posts >= 10 or (not methods and (ips.most_common(1)[0][1] >= 5 or total >= 30)):
