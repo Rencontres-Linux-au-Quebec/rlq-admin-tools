@@ -371,6 +371,19 @@ Earlier history was archived outside this repository when this file was created.
 
 ## app-log-live.py
 
+### 1.177.20261107.234906 - Analysis: translations read again after an update of the suite
+
+- Title: a dashboard started before an update shows the new messages of the analysis in French, and says that it runs the old version.
+- Reason: the report of the z key on 2026-11-07 (title "app-log-live.py v1.175") mixed English and French: "Sign-up and password reset forms: 12 requêtes, mostly depuis people already known", "2 people registered several times...", "Cause probable : the registrations were made WITH a visitor...". The administrator asked for the missing translations.
+- Changes: new constant SUPPLEMENTARY_CATALOGUES (the list passed to demarrer()), new functions catalogues_mtime(), refresh_translations() and version_on_disk(), new global CATALOGUES_READ_AT. advise(): calls refresh_translations() right after loading apps/_advisor.py, and adds one line under the title when the program on the disk has another version. lang/app-log-live.fr.po: one message. nginx-tools-tests/test_app_log_live.py: class AppLogLive177 (2 tests).
+- Bugs fixed:
+  - Symptom: messages of the analysis in English, or translated word by word ("depuis", "adresse", "requêtes" inside English sentences).
+  - Diagnosis: no translation was missing: lang/_advisor.fr.po has all these messages since apps/_advisor.py 1.6 (app-log-live.py 1.176). The dashboard had been started with 1.175 and kept running during the update: apps/_advisor.py is read again from the disk at every z, but the catalogues were read only at start. The new messages of 1.6 were therefore unknown to the old translator, which only replaced the words it knew. Proof: these exact messages come out in French with the catalogues of main.
+  - Fix: when a lang/*.po file is more recent than its reading, the translator is built again (global TR and I18N.tr) before the analysis.
+- Safeguards and edge cases: any problem while building the translator keeps the current one; no catalogue changed -> nothing is read again (a stat of the lang/*.po files per z only); the modification time is taken BEFORE the reading, so a file written during the reading is read again next time; the code of the program itself is never reloaded (only the warning line asks to start it again); without apps/_i18n.py nothing changes.
+- Checks performed: test_app_log_live.AppLogLive177 (2 tests) [OK]; the other tests: see the pull request.
+- Action required: update the suite, then quit the running dashboards (Ctrl-C) and start them again once. For the dashboard that showed the report of 2026-11-07, restarting it is enough to have the analysis in French, even before this update.
+
 ### 1.176.20261106.110050 - Analysis: facts about the addresses of this server
 
 - Title: the analysis knows which addresses are the ones of this server.
