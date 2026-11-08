@@ -3236,3 +3236,7 @@ msgstr "[sonde de ce serveur]"
 # 1.175
 msgid "--advise: period analysed from {from_time} ({nd} days; --advise N or --since choose another one)"
 msgstr "--advise : période analysée depuis le {from_time} ({nd} jours ; --advise N ou --since en choisissent une autre)"
+
+# 1.177
+msgid "{name} was updated on the disk (v{new}); this dashboard still runs v{old}: quit it (Ctrl-C) and start it again to use the whole new version."
+msgstr "{name} a été mis à jour sur le disque (v{new}) ; ce tableau de bord tourne encore en v{old} : le quitter (Ctrl-C) et le relancer pour utiliser toute la nouvelle version."

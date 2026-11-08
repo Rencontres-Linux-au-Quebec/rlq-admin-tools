@@ -5051,3 +5051,42 @@ class AppLogLive175(unittest.TestCase):
         self.assertIn("--advise: period analysed from {from_time}", self.src)
         with open(os.path.join(os.path.dirname(script_path("app-log-live.py")), "lang", "app-log-live.fr.po"), encoding="utf-8") as f:
             self.assertIn("période analysée depuis le {from_time}", f.read())
+
+
+class AppLogLive177(unittest.TestCase):
+    """1.177 : un tableau de bord lancé avant une mise à jour relit les catalogues quand l'analyse (z) est relue du disque, et dit qu'il tourne
+    encore l'ancienne version (rapport du 2026-11-07 : « mostly depuis people already known »)."""
+
+    @classmethod
+    def setUpClass(cls):
+        os.environ["APP_LOG_LIVE_LANG"] = "fr"
+        spec = importlib.util.spec_from_file_location("live_177", script_path("app-log-live.py"))
+        cls.live = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(cls.live)
+        with open(script_path("app-log-live.py"), encoding="utf-8") as f:
+            cls.src = f.read()
+
+    def test_177_catalogues_relus_apres_mise_a_jour(self):
+        live = self.live
+        if live.I18N is None:
+            self.skipTest("apps/_i18n.py absent")
+        message = "Sign-up and password reset forms: {n} requests, mostly from people already known"
+        ancien_tr, ancien_lu = live.TR, live.CATALOGUES_READ_AT
+        try:
+            live.TR = live.I18N.tr = live.I18N_MODULE.Traducteur({})       # catalogue « d'avant la mise à jour » : le message n'y est pas
+            live.CATALOGUES_READ_AT = 0.0                                  # un catalogue a changé depuis la lecture
+            self.assertTrue(live.refresh_translations())
+            self.assertIn("surtout de personnes déjà connues", live.TR(message))
+            self.assertIs(live.I18N.tr, live.TR)                           # print (I18N.print) utilise le même traducteur
+            self.assertFalse(live.refresh_translations())                  # rien de changé depuis : pas relu
+        finally:
+            live.TR = live.I18N.tr = ancien_tr
+            live.CATALOGUES_READ_AT = ancien_lu
+
+    def test_177_version_sur_le_disque(self):
+        self.assertEqual(self.live.version_on_disk(), self.live.__version__)
+        bloc = self.src.split("def advise(batch=False):", 1)[1].split("def key(key_value):", 1)[0]
+        self.assertIn("refresh_translations()", bloc)
+        self.assertIn("disk_version != __version__", bloc)
+        with open(os.path.join(os.path.dirname(script_path("app-log-live.py")), "lang", "app-log-live.fr.po"), encoding="utf-8") as f:
+            self.assertIn("ce tableau de bord tourne encore en v{old}", f.read())

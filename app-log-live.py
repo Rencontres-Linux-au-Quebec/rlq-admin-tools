@@ -120,10 +120,23 @@ from urllib.parse import unquote, urlsplit
 from collections import Counter, OrderedDict
 from concurrent.futures import Future
 
-__version__ = "1.176.20261106.110050"
+__version__ = "1.177.20261107.234906"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
+# Catalogues of the shared modules whose messages this program displays (lang/NAME.LANG.po), read at start and again by refresh_translations().
+SUPPLEMENTARY_CATALOGUES = ("_bbb", "_listes", "nginx-log-audit", "_connexions", "_limites", "_advisor")
+
+
+def catalogues_mtime():
+    """Most recent modification time of the catalogues lang/*.po (0 when the folder cannot be read)."""
+    latest = 0.0
+    for path in glob.glob(os.path.join(SCRIPT_DIR, "lang", "*.po")):
+        try:
+            latest = max(latest, os.path.getmtime(path))
+        except OSError:
+            continue
+    return latest
 
 
 def _start():
@@ -137,7 +150,7 @@ def _start():
         # behind the output filter of apps/_traduire.py, which saw "\x1b[...m11.191.124.32" as a word and left colored addresses and names in clear
         os.environ["NGINX_TOOLS_ANON_SELF"] = "1"
         try:
-            return module.demarrer(SCRIPT_DIR, SCRIPT_NAME, "APP_LOG_LIVE_LANG", ("_bbb", "_listes", "nginx-log-audit", "_connexions", "_limites", "_advisor"))
+            return module.demarrer(SCRIPT_DIR, SCRIPT_NAME, "APP_LOG_LIVE_LANG", SUPPLEMENTARY_CATALOGUES)
         finally:
             os.environ.pop("NGINX_TOOLS_ANON_SELF", None)            # the programs launched by this one keep the usual rule
     except Exception:
@@ -145,6 +158,7 @@ def _start():
 
 
 I18N_MODULE = None
+CATALOGUES_READ_AT = catalogues_mtime()                 # 1.177: read BEFORE the catalogues, so that a file changed while they are read is seen next time
 I18N = _start()
 
 
@@ -167,6 +181,36 @@ def foreground_child():
     return I18N_MODULE.foreground_child() if I18N_MODULE is not None and hasattr(I18N_MODULE, "foreground_child") else contextlib.nullcontext()
 LANGUAGE = I18N.langue if I18N else "fr"
 TR = I18N.tr if I18N else (lambda text: text)
+
+
+def refresh_translations():
+    """1.177: the dashboard can run for days. The z analysis loads apps/_advisor.py again from the disk at every call, but the catalogues were read only
+    at start: after an update of the suite, the NEW messages of the analysis were shown in English, or half translated word by word ("mostly depuis people
+    already known", 2026-11-07). When a catalogue changed since it was read, the translator is built again (global TR, used by every display, and I18N.tr,
+    used by print). Returns True when it was rebuilt; any problem keeps the current translator."""
+    global TR, CATALOGUES_READ_AT
+    if I18N is None or I18N_MODULE is None:
+        return False
+    latest = catalogues_mtime()
+    if latest <= CATALOGUES_READ_AT:
+        return False
+    try:
+        fresh = I18N_MODULE.traducteur(I18N.langue, SCRIPT_DIR, SCRIPT_NAME, SUPPLEMENTARY_CATALOGUES)
+    except Exception:
+        return False
+    CATALOGUES_READ_AT = latest
+    I18N.tr = TR = fresh
+    return True
+
+
+def version_on_disk():
+    """__version__ written in the file of this program on the disk (None if unreadable): differs from __version__ after an update made while it runs."""
+    try:
+        with open(os.path.realpath(__file__), encoding="utf-8", errors="replace") as f:
+            match = re.search(r'^__version__ = "([^"]+)"', f.read(), re.M)
+    except OSError:
+        return None
+    return match.group(1) if match else None
 if I18N:
     print, input = I18N.print, I18N.input          # noqa: A001 - all displayed text goes through the translator (no effect in French)
 # Configuration file options (/etc/default/app-log-live.conf, then the personal file .app-log-live.conf): KEY -> (command-line option, type).
@@ -7500,6 +7544,8 @@ def follow(cmd, people, resolver, options, output):
         if module is None:
             write_out(["  " + TR("Analysis unavailable: apps/_advisor.py is missing.")])
             return
+        refresh_translations()                            # 1.177: apps/_advisor.py was just read again from the disk: its catalogue too
+        disk_version = version_on_disk()
         write_out(["  " + TR("Reading the details in the logs (Odoo tracebacks, nginx referers)...")])
         if batch:
             if advise_progress["p"] is not None:
@@ -7518,8 +7564,13 @@ def follow(cmd, people, resolver, options, output):
         title = color_code(STYLES["title"], TR("──── Analysis of the problems raised ({name} v{version}): since {start} ────").format(
             name=os.path.basename(__file__), version=__version__, start=start))
         hint = TR("correction offered by --apply (with --advise)") if not options.get("apply") else TR("correction offered below (--apply)")
-        write_out(["", title] + module.render(findings, trend, TR, color_code, path if kept else None,
-                                              history.error or (TR("no writable state folder") if not path else None), apply_hint=hint))
+        updated = []
+        if disk_version and disk_version != __version__:
+            # 1.177: the analysis comes from the disk, the dashboard from its start: say it, otherwise the version in the title misleads
+            updated = ["  " + color_code(STYLES["warning"], TR("{name} was updated on the disk (v{new}); this dashboard still runs v{old}: quit it (Ctrl-C) and start it "
+                                                               "again to use the whole new version.").format(name=os.path.basename(__file__), new=disk_version, old=__version__))]
+        write_out(["", title] + updated + module.render(findings, trend, TR, color_code, path if kept else None,
+                                                        history.error or (TR("no writable state folder") if not path else None), apply_hint=hint))
         if batch and options.get("apply"):
             apply_corrections(findings, facts)
 
