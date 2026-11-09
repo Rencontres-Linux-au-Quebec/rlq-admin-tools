@@ -906,8 +906,6 @@ msgstr "noyau : "
 msgid "look at what ran at that time (scheduled actions above, backup, ZFS snapshots); if it repeats at the same hour, move that task"
 msgstr "regarder ce qui tournait à ce moment (actions planifiées ci-dessus, sauvegarde, instantanés ZFS) ; si cela revient à la même heure, déplacer cette tâche"
 
-msgid "lower limit_memory_hard to about {hard} MB and limit_memory_soft to about {soft} MB in odoo.conf (70 % of the memory shared by the processes), then restart Odoo"
-msgstr "baisser limit_memory_hard à environ {hard} Mo et limit_memory_soft à environ {soft} Mo dans odoo.conf (70 % de la mémoire partagée entre les processus), puis redémarrer Odoo"
 
 msgid "many times: one browser subscribes again in a loop; the person can clear the site data of the browser (or block the notifications of the site)"
 msgstr "souvent : un navigateur se réabonne en boucle ; la personne peut effacer les données du site dans son navigateur (ou bloquer les notifications du site)"
@@ -1019,3 +1017,39 @@ msgstr "{n} requêtes vers {url}, {pct} % des requêtes de cette adresse ({total
 
 msgid "{when} · subject « {subject} » · to: {to}"
 msgstr "{when} · objet « {subject} » · à : {to}"
+
+msgid "Odoo (journal): "
+msgstr "Odoo (journal) : "
+
+msgid "Used outside Odoo now: {other} MB (reserve kept: {reserve} MB)"
+msgstr "Utilisé hors Odoo maintenant : {other} Mo (réserve gardée : {reserve} Mo)"
+
+msgid "a browser came back with a session of another database (an old copy or a test database): Odoo closes that session"
+msgstr "un navigateur est revenu avec une session d'une autre base de données (une vieille copie ou une base de test) : Odoo ferme cette session"
+
+msgid "a form sent without its security token (CSRF): a robot or a scanner that posts to the site, or a page left open so long that its token expired"
+msgstr "un formulaire envoyé sans son jeton de sécurité (CSRF) : un robot ou un scanner qui envoie des formulaires au site, ou une page restée ouverte si longtemps que son jeton a expiré"
+
+msgid "before the window, still not resent"
+msgstr "avant la période, toujours pas renvoyé"
+
+msgid "ends on {end}"
+msgstr "se termine le {end}"
+
+msgid "lower limit_memory_hard to about {hard} MB and limit_memory_soft to about {soft} MB in odoo.conf ({budget} MB shared by {w} workers + {c} cron + 1 gevent, as nginx-hardening.sh step 6), then restart Odoo"
+msgstr "baisser limit_memory_hard à environ {hard} Mo et limit_memory_soft à environ {soft} Mo dans odoo.conf ({budget} Mo partagés entre {w} workers + {c} cron + 1 gevent, comme l'étape 6 de nginx-hardening.sh), puis redémarrer Odoo"
+
+msgid "nothing to do if it is rare; many times from one address: look at that address (it may be a scanner to ban)"
+msgstr "rien à faire si c'est rare ; souvent depuis une même adresse : regarder cette adresse (c'est peut-être un scanner à bannir)"
+
+msgid "nothing to do; it stops once the person signs in again"
+msgstr "rien à faire ; cela cesse quand la personne se reconnecte"
+
+msgid "the mail server accepts only a few e-mails per SMTP connection: set the system parameter mail.session.batch.size (Settings > Technical > System Parameters) below that limit, for example 10, then resend"
+msgstr "le serveur de courriel n'accepte que quelques courriels par connexion SMTP : régler le paramètre système mail.session.batch.size (Paramètres > Technique > Paramètres système) sous cette limite, par exemple 10, puis renvoyer"
+
+msgid "{k} of them came less than 5 s after a retried conflict: two tabs or devices subscribed at the same moment; the second one, retried by Odoo, found the subscription the first had just written"
+msgstr "{k} d'entre eux sont arrivés moins de 5 s après un conflit réessayé : deux onglets ou appareils se sont abonnés au même moment ; le second, réessayé par Odoo, a trouvé l'abonnement que le premier venait d'écrire"
+
+msgid "{n} recipients"
+msgstr "{n} destinataires"

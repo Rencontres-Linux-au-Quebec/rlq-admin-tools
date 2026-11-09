@@ -660,7 +660,11 @@ class Version17(unittest.TestCase):
         m = f["memory-risk"]
         self.assertEqual(m["severity"], ADV.LOOK)
         self.assertTrue(any("17940 MB" in e and "16384 MB" in e for e in m["evidence"]))
-        self.assertTrue(any("limit_memory_hard to about 764 MB" in a for a in m["advice"]))
+        self.assertTrue(any("limit_memory_hard to about 768 MB" in a and "13 workers + 2 cron + 1 gevent" in a for a in m["advice"]))      # 1.8: as nginx-hardening.sh 2.82
+        dev = dict(conf, values=dict(conf["values"], workers="3", limit_memory_hard=str(5197 * 1048576)))
+        m = par_id(ADV.analyze(faits(), {"odoo_conf": dev, "memory": {"other_mb": 453}}))["memory-risk"]
+        self.assertTrue(any("limit_memory_hard to about 2048 MB" in a for a in m["advice"]))
+        self.assertTrue(any("453 MB" in e and "2457 MB" in e for e in m["evidence"]))
         f = par_id(ADV.analyze(faits(), {"odoo_conf": conf, "memory": {"limit_mb": 16384, "oom_kills": 2, "kernel": [(time.time(), "Out of memory: Killed process 1234 (python3)")]}}))
         self.assertEqual(f["memory-risk"]["severity"], ADV.PROBLEM)
         self.assertTrue(f["memory-risk"]["confirmed"])
@@ -751,3 +755,35 @@ class Pays(unittest.TestCase):
         self.assertEqual(c.label(""), "")
         self.assertGreaterEqual(len(c.NAMES), 249)
         self.assertFalse([k for k, (fr, en) in c.NAMES.items() if not fr or not en or "—" in fr + en])
+
+
+class Version18(unittest.TestCase):
+    """apps/_advisor.py 1.8 (app-log-live.py 1.179): verification of the exports of DEV and PROD of 2026-11-09. Invented data only."""
+
+    def test_evenement_a_venir_se_termine(self):
+        futur = time.strftime("%Y-%m-%d", time.localtime(time.time() + 20 * 86400))
+        lignes, _etat = ADV.Analyzer().site_lines("/event/x-1", {"records": {"/event/x-1": {"kind": "event", "id": 1, "name": "Dîner", "published": False, "active": True, "end": futur}}})
+        self.assertTrue(any("ends on " + futur in l for l in lignes))
+        lignes, _etat = ADV.Analyzer().site_lines("/event/x-1", {"records": {"/event/x-1": {"kind": "event", "id": 1, "name": "Dîner", "published": False, "active": True, "end": "2020-01-01"}}})
+        self.assertTrue(any("ended on 2020-01-01" in l for l in lignes))
+
+    def test_messages_connus_csrf_et_dbfilter(self):
+        for texte in ("odoo.http: No CSRF validation token provided for path '/'", "odoo.http: Logged into database 'x', but dbfilter rejects it; logging session out."):
+            self.assertEqual(next(k for k in ADV.KNOWN_MESSAGES if re.search(k[0], texte, re.I))[1], ADV.INFO)
+
+    def test_limite_de_messages_par_session_smtp(self):
+        base = {"days": 2, "exception": 2, "outgoing": 0, "sent": 62, "reasons": []}
+        motif = "Échec d'envoi de l'e-mail SMTPDataError: (452, b'4.4.5 Maximum number of messages per session exceeded.')"
+        echecs = [{"id": 1, "instant": time.time() - 3 * 86400, "sujet": "Test", "destinataires": ", ".join(f"p{i}@example.org" for i in range(12)), "raison": motif, "base": "prod"}]
+        m = par_id(ADV.analyze(faits(start=time.time() - 86400), {"mail_db": base, "mail_failed": echecs}))["mail-failures"]
+        self.assertTrue(m["advice"][0].startswith("the mail server accepts only a few e-mails per SMTP connection"))
+        self.assertTrue(any("(12 recipients)" in e and "before the window, still not resent" in e for e in m["evidence"]))
+
+    def test_doublons_push_apres_un_conflit(self):
+        p = par_id(ADV.analyze(faits(push_duplicates=15, push_duplicate_warnings=15, push_after_conflict=15)))["push-duplicates"]
+        self.assertTrue(any(e.startswith("15 of them came less than 5 s after a retried conflict") for e in p["evidence"]))
+
+    def test_chronologie_lignes_d_odoo_du_journal(self):
+        t = time.time() - 600
+        events = ADV.timeline(faits(), {"service": {"events": [], "odoo_events": [(t, "odoo.addons.auto_backup.models.db_backup: Starting backup")]}})
+        self.assertEqual(events[0][1], "Odoo (journal): odoo.addons.auto_backup.models.db_backup: Starting backup")

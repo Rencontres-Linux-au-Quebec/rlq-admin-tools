@@ -3357,3 +3357,45 @@ msgstr ", vrais noms et vraies adresses à l'intérieur"
 
 msgid "With --advise (or the z key): also write the summary, the analysis, the timeline of the window and the consistency checks in one Markdown file, without colors, to send for verification (default FILE: export-ai-YYYYMMDD-HHMMSS.md in the state folder, mode 600; pseudonyms when --anonymize is active)"
 msgstr "Avec --advise (ou la touche z) : écrit aussi le sommaire, l'analyse, la chronologie de la période et les contrôles de cohérence dans un seul fichier Markdown, sans couleurs, à envoyer pour vérification (FICHIER par défaut : export-ai-AAAAMMJJ-HHMMSS.md dans le dossier d'état, mode 600 ; pseudonymes quand --anonymize est actif)"
+
+msgid "disks not measured with --advise (the window is read from the logs; the disks are sampled only by the live dashboard): the times of the requests below are complete"
+msgstr "disques non mesurés avec --advise (la période est lue dans les journaux ; les disques ne sont échantillonnés que par le tableau de bord en direct) : les temps des requêtes ci-dessous sont complets"
+
+msgid "Environment of the server"
+msgstr "Environnement du serveur"
+
+msgid "Odoo: version {v}"
+msgstr "Odoo : version {v}"
+
+msgid "odoo.conf ({path}): "
+msgstr "odoo.conf ({path}) : "
+
+msgid "Memory: {total} MB in all, {avail} MB available now"
+msgstr "Mémoire : {total} Mo en tout, {avail} Mo disponibles maintenant"
+
+msgid "limit of this container: {n} MB"
+msgstr "limite de ce conteneur : {n} Mo"
+
+msgid "used outside Odoo: {n} MB"
+msgstr "utilisé hors Odoo : {n} Mo"
+
+msgid "processes killed for lack of memory: {n}"
+msgstr "processus tués faute de mémoire : {n}"
+
+msgid "Odoo service: memory now {cur}, peak {peak}, limit {max} · restarts by systemd: {n} · started on {when}"
+msgstr "Service Odoo : mémoire maintenant {cur}, pointe {peak}, limite {max} · redémarrages par systemd : {n} · démarré le {when}"
+
+msgid "Timers of the suite: "
+msgstr "Minuteurs de la suite : "
+
+msgid "Disk {folder}: {free} GB free of {total} GB"
+msgstr "Disque {folder} : {free} Go libres sur {total} Go"
+
+msgid "Load average: {a} / {b} / {c} (1, 5, 15 min) for {cpus} processors · up for {days} days"
+msgstr "Charge moyenne : {a} / {b} / {c} (1, 5, 15 min) pour {cpus} processeurs · en marche depuis {days} jours"
+
+msgid "nothing could be read"
+msgstr "rien n'a pu être lu"
+
+msgid "No HTML copy of the daily journal (app-log-live-DATE.html, lines cut to 140 characters)"
+msgstr "Pas de copie HTML du journal quotidien (app-log-live-DATE.html, lignes coupées à 140 caractères)"

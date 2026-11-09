@@ -1,16 +1,26 @@
 # system-hardening.conf - configuration of system-hardening.sh. Every key is shown with its default value (commented).
 # Read from /etc/default/system-hardening.conf, then from ~/.system-hardening.conf if it exists (the last one wins).
 # The command line has priority over these files. After a change: system-hardening.sh --update.
-#LANGUAGE=auto                  # en, fr or auto (auto: LC_ALL, then LC_MESSAGES, then LANG)
-#VERBOSE=no                     # yes: print each system command
-#UNATTENDED_UPGRADES=yes        # security updates applied every day (unattended-upgrades, security only)
-#AUTOMATIC_REBOOT=no            # yes: reboot by itself when an update needs it (stops Odoo, BigBlueButton meetings...)
-#AUTOMATIC_REBOOT_TIME=03:30    # time of that reboot (HH:MM, local time)
-#AUDITD=yes                     # audit rules rlq-* (sudo, SSH keys, cron, accounts, PAM, sshd, systemd units); not in an LXC container
-#AUDIT_WATCH_CONTAINERS=yes     # on a Proxmox host: also watch the sensitive files of the running LXC containers
 #AIDE=yes                       # file integrity (AIDE): baseline, daily check
 #AIDE_CHECKSUMS=sha512          # checksums of AIDE (Checksums line of /etc/aide/aide.conf): sha512 is enough; keep = leave the distribution value (H = every one, much longer)
 #AIDE_EXCLUDE=                  # more folders AIDE must ignore, separated by spaces (e.g. /srv/odoo-data /opt/backups)
+#AUDITD=yes                     # audit rules rlq-* (sudo, SSH keys, cron, accounts, PAM, sshd, systemd units); not in an LXC container
+#AUDIT_WATCH_CONTAINERS=yes     # on a Proxmox host: also watch the sensitive files of the running LXC containers
+#AUTOMATIC_REBOOT=no            # yes: reboot by itself when an update needs it (stops Odoo, BigBlueButton meetings...)
+#AUTOMATIC_REBOOT_TIME=03:30    # time of that reboot (HH:MM, local time)
+#LANGUAGE=auto                  # en, fr or auto (auto: LC_ALL, then LC_MESSAGES, then LANG); --lang
 #NOTIFY=yes                     # daily summary by e-mail (system-hardening-notify.timer, mail settings of nginx-tools-mail.conf)
-#NOTIFY_TIME=07:30              # time of that summary (HH:MM, local time)
 #NOTIFY_ALWAYS=no               # yes: send the summary every day, even when there is nothing to report
+#NOTIFY_TIME=07:30              # time of that summary (HH:MM, local time)
+#UNATTENDED_UPGRADES=yes        # security updates applied every day (unattended-upgrades, security only)
+#VERBOSE=no                     # yes: print each system command (--verbose)
+
+# --- Command-line options ONLY (actions: no key here) ---
+#   --baseline-update    accept the current files as the new AIDE baseline (after wanted changes)
+#   --changelog          show the change log
+#   --check              check only (default)
+#   -c, --config FILE    this configuration file ONLY
+#   --notify             daily summary: printed, and sent by e-mail when something needs attention (used by the timer)
+#   --report-err         print at the end an error report to copy and paste
+#   --rollback           remove the files written by --update (packages stay installed)
+#   --version            show the version and exit

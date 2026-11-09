@@ -67,6 +67,16 @@ sudo app-log-live.py --advise 1 --export-ai /root/export.md # file of your choic
 
 After the analysis, one Markdown file without colors (mode 600) holds what is needed to have the summaries and the analysis checked: the window really read (oldest line and first request), the **consistency checks** the program makes on its own figures (an impossible mean, two counts that should agree are marked `[ATTN]`), the whole summary of the dashboard, the analysis, the **timeline** of the window (starts and stops of the service, interruptions seen by nginx, Odoo errors, slow requests, bans, failed e-mails, kernel messages about the memory, scheduled actions) and the main counters in JSON. When `--anonymize` is active (the default), the file has the same pseudonyms as the screen: one address always has the same pseudonym, the check stays possible. With the z key of the dashboard, the file is written too when the option is given. Configuration key: `EXPORT_AI` (`yes` = default file, or a path).
 
+### What 1.179 changes
+
+* **This server is no longer a visitor**: the pages asked by app-health-check.py or odoo-warmup.py (addresses of this server) no longer count in the site visits (on DEV, 2 of the 10 "visitors").
+* **--advise**: the latency verdict says that the disks are not measured (they are sampled live only) instead of "let it run a few hours"; the nginx access logs are read up to 200 MB per file for the details (account forms).
+* **Service journal**: the lines written by Odoo itself (an auto_backup that starts) are no longer starts of the service; they appear in the timeline.
+* **Analysis**: an upcoming event "ends on" (instead of "ended on"); known warnings "No CSRF validation token" and "dbfilter rejects it"; e-mails refused by a limit of messages per SMTP connection (452 4.4.5): track `mail.session.batch.size`; number of recipients and e-mails older than the window reported; push duplicates that came right after a retried conflict (two tabs at the same time).
+* **Memory risk**: same calculation as step 6 of nginx-hardening.sh 2.82 (workers + cron + gevent, reserve outside Odoo of at least 15 %, 10 % margin).
+* **--export-ai**: new section "Environment of the server" (Odoo version, settings of odoo.conf and PostgreSQL, memory of the server and of the Odoo service with its peak, disks, load, timers of the suite).
+* **Configuration**: new keys COUNTRY, EXCLUDE_COUNTRY, NO_HOSTNAME, NO_HTML_JOURNAL, UTC; BUFFER, DISPLAY_HOST, HIDE_USER_AGENT, NO_SITEMAP, REQUEST_LENGTH, SITEMAP and STATUS_EVERY (already read) are now in the template.
+
 ### What 1.178 changes in the analysis and the summary
 
 * **Latency**: the websocket connections (chat) kept open for hours no longer count in the means nor in the share of PostgreSQL: the "means of 20 s" with a median of 0.02 s and the "PostgreSQL 0 %, Python 100 %" came from them.

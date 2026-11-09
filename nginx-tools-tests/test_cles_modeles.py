@@ -23,7 +23,7 @@ LECTEURS_MANUELS = {
     "odoo-warmup": ["REPEAT", "WAIT", "LINKS", "LATEST", "URL", "DB", "LOGIN", "KEY_FILE", "PAGES", "PAGES_FILE", "LANGS", "MODELS", "SERVICE", "LANGUAGE"],
     "odoo-mail-retry": ["BATCH", "DAYS", "DB", "DETAILS", "NO_PROMPT", "LANGUAGE"],
 }
-COMMUNES = ["LANGUAGE", "VERBOSE", "DEBUG_LEVEL", "LOG_KEEP_DAYS", "ANONYMIZE"]
+COMMUNES = ["LANGUAGE", "VERBOSE", "DEBUG_LEVEL", "LOG_KEEP_DAYS", "ANONYMIZE", "THEME"]      # THEME: apps/_config.py 1.11
 
 
 def cles_schema(texte):

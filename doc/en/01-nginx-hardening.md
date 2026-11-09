@@ -23,7 +23,7 @@ Audits (default) or installs/repairs (`--update`) the server's baseline in numbe
 | 3 | maintenance page |
 | 4 | Odoo listening interface and nginx upstreams: the upstream port must be Odoo's; checks the websocket (live chat) upstream, `proxy_http_version`, `proxy_read_timeout`; upstreams of another Odoo version are neither checked nor changed |
 | 5 | firewall: Odoo's HTTP/gevent ports blocked from outside |
-| 6 | memory-limit suggestion (`--workers` x available RAM) |
+| 6 | memory-limit suggestion: the available memory (at least 15 % kept for PostgreSQL and the system, 10 % margin) shared by the workers, the cron threads (`max_cron_threads`, `--cron-threads`) and the gevent process (2.82; same calculation as the memory risk of app-log-live.py) |
 | 7 | Odoo systemd unit and `run.sh` audit |
 | 8 | `odoo.conf` audit (`list_db`, `admin_passwd`, proxy mode, limits...) |
 | 9 | fail2ban jails: catch-all sensor, `odoo-auth` (login failures read from Odoo's journal), `nginx-blocked-probes` (5 nginx refusals in 10 minutes -> 24 h ban) |

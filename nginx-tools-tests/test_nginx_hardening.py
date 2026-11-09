@@ -7,7 +7,7 @@ import subprocess
 import re
 import unittest
 
-from helpers import EnvTest, CONFIG_DIR, LISTE_EXEMPLE, SCRIPTS_DIR
+from helpers import EnvTest, CONFIG_DIR, LISTE_EXEMPLE, SCRIPTS_DIR, script_path
 
 NGINX_T_PROD = """nginx: configuration file /etc/nginx/nginx.conf test is successful
 # configuration file /etc/nginx/sites-enabled/00-catchall-default.conf:
@@ -1031,3 +1031,28 @@ class SetupNginxOdoo(EnvTest):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class SuggestionMemoire282(unittest.TestCase):
+    """2.82 : la suggestion de limites mémoire (étape 6) partage la mémoire entre les workers, les tâches planifiées (max_cron_threads) et le processus
+    gevent, garde au moins 15 % pour ce qui tourne hors d'Odoo et 10 % de marge : le même calcul que le risque de mémoire d'app-log-live.py."""
+
+    def calcul(self, total, non_odoo, workers, cron):
+        """Same arithmetic as the step, on the code of the step itself (extracted between the two markers)."""
+        with open(script_path("nginx-hardening.sh"), encoding="utf-8") as f:
+            src = f.read()
+        bloc = src[src.index("        processes=$(( workers + cron_threads + 1 ))"):src.index("        safe_soft_mb=$(( safe_hard_mb * 85 / 100 ))")]
+        script = f"total_ram_mb={total}; non_odoo_mb={non_odoo}; workers={workers}; cron_threads={cron}\n{bloc}\necho $processes $available_for_odoo_mb $safe_hard_mb\n"
+        return subprocess.run(["bash", "-c", script], capture_output=True, text=True, timeout=30).stdout.split()
+
+    def test_282_dev_et_prod(self):
+        self.assertEqual(self.calcul(16384, 453, 3, 2), ["6", "12289", "2048"])       # DEV: 3 workers + 2 cron + gevent
+        self.assertEqual(self.calcul(16384, 453, 13, 2), ["16", "12289", "768"])      # PROD: 13 workers + 2 cron + gevent
+        self.assertEqual(self.calcul(16384, 4000, 3, 2), ["6", "10746", "1791"])      # more used outside Odoo than 15 %: that amount is kept
+
+    def test_282_cron_lu_et_option(self):
+        with open(script_path("nginx-hardening.sh"), encoding="utf-8") as f:
+            src = f.read()
+        self.assertIn("max_cron_threads", src)
+        self.assertIn("--cron-threads) ODOO_CRON_OVERRIDE=", src)
+        self.assertIn("config_defaut ODOO_CRON_OVERRIDE MAX_CRON_THREADS --cron-threads nombre", src)

@@ -23,7 +23,7 @@ Audite (par défaut) ou installe/répare (`--update`) la base du serveur en éta
 | 3 | page de maintenance |
 | 4 | interface d'écoute d'Odoo et amonts nginx : le port de l'amont doit être celui d'Odoo ; vérifie l'amont websocket (discussion en direct), `proxy_http_version`, `proxy_read_timeout` ; les amonts d'une autre version d'Odoo ne sont ni vérifiés ni modifiés |
 | 5 | pare-feu : ports HTTP/gevent d'Odoo bloqués depuis l'extérieur |
-| 6 | suggestion de limite mémoire (`--workers` x RAM disponible) |
+| 6 | suggestion de limite mémoire : la mémoire disponible (au moins 15 % gardés pour PostgreSQL et le système, 10 % de marge) partagée entre les workers, les tâches planifiées (`max_cron_threads`, `--cron-threads`) et le processus gevent (2.82 ; même calcul que le risque de mémoire d'app-log-live.py) |
 | 7 | audit de l'unité systemd d'Odoo et de `run.sh` |
 | 8 | audit d'`odoo.conf` (`list_db`, `admin_passwd`, mode proxy, limites...) |
 | 9 | jails fail2ban : capteur catch-all, `odoo-auth` (échecs de connexion lus dans le journal d'Odoo), `nginx-blocked-probes` (5 refus nginx en 10 minutes -> bannissement de 24 h) |

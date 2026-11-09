@@ -31,7 +31,7 @@ import re
 import time
 from collections import Counter
 
-__version__ = "1.7.20261109.081127"
+__version__ = "1.8.20261109.100500"
 
 PROBLEM, LOOK, INFO = 2, 1, 0                         # severities: problem, to look at, information
 
@@ -87,6 +87,12 @@ KNOWN_MESSAGES = (
     (r"\.map should have been generated through debug assets", INFO,
      "a browser with its developer tools open asked for a source map (.map) of the assets: harmless",
      "nothing to do; it disappears when nobody opens the developer tools (or in debug=assets mode)"),
+    (r"No CSRF validation token provided", INFO,
+     "a form sent without its security token (CSRF): a robot or a scanner that posts to the site, or a page left open so long that its token expired",
+     "nothing to do if it is rare; many times from one address: look at that address (it may be a scanner to ban)"),
+    (r"dbfilter rejects it", INFO,
+     "a browser came back with a session of another database (an old copy or a test database): Odoo closes that session",
+     "nothing to do; it stops once the person signs in again"),
     (r"called ignoring args", INFO,
      "a browser sent an argument that this version of Odoo no longer expects: an old copy of the web client kept in the browser cache",
      "nothing to do if it is rare; frequent after an update: the users reload the page (Ctrl-Shift-R)"),
@@ -136,6 +142,7 @@ TRACEBACK_HINTS = (
 
 # 1.7: (pattern on the failure reason, solution track). Several may apply to one e-mail; the first ones are the most specific.
 SMTP_HINTS = (
+    (r"4\.4\.5|messages? per session|too many messages", "the mail server accepts only a few e-mails per SMTP connection: set the system parameter mail.session.batch.size (Settings > Technical > System Parameters) below that limit, for example 10, then resend"),
     (r"\b535\b|authentication|auth\w* fail|password not accepted|identifiants", "the mail server refused the user name or the password: check them in Settings > Technical > Outgoing Mail Servers, then « Test Connection »"),
     (r"\b5\.7\.\d+\b|\bSPF\b|\bDKIM\b|\bDMARC\b|not permitted to relay|relay access denied|sender address rejected", "the sender is refused: send from an address of the domain of the mail server (FROM filter of the server, mail.default.from), and check SPF and DKIM of that domain"),
     (r"\b5\.1\.1\b|user unknown|does not exist|no such user|mailbox unavailable|recipient address rejected", "the recipient address does not exist: correct the e-mail of the contact, then resend"),
@@ -503,7 +510,7 @@ class Analyzer:
         if rec:
             state["record"] = rec
             flags = lambda r: ((" · " + (tr("published") if r.get("published") else tr("NOT published"))) + ("" if r.get("active", True) else " · " + tr("archived"))
-                               + (" · " + tr("ended on {end}").format(end=r["end"]) if r.get("end") else ""))
+                               + (" · " + (tr("ends on {end}") if r["end"] >= time.strftime("%Y-%m-%d") else tr("ended on {end}")).format(end=r["end"]) if r.get("end") else ""))      # 1.8: a future end
             if rec.get("kind") == "missing":
                 lines.append((tr("In Odoo: no event with the number {id} (deleted)") if rec.get("what") == "event" else tr("In Odoo: no product with the number {id} (deleted)")).format(id=rec.get("id")))
             elif rec.get("kind") in ("event", "product"):
@@ -909,6 +916,11 @@ class Analyzer:
             evidence.append(tr("First at {first}, last at {last}").format(first=time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(times[0])),
                                                                          last=time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(times[1]))))
         evidence.append(tr("PostgreSQL error: unique violation (constraint mail_push_device_endpoint_unique), not a concurrent update conflict: Odoo does not retry it and nothing is lost"))
+        after = facts.get("push_after_conflict") or 0
+        if after:
+            # 1.8: on PROD, 15 push duplicates and 15 retried conflicts: two tabs subscribe at the same moment, one waits (conflict retried), then finds the
+            # subscription the other one just wrote (duplicate)
+            evidence.append(tr("{k} of them came less than 5 s after a retried conflict: two tabs or devices subscribed at the same moment; the second one, retried by Odoo, found the subscription the first had just written").format(k=after))
         advice = [tr("nothing to do; counted apart since app-log-live.py 1.178 (before: Odoo errors, and the health showed « problem »)")]
         if n + warnings >= 100:
             advice.append(tr("many times: one browser subscribes again in a loop; the person can clear the site data of the browser (or block the notifications of the site)"))
@@ -950,9 +962,12 @@ class Analyzer:
             reasons_text.append(reason)
             if reason and not GENERIC_MAIL_REASON_RE.match(reason):
                 generic_only = False
+            recipients = [r for r in re.split(r"\s*[,;]\s*", c.get("destinataires") or "") if r]
             evidence.append(tr("{when} · subject « {subject} » · to: {to}").format(when=when, subject=raw(_cut(c.get("sujet") or tr("(no subject)"), 90)),
                                                                                to=raw(_cut(c.get("destinataires") or tr("(unknown recipient)"), 120)))
-                            + (" [" + raw(c["base"]) + "]" if len({x.get("base") for x in listed}) > 1 and c.get("base") else ""))
+                            + (" (" + tr("{n} recipients").format(n=len(recipients)) + ")" if len(recipients) > 3 else "")
+                            + (" [" + raw(c["base"]) + "]" if len({x.get("base") for x in listed}) > 1 and c.get("base") else "")
+                            + (" · " + tr("before the window, still not resent") if facts.get("start") and (c.get("instant") or 0) < facts["start"] else ""))
             evidence.append("    " + tr("Reason: ") + raw(_cut(reason or tr("(none recorded)"), 240)))
         servers = details.get("mail_servers") or []
         if servers:
@@ -1112,9 +1127,17 @@ class Analyzer:
             evidence.append(tr("Processes killed for lack of memory in this container since its start (memory.events): {n}").format(n=kills))
         if oom:
             evidence.append(tr("Kernel messages about the memory: ") + " ; ".join(f"{time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(t))} {raw(_cut(text, 90))}" for t, text in oom[:3]))
-        safe_hard = max(256, int(0.7 * total / (workers + cron)))
-        advice = [tr("lower limit_memory_hard to about {hard} MB and limit_memory_soft to about {soft} MB in odoo.conf (70 % of the memory shared by the processes), then restart Odoo").format(
-                      hard=safe_hard, soft=int(safe_hard * 0.85)),
+        # 1.8: same rule as step 6 of nginx-hardening.sh 2.82 (both programs give the same figures): reserve for what runs outside Odoo (what it
+        # uses now, at least 15 % of the memory: PostgreSQL grows with the load and the backup), margin of 10 % (at least 512 MB), the rest shared
+        # by the HTTP workers, the cron threads and the gevent process
+        other = memory.get("other_mb")
+        reserve = max(int(total * 0.15), other or 0)
+        budget = max(0, total - reserve - max(512, total // 10))
+        safe_hard = max(256, budget // (workers + cron + 1))
+        if other is not None:
+            evidence.append(tr("Used outside Odoo now: {other} MB (reserve kept: {reserve} MB)").format(other=other, reserve=reserve))
+        advice = [tr("lower limit_memory_hard to about {hard} MB and limit_memory_soft to about {soft} MB in odoo.conf ({budget} MB shared by {w} workers + {c} cron + 1 gevent, as nginx-hardening.sh step 6), then restart Odoo").format(
+                      hard=safe_hard, soft=safe_hard * 85 // 100, budget=budget, w=workers, c=cron),
                   tr("or lower workers, or give more memory to this server (Proxmox: memory of the container)")]
         severity = PROBLEM if oom or kills else (LOOK if worst > total else INFO)
         self.add("memory-risk", severity, tr("Memory risk: the Odoo processes may use more than the memory of the server") if worst > total
@@ -1172,7 +1195,8 @@ class Analyzer:
             # 1.7: the bans made by fail2ban during the window (the summary line "banned addresses seen" counts only the requests of addresses ALREADY banned)
             who = facts.get("who") or {}
             self.add("banned-during", INFO, tr("Addresses banned by fail2ban during the window: {n}").format(n=len(during)), len(during),
-                     [f"{raw(who.get(ip, ip))} : {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(t))} ({', '.join(jails)})" for ip, t, jails in during[:5]],
+                     [f"{raw(who.get(ip, ip))} : {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(t))} ({', '.join(jails)})" for ip, t, jails in during[:5]]
+                     + ([tr("… and {n} more").format(n=len(during) - 5)] if len(during) > 5 else []),
                      tr("their attacks matched a fail2ban rule: they are blocked"), [tr("nothing to do")], confirmed=True)
         held = facts.get("not_proposed") or []
         if held:
@@ -1260,6 +1284,8 @@ def timeline(facts, details=None, tr=_identity, raw=_identity, limit=60):
     events = []
     for t, text in (details.get("service") or {}).get("events") or ():
         events.append((t, tr("service: ") + raw(_cut(text, 100))))
+    for t, text in (details.get("service") or {}).get("odoo_events") or ():
+        events.append((t, tr("Odoo (journal): ") + raw(_cut(text, 100))))      # 1.8: an auto_backup that starts or ends, for instance
     groups = {}
     for e in facts.get("nginx_errors") or ():
         message = NGINX_TAG_RE.sub("", e["message"])

@@ -12,6 +12,8 @@
 #ANONYMIZE=no
 # --app (défaut : détectée automatiquement)
 #APP=
+# --cdn : CDN devant les sites : none (défaut) ou cloudflare (adresse réelle du visiteur par CF-Connecting-IP) ; --cdn sur la ligne de commande l'enregistre ici
+#CDN=none
 # en, fr ou auto (suivre LC_ALL / LC_MESSAGES / LANG). Ordre de choix : --lang, NGINX_TOOLS_LANG, NGINX_HARDENING_LANG, cette clé, LC_ALL, LC_MESSAGES, LANG.
 # Ajouter une langue = ajouter le fichier lang/nginx-hardening.XX.po (format PO : Poedit, Weblate...) - voir lang/README.md.
 #LANGUAGE=auto
@@ -31,6 +33,8 @@
 #MAIL_TO=
 # --mail-user (identifiant du relais SMTP) (défaut : aucun, demandé la première fois)
 #MAIL_USER=
+# --cron-threads : tâches planifiées d'Odoo pour la suggestion de limites mémoire de l'étape 6 (vide = max_cron_threads de odoo.conf ou de run.sh, sinon 2)
+#MAX_CRON_THREADS=
 # --odoo-conf (défaut : premier fichier trouvé parmi ODOO_CONF_PATHS)
 #ODOO_CONF=
 # --odoo-conf-paths (chemins séparés par des espaces, motifs * permis)
@@ -60,3 +64,4 @@
 #   --check       vérification seule (comportement par défaut)
 #   --report-err  afficher à la fin un rapport d'erreurs à copier-coller (programme, version, serveur, échecs, avertissements)
 #   --version     affiche la version et quitte
+#   --dns-refresh  résout les noms DNS de la liste blanche ; --update seulement si une adresse a changé (cron toutes les 15 min)

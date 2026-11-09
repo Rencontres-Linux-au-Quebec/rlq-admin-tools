@@ -121,7 +121,7 @@ from urllib.parse import unquote, urlsplit
 from collections import Counter, OrderedDict
 from concurrent.futures import Future
 
-__version__ = "1.178.20261109.081127"
+__version__ = "1.179.20261109.100500"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
@@ -258,7 +258,7 @@ UNDERLINE_RATIO = 0.8                                             # 1.107: under
 UNDERLINE_DEFAULT = 10                                                # --underline without N (and default since 1.98): one log line out of 10 underlined
 
 
-SCHEMA_CONFIG = {"ACCENTUATE_GROUP": ("accentuate_group", str), "CHIME": ("chime", _chime_config), "DNS_MAX_TRUNCATE": ("dns_max_truncate", int), "EXCLUDE_IP": ("exclude_ip", _comma_list), "EXPORT_AI": ("export_ai", str),
+SCHEMA_CONFIG = {"ACCENTUATE_GROUP": ("accentuate_group", str), "CHIME": ("chime", _chime_config), "DNS_MAX_TRUNCATE": ("dns_max_truncate", int), "EXCLUDE_IP": ("exclude_ip", _comma_list), "EXPORT_AI": ("export_ai", str), "COUNTRY": ("country", _comma_list), "EXCLUDE_COUNTRY": ("exclude_country", _comma_list), "UTC": ("utc", bool), "NO_HOSTNAME": ("no_hostname", bool), "NO_HTML_JOURNAL": ("no_html_journal", bool),
                  "ERRORS_ONLY": ("errors_only", bool), "ONLY": ("only", _comma_list), "STATUS_HEADER": ("status_header", bool), "STEPS_LINE": ("steps_line", bool), "SUSPECT": ("suspect", bool), "SUMMARY": ("summary", bool), "TIME_REPORT": ("time_report", float), "TRUNCATE": ("truncate", _truncate_config), "WATCH": ("watch", str), "ANONYMIZE": ("anonymize", bool), "UNDERLINE": ("underline", _underline_config),
                  "APP": ("app", str), "CMS": ("cms", str), "CONNECTIONS": ("connections", float), "DAYS": ("days", float),"DISK_MIN": ("disk_min", float), "DNS_MAX": ("dns_max", int), "HEALTH": ("health", float), "HIDE_ADDONS": ("hide_addons", bool), "HIDE_IP": ("hide_ip", bool), "HIGHLIGHT": ("highlight", str), "THEME": ("theme", int), "IDLE": ("idle", float),
                  "LINES": ("lines", int), "LOG_DIR": ("log_dir", str), "LOG_KEEP_DAYS": ("log_keep_days", int), "LOG_MERGE": ("log_merge", bool), "LOG_NGINX": ("log_nginx", bool), "MIN": ("min", bool), "MODULES_CUSTOM": ("modules_custom", bool), "MODULES_SORT": ("modules_sort", str), "MODULES_STARTUP": ("modules_startup", bool), "NAMESPACE": ("namespace", str),
@@ -4324,6 +4324,7 @@ class LatencyMonitor:
         self.disks_seen = {}             # device -> rotational (True / False / None)
         self.started = False
         self.prev = None
+        self.batch = False               # 1.179: True for --advise (past window read at once: no disk sample matches the requests)
 
     @staticmethod
     def _bin():
@@ -4454,6 +4455,9 @@ class LatencyMonitor:
 
     def verdict(self, t):
         """(symbol, text): the conclusion about the disks over the session."""
+        if self.batch and t["n"] >= 20:
+            # 1.179: "let it run a few hours" made no sense after --advise: the requests of the window are in the past, the disks are measured live only
+            return "…", "disks not measured with --advise (the window is read from the logs; the disks are sampled only by the live dashboard): the times of the requests below are complete"
         if t["s"] < 4 or t["n"] < 20:
             return "…", f"not enough data yet: one sample every {self.sample_s:g} s and at least 20 Odoo requests are needed (let it run a few hours)"
         io_avg = t["io_some"] / t["s"]
@@ -4836,6 +4840,7 @@ def sitemap_report(url, folder=NGINX_LOG_DIR, days=0):
     return lines, 0
 
 
+ADVISE_NGINX_BYTES = 200 * 1024 * 1024    # 1.179: end of each nginx access log read by --advise for the details (the z key keeps the 30 MB of apps/_advisor.py)
 HOT_PAIR_MIN = 300                         # 1.178: requests of one address to one page from which the analysis looks at it (a loop)
 HOT_PAIR_SHARE = 0.3                       # 1.178: ... when this page is at least this share of the requests of the address
 IP_URL_MAX = 200000                        # 1.178: (address, page) pairs counted at most (memory bound); pairs already counted keep counting
@@ -4854,6 +4859,7 @@ class Stats:
         self.conflict_codes, self.failure_codes = Counter(), Counter()      # PostgreSQL code -> number
         self.push_duplicates = self.push_duplicate_warnings = 0  # 1.178: push subscriptions already registered (harmless): "bad query" lines / WARNING lines
         self.push_duplicates_time = []                           # 1.178: [first instant, last instant] of the push duplicates
+        self.push_instants, self.conflict_times = [], []          # 1.179: instants of each push duplicate and of each retried conflict (last 2000)
         self.ip_url = Counter()                   # 1.178: (address, page without parameters) -> requests: one address that asks the same page in a loop
         self.ip_url_codes = {}                    # 1.178: same key -> Counter of the HTTP codes
         self.odoo_errors_raw = {}                 # 1.178: (level, logger, message) -> first raw line (the message is grouped with N in place of the numbers)
@@ -5031,6 +5037,8 @@ class Stats:
         if m:
             self.conflicts += 1
             self.conflict_codes[m.group(1)] += 1
+            self.conflict_times.append(L.instant or time.time())        # 1.179: to tell whether a push duplicate followed a retried conflict
+            del self.conflict_times[:-2000]
             return
         m = FINAL_CONFLICT_RE.search(L.text or "")
         if m:
@@ -5045,6 +5053,8 @@ class Stats:
             # 1.178: a push subscription already registered: harmless, counted apart (neither an Odoo error nor a failed e-mail)
             if benign == "push-duplicate":
                 self.push_duplicates += 1
+                self.push_instants.append(L.instant or time.time())
+                del self.push_instants[:-2000]
             else:
                 self.push_duplicate_warnings += 1
             t = L.instant or time.time()
@@ -5091,7 +5101,8 @@ class Stats:
         lang = language_of(url) if code < 400 else None
         if lang:
             self.languages[lang] += 1
-            if not suspect_url(url):                                   # site VISIT: a page (not a file, nor an error, nor a security probe)
+            if not suspect_url(url) and not (ip in self.server or local_address(ip)):      # site VISIT: a page (not a file, nor an error, nor a security probe)
+                # 1.179: nor a page asked by this server itself (app-health-check.py, odoo-warmup.py): on DEV they were 2 of the 10 "visitors" and 176 "/" views
                 instant = L.instant or time.time()
                 self.pages[url.split("?", 1)[0]] += 1
                 self.pages_per_ip[ip] += 1
@@ -5650,7 +5661,8 @@ def advisor_facts(stats):
     starts = [t for t in (stats.first_any, stats.first) if t] + [v[0] for v in stats.nginx_errors_time.values() if v] + [v[0] for v in stats.odoo_errors_time.values() if v]
     return {"start": min(starts) if starts else stats.start, "end": time.time(), "requests": stats.requests, "lines": stats.lines,
             "requests_start": stats.first, "push_duplicates": stats.push_duplicates, "push_duplicate_warnings": stats.push_duplicate_warnings,
-            "push_times": list(stats.push_duplicates_time), "hot_pairs": hot, "banned_during": during,
+            "push_times": list(stats.push_duplicates_time), "hot_pairs": hot,
+            "push_after_conflict": sum(1 for t in stats.push_instants if any(0 <= t - c <= 5 for c in stats.conflict_times)), "banned_during": during,
             "known_ips": sorted(set(stats.people) | set(stats.protected_ones)),
             "errors5": dict(stats.errors[5]), "codes_by_url": codes,
             "plain_4xx": {u: n for u, n in stats.errors[4].items() if not suspect_url(u) and not is_disabled(u)},
@@ -5684,8 +5696,13 @@ def service_started_at(service):
     return epoch
 
 
-def unit_events(service, ns, since):
-    """1.167: (epoch, message) of the starts and stops of the service since `since` (systemd messages of its journal), oldest first."""
+ODOO_JOURNAL_LINE_RE = re.compile(r"^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2},\d+ \d+ (?:DEBUG|INFO|WARNING|ERROR|CRITICAL) \S+ (\S+): (.*)$")
+
+
+def unit_events(service, ns, since, odoo_lines=None):
+    """1.167: (epoch, message) of the starts and stops of the service since `since` (systemd messages of its journal), oldest first.
+    1.179: the lines written by Odoo itself that matched the words (an auto_backup "Starting backup...") are no longer starts of the service:
+    they made "2 starts in the window" on PROD; they go to `odoo_lines` (a list, filled when given) as (epoch, "logger: message")."""
     if not service:
         return []
     cmd = ["journalctl", "-u", service, "-q", "--no-pager", "-o", "short-unix", "--since", f"@{math.floor(since)}",
@@ -5694,7 +5711,14 @@ def unit_events(service, ns, since):
     for text_line in lancer(cmd, 60)[1].splitlines():
         m = re.match(r"^(\d+(?:\.\d+)?)\s+\S+\s+\S+?:\s+(.*)$", text_line)
         if m:
+            odoo = ODOO_JOURNAL_LINE_RE.match(m.group(2).strip())
+            if odoo:
+                if odoo_lines is not None:
+                    odoo_lines.append((float(m.group(1)), f"{odoo.group(1)}: {odoo.group(2)}"[:200]))
+                continue
             res.append((float(m.group(1)), m.group(2).strip()))
+    if odoo_lines is not None:
+        del odoo_lines[:-50]
     return res[-200:]
 
 
@@ -5738,11 +5762,23 @@ def odoo_perf_settings(profile):
 CGROUP_ROOT = os.environ.get("APP_LOG_LIVE_CGROUP_ROOT", "/sys/fs/cgroup")      # 1.178: tests give their own folder
 
 
-def memory_facts(since):
+def memory_facts(since, service=None):
     """1.178: what the analysis needs to judge the memory risk: the memory limit of this container or system (cgroup v2 memory.max, v1
     memory.limit_in_bytes; None: no limit), the OOM kills counted by the cgroup (memory.events) and the kernel messages about the OOM killer since
     `since` (journalctl -k, root needed; [] otherwise). Read-only, never an exception."""
-    res = {"limit_mb": None, "oom_kills": None, "kernel": []}
+    res = {"limit_mb": None, "oom_kills": None, "kernel": [], "other_mb": None}
+    # 1.179: memory used outside Odoo now (MemTotal - MemAvailable minus MemoryCurrent of the Odoo service), the same estimate as nginx-hardening.sh step 6
+    try:
+        info = {}
+        with open("/proc/meminfo", encoding="utf-8") as f:
+            for text_line in f:
+                key, _, value = text_line.partition(":")
+                info[key] = int(value.split()[0]) // 1024 if value.split() else 0
+        current = lancer(["systemctl", "show", service, "-p", "MemoryCurrent", "--value"], 10)[1].strip() if service else ""
+        if "MemTotal" in info and "MemAvailable" in info and current.isdigit():
+            res["other_mb"] = max(0, info["MemTotal"] - info["MemAvailable"] - int(current) // 1048576)
+    except (OSError, ValueError):
+        pass
     for name in ("memory.max", os.path.join("memory", "memory.limit_in_bytes")):
         try:
             with open(os.path.join(CGROUP_ROOT, name), encoding="utf-8") as f:
@@ -6409,6 +6445,7 @@ def follow(cmd, people, resolver, options, output):
     state = {"read_files": 0, "summarized": False, "keep_going": True}
     stats, banned_ips = Stats(options["slow"]), options["banned_ips"]
     form.account_count, form.account_pending = (lambda address: stats.account_ips.get(address, 0)), 1          # 1.174: the live lines are formatted just before they are counted
+    LATENCY.batch = bool(options.get("advise"))             # 1.179: --advise reads a window of the past: the disks are not sampled then
     LATENCY.start()                                         # 1.82: kernel counters every LATENCY_SAMPLE_S seconds (latency report: key P, Ctrl-G, summary)
     stats.is_banned = banned_ips.source_of if banned_ips is not None else None
     stats.ban_info = banned_ips.first_ban_of if banned_ips is not None else None        # 1.151: bans of the fail2ban journal, for the summary
@@ -7629,12 +7666,14 @@ def follow(cmd, people, resolver, options, output):
         pages_404 = list(OrderedDict.fromkeys([u.split("?", 1)[0] for u in facts["gone_404"]] + [u for u, n in by_4xx.most_common(8) if n >= 3]))
         urls = pages_404 + list(facts["account_urls"])
         if access and urls:
-            details["nginx"] = module.nginx_details(access, urls, since=facts["start"])
+            # 1.179: --advise reads the whole window (up to 200 MB per file): with the last 30 MB only, PROD found 14 of the 24 account-form requests
+            details["nginx"] = module.nginx_details(access, urls, since=facts["start"], max_bytes=ADVISE_NGINX_BYTES if batch else module.TAIL_BYTES)
         if advise_progress["p"] is not None:
             advise_progress["p"].step(TR("service journal, odoo.conf"))
-        details["service"] = {"events": unit_events(service, ns, facts["start"]), "state": unit_state(service)}
+        odoo_lines = []
+        details["service"] = {"events": unit_events(service, ns, facts["start"], odoo_lines), "state": unit_state(service), "odoo_events": odoo_lines}
         details["odoo_conf"] = odoo_perf_settings(options["profile"]) if options.get("app") in (None, "odoo") else None      # 1.178: always (memory risk)
-        details["memory"] = memory_facts(facts["start"])                                                                     # 1.178: limit, OOM kills
+        details["memory"] = memory_facts(facts["start"], service)                                                                     # 1.178: limit, OOM kills
         if advise_progress["p"] is not None:
             advise_progress["p"].step(TR("Odoo database (e-mails, pages, events, redirects)"))
         odoo_db, bases = odoo_bases()
@@ -7825,6 +7864,68 @@ def follow(cmd, people, resolver, options, output):
         if batch and options.get("apply"):
             apply_corrections(findings, facts)
 
+    def environment_lines(details):
+        """1.179 --export-ai: what a reader needs to judge the figures without asking: versions, settings of Odoo and PostgreSQL, memory of the
+        server and of the Odoo service, disks, load, timers of the suite. Read-only; a value that cannot be read is left out."""
+        lines = []
+        service = options.get("service")
+        testing = bool(os.environ.get("NGINX_TOOLS_TESTS"))
+        rows = db_rows("SELECT latest_version FROM ir_module_module WHERE name = 'base'") if not testing else []
+        if rows and rows[0] and rows[0][0]:
+            lines.append(TR("Odoo: version {v}").format(v=rows[0][0]) + (f" · {service}" if service else ""))
+        conf = details.get("odoo_conf") or {}
+        if conf.get("values"):
+            values = conf["values"]
+            mb = lambda k: f"{int(float(values[k])) // 1048576} MB" if (values.get(k) or "").strip().replace(".", "", 1).isdigit() else (values.get(k) or "?")
+            lines.append(TR("odoo.conf ({path}): ").format(path=conf.get("path") or "?") + " · ".join(
+                f"{k}={mb(k) if k.startswith('limit_memory') else (values.get(k) or '-')}" for k in ODOO_PERF_KEYS))
+        try:
+            info = {}
+            with open("/proc/meminfo", encoding="utf-8") as f:
+                for text_line in f:
+                    key, _, value = text_line.partition(":")
+                    if value.split():
+                        info[key] = int(value.split()[0]) // 1024
+            memory = details.get("memory") or {}
+            lines.append(TR("Memory: {total} MB in all, {avail} MB available now").format(total=info.get("MemTotal", "?"), avail=info.get("MemAvailable", "?"))
+                         + (" · " + TR("limit of this container: {n} MB").format(n=memory["limit_mb"]) if memory.get("limit_mb") else "")
+                         + (" · " + TR("used outside Odoo: {n} MB").format(n=memory["other_mb"]) if memory.get("other_mb") is not None else "")
+                         + (" · " + TR("processes killed for lack of memory: {n}").format(n=memory["oom_kills"]) if memory.get("oom_kills") else ""))
+        except OSError:
+            pass
+        if service and not testing:
+            values = dict(l.split("=", 1) for l in lancer(["systemctl", "show", service, "-p", "MemoryCurrent", "-p", "MemoryPeak", "-p", "MemoryMax", "-p", "NRestarts",
+                                                           "-p", "ActiveEnterTimestamp"], 10)[1].splitlines() if "=" in l)
+            mb = lambda v: f"{int(v) // 1048576} MB" if (v or "").isdigit() else (v or "?")
+            if values:
+                lines.append(TR("Odoo service: memory now {cur}, peak {peak}, limit {max} · restarts by systemd: {n} · started on {when}").format(
+                    cur=mb(values.get("MemoryCurrent")), peak=mb(values.get("MemoryPeak")), max=mb(values.get("MemoryMax")), n=values.get("NRestarts", "?"),
+                    when=values.get("ActiveEnterTimestamp", "?")))
+            pg = db_rows("SELECT name, setting, COALESCE(unit, '') FROM pg_settings WHERE name IN ('server_version', 'max_connections', 'shared_buffers', 'work_mem', "
+                         "'maintenance_work_mem', 'effective_cache_size', 'log_min_duration_statement', 'log_lock_waits', 'autovacuum', 'deadlock_timeout') ORDER BY name")
+            if pg:
+                lines.append("PostgreSQL : " + " · ".join(f"{r[0]}={r[1]}{(' ' + r[2]) if len(r) > 2 and r[2] else ''}" for r in pg if len(r) >= 2))
+            timers = [l.split() for l in lancer(["systemctl", "list-timers", "--all", "--no-pager", "--no-legend"], 10)[1].splitlines()
+                      if re.search(r"odoo|backup|web-monitor|app-health|crowdsec|system-hardening|nginx", l)]
+            if timers:
+                lines.append(TR("Timers of the suite: ") + " ; ".join(next((w for w in t if w.endswith(".timer")), t[-1]) for t in timers[:8]))
+        for folder in ("/", "/var/log", "/var/lib/postgresql"):
+            try:
+                st = os.statvfs(folder)
+                lines.append(TR("Disk {folder}: {free} GB free of {total} GB").format(folder=folder, free=f"{st.f_bavail * st.f_frsize / 1e9:.1f}",
+                                                                                     total=f"{st.f_blocks * st.f_frsize / 1e9:.1f}"))
+            except OSError:
+                continue
+        try:
+            load = os.getloadavg()
+            with open("/proc/uptime", encoding="utf-8") as f:
+                up = float(f.read().split()[0])
+            lines.append(TR("Load average: {a} / {b} / {c} (1, 5, 15 min) for {cpus} processors · up for {days} days").format(
+                a=f"{load[0]:.2f}", b=f"{load[1]:.2f}", c=f"{load[2]:.2f}", cpus=os.cpu_count() or "?", days=f"{up / 86400:.1f}"))
+        except (OSError, ValueError, AttributeError):
+            pass
+        return lines or [TR("nothing could be read")]
+
     def export_ai(module, facts, details, analysis_lines, batch):
         """1.178 --export-ai: the summary of the dashboard, the analysis, the timeline of the window, the consistency checks and the main counters in one
         Markdown file without colors (pseudonyms when --anonymize is active, like the screen), to send every day for verification. Mode 600."""
@@ -7849,6 +7950,7 @@ def follow(cmd, people, resolver, options, output):
                "- " + TR("Pseudonyms (--anonymize): ") + (TR("yes, the same address always has the same pseudonym") if anonymized else TR("no, real addresses and names")),
                "- " + TR("Versions: ") + f"app-log-live.py {__version__}, apps/_advisor.py {getattr(module, '__version__', '?')}"]
         out += [f"- {plain(l).strip()}" for l in STARTUP_INFO if ".conf" in ANSI_RE.sub("", l)][:3]
+        out += ["", "## " + TR("Environment of the server"), ""] + [f"- {plain(l)}" for l in environment_lines(details)]
         out += ["", "## " + TR("Consistency checks"), ""]
         out += [("- [OK] " if ok else "- [ATTN] ") + plain(text) for ok, text in checks] or ["- " + TR("nothing to check")]
         out += ["", "## " + TR("Summary of the dashboard"), "", "```"] + [plain(l) for l in summary] + ["```"]

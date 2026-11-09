@@ -16,22 +16,30 @@
 #ANONYMIZE=yes
 # --app (défaut : détectée automatiquement)
 #APP=
+# --buffer : dernières lignes affichées gardées en mémoire pour les touches f et P (0 = aucune) (défaut : 200)
+#BUFFER=200
 # --chime : bip sur erreur : 0 = toute erreur, 1 = 4xx, 2 = 5xx et 4xx (vide = aucun bip ; touche c à la volée)
 #CHIME=
 # --cms : CMS du site (odoo, wordpress ou auto) : sous WordPress, /wp-admin, xmlrpc.php, *.php ne sont pas suspects (défaut : auto)
 #CMS=auto
 # --connections : % d'une limite (descripteurs, connexions PostgreSQL, nginx, websocket/chat) à partir duquel un WARNING s'affiche, vérifié chaque minute (défaut : 80 % ; 0 = jamais)
 #CONNECTIONS=80
+# --country : n'afficher que les lignes dont la première adresse est dans ces pays (codes à deux lettres, virgule entre eux ; vide = tous)
+#COUNTRY=
 # --days (défaut : 0 = tout l'historique du journal)
 #DAYS=0
 # --disk-min : Go libres sous lesquels un WARNING d'espace disque s'affiche (partition des journaux ; 0 = jamais) (défaut : 5 Go ; 0 = jamais)
 #DISK_MIN=5
+# --display-host : afficher l'hôte des lignes nginx (host=...) en fin de ligne (touche k à la volée)
+#DISPLAY_HOST=no
 # --dns-max (défaut : 45)
 #DNS_MAX=45
 # --dns-max-truncate : colonne des noms COUPÉS à N caractères (vide = pas de coupure ; touche t à la volée). Un seul de DNS_MAX / DNS_MAX_TRUNCATE est rempli par la touche C.
 #DNS_MAX_TRUNCATE=
 # --errors-only (1.158) / ERRORS_ONLY : seulement les erreurs et les requêtes suspectes (HTTP 400 et plus, WARNING / ERROR d'Odoo, traces, connexions échouées), pas les transactions normales ; commence par les 100 dernières erreurs de l'historique (touche X à la volée)
 #ERRORS_ONLY=no
+# --exclude-country : cacher les lignes dont la première adresse est dans ces pays (codes à deux lettres, virgule entre eux ; vide = aucun)
+#EXCLUDE_COUNTRY=
 # --exclude-ip : adresses ou réseaux cachés (virgule = plusieurs ; touche e à la volée)
 #EXCLUDE_IP=
 # --export-ai (1.178) : avec --advise ou la touche z, écrit aussi un fichier Markdown de vérification (sommaire, analyse, chronologie, contrôles de cohérence) ; yes = fichier export-ai-AAAAMMJJ-HHMMSS.md du dossier d'état, ou un chemin ; vide = non
@@ -42,6 +50,8 @@
 #HIDE_ADDONS=no
 # --hide-ip
 #HIDE_IP=yes
+# --hide-user-agent : ne pas montrer le texte du User-Agent des lignes nginx (touche u à la volée)
+#HIDE_USER_AGENT=no
 # --highlight : mots surlignés en cyan dans les lignes affichées (virgule = plusieurs ; un mot tout en MAJUSCULES comme POST doit l'être dans la ligne,
 # les autres sans tenir compte de la casse ; « none » = aucun ; « +mot » ajoute un mot à la liste par défaut, « -mot » l'enlève : HIGHLIGHT=+odoo,-POST).
 # Valeur par défaut ci-dessous (« -2026- » avec un tiret à la fin est un MOT, pas un retrait) ; ajouter simplement d'autres mots à la suite. Touche l du menu à la volée (+mot / -mot y fonctionnent aussi).
@@ -59,8 +69,9 @@
 #LOG_DIR=
 # --log-keep-days (défaut : 30 ; 0 = jamais)
 #LOG_KEEP_DAYS=30
-# --log-nginx : les journaux nginx du site (accès et erreurs) dans le même flux que l'application, dans l'ordre des heures
+# --log-merge : la ligne nginx et la ligne Odoo de la même requête en une seule ligne (demande --log-nginx ; touche J à la volée)
 #LOG_MERGE=no
+# --log-nginx : les journaux nginx du site (accès et erreurs) dans le même flux que l'application, dans l'ordre des heures
 #LOG_NGINX=no
 # --min (par défaut depuis 1.98) : le minimum d'information : sans nom de base ni « werkzeug », sans les lignes de fetchmail (sauf erreur) ; no = tout (comme --no-min)
 #MIN=yes
@@ -82,6 +93,10 @@
 #NO_CACHE=no
 # --no-history
 #NO_HISTORY=no
+# --no-hostname : ne pas afficher le nom de l'hôte des lignes du journal (comme journalctl --no-hostname)
+#NO_HOSTNAME=no
+# --no-html-journal : pas de copie HTML du journal quotidien (app-log-live-DATE.html)
+#NO_HTML_JOURNAL=no
 # --no-isp  (aucune requête extérieure : ni propriétaire des adresses, ni curl ifconfig.me pour détecter un changement d'IP externe du serveur)
 #NO_ISP=no
 # --no-keys
@@ -90,6 +105,8 @@
 #NO_LOG_FILE=no
 # --no-presence
 #NO_PRESENCE=no
+# --no-sitemap : pas de vérification du sitemap (touche y à la volée)
+#NO_SITEMAP=no
 # --no-user-agent
 #NO_USER_AGENT=no
 # --only : seulement les lignes qui contiennent ce texte (virgule = OU ; touche o à la volée)
@@ -98,11 +115,17 @@
 #RECAP=120
 # --record-max (1.93) : minutes après lesquelles un enregistrement de test (touche R) s'arrête de lui-même (défaut et maximum : 60 ; 0 refusé)
 #RECORD_MAX=60
+# --request-length : afficher la longueur de la requête des lignes nginx (rl=) dans sa colonne (touche j à la volée)
+#REQUEST_LENGTH=no
 # (1.100) l'enregistrement exige psql et l'accès PostgreSQL ; sans root : « sudo -n -u postgres » et « sudo -n » (sudoers, sans mot de passe)
 # --service (défaut : détecté automatiquement)
 #SERVICE=
+# --sitemap : adresse du sitemap.xml d'Odoo (vide = celle du site détecté)
+#SITEMAP=
 # --slow : secondes (défaut : 5 secondes ; 0 = désactivé)
 #SLOW=5
+# --status-every : barre d'état après toutes les N lignes affichées (0 = jamais ; vide = automatique, les deux tiers de la hauteur du terminal ; touche Z à la volée)
+#STATUS_EVERY=
 # 1.125 --status-header : l'heure reste sur chaque ligne ; la date et le nom de l'hôte sont dans la barre d'état
 #STATUS_HEADER=no
 
@@ -121,6 +144,8 @@
 #TRUNCATE=0
 # --underline [N] (1.91) : une ligne du journal sur N soulignée à l'écran, jusqu'au bout de la ligne d'écran (défaut : 10 depuis 1.98 ; yes = 10 ; 0 ou no = aucune, comme --no-underline).
 #UNDERLINE=10
+# --utc : heures en UTC (l'heure de chaque ligne et celles de --since / --until sans fuseau)
+#UTC=no
 # --verbose
 #VERBOSE=no
 # --watch : surveiller les requêtes dont l'URL contient ce texte (virgule = plusieurs ; touche w à la volée)
@@ -146,3 +171,9 @@
 #   --time-report [MIN]      Toutes les MIN minutes, le même rapport que Ctrl-T (ce qui a changé depuis le dernier affichage)
 #   --version                affiche la version et quitte
 #   --watch [TEXT]           Surveille les requêtes dont l'URL contient TEXTE (virgule = plusieurs
+#   --apply                  Avec --advise : propose les corrections une à une (une question chacune)
+#   --config-merge           Réécrit le fichier de configuration à partir du nouveau modèle, en gardant les valeurs réglées, puis quitte
+#   -f, --follow             Accepté par compatibilité avec journalctl (le direct est le défaut)
+#   -g, --grep REGEX         N'affiche que les lignes dont le message correspond à cette expression régulière
+#   --log-chk-sitemap        Rapport des réponses 404 des journaux nginx (pages du sitemap, refusées volontairement, autres), puis quitte
+#   --no-pager               Accepté par compatibilité avec journalctl (la sortie n'est jamais paginée)

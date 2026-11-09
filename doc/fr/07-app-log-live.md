@@ -67,6 +67,16 @@ sudo app-log-live.py --advise 1 --export-ai /root/export.md # fichier choisi
 
 Après l'analyse, un seul fichier Markdown sans couleurs (mode 600) réunit ce qu'il faut pour faire vérifier les sommaires et l'analyse : la période réellement lue (ligne la plus ancienne et première requête), les **contrôles de cohérence** que le programme fait sur ses propres chiffres (une moyenne impossible, deux comptes qui devraient concorder sont marqués `[ATTN]`), le sommaire complet du tableau de bord, l'analyse, la **chronologie** de la période (démarrages et arrêts du service, interruptions vues par nginx, erreurs d'Odoo, requêtes lentes, bannissements, courriels en échec, messages du noyau sur la mémoire, actions planifiées) et les compteurs principaux en JSON. Quand `--anonymize` est actif (par défaut), le fichier contient les mêmes pseudonymes que l'écran : une même adresse a toujours le même pseudonyme, la vérification reste possible. Avec la touche z du tableau de bord, le fichier est écrit aussi quand l'option est donnée. Clé de configuration : `EXPORT_AI` (`yes` = fichier par défaut, ou un chemin).
 
+### Ce que change 1.179
+
+* **Ce serveur n'est plus un visiteur** : les pages demandées par app-health-check.py ou odoo-warmup.py (adresses de ce serveur) ne comptent plus dans les visites du site (sur DEV, 2 des 10 « visiteurs »).
+* **--advise** : le verdict de latence dit que les disques ne sont pas mesurés (ils ne sont échantillonnés qu'en direct) au lieu de « laisser tourner quelques heures » ; les journaux d'accès de nginx sont lus jusqu'à 200 Mo par fichier pour les détails (formulaires de compte).
+* **Journal du service** : les lignes écrites par Odoo lui-même (une sauvegarde auto_backup qui commence) ne sont plus des démarrages du service ; elles figurent dans la chronologie.
+* **Analyse** : un événement à venir « se termine le » (au lieu de « terminé le ») ; avertissements connus « No CSRF validation token » et « dbfilter rejects it » ; courriels refusés par une limite de messages par connexion SMTP (452 4.4.5) : piste `mail.session.batch.size` ; nombre de destinataires et courriels antérieurs à la période signalés ; doublons d'abonnement aux notifications arrivés juste après un conflit réessayé (deux onglets en même temps).
+* **Risque de mémoire** : même calcul que l'étape 6 de nginx-hardening.sh 2.82 (workers + cron + gevent, réserve hors Odoo d'au moins 15 %, marge de 10 %).
+* **--export-ai** : nouvelle section « Environnement du serveur » (version d'Odoo, réglages d'odoo.conf et de PostgreSQL, mémoire du serveur et du service Odoo avec sa pointe, disques, charge, minuteurs de la suite).
+* **Configuration** : nouvelles clés COUNTRY, EXCLUDE_COUNTRY, NO_HOSTNAME, NO_HTML_JOURNAL, UTC ; BUFFER, DISPLAY_HOST, HIDE_USER_AGENT, NO_SITEMAP, REQUEST_LENGTH, SITEMAP et STATUS_EVERY (déjà lues) figurent maintenant dans le modèle.
+
 ### Ce que change 1.178 dans l'analyse et le sommaire
 
 * **Latence** : les connexions websocket (clavardage) ouvertes des heures ne comptent plus dans les moyennes ni dans la part de PostgreSQL : les « moyennes de 20 s » avec une médiane de 0,02 s et le « PostgreSQL 0 %, Python 100 % » venaient de là.

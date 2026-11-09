@@ -1,16 +1,26 @@
 # system-hardening.conf - configuration de system-hardening.sh. Chaque clé est montrée avec sa valeur par défaut (en commentaire).
 # Lu dans /etc/default/system-hardening.conf, puis dans ~/.system-hardening.conf s'il existe (le dernier l'emporte).
 # La ligne de commande a priorité sur ces fichiers. Après un changement : system-hardening.sh --update.
-#LANGUAGE=auto                  # en, fr ou auto (auto : LC_ALL, puis LC_MESSAGES, puis LANG)
-#VERBOSE=no                     # yes : affiche chaque commande système
-#UNATTENDED_UPGRADES=yes        # correctifs de sécurité appliqués chaque jour (unattended-upgrades, sécurité seulement)
-#AUTOMATIC_REBOOT=no            # yes : redémarre tout seul quand un correctif l'exige (coupe Odoo, les conférences BigBlueButton...)
-#AUTOMATIC_REBOOT_TIME=03:30    # heure de ce redémarrage (HH:MM, heure locale)
-#AUDITD=yes                     # règles d'audit rlq-* (sudo, clés SSH, cron, comptes, PAM, sshd, services systemd) ; pas dans un conteneur LXC
-#AUDIT_WATCH_CONTAINERS=yes     # sur un hôte Proxmox : surveiller aussi les fichiers sensibles des conteneurs LXC en marche
 #AIDE=yes                       # intégrité des fichiers (AIDE) : base de référence, vérification quotidienne
 #AIDE_CHECKSUMS=sha512          # condensés d'AIDE (ligne Checksums de /etc/aide/aide.conf) : sha512 suffit ; keep = garder la valeur de la distribution (H = tous, beaucoup plus long)
 #AIDE_EXCLUDE=                  # autres dossiers qu'AIDE doit ignorer, séparés par des espaces (ex. /srv/odoo-data /opt/backups)
+#AUDITD=yes                     # règles d'audit rlq-* (sudo, clés SSH, cron, comptes, PAM, sshd, services systemd) ; pas dans un conteneur LXC
+#AUDIT_WATCH_CONTAINERS=yes     # sur un hôte Proxmox : surveiller aussi les fichiers sensibles des conteneurs LXC en marche
+#AUTOMATIC_REBOOT=no            # yes : redémarre tout seul quand un correctif l'exige (coupe Odoo, les conférences BigBlueButton...)
+#AUTOMATIC_REBOOT_TIME=03:30    # heure de ce redémarrage (HH:MM, heure locale)
+#LANGUAGE=auto                  # en, fr ou auto (auto : LC_ALL, puis LC_MESSAGES, puis LANG) ; --lang
 #NOTIFY=yes                     # sommaire quotidien par courriel (system-hardening-notify.timer, réglages de nginx-tools-mail.conf)
-#NOTIFY_TIME=07:30              # heure de ce sommaire (HH:MM, heure locale)
 #NOTIFY_ALWAYS=no               # yes : envoyer le sommaire chaque jour, même s'il n'y a rien à signaler
+#NOTIFY_TIME=07:30              # heure de ce sommaire (HH:MM, heure locale)
+#UNATTENDED_UPGRADES=yes        # correctifs de sécurité appliqués chaque jour (unattended-upgrades, sécurité seulement)
+#VERBOSE=no                     # yes : affiche chaque commande système (--verbose)
+
+# --- Options de la ligne de commande SEULEMENT (actions : aucune clé ici) ---
+#   --baseline-update    accepte les fichiers actuels comme nouvelle base de référence d'AIDE (après des changements voulus)
+#   --changelog          affiche le journal des modifications
+#   --check              vérification seule (défaut)
+#   -c, --config FICHIER ce fichier de configuration SEUL
+#   --notify             sommaire quotidien : affiché, et envoyé par courriel s'il y a quelque chose à regarder (utilisé par le minuteur)
+#   --report-err         afficher à la fin un rapport d'erreurs à copier-coller
+#   --rollback           retire les fichiers écrits par --update (les paquets restent installés)
+#   --version            affiche la version et quitte

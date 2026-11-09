@@ -1362,7 +1362,7 @@ class AppLogLive(EnvTest):
         with open(sortie, encoding="utf-8") as f:
             texte = f.read()
         self.assertNotIn("\x1b[", texte)
-        for titre in ("## Contrôles de cohérence", "## Sommaire du tableau de bord", "## Analyse des problèmes soulevés", "## Chronologie de la période", "## Compteurs principaux (JSON)"):
+        for titre in ("## Environnement du serveur", "## Contrôles de cohérence", "## Sommaire du tableau de bord", "## Analyse des problèmes soulevés", "## Chronologie de la période", "## Compteurs principaux (JSON)"):
             self.assertIn(titre, texte)
         self.assertIn("Erreurs HTTP 5xx sur /boum", " ".join(texte.split()))
         self.assertIn('"errors_5xx": 2', texte)
@@ -5220,3 +5220,60 @@ class AppLogLive178(unittest.TestCase):
         bloc = src.split("def advise(batch=False):", 1)[1].split("def key(key_value):", 1)[0]
         self.assertIn('options.get("export_ai") is not None', bloc)
         self.assertIn("0o600", bloc)
+
+
+class AppLogLive179(unittest.TestCase):
+    """1.179 : vérification des exports de DEV et de PROD du 2026-11-09 : ce serveur n'est pas un visiteur, verdict de latence de --advise, lignes d'Odoo
+    du journal du service qui ne sont pas des démarrages, doublons push après un conflit réessayé, mémoire hors Odoo, clés de configuration."""
+
+    @classmethod
+    def setUpClass(cls):
+        os.environ["APP_LOG_LIVE_LANG"] = "fr"
+        spec = importlib.util.spec_from_file_location("live_179", script_path("app-log-live.py"))
+        cls.live = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(cls.live)
+
+    def ligne(self, ip, url):
+        return self.live.Line(odoo("INFO", "prod", "werkzeug", f'{ip} - - "GET {url} HTTP/1.1" 200 - 2 0.001 0.002'))
+
+    def test_179_ce_serveur_n_est_pas_un_visiteur(self):
+        s = self.live.Stats(5.0)
+        s.server.add("198.51.100.13")
+        for ip in ("127.0.0.1", "198.51.100.13", "203.0.113.5"):
+            s.ajouter(self.ligne(ip, "/"), {}, None)
+        self.assertEqual(list(s.pages_per_ip), ["203.0.113.5"])
+        self.assertEqual(s.requests, 3)                                                  # still counted as requests
+
+    def test_179_verdict_de_latence_avec_advise(self):
+        m = self.live.LatencyMonitor(None)
+        m.batch = True
+        for _ in range(25):
+            m.request(time.time(), (100, 2, 0.01, 0.02))
+        symbole, texte = m.verdict(m.totals()[0])
+        self.assertIn("--advise", texte)
+        self.assertNotIn("few hours", texte)
+
+    def test_179_lignes_d_odoo_hors_des_demarrages(self):
+        live = self.live
+        sortie = ("1762671628.443 odoo18 odoo[1]: 2026-11-09 03:00:28,443 2201627 INFO prod odoo.addons.auto_backup.models.db_backup: Starting backup\n"
+                  "1762671700.000 odoo18 systemd[1]: Started erplibre.service - Odoo.\n")
+        ancien, live.lancer = live.lancer, lambda cmd, delay=10: (0, sortie)
+        try:
+            odoo_lines = []
+            events = live.unit_events("erplibre.service", "", time.time() - 86400, odoo_lines)
+        finally:
+            live.lancer = ancien
+        self.assertEqual([t for _e, t in events], ["Started erplibre.service - Odoo."])
+        self.assertEqual(odoo_lines[0][1], "odoo.addons.auto_backup.models.db_backup: Starting backup")
+
+    def test_179_doublon_push_apres_conflit(self):
+        live = self.live
+        s = live.Stats(5.0)
+        s.count_conflict(live.Line(odoo("INFO", "prod", "odoo.service.model", "SERIALIZATION_FAILURE, 4 tries left, try again in 0.13 sec...")))
+        s.ajouter(live.Line(odoo("ERROR", "prod", "odoo.sql_db", "bad query: b'INSERT INTO \"mail_push_device\"'")), {}, None, "push-duplicate")
+        self.assertEqual(live.advisor_facts(s)["push_after_conflict"], 1)
+
+    def test_179_cles_de_configuration(self):
+        for cle in ("BUFFER", "COUNTRY", "EXCLUDE_COUNTRY", "UTC", "NO_HOSTNAME", "NO_HTML_JOURNAL"):
+            self.assertIn(cle, self.live.SCHEMA_CONFIG)
+        self.assertEqual(self.live.ADVISE_NGINX_BYTES, 200 * 1024 * 1024)
