@@ -3470,9 +3470,6 @@ msgstr "Paramètres système d'Odoo : "
 msgid "(not set: Odoo default)"
 msgstr "(non défini : défaut d'Odoo)"
 
-msgid "none"
-msgstr "aucune"
-
 msgid "nginx (rt=, static files included): {n} requests measured · median {p50} s · 95 % under {p95} s · slowest {max} s"
 msgstr "nginx (rt=, fichiers statiques compris) : {n} requêtes mesurées · médiane {p50} s · 95 % en moins de {p95} s · la plus lente {max} s"
 
