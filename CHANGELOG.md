@@ -18,6 +18,16 @@ Earlier history was archived outside this repository when this file was created.
 
 ## admin-menu.sh
 
+### 1.3.20261109.190000 - Erase key (^H) in the menu
+
+- Title: the choice of the menu and the confirmations accept ^H and ^?.
+- Reason: report of the administrator on 2026-11-09.
+- Changes: the 3 questions "tty_ligne; read -r -p" become "read -e"; apps/_menu.sh (4 questions) likewise; apps/_menu.py _saisie() now calls apps/_i18n.py saisie().
+- Bugs fixed: symptom: in a question, the erase key showed "3^H^H" and the answer kept the ^H characters; diagnosis: the kernel line mode (stty icanon echoe, put back by tty_ligne) knows ONE erase key only (stty erase, usually ^?), while some terminals (PuTTY, some ssh clients) send ^H; ECHOE does not help when the key is not the erase key; fix: the answers are edited by readline (read -e) or by our own line editor, where ^H AND ^? erase.
+- Safeguards and edge cases: dialog mode unchanged.
+- Checks performed: test_saisie_terminal, test_menu [OK].
+- Action required: none.
+
 ### 1.2.20261101.231500 - Retour arrière : écho et effacement rétablis avant chaque réponse
 
 - Title: the menus of admin-menu.sh (choice, Enter to return, yes/no) restore echo and erase first.
@@ -3169,6 +3179,18 @@ Earlier history was archived outside this repository when this file was created.
 
 ## odoo-update-module.sh
 
+### 1.25.20261109.190000 - Erase key (^H) in the questions, ETAIT_ACTIF unbound after Ctrl+C
+
+- Title: the questions of the site settings accept the erase key of every terminal; Ctrl+C confirmed during these questions no longer ends with an error.
+- Reason: report of the administrator on 2026-11-09: "Attente maximale ... [60] 3^H^H", then "line 1085: ETAIT_ACTIF: unbound variable" after Ctrl+C.
+- Changes: question_reponse(): tty_ligne then "read -e -r -t SECONDS -p QUESTION" (readline, prompt and echo on standard error), answer cleaned by appliquer_effacements(); interrupted_cleanup() and the restart after a failure use ${ETAIT_ACTIF:-0}; the other question (rollback) by read -e; fallback appliquer_effacements when apps/_i18n.sh is absent.
+- Bugs fixed:
+  - symptom: in a question, the erase key showed "3^H^H" and the answer kept the ^H characters; diagnosis: the kernel line mode (stty icanon echoe, put back by tty_ligne) knows ONE erase key only (stty erase, usually ^?), while some terminals (PuTTY, some ssh clients) send ^H; ECHOE does not help when the key is not the erase key; fix: the answers are edited by readline (read -e) or by our own line editor, where ^H AND ^? erase; question_reponse() used a plain "read -r -t", not seen by the static test (it looked for -p or -e only).
+  - symptom: "ETAIT_ACTIF: unbound variable" when Ctrl+C is confirmed during the site questions; diagnosis: the variable is set after these questions, set -u; fix: default 0.
+- Safeguards and edge cases: the 10 s timeout is kept (no answer = value in brackets); without a terminal the configured values are used as before.
+- Checks performed: test_saisie_terminal (pseudo-terminal with stty erase ^?: ^H, ^?, Enter alone) [OK]; ShellCheck 0.11.0 [OK].
+- Action required: none.
+
 ### 1.24.20261101.231500 - Retour arrière : écho et effacement rétablis avant chaque réponse
 
 - Title: the backup-restore question restores echo and erase first.
@@ -3344,6 +3366,16 @@ Earlier history was archived outside this repository when this file was created.
 ### 1.14.20261020.211944 - Current version. Earlier history archived outside the repository.
 
 ## nginx-hardening.sh
+
+### 2.84.20261109.190000 - Erase key (^H) in all the questions
+
+- Title: every question of nginx-hardening.sh accepts ^H and ^? as erase key.
+- Reason: report of the administrator on 2026-11-09 ("^H" shown in the questions of the programs).
+- Changes: the 13 questions "tty_ligne; read -r -p" become "tty_ligne; read -e -r -p" (readline); the SMTP password (read -s, no echo) goes through appliquer_effacements(); fallback appliquer_effacements when apps/_i18n.sh is absent.
+- Bugs fixed: symptom: in a question, the erase key showed "3^H^H" and the answer kept the ^H characters; diagnosis: the kernel line mode (stty icanon echoe, put back by tty_ligne) knows ONE erase key only (stty erase, usually ^?), while some terminals (PuTTY, some ssh clients) send ^H; ECHOE does not help when the key is not the erase key; fix: the answers are edited by readline (read -e) or by our own line editor, where ^H AND ^? erase.
+- Safeguards and edge cases: without a terminal (pipe), read -e reads like read; the password is still never echoed.
+- Checks performed: test_saisie_terminal [OK]; ShellCheck 0.11.0 [OK].
+- Action required: none.
 
 ### 2.83.20261109.153000 - Persistent systemd journal, PostgreSQL logging, nginx response times, cron threads in step 6
 
@@ -3936,6 +3968,16 @@ Earlier history was archived outside this repository when this file was created.
 - Current version. Earlier history archived outside the repository.
 
 ## nginx-log-audit.sh
+
+### 2.92.20261109.190000 - Erase key (^H) in the questions
+
+- Title: the questions read without readline now use it.
+- Reason: report of the administrator on 2026-11-09.
+- Changes: demander_oui() (outside the subshell path) and demander_oui_strict(): "tty_ligne; read -e -r -p".
+- Bugs fixed: symptom: in a question, the erase key showed "3^H^H" and the answer kept the ^H characters; diagnosis: the kernel line mode (stty icanon echoe, put back by tty_ligne) knows ONE erase key only (stty erase, usually ^?), while some terminals (PuTTY, some ssh clients) send ^H; ECHOE does not help when the key is not the erase key; fix: the answers are edited by readline (read -e) or by our own line editor, where ^H AND ^? erase.
+- Safeguards and edge cases: answers by a pipe unchanged.
+- Checks performed: test_saisie_terminal, test_nginx_log_audit (^H and ^?) [OK]; ShellCheck: no new note.
+- Action required: none.
 
 ### 2.91.20261103.133244 - Systematic sweep and incomplete User-Agent signs; exact-IP Odoo logins; short account list
 
@@ -5323,6 +5365,20 @@ Earlier history was archived outside this repository when this file was created.
 ### 1.2.20261019.150215 - Current version. Earlier history archived outside the repository.
 
 ## apps/_i18n.py
+
+### 1.24.20261109.190000 - Own line editor of the answers: ^H and ^? erase (also apps/_i18n.sh, apps/_menu.py)
+
+- Title: every question of the Python programs (saisie(), used by all of them) and the Ctrl+C question of the Bash programs erase with ^H AND ^?.
+- Reason: report of the administrator on 2026-11-09: "^H" still shown when a program asks a question.
+- Changes:
+  - apps/_i18n.py: _lire_reponse_terminal() puts the terminal without ICANON nor ECHO (ISIG kept, VMIN 1) for the answer; new editer_ligne() (echo, ^H and ^? erase one character, ^U the line, ^W the last word, Enter ends, ^D on an empty line = end of file, arrows ignored, UTF-8 and wide characters), appliquer_effacements(), EFFACEMENTS; saisie() without a terminal applies the erase characters.
+  - apps/_i18n.sh: appliquer_effacements TEXT and lire_ligne_editee VARIABLE (Bash editor); _ctrl_c_demande reads its answer with lire_ligne_editee.
+  - apps/_menu.py: _saisie() calls saisie() of apps/_i18n.py (builtin input() with the erase characters applied if the module is missing).
+  - nginx-tools-tests/test_saisie_terminal.py: tests in a real pseudo-terminal set with stty erase ^? (Python saisie, question_reponse of odoo-update-module.sh, lire_ligne_editee, appliquer_effacements); every Bash question must use read -e; the old checks of the termios flags and the frozen versions removed.
+- Bugs fixed: symptom: in a question, the erase key showed "3^H^H" and the answer kept the ^H characters; diagnosis: the kernel line mode (stty icanon echoe, put back by tty_ligne) knows ONE erase key only (stty erase, usually ^?), while some terminals (PuTTY, some ssh clients) send ^H; ECHOE does not help when the key is not the erase key; fix: the answers are edited by readline (read -e) or by our own line editor, where ^H AND ^? erase.
+- Safeguards and edge cases: Ctrl+C keeps its question during an answer (os.read is resumed after the handler, which reads its own answer with the same editor and puts the terminal back); the terminal is always put back in its previous state (finally); without termios: plain readline() with the erase characters applied.
+- Checks performed: test_saisie_terminal, test_saisie, test_ctrl_c [OK].
+- Action required: none.
 
 ### 1.23.20261102.225620 - Ctrl-C during a question: no more "reentrant call" traceback (Python 3.13)
 

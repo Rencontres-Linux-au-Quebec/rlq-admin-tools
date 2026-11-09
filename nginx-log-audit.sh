@@ -146,7 +146,7 @@ grep_q() { grep "$@" >/dev/null; }
 #                              ne peut pas le voir, le texte etant entre apostrophes (faux positif).
 trap 'ec=$?; echo "" >&2; echo "*** ARRÊT INATTENDU DU SCRIPT (code $ec) À LA LIGNE $LINENO ***" >&2; echo "*** Commande fautive : $BASH_COMMAND" >&2; echo "*** Si le rapport ci-dessus semble incomplet (ex. sections Top 10 absentes), c'\''est probablement la cause." >&2' ERR
 
-readonly SCRIPT_VERSION="2.91.20261103.133244"
+readonly SCRIPT_VERSION="2.92.20261109.190000"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
 # theme_sgr CODE (2.86) : the SGR code as the color theme shows it (--theme N, THEME, NGINX_TOOLS_THEME; apps/_theme.py). Theme 0, no module or no python3: unchanged.
 theme_sgr() {
@@ -574,7 +574,7 @@ demander_oui() {
         rm -f "$tmp"
         if (( rc == 130 )); then DEMANDER_INTERROMPU=1; echo; fi
     else
-        tty_ligne; read -r -p "$question" reply || reply=""
+        tty_ligne; read -e -r -p "$question" reply || reply=""
     fi
     case "$reply" in o|O|oui|Oui|OUI) return 0 ;; *) return 1 ;; esac
 }
@@ -586,8 +586,7 @@ demander_oui_strict() {
     DEMANDER_INTERROMPU=0
     while true; do
         reply=""; rc=0
-        tty_ligne
-        read -e -r -p "$question" reply || rc=$?
+        tty_ligne; read -e -r -p "$question" reply || rc=$?
         if (( rc != 0 )); then DEMANDER_INTERROMPU=1; echo; return 1; fi
         case "${reply,,}" in
             o|oui|y|yes) return 0 ;;
@@ -1594,7 +1593,7 @@ if [[ -n "$BAN_IP" ]]; then
             exit 1
         fi
         echo "Exception demandée (justification : $BAN_REASON). Tapez exactement BANNIR en majuscules pour bannir malgré tout."
-        tty_ligne; read -r -e -p "> " confirmation_exception || confirmation_exception=""
+        tty_ligne; read -e -r -p "> " confirmation_exception || confirmation_exception=""
         if [[ "$confirmation_exception" != "BANNIR" ]]; then echo "Annulé : aucune adresse bannie."; exit 0; fi
         BAN_OVERRIDE=1
     fi

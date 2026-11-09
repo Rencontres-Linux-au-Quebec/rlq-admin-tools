@@ -93,7 +93,7 @@ run() {
     "$@"
 }
 
-readonly SCRIPT_VERSION="2.83.20261109.153000"
+readonly SCRIPT_VERSION="2.84.20261109.190000"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
 SCRIPT_NAME="$(basename "${BASH_SOURCE[0]}" .sh)"; readonly SCRIPT_NAME
 # Display language (en or fr): --lang, NGINX_HARDENING_LANG, LANGUAGE of the configuration file, LC_ALL / LANG - apps/_i18n.sh translates the output (nothing changes in French).
@@ -103,6 +103,7 @@ if [[ -r "$SCRIPT_DIR/apps/_i18n.sh" ]]; then
     i18n_relancer nginx-hardening NGINX_HARDENING_LANG "$0" "$@"
 fi
 declare -F tty_ligne >/dev/null || tty_ligne() { :; }   # 1.x: apps/_i18n.sh absent: no terminal preparation
+declare -F appliquer_effacements >/dev/null || appliquer_effacements() { printf '%s' "$1"; }   # without apps/_i18n.sh: answer kept as typed
 # Changelog dans le sous-repertoire doc/ ; repli sur l'ancien emplacement (a cote du programme) tant que
 # l'installation n'a pas ete reorganisee.
 CHANGELOG_FILE="$SCRIPT_DIR/CHANGELOG.md"
@@ -365,7 +366,7 @@ menu_confirmer() {    # menu_confirmer QUESTION : 0 si la réponse est oui (o, o
         "$DIALOG_BIN" --title "nginx-hardening.sh" --yesno "$1" 8 72 || rc=$?
         return "$rc"
     fi
-    tty_ligne; read -r -p "$1 [o/N] " rep || return 1
+    tty_ligne; read -e -r -p "$1 [o/N] " rep || return 1
     case "${rep,,}" in o|oui|y|yes) return 0 ;; esac
     return 1
 }
@@ -455,7 +456,7 @@ menu_dialog() {       # menu graphique (dialog) : une fenêtre de choix, puis l'
         [[ "$choix" == "q" ]] && break
         menu_action "$choix" || true
         if [[ "$choix" != "4" ]]; then
-            tty_ligne; read -r -p "Entrée pour revenir au menu..." _ || break
+            tty_ligne; read -e -r -p "Entrée pour revenir au menu..." _ || break
         fi
     done
 }
@@ -474,12 +475,12 @@ menu_texte() {        # menu en mode texte (repli, quand dialog n'est pas instal
         echo "  ${C_GREEN}5${C_RESET}  Voir le journal des modifications (${C_GREEN}--changelog${C_RESET})"
         echo "  ${C_GREEN}q${C_RESET}  Quitter"
         echo
-        tty_ligne; read -r -p "Votre choix : " choix || { echo; break; }
+        tty_ligne; read -e -r -p "Votre choix : " choix || { echo; break; }
         case "$choix" in
             q|Q) break ;;
             *) menu_action "$choix" || echo "Choix inconnu : « $choix »." ;;
         esac
-        tty_ligne; read -r -p "Entrée pour revenir au menu..." _ || break
+        tty_ligne; read -e -r -p "Entrée pour revenir au menu..." _ || break
     done
 }
 
@@ -1136,7 +1137,7 @@ rollback_executer() {    # --rollback: restores an archive (the newest by defaul
         if [[ -e "$tmp/${racine#/}" ]]; then diff -rq "$tmp/${racine#/}" "$racine" 2>/dev/null || true; fi
     done | head -n 30 | sed 's/^/      /' || true
     if [[ "$ROLLBACK_YES" != "1" ]]; then
-        if [[ -t 0 ]]; then tty_ligne; read -r -p "  Restaurer cette sauvegarde ? L'état actuel est sauvegardé d'abord. [o/N] " rep || rep=""
+        if [[ -t 0 ]]; then tty_ligne; read -e -r -p "  Restaurer cette sauvegarde ? L'état actuel est sauvegardé d'abord. [o/N] " rep || rep=""
         else echo "Pas de terminal : rien restauré (ajouter --yes pour confirmer sans question)." >&2; rm -rf "$tmp"; exit 1; fi
         if [[ ! "$rep" =~ ^[oOyY]$ ]]; then echo "Annulé : rien restauré."; rm -rf "$tmp"; exit 0; fi
     fi
@@ -1304,7 +1305,7 @@ else
     else
         reponse="o"
         if [[ -z "$TIMEZONE" && -t 0 && -t 2 ]]; then
-            tty_ligne; read -r -p "  Régler le fuseau horaire du serveur à $tz_voulu (actuel : ${tz_actuel:-inconnu}) ? [O/n/autre zone] " reponse || reponse="o"
+            tty_ligne; read -e -r -p "  Régler le fuseau horaire du serveur à $tz_voulu (actuel : ${tz_actuel:-inconnu}) ? [O/n/autre zone] " reponse || reponse="o"
             case "$reponse" in
                 ""|[oOyY]*) reponse="o" ;;
                 [nN]*) reponse="n" ;;
@@ -1381,7 +1382,7 @@ mail_demander() {      # mail_demander VARIABLE "question" [default]: sets the a
     local nom="$1" question="$2" defaut="${3:-}" reponse=""
     [[ -n "${!nom}" ]] && return 0
     if mail_terminal; then
-        tty_ligne; read -r -p "  $question${defaut:+ [$defaut]} : " reponse || reponse=""
+        tty_ligne; read -e -r -p "  $question${defaut:+ [$defaut]} : " reponse || reponse=""
     fi
     printf -v "$nom" '%s' "${reponse:-$defaut}"
 }
@@ -1389,7 +1390,7 @@ mail_terminal() { [[ -t 0 && -t 2 ]]; }       # questions asked on the terminal 
 mail_valide() { [[ "$1" != *[\"\$\`\\]* && "$1" != *$'\n'* ]]; }
 mail_non=0      # "no" answer (default) to the question: the SMTP setup is skipped for this run
 if [[ "$CHECK_ONLY" != "1" ]] && ! (( mail_deja && ! MAIL_SETUP )) && (( ! MAIL_SETUP )) && [[ -z "$MAIL_HOST" && -z "${NGINX_TOOLS_MAIL_PASSWORD:-}" ]] && mail_terminal; then
-    tty_ligne; read -r -p "  Faire le setup du courriel (relais SMTP) maintenant ? [o/N] : " mail_rep || mail_rep=""
+    tty_ligne; read -e -r -p "  Faire le setup du courriel (relais SMTP) maintenant ? [o/N] : " mail_rep || mail_rep=""
     case "${mail_rep,,}" in o|oui|y|yes) ;; *) mail_non=1 ;; esac
 fi
 if [[ "$CHECK_ONLY" == "1" ]]; then
@@ -1418,6 +1419,7 @@ else
     mail_mdp="${NGINX_TOOLS_MAIL_PASSWORD:-}"
     if [[ -z "$mail_mdp" && -n "$MAIL_HOST" ]] && mail_terminal; then
         read -r -s -p "  Mot de passe de $MAIL_USER (aucun écho, gardé dans $MAIL_PASS en mode 0600) : " mail_mdp || mail_mdp=""
+        mail_mdp=$(appliquer_effacements "$mail_mdp")      # 2.84: ^H or ^? typed in the password erase (no readline without echo)
         echo
     fi
     if [[ -z "$MAIL_HOST" || -z "$MAIL_USER" ]]; then
@@ -1488,7 +1490,7 @@ tls_starttls on" ;;
                 pass "$MSMTPRC écrit (commandes sendmail et mail des programmes Bash)."
             fi
             if mail_terminal; then
-                tty_ligne; read -r -p "  Envoyer un courriel de test à $MAIL_TO maintenant ? [O/n] " mail_rep || mail_rep="n"
+                tty_ligne; read -e -r -p "  Envoyer un courriel de test à $MAIL_TO maintenant ? [O/n] " mail_rep || mail_rep="n"
                 case "$mail_rep" in
                     [nN]*) ;;
                     *)  if mail_sortie=$(timeout --foreground 60 python3 "$SCRIPT_DIR/apps/_courriel.py" --test 2>&1); then pass "Courriel de test envoyé à $MAIL_TO."
@@ -1542,7 +1544,7 @@ if [[ -z "$RENAME_FROM" && -n "$RENAME_TO" ]] && renom_valide "$RENAME_TO"; then
     elif (( ${#rn_cands[@]} > 1 )); then
         echo "  Noms trouvés dans les server_name de nginx : ${rn_cands[*]}"
         if [[ "$CHECK_ONLY" != "1" ]] && mail_terminal; then
-            tty_ligne; read -r -p "  Ancien nom à remplacer par $RENAME_TO : " RENAME_FROM || RENAME_FROM=""
+            tty_ligne; read -e -r -p "  Ancien nom à remplacer par $RENAME_TO : " RENAME_FROM || RENAME_FROM=""
         fi
         [[ -n "$RENAME_FROM" ]] || warn "Plusieurs anciens noms possibles : préciser lequel avec --rename-from NOM."
     else
@@ -1704,7 +1706,7 @@ else
             warn "Configuration nginx générique : ${#GEN_PLAN[@]} changements en attente (relancer avec --update pour les appliquer après confirmation)."
         else
             GEN_REP=""
-            if [[ -t 0 ]]; then tty_ligne; read -r -p "  Appliquer ces ${#GEN_PLAN[@]} changements à la configuration nginx générique ? [o/N] " GEN_REP || GEN_REP=""
+            if [[ -t 0 ]]; then tty_ligne; read -e -r -p "  Appliquer ces ${#GEN_PLAN[@]} changements à la configuration nginx générique ? [o/N] " GEN_REP || GEN_REP=""
             else warn "Pas de terminal : configuration nginx générique non modifiée (lancer --update dans un terminal pour confirmer)."; fi
             if [[ "$GEN_REP" =~ ^[oOyY]$ ]]; then
                 GEN_TS=$(date +%Y%m%d-%H%M%S); GEN_FAITS=()
@@ -2667,7 +2669,7 @@ else
             warn "Jail $F2B_SQLI_JAIL : journal $F2B_SQLI_LOG non lu (relancer avec --update pour l'ajouter après confirmation)."
         else
             F2B_REP=""
-            if [[ -t 0 ]]; then tty_ligne; read -r -p "  Appliquer ce changement à $F2B_SQLI_FICHIER et recharger fail2ban ? [o/N] " F2B_REP || F2B_REP=""
+            if [[ -t 0 ]]; then tty_ligne; read -e -r -p "  Appliquer ce changement à $F2B_SQLI_FICHIER et recharger fail2ban ? [o/N] " F2B_REP || F2B_REP=""
             else warn "Pas de terminal : jail $F2B_SQLI_JAIL non modifiée (lancer --update dans un terminal pour confirmer)."; fi
             if [[ "$F2B_REP" =~ ^[oOyY]$ ]]; then
                 F2B_BAK="$F2B_SQLI_FICHIER.before-logpath-$(date +%Y%m%d-%H%M%S)"
@@ -3235,7 +3237,7 @@ if [[ "$APP_NAME" == "odoo" ]]; then
         if [[ "$ROLLBACK_YES" == "1" ]]; then
             uri_ok=1
         elif [[ -t 0 ]]; then
-            tty_ligne; read -r -p "  Refuser (404) : ${uri_futures:-aucune} (actuellement : ${uri_actuelles:-aucune}) ? [o/N] " uri_rep || uri_rep=""
+            tty_ligne; read -e -r -p "  Refuser (404) : ${uri_futures:-aucune} (actuellement : ${uri_actuelles:-aucune}) ? [o/N] " uri_rep || uri_rep=""
             [[ "$uri_rep" =~ ^[oOyY] ]] && uri_ok=1
         else
             warn "Pas de terminal : URI refusées inchangées (${uri_actuelles:-aucune}). Ajouter --yes pour confirmer sans question."

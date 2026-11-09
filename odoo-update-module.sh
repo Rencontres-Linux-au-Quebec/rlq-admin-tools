@@ -92,7 +92,7 @@ set -euo pipefail
 for _d in /usr/local/sbin /usr/sbin /sbin; do [[ -n "${NGINX_TOOLS_TESTS:-}" ]] && break; case ":$PATH:" in *":$_d:"*) ;; *) PATH="$PATH:$_d" ;; esac; done
 export PATH
 
-readonly SCRIPT_VERSION="1.24.20261101.231500"
+readonly SCRIPT_VERSION="1.25.20261109.190000"
 SCRIPT_NAME="$(basename "${BASH_SOURCE[0]}" .sh)"; readonly SCRIPT_NAME
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
 SCRIPT_PATH="$SCRIPT_DIR/$(basename "${BASH_SOURCE[0]}")"; readonly SCRIPT_PATH
@@ -110,6 +110,7 @@ if [[ -r "$SCRIPT_DIR/apps/_i18n.sh" ]]; then
     i18n_relancer "$SCRIPT_NAME" ODOO_UPDATE_MODULE_LANG "$0" "$@"
 fi
 declare -F tty_ligne >/dev/null || tty_ligne() { :; }   # 1.x: apps/_i18n.sh absent: no terminal preparation
+declare -F appliquer_effacements >/dev/null || appliquer_effacements() { printf '%s' "$1"; }   # without apps/_i18n.sh: answer kept as typed
 # 1.11: without apps/_i18n.sh, plain execution (no Ctrl+C question).
 declare -F pad_cols >/dev/null || pad_cols() { printf '%-*s' "$2" "$1"; }     # 1.13 : sans apps/_i18n.sh, remplissage en octets (comme avant)
 declare -F run_interruptible >/dev/null || run_interruptible() { "$@"; }
@@ -532,7 +533,7 @@ verifier_odoo_a_la_main() {
     cut -c1-200 <<< "$autres" | en_retrait "$C_YELLOW"
     if (( DO_FORCE )); then attn "--force : on continue ; ce processus n'est ni arrêté ni contrôlé"; return 0; fi
     echo "  Arrêtez-le (Ctrl+C dans son terminal, ou kill PID), puis relancez ; --force pour passer outre." >&2
-    if (( ETAIT_ACTIF )); then sc start "$SERVICE" || true; attn "service $SERVICE redémarré : il était actif avant"; fi
+    if (( ${ETAIT_ACTIF:-0} )); then sc start "$SERVICE" || true; attn "service $SERVICE redémarré : il était actif avant"; fi
     exit 1
 }
 
@@ -873,8 +874,10 @@ peut_demander() { [[ -t 0 && -t 1 ]]; }
 # question_reponse TEXTE DEFAUT SECONDES: asks on the terminal (on stderr); prints the answer, or DEFAUT when empty or when nothing comes within SECONDES.
 question_reponse() {
     local reponse=""
-    printf '%s' "$1" >&2
-    if ! IFS= read -r -t "$3" reponse; then echo >&2; reponse=""; fi
+    # 1.25: readline (read -e): ^H AND ^? erase; before, a terminal that sends ^H showed "3^H^H" and the answer kept the ^H. The prompt and the echo
+    # go to standard error (this function runs inside $(...)).
+    if ! { tty_ligne; IFS= read -e -r -t "$3" -p "$1" reponse; }; then echo >&2; reponse=""; fi
+    reponse=$(appliquer_effacements "$reponse")
     echo "${reponse:-$2}"
 }
 
@@ -1062,7 +1065,7 @@ rollback() {
     if [[ -z "$MODULES_BACKUP" ]]; then attn "pas de retour arrière : aucune copie des modules d'avant (nouveaux modules seulement)"; return 1; fi
     echo
     if [[ -t 0 && -t 1 ]]; then
-        tty_ligne; read -r -p "  Retour arrière vers les versions d'avant (copie $(basename "$MODULES_BACKUP")) ? [O/n] " rep || rep=""
+        tty_ligne; read -e -r -p "  Retour arrière vers les versions d'avant (copie $(basename "$MODULES_BACKUP")) ? [O/n] " rep || rep=""
         case "${rep,,}" in n|non|no) attn "pas de retour arrière : copie d'avant disponible : $MODULES_BACKUP (tar -xzPf, puis mise à jour)"; return 1 ;; esac
     fi
     ETAPE=0; ETAPES=5; if (( DO_WARMUP )); then ETAPES=6; fi
@@ -1082,7 +1085,7 @@ rollback() {
 
 # Ctrl+C confirmed during processing: the service is restarted if it was active (the site never stays stopped).
 interrupted_cleanup() {
-    if (( ETAIT_ACTIF )) && [[ "$(sc is-active "$SERVICE" 2>/dev/null || true)" != "active" ]]; then
+    if (( ${ETAIT_ACTIF:-0} )) && [[ "$(sc is-active "$SERVICE" 2>/dev/null || true)" != "active" ]]; then
         echo "  Interruption : redémarrage du service $SERVICE (il était actif)…" >&2
         sc start "$SERVICE" >/dev/null 2>&1 || true
     fi

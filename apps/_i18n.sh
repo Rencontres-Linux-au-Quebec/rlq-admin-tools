@@ -95,10 +95,40 @@ ctrl_c_installer() {
 
 # 1.x: put the terminal back in line mode (echo, erase ECHOE, ICANON) before each answer. Without ECHOE, the erase key deletes the
 # character but shows "^H" on screen ("d^H^H^H^H"): a program that left the terminal in another mode made the prompts of nginx-hardening.sh
-# unusable. No terminal (pipe, cron): nothing. Used before every "read -r -p" and "read -e" of the programs.
+# unusable. No terminal (pipe, cron): nothing. Used before every question (read -e) of the programs.
 tty_ligne() {
     [[ -t 0 ]] || return 0
     stty icanon echo echoe icrnl 2>/dev/null </dev/tty || true
+}
+
+# 2026-11-09: the kernel line mode knows ONE erase key only (stty erase, usually ^?): a terminal that sends ^H (PuTTY, some ssh clients) showed
+# "3^H^H" and the answer kept the ^H. So the questions are read by readline ("read -e": ^H AND ^? erase, arrows), and the answers read without
+# readline (password with -s, pipe) go through appliquer_effacements. lire_ligne_editee is the editor of the Ctrl+C question (no readline there).
+appliquer_effacements() {   # appliquer_effacements TEXT: the text with its ^H / ^? applied ("3\b4" -> "4")
+    local texte="$1" avant apres
+    while [[ "$texte" == *[$'\b\x7f']* ]]; do
+        avant="${texte%%[$'\b\x7f']*}"; apres="${texte#*[$'\b\x7f']}"
+        texte="${avant%?}$apres"
+    done
+    printf '%s' "$texte"
+}
+
+lire_ligne_editee() {   # lire_ligne_editee VARIABLE: one line typed on /dev/tty, echo on standard error, ^H and ^? erase, ^U erases all; 1 at end of file
+    local __c __l=""
+    while :; do
+        if ! IFS= read -r -s -n1 -d '' __c </dev/tty; then
+            [[ -n "$__l" ]] || return 1
+            break
+        fi
+        case "$__c" in
+            $'\n'|$'\r'|'') printf '\r\n' >&2; break ;;
+            $'\b'|$'\x7f') if [[ -n "$__l" ]]; then __l="${__l%?}"; printf '\b \b' >&2; fi ;;
+            $'\x15') while [[ -n "$__l" ]]; do __l="${__l%?}"; printf '\b \b' >&2; done ;;
+            [[:cntrl:]]) ;;
+            *) __l+="$__c"; printf '%s' "$__c" >&2 ;;
+        esac
+    done
+    printf -v "$1" '%s' "$__l"
 }
 
 _ctrl_c_demande() {
@@ -115,7 +145,8 @@ _ctrl_c_demande() {
     # during this question (after a Ctrl+C received during a "read -e") stayed without effect ("^C^C^C"). Interrupted subshell or end of file: yes.
     # This shell ignores Ctrl+C for the duration of the question (otherwise bash, receiving the same signal during its trap: "trap_handler: bad signal 2", abort).
     trap '' INT
-    rep=$(trap - INT; IFS= read -r r </dev/tty 2>/dev/null || read -r r || exit 130; printf '%s' "$r") || rep=o
+    # 2026-11-09: typed with lire_ligne_editee (^H and ^? erase); no terminal: plain read.
+    rep=$(trap - INT; if { : </dev/tty; } 2>/dev/null; then lire_ligne_editee r || exit 130; else read -r r || exit 130; fi; printf '%s' "$r") || rep=o
     trap '_ctrl_c_demande' INT
     [[ -n "$etat_tty" ]] && stty "$etat_tty" 2>/dev/null </dev/tty
     _ctrl_c_en_cours=0
