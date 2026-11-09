@@ -67,6 +67,28 @@ sudo app-log-live.py --advise 1 --export-ai /root/export.md # file of your choic
 
 After the analysis, one Markdown file without colors (mode 600) holds what is needed to have the summaries and the analysis checked: the window really read (oldest line and first request), the **consistency checks** the program makes on its own figures (an impossible mean, two counts that should agree are marked `[ATTN]`), the whole summary of the dashboard, the analysis, the **timeline** of the window (starts and stops of the service, interruptions seen by nginx, Odoo errors, slow requests, bans, failed e-mails, kernel messages about the memory, scheduled actions) and the main counters in JSON. When `--anonymize` is active (the default), the file has the same pseudonyms as the screen: one address always has the same pseudonym, the check stays possible. With the z key of the dashboard, the file is written too when the option is given. Configuration key: `EXPORT_AI` (`yes` = default file, or a path).
 
+### Findings checked by an administrator: --ack (1.180)
+
+```
+sudo app-log-live.py --ack a1b2c3 --ack-note "a volunteer, loop of the Odoo web client"   # code shown after the title of the finding
+sudo app-log-live.py --ack-list                                                        # what is checked, by whom, until when
+sudo app-log-live.py --unack a1b2c3
+```
+
+Every finding of the analysis shows a 6-character code after its title. An administrator who checked a finding (for instance the looping calls of a volunteer's tab) marks it with `--ack`: the analysis and the export then list it apart, out of the summary ("Checked by an administrator"), for 30 days (`--ack-days`, key `ACK_DAYS`). The finding comes back by itself when its count more than doubles. The file is `acknowledged.json` in the state folder (mode 600).
+
+**Odoo device log** (`res.device.log`, Odoo 17 and later): the analysis looks up whose session runs from the addresses that loop or that it proposes to ban. The session of a user of the site is shown (name, login, device, last activity); a loop of their tab becomes information, and an address where a user of the site has a session is never proposed for a ban.
+
+### What 1.179 changes
+
+* **This server is no longer a visitor**: the pages asked by app-health-check.py or odoo-warmup.py (addresses of this server) no longer count in the site visits (on DEV, 2 of the 10 "visitors").
+* **--advise**: the latency verdict says that the disks are not measured (they are sampled live only) instead of "let it run a few hours"; the nginx access logs are read up to 200 MB per file for the details (account forms).
+* **Service journal**: the lines written by Odoo itself (an auto_backup that starts) are no longer starts of the service; they appear in the timeline.
+* **Analysis**: an upcoming event "ends on" (instead of "ended on"); known warnings "No CSRF validation token" and "dbfilter rejects it"; e-mails refused by a limit of messages per SMTP connection (452 4.4.5): track `mail.session.batch.size`; number of recipients and e-mails older than the window reported; push duplicates that came right after a retried conflict (two tabs at the same time).
+* **Memory risk**: same calculation as step 6 of nginx-hardening.sh 2.82 (workers + cron + gevent, reserve outside Odoo of at least 15 %, 10 % margin).
+* **--export-ai**: new section "Environment of the server" (Odoo version, settings of odoo.conf and PostgreSQL, memory of the server and of the Odoo service with its peak, disks, load, timers of the suite).
+* **Configuration**: new keys COUNTRY, EXCLUDE_COUNTRY, NO_HOSTNAME, NO_HTML_JOURNAL, UTC; BUFFER, DISPLAY_HOST, HIDE_USER_AGENT, NO_SITEMAP, REQUEST_LENGTH, SITEMAP and STATUS_EVERY (already read) are now in the template.
+
 ### What 1.178 changes in the analysis and the summary
 
 * **Latency**: the websocket connections (chat) kept open for hours no longer count in the means nor in the share of PostgreSQL: the "means of 20 s" with a median of 0.02 s and the "PostgreSQL 0 %, Python 100 %" came from them.

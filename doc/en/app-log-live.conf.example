@@ -9,6 +9,8 @@
 # --- Options (ordre alphabétique / alphabetical order) ---
 # --accentuate-group : étiquette (catégorie) de contacts Odoo affichés en blanc gras sur bleu foncé (vide = aucune ; touche a à la volée)
 #ACCENTUATE_GROUP=
+# --ack-days: days during which a finding checked by an administrator (--ack) stays out of the summary (default: 30)
+#ACK_DAYS=30
 # --anonymize (par défaut depuis 1.88 pour app-log-live) : anonymiser ce que le programme affiche à l'écran (adresses IP, courriels, identifiants, jetons) par des pseudonymes
 # stables (IP-4f2a9c, usager-9c1e03@anonyme.invalid) ; depuis 1.91, les noms des personnes aussi (membre-4f2a9c ; étiquettes de l'équipe : equipe-4f2a9c) ; le journal
 # quotidien garde tout. no = vraies valeurs (comme --no-anonymize). Touche A à la volée ; la touche C la sauvegarde.
@@ -16,22 +18,30 @@
 #ANONYMIZE=yes
 # --app (défaut : détectée automatiquement)
 #APP=
+# --buffer: last displayed lines kept in memory for the f and P keys (0 = none) (default: 200)
+#BUFFER=200
 # --chime : bip sur erreur : 0 = toute erreur, 1 = 4xx, 2 = 5xx et 4xx (vide = aucun bip ; touche c à la volée)
 #CHIME=
 # --cms : CMS du site (odoo, wordpress ou auto) : sous WordPress, /wp-admin, xmlrpc.php, *.php ne sont pas suspects (défaut : auto)
 #CMS=auto
 # --connections : % d'une limite (descripteurs, connexions PostgreSQL, nginx, websocket/chat) à partir duquel un WARNING s'affiche, vérifié chaque minute (défaut : 80 % ; 0 = jamais)
 #CONNECTIONS=80
+# --country: show only the lines whose first address is in these countries (two-letter codes, comma between them; empty = all)
+#COUNTRY=
 # --days (défaut : 0 = tout l'historique du journal)
 #DAYS=0
 # --disk-min : Go libres sous lesquels un WARNING d'espace disque s'affiche (partition des journaux ; 0 = jamais) (défaut : 5 Go ; 0 = jamais)
 #DISK_MIN=5
+# --display-host: show the host of the nginx lines (host=...) at the end of the line (k key on the fly)
+#DISPLAY_HOST=no
 # --dns-max (défaut : 45)
 #DNS_MAX=45
 # --dns-max-truncate : colonne des noms COUPÉS à N caractères (vide = pas de coupure ; touche t à la volée). Un seul de DNS_MAX / DNS_MAX_TRUNCATE est rempli par la touche C.
 #DNS_MAX_TRUNCATE=
 # --errors-only (1.158) / ERRORS_ONLY: only the errors and the suspicious requests (HTTP 400 and above, Odoo WARNING / ERROR, traces, failed logins), not the normal transactions; starts with the last 100 errors of the history (X key while running)
 #ERRORS_ONLY=no
+# --exclude-country: hide the lines whose first address is in these countries (two-letter codes, comma between them; empty = none)
+#EXCLUDE_COUNTRY=
 # --exclude-ip : adresses ou réseaux cachés (virgule = plusieurs ; touche e à la volée)
 #EXCLUDE_IP=
 # --export-ai (1.178): with --advise or the z key, also write a Markdown file for verification (summary, analysis, timeline, consistency checks); yes = file export-ai-YYYYMMDD-HHMMSS.md of the state folder, or a path; empty = no
@@ -42,6 +52,8 @@
 #HIDE_ADDONS=no
 # --hide-ip
 #HIDE_IP=yes
+# --hide-user-agent: do not show the User-Agent text of the nginx lines (u key on the fly)
+#HIDE_USER_AGENT=no
 # --highlight : mots surlignés en cyan dans les lignes affichées (virgule = plusieurs ; un mot tout en MAJUSCULES comme POST doit l'être dans la ligne,
 # les autres sans tenir compte de la casse ; « none » = aucun ; « +mot » ajoute un mot à la liste par défaut, « -mot » l'enlève : HIGHLIGHT=+odoo,-POST).
 # Valeur par défaut ci-dessous (« -2026- » avec un tiret à la fin est un MOT, pas un retrait) ; ajouter simplement d'autres mots à la suite. Touche l du menu à la volée (+mot / -mot y fonctionnent aussi).
@@ -59,8 +71,9 @@
 #LOG_DIR=
 # --log-keep-days (défaut : 30 ; 0 = jamais)
 #LOG_KEEP_DAYS=30
-# --log-nginx : the nginx logs of the site (access and error) in the same stream as the application, in time order
+# --log-merge: the nginx line and the Odoo line of the same request as one line (needs --log-nginx; J key on the fly)
 #LOG_MERGE=no
+# --log-nginx : the nginx logs of the site (access and error) in the same stream as the application, in time order
 #LOG_NGINX=no
 # --min (par défaut depuis 1.98) : le minimum d'information : sans nom de base ni « werkzeug », sans les lignes de fetchmail (sauf erreur) ; no = tout (comme --no-min)
 #MIN=yes
@@ -82,6 +95,10 @@
 #NO_CACHE=no
 # --no-history
 #NO_HISTORY=no
+# --no-hostname: do not show the host name of the journal lines (as journalctl --no-hostname)
+#NO_HOSTNAME=no
+# --no-html-journal: no HTML copy of the daily journal (app-log-live-DATE.html)
+#NO_HTML_JOURNAL=no
 # --no-isp  (aucune requête extérieure : ni propriétaire des adresses, ni curl ifconfig.me pour détecter un changement d'IP externe du serveur)
 #NO_ISP=no
 # --no-keys
@@ -90,6 +107,8 @@
 #NO_LOG_FILE=no
 # --no-presence
 #NO_PRESENCE=no
+# --no-sitemap: no sitemap check (y key on the fly)
+#NO_SITEMAP=no
 # --no-user-agent
 #NO_USER_AGENT=no
 # --only : seulement les lignes qui contiennent ce texte (virgule = OU ; touche o à la volée)
@@ -98,11 +117,17 @@
 #RECAP=120
 # --record-max (1.93): minutes after which a test recording (R key) stops by itself (default and maximum: 60; 0 is refused)
 #RECORD_MAX=60
+# --request-length: show the request length of the nginx lines (rl=) in its own column (j key on the fly)
+#REQUEST_LENGTH=no
 # (1.100) recording needs psql and PostgreSQL access; without root: « sudo -n -u postgres » and « sudo -n » (sudoers, no password)
 # --service (défaut : détecté automatiquement)
 #SERVICE=
+# --sitemap: address of the Odoo sitemap.xml (empty = that of the site detected)
+#SITEMAP=
 # --slow : secondes (défaut : 5 secondes ; 0 = désactivé)
 #SLOW=5
+# --status-every: status bar after every N displayed lines (0 = never; empty = automatic, two thirds of the terminal height; Z key on the fly)
+#STATUS_EVERY=
 # 1.125 --status-header: the time stays on each line; the date and the host name are in the status bar
 #STATUS_HEADER=no
 
@@ -121,6 +146,8 @@
 #TRUNCATE=0
 # --underline [N] (1.91) : une ligne du journal sur N soulignée à l'écran, jusqu'au bout de la ligne d'écran (défaut : 10 depuis 1.98 ; yes = 10 ; 0 ou no = aucune, comme --no-underline).
 #UNDERLINE=10
+# --utc: times in UTC (the time of each line and the times of --since / --until without a time zone)
+#UTC=no
 # --verbose
 #VERBOSE=no
 # --watch : surveiller les requêtes dont l'URL contient ce texte (virgule = plusieurs ; touche w à la volée)
@@ -146,3 +173,13 @@
 #   --time-report [MIN]      Toutes les MIN minutes, le même rapport que Ctrl-T (ce qui a changé depuis le dernier affichage)
 #   --version                affiche la version et quitte
 #   --watch [TEXT]           Surveille les requêtes dont l'URL contient TEXTE (virgule = plusieurs
+#   --apply                  With --advise: offer the corrections one by one (one question each)
+#   --config-merge           Rewrite the configuration file from the new template, keeping the values set, then exit
+#   -f, --follow             Accepted for journalctl compatibility (the live stream is the default)
+#   -g, --grep REGEX         Show only the lines whose message matches this regular expression
+#   --log-chk-sitemap        Report of the 404 answers of the nginx logs (sitemap pages, refused on purpose, others), then exit
+#   --no-pager               Accepted for journalctl compatibility (the output is never paged)
+#   --ack CODE               Mark a finding of the analysis as checked by an administrator (code shown after its title), then exit
+#   --ack-list               List the checked findings, then exit
+#   --ack-note TEXT          With --ack: why it is fine
+#   --unack CODE             Remove the check of a finding, then exit

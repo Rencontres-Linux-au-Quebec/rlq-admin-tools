@@ -121,7 +121,7 @@ from urllib.parse import unquote, urlsplit
 from collections import Counter, OrderedDict
 from concurrent.futures import Future
 
-__version__ = "1.178.20261109.081127"
+__version__ = "1.180.20261109.110500"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
@@ -258,7 +258,7 @@ UNDERLINE_RATIO = 0.8                                             # 1.107: under
 UNDERLINE_DEFAULT = 10                                                # --underline without N (and default since 1.98): one log line out of 10 underlined
 
 
-SCHEMA_CONFIG = {"ACCENTUATE_GROUP": ("accentuate_group", str), "CHIME": ("chime", _chime_config), "DNS_MAX_TRUNCATE": ("dns_max_truncate", int), "EXCLUDE_IP": ("exclude_ip", _comma_list), "EXPORT_AI": ("export_ai", str),
+SCHEMA_CONFIG = {"ACCENTUATE_GROUP": ("accentuate_group", str), "CHIME": ("chime", _chime_config), "DNS_MAX_TRUNCATE": ("dns_max_truncate", int), "EXCLUDE_IP": ("exclude_ip", _comma_list), "EXPORT_AI": ("export_ai", str), "ACK_DAYS": ("ack_days", int), "COUNTRY": ("country", _comma_list), "EXCLUDE_COUNTRY": ("exclude_country", _comma_list), "UTC": ("utc", bool), "NO_HOSTNAME": ("no_hostname", bool), "NO_HTML_JOURNAL": ("no_html_journal", bool),
                  "ERRORS_ONLY": ("errors_only", bool), "ONLY": ("only", _comma_list), "STATUS_HEADER": ("status_header", bool), "STEPS_LINE": ("steps_line", bool), "SUSPECT": ("suspect", bool), "SUMMARY": ("summary", bool), "TIME_REPORT": ("time_report", float), "TRUNCATE": ("truncate", _truncate_config), "WATCH": ("watch", str), "ANONYMIZE": ("anonymize", bool), "UNDERLINE": ("underline", _underline_config),
                  "APP": ("app", str), "CMS": ("cms", str), "CONNECTIONS": ("connections", float), "DAYS": ("days", float),"DISK_MIN": ("disk_min", float), "DNS_MAX": ("dns_max", int), "HEALTH": ("health", float), "HIDE_ADDONS": ("hide_addons", bool), "HIDE_IP": ("hide_ip", bool), "HIGHLIGHT": ("highlight", str), "THEME": ("theme", int), "IDLE": ("idle", float),
                  "LINES": ("lines", int), "LOG_DIR": ("log_dir", str), "LOG_KEEP_DAYS": ("log_keep_days", int), "LOG_MERGE": ("log_merge", bool), "LOG_NGINX": ("log_nginx", bool), "MIN": ("min", bool), "MODULES_CUSTOM": ("modules_custom", bool), "MODULES_SORT": ("modules_sort", str), "MODULES_STARTUP": ("modules_startup", bool), "NAMESPACE": ("namespace", str),
@@ -4324,6 +4324,7 @@ class LatencyMonitor:
         self.disks_seen = {}             # device -> rotational (True / False / None)
         self.started = False
         self.prev = None
+        self.batch = False               # 1.179: True for --advise (past window read at once: no disk sample matches the requests)
 
     @staticmethod
     def _bin():
@@ -4454,6 +4455,9 @@ class LatencyMonitor:
 
     def verdict(self, t):
         """(symbol, text): the conclusion about the disks over the session."""
+        if self.batch and t["n"] >= 20:
+            # 1.179: "let it run a few hours" made no sense after --advise: the requests of the window are in the past, the disks are measured live only
+            return "…", "disks not measured with --advise (the window is read from the logs; the disks are sampled only by the live dashboard): the times of the requests below are complete"
         if t["s"] < 4 or t["n"] < 20:
             return "…", f"not enough data yet: one sample every {self.sample_s:g} s and at least 20 Odoo requests are needed (let it run a few hours)"
         io_avg = t["io_some"] / t["s"]
@@ -4836,6 +4840,8 @@ def sitemap_report(url, folder=NGINX_LOG_DIR, days=0):
     return lines, 0
 
 
+ACK_DAYS_DEFAULT = 30                      # 1.180: days during which a finding checked by an administrator (--ack) stays out of the summary
+ADVISE_NGINX_BYTES = 200 * 1024 * 1024    # 1.179: end of each nginx access log read by --advise for the details (the z key keeps the 30 MB of apps/_advisor.py)
 HOT_PAIR_MIN = 300                         # 1.178: requests of one address to one page from which the analysis looks at it (a loop)
 HOT_PAIR_SHARE = 0.3                       # 1.178: ... when this page is at least this share of the requests of the address
 IP_URL_MAX = 200000                        # 1.178: (address, page) pairs counted at most (memory bound); pairs already counted keep counting
@@ -4854,6 +4860,7 @@ class Stats:
         self.conflict_codes, self.failure_codes = Counter(), Counter()      # PostgreSQL code -> number
         self.push_duplicates = self.push_duplicate_warnings = 0  # 1.178: push subscriptions already registered (harmless): "bad query" lines / WARNING lines
         self.push_duplicates_time = []                           # 1.178: [first instant, last instant] of the push duplicates
+        self.push_instants, self.conflict_times = [], []          # 1.179: instants of each push duplicate and of each retried conflict (last 2000)
         self.ip_url = Counter()                   # 1.178: (address, page without parameters) -> requests: one address that asks the same page in a loop
         self.ip_url_codes = {}                    # 1.178: same key -> Counter of the HTTP codes
         self.odoo_errors_raw = {}                 # 1.178: (level, logger, message) -> first raw line (the message is grouped with N in place of the numbers)
@@ -5031,6 +5038,8 @@ class Stats:
         if m:
             self.conflicts += 1
             self.conflict_codes[m.group(1)] += 1
+            self.conflict_times.append(L.instant or time.time())        # 1.179: to tell whether a push duplicate followed a retried conflict
+            del self.conflict_times[:-2000]
             return
         m = FINAL_CONFLICT_RE.search(L.text or "")
         if m:
@@ -5045,6 +5054,8 @@ class Stats:
             # 1.178: a push subscription already registered: harmless, counted apart (neither an Odoo error nor a failed e-mail)
             if benign == "push-duplicate":
                 self.push_duplicates += 1
+                self.push_instants.append(L.instant or time.time())
+                del self.push_instants[:-2000]
             else:
                 self.push_duplicate_warnings += 1
             t = L.instant or time.time()
@@ -5091,7 +5102,8 @@ class Stats:
         lang = language_of(url) if code < 400 else None
         if lang:
             self.languages[lang] += 1
-            if not suspect_url(url):                                   # site VISIT: a page (not a file, nor an error, nor a security probe)
+            if not suspect_url(url) and not (ip in self.server or local_address(ip)):      # site VISIT: a page (not a file, nor an error, nor a security probe)
+                # 1.179: nor a page asked by this server itself (app-health-check.py, odoo-warmup.py): on DEV they were 2 of the 10 "visitors" and 176 "/" views
                 instant = L.instant or time.time()
                 self.pages[url.split("?", 1)[0]] += 1
                 self.pages_per_ip[ip] += 1
@@ -5650,7 +5662,8 @@ def advisor_facts(stats):
     starts = [t for t in (stats.first_any, stats.first) if t] + [v[0] for v in stats.nginx_errors_time.values() if v] + [v[0] for v in stats.odoo_errors_time.values() if v]
     return {"start": min(starts) if starts else stats.start, "end": time.time(), "requests": stats.requests, "lines": stats.lines,
             "requests_start": stats.first, "push_duplicates": stats.push_duplicates, "push_duplicate_warnings": stats.push_duplicate_warnings,
-            "push_times": list(stats.push_duplicates_time), "hot_pairs": hot, "banned_during": during,
+            "push_times": list(stats.push_duplicates_time), "hot_pairs": hot,
+            "push_after_conflict": sum(1 for t in stats.push_instants if any(0 <= t - c <= 5 for c in stats.conflict_times)), "banned_during": during,
             "known_ips": sorted(set(stats.people) | set(stats.protected_ones)),
             "errors5": dict(stats.errors[5]), "codes_by_url": codes,
             "plain_4xx": {u: n for u, n in stats.errors[4].items() if not suspect_url(u) and not is_disabled(u)},
@@ -5684,8 +5697,13 @@ def service_started_at(service):
     return epoch
 
 
-def unit_events(service, ns, since):
-    """1.167: (epoch, message) of the starts and stops of the service since `since` (systemd messages of its journal), oldest first."""
+ODOO_JOURNAL_LINE_RE = re.compile(r"^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2},\d+ \d+ (?:DEBUG|INFO|WARNING|ERROR|CRITICAL) \S+ (\S+): (.*)$")
+
+
+def unit_events(service, ns, since, odoo_lines=None):
+    """1.167: (epoch, message) of the starts and stops of the service since `since` (systemd messages of its journal), oldest first.
+    1.179: the lines written by Odoo itself that matched the words (an auto_backup "Starting backup...") are no longer starts of the service:
+    they made "2 starts in the window" on PROD; they go to `odoo_lines` (a list, filled when given) as (epoch, "logger: message")."""
     if not service:
         return []
     cmd = ["journalctl", "-u", service, "-q", "--no-pager", "-o", "short-unix", "--since", f"@{math.floor(since)}",
@@ -5694,7 +5712,14 @@ def unit_events(service, ns, since):
     for text_line in lancer(cmd, 60)[1].splitlines():
         m = re.match(r"^(\d+(?:\.\d+)?)\s+\S+\s+\S+?:\s+(.*)$", text_line)
         if m:
+            odoo = ODOO_JOURNAL_LINE_RE.match(m.group(2).strip())
+            if odoo:
+                if odoo_lines is not None:
+                    odoo_lines.append((float(m.group(1)), f"{odoo.group(1)}: {odoo.group(2)}"[:200]))
+                continue
             res.append((float(m.group(1)), m.group(2).strip()))
+    if odoo_lines is not None:
+        del odoo_lines[:-50]
     return res[-200:]
 
 
@@ -5738,11 +5763,23 @@ def odoo_perf_settings(profile):
 CGROUP_ROOT = os.environ.get("APP_LOG_LIVE_CGROUP_ROOT", "/sys/fs/cgroup")      # 1.178: tests give their own folder
 
 
-def memory_facts(since):
+def memory_facts(since, service=None):
     """1.178: what the analysis needs to judge the memory risk: the memory limit of this container or system (cgroup v2 memory.max, v1
     memory.limit_in_bytes; None: no limit), the OOM kills counted by the cgroup (memory.events) and the kernel messages about the OOM killer since
     `since` (journalctl -k, root needed; [] otherwise). Read-only, never an exception."""
-    res = {"limit_mb": None, "oom_kills": None, "kernel": []}
+    res = {"limit_mb": None, "oom_kills": None, "kernel": [], "other_mb": None}
+    # 1.179: memory used outside Odoo now (MemTotal - MemAvailable minus MemoryCurrent of the Odoo service), the same estimate as nginx-hardening.sh step 6
+    try:
+        info = {}
+        with open("/proc/meminfo", encoding="utf-8") as f:
+            for text_line in f:
+                key, _, value = text_line.partition(":")
+                info[key] = int(value.split()[0]) // 1024 if value.split() else 0
+        current = lancer(["systemctl", "show", service, "-p", "MemoryCurrent", "--value"], 10)[1].strip() if service else ""
+        if "MemTotal" in info and "MemAvailable" in info and current.isdigit():
+            res["other_mb"] = max(0, info["MemTotal"] - info["MemAvailable"] - int(current) // 1048576)
+    except (OSError, ValueError):
+        pass
     for name in ("memory.max", os.path.join("memory", "memory.limit_in_bytes")):
         try:
             with open(os.path.join(CGROUP_ROOT, name), encoding="utf-8") as f:
@@ -5768,6 +5805,47 @@ def memory_facts(since):
                 res["kernel"].append((float(m.group(1)), m.group(2).strip()[:200]))
         res["kernel"] = res["kernel"][-10:]
     return res
+
+
+def acknowledge(args):
+    """1.180 --ack / --unack / --ack-list: the findings an administrator checked (acknowledged.json in the state folder, mode 600). The code of a finding
+    is found in the histories of the analysis (z key and --advise): the analysis must have shown it once. Returns the exit code."""
+    module = load_module("_advisor")
+    if module is None or not hasattr(module, "Acknowledgements"):
+        print(TR("apps/_advisor.py is missing or too old: --ack is not available."))
+        return 1
+    path = advisor_history_file(module.ACK_FILE)
+    acks = module.Acknowledgements(path)
+    known = {}                                           # code -> (finding id, title, last count)
+    for name in ("advisor-history.json", "advisor-history-advise.json"):
+        history = module.History(advisor_history_file(name))
+        last = {}
+        for run in history.data.get("runs") or []:
+            last.update(run.get("counts") or {})
+        for fid, title in (history.data.get("titles") or {}).items():
+            known[module.ack_code(fid)] = (fid, title, last.get(fid, 0))
+    code_rc = 0
+    by = os.environ.get("SUDO_USER") or os.environ.get("USER") or "?"
+    for code in [c.strip().strip("[]").lower() for value in (args.ack or []) for c in value.split(",") if c.strip()]:
+        if code not in known:
+            print(color_code(STYLES["error"], "  " + TR("Unknown code {code}: run the analysis (z key or --advise) and copy the code shown after the title of the finding.").format(code=code)))
+            code_rc = 1
+            continue
+        fid, title, count = known[code]
+        entry = acks.add(code, fid, title, args.ack_note, by, args.ack_days, count)
+        print("  " + TR("Checked: {title} [{code}] until {until}").format(title=title, code=code, until=time.strftime("%Y-%m-%d", time.localtime(entry["until"]))))
+    for code in [c.strip().strip("[]").lower() for value in (args.unack or []) for c in value.split(",") if c.strip()]:
+        print("  " + (TR("Check removed: [{code}]") if acks.remove(code) else TR("No check with the code [{code}]")).format(code=code))
+    if (args.ack or args.unack) and not acks.save():
+        print(color_code(STYLES["error"], "  " + TR("File not written: {problem}").format(problem=acks.error or TR("no writable state folder"))))
+        return 1
+    if args.ack_list or args.ack or args.unack:
+        active = acks.active()
+        print("  " + TR("Findings checked by an administrator: {n} ({path})").format(n=len(active), path=path or "-"))
+        for e in sorted(active.values(), key=lambda e: e.get("at", 0)):
+            print(f"    [{e['code']}] {e.get('title', '?')} : {e.get('note') or TR('no note')} · " + TR("by {by} on {when}, until {until}").format(
+                by=e.get("by", "?"), when=time.strftime("%Y-%m-%d", time.localtime(float(e.get("at") or 0))), until=time.strftime("%Y-%m-%d", time.localtime(float(e.get("until") or 0)))))
+    return code_rc
 
 
 def export_ai_path(value):
@@ -6409,6 +6487,7 @@ def follow(cmd, people, resolver, options, output):
     state = {"read_files": 0, "summarized": False, "keep_going": True}
     stats, banned_ips = Stats(options["slow"]), options["banned_ips"]
     form.account_count, form.account_pending = (lambda address: stats.account_ips.get(address, 0)), 1          # 1.174: the live lines are formatted just before they are counted
+    LATENCY.batch = bool(options.get("advise"))             # 1.179: --advise reads a window of the past: the disks are not sampled then
     LATENCY.start()                                         # 1.82: kernel counters every LATENCY_SAMPLE_S seconds (latency report: key P, Ctrl-G, summary)
     stats.is_banned = banned_ips.source_of if banned_ips is not None else None
     stats.ban_info = banned_ips.first_ban_of if banned_ips is not None else None        # 1.151: bans of the fail2ban journal, for the summary
@@ -7629,12 +7708,14 @@ def follow(cmd, people, resolver, options, output):
         pages_404 = list(OrderedDict.fromkeys([u.split("?", 1)[0] for u in facts["gone_404"]] + [u for u, n in by_4xx.most_common(8) if n >= 3]))
         urls = pages_404 + list(facts["account_urls"])
         if access and urls:
-            details["nginx"] = module.nginx_details(access, urls, since=facts["start"])
+            # 1.179: --advise reads the whole window (up to 200 MB per file): with the last 30 MB only, PROD found 14 of the 24 account-form requests
+            details["nginx"] = module.nginx_details(access, urls, since=facts["start"], max_bytes=ADVISE_NGINX_BYTES if batch else module.TAIL_BYTES)
         if advise_progress["p"] is not None:
             advise_progress["p"].step(TR("service journal, odoo.conf"))
-        details["service"] = {"events": unit_events(service, ns, facts["start"]), "state": unit_state(service)}
+        odoo_lines = []
+        details["service"] = {"events": unit_events(service, ns, facts["start"], odoo_lines), "state": unit_state(service), "odoo_events": odoo_lines}
         details["odoo_conf"] = odoo_perf_settings(options["profile"]) if options.get("app") in (None, "odoo") else None      # 1.178: always (memory risk)
-        details["memory"] = memory_facts(facts["start"])                                                                     # 1.178: limit, OOM kills
+        details["memory"] = memory_facts(facts["start"], service)                                                                     # 1.178: limit, OOM kills
         if advise_progress["p"] is not None:
             advise_progress["p"].step(TR("Odoo database (e-mails, pages, events, redirects)"))
         odoo_db, bases = odoo_bases()
@@ -7686,6 +7767,21 @@ def follow(cmd, people, resolver, options, output):
                 if rows is not None:
                     details["registrations"] = {"asked": len(reg_ids), "found": len(rows), "no_visitor": sum(1 for r in rows if len(r) > 2 and r[2] in ("f", "false")),
                                                 "duplicates": int(twice[0][0]) if twice and twice[0] and twice[0][0].isdigit() else 0}
+            ips = sorted({h["ip"] for h in facts.get("hot_pairs") or ()} | {ip for ip, _who, _r in facts.get("to_ban") or ()})
+            if ips and odoo_db._column_exists(bases[0], "res_device_log", "ip_address"):
+                # 1.180: whose Odoo session runs from these addresses (res.device.log, Odoo 17+): a volunteer whose tab loops is not an intruder, and an
+                # address where a user of the site has a session is never proposed for a ban
+                listed = ", ".join(odoo_db._sql_text(ip) for ip in ips[:50])
+                rows = odoo_db._requete(bases[0], "SELECT d.ip_address, u.login, COALESCE(p.name, ''), u.share, COALESCE(d.platform, ''), COALESCE(d.browser, ''), "
+                                                  "floor(extract(epoch FROM d.last_activity)), COALESCE(d.revoked, false) FROM res_device_log d "
+                                                  "JOIN res_users u ON u.id = d.user_id JOIN res_partner p ON p.id = u.partner_id "
+                                                  f"WHERE d.ip_address IN ({listed}) ORDER BY d.last_activity DESC LIMIT 200") or []
+                devices = {}
+                for r in rows:
+                    if len(r) >= 8 and len(devices.setdefault(r[0], [])) < 3:
+                        devices[r[0]].append({"login": r[1], "name": r[2], "share": r[3] in ("t", "true"), "platform": r[4], "browser": r[5],
+                                              "last": float(r[6] or 0), "revoked": r[7] in ("t", "true")})
+                details["devices"] = devices
             slow_times = [x["t"] for x in facts["slow"] if x.get("t")]
             if slow_times:
                 # 1.178: scheduled actions that ran around the slow requests (a cron that holds a lock or saturates PostgreSQL slows the pages)
@@ -7802,6 +7898,9 @@ def follow(cmd, people, resolver, options, output):
         path = advisor_history_file("advisor-history-advise.json" if batch else "advisor-history.json")
         history = module.History(path)
         trend = history.record(findings, f"{os.getpid()}-{int(session_start)}")
+        checked = []
+        if hasattr(module, "Acknowledgements"):              # 1.180: findings checked by an administrator (--ack): listed apart, out of the summary
+            findings, checked = module.split_acknowledged(findings, module.Acknowledgements(advisor_history_file(module.ACK_FILE)).active())
         kept = history.save()
         start = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(facts["start"]))
         title = color_code(STYLES["title"], TR("──── Analysis of the problems raised ({name} v{version}): since {start} ────").format(
@@ -7818,12 +7917,75 @@ def follow(cmd, people, resolver, options, output):
             window = ["  " + TR("Oldest line read: {start} (nginx error log, Odoo log); first request read: {req}").format(
                 start=start, req=time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(facts["requests_start"])))]
         rendered = module.render(findings, trend, TR, color_code, path if kept else None,
-                                 history.error or (TR("no writable state folder") if not path else None), apply_hint=hint)
+                                 history.error or (TR("no writable state folder") if not path else None), apply_hint=hint,
+                                 **({"acknowledged": checked} if checked else {}))
         write_out(["", title] + updated + window + rendered)
         if options.get("export_ai") is not None:
             export_ai(module, facts, details, [title] + updated + window + rendered, batch)
         if batch and options.get("apply"):
             apply_corrections(findings, facts)
+
+    def environment_lines(details):
+        """1.179 --export-ai: what a reader needs to judge the figures without asking: versions, settings of Odoo and PostgreSQL, memory of the
+        server and of the Odoo service, disks, load, timers of the suite. Read-only; a value that cannot be read is left out."""
+        lines = []
+        service = options.get("service")
+        testing = bool(os.environ.get("NGINX_TOOLS_TESTS"))
+        rows = db_rows("SELECT latest_version FROM ir_module_module WHERE name = 'base'") if not testing else []
+        if rows and rows[0] and rows[0][0]:
+            lines.append(TR("Odoo: version {v}").format(v=rows[0][0]) + (f" · {service}" if service else ""))
+        conf = details.get("odoo_conf") or {}
+        if conf.get("values"):
+            values = conf["values"]
+            mb = lambda k: f"{int(float(values[k])) // 1048576} MB" if (values.get(k) or "").strip().replace(".", "", 1).isdigit() else (values.get(k) or "?")
+            lines.append(TR("odoo.conf ({path}): ").format(path=conf.get("path") or "?") + " · ".join(
+                f"{k}={mb(k) if k.startswith('limit_memory') else (values.get(k) or '-')}" for k in ODOO_PERF_KEYS))
+        try:
+            info = {}
+            with open("/proc/meminfo", encoding="utf-8") as f:
+                for text_line in f:
+                    key, _, value = text_line.partition(":")
+                    if value.split():
+                        info[key] = int(value.split()[0]) // 1024
+            memory = details.get("memory") or {}
+            lines.append(TR("Memory: {total} MB in all, {avail} MB available now").format(total=info.get("MemTotal", "?"), avail=info.get("MemAvailable", "?"))
+                         + (" · " + TR("limit of this container: {n} MB").format(n=memory["limit_mb"]) if memory.get("limit_mb") else "")
+                         + (" · " + TR("used outside Odoo: {n} MB").format(n=memory["other_mb"]) if memory.get("other_mb") is not None else "")
+                         + (" · " + TR("processes killed for lack of memory: {n}").format(n=memory["oom_kills"]) if memory.get("oom_kills") else ""))
+        except OSError:
+            pass
+        if service and not testing:
+            values = dict(l.split("=", 1) for l in lancer(["systemctl", "show", service, "-p", "MemoryCurrent", "-p", "MemoryPeak", "-p", "MemoryMax", "-p", "NRestarts",
+                                                           "-p", "ActiveEnterTimestamp"], 10)[1].splitlines() if "=" in l)
+            mb = lambda v: f"{int(v) // 1048576} MB" if (v or "").isdigit() else (v or "?")
+            if values:
+                lines.append(TR("Odoo service: memory now {cur}, peak {peak}, limit {max} · restarts by systemd: {n} · started on {when}").format(
+                    cur=mb(values.get("MemoryCurrent")), peak=mb(values.get("MemoryPeak")), max=mb(values.get("MemoryMax")), n=values.get("NRestarts", "?"),
+                    when=values.get("ActiveEnterTimestamp", "?")))
+            pg = db_rows("SELECT name, setting, COALESCE(unit, '') FROM pg_settings WHERE name IN ('server_version', 'max_connections', 'shared_buffers', 'work_mem', "
+                         "'maintenance_work_mem', 'effective_cache_size', 'log_min_duration_statement', 'log_lock_waits', 'autovacuum', 'deadlock_timeout') ORDER BY name")
+            if pg:
+                lines.append("PostgreSQL : " + " · ".join(f"{r[0]}={r[1]}{(' ' + r[2]) if len(r) > 2 and r[2] else ''}" for r in pg if len(r) >= 2))
+            timers = [l.split() for l in lancer(["systemctl", "list-timers", "--all", "--no-pager", "--no-legend"], 10)[1].splitlines()
+                      if re.search(r"odoo|backup|web-monitor|app-health|crowdsec|system-hardening|nginx", l)]
+            if timers:
+                lines.append(TR("Timers of the suite: ") + " ; ".join(next((w for w in t if w.endswith(".timer")), t[-1]) for t in timers[:8]))
+        for folder in ("/", "/var/log", "/var/lib/postgresql"):
+            try:
+                st = os.statvfs(folder)
+                lines.append(TR("Disk {folder}: {free} GB free of {total} GB").format(folder=folder, free=f"{st.f_bavail * st.f_frsize / 1e9:.1f}",
+                                                                                     total=f"{st.f_blocks * st.f_frsize / 1e9:.1f}"))
+            except OSError:
+                continue
+        try:
+            load = os.getloadavg()
+            with open("/proc/uptime", encoding="utf-8") as f:
+                up = float(f.read().split()[0])
+            lines.append(TR("Load average: {a} / {b} / {c} (1, 5, 15 min) for {cpus} processors · up for {days} days").format(
+                a=f"{load[0]:.2f}", b=f"{load[1]:.2f}", c=f"{load[2]:.2f}", cpus=os.cpu_count() or "?", days=f"{up / 86400:.1f}"))
+        except (OSError, ValueError, AttributeError):
+            pass
+        return lines or [TR("nothing could be read")]
 
     def export_ai(module, facts, details, analysis_lines, batch):
         """1.178 --export-ai: the summary of the dashboard, the analysis, the timeline of the window, the consistency checks and the main counters in one
@@ -7849,6 +8011,7 @@ def follow(cmd, people, resolver, options, output):
                "- " + TR("Pseudonyms (--anonymize): ") + (TR("yes, the same address always has the same pseudonym") if anonymized else TR("no, real addresses and names")),
                "- " + TR("Versions: ") + f"app-log-live.py {__version__}, apps/_advisor.py {getattr(module, '__version__', '?')}"]
         out += [f"- {plain(l).strip()}" for l in STARTUP_INFO if ".conf" in ANSI_RE.sub("", l)][:3]
+        out += ["", "## " + TR("Environment of the server"), ""] + [f"- {plain(l)}" for l in environment_lines(details)]
         out += ["", "## " + TR("Consistency checks"), ""]
         out += [("- [OK] " if ok else "- [ATTN] ") + plain(text) for ok, text in checks] or ["- " + TR("nothing to check")]
         out += ["", "## " + TR("Summary of the dashboard"), "", "```"] + [plain(l) for l in summary] + ["```"]
@@ -8480,12 +8643,20 @@ def main():
     parser.add_argument("--accentuate-group", default=None, metavar="NAME",
                         help="Odoo contacts with the contact TAG NAME (e.g. Staff-2026) shown in bold white on dark blue; the tag must exist, otherwise stop")
     parser.add_argument("--changelog", action="store_true", help="Show the change log")
+    parser.add_argument("--ack", action="append", default=None, metavar="CODE",
+                        help="Mark a finding of the analysis as checked by an administrator (CODE: the 6 characters shown after its title, e.g. [a1b2c3]); it is then listed "
+                             "apart, out of the summary, until --ack-days, and comes back if its count more than doubles; repeatable; then exits")
+    parser.add_argument("--ack-days", type=int, default=ACK_DAYS_DEFAULT, metavar="N",
+                        help=f"With --ack: days during which the finding stays checked (default: {ACK_DAYS_DEFAULT})")
+    parser.add_argument("--ack-list", action="store_true", help="List the findings checked by an administrator (code, note, by, until), then exit")
+    parser.add_argument("--ack-note", default="", metavar="TEXT", help="With --ack: why it is fine (e.g. 'a volunteer, loop of the Odoo web client')")
     parser.add_argument("--apply", action="store_true",
                         help="With --advise: after the analysis, offer the corrections one by one, one question each (ban the addresses with nginx-log-audit.sh --ban, which "
                              "checks the white list and its score; open odoo-mail-retry.py for the failed e-mails; warm Odoo up with odoo-warmup.py); terminal required")
     parser.add_argument("--advise", type=float, nargs="?", const=-1.0, default=None, metavar="DAYS",
                         help="Analysis of the problems of the last DAYS days (without a value: --days if given, otherwise 14), like the z key: the logs are read without being shown, then the problems, "
                              "their probable causes and the recommended solutions are printed, compared with the previous --advise runs; --since / --until choose another window")
+    parser.add_argument("--unack", action="append", default=None, metavar="CODE", help="Remove the check of a finding (it is analysed again as usual); repeatable; then exits")
     parser.add_argument("--cms", choices=["auto", "odoo", "wordpress"], default="auto", metavar="CMS",
                         help="Site CMS: odoo (/wp-admin, xmlrpc.php, *.php… are suspect), wordpress (normal pages) or auto (default: a wp-config.php under /var/www, /srv, /opt…)")
     parser.add_argument("--connections", type=float, default=CONNECTIONS_THRESHOLD_DEFAULT, metavar="PCT",
@@ -8711,6 +8882,8 @@ def main():
         return show_changelog()
     if args.config_merge:
         return config_merge(args.config)
+    if args.ack or args.unack or args.ack_list:                       # 1.180: findings checked by an administrator, then exits
+        return acknowledge(args)
     profile_module = load_module("_profile")
     regler_cms(profile_module.cms(None if args.cms == "auto" else args.cms) if profile_module is not None else (args.cms if args.cms != "auto" else "odoo"))
     if args.errors_only:

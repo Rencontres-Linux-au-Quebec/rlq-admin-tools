@@ -16,11 +16,11 @@
 # --- Langue et options de la ligne de commande (la ligne de commande a priorité) ---
 # APP : profil d'application (--app)
 #APP=
-# LANGUAGE : en, fr ou auto (suivre LC_ALL / LANG)
+# LANGUAGE : en, fr ou auto (suivre LC_ALL / LANG) ; --lang sur la ligne de commande
 #LANGUAGE=auto (défaut : aucun : à donner sur la ligne de commande)
 # TARGET : local ou external (--target)
 #TARGET= (défaut : détectée automatiquement)
-# VERBOSE : true ou false
+# VERBOSE : true ou false (--verbose)
 #VERBOSE=false
 
 # --- Cible ---
@@ -95,3 +95,10 @@ ODOO_DISCUSS_MODEL=discuss.channel
 #NOTIFY_NTFY_URL=
 # webhook : POST JSON {"title": ..., "message": ...}
 #NOTIFY_WEBHOOK_URL=
+
+# --- Options de la ligne de commande SEULEMENT (actions ou réglages ponctuels : aucune clé ici) ---
+#   --changelog     affiche le journal des modifications
+#   --force         avec --create-config : remplace un fichier existant (copie de sauvegarde faite)
+#   --report-err    afficher à la fin un rapport d'erreurs à copier-coller
+#   --test-email    vérifications DNS du courriel, puis envoi réel d'un courriel de test
+#   --version       affiche la version et quitte

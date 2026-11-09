@@ -429,11 +429,7 @@ msgstr "                                the current usage of the Odoo cgroup, Me
 msgid "  Disponible pour Odoo        : "
 msgstr "  Available for Odoo          : "
 
-msgid "  Suggestion (par worker — à valider par un test réel en DEV avant PROD) :"
-msgstr "  Suggestion (per worker — to validate with a real test in DEV before PROD):"
 
-msgid "  Pire cas (tous les workers à la limite dure en même temps) : "
-msgstr "  Worst case (all workers at the hard limit at the same time): "
 
 msgid " (ligne de commande, priorité sur odoo.conf)"
 msgstr " (command line, takes precedence over odoo.conf)"
@@ -444,8 +440,6 @@ msgstr "current limit_memory_hard = 0 (unlimited) — source: "
 msgid " — aucune protection contre l'épuisement mémoire."
 msgstr " — no protection against memory exhaustion."
 
-msgid ") — risque réel d'épuisement mémoire si plusieurs workers culminent en même temps."
-msgstr ") — real risk of memory exhaustion if several workers peak at the same time."
 
 msgid ") cohérent avec la RAM disponible."
 msgstr ") consistent with the available RAM."
@@ -2438,3 +2432,51 @@ msgstr "Refused URIs unchanged ("
 
 msgid " ne demande aucune modification."
 msgstr " needs no change."
+
+msgid "  --cdn NOM                    CDN devant les sites : none (défaut) ou cloudflare (adresse réelle du visiteur par CF-Connecting-IP)"
+msgstr "  --cdn NAME                   CDN in front of the sites: none (default) or cloudflare (real address of the visitor from CF-Connecting-IP)"
+
+msgid "  --cron-threads N             tâches planifiées d'Odoo (max_cron_threads) pour la suggestion de limites mémoire de l'étape 6 (défaut : odoo.conf ou run.sh, sinon 2)"
+msgstr "  --cron-threads N             cron threads of Odoo (max_cron_threads) for the memory-limit suggestion of step 6 (default: odoo.conf or run.sh, otherwise 2)"
+
+msgid "  --dns-refresh                résout les noms DNS de la liste blanche (adresses dynamiques) ; --update seulement si une adresse a changé (cron toutes les 15 min)"
+msgstr "  --dns-refresh                resolve the DNS names of the white list (dynamic addresses); --update only when an address changed (cron every 15 min)"
+
+msgid "  Tâches planifiées (cron)    : "
+msgstr "  Cron threads                : "
+
+msgid " (max_cron_threads)"
+msgstr " (max_cron_threads)"
+
+msgid "  Processus d'Odoo            : "
+msgstr "  Odoo processes              : "
+
+msgid " workers + "
+msgstr " workers + "
+
+msgid " cron + 1 gevent, chacun sous les mêmes limites sauf gevent)"
+msgstr " cron + 1 gevent, each one under the same limits except gevent)"
+
+msgid "  Réservé hors Odoo           : "
+msgstr "  Reserved outside Odoo       : "
+
+msgid " (au moins 15 % : PostgreSQL grossit avec la charge et la sauvegarde) + marge "
+msgstr " (at least 15 %: PostgreSQL grows with the load and the backup) + margin "
+
+msgid "  Suggestion (par processus — à valider par un test réel en DEV avant PROD) :"
+msgstr "  Suggestion (per process — to validate with a real test in DEV before PROD):"
+
+msgid "  Pire cas (tous les processus à la limite dure en même temps) : "
+msgstr "  Worst case (all processes at the hard limit at the same time): "
+
+msgid "Limite par processus sous 640 "
+msgstr "Limit per process under 640 "
+
+msgid " : les gros rapports et les exports risquent d'être interrompus ; baisser workers (ou max_cron_threads) ou ajouter de la mémoire plutôt que descendre plus bas."
+msgstr ": large reports and exports may be interrupted; lower workers (or max_cron_threads) or add memory rather than going lower."
+
+msgid " processus ("
+msgstr " processes ("
+
+msgid ") — risque réel d'épuisement mémoire si plusieurs processus culminent en même temps."
+msgstr ") — real risk of memory exhaustion if several processes peak at the same time."

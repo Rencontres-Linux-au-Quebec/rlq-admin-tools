@@ -25,17 +25,20 @@ Every text goes through `tr` (catalogue lang/_advisor.fr.po, the module is writt
 `raw` (never translated). Nothing is modified on the server; the only file written is the history."""
 import calendar
 import gzip
+import hashlib
 import json
 import os
 import re
 import time
 from collections import Counter
 
-__version__ = "1.7.20261109.081127"
+__version__ = "1.9.20261109.110500"
 
 PROBLEM, LOOK, INFO = 2, 1, 0                         # severities: problem, to look at, information
 
 HISTORY_FILE = "advisor-history.json"
+ACK_FILE = "acknowledged.json"                        # 1.9: findings checked by an administrator (app-log-live.py --ack CODE)
+ACK_GROWTH = 2                                        # 1.9: an acknowledged finding comes back when its count is more than twice the count at the check
 HISTORY_MAX_RUNS = 200                                # analyses kept in the history
 HISTORY_MAX_DAYS = 90                                 # ... and never older than this
 TAIL_BYTES = 30 * 1024 * 1024                         # end of each log file read for the details
@@ -87,6 +90,12 @@ KNOWN_MESSAGES = (
     (r"\.map should have been generated through debug assets", INFO,
      "a browser with its developer tools open asked for a source map (.map) of the assets: harmless",
      "nothing to do; it disappears when nobody opens the developer tools (or in debug=assets mode)"),
+    (r"No CSRF validation token provided", INFO,
+     "a form sent without its security token (CSRF): a robot or a scanner that posts to the site, or a page left open so long that its token expired",
+     "nothing to do if it is rare; many times from one address: look at that address (it may be a scanner to ban)"),
+    (r"dbfilter rejects it", INFO,
+     "a browser came back with a session of another database (an old copy or a test database): Odoo closes that session",
+     "nothing to do; it stops once the person signs in again"),
     (r"called ignoring args", INFO,
      "a browser sent an argument that this version of Odoo no longer expects: an old copy of the web client kept in the browser cache",
      "nothing to do if it is rare; frequent after an update: the users reload the page (Ctrl-Shift-R)"),
@@ -136,6 +145,7 @@ TRACEBACK_HINTS = (
 
 # 1.7: (pattern on the failure reason, solution track). Several may apply to one e-mail; the first ones are the most specific.
 SMTP_HINTS = (
+    (r"4\.4\.5|messages? per session|too many messages", "the mail server accepts only a few e-mails per SMTP connection: set the system parameter mail.session.batch.size (Settings > Technical > System Parameters) to that limit or below (for example 3): Odoo then opens a new SMTP connection every 3 e-mails; then resend"),
     (r"\b535\b|authentication|auth\w* fail|password not accepted|identifiants", "the mail server refused the user name or the password: check them in Settings > Technical > Outgoing Mail Servers, then « Test Connection »"),
     (r"\b5\.7\.\d+\b|\bSPF\b|\bDKIM\b|\bDMARC\b|not permitted to relay|relay access denied|sender address rejected", "the sender is refused: send from an address of the domain of the mail server (FROM filter of the server, mail.default.from), and check SPF and DKIM of that domain"),
     (r"\b5\.1\.1\b|user unknown|does not exist|no such user|mailbox unavailable|recipient address rejected", "the recipient address does not exist: correct the e-mail of the contact, then resend"),
@@ -503,7 +513,7 @@ class Analyzer:
         if rec:
             state["record"] = rec
             flags = lambda r: ((" · " + (tr("published") if r.get("published") else tr("NOT published"))) + ("" if r.get("active", True) else " · " + tr("archived"))
-                               + (" · " + tr("ended on {end}").format(end=r["end"]) if r.get("end") else ""))
+                               + (" · " + (tr("ends on {end}") if r["end"] >= time.strftime("%Y-%m-%d") else tr("ended on {end}")).format(end=r["end"]) if r.get("end") else ""))      # 1.8: a future end
             if rec.get("kind") == "missing":
                 lines.append((tr("In Odoo: no event with the number {id} (deleted)") if rec.get("what") == "event" else tr("In Odoo: no product with the number {id} (deleted)")).format(id=rec.get("id")))
             elif rec.get("kind") in ("event", "product"):
@@ -909,6 +919,11 @@ class Analyzer:
             evidence.append(tr("First at {first}, last at {last}").format(first=time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(times[0])),
                                                                          last=time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(times[1]))))
         evidence.append(tr("PostgreSQL error: unique violation (constraint mail_push_device_endpoint_unique), not a concurrent update conflict: Odoo does not retry it and nothing is lost"))
+        after = facts.get("push_after_conflict") or 0
+        if after:
+            # 1.8: on PROD, 15 push duplicates and 15 retried conflicts: two tabs subscribe at the same moment, one waits (conflict retried), then finds the
+            # subscription the other one just wrote (duplicate)
+            evidence.append(tr("{k} of them came less than 5 s after a retried conflict: two tabs or devices subscribed at the same moment; the second one, retried by Odoo, found the subscription the first had just written").format(k=after))
         advice = [tr("nothing to do; counted apart since app-log-live.py 1.178 (before: Odoo errors, and the health showed « problem »)")]
         if n + warnings >= 100:
             advice.append(tr("many times: one browser subscribes again in a loop; the person can clear the site data of the browser (or block the notifications of the site)"))
@@ -950,9 +965,12 @@ class Analyzer:
             reasons_text.append(reason)
             if reason and not GENERIC_MAIL_REASON_RE.match(reason):
                 generic_only = False
+            recipients = [r for r in re.split(r"\s*[,;]\s*", c.get("destinataires") or "") if r]
             evidence.append(tr("{when} · subject « {subject} » · to: {to}").format(when=when, subject=raw(_cut(c.get("sujet") or tr("(no subject)"), 90)),
                                                                                to=raw(_cut(c.get("destinataires") or tr("(unknown recipient)"), 120)))
-                            + (" [" + raw(c["base"]) + "]" if len({x.get("base") for x in listed}) > 1 and c.get("base") else ""))
+                            + (" (" + tr("{n} recipients").format(n=len(recipients)) + ")" if len(recipients) > 3 else "")
+                            + (" [" + raw(c["base"]) + "]" if len({x.get("base") for x in listed}) > 1 and c.get("base") else "")
+                            + (" · " + tr("before the window, still not resent") if facts.get("start") and (c.get("instant") or 0) < facts["start"] else ""))
             evidence.append("    " + tr("Reason: ") + raw(_cut(reason or tr("(none recorded)"), 240)))
         servers = details.get("mail_servers") or []
         if servers:
@@ -1112,9 +1130,17 @@ class Analyzer:
             evidence.append(tr("Processes killed for lack of memory in this container since its start (memory.events): {n}").format(n=kills))
         if oom:
             evidence.append(tr("Kernel messages about the memory: ") + " ; ".join(f"{time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(t))} {raw(_cut(text, 90))}" for t, text in oom[:3]))
-        safe_hard = max(256, int(0.7 * total / (workers + cron)))
-        advice = [tr("lower limit_memory_hard to about {hard} MB and limit_memory_soft to about {soft} MB in odoo.conf (70 % of the memory shared by the processes), then restart Odoo").format(
-                      hard=safe_hard, soft=int(safe_hard * 0.85)),
+        # 1.8: same rule as step 6 of nginx-hardening.sh 2.82 (both programs give the same figures): reserve for what runs outside Odoo (what it
+        # uses now, at least 15 % of the memory: PostgreSQL grows with the load and the backup), margin of 10 % (at least 512 MB), the rest shared
+        # by the HTTP workers, the cron threads and the gevent process
+        other = memory.get("other_mb")
+        reserve = max(int(total * 0.15), other or 0)
+        budget = max(0, total - reserve - max(512, total // 10))
+        safe_hard = max(256, budget // (workers + cron + 1))
+        if other is not None:
+            evidence.append(tr("Used outside Odoo now: {other} MB (reserve kept: {reserve} MB)").format(other=other, reserve=reserve))
+        advice = [tr("lower limit_memory_hard to about {hard} MB and limit_memory_soft to about {soft} MB in odoo.conf ({budget} MB shared by {w} workers + {c} cron + 1 gevent, as nginx-hardening.sh step 6), then restart Odoo").format(
+                      hard=safe_hard, soft=safe_hard * 85 // 100, budget=budget, w=workers, c=cron),
                   tr("or lower workers, or give more memory to this server (Proxmox: memory of the container)")]
         severity = PROBLEM if oom or kills else (LOOK if worst > total else INFO)
         self.add("memory-risk", severity, tr("Memory risk: the Odoo processes may use more than the memory of the server") if worst > total
@@ -1136,6 +1162,20 @@ class Analyzer:
             backend = BACKEND_RPC_RE.search(h["url"])
             if backend:
                 evidence.append(tr("Call of the Odoo back office (JSON-RPC): it needs a signed-in session"))
+            devices = (details.get("devices") or {}).get(h["ip"]) or []
+            staff = [d for d in devices if not d.get("share")]
+            for d in devices[:2]:
+                # 1.9: the device log of Odoo (res.device.log, Odoo 17+) says whose session it is: no guess left
+                evidence.append(tr("Odoo device log: session of {name} ({login}), {device}, last activity {when}{revoked}").format(
+                    name=raw(d.get("name") or "?"), login=raw(d.get("login") or "?"), device=raw(" ".join(x for x in (d.get("platform"), d.get("browser")) if x) or "?"),
+                    when=time.strftime("%Y-%m-%d %H:%M", time.localtime(d.get("last") or 0)), revoked=" " + tr("(session revoked)") if d.get("revoked") else ""))
+            if backend and staff and not h.get("known"):
+                severity = INFO
+                cause = tr("a tab of the Odoo back office of {name}, a user of the site, repeats the same call (a loop of the web client): the session is really theirs").format(name=raw(staff[0].get("name") or "?"))
+                advice = [tr("ask the person to reload or close the tab; once checked: app-log-live.py --ack {code} (the analysis then lists it apart)").format(code=ack_code("hot-pair:" + h["ip"] + ":" + h["url"][:60]))]
+                self.add("hot-pair:" + h["ip"] + ":" + h["url"][:60], severity, tr("One address asks the same page again and again: {who} ×{n}").format(who=name, n=h["n"]),
+                         h["n"], evidence, cause, advice, confirmed=True)
+                continue
             if backend and h.get("known"):
                 severity = INFO
                 cause = tr("an open tab of the Odoo back office of a known person repeats the same call (a dialog left open, a session that expired, or a module that asks again)")
@@ -1160,6 +1200,16 @@ class Analyzer:
     def rule_bans(self, facts, details):
         tr, raw = self.tr, self.raw
         to_ban = facts.get("to_ban") or []
+        devices = details.get("devices") or {}
+        signed = [(ip, who, reason) for ip, who, reason in to_ban if any(not d.get("share") for d in devices.get(ip) or ())]
+        if signed:
+            # 1.9: an address where a user of the site has an Odoo session is never proposed for a ban (a colleague behind the same address)
+            to_ban = [x for x in to_ban if x not in signed]
+            self.add("ban-held-session", LOOK, tr("Addresses NOT proposed for banning: a user of the site has an Odoo session there: {n}").format(n=len(signed)), len(signed),
+                     [f"{raw(who)} : {reason} · " + tr("session of {name}").format(name=raw(next(d.get('name') for d in devices[ip] if not d.get('share')) or '?'))
+                      for ip, who, reason in signed[:5]],
+                     tr("suspicious requests from an address shared with a user of the site (same network, VPN, mobile carrier)"),
+                     [tr("look at the requests of that address before anything: a ban would also block the user")], confirmed=True)
         if to_ban:
             self.add("ban-pending", LOOK, tr("Addresses to ban: {n}").format(n=len(to_ban)), len(to_ban),
                      [f"{raw(who)} : {reason}" for _ip, who, reason in to_ban[:5]] + ([tr("… and {n} more").format(n=len(to_ban) - 5)] if len(to_ban) > 5 else [])
@@ -1172,7 +1222,8 @@ class Analyzer:
             # 1.7: the bans made by fail2ban during the window (the summary line "banned addresses seen" counts only the requests of addresses ALREADY banned)
             who = facts.get("who") or {}
             self.add("banned-during", INFO, tr("Addresses banned by fail2ban during the window: {n}").format(n=len(during)), len(during),
-                     [f"{raw(who.get(ip, ip))} : {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(t))} ({', '.join(jails)})" for ip, t, jails in during[:5]],
+                     [f"{raw(who.get(ip, ip))} : {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(t))} ({', '.join(jails)})" for ip, t, jails in during[:5]]
+                     + ([tr("… and {n} more").format(n=len(during) - 5)] if len(during) > 5 else []),
                      tr("their attacks matched a fail2ban rule: they are blocked"), [tr("nothing to do")], confirmed=True)
         held = facts.get("not_proposed") or []
         if held:
@@ -1248,6 +1299,73 @@ class Analyzer:
                  [tr("the latency verdict is indicative; let the program run longer before deciding on hardware")])
 
 
+def ack_code(fid):
+    """1.9: short and stable code of a finding (6 hexadecimal characters), shown after its title and given to app-log-live.py --ack CODE."""
+    return hashlib.sha1(fid.encode("utf-8")).hexdigest()[:6]
+
+
+class Acknowledgements:
+    """1.9: acknowledged.json (state folder of app-log-live.py): the findings an administrator checked ("it was a volunteer, a bug of Odoo"). Each
+    entry: code, id, title, note, by, at, until, count (count of the finding when it was checked). A checked finding is listed apart, out of the
+    summary, until its date; it comes back when its count grows beyond ACK_GROWTH times the count of the check."""
+
+    def __init__(self, path):
+        self.path, self.entries, self.error = path, [], None
+        if path and os.path.isfile(path):
+            try:
+                with open(path, encoding="utf-8") as f:
+                    data = json.load(f)
+                self.entries = [e for e in (data.get("entries") or []) if isinstance(e, dict) and e.get("code")]
+            except (OSError, ValueError, AttributeError) as problem:
+                self.error = str(problem)
+
+    def active(self, now=None):
+        now = now or time.time()
+        return {e["code"]: e for e in self.entries if float(e.get("until") or 0) > now}
+
+    def add(self, code, fid, title, note, by, days, count=0, now=None):
+        now = now or time.time()
+        self.entries = [e for e in self.entries if e.get("code") != code]
+        entry = {"code": code, "id": fid, "title": title, "note": note or "", "by": by or "?", "at": now, "until": now + max(1, days) * 86400, "count": int(count or 0)}
+        self.entries.append(entry)
+        return entry
+
+    def remove(self, code):
+        before = len(self.entries)
+        self.entries = [e for e in self.entries if e.get("code") != code]
+        return len(self.entries) < before
+
+    def save(self):
+        if not self.path:
+            return False
+        tmp = self.path + ".tmp"
+        try:
+            fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+            with os.fdopen(fd, "w", encoding="utf-8") as f:
+                json.dump({"version": 1, "entries": self.entries}, f, ensure_ascii=False, indent=1)
+            os.replace(tmp, self.path)
+            return True
+        except OSError as problem:
+            self.error = str(problem)
+            return False
+
+
+def split_acknowledged(findings, active):
+    """1.9: (findings still to look at, [(finding, entry)] checked by an administrator). A finding comes back when its count is more than ACK_GROWTH
+    times the count at the check (entry["grown"] is then set for the display)."""
+    shown, checked = [], []
+    for f in findings:
+        entry = active.get(ack_code(f["id"]))
+        if entry is None or f["id"] == "all-clear":
+            shown.append(f)
+        elif entry.get("count") and f["count"] > ACK_GROWTH * int(entry["count"]):
+            f = dict(f, acknowledged=entry)
+            shown.append(f)
+        else:
+            checked.append((f, entry))
+    return shown, checked
+
+
 def analyze(facts, details=None, tr=_identity, raw=_identity):
     return Analyzer(tr, raw).run(facts, details)
 
@@ -1260,6 +1378,8 @@ def timeline(facts, details=None, tr=_identity, raw=_identity, limit=60):
     events = []
     for t, text in (details.get("service") or {}).get("events") or ():
         events.append((t, tr("service: ") + raw(_cut(text, 100))))
+    for t, text in (details.get("service") or {}).get("odoo_events") or ():
+        events.append((t, tr("Odoo (journal): ") + raw(_cut(text, 100))))      # 1.8: an auto_backup that starts or ends, for instance
     groups = {}
     for e in facts.get("nginx_errors") or ():
         message = NGINX_TAG_RE.sub("", e["message"])
@@ -1389,8 +1509,10 @@ class History:
 # ------------------------------------------------------------------------------------------------------------------
 # Display
 # ------------------------------------------------------------------------------------------------------------------
-def render(findings, trend=None, tr=_identity, color=lambda style, text: text, history_path=None, history_error=None, apply_hint=""):
-    """Lines of the analysis: summary, each finding (evidence, cause, recommendations, trend), resolved problems and priorities."""
+def render(findings, trend=None, tr=_identity, color=lambda style, text: text, history_path=None, history_error=None, apply_hint="", acknowledged=None):
+    """Lines of the analysis: summary, each finding (evidence, cause, recommendations, trend), resolved problems and priorities.
+    1.9: each finding shows its code ([a1b2c3], for app-log-live.py --ack CODE); `acknowledged` = [(finding, entry)] checked by an administrator,
+    listed apart at the end and left out of the summary."""
     trend = trend or {}
     symbols = {PROBLEM: ("✖", "1;31"), LOOK: ("⚠", "1;33"), INFO: ("ℹ", "2")}
     counts = Counter(f["severity"] for f in findings if f["id"] != "all-clear")
@@ -1412,7 +1534,12 @@ def render(findings, trend=None, tr=_identity, color=lambda style, text: text, h
             tag_text = {"new": tr("[new]"), "quiet": tr("[no new occurrence since the last analysis]"),
                         "streak": tr("[recurring: {k} analyses in a row]").format(k=k), "back": tr("[back: seen in {k} analyses]").format(k=k),
                         "seen": tr("[seen in {k} analyses]").format(k=k)}.get(kind, "")
-        lines.append("  " + color(style, f"{symbol} {f['title']}") + (" " + color("1;35", tag_text) if tag_text else ""))
+        lines.append("  " + color(style, f"{symbol} {f['title']}") + (" " + color("1;35", tag_text) if tag_text else "")
+                     + ("" if f["id"] == "all-clear" else " " + color("2", f"[{ack_code(f['id'])}]")))
+        if f.get("acknowledged"):
+            e = f["acknowledged"]
+            lines.append("        " + color("1;33", tr("Checked by {by} on {when} ({count} at the time), but {now} now: to look at again").format(
+                by=e.get("by", "?"), when=time.strftime("%Y-%m-%d", time.localtime(float(e.get("at") or 0))), count=e.get("count", "?"), now=f["count"])))
         for e in f["evidence"]:
             if e:
                 lines.append("        " + e)
@@ -1422,6 +1549,12 @@ def render(findings, trend=None, tr=_identity, color=lambda style, text: text, h
             lines.append("        " + color("1;36", "→ ") + a)
         if f.get("fix") and apply_hint:
             lines.append("        " + color("1;32", "⚙ ") + apply_hint)
+    if acknowledged:
+        lines.append("  " + color("1;32", "✔ " + tr("Checked by an administrator, left out of the summary: {n}").format(n=len(acknowledged))))
+        for f, e in acknowledged:
+            lines.append("        " + f"{f['title']} " + color("2", f"[{e['code']}]") + " : " + (e.get("note") or tr("no note"))
+                         + " · " + tr("by {by} on {when}, until {until}").format(by=e.get("by", "?"), when=time.strftime("%Y-%m-%d", time.localtime(float(e.get("at") or 0))),
+                                                                              until=time.strftime("%Y-%m-%d", time.localtime(float(e.get("until") or 0)))))
     if trend.get("resolved"):
         lines.append("  " + color("1;32", "✔ " + tr("Resolved since the previous analysis: ")) + " ; ".join(trend["resolved"][:8]))
     if trend.get("top"):

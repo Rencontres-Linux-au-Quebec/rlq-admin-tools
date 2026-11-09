@@ -371,6 +371,44 @@ Earlier history was archived outside this repository when this file was created.
 
 ## app-log-live.py
 
+### 1.180.20261109.110500 - Findings checked by an administrator (--ack), Odoo device log
+
+- Title: what an administrator has already checked is listed apart; the analysis says whose Odoo session runs from a looping or suspicious address.
+- Reason: request of the administrator on 2026-11-09: the 3 198 calls from a mobile network in Congo were a volunteer of the team (a loop of the Odoo web client); "ce qui est important serait ce qui n'a pas été vérifié par un admin Odoo".
+- Changes:
+  - New options --ack CODE (repeatable), --ack-note TEXT, --ack-days N (configuration key ACK_DAYS, default ACK_DAYS_DEFAULT = 30), --ack-list, --unack CODE; new function acknowledge(): the code is found in the histories of the analysis (advisor-history.json and advisor-history-advise.json), the entry is written to acknowledged.json (state folder, mode 600) with the note, the user (SUDO_USER), the date, the end date and the count of the finding.
+  - advise(): the findings checked are split from the others (apps/_advisor.py split_acknowledged()) after the history is recorded, and given to render(); the export shows them too.
+  - gather_details(): details["devices"]: the sessions of res_device_log (Odoo 17+, read only) for the addresses of the loops and of the bans proposed: login, name, internal or portal, platform, browser, last activity, revoked.
+  - doc/fr and doc/en app-log-live.conf.example: ACK_DAYS and the new command-line options; lang/app-log-live.fr.po: the new messages; doc/fr, doc/en 07-app-log-live.md: "Findings checked by an administrator". nginx-tools-tests/test_app_log_live.py: class AppLogLive180.
+- Bugs fixed: none.
+- Safeguards and edge cases: an unknown code is refused (exit 1) and nothing is written; a check ends after --ack-days; the finding comes back when its count more than doubles; the history keeps every finding (trends unchanged); without res_device_log (Odoo 16 and older) the analysis is unchanged; the device query is read only and limited to 50 addresses.
+- Checks performed: AppLogLive180, test_advisor (64 tests), test_config_defaut, test_cles_modeles, export test [OK].
+- Action required: after the next analysis, mark the loop of the volunteer: sudo app-log-live.py --ack CODE --ack-note "bénévole, boucle du client web" (CODE: the 6 characters after the title of the finding).
+
+### 1.179.20261109.100500 - Verification of the DEV and PROD exports: visits, --advise, service journal, environment, configuration keys
+
+- Title: the first two daily exports (DEV and PROD, 2026-11-09) were checked line by line; what was not true is corrected, the export says more about the server, and every setting option has its configuration key.
+- Reason: request of the administrator on 2026-11-09: continue the improvements, add a configuration key for --buffer and make sure that every option of every program is also in /etc/default; the two exports were sent for verification.
+- Changes:
+  - Stats.ajouter(): a page asked by this server (Stats.server, loopback) is no longer a site visit (pages, pages_per_ip, visits).
+  - LatencyMonitor.batch (set for --advise) and verdict(): with --advise, "disks not measured with --advise" instead of "let it run a few hours".
+  - unit_events(): new argument odoo_lines and ODOO_JOURNAL_LINE_RE: the lines written by Odoo in the journal of its service are no longer starts or stops; gather_details() hands them over as details["service"]["odoo_events"] (timeline).
+  - Stats.conflict_times and push_instants; advisor_facts()["push_after_conflict"].
+  - memory_facts(since, service): "other_mb" (MemTotal - MemAvailable minus MemoryCurrent of the Odoo service), as nginx-hardening.sh step 6.
+  - gather_details(): nginx access logs read up to ADVISE_NGINX_BYTES = 200 MB per file with --advise (30 MB before).
+  - export_ai(): new section "Environment of the server" (environment_lines(): Odoo version, odoo.conf, memory of the server and of its container, Odoo service MemoryCurrent / MemoryPeak / MemoryMax / NRestarts, PostgreSQL settings, timers of the suite, free space of /, /var/log and /var/lib/postgresql, load and uptime).
+  - SCHEMA_CONFIG: new keys COUNTRY, EXCLUDE_COUNTRY, UTC, NO_HOSTNAME, NO_HTML_JOURNAL.
+  - doc/fr and doc/en app-log-live.conf.example: BUFFER, COUNTRY, DISPLAY_HOST, EXCLUDE_COUNTRY, HIDE_USER_AGENT, NO_HOSTNAME, NO_HTML_JOURNAL, NO_SITEMAP, REQUEST_LENGTH, SITEMAP, STATUS_EVERY, UTC (alphabetical order), a comment for LOG_MERGE, and the command-line options --apply, --config-merge, --follow, --grep, --log-chk-sitemap, --no-pager, --since, --until.
+  - lang/app-log-live.fr.po: the new messages and the missing translation of --no-html-journal. doc/fr, doc/en 07-app-log-live.md: "What 1.179 changes". nginx-tools-tests/test_app_log_live.py: class AppLogLive179 (5 tests), export test checks the new section.
+- Bugs fixed:
+  - Symptom (DEV): 10 visitors, 49.7 pages per visitor, "/" x176. Diagnosis: the requests of app-health-check.py and of this server were counted as visits. Fix: excluded.
+  - Symptom (PROD): "0 of them in the 10 minutes after a start of Odoo (2 starts in the window)" while Odoo had not restarted. Diagnosis: journalctl -g "Started|Starting" also matched the auto_backup lines of Odoo. Fix: Odoo lines apart.
+  - Symptom (PROD): consistency check "[ATTN] account forms: 24 counted, 14 found in the access logs". Diagnosis: only the last 30 MB of each access log was read. Fix: 200 MB with --advise.
+  - Symptom (DEV and PROD): "not enough data yet ... (let it run a few hours)" after --advise. Diagnosis: the disks are sampled live only. Fix: verdict of its own.
+- Safeguards and edge cases: a page asked by this server is still a request (counts, URLs, errors); environment_lines() never fails (a value that cannot be read is left out) and runs no external command in the tests; the configuration keys follow the existing types (comma lists, booleans).
+- Checks performed: AppLogLive179, AppLogLive178, test_178_export_ai_avec_advise, test_advisor (61 tests), test_config_defaut and test_cles_modeles (now without failure), test_nginx_hardening.SuggestionMemoire282 [OK]; whole suite: see the pull request.
+- Action required: update the suite. For the daily check: sudo app-log-live.py --advise 1 --export-ai.
+
 ### 1.178.20261109.081127 - Night report review: true figures, push duplicates apart, full country names, --export-ai
 
 - Title: the summary and the analysis of the night of 2026-11-09 are corrected where they did not tell the truth, and a new option writes one file to send every day for verification.
@@ -3256,6 +3294,20 @@ Earlier history was archived outside this repository when this file was created.
 
 ## nginx-hardening.sh
 
+### 2.82.20261109.100500 - Memory suggestion (step 6): cron threads and gevent counted, reserve outside Odoo
+
+- Title: step 6 shares the memory between the HTTP workers, the cron threads and the gevent process, with a real reserve for PostgreSQL.
+- Reason: request of the administrator on 2026-11-09 ("arranger la recommandation dans nginx-hardening.sh afin de rajouter les CRON"): on DEV the suggestion was 5139 MB per worker for 3 workers, but with the 2 cron threads 5 processes at that limit need 25 695 MB for 16 384 MB of memory (app-log-live.py reported the memory risk).
+- Changes:
+  - Step 6: cron_threads read from --cron-threads, otherwise --max-cron-threads of the production line of run.sh, otherwise max_cron_threads of odoo.conf, otherwise 2; processes = workers + cron + 1 (gevent); reserve = max(15 % of the memory, memory used outside Odoo now); margin = max(512 MB, 10 %); new lines "Tâches planifiées (cron)", "Processus d'Odoo", "Réservé hors Odoo"; the suggestion and the worst case are per process; warning under 640 MB per process; the check of the current limit_memory_hard counts every process.
+  - New option --cron-threads N and configuration key MAX_CRON_THREADS (doc/fr and doc/en nginx-hardening.conf.example); CDN key and --dns-refresh cited in the templates; --cdn moved to its alphabetical place in --help.
+  - lang/nginx-hardening.en.po: the new messages, the help of --cdn, --cron-threads and --dns-refresh. doc/fr, doc/en 01-nginx-hardening.md: step 6. nginx-tools-tests/test_nginx_hardening.py: class SuggestionMemoire282 (2 tests).
+- Bugs fixed:
+  - Symptom: "Pire cas (tous les workers à la limite dure en même temps) : 15417 Mo" with 15 419 MB available, while the cron threads and gevent were not counted. Diagnosis: the budget was divided by the HTTP workers only, and the reserve was the memory used at that instant (453 MB) plus 512 MB. Fix: see above (DEV: 2048 MB per process; PROD with 13 workers: 768 MB).
+- Safeguards and edge cases: odoo.conf and run.sh are never modified (suggestion only); a cron count that is not a number falls back to 2; a reserve larger than 15 % is kept when more memory is used outside Odoo.
+- Checks performed: bash -n, ShellCheck 0.11.0 without warning; test_nginx_hardening.SuggestionMemoire282 [OK]; test_config_defaut and test_cles_modeles [OK].
+- Action required: run sudo nginx-hardening.sh --check on DEV and PROD and compare step 6 with the memory risk of app-log-live.py; adjust limit_memory_hard / limit_memory_soft after a test on DEV.
+
 ### 2.81.20261106.083524 - Empty ?tags= accepted on the event pages (rule 3 bis)
 
 - Title: securite-commune.conf rule 3 bis now accepts an empty value, ?tags=, as well as the lists of numbers.
@@ -4807,6 +4859,41 @@ Earlier history was archived outside this repository when this file was created.
   - Not changed: nginx-log-audit.sh keeps its own bash values (its --page-burst default is 8 against 15 here; this difference is still to be decided).
 
 ## apps/_advisor.py
+
+### 1.9.20261109.110500 - Findings checked by an administrator, Odoo device log, SMTP limit per session
+
+- Title: codes on the findings, list of the findings checked by an administrator, sessions of the Odoo device log.
+- Reason: see app-log-live.py 1.180.
+- Changes (apps/_advisor.py, lang/_advisor.fr.po, nginx-tools-tests/test_advisor.py):
+  - New ack_code(), Acknowledgements (acknowledged.json: load, active, add, remove, save in mode 600), split_acknowledged() (ACK_GROWTH = 2), constant ACK_FILE.
+  - render(): the code of each finding after its title; new argument acknowledged: section "Checked by an administrator, left out of the summary"; a checked finding whose count more than doubled is shown again with the date of the check.
+  - rule_hot_pairs(): the sessions of details["devices"]; a loop of the back office from the session of a user of the site is an information with a confirmed cause and the --ack command.
+  - rule_bans(): an address where a user of the site has an Odoo session is taken out of the bans proposed (and out of the --apply correction); new finding "ban-held-session".
+  - SMTP_HINTS: the track of the limit per SMTP connection says "for example 3" and explains that Odoo then opens a new connection every 3 e-mails.
+- Bugs fixed: none.
+- Safeguards and edge cases: an unreadable acknowledged.json is ignored (nothing is hidden); "all-clear" is never hidden; a portal account does not protect an address from a ban (only users of the site).
+- Checks performed: test_advisor (64 tests, class Version19 added) [OK]; catalogue complete and without stale entries.
+- Action required: none.
+
+### 1.8.20261109.100500 - Verification of the DEV and PROD exports: memory rule of nginx-hardening, SMTP limit per session, CSRF, future events
+
+- Title: the analysis agrees with nginx-hardening.sh on the memory limits and explains the e-mails refused on PROD.
+- Reason: verification on 2026-11-09 of the first exports of DEV and PROD (see app-log-live.py 1.179).
+- Changes (apps/_advisor.py, lang/_advisor.fr.po, nginx-tools-tests/test_advisor.py):
+  - rule_memory(): reserve = max(15 % of the memory, memory used outside Odoo now), margin = max(512 MB, 10 %), the rest shared by workers + cron + 1 gevent (as nginx-hardening.sh 2.82); the memory used outside Odoo is shown.
+  - SMTP_HINTS: new first track for "4.4.5 / messages per session" (system parameter mail.session.batch.size).
+  - rule_mails(): number of recipients when more than three; "before the window, still not resent".
+  - KNOWN_MESSAGES: "No CSRF validation token provided" and "dbfilter rejects it" (information).
+  - site_lines(): "ends on" for an event whose end is still to come.
+  - rule_push_duplicates(): the duplicates that came less than 5 s after a retried conflict (facts["push_after_conflict"]).
+  - rule_bans(): "... and N more" after five addresses banned during the window.
+  - timeline(): the Odoo lines of the service journal (details["service"]["odoo_events"]).
+- Bugs fixed:
+  - Symptom (PROD): "terminé le 2026-11-21" on 2026-11-09. Diagnosis: no check of the date. Fix: future end -> "se termine le".
+  - Symptom: the advice of the memory risk (764 MB on PROD, 70 % of the memory over workers + cron) differed from step 6 of nginx-hardening.sh. Diagnosis: two rules. Fix: one rule in both programs (768 MB on PROD, 2048 MB on DEV).
+- Safeguards and edge cases: without other_mb the reserve is 15 %; a limit under 256 MB is never advised.
+- Checks performed: test_advisor (61 tests, class Version18 added) [OK]; catalogue complete and without stale entries.
+- Action required: none.
 
 ### 1.7.20261109.081127 - Analysis of the night report: push duplicates, interruption over, memory risk, loops, failed e-mails one by one
 

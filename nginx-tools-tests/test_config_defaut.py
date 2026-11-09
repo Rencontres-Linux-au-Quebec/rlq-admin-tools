@@ -104,8 +104,8 @@ CLI_SEULEMENT = {
 class ModelesComplets(unittest.TestCase):
     """Chaque doc/en/PROGRAMME.conf.example (et celui de run-all) cite TOUTES les options longues de l'aide du programme : celles qui se configurent (CLÉ=valeur) et, en fin de
     fichier, celles de la ligne de commande seulement."""
-    PROGRAMMES = ("app-log-check.py", "app-log-live.py", "odoo-mail-retry.py", "odoo-chat-post.py", "odoo-docs.py", "odoo-warmup.py", "web-monitor.py", "zip-versions.py", "host-perf-audit.py", "nginx-hardening.sh", "nginx-log-audit.sh",
-                  "odoo-backup.sh", "odoo-update-module.sh", "sync-crowdsec-blocklist.sh")
+    PROGRAMMES = ("app-health-check.py", "app-log-check.py", "app-log-live.py", "odoo-mail-retry.py", "odoo-chat-post.py", "odoo-docs.py", "odoo-warmup.py", "web-monitor.py", "zip-versions.py", "host-perf-audit.py", "nginx-hardening.sh", "nginx-log-audit.sh",
+                  "odoo-backup.sh", "odoo-update-module.sh", "sync-crowdsec-blocklist.sh", "system-hardening.sh")      # 2026-11-09: every program
 
     def test_toutes_les_options_sont_dans_le_modele(self):
         env = dict(os.environ, NGINX_TOOLS_CONFIG_CREER="0", COLUMNS="200")
@@ -121,6 +121,8 @@ class ModelesComplets(unittest.TestCase):
     def test_cles_de_configuration_en_commentaire(self):
         """Le modèle est copié tel quel : aucune ligne active (CLÉ=valeur sans #)."""
         for programme in self.PROGRAMMES:
+            if programme == "app-health-check.py":
+                continue                                   # its model holds real values on purpose (copied by --create-config, then filled)
             with self.subTest(programme=programme):
                 modele = open(script_path("doc/en/" + re.sub(r"\.(py|sh)$", "", programme) + ".conf.example"), encoding="utf-8").read()
                 self.assertEqual([l for l in modele.splitlines() if l.strip() and not l.lstrip().startswith("#")], [])

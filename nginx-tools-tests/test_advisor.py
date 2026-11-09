@@ -660,7 +660,11 @@ class Version17(unittest.TestCase):
         m = f["memory-risk"]
         self.assertEqual(m["severity"], ADV.LOOK)
         self.assertTrue(any("17940 MB" in e and "16384 MB" in e for e in m["evidence"]))
-        self.assertTrue(any("limit_memory_hard to about 764 MB" in a for a in m["advice"]))
+        self.assertTrue(any("limit_memory_hard to about 768 MB" in a and "13 workers + 2 cron + 1 gevent" in a for a in m["advice"]))      # 1.8: as nginx-hardening.sh 2.82
+        dev = dict(conf, values=dict(conf["values"], workers="3", limit_memory_hard=str(5197 * 1048576)))
+        m = par_id(ADV.analyze(faits(), {"odoo_conf": dev, "memory": {"other_mb": 453}}))["memory-risk"]
+        self.assertTrue(any("limit_memory_hard to about 2048 MB" in a for a in m["advice"]))
+        self.assertTrue(any("453 MB" in e and "2457 MB" in e for e in m["evidence"]))
         f = par_id(ADV.analyze(faits(), {"odoo_conf": conf, "memory": {"limit_mb": 16384, "oom_kills": 2, "kernel": [(time.time(), "Out of memory: Killed process 1234 (python3)")]}}))
         self.assertEqual(f["memory-risk"]["severity"], ADV.PROBLEM)
         self.assertTrue(f["memory-risk"]["confirmed"])
@@ -751,3 +755,80 @@ class Pays(unittest.TestCase):
         self.assertEqual(c.label(""), "")
         self.assertGreaterEqual(len(c.NAMES), 249)
         self.assertFalse([k for k, (fr, en) in c.NAMES.items() if not fr or not en or "—" in fr + en])
+
+
+class Version18(unittest.TestCase):
+    """apps/_advisor.py 1.8 (app-log-live.py 1.179): verification of the exports of DEV and PROD of 2026-11-09. Invented data only."""
+
+    def test_evenement_a_venir_se_termine(self):
+        futur = time.strftime("%Y-%m-%d", time.localtime(time.time() + 20 * 86400))
+        lignes, _etat = ADV.Analyzer().site_lines("/event/x-1", {"records": {"/event/x-1": {"kind": "event", "id": 1, "name": "Dîner", "published": False, "active": True, "end": futur}}})
+        self.assertTrue(any("ends on " + futur in l for l in lignes))
+        lignes, _etat = ADV.Analyzer().site_lines("/event/x-1", {"records": {"/event/x-1": {"kind": "event", "id": 1, "name": "Dîner", "published": False, "active": True, "end": "2020-01-01"}}})
+        self.assertTrue(any("ended on 2020-01-01" in l for l in lignes))
+
+    def test_messages_connus_csrf_et_dbfilter(self):
+        for texte in ("odoo.http: No CSRF validation token provided for path '/'", "odoo.http: Logged into database 'x', but dbfilter rejects it; logging session out."):
+            self.assertEqual(next(k for k in ADV.KNOWN_MESSAGES if re.search(k[0], texte, re.I))[1], ADV.INFO)
+
+    def test_limite_de_messages_par_session_smtp(self):
+        base = {"days": 2, "exception": 2, "outgoing": 0, "sent": 62, "reasons": []}
+        motif = "Échec d'envoi de l'e-mail SMTPDataError: (452, b'4.4.5 Maximum number of messages per session exceeded.')"
+        echecs = [{"id": 1, "instant": time.time() - 3 * 86400, "sujet": "Test", "destinataires": ", ".join(f"p{i}@example.org" for i in range(12)), "raison": motif, "base": "prod"}]
+        m = par_id(ADV.analyze(faits(start=time.time() - 86400), {"mail_db": base, "mail_failed": echecs}))["mail-failures"]
+        self.assertTrue(m["advice"][0].startswith("the mail server accepts only a few e-mails per SMTP connection"))
+        self.assertTrue(any("(12 recipients)" in e and "before the window, still not resent" in e for e in m["evidence"]))
+
+    def test_doublons_push_apres_un_conflit(self):
+        p = par_id(ADV.analyze(faits(push_duplicates=15, push_duplicate_warnings=15, push_after_conflict=15)))["push-duplicates"]
+        self.assertTrue(any(e.startswith("15 of them came less than 5 s after a retried conflict") for e in p["evidence"]))
+
+    def test_chronologie_lignes_d_odoo_du_journal(self):
+        t = time.time() - 600
+        events = ADV.timeline(faits(), {"service": {"events": [], "odoo_events": [(t, "odoo.addons.auto_backup.models.db_backup: Starting backup")]}})
+        self.assertEqual(events[0][1], "Odoo (journal): odoo.addons.auto_backup.models.db_backup: Starting backup")
+
+
+class Version19(unittest.TestCase):
+    """apps/_advisor.py 1.9 (app-log-live.py 1.180): findings checked by an administrator, Odoo device log (res.device.log). Invented data only."""
+
+    HOT = [{"ip": "203.0.113.44", "url": "/web/dataset/call_kw/ir.config_parameter/get_web_dialog_size_config", "n": 3198, "ip_total": 3226, "codes": {"200": 3198}, "known": False}]
+    DEVICES = {"203.0.113.44": [{"login": "benevole@example.org", "name": "Bénévole Exemple", "share": False, "platform": "android", "browser": "chrome",
+                                 "last": time.time() - 600, "revoked": False}]}
+
+    def test_session_d_un_utilisateur_du_site(self):
+        h = next(v for k, v in par_id(ADV.analyze(faits(hot_pairs=self.HOT), {"devices": self.DEVICES})).items() if k.startswith("hot-pair:"))
+        self.assertEqual(h["severity"], ADV.INFO)
+        self.assertTrue(h["confirmed"])
+        self.assertIn("Bénévole Exemple", h["cause"])
+        self.assertTrue(any("benevole@example.org" in e and "android chrome" in e for e in h["evidence"]))
+        self.assertTrue(any("--ack " + ADV.ack_code(h["id"]) in a for a in h["advice"]))
+
+    def test_pas_de_bannissement_d_une_adresse_avec_session(self):
+        f = par_id(ADV.analyze(faits(to_ban=[("203.0.113.44", "x [203.0.113.44]", "3 suspicious requests"), ("192.0.2.9", "y [192.0.2.9]", "5 suspicious requests")]),
+                               {"devices": self.DEVICES}))
+        self.assertEqual([ip for ip, _w, _r in f["ban-pending"]["fix"][1]], ["192.0.2.9"])
+        self.assertEqual(f["ban-held-session"]["severity"], ADV.LOOK)
+
+    def test_constats_verifies(self):
+        d = tempfile.mkdtemp()
+        acks = ADV.Acknowledgements(os.path.join(d, ADV.ACK_FILE))
+        findings = ADV.analyze(faits(hot_pairs=self.HOT))
+        hot = next(f for f in findings if f["id"].startswith("hot-pair:"))
+        code = ADV.ack_code(hot["id"])
+        self.assertRegex(code, r"^[0-9a-f]{6}$")
+        acks.add(code, hot["id"], hot["title"], "un bénévole, boucle du client web", "martial", 30, count=3198)
+        self.assertTrue(acks.save())
+        self.assertEqual(stat.S_IMODE(os.stat(os.path.join(d, ADV.ACK_FILE)).st_mode), 0o600)
+        active = ADV.Acknowledgements(os.path.join(d, ADV.ACK_FILE)).active()
+        shown, checked = ADV.split_acknowledged(findings, active)
+        self.assertNotIn(hot["id"], [f["id"] for f in shown])
+        texte = "\n".join(ADV.render(shown, {}, acknowledged=checked))
+        self.assertIn("Checked by an administrator, left out of the summary: 1", texte)
+        self.assertIn("un bénévole, boucle du client web", texte)
+        self.assertIn(f"[{code}]", texte)
+        plus = [dict(f, count=7000) if f["id"] == hot["id"] else f for f in findings]          # more than twice the count of the check: back
+        shown, checked = ADV.split_acknowledged(plus, active)
+        retour = next(f for f in shown if f["id"] == hot["id"])
+        self.assertIn("to look at again", "\n".join(ADV.render([retour], {})))
+        self.assertEqual(ADV.split_acknowledged(findings, ADV.Acknowledgements(os.path.join(d, ADV.ACK_FILE)).active(time.time() + 31 * 86400))[1], [])

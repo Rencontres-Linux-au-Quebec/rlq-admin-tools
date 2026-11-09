@@ -16,7 +16,7 @@
 # format and comments specific to each installation, too risky to edit blindly.
 #
 # Usage : nginx-hardening.sh [--update] [--check] [--odoo-http-port PORT] [--odoo-gevent-port PORT]
-#                              [--odoo-service NOM] [--odoo-conf CHEMIN] [--odoo-conf-paths LISTE] [--timezone ZONE] [--cdn none|cloudflare] [--workers N] [-v|--verbose] [--version]
+#                              [--odoo-service NOM] [--odoo-conf CHEMIN] [--odoo-conf-paths LISTE] [--timezone ZONE] [--cdn none|cloudflare] [--workers N] [--cron-threads N] [-v|--verbose] [--version]
 #                              [--changelog] [--menu]
 #   - (no option)          : CHECK ONLY - changes NOTHING, same behavior as --check. This is the
 #                            default behavior since 1.7 (before: applied the changes by
@@ -52,6 +52,7 @@
 #                            l'option est donnee ET qu'elle se trouve dans le fichier de ce script (sinon : signalee).
 #   - --workers N          : number of Odoo workers, if not found in odoo.conf (e.g. set on the command
 #                            line in run.sh rather than in the config file).
+#   - --cron-threads N     : cron threads of Odoo (max_cron_threads) for step 6, if not found in odoo.conf or run.sh (default 2).
 #   - -v/--verbose         : shows each system command run (ss, ufw, iptables, systemctl, nginx -T,
 #                            curl, cp, chown, fail2ban-client...), prefixed with "+".
 #   - --version            : affiche la version et quitte.
@@ -92,7 +93,7 @@ run() {
     "$@"
 }
 
-readonly SCRIPT_VERSION="2.81.20261106.083524"
+readonly SCRIPT_VERSION="2.82.20261109.100500"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
 SCRIPT_NAME="$(basename "${BASH_SOURCE[0]}" .sh)"; readonly SCRIPT_NAME
 # Display language (en or fr): --lang, NGINX_HARDENING_LANG, LANGUAGE of the configuration file, LC_ALL / LANG - apps/_i18n.sh translates the output (nothing changes in French).
@@ -163,6 +164,7 @@ RENAME_FROM=""; RENAME_TO=""   # --rename-from / --rename-to: public DNS name ch
 APP_FORCE=""
 ODOO_CONF=""
 ODOO_WORKERS_OVERRIDE=""
+ODOO_CRON_OVERRIDE=""     # 2.82: --cron-threads N (MAX_CRON_THREADS): cron threads of Odoo for step 6 (default: max_cron_threads of odoo.conf or run.sh, otherwise 2)
 # Initialized here: set by steps specific to Odoo (4 and 9), but read by the final summary - same
 # for BigBlueButton, for which these steps are "not applicable" (otherwise: "unbound variable" at the end of execution).
 PORT_EXPOSED=0
@@ -194,6 +196,7 @@ if declare -F config_lire >/dev/null; then
     config_defaut TIMEZONE TIMEZONE --timezone texte
     config_defaut VERBOSE VERBOSE --verbose booleen
     config_defaut ODOO_WORKERS_OVERRIDE WORKERS --workers nombre
+    config_defaut ODOO_CRON_OVERRIDE MAX_CRON_THREADS --cron-threads nombre
 fi
 
 export ODOO_CONF_PATHS   # read by apps/_odoo_conf.sh (empty: ODOO_CONF_PATHS lines of the configuration files, then default list)
@@ -249,6 +252,7 @@ while [[ $# -gt 0 ]]; do
         --odoo-conf) ODOO_CONF="${2:-}"; shift 2 ;;
         --odoo-conf-paths) ODOO_CONF_PATHS="${2:-}"; shift 2 ;;
         --workers) ODOO_WORKERS_OVERRIDE="${2:-}"; shift 2 ;;
+        --cron-threads) ODOO_CRON_OVERRIDE="${2:-}"; shift 2 ;;
         --log-retention-months) LOG_RETENTION_MONTHS="${2:-}"; RETENTION_EXPLICITE=1; shift 2 ;;
         --version)
             echo "nginx-hardening.sh v$SCRIPT_VERSION"
@@ -276,9 +280,11 @@ Options (par ordre alphabétique) :
   --anonymize                  anonymise ce qui est affiché (adresses IP, courriels, identifiants, jetons) par des pseudonymes stables ; clé ANONYMIZE
   --app NAME                   application derrière nginx (profil apps/NAME.conf : odoo, bbb…) ; détectée par défaut
   --backup NAME                avec --rollback : sauvegarde à restaurer (défaut : la plus récente ; liste : ls /var/backups/nginx-hardening/archives)
+  --cdn NOM                    CDN devant les sites : none (défaut) ou cloudflare (adresse réelle du visiteur par CF-Connecting-IP)
   --changelog                  affiche le journal des modifications
   --check                      vérification seule (comportement par défaut)
   -c, --config FILE            fichier de configuration à lire SEUL (défaut : /etc/default/nginx-hardening.conf puis ~/.nginx-hardening.conf)
+  --cron-threads N             tâches planifiées d'Odoo (max_cron_threads) pour la suggestion de limites mémoire de l'étape 6 (défaut : odoo.conf ou run.sh, sinon 2)
   --disable-uri CHEMIN         refuse (404) ce chemin dans le site Odoo, toutes les langues (ex. /shop) : fichier snippets/uri-desactivees.conf ; répétable
   --dns-refresh                résout les noms DNS de la liste blanche (adresses dynamiques) ; --update seulement si une adresse a changé (cron toutes les 15 min)
   --enable-uri CHEMIN          rétablit un chemin refusé par --disable-uri ; répétable
@@ -305,7 +311,6 @@ Options (par ordre alphabétique) :
                                échecs, avertissements) ; désactive couleurs et questions interactives
   --rollback                   restaure la sauvegarde la plus récente (ou --backup NAME) de la configuration nginx et fail2ban, après confirmation
   --test-rules                 teste les règles nginx par des requêtes curl (lecture seule) : refus attendus et pages servies, sortie 1 si un cas échoue
-  --cdn NOM                    CDN devant les sites : none (défaut) ou cloudflare (adresse réelle du visiteur par CF-Connecting-IP)
   --timezone ZONE              fuseau horaire du serveur (défaut : America/Montreal, demandé la première fois ; none = ne pas toucher)
   --update                     installer ou mettre à jour ce qui manque (sauvegarde des fichiers modifiés)
   -v, --verbose                affiche chaque commande lancée
@@ -2275,23 +2280,46 @@ else
         fi
         non_odoo_mb=$(( used_mb - odoo_used_mb ))
         (( non_odoo_mb < 0 )) && non_odoo_mb=0
-        safety_margin_mb=512
-        available_for_odoo_mb=$(( total_ram_mb - non_odoo_mb - safety_margin_mb ))
+        # 2.82: the cron threads are processes too (max_cron_threads, default 2), each one under the same limit_memory_* as an HTTP worker, and the
+        # gevent process (chat, websocket) runs beside them. Before, the budget was shared by the HTTP workers only: on DEV, 3 workers -> 5139 MB each,
+        # but 3 workers + 2 cron at that limit = 25 695 MB for 16 384 MB of memory. Reserve: what runs outside Odoo NOW is a snapshot (PostgreSQL grows
+        # with the load: work_mem, autovacuum, the backup), so at least 15 % of the memory is kept for it, and 10 % (at least 512 MB) as a margin.
+        # Same rule as the memory risk of app-log-live.py (z key, --advise): both programs give the same figures.
+        cron_threads="$ODOO_CRON_OVERRIDE"
+        if [[ -z "$cron_threads" && -n "$run_script_prod_lines" ]]; then
+            cron_threads=$(printf '%s' "$run_script_prod_lines" | grep -oE -- '--max-cron-threads[= ][0-9]+' | tail -1 | grep -oE '[0-9]+$') || true
+        fi
+        if [[ -z "$cron_threads" && -r "$ODOO_CONF" ]]; then
+            cron_threads=$(grep -E "^\s*max_cron_threads\s*=" "$ODOO_CONF" 2>/dev/null | tail -1 | sed -E 's/^[^=]*=\s*//' | tr -d '[:space:]') || true
+        fi
+        [[ "$cron_threads" =~ ^[0-9]+$ ]] || cron_threads=2                                  # Odoo default
+        processes=$(( workers + cron_threads + 1 ))                                           # + 1: the gevent process
+        reserve_mb=$(( total_ram_mb * 15 / 100 ))
+        (( non_odoo_mb > reserve_mb )) && reserve_mb=$non_odoo_mb
+        safety_margin_mb=$(( total_ram_mb / 10 ))
+        (( safety_margin_mb < 512 )) && safety_margin_mb=512
+        available_for_odoo_mb=$(( total_ram_mb - reserve_mb - safety_margin_mb ))
         (( available_for_odoo_mb < 0 )) && available_for_odoo_mb=0
-        safe_hard_mb=$(( available_for_odoo_mb / workers ))
+        safe_hard_mb=$(( available_for_odoo_mb / processes ))
         safe_soft_mb=$(( safe_hard_mb * 85 / 100 ))
 
         echo "  Service Odoo               : $odoo_service"
         echo "  Workers                     : $workers"
+        echo "  Tâches planifiées (cron)    : $cron_threads (max_cron_threads)"
+        echo "  Processus d'Odoo            : $processes ($workers workers + $cron_threads cron + 1 gevent, chacun sous les mêmes limites sauf gevent)"
         echo "  RAM totale                  : ${total_ram_mb} $U_MEM"
         echo "  Utilisé hors Odoo (estimé)  : ${non_odoo_mb} $U_MEM (PostgreSQL, OS, nginx, etc. — via free -m moins"
         echo "                                l'usage actuel du cgroup d'Odoo, MemoryCurrent)"
+        echo "  Réservé hors Odoo           : ${reserve_mb} $U_MEM (au moins 15 % : PostgreSQL grossit avec la charge et la sauvegarde) + marge ${safety_margin_mb} $U_MEM (10 %)"
         echo "  Disponible pour Odoo        : ${available_for_odoo_mb} $U_MEM"
         echo
-        echo "  Suggestion (par worker — à valider par un test réel en DEV avant PROD) :"
+        echo "  Suggestion (par processus — à valider par un test réel en DEV avant PROD) :"
         printf "    --limit-memory-soft=%d   (%d $U_MEM)\n" $(( safe_soft_mb * 1024 * 1024 )) "$safe_soft_mb"
         printf "    --limit-memory-hard=%d   (%d $U_MEM)\n" $(( safe_hard_mb * 1024 * 1024 )) "$safe_hard_mb"
-        echo "  Pire cas (tous les workers à la limite dure en même temps) : $(( safe_hard_mb * workers )) $U_MEM"
+        echo "  Pire cas (tous les processus à la limite dure en même temps) : $(( safe_hard_mb * processes )) $U_MEM"
+        if (( safe_hard_mb < 640 )); then
+            warn "Limite par processus sous 640 $U_MEM : les gros rapports et les exports risquent d'être interrompus ; baisser workers (ou max_cron_threads) ou ajouter de la mémoire plutôt que descendre plus bas."
+        fi
 
         if [[ -r "$ODOO_CONF" ]] || [[ -n "$run_script_prod_lines" ]]; then
             # Priorite : un --limit-memory-hard=N en ligne de commande dans run.sh (branche production) l'emporte
@@ -2308,11 +2336,11 @@ else
             fi
             if [[ "$current_hard" =~ ^[0-9]+$ ]]; then
                 current_hard_mb=$(( current_hard / 1024 / 1024 ))
-                worst_case_current_mb=$(( current_hard_mb * workers ))
+                worst_case_current_mb=$(( current_hard_mb * processes ))
                 if (( current_hard == 0 )); then
                     fail "limit_memory_hard actuel = 0 (illimité) — source : $current_hard_source — aucune protection contre l'épuisement mémoire."
                 elif (( worst_case_current_mb > total_ram_mb )); then
-                    fail "limit_memory_hard actuel (${current_hard_mb} $U_MEM, source : $current_hard_source) × $workers workers = ${worst_case_current_mb} $U_MEM > RAM totale (${total_ram_mb} $U_MEM) — risque réel d'épuisement mémoire si plusieurs workers culminent en même temps."
+                    fail "limit_memory_hard actuel (${current_hard_mb} $U_MEM, source : $current_hard_source) × $processes processus ($workers workers + $cron_threads cron + 1 gevent) = ${worst_case_current_mb} $U_MEM > RAM totale (${total_ram_mb} $U_MEM) — risque réel d'épuisement mémoire si plusieurs processus culminent en même temps."
                 else
                     pass "limit_memory_hard actuel (${current_hard_mb} $U_MEM, source : $current_hard_source) cohérent avec la RAM disponible."
                 fi
