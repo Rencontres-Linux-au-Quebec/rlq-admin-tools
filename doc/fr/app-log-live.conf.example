@@ -9,6 +9,8 @@
 # --- Options (ordre alphabétique / alphabetical order) ---
 # --accentuate-group : étiquette (catégorie) de contacts Odoo affichés en blanc gras sur bleu foncé (vide = aucune ; touche a à la volée)
 #ACCENTUATE_GROUP=
+# --ack-days : jours pendant lesquels un constat vérifié par un administrateur (--ack) reste hors du sommaire (défaut : 30)
+#ACK_DAYS=30
 # --anonymize (par défaut depuis 1.88 pour app-log-live) : anonymiser ce que le programme affiche à l'écran (adresses IP, courriels, identifiants, jetons) par des pseudonymes
 # stables (IP-4f2a9c, usager-9c1e03@anonyme.invalid) ; depuis 1.91, les noms des personnes aussi (membre-4f2a9c ; étiquettes de l'équipe : equipe-4f2a9c) ; le journal
 # quotidien garde tout. no = vraies valeurs (comme --no-anonymize). Touche A à la volée ; la touche C la sauvegarde.
@@ -177,3 +179,7 @@
 #   -g, --grep REGEX         N'affiche que les lignes dont le message correspond à cette expression régulière
 #   --log-chk-sitemap        Rapport des réponses 404 des journaux nginx (pages du sitemap, refusées volontairement, autres), puis quitte
 #   --no-pager               Accepté par compatibilité avec journalctl (la sortie n'est jamais paginée)
+#   --ack CODE               Marque un constat de l'analyse comme vérifié par un administrateur (code affiché après son titre), puis quitte
+#   --ack-list               Liste les constats vérifiés, puis quitte
+#   --ack-note TEXT          Avec --ack : pourquoi c'est correct
+#   --unack CODE             Retire la vérification d'un constat, puis quitte

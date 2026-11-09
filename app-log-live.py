@@ -121,7 +121,7 @@ from urllib.parse import unquote, urlsplit
 from collections import Counter, OrderedDict
 from concurrent.futures import Future
 
-__version__ = "1.179.20261109.100500"
+__version__ = "1.180.20261109.110500"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
@@ -258,7 +258,7 @@ UNDERLINE_RATIO = 0.8                                             # 1.107: under
 UNDERLINE_DEFAULT = 10                                                # --underline without N (and default since 1.98): one log line out of 10 underlined
 
 
-SCHEMA_CONFIG = {"ACCENTUATE_GROUP": ("accentuate_group", str), "CHIME": ("chime", _chime_config), "DNS_MAX_TRUNCATE": ("dns_max_truncate", int), "EXCLUDE_IP": ("exclude_ip", _comma_list), "EXPORT_AI": ("export_ai", str), "COUNTRY": ("country", _comma_list), "EXCLUDE_COUNTRY": ("exclude_country", _comma_list), "UTC": ("utc", bool), "NO_HOSTNAME": ("no_hostname", bool), "NO_HTML_JOURNAL": ("no_html_journal", bool),
+SCHEMA_CONFIG = {"ACCENTUATE_GROUP": ("accentuate_group", str), "CHIME": ("chime", _chime_config), "DNS_MAX_TRUNCATE": ("dns_max_truncate", int), "EXCLUDE_IP": ("exclude_ip", _comma_list), "EXPORT_AI": ("export_ai", str), "ACK_DAYS": ("ack_days", int), "COUNTRY": ("country", _comma_list), "EXCLUDE_COUNTRY": ("exclude_country", _comma_list), "UTC": ("utc", bool), "NO_HOSTNAME": ("no_hostname", bool), "NO_HTML_JOURNAL": ("no_html_journal", bool),
                  "ERRORS_ONLY": ("errors_only", bool), "ONLY": ("only", _comma_list), "STATUS_HEADER": ("status_header", bool), "STEPS_LINE": ("steps_line", bool), "SUSPECT": ("suspect", bool), "SUMMARY": ("summary", bool), "TIME_REPORT": ("time_report", float), "TRUNCATE": ("truncate", _truncate_config), "WATCH": ("watch", str), "ANONYMIZE": ("anonymize", bool), "UNDERLINE": ("underline", _underline_config),
                  "APP": ("app", str), "CMS": ("cms", str), "CONNECTIONS": ("connections", float), "DAYS": ("days", float),"DISK_MIN": ("disk_min", float), "DNS_MAX": ("dns_max", int), "HEALTH": ("health", float), "HIDE_ADDONS": ("hide_addons", bool), "HIDE_IP": ("hide_ip", bool), "HIGHLIGHT": ("highlight", str), "THEME": ("theme", int), "IDLE": ("idle", float),
                  "LINES": ("lines", int), "LOG_DIR": ("log_dir", str), "LOG_KEEP_DAYS": ("log_keep_days", int), "LOG_MERGE": ("log_merge", bool), "LOG_NGINX": ("log_nginx", bool), "MIN": ("min", bool), "MODULES_CUSTOM": ("modules_custom", bool), "MODULES_SORT": ("modules_sort", str), "MODULES_STARTUP": ("modules_startup", bool), "NAMESPACE": ("namespace", str),
@@ -4840,6 +4840,7 @@ def sitemap_report(url, folder=NGINX_LOG_DIR, days=0):
     return lines, 0
 
 
+ACK_DAYS_DEFAULT = 30                      # 1.180: days during which a finding checked by an administrator (--ack) stays out of the summary
 ADVISE_NGINX_BYTES = 200 * 1024 * 1024    # 1.179: end of each nginx access log read by --advise for the details (the z key keeps the 30 MB of apps/_advisor.py)
 HOT_PAIR_MIN = 300                         # 1.178: requests of one address to one page from which the analysis looks at it (a loop)
 HOT_PAIR_SHARE = 0.3                       # 1.178: ... when this page is at least this share of the requests of the address
@@ -5804,6 +5805,47 @@ def memory_facts(since, service=None):
                 res["kernel"].append((float(m.group(1)), m.group(2).strip()[:200]))
         res["kernel"] = res["kernel"][-10:]
     return res
+
+
+def acknowledge(args):
+    """1.180 --ack / --unack / --ack-list: the findings an administrator checked (acknowledged.json in the state folder, mode 600). The code of a finding
+    is found in the histories of the analysis (z key and --advise): the analysis must have shown it once. Returns the exit code."""
+    module = load_module("_advisor")
+    if module is None or not hasattr(module, "Acknowledgements"):
+        print(TR("apps/_advisor.py is missing or too old: --ack is not available."))
+        return 1
+    path = advisor_history_file(module.ACK_FILE)
+    acks = module.Acknowledgements(path)
+    known = {}                                           # code -> (finding id, title, last count)
+    for name in ("advisor-history.json", "advisor-history-advise.json"):
+        history = module.History(advisor_history_file(name))
+        last = {}
+        for run in history.data.get("runs") or []:
+            last.update(run.get("counts") or {})
+        for fid, title in (history.data.get("titles") or {}).items():
+            known[module.ack_code(fid)] = (fid, title, last.get(fid, 0))
+    code_rc = 0
+    by = os.environ.get("SUDO_USER") or os.environ.get("USER") or "?"
+    for code in [c.strip().strip("[]").lower() for value in (args.ack or []) for c in value.split(",") if c.strip()]:
+        if code not in known:
+            print(color_code(STYLES["error"], "  " + TR("Unknown code {code}: run the analysis (z key or --advise) and copy the code shown after the title of the finding.").format(code=code)))
+            code_rc = 1
+            continue
+        fid, title, count = known[code]
+        entry = acks.add(code, fid, title, args.ack_note, by, args.ack_days, count)
+        print("  " + TR("Checked: {title} [{code}] until {until}").format(title=title, code=code, until=time.strftime("%Y-%m-%d", time.localtime(entry["until"]))))
+    for code in [c.strip().strip("[]").lower() for value in (args.unack or []) for c in value.split(",") if c.strip()]:
+        print("  " + (TR("Check removed: [{code}]") if acks.remove(code) else TR("No check with the code [{code}]")).format(code=code))
+    if (args.ack or args.unack) and not acks.save():
+        print(color_code(STYLES["error"], "  " + TR("File not written: {problem}").format(problem=acks.error or TR("no writable state folder"))))
+        return 1
+    if args.ack_list or args.ack or args.unack:
+        active = acks.active()
+        print("  " + TR("Findings checked by an administrator: {n} ({path})").format(n=len(active), path=path or "-"))
+        for e in sorted(active.values(), key=lambda e: e.get("at", 0)):
+            print(f"    [{e['code']}] {e.get('title', '?')} : {e.get('note') or TR('no note')} · " + TR("by {by} on {when}, until {until}").format(
+                by=e.get("by", "?"), when=time.strftime("%Y-%m-%d", time.localtime(float(e.get("at") or 0))), until=time.strftime("%Y-%m-%d", time.localtime(float(e.get("until") or 0)))))
+    return code_rc
 
 
 def export_ai_path(value):
@@ -7725,6 +7767,21 @@ def follow(cmd, people, resolver, options, output):
                 if rows is not None:
                     details["registrations"] = {"asked": len(reg_ids), "found": len(rows), "no_visitor": sum(1 for r in rows if len(r) > 2 and r[2] in ("f", "false")),
                                                 "duplicates": int(twice[0][0]) if twice and twice[0] and twice[0][0].isdigit() else 0}
+            ips = sorted({h["ip"] for h in facts.get("hot_pairs") or ()} | {ip for ip, _who, _r in facts.get("to_ban") or ()})
+            if ips and odoo_db._column_exists(bases[0], "res_device_log", "ip_address"):
+                # 1.180: whose Odoo session runs from these addresses (res.device.log, Odoo 17+): a volunteer whose tab loops is not an intruder, and an
+                # address where a user of the site has a session is never proposed for a ban
+                listed = ", ".join(odoo_db._sql_text(ip) for ip in ips[:50])
+                rows = odoo_db._requete(bases[0], "SELECT d.ip_address, u.login, COALESCE(p.name, ''), u.share, COALESCE(d.platform, ''), COALESCE(d.browser, ''), "
+                                                  "floor(extract(epoch FROM d.last_activity)), COALESCE(d.revoked, false) FROM res_device_log d "
+                                                  "JOIN res_users u ON u.id = d.user_id JOIN res_partner p ON p.id = u.partner_id "
+                                                  f"WHERE d.ip_address IN ({listed}) ORDER BY d.last_activity DESC LIMIT 200") or []
+                devices = {}
+                for r in rows:
+                    if len(r) >= 8 and len(devices.setdefault(r[0], [])) < 3:
+                        devices[r[0]].append({"login": r[1], "name": r[2], "share": r[3] in ("t", "true"), "platform": r[4], "browser": r[5],
+                                              "last": float(r[6] or 0), "revoked": r[7] in ("t", "true")})
+                details["devices"] = devices
             slow_times = [x["t"] for x in facts["slow"] if x.get("t")]
             if slow_times:
                 # 1.178: scheduled actions that ran around the slow requests (a cron that holds a lock or saturates PostgreSQL slows the pages)
@@ -7841,6 +7898,9 @@ def follow(cmd, people, resolver, options, output):
         path = advisor_history_file("advisor-history-advise.json" if batch else "advisor-history.json")
         history = module.History(path)
         trend = history.record(findings, f"{os.getpid()}-{int(session_start)}")
+        checked = []
+        if hasattr(module, "Acknowledgements"):              # 1.180: findings checked by an administrator (--ack): listed apart, out of the summary
+            findings, checked = module.split_acknowledged(findings, module.Acknowledgements(advisor_history_file(module.ACK_FILE)).active())
         kept = history.save()
         start = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(facts["start"]))
         title = color_code(STYLES["title"], TR("──── Analysis of the problems raised ({name} v{version}): since {start} ────").format(
@@ -7857,7 +7917,8 @@ def follow(cmd, people, resolver, options, output):
             window = ["  " + TR("Oldest line read: {start} (nginx error log, Odoo log); first request read: {req}").format(
                 start=start, req=time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(facts["requests_start"])))]
         rendered = module.render(findings, trend, TR, color_code, path if kept else None,
-                                 history.error or (TR("no writable state folder") if not path else None), apply_hint=hint)
+                                 history.error or (TR("no writable state folder") if not path else None), apply_hint=hint,
+                                 **({"acknowledged": checked} if checked else {}))
         write_out(["", title] + updated + window + rendered)
         if options.get("export_ai") is not None:
             export_ai(module, facts, details, [title] + updated + window + rendered, batch)
@@ -8582,12 +8643,20 @@ def main():
     parser.add_argument("--accentuate-group", default=None, metavar="NAME",
                         help="Odoo contacts with the contact TAG NAME (e.g. Staff-2026) shown in bold white on dark blue; the tag must exist, otherwise stop")
     parser.add_argument("--changelog", action="store_true", help="Show the change log")
+    parser.add_argument("--ack", action="append", default=None, metavar="CODE",
+                        help="Mark a finding of the analysis as checked by an administrator (CODE: the 6 characters shown after its title, e.g. [a1b2c3]); it is then listed "
+                             "apart, out of the summary, until --ack-days, and comes back if its count more than doubles; repeatable; then exits")
+    parser.add_argument("--ack-days", type=int, default=ACK_DAYS_DEFAULT, metavar="N",
+                        help=f"With --ack: days during which the finding stays checked (default: {ACK_DAYS_DEFAULT})")
+    parser.add_argument("--ack-list", action="store_true", help="List the findings checked by an administrator (code, note, by, until), then exit")
+    parser.add_argument("--ack-note", default="", metavar="TEXT", help="With --ack: why it is fine (e.g. 'a volunteer, loop of the Odoo web client')")
     parser.add_argument("--apply", action="store_true",
                         help="With --advise: after the analysis, offer the corrections one by one, one question each (ban the addresses with nginx-log-audit.sh --ban, which "
                              "checks the white list and its score; open odoo-mail-retry.py for the failed e-mails; warm Odoo up with odoo-warmup.py); terminal required")
     parser.add_argument("--advise", type=float, nargs="?", const=-1.0, default=None, metavar="DAYS",
                         help="Analysis of the problems of the last DAYS days (without a value: --days if given, otherwise 14), like the z key: the logs are read without being shown, then the problems, "
                              "their probable causes and the recommended solutions are printed, compared with the previous --advise runs; --since / --until choose another window")
+    parser.add_argument("--unack", action="append", default=None, metavar="CODE", help="Remove the check of a finding (it is analysed again as usual); repeatable; then exits")
     parser.add_argument("--cms", choices=["auto", "odoo", "wordpress"], default="auto", metavar="CMS",
                         help="Site CMS: odoo (/wp-admin, xmlrpc.php, *.php… are suspect), wordpress (normal pages) or auto (default: a wp-config.php under /var/www, /srv, /opt…)")
     parser.add_argument("--connections", type=float, default=CONNECTIONS_THRESHOLD_DEFAULT, metavar="PCT",
@@ -8813,6 +8882,8 @@ def main():
         return show_changelog()
     if args.config_merge:
         return config_merge(args.config)
+    if args.ack or args.unack or args.ack_list:                       # 1.180: findings checked by an administrator, then exits
+        return acknowledge(args)
     profile_module = load_module("_profile")
     regler_cms(profile_module.cms(None if args.cms == "auto" else args.cms) if profile_module is not None else (args.cms if args.cms != "auto" else "odoo"))
     if args.errors_only:

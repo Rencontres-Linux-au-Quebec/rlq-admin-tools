@@ -5277,3 +5277,32 @@ class AppLogLive179(unittest.TestCase):
         for cle in ("BUFFER", "COUNTRY", "EXCLUDE_COUNTRY", "UTC", "NO_HOSTNAME", "NO_HTML_JOURNAL"):
             self.assertIn(cle, self.live.SCHEMA_CONFIG)
         self.assertEqual(self.live.ADVISE_NGINX_BYTES, 200 * 1024 * 1024)
+
+
+class AppLogLive180(EnvTest):
+    """1.180 : --ack CODE / --unack / --ack-list : un constat vérifié par un administrateur (un bénévole dont l'onglet boucle) est classé à part."""
+
+    def test_180_ack_par_le_code_de_l_historique(self):
+        etat = os.path.join(self.d, "etat")
+        os.makedirs(etat)
+        spec = importlib.util.spec_from_file_location("adv_180", script_path("apps/_advisor.py"))
+        adv = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(adv)
+        fid = "hot-pair:203.0.113.44:/web/dataset/call_kw/ir.config_parameter/get_web_dialog_size_config"
+        with open(os.path.join(etat, "advisor-history-advise.json"), "w", encoding="utf-8") as f:
+            json.dump({"version": 1, "runs": [{"t": time.time(), "session": "s", "counts": {fid: 3198}, "new": {fid: 3198}}], "titles": {fid: "Boucle"}}, f)
+        code = adv.ack_code(fid)
+        prog = script_path("app-log-live.py")
+        env = {"APP_LOG_LIVE_STATE_DIR": etat}
+        rc, out, err = self.run_cmd(["python3", prog, "--lang", "fr", "--ack", f"[{code}]", "--ack-note", "bénévole", "--ack-days", "10"], env)
+        self.assertEqual(rc, 0, out + err)
+        self.assertIn(f"Vérifié : Boucle [{code}] jusqu'au", out)
+        with open(os.path.join(etat, "acknowledged.json"), encoding="utf-8") as f:
+            e = json.load(f)["entries"][0]
+        self.assertEqual((e["code"], e["note"], e["count"]), (code, "bénévole", 3198))
+        rc, out, _err = self.run_cmd(["python3", prog, "--lang", "fr", "--ack", "ffffff"], env)
+        self.assertEqual(rc, 1)
+        self.assertIn("Code ffffff inconnu", out)
+        rc, out, _err = self.run_cmd(["python3", prog, "--lang", "fr", "--unack", code], env)
+        self.assertIn(f"Vérification retirée : [{code}]", out)
+        self.assertIn("Constats vérifiés par un administrateur : 0", out)

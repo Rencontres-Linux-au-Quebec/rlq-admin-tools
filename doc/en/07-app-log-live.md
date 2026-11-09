@@ -67,6 +67,18 @@ sudo app-log-live.py --advise 1 --export-ai /root/export.md # file of your choic
 
 After the analysis, one Markdown file without colors (mode 600) holds what is needed to have the summaries and the analysis checked: the window really read (oldest line and first request), the **consistency checks** the program makes on its own figures (an impossible mean, two counts that should agree are marked `[ATTN]`), the whole summary of the dashboard, the analysis, the **timeline** of the window (starts and stops of the service, interruptions seen by nginx, Odoo errors, slow requests, bans, failed e-mails, kernel messages about the memory, scheduled actions) and the main counters in JSON. When `--anonymize` is active (the default), the file has the same pseudonyms as the screen: one address always has the same pseudonym, the check stays possible. With the z key of the dashboard, the file is written too when the option is given. Configuration key: `EXPORT_AI` (`yes` = default file, or a path).
 
+### Findings checked by an administrator: --ack (1.180)
+
+```
+sudo app-log-live.py --ack a1b2c3 --ack-note "a volunteer, loop of the Odoo web client"   # code shown after the title of the finding
+sudo app-log-live.py --ack-list                                                        # what is checked, by whom, until when
+sudo app-log-live.py --unack a1b2c3
+```
+
+Every finding of the analysis shows a 6-character code after its title. An administrator who checked a finding (for instance the looping calls of a volunteer's tab) marks it with `--ack`: the analysis and the export then list it apart, out of the summary ("Checked by an administrator"), for 30 days (`--ack-days`, key `ACK_DAYS`). The finding comes back by itself when its count more than doubles. The file is `acknowledged.json` in the state folder (mode 600).
+
+**Odoo device log** (`res.device.log`, Odoo 17 and later): the analysis looks up whose session runs from the addresses that loop or that it proposes to ban. The session of a user of the site is shown (name, login, device, last activity); a loop of their tab becomes information, and an address where a user of the site has a session is never proposed for a ban.
+
 ### What 1.179 changes
 
 * **This server is no longer a visitor**: the pages asked by app-health-check.py or odoo-warmup.py (addresses of this server) no longer count in the site visits (on DEV, 2 of the 10 "visitors").

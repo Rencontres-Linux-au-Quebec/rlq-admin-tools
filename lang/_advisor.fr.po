@@ -1045,11 +1045,48 @@ msgstr "rien à faire si c'est rare ; souvent depuis une même adresse : regarde
 msgid "nothing to do; it stops once the person signs in again"
 msgstr "rien à faire ; cela cesse quand la personne se reconnecte"
 
-msgid "the mail server accepts only a few e-mails per SMTP connection: set the system parameter mail.session.batch.size (Settings > Technical > System Parameters) below that limit, for example 10, then resend"
-msgstr "le serveur de courriel n'accepte que quelques courriels par connexion SMTP : régler le paramètre système mail.session.batch.size (Paramètres > Technique > Paramètres système) sous cette limite, par exemple 10, puis renvoyer"
 
 msgid "{k} of them came less than 5 s after a retried conflict: two tabs or devices subscribed at the same moment; the second one, retried by Odoo, found the subscription the first had just written"
 msgstr "{k} d'entre eux sont arrivés moins de 5 s après un conflit réessayé : deux onglets ou appareils se sont abonnés au même moment ; le second, réessayé par Odoo, a trouvé l'abonnement que le premier venait d'écrire"
 
 msgid "{n} recipients"
 msgstr "{n} destinataires"
+
+msgid "(session revoked)"
+msgstr "(session révoquée)"
+
+msgid "Addresses NOT proposed for banning: a user of the site has an Odoo session there: {n}"
+msgstr "Adresses NON proposées au bannissement : un utilisateur du site y a une session Odoo : {n}"
+
+msgid "Checked by an administrator, left out of the summary: {n}"
+msgstr "Vérifiés par un administrateur, hors du sommaire : {n}"
+
+msgid "Checked by {by} on {when} ({count} at the time), but {now} now: to look at again"
+msgstr "Vérifié par {by} le {when} ({count} à ce moment), mais {now} maintenant : à regarder de nouveau"
+
+msgid "Odoo device log: session of {name} ({login}), {device}, last activity {when}{revoked}"
+msgstr "Journal des appareils d'Odoo : session de {name} ({login}), {device}, dernière activité {when}{revoked}"
+
+msgid "a tab of the Odoo back office of {name}, a user of the site, repeats the same call (a loop of the web client): the session is really theirs"
+msgstr "un onglet de l'administration d'Odoo de {name}, un utilisateur du site, répète le même appel (une boucle du client web) : la session est bien la sienne"
+
+msgid "ask the person to reload or close the tab; once checked: app-log-live.py --ack {code} (the analysis then lists it apart)"
+msgstr "demander à la personne de recharger ou de fermer l'onglet ; une fois vérifié : app-log-live.py --ack {code} (l'analyse le classe alors à part)"
+
+msgid "by {by} on {when}, until {until}"
+msgstr "par {by} le {when}, jusqu'au {until}"
+
+msgid "look at the requests of that address before anything: a ban would also block the user"
+msgstr "regarder les requêtes de cette adresse avant tout : un bannissement bloquerait aussi l'utilisateur"
+
+msgid "no note"
+msgstr "sans note"
+
+msgid "session of {name}"
+msgstr "session de {name}"
+
+msgid "suspicious requests from an address shared with a user of the site (same network, VPN, mobile carrier)"
+msgstr "requêtes suspectes d'une adresse partagée avec un utilisateur du site (même réseau, VPN, opérateur cellulaire)"
+
+msgid "the mail server accepts only a few e-mails per SMTP connection: set the system parameter mail.session.batch.size (Settings > Technical > System Parameters) to that limit or below (for example 3): Odoo then opens a new SMTP connection every 3 e-mails; then resend"
+msgstr "le serveur de courriel n'accepte que quelques courriels par connexion SMTP : régler le paramètre système mail.session.batch.size (Paramètres > Technique > Paramètres système) à cette limite ou moins (par exemple 3) : Odoo ouvre alors une nouvelle connexion SMTP tous les 3 courriels ; puis renvoyer"

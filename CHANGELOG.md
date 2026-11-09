@@ -371,6 +371,20 @@ Earlier history was archived outside this repository when this file was created.
 
 ## app-log-live.py
 
+### 1.180.20261109.110500 - Findings checked by an administrator (--ack), Odoo device log
+
+- Title: what an administrator has already checked is listed apart; the analysis says whose Odoo session runs from a looping or suspicious address.
+- Reason: request of the administrator on 2026-11-09: the 3 198 calls from a mobile network in Congo were a volunteer of the team (a loop of the Odoo web client); "ce qui est important serait ce qui n'a pas été vérifié par un admin Odoo".
+- Changes:
+  - New options --ack CODE (repeatable), --ack-note TEXT, --ack-days N (configuration key ACK_DAYS, default ACK_DAYS_DEFAULT = 30), --ack-list, --unack CODE; new function acknowledge(): the code is found in the histories of the analysis (advisor-history.json and advisor-history-advise.json), the entry is written to acknowledged.json (state folder, mode 600) with the note, the user (SUDO_USER), the date, the end date and the count of the finding.
+  - advise(): the findings checked are split from the others (apps/_advisor.py split_acknowledged()) after the history is recorded, and given to render(); the export shows them too.
+  - gather_details(): details["devices"]: the sessions of res_device_log (Odoo 17+, read only) for the addresses of the loops and of the bans proposed: login, name, internal or portal, platform, browser, last activity, revoked.
+  - doc/fr and doc/en app-log-live.conf.example: ACK_DAYS and the new command-line options; lang/app-log-live.fr.po: the new messages; doc/fr, doc/en 07-app-log-live.md: "Findings checked by an administrator". nginx-tools-tests/test_app_log_live.py: class AppLogLive180.
+- Bugs fixed: none.
+- Safeguards and edge cases: an unknown code is refused (exit 1) and nothing is written; a check ends after --ack-days; the finding comes back when its count more than doubles; the history keeps every finding (trends unchanged); without res_device_log (Odoo 16 and older) the analysis is unchanged; the device query is read only and limited to 50 addresses.
+- Checks performed: AppLogLive180, test_advisor (64 tests), test_config_defaut, test_cles_modeles, export test [OK].
+- Action required: after the next analysis, mark the loop of the volunteer: sudo app-log-live.py --ack CODE --ack-note "bénévole, boucle du client web" (CODE: the 6 characters after the title of the finding).
+
 ### 1.179.20261109.100500 - Verification of the DEV and PROD exports: visits, --advise, service journal, environment, configuration keys
 
 - Title: the first two daily exports (DEV and PROD, 2026-11-09) were checked line by line; what was not true is corrected, the export says more about the server, and every setting option has its configuration key.
@@ -4845,6 +4859,21 @@ Earlier history was archived outside this repository when this file was created.
   - Not changed: nginx-log-audit.sh keeps its own bash values (its --page-burst default is 8 against 15 here; this difference is still to be decided).
 
 ## apps/_advisor.py
+
+### 1.9.20261109.110500 - Findings checked by an administrator, Odoo device log, SMTP limit per session
+
+- Title: codes on the findings, list of the findings checked by an administrator, sessions of the Odoo device log.
+- Reason: see app-log-live.py 1.180.
+- Changes (apps/_advisor.py, lang/_advisor.fr.po, nginx-tools-tests/test_advisor.py):
+  - New ack_code(), Acknowledgements (acknowledged.json: load, active, add, remove, save in mode 600), split_acknowledged() (ACK_GROWTH = 2), constant ACK_FILE.
+  - render(): the code of each finding after its title; new argument acknowledged: section "Checked by an administrator, left out of the summary"; a checked finding whose count more than doubled is shown again with the date of the check.
+  - rule_hot_pairs(): the sessions of details["devices"]; a loop of the back office from the session of a user of the site is an information with a confirmed cause and the --ack command.
+  - rule_bans(): an address where a user of the site has an Odoo session is taken out of the bans proposed (and out of the --apply correction); new finding "ban-held-session".
+  - SMTP_HINTS: the track of the limit per SMTP connection says "for example 3" and explains that Odoo then opens a new connection every 3 e-mails.
+- Bugs fixed: none.
+- Safeguards and edge cases: an unreadable acknowledged.json is ignored (nothing is hidden); "all-clear" is never hidden; a portal account does not protect an address from a ban (only users of the site).
+- Checks performed: test_advisor (64 tests, class Version19 added) [OK]; catalogue complete and without stale entries.
+- Action required: none.
 
 ### 1.8.20261109.100500 - Verification of the DEV and PROD exports: memory rule of nginx-hardening, SMTP limit per session, CSRF, future events
 

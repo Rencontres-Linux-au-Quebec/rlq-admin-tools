@@ -787,3 +787,48 @@ class Version18(unittest.TestCase):
         t = time.time() - 600
         events = ADV.timeline(faits(), {"service": {"events": [], "odoo_events": [(t, "odoo.addons.auto_backup.models.db_backup: Starting backup")]}})
         self.assertEqual(events[0][1], "Odoo (journal): odoo.addons.auto_backup.models.db_backup: Starting backup")
+
+
+class Version19(unittest.TestCase):
+    """apps/_advisor.py 1.9 (app-log-live.py 1.180): findings checked by an administrator, Odoo device log (res.device.log). Invented data only."""
+
+    HOT = [{"ip": "203.0.113.44", "url": "/web/dataset/call_kw/ir.config_parameter/get_web_dialog_size_config", "n": 3198, "ip_total": 3226, "codes": {"200": 3198}, "known": False}]
+    DEVICES = {"203.0.113.44": [{"login": "benevole@example.org", "name": "Bénévole Exemple", "share": False, "platform": "android", "browser": "chrome",
+                                 "last": time.time() - 600, "revoked": False}]}
+
+    def test_session_d_un_utilisateur_du_site(self):
+        h = next(v for k, v in par_id(ADV.analyze(faits(hot_pairs=self.HOT), {"devices": self.DEVICES})).items() if k.startswith("hot-pair:"))
+        self.assertEqual(h["severity"], ADV.INFO)
+        self.assertTrue(h["confirmed"])
+        self.assertIn("Bénévole Exemple", h["cause"])
+        self.assertTrue(any("benevole@example.org" in e and "android chrome" in e for e in h["evidence"]))
+        self.assertTrue(any("--ack " + ADV.ack_code(h["id"]) in a for a in h["advice"]))
+
+    def test_pas_de_bannissement_d_une_adresse_avec_session(self):
+        f = par_id(ADV.analyze(faits(to_ban=[("203.0.113.44", "x [203.0.113.44]", "3 suspicious requests"), ("192.0.2.9", "y [192.0.2.9]", "5 suspicious requests")]),
+                               {"devices": self.DEVICES}))
+        self.assertEqual([ip for ip, _w, _r in f["ban-pending"]["fix"][1]], ["192.0.2.9"])
+        self.assertEqual(f["ban-held-session"]["severity"], ADV.LOOK)
+
+    def test_constats_verifies(self):
+        d = tempfile.mkdtemp()
+        acks = ADV.Acknowledgements(os.path.join(d, ADV.ACK_FILE))
+        findings = ADV.analyze(faits(hot_pairs=self.HOT))
+        hot = next(f for f in findings if f["id"].startswith("hot-pair:"))
+        code = ADV.ack_code(hot["id"])
+        self.assertRegex(code, r"^[0-9a-f]{6}$")
+        acks.add(code, hot["id"], hot["title"], "un bénévole, boucle du client web", "martial", 30, count=3198)
+        self.assertTrue(acks.save())
+        self.assertEqual(stat.S_IMODE(os.stat(os.path.join(d, ADV.ACK_FILE)).st_mode), 0o600)
+        active = ADV.Acknowledgements(os.path.join(d, ADV.ACK_FILE)).active()
+        shown, checked = ADV.split_acknowledged(findings, active)
+        self.assertNotIn(hot["id"], [f["id"] for f in shown])
+        texte = "\n".join(ADV.render(shown, {}, acknowledged=checked))
+        self.assertIn("Checked by an administrator, left out of the summary: 1", texte)
+        self.assertIn("un bénévole, boucle du client web", texte)
+        self.assertIn(f"[{code}]", texte)
+        plus = [dict(f, count=7000) if f["id"] == hot["id"] else f for f in findings]          # more than twice the count of the check: back
+        shown, checked = ADV.split_acknowledged(plus, active)
+        retour = next(f for f in shown if f["id"] == hot["id"])
+        self.assertIn("to look at again", "\n".join(ADV.render([retour], {})))
+        self.assertEqual(ADV.split_acknowledged(findings, ADV.Acknowledgements(os.path.join(d, ADV.ACK_FILE)).active(time.time() + 31 * 86400))[1], [])
