@@ -1090,3 +1090,60 @@ msgstr "requêtes suspectes d'une adresse partagée avec un utilisateur du site 
 
 msgid "the mail server accepts only a few e-mails per SMTP connection: set the system parameter mail.session.batch.size (Settings > Technical > System Parameters) to that limit or below (for example 3): Odoo then opens a new SMTP connection every 3 e-mails; then resend"
 msgstr "le serveur de courriel n'accepte que quelques courriels par connexion SMTP : régler le paramètre système mail.session.batch.size (Paramètres > Technique > Paramètres système) à cette limite ou moins (par exemple 3) : Odoo ouvre alors une nouvelle connexion SMTP tous les 3 courriels ; puis renvoyer"
+
+msgid "(not set: Odoo default)"
+msgstr "(non défini : défaut d'Odoo)"
+
+msgid "1 main process + workers + cron threads + 1 gevent"
+msgstr "1 processus principal + workers + tâches planifiées + 1 gevent"
+
+msgid "Odoo parameters now: "
+msgstr "Paramètres d'Odoo maintenant : "
+
+msgid "Odoo reads its configuration only when it starts: the running processes still use the values of the start"
+msgstr "Odoo ne lit sa configuration qu'au démarrage : les processus en marche utilisent encore les valeurs du démarrage"
+
+msgid "Odoo runs {n} processes, its configuration gives {m}"
+msgstr "Odoo a {n} processus, sa configuration en donne {m}"
+
+msgid "Odoo started on {start}; odoo.conf modified on {mtime}"
+msgstr "Odoo démarré le {start} ; odoo.conf modifié le {mtime}"
+
+msgid "Options of the command line override odoo.conf: {n}"
+msgstr "Des options de la ligne de commande remplacent odoo.conf : {n}"
+
+msgid "a worker was being replaced at that instant (recycled at limit_memory_soft, or after limit_time_*), or the cron threads are lower in effect"
+msgstr "un worker était remplacé à cet instant (recyclé à limit_memory_soft, ou après limit_time_*), ou les tâches planifiées sont moins nombreuses en réalité"
+
+msgid "backup: "
+msgstr "sauvegarde : "
+
+msgid "change them where the service starts Odoo, or remove them there so that odoo.conf is used"
+msgstr "les changer là où le service démarre Odoo, ou les y retirer pour qu'odoo.conf soit utilisé"
+
+msgid "nothing to do if it is back at the next analysis; otherwise look at the Odoo log around that time (key E)"
+msgstr "rien à faire si c'est revenu à l'analyse suivante ; sinon regarder le journal d'Odoo vers cette heure (touche E)"
+
+msgid "odoo.conf changed since Odoo started: {n} values not in effect until a restart"
+msgstr "odoo.conf changé depuis le démarrage d'Odoo : {n} valeurs sans effet avant un redémarrage"
+
+msgid "odoo.conf modified after Odoo started: the values in effect are not known"
+msgstr "odoo.conf modifié après le démarrage d'Odoo : les valeurs en vigueur ne sont pas connues"
+
+msgid "restart Odoo at a quiet moment (systemctl restart {svc}), then odoo-warmup.py"
+msgstr "redémarrer Odoo à un moment calme (systemctl restart {svc}), puis odoo-warmup.py"
+
+msgid "restart Odoo at a quiet moment so that the file is in effect (systemctl restart {svc})"
+msgstr "redémarrer Odoo à un moment calme pour que le fichier soit en vigueur (systemctl restart {svc})"
+
+msgid "the file changed after the start and no copy of the values of the start was kept (the analysis keeps one from its first run after each start)"
+msgstr "le fichier a changé après le démarrage et aucune copie des valeurs du démarrage n'a été gardée (l'analyse en garde une à son premier passage après chaque démarrage)"
+
+msgid "the service starts Odoo with these options (run.sh or the unit): changing them in odoo.conf has no effect"
+msgstr "le service démarre Odoo avec ces options (run.sh ou l'unité) : les changer dans odoo.conf n'a aucun effet"
+
+msgid "{key}: in effect {running}, in the file {file}"
+msgstr "{key} : en vigueur {running}, dans le fichier {file}"
+
+msgid "{key}: {cli} on the command line (in the file: {file}, ignored)"
+msgstr "{key} : {cli} sur la ligne de commande (dans le fichier : {file}, ignoré)"

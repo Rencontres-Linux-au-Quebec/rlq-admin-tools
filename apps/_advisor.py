@@ -32,7 +32,7 @@ import re
 import time
 from collections import Counter
 
-__version__ = "1.9.20261109.110500"
+__version__ = "1.10.20261109.153000"
 
 PROBLEM, LOOK, INFO = 2, 1, 0                         # severities: problem, to look at, information
 
@@ -422,7 +422,8 @@ class Analyzer:
         details = details or {}
         self.findings = []
         for rule in (self.rule_5xx, self.rule_nginx_upstream, self.rule_sitemap_404, self.rule_repeated_4xx, self.rule_odoo_errors, self.rule_conflicts,
-                     self.rule_push_duplicates, self.rule_mails, self.rule_slow, self.rule_memory, self.rule_hot_pairs, self.rule_bans, self.rule_account_forms,
+                     self.rule_push_duplicates, self.rule_mails, self.rule_slow, self.rule_memory, self.rule_odoo_runtime, self.rule_hot_pairs, self.rule_bans,
+                     self.rule_account_forms,
                      self.rule_latency_sample):
             try:
                 rule(facts, details)
@@ -980,6 +981,11 @@ class Analyzer:
                 for x in servers))
         elif db.get("servers"):
             evidence.append(tr("Outgoing mail servers of Odoo: ") + " ; ".join(raw(x) for x in db["servers"]))
+        params = details.get("params") or {}
+        shown = [(k, params[k]) for k in ("mail.session.batch.size", "mail.mail.queue.batch.size", "mail.mail.force.send.limit") if k in params]
+        if shown:
+            # 1.10: the values an administrator would otherwise look up in Settings > Technical > System Parameters
+            evidence.append(tr("Odoo parameters now: ") + " · ".join(f"{k} = {v}" + ("" if is_set else " " + tr("(not set: Odoo default)")) for k, (v, is_set) in shown))
         same = Counter((str(x.get("hote")), str(x.get("port"))) for x in servers if x.get("actif", True))
         doubles = [hp for hp, k in same.items() if k > 1]
         if failed:
@@ -1147,6 +1153,35 @@ class Analyzer:
                  else tr("Memory nearly full in the worst case of the Odoo processes"), 1, evidence,
                  tr("if every worker reaches limit_memory_hard at the same time, the server runs out of memory and the kernel kills a process (Odoo or PostgreSQL): the site stops")
                  + ("" if not (oom or kills) else " " + tr("(it already happened: see the lines above)")), advice, confirmed=bool(oom or kills))
+
+    # --- the configuration in effect in the running Odoo (1.10) -------------------------------------------------------------------
+    def rule_odoo_runtime(self, facts, details):
+        tr, raw = self.tr, self.raw
+        rt = details.get("odoo_runtime") or {}
+        if not rt:
+            return
+        stamp = lambda t: time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(t)) if t else "?"
+        base = [tr("Odoo started on {start}; odoo.conf modified on {mtime}").format(start=stamp(rt.get("start")), mtime=stamp(rt.get("file_mtime")))]
+        if rt.get("changed"):
+            self.add("odoo-conf-not-applied", LOOK, tr("odoo.conf changed since Odoo started: {n} values not in effect until a restart").format(n=len(rt["changed"])),
+                     len(rt["changed"]), base + [tr("{key}: in effect {running}, in the file {file}").format(key=raw(k), running=raw(a or "-"), file=raw(b or "-")) for k, a, b in rt["changed"][:10]],
+                     tr("Odoo reads its configuration only when it starts: the running processes still use the values of the start"),
+                     [tr("restart Odoo at a quiet moment (systemctl restart {svc}), then odoo-warmup.py").format(svc=raw((details.get("service") or {}).get("name") or "SERVICE"))], confirmed=True)
+        elif rt.get("after_start") and not rt.get("known"):
+            self.add("odoo-conf-not-applied", INFO, tr("odoo.conf modified after Odoo started: the values in effect are not known"), 1, base,
+                     tr("the file changed after the start and no copy of the values of the start was kept (the analysis keeps one from its first run after each start)"),
+                     [tr("restart Odoo at a quiet moment so that the file is in effect (systemctl restart {svc})").format(svc=raw((details.get("service") or {}).get("name") or "SERVICE"))])
+        ignored = [(k, v, f) for k, v, f in rt.get("overrides") or () if f]
+        if ignored:
+            self.add("odoo-conf-command-line", INFO, tr("Options of the command line override odoo.conf: {n}").format(n=len(ignored)), len(ignored),
+                     [tr("{key}: {cli} on the command line (in the file: {file}, ignored)").format(key=raw(k), cli=raw(v), file=raw(f)) for k, v, f in ignored[:10]],
+                     tr("the service starts Odoo with these options (run.sh or the unit): changing them in odoo.conf has no effect"),
+                     [tr("change them where the service starts Odoo, or remove them there so that odoo.conf is used")], confirmed=True)
+        if rt.get("expected") and rt.get("processes") and rt["processes"] < rt["expected"]:
+            self.add("odoo-processes", INFO, tr("Odoo runs {n} processes, its configuration gives {m}").format(n=rt["processes"], m=rt["expected"]), 1,
+                     [tr("1 main process + workers + cron threads + 1 gevent")],
+                     tr("a worker was being replaced at that instant (recycled at limit_memory_soft, or after limit_time_*), or the cron threads are lower in effect"),
+                     [tr("nothing to do if it is back at the next analysis; otherwise look at the Odoo log around that time (key E)")])
 
     # --- one address, one page, again and again (1.7) ---------------------------------------------------------------------------
     def rule_hot_pairs(self, facts, details):
@@ -1378,6 +1413,8 @@ def timeline(facts, details=None, tr=_identity, raw=_identity, limit=60):
     events = []
     for t, text in (details.get("service") or {}).get("events") or ():
         events.append((t, tr("service: ") + raw(_cut(text, 100))))
+    for t, text in details.get("backup_events") or ():
+        events.append((t, tr("backup: ") + raw(_cut(text, 100))))      # 1.10: odoo-backup.service
     for t, text in (details.get("service") or {}).get("odoo_events") or ():
         events.append((t, tr("Odoo (journal): ") + raw(_cut(text, 100))))      # 1.8: an auto_backup that starts or ends, for instance
     groups = {}

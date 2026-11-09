@@ -61,7 +61,7 @@ Avec **`--apply`** (avec `--advise`, dans un terminal), les corrections sont pro
 ### Vérification quotidienne : --export-ai (1.178)
 
 ```
-sudo app-log-live.py --advise 1 --export-ai                 # fichier export-ai-AAAAMMJJ-HHMMSS.md dans /var/lib/app-log-live
+sudo app-log-live.py --advise 1 --export-ai                 # fichier export-ai-HÔTE-AAAAMMJJ-HHMMSS.md dans /var/lib/app-log-live
 sudo app-log-live.py --advise 1 --export-ai /root/export.md # fichier choisi
 ```
 
@@ -78,6 +78,15 @@ sudo app-log-live.py --unack a1b2c3
 Chaque constat de l'analyse affiche un code de 6 caractères après son titre. Un administrateur qui a vérifié un constat (par exemple les appels en boucle de l'onglet d'un bénévole) le marque avec `--ack` : l'analyse et l'export le classent alors à part, hors du sommaire (« Vérifiés par un administrateur »), pendant 30 jours (`--ack-days`, clé `ACK_DAYS`). Le constat revient de lui-même si son nombre fait plus que doubler. Le fichier est `acknowledged.json` dans le dossier d'état (mode 600).
 
 **Journal des appareils d'Odoo** (`res.device.log`, Odoo 17 et plus) : l'analyse cherche à qui appartient la session des adresses qui bouclent ou qu'elle propose de bannir. La session d'un utilisateur du site est dite (nom, identifiant, appareil, dernière activité) ; une boucle de son onglet devient une information, et une adresse où un utilisateur du site a une session n'est jamais proposée au bannissement.
+
+### Ce que change 1.181
+
+* **Odoo en mémoire et odoo.conf** : Odoo ne lit sa configuration qu'à son démarrage. L'environnement et l'analyse disent quand Odoo a démarré, combien de processus tournent (et combien la configuration en donne), les options de la ligne de commande (run.sh) qui remplacent odoo.conf, et les valeurs d'odoo.conf changées depuis le démarrage, donc sans effet avant un redémarrage. Une copie d'odoo.conf (sans les mots de passe ni les clés) est gardée à la première analyse après chaque démarrage (`odoo-conf-snapshots.json`, mode 600).
+* **Paramètres système d'Odoo** affichés directement (plus besoin d'aller dans Paramètres > Technique) : `mail.session.batch.size`, `mail.mail.queue.batch.size`, `mail.mail.force.send.limit`, `web.base.url`... avec « (non défini : défaut d'Odoo) » quand ils ne sont pas définis.
+* **Nom du serveur** dans les journaux : `app-log-live-HÔTE-AAAA-MM-JJ.log` et `.html`, en-tête « serveur HÔTE », export `export-ai-HÔTE-...md`. Les anciens fichiers sont encore purgés.
+* **Temps de nginx** : avec le format de nginx-hardening.sh 2.83 (`rt=`, `urt=`, `us=`), le temps de toutes les requêtes (fichiers statiques compris) est résumé.
+* **PostgreSQL** : valeurs avec leur unité (16384 8kB = 128 Mo) ; disques comptés une fois par système de fichiers ; sauvegardes (odoo-backup.service) dans la chronologie.
+* **Pages par langue** : les pages demandées par ce serveur (sondes, préchauffage) n'y comptent plus.
 
 ### Ce que change 1.179
 

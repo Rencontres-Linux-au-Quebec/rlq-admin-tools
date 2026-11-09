@@ -61,7 +61,7 @@ With **`--apply`** (with `--advise`, on a terminal), the corrections are offered
 ### Daily check: --export-ai (1.178)
 
 ```
-sudo app-log-live.py --advise 1 --export-ai                 # file export-ai-YYYYMMDD-HHMMSS.md in /var/lib/app-log-live
+sudo app-log-live.py --advise 1 --export-ai                 # file export-ai-HOST-YYYYMMDD-HHMMSS.md in /var/lib/app-log-live
 sudo app-log-live.py --advise 1 --export-ai /root/export.md # file of your choice
 ```
 
@@ -78,6 +78,15 @@ sudo app-log-live.py --unack a1b2c3
 Every finding of the analysis shows a 6-character code after its title. An administrator who checked a finding (for instance the looping calls of a volunteer's tab) marks it with `--ack`: the analysis and the export then list it apart, out of the summary ("Checked by an administrator"), for 30 days (`--ack-days`, key `ACK_DAYS`). The finding comes back by itself when its count more than doubles. The file is `acknowledged.json` in the state folder (mode 600).
 
 **Odoo device log** (`res.device.log`, Odoo 17 and later): the analysis looks up whose session runs from the addresses that loop or that it proposes to ban. The session of a user of the site is shown (name, login, device, last activity); a loop of their tab becomes information, and an address where a user of the site has a session is never proposed for a ban.
+
+### What 1.181 changes
+
+* **Odoo in memory and odoo.conf**: Odoo reads its configuration only when it starts. The environment and the analysis say when Odoo started, how many processes run (and how many the configuration gives), the command-line options (run.sh) that override odoo.conf, and the values of odoo.conf changed since the start, so not in effect until a restart. A copy of odoo.conf (without passwords or keys) is kept at the first analysis after each start (`odoo-conf-snapshots.json`, mode 600).
+* **Odoo system parameters** shown directly (no need to open Settings > Technical): `mail.session.batch.size`, `mail.mail.queue.batch.size`, `mail.mail.force.send.limit`, `web.base.url`... with "(not set: Odoo default)" when they are not set.
+* **Server name** in the journals: `app-log-live-HOST-YYYY-MM-DD.log` and `.html`, header "server HOST", export `export-ai-HOST-...md`. The former files are still purged.
+* **nginx times**: with the format of nginx-hardening.sh 2.83 (`rt=`, `urt=`, `us=`), the time of all requests (static files included) is summarised.
+* **PostgreSQL**: values with their unit (16384 8kB = 128 MB); disks counted once per file system; backups (odoo-backup.service) in the timeline.
+* **Pages by language**: the pages asked by this server (probes, warm-up) no longer count.
 
 ### What 1.179 changes
 

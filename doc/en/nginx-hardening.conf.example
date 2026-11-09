@@ -14,6 +14,8 @@
 #APP=
 # --cdn: CDN in front of the sites: none (default) or cloudflare (real address of the visitor from CF-Connecting-IP); --cdn on the command line records it here
 #CDN=none
+# systemd journal kept on disk (Storage=persistent) by --update: the reasons why Odoo stopped survive a reboot (step 11); no = left as it is
+#JOURNAL_PERSISTENT=yes
 # en, fr ou auto (suivre LC_ALL / LC_MESSAGES / LANG). Ordre de choix : --lang, NGINX_TOOLS_LANG, NGINX_HARDENING_LANG, cette clé, LC_ALL, LC_MESSAGES, LANG.
 # Ajouter une langue = ajouter le fichier lang/nginx-hardening.XX.po (format PO : Poedit, Weblate...) - voir lang/README.md.
 #LANGUAGE=auto
@@ -45,6 +47,10 @@
 #ODOO_HTTP_PORT=
 # --odoo-service (défaut : détecté automatiquement)
 #ODOO_SERVICE=
+# step 17: slow queries, lock waits, autovacuum and temporary files in the PostgreSQL log (conf.d file, reloaded without restart); no = step skipped
+#PG_LOGGING=yes
+# step 17: duration in milliseconds from which a query is written to the PostgreSQL log (log_min_duration_statement)
+#PG_SLOW_MS=2000
 # --rename-from (ancien nom DNS public à remplacer dans nginx, étape 0e ; à utiliser une fois, avec --update) (défaut : aucun)
 #RENAME_FROM=
 # --rename-to (nouveau nom DNS public : nginx et certificat Let's Encrypt refaits pour ce nom) (défaut : aucun)

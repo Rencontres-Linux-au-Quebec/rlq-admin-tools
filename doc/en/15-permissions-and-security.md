@@ -9,15 +9,15 @@ PostgreSQL is read through the `postgres` account (`runuser`): anything involvin
 | `zip-versions.py` | fully | never |
 | `odoo-warmup.py` | yes (HTTP) | only to write `/etc/default/odoo-warmup-pages.conf` (else a personal file) |
 | `odoo-chat-post.py` | fully (external API + key) | never; only to read `/etc/default/odoo-chat-post.conf` (API key, mode 600) |
-| `app-health-check.py` | partly | `nginx -t`, PostgreSQL, fail2ban, protected logs; `--create-config` in `/etc/default` |
+| `app-health-check.py` | partly; when its configuration is unreadable (600 root), the values detected now are used (2.34) | `nginx -t`, PostgreSQL, fail2ban, protected logs; `--create-config` in `/etc/default` |
 | `app-log-check.py`, `app-log-live.py` | partly | PostgreSQL (modules, users), fail2ban, firewall, `nginx -T`, bans |
-| `web-monitor.py` | reading: `--summary`, `--list-users`, `--status`, `--dry-run`, `--unban-check` | refused at start for passes, timers, `--apply`, bans |
+| `web-monitor.py` | reading: `--summary`, `--list-users`, `--status`, `--dry-run`, `--unban-check`; a plain pass becomes `--dry-run` (2.88) | timers, `--apply`, bans, recorded passes |
 | `nginx-log-audit.sh` | reading | `--ban`, `--unban`, `--export-bans`, `--import-bans` |
 | `nginx-hardening.sh` | `--check` | `--update` (refused before the lock) |
 | `odoo-update-module.sh` | `--dry-run` | real update |
 | `odoo-backup.sh` | `--dry-run`, or already the PostgreSQL account | backup, timers |
-| `sync-crowdsec-blocklist.sh` | `--dry-run` | sync, status, cron, uninstall, ufw hook |
-| `odoo-mail-retry.py` | no | always |
+| `sync-crowdsec-blocklist.sh` | `--dry-run`, `--status` without the content of the ipsets and of the firewall (1.32) | sync, content of the status, cron, uninstall, ufw hook |
+| `odoo-mail-retry.py` | when sudoers allows `sudo -n -u postgres` (1.20) | otherwise always |
 
 ## Security properties
 

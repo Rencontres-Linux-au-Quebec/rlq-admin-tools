@@ -28,11 +28,13 @@ Audite (par défaut) ou installe/répare (`--update`) la base du serveur en éta
 | 8 | audit d'`odoo.conf` (`list_db`, `admin_passwd`, mode proxy, limites...) |
 | 9 | jails fail2ban : capteur catch-all, `odoo-auth` (échecs de connexion lus dans le journal d'Odoo), `nginx-blocked-probes` (5 refus nginx en 10 minutes -> bannissement de 24 h) |
 | 10 | HSTS réellement envoyé par chaque nom HTTPS (lu dans `nginx -T`) |
-| 11 | rétention des journaux (`--log-retention-months`, 1 à 24, défaut 3) |
+| 11 | rétention des journaux (`--log-retention-months`, 1 à 24, défaut 3) ; journal systemd persistant (`JOURNAL_PERSISTENT`, 2.83) : les raisons d'un arrêt d'Odoo survivent à un redémarrage |
 | 12 | listes d'adresses -> fragments nginx (`team-ips-geo.conf`, `team-ips-allow.conf`, `shared-ips-geo.conf`) ; nginx est rechargé si les fragments sont plus récents que la configuration chargée |
 | 13 | courriel d'alerte : relais, MX, SPF, DMARC, DKIM |
 | 14 | `geoip-bin` / `geoip-database` pour le pays en local |
 | 15 | bip d'`app-log-live.py --chime` dans byobu/tmux |
+| 16 | appels d'Odoo vers son propre nom public (User-Agent python-requests) |
+| 17 | PostgreSQL (2.83, `PG_LOGGING`, `PG_SLOW_MS`) : requêtes de plus de 2 s, verrous attendus, autovacuum et fichiers temporaires écrits dans le journal de PostgreSQL (fichier `conf.d/90-nginx-hardening-logging.conf`, rechargé sans redémarrage ; le texte des requêtes lentes y figure) ; `shared_buffers` resté à 128 Mo est signalé |
 
 ## Notes pour les administrateurs
 

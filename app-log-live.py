@@ -121,7 +121,7 @@ from urllib.parse import unquote, urlsplit
 from collections import Counter, OrderedDict
 from concurrent.futures import Future
 
-__version__ = "1.180.20261109.110500"
+__version__ = "1.181.20261109.160000"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
@@ -761,6 +761,13 @@ def load_module(name):
 
 
 _COUNTRIES = []
+
+
+def host_name():
+    """1.181: short name of this Linux server, safe for a file name ("odoo-dev"); "host" when it cannot be read. In the name of the daily journal and of
+    the --export-ai file, so that files of several servers kept or sent together never mix."""
+    name = (os.uname().nodename if hasattr(os, "uname") else "") or os.environ.get("HOSTNAME", "")
+    return re.sub(r"[^A-Za-z0-9_-]+", "-", name.split(".")[0]).strip("-") or "host"
 
 
 def country_label(code):
@@ -1899,6 +1906,8 @@ OS_COLORS = {"LIN": "32", "AND": "36", "BOT": "35", **{code: "1;33" for code, _ 
 RL_WIDTH = 5                                                       # 1.136: width of the request length column (rl=, nginx)
 RL_RE = re.compile(r"\srl=(\d+)")
 HOST_TEXT_RE = re.compile(r'\shost="[^"]*"')                       # 1.145: the host of an nginx line (--display-host shows it, at the end of the line)
+NGINX_RT_RE = re.compile(r"\srt=([\d.]+)")                                   # 1.181
+NGINX_TIMES_RE = re.compile(r'\s(?:rt=[\d.]+|urt="[^"]*"|us=[\d, :-]+?(?=\s|$))')   # 1.181: rt= urt= us= of the nginx format (nginx-hardening.sh 2.83), never on screen
 
 
 def os_code(agent):
@@ -2332,6 +2341,7 @@ class Formatting:
             cuts.append((agent.start(1) - 1, agent.end(1) + 1))
         if rl:                                           # 1.136: rl= leaves the end of the line: its column (--request-length) or nothing
             cuts.append((rl.start(0), rl.end(0)))
+        cuts += [(t.start(0), t.end(0)) for t in NGINX_TIMES_RE.finditer(text, m.end(4))]      # 1.181: times of nginx, kept in the logs only
         cuts.sort()
         pieces, position = [], m.end(4)
         for cut_start, cut_end in sorted(cuts):
@@ -4864,6 +4874,7 @@ class Stats:
         self.ip_url = Counter()                   # 1.178: (address, page without parameters) -> requests: one address that asks the same page in a loop
         self.ip_url_codes = {}                    # 1.178: same key -> Counter of the HTTP codes
         self.odoo_errors_raw = {}                 # 1.178: (level, logger, message) -> first raw line (the message is grouped with N in place of the numbers)
+        self.nginx_rt = []                        # 1.181: rt= of the nginx lines (request time seen by nginx, static files and websockets included), last 20000
         self.first_any = None                     # 1.178: instant of the oldest line of ANY kind (nginx error log, Odoo): the true start of the analysed window
         self.reco_loaded = False                  # 1.144: True when the last run of web-monitor.py is read (less than 48 h old)
         self.not_proposed = []                    # 1.144: (address, reason) of the addresses NOT proposed for a ban (relays, sweeps web-monitor does not recommend)
@@ -5094,15 +5105,20 @@ class Stats:
         if ROBOTS_FILES_RE.match(url.split("?", 1)[0]):
             self.robots_ips.add(ip)
         self.urls[url.split("?", 1)[0]] += 1
+        rt = NGINX_RT_RE.search(L.text or "")
+        if rt and not LONG_CONNECTION_RE.search(url):
+            self.nginx_rt.append(float(rt.group(1)))
+            del self.nginx_rt[:-20000]
         if not LONG_CONNECTION_RE.search(url) and (len(self.ip_url) < IP_URL_MAX or (ip, url.split("?", 1)[0]) in self.ip_url):
             pair = (ip, url.split("?", 1)[0])                          # 1.178: the same page asked again and again by one address (a tab in a loop, a script)
             self.ip_url[pair] += 1
             self.ip_url_codes.setdefault(pair, Counter())[code] += 1
         self.statuses[code // 100] += 1
         lang = language_of(url) if code < 400 else None
-        if lang:
+        own = ip in self.server or local_address(ip)                       # 1.181: a page asked by this server itself (probes, warm-up)
+        if lang and not own:                                               # 1.181: no longer in "Pages by language" either (DEV: 519 pages for 12 page views)
             self.languages[lang] += 1
-            if not suspect_url(url) and not (ip in self.server or local_address(ip)):      # site VISIT: a page (not a file, nor an error, nor a security probe)
+            if not suspect_url(url):      # site VISIT: a page (not a file, nor an error, nor a security probe)
                 # 1.179: nor a page asked by this server itself (app-health-check.py, odoo-warmup.py): on DEV they were 2 of the 10 "visitors" and 176 "/" views
                 instant = L.instant or time.time()
                 self.pages[url.split("?", 1)[0]] += 1
@@ -5707,7 +5723,7 @@ def unit_events(service, ns, since, odoo_lines=None):
     if not service:
         return []
     cmd = ["journalctl", "-u", service, "-q", "--no-pager", "-o", "short-unix", "--since", f"@{math.floor(since)}",
-           "-g", "Started|Starting|Stopped|Stopping|Main process exited|Failed with result|Scheduled restart|Killing process"] + (["--namespace", ns] if ns else [])
+           "-g", "Started|Starting|Stopped|Stopping|Finished|Deactivated successfully|Main process exited|Failed with result|Scheduled restart|Killing process"] + (["--namespace", ns] if ns else [])
     res = []
     for text_line in lancer(cmd, 60)[1].splitlines():
         m = re.match(r"^(\d+(?:\.\d+)?)\s+\S+\s+\S+?:\s+(.*)$", text_line)
@@ -5761,6 +5777,123 @@ def odoo_perf_settings(profile):
 
 
 CGROUP_ROOT = os.environ.get("APP_LOG_LIVE_CGROUP_ROOT", "/sys/fs/cgroup")      # 1.178: tests give their own folder
+PROC_ROOT = os.environ.get("APP_LOG_LIVE_PROC_ROOT", "/proc")                    # 1.181: tests give their own folder
+CONF_SECRET_RE = re.compile(r"pass|secret|token|key|private", re.I)              # 1.181: odoo.conf keys never shown nor kept
+ODOO_PARAM_DEFAULTS = {                                                          # 1.181: system parameters of Odoo shown with their value or Odoo's default
+    "mail.session.batch.size": "1000", "mail.mail.queue.batch.size": "10000", "mail.mail.force.send.limit": "100",
+    "mail.default.from": "notifications", "mail.catchall.domain": "", "mail.bounce.alias": "bounce", "web.base.url": "", "web.base.url.freeze": "False",
+    "auth_signup.invitation_scope": "b2b", "auth_signup.reset_password": "True", "database.expiration_date": "",
+}
+
+
+def conf_options(path):
+    """1.181: {key: value} of the [options] section of an odoo.conf, without the keys that hold a secret (passwords, keys); {} when unreadable."""
+    values, section = {}, "options"
+    try:
+        with open(path, encoding="utf-8", errors="replace") as f:
+            for text_line in f:
+                line = text_line.strip()
+                if not line or line[0] in "#;":
+                    continue
+                m = re.match(r"^\[(.+)\]$", line)
+                if m:
+                    section = m.group(1).strip().lower()
+                    continue
+                key, sep, value = line.partition("=")
+                if sep and section == "options" and not CONF_SECRET_RE.search(key):
+                    values[key.strip()] = value.strip().strip("\"'").strip()
+    except OSError:
+        return {}
+    return values
+
+
+def odoo_processes(service):
+    """1.181: the Odoo processes of the service (cgroup of systemd): [(pid, ppid, start epoch, argv)]; [] when unreadable."""
+    group = lancer(["systemctl", "show", service, "-p", "ControlGroup", "--value"], 10)[1].strip() if service else ""
+    pids = []
+    for candidate in (os.path.join(CGROUP_ROOT, group.lstrip("/"), "cgroup.procs"),) if group else ():
+        try:
+            with open(candidate, encoding="utf-8") as f:
+                pids = [int(x) for x in f.read().split() if x.isdigit()]
+        except OSError:
+            pids = []
+    try:
+        with open(os.path.join(PROC_ROOT, "stat"), encoding="utf-8") as f:
+            boot = next((int(l.split()[1]) for l in f if l.startswith("btime ")), 0)
+    except OSError:
+        boot = 0
+    ticks = os.sysconf("SC_CLK_TCK") if hasattr(os, "sysconf") else 100
+    found = []
+    for pid in pids:
+        try:
+            with open(os.path.join(PROC_ROOT, str(pid), "cmdline"), "rb") as f:
+                argv = [a.decode("utf-8", "replace") for a in f.read().split(b"\0") if a]
+            with open(os.path.join(PROC_ROOT, str(pid), "stat"), encoding="utf-8") as f:
+                fields = f.read().rsplit(")", 1)[1].split()
+        except (OSError, IndexError):
+            continue
+        if any(re.search(r"odoo(-bin)?$|openerp-server$", a) for a in argv[:3]):
+            found.append((pid, int(fields[1]), boot + int(fields[19]) / ticks if boot else 0.0, argv))
+    return found
+
+
+def odoo_runtime(service, conf_path, state_path):
+    """1.181: what the RUNNING Odoo uses compared with its odoo.conf now. Odoo reads its configuration once, at its start: a change of the file after the
+    start is not in effect until a restart. The values in effect come from a snapshot of the file kept at the first analysis after each start (state
+    folder, without secrets); when the file was not modified after the start, the file itself is in effect. Options of the command line (run.sh:
+    --workers=3...) override the file. Returns {} when nothing can be read."""
+    procs = odoo_processes(service)
+    if not procs:
+        return {}
+    ids = {p[0] for p in procs}
+    master = next((p for p in procs if p[1] not in ids), procs[0])
+    start, argv = master[2], master[3]
+    cli = {}
+    for i, arg in enumerate(argv):
+        m = re.match(r"^--([a-z][a-z0-9-]*)(?:=(.*))?$", arg)
+        if not m or m.group(1) in ("config", "addons-path"):
+            continue
+        value = m.group(2) if m.group(2) is not None else (argv[i + 1] if i + 1 < len(argv) and not argv[i + 1].startswith("-") else "True")
+        if not CONF_SECRET_RE.search(m.group(1)):
+            cli[m.group(1).replace("-", "_")] = value
+    current = conf_options(conf_path) if conf_path else {}
+    try:
+        mtime = os.path.getmtime(conf_path) if conf_path else 0
+    except OSError:
+        mtime = 0
+    snapshots = {}
+    try:
+        with open(state_path, encoding="utf-8") as f:
+            snapshots = json.load(f)
+    except (OSError, ValueError, TypeError):
+        snapshots = {}
+    snap = snapshots.get(service or "odoo") or {}
+    running, known = None, False
+    if snap and abs(float(snap.get("start") or 0) - start) < 5:
+        running, known = snap.get("values") or {}, True
+    elif current and mtime and mtime <= start + 2:
+        running, known = dict(current), True
+        snapshots[service or "odoo"] = {"start": start, "values": running, "taken": time.time()}
+        try:
+            fd = os.open(state_path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+            with os.fdopen(fd, "w", encoding="utf-8") as f:
+                json.dump(snapshots, f, ensure_ascii=False, indent=1)
+        except (OSError, TypeError):
+            pass
+    changed = []
+    if known and current:
+        for key in sorted(set(running) | set(current)):
+            if running.get(key, "") != current.get(key, ""):
+                changed.append((key, running.get(key, ""), current.get(key, "")))
+    overrides = [(k, v, current.get(k, "")) for k, v in sorted(cli.items()) if current.get(k, "") != v]      # the file's value is ignored for these
+    def number(key):
+        value = cli.get(key) or (running or current).get(key, "")
+        return int(value) if str(value).isdigit() else None
+    workers, cron = number("workers"), number("max_cron_threads")
+    expected = workers + (cron if cron is not None else 2) + 2 if workers else None        # master + workers + cron + gevent
+    return {"pid": master[0], "start": start, "file": conf_path, "file_mtime": mtime, "file_readable": bool(current), "known": known,
+            "changed": changed, "after_start": bool(mtime and start and mtime > start + 2), "cli": cli, "overrides": overrides,
+            "processes": len(procs), "expected": expected}
 
 
 def memory_facts(since, service=None):
@@ -6210,25 +6343,26 @@ class Output:
 
     def _open(self, day):
         os.makedirs(self.folder, mode=0o700, exist_ok=True)
-        self.path = os.path.join(self.folder, f"{SCRIPT_NAME}-{day}{self.suffix}.log")
+        self.path = os.path.join(self.folder, f"{SCRIPT_NAME}-{host_name()}-{day}{self.suffix}.log")      # 1.181: name of the server
         descriptor = os.open(self.path, os.O_WRONLY | os.O_APPEND | os.O_CREAT | getattr(os, "O_NOFOLLOW", 0), 0o600)
         self.file_path = os.fdopen(descriptor, "a", encoding="utf-8", errors="replace")
         self.day = day
         if self.html:
             self._open_html(day)
-        self.file_path.write(color_code(STYLES["title"], TR("──── {name}.py v{version} : log of {day}, opened at {time} ────").format(name=SCRIPT_NAME, version=__version__, day=day, time=time.strftime('%H:%M:%S'))) + "\n")
+        self.file_path.write(color_code(STYLES["title"], TR("──── {name}.py v{version} : log of {day}, opened at {time} ────").format(name=SCRIPT_NAME, version=__version__, day=day, time=time.strftime('%H:%M:%S'))
+                                        + " " + TR("server {host}").format(host=os.uname().nodename if hasattr(os, "uname") else host_name())) + "\n")
         self.purge(day)
 
     def _open_html(self, day):
         """1.120: the HTML copy of the day (same folder, mode 600); the page head is written only once, when the file is created."""
         import html as html_module
         self.close_html()                                  # 1.120: the page of the previous day is finished first (day change)
-        self.html_path = os.path.join(self.folder, f"{SCRIPT_NAME}-{day}{self.suffix}.html")
+        self.html_path = os.path.join(self.folder, f"{SCRIPT_NAME}-{host_name()}-{day}{self.suffix}.html")
         try:
             descriptor = os.open(self.html_path, os.O_WRONLY | os.O_APPEND | os.O_CREAT | getattr(os, "O_NOFOLLOW", 0), 0o600)
             self.html_file = os.fdopen(descriptor, "a", encoding="utf-8", errors="replace")
             if os.fstat(descriptor).st_size == 0:
-                self.html_file.write(HTML_HEAD.format(title=html_module.escape(f"{SCRIPT_NAME} {day}")))
+                self.html_file.write(HTML_HEAD.format(title=html_module.escape(f"{SCRIPT_NAME} {host_name()} {day}")))
         except OSError:
             self.html_file = None
 
@@ -6238,7 +6372,7 @@ class Output:
             return
         limit = datetime.date.fromisoformat(day) - datetime.timedelta(days=self.keep_days)
         for name in os.listdir(self.folder):
-            m = re.fullmatch(re.escape(SCRIPT_NAME) + r"-(\d{4}-\d{2}-\d{2})(?:-filter|-filtre)?\.(?:log|html)", name)      # 1.120: .html too
+            m = re.fullmatch(re.escape(SCRIPT_NAME) + r"-(?:[A-Za-z0-9_-]+-)?(\d{4}-\d{2}-\d{2})(?:-filter|-filtre)?\.(?:log|html)", name)      # 1.120: .html; 1.181: with or without the server
             try:
                 if m and datetime.date.fromisoformat(m.group(1)) < limit:
                     os.unlink(os.path.join(self.folder, name))
@@ -7713,9 +7847,14 @@ def follow(cmd, people, resolver, options, output):
         if advise_progress["p"] is not None:
             advise_progress["p"].step(TR("service journal, odoo.conf"))
         odoo_lines = []
-        details["service"] = {"events": unit_events(service, ns, facts["start"], odoo_lines), "state": unit_state(service), "odoo_events": odoo_lines}
+        details["service"] = {"events": unit_events(service, ns, facts["start"], odoo_lines), "state": unit_state(service), "odoo_events": odoo_lines, "name": service}
+        # 1.181: the runs of the backup of the suite (odoo-backup.service, its timer): start and end in the timeline, beside the slow requests
+        details["backup_events"] = [(t, text) for t, text in unit_events("odoo-backup.service", "", facts["start"]) if not re.search(r"Stopp", text)][-40:]
         details["odoo_conf"] = odoo_perf_settings(options["profile"]) if options.get("app") in (None, "odoo") else None      # 1.178: always (memory risk)
-        details["memory"] = memory_facts(facts["start"], service)                                                                     # 1.178: limit, OOM kills
+        details["memory"] = memory_facts(facts["start"], service)
+        if details["odoo_conf"] and details["odoo_conf"].get("path"):
+            # 1.181: the configuration in effect in the running Odoo compared with its file
+            details["odoo_runtime"] = odoo_runtime(service, details["odoo_conf"]["path"], advisor_history_file("odoo-conf-snapshots.json") or "/nonexistent")                                                                     # 1.178: limit, OOM kills
         if advise_progress["p"] is not None:
             advise_progress["p"].step(TR("Odoo database (e-mails, pages, events, redirects)"))
         odoo_db, bases = odoo_bases()
@@ -7767,6 +7906,11 @@ def follow(cmd, people, resolver, options, output):
                 if rows is not None:
                     details["registrations"] = {"asked": len(reg_ids), "found": len(rows), "no_visitor": sum(1 for r in rows if len(r) > 2 and r[2] in ("f", "false")),
                                                 "duplicates": int(twice[0][0]) if twice and twice[0] and twice[0][0].isdigit() else 0}
+            params = {}
+            for prefix in ("mail.", "web.base.", "auth_signup.", "database."):
+                params.update(odoo_db.parametres(bases[0], prefix) or {})
+            # 1.181: the system parameters an administrator would read in Settings > Technical, shown with Odoo's default when never set
+            details["params"] = {k: (params[k], True) if k in params else (default, False) for k, default in ODOO_PARAM_DEFAULTS.items()}
             ips = sorted({h["ip"] for h in facts.get("hot_pairs") or ()} | {ip for ip, _who, _r in facts.get("to_ban") or ()})
             if ips and odoo_db._column_exists(bases[0], "res_device_log", "ip_address"):
                 # 1.180: whose Odoo session runs from these addresses (res.device.log, Odoo 17+): a volunteer whose tab loops is not an intruder, and an
@@ -7940,6 +8084,23 @@ def follow(cmd, people, resolver, options, output):
             mb = lambda k: f"{int(float(values[k])) // 1048576} MB" if (values.get(k) or "").strip().replace(".", "", 1).isdigit() else (values.get(k) or "?")
             lines.append(TR("odoo.conf ({path}): ").format(path=conf.get("path") or "?") + " · ".join(
                 f"{k}={mb(k) if k.startswith('limit_memory') else (values.get(k) or '-')}" for k in ODOO_PERF_KEYS))
+        rt = details.get("odoo_runtime") or {}
+        if rt:
+            lines.append(TR("Odoo running: started on {when} · {n} processes{expected}").format(
+                when=time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(rt["start"])) if rt.get("start") else "?", n=rt.get("processes", "?"),
+                expected=" (" + TR("expected: {m}").format(m=rt["expected"]) + ")" if rt.get("expected") else "")
+                + (" · " + TR("command line: {opts}").format(opts=" ".join(f"--{k}={v}" for k, v in sorted(rt["cli"].items()))) if rt.get("cli") else ""))
+            if rt.get("changed"):
+                lines.append(TR("odoo.conf changed since the start (not in effect until a restart): ") + " ; ".join(f"{k}: {a or '-'} → {b or '-'}" for k, a, b in rt["changed"][:10]))
+            elif rt.get("after_start") and not rt.get("known"):
+                lines.append(TR("odoo.conf modified on {mtime}, after the start: the values in effect are not known (restart to apply)").format(
+                    mtime=time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(rt["file_mtime"]))))
+            elif rt.get("known"):
+                lines.append(TR("odoo.conf: the running Odoo uses the values of the file (no change since the start)"))
+        params = details.get("params") or {}
+        if params:
+            lines.append(TR("Odoo system parameters: ") + " · ".join(f"{k}={v}" + ("" if is_set else " " + TR("(not set: Odoo default)")) for k, (v, is_set) in params.items()
+                                                              if is_set or k.startswith("mail.")))
         try:
             info = {}
             with open("/proc/meminfo", encoding="utf-8") as f:
@@ -7957,7 +8118,7 @@ def follow(cmd, people, resolver, options, output):
         if service and not testing:
             values = dict(l.split("=", 1) for l in lancer(["systemctl", "show", service, "-p", "MemoryCurrent", "-p", "MemoryPeak", "-p", "MemoryMax", "-p", "NRestarts",
                                                            "-p", "ActiveEnterTimestamp"], 10)[1].splitlines() if "=" in l)
-            mb = lambda v: f"{int(v) // 1048576} MB" if (v or "").isdigit() else (v or "?")
+            mb = lambda v: f"{int(v) // 1048576} MB" if (v or "").isdigit() else (TR("none") if v == "infinity" else (v or "?"))      # 1.181
             if values:
                 lines.append(TR("Odoo service: memory now {cur}, peak {peak}, limit {max} · restarts by systemd: {n} · started on {when}").format(
                     cur=mb(values.get("MemoryCurrent")), peak=mb(values.get("MemoryPeak")), max=mb(values.get("MemoryMax")), n=values.get("NRestarts", "?"),
@@ -7965,13 +8126,33 @@ def follow(cmd, people, resolver, options, output):
             pg = db_rows("SELECT name, setting, COALESCE(unit, '') FROM pg_settings WHERE name IN ('server_version', 'max_connections', 'shared_buffers', 'work_mem', "
                          "'maintenance_work_mem', 'effective_cache_size', 'log_min_duration_statement', 'log_lock_waits', 'autovacuum', 'deadlock_timeout') ORDER BY name")
             if pg:
-                lines.append("PostgreSQL : " + " · ".join(f"{r[0]}={r[1]}{(' ' + r[2]) if len(r) > 2 and r[2] else ''}" for r in pg if len(r) >= 2))
+                def pg_value(r):
+                    # 1.181: "16384 8kB" -> "128 MB" (the unit of pg_settings is a block size, not a unit to read)
+                    unit = r[2] if len(r) > 2 else ""
+                    m = re.fullmatch(r"(\d*)(kB|MB|GB)", unit or "")
+                    if m and r[1].lstrip("-").isdigit() and int(r[1]) >= 0:
+                        kb = int(r[1]) * (int(m.group(1) or 1)) * {"kB": 1, "MB": 1024, "GB": 1048576}[m.group(2)]
+                        return f"{kb // 1024} MB" if kb >= 1024 else f"{kb} kB"
+                    return f"{r[1]}{(' ' + unit) if unit else ''}"
+                lines.append("PostgreSQL : " + " · ".join(f"{r[0]}={pg_value(r)}" for r in pg if len(r) >= 2))
             timers = [l.split() for l in lancer(["systemctl", "list-timers", "--all", "--no-pager", "--no-legend"], 10)[1].splitlines()
                       if re.search(r"odoo|backup|web-monitor|app-health|crowdsec|system-hardening|nginx", l)]
             if timers:
                 lines.append(TR("Timers of the suite: ") + " ; ".join(next((w for w in t if w.endswith(".timer")), t[-1]) for t in timers[:8]))
-        for folder in ("/", "/var/log", "/var/lib/postgresql"):
+        if stats.nginx_rt:
+            values = sorted(stats.nginx_rt)
+            pick = lambda q: values[min(len(values) - 1, int(q * len(values)))]
+            lines.append(TR("nginx (rt=, static files included): {n} requests measured · median {p50} s · 95 % under {p95} s · slowest {max} s").format(
+                n=len(values), p50=f"{pick(0.5):.3f}", p95=f"{pick(0.95):.3f}", max=f"{values[-1]:.2f}"))
+        else:
+            lines.append(TR("nginx: no rt= in the access logs read (format older than nginx-hardening.sh 2.83: the times of the static files are not known)"))
+        devices = set()
+        for folder in ("/", "/var/log", "/var/lib/postgresql", "/var/backups"):
             try:
+                dev = os.stat(folder).st_dev
+                if dev in devices:
+                    continue                                     # 1.181: the same file system is shown once
+                devices.add(dev)
                 st = os.statvfs(folder)
                 lines.append(TR("Disk {folder}: {free} GB free of {total} GB").format(folder=folder, free=f"{st.f_bavail * st.f_frsize / 1e9:.1f}",
                                                                                      total=f"{st.f_blocks * st.f_frsize / 1e9:.1f}"))
@@ -7993,7 +8174,7 @@ def follow(cmd, people, resolver, options, output):
         path = options["export_ai"]
         if not path:
             folder = os.path.dirname(advisor_history_file("x") or "") or os.getcwd()
-            path = os.path.join(folder, time.strftime("export-ai-%Y%m%d-%H%M%S.md"))
+            path = os.path.join(folder, f"export-ai-{host_name()}-" + time.strftime("%Y%m%d-%H%M%S.md"))      # 1.181: name of the server
         plain = lambda text_line: ANSI_RE.sub("", output.screen_text(translate_protected(text_line)))
         stamp = lambda t: time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(t)) if t else "?"
         now_dt = stats.snapshot()
@@ -8687,7 +8868,7 @@ def main():
                         help="Do not show the lines of these addresses or networks (IP1,IP2,10.0.0.0/8); repeatable")
     parser.add_argument("--export-ai", nargs="?", const="", default=None, metavar="FILE",
                         help="With --advise (or the z key): also write the summary, the analysis, the timeline of the window and the consistency checks in one Markdown "
-                             "file, without colors, to send for verification (default FILE: export-ai-YYYYMMDD-HHMMSS.md in the state folder, mode 600; pseudonyms when "
+                             "file, without colors, to send for verification (default FILE: export-ai-HOST-YYYYMMDD-HHMMSS.md in the state folder, mode 600; pseudonyms when "
                              "--anonymize is active)")
     parser.add_argument("--health", type=float, default=HEALTH_DEFAULT, metavar="MIN",
                         help=f"Every MIN minutes, IF something is wrong (5xx or Odoo errors, failed e-mails, slow requests, greedy program), show the health and "
@@ -9120,7 +9301,7 @@ def main():
            + (" · " + TR("one log line out of {n} underlined (--underline N, --no-underline: none)").format(n=output.underline) if output.underline else ""))
     if folder:
         COLOR = True                                  # the daily journal keeps the colors; the screen removes them if it is not a terminal (Output.write)
-        eprint(f"Daily log (colors kept, permissions 600, {args.log_keep_days or 'all the'} days kept): {folder}/{SCRIPT_NAME}-YYYY-MM-DD{'-filter' if args.only else ''}.log — "
+        eprint(f"Daily log (colors kept, permissions 600, {args.log_keep_days or 'all the'} days kept): {folder}/{SCRIPT_NAME}-{host_name()}-YYYY-MM-DD{'-filter' if args.only else ''}.log — "
                f"read with: less -R FILE or tail -f FILE")
     options["anonymize"] = output.anonymize is not None              # 1.91: A key and C key (ANONYMIZE saved like the other settings)
     if STARTUP_LINES is not None:                               # 1.160: end of the capture; no pointer line (the "Keys:" line names the ? key)

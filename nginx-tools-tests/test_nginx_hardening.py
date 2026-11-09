@@ -36,7 +36,9 @@ location ~* ^/(web/database/.*|xmlrpc/(2/)?db)$ { }
 MOCK_F2B_IGNOREIP = 'case "$1 $2" in\n "status ") printf \'%s\\n\' \'|- Number of jail: 2\' \'`- Jail list: sshd, nginx-catchall\';;\n "get sshd"|"get nginx-catchall") printf \'%s\\n\' \'These IP addresses/networks are ignored:\' \'|- 127.0.0.1/8\' \'|- 10.0.0.0/8\' \'`- 11.126.46.49\';;\n reload*) exit 0;;\nesac\n'   # apostrophes : les accents graves de fail2ban ne sont pas des substitutions
 
 
-class SetupNginxOdoo(EnvTest):
+class BaseNginxHardening(EnvTest):
+    """Environment of the tests of nginx-hardening.sh (fake tools, test folders): shared by the test classes (2.83)."""
+
     def setUp(self):
         super().setUp()
         self.f2b = os.path.dirname(self.path("f2b", "x"))
@@ -73,7 +75,9 @@ class SetupNginxOdoo(EnvTest):
         self.write("logrotate.d/nginx", "/var/log/nginx/*.log {\n\tdaily\n\tmissingok\n\trotate 14\n\tcompress\n}\n")
         self.write("logrotate.d/fail2ban", "/var/log/fail2ban.log {\n    weekly\n    rotate 4\n}\n")
         self.env.update(NGINX_HARDENING_LOGROTATE_DIR=os.path.dirname(self.path("logrotate.d", "x")),
-                        NGINX_HARDENING_JOURNALD_DIR=os.path.dirname(self.path("systemd", "x")))
+                        NGINX_HARDENING_JOURNALD_DIR=os.path.dirname(self.path("systemd", "x")),
+                        NGINX_HARDENING_JOURNAL_DIR=os.path.join(self.d, "var-log-journal"),       # 2.83: never /var/log/journal
+                        NGINX_HARDENING_PSQL=self.mock_exit("psql-absent", 1))                     # 2.83: never the real PostgreSQL
         # SECURITY: --update archives /etc/nginx and /etc/fail2ban (--rollback): test folders only, never the real ones.
         racines = [os.path.join(self.d, "sauv-nginx"), os.path.join(self.d, "sauv-fail2ban")]
         for r in racines:
@@ -114,6 +118,9 @@ class SetupNginxOdoo(EnvTest):
         self.env["NGINX_HARDENING_NGINX_DIR"] = base
         self.env["NGINX_HARDENING_BACKUP_DIR"] = os.path.join(base, "sauvegardes")
         return fic
+
+
+class SetupNginxOdoo(BaseNginxHardening):
 
     def test_etape4_amont_nginx_different_du_port_dodoo(self):
         """2.37 : le port de l'« upstream » nginx (10000) n'est pas celui d'Odoo (http_port 8069) : [FAIL] avec le fichier et la ligne ;
@@ -1056,3 +1063,44 @@ class SuggestionMemoire282(unittest.TestCase):
         self.assertIn("max_cron_threads", src)
         self.assertIn("--cron-threads) ODOO_CRON_OVERRIDE=", src)
         self.assertIn("config_defaut ODOO_CRON_OVERRIDE MAX_CRON_THREADS --cron-threads nombre", src)
+
+
+class JournalEtPostgres283(BaseNginxHardening):
+    """2.83 : étape 17 (journal de PostgreSQL : requêtes lentes, verrous, autovacuum, fichiers temporaires ; shared_buffers seulement signalé) et journal
+    systemd persistant (étape 11). psql est simulé par NGINX_HARDENING_PSQL."""
+
+    def psql(self, valeurs):
+        corps = ('case "$*" in *pg_reload_conf*) echo t ;; *) printf \'%s\\n\' ' + " ".join(valeurs) + " ;; esac")
+        return self.mock("fakepsql", corps)
+
+    def test_283_postgres_journal_incomplet_puis_complet(self):
+        psql = self.psql(["log_min_duration_statement=-1", "log_lock_waits=off", "log_autovacuum_min_duration=600000", "log_temp_files=-1",
+                          "config_file=/etc/postgresql/18/main/postgresql.conf", "shared_buffers=16384", "block_size=8192"])
+        self.env["NGINX_HARDENING_PSQL"] = psql
+        out = self.etape(re.sub(r"\x1b\[[0-9;]*m", "", self.setup("--check")), 17)
+        self.assertIn("journal incomplet (log_min_duration_statement : -1 → 2000 ; log_lock_waits : off → on", out)
+        self.assertIn("/etc/postgresql/18/main/conf.d/90-nginx-hardening-logging.conf", out)
+        psql = self.psql(["log_min_duration_statement=2000", "log_lock_waits=on", "log_autovacuum_min_duration=250", "log_temp_files=10240",
+                          "config_file=/etc/postgresql/18/main/postgresql.conf", "shared_buffers=262144", "block_size=8192"])
+        out = self.etape(re.sub(r"\x1b\[[0-9;]*m", "", self.setup("--check")), 17)
+        self.assertIn("[OK]", out)
+        self.assertNotIn("shared_buffers", out)                                          # 2 GB: nothing to say
+
+    def test_283_postgres_desactive(self):
+        self.env["NGINX_HARDENING_PSQL"] = self.psql(["log_min_duration_statement=-1"])
+        cfg = self.write("nh.conf", "PG_LOGGING=no\n")
+        rc, out, _err = self.run_cmd(["bash", self.prog, "--odoo-conf", self.path("odoo.conf"), "-c", cfg, "--check"])
+        self.assertNotIn("--- 17)", out)
+
+    def test_283_journal_systemd_persistant(self):
+        journald = os.path.dirname(self.path("journald", "x"))
+        self.env["NGINX_HARDENING_JOURNALD_DIR"] = journald
+        self.env["NGINX_HARDENING_JOURNAL_DIR"] = os.path.join(self.d, "absent-journal")
+        out = re.sub(r"\x1b\[[0-9;]*m", "", self.setup("--check"))
+        self.assertIn("Journal systemd : non persistant", out)
+        self.assertIn("91-nginx-hardening-persistent.conf", out)
+        os.makedirs(os.path.join(journald, "journald.conf.d"), exist_ok=True)
+        with open(os.path.join(journald, "journald.conf.d", "91-nginx-hardening-persistent.conf"), "w", encoding="utf-8") as f:
+            f.write("[Journal]\nStorage=persistent\n")
+        out = re.sub(r"\x1b\[[0-9;]*m", "", self.setup("--check"))
+        self.assertIn("Journal systemd : persistant (Storage=persistent", out)

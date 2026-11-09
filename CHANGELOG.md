@@ -175,6 +175,19 @@ Earlier history was archived outside this repository when this file was created.
 
 ## app-health-check.py
 
+### 2.34.20261109.160000 - Works without root: notice at the start, detected values when the configuration is unreadable
+
+- Title: app-health-check.py runs as an ordinary user and says at the start what it cannot see.
+- Reason: request of the administrator on 2026-11-09: every program must work without root, show more as root, and say at the start what will not be available.
+- Changes:
+  - New function _non_root_notice() (apps/_config.py avis_non_root()): one line after "Configuration read" without root: nginx -T (public name), odoo.conf (database name), history kept in ~/.local/state instead of /var/lib/app-health-check, /etc/default not writable.
+  - resolve_config_paths(): when the only configuration files are unreadable (600 root), the run no longer stops (exit 2 since 2.28): it warns and returns an empty list; main() then builds the values detected now in a temporary file (create_config(), its messages hidden by the new class contextlib_redirect_stdout_to_stderr), removed at the end (atexit).
+  - lang/app-health-check.fr.po: the three new messages.
+- Bugs fixed: symptom: "ERROR: configuration not readable without root ... (run with sudo)" and exit 2 for a plain user; diagnosis: the 2.28 guard against a false "not configured" stopped the whole run; fix: the run goes on with detected values and says so, the settings of the unreadable file stay ignored.
+- Safeguards and edge cases: nothing is written in /etc/default or in the home folder; the temporary file is mode 600 and removed; no notice as root or with --help, --version, --changelog; when nothing can be detected the program stops with a clear message (exit 2).
+- Checks performed: test_app_health_check (unreadable configuration, run as an ordinary user) [OK]; manual run as an ordinary user [OK].
+- Action required: none.
+
 ### 2.33.20261030.153422 - No plural marker "(s)" in the displayed texts
 
 - Title: the texts shown by the program no longer contain "(s)": "requête(s)" becomes "requêtes", "adresse(s)" becomes "adresses", "lente(s)" becomes "lentes" (French and English).
@@ -370,6 +383,24 @@ Earlier history was archived outside this repository when this file was created.
 ### 2.23.20261020.211944 - Current version. Earlier history archived outside the repository.
 
 ## app-log-live.py
+
+### 1.181.20261109.160000 - Odoo in memory versus odoo.conf, Odoo system parameters, server name in the journal names, nginx times
+
+- Title: the analysis shows what the running Odoo really uses, the Odoo technical parameters themselves, and the journal files carry the name of the server.
+- Reason: request of the administrator on 2026-11-09: [1] show the Odoo parameters directly instead of asking to check them in Settings > Technical; [3] show the changes of odoo.conf compared with what Odoo uses in memory; [4] the log file must contain the Linux server name; verification of the DEV export of 2026-11-09 (519 "pages by language" for 12 page views).
+- Changes:
+  - New constants PROC_ROOT (APP_LOG_LIVE_PROC_ROOT), CONF_SECRET_RE, ODOO_PARAM_DEFAULTS; new functions conf_options(), odoo_processes() (cgroup of the service, /proc/PID/cmdline and stat), odoo_runtime() (start of the main process, options of the command line, snapshot of odoo.conf kept at the first analysis after each start in odoo-conf-snapshots.json of the state folder, values changed since the start).
+  - gather_details(): details["odoo_runtime"], details["params"] (ir_config_parameter mail.*, web.base.*, auth_signup.*, database.*, with the Odoo default when not set), details["backup_events"] (odoo-backup.service), details["service"]["name"].
+  - environment_lines(): "Odoo running" line (start, processes, expected count, command line), changes of odoo.conf not in effect, "Odoo system parameters", PostgreSQL values with their unit (16384 8kB -> 128 MB), disks counted once per file system (/var/backups added), nginx times (rt=).
+  - host_name(): journal files app-log-live-HOST-YYYY-MM-DD(.log|.html), header "server HOST", export export-ai-HOST-DATE.md; the purge also recognises the former names.
+  - Stats: nginx_rt (rt= of nginx-hardening.sh 2.83), cut from the screen display with NGINX_TIMES_RE; the pages asked by this server itself (probes, warm-up) no longer counted in "Pages by language".
+  - unit_events(): "Finished" and "Deactivated successfully" kept.
+  - lang/app-log-live.fr.po: the new messages; doc/fr, doc/en 07-app-log-live.md.
+  - nginx-tools-tests/test_app_log_live.py: HOTE_NOM, journal names, class OdooRuntime181.
+- Bugs fixed: symptom: "Pages par langue (519 pages)" on DEV for 12 page views; diagnosis: the requests of app-health-check.py and of this server were counted in the languages (they were already left out of the visits since 1.179); fix: left out of the languages too.
+- Safeguards and edge cases: keys holding a secret (pass, secret, token, key, private) are never shown nor kept; without root or without systemd nothing is shown (empty result); a file modified after the start without a snapshot is said "values in effect not known" rather than guessed; the snapshot file is mode 600.
+- Checks performed: OdooRuntime181, test_advisor, catalogue tests [OK]; full suite by the testeur agent.
+- Action required: none (the new journal names start at the next day; the former files are still purged).
 
 ### 1.180.20261109.110500 - Findings checked by an administrator (--ack), Odoo device log
 
@@ -2158,6 +2189,16 @@ Earlier history was archived outside this repository when this file was created.
 
 ## odoo-mail-retry.py
 
+### 1.20.20261109.153000 - Without root when sudo -n -u postgres is allowed
+
+- Title: odoo-mail-retry.py runs as an ordinary user allowed by sudoers to reach PostgreSQL.
+- Reason: request of the administrator on 2026-11-09 ([2]).
+- Changes: new function postgres_without_root() (sudo -n -u postgres -- true); the refusal only when it fails; message "Without root: PostgreSQL reached with sudo -n -u postgres ..."; lang/odoo-mail-retry.fr.po.
+- Bugs fixed: none.
+- Safeguards and edge cases: sudo -n never asks for a password; without that permission the former refusal stays.
+- Checks performed: manual run as an ordinary user [OK].
+- Action required: none.
+
 ### 1.19.20261030.153422 - No plural marker "(s)" in the displayed texts
 
 - Title: the texts shown by the program no longer contain "(s)": "requête(s)" becomes "requêtes", "adresse(s)" becomes "adresses", "lente(s)" becomes "lentes" (French and English).
@@ -2774,6 +2815,16 @@ Earlier history was archived outside this repository when this file was created.
 
 ## web-monitor.py
 
+### 2.88.20261109.153000 - Without root: --dry-run instead of a refusal
+
+- Title: a plain run of web-monitor.py by an ordinary user becomes --dry-run.
+- Reason: request of the administrator on 2026-11-09 ([2]: every program works without root).
+- Changes: main(): without root and without --dry-run, args.dry_run is set and the message "Without root: --dry-run mode ..." is shown; lang/web-monitor.fr.po.
+- Bugs fixed: symptom: refusal of a plain run without root; fix: read-only run.
+- Safeguards and edge cases: nothing is changed: no run recorded, no ban, no timer, no correction.
+- Checks performed: manual run as an ordinary user [OK]; catalogue test [OK].
+- Action required: none.
+
 ### 2.87.20261103.112153 - --theme N: color themes
 
 - Title: --theme N: color themes.
@@ -3293,6 +3344,22 @@ Earlier history was archived outside this repository when this file was created.
 ### 1.14.20261020.211944 - Current version. Earlier history archived outside the repository.
 
 ## nginx-hardening.sh
+
+### 2.83.20261109.153000 - Persistent systemd journal, PostgreSQL logging, nginx response times, cron threads in step 6
+
+- Title: more traces kept for the investigations: systemd journal kept across restarts, slow PostgreSQL queries and lock waits, nginx and Odoo times in the access logs.
+- Reason: request of the administrator on 2026-11-09 ([1]: integrate the suggested logging improvements).
+- Changes:
+  - Step 6: title "(workers + cron + gevent, mémoire disponible)".
+  - Step 11: persistent journal (JOURNAL_PERSISTENT, default 1): /etc/systemd/journald.conf.d/91-nginx-hardening-persistent.conf (Storage=persistent); NGINX_HARDENING_JOURNAL_DIR for the tests.
+  - New step 17: PostgreSQL logging (PG_LOGGING, default 1; PG_SLOW_MS, default 2000): log_min_duration_statement, log_lock_waits=on, log_autovacuum_min_duration=250, log_temp_files=10240 in conf.d/90-nginx-hardening-logging.conf, then pg_reload_conf() (no restart); shared_buffers left at 128 MB reported (INFO). NGINX_HARDENING_PSQL for the tests.
+  - nginx/conf.d/odoo-global.conf: log_format combined_host ends with rt=$request_time urt="$upstream_response_time" us=$upstream_status (read by app-log-live.py 1.181).
+  - lang/nginx-hardening.en.po (31 entries); doc/fr, doc/en nginx-hardening.conf.example (JOURNAL_PERSISTENT, PG_LOGGING, PG_SLOW_MS) and 01-nginx-hardening.md (steps 11, 16, 17).
+  - nginx-tools-tests/test_nginx_hardening.py: BaseNginxHardening, class JournalEtPostgres283.
+- Bugs fixed: none.
+- Safeguards and edge cases: --check changes nothing; the PostgreSQL step is skipped under NGINX_TOOLS_TESTS without NGINX_HARDENING_PSQL (never the real server in a test); a drop-in file of ours only, postgresql.conf is never edited; PG_LOGGING=0 or JOURNAL_PERSISTENT=0 leave the system as it is.
+- Checks performed: JournalEtPostgres283 (3 tests), SetupNginxOdoo, ShellCheck 0.11.0 [OK].
+- Action required: sudo nginx-hardening.sh --update on DEV then PROD (journal, PostgreSQL, log_format; nginx reloaded).
 
 ### 2.82.20261109.100500 - Memory suggestion (step 6): cron threads and gevent counted, reserve outside Odoo
 
@@ -4719,6 +4786,16 @@ Earlier history was archived outside this repository when this file was created.
 
 ## sync-crowdsec-blocklist.sh
 
+### 1.32.20261109.153000 - --status works without root
+
+- Title: --status runs as an ordinary user and says what it cannot show.
+- Reason: request of the administrator on 2026-11-09 ([2]).
+- Changes: --status no longer refused without root; notice "Droits limités (pas root) : non disponible : contenu des ipset et règles du pare-feu ..."; the ipset and firewall rule loops are skipped; lang/sync-crowdsec-blocklist.en.po.
+- Bugs fixed: none.
+- Safeguards and edge cases: the operations that change the firewall still need root.
+- Checks performed: ShellCheck 0.11.0 [OK]; manual run as an ordinary user [OK].
+- Action required: none.
+
 ### 1.31.20261030.153422 - No plural marker "(s)" in the displayed texts
 
 - Title: the texts shown by the program no longer contain "(s)": "requête(s)" becomes "requêtes", "adresse(s)" becomes "adresses", "lente(s)" becomes "lentes" (French and English).
@@ -4859,6 +4936,20 @@ Earlier history was archived outside this repository when this file was created.
   - Not changed: nginx-log-audit.sh keeps its own bash values (its --page-burst default is 8 against 15 here; this difference is still to be decided).
 
 ## apps/_advisor.py
+
+### 1.10.20261109.153000 - Odoo configuration in effect, Odoo parameters in the e-mail findings, backups in the timeline
+
+- Title: the analysis says when odoo.conf is not in effect, and shows the Odoo mail parameters themselves.
+- Reason: request of the administrator on 2026-11-09 ([1] and [3]).
+- Changes:
+  - New rule rule_odoo_runtime(): findings odoo-conf-not-applied (LOOK when values changed since the start, INFO when the file changed without a snapshot), odoo-conf-command-line (INFO, options of run.sh or of the unit override odoo.conf), odoo-processes (INFO, fewer processes than the configuration gives).
+  - rule_mails(): evidence "Odoo parameters now: ..." (mail.session.batch.size, mail.mail.queue.batch.size, mail.mail.force.send.limit) with "(not set: Odoo default)".
+  - timeline(): "backup: " events of odoo-backup.service. Restart advice names the real service.
+  - lang/_advisor.fr.po: the new messages. nginx-tools-tests/test_advisor.py: class OdooRuntime110.
+- Bugs fixed: none.
+- Safeguards and edge cases: no finding without details["odoo_runtime"]; at most 10 lines of evidence.
+- Checks performed: test_advisor (68 tests with test_app_log_live.OdooRuntime181) [OK].
+- Action required: none.
 
 ### 1.9.20261109.110500 - Findings checked by an administrator, Odoo device log, SMTP limit per session
 

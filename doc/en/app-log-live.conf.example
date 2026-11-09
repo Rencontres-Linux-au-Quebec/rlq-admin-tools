@@ -44,7 +44,7 @@
 #EXCLUDE_COUNTRY=
 # --exclude-ip : adresses ou réseaux cachés (virgule = plusieurs ; touche e à la volée)
 #EXCLUDE_IP=
-# --export-ai (1.178): with --advise or the z key, also write a Markdown file for verification (summary, analysis, timeline, consistency checks); yes = file export-ai-YYYYMMDD-HHMMSS.md of the state folder, or a path; empty = no
+# --export-ai (1.178): with --advise or the z key, also write a Markdown file for verification (summary, analysis, timeline, consistency checks); yes = file export-ai-HOST-YYYYMMDD-HHMMSS.md of the state folder, or a path; empty = no
 #EXPORT_AI=
 # --health : minutes entre deux vérifications de santé (défaut : 10 minutes ; 0 = jamais)
 #HEALTH=10

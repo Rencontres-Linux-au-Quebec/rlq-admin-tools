@@ -832,3 +832,24 @@ class Version19(unittest.TestCase):
         retour = next(f for f in shown if f["id"] == hot["id"])
         self.assertIn("to look at again", "\n".join(ADV.render([retour], {})))
         self.assertEqual(ADV.split_acknowledged(findings, ADV.Acknowledgements(os.path.join(d, ADV.ACK_FILE)).active(time.time() + 31 * 86400))[1], [])
+
+
+class OdooRuntime110(unittest.TestCase):
+    """1.10 : constats odoo-conf-not-applied, odoo-conf-command-line et odoo-processes (règle rule_odoo_runtime)."""
+
+    def test_constats(self):
+        rt = {"start": 1000.0, "file_mtime": 2000.0, "known": True, "after_start": True, "changed": [("limit_memory_hard", "5197", "2048")],
+              "overrides": [("workers", "3", "2")], "processes": 5, "expected": 7}
+        f = par_id(ADV.analyze(faits(), {"odoo_runtime": rt, "service": {"name": "odoo.service"}}))
+        self.assertEqual(f["odoo-conf-not-applied"]["severity"], ADV.LOOK)
+        self.assertIn("limit_memory_hard: in effect 5197, in the file 2048", " ".join(f["odoo-conf-not-applied"]["evidence"]))
+        self.assertIn("systemctl restart odoo.service", " ".join(f["odoo-conf-not-applied"]["advice"]))
+        self.assertEqual(f["odoo-conf-command-line"]["severity"], ADV.INFO)
+        self.assertEqual(f["odoo-processes"]["severity"], ADV.INFO)
+
+    def test_inconnu_et_rien(self):
+        f = par_id(ADV.analyze(faits(), {"odoo_runtime": {"start": 1000.0, "file_mtime": 2000.0, "known": False, "after_start": True, "changed": []}}))
+        self.assertEqual(f["odoo-conf-not-applied"]["severity"], ADV.INFO)
+        f = par_id(ADV.analyze(faits(), {"odoo_runtime": {"start": 1000.0, "file_mtime": 900.0, "known": True, "changed": [], "processes": 7, "expected": 7}}))
+        self.assertNotIn("odoo-conf-not-applied", f)
+        self.assertNotIn("odoo-processes", f)

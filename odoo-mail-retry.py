@@ -37,7 +37,9 @@ import argparse
 import importlib.util
 import os
 import re
+import shutil
 import signal
+import subprocess
 import sys
 import textwrap
 import time
@@ -47,7 +49,7 @@ try:                    # line editing in prompts (backspace ^H or ^?, arrows)
 except ImportError:
     pass
 
-__version__ = "1.19.20261030.153422"
+__version__ = "1.20.20261109.153000"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
@@ -532,6 +534,17 @@ MENU_ENTREES = [
 ]
 
 
+def postgres_without_root():
+    """1.20: True when this account may run commands as postgres without a password (sudo -n -u postgres): then root is not needed."""
+    if os.geteuid() == 0 or not shutil.which("sudo"):
+        return False
+    try:
+        return subprocess.run(["sudo", "-n", "-u", "postgres", "--", "true"], stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                              stderr=subprocess.DEVNULL, timeout=10).returncode == 0
+    except (OSError, subprocess.SubprocessError):
+        return False
+
+
 def main():
     parser = (I18N.parser if I18N else LocalizedArgumentParser)(description="List of the Odoo e-mails not sent (title, date, recipients, cause), then offer to resend them.")
     parser.add_argument("--batch", type=int, default=None, metavar="N",
@@ -569,9 +582,12 @@ def main():
                    configuration=_menu.configuration_de(SCRIPT_DIR, "odoo-mail-retry", sys.argv[1:]),
                    nom=f"odoo-mail-retry.py v{__version__}")
     refusal = load_module("_config").refus_non_root("odoo-mail-retry.py", "every reading or re-queuing of e-mails goes through PostgreSQL (postgres account)")
-    if refusal:
+    if refusal and not postgres_without_root():
         eprint(refusal)
         return 1
+    if refusal:
+        # 1.20: without root, the postgres account is reached with "sudo -n -u postgres" (a sudoers rule without password): the program works the same
+        eprint("Without root: PostgreSQL reached with sudo -n -u postgres (allowed by sudoers); nothing else needs root here.")
     global VERBOSE
     VERBOSE = args.verbose
     if args.changelog:

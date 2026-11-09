@@ -81,7 +81,7 @@ grep_q() { grep "$@" >/dev/null; }
 #                              ne peut pas le voir, le texte etant entre apostrophes (faux positif).
 trap 'ec=$?; echo "" >&2; echo "*** ARRÊT INATTENDU DU SCRIPT (code $ec) À LA LIGNE $LINENO ***" >&2; echo "*** Commande fautive : $BASH_COMMAND" >&2' ERR
 
-readonly SCRIPT_VERSION="1.31.20261030.153422"
+readonly SCRIPT_VERSION="1.32.20261109.153000"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
 SCRIPT_NAME="$(basename "${BASH_SOURCE[0]}" .sh)"; readonly SCRIPT_NAME
 # Changelog dans le sous-repertoire doc/ ; repli sur l'ancien emplacement (a cote du programme) tant que
@@ -794,15 +794,19 @@ fi
 
 # --- --status ---------------------------------------------------------------------------------------------------------
 if [[ "$DO_STATUS" == "1" ]]; then
-    require_root "--status"
+    # 1.32: without root, --status shows what can be read (cron, last synchronisation, failures, protected addresses, age of the list) and says what
+    # is not available (ipset and firewall rules), instead of refusing
     echo "=============================================================="
     echo " ÉTAT ACTUEL"
     echo "=============================================================="
-    if ! command -v ipset >/dev/null 2>&1; then
+    if [[ "$EUID" -ne 0 ]]; then
+        echo "${C_YELLOW}Droits limités (pas root) : non disponible : contenu des ipset et règles du pare-feu (iptables, ip6tables) ; relancer avec sudo pour un état complet.${C_RESET}"
+    elif ! command -v ipset >/dev/null 2>&1; then
         echo "${C_YELLOW}ipset n'est pas installé — lancez ce script sans option pour l'installer.${C_RESET}"
         exit 0
     fi
     for set_name in "$IPSET_V4" "$IPSET_V6"; do
+        [[ "$EUID" -eq 0 ]] || break
         if set_exists "$set_name"; then
             count=$(ipset list "$set_name" 2>/dev/null | awk '/^Members:/{m=1;next} m && NF{n++} END{print n+0}') || count=0
             echo "Ipset $set_name : ${C_GREEN}présent${C_RESET}, $count entrées"
@@ -811,6 +815,7 @@ if [[ "$DO_STATUS" == "1" ]]; then
         fi
     done
     for pair in "iptables:$IPSET_V4:IPv4" "ip6tables:$IPSET_V6:IPv6"; do
+        [[ "$EUID" -eq 0 ]] || break
         IFS=: read -r tool set_name fam <<< "$pair"
         if rule_exists "$tool" "$set_name"; then
             echo "Règle $tool ($fam) : ${C_GREEN}présente${C_RESET}"
