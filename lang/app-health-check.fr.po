@@ -858,3 +858,12 @@ msgstr "Ajoute au rapport ce qui a changé depuis le passage précédent (nouvel
 
 msgid "Print the results as JSON on standard output (the readable text goes to standard error)"
 msgstr "Affiche les résultats en JSON sur la sortie standard (le texte lisible va sur la sortie d'erreur)"
+
+msgid "nginx -T (public name), odoo.conf (database name) may be unreadable, the run history is kept in ~/.local/state instead of /var/lib/app-health-check and /etc/default cannot be written"
+msgstr "nginx -T (nom public), odoo.conf (nom de la base) peuvent être illisibles, l'historique des passages est gardé dans ~/.local/state au lieu de /var/lib/app-health-check et /etc/default ne peut pas être écrit"
+
+msgid "WARNING: configuration not readable without root: {path}: the values detected now are used (sudo for the real settings)"
+msgstr "ATTENTION : configuration illisible sans root : {path} : les valeurs détectées maintenant sont utilisées (sudo pour les vrais réglages)"
+
+msgid "ERROR: no configuration could be detected without root (sudo app-health-check.py)"
+msgstr "ERREUR : aucune configuration n'a pu être détectée sans root (sudo app-health-check.py)"

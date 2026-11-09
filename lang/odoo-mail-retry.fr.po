@@ -405,3 +405,6 @@ msgstr "Les 20 derniers courriels envoyés"
 
 msgid "interactive menu of the common operations (dialog if installed; terminal required)"
 msgstr "menu interactif des opérations courantes (dialog si installé ; terminal requis)"
+
+msgid "Without root: PostgreSQL reached with sudo -n -u postgres (allowed by sudoers); nothing else needs root here."
+msgstr "Sans root : PostgreSQL joint avec sudo -n -u postgres (permis par sudoers) ; rien d'autre n'a besoin de root ici."

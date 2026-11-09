@@ -44,7 +44,7 @@
 #EXCLUDE_COUNTRY=
 # --exclude-ip : adresses ou réseaux cachés (virgule = plusieurs ; touche e à la volée)
 #EXCLUDE_IP=
-# --export-ai (1.178) : avec --advise ou la touche z, écrit aussi un fichier Markdown de vérification (sommaire, analyse, chronologie, contrôles de cohérence) ; yes = fichier export-ai-AAAAMMJJ-HHMMSS.md du dossier d'état, ou un chemin ; vide = non
+# --export-ai (1.178) : avec --advise ou la touche z, écrit aussi un fichier Markdown de vérification (sommaire, analyse, chronologie, contrôles de cohérence) ; yes = fichier export-ai-HÔTE-AAAAMMJJ-HHMMSS.md du dossier d'état, ou un chemin ; vide = non
 #EXPORT_AI=
 # --health : minutes entre deux vérifications de santé (défaut : 10 minutes ; 0 = jamais)
 #HEALTH=10

@@ -85,7 +85,7 @@ import time
 import unicodedata
 import urllib.parse
 
-__version__ = "2.87.20261103.112153"
+__version__ = "2.88.20261109.153000"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
@@ -5050,6 +5050,12 @@ def main():
     # Root: required AT THE START for anything that modifies (run, bans, timer, fixes); the read modes only warn about what will be incomplete.
     user_reading = args.suspect_users or args.investigate_user              # read-only (the ban / watch offered at the end checks root itself)
     user_writing = args.ban_odoo_user or args.unban_odoo_user or args.watch_odoo_user or args.unwatch_odoo_user
+    plain_run = not (args.install_timer or args.uninstall_timer or args.apply or args.ban_recommended or user_writing or args.dry_run or args.summary
+                     or args.list_users or args.unban_check or args.status or user_reading)
+    if plain_run and not _load_module("_config").est_root():
+        # 2.88: a plain run without root becomes a --dry-run (the report, nothing changed) instead of a refusal
+        eprint("Without root: --dry-run mode (nothing is changed: no run recorded, no ban, no timer, no correction); sudo web-monitor.py for a real run.")
+        args.dry_run = True
     modifying = args.install_timer or args.uninstall_timer or args.apply or args.ban_recommended or user_writing or not (
         args.dry_run or args.summary or args.list_users or args.unban_check or args.status or user_reading)
     if modifying and not _load_module("_config").est_root():
@@ -5094,9 +5100,10 @@ def main():
         app = ["--app", PROFILE["APP_NAME"]] if PROFILE.get("APP_NAME") else []
         with foreground_child():
             return subprocess.run(["bash", nla, "--unban-check"] + app + verbose_args()).returncode
-    if (args.install_timer or args.uninstall_timer or not args.dry_run) and os.geteuid() != 0:
+    if (args.install_timer or args.uninstall_timer) and os.geteuid() != 0:
         print("ERROR: root required (sudo) — only --dry-run and --status work without privileges.", file=sys.stderr)
         return 2
+
     if args.install_timer:
         if not 1 <= args.interval_hours <= 24:
             parser.error("--interval-hours expects a value between 1 and 24")

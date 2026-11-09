@@ -93,7 +93,7 @@ run() {
     "$@"
 }
 
-readonly SCRIPT_VERSION="2.82.20261109.100500"
+readonly SCRIPT_VERSION="2.83.20261109.153000"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
 SCRIPT_NAME="$(basename "${BASH_SOURCE[0]}" .sh)"; readonly SCRIPT_NAME
 # Display language (en or fr): --lang, NGINX_HARDENING_LANG, LANGUAGE of the configuration file, LC_ALL / LANG - apps/_i18n.sh translates the output (nothing changes in French).
@@ -164,6 +164,9 @@ RENAME_FROM=""; RENAME_TO=""   # --rename-from / --rename-to: public DNS name ch
 APP_FORCE=""
 ODOO_CONF=""
 ODOO_WORKERS_OVERRIDE=""
+JOURNAL_PERSISTENT=1      # 2.83: 1 = journal systemd kept on disk (Storage=persistent) by --update; 0 (JOURNAL_PERSISTENT=no) = left as it is
+PG_LOGGING=1              # 2.83: 1 = slow queries, lock waits, autovacuum and temporary files in the PostgreSQL log (step 17); no = step skipped
+PG_SLOW_MS="2000"         # 2.83: log_min_duration_statement written by step 17 (milliseconds)
 ODOO_CRON_OVERRIDE=""     # 2.82: --cron-threads N (MAX_CRON_THREADS): cron threads of Odoo for step 6 (default: max_cron_threads of odoo.conf or run.sh, otherwise 2)
 # Initialized here: set by steps specific to Odoo (4 and 9), but read by the final summary - same
 # for BigBlueButton, for which these steps are "not applicable" (otherwise: "unbound variable" at the end of execution).
@@ -197,6 +200,9 @@ if declare -F config_lire >/dev/null; then
     config_defaut VERBOSE VERBOSE --verbose booleen
     config_defaut ODOO_WORKERS_OVERRIDE WORKERS --workers nombre
     config_defaut ODOO_CRON_OVERRIDE MAX_CRON_THREADS --cron-threads nombre
+    config_defaut JOURNAL_PERSISTENT JOURNAL_PERSISTENT JOURNAL_PERSISTENT booleen
+    config_defaut PG_LOGGING PG_LOGGING PG_LOGGING booleen
+    config_defaut PG_SLOW_MS PG_SLOW_MS PG_SLOW_MS nombre
 fi
 
 export ODOO_CONF_PATHS   # read by apps/_odoo_conf.sh (empty: ODOO_CONF_PATHS lines of the configuration files, then default list)
@@ -2249,7 +2255,7 @@ else
     sans_objet "ports du serveur d'application Odoo (pare-feu de BBB : ufw, géré par son installateur)"
 fi
 U_MEM="Mo"; [[ "${NGINX_TOOLS_I18N_LANGUE:-fr}" != "fr" ]] && U_MEM="MB"       # memory unit displayed (MB in French)
-echo "--- 6) Suggestion de limites mémoire Odoo (workers × RAM disponible) ---"
+echo "--- 6) Suggestion de limites mémoire Odoo (workers + cron + gevent, mémoire disponible) ---"
 if [[ "${ODOO_SPECIFIC_STEPS:-yes}" == "yes" ]]; then
 if [[ -z "$odoo_service" ]]; then
     warn "Aucun service Odoo connu trouvé (db_user de la configuration, erplibre.service / erplibre_erplibre.service) — précisez --odoo-service NOM pour activer ce calcul."
@@ -2900,6 +2906,26 @@ else
         warn "Journal systemd : MaxRetentionSec=${LOG_RETENTION_MONTHS}month ajouté dans $jr_f, mais redémarrage de $jr_unit impossible — à faire à la main."
     fi
 fi
+# 2.83: journal systemd PERSISTANT (gardé sur disque, dans /var/log/journal) : sans lui, la raison d'un arrêt d'Odoo (oom-kill, signal) disparaît au
+# redémarrage du serveur ou du conteneur, et app-log-live.py ne peut plus la donner. Storage=auto (défaut) n'écrit sur disque que si /var/log/journal existe.
+if [[ "$JOURNAL_PERSISTENT" == "1" && -z "$jr_ns" ]]; then
+    jp_f="$JOURNALD_DIR/journald.conf.d/91-nginx-hardening-persistent.conf"
+    jp_actuel=$(grep -rhsE '^[[:space:]]*Storage=' "$JOURNALD_DIR/journald.conf" "$JOURNALD_DIR/journald.conf.d/" 2>/dev/null | tail -1 | tr -d '[:space:]') || true
+    jp_dir="${NGINX_HARDENING_JOURNAL_DIR:-/var/log/journal}"
+    if [[ "$jp_actuel" == "Storage=persistent" || ( "$jp_actuel" != "Storage=volatile" && "$jp_actuel" != "Storage=none" && -d "$jp_dir" ) ]]; then
+        pass "Journal systemd : persistant (${jp_actuel:-Storage=auto} et $jp_dir présent) — les raisons d'arrêt d'Odoo survivent à un redémarrage."
+    elif [[ "$CHECK_ONLY" == "1" ]]; then
+        warn "Journal systemd : non persistant (${jp_actuel:-Storage=auto} sans $jp_dir) — perdu à chaque redémarrage ; --update écrira Storage=persistent dans $jp_f."
+    else
+        mkdir -p "$(dirname "$jp_f")" "$jp_dir"
+        printf '%s\n' "# Ajouté par nginx-hardening.sh 2.83 : journal gardé sur disque (raisons des arrêts d'Odoo après un redémarrage)." "[Journal]" "Storage=persistent" > "$jp_f"
+        if run systemctl restart systemd-journald >/dev/null 2>&1; then
+            pass "Journal systemd : Storage=persistent écrit dans $jp_f, systemd-journald redémarré ($jp_dir)."
+        else
+            warn "Journal systemd : Storage=persistent écrit dans $jp_f, mais redémarrage de systemd-journald impossible — à faire à la main."
+        fi
+    fi
+fi
 echo
 
 # nginx_plus_ancien_que FILE...: 0 if nginx runs with a configuration OLDER than one of these files (modified after the last load:
@@ -3342,6 +3368,70 @@ if [[ "$APP_NAME" == "odoo" ]] && command -v nginx >/dev/null 2>&1 && command -v
         fi
     done <<< "$hsts_names"
     (( n16 > 0 )) || echo "  [INFO] Aucun nom joignable depuis ce serveur : test impossible ici (refaire à la main : curl -sI -A python-requests/2.31 https://NOM/mass_mailing_themes)."
+    echo
+fi
+
+# 2.83: PostgreSQL : journal des requêtes lentes, des verrous attendus, de l'autovacuum et des fichiers temporaires. Sans lui, une page lente « à 99 % SQL »
+# ne dit pas QUELLE requête ni QUEL verrou : app-log-live.py ne peut que deviner. Fichier ajouté dans le conf.d de PostgreSQL (include_dir de Debian),
+# rechargé sans redémarrage. Attention : le texte des requêtes lentes est écrit dans le journal de PostgreSQL (données personnelles possibles :
+# il suit sa rotation). shared_buffers est seulement signalé (un changement demande un redémarrage de PostgreSQL).
+if [[ "$APP_NAME" == "odoo" && "$PG_LOGGING" == "1" ]]; then
+    echo "--- 17) PostgreSQL : journal des requêtes lentes et des verrous ---"
+    PSQL_CMD="${NGINX_HARDENING_PSQL:-}"
+    if [[ -z "$PSQL_CMD" && -n "${NGINX_TOOLS_TESTS:-}" ]]; then
+        echo "  [INFO] tests : PostgreSQL non lu (NGINX_HARDENING_PSQL absent)."             # never the real PostgreSQL from the test suite
+    elif [[ -z "$PSQL_CMD" ]] && ! command -v psql >/dev/null 2>&1; then
+        echo "  [INFO] psql absent : PostgreSQL n'est pas sur ce serveur (ou pas dans le PATH) — étape ignorée."
+    elif [[ -z "$PSQL_CMD" && "$EUID" -ne 0 ]]; then
+        sans_root_verif "PostgreSQL (réglages du journal, compte postgres)"
+    else
+        pg_sql() { if [[ -n "$PSQL_CMD" ]]; then $PSQL_CMD -XAtqc "$1"; else runuser -u postgres -- psql -XAtqc "$1"; fi; }
+        pg_now=$(pg_sql "SELECT name || '=' || setting FROM pg_settings WHERE name IN ('log_min_duration_statement','log_lock_waits','log_autovacuum_min_duration','log_temp_files','config_file','shared_buffers','block_size')" 2>/dev/null) || pg_now=""
+        if [[ -z "$pg_now" ]]; then
+            warn "PostgreSQL : réglages illisibles (service arrêté, ou psql refusé au compte postgres) — non vérifié."
+        else
+            pg_get() { printf '%s\n' "$pg_now" | sed -n "s/^$1=//p" | head -1; }
+            pg_want=("log_min_duration_statement=$PG_SLOW_MS" "log_lock_waits=on" "log_autovacuum_min_duration=250" "log_temp_files=10240")
+            pg_diff=()
+            for kv in "${pg_want[@]}"; do
+                [[ "$(pg_get "${kv%%=*}")" == "${kv#*=}" ]] || pg_diff+=("${kv%%=*} : $(pg_get "${kv%%=*}") → ${kv#*=}")
+            done
+            pg_diff_txt=$(printf '%s ; ' "${pg_diff[@]}"); pg_diff_txt="${pg_diff_txt% ; }"
+            pg_want_txt=$(printf '%s, ' "${pg_want[@]}"); pg_want_txt="${pg_want_txt%, }"
+            pg_conf=$(pg_get config_file); pg_dropin="$(dirname "${pg_conf:-/etc/postgresql/x/main/postgresql.conf}")/conf.d/90-nginx-hardening-logging.conf"
+            if (( ${#pg_diff[@]} == 0 )); then
+                pass "PostgreSQL : requêtes de plus de ${PG_SLOW_MS} ms, verrous attendus, autovacuum et fichiers temporaires déjà journalisés."
+            elif [[ "$CHECK_ONLY" == "1" ]]; then
+                warn "PostgreSQL : journal incomplet ($pg_diff_txt) — --update écrira $pg_dropin et rechargera PostgreSQL (sans redémarrage)."
+            elif [[ -n "$pg_conf" ]] && ! grep -qsE "^[[:space:]]*include_dir[[:space:]]*=[[:space:]]*'conf\.d'" "$pg_conf"; then
+                warn "PostgreSQL : $pg_conf n'inclut pas conf.d/ — à ajouter à la main : $pg_want_txt."
+            else
+                mkdir -p "$(dirname "$pg_dropin")"
+                {
+                    echo "# Ajouté par nginx-hardening.sh 2.83 : requêtes lentes, verrous attendus, autovacuum et fichiers temporaires dans le journal de PostgreSQL."
+                    echo "# Le texte des requêtes lentes y est écrit : il suit la rotation de ce journal. Pour retirer : supprimer ce fichier, puis SELECT pg_reload_conf();"
+                    echo "log_min_duration_statement = $PG_SLOW_MS"
+                    echo "log_lock_waits = on"
+                    echo "log_autovacuum_min_duration = 250"
+                    echo "log_temp_files = 10240"
+                } > "$pg_dropin"
+                chown postgres:postgres "$pg_dropin" 2>/dev/null || true
+                if pg_sql "SELECT pg_reload_conf()" >/dev/null 2>&1; then
+                    pass "PostgreSQL : $pg_dropin écrit et rechargé (requêtes de plus de ${PG_SLOW_MS} ms, verrous, autovacuum, fichiers temporaires)."
+                else
+                    warn "PostgreSQL : $pg_dropin écrit, mais rechargement impossible — systemctl reload postgresql à la main."
+                fi
+            fi
+            sb=$(pg_get shared_buffers); bs=$(pg_get block_size)
+            if [[ "$sb" =~ ^[0-9]+$ && "${bs:-8192}" =~ ^[0-9]+$ ]]; then
+                sb_mb=$(( sb * ${bs:-8192} / 1048576 ))
+                ram_mb=$(free -m 2>/dev/null | awk '/^Mem:/ {print $2}')
+                if [[ "$ram_mb" =~ ^[0-9]+$ ]] && (( ram_mb >= 4096 && sb_mb <= 128 )); then
+                    echo "  [INFO] PostgreSQL : shared_buffers = ${sb_mb} $U_MEM (valeur par défaut) pour ${ram_mb} $U_MEM de mémoire ; $(( ram_mb / 16 )) à $(( ram_mb / 8 )) $U_MEM conviendraient (cache des tables d'Odoo). Non modifié : demande un redémarrage de PostgreSQL et se retire de la mémoire laissée à Odoo (étape 6)."
+                fi
+            fi
+        fi
+    fi
     echo
 fi
 

@@ -94,6 +94,9 @@ def column(visible, width=18):
     return visible.ljust(width) + " "
 
 
+HOTE_NOM = re.sub(r"[^A-Za-z0-9_-]+", "-", os.uname().nodename.split(".")[0]).strip("-") or "host"     # 1.181: name of the server in the journal names
+
+
 class AppLogLive(EnvTest):
     def setUp(self):
         super().setUp()
@@ -1695,9 +1698,9 @@ class AppLogLive(EnvTest):
         rc, out, err = self.run_cmd(["python3", self.prog, "--no-isp", "--no-presence", "--no-banned", "--lines", "1", "--no-keys", "--log-dir", folder, "--only", "/event/jpo"])
         self.assertEqual(rc, 0, err)
         day = datetime.date.today().isoformat()
-        self.assertIn("app-log-live-YYYY-MM-DD-filter.log", T(err))
-        self.assertTrue(os.path.isfile(os.path.join(folder, f"app-log-live-{day}-filter.log")), os.listdir(folder))
-        self.assertFalse(os.path.exists(os.path.join(folder, f"app-log-live-{day}.log")))
+        self.assertIn(f"app-log-live-{HOTE_NOM}-YYYY-MM-DD-filter.log", T(err))
+        self.assertTrue(os.path.isfile(os.path.join(folder, f"app-log-live-{HOTE_NOM}-{day}-filter.log")), os.listdir(folder))
+        self.assertFalse(os.path.exists(os.path.join(folder, f"app-log-live-{HOTE_NOM}-{day}.log")))
         self.assertFalse(os.path.exists(vieux), "purgé comme les autres journaux")
 
     def test_journal_quotidien_avec_couleurs(self):
@@ -1716,7 +1719,7 @@ class AppLogLive(EnvTest):
         self.assertNotIn("\x1b[", T(out))                                                       # the screen (a pipe) stays without color
         self.assertIn("Journal quotidien (couleurs conservées", T(err))
         day = datetime.date.today().isoformat()
-        file_path = os.path.join(folder, f"app-log-live-{day}.log")
+        file_path = os.path.join(folder, f"app-log-live-{HOTE_NOM}-{day}.log")
         self.assertTrue(os.path.isfile(file_path), os.listdir(folder))
         self.assertEqual(T(oct(os.stat(file_path).st_mode & 0o777)), "0o600")
         with open(file_path, encoding="utf-8") as f:
@@ -3662,9 +3665,9 @@ class AppLogLive120(unittest.TestCase):
         sortie.write("bonjour <b>\n")
         sortie._open("2026-10-31")
         sortie.close()
-        with open(os.path.join(dossier, "app-log-live-2026-10-30.html"), encoding="utf-8") as f:
+        with open(os.path.join(dossier, f"app-log-live-{HOTE_NOM}-2026-10-30.html"), encoding="utf-8") as f:
             jour1 = f.read()
-        with open(os.path.join(dossier, "app-log-live-2026-10-31.html"), encoding="utf-8") as f:
+        with open(os.path.join(dossier, f"app-log-live-{HOTE_NOM}-2026-10-31.html"), encoding="utf-8") as f:
             jour2 = f.read()
         self.assertIn("bonjour &lt;b&gt;", jour1)
         self.assertTrue(jour1.rstrip().endswith("</html>"))
@@ -5306,3 +5309,67 @@ class AppLogLive180(EnvTest):
         rc, out, _err = self.run_cmd(["python3", prog, "--lang", "fr", "--unack", code], env)
         self.assertIn(f"Vérification retirée : [{code}]", out)
         self.assertIn("Constats vérifiés par un administrateur : 0", out)
+
+
+class OdooRuntime181(unittest.TestCase):
+    """1.181 : odoo.conf comparé à ce qu'utilise l'Odoo en marche (cgroup du service, /proc)."""
+
+    def setUp(self):
+        spec = importlib.util.spec_from_file_location("live_rt", script_path("app-log-live.py"))
+        self.live = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(self.live)
+        self.d = tempfile.mkdtemp(prefix="test-rlq-runtime-")
+        self.addCleanup(shutil.rmtree, self.d, True)
+        self.proc, self.cg = os.path.join(self.d, "proc"), os.path.join(self.d, "cg")
+        os.makedirs(os.path.join(self.cg, "system.slice", "odoo.service"))
+        boot = int(time.time()) - 86400
+        os.makedirs(self.proc)
+        with open(os.path.join(self.proc, "stat"), "w") as f:
+            f.write(f"cpu 1 2 3\nbtime {boot}\n")
+        ticks = os.sysconf("SC_CLK_TCK")
+        self.start = boot + 3600
+        pids = []
+        for pid, ppid, argv in ((100, 1, ["/usr/bin/python3", "/opt/odoo/odoo-bin", "-c", "/x/odoo.conf", "--workers=3"]),
+                                (101, 100, ["/usr/bin/python3", "/opt/odoo/odoo-bin", "-c", "/x/odoo.conf", "--workers=3"]),
+                                (102, 100, ["/usr/bin/python3", "/opt/odoo/odoo-bin", "-c", "/x/odoo.conf", "--workers=3"])):
+            os.makedirs(os.path.join(self.proc, str(pid)))
+            with open(os.path.join(self.proc, str(pid), "cmdline"), "wb") as f:
+                f.write(b"\0".join(a.encode() for a in argv) + b"\0")
+            fields = ["S", str(ppid)] + ["0"] * 17 + [str(3600 * ticks)]
+            with open(os.path.join(self.proc, str(pid), "stat"), "w") as f:
+                f.write(f"{pid} (python3) " + " ".join(fields) + "\n")
+            pids.append(str(pid))
+        with open(os.path.join(self.cg, "system.slice", "odoo.service", "cgroup.procs"), "w") as f:
+            f.write("\n".join(pids) + "\n")
+        self.conf = os.path.join(self.d, "odoo.conf")
+        self.state = os.path.join(self.d, "odoo-conf-snapshots.json")
+        self.live.PROC_ROOT, self.live.CGROUP_ROOT = self.proc, self.cg
+        self.live.lancer = lambda cmd, *a, **k: (0, "/system.slice/odoo.service\n", "")
+
+    def ecrire_conf(self, texte, mtime):
+        with open(self.conf, "w") as f:
+            f.write(texte)
+        os.utime(self.conf, (mtime, mtime))
+
+    def test_fichier_inchange_puis_modifie(self):
+        self.ecrire_conf("[options]\nworkers = 2\nlimit_memory_hard = 5197\nadmin_passwd = secret\n", self.start - 60)
+        rt = self.live.odoo_runtime("odoo.service", self.conf, self.state)
+        self.assertEqual(rt["pid"], 100)
+        self.assertEqual(rt["processes"], 3)
+        self.assertTrue(rt["known"])
+        self.assertEqual(rt["changed"], [])
+        self.assertEqual(rt["overrides"], [("workers", "3", "2")])        # --workers=3 de la ligne de commande remplace workers = 2
+        self.assertEqual(rt["expected"], 3 + 2 + 2)
+        with open(self.state, encoding="utf-8") as f:
+            self.assertNotIn("secret", f.read())                            # les secrets d'odoo.conf ne sont jamais gardés
+        self.ecrire_conf("[options]\nworkers = 2\nlimit_memory_hard = 2048\n", self.start + 600)
+        rt = self.live.odoo_runtime("odoo.service", self.conf, self.state)
+        self.assertTrue(rt["after_start"])
+        self.assertEqual(rt["changed"], [("limit_memory_hard", "5197", "2048")])
+
+    def test_modifie_sans_copie_du_demarrage(self):
+        self.ecrire_conf("[options]\nworkers = 3\n", self.start + 600)
+        rt = self.live.odoo_runtime("odoo.service", self.conf, self.state)
+        self.assertFalse(rt["known"])
+        self.assertTrue(rt["after_start"])
+        self.assertEqual(self.live.odoo_runtime("", self.conf, self.state), {})       # pas de service : rien

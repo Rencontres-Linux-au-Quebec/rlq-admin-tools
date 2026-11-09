@@ -635,3 +635,6 @@ msgstr "  --max-drop PCT               refuse a list smaller by more than PCT % 
 
 msgid "  --menu    menu interactif des opérations courantes (dialog si installé ; terminal requis)"
 msgstr "  --menu    interactive menu of the common operations (dialog if installed; terminal required)"
+
+msgid "Droits limités (pas root) : non disponible : contenu des ipset et règles du pare-feu (iptables, ip6tables) ; relancer avec sudo pour un état complet."
+msgstr "Limited rights (not root): not available: content of the ipsets and firewall rules (iptables, ip6tables); run again with sudo for a complete status."

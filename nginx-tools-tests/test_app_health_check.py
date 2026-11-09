@@ -538,7 +538,8 @@ class ConfigurationEnCouches(EnvTest):
     @unittest.skipIf(os.geteuid() == 0, "fichier illisible seulement sans root (root lit tout)")
     def test_fichier_illisible_sans_root_signale_et_non_pris_pour_absent(self):
         """2.28 : un fichier de configuration présent mais illisible (600 root) est signalé ; s'il n'y en a pas d'autre, le programme
-        s'arrête avec « run with sudo » au lieu de créer une configuration ou d'afficher « non configuré »."""
+        s'arrêtait avec « run with sudo » ; 2.34 : le passage continue avec les valeurs détectées maintenant (fichier temporaire), sans rien créer
+        dans /etc/default ni dans ~."""
         home = os.path.dirname(self.path("home-illisible", "x"))
         perso = os.path.join(home, ".app-health-check.cfg")
         self.write("home-illisible/.app-health-check.cfg", "SMTP_HOST=smtp.exemple.org\n")
@@ -548,9 +549,9 @@ class ConfigurationEnCouches(EnvTest):
         rc, out, err = self.run_cmd(["python3", prog, "--check-email-dns"])
         if os.path.isfile("/etc/default/app-health-check.conf") and os.access("/etc/default/app-health-check.conf", os.R_OK):
             self.skipTest("une configuration système lisible existe sur cet hôte")
-        self.assertEqual(rc, 2, err)
-        self.assertIn("not readable without root", err)
-        self.assertNotIn("creating", out)
+        self.assertIn("NOT readable by this user", err)
+        self.assertRegex(err, r"the values detected now are used|les valeurs détectées maintenant sont utilisées")
+        self.assertNotIn("Creating the configuration file", out)
 
     def test_programme_complet_lit_etc_default_puis_home(self):
         defaut = os.path.dirname(self.path("etc-default", "x")) + "/"

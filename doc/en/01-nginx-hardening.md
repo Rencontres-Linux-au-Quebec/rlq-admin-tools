@@ -28,11 +28,13 @@ Audits (default) or installs/repairs (`--update`) the server's baseline in numbe
 | 8 | `odoo.conf` audit (`list_db`, `admin_passwd`, proxy mode, limits...) |
 | 9 | fail2ban jails: catch-all sensor, `odoo-auth` (login failures read from Odoo's journal), `nginx-blocked-probes` (5 nginx refusals in 10 minutes -> 24 h ban) |
 | 10 | HSTS actually sent by each HTTPS name (read from `nginx -T`) |
-| 11 | log retention (`--log-retention-months`, 1-24, default 3) |
+| 11 | log retention (`--log-retention-months`, 1-24, default 3); persistent systemd journal (`JOURNAL_PERSISTENT`, 2.83): the reasons why Odoo stopped survive a reboot |
 | 12 | address lists -> nginx snippets (`team-ips-geo.conf`, `team-ips-allow.conf`, `shared-ips-geo.conf`); nginx is reloaded when the snippets are newer than the loaded configuration |
 | 13 | alert e-mail: relay, MX, SPF, DMARC, DKIM |
 | 14 | `geoip-bin` / `geoip-database` for local country lookup |
 | 15 | `app-log-live.py --chime` in byobu/tmux |
+| 16 | calls of Odoo to its own public name (User-Agent python-requests) |
+| 17 | PostgreSQL (2.83, `PG_LOGGING`, `PG_SLOW_MS`): queries longer than 2 s, lock waits, autovacuum and temporary files written to the PostgreSQL log (file `conf.d/90-nginx-hardening-logging.conf`, reloaded without restart; the text of the slow queries is in it); `shared_buffers` left at 128 MB is reported |
 
 ## Notes for administrators
 

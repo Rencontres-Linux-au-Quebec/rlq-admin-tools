@@ -66,7 +66,7 @@ import sys
 import time
 from urllib.parse import urlparse, parse_qs, unquote
 
-__version__ = "2.33.20261030.153422"
+__version__ = "2.34.20261109.160000"
 # Marker added at the END of the "browser" User-Agent (2.2): our test requests are recognizable in all the
 # logs (nginx, Odoo) and excluded from the statistics by web-monitor.py. Matches no pattern of the bot filter.
 UA_MARKER = " app-health-check/" + ".".join(__version__.split(".")[:2])
@@ -133,6 +133,30 @@ def migrate_path(old, new):
             pass
 
 
+class contextlib_redirect_stdout_to_stderr:
+    """2.34: the messages of create_config() are not shown when it only builds a temporary file (its "to do next" is about a real file)."""
+
+    def __enter__(self):
+        self.saved, sys.stdout = sys.stdout, open(os.devnull, "w", encoding="utf-8")
+
+    def __exit__(self, *exc):
+        sys.stdout.close()
+        sys.stdout = self.saved
+        return False
+
+
+def _non_root_notice():
+    """2.34: one line (or None as root) saying what a run without root does not see: apps/_config.py avis_non_root."""
+    try:
+        spec = importlib.util.spec_from_file_location("_config", os.path.join(SCRIPT_DIR, "apps", "_config.py"))
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+    except Exception:                                    # noqa: BLE001 - apps/_config.py missing: no notice
+        return None
+    return module.avis_non_root("app-health-check.py", TR("nginx -T (public name), odoo.conf (database name) may be unreadable, the run history is kept in ~/.local/state "
+                                                          "instead of /var/lib/app-health-check and /etc/default cannot be written"))
+
+
 def personal_config_path():
     """~/.app-health-check.conf (2.x common rule); a legacy ~/.app-health-check.cfg is renamed to it first (apps/_config.py migrer_ancien)."""
     path = os.path.join(os.path.expanduser("~"), ".app-health-check.conf")
@@ -178,8 +202,10 @@ def resolve_config_paths(explicit_path):
     for ill in illisibles:
         print(f"WARNING: {ill} exists but is NOT readable by this user (run with sudo): its settings are ignored", file=sys.stderr)
     if illisibles and not found_list:
-        print(f"ERROR: configuration not readable without root: {illisibles[0]} (run with sudo)", file=sys.stderr)
-        sys.exit(2)
+        # 2.34: no longer a refusal: the run goes on with the values detected now (temporary file, nothing written in /etc/default or ~),
+        # main() says it at the start; the settings of the unreadable file stay ignored.
+        print(TR("WARNING: configuration not readable without root: {path}: the values detected now are used (sudo for the real settings)").format(path=illisibles[0]), file=sys.stderr)
+        return []
     if not found_list:
         raise FileNotFoundError("no configuration file found. Searched: explicit -c/--config, " + ", ".join(candidats))
     return found_list
@@ -1623,6 +1649,18 @@ def main():
             print(f"ERROR: creating {DEFAULT_CONFIG_PATH} impossible — app-health-check.py --create-config", file=sys.stderr)
             sys.exit(2)
         config_paths = [DEFAULT_CONFIG_PATH]
+    if not config_paths:                                 # 2.34: only unreadable files (not root): values detected now, in a temporary file removed at the end
+        import tempfile
+        folder = tempfile.mkdtemp(prefix="app-health-check-")
+        temporary = os.path.join(folder, "detected.conf")
+        with contextlib_redirect_stdout_to_stderr():
+            create_config(temporary, force=True, verbose=args.verbose, profile=profile)
+        config_paths = [temporary] if os.path.isfile(temporary) else []
+        import atexit
+        atexit.register(shutil.rmtree, folder, True)
+        if not config_paths:
+            print(TR("ERROR: no configuration could be detected without root (sudo app-health-check.py)"), file=sys.stderr)
+            sys.exit(2)
     cfg = load_config(config_paths)
     complete_common_mail(cfg)
     # File quoted in the messages (where to add a setting): the /etc/default one if it is read, otherwise the first.
@@ -1630,6 +1668,9 @@ def main():
     # Always displayed (and no longer only in --verbose): several locations are read, and a "forgotten" setting
     # (e.g. EXPECT_RESTRICTED_ACCESS) often comes from reading a different file from the one that was edited.
     show_config_read(cfg, config_paths, bool(args.config))
+    notice = _non_root_notice()                         # 2.34: what a run without root does not see, said at the start
+    if notice:
+        print(notice, file=sys.stderr)
     if args.check_email_dns:
         sys.exit(show_email_dns(cfg))
     if args.test_email:

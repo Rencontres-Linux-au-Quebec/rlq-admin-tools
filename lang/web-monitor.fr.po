@@ -2795,3 +2795,6 @@ msgstr ", une par une."
 
 msgid "Color theme (2.87): 0 = the colors of the terminal (default); 1 = dark background; 2 = light background; 3 = dark background, high contrast; 4 = light background, high contrast. Every color is replaced by the nearest one that reads on that background (python3 apps/_theme.py --demo shows them). THEME in the configuration file; also in /etc/default/app-default.conf for all the programs"
 msgstr "Thème de couleurs (2.87) : 0 = les couleurs du terminal (défaut) ; 1 = fond sombre ; 2 = fond clair ; 3 = fond sombre, contraste élevé ; 4 = fond clair, contraste élevé. Chaque couleur est remplacée par la plus proche qui se lit sur ce fond (python3 apps/_theme.py --demo les montre). THEME dans le fichier de configuration ; aussi dans /etc/default/app-default.conf pour tous les programmes"
+
+msgid "Without root: --dry-run mode (nothing is changed: no run recorded, no ban, no timer, no correction); sudo web-monitor.py for a real run."
+msgstr "Sans root : mode --dry-run (rien n'est modifié : aucun passage enregistré, aucun bannissement, aucune minuterie, aucune correction) ; sudo web-monitor.py pour un vrai passage."

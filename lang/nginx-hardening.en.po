@@ -2480,3 +2480,96 @@ msgstr " processes ("
 
 msgid ") — risque réel d'épuisement mémoire si plusieurs processus culminent en même temps."
 msgstr ") — real risk of memory exhaustion if several processes peak at the same time."
+
+msgid "--- 6) Suggestion de limites mémoire Odoo (workers + cron + gevent, mémoire disponible) ---"
+msgstr "--- 6) Odoo memory-limit suggestion (workers + cron + gevent, available memory) ---"
+
+msgid "Journal systemd : persistant ("
+msgstr "systemd journal: persistent ("
+
+msgid " présent) — les raisons d'arrêt d'Odoo survivent à un redémarrage."
+msgstr " present) — the reasons why Odoo stopped survive a reboot."
+
+msgid "Journal systemd : non persistant ("
+msgstr "systemd journal: not persistent ("
+
+msgid " sans "
+msgstr " without "
+
+msgid ") — perdu à chaque redémarrage ; --update écrira Storage=persistent dans "
+msgstr ") — lost at each reboot; --update will write Storage=persistent to "
+
+msgid "# Ajouté par nginx-hardening.sh 2.83 : journal gardé sur disque (raisons des arrêts d'Odoo après un redémarrage)."
+msgstr "# Added by nginx-hardening.sh 2.83: journal kept on disk (reasons why Odoo stopped, after a reboot)."
+
+msgid "Journal systemd : Storage=persistent écrit dans "
+msgstr "systemd journal: Storage=persistent written to "
+
+msgid ", systemd-journald redémarré ("
+msgstr ", systemd-journald restarted ("
+
+msgid ", mais redémarrage de systemd-journald impossible — à faire à la main."
+msgstr ", but systemd-journald could not be restarted — do it by hand."
+
+msgid "  [INFO] psql absent : PostgreSQL n'est pas sur ce serveur (ou pas dans le PATH) — étape ignorée."
+msgstr "  [INFO] psql missing: PostgreSQL is not on this server (or not in the PATH) — step skipped."
+
+msgid "  [INFO] tests : PostgreSQL non lu (NGINX_HARDENING_PSQL absent)."
+msgstr "  [INFO] tests: PostgreSQL not read (NGINX_HARDENING_PSQL missing)."
+
+msgid "--- 17) PostgreSQL : journal des requêtes lentes et des verrous ---"
+msgstr "--- 17) PostgreSQL: log of the slow queries and of the locks ---"
+
+msgid "PostgreSQL (réglages du journal, compte postgres)"
+msgstr "PostgreSQL (log settings, postgres account)"
+
+msgid "PostgreSQL : réglages illisibles (service arrêté, ou psql refusé au compte postgres) — non vérifié."
+msgstr "PostgreSQL: settings unreadable (service stopped, or psql refused to the postgres account) — not checked."
+
+msgid "PostgreSQL : requêtes de plus de "
+msgstr "PostgreSQL: queries longer than "
+
+msgid " ms, verrous attendus, autovacuum et fichiers temporaires déjà journalisés."
+msgstr " ms, lock waits, autovacuum and temporary files already logged."
+
+msgid "PostgreSQL : journal incomplet ("
+msgstr "PostgreSQL: log incomplete ("
+
+msgid ") — --update écrira "
+msgstr ") — --update will write "
+
+msgid " et rechargera PostgreSQL (sans redémarrage)."
+msgstr " and reload PostgreSQL (no restart)."
+
+msgid " n'inclut pas conf.d/ — à ajouter à la main : "
+msgstr " does not include conf.d/ — to add by hand: "
+
+msgid "# Ajouté par nginx-hardening.sh 2.83 : requêtes lentes, verrous attendus, autovacuum et fichiers temporaires dans le journal de PostgreSQL."
+msgstr "# Added by nginx-hardening.sh 2.83: slow queries, lock waits, autovacuum and temporary files in the PostgreSQL log."
+
+msgid "# Le texte des requêtes lentes y est écrit : il suit la rotation de ce journal. Pour retirer : supprimer ce fichier, puis SELECT pg_reload_conf();"
+msgstr "# The text of the slow queries is written there: it follows the rotation of that log. To remove: delete this file, then SELECT pg_reload_conf();"
+
+msgid "PostgreSQL : "
+msgstr "PostgreSQL: "
+
+msgid " écrit et rechargé (requêtes de plus de "
+msgstr " written and reloaded (queries longer than "
+
+msgid " ms, verrous, autovacuum, fichiers temporaires)."
+msgstr " ms, locks, autovacuum, temporary files)."
+
+msgid " écrit, mais rechargement impossible — systemctl reload postgresql à la main."
+msgstr " written, but it could not be reloaded — systemctl reload postgresql by hand."
+
+msgid "  [INFO] PostgreSQL : shared_buffers = "
+msgstr "  [INFO] PostgreSQL: shared_buffers = "
+
+msgid " (valeur par défaut) pour "
+msgstr " (default value) for "
+
+msgid " de mémoire ; "
+msgstr " of memory; "
+
+msgid " conviendraient (cache des tables d'Odoo). Non modifié : demande un redémarrage de PostgreSQL et se retire de la mémoire laissée à Odoo (étape 6)."
+msgstr " would suit (cache of the Odoo tables). Not changed: it needs a restart of PostgreSQL and is taken from the memory left to Odoo (step 6)."

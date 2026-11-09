@@ -3355,8 +3355,8 @@ msgstr ", pseudonymes"
 msgid ", real names and addresses inside"
 msgstr ", vrais noms et vraies adresses à l'intérieur"
 
-msgid "With --advise (or the z key): also write the summary, the analysis, the timeline of the window and the consistency checks in one Markdown file, without colors, to send for verification (default FILE: export-ai-YYYYMMDD-HHMMSS.md in the state folder, mode 600; pseudonyms when --anonymize is active)"
-msgstr "Avec --advise (ou la touche z) : écrit aussi le sommaire, l'analyse, la chronologie de la période et les contrôles de cohérence dans un seul fichier Markdown, sans couleurs, à envoyer pour vérification (FICHIER par défaut : export-ai-AAAAMMJJ-HHMMSS.md dans le dossier d'état, mode 600 ; pseudonymes quand --anonymize est actif)"
+msgid "With --advise (or the z key): also write the summary, the analysis, the timeline of the window and the consistency checks in one Markdown file, without colors, to send for verification (default FILE: export-ai-HOST-YYYYMMDD-HHMMSS.md in the state folder, mode 600; pseudonyms when --anonymize is active)"
+msgstr "Avec --advise (ou la touche z) : écrit aussi le sommaire, l'analyse, la chronologie de la période et les contrôles de cohérence dans un seul fichier Markdown, sans couleurs, à envoyer pour vérification (FICHIER par défaut : export-ai-HÔTE-AAAAMMJJ-HHMMSS.md dans le dossier d'état, mode 600 ; pseudonymes quand --anonymize est actif)"
 
 msgid "disks not measured with --advise (the window is read from the logs; the disks are sampled only by the live dashboard): the times of the requests below are complete"
 msgstr "disques non mesurés avec --advise (la période est lue dans les journaux ; les disques ne sont échantillonnés que par le tableau de bord en direct) : les temps des requêtes ci-dessous sont complets"
@@ -3442,3 +3442,36 @@ msgstr "par {by} le {when}, jusqu'au {until}"
 
 msgid "With --ack: days during which the finding stays checked (default: "
 msgstr "Avec --ack : jours pendant lesquels le constat reste vérifié (défaut : "
+
+msgid "server {host}"
+msgstr "serveur {host}"
+
+msgid "Odoo running: started on {when} · {n} processes{expected}"
+msgstr "Odoo en marche : démarré le {when} · {n} processus{expected}"
+
+msgid "expected: {m}"
+msgstr "attendus : {m}"
+
+msgid "command line: {opts}"
+msgstr "ligne de commande : {opts}"
+
+msgid "odoo.conf changed since the start (not in effect until a restart): "
+msgstr "odoo.conf changé depuis le démarrage (sans effet avant un redémarrage) : "
+
+msgid "odoo.conf modified on {mtime}, after the start: the values in effect are not known (restart to apply)"
+msgstr "odoo.conf modifié le {mtime}, après le démarrage : les valeurs en vigueur ne sont pas connues (redémarrer pour appliquer)"
+
+msgid "odoo.conf: the running Odoo uses the values of the file (no change since the start)"
+msgstr "odoo.conf : l'Odoo en marche utilise les valeurs du fichier (aucun changement depuis le démarrage)"
+
+msgid "Odoo system parameters: "
+msgstr "Paramètres système d'Odoo : "
+
+msgid "(not set: Odoo default)"
+msgstr "(non défini : défaut d'Odoo)"
+
+msgid "nginx (rt=, static files included): {n} requests measured · median {p50} s · 95 % under {p95} s · slowest {max} s"
+msgstr "nginx (rt=, fichiers statiques compris) : {n} requêtes mesurées · médiane {p50} s · 95 % en moins de {p95} s · la plus lente {max} s"
+
+msgid "nginx: no rt= in the access logs read (format older than nginx-hardening.sh 2.83: the times of the static files are not known)"
+msgstr "nginx : aucun rt= dans les journaux d'accès lus (format antérieur à nginx-hardening.sh 2.83 : les temps des fichiers statiques ne sont pas connus)"

@@ -9,15 +9,15 @@ PostgreSQL est lu par le compte `postgres` (`runuser`) : tout ce qui touche aux 
 | `zip-versions.py` | entièrement | jamais |
 | `odoo-warmup.py` | oui (HTTP) | seulement pour écrire `/etc/default/odoo-warmup-pages.conf` (sinon fichier personnel) |
 | `odoo-chat-post.py` | entièrement (API externe + clé) | jamais ; seulement pour lire `/etc/default/odoo-chat-post.conf` (clé d'API, droits 600) |
-| `app-health-check.py` | en partie | `nginx -t`, PostgreSQL, fail2ban, journaux protégés ; `--create-config` dans `/etc/default` |
+| `app-health-check.py` | en partie ; si sa configuration est illisible (600 root), les valeurs détectées maintenant sont utilisées (2.34) | `nginx -t`, PostgreSQL, fail2ban, journaux protégés ; `--create-config` dans `/etc/default` |
 | `app-log-check.py`, `app-log-live.py` | en partie | PostgreSQL (modules, utilisateurs), fail2ban, pare-feu, `nginx -T`, bannissements |
-| `web-monitor.py` | lecture : `--summary`, `--list-users`, `--status`, `--dry-run`, `--unban-check` | refusé dès le début pour les passages, minuteries, `--apply`, bannissements |
+| `web-monitor.py` | lecture : `--summary`, `--list-users`, `--status`, `--dry-run`, `--unban-check` ; un passage simple devient `--dry-run` (2.88) | minuteries, `--apply`, bannissements, passages enregistrés |
 | `nginx-log-audit.sh` | lecture | `--ban`, `--unban`, `--export-bans`, `--import-bans` |
 | `nginx-hardening.sh` | `--check` | `--update` (refusé avant le verrou) |
 | `odoo-update-module.sh` | `--dry-run` | mise à jour réelle |
 | `odoo-backup.sh` | `--dry-run`, ou déjà le compte PostgreSQL | sauvegarde, minuteries |
-| `sync-crowdsec-blocklist.sh` | `--dry-run` | synchronisation, état, cron, désinstallation, crochet ufw |
-| `odoo-mail-retry.py` | non | toujours |
+| `sync-crowdsec-blocklist.sh` | `--dry-run`, `--status` sans le contenu des ipset et du pare-feu (1.32) | synchronisation, contenu de l'état, cron, désinstallation, crochet ufw |
+| `odoo-mail-retry.py` | si sudoers permet `sudo -n -u postgres` (1.20) | sinon toujours |
 
 ## Propriétés de sécurité
 
