@@ -1348,6 +1348,26 @@ class AppLogLive(EnvTest):
             self.assertEqual(len(json.load(f)["runs"]), 1)
         self.assertFalse(os.path.exists(os.path.join(etat, "advisor-history.json")))     # the z key keeps its own history
 
+    def test_178_export_ai_avec_advise(self):
+        """1.178 : --advise 7 --export-ai FICHIER écrit le sommaire, l'analyse, la chronologie et les contrôles de cohérence, sans couleurs, en mode 600."""
+        self.journal([werkzeug(PERSONNE, "/event"), werkzeug(DNS, "/boum", 500), werkzeug(DNS, "/boum", 500),
+                      odoo("ERROR", "base", "odoo.http", "Exception during request handling.")])
+        self.mock("journalctl", f'case "$*" in *" -g "*) cat {self.d}/history.txt;; *"-o cat"*|*short-unix*) exit 0;; *) cat {self.d}/stream.txt;; esac')
+        sortie = os.path.join(self.d, "export.md")
+        rc, out, err = self.lancer("--advise", "7", "--export-ai", sortie, "--no-history", "--no-isp", "--no-presence", "--no-banned",
+                                   env_extra={"APP_LOG_LIVE_STATE_DIR": os.path.join(self.d, "etat"), "WEB_MONITOR_STATE_DIR": self.d})
+        self.assertEqual(rc, 0, err)
+        self.assertIn("--export-ai : écrit dans " + sortie, " ".join(out.split()))
+        self.assertEqual(os.stat(sortie).st_mode & 0o777, 0o600)
+        with open(sortie, encoding="utf-8") as f:
+            texte = f.read()
+        self.assertNotIn("\x1b[", texte)
+        for titre in ("## Contrôles de cohérence", "## Sommaire du tableau de bord", "## Analyse des problèmes soulevés", "## Chronologie de la période", "## Compteurs principaux (JSON)"):
+            self.assertIn(titre, texte)
+        self.assertIn("Erreurs HTTP 5xx sur /boum", " ".join(texte.split()))
+        self.assertIn('"errors_5xx": 2', texte)
+        self.assertRegex(texte, r"- [0-9-]+ [0-9:]+ · Odoo, première : ERROR odoo.http")
+
     def test_165_option_advise_valeurs_refusees(self):
         rc, _out, err = self.run_cmd(["python3", self.prog, "--advise", "0"])
         self.assertEqual(rc, 2)
@@ -2971,7 +2991,7 @@ class AppLogLive(EnvTest):
         request_data("4.4.4.4", "/x.php", 200, offset=31)                     # suspect : pas une page
         lines = " ".join(" ".join(st.visit_lines()).split())
         self.assertIn("Visites du site : 4 visites · 5 pages vues · 3 visiteurs [1 personnes connues · 1 équipe ou lieu · 1 anonymes] · 1.7 pages par visiteur", T(lines))
-        self.assertIn("Pays des visiteurs : CA 1 · FR 1 · pays inconnu 1", T(lines))
+        self.assertIn("Pays des visiteurs : CA (Canada) 1 · FR (France) 1 · pays inconnu 1", T(lines))
         self.assertIn("Pages les plus visitées (réponses sous 400) : /a ×2 ; /fr_CA/a ×1 ; /b ×1 ; /c ×1", T(lines))
         # Ctrl-T: only the period
         before = st.snapshot()
@@ -5090,3 +5110,113 @@ class AppLogLive177(unittest.TestCase):
         self.assertIn("disk_version != __version__", bloc)
         with open(os.path.join(os.path.dirname(script_path("app-log-live.py")), "lang", "app-log-live.fr.po"), encoding="utf-8") as f:
             self.assertIn("ce tableau de bord tourne encore en v{old}", f.read())
+
+
+class AppLogLive178(unittest.TestCase):
+    """1.178 : revue du rapport de la nuit du 2026-11-09. Moyennes de latence faussées par les websockets, doublons d'abonnement aux notifications
+    (mail_push_device) comptés à part des erreurs d'Odoo, adresses bannies pendant la période, nom complet des pays, une adresse qui demande la même
+    page en boucle, début réel de la période analysée, --export-ai. Données inventées (adresses de documentation)."""
+
+    @classmethod
+    def setUpClass(cls):
+        os.environ["APP_LOG_LIVE_LANG"] = "fr"
+        spec = importlib.util.spec_from_file_location("live_178", script_path("app-log-live.py"))
+        cls.live = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(cls.live)
+
+    def odoo_line(self, level, logger, text):
+        return self.live.Line(odoo(level, "prod", logger, text))
+
+    def test_178_cause_d_une_bad_query(self):
+        live = self.live
+        requete = "bad query: b'INSERT INTO \"mail_push_device\" (\"create_date\", \"endpoint\") VALUES (...)'"
+        self.assertEqual(live.benign_reason('ERROR: duplicate key value violates unique constraint "mail_push_device_endpoint_unique"', requete), "push-duplicate")
+        self.assertEqual(live.benign_reason("DETAIL: Key (endpoint)=(https://updates.push.example.org/x) already exists.", requete), "push-duplicate")
+        self.assertIs(live.benign_reason("ERROR: could not serialize access due to concurrent update", requete), True)
+        self.assertIs(live.benign_reason('ERROR: duplicate key value violates unique constraint "res_users_login_key"', "bad query: b'INSERT INTO \"res_users\"'"), False)
+        self.assertIs(live.benign_reason('ERROR: syntax error at or near "SET"', requete), False)
+
+    def test_178_doublons_push_hors_des_erreurs_d_odoo(self):
+        live = self.live
+        s = live.Stats(5.0)
+        sql = self.odoo_line("ERROR", "odoo.sql_db", "bad query: b'INSERT INTO \"mail_push_device\" (\"endpoint\") VALUES (...)'")
+        avert = self.odoo_line("WARNING", "odoo.http", "L'opération ne peut pas être terminée : Le point de terminaison doit être unique !")
+        vraie = self.odoo_line("ERROR", "odoo.addons.web.controllers.binary", ".map should have been generated through debug assets, (version 5fe3a1 most likely outdated)")
+        for _ in range(5):
+            s.ajouter(sql, {}, None, "push-duplicate")
+            s.ajouter(avert, {}, None)
+        s.ajouter(vraie, {}, None)
+        self.assertEqual((s.push_duplicates, s.push_duplicate_warnings), (5, 5))
+        self.assertEqual(sum(s.odoo_errors.values()), 1)                                 # only the real error
+        self.assertIn("version 5fe3a1", next(iter(s.odoo_errors_raw.values())))          # raw example kept beside the grouped message
+        sante = "\n".join(T(l) for l in s.health()[1])
+        self.assertIn("Erreurs d'Odoo (ERROR / CRITICAL) : 1", sante)
+        self.assertIn("Abonnements aux notifications déjà enregistrés (sans gravité) : 5", sante)
+        barre = live.StatusBar()
+        barre.observe(sql, None, 5.0, benign="push-duplicate")
+        barre.observe(vraie, None, 5.0)
+        self.assertEqual(barre.odoo_err, 1)                                             # the status bar counts like the summary
+        d = s.since(s.snapshot())
+        self.assertEqual(d.push_duplicates, 0)
+
+    def test_178_websocket_hors_de_la_latence(self):
+        live = self.live
+        moniteur = live.LatencyMonitor(None)
+        ancien, live.LATENCY = live.LATENCY, moniteur
+        try:
+            s = live.Stats(5.0)
+            s.ajouter(self.odoo_line("INFO", "werkzeug", '192.0.2.10 - - "GET /websocket?version=18.0 HTTP/1.1" 101 - 3 0.002 3600.0'), {}, None)
+            s.ajouter(self.odoo_line("INFO", "werkzeug", '192.0.2.10 - - "GET /event HTTP/1.1" 200 - 20 0.010 0.020'), {}, None)
+            t, _bins = moniteur.totals()
+            self.assertEqual(t["n"], 1)                                                  # the websocket kept open one hour is not a request of one hour
+            self.assertLess(t["sum"], 1.0)
+            self.assertEqual(s.ip_url[("192.0.2.10", "/event")], 1)
+            self.assertNotIn(("192.0.2.10", "/websocket"), s.ip_url)
+        finally:
+            live.LATENCY = ancien
+
+    def test_178_bannies_pendant_la_periode_et_pays(self):
+        live = self.live
+        s = live.Stats(5.0)
+        t = time.time() - 600
+        s.ajouter(self.odoo_line("INFO", "werkzeug", '203.0.113.9 - - "GET /.env HTTP/1.1" 404 - 3 0.002 0.01'), {}, None)
+        s.ban_info = lambda ip: (t, ["nginx-sensitive-files"]) if ip == "203.0.113.9" else None
+        s.first_any = t - 3600
+        self.assertEqual([(ip, j) for ip, _e, j in s.banned_during()], [("203.0.113.9", ["nginx-sensitive-files"])])
+        texte = "\n".join(T(l) for l in s.summary((), (), "x", 9))
+        self.assertIn("Adresses bannies par fail2ban pendant la période : 1", texte)
+        s.pays["203.0.113.9"] = "CD"
+        self.assertTrue(s.who_country("203.0.113.9").endswith("CD (République démocratique du Congo)"))
+        s.people.add("203.0.113.9")
+        self.assertEqual(s.who_country("203.0.113.9"), s.who("203.0.113.9"))            # a known person: no country added
+        self.assertEqual(live.country_label("IE"), "IE (Irlande)")
+
+    def test_178_faits_boucle_et_debut_reel(self):
+        live = self.live
+        s = live.Stats(5.0)
+        for _ in range(400):
+            s.ajouter(self.odoo_line("INFO", "werkzeug", '198.51.100.44 - - "POST /web/dataset/call_kw/ir.config_parameter/get_web_dialog_size_config HTTP/1.1" 200 - 2 0.001 0.002'), {}, None)
+        s.ajouter(self.odoo_line("INFO", "werkzeug", '198.51.100.44 - - "GET /odoo HTTP/1.1" 200 - 2 0.001 0.002'), {}, None)
+        s.nginx_errors_time[("ERROR", "connect() failed")] = [time.time() - 86400, time.time() - 80000]
+        f = live.advisor_facts(s)
+        self.assertEqual(f["hot_pairs"][0]["url"], "/web/dataset/call_kw/ir.config_parameter/get_web_dialog_size_config")
+        self.assertEqual(f["hot_pairs"][0]["n"], 400)
+        self.assertLess(f["start"], f["requests_start"] - 3600)                          # the window starts at the oldest line, not at the first request
+
+    def test_178_export_ai_chemin_et_controles(self):
+        live = self.live
+        self.assertIsNone(live.export_ai_path(None))
+        self.assertIsNone(live.export_ai_path("no"))
+        self.assertEqual(live.export_ai_path(""), "")
+        self.assertEqual(live.export_ai_path("yes"), "")
+        self.assertEqual(live.export_ai_path("/tmp/x.md"), "/tmp/x.md")
+        self.assertEqual(live.SCHEMA_CONFIG["EXPORT_AI"][0], "export_ai")
+        s = live.Stats(5.0)
+        s.mails = 3
+        checks = live.consistency_checks(s, {"banned_during": [], "account_urls": []}, {"mail_db": {"exception": 0, "days": 2}})
+        self.assertTrue(any(not ok and "Courriels en échec : 3" in T(text) for ok, text in checks))
+        with open(script_path("app-log-live.py"), encoding="utf-8") as f:
+            src = f.read()
+        bloc = src.split("def advise(batch=False):", 1)[1].split("def key(key_value):", 1)[0]
+        self.assertIn('options.get("export_ai") is not None', bloc)
+        self.assertIn("0o600", bloc)

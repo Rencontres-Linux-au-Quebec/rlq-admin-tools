@@ -371,6 +371,35 @@ Earlier history was archived outside this repository when this file was created.
 
 ## app-log-live.py
 
+### 1.178.20261109.081127 - Night report review: true figures, push duplicates apart, full country names, --export-ai
+
+- Title: the summary and the analysis of the night of 2026-11-09 are corrected where they did not tell the truth, and a new option writes one file to send every day for verification.
+- Reason: review on 2026-11-09 of the dashboard of the night (v1.176) and of the analysis (z key): health "problem" for harmless errors, means of 20 s with a median of 0.02 s, "PostgreSQL 0 %" while the slow pages were 99 % SQL, "Banned addresses seen: 0" after two bans, an analysis window that started after the events it showed, failed e-mails without date, subject nor recipients. The administrator also asked for the full name of the countries ("CD" -> "CD (République démocratique du Congo)") and for an option `--export-ai` to send the summary and the analysis every day.
+- Changes:
+  - Stats.ajouter() / LatencyMonitor: a websocket or longpolling line is no longer given to LATENCY.request() (new condition on LONG_CONNECTION_RE).
+  - New PUSH_DUPLICATE_RE, UNIQUE_VIOLATION_RE, PUSH_DUPLICATE_WARNING_RE and benign_reason(): the "bad query" line is classified by the line that follows it (retried conflict or push subscription already registered); release_deferred() receives the text of that line; Formatting.format_value() writes the reason of a push duplicate.
+  - Stats: push_duplicates, push_duplicate_warnings, push_duplicates_time (counted apart, never in odoo_errors nor in the failed e-mails); new health indicator "Push subscriptions already registered (harmless)"; since() gives the difference.
+  - StatusBar.observe(): new argument benign, an error without severity is no longer counted in "Odoo errors" (the status bar said 38 while the summary said 6).
+  - Stats.banned_during() and the summary line "Addresses banned by fail2ban during the period"; Stats.who_country() adds the full country of an unknown address in the most active addresses, the suspicious and account-form addresses, the bans and the addresses to ban.
+  - country_label() and the new shared module apps/_countries.py: "Visitors' countries" and "Requests by name" show "US (États-Unis) 272", "[CD (République démocratique du Congo)]".
+  - Stats.ip_url / ip_url_codes (at most IP_URL_MAX = 200000 pairs) and HOT_PAIR_MIN = 300, HOT_PAIR_SHARE = 0.3: advisor_facts() hands over "hot_pairs" (one address asking the same page again and again).
+  - Stats.odoo_errors_raw (one raw line per grouped error), Stats.first_any (oldest line of any kind).
+  - advisor_facts(): "start" is the oldest line read (nginx error log and Odoo log included), plus "requests_start", "end", "push_duplicates", "push_duplicate_warnings", "push_times", "hot_pairs", "banned_during", "known_ips", the raw example of each Odoo error, and "who" with the country.
+  - gather_details(): odoo.conf read for every analysis (memory risk), memory_facts() (cgroup memory.max or memory.limit_in_bytes, memory.events, kernel messages of the OOM killer through journalctl -k), each failed e-mail (odoo_db.courriels_en_echec: date, subject, recipients, full reason), the outgoing servers with id, name, FROM filter and state, the portal accounts created in the window (date, domain of the login, sign-ins since), the scheduled actions whose last run was around the slow requests.
+  - advise(): a line "Oldest line read ... first request read ..." when they are more than one hour apart.
+  - New option --export-ai [FILE] and configuration key EXPORT_AI (export_ai_path()); export_ai() writes the summary, the analysis, the timeline (apps/_advisor.py timeline()), consistency_checks() and the main counters in JSON, Markdown without colors, mode 600, pseudonyms when --anonymize is active; default file export-ai-YYYYMMDD-HHMMSS.md in the state folder.
+  - New constant CGROUP_ROOT (APP_LOG_LIVE_CGROUP_ROOT for the tests).
+  - lang/app-log-live.fr.po: the new messages. doc/fr/07-app-log-live.md, doc/en/07-app-log-live.md: "Daily check: --export-ai" and "What 1.178 changes". doc/fr/app-log-live.conf.example, doc/en/app-log-live.conf.example: EXPORT_AI. nginx-tools-tests/test_app_log_live.py: class AppLogLive178 (6 tests) and test_178_export_ai_avec_advise.
+- Bugs fixed:
+  - Symptom: "Requests while the disk was busy: 3555 (mean 20.60 s) · calm: 12818 (mean 19.01 s)" with a median of 0.02 s, and "time spent in PostgreSQL 0 %, in Python 100 %" with an "SQL %" column at 0 every hour. Diagnosis: the Odoo line of a websocket carries its whole duration (hours of Python time) and was counted as one request; a few of them made the means and the shares meaningless. Fix: the long connections are not counted in the latency (as in the slow requests since 1.171).
+  - Symptom: health "problem" because of "ERROR odoo.sql_db x5: bad query: INSERT INTO mail_push_device", and an analysis that called it "concurrent update retried by Odoo". Diagnosis: it is a unique violation (constraint mail_push_device_endpoint_unique) when a browser subscribes again to the push notifications; Odoo does not retry it and nothing is lost; only "could not serialize access" was recognised. Fix: benign_reason() recognises the duplicate; counted apart; status bar and summary agree.
+  - Symptom: "Banned addresses seen: 0" while fail2ban had banned two of the addresses of the night (at 05:58 and 06:53). Diagnosis: since 1.171 this line counts the requests of addresses already banned when they asked; the bans of the period were nowhere. Fix: new line of the addresses banned during the period.
+  - Symptom: analysis "since 2026-11-07 23:39:33" showing nginx errors from 06:53 to 15:16 the same day. Diagnosis: the start of the window was the first REQUEST read; the nginx error log was read further back. Fix: the start is the oldest line read; the first request is said apart.
+  - Symptom: "Formulaires: 18 sur 18 de personnes déjà connues" with an amazonaws.com host in the list. Diagnosis: apps/_advisor.py took any address with a name for a known person. Fix: known_ips (people signed in, team, places) handed over.
+- Safeguards and edge cases: a websocket still counts in the requests and the URLs; a "bad query" on mail_push_device followed by another error (syntax) stays an error; a unique violation on another table stays an error; the (address, page) pairs are bounded (IP_URL_MAX) and the long connections are not counted; the country is never added for the people, the team, the places or this server; country_label() gives the code alone without apps/_countries.py; memory_facts() never fails (no cgroup file, no root: None and []); journalctl -k is not run in the tests (NGINX_TOOLS_TESTS); --export-ai with "no" or "off" writes nothing, without a folder writable the current folder is used, an unwritable file is said in one line and the analysis is kept; the export is written with the pseudonyms of the screen when --anonymize is active.
+- Checks performed: test_app_log_live, test_app_log_live_ban, test_app_log_live_fail2ban and test_advisor (361 tests): [OK] except 9 tests that fail the same way on main in the test sandbox (pseudo-terminal and Ctrl-C prompt: test_157, test_120, Ctrl-C summary, menus, legend, columns, addresses to ban); test_statistiques_des_visites_du_site updated for the full country names; test_i18n, test_docs, test_conventions, test_cles_modeles, test_config_defaut: only the failures already present on main; ruff (E9, F, py38): only the warning already present on main.
+- Action required: update the suite, then quit the running dashboards (Ctrl-C) and start them again. For the daily check: sudo app-log-live.py --advise 1 --export-ai, then send the file written (its path is printed at the end).
+
 ### 1.177.20261107.234906 - Analysis: translations read again after an update of the suite
 
 - Title: a dashboard started before an update shows the new messages of the analysis in French, and says that it runs the old version.
@@ -4779,6 +4808,32 @@ Earlier history was archived outside this repository when this file was created.
 
 ## apps/_advisor.py
 
+### 1.7.20261109.081127 - Analysis of the night report: push duplicates, interruption over, memory risk, loops, failed e-mails one by one
+
+- Title: the analysis says what really happened and gives a solution track for each failed e-mail.
+- Reason: review on 2026-11-09 of the analysis of the night with the administrator (see app-log-live.py 1.178).
+- Changes (apps/_advisor.py, lang/_advisor.fr.po, nginx-tools-tests/test_advisor.py):
+  - KNOWN_MESSAGES: the push subscription already registered (mail_push_device, "endpoint must be unique") has its own cause; "could not serialize access" stays a retried conflict; any other "bad query" is now "to look at" (the reason is on the next line of the log).
+  - New rule_push_duplicates() (information, cause confirmed).
+  - rule_nginx_upstream(): number of refusals over the length of the interruption, requests answered 502, 503 or 504 during that time, reason of the stop in the service journal (KILLED_RE: oom-kill, status=9/KILL, Failed with result...), interruption over for more than RESOLVED_AFTER = 3600 s with Odoo running again -> information "(over)"; events before the first request read are said.
+  - New rule_memory(): (workers + cron) x limit_memory_hard against the memory of the server or of its container, processes killed for lack of memory (memory.events), kernel messages; advice with the values to set.
+  - New rule_hot_pairs(): one address asking the same page again and again (back-office call with a valid session, refused session, known person, or a public page).
+  - rule_mails(): each failed e-mail with date and time, subject, recipients and full reason; SMTP_HINTS rewritten as (pattern, solution track) with ten tracks (authentication, sender refused, address that does not exist, mailbox full, temporary refusal, order of the commands, TLS, server unreachable, invalid address, refusal of the recipient server); generic reason only -> where to find the SMTP answer; two active outgoing servers on the same host and port reported; GENERIC_MAIL_REASON_RE.
+  - rule_slow(): the detail of the five slowest requests (time, duration, address, SQL and Python time, action of the model for call_button/call_kw), slow requests on different pages less than SIMULTANEOUS_S = 60 s apart (cause: PostgreSQL busy or held by a lock, with the advice log_lock_waits), scheduled actions run around then.
+  - rule_bans(): line on the score of nginx-log-audit.sh; new finding "Addresses banned by fail2ban during the window".
+  - rule_account_forms(): known addresses from facts["known_ips"]; requests not found in the access logs read; portal accounts created with their date and sign-ins; several accounts that never signed in with a free sign-up -> to look at.
+  - rule_odoo_errors(): the raw example of the grouped message.
+  - Analyzer.add(confirmed=...) and render(): "Cause (confirmed)" when the cause is proven by what was read.
+  - New timeline() for app-log-live.py --export-ai; new _span().
+- Bugs fixed:
+  - Symptom: "Odoo ERROR: bad query ... mail_push_device - Cause probable : mise à jour simultanée réessayée par Odoo". Diagnosis: one pattern grouped every "bad query" with the serialization conflicts. Fix: one pattern per cause.
+  - Symptom: "[FAIL] Odoo injoignable depuis nginx : 33 fois" two days after the end of the interruption, "0 réglés". Diagnosis: no notion of an interruption over. Fix: RESOLVED_AFTER.
+  - Symptom: "Formulaires ... 18 sur 18" with hosting providers counted as known people. Diagnosis: a resolved DNS name was taken for a person. Fix: known_ips.
+  - Symptom: "Cause : Échec d'envoi de l'e-mail x2", nothing else. Diagnosis: only the first line of failure_reason was read, often the generic sentence. Fix: the full reason of each e-mail.
+- Safeguards and edge cases: an interruption over but whose stop was a kill stays "to look at"; no memory finding with workers=0 (one process) or a worst case under 80 % of the memory; a loop on a public page of a known address is an information; hints are not repeated; the timeline keeps the 60 most recent events of the window.
+- Checks performed: test_advisor (56 tests, of which Version17 and Pays) [OK]; catalogue complete and without stale entries.
+- Action required: none.
+
 ### 1.6.20261106.110050 - Analysis: tests of this server, robot names, 404 of nginx, known people
 
 - Title: six findings of the report of one day corrected so that the analysis tells the truth.
@@ -5032,6 +5087,18 @@ Earlier history was archived outside this repository when this file was created.
 - Action required: none.
 
 ### 1.1.20261019.150215 - Current version. Earlier history archived outside the repository.
+
+## apps/_countries.py
+
+### 1.0.20261109.081127 - Full names of the countries
+
+- Title: new shared module: full name of a country from its two-letter code, in French and in English.
+- Reason: request of the administrator on 2026-11-09: "Dans l'analyse et le sommaire, peux-tu rajouter le nom du pays au complet comme CD".
+- Changes: apps/_countries.py (NAMES: 252 codes, ISO 3166-1 plus XK, EU, AP; name(), label()); used by app-log-live.py 1.178 (country_label()).
+- Bugs fixed: none.
+- Safeguards and edge cases: built-in table, no network and no extra package; names from CLDR, made longer where the short form is ambiguous (CD, CG); unknown code -> the code alone; empty code -> "".
+- Checks performed: nginx-tools-tests/test_advisor.py, class Pays [OK].
+- Action required: none.
 
 ## apps/_courriel.py
 

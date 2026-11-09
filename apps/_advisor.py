@@ -31,7 +31,7 @@ import re
 import time
 from collections import Counter
 
-__version__ = "1.6.20261106.110050"
+__version__ = "1.7.20261109.081127"
 
 PROBLEM, LOOK, INFO = 2, 1, 0                         # severities: problem, to look at, information
 
@@ -74,6 +74,11 @@ EVENT_ID_RE = re.compile(r"^(?:/[a-z]{2}(?:_[A-Z]{2})?)?/event/[^/]*?-(\d+)(?:/|
 PRODUCT_ID_RE = re.compile(r"^(?:/[a-z]{2}(?:_[A-Z]{2})?)?/shop/(?:product/)?[^/]*?-(\d+)(?:/|$)")
 WP_SITEMAP_RE = re.compile(r"/(?:sitemap_index|wp-sitemap|sitemap-index|post-sitemap|page-sitemap)\.xml$|/sitemap\.xml\.gz$")
 LONG_CONNECTION_RE = re.compile(r"/(?:websocket|longpolling)(?:[/?\s\"]|$)")          # 1.4: a connection kept open (chat, bus): its duration is not a slowness
+KILLED_RE = re.compile(r"oom-kill|code=killed|status=9/KILL|Failed with result|Killing process|signal=KILL|core-dump|Main process exited, code=(?:exited, status=[1-9]|killed|dumped)")
+SIMULTANEOUS_S = 60                                   # 1.7: slow requests on different pages less than this apart slowed down together
+BACKEND_RPC_RE = re.compile(r"^/(?:web/dataset/|web/action/|mail/(?:thread|data)|web/webclient/)")
+CALL_BUTTON_RE = re.compile(r"/web/dataset/call_(?:button|kw)/([\w.]+)/(\w+)")
+RESOLVED_AFTER = 3600                                 # 1.7: an interruption over for more than one hour, Odoo running again: history (information)
 ODOO_DEFAULTS = {"workers": 0, "max_cron_threads": 2, "limit_time_cpu": 60, "limit_time_real": 120, "limit_memory_soft": 2048, "limit_memory_hard": 2560}
 MONTHS = {m: i for i, m in enumerate(("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"), 1)}
 
@@ -91,9 +96,17 @@ KNOWN_MESSAGES = (
     (r"Exception during request handling", LOOK,
      "a request raised an exception: the cause is in the traceback that follows the message",
      "read the traceback below (or key E); fix the module named in the last frame, or report it to its author"),
-    (r"bad query|could not serialize access|SerializationFailure", INFO,
+    # 1.7: a "bad query" is not always a retried conflict: the unique violation of mail_push_device (a browser that subscribes again to the push
+    # notifications) was called "concurrent update retried by Odoo", which it is not (Odoo does not retry a unique violation)
+    (r"mail_push_device|endpoint must be unique|point de terminaison doit [êe]tre unique", INFO,
+     "a browser subscribed again to the push notifications with an endpoint Odoo already holds: PostgreSQL refuses the copy (unique constraint), the existing subscription stays valid",
+     "nothing to do: harmless; frequent with several tabs open or after a reconnection"),
+    (r"could not serialize access|SerializationFailure", INFO,
      "concurrent update retried by Odoo",
      "nothing to do while the final failures stay at zero"),
+    (r"bad query", LOOK,
+     "a SQL query refused by PostgreSQL: the reason (constraint, conflict, syntax) is on the line that follows it in the log",
+     "read the line that follows it (key E): a unique constraint is usually a form sent twice; anything else: the module named in the traceback"),
 )
 
 # Exceptions found at the end of a traceback: (pattern on the exception line, cause, recommendation). The first match wins.
@@ -121,9 +134,20 @@ TRACEBACK_HINTS = (
      "the module named in the last frame of the traceback has a bug: update it, or report it to its author with the traceback"),
 )
 
-SMTP_HINTS = (("452", "the mail server refuses for now (quota, rate limit): retry later"),
-              ("503", "the mail server refuses the order of the commands (authentication missing?)"),
-              ("550", "the recipient or the sender is refused: check the address and the sender domain (SPF, DKIM)"))
+# 1.7: (pattern on the failure reason, solution track). Several may apply to one e-mail; the first ones are the most specific.
+SMTP_HINTS = (
+    (r"\b535\b|authentication|auth\w* fail|password not accepted|identifiants", "the mail server refused the user name or the password: check them in Settings > Technical > Outgoing Mail Servers, then « Test Connection »"),
+    (r"\b5\.7\.\d+\b|\bSPF\b|\bDKIM\b|\bDMARC\b|not permitted to relay|relay access denied|sender address rejected", "the sender is refused: send from an address of the domain of the mail server (FROM filter of the server, mail.default.from), and check SPF and DKIM of that domain"),
+    (r"\b5\.1\.1\b|user unknown|does not exist|no such user|mailbox unavailable|recipient address rejected", "the recipient address does not exist: correct the e-mail of the contact, then resend"),
+    (r"\b552\b|quota|mailbox full|over quota", "the mailbox of the recipient is full: nothing to fix on our side, resend later"),
+    (r"\b421\b|\b45[0-2]\b|temporar|try again later|greylist|rate limit|too many", "the mail server refuses for now (rate limit, greylisting): resend later; if it repeats, the provider limits the e-mails per hour"),
+    (r"\b503\b|\b530\b|STARTTLS|must issue", "the mail server expects another order of the commands (STARTTLS or authentication missing): check the encryption of the outgoing server (STARTTLS on port 587, SSL/TLS on 465)"),
+    (r"certificate|\bSSL\b|\bTLS\b|handshake", "the secure connection to the mail server failed (certificate or protocol): check the encryption and the port of the outgoing server"),
+    (r"Connection refused|timed out|unreachable|Name or service not known|getaddrinfo|No route to host|Temporary failure in name resolution", "the mail server could not be reached: check its name and port, the DNS and the firewall of this server (nc -vz SERVER PORT)"),
+    (r"invalid email|invalid address|mail_email_invalid|no valid recipient|missing email|mail_email_missing|adresse.{0,20}invalide", "the recipient has no valid e-mail address in Odoo: correct the contact, then resend"),
+    (r"\b550\b|\b554\b|rejected|blocked|spam", "the recipient server refused the e-mail (content or reputation of the sender): read the message of the server above; check SPF, DKIM and the sender address"),
+)
+GENERIC_MAIL_REASON_RE = re.compile(r"^\s*(?:[ÉE]chec d'envoi de l'e-mail|Mail Delivery Failed|Failed to send|Unknown error)\W*$", re.I)
 
 
 def _identity(text):
@@ -134,6 +158,16 @@ def _cut(text, limit):
     """Text cut at `limit` characters, with « … » when something was cut."""
     text = text or ""
     return text if len(text) <= limit else text[:limit - 1].rstrip() + "…"
+
+
+def _span(seconds):
+    """1.7: "45 s", "12 min", "8 h 22 min", "50 h 03 min" (units written the same way in French and in English)."""
+    seconds = int(max(0, seconds))
+    if seconds < 60:
+        return f"{seconds} s"
+    if seconds < 3600:
+        return f"{seconds // 60} min"
+    return f"{seconds // 3600} h {seconds % 3600 // 60:02d} min"
 
 
 def _norm(text):
@@ -369,15 +403,17 @@ class Analyzer:
         self.tr, self.raw = tr, raw
         self.findings = []
 
-    def add(self, fid, severity, title, count=1, evidence=(), cause="", advice=(), fix=None):
+    def add(self, fid, severity, title, count=1, evidence=(), cause="", advice=(), fix=None, confirmed=False):
+        """confirmed (1.7): the cause is PROVEN by what was read (PostgreSQL message, database, service journal), not drawn from a general rule."""
         self.findings.append({"id": fid, "severity": severity, "title": title, "count": count, "evidence": [e for e in evidence if e], "cause": cause,
-                              "advice": list(advice), "fix": fix})
+                              "advice": list(advice), "fix": fix, "confirmed": bool(confirmed)})
 
     def run(self, facts, details=None):
         details = details or {}
         self.findings = []
         for rule in (self.rule_5xx, self.rule_nginx_upstream, self.rule_sitemap_404, self.rule_repeated_4xx, self.rule_odoo_errors, self.rule_conflicts,
-                     self.rule_mails, self.rule_slow, self.rule_bans, self.rule_account_forms, self.rule_latency_sample):
+                     self.rule_push_duplicates, self.rule_mails, self.rule_slow, self.rule_memory, self.rule_hot_pairs, self.rule_bans, self.rule_account_forms,
+                     self.rule_latency_sample):
             try:
                 rule(facts, details)
             except Exception as problem:                     # one rule never stops the others
@@ -567,16 +603,32 @@ class Analyzer:
                 others[kind] += e["n"]
         restarts = (details.get("service") or {}).get("events") or []
         state = (details.get("service") or {}).get("state")
+        now = facts.get("end") or time.time()
+        stamp = lambda t: time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(t))
         for kind, g in sorted(groups.items(), key=lambda kg: -kg[1]["n"]):
             evidence = [raw(_cut(kind, 160))]
             if g["first"] and g["last"]:
-                evidence.append(tr("From {first} to {last}").format(first=time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(g["first"])),
-                                                                      last=time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(g["last"]))))
+                evidence.append(tr("From {first} to {last}").format(first=stamp(g["first"]), last=stamp(g["last"]))
+                                + " (" + tr("{n} refused connections over {span}").format(n=g["n"], span=_span(g["last"] - g["first"])) + ")")
             near = [(t, text) for t, text in restarts if g["first"] and g["last"] and g["first"] - 600 <= t <= g["last"] + 600]
+            # 1.7: the requests of the visitors that got no answer, and why the service stopped (killed, out of memory, failure)
+            lost = sum(1 for t, code, _u, _ip in facts.get("http_errors5") or () if code in (502, 503, 504) and g["first"] and g["first"] - 60 <= t <= g["last"] + 60)
+            if lost:
+                evidence.append(tr("Requests answered 502, 503 or 504 during that time: {n}").format(n=lost))
+            killed = [(t, text) for t, text in near if KILLED_RE.search(text)]
+            started = [t for t, text in restarts if re.search(r"\bStarted\b", text) and g["last"] and t >= g["last"] - 120]
+            resolved = bool(g["last"] and now - g["last"] > RESOLVED_AFTER and state and state.startswith("active") and (started or not restarts))
             if near:
                 evidence.append(tr("Service journal at that time: ") + " ; ".join(f"{time.strftime('%H:%M:%S', time.localtime(t))} {raw(_cut(text, 70))}" for t, text in near[:4]))
+            confirmed = False
+            if killed:
+                evidence.append(tr("Reason of the stop in the service journal: ") + " ; ".join(f"{time.strftime('%H:%M:%S', time.localtime(t))} {raw(_cut(text, 90))}" for t, text in killed[:2]))
+                cause = tr("Odoo was stopped by the system (killed or failed, see the reason above), not by a restart that was wanted")
+                severity, confirmed = PROBLEM, True
+                advice = [tr("an « oom-kill » or « status=9/KILL »: the memory ran out, see the finding on the memory risk; otherwise: journalctl -u SERVICE --since the time above")]
+            elif near:
                 cause = tr("Odoo was stopped or restarting at that time (see the service journal): nginx found its port closed")
-                severity = LOOK
+                severity, confirmed = LOOK, True
                 advice = [tr("nothing to do if the restart was wanted (update, maintenance); otherwise read why the service stopped: journalctl -u SERVICE --since the time above")]
             else:
                 cause = tr("nginx could not reach Odoo: service stopped, restarting or crashed, or its port is not the one nginx uses")
@@ -584,9 +636,22 @@ class Analyzer:
                 advice = [tr("key D: site diagnosis (service, Odoo ports, nginx upstream)"), tr("journalctl -u SERVICE around these times: why Odoo stopped")]
             if state:
                 evidence.append(tr("Service now: {svc}").format(svc=raw(state)))
+            requests_start = facts.get("requests_start")
+            if requests_start and g["last"] and g["last"] < requests_start:
+                evidence.append(tr("Before the first request read (the requests start on {when}): this comes from the history of the nginx error log").format(when=stamp(requests_start)))
             if "Connection refused" in kind and g["n"] >= 1:
                 evidence.append(tr("These lines come from the nginx error log; before app-log-live.py 1.167 they were counted as Odoo errors and as failed e-mails"))
-            self.add("nginx-upstream:" + kind[:80], severity, tr("Odoo unreachable from nginx: {n} times").format(n=g["n"]), g["n"], evidence, cause, advice)
+            title = tr("Odoo unreachable from nginx: {n} times").format(n=g["n"])
+            if resolved and not killed:
+                # 1.7: over for more than RESOLVED_AFTER, Odoo running again: history, not a problem of today ("0 resolved" while it was over for two days)
+                severity = INFO
+                title = tr("Odoo was unreachable from nginx (over): {n} times").format(n=g["n"])
+                evidence.append(tr("Over for {span}: Odoo answers again and nginx has logged no refusal since").format(span=_span(now - g["last"])))
+                advice = [tr("nothing to do now; to know why it stopped: journalctl -u SERVICE --since the time above")] + advice[1:]
+            elif resolved:
+                severity = LOOK
+                evidence.append(tr("Over for {span}: Odoo answers again and nginx has logged no refusal since").format(span=_span(now - g["last"])))
+            self.add("nginx-upstream:" + kind[:80], severity, title, g["n"], evidence, cause, advice, confirmed=confirmed)
         if others and sum(others.values()) >= 20:
             self.add("nginx-errors", INFO, tr("Other messages of the nginx error log: {n}").format(n=sum(others.values())), sum(others.values()),
                      [f"{raw(_cut(k, 120))} ×{v}" for k, v in others.most_common(3)], tr("files not found, clients that left, invalid requests: usually harmless"),
@@ -771,6 +836,9 @@ class Analyzer:
             evidence = [f"{level} {raw(logger)} ×{n} : {raw(_cut(message, 160))}" + (" (" + tr("last on {when}").format(when=when) + ")" if when else "")]
             if len(m["messages"]) > 1:
                 evidence.append(tr("{k} variants of the message (numbers or versions differ)").format(k=len(m["messages"])))
+            example = (e.get("raw") or "").strip()
+            if example and re.sub(r"(?<![A-Za-z\d])\d+", "N", example)[:200] != example[:200]:      # 1.7: the real line, the grouped one has N for the numbers
+                evidence.append(tr("Example as written in the log: ") + raw(_cut(example, 220)))
             severity = PROBLEM if level == "CRITICAL" or n >= 5 else LOOK
             cause, advice = "", []
             if known:
@@ -829,7 +897,30 @@ class Analyzer:
             self.add("many-retries", INFO, tr("Many retried update conflicts: {n}").format(n=retried), retried, [],
                      tr("often the same user on several devices, or a very busy chat channel"), [tr("nothing to do while the final failures stay at zero")])
 
+    # --- push subscriptions already registered (1.7) -----------------------------------------------------------------------------------
+    def rule_push_duplicates(self, facts, details):
+        tr = self.tr
+        n, warnings = facts.get("push_duplicates") or 0, facts.get("push_duplicate_warnings") or 0
+        if not n and not warnings:
+            return
+        evidence = [tr("Lines « bad query » on mail_push_device: {n} · warnings « endpoint must be unique »: {w}").format(n=n, w=warnings)]
+        times = facts.get("push_times") or []
+        if len(times) == 2:
+            evidence.append(tr("First at {first}, last at {last}").format(first=time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(times[0])),
+                                                                         last=time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(times[1]))))
+        evidence.append(tr("PostgreSQL error: unique violation (constraint mail_push_device_endpoint_unique), not a concurrent update conflict: Odoo does not retry it and nothing is lost"))
+        advice = [tr("nothing to do; counted apart since app-log-live.py 1.178 (before: Odoo errors, and the health showed « problem »)")]
+        if n + warnings >= 100:
+            advice.append(tr("many times: one browser subscribes again in a loop; the person can clear the site data of the browser (or block the notifications of the site)"))
+        self.add("push-duplicates", INFO, tr("Push subscriptions already registered (harmless): {n}").format(n=max(n, warnings)), max(n, warnings), evidence,
+                 tr("a browser subscribed again to the push notifications with an endpoint Odoo already holds: PostgreSQL refuses the copy (unique constraint), the existing subscription stays valid"),
+                 advice, confirmed=True)
+
     # --- e-mails: the database decides ---------------------------------------------------------------------------------------------
+    def mail_hints(self, text):
+        """1.7: the solution tracks that match a failure reason (several may apply), most specific first."""
+        return [h for pattern, h in SMTP_HINTS if re.search(pattern, text or "", re.I)]
+
     def rule_mails(self, facts, details):
         tr, raw = self.tr, self.raw
         n_log = facts.get("mails") or 0
@@ -838,7 +929,7 @@ class Analyzer:
             if not n_log:
                 return
             texts = " ".join(e.get("message", "") for e in facts.get("odoo_errors") or ())
-            hints = [tr(h) for code, h in SMTP_HINTS if re.search(r"\b" + code + r"\b", texts)]
+            hints = [tr(h) for h in self.mail_hints(texts)]
             self.add("mail-failures", PROBLEM if n_log >= 3 else LOOK, tr("Failed e-mails (journal): {n}").format(n=n_log), n_log,
                      hints + [tr("Database not read (run with sudo): the count comes from the journal lines only")],
                      tr("the mail server refused or could not be reached"),
@@ -848,15 +939,45 @@ class Analyzer:
         waiting = db.get("outgoing", 0)
         evidence = [tr("Database, last {nd} days: {failed} in failure, {waiting} waiting, {sent} sent").format(
             nd=db.get("days", "?"), failed=failed, waiting=waiting, sent=db.get("sent", 0))]
-        evidence += [tr("Cause: ") + f"{raw(_cut(r, 140))} ×{k}" for r, k in (db.get("reasons") or [])[:3]]
-        if db.get("servers"):
+        listed = details.get("mail_failed") or []
+        if not listed:
+            evidence += [tr("Cause: ") + f"{raw(_cut(r, 140))} ×{k}" for r, k in (db.get("reasons") or [])[:3]]
+        reasons_text, generic_only = [], True
+        for c in listed:
+            # 1.7: each failed e-mail: date and time, subject, recipients and the FULL reason recorded by Odoo
+            when = time.strftime("%Y-%m-%d %H:%M", time.localtime(c.get("instant") or 0))
+            reason = (c.get("raison") or "").strip()
+            reasons_text.append(reason)
+            if reason and not GENERIC_MAIL_REASON_RE.match(reason):
+                generic_only = False
+            evidence.append(tr("{when} · subject « {subject} » · to: {to}").format(when=when, subject=raw(_cut(c.get("sujet") or tr("(no subject)"), 90)),
+                                                                               to=raw(_cut(c.get("destinataires") or tr("(unknown recipient)"), 120)))
+                            + (" [" + raw(c["base"]) + "]" if len({x.get("base") for x in listed}) > 1 and c.get("base") else ""))
+            evidence.append("    " + tr("Reason: ") + raw(_cut(reason or tr("(none recorded)"), 240)))
+        servers = details.get("mail_servers") or []
+        if servers:
+            evidence.append(tr("Outgoing mail servers of Odoo: ") + " ; ".join(
+                f"n° {x.get('id')} « {raw(x.get('nom') or '')} » {raw(str(x.get('hote')))}:{x.get('port')} ({raw(x.get('chiffrement') or 'none')})"
+                + (" " + tr("FROM filter: {f}").format(f=raw(x["filtre"])) if x.get("filtre") else "") + ("" if x.get("actif", True) else " " + tr("(inactive)"))
+                for x in servers))
+        elif db.get("servers"):
             evidence.append(tr("Outgoing mail servers of Odoo: ") + " ; ".join(raw(x) for x in db["servers"]))
+        same = Counter((str(x.get("hote")), str(x.get("port"))) for x in servers if x.get("actif", True))
+        doubles = [hp for hp, k in same.items() if k > 1]
         if failed:
-            joined = " ".join(r for r, _k in db.get("reasons") or ())
-            hints = [tr(h) for code, h in SMTP_HINTS if re.search(r"\b" + code + r"\b", joined)]
-            self.add("mail-failures", PROBLEM if failed >= 3 else LOOK, tr("Failed e-mails: {n}").format(n=failed), failed, evidence + hints,
-                     tr("the mail server refused these e-mails (see the cause above)"),
-                     [tr("odoo-mail-retry.py lists them and offers to resend them, once the cause is fixed")], fix=("mail", db.get("days")))
+            joined = " ".join(reasons_text) or " ".join(r for r, _k in db.get("reasons") or ())
+            hints = []
+            for h in self.mail_hints(joined):
+                if tr(h) not in hints:
+                    hints.append(tr(h))
+            if listed and generic_only:
+                hints.append(tr("the reason recorded by Odoo is only the generic message: the SMTP answer is in the Odoo log at that time (key E, or app-log-check.py --errors-only around the time above)"))
+            if doubles:
+                hints.append(tr("{k} outgoing servers for {host}: Odoo takes the first one (sequence) whose FROM filter matches the sender; check that the other one is not an old copy with a wrong password, then archive it").format(
+                    k=same[doubles[0]], host=raw(":".join(doubles[0]))))
+            hints.append(tr("once the cause is fixed: odoo-mail-retry.py lists these e-mails and offers to resend them"))
+            self.add("mail-failures", PROBLEM if failed >= 3 else LOOK, tr("Failed e-mails: {n}").format(n=failed), failed, evidence,
+                     tr("the mail server refused these e-mails (see the reason of each one above)"), hints, fix=("mail", db.get("days")), confirmed=bool(listed))
         elif n_log:
             self.add("mail-failures-not-confirmed", INFO, tr("Failed e-mails in the journal not confirmed: the database has none"), n_log, evidence,
                      tr("the journal lines counted were not failures of Odoo's mail queue"), [tr("nothing to do")])
@@ -884,6 +1005,27 @@ class Analyzer:
         if hours:
             top = hours.most_common(3)
             evidence.append(tr("Busiest hours: ") + " ; ".join(f"{h} ×{k}" for h, k in top) + " (" + tr("the slowest: {s} s").format(s=f"{slowest:.1f}") + ")")
+        who = facts.get("who") or {}
+        for x in sorted(slow, key=lambda x: -(x.get("total") or 0))[:5]:
+            # 1.7: each slow request: when, how long, who, where the time went
+            action = CALL_BUTTON_RE.search(x.get("url") or "")
+            evidence.append("    " + (time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(x["t"])) + " · " if x.get("t") else "") + f"{x.get('total') or 0:.1f} s · "
+                            + raw(_cut(x.get("url") or "", 80)) + " · " + raw(who.get(x.get("ip"), x.get("ip") or "?"))
+                            + " · " + tr("SQL {sql} s ({n} queries), Python {py} s").format(sql=f"{x.get('t_sql') or 0:.1f}", n=x.get("sql_n") or 0, py=f"{x.get('t_py') or 0:.1f}")
+                            + (" · " + tr("action {method} of the model {model}").format(method=raw(action.group(2)), model=raw(action.group(1))) if action else ""))
+        timed = sorted((x["t"], (x.get("url") or "").split("?", 1)[0]) for x in slow if x.get("t"))
+        together = set()
+        for (t1, u1), (t2, u2) in zip(timed, timed[1:]):
+            if t2 - t1 <= SIMULTANEOUS_S and u1 != u2:
+                together.update({(t1, u1), (t2, u2)})
+        if together:
+            first, last = min(together)[0], max(together)[0]
+            evidence.append(tr("{k} slow requests on different pages within {s} s ({when}): slowed down together, not each page on its own").format(
+                k=len(together), s=int(last - first), when=time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(first))))
+        crons = details.get("crons") or []
+        if crons:
+            evidence.append(tr("Scheduled actions whose last run was around then: ") + " ; ".join(
+                f"{time.strftime('%H:%M:%S', time.localtime(t))} {raw(_cut(name, 50))}" for t, name in crons[:5]))
         restarts = [t for t, text in ((details.get("service") or {}).get("events") or []) if re.search(r"Started|Starting", text)]
         after = sum(1 for s in slow if s.get("t") and any(0 <= s["t"] - r <= 600 for r in restarts))
         if restarts:
@@ -912,6 +1054,12 @@ class Analyzer:
             cause = tr("cold cache after a restart or an update: assets and views computed once")
             advice = [tr("odoo-warmup.py right after each restart or update of Odoo (odoo-update-module.sh does it)")]
             fix = ("warmup", None)
+        elif t_sql > t_py and together and 2 * len(together) >= len(slow):
+            # 1.7: several pages slow at the same moment: the database was busy or locked for everyone, an index would not change it
+            cause = tr("several pages slow at the same moment: PostgreSQL was busy or held by a lock (scheduled action, backup, autovacuum), not a missing index on each page")
+            advice = [tr("look at what ran at that time (scheduled actions above, backup, ZFS snapshots); if it repeats at the same hour, move that task"),
+                      tr("to see the locks next time: log_lock_waits = on and log_min_duration_statement = 2000 in postgresql.conf (reload PostgreSQL)")]
+            fix = None
         elif t_sql > t_py:
             cause = tr("the database: heavy searches, missing indexes or tables to clean")
             advice = [tr("odoo-sql-maint: VACUUM ANALYZE and the index checks"), tr("look at the filters and the number of records of the slow pages")]
@@ -928,16 +1076,104 @@ class Analyzer:
         n = len(slow)
         self.add("slow-requests", PROBLEM if n >= 5 else LOOK, tr("Slow requests: {n}").format(n=n), n, evidence, cause, advice, fix=fix)
 
+    # --- memory risk (1.7) ----------------------------------------------------------------------------------------------------------
+    def rule_memory(self, facts, details):
+        tr, raw = self.tr, self.raw
+        conf = details.get("odoo_conf")
+        memory = details.get("memory") or {}
+        if not conf:
+            return
+        values = conf.get("values") or {}
+
+        def number(key):
+            try:
+                return int(float((values.get(key) or "").strip()))
+            except ValueError:
+                return None
+        workers = number("workers") if number("workers") is not None else ODOO_DEFAULTS["workers"]
+        if not workers:
+            return                                                  # one process: limit_memory_* do not apply
+        cron = number("max_cron_threads") if number("max_cron_threads") is not None else ODOO_DEFAULTS["max_cron_threads"]
+        hard = (number("limit_memory_hard") or ODOO_DEFAULTS["limit_memory_hard"] * 1048576) // 1048576
+        soft = (number("limit_memory_soft") or ODOO_DEFAULTS["limit_memory_soft"] * 1048576) // 1048576
+        total = memory.get("limit_mb") or conf.get("mem_mb")
+        if not total:
+            return
+        worst = (workers + cron) * hard
+        oom = memory.get("kernel") or []
+        kills = memory.get("oom_kills")
+        if worst <= 0.8 * total and not oom and not kills:
+            return
+        evidence = [tr("Worst case of the Odoo processes: ({w} workers + {c} cron) × limit_memory_hard {h} MB = {worst} MB, for {total} MB of memory{where}").format(
+            w=workers, c=cron, h=hard, worst=worst, total=total, where=tr(" (limit of this container)") if memory.get("limit_mb") else ""),
+            tr("At limit_memory_soft ({s} MB each, where Odoo recycles a worker): {total_soft} MB; PostgreSQL and the system need memory too").format(
+                s=soft, total_soft=(workers + cron) * soft)]
+        if kills:
+            evidence.append(tr("Processes killed for lack of memory in this container since its start (memory.events): {n}").format(n=kills))
+        if oom:
+            evidence.append(tr("Kernel messages about the memory: ") + " ; ".join(f"{time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(t))} {raw(_cut(text, 90))}" for t, text in oom[:3]))
+        safe_hard = max(256, int(0.7 * total / (workers + cron)))
+        advice = [tr("lower limit_memory_hard to about {hard} MB and limit_memory_soft to about {soft} MB in odoo.conf (70 % of the memory shared by the processes), then restart Odoo").format(
+                      hard=safe_hard, soft=int(safe_hard * 0.85)),
+                  tr("or lower workers, or give more memory to this server (Proxmox: memory of the container)")]
+        severity = PROBLEM if oom or kills else (LOOK if worst > total else INFO)
+        self.add("memory-risk", severity, tr("Memory risk: the Odoo processes may use more than the memory of the server") if worst > total
+                 else tr("Memory nearly full in the worst case of the Odoo processes"), 1, evidence,
+                 tr("if every worker reaches limit_memory_hard at the same time, the server runs out of memory and the kernel kills a process (Odoo or PostgreSQL): the site stops")
+                 + ("" if not (oom or kills) else " " + tr("(it already happened: see the lines above)")), advice, confirmed=bool(oom or kills))
+
+    # --- one address, one page, again and again (1.7) ---------------------------------------------------------------------------
+    def rule_hot_pairs(self, facts, details):
+        tr, raw = self.tr, self.raw
+        who = facts.get("who") or {}
+        for h in facts.get("hot_pairs") or ():
+            codes = Counter({str(c): k for c, k in (h.get("codes") or {}).items()})
+            ok = sum(k for c, k in codes.items() if c.startswith("2"))
+            name = raw(who.get(h["ip"], h["ip"]))
+            evidence = [tr("{n} requests to {url}, {pct} % of the requests of this address ({total})").format(
+                            n=h["n"], url=raw(_cut(h["url"], 90)), pct=round(100 * h["n"] / max(1, h.get("ip_total") or h["n"])), total=h.get("ip_total") or h["n"]),
+                        tr("Answers: ") + ", ".join(f"{c} ×{k}" for c, k in codes.most_common(4))]
+            backend = BACKEND_RPC_RE.search(h["url"])
+            if backend:
+                evidence.append(tr("Call of the Odoo back office (JSON-RPC): it needs a signed-in session"))
+            if backend and h.get("known"):
+                severity = INFO
+                cause = tr("an open tab of the Odoo back office of a known person repeats the same call (a dialog left open, a session that expired, or a module that asks again)")
+                advice = [tr("ask the person to reload or close the tab; nothing else to do")]
+            elif backend and ok * 2 >= h["n"]:
+                severity = LOOK
+                cause = tr("a valid Odoo session is used from this address, which is not known to the site, and repeats the same call: an open tab left running, or a session used by someone else")
+                advice = [tr("check who signed in from this address (web-monitor.py --list-users shows each user with the addresses seen); if it is not one of your users, change their password and end their sessions"),
+                          tr("if it is one of your users travelling or on a mobile network: ask them to close the tab")]
+            elif backend:
+                severity = INFO
+                cause = tr("an old tab of the Odoo back office whose session has expired keeps calling: it is refused each time")
+                advice = [tr("nothing to do: harmless; it stops when the tab is closed")]
+            else:
+                severity = LOOK if not h.get("known") else INFO
+                cause = tr("a robot, a script or a monitoring tool asks the same page again and again")
+                advice = [tr("if it is hostile or useless: key b (nginx-log-audit.sh --ban checks the white list and its score, threshold 3); if it is a monitoring tool of yours: add its address to the white list")]
+            self.add("hot-pair:" + h["ip"] + ":" + h["url"][:60], severity, tr("One address asks the same page again and again: {who} ×{n}").format(who=name, n=h["n"]),
+                     h["n"], evidence, cause, advice)
+
     # --- bans ---------------------------------------------------------------------------------------------------------------------
     def rule_bans(self, facts, details):
         tr, raw = self.tr, self.raw
         to_ban = facts.get("to_ban") or []
         if to_ban:
             self.add("ban-pending", LOOK, tr("Addresses to ban: {n}").format(n=len(to_ban)), len(to_ban),
-                     [f"{raw(who)} : {reason}" for _ip, who, reason in to_ban[:5]] + ([tr("… and {n} more").format(n=len(to_ban) - 5)] if len(to_ban) > 5 else []),
+                     [f"{raw(who)} : {reason}" for _ip, who, reason in to_ban[:5]] + ([tr("… and {n} more").format(n=len(to_ban) - 5)] if len(to_ban) > 5 else [])
+                     + [tr("The score of nginx-log-audit.sh (0 to 7, ban from 3) is computed when key b investigates each address; the white list and the CDN names are checked first")],
                      tr("suspicious requests (.env, wp-includes, probes) from addresses that are neither banned nor protected"),
                      [tr("key b: nginx-log-audit.sh --ban checks the white list and its score (threshold 3) before banning; CDN relays are never proposed")],
                      fix=("ban", [(ip, who, reason) for ip, who, reason in to_ban]))
+        during = facts.get("banned_during") or []
+        if during:
+            # 1.7: the bans made by fail2ban during the window (the summary line "banned addresses seen" counts only the requests of addresses ALREADY banned)
+            who = facts.get("who") or {}
+            self.add("banned-during", INFO, tr("Addresses banned by fail2ban during the window: {n}").format(n=len(during)), len(during),
+                     [f"{raw(who.get(ip, ip))} : {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(t))} ({', '.join(jails)})" for ip, t, jails in during[:5]],
+                     tr("their attacks matched a fail2ban rule: they are blocked"), [tr("nothing to do")], confirmed=True)
         held = facts.get("not_proposed") or []
         if held:
             self.add("ban-held", INFO, tr("Addresses not proposed for banning: {n}").format(n=len(held)), len(held),
@@ -959,20 +1195,36 @@ class Analyzer:
             methods.update((nginx.get(url.split("?", 1)[0]) or {}).get("methods") or {})
         posts = methods.get("POST", 0)
         if methods:
-            evidence.append(tr("Forms sent (POST): {posts} · pages only shown (GET): {gets}").format(posts=posts, gets=methods.get("GET", 0)))
+            found = sum(methods.values())
+            evidence.append(tr("Forms sent (POST): {posts} · pages only shown (GET): {gets}").format(posts=posts, gets=methods.get("GET", 0))
+                            + (" · " + tr("not found in the access logs read: {n} (older rotated logs, or other methods)").format(n=total - found) if total > found else ""))
         signup = details.get("signup") or {}
+        accounts = signup.get("accounts") or []
+        never = sum(1 for a in accounts if not a.get("logins"))
         if signup:
             scope = signup.get("scope")
             evidence.append((tr("Sign-up in Odoo: free (anyone can create an account)") if scope == "b2c" else tr("Sign-up in Odoo: on invitation") if scope == "b2b"
                              else tr("Sign-up in Odoo: {scope}").format(scope=raw(str(scope or "?"))))
                             + (" · " + tr("portal accounts created in the window: {n}").format(n=signup["new_users"]) if signup.get("new_users") is not None else ""))
-        known = sum(k for ip, k in ips.items() if who.get(ip, ip) != ip and not who.get(ip, "").startswith("this server"))          # 1.6: an address that has signed in to the site has a name
-        if known * 2 >= total and posts < 30:
+            for a in accounts[:5]:
+                # 1.7: each account created: when, domain of the login, signed in since or never
+                evidence.append("    " + time.strftime("%Y-%m-%d %H:%M", time.localtime(a.get("t") or 0)) + " · @" + raw(a.get("domain") or "?") + " · "
+                                + (tr("signed in {n} times since").format(n=a["logins"]) if a.get("logins") else tr("never signed in")))
+        # 1.7: "known" = an address where a person signed in, or of the team; before, any address with a NAME (an amazonaws.com host...) was "known"
+        known_ips = set(facts.get("known_ips") or ())
+        known = sum(k for ip, k in ips.items() if ip in known_ips)
+        if never >= 3 and signup.get("scope") == "b2c":
+            advice = [tr("look at the portal accounts created recently (Settings > Users, filter « Portal »): remove the fake ones"),
+                      tr("enable reCAPTCHA or Cloudflare Turnstile (Website > Configuration > Settings), or set the sign-up to « On invitation »")]
+            self.add("account-forms", LOOK, tr("Accounts created that never signed in: {n}").format(n=never), never, evidence,
+                     tr("accounts created by a robot (it creates the account and never comes back), or people who did not confirm"), advice, confirmed=True)
+        elif known * 2 >= total and posts < 30:
             evidence.append(tr("Requests of people already known to the site (an account signed in from this address): {kn} of {all_n}").format(kn=known, all_n=total))
             self.add("account-forms", INFO, tr("Sign-up and password reset forms: {n} requests, mostly from people already known").format(n=total), total, evidence,
                      tr("people who have an account use the forms (forgotten password, sign-up for an event): not a robot"),
                      [tr("nothing to do; if the same person comes back often, check that the sign-in works for them")])
         elif methods and posts < 5:
+            evidence.append(tr("Requests of people already known to the site (an account signed in from this address): {kn} of {all_n}").format(kn=known, all_n=total))
             self.add("account-forms", INFO, tr("Sign-up and password reset forms: {n} requests, almost all only shown").format(n=total), total, evidence,
                      tr("robots and search engines following the links of the site: no account attempts"), [tr("nothing to do")])
         elif posts >= 10 or (not methods and (ips.most_common(1)[0][1] >= 5 or total >= 30)):
@@ -998,6 +1250,51 @@ class Analyzer:
 
 def analyze(facts, details=None, tr=_identity, raw=_identity):
     return Analyzer(tr, raw).run(facts, details)
+
+
+def timeline(facts, details=None, tr=_identity, raw=_identity, limit=60):
+    """1.7: the events of the window in time order, from what the analysis read: starts and stops of the service, interruptions seen by nginx, Odoo
+    errors (first and last), slow requests, bans made by fail2ban, failed e-mails, push duplicates, memory messages of the kernel, scheduled actions.
+    [(epoch, text)], at most `limit` (the most recent kept). Lets a reader see causes and effects side by side."""
+    details = details or {}
+    events = []
+    for t, text in (details.get("service") or {}).get("events") or ():
+        events.append((t, tr("service: ") + raw(_cut(text, 100))))
+    groups = {}
+    for e in facts.get("nginx_errors") or ():
+        message = NGINX_TAG_RE.sub("", e["message"])
+        if UPSTREAM_RE.search(message) and e.get("first") and e.get("last"):
+            g = groups.setdefault(message.split(", client:", 1)[0], [e["first"], e["last"], 0])
+            g[0], g[1], g[2] = min(g[0], e["first"]), max(g[1], e["last"]), g[2] + e["n"]
+    for first, last, n in groups.values():
+        events.append((first, tr("nginx: Odoo unreachable, start ({n} refusals until {last})").format(n=n, last=time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(last)))))
+        if last != first:
+            events.append((last, tr("nginx: Odoo unreachable, last refusal")))
+    for e in facts.get("odoo_errors") or ():
+        if e.get("level") in ("ERROR", "CRITICAL") and e.get("first"):
+            label = f"{e['level']} {raw(e.get('logger') or '')} ×{e['n']} : {raw(_cut(e.get('message') or '', 80))}"
+            events.append((e["first"], tr("Odoo, first: ") + label))
+            if e.get("last") and e["last"] != e["first"]:
+                events.append((e["last"], tr("Odoo, last: ") + label))
+    who = facts.get("who") or {}
+    for x in facts.get("slow") or ():
+        if x.get("t") and not LONG_CONNECTION_RE.search(x.get("url") or ""):
+            events.append((x["t"], tr("slow request: {s} s ").format(s=f"{x.get('total') or 0:.1f}") + raw(_cut(x.get("url") or "", 70)) + " (" + raw(who.get(x.get("ip"), x.get("ip") or "?")) + ")"))
+    for ip, t, jails in facts.get("banned_during") or ():
+        events.append((t, tr("fail2ban: ban of ") + raw(who.get(ip, ip)) + f" ({', '.join(jails)})"))
+    for c in details.get("mail_failed") or ():
+        if c.get("instant"):
+            events.append((c["instant"], tr("failed e-mail: « {subject} » to {to}").format(subject=raw(_cut(c.get("sujet") or "", 60)), to=raw(_cut(c.get("destinataires") or "?", 60)))))
+    times = facts.get("push_times") or []
+    if len(times) == 2:
+        events.append((times[0], tr("push subscription already registered, first (harmless)")))
+    for t, text in (details.get("memory") or {}).get("kernel") or ():
+        events.append((t, tr("kernel: ") + raw(_cut(text, 100))))
+    for t, name in details.get("crons") or ():
+        events.append((t, tr("scheduled action (last run): ") + raw(_cut(name, 60))))
+    start = facts.get("start")
+    events = sorted((t, text) for t, text in events if t and (not start or t >= start - 3600))
+    return events[-limit:]
 
 
 # ------------------------------------------------------------------------------------------------------------------
@@ -1120,7 +1417,7 @@ def render(findings, trend=None, tr=_identity, color=lambda style, text: text, h
             if e:
                 lines.append("        " + e)
         if f["cause"]:
-            lines.append("        " + tr("Probable cause: ") + f["cause"])
+            lines.append("        " + (tr("Cause (confirmed): ") if f.get("confirmed") else tr("Probable cause: ")) + f["cause"])
         for a in f["advice"]:
             lines.append("        " + color("1;36", "→ ") + a)
         if f.get("fix") and apply_hint:
