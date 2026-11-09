@@ -58,6 +58,30 @@ Pour chaque problème, l'analyse vérifie maintenant les faits elle-même au lie
 
 Avec **`--apply`** (avec `--advise`, dans un terminal), les corrections sont proposées une à une après l'analyse, une question chacune : bannir les adresses avec `nginx-log-audit.sh --ban` (il examine chaque adresse, vérifie la liste blanche et son score, et demande sa propre confirmation), ouvrir `odoo-mail-retry.py` pour les courriels en échec (il les liste et demande avant de les renvoyer), préchauffer Odoo avec `odoo-warmup.py` après un redémarrage. Rien n'est fait sans un « oui », et `odoo.conf` n'est jamais modifié.
 
+### Vérification quotidienne : --export-ai (1.178)
+
+```
+sudo app-log-live.py --advise 1 --export-ai                 # fichier export-ai-AAAAMMJJ-HHMMSS.md dans /var/lib/app-log-live
+sudo app-log-live.py --advise 1 --export-ai /root/export.md # fichier choisi
+```
+
+Après l'analyse, un seul fichier Markdown sans couleurs (mode 600) réunit ce qu'il faut pour faire vérifier les sommaires et l'analyse : la période réellement lue (ligne la plus ancienne et première requête), les **contrôles de cohérence** que le programme fait sur ses propres chiffres (une moyenne impossible, deux comptes qui devraient concorder sont marqués `[ATTN]`), le sommaire complet du tableau de bord, l'analyse, la **chronologie** de la période (démarrages et arrêts du service, interruptions vues par nginx, erreurs d'Odoo, requêtes lentes, bannissements, courriels en échec, messages du noyau sur la mémoire, actions planifiées) et les compteurs principaux en JSON. Quand `--anonymize` est actif (par défaut), le fichier contient les mêmes pseudonymes que l'écran : une même adresse a toujours le même pseudonyme, la vérification reste possible. Avec la touche z du tableau de bord, le fichier est écrit aussi quand l'option est donnée. Clé de configuration : `EXPORT_AI` (`yes` = fichier par défaut, ou un chemin).
+
+### Ce que change 1.178 dans l'analyse et le sommaire
+
+* **Latence** : les connexions websocket (clavardage) ouvertes des heures ne comptent plus dans les moyennes ni dans la part de PostgreSQL : les « moyennes de 20 s » avec une médiane de 0,02 s et le « PostgreSQL 0 %, Python 100 % » venaient de là.
+* **Abonnements aux notifications déjà enregistrés** (`bad query` sur `mail_push_device`, avertissement « Le point de terminaison doit être unique ») : une violation d'unicité sans gravité, comptée à part ; ce n'est plus une erreur d'Odoo, la santé ne passe plus à « problème » et la barre d'état compte comme le sommaire.
+* **Adresses bannies par fail2ban pendant la période** : une ligne à part dans le sommaire et l'analyse (« Adresses bannies vues » compte seulement les requêtes d'adresses déjà bannies).
+* **Pays** : le nom complet suit le code (« CD (République démocratique du Congo) ») dans les pays des visiteurs, les requêtes par nom, les adresses du sommaire et de l'analyse (pas pour les personnes connues ni l'équipe).
+* **Odoo injoignable** : durée de l'interruption, requêtes 502/503/504 pendant ce temps, raison de l'arrêt lue dans le journal du service (oom-kill, status=9/KILL) ; une interruption terminée depuis plus d'une heure, Odoo de nouveau actif, devient une information.
+* **Risque de mémoire** : (workers + cron) × limit_memory_hard comparé à la mémoire du serveur (ou à la limite du conteneur), avec les processus tués faute de mémoire et les messages du noyau.
+* **Une adresse qui demande la même page en boucle** (onglet de l'administration resté ouvert, script) : nombre, codes de réponse, session valide ou refusée.
+* **Courriels en échec** : chacun avec sa date et heure, son objet, ses destinataires et sa raison complète, des pistes de solution selon la raison (authentification, expéditeur refusé, adresse inexistante, serveur injoignable...), et deux serveurs sortants identiques signalés.
+* **Requêtes lentes** : le détail de chacune (heure, adresse, temps SQL et Python), les requêtes lentes simultanées (verrou ou tâche de fond plutôt qu'un index manquant) et les actions planifiées exécutées à ce moment.
+* **Formulaires de compte** : une adresse est « connue » seulement si une personne s'y est connectée (avant, toute adresse qui avait un nom, même un hébergeur) ; comptes portail créés avec leur date et s'ils se sont connectés depuis.
+* **Cause (confirmée)** : quand la cause est prouvée par ce qui a été lu (message de PostgreSQL, base de données, journal du service) ; sinon « Cause probable ».
+* Un **exemple brut** de chaque erreur d'Odoo regroupée (le message regroupé remplace les nombres par N).
+
 ## Tableau de bord : ce que change 1.169
 
 * Avec `--log-merge`, la ligne de nginx et la ligne d'Odoo d'une même requête forment une seule ligne ; les temps d'Odoo de cette ligne (requêtes SQL, temps SQL, temps Python) sont maintenant comptés : avant, les requêtes lentes, la latence et le maximum de requêtes SQL du tableau de bord ne voyaient que les lignes d'Odoo restées sans partenaire nginx (67 requêtes mesurées pour 2 603 vues).

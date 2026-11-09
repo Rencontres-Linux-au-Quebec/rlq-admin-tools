@@ -58,6 +58,30 @@ For each problem, the analysis now checks the facts itself instead of only point
 
 With **`--apply`** (with `--advise`, on a terminal), the corrections are offered one by one after the analysis, one question each: ban the addresses through `nginx-log-audit.sh --ban` (it investigates each address, checks the white list and its score, and asks its own confirmation), open `odoo-mail-retry.py` for the failed e-mails (it lists them and asks before resending), warm Odoo up with `odoo-warmup.py` after a restart. Nothing is done without a « yes », and `odoo.conf` is never modified.
 
+### Daily check: --export-ai (1.178)
+
+```
+sudo app-log-live.py --advise 1 --export-ai                 # file export-ai-YYYYMMDD-HHMMSS.md in /var/lib/app-log-live
+sudo app-log-live.py --advise 1 --export-ai /root/export.md # file of your choice
+```
+
+After the analysis, one Markdown file without colors (mode 600) holds what is needed to have the summaries and the analysis checked: the window really read (oldest line and first request), the **consistency checks** the program makes on its own figures (an impossible mean, two counts that should agree are marked `[ATTN]`), the whole summary of the dashboard, the analysis, the **timeline** of the window (starts and stops of the service, interruptions seen by nginx, Odoo errors, slow requests, bans, failed e-mails, kernel messages about the memory, scheduled actions) and the main counters in JSON. When `--anonymize` is active (the default), the file has the same pseudonyms as the screen: one address always has the same pseudonym, the check stays possible. With the z key of the dashboard, the file is written too when the option is given. Configuration key: `EXPORT_AI` (`yes` = default file, or a path).
+
+### What 1.178 changes in the analysis and the summary
+
+* **Latency**: the websocket connections (chat) kept open for hours no longer count in the means nor in the share of PostgreSQL: the "means of 20 s" with a median of 0.02 s and the "PostgreSQL 0 %, Python 100 %" came from them.
+* **Push subscriptions already registered** (`bad query` on `mail_push_device`, warning "The endpoint must be unique"): a harmless unique violation, counted apart; no longer an Odoo error, the health no longer turns to "problem" and the status bar counts like the summary.
+* **Addresses banned by fail2ban during the period**: a line of its own in the summary and the analysis ("Banned addresses seen" only counts the requests of addresses already banned).
+* **Countries**: the full name follows the code ("CD (Democratic Republic of the Congo)") in the visitors' countries, the requests by name, the addresses of the summary and of the analysis (not for known people nor the team).
+* **Odoo unreachable**: length of the interruption, requests answered 502/503/504 during that time, reason of the stop read in the service journal (oom-kill, status=9/KILL); an interruption over for more than one hour, Odoo running again, becomes information.
+* **Memory risk**: (workers + cron) x limit_memory_hard compared with the memory of the server (or the limit of the container), with the processes killed for lack of memory and the kernel messages.
+* **One address asking the same page in a loop** (a back-office tab left open, a script): count, answer codes, valid or refused session.
+* **Failed e-mails**: each one with its date and time, subject, recipients and full reason, solution tracks according to the reason (authentication, sender refused, address that does not exist, server unreachable...), and two identical outgoing servers reported.
+* **Slow requests**: the detail of each (time, address, SQL and Python time), the simultaneous slow requests (a lock or a background task rather than a missing index) and the scheduled actions that ran at that time.
+* **Account forms**: an address is "known" only when a person signed in from it (before: any address with a name, even a hosting provider); portal accounts created with their date and whether they signed in since.
+* **Cause (confirmed)**: when the cause is proven by what was read (PostgreSQL message, database, service journal); otherwise "Probable cause".
+* One **raw example** of each grouped Odoo error (the grouped message replaces the numbers by N).
+
 ## Dashboard: what 1.169 changes
 
 * With `--log-merge`, the line of nginx and the line of Odoo of one request make one line; the Odoo times (SQL queries, SQL time, Python time) of that line are now counted: before, the slow requests, the latency and the most SQL queries of the dashboard only saw the Odoo lines that had not found their nginx partner (67 requests measured for 2,603 seen).

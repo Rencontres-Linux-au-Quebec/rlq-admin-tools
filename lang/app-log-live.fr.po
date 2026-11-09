@@ -3240,3 +3240,120 @@ msgstr "--advise : période analysée depuis le {from_time} ({nd} jours ; --advi
 # 1.177
 msgid "{name} was updated on the disk (v{new}); this dashboard still runs v{old}: quit it (Ctrl-C) and start it again to use the whole new version."
 msgstr "{name} a été mis à jour sur le disque (v{new}) ; ce tableau de bord tourne encore en v{old} : le quitter (Ctrl-C) et le relancer pour utiliser toute la nouvelle version."
+
+msgid "(push subscription already registered: harmless, the browser keeps its subscription)"
+msgstr "(abonnement aux notifications déjà enregistré : sans gravité, le navigateur garde son abonnement)"
+
+msgid "a browser subscribed again to the push notifications with an endpoint already registered: PostgreSQL refuses the copy, the subscription stays valid"
+msgstr "un navigateur s'est réabonné aux notifications avec un point de terminaison déjà enregistré : PostgreSQL refuse le double, l'abonnement reste valide"
+
+msgid "first at {first}, last at {last}"
+msgstr "première à {first}, dernière à {last}"
+
+msgid "Push subscriptions already registered (harmless): "
+msgstr "Abonnements aux notifications déjà enregistrés (sans gravité) : "
+
+msgid "warnings « endpoint must be unique »: {n}"
+msgstr "avertissements « le point de terminaison doit être unique » : {n}"
+
+msgid "Addresses banned by fail2ban during the period: "
+msgstr "Adresses bannies par fail2ban pendant la période : "
+
+msgid "Latency: mean per request {mean} s, 99 % of the requests under {p99} s"
+msgstr "Latence : moyenne par requête {mean} s, 99 % des requêtes en moins de {p99} s"
+
+msgid "SQL share: {all} % of the time of all the requests, {slow} % of the time of the slow requests"
+msgstr "Part du SQL : {all} % du temps de toutes les requêtes, {slow} % du temps des requêtes lentes"
+
+msgid "Bans: {seen} requests of addresses already banned · {during} addresses banned by fail2ban during the window"
+msgstr "Bannissements : {seen} requêtes d'adresses déjà bannies · {during} adresses bannies par fail2ban pendant la période"
+
+msgid "Failed e-mails: {log} in the Odoo log of the window · {db} in the database ({days} days)"
+msgstr "Courriels en échec : {log} dans le journal d'Odoo de la période · {db} dans la base de données ({days} jours)"
+
+msgid "Account forms: {total} requests counted · {found} found in the access logs read"
+msgstr "Formulaires de compte : {total} requêtes comptées · {found} trouvées dans les journaux d'accès lus"
+
+msgid "Window: the oldest line read is from {start}, the first request from {req} (older lines: nginx error log, Odoo log)"
+msgstr "Période : la ligne la plus ancienne lue date du {start}, la première requête du {req} (lignes plus anciennes : journal d'erreurs de nginx, journal d'Odoo)"
+
+msgid "Odoo errors: {n} ERROR / CRITICAL counted; {p} push duplicates counted apart (harmless)"
+msgstr "Erreurs d'Odoo : {n} ERROR / CRITICAL comptées ; {p} doublons d'abonnement aux notifications comptés à part (sans gravité)"
+
+msgid "Oldest line read: {start} (nginx error log, Odoo log); first request read: {req}"
+msgstr "Ligne la plus ancienne lue : {start} (journal d'erreurs de nginx, journal d'Odoo) ; première requête lue : {req}"
+
+msgid "export for verification"
+msgstr "export pour vérification"
+
+msgid "Server: "
+msgstr "Serveur : "
+
+msgid "Written on: "
+msgstr "Écrit le : "
+
+msgid "local time"
+msgstr "heure locale"
+
+msgid "Window: from {start} to {end}"
+msgstr "Période : du {start} au {end}"
+
+msgid "first request read: "
+msgstr "première requête lue : "
+
+msgid "Mode: "
+msgstr "Mode : "
+
+msgid "z key of the dashboard"
+msgstr "touche z du tableau de bord"
+
+msgid "command: "
+msgstr "commande : "
+
+msgid "Pseudonyms (--anonymize): "
+msgstr "Pseudonymes (--anonymize) : "
+
+msgid "yes, the same address always has the same pseudonym"
+msgstr "oui, une même adresse a toujours le même pseudonyme"
+
+msgid "no, real addresses and names"
+msgstr "non, vraies adresses et vrais noms"
+
+msgid "Versions: "
+msgstr "Versions : "
+
+msgid "Consistency checks"
+msgstr "Contrôles de cohérence"
+
+msgid "nothing to check"
+msgstr "rien à contrôler"
+
+msgid "Summary of the dashboard"
+msgstr "Sommaire du tableau de bord"
+
+msgid "Analysis of the problems raised"
+msgstr "Analyse des problèmes soulevés"
+
+msgid "Timeline of the window"
+msgstr "Chronologie de la période"
+
+msgid "no event"
+msgstr "aucun événement"
+
+msgid "Main counters (JSON)"
+msgstr "Compteurs principaux (JSON)"
+
+msgid "--export-ai: file not written: {problem}"
+msgstr "--export-ai : fichier non écrit : {problem}"
+
+msgid "--export-ai: written to {path} ({n} lines, mode 600{anon})"
+msgstr "--export-ai : écrit dans {path} ({n} lignes, mode 600{anon})"
+
+msgid ", pseudonyms"
+msgstr ", pseudonymes"
+
+msgid ", real names and addresses inside"
+msgstr ", vrais noms et vraies adresses à l'intérieur"
+
+msgid "With --advise (or the z key): also write the summary, the analysis, the timeline of the window and the consistency checks in one Markdown file, without colors, to send for verification (default FILE: export-ai-YYYYMMDD-HHMMSS.md in the state folder, mode 600; pseudonyms when --anonymize is active)"
+msgstr "Avec --advise (ou la touche z) : écrit aussi le sommaire, l'analyse, la chronologie de la période et les contrôles de cohérence dans un seul fichier Markdown, sans couleurs, à envoyer pour vérification (FICHIER par défaut : export-ai-AAAAMMJJ-HHMMSS.md dans le dossier d'état, mode 600 ; pseudonymes quand --anonymize est actif)"

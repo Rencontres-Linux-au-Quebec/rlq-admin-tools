@@ -370,14 +370,8 @@ msgstr "une erreur de programmation dans un module"
 msgid "the module named in the last frame of the traceback has a bug: update it, or report it to its author with the traceback"
 msgstr "le module nommé dans le dernier appel de la trace a un bogue : le mettre à jour, ou le signaler à son auteur avec la trace"
 
-msgid "the mail server refuses for now (quota, rate limit): retry later"
-msgstr "le serveur de courriel refuse pour l'instant (quota, limite de débit) : réessayer plus tard"
 
-msgid "the mail server refuses the order of the commands (authentication missing?)"
-msgstr "le serveur de courriel refuse l'ordre des commandes (authentification manquante ?)"
 
-msgid "the recipient or the sender is refused: check the address and the sender domain (SPF, DKIM)"
-msgstr "le destinataire ou l'expéditeur est refusé : vérifier l'adresse et le domaine d'envoi (SPF, DKIM)"
 
 msgid "a vulnerability scanner sends malformed parameters (quotes, brackets, « zqzz »): Odoo answers 500 instead of 400, the site is not harmed"
 msgstr "un scanneur de vulnérabilités envoie des paramètres malformés (guillemets, parenthèses, « zqzz ») : Odoo répond 500 au lieu de 400, le site n'est pas atteint"
@@ -409,8 +403,6 @@ msgstr "la page a été renommée ou remplacée : une page semblable existe"
 msgid "Cause: "
 msgstr "Cause : "
 
-msgid "the mail server refused these e-mails (see the cause above)"
-msgstr "le serveur de courriel a refusé ces courriels (voir la cause plus haut)"
 
 msgid "the scheduled action that sends the e-mails is late or stopped (Mail: Email Queue Manager)"
 msgstr "l'action planifiée qui envoie les courriels est en retard ou arrêtée (Mail: Email Queue Manager)"
@@ -466,8 +458,6 @@ msgstr "Base de données, {nd} derniers jours : {failed} en échec, {waiting} en
 msgid "Outgoing mail servers of Odoo: "
 msgstr "Serveurs de courriel sortant d'Odoo : "
 
-msgid "odoo-mail-retry.py lists them and offers to resend them, once the cause is fixed"
-msgstr "odoo-mail-retry.py les liste et propose de les renvoyer, une fois la cause corrigée"
 
 msgid "Failed e-mails in the journal not confirmed: the database has none"
 msgstr "Courriels en échec du journal non confirmés : la base de données n'en a aucun"
@@ -753,3 +743,279 @@ msgstr "des personnes qui ont un compte utilisent les formulaires (mot de passe 
 
 msgid "nothing to do; if the same person comes back often, check that the sign-in works for them"
 msgstr "rien à faire ; si la même personne revient souvent, vérifier que la connexion fonctionne pour elle"
+
+msgid " (limit of this container)"
+msgstr " (limite de ce conteneur)"
+
+msgid "(inactive)"
+msgstr "(inactif)"
+
+msgid "(it already happened: see the lines above)"
+msgstr "(c'est déjà arrivé : voir les lignes plus haut)"
+
+msgid "(no subject)"
+msgstr "(sans objet)"
+
+msgid "(none recorded)"
+msgstr "(aucune enregistrée)"
+
+msgid "(unknown recipient)"
+msgstr "(destinataire inconnu)"
+
+msgid "Accounts created that never signed in: {n}"
+msgstr "Comptes créés qui ne se sont jamais connectés : {n}"
+
+msgid "Addresses banned by fail2ban during the window: {n}"
+msgstr "Adresses bannies par fail2ban pendant la période : {n}"
+
+msgid "Answers: "
+msgstr "Réponses : "
+
+msgid "At limit_memory_soft ({s} MB each, where Odoo recycles a worker): {total_soft} MB; PostgreSQL and the system need memory too"
+msgstr "À limit_memory_soft ({s} Mo chacun, seuil où Odoo recycle un worker) : {total_soft} Mo ; PostgreSQL et le système ont aussi besoin de mémoire"
+
+msgid "Before the first request read (the requests start on {when}): this comes from the history of the nginx error log"
+msgstr "Avant la première requête lue (les requêtes commencent le {when}) : cela vient de l'historique du journal d'erreurs de nginx"
+
+msgid "Call of the Odoo back office (JSON-RPC): it needs a signed-in session"
+msgstr "Appel de l'interface d'administration d'Odoo (JSON-RPC) : il exige une session connectée"
+
+msgid "Cause (confirmed): "
+msgstr "Cause (confirmée) : "
+
+msgid "Example as written in the log: "
+msgstr "Exemple tel qu'écrit dans le journal : "
+
+msgid "FROM filter: {f}"
+msgstr "filtre FROM : {f}"
+
+msgid "First at {first}, last at {last}"
+msgstr "Première à {first}, dernière à {last}"
+
+msgid "Kernel messages about the memory: "
+msgstr "Messages du noyau sur la mémoire : "
+
+msgid "Lines « bad query » on mail_push_device: {n} · warnings « endpoint must be unique »: {w}"
+msgstr "Lignes « bad query » sur mail_push_device : {n} · avertissements « le point de terminaison doit être unique » : {w}"
+
+msgid "Memory nearly full in the worst case of the Odoo processes"
+msgstr "Mémoire presque pleine dans le pire cas des processus d'Odoo"
+
+msgid "Memory risk: the Odoo processes may use more than the memory of the server"
+msgstr "Risque de mémoire : les processus d'Odoo peuvent utiliser plus que la mémoire du serveur"
+
+msgid "Odoo was stopped by the system (killed or failed, see the reason above), not by a restart that was wanted"
+msgstr "Odoo a été arrêté par le système (tué ou en échec, voir la raison plus haut), pas par un redémarrage voulu"
+
+msgid "Odoo was unreachable from nginx (over): {n} times"
+msgstr "Odoo a été injoignable depuis nginx (terminé) : {n} fois"
+
+msgid "Odoo, first: "
+msgstr "Odoo, première : "
+
+msgid "Odoo, last: "
+msgstr "Odoo, dernière : "
+
+msgid "One address asks the same page again and again: {who} ×{n}"
+msgstr "Une adresse demande la même page sans arrêt : {who} ×{n}"
+
+msgid "Over for {span}: Odoo answers again and nginx has logged no refusal since"
+msgstr "Terminé depuis {span} : Odoo répond de nouveau et nginx n'a noté aucun refus depuis"
+
+msgid "PostgreSQL error: unique violation (constraint mail_push_device_endpoint_unique), not a concurrent update conflict: Odoo does not retry it and nothing is lost"
+msgstr "Erreur de PostgreSQL : violation d'unicité (contrainte mail_push_device_endpoint_unique), pas un conflit de mise à jour simultanée : Odoo ne la réessaie pas et rien n'est perdu"
+
+msgid "Processes killed for lack of memory in this container since its start (memory.events): {n}"
+msgstr "Processus tués faute de mémoire dans ce conteneur depuis son démarrage (memory.events) : {n}"
+
+msgid "Push subscriptions already registered (harmless): {n}"
+msgstr "Abonnements aux notifications déjà enregistrés (sans gravité) : {n}"
+
+msgid "Reason of the stop in the service journal: "
+msgstr "Raison de l'arrêt dans le journal du service : "
+
+msgid "Reason: "
+msgstr "Raison : "
+
+msgid "Requests answered 502, 503 or 504 during that time: {n}"
+msgstr "Requêtes qui ont reçu 502, 503 ou 504 pendant ce temps : {n}"
+
+msgid "SQL {sql} s ({n} queries), Python {py} s"
+msgstr "SQL {sql} s ({n} requêtes), Python {py} s"
+
+msgid "Scheduled actions whose last run was around then: "
+msgstr "Actions planifiées dont la dernière exécution était vers ce moment : "
+
+msgid "The score of nginx-log-audit.sh (0 to 7, ban from 3) is computed when key b investigates each address; the white list and the CDN names are checked first"
+msgstr "Le score de nginx-log-audit.sh (0 à 7, bannissement à partir de 3) est calculé quand la touche b enquête sur chaque adresse ; la liste blanche et les noms de CDN sont vérifiés d'abord"
+
+msgid "Worst case of the Odoo processes: ({w} workers + {c} cron) × limit_memory_hard {h} MB = {worst} MB, for {total} MB of memory{where}"
+msgstr "Pire cas des processus d'Odoo : ({w} workers + {c} cron) × limit_memory_hard {h} Mo = {worst} Mo, pour {total} Mo de mémoire{where}"
+
+msgid "a SQL query refused by PostgreSQL: the reason (constraint, conflict, syntax) is on the line that follows it in the log"
+msgstr "une requête SQL refusée par PostgreSQL : la raison (contrainte, conflit, syntaxe) est sur la ligne qui la suit dans le journal"
+
+msgid "a browser subscribed again to the push notifications with an endpoint Odoo already holds: PostgreSQL refuses the copy (unique constraint), the existing subscription stays valid"
+msgstr "un navigateur s'est réabonné aux notifications avec un point de terminaison qu'Odoo a déjà : PostgreSQL refuse le double (contrainte d'unicité), l'abonnement existant reste valide"
+
+msgid "a robot, a script or a monitoring tool asks the same page again and again"
+msgstr "un robot, un script ou un outil de surveillance demande la même page sans arrêt"
+
+msgid "a valid Odoo session is used from this address, which is not known to the site, and repeats the same call: an open tab left running, or a session used by someone else"
+msgstr "une session d'Odoo valide est utilisée depuis cette adresse, inconnue du site, et répète le même appel : un onglet laissé ouvert, ou une session utilisée par quelqu'un d'autre"
+
+msgid "accounts created by a robot (it creates the account and never comes back), or people who did not confirm"
+msgstr "comptes créés par un robot (il crée le compte et ne revient jamais), ou personnes qui n'ont pas confirmé"
+
+msgid "action {method} of the model {model}"
+msgstr "action {method} du modèle {model}"
+
+msgid "an old tab of the Odoo back office whose session has expired keeps calling: it is refused each time"
+msgstr "un vieil onglet de l'administration d'Odoo dont la session a expiré continue d'appeler : il est refusé chaque fois"
+
+msgid "an open tab of the Odoo back office of a known person repeats the same call (a dialog left open, a session that expired, or a module that asks again)"
+msgstr "un onglet ouvert de l'administration d'Odoo d'une personne connue répète le même appel (une fenêtre restée ouverte, une session expirée, ou un module qui redemande)"
+
+msgid "an « oom-kill » or « status=9/KILL »: the memory ran out, see the finding on the memory risk; otherwise: journalctl -u SERVICE --since the time above"
+msgstr "un « oom-kill » ou « status=9/KILL » : la mémoire a manqué, voir le constat sur le risque de mémoire ; sinon : journalctl -u SERVICE --since l'heure ci-dessus"
+
+msgid "ask the person to reload or close the tab; nothing else to do"
+msgstr "demander à la personne de recharger ou de fermer l'onglet ; rien d'autre à faire"
+
+msgid "check who signed in from this address (web-monitor.py --list-users shows each user with the addresses seen); if it is not one of your users, change their password and end their sessions"
+msgstr "vérifier qui s'est connecté depuis cette adresse (web-monitor.py --list-users montre chaque utilisateur avec les adresses vues) ; si ce n'est pas un de vos utilisateurs, changer son mot de passe et fermer ses sessions"
+
+msgid "fail2ban: ban of "
+msgstr "fail2ban : bannissement de "
+
+msgid "failed e-mail: « {subject} » to {to}"
+msgstr "courriel en échec : « {subject} » à {to}"
+
+msgid "if every worker reaches limit_memory_hard at the same time, the server runs out of memory and the kernel kills a process (Odoo or PostgreSQL): the site stops"
+msgstr "si tous les workers atteignent limit_memory_hard en même temps, le serveur manque de mémoire et le noyau tue un processus (Odoo ou PostgreSQL) : le site s'arrête"
+
+msgid "if it is hostile or useless: key b (nginx-log-audit.sh --ban checks the white list and its score, threshold 3); if it is a monitoring tool of yours: add its address to the white list"
+msgstr "s'il est hostile ou inutile : touche b (nginx-log-audit.sh --ban vérifie la liste blanche et son score, seuil 3) ; si c'est un de vos outils de surveillance : ajouter son adresse à la liste blanche"
+
+msgid "if it is one of your users travelling or on a mobile network: ask them to close the tab"
+msgstr "si c'est un de vos utilisateurs en voyage ou sur un réseau cellulaire : lui demander de fermer l'onglet"
+
+msgid "kernel: "
+msgstr "noyau : "
+
+msgid "look at what ran at that time (scheduled actions above, backup, ZFS snapshots); if it repeats at the same hour, move that task"
+msgstr "regarder ce qui tournait à ce moment (actions planifiées ci-dessus, sauvegarde, instantanés ZFS) ; si cela revient à la même heure, déplacer cette tâche"
+
+msgid "lower limit_memory_hard to about {hard} MB and limit_memory_soft to about {soft} MB in odoo.conf (70 % of the memory shared by the processes), then restart Odoo"
+msgstr "baisser limit_memory_hard à environ {hard} Mo et limit_memory_soft à environ {soft} Mo dans odoo.conf (70 % de la mémoire partagée entre les processus), puis redémarrer Odoo"
+
+msgid "many times: one browser subscribes again in a loop; the person can clear the site data of the browser (or block the notifications of the site)"
+msgstr "souvent : un navigateur se réabonne en boucle ; la personne peut effacer les données du site dans son navigateur (ou bloquer les notifications du site)"
+
+msgid "never signed in"
+msgstr "jamais connecté"
+
+msgid "nginx: Odoo unreachable, last refusal"
+msgstr "nginx : Odoo injoignable, dernier refus"
+
+msgid "nginx: Odoo unreachable, start ({n} refusals until {last})"
+msgstr "nginx : Odoo injoignable, début ({n} refus jusqu'à {last})"
+
+msgid "not found in the access logs read: {n} (older rotated logs, or other methods)"
+msgstr "absentes des journaux d'accès lus : {n} (journaux plus anciens, ou autres méthodes)"
+
+msgid "nothing to do now; to know why it stopped: journalctl -u SERVICE --since the time above"
+msgstr "rien à faire maintenant ; pour savoir pourquoi il s'est arrêté : journalctl -u SERVICE --since l'heure ci-dessus"
+
+msgid "nothing to do: harmless; frequent with several tabs open or after a reconnection"
+msgstr "rien à faire : sans gravité ; fréquent avec plusieurs onglets ouverts ou après une reconnexion"
+
+msgid "nothing to do: harmless; it stops when the tab is closed"
+msgstr "rien à faire : sans gravité ; cela cesse quand l'onglet est fermé"
+
+msgid "nothing to do; counted apart since app-log-live.py 1.178 (before: Odoo errors, and the health showed « problem »)"
+msgstr "rien à faire ; compté à part depuis app-log-live.py 1.178 (avant : erreurs d'Odoo, et la santé affichait « problème »)"
+
+msgid "once the cause is fixed: odoo-mail-retry.py lists these e-mails and offers to resend them"
+msgstr "une fois la cause corrigée : odoo-mail-retry.py liste ces courriels et propose de les renvoyer"
+
+msgid "or lower workers, or give more memory to this server (Proxmox: memory of the container)"
+msgstr "ou baisser workers, ou donner plus de mémoire à ce serveur (Proxmox : mémoire du conteneur)"
+
+msgid "push subscription already registered, first (harmless)"
+msgstr "abonnement aux notifications déjà enregistré, premier (sans gravité)"
+
+msgid "read the line that follows it (key E): a unique constraint is usually a form sent twice; anything else: the module named in the traceback"
+msgstr "lire la ligne qui la suit (touche E) : une contrainte d'unicité est souvent un formulaire envoyé deux fois ; autre chose : le module nommé dans la trace"
+
+msgid "scheduled action (last run): "
+msgstr "action planifiée (dernière exécution) : "
+
+msgid "service: "
+msgstr "service : "
+
+msgid "several pages slow at the same moment: PostgreSQL was busy or held by a lock (scheduled action, backup, autovacuum), not a missing index on each page"
+msgstr "plusieurs pages lentes au même moment : PostgreSQL était occupé ou retenu par un verrou (action planifiée, sauvegarde, autovacuum), pas un index manquant sur chaque page"
+
+msgid "signed in {n} times since"
+msgstr "connecté {n} fois depuis"
+
+msgid "slow request: {s} s "
+msgstr "requête lente : {s} s "
+
+msgid "the mail server could not be reached: check its name and port, the DNS and the firewall of this server (nc -vz SERVER PORT)"
+msgstr "le serveur de courriel n'a pas pu être joint : vérifier son nom et son port, le DNS et le pare-feu de ce serveur (nc -vz SERVEUR PORT)"
+
+msgid "the mail server expects another order of the commands (STARTTLS or authentication missing): check the encryption of the outgoing server (STARTTLS on port 587, SSL/TLS on 465)"
+msgstr "le serveur de courriel attend un autre ordre des commandes (STARTTLS ou authentification manquante) : vérifier le chiffrement du serveur sortant (STARTTLS sur le port 587, SSL/TLS sur 465)"
+
+msgid "the mail server refused the user name or the password: check them in Settings > Technical > Outgoing Mail Servers, then « Test Connection »"
+msgstr "le serveur de courriel a refusé le nom d'utilisateur ou le mot de passe : les vérifier dans Paramètres > Technique > Serveurs de courriel sortant, puis « Tester la connexion »"
+
+msgid "the mail server refused these e-mails (see the reason of each one above)"
+msgstr "le serveur de courriel a refusé ces courriels (voir la raison de chacun plus haut)"
+
+msgid "the mail server refuses for now (rate limit, greylisting): resend later; if it repeats, the provider limits the e-mails per hour"
+msgstr "le serveur de courriel refuse pour l'instant (limite de débit, liste grise) : renvoyer plus tard ; si cela se répète, le fournisseur limite les courriels par heure"
+
+msgid "the mailbox of the recipient is full: nothing to fix on our side, resend later"
+msgstr "la boîte du destinataire est pleine : rien à corriger de notre côté, renvoyer plus tard"
+
+msgid "the reason recorded by Odoo is only the generic message: the SMTP answer is in the Odoo log at that time (key E, or app-log-check.py --errors-only around the time above)"
+msgstr "la raison enregistrée par Odoo n'est que le message générique : la réponse SMTP est dans le journal d'Odoo à ce moment (touche E, ou app-log-check.py --errors-only autour de l'heure ci-dessus)"
+
+msgid "the recipient address does not exist: correct the e-mail of the contact, then resend"
+msgstr "l'adresse du destinataire n'existe pas : corriger le courriel du contact, puis renvoyer"
+
+msgid "the recipient has no valid e-mail address in Odoo: correct the contact, then resend"
+msgstr "le destinataire n'a pas d'adresse courriel valide dans Odoo : corriger le contact, puis renvoyer"
+
+msgid "the recipient server refused the e-mail (content or reputation of the sender): read the message of the server above; check SPF, DKIM and the sender address"
+msgstr "le serveur du destinataire a refusé le courriel (contenu ou réputation de l'expéditeur) : lire le message du serveur ci-dessus ; vérifier SPF, DKIM et l'adresse de l'expéditeur"
+
+msgid "the secure connection to the mail server failed (certificate or protocol): check the encryption and the port of the outgoing server"
+msgstr "la connexion sécurisée au serveur de courriel a échoué (certificat ou protocole) : vérifier le chiffrement et le port du serveur sortant"
+
+msgid "the sender is refused: send from an address of the domain of the mail server (FROM filter of the server, mail.default.from), and check SPF and DKIM of that domain"
+msgstr "l'expéditeur est refusé : envoyer depuis une adresse du domaine du serveur de courriel (filtre FROM du serveur, mail.default.from), et vérifier SPF et DKIM de ce domaine"
+
+msgid "their attacks matched a fail2ban rule: they are blocked"
+msgstr "leurs attaques correspondaient à une règle de fail2ban : elles sont bloquées"
+
+msgid "to see the locks next time: log_lock_waits = on and log_min_duration_statement = 2000 in postgresql.conf (reload PostgreSQL)"
+msgstr "pour voir les verrous la prochaine fois : log_lock_waits = on et log_min_duration_statement = 2000 dans postgresql.conf (recharger PostgreSQL)"
+
+msgid "{k} outgoing servers for {host}: Odoo takes the first one (sequence) whose FROM filter matches the sender; check that the other one is not an old copy with a wrong password, then archive it"
+msgstr "{k} serveurs sortants pour {host} : Odoo prend le premier (séquence) dont le filtre FROM correspond à l'expéditeur ; vérifier que l'autre n'est pas une vieille copie avec un mauvais mot de passe, puis l'archiver"
+
+msgid "{k} slow requests on different pages within {s} s ({when}): slowed down together, not each page on its own"
+msgstr "{k} requêtes lentes sur des pages différentes en {s} s ({when}) : ralenties ensemble, pas chaque page pour elle-même"
+
+msgid "{n} refused connections over {span}"
+msgstr "{n} connexions refusées en {span}"
+
+msgid "{n} requests to {url}, {pct} % of the requests of this address ({total})"
+msgstr "{n} requêtes vers {url}, {pct} % des requêtes de cette adresse ({total})"
+
+msgid "{when} · subject « {subject} » · to: {to}"
+msgstr "{when} · objet « {subject} » · à : {to}"

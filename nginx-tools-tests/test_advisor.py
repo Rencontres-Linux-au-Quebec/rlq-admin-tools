@@ -220,7 +220,9 @@ class Regles(unittest.TestCase):
     def test_formulaires_de_compte_de_personnes_connues(self):
         ips = {"65.93.168.160": 9, "142.116.31.94": 8, "67.69.76.24": 6, "9.9.9.9": 3}
         who = {"65.93.168.160": "Qinghe Sun [65.93.168.160]", "142.116.31.94": "cecchino [142.116.31.94]", "67.69.76.24": "Fernando [67.69.76.24]", "9.9.9.9": "9.9.9.9"}
-        f = par_id(ADV.analyze(faits(account_ips=ips, who=who, account_urls=["/web/reset_password"]), {"nginx": {"/web/reset_password": {"methods": Counter({"GET": 20, "POST": 6})}}}))
+        # 1.7: "known" = an address where a person signed in (known_ips), no longer any address that has a name
+        f = par_id(ADV.analyze(faits(account_ips=ips, who=who, account_urls=["/web/reset_password"], known_ips=["65.93.168.160", "142.116.31.94", "67.69.76.24"]),
+                               {"nginx": {"/web/reset_password": {"methods": Counter({"GET": 20, "POST": 6})}}}))
         self.assertEqual(f["account-forms"]["severity"], ADV.INFO)
         self.assertIn("mostly from people already known", f["account-forms"]["title"])
         inconnus = {"1.1.1.%d" % i: 3 for i in range(10)}
@@ -286,8 +288,7 @@ class Regles(unittest.TestCase):
                                      account_ips={"a": 6, "b": 1, "c": 1, "d": 1, "e": 1}, requests=20000, latency_n=30)))
         self.assertEqual(f["final-conflicts"]["severity"], ADV.PROBLEM)
         self.assertEqual(f["many-retries"]["severity"], ADV.INFO)
-        self.assertIn("550", " ".join(ADV.SMTP_HINTS[2]))
-        self.assertTrue(any("recipient or the sender" in x for x in f["mail-failures"]["evidence"]))
+        self.assertTrue(any("recipient address does not exist" in x for x in f["mail-failures"]["evidence"]))      # 1.7: hints by pattern
         self.assertIn("database", f["slow-requests"]["cause"])
         self.assertEqual(f["slow-requests"]["severity"], ADV.PROBLEM)
         self.assertTrue(any("white list" in a for a in f["ban-pending"]["advice"]))
@@ -561,7 +562,7 @@ class Version167(unittest.TestCase):
         echec = f["mail-failures"]
         self.assertEqual(echec["count"], 3)
         self.assertEqual(echec["fix"], ("mail", 14))
-        self.assertTrue(any("recipient or the sender" in x for x in echec["evidence"]))
+        self.assertTrue(any("recipient address does not exist" in x for x in echec["advice"]))       # 1.7: solution tracks in the recommendations
         f = par_id(ADV.analyze(faits(), {"mail_db": dict(base, outgoing=30)}))
         self.assertEqual(f["mail-queue"]["severity"], ADV.LOOK)
 
@@ -607,3 +608,146 @@ class Version167(unittest.TestCase):
         texte = "\n".join(ADV.render(findings, {}, apply_hint="correction offered by --apply"))
         self.assertIn("⚙ correction offered by --apply", texte)
 
+
+
+class Version17(unittest.TestCase):
+    """apps/_advisor.py 1.7 (app-log-live.py 1.178): review of the night report of 2026-11-09. Push duplicates apart, interruption over, reason of a stop,
+    memory risk, one address asking one page in a loop, failed e-mails one by one with solution tracks, simultaneous slow requests, accounts that never
+    signed in, timeline, confirmed causes. Invented data only (documentation addresses, example.org)."""
+
+    def test_doublon_d_abonnement_push_n_est_pas_un_conflit(self):
+        known = next(k for k in ADV.KNOWN_MESSAGES if re.search(k[0], "odoo.sql_db: bad query: INSERT INTO \"mail_push_device\" (\"endpoint\") VALUES (...)", re.I))
+        self.assertIn("push notifications", known[2])
+        self.assertNotIn("retried", known[2])
+        autre = next(k for k in ADV.KNOWN_MESSAGES if re.search(k[0], "odoo.sql_db: bad query: UPDATE res_partner SET x = 1", re.I))
+        self.assertEqual(autre[1], ADV.LOOK)                                    # a bad query of another kind is no longer "harmless" by default
+        f = par_id(ADV.analyze(faits(push_duplicates=5, push_duplicate_warnings=5, push_times=[time.time() - 600, time.time()])))
+        p = f["push-duplicates"]
+        self.assertEqual(p["severity"], ADV.INFO)
+        self.assertTrue(p["confirmed"])
+        self.assertTrue(any("unique violation" in e for e in p["evidence"]))
+        self.assertIn("Cause (confirmed): ", "\n".join(ADV.render([p], {})))
+
+    def test_exemple_brut_d_une_erreur_regroupee(self):
+        e = dict(erreur("ERROR", "odoo.addons.web.controllers.binary", ".map should have been generated through debug assets, (version Nfe most likely outdated)"),
+                 raw=".map should have been generated through debug assets, (version 5fe3a1 most likely outdated)")
+        f = next(v for k, v in par_id(ADV.analyze(faits(odoo_errors=[e]))).items() if k.startswith("odoo:"))
+        self.assertTrue(any("version 5fe3a1" in x for x in f["evidence"]))
+
+    def test_interruption_terminee_et_raison_de_l_arret(self):
+        now = time.time()
+        first, last = now - 2 * 86400, now - 2 * 86400 + 8 * 3600
+        nginx = [{"level": "ERROR", "message": "[error] N#N: *N connect() failed (N: Connection refused) while connecting to upstream, client: 192.0.2.1", "n": 33,
+                  "first": first, "last": last}]
+        service = {"events": [(last - 9, "Started erplibre.service - Odoo.")], "state": "active (running), started on Sat"}
+        f = par_id(ADV.analyze(faits(nginx_errors=nginx, end=now, requests_start=last + 3600), {"service": service}))
+        u = next(v for k, v in f.items() if k.startswith("nginx-upstream:"))
+        self.assertEqual(u["severity"], ADV.INFO)
+        self.assertIn("(over)", u["title"])
+        self.assertTrue(any("8 h 00 min" in e for e in u["evidence"]))
+        self.assertTrue(any("Before the first request read" in e for e in u["evidence"]))
+        tue = {"events": [(last - 30, "erplibre.service: Main process exited, code=killed, status=9/KILL"), (last - 29, "erplibre.service: Failed with result 'oom-kill'."),
+                          (last - 9, "Started erplibre.service - Odoo.")], "state": "active (running)"}
+        u = next(v for k, v in par_id(ADV.analyze(faits(nginx_errors=nginx, end=now), {"service": tue})).items() if k.startswith("nginx-upstream:"))
+        self.assertEqual(u["severity"], ADV.LOOK)                             # over, but killed by the system: still to look at (not history)
+        self.assertTrue(u["confirmed"])
+        self.assertTrue(any("oom-kill" in e for e in u["evidence"]))
+
+    def test_risque_de_memoire(self):
+        conf = {"path": "/etc/odoo/odoo.conf", "values": {"workers": "13", "max_cron_threads": "2", "limit_memory_hard": str(1196 * 1048576),
+                                                         "limit_memory_soft": str(1016 * 1048576)}, "cpus": 6, "mem_mb": 16384}
+        f = par_id(ADV.analyze(faits(), {"odoo_conf": conf, "memory": {"limit_mb": None, "oom_kills": None, "kernel": []}}))
+        m = f["memory-risk"]
+        self.assertEqual(m["severity"], ADV.LOOK)
+        self.assertTrue(any("17940 MB" in e and "16384 MB" in e for e in m["evidence"]))
+        self.assertTrue(any("limit_memory_hard to about 764 MB" in a for a in m["advice"]))
+        f = par_id(ADV.analyze(faits(), {"odoo_conf": conf, "memory": {"limit_mb": 16384, "oom_kills": 2, "kernel": [(time.time(), "Out of memory: Killed process 1234 (python3)")]}}))
+        self.assertEqual(f["memory-risk"]["severity"], ADV.PROBLEM)
+        self.assertTrue(f["memory-risk"]["confirmed"])
+        petit = dict(conf, values=dict(conf["values"], workers="4"))
+        self.assertNotIn("memory-risk", par_id(ADV.analyze(faits(), {"odoo_conf": petit, "memory": {}})))
+
+    def test_meme_page_en_boucle(self):
+        who = {"203.0.113.44": "host-44.example.net [203.0.113.44] CD (République démocratique du Congo)"}
+        hot = [{"ip": "203.0.113.44", "url": "/web/dataset/call_kw/ir.config_parameter/get_web_dialog_size_config", "n": 1606, "ip_total": 1613,
+                "codes": {"200": 1606}, "known": False}]
+        f = par_id(ADV.analyze(faits(hot_pairs=hot, who=who)))
+        h = next(v for k, v in f.items() if k.startswith("hot-pair:"))
+        self.assertEqual(h["severity"], ADV.LOOK)
+        self.assertIn("République démocratique du Congo", h["title"])
+        self.assertIn("valid Odoo session", h["cause"])
+        refuse = [dict(hot[0], codes={"303": 1606})]
+        h = next(v for k, v in par_id(ADV.analyze(faits(hot_pairs=refuse, who=who))).items() if k.startswith("hot-pair:"))
+        self.assertEqual(h["severity"], ADV.INFO)
+        connu = [dict(hot[0], known=True)]
+        h = next(v for k, v in par_id(ADV.analyze(faits(hot_pairs=connu, who=who))).items() if k.startswith("hot-pair:"))
+        self.assertIn("known person", h["cause"])
+
+    def test_courriels_en_echec_un_par_un_avec_pistes(self):
+        t = time.mktime((2026, 11, 8, 14, 32, 0, 0, 0, -1))
+        base = {"days": 2, "exception": 2, "outgoing": 0, "sent": 63, "reasons": [("Échec d'envoi de l'e-mail", 2)], "servers": ["mail.example.org:587 (starttls)"] * 2}
+        failed = [{"id": 9, "instant": t, "sujet": "Inscription confirmée", "destinataires": "ana@example.org", "raison": "Échec d'envoi de l'e-mail", "base": "prod"},
+                  {"id": 8, "instant": t - 60, "sujet": "Rappel", "destinataires": "bob@example.org", "raison": "Échec d'envoi de l'e-mail", "base": "prod"}]
+        servers = [{"id": 1, "nom": "Principal", "hote": "mail.example.org", "port": "587", "chiffrement": "starttls", "filtre": "", "actif": True},
+                   {"id": 3, "nom": "Copie", "hote": "mail.example.org", "port": "587", "chiffrement": "starttls", "filtre": "", "actif": True}]
+        m = par_id(ADV.analyze(faits(), {"mail_db": base, "mail_failed": failed, "mail_servers": servers}))["mail-failures"]
+        self.assertTrue(any("2026-11-08 14:32" in e and "Inscription confirmée" in e and "ana@example.org" in e for e in m["evidence"]))
+        self.assertFalse(any(e.startswith("Cause: ") for e in m["evidence"]))      # the full list replaces the generic count
+        self.assertTrue(any("generic message" in a for a in m["advice"]))
+        self.assertTrue(any("2 outgoing servers for mail.example.org:587" in a for a in m["advice"]))
+        self.assertTrue(m["confirmed"])
+        auth = [dict(failed[0], raison="Échec d'envoi de l'e-mail SMTPAuthenticationError: (535, b'5.7.8 Username and Password not accepted')")]
+        m = par_id(ADV.analyze(faits(), {"mail_db": base, "mail_failed": auth, "mail_servers": servers[:1]}))["mail-failures"]
+        self.assertTrue(any("user name or the password" in a for a in m["advice"]))
+        self.assertFalse(any("generic message" in a for a in m["advice"]))
+
+    def test_lenteurs_simultanees_et_actions_planifiees(self):
+        t = time.time() - 4000
+        lent = [{"total": 21.9, "url": "/blog/presentations-3/tag/ia-17", "ip": "198.51.100.201", "t_sql": 21.7, "t_py": 0.2, "sql_n": 36, "t": t},
+                {"total": 10.6, "url": "/event/rencontre-103/register", "ip": "198.51.100.182", "t_sql": 10.4, "t_py": 0.2, "sql_n": 33, "t": t + 14}]
+        f = par_id(ADV.analyze(faits(slow=lent), {"crons": [(t - 30, "Mail: Email Queue Manager")]}))
+        s = f["slow-requests"]
+        self.assertIn("same moment", s["cause"])
+        self.assertTrue(any("within 14 s" in e for e in s["evidence"]))
+        self.assertTrue(any("Email Queue Manager" in e for e in s["evidence"]))
+        self.assertTrue(any("21.9 s" in e and "SQL 21.7 s (36 queries)" in e for e in s["evidence"]))
+        bouton = [{"total": 8.0, "url": "/web/dataset/call_button/rlq.survey.report.wizard/action_generate", "ip": "x", "t_sql": 7.0, "t_py": 1.0, "t": t}]
+        s = par_id(ADV.analyze(faits(slow=bouton)))["slow-requests"]
+        self.assertTrue(any("action action_generate of the model rlq.survey.report.wizard" in e for e in s["evidence"]))
+
+    def test_comptes_jamais_connectes(self):
+        comptes = [{"t": time.time() - i * 600, "domain": "example.org", "logins": 0} for i in range(4)] + [{"t": time.time(), "domain": "example.net", "logins": 2}]
+        details = {"nginx": {"/web/signup": {"methods": Counter({"GET": 8})}}, "signup": {"scope": "b2c", "new_users": 5, "accounts": comptes}}
+        f = par_id(ADV.analyze(faits(account_ips={"192.0.2.%d" % i: 2 for i in range(9)}, account_urls=["/web/signup"]), details))
+        a = f["account-forms"]
+        self.assertEqual(a["severity"], ADV.LOOK)
+        self.assertIn("never signed in: 4", a["title"])
+        self.assertTrue(any("not found in the access logs read: 10" in e for e in a["evidence"]))
+        self.assertTrue(any("@example.net" in e and "signed in 2 times since" in e for e in a["evidence"]))
+
+    def test_bannies_pendant_la_periode_et_chronologie(self):
+        t = time.time() - 1800
+        facts = faits(banned_during=[("192.0.2.77", t, ["nginx-badrequests"])], who={"192.0.2.77": "scanner.example.net [192.0.2.77]"},
+                      slow=[{"total": 6.0, "url": "/shop", "ip": "x", "t_sql": 5.0, "t_py": 1.0, "t": t - 60}], push_times=[t - 120, t - 10])
+        f = par_id(ADV.analyze(facts))
+        self.assertEqual(f["banned-during"]["severity"], ADV.INFO)
+        events = ADV.timeline(facts, {"service": {"events": [(t - 300, "Started erplibre.service")]}})
+        texts = [x for _t, x in events]
+        self.assertEqual([round(x) for x, _ in events], sorted(round(x) for x, _ in events))
+        self.assertTrue(texts[0].startswith("service: "))
+        self.assertTrue(any("ban of scanner.example.net" in x for x in texts))
+        self.assertTrue(any(x.startswith("slow request: 6.0 s") for x in texts))
+
+
+class Pays(unittest.TestCase):
+    """apps/_countries.py (app-log-live.py 1.178): full names of the countries, French and English."""
+
+    def test_noms_complets(self):
+        c = charger("_countries_t", os.path.join(SCRIPTS_DIR, "apps", "_countries.py"))
+        self.assertEqual(c.label("CD"), "CD (République démocratique du Congo)")
+        self.assertEqual(c.label("cd", "en"), "CD (Democratic Republic of the Congo)")
+        self.assertEqual(c.label("US"), "US (États-Unis)")
+        self.assertEqual(c.label("ZZ"), "ZZ")
+        self.assertEqual(c.label(""), "")
+        self.assertGreaterEqual(len(c.NAMES), 249)
+        self.assertFalse([k for k, (fr, en) in c.NAMES.items() if not fr or not en or "—" in fr + en])
