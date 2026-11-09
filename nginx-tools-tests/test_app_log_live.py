@@ -2991,7 +2991,7 @@ class AppLogLive(EnvTest):
         request_data("4.4.4.4", "/x.php", 200, offset=31)                     # suspect : pas une page
         lines = " ".join(" ".join(st.visit_lines()).split())
         self.assertIn("Visites du site : 4 visites · 5 pages vues · 3 visiteurs [1 personnes connues · 1 équipe ou lieu · 1 anonymes] · 1.7 pages par visiteur", T(lines))
-        self.assertIn("Pays des visiteurs : CA 1 · FR 1 · pays inconnu 1", T(lines))
+        self.assertIn("Pays des visiteurs : CA (Canada) 1 · FR (France) 1 · pays inconnu 1", T(lines))
         self.assertIn("Pages les plus visitées (réponses sous 400) : /a ×2 ; /fr_CA/a ×1 ; /b ×1 ; /c ×1", T(lines))
         # Ctrl-T: only the period
         before = st.snapshot()
