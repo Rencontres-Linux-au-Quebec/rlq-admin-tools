@@ -3441,6 +3441,18 @@ Earlier history was archived outside this repository when this file was created.
 
 ## nginx-hardening.sh
 
+### 2.92.20261109.222500 - Image cache location refused by nginx -t; the real error of nginx -t shown
+
+- Title: the location of the image cache is accepted by nginx; when nginx -t refuses the generic configuration, its error is shown.
+- Reason: report of the administrator on 2026-11-09 (DEV, nginx-hardening.sh 2.91 --update): « [FAIL] nginx -t refuse la configuration générique » followed by « syntax is ok / test is successful », and « odoo.conf (ligne 41 xmlrpc_port) : clé inconnue d'Odoo ».
+- Changes: nginx/snippets/odoo/_odoo-common.conf: the regular expression of the /web/image location between quotes; nginx/VERSION 1.26.20261109.222500; step 0f: the output of nginx -t on the NEW configuration kept (gen_test) and its [emerg] / [error] lines shown before the files are put back, then the result after the restore; nginx-tools-tests/test_nginx_hardening.py: test_292_regex_avec_accolades_entre_guillemets (every location expression with { must be quoted).
+- Bugs fixed:
+  - symptom: « nginx -t refuse la configuration générique : retour à l'état précédent » on --update of 2.91; diagnosis: « location ~ ^/(?:[a-z]{2}...) { » without quotes: for nginx the { of {2} opens the block; the test of 2.91 read the configuration with our own parser, not with nginx; fix: the expression between quotes, and a test on every file of nginx/.
+  - symptom: the message of the refusal was followed by « syntax is ok » and « test is successful »; diagnosis: nginx -t was run again AFTER the files were put back; fix: the error of the new configuration is shown first.
+- Safeguards and edge cases: none new.
+- Checks performed: test_292_regex_avec_accolades_entre_guillemets, MoinsDeDisque291 [OK]; ShellCheck 0.11.0 [OK].
+- Action required: sudo nginx-hardening.sh --update again (step 0f installs the corrected files).
+
 ### 2.91.20261109.221500 - Less disk for nginx and PostgreSQL: image cache, cache in memory, PostgreSQL memory and checkpoints
 
 - Title: nginx keeps the public images of Odoo in its cache, in memory; PostgreSQL gets memory and checkpoints for the memory of the server; step 4 checks what nginx writes to the disk.
@@ -5558,6 +5570,16 @@ Earlier history was archived outside this repository when this file was created.
 ### 1.2.20261019.150215 - Current version. Earlier history archived outside the repository.
 
 ## apps/_odoo_conf_check.py
+
+### 1.2.20261109.222500 - Old key names read by Odoo are not unknown keys
+
+- Title: xmlrpc_port, xmlrpc_interface and xmlrpc are reported as old names read by Odoo, not as unknown keys.
+- Reason: report of the administrator on 2026-11-09 (DEV, nginx-hardening.sh 2.91 --update): « [FAIL] nginx -t refuse la configuration générique » followed by « syntax is ok / test is successful », and « odoo.conf (ligne 41 xmlrpc_port) : clé inconnue d'Odoo ».
+- Changes: new constant OUTDATED (xmlrpc_port -> http_port, xmlrpc_interface -> http_interface, xmlrpc -> http_enable, as odoo/tools/config.py load()); check(): these keys -> "info" « old name, read by Odoo as ... »; nginx-tools-tests/test_odoo_conf_check.py.
+- Bugs fixed: symptom: « clé inconnue d'Odoo, ignorée sans message (faute de frappe ?) » for xmlrpc_port; diagnosis: Odoo 18 renames these keys when it reads the file, so they are not in its list of options; fix: said as an old name.
+- Safeguards and edge cases: the other unknown keys are still warnings.
+- Checks performed: test_odoo_conf_check [OK].
+- Action required: none.
 
 ### 1.1.20261109.213000 - Python of the virtual environment of Odoo, import failure is not an error of the file, empty TSV fields
 
