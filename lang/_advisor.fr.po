@@ -1179,3 +1179,42 @@ msgstr "la mémoire est trop juste pour {w} workers à ces limites : environ {m}
 
 msgid "these limits are virtual memory: about {o} MB more than the RAM really used by a worker"
 msgstr "ces limites sont de la mémoire virtuelle : environ {o} Mo de plus que la RAM vraiment utilisée par un worker"
+
+msgid "Live chat (gevent process) limited like a worker: raise limit_memory_soft_gevent and limit_memory_hard_gevent"
+msgstr "Discussion en direct (processus gevent) limitée comme un worker : monter limit_memory_soft_gevent et limit_memory_hard_gevent"
+
+msgid "Memory available now (MemAvailable): {a} MB, {p} % of {t} MB"
+msgstr "Mémoire disponible maintenant (MemAvailable) : {a} Mo, {p} % de {t} Mo"
+
+msgid "Memory nearly used up now: {a} MB available of {t} MB"
+msgstr "Mémoire presque épuisée maintenant : {a} Mo disponibles sur {t} Mo"
+
+msgid "Restarts of the gevent process for memory in the Odoo log of the period (« Gevent virtual memory limit reached »): {n}"
+msgstr "Redémarrages du processus gevent pour la mémoire dans le journal d'Odoo de la période (« Gevent virtual memory limit reached ») : {n}"
+
+msgid "add about {gb} GB of memory to this server (Proxmox: memory of the container), or lower workers ({w} now)"
+msgstr "ajouter environ {gb} Go de mémoire à ce serveur (Proxmox : mémoire du conteneur), ou baisser workers ({w} maintenant)"
+
+msgid "in odoo.conf (values in bytes): limit_memory_soft_gevent = {sb} ({s} MB) and limit_memory_hard_gevent = {hb} ({h} MB), then restart Odoo"
+msgstr "dans odoo.conf (valeurs en octets) : limit_memory_soft_gevent = {sb} ({s} Mo) et limit_memory_hard_gevent = {hb} ({h} Mo), puis redémarrer Odoo"
+
+msgid "it gives the live chat room for many more people at the same time (one connection per open Odoo tab) without cutting them; it is one process: at most about {r} MB more of real RAM"
+msgstr "la discussion en direct tient alors beaucoup plus de monde en même temps (une connexion par onglet Odoo ouvert) sans les couper ; c'est un seul processus : au plus environ {r} Mo de RAM de plus"
+
+msgid "limit_memory_soft_gevent {s}, limit_memory_hard_gevent {h}"
+msgstr "limit_memory_soft_gevent {s}, limit_memory_hard_gevent {h}"
+
+msgid "not set (limit_memory_hard: {v} MB)"
+msgstr "non défini (limit_memory_hard : {v} Mo)"
+
+msgid "not set (limit_memory_soft: {v} MB)"
+msgstr "non défini (limit_memory_soft : {v} Mo)"
+
+msgid "or add about {gb} GB of memory to this server ({need} MB in all; Proxmox: memory of the container) to keep {w} workers at limit_memory_hard {c} MB, with room for big reports and exports"
+msgstr "ou ajouter environ {gb} Go de mémoire à ce serveur ({need} Mo en tout ; Proxmox : mémoire du conteneur) pour garder {w} workers à limit_memory_hard {c} Mo, avec de la place pour les gros rapports et les exports"
+
+msgid "the gevent process keeps the connections of the discussion and of the notifications open (one per open Odoo tab); its memory grows with the number of people connected at the same time and, at its limit, it restarts: every discussion is cut for a few seconds"
+msgstr "le processus gevent garde ouvertes les connexions de la discussion et des notifications (une par onglet Odoo ouvert) ; sa mémoire grandit avec le nombre de personnes connectées en même temps et, à sa limite, il redémarre : toutes les discussions sont coupées quelques secondes"
+
+msgid "the system has little memory left for PostgreSQL, its cache and the Odoo processes: the site slows down, and the kernel may stop a process"
+msgstr "il reste peu de mémoire pour PostgreSQL, son cache et les processus d'Odoo : le site ralentit, et le noyau peut arrêter un processus"

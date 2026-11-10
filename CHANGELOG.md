@@ -394,6 +394,16 @@ Earlier history was archived outside this repository when this file was created.
 
 ## app-log-live.py
 
+### 1.183.20261109.204500 - Limits of the live chat (gevent) read, restarts of gevent counted, memory available
+
+- Title: the analysis reads limit_memory_soft_gevent / limit_memory_hard_gevent, counts the restarts of the gevent process and the memory available now.
+- Reason: request of the administrator on 2026-11-09 (gevent limits and memory recommendations).
+- Changes: ODOO_PERF_KEYS: limit_memory_soft_gevent, limit_memory_hard_gevent (shown in the environment, "-" when not set); memory_facts(): gevent_restarts (« Gevent virtual memory limit reached »), available_mb (MemAvailable); recycled no longer counts the gevent lines; used by apps/_advisor.py 1.12.
+- Bugs fixed: none.
+- Safeguards and edge cases: the journal is not read in the tests.
+- Checks performed: OdooRuntime181 [OK].
+- Action required: none.
+
 ### 1.182.20261109.194500 - Memory of the Odoo workers measured, recyclings counted
 
 - Title: the analysis measures the virtual and real memory of the Odoo workers and counts the workers recycled for memory.
@@ -3401,6 +3411,16 @@ Earlier history was archived outside this repository when this file was created.
 
 ## nginx-hardening.sh
 
+### 2.86.20261109.204500 - Step 6: limits of the live chat (gevent), memory to add, memory nearly used up
+
+- Title: step 6 checks the limits of the gevent process and says how much memory to add when the RAM is short.
+- Reason: request of the administrator on 2026-11-09: check limit_memory_soft_gevent / limit_memory_hard_gevent and say what raising them is for (more people chatting at the same time); recommend more memory when the RAM is short.
+- Changes: step 6: new local function gevent_valeur() (run.sh production line first, then odoo.conf); WARN when limit_memory_soft_gevent < 2147483648 or limit_memory_hard_gevent < 2684354560 (or not set: Odoo then gives gevent the limits of the workers), with what it is for and the values in bytes, PASS otherwise; memory to add (steps of 1 GB, same reserve and margin) so that every process keeps limit_memory_hard 1536 MB, shown when the RAM is short; WARN when MemAvailable is under 15 % of the memory; lang/nginx-hardening.en.po; doc 01-nginx-hardening.md (fr, en).
+- Bugs fixed: none.
+- Safeguards and edge cases: nothing is applied; PROD (16 GB, 13 workers): about 8 GB to add (24 GB in all); values given in bytes as odoo.conf wants them.
+- Checks performed: test_286_ram_a_ajouter_et_gevent (24576 MB for PROD) and SuggestionMemoire282 [OK]; ShellCheck 0.11.0 [OK].
+- Action required: add limit_memory_soft_gevent = 2147483648 and limit_memory_hard_gevent = 2684354560 to odoo.conf, then restart Odoo.
+
 ### 2.85.20261109.194500 - Step 6: memory limits in virtual memory, workers recycled at birth detected
 
 - Title: the suggested limit_memory_soft and limit_memory_hard take the virtual memory of the workers into account; a limit under a worker at rest is a failure.
@@ -5022,6 +5042,16 @@ Earlier history was archived outside this repository when this file was created.
   - Not changed: nginx-log-audit.sh keeps its own bash values (its --page-burst default is 8 against 15 here; this difference is still to be decided).
 
 ## apps/_advisor.py
+
+### 1.12.20261109.204500 - Live chat limits (gevent), memory to add, memory nearly used up
+
+- Title: new findings gevent-memory-limit and memory-low-now; the memory risk says how much memory to add.
+- Reason: request of the administrator on 2026-11-09: check limit_memory_soft_gevent / limit_memory_hard_gevent and say what raising them is for (more people chatting at the same time); recommend more memory when the RAM is short.
+- Changes: new constants COMFORT_HARD_MB (1536), GEVENT_SOFT_MB, GEVENT_HARD_MB (2048 / 2560); new function ram_needed(); memory_plan() returns ram_needed; new methods _gevent_limits() (finding gevent-memory-limit: INFO, LOOK and confirmed when the Odoo log shows « Gevent virtual memory limit reached ») and _memory_low_now() (finding memory-low-now, LOOK, when MemAvailable is under 15 %); rule_memory(): advice "add about N GB of memory" when the plan is under 1536 MB; lang/_advisor.fr.po.
+- Bugs fixed: none.
+- Safeguards and edge cases: "False" (Odoo's value for not set) is read as not set; nothing about gevent without workers (one process).
+- Checks performed: test_advisor test_gevent_et_ram_juste [OK].
+- Action required: none.
 
 ### 1.11.20261109.194500 - Memory risk in virtual memory, workers recycled at birth
 

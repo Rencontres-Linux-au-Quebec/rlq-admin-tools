@@ -1087,6 +1087,16 @@ class SuggestionMemoire282(unittest.TestCase):
         out = subprocess.run(["bash", "-c", script], capture_output=True, text=True, timeout=30).stdout.split()
         self.assertEqual(out, ["659", "418", "3"])           # workers 101-103 (the main process and run.sh left out), median 659 MB
 
+    def test_286_ram_a_ajouter_et_gevent(self):
+        """2.86 : RAM à ajouter pour garder les workers à limit_memory_hard 1536 Mo (PROD : 16 Go -> 24 Go, soit 8 Go) ; contrôle des limites de gevent."""
+        with open(script_path("nginx-hardening.sh"), encoding="utf-8") as f:
+            src = f.read()
+        debut = src.index("        confort_hard_mb=1536")
+        fin = src.index("        done\n", debut) + len("        done\n")
+        script = f"total_ram_mb=16384; non_odoo_mb=453; processes=16; overhead_mb=410\n{src[debut:fin]}\necho $ram_voulue_mb\n"
+        self.assertEqual(subprocess.run(["bash", "-c", script], capture_output=True, text=True, timeout=30).stdout.split(), ["24576"])
+        self.assertIn("limit_memory_soft_gevent = 2147483648 (2048 $U_MEM) et limit_memory_hard_gevent = 2684354560", src)
+
     def test_285_soft_sous_un_worker_au_repos_signale(self):
         with open(script_path("nginx-hardening.sh"), encoding="utf-8") as f:
             src = f.read()

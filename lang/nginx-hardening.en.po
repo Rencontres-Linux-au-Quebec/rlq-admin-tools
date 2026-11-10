@@ -2642,3 +2642,45 @@ msgstr "): workers recycled very often."
 
 msgid "/var/log/journal"
 msgstr "/var/log/journal"
+
+msgid "RAM juste : avec "
+msgstr "RAM short: with "
+
+msgid " de vraie mémoire. Ajouter environ "
+msgstr " of real memory. Add about "
+
+msgid " en tout ; Proxmox : mémoire du conteneur) pour garder "
+msgstr " in all; Proxmox: memory of the container) to keep "
+
+msgid " workers à limit_memory_hard "
+msgstr " workers at limit_memory_hard "
+
+msgid " (place pour les gros rapports, exports et importations)."
+msgstr " (room for big reports, exports and imports)."
+
+msgid "Mémoire presque épuisée maintenant : "
+msgstr "Memory nearly used up now: "
+
+msgid " disponibles sur "
+msgstr " available of "
+
+msgid " (moins de 15 %). Ajouter de la mémoire (Proxmox : mémoire du conteneur) ou baisser workers."
+msgstr " (less than 15 %). Add memory (Proxmox: memory of the container) or lower workers."
+
+msgid "Discussion en direct (processus gevent) : limit_memory_soft_gevent = "
+msgstr "Live chat (gevent process): limit_memory_soft_gevent = "
+
+msgid "non défini (celle des workers)"
+msgstr "not set (that of the workers)"
+
+msgid ". Ce processus garde ouvertes les connexions de la discussion et des notifications (une par onglet Odoo ouvert) ; sa mémoire grandit avec le nombre de personnes connectées en même temps et, à sa limite, il redémarre : toutes les discussions sont coupées quelques secondes. Mettre dans "
+msgstr ". This process keeps the connections of the discussion and of the notifications open (one per open Odoo tab); its memory grows with the number of people connected at the same time and, at its limit, it restarts: every discussion is cut for a few seconds. Set in "
+
+msgid ") et limit_memory_hard_gevent = 2684354560 (2560 "
+msgstr ") and limit_memory_hard_gevent = 2684354560 (2560 "
+
+msgid "), puis redémarrer Odoo : la discussion tient alors beaucoup plus de monde en même temps (un seul processus : au plus environ 1 Go de RAM de plus)."
+msgstr "), then restart Odoo: the live chat then holds many more people at the same time (one process: at most about 1 GB more of RAM)."
+
+msgid "Discussion en direct (gevent) : limit_memory_soft_gevent "
+msgstr "Live chat (gevent): limit_memory_soft_gevent "
