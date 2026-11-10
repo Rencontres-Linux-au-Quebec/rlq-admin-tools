@@ -1873,10 +1873,27 @@ class AppLogLive(EnvTest):
         rc, out, err = self.lancer("--no-presence", "--summary")
         r = " ".join(out[out.index("──── Résumé"):].split())
         self.assertIn("Où va le temps : SQL", T(r))
-        self.assertRegex(T(r), r"/web/dataset/call_kw/document\.page/web_read ×2 — 14 s en tout, la pire 7\.5 s : requêtes SQL longues")
-        self.assertRegex(T(r), r"/event/journee-N-N/registration/confirm ×2 — 12 s en tout, la pire 6\.7 s : temps Python")
+        self.assertRegex(T(r), r"×2 14 s en tout, la pire 7\.5 s · /web/dataset/call_kw/document\.page/web_read : requêtes SQL longues")
+        self.assertRegex(T(r), r"×2 12 s en tout, la pire 6\.7 s · /event/journee-N-N/registration/confirm : temps Python")
         self.assertIn("Adresses : ", T(r))
         self.assertIn("4 requêtes lentes dans la même minute", T(r))
+
+    def test_185_requetes_lentes_alignees_et_en_couleur(self):
+        """1.185 : une requête lente par ligne en colonnes alignées (durée, heure, SQL, Python, requêtes SQL, puis la page et le client) ; chiffres
+        anormaux en couleur : durée (rouge à 2 fois le seuil), Python quand il prend presque tout, nombre de requêtes SQL dès SQL_HIGH."""
+        live = self.module_live()
+        st = live.Stats(5.0)
+        st.who = lambda ip: "client"
+        a = st.slow_row(10.6, "/web/image/website.s_showcase_default_image", "198.51.100.20", 16, 0.0, 10.6, 1762738528)
+        b = st.slow_row(6.2, "/survey/submit/a/b", "198.51.100.20", 1450, 4.8, 1.4, 1762738528)
+        nu = lambda x: re.sub(r"\x1b\[[0-9;]*m", "", x)
+        self.assertEqual(nu(a).index("Python"), nu(b).index("Python"))
+        self.assertEqual(nu(a).index(" /web/image"), nu(b).index(" /survey"))
+        if "\x1b[" in a:
+            self.assertIn("\x1b[1;31m 10.6 s", a)                     # twice the threshold: red
+            self.assertIn("Python \x1b[1;31m 10.6 s", a)              # Python takes it all
+            self.assertIn("\x1b[1;31m 1450\x1b[0m", b)                # SQL_VERY_HIGH
+            self.assertNotIn("\x1b[1;31m    16", a)
 
     def test_requetes_lentes_surlignees_avec_leur_duree_et_slow(self):
         """SQL + Python >= 5 s (--slow) : les deux durées en orange gras et le total ajouté ; à 3 fois le seuil : rouge gras ; sous le seuil : rien."""
@@ -2842,7 +2859,7 @@ class AppLogLive(EnvTest):
         self.assertIn("assets (JS/CSS) recalculés : normal une fois après un redémarrage", T(text))
         self.assertIn("vues ou menus recompilés (cache d'Odoo à froid)", T(text))
         self.assertIn("3 des 4 requêtes lentes sont des assets ou des vues (cache d'Odoo à froid)", T(text))
-        self.assertIn("/es/event/N-ans/track ×1 — 11 s en tout, la pire 10.8 s : temps Python (calcul, attente d'un verrou ou serveur surchargé)", T(text))
+        self.assertIn("×1 11 s en tout, la pire 10.8 s · /es/event/N-ans/track : temps Python (calcul, attente d'un verrou ou serveur surchargé)", T(text))
         seul = live.Stats(3.0)
         seul.ajouter(live.Line(f'2026-10-13 14:47:00.00 odoo18 odoo INFO base werkzeug {PERSONNE} "GET /es/event/21-ans/track HTTP/1.1" 200 - 12 0.1 9.0'), {PERSONNE: ("inconnu", [], False, None)}, None)
         self.assertNotIn("cache d'Odoo à froid) : Odoo vient", T(" ".join(seul.analyze_slow())))

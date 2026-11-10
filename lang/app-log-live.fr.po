@@ -1145,11 +1145,7 @@ msgstr " Mo"
 msgid "Where the time goes: SQL "
 msgstr "Où va le temps : SQL "
 
-msgid "% · Python "
-msgstr "% · Python "
 
-msgid "% (total "
-msgstr "% (total "
 
 msgid "s over "
 msgstr "s sur "
@@ -1190,8 +1186,6 @@ msgstr "Adresses : "
 msgid "slow requests in the same minute: overloaded server or database lock (see “Program” and app-health-check.py)"
 msgstr "requêtes lentes dans la même minute : serveur saturé ou verrou de base de données (voir « Programme » et app-health-check.py)"
 
-msgid "— SQL "
-msgstr "— SQL "
 
 msgid "s · Python "
 msgstr "s · Python "
@@ -3475,3 +3469,6 @@ msgstr "nginx (rt=, fichiers statiques compris) : {n} requêtes mesurées · mé
 
 msgid "nginx: no rt= in the access logs read (format older than nginx-hardening.sh 2.83: the times of the static files are not known)"
 msgstr "nginx : aucun rt= dans les journaux d'accès lus (format antérieur à nginx-hardening.sh 2.83 : les temps des fichiers statiques ne sont pas connus)"
+
+msgid " (total "
+msgstr " (total "

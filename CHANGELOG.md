@@ -394,6 +394,16 @@ Earlier history was archived outside this repository when this file was created.
 
 ## app-log-live.py
 
+### 1.185.20261109.214000 - Slow requests in aligned columns, abnormal figures in colour
+
+- Title: the slow requests of the health and of the summary are shown in aligned columns, the abnormal figures in colour.
+- Reason: request of the administrator on 2026-11-09: "enligne l'information et rajoute de la couleur pour les chiffres anormaux" (slow requests of DEV).
+- Changes: new method Stats.slow_row(): duration, date and time, SQL time, Python time, number of SQL queries, then the page and the client (of any length) last; duration orange, red from twice the threshold; SQL time when it takes 60 % of the request, Python time when it takes 80 %; number of SQL queries from SQL_HIGH (red from SQL_VERY_HIGH). analyze_slow(): pages grouped in columns (count, total, worst in colour, page padded to the longest of the list, then the cause), the share of SQL or Python that takes most of the time in orange, the counts of the addresses and of the cluster in colour; the fixed words of these lines are translated before the padding (the display translator kept the columns only partly); lang/app-log-live.fr.po: obsolete fragments "— SQL ", "% · Python ", "% (total " removed, " (total " added.
+- Bugs fixed: none.
+- Safeguards and edge cases: no colour when the output is not a terminal (color_code); the client and the page stay last, so a long name never shifts the columns.
+- Checks performed: test_185_requetes_lentes_alignees_et_en_couleur (new), test_causes_des_requetes_lentes_dans_le_resume and test_requetes_lentes_surlignees_avec_leur_duree_et_slow (updated to the new layout), test_i18n: no new failure.
+- Action required: none.
+
 ### 1.184.20261109.211500 - odoo.conf read the way Odoo reads it in the analysis
 
 - Title: the analysis checks odoo.conf with apps/_odoo_conf_check.py (without starting Odoo).
@@ -3421,6 +3431,16 @@ Earlier history was archived outside this repository when this file was created.
 
 ## nginx-hardening.sh
 
+### 2.88.20261109.213000 - Step 8: message of the odoo.conf check well placed; step 6: what is measured
+
+- Title: step 8 shows the line and the key of a finding only when they exist; step 6 says that the measured processes are the workers, the cron threads and gevent.
+- Reason: report of the administrator on 2026-11-09 (DEV, nginx-hardening.sh --update): step 8 said « [FAIL] odoo.conf (ligne 0 Odoo refuse ce fichier : ModuleNotFoundError: No module named 'babel') : ».
+- Changes: step 8: "-" or "0" read as empty for the line and the key (apps/_odoo_conf_check.py 1.1); step 6: « N processus mesurés : workers, cron, gevent » (was « N workers mesurés » for 3 workers + 2 cron + gevent); lang/nginx-hardening.en.po.
+- Bugs fixed: symptom: « [FAIL] odoo.conf (ligne 0 Odoo refuse ce fichier : ...) : »; diagnosis and fix: see apps/_odoo_conf_check.py 1.1.
+- Safeguards and edge cases: none new.
+- Checks performed: test_odoo_conf_check [OK]; ShellCheck 0.11.0 [OK].
+- Action required: none.
+
 ### 2.87.20261109.211500 - Step 8: odoo.conf read the way Odoo reads it
 
 - Title: step 8 checks odoo.conf with apps/_odoo_conf_check.py (comment after a value, key twice, wrong type, keys unknown to Odoo, parsing by the Odoo of the server).
@@ -5479,6 +5499,18 @@ Earlier history was archived outside this repository when this file was created.
 ### 1.2.20261019.150215 - Current version. Earlier history archived outside the repository.
 
 ## apps/_odoo_conf_check.py
+
+### 1.1.20261109.213000 - Python of the virtual environment of Odoo, import failure is not an error of the file, empty TSV fields
+
+- Title: the check by Odoo itself uses the Python of Odoo's virtual environment; when it cannot load Odoo it says so instead of failing the file.
+- Reason: report of the administrator on 2026-11-09 (DEV, nginx-hardening.sh --update): step 8 said « [FAIL] odoo.conf (ligne 0 Odoo refuse ce fichier : ModuleNotFoundError: No module named 'babel') : ».
+- Changes: new function _python_of() (argv[0] when it is a path, otherwise argv[0] in the PATH of the process from /proc/PID/environ, then VIRTUAL_ENV, then /proc/PID/exe); find_odoo() uses it; check(): ModuleNotFoundError or ImportError -> "info" (check by Odoo not done, give --python); --tsv writes "-" for an empty line number or key.
+- Bugs fixed:
+  - symptom: « Odoo refuse ce fichier : ModuleNotFoundError: No module named 'babel' »; diagnosis: /proc/PID/exe resolves the symlink of the venv to /usr/bin/python3.x, whose site-packages lack Odoo's packages; fix: the Python of the PATH of the process (its venv).
+  - symptom: « (ligne 0 Odoo refuse ce fichier : ...) : » with the message in the place of the key; diagnosis: read with IFS=tab merges the empty fields; fix: "-" in the empty fields.
+- Safeguards and edge cases: a Python that cannot load Odoo never makes an error of the file; a real refusal of Odoo (bad value) stays an error.
+- Checks performed: test_odoo_conf_check (7 tests: test_11_python_sans_odoo_et_champs_vides, test_11_python_de_l_environnement_virtuel) [OK].
+- Action required: none.
 
 ### 1.0.20261109.211500 - New: odoo.conf checked the way Odoo 18 reads it
 
