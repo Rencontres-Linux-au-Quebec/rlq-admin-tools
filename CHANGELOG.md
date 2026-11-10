@@ -3189,6 +3189,16 @@ Earlier history was archived outside this repository when this file was created.
 
 ## odoo-update-module.sh
 
+### 1.27.20261109.203000 - Who the update waits for: address, country, Odoo user
+
+- Title: when the site is busy, the wait and --check-activity list who is active: address, country, Odoo user, requests and writes.
+- Reason: request of the administrator on 2026-11-09: "indique que l'on attend après quels utilisateurs et IP (avec son pays)".
+- Changes: new function who_waits() ("I|" lines: addresses of the nginx logs of the last VISITOR_WINDOW minutes, robots and this server left out; country from the cache of the suite apps/_cache_ip.py, otherwise geoiplookup, otherwise the country noted by Odoo; Odoo user from res_device_log (login and name, last activity in max(VISITOR_WINDOW, CONNECTED_WINDOW) minutes, revoked sessions left out); then the Odoo users active from another address; 8 lines at most); new site_reasons_who(); wait_for_quiet_site() and rapport_activite() show them without a bullet, outside the summary of the cancellation; nginx_writes() shows the address of each write; rapport_activite() no longer shows the "W|" / "R|" tags; lang/odoo-update-module.en.po; doc 09-odoo-update-module.md (fr, en).
+- Bugs fixed: symptom: --check-activity showed "· W|..." and "· R|..."; diagnosis: the tag of site_reasons was not removed there; fix: removed.
+- Safeguards and edge cases: reads only; database unreadable: addresses and countries without users; no country found: "pays inconnu"; --anonymize applies to these lines like to the rest of the output; geoiplookup is not called in the tests.
+- Checks performed: test_odoo_update_module test_227_qui_on_attend, test_226, test_199 [OK]; test_i18n: no new failure; ShellCheck 0.11.0 [OK].
+- Action required: none.
+
 ### 1.26.20261109.191500 - Bus polls are not writes; chat, presence and visitor tracking are light writes
 
 - Title: the update is no longer cancelled by the polls of the Odoo bus nor by the live chat.

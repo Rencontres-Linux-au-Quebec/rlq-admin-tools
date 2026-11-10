@@ -136,6 +136,25 @@ class OdooUpdateModule(EnvTest):
         self.assertEqual(rc, 3, out + err)
         self.assertIn("écritures HTTP (POST", out)
 
+    def test_227_qui_on_attend(self):
+        """1.27 : la mise à jour dit qui elle attend : adresse, pays, utilisateur d'Odoo (res_device_log) et nombre de requêtes ; puis les utilisateurs
+        connectés à Odoo depuis une autre adresse."""
+        lignes = [f'198.51.100.20 - - [09/Nov/2026:19:00:{s:02d} +0000] "GET /web HTTP/1.1" 200 12 "-" "Mozilla/5.0"' for s in range(3)]
+        lignes += ['203.0.113.7 - - [09/Nov/2026:19:00:30 +0000] "POST /survey/submit/a/b HTTP/1.1" 200 12 "-" "Mozilla/5.0"']
+        self.write("nginx/exemple-access.log", "\n".join(lignes) + "\n")
+        maintenant = self._epoch("2026-11-09 19:01:00 UTC")
+        pg = self.write("pg-who.sh", "#!/bin/bash\ncase \"$*\" in\n*res_device_log*) printf '198.51.100.20|benevole1|Bénévole Un|Canada|1762714800\\n192.0.2.9|admin|Administrateur|France|1762714700\\n' ;;\n"
+                                   "*) echo 0 ;;\nesac\n", 0o755)
+        rc, out, err = self.lancer("--check-activity", ODOO_UPDATE_MODULE_NOW=maintenant, ODOO_UPDATE_MODULE_PG_AS=pg)
+        self.assertEqual(rc, 3, out + err)
+        self.assertIn("en attente de :", out)
+        self.assertRegex(out, r"198\.51\.100\.20 \S.* · benevole1 \(Bénévole Un\) · 3 requêtes")
+        self.assertRegex(out, r"203\.0\.113\.7 .* · visiteur non connecté · 1 requêtes, dernière à \d\d:\d\d:\d\d, 1 POST")
+        self.assertIn("admin (Administrateur) · connecté à Odoo", out)
+        self.assertIn("(203.0.113.7)", out)                     # the write shows its address
+        self.assertNotIn("I|", out)
+        self.assertNotIn("W|", out)
+
     def test_199_base_illisible_compte_comme_occupee(self):
         mauvais = self.write("pg-ko.sh", "#!/bin/bash\nexit 1\n", 0o755)
         rc, out, err = self.lancer("--check-activity", ODOO_UPDATE_MODULE_PG_AS=mauvais)

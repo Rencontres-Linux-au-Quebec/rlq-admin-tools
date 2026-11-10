@@ -837,3 +837,18 @@ msgstr " light writes (chat, presence, visitor tracking: nothing lost if Odoo st
 
 msgid "  LIGHT_WRITES=                 écritures HTTP légères en plus (expression régulière des adresses, sans le « / » du début) : comme les visiteurs, elles n'annulent pas la mise à jour"
 msgstr "  LIGHT_WRITES=                 more light HTTP writes (regular expression of the addresses, without the first \"/\"): like visitors, they do not cancel the update"
+
+msgid "en attente de :"
+msgstr "waiting for:"
+
+msgid "pays inconnu"
+msgstr "country unknown"
+
+msgid "visiteur non connecté"
+msgstr "visitor not logged in"
+
+msgid " requêtes, dernière à "
+msgstr " requests, last at "
+
+msgid " · connecté à Odoo, dernière activité à "
+msgstr " · logged in to Odoo, last activity at "
