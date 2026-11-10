@@ -93,7 +93,7 @@ run() {
     "$@"
 }
 
-readonly SCRIPT_VERSION="2.92.20261109.222500"
+readonly SCRIPT_VERSION="2.93.20261109.223000"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
 SCRIPT_NAME="$(basename "${BASH_SOURCE[0]}" .sh)"; readonly SCRIPT_NAME
 # Display language (en or fr): --lang, NGINX_HARDENING_LANG, LANGUAGE of the configuration file, LC_ALL / LANG - apps/_i18n.sh translates the output (nothing changes in French).
@@ -2071,6 +2071,19 @@ ws_analyser() {   # $1 Odoo HTTP port, $2 gevent port: lines (separated by \037)
 }
 ws_n=0; ws_http=0; ws_inconnu=0; ws_fixes=""; ws_sep=$'\037'; ws_fail0=$FAIL; ws_wc_vu=0
 
+# workers_conseilles CPUS BUDGET_MB OVERHEAD_MB CRON HARD_MB (2.93): workers recommended: min((2 x CPUS) + 1, what BUDGET_MB of RAM holds when every
+# process (workers + CRON + 1 gevent) may reach HARD_MB of virtual memory, OVERHEAD_MB of which take no RAM); at least 1. Prints the number.
+workers_conseilles() {
+    local cpus="$1" budget="$2" over="$3" cron="$4" hard="$5" guide par memoire
+    [[ "$cpus" =~ ^[0-9]+$ && "$budget" =~ ^[0-9]+$ && "$over" =~ ^[0-9]+$ && "$cron" =~ ^[0-9]+$ && "$hard" =~ ^[0-9]+$ ]] || { echo 0; return 0; }
+    guide=$(( 2 * cpus + 1 ))
+    par=$(( hard - over )); (( par < 1 )) && par=1
+    memoire=$(( budget / par - cron - 1 ))
+    (( memoire < 1 )) && memoire=1
+    (( memoire < guide )) && guide=$memoire
+    echo "$guide"
+}
+
 # nginx_moins_de_disque (2.91): what nginx writes to the disk, read in the configuration in effect (files of NGINX_HARDENING_NGINX_DIR, flattened):
 # proxy_buffers (smallest N x SIZE: a larger response goes to a temporary file), proxy_temp_path and proxy_cache_path (in /dev/shm or on the disk),
 # a location /web/image with proxy_cache (images of Odoo kept by nginx). Reads only: the generic configuration (step 0f) sets all of them.
@@ -2505,6 +2518,17 @@ else
         done
         if (( too_many || safe_hard_mb < 1536 )) && (( ram_voulue_mb > total_ram_mb )); then
             warn "RAM juste : avec ${total_ram_mb} $U_MEM, chaque processus n'a que ${rss_share_mb} $U_MEM de vraie mémoire. Ajouter environ $(( (ram_voulue_mb - total_ram_mb + 1023) / 1024 )) Go (${ram_voulue_mb} $U_MEM en tout ; Proxmox : mémoire du conteneur) pour garder $workers workers à limit_memory_hard ${confort_hard_mb} $U_MEM (place pour les gros rapports, exports et importations)."
+        fi
+        # 2.93: workers recommended for THIS server (each server gets its own figures: DEV 16 GB, PROD 32 GB): the Odoo guide (2 x CPU + 1), at most
+        # what the RAM holds at limit_memory_hard 1536 MB (room for the big reports); the limits above are then those of that number of workers
+        cpus_n=$(nproc 2>/dev/null) || cpus_n=0
+        workers_conseil=$(workers_conseilles "$cpus_n" "$available_for_odoo_mb" "$overhead_mb" "$cron_threads" "$confort_hard_mb")
+        if [[ "$workers_conseil" =~ ^[0-9]+$ ]] && (( workers_conseil > 0 )); then
+            if (( workers_conseil == workers )); then
+                pass "Workers : $workers, la valeur conseillée pour ce serveur (${cpus_n} processeurs, ${total_ram_mb} $U_MEM : (2 × CPU) + 1 = $(( 2 * cpus_n + 1 )), la mémoire en permet $(workers_conseilles 999 "$available_for_odoo_mb" "$overhead_mb" "$cron_threads" "$confort_hard_mb") à ${confort_hard_mb} $U_MEM)."
+            else
+                echo "  [INFO] Workers conseillés pour ce serveur : $workers_conseil (actuellement $workers ; ${cpus_n} processeurs : (2 × CPU) + 1 = $(( 2 * cpus_n + 1 )) ; la mémoire (${total_ram_mb} $U_MEM) en permet $(workers_conseilles 999 "$available_for_odoo_mb" "$overhead_mb" "$cron_threads" "$confort_hard_mb") à limit_memory_hard ${confort_hard_mb} $U_MEM). Les limites ci-dessus sont celles de $workers workers : relancer après un changement de workers (--workers N pour voir le calcul avant)."
+            fi
         fi
         mem_dispo_mb=$(awk '/^MemAvailable:/{print int($2/1024)}' /proc/meminfo 2>/dev/null) || mem_dispo_mb=""
         if [[ "$mem_dispo_mb" =~ ^[0-9]+$ ]] && (( mem_dispo_mb * 100 < total_ram_mb * 15 )); then
@@ -3622,6 +3646,10 @@ pg_moins_de_disque() {
     ecs_mb=$(( ram_mb / 2 ))
     wm_mb=8; (( ram_mb >= 16384 )) && wm_mb=16
     mwm_mb=$(( ram_mb / 32 )); (( mwm_mb > 1024 )) && mwm_mb=1024; (( mwm_mb < 64 )) && mwm_mb=64
+    # 2.93: the values that come from OUR file are recomputed for the memory of this server (they may go down: a smaller server, a copy of PROD
+    # on DEV); only a value set ELSEWHERE (postgresql.conf, another file) and larger is kept
+    local nos
+    nos=$(pg_sql "SELECT string_agg(name, ' ') FROM pg_settings WHERE sourcefile LIKE '%/91-nginx-hardening-memory.conf'" 2>/dev/null) || nos=""
     now=$(pg_sql "SELECT 'shared_buffers=' || pg_size_bytes(current_setting('shared_buffers')) / 1048576 UNION ALL SELECT 'effective_cache_size=' || pg_size_bytes(current_setting('effective_cache_size')) / 1048576 UNION ALL SELECT 'work_mem=' || pg_size_bytes(current_setting('work_mem')) / 1048576 UNION ALL SELECT 'maintenance_work_mem=' || pg_size_bytes(current_setting('maintenance_work_mem')) / 1048576 UNION ALL SELECT 'max_wal_size=' || pg_size_bytes(current_setting('max_wal_size')) / 1048576 UNION ALL SELECT 'min_wal_size=' || pg_size_bytes(current_setting('min_wal_size')) / 1048576 UNION ALL SELECT 'checkpoint_timeout=' || setting FROM pg_settings WHERE name = 'checkpoint_timeout' UNION ALL SELECT 'checkpoint_completion_target=' || (setting::numeric * 100)::int FROM pg_settings WHERE name = 'checkpoint_completion_target' UNION ALL SELECT 'wal_compression=' || current_setting('wal_compression')" 2>/dev/null) || now=""
     [[ -n "$now" ]] || { warn "PostgreSQL : réglages de mémoire illisibles — non vérifié."; return 0; }
     # key=wanted value (MB, seconds, % for the target)|line written in the file
@@ -3630,7 +3658,11 @@ pg_moins_de_disque() {
              "checkpoint_timeout=900|checkpoint_timeout = 15min" "checkpoint_completion_target=90|checkpoint_completion_target = 0.9"; do
         v="${k%%|*}"; want="${v#*=}"; v="${v%%=*}"
         cur=$(printf '%s\n' "$now" | sed -n "s/^$v=//p" | head -1)
-        if [[ "$cur" =~ ^[0-9]+$ ]] && (( cur >= want )); then
+        if [[ " $nos " == *" $v "* ]]; then
+            if [[ "$cur" == "$want" ]]; then lignes+=("${k#*|}"); continue; fi
+            lignes+=("${k#*|}"); diff+=("$v ${cur:-?} → $want")
+            [[ "$v" == "shared_buffers" ]] && redemarrer=1
+        elif [[ "$cur" =~ ^[0-9]+$ ]] && (( cur >= want )); then
             lignes+=("# $v : $cur déjà réglé (>= $want), gardé")
         else
             lignes+=("${k#*|}"); diff+=("$v ${cur:-?} → $want")
@@ -3654,8 +3686,8 @@ pg_moins_de_disque() {
     fi
     mkdir -p "$(dirname "$dropin")"
     {
-        echo "# Ajouté par nginx-hardening.sh 2.91 pour ${ram_mb} Mo de mémoire : PostgreSQL lit et écrit moins sur les disques."
-        echo "# Une valeur n'est que montée (une valeur plus grande déjà réglée est gardée). Pour retirer : supprimer ce fichier, puis redémarrer PostgreSQL."
+        echo "# Ajouté par nginx-hardening.sh 2.93 pour ${ram_mb} Mo de mémoire : PostgreSQL lit et écrit moins sur les disques."
+        echo "# Recalculé à chaque --update selon la mémoire de CE serveur ; une valeur plus grande réglée ailleurs est gardée. Pour retirer : supprimer ce fichier, puis redémarrer PostgreSQL."
         printf '%s\n' "${lignes[@]}"
     } > "$dropin"
     chown postgres:postgres "$dropin" 2>/dev/null || true

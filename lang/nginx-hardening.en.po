@@ -2811,14 +2811,10 @@ msgstr "PostgreSQL: more memory, less disk for "
 msgid " (shared_buffers : redémarrage de PostgreSQL)"
 msgstr " (shared_buffers: restart of PostgreSQL)"
 
-msgid "# Ajouté par nginx-hardening.sh 2.91 pour "
-msgstr "# Added by nginx-hardening.sh 2.91 for "
 
 msgid " Mo de mémoire : PostgreSQL lit et écrit moins sur les disques."
 msgstr " MB of memory: PostgreSQL reads and writes less on the disks."
 
-msgid "# Une valeur n'est que montée (une valeur plus grande déjà réglée est gardée). Pour retirer : supprimer ce fichier, puis redémarrer PostgreSQL."
-msgstr "# A value is only raised (a larger value already set is kept). To remove: delete this file, then restart PostgreSQL."
 
 msgid " écrit et rechargé ("
 msgstr " written and reloaded ("
@@ -2840,3 +2836,33 @@ msgstr " written, in effect at the next restart of PostgreSQL (systemctl restart
 
 msgid "--- 17) PostgreSQL : journal des requêtes lentes et des verrous, mémoire (moins de disque) ---"
 msgstr "--- 17) PostgreSQL: log of the slow queries and of the locks, memory (less disk) ---"
+
+msgid ", la valeur conseillée pour ce serveur ("
+msgstr ", the recommended value for this server ("
+
+msgid ", la mémoire en permet "
+msgstr ", the memory allows "
+
+msgid "  [INFO] Workers conseillés pour ce serveur : "
+msgstr "  [INFO] Workers recommended for this server: "
+
+msgid " ; la mémoire ("
+msgstr "; the memory ("
+
+msgid ") en permet "
+msgstr ") allows "
+
+msgid " à limit_memory_hard "
+msgstr " at limit_memory_hard "
+
+msgid "). Les limites ci-dessus sont celles de "
+msgstr "). The limits above are those of "
+
+msgid " workers : relancer après un changement de workers (--workers N pour voir le calcul avant)."
+msgstr " workers: run again after a change of workers (--workers N to see the calculation before)."
+
+msgid "# Ajouté par nginx-hardening.sh 2.93 pour "
+msgstr "# Added by nginx-hardening.sh 2.93 for "
+
+msgid "# Recalculé à chaque --update selon la mémoire de CE serveur ; une valeur plus grande réglée ailleurs est gardée. Pour retirer : supprimer ce fichier, puis redémarrer PostgreSQL."
+msgstr "# Recomputed at each --update for the memory of THIS server; a larger value set elsewhere is kept. To remove: delete this file, then restart PostgreSQL."

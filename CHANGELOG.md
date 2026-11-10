@@ -3441,6 +3441,16 @@ Earlier history was archived outside this repository when this file was created.
 
 ## nginx-hardening.sh
 
+### 2.93.20261109.223000 - Figures for THIS server: workers recommended, PostgreSQL values recomputed even downwards
+
+- Title: step 6 recommends a number of workers for the processors and the memory of this server; step 17 recomputes the values of its own PostgreSQL file for the memory of this server, also downwards.
+- Reason: request of the administrator on 2026-11-09: "en DEV, il y a 16 Go, c'est en PROD qu'il y a 32 Go, il faut que les programmes recommandent les meilleures valeurs à configurer dynamiquement".
+- Changes: new function workers_conseilles() (min of (2 x CPU) + 1 and what the RAM holds when each process may reach limit_memory_hard 1536 MB, at least 1); step 6: PASS when workers is the recommended value, otherwise an INFO line with the recommendation and its two bounds (the limits of step 6 stay those of the current workers; --workers N shows the calculation before a change); pg_moins_de_disque(): the settings whose sourcefile is 91-nginx-hardening-memory.conf are recomputed for this server (they may go down: a copy of PROD on DEV), a larger value set elsewhere is still kept; comment of the file updated; lang/nginx-hardening.en.po.
+- Bugs fixed: symptom: a value written for a larger server would never go down (only raised); diagnosis: our own file was compared like a setting of the administrator; fix: our values are recomputed.
+- Safeguards and edge cases: never a lower value than the one the administrator set outside our file; the recommendation of workers is never applied (odoo.conf is never changed).
+- Checks performed: test_293_workers_conseilles (PROD 13, DEV 7), test_293_valeurs_de_notre_fichier_recalculees (3276 -> 1638 for 16 GB, work_mem set elsewhere kept), test_nginx_hardening (62 tests) [OK]; ShellCheck 0.11.0 [OK].
+- Action required: sudo nginx-hardening.sh --update on DEV and on PROD (each one gets its own figures).
+
 ### 2.92.20261109.222500 - Image cache location refused by nginx -t; the real error of nginx -t shown
 
 - Title: the location of the image cache is accepted by nginx; when nginx -t refuses the generic configuration, its error is shown.
