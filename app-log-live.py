@@ -121,7 +121,7 @@ from urllib.parse import unquote, urlsplit
 from collections import Counter, OrderedDict
 from concurrent.futures import Future
 
-__version__ = "1.186.20261109.221500"
+__version__ = "1.187.20261109.233000"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
@@ -4899,6 +4899,7 @@ class Stats:
         self.odoo_errors_time = {}                       # same key -> [first instant, last instant]
         self.nginx_errors = Counter()                    # 1.167: (level, message) -> number, lines of the nginx ERROR log (never counted as Odoo errors or e-mails)
         self.nginx_errors_time = {}                      # 1.167: same key -> [first instant, last instant]
+        self.nginx_errors_times = {}                     # 1.187: same key -> instants (1000 last): the interruptions are cut where nginx found Odoo again
         self.http_errors = []                             # (instant, code, url, address) of each 4xx / 5xx response, in order of arrival
         self.slow_requests, self.banned = [], {}
         self.slow_info = []                              # same order as `slow_requests`: (SQL queries, SQL time, Python time, size, instant)
@@ -5080,6 +5081,9 @@ class Stats:
             t = L.instant or time.time()
             seen = self.nginx_errors_time.setdefault((L.level, message), [t, t])
             seen[1] = max(seen[1], t)
+            times = self.nginx_errors_times.setdefault((L.level, message), [])
+            times.append(t)
+            del times[:-1000]
         elif L.level in ("WARNING", "ERROR", "CRITICAL") and not benign:          # "bad query" of a retried conflict: counted in the conflicts, NOT in the errors
             message = re.sub(r"(?<![A-Za-z\d])\d+", "N", (L.text or "").strip())[:200]
             self.odoo_errors[(L.level, L.logger, message)] += 1
@@ -5176,6 +5180,7 @@ class Stats:
         c.watched, c.watch_it = list(self.watched), list(self.watch_it)
         c.http_errors, c.odoo_errors_time = list(self.http_errors), {k: list(v) for k, v in self.odoo_errors_time.items()}
         c.nginx_errors_time = {k: list(v) for k, v in self.nginx_errors_time.items()}
+        c.nginx_errors_times = {k: list(v) for k, v in getattr(self, "nginx_errors_times", {}).items()}
         c.ip_url_codes = {k: Counter(v) for k, v in self.ip_url_codes.items()}
         return c
 
@@ -5355,13 +5360,15 @@ class Stats:
         if nu:
             # 1.169: the errors grouped into INTERRUPTIONS (less than 5 minutes apart): one short interruption is a restart (to look at), several or a
             # long one are a problem; before, 26 lines of one 5-minute restart made the health "problem"
-            spans = sorted(tuple(self.nginx_errors_time[k]) for k in upstream if k in self.nginx_errors_time)
+            # 1.187: from each refused connection (not from the first and last of the period): PROD 2026-11-09 showed « 19:23:11 to 22:55:15
+            # (3 h 32 min) » for five short restarts; Odoo had answered in between
+            instants = sorted(t for k in upstream for t in (getattr(self, "nginx_errors_times", {}).get(k) or self.nginx_errors_time.get(k) or ()))
             cuts = []
-            for first, last in spans:
-                if cuts and first - cuts[-1][1] <= 300:
-                    cuts[-1][1] = max(cuts[-1][1], last)
+            for t in instants:
+                if cuts and t - cuts[-1][1] <= 300:
+                    cuts[-1][1] = max(cuts[-1][1], t)
                 else:
-                    cuts.append([first, last])
+                    cuts.append([t, t])
             long_one = any(last - first > 900 for first, last in cuts)
             level = 2 if len(cuts) > 1 or long_one else 1
             detail = [TR("interruption from {first} to {last} ({span}): Odoo stopped, restarting or too busy").format(
@@ -5684,7 +5691,8 @@ def advisor_facts(stats):
     nginx_errors = []                                    # 1.167: the nginx error log, apart from Odoo
     for (level, message), n in stats.nginx_errors.most_common(40):
         seen = stats.nginx_errors_time.get((level, message))
-        nginx_errors.append({"level": level, "message": message, "n": n, "first": seen[0] if seen else None, "last": seen[1] if seen else None})
+        nginx_errors.append({"level": level, "message": message, "n": n, "first": seen[0] if seen else None, "last": seen[1] if seen else None,
+                             "times": list(getattr(stats, "nginx_errors_times", {}).get((level, message)) or [])[-1000:]})     # 1.187
     errors5 = [(t, code, url, ip) for t, code, url, ip in stats.http_errors if code >= 500][-500:]
     hot = []                                             # 1.178: one address asking the same page again and again (a tab in a loop, a script)
     for (ip, url), n in stats.ip_url.most_common(40):
@@ -5929,7 +5937,8 @@ def worker_memory(service):
     procs = odoo_processes(service) if service else []
     if not procs:
         return {}
-    main = min(procs, key=lambda p: p[2] or float("inf"))[0]
+    main_proc = min(procs, key=lambda p: p[2] or float("inf"))
+    main = main_proc[0]
     sizes = []
     for pid, ppid, _start, _argv in procs:
         if pid == main or ppid != main:
@@ -5949,7 +5958,7 @@ def worker_memory(service):
         return {}
     sizes.sort()
     vms, rss = sizes[len(sizes) // 2]
-    return {"worker_vms_mb": vms, "worker_rss_mb": rss, "worker_overhead_mb": max(0, vms - rss), "workers_measured": len(sizes)}
+    return {"worker_vms_mb": vms, "worker_rss_mb": rss, "worker_overhead_mb": max(0, vms - rss), "workers_measured": len(sizes), "odoo_start": main_proc[2] or None}
 
 
 def memory_facts(since, service=None):
@@ -5993,7 +6002,10 @@ def memory_facts(since, service=None):
     # with limit_memory_soft under that, every worker is recycled at birth ("request_count: 0"), the site no longer answers.
     res.update(worker_memory(service))
     if service and not os.environ.get("NGINX_TOOLS_TESTS"):
-        cmd = ["journalctl", "-u", service, "-q", "--no-pager", "-o", "cat", "--since", f"@{math.floor(since)}", "-g", "virtual memory limit|exiting. request_count: 0,"]
+        # 1.187: since the start of the running Odoo only: the recyclings of an earlier configuration (PROD 2026-11-09: 854 under the old limits, fixed
+        # at 22:55) are not those of the values in effect now
+        since_start = max(since, res.get("odoo_start") or 0)
+        cmd = ["journalctl", "-u", service, "-q", "--no-pager", "-o", "cat", "--since", f"@{math.floor(since_start)}", "-g", "virtual memory limit|exiting. request_count: 0,"]
         out = lancer(cmd, 60)[1]
         res["recycled"] = len(re.findall(r"(?<!Gevent )virtual memory limit", out))
         res["gevent_restarts"] = len(re.findall(r"Gevent virtual memory limit reached", out))          # 1.183: the live chat process restarted

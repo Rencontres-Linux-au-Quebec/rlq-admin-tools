@@ -5409,5 +5409,5 @@ class OdooRuntime181(unittest.TestCase):
             with open(os.path.join(self.proc, str(pid), "status"), "w") as f:
                 f.write(f"Name:\tpython3\nVmSize:\t{vms} kB\nVmRSS:\t{rss} kB\n")
         self.assertEqual(self.live.worker_memory("odoo.service"),
-                         {"worker_vms_mb": 659, "worker_rss_mb": 245, "worker_overhead_mb": 414, "workers_measured": 2})
+                         {"worker_vms_mb": 659, "worker_rss_mb": 245, "worker_overhead_mb": 414, "workers_measured": 2, "odoo_start": self.start})
         self.assertEqual(self.live.worker_memory(""), {})

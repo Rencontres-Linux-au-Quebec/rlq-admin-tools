@@ -32,7 +32,7 @@ import re
 import time
 from collections import Counter
 
-__version__ = "1.14.20261109.221500"
+__version__ = "1.15.20261109.233000"
 
 PROBLEM, LOOK, INFO = 2, 1, 0                         # severities: problem, to look at, information
 
@@ -449,7 +449,11 @@ def odoo_settings_advice(conf, cpus, mem_mb, slowest=None):
         cause = "too-many"
         advice.append(("too-many", best, workers))
     elif best and workers < cpus:
-        advice.append(("few", min(best, int((mem_mb or 10 ** 9) * 0.7 // 325)) if mem_mb else best, workers))
+        # 1.15: the memory bound of nginx-hardening.sh 2.93 (each process may reach limit_memory_hard 1536 MB, 400 MB of which take no RAM), not
+        # 325 MB per worker: DEV (16 GB) was told « up to 13 workers » while step 6 recommends 7
+        cron = number("max_cron_threads") if number("max_cron_threads") is not None else ODOO_DEFAULTS["max_cron_threads"]
+        bound = memory_plan(mem_mb, None, 1, cron)["budget"] // (COMFORT_HARD_MB - VIRTUAL_OVERHEAD_MB) - cron - 1 if mem_mb else best
+        advice.append(("few", max(1, min(best, bound)), workers))
     if need and mem_mb and need > 0.8 * mem_mb:
         advice.append(("memory", need, mem_mb))
     if slowest and slowest >= 0.8 * t_real:
@@ -660,8 +664,9 @@ class Analyzer:
             message = NGINX_TAG_RE.sub("", e["message"])
             kind = message.split(", client:", 1)[0]
             if UPSTREAM_RE.search(message):
-                g = groups.setdefault(kind, {"n": 0, "first": None, "last": None})
+                g = groups.setdefault(kind, {"n": 0, "first": None, "last": None, "times": []})
                 g["n"] += e["n"]
+                g["times"] += list(e.get("times") or ())          # 1.15: each refused connection, to cut the interruptions
                 for key, pick in (("first", min), ("last", max)):
                     if e.get(key):
                         g[key] = pick(g[key], e[key]) if g[key] else e[key]
@@ -673,7 +678,17 @@ class Analyzer:
         stamp = lambda t: time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(t))
         for kind, g in sorted(groups.items(), key=lambda kg: -kg[1]["n"]):
             evidence = [raw(_cut(kind, 160))]
-            if g["first"] and g["last"]:
+            cuts = []
+            for t in sorted(g["times"]):
+                if cuts and t - cuts[-1][1] <= 300:
+                    cuts[-1][1] = t
+                else:
+                    cuts.append([t, t])
+            if len(cuts) > 1:
+                # 1.15: several short interruptions (restarts), not one of hours: PROD 2026-11-09 showed « 49 refused connections over 3 h 32 min »
+                evidence.append(tr("{k} interruptions, {n} refused connections: ").format(k=len(cuts), n=g["n"]) + " ; ".join(
+                    f"{stamp(a)} ({_span(b - a) if b > a else tr('one moment')})" for a, b in cuts[-6:]))
+            elif g["first"] and g["last"]:
                 evidence.append(tr("From {first} to {last}").format(first=stamp(g["first"]), last=stamp(g["last"]))
                                 + " (" + tr("{n} refused connections over {span}").format(n=g["n"], span=_span(g["last"] - g["first"])) + ")")
             near = [(t, text) for t, text in restarts if g["first"] and g["last"] and g["first"] - 600 <= t <= g["last"] + 600]
@@ -1093,10 +1108,13 @@ class Analyzer:
                             + " · " + tr("SQL {sql} s ({n} queries), Python {py} s").format(sql=f"{x.get('t_sql') or 0:.1f}", n=x.get("sql_n") or 0, py=f"{x.get('t_py') or 0:.1f}")
                             + (" · " + tr("action {method} of the model {model}").format(method=raw(action.group(2)), model=raw(action.group(1))) if action else ""))
         timed = sorted((x["t"], (x.get("url") or "").split("?", 1)[0]) for x in slow if x.get("t"))
+        # 1.15: the largest group inside ONE window of SIMULTANEOUS_S seconds. Before, the pairs were chained: PROD 2026-11-09 showed « 16 slow
+        # requests on different pages within 73787 s » for groups spread over 20 hours
         together = set()
-        for (t1, u1), (t2, u2) in zip(timed, timed[1:]):
-            if t2 - t1 <= SIMULTANEOUS_S and u1 != u2:
-                together.update({(t1, u1), (t2, u2)})
+        for i, (t1, _u1) in enumerate(timed):
+            group = {(t, u) for t, u in timed[i:] if t - t1 <= SIMULTANEOUS_S}
+            if len({u for _t, u in group}) >= 2 and len(group) > len(together):
+                together = group
         if together:
             first, last = min(together)[0], max(together)[0]
             evidence.append(tr("{k} slow requests on different pages within {s} s ({when}): slowed down together, not each page on its own").format(
@@ -1108,6 +1126,19 @@ class Analyzer:
         if disk_k:
             evidence.append(tr("{k} slow requests ended in the same 2 seconds ({when}) with almost no SQL: they waited together outside the database").format(
                 k=disk_k, when=time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(disk_when))))
+        # 1.15: slow requests during a backup of the suite (odoo-backup.service: pg_dump and the filestore read the same disks)
+        windows, opened = [], None
+        for t, text in sorted(details.get("backup_events") or ()):
+            if re.search(r"Starting|Started", text):
+                opened = t
+            elif opened is not None and re.search(r"Finished|Deactivated", text):
+                windows.append((opened, t))
+                opened = None
+        during = [x for x in slow if x.get("t") and any(a - 60 <= x["t"] <= b + 60 for a, b in windows)]
+        if during:
+            a, b = next((a, b) for a, b in windows if any(a - 60 <= x["t"] <= b + 60 for x in during))
+            evidence.append(tr("{k} slow requests during the backup of {start} to {end} (odoo-backup.service: the database and the filestore read on the same disks)").format(
+                k=len(during), start=time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(a)), end=time.strftime("%H:%M:%S", time.localtime(b))))
         crons = details.get("crons") or []
         if crons:
             evidence.append(tr("Scheduled actions whose last run was around then: ") + " ; ".join(
@@ -1128,7 +1159,7 @@ class Analyzer:
                 elif kind == "too-many":
                     conf_advice.append(tr("workers={now} is more than (2 x CPU) + 1 = {best}: the workers fight for the processor and each request gets slower; lower workers to {best}").format(now=b, best=a))
                 elif kind == "few":
-                    conf_advice.append(tr("workers={now} for this machine: up to {best} workers are possible (Odoo guide: (2 x CPU) + 1, about 325 MB each)").format(now=b, best=a))
+                    conf_advice.append(tr("workers={now} for this machine: up to {best} workers are possible (Odoo guide: (2 x CPU) + 1, and what the memory holds at limit_memory_hard 1536 MB, as nginx-hardening.sh step 6)").format(now=b, best=a))
                 elif kind == "memory":
                     conf_advice.append(tr("the workers may need about {need} MB, close to the {mem} MB of the machine: add memory or lower workers").format(need=a, mem=b))
                 elif kind == "limit-real":
@@ -1140,6 +1171,11 @@ class Analyzer:
             cause = tr("cold cache after a restart or an update: assets and views computed once")
             advice = [tr("odoo-warmup.py right after each restart or update of Odoo (odoo-update-module.sh does it)")]
             fix = ("warmup", None)
+        elif during and 2 * len(during) >= len(slow):
+            cause = tr("the backup of the suite was running: pg_dump and the copy of the filestore read the same disks as Odoo")
+            advice = [tr("move the backup to a quieter hour (odoo-backup.timer), or give the disks more speed (SSD for PostgreSQL and the filestore)"),
+                      tr("nothing to do if it happens only during the backup at night")]
+            fix = None
         elif t_sql > t_py and together and 2 * len(together) >= len(slow):
             # 1.7: several pages slow at the same moment: the database was busy or locked for everyone, an index would not change it
             cause = tr("several pages slow at the same moment: PostgreSQL was busy or held by a lock (scheduled action, backup, autovacuum), not a missing index on each page")
@@ -1165,7 +1201,17 @@ class Analyzer:
         if conf_advice and advice is not conf_advice:
             advice = advice + [a for a in conf_advice if a not in advice]
         n = len(slow)
-        self.add("slow-requests", PROBLEM if n >= 5 else LOOK, tr("Slow requests: {n}").format(n=n), n, evidence, cause, advice, fix=fix)
+        # 1.15: the probes of this server (app-health-check.py measures a cold Odoo just after its start) and the cold cache after a start are said,
+        # not counted in the severity: DEV 2026-11-09 showed « ✖ Slow requests: 6 » for 6 probes of /en_CA/web/login after restarts
+        server = set(facts.get("server_ips") or ()) | {"127.0.0.1", "::1"}
+        real = [x for x in slow if x.get("ip") not in server and not (x.get("t") and any(0 <= x["t"] - r <= 600 for r in restarts))]
+        if during:
+            real = [x for x in real if x not in during] if len(during) * 2 >= len(slow) else real
+        k = len(real)
+        severity = PROBLEM if k >= 5 else LOOK if k else INFO
+        if k < n:
+            evidence.append(tr("Counted in the severity: {k} of {n} (left out: the probes of this server and the cold cache in the 10 minutes after a start of Odoo)").format(k=k, n=n))
+        self.add("slow-requests", severity, tr("Slow requests: {n}").format(n=n), n, evidence, cause, advice, fix=fix)
 
     # --- memory risk (1.7) ----------------------------------------------------------------------------------------------------------
     def rule_memory(self, facts, details):
@@ -1248,9 +1294,13 @@ class Analyzer:
         tr = self.tr
         soft_g = (number("limit_memory_soft_gevent") or 0) // 1048576 or None
         hard_g = (number("limit_memory_hard_gevent") or 0) // 1048576 or None
-        restarts = memory.get("gevent_restarts") or 0
-        if (soft_g or soft) >= GEVENT_SOFT_MB and (hard_g or hard) >= GEVENT_HARD_MB and not restarts:
-            return
+        restarts = memory.get("gevent_restarts") or 0          # 1.15: since the start of the running Odoo (app-log-live.py 1.187)
+        want_soft, want_hard = GEVENT_SOFT_MB, GEVENT_HARD_MB
+        if (soft_g or soft) >= GEVENT_SOFT_MB and (hard_g or hard) >= GEVENT_HARD_MB:
+            if not restarts:
+                return
+            # 1.15: already at the recommended values and still restarted since the start: half as much again (PROD 2026-11-09 repeated 2048 / 2560)
+            want_soft, want_hard = (soft_g or soft) * 3 // 2, (hard_g or hard) * 3 // 2
         now = tr("limit_memory_soft_gevent {s}, limit_memory_hard_gevent {h}").format(
             s=f"{soft_g} MB" if soft_g else tr("not set (limit_memory_soft: {v} MB)").format(v=soft),
             h=f"{hard_g} MB" if hard_g else tr("not set (limit_memory_hard: {v} MB)").format(v=hard))
@@ -1258,9 +1308,10 @@ class Analyzer:
         if restarts:
             evidence.append(tr("Restarts of the gevent process for memory in the Odoo log of the period (« Gevent virtual memory limit reached »): {n}").format(n=restarts))
         advice = [tr("in odoo.conf (values in bytes): limit_memory_soft_gevent = {sb} ({s} MB) and limit_memory_hard_gevent = {hb} ({h} MB), then restart Odoo").format(
-                      sb=GEVENT_SOFT_MB * 1048576, s=GEVENT_SOFT_MB, hb=GEVENT_HARD_MB * 1048576, h=GEVENT_HARD_MB),
-                  tr("it gives the live chat room for many more people at the same time (one connection per open Odoo tab) without cutting them; it is one process: at most about {r} MB more of real RAM").format(
-                      r=max(0, GEVENT_HARD_MB - (hard_g or hard)))]
+                      sb=want_soft * 1048576, s=want_soft, hb=want_hard * 1048576, h=want_hard)]
+        more = want_hard - (hard_g or hard)
+        if more > 0:
+            advice.append(tr("it gives the live chat room for many more people at the same time (one connection per open Odoo tab) without cutting them; it is one process: at most about {r} MB more of real RAM").format(r=more))
         self.add("gevent-memory-limit", LOOK if restarts else INFO,
                  tr("Live chat (gevent process) limited like a worker: raise limit_memory_soft_gevent and limit_memory_hard_gevent"), max(1, restarts), evidence,
                  tr("the gevent process keeps the connections of the discussion and of the notifications open (one per open Odoo tab); its memory grows with the number of people connected at the same time and, at its limit, it restarts: every discussion is cut for a few seconds"),

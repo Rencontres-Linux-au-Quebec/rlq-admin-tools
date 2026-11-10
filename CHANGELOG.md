@@ -394,6 +394,18 @@ Earlier history was archived outside this repository when this file was created.
 
 ## app-log-live.py
 
+### 1.187.20261109.233000 - Interruptions cut where Odoo answered again; memory recyclings counted since the start of Odoo
+
+- Title: the interruptions seen by nginx are cut at each return of Odoo, and the recyclings of workers and of gevent are counted since the start of the running Odoo.
+- Reason: analysis of the DEV and PROD exports of 2026-11-09 23:08 asked by the administrator.
+- Changes: Stats.nginx_errors_times (each instant of an nginx error, 1000 last, kept by the copies of the statistics); health(): interruptions built from these instants (5 minutes without refusal = a new interruption); facts nginx_errors[].times for apps/_advisor.py; worker_memory(): odoo_start (start of the main Odoo process); memory_facts(): journal of the recyclings read since max(start of the period, start of Odoo).
+- Bugs fixed:
+  - symptom: PROD « interruption de 19:23:11 à 22:55:15 (3 h 32 min) » for five short restarts; diagnosis: the interruptions were built from the first and last instants of each message of the period; fix: from each instant.
+  - symptom: PROD « Workers recyclés dès leur naissance ... 854 » while limit_memory_soft was 1637 MB, far above the 691 MB of a worker at rest; diagnosis: the 854 recyclings were those of the old limits (652 MB) before the restart at 22:55; fix: counted since the start of the running Odoo.
+- Safeguards and edge cases: statistics saved before this version (without the instants) fall back to the first and last instants.
+- Checks performed: OdooRuntime181 (odoo_start), test_advisor.test_115_analyse_dev_prod_20261109, manual check of the health on 5 refusals (3 interruptions).
+- Action required: none.
+
 ### 1.186.20261109.221500 - Slow requests ended together without SQL: waiting for the disk
 
 - Title: the explanation of the slow requests says when several of them ended together with almost no SQL (waiting for the disk).
@@ -5153,6 +5165,20 @@ Earlier history was archived outside this repository when this file was created.
   - Not changed: nginx-log-audit.sh keeps its own bash values (its --page-burst default is 8 against 15 here; this difference is still to be decided).
 
 ## apps/_advisor.py
+
+### 1.15.20261109.233000 - Findings corrected after the DEV and PROD exports of 2026-11-09
+
+- Title: interruptions of nginx cut, slow requests grouped in one window, slow requests during the backup, probes of this server out of the severity, gevent advice escalated, workers bound as step 6.
+- Reason: analysis of the DEV and PROD exports of 2026-11-09 23:08 asked by the administrator.
+- Changes: rule_nginx_upstream(): « {k} interruptions, {n} refused connections: » with each interruption (times of app-log-live.py 1.187); rule_slow(): largest group inside ONE window of SIMULTANEOUS_S seconds; slow requests during a run of odoo-backup.service (evidence and new cause « the backup of the suite was running »); severity counts neither the probes of this server (127.0.0.1, server_ips) nor the cold cache of the 10 minutes after a start (line « Counted in the severity: k of n »); _gevent_limits(): restarts since the start of Odoo; already at 2048 / 2560 and restarted: 1.5 times the values; the « MB more of real RAM » line only when it is more; odoo_settings_advice(): « few » bounded like nginx-hardening.sh 2.93 step 6 (limit_memory_hard 1536 MB, 400 MB without RAM); lang/_advisor.fr.po (the old « about 325 MB each » text removed).
+- Bugs fixed:
+  - symptom: PROD « 16 requêtes lentes sur des pages différentes en 73787 s »; diagnosis: the pairs under 60 s were chained over the whole day; fix: one window.
+  - symptom: PROD gevent finding repeating the values already set (2048 / 2560) with « au plus environ 0 Mo de RAM de plus »; diagnosis: restarts of the whole period and no check of the values in place; fix: since the start, escalation, line only when useful.
+  - symptom: DEV « ✖ Requêtes lentes : 6 » for 6 probes of app-health-check.py on a cold Odoo; fix: INFO when nothing else is slow.
+  - symptom: DEV « jusqu'à 13 workers sont possibles (environ 325 Mo chacun) » against 7 recommended by nginx-hardening.sh; fix: same bound.
+- Safeguards and edge cases: a slow request of a real visitor still counts; without backup events nothing changes.
+- Checks performed: test_advisor (71 tests, test_115_analyse_dev_prod_20261109) [OK].
+- Action required: none.
 
 ### 1.14.20261109.221500 - Cause « waiting for the disk » for the slow requests
 

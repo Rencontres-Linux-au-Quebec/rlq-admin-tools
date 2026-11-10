@@ -636,8 +636,6 @@ msgstr "comptes portail créés dans la période : {n}"
 msgid "Key stored in Odoo: written on {when}"
 msgstr "Clé enregistrée dans Odoo : écrite le {when}"
 
-msgid "workers={now} for this machine: up to {best} workers are possible (Odoo guide: (2 x CPU) + 1, about 325 MB each)"
-msgstr "workers={now} pour cette machine : jusqu'à {best} workers sont possibles (guide d'Odoo : (2 x CPU) + 1, environ 325 Mo chacun)"
 
 msgid "ended on {end}"
 msgstr "terminé le {end}"
@@ -1245,3 +1243,27 @@ msgstr "host-perf-audit.py sur l'hôte Proxmox (attente des lectures des disques
 
 msgid "nginx-hardening.sh --update: cache of the images of Odoo and temporary files of nginx in memory; on the host: an SSD for the filestore and PostgreSQL (ZFS: special vdev or L2ARC)"
 msgstr "nginx-hardening.sh --update : cache des images d'Odoo et fichiers temporaires de nginx en mémoire ; sur l'hôte : un SSD pour le filestore et PostgreSQL (ZFS : special vdev ou L2ARC)"
+
+msgid "Counted in the severity: {k} of {n} (left out: the probes of this server and the cold cache in the 10 minutes after a start of Odoo)"
+msgstr "Comptées dans la gravité : {k} sur {n} (laissées de côté : les sondes de ce serveur et le cache froid des 10 minutes après un démarrage d'Odoo)"
+
+msgid "move the backup to a quieter hour (odoo-backup.timer), or give the disks more speed (SSD for PostgreSQL and the filestore)"
+msgstr "déplacer la sauvegarde à une heure plus calme (odoo-backup.timer), ou des disques plus rapides (SSD pour PostgreSQL et le filestore)"
+
+msgid "nothing to do if it happens only during the backup at night"
+msgstr "rien à faire si cela n'arrive que pendant la sauvegarde de nuit"
+
+msgid "one moment"
+msgstr "un instant"
+
+msgid "the backup of the suite was running: pg_dump and the copy of the filestore read the same disks as Odoo"
+msgstr "la sauvegarde de la suite tournait : pg_dump et la copie du filestore lisent les mêmes disques qu'Odoo"
+
+msgid "workers={now} for this machine: up to {best} workers are possible (Odoo guide: (2 x CPU) + 1, and what the memory holds at limit_memory_hard 1536 MB, as nginx-hardening.sh step 6)"
+msgstr "workers={now} pour cette machine : jusqu'à {best} workers sont possibles (guide d'Odoo : (2 x CPU) + 1, et ce que la mémoire permet à limit_memory_hard 1536 Mo, comme l'étape 6 de nginx-hardening.sh)"
+
+msgid "{k} interruptions, {n} refused connections: "
+msgstr "{k} interruptions, {n} connexions refusées : "
+
+msgid "{k} slow requests during the backup of {start} to {end} (odoo-backup.service: the database and the filestore read on the same disks)"
+msgstr "{k} requêtes lentes pendant la sauvegarde de {start} à {end} (odoo-backup.service : la base et le filestore lus sur les mêmes disques)"
