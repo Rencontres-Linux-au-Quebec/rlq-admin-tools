@@ -3431,6 +3431,20 @@ Earlier history was archived outside this repository when this file was created.
 
 ## nginx-hardening.sh
 
+### 2.90.20261109.215500 - Temporary files of nginx in memory (/dev/shm) instead of the SATA disks
+
+- Title: the temporary files of the responses of Odoo are written in /dev/shm (tmpfs) and bounded to 256 MB per response; step 0c says the room left there.
+- Reason: request of the administrator on 2026-11-09: "si NGINX crée des fichiers temporaires, il faudrait les créer dans un ramdisk et les effacer après (comme dans /dev/shm)" (SATA disks, read wait p95 of 160 to 230 ms measured by host-perf-audit.py).
+- Changes:
+  - nginx/conf.d/odoo-global.conf: proxy_temp_path /dev/shm/nginx-proxy-temp 1 2; proxy_max_temp_file_size 256m; comment (when nginx writes a temporary file: response larger than the buffers of _odoo-common.conf, about 1.1 MB; nginx creates the folder at its start and deletes each file once the response is sent; the uploads, client_body_temp_path, stay on the disk: a restore of a database may be several GB).
+  - nginx/VERSION: 1.24.20261109.215500 (installed by step 0f with --update, nginx -t, reload).
+  - nginx-hardening.sh: step 0c: room of /dev/shm (NGINX_HARDENING_SHM_DIR for the tests): WARN under 1 GB free (PostgreSQL also uses it), PASS otherwise, WARN when /dev/shm is missing; lang/nginx-hardening.en.po.
+  - nginx-tools-tests/test_nginx_hardening.py: class TemporairesEnMemoire290.
+- Bugs fixed: none.
+- Safeguards and edge cases: the cache (proxy_cache_path, use_temp_path=off) is not concerned; a response above 256 MB is passed on without a temporary file; /dev/shm is emptied at each start of the server and nginx recreates the folder.
+- Checks performed: test_nginx_hardening (56 tests), test_config_nginx, test_cdn_realip [OK]; ShellCheck 0.11.0 [OK].
+- Action required: sudo nginx-hardening.sh --update on the Odoo servers (step 0f installs odoo-global.conf, nginx -t, reload).
+
 ### 2.89.20261109.215000 - Step 4: --update sets worker_connections of nginx on an Odoo server
 
 - Title: on an Odoo server, --update sets worker_connections of nginx to 2048 (configurable) and adds worker_rlimit_nofile when it is missing.
