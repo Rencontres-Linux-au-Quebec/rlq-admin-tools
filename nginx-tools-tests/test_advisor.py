@@ -686,6 +686,26 @@ class Version17(unittest.TestCase):
         bon = dict(conf, values=dict(conf["values"], limit_memory_soft="1342177280", limit_memory_hard="1610612736"))
         self.assertNotIn("memory-limit-too-low", par_id(ADV.analyze(faits(), {"odoo_conf": bon, "memory": dict(memoire, recycled_at_birth=0)})))
 
+    def test_gevent_et_ram_juste(self):
+        """1.12 : limites du processus gevent (discussion en direct) non définies : à monter (2048 / 2560 Mo) ; redémarrages vus : à regarder.
+        RAM juste : « ajouter environ N Go » ; mémoire disponible sous 15 % : memory-low-now."""
+        conf = {"path": "/etc/odoo/odoo.conf", "values": {"workers": "13", "max_cron_threads": "2", "limit_memory_hard": "1610612736",
+                                                         "limit_memory_soft": "1342177280", "limit_memory_soft_gevent": "False"}, "cpus": 6, "mem_mb": 16384}
+        memoire = {"other_mb": 453, "worker_vms_mb": 660, "worker_overhead_mb": 410, "available_mb": 13092}
+        f = par_id(ADV.analyze(faits(), {"odoo_conf": conf, "memory": memoire}))
+        g = f["gevent-memory-limit"]
+        self.assertEqual(g["severity"], ADV.INFO)
+        self.assertTrue(any("limit_memory_soft_gevent = 2147483648 (2048 MB)" in a and "limit_memory_hard_gevent = 2684354560" in a for a in g["advice"]))
+        self.assertTrue(any("many more people at the same time" in a for a in g["advice"]))
+        self.assertTrue(any("add about 8 GB of memory" in a for a in f["memory-risk"]["advice"]), f["memory-risk"]["advice"])
+        self.assertNotIn("memory-low-now", f)
+        f = par_id(ADV.analyze(faits(), {"odoo_conf": conf, "memory": dict(memoire, gevent_restarts=4, available_mb=1200)}))
+        self.assertEqual(f["gevent-memory-limit"]["severity"], ADV.LOOK)
+        self.assertTrue(f["gevent-memory-limit"]["confirmed"])
+        self.assertEqual(f["memory-low-now"]["severity"], ADV.LOOK)
+        bon = dict(conf, values=dict(conf["values"], limit_memory_soft_gevent="2147483648", limit_memory_hard_gevent="2684354560"))
+        self.assertNotIn("gevent-memory-limit", par_id(ADV.analyze(faits(), {"odoo_conf": bon, "memory": memoire})))
+
     def test_meme_page_en_boucle(self):
         who = {"203.0.113.44": "host-44.example.net [203.0.113.44] CD (République démocratique du Congo)"}
         hot = [{"ip": "203.0.113.44", "url": "/web/dataset/call_kw/ir.config_parameter/get_web_dialog_size_config", "n": 1606, "ip_total": 1613,

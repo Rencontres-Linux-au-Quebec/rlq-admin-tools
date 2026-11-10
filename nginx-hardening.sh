@@ -93,7 +93,7 @@ run() {
     "$@"
 }
 
-readonly SCRIPT_VERSION="2.85.20261109.194500"
+readonly SCRIPT_VERSION="2.86.20261109.204500"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
 SCRIPT_NAME="$(basename "${BASH_SOURCE[0]}" .sh)"; readonly SCRIPT_NAME
 # Display language (en or fr): --lang, NGINX_HARDENING_LANG, LANGUAGE of the configuration file, LC_ALL / LANG - apps/_i18n.sh translates the output (nothing changes in French).
@@ -2378,6 +2378,24 @@ else
         if (( too_many )); then
             warn "La mémoire est trop juste pour $workers workers : limit_memory_soft ne doit pas descendre sous ${soft_floor_mb} $U_MEM (1,5 × un worker au repos, au moins 1024 $U_MEM), sinon les workers sont recyclés dès leur démarrage. Baisser workers à $max_workers au plus, ou ajouter de la mémoire."
         fi
+        # 2.86: memory to add so that these processes keep a comfortable limit: limit_memory_hard 1536 MB (about 1100 MB of real RAM each, room for the
+        # big reports, exports and imports); the worst case (every process at its limit at the same time) is what is counted
+        confort_hard_mb=1536
+        besoin_mb=$(( processes * (confort_hard_mb - overhead_mb) ))
+        ram_voulue_mb=$total_ram_mb
+        while (( ram_voulue_mb < 1048576 )); do
+            reserve_v=$(( ram_voulue_mb * 15 / 100 )); (( non_odoo_mb > reserve_v )) && reserve_v=$non_odoo_mb
+            marge_v=$(( ram_voulue_mb / 10 )); (( marge_v < 512 )) && marge_v=512
+            (( ram_voulue_mb - reserve_v - marge_v >= besoin_mb )) && break
+            ram_voulue_mb=$(( ram_voulue_mb + 1024 ))
+        done
+        if (( too_many || safe_hard_mb < 1536 )) && (( ram_voulue_mb > total_ram_mb )); then
+            warn "RAM juste : avec ${total_ram_mb} $U_MEM, chaque processus n'a que ${rss_share_mb} $U_MEM de vraie mémoire. Ajouter environ $(( (ram_voulue_mb - total_ram_mb + 1023) / 1024 )) Go (${ram_voulue_mb} $U_MEM en tout ; Proxmox : mémoire du conteneur) pour garder $workers workers à limit_memory_hard ${confort_hard_mb} $U_MEM (place pour les gros rapports, exports et importations)."
+        fi
+        mem_dispo_mb=$(awk '/^MemAvailable:/{print int($2/1024)}' /proc/meminfo 2>/dev/null) || mem_dispo_mb=""
+        if [[ "$mem_dispo_mb" =~ ^[0-9]+$ ]] && (( mem_dispo_mb * 100 < total_ram_mb * 15 )); then
+            warn "Mémoire presque épuisée maintenant : ${mem_dispo_mb} $U_MEM disponibles sur ${total_ram_mb} $U_MEM (moins de 15 %). Ajouter de la mémoire (Proxmox : mémoire du conteneur) ou baisser workers."
+        fi
 
         if [[ -r "$ODOO_CONF" ]] || [[ -n "$run_script_prod_lines" ]]; then
             # Priorite : un --limit-memory-hard=N en ligne de commande dans run.sh (branche production) l'emporte
@@ -2404,6 +2422,26 @@ else
                 fi
             else
                 echo "  (limit_memory_hard non trouvé dans $ODOO_CONF ni dans la ligne de production de run.sh)"
+            fi
+            # 2.86: limits of the gevent process (live chat, notifications). Not set: Odoo gives it limit_memory_soft / limit_memory_hard of the workers
+            # (odoo/service/server.py). It keeps one connection per open Odoo tab: its memory grows with the people connected at the same time, and at its
+            # limit it restarts, cutting every discussion for a few seconds.
+            gevent_valeur() {
+                local cle="$1" v=""
+                if [[ -n "$run_script_prod_lines" ]]; then
+                    v=$(printf '%s' "$run_script_prod_lines" | grep -oE -- "--${cle//_/-}=[0-9]+" | tail -1 | sed -E 's/.*=//') || true
+                fi
+                if [[ -z "$v" && -r "$ODOO_CONF" ]]; then
+                    v=$(grep -E "^\s*${cle}\s*=" "$ODOO_CONF" 2>/dev/null | tail -1 | sed -E 's/^[^=]*=\s*//' | tr -d '[:space:]') || true
+                fi
+                [[ "$v" =~ ^[0-9]+$ ]] && printf '%s' "$v"
+                return 0
+            }
+            soft_g=$(gevent_valeur limit_memory_soft_gevent); hard_g=$(gevent_valeur limit_memory_hard_gevent)
+            if [[ -z "$soft_g" || -z "$hard_g" ]] || (( soft_g < 2147483648 || hard_g < 2684354560 )); then
+                warn "Discussion en direct (processus gevent) : limit_memory_soft_gevent = ${soft_g:-non défini (celle des workers)}, limit_memory_hard_gevent = ${hard_g:-non défini (celle des workers)}. Ce processus garde ouvertes les connexions de la discussion et des notifications (une par onglet Odoo ouvert) ; sa mémoire grandit avec le nombre de personnes connectées en même temps et, à sa limite, il redémarre : toutes les discussions sont coupées quelques secondes. Mettre dans $ODOO_CONF : limit_memory_soft_gevent = 2147483648 (2048 $U_MEM) et limit_memory_hard_gevent = 2684354560 (2560 $U_MEM), puis redémarrer Odoo : la discussion tient alors beaucoup plus de monde en même temps (un seul processus : au plus environ 1 Go de RAM de plus)."
+            else
+                pass "Discussion en direct (gevent) : limit_memory_soft_gevent $(( soft_g / 1048576 )) $U_MEM, limit_memory_hard_gevent $(( hard_g / 1048576 )) $U_MEM."
             fi
             # 2.85: limit_memory_soft under the virtual memory of a worker at rest: every worker is recycled at birth (loop)
             current_soft=""; current_soft_source=""

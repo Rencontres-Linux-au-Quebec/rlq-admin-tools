@@ -121,7 +121,7 @@ from urllib.parse import unquote, urlsplit
 from collections import Counter, OrderedDict
 from concurrent.futures import Future
 
-__version__ = "1.182.20261109.194500"
+__version__ = "1.183.20261109.204500"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
@@ -5750,7 +5750,8 @@ def unit_state(service):
     return TR("{svc}, started on {when}").format(svc=state, when=values["ActiveEnterTimestamp"]) if values.get("ActiveEnterTimestamp") else state
 
 
-ODOO_PERF_KEYS = ("workers", "max_cron_threads", "limit_time_cpu", "limit_time_real", "limit_memory_soft", "limit_memory_hard", "db_maxconn")
+ODOO_PERF_KEYS = ("workers", "max_cron_threads", "limit_time_cpu", "limit_time_real", "limit_memory_soft", "limit_memory_hard", "limit_memory_soft_gevent",
+                  "limit_memory_hard_gevent", "db_maxconn")       # 1.183: the limits of the gevent process (live chat)
 
 
 def odoo_perf_settings(profile):
@@ -5929,7 +5930,7 @@ def memory_facts(since, service=None):
     """1.178: what the analysis needs to judge the memory risk: the memory limit of this container or system (cgroup v2 memory.max, v1
     memory.limit_in_bytes; None: no limit), the OOM kills counted by the cgroup (memory.events) and the kernel messages about the OOM killer since
     `since` (journalctl -k, root needed; [] otherwise). Read-only, never an exception."""
-    res = {"limit_mb": None, "oom_kills": None, "kernel": [], "other_mb": None, "recycled": None, "recycled_at_birth": None}
+    res = {"limit_mb": None, "oom_kills": None, "kernel": [], "other_mb": None, "recycled": None, "recycled_at_birth": None, "gevent_restarts": None, "available_mb": None}
     # 1.179: memory used outside Odoo now (MemTotal - MemAvailable minus MemoryCurrent of the Odoo service), the same estimate as nginx-hardening.sh step 6
     try:
         info = {}
@@ -5938,6 +5939,8 @@ def memory_facts(since, service=None):
                 key, _, value = text_line.partition(":")
                 info[key] = int(value.split()[0]) // 1024 if value.split() else 0
         current = lancer(["systemctl", "show", service, "-p", "MemoryCurrent", "--value"], 10)[1].strip() if service else ""
+        if "MemAvailable" in info:
+            res["available_mb"] = info["MemAvailable"]                                                   # 1.183: memory available now
         if "MemTotal" in info and "MemAvailable" in info and current.isdigit():
             res["other_mb"] = max(0, info["MemTotal"] - info["MemAvailable"] - int(current) // 1048576)
     except (OSError, ValueError):
@@ -5966,7 +5969,8 @@ def memory_facts(since, service=None):
     if service and not os.environ.get("NGINX_TOOLS_TESTS"):
         cmd = ["journalctl", "-u", service, "-q", "--no-pager", "-o", "cat", "--since", f"@{math.floor(since)}", "-g", "virtual memory limit|exiting. request_count: 0,"]
         out = lancer(cmd, 60)[1]
-        res["recycled"] = len(re.findall(r"virtual memory limit", out))
+        res["recycled"] = len(re.findall(r"(?<!Gevent )virtual memory limit", out))
+        res["gevent_restarts"] = len(re.findall(r"Gevent virtual memory limit reached", out))          # 1.183: the live chat process restarted
         res["recycled_at_birth"] = len(re.findall(r"exiting\. request_count: 0,", out))
     if not os.environ.get("NGINX_TOOLS_TESTS"):
         cmd = ["journalctl", "-k", "-q", "--no-pager", "-o", "short-unix", "--since", f"@{math.floor(since)}", "-g", "Out of memory|oom-kill|oom_reaper|Killed process"]
@@ -8119,7 +8123,7 @@ def follow(cmd, people, resolver, options, output):
         conf = details.get("odoo_conf") or {}
         if conf.get("values"):
             values = conf["values"]
-            mb = lambda k: f"{int(float(values[k])) // 1048576} MB" if (values.get(k) or "").strip().replace(".", "", 1).isdigit() else (values.get(k) or "?")
+            mb = lambda k: f"{int(float(values[k])) // 1048576} MB" if (values.get(k) or "").strip().replace(".", "", 1).isdigit() else (values.get(k) or "-")
             lines.append(TR("odoo.conf ({path}): ").format(path=conf.get("path") or "?") + " · ".join(
                 f"{k}={mb(k) if k.startswith('limit_memory') else (values.get(k) or '-')}" for k in ODOO_PERF_KEYS))
         rt = details.get("odoo_runtime") or {}

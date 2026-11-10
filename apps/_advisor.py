@@ -32,7 +32,7 @@ import re
 import time
 from collections import Counter
 
-__version__ = "1.11.20261109.194500"
+__version__ = "1.12.20261109.204500"
 
 PROBLEM, LOOK, INFO = 2, 1, 0                         # severities: problem, to look at, information
 
@@ -106,7 +106,21 @@ def memory_plan(total, other, workers, cron, idle_vms=None, overhead=None):
         soft = floor
         hard = max(hard, floor * 6 // 5)
     max_workers = max(1, budget // max(1, hard - over) - cron - 1)
-    return {"hard": hard, "soft": soft, "budget": budget, "reserve": reserve, "overhead": over, "idle_vms": idle, "too_many": too_many, "max_workers": max_workers}
+    return {"hard": hard, "soft": soft, "budget": budget, "reserve": reserve, "overhead": over, "idle_vms": idle, "too_many": too_many, "max_workers": max_workers,
+            "ram_needed": ram_needed(processes * max(0, COMFORT_HARD_MB - over), total, other) if hard < COMFORT_HARD_MB else total}
+
+
+def ram_needed(need_mb, total, other=None):
+    """1.12: smallest memory (MB, in steps of 1 GB) whose share for Odoo (memory_plan: reserve of 15 % or what runs outside Odoo, margin of 10 %, at least
+    512 MB) holds `need_mb` of RAM; `total` when it already does."""
+    size = max(total, 1024)
+    while size - max(int(size * 0.15), other or 0) - max(512, size // 10) < need_mb and size < 1048576:
+        size += 1024
+    return size
+
+
+COMFORT_HARD_MB = 1536        # 1.12: limit_memory_hard under which more memory is recommended (about 1100 MB of real RAM: big reports, exports, imports)
+GEVENT_SOFT_MB, GEVENT_HARD_MB = 2048, 2560   # 1.12: limit_memory_soft_gevent / limit_memory_hard_gevent recommended (the Odoo defaults of the workers)
 
 
 MONTHS = {m: i for i, m in enumerate(("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"), 1)}
@@ -1155,6 +1169,8 @@ class Analyzer:
         plan = memory_plan(total, memory.get("other_mb"), workers, cron, memory.get("worker_vms_mb"), memory.get("worker_overhead_mb"))
         overhead, idle = plan["overhead"], plan["idle_vms"]
         worst = (workers + cron) * max(0, hard - overhead)
+        self._gevent_limits(number, soft, hard, memory, total, plan)
+        self._memory_low_now(memory, total, workers, plan)
         born = memory.get("recycled_at_birth") or 0
         if soft <= idle or born >= 3:
             evidence = [tr("limit_memory_soft {s} MB, a worker at rest already uses {v} MB of virtual memory{measured}").format(
@@ -1185,7 +1201,11 @@ class Analyzer:
                       hard=plan["hard"], soft=plan["soft"], budget=plan["budget"], w=workers, c=cron, o=overhead)]
         if plan["too_many"]:
             advice.append(tr("the memory is too short for {w} workers at these limits: about {m} workers at most").format(w=workers, m=plan["max_workers"]))
-        advice.append(tr("or lower workers, or give more memory to this server (Proxmox: memory of the container)"))
+        if plan["ram_needed"] > total:
+            advice.append(tr("or add about {gb} GB of memory to this server ({need} MB in all; Proxmox: memory of the container) to keep {w} workers at limit_memory_hard {c} MB, with room for big reports and exports").format(
+                gb=-(-(plan["ram_needed"] - total) // 1024), need=plan["ram_needed"], w=workers, c=COMFORT_HARD_MB))
+        else:
+            advice.append(tr("or lower workers, or give more memory to this server (Proxmox: memory of the container)"))
         severity = PROBLEM if oom or kills else (LOOK if worst > total or plan["too_many"] else INFO)
         title = (tr("Memory risk: the Odoo processes may use more than the memory of the server") if worst > total
                  else tr("Too many Odoo workers for the memory of the server") if plan["too_many"] and worst <= 0.8 * total
@@ -1193,6 +1213,43 @@ class Analyzer:
         self.add("memory-risk", severity, title, 1, evidence,
                  tr("if every worker reaches limit_memory_hard at the same time, the server runs out of memory and the kernel kills a process (Odoo or PostgreSQL): the site stops")
                  + ("" if not (oom or kills) else " " + tr("(it already happened: see the lines above)")), advice, confirmed=bool(oom or kills))
+
+    def _gevent_limits(self, number, soft, hard, memory, total, plan):
+        """1.12: the gevent process (live chat, notifications: one websocket per open Odoo tab) has the limits of the workers when limit_memory_soft_gevent /
+        limit_memory_hard_gevent are not set (odoo/service/server.py: limit_memory_soft_gevent or limit_memory_soft). Its memory grows with the number of
+        people connected at the same time; at the limit it restarts and every discussion is cut for a few seconds."""
+        tr = self.tr
+        soft_g = (number("limit_memory_soft_gevent") or 0) // 1048576 or None
+        hard_g = (number("limit_memory_hard_gevent") or 0) // 1048576 or None
+        restarts = memory.get("gevent_restarts") or 0
+        if (soft_g or soft) >= GEVENT_SOFT_MB and (hard_g or hard) >= GEVENT_HARD_MB and not restarts:
+            return
+        now = tr("limit_memory_soft_gevent {s}, limit_memory_hard_gevent {h}").format(
+            s=f"{soft_g} MB" if soft_g else tr("not set (limit_memory_soft: {v} MB)").format(v=soft),
+            h=f"{hard_g} MB" if hard_g else tr("not set (limit_memory_hard: {v} MB)").format(v=hard))
+        evidence = [now]
+        if restarts:
+            evidence.append(tr("Restarts of the gevent process for memory in the Odoo log of the period (« Gevent virtual memory limit reached »): {n}").format(n=restarts))
+        advice = [tr("in odoo.conf (values in bytes): limit_memory_soft_gevent = {sb} ({s} MB) and limit_memory_hard_gevent = {hb} ({h} MB), then restart Odoo").format(
+                      sb=GEVENT_SOFT_MB * 1048576, s=GEVENT_SOFT_MB, hb=GEVENT_HARD_MB * 1048576, h=GEVENT_HARD_MB),
+                  tr("it gives the live chat room for many more people at the same time (one connection per open Odoo tab) without cutting them; it is one process: at most about {r} MB more of real RAM").format(
+                      r=max(0, GEVENT_HARD_MB - (hard_g or hard)))]
+        self.add("gevent-memory-limit", LOOK if restarts else INFO,
+                 tr("Live chat (gevent process) limited like a worker: raise limit_memory_soft_gevent and limit_memory_hard_gevent"), max(1, restarts), evidence,
+                 tr("the gevent process keeps the connections of the discussion and of the notifications open (one per open Odoo tab); its memory grows with the number of people connected at the same time and, at its limit, it restarts: every discussion is cut for a few seconds"),
+                 advice, confirmed=bool(restarts))
+
+    def _memory_low_now(self, memory, total, workers, plan):
+        """1.12: memory available NOW (MemAvailable) under 15 % of the memory: the server is short of RAM, more memory recommended."""
+        tr = self.tr
+        available = memory.get("available_mb")
+        if available is None or available >= total * 0.15:
+            return
+        need = max(plan["ram_needed"], total + 2048)
+        self.add("memory-low-now", LOOK, tr("Memory nearly used up now: {a} MB available of {t} MB").format(a=available, t=total), 1,
+                 [tr("Memory available now (MemAvailable): {a} MB, {p} % of {t} MB").format(a=available, p=available * 100 // max(1, total), t=total)],
+                 tr("the system has little memory left for PostgreSQL, its cache and the Odoo processes: the site slows down, and the kernel may stop a process"),
+                 [tr("add about {gb} GB of memory to this server (Proxmox: memory of the container), or lower workers ({w} now)").format(gb=-(-(need - total) // 1024), w=workers)])
 
     # --- the configuration in effect in the running Odoo (1.10) -------------------------------------------------------------------
     def rule_odoo_runtime(self, facts, details):
