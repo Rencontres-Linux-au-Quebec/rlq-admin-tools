@@ -93,7 +93,7 @@ run() {
     "$@"
 }
 
-readonly SCRIPT_VERSION="2.89.20261109.215000"
+readonly SCRIPT_VERSION="2.90.20261109.215500"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
 SCRIPT_NAME="$(basename "${BASH_SOURCE[0]}" .sh)"; readonly SCRIPT_NAME
 # Display language (en or fr): --lang, NGINX_HARDENING_LANG, LANGUAGE of the configuration file, LC_ALL / LANG - apps/_i18n.sh translates the output (nothing changes in French).
@@ -1350,6 +1350,20 @@ else
             fail "Impossible de créer $cache_dir (propriétaire $cache_proprio) — à faire à la main : install -d -o $cache_proprio -g $cache_proprio $cache_dir"
         fi
     done <<< "$cache_dossiers"
+fi
+# 2.90: temporary files of nginx in memory (proxy_temp_path /dev/shm/nginx-proxy-temp of conf.d/odoo-global.conf): /dev/shm must have room
+# (PostgreSQL also uses it for its shared memory)
+shm_dir="${NGINX_HARDENING_SHM_DIR:-/dev/shm}"
+if [[ -d "$shm_dir" ]]; then
+    shm_libre_mo=$(df -Pm "$shm_dir" 2>/dev/null | awk 'NR == 2 {print $4}') || shm_libre_mo=""
+    shm_total_mo=$(df -Pm "$shm_dir" 2>/dev/null | awk 'NR == 2 {print $2}') || shm_total_mo=""
+    if [[ "$shm_libre_mo" =~ ^[0-9]+$ ]] && (( shm_libre_mo < 1024 )); then
+        warn "Fichiers temporaires de nginx en mémoire ($shm_dir) : seulement ${shm_libre_mo} Mo libres sur ${shm_total_mo} Mo. Une grosse réponse d'Odoo (rapport, pièce jointe) peut y prendre jusqu'à 256 Mo et PostgreSQL s'en sert aussi : agrandir $shm_dir (Proxmox : mémoire du conteneur) ou retirer proxy_temp_path de odoo-global.conf."
+    elif [[ "$shm_libre_mo" =~ ^[0-9]+$ ]]; then
+        pass "Fichiers temporaires de nginx en mémoire ($shm_dir/nginx-proxy-temp) : ${shm_libre_mo} Mo libres sur ${shm_total_mo} Mo ; rien n'est écrit sur les disques, chaque fichier est effacé dès la réponse envoyée."
+    fi
+else
+    warn "$shm_dir absent : le proxy_temp_path de odoo-global.conf ne peut pas être créé (nginx -t échouera) — vérifier le montage tmpfs de $shm_dir."
 fi
 echo
 

@@ -1190,3 +1190,17 @@ class JournalEtPostgres283(BaseNginxHardening):
             f.write("[Journal]\nStorage=persistent\n")
         out = re.sub(r"\x1b\[[0-9;]*m", "", self.setup("--check"))
         self.assertIn("Journal systemd : persistant (Storage=persistent", out)
+
+
+class TemporairesEnMemoire290(unittest.TestCase):
+    """2.90 : les fichiers temporaires des réponses d'Odoo vont dans /dev/shm (tmpfs), bornés à 256 Mo par réponse ; les envois restent sur le disque ;
+    l'étape 0c dit la place libre de /dev/shm."""
+
+    def test_290_proxy_temp_path_en_memoire(self):
+        with open(os.path.join(os.path.dirname(script_path("nginx-hardening.sh")), "nginx", "conf.d", "odoo-global.conf"), encoding="utf-8") as f:
+            conf = f.read()
+        self.assertRegex(conf, r"(?m)^proxy_temp_path /dev/shm/nginx-proxy-temp 1 2;$")
+        self.assertRegex(conf, r"(?m)^proxy_max_temp_file_size 256m;$")
+        self.assertNotRegex(conf, r"(?m)^client_body_temp_path")
+        with open(script_path("nginx-hardening.sh"), encoding="utf-8") as f:
+            self.assertIn('shm_dir="${NGINX_HARDENING_SHM_DIR:-/dev/shm}"', f.read())

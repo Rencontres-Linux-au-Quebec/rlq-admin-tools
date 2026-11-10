@@ -2717,3 +2717,27 @@ msgstr ". --update sets it (WORKER_CONNECTIONS)."
 
 msgid "nginx : worker_connections non défini (défaut de nginx : 512) — chaque websocket occupe 2 connexions ; prévoir au moins "
 msgstr "nginx: worker_connections not set (nginx's default: 512) - each websocket takes 2 connections; plan at least "
+
+msgid "Fichiers temporaires de nginx en mémoire ("
+msgstr "Temporary files of nginx in memory ("
+
+msgid ") : seulement "
+msgstr "): only "
+
+msgid " Mo libres sur "
+msgstr " MB free of "
+
+msgid " Mo. Une grosse réponse d'Odoo (rapport, pièce jointe) peut y prendre jusqu'à 256 Mo et PostgreSQL s'en sert aussi : agrandir "
+msgstr " MB. A big response of Odoo (report, attachment) may take up to 256 MB there and PostgreSQL uses it too: enlarge "
+
+msgid " (Proxmox : mémoire du conteneur) ou retirer proxy_temp_path de odoo-global.conf."
+msgstr " (Proxmox: memory of the container) or remove proxy_temp_path from odoo-global.conf."
+
+msgid "/nginx-proxy-temp) : "
+msgstr "/nginx-proxy-temp): "
+
+msgid " Mo ; rien n'est écrit sur les disques, chaque fichier est effacé dès la réponse envoyée."
+msgstr " MB; nothing is written to the disks, each file is deleted as soon as the response is sent."
+
+msgid " absent : le proxy_temp_path de odoo-global.conf ne peut pas être créé (nginx -t échouera) — vérifier le montage tmpfs de "
+msgstr " missing: the proxy_temp_path of odoo-global.conf cannot be created (nginx -t will fail); check the tmpfs mount of "
