@@ -394,6 +394,16 @@ Earlier history was archived outside this repository when this file was created.
 
 ## app-log-live.py
 
+### 1.184.20261109.211500 - odoo.conf read the way Odoo reads it in the analysis
+
+- Title: the analysis checks odoo.conf with apps/_odoo_conf_check.py (without starting Odoo).
+- Reason: request of the administrator on 2026-11-09 (comment after a value refused by Odoo).
+- Changes: gather_details(): details["odoo_conf_check"] (errors and warnings of apps/_odoo_conf_check.py check(), use_odoo=False, in the language of the display); used by apps/_advisor.py 1.13.
+- Bugs fixed: none.
+- Safeguards and edge cases: module missing or failing: no finding, the analysis goes on.
+- Checks performed: test_odoo_conf_check [OK].
+- Action required: none.
+
 ### 1.183.20261109.204500 - Limits of the live chat (gevent) read, restarts of gevent counted, memory available
 
 - Title: the analysis reads limit_memory_soft_gevent / limit_memory_hard_gevent, counts the restarts of the gevent process and the memory available now.
@@ -3411,6 +3421,16 @@ Earlier history was archived outside this repository when this file was created.
 
 ## nginx-hardening.sh
 
+### 2.87.20261109.211500 - Step 8: odoo.conf read the way Odoo reads it
+
+- Title: step 8 checks odoo.conf with apps/_odoo_conf_check.py (comment after a value, key twice, wrong type, keys unknown to Odoo, parsing by the Odoo of the server).
+- Reason: request of the administrator on 2026-11-09: Odoo refused "limit_memory_soft_gevent = 2147483648 # (2048 Mo" (comment after the value); is there a program that checks the configuration of Odoo, or can one be written.
+- Changes: step 8: apps/_odoo_conf_check.py --tsv, each error as FAIL, each warning as WARN, notes shown, PASS when there is no error (with the command to check alone); lang/nginx-hardening.en.po.
+- Bugs fixed: symptom: Odoo did not start after "limit_memory_soft_gevent = 2147483648 # (2048 Mo" was added; diagnosis: Odoo reads its file with configparser.RawConfigParser without inline comments, so the comment stays in the value and the integer cast refuses it; our own readers (apps/_odoo_conf.py) cut at "#" and said nothing; fix: the new check reports a comment after a value as an error, with the line to write.
+- Safeguards and edge cases: without python3 or without the module, the step does as before; reads only.
+- Checks performed: test_odoo_conf_check (5 tests) [OK]; ShellCheck 0.11.0 [OK].
+- Action required: in config.conf, put each comment on its own line (a line that starts with #), then run python3 /opt/rlq-admin-tools/apps/_odoo_conf_check.py /opt/odoo/erplibre/config.conf.
+
 ### 2.86.20261109.204500 - Step 6: limits of the live chat (gevent), memory to add, memory nearly used up
 
 - Title: step 6 checks the limits of the gevent process and says how much memory to add when the RAM is short.
@@ -5043,6 +5063,16 @@ Earlier history was archived outside this repository when this file was created.
 
 ## apps/_advisor.py
 
+### 1.13.20261109.211500 - Finding odoo-conf-check
+
+- Title: the analysis reports the errors of odoo.conf found by apps/_odoo_conf_check.py.
+- Reason: request of the administrator on 2026-11-09: Odoo refused "limit_memory_soft_gevent = 2147483648 # (2048 Mo" (comment after the value); is there a program that checks the configuration of Odoo, or can one be written.
+- Changes: new rule rule_odoo_conf_check() (finding odoo-conf-check: PROBLEM with errors, LOOK with warnings only, 8 lines at most, the command to check again); lang/_advisor.fr.po.
+- Bugs fixed: none.
+- Safeguards and edge cases: no finding without details["odoo_conf_check"].
+- Checks performed: test_odoo_conf_check.test_constat_de_l_analyse, test_advisor [OK].
+- Action required: none.
+
 ### 1.12.20261109.204500 - Live chat limits (gevent), memory to add, memory nearly used up
 
 - Title: new findings gevent-memory-limit and memory-low-now; the memory risk says how much memory to add.
@@ -5447,6 +5477,18 @@ Earlier history was archived outside this repository when this file was created.
 
 
 ### 1.2.20261019.150215 - Current version. Earlier history archived outside the repository.
+
+## apps/_odoo_conf_check.py
+
+### 1.0.20261109.211500 - New: odoo.conf checked the way Odoo 18 reads it
+
+- Title: new shared module and command that check an Odoo configuration file without starting Odoo.
+- Reason: request of the administrator on 2026-11-09: Odoo refused "limit_memory_soft_gevent = 2147483648 # (2048 Mo" (comment after the value); is there a program that checks the configuration of Odoo, or can one be written.
+- Changes: new file apps/_odoo_conf_check.py: check(path, odoo_bin, python, language, use_odoo) and the command "python3 apps/_odoo_conf_check.py [--lang fr|en] [--odoo-bin PATH] [--python PATH] [--tsv] FILE" (exit 0 no error, 1 errors, 2 unreadable). Checks: comment after a value, key twice, line outside a section, no [options], integer and decimal options of Odoo 18, values in bytes that look like MB, limit_memory_soft above limit_memory_hard or under 1024 MB, gevent limits not set; with the Odoo of the server (found in the running processes, or --odoo-bin and --python): config.parse_config of Odoo itself and the keys Odoo does not know; messages in French and English; nginx-tools-tests/test_odoo_conf_check.py.
+- Bugs fixed: symptom: Odoo did not start after "limit_memory_soft_gevent = 2147483648 # (2048 Mo" was added; diagnosis: Odoo reads its file with configparser.RawConfigParser without inline comments, so the comment stays in the value and the integer cast refuses it; our own readers (apps/_odoo_conf.py) cut at "#" and said nothing; fix: the new check reports a comment after a value as an error, with the line to write.
+- Safeguards and edge cases: reads only; the parsing by Odoo runs with "python -I" from /, 120 s at most; without root the processes of the odoo account cannot be read: the check by Odoo itself is then skipped and said so.
+- Checks performed: test_odoo_conf_check (real case of 2026-11-09, key twice, type, units, memory, fake Odoo package for the parsing and the unknown keys, finding of the analysis, step 8) [OK].
+- Action required: none.
 
 ## apps/_i18n.py
 

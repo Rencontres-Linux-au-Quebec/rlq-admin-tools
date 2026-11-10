@@ -93,7 +93,7 @@ run() {
     "$@"
 }
 
-readonly SCRIPT_VERSION="2.86.20261109.204500"
+readonly SCRIPT_VERSION="2.87.20261109.211500"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
 SCRIPT_NAME="$(basename "${BASH_SOURCE[0]}" .sh)"; readonly SCRIPT_NAME
 # Display language (en or fr): --lang, NGINX_HARDENING_LANG, LANGUAGE of the configuration file, LC_ALL / LANG - apps/_i18n.sh translates the output (nothing changes in French).
@@ -2535,6 +2535,21 @@ if [[ "${ODOO_SPECIFIC_STEPS:-yes}" == "yes" ]]; then
 if [[ ! -r "$ODOO_CONF" ]]; then
     warn "$ODOO_CONF introuvable ou illisible — précisez --odoo-conf CHEMIN si ce n'est pas le bon fichier."
 else
+    # 2.87: the file read the way Odoo reads it (apps/_odoo_conf_check.py): comment after a value, key given twice, value not of its type, keys
+    # unknown to Odoo, and the parsing of the Odoo of the server when it is found. Odoo itself has no command that only checks its file.
+    if [[ -r "$SCRIPT_DIR/apps/_odoo_conf_check.py" ]] && command -v python3 >/dev/null 2>&1; then
+        conf_erreurs=0
+        while IFS=$'\t' read -r niveau ligne cle texte; do
+            [[ -n "$niveau" ]] || continue
+            ou="${ligne:+ligne $ligne}${cle:+ $cle}"; ou="${ou# }"
+            case "$niveau" in
+                error) fail "odoo.conf${ou:+ ($ou)} : $texte"; conf_erreurs=$(( conf_erreurs + 1 )) ;;
+                warning) warn "odoo.conf${ou:+ ($ou)} : $texte" ;;
+                *) echo "  odoo.conf${ou:+ ($ou)} : $texte" ;;
+            esac
+        done < <(NGINX_TOOLS_I18N_LANGUE="${NGINX_TOOLS_I18N_LANGUE:-fr}" python3 "$SCRIPT_DIR/apps/_odoo_conf_check.py" --tsv "$ODOO_CONF" 2>/dev/null || true)
+        (( conf_erreurs == 0 )) && pass "odoo.conf lu comme Odoo le lit : aucune erreur (vérification seule : python3 $SCRIPT_DIR/apps/_odoo_conf_check.py $ODOO_CONF)."
+    fi
     proxy_mode=$(grep -E "^\s*proxy_mode\s*=" "$ODOO_CONF" | tail -1 | sed -E 's/^[^=]*=\s*//' | tr -d '[:space:]' | tr '[:upper:]' '[:lower:]') || true
     if [[ "$proxy_mode" == "true" || "$proxy_mode" == "1" ]]; then
         pass "proxy_mode activé — Odoo fait confiance aux en-têtes X-Forwarded-* de nginx (IP client réelle, HTTPS détecté correctement)."
