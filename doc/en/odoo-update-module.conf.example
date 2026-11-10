@@ -27,6 +27,9 @@
 # --force-busy: kept for compatibility; writes always block the update (FORCE_BUSY=yes; no effect on reads)
 #FORCE_BUSY=no
 #LANGUAGE=auto
+# light HTTP writes in addition to chat, presence and visitor tracking (regular expression of the addresses,
+# without the first "/", e.g. my_module/ping|other/heartbeat): like visitors, they do not cancel the update
+#LIGHT_WRITES=
 # low activity: fewer than N requests (robots excluded) in the VISITOR_WINDOW window
 #LOW_REQUESTS=10
 # modules à mettre à jour, séparés par des espaces ; motifs acceptés (--module, répétable)

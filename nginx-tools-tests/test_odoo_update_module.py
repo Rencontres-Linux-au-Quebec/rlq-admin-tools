@@ -101,6 +101,41 @@ class OdooUpdateModule(EnvTest):
         self.assertEqual(rc, 3, out + err)
         self.assertNotIn("systemctl stop erplibre_erplibre.service", self.appels())
 
+    def _journal_post(self, *adresses, ip="198.51.100.20"):
+        """1.26: a nginx log of POST requests at 19:00:00 UTC on 2026-11-09 (one line per address); returns the epoch of 19:01:00 UTC."""
+        lignes = [f'{ip} - - [09/Nov/2026:19:00:00 +0000] "POST {a} HTTP/1.1" 200 12 "-" "Mozilla/5.0"' for a in adresses]
+        self.write("nginx/exemple-access.log", "\n".join(lignes) + "\n")
+        return self._epoch("2026-11-09 19:01:00 UTC")
+
+    def test_226_bus_et_discussion_ne_bloquent_pas(self):
+        """1.26: POST /bus/has_missed_notifications (sondage du bus) n'est pas une écriture ; la discussion en direct est une écriture légère : comme les
+        visiteurs, elle n'annule pas la mise à jour (cas réel du 2026-11-09 : mise à jour annulée par /bus/has_missed_notifications)."""
+        maintenant = self._journal_post("/bus/has_missed_notifications", "/websocket", "/bus/im_status")
+        rc, out, err = self.lancer("--check-activity", ODOO_UPDATE_MODULE_NOW=maintenant)
+        self.assertEqual(rc, 0, out + err)
+        maintenant = self._journal_post("/im_livechat/get_session", "/mail/message/post", "/discuss/channel/notify_typing")
+        rc, out, err = self.lancer("--check-activity", ODOO_UPDATE_MODULE_NOW=maintenant)
+        self.assertEqual(rc, 3, out + err)
+        self.assertIn("écritures légères", out)
+        self.assertNotIn("écritures HTTP (POST", out)
+        rc, out, err = self.lancer("--wait-quiet", "0", ODOO_UPDATE_MODULE_NOW=maintenant)
+        self.assertNotIn("ANNULÉE", out, out + err)
+        self.assertIn("mise à jour permise", out)
+
+    def test_226_vraie_ecriture_bloque_toujours_et_light_writes(self):
+        maintenant = self._journal_post("/survey/submit/abc/def", "/bus/has_missed_notifications")
+        rc, out, err = self.lancer("--wait-quiet", "0", ODOO_UPDATE_MODULE_NOW=maintenant)
+        self.assertEqual(rc, 3, out + err)
+        self.assertIn("ANNULÉE", out)
+        self.assertIn("/survey/submit", out)
+        self.write("etc/odoo-update-module.conf", "LIGHT_WRITES=survey/submit/\\S*\n")
+        rc, out, err = self.lancer("--check-activity", ODOO_UPDATE_MODULE_NOW=maintenant)
+        self.assertIn("écritures légères", out, out + err)
+        self.write("etc/odoo-update-module.conf", "LIGHT_WRITES=survey/(\n")          # invalid expression: ignored, the write still blocks
+        rc, out, err = self.lancer("--check-activity", ODOO_UPDATE_MODULE_NOW=maintenant)
+        self.assertEqual(rc, 3, out + err)
+        self.assertIn("écritures HTTP (POST", out)
+
     def test_199_base_illisible_compte_comme_occupee(self):
         mauvais = self.write("pg-ko.sh", "#!/bin/bash\nexit 1\n", 0o755)
         rc, out, err = self.lancer("--check-activity", ODOO_UPDATE_MODULE_PG_AS=mauvais)

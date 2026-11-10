@@ -831,3 +831,9 @@ msgstr ""
 
 msgid "|Mettre à jour le ou les modules (configuration)|Update the modules (configuration)|1"
 msgstr ""
+
+msgid " écritures légères (discussion, présence, suivi des visiteurs : rien de perdu si Odoo s'arrête une minute), la plus récente : "
+msgstr " light writes (chat, presence, visitor tracking: nothing lost if Odoo stops for a minute), the most recent: "
+
+msgid "  LIGHT_WRITES=                 écritures HTTP légères en plus (expression régulière des adresses, sans le « / » du début) : comme les visiteurs, elles n'annulent pas la mise à jour"
+msgstr "  LIGHT_WRITES=                 more light HTTP writes (regular expression of the addresses, without the first \"/\"): like visitors, they do not cancel the update"

@@ -3179,6 +3179,20 @@ Earlier history was archived outside this repository when this file was created.
 
 ## odoo-update-module.sh
 
+### 1.26.20261109.191500 - Bus polls are not writes; chat, presence and visitor tracking are light writes
+
+- Title: the update is no longer cancelled by the polls of the Odoo bus nor by the live chat.
+- Reason: report of the administrator on 2026-11-09: update cancelled after 2 min, the only "write" being "POST /bus/has_missed_notifications" (non critical: chat, the service comes back quickly).
+- Changes:
+  - nginx_writes(): READ_POST also has bus/*, longpolling/*, websocket, mail/thread/messages, mail/(inbox|starred|history)/messages, discuss/channel/(messages|info|members) (reads); new LIGHT_POST: im_livechat/*, discuss/*, mail/message/(post|reaction|update_content), mail/link_preview, mail/thread/(un)subscribe, mail/(read|set|unstar)*, website/track*, website/update_visitor_timezone, call_kw of res.users.settings, discuss.channel, mail.message, mail.notification, bus.presence; output "WRITES LIGHT" then "W ..." and "L ..." lines.
+  - site_reasons(): light writes reported as "R|" (like visitors: the update goes ahead at the end of the wait), real writes still "W|" (cancel).
+  - New configuration key LIGHT_WRITES (regular expression of more light addresses, without the first "/"); doc/fr, doc/en odoo-update-module.conf.example and 09-odoo-update-module.md; lang/odoo-update-module.en.po.
+  - nginx-tools-tests/test_odoo_update_module.py: test_226_bus_et_discussion_ne_bloquent_pas, test_226_vraie_ecriture_bloque_toujours_et_light_writes.
+- Bugs fixed: symptom: "site toujours en écriture après 2 min ... la plus récente : POST /bus/has_missed_notifications", update cancelled; diagnosis: the bus poll of the browser (sent with POST, reads only) was counted as a write; fix: read-only list completed, chat and presence classified as light writes.
+- Safeguards and edge cases: a real write (survey, form, sale...) still cancels the update, --force-busy included; an invalid LIGHT_WRITES expression is ignored (the writes stay real writes), never a reason to update blind; an unreadable log still counts as a write.
+- Checks performed: test_odoo_update_module (test_199, test_226) [OK]; test_i18n: no new failure; ShellCheck 0.11.0 [OK].
+- Action required: none (LIGHT_WRITES only if another module sends harmless writes).
+
 ### 1.25.20261109.190000 - Erase key (^H) in the questions, ETAIT_ACTIF unbound after Ctrl+C
 
 - Title: the questions of the site settings accept the erase key of every terminal; Ctrl+C confirmed during these questions no longer ends with an error.
