@@ -27,7 +27,7 @@ try:                    # line editing in all the input() prompts (backspace ^H 
 except ImportError:     # Windows, Python sans readline
     pass
 
-__version__ = "1.23.20261102.225620"
+__version__ = "1.24.20261109.190000"
 LANGUE_SOURCE = "fr"          # langue des messages dans le code
 
 
@@ -499,27 +499,122 @@ REPONSES_OUI = ("o", "oui", "y", "yes")
 
 def _lire_reponse_terminal():
     """Une ligne lue au terminal SANS input() : si Ctrl+C arrive pendant un input() qui utilise readline (import readline), un second input() lève
-    « RuntimeError: can't re-enter readline ». Le terminal est remis en mode ligne (écho, retour arrière) le temps de la réponse, puis dans son état d'avant
-    (celui que readline attend pour reprendre). EOFError à la fin de fichier."""
+    « RuntimeError: can't re-enter readline ». 1.24 : la ligne est éditée ICI (editer_ligne), terminal sans écho ni mode ligne du noyau le temps de la
+    réponse, puis remis dans son état d'avant (celui que readline attend pour reprendre). Le mode ligne du noyau ne connaît qu'UNE touche d'effacement
+    (stty erase, ^? d'ordinaire) : un terminal qui envoie ^H affichait « 3^H^H » et la réponse gardait les ^H. EOFError à la fin de fichier."""
     try:
         import termios
         fd = sys.stdin.fileno()
         ancien = termios.tcgetattr(fd)
     except Exception:                                  # pas de termios (ou stdin sans descripteur) : lecture simple
         termios, fd, ancien = None, None, None
-    if ancien is not None:
-        nouveau = list(ancien)
-        nouveau[3] |= termios.ICANON | termios.ECHO | termios.ECHOE | termios.ISIG
-        nouveau[0] |= termios.ICRNL
-        termios.tcsetattr(fd, termios.TCSADRAIN, nouveau)
+    if ancien is None:
+        ligne = sys.stdin.readline()
+        if ligne == "":
+            raise EOFError
+        return appliquer_effacements(ligne)
+    nouveau = list(ancien)
+    nouveau[3] &= ~(termios.ICANON | termios.ECHO)
+    nouveau[3] |= termios.ISIG                           # Ctrl+C garde son effet (question « Interrompre le programme ? »)
+    nouveau[0] |= termios.ICRNL
+    nouveau[6] = list(nouveau[6])
+    nouveau[6][termios.VMIN], nouveau[6][termios.VTIME] = 1, 0
+    termios.tcsetattr(fd, termios.TCSADRAIN, nouveau)
     try:
-        ligne = _lire_ligne_descripteur(fd) if fd is not None else sys.stdin.readline()
+        ligne = editer_ligne(fd)
     finally:
-        if ancien is not None:
-            termios.tcsetattr(fd, termios.TCSADRAIN, ancien)
-    if ligne == "":
+        termios.tcsetattr(fd, termios.TCSADRAIN, ancien)
+    if ligne is None:
         raise EOFError
-    return ligne
+    return ligne + "\n"
+
+
+EFFACEMENTS = (0x08, 0x7f)        # 1.24: ^H (Ctrl+H, PuTTY, certains terminaux) et ^? (DEL, xterm) effacent tous les deux
+
+
+def appliquer_effacements(texte):
+    """1.24: applies the erase characters (^H or ^?) left in a line read without line editing (pipe, terminal without termios): « 3\x084 » -> « 4 »."""
+    sortie = []
+    for c in texte:
+        if ord(c) in EFFACEMENTS:
+            if sortie:
+                sortie.pop()
+        else:
+            sortie.append(c)
+    return "".join(sortie)
+
+
+def _largeur(c):
+    """Columns taken by one character on screen (2 for the wide East-Asian ones, 0 for the combining ones)."""
+    import unicodedata
+    if unicodedata.combining(c):
+        return 0
+    return 2 if unicodedata.east_asian_width(c) in ("W", "F") else 1
+
+
+def editer_ligne(fd, sortie_fd=None):
+    """1.24: line editor of the answers (terminal without ICANON nor ECHO): echo of what is typed, erase by ^H AND ^? (whatever stty erase says),
+    ^U erases the line, ^W the last word, Enter ends, ^D on an empty line = end of file (None); arrows and other escape sequences are ignored.
+    Read with os.read (no buffer, no lock: the Ctrl+C handler can ask its own question meanwhile, see _lire_ligne_descripteur). Returns the line without "\n"."""
+    if sortie_fd is None:
+        sortie_fd = sys.stdout.fileno() if sys.stdout.isatty() else fd
+    encodage = getattr(sys.stdin, "encoding", None) or "utf-8"
+    import codecs
+    decodeur = codecs.getincrementaldecoder(encodage)("replace")
+    texte = []
+
+    def ecrire(chaine):
+        try:
+            os.write(sortie_fd, chaine.encode(encodage, "replace"))
+        except OSError:
+            pass
+
+    def effacer_un():
+        if texte:
+            n = _largeur(texte.pop())
+            ecrire("\b \b" * n)
+
+    def lire_octet():
+        while True:
+            try:
+                b = os.read(fd, 1)
+            except InterruptedError:
+                continue
+            return b[0] if b else None
+
+    while True:
+        o = lire_octet()
+        if o is None:                                    # fin de fichier : ce qui est tapé, ou None si rien
+            return "".join(texte) if texte else None
+        if o in (0x0a, 0x0d):
+            ecrire("\r\n")
+            return "".join(texte)
+        if o in EFFACEMENTS:
+            effacer_un()
+        elif o == 0x15:                                  # ^U
+            while texte:
+                effacer_un()
+        elif o == 0x17:                                  # ^W : le dernier mot
+            while texte and texte[-1] == " ":
+                effacer_un()
+            while texte and texte[-1] != " ":
+                effacer_un()
+        elif o == 0x04:                                  # ^D
+            if not texte:
+                return None
+        elif o == 0x1b:                                  # ESC [ ... lettre / ESC O lettre : flèches, touches de fonction
+            o2 = lire_octet()
+            if o2 in (0x5b, 0x4f):
+                while True:
+                    o3 = lire_octet()
+                    if o3 is None or 0x40 <= o3 <= 0x7e:
+                        break
+        elif o < 0x20:
+            continue
+        else:
+            for c in decodeur.decode(bytes([o])):
+                texte.append(c)
+                ecrire(c)
 
 
 def _lire_ligne_descripteur(fd):
@@ -544,9 +639,9 @@ def _lire_ligne_descripteur(fd):
 def saisie(invite=""):
     """Une réponse tapée (remplace input() dans tous les programmes) : l'invite est affichée, puis la ligne est lue le terminal en mode ligne,
     avec écho et touche d'effacement (ECHOE). Sans ce réglage, un programme précédent ou un terminal laissé sans ECHOE affichait « ^H » au lieu
-    d'effacer le caractère (1.22). Sans terminal : input() ordinaire. EOFError à la fin de fichier."""
+    d'effacer le caractère (1.22). 1.24 : ^H et ^? effacent tous les deux (editer_ligne). Sans terminal : input() ordinaire, effacements appliqués. EOFError à la fin de fichier."""
     if not sys.stdin.isatty():
-        return input(invite)
+        return appliquer_effacements(input(invite))
     sys.stdout.write(invite)
     sys.stdout.flush()
     return _lire_reponse_terminal().rstrip("\r\n")

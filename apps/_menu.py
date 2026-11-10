@@ -64,28 +64,20 @@ def _dialog(args):
 
 def _saisie(invite=""):
     """1.x: answer typed in line mode, with echo and erase (same rule as apps/_i18n.py saisie): a terminal left without ECHOE showed ^H
-    instead of erasing. Without a terminal (or without termios): the builtin reader."""
+    instead of erasing. 2026-11-09: apps/_i18n.py saisie() itself (its line editor erases with ^H AND ^?, whatever stty erase says);
+    without that module: the builtin reader, erase characters applied."""
     try:
-        import termios
-    except ImportError:
-        return input(invite)
-    if not sys.stdin.isatty():
-        return input(invite)
-    sys.stdout.write(invite)
-    sys.stdout.flush()
-    fd = sys.stdin.fileno()
-    ancien = termios.tcgetattr(fd)
-    nouveau = list(ancien)
-    nouveau[3] |= termios.ICANON | termios.ECHO | termios.ECHOE | termios.ISIG
-    nouveau[0] |= termios.ICRNL
-    termios.tcsetattr(fd, termios.TCSADRAIN, nouveau)
-    try:
-        ligne = sys.stdin.readline()
-    finally:
-        termios.tcsetattr(fd, termios.TCSADRAIN, ancien)
-    if ligne == "":
-        raise EOFError
-    return ligne.rstrip("\r\n")
+        import importlib.util
+        spec = importlib.util.spec_from_file_location("_i18n_saisie", os.path.join(os.path.dirname(os.path.abspath(__file__)), "_i18n.py"))
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+    except Exception:                                   # noqa: BLE001 - module missing or unreadable
+        ligne = input(invite)
+        while any(c in ligne for c in "\x08\x7f"):
+            i = min(i for i in (ligne.find("\x08"), ligne.find("\x7f")) if i >= 0)
+            ligne = ligne[:max(i - 1, 0)] + ligne[i + 1:]
+        return ligne
+    return module.saisie(invite)
 
 
 def _confirmer(question):
