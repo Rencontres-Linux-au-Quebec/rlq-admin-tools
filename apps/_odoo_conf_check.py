@@ -29,7 +29,7 @@ import re
 import subprocess
 import sys
 
-__version__ = "1.1.20261109.213000"
+__version__ = "1.2.20261109.222500"
 
 # Typed options of Odoo 18 (odoo/tools/config.py, type="int" or "float"); the others are text. "True"/"False" are accepted for all of them
 # (Odoo turns them into booleans before the casts).
@@ -39,6 +39,7 @@ INT_KEYS = {"http_port", "gevent_port", "longpolling_port", "xmlrpc_port", "db_p
             "list_db_size"}
 FLOAT_KEYS = {"transient_age_limit", "osv_memory_age_limit"}
 MB = 1048576
+OUTDATED = {"xmlrpc_port": "http_port", "xmlrpc_interface": "http_interface", "xmlrpc": "http_enable"}      # 1.2: old names that Odoo 18 still reads
 
 TEXTS = {
     "unreadable": ("fichier illisible : {e}", "file unreadable: {e}"),
@@ -59,6 +60,7 @@ TEXTS = {
     "odoo_ok": ("lu sans erreur par l'Odoo du serveur ({bin})", "read without error by the Odoo of the server ({bin})"),
     "odoo_absent": ("Odoo du serveur introuvable (préciser --odoo-bin et --python) : vérification par Odoo lui-même non faite",
                     "Odoo of the server not found (give --odoo-bin and --python): no check by Odoo itself"),
+    "outdated": ("ancien nom, lu par Odoo comme {new} : le renommer {new} un jour (rien ne presse)", "old name, read by Odoo as {new}: rename it {new} some day (no hurry)"),
     "unknown": ("clé inconnue d'Odoo, ignorée sans message (faute de frappe ?)", "key unknown to Odoo, ignored without a message (typo?)"),
     "soft_hard": ("limit_memory_soft ({s} Mo) au-dessus de limit_memory_hard ({h} Mo) : la limite dure arrive d'abord (MemoryError en pleine requête)",
                   "limit_memory_soft ({s} MB) above limit_memory_hard ({h} MB): the hard limit comes first (MemoryError during a request)"),
@@ -245,7 +247,10 @@ def check(path, odoo_bin=None, python=None, language="fr", use_odoo=True):
                 for out in r.stdout.splitlines():
                     if out.startswith("UNKNOWN|"):
                         for key in filter(None, out[8:].split("|")):
-                            res.append(("warning", values.get(key, (0,))[0], key, _t("unknown", language)))
+                            if key in OUTDATED:                         # 1.2: read by Odoo under its new name (odoo/tools/config.py load())
+                                res.append(("info", values.get(key, (0,))[0], key, _t("outdated", language, k=key, new=OUTDATED[key])))
+                            else:
+                                res.append(("warning", values.get(key, (0,))[0], key, _t("unknown", language)))
                 res.append(("info", 0, "", _t("odoo_ok", language, bin=odoo_bin)))
     elif use_odoo:
         res.append(("info", 0, "", _t("odoo_absent", language)))
