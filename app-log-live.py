@@ -121,7 +121,7 @@ from urllib.parse import unquote, urlsplit
 from collections import Counter, OrderedDict
 from concurrent.futures import Future
 
-__version__ = "1.184.20261109.211500"
+__version__ = "1.185.20261109.214000"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
@@ -5250,6 +5250,20 @@ class Stats:
     def top(counter, n=5, width=60):
         return " ; ".join(f"{short_url(u, width)} " + color_code("1;36", f"×{c}") for u, c in counter.most_common(n))
 
+    def slow_row(self, t, url, ip, n, ts, tp, instant):
+        """1.185: one slow request in aligned columns (duration, time, SQL, Python, SQL queries, then the address and the client, of any length, last),
+        the abnormal figures in colour: duration (orange, red from twice the threshold), SQL time when the database takes most of it, Python time when
+        Python takes most of it, number of SQL queries from SQL_HIGH."""
+        def tint(value, text, bad, worse=False):
+            return color_code("1;31" if worse else ORANGE, text) if bad else text
+        slow = self.slowest or 5
+        row = [tint(t, f"{t:5.1f} s", True, t >= 2 * slow), clock_of(instant) if instant else " " * 19]
+        if ts or tp:
+            row.append("SQL " + tint(ts, f"{ts:5.1f} s", ts >= max(1.0, 0.6 * t), ts >= max(2.0, 0.6 * t)))
+            row.append("Python " + tint(tp, f"{tp:5.1f} s", tp >= max(1.0, 0.8 * t), tp >= max(5.0, 0.8 * t)))
+            row.append(tint(n, f"{n:5d}", n >= SQL_HIGH, n >= SQL_VERY_HIGH) + " " + TR("SQL queries"))       # translated here: the display keeps the columns
+        return " · ".join(row) + f" · {short_url(url)} ({self.who(ip)})"
+
     def analyze_slow(self, n=4):
         """Lines that EXPLAIN the slow requests: where the time goes (SQL / Python), the most affected pages with their probable cause, the addresses
         concerned, and whether they arrive in clusters (saturated server). Empty if there are none."""
@@ -5271,12 +5285,19 @@ class Stats:
             minutes[int(instant // 60)] += 1
         all_items = t_sql + t_py
         if all_items > 0:
-            lines.append(f"Where the time goes: SQL {100 * t_sql / all_items:.0f} % · Python {100 * t_py / all_items:.0f} % (total {all_items:.0f} s over {len(self.slow_requests)} requests)")
-        for url, g in sorted(grouped.items(), key=lambda kv: -kv[1]["total"])[:n]:
-            lines.append(f"{short_url(url, 48)} ×{g['n']} — {g['total']:.0f} s in total, the worst {g['max']:.1f} s : "
-                          + request_cause(g["req"], g["sql"], g["py"], g["size"], g["example"]))
+            sql_pct, py_pct = 100 * t_sql / all_items, 100 * t_py / all_items
+            # 1.185: the share that takes most of the time in colour
+            lines.append("Where the time goes: SQL " + (color_code(ORANGE, f"{sql_pct:.0f} %") if sql_pct >= 60 else f"{sql_pct:.0f} %")
+                         + " · Python " + (color_code(ORANGE, f"{py_pct:.0f} %") if py_pct >= 80 else f"{py_pct:.0f} %")
+                         + f" (total {all_items:.0f} s over {len(self.slow_requests)} requests)")
+        top = sorted(grouped.items(), key=lambda kv: -kv[1]["total"])[:n]
+        width = min(48, max((len(short_url(url, 48)) for url, _g in top), default=0))
+        for url, g in top:
+            # 1.185: aligned columns: count, total, worst, page (padded to the longest of the list), then the cause
+            lines.append(f"×{g['n']:<3} {g['total']:4.0f} " + TR("s in total, the worst ") + color_code("1;31" if g["max"] >= 2 * (self.slowest or 5) else ORANGE, f"{g['max']:5.1f} s")
+                         + f" · {short_url(url, 48):<{width}} : " + request_cause(g["req"], g["sql"], g["py"], g["size"], g["example"]))
         if par_ip and len(self.slow_requests) > 3:                  # up to 3 requests are listed one by one WITH their address: no need to repeat them
-            lines.append("Addresses: " + " ; ".join(f"{self.who(ip)} ×{c}" for ip, c in par_ip.most_common(3)))
+            lines.append("Addresses: " + " ; ".join(f"{self.who(ip)} " + color_code("1;36", f"×{c}") for ip, c in par_ip.most_common(3)))
         cold = sum(1 for _t, u, _ip in self.slow_requests if COLD_RE.search(u))
         if cold >= 2 and 2 * cold >= len(self.slow_requests):
             lines.append(TR("{cold} of the {total} slow requests are assets or views (cold Odoo cache): Odoo has probably just restarted or been updated; they should no longer be slow on the second pass").format(cold=cold, total=len(self.slow_requests)))
@@ -5289,7 +5310,7 @@ class Stats:
                 lines.append(f"Python alone is to blame (not the database): right now {system_state(state)} — {python_conclusion(state)}")
         cluster = max(minutes.values())
         if cluster >= 3:
-            lines.append(f"{cluster} slow requests in the same minute: overloaded server or database lock (see “Program” and app-health-check.py)")
+            lines.append(color_code(ORANGE, f"{cluster}") + " slow requests in the same minute: overloaded server or database lock (see “Program” and app-health-check.py)")
         return lines
 
     # --- health --------------------------------------------------------------------------------------------------------------------------
@@ -5384,8 +5405,7 @@ class Stats:
             if probes_n:
                 extra.append(TR("{k} of them are the probes of this server (app-health-check.py): they measured the slowness, they did not cause it").format(k=probes_n))
             indicator(0, f"Slow requests (≥ {self.slowest:g} s) : " + (f"{len(self.slow_requests)}" if self.slow_requests else none_fem()),
-                       [f"{t:.1f} s {short_url(u)} ({self.who(ip)})" + (f" — SQL {ts:.1f} s · Python {tp:.1f} s · {n} SQL queries" if ts or tp else "") + (f" · {clock_of(_instant)}" if _instant else "")
-                        for (t, u, ip), (n, ts, tp, _size, _instant) in more]
+                       [self.slow_row(t, u, ip, n, ts, tp, _instant) for (t, u, ip), (n, ts, tp, _size, _instant) in more]
                       + ([TR("… and {n} other slow requests").format(n=len(self.slow_requests) - len(more))] if len(self.slow_requests) > len(more) else [])
                       + extra + self.analyze_slow(), (1, 5), len(self.slow_requests) - cold_n)
         if self.watch_it:

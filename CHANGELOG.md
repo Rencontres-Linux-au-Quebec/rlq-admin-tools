@@ -394,6 +394,16 @@ Earlier history was archived outside this repository when this file was created.
 
 ## app-log-live.py
 
+### 1.185.20261109.214000 - Slow requests in aligned columns, abnormal figures in colour
+
+- Title: the slow requests of the health and of the summary are shown in aligned columns, the abnormal figures in colour.
+- Reason: request of the administrator on 2026-11-09: "enligne l'information et rajoute de la couleur pour les chiffres anormaux" (slow requests of DEV).
+- Changes: new method Stats.slow_row(): duration, date and time, SQL time, Python time, number of SQL queries, then the page and the client (of any length) last; duration orange, red from twice the threshold; SQL time when it takes 60 % of the request, Python time when it takes 80 %; number of SQL queries from SQL_HIGH (red from SQL_VERY_HIGH). analyze_slow(): pages grouped in columns (count, total, worst in colour, page padded to the longest of the list, then the cause), the share of SQL or Python that takes most of the time in orange, the counts of the addresses and of the cluster in colour; the fixed words of these lines are translated before the padding (the display translator kept the columns only partly); lang/app-log-live.fr.po: obsolete fragments "— SQL ", "% · Python ", "% (total " removed, " (total " added.
+- Bugs fixed: none.
+- Safeguards and edge cases: no colour when the output is not a terminal (color_code); the client and the page stay last, so a long name never shifts the columns.
+- Checks performed: test_185_requetes_lentes_alignees_et_en_couleur (new), test_causes_des_requetes_lentes_dans_le_resume and test_requetes_lentes_surlignees_avec_leur_duree_et_slow (updated to the new layout), test_i18n: no new failure.
+- Action required: none.
+
 ### 1.184.20261109.211500 - odoo.conf read the way Odoo reads it in the analysis
 
 - Title: the analysis checks odoo.conf with apps/_odoo_conf_check.py (without starting Odoo).
