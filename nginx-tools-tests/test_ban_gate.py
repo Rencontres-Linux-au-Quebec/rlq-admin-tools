@@ -84,7 +84,13 @@ class BanGate(unittest.TestCase):
         self.assertIn('grep_q "Score [0-9]/7 : bannissement recommandé"', bloc)
 
     def test_version_dynamique(self):
-        self.assertIn('readonly SCRIPT_VERSION="2.91.20261103.133244"', script())
+        # 2.93: the version follows MAJOR.MINOR.YYYYMMDD.HHMMSS and is the first one of the program's CHANGELOG section (no frozen value)
+        import re
+        m = re.search(r'readonly SCRIPT_VERSION="(\d+\.\d+\.\d{8}\.\d{6})"', script())
+        self.assertIsNotNone(m)
+        log = open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "CHANGELOG.md"), encoding="utf-8").read()
+        section = log[log.index("## nginx-log-audit.sh"):]
+        self.assertTrue(section.split("### ", 2)[1].startswith(m.group(1) + " - "))
 
 
 if __name__ == "__main__":

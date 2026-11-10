@@ -943,6 +943,8 @@ class ChkNginxLogs(EnvTest):
     def _burst_aws(self):
         self.add(*(acc("11.22.62.38", "25/Sep/2026", f"19:28:5{i % 10}", f"/page{i}") for i in range(10)))
         self.add(acc("11.22.62.38", "25/Sep/2026", "19:30:00", "/x", 200, "python-httpx/0.28.1"))
+        # 2.93: a burst alone is no longer proposed for a ban; three sensitive-file probes give the strong sign these question tests need
+        self.add(*(acc("11.22.62.38", "25/Sep/2026", f"19:31:0{k}", u, 403, "python-httpx/0.28.1") for k, u in enumerate(["/.env", "/.git/HEAD", "/wp-login.php"])))
 
     @unittest.skipUnless(os.geteuid() == 0, "la question de bannissement exige root")
     def test_ctrl_c_a_la_question_vaut_non_et_rapport_continue(self):
