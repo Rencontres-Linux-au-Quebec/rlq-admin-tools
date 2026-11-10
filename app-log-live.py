@@ -121,7 +121,7 @@ from urllib.parse import unquote, urlsplit
 from collections import Counter, OrderedDict
 from concurrent.futures import Future
 
-__version__ = "1.185.20261109.214000"
+__version__ = "1.186.20261109.221500"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
@@ -5308,6 +5308,12 @@ class Stats:
             state = read_state()
             if state:
                 lines.append(f"Python alone is to blame (not the database): right now {system_state(state)} — {python_conclusion(state)}")
+        # 1.186: requests that END together with almost no SQL waited for the same thing: the disk (or the sending of the response)
+        advisor = load_module("_advisor")
+        if advisor is not None and hasattr(advisor, "ended_together"):
+            k, when = advisor.ended_together([(info[4], info[1], info[2]) for info in self.slow_info if info[4]])
+            if k:
+                lines.append(color_code(ORANGE, f"{k}") + " " + TR("slow requests ended in the same 2 seconds ({when}) with almost no SQL: waiting for the disk (images, files of the filestore or of the modules) or for the sending of the response, not Odoo computing; host-perf-audit.py measures the read wait of the disks").format(when=clock_of(when)))
         cluster = max(minutes.values())
         if cluster >= 3:
             lines.append(color_code(ORANGE, f"{cluster}") + " slow requests in the same minute: overloaded server or database lock (see “Program” and app-health-check.py)")

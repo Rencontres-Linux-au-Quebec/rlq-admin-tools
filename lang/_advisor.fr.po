@@ -1233,3 +1233,15 @@ msgstr "corriger les lignes ci-dessus dans {path}, puis vérifier de nouveau : p
 
 msgid "only after that, restart Odoo (a running Odoo keeps the values of its start: an error shows at the next restart)"
 msgstr "seulement ensuite, redémarrer Odoo (un Odoo en marche garde les valeurs de son démarrage : une erreur se voit au prochain redémarrage)"
+
+msgid "{k} slow requests ended in the same 2 seconds ({when}) with almost no SQL: they waited together outside the database"
+msgstr "{k} requêtes lentes finies dans les mêmes 2 secondes ({when}) presque sans SQL : elles ont attendu ensemble, hors de la base"
+
+msgid "waiting for the disk: several requests ended together with almost no SQL and no computation to do (images, files): reading the filestore or the files of the modules on slow disks, or writing a temporary file"
+msgstr "attente du disque : plusieurs requêtes finies ensemble presque sans SQL et sans calcul à faire (images, fichiers) : lecture du filestore ou des fichiers des modules sur des disques lents, ou écriture d'un fichier temporaire"
+
+msgid "host-perf-audit.py on the Proxmox host (read wait of the disks; --duration 24h): above about 20 ms per read, the disks are the limit"
+msgstr "host-perf-audit.py sur l'hôte Proxmox (attente des lectures des disques ; --duration 24h) : au-delà d'environ 20 ms par lecture, les disques sont la limite"
+
+msgid "nginx-hardening.sh --update: cache of the images of Odoo and temporary files of nginx in memory; on the host: an SSD for the filestore and PostgreSQL (ZFS: special vdev or L2ARC)"
+msgstr "nginx-hardening.sh --update : cache des images d'Odoo et fichiers temporaires de nginx en mémoire ; sur l'hôte : un SSD pour le filestore et PostgreSQL (ZFS : special vdev ou L2ARC)"

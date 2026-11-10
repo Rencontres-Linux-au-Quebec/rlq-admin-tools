@@ -2741,3 +2741,102 @@ msgstr " MB; nothing is written to the disks, each file is deleted as soon as th
 
 msgid " absent : le proxy_temp_path de odoo-global.conf ne peut pas être créé (nginx -t échouera) — vérifier le montage tmpfs de "
 msgstr " missing: the proxy_temp_path of odoo-global.conf cannot be created (nginx -t will fail); check the tmpfs mount of "
+
+msgid "nginx : proxy_buffers non défini (défaut 8 × 4 ou 8 Ko) : une réponse d'Odoo de plus de 64 Ko est écrite dans un fichier temporaire — la configuration générique (étape 0f) met 16 × 64 Ko."
+msgstr "nginx: proxy_buffers not set (default 8 × 4 or 8 KB): a response of Odoo larger than 64 KB is written to a temporary file; the generic configuration (step 0f) sets 16 × 64 KB."
+
+msgid "nginx : proxy_buffers de "
+msgstr "nginx: proxy_buffers of "
+
+msgid " Ko au plus petit : une réponse plus grande est écrite dans un fichier temporaire (disque) ; 16 × 64 Ko (1 Mo) conseillés."
+msgstr " KB at the smallest: a larger response is written to a temporary file (disk); 16 × 64 KB (1 MB) recommended."
+
+msgid "nginx : tampons des réponses "
+msgstr "nginx: buffers of the responses "
+
+msgid " Ko au moins (proxy_buffers) : les pages et les images courantes restent en mémoire."
+msgstr " KB at least (proxy_buffers): the usual pages and images stay in memory."
+
+msgid "nginx : fichiers temporaires des réponses en mémoire ("
+msgstr "nginx: temporary files of the responses in memory ("
+
+msgid "  [INFO] nginx : fichiers temporaires des réponses sur le disque ("
+msgstr "  [INFO] nginx: temporary files of the responses on the disk ("
+
+msgid "dossier par défaut de nginx"
+msgstr "default folder of nginx"
+
+msgid ") — la configuration générique (étape 0f) les met dans /dev/shm."
+msgstr "); the generic configuration (step 0f) puts them in /dev/shm."
+
+msgid "nginx : cache en mémoire ("
+msgstr "nginx: cache in memory ("
+
+msgid "  [INFO] nginx : cache sur le disque ("
+msgstr "  [INFO] nginx: cache on the disk ("
+
+msgid ") — la configuration générique (étape 0f) le met dans /dev/shm (disques SATA : moins de lectures)."
+msgstr "); the generic configuration (step 0f) puts it in /dev/shm (SATA disks: fewer reads)."
+
+msgid "nginx : images d'Odoo (/web/image) gardées par le cache de nginx (seulement celles qu'Odoo déclare publiques)."
+msgstr "nginx: images of Odoo (/web/image) kept by the cache of nginx (only those Odoo declares public)."
+
+msgid "nginx : aucun cache pour les images d'Odoo (/web/image) : chaque image repasse par Odoo et par les disques — la configuration générique (étape 0f) l'ajoute dans _odoo-common.conf."
+msgstr "nginx: no cache for the images of Odoo (/web/image): each image goes through Odoo and the disks again; the generic configuration (step 0f) adds it in _odoo-common.conf."
+
+msgid "PostgreSQL : réglages de mémoire illisibles — non vérifié."
+msgstr "PostgreSQL: memory settings unreadable; not checked."
+
+msgid " déjà réglé (>= "
+msgstr " already set (>= "
+
+msgid "), gardé"
+msgstr "), kept"
+
+msgid "wal_compression off → on"
+msgstr "wal_compression off → on"
+
+msgid ", gardé"
+msgstr ", kept"
+
+msgid "PostgreSQL : mémoire et points de contrôle déjà réglés pour "
+msgstr "PostgreSQL: memory and checkpoints already set for "
+
+msgid " (shared_buffers, work_mem, max_wal_size...) : peu d'accès au disque."
+msgstr " (shared_buffers, work_mem, max_wal_size...): little disk access."
+
+msgid "PostgreSQL : plus de mémoire, moins de disque pour "
+msgstr "PostgreSQL: more memory, less disk for "
+
+msgid " (shared_buffers : redémarrage de PostgreSQL)"
+msgstr " (shared_buffers: restart of PostgreSQL)"
+
+msgid "# Ajouté par nginx-hardening.sh 2.91 pour "
+msgstr "# Added by nginx-hardening.sh 2.91 for "
+
+msgid " Mo de mémoire : PostgreSQL lit et écrit moins sur les disques."
+msgstr " MB of memory: PostgreSQL reads and writes less on the disks."
+
+msgid "# Une valeur n'est que montée (une valeur plus grande déjà réglée est gardée). Pour retirer : supprimer ce fichier, puis redémarrer PostgreSQL."
+msgstr "# A value is only raised (a larger value already set is kept). To remove: delete this file, then restart PostgreSQL."
+
+msgid " écrit et rechargé ("
+msgstr " written and reloaded ("
+
+msgid "  Redémarrer PostgreSQL maintenant pour shared_buffers (Odoo coupé quelques secondes) ? [o/N] "
+msgstr "  Restart PostgreSQL now for shared_buffers (Odoo cut a few seconds)? [y/N] "
+
+msgid "PostgreSQL redémarré : shared_buffers = "
+msgstr "PostgreSQL restarted: shared_buffers = "
+
+msgid " en vigueur. Odoo se reconnecte seul (sinon : systemctl restart du service d'Odoo)."
+msgstr " in effect. Odoo reconnects by itself (otherwise: systemctl restart of the Odoo service)."
+
+msgid "PostgreSQL : redémarrage impossible — systemctl status postgresql."
+msgstr "PostgreSQL: restart impossible; systemctl status postgresql."
+
+msgid " écrit, en vigueur au prochain redémarrage de PostgreSQL (systemctl restart postgresql à un moment calme, Odoo coupé quelques secondes)."
+msgstr " written, in effect at the next restart of PostgreSQL (systemctl restart postgresql at a quiet moment, Odoo cut a few seconds)."
+
+msgid "--- 17) PostgreSQL : journal des requêtes lentes et des verrous, mémoire (moins de disque) ---"
+msgstr "--- 17) PostgreSQL: log of the slow queries and of the locks, memory (less disk) ---"

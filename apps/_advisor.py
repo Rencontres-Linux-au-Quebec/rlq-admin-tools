@@ -32,7 +32,7 @@ import re
 import time
 from collections import Counter
 
-__version__ = "1.13.20261109.211500"
+__version__ = "1.14.20261109.221500"
 
 PROBLEM, LOOK, INFO = 2, 1, 0                         # severities: problem, to look at, information
 
@@ -78,6 +78,21 @@ PRODUCT_ID_RE = re.compile(r"^(?:/[a-z]{2}(?:_[A-Z]{2})?)?/shop/(?:product/)?[^/
 WP_SITEMAP_RE = re.compile(r"/(?:sitemap_index|wp-sitemap|sitemap-index|post-sitemap|page-sitemap)\.xml$|/sitemap\.xml\.gz$")
 LONG_CONNECTION_RE = re.compile(r"/(?:websocket|longpolling)(?:[/?\s\"]|$)")          # 1.4: a connection kept open (chat, bus): its duration is not a slowness
 KILLED_RE = re.compile(r"oom-kill|code=killed|status=9/KILL|Failed with result|Killing process|signal=KILL|core-dump|Main process exited, code=(?:exited, status=[1-9]|killed|dumped)")
+TOGETHER_S = 2                                        # 1.14: slow requests that end less than this apart, with almost no SQL: a common wait (disk)
+
+
+def ended_together(items, window=TOGETHER_S):
+    """1.14: (count, first end) of the largest group of at least 3 slow requests that END within `window` seconds of each other with less than 10 % of
+    their time in SQL and at least 2 s outside SQL; (0, None) otherwise. items: [(end epoch, SQL s, Python s)]."""
+    quiet = sorted(t for t, sql, py in items if py >= 2 and sql < 0.1 * (sql + py))
+    best, first = 0, None
+    for i, t in enumerate(quiet):
+        k = sum(1 for u in quiet[i:] if u - t <= window)
+        if k > best:
+            best, first = k, t
+    return (best, first) if best >= 3 else (0, None)
+
+
 SIMULTANEOUS_S = 60                                   # 1.7: slow requests on different pages less than this apart slowed down together
 BACKEND_RPC_RE = re.compile(r"^/(?:web/dataset/|web/action/|mail/(?:thread|data)|web/webclient/)")
 CALL_BUTTON_RE = re.compile(r"/web/dataset/call_(?:button|kw)/([\w.]+)/(\w+)")
@@ -1086,6 +1101,13 @@ class Analyzer:
             first, last = min(together)[0], max(together)[0]
             evidence.append(tr("{k} slow requests on different pages within {s} s ({when}): slowed down together, not each page on its own").format(
                 k=len(together), s=int(last - first), when=time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(first))))
+        # 1.14: several requests that END in the same 2 seconds with almost no SQL waited for the same thing outside the database and outside Python
+        # computation: reading the disk (images and files of the filestore, files of the modules) or sending the response (DEV 2026-11-09: 4 images,
+        # 4 workers, 10 s each, 0.01 s of SQL, ended at 20:35:28; reads of the SATA disks: 160 to 230 ms each, measured by host-perf-audit.py)
+        disk_k, disk_when = ended_together([(x["t"], x.get("t_sql") or 0, x.get("t_py") or 0) for x in slow if x.get("t")])
+        if disk_k:
+            evidence.append(tr("{k} slow requests ended in the same 2 seconds ({when}) with almost no SQL: they waited together outside the database").format(
+                k=disk_k, when=time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(disk_when))))
         crons = details.get("crons") or []
         if crons:
             evidence.append(tr("Scheduled actions whose last run was around then: ") + " ; ".join(
@@ -1123,6 +1145,11 @@ class Analyzer:
             cause = tr("several pages slow at the same moment: PostgreSQL was busy or held by a lock (scheduled action, backup, autovacuum), not a missing index on each page")
             advice = [tr("look at what ran at that time (scheduled actions above, backup, ZFS snapshots); if it repeats at the same hour, move that task"),
                       tr("to see the locks next time: log_lock_waits = on and log_min_duration_statement = 2000 in postgresql.conf (reload PostgreSQL)")]
+            fix = None
+        elif disk_k and 2 * disk_k >= len(slow):
+            cause = tr("waiting for the disk: several requests ended together with almost no SQL and no computation to do (images, files): reading the filestore or the files of the modules on slow disks, or writing a temporary file")
+            advice = [tr("host-perf-audit.py on the Proxmox host (read wait of the disks; --duration 24h): above about 20 ms per read, the disks are the limit"),
+                      tr("nginx-hardening.sh --update: cache of the images of Odoo and temporary files of nginx in memory; on the host: an SSD for the filestore and PostgreSQL (ZFS: special vdev or L2ARC)")]
             fix = None
         elif t_sql > t_py:
             cause = tr("the database: heavy searches, missing indexes or tables to clean")

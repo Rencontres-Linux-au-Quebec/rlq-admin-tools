@@ -51,6 +51,9 @@
 #PG_LOGGING=yes
 # étape 17 : durée en millisecondes à partir de laquelle une requête est écrite dans le journal de PostgreSQL (log_min_duration_statement)
 #PG_SLOW_MS=2000
+# étape 17 : mémoire et points de contrôle de PostgreSQL montés selon la mémoire du serveur (shared_buffers, work_mem, max_wal_size...)
+# pour moins d'accès au disque ; une valeur n'est que montée ; shared_buffers demande un redémarrage de PostgreSQL ; no = jamais modifié
+#PG_TUNING=yes
 # --rename-from (ancien nom DNS public à remplacer dans nginx, étape 0e ; à utiliser une fois, avec --update) (défaut : aucun)
 #RENAME_FROM=
 # --rename-to (nouveau nom DNS public : nginx et certificat Let's Encrypt refaits pour ce nom) (défaut : aucun)

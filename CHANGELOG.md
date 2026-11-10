@@ -394,6 +394,16 @@ Earlier history was archived outside this repository when this file was created.
 
 ## app-log-live.py
 
+### 1.186.20261109.221500 - Slow requests ended together without SQL: waiting for the disk
+
+- Title: the explanation of the slow requests says when several of them ended together with almost no SQL (waiting for the disk).
+- Reason: request of the administrator on 2026-11-09: the LXC container of Odoo 18 CE now has 32 GB; make the scripts set the right parameters so that nginx and PostgreSQL use the disk less (SATA disks, reads of 160 to 230 ms measured by host-perf-audit.py); check the buffers and the cache of the images in nginx-hardening.sh; a cause « waiting for the disk » in the analysis of app-log-live when several workers end together without SQL.
+- Changes: analyze_slow(): line "N slow requests ended in the same 2 seconds (WHEN) with almost no SQL: waiting for the disk ..." (apps/_advisor.py ended_together()); lang/app-log-live.fr.po.
+- Bugs fixed: none.
+- Safeguards and edge cases: without apps/_advisor.py, nothing more is said.
+- Checks performed: test_186_attente_du_disque [OK].
+- Action required: none.
+
 ### 1.185.20261109.214000 - Slow requests in aligned columns, abnormal figures in colour
 
 - Title: the slow requests of the health and of the summary are shown in aligned columns, the abnormal figures in colour.
@@ -3431,6 +3441,21 @@ Earlier history was archived outside this repository when this file was created.
 
 ## nginx-hardening.sh
 
+### 2.91.20261109.221500 - Less disk for nginx and PostgreSQL: image cache, cache in memory, PostgreSQL memory and checkpoints
+
+- Title: nginx keeps the public images of Odoo in its cache, in memory; PostgreSQL gets memory and checkpoints for the memory of the server; step 4 checks what nginx writes to the disk.
+- Reason: request of the administrator on 2026-11-09: the LXC container of Odoo 18 CE now has 32 GB; make the scripts set the right parameters so that nginx and PostgreSQL use the disk less (SATA disks, reads of 160 to 230 ms measured by host-perf-audit.py); check the buffers and the cache of the images in nginx-hardening.sh; a cause « waiting for the disk » in the analysis of app-log-live when several workers end together without SQL.
+- Changes:
+  - nginx/snippets/odoo/_odoo-common.conf: new location for /web/image (with or without a language prefix): proxy_cache odoo_cache, key "$scheme$host$request_uri", proxy_cache_lock, proxy_cache_use_stale updating, same rate limits as location /; NO proxy_cache_valid: only what Odoo declares cacheable (Cache-Control public, max-age) is kept; no proxy_set_header nor add_header (those of the server level apply).
+  - nginx/conf.d/odoo-global.conf: proxy_cache_path moved to /dev/shm/nginx-cache (keys_zone 20m, max_size 1g), created by nginx at its start.
+  - nginx/VERSION: 1.25.20261109.221500.
+  - nginx-hardening.sh: new function nginx_moins_de_disque() (step 4, Odoo only: proxy_buffers, proxy_temp_path, proxy_cache_path in /dev/shm or on the disk, location /web/image with proxy_cache); new function pg_moins_de_disque() and configuration key PG_TUNING (default yes; doc/fr, doc/en templates): step 17 writes conf.d/91-nginx-hardening-memory.conf with shared_buffers (RAM / 10, 4 GB at most), effective_cache_size (RAM / 2), work_mem (16 MB from 16 GB), maintenance_work_mem (RAM / 32, 64 MB to 1 GB), max_wal_size 4 GB, min_wal_size 1 GB, checkpoint_timeout 15 min, checkpoint_completion_target 0.9, wal_compression on; reload; restart of PostgreSQL for shared_buffers asked on a terminal (otherwise said); step 17 now also runs with PG_LOGGING=no when PG_TUNING=yes (logging part skipped); NGINX_HARDENING_MEMINFO for the tests; lang/nginx-hardening.en.po; doc 01-nginx-hardening.md (steps 4, 17).
+  - nginx-tools-tests/test_nginx_hardening.py: classes MoinsDeDisque291 (2 tests), test_291_postgres_moins_de_disque; test_283_postgres_desactive with PG_TUNING=no.
+- Bugs fixed: none.
+- Safeguards and edge cases: a PostgreSQL value is only raised (a larger value set by the administrator is kept, and said in the file); without include_dir 'conf.d' the lines to add are shown; never a restart of PostgreSQL without a yes on a terminal; private images, responses with Set-Cookie and errors are never cached; the cache is lost at each start of the server and fills again; for 32 GB: shared_buffers 3276 MB, inside the 15 % kept outside Odoo by step 6.
+- Checks performed: test_nginx_hardening (59 tests) [OK]; test_config_nginx, test_config_defaut, test_cles_modeles [OK]; ShellCheck 0.11.0 [OK].
+- Action required: sudo nginx-hardening.sh --update on the Odoo server (step 0f installs the nginx files, step 17 PostgreSQL; answer yes to restart PostgreSQL at a quiet moment), then check step 6 again for the 32 GB.
+
 ### 2.90.20261109.215500 - Temporary files of nginx in memory (/dev/shm) instead of the SATA disks
 
 - Title: the temporary files of the responses of Odoo are written in /dev/shm (tmpfs) and bounded to 256 MB per response; step 0c says the room left there.
@@ -5106,6 +5131,16 @@ Earlier history was archived outside this repository when this file was created.
   - Not changed: nginx-log-audit.sh keeps its own bash values (its --page-burst default is 8 against 15 here; this difference is still to be decided).
 
 ## apps/_advisor.py
+
+### 1.14.20261109.221500 - Cause « waiting for the disk » for the slow requests
+
+- Title: slow requests that end together with almost no SQL are explained as a wait for the disk.
+- Reason: request of the administrator on 2026-11-09: the LXC container of Odoo 18 CE now has 32 GB; make the scripts set the right parameters so that nginx and PostgreSQL use the disk less (SATA disks, reads of 160 to 230 ms measured by host-perf-audit.py); check the buffers and the cache of the images in nginx-hardening.sh; a cause « waiting for the disk » in the analysis of app-log-live when several workers end together without SQL.
+- Changes: new constant TOGETHER_S (2 s) and function ended_together() (largest group of at least 3 slow requests ending within 2 s, each with less than 10 % of SQL and 2 s or more outside SQL); rule_slow(): evidence "{k} slow requests ended in the same 2 seconds ...", new cause "waiting for the disk" with the advice host-perf-audit.py on the host, nginx-hardening.sh --update, an SSD (ZFS special vdev or L2ARC); lang/_advisor.fr.po.
+- Bugs fixed: none.
+- Safeguards and edge cases: the cold cache after a restart and the database busy stay first; the cause is chosen only when these requests are half of the slow ones or more.
+- Checks performed: test_advisor test_attente_du_disque [OK].
+- Action required: none.
 
 ### 1.13.20261109.211500 - Finding odoo-conf-check
 

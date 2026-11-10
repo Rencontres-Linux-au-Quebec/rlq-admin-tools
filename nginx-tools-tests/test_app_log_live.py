@@ -1895,6 +1895,18 @@ class AppLogLive(EnvTest):
             self.assertIn("\x1b[1;31m 1450\x1b[0m", b)                # SQL_VERY_HIGH
             self.assertNotIn("\x1b[1;31m    16", a)
 
+    def test_186_attente_du_disque(self):
+        """1.186 : des requêtes lentes finies ensemble presque sans SQL : « attente du disque » dans l'explication des requêtes lentes."""
+        live = self.module_live()
+        st = live.Stats(5.0)
+        st.who = lambda ip: "client"
+        t0 = time.time() - 60
+        urls = ("/web/image/website.s_showcase_default_image", "/web/image/website.library_image_10", "/website/static/src/img/website_loader/1.jpg", "/x")
+        st.slow_requests = [(10.4, u, "198.51.100.20") for u in urls]
+        st.slow_info = [(16, 0.01, 10.4, None, t0 + i * 0.2) for i in range(4)]
+        texte = re.sub(r"\x1b\[[0-9;]*m", "", " ".join(st.analyze_slow()))
+        self.assertRegex(texte, r"4 (slow requests ended in the same 2 seconds|requêtes lentes finies dans les mêmes 2 secondes)")
+
     def test_requetes_lentes_surlignees_avec_leur_duree_et_slow(self):
         """SQL + Python >= 5 s (--slow) : les deux durées en orange gras et le total ajouté ; à 3 fois le seuil : rouge gras ; sous le seuil : rien."""
         self.journal([self.lente(DNS, "/ok", "0.5", "4.4"), self.lente(DNS, "/lente", "2.100", "3.400"), self.lente(DNS, "/tres", "4.0", "11.0"),
