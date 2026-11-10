@@ -2693,3 +2693,27 @@ msgstr "odoo.conf read the way Odoo reads it: no error (check alone: python3 "
 
 msgid " (un commentaire sur sa propre ligne, jamais après la valeur)"
 msgstr " (a comment on its own line, never after the value)"
+
+msgid " non modifiable — worker_connections reste à "
+msgstr " not writable: worker_connections stays at "
+
+msgid " si absent) : la discussion en direct tient environ "
+msgstr " when absent): the live chat holds about "
+
+msgid " connexions websocket à la fois ; nginx -t réussi, nginx rechargé (personne n'est coupé). Sauvegarde : "
+msgstr " websocket connections at a time; nginx -t passed, nginx reloaded (nobody is cut). Backup: "
+
+msgid " refusé par nginx -t — ancienne version de "
+msgstr " refused by nginx -t: previous version of "
+
+msgid " restaurée, nginx NON rechargé."
+msgstr " restored, nginx NOT reloaded."
+
+msgid " — chaque websocket occupe 2 connexions (le navigateur et Odoo) ; avec une centaine de personnes connectées à la discussion (souvent 2 appareils chacune), prévoir au moins "
+msgstr " - each websocket takes 2 connections (the browser and Odoo); with about a hundred people connected to the chat (often 2 devices each), plan at least "
+
+msgid ". --update le règle (WORKER_CONNECTIONS)."
+msgstr ". --update sets it (WORKER_CONNECTIONS)."
+
+msgid "nginx : worker_connections non défini (défaut de nginx : 512) — chaque websocket occupe 2 connexions ; prévoir au moins "
+msgstr "nginx: worker_connections not set (nginx's default: 512) - each websocket takes 2 connections; plan at least "

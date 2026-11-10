@@ -1111,6 +1111,46 @@ class SuggestionMemoire282(unittest.TestCase):
         self.assertIn("config_defaut ODOO_CRON_OVERRIDE MAX_CRON_THREADS --cron-threads nombre", src)
 
 
+class WorkerConnections289(unittest.TestCase):
+    """2.89 : --update sur un serveur Odoo règle worker_connections de nginx (bloc events de nginx.conf) à WORKER_CONNECTIONS (2048) et ajoute
+    worker_rlimit_nofile s'il manque ; refusé par nginx -t : l'ancienne version est remise."""
+
+    def lancer(self, contenu, nginx_t_rc=0, actuel="768"):
+        d = tempfile.mkdtemp(prefix="test-rlq-wc-")
+        self.addCleanup(shutil.rmtree, d, True)
+        conf = os.path.join(d, "nginx.conf")
+        with open(conf, "w") as f:
+            f.write(contenu)
+        with open(script_path("nginx-hardening.sh"), encoding="utf-8") as f:
+            src = f.read()
+        debut = src.index("nginx_worker_connections() {")
+        fonction = src[debut:src.index("\n}\n", debut) + 3]
+        script = (f"NGINX_HARDENING_NGINX_DIR={d}; NGINX_HARDENING_BACKUP_DIR={d}/sauv; WORKER_CONNECTIONS=2048\n"
+                  f"run() {{ if [[ $1 == nginx ]]; then return {nginx_t_rc}; fi; \"$@\"; }}\nnginx_appliquer() {{ echo RECHARGE; }}\n"
+                  "pass() { echo \"PASS $*\"; }\nfail() { echo \"FAIL $*\"; }\nwarn() { echo \"WARN $*\"; }\n"
+                  f"{fonction}\nnginx_worker_connections {actuel}\n")
+        out = subprocess.run(["bash", "-c", script], capture_output=True, text=True, timeout=30).stdout
+        with open(conf) as f:
+            return out, f.read()
+
+    def test_289_valeur_remplacee_et_nofile_ajoute(self):
+        out, conf = self.lancer("user www-data;\nworker_processes auto;\nevents {\n\tworker_connections 768;\n}\nhttp {\n}\n")
+        self.assertIn("\tworker_connections 2048;", conf)
+        self.assertIn("worker_processes auto;\nworker_rlimit_nofile 8192;", conf)
+        self.assertIn("RECHARGE", out)
+        self.assertIn("PASS nginx : worker_connections 768 → 2048", out)
+
+    def test_289_ligne_absente_et_refus_de_nginx(self):
+        out, conf = self.lancer("worker_processes 2;\nworker_rlimit_nofile 65535;\nevents {\n}\n", actuel="512")
+        self.assertRegex(conf, r"events \{\n\tworker_connections 2048;")
+        self.assertEqual(conf.count("worker_rlimit_nofile"), 1)                 # already there: unchanged
+        avant = "events {\n\tworker_connections 768;\n}\n"
+        out, conf = self.lancer(avant, nginx_t_rc=1)
+        self.assertEqual(conf, avant)                                            # nginx -t refuses: the copy is put back
+        self.assertIn("FAIL", out)
+        self.assertNotIn("RECHARGE", out)
+
+
 class JournalEtPostgres283(BaseNginxHardening):
     """2.83 : étape 17 (journal de PostgreSQL : requêtes lentes, verrous, autovacuum, fichiers temporaires ; shared_buffers seulement signalé) et journal
     systemd persistant (étape 11). psql est simulé par NGINX_HARDENING_PSQL."""

@@ -93,7 +93,7 @@ run() {
     "$@"
 }
 
-readonly SCRIPT_VERSION="2.88.20261109.213000"
+readonly SCRIPT_VERSION="2.89.20261109.215000"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
 SCRIPT_NAME="$(basename "${BASH_SOURCE[0]}" .sh)"; readonly SCRIPT_NAME
 # Display language (en or fr): --lang, NGINX_HARDENING_LANG, LANGUAGE of the configuration file, LC_ALL / LANG - apps/_i18n.sh translates the output (nothing changes in French).
@@ -168,6 +168,7 @@ ODOO_WORKERS_OVERRIDE=""
 JOURNAL_PERSISTENT=1      # 2.83: 1 = journal systemd kept on disk (Storage=persistent) by --update; 0 (JOURNAL_PERSISTENT=no) = left as it is
 PG_LOGGING=1              # 2.83: 1 = slow queries, lock waits, autovacuum and temporary files in the PostgreSQL log (step 17); no = step skipped
 PG_SLOW_MS="2000"         # 2.83: log_min_duration_statement written by step 17 (milliseconds)
+WORKER_CONNECTIONS="2048" # 2.89: worker_connections of nginx set by --update on an Odoo server (step 4; each websocket of the live chat takes 2 connections); 0 = never changed
 ODOO_CRON_OVERRIDE=""     # 2.82: --cron-threads N (MAX_CRON_THREADS): cron threads of Odoo for step 6 (default: max_cron_threads of odoo.conf or run.sh, otherwise 2)
 # Initialized here: set by steps specific to Odoo (4 and 9), but read by the final summary - same
 # for BigBlueButton, for which these steps are "not applicable" (otherwise: "unbound variable" at the end of execution).
@@ -204,6 +205,7 @@ if declare -F config_lire >/dev/null; then
     config_defaut JOURNAL_PERSISTENT JOURNAL_PERSISTENT JOURNAL_PERSISTENT booleen
     config_defaut PG_LOGGING PG_LOGGING PG_LOGGING booleen
     config_defaut PG_SLOW_MS PG_SLOW_MS PG_SLOW_MS nombre
+    config_defaut WORKER_CONNECTIONS WORKER_CONNECTIONS WORKER_CONNECTIONS nombre
 fi
 
 export ODOO_CONF_PATHS   # read by apps/_odoo_conf.sh (empty: ODOO_CONF_PATHS lines of the configuration files, then default list)
@@ -2048,14 +2050,53 @@ ws_analyser() {   # $1 Odoo HTTP port, $2 gevent port: lines (separated by \037)
         if (wc != "") printf "W\037%s\n", wc
     }'
 }
-ws_n=0; ws_http=0; ws_inconnu=0; ws_fixes=""; ws_sep=$'\037'; ws_fail0=$FAIL
+ws_n=0; ws_http=0; ws_inconnu=0; ws_fixes=""; ws_sep=$'\037'; ws_fail0=$FAIL; ws_wc_vu=0
+
+# nginx_worker_connections CURRENT (2.89, --update, Odoo server only: step 4 is an Odoo step): worker_connections of the events block of
+# nginx.conf set to WORKER_CONNECTIONS (absent: nginx's default 512, the line is added), and worker_rlimit_nofile (4 x that, at least 8192) added
+# when absent: above the open-file limit of the nginx processes (1024 by default) nginx -t warns and the connections beyond fail. Copy first,
+# nginx -t, reload; refused by nginx -t: the copy is put back and nginx is not reloaded.
+nginx_worker_connections() {
+    local actuel="$1" voulu="${WORKER_CONNECTIONS:-2048}" conf="${NGINX_HARDENING_NGINX_DIR:-/etc/nginx}/nginx.conf" copie nofile
+    [[ -w "$conf" ]] || { warn "nginx : $conf non modifiable — worker_connections reste à $actuel."; return 0; }
+    copie="${NGINX_HARDENING_BACKUP_DIR:-/var/backups/nginx-hardening}/nginx.conf.$(date +%Y%m%d-%H%M%S).bak"
+    mkdir -p "$(dirname "$copie")" 2>/dev/null || true
+    cp -p "$conf" "$copie" 2>/dev/null || { fail "nginx : copie de sauvegarde de $conf impossible — fichier non modifié."; return 0; }
+    if grep -qE '^[[:space:]]*worker_connections[[:space:]]' "$conf"; then
+        sed -i -E "s/^([[:space:]]*worker_connections[[:space:]]+)[0-9]+;/\1${voulu};/" "$conf"
+    elif grep -qE '^[[:space:]]*events[[:space:]]*\{' "$conf"; then
+        sed -i -E "0,/^[[:space:]]*events[[:space:]]*\{/s//&\n\tworker_connections ${voulu};/" "$conf"
+    else
+        printf '\nevents {\n\tworker_connections %s;\n}\n' "$voulu" >> "$conf"
+    fi
+    nofile=$(( voulu * 4 )); (( nofile < 8192 )) && nofile=8192
+    if ! grep -qE '^[[:space:]]*worker_rlimit_nofile[[:space:]]' "$conf"; then
+        if grep -qE '^[[:space:]]*worker_processes[[:space:]]' "$conf"; then
+            sed -i -E "0,/^[[:space:]]*worker_processes[[:space:]][^;]*;/s//&\nworker_rlimit_nofile ${nofile};/" "$conf"
+        else
+            sed -i "1i worker_rlimit_nofile ${nofile};" "$conf"
+        fi
+    fi
+    if run nginx -t >/dev/null 2>&1; then
+        nginx_appliquer || true
+        pass "nginx : worker_connections ${actuel} → ${voulu} dans $conf (worker_rlimit_nofile ${nofile} si absent) : la discussion en direct tient environ $(( voulu / 2 )) connexions websocket à la fois ; nginx -t réussi, nginx rechargé (personne n'est coupé). Sauvegarde : $copie"
+    else
+        cp -p "$copie" "$conf" 2>/dev/null || true
+        fail "nginx : worker_connections ${voulu} refusé par nginx -t — ancienne version de $conf restaurée, nginx NON rechargé."
+    fi
+}
 if [[ -d "${NGINX_HARDENING_NGINX_DIR:-/etc/nginx}" ]]; then
     ws_donnees=$(ws_config_aplatie | ws_analyser "$ODOO_HTTP_PORT" "$ODOO_GEVENT_PORT") || ws_donnees=""
     while IFS=$'\037' read -r ws_k ws_chem ws_tag ws_to ws_tt ws_hv ws_up ws_cn ws_ind ws_tprop; do
         case "$ws_k" in
             W)
-                if [[ "$ws_chem" =~ ^[0-9]+$ ]] && (( ws_chem < 1024 )); then
-                    warn "nginx : worker_connections = $ws_chem — chaque websocket occupe 2 connexions (le navigateur et Odoo) ; avec une centaine de personnes connectées à la discussion (souvent 2 appareils chacune), prévoir au moins 2048."
+                ws_wc_vu=1
+                if [[ "$ws_chem" =~ ^[0-9]+$ ]] && (( ws_chem < ${WORKER_CONNECTIONS:-2048} )); then
+                    if [[ "$CHECK_ONLY" == "1" || "${WORKER_CONNECTIONS:-2048}" == "0" ]]; then
+                        warn "nginx : worker_connections = $ws_chem — chaque websocket occupe 2 connexions (le navigateur et Odoo) ; avec une centaine de personnes connectées à la discussion (souvent 2 appareils chacune), prévoir au moins ${WORKER_CONNECTIONS:-2048}. --update le règle (WORKER_CONNECTIONS)."
+                    else
+                        nginx_worker_connections "$ws_chem"
+                    fi
                 fi
                 ;;
             U)
@@ -2097,6 +2138,14 @@ if [[ -d "${NGINX_HARDENING_NGINX_DIR:-/etc/nginx}" ]]; then
                 ;;
         esac
     done <<< "$ws_donnees"
+    # 2.89: no worker_connections in the configuration: nginx's default (512)
+    if (( ws_wc_vu == 0 )) && [[ -r "${NGINX_HARDENING_NGINX_DIR:-/etc/nginx}/nginx.conf" ]]; then
+        if [[ "$CHECK_ONLY" == "1" || "${WORKER_CONNECTIONS:-2048}" == "0" ]]; then
+            warn "nginx : worker_connections non défini (défaut de nginx : 512) — chaque websocket occupe 2 connexions ; prévoir au moins ${WORKER_CONNECTIONS:-2048}. --update le règle (WORKER_CONNECTIONS)."
+        else
+            nginx_worker_connections 512
+        fi
+    fi
     # Corrections of --update (no effect on header inheritance): proxy_http_version 1.1 and proxy_read_timeout
     if [[ -n "$ws_fixes" ]]; then
         ws_sauv="${NGINX_HARDENING_BACKUP_DIR:-/var/backups/nginx-hardening}"

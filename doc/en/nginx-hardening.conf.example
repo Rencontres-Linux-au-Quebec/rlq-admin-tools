@@ -61,6 +61,9 @@
 #VERBOSE=no
 # --workers (défaut : selon le serveur)
 #WORKERS=
+# step 4 (Odoo server, with --update): worker_connections of nginx (nginx.conf, events block); each websocket of the live chat
+# takes 2 connections; worker_rlimit_nofile is added when missing; 0 = never changed
+#WORKER_CONNECTIONS=2048
 
 # ATTENTION : ce fichier sert AUSSI de fichier d'état (lignes SETUP_*, réécrites par --update) ; vos autres lignes sont conservées.
 
