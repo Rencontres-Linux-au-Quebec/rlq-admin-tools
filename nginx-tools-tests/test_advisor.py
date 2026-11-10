@@ -718,6 +718,35 @@ class Version17(unittest.TestCase):
         self.assertEqual(ADV.ended_together([(t0, 3.0, 4.0), (t0 + 0.5, 0.0, 6.0), (t0 + 1.0, 0.0, 6.0)]), (0, None))      # one with SQL: only 2
         self.assertEqual(ADV.ended_together([(t0, 0.0, 6.0), (t0 + 5, 0.0, 6.0), (t0 + 10, 0.0, 6.0)]), (0, None))         # not together
 
+    def test_115_analyse_dev_prod_20261109(self):
+        """1.15, d'après les exports DEV et PROD du 2026-11-09 : interruptions coupées aux reprises d'Odoo ; groupe « ensemble » dans UNE fenêtre ;
+        requêtes lentes pendant la sauvegarde ; sondes de ce serveur et cache froid hors gravité ; gevent déjà réglé mais redémarré : 1,5 fois."""
+        t0 = time.time() - 7200
+        refus = [t0 + d for d in (0, 5, 10, 240, 245, 3000, 3001, 12700)]
+        erreurs = [{"level": "ERROR", "message": "[error] N#N: *N connect() failed (N: Connection refused) while connecting to upstream, client: N.N.N.N",
+                    "n": len(refus), "first": refus[0], "last": refus[-1], "times": refus}]
+        f = par_id(ADV.analyze(faits(nginx_errors=erreurs, end=time.time())))
+        u = next(v for k, v in f.items() if k.startswith("nginx-upstream:"))
+        self.assertTrue(any(e.startswith("3 interruptions, 8 refused connections: ") for e in u["evidence"]), u["evidence"])
+        lentes = [{"t": t0 + d, "total": 6.0, "t_sql": 5.0, "t_py": 1.0, "url": f"/p{d}", "ip": "198.51.100.7", "sql_n": 30} for d in (0, 10, 20, 70000, 70010)]
+        f = par_id(ADV.analyze(faits(slow=lentes)))["slow-requests"]
+        self.assertTrue(any(e.startswith("3 slow requests on different pages within 20 s") for e in f["evidence"]), f["evidence"])
+        sauvegarde = [(t0 - 30, "Starting odoo-backup.service - Sauvegarde"), (t0 + 240, "Finished odoo-backup.service - Sauvegarde")]
+        f = par_id(ADV.analyze(faits(slow=lentes[:3]), {"backup_events": sauvegarde}))["slow-requests"]
+        self.assertIn("backup of the suite was running", f["cause"])
+        self.assertTrue(any(e.startswith("3 slow requests during the backup of") for e in f["evidence"]))
+        sondes = [{"t": t0 + d, "total": 5.6, "t_sql": 0.1, "t_py": 5.5, "url": "/en_CA/web/login", "ip": "127.0.0.1", "sql_n": 220} for d in (0, 3600, 7000)]
+        f = par_id(ADV.analyze(faits(slow=sondes)))["slow-requests"]
+        self.assertEqual(f["severity"], ADV.INFO)
+        conf = {"path": "/etc/odoo/odoo.conf", "values": {"workers": "13", "max_cron_threads": "2", "limit_memory_hard": "2021654528", "limit_memory_soft": "1716518912",
+                                                         "limit_memory_soft_gevent": "2147483648", "limit_memory_hard_gevent": "2684354560"}, "cpus": 6, "mem_mb": 32768}
+        memoire = {"other_mb": 745, "worker_vms_mb": 691, "worker_overhead_mb": 398, "gevent_restarts": 0, "recycled_at_birth": 0}
+        f = par_id(ADV.analyze(faits(), {"odoo_conf": conf, "memory": memoire}))
+        self.assertNotIn("gevent-memory-limit", f)
+        self.assertNotIn("memory-limit-too-low", f)                                   # 1637 MB > 691 MB at rest, no recycling since the start
+        f = par_id(ADV.analyze(faits(), {"odoo_conf": conf, "memory": dict(memoire, gevent_restarts=3)}))
+        self.assertTrue(any("limit_memory_soft_gevent = 3221225472 (3072 MB)" in a for a in f["gevent-memory-limit"]["advice"]), f["gevent-memory-limit"]["advice"])
+
     def test_meme_page_en_boucle(self):
         who = {"203.0.113.44": "host-44.example.net [203.0.113.44] CD (République démocratique du Congo)"}
         hot = [{"ip": "203.0.113.44", "url": "/web/dataset/call_kw/ir.config_parameter/get_web_dialog_size_config", "n": 1606, "ip_total": 1613,
