@@ -77,9 +77,11 @@ class OdooConfCheck(unittest.TestCase):
                     "        v = p.get('options', 'workers')\n        if not v.isdigit():\n"
                     "            print('odoo-bin: error: option --workers: invalid integer value: %r' % v, file=sys.stderr); sys.exit(2)\n"
                     "config = C()\n")
-        c = self.fichier("[options]\nworkers = 4\nwrokers = 3\n")
+        c = self.fichier("[options]\nworkers = 4\nwrokers = 3\nxmlrpc_port = 10000\n")
         res = self.m.check(c, os.path.join(racine, "odoo-bin"), sys.executable, "en")
         self.assertIn(("warning", 3, "wrokers"), self.niveaux(res))                   # unknown to Odoo: typo
+        self.assertNotIn(("warning", 4, "xmlrpc_port"), self.niveaux(res))            # 1.2: old name that Odoo 18 reads as http_port
+        self.assertTrue(any(r[0] == "info" and r[2] == "xmlrpc_port" and "http_port" in r[3] for r in res))
         self.assertTrue(any(r[0] == "info" and "read without error by the Odoo of the server" in r[3] for r in res))
         c = self.fichier("[options]\nworkers = 4x\n")
         res = self.m.check(c, os.path.join(racine, "odoo-bin"), sys.executable, "en")

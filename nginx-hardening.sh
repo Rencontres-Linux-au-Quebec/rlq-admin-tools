@@ -93,7 +93,7 @@ run() {
     "$@"
 }
 
-readonly SCRIPT_VERSION="2.91.20261109.221500"
+readonly SCRIPT_VERSION="2.92.20261109.222500"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
 SCRIPT_NAME="$(basename "${BASH_SOURCE[0]}" .sh)"; readonly SCRIPT_NAME
 # Display language (en or fr): --lang, NGINX_HARDENING_LANG, LANGUAGE of the configuration file, LC_ALL / LANG - apps/_i18n.sh translates the output (nothing changes in French).
@@ -1743,18 +1743,21 @@ else
                     chmod 644 "$dst" 2>/dev/null || true
                 done
                 fragments_generes_assurer || true
-                if nginx -t >/dev/null 2>&1; then
+                gen_test=""
+                if gen_test=$(nginx -t 2>&1); then
                     pass "Configuration nginx générique installée (${#GEN_FAITS[@]} fichiers) ; nginx -t réussit."
                     nginx_appliquer
                     echo "  nginx : $NGINX_APPLIQUE"
                 else
-                    fail "nginx -t refuse la configuration générique : retour à l'état précédent."
+                    fail "nginx -t refuse la configuration générique : retour à l'état précédent. Erreur de nginx -t (sur la nouvelle configuration) :"
+                    printf '%s\n' "$gen_test" | grep -E '\[(emerg|alert|crit|error)\]' | head -n 5 | sed 's/^/      /' || true   # 2.92: the error itself, BEFORE the files are put back
                     for item in "${GEN_FAITS[@]}"; do
                         rel="${item#*:}"; dst="$GEN_DEST/$rel"
                         if [[ "$item" == remplacer:* ]]; then mv -f "$dst.before-generic-$GEN_TS" "$dst"
                         else rm -f "$dst"; fi
                     done
-                    nginx -t 2>&1 | tail -n 3 | sed 's/^/      /' || true
+                    echo "      Après le retour à l'état précédent :"
+                    nginx -t 2>&1 | tail -n 2 | sed 's/^/      /' || true
                 fi
             else
                 warn "Configuration nginx générique : aucun changement appliqué (refusé ou sans réponse)."

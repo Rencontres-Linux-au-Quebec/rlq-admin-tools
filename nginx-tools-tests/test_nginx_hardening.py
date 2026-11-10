@@ -1184,6 +1184,22 @@ class MoinsDeDisque291(unittest.TestCase):
         self.assertIn("PASS nginx : cache en mémoire (/dev/shm/nginx-cache)", out)
         self.assertIn("PASS nginx : images d'Odoo (/web/image) gardées par le cache", out)
 
+    def test_292_regex_avec_accolades_entre_guillemets(self):
+        """2.92 : nginx -t refusait la configuration générique 1.25 : « location ~ ^/(?:[a-z]{2}...) { » sans guillemets, les { } de l'expression
+        ferment le location pour nginx. Toute expression d'un location (ou d'un if, d'un map) qui contient { doit être entre guillemets."""
+        racine = os.path.join(os.path.dirname(script_path("nginx-hardening.sh")), "nginx")
+        fautes = []
+        for dossier, _d, fichiers in os.walk(racine):
+            for nom in fichiers:
+                if not nom.endswith(".conf"):
+                    continue
+                with open(os.path.join(dossier, nom), encoding="utf-8") as f:
+                    for n, ligne in enumerate(f, 1):
+                        m = re.match(r"^\s*location\s+~\*?\s+([^\s\"'][^\s]*)\s*\{", ligne)
+                        if m and "{" in m.group(1):
+                            fautes.append(f"{nom}:{n}: {ligne.strip()[:80]}")
+        self.assertEqual(fautes, [])
+
     def test_291_ancienne_configuration(self):
         out = self.lancer({"nginx.conf": "http {\n proxy_buffers 8 4k;\n proxy_cache_path /var/cache/nginx/odoo keys_zone=z:1m;\n server {\n location / {\n }\n }\n}\n"})
         self.assertIn("WARN nginx : proxy_buffers de 32 Ko", out)
