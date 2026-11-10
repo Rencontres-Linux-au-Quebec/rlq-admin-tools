@@ -85,6 +85,36 @@ class OdooConfCheck(unittest.TestCase):
         res = self.m.check(c, os.path.join(racine, "odoo-bin"), sys.executable, "en")
         self.assertTrue(any(r[0] == "error" and "Odoo refuses this file" in r[3] and "invalid integer value" in r[3] for r in res), res)
 
+    def test_11_python_sans_odoo_et_champs_vides(self):
+        """1.1 : un Python qui ne charge pas Odoo (pas celui de son environnement virtuel : « No module named 'babel' » sur DEV) n'est pas une erreur du
+        fichier ; --tsv écrit « - » pour un champ vide (sinon « read » avec IFS=tabulation décale les champs : « ligne 0 Odoo refuse... »)."""
+        racine = os.path.join(self.d, "odoo18")
+        os.makedirs(os.path.join(racine, "odoo"))
+        open(os.path.join(racine, "odoo-bin"), "w").close()
+        with open(os.path.join(racine, "odoo", "__init__.py"), "w") as f:
+            f.write("import babel_absent_du_test\n")
+        c = self.fichier("[options]\nworkers = 4\n")
+        res = self.m.check(c, os.path.join(racine, "odoo-bin"), sys.executable, "en")
+        self.assertEqual([r for r in res if r[0] == "error"], [])
+        self.assertTrue(any(r[0] == "info" and "does not load Odoo" in r[3] for r in res), res)
+        r = subprocess.run([sys.executable, PROG, "--tsv", "--odoo-bin", os.path.join(racine, "odoo-bin"), "--python", sys.executable, c],
+                           capture_output=True, text=True)
+        self.assertTrue(all(l.split("\t")[1] != "" and l.split("\t")[2] != "" for l in r.stdout.splitlines()), r.stdout)
+        self.assertIn("info\t-\t-\t", r.stdout)
+
+    def test_11_python_de_l_environnement_virtuel(self):
+        """1.1 : le Python du processus est celui de son PATH (venv), pas le binaire réel derrière le lien symbolique de /proc/PID/exe."""
+        proc = os.path.join(self.d, "proc", "123")
+        venv = os.path.join(self.d, "venv", "bin")
+        os.makedirs(proc)
+        os.makedirs(venv)
+        python = os.path.join(venv, "python3")
+        os.symlink(sys.executable, python)
+        with open(os.path.join(proc, "environ"), "wb") as f:
+            f.write(b"HOME=/opt/odoo\0PATH=" + venv.encode() + b":/usr/bin\0")
+        self.assertEqual(self.m._python_of(proc, "python3", "/opt/odoo/erplibre"), python)
+        self.assertEqual(self.m._python_of(proc, os.path.join("..", "venv", "bin", "python3"), os.path.join(self.d, "x")), python)
+
     def test_constat_de_l_analyse(self):
         adv = charger("adv_conf_t", os.path.join(RACINE, "apps", "_advisor.py"))
         import test_advisor

@@ -93,7 +93,7 @@ run() {
     "$@"
 }
 
-readonly SCRIPT_VERSION="2.87.20261109.211500"
+readonly SCRIPT_VERSION="2.88.20261109.213000"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
 SCRIPT_NAME="$(basename "${BASH_SOURCE[0]}" .sh)"; readonly SCRIPT_NAME
 # Display language (en or fr): --lang, NGINX_HARDENING_LANG, LANGUAGE of the configuration file, LC_ALL / LANG - apps/_i18n.sh translates the output (nothing changes in French).
@@ -2365,7 +2365,7 @@ else
         echo "  Réservé hors Odoo           : ${reserve_mb} $U_MEM (au moins 15 % : PostgreSQL grossit avec la charge et la sauvegarde) + marge ${safety_margin_mb} $U_MEM (10 %)"
         echo "  Disponible pour Odoo        : ${available_for_odoo_mb} $U_MEM de RAM, soit ${rss_share_mb} $U_MEM par processus"
         if (( measured_workers > 0 )); then
-            echo "  Worker au repos (mesuré)    : ${idle_vms_mb} $U_MEM de mémoire virtuelle, dont ${overhead_mb} $U_MEM sans RAM ($measured_workers workers mesurés)"
+            echo "  Worker au repos (mesuré)    : ${idle_vms_mb} $U_MEM de mémoire virtuelle, dont ${overhead_mb} $U_MEM sans RAM ($measured_workers processus mesurés : workers, cron, gevent)"
         else
             echo "  Worker au repos (estimé)    : ${idle_vms_mb} $U_MEM de mémoire virtuelle, dont ${overhead_mb} $U_MEM sans RAM (Odoo 18 ; workers non mesurables)"
         fi
@@ -2543,6 +2543,7 @@ else
         conf_erreurs=0
         while IFS=$'\t' read -r niveau ligne cle texte; do
             [[ -n "$niveau" ]] || continue
+            [[ "$ligne" == "-" || "$ligne" == "0" ]] && ligne=""; [[ "$cle" == "-" ]] && cle=""      # 2.88: empty fields come as "-"
             ou="${ligne:+ligne $ligne}${cle:+ $cle}"; ou="${ou# }"
             case "$niveau" in
                 error) fail "odoo.conf${ou:+ ($ou)} : $texte"; conf_erreurs=$(( conf_erreurs + 1 )) ;;

@@ -2589,8 +2589,8 @@ msgstr " of virtual memory, of which "
 msgid " sans RAM ("
 msgstr " without RAM ("
 
-msgid " workers mesurés)"
-msgstr " workers measured)"
+msgid " processus mesurés : workers, cron, gevent)"
+msgstr " processes measured: workers, cron, gevent)"
 
 msgid "  Worker au repos (estimé)    : "
 msgstr "  Worker at rest (estimated)  : "

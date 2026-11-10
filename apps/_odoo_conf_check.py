@@ -29,7 +29,7 @@ import re
 import subprocess
 import sys
 
-__version__ = "1.0.20261109.211500"
+__version__ = "1.1.20261109.213000"
 
 # Typed options of Odoo 18 (odoo/tools/config.py, type="int" or "float"); the others are text. "True"/"False" are accepted for all of them
 # (Odoo turns them into booleans before the casts).
@@ -54,6 +54,8 @@ TEXTS = {
     "float": ("nombre attendu, lu {v!r} : Odoo refuse de démarrer", "number expected, read {v!r}: Odoo refuses to start"),
     "syntax": ("syntaxe refusée par configparser (comme Odoo) : {e}", "syntax refused by configparser (as Odoo does): {e}"),
     "odoo_refuses": ("Odoo refuse ce fichier : {e}", "Odoo refuses this file: {e}"),
+    "odoo_cannot_load": ("vérification par Odoo lui-même non faite : {python} ne charge pas Odoo ({e}) ; préciser --python avec le Python de son "
+                         "environnement virtuel", "no check by Odoo itself: {python} does not load Odoo ({e}); give --python with the Python of its virtual environment"),
     "odoo_ok": ("lu sans erreur par l'Odoo du serveur ({bin})", "read without error by the Odoo of the server ({bin})"),
     "odoo_absent": ("Odoo du serveur introuvable (préciser --odoo-bin et --python) : vérification par Odoo lui-même non faite",
                     "Odoo of the server not found (give --odoo-bin and --python): no check by Odoo itself"),
@@ -82,6 +84,34 @@ def _number(value):
         return None
 
 
+def _python_of(proc, argv0, cwd):
+    """1.1: the Python the process was started with, ITS virtual environment kept: /proc/PID/exe gives the real binary behind the symlink of the
+    venv (/usr/bin/python3.12), whose site-packages lack Odoo's packages (« No module named 'babel' » on DEV). Order: argv[0] when it is a path,
+    argv[0] found in the PATH of the process (/proc/PID/environ), VIRTUAL_ENV of the process; then /proc/PID/exe."""
+    env = {}
+    try:
+        with open(os.path.join(proc, "environ"), "rb") as f:
+            for item in f.read().split(b"\0"):
+                k, _, v = item.decode("utf-8", "replace").partition("=")
+                env[k] = v
+    except OSError:
+        pass
+    candidates = []
+    if "/" in argv0:
+        candidates.append(os.path.normpath(os.path.join(cwd, argv0)))
+    else:
+        candidates += [os.path.join(d if os.path.isabs(d) else os.path.join(cwd, d), argv0) for d in (env.get("PATH") or "").split(":") if d]
+    if env.get("VIRTUAL_ENV"):
+        candidates.append(os.path.join(env["VIRTUAL_ENV"], "bin", "python3"))
+    for c in candidates:
+        if os.path.isfile(c) and os.access(c, os.X_OK):
+            return c
+    try:
+        return os.readlink(os.path.join(proc, "exe"))
+    except OSError:
+        return None
+
+
 def find_odoo(path):
     """(odoo-bin, python) of the running Odoo that uses `path` (or of any running Odoo), from /proc; (None, None) when not found (no root: the
     processes of the odoo account cannot be read)."""
@@ -99,11 +129,12 @@ def find_odoo(path):
         if not binary or not os.path.basename(exe).startswith("python"):
             continue
         binary = os.path.normpath(os.path.join(cwd, binary))
+        python = _python_of(proc, argv[0], cwd) if os.path.basename(argv[0]).startswith("python") else exe
         conf = next((argv[i + 1] for i, a in enumerate(argv[:-1]) if a in ("-c", "--config")), None) or \
             next((a.split("=", 1)[1] for a in argv if a.startswith("--config=")), None)
         if conf and os.path.realpath(os.path.join(cwd, conf)) == real:
-            return binary, exe
-        found = found if found[0] else (binary, exe)
+            return binary, python
+        found = found if found[0] else (binary, python)
     return found
 
 
@@ -204,8 +235,11 @@ def check(path, odoo_bin=None, python=None, language="fr", use_odoo=True):
         except (OSError, subprocess.SubprocessError) as e:
             res.append(("warning", 0, "", _t("odoo_refuses", language, e=e)))
         else:
-            if r.returncode:
-                last = next((l for l in reversed(r.stderr.splitlines()) if l.strip()), "") or f"code {r.returncode}"
+            last = next((l for l in reversed(r.stderr.splitlines()) if l.strip()), "") or f"code {r.returncode}"
+            if r.returncode and re.search(r"ModuleNotFoundError|ImportError", r.stderr):
+                # 1.1: this Python cannot load Odoo (not its virtual environment): a fact about the check, not about the file
+                res.append(("info", 0, "", _t("odoo_cannot_load", language, python=python, e=last[:200])))
+            elif r.returncode:
                 res.append(("error", 0, "", _t("odoo_refuses", language, e=last[:300])))
             else:
                 for out in r.stdout.splitlines():
@@ -239,7 +273,7 @@ def main(argv=None):
     tags = {"error": ("[ÉCHEC]" if args.lang == "fr" else "[FAIL]", "31"), "warning": ("[ATTN]", "33"), "info": ("[INFO]", "36")}
     for level, line, key, message in results:
         if args.tsv:
-            print(f"{level}\t{line}\t{key}\t{message}")
+            print(f"{level}\t{line or '-'}\t{key or '-'}\t{message}")       # 1.1: "-" for an empty field (read with IFS=tab, empty fields collapse)
             continue
         tag, code = tags[level]
         where = (f"ligne {line}" if args.lang == "fr" else f"line {line}") if line else ""
