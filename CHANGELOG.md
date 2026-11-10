@@ -3431,6 +3431,16 @@ Earlier history was archived outside this repository when this file was created.
 
 ## nginx-hardening.sh
 
+### 2.89.20261109.215000 - Step 4: --update sets worker_connections of nginx on an Odoo server
+
+- Title: on an Odoo server, --update sets worker_connections of nginx to 2048 (configurable) and adds worker_rlimit_nofile when it is missing.
+- Reason: request of the administrator on 2026-11-09: "avec l'option --update, peux-tu rajouter cela dans le bon fichier NGINX mais seulement pour le serveur Odoo actuel : worker_connections 2048" (100 to 150 people expected in the live chat).
+- Changes: new configuration key WORKER_CONNECTIONS (default 2048; 0 = never changed; doc/fr, doc/en nginx-hardening.conf.example); new function nginx_worker_connections() (step 4, Odoo steps only: never on BigBlueButton): nginx.conf of NGINX_HARDENING_NGINX_DIR copied to the backup folder, worker_connections replaced (or added in the events block, or an events block added), worker_rlimit_nofile (4 x worker_connections, at least 8192) added after worker_processes when absent, nginx -t, reload, the copy put back when nginx -t refuses; step 4 also handles a configuration without worker_connections (nginx's default 512); with --check the warning stays and says that --update sets it; lang/nginx-hardening.en.po; doc 01-nginx-hardening.md (fr, en).
+- Bugs fixed: none.
+- Safeguards and edge cases: only when the value is under WORKER_CONNECTIONS (a larger value is kept); worker_rlimit_nofile already set is kept; a reload does not cut the connections in progress.
+- Checks performed: WorkerConnections289 (value replaced and nofile added; line absent; nginx -t refusing: copy put back, no reload) [OK]; ShellCheck 0.11.0 [OK].
+- Action required: sudo nginx-hardening.sh --update on the Odoo servers.
+
 ### 2.88.20261109.213000 - Step 8: message of the odoo.conf check well placed; step 6: what is measured
 
 - Title: step 8 shows the line and the key of a finding only when they exist; step 6 says that the measured processes are the workers, the cron threads and gevent.
