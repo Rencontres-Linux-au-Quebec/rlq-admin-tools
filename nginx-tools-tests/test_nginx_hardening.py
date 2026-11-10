@@ -1103,6 +1103,17 @@ class SuggestionMemoire282(unittest.TestCase):
         self.assertIn("sous la mémoire virtuelle d'un worker au repos", src)
         self.assertNotIn("safe_hard_mb < 640", src)
 
+    def test_293_workers_conseilles(self):
+        with open(script_path("nginx-hardening.sh"), encoding="utf-8") as f:
+            src = f.read()
+        debut = src.index("workers_conseilles() {")
+        fonction = src[debut:src.index("\n}\n", debut) + 3]
+        calc = lambda *a: subprocess.run(["bash", "-c", fonction + "\nworkers_conseilles " + " ".join(map(str, a))], capture_output=True, text=True).stdout.strip()
+        self.assertEqual(calc(6, 24576, 410, 2, 1536), "13")     # PROD 32 GB, 6 processors: the guide (2 x 6 + 1)
+        self.assertEqual(calc(6, 12289, 410, 2, 1536), "7")      # DEV 16 GB: the memory holds 7
+        self.assertEqual(calc(2, 12289, 410, 2, 1536), "5")      # 2 processors: the guide
+        self.assertEqual(calc(6, 500, 410, 2, 1536), "1")        # at least 1
+
     def test_282_cron_lu_et_option(self):
         with open(script_path("nginx-hardening.sh"), encoding="utf-8") as f:
             src = f.read()
@@ -1253,6 +1264,21 @@ class JournalEtPostgres283(BaseNginxHardening):
         self.assertIn("checkpoint_timeout 300 → 900", out)
         self.assertIn("wal_compression off → on", out)
         self.assertIn("91-nginx-hardening-memory.conf (shared_buffers : redémarrage de PostgreSQL)", out)
+
+    def test_293_valeurs_de_notre_fichier_recalculees(self):
+        """2.93 : les valeurs venues de NOTRE fichier sont recalculées pour la mémoire de CE serveur, même vers le bas (copie de PROD 32 Go sur DEV 16 Go) ;
+        une valeur réglée ailleurs et plus grande reste gardée."""
+        self.env["NGINX_HARDENING_MEMINFO"] = self.write("meminfo16", "MemTotal:       16777216 kB\n")
+        corps = ('case "$*" in *pg_reload_conf*) echo t ;; *sourcefile*) echo "shared_buffers effective_cache_size" ;; *pg_size_bytes*) printf \'%s\\n\' '
+                 'shared_buffers=3276 effective_cache_size=16384 work_mem=32 maintenance_work_mem=512 max_wal_size=4096 min_wal_size=1024 '
+                 'checkpoint_timeout=900 checkpoint_completion_target=90 wal_compression=on ;; '
+                 '*) printf \'%s\\n\' log_min_duration_statement=2000 log_lock_waits=on log_autovacuum_min_duration=250 log_temp_files=10240 '
+                 'config_file=/etc/postgresql/18/main/postgresql.conf ;; esac')
+        self.env["NGINX_HARDENING_PSQL"] = self.mock("fakepsql3", corps)
+        out = self.etape(re.sub(r"\x1b\[[0-9;]*m", "", self.setup("--check")), 17)
+        self.assertIn("shared_buffers 3276 → 1638", out)                            # ours: down for 16 GB
+        self.assertIn("effective_cache_size 16384 → 8192", out)
+        self.assertNotIn("work_mem 32", out)                                         # 32 MB set elsewhere: kept
 
     def test_283_journal_systemd_persistant(self):
         journald = os.path.dirname(self.path("journald", "x"))
