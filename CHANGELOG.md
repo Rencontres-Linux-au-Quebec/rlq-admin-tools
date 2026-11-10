@@ -3425,7 +3425,7 @@ Earlier history was archived outside this repository when this file was created.
 
 - Title: step 8 checks odoo.conf with apps/_odoo_conf_check.py (comment after a value, key twice, wrong type, keys unknown to Odoo, parsing by the Odoo of the server).
 - Reason: request of the administrator on 2026-11-09: Odoo refused "limit_memory_soft_gevent = 2147483648 # (2048 Mo" (comment after the value); is there a program that checks the configuration of Odoo, or can one be written.
-- Changes: step 8: apps/_odoo_conf_check.py --tsv, each error as FAIL, each warning as WARN, notes shown, PASS when there is no error (with the command to check alone); lang/nginx-hardening.en.po.
+- Changes: step 6: the suggested lines are printed ready to copy, the size in MB on its own comment line above (before: « limit_memory_soft = N   (N Mo) » on one line, copied with its comment); step 8: apps/_odoo_conf_check.py --tsv, each error as FAIL, each warning as WARN, notes shown, PASS when there is no error (with the command to check alone); lang/nginx-hardening.en.po.
 - Bugs fixed: symptom: Odoo did not start after "limit_memory_soft_gevent = 2147483648 # (2048 Mo" was added; diagnosis: Odoo reads its file with configparser.RawConfigParser without inline comments, so the comment stays in the value and the integer cast refuses it; our own readers (apps/_odoo_conf.py) cut at "#" and said nothing; fix: the new check reports a comment after a value as an error, with the line to write.
 - Safeguards and edge cases: without python3 or without the module, the step does as before; reads only.
 - Checks performed: test_odoo_conf_check (5 tests) [OK]; ShellCheck 0.11.0 [OK].

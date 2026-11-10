@@ -2690,3 +2690,6 @@ msgstr "line "
 
 msgid "odoo.conf lu comme Odoo le lit : aucune erreur (vérification seule : python3 "
 msgstr "odoo.conf read the way Odoo reads it: no error (check alone: python3 "
+
+msgid " (un commentaire sur sa propre ligne, jamais après la valeur)"
+msgstr " (a comment on its own line, never after the value)"

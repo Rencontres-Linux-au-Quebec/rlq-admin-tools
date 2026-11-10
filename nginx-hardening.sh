@@ -2372,8 +2372,10 @@ else
         echo "  Odoo compare limit_memory_soft et limit_memory_hard à la mémoire VIRTUELLE : limite = part de RAM + ${overhead_mb} $U_MEM"
         echo
         echo "  Suggestion (par processus, en octets dans odoo.conf — à valider par un test réel en DEV avant PROD) :"
-        printf "    limit_memory_soft = %d   (%d $U_MEM)\n" $(( safe_soft_mb * 1024 * 1024 )) "$safe_soft_mb"
-        printf "    limit_memory_hard = %d   (%d $U_MEM)\n" $(( safe_hard_mb * 1024 * 1024 )) "$safe_hard_mb"
+        # 2.87: lines to copy as they are: the size in MB on its own comment line (a comment after the value stays IN the value for Odoo)
+        printf "    # %d $U_MEM et %d $U_MEM (un commentaire sur sa propre ligne, jamais après la valeur)\n" "$safe_soft_mb" "$safe_hard_mb"
+        printf "    limit_memory_soft = %d\n" $(( safe_soft_mb * 1024 * 1024 ))
+        printf "    limit_memory_hard = %d\n" $(( safe_hard_mb * 1024 * 1024 ))
         echo "  Pire cas en RAM (tous les processus à la limite dure en même temps) : $(( (safe_hard_mb - overhead_mb) * processes )) $U_MEM"
         if (( too_many )); then
             warn "La mémoire est trop juste pour $workers workers : limit_memory_soft ne doit pas descendre sous ${soft_floor_mb} $U_MEM (1,5 × un worker au repos, au moins 1024 $U_MEM), sinon les workers sont recyclés dès leur démarrage. Baisser workers à $max_workers au plus, ou ajouter de la mémoire."
