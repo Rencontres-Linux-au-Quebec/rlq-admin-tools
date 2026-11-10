@@ -93,7 +93,7 @@ set -euo pipefail
 for _d in /usr/local/sbin /usr/sbin /sbin; do [[ -n "${NGINX_TOOLS_TESTS:-}" ]] && break; case ":$PATH:" in *":$_d:"*) ;; *) PATH="$PATH:$_d" ;; esac; done
 export PATH
 
-readonly SCRIPT_VERSION="1.26.20261109.191500"
+readonly SCRIPT_VERSION="1.27.20261109.203000"
 SCRIPT_NAME="$(basename "${BASH_SOURCE[0]}" .sh)"; readonly SCRIPT_NAME
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
 SCRIPT_PATH="$SCRIPT_DIR/$(basename "${BASH_SOURCE[0]}")"; readonly SCRIPT_PATH
@@ -786,7 +786,7 @@ for path in glob.glob(os.path.join(sys.argv[1], "*access*.log")):
         except ValueError:
             continue
         if 0 <= (now - t).total_seconds() <= limit:
-            (light if LIGHT_POST.match(m.group(4)) else found).append((t, m.group(3), m.group(4)))
+            (light if LIGHT_POST.match(m.group(4)) else found).append((t, m.group(3), m.group(4), m.group(1)))
 if not readable:
     print("?")
     sys.exit(0)
@@ -794,9 +794,119 @@ found.sort()
 light.sort()
 print(len(found), len(light))
 for tag, items in (("W", found), ("L", light)):
-    for t, method, url in items[-3:]:
-        print(tag + " " + t.astimezone().strftime("%H:%M:%S") + " " + method + " " + url[:80])
+    for t, method, url, ip in items[-3:]:
+        print(tag + " " + t.astimezone().strftime("%H:%M:%S") + " " + method + " " + url[:80] + " (" + ip + ")")     # 1.27: with the address
 PYEOF
+}
+
+# who_waits (1.27): who the update waits for, "I|text" lines (8 at most): each address active in the nginx logs of the last VISITOR_WINDOW minutes
+# (robots and this server left out), its country (cache of the suite apps/_cache_ip.py, otherwise geoiplookup, otherwise the country Odoo noted),
+# the Odoo user of that address (res_device_log: last activity in the window) and the number of requests; then the Odoo users active in the last
+# CONNECTED_WINDOW minutes from an address not seen in nginx. Reads only; nothing printed when nobody is found.
+who_waits() {
+    local devices="" minutes=$(( CONNECTED_WINDOW > VISITOR_WINDOW ? CONNECTED_WINDOW : VISITOR_WINDOW ))
+    if command -v psql >/dev/null 2>&1 || [[ -n "${ODOO_UPDATE_MODULE_PG_AS:-}" ]]; then
+        devices=$(pg_query "SELECT COALESCE(d.ip_address, ''), COALESCE(u.login, ''), COALESCE(p.name, ''), COALESCE(d.country, ''), floor(extract(epoch FROM max(d.last_activity))) FROM res_device_log d JOIN res_users u ON u.id = d.user_id LEFT JOIN res_partner p ON p.id = u.partner_id WHERE d.last_activity > (now() AT TIME ZONE 'UTC') - interval '${minutes} minutes' AND NOT COALESCE(d.revoked, false) GROUP BY 1, 2, 3, 4 ORDER BY 5 DESC LIMIT 50" 2>/dev/null) || devices=""
+    fi
+    local liste type ip pays qui n derniere ecritures total=0
+    liste=$(WHO_DEVICES="$devices" python3 - "$NGINX_LOG_DIR" "$(( VISITOR_WINDOW * 60 ))" "$SCRIPT_DIR" "${NGINX_TOOLS_I18N_LANGUE:-fr}" <<'PYEOF' 2>/dev/null || true
+import datetime, glob, importlib.util, os, re, shutil, subprocess, sys
+LINE = re.compile(r'^(\S+)\s+\S+\s+\S+\s+\[([^\]]+)\]\s+"(\S+)\s+\S+[^"]*"\s+\d{3}\s+\S+\s+"[^"]*"\s+"([^"]*)"')
+ROBOT = re.compile(r"bot|crawl|spider|slurp|curl|wget|python|go-http|monitor|uptime|preview", re.I)
+now = datetime.datetime.fromtimestamp(float(os.environ["ODOO_UPDATE_MODULE_NOW"]), datetime.timezone.utc) if os.environ.get("ODOO_UPDATE_MODULE_NOW") else datetime.datetime.now(datetime.timezone.utc)
+window, apps, lang = float(sys.argv[2]), os.path.join(sys.argv[3], "apps"), sys.argv[4]
+
+
+def module(name):
+    try:
+        spec = importlib.util.spec_from_file_location(name, os.path.join(apps, name + ".py"))
+        m = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(m)
+        return m
+    except Exception:
+        return None
+
+
+countries, cache = module("_countries"), module("_cache_ip")
+cache = cache.ouvrir() if cache else None
+seen = {}                                          # ip -> [requests, last time, writes]
+for path in glob.glob(os.path.join(sys.argv[1], "*access*.log")):
+    try:
+        with open(path, "rb") as f:
+            f.seek(0, 2)
+            f.seek(max(0, f.tell() - 2_000_000))
+            data = f.read().decode("utf-8", "replace")
+    except OSError:
+        continue
+    for line in data.splitlines():
+        m = LINE.match(line)
+        if not m or ROBOT.search(m.group(4)) or m.group(1) in ("127.0.0.1", "::1"):
+            continue
+        try:
+            t = datetime.datetime.strptime(m.group(2), "%d/%b/%Y:%H:%M:%S %z")
+        except ValueError:
+            continue
+        if 0 <= (now - t).total_seconds() <= window:
+            e = seen.setdefault(m.group(1), [0, t, 0])
+            e[0] += 1
+            e[1] = max(e[1], t)
+            e[2] += m.group(3) in ("POST", "PUT", "PATCH", "DELETE")
+users = {}                                         # ip -> [(login, name, country name of Odoo, last epoch)]
+for row in (os.environ.get("WHO_DEVICES") or "").splitlines():
+    parts = row.split("|")
+    if len(parts) >= 5 and parts[1]:
+        users.setdefault(parts[0], []).append((parts[1], parts[2], parts[3], float(parts[4] or 0)))
+
+
+def country(ip):
+    code = None
+    if cache is not None:
+        try:
+            code = cache.pays(ip)
+        except Exception:
+            code = None
+    if not code and shutil.which("geoiplookup") and not os.environ.get("NGINX_TOOLS_TESTS"):
+        try:
+            out = subprocess.run(["geoiplookup", ip], capture_output=True, text=True, timeout=5).stdout
+            g = re.search(r":\s*([A-Z]{2}),", out)
+            code = g.group(1) if g else None
+        except (OSError, subprocess.SubprocessError):
+            code = None
+    if code and countries:
+        return countries.label(code, lang[:2])
+    return next((u[2] for u in users.get(ip, []) if u[2]), "")
+
+
+def who(ip):
+    return ", ".join(f"{login} ({name})" if name and name != login else login for login, name, _c, _t in (users.get(ip) or [])[:2])
+
+
+for ip, (n, last, writes) in sorted(seen.items(), key=lambda kv: -kv[1][1].timestamp()):
+    print("|".join(("V", ip, country(ip), who(ip), str(n), last.astimezone().strftime("%H:%M:%S"), str(writes))))
+for ip, found in users.items():
+    if ip not in seen:
+        last = found[0][3]
+        print("|".join(("U", ip, country(ip) if ip else "", who(ip), datetime.datetime.fromtimestamp(last).strftime("%H:%M:%S") if last else "?")))
+PYEOF
+)
+    [[ -n "$liste" ]] || return 0
+    printf 'I|%s\n' "en attente de :"
+    while IFS='|' read -r type ip pays qui n derniere ecritures; do
+        total=$(( total + 1 ))
+        (( total <= 8 )) || continue
+        [[ -n "$pays" ]] || pays="pays inconnu"
+        if [[ "$type" == "V" ]]; then
+            [[ -n "$qui" ]] || qui="visiteur non connecté"
+            if (( ${ecritures:-0} > 0 )); then
+                printf 'I|  %s\n' "$ip $pays · $qui · $n requêtes, dernière à $derniere, $ecritures POST"
+            else
+                printf 'I|  %s\n' "$ip $pays · $qui · $n requêtes, dernière à $derniere"
+            fi
+        else
+            printf 'I|  %s\n' "${ip:-?} $pays · $qui · connecté à Odoo, dernière activité à $n"
+        fi
+    done <<< "$liste"
+    (( total <= 8 )) || printf 'I|  %s\n' "et $(( total - 8 )) autres"
 }
 
 # Reasons why the site is busy, one per line: "W|text" = a write, or a value that cannot be read (always blocks the update);
@@ -833,6 +943,15 @@ site_reasons() {
         if (( d > 0 )); then printf 'W|%s\n' "$d écritures dans les tables d'activité pendant ${ACTIVITY_SAMPLE} s"; fi
     fi
     return 0
+}
+
+# site_reasons_who (1.27): site_reasons, then who_waits when the site is busy ("I|" lines: who the update waits for).
+site_reasons_who() {
+    local raisons
+    raisons=$(site_reasons)
+    [[ -n "$raisons" ]] || return 0
+    printf '%s\n' "$raisons"
+    who_waits
 }
 
 # requetes_recentes: number of requests of the last VISITOR_WINDOW minutes in the nginx logs (robots and this server excluded); "?" if unreadable.
@@ -967,10 +1086,10 @@ wait_for_quiet_site() {
     etape "Attente d'un site calme (occupé dès ${BUSY_VISITORS} visiteurs actifs, ou dès une écriture HTTP, une session ou un verrou PostgreSQL, ou une écriture en base)"
     detail "attente maximale : ${ATTENTE_MAX} min (${ATTENTE_PROFIL})"
     while :; do
-        raisons=$(site_reasons)
+        raisons=$(site_reasons_who)
         if [[ -z "$raisons" ]]; then ok "site calme : aucune écriture HTTP ni en base, visiteurs actifs sous le seuil de $BUSY_VISITORS"; return 0; fi
         ecritures=$(grep '^W|' <<< "$raisons" || true)
-        resume=$(cut -d'|' -f2- <<< "$raisons" | paste -sd ';' -)
+        resume=$(grep -v '^I|' <<< "$raisons" | cut -d'|' -f2- | paste -sd ';' -)
         attente_maximale
         if (( DO_DRY_RUN )); then sim "maintenant occupé : $resume (attente maximale ${ATTENTE_MAX} min, ${ATTENTE_PROFIL})"; return 0; fi
         if (( SECONDS - debut >= ATTENTE_MAX * 60 )); then
@@ -983,7 +1102,7 @@ wait_for_quiet_site() {
         fi
         stamp=$(date +%H:%M:%S)
         echo "  ${C_YELLOW}[$stamp] site occupé :${C_RESET}"
-        while IFS= read -r r; do detail "· ${r#*|}"; done <<< "$raisons"
+        while IFS= read -r r; do if [[ "$r" == I\|* ]]; then detail "${r#I|}"; else detail "· ${r#*|}"; fi; done <<< "$raisons"
         detail "· attente maximale : ${ATTENTE_MAX} min (${ATTENTE_PROFIL})"
         if (( SECONDS >= prochaine )); then
             prochaine=$(( SECONDS + ask_every ))
@@ -995,10 +1114,10 @@ wait_for_quiet_site() {
 
 rapport_activite() {     # --check-activity: state of the site now, changes nothing. Exit 0 = calm, 3 = busy
     local raisons
-    raisons=$(site_reasons)
+    raisons=$(site_reasons_who)
     if [[ -z "$raisons" ]]; then ok "site calme (base $DB) : aucune écriture HTTP ni en base, visiteurs actifs sous le seuil de $BUSY_VISITORS"; return 0; fi
     echo "  ${C_YELLOW}site occupé (base $DB) :${C_RESET}"
-    while IFS= read -r r; do detail "· $r"; done <<< "$raisons"
+    while IFS= read -r r; do if [[ "$r" == I\|* ]]; then detail "${r#I|}"; else detail "· ${r#*|}"; fi; done <<< "$raisons"     # 1.27: without the tag
     return 3
 }
 
