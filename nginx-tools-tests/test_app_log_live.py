@@ -5373,3 +5373,12 @@ class OdooRuntime181(unittest.TestCase):
         self.assertFalse(rt["known"])
         self.assertTrue(rt["after_start"])
         self.assertEqual(self.live.odoo_runtime("", self.conf, self.state), {})       # pas de service : rien
+
+    def test_182_memoire_des_workers(self):
+        """1.182 : médiane de VmSize et de VmSize - VmRSS des workers (enfants du processus principal) ; le processus principal n'est pas compté."""
+        for pid, (vms, rss) in ((100, (609840, 272460)), (101, (675392, 247660)), (102, (675164, 251868))):
+            with open(os.path.join(self.proc, str(pid), "status"), "w") as f:
+                f.write(f"Name:\tpython3\nVmSize:\t{vms} kB\nVmRSS:\t{rss} kB\n")
+        self.assertEqual(self.live.worker_memory("odoo.service"),
+                         {"worker_vms_mb": 659, "worker_rss_mb": 245, "worker_overhead_mb": 414, "workers_measured": 2})
+        self.assertEqual(self.live.worker_memory(""), {})

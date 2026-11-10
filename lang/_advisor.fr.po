@@ -849,8 +849,6 @@ msgstr "Actions planifiées dont la dernière exécution était vers ce moment :
 msgid "The score of nginx-log-audit.sh (0 to 7, ban from 3) is computed when key b investigates each address; the white list and the CDN names are checked first"
 msgstr "Le score de nginx-log-audit.sh (0 à 7, bannissement à partir de 3) est calculé quand la touche b enquête sur chaque adresse ; la liste blanche et les noms de CDN sont vérifiés d'abord"
 
-msgid "Worst case of the Odoo processes: ({w} workers + {c} cron) × limit_memory_hard {h} MB = {worst} MB, for {total} MB of memory{where}"
-msgstr "Pire cas des processus d'Odoo : ({w} workers + {c} cron) × limit_memory_hard {h} Mo = {worst} Mo, pour {total} Mo de mémoire{where}"
 
 msgid "a SQL query refused by PostgreSQL: the reason (constraint, conflict, syntax) is on the line that follows it in the log"
 msgstr "une requête SQL refusée par PostgreSQL : la raison (contrainte, conflit, syntaxe) est sur la ligne qui la suit dans le journal"
@@ -1036,8 +1034,6 @@ msgstr "avant la période, toujours pas renvoyé"
 msgid "ends on {end}"
 msgstr "se termine le {end}"
 
-msgid "lower limit_memory_hard to about {hard} MB and limit_memory_soft to about {soft} MB in odoo.conf ({budget} MB shared by {w} workers + {c} cron + 1 gevent, as nginx-hardening.sh step 6), then restart Odoo"
-msgstr "baisser limit_memory_hard à environ {hard} Mo et limit_memory_soft à environ {soft} Mo dans odoo.conf ({budget} Mo partagés entre {w} workers + {c} cron + 1 gevent, comme l'étape 6 de nginx-hardening.sh), puis redémarrer Odoo"
 
 msgid "nothing to do if it is rare; many times from one address: look at that address (it may be a scanner to ban)"
 msgstr "rien à faire si c'est rare ; souvent depuis une même adresse : regarder cette adresse (c'est peut-être un scanner à bannir)"
@@ -1147,3 +1143,39 @@ msgstr "{key} : en vigueur {running}, dans le fichier {file}"
 
 msgid "{key}: {cli} on the command line (in the file: {file}, ignored)"
 msgstr "{key} : {cli} sur la ligne de commande (dans le fichier : {file}, ignoré)"
+
+msgid " (measured now)"
+msgstr " (mesuré maintenant)"
+
+msgid " (usual value for Odoo 18)"
+msgstr " (valeur habituelle d'Odoo 18)"
+
+msgid "Odoo compares limit_memory_soft with the VIRTUAL memory of the process: under the size of a worker at rest, each worker stops just after starting, Odoo starts another one, in a loop; the requests wait or fail"
+msgstr "Odoo compare limit_memory_soft à la mémoire VIRTUELLE du processus : sous la taille d'un worker au repos, chaque worker s'arrête juste après son démarrage, Odoo en démarre un autre, en boucle ; les requêtes attendent ou échouent"
+
+msgid "Odoo workers recycled at birth: limit_memory_soft is under the memory of a worker at rest"
+msgstr "Workers d'Odoo recyclés dès leur naissance : limit_memory_soft est sous la mémoire d'un worker au repos"
+
+msgid "Too many Odoo workers for the memory of the server"
+msgstr "Trop de workers d'Odoo pour la mémoire du serveur"
+
+msgid "Workers stopped before their first request (« request_count: 0 ») in the Odoo log of the period: {n}"
+msgstr "Workers arrêtés avant leur première requête (« request_count: 0 ») dans le journal d'Odoo de la période : {n}"
+
+msgid "Worst case of the Odoo processes: ({w} workers + {c} cron) × (limit_memory_hard {h} MB - {o} MB of virtual memory without RAM) = {worst} MB, for {total} MB of memory{where}"
+msgstr "Pire cas des processus d'Odoo : ({w} workers + {c} cron) × (limit_memory_hard {h} Mo - {o} Mo de mémoire virtuelle sans RAM) = {worst} Mo, pour {total} Mo de mémoire{where}"
+
+msgid "in odoo.conf (values in bytes): limit_memory_soft = {sb} ({s} MB) and limit_memory_hard = {hb} ({h} MB), then restart Odoo"
+msgstr "dans odoo.conf (valeurs en octets) : limit_memory_soft = {sb} ({s} Mo) et limit_memory_hard = {hb} ({h} Mo), puis redémarrer Odoo"
+
+msgid "limit_memory_soft {s} MB, a worker at rest already uses {v} MB of virtual memory{measured}"
+msgstr "limit_memory_soft {s} Mo, un worker au repos utilise déjà {v} Mo de mémoire virtuelle{measured}"
+
+msgid "set limit_memory_hard to about {hard} MB and limit_memory_soft to about {soft} MB in odoo.conf ({budget} MB of RAM shared by {w} workers + {c} cron + 1 gevent, + {o} MB of virtual memory each, as nginx-hardening.sh step 6), then restart Odoo"
+msgstr "mettre limit_memory_hard à environ {hard} Mo et limit_memory_soft à environ {soft} Mo dans odoo.conf ({budget} Mo de RAM partagés entre {w} workers + {c} cron + 1 gevent, + {o} Mo de mémoire virtuelle chacun, comme l'étape 6 de nginx-hardening.sh), puis redémarrer Odoo"
+
+msgid "the memory is too short for {w} workers at these limits: about {m} workers at most"
+msgstr "la mémoire est trop juste pour {w} workers à ces limites : environ {m} workers au plus"
+
+msgid "these limits are virtual memory: about {o} MB more than the RAM really used by a worker"
+msgstr "ces limites sont de la mémoire virtuelle : environ {o} Mo de plus que la RAM vraiment utilisée par un worker"

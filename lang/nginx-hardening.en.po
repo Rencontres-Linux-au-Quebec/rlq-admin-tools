@@ -2573,3 +2573,72 @@ msgstr " of memory; "
 
 msgid " conviendraient (cache des tables d'Odoo). Non modifié : demande un redémarrage de PostgreSQL et se retire de la mémoire laissée à Odoo (étape 6)."
 msgstr " would suit (cache of the Odoo tables). Not changed: it needs a restart of PostgreSQL and is taken from the memory left to Odoo (step 6)."
+
+msgid " de RAM, soit "
+msgstr " of RAM, that is "
+
+msgid " par processus"
+msgstr " per process"
+
+msgid "  Worker au repos (mesuré)    : "
+msgstr "  Worker at rest (measured)   : "
+
+msgid " de mémoire virtuelle, dont "
+msgstr " of virtual memory, of which "
+
+msgid " sans RAM ("
+msgstr " without RAM ("
+
+msgid " workers mesurés)"
+msgstr " workers measured)"
+
+msgid "  Worker au repos (estimé)    : "
+msgstr "  Worker at rest (estimated)  : "
+
+msgid " sans RAM (Odoo 18 ; workers non mesurables)"
+msgstr " without RAM (Odoo 18; workers not measurable)"
+
+msgid "  Odoo compare limit_memory_soft et limit_memory_hard à la mémoire VIRTUELLE : limite = part de RAM + "
+msgstr "  Odoo compares limit_memory_soft and limit_memory_hard with the VIRTUAL memory: limit = RAM share + "
+
+msgid "  Suggestion (par processus, en octets dans odoo.conf — à valider par un test réel en DEV avant PROD) :"
+msgstr "  Suggestion (per process, in bytes in odoo.conf; to be checked by a real test in DEV before PROD):"
+
+msgid "  Pire cas en RAM (tous les processus à la limite dure en même temps) : "
+msgstr "  Worst case in RAM (every process at the hard limit at the same time): "
+
+msgid "La mémoire est trop juste pour "
+msgstr "The memory is too short for "
+
+msgid " workers : limit_memory_soft ne doit pas descendre sous "
+msgstr " workers: limit_memory_soft must not go below "
+
+msgid " (1,5 × un worker au repos, au moins 1024 "
+msgstr " (1.5 × a worker at rest, at least 1024 "
+
+msgid "), sinon les workers sont recyclés dès leur démarrage. Baisser workers à "
+msgstr "), otherwise the workers are recycled as soon as they start. Lower workers to "
+
+msgid " au plus, ou ajouter de la mémoire."
+msgstr " at most, or add memory."
+
+msgid "limit_memory_soft actuel ("
+msgstr "current limit_memory_soft ("
+
+msgid ") sous la mémoire virtuelle d'un worker au repos ("
+msgstr ") under the virtual memory of a worker at rest ("
+
+msgid ") : chaque worker est recyclé dès son démarrage (« virtual memory limit reached », « request_count: 0 »), en boucle. Mettre au moins "
+msgstr "): every worker is recycled as soon as it starts (« virtual memory limit reached », « request_count: 0 »), in a loop. Set at least "
+
+msgid ") et redémarrer Odoo."
+msgstr ") and restart Odoo."
+
+msgid ") à moins de 1,5 × un worker au repos ("
+msgstr ") at less than 1.5 × a worker at rest ("
+
+msgid ") : workers recyclés très souvent."
+msgstr "): workers recycled very often."
+
+msgid "/var/log/journal"
+msgstr "/var/log/journal"

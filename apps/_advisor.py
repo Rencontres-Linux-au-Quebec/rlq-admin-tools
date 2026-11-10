@@ -32,7 +32,7 @@ import re
 import time
 from collections import Counter
 
-__version__ = "1.10.20261109.153000"
+__version__ = "1.11.20261109.194500"
 
 PROBLEM, LOOK, INFO = 2, 1, 0                         # severities: problem, to look at, information
 
@@ -83,6 +83,32 @@ BACKEND_RPC_RE = re.compile(r"^/(?:web/dataset/|web/action/|mail/(?:thread|data)
 CALL_BUTTON_RE = re.compile(r"/web/dataset/call_(?:button|kw)/([\w.]+)/(\w+)")
 RESOLVED_AFTER = 3600                                 # 1.7: an interruption over for more than one hour, Odoo running again: history (information)
 ODOO_DEFAULTS = {"workers": 0, "max_cron_threads": 2, "limit_time_cpu": 60, "limit_time_real": 120, "limit_memory_soft": 2048, "limit_memory_hard": 2560}
+VIRTUAL_OVERHEAD_MB = 400     # 1.11: virtual memory of an Odoo 18 worker beyond its RSS (libraries, reservations), when it cannot be measured
+IDLE_WORKER_VMS_MB = 700      # 1.11: virtual memory of an Odoo 18 worker at rest, when it cannot be measured (PROD 2026-11-09: 660 MB)
+SOFT_FLOOR_MB = 1024          # 1.11: limit_memory_soft never suggested under this (nor under 1.5 × a worker at rest)
+
+
+def memory_plan(total, other, workers, cron, idle_vms=None, overhead=None):
+    """1.11: limits of the Odoo processes for `total` MB of memory, the same calculation as step 6 of nginx-hardening.sh 2.85. The RAM (RSS) is shared:
+    reserve for what runs outside Odoo (what it uses now, at least 15 %), margin of 10 % (at least 512 MB), the rest by workers + cron + 1 gevent;
+    the limits are VIRTUAL memory: RSS share + overhead. limit_memory_soft never under max(1024 MB, 1.5 × a worker at rest): when the memory is too
+    short for that, too_many is set with the largest number of workers that fits."""
+    idle = idle_vms or IDLE_WORKER_VMS_MB
+    over = overhead if overhead is not None else VIRTUAL_OVERHEAD_MB
+    processes = max(1, workers + cron + 1)
+    reserve = max(int(total * 0.15), other or 0)
+    budget = max(0, total - reserve - max(512, total // 10))
+    hard = budget // processes + over
+    soft = hard * 85 // 100
+    floor = max(SOFT_FLOOR_MB, idle * 3 // 2)
+    too_many = soft < floor
+    if too_many:
+        soft = floor
+        hard = max(hard, floor * 6 // 5)
+    max_workers = max(1, budget // max(1, hard - over) - cron - 1)
+    return {"hard": hard, "soft": soft, "budget": budget, "reserve": reserve, "overhead": over, "idle_vms": idle, "too_many": too_many, "max_workers": max_workers}
+
+
 MONTHS = {m: i for i, m in enumerate(("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"), 1)}
 
 # Known Odoo messages: (pattern on "logger: message", severity, cause, recommendation). The first match wins.
@@ -1123,34 +1149,48 @@ class Analyzer:
         total = memory.get("limit_mb") or conf.get("mem_mb")
         if not total:
             return
-        worst = (workers + cron) * hard
+        # 1.11: Odoo compares limit_memory_soft with the VIRTUAL memory of a worker and limit_memory_hard is RLIMIT_AS (virtual too); the RAM really taken
+        # is the RSS, about VIRTUAL - overhead (shared libraries, reservations: about 400 MB on Odoo 18). Before, the virtual limits were shared as if they
+        # were RAM: PROD (13 workers) got limit_memory_soft = 652 MB, under the 660 MB of a worker at rest, and every worker was recycled at birth.
+        plan = memory_plan(total, memory.get("other_mb"), workers, cron, memory.get("worker_vms_mb"), memory.get("worker_overhead_mb"))
+        overhead, idle = plan["overhead"], plan["idle_vms"]
+        worst = (workers + cron) * max(0, hard - overhead)
+        born = memory.get("recycled_at_birth") or 0
+        if soft <= idle or born >= 3:
+            evidence = [tr("limit_memory_soft {s} MB, a worker at rest already uses {v} MB of virtual memory{measured}").format(
+                s=soft, v=idle, measured=tr(" (measured now)") if memory.get("worker_vms_mb") else tr(" (usual value for Odoo 18)"))]
+            if born:
+                evidence.append(tr("Workers stopped before their first request (« request_count: 0 ») in the Odoo log of the period: {n}").format(n=born))
+            self.add("memory-limit-too-low", PROBLEM, tr("Odoo workers recycled at birth: limit_memory_soft is under the memory of a worker at rest"), max(1, born), evidence,
+                     tr("Odoo compares limit_memory_soft with the VIRTUAL memory of the process: under the size of a worker at rest, each worker stops just after starting, Odoo starts another one, in a loop; the requests wait or fail"),
+                     [tr("in odoo.conf (values in bytes): limit_memory_soft = {sb} ({s} MB) and limit_memory_hard = {hb} ({h} MB), then restart Odoo").format(
+                         sb=plan["soft"] * 1048576, s=plan["soft"], hb=plan["hard"] * 1048576, h=plan["hard"]),
+                      tr("these limits are virtual memory: about {o} MB more than the RAM really used by a worker").format(o=overhead)],
+                     confirmed=bool(born))
         oom = memory.get("kernel") or []
         kills = memory.get("oom_kills")
-        if worst <= 0.8 * total and not oom and not kills:
+        if worst <= 0.8 * total and not oom and not kills and not plan["too_many"]:
             return
-        evidence = [tr("Worst case of the Odoo processes: ({w} workers + {c} cron) × limit_memory_hard {h} MB = {worst} MB, for {total} MB of memory{where}").format(
-            w=workers, c=cron, h=hard, worst=worst, total=total, where=tr(" (limit of this container)") if memory.get("limit_mb") else ""),
+        evidence = [tr("Worst case of the Odoo processes: ({w} workers + {c} cron) × (limit_memory_hard {h} MB - {o} MB of virtual memory without RAM) = {worst} MB, for {total} MB of memory{where}").format(
+            w=workers, c=cron, h=hard, o=overhead, worst=worst, total=total, where=tr(" (limit of this container)") if memory.get("limit_mb") else ""),
             tr("At limit_memory_soft ({s} MB each, where Odoo recycles a worker): {total_soft} MB; PostgreSQL and the system need memory too").format(
-                s=soft, total_soft=(workers + cron) * soft)]
+                s=soft, total_soft=(workers + cron) * max(0, soft - overhead))]
         if kills:
             evidence.append(tr("Processes killed for lack of memory in this container since its start (memory.events): {n}").format(n=kills))
         if oom:
             evidence.append(tr("Kernel messages about the memory: ") + " ; ".join(f"{time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(t))} {raw(_cut(text, 90))}" for t, text in oom[:3]))
-        # 1.8: same rule as step 6 of nginx-hardening.sh 2.82 (both programs give the same figures): reserve for what runs outside Odoo (what it
-        # uses now, at least 15 % of the memory: PostgreSQL grows with the load and the backup), margin of 10 % (at least 512 MB), the rest shared
-        # by the HTTP workers, the cron threads and the gevent process
-        other = memory.get("other_mb")
-        reserve = max(int(total * 0.15), other or 0)
-        budget = max(0, total - reserve - max(512, total // 10))
-        safe_hard = max(256, budget // (workers + cron + 1))
-        if other is not None:
-            evidence.append(tr("Used outside Odoo now: {other} MB (reserve kept: {reserve} MB)").format(other=other, reserve=reserve))
-        advice = [tr("lower limit_memory_hard to about {hard} MB and limit_memory_soft to about {soft} MB in odoo.conf ({budget} MB shared by {w} workers + {c} cron + 1 gevent, as nginx-hardening.sh step 6), then restart Odoo").format(
-                      hard=safe_hard, soft=safe_hard * 85 // 100, budget=budget, w=workers, c=cron),
-                  tr("or lower workers, or give more memory to this server (Proxmox: memory of the container)")]
-        severity = PROBLEM if oom or kills else (LOOK if worst > total else INFO)
-        self.add("memory-risk", severity, tr("Memory risk: the Odoo processes may use more than the memory of the server") if worst > total
-                 else tr("Memory nearly full in the worst case of the Odoo processes"), 1, evidence,
+        if memory.get("other_mb") is not None:
+            evidence.append(tr("Used outside Odoo now: {other} MB (reserve kept: {reserve} MB)").format(other=memory["other_mb"], reserve=plan["reserve"]))
+        advice = [tr("set limit_memory_hard to about {hard} MB and limit_memory_soft to about {soft} MB in odoo.conf ({budget} MB of RAM shared by {w} workers + {c} cron + 1 gevent, + {o} MB of virtual memory each, as nginx-hardening.sh step 6), then restart Odoo").format(
+                      hard=plan["hard"], soft=plan["soft"], budget=plan["budget"], w=workers, c=cron, o=overhead)]
+        if plan["too_many"]:
+            advice.append(tr("the memory is too short for {w} workers at these limits: about {m} workers at most").format(w=workers, m=plan["max_workers"]))
+        advice.append(tr("or lower workers, or give more memory to this server (Proxmox: memory of the container)"))
+        severity = PROBLEM if oom or kills else (LOOK if worst > total or plan["too_many"] else INFO)
+        title = (tr("Memory risk: the Odoo processes may use more than the memory of the server") if worst > total
+                 else tr("Too many Odoo workers for the memory of the server") if plan["too_many"] and worst <= 0.8 * total
+                 else tr("Memory nearly full in the worst case of the Odoo processes"))
+        self.add("memory-risk", severity, title, 1, evidence,
                  tr("if every worker reaches limit_memory_hard at the same time, the server runs out of memory and the kernel kills a process (Odoo or PostgreSQL): the site stops")
                  + ("" if not (oom or kills) else " " + tr("(it already happened: see the lines above)")), advice, confirmed=bool(oom or kills))
 

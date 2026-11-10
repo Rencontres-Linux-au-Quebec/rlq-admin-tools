@@ -4,6 +4,7 @@ ENVIRONNEMENT = "commun"   # tous les serveurs (Odoo et BigBlueButton)
 import os
 import shutil
 import subprocess
+import tempfile
 import re
 import unittest
 
@@ -1044,18 +1045,53 @@ class SuggestionMemoire282(unittest.TestCase):
     """2.82 : la suggestion de limites mémoire (étape 6) partage la mémoire entre les workers, les tâches planifiées (max_cron_threads) et le processus
     gevent, garde au moins 15 % pour ce qui tourne hors d'Odoo et 10 % de marge : le même calcul que le risque de mémoire d'app-log-live.py."""
 
-    def calcul(self, total, non_odoo, workers, cron):
-        """Same arithmetic as the step, on the code of the step itself (extracted between the two markers)."""
+    def calcul(self, total, non_odoo, workers, cron, vms=660, overhead=410):
+        """Same arithmetic as the step, on the code of the step itself (extracted between the two markers). 2.85: limits in virtual memory."""
         with open(script_path("nginx-hardening.sh"), encoding="utf-8") as f:
             src = f.read()
-        bloc = src[src.index("        processes=$(( workers + cron_threads + 1 ))"):src.index("        safe_soft_mb=$(( safe_hard_mb * 85 / 100 ))")]
-        script = f"total_ram_mb={total}; non_odoo_mb={non_odoo}; workers={workers}; cron_threads={cron}\n{bloc}\necho $processes $available_for_odoo_mb $safe_hard_mb\n"
+        debut = src.index("        processes=$(( workers + cron_threads + 1 ))")
+        fin = src.index("        (( max_workers < 1 )) && max_workers=1", debut)
+        bloc = src[debut:fin]
+        script = (f"export NGINX_HARDENING_WORKER_VMS_MB={vms} NGINX_HARDENING_WORKER_OVERHEAD_MB={overhead}\n"
+                  f"total_ram_mb={total}; non_odoo_mb={non_odoo}; workers={workers}; cron_threads={cron}\n{bloc}\n"
+                  "echo $processes $available_for_odoo_mb $safe_hard_mb $safe_soft_mb $too_many $max_workers\n")
         return subprocess.run(["bash", "-c", script], capture_output=True, text=True, timeout=30).stdout.split()
 
     def test_282_dev_et_prod(self):
-        self.assertEqual(self.calcul(16384, 453, 3, 2), ["6", "12289", "2048"])       # DEV: 3 workers + 2 cron + gevent
-        self.assertEqual(self.calcul(16384, 453, 13, 2), ["16", "12289", "768"])      # PROD: 13 workers + 2 cron + gevent
-        self.assertEqual(self.calcul(16384, 4000, 3, 2), ["6", "10746", "1791"])      # more used outside Odoo than 15 %: that amount is kept
+        # 2.85: RAM share + virtual overhead; PROD (13 workers) no longer gets 768 / 652 MB (under the 660 MB of a worker at rest: recycled at birth)
+        self.assertEqual(self.calcul(16384, 453, 3, 2), ["6", "12289", "2458", "2089", "0", "3"])        # DEV: 3 workers + 2 cron + gevent
+        self.assertEqual(self.calcul(16384, 453, 13, 2), ["16", "12289", "1228", "1024", "1", "12"])     # PROD: soft at its floor, 12 workers at most
+        self.assertEqual(self.calcul(16384, 4000, 3, 2), ["6", "10746", "2201", "1870", "0", "3"])       # more used outside Odoo than 15 %: that amount is kept
+
+    def test_285_memoire_des_workers_mesuree(self):
+        """odoo_worker_memory : médiane de VmSize et de VmSize - VmRSS des enfants du processus principal d'Odoo (cgroup du service)."""
+        d = tempfile.mkdtemp(prefix="test-rlq-workers-")
+        self.addCleanup(shutil.rmtree, d, True)
+        os.makedirs(os.path.join(d, "cg", "system.slice", "erplibre.service"))
+        procs = {100: (1, 609840, 272460), 101: (100, 675392, 247660), 102: (100, 675164, 251868), 103: (100, 1200000, 700000), 104: (1, 4064, 2472)}
+        for pid, (ppid, vms, rss) in procs.items():
+            os.makedirs(os.path.join(d, "proc", str(pid)))
+            cmd = b"bash\0run.sh\0" if pid == 104 else b"python3\0./odoo18.0/odoo/odoo-bin\0-c\0./config.conf\0"
+            with open(os.path.join(d, "proc", str(pid), "cmdline"), "wb") as f:
+                f.write(cmd)
+            with open(os.path.join(d, "proc", str(pid), "status"), "w") as f:
+                f.write(f"Name:\tpython3\nPPid:\t{ppid}\nVmSize:\t{vms} kB\nVmRSS:\t{rss} kB\n")
+        with open(os.path.join(d, "cg", "system.slice", "erplibre.service", "cgroup.procs"), "w") as f:
+            f.write("\n".join(str(p) for p in procs) + "\n")
+        with open(script_path("nginx-hardening.sh"), encoding="utf-8") as f:
+            src = f.read()
+        debut = src.index("odoo_worker_memory() {")
+        fonction = src[debut:src.index("\n}\n", debut) + 3]
+        script = (f"run() {{ echo /system.slice/erplibre.service; }}\nNGINX_HARDENING_PROC_ROOT={d}/proc NGINX_HARDENING_CGROUP_ROOT={d}/cg\n"
+                  f"export NGINX_HARDENING_PROC_ROOT NGINX_HARDENING_CGROUP_ROOT\n{fonction}\nodoo_worker_memory erplibre.service\n")
+        out = subprocess.run(["bash", "-c", script], capture_output=True, text=True, timeout=30).stdout.split()
+        self.assertEqual(out, ["659", "418", "3"])           # workers 101-103 (the main process and run.sh left out), median 659 MB
+
+    def test_285_soft_sous_un_worker_au_repos_signale(self):
+        with open(script_path("nginx-hardening.sh"), encoding="utf-8") as f:
+            src = f.read()
+        self.assertIn("sous la mémoire virtuelle d'un worker au repos", src)
+        self.assertNotIn("safe_hard_mb < 640", src)
 
     def test_282_cron_lu_et_option(self):
         with open(script_path("nginx-hardening.sh"), encoding="utf-8") as f:

@@ -93,7 +93,7 @@ run() {
     "$@"
 }
 
-readonly SCRIPT_VERSION="2.84.20261109.190000"
+readonly SCRIPT_VERSION="2.85.20261109.194500"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
 SCRIPT_NAME="$(basename "${BASH_SOURCE[0]}" .sh)"; readonly SCRIPT_NAME
 # Display language (en or fr): --lang, NGINX_HARDENING_LANG, LANGUAGE of the configuration file, LC_ALL / LANG - apps/_i18n.sh translates the output (nothing changes in French).
@@ -2249,6 +2249,30 @@ if [[ -n "$odoo_service" ]]; then
     fi
 fi
 
+# odoo_worker_memory SERVICE (2.85): "VMS_MB OVERHEAD_MB N" of the Odoo workers now (children of the main process of the service, /proc/PID/status
+# VmSize and VmRSS, median); nothing when unreadable. NGINX_HARDENING_PROC_ROOT / NGINX_HARDENING_CGROUP_ROOT: test folders.
+odoo_worker_memory() {
+    local service="$1" proc="${NGINX_HARDENING_PROC_ROOT:-/proc}" cgroot="${NGINX_HARDENING_CGROUP_ROOT:-/sys/fs/cgroup}" group pid main="" vms rss
+    local -A parent=()
+    local -a lignes=()
+    group=$(run systemctl show "$service" -p ControlGroup --value 2>/dev/null) || return 0
+    [[ -n "$group" && -r "$cgroot$group/cgroup.procs" ]] || return 0
+    while read -r pid; do
+        [[ "$pid" =~ ^[0-9]+$ ]] || continue
+        tr '\0' ' ' < "$proc/$pid/cmdline" 2>/dev/null | grep -qE 'odoo(-bin)?( |$)' || continue
+        parent[$pid]=$(awk '/^PPid:/{print $2}' "$proc/$pid/status" 2>/dev/null)
+    done < "$cgroot$group/cgroup.procs"
+    for pid in "${!parent[@]}"; do [[ -n "${parent[${parent[$pid]:-x}]+o}" ]] || main=$pid; done     # main process: its parent is not an Odoo process
+    [[ -n "$main" ]] || return 0
+    for pid in "${!parent[@]}"; do
+        [[ "${parent[$pid]}" == "$main" ]] || continue
+        vms=$(awk '/^VmSize:/{print int($2/1024)}' "$proc/$pid/status" 2>/dev/null); rss=$(awk '/^VmRSS:/{print int($2/1024)}' "$proc/$pid/status" 2>/dev/null)
+        [[ "$vms" =~ ^[0-9]+$ && "$rss" =~ ^[0-9]+$ ]] && lignes+=("$vms $(( vms > rss ? vms - rss : 0 ))")
+    done
+    (( ${#lignes[@]} )) || return 0
+    printf '%s\n' "${lignes[@]}" | sort -n | awk -v n="${#lignes[@]}" 'NR == int(n / 2) + 1 {print $1, $2, n}'
+}
+
 # --- 6) Suggested calculation of Odoo memory limits (workers x RAM really available) ---
 # Never applied automatically (odoo.conf or run.sh are never modified) - only displays the calculation and a
 # comparaison avec la valeur actuelle si elle est trouvable, pour eviter de deviner un chiffre a l'aveugle (voir
@@ -2308,8 +2332,28 @@ else
         (( safety_margin_mb < 512 )) && safety_margin_mb=512
         available_for_odoo_mb=$(( total_ram_mb - reserve_mb - safety_margin_mb ))
         (( available_for_odoo_mb < 0 )) && available_for_odoo_mb=0
-        safe_hard_mb=$(( available_for_odoo_mb / processes ))
+        # 2.85: Odoo compares limit_memory_soft with the VIRTUAL memory of a worker (psutil vms) and limit_memory_hard is RLIMIT_AS (virtual too), while
+        # the RAM really taken is the RSS. Before, the RAM was shared as if the limits were RAM: PROD (13 workers, 16 GB) got 768 / 652 MB, under the
+        # 660 MB of virtual memory of a worker at rest, and every worker was recycled at birth (« virtual memory limit reached », « request_count: 0 »),
+        # in a loop. Now: RAM share + virtual overhead (measured on the workers, about 400 MB), limit_memory_soft never under max(1024 MB, 1.5 x a worker
+        # at rest); when the memory is too short for that, fewer workers are suggested. Same calculation as apps/_advisor.py memory_plan().
+        idle_vms_mb="${NGINX_HARDENING_WORKER_VMS_MB:-}"; overhead_mb="${NGINX_HARDENING_WORKER_OVERHEAD_MB:-}"; measured_workers=0
+        if [[ -z "$idle_vms_mb" ]]; then
+            read -r idle_vms_mb overhead_mb measured_workers < <(odoo_worker_memory "$odoo_service") || true
+        fi
+        [[ "$idle_vms_mb" =~ ^[0-9]+$ ]] || idle_vms_mb=700
+        [[ "$overhead_mb" =~ ^[0-9]+$ ]] || overhead_mb=400
+        rss_share_mb=$(( available_for_odoo_mb / processes ))
+        safe_hard_mb=$(( rss_share_mb + overhead_mb ))
         safe_soft_mb=$(( safe_hard_mb * 85 / 100 ))
+        soft_floor_mb=$(( idle_vms_mb * 3 / 2 )); (( soft_floor_mb < 1024 )) && soft_floor_mb=1024
+        too_many=0
+        if (( safe_soft_mb < soft_floor_mb )); then
+            too_many=1; safe_soft_mb=$soft_floor_mb
+            (( safe_hard_mb < soft_floor_mb * 6 / 5 )) && safe_hard_mb=$(( soft_floor_mb * 6 / 5 ))
+        fi
+        max_workers=$(( available_for_odoo_mb / (safe_hard_mb - overhead_mb > 0 ? safe_hard_mb - overhead_mb : 1) - cron_threads - 1 ))
+        (( max_workers < 1 )) && max_workers=1
 
         echo "  Service Odoo               : $odoo_service"
         echo "  Workers                     : $workers"
@@ -2319,14 +2363,20 @@ else
         echo "  Utilisé hors Odoo (estimé)  : ${non_odoo_mb} $U_MEM (PostgreSQL, OS, nginx, etc. — via free -m moins"
         echo "                                l'usage actuel du cgroup d'Odoo, MemoryCurrent)"
         echo "  Réservé hors Odoo           : ${reserve_mb} $U_MEM (au moins 15 % : PostgreSQL grossit avec la charge et la sauvegarde) + marge ${safety_margin_mb} $U_MEM (10 %)"
-        echo "  Disponible pour Odoo        : ${available_for_odoo_mb} $U_MEM"
+        echo "  Disponible pour Odoo        : ${available_for_odoo_mb} $U_MEM de RAM, soit ${rss_share_mb} $U_MEM par processus"
+        if (( measured_workers > 0 )); then
+            echo "  Worker au repos (mesuré)    : ${idle_vms_mb} $U_MEM de mémoire virtuelle, dont ${overhead_mb} $U_MEM sans RAM ($measured_workers workers mesurés)"
+        else
+            echo "  Worker au repos (estimé)    : ${idle_vms_mb} $U_MEM de mémoire virtuelle, dont ${overhead_mb} $U_MEM sans RAM (Odoo 18 ; workers non mesurables)"
+        fi
+        echo "  Odoo compare limit_memory_soft et limit_memory_hard à la mémoire VIRTUELLE : limite = part de RAM + ${overhead_mb} $U_MEM"
         echo
-        echo "  Suggestion (par processus — à valider par un test réel en DEV avant PROD) :"
-        printf "    --limit-memory-soft=%d   (%d $U_MEM)\n" $(( safe_soft_mb * 1024 * 1024 )) "$safe_soft_mb"
-        printf "    --limit-memory-hard=%d   (%d $U_MEM)\n" $(( safe_hard_mb * 1024 * 1024 )) "$safe_hard_mb"
-        echo "  Pire cas (tous les processus à la limite dure en même temps) : $(( safe_hard_mb * processes )) $U_MEM"
-        if (( safe_hard_mb < 640 )); then
-            warn "Limite par processus sous 640 $U_MEM : les gros rapports et les exports risquent d'être interrompus ; baisser workers (ou max_cron_threads) ou ajouter de la mémoire plutôt que descendre plus bas."
+        echo "  Suggestion (par processus, en octets dans odoo.conf — à valider par un test réel en DEV avant PROD) :"
+        printf "    limit_memory_soft = %d   (%d $U_MEM)\n" $(( safe_soft_mb * 1024 * 1024 )) "$safe_soft_mb"
+        printf "    limit_memory_hard = %d   (%d $U_MEM)\n" $(( safe_hard_mb * 1024 * 1024 )) "$safe_hard_mb"
+        echo "  Pire cas en RAM (tous les processus à la limite dure en même temps) : $(( (safe_hard_mb - overhead_mb) * processes )) $U_MEM"
+        if (( too_many )); then
+            warn "La mémoire est trop juste pour $workers workers : limit_memory_soft ne doit pas descendre sous ${soft_floor_mb} $U_MEM (1,5 × un worker au repos, au moins 1024 $U_MEM), sinon les workers sont recyclés dès leur démarrage. Baisser workers à $max_workers au plus, ou ajouter de la mémoire."
         fi
 
         if [[ -r "$ODOO_CONF" ]] || [[ -n "$run_script_prod_lines" ]]; then
@@ -2354,6 +2404,24 @@ else
                 fi
             else
                 echo "  (limit_memory_hard non trouvé dans $ODOO_CONF ni dans la ligne de production de run.sh)"
+            fi
+            # 2.85: limit_memory_soft under the virtual memory of a worker at rest: every worker is recycled at birth (loop)
+            current_soft=""; current_soft_source=""
+            if [[ -n "$run_script_prod_lines" ]]; then
+                current_soft=$(printf '%s' "$run_script_prod_lines" | grep -oE -- '--limit-memory-soft=[0-9]+' | tail -1 | sed -E 's/.*=//') || true
+                [[ -n "$current_soft" ]] && current_soft_source="$run_script (ligne de commande, priorité sur odoo.conf)"
+            fi
+            if [[ -z "$current_soft" && -r "$ODOO_CONF" ]]; then
+                current_soft=$(grep -E "^\s*limit_memory_soft\s*=" "$ODOO_CONF" 2>/dev/null | tail -1 | sed -E 's/^[^=]*=\s*//' | tr -d '[:space:]') || true
+                [[ -n "$current_soft" ]] && current_soft_source="$ODOO_CONF"
+            fi
+            if [[ "$current_soft" =~ ^[0-9]+$ ]] && (( current_soft > 0 )); then
+                current_soft_mb=$(( current_soft / 1024 / 1024 ))
+                if (( current_soft_mb <= idle_vms_mb )); then
+                    fail "limit_memory_soft actuel (${current_soft_mb} $U_MEM, source : $current_soft_source) sous la mémoire virtuelle d'un worker au repos (${idle_vms_mb} $U_MEM) : chaque worker est recyclé dès son démarrage (« virtual memory limit reached », « request_count: 0 »), en boucle. Mettre au moins $(( safe_soft_mb * 1024 * 1024 )) (${safe_soft_mb} $U_MEM) et redémarrer Odoo."
+                elif (( current_soft_mb < soft_floor_mb )); then
+                    warn "limit_memory_soft actuel (${current_soft_mb} $U_MEM, source : $current_soft_source) à moins de 1,5 × un worker au repos (${idle_vms_mb} $U_MEM) : workers recyclés très souvent."
+                fi
             fi
         fi
     fi
