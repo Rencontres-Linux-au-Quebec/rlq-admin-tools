@@ -146,7 +146,7 @@ grep_q() { grep "$@" >/dev/null; }
 #                              ne peut pas le voir, le texte etant entre apostrophes (faux positif).
 trap 'ec=$?; echo "" >&2; echo "*** ARRÊT INATTENDU DU SCRIPT (code $ec) À LA LIGNE $LINENO ***" >&2; echo "*** Commande fautive : $BASH_COMMAND" >&2; echo "*** Si le rapport ci-dessus semble incomplet (ex. sections Top 10 absentes), c'\''est probablement la cause." >&2' ERR
 
-readonly SCRIPT_VERSION="2.92.20261109.190000"
+readonly SCRIPT_VERSION="2.93.20261109.235000"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
 # theme_sgr CODE (2.86) : the SGR code as the color theme shows it (--theme N, THEME, NGINX_TOOLS_THEME; apps/_theme.py). Theme 0, no module or no python3: unchanged.
 theme_sgr() {
@@ -1093,10 +1093,20 @@ preuves_ip() {
     [[ -n "$refus" ]] && n_refus=$(printf '%s\n' "$refus" | wc -l)
     if (( n_refus > 0 )); then
         jours_refus=$(printf '%s\n' "$refus" | grep -oE '\[[0-9]{2}/[A-Za-z]{3}/[0-9]{4}' | tr -d '[' | awk '!vu[$0]++' | paste -sd' ' | sed 's/ /, /g') || jours_refus=""
+        # 2.93: a refusal of /robots.txt or /sitemap.xml is the list of blocked robots (bot_blocker.conf), not an attack: said apart, never FOR a ban
+        # (PROD 2026-11-09: 34.16.118.141 « 1 requêtes refusées par nginx (fichiers sensibles...) » for /robots.txt)
+        local n_robots
+        n_robots=$(printf '%s\n' "$refus" | grep -cE '"[A-Z]+ /(robots\.txt|sitemap\.xml)[ ?]' || true)
         echo "    Requêtes REFUSÉES par nginx : ${C_MAL}$n_refus requêtes${C_RESET} (jours : $jours_refus) — c'est ce que voit le jail nginx-blocked-probes."
         echo "      Pages demandées (fichiers sensibles, failles, outils d'attaque) :"
         urls_refusees "$ip" 8 | awk -F'\t' '{ printf "        %5d  %s\n", $1, $2 }'
-        pour+=("$n_refus requêtes refusées par nginx (fichiers sensibles, failles, outils d'attaque), sur $(printf '%s' "$jours_refus" | awk -F', ' '{print NF}') jours")
+        if (( n_robots > 0 )); then
+            echo "      dont $n_robots refus de /robots.txt ou /sitemap.xml : liste de blocage des robots (bot_blocker.conf), pas une attaque"
+            contre+=("$n_robots des refus sont /robots.txt ou /sitemap.xml (robot de la liste de blocage), pas une attaque")
+        fi
+        if (( n_refus > n_robots )); then
+            pour+=("$(( n_refus - n_robots )) requêtes refusées par nginx (fichiers sensibles, failles, outils d'attaque), sur $(printf '%s' "$jours_refus" | awk -F', ' '{print NF}') jours")
+        fi
     else
         echo "    Requêtes refusées par nginx (blocked-probes.log) : aucune dans les journaux conservés"
     fi
@@ -2668,6 +2678,15 @@ investigate_and_propose() {
         echo "      ${C_GREEN}  inoffensif (vérifier les URL demandées ci-dessus), pas de bannissement proposé.${C_RESET}"
         return 0
     fi
+    # 2.93: a burst alone is a robot that reads the site fast (crawler, aggregator, link preview), not an attack: a ban needs a STRONG sign
+    # (sensitive files, errors in mass, fake search engine, catch-all). PROD 2026-11-09: 34.16.118.141 (Google Cloud) got « Score 4/7 : bannissement
+    # recommandé » for 15 pages of events in 10 s, 31 pages served, no attack. The rate limits of nginx (limit_req) already slow such a robot.
+    if [[ "$SIGNE_FORT" != "1" ]]; then
+        echo "      ${C_YELLOW}→ Score $score/7 — robot qui lit le site vite (rafale, balayage ou User-Agent incomplet), sans aucun signe d'attaque${C_RESET}"
+        echo "      ${C_YELLOW}  (fichiers sensibles, erreurs en masse, faux moteur, catch-all) : pas de bannissement proposé ; les limites de débit${C_RESET}"
+        echo "      ${C_YELLOW}  de nginx le freinent. À surveiller (app-log-live.py, web-monitor.py).${C_RESET}"
+        return 0
+    fi
     echo "      ${C_MAL}→ Score $score/7 : bannissement recommandé.${C_RESET}"
     PROP_RAISON="enquête $(date '+%Y-%m-%d %H:%M') : score $score/7, $hostile signes d'hostilité — $(printf '%s ; ' "${motifs[@]}")"
     PROP_RAISON="${PROP_RAISON% ; }"
@@ -3333,7 +3352,7 @@ recommander() {
         if [[ "$SIGNE_FORT" == "1" ]]; then verdict="À EXAMINER"; raisons+=("un signe fort existe, mais il vient peut-être d'un seul des visiteurs du CDN")
         else verdict="NE PAS BANNIR"; fi
         (( banni )) && { verdict="LEVER LE BANNISSEMENT"; cmd="nginx-log-audit.sh --unban-cdn"; }
-    elif [[ "$SIGNE_FORT" == "1" ]] || (( INV_SCORE >= BAN_THRESHOLD && INV_HOSTILE > 0 )); then
+    elif [[ "$SIGNE_FORT" == "1" ]]; then                   # 2.93: a strong sign of attack is needed; a burst of a robot alone is not one
         if (( ${#INV_MOTIFS_LISTE[@]} > 0 )); then raisons+=("${INV_MOTIFS_LISTE[@]}")
         elif [[ -n "$INV_MOTIFS" ]]; then raisons+=("$INV_MOTIFS"); else raisons+=("signes d'hostilité"); fi
         (( ETAT_F2B_BANS >= 2 )) && raisons+=("revient malgré $ETAT_F2B_BANS bannissements temporaires de fail2ban")

@@ -1568,3 +1568,43 @@ for _nom in [n for n in vars(ChkNginxLogs274) if n.startswith("test")]:
     setattr(ChkNginxLogs282, _nom, None)
 for _nom in [n for n in vars(ChkNginxLogs282) if n.startswith("test")]:
     setattr(ChkNginxLogs285, _nom, None)
+
+
+class ChkNginxLogs293(ChkNginxLogs278):
+    """2.93 : une rafale de pages ordinaires depuis un hébergeur (robot, agrégateur) n'est pas une attaque : sans signe fort (fichiers
+    sensibles, erreurs en masse, faux moteur, catch-all), aucun bannissement n'est proposé ; un refus de /robots.txt n'est pas une preuve."""
+
+    IP = "11.16.118.141"
+    IE11 = "Mozilla/5.0 (Windows NT 6.1; Trident/7.0; rv:11.0) like Gecko"
+
+    def _robot_rapide(self):
+        self.mock("host", f'[[ "$1" == {self.IP} ]] && echo "x pointer 141.118.16.11.bc.googleusercontent.com."; exit 0')
+        pages = [f"/en_CA/event/open-house/track/session-{i}" for i in range(15)]
+        self.add(*(acc(self.IP, "08/Nov/2026", f"22:34:2{i % 10}", p, 200, self.IE11) for i, p in enumerate(pages)))
+        self.add(*(acc(self.IP, "08/Nov/2026", f"22:4{i}:00", p, 200, self.IE11) for i, p in enumerate(["/", "/blog", "/shop/cart"])))
+        self.add(acc(self.IP, "08/Nov/2026", "22:50:00", "/", 200, "Ruby"))
+        with open(os.path.join(self.logs, "blocked-probes.log"), "w") as f:
+            f.write(f'{self.IP} - - [08/Nov/2026:22:33:00 -0400] "GET /robots.txt HTTP/1.1" 404 146 "-" "{self.IE11}" host="www.exemple.org"\n')
+
+    def test_293_rafale_sans_signe_fort_pas_de_bannissement(self):
+        self._robot_rapide()
+        rc, out, err = self.run_cmd(["bash", self.prog, "prod", "--investigate", self.IP, "--no-prompt"])
+        self.assertEqual(rc, 0, out + err)
+        self.assertRegex(out, r"Rafale : 15 pages distinctes")
+        self.assertNotIn("bannissement recommandé", out)                    # the --ban gate and web-monitor read this line
+        self.assertIn("sans aucun signe d'attaque", out)
+        self.assertNotIn("Verdict : BANNIR", out)
+
+    @unittest.skipUnless(os.geteuid() == 0, "--ban exige root")
+    def test_293_refus_de_robots_txt_n_est_pas_une_preuve(self):
+        self._robot_rapide()
+        rc, out, err = self.run_cmd(["bash", self.prog, "--ban", self.IP], input_text="n\n")
+        synthese = out[out.index("  Synthèse"):out.index("Enquête détaillée")]
+        self.assertNotIn("fichiers sensibles, failles", synthese.split("Contre :")[0])
+        self.assertIn("refus sont /robots.txt ou /sitemap.xml", synthese)
+        self.assertNotIn("Ceci va bloquer TOUT le trafic", out)
+        self.assertNotEqual(rc, 0)
+
+
+for _nom in [n for c in (ChkNginxLogs, ChkNginxLogs278) for n in vars(c) if n.startswith("test")]:
+    setattr(ChkNginxLogs293, _nom, None)

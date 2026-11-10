@@ -3140,3 +3140,21 @@ msgstr "do not lift: let the temporary ban expire, then watch whether it comes b
 
 msgid "pas bannie : surveiller (app-log-live.py, web-monitor.py) ; le seuil de bannissement n'est pas atteint (score "
 msgstr "not banned: watch it (app-log-live.py, web-monitor.py); the ban threshold is not reached (score "
+
+msgid "/7 — robot qui lit le site vite (rafale, balayage ou User-Agent incomplet), sans aucun signe d'attaque"
+msgstr "/7 — robot reading the site fast (burst, sweep or incomplete User-Agent), without any sign of attack"
+
+msgid "  (fichiers sensibles, erreurs en masse, faux moteur, catch-all) : pas de bannissement proposé ; les limites de débit"
+msgstr "  (sensitive files, mass errors, fake search engine, catch-all): no ban suggested; the nginx rate limits"
+
+msgid "  de nginx le freinent. À surveiller (app-log-live.py, web-monitor.py)."
+msgstr "  slow it down. To watch (app-log-live.py, web-monitor.py)."
+
+msgid " refus de /robots.txt ou /sitemap.xml : liste de blocage des robots (bot_blocker.conf), pas une attaque"
+msgstr " refusals of /robots.txt or /sitemap.xml: robot block list (bot_blocker.conf), not an attack"
+
+msgid " des refus sont /robots.txt ou /sitemap.xml (robot de la liste de blocage), pas une attaque"
+msgstr " of the refusals are /robots.txt or /sitemap.xml (robot on the block list), not an attack"
+
+msgid "      dont "
+msgstr "      of which "

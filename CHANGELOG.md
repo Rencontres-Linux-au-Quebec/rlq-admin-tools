@@ -4166,6 +4166,16 @@ Earlier history was archived outside this repository when this file was created.
 
 ## nginx-log-audit.sh
 
+### 2.93.20261109.235000 - A ban needs a strong sign of attack
+
+- Title: a burst of ordinary pages from a hosting provider no longer leads to "bannissement recommande"; a refusal of /robots.txt is not evidence.
+- Reason: the administrator asked why 34.16.118.141 (Google Cloud, 31 pages of the site served, 1 refusal of /robots.txt, User-Agent "Ruby" once and IE11 47 times, 15 event pages in 10 s) was proposed for a 365-day ban: "il a accede a des pages normales".
+- Changes: nginx-log-audit.sh: investigate_and_propose stops after the score line when no strong sign was found (SIGNE_FORT=0: fewer than 3 sensitive files, no mass errors, no fake search engine, no catch-all): new text "robot qui lit le site vite (rafale, balayage ou User-Agent incomplet), sans aucun signe d'attaque ... pas de bannissement propose", no "Score N/7 : bannissement recommande" line, no INV_PROPOSER, no confirm_and_ban. recommander: the BANNIR branch requires SIGNE_FORT=1 (before: SIGNE_FORT=1 or score >= BAN_THRESHOLD with one hostility sign, which a burst alone gave). collect_evidence (requests refused by nginx): refusals of /robots.txt and /sitemap.xml (bot_blocker.conf) are counted apart, said "pas une attaque" and put in the "Contre" list; only the other refusals stay in the "Pour" list. lang/nginx-log-audit.en.po: 6 entries. Files: nginx-log-audit.sh, lang/nginx-log-audit.en.po, doc/fr and doc/en 02-nginx-log-audit.md, nginx-tools-tests/test_nginx_log_audit.py.
+- Bugs fixed: symptom: "Score 4/7 : bannissement recommande" and "Verdict : BANNIR" for a crawler that read normal pages. Diagnosis: the burst counted as a hostility sign, and with 3 automation signs (script, double identity, hosting provider) the score passed the threshold of 3; the 404 on /robots.txt (the robot block list) was listed as "fichiers sensibles, failles, outils d'attaque". Fix: a ban proposal and the BANNIR verdict need a strong sign; robots.txt refusals are said apart.
+- Safeguards and edge cases: real attacks keep their proposal (sensitive files, SQL injection, fake engines, catch-all: test_signe_d_hostilite_toujours_propose, test_278, test_279, test_285 unchanged); the --ban gate (grep of "bannissement recommande") refuses such a robot, so web-monitor and app-log-live no longer recommend it either; a sweep keeps its own verdict (A EXAMINER or GARDER LE BANNISSEMENT, never a lift); the white list and CDN rules come first as before.
+- Checks performed: new ChkNginxLogs293 (burst from a hosting provider: no ban line, no BANNIR; --ban: robots.txt not in "Pour", question never asked) [OK]; ShellCheck: no new note.
+- Action required: answer N to "Confirmer le bannissement de 34.16.118.141 ?". If the address is already banned, `sudo nginx-log-audit.sh --unban 34.16.118.141`.
+
 ### 2.92.20261109.190000 - Erase key (^H) in the questions
 
 - Title: the questions read without readline now use it.
