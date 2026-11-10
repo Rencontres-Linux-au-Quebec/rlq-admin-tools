@@ -394,6 +394,16 @@ Earlier history was archived outside this repository when this file was created.
 
 ## app-log-live.py
 
+### 1.182.20261109.194500 - Memory of the Odoo workers measured, recyclings counted
+
+- Title: the analysis measures the virtual and real memory of the Odoo workers and counts the workers recycled for memory.
+- Reason: report of the administrator on 2026-11-09 (PROD workers recycled in a loop, "virtual memory limit (691601408) reached").
+- Changes: new function worker_memory() (median VmSize, VmRSS of the children of the main Odoo process, /proc/PID/status); memory_facts(): worker_vms_mb, worker_rss_mb, worker_overhead_mb, workers_measured, recycled and recycled_at_birth (journal of the service: "virtual memory limit", "exiting. request_count: 0,"); used by apps/_advisor.py 1.11.
+- Bugs fixed: none in this program (the calculation was in apps/_advisor.py).
+- Safeguards and edge cases: nothing measured without the processes (no root, service stopped): the advisor uses its usual values; the journal is not read in the tests.
+- Checks performed: OdooRuntime181.test_182_memoire_des_workers [OK].
+- Action required: none.
+
 ### 1.181.20261109.160000 - Odoo in memory versus odoo.conf, Odoo system parameters, server name in the journal names, nginx times
 
 - Title: the analysis shows what the running Odoo really uses, the Odoo technical parameters themselves, and the journal files carry the name of the server.
@@ -3381,6 +3391,16 @@ Earlier history was archived outside this repository when this file was created.
 
 ## nginx-hardening.sh
 
+### 2.85.20261109.194500 - Step 6: memory limits in virtual memory, workers recycled at birth detected
+
+- Title: the suggested limit_memory_soft and limit_memory_hard take the virtual memory of the workers into account; a limit under a worker at rest is a failure.
+- Reason: report of the administrator on 2026-11-09: PROD workers recycled in a loop after the values of step 6 were applied.
+- Changes: new function odoo_worker_memory() (median VmSize and VmSize - VmRSS of the children of the main Odoo process, cgroup of the service; NGINX_HARDENING_PROC_ROOT, NGINX_HARDENING_CGROUP_ROOT, NGINX_HARDENING_WORKER_VMS_MB, NGINX_HARDENING_WORKER_OVERHEAD_MB for the tests); step 6: RAM share per process, worker at rest shown (measured or estimated), suggestion in bytes as written in odoo.conf, worst case in RAM, warning with the largest number of workers that fits; new check of the current limit_memory_soft (run.sh production line first, then odoo.conf): FAIL under a worker at rest, WARN under 1.5 x; the former warning "under 640 MB" removed; lang/nginx-hardening.en.po; doc 01-nginx-hardening.md (fr, en).
+- Bugs fixed: symptom: on PROD (13 workers, 16 GB) the Odoo log showed "Worker (N) virtual memory limit (691601408) reached" then "exiting. request_count: 0" several times per second, no worker survived; diagnosis: Odoo compares limit_memory_soft with the VIRTUAL memory of a worker (psutil vms; limit_memory_hard is RLIMIT_AS), and step 6 / the memory risk shared the RAM as if these limits were RAM: 768 MB hard and 652 MB soft were suggested, under the 660 MB of virtual memory of a worker at rest (RSS 250 MB); fix: limit = RAM share + virtual overhead (measured, about 400 MB), limit_memory_soft never under max(1024 MB, 1.5 x a worker at rest), fewer workers suggested when the memory is too short.
+- Safeguards and edge cases: nothing is applied (step 6 only suggests); workers not measurable (no root, service stopped): 700 MB at rest and 400 MB of overhead assumed; one busy worker does not change the median.
+- Checks performed: SuggestionMemoire282 (DEV 2458 / 2089 MB, PROD 1228 / 1024 MB and 12 workers at most, measurement on a fake /proc) [OK]; ShellCheck 0.11.0 [OK].
+- Action required: on PROD, set limit_memory_soft = 1073741824 or more (sent separately: 1342177280 / 1610612736) and restart Odoo; consider 12 workers or fewer.
+
 ### 2.84.20261109.190000 - Erase key (^H) in all the questions
 
 - Title: every question of nginx-hardening.sh accepts ^H and ^? as erase key.
@@ -4992,6 +5012,16 @@ Earlier history was archived outside this repository when this file was created.
   - Not changed: nginx-log-audit.sh keeps its own bash values (its --page-burst default is 8 against 15 here; this difference is still to be decided).
 
 ## apps/_advisor.py
+
+### 1.11.20261109.194500 - Memory risk in virtual memory, workers recycled at birth
+
+- Title: the memory risk and its advice use the virtual memory of the workers; new finding memory-limit-too-low.
+- Reason: report of the administrator on 2026-11-09 (PROD workers recycled in a loop).
+- Changes: new function memory_plan() and constants VIRTUAL_OVERHEAD_MB, IDLE_WORKER_VMS_MB, SOFT_FLOOR_MB (same calculation as nginx-hardening.sh 2.85); rule_memory(): worst case in RAM (limit_memory_hard minus the virtual overhead), advice with the plan, "about N workers at most" when the memory is too short (title "Too many Odoo workers for the memory of the server"); new finding memory-limit-too-low (PROBLEM) when limit_memory_soft is under a worker at rest or when workers stopped before their first request, advice in bytes; lang/_advisor.fr.po.
+- Bugs fixed: symptom: on PROD (13 workers, 16 GB) the Odoo log showed "Worker (N) virtual memory limit (691601408) reached" then "exiting. request_count: 0" several times per second, no worker survived; diagnosis: Odoo compares limit_memory_soft with the VIRTUAL memory of a worker (psutil vms; limit_memory_hard is RLIMIT_AS), and step 6 / the memory risk shared the RAM as if these limits were RAM: 768 MB hard and 652 MB soft were suggested, under the 660 MB of virtual memory of a worker at rest (RSS 250 MB); fix: limit = RAM share + virtual overhead (measured, about 400 MB), limit_memory_soft never under max(1024 MB, 1.5 x a worker at rest), fewer workers suggested when the memory is too short.
+- Safeguards and edge cases: without measurement, 700 MB at rest and 400 MB of overhead; the finding is confirmed only when the Odoo log shows the recyclings.
+- Checks performed: test_advisor (test_risque_de_memoire updated, test_workers_recycles_a_la_naissance) [OK].
+- Action required: none.
 
 ### 1.10.20261109.153000 - Odoo configuration in effect, Odoo parameters in the e-mail findings, backups in the timeline
 

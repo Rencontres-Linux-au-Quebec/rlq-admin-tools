@@ -659,17 +659,32 @@ class Version17(unittest.TestCase):
         f = par_id(ADV.analyze(faits(), {"odoo_conf": conf, "memory": {"limit_mb": None, "oom_kills": None, "kernel": []}}))
         m = f["memory-risk"]
         self.assertEqual(m["severity"], ADV.LOOK)
-        self.assertTrue(any("17940 MB" in e and "16384 MB" in e for e in m["evidence"]))
-        self.assertTrue(any("limit_memory_hard to about 768 MB" in a and "13 workers + 2 cron + 1 gevent" in a for a in m["advice"]))      # 1.8: as nginx-hardening.sh 2.82
+        self.assertTrue(any("11940 MB" in e and "16384 MB" in e for e in m["evidence"]))         # 1.11: (13 + 2) x (1196 - 400 MB virtual without RAM)
+        self.assertTrue(any("limit_memory_hard to about 1260 MB" in a and "13 workers + 2 cron + 1 gevent" in a for a in m["advice"]))     # as nginx-hardening.sh 2.85
+        self.assertTrue(any("about 11 workers at most" in a for a in m["advice"]))
         dev = dict(conf, values=dict(conf["values"], workers="3", limit_memory_hard=str(5197 * 1048576)))
         m = par_id(ADV.analyze(faits(), {"odoo_conf": dev, "memory": {"other_mb": 453}}))["memory-risk"]
-        self.assertTrue(any("limit_memory_hard to about 2048 MB" in a for a in m["advice"]))
+        self.assertTrue(any("limit_memory_hard to about 2448 MB" in a for a in m["advice"]))
         self.assertTrue(any("453 MB" in e and "2457 MB" in e for e in m["evidence"]))
         f = par_id(ADV.analyze(faits(), {"odoo_conf": conf, "memory": {"limit_mb": 16384, "oom_kills": 2, "kernel": [(time.time(), "Out of memory: Killed process 1234 (python3)")]}}))
         self.assertEqual(f["memory-risk"]["severity"], ADV.PROBLEM)
         self.assertTrue(f["memory-risk"]["confirmed"])
         petit = dict(conf, values=dict(conf["values"], workers="4"))
         self.assertNotIn("memory-risk", par_id(ADV.analyze(faits(), {"odoo_conf": petit, "memory": {}})))
+
+    def test_workers_recycles_a_la_naissance(self):
+        """1.11 : limit_memory_soft (652 Mo) sous la mémoire virtuelle d'un worker au repos (660 Mo) : workers recyclés dès leur démarrage (PROD, 2026-11-09)."""
+        conf = {"path": "/etc/odoo/odoo.conf", "values": {"workers": "13", "max_cron_threads": "2", "limit_memory_hard": "805306368",
+                                                         "limit_memory_soft": "683671552"}, "cpus": 6, "mem_mb": 16384}
+        memoire = {"other_mb": 453, "worker_vms_mb": 660, "worker_overhead_mb": 410, "recycled_at_birth": 120}
+        f = par_id(ADV.analyze(faits(), {"odoo_conf": conf, "memory": memoire}))
+        m = f["memory-limit-too-low"]
+        self.assertEqual(m["severity"], ADV.PROBLEM)
+        self.assertTrue(m["confirmed"])
+        self.assertTrue(any("limit_memory_soft = 1073741824 (1024 MB)" in a for a in m["advice"]), m["advice"])
+        self.assertTrue(any("120" in e for e in m["evidence"]))
+        bon = dict(conf, values=dict(conf["values"], limit_memory_soft="1342177280", limit_memory_hard="1610612736"))
+        self.assertNotIn("memory-limit-too-low", par_id(ADV.analyze(faits(), {"odoo_conf": bon, "memory": dict(memoire, recycled_at_birth=0)})))
 
     def test_meme_page_en_boucle(self):
         who = {"203.0.113.44": "host-44.example.net [203.0.113.44] CD (République démocratique du Congo)"}

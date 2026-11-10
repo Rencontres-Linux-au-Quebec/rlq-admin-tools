@@ -121,7 +121,7 @@ from urllib.parse import unquote, urlsplit
 from collections import Counter, OrderedDict
 from concurrent.futures import Future
 
-__version__ = "1.181.20261109.160000"
+__version__ = "1.182.20261109.194500"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
@@ -5896,11 +5896,40 @@ def odoo_runtime(service, conf_path, state_path):
             "processes": len(procs), "expected": expected}
 
 
+def worker_memory(service):
+    """1.182: {"worker_vms_mb", "worker_rss_mb", "worker_overhead_mb", "workers_measured"} of the Odoo workers now (children of the main process, /proc/PID/status
+    VmSize and VmRSS; median, so that one busy worker does not count); {} when nothing can be read."""
+    procs = odoo_processes(service) if service else []
+    if not procs:
+        return {}
+    main = min(procs, key=lambda p: p[2] or float("inf"))[0]
+    sizes = []
+    for pid, ppid, _start, _argv in procs:
+        if pid == main or ppid != main:
+            continue
+        values = {}
+        try:
+            with open(os.path.join(PROC_ROOT, str(pid), "status"), encoding="utf-8") as f:
+                for text_line in f:
+                    key, _, value = text_line.partition(":")
+                    if key in ("VmSize", "VmRSS") and value.split():
+                        values[key] = int(value.split()[0]) // 1024
+        except (OSError, ValueError):
+            continue
+        if "VmSize" in values and "VmRSS" in values:
+            sizes.append((values["VmSize"], values["VmRSS"]))
+    if not sizes:
+        return {}
+    sizes.sort()
+    vms, rss = sizes[len(sizes) // 2]
+    return {"worker_vms_mb": vms, "worker_rss_mb": rss, "worker_overhead_mb": max(0, vms - rss), "workers_measured": len(sizes)}
+
+
 def memory_facts(since, service=None):
     """1.178: what the analysis needs to judge the memory risk: the memory limit of this container or system (cgroup v2 memory.max, v1
     memory.limit_in_bytes; None: no limit), the OOM kills counted by the cgroup (memory.events) and the kernel messages about the OOM killer since
     `since` (journalctl -k, root needed; [] otherwise). Read-only, never an exception."""
-    res = {"limit_mb": None, "oom_kills": None, "kernel": [], "other_mb": None}
+    res = {"limit_mb": None, "oom_kills": None, "kernel": [], "other_mb": None, "recycled": None, "recycled_at_birth": None}
     # 1.179: memory used outside Odoo now (MemTotal - MemAvailable minus MemoryCurrent of the Odoo service), the same estimate as nginx-hardening.sh step 6
     try:
         info = {}
@@ -5930,6 +5959,15 @@ def memory_facts(since, service=None):
                     res["oom_kills"] = int(value.strip())
     except OSError:
         pass
+    # 1.182: memory of the Odoo workers NOW: Odoo compares limit_memory_soft with the VIRTUAL memory (psutil vms) and limit_memory_hard is RLIMIT_AS,
+    # while the RAM really taken is the RSS. A worker at rest already has about 650 MB of virtual memory for 250 MB of RSS (Odoo 18, PROD 2026-11-09):
+    # with limit_memory_soft under that, every worker is recycled at birth ("request_count: 0"), the site no longer answers.
+    res.update(worker_memory(service))
+    if service and not os.environ.get("NGINX_TOOLS_TESTS"):
+        cmd = ["journalctl", "-u", service, "-q", "--no-pager", "-o", "cat", "--since", f"@{math.floor(since)}", "-g", "virtual memory limit|exiting. request_count: 0,"]
+        out = lancer(cmd, 60)[1]
+        res["recycled"] = len(re.findall(r"virtual memory limit", out))
+        res["recycled_at_birth"] = len(re.findall(r"exiting\. request_count: 0,", out))
     if not os.environ.get("NGINX_TOOLS_TESTS"):
         cmd = ["journalctl", "-k", "-q", "--no-pager", "-o", "short-unix", "--since", f"@{math.floor(since)}", "-g", "Out of memory|oom-kill|oom_reaper|Killed process"]
         for text_line in lancer(cmd, 60)[1].splitlines():
