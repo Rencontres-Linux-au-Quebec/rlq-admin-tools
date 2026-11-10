@@ -121,7 +121,7 @@ from urllib.parse import unquote, urlsplit
 from collections import Counter, OrderedDict
 from concurrent.futures import Future
 
-__version__ = "1.183.20261109.204500"
+__version__ = "1.184.20261109.211500"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
@@ -7895,6 +7895,13 @@ def follow(cmd, people, resolver, options, output):
         details["odoo_conf"] = odoo_perf_settings(options["profile"]) if options.get("app") in (None, "odoo") else None      # 1.178: always (memory risk)
         details["memory"] = memory_facts(facts["start"], service)
         if details["odoo_conf"] and details["odoo_conf"].get("path"):
+            # 1.184: the file read the way Odoo reads it (apps/_odoo_conf_check.py, without starting Odoo): comment after a value, key twice, wrong type
+            checker = load_module("_odoo_conf_check")
+            if checker is not None:
+                try:
+                    details["odoo_conf_check"] = [r for r in checker.check(details["odoo_conf"]["path"], language=LANGUAGE, use_odoo=False) if r[0] != "info"]
+                except Exception:                                    # noqa: BLE001 - never a reason to stop the analysis
+                    pass
             # 1.181: the configuration in effect in the running Odoo compared with its file
             details["odoo_runtime"] = odoo_runtime(service, details["odoo_conf"]["path"], advisor_history_file("odoo-conf-snapshots.json") or "/nonexistent")                                                                     # 1.178: limit, OOM kills
         if advise_progress["p"] is not None:

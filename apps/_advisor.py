@@ -32,7 +32,7 @@ import re
 import time
 from collections import Counter
 
-__version__ = "1.12.20261109.204500"
+__version__ = "1.13.20261109.211500"
 
 PROBLEM, LOOK, INFO = 2, 1, 0                         # severities: problem, to look at, information
 
@@ -462,7 +462,7 @@ class Analyzer:
         details = details or {}
         self.findings = []
         for rule in (self.rule_5xx, self.rule_nginx_upstream, self.rule_sitemap_404, self.rule_repeated_4xx, self.rule_odoo_errors, self.rule_conflicts,
-                     self.rule_push_duplicates, self.rule_mails, self.rule_slow, self.rule_memory, self.rule_odoo_runtime, self.rule_hot_pairs, self.rule_bans,
+                     self.rule_push_duplicates, self.rule_mails, self.rule_slow, self.rule_memory, self.rule_odoo_conf_check, self.rule_odoo_runtime, self.rule_hot_pairs, self.rule_bans,
                      self.rule_account_forms,
                      self.rule_latency_sample):
             try:
@@ -1250,6 +1250,22 @@ class Analyzer:
                  [tr("Memory available now (MemAvailable): {a} MB, {p} % of {t} MB").format(a=available, p=available * 100 // max(1, total), t=total)],
                  tr("the system has little memory left for PostgreSQL, its cache and the Odoo processes: the site slows down, and the kernel may stop a process"),
                  [tr("add about {gb} GB of memory to this server (Proxmox: memory of the container), or lower workers ({w} now)").format(gb=-(-(need - total) // 1024), w=workers)])
+
+    # --- the file odoo.conf read the way Odoo reads it (1.13) ---------------------------------------------------------------------------
+    def rule_odoo_conf_check(self, facts, details):
+        tr, raw = self.tr, self.raw
+        found = details.get("odoo_conf_check") or []
+        errors = [r for r in found if r[0] == "error"]
+        warnings = [r for r in found if r[0] == "warning"]
+        if not found:
+            return
+        path = (details.get("odoo_conf") or {}).get("path") or "odoo.conf"
+        evidence = [(tr("line {n}: ").format(n=line) if line else "") + (f"{key}: " if key else "") + raw(_cut(text, 220)) for _lvl, line, key, text in (errors + warnings)[:8]]
+        self.add("odoo-conf-check", PROBLEM if errors else LOOK,
+                 tr("odoo.conf: {e} errors and {w} warnings when read the way Odoo reads it").format(e=len(errors), w=len(warnings)), max(1, len(errors)), evidence,
+                 tr("Odoo reads its file with configparser: a comment after a value stays IN the value, a key given twice or a value of the wrong type stops Odoo at its next start"),
+                 [tr("fix the lines above in {path}, then check again: python3 /opt/rlq-admin-tools/apps/_odoo_conf_check.py {path}").format(path=path),
+                  tr("only after that, restart Odoo (a running Odoo keeps the values of its start: an error shows at the next restart)")])
 
     # --- the configuration in effect in the running Odoo (1.10) -------------------------------------------------------------------
     def rule_odoo_runtime(self, facts, details):

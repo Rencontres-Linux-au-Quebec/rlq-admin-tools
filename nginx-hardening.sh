@@ -93,7 +93,7 @@ run() {
     "$@"
 }
 
-readonly SCRIPT_VERSION="2.86.20261109.204500"
+readonly SCRIPT_VERSION="2.87.20261109.211500"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
 SCRIPT_NAME="$(basename "${BASH_SOURCE[0]}" .sh)"; readonly SCRIPT_NAME
 # Display language (en or fr): --lang, NGINX_HARDENING_LANG, LANGUAGE of the configuration file, LC_ALL / LANG - apps/_i18n.sh translates the output (nothing changes in French).
@@ -2372,8 +2372,10 @@ else
         echo "  Odoo compare limit_memory_soft et limit_memory_hard à la mémoire VIRTUELLE : limite = part de RAM + ${overhead_mb} $U_MEM"
         echo
         echo "  Suggestion (par processus, en octets dans odoo.conf — à valider par un test réel en DEV avant PROD) :"
-        printf "    limit_memory_soft = %d   (%d $U_MEM)\n" $(( safe_soft_mb * 1024 * 1024 )) "$safe_soft_mb"
-        printf "    limit_memory_hard = %d   (%d $U_MEM)\n" $(( safe_hard_mb * 1024 * 1024 )) "$safe_hard_mb"
+        # 2.87: lines to copy as they are: the size in MB on its own comment line (a comment after the value stays IN the value for Odoo)
+        printf "    # %d $U_MEM et %d $U_MEM (un commentaire sur sa propre ligne, jamais après la valeur)\n" "$safe_soft_mb" "$safe_hard_mb"
+        printf "    limit_memory_soft = %d\n" $(( safe_soft_mb * 1024 * 1024 ))
+        printf "    limit_memory_hard = %d\n" $(( safe_hard_mb * 1024 * 1024 ))
         echo "  Pire cas en RAM (tous les processus à la limite dure en même temps) : $(( (safe_hard_mb - overhead_mb) * processes )) $U_MEM"
         if (( too_many )); then
             warn "La mémoire est trop juste pour $workers workers : limit_memory_soft ne doit pas descendre sous ${soft_floor_mb} $U_MEM (1,5 × un worker au repos, au moins 1024 $U_MEM), sinon les workers sont recyclés dès leur démarrage. Baisser workers à $max_workers au plus, ou ajouter de la mémoire."
@@ -2535,6 +2537,21 @@ if [[ "${ODOO_SPECIFIC_STEPS:-yes}" == "yes" ]]; then
 if [[ ! -r "$ODOO_CONF" ]]; then
     warn "$ODOO_CONF introuvable ou illisible — précisez --odoo-conf CHEMIN si ce n'est pas le bon fichier."
 else
+    # 2.87: the file read the way Odoo reads it (apps/_odoo_conf_check.py): comment after a value, key given twice, value not of its type, keys
+    # unknown to Odoo, and the parsing of the Odoo of the server when it is found. Odoo itself has no command that only checks its file.
+    if [[ -r "$SCRIPT_DIR/apps/_odoo_conf_check.py" ]] && command -v python3 >/dev/null 2>&1; then
+        conf_erreurs=0
+        while IFS=$'\t' read -r niveau ligne cle texte; do
+            [[ -n "$niveau" ]] || continue
+            ou="${ligne:+ligne $ligne}${cle:+ $cle}"; ou="${ou# }"
+            case "$niveau" in
+                error) fail "odoo.conf${ou:+ ($ou)} : $texte"; conf_erreurs=$(( conf_erreurs + 1 )) ;;
+                warning) warn "odoo.conf${ou:+ ($ou)} : $texte" ;;
+                *) echo "  odoo.conf${ou:+ ($ou)} : $texte" ;;
+            esac
+        done < <(NGINX_TOOLS_I18N_LANGUE="${NGINX_TOOLS_I18N_LANGUE:-fr}" python3 "$SCRIPT_DIR/apps/_odoo_conf_check.py" --tsv "$ODOO_CONF" 2>/dev/null || true)
+        (( conf_erreurs == 0 )) && pass "odoo.conf lu comme Odoo le lit : aucune erreur (vérification seule : python3 $SCRIPT_DIR/apps/_odoo_conf_check.py $ODOO_CONF)."
+    fi
     proxy_mode=$(grep -E "^\s*proxy_mode\s*=" "$ODOO_CONF" | tail -1 | sed -E 's/^[^=]*=\s*//' | tr -d '[:space:]' | tr '[:upper:]' '[:lower:]') || true
     if [[ "$proxy_mode" == "true" || "$proxy_mode" == "1" ]]; then
         pass "proxy_mode activé — Odoo fait confiance aux en-têtes X-Forwarded-* de nginx (IP client réelle, HTTPS détecté correctement)."

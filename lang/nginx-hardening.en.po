@@ -2684,3 +2684,12 @@ msgstr "), then restart Odoo: the live chat then holds many more people at the s
 
 msgid "Discussion en direct (gevent) : limit_memory_soft_gevent "
 msgstr "Live chat (gevent): limit_memory_soft_gevent "
+
+msgid "ligne "
+msgstr "line "
+
+msgid "odoo.conf lu comme Odoo le lit : aucune erreur (vérification seule : python3 "
+msgstr "odoo.conf read the way Odoo reads it: no error (check alone: python3 "
+
+msgid " (un commentaire sur sa propre ligne, jamais après la valeur)"
+msgstr " (a comment on its own line, never after the value)"

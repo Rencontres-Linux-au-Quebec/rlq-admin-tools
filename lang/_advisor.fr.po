@@ -1218,3 +1218,18 @@ msgstr "le processus gevent garde ouvertes les connexions de la discussion et de
 
 msgid "the system has little memory left for PostgreSQL, its cache and the Odoo processes: the site slows down, and the kernel may stop a process"
 msgstr "il reste peu de mémoire pour PostgreSQL, son cache et les processus d'Odoo : le site ralentit, et le noyau peut arrêter un processus"
+
+msgid "line {n}: "
+msgstr "ligne {n} : "
+
+msgid "odoo.conf: {e} errors and {w} warnings when read the way Odoo reads it"
+msgstr "odoo.conf : {e} erreurs et {w} avertissements à la lecture comme Odoo la fait"
+
+msgid "Odoo reads its file with configparser: a comment after a value stays IN the value, a key given twice or a value of the wrong type stops Odoo at its next start"
+msgstr "Odoo lit son fichier avec configparser : un commentaire après une valeur reste DANS la valeur, une clé donnée deux fois ou une valeur du mauvais type arrête Odoo à son prochain démarrage"
+
+msgid "fix the lines above in {path}, then check again: python3 /opt/rlq-admin-tools/apps/_odoo_conf_check.py {path}"
+msgstr "corriger les lignes ci-dessus dans {path}, puis vérifier de nouveau : python3 /opt/rlq-admin-tools/apps/_odoo_conf_check.py {path}"
+
+msgid "only after that, restart Odoo (a running Odoo keeps the values of its start: an error shows at the next restart)"
+msgstr "seulement ensuite, redémarrer Odoo (un Odoo en marche garde les valeurs de son démarrage : une erreur se voit au prochain redémarrage)"
