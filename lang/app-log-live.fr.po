@@ -3475,3 +3475,6 @@ msgstr " (total "
 
 msgid "slow requests ended in the same 2 seconds ({when}) with almost no SQL: waiting for the disk (images, files of the filestore or of the modules) or for the sending of the response, not Odoo computing; host-perf-audit.py measures the read wait of the disks"
 msgstr "requêtes lentes finies dans les mêmes 2 secondes ({when}) presque sans SQL : attente du disque (images, fichiers du filestore ou des modules) ou de l'envoi de la réponse, pas un calcul d'Odoo ; host-perf-audit.py mesure l'attente des lectures des disques"
+
+msgid "slow requests are static files or images with almost no SQL: Odoo read a file (the disk), it had nothing to compute; the cache of nginx (nginx-hardening.sh --update) serves them without Odoo"
+msgstr "requêtes lentes sont des fichiers statiques ou des images presque sans SQL : Odoo a lu un fichier (le disque), il n'avait rien à calculer ; le cache de nginx (nginx-hardening.sh --update) les sert sans Odoo"

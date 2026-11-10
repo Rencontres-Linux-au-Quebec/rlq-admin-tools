@@ -1267,3 +1267,6 @@ msgstr "{k} interruptions, {n} connexions refusées : "
 
 msgid "{k} slow requests during the backup of {start} to {end} (odoo-backup.service: the database and the filestore read on the same disks)"
 msgstr "{k} requêtes lentes pendant la sauvegarde de {start} à {end} (odoo-backup.service : la base et le filestore lus sur les mêmes disques)"
+
+msgid "{k} slow requests are static files or images with almost no SQL (Odoo had nothing to compute: it read a file): "
+msgstr "{k} requêtes lentes sont des fichiers statiques ou des images presque sans SQL (Odoo n'avait rien à calculer : il a lu un fichier) : "
