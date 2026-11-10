@@ -1151,6 +1151,47 @@ class WorkerConnections289(unittest.TestCase):
         self.assertNotIn("RECHARGE", out)
 
 
+class MoinsDeDisque291(unittest.TestCase):
+    """2.91 : étape 4, ce que nginx écrit sur le disque : tampons des réponses, fichiers temporaires et cache en mémoire, cache des images d'Odoo."""
+
+    def lancer(self, fichiers):
+        d = tempfile.mkdtemp(prefix="test-rlq-disque-")
+        self.addCleanup(shutil.rmtree, d, True)
+        for nom, contenu in fichiers.items():
+            os.makedirs(os.path.dirname(os.path.join(d, nom)), exist_ok=True)
+            with open(os.path.join(d, nom), "w") as f:
+                f.write(contenu)
+        with open(script_path("nginx-hardening.sh"), encoding="utf-8") as f:
+            src = f.read()
+        fonctions = ""
+        for nom in ("ws_lire_fichier() {", "ws_config_aplatie() {", "nginx_moins_de_disque() {"):
+            debut = src.index(nom)
+            fonctions += src[debut:src.index("\n}\n", debut) + 3]
+        script = (f"NGINX_HARDENING_NGINX_DIR={d}\npass() {{ echo \"PASS $*\"; }}\nwarn() {{ echo \"WARN $*\"; }}\nfail() {{ echo \"FAIL $*\"; }}\n"
+                  f"{fonctions}\nnginx_moins_de_disque\n")
+        return subprocess.run(["bash", "-c", script], capture_output=True, text=True, timeout=30).stdout
+
+    def test_291_configuration_generique(self):
+        racine = os.path.dirname(script_path("nginx-hardening.sh"))
+        with open(os.path.join(racine, "nginx", "conf.d", "odoo-global.conf"), encoding="utf-8") as f:
+            globale = f.read()
+        with open(os.path.join(racine, "nginx", "snippets", "odoo", "_odoo-common.conf"), encoding="utf-8") as f:
+            commun = f.read()
+        out = self.lancer({"nginx.conf": "http {\n include conf.d/*.conf;\n include sites-enabled/*;\n}\n", "conf.d/odoo-global.conf": globale,
+                           "sites-enabled/site": "server {\n" + commun.replace("include /etc/nginx/", "#") + "\n}\n"})
+        self.assertIn("PASS nginx : tampons des réponses 1024 Ko au moins", out)
+        self.assertIn("PASS nginx : fichiers temporaires des réponses en mémoire (/dev/shm/nginx-proxy-temp)", out)
+        self.assertIn("PASS nginx : cache en mémoire (/dev/shm/nginx-cache)", out)
+        self.assertIn("PASS nginx : images d'Odoo (/web/image) gardées par le cache", out)
+
+    def test_291_ancienne_configuration(self):
+        out = self.lancer({"nginx.conf": "http {\n proxy_buffers 8 4k;\n proxy_cache_path /var/cache/nginx/odoo keys_zone=z:1m;\n server {\n location / {\n }\n }\n}\n"})
+        self.assertIn("WARN nginx : proxy_buffers de 32 Ko", out)
+        self.assertIn("[INFO] nginx : fichiers temporaires des réponses sur le disque", out)
+        self.assertIn("[INFO] nginx : cache sur le disque (/var/cache/nginx/odoo)", out)
+        self.assertIn("WARN nginx : aucun cache pour les images d'Odoo", out)
+
+
 class JournalEtPostgres283(BaseNginxHardening):
     """2.83 : étape 17 (journal de PostgreSQL : requêtes lentes, verrous, autovacuum, fichiers temporaires ; shared_buffers seulement signalé) et journal
     systemd persistant (étape 11). psql est simulé par NGINX_HARDENING_PSQL."""
@@ -1174,9 +1215,28 @@ class JournalEtPostgres283(BaseNginxHardening):
 
     def test_283_postgres_desactive(self):
         self.env["NGINX_HARDENING_PSQL"] = self.psql(["log_min_duration_statement=-1"])
-        cfg = self.write("nh.conf", "PG_LOGGING=no\n")
+        cfg = self.write("nh.conf", "PG_LOGGING=no\nPG_TUNING=no\n")
         rc, out, _err = self.run_cmd(["bash", self.prog, "--odoo-conf", self.path("odoo.conf"), "-c", cfg, "--check"])
         self.assertNotIn("--- 17)", out)
+
+    def test_291_postgres_moins_de_disque(self):
+        """2.91 : pour 32 Go, shared_buffers 3276 Mo, effective_cache_size 16384 Mo, work_mem 16 Mo, maintenance_work_mem 1024 Mo, points de contrôle
+        espacés, wal_compression ; une valeur plus grande déjà réglée est gardée ; --check annonce le fichier et le redémarrage pour shared_buffers."""
+        meminfo = self.write("meminfo", "MemTotal:       33554432 kB\nMemAvailable:   30000000 kB\n")
+        self.env["NGINX_HARDENING_MEMINFO"] = meminfo
+        corps = ('case "$*" in *pg_reload_conf*) echo t ;; *pg_size_bytes*) printf \'%s\\n\' shared_buffers=128 effective_cache_size=4096 work_mem=4 '
+                 'maintenance_work_mem=2048 max_wal_size=1024 min_wal_size=80 checkpoint_timeout=300 checkpoint_completion_target=90 wal_compression=off ;; '
+                 '*) printf \'%s\\n\' log_min_duration_statement=2000 log_lock_waits=on log_autovacuum_min_duration=250 log_temp_files=10240 '
+                 'config_file=/etc/postgresql/18/main/postgresql.conf ;; esac')
+        self.env["NGINX_HARDENING_PSQL"] = self.mock("fakepsql2", corps)
+        out = self.etape(re.sub(r"\x1b\[[0-9;]*m", "", self.setup("--check")), 17)
+        self.assertIn("shared_buffers 128 → 3276", out)
+        self.assertIn("effective_cache_size 4096 → 16384", out)
+        self.assertIn("work_mem 4 → 16", out)
+        self.assertNotIn("maintenance_work_mem 2048", out)                               # 2048 > 1024: kept
+        self.assertIn("checkpoint_timeout 300 → 900", out)
+        self.assertIn("wal_compression off → on", out)
+        self.assertIn("91-nginx-hardening-memory.conf (shared_buffers : redémarrage de PostgreSQL)", out)
 
     def test_283_journal_systemd_persistant(self):
         journald = os.path.dirname(self.path("journald", "x"))

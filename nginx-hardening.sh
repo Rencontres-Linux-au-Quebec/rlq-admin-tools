@@ -93,7 +93,7 @@ run() {
     "$@"
 }
 
-readonly SCRIPT_VERSION="2.90.20261109.215500"
+readonly SCRIPT_VERSION="2.91.20261109.221500"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
 SCRIPT_NAME="$(basename "${BASH_SOURCE[0]}" .sh)"; readonly SCRIPT_NAME
 # Display language (en or fr): --lang, NGINX_HARDENING_LANG, LANGUAGE of the configuration file, LC_ALL / LANG - apps/_i18n.sh translates the output (nothing changes in French).
@@ -168,6 +168,7 @@ ODOO_WORKERS_OVERRIDE=""
 JOURNAL_PERSISTENT=1      # 2.83: 1 = journal systemd kept on disk (Storage=persistent) by --update; 0 (JOURNAL_PERSISTENT=no) = left as it is
 PG_LOGGING=1              # 2.83: 1 = slow queries, lock waits, autovacuum and temporary files in the PostgreSQL log (step 17); no = step skipped
 PG_SLOW_MS="2000"         # 2.83: log_min_duration_statement written by step 17 (milliseconds)
+PG_TUNING=1               # 2.91: step 17, memory and checkpoints of PostgreSQL raised for the memory of the server (less disk); 0 = never changed
 WORKER_CONNECTIONS="2048" # 2.89: worker_connections of nginx set by --update on an Odoo server (step 4; each websocket of the live chat takes 2 connections); 0 = never changed
 ODOO_CRON_OVERRIDE=""     # 2.82: --cron-threads N (MAX_CRON_THREADS): cron threads of Odoo for step 6 (default: max_cron_threads of odoo.conf or run.sh, otherwise 2)
 # Initialized here: set by steps specific to Odoo (4 and 9), but read by the final summary - same
@@ -206,6 +207,7 @@ if declare -F config_lire >/dev/null; then
     config_defaut PG_LOGGING PG_LOGGING PG_LOGGING booleen
     config_defaut PG_SLOW_MS PG_SLOW_MS PG_SLOW_MS nombre
     config_defaut WORKER_CONNECTIONS WORKER_CONNECTIONS WORKER_CONNECTIONS nombre
+    config_defaut PG_TUNING PG_TUNING PG_TUNING booleen
 fi
 
 export ODOO_CONF_PATHS   # read by apps/_odoo_conf.sh (empty: ODOO_CONF_PATHS lines of the configuration files, then default list)
@@ -2066,6 +2068,48 @@ ws_analyser() {   # $1 Odoo HTTP port, $2 gevent port: lines (separated by \037)
 }
 ws_n=0; ws_http=0; ws_inconnu=0; ws_fixes=""; ws_sep=$'\037'; ws_fail0=$FAIL; ws_wc_vu=0
 
+# nginx_moins_de_disque (2.91): what nginx writes to the disk, read in the configuration in effect (files of NGINX_HARDENING_NGINX_DIR, flattened):
+# proxy_buffers (smallest N x SIZE: a larger response goes to a temporary file), proxy_temp_path and proxy_cache_path (in /dev/shm or on the disk),
+# a location /web/image with proxy_cache (images of Odoo kept by nginx). Reads only: the generic configuration (step 0f) sets all of them.
+nginx_moins_de_disque() {
+    local plat tampon_min="" ligne n taille ko temp cache images
+    plat=$(ws_config_aplatie 2>/dev/null | cut -f2- | sed -E 's/#.*$//' || true)
+    [[ -n "$plat" ]] || return 0
+    while read -r n taille; do
+        [[ "$n" =~ ^[0-9]+$ ]] || continue
+        ko=${taille%[kK]}; if [[ "$taille" =~ [mM]$ ]]; then ko=$(( ${taille%[mM]} * 1024 )); fi
+        [[ "$ko" =~ ^[0-9]+$ ]] || continue
+        ko=$(( n * ko ))
+        if [[ -z "$tampon_min" || "$ko" -lt "$tampon_min" ]]; then tampon_min=$ko; fi
+    done < <(printf '%s\n' "$plat" | grep -oE '^[[:space:]]*proxy_buffers[[:space:]]+[0-9]+[[:space:]]+[0-9]+[kKmM]?' | awk '{print $2, $3}' || true)
+    if [[ -z "$tampon_min" ]]; then
+        warn "nginx : proxy_buffers non défini (défaut 8 × 4 ou 8 Ko) : une réponse d'Odoo de plus de 64 Ko est écrite dans un fichier temporaire — la configuration générique (étape 0f) met 16 × 64 Ko."
+    elif (( tampon_min < 1024 )); then
+        warn "nginx : proxy_buffers de ${tampon_min} Ko au plus petit : une réponse plus grande est écrite dans un fichier temporaire (disque) ; 16 × 64 Ko (1 Mo) conseillés."
+    else
+        pass "nginx : tampons des réponses ${tampon_min} Ko au moins (proxy_buffers) : les pages et les images courantes restent en mémoire."
+    fi
+    temp=$(printf '%s\n' "$plat" | grep -oE '^[[:space:]]*proxy_temp_path[[:space:]]+[^[:space:];]+' | awk '{print $2}' | head -1) || temp=""
+    if [[ "$temp" == /dev/shm/* ]]; then
+        pass "nginx : fichiers temporaires des réponses en mémoire ($temp)."
+    else
+        echo "  [INFO] nginx : fichiers temporaires des réponses sur le disque (${temp:-dossier par défaut de nginx}) — la configuration générique (étape 0f) les met dans /dev/shm."
+    fi
+    cache=$(printf '%s\n' "$plat" | grep -oE '^[[:space:]]*proxy_cache_path[[:space:]]+[^[:space:];]+' | awk '{print $2}' | head -1) || cache=""
+    if [[ "$cache" == /dev/shm/* ]]; then
+        pass "nginx : cache en mémoire ($cache)."
+    elif [[ -n "$cache" ]]; then
+        echo "  [INFO] nginx : cache sur le disque ($cache) — la configuration générique (étape 0f) le met dans /dev/shm (disques SATA : moins de lectures)."
+    fi
+    images=$(printf '%s\n' "$plat" | awk '/^[[:space:]]*location.*web\/image/ {dans = 1; next} dans && /proxy_cache[[:space:]]+[a-z_]+;/ {print "oui"; exit} dans && /^[[:space:]]*}/ {dans = 0}')
+    if [[ "$images" == "oui" ]]; then
+        pass "nginx : images d'Odoo (/web/image) gardées par le cache de nginx (seulement celles qu'Odoo déclare publiques)."
+    else
+        warn "nginx : aucun cache pour les images d'Odoo (/web/image) : chaque image repasse par Odoo et par les disques — la configuration générique (étape 0f) l'ajoute dans _odoo-common.conf."
+    fi
+    return 0
+}
+
 # nginx_worker_connections CURRENT (2.89, --update, Odoo server only: step 4 is an Odoo step): worker_connections of the events block of
 # nginx.conf set to WORKER_CONNECTIONS (absent: nginx's default 512, the line is added), and worker_rlimit_nofile (4 x that, at least 8192) added
 # when absent: above the open-file limit of the nginx processes (1024 by default) nginx -t warns and the connections beyond fail. Copy first,
@@ -2192,6 +2236,8 @@ ${ws_ind}proxy_read_timeout ${WS_DELAI_REGLE}s;" "$ws_reel"
             fi
         done < <(printf '%s' "$ws_fixes" | tac)
     fi
+    # 2.91: less disk for nginx (SATA disks): buffers of the responses, temporary files and cache in memory, cache of the images of Odoo
+    nginx_moins_de_disque
     if (( ws_n == 0 && ws_http == 0 && ws_inconnu == 0 )); then
         if (( amonts_n > 0 )); then
             fail "nginx : aucun location vers le port gevent d'Odoo ($ODOO_GEVENT_PORT) — le websocket (discussions en temps réel) ne peut pas fonctionner."
@@ -3560,12 +3606,81 @@ if [[ "$APP_NAME" == "odoo" ]] && command -v nginx >/dev/null 2>&1 && command -v
     echo
 fi
 
+# pg_moins_de_disque DROPIN CONF (2.91): PostgreSQL reads and writes less on the disks when it has memory: shared_buffers (its cache of the tables:
+# RAM / 10, 4 GB at most), effective_cache_size (RAM / 2: what the system caches, used by the planner only), work_mem (sorts in memory instead of
+# temporary files), maintenance_work_mem (vacuum, indexes), fewer checkpoints (checkpoint_timeout 15 min, max_wal_size 4 GB, min_wal_size 1 GB,
+# checkpoint_completion_target 0.9: writes spread out) and wal_compression. A value only goes UP (a larger value set by the administrator is kept).
+# Everything is reloaded without restart, except shared_buffers: restart of PostgreSQL asked on a terminal (Odoo cut a few seconds), otherwise said.
+pg_moins_de_disque() {
+    local dropin="$1" conf="$2" ram_mb sb_mb ecs_mb wm_mb mwm_mb now k v want cur actuel lignes=() diff=() redemarrer=0 rep=""
+    ram_mb=$(awk '/^MemTotal:/ {print int($2 / 1024)}' "${NGINX_HARDENING_MEMINFO:-/proc/meminfo}" 2>/dev/null)
+    [[ "$ram_mb" =~ ^[0-9]+$ ]] && (( ram_mb >= 2048 )) || return 0
+    sb_mb=$(( ram_mb / 10 )); (( sb_mb > 4096 )) && sb_mb=4096
+    ecs_mb=$(( ram_mb / 2 ))
+    wm_mb=8; (( ram_mb >= 16384 )) && wm_mb=16
+    mwm_mb=$(( ram_mb / 32 )); (( mwm_mb > 1024 )) && mwm_mb=1024; (( mwm_mb < 64 )) && mwm_mb=64
+    now=$(pg_sql "SELECT 'shared_buffers=' || pg_size_bytes(current_setting('shared_buffers')) / 1048576 UNION ALL SELECT 'effective_cache_size=' || pg_size_bytes(current_setting('effective_cache_size')) / 1048576 UNION ALL SELECT 'work_mem=' || pg_size_bytes(current_setting('work_mem')) / 1048576 UNION ALL SELECT 'maintenance_work_mem=' || pg_size_bytes(current_setting('maintenance_work_mem')) / 1048576 UNION ALL SELECT 'max_wal_size=' || pg_size_bytes(current_setting('max_wal_size')) / 1048576 UNION ALL SELECT 'min_wal_size=' || pg_size_bytes(current_setting('min_wal_size')) / 1048576 UNION ALL SELECT 'checkpoint_timeout=' || setting FROM pg_settings WHERE name = 'checkpoint_timeout' UNION ALL SELECT 'checkpoint_completion_target=' || (setting::numeric * 100)::int FROM pg_settings WHERE name = 'checkpoint_completion_target' UNION ALL SELECT 'wal_compression=' || current_setting('wal_compression')" 2>/dev/null) || now=""
+    [[ -n "$now" ]] || { warn "PostgreSQL : réglages de mémoire illisibles — non vérifié."; return 0; }
+    # key=wanted value (MB, seconds, % for the target)|line written in the file
+    for k in "shared_buffers=$sb_mb|shared_buffers = ${sb_mb}MB" "effective_cache_size=$ecs_mb|effective_cache_size = ${ecs_mb}MB" "work_mem=$wm_mb|work_mem = ${wm_mb}MB" \
+             "maintenance_work_mem=$mwm_mb|maintenance_work_mem = ${mwm_mb}MB" "max_wal_size=4096|max_wal_size = 4GB" "min_wal_size=1024|min_wal_size = 1GB" \
+             "checkpoint_timeout=900|checkpoint_timeout = 15min" "checkpoint_completion_target=90|checkpoint_completion_target = 0.9"; do
+        v="${k%%|*}"; want="${v#*=}"; v="${v%%=*}"
+        cur=$(printf '%s\n' "$now" | sed -n "s/^$v=//p" | head -1)
+        if [[ "$cur" =~ ^[0-9]+$ ]] && (( cur >= want )); then
+            lignes+=("# $v : $cur déjà réglé (>= $want), gardé")
+        else
+            lignes+=("${k#*|}"); diff+=("$v ${cur:-?} → $want")
+            [[ "$v" == "shared_buffers" ]] && redemarrer=1
+        fi
+    done
+    actuel=$(printf '%s\n' "$now" | sed -n 's/^wal_compression=//p' | head -1)
+    if [[ "$actuel" == "off" ]]; then lignes+=("wal_compression = on"); diff+=("wal_compression off → on"); else lignes+=("# wal_compression : $actuel, gardé"); fi
+    if (( ${#diff[@]} == 0 )); then
+        pass "PostgreSQL : mémoire et points de contrôle déjà réglés pour ${ram_mb} $U_MEM (shared_buffers, work_mem, max_wal_size...) : peu d'accès au disque."
+        return 0
+    fi
+    local diff_txt; diff_txt=$(printf '%s ; ' "${diff[@]}"); diff_txt="${diff_txt% ; }"
+    if [[ "$CHECK_ONLY" == "1" ]]; then
+        warn "PostgreSQL : plus de mémoire, moins de disque pour ${ram_mb} $U_MEM ($diff_txt) — --update écrira $dropin$( (( redemarrer )) && printf ' (shared_buffers : redémarrage de PostgreSQL)')."
+        return 0
+    fi
+    if [[ -n "$conf" ]] && ! grep -qsE "^[[:space:]]*include_dir[[:space:]]*=[[:space:]]*'conf\.d'" "$conf"; then
+        warn "PostgreSQL : $conf n'inclut pas conf.d/ — à ajouter à la main : ${lignes[*]}."
+        return 0
+    fi
+    mkdir -p "$(dirname "$dropin")"
+    {
+        echo "# Ajouté par nginx-hardening.sh 2.91 pour ${ram_mb} Mo de mémoire : PostgreSQL lit et écrit moins sur les disques."
+        echo "# Une valeur n'est que montée (une valeur plus grande déjà réglée est gardée). Pour retirer : supprimer ce fichier, puis redémarrer PostgreSQL."
+        printf '%s\n' "${lignes[@]}"
+    } > "$dropin"
+    chown postgres:postgres "$dropin" 2>/dev/null || true
+    pg_sql "SELECT pg_reload_conf()" >/dev/null 2>&1 || true
+    pass "PostgreSQL : $dropin écrit et rechargé ($diff_txt)."
+    if (( redemarrer )); then
+        if [[ -t 0 && -z "${NGINX_TOOLS_TESTS:-}" ]]; then
+            tty_ligne; read -e -r -p "  Redémarrer PostgreSQL maintenant pour shared_buffers (Odoo coupé quelques secondes) ? [o/N] " rep || rep=""
+        fi
+        if [[ "${rep,,}" == o || "${rep,,}" == oui || "${rep,,}" == y || "${rep,,}" == yes ]]; then
+            if run systemctl restart postgresql >/dev/null 2>&1; then
+                pass "PostgreSQL redémarré : shared_buffers = ${sb_mb} $U_MEM en vigueur. Odoo se reconnecte seul (sinon : systemctl restart du service d'Odoo)."
+            else
+                fail "PostgreSQL : redémarrage impossible — systemctl status postgresql."
+            fi
+        else
+            warn "PostgreSQL : shared_buffers = ${sb_mb} $U_MEM écrit, en vigueur au prochain redémarrage de PostgreSQL (systemctl restart postgresql à un moment calme, Odoo coupé quelques secondes)."
+        fi
+    fi
+    return 0
+}
+
 # 2.83: PostgreSQL : journal des requêtes lentes, des verrous attendus, de l'autovacuum et des fichiers temporaires. Sans lui, une page lente « à 99 % SQL »
 # ne dit pas QUELLE requête ni QUEL verrou : app-log-live.py ne peut que deviner. Fichier ajouté dans le conf.d de PostgreSQL (include_dir de Debian),
 # rechargé sans redémarrage. Attention : le texte des requêtes lentes est écrit dans le journal de PostgreSQL (données personnelles possibles :
 # il suit sa rotation). shared_buffers est seulement signalé (un changement demande un redémarrage de PostgreSQL).
-if [[ "$APP_NAME" == "odoo" && "$PG_LOGGING" == "1" ]]; then
-    echo "--- 17) PostgreSQL : journal des requêtes lentes et des verrous ---"
+if [[ "$APP_NAME" == "odoo" && ( "$PG_LOGGING" == "1" || "$PG_TUNING" == "1" ) ]]; then
+    echo "--- 17) PostgreSQL : journal des requêtes lentes et des verrous, mémoire (moins de disque) ---"
     PSQL_CMD="${NGINX_HARDENING_PSQL:-}"
     if [[ -z "$PSQL_CMD" && -n "${NGINX_TOOLS_TESTS:-}" ]]; then
         echo "  [INFO] tests : PostgreSQL non lu (NGINX_HARDENING_PSQL absent)."             # never the real PostgreSQL from the test suite
@@ -3588,7 +3703,9 @@ if [[ "$APP_NAME" == "odoo" && "$PG_LOGGING" == "1" ]]; then
             pg_diff_txt=$(printf '%s ; ' "${pg_diff[@]}"); pg_diff_txt="${pg_diff_txt% ; }"
             pg_want_txt=$(printf '%s, ' "${pg_want[@]}"); pg_want_txt="${pg_want_txt%, }"
             pg_conf=$(pg_get config_file); pg_dropin="$(dirname "${pg_conf:-/etc/postgresql/x/main/postgresql.conf}")/conf.d/90-nginx-hardening-logging.conf"
-            if (( ${#pg_diff[@]} == 0 )); then
+            if [[ "$PG_LOGGING" != "1" ]]; then
+                :                                                                                  # 2.91: step entered for PG_TUNING only
+            elif (( ${#pg_diff[@]} == 0 )); then
                 pass "PostgreSQL : requêtes de plus de ${PG_SLOW_MS} ms, verrous attendus, autovacuum et fichiers temporaires déjà journalisés."
             elif [[ "$CHECK_ONLY" == "1" ]]; then
                 warn "PostgreSQL : journal incomplet ($pg_diff_txt) — --update écrira $pg_dropin et rechargera PostgreSQL (sans redémarrage)."
@@ -3611,13 +3728,8 @@ if [[ "$APP_NAME" == "odoo" && "$PG_LOGGING" == "1" ]]; then
                     warn "PostgreSQL : $pg_dropin écrit, mais rechargement impossible — systemctl reload postgresql à la main."
                 fi
             fi
-            sb=$(pg_get shared_buffers); bs=$(pg_get block_size)
-            if [[ "$sb" =~ ^[0-9]+$ && "${bs:-8192}" =~ ^[0-9]+$ ]]; then
-                sb_mb=$(( sb * ${bs:-8192} / 1048576 ))
-                ram_mb=$(free -m 2>/dev/null | awk '/^Mem:/ {print $2}')
-                if [[ "$ram_mb" =~ ^[0-9]+$ ]] && (( ram_mb >= 4096 && sb_mb <= 128 )); then
-                    echo "  [INFO] PostgreSQL : shared_buffers = ${sb_mb} $U_MEM (valeur par défaut) pour ${ram_mb} $U_MEM de mémoire ; $(( ram_mb / 16 )) à $(( ram_mb / 8 )) $U_MEM conviendraient (cache des tables d'Odoo). Non modifié : demande un redémarrage de PostgreSQL et se retire de la mémoire laissée à Odoo (étape 6)."
-                fi
+            if [[ "$PG_TUNING" == "1" ]]; then
+                pg_moins_de_disque "$(dirname "${pg_conf:-/etc/postgresql/x/main/postgresql.conf}")/conf.d/91-nginx-hardening-memory.conf" "$pg_conf"
             fi
         fi
     fi

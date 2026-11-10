@@ -706,6 +706,18 @@ class Version17(unittest.TestCase):
         bon = dict(conf, values=dict(conf["values"], limit_memory_soft_gevent="2147483648", limit_memory_hard_gevent="2684354560"))
         self.assertNotIn("gevent-memory-limit", par_id(ADV.analyze(faits(), {"odoo_conf": bon, "memory": memoire})))
 
+    def test_attente_du_disque(self):
+        """1.14 : 4 requêtes lentes finies dans les mêmes 2 s presque sans SQL (DEV, 2026-11-09 20:35:28, images) : cause « attente du disque »."""
+        t0 = time.time() - 3600
+        slow = [{"t": t0 + d, "total": 10.4, "t_sql": 0.01, "t_py": 10.4, "url": u, "ip": "198.51.100.20", "sql_n": 16}
+                for d, u in ((0.0, "/web/image/website.s_showcase_default_image"), (0.1, "/web/image/website.library_image_10"),
+                             (0.2, "/website/static/src/img/website_loader/1.jpg"), (0.3, "/web/image/website.s_image_title_default_image"))]
+        f = par_id(ADV.analyze(faits(slow=slow)))["slow-requests"]
+        self.assertIn("waiting for the disk", f["cause"])
+        self.assertTrue(any("4 slow requests ended in the same 2 seconds" in e for e in f["evidence"]))
+        self.assertEqual(ADV.ended_together([(t0, 3.0, 4.0), (t0 + 0.5, 0.0, 6.0), (t0 + 1.0, 0.0, 6.0)]), (0, None))      # one with SQL: only 2
+        self.assertEqual(ADV.ended_together([(t0, 0.0, 6.0), (t0 + 5, 0.0, 6.0), (t0 + 10, 0.0, 6.0)]), (0, None))         # not together
+
     def test_meme_page_en_boucle(self):
         who = {"203.0.113.44": "host-44.example.net [203.0.113.44] CD (République démocratique du Congo)"}
         hot = [{"ip": "203.0.113.44", "url": "/web/dataset/call_kw/ir.config_parameter/get_web_dialog_size_config", "n": 1606, "ip_total": 1613,
