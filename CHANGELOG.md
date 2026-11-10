@@ -394,6 +394,16 @@ Earlier history was archived outside this repository when this file was created.
 
 ## app-log-live.py
 
+### 1.188.20261109.234500 - Health without the probes of this server; slow static files said
+
+- Title: the slow requests of the probes of this server no longer count in the health; the explanation says when slow requests are static files read from the disk.
+- Reason: exports of DEV and PROD of 2026-11-09 23:35 with app-log-live.py 1.187 and apps/_advisor.py 1.15.
+- Changes: health(): the indicator of the slow requests counts neither the cold cache (10 minutes after a start) nor the requests of this server (app-health-check.py, 127.0.0.1); analyze_slow(): line « N slow requests are static files or images with almost no SQL ... the cache of nginx serves them without Odoo » (apps/_advisor.py FILE_RE); lang/app-log-live.fr.po.
+- Bugs fixed: symptom: DEV health « ⚠ à regarder » for 6 probes of app-health-check.py on a cold Odoo; fix: left out of the count (still listed).
+- Safeguards and edge cases: the slow requests of visitors still count.
+- Checks performed: test_app_log_live (slow requests, 13 tests) [OK].
+- Action required: none.
+
 ### 1.187.20261109.233000 - Interruptions cut where Odoo answered again; memory recyclings counted since the start of Odoo
 
 - Title: the interruptions seen by nginx are cut at each return of Odoo, and the recyclings of workers and of gevent are counted since the start of the running Odoo.
@@ -5165,6 +5175,19 @@ Earlier history was archived outside this repository when this file was created.
   - Not changed: nginx-log-audit.sh keeps its own bash values (its --page-burst default is 8 against 15 here; this difference is still to be decided).
 
 ## apps/_advisor.py
+
+### 1.16.20261109.234500 - Static files slow without SQL: waiting for the disk; one timeline line per interruption; most often: present findings only
+
+- Title: the slow static files and images explain the slow requests as a wait for the disk; the timeline lists each interruption of nginx; « Problems seen most often » cites only findings still present.
+- Reason: exports of DEV and PROD of 2026-11-09 23:35 with app-log-live.py 1.187 and apps/_advisor.py 1.15.
+- Changes: new FILE_RE (/static/, /web/image, /web/content, image, font, css and js files); rule_slow(): evidence « {k} slow requests are static files or images with almost no SQL ... » and the cause « waiting for the disk » when they are half of the slow requests or more; timeline(): one « nginx: Odoo unreachable » entry per interruption (times of app-log-live.py 1.187); History.record(): top limited to the findings of this analysis; lang/_advisor.fr.po; nginx-tools-tests/test_advisor.py: test_116_fichiers_statiques_lents_attente_du_disque, test_116_plus_souvent_seulement_les_constats_presents, test_nouveau_recurrent_calme_regle_priorites updated.
+- Bugs fixed:
+  - symptom: PROD cause « temps passé hors de la base de données : pages lourdes, trop peu ou trop de workers » while 11 of the 20 slow requests were static files of 9 to 10 s without SQL; fix: they are recognised.
+  - symptom: timeline « Odoo injoignable, début (49 refus jusqu'à 22:55:15) » for three short interruptions; fix: one line each.
+  - symptom: DEV « Problèmes vus le plus souvent » listed errors gone for a week (5xx on /en_CA/web/login, Missing model); fix: present findings only.
+- Safeguards and edge cases: a page whose time is SQL is never counted as a file.
+- Checks performed: test_advisor [OK].
+- Action required: none.
 
 ### 1.15.20261109.233000 - Findings corrected after the DEV and PROD exports of 2026-11-09
 

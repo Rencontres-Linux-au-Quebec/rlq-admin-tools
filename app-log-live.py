@@ -121,7 +121,7 @@ from urllib.parse import unquote, urlsplit
 from collections import Counter, OrderedDict
 from concurrent.futures import Future
 
-__version__ = "1.187.20261109.233000"
+__version__ = "1.188.20261109.234500"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
@@ -5319,6 +5319,12 @@ class Stats:
             k, when = advisor.ended_together([(info[4], info[1], info[2]) for info in self.slow_info if info[4]])
             if k:
                 lines.append(color_code(ORANGE, f"{k}") + " " + TR("slow requests ended in the same 2 seconds ({when}) with almost no SQL: waiting for the disk (images, files of the filestore or of the modules) or for the sending of the response, not Odoo computing; host-perf-audit.py measures the read wait of the disks").format(when=clock_of(when)))
+        # 1.188: static files and images slow without SQL: Odoo read a file (the disk), it had nothing to compute
+        if advisor is not None and hasattr(advisor, "FILE_RE"):
+            files = sum(1 for (total, url, _ip), info in zip(self.slow_requests, self.slow_info)
+                        if advisor.FILE_RE.search(url or "") and info[1] < 0.1 * max(0.01, total) and info[2] >= 2)
+            if files >= 2:
+                lines.append(color_code(ORANGE, f"{files}") + " " + TR("slow requests are static files or images with almost no SQL: Odoo read a file (the disk), it had nothing to compute; the cache of nginx (nginx-hardening.sh --update) serves them without Odoo"))
         cluster = max(minutes.values())
         if cluster >= 3:
             lines.append(color_code(ORANGE, f"{cluster}") + " slow requests in the same minute: overloaded server or database lock (see “Program” and app-health-check.py)")
@@ -5411,6 +5417,9 @@ class Stats:
             started = self.service_start() if self.service_start else None
             cold_n = sum(1 for info in info_lines if started and info[4] and 0 <= info[4] - started <= 600)
             probes_n = sum(1 for _t, _u, ip in self.slow_requests if ip in self.server or local_address(ip))
+            # 1.188: the health counts neither the cold cache nor the probes of this server (DEV 2026-11-09: « ⚠ » for 6 probes of app-health-check.py)
+            outside_n = sum(1 for (_t, _u, ip), info in zip(self.slow_requests, info_lines)
+                            if (started and info[4] and 0 <= info[4] - started <= 600) or ip in self.server or local_address(ip))
             extra = []
             if cold_n:
                 extra.append(TR("{k} in the 10 minutes after the start of Odoo at {when} (cold cache: assets and views computed once), not counted in the health").format(
@@ -5420,7 +5429,7 @@ class Stats:
             indicator(0, f"Slow requests (≥ {self.slowest:g} s) : " + (f"{len(self.slow_requests)}" if self.slow_requests else none_fem()),
                        [self.slow_row(t, u, ip, n, ts, tp, _instant) for (t, u, ip), (n, ts, tp, _size, _instant) in more]
                       + ([TR("… and {n} other slow requests").format(n=len(self.slow_requests) - len(more))] if len(self.slow_requests) > len(more) else [])
-                      + extra + self.analyze_slow(), (1, 5), len(self.slow_requests) - cold_n)
+                      + extra + self.analyze_slow(), (1, 5), len(self.slow_requests) - outside_n)
         if self.watch_it:
             batch = self.watched
             errors = sum(1 for _, _, c, _, _ in batch if c >= 400)

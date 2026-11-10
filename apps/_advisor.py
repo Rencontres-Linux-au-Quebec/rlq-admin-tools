@@ -32,7 +32,7 @@ import re
 import time
 from collections import Counter
 
-__version__ = "1.15.20261109.233000"
+__version__ = "1.16.20261109.234500"
 
 PROBLEM, LOOK, INFO = 2, 1, 0                         # severities: problem, to look at, information
 
@@ -78,6 +78,7 @@ PRODUCT_ID_RE = re.compile(r"^(?:/[a-z]{2}(?:_[A-Z]{2})?)?/shop/(?:product/)?[^/
 WP_SITEMAP_RE = re.compile(r"/(?:sitemap_index|wp-sitemap|sitemap-index|post-sitemap|page-sitemap)\.xml$|/sitemap\.xml\.gz$")
 LONG_CONNECTION_RE = re.compile(r"/(?:websocket|longpolling)(?:[/?\s\"]|$)")          # 1.4: a connection kept open (chat, bus): its duration is not a slowness
 KILLED_RE = re.compile(r"oom-kill|code=killed|status=9/KILL|Failed with result|Killing process|signal=KILL|core-dump|Main process exited, code=(?:exited, status=[1-9]|killed|dumped)")
+FILE_RE = re.compile(r"/static/|^/(?:[a-z]{2}(?:_[A-Z]{2})?/)?web/(?:image|content)\b|\.(?:png|jpe?g|gif|webp|svg|ico|woff2?|ttf|css|js)(?:\?|$)", re.I)   # 1.16: files (no computation by Odoo)
 TOGETHER_S = 2                                        # 1.14: slow requests that end less than this apart, with almost no SQL: a common wait (disk)
 
 
@@ -1123,6 +1124,12 @@ class Analyzer:
         # computation: reading the disk (images and files of the filestore, files of the modules) or sending the response (DEV 2026-11-09: 4 images,
         # 4 workers, 10 s each, 0.01 s of SQL, ended at 20:35:28; reads of the SATA disks: 160 to 230 ms each, measured by host-perf-audit.py)
         disk_k, disk_when = ended_together([(x["t"], x.get("t_sql") or 0, x.get("t_py") or 0) for x in slow if x.get("t")])
+        # 1.16: a static file or an image that takes seconds without SQL: Odoo has nothing to compute, it reads a file (PROD 2026-11-09: 11 of the 20
+        # slow requests, 9 to 10 s each, alone or together)
+        files = [x for x in slow if FILE_RE.search(x.get("url") or "") and (x.get("t_sql") or 0) < 0.1 * max(0.01, x.get("total") or 0) and (x.get("t_py") or 0) >= 2]
+        if len(files) >= 2:
+            evidence.append(tr("{k} slow requests are static files or images with almost no SQL (Odoo had nothing to compute: it read a file): ").format(k=len(files))
+                            + " ; ".join(raw(_cut(x.get("url") or "", 50)) for x in files[:3]))
         if disk_k:
             evidence.append(tr("{k} slow requests ended in the same 2 seconds ({when}) with almost no SQL: they waited together outside the database").format(
                 k=disk_k, when=time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(disk_when))))
@@ -1182,7 +1189,7 @@ class Analyzer:
             advice = [tr("look at what ran at that time (scheduled actions above, backup, ZFS snapshots); if it repeats at the same hour, move that task"),
                       tr("to see the locks next time: log_lock_waits = on and log_min_duration_statement = 2000 in postgresql.conf (reload PostgreSQL)")]
             fix = None
-        elif disk_k and 2 * disk_k >= len(slow):
+        elif (disk_k and 2 * disk_k >= len(slow)) or (len(files) >= 2 and 2 * len(files) >= len(slow)):
             cause = tr("waiting for the disk: several requests ended together with almost no SQL and no computation to do (images, files): reading the filestore or the files of the modules on slow disks, or writing a temporary file")
             advice = [tr("host-perf-audit.py on the Proxmox host (read wait of the disks; --duration 24h): above about 20 ms per read, the disks are the limit"),
                       tr("nginx-hardening.sh --update: cache of the images of Odoo and temporary files of nginx in memory; on the host: an SSD for the filestore and PostgreSQL (ZFS: special vdev or L2ARC)")]
@@ -1612,6 +1619,17 @@ def timeline(facts, details=None, tr=_identity, raw=_identity, limit=60):
     for e in facts.get("nginx_errors") or ():
         message = NGINX_TAG_RE.sub("", e["message"])
         if UPSTREAM_RE.search(message) and e.get("first") and e.get("last"):
+            # 1.16: one entry per interruption (5 minutes without refusal = a new one), from the instants of app-log-live.py 1.187
+            times = sorted(e.get("times") or ())
+            if times:
+                for t in times:
+                    near = next((k for k, v in groups.items() if k[0] == "t" and 0 <= t - v[1] <= 300), None)
+                    if near:
+                        groups[near][1] = t
+                        groups[near][2] += 1
+                    else:
+                        groups[("t", int(t))] = [t, t, 1]
+                continue
             g = groups.setdefault(message.split(", client:", 1)[0], [e["first"], e["last"], 0])
             g[0], g[1], g[2] = min(g[0], e["first"]), max(g[1], e["last"]), g[2] + e["n"]
     for first, last, n in groups.values():
@@ -1712,7 +1730,9 @@ class History:
                 if k > 0:
                     frequency[fid] += 1
         self.data["titles"] = {k: v for k, v in self.data["titles"].items() if k in frequency or k in counts}
-        top = [(self.data["titles"].get(fid, fid), k) for fid, k in frequency.most_common(5) if k >= 2]
+        # 1.16: only the findings still present in THIS analysis (DEV 2026-11-09 still listed « 5xx on /en_CA/web/login ×8 » and « Missing model »
+        # of analyses of the week before, gone since)
+        top = [(self.data["titles"].get(fid, fid), k) for fid, k in frequency.most_common() if k >= 2 and counts.get(fid)][:5]
         return {"previous": float(previous["t"]) if previous else None, "tags": tags, "resolved": resolved, "top": top, "runs": len(self.data["runs"])}
 
     def save(self):

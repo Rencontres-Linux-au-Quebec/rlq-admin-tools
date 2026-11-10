@@ -8,6 +8,7 @@ import re
 import stat
 import tempfile
 import time
+import shutil
 import unittest
 from collections import Counter
 
@@ -338,9 +339,17 @@ class Historique(unittest.TestCase):
         self.assertEqual(r["resolved"], [])                                         # a n'avait rien de nouveau au tour précédent
         r = self.tour(self.f(("c", 1)), "s3", t0 + 180)
         self.assertEqual(r["resolved"], ["T b"])
-        self.assertEqual(r["top"][0], ("T b", 3))
+        self.assertEqual(r["top"][0], ("T c", 2))                                  # 1.16: b is resolved: no longer among the problems to fix first
         self.assertEqual(r["runs"], 4)
         self.assertEqual(stat.S_IMODE(os.stat(self.path).st_mode), 0o600)
+
+    def test_116_plus_souvent_seulement_les_constats_presents(self):
+        """1.16 : « Problèmes vus le plus souvent » ne cite que des constats encore présents (DEV listait des erreurs disparues depuis une semaine)."""
+        t0 = time.time()
+        for i in range(3):
+            self.tour(self.f(("vieux", i + 1), ("present", i + 1)), "s%d" % i, t0 + i)
+        r = self.tour(self.f(("present", 9)), "s9", t0 + 10)
+        self.assertEqual([titre for titre, _k in r["top"]], ["T present"])
 
     def test_revenu_apres_une_absence(self):
         t0 = time.time()
@@ -746,6 +755,20 @@ class Version17(unittest.TestCase):
         self.assertNotIn("memory-limit-too-low", f)                                   # 1637 MB > 691 MB at rest, no recycling since the start
         f = par_id(ADV.analyze(faits(), {"odoo_conf": conf, "memory": dict(memoire, gevent_restarts=3)}))
         self.assertTrue(any("limit_memory_soft_gevent = 3221225472 (3072 MB)" in a for a in f["gevent-memory-limit"]["advice"]), f["gevent-memory-limit"]["advice"])
+
+    def test_116_fichiers_statiques_lents_attente_du_disque(self):
+        """1.16 : PROD 2026-11-09 23:35 : 11 des 20 requêtes lentes sont des fichiers statiques ou des images, 9 à 10 s chacune presque sans SQL,
+        seules ou ensemble : cause « attente du disque » ; une page avec du SQL n'en est pas."""
+        t0 = time.time() - 30000
+        urls = ["/website/static/src/js/content/cookie_watcher.js", "/web/static/lib/odoo_ui_icons/fonts/odoo_ui_icons.woff2", "/base/static/img/country_flags/ca.png?height=25",
+                "/web/image/website.library_image_10", "/website_event/static/src/img/event_cover_4.jpg"]
+        lentes = [{"t": t0 + i * 900, "total": 9.5, "t_sql": 0.0, "t_py": 9.5, "url": u, "ip": "198.51.100.9", "sql_n": 0} for i, u in enumerate(urls)]
+        lentes += [{"t": t0 + 20000, "total": 21.9, "t_sql": 21.7, "t_py": 0.2, "url": "/blog/presentations-3/tag/ia-17", "ip": "198.51.100.8", "sql_n": 36}]
+        f = par_id(ADV.analyze(faits(slow=lentes)))["slow-requests"]
+        self.assertIn("waiting for the disk", f["cause"])
+        self.assertTrue(any(e.startswith("5 slow requests are static files or images with almost no SQL") for e in f["evidence"]), f["evidence"])
+        self.assertIsNone(ADV.FILE_RE.search("/blog/presentations-3/tag/ia-17"))
+        self.assertIsNotNone(ADV.FILE_RE.search("/en_CA/web/image/123"))
 
     def test_meme_page_en_boucle(self):
         who = {"203.0.113.44": "host-44.example.net [203.0.113.44] CD (République démocratique du Congo)"}
