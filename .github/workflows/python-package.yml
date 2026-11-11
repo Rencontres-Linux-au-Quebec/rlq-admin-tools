@@ -38,3 +38,23 @@ jobs:
     - name: Test with pytest
       run: |
         pytest
+
+  bash:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+    - name: Bash syntax (bash -n, blocking)
+      run: |
+        status=0
+        for f in $(git ls-files '*.sh' odoo-sql-maint); do
+          bash -n "$f" || status=1
+        done
+        exit $status
+    - name: shellcheck errors (blocking)
+      run: |
+        shellcheck --version
+        git ls-files '*.sh' odoo-sql-maint | xargs shellcheck -S error
+    - name: shellcheck warnings (informational)
+      run: git ls-files '*.sh' odoo-sql-maint | xargs shellcheck -S warning || true
