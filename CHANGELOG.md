@@ -2375,6 +2375,19 @@ Earlier history was archived outside this repository when this file was created.
 
 ## odoo-warmup.py
 
+### 1.38.20261111.170200 - Unused global declaration removed (flake8 F824 blocked the CI)
+
+- Title: the function main() no longer declares NGINX_HOST as global; the lint step of the GitHub workflow passes.
+- Reason: the Python workflow of the repository runs flake8 with the errors F82* as blocking; F824 reported
+  "global NGINX_HOST is unused" on this file, so every job failed on main and on the pull requests.
+- Changes: main() declares only "global VERBOSE". The function never assigns NGINX_HOST (the other functions that
+  assign it keep their own declaration).
+- Bugs fixed: symptom: lint step failed (exit code 1). Diagnosis: the global declaration in main() was unused.
+  Fix: removed from the declaration.
+- Safeguards and edge cases: NGINX_HOST is read as a module variable, which does not need the declaration.
+- Checks performed: py_compile; tests of nginx-tools-tests/test_odoo_warmup.py run by the testeur agent.
+- Action required: none.
+
 ### 1.37.20261030.153422 - No plural marker "(s)" in the displayed texts
 
 - Title: the texts shown by the program no longer contain "(s)": "requête(s)" becomes "requêtes", "adresse(s)" becomes "adresses", "lente(s)" becomes "lentes" (French and English).

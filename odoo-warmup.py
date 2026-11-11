@@ -56,7 +56,7 @@ try:                    # line editing in prompts
 except ImportError:
     pass
 
-__version__ = "1.37.20261030.153422"
+__version__ = "1.38.20261111.170200"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
@@ -987,7 +987,7 @@ def main():
                    traduire=I18N.tr if I18N else None, langue=I18N.langue if I18N else "fr",
                    configuration=_menu.configuration_de(SCRIPT_DIR, "odoo-warmup", sys.argv[1:]),
                    nom=f"odoo-warmup.py v{__version__}")
-    global VERBOSE, NGINX_HOST
+    global VERBOSE
     VERBOSE = args.verbose
     if args.changelog:
         return show_changelog()
