@@ -335,6 +335,10 @@ class HardeningPropose(unittest.TestCase):
     def test_etape_12_ter_presente(self):
         self.assertIn("--- 12 ter) Page de liens", self.texte)
 
+    def test_etape_avant_0f(self):
+        # The link page is installed before the generic nginx configuration (step 0f), so that step 0f sees it.
+        self.assertLess(self.texte.index("--- 12 ter) Page de liens"), self.texte.index('echo "--- 0f)'))
+
     def test_question_avant_toute_action(self):
         # Each action comes after its own question: the update question before the update, the creation question before the template copy.
         mise_a_jour = self.texte.index("Mettre à jour la page de liens maintenant")
