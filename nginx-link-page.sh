@@ -29,7 +29,7 @@
 set -u
 LANG_C="${LC_ALL:-${LC_MESSAGES:-${LANG:-C}}}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
-readonly SCRIPT_VERSION="1.1.20261111.093000"
+readonly SCRIPT_VERSION="1.3.20261111.105500"
 readonly SCRIPT_NAME="nginx-link-page"
 readonly CHANGELOG_FILE="$SCRIPT_DIR/CHANGELOG.md"
 
@@ -70,6 +70,7 @@ Options (ordre alphabetique / alphabetical order) :
   ${C_OPT}--check${C_RESET}                    verifie la configuration, n'ecrit rien (defaut) / check only, writes nothing (default)
   ${C_OPT}-c, --config FILE${C_RESET}          lit SEUL ce fichier / read ONLY this file
   ${C_OPT}-h, --help${C_RESET}                 affiche cette aide / show this help
+  ${C_OPT}--init${C_RESET}                     cree la configuration depuis le modele / create the configuration from the template
   ${C_OPT}--lang LANG${C_RESET}                langue des messages : fr ou en / message language: fr or en
   ${C_OPT}--update${C_RESET}                   installe ou met a jour les pages (root, confirmation) / install or update (root, asks first)
   ${C_OPT}--version${C_RESET}                  affiche la version / show the version
@@ -126,6 +127,25 @@ else
     lire_fichier "${HOME:-/root}/.$SCRIPT_NAME.conf"
 fi
 
+# init_config CIBLE : writes the commented template to CIBLE; never overwrites an existing file.
+init_config() {   # init_config CIBLE [auto] : "auto" means no configuration was found at all
+    local cible="$1" modele="$SCRIPT_DIR/nginx-link-page.conf.example"
+    if [[ ! -r "$modele" ]]; then err "$(m "modele introuvable : $modele" "template not found: $modele")"; exit 1; fi
+    if [[ -e "$cible" ]]; then err "$(m "existe deja, rien n'a ete ecrit : $cible" "already exists, nothing written: $cible")"; exit 1; fi
+    if ! mkdir -p "$(dirname "$cible")" 2>/dev/null || ! cp "$modele" "$cible" 2>/dev/null; then
+        err "$(m "ecriture impossible dans $cible : lancer avec sudo" "cannot write to $cible: run with sudo")"; exit 1
+    fi
+    chmod 644 "$cible"
+    if [[ "${2:-}" == "auto" ]]; then
+        attn "$(m "Aucune configuration trouvee : le modele a ete copie dans $cible." "No configuration found: the template was copied to $cible.")"
+        echo "  $(m "Remplissez ce fichier (decommenter les lignes utiles), puis relancez. Rien n'a ete installe." "Fill in this file (uncomment the lines you need), then run again. Nothing was installed.")"
+        exit 1
+    fi
+    ok "$(m "configuration creee" "configuration created") : $cible"
+    echo "  $(m "Ensuite : editer ce fichier (decommenter les lignes utiles), puis --check, puis --update --yes." "Next: edit this file (uncomment the lines you need), then --check, then --update --yes.")"
+    exit 0
+}
+
 # ---- command line (after the configuration: it wins) ----
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -140,6 +160,7 @@ while [[ $# -gt 0 ]]; do
             fi
             exit 0 ;;
         --check) MODE="check"; shift ;;
+        --init) MODE="init"; shift ;;
         --update) MODE="update"; shift ;;
         --yes) YES=1; shift ;;
         -h|--help) usage; exit 0 ;;
@@ -147,6 +168,20 @@ while [[ $# -gt 0 ]]; do
         *) echo "Argument inconnu / unknown argument: $1" >&2; usage >&2; exit 2 ;;
     esac
 done
+
+# --init writes the template and stops: there is no configuration to validate yet
+if [[ "$MODE" == "init" ]]; then
+    init_config "${CONFIG_EXPLICIT:-${NGINX_LINK_PAGE_ETC_DEFAULT:-/etc/default}/$SCRIPT_NAME.conf}"
+fi
+# No configuration file at all (and no -c): the template is copied automatically, then the program stops so that it is
+# filled in first. Written to /etc/default when that folder is writable (root), otherwise to ~/.nginx-link-page.conf.
+if (( ${#CFG_FICHIERS[@]} == 0 )) && [[ -z "$CONFIG_EXPLICIT" ]]; then
+    cible="${NGINX_LINK_PAGE_ETC_DEFAULT:-/etc/default}/$SCRIPT_NAME.conf"
+    if [[ ! -d "$(dirname "$cible")" || ! -w "$(dirname "$cible")" ]]; then
+        cible="${HOME:-/root}/.$SCRIPT_NAME.conf"
+    fi
+    init_config "$cible" auto
+fi
 
 # ---- validation ----
 PROBLEMES=()
@@ -250,6 +285,9 @@ for i in "${PAGES_N[@]}"; do
 done
 
 if (( ${#PROBLEMES[@]} > 0 )); then
+    if (( ${#CFG_FICHIERS[@]} == 0 )); then
+        echo "  $(m "Astuce : sudo $SCRIPT_NAME.sh --init cree la configuration a partir du modele." "Tip: sudo $SCRIPT_NAME.sh --init creates the configuration from the template.")" >&2
+    fi
     for pb in "${PROBLEMES[@]}"; do err "$pb"; done
     exit 1
 fi

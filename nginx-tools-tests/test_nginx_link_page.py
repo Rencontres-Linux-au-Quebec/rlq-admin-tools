@@ -84,10 +84,44 @@ class Base(unittest.TestCase):
 
 
 class Configuration(Base):
-    def test_exemple_valide(self):
+    def test_modele_commente_refuse_et_guide(self):
         r = self.lancer("-c", str(self.conf(EXEMPLE.read_text(encoding="utf-8"))), "--check")
+        self.assertNotEqual(r.returncode, 0)
+        self.assertIn("SITE_TITLE", r.stderr)
+
+    def test_modele_decommente_valide(self):
+        lignes = [re.sub(r"^#(?=[A-Z])", "", ligne) for ligne in EXEMPLE.read_text(encoding="utf-8").splitlines()]
+        r = self.lancer("-c", str(self.conf("\n".join(lignes) + "\n")), "--check")
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
         self.assertIn("valide", r.stdout)
+
+    def test_sans_configuration_cree_le_modele_automatiquement(self):
+        r = self.lancer("--check")
+        self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
+        cree = self.etc / "nginx-link-page.conf"
+        self.assertTrue(cree.exists())
+        self.assertEqual(cree.read_text(encoding="utf-8"), EXEMPLE.read_text(encoding="utf-8"))
+        self.assertIn("Rien n'a ete installe", r.stdout)
+
+    def test_sans_configuration_et_sans_creation_pour_version_et_aide(self):
+        self.assertEqual(self.lancer("--version").returncode, 0)
+        self.assertEqual(self.lancer("--help").returncode, 0)
+        self.assertFalse((self.etc / "nginx-link-page.conf").exists())
+
+    def test_config_explicite_absente_n_est_pas_creee(self):
+        r = self.lancer("-c", str(self.tmp / "absent.conf"), "--check")
+        self.assertNotEqual(r.returncode, 0)
+        self.assertFalse((self.tmp / "absent.conf").exists())
+        self.assertFalse((self.etc / "nginx-link-page.conf").exists())
+
+    def test_init_cree_puis_refuse_l_ecrasement(self):
+        cible = self.tmp / "sous" / "nginx-link-page.conf"
+        r = self.lancer("--init", "-c", str(cible))
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertEqual(cible.read_text(encoding="utf-8"), EXEMPLE.read_text(encoding="utf-8"))
+        r = self.lancer("--init", "-c", str(cible))
+        self.assertNotEqual(r.returncode, 0)
+        self.assertIn("existe", r.stderr)
 
     def test_minimal_valide(self):
         r = self.lancer("-c", str(self.conf(MINIMAL)), "--check")
@@ -290,6 +324,29 @@ PAGE_2_TITLE=Deux
             r = self.lancer("-c", str(self.conf(MINIMAL)), "--update", env=self.env)
             self.assertNotEqual(r.returncode, 0)
             self.assertIn("--yes", r.stderr)
+
+
+class HardeningPropose(unittest.TestCase):
+    """nginx-hardening.sh asks before creating or updating the link page; nothing runs without the answer."""
+
+    def setUp(self):
+        self.texte = (RACINE / "nginx-hardening.sh").read_text(encoding="utf-8")
+
+    def test_etape_12_ter_presente(self):
+        self.assertIn("--- 12 ter) Page de liens", self.texte)
+
+    def test_question_avant_toute_action(self):
+        # Each action comes after its own question: the update question before the update, the creation question before the template copy.
+        mise_a_jour = self.texte.index("Mettre à jour la page de liens maintenant")
+        appel_update = self.texte.index('"$LIENS_SCRIPT" --update --yes')
+        creation = self.texte.index("Créer une page de liens (LittleLink, /liens/) maintenant")
+        appel_creation = self.texte.index('"$LIENS_SCRIPT" --check || true')
+        self.assertLess(mise_a_jour, appel_update)
+        self.assertLess(creation, appel_creation)
+        self.assertLess(appel_update, creation)
+
+    def test_sans_terminal_rien_n_est_lance(self):
+        self.assertIn('if [[ -t 0 && -t 2 ]]; then', self.texte)
 
 
 if __name__ == "__main__":

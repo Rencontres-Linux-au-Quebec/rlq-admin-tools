@@ -1,60 +1,69 @@
-# nginx-link-page.conf.example : MODELE, sans donnees reelles (exemple.org).
-# Copier vers /etc/default/nginx-link-page.conf (ou ~/.nginx-link-page.conf) puis remplir. Ne jamais versionner la copie reelle.
-# Copy to /etc/default/nginx-link-page.conf (or ~/.nginx-link-page.conf) and fill in. Never commit the real copy.
+# ============================================================================================
+# nginx-link-page.conf : MODELE. Tout est en commentaire : rien n'est lu tant que la ligne
+# n'est pas decommentee (retirer le # en debut de ligne). Un # suivi d'un espace est une
+# explication ; un # colle au nom d'une cle (#SITE_TITLE=...) est un reglage a decommenter.
+# ============================================================================================
 #
-# Format : CLE=VALEUR, en majuscules. Les guillemets sont retires. " # commentaire" en fin de ligne est ignore.
-# Format: KEY=VALUE, uppercase. Quotes are removed. " # comment" at the end of a line is ignored.
-
-# ---- Contenu partage : une seule fois pour toutes les pages / shared content: once for all pages ----
-SITE_TITLE=Exemple de groupe
-SITE_HEADING=Exemple de groupe
-SITE_DESCRIPTION=Retrouvez-nous sur nos canaux. / Find us on our channels.
-SITE_LANGUAGE=fr
-SITE_FOOTER=Exemple de groupe
-SITE_LOGO_URL=https://example.org/logo.png
-SITE_LOGO_ALT=Logo du groupe
-
-# ---- Liens partages, numerotes sans trou / shared links, numbered without gaps ----
-# LINK_n_ICON : builtin:NOM (icones de LittleLink, ex. builtin:facebook, builtin:youtube, builtin:linkedin,
-#               builtin:generic-calendar, builtin:generic-blog, builtin:generic-website) ou https://... (telechargee une fois)
-# LINK_n_ICON_DARK : variante pour le theme sombre (facultatif) / dark theme variant (optional)
-LINK_1_LABEL=Groupe Facebook
-LINK_1_URL=https://www.facebook.com/groups/0000000000
-LINK_1_ICON=builtin:facebook
-
-LINK_2_LABEL=Chaine YouTube
-LINK_2_URL=https://www.youtube.com/@exemple
-LINK_2_ICON=builtin:youtube
-
-LINK_3_LABEL=Discussion
-LINK_3_URL=https://chat.example.org/equipe/
-LINK_3_ICON=https://example.org/chat-clair.svg
-LINK_3_ICON_DARK=https://example.org/chat-sombre.svg
-
-LINK_4_LABEL=Tous nos evenements
-LINK_4_URL=https://example.org/evenements
-LINK_4_ICON=builtin:generic-calendar
-
-LINK_5_LABEL=Notre blogue
-LINK_5_URL=https://example.org/blogue
-LINK_5_ICON=builtin:generic-blog
-
-# ---- Pages : une par bloc PAGE_n_, numerotees sans trou / pages: one block per page, numbered without gaps ----
-# PAGE_n_ENABLED : yes ou no. PAGE_n_ENGINE : littlelink (linkstack est reserve, pas encore pris en charge).
-# PAGE_n_PATH : chemin unique, ex. /liens/ et /liens2/ (les deux peuvent coexister pour comparer).
-# PAGE_n_DIR : dossier unique, absolu, non imbrique dans un autre dossier de page.
-# PAGE_n_THEME : auto, light ou dark. PAGE_n_TITLE : titre de la page (facultatif, sinon SITE_TITLE).
-
-PAGE_1_ENABLED=yes
-PAGE_1_ENGINE=littlelink
-PAGE_1_PATH=/liens/
-PAGE_1_DIR=/var/www/liens
-PAGE_1_THEME=auto
-PAGE_1_TITLE=
-
-PAGE_2_ENABLED=no
-PAGE_2_ENGINE=littlelink
-PAGE_2_PATH=/liens2/
-PAGE_2_DIR=/var/www/liens2
-PAGE_2_THEME=dark
-PAGE_2_TITLE=Exemple (theme sombre)
+# REMPLISSAGE RAPIDE / QUICK FILL
+#   1. sudo nginx-link-page.sh --check              cree le fichier s'il n'existe pas (copie de ce modele)
+#   2. sudo nano /etc/default/nginx-link-page.conf  decommenter et remplacer les exemples
+#   3. nginx-link-page.sh --check                   verifie la configuration, n'ecrit rien
+#   4. sudo nginx-link-page.sh --update --yes       installe les pages et recharge nginx
+#
+# REGLES / RULES
+#   - CLE=VALEUR, en MAJUSCULES. Les guillemets sont retires. " # texte" en fin de ligne est ignore.
+#   - Liens : LINK_1_..., LINK_2_... sans trou. Pages : PAGE_1_..., PAGE_2_... sans trou.
+#   - Adresses : https:// seulement. Chemins de page : /liens/, /liens2/ (uniques, avec le / final).
+#   - Dossier de page : chemin absolu, unique, et jamais a l'interieur d'un autre dossier de page.
+#   - Icone : builtin:NOM (icones de LittleLink) ou https:// vers une image PNG, JPEG, WebP ou SVG.
+#   - Icones builtin courantes : facebook, linkedin, youtube, generic-calendar, generic-blog, generic-website
+#
+# ---------------------------------------------------------------------------------------------
+# 1. CONTENU PARTAGE (SITE_TITLE est obligatoire) / SHARED CONTENT (SITE_TITLE is required)
+# ---------------------------------------------------------------------------------------------
+#SITE_TITLE=Mon groupe
+#SITE_HEADING=Mon groupe
+#SITE_DESCRIPTION=Retrouvez-nous sur nos canaux.
+#SITE_LANGUAGE=fr                                  # fr ou en
+#SITE_FOOTER=Mon groupe
+#SITE_LOGO_URL=https://exemple.org/logo.png        # facultatif ; doit etre une adresse https://
+#SITE_LOGO_ALT=Logo du groupe
+#
+# ---------------------------------------------------------------------------------------------
+# 2. LIENS (au moins LINK_1) / LINKS (at least LINK_1), numerotes sans trou
+# ---------------------------------------------------------------------------------------------
+#LINK_1_LABEL=Page Facebook                        # 80 caracteres au maximum
+#LINK_1_URL=https://www.facebook.com/exemple
+#LINK_1_ICON=builtin:facebook                      # facultatif (defaut : generic-website)
+#
+#LINK_2_LABEL=Chaine YouTube
+#LINK_2_URL=https://www.youtube.com/@exemple
+#LINK_2_ICON=builtin:youtube
+#
+#LINK_3_LABEL=Discussion
+#LINK_3_URL=https://chat.exemple.org/equipe/
+#LINK_3_ICON=https://exemple.org/icone-clair.svg  # icone pour le theme clair
+#LINK_3_ICON_DARK=https://exemple.org/icone-sombre.svg   # facultatif : icone pour le theme sombre
+#
+# ---------------------------------------------------------------------------------------------
+# 3. PAGES (au moins PAGE_1) / PAGES (at least PAGE_1), une par bloc
+# ---------------------------------------------------------------------------------------------
+# PAGE_n_ENABLED : yes ou no ; PAGE_n_ENGINE : littlelink (linkstack est reserve, non pris en charge)
+# PAGE_n_PATH    : adresse de la page, ex. /liens/ ou /liens2/ (chaque page a la sienne)
+# PAGE_n_DIR     : dossier ou installer les fichiers, ex. /var/www/liens (absolu, unique)
+# PAGE_n_THEME   : auto, light ou dark ; PAGE_n_TITLE : titre de la page (facultatif)
+#
+#PAGE_1_ENABLED=yes
+#PAGE_1_ENGINE=littlelink
+#PAGE_1_PATH=/liens/
+#PAGE_1_DIR=/var/www/liens
+#PAGE_1_THEME=auto
+#PAGE_1_TITLE=
+#
+# Exemple d'une seconde page pour comparer : desactivee tant que vous ne la voulez pas.
+#PAGE_2_ENABLED=no
+#PAGE_2_ENGINE=littlelink
+#PAGE_2_PATH=/liens2/
+#PAGE_2_DIR=/var/www/liens2
+#PAGE_2_THEME=dark
+#PAGE_2_TITLE=Exemple (theme sombre)

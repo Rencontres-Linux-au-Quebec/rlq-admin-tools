@@ -3483,6 +3483,25 @@ Earlier history was archived outside this repository when this file was created.
 
 ## nginx-hardening.sh
 
+### 2.96.20261111.110000 - Ask whether to create or update the link page
+
+- Motif de la demande: l'administrateur doit pouvoir creer la page de liens depuis nginx-hardening.sh, sans connaitre
+  nginx-link-page.sh.
+- Detail des modifications:
+  - nginx-hardening.sh (2.96.20261111.110000): nouvelle etape 12 ter. Si nginx-link-page.sh est present et qu'une
+    configuration existe, la question de la mise a jour est posee au terminal; sinon la question de la creation.
+    La creation copie le modele commente (via nginx-link-page.sh --check) et demande de le remplir. Rien n'est installe
+    sans reponse positive. En --check, l'etape signale seulement l'etat.
+  - nginx-tools-tests/test_nginx_link_page.py: classe HardeningPropose (question avant toute action, sans terminal rien
+    n'est lance).
+- Bugs corriges: aucun.
+- Garde-fous et cas limites: sans terminal (entree non interactive), l'etape ne lance rien et l'indique; la reponse par
+  defaut est non; nginx-link-page.sh --update fait sa propre verification (nginx -t) et restaure l'ancien fragment en cas
+  d'echec.
+- Verifications effectuees: tests de la classe HardeningPropose lances par le testeur; verification de la syntaxe bash.
+- Action requise: aucune. Lancer sudo nginx-hardening.sh --update dans un terminal pour recevoir la question.
+
+
 ### 2.95.20261111.090000 - Empty fragment for the link page, included by _odoo-common.conf
 
 - Title: the link page is no longer built here; nginx-hardening.sh only creates the (empty) fragment it includes.
@@ -4205,6 +4224,49 @@ Earlier history was archived outside this repository when this file was created.
 - Current version. Earlier history archived outside the repository.
 
 ## nginx-link-page.sh
+
+### 1.3.20261111.105500 - Configuration created automatically when none exists
+
+- Motif de la demande: l'utilisateur ne doit pas avoir a lancer --init. Sans fichier de configuration, le programme doit
+  creer lui-meme la configuration a partir du modele, puis indiquer quoi remplir.
+- Detail des modifications:
+  - nginx-link-page.sh (1.3.20261111.105500): si aucun fichier n'est lu et qu'aucun -c n'est donne, le modele est copie
+    dans /etc/default/nginx-link-page.conf (si ce dossier est accessible en ecriture), sinon dans ~/.nginx-link-page.conf.
+    Le programme s'arrete ensuite avec un avertissement, sans rien installer (code de sortie 1).
+  - --init reste disponible mais n'est plus necessaire.
+  - nginx-link-page.conf.example: procedure de remplissage mise a jour (la premiere etape cree le fichier).
+  - Tests: la creation automatique, l'absence de creation pour --version et --help, et l'absence de creation pour un
+    fichier donne avec -c.
+- Bugs corriges: aucun.
+- Garde-fous et cas limites: un -c absent n'est jamais cree (une erreur est affichee); --version et --help ne creent rien;
+  le fichier cree n'est jamais ecrase (--init refuse un fichier existant); rien n'est installe au premier passage.
+- Verifications effectuees: tests unitaires de nginx-tools-tests/test_nginx_link_page.py lances par le testeur; execution
+  manuelle sans configuration (copie dans ~/.nginx-link-page.conf, code de sortie 1).
+- Action requise: aucune de plus que de remplir le fichier cree, puis relancer --check et --update --yes.
+
+
+### 1.2.20261111.104500 - Commented template, --init, and a hint when no configuration exists
+
+- Motif de la demande: lancer --check sans fichier de configuration donnait trois erreurs sans indiquer quoi faire. Il faut
+  un modele commente, avec des exemples et la procedure de remplissage.
+- Detail des modifications:
+  - nginx-link-page.conf.example: entierement commente (aucune cle active), avec la procedure de remplissage rapide, les
+    regles, les icones courantes et des exemples pour chaque bloc (contenu partage, liens, pages).
+  - nginx-link-page.sh (1.2.20261111.104500): option --init, qui copie le modele dans /etc/default/nginx-link-page.conf
+    (ou dans le fichier donne avec -c). Il n'ecrase jamais un fichier existant et indique quand sudo est necessaire.
+  - Sans fichier de configuration, --check ajoute une astuce qui indique la commande --init.
+  - nginx-tools-tests/test_nginx_link_page.py: le modele commente doit etre refuse avec un message clair; le modele
+    decommente doit etre valide; --init cree le fichier puis refuse de l'ecraser; l'astuce est affichee sans configuration.
+- Bugs corriges: aucun. Le modele precedent, qui contenait des valeurs actives d'exemple, pouvait etre pris pour une
+  configuration reelle; il est remplace par un modele entierement commente.
+- Garde-fous et cas limites: --init refuse un fichier existant; le modele est lu depuis le dossier du programme, donc
+  --init ne fonctionne que si le depot est present; les lignes commentees (#CLE) sont ignorees par le lecteur de
+  configuration; le modele decommente est verifie par les tests.
+- Verifications effectuees: tests unitaires de nginx-tools-tests/test_nginx_link_page.py lances par le testeur; execution
+  manuelle de --check sans configuration (message et code de sortie 1), de --init (creation) et de --help (ordre des options).
+- Action requise: sur le serveur, lancer sudo nginx-link-page.sh --init, puis remplir /etc/default/nginx-link-page.conf
+  (decommenter les lignes utiles), puis --check, puis sudo nginx-link-page.sh --update --yes.
+
 
 ### 1.1.20261111.093000 - Several link pages at once, one engine per page, shared content
 
