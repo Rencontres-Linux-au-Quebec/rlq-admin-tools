@@ -43,16 +43,27 @@ class PageLiens(unittest.TestCase):
             self.assertTrue(lien.startswith("https://"), lien)
 
     def test_liens_attendus(self):
-        for attendu in ("facebook.com/groups/137418503088952", "linkedin.com/company/108532398/",
-                        "linkedin.com/groups/8117971/", "youtube.com/@Rencontres-Linux.Quebec",
-                        "framateam.org/linuxmeetup-mtl/", "rencontres-linux.quebec/event/journee-portes-ouvertes-sur-linux-2026-125/"):
+        attendus = ("facebook.com/groups/137418503088952", "linkedin.com/company/108532398/",
+                    "linkedin.com/groups/8117971/", "youtube.com/@Rencontres-Linux.Quebec",
+                    "framateam.org/linuxmeetup-mtl/",
+                    "rencontres-linux.quebec/event/journee-portes-ouvertes-sur-linux-2026-125/",
+                    "rencontres-linux.quebec/blog")
+        for attendu in attendus:
             self.assertTrue(any(attendu in lien for lien in self.liens), attendu)
+        self.assertIn("https://www.rencontres-linux.quebec/event", self.liens)
 
     def test_logo_du_site_present_et_reference(self):
         logo = os.path.join(ROOT, "nginx", "liens", "images", "rlq-logo.png")
         with open(logo, "rb") as f:
             self.assertEqual(f.read(8), b"\x89PNG\r\n\x1a\n")
         self.assertIn("images/rlq-logo.png", self.html)
+
+    def test_icones_mattermost_clair_et_sombre(self):
+        for nom in ("mattermost-bleu.svg", "mattermost-blanc.svg"):
+            with open(os.path.join(ROOT, "nginx", "liens", "images", nom), encoding="utf-8") as f:
+                self.assertTrue(f.read().lstrip().startswith("<svg"), nom)
+        self.assertIn('srcset="images/mattermost-blanc.svg"', self.html)
+        self.assertIn('src="images/mattermost-bleu.svg"', self.html)
 
     def test_pas_de_script_ni_de_formulaire(self):
         # la politique CSP de la page n'autorise aucun script ; la page ne doit pas en contenir

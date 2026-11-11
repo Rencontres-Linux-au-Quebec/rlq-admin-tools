@@ -3483,6 +3483,26 @@ Earlier history was archived outside this repository when this file was created.
 
 ## nginx-hardening.sh
 
+### 2.98.20261111.083000 - Mattermost icon in two colours, chosen by the system theme
+
+- Title: the Mattermost icon uses the blue version on a light background and the white version on a dark background.
+- Reason: request of the administrator on 2026-11-11: two variations of the Mattermost logo were supplied.
+- Changes: nginx/liens/images/mattermost-bleu.svg (fill #22315b) and mattermost-blanc.svg (fill #fff), replacing mattermost.svg and the stylesheet nginx/liens/css/rlq.css of 2.97 (removed, with its copy in lien_page_installer()). nginx/liens/index.html: a picture element with a prefers-color-scheme dark source. Tests: test_nginx_link_page (both files present, both referenced).
+- Bugs fixed: none.
+- Safeguards and edge cases: the page follows the system preference (prefers-color-scheme), not the theme class of LittleLink: a forced theme-dark or theme-light class does not change the icon. Both icons are local files; the Content-Security-Policy is unchanged.
+- Checks performed: test_nginx_link_page; bash -n nginx-hardening.sh.
+- Action required: run `sudo nginx-hardening.sh --link-page --update` again (answer o) to copy the two icons.
+
+### 2.97.20261111.082500 - Mattermost icon, links to all events and to the blog on the link page
+
+- Title: the link page gets the Mattermost icon, a link to all events and a link to the blog.
+- Reason: request of the administrator on 2026-11-11: use the Mattermost logo supplied, add the list of all events (https://www.rencontres-linux.quebec/event) and the blog (https://www.rencontres-linux.quebec/blog).
+- Changes: nginx/liens/images/mattermost.svg (icon supplied by the administrator); nginx/liens/css/rlq.css (inverts the black icon in dark theme only, following the system preference or the theme-dark class); nginx/liens/index.html: the Framateam button uses the Mattermost icon, two new buttons (all events, blog), stylesheet css/rlq.css; lien_page_installer() copies nginx/liens/css/ after the LittleLink stylesheets. Tests: test_nginx_link_page (16 tests).
+- Bugs fixed: none.
+- Safeguards and edge cases: the icon and the stylesheet are local files, so the Content-Security-Policy is unchanged; the events and blog links point to the public pages, which list the events as they are published, so the page does not need to be updated for each event.
+- Checks performed: test_nginx_link_page (16 tests); bash -n nginx-hardening.sh.
+- Action required: run `sudo nginx-hardening.sh --link-page --update` again (answer o) to copy the icon and the stylesheet.
+
 ### 2.96.20261111.081500 - Logo of Rencontres Linux Québec on the link page
 
 - Title: the link page shows the association's logo; its file is copied with the page.
