@@ -109,6 +109,7 @@ import re
 import shlex
 import shutil
 import signal
+import statistics
 import subprocess
 import sys
 import tempfile
@@ -121,7 +122,7 @@ from urllib.parse import unquote, urlsplit
 from collections import Counter, OrderedDict
 from concurrent.futures import Future
 
-__version__ = "1.188.20261109.234500"
+__version__ = "1.189.20261110.193238"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
@@ -405,7 +406,9 @@ def translate_protected(text):
     if kept:
         result = re.sub("\ue003(\\d+)\ue004", lambda m: kept[int(m.group(1))], result)
     return result.replace("\ue001", "").replace("\ue002", "")
-STYLES = {"nginx": "1;35", "person": "1;32", "team": "1;32", "place": "1;36", "server": "36", "dns": "36", "org": "33", "reseau": "33", "ip": "90", "connection": "1;37;44",
+# 1.189: colours mean something only. Green = known person or team, cyan = place or this server, red = banned. The owner of an address block
+# (org / network, formerly yellow), the country and brackets of an address ("ip", formerly gray) are plain white: they identify nothing by themselves.
+STYLES = {"nginx": "1;35", "person": "1;32", "team": "1;32", "place": "1;36", "server": "36", "dns": "36", "org": "", "reseau": "", "ip": "", "connection": "1;37;44",
           "failure": "1;" + ORANGE, "error": "1;31", "warning": ORANGE, "debug": "2", "highlight": "30;46",
           # INVERSE VIDEO (7): suspicious request; URL of a 5xx (red) or 4xx (yellow) error. Whitelist address (white background) or places file address (gray background):
           # EXPLICIT background AND text (black), never "7;90" (inverted gray): on a theme where bright black is black, the address became black on black
@@ -1997,8 +2000,8 @@ def column_header(request_length=False, minimal=False, width=COLUMN_WIDTH, colum
 
 
 def transfer_style(total):
-    """1.141: traffic light of the time (SQL + Python, or the duration of a websocket): white under 1 s, green from 1 s to under 3 s,
-    yellow from 3 s to 6 s, red above 6 s (None = no colour)."""
+    """1.141: traffic light of the time (SQL + Python): white under 1 s, green from 1 s to under 3 s, yellow from 3 s to 6 s, red above 6 s
+    (None = no colour). 1.189: no longer used for the duration of a websocket (a connection kept open is not a slow request)."""
     if total < 1:
         return None
     if total < 3:
@@ -2373,7 +2376,7 @@ class Formatting:
             for d, f, r in retained:
                 if shown is None and (d, f) == (m.start(hint), m.end(hint)):
                     rendering = r
-            if hint in (6, 7) and value and t_py:                     # 1.141: traffic light of the time; a websocket duration (no SQL time) too
+            if hint in (6, 7) and value and t_py and sql:             # 1.189: a websocket duration is NOT coloured: a connection kept open (chat, bus) is normal, not slow
                 style = transfer_style(float(t_sql or 0) + float(t_py))
                 if style:
                     rendering = color_code(style, shown or value)      # 1.141: the shown text (a websocket duration: 3 decimals)
@@ -4304,6 +4307,7 @@ IO_BUSY_PSI = 10.0           # % of the time with at least one task waiting for 
 IO_BUSY_UTIL = 60.0          # ... or % of utilization of the busiest disk
 SLOW_LATENCY_S = 1.0         # slow request for the latency report (independent of --slow, which only colors the lines)
 HIST_BASE, HIST_RATIO, HIST_N = 0.005, 1.25, 48           # duration histogram: 5 ms x 1.25^k (up to ~ 230 s)
+DISK_LATENCY_KEEP = 20000    # 1.189: one value per sample (ms per disk operation, all disks), kept for the statistics: about 7 days at 30 s
 
 
 def in_container():
@@ -4335,6 +4339,7 @@ class LatencyMonitor:
         self.started = False
         self.prev = None
         self.batch = False               # 1.179: True for --advise (past window read at once: no disk sample matches the requests)
+        self.disk_latency = collections.deque(maxlen=DISK_LATENCY_KEEP)      # 1.189: one value per sample: mean ms per disk operation (all disks)
 
     @staticmethod
     def _bin():
@@ -4386,6 +4391,7 @@ class LatencyMonitor:
             b["util_sum"] += util
             if util >= b["util_max"]:
                 b["util_max"], b["util_dev"] = util, dev or ""
+            wait_ms, operations = 0.0, 0.0          # 1.189: waiting time of all the operations of this sample, weighted by their count (per second: the interval cancels)
             for d, v in r["disks"].items():
                 if d not in self.disks_seen:
                     self.disks_seen[d] = md_rotational(d) if d.startswith("md") else self.sysperf.rotational(d)
@@ -4395,6 +4401,12 @@ class LatencyMonitor:
                 if v["w_await"] is not None and v["w_s"] >= 1:
                     b["await_w"] += v["w_await"]
                     b["await_w_n"] += 1
+                if v["r_await"] is not None:        # None when no read completed in the interval
+                    wait_ms, operations = wait_ms + v["r_await"] * v["r_s"], operations + v["r_s"]
+                if v["w_await"] is not None:
+                    wait_ms, operations = wait_ms + v["w_await"] * v["w_s"], operations + v["w_s"]
+            if operations > 0:
+                self.disk_latency.append(wait_ms / operations)
             self.samples += 1
             self.first_sample = self.first_sample or r["wall"] - r["dt"]
             self.current = r
@@ -4494,6 +4506,20 @@ class LatencyMonitor:
         return "⚠", (f"occasional disk waits (I/O pressure {io_avg:.1f} % on average, peak {t['io_some_max']:.0f} % — {slow_share * 100:.0f} % of the slow requests while the disk "
                      "was busy): visible during startups, backups or nightly tasks, not enough by themselves to justify SSD — compare the hours below")
 
+    def disk_latency_stats(self):
+        """1.189: statistics of the disk latency samples (ms per disk operation): {"n", "min", "mean", "median", "stdev", "p95", "p99", "max"}, or None.
+        The values are kept one by one (DISK_LATENCY_KEEP), so the percentiles are exact (nearest rank); the standard deviation is the sample one."""
+        with self.lock:
+            values = sorted(self.disk_latency)
+        if not values:
+            return None
+        n = len(values)
+
+        def nearest_rank(p):
+            return values[min(n - 1, max(0, math.ceil(p / 100.0 * n) - 1))]
+        return {"n": n, "min": values[0], "max": values[-1], "mean": sum(values) / n, "median": statistics.median(values),
+                "stdev": statistics.stdev(values) if n > 1 else 0.0, "p95": nearest_rank(95), "p99": nearest_rank(99)}
+
     def lines(self, level=9):
         """Lines of the LATENCY block for the dashboard and the summary: verdict (level 4), detail (6), per-hour table (8)."""
         t, bins = self.totals()
@@ -4517,6 +4543,11 @@ class LatencyMonitor:
             kinds = [f"{d} " + ("ZFS volume" if d.startswith("zd") else ("RAID " if d.startswith("md") else "") + ("HDD" if v else "SSD" if v is False else "?")) for d, v in sorted(self.disks_seen.items())]      # 1.83: name + kind ("?, HDD" said nothing; zdN = ZFS volume)
             res.append((6, numbers(f"    Disks ({s} samples, every {self.sample_s:g} s): {disk}" + (f" · wait per operation: {', '.join(aw)}" if aw else "")
                                    + (f" · types: {', '.join(kinds)}" if kinds else ""))))
+            lat = self.disk_latency_stats()                     # 1.189: the distribution of the waits, one value per sample
+            if lat:
+                res.append((6, numbers(f"    Disk latency per operation ({lat['n']} samples): min {lat['min']:.2f} ms · mean {lat['mean']:.2f} ms · "
+                                       f"median {lat['median']:.2f} ms · standard deviation {lat['stdev']:.2f} ms · 95 % under {lat['p95']:.2f} ms · "
+                                       f"99 % under {lat['p99']:.2f} ms · maximum {lat['max']:.2f} ms")))
             source = (self.prev or {}).get("psi_source", "kernel")
             res.append((6, numbers(f"    Waiting time (PSI, {source}): disk {t['io_some'] / s:.1f} % (peak {t['io_some_max']:.0f} %, all tasks {t['io_full'] / s:.1f} %) · "
                                    f"processor {t['cpu_some'] / s:.1f} % · memory {t['mem_some'] / s:.1f} % · CPU busy {t['cpu'] / s:.0f} %, iowait {t['iowait'] / s:.1f} %, steal {t['steal'] / s:.1f} %")))

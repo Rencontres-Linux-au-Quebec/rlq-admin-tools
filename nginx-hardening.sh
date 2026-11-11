@@ -93,7 +93,7 @@ run() {
     "$@"
 }
 
-readonly SCRIPT_VERSION="2.93.20261109.223000"
+readonly SCRIPT_VERSION="2.94.20261110.193238"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
 SCRIPT_NAME="$(basename "${BASH_SOURCE[0]}" .sh)"; readonly SCRIPT_NAME
 # Display language (en or fr): --lang, NGINX_HARDENING_LANG, LANGUAGE of the configuration file, LC_ALL / LANG - apps/_i18n.sh translates the output (nothing changes in French).
@@ -3527,6 +3527,20 @@ if [[ "$APP_NAME" == "odoo" ]]; then
     if [[ "$CHECK_ONLY" == "0" && "${uri_actif:-0}" == "1" && "$uri_n" -gt 0 ]]; then
         uri_verifier "$uri_futures" || true
     fi
+fi
+echo
+
+# --- 12 bis) Règle de traversée dans la requête : vérifiée UNE fois à chaque --update (2.94) ----------------------------
+# Removed from the hourly run of app-health-check.py (web-monitor.py): this probe asks for a 404 on purpose, so it is only meaningful
+# right after the rule was installed. --check does not send it (it changes nothing and makes no request).
+echo "--- 12 bis) Règle de traversée dans la requête (une fois, à chaque --update) ---"
+if [[ "$CHECK_ONLY" == "0" && -r "$SCRIPT_DIR/app-health-check.py" ]]; then
+    trav_ligne=$(NGINX_TOOLS_LANG=fr timeout --foreground 60 python3 "$SCRIPT_DIR/app-health-check.py" --target local --traversal-only 2>/dev/null | grep -E '^\[(OK|FAIL)\]' | head -1) || trav_ligne=""
+    case "$trav_ligne" in
+        "[OK] "*)   pass "${trav_ligne#\[OK\] }" ;;
+        "[FAIL] "*) fail "${trav_ligne#\[FAIL\] } — vérifier que les règles de securite-commune.conf sont incluses (nginx -T | grep -n include)." ;;
+        *)          warn "vérification de la traversée impossible : app-health-check.py --traversal-only n'a produit aucun résultat reconnu." ;;
+    esac
 fi
 echo
 
