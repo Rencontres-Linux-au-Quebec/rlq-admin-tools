@@ -3483,6 +3483,16 @@ Earlier history was archived outside this repository when this file was created.
 
 ## nginx-hardening.sh
 
+### 2.95.20261111.090000 - Empty fragment for the link page, included by _odoo-common.conf
+
+- Title: the link page is no longer built here; nginx-hardening.sh only creates the (empty) fragment it includes.
+- Reason: the page holds data of a group, which must stay out of the public repository; its configuration is now read by nginx-link-page.sh (1.0).
+- Changes: nginx-hardening.sh: liens-publics.conf is created empty with the other generated fragments (step 0f); nginx/snippets/odoo/_odoo-common.conf: include of liens-publics.conf after securite-commune.conf; nginx/VERSION 1.28.20261111.090000.
+- Bugs fixed: none.
+- Safeguards and edge cases: the fragment holds one comment line, valid in nginx; an existing fragment is never touched; without nginx-link-page.sh the page stays off.
+- Checks performed: bash -n nginx-hardening.sh; test_nginx_hardening.
+- Action required: none (the page is installed with nginx-link-page.sh --update).
+
 ### 2.94.20261110.193238 - Traversal test run once at each --update
 
 - Title: --update checks that the query-string traversal is blocked by nginx, once, after the rules are installed.
@@ -4193,6 +4203,51 @@ Earlier history was archived outside this repository when this file was created.
 ### 2.53.20261021.130912
 
 - Current version. Earlier history archived outside the repository.
+
+## nginx-link-page.sh
+
+### 1.1.20261111.093000 - Several link pages at once, one engine per page, shared content
+
+- Motif de la demande: pouvoir installer plusieurs pages de liens (LittleLink maintenant, LinkStack ou d'autres plus tard)
+  pour les comparer, avec des adresses differentes (/liens/, /liens2/...). Le contenu du groupe (titres, liens, logo,
+  icones, themes, chemins) ne vit que dans le fichier de configuration; rien de propre au groupe n'est dans le depot.
+- Detail des modifications:
+  - nginx-link-page.sh (1.1.20261111.093000): configuration en trois blocs: SITE_* (contenu partage), LINK_n_* (liens
+    partages, numerotes sans trou) et PAGE_n_* (ENABLED, ENGINE, PATH, DIR, THEME, TITLE; une page par bloc).
+  - Validation: chemins de page uniques, dossiers uniques et non imbriques, moteur "littlelink" seulement; "linkstack"
+    est refuse avec un message clair (moteur reserve: application PHP/Laravel avec base de donnees).
+  - --check affiche chaque page (chemin, dossier, moteur, actif ou non).
+  - --update: LittleLink telecharge une seule fois (tag et commit epingles); un index.html par page active; un seul
+    fragment nginx liens-publics.conf avec une location ^~ par page active; nginx -t avant rechargement, ancien fragment
+    restaure en cas de refus.
+  - --help: options en anglais, triees par ordre alphabetique, affichees en couleur sur un terminal.
+  - nginx-link-page.conf.example: modele reecrit (SITE_*, LINK_n_*, PAGE_1_* actif, PAGE_2_* desactive, theme sombre).
+  - nginx-tools-tests/test_nginx_link_page.py: tests reecrits pour le format multi-pages.
+- Bugs corriges: aucun bogue de la version 1.0 n'est repris; la version 1.0 n'a jamais ete publiee. Lors de la reecriture,
+  une boucle morte (references d'icones sans effet) a ete supprimee, et un tableau associatif indexe par une chaine vide
+  est evite (erreur bash "bad array subscript" sinon).
+- Garde-fous et cas limites: la verification des dossiers imbriques evite qu'une page masque une autre (/var/www/liens
+  et /var/www/liens/deux); /liens/ ne couvre pas /liens2/ (le slash final est obligatoire); les numeros de pages et de
+  liens doivent se suivre; les images (logo, icones) sont verifiees par leur contenu (PNG, JPEG, WebP, SVG) et limitees
+  en taille; une icone builtin inconnue est refusee.
+- Verifications effectuees: tests unitaires de nginx-tools-tests/test_nginx_link_page.py (configuration, installation
+  avec faux git/curl/nginx/systemctl, commit inattendu, restauration sur echec de nginx -t, absence de donnees de groupe
+  dans le depot), lances par le testeur; syntaxe bash -n; --version et --help verifies a la main.
+- Action requise: aucune dans le depot. Sur le serveur: copier nginx-link-page.conf.example vers
+  /etc/default/nginx-link-page.conf, le remplir (SITE_*, LINK_n_*, PAGE_n_*), puis lancer
+  sudo nginx-link-page.sh --check, puis sudo nginx-link-page.sh --update. Lancer nginx-hardening.sh --update une fois
+  pour creer le fragment vide inclus par _odoo-common.conf.
+
+
+### 1.0.20261111.090000 - Link page built from a configuration file: no group data in the repository
+
+- Title: nginx-link-page.sh builds and installs a LittleLink page under /liens/ from /etc/default/nginx-link-page.conf.
+- Reason: the links, the logo and the icons of a group must not be published on GitHub; everything specific to a group is read from the configuration file.
+- Changes: new program nginx-link-page.sh (options --changelog, --check, -c/--config, -h/--help, --lang, --update, --version, --yes); configuration read with KEY=VALUE keys (PAGE_*, LINK_n_LABEL, LINK_n_URL, LINK_n_ICON, LINK_n_ICON_DARK), links numbered without gaps; nginx-link-page.conf.example (placeholders only); LittleLink v3.11.0 fetched at the pinned tag and commit; logo and icons downloaded over HTTPS (max 512 KB), kept only if PNG, JPEG, WebP or SVG; index.html generated with HTML escaping; snippet liens-publics.conf (location ^~ with alias, GET and HEAD only, Content-Security-Policy, nosniff, Referrer-Policy); nginx -t before reload, previous snippet restored on refusal. Tests: test_nginx_link_page (13 tests, including a check that the repository holds none of the group's data).
+- Bugs fixed: symptom: a label containing < was shown as "<lt;" (found while testing); diagnosis: bash 5.2 reads an unescaped & in a replacement as the matched text; fix: the replacements escape the & (\&amp;).
+- Safeguards and edge cases: a commit other than the pinned one is refused before any copy; a URL that is not https is refused at --check; a missing icon or an image of another type stops the installation before any file changes; the page is served with GET and HEAD only; PAGE_ENABLED=no keeps the files and removes the location; --update asks for confirmation (--yes without a terminal); --update requires root.
+- Checks performed: test_nginx_link_page (13 tests); bash -n nginx-link-page.sh; --check on nginx-link-page.conf.example.
+- Action required: copy nginx-link-page.conf.example to /etc/default/nginx-link-page.conf, fill in the group's values, then run sudo nginx-link-page.sh --update. Note: HSTS (hsts.conf) is a server-level header; the /liens/ location declares its own headers, so HSTS is not repeated there.
 
 ## nginx-log-audit.sh
 
