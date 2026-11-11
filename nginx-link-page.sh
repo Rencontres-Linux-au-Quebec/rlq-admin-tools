@@ -29,7 +29,7 @@
 set -u
 LANG_C="${LC_ALL:-${LC_MESSAGES:-${LANG:-C}}}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
-readonly SCRIPT_VERSION="1.5.20261111.143000"
+readonly SCRIPT_VERSION="1.6.20261111.144200"
 readonly SCRIPT_NAME="nginx-link-page"
 readonly CHANGELOG_FILE="$SCRIPT_DIR/CHANGELOG.md"
 
@@ -189,6 +189,19 @@ valeur_ou() { local v="${CFG[$1]:-}"; [[ -n "$v" ]] && printf '%s' "$v" || print
 URL_RE='^https://[A-Za-z0-9._~:/?#@!$&()*+,;=%-]+$'
 CHEMIN_RE='^/[A-Za-z0-9_-]+/$'
 
+# SITE_BASE_URL (optional, https://): base for relative addresses such as /event/ in LINK_n_URL, icons and logo
+SITE_BASE_URL_V=$(valeur_ou SITE_BASE_URL "")
+REL_RE='^/?[A-Za-z0-9][A-Za-z0-9._~%?#=&+/-]*$'
+# resoudre_url VALEUR: prints the absolute https:// address, returns 1 when it cannot be resolved
+resoudre_url() {
+    local v="$1" abs
+    if [[ "$v" =~ $URL_RE ]]; then printf '%s' "$v"; return 0; fi
+    [[ -n "$SITE_BASE_URL_V" && "$v" =~ $REL_RE && "$v" != *..* ]] || return 1
+    abs="${SITE_BASE_URL_V%/}/${v#/}"
+    [[ "$abs" =~ $URL_RE ]] || return 1
+    printf '%s' "$abs"
+}
+
 SITE_TITLE_V=$(valeur_ou SITE_TITLE "")
 SITE_HEADING_V=$(valeur_ou SITE_HEADING "$SITE_TITLE_V")
 SITE_DESCRIPTION_V=$(valeur_ou SITE_DESCRIPTION "")
@@ -196,13 +209,17 @@ SITE_LANGUAGE_V=$(valeur_ou SITE_LANGUAGE fr)
 SITE_FOOTER_V=$(valeur_ou SITE_FOOTER "")
 SITE_LOGO_URL_V=$(valeur_ou SITE_LOGO_URL "")
 SITE_LOGO_ALT_V=$(valeur_ou SITE_LOGO_ALT "$SITE_TITLE_V")
+if [[ -n "$SITE_BASE_URL_V" ]] && ! [[ "$SITE_BASE_URL_V" =~ $URL_RE ]]; then
+    PROBLEMES+=("SITE_BASE_URL doit etre une adresse https:// / must be an https:// address")
+fi
+if [[ -n "$SITE_LOGO_URL_V" ]] && abs="$(resoudre_url "$SITE_LOGO_URL_V")"; then SITE_LOGO_URL_V="$abs"; fi
 SNIPPETS_DIR="${NGINX_LINK_PAGE_SNIPPETS_DIR:-/etc/nginx/snippets}"
 LIEN_FICHIER="$SNIPPETS_DIR/liens-publics.conf"
 
 [[ -n "$SITE_TITLE_V" ]] || PROBLEMES+=("SITE_TITLE absent / missing")
 [[ "$SITE_LANGUAGE_V" =~ ^(fr|en)$ ]] || PROBLEMES+=("SITE_LANGUAGE=$SITE_LANGUAGE_V (fr ou en / fr or en)")
 if [[ -n "$SITE_LOGO_URL_V" ]] && ! [[ "$SITE_LOGO_URL_V" =~ $URL_RE ]]; then
-    PROBLEMES+=("SITE_LOGO_URL doit etre une adresse https:// / must be an https:// address")
+    PROBLEMES+=("SITE_LOGO_URL doit etre une adresse https:// ou un chemin avec SITE_BASE_URL / must be an https:// address or a path with SITE_BASE_URL")
 fi
 
 # shared links: LINK_1_..., LINK_2_... without gaps
@@ -217,10 +234,12 @@ done
 for i in "${LIENS_N[@]}"; do
     lab="${CFG[LINK_${i}_LABEL]:-}"; url="${CFG[LINK_${i}_URL]:-}"
     [[ -n "$lab" && ${#lab} -le 80 ]] || PROBLEMES+=("LINK_${i}_LABEL vide ou trop long (80 caracteres max) / empty or too long")
-    [[ "$url" =~ $URL_RE ]] || PROBLEMES+=("LINK_${i}_URL doit etre une adresse https:// / must be an https:// address")
+    if [[ -n "$url" ]] && abs="$(resoudre_url "$url")"; then url="$abs"; CFG[LINK_${i}_URL]="$abs"; fi
+    [[ "$url" =~ $URL_RE ]] || PROBLEMES+=("LINK_${i}_URL doit etre une adresse https:// ou un chemin avec SITE_BASE_URL / must be an https:// address or a path with SITE_BASE_URL")
     for cle in LINK_${i}_ICON LINK_${i}_ICON_DARK; do
         ic="${CFG[$cle]:-}"
         [[ -z "$ic" ]] && continue
+        if [[ "$ic" != builtin:* ]] && abs="$(resoudre_url "$ic")"; then ic="$abs"; CFG[$cle]="$abs"; fi
         [[ "$ic" =~ ^builtin:[a-z0-9-]+$ || "$ic" =~ $URL_RE ]] || PROBLEMES+=("$cle : builtin:NOM ou https:// / builtin:NAME or https://")
     done
 done

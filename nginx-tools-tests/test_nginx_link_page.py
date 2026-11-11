@@ -173,6 +173,25 @@ class Configuration(Base):
         self.assertNotEqual(r.returncode, 0)
         self.assertIn("THEME", r.stderr)
 
+    def test_chemin_relatif_sans_base_refuse(self):
+        r = self.lancer("-c", str(self.conf("SITE_TITLE=Test\nLINK_1_LABEL=A\nLINK_1_URL=/a/\n")), "--check")
+        self.assertNotEqual(r.returncode, 0)
+        self.assertIn("LINK_1_URL", r.stderr)
+
+    def test_chemin_relatif_dangereux_refuse(self):
+        for url in ("//evil.example/x", "javascript:alert(1)", "/a/../b", "http://x.example/"):
+            with self.subTest(url=url):
+                texte = f"SITE_TITLE=Test\nSITE_BASE_URL=https://www.example.org/\nLINK_1_LABEL=A\nLINK_1_URL={url}\n"
+                r = self.lancer("-c", str(self.conf(texte)), "--check")
+                self.assertNotEqual(r.returncode, 0)
+                self.assertIn("LINK_1_URL", r.stderr)
+
+    def test_base_invalide_refusee(self):
+        texte = "SITE_TITLE=Test\nSITE_BASE_URL=http://www.example.org/\nLINK_1_LABEL=A\nLINK_1_URL=https://a.example/\n"
+        r = self.lancer("-c", str(self.conf(texte)), "--check")
+        self.assertNotEqual(r.returncode, 0)
+        self.assertIn("SITE_BASE_URL", r.stderr)
+
     def test_variantes_invalides_refusees(self):
         for ligne, cle in (("PAGE_1_BUTTONS=rond\n", "BUTTONS"),
                            ("PAGE_1_AVATAR=round\n", "AVATAR"),
@@ -333,6 +352,18 @@ PAGE_2_TITLE=Deux
         self.assertNotIn("<script", autre)
         accent = (self.www / "liens" / "css" / "accent.css").read_text(encoding="utf-8")
         self.assertIn("--button-background: #FF0000;", accent)
+
+    def test_chemins_relatifs_resolus(self):
+        texte = self.config_deux_pages("no").replace(
+            "LINK_1_URL=https://example.org/a", "LINK_1_URL=/a/").replace(
+            "LINK_2_ICON=https://example.org/i.png", "LINK_2_ICON=/images/i.png").replace(
+            "SITE_LOGO_URL=https://example.org/logo.png", "SITE_LOGO_URL=/logo.png").replace(
+            "SITE_TITLE=Test & B\n", "SITE_TITLE=Test & B\nSITE_BASE_URL=https://www.example.org/\n")
+        r = self.lancer("-c", str(self.conf(texte)), "--update", "--yes", env=self.env)
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        ici = (self.www / "liens" / "index.html").read_text(encoding="utf-8")
+        self.assertIn('href="https://www.example.org/a/"', ici)
+        self.assertNotIn('href="/a/"', ici)
 
     def test_page_desactivee_absente(self):
         r = self.lancer("-c", str(self.conf(self.config_deux_pages("no"))), "--update", "--yes", env=self.env)

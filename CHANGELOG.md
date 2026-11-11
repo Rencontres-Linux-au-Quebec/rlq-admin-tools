@@ -4253,6 +4253,24 @@ Earlier history was archived outside this repository when this file was created.
 
 ## nginx-link-page.sh
 
+### 1.6.20261111.144200 - Relative addresses resolved from SITE_BASE_URL
+
+- Motif de la demande: ne plus repeter le domaine du site dans chaque adresse (ex. https://www.exemple.org/evenement)
+  et pouvoir changer de nom de serveur sans toucher aux liens.
+- Detail des modifications:
+  - nginx-link-page.sh (1.6.20261111.144200): nouvelle cle SITE_BASE_URL (facultative, https:// seulement). Les valeurs
+    relatives de SITE_LOGO_URL, LINK_n_URL, LINK_n_ICON et LINK_n_ICON_DARK sont resolues par la fonction resoudre_url
+    avant la validation : /event/ devient SITE_BASE_URL/event/. Les adresses https:// et les icones builtin:NOM ne changent pas.
+  - nginx-link-page.conf.example: cle SITE_BASE_URL commentee et regle des adresses mise a jour.
+  - Tests: chemin relatif sans base refuse ; chemins dangereux refuses (//, javascript:, .., http://) ; base http:// refusee ;
+    chemins relatifs resolus lors de l'installation.
+- Bugs corriges: aucun.
+- Garde-fous et cas limites: un chemin relatif sans SITE_BASE_URL est refuse ; // (adresse sans schema), deux points
+  (schema), .. et http:// sont refuses ; le resultat doit passer la meme validation https:// qu'une adresse complete.
+- Verifications effectuees: bash -n ; py_compile des tests ; tests de nginx-tools-tests/test_nginx_link_page.py.
+- Action requise: aucune pour une configuration existante. Pour utiliser les chemins relatifs, ajouter SITE_BASE_URL
+  dans /etc/default/nginx-link-page.conf puis relancer nginx-link-page.sh --update --yes.
+
 ### 1.5.20261111.143000 - Page variants (brand buttons, avatar shape, accent colour) and theme switch page
 
 - Motif de la demande: l'utilisateur veut comparer des variantes de la page de liens et pouvoir changer de theme depuis
