@@ -93,7 +93,7 @@ run() {
     "$@"
 }
 
-readonly SCRIPT_VERSION="2.95.20261111.080000"
+readonly SCRIPT_VERSION="2.96.20261111.081500"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
 SCRIPT_NAME="$(basename "${BASH_SOURCE[0]}" .sh)"; readonly SCRIPT_NAME
 # Display language (en or fr): --lang, NGINX_HARDENING_LANG, LANGUAGE of the configuration file, LC_ALL / LANG - apps/_i18n.sh translates the output (nothing changes in French).
@@ -3581,6 +3581,9 @@ lien_page_installer() {
         cp -r "$tmp/littlelink/$d" "$dir/$d" || { rm -rf "$tmp"; fail "copie de $d/ impossible dans $dir."; return 1; }
     done
     install -m 644 "$SCRIPT_DIR/nginx/liens/index.html" "$dir/index.html" || { rm -rf "$tmp"; fail "copie de index.html impossible dans $dir."; return 1; }
+    if [[ -d "$SCRIPT_DIR/nginx/liens/images" ]]; then
+        cp "$SCRIPT_DIR/nginx/liens/images/"* "$dir/images/" || { rm -rf "$tmp"; fail "copie des images du site impossible dans $dir/images."; return 1; }
+    fi
     chmod -R a+rX "$dir"
     rm -rf "$tmp"
     pass "LittleLink $LINKPAGE_TAG (SHA ${sha:0:12}) et la page du site installés dans $dir."

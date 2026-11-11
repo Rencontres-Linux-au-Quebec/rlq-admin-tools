@@ -3483,6 +3483,16 @@ Earlier history was archived outside this repository when this file was created.
 
 ## nginx-hardening.sh
 
+### 2.96.20261111.081500 - Logo of Rencontres Linux Québec on the link page
+
+- Title: the link page shows the association's logo; its file is copied with the page.
+- Reason: request of the administrator on 2026-11-11: add the association's logo to the page.
+- Changes: nginx/liens/images/rlq-logo.png (256 x 256 PNG, made from the logo supplied by the administrator); nginx/liens/index.html: the logo at the top of the page; lien_page_installer() copies nginx/liens/images/ into the images folder of the page after the LittleLink images. Tests: test_nginx_link_page (logo shipped, valid PNG, referenced, copied); 15 tests.
+- Bugs fixed: none.
+- Safeguards and edge cases: the logo is a local file, so the Content-Security-Policy img-src 'self' still holds; the copy stops the installation with a message if the folder cannot be written.
+- Checks performed: test_nginx_link_page (15 tests); bash -n nginx-hardening.sh.
+- Action required: run `sudo nginx-hardening.sh --link-page --update` again to copy the logo. The Mattermost icon is not in the page yet: send the icon file (SVG or PNG) to add it; the page still uses a generic icon for Framateam.
+
 ### 2.95.20261111.080000 - Link page (LittleLink) under /liens/, pinned to a tag and a commit
 
 - Title: --link-page installs a link page under /liens/ on the Odoo site, from LittleLink v3.11.0; --no-link-page turns it off.

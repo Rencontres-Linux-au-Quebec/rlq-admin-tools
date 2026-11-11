@@ -48,6 +48,12 @@ class PageLiens(unittest.TestCase):
                         "framateam.org/linuxmeetup-mtl/", "rencontres-linux.quebec/event/journee-portes-ouvertes-sur-linux-2026-125/"):
             self.assertTrue(any(attendu in lien for lien in self.liens), attendu)
 
+    def test_logo_du_site_present_et_reference(self):
+        logo = os.path.join(ROOT, "nginx", "liens", "images", "rlq-logo.png")
+        with open(logo, "rb") as f:
+            self.assertEqual(f.read(8), b"\x89PNG\r\n\x1a\n")
+        self.assertIn("images/rlq-logo.png", self.html)
+
     def test_pas_de_script_ni_de_formulaire(self):
         # la politique CSP de la page n'autorise aucun script ; la page ne doit pas en contenir
         self.assertNotIn("<script", self.html.lower())
@@ -173,6 +179,7 @@ class EtapeExecutee(unittest.TestCase):
         self.assertIn("page de liens active", r.stdout)
         self.assertTrue(os.path.isfile(os.path.join(self.liens, "index.html")))
         self.assertTrue(os.path.isfile(os.path.join(self.liens, "css", "a.css")))
+        self.assertTrue(os.path.isfile(os.path.join(self.liens, "images", "rlq-logo.png")))
         contenu = open(self.fragment).read()
         self.assertIn("location ^~ /liens/ {", contenu)
         self.assertIn(f"alias {self.liens}/;", contenu)
