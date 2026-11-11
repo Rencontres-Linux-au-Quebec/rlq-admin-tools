@@ -4253,6 +4253,37 @@ Earlier history was archived outside this repository when this file was created.
 
 ## nginx-link-page.sh
 
+### 1.5.20261111.143000 - Page variants (brand buttons, avatar shape, accent colour) and theme switch page
+
+- Motif de la demande: l'utilisateur veut comparer des variantes de la page de liens et pouvoir changer de theme depuis
+  la page web elle-meme, avec un nouveau bouton.
+- Detail des modifications:
+  - nginx-link-page.sh (1.5.20261111.143000): nouvelles cles par page, validees a --check.
+    PAGE_n_BUTTONS=default|brand : brand applique les boutons aux couleurs Facebook, LinkedIn et YouTube lorsque l'icone
+    est integree (builtin:facebook, builtin:linkedin, builtin:youtube) et que la classe existe dans css/brands.css.
+    PAGE_n_AVATAR=none|soft|rounded : forme du logo (classe avatar--none, avatar--soft ou avatar--rounded).
+    PAGE_n_ACCENT=#RRGGBB : couleur des boutons par defaut, ecrite dans css/accent.css (vide : aucune couleur ajoutee).
+    PAGE_n_SWITCH=yes|no : yes genere autre.html avec l'autre theme (sombre pour light et auto, clair pour dark) et
+    ajoute sur chaque page un bouton vers l'autre. Aucun script n'est utilise : la politique CSP de la page interdit
+    tout JavaScript, la bascule est donc un lien vers une seconde page complete.
+  - genere_index accepte le nom du fichier, la cible et le libelle du bouton de bascule ; les libelles suivent
+    SITE_LANGUAGE (fr ou en).
+  - La suppression des anciennes pages (--update) retire aussi autre.html ; l'installation copie tous les fichiers .html
+    de la page.
+  - nginx-link-page.conf.example: cles commentees avec leurs valeurs par defaut (default, none, vide, no).
+  - Tests: validations refusees (BUTTONS, AVATAR, ACCENT, SWITCH), validations acceptees, installation avec marque,
+    avatar, accent et bascule. Le stub de git ecrit maintenant un css/brands.css contenant .button-faceb.
+- Bugs corriges: aucun.
+- Garde-fous et cas limites: valeurs inconnues refusees avant toute installation ; une couleur qui n'est pas #RRGGBB
+  est refusee (aucune valeur libre n'entre dans le CSS) ; sans PAGE_n_SWITCH=yes, autre.html n'est pas cree ; une
+  icone externe (https) garde le bouton par defaut en mode brand.
+- Verifications effectuees: bash -n sur nginx-link-page.sh ; py_compile des tests ; tests de nginx-tools-tests/
+  test_nginx_link_page.py lances par le testeur.
+- Action requise: aucune pour une configuration existante (valeurs par defaut inchangees). Pour activer une variante,
+  ajouter les cles voulues dans /etc/default/nginx-link-page.conf puis relancer nginx-link-page.sh --update --yes
+  (ou nginx-hardening.sh --update).
+
+
 ### 1.4.20261111.140000 - Redirect /liens to /liens/ and validate the configuration before installing
 
 - Motif de la demande: l'adresse sans le / final (/liens) donnait une erreur 404, car la location ne couvrait que /liens/.
