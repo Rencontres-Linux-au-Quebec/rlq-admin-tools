@@ -4266,6 +4266,32 @@ Earlier history was archived outside this repository when this file was created.
 
 ## nginx-link-page.sh
 
+### 1.8.20261111.163800 - Pages per language, automatic language choice from the browser
+
+- Motif de la demande: publier la page de liens en francais et en anglais, et choisir la langue par defaut selon le
+  navigateur du visiteur, sans JavaScript (la politique CSP l'interdit).
+- Detail des modifications:
+  - nginx-link-page.sh (1.8.20261111.163800): PAGE_n_LANGUAGES=fr, en, fr,en ou en,fr. La premiere langue est servie a
+    la racine de la page (/liens/) ; l'autre dans un sous-dossier (/liens/en/). Chaque langue a son propre index.html,
+    ses ressources et son bouton vers l'autre langue.
+  - Detection : nginx lit l'en-tete Accept-Language sur la racine seulement. Si le navigateur demande d'abord l'autre
+    langue, il est redirige (302) vers son dossier. Sinon la racine reste la langue par defaut. L'en-tete
+    Vary: Accept-Language evite qu'un cache serve la mauvaise langue.
+  - Textes anglais facultatifs : SITE_TITLE_EN, SITE_HEADING_EN, SITE_DESCRIPTION_EN, SITE_FOOTER_EN, PAGE_n_TITLE_EN,
+    LINK_n_LABEL_EN. Sans texte anglais, le texte francais est repris.
+  - Le dossier de la page est copie d'un bloc (la racine et les sous-dossiers) ; --update retire aussi les anciens
+    sous-dossiers en et fr.
+  - nginx-link-page.conf.example: PAGE_n_LANGUAGES et les textes anglais documentes.
+  - Tests: langues invalides refusees ; deux langues installees avec textes anglais, bouton entre langues et redirection
+    Accept-Language dans le fragment nginx.
+- Bugs corriges: aucun.
+- Garde-fous et cas limites: valeurs de langue limitees a fr et en ; un en-tete Accept-Language absent donne la langue
+  par defaut ; seule la racine est redirigee (pas de boucle entre les deux langues) ; les textes anglais sont
+  echappes comme les textes francais.
+- Verifications effectuees: bash -n ; py_compile des tests ; tests de nginx-tools-tests/test_nginx_link_page.py.
+- Action requise: aucune pour une configuration existante (une seule langue par defaut). Pour activer les deux langues,
+  ajouter PAGE_1_LANGUAGES=fr,en et les textes anglais voulus, puis relancer nginx-link-page.sh --update --yes.
+
 ### 1.7.20261111.162600 - Base for relative addresses taken from the server certificate
 
 - Motif de la demande: un serveur n'a qu'un seul domaine ; SITE_BASE_URL doit donc etre facultatif et le domaine doit
