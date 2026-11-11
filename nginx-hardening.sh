@@ -93,7 +93,7 @@ run() {
     "$@"
 }
 
-readonly SCRIPT_VERSION="2.95.20261111.090000"
+readonly SCRIPT_VERSION="2.96.20261111.110000"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
 SCRIPT_NAME="$(basename "${BASH_SOURCE[0]}" .sh)"; readonly SCRIPT_NAME
 # Display language (en or fr): --lang, NGINX_HARDENING_LANG, LANGUAGE of the configuration file, LC_ALL / LANG - apps/_i18n.sh translates the output (nothing changes in French).
@@ -3548,6 +3548,44 @@ echo
 # Delegated to app-health-check.py --check-email-dns (same configuration as sending alerts): each line
 # [OK]/[ATTN]/[FAIL] is counted here; the detail lines (DNS records to add) are displayed as they are.
 # Diagnostic only: nothing is changed (DNS is set at the domain provider). Guide: doc/email-setup.md.
+echo "--- 12 ter) Page de liens (nginx-link-page.sh : LittleLink, configuration hors du dépôt) ---"
+LIENS_SCRIPT="$SCRIPT_DIR/nginx-link-page.sh"
+LIENS_CONF_ETC="${NGINX_LINK_PAGE_ETC_DEFAULT:-/etc/default}/nginx-link-page.conf"
+LIENS_CONF_HOME="${HOME:-/root}/.nginx-link-page.conf"
+if [[ ! -r "$LIENS_SCRIPT" ]]; then
+    warn "nginx-link-page.sh absent du dossier du programme : page de liens non traitée."
+elif [[ -r "$LIENS_CONF_ETC" || -r "$LIENS_CONF_HOME" ]]; then
+    if [[ "$CHECK_ONLY" == "1" ]]; then
+        pass "Page de liens : configuration présente. Mise à jour : relancer avec --update."
+    elif [[ -t 0 && -t 2 ]]; then
+        tty_ligne; read -r -p "  Mettre à jour la page de liens maintenant (nginx-link-page.sh --update) ? [o/N] : " lien_rep || lien_rep=""
+        case "${lien_rep,,}" in
+            o|oui|y|yes)
+                if "$LIENS_SCRIPT" --update --yes; then pass "Page de liens mise à jour (nginx-link-page.sh)."
+                else fail "Page de liens : nginx-link-page.sh --update a échoué (voir sa sortie ci-dessus)."; fi ;;
+            *) echo "  Page de liens non mise à jour (réponse non)." ;;
+        esac
+    else
+        warn "Page de liens : pas de terminal, mise à jour non lancée (nginx-link-page.sh --update)."
+    fi
+else
+    if [[ "$CHECK_ONLY" == "1" ]]; then
+        warn "Page de liens non configurée — relancer avec --update dans un terminal pour la créer."
+    elif [[ -t 0 && -t 2 ]]; then
+        tty_ligne; read -r -p "  Créer une page de liens (LittleLink, /liens/) maintenant ? [o/N] : " lien_rep || lien_rep=""
+        case "${lien_rep,,}" in
+            o|oui|y|yes)
+                # Without a configuration, nginx-link-page.sh copies its commented template and stops: nothing is installed yet.
+                "$LIENS_SCRIPT" --check || true
+                warn "Modèle de la page de liens créé : le remplir (voir nginx-link-page.conf.example), puis relancer nginx-hardening.sh --update." ;;
+            *) echo "  Page de liens non créée (réponse non)." ;;
+        esac
+    else
+        warn "Page de liens non configurée : pas de terminal pour la proposer (relancer dans un terminal)."
+    fi
+fi
+echo
+
 echo "--- 13) Courriel des alertes (relais SMTP, MX, SPF, DMARC, DKIM) ---"
 if [[ ! -r "$SCRIPT_DIR/app-health-check.py" ]]; then
     warn "app-health-check.py introuvable à côté de ce script — vérification du courriel impossible."

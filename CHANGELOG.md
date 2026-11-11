@@ -3483,6 +3483,25 @@ Earlier history was archived outside this repository when this file was created.
 
 ## nginx-hardening.sh
 
+### 2.96.20261111.110000 - Ask whether to create or update the link page
+
+- Motif de la demande: l'administrateur doit pouvoir creer la page de liens depuis nginx-hardening.sh, sans connaitre
+  nginx-link-page.sh.
+- Detail des modifications:
+  - nginx-hardening.sh (2.96.20261111.110000): nouvelle etape 12 ter. Si nginx-link-page.sh est present et qu'une
+    configuration existe, la question de la mise a jour est posee au terminal; sinon la question de la creation.
+    La creation copie le modele commente (via nginx-link-page.sh --check) et demande de le remplir. Rien n'est installe
+    sans reponse positive. En --check, l'etape signale seulement l'etat.
+  - nginx-tools-tests/test_nginx_link_page.py: classe HardeningPropose (question avant toute action, sans terminal rien
+    n'est lance).
+- Bugs corriges: aucun.
+- Garde-fous et cas limites: sans terminal (entree non interactive), l'etape ne lance rien et l'indique; la reponse par
+  defaut est non; nginx-link-page.sh --update fait sa propre verification (nginx -t) et restaure l'ancien fragment en cas
+  d'echec.
+- Verifications effectuees: tests de la classe HardeningPropose lances par le testeur; verification de la syntaxe bash.
+- Action requise: aucune. Lancer sudo nginx-hardening.sh --update dans un terminal pour recevoir la question.
+
+
 ### 2.95.20261111.090000 - Empty fragment for the link page, included by _odoo-common.conf
 
 - Title: the link page is no longer built here; nginx-hardening.sh only creates the (empty) fragment it includes.
