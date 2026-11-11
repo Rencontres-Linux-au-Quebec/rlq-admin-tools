@@ -3483,6 +3483,19 @@ Earlier history was archived outside this repository when this file was created.
 
 ## nginx-hardening.sh
 
+### 2.98.20261111.140000 - Link page installed automatically when its configuration is valid
+
+- Motif de la demande: nginx-hardening.sh doit installer la page de liens sans question si la configuration est valide.
+- Detail des modifications: etape 12 ter. Si une configuration existe, nginx-link-page.sh --check la valide ligne par
+  ligne (aucune ecriture). Si elle est valide, nginx-link-page.sh --update --yes installe la page (la confirmation est
+  deja donnee par nginx-hardening.sh --update). Si elle est invalide, rien n'est installe et les erreurs sont affichees.
+  La question reste posee seulement pour creer le modele quand aucune configuration n'existe.
+- Bugs corriges: aucun.
+- Garde-fous et cas limites: sans terminal, la creation n'est pas proposee ; en --check, l'etape signale seulement la validite.
+- Verifications effectuees: tests de l'ordre (verification avant installation, question avant creation) lances par le testeur.
+- Action requise: aucune.
+
+
 ### 2.97.20261111.111000 - Link page step moved before the generic nginx configuration (0f)
 
 - Motif de la demande: la question sur la page de liens doit etre posee avant l'etape 0f (configuration nginx generique),
@@ -4239,6 +4252,19 @@ Earlier history was archived outside this repository when this file was created.
 - Current version. Earlier history archived outside the repository.
 
 ## nginx-link-page.sh
+
+### 1.4.20261111.140000 - Redirect /liens to /liens/ and validate the configuration before installing
+
+- Motif de la demande: l'adresse sans le / final (/liens) donnait une erreur 404, car la location ne couvrait que /liens/.
+- Detail des modifications: pour chaque page active, le fragment liens-publics.conf contient aussi une location exacte
+  (location = /liens) qui redirige en 301 vers /liens/. La page est donc atteinte avec ou sans le / final.
+- Bugs corriges: 404 sur /liens (symptome) ; location ^~ /liens/ ne couvre pas /liens (diagnostic) ; redirection exacte
+  ajoutee (correction).
+- Garde-fous et cas limites: le chemin reste obligatoirement avec / final dans la configuration (validation inchangee) ;
+  les adresses /liens et /liens/ sont toutes deux servies.
+- Verifications effectuees: tests d'installation (location = /liens et return 301) lances par le testeur.
+- Action requise: relancer nginx-hardening.sh --update (ou nginx-link-page.sh --update) pour regenerer le fragment.
+
 
 ### 1.3.20261111.105500 - Configuration created automatically when none exists
 

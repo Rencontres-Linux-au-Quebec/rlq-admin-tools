@@ -291,6 +291,9 @@ PAGE_2_TITLE=Deux
         snippet = (self.snippets / "liens-publics.conf").read_text(encoding="utf-8")
         self.assertIn("location ^~ /liens/ {", snippet)
         self.assertIn("location ^~ /liens2/ {", snippet)
+        self.assertIn("location = /liens {", snippet)
+        self.assertIn("return 301 /liens/;", snippet)
+        self.assertIn("location = /liens2 {", snippet)
         self.assertIn(f"alias {self.www}/liens/;", snippet)
 
     def test_page_desactivee_absente(self):
@@ -339,15 +342,15 @@ class HardeningPropose(unittest.TestCase):
         # The link page is installed before the generic nginx configuration (step 0f), so that step 0f sees it.
         self.assertLess(self.texte.index("--- 12 ter) Page de liens"), self.texte.index('echo "--- 0f)'))
 
-    def test_question_avant_toute_action(self):
-        # Each action comes after its own question: the update question before the update, the creation question before the template copy.
-        mise_a_jour = self.texte.index("Mettre à jour la page de liens maintenant")
-        appel_update = self.texte.index('"$LIENS_SCRIPT" --update --yes')
+    def test_verification_avant_installation(self):
+        verification = self.texte.index('"$LIENS_SCRIPT" --check >/dev/null')
+        appel = self.texte.index('"$LIENS_SCRIPT" --update --yes')
+        self.assertLess(verification, appel)
+
+    def test_question_avant_creation(self):
         creation = self.texte.index("Créer une page de liens (LittleLink, /liens/) maintenant")
         appel_creation = self.texte.index('"$LIENS_SCRIPT" --check || true')
-        self.assertLess(mise_a_jour, appel_update)
         self.assertLess(creation, appel_creation)
-        self.assertLess(appel_update, creation)
 
     def test_sans_terminal_rien_n_est_lance(self):
         self.assertIn('if [[ -t 0 && -t 2 ]]; then', self.texte)
