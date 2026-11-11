@@ -3483,46 +3483,6 @@ Earlier history was archived outside this repository when this file was created.
 
 ## nginx-hardening.sh
 
-### 2.98.20261111.083000 - Mattermost icon in two colours, chosen by the system theme
-
-- Title: the Mattermost icon uses the blue version on a light background and the white version on a dark background.
-- Reason: request of the administrator on 2026-11-11: two variations of the Mattermost logo were supplied.
-- Changes: nginx/liens/images/mattermost-bleu.svg (fill #22315b) and mattermost-blanc.svg (fill #fff), replacing mattermost.svg and the stylesheet nginx/liens/css/rlq.css of 2.97 (removed, with its copy in lien_page_installer()). nginx/liens/index.html: a picture element with a prefers-color-scheme dark source. Tests: test_nginx_link_page (both files present, both referenced).
-- Bugs fixed: none.
-- Safeguards and edge cases: the page follows the system preference (prefers-color-scheme), not the theme class of LittleLink: a forced theme-dark or theme-light class does not change the icon. Both icons are local files; the Content-Security-Policy is unchanged.
-- Checks performed: test_nginx_link_page; bash -n nginx-hardening.sh.
-- Action required: run `sudo nginx-hardening.sh --link-page --update` again (answer o) to copy the two icons.
-
-### 2.97.20261111.082500 - Mattermost icon, links to all events and to the blog on the link page
-
-- Title: the link page gets the Mattermost icon, a link to all events and a link to the blog.
-- Reason: request of the administrator on 2026-11-11: use the Mattermost logo supplied, add the list of all events (https://www.rencontres-linux.quebec/event) and the blog (https://www.rencontres-linux.quebec/blog).
-- Changes: nginx/liens/images/mattermost.svg (icon supplied by the administrator); nginx/liens/css/rlq.css (inverts the black icon in dark theme only, following the system preference or the theme-dark class); nginx/liens/index.html: the Framateam button uses the Mattermost icon, two new buttons (all events, blog), stylesheet css/rlq.css; lien_page_installer() copies nginx/liens/css/ after the LittleLink stylesheets. Tests: test_nginx_link_page (16 tests).
-- Bugs fixed: none.
-- Safeguards and edge cases: the icon and the stylesheet are local files, so the Content-Security-Policy is unchanged; the events and blog links point to the public pages, which list the events as they are published, so the page does not need to be updated for each event.
-- Checks performed: test_nginx_link_page (16 tests); bash -n nginx-hardening.sh.
-- Action required: run `sudo nginx-hardening.sh --link-page --update` again (answer o) to copy the icon and the stylesheet.
-
-### 2.96.20261111.081500 - Logo of Rencontres Linux Québec on the link page
-
-- Title: the link page shows the association's logo; its file is copied with the page.
-- Reason: request of the administrator on 2026-11-11: add the association's logo to the page.
-- Changes: nginx/liens/images/rlq-logo.png (256 x 256 PNG, made from the logo supplied by the administrator); nginx/liens/index.html: the logo at the top of the page; lien_page_installer() copies nginx/liens/images/ into the images folder of the page after the LittleLink images. Tests: test_nginx_link_page (logo shipped, valid PNG, referenced, copied); 15 tests.
-- Bugs fixed: none.
-- Safeguards and edge cases: the logo is a local file, so the Content-Security-Policy img-src 'self' still holds; the copy stops the installation with a message if the folder cannot be written.
-- Checks performed: test_nginx_link_page (15 tests); bash -n nginx-hardening.sh.
-- Action required: run `sudo nginx-hardening.sh --link-page --update` again to copy the logo. The Mattermost icon is not in the page yet: send the icon file (SVG or PNG) to add it; the page still uses a generic icon for Framateam.
-
-### 2.95.20261111.080000 - Link page (LittleLink) under /liens/, pinned to a tag and a commit
-
-- Title: --link-page installs a link page under /liens/ on the Odoo site, from LittleLink v3.11.0; --no-link-page turns it off.
-- Reason: request of the administrator on 2026-11-11: a secure Linktree-style page on the domain where the script runs, with the Facebook, LinkedIn, YouTube and Framateam links of the Rencontres Linux Québec.
-- Changes: nginx-hardening.sh: options --link-page and --no-link-page (help sorted); LINK_PAGE; new function lien_page_installer() (clones the tag v3.11.0 with a 180 s timeout, checks the commit 3c9162c9f8324d5e002259ed8b4b3cc377b08486, copies css/, fonts/, images/ and nginx/liens/index.html into /var/www/liens, or NGINX_HARDENING_LIENS_DIR); step "12d" (after 12c, before 13): writes /etc/nginx/snippets/liens-publics.conf (location ^~ /liens/ with alias, index index.html, GET and HEAD only), tests nginx -t, reloads nginx, restores the previous fragment if nginx -t refuses. Without an option, an --update keeps the current state (marker "# liens : actif"). The fragment is created empty by fragments_generes_assurer (step 0f). nginx/liens/index.html: the page content (six links, no script, Content-Security-Policy meta tag allowing only the page's own resources). nginx/snippets/odoo/_odoo-common.conf: include of liens-publics.conf after securite-commune.conf. nginx/VERSION 1.28.20261111.080000. Tests: nginx-tools-tests/test_nginx_link_page.py (14 tests: content, pinned tag and commit, include order, step 12d run with stub nginx and git).
-- Bugs fixed: none.
-- Safeguards and edge cases: a commit that differs from the pinned one is refused and nothing is copied; a missing git, a network failure or a missing css/, fonts/ or images/ folder leaves the page as it was; nginx -t refusal restores the previous fragment and does not reload; the page is served with GET and HEAD only; without a terminal, nothing changes unless --yes; --no-link-page keeps the files and only removes the location; /liens/ is served only by the Odoo site profile; the page is never modified by a LittleLink update, because the content is nginx/liens/index.html, not the copied index.html.
-- Checks performed: test_nginx_link_page (14 tests); bash -n nginx-hardening.sh.
-- Action required: run `sudo nginx-hardening.sh --link-page --update` (answer o), then check https://DOMAINE/liens/ . Note: the Instagram link is not in the page yet (the address was not given).
-
 ### 2.94.20261110.193238 - Traversal test run once at each --update
 
 - Title: --update checks that the query-string traversal is blocked by nginx, once, after the rules are installed.
