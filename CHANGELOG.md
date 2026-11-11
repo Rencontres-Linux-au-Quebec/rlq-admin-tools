@@ -4253,6 +4253,45 @@ Earlier history was archived outside this repository when this file was created.
 
 ## nginx-link-page.sh
 
+### 1.7.20261111.162600 - Base for relative addresses taken from the server certificate
+
+- Motif de la demande: un serveur n'a qu'un seul domaine ; SITE_BASE_URL doit donc etre facultatif et le domaine doit
+  venir du certificat deja utilise sur le serveur.
+- Detail des modifications:
+  - nginx-link-page.sh (1.7.20261111.162600): sans SITE_BASE_URL, la base est le dossier unique de
+    /etc/letsencrypt/live/ (certbot nomme chaque dossier d'apres le domaine du certificat) : https://DOMAINE/.
+    Plusieurs dossiers : pas de base, les chemins relatifs sont refuses avec un message clair.
+    Une SITE_BASE_URL declaree reste prioritaire. Le dossier peut etre change par
+    NGINX_LINK_PAGE_LETSENCRYPT_DIR (utile aux tests).
+  - La sortie indique la base utilisee et sa source (SITE_BASE_URL ou certificat).
+  - nginx-link-page.conf.example: SITE_BASE_URL decrite comme facultative.
+  - Tests: base prise dans un certificat unique ; base refusee avec deux certificats ; SITE_BASE_URL prioritaire.
+- Bugs corriges: aucun.
+- Garde-fous et cas limites: un dossier sans fullchain.pem est ignore ; le domaine du certificat est le nom
+  primaire (pour un certificat exemple.org, la base sera https://exemple.org/, sans www) ;
+  un serveur qui heberge aussi un autre certificat (courriel, par exemple) doit declarer SITE_BASE_URL.
+- Verifications effectuees: bash -n ; py_compile des tests ; tests de nginx-tools-tests/test_nginx_link_page.py.
+- Action requise: aucune si le serveur n'a qu'un certificat. Sinon, declarer SITE_BASE_URL dans
+  /etc/default/nginx-link-page.conf.
+
+### 1.6.20261111.144200 - Relative addresses resolved from SITE_BASE_URL
+
+- Motif de la demande: ne plus repeter le domaine du site dans chaque adresse (ex. https://www.exemple.org/evenement)
+  et pouvoir changer de nom de serveur sans toucher aux liens.
+- Detail des modifications:
+  - nginx-link-page.sh (1.6.20261111.144200): nouvelle cle SITE_BASE_URL (facultative, https:// seulement). Les valeurs
+    relatives de SITE_LOGO_URL, LINK_n_URL, LINK_n_ICON et LINK_n_ICON_DARK sont resolues par la fonction resoudre_url
+    avant la validation : /event/ devient SITE_BASE_URL/event/. Les adresses https:// et les icones builtin:NOM ne changent pas.
+  - nginx-link-page.conf.example: cle SITE_BASE_URL commentee et regle des adresses mise a jour.
+  - Tests: chemin relatif sans base refuse ; chemins dangereux refuses (//, javascript:, .., http://) ; base http:// refusee ;
+    chemins relatifs resolus lors de l'installation.
+- Bugs corriges: aucun.
+- Garde-fous et cas limites: un chemin relatif sans SITE_BASE_URL est refuse ; // (adresse sans schema), deux points
+  (schema), .. et http:// sont refuses ; le resultat doit passer la meme validation https:// qu'une adresse complete.
+- Verifications effectuees: bash -n ; py_compile des tests ; tests de nginx-tools-tests/test_nginx_link_page.py.
+- Action requise: aucune pour une configuration existante. Pour utiliser les chemins relatifs, ajouter SITE_BASE_URL
+  dans /etc/default/nginx-link-page.conf puis relancer nginx-link-page.sh --update --yes.
+
 ### 1.5.20261111.143000 - Page variants (brand buttons, avatar shape, accent colour) and theme switch page
 
 - Motif de la demande: l'utilisateur veut comparer des variantes de la page de liens et pouvoir changer de theme depuis

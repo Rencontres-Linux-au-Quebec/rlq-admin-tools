@@ -13,7 +13,8 @@
 # REGLES / RULES
 #   - CLE=VALEUR, en MAJUSCULES. Les guillemets sont retires. " # texte" en fin de ligne est ignore.
 #   - Liens : LINK_1_..., LINK_2_... sans trou. Pages : PAGE_1_..., PAGE_2_... sans trou.
-#   - Adresses : https:// seulement. Chemins de page : /liens/, /liens2/ (uniques, avec le / final).
+#   - Adresses : https:// ; ou chemin relatif (ex. /evenement/) si SITE_BASE_URL est defini.
+#   - Chemins de page : /liens/, /liens2/ (uniques, avec le / final).
 #   - Dossier de page : chemin absolu, unique, et jamais a l'interieur d'un autre dossier de page.
 #   - Icone : builtin:NOM (icones de LittleLink) ou https:// vers une image PNG, JPEG, WebP ou SVG.
 #   - Icones builtin courantes : facebook, linkedin, youtube, generic-calendar, generic-blog, generic-website
@@ -22,6 +23,7 @@
 # 1. CONTENU PARTAGE (SITE_TITLE est obligatoire) / SHARED CONTENT (SITE_TITLE is required)
 # ---------------------------------------------------------------------------------------------
 #SITE_TITLE=Mon groupe
+#SITE_BASE_URL=https://www.exemple.org/   # facultatif : sinon le domaine du certificat unique du serveur
 #SITE_HEADING=Mon groupe
 #SITE_DESCRIPTION=Retrouvez-nous sur nos canaux.
 #SITE_LANGUAGE=fr                                  # fr ou en
