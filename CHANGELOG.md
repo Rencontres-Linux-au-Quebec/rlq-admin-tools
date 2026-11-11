@@ -185,6 +185,16 @@ Earlier history was archived outside this repository when this file was created.
 
 ## app-health-check.py
 
+### 2.35.20261110.193238 - Traversal test out of the hourly run: only at nginx-hardening.sh --update or with --traversal-only
+
+- Title: the traversal test of the query string is no longer sent at every hourly run; it runs once per update of the nginx rules.
+- Reason: web-monitor.py runs app-health-check.py every hour. The traversal test sends GET /some/page?file=../conf/conf.php, which nginx refuses with a 404 on purpose. The result never changes between two hours (the rule does not change without an update), so the hourly 404 added noise to the logs (app-log-live.py shows it as "[sonde de ce serveur]").
+- Changes: new function check_traversal(cfg, target, verbose) with the same request, the same rule and the same result text; check 11 removed from check_http() (replaced by a comment). New option --traversal-only (requires --target): prints one line "[OK] ..." or "[FAIL] ..." and exits 0 or 1. The other checks are unchanged, including the sensitive files (/.env, /en_CA/.env, /.git/config), which also answer 404 and are still probed hourly.
+- Bugs fixed: none.
+- Safeguards and edge cases: the rule is still verified: nginx-hardening.sh --update runs the test after installing the rules (section 12 bis, see its changelog). The local target still connects to 127.0.0.1 with the public host name, as before.
+- Checks performed: python3 -m py_compile; test_app_health_check suite (see the report of the test run).
+- Action required: none. The hourly report no longer contains the line "Traversal in the query string blocked by nginx". To see it: nginx-hardening.sh --update, or app-health-check.py --target local --traversal-only.
+
 ### 2.34.20261109.160000 - Works without root: notice at the start, detected values when the configuration is unreadable
 
 - Title: app-health-check.py runs as an ordinary user and says at the start what it cannot see.
@@ -393,6 +403,16 @@ Earlier history was archived outside this repository when this file was created.
 ### 2.23.20261020.211944 - Current version. Earlier history archived outside the repository.
 
 ## app-log-live.py
+
+### 1.189.20261110.193238 - Colours with a meaning only, disk latency statistics, websocket durations not coloured
+
+- Title: the colours of the lines keep only their meaning; the latency block gives the distribution of the disk waits (min, mean, median, standard deviation, 95th and 99th percentiles); a websocket duration is no longer coloured.
+- Reason: request of the administrator on 2026-11-10. (1) The duration of GET /websocket was coloured like a slow request (yellow from 3 s, red above 6 s), although a websocket is a connection kept open while a chat tab is open: a long duration is normal, not a problem, so no threshold is needed. (2) In the address column, the owner of the address block (RDAP organisation or network name, for an address that is not a known person) was yellow, which explained nothing; the wish is a white base colour, with colours only for what matters (known person, blocked address). (3) Statistics on the disk latency were missing from the summary.
+- Changes: STYLES: "org", "reseau" (owner of the block), "ip" (country code and brackets) have no colour any more (plain white); "person", "team", "place", "server", "dns" and "banned" keep their colours. transfer_style() is no longer applied to the duration of a websocket (token(), condition "and sql"). LatencyMonitor: new deque self.disk_latency (DISK_LATENCY_KEEP = 20000 values), one value per sample of 30 s (wait per disk operation, all disks, weighted by the count of operations of each disk); new method disk_latency_stats() (min, mean, median, sample standard deviation, nearest-rank 95th and 99th percentiles, maximum); new line "Disk latency per operation" in the LATENCY block of lines() (Y key, summary, dashboard). statistics imported. lang/app-log-live.fr.po: fragments of the new line.
+- Bugs fixed: symptom: a line "101 494 14.602" (websocket) showed its duration in yellow or red. Diagnosis: 1.141 applied the traffic light to every duration of a line; 1.145 and 1.171 excluded the websockets from the "slow" count, but not from the colouring. Fix: no colour for a websocket duration.
+- Safeguards and edge cases: the Odoo requests (SQL time present) keep their traffic light; a websocket is still never a slow request (LONG_CONNECTION_RE unchanged). A sample with no disk operation in its interval is not counted. Before the first sample, the line is not displayed. The statistics are kept for the session (about 7 days at 30 s) and are exact, the values not being binned.
+- Checks performed: python3 -m py_compile; test_app_log_live suite (see the report of the test run).
+- Action required: none. Reading of the address column: the yellow text in the owner column is now plain; the legend of the program (startup) keeps the same wording, the colour of the owner being none.
 
 ### 1.188.20261109.234500 - Health without the probes of this server; slow static files said
 
@@ -3462,6 +3482,16 @@ Earlier history was archived outside this repository when this file was created.
 ### 1.14.20261020.211944 - Current version. Earlier history archived outside the repository.
 
 ## nginx-hardening.sh
+
+### 2.94.20261110.193238 - Traversal test run once at each --update
+
+- Title: --update checks that the query-string traversal is blocked by nginx, once, after the rules are installed.
+- Reason: follows app-health-check.py 2.35, which no longer runs this test hourly.
+- Changes: new section "12 bis" (after the real check of the URIs, before the e-mail section 13): with --update only (--check sends no request), runs app-health-check.py --target local --traversal-only, reads its line [OK] or [FAIL], and reports it as pass, fail (with advice on the includes of securite-commune.conf) or a warning if no recognized line comes back. SCRIPT_VERSION updated.
+- Bugs fixed: none.
+- Safeguards and edge cases: the step is skipped when app-health-check.py is not readable next to this script; the program is stopped after 60 s (timeout); the step changes nothing on the server.
+- Checks performed: bash -n nginx-hardening.sh; test_nginx_hardening suite (see the report of the test run).
+- Action required: none.
 
 ### 2.93.20261109.223000 - Figures for THIS server: workers recommended, PostgreSQL values recomputed even downwards
 

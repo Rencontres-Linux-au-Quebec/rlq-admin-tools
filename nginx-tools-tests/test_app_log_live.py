@@ -5411,3 +5411,45 @@ class OdooRuntime181(unittest.TestCase):
         self.assertEqual(self.live.worker_memory("odoo.service"),
                          {"worker_vms_mb": 659, "worker_rss_mb": 245, "worker_overhead_mb": 414, "workers_measured": 2, "odoo_start": self.start})
         self.assertEqual(self.live.worker_memory(""), {})
+
+
+class AppLogLive189(unittest.TestCase):
+    """1.189 : statistiques de latence des disques (min, moyenne, médiane, écart type, p95, p99 : rang le plus proche, valeurs exactes)
+    et couleurs réservées au sens (propriétaire du bloc et pays sans couleur, durée d'un websocket jamais colorée)."""
+
+    @classmethod
+    def setUpClass(cls):
+        spec = importlib.util.spec_from_file_location("live189", script_path("app-log-live.py"))
+        cls.m = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(cls.m)
+
+    def test_statistiques_exactes_sur_cinq_echantillons(self):
+        import statistics
+        monitor = self.m.LatencyMonitor(sysperf=None)
+        self.assertIsNone(monitor.disk_latency_stats())                  # aucun échantillon : rien à afficher
+        monitor.disk_latency.extend([1.0, 2.0, 3.0, 4.0, 100.0])
+        s = monitor.disk_latency_stats()
+        self.assertEqual((s["n"], s["min"], s["max"], s["median"]), (5, 1.0, 100.0, 3.0))
+        self.assertAlmostEqual(s["mean"], 22.0)
+        self.assertAlmostEqual(s["stdev"], statistics.stdev([1.0, 2.0, 3.0, 4.0, 100.0]))
+        self.assertEqual((s["p95"], s["p99"]), (100.0, 100.0))
+
+    def test_percentiles_rang_le_plus_proche(self):
+        monitor = self.m.LatencyMonitor(sysperf=None)
+        monitor.disk_latency.extend(float(i) for i in range(1, 101))    # 1 ... 100
+        s = monitor.disk_latency_stats()
+        self.assertEqual((s["p95"], s["p99"], s["median"]), (95.0, 99.0, 50.5))
+        monitor.disk_latency.clear()
+        monitor.disk_latency.append(7.0)
+        s = monitor.disk_latency_stats()
+        self.assertEqual((s["n"], s["stdev"], s["p95"]), (1, 0.0, 7.0))  # un seul échantillon : pas d'écart type
+
+    def test_fenetre_bornee(self):
+        monitor = self.m.LatencyMonitor(sysperf=None)
+        self.assertEqual(monitor.disk_latency.maxlen, self.m.DISK_LATENCY_KEEP)
+
+    def test_couleurs_du_propriétaire_et_du_pays_sans_couleur(self):
+        for cle in ("org", "reseau", "ip"):
+            self.assertEqual(self.m.STYLES[cle], "", cle)
+        self.assertEqual(self.m.color_code(self.m.STYLES["org"], "Videotron Ltee"), "Videotron Ltee")
+        self.assertEqual(self.m.STYLES["banned"], "1;91")                 # bloqué : rouge (conservé)

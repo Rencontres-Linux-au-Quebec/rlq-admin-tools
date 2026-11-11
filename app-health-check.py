@@ -66,7 +66,7 @@ import sys
 import time
 from urllib.parse import urlparse, parse_qs, unquote
 
-__version__ = "2.34.20261109.160000"
+__version__ = "2.35.20261110.193238"
 # Marker added at the END of the "browser" User-Agent (2.2): our test requests are recognizable in all the
 # logs (nginx, Odoo) and excluded from the statistics by web-monitor.py. Matches no pattern of the bot filter.
 UA_MARKER = " app-health-check/" + ".".join(__version__.split(".")[:2])
@@ -437,6 +437,24 @@ def check_bbb(cfg, target, verbose=False):
     return results
 
 
+def check_traversal(cfg, target, verbose=False):
+    """2.35: directory traversal IN THE QUERY STRING (not only the path) must be blocked by NGINX (rule 3, securite-commune.conf), not let through
+    to Odoo. The request is answered by a 404 on purpose, so it is NOT part of the hourly run (web-monitor.py): it is checked once per
+    nginx-hardening.sh --update (the rule is installed by that step), or on demand with --traversal-only.
+    Both answers are 404: the status cannot tell them apart. Odoo's error page (website theme, several KB with CSS/JS) is much larger than
+    nginx's minimal 404 page (a few hundred bytes, no layout); a short body is therefore a reliable sign that NGINX answered."""
+    host = cfg["ODOO_PUBLIC_HOST"]
+    connect_host = "127.0.0.1" if target == "local" else host
+    verify_tls = target != "local"
+    try:
+        status, _, body_trav = Http(connect_host, 443, host, verify_tls, verbose=verbose).request("GET", "/some/page?file=../conf/conf.php")
+        blocked_by_nginx = status in (403, 404, 444) and len(body_trav) < 1000
+        origin = "probablement nginx" if len(body_trav) < 1000 else "probably Odoo (page too large to be nginx's minimal 404 page)"     # 2.23: no backslash in an f-string (Python 3.8)
+        return [("Traversal in the query string blocked by nginx", blocked_by_nginx, f"status: {status}, {len(body_trav)} bytes — {origin}")]
+    except Exception as e:
+        return [("Traversal in the query string blocked by nginx", False, f"exception: {e}")]
+
+
 def check_http(cfg, target, verbose=False):
     results = []
     host = cfg["ODOO_PUBLIC_HOST"]
@@ -645,23 +663,8 @@ def check_http(cfg, target, verbose=False):
         results.append(("/robots.txt exempt from bad-bot blocking", None,
                          "test not applicable in local mode ($is_internal_client exempts all blocking by UA) — run again with --target external"))
 
-    # 11) Directory traversal IN THE QUERY STRING (not only the path): must be blocked by NGINX
-    #     (rule 3, securite-commune.conf), not let through to Odoo. Both produce a 404 status, so
-    #     the status alone cannot tell them apart - Odoo's error page (rendered by its website
-    #     theme, several KB with CSS/JS) is much larger than nginx's minimal 404 page
-    #     (a few hundred bytes at most, no layout). A short body is therefore a reliable sign
-    #     that NGINX answered, not Odoo.
-    try:
-        status, _, body_trav = client().request("GET", "/some/page?file=../conf/conf.php")
-        blocked_by_nginx = status in (403, 404, 444) and len(body_trav) < 1000
-        origin = "probablement nginx" if len(body_trav) < 1000 else "probably Odoo (page too large to be nginx's minimal 404 page)"     # 2.23: no backslash in an f-string (Python 3.8)
-        results.append((
-            "Traversal in the query string blocked by nginx",
-            blocked_by_nginx,
-            f"status: {status}, {len(body_trav)} bytes — {origin}",
-        ))
-    except Exception as e:
-        results.append(("Traversal in the query string blocked by nginx", False, f"exception: {e}"))
+    # 11) Traversal in the query string: NOT in this run since 2.35 (it asks for a 404 on purpose, every hour for nothing):
+    #     see check_traversal(), run by nginx-hardening.sh --update and by --traversal-only.
     # Sensitive files refused by nginx ITSELF (rule "location ~ /\." of securite-commune.conf): small nginx
     # 404 page, never Odoo's 404 page - otherwise these requests reach the application (recommendation of the summary).
     try:
@@ -1578,6 +1581,8 @@ def main():
                         help="Check the alert e-mail: SMTP relay, MX, SPF, DMARC, DKIM (records to add)")
     parser.add_argument("--test-email", action="store_true",
                         help="DNS checks of the e-mail, then actually send a test e-mail")
+    parser.add_argument("--traversal-only", action="store_true",
+                        help="Only the traversal test of the query string (--target required): one line [OK] or [FAIL]; run by nginx-hardening.sh --update")
     parser.add_argument("--create-config", nargs="?", const=DEFAULT_CONFIG_PATH, metavar="PATH",
                         help=f"Create the configuration file by detecting the values on this server "
                              f"(default: {DEFAULT_CONFIG_PATH})")
@@ -1675,6 +1680,11 @@ def main():
         sys.exit(show_email_dns(cfg))
     if args.test_email:
         sys.exit(test_email(cfg))
+    if args.traversal_only:                              # 2.35: the single check of nginx-hardening.sh --update, one line per result
+        results = check_traversal(cfg, args.target, verbose=args.verbose)
+        for name, ok, detail in results:
+            print(f"[{'OK' if ok else 'FAIL'}] {name} — {detail}")
+        sys.exit(0 if all(ok for _, ok, _ in results) else 1)
 
     real_stdout = sys.stdout
     if args.json:                     # 2.32: the readable text of the checks goes to standard error, the JSON alone to standard output

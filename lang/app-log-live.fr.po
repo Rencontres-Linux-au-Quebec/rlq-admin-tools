@@ -3478,3 +3478,27 @@ msgstr "requêtes lentes finies dans les mêmes 2 secondes ({when}) presque sans
 
 msgid "slow requests are static files or images with almost no SQL: Odoo read a file (the disk), it had nothing to compute; the cache of nginx (nginx-hardening.sh --update) serves them without Odoo"
 msgstr "requêtes lentes sont des fichiers statiques ou des images presque sans SQL : Odoo a lu un fichier (le disque), il n'avait rien à calculer ; le cache de nginx (nginx-hardening.sh --update) les sert sans Odoo"
+
+msgid "    Disk latency per operation ("
+msgstr "    Latence des disques par opération ("
+
+msgid " samples): min "
+msgstr " échantillons) : min "
+
+msgid " ms · mean "
+msgstr " ms · moyenne "
+
+msgid " ms · median "
+msgstr " ms · médiane "
+
+msgid " ms · standard deviation "
+msgstr " ms · écart type "
+
+msgid " ms · 95 % under "
+msgstr " ms · 95 % sous "
+
+msgid " ms · 99 % under "
+msgstr " ms · 99 % sous "
+
+msgid " ms · maximum "
+msgstr " ms · maximum "
