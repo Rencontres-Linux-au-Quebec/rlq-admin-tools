@@ -336,11 +336,14 @@ class HardeningPropose(unittest.TestCase):
         self.assertIn("--- 12 ter) Page de liens", self.texte)
 
     def test_question_avant_toute_action(self):
-        question = self.texte.index("Créer une page de liens (LittleLink, /liens/) maintenant")
+        # Each action comes after its own question: the update question before the update, the creation question before the template copy.
         mise_a_jour = self.texte.index("Mettre à jour la page de liens maintenant")
-        appel = self.texte.index('"$LIENS_SCRIPT" --update --yes')
-        self.assertLess(question, appel)
-        self.assertLess(mise_a_jour, appel)
+        appel_update = self.texte.index('"$LIENS_SCRIPT" --update --yes')
+        creation = self.texte.index("Créer une page de liens (LittleLink, /liens/) maintenant")
+        appel_creation = self.texte.index('"$LIENS_SCRIPT" --check || true')
+        self.assertLess(mise_a_jour, appel_update)
+        self.assertLess(creation, appel_creation)
+        self.assertLess(appel_update, creation)
 
     def test_sans_terminal_rien_n_est_lance(self):
         self.assertIn('if [[ -t 0 && -t 2 ]]; then', self.texte)
