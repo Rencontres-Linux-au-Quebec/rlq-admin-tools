@@ -146,7 +146,7 @@ grep_q() { grep "$@" >/dev/null; }
 #                              ne peut pas le voir, le texte etant entre apostrophes (faux positif).
 trap 'ec=$?; echo "" >&2; echo "*** ARRÊT INATTENDU DU SCRIPT (code $ec) À LA LIGNE $LINENO ***" >&2; echo "*** Commande fautive : $BASH_COMMAND" >&2; echo "*** Si le rapport ci-dessus semble incomplet (ex. sections Top 10 absentes), c'\''est probablement la cause." >&2' ERR
 
-readonly SCRIPT_VERSION="2.93.20261110.213818"
+readonly SCRIPT_VERSION="2.94.20261111.171900"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
 # theme_sgr CODE (2.86) : the SGR code as the color theme shows it (--theme N, THEME, NGINX_TOOLS_THEME; apps/_theme.py). Theme 0, no module or no python3: unchanged.
 theme_sgr() {
@@ -795,7 +795,7 @@ provenance_ip() {
     fi
     if [[ -n "$ptr" && "$ip" != *:* ]]; then
         IFS=. read -r a b c d <<< "$ip"
-        if printf '%s' "$ptr" | grep_q -iE "$ISP_PTR_RE" || printf '%s' "$ptr" | grep_q -E "(^|[^0-9])($a[.-]$b[.-]$c[.-]$d|$d[.-]$c[.-]$b[.-]$a)([^0-9]|$)"; then
+        if printf '%s' "$ptr" | grep_q -iE "$ISP_PTR_RE" || printf '%s' "$ptr" | grep_q -E "(^|[^0-9])(${a}[.-]${b}[.-]${c}[.-]${d}|${d}[.-]${c}[.-]${b}[.-]${a})([^0-9]|$)"; then
             PROV_TYPE="acces"; PROV_TEXTE="fournisseur d'accès : $ptr${RESEAU_LABEL:+ ($RESEAU_LABEL)}"; return 0
         fi
     fi

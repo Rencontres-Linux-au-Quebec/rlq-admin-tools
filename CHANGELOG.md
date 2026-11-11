@@ -4437,6 +4437,20 @@ Earlier history was archived outside this repository when this file was created.
 
 ## nginx-log-audit.sh
 
+### 2.94.20261111.171900 - Braces around variables before a regex bracket (shellcheck SC1087)
+
+- Title: the reverse-DNS test of the provider pattern writes ${a}, ${b}, ${c}, ${d} instead of $a, $b, $c, $d.
+- Reason: the new Bash job of the GitHub workflow runs shellcheck with -S error; SC1087 "Use braces when expanding
+  arrays" flagged line 798, so the job failed on main and on the pull requests.
+- Changes: the regular expression of the reverse-DNS check (provider from the PTR name) uses braces. The matched text is
+  the same: the pattern is built from the same four octets.
+- Bugs fixed: symptom: shellcheck error on line 798. Diagnosis: bash reads "$a[" as the start of an array subscript in
+  the double-quoted pattern. Fix: braces, no change of behaviour.
+- Safeguards and edge cases: the octets are still matched in both orders (forward and reversed), with the same
+  separators (dot or dash).
+- Checks performed: bash -n; test_nginx_log_audit.py run by the testeur agent.
+- Action required: none.
+
 ### 2.93.20261110.213818 - A lone burst and robots.txt are no longer reasons to propose a ban
 
 - Title: --investigate no longer treats a single burst of pages, nor a 404 on /robots.txt, as a sign of hostility.
