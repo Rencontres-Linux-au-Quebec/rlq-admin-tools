@@ -4206,6 +4206,26 @@ Earlier history was archived outside this repository when this file was created.
 
 ## nginx-link-page.sh
 
+### 1.3.20261111.105500 - Configuration created automatically when none exists
+
+- Motif de la demande: l'utilisateur ne doit pas avoir a lancer --init. Sans fichier de configuration, le programme doit
+  creer lui-meme la configuration a partir du modele, puis indiquer quoi remplir.
+- Detail des modifications:
+  - nginx-link-page.sh (1.3.20261111.105500): si aucun fichier n'est lu et qu'aucun -c n'est donne, le modele est copie
+    dans /etc/default/nginx-link-page.conf (si ce dossier est accessible en ecriture), sinon dans ~/.nginx-link-page.conf.
+    Le programme s'arrete ensuite avec un avertissement, sans rien installer (code de sortie 1).
+  - --init reste disponible mais n'est plus necessaire.
+  - nginx-link-page.conf.example: procedure de remplissage mise a jour (la premiere etape cree le fichier).
+  - Tests: la creation automatique, l'absence de creation pour --version et --help, et l'absence de creation pour un
+    fichier donne avec -c.
+- Bugs corriges: aucun.
+- Garde-fous et cas limites: un -c absent n'est jamais cree (une erreur est affichee); --version et --help ne creent rien;
+  le fichier cree n'est jamais ecrase (--init refuse un fichier existant); rien n'est installe au premier passage.
+- Verifications effectuees: tests unitaires de nginx-tools-tests/test_nginx_link_page.py lances par le testeur; execution
+  manuelle sans configuration (copie dans ~/.nginx-link-page.conf, code de sortie 1).
+- Action requise: aucune de plus que de remplir le fichier cree, puis relancer --check et --update --yes.
+
+
 ### 1.2.20261111.104500 - Commented template, --init, and a hint when no configuration exists
 
 - Motif de la demande: lancer --check sans fichier de configuration donnait trois erreurs sans indiquer quoi faire. Il faut

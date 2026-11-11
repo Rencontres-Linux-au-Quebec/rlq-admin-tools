@@ -5,7 +5,7 @@
 # ============================================================================================
 #
 # REMPLISSAGE RAPIDE / QUICK FILL
-#   1. sudo nginx-link-page.sh --init               cree /etc/default/nginx-link-page.conf
+#   1. sudo nginx-link-page.sh --check              cree le fichier s'il n'existe pas (copie de ce modele)
 #   2. sudo nano /etc/default/nginx-link-page.conf  decommenter et remplacer les exemples
 #   3. nginx-link-page.sh --check                   verifie la configuration, n'ecrit rien
 #   4. sudo nginx-link-page.sh --update --yes       installe les pages et recharge nginx

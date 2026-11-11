@@ -95,10 +95,24 @@ class Configuration(Base):
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
         self.assertIn("valide", r.stdout)
 
-    def test_sans_configuration_propose_init(self):
+    def test_sans_configuration_cree_le_modele_automatiquement(self):
         r = self.lancer("--check")
+        self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
+        cree = self.etc / "nginx-link-page.conf"
+        self.assertTrue(cree.exists())
+        self.assertEqual(cree.read_text(encoding="utf-8"), EXEMPLE.read_text(encoding="utf-8"))
+        self.assertIn("Rien n'a ete installe", r.stdout)
+
+    def test_sans_configuration_et_sans_creation_pour_version_et_aide(self):
+        self.assertEqual(self.lancer("--version").returncode, 0)
+        self.assertEqual(self.lancer("--help").returncode, 0)
+        self.assertFalse((self.etc / "nginx-link-page.conf").exists())
+
+    def test_config_explicite_absente_n_est_pas_creee(self):
+        r = self.lancer("-c", str(self.tmp / "absent.conf"), "--check")
         self.assertNotEqual(r.returncode, 0)
-        self.assertIn("--init", r.stderr)
+        self.assertFalse((self.tmp / "absent.conf").exists())
+        self.assertFalse((self.etc / "nginx-link-page.conf").exists())
 
     def test_init_cree_puis_refuse_l_ecrasement(self):
         cible = self.tmp / "sous" / "nginx-link-page.conf"
