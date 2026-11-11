@@ -3483,6 +3483,21 @@ Earlier history was archived outside this repository when this file was created.
 
 ## nginx-hardening.sh
 
+### 2.97.20261111.111000 - Link page step moved before the generic nginx configuration (0f)
+
+- Motif de la demande: la question sur la page de liens doit etre posee avant l'etape 0f (configuration nginx generique),
+  pour que la page soit installee avant que cette configuration soit appliquee.
+- Detail des modifications:
+  - nginx-hardening.sh (2.97.20261111.111000): le bloc 12 ter (page de liens) est deplace avant le bloc 0f. Aucun changement
+    de logique : meme question, meme absence d'action sans reponse positive.
+  - nginx-tools-tests/test_nginx_link_page.py: test verifiant que 12 ter precede 0f.
+- Bugs corriges: aucun.
+- Garde-fous et cas limites: la page est installee avec nginx-link-page.sh qui fait son propre nginx -t et restaure l'ancien
+  fragment en cas d'echec; a ce moment la configuration generique n'est pas encore appliquee.
+- Verifications effectuees: test de l'ordre lance par le testeur; verification de la syntaxe bash.
+- Action requise: aucune.
+
+
 ### 2.96.20261111.110000 - Ask whether to create or update the link page
 
 - Motif de la demande: l'administrateur doit pouvoir creer la page de liens depuis nginx-hardening.sh, sans connaitre
