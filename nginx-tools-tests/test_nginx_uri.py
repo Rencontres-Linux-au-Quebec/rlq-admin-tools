@@ -130,3 +130,25 @@ class FiltreTagsEvenements(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class RobotsTxtNonRefuse(unittest.TestCase):
+    """2.93 (securite-commune 1.27) : la règle 5 (extensions .txt, .sql, .bak…) ne refuse plus /robots.txt ; les autres .txt restent refusés."""
+
+    def motif(self):
+        import re
+        with open(SECURITE, encoding="utf-8") as f:
+            for ligne in f:
+                if ligne.startswith("location ~* ^/(?!web/content"):
+                    return re.compile(ligne.split(" ", 2)[2].split(" {")[0], re.IGNORECASE)
+        self.fail("règle 5 introuvable dans securite-commune.conf")
+
+    def test_robots_txt_passe_et_les_autres_txt_sont_refuses(self):
+        m = self.motif()
+        self.assertIsNone(m.search("/robots.txt"), "robots.txt ne doit plus être refusé")
+        self.assertIsNone(m.search("/.well-known/security.txt"))
+        self.assertIsNone(m.search("/web/content/3/rapport.txt"), "pièce jointe : exemptée depuis toujours")
+        self.assertIsNotNone(m.search("/rapport.txt"))
+        self.assertIsNotNone(m.search("/config.txt.bak"))
+        self.assertIsNotNone(m.search("/sauvegarde.sql"))
+
