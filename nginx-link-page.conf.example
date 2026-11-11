@@ -23,7 +23,7 @@
 # 1. CONTENU PARTAGE (SITE_TITLE est obligatoire) / SHARED CONTENT (SITE_TITLE is required)
 # ---------------------------------------------------------------------------------------------
 #SITE_TITLE=Mon groupe
-#SITE_BASE_URL=https://www.exemple.org/   # facultatif : base des chemins relatifs (liens, icones, logo)
+#SITE_BASE_URL=https://www.exemple.org/   # facultatif : sinon le domaine du certificat unique du serveur
 #SITE_HEADING=Mon groupe
 #SITE_DESCRIPTION=Retrouvez-nous sur nos canaux.
 #SITE_LANGUAGE=fr                                  # fr ou en

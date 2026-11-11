@@ -29,7 +29,7 @@
 set -u
 LANG_C="${LC_ALL:-${LC_MESSAGES:-${LANG:-C}}}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
-readonly SCRIPT_VERSION="1.6.20261111.144200"
+readonly SCRIPT_VERSION="1.7.20261111.162600"
 readonly SCRIPT_NAME="nginx-link-page"
 readonly CHANGELOG_FILE="$SCRIPT_DIR/CHANGELOG.md"
 
@@ -191,6 +191,25 @@ CHEMIN_RE='^/[A-Za-z0-9_-]+/$'
 
 # SITE_BASE_URL (optional, https://): base for relative addresses such as /event/ in LINK_n_URL, icons and logo
 SITE_BASE_URL_V=$(valeur_ou SITE_BASE_URL "")
+LE_DIR="${NGINX_LINK_PAGE_LETSENCRYPT_DIR:-/etc/letsencrypt/live}"
+# base_depuis_certificat: the server has one domain; certbot names each certificate folder after it.
+# Prints https://DOMAINE/ when exactly one folder with a fullchain.pem exists, returns 1 otherwise.
+base_depuis_certificat() {
+    local d nom
+    local -a noms=()
+    [[ -d "$LE_DIR" ]] || return 1
+    for d in "$LE_DIR"/*/; do
+        [[ -f "${d}fullchain.pem" ]] || continue
+        nom="${d%/}"; nom="${nom##*/}"
+        noms+=("$nom")
+    done
+    (( ${#noms[@]} == 1 )) || return 1
+    printf 'https://%s/' "${noms[0]}"
+}
+SITE_BASE_SOURCE="SITE_BASE_URL"
+if [[ -z "$SITE_BASE_URL_V" ]] && nom_base="$(base_depuis_certificat)"; then
+    SITE_BASE_URL_V="$nom_base"; SITE_BASE_SOURCE="certificat / certificate"
+fi
 REL_RE='^/?[A-Za-z0-9][A-Za-z0-9._~%?#=&+/-]*$'
 # resoudre_url VALEUR: prints the absolute https:// address, returns 1 when it cannot be resolved
 resoudre_url() {
@@ -235,7 +254,7 @@ for i in "${LIENS_N[@]}"; do
     lab="${CFG[LINK_${i}_LABEL]:-}"; url="${CFG[LINK_${i}_URL]:-}"
     [[ -n "$lab" && ${#lab} -le 80 ]] || PROBLEMES+=("LINK_${i}_LABEL vide ou trop long (80 caracteres max) / empty or too long")
     if [[ -n "$url" ]] && abs="$(resoudre_url "$url")"; then url="$abs"; CFG[LINK_${i}_URL]="$abs"; fi
-    [[ "$url" =~ $URL_RE ]] || PROBLEMES+=("LINK_${i}_URL doit etre une adresse https:// ou un chemin avec SITE_BASE_URL / must be an https:// address or a path with SITE_BASE_URL")
+    [[ "$url" =~ $URL_RE ]] || PROBLEMES+=("LINK_${i}_URL doit etre une adresse https:// ou un chemin relatif (SITE_BASE_URL, ou un seul certificat sur le serveur) / must be an https:// address or a relative path (SITE_BASE_URL, or a single certificate on the server)")
     for cle in LINK_${i}_ICON LINK_${i}_ICON_DARK; do
         ic="${CFG[$cle]:-}"
         [[ -z "$ic" ]] && continue
@@ -304,6 +323,9 @@ else
     echo "Configuration lue / configuration read : aucune / none (valeurs par defaut / defaults)"
 fi
 echo "  $(m "Site" "Site") : ${SITE_TITLE_V:-?} · ${#LIENS_N[@]} $(m "liens" "links") · ${#PAGES_N[@]} $(m "page(s)" "page(s)")"
+if [[ -n "$SITE_BASE_URL_V" ]]; then
+    echo "  $(m "Base des chemins relatifs" "Base for relative paths") : $SITE_BASE_URL_V ($SITE_BASE_SOURCE)"
+fi
 for i in "${PAGES_N[@]}"; do
     echo "    PAGE_${i} : $(valeur_ou "PAGE_${i}_PATH" "?") -> $(valeur_ou "PAGE_${i}_DIR" "?") · $(valeur_ou "PAGE_${i}_ENGINE" littlelink) · $(valeur_ou "PAGE_${i}_ENABLED" yes)"
 done

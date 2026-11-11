@@ -192,6 +192,36 @@ class Configuration(Base):
         self.assertNotEqual(r.returncode, 0)
         self.assertIn("SITE_BASE_URL", r.stderr)
 
+    def certificat(self, *noms):
+        le = self.tmp / "le"
+        for nom in noms:
+            (le / nom).mkdir(parents=True, exist_ok=True)
+            (le / nom / "fullchain.pem").write_text("x", encoding="utf-8")
+        return {"NGINX_LINK_PAGE_LETSENCRYPT_DIR": str(le)}
+
+    def test_base_prise_dans_le_certificat_unique(self):
+        env = self.certificat("exemple.example.org")
+        texte = "SITE_TITLE=T\nLINK_1_LABEL=A\nLINK_1_URL=/a/\nPAGE_1_PATH=/liens/\nPAGE_1_DIR=/var/www/liens\n"
+        r = self.lancer("-c", str(self.conf(texte)), "--check", env=env)
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertIn("https://exemple.example.org/", r.stdout)
+        self.assertIn("certificat", r.stdout)
+
+    def test_base_refusee_si_plusieurs_certificats(self):
+        env = self.certificat("exemple.example.org", "mail.example.org")
+        r = self.lancer("-c", str(self.conf("SITE_TITLE=T\nLINK_1_LABEL=A\nLINK_1_URL=/a/\n")), "--check", env=env)
+        self.assertNotEqual(r.returncode, 0)
+        self.assertIn("LINK_1_URL", r.stderr)
+
+    def test_site_base_url_prioritaire_sur_le_certificat(self):
+        env = self.certificat("exemple.example.org")
+        texte = ("SITE_TITLE=T\nSITE_BASE_URL=https://autre.example.net/\nLINK_1_LABEL=A\nLINK_1_URL=/a/\n"
+                 "PAGE_1_PATH=/liens/\nPAGE_1_DIR=/var/www/liens\n")
+        r = self.lancer("-c", str(self.conf(texte)), "--check", env=env)
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertIn("https://autre.example.net/", r.stdout)
+        self.assertNotIn("exemple.example.org", r.stdout)
+
     def test_variantes_invalides_refusees(self):
         for ligne, cle in (("PAGE_1_BUTTONS=rond\n", "BUTTONS"),
                            ("PAGE_1_AVATAR=round\n", "AVATAR"),
