@@ -222,6 +222,13 @@ class Configuration(Base):
         self.assertIn("https://autre.example.net/", r.stdout)
         self.assertNotIn("exemple.example.org", r.stdout)
 
+    def test_langues_invalides_refusees(self):
+        for valeur in ("de", "fr,fr", "fr,en,de"):
+            with self.subTest(valeur=valeur):
+                r = self.lancer("-c", str(self.conf(MINIMAL + f"PAGE_1_LANGUAGES={valeur}\n")), "--check")
+                self.assertNotEqual(r.returncode, 0)
+                self.assertIn("LANGUAGES", r.stderr)
+
     def test_variantes_invalides_refusees(self):
         for ligne, cle in (("PAGE_1_BUTTONS=rond\n", "BUTTONS"),
                            ("PAGE_1_AVATAR=round\n", "AVATAR"),
@@ -394,6 +401,30 @@ PAGE_2_TITLE=Deux
         ici = (self.www / "liens" / "index.html").read_text(encoding="utf-8")
         self.assertIn('href="https://www.example.org/a/"', ici)
         self.assertNotIn('href="/a/"', ici)
+
+    def test_deux_langues_detection_et_textes(self):
+        texte = self.config_deux_pages("no").replace(
+            "PAGE_1_THEME=auto", "PAGE_1_THEME=auto\nPAGE_1_LANGUAGES=fr,en").replace(
+            "LINK_1_ICON=builtin:facebook\n", "LINK_1_ICON=builtin:facebook\nLINK_1_LABEL_EN=Link EN\n").replace(
+            "SITE_TITLE=Test & B\n", "SITE_TITLE=Test & B\nSITE_TITLE_EN=Test EN\nSITE_HEADING_EN=Home EN\n")
+        r = self.lancer("-c", str(self.conf(texte)), "--update", "--yes", env=self.env)
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        fr = (self.www / "liens" / "index.html").read_text(encoding="utf-8")
+        en = (self.www / "liens" / "en" / "index.html").read_text(encoding="utf-8")
+        self.assertIn('lang="fr"', fr)
+        self.assertIn('lang="en"', en)
+        self.assertIn("Lien &lt;A&gt;", fr)
+        self.assertIn("Link EN", en)
+        self.assertIn("<title>Test EN</title>", en)
+        self.assertIn("<h1>Home EN</h1>", en)
+        self.assertIn('href="/liens/en/"', fr)
+        self.assertIn('href="/liens/"', en)
+        self.assertTrue((self.www / "liens" / "en" / "css" / "style.css").exists())
+        snippet = (self.snippets / "liens-publics.conf").read_text(encoding="utf-8")
+        self.assertIn("location = /liens/ {", snippet)
+        self.assertIn('if ($http_accept_language ~* "^en") {', snippet)
+        self.assertIn("return 302 /liens/en/;", snippet)
+        self.assertIn('add_header Vary "Accept-Language" always;', snippet)
 
     def test_page_desactivee_absente(self):
         r = self.lancer("-c", str(self.conf(self.config_deux_pages("no"))), "--update", "--yes", env=self.env)

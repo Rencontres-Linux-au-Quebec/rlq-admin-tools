@@ -58,6 +58,10 @@
 # PAGE_n_AVATAR  : none, soft ou rounded (forme du logo)
 # PAGE_n_ACCENT  : couleur des boutons #RRGGBB, ex. #1A2B3C (vide : couleur par defaut)
 # PAGE_n_SWITCH  : yes ou no ; yes cree autre.html avec l'autre theme et un bouton pour y aller
+# PAGE_n_LANGUAGES : fr, en, fr,en ou en,fr (la 1re langue est a la racine /liens/, l'autre dans /liens/en/ ;
+#                   le navigateur est redirige vers la langue qu'il prefere, sinon la 1re langue)
+# SITE_TITLE_EN, SITE_HEADING_EN, SITE_DESCRIPTION_EN, SITE_FOOTER_EN, PAGE_n_TITLE_EN, LINK_n_LABEL_EN :
+#                   textes anglais facultatifs (sinon le texte francais est repris)
 #
 #PAGE_1_ENABLED=yes
 #PAGE_1_ENGINE=littlelink
@@ -69,6 +73,7 @@
 #PAGE_1_AVATAR=none
 #PAGE_1_ACCENT=
 #PAGE_1_SWITCH=no
+#PAGE_1_LANGUAGES=fr
 #
 # Exemple d'une seconde page pour comparer : desactivee tant que vous ne la voulez pas.
 #PAGE_2_ENABLED=no

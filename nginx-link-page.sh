@@ -29,7 +29,7 @@
 set -u
 LANG_C="${LC_ALL:-${LC_MESSAGES:-${LANG:-C}}}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
-readonly SCRIPT_VERSION="1.7.20261111.162600"
+readonly SCRIPT_VERSION="1.8.20261111.163800"
 readonly SCRIPT_NAME="nginx-link-page"
 readonly CHANGELOG_FILE="$SCRIPT_DIR/CHANGELOG.md"
 
@@ -226,6 +226,10 @@ SITE_HEADING_V=$(valeur_ou SITE_HEADING "$SITE_TITLE_V")
 SITE_DESCRIPTION_V=$(valeur_ou SITE_DESCRIPTION "")
 SITE_LANGUAGE_V=$(valeur_ou SITE_LANGUAGE fr)
 SITE_FOOTER_V=$(valeur_ou SITE_FOOTER "")
+SITE_TITLE_EN_V=$(valeur_ou SITE_TITLE_EN "")
+SITE_HEADING_EN_V=$(valeur_ou SITE_HEADING_EN "")
+SITE_DESCRIPTION_EN_V=$(valeur_ou SITE_DESCRIPTION_EN "")
+SITE_FOOTER_EN_V=$(valeur_ou SITE_FOOTER_EN "")
 SITE_LOGO_URL_V=$(valeur_ou SITE_LOGO_URL "")
 SITE_LOGO_ALT_V=$(valeur_ou SITE_LOGO_ALT "$SITE_TITLE_V")
 if [[ -n "$SITE_BASE_URL_V" ]] && ! [[ "$SITE_BASE_URL_V" =~ $URL_RE ]]; then
@@ -253,6 +257,7 @@ done
 for i in "${LIENS_N[@]}"; do
     lab="${CFG[LINK_${i}_LABEL]:-}"; url="${CFG[LINK_${i}_URL]:-}"
     [[ -n "$lab" && ${#lab} -le 80 ]] || PROBLEMES+=("LINK_${i}_LABEL vide ou trop long (80 caracteres max) / empty or too long")
+    [[ -z "${CFG[LINK_${i}_LABEL_EN]:-}" || ${#CFG[LINK_${i}_LABEL_EN]} -le 80 ]] || PROBLEMES+=("LINK_${i}_LABEL_EN trop long (80 caracteres max) / too long (80 characters max)")
     if [[ -n "$url" ]] && abs="$(resoudre_url "$url")"; then url="$abs"; CFG[LINK_${i}_URL]="$abs"; fi
     [[ "$url" =~ $URL_RE ]] || PROBLEMES+=("LINK_${i}_URL doit etre une adresse https:// ou un chemin relatif (SITE_BASE_URL, ou un seul certificat sur le serveur) / must be an https:// address or a relative path (SITE_BASE_URL, or a single certificate on the server)")
     for cle in LINK_${i}_ICON LINK_${i}_ICON_DARK; do
@@ -309,6 +314,8 @@ for i in "${PAGES_N[@]}"; do
         DOSSIERS_LISTE+=("$d2")
     fi
     [[ "$theme" =~ ^(auto|light|dark)$ ]] || PROBLEMES+=("${pre}THEME=$theme (auto, light ou dark)")
+    langues_v="$(valeur_ou "${pre}LANGUAGES" "$SITE_LANGUAGE_V")"
+    [[ "$langues_v" =~ ^(fr|en|fr,en|en,fr)$ ]] || PROBLEMES+=("${pre}LANGUAGES=$langues_v (fr, en, fr,en ou en,fr / fr, en, fr,en or en,fr)")
     [[ "$(valeur_ou "${pre}BUTTONS" default)" =~ ^(default|brand)$ ]] || PROBLEMES+=("${pre}BUTTONS=$(valeur_ou "${pre}BUTTONS" default) (default ou brand)")
     [[ "$(valeur_ou "${pre}AVATAR" none)" =~ ^(none|soft|rounded)$ ]] || PROBLEMES+=("${pre}AVATAR=$(valeur_ou "${pre}AVATAR" none) (none, soft ou rounded)")
     acc_v="$(valeur_ou "${pre}ACCENT" "")"
@@ -475,14 +482,27 @@ done
 # 3) one folder per enabled page: assets + index.html generated with the page's theme and title
 # theme_nom THEME / bascule_libelle THEME: labels in the page language
 theme_nom() {
-    if [[ "$SITE_LANGUAGE_V" == en ]]; then
+    if [[ "$L_LANG" == en ]]; then
         case "$1" in light) echo light ;; dark) echo dark ;; *) echo automatic ;; esac
     else
         case "$1" in light) echo clair ;; dark) echo sombre ;; *) echo automatique ;; esac
     fi
 }
 bascule_libelle() {
-    if [[ "$SITE_LANGUAGE_V" == en ]]; then echo "Switch to $(theme_nom "$1") theme"; else echo "Passer au thème $(theme_nom "$1")"; fi
+    if [[ "$L_LANG" == en ]]; then echo "Switch to $(theme_nom "$1") theme"; else echo "Passer au thème $(theme_nom "$1")"; fi
+}
+
+# libelle_lien N: link label in the language of the page being generated (LINK_N_LABEL_EN if set)
+libelle_lien() {
+    if [[ "$L_LANG" == en && -n "${CFG[LINK_${1}_LABEL_EN]:-}" ]]; then printf '%s' "${CFG[LINK_${1}_LABEL_EN]}"; else printf '%s' "${CFG[LINK_${1}_LABEL]}"; fi
+}
+# preparer_dossier DOSSIER: LittleLink assets and site images for one language folder
+preparer_dossier() {
+    local d="$1"
+    mkdir -p "$d/images/site"
+    cp -r "$TMP/littlelink/css" "$TMP/littlelink/fonts" "$d/"
+    cp -r "$TMP/littlelink/images" "$d/"
+    cp -r "$TMP/assets/images/site/." "$d/images/site/"
 }
 
 genere_index() {   # genere_index DOSSIER THEME TITRE [FICHIER] [CIBLE_BASCULE] [LIBELLE_BASCULE]
@@ -493,12 +513,12 @@ genere_index() {   # genere_index DOSSIER THEME TITRE [FICHIER] [CIBLE_BASCULE] 
         echo "<!DOCTYPE html>"
         echo "<!-- Genere par $SCRIPT_NAME.sh $SCRIPT_VERSION a partir de la configuration. Ne pas editer a la main. -->"
         echo "<!-- Built on LittleLink (MIT, https://github.com/sethcottle/littlelink), tag $LINKPAGE_TAG. -->"
-        echo "<html class=\"$classe\" lang=\"$SITE_LANGUAGE_V\">"
+        echo "<html class=\"$classe\" lang=\"$L_LANG\">"
         echo "  <head>"
         echo "    <meta charset=\"utf-8\">"
         echo "    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">"
         echo "    <title>$(html_echap "$titre")</title>"
-        if [[ -n "$SITE_DESCRIPTION_V" ]]; then echo "    <meta name=\"description\" content=\"$(html_echap "$SITE_DESCRIPTION_V")\">"; fi
+        if [[ -n "$L_DESCRIPTION" ]]; then echo "    <meta name=\"description\" content=\"$(html_echap "$L_DESCRIPTION")\">"; fi
         echo "    <meta name=\"theme-color\" content=\"#ffffff\" media=\"(prefers-color-scheme: light)\">"
         echo "    <meta name=\"theme-color\" content=\"#121212\" media=\"(prefers-color-scheme: dark)\">"
         echo "    <meta name=\"referrer\" content=\"strict-origin-when-cross-origin\">"
@@ -513,11 +533,11 @@ genere_index() {   # genere_index DOSSIER THEME TITRE [FICHIER] [CIBLE_BASCULE] 
         if [[ -n "$LOGO_LOCAL" ]]; then
             echo "      <img class=\"avatar avatar--$P_AVATAR\" src=\"$LOGO_LOCAL\" width=\"128\" height=\"128\" alt=\"$(html_echap "$SITE_LOGO_ALT_V")\">"
         fi
-        echo "      <h1>$(html_echap "$SITE_HEADING_V")</h1>"
-        if [[ -n "$SITE_DESCRIPTION_V" ]]; then echo "      <p>$(html_echap "$SITE_DESCRIPTION_V")</p>"; fi
-        echo "      <nav class=\"button-stack\" aria-label=\"$(m "Liens" "Links")\">"
+        echo "      <h1>$(html_echap "$L_HEADING")</h1>"
+        if [[ -n "$L_DESCRIPTION" ]]; then echo "      <p>$(html_echap "$L_DESCRIPTION")</p>"; fi
+        echo "      <nav class=\"button-stack\" aria-label=\"$( [[ "$L_LANG" == en ]] && echo Links || echo Liens )\">"
         for i in "${LIENS_N[@]}"; do
-            lab="${CFG[LINK_${i}_LABEL]}"; url="${CFG[LINK_${i}_URL]}"
+            lab="$(libelle_lien "$i")"; url="${CFG[LINK_${i}_URL]}"
             classe_bouton="button-default"
             if [[ "$P_BOUTONS" == brand && -n "${BOUTON_MARQUE[$i]:-}" ]]; then classe_bouton="${BOUTON_MARQUE[$i]}"; fi
             clair="${ICONE_CLAIR[$i]}"; sombre="${ICONE_SOMBRE[$i]}"
@@ -534,8 +554,11 @@ genere_index() {   # genere_index DOSSIER THEME TITRE [FICHIER] [CIBLE_BASCULE] 
         if [[ -n "$cible" ]]; then
             echo "      <p><a class=\"button button-default\" href=\"$cible\">$(html_echap "$libelle")</a></p>"
         fi
+        if [[ -n "${L_AUTRE_HREF:-}" ]]; then
+            echo "      <p><a class=\"button button-default\" href=\"$L_AUTRE_HREF\">$(html_echap "$L_AUTRE_LIBELLE")</a></p>"
+        fi
         echo "    </main>"
-        if [[ -n "$SITE_FOOTER_V" ]]; then echo "    <footer>$(html_echap "$SITE_FOOTER_V")</footer>"; fi
+        if [[ -n "$L_FOOTER" ]]; then echo "    <footer>$(html_echap "$L_FOOTER")</footer>"; fi
         echo "    </div></div>"
         echo "  </body>"
         echo "</html>"
@@ -544,27 +567,47 @@ genere_index() {   # genere_index DOSSIER THEME TITRE [FICHIER] [CIBLE_BASCULE] 
 
 for i in ${ACTIVES[@]+"${ACTIVES[@]}"}; do
     site="$TMP/page-$i"
-    mkdir -p "$site/images/site"
-    cp -r "$TMP/littlelink/css" "$TMP/littlelink/fonts" "$site/"
-    cp -r "$TMP/littlelink/images" "$site/"
-    cp -r "$TMP/assets/images/site/." "$site/images/site/"
+    mkdir -p "$site"
     P_THEME="$(valeur_ou "PAGE_${i}_THEME" auto)"
     P_TITRE="$(valeur_ou "PAGE_${i}_TITLE" "$SITE_TITLE_V")"
     P_BOUTONS="$(valeur_ou "PAGE_${i}_BUTTONS" default)"
     P_AVATAR="$(valeur_ou "PAGE_${i}_AVATAR" none)"
     P_ACCENT="$(valeur_ou "PAGE_${i}_ACCENT" "")"
     P_BASCULE="$(valeur_ou "PAGE_${i}_SWITCH" no)"
-    if [[ -n "$P_ACCENT" ]]; then
-        printf '.button.button-default { --button-background: %s; }\n' "$P_ACCENT" > "$site/css/accent.css"
-    fi
-    if [[ "$P_BASCULE" == yes ]]; then
-        # second complete page with the other theme (no script: the CSP forbids it); dark for light/auto, light for dark
-        if [[ "$P_THEME" == dark ]]; then P_AUTRE=light; else P_AUTRE=dark; fi
-        genere_index "$site" "$P_THEME" "$P_TITRE" index.html autre.html "$(bascule_libelle "$P_AUTRE")"
-        genere_index "$site" "$P_AUTRE" "$P_TITRE" autre.html index.html "$(bascule_libelle "$P_THEME")"
-    else
-        genere_index "$site" "$P_THEME" "$P_TITRE"
-    fi
+    P_CHEMIN="$(valeur_ou "PAGE_${i}_PATH" "")"
+    P_LANGUES="$(valeur_ou "PAGE_${i}_LANGUAGES" "$SITE_LANGUAGE_V")"
+    IFS=',' read -r -a P_LISTE <<< "$P_LANGUES"
+    for k in "${!P_LISTE[@]}"; do
+        L_LANG="${P_LISTE[$k]}"
+        # the first language is the root page (/liens/); any other language lives in a sub-folder (/liens/en/)
+        if (( k == 0 )); then dossier="$site"; else dossier="$site/$L_LANG"; fi
+        preparer_dossier "$dossier"
+        if [[ "$L_LANG" == en ]]; then
+            L_TITRE="$(valeur_ou "PAGE_${i}_TITLE_EN" "${SITE_TITLE_EN_V:-$P_TITRE}")"
+            L_HEADING="${SITE_HEADING_EN_V:-$SITE_HEADING_V}"
+            L_DESCRIPTION="${SITE_DESCRIPTION_EN_V:-$SITE_DESCRIPTION_V}"
+            L_FOOTER="${SITE_FOOTER_EN_V:-$SITE_FOOTER_V}"
+        else
+            L_TITRE="$P_TITRE"; L_HEADING="$SITE_HEADING_V"; L_DESCRIPTION="$SITE_DESCRIPTION_V"; L_FOOTER="$SITE_FOOTER_V"
+        fi
+        # link to the other language (two languages only)
+        L_AUTRE_HREF=""; L_AUTRE_LIBELLE=""
+        if (( ${#P_LISTE[@]} == 2 )); then
+            if (( k == 0 )); then autre="${P_LISTE[1]}"; L_AUTRE_HREF="${P_CHEMIN}${autre}/"; else autre="${P_LISTE[0]}"; L_AUTRE_HREF="$P_CHEMIN"; fi
+            if [[ "$autre" == en ]]; then L_AUTRE_LIBELLE="English"; else L_AUTRE_LIBELLE="Français"; fi
+        fi
+        if [[ -n "$P_ACCENT" ]]; then
+            printf '.button.button-default { --button-background: %s; }\n' "$P_ACCENT" > "$dossier/css/accent.css"
+        fi
+        if [[ "$P_BASCULE" == yes ]]; then
+            # second complete page with the other theme (no script: the CSP forbids it); dark for light/auto, light for dark
+            if [[ "$P_THEME" == dark ]]; then P_AUTRE=light; else P_AUTRE=dark; fi
+            genere_index "$dossier" "$P_THEME" "$L_TITRE" index.html autre.html "$(bascule_libelle "$P_AUTRE")"
+            genere_index "$dossier" "$P_AUTRE" "$L_TITRE" autre.html index.html "$(bascule_libelle "$P_THEME")"
+        else
+            genere_index "$dossier" "$P_THEME" "$L_TITRE"
+        fi
+    done
     ok "$(m "page" "page") PAGE_${i} $(m "preparee" "prepared") (${#LIENS_N[@]} $(m "liens" "links"))"
 done
 
@@ -576,12 +619,31 @@ else
     LIEN_NOUVEAU+="# liens : actif"$'\n'
     for i in "${ACTIVES[@]}"; do
         chemin_page="$(valeur_ou "PAGE_${i}_PATH" "")"
+        dir_page="$(valeur_ou "PAGE_${i}_DIR" "")"
+        langues_page="$(valeur_ou "PAGE_${i}_LANGUAGES" "$SITE_LANGUAGE_V")"
+        autre_page=""
+        if [[ "$langues_page" == *,* ]]; then autre_page="${langues_page#*,}"; fi
         # /liens (without the final slash) is redirected to /liens/ : the page is reached with or without the slash.
         LIEN_NOUVEAU+="location = ${chemin_page%/} {"$'\n'
         LIEN_NOUVEAU+="    return 301 ${chemin_page};"$'\n'
         LIEN_NOUVEAU+="}"$'\n'
+        if [[ -n "$autre_page" ]]; then
+            # two languages: the root path goes to the second language when the browser prefers it (Accept-Language)
+            LIEN_NOUVEAU+="location = ${chemin_page} {"$'\n'
+            LIEN_NOUVEAU+="    if (\$http_accept_language ~* \"^${autre_page}\") {"$'\n'
+            LIEN_NOUVEAU+="        return 302 ${chemin_page}${autre_page}/;"$'\n'
+            LIEN_NOUVEAU+="    }"$'\n'
+            LIEN_NOUVEAU+="    alias ${dir_page}/;"$'\n'
+            LIEN_NOUVEAU+="    index index.html;"$'\n'
+            LIEN_NOUVEAU+="    limit_except GET HEAD { deny all; }"$'\n'
+            LIEN_NOUVEAU+="    add_header Vary \"Accept-Language\" always;"$'\n'
+            LIEN_NOUVEAU+="    add_header Content-Security-Policy \"default-src 'none'; img-src 'self'; style-src 'self'; font-src 'self'; script-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'\" always;"$'\n'
+            LIEN_NOUVEAU+="    add_header X-Content-Type-Options \"nosniff\" always;"$'\n'
+            LIEN_NOUVEAU+="    add_header Referrer-Policy \"strict-origin-when-cross-origin\" always;"$'\n'
+            LIEN_NOUVEAU+="}"$'\n'
+        fi
         LIEN_NOUVEAU+="location ^~ ${chemin_page} {"$'\n'
-        LIEN_NOUVEAU+="    alias $(valeur_ou "PAGE_${i}_DIR" "")/;"$'\n'
+        LIEN_NOUVEAU+="    alias ${dir_page}/;"$'\n'
         LIEN_NOUVEAU+="    index index.html;"$'\n'
         LIEN_NOUVEAU+="    limit_except GET HEAD { deny all; }"$'\n'
         LIEN_NOUVEAU+="    add_header Content-Security-Policy \"default-src 'none'; img-src 'self'; style-src 'self'; font-src 'self'; script-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'\" always;"$'\n'
@@ -597,8 +659,8 @@ LIEN_ANCIEN=""; [[ -f "$LIEN_FICHIER" ]] && LIEN_ANCIEN=$(cat "$LIEN_FICHIER")
 for i in ${ACTIVES[@]+"${ACTIVES[@]}"}; do
     dossier="$(valeur_ou "PAGE_${i}_DIR" "")"
     mkdir -p "$dossier"
-    for x in css fonts images index.html autre.html; do rm -rf "${dossier:?}/$x"; done
-    cp -r "$TMP/page-$i/css" "$TMP/page-$i/fonts" "$TMP/page-$i/images" "$TMP/page-$i"/*.html "$dossier/" || { err "$(m "copie impossible dans" "copy failed in") $dossier"; exit 1; }
+    for x in css fonts images index.html autre.html en fr; do rm -rf "${dossier:?}/$x"; done
+    cp -r "$TMP/page-$i/." "$dossier/" || { err "$(m "copie impossible dans" "copy failed in") $dossier"; exit 1; }
     chmod -R a+rX "$dossier"
     ok "$(m "fichiers installes dans" "files installed in") $dossier"
 done
