@@ -93,7 +93,7 @@ run() {
     "$@"
 }
 
-readonly SCRIPT_VERSION="2.97.20261111.111000"
+readonly SCRIPT_VERSION="2.98.20261111.140000"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
 SCRIPT_NAME="$(basename "${BASH_SOURCE[0]}" .sh)"; readonly SCRIPT_NAME
 # Display language (en or fr): --lang, NGINX_HARDENING_LANG, LANGUAGE of the configuration file, LC_ALL / LANG - apps/_i18n.sh translates the output (nothing changes in French).
@@ -1682,18 +1682,14 @@ LIENS_CONF_HOME="${HOME:-/root}/.nginx-link-page.conf"
 if [[ ! -r "$LIENS_SCRIPT" ]]; then
     warn "nginx-link-page.sh absent du dossier du programme : page de liens non traitée."
 elif [[ -r "$LIENS_CONF_ETC" || -r "$LIENS_CONF_HOME" ]]; then
-    if [[ "$CHECK_ONLY" == "1" ]]; then
-        pass "Page de liens : configuration présente. Mise à jour : relancer avec --update."
-    elif [[ -t 0 && -t 2 ]]; then
-        tty_ligne; read -r -p "  Mettre à jour la page de liens maintenant (nginx-link-page.sh --update) ? [o/N] : " lien_rep || lien_rep=""
-        case "${lien_rep,,}" in
-            o|oui|y|yes)
-                if "$LIENS_SCRIPT" --update --yes; then pass "Page de liens mise à jour (nginx-link-page.sh)."
-                else fail "Page de liens : nginx-link-page.sh --update a échoué (voir sa sortie ci-dessus)."; fi ;;
-            *) echo "  Page de liens non mise à jour (réponse non)." ;;
-        esac
+    # The configuration is checked line by line (--check writes nothing); a valid one is installed without a question.
+    if ! "$LIENS_SCRIPT" --check >/dev/null; then
+        warn "Page de liens : configuration invalide (erreurs ci-dessus ; détail : nginx-link-page.sh --check). Rien n'a été installé."
+    elif [[ "$CHECK_ONLY" == "1" ]]; then
+        pass "Page de liens : configuration valide. Installation avec --update."
     else
-        warn "Page de liens : pas de terminal, mise à jour non lancée (nginx-link-page.sh --update)."
+        if "$LIENS_SCRIPT" --update --yes; then pass "Page de liens installée (nginx-link-page.sh)."
+        else fail "Page de liens : nginx-link-page.sh --update a échoué (voir sa sortie ci-dessus)."; fi
     fi
 else
     if [[ "$CHECK_ONLY" == "1" ]]; then

@@ -29,7 +29,7 @@
 set -u
 LANG_C="${LC_ALL:-${LC_MESSAGES:-${LANG:-C}}}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
-readonly SCRIPT_VERSION="1.3.20261111.105500"
+readonly SCRIPT_VERSION="1.4.20261111.140000"
 readonly SCRIPT_NAME="nginx-link-page"
 readonly CHANGELOG_FILE="$SCRIPT_DIR/CHANGELOG.md"
 
@@ -487,7 +487,12 @@ if (( ${#ACTIVES[@]} == 0 )); then
 else
     LIEN_NOUVEAU+="# liens : actif"$'\n'
     for i in "${ACTIVES[@]}"; do
-        LIEN_NOUVEAU+="location ^~ $(valeur_ou "PAGE_${i}_PATH" "") {"$'\n'
+        chemin_page="$(valeur_ou "PAGE_${i}_PATH" "")"
+        # /liens (without the final slash) is redirected to /liens/ : the page is reached with or without the slash.
+        LIEN_NOUVEAU+="location = ${chemin_page%/} {"$'\n'
+        LIEN_NOUVEAU+="    return 301 ${chemin_page};"$'\n'
+        LIEN_NOUVEAU+="}"$'\n'
+        LIEN_NOUVEAU+="location ^~ ${chemin_page} {"$'\n'
         LIEN_NOUVEAU+="    alias $(valeur_ou "PAGE_${i}_DIR" "")/;"$'\n'
         LIEN_NOUVEAU+="    index index.html;"$'\n'
         LIEN_NOUVEAU+="    limit_except GET HEAD { deny all; }"$'\n'
