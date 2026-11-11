@@ -29,7 +29,7 @@
 set -u
 LANG_C="${LC_ALL:-${LC_MESSAGES:-${LANG:-C}}}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
-readonly SCRIPT_VERSION="1.4.20261111.140000"
+readonly SCRIPT_VERSION="1.5.20261111.143000"
 readonly SCRIPT_NAME="nginx-link-page"
 readonly CHANGELOG_FILE="$SCRIPT_DIR/CHANGELOG.md"
 
@@ -271,6 +271,11 @@ for i in "${PAGES_N[@]}"; do
         DOSSIERS_LISTE+=("$d2")
     fi
     [[ "$theme" =~ ^(auto|light|dark)$ ]] || PROBLEMES+=("${pre}THEME=$theme (auto, light ou dark)")
+    [[ "$(valeur_ou "${pre}BUTTONS" default)" =~ ^(default|brand)$ ]] || PROBLEMES+=("${pre}BUTTONS=$(valeur_ou "${pre}BUTTONS" default) (default ou brand)")
+    [[ "$(valeur_ou "${pre}AVATAR" none)" =~ ^(none|soft|rounded)$ ]] || PROBLEMES+=("${pre}AVATAR=$(valeur_ou "${pre}AVATAR" none) (none, soft ou rounded)")
+    acc_v="$(valeur_ou "${pre}ACCENT" "")"
+    [[ -z "$acc_v" || "$acc_v" =~ ^#[0-9A-Fa-f]{6}$ ]] || PROBLEMES+=("${pre}ACCENT=$acc_v (vide ou couleur #RRGGBB)")
+    [[ "$(valeur_ou "${pre}SWITCH" no)" =~ ^(yes|no)$ ]] || PROBLEMES+=("${pre}SWITCH=$(valeur_ou "${pre}SWITCH" no) (yes ou no)")
 done
 
 # ---- summary of the files read and of the pages ----
@@ -409,10 +414,17 @@ icone_resoudre() {   # icone_resoudre VALEUR CLE : sets RES_ICONE (path relative
     ICONE_RESOLUE[$v]="images/site/${RES_FICHIER##*/}"
     RES_ICONE="${ICONE_RESOLUE[$v]}"
 }
-declare -A ICONE_CLAIR=() ICONE_SOMBRE=()
+declare -A ICONE_CLAIR=() ICONE_SOMBRE=() BOUTON_MARQUE=()
 for i in "${LIENS_N[@]}"; do
     ic="${CFG[LINK_${i}_ICON]:-builtin:generic-website}"
     icone_resoudre "$ic" "$i-clair" || exit 1; ICONE_CLAIR[$i]="$RES_ICONE"
+    # LittleLink brand button for a built-in icon (facebook -> button-faceb); no match: default button
+    BOUTON_MARQUE[$i]=""
+    if [[ "$ic" == builtin:* ]]; then
+        cand="${ic#builtin:}"
+        case "$cand" in facebook) cand=faceb ;; youtube) cand=yt ;; linkedin) cand=linked ;; esac
+        if grep -Eq "\.button-${cand}[^a-zA-Z0-9_-]" "$TMP/littlelink/css/brands.css" 2>/dev/null; then BOUTON_MARQUE[$i]="button-$cand"; fi
+    fi
     ICONE_SOMBRE[$i]=""
     if [[ -n "${CFG[LINK_${i}_ICON_DARK]:-}" ]]; then
         icone_resoudre "${CFG[LINK_${i}_ICON_DARK]}" "$i-sombre" || exit 1; ICONE_SOMBRE[$i]="$RES_ICONE"
@@ -420,8 +432,21 @@ for i in "${LIENS_N[@]}"; do
 done
 
 # 3) one folder per enabled page: assets + index.html generated with the page's theme and title
-genere_index() {   # genere_index DOSSIER THEME TITRE
-    local dossier="$1" theme="$2" titre="$3" classe lab url clair sombre
+# theme_nom THEME / bascule_libelle THEME: labels in the page language
+theme_nom() {
+    if [[ "$SITE_LANGUAGE_V" == en ]]; then
+        case "$1" in light) echo light ;; dark) echo dark ;; *) echo automatic ;; esac
+    else
+        case "$1" in light) echo clair ;; dark) echo sombre ;; *) echo automatique ;; esac
+    fi
+}
+bascule_libelle() {
+    if [[ "$SITE_LANGUAGE_V" == en ]]; then echo "Switch to $(theme_nom "$1") theme"; else echo "Passer au thème $(theme_nom "$1")"; fi
+}
+
+genere_index() {   # genere_index DOSSIER THEME TITRE [FICHIER] [CIBLE_BASCULE] [LIBELLE_BASCULE]
+    local dossier="$1" theme="$2" titre="$3" fichier="${4:-index.html}" cible="${5:-}" libelle="${6:-}"
+    local classe lab url clair sombre classe_bouton i
     case "$theme" in auto) classe="theme-auto" ;; light) classe="theme-light" ;; dark) classe="theme-dark" ;; esac
     {
         echo "<!DOCTYPE html>"
@@ -440,19 +465,22 @@ genere_index() {   # genere_index DOSSIER THEME TITRE
         echo "    <link rel=\"stylesheet\" href=\"css/reset.css\">"
         echo "    <link rel=\"stylesheet\" href=\"css/style.css\">"
         echo "    <link rel=\"stylesheet\" href=\"css/brands.css\">"
+        if [[ -f "$dossier/css/accent.css" ]]; then echo "    <link rel=\"stylesheet\" href=\"css/accent.css\">"; fi
         echo "  </head>"
         echo "  <body>"
         echo "    <div class=\"container\"><div class=\"column\"><main>"
         if [[ -n "$LOGO_LOCAL" ]]; then
-            echo "      <img class=\"avatar avatar--none\" src=\"$LOGO_LOCAL\" width=\"128\" height=\"128\" alt=\"$(html_echap "$SITE_LOGO_ALT_V")\">"
+            echo "      <img class=\"avatar avatar--$P_AVATAR\" src=\"$LOGO_LOCAL\" width=\"128\" height=\"128\" alt=\"$(html_echap "$SITE_LOGO_ALT_V")\">"
         fi
         echo "      <h1>$(html_echap "$SITE_HEADING_V")</h1>"
         if [[ -n "$SITE_DESCRIPTION_V" ]]; then echo "      <p>$(html_echap "$SITE_DESCRIPTION_V")</p>"; fi
         echo "      <nav class=\"button-stack\" aria-label=\"$(m "Liens" "Links")\">"
         for i in "${LIENS_N[@]}"; do
             lab="${CFG[LINK_${i}_LABEL]}"; url="${CFG[LINK_${i}_URL]}"
+            classe_bouton="button-default"
+            if [[ "$P_BOUTONS" == brand && -n "${BOUTON_MARQUE[$i]:-}" ]]; then classe_bouton="${BOUTON_MARQUE[$i]}"; fi
             clair="${ICONE_CLAIR[$i]}"; sombre="${ICONE_SOMBRE[$i]}"
-            echo "        <a class=\"button button-default\" href=\"$(html_echap "$url")\" target=\"_blank\" rel=\"noopener noreferrer\">"
+            echo "        <a class=\"button $classe_bouton\" href=\"$(html_echap "$url")\" target=\"_blank\" rel=\"noopener noreferrer\">"
             if [[ -n "$sombre" && "$theme" == "auto" ]]; then
                 echo "          <picture><source media=\"(prefers-color-scheme: dark)\" srcset=\"$sombre\"><img class=\"icon\" aria-hidden=\"true\" src=\"$clair\" alt=\"\"></picture>$(html_echap "$lab")</a>"
             elif [[ -n "$sombre" && "$theme" == "dark" ]]; then
@@ -462,12 +490,15 @@ genere_index() {   # genere_index DOSSIER THEME TITRE
             fi
         done
         echo "      </nav>"
+        if [[ -n "$cible" ]]; then
+            echo "      <p><a class=\"button button-default\" href=\"$cible\">$(html_echap "$libelle")</a></p>"
+        fi
         echo "    </main>"
         if [[ -n "$SITE_FOOTER_V" ]]; then echo "    <footer>$(html_echap "$SITE_FOOTER_V")</footer>"; fi
         echo "    </div></div>"
         echo "  </body>"
         echo "</html>"
-    } > "$dossier/index.html"
+    } > "$dossier/$fichier"
 }
 
 for i in ${ACTIVES[@]+"${ACTIVES[@]}"}; do
@@ -476,7 +507,23 @@ for i in ${ACTIVES[@]+"${ACTIVES[@]}"}; do
     cp -r "$TMP/littlelink/css" "$TMP/littlelink/fonts" "$site/"
     cp -r "$TMP/littlelink/images" "$site/"
     cp -r "$TMP/assets/images/site/." "$site/images/site/"
-    genere_index "$site" "$(valeur_ou "PAGE_${i}_THEME" auto)" "$(valeur_ou "PAGE_${i}_TITLE" "$SITE_TITLE_V")"
+    P_THEME="$(valeur_ou "PAGE_${i}_THEME" auto)"
+    P_TITRE="$(valeur_ou "PAGE_${i}_TITLE" "$SITE_TITLE_V")"
+    P_BOUTONS="$(valeur_ou "PAGE_${i}_BUTTONS" default)"
+    P_AVATAR="$(valeur_ou "PAGE_${i}_AVATAR" none)"
+    P_ACCENT="$(valeur_ou "PAGE_${i}_ACCENT" "")"
+    P_BASCULE="$(valeur_ou "PAGE_${i}_SWITCH" no)"
+    if [[ -n "$P_ACCENT" ]]; then
+        printf '.button.button-default { --button-background: %s; }\n' "$P_ACCENT" > "$site/css/accent.css"
+    fi
+    if [[ "$P_BASCULE" == yes ]]; then
+        # second complete page with the other theme (no script: the CSP forbids it); dark for light/auto, light for dark
+        if [[ "$P_THEME" == dark ]]; then P_AUTRE=light; else P_AUTRE=dark; fi
+        genere_index "$site" "$P_THEME" "$P_TITRE" index.html autre.html "$(bascule_libelle "$P_AUTRE")"
+        genere_index "$site" "$P_AUTRE" "$P_TITRE" autre.html index.html "$(bascule_libelle "$P_THEME")"
+    else
+        genere_index "$site" "$P_THEME" "$P_TITRE"
+    fi
     ok "$(m "page" "page") PAGE_${i} $(m "preparee" "prepared") (${#LIENS_N[@]} $(m "liens" "links"))"
 done
 
@@ -509,8 +556,8 @@ LIEN_ANCIEN=""; [[ -f "$LIEN_FICHIER" ]] && LIEN_ANCIEN=$(cat "$LIEN_FICHIER")
 for i in ${ACTIVES[@]+"${ACTIVES[@]}"}; do
     dossier="$(valeur_ou "PAGE_${i}_DIR" "")"
     mkdir -p "$dossier"
-    for x in css fonts images index.html; do rm -rf "${dossier:?}/$x"; done
-    cp -r "$TMP/page-$i/css" "$TMP/page-$i/fonts" "$TMP/page-$i/images" "$TMP/page-$i/index.html" "$dossier/" || { err "$(m "copie impossible dans" "copy failed in") $dossier"; exit 1; }
+    for x in css fonts images index.html autre.html; do rm -rf "${dossier:?}/$x"; done
+    cp -r "$TMP/page-$i/css" "$TMP/page-$i/fonts" "$TMP/page-$i/images" "$TMP/page-$i"/*.html "$dossier/" || { err "$(m "copie impossible dans" "copy failed in") $dossier"; exit 1; }
     chmod -R a+rX "$dossier"
     ok "$(m "fichiers installes dans" "files installed in") $dossier"
 done

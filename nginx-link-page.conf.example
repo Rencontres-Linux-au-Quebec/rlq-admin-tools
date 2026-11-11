@@ -52,6 +52,10 @@
 # PAGE_n_PATH    : adresse de la page, ex. /liens/ ou /liens2/ (chaque page a la sienne)
 # PAGE_n_DIR     : dossier ou installer les fichiers, ex. /var/www/liens (absolu, unique)
 # PAGE_n_THEME   : auto, light ou dark ; PAGE_n_TITLE : titre de la page (facultatif)
+# PAGE_n_BUTTONS : default ou brand (brand : couleurs Facebook, LinkedIn, YouTube si icone integree)
+# PAGE_n_AVATAR  : none, soft ou rounded (forme du logo)
+# PAGE_n_ACCENT  : couleur des boutons #RRGGBB, ex. #1A2B3C (vide : couleur par defaut)
+# PAGE_n_SWITCH  : yes ou no ; yes cree autre.html avec l'autre theme et un bouton pour y aller
 #
 #PAGE_1_ENABLED=yes
 #PAGE_1_ENGINE=littlelink
@@ -59,6 +63,10 @@
 #PAGE_1_DIR=/var/www/liens
 #PAGE_1_THEME=auto
 #PAGE_1_TITLE=
+#PAGE_1_BUTTONS=default
+#PAGE_1_AVATAR=none
+#PAGE_1_ACCENT=
+#PAGE_1_SWITCH=no
 #
 # Exemple d'une seconde page pour comparer : desactivee tant que vous ne la voulez pas.
 #PAGE_2_ENABLED=no

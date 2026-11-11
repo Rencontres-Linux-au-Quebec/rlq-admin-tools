@@ -28,7 +28,7 @@ GIT_STUB = """#!/bin/sh
 if [ "$1" = "clone" ]; then
     for last; do :; done
     mkdir -p "$last/css" "$last/fonts" "$last/images/icons"
-    echo body > "$last/css/style.css"; echo x > "$last/css/reset.css"; echo x > "$last/css/brands.css"
+    echo body > "$last/css/style.css"; echo x > "$last/css/reset.css"; echo ".button-faceb {}" > "$last/css/brands.css"
     echo f > "$last/fonts/f.woff2"
     echo i > "$last/images/icons/facebook.svg"; echo i > "$last/images/icons/generic-website.svg"
     echo i > "$last/images/icons/youtube.svg"; echo i > "$last/images/icons/generic-calendar.svg"
@@ -173,6 +173,22 @@ class Configuration(Base):
         self.assertNotEqual(r.returncode, 0)
         self.assertIn("THEME", r.stderr)
 
+    def test_variantes_invalides_refusees(self):
+        for ligne, cle in (("PAGE_1_BUTTONS=rond\n", "BUTTONS"),
+                           ("PAGE_1_AVATAR=round\n", "AVATAR"),
+                           ("PAGE_1_ACCENT=rouge\n", "ACCENT"),
+                           ("PAGE_1_ACCENT=#12345\n", "ACCENT"),
+                           ("PAGE_1_SWITCH=peut-etre\n", "SWITCH")):
+            with self.subTest(ligne=ligne):
+                r = self.lancer("-c", str(self.conf(MINIMAL + ligne)), "--check")
+                self.assertNotEqual(r.returncode, 0)
+                self.assertIn(cle, r.stderr)
+
+    def test_variantes_valides_acceptees(self):
+        r = self.lancer("-c", str(self.conf(MINIMAL + "PAGE_1_BUTTONS=brand\nPAGE_1_AVATAR=soft\n"
+                                            "PAGE_1_ACCENT=#1a2B3c\nPAGE_1_SWITCH=yes\n")), "--check")
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+
     def test_icone_http_refusee(self):
         r = self.lancer("-c", str(self.conf(MINIMAL + "LINK_1_ICON=http://example.org/i.svg\n")), "--check")
         self.assertNotEqual(r.returncode, 0)
@@ -295,6 +311,28 @@ PAGE_2_TITLE=Deux
         self.assertIn("return 301 /liens/;", snippet)
         self.assertIn("location = /liens2 {", snippet)
         self.assertIn(f"alias {self.www}/liens/;", snippet)
+
+    def test_variantes_marque_avatar_accent_bascule(self):
+        texte = self.config_deux_pages("no").replace(
+            "PAGE_1_THEME=auto",
+            "PAGE_1_THEME=light\nPAGE_1_BUTTONS=brand\nPAGE_1_AVATAR=rounded\n"
+            "PAGE_1_ACCENT=#FF0000\nPAGE_1_SWITCH=yes")
+        r = self.lancer("-c", str(self.conf(texte)), "--update", "--yes", env=self.env)
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        ici = (self.www / "liens" / "index.html").read_text(encoding="utf-8")
+        autre = (self.www / "liens" / "autre.html").read_text(encoding="utf-8")
+        self.assertIn('class="button button-faceb"', ici)
+        self.assertIn('class="button button-default"', ici)
+        self.assertIn("avatar--rounded", ici)
+        self.assertIn('href="css/accent.css"', ici)
+        self.assertIn('href="autre.html"', ici)
+        self.assertIn("Passer au thème sombre", ici)
+        self.assertIn('class="theme-dark"', autre)
+        self.assertIn('href="index.html"', autre)
+        self.assertIn("Passer au thème clair", autre)
+        self.assertNotIn("<script", autre)
+        accent = (self.www / "liens" / "css" / "accent.css").read_text(encoding="utf-8")
+        self.assertIn("--button-background: #FF0000;", accent)
 
     def test_page_desactivee_absente(self):
         r = self.lancer("-c", str(self.conf(self.config_deux_pages("no"))), "--update", "--yes", env=self.env)
