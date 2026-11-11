@@ -3496,6 +3496,15 @@ Earlier history was archived outside this repository when this file was created.
 
 ## nginx-hardening.sh
 
+### 2.99.20261111.165500 - Link page question uses /links/
+
+- Motif de la demande: le chemin par defaut de la page de liens devient /links/.
+- Detail des modifications: question de l'etape 12 ter : "Creer une page de liens (LittleLink, /links/) maintenant ?".
+- Bugs corriges: aucun.
+- Garde-fous et cas limites: aucun changement de logique ; seul le texte de la question change.
+- Verifications effectuees: nginx-tools-tests/test_nginx_hardening.py lance par le testeur (62 tests, 0 echec, 7 ignores).
+- Action requise: aucune.
+
 ### 2.98.20261111.140000 - Link page installed automatically when its configuration is valid
 
 - Motif de la demande: nginx-hardening.sh doit installer la page de liens sans question si la configuration est valide.
@@ -4265,6 +4274,26 @@ Earlier history was archived outside this repository when this file was created.
 - Current version. Earlier history archived outside the repository.
 
 ## nginx-link-page.sh
+
+### 1.9.20261111.165500 - English template, /links/ as default path, auto-creation checked
+
+- Motif de la demande: le modele de configuration par defaut doit etre en anglais, et le chemin par defaut doit etre
+  /links/ au lieu de /liens/.
+- Detail des modifications:
+  - nginx-link-page.conf.example: entierement en anglais (commentaires, exemples, valeurs de depart My group, Facebook
+    page, YouTube channel). Chemins par defaut : PAGE_1_PATH=/links/, PAGE_1_DIR=/var/www/links, PAGE_2 /links2/.
+    Cles et structure inchangees ; le modele decommente reste valide.
+  - nginx-link-page.sh (1.9.20261111.165500): texte d'aide des chemins ; le chemin de page se nomme /links/.
+  - nginx-hardening.sh (2.99.20261111.165500): question de l'etape 12 ter pour /links/.
+- Bugs corriges: aucun dans le script. Verification : sans fichier de configuration, --update cree le modele (copie dans
+  /etc/default si le dossier est accessible en ecriture, sinon dans ~/.nginx-link-page.conf), puis s'arrete avec un
+  avertissement. Un fichier deja present (meme vide ou modele non rempli) n'est jamais recree : il est lu et les erreurs
+  de remplissage sont affichees.
+- Garde-fous et cas limites: les chemins existants (/liens/ ...) restent valides : seul le modele et la question changent.
+- Verifications effectuees: bash -n ; py_compile ; tests de nginx-tools-tests/test_nginx_link_page.py et
+  test_nginx_hardening.py (une fois lances) ; execution manuelle sans configuration (cas A : copie dans ~/.nginx-link-page.conf, code 1).
+- Action requise: pour un nouveau serveur, le chemin sera /links/. Pour garder /liens/, l'ecrire dans la configuration
+  (PAGE_1_PATH=/liens/).
 
 ### 1.8.20261111.163800 - Pages per language, automatic language choice from the browser
 

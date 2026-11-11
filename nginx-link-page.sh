@@ -8,8 +8,8 @@
 # Full text: https://www.gnu.org/licenses/agpl-3.0.html
 # ========================================================================================================================
 #
-# nginx-link-page.sh - builds and installs one or more link pages on the Odoo site (for example /liens/ with LittleLink and
-# /liens2/ with another engine, to compare them). EVERYTHING specific to a group (titles, links, logo, icons, themes, paths)
+# nginx-link-page.sh - builds and installs one or more link pages on the Odoo site (for example /links/ with LittleLink and
+# /links2/ with another engine, to compare them). EVERYTHING specific to a group (titles, links, logo, icons, themes, paths)
 # comes from the configuration file: nothing about a group is written in this program or in the repository.
 #
 # Engines: "littlelink" (static pages, LittleLink v3.11.0, pinned tag and commit). "linkstack" is reserved: LinkStack is a
@@ -29,7 +29,7 @@
 set -u
 LANG_C="${LC_ALL:-${LC_MESSAGES:-${LANG:-C}}}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
-readonly SCRIPT_VERSION="1.8.20261111.163800"
+readonly SCRIPT_VERSION="1.9.20261111.165500"
 readonly SCRIPT_NAME="nginx-link-page"
 readonly CHANGELOG_FILE="$SCRIPT_DIR/CHANGELOG.md"
 
@@ -294,7 +294,7 @@ for i in "${PAGES_N[@]}"; do
         linkstack) PROBLEMES+=("${pre}ENGINE=linkstack : moteur reserve, pas encore pris en charge (PHP/Laravel + base de donnees) / engine reserved, not yet supported") ;;
         *) PROBLEMES+=("${pre}ENGINE=$engine (moteurs pris en charge / supported: $MOTEURS_PRIS_EN_CHARGE)") ;;
     esac
-    [[ "$chemin" =~ $CHEMIN_RE ]] || PROBLEMES+=("${pre}PATH=$chemin (ex. /liens/ ou /liens2/)")
+    [[ "$chemin" =~ $CHEMIN_RE ]] || PROBLEMES+=("${pre}PATH=$chemin (ex. /links/ ou /links2/)")
     if [[ -n "$chemin" ]]; then
         [[ -z "${CHEMINS_VUS[$chemin]:-}" ]] || PROBLEMES+=("${pre}PATH=$chemin deja utilise / already used")
         CHEMINS_VUS["$chemin"]=1

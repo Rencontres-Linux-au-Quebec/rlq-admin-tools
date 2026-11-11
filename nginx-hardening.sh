@@ -93,7 +93,7 @@ run() {
     "$@"
 }
 
-readonly SCRIPT_VERSION="2.98.20261111.140000"
+readonly SCRIPT_VERSION="2.99.20261111.165500"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
 SCRIPT_NAME="$(basename "${BASH_SOURCE[0]}" .sh)"; readonly SCRIPT_NAME
 # Display language (en or fr): --lang, NGINX_HARDENING_LANG, LANGUAGE of the configuration file, LC_ALL / LANG - apps/_i18n.sh translates the output (nothing changes in French).
@@ -1695,7 +1695,7 @@ else
     if [[ "$CHECK_ONLY" == "1" ]]; then
         warn "Page de liens non configurée — relancer avec --update dans un terminal pour la créer."
     elif [[ -t 0 && -t 2 ]]; then
-        tty_ligne; read -r -p "  Créer une page de liens (LittleLink, /liens/) maintenant ? [o/N] : " lien_rep || lien_rep=""
+        tty_ligne; read -r -p "  Créer une page de liens (LittleLink, /links/) maintenant ? [o/N] : " lien_rep || lien_rep=""
         case "${lien_rep,,}" in
             o|oui|y|yes)
                 # Without a configuration, nginx-link-page.sh copies its commented template and stops: nothing is installed yet.

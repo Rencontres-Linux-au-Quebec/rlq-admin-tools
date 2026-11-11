@@ -478,7 +478,7 @@ class HardeningPropose(unittest.TestCase):
         self.assertLess(verification, appel)
 
     def test_question_avant_creation(self):
-        creation = self.texte.index("Créer une page de liens (LittleLink, /liens/) maintenant")
+        creation = self.texte.index("Créer une page de liens (LittleLink, /links/) maintenant")
         appel_creation = self.texte.index('"$LIENS_SCRIPT" --check || true')
         self.assertLess(creation, appel_creation)
 

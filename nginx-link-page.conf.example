@@ -1,84 +1,93 @@
 # ============================================================================================
-# nginx-link-page.conf : MODELE. Tout est en commentaire : rien n'est lu tant que la ligne
-# n'est pas decommentee (retirer le # en debut de ligne). Un # suivi d'un espace est une
-# explication ; un # colle au nom d'une cle (#SITE_TITLE=...) est un reglage a decommenter.
+# nginx-link-page.conf: TEMPLATE. Everything is commented out: nothing is read until a line
+# is uncommented (remove the # at the start of the line). A "# " followed by a space is an
+# explanation; a # stuck to a key name (#SITE_TITLE=...) is a setting to uncomment.
 # ============================================================================================
 #
-# REMPLISSAGE RAPIDE / QUICK FILL
-#   1. sudo nginx-link-page.sh --check              cree le fichier s'il n'existe pas (copie de ce modele)
-#   2. sudo nano /etc/default/nginx-link-page.conf  decommenter et remplacer les exemples
-#   3. nginx-link-page.sh --check                   verifie la configuration, n'ecrit rien
-#   4. sudo nginx-link-page.sh --update --yes       installe les pages et recharge nginx
+# QUICK FILL
+#   1. sudo nginx-link-page.sh --check              creates this file if it does not exist (copy of this template)
+#   2. sudo nano /etc/default/nginx-link-page.conf  uncomment and replace the examples
+#   3. nginx-link-page.sh --check                   checks the configuration, writes nothing
+#   4. sudo nginx-link-page.sh --update --yes       installs the pages and reloads nginx
 #
-# REGLES / RULES
-#   - CLE=VALEUR, en MAJUSCULES. Les guillemets sont retires. " # texte" en fin de ligne est ignore.
-#   - Liens : LINK_1_..., LINK_2_... sans trou. Pages : PAGE_1_..., PAGE_2_... sans trou.
-#   - Adresses : https:// ; ou chemin relatif (ex. /evenement/) si SITE_BASE_URL est defini.
-#   - Chemins de page : /liens/, /liens2/ (uniques, avec le / final).
-#   - Dossier de page : chemin absolu, unique, et jamais a l'interieur d'un autre dossier de page.
-#   - Icone : builtin:NOM (icones de LittleLink) ou https:// vers une image PNG, JPEG, WebP ou SVG.
-#   - Icones builtin courantes : facebook, linkedin, youtube, generic-calendar, generic-blog, generic-website
-#
-# ---------------------------------------------------------------------------------------------
-# 1. CONTENU PARTAGE (SITE_TITLE est obligatoire) / SHARED CONTENT (SITE_TITLE is required)
-# ---------------------------------------------------------------------------------------------
-#SITE_TITLE=Mon groupe
-#SITE_BASE_URL=https://www.exemple.org/   # facultatif : sinon le domaine du certificat unique du serveur
-#SITE_HEADING=Mon groupe
-#SITE_DESCRIPTION=Retrouvez-nous sur nos canaux.
-#SITE_LANGUAGE=fr                                  # fr ou en
-#SITE_FOOTER=Mon groupe
-#SITE_LOGO_URL=https://exemple.org/logo.png        # facultatif ; doit etre une adresse https://
-#SITE_LOGO_ALT=Logo du groupe
+# RULES
+#   - KEY=VALUE, in UPPER CASE. Quotes are removed. " # text" at the end of a line is ignored.
+#   - Links: LINK_1_..., LINK_2_... without gaps. Pages: PAGE_1_..., PAGE_2_... without gaps.
+#   - Addresses: https://; or a relative path (for example /event/) when SITE_BASE_URL is set.
+#   - Page paths: /links/, /links2/ (unique, with the final /).
+#   - Page folder: absolute path, unique, and never inside another page folder.
+#   - Icon: builtin:NAME (LittleLink icons) or https:// to a PNG, JPEG, WebP or SVG image.
+#   - Common builtin icons: facebook, linkedin, youtube, generic-calendar, generic-blog, generic-website
 #
 # ---------------------------------------------------------------------------------------------
-# 2. LIENS (au moins LINK_1) / LINKS (at least LINK_1), numerotes sans trou
+# 1. SHARED CONTENT (SITE_TITLE is required)
 # ---------------------------------------------------------------------------------------------
-#LINK_1_LABEL=Page Facebook                        # 80 caracteres au maximum
-#LINK_1_URL=https://www.facebook.com/exemple
-#LINK_1_ICON=builtin:facebook                      # facultatif (defaut : generic-website)
+#SITE_TITLE=My group
+#SITE_BASE_URL=https://www.example.org/   # optional: otherwise the domain of the server's single certificate
+#SITE_HEADING=My group
+#SITE_DESCRIPTION=Find us on our channels.
+#SITE_LANGUAGE=en                                 # fr or en
+#SITE_FOOTER=My group
+#SITE_LOGO_URL=https://example.org/logo.png       # optional; must be an https:// address (or a path with SITE_BASE_URL)
+#SITE_LOGO_ALT=My group logo
 #
-#LINK_2_LABEL=Chaine YouTube
-#LINK_2_URL=https://www.youtube.com/@exemple
+# Optional English texts (used for the English pages; the French texts above are used when these are missing)
+#SITE_TITLE_EN=
+#SITE_HEADING_EN=
+#SITE_DESCRIPTION_EN=
+#SITE_FOOTER_EN=
+#
+# ---------------------------------------------------------------------------------------------
+# 2. LINKS (at least LINK_1), numbered without gaps
+# ---------------------------------------------------------------------------------------------
+#LINK_1_LABEL=Facebook page                       # 80 characters at most
+#LINK_1_URL=https://www.facebook.com/example
+#LINK_1_ICON=builtin:facebook                     # optional (default: generic-website)
+#LINK_1_LABEL_EN=                                 # optional English label
+#
+#LINK_2_LABEL=YouTube channel
+#LINK_2_URL=https://www.youtube.com/@example
 #LINK_2_ICON=builtin:youtube
 #
 #LINK_3_LABEL=Discussion
-#LINK_3_URL=https://chat.exemple.org/equipe/
-#LINK_3_ICON=https://exemple.org/icone-clair.svg  # icone pour le theme clair
-#LINK_3_ICON_DARK=https://exemple.org/icone-sombre.svg   # facultatif : icone pour le theme sombre
+#LINK_3_URL=https://chat.example.org/team/
+#LINK_3_ICON=https://example.org/icon-light.svg   # icon for the light theme
+#LINK_3_ICON_DARK=https://example.org/icon-dark.svg   # optional: icon for the dark theme
 #
 # ---------------------------------------------------------------------------------------------
-# 3. PAGES (au moins PAGE_1) / PAGES (at least PAGE_1), une par bloc
+# 3. PAGES (at least PAGE_1), one block per page
 # ---------------------------------------------------------------------------------------------
-# PAGE_n_ENABLED : yes ou no ; PAGE_n_ENGINE : littlelink (linkstack est reserve, non pris en charge)
-# PAGE_n_PATH    : adresse de la page, ex. /liens/ ou /liens2/ (chaque page a la sienne)
-# PAGE_n_DIR     : dossier ou installer les fichiers, ex. /var/www/liens (absolu, unique)
-# PAGE_n_THEME   : auto, light ou dark ; PAGE_n_TITLE : titre de la page (facultatif)
-# PAGE_n_BUTTONS : default ou brand (brand : couleurs Facebook, LinkedIn, YouTube si icone integree)
-# PAGE_n_AVATAR  : none, soft ou rounded (forme du logo)
-# PAGE_n_ACCENT  : couleur des boutons #RRGGBB, ex. #1A2B3C (vide : couleur par defaut)
-# PAGE_n_SWITCH  : yes ou no ; yes cree autre.html avec l'autre theme et un bouton pour y aller
-# PAGE_n_LANGUAGES : fr, en, fr,en ou en,fr (la 1re langue est a la racine /liens/, l'autre dans /liens/en/ ;
-#                   le navigateur est redirige vers la langue qu'il prefere, sinon la 1re langue)
-# SITE_TITLE_EN, SITE_HEADING_EN, SITE_DESCRIPTION_EN, SITE_FOOTER_EN, PAGE_n_TITLE_EN, LINK_n_LABEL_EN :
-#                   textes anglais facultatifs (sinon le texte francais est repris)
+# PAGE_n_ENABLED   : yes or no
+# PAGE_n_ENGINE    : littlelink (linkstack is reserved and not supported yet)
+# PAGE_n_PATH      : page address, for example /links/ or /links2/ (each page has its own)
+# PAGE_n_DIR       : folder where the files are installed, for example /var/www/links (absolute, unique)
+# PAGE_n_THEME     : auto, light or dark
+# PAGE_n_TITLE     : page title (optional)
+# PAGE_n_BUTTONS   : default or brand (brand: Facebook, LinkedIn and YouTube colours for built-in icons)
+# PAGE_n_AVATAR    : none, soft or rounded (logo shape)
+# PAGE_n_ACCENT    : button colour #RRGGBB, for example #1A2B3C (empty: default colour)
+# PAGE_n_SWITCH    : yes or no; yes creates autre.html with the other theme and a button to reach it
+# PAGE_n_LANGUAGES : fr, en, fr,en or en,fr. The first language is at the page root (/links/), the other one
+#                    in /links/en/ (or /links/fr/). The browser is redirected to the language it prefers,
+#                    otherwise the first language is shown.
+# PAGE_n_TITLE_EN  : English page title (optional); LINK_n_LABEL_EN: English link label (optional)
 #
 #PAGE_1_ENABLED=yes
 #PAGE_1_ENGINE=littlelink
-#PAGE_1_PATH=/liens/
-#PAGE_1_DIR=/var/www/liens
+#PAGE_1_PATH=/links/
+#PAGE_1_DIR=/var/www/links
 #PAGE_1_THEME=auto
 #PAGE_1_TITLE=
 #PAGE_1_BUTTONS=default
 #PAGE_1_AVATAR=none
 #PAGE_1_ACCENT=
 #PAGE_1_SWITCH=no
-#PAGE_1_LANGUAGES=fr
+#PAGE_1_LANGUAGES=en
 #
-# Exemple d'une seconde page pour comparer : desactivee tant que vous ne la voulez pas.
+# Example of a second page, to compare two engines: disabled until you want it.
 #PAGE_2_ENABLED=no
 #PAGE_2_ENGINE=littlelink
-#PAGE_2_PATH=/liens2/
-#PAGE_2_DIR=/var/www/liens2
+#PAGE_2_PATH=/links2/
+#PAGE_2_DIR=/var/www/links2
 #PAGE_2_THEME=dark
-#PAGE_2_TITLE=Exemple (theme sombre)
+#PAGE_2_TITLE=Example (dark theme)
