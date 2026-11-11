@@ -84,10 +84,30 @@ class Base(unittest.TestCase):
 
 
 class Configuration(Base):
-    def test_exemple_valide(self):
+    def test_modele_commente_refuse_et_guide(self):
         r = self.lancer("-c", str(self.conf(EXEMPLE.read_text(encoding="utf-8"))), "--check")
+        self.assertNotEqual(r.returncode, 0)
+        self.assertIn("SITE_TITLE", r.stderr)
+
+    def test_modele_decommente_valide(self):
+        lignes = [re.sub(r"^#(?=[A-Z])", "", ligne) for ligne in EXEMPLE.read_text(encoding="utf-8").splitlines()]
+        r = self.lancer("-c", str(self.conf("\n".join(lignes) + "\n")), "--check")
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
         self.assertIn("valide", r.stdout)
+
+    def test_sans_configuration_propose_init(self):
+        r = self.lancer("--check")
+        self.assertNotEqual(r.returncode, 0)
+        self.assertIn("--init", r.stderr)
+
+    def test_init_cree_puis_refuse_l_ecrasement(self):
+        cible = self.tmp / "sous" / "nginx-link-page.conf"
+        r = self.lancer("--init", "-c", str(cible))
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertEqual(cible.read_text(encoding="utf-8"), EXEMPLE.read_text(encoding="utf-8"))
+        r = self.lancer("--init", "-c", str(cible))
+        self.assertNotEqual(r.returncode, 0)
+        self.assertIn("existe", r.stderr)
 
     def test_minimal_valide(self):
         r = self.lancer("-c", str(self.conf(MINIMAL)), "--check")

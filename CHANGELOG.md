@@ -4206,6 +4206,29 @@ Earlier history was archived outside this repository when this file was created.
 
 ## nginx-link-page.sh
 
+### 1.2.20261111.104500 - Commented template, --init, and a hint when no configuration exists
+
+- Motif de la demande: lancer --check sans fichier de configuration donnait trois erreurs sans indiquer quoi faire. Il faut
+  un modele commente, avec des exemples et la procedure de remplissage.
+- Detail des modifications:
+  - nginx-link-page.conf.example: entierement commente (aucune cle active), avec la procedure de remplissage rapide, les
+    regles, les icones courantes et des exemples pour chaque bloc (contenu partage, liens, pages).
+  - nginx-link-page.sh (1.2.20261111.104500): option --init, qui copie le modele dans /etc/default/nginx-link-page.conf
+    (ou dans le fichier donne avec -c). Il n'ecrase jamais un fichier existant et indique quand sudo est necessaire.
+  - Sans fichier de configuration, --check ajoute une astuce qui indique la commande --init.
+  - nginx-tools-tests/test_nginx_link_page.py: le modele commente doit etre refuse avec un message clair; le modele
+    decommente doit etre valide; --init cree le fichier puis refuse de l'ecraser; l'astuce est affichee sans configuration.
+- Bugs corriges: aucun. Le modele precedent, qui contenait des valeurs actives d'exemple, pouvait etre pris pour une
+  configuration reelle; il est remplace par un modele entierement commente.
+- Garde-fous et cas limites: --init refuse un fichier existant; le modele est lu depuis le dossier du programme, donc
+  --init ne fonctionne que si le depot est present; les lignes commentees (#CLE) sont ignorees par le lecteur de
+  configuration; le modele decommente est verifie par les tests.
+- Verifications effectuees: tests unitaires de nginx-tools-tests/test_nginx_link_page.py lances par le testeur; execution
+  manuelle de --check sans configuration (message et code de sortie 1), de --init (creation) et de --help (ordre des options).
+- Action requise: sur le serveur, lancer sudo nginx-link-page.sh --init, puis remplir /etc/default/nginx-link-page.conf
+  (decommenter les lignes utiles), puis --check, puis sudo nginx-link-page.sh --update --yes.
+
+
 ### 1.1.20261111.093000 - Several link pages at once, one engine per page, shared content
 
 - Motif de la demande: pouvoir installer plusieurs pages de liens (LittleLink maintenant, LinkStack ou d'autres plus tard)
