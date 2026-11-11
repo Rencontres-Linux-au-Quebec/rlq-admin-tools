@@ -3483,6 +3483,16 @@ Earlier history was archived outside this repository when this file was created.
 
 ## nginx-hardening.sh
 
+### 2.95.20261111.080000 - Link page (LittleLink) under /liens/, pinned to a tag and a commit
+
+- Title: --link-page installs a link page under /liens/ on the Odoo site, from LittleLink v3.11.0; --no-link-page turns it off.
+- Reason: request of the administrator on 2026-11-11: a secure Linktree-style page on the domain where the script runs, with the Facebook, LinkedIn, YouTube and Framateam links of the Rencontres Linux Québec.
+- Changes: nginx-hardening.sh: options --link-page and --no-link-page (help sorted); LINK_PAGE; new function lien_page_installer() (clones the tag v3.11.0 with a 180 s timeout, checks the commit 3c9162c9f8324d5e002259ed8b4b3cc377b08486, copies css/, fonts/, images/ and nginx/liens/index.html into /var/www/liens, or NGINX_HARDENING_LIENS_DIR); step "12d" (after 12c, before 13): writes /etc/nginx/snippets/liens-publics.conf (location ^~ /liens/ with alias, index index.html, GET and HEAD only), tests nginx -t, reloads nginx, restores the previous fragment if nginx -t refuses. Without an option, an --update keeps the current state (marker "# liens : actif"). The fragment is created empty by fragments_generes_assurer (step 0f). nginx/liens/index.html: the page content (six links, no script, Content-Security-Policy meta tag allowing only the page's own resources). nginx/snippets/odoo/_odoo-common.conf: include of liens-publics.conf after securite-commune.conf. nginx/VERSION 1.28.20261111.080000. Tests: nginx-tools-tests/test_nginx_link_page.py (14 tests: content, pinned tag and commit, include order, step 12d run with stub nginx and git).
+- Bugs fixed: none.
+- Safeguards and edge cases: a commit that differs from the pinned one is refused and nothing is copied; a missing git, a network failure or a missing css/, fonts/ or images/ folder leaves the page as it was; nginx -t refusal restores the previous fragment and does not reload; the page is served with GET and HEAD only; without a terminal, nothing changes unless --yes; --no-link-page keeps the files and only removes the location; /liens/ is served only by the Odoo site profile; the page is never modified by a LittleLink update, because the content is nginx/liens/index.html, not the copied index.html.
+- Checks performed: test_nginx_link_page (14 tests); bash -n nginx-hardening.sh.
+- Action required: run `sudo nginx-hardening.sh --link-page --update` (answer o), then check https://DOMAINE/liens/ . Note: the Instagram link is not in the page yet (the address was not given).
+
 ### 2.94.20261110.193238 - Traversal test run once at each --update
 
 - Title: --update checks that the query-string traversal is blocked by nginx, once, after the rules are installed.

@@ -93,7 +93,7 @@ run() {
     "$@"
 }
 
-readonly SCRIPT_VERSION="2.94.20261110.193238"
+readonly SCRIPT_VERSION="2.95.20261111.080000"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
 SCRIPT_NAME="$(basename "${BASH_SOURCE[0]}" .sh)"; readonly SCRIPT_NAME
 # Display language (en or fr): --lang, NGINX_HARDENING_LANG, LANGUAGE of the configuration file, LC_ALL / LANG - apps/_i18n.sh translates the output (nothing changes in French).
@@ -150,6 +150,7 @@ ROLLBACK_BACKUP=""
 ROLLBACK_YES=0
 DNS_RAFRAICHIR=0            # --dns-refresh: resolve the DNS names of the white list; full --update only if an address changed (cron every 15 min)
 DISABLE_URI_LIST=()     # --disable-uri CHEMIN (repeatable): refused with 404 in the Odoo site, every language
+LINK_PAGE=0             # --link-page (1), --no-link-page (-1) : page de liens LittleLink (étape 12d)
 ENABLE_URI_LIST=()      # --enable-uri CHEMIN (repeatable): the refusal is removed
 ODOO_HTTP_PORT=""      # empty: read from the Odoo configuration ("configuration" step), otherwise 10000 / 10002
 ODOO_GEVENT_PORT=""
@@ -236,6 +237,8 @@ while [[ $# -gt 0 ]]; do
         --backup) ROLLBACK_BACKUP="${2:-}"; shift 2 ;;
         --rollback) ROLLBACK=1; shift ;;
         --disable-uri) DISABLE_URI_LIST+=("${2:-}"); shift 2 ;;
+        --link-page) LINK_PAGE=1; shift ;;
+        --no-link-page) LINK_PAGE=-1; shift ;;
         --dns-refresh) DNS_RAFRAICHIR=1; shift ;;
         --enable-uri) ENABLE_URI_LIST+=("${2:-}"); shift 2 ;;
         --yes) ROLLBACK_YES=1; shift ;;
@@ -301,6 +304,7 @@ Options (par ordre alphabétique) :
   --enable-uri CHEMIN          rétablit un chemin refusé par --disable-uri ; répétable
   -h, --help                   affiche cette aide et quitte
   --lang LANG                  langue d'affichage : en ou fr (défaut : selon LC_ALL / LC_MESSAGES / LANG)
+  --link-page                  installe ou met à jour la page de liens LittleLink (tag épinglé, SHA vérifié) sous /liens/ : étape 12d ; --update
   --log-retention-months N     durée de conservation des journaux visée par l'étape 11 (1 à 24 mois, défaut : 3)
   --mail-from ADDRESS          expéditeur des courriels de la suite (défaut : l'identifiant du relais)
   --mail-host HOST             relais SMTP des courriels des programmes Python et Bash (étape 0d ; demandé la première fois avec --update)
@@ -310,6 +314,7 @@ Options (par ordre alphabétique) :
   --mail-to ADDRESS            destinataire des courriels de la suite (alertes, rapports)
   --mail-user NAME             identifiant du relais SMTP (le mot de passe est demandé, jamais passé en option)
   --menu                       menu interactif des opérations courantes (dialog si installé ; terminal requis)
+  --no-link-page               désactive la page de liens /liens/ (fichiers conservés) : étape 12d ; --update
   --odoo-conf FILE            configuration d'Odoo (défaut : premier fichier trouvé parmi --odoo-conf-paths)
   --odoo-conf-paths LIST       chemins (espaces ; motifs * permis) où chercher la configuration d'Odoo (défaut : /etc/odoo/odoo-linux_meetup.conf
                                /opt/odoo/erplibre/config.conf /home/utilisateur/git/erplibre/config.conf /etc/odoo/*.conf…)
@@ -817,7 +822,7 @@ generer_cdn() {
 fragments_generes_assurer() {
     local snip="${NGINX_HARDENING_SNIPPETS_DIR:-/etc/nginx/snippets}" f cree=1
     [[ "$CHECK_ONLY" == "1" || "$APP_NAME" != "odoo" ]] && return 1
-    for f in team-ips-geo.conf team-ips-allow.conf shared-ips-geo.conf uri-desactivees.conf cdn-realip.conf; do
+    for f in team-ips-geo.conf team-ips-allow.conf shared-ips-geo.conf uri-desactivees.conf cdn-realip.conf liens-publics.conf; do
         [[ -e "$snip/$f" ]] && continue
         if mkdir -p "$snip" 2>/dev/null && printf '%s\n' "# vide — créé par nginx-hardening.sh --update (nginx refuse un include sans fichier) ; rempli aux étapes 12 et 12b" > "$snip/$f" 2>/dev/null; then
             chmod 644 "$snip/$f" 2>/dev/null || true
@@ -3543,6 +3548,106 @@ if [[ "$CHECK_ONLY" == "0" && -r "$SCRIPT_DIR/app-health-check.py" ]]; then
     esac
 fi
 echo
+
+# --- 12d) Page de liens (--link-page / --no-link-page) -> liens-publics.conf (inclus par _odoo-common.conf) + /var/www/liens ---
+# 2.95 : LittleLink (MIT) est épinglé à un tag ET à un SHA, vérifié après le clonage : un tag déplacé est refusé.
+# Le contenu propre au site est nginx/liens/index.html ; css/, fonts/ et images/ viennent du tag.
+# Sans option, un --update conserve l'état (marqueur « # liens : actif ») et ne modifie rien. Changement = confirmation (o/N) ;
+# sans terminal, rien n'est modifié sauf avec --yes. Une page refusée par nginx -t n'est jamais chargée.
+LINKPAGE_REPO="https://github.com/sethcottle/littlelink"
+LINKPAGE_TAG="v3.11.0"
+LINKPAGE_SHA="3c9162c9f8324d5e002259ed8b4b3cc377b08486"
+
+# lien_page_installer DIR : clone le tag, vérifie le SHA et copie css/, fonts/, images/ et index.html dans DIR. 0 si réussi.
+lien_page_installer() {
+    local dir="$1" tmp sha d
+    if [[ -z "$dir" || "$dir" == "/" ]]; then fail "dossier de la page de liens invalide : « $dir »."; return 1; fi
+    command -v git >/dev/null 2>&1 || { fail "git absent : impossible de récupérer LittleLink."; return 1; }
+    tmp=$(mktemp -d) || { fail "dossier temporaire impossible."; return 1; }
+    if ! timeout 180 git clone --quiet --depth 1 --branch "$LINKPAGE_TAG" "$LINKPAGE_REPO" "$tmp/littlelink" >/dev/null 2>&1; then
+        rm -rf "$tmp"; fail "clonage de LittleLink $LINKPAGE_TAG impossible (réseau ou dépôt) : rien n'est modifié."; return 1
+    fi
+    sha=$(git -C "$tmp/littlelink" rev-parse HEAD 2>/dev/null || true)
+    if [[ "$sha" != "$LINKPAGE_SHA" ]]; then
+        rm -rf "$tmp"; fail "LittleLink $LINKPAGE_TAG : SHA ${sha:-inconnu} différent du SHA épinglé ($LINKPAGE_SHA) : installation refusée."; return 1
+    fi
+    for d in css fonts images; do
+        [[ -d "$tmp/littlelink/$d" ]] || { rm -rf "$tmp"; fail "LittleLink : dossier $d/ absent du tag."; return 1; }
+    done
+    [[ -f "$SCRIPT_DIR/nginx/liens/index.html" ]] || { rm -rf "$tmp"; fail "nginx/liens/index.html absent du dépôt : page non installée."; return 1; }
+    mkdir -p "$dir" || { rm -rf "$tmp"; fail "dossier $dir non créable."; return 1; }
+    for d in css fonts images; do
+        rm -rf "${dir:?}/$d"
+        cp -r "$tmp/littlelink/$d" "$dir/$d" || { rm -rf "$tmp"; fail "copie de $d/ impossible dans $dir."; return 1; }
+    done
+    install -m 644 "$SCRIPT_DIR/nginx/liens/index.html" "$dir/index.html" || { rm -rf "$tmp"; fail "copie de index.html impossible dans $dir."; return 1; }
+    chmod -R a+rX "$dir"
+    rm -rf "$tmp"
+    pass "LittleLink $LINKPAGE_TAG (SHA ${sha:0:12}) et la page du site installés dans $dir."
+    return 0
+}
+
+if [[ "$APP_NAME" == "odoo" ]]; then
+    snip="${NGINX_HARDENING_SNIPPETS_DIR:-/etc/nginx/snippets}"
+    lp_dst="$snip/liens-publics.conf"
+    lp_dir="${NGINX_HARDENING_LIENS_DIR:-/var/www/liens}"
+    lp_actuel=0
+    [[ -f "$lp_dst" ]] && grep -q '^# liens : actif$' "$lp_dst" && lp_actuel=1
+    lp_voulu=$lp_actuel
+    (( LINK_PAGE == 1 )) && lp_voulu=1
+    (( LINK_PAGE == -1 )) && lp_voulu=0
+    lp_mot() { if [[ "$1" == "1" ]]; then echo "active"; else echo "inactive"; fi; }
+    if [[ -f "$snip/odoo/_odoo-common.conf" ]] && ! grep -q 'liens-publics.conf' "$snip/odoo/_odoo-common.conf"; then
+        warn "_odoo-common.conf installé sans include de liens-publics.conf : relancer --update (étape 0f) avant d'activer la page de liens."
+    fi
+    if (( LINK_PAGE == 0 )); then
+        if [[ "$lp_actuel" == "1" ]]; then pass "page de liens active (conservée ; $lp_dir/)."; else echo "  Page de liens : inactive (aucune option --link-page)."; fi
+    elif [[ "$CHECK_ONLY" == "1" ]]; then
+        warn "page de liens : $(lp_mot "$lp_actuel") → $(lp_mot "$lp_voulu") — --update appliquera ce changement après confirmation."
+    else
+        lp_ok=0
+        if [[ "$ROLLBACK_YES" == "1" ]]; then
+            lp_ok=1
+        elif [[ -t 0 ]]; then
+            tty_ligne; read -e -r -p "  Page de liens LittleLink $LINKPAGE_TAG : $(lp_mot "$lp_actuel") → $(lp_mot "$lp_voulu") dans $lp_dir ? [o/N] " lp_rep || lp_rep=""
+            [[ "$lp_rep" =~ ^[oOyY] ]] && lp_ok=1
+        else
+            warn "Pas de terminal : page de liens inchangée ($(lp_mot "$lp_actuel")). Ajouter --yes pour confirmer sans question."
+        fi
+        if (( lp_ok )); then
+            lp_pret=1
+            if [[ "$lp_voulu" == "1" ]]; then
+                lien_page_installer "$lp_dir" || lp_pret=0
+            fi
+            if (( lp_pret )); then
+                if [[ "$lp_voulu" == "1" ]]; then
+                    lp_nouveau="# Généré par nginx-hardening.sh (--link-page / --no-link-page) : ne pas éditer à la main."$'\n'"# liens : actif"$'\n'"location ^~ /liens/ {"$'\n'"    alias $lp_dir/;"$'\n'"    index index.html;"$'\n'"    limit_except GET HEAD { deny all; }"$'\n'"}"$'\n'
+                else
+                    lp_nouveau="# Généré par nginx-hardening.sh (--link-page / --no-link-page) : ne pas éditer à la main."$'\n'"# liens : inactif"$'\n'
+                fi
+                lp_ancien=""; [[ -f "$lp_dst" ]] && lp_ancien=$(cat "$lp_dst")
+                mkdir -p "$snip"
+                lp_tmp=$(mktemp "$snip/.liens-publics.XXXXXX")
+                printf '%s' "$lp_nouveau" > "$lp_tmp" && chmod 644 "$lp_tmp" && mv -f "$lp_tmp" "$lp_dst"
+                if lp_erreur=$(run nginx -t 2>&1); then
+                    if nginx_appliquer; then
+                        pass "page de liens $(lp_mot "$lp_voulu") dans $lp_dst ; nginx -t réussi, nginx $NGINX_APPLIQUE."
+                    else
+                        warn "page de liens modifiée et nginx -t réussi, mais nginx n'a pas pu être $NGINX_APPLIQUE — systemctl status nginx --no-pager ; journalctl -u nginx -n 30 --no-pager."
+                    fi
+                else
+                    if [[ -n "$lp_ancien" ]]; then printf '%s\n' "$lp_ancien" > "$lp_dst"; else printf '%s\n' "# liens : inactif" > "$lp_dst"; fi
+                    fail "nginx -t refuse la page de liens — ancienne version restaurée, nginx NON rechargé."
+                    printf '%s\n' "$lp_erreur" | head -8 | sed 's/^/        nginx -t : /'
+                fi
+            else
+                warn "page de liens non modifiée (LittleLink non installé)."
+            fi
+        else
+            warn "page de liens non modifiée ($(lp_mot "$lp_actuel"))."
+        fi
+    fi
+fi
 
 # --- 13) Courriel des alertes : relais SMTP et DNS (MX, SPF, DMARC, DKIM) ---------------------------------------------
 # Delegated to app-health-check.py --check-email-dns (same configuration as sending alerts): each line
