@@ -37,12 +37,13 @@ jobs:
         # exit-zero treats all errors as warnings. The GitHub editor is 127 chars wide
         flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
     # Informational for now: the pytest suite is not yet green on the runner.
-    # The Ctrl-C tests need a real terminal and hang without one, so they are
-    # deselected; --timeout stops any other test that blocks after 120 seconds.
+    # test_app_log_live.py drives a pseudo-terminal, which blocks on the runner
+    # (the Ctrl-C tests never exit); it is skipped until it is fixed.
+    # --timeout stops any other test that blocks after 120 seconds.
     - name: Test with pytest (informational)
       continue-on-error: true
       run: |
-        pytest -k "not ctrl_c" --timeout=120 < /dev/null
+        pytest --ignore=nginx-tools-tests/test_app_log_live.py --timeout=120 < /dev/null
 
   bash:
 
