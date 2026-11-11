@@ -146,7 +146,7 @@ grep_q() { grep "$@" >/dev/null; }
 #                              ne peut pas le voir, le texte etant entre apostrophes (faux positif).
 trap 'ec=$?; echo "" >&2; echo "*** ARRÊT INATTENDU DU SCRIPT (code $ec) À LA LIGNE $LINENO ***" >&2; echo "*** Commande fautive : $BASH_COMMAND" >&2; echo "*** Si le rapport ci-dessus semble incomplet (ex. sections Top 10 absentes), c'\''est probablement la cause." >&2' ERR
 
-readonly SCRIPT_VERSION="2.92.20261109.190000"
+readonly SCRIPT_VERSION="2.93.20261110.213818"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
 # theme_sgr CODE (2.86) : the SGR code as the color theme shows it (--theme N, THEME, NGINX_TOOLS_THEME; apps/_theme.py). Theme 0, no module or no python3: unchanged.
 theme_sgr() {
@@ -945,11 +945,15 @@ lire_chrono() {
 # urls_refusees IP [N]: the pages requested by IP and REFUSED by nginx, according to blocked-probes.log - the log read by the jail
 # nginx-blocked-probes: it is that one, and not the site logs, that contains what got the address banned (our refusal rules
 # write there instead of the site log). One line per page, most frequent first: "<count><TAB><page> (<code>)".
+# 2.93: a request for /robots.txt refused by nginx is NOT evidence of an attack: a robot reads robots.txt first, and a refusal of it
+# (securite-commune.conf, rule 5, before 1.27) was counted as a sensitive-file probe. Removed from the refusals counted as evidence.
+sans_robots_txt() { grep -vE '"(GET|HEAD) /robots\.txt[? ]' || true; }
+
 urls_refusees() {
     local ip="$1" n="${2:-5}" ipre
     ipre=$(printf '%s' "$ip" | sed 's/[.]/\\./g')
     compgen -G "/var/log/nginx/blocked-probes.log*" >/dev/null || return 0
-    lire_chrono /var/log/nginx/blocked-probes.log* | { grep -E "^$ipre " || true; } \
+    lire_chrono /var/log/nginx/blocked-probes.log* | { grep -E "^$ipre " || true; } | sans_robots_txt \
         | awk '{ u = $7; sub(/\?.*/, "", u); c[u " (" $9 ")"]++ } END { for (k in c) printf "%d\t%s\n", c[k], k }' \
         | sort -t"$(printf '\t')" -k1,1nr -k2,2 | awk -v n="$n" 'NR <= n'
 }
@@ -1089,7 +1093,7 @@ preuves_ip() {
     # --- 3b) Requests REFUSED by nginx: blocked-probes.log, what the nginx-blocked-probes jail reads ---
     local refus n_refus=0 jours_refus
     progres "Preuves pour $ip : requêtes refusées par nginx (blocked-probes.log)"
-    refus=$(lire_chrono /var/log/nginx/blocked-probes.log* 2>/dev/null | { grep -E "^$ipre " || true; })
+    refus=$(lire_chrono /var/log/nginx/blocked-probes.log* 2>/dev/null | { grep -E "^$ipre " || true; } | sans_robots_txt)
     [[ -n "$refus" ]] && n_refus=$(printf '%s\n' "$refus" | wc -l)
     if (( n_refus > 0 )); then
         jours_refus=$(printf '%s\n' "$refus" | grep -oE '\[[0-9]{2}/[A-Za-z]{3}/[0-9]{4}' | tr -d '[' | awk '!vu[$0]++' | paste -sd' ' | sed 's/ /, /g') || jours_refus=""
@@ -2476,7 +2480,9 @@ investigate_and_propose() {
 
     echo
     echo "      Indices :"
-    if (( maxp >= PAGE_BURST )); then score=$((score+1)); hostile=$((hostile+1)); motifs+=("rafale de $maxp pages en 10 s"); echo "      $ok Rafale : $maxp pages distinctes en 10 s ($maxb""x) — un humain lit une page à la fois (assets exclus du compte)"
+    # 2.93: a burst ALONE is an automation sign (a robot reads fast), not a sign of hostility: it becomes hostile only with another strong
+    # sign (sensitive files, errors, fake engine, catch-all, sweep). Before, one burst of 15 pages recommended a 365-day ban.
+    if (( maxp >= PAGE_BURST )); then score=$((score+1)); motifs+=("rafale de $maxp pages en 10 s"); echo "      $ok Rafale : $maxp pages distinctes en 10 s ($maxb""x) — un humain lit une page à la fois (assets exclus du compte)"
     else echo "      $no Rafale : au plus $maxp pages distinctes en 10 s (seuil : $PAGE_BURST)"; fi
     if (( nscript > 0 )); then score=$((score+1)); motifs+=("outil de script ($nscript requêtes)"); echo "      $ok Outil de script déclaré : $nscript requêtes (bibliothèque HTTP, pas un navigateur)"
     else echo "      $no Outil de script : aucun"; fi
@@ -2658,7 +2664,7 @@ investigate_and_propose() {
     # ressources, fichiers sensibles, erreurs en masse, faux moteur). Faux positif reel en PROD : 11.68.110.86, 3/7 avec
     # seulement des signes d'automatisation pour 3 visites de /events. Proposition de bannissement : seuil atteint ET
     # au moins un signe d'hostilite.
-    echo "      Signes d'hostilité : $hostile (rafale, fichiers sensibles, erreurs, faux moteur, catch-all) ; d'automatisation : $((score - hostile)) (script, double identité, hébergeur)"
+    echo "      Signes d'hostilité : $hostile (fichiers sensibles, erreurs, faux moteur, catch-all, balayage) ; d'automatisation : $((score - hostile)) (rafale, script, double identité, hébergeur)"
     if (( score < BAN_THRESHOLD )); then
         echo "      → Score $score/7 (seuil de proposition : $BAN_THRESHOLD) — à surveiller, pas de bannissement proposé."
         return 0
@@ -3353,7 +3359,7 @@ recommander() {
         elif (( INV_HOSTILE == 0 )); then
             raisons+=("aucun signe d'hostilité (fichiers sensibles, erreurs en masse, faux moteur, capteur catch-all)")
         fi
-        (( INV_HOSTILE > 0 && ${INV_SWEEP:-0} == 0 )) && raisons+=("une seule rafale de pages, sans signe fort : un robot qui lit vite, pas une attaque")
+        (( INV_HOSTILE == 0 && ${INV_MAXP:-0} >= PAGE_BURST && ${INV_SWEEP:-0} == 0 )) && raisons+=("une seule rafale de pages, sans signe fort : un robot qui lit vite, pas une attaque")
         if [[ -n "$noms_libres" ]]; then
             raisons+=("il se nomme dans son User-Agent : $noms_libres")
             if (( banni_local )); then verdict="LEVER LE BANNISSEMENT"; cmd="nginx-log-audit.sh --unban $ip"
@@ -3443,7 +3449,7 @@ if [[ -n "$INVESTIGATE_IP" ]]; then
     INV_REFUS=0
     if compgen -G "/var/log/nginx/blocked-probes.log*" >/dev/null; then
         inv_ipre=$(printf '%s' "$INVESTIGATE_IP" | sed 's/[.]/\\./g')
-        INV_REFUS=$(lire_chrono /var/log/nginx/blocked-probes.log* | { grep -E "^$inv_ipre " || true; } | tee -a "$INV_SRC" | wc -l)
+        INV_REFUS=$(lire_chrono /var/log/nginx/blocked-probes.log* | { grep -E "^$inv_ipre " || true; } | tee -a "$INV_SRC" | sans_robots_txt | wc -l)
     fi
     CATCHALL_MERGED="$STATE_DIR/.investigate-catchall.$$"
     INIT_ALL_TMP_FILES+=("$CATCHALL_MERGED")

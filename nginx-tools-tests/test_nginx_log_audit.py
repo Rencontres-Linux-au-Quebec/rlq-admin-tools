@@ -530,6 +530,27 @@ class ChkNginxLogs(EnvTest):
         self.assertIn("bannissement recommandé", bloc)
         self.assertRegex(bloc, r"Signes d'hostilité : [1-9]")
 
+    def test_une_seule_rafale_ne_fait_pas_recommander_le_bannissement(self):
+        """2.93 : 15 pages en 10 s d'une adresse, sans autre signe d'hostilité (un robot qui lit vite) : ni « bannissement recommandé »,
+        ni verdict BANNIR ; la rafale reste affichée comme signe d'automatisation."""
+        self.add(*(acc("198.51.100.70", "26/Oct/2026", "10:00:00", f"/en_CA/event/page-{i}", 200, CHROME) for i in range(15)))
+        _, out, _ = self.run_cmd(["bash", self.prog, "prod", "--investigate", "198.51.100.70", "--no-prompt"])
+        self.assertRegex(out, r"Rafale : 15 pages distinctes")
+        self.assertIn("Signes d'hostilité : 0", out)
+        self.assertNotIn("bannissement recommandé", out)
+        self.assertNotIn("Verdict : BANNIR", out)
+
+    def test_robots_txt_refuse_n_est_pas_compte_comme_une_attaque(self):
+        """2.93 : /robots.txt refusé en 404 (blocked-probes.log) n'est ni une preuve de refus, ni une recherche de fichiers sensibles."""
+        ip = "198.51.100.71"
+        with open(os.path.join(self.logs, "blocked-probes.log"), "w") as f:
+            f.writelines(f'{ip} - - [26/Oct/2026:09:00:0{i} +0000] "GET /robots.txt HTTP/1.1" 404 146 "-" "Ruby" host="www.exemple.org"\n'
+                         for i in range(3))
+        _, out, _ = self.run_cmd(["bash", self.prog, "prod", "--investigate", ip, "--no-prompt"])
+        self.assertNotIn("tentatives d'accès à des fichiers sensibles", out)
+        self.assertNotIn("Requêtes REFUSÉES par nginx : 3", out)
+        self.assertNotIn("bannissement recommandé", out)
+
     # --- 2.1: reasoning before --ban, airy output, color of malicious elements ---------------------------------
     def _robot_et_scanner(self):
         self.mock("host", '[[ "$1" == 11.68.110.86 ]] && echo "x pointer 86.110.68.11.bc.googleusercontent.com."; exit 0')
@@ -941,8 +962,11 @@ class ChkNginxLogs(EnvTest):
 
     # --- interactif (vrai terminal, root requis pour la question) -------------------------------------------------------
     def _burst_aws(self):
+        """2.93 : une rafale seule ne suffit plus à proposer le bannissement ; il faut un signe d'hostilité
+        (ici trois sondes de fichiers sensibles), sinon la question « maintenant ? [o/N] » n'est pas posée."""
         self.add(*(acc("11.22.62.38", "25/Sep/2026", f"19:28:5{i % 10}", f"/page{i}") for i in range(10)))
         self.add(acc("11.22.62.38", "25/Sep/2026", "19:30:00", "/x", 200, "python-httpx/0.28.1"))
+        self.add(*(acc("11.22.62.38", "25/Sep/2026", f"19:31:0{i}", "/.env", 404) for i in range(3)))
 
     @unittest.skipUnless(os.geteuid() == 0, "la question de bannissement exige root")
     def test_ctrl_c_a_la_question_vaut_non_et_rapport_continue(self):

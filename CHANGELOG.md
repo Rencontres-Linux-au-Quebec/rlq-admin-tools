@@ -4196,6 +4196,16 @@ Earlier history was archived outside this repository when this file was created.
 
 ## nginx-log-audit.sh
 
+### 2.93.20261110.213818 - A lone burst and robots.txt are no longer reasons to propose a ban
+
+- Title: --investigate no longer treats a single burst of pages, nor a 404 on /robots.txt, as a sign of hostility.
+- Reason: request of the administrator on 2026-11-10. The address 34.16.118.141 (Google Cloud, score 4/7, 365-day ban proposed) had not been banned; the administrator asked that this kind of case no longer be recommended for a ban.
+- Changes: nginx-log-audit.sh: a burst of pages (PAGE_BURST) adds 1 to the score but no longer to the hostility count; when a burst is the only sign, the reason "une seule rafale de pages, sans signe fort : un robot qui lit vite, pas une attaque" is given. The summary line now reads "Signes d'hostilité : N (...) ; d'automatisation : M (...)". New function sans_robots_txt(): GET and HEAD requests for /robots.txt are removed from the refused requests (urls_refusees, the "refus=" evidence line and the INV_REFUS count). nginx/snippets/securite-commune.conf: rule 5 no longer matches robots\.txt; nginx/VERSION 1.27.20261110.213818. Tests: test_nginx_log_audit (two new cases), test_nginx_uri (class RobotsTxtNonRefuse). The fixture of the interactive ban question now adds three requests to /.env, so the question is still asked when hostility is real.
+- Bugs fixed: symptom: a robot reading quickly, with a 404 on /robots.txt, was proposed for a 365-day ban (score 4/7, verdict BANNIR). Diagnosis: (1) the burst rule also added to the hostility count, so one burst counted as an attack sign; (2) rule 5 of securite-commune.conf matched /robots.txt, so the 404 was logged as a refused probe in blocked-probes.log and counted as a sensitive-file probe. Fix: a burst is an automation sign only, and robots.txt is excluded from the refusal rule and from the counts. Not addressed in this version: the synthesis line can still say "à examiner" where the detailed analysis says BANNIR in other cases.
+- Safeguards and edge cases: a burst together with a sweep (balayage), three or more sensitive-file requests, mass errors, a fake search engine or the catch-all sensor still produces hostility and the usual proposal. Any ban still goes through the score (threshold 3), the white list and the administrator's own confirmation. The fail2ban filter nginx-blocked-probes.filter.conf and the heredoc of nginx-hardening.sh are unchanged, as the tests require them to stay identical.
+- Checks performed: test_nginx_log_audit: test_une_seule_rafale_ne_fait_pas_recommander_le_bannissement, test_robots_txt_refuse_n_est_pas_compte_comme_une_attaque; test_nginx_uri: RobotsTxtNonRefuse; the three terminal-input tests of ChkNginxLogs (question answered by Ctrl-C, erase key, slow answer).
+- Action required: run `sudo nginx-hardening.sh --update` to deploy the new rule 5 on the server. Then `sudo nginx-log-audit.sh prod --investigate 34.16.118.141` should no longer recommend a ban.
+
 ### 2.92.20261109.190000 - Erase key (^H) in the questions
 
 - Title: the questions read without readline now use it.
