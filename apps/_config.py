@@ -19,7 +19,7 @@ import sys
 import tempfile
 import time
 
-__version__ = "1.11.20261103.112517"
+__version__ = "1.12.20261112.081946"
 OUI = ("1", "true", "yes", "oui", "on", "vrai")
 NON = ("0", "false", "no", "non", "off", "faux", "")
 # 1.9: values are written in English only; these old French values are still read (same meaning), with a warning (valeurs_francaises).
@@ -359,3 +359,117 @@ def ligne_configuration(fichiers, explicite=None, programme=""):
         note = (" (" + ", ".join(os.path.basename(c) for c in maj)
                 + " mis à jour à l'instant d'après le nouveau modèle : aucune option n'y était active)")
     return "Configuration lue : " + ", puis ".join(avec_date(c) for c in fichiers) + (" (le dernier l'emporte)" if len(fichiers) > 1 else "") + note
+
+
+# ---- 1.12: --config-merge, shared by every program (Python: fusionner_cli(); Bash: python3 apps/_config.py --merge PROGRAM) ----
+_MESSAGES_FUSION = {
+    "fr": {"modele": "Configuration par défaut introuvable : {chemin}", "ecriture": "Écriture impossible de {chemin} : {erreur}",
+           "fait": "Configuration fusionnée dans {chemin}", "lus": "  lu(s) : {fichiers}", "aucun": "aucun (nouveau fichier)",
+           "nouveau": "  nouvelle configuration par défaut : {chemin}", "copie": "  copie de l'ancien fichier : {chemin}", "sans": "aucune",
+           "gardees": "  valeurs gardées : {n}", "inconnues": "  clés inconnues laissées de côté : {cles}"},
+    "en": {"modele": "Default configuration not found: {chemin}", "ecriture": "Cannot write {chemin}: {erreur}",
+           "fait": "Configuration merged into {chemin}", "lus": "  read: {fichiers}", "aucun": "none (new file)",
+           "nouveau": "  new default configuration: {chemin}", "copie": "  backup of the previous file: {chemin}", "sans": "none",
+           "gardees": "  values kept: {n}", "inconnues": "  unknown keys left out: {cles}"},
+}
+
+
+def modele_par_defaut(programme, langue="fr", dossier_doc=None):
+    """Chemin du modèle doc/LANGUE/PROGRAMME.conf.example (puis doc/en, doc/fr, puis PROGRAMME.conf.example à la racine du dépôt) ; None si aucun."""
+    racine = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    dossier_doc = dossier_doc or os.path.join(racine, "doc")
+    candidats = [os.path.join(dossier_doc, l, f"{programme}.conf.example") for l in dict.fromkeys((langue, "en", "fr"))]
+    candidats.append(os.path.join(racine, f"{programme}.conf.example"))
+    return next((c for c in candidats if os.path.isfile(c)), None)
+
+
+def appliquer_valeurs(lignes, valeurs):
+    """Lignes d'un fichier de configuration avec {CLÉ: valeur} appliqué : la ligne active CLÉ=… est remplacée, sinon la première ligne #CLÉ=… est activée,
+    sinon CLÉ=… est ajoutée à la fin. Les autres lignes (commentaires compris) restent telles quelles."""
+    lignes = list(lignes)
+    for cle, valeur in valeurs.items():
+        texte = f'"{valeur}"' if valeur != valeur.strip() or "#" in valeur else valeur
+        actives = [i for i, ligne in enumerate(lignes) if re.match(rf"\s*{re.escape(cle)}\s*=", ligne)]
+        commentees = [i for i, ligne in enumerate(lignes) if re.match(rf"\s*#\s*{re.escape(cle)}\s*=", ligne)]
+        if actives:
+            lignes[actives[-1]] = f"{cle}={texte}"
+        elif commentees:
+            lignes[commentees[0]] = f"{cle}={texte}"
+        else:
+            lignes.append(f"{cle}={texte}")
+    return lignes
+
+
+def fusionner(programme, explicite=None, langue="fr", cles=(), dossier_doc=None):
+    """--config-merge : le fichier lu jusqu'ici (le dernier de la règle /etc/default puis ~/.PROGRAMME.conf, ou `explicite` avec -c) est réécrit à partir du
+    NOUVEAU modèle (doc/LANGUE/PROGRAMME.conf.example) en gardant les valeurs actives qu'il contient. Les clés inconnues du modèle (et de `cles`) sont laissées
+    de côté et listées. L'ancien fichier est d'abord copié en FICHIER.bak-AAAAMMJJ-HHMMSS (heure locale) ; droits et propriétaire gardés.
+    Aucun fichier : /etc/default/PROGRAMME.conf si ce dossier est accessible en écriture (root), sinon ~/.PROGRAMME.conf.
+    Retourne (code, lignes) : 0, ou 1 si le modèle manque ou si l'écriture échoue."""
+    m = _MESSAGES_FUSION["en" if langue == "en" else "fr"]
+    if explicite:
+        fichiers, cible = ([explicite] if os.path.isfile(explicite) else []), explicite
+    else:
+        regle = chemins_regle(programme)
+        fichiers = [c for c, existe in regle if existe]
+        if fichiers:
+            cible = fichiers[-1]
+        else:
+            systeme = regle[0][0]
+            cible = systeme if os.access(os.path.dirname(systeme) or ".", os.W_OK) else regle[1][0]
+    modele = modele_par_defaut(programme, langue, dossier_doc)
+    if not modele:
+        return 1, [m["modele"].format(chemin=os.path.join("doc", langue, f"{programme}.conf.example"))]
+    with open(modele, encoding="utf-8") as f:
+        lignes_modele = f.read().splitlines()
+    anciennes = {}
+    for c in fichiers:
+        anciennes.update(lire_fichier(c))
+    connues = {k.upper() for k in cles} | set(re.findall(r"^#?\s*([A-Z][A-Z0-9_]*)\s*=", "\n".join(lignes_modele), re.MULTILINE))
+    gardees = {k: v for k, v in anciennes.items() if k in connues}
+    laissees = sorted(k for k in anciennes if k not in connues)
+    copie, temporaire = None, None
+    try:
+        etat = os.stat(cible) if os.path.isfile(cible) else None
+        if etat is not None:
+            copie = f"{cible}.bak-{time.strftime('%Y%m%d-%H%M%S')}"
+            with open(cible, "rb") as source, open(copie, "wb") as dest:
+                dest.write(source.read())
+            os.chmod(copie, etat.st_mode & 0o7777)
+        dossier = os.path.dirname(os.path.abspath(cible))
+        os.makedirs(dossier, exist_ok=True)
+        fd, temporaire = tempfile.mkstemp(prefix=f".{os.path.basename(cible)}.", dir=dossier)
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            f.write("\n".join(appliquer_valeurs(lignes_modele, gardees)) + "\n")
+        os.chmod(temporaire, (etat.st_mode & 0o7777) if etat else 0o644)
+        if etat is not None and est_root():
+            os.chown(temporaire, etat.st_uid, etat.st_gid)
+        os.replace(temporaire, cible)
+    except OSError as erreur:
+        if temporaire and os.path.exists(temporaire):
+            os.unlink(temporaire)
+        return 1, [m["ecriture"].format(chemin=cible, erreur=erreur)]
+    res = [m["fait"].format(chemin=cible), m["lus"].format(fichiers=", ".join(fichiers) if fichiers else m["aucun"]),
+           m["nouveau"].format(chemin=modele), m["copie"].format(chemin=copie or m["sans"]),
+           m["gardees"].format(n=len(gardees)) + (f" ({', '.join(sorted(gardees))})" if gardees else "")]
+    if laissees:
+        res.append(m["inconnues"].format(cles=", ".join(laissees)))
+    return 0, res
+
+
+def fusionner_cli(programme, explicite=None, langue="fr", cles=()):
+    """--config-merge d'un programme Python : affiche le résultat de fusionner() (erreur sur la sortie d'erreur) et retourne le code de sortie."""
+    code, lignes = fusionner(programme, explicite, langue, cles)
+    print("\n".join(lignes), file=sys.stderr if code else sys.stdout)
+    return code
+
+
+if __name__ == "__main__":
+    # python3 apps/_config.py --merge PROGRAM [--config FILE] [--lang fr|en]: --config-merge of the Bash programs
+    import argparse
+    parser = argparse.ArgumentParser(description="--config-merge of the Bash programs (same rule as the Python programs)")
+    parser.add_argument("--config", default=None, metavar="FILE", help="file given with -c / --config (only this one)")
+    parser.add_argument("--lang", default="fr", metavar="LANG", help="language of the default configuration and of the messages (fr, en)")
+    parser.add_argument("--merge", required=True, metavar="PROGRAM", help="name of the program (without .sh)")
+    arguments = parser.parse_args()
+    sys.exit(fusionner_cli(arguments.merge, arguments.config or None, arguments.lang))

@@ -638,3 +638,6 @@ msgstr "  --menu    interactive menu of the common operations (dialog if install
 
 msgid "Droits limités (pas root) : non disponible : contenu des ipset et règles du pare-feu (iptables, ip6tables) ; relancer avec sudo pour un état complet."
 msgstr "Limited rights (not root): not available: content of the ipsets and firewall rules (iptables, ip6tables); run again with sudo for a complete status."
+
+msgid "  --config-merge               réécrit le fichier de configuration d'après la NOUVELLE configuration par défaut en gardant ses valeurs (copie FICHIER.bak-AAAAMMJJ-HHMMSS), puis quitte"
+msgstr "  --config-merge               rewrite the configuration file from the NEW default configuration, keeping its values (copy FILE.bak-YYYYMMDD-HHMMSS), then exit"

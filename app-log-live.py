@@ -122,7 +122,7 @@ from urllib.parse import unquote, urlsplit
 from collections import Counter, OrderedDict
 from concurrent.futures import Future
 
-__version__ = "1.191.20261112.075046"
+__version__ = "1.192.20261112.082236"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]

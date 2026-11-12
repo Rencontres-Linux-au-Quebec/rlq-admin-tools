@@ -20,6 +20,7 @@
 #   --changelog          show the change log
 #   --check              check only (default)
 #   -c, --config FILE    this configuration file ONLY
+#   --config-merge       Rewrite the configuration file from the new default configuration, keeping the values set (copy FILE.bak-YYYYMMDD-HHMMSS), then exit
 #   --notify             daily summary: printed, and sent by e-mail when something needs attention (used by the timer)
 #   --report-err         print at the end an error report to copy and paste
 #   --rollback           remove the files written by --update (packages stay installed)

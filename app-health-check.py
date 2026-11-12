@@ -66,7 +66,7 @@ import sys
 import time
 from urllib.parse import urlparse, parse_qs, unquote
 
-__version__ = "2.36.20261112.054310"
+__version__ = "2.37.20261112.082236"
 # Marker added at the END of the "browser" User-Agent (2.2): our test requests are recognizable in all the
 # logs (nginx, Odoo) and excluded from the statistics by web-monitor.py. Matches no pattern of the bot filter.
 UA_MARKER = " app-health-check/" + ".".join(__version__.split(".")[:2])
@@ -1617,6 +1617,9 @@ def main():
     if "--version" not in sys.argv[1:]:       # first line of EVERY run, even --help: name and version (--version prints it by itself)
         print(f"app-health-check.py v{__version__}")
     defauts, problems = I18N.defauts(parser, SCHEMA_CONFIG) if I18N else ({}, [])
+    parser.add_argument("--config-merge", action="store_true",
+                        help="Rewrite the configuration file from the NEW default configuration (example of the current language), keeping the values set in the file "
+                             "read until now; the old file is copied first to FILE.bak-YYYYMMDD-HHMMSS (with -c: that file only). Then exit")
     args = parser.parse_args()
     if args.menu:
         import importlib.util as _ilu
@@ -1630,6 +1633,11 @@ def main():
     for problem in problems:
         print(f"  WARNING: configuration value ignored: {problem}", file=sys.stderr)
 
+    if args.config_merge:                     # --config-merge (apps/_config.py fusionner, same rule for every program)
+        sys.path.insert(0, os.path.join(SCRIPT_DIR, "apps"))
+        import _config
+        langue = globals().get("LANGUAGE") or getattr(globals().get("I18N"), "langue", None) or "fr"
+        sys.exit(_config.fusionner_cli(SCRIPT_NAME, args.config, langue))
     if args.changelog:
         sys.exit(show_changelog())
 

@@ -32,3 +32,6 @@
 #   --dry-run    montre ce qui serait créé ou mis à jour, sans rien écrire
 #   --lang en|fr   langue d'affichage (clé LANGUAGE)
 #   --version ; --changelog ; --report-err
+
+# --- Command-line options ONLY (actions or one-off settings: no key here) ---
+#   --config-merge  Rewrite the configuration file from the new default configuration, keeping the values set (copy FILE.bak-YYYYMMDD-HHMMSS), then exit

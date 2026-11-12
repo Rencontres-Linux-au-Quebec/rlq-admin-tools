@@ -36,6 +36,7 @@
 # Les voici, pour mémoire (« app-log-check --help » donne le détail). Elles se donnent sur la ligne de commande, jamais dans ce fichier.
 #   --by-hour     Rapport des problèmes PAR HEURE ET PAR JOUR (erreurs, pages en erreur, « Session expired » et leurs pics)
 #   --changelog   Affiche le changelog
+#   --config-merge Rewrite the configuration file from the new default configuration, keeping the values set (copy FILE.bak-YYYYMMDD-HHMMSS), then exit
 #   --init        Analyse tout l'historique disponible du journal
 #   --last HOURS  Restreint aux HEURES dernieres heures
 #   --report-err  Afficher à la fin un rapport d'erreurs à copier-coller (programme, version, serveur, échecs, avertissements)

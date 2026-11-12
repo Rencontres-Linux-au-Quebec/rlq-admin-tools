@@ -37,7 +37,7 @@
 
 set -euo pipefail
 
-readonly SCRIPT_VERSION="1.3.20261109.190000"
+readonly SCRIPT_VERSION="1.4.20261112.082236"
 readonly SCRIPT_NAME="admin-menu"
 SCRIPT_FILE="$(basename "${BASH_SOURCE[0]}")"
 readonly SCRIPT_FILE
@@ -61,6 +61,7 @@ if [[ ! -r "$SCRIPT_DIR/apps/_i18n.sh" ]]; then
 fi
 # shellcheck source=/dev/null  # library shipped next to the program
 . "$SCRIPT_DIR/apps/_i18n.sh"
+config_fusion_si_demande admin-menu "$@"      # --config-merge (apps/_i18n.sh -> apps/_config.py): rewrites the configuration from the new default one, then exits
 if [[ -r "$SCRIPT_DIR/apps/_rapport.sh" ]]; then
     # shellcheck source=/dev/null  # library shipped next to the program
     . "$SCRIPT_DIR/apps/_rapport.sh"
@@ -98,6 +99,8 @@ aide() {
     opt "--changelog" "$(t "journal des modifications de ce programme" "change log of this program")"
     opt "-c, --config FILE" "$(t "ce fichier de configuration SEUL (défaut : /etc/default/admin-menu.conf, puis ~/.admin-menu.conf)" \
         "this configuration file ONLY (default: /etc/default/admin-menu.conf, then ~/.admin-menu.conf)")"
+    opt "--config-merge" "$(t "réécrit le fichier de configuration d'après la NOUVELLE configuration par défaut en gardant ses valeurs (copie FICHIER.bak-AAAAMMJJ-HHMMSS), puis quitte" \
+        "rewrite the configuration file from the NEW default configuration, keeping its values (copy FILE.bak-YYYYMMDD-HHMMSS), then exit")"
     opt "-h, --help" "$(t "affiche cette aide et quitte" "show this help and exit")"
     opt "--install-dialog" "$(t "installe dialog (apt) s'il manque, sans demander" "install dialog (apt) if missing, without asking")"
     opt "--list" "$(t "liste les programmes qui ont --menu, leur version et l'état de dialog" \

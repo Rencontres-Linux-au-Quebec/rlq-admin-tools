@@ -56,7 +56,7 @@ try:                    # line editing in prompts
 except ImportError:
     pass
 
-__version__ = "1.38.20261111.170200"
+__version__ = "1.39.20261112.082236"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
@@ -977,6 +977,9 @@ def main():
     parser.add_argument("--wait", type=int, default=None, metavar="SECONDS", help=f"Waits for Odoo to answer for {DEFAULT_WAIT} seconds at most (default) before warming up")
     if "--version" not in sys.argv[1:]:       # first line of EVERY run, even --help (--version prints it itself)
         print(f"odoo-warmup.py v{__version__}")
+    parser.add_argument("--config-merge", action="store_true",
+                        help="Rewrite the configuration file from the NEW default configuration (example of the current language), keeping the values set in the file "
+                             "read until now; the old file is copied first to FILE.bak-YYYYMMDD-HHMMSS (with -c: that file only). Then exit")
     args = parser.parse_args()
     if args.menu:
         import importlib.util as _ilu
@@ -989,6 +992,11 @@ def main():
                    nom=f"odoo-warmup.py v{__version__}")
     global VERBOSE
     VERBOSE = args.verbose
+    if args.config_merge:                     # --config-merge (apps/_config.py fusionner, same rule for every program)
+        sys.path.insert(0, os.path.join(SCRIPT_DIR, "apps"))
+        import _config
+        langue = globals().get("LANGUAGE") or getattr(globals().get("I18N"), "langue", None) or "fr"
+        sys.exit(_config.fusionner_cli(SCRIPT_NAME, args.config, langue))
     if args.changelog:
         return show_changelog()
     try:

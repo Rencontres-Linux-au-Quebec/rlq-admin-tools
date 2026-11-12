@@ -146,7 +146,7 @@ grep_q() { grep "$@" >/dev/null; }
 #                              ne peut pas le voir, le texte etant entre apostrophes (faux positif).
 trap 'ec=$?; echo "" >&2; echo "*** ARRÊT INATTENDU DU SCRIPT (code $ec) À LA LIGNE $LINENO ***" >&2; echo "*** Commande fautive : $BASH_COMMAND" >&2; echo "*** Si le rapport ci-dessus semble incomplet (ex. sections Top 10 absentes), c'\''est probablement la cause." >&2' ERR
 
-readonly SCRIPT_VERSION="2.95.20261112.054310"
+readonly SCRIPT_VERSION="2.96.20261112.082236"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
 # theme_sgr CODE (2.86) : the SGR code as the color theme shows it (--theme N, THEME, NGINX_TOOLS_THEME; apps/_theme.py). Theme 0, no module or no python3: unchanged.
 theme_sgr() {
@@ -163,6 +163,7 @@ if [[ -r "$SCRIPT_DIR/apps/_i18n.sh" ]]; then
     # shellcheck source=/dev/null  # library shipped next to the program
     . "$SCRIPT_DIR/apps/_i18n.sh"
     i18n_relancer nginx-log-audit NGINX_LOG_AUDIT_LANG "$0" "$@"
+    config_fusion_si_demande nginx-log-audit "$@"      # --config-merge (apps/_i18n.sh -> apps/_config.py): rewrites the configuration from the new default one, then exits
 fi
 # Changelog dans le sous-repertoire doc/ ; repli sur l'ancien emplacement (a cote du programme) tant que
 # l'installation n'a pas ete reorganisee.
@@ -354,6 +355,7 @@ Options (par ordre alphabétique) :
   --compare [FICHIER]          compare les dernières 24 h avec les 24 h précédentes (codes, blocages, IP, chemins) et écrit le rapport dans FICHIER (mode 600) ; lecture seule
   -c, --config FILE            fichier de configuration à lire SEUL (sinon : /etc/default/nginx-log-audit.conf, puis ~/.nginx-log-audit.conf ;
                                clés : APP, BAN_THRESHOLD, LANGUAGE, NO_PROMPT, PAGE_BURST, PARALLEL_THRESHOLD, THEME, UA_ROTATION_THRESHOLD, VERBOSE)
+  --config-merge               réécrit le fichier de configuration d'après la NOUVELLE configuration par défaut en gardant ses valeurs (copie FICHIER.bak-AAAAMMJJ-HHMMSS), puis quitte
   --details                    avec --stats : détail de chaque indicateur
   --evidence IP                preuves pour ou contre le bannissement d'une IP et verdict, sans rien demander ni bannir (lecture seule)
   --export-bans [FILE]         exporter les bannissements manuels (sortie standard par défaut)

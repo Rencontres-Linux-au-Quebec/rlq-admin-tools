@@ -75,6 +75,7 @@
 # --- Options de la ligne de commande SEULEMENT (actions ou réglages ponctuels : aucune clé ici) ---
 # Les voici, pour mémoire (« odoo-update-module.sh --help » donne le détail). Elles se donnent sur la ligne de commande, jamais dans ce fichier.
 #   --changelog          affiche le journal des modifications
+#   --config-merge       Rewrite the configuration file from the new default configuration, keeping the values set (copy FILE.bak-YYYYMMDD-HHMMSS), then exit
 #   --dry-run            montrer ce qui serait fait (service, base, modules, commandes), sans rien arrêter ni écrire
 #   --force              continuer malgré un Odoo lancé à la main (il est alors ignoré, pas arrêté)
 #   --report-err         afficher à la fin un rapport d'erreurs à copier-coller (programme, version, serveur, échecs, avertissements)

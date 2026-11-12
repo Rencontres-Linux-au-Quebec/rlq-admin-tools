@@ -347,6 +347,53 @@ class AideTriee(unittest.TestCase):
                 self.assertIn("help", noms)
 
 
+class FusionDeConfiguration(unittest.TestCase):
+    """--config-merge sur TOUS les programmes (apps/_config.py fusionner) : l'aide la montre ; le fichier est réécrit d'après le nouveau modèle,
+    ses valeurs gardées, les clés inconnues écartées, l'ancien fichier copié en .bak-AAAAMMJJ-HHMMSS ; -c : ce fichier seul."""
+    AVEC_CONFIGURATION = [n for n in PROGRAMMES if not n.endswith("run-all.sh")] + ["nginx-link-page.sh"]      # run-all.sh: test runner, no configuration file
+
+    def environnement(self, dossier):
+        return dict(os.environ, APP_PROFILE="odoo", NO_COLOR="1", HOME=dossier, NGINX_TOOLS_ETC_DEFAULT=dossier, NGINX_LINK_PAGE_ETC_DEFAULT=dossier,
+                    NGINX_TOOLS_CONFIG_CREER="0")
+
+    def test_option_dans_l_aide_de_chaque_programme(self):
+        import subprocess, tempfile
+        for name in self.AVEC_CONFIGURATION:
+            with self.subTest(programme=name), tempfile.TemporaryDirectory() as d:
+                r = subprocess.run(launcher(name) + ["--help"], capture_output=True, text=True, env=self.environnement(d), timeout=60)
+                self.assertRegex(r.stdout, r"(?m)^ {2,4}--config-merge\b")
+
+    def test_fusion_garde_les_valeurs_et_ecarte_les_cles_inconnues(self):
+        import subprocess, tempfile
+        for name in self.AVEC_CONFIGURATION:
+            nom = os.path.basename(name).rsplit(".", 1)[0]
+            modele = next((c for c in (os.path.join(SCRIPTS_DIR, "doc", "fr", f"{nom}.conf.example"), os.path.join(SCRIPTS_DIR, f"{nom}.conf.example")) if os.path.isfile(c)), None)
+            with self.subTest(programme=name), tempfile.TemporaryDirectory() as d:
+                self.assertIsNotNone(modele, "modèle de configuration absent")
+                cle = re.search(r"(?m)^#([A-Z][A-Z0-9_]*)=", open(modele, encoding="utf-8").read()).group(1)
+                chemin = os.path.join(d, f"{nom}.conf")
+                with open(chemin, "w", encoding="utf-8") as f:
+                    f.write(f"{cle}=valeur-gardee\nCLE_OBSOLETE_XYZ=1\n")
+                os.chmod(chemin, 0o600)
+                r = subprocess.run(launcher(name) + ["--config-merge"], capture_output=True, text=True, env=self.environnement(d), timeout=60)
+                self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+                texte = open(chemin, encoding="utf-8").read()
+                self.assertIn(f"\n{cle}=valeur-gardee\n", "\n" + texte)
+                self.assertNotIn("CLE_OBSOLETE_XYZ", texte)
+                self.assertIn("CLE_OBSOLETE_XYZ", r.stdout)
+                copies = [f for f in os.listdir(d) if re.fullmatch(re.escape(nom) + r"\.conf\.bak-\d{8}-\d{6}", f)]
+                self.assertEqual(len(copies), 1, os.listdir(d))
+                self.assertEqual(os.stat(chemin).st_mode & 0o777, 0o600)
+                # -c FILE: only that file, in English
+                autre = os.path.join(d, "autre.conf")
+                with open(autre, "w", encoding="utf-8") as f:
+                    f.write(f"{cle}=autre\n")
+                r = subprocess.run(launcher(name) + ["--config-merge", "-c", autre, "--lang", "en"], capture_output=True, text=True, env=self.environnement(d), timeout=60)
+                self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+                self.assertIn("Configuration merged into " + autre, r.stdout)
+                self.assertIn(f"{cle}=valeur-gardee", open(chemin, encoding="utf-8").read())
+
+
 class CheminSousCron(unittest.TestCase):
     """PATH complété (sync 1.10, audit 2.6, hardening 2.2) : sous cron, /usr/sbin et /sbin manquent."""
     def test_sbin_ajoutes_a_la_fin_sans_masquer(self):

@@ -9,6 +9,8 @@
 # --- Options (ordre alphabétique / alphabetical order) ---
 # --accentuate-group : étiquette (catégorie) de contacts Odoo affichés en blanc gras sur bleu foncé (vide = aucune ; touche a à la volée)
 #ACCENTUATE_GROUP=
+# --accounts-only (1.191) : seulement les lignes des adresses d'où un compte Odoo s'est connecté ; les lignes sans adresse restent (touche g à la volée)
+#ACCOUNTS_ONLY=no
 # --ack-days : jours pendant lesquels un constat vérifié par un administrateur (--ack) reste hors du sommaire (défaut : 30)
 #ACK_DAYS=30
 # --anonymize (par défaut depuis 1.88 pour app-log-live) : anonymiser ce que le programme affiche à l'écran (adresses IP, courriels, identifiants, jetons) par des pseudonymes
@@ -50,6 +52,8 @@
 #HEALTH=10
 # --hide-addons : cache les lignes INFO des modules d'Odoo (odoo.addons.*, odoo.models.unlink, odoo.modules.registry), sauf les erreurs, les courriels envoyés et les fichiers générés (PDF...) (touche q à la volée)
 #HIDE_ADDONS=no
+# --hide-bots (1.191) : cacher les lignes des robots (robots.txt ou plan du site demandé, nom ou User-Agent de robot) ; toujours comptées dans les rapports (touche p à la volée)
+#HIDE_BOTS=no
 # --hide-ip
 #HIDE_IP=yes
 # --hide-user-agent : ne pas montrer le texte du User-Agent des lignes nginx (touche u à la volée)
@@ -89,12 +93,6 @@
 #NOT_FOUND=no
 # --no-banned
 #NO_BANNED=no
-# --hide-bots (1.191) : cacher les lignes des robots (robots.txt ou plan du site demandé, nom ou User-Agent de robot) ; toujours comptées dans les rapports (touche p à la volée)
-#HIDE_BOTS=no
-# --accounts-only (1.191) : seulement les lignes des adresses d'où un compte Odoo s'est connecté ; les lignes sans adresse restent (touche g à la volée)
-#ACCOUNTS_ONLY=no
-# --visitor-report (1.191) : minutes entre deux rapports des visiteurs (adresses différentes, personnes avec pages et requêtes, robots) ; 0 = jamais ; touche % : tout de suite
-#VISITOR_REPORT=60
 # --no-ban-prompt
 #NO_BAN_PROMPT=no
 # --no-cache
@@ -156,6 +154,8 @@
 #UTC=no
 # --verbose
 #VERBOSE=no
+# --visitor-report (1.191) : minutes entre deux rapports des visiteurs (adresses différentes, personnes avec pages et requêtes, robots) ; 0 = jamais ; touche % : tout de suite
+#VISITOR_REPORT=60
 # --watch : surveiller les requêtes dont l'URL contient ce texte (virgule = plusieurs ; touche w à la volée)
 #WATCH=
 

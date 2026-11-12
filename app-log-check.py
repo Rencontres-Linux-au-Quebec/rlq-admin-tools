@@ -60,7 +60,7 @@ import urllib.parse
 from collections import Counter, OrderedDict
 from datetime import datetime, timedelta
 
-__version__ = "2.28.20261030.153422"
+__version__ = "2.29.20261112.082236"
 
 DEFAULT_SERVICE = "erplibre_erplibre.service"
 STATE_DIR = os.environ.get("APP_LOG_CHECK_STATE_DIR") or os.path.expanduser("~/.local/state/app-log-check")
@@ -1212,6 +1212,9 @@ def main():
     if "--version" not in sys.argv[1:]:       # first line of EVERY run, even --help: name and version (--version displays it itself)
         print(f"app-log-check.py v{__version__}")
     defauts, problems = I18N.defauts(parser, SCHEMA_CONFIG) if I18N else ({}, [])
+    parser.add_argument("--config-merge", action="store_true",
+                        help="Rewrite the configuration file from the NEW default configuration (example of the current language), keeping the values set in the file "
+                             "read until now; the old file is copied first to FILE.bak-YYYYMMDD-HHMMSS (with -c: that file only). Then exit")
     args = parser.parse_args()
     if args.menu:
         import importlib.util as _ilu
@@ -1239,6 +1242,11 @@ def main():
         except (ImportError, OSError, AttributeError):
             pass
 
+    if args.config_merge:                     # --config-merge (apps/_config.py fusionner, same rule for every program)
+        sys.path.insert(0, os.path.join(SCRIPT_DIR, "apps"))
+        import _config
+        langue = globals().get("LANGUAGE") or getattr(globals().get("I18N"), "langue", None) or "fr"
+        sys.exit(_config.fusionner_cli(SCRIPT_NAME, args.config, langue))
     if args.changelog:
         show_changelog()
         return

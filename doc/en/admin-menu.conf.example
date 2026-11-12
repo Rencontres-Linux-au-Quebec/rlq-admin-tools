@@ -4,3 +4,6 @@
 #LANGUAGE=auto          # en, fr or auto (auto: LC_ALL, then LC_MESSAGES, then LANG)
 #PROGRAMS=              # programs to offer, separated by spaces (empty: every program of the folder that has --menu)
 #VERBOSE=no             # yes: print each command launched (also passed to the programs)
+
+# --- Command-line options ONLY (actions or one-off settings: no key here) ---
+#   --config-merge  Rewrite the configuration file from the new default configuration, keeping the values set (copy FILE.bak-YYYYMMDD-HHMMSS), then exit

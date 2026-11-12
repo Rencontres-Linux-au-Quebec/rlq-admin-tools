@@ -3140,3 +3140,6 @@ msgstr "do not lift: let the temporary ban expire, then watch whether it comes b
 
 msgid "pas bannie : surveiller (app-log-live.py, web-monitor.py) ; le seuil de bannissement n'est pas atteint (score "
 msgstr "not banned: watch it (app-log-live.py, web-monitor.py); the ban threshold is not reached (score "
+
+msgid "  --config-merge               réécrit le fichier de configuration d'après la NOUVELLE configuration par défaut en gardant ses valeurs (copie FICHIER.bak-AAAAMMJJ-HHMMSS), puis quitte"
+msgstr "  --config-merge               rewrite the configuration file from the NEW default configuration, keeping its values (copy FILE.bak-YYYYMMDD-HHMMSS), then exit"

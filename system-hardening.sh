@@ -52,7 +52,7 @@ for _d in /usr/local/sbin /usr/sbin /sbin; do [[ -n "${NGINX_TOOLS_TESTS:-}" ]] 
 # (During the test suite, NGINX_TOOLS_TESTS disables this addition: the real system commands stay out of reach.)
 export PATH
 
-readonly SCRIPT_VERSION="1.1.20261105.081634"
+readonly SCRIPT_VERSION="1.2.20261112.082236"
 readonly SCRIPT_NAME="system-hardening"
 SCRIPT_FILE="$(basename "${BASH_SOURCE[0]}")"
 readonly SCRIPT_FILE
@@ -103,6 +103,7 @@ if [[ ! -r "$SCRIPT_DIR/apps/_i18n.sh" ]]; then
 fi
 # shellcheck source=/dev/null  # library shipped next to the program
 . "$SCRIPT_DIR/apps/_i18n.sh"
+config_fusion_si_demande system-hardening "$@"      # --config-merge (apps/_i18n.sh -> apps/_config.py): rewrites the configuration from the new default one, then exits
 if [[ -r "$SCRIPT_DIR/apps/_rapport.sh" ]]; then
     # shellcheck source=/dev/null  # library shipped next to the program
     . "$SCRIPT_DIR/apps/_rapport.sh"
@@ -175,6 +176,8 @@ usage() {
     opt "--check" "$(t "vérification seulement (par défaut)" "check only (default)")"
     opt "-c, --config FILE" "$(t "ce fichier de configuration SEUL (défaut : /etc/default/system-hardening.conf, puis ~/.system-hardening.conf)" \
         "this configuration file ONLY (default: /etc/default/system-hardening.conf, then ~/.system-hardening.conf)")"
+    opt "--config-merge" "$(t "réécrit le fichier de configuration d'après la NOUVELLE configuration par défaut en gardant ses valeurs (copie FICHIER.bak-AAAAMMJJ-HHMMSS), puis quitte" \
+        "rewrite the configuration file from the NEW default configuration, keeping its values (copy FILE.bak-YYYYMMDD-HHMMSS), then exit")"
     opt "-h, --help" "$(t "affiche cette aide et quitte" "show this help and exit")"
     opt "--lang LANG" "$(t "langue des messages : fr ou en" "language of the messages: fr or en")"
     opt "--menu" "$(t "menu des opérations courantes (dialog s'il est installé)" "menu of the usual operations (dialog if installed)")"

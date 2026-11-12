@@ -37,6 +37,7 @@
 # --- Options de la ligne de commande SEULEMENT (actions ou réglages ponctuels : aucune clé ici) ---
 # Les voici, pour mémoire (« odoo-backup --help » donne le détail). Elles se donnent sur la ligne de commande, jamais dans ce fichier.
 #   --changelog          affiche le journal des modifications
+#   --config-merge       Réécrit le fichier de configuration à partir de la nouvelle configuration par défaut, en gardant les valeurs réglées (copie FICHIER.bak-AAAAMMJJ-HHMMSS), puis quitte
 #   --db NAME            une seule base (avec --restore : nom de la base créée)
 #   --dest DIR           autre dossier des sauvegardes (DEST= dans la configuration)
 #   --dry-run            montrer ce qui serait fait, sans rien écrire

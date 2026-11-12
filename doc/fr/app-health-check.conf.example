@@ -102,6 +102,7 @@ ODOO_DISCUSS_MODEL=discuss.channel
 
 # --- Options de la ligne de commande SEULEMENT (actions ou réglages ponctuels : aucune clé ici) ---
 #   --changelog     affiche le journal des modifications
+#   --config-merge  Réécrit le fichier de configuration à partir de la nouvelle configuration par défaut, en gardant les valeurs réglées (copie FICHIER.bak-AAAAMMJJ-HHMMSS), puis quitte
 #   --force         avec --create-config : remplace un fichier existant (copie de sauvegarde faite)
 #   --report-err    afficher à la fin un rapport d'erreurs à copier-coller
 #   --test-email    vérifications DNS du courriel, puis envoi réel d'un courriel de test
