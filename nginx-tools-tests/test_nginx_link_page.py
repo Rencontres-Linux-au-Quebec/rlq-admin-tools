@@ -558,6 +558,44 @@ printf '\\211PNG\\r\\n\\032\\nxxxx' > "$out"; printf '200 12'; exit 0
         self.assertNotRegex(__import__("re").sub(r"/\*.*?\*/", "", css, flags=__import__("re").S), r"@import|https?:")    # comments aside
         self.assertIn("MIT", (page / "css" / "themes-linkstack-LICENSES.md").read_text(encoding="utf-8"))
 
+    def test_117_bouton_theme(self):
+        """1.17 : PAGE_n_THEMES : une page complète par thème (index.html pour le thème de la page, theme-NOM.html pour les autres), menu
+        <details> sans script dans chacune, thème courant marqué ; « all » : les 12 thèmes ; PAGE_n_SWITCH ignoré ; thème inconnu refusé ;
+        les pages theme-*.html d'un passage précédent disparaissent."""
+        texte = self.config_deux_pages("no").replace("PAGE_1_THEME=auto", "PAGE_1_THEME=aurora\nPAGE_1_THEMES=light, ls-dawn,aurora,terminal\nPAGE_1_SWITCH=yes")
+        r = self.lancer("-c", str(self.conf(texte)), "--update", "--yes", env=self.env)
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertIn("PAGE_1_SWITCH=yes ignore", r.stdout + r.stderr)
+        page = self.www / "liens"
+        self.assertEqual(sorted(f.name for f in page.glob("*.html")), ["index.html", "theme-light.html", "theme-ls-dawn.html", "theme-terminal.html"])
+        self.assertTrue((page / "css" / "theme-menu.css").exists())
+        attendus = {"index.html": "aurora", "theme-light.html": "light", "theme-ls-dawn.html": "ls-dawn", "theme-terminal.html": "terminal"}
+        for f, theme in attendus.items():
+            with self.subTest(page=f):
+                html = (page / f).read_text(encoding="utf-8")
+                self.assertIn(f'class="theme-{theme}"', html)
+                self.assertIn('<link rel="stylesheet" href="css/theme-menu.css">', html)
+                self.assertIn('<details class="theme-menu">', html)
+                self.assertIn("<summary>Thème</summary>", html)
+                self.assertNotIn("<script", html)
+                self.assertEqual(html.count('aria-current="page"'), 1)
+                self.assertIn(f'<li><a href="{f}" aria-current="page">', html)
+                menu = html[html.index("<ul>"):html.index("</ul>")]
+                self.assertEqual(__import__("re").findall(r'href="([^"]+)"', menu), ["index.html", "theme-light.html", "theme-ls-dawn.html", "theme-terminal.html"])
+                self.assertNotIn("autre.html", html)
+        self.assertIn(">aurore boréale</a>", (page / "index.html").read_text(encoding="utf-8"))
+        texte = self.config_deux_pages("no").replace("PAGE_1_THEME=auto", "PAGE_1_THEME=dark\nPAGE_1_THEMES=all")
+        r = self.lancer("-c", str(self.conf(texte)), "--update", "--yes", env=self.env)
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertEqual(len(list(page.glob("*.html"))), 12)
+        r = self.lancer("-c", str(self.conf(self.config_deux_pages("no"))), "--update", "--yes", env=self.env)
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertEqual([f.name for f in page.glob("*.html")], ["index.html"])           # old theme pages removed
+        self.assertNotIn("theme-menu", (page / "index.html").read_text(encoding="utf-8"))
+        r = self.lancer("-c", str(self.conf(MINIMAL + "PAGE_1_THEMES=light,rose\n")), "--check")
+        self.assertNotEqual(r.returncode, 0)
+        self.assertIn("« rose »", r.stderr)
+
     def test_chemins_relatifs_resolus(self):
         texte = self.config_deux_pages("no").replace(
             "LINK_1_URL=https://example.org/a", "LINK_1_URL=/a/").replace(

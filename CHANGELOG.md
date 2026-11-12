@@ -4526,6 +4526,16 @@ Earlier history was archived outside this repository when this file was created.
 
 ## nginx-link-page.sh
 
+### 1.17.20261112.181906 - "Theme" button to change the theme of a page
+
+- Title: new key PAGE_n_THEMES: a "Theme" button at the top right of the page offers the listed themes.
+- Reason: request of the administrator on 2026-11-12: add a button to change the theme.
+- Changes: new key PAGE_n_THEMES (comma list of themes, or all; the theme of PAGE_n_THEME always comes first); new function themes_offerts (list without duplicates, "all" expanded to THEMES_TOUS anywhere in the list); new file apps/link-page-theme-menu.css (copied as css/theme-menu.css); genere_index(): <details class="theme-menu"> menu written in each page, current theme marked (aria-current, check mark), names in the page language (theme_nom); one complete page per theme: index.html for the theme of the page, theme-NAME.html for the others; step 5: the theme-*.html pages of the previous run are removed; check: an unknown theme of PAGE_n_THEMES is refused; nginx-link-page.conf.example: PAGE_n_THEMES described; nginx-tools-tests/test_nginx_link_page.py: 1 test; preview doc/images/link-page-theme-menu.png.
+- Bugs fixed: none.
+- Safeguards and edge cases: no script (the Content-Security-Policy of the pages forbids it): the menu is an HTML <details> element and each theme is a static page; the menu takes the colours of the active theme (currentColor, Canvas and CanvasText follow its color-scheme); PAGE_n_SWITCH is ignored, with an [ATTN] line, when PAGE_n_THEMES gives at least one other theme; a list with only the theme of the page gives no button; two-language pages: one menu per language folder (the link to the other language opens its default theme); the choice is not remembered from one visit to the next (no script and no cookie).
+- Checks performed: bash -n; shellcheck; test_nginx_link_page (56 tests); menu rendered open in Google Chrome on 3 themes.
+- Action required: none (to offer it: PAGE_1_THEMES=light,dark,aurora,ls-dawn or PAGE_1_THEMES=all, then sudo nginx-link-page.sh --update --yes).
+
 ### 1.16.20261112.180522 - Four LinkStack themes adapted: ls-aurora, ls-dark, ls-dawn, ls-misty-rain
 
 - Title: PAGE_n_THEME accepts 4 themes of https://linkstack.org/themes/, adapted to the static pages.

@@ -29,7 +29,7 @@
 set -u
 LANG_C="${LC_ALL:-${LC_MESSAGES:-${LANG:-C}}}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
-readonly SCRIPT_VERSION="1.16.20261112.180522"
+readonly SCRIPT_VERSION="1.17.20261112.181906"
 readonly SCRIPT_NAME="nginx-link-page"
 # --config-merge: same rule as the other programs (apps/_config.py fusionner): the configuration file is rewritten from the new template,
 # keeping its active values; the old file is copied to FILE.bak-YYYYMMDD-HHMMSS. Then exit.
@@ -66,6 +66,23 @@ readonly THEMES_RE="auto|light|dark|aurora|maple|river|terminal|tux|ls-aurora|ls
 readonly THEMES_LISTE="auto, light, dark, aurora, maple, river, terminal, tux, ls-aurora, ls-dark, ls-dawn ou ls-misty-rain"
 readonly THEMES_CSS="$SCRIPT_DIR/apps/link-page-themes.css"
 readonly THEMES_LINKSTACK="$SCRIPT_DIR/apps/link-page-themes"
+# 1.17: "Theme" button (PAGE_n_THEMES): style sheet copied as css/theme-menu.css; "all" = every theme of THEMES_RE
+readonly THEME_MENU_CSS="$SCRIPT_DIR/apps/link-page-theme-menu.css"
+readonly THEMES_TOUS="auto light dark aurora maple river terminal tux ls-aurora ls-dark ls-dawn ls-misty-rain"
+# themes_offerts VALUE: the themes of PAGE_n_THEMES, one per word, without duplicates, in the given order ("all": THEMES_TOUS)
+themes_offerts() {
+    local v="${1// /}" t vus=" "
+    [[ -n "$v" ]] || return 0
+    IFS=',' read -r -a _liste <<< "$v"
+    for t in "${_liste[@]}"; do
+        if [[ "${t,,}" == all ]]; then                 # "all" anywhere in the list: every theme, after those already given
+            for t in $THEMES_TOUS; do [[ "$vus" != *" $t "* ]] && { vus+="$t "; printf '%s\n' "$t"; }; done
+            continue
+        fi
+        [[ -n "$t" && "$vus" != *" $t "* ]] || continue
+        vus+="$t "; printf '%s\n' "$t"
+    done
+}
 # 1.14: the preview image of the social networks (1200 x 627 advised) is often a poster of more than 512 KiB: its own limit, the one of LinkedIn (5 MB)
 readonly MAX_SHARE_BYTES=5242880
 readonly MOTEURS_PRIS_EN_CHARGE="littlelink"
@@ -375,6 +392,13 @@ for i in "${PAGES_N[@]}"; do
     acc_v="$(valeur_ou "${pre}ACCENT" "")"
     [[ -z "$acc_v" || "$acc_v" =~ ^#[0-9A-Fa-f]{6}$ ]] || PROBLEMES+=("${pre}ACCENT=$acc_v (vide ou couleur #RRGGBB)")
     [[ "$(valeur_ou "${pre}SWITCH" no)" =~ ^(yes|no)$ ]] || PROBLEMES+=("${pre}SWITCH=$(valeur_ou "${pre}SWITCH" no) (yes ou no)")
+    # 1.17: PAGE_n_THEMES: themes offered by the "Theme" button (comma list, or all)
+    for t in $(themes_offerts "$(valeur_ou "${pre}THEMES" "")"); do
+        [[ "$t" =~ ^($THEMES_RE)$ ]] || PROBLEMES+=("${pre}THEMES : theme inconnu / unknown theme « $t » ($THEMES_LISTE, ou all)")
+    done
+    if [[ -n "$(valeur_ou "${pre}THEMES" "")" && ! -r "$THEME_MENU_CSS" ]]; then
+        PROBLEMES+=("${pre}THEMES : $THEME_MENU_CSS absent (livre avec le depot) / missing (shipped with the repository)")
+    fi
 done
 
 # ---- summary of the files read and of the pages ----
@@ -628,7 +652,7 @@ preparer_dossier() {
 }
 
 genere_index() {   # genere_index DOSSIER THEME TITRE [FICHIER] [CIBLE_BASCULE] [LIBELLE_BASCULE]
-    local dossier="$1" theme="$2" titre="$3" fichier="${4:-index.html}" cible="${5:-}" libelle="${6:-}"
+    local dossier="$1" theme="$2" titre="$3" fichier="${4:-index.html}" cible="${5:-}" libelle="${6:-}" t f
     local classe lab url clair sombre classe_bouton i base
     classe="theme-$theme"                               # 1.15: theme-auto, theme-light, theme-dark or one of link-page-themes.css
     base="$(theme_base "$theme")"
@@ -671,9 +695,25 @@ genere_index() {   # genere_index DOSSIER THEME TITRE [FICHIER] [CIBLE_BASCULE] 
         if [[ -f "$dossier/css/brands-extended.css" ]]; then echo "    <link rel=\"stylesheet\" href=\"css/brands-extended.css\">"; fi
         if [[ -f "$dossier/css/themes.css" && -n "$(theme_couleur "$theme")" && "$theme" != ls-* ]]; then echo "    <link rel=\"stylesheet\" href=\"css/themes.css\">"; fi
         if [[ -f "$dossier/css/themes-linkstack.css" && "$theme" == ls-* ]]; then echo "    <link rel=\"stylesheet\" href=\"css/themes-linkstack.css\">"; fi
+        if (( ${#P_MENU[@]} )); then echo "    <link rel=\"stylesheet\" href=\"css/theme-menu.css\">"; fi
         if [[ -f "$dossier/css/accent.css" ]]; then echo "    <link rel=\"stylesheet\" href=\"css/accent.css\">"; fi
         echo "  </head>"
         echo "  <body>"
+        if (( ${#P_MENU[@]} )); then                         # 1.17: "Theme" button: one complete page per theme, no script
+            echo "    <details class=\"theme-menu\">"
+            echo "      <summary>$( [[ "$L_LANG" == en ]] && echo Theme || echo Thème )</summary>"
+            echo "      <ul>"
+            for t in "${P_MENU[@]}"; do
+                if [[ "$t" == "$P_THEME" ]]; then f="index.html"; else f="theme-$t.html"; fi
+                if [[ "$t" == "$theme" ]]; then
+                    echo "        <li><a href=\"$f\" aria-current=\"page\">$(html_echap "$(theme_nom "$t")")</a></li>"
+                else
+                    echo "        <li><a href=\"$f\">$(html_echap "$(theme_nom "$t")")</a></li>"
+                fi
+            done
+            echo "      </ul>"
+            echo "    </details>"
+        fi
         if [[ "$theme" == ls-misty-rain ]]; then          # 1.16: rain of Misty Rain, pure CSS (no script)
             printf '    <div class="ls-rain" aria-hidden="true">%s</div>\n' "$(printf '<i></i>%.0s' {1..24})"
         fi
@@ -722,6 +762,16 @@ for i in ${ACTIVES[@]+"${ACTIVES[@]}"}; do
     P_AVATAR="$(valeur_ou "PAGE_${i}_AVATAR" none)"
     P_ACCENT="$(valeur_ou "PAGE_${i}_ACCENT" "")"
     P_BASCULE="$(valeur_ou "PAGE_${i}_SWITCH" no)"
+    # 1.17: themes of the "Theme" button; the theme of the page comes first; PAGE_n_SWITCH is ignored when the button exists
+    P_MENU=()
+    if [[ -n "$(valeur_ou "PAGE_${i}_THEMES" "")" ]]; then
+        mapfile -t P_MENU < <(themes_offerts "$P_THEME,$(valeur_ou "PAGE_${i}_THEMES" "")")
+        if (( ${#P_MENU[@]} < 2 )); then P_MENU=(); fi
+        if [[ "$P_BASCULE" == yes && ${#P_MENU[@]} -gt 0 ]]; then
+            attn "PAGE_${i}_SWITCH=yes $(m "ignore : le bouton Theme (PAGE_${i}_THEMES) le remplace" "ignored: the Theme button (PAGE_${i}_THEMES) replaces it")"
+            P_BASCULE=no
+        fi
+    fi
     P_CHEMIN="$(valeur_ou "PAGE_${i}_PATH" "")"
     P_LANGUES="$(valeur_ou "PAGE_${i}_LANGUAGES" "$SITE_LANGUAGE_V")"
     IFS=',' read -r -a P_LISTE <<< "$P_LANGUES"
@@ -758,7 +808,13 @@ for i in ${ACTIVES[@]+"${ACTIVES[@]}"}; do
         if [[ -n "$P_ACCENT" ]]; then
             printf '.button.button-default { --button-background: %s; }\n' "$P_ACCENT" > "$dossier/css/accent.css"
         fi
-        if [[ "$P_BASCULE" == yes ]]; then
+        if (( ${#P_MENU[@]} )); then
+            if [[ -r "$THEME_MENU_CSS" ]]; then install -m 644 "$THEME_MENU_CSS" "$dossier/css/theme-menu.css"; fi
+            for t in "${P_MENU[@]}"; do
+                if [[ "$t" == "$P_THEME" ]]; then genere_index "$dossier" "$t" "$L_TITRE" index.html
+                else genere_index "$dossier" "$t" "$L_TITRE" "theme-$t.html"; fi
+            done
+        elif [[ "$P_BASCULE" == yes ]]; then
             # second complete page with the other theme (no script: the CSP forbids it); dark for light/auto, light for dark
             if [[ "$(theme_base "$P_THEME")" == dark ]]; then P_AUTRE=light; else P_AUTRE=dark; fi      # 1.15: by the base of the theme
             genere_index "$dossier" "$P_THEME" "$L_TITRE" index.html autre.html "$(bascule_libelle "$P_AUTRE")"
@@ -827,6 +883,7 @@ for i in ${ACTIVES[@]+"${ACTIVES[@]}"}; do
     dossier="$(valeur_ou "PAGE_${i}_DIR" "")"
     mkdir -p "$dossier"
     for x in css fonts images index.html autre.html en fr; do rm -rf "${dossier:?}/$x"; done
+    rm -f "${dossier:?}"/theme-*.html                    # 1.17: pages of the "Theme" button of the previous run
     cp -r "$TMP/page-$i/." "$dossier/" || { err "$(m "copie impossible dans" "copy failed in") $dossier"; exit 1; }
     chmod -R a+rX "$dossier"
     ok "$(m "fichiers installes dans" "files installed in") $dossier"
