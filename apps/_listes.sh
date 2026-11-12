@@ -15,6 +15,7 @@
 
 LISTES_BLANCHE_DEFAUT="/etc/default/nginx-tools-white-list.conf"
 LISTES_LIEUX_DEFAUT="/etc/default/nginx-tools-ip-location.conf"
+LISTES_EXEMPTION_DEFAUT="/etc/default/nginx-tools-bot-exempt.conf"     # addresses exempt from the 403 by User-Agent only (nginx $is_bot_exempt)
 LISTES_SEP=$'\037'             # field separator of listes_lire (never a tab: read merges it when a field is empty)
 
 # listes_fichier_blanche: path of the white list READ - the new file; otherwise the old list apps/team-ips.list
@@ -112,8 +113,25 @@ listes_maintenant() { printf '%s\n' "${NGINX_TOOLS_MAINTENANT:-$(date '+%Y-%m-%d
 
 # listes_blanche: white list entries (listes_lire format), without the [temporaire] entries past their date and those without a valid date.
 listes_blanche() {
-    local f ligne adr lib opts n maint v
-    f=$(listes_fichier_blanche)
+    _listes_en_vigueur "$(listes_fichier_blanche)"
+}
+
+# listes_fichier_exemption: path of the list of the addresses exempt from the 403 by User-Agent (bot_blocker.conf), if it exists. Read ONLY in
+# /etc/default (NGINX_TOOLS_BOT_EXEMPT replaces it: tests): it lifts a protection of nginx.
+listes_fichier_exemption() {
+    local f="${NGINX_TOOLS_BOT_EXEMPT:-$LISTES_EXEMPTION_DEFAUT}"
+    if [[ -f "$f" ]]; then printf '%s\n' "$f"; fi
+    return 0
+}
+
+# listes_exemptions: entries of that list in force (listes_lire format): the [temporaire] entries past their date are left out.
+listes_exemptions() {
+    _listes_en_vigueur "$(listes_fichier_exemption)"
+}
+
+# _listes_en_vigueur FILE: entries of FILE (listes_lire format) without the [temporaire] entries past their date and those without a valid date.
+_listes_en_vigueur() {
+    local f="$1" ligne adr lib opts n maint v
     [[ -n "$f" ]] || return 0
     maint=$(listes_maintenant)
     while IFS= read -r ligne; do

@@ -1,0 +1,11 @@
+# nginx-tools-bot-exempt.conf - EXEMPTIONS from the refusal by User-Agent (rule 1 of securite-commune.conf, list bot_blocker.conf).
+# PEOPLE whose User-Agent looks like a robot: python-requests or Wget script of a volunteer, monitoring tool, old browser.
+#   * offered by nginx-log-audit.sh --verify-bots (Odoo account logged in, team address, normal browsing), added after confirmation;
+#   * or added by hand: nginx-log-audit.sh --bot-exempt IP (a CDN is refused: it covers every visitor behind it).
+# Only the refusal by User-Agent is lifted: the rate limits, the other nginx rules and the bans still apply.
+# One address or range per line, followed by its label after "#", same syntax as the white list:
+#   203.0.113.9        # Jean's script (account volunteer@example.org)  [temporaire 2026-12-12 10:00:00]
+# Option [temporaire YYYY-MM-DD HH:MM:SS]: exemption valid until this local date and time, then removed from nginx
+# (checked every 15 minutes, cron /etc/cron.d/nginx-tools-dns). nginx-log-audit.sh writes it for BOT_EXEMPT_DAYS days (30 by default).
+# File read ONLY in /etc/default (never in ~): it lifts a protection. After a change by hand: nginx-hardening.sh --update
+# (nginx-log-audit.sh --bot-exempt does it itself).

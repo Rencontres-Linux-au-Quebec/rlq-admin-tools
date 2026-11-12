@@ -1144,6 +1144,98 @@ VULTR_RDAP = ('{"name": "NET-140-82-6-0-23", "country": "US", "port43": "whois.a
               ' {"roles": ["abuse"], "vcardArray": ["vcard", [["email", {}, "text", "abuse@vultr.com"]]]}]}')
 
 
+class ChkNginxLogs297(ChkNginxLogs):
+    """2.97 --verify-bots : les adresses refusées en 403 par bot_blocker.conf sont-elles vraiment des robots ? Personne (équipe, compte Odoo,
+    navigation normale) : exemption proposée ; moteur au nom DNS vérifié : robot confirmé ; nom faux : imposteur ; CDN : jamais exempté."""
+
+    def setUp(self):
+        super().setUp()
+        import datetime
+        self.d0 = datetime.date.today().strftime("%d/%b/%Y")
+        import shutil
+        from helpers import SCRIPTS_DIR
+        shutil.copytree(os.path.join(SCRIPTS_DIR, "nginx"), os.path.join(os.path.dirname(self.prog), "nginx"), dirs_exist_ok=True)     # bot_blocker.conf, Cloudflare ranges
+        self.exempt = self.path("etc-default", "nginx-tools-bot-exempt.conf")
+        self.env["NGINX_TOOLS_BOT_EXEMPT"] = self.exempt
+        self.mock("journalctl", 'echo "2026-11-01T09:00:00-0400 odoo18 odoo[1]: 2026-11-01 13:00:00,1 1 INFO base odoo.addons.base.models.res_users: '
+                                'Login successful for db:base login:benevole@exemple.org from 203.0.113.9"')
+
+    def ligne(self, ip, s, url, code, ua):
+        return f'{ip} - - [{self.d0}:10:00:{s:02d} -0400] "GET {url} HTTP/1.1" {code} 300 "-" "{ua}"\n'
+
+    def journal_type(self):
+        navigateur = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36"
+        lignes = [self.ligne("203.0.113.9", i, f"/s{i}", 403, "python-requests/2.32") for i in range(4)]          # compte Odoo
+        lignes += [self.ligne("198.51.100.20", i, f"/p{i}", 200, navigateur) for i in range(5)]                     # navigation normale...
+        lignes += [self.ligne("198.51.100.20", 10 + i, "/api", 403, "Wget/1.21") for i in range(2)]                # ...et un script
+        lignes += [self.ligne("11.200.0.5", i, f"/x{i}", 403, "Mozilla/5.0 (compatible; SemrushBot/7)") for i in range(6)]   # robot
+        lignes += [self.ligne("11.83.10.20", i, "/a", 403, "Mozilla/5.0 (compatible; AhrefsBot/7.0; +http://ahrefs.com/robot/)") for i in range(3)]  # faux Ahrefs
+        lignes += [self.ligne("11.150.0.9", i, "/b", 200, "Mozilla/5.0 Chrome/130") for i in range(3)]             # jamais refusée
+        with open(self.access, "w") as f:
+            f.writelines(lignes)
+
+    def test_297_verdicts(self):
+        self.journal_type()
+        rc, out, err = self.run_cmd(["bash", self.prog, "prod", "--verify-bots", "--no-prompt"])
+        self.assertEqual(rc, 0, err)
+        t = " ".join(out.split())
+        self.assertRegex(t, r"203\.0\.113\.9 403 ×4 python-requests/2\.32 Verdict : probablement une PERSONNE")
+        self.assertIn("compte Odoo connecté depuis cette adresse : benevole@exemple.org", t)
+        self.assertRegex(t, r"198\.51\.100\.20 403 ×2 Wget/1\.21 Verdict : probablement une PERSONNE")
+        self.assertIn("5 pages vues normalement avec un navigateur depuis cette adresse", t)
+        self.assertRegex(t, r"11\.200\.0\.5 403 ×6 .*SemrushBot.* Verdict : robot \(aucun signe d'une personne\)")
+        self.assertRegex(t, r"11\.83\.10\.20 .* Verdict : imposteur \(se dit AhrefsBot, mais nom DNS : ip20\.ip-51-75-10\.eu")
+        self.assertNotIn("11.150.0.9", t)
+        self.assertIn("sudo nginx-log-audit.sh --bot-exempt IP", t)
+        self.assertIn("203.0.113.9 198.51.100.20", t)
+        self.assertFalse(os.path.exists(self.exempt), "--verify-bots n'écrit rien sans confirmation")
+
+    def test_297_moteur_au_nom_verifie_et_equipe(self):
+        self.liste_blanche("11.148.77.5   # Étienne (cellulaire)\n")
+        self.mock("host", 'case "$1" in 11.60.0.7) echo "x pointer crawl-11-60-0-7.ahrefs.com.";; 11.83.10.20) echo "x pointer ip20.ip-51-75-10.eu.";; *) exit 1;; esac')
+        self.mock("getent", '[[ "$1" == ahosts && "$2" == crawl-11-60-0-7.ahrefs.com ]] && echo "11.60.0.7 STREAM x"; exit 0')
+        with open(self.access, "w") as f:
+            f.writelines([self.ligne("11.60.0.7", 1, "/c", 403, "Mozilla/5.0 (compatible; AhrefsBot/7.0; +http://ahrefs.com/robot/)"),
+                          self.ligne("11.148.77.5", 2, "/d", 403, "python-requests/2.31")])
+        rc, out, err = self.run_cmd(["bash", self.prog, "prod", "--verify-bots", "--no-prompt"])
+        t = " ".join(out.split())
+        self.assertIn("robot confirmé (AhrefsBot : nom DNS vérifié crawl-11-60-0-7.ahrefs.com)", t)
+        self.assertRegex(t, r"11\.148\.77\.5 .* probablement une PERSONNE .* adresse de l'équipe \(liste blanche\)")
+
+    def test_297_rapport_section_1_bis_et_desactivation(self):
+        self.journal_type()
+        rc, out, err = self.report()
+        self.assertIn("--- [1 bis] Robots refusés (403) : sont-ils vraiment des robots ? ---", out)
+        open(self.access, "w").close()
+        self.journal_type()
+        rc, out, err = self.report("--no-verify-bots")
+        self.assertNotIn("[1 bis]", out)
+
+    def test_297_bot_exempt_ecrit_la_liste_et_refuse_un_cdn(self):
+        faux = os.path.join(os.path.dirname(self.prog), "nginx-hardening.sh")
+        with open(faux, "w") as f:
+            f.write(f'#!/bin/sh\necho "$@" >> {self.d}/hardening.log\n')
+        os.chmod(faux, 0o755)
+        cdn = "173.245.48.10"                                   # plage Cloudflare (nginx/cdn/cloudflare-ips.txt)
+        rc, out, err = self.run_cmd(["bash", self.prog, "--bot-exempt", cdn, "--yes"])
+        self.assertNotEqual(rc, 0)
+        self.assertIn("adresse de CDN", err)
+        rc, out, err = self.run_cmd(["bash", self.prog, "--bot-exempt", "203.0.113.9", "--yes", "--reason", "script de Jean"],
+                                    env_extra={"NGINX_TOOLS_BOT_EXEMPT": self.exempt})
+        self.assertEqual(rc, 0, out + err)
+        texte = open(self.exempt, encoding="utf-8").read()
+        self.assertRegex(texte, r"(?m)^203\.0\.113\.9 +# script de Jean  \[temporaire \d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\]$")
+        self.assertIn("--dns-refresh", open(f"{self.d}/hardening.log").read().split())          # nginx updated at once
+        self.assertNotIn("--check", open(f"{self.d}/hardening.log").read())                 # no setup check for this action
+        rc, out, err = self.run_cmd(["bash", self.prog, "--bot-exempt", "203.0.113.9", "--yes"])
+        self.assertIn("déjà exemptée", out)
+        self.journal_type()
+        rc, out, err = self.run_cmd(["bash", self.prog, "prod", "--verify-bots", "--no-prompt"])
+        self.assertIn("déjà exemptée (script de Jean jusqu'au", " ".join(out.split()))
+        rc, out, err = self.run_cmd(["bash", self.prog, "--bot-exempt", "pas-une-ip", "--yes"])
+        self.assertEqual(rc, 2)
+
+
 class ChkNginxLogs272(ChkNginxLogs):
     """2.72 : serveur loué reconnu par le propriétaire du bloc (RDAP) quand le DNS inverse ne le montre pas ; comptes Odoo cherchés seulement si
     l'adresse a demandé une page de session (connexion, back-office, compte client)."""

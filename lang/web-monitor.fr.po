@@ -2798,3 +2798,9 @@ msgstr "Thème de couleurs (2.87) : 0 = les couleurs du terminal (défaut) ; 1 =
 
 msgid "Without root: --dry-run mode (nothing is changed: no run recorded, no ban, no timer, no correction); sudo web-monitor.py for a real run."
 msgstr "Sans root : mode --dry-run (rien n'est modifié : aucun passage enregistré, aucun bannissement, aucune minuterie, aucune correction) ; sudo web-monitor.py pour un vrai passage."
+
+msgid "nginx-log-audit.sh: robots refused with 403 that are probably people"
+msgstr "nginx-log-audit.sh : robots refusés en 403 qui sont probablement des personnes"
+
+msgid "  To check and exempt them (confirmation asked): sudo nginx-log-audit.sh --verify-bots"
+msgstr "  Pour les vérifier et les exempter (confirmation demandée) : sudo nginx-log-audit.sh --verify-bots"
