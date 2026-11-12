@@ -29,8 +29,25 @@
 set -u
 LANG_C="${LC_ALL:-${LC_MESSAGES:-${LANG:-C}}}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
-readonly SCRIPT_VERSION="1.11.20261112.074754"
+readonly SCRIPT_VERSION="1.12.20261112.082236"
 readonly SCRIPT_NAME="nginx-link-page"
+# --config-merge: same rule as the other programs (apps/_config.py fusionner): the configuration file is rewritten from the new template,
+# keeping its active values; the old file is copied to FILE.bak-YYYYMMDD-HHMMSS. Then exit.
+_fusion=0; _fusion_cfg=""; _fusion_lang="${NGINX_TOOLS_I18N_LANGUE:-fr}"; _prec=""
+for _a in "$@"; do
+    case "$_a" in --config-merge) _fusion=1 ;; --config=*) _fusion_cfg="${_a#--config=}" ;; --lang=*) _fusion_lang="${_a#--lang=}" ;; esac
+    case "$_prec" in -c|--config) _fusion_cfg="$_a" ;; --lang) _fusion_lang="$_a" ;; esac
+    _prec="$_a"
+done
+if (( _fusion )); then
+    if ! command -v python3 >/dev/null 2>&1 || [[ ! -r "$SCRIPT_DIR/apps/_config.py" ]]; then
+        echo "--config-merge : python3 ou $SCRIPT_DIR/apps/_config.py introuvable / not found" >&2; exit 1
+    fi
+    NGINX_TOOLS_ETC_DEFAULT="${NGINX_LINK_PAGE_ETC_DEFAULT:-${NGINX_TOOLS_ETC_DEFAULT:-/etc/default}}" \
+        python3 "$SCRIPT_DIR/apps/_config.py" --merge "$SCRIPT_NAME" --lang "${_fusion_lang%%[_.-]*}" ${_fusion_cfg:+--config "$_fusion_cfg"}
+    exit $?
+fi
+unset _fusion _fusion_cfg _fusion_lang _prec _a
 readonly CHANGELOG_FILE="$SCRIPT_DIR/CHANGELOG.md"
 
 # LittleLink, pinned: tag and commit (verified after cloning).
@@ -74,6 +91,7 @@ Options (ordre alphabetique / alphabetical order) :
   ${C_OPT}--changelog${C_RESET}                affiche le journal des modifications / show the change log
   ${C_OPT}--check${C_RESET}                    verifie la configuration, n'ecrit rien (defaut) / check only, writes nothing (default)
   ${C_OPT}-c, --config FILE${C_RESET}          lit SEUL ce fichier / read ONLY this file
+  ${C_OPT}--config-merge${C_RESET}             reecrit la configuration d'apres le nouveau modele en gardant ses valeurs (copie FICHIER.bak-...), puis quitte / rewrite the configuration from the new template, keeping its values (copy FILE.bak-...), then exit
   ${C_OPT}-h, --help${C_RESET}                 affiche cette aide / show this help
   ${C_OPT}--init${C_RESET}                     cree la configuration depuis le modele / create the configuration from the template
   ${C_OPT}--lang LANG${C_RESET}                langue des messages : fr ou en / message language: fr or en

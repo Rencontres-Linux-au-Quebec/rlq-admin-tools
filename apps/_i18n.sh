@@ -438,3 +438,30 @@ config_afficher() {
     for p in "${CFG_FRANCAIS[@]}"; do echo "  ATTENTION : valeur en français, écrire l'anglais dans le fichier de configuration : $p" >&2; done
     return 0
 }
+
+# config_fusion_si_demande PROGRAM ARGUMENTS...: --config-merge (same rule as the Python programs, apps/_config.py fusionner). When --config-merge is among
+# the arguments: the configuration file (the last one of /etc/default/PROGRAM.conf then ~/.PROGRAM.conf, or the -c / --config FILE given) is rewritten from
+# the NEW default configuration of the current language, keeping its active values; the old file is copied to FILE.bak-YYYYMMDD-HHMMSS. Then EXIT
+# (0, or 1 when python3 or the default configuration is missing). Without --config-merge: returns at once.
+config_fusion_si_demande() {
+    local programme="$1" explicite="" demande=0 a precedent="" py langue="${NGINX_TOOLS_I18N_LANGUE:-fr}"
+    shift
+    for a in "$@"; do
+        case "$a" in
+            --config-merge) demande=1 ;;
+            --config=*) explicite="${a#--config=}" ;;
+            --lang=*) langue="${a#--lang=}" ;;
+        esac
+        if [[ "$precedent" == "-c" || "$precedent" == "--config" ]]; then explicite="$a"; fi
+        if [[ "$precedent" == "--lang" ]]; then langue="$a"; fi
+        precedent="$a"
+    done
+    (( demande )) || return 0
+    py="$(cd "$(dirname "${BASH_SOURCE[0]}")" 2>/dev/null && pwd)/_config.py"
+    if ! command -v python3 >/dev/null 2>&1 || [[ ! -r "$py" ]]; then
+        echo "--config-merge : python3 ou $py introuvable / not found" >&2
+        exit 1
+    fi
+    python3 "$py" --merge "$programme" --lang "${langue%%[_.-]*}" ${explicite:+--config "$explicite"}
+    exit $?
+}

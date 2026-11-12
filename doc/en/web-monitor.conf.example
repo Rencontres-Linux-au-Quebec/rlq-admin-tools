@@ -60,6 +60,7 @@
 #   --ban-odoo-user    Bannir un compte Odoo après enquête (compte archivé, adresses propres au compte bannies) ; --unban-odoo-user pour lever
 #   --ban-recommended  Bannir les IP recommandées par le dernier passage (ex.
 #   --changelog        Affiche le journal des modifications
+#   --config-merge     Rewrite the configuration file from the new default configuration, keeping the values set (copy FILE.bak-YYYYMMDD-HHMMSS), then exit
 #   --dry-run          Lance les outils et affiche la décision, sans courriel ni modification des positions de lecture
 #   --install-timer    Installe et active le timer systemd
 #   --investigate-user Enquête sur UN compte Odoo (toutes ses adresses IP, son activité, son courriel, Internet avec accord)

@@ -81,7 +81,7 @@ grep_q() { grep "$@" >/dev/null; }
 #                              ne peut pas le voir, le texte etant entre apostrophes (faux positif).
 trap 'ec=$?; echo "" >&2; echo "*** ARRÊT INATTENDU DU SCRIPT (code $ec) À LA LIGNE $LINENO ***" >&2; echo "*** Commande fautive : $BASH_COMMAND" >&2' ERR
 
-readonly SCRIPT_VERSION="1.32.20261109.153000"
+readonly SCRIPT_VERSION="1.33.20261112.082236"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
 SCRIPT_NAME="$(basename "${BASH_SOURCE[0]}" .sh)"; readonly SCRIPT_NAME
 # Changelog dans le sous-repertoire doc/ ; repli sur l'ancien emplacement (a cote du programme) tant que
@@ -98,6 +98,7 @@ if [[ -r "$SCRIPT_DIR/apps/_i18n.sh" ]]; then
     # shellcheck source=/dev/null  # library shipped next to the program
     . "$SCRIPT_DIR/apps/_i18n.sh"
     i18n_relancer "$SCRIPT_NAME" SYNC_CROWDSEC_BLOCKLIST_LANG "$0" "$@"
+    config_fusion_si_demande sync-crowdsec-blocklist "$@"      # --config-merge (apps/_i18n.sh -> apps/_config.py): rewrites the configuration from the new default one, then exits
 fi
 
 readonly IPSET_V4="crowdsec-blocklist-v4"
@@ -237,6 +238,7 @@ Options (par ordre alphabétique) :
   --changelog                  affiche le journal des modifications
   -c, --config FILE            fichier de configuration à lire SEUL (sinon : /etc/default/sync-crowdsec-blocklist.conf, puis ~/.sync-crowdsec-blocklist.conf ;
                                clés : CRON_HOURS, LANGUAGE, MAX_DROP, MIN_IPS, SOURCE, STALE_DAYS, TOP, VERBOSE)
+  --config-merge               réécrit le fichier de configuration d'après la NOUVELLE configuration par défaut en gardant ses valeurs (copie FICHIER.bak-AAAAMMJJ-HHMMSS), puis quitte
   --cron-hours N               avec --install-cron : intervalle en heures
   --dry-run                    télécharger et analyser la liste, sans rien modifier
   -h, --help                   affiche cette aide et quitte

@@ -20,6 +20,7 @@
 #   --changelog          affiche le journal des modifications
 #   --check              vérification seule (défaut)
 #   -c, --config FICHIER ce fichier de configuration SEUL
+#   --config-merge       Réécrit le fichier de configuration à partir de la nouvelle configuration par défaut, en gardant les valeurs réglées (copie FICHIER.bak-AAAAMMJJ-HHMMSS), puis quitte
 #   --notify             sommaire quotidien : affiché, et envoyé par courriel s'il y a quelque chose à regarder (utilisé par le minuteur)
 #   --report-err         afficher à la fin un rapport d'erreurs à copier-coller
 #   --rollback           retire les fichiers écrits par --update (les paquets restent installés)

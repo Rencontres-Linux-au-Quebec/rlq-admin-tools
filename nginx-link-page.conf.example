@@ -103,3 +103,6 @@
 #PAGE_2_DIR=/var/www/links2
 #PAGE_2_THEME=dark
 #PAGE_2_TITLE=Example (dark theme)
+
+# --- Command-line options ONLY (actions or one-off settings: no key here) ---
+#   --config-merge  Rewrite the configuration file from the new default configuration, keeping the values set (copy FILE.bak-YYYYMMDD-HHMMSS), then exit

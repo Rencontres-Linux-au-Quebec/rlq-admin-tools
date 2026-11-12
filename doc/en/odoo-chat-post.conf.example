@@ -47,3 +47,6 @@
 #   --list              état de chaque canal et fil
 #   --post CANAL/FIL --message TEXTE     publier une alerte (« - » : texte lu sur l'entrée standard)
 #   --version ; --changelog ; --report-err
+
+# --- Command-line options ONLY (actions or one-off settings: no key here) ---
+#   --config-merge  Rewrite the configuration file from the new default configuration, keeping the values set (copy FILE.bak-YYYYMMDD-HHMMSS), then exit

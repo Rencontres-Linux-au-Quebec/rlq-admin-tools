@@ -32,6 +32,7 @@
 #   --check-activity             état du site maintenant (visiteurs, écritures HTTP, base PostgreSQL) sans rien changer : 0 = calme, 3 = occupé
 #   -c, --config FILE            ce fichier de configuration SEUL (défaut : /etc/default/odoo-update-module.conf, puis
 #                                ~/.odoo-update-module.conf s'il existe ; la ligne de commande est prioritaire)
+#   --config-merge               réécrit le fichier de configuration d'après la NOUVELLE configuration par défaut en gardant ses valeurs (copie FICHIER.bak-AAAAMMJJ-HHMMSS), puis quitte
 #   --db NAME                    base à mettre à jour (défaut : « -d » de la commande du service, sinon db_name d'Odoo)
 #   --dry-run                    montrer ce qui serait fait (service, base, modules, commandes), sans rien arrêter ni écrire
 #   --force                      continuer malgré un Odoo lancé à la main (il est alors ignoré, pas arrêté)
@@ -93,7 +94,7 @@ set -euo pipefail
 for _d in /usr/local/sbin /usr/sbin /sbin; do [[ -n "${NGINX_TOOLS_TESTS:-}" ]] && break; case ":$PATH:" in *":$_d:"*) ;; *) PATH="$PATH:$_d" ;; esac; done
 export PATH
 
-readonly SCRIPT_VERSION="1.27.20261109.203000"
+readonly SCRIPT_VERSION="1.28.20261112.082236"
 SCRIPT_NAME="$(basename "${BASH_SOURCE[0]}" .sh)"; readonly SCRIPT_NAME
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
 SCRIPT_PATH="$SCRIPT_DIR/$(basename "${BASH_SOURCE[0]}")"; readonly SCRIPT_PATH
@@ -109,6 +110,7 @@ if [[ -r "$SCRIPT_DIR/apps/_i18n.sh" ]]; then
     # shellcheck source=/dev/null  # library shipped next to the program
     . "$SCRIPT_DIR/apps/_i18n.sh"
     i18n_relancer "$SCRIPT_NAME" ODOO_UPDATE_MODULE_LANG "$0" "$@"
+    config_fusion_si_demande odoo-update-module "$@"      # --config-merge (apps/_i18n.sh -> apps/_config.py): rewrites the configuration from the new default one, then exits
 fi
 declare -F tty_ligne >/dev/null || tty_ligne() { :; }   # 1.x: apps/_i18n.sh absent: no terminal preparation
 declare -F appliquer_effacements >/dev/null || appliquer_effacements() { printf '%s' "$1"; }   # without apps/_i18n.sh: answer kept as typed

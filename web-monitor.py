@@ -85,7 +85,7 @@ import time
 import unicodedata
 import urllib.parse
 
-__version__ = "2.89.20261112.054310"
+__version__ = "2.90.20261112.082236"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
@@ -5006,6 +5006,9 @@ def main():
         parser.set_defaults(**defaults)
     except Exception as e:
         defaults, problems = {}, [f"apps/_config.py unreadable ({e})"]
+    parser.add_argument("--config-merge", action="store_true",
+                        help="Rewrite the configuration file from the NEW default configuration (example of the current language), keeping the values set in the file "
+                             "read until now; the old file is copied first to FILE.bak-YYYYMMDD-HHMMSS (with -c: that file only). Then exit")
     args = parser.parse_args()
     try:                                                                     # 2.87: --theme, then THEME (configuration), then NGINX_TOOLS_THEME, then 0
         THEME_MODULE = _load_module("_theme")
@@ -5035,6 +5038,11 @@ def main():
         DAYS, DAYS_GIVEN = args.days, True
     # --changelog, --status and the timer do not need the application: they work everywhere (e.g. a
     # workstation without Odoo or BBB, where the profile cannot be detected). The profile is only loaded for --summary and the run.
+    if args.config_merge:                     # --config-merge (apps/_config.py fusionner, same rule for every program)
+        sys.path.insert(0, os.path.join(SCRIPT_DIR, "apps"))
+        import _config
+        langue = globals().get("LANGUAGE") or getattr(globals().get("I18N"), "langue", None) or "fr"
+        sys.exit(_config.fusionner_cli(SCRIPT_NAME, args.config, langue))
     if args.changelog:
         return show_changelog()
     given = {a.split("=", 1)[0] for a in sys.argv[1:] if a.startswith("--")}

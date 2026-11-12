@@ -29,6 +29,7 @@
 # --- Options de la ligne de commande SEULEMENT (actions ou réglages ponctuels : aucune clé ici) ---
 # Les voici, pour mémoire (« odoo-mail-retry --help » donne le détail). Elles se donnent sur la ligne de commande, jamais dans ce fichier.
 #   --changelog   Affiche le journal des modifications
+#   --config-merge Rewrite the configuration file from the new default configuration, keeping the values set (copy FILE.bak-YYYYMMDD-HHMMSS), then exit
 #   --fix         Avec --yes : corriger les adresses invalides des inscriptions avec la correction SUGGÉRÉE et renvoyer leurs courriels
 #   --invalid-emails  Seulement les inscriptions dont l'adresse courriel est invalide, avec la correction suggérée, puis l'offre de corriger
 #   --report-err  Afficher à la fin un rapport d'erreurs à copier-coller (programme, version, serveur, échecs, avertissements)

@@ -852,3 +852,6 @@ msgstr " requests, last at "
 
 msgid " · connecté à Odoo, dernière activité à "
 msgstr " · logged in to Odoo, last activity at "
+
+msgid "  --config-merge               réécrit le fichier de configuration d'après la NOUVELLE configuration par défaut en gardant ses valeurs (copie FICHIER.bak-AAAAMMJJ-HHMMSS), puis quitte"
+msgstr "  --config-merge               rewrite the configuration file from the NEW default configuration, keeping its values (copy FILE.bak-YYYYMMDD-HHMMSS), then exit"

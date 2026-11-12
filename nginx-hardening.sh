@@ -93,7 +93,7 @@ run() {
     "$@"
 }
 
-readonly SCRIPT_VERSION="2.101.20261112.072450"
+readonly SCRIPT_VERSION="2.102.20261112.082236"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
 SCRIPT_NAME="$(basename "${BASH_SOURCE[0]}" .sh)"; readonly SCRIPT_NAME
 # Display language (en or fr): --lang, NGINX_HARDENING_LANG, LANGUAGE of the configuration file, LC_ALL / LANG - apps/_i18n.sh translates the output (nothing changes in French).
@@ -101,6 +101,7 @@ if [[ -r "$SCRIPT_DIR/apps/_i18n.sh" ]]; then
     # shellcheck source=/dev/null  # library shipped next to the program
     . "$SCRIPT_DIR/apps/_i18n.sh"
     i18n_relancer nginx-hardening NGINX_HARDENING_LANG "$0" "$@"
+    config_fusion_si_demande nginx-hardening "$@"      # --config-merge (apps/_i18n.sh -> apps/_config.py): rewrites the configuration from the new default one, then exits
 fi
 declare -F tty_ligne >/dev/null || tty_ligne() { :; }   # 1.x: apps/_i18n.sh absent: no terminal preparation
 declare -F appliquer_effacements >/dev/null || appliquer_effacements() { printf '%s' "$1"; }   # without apps/_i18n.sh: answer kept as typed
@@ -295,6 +296,7 @@ Options (par ordre alphabétique) :
   --changelog                  affiche le journal des modifications
   --check                      vérification seule (comportement par défaut)
   -c, --config FILE            fichier de configuration à lire SEUL (défaut : /etc/default/nginx-hardening.conf puis ~/.nginx-hardening.conf)
+  --config-merge               réécrit le fichier de configuration d'après la NOUVELLE configuration par défaut en gardant ses valeurs (copie FICHIER.bak-AAAAMMJJ-HHMMSS), puis quitte
   --cron-threads N             tâches planifiées d'Odoo (max_cron_threads) pour la suggestion de limites mémoire de l'étape 6 (défaut : odoo.conf ou run.sh, sinon 2)
   --disable-uri CHEMIN         refuse (404) ce chemin dans le site Odoo, toutes les langues (ex. /shop) : fichier snippets/uri-desactivees.conf ; répétable
   --dns-refresh                résout les noms DNS de la liste blanche (adresses dynamiques) ; --update seulement si une adresse a changé (cron toutes les 15 min)

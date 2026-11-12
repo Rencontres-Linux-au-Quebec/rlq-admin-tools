@@ -49,7 +49,7 @@ try:                    # line editing in prompts (backspace ^H or ^?, arrows)
 except ImportError:
     pass
 
-__version__ = "1.20.20261109.153000"
+__version__ = "1.21.20261112.082236"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
@@ -571,6 +571,9 @@ def main():
     parser.add_argument("--yes", action="store_true", help="With --resend: confirm the resend (without it, never resend without a terminal)")
     if "--version" not in sys.argv[1:]:       # first line of EVERY run, even --help: name and version (--version prints it itself)
         print(f"odoo-mail-retry.py v{__version__}")
+    parser.add_argument("--config-merge", action="store_true",
+                        help="Rewrite the configuration file from the NEW default configuration (example of the current language), keeping the values set in the file "
+                             "read until now; the old file is copied first to FILE.bak-YYYYMMDD-HHMMSS (with -c: that file only). Then exit")
     args = parser.parse_args()
     if args.menu:
         import importlib.util as _ilu
@@ -590,6 +593,11 @@ def main():
         eprint("Without root: PostgreSQL reached with sudo -n -u postgres (allowed by sudoers); nothing else needs root here.")
     global VERBOSE
     VERBOSE = args.verbose
+    if args.config_merge:                     # --config-merge (apps/_config.py fusionner, same rule for every program)
+        sys.path.insert(0, os.path.join(SCRIPT_DIR, "apps"))
+        import _config
+        langue = globals().get("LANGUAGE") or getattr(globals().get("I18N"), "langue", None) or "fr"
+        sys.exit(_config.fusionner_cli(SCRIPT_NAME, args.config, langue))
     if args.changelog:
         return show_changelog()
     try:

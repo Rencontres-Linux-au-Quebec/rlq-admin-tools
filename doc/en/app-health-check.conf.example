@@ -102,6 +102,7 @@ ODOO_DISCUSS_MODEL=discuss.channel
 
 # --- Command-line options ONLY (actions or one-off settings: no key here) ---
 #   --changelog     show the change log
+#   --config-merge  Rewrite the configuration file from the new default configuration, keeping the values set (copy FILE.bak-YYYYMMDD-HHMMSS), then exit
 #   --force         with --create-config: replace an existing file (backup copy made)
 #   --report-err    print at the end an error report to copy and paste
 #   --test-email    DNS checks of the e-mail, then actually send a test e-mail

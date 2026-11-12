@@ -31,6 +31,7 @@
 # --- Options de la ligne de commande SEULEMENT (actions ou réglages ponctuels : aucune clé ici) ---
 # Les voici, pour mémoire (« sync-crowdsec-blocklist --help » donne le détail). Elles se donnent sur la ligne de commande, jamais dans ce fichier.
 #   --changelog        affiche le journal des modifications
+#   --config-merge     Rewrite the configuration file from the new default configuration, keeping the values set (copy FILE.bak-YYYYMMDD-HHMMSS), then exit
 #   --dry-run          télécharger et analyser la liste, sans rien modifier
 #   --report-err       afficher à la fin un rapport d'erreurs à copier-coller (programme, version, serveur, échecs, avertissements)
 #   --status           état : dernière synchronisation, échec en cours, taille, IP protégées

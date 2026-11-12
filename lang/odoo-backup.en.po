@@ -587,3 +587,6 @@ msgstr "#REMOTE_RETENTION=yes              # 1.24: apply the same retention on t
 
 msgid "#MAX_REMOTE_DELETE=20              # 1.24 : nombre maximal de fichiers supprimés sur la copie distante en une passe (sécurité)"
 msgstr "#MAX_REMOTE_DELETE=20              # 1.24: maximum number of files deleted on the remote copy in one run (safety)"
+
+msgid "  --config-merge               réécrit le fichier de configuration d'après la NOUVELLE configuration par défaut en gardant ses valeurs (copie FICHIER.bak-AAAAMMJJ-HHMMSS), puis quitte"
+msgstr "  --config-merge               rewrite the configuration file from the NEW default configuration, keeping its values (copy FILE.bak-YYYYMMDD-HHMMSS), then exit"

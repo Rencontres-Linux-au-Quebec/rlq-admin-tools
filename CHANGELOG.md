@@ -18,6 +18,16 @@ Earlier history was archived outside this repository when this file was created.
 
 ## admin-menu.sh
 
+### 1.4.20261112.082236 - New option --config-merge
+
+- Title: --config-merge rewrites the configuration file from the new default configuration, keeping its values.
+- Reason: request of the administrator on 2026-11-12: --config-merge must be available on every program (it was only in app-log-live.py; missing for example in nginx-link-page.sh).
+- Changes: option --config-merge: call config_fusion_si_demande (apps/_i18n.sh) right after the shared library is loaded, before the arguments are read; help line (French and English). The file read until now (the last one of /etc/default/admin-menu.conf then ~/.admin-menu.conf, or the -c / --config FILE given) is rewritten from the default configuration of the current language (doc/LANGUAGE/admin-menu.conf.example), its active values kept; then the program exits.
+- Bugs fixed: none.
+- Safeguards and edge cases: the old file is copied first to FILE.bak-YYYYMMDD-HHMMSS (local time), rights and owner kept; keys unknown to the default configuration are left out and listed; no file yet: /etc/default/ when it is writable (root), otherwise the personal file; default configuration or python3 missing: message and exit code 1, nothing written.
+- Checks performed: bash -n; shellcheck; --help (French and English); --config-merge on a temporary file with one known and one unknown key; nginx-tools-tests/test_conventions.py: new test for every program.
+- Action required: none (to update a configuration after an upgrade: sudo admin-menu.sh --config-merge).
+
 ### 1.3.20261109.190000 - Erase key (^H) in the menu
 
 - Title: the choice of the menu and the confirmations accept ^H and ^?.
@@ -185,6 +195,16 @@ Earlier history was archived outside this repository when this file was created.
 
 ## app-health-check.py
 
+### 2.37.20261112.082236 - New option --config-merge
+
+- Title: --config-merge rewrites the configuration file from the new default configuration, keeping its values.
+- Reason: request of the administrator on 2026-11-12: --config-merge must be available on every program (it was only in app-log-live.py; missing for example in nginx-link-page.sh).
+- Changes: option --config-merge: argparse option and dispatch before --changelog, through apps/_config.py fusionner_cli(); help sorted automatically. The file read until now (the last one of /etc/default/app-health-check.conf then ~/.app-health-check.conf, or the -c / --config FILE given) is rewritten from the default configuration of the current language (doc/LANGUAGE/app-health-check.conf.example), its active values kept; then the program exits.
+- Bugs fixed: none.
+- Safeguards and edge cases: the old file is copied first to FILE.bak-YYYYMMDD-HHMMSS (local time), rights and owner kept; keys unknown to the default configuration are left out and listed; no file yet: /etc/default/ when it is writable (root), otherwise the personal file; default configuration or python3 missing: message and exit code 1, nothing written.
+- Checks performed: python3 -m py_compile; --help (French and English); --config-merge on a temporary file with one known and one unknown key; nginx-tools-tests/test_conventions.py: new test for every program.
+- Action required: none (to update a configuration after an upgrade: sudo app-health-check.py --config-merge).
+
 ### 2.36.20261112.054310 - Longer limit for nginx-hardening.sh --check (SETUP_CHECK_TIMEOUT)
 
 - Title: the setup check gets 120 s instead of 15 s, with a configuration key and a clear message when it is cut off.
@@ -339,6 +359,16 @@ Earlier history was archived outside this repository when this file was created.
 
 ## app-log-check.py
 
+### 2.29.20261112.082236 - New option --config-merge
+
+- Title: --config-merge rewrites the configuration file from the new default configuration, keeping its values.
+- Reason: request of the administrator on 2026-11-12: --config-merge must be available on every program (it was only in app-log-live.py; missing for example in nginx-link-page.sh).
+- Changes: option --config-merge: argparse option and dispatch before --changelog, through apps/_config.py fusionner_cli(); help sorted automatically. The file read until now (the last one of /etc/default/app-log-check.conf then ~/.app-log-check.conf, or the -c / --config FILE given) is rewritten from the default configuration of the current language (doc/LANGUAGE/app-log-check.conf.example), its active values kept; then the program exits.
+- Bugs fixed: none.
+- Safeguards and edge cases: the old file is copied first to FILE.bak-YYYYMMDD-HHMMSS (local time), rights and owner kept; keys unknown to the default configuration are left out and listed; no file yet: /etc/default/ when it is writable (root), otherwise the personal file; default configuration or python3 missing: message and exit code 1, nothing written.
+- Checks performed: python3 -m py_compile; --help (French and English); --config-merge on a temporary file with one known and one unknown key; nginx-tools-tests/test_conventions.py: new test for every program.
+- Action required: none (to update a configuration after an upgrade: sudo app-log-check.py --config-merge).
+
 ### 2.28.20261030.153422 - No plural marker "(s)" in the displayed texts
 
 - Title: the texts shown by the program no longer contain "(s)": "requête(s)" becomes "requêtes", "adresse(s)" becomes "adresses", "lente(s)" becomes "lentes" (French and English).
@@ -413,6 +443,16 @@ Earlier history was archived outside this repository when this file was created.
 ### 2.23.20261020.211944 - Current version. Earlier history archived outside the repository.
 
 ## app-log-live.py
+
+### 1.192.20261112.082236 - Keys of 1.191 in alphabetical order in the templates
+
+- Title: HIDE_BOTS, ACCOUNTS_ONLY and VISITOR_REPORT moved to their alphabetical place in doc/en and doc/fr app-log-live.conf.example.
+- Reason: found while adding --config-merge to every program (request of 2026-11-12): 1.191 had added the three keys after NO_BANNED, out of the alphabetical order of the template.
+- Changes: doc/en/app-log-live.conf.example, doc/fr/app-log-live.conf.example: the three keys and their comment moved; no change in the program.
+- Bugs fixed: symptom: nginx-tools-tests/test_cles_modeles.py failed for the two templates ("options hors de l'ordre alphabetique"); diagnosis: keys inserted in 1.191 after NO_BANNED; fix: each key placed before the first key that follows it alphabetically.
+- Safeguards and edge cases: an existing configuration file is not touched; --config-merge rewrites it in the new order, keeping its values.
+- Checks performed: test_cles_modeles OK for the two templates.
+- Action required: none.
 
 ### 1.191.20261112.075046 - Hide robots, Odoo accounts only, visitor report every hour
 
@@ -2115,6 +2155,16 @@ Earlier history was archived outside this repository when this file was created.
 
 ## host-perf-audit.py
 
+### 1.9.20261112.082236 - New option --config-merge
+
+- Title: --config-merge rewrites the configuration file from the new default configuration, keeping its values.
+- Reason: request of the administrator on 2026-11-12: --config-merge must be available on every program (it was only in app-log-live.py; missing for example in nginx-link-page.sh).
+- Changes: option --config-merge: argparse option and dispatch before --changelog, through apps/_config.py fusionner_cli(); help sorted automatically. The file read until now (the last one of /etc/default/host-perf-audit.conf then ~/.host-perf-audit.conf, or the -c / --config FILE given) is rewritten from the default configuration of the current language (doc/LANGUAGE/host-perf-audit.conf.example), its active values kept; then the program exits.
+- Bugs fixed: none.
+- Safeguards and edge cases: the old file is copied first to FILE.bak-YYYYMMDD-HHMMSS (local time), rights and owner kept; keys unknown to the default configuration are left out and listed; no file yet: /etc/default/ when it is writable (root), otherwise the personal file; default configuration or python3 missing: message and exit code 1, nothing written.
+- Checks performed: python3 -m py_compile; --help (French and English); --config-merge on a temporary file with one known and one unknown key; nginx-tools-tests/test_conventions.py: new test for every program.
+- Action required: none (to update a configuration after an upgrade: sudo host-perf-audit.py --config-merge).
+
 ### 1.8.20261030.153422 - No plural marker "(s)" in the displayed texts
 
 - Title: the texts shown by the program no longer contain "(s)": "requête(s)" becomes "requêtes", "adresse(s)" becomes "adresses", "lente(s)" becomes "lentes" (French and English).
@@ -2180,6 +2230,16 @@ Earlier history was archived outside this repository when this file was created.
 ### 1.4.20261020.211944 - Current version. Earlier history archived outside the repository.
 
 ## odoo-chat-post.py
+
+### 1.14.20261112.082236 - New option --config-merge
+
+- Title: --config-merge rewrites the configuration file from the new default configuration, keeping its values.
+- Reason: request of the administrator on 2026-11-12: --config-merge must be available on every program (it was only in app-log-live.py; missing for example in nginx-link-page.sh).
+- Changes: option --config-merge: argparse option and dispatch before --changelog, through apps/_config.py fusionner_cli(); help sorted automatically. The file read until now (the last one of /etc/default/odoo-chat-post.conf then ~/.odoo-chat-post.conf, or the -c / --config FILE given) is rewritten from the default configuration of the current language (doc/LANGUAGE/odoo-chat-post.conf.example), its active values kept; then the program exits.
+- Bugs fixed: none.
+- Safeguards and edge cases: the old file is copied first to FILE.bak-YYYYMMDD-HHMMSS (local time), rights and owner kept; keys unknown to the default configuration are left out and listed; no file yet: /etc/default/ when it is writable (root), otherwise the personal file; default configuration or python3 missing: message and exit code 1, nothing written.
+- Checks performed: python3 -m py_compile; --help (French and English); --config-merge on a temporary file with one known and one unknown key; nginx-tools-tests/test_conventions.py: new test for every program.
+- Action required: none (to update a configuration after an upgrade: sudo odoo-chat-post.py --config-merge).
 
 ### 1.13.20261030.153422 - No plural marker "(s)" in the displayed texts
 
@@ -2256,6 +2316,16 @@ Earlier history was archived outside this repository when this file was created.
 
 ## odoo-docs.py
 
+### 1.9.20261112.082236 - New option --config-merge
+
+- Title: --config-merge rewrites the configuration file from the new default configuration, keeping its values.
+- Reason: request of the administrator on 2026-11-12: --config-merge must be available on every program (it was only in app-log-live.py; missing for example in nginx-link-page.sh).
+- Changes: option --config-merge: argparse option and dispatch before --changelog, through apps/_config.py fusionner_cli(); help sorted automatically. The file read until now (the last one of /etc/default/odoo-docs.conf then ~/.odoo-docs.conf, or the -c / --config FILE given) is rewritten from the default configuration of the current language (doc/LANGUAGE/odoo-docs.conf.example), its active values kept; then the program exits.
+- Bugs fixed: none.
+- Safeguards and edge cases: the old file is copied first to FILE.bak-YYYYMMDD-HHMMSS (local time), rights and owner kept; keys unknown to the default configuration are left out and listed; no file yet: /etc/default/ when it is writable (root), otherwise the personal file; default configuration or python3 missing: message and exit code 1, nothing written.
+- Checks performed: python3 -m py_compile; --help (French and English); --config-merge on a temporary file with one known and one unknown key; nginx-tools-tests/test_conventions.py: new test for every program.
+- Action required: none (to update a configuration after an upgrade: sudo odoo-docs.py --config-merge).
+
 ### 1.8.20261030.153422 - No plural marker "(s)" in the displayed texts
 
 - Title: the texts shown by the program no longer contain "(s)": "requête(s)" becomes "requêtes", "adresse(s)" becomes "adresses", "lente(s)" becomes "lentes" (French and English).
@@ -2321,6 +2391,16 @@ Earlier history was archived outside this repository when this file was created.
 ### 1.4.20261020.211944 - Current version. Earlier history archived outside the repository.
 
 ## odoo-mail-retry.py
+
+### 1.21.20261112.082236 - New option --config-merge
+
+- Title: --config-merge rewrites the configuration file from the new default configuration, keeping its values.
+- Reason: request of the administrator on 2026-11-12: --config-merge must be available on every program (it was only in app-log-live.py; missing for example in nginx-link-page.sh).
+- Changes: option --config-merge: argparse option and dispatch before --changelog, through apps/_config.py fusionner_cli(); help sorted automatically. The file read until now (the last one of /etc/default/odoo-mail-retry.conf then ~/.odoo-mail-retry.conf, or the -c / --config FILE given) is rewritten from the default configuration of the current language (doc/LANGUAGE/odoo-mail-retry.conf.example), its active values kept; then the program exits.
+- Bugs fixed: none.
+- Safeguards and edge cases: the old file is copied first to FILE.bak-YYYYMMDD-HHMMSS (local time), rights and owner kept; keys unknown to the default configuration are left out and listed; no file yet: /etc/default/ when it is writable (root), otherwise the personal file; default configuration or python3 missing: message and exit code 1, nothing written.
+- Checks performed: python3 -m py_compile; --help (French and English); --config-merge on a temporary file with one known and one unknown key; nginx-tools-tests/test_conventions.py: new test for every program.
+- Action required: none (to update a configuration after an upgrade: sudo odoo-mail-retry.py --config-merge).
 
 ### 1.20.20261109.153000 - Without root when sudo -n -u postgres is allowed
 
@@ -2405,6 +2485,16 @@ Earlier history was archived outside this repository when this file was created.
 ### 1.14.20261020.211944 - Current version. Earlier history archived outside the repository.
 
 ## odoo-warmup.py
+
+### 1.39.20261112.082236 - New option --config-merge
+
+- Title: --config-merge rewrites the configuration file from the new default configuration, keeping its values.
+- Reason: request of the administrator on 2026-11-12: --config-merge must be available on every program (it was only in app-log-live.py; missing for example in nginx-link-page.sh).
+- Changes: option --config-merge: argparse option and dispatch before --changelog, through apps/_config.py fusionner_cli(); help sorted automatically. The file read until now (the last one of /etc/default/odoo-warmup.conf then ~/.odoo-warmup.conf, or the -c / --config FILE given) is rewritten from the default configuration of the current language (doc/LANGUAGE/odoo-warmup.conf.example), its active values kept; then the program exits.
+- Bugs fixed: none.
+- Safeguards and edge cases: the old file is copied first to FILE.bak-YYYYMMDD-HHMMSS (local time), rights and owner kept; keys unknown to the default configuration are left out and listed; no file yet: /etc/default/ when it is writable (root), otherwise the personal file; default configuration or python3 missing: message and exit code 1, nothing written.
+- Checks performed: python3 -m py_compile; --help (French and English); --config-merge on a temporary file with one known and one unknown key; nginx-tools-tests/test_conventions.py: new test for every program.
+- Action required: none (to update a configuration after an upgrade: sudo odoo-warmup.py --config-merge).
 
 ### 1.38.20261111.170200 - Unused global declaration removed (flake8 F824 blocked the CI)
 
@@ -2961,6 +3051,16 @@ Earlier history was archived outside this repository when this file was created.
 
 ## web-monitor.py
 
+### 2.90.20261112.082236 - New option --config-merge
+
+- Title: --config-merge rewrites the configuration file from the new default configuration, keeping its values.
+- Reason: request of the administrator on 2026-11-12: --config-merge must be available on every program (it was only in app-log-live.py; missing for example in nginx-link-page.sh).
+- Changes: option --config-merge: argparse option and dispatch before --changelog, through apps/_config.py fusionner_cli(); help sorted automatically. The file read until now (the last one of /etc/default/web-monitor.conf then ~/.web-monitor.conf, or the -c / --config FILE given) is rewritten from the default configuration of the current language (doc/LANGUAGE/web-monitor.conf.example), its active values kept; then the program exits.
+- Bugs fixed: none.
+- Safeguards and edge cases: the old file is copied first to FILE.bak-YYYYMMDD-HHMMSS (local time), rights and owner kept; keys unknown to the default configuration are left out and listed; no file yet: /etc/default/ when it is writable (root), otherwise the personal file; default configuration or python3 missing: message and exit code 1, nothing written.
+- Checks performed: python3 -m py_compile; --help (French and English); --config-merge on a temporary file with one known and one unknown key; nginx-tools-tests/test_conventions.py: new test for every program.
+- Action required: none (to update a configuration after an upgrade: sudo web-monitor.py --config-merge).
+
 ### 2.89.20261112.054310 - nginx-hardening.sh --check run once per pass
 
 - Title: nginx-log-audit.sh no longer runs nginx-hardening.sh --check when app-health-check.py already ran it in the same pass.
@@ -3163,6 +3263,16 @@ Earlier history was archived outside this repository when this file was created.
 
 ## zip-versions.py
 
+### 1.20.20261112.082236 - New option --config-merge
+
+- Title: --config-merge rewrites the configuration file from the new default configuration, keeping its values.
+- Reason: request of the administrator on 2026-11-12: --config-merge must be available on every program (it was only in app-log-live.py; missing for example in nginx-link-page.sh).
+- Changes: option --config-merge: argparse option and dispatch before --changelog, through apps/_config.py fusionner_cli(); help sorted automatically. The file read until now (the last one of /etc/default/zip-versions.conf then ~/.zip-versions.conf, or the -c / --config FILE given) is rewritten from the default configuration of the current language (doc/LANGUAGE/zip-versions.conf.example), its active values kept; then the program exits.
+- Bugs fixed: none.
+- Safeguards and edge cases: the old file is copied first to FILE.bak-YYYYMMDD-HHMMSS (local time), rights and owner kept; keys unknown to the default configuration are left out and listed; no file yet: /etc/default/ when it is writable (root), otherwise the personal file; default configuration or python3 missing: message and exit code 1, nothing written.
+- Checks performed: python3 -m py_compile; --help (French and English); --config-merge on a temporary file with one known and one unknown key; nginx-tools-tests/test_conventions.py: new test for every program.
+- Action required: none (to update a configuration after an upgrade: sudo zip-versions.py --config-merge).
+
 ### 1.19.20261030.153422 - No plural marker "(s)" in the displayed texts
 
 - Title: the texts shown by the program no longer contain "(s)": "requête(s)" becomes "requêtes", "adresse(s)" becomes "adresses", "lente(s)" becomes "lentes" (French and English).
@@ -3228,6 +3338,16 @@ Earlier history was archived outside this repository when this file was created.
 ### 1.15.20261020.211944 - Current version. Earlier history archived outside the repository.
 
 ## odoo-backup.sh
+
+### 1.26.20261112.082236 - New option --config-merge
+
+- Title: --config-merge rewrites the configuration file from the new default configuration, keeping its values.
+- Reason: request of the administrator on 2026-11-12: --config-merge must be available on every program (it was only in app-log-live.py; missing for example in nginx-link-page.sh).
+- Changes: option --config-merge: call config_fusion_si_demande (apps/_i18n.sh) right after the shared library is loaded, before the arguments are read; help line (French and English: lang/odoo-backup.en.po). The file read until now (the last one of /etc/default/odoo-backup.conf then ~/.odoo-backup.conf, or the -c / --config FILE given) is rewritten from the default configuration of the current language (doc/LANGUAGE/odoo-backup.conf.example), its active values kept; then the program exits.
+- Bugs fixed: none.
+- Safeguards and edge cases: the old file is copied first to FILE.bak-YYYYMMDD-HHMMSS (local time), rights and owner kept; keys unknown to the default configuration are left out and listed; no file yet: /etc/default/ when it is writable (root), otherwise the personal file; default configuration or python3 missing: message and exit code 1, nothing written.
+- Checks performed: bash -n; shellcheck; --help (French and English); --config-merge on a temporary file with one known and one unknown key; nginx-tools-tests/test_conventions.py: new test for every program.
+- Action required: none (to update a configuration after an upgrade: sudo odoo-backup.sh --config-merge).
 
 ### 1.25.20261030.153422 - No plural marker "(s)" in the displayed texts
 
@@ -3324,6 +3444,16 @@ Earlier history was archived outside this repository when this file was created.
 ### 1.19.20261020.211944 - Current version. Earlier history archived outside the repository.
 
 ## odoo-update-module.sh
+
+### 1.28.20261112.082236 - New option --config-merge
+
+- Title: --config-merge rewrites the configuration file from the new default configuration, keeping its values.
+- Reason: request of the administrator on 2026-11-12: --config-merge must be available on every program (it was only in app-log-live.py; missing for example in nginx-link-page.sh).
+- Changes: option --config-merge: call config_fusion_si_demande (apps/_i18n.sh) right after the shared library is loaded, before the arguments are read; help line (French and English: lang/odoo-update-module.en.po). The file read until now (the last one of /etc/default/odoo-update-module.conf then ~/.odoo-update-module.conf, or the -c / --config FILE given) is rewritten from the default configuration of the current language (doc/LANGUAGE/odoo-update-module.conf.example), its active values kept; then the program exits.
+- Bugs fixed: none.
+- Safeguards and edge cases: the old file is copied first to FILE.bak-YYYYMMDD-HHMMSS (local time), rights and owner kept; keys unknown to the default configuration are left out and listed; no file yet: /etc/default/ when it is writable (root), otherwise the personal file; default configuration or python3 missing: message and exit code 1, nothing written.
+- Checks performed: bash -n; shellcheck; --help (French and English); --config-merge on a temporary file with one known and one unknown key; nginx-tools-tests/test_conventions.py: new test for every program.
+- Action required: none (to update a configuration after an upgrade: sudo odoo-update-module.sh --config-merge).
 
 ### 1.27.20261109.203000 - Who the update waits for: address, country, Odoo user
 
@@ -3547,6 +3677,16 @@ Earlier history was archived outside this repository when this file was created.
 - Action requise: relancer nginx-hardening.sh --update sur chaque serveur pour installer la regle ; aucune autre action.
 
 ## nginx-hardening.sh
+
+### 2.102.20261112.082236 - New option --config-merge
+
+- Title: --config-merge rewrites the configuration file from the new default configuration, keeping its values.
+- Reason: request of the administrator on 2026-11-12: --config-merge must be available on every program (it was only in app-log-live.py; missing for example in nginx-link-page.sh).
+- Changes: option --config-merge: call config_fusion_si_demande (apps/_i18n.sh) right after the shared library is loaded, before the arguments are read; help line (French and English: lang/nginx-hardening.en.po). The file read until now (the last one of /etc/default/nginx-hardening.conf then ~/.nginx-hardening.conf, or the -c / --config FILE given) is rewritten from the default configuration of the current language (doc/LANGUAGE/nginx-hardening.conf.example), its active values kept; then the program exits.
+- Bugs fixed: none.
+- Safeguards and edge cases: the old file is copied first to FILE.bak-YYYYMMDD-HHMMSS (local time), rights and owner kept; keys unknown to the default configuration are left out and listed; no file yet: /etc/default/ when it is writable (root), otherwise the personal file; default configuration or python3 missing: message and exit code 1, nothing written.
+- Checks performed: bash -n; shellcheck; --help (French and English); --config-merge on a temporary file with one known and one unknown key; nginx-tools-tests/test_conventions.py: new test for every program.
+- Action required: none (to update a configuration after an upgrade: sudo nginx-hardening.sh --config-merge).
 
 ### 2.101.20261112.072450 - Step numbers: link page is "0e bis", refused URIs are "12d"
 
@@ -4347,6 +4487,16 @@ Earlier history was archived outside this repository when this file was created.
 
 ## nginx-link-page.sh
 
+### 1.12.20261112.082236 - New option --config-merge
+
+- Title: --config-merge rewrites the configuration file from the new default configuration, keeping its values.
+- Reason: request of the administrator on 2026-11-12: --config-merge must be available on every program (it was only in app-log-live.py; missing for example in nginx-link-page.sh).
+- Changes: option --config-merge: own pre-scan of the arguments at the start (this program does not load apps/_i18n.sh), NGINX_LINK_PAGE_ETC_DEFAULT passed on; help line (French and English). The file read until now (the last one of /etc/default/nginx-link-page.conf then ~/.nginx-link-page.conf, or the -c / --config FILE given) is rewritten from the default configuration of the current language (doc/LANGUAGE/nginx-link-page.conf.example), its active values kept; then the program exits.
+- Bugs fixed: none.
+- Safeguards and edge cases: the old file is copied first to FILE.bak-YYYYMMDD-HHMMSS (local time), rights and owner kept; keys unknown to the default configuration are left out and listed; no file yet: /etc/default/ when it is writable (root), otherwise the personal file; default configuration or python3 missing: message and exit code 1, nothing written.
+- Checks performed: bash -n; shellcheck; --help (French and English); --config-merge on a temporary file with one known and one unknown key; nginx-tools-tests/test_conventions.py: new test for every program.
+- Action required: none (to update a configuration after an upgrade: sudo nginx-link-page.sh --config-merge).
+
 ### 1.11.20261112.074754 - LittleLink Extended icons and brand buttons
 
 - Title: the link pages can use the 76 icons and the brand buttons of LittleLink Extended (Codeberg, Lemmy, PeerTube, Matrix, Pixelfed, ORCID, OpenStreetMap...).
@@ -4583,6 +4733,16 @@ Earlier history was archived outside this repository when this file was created.
 - Action required: copy nginx-link-page.conf.example to /etc/default/nginx-link-page.conf, fill in the group's values, then run sudo nginx-link-page.sh --update. Note: HSTS (hsts.conf) is a server-level header; the /liens/ location declares its own headers, so HSTS is not repeated there.
 
 ## nginx-log-audit.sh
+
+### 2.96.20261112.082236 - New option --config-merge
+
+- Title: --config-merge rewrites the configuration file from the new default configuration, keeping its values.
+- Reason: request of the administrator on 2026-11-12: --config-merge must be available on every program (it was only in app-log-live.py; missing for example in nginx-link-page.sh).
+- Changes: option --config-merge: call config_fusion_si_demande (apps/_i18n.sh) right after the shared library is loaded, before the arguments are read; help line (French and English: lang/nginx-log-audit.en.po). The file read until now (the last one of /etc/default/nginx-log-audit.conf then ~/.nginx-log-audit.conf, or the -c / --config FILE given) is rewritten from the default configuration of the current language (doc/LANGUAGE/nginx-log-audit.conf.example), its active values kept; then the program exits.
+- Bugs fixed: none.
+- Safeguards and edge cases: the old file is copied first to FILE.bak-YYYYMMDD-HHMMSS (local time), rights and owner kept; keys unknown to the default configuration are left out and listed; no file yet: /etc/default/ when it is writable (root), otherwise the personal file; default configuration or python3 missing: message and exit code 1, nothing written.
+- Checks performed: bash -n; shellcheck; --help (French and English); --config-merge on a temporary file with one known and one unknown key; nginx-tools-tests/test_conventions.py: new test for every program.
+- Action required: none (to update a configuration after an upgrade: sudo nginx-log-audit.sh --config-merge).
 
 ### 2.95.20261112.054310 - Setup check once per report, not in each investigation
 
@@ -5477,6 +5637,16 @@ Earlier history was archived outside this repository when this file was created.
 
 ## sync-crowdsec-blocklist.sh
 
+### 1.33.20261112.082236 - New option --config-merge
+
+- Title: --config-merge rewrites the configuration file from the new default configuration, keeping its values.
+- Reason: request of the administrator on 2026-11-12: --config-merge must be available on every program (it was only in app-log-live.py; missing for example in nginx-link-page.sh).
+- Changes: option --config-merge: call config_fusion_si_demande (apps/_i18n.sh) right after the shared library is loaded, before the arguments are read; help line (French and English: lang/sync-crowdsec-blocklist.en.po). The file read until now (the last one of /etc/default/sync-crowdsec-blocklist.conf then ~/.sync-crowdsec-blocklist.conf, or the -c / --config FILE given) is rewritten from the default configuration of the current language (doc/LANGUAGE/sync-crowdsec-blocklist.conf.example), its active values kept; then the program exits.
+- Bugs fixed: none.
+- Safeguards and edge cases: the old file is copied first to FILE.bak-YYYYMMDD-HHMMSS (local time), rights and owner kept; keys unknown to the default configuration are left out and listed; no file yet: /etc/default/ when it is writable (root), otherwise the personal file; default configuration or python3 missing: message and exit code 1, nothing written.
+- Checks performed: bash -n; shellcheck; --help (French and English); --config-merge on a temporary file with one known and one unknown key; nginx-tools-tests/test_conventions.py: new test for every program.
+- Action required: none (to update a configuration after an upgrade: sudo sync-crowdsec-blocklist.sh --config-merge).
+
 ### 1.32.20261109.153000 - --status works without root
 
 - Title: --status runs as an ordinary user and says what it cannot show.
@@ -5568,6 +5738,16 @@ Earlier history was archived outside this repository when this file was created.
 ### 1.26.20261020.211944 - Current version. Earlier history archived outside the repository.
 
 ## system-hardening.sh
+
+### 1.2.20261112.082236 - New option --config-merge
+
+- Title: --config-merge rewrites the configuration file from the new default configuration, keeping its values.
+- Reason: request of the administrator on 2026-11-12: --config-merge must be available on every program (it was only in app-log-live.py; missing for example in nginx-link-page.sh).
+- Changes: option --config-merge: call config_fusion_si_demande (apps/_i18n.sh) right after the shared library is loaded, before the arguments are read; help line (French and English). The file read until now (the last one of /etc/default/system-hardening.conf then ~/.system-hardening.conf, or the -c / --config FILE given) is rewritten from the default configuration of the current language (doc/LANGUAGE/system-hardening.conf.example), its active values kept; then the program exits.
+- Bugs fixed: none.
+- Safeguards and edge cases: the old file is copied first to FILE.bak-YYYYMMDD-HHMMSS (local time), rights and owner kept; keys unknown to the default configuration are left out and listed; no file yet: /etc/default/ when it is writable (root), otherwise the personal file; default configuration or python3 missing: message and exit code 1, nothing written.
+- Checks performed: bash -n; shellcheck; --help (French and English); --config-merge on a temporary file with one known and one unknown key; nginx-tools-tests/test_conventions.py: new test for every program.
+- Action required: none (to update a configuration after an upgrade: sudo system-hardening.sh --config-merge).
 
 ### 1.1.20261105.081634 - AIDE: SHA-512 instead of every checksum compiled in
 
@@ -5947,6 +6127,16 @@ Earlier history was archived outside this repository when this file was created.
 ### 1.2.20261019.150215 - Current version. Earlier history archived outside the repository.
 
 ## apps/_config.py
+
+### 1.12.20261112.081946 - fusionner(): --config-merge shared by every program
+
+- Title: the --config-merge rule of app-log-live.py, shared by all the programs.
+- Reason: request of the administrator on 2026-11-12: --config-merge must be available on every program (it was only in app-log-live.py; missing for example in nginx-link-page.sh).
+- Changes: apps/_config.py: new functions modele_par_defaut(), appliquer_valeurs(), fusionner(), fusionner_cli(), and a command line (python3 apps/_config.py --merge PROGRAM [--config FILE] [--lang fr|en]) for the Bash programs; apps/_i18n.sh: new function config_fusion_si_demande PROGRAM ARGUMENTS (finds --config-merge, -c / --config and --lang in the arguments, calls apps/_config.py, then exits).
+- Bugs fixed: none.
+- Safeguards and edge cases: default configuration looked for in doc/LANGUAGE/, then doc/en/, doc/fr/, then PROGRAM.conf.example at the root of the repository (nginx-link-page.sh); writing through a temporary file in the same folder then renaming; backup FILE.bak-YYYYMMDD-HHMMSS with the same rights; owner kept when run as root; messages in French or English.
+- Checks performed: python3 -m py_compile; bash -n; --config-merge of the 17 programs on temporary files; nginx-tools-tests/test_conventions.py: 2 new tests.
+- Action required: none.
 
 ### 1.11.20261103.112517 - THEME is a common key of app-default.conf
 

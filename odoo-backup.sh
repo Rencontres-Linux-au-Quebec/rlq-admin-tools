@@ -25,6 +25,7 @@
 #   --changelog                  affiche le journal des modifications
 #   -c, --config FILE            ce fichier de configuration SEUL (défaut : /etc/default/odoo-backup.conf, puis
 #                                ~/.odoo-backup.conf s'il existe ; la ligne de commande est prioritaire)
+#   --config-merge               réécrit le fichier de configuration d'après la NOUVELLE configuration par défaut en gardant ses valeurs (copie FICHIER.bak-AAAAMMJJ-HHMMSS), puis quitte
 #   --db NAME                    une seule base (avec --restore : nom de la base créée)
 #   --dest DIR                   autre dossier des sauvegardes (DEST= dans la configuration)
 #   --dry-run                    montrer ce qui serait fait, sans rien écrire
@@ -68,7 +69,7 @@ for _d in /usr/local/sbin /usr/sbin /sbin; do [[ -n "${NGINX_TOOLS_TESTS:-}" ]] 
 # (During the test suite, NGINX_TOOLS_TESTS disables this addition: /usr/sbin/ufw & co would otherwise remain reachable.)
 export PATH
 
-readonly SCRIPT_VERSION="1.25.20261030.153422"
+readonly SCRIPT_VERSION="1.26.20261112.082236"
 SCRIPT_NAME="$(basename "${BASH_SOURCE[0]}" .sh)"; readonly SCRIPT_NAME
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
 SCRIPT_PATH="$SCRIPT_DIR/$(basename "${BASH_SOURCE[0]}")"; readonly SCRIPT_PATH
@@ -84,6 +85,7 @@ if [[ -r "$SCRIPT_DIR/apps/_i18n.sh" ]]; then
     # shellcheck source=/dev/null  # library shipped next to the program
     . "$SCRIPT_DIR/apps/_i18n.sh"
     i18n_relancer "$SCRIPT_NAME" ODOO_BACKUP_LANG "$0" "$@"
+    config_fusion_si_demande odoo-backup "$@"      # --config-merge (apps/_i18n.sh -> apps/_config.py): rewrites the configuration from the new default one, then exits
 fi
 declare -F run_interruptible >/dev/null || run_interruptible() { "$@"; }     # without apps/_i18n.sh: simple execution
 readonly STATE_DIR="${ODOO_BACKUP_STATE_DIR:-/var/lib/odoo-backup}"

@@ -29,6 +29,7 @@
 # Les voici, pour mémoire (« host-perf-audit.py --help » donne le détail). Elles se donnent sur la ligne de commande, jamais dans ce fichier.
 #   --apply       Après le rapport, appliquer les réglages SANS RISQUE un par un avec confirmation (compression / atime d'un dataset ZFS, maximum de l'ARC, vm.swappiness)
 #   --changelog   Affiche le journal des modifications
+#   --config-merge Réécrit le fichier de configuration à partir de la nouvelle configuration par défaut, en gardant les valeurs réglées (copie FICHIER.bak-AAAAMMJJ-HHMMSS), puis quitte
 #   --lang en|fr  Langue d'affichage (clé LANGUAGE)
 #   --report-err  Afficher à la fin un rapport d'erreurs à copier-coller
 #   --version     Affiche la version et quitte

@@ -4,3 +4,6 @@
 #LANGUAGE=auto          # en, fr ou auto (auto : LC_ALL, puis LC_MESSAGES, puis LANG)
 #PROGRAMS=              # programmes à proposer, séparés par des espaces (vide : tous ceux du dossier qui ont --menu)
 #VERBOSE=no             # yes : afficher chaque commande lancée (transmise aussi aux programmes)
+
+# --- Options de la ligne de commande SEULEMENT (actions ou réglages ponctuels : aucune clé ici) ---
+#   --config-merge  Réécrit le fichier de configuration à partir de la nouvelle configuration par défaut, en gardant les valeurs réglées (copie FICHIER.bak-AAAAMMJJ-HHMMSS), puis quitte

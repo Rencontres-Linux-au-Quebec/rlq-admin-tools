@@ -2866,3 +2866,6 @@ msgstr "# Added by nginx-hardening.sh 2.93 for "
 
 msgid "# Recalculé à chaque --update selon la mémoire de CE serveur ; une valeur plus grande réglée ailleurs est gardée. Pour retirer : supprimer ce fichier, puis redémarrer PostgreSQL."
 msgstr "# Recomputed at each --update for the memory of THIS server; a larger value set elsewhere is kept. To remove: delete this file, then restart PostgreSQL."
+
+msgid "  --config-merge               réécrit le fichier de configuration d'après la NOUVELLE configuration par défaut en gardant ses valeurs (copie FICHIER.bak-AAAAMMJJ-HHMMSS), puis quitte"
+msgstr "  --config-merge               rewrite the configuration file from the NEW default configuration, keeping its values (copy FILE.bak-YYYYMMDD-HHMMSS), then exit"

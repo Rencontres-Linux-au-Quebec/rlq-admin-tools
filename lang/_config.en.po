@@ -107,3 +107,9 @@ msgstr " renamed to "
 
 msgid " (les fichiers personnels se terminent maintenant par .conf)"
 msgstr " (personal files now end with .conf)"
+
+msgid "--config-merge : python3 ou "
+msgstr "--config-merge: python3 or "
+
+msgid " introuvable / not found"
+msgstr " not found"

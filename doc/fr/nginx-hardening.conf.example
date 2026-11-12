@@ -74,6 +74,7 @@
 # Les voici, pour mémoire (« nginx-hardening --help » donne le détail). Elles se donnent sur la ligne de commande, jamais dans ce fichier.
 #   --changelog   affiche le journal des modifications
 #   --check       vérification seule (comportement par défaut)
+#   --config-merge Réécrit le fichier de configuration à partir de la nouvelle configuration par défaut, en gardant les valeurs réglées (copie FICHIER.bak-AAAAMMJJ-HHMMSS), puis quitte
 #   --report-err  afficher à la fin un rapport d'erreurs à copier-coller (programme, version, serveur, échecs, avertissements)
 #   --version     affiche la version et quitte
 #   --dns-refresh  résout les noms DNS de la liste blanche ; --update seulement si une adresse a changé (cron toutes les 15 min)

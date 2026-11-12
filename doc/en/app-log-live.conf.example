@@ -9,6 +9,8 @@
 # --- Options (ordre alphabétique / alphabetical order) ---
 # --accentuate-group : étiquette (catégorie) de contacts Odoo affichés en blanc gras sur bleu foncé (vide = aucune ; touche a à la volée)
 #ACCENTUATE_GROUP=
+# --accounts-only (1.191): only the lines of the addresses from which an Odoo account logged in; lines without an address stay (g key on the fly)
+#ACCOUNTS_ONLY=no
 # --ack-days: days during which a finding checked by an administrator (--ack) stays out of the summary (default: 30)
 #ACK_DAYS=30
 # --anonymize (par défaut depuis 1.88 pour app-log-live) : anonymiser ce que le programme affiche à l'écran (adresses IP, courriels, identifiants, jetons) par des pseudonymes
@@ -50,6 +52,8 @@
 #HEALTH=10
 # --hide-addons: hide the INFO lines of the Odoo modules (odoo.addons.*, odoo.models.unlink, odoo.modules.registry), except errors, e-mails sent and generated files (PDF...) (q key on the fly)
 #HIDE_ADDONS=no
+# --hide-bots (1.191): hide the lines of the robots (robots.txt or sitemap requested, robot name or User-Agent); still counted in the reports (p key on the fly)
+#HIDE_BOTS=no
 # --hide-ip
 #HIDE_IP=yes
 # --hide-user-agent: do not show the User-Agent text of the nginx lines (u key on the fly)
@@ -89,12 +93,6 @@
 #NOT_FOUND=no
 # --no-banned
 #NO_BANNED=no
-# --hide-bots (1.191): hide the lines of the robots (robots.txt or sitemap requested, robot name or User-Agent); still counted in the reports (p key on the fly)
-#HIDE_BOTS=no
-# --accounts-only (1.191): only the lines of the addresses from which an Odoo account logged in; lines without an address stay (g key on the fly)
-#ACCOUNTS_ONLY=no
-# --visitor-report (1.191): minutes between two visitor reports (different addresses, people with pages and requests, robots); 0 = never; % key: at once
-#VISITOR_REPORT=60
 # --no-ban-prompt
 #NO_BAN_PROMPT=no
 # --no-cache
@@ -156,6 +154,8 @@
 #UTC=no
 # --verbose
 #VERBOSE=no
+# --visitor-report (1.191): minutes between two visitor reports (different addresses, people with pages and requests, robots); 0 = never; % key: at once
+#VISITOR_REPORT=60
 # --watch : surveiller les requêtes dont l'URL contient ce texte (virgule = plusieurs ; touche w à la volée)
 #WATCH=
 
