@@ -4526,6 +4526,17 @@ Earlier history was archived outside this repository when this file was created.
 
 ## nginx-link-page.sh
 
+### 1.16.20261112.180522 - Four LinkStack themes adapted: ls-aurora, ls-dark, ls-dawn, ls-misty-rain
+
+- Title: PAGE_n_THEME accepts 4 themes of https://linkstack.org/themes/, adapted to the static pages.
+- Reason: request of the administrator on 2026-11-12: add the themes of https://linkstack.org/themes/ too.
+- Changes: new folder apps/link-page-themes/: linkstack.css (the 4 themes scoped by :root.theme-ls-NAME, their fonts declared locally), images/ (ls-aurora.jpg, ls-dark-wallpaper.png, ls-dawn-background.jpg), fonts/ (Roboto and Karla, latin and latin-ext, woff2), LICENSES.md (sources, MIT licences of the 4 repositories, OFL for the fonts, reasons of the themes left out); preparer_dossier(): copies them as css/themes-linkstack.css, css/themes-linkstack-LICENSES.md, images/themes/, fonts/themes/; constants THEMES_RE, THEMES_LISTE, THEMES_LINKSTACK; theme_nom, theme_base (dark base), theme_couleur: the 4 themes; genere_index(): css/themes-linkstack.css for an ls- theme (css/themes.css for the 5 themes of 1.15 only), rain of ls-misty-rain written as 24 decorative elements (aria-hidden); --check refuses an ls- theme when linkstack.css is missing; nginx-link-page.conf.example: the themes described; nginx-tools-tests/test_nginx_link_page.py: 1 test (4 subtests).
+- Themes left out (written in LICENSES.md): 14 themes without a licence (all rights reserved, cannot be redistributed); Bongo Cat (GPL, meme artwork); SoT and Minceraft (non-commercial use, game artwork); Magic Kingdom and Isaac (artwork or font of a theme park and of a video game); Cloudy Storm (needs a script, three.js, that the Content-Security-Policy of the pages forbids).
+- Bugs fixed: none.
+- Safeguards and edge cases: no script and nothing outside the page (every url() points to a copied file; the share button, the Blade templates and the JavaScript of LinkStack are not taken); the animations stop with prefers-reduced-motion (the rain is hidden); ls-dawn: a light veil and a text shadow added to the outlined buttons, which were hard to read on the pale part of the sky; the brand buttons keep their colours (ls-aurora looks closest to the original with PAGE_n_BUTTONS=brand).
+- Checks performed: bash -n; shellcheck; test_nginx_link_page (55 tests); the 4 themes rendered in Google Chrome and compared with the previews of LinkStack (doc/images/link-page-themes-linkstack.png).
+- Action required: none (to use one: PAGE_n_THEME=ls-dawn, for example, then sudo nginx-link-page.sh --update --yes).
+
 ### 1.15.20261112.175724 - Five more themes: aurora, maple, river, terminal, tux
 
 - Title: PAGE_n_THEME accepts 5 new themes besides auto, light and dark.

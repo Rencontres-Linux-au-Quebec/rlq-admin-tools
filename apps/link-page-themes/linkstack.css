@@ -1,0 +1,217 @@
+/*
+ * linkstack.css - 4 LinkStack themes adapted to the static link pages of nginx-link-page.sh (PAGE_n_THEME=ls-...).
+ * Copied as css/themes-linkstack.css into each page folder, with ../images/themes/ and ../fonts/themes/.
+ * Adapted from the LinkStack themes (MIT): Aurora (KiwiSin & LinkStack team), Dark, Dawn and Misty Rain (Julian Prieber & LinkStack team),
+ * https://linkstack.org/themes/ - licence notices in LICENSES.md next to this file. Adaptation: Copyright (C) 2026 Services-Conseils Linux Inc.
+ * No script and nothing outside the page (the Content-Security-Policy of the pages allows only 'self'): the share button, the Blade templates
+ * and the three.js / JavaScript effects of LinkStack are not taken; the rain of Misty Rain is pure CSS on decorative elements.
+ *
+ *   ls-aurora      pride coloured northern lights over a forest (photo), white bold title, dark glass buttons  (dark base)
+ *   ls-dark        night valley wallpaper, slate buttons with rounded corners, light blue hover               (dark base)
+ *   ls-dawn        mountains at dawn (photo), Karla font, outlined white buttons that fill on hover            (dark base)
+ *   ls-misty-rain  blue grey night, falling rain lines, slate buttons, Roboto font                            (dark base)
+ */
+
+@font-face { font-family: "LS Roboto"; font-style: normal; font-weight: 400; font-display: swap;
+	src: url("../fonts/themes/roboto-latin-400-normal.woff2") format("woff2"); unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+2000-206F, U+2074, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
+@font-face { font-family: "LS Roboto"; font-style: normal; font-weight: 400; font-display: swap;
+	src: url("../fonts/themes/roboto-latin-ext-400-normal.woff2") format("woff2"); unicode-range: U+0100-024F, U+0259, U+1E00-1EFF, U+2020, U+20A0-20AB, U+20AD-20CF, U+2113, U+2C60-2C7F, U+A720-A7FF; }
+@font-face { font-family: "LS Roboto"; font-style: normal; font-weight: 700; font-display: swap;
+	src: url("../fonts/themes/roboto-latin-700-normal.woff2") format("woff2"); unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+2000-206F, U+2074, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
+@font-face { font-family: "LS Roboto"; font-style: normal; font-weight: 700; font-display: swap;
+	src: url("../fonts/themes/roboto-latin-ext-700-normal.woff2") format("woff2"); unicode-range: U+0100-024F, U+0259, U+1E00-1EFF, U+2020, U+20A0-20AB, U+20AD-20CF, U+2113, U+2C60-2C7F, U+A720-A7FF; }
+@font-face { font-family: "LS Karla"; font-style: normal; font-weight: 400; font-display: swap;
+	src: url("../fonts/themes/karla-latin-400-normal.woff2") format("woff2"); unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+2000-206F, U+2074, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
+@font-face { font-family: "LS Karla"; font-style: normal; font-weight: 400; font-display: swap;
+	src: url("../fonts/themes/karla-latin-ext-400-normal.woff2") format("woff2"); unicode-range: U+0100-024F, U+0259, U+1E00-1EFF, U+2020, U+20A0-20AB, U+20AD-20CF, U+2113, U+2C60-2C7F, U+A720-A7FF; }
+@font-face { font-family: "LS Karla"; font-style: normal; font-weight: 700; font-display: swap;
+	src: url("../fonts/themes/karla-latin-700-normal.woff2") format("woff2"); unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+2000-206F, U+2074, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
+
+/* ---- common ---------------------------------------------------------------------------------- */
+:root.theme-ls-aurora, :root.theme-ls-dark, :root.theme-ls-dawn, :root.theme-ls-misty-rain {
+	color-scheme: dark;
+}
+:root.theme-ls-aurora body, :root.theme-ls-dark body, :root.theme-ls-dawn body, :root.theme-ls-misty-rain body {
+	min-height: 100vh;
+	color: #ffffff;
+	background-position: center;
+	background-size: cover;
+	background-repeat: no-repeat;
+	background-attachment: fixed;
+}
+:root.theme-ls-aurora a:not(.button), :root.theme-ls-dark a:not(.button), :root.theme-ls-dawn a:not(.button), :root.theme-ls-misty-rain a:not(.button) {
+	color: #8ecae6;
+}
+:root.theme-ls-aurora :focus-visible, :root.theme-ls-dark :focus-visible, :root.theme-ls-dawn :focus-visible, :root.theme-ls-misty-rain :focus-visible {
+	outline: 2px solid #8ecae6;
+	outline-offset: 2px;
+}
+@keyframes ls-apparition {
+	from { opacity: 0; transform: translateY(-10px); }
+	to { opacity: 1; transform: translateY(0); }
+}
+:root.theme-ls-dark main, :root.theme-ls-dawn main, :root.theme-ls-misty-rain main {
+	animation: ls-apparition 0.6s ease-out both;
+}
+
+/* ---- ls-aurora ---------------------------------------------------------------------------------- */
+:root.theme-ls-aurora body {
+	background-color: #24123d;
+	background-image: url("../images/themes/ls-aurora.jpg");
+	background-position: center bottom;
+}
+:root.theme-ls-aurora h1 {
+	font-weight: 800;
+	text-shadow: 0 2px 12px rgba(0, 0, 0, 0.35);
+}
+:root.theme-ls-aurora .container p {
+	text-shadow: 0 1px 6px rgba(0, 0, 0, 0.45);
+}
+:root.theme-ls-aurora .button.button-default {
+	--button-text: #ffffff;
+	--button-background: rgba(20, 12, 40, 0.55);
+	--button-border: 1px solid rgba(255, 255, 255, 0.35);
+}
+:root.theme-ls-aurora .button {
+	box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
+}
+
+/* ---- ls-dark ---------------------------------------------------------------------------------- */
+:root.theme-ls-dark body {
+	background-color: #000000;
+	background-image: url("../images/themes/ls-dark-wallpaper.png");
+	font-family: "LS Roboto", system-ui, sans-serif;
+}
+:root.theme-ls-dark h1 {
+	font-weight: 400;
+	letter-spacing: 0;
+}
+:root.theme-ls-dark .button {
+	width: 100%;
+	max-width: 37.5rem;
+	min-height: 3.6rem;
+	border-radius: 14px;
+	font-weight: 400;
+}
+:root.theme-ls-dark .button.button-default {
+	--button-text: #ffffff;
+	--button-background: #1f232e;
+	--button-border: none;
+}
+:root.theme-ls-dark .button.button-default:hover {
+	color: #8ecae6;
+}
+
+/* ---- ls-dawn ---------------------------------------------------------------------------------- */
+:root.theme-ls-dawn body {
+	background-color: #223344;
+	background-image: url("../images/themes/ls-dawn-background.jpg");
+	font-family: "LS Karla", system-ui, sans-serif;
+}
+:root.theme-ls-dawn h1, :root.theme-ls-dawn .container p, :root.theme-ls-dawn footer {
+	text-shadow: 0 1px 4px rgba(0, 0, 0, 0.35);
+}
+:root.theme-ls-dawn h1 {
+	font-weight: 400;
+	letter-spacing: 0.02em;
+}
+:root.theme-ls-dawn .button {
+	width: 100%;
+	max-width: 36rem;
+	border-radius: 10px;
+	font-weight: 400;
+}
+:root.theme-ls-dawn .button.button-default {
+	--button-text: #ffffff;
+	--button-background: rgba(15, 25, 45, 0.22);          /* LinkStack: transparent; a light veil keeps the text readable on the pale sky */
+	--button-border: 2px solid #ffffff;
+	text-shadow: 0 1px 3px rgba(0, 0, 0, 0.45);
+	transition: background-color 0.2s ease, color 0.2s ease;
+}
+@media (hover: hover) {
+	:root.theme-ls-dawn .button.button-default:hover {
+		--button-background: #ffffff;
+		--button-text: #223344;
+		color: #223344;
+		text-shadow: none;
+	}
+}
+
+/* ---- ls-misty-rain ------------------------------------------------------------------------------ */
+:root.theme-ls-misty-rain body {
+	background-color: #181b24;
+	background-image: radial-gradient(ellipse 120% 35% at 50% 100%, rgba(140, 150, 170, 0.18), transparent 70%);
+	font-family: "LS Roboto", system-ui, sans-serif;
+}
+:root.theme-ls-misty-rain h1 {
+	font-weight: 400;
+	letter-spacing: 0;
+}
+:root.theme-ls-misty-rain .button {
+	width: 100%;
+	max-width: 37.5rem;
+	min-height: 3.6rem;
+	border-radius: 14px;
+	font-weight: 400;
+}
+:root.theme-ls-misty-rain .button.button-default {
+	--button-text: #ffffff;
+	--button-background: #1f232e;
+	--button-border: none;
+}
+:root.theme-ls-misty-rain .button.button-default:hover {
+	color: #8ecae6;
+}
+:root.theme-ls-misty-rain .container {
+	position: relative;
+	z-index: 1;
+}
+/* rain: <div class="ls-rain" aria-hidden="true"> with 24 <i></i>, written by nginx-link-page.sh for this theme only */
+.ls-rain {
+	position: fixed;
+	inset: 0;
+	overflow: hidden;
+	pointer-events: none;
+	z-index: 0;
+}
+.ls-rain i {
+	position: absolute;
+	top: -100vh;
+	width: 1px;
+	height: 100vh;
+	background-image: linear-gradient(transparent 90vh, rgba(221, 238, 255, 0.25));
+	animation: ls-goutte 12s ease-in infinite;
+}
+@keyframes ls-goutte {
+	0%, 70% { transform: translateY(0); }
+	100% { transform: translateY(200vh); }
+}
+.ls-rain i:nth-child(1) { left: 3%; animation-delay: -1s; }
+.ls-rain i:nth-child(2) { left: 8%; animation-delay: -7s; }
+.ls-rain i:nth-child(3) { left: 12%; animation-delay: -3.5s; }
+.ls-rain i:nth-child(4) { left: 17%; animation-delay: -10s; }
+.ls-rain i:nth-child(5) { left: 21%; animation-delay: -5s; }
+.ls-rain i:nth-child(6) { left: 26%; animation-delay: -0.5s; }
+.ls-rain i:nth-child(7) { left: 30%; animation-delay: -8.5s; }
+.ls-rain i:nth-child(8) { left: 34%; animation-delay: -2s; }
+.ls-rain i:nth-child(9) { left: 39%; animation-delay: -11s; }
+.ls-rain i:nth-child(10) { left: 43%; animation-delay: -6s; }
+.ls-rain i:nth-child(11) { left: 47%; animation-delay: -9.5s; }
+.ls-rain i:nth-child(12) { left: 52%; animation-delay: -4s; }
+.ls-rain i:nth-child(13) { left: 56%; animation-delay: -1.5s; }
+.ls-rain i:nth-child(14) { left: 60%; animation-delay: -7.5s; }
+.ls-rain i:nth-child(15) { left: 64%; animation-delay: -3s; }
+.ls-rain i:nth-child(16) { left: 69%; animation-delay: -10.5s; }
+.ls-rain i:nth-child(17) { left: 73%; animation-delay: -5.5s; }
+.ls-rain i:nth-child(18) { left: 77%; animation-delay: -0.2s; }
+.ls-rain i:nth-child(19) { left: 81%; animation-delay: -8s; }
+.ls-rain i:nth-child(20) { left: 85%; animation-delay: -2.5s; }
+.ls-rain i:nth-child(21) { left: 89%; animation-delay: -11.5s; }
+.ls-rain i:nth-child(22) { left: 92%; animation-delay: -6.5s; }
+.ls-rain i:nth-child(23) { left: 95%; animation-delay: -4.5s; }
+.ls-rain i:nth-child(24) { left: 98%; animation-delay: -9s; }
+
+@media (prefers-reduced-motion: reduce) {
+	.ls-rain { display: none; }
+	:root.theme-ls-dark main, :root.theme-ls-dawn main, :root.theme-ls-misty-rain main { animation: none; }
+}
