@@ -122,7 +122,7 @@ from urllib.parse import unquote, urlsplit
 from collections import Counter, OrderedDict
 from concurrent.futures import Future
 
-__version__ = "1.190.20261112.054310"
+__version__ = "1.191.20261112.075046"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
@@ -263,13 +263,15 @@ SCHEMA_CONFIG = {"ACCENTUATE_GROUP": ("accentuate_group", str), "CHIME": ("chime
                  "ERRORS_ONLY": ("errors_only", bool), "ONLY": ("only", _comma_list), "STATUS_HEADER": ("status_header", bool), "STEPS_LINE": ("steps_line", bool), "SUSPECT": ("suspect", bool), "SUMMARY": ("summary", bool), "TIME_REPORT": ("time_report", float), "TRUNCATE": ("truncate", _truncate_config), "WATCH": ("watch", str), "ANONYMIZE": ("anonymize", bool), "UNDERLINE": ("underline", _underline_config),
                  "APP": ("app", str), "CMS": ("cms", str), "CONNECTIONS": ("connections", float), "DAYS": ("days", float),"DISK_MIN": ("disk_min", float), "DNS_MAX": ("dns_max", int), "HEALTH": ("health", float), "HIDE_ADDONS": ("hide_addons", bool), "HIDE_IP": ("hide_ip", bool), "HIGHLIGHT": ("highlight", str), "THEME": ("theme", int), "IDLE": ("idle", float),
                  "LINES": ("lines", int), "LOG_DIR": ("log_dir", str), "LOG_KEEP_DAYS": ("log_keep_days", int), "LOG_MERGE": ("log_merge", bool), "LOG_NGINX": ("log_nginx", bool), "MIN": ("min", bool), "MODULES_CUSTOM": ("modules_custom", bool), "MODULES_SORT": ("modules_sort", str), "MODULES_STARTUP": ("modules_startup", bool), "NAMESPACE": ("namespace", str),
-                 "NO_BANNED": ("no_banned", bool), "NOT_FOUND": ("not_found", bool), "NO_BAN_PROMPT": ("no_ban_prompt", bool), "NO_CACHE": ("no_cache", bool), "NO_HISTORY": ("no_history", bool),
+                 "NO_BANNED": ("no_banned", bool), "HIDE_BOTS": ("hide_bots", bool), "ACCOUNTS_ONLY": ("accounts_only", bool), "VISITOR_REPORT": ("visitor_report", float), "NOT_FOUND": ("not_found", bool), "NO_BAN_PROMPT": ("no_ban_prompt", bool), "NO_CACHE": ("no_cache", bool), "NO_HISTORY": ("no_history", bool),
                  "NO_ISP": ("no_isp", bool), "NO_KEYS": ("no_keys", bool), "NO_LOG_FILE": ("no_log_file", bool), "NO_PRESENCE": ("no_presence", bool),
                  "LEVEL": ("level", int), "BUFFER": ("buffer", int), "STATUS_EVERY": ("status_every", int), "NO_USER_AGENT": ("no_user_agent", bool), "HIDE_USER_AGENT": ("hide_user_agent", bool), "DISPLAY_HOST": ("display_host", bool), "REQUEST_LENGTH": ("request_length", bool), "RECAP": ("recap", float), "RECORD_MAX": ("record_max", float), "SERVICE": ("service", str), "SITEMAP": ("sitemap", str), "NO_SITEMAP": ("no_sitemap", bool), "SLOW": ("slow", float), "VERBOSE": ("verbose", bool)}
 CHANGELOG_FILE = os.path.join(SCRIPT_DIR, "CHANGELOG.md")
 LINES_DEFAULT = 50
 DAYS_DEFAULT = 0                                                      # 0 = the whole journal history
 IDLE_DEFAULT = 15.0                                                 # minutes without activity before "no more activity"
+VISITOR_PEOPLE_MAX = 15                                               # 1.191: people listed by the visitor report (the others counted)
+VISITOR_REPORT_DEFAULT = 60.0                                         # 1.191 --visitor-report: minutes between two visitor reports (% key: at once)
 REPORT_DEFAULT = 60.0                                                 # --time-report without a value: minutes between two periodic reports
 LEVEL_MAX = 9                                                        # dashboard levels: 1 (verdict) to 9 (everything) - keys 1 to 9, --level
 # Shared thresholds (apps/_seuils.py, also read by web-monitor.py; its header lists the files that override them).
@@ -889,6 +891,8 @@ def config_values(options, verbose, widths=None):
            "LEVEL": str(options["level"]), "MIN": yes_no(options["minimal"]), "MODULES_CUSTOM": yes_no(sort_by[2]), "MODULES_SORT": ("-" if sort_by[1] else "") + sort_by[0],
            "NOT_FOUND": yes_no(options["not_found"]), "VERBOSE": yes_no(verbose),
            "ACCENTUATE_GROUP": options.get("group") or "", "CHIME": "" if options.get("chime") is None else str(options["chime"]),
+           "HIDE_BOTS": yes_no(options.get("hide_bots")), "ACCOUNTS_ONLY": yes_no(options.get("accounts_only")),           # 1.191
+           "VISITOR_REPORT": f"{options.get('visitor_min', VISITOR_REPORT_DEFAULT):g}",
            "EXCLUDE_IP": ",".join(str(r) for r in options.get("exclude") or []), "ERRORS_ONLY": yes_no(options.get("errors_only")), "ONLY": ",".join(options.get("only") or []),
            "STEPS_LINE": yes_no(options.get("steps_line")), "UNDERLINE": str(options.get("underline", UNDERLINE_DEFAULT)), "SUSPECT": yes_no(options.get("suspect")), "ANONYMIZE": yes_no(options.get("anonymize")), "TIME_REPORT": f"{options.get('report_min') or 0:g}", "WATCH": ",".join(options.get("watch") or []),
            # 1.170: the new switches of the menu
@@ -6640,7 +6644,8 @@ KEYS = {b"\x07": "g", b"\x14": "t", b"\r": "enter", b"\n": "enter"}      # Ctrl-
 MENU_KEYS = {b"?": "legend", b"h": "help", b"i": "i", b"m": "m", b"n": "n", b"r": "r", b"s": "s", b"v": "v", b"d": "dns", b"t": "dnst", b"H": "H", b"o": "o", b"V": "V",
                 b"S": "S", b"I": "I", b"b": "b", b"a": "accent", b"c": "chime", b"e": "exclude", b"T": "report", b"E": "E", b"w": "watch", b"D": "D", b"l": "highlight", b"M": "modules", b"W": "save", b"L": "recent",
                 b"G": "G", b"Y": "latency", b"P": "print", b"f": "refresh", b"A": "anonymize", b"R": "record", b"N": "step", b"F": "steps_line", b"q": "addons", b"U": "underline", b"x": "lognginx", b"u": "hideua", b"j": "reqlen", b"k": "hostshow", b"X": "errors", b"z": "advise",
-             b"J": "logmerge", b"B": "statusheader", b"C": "truncate", b"O": "utc", b"Q": "slow", b"Z": "statusevery", b"K": "banprompt", b"y": "sitemap"}      # 1.170
+             b"J": "logmerge", b"B": "statusheader", b"C": "truncate", b"O": "utc", b"Q": "slow", b"Z": "statusevery", b"K": "banprompt", b"y": "sitemap",
+             b"p": "hidebots", b"g": "accountsonly", b"%": "visitors"}      # 1.191      # 1.170
 MENU_KEYS.update({str(n).encode(): f"level{n}" for n in range(1, LEVEL_MAX + 1)})   # 1 to 9: dashboard at the chosen level
 KEYS.update(MENU_KEYS)
 
@@ -6825,7 +6830,9 @@ def follow(cmd, people, resolver, options, output):
     keys = Keyboard(file) if options["keys"] else None
     tail_agents = read_agents(stats.agents, options.get("acces_logs"), NGINX_DIR) if options.get("agents") else None
     beep = {"last": 0.0, "mode": "bel"}
-    periodic = {"next_report": time.time() + options["report_min"] * 60}
+    periodic = {"next_report": time.time() + options["report_min"] * 60,
+                "next_visitors": time.time() + options.get("visitor_min", 0) * 60}           # 1.191 --visitor-report
+    visitors_base = {"t": time.time(), "req": Counter(), "pages": Counter()}      # 1.191: counters at the last visitor report
     recent_ones = []                                        # (arrival, line, address) of the lines WITHOUT A NAME: reminder after a login
     deferred = [None]                                   # "bad query" waiting for its cause (next line)
     record = {"r": None, "last": None, "pending": None, "auto": options.get("record_test_log"), "auto_started": False, "exit_after": False, "module": None}   # 1.93: test recording (R key)
@@ -6902,6 +6909,92 @@ def follow(cmd, people, resolver, options, output):
             state["errors_hold"] = False
             if options.get("errors_only"):
                 show_last_errors(True)
+
+    def visitor_keep(L, ips0):
+        """1.191 --hide-bots (p) / --accounts-only (g): is the line shown, according to its FIRST address (the client)? A line without an address
+        (Odoo error, presence...) is shown; a continuation line (Python trace...) follows the previous decision. Hidden lines are counted in state["visitor_hidden"]."""
+        if not options.get("hide_bots") and not options.get("accounts_only"):
+            return True
+        if not ips0:
+            if L.level is None and L.ts_txt is not None:
+                return state.get("visitor_ok", True)
+            return True
+        ip = ips0[0][2]
+        ok = True
+        if options.get("hide_bots") and stats.is_robot(ip):
+            ok = False
+        if ok and options.get("accounts_only"):
+            ok = ip in stats.people or bool(people is not None and people.accounts(ip))
+        state["visitor_ok"] = ok
+        if not ok:
+            state["visitor_hidden"] = state.get("visitor_hidden", 0) + 1
+        return ok
+
+    def visitor_lines(now_dt, heading):
+        """1.191: visitors since the last visitor report (or since the start): different addresses by kind, then the people (Odoo accounts)
+        with their pages and requests, then the robots. The base of the next report becomes now."""
+        base = visitors_base
+        req = {ip: n - base["req"].get(ip, 0) for ip, n in stats.par_ip.items() if n - base["req"].get(ip, 0) > 0}
+        pages = {ip: n - base["pages"].get(ip, 0) for ip, n in stats.pages_per_ip.items() if n - base["pages"].get(ip, 0) > 0}
+        since = time.strftime("%H:%M", time.localtime(base["t"]))
+        visitors_base.update({"t": now_dt, "req": Counter(stats.par_ip), "pages": Counter(stats.pages_per_ip)})
+        lines = [color_code(STYLES["title"], f"──── {heading} ({TR('since')} {since}) ────")]
+        ips = set(req) | set(pages)
+        if not ips:
+            return lines + ["  " + TR("No request since the last report.")]
+
+        def account_of(ip):
+            accounts = people.accounts(ip) if people is not None else []
+            return accounts[-1] if accounts else None
+        kinds = {"account": [], "team": [], "server": [], "robot": [], "anonymous": []}
+        for ip in ips:
+            if ip in stats.server:
+                kinds["server"].append(ip)
+            elif ip in stats.people or account_of(ip):
+                kinds["account"].append(ip)
+            elif ip in stats.protected_ones:
+                kinds["team"].append(ip)
+            elif stats.is_robot(ip):
+                kinds["robot"].append(ip)
+            else:
+                kinds["anonymous"].append(ip)
+
+        def tot(group, d):
+            return sum(d.get(ip, 0) for ip in group)
+        lines.append(numbers("  " + TR("Different addresses: {n} · Odoo accounts {a} · team or place {e} · robots {r} · anonymous {v} · this server {s}").format(
+            n=len(ips), a=len(kinds["account"]), e=len(kinds["team"]), r=len(kinds["robot"]), v=len(kinds["anonymous"]), s=len(kinds["server"]))))
+        lines.append(numbers("  " + TR("Pages viewed: {p} · requests: {q} (Odoo accounts: {pa} pages · robots: {pr} pages · anonymous: {pv} pages)").format(
+            p=sum(pages.values()), q=sum(req.values()), pa=tot(kinds["account"], pages), pr=tot(kinds["robot"], pages), pv=tot(kinds["anonymous"], pages))))
+        persons = {}
+        for ip in kinds["account"]:
+            acc = account_of(ip)
+            name = people.name_of(*acc) if acc else stats.names.get(ip, ip)
+            entry = persons.setdefault(name, {"ips": set(), "pages": 0, "req": 0})
+            entry["ips"].add(ip)
+            entry["pages"] += pages.get(ip, 0)
+            entry["req"] += req.get(ip, 0)
+        if persons:
+            lines.append("  " + TR("People ({n}), by pages viewed:").format(n=len(persons)))
+            ranked = sorted(persons.items(), key=lambda kv: (-kv[1]["pages"], -kv[1]["req"], kv[0]))
+            for name, e in ranked[:VISITOR_PEOPLE_MAX]:
+                lines.append(numbers(f"    {name:<28} " + TR("{p} pages · {q} requests · {a} address(es)").format(p=e["pages"], q=e["req"], a=len(e["ips"]))))
+            if len(ranked) > VISITOR_PEOPLE_MAX:
+                lines.append("    " + TR("... and {n} other people").format(n=len(ranked) - VISITOR_PEOPLE_MAX))
+        if kinds["robot"]:
+            names = Counter(re.sub(r"\s*\[.*$", "", stats.names.get(ip, ip)) for ip in kinds["robot"])
+            lines.append(numbers("  " + TR("Robots: {n} address(es) · {p} pages · {q} requests").format(n=len(kinds["robot"]), p=tot(kinds["robot"], pages), q=tot(kinds["robot"], req))
+                                 + " — " + " ; ".join(f"{n} ×{c}" for n, c in names.most_common(3))))
+        if state.get("visitor_hidden"):
+            lines.append("  " + TR("Lines hidden by --hide-bots / --accounts-only since the start: {n}").format(n=state["visitor_hidden"]))
+        return lines
+
+    def visitor_report(now_dt):
+        """1.191 --visitor-report MIN (60 by default): the visitor report every MIN minutes (% key: at once)."""
+        if not options.get("visitor_min") or now_dt < periodic["next_visitors"] or not state["summarized"]:
+            return
+        periodic["next_visitors"] = now_dt + options["visitor_min"] * 60
+        output.write("\n" + "\n".join(visitor_lines(now_dt, TR("Visitors (every {m:g} min)").format(m=options["visitor_min"]))) + "\n")
+        output.flush()
 
     def keep(L, raw_text, isolated=False):
         """--suspect and --only: is the line displayed? A continuation line (Python trace…) follows the decision of the previous line; an "isolated" line
@@ -7082,6 +7175,8 @@ def follow(cmd, people, resolver, options, output):
             return
         stats.ajouter(L, renderings, source, benign)
         if output.muted:                                  # 1.166 --advise: counted, never shown (no painting, status bar, beep or repeat watch)
+            return
+        if not visitor_keep(L, ips0):                     # 1.191 --hide-bots / --accounts-only: counted (reports), not shown
             return
         watch_repeat(ips0[0][2] if ips0 else None, L)
         state["emitted"] = state.get("emitted", 0) + 1
@@ -7684,6 +7779,9 @@ def follow(cmd, people, resolver, options, output):
                                       ("r", "--report-err", "error report to copy and paste, based on what has been displayed so far"),
                                       ("F", "--steps-line", TR("the steps of the recording (or of the last one) on one white line, updated at each step; works without R") + f" [{yes_no(options['steps_line'])}]"),
                                       ("s", "--suspect", f"only the suspicious requests [{yes_no(options['suspect'])}]"),
+                                      ("p", "--hide-bots", TR("hide the lines of the robots, still counted in the reports") + f" [{yes_no(options.get('hide_bots'))}]"),
+                                      ("g", "--accounts-only", TR("only the lines of the addresses of Odoo accounts (logins seen), still counted") + f" [{yes_no(options.get('accounts_only'))}]"),
+                                      ("%", "--visitor-report MIN", TR("visitors since the last report now: addresses, people with pages and requests, robots") + f" [{options.get('visitor_min', 0):g} min]"),
                                       ("X", "--errors-only", TR("only the errors and the suspicious requests, no normal transaction (the last 100 errors are shown)") + f" [{yes_no(options.get('errors_only'))}]"),
                                       ("x", "--log-nginx", f"the nginx logs of the site (read with the application log, in time order; from the next line on) [{yes_no(options['log_nginx'])}]"),
                                       ("U", "--underline N", TR("one log line out of N underlined on screen, up to the end of the screen line (0 = none); UNDERLINE of the configuration file") + f" [{output.underline or 'none'}]"),
@@ -8466,6 +8564,16 @@ def follow(cmd, people, resolver, options, output):
         elif key_value == "lognginx":                                  # 1.116: nginx lines shown or hidden, from the next line on
             options["log_nginx"] = not options["log_nginx"]
             write_out([f"  --log-nginx : {yes_no(options['log_nginx'])}" + (" (the following lines)" if options["nginx_merged"] else " (no nginx log is read: nothing changes)")])
+        elif key_value == "hidebots":                                   # 1.191 p: robots hidden or shown (still counted)
+            options["hide_bots"] = not options.get("hide_bots")
+            write_out([f"  --hide-bots : {yes_no(options['hide_bots'])}" + TR(" (the following lines)")])
+        elif key_value == "accountsonly":                               # 1.191 g: only the addresses of Odoo accounts (still counted)
+            options["accounts_only"] = not options.get("accounts_only")
+            write_out([f"  --accounts-only : {yes_no(options['accounts_only'])}" + TR(" (the following lines)")])
+        elif key_value == "visitors":                                   # 1.191 %: visitor report now (since the last one)
+            write_out(visitor_lines(time.time(), TR("Visitors (% key)")))
+            if options.get("visitor_min"):
+                periodic["next_visitors"] = time.time() + options["visitor_min"] * 60
         elif key_value == "errors":
             options["errors_only"] = not options.get("errors_only")
             state["errors_hold"] = False
@@ -8723,6 +8831,7 @@ def follow(cmd, people, resolver, options, output):
                 check_connections(time.time())
                 check_external_ip(time.time())
                 periodic_report(time.time())
+                visitor_report(time.time())
                 check_record(time.time())
                 if presence is not None:
                     for kind_name, text in presence.check(time.time()):
@@ -8827,6 +8936,7 @@ def follow(cmd, people, resolver, options, output):
             check_connections(time.time())
             check_external_ip(time.time())
             periodic_report(time.time())
+            visitor_report(time.time())
             check_record(time.time())
         release_deferred(None)
         finish_recording("end")
@@ -9045,6 +9155,14 @@ def main():
                         help="Only the errors and the suspicious requests (HTTP 400 and above, Odoo WARNING / ERROR, traces, failed logins), not the normal transactions; "
                              "starts with the last 100 errors found in the history (at least 3000 lines read); key X to switch it on and off while running")
     parser.add_argument("--no-banned", action="store_true", help="No [banned: …] label (reads neither fail2ban nor the CrowdSec ipsets)")
+    parser.add_argument("--hide-bots", action="store_true",
+                        help="1.191: hide the lines of the robots (robots.txt or sitemap requested, robot name or User-Agent); they stay counted; p key to switch; HIDE_BOTS")
+    parser.add_argument("--accounts-only", action="store_true",
+                        help="1.191: only the lines of the addresses from which an Odoo account logged in (history and live); lines without an address stay; "
+                             "everything stays counted; g key to switch; ACCOUNTS_ONLY")
+    parser.add_argument("--visitor-report", type=float, default=VISITOR_REPORT_DEFAULT, metavar="MIN",
+                        help=f"1.191: every MIN minutes, the visitors since the last report: different addresses (Odoo accounts, team, robots, anonymous), "
+                             f"pages and requests per person; %% key: at once; 0 = never (default {VISITOR_REPORT_DEFAULT:g}); VISITOR_REPORT")
     parser.add_argument("--only", action="append", default=None, metavar="TEXT",
                         help="Only the lines that contain TEXT (name, address, URL, module…, case-insensitive); repeatable: one OR the other")
     parser.add_argument("--show-ip", dest="hide_ip", action="store_false",
@@ -9218,6 +9336,8 @@ def main():
         parser.error("--lines must be positive, --days between 0 (all) and 36500, --idle greater than 0, --recap, --health and --log-keep-days positive or zero")
     if not 1 <= args.level <= LEVEL_MAX:
         parser.error(f"--level must be between 1 and {LEVEL_MAX}")
+    if not 0 <= args.visitor_report <= 1440:
+        parser.error("--visitor-report: 0 to 1440 minutes")
     if args.time_report is not None and not 0 <= args.time_report <= 1440:
         parser.error("--time-report must be between 0 and 1440 minutes")
     if not 0 < (args.record_max or 0) <= RECORD_MAX_LIMIT or (args.record_test_log is not None and not 0 < args.record_test_log <= 1440):
@@ -9377,7 +9497,8 @@ def main():
                "slow": max(0.0, args.slow), "only": [t.lower() for t in (args.only or []) if t], "highlight_words": read_highlight(args.highlight), "highlight_pattern": highlight_pattern(read_highlight(args.highlight)), "suspect": args.suspect, "errors_only": args.errors_only, "disk_min": max(0.0, args.disk_min), "connections": max(0.0, min(100.0, args.connections)), "external_ip": not args.no_isp, "odoo_journal": profile.get("ODOO_LOGFILE"), "profile": profile, "service": service, "ns": ns, "advise": args.advise is not None, "export_ai": export_ai_path(args.export_ai), "apply": args.apply, "diag_hosts": args.diagnose_host, "not_found": args.not_found, "steps_line": args.steps_line, "summary": args.summary, "banned_ips": banned_ips,
                "presence": Presence(args.idle) if is_odoo and not args.no_presence else None, "health": args.health, "keys": not args.no_keys and not args.no_follow, "app": profile.get("APP_NAME"), "app_label": profile.get("APP_LABEL", "application"), "hide_user_agent": args.hide_user_agent, "request_length": args.request_length, "log_nginx": bool(args.log_nginx), "log_merge": bool(args.log_merge), "status_header": bool(args.status_header), "nginx_merged": LOGS_MERGE in cmd, "propose_ban": not args.no_ban_prompt, "watch": [t.strip().lower() for t in (args.watch or "").split(",") if t.strip()], "agents": not args.no_user_agent and not args.no_follow, "acces_logs": profile.get("ACCESS_LOGS"),
                "exclude": exclusions, "chime": args.chime, "group": args.accentuate_group if group_members else None, "membres": group_members,
-               "report_min": args.time_report or 0.0, "level": args.level, "modules_sort": modules_sort_state}
+               "report_min": args.time_report or 0.0, "level": args.level, "modules_sort": modules_sort_state,
+               "hide_bots": args.hide_bots, "accounts_only": args.accounts_only, "visitor_min": args.visitor_report}          # 1.191
     options.update({"display_host": args.display_host, "buffer": args.buffer, "status_every": args.status_every,                          # 1.113: buffer of the f and P keys, status bar
                     "since": args.since_epoch, "until": args.until_epoch, "grep": grep_re,            # 1.112 filters of the stream loop
                     "countries": countries or None, "exclude_countries": unwanted_countries or None})

@@ -89,6 +89,12 @@
 #NOT_FOUND=no
 # --no-banned
 #NO_BANNED=no
+# --hide-bots (1.191): hide the lines of the robots (robots.txt or sitemap requested, robot name or User-Agent); still counted in the reports (p key on the fly)
+#HIDE_BOTS=no
+# --accounts-only (1.191): only the lines of the addresses from which an Odoo account logged in; lines without an address stay (g key on the fly)
+#ACCOUNTS_ONLY=no
+# --visitor-report (1.191): minutes between two visitor reports (different addresses, people with pages and requests, robots); 0 = never; % key: at once
+#VISITOR_REPORT=60
 # --no-ban-prompt
 #NO_BAN_PROMPT=no
 # --no-cache

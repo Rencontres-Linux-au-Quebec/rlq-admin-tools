@@ -3502,3 +3502,45 @@ msgstr " ms · 99 % sous "
 
 msgid " ms · maximum "
 msgstr " ms · maximum "
+
+msgid "Different addresses: {n} · Odoo accounts {a} · team or place {e} · robots {r} · anonymous {v} · this server {s}"
+msgstr "Adresses différentes : {n} · comptes Odoo {a} · équipe ou lieu {e} · robots {r} · anonymes {v} · ce serveur {s}"
+
+msgid "Pages viewed: {p} · requests: {q} (Odoo accounts: {pa} pages · robots: {pr} pages · anonymous: {pv} pages)"
+msgstr "Pages vues : {p} · requêtes : {q} (comptes Odoo : {pa} pages · robots : {pr} pages · anonymes : {pv} pages)"
+
+msgid "People ({n}), by pages viewed:"
+msgstr "Personnes ({n}), par pages vues :"
+
+msgid "{p} pages · {q} requests · {a} address(es)"
+msgstr "{p} pages · {q} requêtes · {a} adresse(s)"
+
+msgid "... and {n} other people"
+msgstr "... et {n} autres personnes"
+
+msgid "Robots: {n} address(es) · {p} pages · {q} requests"
+msgstr "Robots : {n} adresse(s) · {p} pages · {q} requêtes"
+
+msgid "Lines hidden by --hide-bots / --accounts-only since the start: {n}"
+msgstr "Lignes cachées par --hide-bots / --accounts-only depuis le démarrage : {n}"
+
+msgid "Visitors (every {m:g} min)"
+msgstr "Visiteurs (toutes les {m:g} min)"
+
+msgid "Visitors (% key)"
+msgstr "Visiteurs (touche %)"
+
+msgid "No request since the last report."
+msgstr "Aucune requête depuis le dernier rapport."
+
+msgid "hide the lines of the robots, still counted in the reports"
+msgstr "cacher les lignes des robots, toujours comptées dans les rapports"
+
+msgid "only the lines of the addresses of Odoo accounts (logins seen), still counted"
+msgstr "seulement les lignes des adresses des comptes Odoo (connexions vues), toujours comptées"
+
+msgid "visitors since the last report now: addresses, people with pages and requests, robots"
+msgstr "visiteurs depuis le dernier rapport, tout de suite : adresses, personnes avec pages et requêtes, robots"
+
+msgid "since"
+msgstr "depuis"

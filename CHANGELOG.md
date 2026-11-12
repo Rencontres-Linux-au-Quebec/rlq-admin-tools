@@ -414,6 +414,17 @@ Earlier history was archived outside this repository when this file was created.
 
 ## app-log-live.py
 
+### 1.191.20261112.075046 - Hide robots, Odoo accounts only, visitor report every hour
+
+- Title: three ways to read the stream by visitor: robots hidden (p key), only the addresses of Odoo accounts (g key), and a visitor report every 60 minutes or at once (% key).
+- Reason: request of the administrator on 2026-11-12: an option to hide the lines of the bots (or show them, as a toggle); an option to see only the users whose addresses belong to people with an Odoo account; statistics every hour (or on demand with a key, since the last time) on the different addresses seen and the users, with their number of pages.
+- Changes: new options --hide-bots (key HIDE_BOTS, p key), --accounts-only (key ACCOUNTS_ONLY, g key), --visitor-report MIN (key VISITOR_REPORT, 60 by default, 0 = never, % key: at once); follow(): visitor_keep() after the counting in emit(), visitor_lines() and visitor_report() next to periodic_report(); constants VISITOR_REPORT_DEFAULT, VISITOR_PEOPLE_MAX (15); MENU_KEYS p, g, %; menu entries; config_values() (W key) writes the three keys; doc/en and doc/fr app-log-live.conf.example; lang/app-log-live.fr.po: 14 messages; nginx-tools-tests/test_app_log_live.py: 3 tests.
+- Report content: different addresses split into Odoo accounts, team or place, robots, anonymous and this server; pages viewed and requests (Odoo accounts, robots, anonymous); the people (name of the Odoo account) with pages, requests and number of addresses, by pages viewed (15 at most, the others counted); the robots with their 3 most frequent names; lines hidden by the two filters. Each report starts where the previous one stopped (the % key too).
+- Bugs fixed: none.
+- Safeguards and edge cases: hidden lines are still counted (dashboard, Ctrl-T, summary, visitor report); a line without an address (Odoo error, presence...) is always shown, a continuation line (trace) follows its first line; robot = robots.txt or sitemap requested, robot name or User-Agent, never a known person, the team or this server (same rule as the dashboard); an Odoo account = an address of a "Login successful" line (history of --days and live); a robot is hidden from the line where it asks robots.txt (its earlier lines were already shown); --visitor-report outside 0 to 1440 is refused.
+- Checks performed: python3 -m py_compile; ruff (same result as before); 3 new tests (subtests for the four filter combinations, keys and configuration, % key in a pseudo-terminal).
+- Action required: none (the visitor report now comes every 60 minutes by default: VISITOR_REPORT=0 in /etc/default/app-log-live.conf to turn it off).
+
 ### 1.190.20261112.054310 - Requests of nginx-hardening.sh named correctly
 
 - Title: the local requests of nginx-hardening.sh --check are shown as "nginx-hardening.sh", no longer as "app-health-check.py".
