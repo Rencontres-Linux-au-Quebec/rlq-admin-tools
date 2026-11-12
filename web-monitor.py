@@ -85,7 +85,7 @@ import time
 import unicodedata
 import urllib.parse
 
-__version__ = "2.88.20261109.153000"
+__version__ = "2.89.20261112.054310"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
@@ -633,8 +633,13 @@ def do_run(dry_run):
         runs.append(("app-log-check.py", cmd, {"APP_LOG_CHECK_STATE_DIR": os.path.join(work_state, "app-log-check")}, analyze_odoo_logs))
     nl = tool("nginx-log-audit.sh")
     if nl:
+        audit_env = {"NGINX_LOG_AUDIT_STATE_DIR": os.path.join(work_state, "nginx-log-audit")}
+        if sc and PROFILE.get("HEALTH_CHECKS") != "bbb":
+            # 2.89: app-health-check.py (run just before) already ran nginx-hardening.sh --check and its [FAIL] are in this report:
+            # nginx-log-audit.sh does not run it a second time (about 20 s and the same requests to the site every hour)
+            audit_env["NGINX_LOG_AUDIT_SKIP_SETUP_CHECK"] = "1"
         runs.append(("nginx-log-audit.sh --fail2ban --no-prompt", ["bash", nl, "--fail2ban", "--no-prompt", "--app", PROFILE["APP_NAME"]] + verbose_args(),
-                     {"NGINX_LOG_AUDIT_STATE_DIR": os.path.join(work_state, "nginx-log-audit")}, analyze_nginx_logs))
+                     audit_env, analyze_nginx_logs))
     cs = tool("sync-crowdsec-blocklist.sh")
     if cs:
         runs.append(("sync-crowdsec-blocklist.sh --status", ["bash", cs, "--status"] + verbose_args(), None, analyze_crowdsec))

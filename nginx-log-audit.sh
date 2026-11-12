@@ -146,7 +146,7 @@ grep_q() { grep "$@" >/dev/null; }
 #                              ne peut pas le voir, le texte etant entre apostrophes (faux positif).
 trap 'ec=$?; echo "" >&2; echo "*** ARRÊT INATTENDU DU SCRIPT (code $ec) À LA LIGNE $LINENO ***" >&2; echo "*** Commande fautive : $BASH_COMMAND" >&2; echo "*** Si le rapport ci-dessus semble incomplet (ex. sections Top 10 absentes), c'\''est probablement la cause." >&2' ERR
 
-readonly SCRIPT_VERSION="2.94.20261111.171900"
+readonly SCRIPT_VERSION="2.95.20261112.054310"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
 # theme_sgr CODE (2.86) : the SGR code as the color theme shows it (--theme N, THEME, NGINX_TOOLS_THEME; apps/_theme.py). Theme 0, no module or no python3: unchanged.
 theme_sgr() {
@@ -1903,8 +1903,11 @@ fi
 # --- Light check of the initial setup (directories, firewall) if nginx-hardening.sh is present next to it ---
 # Silent if all is in order, so as not to clutter a normal report - displays something only if
 # a step is missing. If nginx-hardening.sh is not deployed next to this script, ignored without error.
+# 2.95: run ONCE per report. Skipped for --investigate / --evidence (one address: about 20 s of nginx-hardening.sh --check for nothing),
+# in the copies of this script that it launches itself (one --investigate per repeat offender: 3 offenders = 3 more --check runs every hour)
+# and when the caller already ran it (web-monitor.py: app-health-check.py runs nginx-hardening.sh --check in the same pass).
 SETUP_SCRIPT="$SCRIPT_DIR/nginx-hardening.sh"
-if [[ -x "$SETUP_SCRIPT" ]]; then
+if [[ -x "$SETUP_SCRIPT" && -z "$INVESTIGATE_IP" && -z "$EVIDENCE_IP" && "${NGINX_LOG_AUDIT_SKIP_SETUP_CHECK:-0}" != "1" ]]; then
     SETUP_CHECK_OUT=$(env -u NGINX_TOOLS_I18N "$SETUP_SCRIPT" --check --lang "${NGINX_TOOLS_I18N_LANGUE:-fr}" 2>/dev/null) || true
     if printf '%s\n' "$SETUP_CHECK_OUT" | grep_q '\[FAIL\]'; then
         echo
@@ -1914,6 +1917,7 @@ if [[ -x "$SETUP_SCRIPT" ]]; then
         echo
     fi
 fi
+export NGINX_LOG_AUDIT_SKIP_SETUP_CHECK=1      # 2.95: the copies launched below (--investigate of each repeat offender...) do not run it again
 
 # --- Application derriere nginx : profil apps/<nom>.conf, detecte ou force (--app=NOM, ou variable APP_PROFILE) ------
 APPS_DIR="$SCRIPT_DIR/apps"

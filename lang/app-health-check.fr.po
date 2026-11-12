@@ -867,3 +867,6 @@ msgstr "ATTENTION : configuration illisible sans root : {path} : les valeurs dé
 
 msgid "ERROR: no configuration could be detected without root (sudo app-health-check.py)"
 msgstr "ERREUR : aucune configuration n'a pu être détectée sans root (sudo app-health-check.py)"
+
+msgid "nginx-hardening.sh --check stopped after {n} s (SETUP_CHECK_TIMEOUT): result incomplete, increase the key or run it by hand"
+msgstr "nginx-hardening.sh --check arrêté après {n} s (SETUP_CHECK_TIMEOUT) : résultat incomplet, augmentez la clé ou lancez-le à la main"

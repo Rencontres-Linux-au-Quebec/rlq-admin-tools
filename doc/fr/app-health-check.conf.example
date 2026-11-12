@@ -96,6 +96,10 @@ ODOO_DISCUSS_MODEL=discuss.channel
 # webhook : POST JSON {"title": ..., "message": ...}
 #NOTIFY_WEBHOOK_URL=
 
+# --- 2.36 : vérification du setup (nginx-hardening.sh --check, lancé à chaque passage avec --target local) ---
+# Temps maximal en secondes accordé à nginx-hardening.sh --check (environ 20 s sur un serveur normal ; 15 s avant 2.36 pouvait le couper).
+#SETUP_CHECK_TIMEOUT=120
+
 # --- Options de la ligne de commande SEULEMENT (actions ou réglages ponctuels : aucune clé ici) ---
 #   --changelog     affiche le journal des modifications
 #   --force         avec --create-config : remplace un fichier existant (copie de sauvegarde faite)
