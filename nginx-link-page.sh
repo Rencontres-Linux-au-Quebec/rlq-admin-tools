@@ -71,12 +71,12 @@ readonly THEME_MENU_CSS="$SCRIPT_DIR/apps/link-page-theme-menu.css"
 readonly THEMES_TOUS="auto light dark aurora maple river terminal tux ls-aurora ls-dark ls-dawn ls-misty-rain"
 # themes_offerts VALUE: the themes of PAGE_n_THEMES, one per word, without duplicates, in the given order ("all": THEMES_TOUS)
 themes_offerts() {
-    local v="${1// /}" t vus=" "
+    local v="${1// /}" t u vus=" "
     [[ -n "$v" ]] || return 0
     IFS=',' read -r -a _liste <<< "$v"
     for t in "${_liste[@]}"; do
         if [[ "${t,,}" == all ]]; then                 # "all" anywhere in the list: every theme, after those already given
-            for t in $THEMES_TOUS; do [[ "$vus" != *" $t "* ]] && { vus+="$t "; printf '%s\n' "$t"; }; done
+            for u in $THEMES_TOUS; do [[ "$vus" != *" $u "* ]] && { vus+="$u "; printf '%s\n' "$u"; }; done
             continue
         fi
         [[ -n "$t" && "$vus" != *" $t "* ]] || continue
