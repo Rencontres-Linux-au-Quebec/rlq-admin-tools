@@ -14,6 +14,7 @@ PROG = RACINE / "nginx-link-page.sh"
 EXEMPLE = RACINE / "nginx-link-page.conf.example"
 CHANGELOG = RACINE / "CHANGELOG.md"
 SHA = "3c9162c9f8324d5e002259ed8b4b3cc377b08486"
+SHA_EXT = "d7034f83a6bf71c4a663d2d046a03b37ec74ae45"
 VERSION = re.search(r'^readonly SCRIPT_VERSION="([^"]+)"', PROG.read_text(encoding="utf-8"), re.M).group(1)
 
 MINIMAL = """SITE_TITLE=Test
@@ -27,6 +28,14 @@ PAGE_1_DIR=/var/www/liens
 GIT_STUB = """#!/bin/sh
 if [ "$1" = "clone" ]; then
     for last; do :; done
+    case "$last" in
+        *littlelink-extended)
+            [ -n "$RLQ_STUB_NO_EXT" ] && exit 128
+            mkdir -p "$last/css" "$last/images/icons-extended" "$last/js"
+            echo ".button-codeberg {}" > "$last/css/brands-extended.css"; echo "alert(1)" > "$last/js/sensitive-content.js"
+            echo i > "$last/images/icons-extended/codeberg.svg"; echo i > "$last/images/icons-extended/lemmy.svg"
+            exit 0 ;;
+    esac
     mkdir -p "$last/css" "$last/fonts" "$last/images/icons"
     echo body > "$last/css/style.css"; echo x > "$last/css/reset.css"; echo ".button-faceb {}" > "$last/css/brands.css"
     echo f > "$last/fonts/f.woff2"
@@ -35,9 +44,15 @@ if [ "$1" = "clone" ]; then
     echo i > "$last/images/icons/generic-blog.svg"
     exit 0
 fi
-if [ "$1" = "-C" ]; then echo "${RLQ_STUB_SHA:-SHA_REEL}"; exit 0; fi
+if [ "$1" = "-C" ]; then
+    case "$2" in
+        *littlelink-extended) echo "${RLQ_STUB_SHA_EXT:-SHA_DE_EXTENDED}" ;;
+        *) echo "${RLQ_STUB_SHA:-SHA_REEL}" ;;
+    esac
+    exit 0
+fi
 exit 1
-""".replace("SHA_REEL", SHA)
+""".replace("SHA_REEL", SHA).replace("SHA_DE_EXTENDED", SHA_EXT)
 
 CURL_STUB = r"""#!/bin/sh
 out=""
@@ -372,6 +387,37 @@ PAGE_2_TITLE=Deux
         self.assertIn("return 301 /liens/;", snippet)
         self.assertIn("location = /liens2 {", snippet)
         self.assertIn(f"alias {self.www}/liens/;", snippet)
+
+    def test_littlelink_extended_icones_et_boutons(self):
+        """1.11: builtin:NAME is looked for in LittleLink, then in LittleLink Extended (icons-extended, brands-extended.css); no script copied."""
+        texte = self.config_deux_pages("no").replace("LINK_2_ICON=https://example.org/i.png", "LINK_2_ICON=builtin:codeberg").replace(
+            "PAGE_1_THEME=auto\n", "PAGE_1_THEME=auto\nPAGE_1_BUTTONS=brand\n")
+        r = self.lancer("-c", str(self.conf(texte)), "--update", "--yes", env=self.env)
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertIn("LittleLink Extended v3.2.0", r.stdout)
+        ici = (self.www / "liens" / "index.html").read_text(encoding="utf-8")
+        self.assertIn('src="images/icons-extended/codeberg.svg"', ici)
+        self.assertIn('href="css/brands-extended.css"', ici)
+        self.assertIn("button-codeberg", ici)
+        self.assertIn('src="images/icons/facebook.svg"', ici)                  # LittleLink first
+        self.assertTrue((self.www / "liens" / "images" / "icons-extended" / "lemmy.svg").exists())
+        self.assertFalse(any((self.www / "liens").rglob("*.js")))
+        self.assertNotIn("<script", ici)
+
+    def test_littlelink_extended_absent_ou_autre_commit(self):
+        """1.11: Extended not reachable or another commit: [ATTN] and pages built without it; an Extended icon then stops the build."""
+        conf = self.conf(self.config_deux_pages("no"))
+        for env in ({"RLQ_STUB_NO_EXT": "1"}, {"RLQ_STUB_SHA_EXT": "0" * 40}):
+            with self.subTest(env=env):
+                r = self.lancer("-c", str(conf), "--update", "--yes", env={**self.env, **env})
+                self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+                self.assertIn("[ATTN]", r.stdout)
+                ici = (self.www / "liens" / "index.html").read_text(encoding="utf-8")
+                self.assertNotIn("brands-extended.css", ici)
+        texte = self.config_deux_pages("no").replace("LINK_2_ICON=https://example.org/i.png", "LINK_2_ICON=builtin:codeberg")
+        r = self.lancer("-c", str(self.conf(texte)), "--update", "--yes", env={**self.env, "RLQ_STUB_NO_EXT": "1"})
+        self.assertNotEqual(r.returncode, 0)
+        self.assertIn("codeberg", r.stdout + r.stderr)
 
     def test_variantes_marque_avatar_accent_bascule(self):
         texte = self.config_deux_pages("no").replace(

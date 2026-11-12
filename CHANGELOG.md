@@ -4336,6 +4336,16 @@ Earlier history was archived outside this repository when this file was created.
 
 ## nginx-link-page.sh
 
+### 1.11.20261112.074754 - LittleLink Extended icons and brand buttons
+
+- Title: the link pages can use the 76 icons and the brand buttons of LittleLink Extended (Codeberg, Lemmy, PeerTube, Matrix, Pixelfed, ORCID, OpenStreetMap...).
+- Reason: request of the administrator on 2026-11-12: install https://github.com/sethcottle/littlelink-extended with LittleLink.
+- Changes: new constants LINKPAGE_EXT_REPO, LINKPAGE_EXT_TAG (v3.2.0), LINKPAGE_EXT_SHA (d7034f83a6bf); step 1 clones it after LittleLink and copies only css/brands-extended.css and images/icons-extended/; icone_resoudre(): builtin:NAME looks in images/icons/ then in images/icons-extended/; brand button (PAGE_n_BUTTONS=brand) also looked for in brands-extended.css; genere_index(): link to css/brands-extended.css when present; nginx-link-page.conf.example: examples of Extended icons; nginx-tools-tests/test_nginx_link_page.py: git stub for the second repository, 2 tests.
+- Bugs fixed: none.
+- Safeguards and edge cases: same pinning as LittleLink (tag AND commit; another commit is refused); Extended not reachable or another commit: [ATTN] and the pages are built without it, an Extended icon then stops with "unknown built-in icon"; js/sensitive-content.js is never copied (the Content-Security-Policy of the pages forbids scripts); a LittleLink icon of the same name wins.
+- Checks performed: bash -n; shellcheck; test_nginx_link_page (50 tests, root, fake git/curl/nginx).
+- Action required: none (to use an icon: LINK_n_ICON=builtin:codeberg, for example, then sudo nginx-link-page.sh --update --yes).
+
 ### 1.10.20261112.072450 - Preview on social networks (Open Graph), set in the configuration
 
 - Title: the generated pages carry the Open Graph and Twitter card tags, so LinkedIn, Facebook, Mastodon... show a chosen image, title and description.
