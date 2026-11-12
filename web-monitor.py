@@ -85,7 +85,7 @@ import time
 import unicodedata
 import urllib.parse
 
-__version__ = "2.90.20261112.082236"
+__version__ = "2.91.20261112.095816"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
@@ -407,6 +407,21 @@ def analyze_nginx_logs(code, out):
     if ips:
         alerts.append(("nginx-log-audit.sh: ban recommended (investigation, section [10])", proposals[:12],
                        ["nginx:ban:" + ip for ip in ips]))
+    # 2.91: section [1 bis] of nginx-log-audit.sh 2.97: addresses refused with 403 by the User-Agent rule that are probably PEOPLE (team, Odoo account,
+    # normal browsing) and not exempt yet. Reported every hour (key nginx:403-person:IP); the exemption is offered by nginx-log-audit.sh --verify-bots.
+    blocks, current = [], None
+    for l in section(out, "--- [1 bis]"):
+        if l.strip().startswith("▶"):
+            current = [l.strip()]
+            blocks.append(current)
+        elif current is not None and l.strip():
+            current.append(l.strip())
+    # "probablement une PERSONNE :" = not exempt yet (an exempt one is "probablement une PERSONNE, ...")
+    people = [b for b in blocks if any("probablement une PERSONNE :" in l for l in b)]
+    if people:
+        lines = [l for b in people for l in b][:12] + [TR("  To check and exempt them (confirmation asked): sudo nginx-log-audit.sh --verify-bots")]
+        alerts.append((TR("nginx-log-audit.sh: robots refused with 403 that are probably people"), lines,
+                       ["nginx:403-person:" + re.sub(r"^▶\s*(\S+).*", r"\1", b[0]) for b in people]))
     repeat_offender = []
     grab = False
     for l in out.splitlines():

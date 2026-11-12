@@ -852,6 +852,57 @@ class SetupNginxOdoo(BaseNginxHardening):
         self.env["NGINX_HARDENING_WORKER_AGE"] = "inconnu"
         self.assertNotIn("plus récents que la configuration chargée", self.setup("--update"))
 
+    def test_etape12e_exemptions_du_refus_par_user_agent(self):
+        """2.103 : /etc/default/nginx-tools-bot-exempt.conf devient bot-exempt-geo.conf ($is_bot_exempt) ; entrée [temporaire] échue absente ; --check
+        signale un fichier absent ; entrée invalide : rien n'est écrit ; nginx -t refusé : ancienne version restaurée."""
+        snip = os.path.dirname(self.path("snippets", "x"))
+        self.env["NGINX_HARDENING_SNIPPETS_DIR"] = snip
+        dst = os.path.join(snip, "bot-exempt-geo.conf")
+        liste = os.path.join(self.d, "bot-exempt.conf")
+        self.env["NGINX_TOOLS_BOT_EXEMPT"] = liste
+        with open(liste, "w", encoding="utf-8") as f:
+            f.write("203.0.113.9   # script de Jean  [temporaire 2099-01-01 00:00:00]\n198.51.100.20  # échue  [temporaire 2000-01-01 00:00:00]\n"
+                    "2001:db8::7   # poste v6\n")
+        if os.path.exists(dst):
+            os.remove(dst)
+        self.liste_blanche(LISTE_EXEMPLE)
+        out = self.setup()
+        self.assertIn("--- 12e) Exemptions du refus par User-Agent", out)
+        self.assertIn("bot-exempt-geo.conf absent", out)
+        self.mock("systemctl", f'echo "$@" >> {self.d}/systemctl.log; exit 0')
+        out = self.setup("--update")
+        self.assertIn("Exemptions du refus par User-Agent régénérées (2 adresse(s))", out)
+        texte = open(dst, encoding="utf-8").read()
+        self.assertRegex(texte, r"(?m)^203\.0\.113\.9\s+1;\s+# script de Jean$")
+        self.assertRegex(texte, r"(?m)^2001:db8::7\s+1;")
+        self.assertNotIn("198.51.100.20", texte)
+        self.assertIn("à jour (2 adresse(s) exemptée(s)", self.setup("--update"))
+        with open(liste, "a", encoding="utf-8") as f:
+            f.write("pas-une-adresse   # x\n")
+        out = self.setup("--update")
+        self.assertIn("entrées invalides", out)
+        self.assertNotIn("pas-une-adresse", open(dst, encoding="utf-8").read())
+        with open(liste, "w", encoding="utf-8") as f:
+            f.write("203.0.113.10   # autre\n")
+        self.mock("nginx", f'[[ "$1" == -T ]] && cat {self.d}/nginx-T; [[ "$1" == -t ]] && {{ echo "nginx: [emerg] boum" >&2; exit 1; }}; exit 0')
+        out = self.setup("--update")
+        self.assertIn("exemptions régénérées — ancienne version restaurée", out)
+        self.assertIn("203.0.113.9", open(dst, encoding="utf-8").read())
+
+    def test_exemptions_dans_la_configuration_nginx_generique(self):
+        """2.103 : odoo-global.conf définit $is_bot_exempt (include bot-exempt-geo.conf) ; securite-commune.conf l'applique AVANT le refus 403 et
+        seulement à $is_bad_bot ; le fragment est créé vide s'il manque (nginx refuse un include sans fichier)."""
+        from helpers import SCRIPTS_DIR
+        globale = open(os.path.join(SCRIPTS_DIR, "nginx", "conf.d", "odoo-global.conf"), encoding="utf-8").read()
+        self.assertRegex(globale, r"geo \$is_bot_exempt \{\s*default 0;\s*include /etc/nginx/snippets/bot-exempt-geo\.conf;\s*\}")
+        commune = open(os.path.join(SCRIPTS_DIR, "nginx", "snippets", "securite-commune.conf"), encoding="utf-8").read()
+        m = re.search(r"if \(\$is_bot_exempt\) \{\s*set \$is_bad_bot 0;\s*\}", commune)
+        self.assertIsNotNone(m)
+        self.assertLess(m.start(), commune.index("if ($is_bad_bot_enforced)"))
+        self.assertEqual(commune.count("$is_bot_exempt"), 2)                    # comment + test: nothing else uses it
+        prog = open(os.path.join(SCRIPTS_DIR, "nginx-hardening.sh"), encoding="utf-8").read()
+        self.assertRegex(prog, r"for f in [^;]*bot-exempt-geo\.conf; do")
+
     def test_etape12b_reseaux_partages_generes_depuis_les_lieux(self):
         """2.30 : les lieux [partagée] deviennent shared-ips-geo.conf (limites de débit plus larges) ; --check le signale s'il est absent ; ni [protégée] seul ni adresse
         invalide ; sans lieu partagé : fichier sans adresse ; nginx -t refusé : ancienne version restaurée."""

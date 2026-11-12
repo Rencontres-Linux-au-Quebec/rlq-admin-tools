@@ -22,6 +22,8 @@
 #BAN_DAYS_OTHER=365
 # --ban-threshold
 #BAN_THRESHOLD=3
+# --bot-exempt-days (2.97) : durée en jours d'une exemption du refus par User-Agent écrite par --bot-exempt ou --verify-bots (0 : sans fin)
+#BOT_EXEMPT_DAYS=30
 # en, fr ou auto (suivre LC_ALL / LC_MESSAGES / LANG). Ordre de choix : --lang, NGINX_TOOLS_LANG, NGINX_LOG_AUDIT_LANG, cette clé, LC_ALL, LC_MESSAGES, LANG.
 # Ajouter une langue = ajouter le fichier lang/nginx-log-audit.XX.po (format PO : Poedit, Weblate...) - voir lang/README.md.
 #LANGUAGE=auto
@@ -37,11 +39,14 @@
 #UA_ROTATION_THRESHOLD=2
 # --verbose
 #VERBOSE=no
+# --no-verify-bots (2.97) : VERIFY_BOTS=no : le rapport ne vérifie pas les adresses refusées en 403 par bot_blocker.conf (section [1 bis])
+#VERIFY_BOTS=yes
 
 # --- Options de la ligne de commande SEULEMENT (actions ou réglages ponctuels : aucune clé ici) ---
 # Les voici, pour mémoire (« nginx-log-audit --help » donne le détail). Elles se donnent sur la ligne de commande, jamais dans ce fichier.
 #   --ban-days N          avec --ban : durée de CE bannissement en jours, quelle que soit la provenance (0 : sans expiration)
 #   --ban-history         journal des bannissements et levées manuels (date, heure, IP, justification, origine), lecture seule
+#   --bot-exempt IP       exempter IP du seul refus par User-Agent pendant BOT_EXEMPT_DAYS jours (vérifications, puis confirmation sauf --yes)
 #   --changelog           affiche le journal des modifications
 #   --compare [FICHIER]   compare les 24 dernières heures aux 24 précédentes (codes, blocages, IP, chemins), écrit dans FICHIER (mode 600) ; lecture seule
 #   --config-merge        Réécrit le fichier de configuration à partir de la nouvelle configuration par défaut, en gardant les valeurs réglées (copie FICHIER.bak-AAAAMMJJ-HHMMSS), puis quitte
@@ -62,5 +67,6 @@
 #   --unban-cdn           lever les bannissements des adresses Cloudflare (aperçu, puis confirmation)
 #   --unban-check         réévaluer chaque bannissement manuel (levée proposée si injustifié)
 #   --unban-expired       lever les bannissements manuels dont l'échéance est passée (aperçu, puis confirmation ; lancé chaque jour par cron)
+#   --verify-bots         les adresses refusées en 403 par la règle des User-Agent sont-elles vraiment des robots ? (équipe, compte Odoo, navigation, nom DNS vérifié)
 #   --version             affiche la version et quitte
 #   --yes                 avec --ban : bannir sans question

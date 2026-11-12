@@ -93,7 +93,7 @@ run() {
     "$@"
 }
 
-readonly SCRIPT_VERSION="2.102.20261112.082236"
+readonly SCRIPT_VERSION="2.103.20261112.095816"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
 SCRIPT_NAME="$(basename "${BASH_SOURCE[0]}" .sh)"; readonly SCRIPT_NAME
 # Display language (en or fr): --lang, NGINX_HARDENING_LANG, LANGUAGE of the configuration file, LC_ALL / LANG - apps/_i18n.sh translates the output (nothing changes in French).
@@ -702,14 +702,14 @@ temporaires_verifier() {
 dns_cron_installer() {
     local cron="/etc/cron.d/nginx-tools-dns" script contenu
     script=$(readlink -f "${BASH_SOURCE[0]}")
-    if [[ -z "$(listes_noms_dns)" && -z "$(listes_temporaires)" ]]; then
+    if [[ -z "$(listes_noms_dns)" && -z "$(listes_temporaires)" && -z "$(listes_fichier_exemption 2>/dev/null)" ]]; then       # 2.103: exemptions expire too
         if [[ -f "$cron" ]]; then
             if [[ "$CHECK_ONLY" == "1" ]]; then warn "$cron inutile (aucun nom DNS dans la liste blanche) — --update le supprimera."
             else rm -f "$cron" && pass "$cron supprimé (aucun nom DNS dans la liste blanche)."; fi
         fi
         return 0
     fi
-    contenu="# GÉNÉRÉ par nginx-hardening.sh --update : noms DNS de la liste blanche (adresses dynamiques) et entrées [temporaire] (expiration), toutes les 15 minutes.
+    contenu="# GÉNÉRÉ par nginx-hardening.sh --update : noms DNS de la liste blanche (adresses dynamiques), entrées [temporaire] et exemptions du refus par User-Agent (expiration), toutes les 15 minutes.
 SHELL=/bin/sh
 */15 * * * * root \"$script\" --dns-refresh >> /var/log/nginx-tools-dns.log 2>&1"
     if [[ "$(cat "$cron" 2>/dev/null)" == "$contenu" ]]; then pass "$cron à jour."
@@ -746,6 +746,9 @@ dns_rafraichir() {
     done < <(listes_noms_dns)
     # signature de la liste effective : une date [temporaire] atteinte, une étiquette ou une liste modifiée déclenchent aussi --update
     nouveau+="#liste"$'\t'"$(listes_blanche | sha256sum | cut -c1-64)"$'\n'
+    if declare -F listes_exemptions >/dev/null; then                 # 2.103: exemptions of the 403 by User-Agent (date reached, entry added)
+        nouveau+="#exemptions"$'\t'"$(listes_exemptions | sha256sum | cut -c1-64)"$'\n'
+    fi
     if [[ "${nouveau%$'\n'}" == "$ancien" ]]; then return 1; fi      # cat ne garde pas le saut de ligne final
     if [[ "$CHECK_ONLY" != "1" ]]; then
         local tmp; mkdir -p "$(dirname "$etat")" 2>/dev/null || true
@@ -780,6 +783,24 @@ generer_equipe() {
             printf 'allow %-18s # %s\n' "$adr;" "${lib:-équipe}"
         fi
     done < <(listes_blanche)
+}
+
+# generer_exemptions: content of bot-exempt-geo.conf (nginx $is_bot_exempt table, 2.103): the addresses of /etc/default/nginx-tools-bot-exempt.conf in
+# force ([temporaire] date not reached). They are exempt ONLY from the 403 by User-Agent (rule 1 of securite-commune.conf). Invalid entries: EXEMPTIONS_INVALIDES.
+EXEMPTIONS_INVALIDES=""
+generer_exemptions() {
+    local adr lib _o n
+    EXEMPTIONS_INVALIDES=""
+    echo "# GÉNÉRÉ par nginx-hardening.sh à partir de /etc/default/nginx-tools-bot-exempt.conf — NE PAS MODIFIER À LA MAIN."
+    echo "# Adresses exemptées du SEUL refus par User-Agent (bot_blocker.conf) : proposées par nginx-log-audit.sh --verify-bots."
+    while IFS=$'\037' read -r adr lib _o n; do
+        [[ -z "$adr" ]] && continue
+        if ! listes_adresse_valide "$adr"; then
+            EXEMPTIONS_INVALIDES="$EXEMPTIONS_INVALIDES ligne $n : « $adr »;"
+            continue
+        fi
+        printf '%-18s 1;   # %s\n' "$adr" "${lib:-exemption}"
+    done < <(listes_exemptions)
 }
 
 # generer_partages: content of shared-ips-geo.conf (nginx $is_shared_ip table): addresses of the places marked [shared] (university...); wider rate-limit zones.
@@ -819,7 +840,7 @@ generer_cdn() {
 fragments_generes_assurer() {
     local snip="${NGINX_HARDENING_SNIPPETS_DIR:-/etc/nginx/snippets}" f cree=1
     [[ "$CHECK_ONLY" == "1" || "$APP_NAME" != "odoo" ]] && return 1
-    for f in team-ips-geo.conf team-ips-allow.conf shared-ips-geo.conf uri-desactivees.conf cdn-realip.conf liens-publics.conf; do
+    for f in team-ips-geo.conf team-ips-allow.conf shared-ips-geo.conf uri-desactivees.conf cdn-realip.conf liens-publics.conf bot-exempt-geo.conf; do
         [[ -e "$snip/$f" ]] && continue
         if mkdir -p "$snip" 2>/dev/null && printf '%s\n' "# vide — créé par nginx-hardening.sh --update (nginx refuse un include sans fichier) ; rempli aux étapes 12 et 12b" > "$snip/$f" 2>/dev/null; then
             chmod 644 "$snip/$f" 2>/dev/null || true
@@ -1190,7 +1211,7 @@ fi
 # the state is written and a full --update applies it to nginx and fail2ban; if that update fails, the previous state is restored, so the
 # next run tries again.
 if [[ "$DNS_RAFRAICHIR" == "1" ]]; then
-    if [[ -z "$(listes_noms_dns)" && -z "$(listes_temporaires)" ]]; then exit 0; fi
+    if [[ -z "$(listes_noms_dns)" && -z "$(listes_temporaires)" && -z "$(listes_fichier_exemption 2>/dev/null)" && ! -s "$(dns_etat)" ]]; then exit 0; fi
     CHECK_ONLY=0
     dns_ancien=$(cat "$(dns_etat)" 2>/dev/null || true)
     if dns_rafraichir; then
@@ -3565,6 +3586,49 @@ if [[ "$APP_NAME" == "odoo" ]]; then
     # Verification réelle (--update) : nginx doit répondre 404 sur chaque nom public, pas seulement avoir accepté le fichier.
     if [[ "$CHECK_ONLY" == "0" && "${uri_actif:-0}" == "1" && "$uri_n" -gt 0 ]]; then
         uri_verifier "$uri_futures" || true
+    fi
+fi
+echo
+
+# --- 12e) Exemptions du 403 par User-Agent (2.103) -> bot-exempt-geo.conf ($is_bot_exempt de odoo-global.conf) --------------------
+# Liste /etc/default/nginx-tools-bot-exempt.conf (proposée et remplie par nginx-log-audit.sh --verify-bots, après confirmation, 30 jours) : des PERSONNES
+# dont le User-Agent ressemble à un robot. Même méthode que les adresses de l'équipe : écriture atomique, nginx -t AVANT tout rechargement, ancienne
+# version restaurée sur refus.
+echo "--- 12e) Exemptions du refus par User-Agent (/etc/default/nginx-tools-bot-exempt.conf) → nginx ---"
+if [[ "$APP_NAME" != "odoo" ]]; then
+    sans_objet "bot-exempt-geo.conf (configuration nginx-odoo)"
+elif ! declare -F listes_exemptions >/dev/null; then
+    warn "apps/_listes.sh absent ou ancien : exemptions du refus par User-Agent non traitées."
+else
+    snip="${NGINX_HARDENING_SNIPPETS_DIR:-/etc/nginx/snippets}"
+    ex_dst="$snip/bot-exempt-geo.conf"
+    generer_exemptions >/dev/null             # in this shell: EXEMPTIONS_INVALIDES (lost inside $(...))
+    ex_nouveau=$(generer_exemptions)
+    ex_n=$(printf '%s\n' "$ex_nouveau" | grep -c '^[^#]' || true)
+    if [[ -n "$EXEMPTIONS_INVALIDES" ]]; then
+        fail "exemptions du refus par User-Agent : entrées invalides —${EXEMPTIONS_INVALIDES%;} — rien n'est écrit tant qu'elles ne sont pas corrigées."
+    elif [[ -f "$ex_dst" ]] && [[ "$(cat "$ex_dst")" == "$ex_nouveau" ]]; then
+        pass "$ex_dst à jour ($ex_n adresse(s) exemptée(s) du refus par User-Agent)."
+    elif [[ "$CHECK_ONLY" == "1" ]]; then
+        warn "$ex_dst $([[ -f "$ex_dst" ]] && echo "différent de la liste des exemptions" || echo "absent") — --update le régénérera."
+    else
+        ex_ancien=""; ex_avait=0
+        if [[ -f "$ex_dst" ]]; then ex_ancien=$(cat "$ex_dst"); ex_avait=1; fi
+        mkdir -p "$snip"
+        ex_tmp=$(mktemp "$snip/.bot-exempt-geo.XXXXXX")
+        printf '%s\n' "$ex_nouveau" > "$ex_tmp" && chmod 644 "$ex_tmp" && mv -f "$ex_tmp" "$ex_dst"
+        fragments_generes_assurer || true
+        if ex_erreur=$(run nginx -t 2>&1); then
+            if nginx_appliquer; then pass "Exemptions du refus par User-Agent régénérées ($ex_n adresse(s)) ; nginx -t réussi, nginx $NGINX_APPLIQUE."
+            else warn "Exemptions régénérées et nginx -t réussi, mais nginx n'a pas pu être $NGINX_APPLIQUE — systemctl status nginx --no-pager."; fi
+        else
+            if (( ex_avait )); then printf '%s\n' "$ex_ancien" > "$ex_dst"; else printf '%s\n' "# vide — restauré après refus de nginx -t" > "$ex_dst"; fi
+            fail "nginx -t refuse la configuration avec les exemptions régénérées — ancienne version restaurée, nginx NON rechargé."
+            printf '%s\n' "$ex_erreur" | head -6 | sed 's/^/        nginx -t : /'
+        fi
+    fi
+    if command -v nginx >/dev/null 2>&1 && [[ -n "$ex_n" && "$ex_n" != 0 ]] && ! run nginx -T 2>/dev/null | grep_q 'bot-exempt-geo'; then
+        warn "La configuration nginx active n'inclut pas encore bot-exempt-geo.conf ($ex_n adresse(s) en attente) — --update installe odoo-global.conf (étape 0f)."
     fi
 fi
 echo

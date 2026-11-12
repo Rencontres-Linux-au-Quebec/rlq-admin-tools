@@ -22,6 +22,8 @@
 #BAN_DAYS_OTHER=365
 # --ban-threshold
 #BAN_THRESHOLD=3
+# --bot-exempt-days (2.97): duration in days of an exemption from the refusal by User-Agent written by --bot-exempt or --verify-bots (0: no end)
+#BOT_EXEMPT_DAYS=30
 # en, fr ou auto (suivre LC_ALL / LC_MESSAGES / LANG). Ordre de choix : --lang, NGINX_TOOLS_LANG, NGINX_LOG_AUDIT_LANG, cette clé, LC_ALL, LC_MESSAGES, LANG.
 # Ajouter une langue = ajouter le fichier lang/nginx-log-audit.XX.po (format PO : Poedit, Weblate...) - voir lang/README.md.
 #LANGUAGE=auto
@@ -37,11 +39,14 @@
 #UA_ROTATION_THRESHOLD=2
 # --verbose
 #VERBOSE=no
+# --no-verify-bots (2.97): VERIFY_BOTS=no: the report does not check the addresses refused with 403 by bot_blocker.conf (section [1 bis])
+#VERIFY_BOTS=yes
 
 # --- Options de la ligne de commande SEULEMENT (actions ou réglages ponctuels : aucune clé ici) ---
 # Les voici, pour mémoire (« nginx-log-audit --help » donne le détail). Elles se donnent sur la ligne de commande, jamais dans ce fichier.
 #   --ban-days N          with --ban: duration of THIS ban in days, whatever the origin (0: no expiry)
 #   --ban-history         journal des bannissements et levées manuels (date, heure, IP, justification, origine), lecture seule
+#   --bot-exempt IP       exempt IP from the refusal by User-Agent only, for BOT_EXEMPT_DAYS days (checks, then confirmation unless --yes)
 #   --changelog           affiche le journal des modifications
 #   --compare [FICHIER]   compare les 24 dernières heures aux 24 précédentes (codes, blocages, IP, chemins), écrit dans FICHIER (mode 600) ; lecture seule
 #   --config-merge        Rewrite the configuration file from the new default configuration, keeping the values set (copy FILE.bak-YYYYMMDD-HHMMSS), then exit
@@ -63,5 +68,6 @@
 #   --unban-check         réévaluer chaque bannissement manuel (levée proposée si injustifié)
 #   --unban-expired       lift the manual bans whose expiry date has passed (preview, then confirmation; run every day by cron)
 #   --unban-low-score     lister les IP bannies que --unban-check recommande de lever, et proposer de les débannir
+#   --verify-bots         are the addresses refused with 403 by the User-Agent rule really robots? (team, Odoo account, normal browsing, verified DNS name)
 #   --version             affiche la version et quitte
 #   --yes                 avec --ban : bannir sans question

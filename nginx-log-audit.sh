@@ -146,7 +146,7 @@ grep_q() { grep "$@" >/dev/null; }
 #                              ne peut pas le voir, le texte etant entre apostrophes (faux positif).
 trap 'ec=$?; echo "" >&2; echo "*** ARRÊT INATTENDU DU SCRIPT (code $ec) À LA LIGNE $LINENO ***" >&2; echo "*** Commande fautive : $BASH_COMMAND" >&2; echo "*** Si le rapport ci-dessus semble incomplet (ex. sections Top 10 absentes), c'\''est probablement la cause." >&2' ERR
 
-readonly SCRIPT_VERSION="2.96.20261112.082236"
+readonly SCRIPT_VERSION="2.97.20261112.095816"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
 # theme_sgr CODE (2.86) : the SGR code as the color theme shows it (--theme N, THEME, NGINX_TOOLS_THEME; apps/_theme.py). Theme 0, no module or no python3: unchanged.
 theme_sgr() {
@@ -224,6 +224,10 @@ THEME=""                    # 2.86: color theme 0 to 4 (--theme, THEME of the co
 PAGE_BURST=8
 PARALLEL_THRESHOLD=5
 UA_ROTATION_THRESHOLD=2
+DO_VERIFY_BOTS=0            # 2.97 --verify-bots: are the addresses refused with 403 by bot_blocker.conf really robots? (action)
+VERIFY_BOTS=1               # 2.97: the same check in the report, section [1 bis] (--no-verify-bots, VERIFY_BOTS=no)
+BOT_EXEMPT_IP=""            # 2.97 --bot-exempt IP: exempt IP from the 403 by User-Agent only
+BOT_EXEMPT_DAYS=30          # 2.97 --bot-exempt-days N / BOT_EXEMPT_DAYS: duration of an exemption (0: no end)
 
 # --report-err: error report to copy-paste at the end of execution (program, version, server, failures...) - apps/_rapport.sh
 if [[ -r "$SCRIPT_DIR/apps/_rapport.sh" ]]; then
@@ -248,6 +252,8 @@ if declare -F config_lire >/dev/null; then
     config_defaut PARALLEL_THRESHOLD PARALLEL_THRESHOLD --parallel-threshold nombre
     config_defaut THEME THEME --theme nombre
     config_defaut UA_ROTATION_THRESHOLD UA_ROTATION_THRESHOLD --ua-rotation-threshold nombre
+    config_defaut VERIFY_BOTS VERIFY_BOTS --no-verify-bots booleen
+    config_defaut BOT_EXEMPT_DAYS BOT_EXEMPT_DAYS --bot-exempt-days nombre
     config_defaut VERBOSE VERBOSE --verbose booleen
     case " $* " in *" --version "*|*" --help "*|*" -h "*|*" --changelog "*) ;; *" --export-bans "*) config_afficher >&2 ;; *) config_afficher ;; esac
 fi
@@ -286,6 +292,10 @@ while [[ $# -gt 0 ]]; do
         --reason) BAN_REASON="${2:-}"; shift 2 ;;
         --reason=*) BAN_REASON="${1#--reason=}"; shift ;;
         --ban-history) DO_BAN_HISTORY=1; shift ;;
+        --bot-exempt) BOT_EXEMPT_IP="${2:-}"; shift 2 ;;
+        --bot-exempt-days) BOT_EXEMPT_DAYS="${2:-}"; shift 2 ;;
+        --verify-bots) DO_VERIFY_BOTS=1; shift ;;
+        --no-verify-bots) VERIFY_BOTS=0; shift ;;
         --yes) ASSUME_YES=1; shift ;;
         --ua-rotation-threshold) UA_ROTATION_THRESHOLD="${2:-}"; shift 2 ;;
         --investigate) INVESTIGATE_IP="${2:-}"; shift 2      # 2.78: several addresses: --investigate IP1 IP2 ... or IP1,IP2
@@ -351,6 +361,8 @@ Options (par ordre alphabétique) :
   --ban-history                journal des bannissements et levées manuels : date, heure, justification, origine (lecture seule)
   --ban-sqli                   bannir les adresses ayant envoyé une injection SQL dans le journal d'accès (liste et confirmation demandées, sauf --yes)
   --ban-threshold N            nombre d'indices à partir duquel le bannissement est proposé (défaut : 3)
+  --bot-exempt IP              exempter IP du SEUL refus par User-Agent (bot_blocker.conf) pendant --bot-exempt-days jours : une personne vérifiée (confirmation, sauf --yes)
+  --bot-exempt-days N          durée d'une exemption en jours (défaut : 30 ; 0 : sans fin) ; clé BOT_EXEMPT_DAYS
   --changelog                  affiche le journal des modifications
   --compare [FICHIER]          compare les dernières 24 h avec les 24 h précédentes (codes, blocages, IP, chemins) et écrit le rapport dans FICHIER (mode 600) ; lecture seule
   -c, --config FILE            fichier de configuration à lire SEUL (sinon : /etc/default/nginx-log-audit.conf, puis ~/.nginx-log-audit.conf ;
@@ -372,6 +384,7 @@ Options (par ordre alphabétique) :
   --menu                       menu interactif des opérations courantes (dialog si installé ; terminal requis)
   --no-lookup                  avec --ban-sqli : aucune requête DNS ni RDAP (propriétaire, pays) ; seuls les journaux sont lus
   --no-prompt                  ne pas proposer de bannir en fin de rapport
+  --no-verify-bots             le rapport ne vérifie pas les robots refusés en 403 (section [1 bis]) ; clé VERIFY_BOTS=no
   --page-burst N               pages distinctes en 10 s à partir desquelles l'indice « rafale » est retenu
   --parallel-threshold N        requêtes dynamiques d'une même IP dans la même seconde à partir desquelles la section [11] les signale (défaut : 5)
   --reason TEXT                avec --ban ou --unban : justification enregistrée dans le journal des bannissements
@@ -386,6 +399,8 @@ Options (par ordre alphabétique) :
   --unban-expired              lever les bannissements manuels dont l'échéance est passée (aperçu, puis confirmation ; lancé chaque jour par cron)
   --unban-low-score            lister les IP bannies que --investigate recommande de lever (même verdict que --investigate), et proposer de les débannir
   -v, --verbose                affiche chaque commande lancée
+  --verify-bots                les adresses refusées en 403 par la règle des User-Agent sont-elles vraiment des robots ? (équipe, compte Odoo, navigation
+                               normale, nom DNS vérifié des moteurs) ; exemption proposée pour une personne ; tout le journal actif, ou --last HOURS
   --version                    affiche la version et quitte
   --yes                        avec --ban ou --unban : sans question (justification : --reason, sinon automatique)
 AIDE
@@ -1909,7 +1924,7 @@ fi
 # in the copies of this script that it launches itself (one --investigate per repeat offender: 3 offenders = 3 more --check runs every hour)
 # and when the caller already ran it (web-monitor.py: app-health-check.py runs nginx-hardening.sh --check in the same pass).
 SETUP_SCRIPT="$SCRIPT_DIR/nginx-hardening.sh"
-if [[ -x "$SETUP_SCRIPT" && -z "$INVESTIGATE_IP" && -z "$EVIDENCE_IP" && "${NGINX_LOG_AUDIT_SKIP_SETUP_CHECK:-0}" != "1" ]]; then
+if [[ -x "$SETUP_SCRIPT" && -z "$INVESTIGATE_IP" && -z "$EVIDENCE_IP" && -z "$BOT_EXEMPT_IP" && "$DO_VERIFY_BOTS" != "1" && "${NGINX_LOG_AUDIT_SKIP_SETUP_CHECK:-0}" != "1" ]]; then
     SETUP_CHECK_OUT=$(env -u NGINX_TOOLS_I18N "$SETUP_SCRIPT" --check --lang "${NGINX_TOOLS_I18N_LANGUE:-fr}" 2>/dev/null) || true
     if printf '%s\n' "$SETUP_CHECK_OUT" | grep_q '\[FAIL\]'; then
         echo
@@ -3433,6 +3448,202 @@ recommander() {
     echo "  RÉSUMÉ|$ip|$verdict|$INV_RAISON|${ETAT_F2B_BANS:-0}|${INV_SCORE:-0}" >> "${INV_RESUME_FILE:-/dev/null}"      # 2.79: read by app-log-live.py too; 2.85: score as 6th field
 }
 
+# --- 2.97: --verify-bots: are the addresses refused with 403 by bot_blocker.conf really robots? -------------------------------------------
+# A User-Agent can look like a robot while a PERSON is behind it (python-requests script of a volunteer, monitoring tool, old browser).
+# For each address refused by the User-Agent rule, the evidence of a person: address of the team (white list), Odoo account logged in from it
+# (« Login successful », 100 days), pages seen normally with a real browser from the same address (active access log). For a robot that gives the
+# name of a known search engine or company (Googlebot, bingbot, Applebot, Amazonbot...): its DNS name, checked both ways (dns_inverse).
+# Verdict: confirmed robot, impostor, robot, probably a PERSON (exemption offered: /etc/default/nginx-tools-bot-exempt.conf, BOT_EXEMPT_DAYS days),
+# CDN address (many visitors behind it: never exempted). Read-only, except the exemption confirmed by the administrator.
+VERIFY_BOTS_MAX="${NGINX_LOG_AUDIT_VERIFY_BOTS_MAX:-20}"          # addresses examined at most (the most refused first)
+VERIFY_BOTS_PAGES=3                                               # pages seen with a real browser from which the address is "probably a person"
+# Robots whose operator documents the DNS check (reverse name, then forward lookup): NAME-IN-USER-AGENT|DOMAINS (a name outside these domains: impostor).
+ROBOTS_VERIFIABLES=(
+    "Googlebot|googlebot.com google.com googleusercontent.com"
+    "AdsBot-Google|google.com"
+    "bingbot|search.msn.com"
+    "Applebot|applebot.apple.com"
+    "Amazonbot|crawl.amazonbot.amazon"
+    "YandexBot|yandex.ru yandex.net yandex.com"
+    "Baiduspider|baidu.com baidu.jp"
+    "PetalBot|petalsearch.com aspiegel.com"
+    "AhrefsBot|ahrefs.com ahrefs.net"
+    "DuckDuckBot|duckduckgo.com"
+)
+
+# regex_bot_blocker: the User-Agent patterns of bot_blocker.conf (installed, otherwise the copy of the repository) as ONE extended regular expression
+# (case ignored by the caller). Empty if the file cannot be read.
+regex_bot_blocker() {
+    local conf="$BOT_BLOCKER_CONF"
+    [[ -r "$conf" ]] || conf="$SCRIPT_DIR/nginx/conf.d/bot_blocker.conf"
+    [[ -r "$conf" ]] || return 0
+    awk '/^[[:space:]]*map[[:space:]]+\$http_user_agent[[:space:]]+\$is_bad_bot/ { dans = 1; next }
+         dans && /^[[:space:]]*}/ { exit }
+         dans && /^[[:space:]]*~\*/ { l = $0; sub(/^[[:space:]]*~\*/, "", l); sub(/[[:space:]]+1;[[:space:]]*$/, "", l); gsub(/\\ /, " ", l); r = r (r ? "|" : "") l }
+         END { print r }' "$conf"
+}
+
+# robot_annonce UA: "NAME|DOMAINS" of the verifiable robot named in the User-Agent; nothing otherwise.
+robot_annonce() {
+    local entree nom
+    for entree in "${ROBOTS_VERIFIABLES[@]}"; do
+        nom=${entree%%|*}
+        if [[ "${1,,}" == *"${nom,,}"* ]]; then printf '%s\n' "$entree"; return 0; fi
+    done
+    return 0
+}
+
+# adresse_cdn IP: 0 when IP is a CDN node (Cloudflare ranges of nginx/cdn/cloudflare-ips.txt, or a reverse name of a CDN): many visitors behind it.
+adresse_cdn() {
+    local ip="$1" plage nom
+    if [[ -r "$SCRIPT_DIR/nginx/cdn/cloudflare-ips.txt" ]]; then
+        while IFS= read -r plage; do
+            plage=${plage%%#*}; plage=${plage// /}
+            [[ -n "$plage" ]] && ip_dans "$ip" "$plage" && return 0
+        done < "$SCRIPT_DIR/nginx/cdn/cloudflare-ips.txt"
+    fi
+    nom=$(dns_inverse "$ip")
+    [[ "${nom,,}" =~ (cloudflare|akamai|fastly|incapsula|imperva|bunnycdn|b-cdn) ]]
+}
+
+# exemption_de IP: "LABEL<TAB>OPTIONS" of the exemption in force that covers IP (listes_exemptions); nothing otherwise.
+exemption_de() {
+    local adr lib opts _n
+    declare -F listes_exemptions >/dev/null || return 0
+    while IFS=$'\037' read -r adr lib opts _n; do
+        [[ -n "$adr" ]] && ip_dans "$1" "$adr" && { printf '%s\t%s\n' "$lib" "$opts"; return 0; }
+    done < <(listes_exemptions)
+    return 0
+}
+
+# verifier_robots_403 LINES: section "[1 bis]" of the report (or --verify-bots): one verdict per address refused with 403 by the User-Agent rule.
+# Sets ROBOTS_PERSONNES (addresses that are probably people, not exempt yet), used by exemptions_proposer.
+ROBOTS_PERSONNES=()
+verifier_robots_403() {
+    local lignes="$1" re ip n ua raisons verdict annonce dom nom pages logins lieu exe fin_exe d r
+    ROBOTS_PERSONNES=()
+    re=$(regex_bot_blocker)
+    if [[ -z "$re" ]]; then
+        echo "  ${C_YELLOW}[ATTN]${C_RESET} bot_blocker.conf illisible : vérification des robots refusés impossible."
+        return 0
+    fi
+    # address<TAB>count<TAB>most frequent User-Agent, of the 403 whose User-Agent matches bot_blocker.conf, the most refused first
+    local liste
+    liste=$(printf '%s\n' "$lignes" | RE="$re" awk -F'"' '
+        $3 ~ /^ 403 / { ua = $6; if (tolower(ua) ~ tolower(ENVIRON["RE"])) { split($1, a, " "); n[a[1]]++; c[a[1] SUBSEP ua]++ } }
+        END { for (k in c) { split(k, p, SUBSEP); if (c[k] > best[p[1]]) { best[p[1]] = c[k]; u[p[1]] = p[2] } }
+              for (ip in n) printf "%s\t%d\t%s\n", ip, n[ip], u[ip] }' | sort -t$'\t' -k2,2nr | head -n "$VERIFY_BOTS_MAX")
+    if [[ -z "$liste" ]]; then
+        echo "${C_GREEN}RIEN${C_RESET} (aucune adresse refusée par la règle des User-Agent)"
+        return 0
+    fi
+    charger_logins
+    while IFS=$'\t' read -r ip n ua; do
+        [[ -z "$ip" ]] && continue
+        raisons=(); verdict=""
+        if protected_ip_reason "$ip" >/dev/null 2>&1 && [[ "$(protected_ip_reason "$ip" | sed -n 2p)" == refus ]]; then
+            continue                                            # this server, local loop, private network: not visitors
+        fi
+        for lieu in $TEAM_IPS; do
+            if ip_dans "$ip" "$lieu"; then
+                if [[ "$lieu" == */* ]]; then raisons+=("adresse de l'équipe (liste blanche, plage $lieu)"); else raisons+=("adresse de l'équipe (liste blanche)"); fi
+                break
+            fi
+        done
+        logins=$(logins_odoo "$ip" | head -3 | paste -sd ';' - | sed 's/;/ ; /g')
+        [[ -n "$logins" ]] && raisons+=("compte Odoo connecté depuis cette adresse : $logins")
+        pages=$(grep -F -- "$ip " "$ACCESS_LOG" 2>/dev/null | RE="$re" STATIC_RE="${STATIC_RE:-\\.(css|js|png|jpe?g|gif|svg|ico|webp|woff2?)}" awk -F'"' -v ip="$ip" '
+            { split($1, a, " "); if (a[1] != ip) next
+              split($3, s, " "); if (s[1] !~ /^[23]/) next
+              ua = $6; if (tolower(ua) ~ tolower(ENVIRON["RE"])) next
+              if (ua !~ /^Mozilla\/5\.0 .*(Firefox|Chrome|Safari|Edg)\//) next
+              split($2, r, " "); if (r[2] ~ ENVIRON["STATIC_RE"]) next
+              p++ }
+            END { print p + 0 }')
+        (( pages >= VERIFY_BOTS_PAGES )) && raisons+=("$pages pages vues normalement avec un navigateur depuis cette adresse")
+        annonce=$(robot_annonce "$ua")
+        if [[ -n "$annonce" ]]; then
+            nom=$(dns_inverse "$ip")
+            dom=""
+            for d in ${annonce#*|}; do
+                if [[ "$nom" == *"(confirmé)" ]] && [[ "${nom%% *}" == *".$d" || "${nom%% *}" == "$d" ]]; then dom="$d"; break; fi
+            done
+            if [[ -n "$dom" ]]; then verdict="${C_GREEN}robot confirmé${C_RESET} (${annonce%%|*} : nom DNS vérifié ${nom%% *})"
+            else verdict="${C_RED}imposteur${C_RESET} (se dit ${annonce%%|*}, mais nom DNS : $nom)"; fi
+        fi
+        if [[ -z "$verdict" && ${#raisons[@]} -gt 0 ]]; then
+            if adresse_cdn "$ip"; then
+                verdict="${C_YELLOW}adresse d'un CDN${C_RESET} (plusieurs visiteurs derrière : jamais exemptée ; voir CF-Connecting-IP)"
+            else
+                exe=$(exemption_de "$ip")
+                if [[ -n "$exe" ]]; then
+                    fin_exe=""
+                    if [[ "$exe" == *temporaire=* ]]; then fin_exe=" jusqu'au ${exe##*temporaire=}"; fi
+                    verdict="${C_YELLOW}probablement une PERSONNE${C_RESET}, déjà exemptée (${exe%%$'\t'*}$fin_exe)"
+                else
+                    verdict="${C_YELLOW}probablement une PERSONNE${C_RESET} : refusée à tort par la règle des User-Agent"
+                    ROBOTS_PERSONNES+=("$ip")
+                fi
+            fi
+        fi
+        [[ -n "$verdict" ]] || verdict="robot (aucun signe d'une personne)"
+        printf '  ▶ %-15s 403 ×%-5s %s\n' "$ip" "$n" "${ua:0:90}"
+        printf '      Verdict : %s\n' "$verdict"
+        for r in ${raisons[@]+"${raisons[@]}"}; do printf '      - %s\n' "$r"; done
+    done <<< "$liste"
+    return 0
+}
+
+# exemption_ajouter IP LABEL: writes IP into /etc/default/nginx-tools-bot-exempt.conf with [temporaire DATE] (BOT_EXEMPT_DAYS days), created from its
+# template when missing (rights 644); then nginx-hardening.sh --dns-refresh regenerates bot-exempt-geo.conf (nginx -t, reload). 0 on success.
+exemption_ajouter() {
+    local ip="$1" lib="$2" f fin modele
+    f="${NGINX_TOOLS_BOT_EXEMPT:-${LISTES_EXEMPTION_DEFAUT:-/etc/default/nginx-tools-bot-exempt.conf}}"
+    if [[ ! -w "$(dirname "$f")" && ! -w "$f" ]]; then
+        echo "  ${C_RED}[FAIL]${C_RESET} $f : écriture impossible (lancer avec sudo)." >&2; return 1
+    fi
+    if [[ ! -f "$f" ]]; then
+        modele="$SCRIPT_DIR/doc/${NGINX_TOOLS_I18N_LANGUE:-fr}/nginx-tools-bot-exempt.conf.example"
+        [[ -r "$modele" ]] || modele="$SCRIPT_DIR/doc/fr/nginx-tools-bot-exempt.conf.example"
+        if [[ -r "$modele" ]]; then cp "$modele" "$f"; else : > "$f"; fi
+        chmod 644 "$f"
+    fi
+    fin=$(date -d "+${BOT_EXEMPT_DAYS} days" '+%Y-%m-%d %H:%M:%S' 2>/dev/null) || fin=""
+    if (( BOT_EXEMPT_DAYS > 0 )) && [[ -n "$fin" ]]; then
+        printf '%-18s # %s  [temporaire %s]\n' "$ip" "${lib//[\[\]#]/}" "$fin" >> "$f"
+    else
+        printf '%-18s # %s\n' "$ip" "${lib//[\[\]#]/}" >> "$f"
+    fi
+    echo "  ${C_GREEN}[OK]${C_RESET}   $ip ajoutée à $f$([[ -n "$fin" ]] && (( BOT_EXEMPT_DAYS > 0 )) && echo " (jusqu'au $fin)")."
+    if [[ -x "$SCRIPT_DIR/nginx-hardening.sh" ]]; then
+        if NGINX_TOOLS_BOT_EXEMPT="$f" "$SCRIPT_DIR/nginx-hardening.sh" --dns-refresh; then
+            echo "  ${C_GREEN}[OK]${C_RESET}   nginx mis à jour (nginx-hardening.sh --dns-refresh)."
+        else
+            echo "  ${C_YELLOW}[ATTN]${C_RESET} nginx-hardening.sh --dns-refresh a échoué : l'exemption sera appliquée au prochain passage (cron, 15 min) ou par nginx-hardening.sh --update."
+        fi
+    else
+        echo "  ${C_YELLOW}[ATTN]${C_RESET} nginx-hardening.sh absent : lancer nginx-hardening.sh --update pour appliquer l'exemption."
+    fi
+}
+
+# exemptions_proposer: for each address of ROBOTS_PERSONNES, on a terminal and without --no-prompt: asks, then exempts (exemption_ajouter).
+# Otherwise: the command to run.
+exemptions_proposer() {
+    local ip
+    (( ${#ROBOTS_PERSONNES[@]} )) || return 0
+    if [[ ! -t 0 || "$NO_PROMPT" == "1" ]]; then
+        echo "  Pour exempter du refus par User-Agent (${BOT_EXEMPT_DAYS} jours) : sudo nginx-log-audit.sh --bot-exempt IP   (${ROBOTS_PERSONNES[*]})"
+        return 0
+    fi
+    for ip in "${ROBOTS_PERSONNES[@]}"; do
+        if demander_oui "  Exempter $ip du refus par User-Agent pendant ${BOT_EXEMPT_DAYS} jours ? [o/N] "; then
+            exemption_ajouter "$ip" "personne vérifiée par nginx-log-audit.sh --verify-bots le $(date '+%Y-%m-%d')"
+        fi
+        (( DEMANDER_INTERROMPU )) && break
+    done
+    return 0
+}
+
 # --- --investigate IP : enquete complete sur TOUT l'historique disponible (actif + rotations + .gz) ------------------
 if [[ -n "$INVESTIGATE_IP" ]]; then
     echo "=============================================================="
@@ -3822,6 +4033,35 @@ filter_last_hours() {
     rm -f "$dates_tmp" "$epochs_tmp"
 }
 
+# --verify-bots (action): the verification over the whole active access log (or --last HOURS), then the exemptions offered; read-only otherwise.
+if [[ "$DO_VERIFY_BOTS" == "1" ]]; then
+    echo "--- Robots refusés (403) par la règle des User-Agent : sont-ils vraiment des robots ? ---"
+    if [[ -n "$LAST_HOURS" ]]; then verif_lignes=$(filter_last_hours "$ACCESS_LOG" "$LAST_HOURS"); else verif_lignes=$(cat "$ACCESS_LOG" 2>/dev/null || true); fi
+    verifier_robots_403 "$(printf '%s\n' "$verif_lignes" | filtrer_nos_programmes)"
+    exemptions_proposer
+    exit 0
+fi
+
+# --bot-exempt IP (action): exempts IP from the 403 by User-Agent (BOT_EXEMPT_DAYS days), after the checks and a confirmation (--yes: none).
+if [[ -n "$BOT_EXEMPT_IP" ]]; then
+    if ! [[ "$BOT_EXEMPT_IP" =~ ^[0-9]{1,3}(\.[0-9]{1,3}){3}$ || "$BOT_EXEMPT_IP" =~ ^[0-9a-fA-F:]+$ ]]; then
+        echo "ERREUR : --bot-exempt : adresse IP attendue (reçu : $BOT_EXEMPT_IP)." >&2; exit 2
+    fi
+    if adresse_cdn "$BOT_EXEMPT_IP"; then
+        echo "ERREUR : $BOT_EXEMPT_IP est une adresse de CDN : l'exempter exempterait tous les visiteurs derrière elle. Refusé." >&2; exit 1
+    fi
+    exe=$(exemption_de "$BOT_EXEMPT_IP")
+    if [[ -n "$exe" ]]; then echo "$BOT_EXEMPT_IP est déjà exemptée (${exe%%$'\t'*})."; exit 0; fi
+    echo "Exemption du refus par User-Agent : $BOT_EXEMPT_IP, ${BOT_EXEMPT_DAYS} jours (0 : sans fin). Seule la règle des User-Agent est levée :"
+    echo "les limites de débit, les autres règles et les bannissements restent appliqués."
+    if (( ! ASSUME_YES )); then
+        if [[ ! -t 0 ]]; then echo "ERREUR : pas de terminal pour confirmer : ajouter --yes." >&2; exit 1; fi
+        demander_oui "Confirmer ? [o/N] " || { echo "Rien n'a été modifié."; exit 0; }
+    fi
+    exemption_ajouter "$BOT_EXEMPT_IP" "${BAN_REASON:-exemption manuelle (nginx-log-audit.sh --bot-exempt) le $(date '+%Y-%m-%d')}"
+    exit $?
+fi
+
 # 2.63 --compare: read-only report written to a file, then the program stops (no lock, no change to the state of the other reports)
 if [[ "$DO_COMPARE" == "1" ]]; then
     [[ -n "$COMPARE_FILE" ]] || COMPARE_FILE="$STATE_DIR/compare-${ENV:-site}-$(date +%Y%m%d-%H%M%S).txt"
@@ -3872,6 +4112,13 @@ echo "--- [1] 403 (bad bot) par User-Agent, fréquence ---"
 log 'awk -F"\"" '"'"'$3 ~ /^ 403 /{print $6}'"'"' | sort | uniq -c | sort -rn'
 R1=$(printf '%s\n' "$ACCESS_NEW" | awk -F'"' '$3 ~ /^ 403 /{print $6}' | sort | uniq -c | sort -rn)
 if [[ -z "$R1" ]]; then echo "${C_GREEN}RIEN${C_RESET}"; else echo "$R1"; fi
+if [[ "$VERIFY_BOTS" == "1" && -n "$R1" ]]; then
+    echo
+    progres "Section [1 bis] : robots refusés en 403, vérification (--no-verify-bots pour l'omettre)"
+    echo "--- [1 bis] Robots refusés (403) : sont-ils vraiment des robots ? ---"
+    verifier_robots_403 "$ACCESS_NEW"
+    exemptions_proposer
+fi
 
 echo
 progres "Section [2] : 405 (méthode HTTP refusee)"

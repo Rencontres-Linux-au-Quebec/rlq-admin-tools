@@ -3143,3 +3143,132 @@ msgstr "not banned: watch it (app-log-live.py, web-monitor.py); the ban threshol
 
 msgid "  --config-merge               réécrit le fichier de configuration d'après la NOUVELLE configuration par défaut en gardant ses valeurs (copie FICHIER.bak-AAAAMMJJ-HHMMSS), puis quitte"
 msgstr "  --config-merge               rewrite the configuration file from the NEW default configuration, keeping its values (copy FILE.bak-YYYYMMDD-HHMMSS), then exit"
+
+msgid "                               normale, nom DNS vérifié des moteurs) ; exemption proposée pour une personne ; tout le journal actif, ou --last HOURS"
+msgstr "                               browsing, verified DNS name of the search engines); exemption offered for a person; whole active log, or --last HOURS"
+
+msgid "   nginx mis à jour (nginx-hardening.sh --dns-refresh)."
+msgstr "   nginx updated (nginx-hardening.sh --dns-refresh)."
+
+msgid "  --bot-exempt IP              exempter IP du SEUL refus par User-Agent (bot_blocker.conf) pendant --bot-exempt-days jours : une personne vérifiée (confirmation, sauf --yes)"
+msgstr "  --bot-exempt IP              exempt IP from the refusal by User-Agent ONLY (bot_blocker.conf) for --bot-exempt-days days: a verified person (confirmation, unless --yes)"
+
+msgid "  --bot-exempt-days N          durée d'une exemption en jours (défaut : 30 ; 0 : sans fin) ; clé BOT_EXEMPT_DAYS"
+msgstr "  --bot-exempt-days N          duration of an exemption in days (default: 30; 0: no end); key BOT_EXEMPT_DAYS"
+
+msgid "  --no-verify-bots             le rapport ne vérifie pas les robots refusés en 403 (section [1 bis]) ; clé VERIFY_BOTS=no"
+msgstr "  --no-verify-bots             the report does not check the robots refused with 403 (section [1 bis]); key VERIFY_BOTS=no"
+
+msgid "  --verify-bots                les adresses refusées en 403 par la règle des User-Agent sont-elles vraiment des robots ? (équipe, compte Odoo, navigation"
+msgstr "  --verify-bots                are the addresses refused with 403 by the User-Agent rule really robots? (team, Odoo account, normal"
+
+msgid "  Pour exempter du refus par User-Agent ("
+msgstr "  To exempt from the refusal by User-Agent ("
+
+msgid " (aucune adresse refusée par la règle des User-Agent)"
+msgstr " (no address refused by the User-Agent rule)"
+
+msgid " (plusieurs visiteurs derrière : jamais exemptée ; voir CF-Connecting-IP)"
+msgstr " (many visitors behind it: never exempted; see CF-Connecting-IP)"
+
+msgid " : nom DNS vérifié "
+msgstr ": DNS name verified "
+
+msgid " : refusée à tort par la règle des User-Agent"
+msgstr ": refused by mistake by the User-Agent rule"
+
+msgid " : écriture impossible (lancer avec sudo)."
+msgstr ": cannot write (run with sudo)."
+
+msgid " ajoutée à "
+msgstr " added to "
+
+msgid " bot_blocker.conf illisible : vérification des robots refusés impossible."
+msgstr " bot_blocker.conf unreadable: the refused robots cannot be checked."
+
+msgid " du refus par User-Agent pendant "
+msgstr " from the refusal by User-Agent for "
+
+msgid " est déjà exemptée ("
+msgstr " is already exempt ("
+
+msgid " est une adresse de CDN : l'exempter exempterait tous les visiteurs derrière elle. Refusé."
+msgstr " is a CDN address: exempting it would exempt every visitor behind it. Refused."
+
+msgid " jours (0 : sans fin). Seule la règle des User-Agent est levée :"
+msgstr " days (0: no end). Only the User-Agent rule is lifted:"
+
+msgid " jours ? [o/N] "
+msgstr " days? [y/N] "
+
+msgid " jours) : sudo nginx-log-audit.sh --bot-exempt IP   ("
+msgstr " days): sudo nginx-log-audit.sh --bot-exempt IP   ("
+
+msgid " nginx-hardening.sh --dns-refresh a échoué : l'exemption sera appliquée au prochain passage (cron, 15 min) ou par nginx-hardening.sh --update."
+msgstr " nginx-hardening.sh --dns-refresh failed: the exemption will be applied at the next pass (cron, 15 min) or by nginx-hardening.sh --update."
+
+msgid " nginx-hardening.sh absent : lancer nginx-hardening.sh --update pour appliquer l'exemption."
+msgstr " nginx-hardening.sh missing: run nginx-hardening.sh --update to apply the exemption."
+
+msgid " pages vues normalement avec un navigateur depuis cette adresse"
+msgstr " pages seen normally with a browser from this address"
+
+msgid "(confirmé)"
+msgstr "(confirmed)"
+
+msgid ", déjà exemptée ("
+msgstr ", already exempt ("
+
+msgid ", mais nom DNS : "
+msgstr ", but DNS name: "
+
+msgid "--- Robots refusés (403) par la règle des User-Agent : sont-ils vraiment des robots ? ---"
+msgstr "--- Robots refused (403) by the User-Agent rule: are they really robots? ---"
+
+msgid "--- [1 bis] Robots refusés (403) : sont-ils vraiment des robots ? ---"
+msgstr "--- [1 bis] Robots refused (403): are they really robots? ---"
+
+msgid "ERREUR : --bot-exempt : adresse IP attendue (reçu : "
+msgstr "ERROR: --bot-exempt: IP address expected (received: "
+
+msgid "ERREUR : pas de terminal pour confirmer : ajouter --yes."
+msgstr "ERROR: no terminal to confirm: add --yes."
+
+msgid "Exemption du refus par User-Agent : "
+msgstr "Exemption from the refusal by User-Agent: "
+
+msgid "Rien n'a été modifié."
+msgstr "Nothing was changed."
+
+msgid "Section [1 bis] : robots refusés en 403, vérification (--no-verify-bots pour l'omettre)"
+msgstr "Section [1 bis]: robots refused with 403, check (--no-verify-bots to skip it)"
+
+msgid "adresse d'un CDN"
+msgstr "CDN address"
+
+msgid "adresse de l'équipe (liste blanche)"
+msgstr "address of the team (white list)"
+
+msgid "adresse de l'équipe (liste blanche, plage "
+msgstr "address of the team (white list, range "
+
+msgid "compte Odoo connecté depuis cette adresse : "
+msgstr "Odoo account logged in from this address: "
+
+msgid "exemption manuelle (nginx-log-audit.sh --bot-exempt) le "
+msgstr "manual exemption (nginx-log-audit.sh --bot-exempt) on "
+
+msgid "les limites de débit, les autres règles et les bannissements restent appliqués."
+msgstr "the rate limits, the other rules and the bans still apply."
+
+msgid "personne vérifiée par nginx-log-audit.sh --verify-bots le "
+msgstr "person verified by nginx-log-audit.sh --verify-bots on "
+
+msgid "probablement une PERSONNE"
+msgstr "probably a PERSON"
+
+msgid "robot (aucun signe d'une personne)"
+msgstr "robot (no sign of a person)"
+
+msgid "robot confirmé"
+msgstr "confirmed robot"

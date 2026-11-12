@@ -1544,6 +1544,31 @@ class Surveillance(EnvTest):
         self.assertEqual(ips, {"11.0.67.32": "nouvelle raison", "11.35.176.5": "enquête : Score 4/7"})
         wm.RECOMMENDED.clear()
 
+    def test_291_robots_refuses_en_403_qui_sont_des_personnes(self):
+        """2.91 : la section [1 bis] de nginx-log-audit.sh 2.97 : une adresse « probablement une PERSONNE » pas encore exemptée devient une alerte ;
+        un robot, un imposteur ou une personne déjà exemptée : aucune alerte."""
+        spec = __import__("importlib.util").util.spec_from_file_location("wm", self.prog)
+        wm = __import__("importlib.util").util.module_from_spec(spec)
+        spec.loader.exec_module(wm)
+        rapport = ("--- [1 bis] Robots refusés (403) : sont-ils vraiment des robots ? ---\n"
+                   "  ▶ 203.0.113.9     403 ×4     python-requests/2.32\n"
+                   "      Verdict : probablement une PERSONNE : refusée à tort par la règle des User-Agent\n"
+                   "      - compte Odoo connecté depuis cette adresse : benevole@exemple.org (1 connexions, dernière 2026-11-01T09:00)\n"
+                   "  ▶ 198.51.100.20   403 ×2     Wget/1.21\n"
+                   "      Verdict : probablement une PERSONNE, déjà exemptée (script de Jean jusqu'au 2026-12-12 10:00:00)\n"
+                   "  ▶ 11.200.0.5      403 ×6     SemrushBot/7\n"
+                   "      Verdict : robot (aucun signe d'une personne)\n"
+                   "--- [2] 405 (méthode HTTP refusee) ---\nRIEN\n RÉSUMÉ\n")
+        alertes = wm.analyze_nginx_logs(0, rapport)
+        titres = [a for a in alertes if "403" in a[0]]
+        self.assertEqual(len(titres), 1, alertes)
+        titre, lignes, cles = titres[0]
+        self.assertEqual(cles, ["nginx:403-person:203.0.113.9"])
+        self.assertTrue(any("benevole@exemple.org" in l for l in lignes))
+        self.assertFalse(any("198.51.100.20" in l or "11.200.0.5" in l for l in lignes))
+        self.assertIn("--verify-bots", lignes[-1])
+        self.assertEqual([a for a in wm.analyze_nginx_logs(0, rapport.replace("probablement une PERSONNE : refusée", "robot : refusé")) if "403" in a[0]], [])
+
     def test_raison_detaillee_d_un_recidiviste(self):
         """2.83 : un récidiviste n'est recommandé que si SON enquête (nginx-log-audit.sh --investigate) recommande le bannissement."""
         spec = __import__("importlib.util").util.spec_from_file_location("wm", self.prog)
