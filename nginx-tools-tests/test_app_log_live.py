@@ -3683,20 +3683,24 @@ class AppLogLive120(unittest.TestCase):
     def test_120_journal_html_un_fichier_par_jour(self):
         import tempfile
         dossier = tempfile.mkdtemp()
+        # Output._log writes to the file of TODAY, so the two days are relative to today (fixed dates made the test clock-dependent).
+        jour1_date = datetime.date.today()
+        jour2_date = jour1_date + datetime.timedelta(days=1)
+        jour1_nom, jour2_nom = jour1_date.isoformat(), jour2_date.isoformat()
 
         class Ecran:
             def write(self, texte):
                 pass
 
         sortie = self.m.Output(Ecran(), folder=dossier, keep_days=30, screen_color=False)
-        sortie._open("2026-10-30")
+        sortie._open(jour1_nom)
         sortie.active = True
         sortie.write("bonjour <b>\n")
-        sortie._open("2026-10-31")
+        sortie._open(jour2_nom)
         sortie.close()
-        with open(os.path.join(dossier, f"app-log-live-{HOTE_NOM}-2026-10-30.html"), encoding="utf-8") as f:
+        with open(os.path.join(dossier, f"app-log-live-{HOTE_NOM}-{jour1_nom}.html"), encoding="utf-8") as f:
             jour1 = f.read()
-        with open(os.path.join(dossier, f"app-log-live-{HOTE_NOM}-2026-10-31.html"), encoding="utf-8") as f:
+        with open(os.path.join(dossier, f"app-log-live-{HOTE_NOM}-{jour2_nom}.html"), encoding="utf-8") as f:
             jour2 = f.read()
         self.assertIn("bonjour &lt;b&gt;", jour1)
         self.assertTrue(jour1.rstrip().endswith("</html>"))
