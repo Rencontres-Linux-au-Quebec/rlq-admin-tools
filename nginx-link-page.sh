@@ -29,7 +29,7 @@
 set -u
 LANG_C="${LC_ALL:-${LC_MESSAGES:-${LANG:-C}}}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
-readonly SCRIPT_VERSION="1.13.20261112.134539"
+readonly SCRIPT_VERSION="1.14.20261112.170506"
 readonly SCRIPT_NAME="nginx-link-page"
 # --config-merge: same rule as the other programs (apps/_config.py fusionner): the configuration file is rewritten from the new template,
 # keeping its active values; the old file is copied to FILE.bak-YYYYMMDD-HHMMSS. Then exit.
@@ -60,6 +60,8 @@ readonly LINKPAGE_EXT_REPO="https://github.com/sethcottle/littlelink-extended"
 readonly LINKPAGE_EXT_TAG="v3.2.0"
 readonly LINKPAGE_EXT_SHA="d7034f83a6bf71c4a663d2d046a03b37ec74ae45"
 readonly MAX_ASSET_BYTES=524288
+# 1.14: the preview image of the social networks (1200 x 627 advised) is often a poster of more than 512 KiB: its own limit, the one of LinkedIn (5 MB)
+readonly MAX_SHARE_BYTES=5242880
 readonly MOTEURS_PRIS_EN_CHARGE="littlelink"
 
 # ---- colours (only on a terminal; never when the output is redirected) ----
@@ -406,16 +408,29 @@ type_image() {
     return 1
 }
 
-# telecharger URL BASE : downloads an image to BASE.ext; sets RES_FICHIER (full path) on success.
+# telecharger URL BASE [MAX_BYTES] : downloads an image to BASE.ext; sets RES_FICHIER (full path) on success.
+# 1.14: on failure, RES_ERREUR gives the reason (too big, HTTP code, network, not an image), shown by the callers.
 RES_FICHIER=""
+RES_ERREUR=""
 telecharger() {
-    local url="$1" base="$2" tmp type ext
-    RES_FICHIER=""
+    local url="$1" base="$2" max="${3:-$MAX_ASSET_BYTES}" tmp type ext code rc http taille
+    RES_FICHIER=""; RES_ERREUR=""
     tmp=$(mktemp) || return 1
-    if ! curl -fsSL --proto '=https' --tlsv1.2 --max-time 30 --max-filesize "$MAX_ASSET_BYTES" -o "$tmp" "$url" 2>/dev/null; then
+    code=$(curl -fsSL --proto '=https' --tlsv1.2 --max-time 30 --max-filesize "$max" -w '%{http_code} %{size_download}' -o "$tmp" "$url" 2>/dev/null)
+    rc=$?
+    http="${code%% *}"; taille="${code##* }"
+    if (( rc == 0 )) && [[ "$taille" =~ ^[0-9]+$ ]] && (( taille > max )); then rc=63; fi
+    if (( rc != 0 )); then
+        case "$rc" in
+            63) RES_ERREUR="$(m "fichier trop gros (plus de $((max / 1024)) Kio)" "file too big (more than $((max / 1024)) KiB)")" ;;
+            22) RES_ERREUR="$(m "le serveur repond HTTP $http" "the server answers HTTP $http")" ;;
+            28) RES_ERREUR="$(m "delai depasse (30 s)" "timed out (30 s)")" ;;
+            6|7|35|60) RES_ERREUR="$(m "serveur injoignable ou certificat refuse (curl $rc)" "server unreachable or certificate refused (curl $rc)")" ;;
+            *) RES_ERREUR="$(m "echec du telechargement (curl $rc)" "download failed (curl $rc)")" ;;
+        esac
         rm -f "$tmp"; return 1
     fi
-    type=$(type_image "$tmp") || { rm -f "$tmp"; return 1; }
+    type=$(type_image "$tmp") || { RES_ERREUR="$(m "ce n'est pas une image PNG, JPEG, WebP ou SVG" "not a PNG, JPEG, WebP or SVG image")"; rm -f "$tmp"; return 1; }
     case "$type" in jpg) ext=jpg ;; *) ext="$type" ;; esac
     if install -m 644 "$tmp" "$base.$ext"; then RES_FICHIER="$base.$ext"; fi
     rm -f "$tmp"
@@ -499,7 +514,7 @@ fi
 # 2) logo and icons: downloaded once, checked, kept in the work folder (pages load nothing from other sites)
 LOGO_LOCAL=""
 if [[ -n "$SITE_LOGO_URL_V" ]]; then
-    telecharger "$SITE_LOGO_URL_V" "$TMP/assets/images/site/logo" || { err "$(m "logo non telechargeable ou pas une image : $SITE_LOGO_URL_V" "logo not downloadable or not an image: $SITE_LOGO_URL_V")"; exit 1; }
+    telecharger "$SITE_LOGO_URL_V" "$TMP/assets/images/site/logo" || { err "$(m "logo non telechargeable ou pas une image : $SITE_LOGO_URL_V ($RES_ERREUR)" "logo not downloadable or not an image: $SITE_LOGO_URL_V ($RES_ERREUR)")"; exit 1; }
     LOGO_LOCAL="images/site/${RES_FICHIER##*/}"
     ok "$(m "logo" "logo") -> $LOGO_LOCAL"
 fi
@@ -507,7 +522,7 @@ fi
 # Without SITE_SHARE_IMAGE_URL: the logo, when it is not an SVG (small square preview).
 PARTAGE_LOCAL=""; PARTAGE_CARTE="summary"
 if [[ -n "$SITE_SHARE_IMAGE_URL_V" ]]; then
-    telecharger "$SITE_SHARE_IMAGE_URL_V" "$TMP/assets/images/site/share" || { err "$(m "image d'apercu non telechargeable ou pas une image : $SITE_SHARE_IMAGE_URL_V" "preview image not downloadable or not an image: $SITE_SHARE_IMAGE_URL_V")"; exit 1; }
+    telecharger "$SITE_SHARE_IMAGE_URL_V" "$TMP/assets/images/site/share" "$MAX_SHARE_BYTES" || { err "$(m "image d'apercu non telechargeable ou pas une image : $SITE_SHARE_IMAGE_URL_V ($RES_ERREUR)" "preview image not downloadable or not an image: $SITE_SHARE_IMAGE_URL_V ($RES_ERREUR)")"; exit 1; }
     if [[ "$RES_FICHIER" == *.svg ]]; then
         err "$(m "SITE_SHARE_IMAGE_URL : image SVG refusee par les reseaux sociaux ; fournir un PNG ou un JPEG (1200 x 627 conseille)" "SITE_SHARE_IMAGE_URL: SVG images are not shown by social networks; give a PNG or a JPEG (1200 x 627 advised)")"; exit 1
     fi
@@ -532,7 +547,7 @@ icone_resoudre() {   # icone_resoudre VALEUR CLE : sets RES_ICONE (path relative
         err "$(m "icone integree inconnue : $nom" "unknown built-in icon: $nom")"; return 1
     fi
     if [[ -n "${ICONE_RESOLUE[$v]:-}" ]]; then RES_ICONE="${ICONE_RESOLUE[$v]}"; return 0; fi
-    telecharger "$v" "$TMP/assets/images/site/icon-$cle" || { err "$(m "icone non telechargeable ou pas une image : $v" "icon not downloadable or not an image: $v")"; return 1; }
+    telecharger "$v" "$TMP/assets/images/site/icon-$cle" || { err "$(m "icone non telechargeable ou pas une image : $v ($RES_ERREUR)" "icon not downloadable or not an image: $v ($RES_ERREUR)")"; return 1; }
     ICONE_RESOLUE[$v]="images/site/${RES_FICHIER##*/}"
     RES_ICONE="${ICONE_RESOLUE[$v]}"
 }

@@ -4526,6 +4526,16 @@ Earlier history was archived outside this repository when this file was created.
 
 ## nginx-link-page.sh
 
+### 1.14.20261112.170506 - Preview image up to 5 MB, and the reason of a failed download
+
+- Title: SITE_SHARE_IMAGE_URL accepts an image of up to 5 MB (limit of LinkedIn); a failed download says why.
+- Reason: report of the administrator on 2026-11-12: "[FAIL] image d'apercu non telechargeable ou pas une image" for an image that exists (https://.../RLQ-23e-2026_11_21-V2-paysage.1200x627.png), so nginx-hardening.sh step 0e bis failed.
+- Changes: new constant MAX_SHARE_BYTES (5242880); telecharger URL BASE [MAX_BYTES]: third argument, curl -w '%{http_code} %{size_download}', new variable RES_ERREUR (too big, HTTP code, timeout, server unreachable or certificate refused, not an image); the logo, the preview image and the icons show RES_ERREUR in their [FAIL] message; nginx-tools-tests/test_nginx_link_page.py: 1 test.
+- Bugs fixed: symptom: preview image refused although it exists; diagnosis: every image was downloaded with --max-filesize 524288 (512 KiB, meant for the logo and the icons), and a poster of 1200 x 627 in PNG is often bigger; curl stops (code 63) and the message did not say why; fix: 5 MB for the preview image, and the reason in the message (to check on the server: if the message now gives another reason, it is the real one).
+- Safeguards and edge cases: the logo and the icons keep 512 KiB; a size reported above the limit by curl is refused too; the image type check (PNG, JPEG, WebP; SVG refused for the preview) is unchanged.
+- Checks performed: bash -n; shellcheck; test_nginx_link_page (53 tests).
+- Action required: sudo nginx-link-page.sh --update --yes (or nginx-hardening.sh --update); if it still fails, the [FAIL] line now gives the reason.
+
 ### 1.13.20261112.134539 - Page paths whatever their case; link to the root of the site
 
 - Title: /L/ and /l/ reach the same page; LINK_n_URL=/ is accepted.

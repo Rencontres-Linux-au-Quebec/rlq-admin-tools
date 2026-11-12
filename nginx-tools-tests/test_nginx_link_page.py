@@ -473,6 +473,37 @@ PAGE_2_TITLE=Deux
         self.assertNotEqual(r.returncode, 0)
         self.assertIn("LINK_1_URL", r.stderr)
 
+    def test_114_image_d_apercu_de_plus_de_512_kio_et_raison_de_l_echec(self):
+        """1.14 : l'image d'aperçu a sa limite (5 Mo, celle de LinkedIn) au lieu de 512 Kio ; un échec dit pourquoi (trop gros, code HTTP, pas une image)."""
+        journal = self.tmp / "curl.log"
+        (self.bin / "curl").write_text(f"""#!/bin/sh
+echo "$@" >> {journal}
+out=""; max=""; url=""
+while [ $# -gt 0 ]; do
+    case "$1" in -o) out="$2"; shift ;; --max-filesize) max="$2"; shift ;; https://*) url="$1" ;; esac
+    shift
+done
+case "$url" in
+    *grosse*) [ "$max" -lt 2000000 ] && exit 63; printf '\\211PNG\\r\\n\\032\\nxxxx' > "$out"; printf '200 1500000'; exit 0 ;;
+    *absente*) printf '404 0'; exit 22 ;;
+    *texte*) echo "bonjour" > "$out"; printf '200 8'; exit 0 ;;
+esac
+printf '\\211PNG\\r\\n\\032\\nxxxx' > "$out"; printf '200 12'; exit 0
+""", encoding="utf-8")
+        base = self.config_deux_pages("no").replace("SITE_TITLE=Test & B\n", "SITE_TITLE=Test & B\nSITE_BASE_URL=https://www.example.org/\n")
+        r = self.lancer("-c", str(self.conf(base + "SITE_SHARE_IMAGE_URL=https://example.org/grosse.png\n")), "--update", "--yes", env=self.env)
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertIn("--max-filesize 5242880", journal.read_text())
+        self.assertIn("--max-filesize 524288 ", journal.read_text())                     # logo and icons keep 512 KiB
+        for url, raison in (("absente.png", "le serveur repond HTTP 404"), ("texte.png", "ce n'est pas une image")):
+            with self.subTest(url=url):
+                r = self.lancer("-c", str(self.conf(base + f"SITE_SHARE_IMAGE_URL=https://example.org/{url}\n")), "--update", "--yes", env=self.env)
+                self.assertNotEqual(r.returncode, 0)
+                self.assertIn(raison, r.stdout + r.stderr)
+        (self.bin / "curl").write_text("#!/bin/sh\nexit 63\n", encoding="utf-8")
+        r = self.lancer("-c", str(self.conf(base)), "--update", "--yes", env=self.env)
+        self.assertIn("fichier trop gros (plus de 512 Kio)", r.stdout + r.stderr)
+
     def test_chemins_relatifs_resolus(self):
         texte = self.config_deux_pages("no").replace(
             "LINK_1_URL=https://example.org/a", "LINK_1_URL=/a/").replace(
