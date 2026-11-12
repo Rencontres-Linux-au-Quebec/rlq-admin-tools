@@ -29,7 +29,7 @@
 set -u
 LANG_C="${LC_ALL:-${LC_MESSAGES:-${LANG:-C}}}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
-readonly SCRIPT_VERSION="1.17.20261112.181906"
+readonly SCRIPT_VERSION="1.18.20261112.183227"
 readonly SCRIPT_NAME="nginx-link-page"
 # --config-merge: same rule as the other programs (apps/_config.py fusionner): the configuration file is rewritten from the new template,
 # keeping its active values; the old file is copied to FILE.bak-YYYYMMDD-HHMMSS. Then exit.
@@ -68,6 +68,8 @@ readonly THEMES_CSS="$SCRIPT_DIR/apps/link-page-themes.css"
 readonly THEMES_LINKSTACK="$SCRIPT_DIR/apps/link-page-themes"
 # 1.17: "Theme" button (PAGE_n_THEMES): style sheet copied as css/theme-menu.css; "all" = every theme of THEMES_RE
 readonly THEME_MENU_CSS="$SCRIPT_DIR/apps/link-page-theme-menu.css"
+# 1.18: script of the pages (PAGE_n_SCRIPT): theme in place and remembered, language remembered, "Share" button; copied as js/link-page.js
+readonly LINK_PAGE_JS="$SCRIPT_DIR/apps/link-page.js"
 readonly THEMES_TOUS="auto light dark aurora maple river terminal tux ls-aurora ls-dark ls-dawn ls-misty-rain"
 # themes_offerts VALUE: the themes of PAGE_n_THEMES, one per word, without duplicates, in the given order ("all": THEMES_TOUS)
 themes_offerts() {
@@ -396,6 +398,12 @@ for i in "${PAGES_N[@]}"; do
     for t in $(themes_offerts "$(valeur_ou "${pre}THEMES" "")"); do
         [[ "$t" =~ ^($THEMES_RE)$ ]] || PROBLEMES+=("${pre}THEMES : theme inconnu / unknown theme « $t » ($THEMES_LISTE, ou all)")
     done
+    # 1.18: PAGE_n_SCRIPT and PAGE_n_SHARE (yes or no, yes by default)
+    [[ "$(valeur_ou "${pre}SCRIPT" yes)" =~ ^(yes|no)$ ]] || PROBLEMES+=("${pre}SCRIPT=$(valeur_ou "${pre}SCRIPT" yes) (yes ou no)")
+    [[ "$(valeur_ou "${pre}SHARE" yes)" =~ ^(yes|no)$ ]] || PROBLEMES+=("${pre}SHARE=$(valeur_ou "${pre}SHARE" yes) (yes ou no)")
+    if [[ "$(valeur_ou "${pre}SCRIPT" yes)" == yes && ! -r "$LINK_PAGE_JS" ]]; then
+        PROBLEMES+=("${pre}SCRIPT=yes : $LINK_PAGE_JS absent (livre avec le depot) / missing (shipped with the repository)")
+    fi
     if [[ -n "$(valeur_ou "${pre}THEMES" "")" && ! -r "$THEME_MENU_CSS" ]]; then
         PROBLEMES+=("${pre}THEMES : $THEME_MENU_CSS absent (livre avec le depot) / missing (shipped with the repository)")
     fi
@@ -508,6 +516,7 @@ trap 'rm -rf "$TMP"' EXIT
 mkdir -p "$TMP/assets/images/site"
 
 ACTIVES=()
+SCRIPT_PAGE=()            # 1.18: yes when the page loads js/link-page.js (script-src of its Content-Security-Policy)
 for i in "${PAGES_N[@]}"; do
     [[ "$(valeur_ou "PAGE_${i}_ENABLED" yes)" =~ ^(yes|oui|1)$ ]] && ACTIVES+=("$i")
 done
@@ -651,16 +660,32 @@ preparer_dossier() {
     cp -r "$TMP/assets/images/site/." "$d/images/site/"
 }
 
+# 1.18: csp_script: script-src of the page being generated ('self' with js/link-page.js, 'none' otherwise)
+csp_script() { if [[ "$P_JS" == yes ]]; then echo "'self'"; else echo "'none'"; fi; }
+# menu_contient REGEX: a theme of the "Theme" button matches REGEX
+menu_contient() { local t; for t in ${P_MENU[@]+"${P_MENU[@]}"}; do [[ "$t" =~ $1 ]] && return 0; done; return 1; }
+
 genere_index() {   # genere_index DOSSIER THEME TITRE [FICHIER] [CIBLE_BASCULE] [LIBELLE_BASCULE]
     local dossier="$1" theme="$2" titre="$3" fichier="${4:-index.html}" cible="${5:-}" libelle="${6:-}" t f
-    local classe lab url clair sombre classe_bouton i base
+    local classe lab url clair sombre classe_bouton i base attrs donnees media
     classe="theme-$theme"                               # 1.15: theme-auto, theme-light, theme-dark or one of link-page-themes.css
     base="$(theme_base "$theme")"
     {
         echo "<!DOCTYPE html>"
         echo "<!-- Genere par $SCRIPT_NAME.sh $SCRIPT_VERSION a partir de la configuration. Ne pas editer a la main. -->"
         echo "<!-- Built on LittleLink (MIT, https://github.com/sethcottle/littlelink), tag $LINKPAGE_TAG. -->"
-        echo "<html class=\"$classe\" lang=\"$L_LANG\">"
+        if [[ "$P_JS" == yes ]]; then                     # 1.18: data read by js/link-page.js
+            attrs=" data-page=\"$(html_echap "$P_CHEMIN")\""
+            if (( ${#P_MENU[@]} )); then
+                donnees=""
+                for t in "${P_MENU[@]}"; do donnees+="$t|$(theme_base "$t")|$(theme_couleur "$t") "; done
+                attrs+=" data-themes=\"${donnees% }\""
+            fi
+            if [[ -n "${L_AUTRE_HREF:-}" ]]; then attrs+=" data-other-lang=\"$L_AUTRE_LANG\" data-other-href=\"$(html_echap "$L_AUTRE_HREF")\""; fi
+            echo "<html class=\"$classe\" lang=\"$L_LANG\"$attrs>"
+        else
+            echo "<html class=\"$classe\" lang=\"$L_LANG\">"
+        fi
         echo "  <head>"
         echo "    <meta charset=\"utf-8\">"
         echo "    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">"
@@ -688,33 +713,46 @@ genere_index() {   # genere_index DOSSIER THEME TITRE [FICHIER] [CIBLE_BASCULE] 
             echo "    <meta name=\"theme-color\" content=\"#121212\" media=\"(prefers-color-scheme: dark)\">"
         fi
         echo "    <meta name=\"referrer\" content=\"strict-origin-when-cross-origin\">"
-        echo "    <meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; img-src 'self'; style-src 'self'; font-src 'self'; script-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'\">"
+        echo "    <meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; img-src 'self'; style-src 'self'; font-src 'self'; script-src $(csp_script); object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'\">"
         echo "    <link rel=\"stylesheet\" href=\"css/reset.css\">"
         echo "    <link rel=\"stylesheet\" href=\"css/style.css\">"
         echo "    <link rel=\"stylesheet\" href=\"css/brands.css\">"
         if [[ -f "$dossier/css/brands-extended.css" ]]; then echo "    <link rel=\"stylesheet\" href=\"css/brands-extended.css\">"; fi
-        if [[ -f "$dossier/css/themes.css" && -n "$(theme_couleur "$theme")" && "$theme" != ls-* ]]; then echo "    <link rel=\"stylesheet\" href=\"css/themes.css\">"; fi
-        if [[ -f "$dossier/css/themes-linkstack.css" && "$theme" == ls-* ]]; then echo "    <link rel=\"stylesheet\" href=\"css/themes-linkstack.css\">"; fi
-        if (( ${#P_MENU[@]} )); then echo "    <link rel=\"stylesheet\" href=\"css/theme-menu.css\">"; fi
+        # 1.18: with the script, the menu changes the theme in place: the style sheets of every offered theme are loaded
+        if [[ -f "$dossier/css/themes.css" ]] && { [[ -n "$(theme_couleur "$theme")" && "$theme" != ls-* ]] || { [[ "$P_JS" == yes ]] && menu_contient '^(aurora|maple|river|terminal|tux)$'; }; }; then
+            echo "    <link rel=\"stylesheet\" href=\"css/themes.css\">"
+        fi
+        if [[ -f "$dossier/css/themes-linkstack.css" ]] && { [[ "$theme" == ls-* ]] || { [[ "$P_JS" == yes ]] && menu_contient '^ls-'; }; }; then
+            echo "    <link rel=\"stylesheet\" href=\"css/themes-linkstack.css\">"
+        fi
+        if (( ${#P_MENU[@]} )) || [[ "$P_JS" == yes && "$P_PARTAGE" == yes ]]; then echo "    <link rel=\"stylesheet\" href=\"css/theme-menu.css\">"; fi
         if [[ -f "$dossier/css/accent.css" ]]; then echo "    <link rel=\"stylesheet\" href=\"css/accent.css\">"; fi
+        if [[ "$P_JS" == yes ]]; then echo "    <script src=\"js/link-page.js\"></script>"; fi      # 1.18: in <head>: theme set before drawing
         echo "  </head>"
         echo "  <body>"
-        if (( ${#P_MENU[@]} )); then                         # 1.17: "Theme" button: one complete page per theme, no script
+        if [[ "$P_JS" == yes && "$P_PARTAGE" == yes ]]; then   # 1.18: "Share" button, shown by the script when the browser can share or copy
+            if [[ "$L_LANG" == en ]]; then
+                echo "    <button class=\"share-button\" type=\"button\" hidden data-url=\"$(html_echap "$L_URL_PUBLIQUE")\" data-done=\"Link copied\">Share</button>"
+            else
+                echo "    <button class=\"share-button\" type=\"button\" hidden data-url=\"$(html_echap "$L_URL_PUBLIQUE")\" data-done=\"Lien copié\">Partager</button>"
+            fi
+        fi
+        if (( ${#P_MENU[@]} )); then                         # 1.17: "Theme" button: one complete page per theme (fallback without script)
             echo "    <details class=\"theme-menu\">"
             echo "      <summary>$( [[ "$L_LANG" == en ]] && echo Theme || echo Thème )</summary>"
             echo "      <ul>"
             for t in "${P_MENU[@]}"; do
                 if [[ "$t" == "$P_THEME" ]]; then f="index.html"; else f="theme-$t.html"; fi
                 if [[ "$t" == "$theme" ]]; then
-                    echo "        <li><a href=\"$f\" aria-current=\"page\">$(html_echap "$(theme_nom "$t")")</a></li>"
+                    echo "        <li><a href=\"$f\" data-theme=\"$t\" aria-current=\"page\">$(html_echap "$(theme_nom "$t")")</a></li>"
                 else
-                    echo "        <li><a href=\"$f\">$(html_echap "$(theme_nom "$t")")</a></li>"
+                    echo "        <li><a href=\"$f\" data-theme=\"$t\">$(html_echap "$(theme_nom "$t")")</a></li>"
                 fi
             done
             echo "      </ul>"
             echo "    </details>"
         fi
-        if [[ "$theme" == ls-misty-rain ]]; then          # 1.16: rain of Misty Rain, pure CSS (no script)
+        if [[ "$theme" == ls-misty-rain ]] || { [[ "$P_JS" == yes ]] && menu_contient '^ls-misty-rain$'; }; then   # 1.16: rain of Misty Rain, pure CSS
             printf '    <div class="ls-rain" aria-hidden="true">%s</div>\n' "$(printf '<i></i>%.0s' {1..24})"
         fi
         echo "    <div class=\"container\"><div class=\"column\"><main>"
@@ -730,7 +768,10 @@ genere_index() {   # genere_index DOSSIER THEME TITRE [FICHIER] [CIBLE_BASCULE] 
             if [[ "$P_BOUTONS" == brand && -n "${BOUTON_MARQUE[$i]:-}" ]]; then classe_bouton="${BOUTON_MARQUE[$i]}"; fi
             clair="${ICONE_CLAIR[$i]}"; sombre="${ICONE_SOMBRE[$i]}"
             echo "        <a class=\"button $classe_bouton\" href=\"$(html_echap "$url")\" target=\"_blank\" rel=\"noopener noreferrer\">"
-            if [[ -n "$sombre" && "$base" == "auto" ]]; then
+            if [[ -n "$sombre" && "$P_JS" == yes && ${#P_MENU[@]} -gt 0 ]]; then    # 1.18: the script sets the media of <source> per theme
+                case "$base" in dark) media="all" ;; light) media="not all" ;; *) media="(prefers-color-scheme: dark)" ;; esac
+                echo "          <picture><source data-icon-dark media=\"$media\" srcset=\"$sombre\"><img class=\"icon\" aria-hidden=\"true\" src=\"$clair\" alt=\"\"></picture>$(html_echap "$lab")</a>"
+            elif [[ -n "$sombre" && "$base" == "auto" ]]; then
                 echo "          <picture><source media=\"(prefers-color-scheme: dark)\" srcset=\"$sombre\"><img class=\"icon\" aria-hidden=\"true\" src=\"$clair\" alt=\"\"></picture>$(html_echap "$lab")</a>"
             elif [[ -n "$sombre" && "$base" == "dark" ]]; then
                 echo "          <img class=\"icon\" aria-hidden=\"true\" src=\"$sombre\" alt=\"\">$(html_echap "$lab")</a>"
@@ -743,7 +784,11 @@ genere_index() {   # genere_index DOSSIER THEME TITRE [FICHIER] [CIBLE_BASCULE] 
             echo "      <p><a class=\"button button-default\" href=\"$cible\">$(html_echap "$libelle")</a></p>"
         fi
         if [[ -n "${L_AUTRE_HREF:-}" ]]; then
-            echo "      <p><a class=\"button button-default\" href=\"$L_AUTRE_HREF\">$(html_echap "$L_AUTRE_LIBELLE")</a></p>"
+            if [[ "$P_JS" == yes ]]; then
+                echo "      <p><a class=\"button button-default\" href=\"$L_AUTRE_HREF\" data-lang=\"$L_AUTRE_LANG\">$(html_echap "$L_AUTRE_LIBELLE")</a></p>"
+            else
+                echo "      <p><a class=\"button button-default\" href=\"$L_AUTRE_HREF\">$(html_echap "$L_AUTRE_LIBELLE")</a></p>"
+            fi
         fi
         echo "    </main>"
         if [[ -n "$L_FOOTER" ]]; then echo "    <footer>$(html_echap "$L_FOOTER")</footer>"; fi
@@ -775,6 +820,13 @@ for i in ${ACTIVES[@]+"${ACTIVES[@]}"}; do
     P_CHEMIN="$(valeur_ou "PAGE_${i}_PATH" "")"
     P_LANGUES="$(valeur_ou "PAGE_${i}_LANGUAGES" "$SITE_LANGUAGE_V")"
     IFS=',' read -r -a P_LISTE <<< "$P_LANGUES"
+    # 1.18: script of the page: only when it has something to do (theme button, "Share" button or two languages)
+    P_PARTAGE="$(valeur_ou "PAGE_${i}_SHARE" yes)"
+    P_JS=no
+    if [[ "$(valeur_ou "PAGE_${i}_SCRIPT" yes)" == yes ]] && { (( ${#P_MENU[@]} )) || [[ "$P_PARTAGE" == yes ]] || (( ${#P_LISTE[@]} == 2 )); }; then
+        P_JS=yes
+    fi
+    SCRIPT_PAGE[i]="$P_JS"
     for k in "${!P_LISTE[@]}"; do
         L_LANG="${P_LISTE[$k]}"
         # the first language is the root page (/liens/); any other language lives in a sub-folder (/liens/en/)
@@ -800,16 +852,21 @@ for i in ${ACTIVES[@]+"${ACTIVES[@]}"}; do
             if (( k > 0 )); then L_URL_PUBLIQUE+="$L_LANG/"; fi
         fi
         # link to the other language (two languages only)
-        L_AUTRE_HREF=""; L_AUTRE_LIBELLE=""
+        # 1.18: index.html for the first language: the bare path goes back to the second language when the browser prefers it
+        L_AUTRE_HREF=""; L_AUTRE_LIBELLE=""; L_AUTRE_LANG=""
         if (( ${#P_LISTE[@]} == 2 )); then
-            if (( k == 0 )); then autre="${P_LISTE[1]}"; L_AUTRE_HREF="${P_CHEMIN}${autre}/"; else autre="${P_LISTE[0]}"; L_AUTRE_HREF="$P_CHEMIN"; fi
+            if (( k == 0 )); then autre="${P_LISTE[1]}"; L_AUTRE_HREF="${P_CHEMIN}${autre}/"; else autre="${P_LISTE[0]}"; L_AUTRE_HREF="${P_CHEMIN}index.html"; fi
+            L_AUTRE_LANG="$autre"
             if [[ "$autre" == en ]]; then L_AUTRE_LIBELLE="English"; else L_AUTRE_LIBELLE="Français"; fi
         fi
         if [[ -n "$P_ACCENT" ]]; then
             printf '.button.button-default { --button-background: %s; }\n' "$P_ACCENT" > "$dossier/css/accent.css"
         fi
-        if (( ${#P_MENU[@]} )); then
+        if [[ "$P_JS" == yes ]]; then mkdir -p "$dossier/js"; install -m 644 "$LINK_PAGE_JS" "$dossier/js/link-page.js"; fi
+        if (( ${#P_MENU[@]} )) || [[ "$P_JS" == yes && "$P_PARTAGE" == yes ]]; then
             if [[ -r "$THEME_MENU_CSS" ]]; then install -m 644 "$THEME_MENU_CSS" "$dossier/css/theme-menu.css"; fi
+        fi
+        if (( ${#P_MENU[@]} )); then
             for t in "${P_MENU[@]}"; do
                 if [[ "$t" == "$P_THEME" ]]; then genere_index "$dossier" "$t" "$L_TITRE" index.html
                 else genere_index "$dossier" "$t" "$L_TITRE" "theme-$t.html"; fi
@@ -860,7 +917,7 @@ else
             LIEN_NOUVEAU+="    index index.html;"$'\n'
             LIEN_NOUVEAU+="    limit_except GET HEAD { deny all; }"$'\n'
             LIEN_NOUVEAU+="    add_header Vary \"Accept-Language\" always;"$'\n'
-            LIEN_NOUVEAU+="    add_header Content-Security-Policy \"default-src 'none'; img-src 'self'; style-src 'self'; font-src 'self'; script-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'\" always;"$'\n'
+            LIEN_NOUVEAU+="    add_header Content-Security-Policy \"default-src 'none'; img-src 'self'; style-src 'self'; font-src 'self'; script-src $( [[ "${SCRIPT_PAGE[i]:-no}" == yes ]] && echo "'self'" || echo "'none'" ); frame-ancestors 'none'; base-uri 'none'; form-action 'none'\" always;"$'\n'
             LIEN_NOUVEAU+="    add_header X-Content-Type-Options \"nosniff\" always;"$'\n'
             LIEN_NOUVEAU+="    add_header Referrer-Policy \"strict-origin-when-cross-origin\" always;"$'\n'
             LIEN_NOUVEAU+="}"$'\n'
@@ -869,7 +926,7 @@ else
         LIEN_NOUVEAU+="    alias ${dir_page}/;"$'\n'
         LIEN_NOUVEAU+="    index index.html;"$'\n'
         LIEN_NOUVEAU+="    limit_except GET HEAD { deny all; }"$'\n'
-        LIEN_NOUVEAU+="    add_header Content-Security-Policy \"default-src 'none'; img-src 'self'; style-src 'self'; font-src 'self'; script-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'\" always;"$'\n'
+        LIEN_NOUVEAU+="    add_header Content-Security-Policy \"default-src 'none'; img-src 'self'; style-src 'self'; font-src 'self'; script-src $( [[ "${SCRIPT_PAGE[i]:-no}" == yes ]] && echo "'self'" || echo "'none'" ); frame-ancestors 'none'; base-uri 'none'; form-action 'none'\" always;"$'\n'
         LIEN_NOUVEAU+="    add_header X-Content-Type-Options \"nosniff\" always;"$'\n'
         LIEN_NOUVEAU+="    add_header Referrer-Policy \"strict-origin-when-cross-origin\" always;"$'\n'
         LIEN_NOUVEAU+="}"$'\n'
@@ -882,7 +939,7 @@ LIEN_ANCIEN=""; [[ -f "$LIEN_FICHIER" ]] && LIEN_ANCIEN=$(cat "$LIEN_FICHIER")
 for i in ${ACTIVES[@]+"${ACTIVES[@]}"}; do
     dossier="$(valeur_ou "PAGE_${i}_DIR" "")"
     mkdir -p "$dossier"
-    for x in css fonts images index.html autre.html en fr; do rm -rf "${dossier:?}/$x"; done
+    for x in css fonts images js index.html autre.html en fr; do rm -rf "${dossier:?}/$x"; done      # 1.18: js
     rm -f "${dossier:?}"/theme-*.html                    # 1.17: pages of the "Theme" button of the previous run
     cp -r "$TMP/page-$i/." "$dossier/" || { err "$(m "copie impossible dans" "copy failed in") $dossier"; exit 1; }
     chmod -R a+rX "$dossier"

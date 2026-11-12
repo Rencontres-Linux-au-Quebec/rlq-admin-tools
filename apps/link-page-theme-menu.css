@@ -1,9 +1,9 @@
 /*
- * link-page-theme-menu.css - "Theme" button of the link pages of nginx-link-page.sh (PAGE_n_THEMES).
+ * link-page-theme-menu.css - "Theme" and "Share" buttons of the link pages of nginx-link-page.sh (PAGE_n_THEMES, PAGE_n_SHARE).
  * Copyright (C) 2026 Services-Conseils Linux Inc. - AGPL-3.0-or-later (see LICENSE).
- * Copied as css/theme-menu.css into each page folder. No script (the Content-Security-Policy of the pages forbids it): the menu is a
- * <details> element, and each theme is a complete page (index.html, theme-NAME.html). Colours follow the active theme (currentColor,
- * Canvas and CanvasText follow its color-scheme), so the button suits every theme.
+ * Copied as css/theme-menu.css into each page folder. The menu is a <details> element: without script each theme is a complete page
+ * (index.html, theme-NAME.html); with js/link-page.js (1.18) the theme changes in place. Colours follow the active theme (currentColor,
+ * Canvas and CanvasText follow its color-scheme), so the buttons suit every theme.
  */
 .theme-menu {
 	position: fixed;
@@ -14,7 +14,8 @@
 	line-height: 1.3;
 	text-align: left;
 }
-.theme-menu summary {
+.theme-menu summary,
+.share-button {
 	display: inline-flex;
 	align-items: center;
 	gap: 0.4rem;
@@ -72,7 +73,44 @@
 .theme-menu li a[aria-current="page"]::before {
 	content: "\2713  ";
 }
+/* the "Share" button is a <button>: the button rules of LittleLink (width 300 px, margin, font size, hover movement) are undone */
+.share-button {
+	position: fixed;
+	top: 0.75rem;
+	left: 0.75rem;
+	z-index: 10;
+	width: auto;
+	min-height: 0;
+	margin: 0;
+	font-family: inherit;
+	font-size: 0.9rem;
+	font-weight: 600;
+	line-height: 1.3;
+	color: inherit;
+	hyphens: none;
+	transform: none;
+}
+.share-button:hover {
+	transform: none;
+	filter: none;
+}
+.share-button[hidden] {
+	display: none;
+}
+.share-button:hover,
+.theme-menu summary:hover {
+	background: rgba(127, 127, 127, 0.30);
+}
+/* 1.18: the rain of Misty Rain is written once and shown only with that theme (the script changes the theme in place) */
+:root:not(.theme-ls-misty-rain) .ls-rain {
+	display: none;
+}
 @media (max-width: 34.375rem) {
+	.share-button {
+		position: absolute;
+		top: 0.5rem;
+		left: 0.5rem;
+	}
 	.theme-menu {
 		position: absolute;
 		top: 0.5rem;
