@@ -89,6 +89,12 @@
 #NOT_FOUND=no
 # --no-banned
 #NO_BANNED=no
+# --hide-bots (1.191) : cacher les lignes des robots (robots.txt ou plan du site demandé, nom ou User-Agent de robot) ; toujours comptées dans les rapports (touche p à la volée)
+#HIDE_BOTS=no
+# --accounts-only (1.191) : seulement les lignes des adresses d'où un compte Odoo s'est connecté ; les lignes sans adresse restent (touche g à la volée)
+#ACCOUNTS_ONLY=no
+# --visitor-report (1.191) : minutes entre deux rapports des visiteurs (adresses différentes, personnes avec pages et requêtes, robots) ; 0 = jamais ; touche % : tout de suite
+#VISITOR_REPORT=60
 # --no-ban-prompt
 #NO_BAN_PROMPT=no
 # --no-cache

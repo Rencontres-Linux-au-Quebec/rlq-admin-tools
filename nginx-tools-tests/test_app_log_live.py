@@ -2680,6 +2680,50 @@ class AppLogLive(EnvTest):
             f.write("pas du json")
         self.assertEqual(live.Stats(5.0).to_ban(), [])
 
+    def test_191_hide_bots_et_accounts_only(self):
+        """1.191 : --hide-bots cache les lignes des robots (robots.txt demandé) ; --accounts-only ne montre que les adresses d'où un compte Odoo
+        s'est connecté (historique) ; les deux ensemble ; sans option, tout est montré."""
+        robot = "3.3.3.3"
+        self.journal([werkzeug(PERSONNE, "/compte"), werkzeug(robot, "/robots.txt"), werkzeug(robot, "/aspire"), werkzeug(ISP, "/anonyme")])
+        cas = {(): ("/compte", "/robots.txt", "/aspire", "/anonyme"), ("--hide-bots",): ("/compte", "/anonyme"),
+               ("--accounts-only",): ("/compte",), ("--hide-bots", "--accounts-only"): ("/compte",)}
+        for options, visibles in cas.items():
+            with self.subTest(options=options):
+                rc, out, err = self.lancer("--no-isp", "--no-presence", "--no-banned", *options)
+                self.assertEqual(rc, 0, err)
+                for url in ("/compte", "/robots.txt", "/aspire", "/anonyme"):
+                    (self.assertRegex if url in visibles else self.assertNotRegex)(out, rf"(?m)GET\s+{re.escape(url)}$")
+
+    def test_191_options_cles_et_touches(self):
+        """1.191 : touches p, g et % ; clés HIDE_BOTS, ACCOUNTS_ONLY, VISITOR_REPORT (sauvegardées par W) ; --visitor-report hors bornes refusé."""
+        live = self.module_live()
+        self.assertEqual((live.MENU_KEYS[b"p"], live.MENU_KEYS[b"g"], live.MENU_KEYS[b"%"]), ("hidebots", "accountsonly", "visitors"))
+        for cle in ("HIDE_BOTS", "ACCOUNTS_ONLY", "VISITOR_REPORT"):
+            self.assertIn(cle, live.SCHEMA_CONFIG)
+        import inspect
+        source = inspect.getsource(live.config_values)                       # written by the W key with the other settings of the menu
+        for cle in ("HIDE_BOTS", "ACCOUNTS_ONLY", "VISITOR_REPORT"):
+            self.assertIn(f'"{cle}":', source)
+        rc, out, err = self.run_cmd(["python3", self.prog, "--no-follow", "--visitor-report", "2000"])
+        self.assertNotEqual(rc, 0)
+        self.assertIn("--visitor-report", err)
+
+    def test_191_rapport_des_visiteurs_touche_pourcent(self):
+        """1.191 : touche % : adresses différentes par sorte, personnes (compte Odoo) avec pages et requêtes, robots ; le second rapport part du premier."""
+        robot = "3.3.3.3"
+        self.journal([werkzeug(PERSONNE, "/a"), werkzeug(PERSONNE, "/b"), werkzeug(robot, "/robots.txt"), werkzeug(robot, "/c"), werkzeug(ISP, "/fin")],
+                     after="sleep 30")
+        text, envoyees = self.run_pty(["python3", self.prog, "--no-isp", "--no-presence", "--no-banned", "--status-every", "0"],
+                                      [(b"/fin", b"%", 1.0), (b"Personnes (", b"%", 0.8), (b"Aucune requ", b"\x03", 0.5)], timeout=60)
+        self.assertEqual(envoyees, 3, text)
+        rapport = " ".join(text[text.index("Visiteurs (touche %)"):].split())
+        self.assertIn("Adresses différentes : 3 · comptes Odoo 1 · équipe ou lieu 0 · robots 1 · anonymes 1", rapport)
+        self.assertIn("Personnes (1), par pages vues :", rapport)
+        self.assertRegex(rapport, r"Étienne Dupont 2 pages · 2 requêtes · 1 adresse\(s\)")
+        self.assertIn("Robots : 1 adresse(s) · 1 pages · 2 requêtes", rapport)            # /robots.txt is a request, not a page
+        self.assertIn("Pages vues : 4 · requêtes : 5", rapport)
+        self.assertIn("Aucune requête depuis le dernier rapport.", rapport)
+
     def test_robots_et_vrais_visiteurs(self):
         """1.17 : robot = a demandé robots.txt / un plan de site, ou nom de robot connu ; jamais une personne connue ; % de vrais visiteurs."""
         live = self.module_live()
