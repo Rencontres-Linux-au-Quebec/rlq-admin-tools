@@ -1,0 +1,188 @@
+/*
+ * link-page-themes.css - 5 additional themes for the link pages of nginx-link-page.sh (PAGE_n_THEME).
+ * Copyright (C) 2026 Services-Conseils Linux Inc. - AGPL-3.0-or-later (see LICENSE).
+ * Copied as css/themes.css into each page folder, loaded after style.css and brands.css (LittleLink) and before accent.css
+ * (PAGE_n_ACCENT keeps the last word on the default buttons). No external font, image or script: the Content-Security-Policy
+ * of the pages allows only 'self'. The brand buttons (PAGE_n_BUTTONS=brand) keep the colours of their brand.
+ *
+ *   aurora    northern lights: night blue, green and violet light, glass buttons          (dark base)
+ *   maple     autumn in Quebec: warm cream, maple red buttons                              (light base)
+ *   river     St. Lawrence: sky to water blue, deep teal buttons                           (light base)
+ *   terminal  green on black, monospace, buttons as command lines                          (dark base)
+ *   tux       charcoal and penguin orange, white text                                      (dark base)
+ */
+
+/* ---- common to the 5 themes ---------------------------------------------------------------- */
+:root.theme-aurora body, :root.theme-maple body, :root.theme-river body, :root.theme-terminal body, :root.theme-tux body {
+	min-height: 100vh;
+	background-attachment: fixed;
+}
+:root.theme-aurora .button, :root.theme-maple .button, :root.theme-river .button, :root.theme-terminal .button, :root.theme-tux .button {
+	transition: transform 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease;
+}
+:root.theme-aurora .button:hover, :root.theme-maple .button:hover, :root.theme-river .button:hover, :root.theme-terminal .button:hover,
+:root.theme-tux .button:hover {
+	transform: translateY(-2px);
+}
+@media (prefers-reduced-motion: reduce) {
+	:root.theme-aurora .button, :root.theme-maple .button, :root.theme-river .button, :root.theme-terminal .button, :root.theme-tux .button {
+		transition: none;
+	}
+	:root.theme-aurora .button:hover, :root.theme-maple .button:hover, :root.theme-river .button:hover, :root.theme-terminal .button:hover,
+	:root.theme-tux .button:hover {
+		transform: none;
+	}
+}
+
+/* ---- aurora: northern lights ---------------------------------------------------------------- */
+:root.theme-aurora {
+	color-scheme: dark;
+}
+:root.theme-aurora body {
+	background-color: #0b1026;
+	background-image:
+		radial-gradient(ellipse 80% 45% at 15% 0%, rgba(46, 230, 166, 0.30), transparent 70%),
+		radial-gradient(ellipse 70% 40% at 90% 10%, rgba(155, 92, 255, 0.32), transparent 70%),
+		linear-gradient(180deg, #0b1026 0%, #111a3d 55%, #0b1026 100%);
+	color: #eef2ff;
+}
+:root.theme-aurora h1 {
+	color: #ffffff;
+	text-shadow: 0 0 24px rgba(46, 230, 166, 0.35);
+}
+:root.theme-aurora .button.button-default {
+	--button-text: #ffffff;
+	--button-background: rgba(255, 255, 255, 0.08);
+	--button-border: 1px solid rgba(46, 230, 166, 0.55);
+}
+:root.theme-aurora .button:hover {
+	box-shadow: 0 0 18px rgba(46, 230, 166, 0.35);
+}
+:root.theme-aurora a:not(.button) { color: #7ef0c6; }
+:root.theme-aurora a:not(.button):hover { color: #c3b2ff; }
+:root.theme-aurora :focus-visible { outline: 2px solid #7ef0c6; outline-offset: 2px; }
+
+/* ---- maple: autumn in Quebec ---------------------------------------------------------------- */
+:root.theme-maple {
+	color-scheme: light;
+}
+:root.theme-maple body {
+	background-color: #fbf3e6;
+	background-image: linear-gradient(180deg, #fff8ee 0%, #f8e7cf 100%);
+	color: #3b2314;
+}
+:root.theme-maple h1 {
+	color: #9c1c13;
+}
+:root.theme-maple .button.button-default {
+	--button-text: #ffffff;
+	--button-background: #b3261e;
+	--button-border: 1px solid #8a1c16;
+	box-shadow: 0 3px 0 #7a1812;
+}
+:root.theme-maple .button:hover {
+	box-shadow: 0 5px 12px rgba(122, 24, 18, 0.30);
+}
+:root.theme-maple a:not(.button) { color: #a33a0b; }
+:root.theme-maple a:not(.button):hover { color: #6e2507; }
+:root.theme-maple :focus-visible { outline: 2px solid #b3261e; outline-offset: 2px; }
+
+/* ---- river: St. Lawrence ------------------------------------------------------------------- */
+:root.theme-river {
+	color-scheme: light;
+}
+:root.theme-river body {
+	background-color: #e6f4f8;
+	background-image: linear-gradient(180deg, #f2fbff 0%, #d4eef5 50%, #b9e1ea 100%);
+	color: #0d3340;
+}
+:root.theme-river h1 {
+	color: #0b4f63;
+}
+:root.theme-river .button.button-default {
+	--button-text: #ffffff;
+	--button-background: #0e6b7f;
+	--button-border: 1px solid #0a5464;
+	border-radius: 999px;
+}
+:root.theme-river .button:hover {
+	box-shadow: 0 6px 16px rgba(14, 107, 127, 0.30);
+}
+:root.theme-river a:not(.button) { color: #0b5f73; }
+:root.theme-river a:not(.button):hover { color: #063946; }
+:root.theme-river :focus-visible { outline: 2px solid #0e6b7f; outline-offset: 2px; }
+
+/* ---- terminal: green on black ----------------------------------------------------------------- */
+:root.theme-terminal {
+	color-scheme: dark;
+}
+:root.theme-terminal body {
+	background-color: #050805;
+	background-image: repeating-linear-gradient(180deg, rgba(57, 255, 20, 0.035) 0, rgba(57, 255, 20, 0.035) 1px, transparent 1px, transparent 3px);
+	color: #b8f7a8;
+	font-family: "DejaVu Sans Mono", "Liberation Mono", "Ubuntu Mono", Menlo, Consolas, monospace;
+}
+:root.theme-terminal h1 {
+	color: #39ff14;
+	font-family: inherit;
+	letter-spacing: 0;
+	hyphens: manual;                    /* no "Li-nux": the monospace font makes the automatic hyphenation of LittleLink ugly */
+}
+:root.theme-terminal h1::before {
+	content: "$ ";
+	color: #1fa80a;
+}
+:root.theme-terminal .button {
+	font-family: inherit;
+	border-radius: 0.2rem;
+	hyphens: manual;
+}
+:root.theme-terminal .button.button-default {
+	--button-text: #39ff14;
+	--button-background: #0b140b;
+	--button-border: 1px solid #39ff14;
+	justify-content: flex-start;
+}
+:root.theme-terminal .button.button-default::before {
+	content: "> ";
+	margin-right: 0.25rem;
+}
+:root.theme-terminal .button:hover {
+	box-shadow: 0 0 12px rgba(57, 255, 20, 0.45);
+}
+:root.theme-terminal a:not(.button) { color: #39ff14; }
+:root.theme-terminal a:not(.button):hover { color: #a6ff8f; }
+:root.theme-terminal :focus-visible { outline: 2px dashed #39ff14; outline-offset: 2px; }
+
+/* ---- tux: charcoal and penguin orange ------------------------------------------------------- */
+:root.theme-tux {
+	color-scheme: dark;
+}
+:root.theme-tux body {
+	background-color: #1c1f24;
+	background-image: radial-gradient(ellipse 90% 50% at 50% 0%, #2c313a 0%, #1c1f24 70%);
+	color: #f4f4f5;
+}
+:root.theme-tux h1 {
+	color: #ffffff;
+}
+:root.theme-tux h1::after {
+	content: "";
+	display: block;
+	width: 4rem;
+	height: 0.3rem;
+	margin: 0.75rem auto 0;
+	border-radius: 0.2rem;
+	background: #f6a609;
+}
+:root.theme-tux .button.button-default {
+	--button-text: #1c1f24;
+	--button-background: #f6a609;
+	--button-border: 1px solid #f6a609;
+}
+:root.theme-tux .button:hover {
+	box-shadow: 0 6px 16px rgba(246, 166, 9, 0.35);
+}
+:root.theme-tux a:not(.button) { color: #ffc24d; }
+:root.theme-tux a:not(.button):hover { color: #ffe0a3; }
+:root.theme-tux :focus-visible { outline: 2px solid #ffc24d; outline-offset: 2px; }

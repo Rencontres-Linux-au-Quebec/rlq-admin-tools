@@ -73,7 +73,9 @@
 # PAGE_n_ENGINE    : littlelink (linkstack is reserved and not supported yet)
 # PAGE_n_PATH      : page address, for example /links/ or /links2/ (each page has its own)
 # PAGE_n_DIR       : folder where the files are installed, for example /var/www/links (absolute, unique)
-# PAGE_n_THEME     : auto, light or dark
+# PAGE_n_THEME     : auto, light or dark (LittleLink), or one of the 5 themes of apps/link-page-themes.css:
+#                    aurora (northern lights, dark), maple (maple red on cream, light), river (St. Lawrence blues, light),
+#                    terminal (green on black, monospace, dark), tux (charcoal and penguin orange, dark)
 # PAGE_n_TITLE     : page title (optional)
 # PAGE_n_BUTTONS   : default or brand (brand: Facebook, LinkedIn and YouTube colours for built-in icons)
 # PAGE_n_AVATAR    : none, soft or rounded (logo shape)
