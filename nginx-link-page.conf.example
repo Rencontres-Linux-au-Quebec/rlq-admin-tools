@@ -18,6 +18,9 @@
 #   - Page folder: absolute path, unique, and never inside another page folder.
 #   - Icon: builtin:NAME (LittleLink icons) or https:// to a PNG, JPEG, WebP or SVG image.
 #   - Common builtin icons: facebook, linkedin, youtube, generic-calendar, generic-blog, generic-website
+#   - LittleLink Extended icons, same builtin:NAME (for example builtin:codeberg, builtin:lemmy, builtin:peertube,
+#     builtin:matrix-alt, builtin:pixelfed, builtin:orcid-id, builtin:osm): list in images/icons-extended/ of
+#     https://github.com/sethcottle/littlelink-extended (tag v3.2.0)
 #
 # ---------------------------------------------------------------------------------------------
 # 1. SHARED CONTENT (SITE_TITLE is required)

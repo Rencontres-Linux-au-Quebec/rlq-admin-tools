@@ -12,7 +12,7 @@
 # /links2/ with another engine, to compare them). EVERYTHING specific to a group (titles, links, logo, icons, themes, paths)
 # comes from the configuration file: nothing about a group is written in this program or in the repository.
 #
-# Engines: "littlelink" (static pages, LittleLink v3.11.0, pinned tag and commit). "linkstack" is reserved: LinkStack is a
+# Engines: "littlelink" (static pages, LittleLink v3.11.0 + LittleLink Extended v3.2.0, pinned tags and commits). "linkstack" is reserved: LinkStack is a
 # PHP/Laravel application with a database and a setup wizard, so it is refused until it is implemented.
 #
 # Safety: LittleLink is fetched at a pinned tag AND commit (a different commit is refused); the logo and the icons are
@@ -29,7 +29,7 @@
 set -u
 LANG_C="${LC_ALL:-${LC_MESSAGES:-${LANG:-C}}}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
-readonly SCRIPT_VERSION="1.10.20261112.072450"
+readonly SCRIPT_VERSION="1.11.20261112.074754"
 readonly SCRIPT_NAME="nginx-link-page"
 readonly CHANGELOG_FILE="$SCRIPT_DIR/CHANGELOG.md"
 
@@ -37,6 +37,11 @@ readonly CHANGELOG_FILE="$SCRIPT_DIR/CHANGELOG.md"
 readonly LINKPAGE_REPO="https://github.com/sethcottle/littlelink"
 readonly LINKPAGE_TAG="v3.11.0"
 readonly LINKPAGE_SHA="3c9162c9f8324d5e002259ed8b4b3cc377b08486"
+# 1.11: LittleLink Extended (MIT): 76 more icons and brand buttons (Codeberg, Lemmy, PeerTube, Matrix, ORCID...), same pinning rule.
+# Only css/brands-extended.css and images/icons-extended/ are copied (its sensitive-content.js is not: the pages forbid any script).
+readonly LINKPAGE_EXT_REPO="https://github.com/sethcottle/littlelink-extended"
+readonly LINKPAGE_EXT_TAG="v3.2.0"
+readonly LINKPAGE_EXT_SHA="d7034f83a6bf71c4a663d2d046a03b37ec74ae45"
 readonly MAX_ASSET_BYTES=524288
 readonly MOTEURS_PRIS_EN_CHARGE="littlelink"
 
@@ -453,6 +458,22 @@ if (( needs_littlelink )); then
         [[ -d "$TMP/littlelink/$d" ]] || { err "LittleLink : $d/ absent / missing"; exit 1; }
     done
     ok "LittleLink $LINKPAGE_TAG (${sha:0:12})"
+    # 1.11: LittleLink Extended, at its pinned tag and commit. Not reachable or another commit: [ATTN], the pages are built
+    # without it (a configuration that uses one of its icons then stops on "unknown built-in icon").
+    if timeout 180 git clone --quiet --depth 1 --branch "$LINKPAGE_EXT_TAG" "$LINKPAGE_EXT_REPO" "$TMP/littlelink-extended" >/dev/null 2>&1; then
+        sha_ext=$(git -C "$TMP/littlelink-extended" rev-parse HEAD 2>/dev/null || true)
+        if [[ "$sha_ext" != "$LINKPAGE_EXT_SHA" ]]; then
+            attn "$(m "LittleLink Extended $LINKPAGE_EXT_TAG : commit ${sha_ext:-inconnu} different du commit epingle : non utilise." "LittleLink Extended $LINKPAGE_EXT_TAG: commit ${sha_ext:-unknown} differs from the pinned commit: not used.")"
+        elif [[ -f "$TMP/littlelink-extended/css/brands-extended.css" && -d "$TMP/littlelink-extended/images/icons-extended" ]]; then
+            cp "$TMP/littlelink-extended/css/brands-extended.css" "$TMP/littlelink/css/"
+            cp -r "$TMP/littlelink-extended/images/icons-extended" "$TMP/littlelink/images/"
+            ok "LittleLink Extended $LINKPAGE_EXT_TAG (${sha_ext:0:12})"
+        else
+            attn "$(m "LittleLink Extended : css/brands-extended.css ou images/icons-extended/ absent : non utilise." "LittleLink Extended: css/brands-extended.css or images/icons-extended/ missing: not used.")"
+        fi
+    else
+        attn "$(m "LittleLink Extended $LINKPAGE_EXT_TAG non telechargeable (reseau ?) : pages construites sans ses icones." "LittleLink Extended $LINKPAGE_EXT_TAG cannot be cloned (network?): pages built without its icons.")"
+    fi
 fi
 
 # 2) logo and icons: downloaded once, checked, kept in the work folder (pages load nothing from other sites)
@@ -485,8 +506,10 @@ icone_resoudre() {   # icone_resoudre VALEUR CLE : sets RES_ICONE (path relative
     RES_ICONE=""
     if [[ "$v" == builtin:* ]]; then
         nom="${v#builtin:}"
-        [[ -f "$TMP/littlelink/images/icons/$nom.svg" ]] || { err "$(m "icone integree inconnue : $nom" "unknown built-in icon: $nom")"; return 1; }
-        RES_ICONE="images/icons/$nom.svg"; return 0
+        # 1.11: LittleLink first, then LittleLink Extended (same builtin:NAME)
+        if [[ -f "$TMP/littlelink/images/icons/$nom.svg" ]]; then RES_ICONE="images/icons/$nom.svg"; return 0; fi
+        if [[ -f "$TMP/littlelink/images/icons-extended/$nom.svg" ]]; then RES_ICONE="images/icons-extended/$nom.svg"; return 0; fi
+        err "$(m "icone integree inconnue : $nom" "unknown built-in icon: $nom")"; return 1
     fi
     if [[ -n "${ICONE_RESOLUE[$v]:-}" ]]; then RES_ICONE="${ICONE_RESOLUE[$v]}"; return 0; fi
     telecharger "$v" "$TMP/assets/images/site/icon-$cle" || { err "$(m "icone non telechargeable ou pas une image : $v" "icon not downloadable or not an image: $v")"; return 1; }
@@ -502,7 +525,7 @@ for i in "${LIENS_N[@]}"; do
     if [[ "$ic" == builtin:* ]]; then
         cand="${ic#builtin:}"
         case "$cand" in facebook) cand=faceb ;; youtube) cand=yt ;; linkedin) cand=linked ;; esac
-        if grep -Eq "\.button-${cand}[^a-zA-Z0-9_-]" "$TMP/littlelink/css/brands.css" 2>/dev/null; then BOUTON_MARQUE[$i]="button-$cand"; fi
+        if grep -Eq "\.button-${cand}[^a-zA-Z0-9_-]" "$TMP/littlelink/css/brands.css" "$TMP/littlelink/css/brands-extended.css" 2>/dev/null; then BOUTON_MARQUE[$i]="button-$cand"; fi
     fi
     ICONE_SOMBRE[$i]=""
     if [[ -n "${CFG[LINK_${i}_ICON_DARK]:-}" ]]; then
@@ -572,6 +595,7 @@ genere_index() {   # genere_index DOSSIER THEME TITRE [FICHIER] [CIBLE_BASCULE] 
         echo "    <link rel=\"stylesheet\" href=\"css/reset.css\">"
         echo "    <link rel=\"stylesheet\" href=\"css/style.css\">"
         echo "    <link rel=\"stylesheet\" href=\"css/brands.css\">"
+        if [[ -f "$dossier/css/brands-extended.css" ]]; then echo "    <link rel=\"stylesheet\" href=\"css/brands-extended.css\">"; fi
         if [[ -f "$dossier/css/accent.css" ]]; then echo "    <link rel=\"stylesheet\" href=\"css/accent.css\">"; fi
         echo "  </head>"
         echo "  <body>"
