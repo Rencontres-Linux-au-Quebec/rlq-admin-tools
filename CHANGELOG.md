@@ -3494,6 +3494,17 @@ Earlier history was archived outside this repository when this file was created.
 
 ### 1.14.20261020.211944 - Current version. Earlier history archived outside the repository.
 
+## nginx configuration (nginx/VERSION)
+
+### 1.29.20261111.224149 - Empty colour in the web editor images is refused
+
+- Motif de la demande: sur PROD, un client Microsoft (apercu de lien) envoie /web_editor/font_to_img/<n>/rgb sans valeurs de couleur ; Odoo repond 500 (ValueError: unknown color specifier: 'rgb').
+- Detail des modifications: nginx/snippets/securite-commune.conf, nouvelle regle 3 ter : /web_editor/font_to_img/<n>/rgb ou rgba sans parentheses (fin d'URL, ou suivi de / ou ?) -> 404 (prefixe de langue facultatif). nginx/VERSION 1.29.20261111.224149. Tests : nginx-tools-tests/test_nginx_uri.py, classe FiltreCouleurVideImagesEditeur.
+- Bugs corriges: symptome : erreurs 500 d'Odoo et exception ValueError dans le journal, pour une URL sans valeurs de couleur. Diagnostic : la couleur arrive sans parentheses ; PIL la rejette. Correction : refus par nginx avant Odoo.
+- Garde-fous et cas limites traites: les URL legitimes (rgb(...), rgba(...), avec ou sans query string) restent acceptees. Aucun journal de sondes (jail fail2ban) pour cette regle : ces requetes ne sont pas des sondes, et fail2ban bannirait le client qui les envoie (un test le verifie).
+- Verifications effectuees: nginx-tools-tests/test_nginx_uri.py lance par le testeur (voir le rapport de la PR).
+- Action requise: relancer nginx-hardening.sh --update sur chaque serveur pour installer la regle ; aucune autre action.
+
 ## nginx-hardening.sh
 
 ### 2.99.20261111.165500 - Link page question uses /links/
