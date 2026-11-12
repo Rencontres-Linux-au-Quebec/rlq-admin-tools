@@ -25,6 +25,32 @@ def lancer(programme, *args):
         return subprocess.run(exe + list(args), capture_output=True, text=True, env=env, stdin=subprocess.DEVNULL, timeout=120)
 
 
+class AdminMenuLangue(unittest.TestCase):
+    """admin-menu.sh 1.5 : --help dans la langue de --lang, sinon ADMIN_MENU_LANG, NGINX_TOOLS_LANG, LANGUAGE, puis la locale ; --lang l'emporte."""
+
+    def aide(self, *args, **env):
+        with tempfile.TemporaryDirectory() as d:
+            e = dict(os.environ, HOME=d, NGINX_TOOLS_ETC_DEFAULT=d, NO_COLOR="1", LANG="fr_CA.UTF-8")
+            for cle in ("ADMIN_MENU_LANG", "NGINX_TOOLS_LANG", "LC_ALL", "LC_MESSAGES", "NGINX_TOOLS_I18N_LANGUE"):
+                e.pop(cle, None)
+            e.update(env)
+            r = subprocess.run(["bash", script_path("admin-menu.sh"), *args, "--help"], capture_output=True, text=True, env=e, timeout=30)
+            self.assertEqual(r.returncode, 0, r.stderr)
+            return r.stdout
+
+    def test_langue_de_l_aide(self):
+        anglais, francais = "Usage: admin-menu.sh", "Usage : admin-menu.sh"
+        cas = [((), {}, francais), (("--lang", "en"), {}, anglais), (("--lang=en",), {}, anglais), ((), {"ADMIN_MENU_LANG": "en"}, anglais),
+               ((), {"NGINX_TOOLS_LANG": "en"}, anglais), ((), {"LANG": "en_US.UTF-8"}, anglais), (("--lang", "fr"), {"LANG": "en_US.UTF-8"}, francais),
+               (("--lang", "fr"), {"ADMIN_MENU_LANG": "en"}, francais)]
+        for args, env, attendu in cas:
+            with self.subTest(args=args, env=env):
+                sortie = self.aide(*args, **env)
+                self.assertIn(attendu, sortie)
+                self.assertTrue(sortie.startswith("admin-menu.sh v"), sortie[:80])
+        self.assertRegex(self.aide("--lang", "en"), r"(?m)^  --lang LANG\s+language of the messages")
+
+
 class MenuTousLesProgrammes(unittest.TestCase):
     def test_menu_dans_l_aide(self):
         for programme in PROGRAMMES:

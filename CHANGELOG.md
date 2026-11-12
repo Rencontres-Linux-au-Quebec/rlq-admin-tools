@@ -18,6 +18,16 @@ Earlier history was archived outside this repository when this file was created.
 
 ## admin-menu.sh
 
+### 1.5.20261112.095005 - --help and the menu in the language chosen with --lang or the variables
+
+- Title: new option --lang LANG; ADMIN_MENU_LANG and NGINX_TOOLS_LANG are read too.
+- Reason: request of the administrator on 2026-11-12: "admin-menu.sh --help" must be shown in the language chosen with --lang (or the variables); it stayed in French.
+- Changes: choisir_langue() reads the arguments: --lang LANG / --lang=LANG, then ADMIN_MENU_LANG, then NGINX_TOOLS_LANG, then LANGUAGE of the configuration file (auto), then LC_ALL, LC_MESSAGES, LANG; the argument loop accepts --lang; help line --lang LANG (French and English) and header; doc/en and doc/fr admin-menu.conf.example: note above LANGUAGE; nginx-tools-tests/test_menu.py: test AdminMenuLangue (8 cases).
+- Bugs fixed: symptom: "admin-menu.sh --lang en --help" refused --lang (unknown option) and the help stayed in French; diagnosis: the language came only from LANGUAGE of the configuration file or the locale, there was no --lang option; fix: --lang and the variables, read before the help is printed.
+- Safeguards and edge cases: --lang wins over the variables and the configuration; a language given by --lang or ADMIN_MENU_LANG is exported in NGINX_TOOLS_LANG, so the programs started from the menu follow it; any value other than en* gives French; --lang without a value: message and exit code 2; the first line is still the name and the version.
+- Checks performed: bash -n; shellcheck; test_menu (8 language cases), test_conventions (help sorted, --config-merge), test_config_defaut.
+- Action required: none.
+
 ### 1.4.20261112.082236 - New option --config-merge
 
 - Title: --config-merge rewrites the configuration file from the new default configuration, keeping its values.

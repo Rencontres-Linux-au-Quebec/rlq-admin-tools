@@ -23,6 +23,7 @@
 #                                ~/.admin-menu.conf if it exists; the command line has priority)
 #   -h, --help                   show this help and exit
 #   --install-dialog             install dialog (apt) if it is missing, without asking
+#   --lang LANG                  fr or en (otherwise ADMIN_MENU_LANG, NGINX_TOOLS_LANG, LANGUAGE, then the locale); passed to the programs started
 #   --list                       list the programs that have --menu, their version and the state of dialog
 #   --report-err                 print at the end an error report to copy and paste (apps/_rapport.sh)
 #   -v, --verbose                print each command launched (also passed to the programs started)
@@ -37,7 +38,7 @@
 
 set -euo pipefail
 
-readonly SCRIPT_VERSION="1.4.20261112.082236"
+readonly SCRIPT_VERSION="1.5.20261112.095005"
 readonly SCRIPT_NAME="admin-menu"
 SCRIPT_FILE="$(basename "${BASH_SOURCE[0]}")"
 readonly SCRIPT_FILE
@@ -75,17 +76,28 @@ t() {
     if [[ "$ADMIN_LANGUE" == "en" ]]; then printf '%s' "$2"; else printf '%s' "$1"; fi
 }
 
-# choisir_langue: LANGUAGE of the configuration file (en, fr, auto), otherwise the locale.
+# choisir_langue ARGUMENTS...: 1.5: --lang LANG, then ADMIN_MENU_LANG / NGINX_TOOLS_LANG, then LANGUAGE of the configuration file (en, fr, auto),
+# otherwise the locale (LC_ALL, LC_MESSAGES, LANG). A language given by --lang or by ADMIN_MENU_LANG is exported in NGINX_TOOLS_LANG: the programs
+# started from the menu use it too.
 choisir_langue() {
-    case "${CFG[LANGUAGE]:-auto}" in
+    local valeur="" explicite="" i
+    local -a args=("$@")
+    for ((i = 0; i < ${#args[@]}; i++)); do
+        case "${args[i]}" in
+            --lang) valeur="${args[i+1]:-}"; explicite=1 ;;
+            --lang=*) valeur="${args[i]#--lang=}"; explicite=1 ;;
+        esac
+    done
+    if [[ -z "$valeur" && -n "${ADMIN_MENU_LANG:-}" ]]; then valeur="$ADMIN_MENU_LANG"; explicite=1; fi
+    [[ -n "$valeur" ]] || valeur="${NGINX_TOOLS_LANG:-}"
+    if [[ -z "$valeur" || "$valeur" == auto ]]; then valeur="${CFG[LANGUAGE]:-auto}"; fi
+    if [[ "$valeur" == auto ]]; then valeur="${LC_ALL:-${LC_MESSAGES:-${LANG:-fr}}}"; fi
+    case "$valeur" in
         en*|EN*) ADMIN_LANGUE="en" ;;
-        fr*|FR*) ADMIN_LANGUE="fr" ;;
-        *)
-            case "${LC_ALL:-${LC_MESSAGES:-${LANG:-}}}" in
-                en*) ADMIN_LANGUE="en" ;;
-                *) ADMIN_LANGUE="fr" ;;
-            esac ;;
+        *) ADMIN_LANGUE="fr" ;;
     esac
+    export NGINX_TOOLS_I18N_LANGUE="$ADMIN_LANGUE"
+    if [[ -n "$explicite" ]]; then export NGINX_TOOLS_LANG="$ADMIN_LANGUE"; fi
 }
 
 # Help: options in colour, sorted alphabetically (the names of the options are in English).
@@ -103,6 +115,8 @@ aide() {
         "rewrite the configuration file from the NEW default configuration, keeping its values (copy FILE.bak-YYYYMMDD-HHMMSS), then exit")"
     opt "-h, --help" "$(t "affiche cette aide et quitte" "show this help and exit")"
     opt "--install-dialog" "$(t "installe dialog (apt) s'il manque, sans demander" "install dialog (apt) if missing, without asking")"
+    opt "--lang LANG" "$(t "langue des messages : fr ou en (sinon ADMIN_MENU_LANG, NGINX_TOOLS_LANG, LANGUAGE, la locale) ; transmise aux programmes lancés" \
+        "language of the messages: fr or en (otherwise ADMIN_MENU_LANG, NGINX_TOOLS_LANG, LANGUAGE, the locale); passed to the programs started")"
     opt "--list" "$(t "liste les programmes qui ont --menu, leur version et l'état de dialog" \
         "list the programs that have --menu, their version and the state of dialog")"
     opt "--report-err" "$(t "rapport d'erreurs à copier-coller à la fin" "error report to copy and paste at the end")"
@@ -349,7 +363,7 @@ if [[ -n "${CFG_EXPLICITE:-}" && ! -r "$CFG_EXPLICITE" ]]; then
     printf '%s\n' "$(t "fichier de configuration introuvable ou illisible : " "configuration file not found or unreadable: ")$CFG_EXPLICITE" >&2
     exit 2
 fi
-choisir_langue
+choisir_langue "$@"
 VERBOSE=0
 case "${CFG[VERBOSE]:-no}" in
     yes|oui|1|true|on|vrai) VERBOSE=1 ;;
@@ -370,6 +384,10 @@ while [[ $# -gt 0 ]]; do
         --config=*) shift ;;
         -h|--help) DO_HELP=1; shift ;;
         --install-dialog) DO_INSTALL=1; shift ;;
+        --lang)
+            if [[ $# -lt 2 ]]; then printf '%s\n' "$(t "option --lang : fr ou en attendu" "option --lang: fr or en expected")" >&2; exit 2; fi
+            shift 2 ;;                                  # read before (choisir_langue)
+        --lang=*) shift ;;
         --list) DO_LIST=1; shift ;;
         --report-err) shift ;;                          # read before (apps/_rapport.sh)
         -v|--verbose) VERBOSE=1; shift ;;
