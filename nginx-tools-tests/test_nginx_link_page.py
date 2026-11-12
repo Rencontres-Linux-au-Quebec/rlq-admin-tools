@@ -441,6 +441,38 @@ PAGE_2_TITLE=Deux
         accent = (self.www / "liens" / "css" / "accent.css").read_text(encoding="utf-8")
         self.assertIn("--button-background: #FF0000;", accent)
 
+    def test_113_chemin_insensible_a_la_casse(self):
+        """1.13 : /LIENS, /Liens/, /LIENS/en/ redirigés vers /liens... (301, query string gardée) ; deux pages qui ne diffèrent que par la casse : refusé."""
+        r = self.lancer("-c", str(self.conf(self.config_deux_pages())), "--update", "--yes", env=self.env)
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        snippet = (self.snippets / "liens-publics.conf").read_text(encoding="utf-8")
+        self.assertIn("location ~* ^/liens(/.*)?$ {\n    return 301 /liens$1$is_args$args;\n}", snippet)
+        self.assertIn("location ~* ^/liens2(/.*)?$ {", snippet)
+        self.assertLess(snippet.index("location ~* ^/liens(/.*)?$"), snippet.index("location = /liens {"))
+        import re as _re
+        motif = _re.compile(r"^/liens(/.*)?$", _re.I)                              # what nginx does with ~*
+        for demande, attendu in (("/LIENS", "/liens"), ("/Liens/", "/liens/"), ("/LIENS/en/", "/liens/en/")):
+            with self.subTest(demande=demande):
+                m = motif.match(demande)
+                self.assertIsNotNone(m)
+                self.assertEqual("/liens" + (m.group(1) or ""), attendu)
+        self.assertIsNone(motif.match("/liens2/"))
+        texte = self.config_deux_pages().replace("PAGE_2_PATH=/liens2/", "PAGE_2_PATH=/LIENS/")
+        r = self.lancer("-c", str(self.conf(texte)), "--check")
+        self.assertNotEqual(r.returncode, 0)
+        self.assertIn("PAGE_2_PATH=/LIENS/ deja utilise", r.stderr)
+
+    def test_113_lien_vers_la_racine_du_site(self):
+        """1.13 : LINK_n_URL=/ (racine du site) est accepté et résolu avec SITE_BASE_URL ; « // » reste refusé."""
+        texte = self.config_deux_pages("no").replace("LINK_1_URL=https://example.org/a", "LINK_1_URL=/").replace(
+            "SITE_TITLE=Test & B\n", "SITE_TITLE=Test & B\nSITE_BASE_URL=https://www.example.org/\n")
+        r = self.lancer("-c", str(self.conf(texte)), "--update", "--yes", env=self.env)
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertIn('href="https://www.example.org/"', (self.www / "liens" / "index.html").read_text(encoding="utf-8"))
+        r = self.lancer("-c", str(self.conf(texte.replace("LINK_1_URL=/\n", "LINK_1_URL=//\n"))), "--check")
+        self.assertNotEqual(r.returncode, 0)
+        self.assertIn("LINK_1_URL", r.stderr)
+
     def test_chemins_relatifs_resolus(self):
         texte = self.config_deux_pages("no").replace(
             "LINK_1_URL=https://example.org/a", "LINK_1_URL=/a/").replace(

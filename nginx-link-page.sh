@@ -29,7 +29,7 @@
 set -u
 LANG_C="${LC_ALL:-${LC_MESSAGES:-${LANG:-C}}}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
-readonly SCRIPT_VERSION="1.12.20261112.082236"
+readonly SCRIPT_VERSION="1.13.20261112.134539"
 readonly SCRIPT_NAME="nginx-link-page"
 # --config-merge: same rule as the other programs (apps/_config.py fusionner): the configuration file is rewritten from the new template,
 # keeping its active values; the old file is copied to FILE.bak-YYYYMMDD-HHMMSS. Then exit.
@@ -233,7 +233,8 @@ SITE_BASE_SOURCE="SITE_BASE_URL"
 if [[ -z "$SITE_BASE_URL_V" ]] && nom_base="$(base_depuis_certificat)"; then
     SITE_BASE_URL_V="$nom_base"; SITE_BASE_SOURCE="certificat / certificate"
 fi
-REL_RE='^/?[A-Za-z0-9][A-Za-z0-9._~%?#=&+/-]*$'
+# 1.13: "/" alone (the root of the site, SITE_BASE_URL) is a valid relative path too; "//" and ".." stay refused
+REL_RE='^(/|/?[A-Za-z0-9][A-Za-z0-9._~%?#=&+/-]*)$'
 # resoudre_url VALEUR: prints the absolute https:// address, returns 1 when it cannot be resolved
 resoudre_url() {
     local v="$1" abs
@@ -334,8 +335,9 @@ for i in "${PAGES_N[@]}"; do
     esac
     [[ "$chemin" =~ $CHEMIN_RE ]] || PROBLEMES+=("${pre}PATH=$chemin (ex. /links/ ou /links2/)")
     if [[ -n "$chemin" ]]; then
-        [[ -z "${CHEMINS_VUS[$chemin]:-}" ]] || PROBLEMES+=("${pre}PATH=$chemin deja utilise / already used")
-        CHEMINS_VUS["$chemin"]=1
+        # 1.13: the paths are reached whatever their case (/L/ = /l/): two paths that differ only by their case are the same page
+        [[ -z "${CHEMINS_VUS[${chemin,,}]:-}" ]] || PROBLEMES+=("${pre}PATH=$chemin deja utilise (majuscules et minuscules confondues) / already used (case ignored)")
+        CHEMINS_VUS["${chemin,,}"]=1
     fi
     [[ "$dossier" == /* && "$dossier" != "/" ]] || PROBLEMES+=("${pre}DIR=$dossier (chemin absolu, pas /)")
     d2="${dossier%/}"
@@ -722,6 +724,14 @@ else
         langues_page="$(valeur_ou "PAGE_${i}_LANGUAGES" "$SITE_LANGUAGE_V")"
         autre_page=""
         if [[ "$langues_page" == *,* ]]; then autre_page="${langues_page#*,}"; fi
+        # 1.13: the same path in another case (/LIENS, /Liens/, /LIENS/en/...) is redirected to the configured one (301, query string kept).
+        # Regular expression location: nginx tries it only when no exact (=) or ^~ location of the configured path matched, so the
+        # configured case never goes through it.
+        if [[ "$chemin_page" =~ [A-Za-z] ]]; then
+            LIEN_NOUVEAU+="location ~* ^${chemin_page%/}(/.*)?\$ {"$'\n'
+            LIEN_NOUVEAU+="    return 301 ${chemin_page%/}\$1\$is_args\$args;"$'\n'
+            LIEN_NOUVEAU+="}"$'\n'
+        fi
         # /liens (without the final slash) is redirected to /liens/ : the page is reached with or without the slash.
         LIEN_NOUVEAU+="location = ${chemin_page%/} {"$'\n'
         LIEN_NOUVEAU+="    return 301 ${chemin_page};"$'\n'

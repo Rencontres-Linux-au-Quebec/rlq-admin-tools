@@ -4526,6 +4526,16 @@ Earlier history was archived outside this repository when this file was created.
 
 ## nginx-link-page.sh
 
+### 1.13.20261112.134539 - Page paths whatever their case; link to the root of the site
+
+- Title: /L/ and /l/ reach the same page; LINK_n_URL=/ is accepted.
+- Reason: request of the administrator on 2026-11-12: the paths of the configuration must be case-insensitive (/L or /l); a relative link "/" could not be set (LINK_11_URL=/).
+- Changes: step 4 (nginx snippet liens-publics.conf): for each enabled page whose path has a letter, a regular expression location "location ~* ^/PATH(/.*)?$ { return 301 /PATH$1$is_args$args; }" before the exact and ^~ locations; page check: two PAGE_n_PATH that differ only by their case are refused ("deja utilise"); REL_RE: "/" alone is a valid relative path (resolved with SITE_BASE_URL, or the single certificate); nginx-tools-tests/test_nginx_link_page.py: 2 tests.
+- Bugs fixed: symptom 1: /LIENS/ or /Liens gave a page of the application (404) instead of the link page; diagnosis: nginx compares the location paths case-sensitively; fix: redirection 301 of any other case to the configured path. Symptom 2: LINK_11_URL=/ refused with "must be an https:// address or a relative path"; diagnosis: REL_RE required a character after the first "/"; fix: "/" alone accepted.
+- Safeguards and edge cases: the configured case never goes through the regular expression (nginx tries it only when no exact or ^~ location matched); the rest of the path and the query string are kept (/LIENS/en/?x -> /liens/en/?x); /liens2/ is not caught by the rule of /liens/; "//" and ".." stay refused; a relative link still needs SITE_BASE_URL or a single certificate.
+- Checks performed: bash -n; shellcheck; test_nginx_link_page (52 tests).
+- Action required: sudo nginx-link-page.sh --update --yes on the servers that have link pages.
+
 ### 1.12.20261112.082236 - New option --config-merge
 
 - Title: --config-merge rewrites the configuration file from the new default configuration, keeping its values.
