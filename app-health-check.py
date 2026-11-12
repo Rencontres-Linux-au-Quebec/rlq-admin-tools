@@ -66,7 +66,7 @@ import sys
 import time
 from urllib.parse import urlparse, parse_qs, unquote
 
-__version__ = "2.35.20261110.193238"
+__version__ = "2.36.20261112.054310"
 # Marker added at the END of the "browser" User-Agent (2.2): our test requests are recognizable in all the
 # logs (nginx, Odoo) and excluded from the statistics by web-monitor.py. Matches no pattern of the bot filter.
 UA_MARKER = " app-health-check/" + ".".join(__version__.split(".")[:2])
@@ -954,8 +954,13 @@ def jsonrpc_call(http_client, path, method_params):
 # Check of the initial setup (directories, firewall) - reuses nginx-hardening.sh --check rather than
 # reimplementing the same logic in Python: a single source of truth for what makes a complete setup.
 # ------------------------------------------------------------------------------------------------------------------
-def check_local_setup(verbose=False):
+def check_local_setup(verbose=False, cfg=None):
     results = []
+    # 2.36: 15 s was too short (about 20 s on odoo18, more on a loaded server): key SETUP_CHECK_TIMEOUT, 120 s by default
+    try:
+        limit = max(10, int(str((cfg or {}).get("SETUP_CHECK_TIMEOUT", "") or 120)))
+    except ValueError:
+        limit = 120
     script_dir = os.path.dirname(os.path.abspath(__file__))
     setup_script = os.path.join(script_dir, "nginx-hardening.sh")
     if not os.path.isfile(setup_script) or not os.access(setup_script, os.X_OK):
@@ -966,9 +971,13 @@ def check_local_setup(verbose=False):
         print(f">>> {setup_script} --check", file=sys.stderr)
     try:
         proc = subprocess.run(
-            [setup_script, "--check"], capture_output=True, text=True, timeout=15,
+            [setup_script, "--check"], capture_output=True, text=True, timeout=limit,
         )
         output = proc.stdout
+    except subprocess.TimeoutExpired:
+        results.append(("Initial setup (directories, firewall)", None,
+                        TR("nginx-hardening.sh --check stopped after {n} s (SETUP_CHECK_TIMEOUT): result incomplete, increase the key or run it by hand").format(n=limit)))
+        return results
     except Exception as e:
         results.append(("Initial setup (directories, firewall)", False, f"exception while running nginx-hardening.sh: {e}"))
         return results
@@ -1700,7 +1709,7 @@ def main():
         all_results += check_http(cfg, args.target, verbose=args.verbose)
         all_results += check_hsts_multi_host(cfg, args.target, verbose=args.verbose)
         all_results += check_tls_certificate(cfg, args.target, verbose=args.verbose)
-        all_results += check_local_setup(verbose=args.verbose)
+        all_results += check_local_setup(verbose=args.verbose, cfg=cfg)
         odoo_check = check_odoo_functional(cfg, args.target, verbose=args.verbose)
         if isinstance(odoo_check, tuple):
             odoo_results, client_for_discuss, _uid = odoo_check

@@ -185,6 +185,16 @@ Earlier history was archived outside this repository when this file was created.
 
 ## app-health-check.py
 
+### 2.36.20261112.054310 - Longer limit for nginx-hardening.sh --check (SETUP_CHECK_TIMEOUT)
+
+- Title: the setup check gets 120 s instead of 15 s, with a configuration key and a clear message when it is cut off.
+- Reason: report of the administrator on 2026-11-12: on odoo18, the hourly pass of web-monitor.py (x:05 + random delay) sent requests to the site for about 70 s (05:06:49 to 05:08:00), shown by app-log-live.py as "app-health-check.py", and the same pattern came back at 05:27 without any timer.
+- Changes: check_local_setup(verbose, cfg): new key SETUP_CHECK_TIMEOUT (seconds, 120 by default, 10 at least); main() passes cfg; doc/en and doc/fr app-health-check.conf.example: #SETUP_CHECK_TIMEOUT=120; lang/app-health-check.fr.po: new message.
+- Bugs fixed: symptom: on a loaded server the setup lines could be missing or replaced by "exception while running nginx-hardening.sh: ... timed out"; diagnosis: each block "GET / (127.0.0.1) + 2 x HEAD /mass_mailing_themes (python-requests, then a browser)" is ONE run of nginx-hardening.sh --check (step 10 HSTS, step 16); every pass ran it 5 times: app-health-check.py (check_local_setup), nginx-log-audit.sh (light setup check), then once more in each copy of nginx-log-audit.sh launched with --investigate for the 3 repeat offenders; the 3 runs at 05:27 are 3 investigations of the same addresses; one --check takes about 20 s on odoo18, more than the 15 s limit when the server is busy; fix: configurable limit, and a timeout is reported as a warning ([ATTN]: result incomplete) rather than a failure.
+- Safeguards and edge cases: a non numeric value falls back to 120 s; a value under 10 s is raised to 10 s.
+- Checks performed: python3 -m py_compile; nginx-tools-tests run-all.sh (testeur agent).
+- Action required: none (optional: SETUP_CHECK_TIMEOUT in /etc/default/app-health-check.conf).
+
 ### 2.35.20261110.193238 - Traversal test out of the hourly run: only at nginx-hardening.sh --update or with --traversal-only
 
 - Title: the traversal test of the query string is no longer sent at every hourly run; it runs once per update of the nginx rules.
@@ -403,6 +413,16 @@ Earlier history was archived outside this repository when this file was created.
 ### 2.23.20261020.211944 - Current version. Earlier history archived outside the repository.
 
 ## app-log-live.py
+
+### 1.190.20261112.054310 - Requests of nginx-hardening.sh named correctly
+
+- Title: the local requests of nginx-hardening.sh --check are shown as "nginx-hardening.sh", no longer as "app-health-check.py".
+- Reason: report of the administrator on 2026-11-12: on odoo18, the hourly pass of web-monitor.py (x:05 + random delay) sent requests to the site for about 70 s (05:06:49 to 05:08:00), shown by app-log-live.py as "app-health-check.py", and the same pattern came back at 05:27 without any timer.
+- Changes: LOCAL_PROGRAMS: new first rule "GET ...?probe=nginx-hardening" (step 10 of nginx-hardening.sh 2.100) and "HEAD /mass_mailing_themes" (step 16) -> nginx-hardening.sh; the app-health-check.py rule is unchanged and comes second.
+- Bugs fixed: symptom: every GET / from 127.0.0.1 was labelled app-health-check.py, so the setup checks looked like 70 s of health tests; diagnosis: the Odoo log has no User-Agent and both programs ask for "/" from 127.0.0.1; fix: nginx-hardening.sh now adds ?probe=nginx-hardening to its request and the rule is checked first.
+- Safeguards and edge cases: an older nginx-hardening.sh (without the marker) still shows its GET / as app-health-check.py, but its HEAD /mass_mailing_themes are named correctly.
+- Checks performed: python3 -m py_compile; patterns tried on "/?probe=nginx-hardening", "/en_CA/?probe=nginx-hardening", "HEAD /mass_mailing_themes", "/", "/web/health?db_server_status=1", "/shop"; run-all.sh (testeur agent).
+- Action required: none.
 
 ### 1.189.20261110.193238 - Colours with a meaning only, disk latency statistics, websocket durations not coloured
 
@@ -2930,6 +2950,16 @@ Earlier history was archived outside this repository when this file was created.
 
 ## web-monitor.py
 
+### 2.89.20261112.054310 - nginx-hardening.sh --check run once per pass
+
+- Title: nginx-log-audit.sh no longer runs nginx-hardening.sh --check when app-health-check.py already ran it in the same pass.
+- Reason: report of the administrator on 2026-11-12: on odoo18, the hourly pass of web-monitor.py (x:05 + random delay) sent requests to the site for about 70 s (05:06:49 to 05:08:00), shown by app-log-live.py as "app-health-check.py", and the same pattern came back at 05:27 without any timer.
+- Changes: run of nginx-log-audit.sh --fail2ban: environment NGINX_LOG_AUDIT_SKIP_SETUP_CHECK=1 when app-health-check.py is present and the profile is not BigBlueButton (for BBB, app-health-check.py does not run the setup check).
+- Bugs fixed: symptom: about 70 s of requests to the site every hour; diagnosis: each block "GET / (127.0.0.1) + 2 x HEAD /mass_mailing_themes (python-requests, then a browser)" is ONE run of nginx-hardening.sh --check (step 10 HSTS, step 16); every pass ran it 5 times: app-health-check.py (check_local_setup), nginx-log-audit.sh (light setup check), then once more in each copy of nginx-log-audit.sh launched with --investigate for the 3 repeat offenders; the 3 runs at 05:27 are 3 investigations of the same addresses; fix: with nginx-log-audit.sh 2.95, a pass now runs --check once (app-health-check.py) instead of 5 times.
+- Safeguards and edge cases: the [FAIL] of the setup stay in the report (app-health-check.py section); without app-health-check.py next to it, nginx-log-audit.sh keeps its own check.
+- Checks performed: python3 -m py_compile; run-all.sh (testeur agent).
+- Action required: none.
+
 ### 2.88.20261109.153000 - Without root: --dry-run instead of a refusal
 
 - Title: a plain run of web-monitor.py by an ordinary user becomes --dry-run.
@@ -3506,6 +3536,16 @@ Earlier history was archived outside this repository when this file was created.
 - Action requise: relancer nginx-hardening.sh --update sur chaque serveur pour installer la regle ; aucune autre action.
 
 ## nginx-hardening.sh
+
+### 2.100.20261112.054310 - Step 10 names itself in the logs
+
+- Title: the HSTS request of step 10 asks for "/?probe=nginx-hardening" instead of "/".
+- Reason: report of the administrator on 2026-11-12: on odoo18, the hourly pass of web-monitor.py (x:05 + random delay) sent requests to the site for about 70 s (05:06:49 to 05:08:00), shown by app-log-live.py as "app-health-check.py", and the same pattern came back at 05:27 without any timer.
+- Changes: step 10 (HSTS): first curl to https://NAME/?probe=nginx-hardening (same page, same headers); app-log-live.py 1.190 names this program from it.
+- Bugs fixed: symptom: the requests of nginx-hardening.sh --check were shown as app-health-check.py in app-log-live.py; diagnosis: both asked for "/" from 127.0.0.1 and the Odoo log has no User-Agent; fix: marker in the query string.
+- Safeguards and edge cases: the query string does not change the HSTS header nor the redirect check (the arrival page is read from Location as before); step 16 (python-requests on /mass_mailing_themes) is unchanged, so the bot filter is still tested with the exact request of Odoo.
+- Checks performed: bash -n; shellcheck; run-all.sh (testeur agent).
+- Action required: none.
 
 ### 2.99.20261111.165500 - Link page question uses /links/
 
@@ -4502,6 +4542,16 @@ Earlier history was archived outside this repository when this file was created.
 - Action required: copy nginx-link-page.conf.example to /etc/default/nginx-link-page.conf, fill in the group's values, then run sudo nginx-link-page.sh --update. Note: HSTS (hsts.conf) is a server-level header; the /liens/ location declares its own headers, so HSTS is not repeated there.
 
 ## nginx-log-audit.sh
+
+### 2.95.20261112.054310 - Setup check once per report, not in each investigation
+
+- Title: the light check nginx-hardening.sh --check runs only once per report.
+- Reason: report of the administrator on 2026-11-12: on odoo18, the hourly pass of web-monitor.py (x:05 + random delay) sent requests to the site for about 70 s (05:06:49 to 05:08:00), shown by app-log-live.py as "app-health-check.py", and the same pattern came back at 05:27 without any timer.
+- Changes: light setup check: skipped with --investigate and --evidence, and when NGINX_LOG_AUDIT_SKIP_SETUP_CHECK=1; the variable is exported after the check, so the copies of this script launched by it (--investigate of each repeat offender, --ban...) do not run it again; web-monitor.py 2.89 sets it.
+- Bugs fixed: symptom: one GET / and 2 HEAD /mass_mailing_themes every 20 to 25 s for more than a minute at each hourly pass, and at 05:27 without a timer; diagnosis: each block "GET / (127.0.0.1) + 2 x HEAD /mass_mailing_themes (python-requests, then a browser)" is ONE run of nginx-hardening.sh --check (step 10 HSTS, step 16); every pass ran it 5 times: app-health-check.py (check_local_setup), nginx-log-audit.sh (light setup check), then once more in each copy of nginx-log-audit.sh launched with --investigate for the 3 repeat offenders; the 3 runs at 05:27 are 3 investigations of the same addresses; fix: one check per report.
+- Safeguards and edge cases: a normal report (by hand or by cron) still shows the failing setup steps; NGINX_LOG_AUDIT_SKIP_SETUP_CHECK=1 can also be set by hand to skip it.
+- Checks performed: bash -n; shellcheck; run-all.sh (testeur agent).
+- Action required: none.
 
 ### 2.94.20261111.171900 - Braces around variables before a regex bracket (shellcheck SC1087)
 

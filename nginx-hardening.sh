@@ -93,7 +93,7 @@ run() {
     "$@"
 }
 
-readonly SCRIPT_VERSION="2.99.20261111.165500"
+readonly SCRIPT_VERSION="2.100.20261112.054310"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
 SCRIPT_NAME="$(basename "${BASH_SOURCE[0]}" .sh)"; readonly SCRIPT_NAME
 # Display language (en or fr): --lang, NGINX_HARDENING_LANG, LANGUAGE of the configuration file, LC_ALL / LANG - apps/_i18n.sh translates the output (nothing changes in French).
@@ -3028,8 +3028,10 @@ else
         browser_ua="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
         while IFS= read -r hname; do
             [[ -z "$hname" ]] && continue
+            # 2.100: "?probe=nginx-hardening" names this program in the logs of Odoo and nginx (app-log-live.py showed it as app-health-check.py:
+            # the Odoo log has no User-Agent, and both ask for "/" from 127.0.0.1). Same page, same HSTS header.
             hdrs=$(run curl -sk -o /dev/null -D - --max-time 8 -A "$browser_ua" \
-                   --resolve "$hname:443:127.0.0.1" "https://$hname/" 2>/dev/null) || hdrs=""
+                   --resolve "$hname:443:127.0.0.1" "https://$hname/?probe=nginx-hardening" 2>/dev/null) || hdrs=""
             if [[ -z "$hdrs" ]]; then
                 # Pas de reponse HTTPS pour ce nom : typiquement un nom declare uniquement dans un bloc port 80, qui
                 # retombe en HTTPS sur le capteur catch-all (connexion fermee sans reponse, 444). Pas un defaut HSTS.

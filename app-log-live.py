@@ -122,7 +122,7 @@ from urllib.parse import unquote, urlsplit
 from collections import Counter, OrderedDict
 from concurrent.futures import Future
 
-__version__ = "1.189.20261110.193238"
+__version__ = "1.190.20261112.054310"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
@@ -1510,7 +1510,10 @@ def ip_change_message(old_one, new_one):
 
 # Local requests (127.0.0.1 or address of the server): the PROGRAM that makes them, according to the requested page. They are the health probes of
 # app-health-check.py (launched by web-monitor.py every hour): GET /, POST /web/webclient/version_info, GET /web/health.
-LOCAL_PROGRAMS = [(re.compile(r'"(?:GET|POST) (?:/web/health|/web/webclient/version_info|/)(?:\?\S*)? HTTP'), "app-health-check.py")]
+# 1.190: nginx-hardening.sh --check (run by app-health-check.py and nginx-log-audit.sh) asks for "/?probe=nginx-hardening" (step 10, HSTS) and
+# HEAD /mass_mailing_themes (step 16, python-requests then a browser): they were shown as app-health-check.py. Checked FIRST.
+LOCAL_PROGRAMS = [(re.compile(r'"GET /\S*[?&]probe=nginx-hardening\S* HTTP|"HEAD /mass_mailing_themes(?:\?\S*)? HTTP'), "nginx-hardening.sh"),
+                  (re.compile(r'"(?:GET|POST) (?:/web/health|/web/webclient/version_info|/)(?:\?\S*)? HTTP'), "app-health-check.py")]
 
 
 def local_program(text):
