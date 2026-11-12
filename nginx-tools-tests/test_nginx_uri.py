@@ -128,6 +128,36 @@ class FiltreTagsEvenements(unittest.TestCase):
             self.assertFalse(self.refuse(uri), uri)
 
 
+class FiltreCouleurVideImagesEditeur(unittest.TestCase):
+    """securite-commune.conf, regle 3 ter (v1.29): couleur sans valeurs dans /web_editor/font_to_img -> 404 (Odoo: ValueError -> 500)."""
+
+    def motif(self):
+        texte = open(SECURITE, encoding="utf-8").read()
+        m = re.search(r'if \(\$uri ~\* "(.*?)"\) \{', texte)
+        self.assertIsNotNone(m, "regle 3 ter introuvable dans securite-commune.conf")
+        self.assertIn("font_to_img", m.group(1))
+        return m.group(1)
+
+    def refuse(self, uri):
+        return re.search(self.motif(), uri, re.IGNORECASE) is not None
+
+    def test_couleur_sans_valeurs_refusee(self):
+        for uri in ("/web_editor/font_to_img/61525/rgb", "/web_editor/font_to_img/61555/rgb", "/en_CA/web_editor/font_to_img/61505/rgb",
+                    "/web_editor/font_to_img/61505/rgba", "/web_editor/font_to_img/61505/rgb/16"):
+            self.assertTrue(self.refuse(uri), uri)
+
+    def test_couleurs_completes_acceptees(self):
+        for uri in ("/web_editor/font_to_img/61525/rgb(135,90,123)/16", "/web_editor/font_to_img/61505/rgb(255,255,255)/8x17",
+                    "/web_editor/font_to_img/61555/rgba(0,0,0,0.5)/16", "/web_editor/font_to_img/61555/rgb(81,81,102)/34",
+                    "/web/image/1", "/web_editor/font_to_img/61555/rgb(81,81,102)/34?x=1"):
+            self.assertFalse(self.refuse(uri), uri)
+
+    def test_regle_sans_journal_dedie(self):
+        texte = open(SECURITE, encoding="utf-8").read()
+        bloc = texte.split("# 3 ter.", 1)[1].split("# 4. Bloquer", 1)[0]
+        self.assertNotIn("blocked-probes", bloc, "un journal fail2ban bannirait le client Microsoft")
+
+
 if __name__ == "__main__":
     unittest.main()
 
