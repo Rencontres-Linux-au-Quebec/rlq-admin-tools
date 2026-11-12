@@ -3920,7 +3920,7 @@ class AppLogLive123(EnvTest):
         self.assertEqual(rc, 0)
         texte = open(conf, encoding="utf-8").read()
         self.assertRegex(texte, r"(?m)^SLOW=7$")
-        self.assertNotIn("FOO", texte)                                               # clé inconnue : écartée
+        self.assertRegex(texte, r"(?m)^FOO=bar$")                                    # 1.193 : clé hors modèle gardée à la fin
         self.assertRegex(texte, r"(?m)^#STATUS_HEADER=no$")                          # la nouvelle valeur par défaut est présente
         backups = [n for n in os.listdir(self.d) if n.startswith("merge.conf.bak-")]
         self.assertEqual(len(backups), 1, backups)

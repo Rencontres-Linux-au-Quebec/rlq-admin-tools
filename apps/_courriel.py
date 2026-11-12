@@ -33,7 +33,7 @@ import time
 from email.message import EmailMessage
 from email.utils import formatdate, make_msgid
 
-__version__ = "1.4.20261022.231529"
+__version__ = "1.5.20261112.184937"
 
 CONFIG_SYSTEME = "/etc/default/nginx-tools-mail.conf"
 CONFIG_UTILISATEUR = "~/.nginx-tools-mail.conf"
@@ -41,7 +41,7 @@ MOT_DE_PASSE_DEFAUT = "/etc/default/nginx-tools-mail.pass"
 DOSSIER_LIENS_DEFAUT = "/var/lib/nginx-tools/pieces-jointes"
 CLES = ("MAIL_HOST", "MAIL_PORT", "MAIL_SECURITY", "MAIL_USER", "MAIL_FROM", "MAIL_TO", "MAIL_PASSWORD_FILE",
         "MAIL_ATTACH_MAX_MB", "MAIL_LINK_DIR", "MAIL_LINK_URL", "MAIL_LINK_DAYS")
-LIGNE_RE = re.compile(r'^\s*([A-Z][A-Z0-9_]*)\s*=\s*(.*?)\s*$')
+LIGNE_RE = re.compile(r'^\s*([A-Z][A-Z0-9_]*)\s*=(.*?)\s*$')
 
 
 class ErreurCourriel(Exception):
@@ -97,7 +97,7 @@ def lire_config(fichiers=None):
                 continue
             m = LIGNE_RE.match(ligne)
             if m and m.group(1) in CLES:
-                valeur = m.group(2)
+                valeur = "" if re.match(r"\s+#", m.group(2)) else m.group(2).strip()   # 1.5: "KEY=    # comment" is an empty value
                 if len(valeur) >= 2 and valeur[0] == valeur[-1] and valeur[0] in "\"'":
                     valeur = valeur[1:-1]
                 else:

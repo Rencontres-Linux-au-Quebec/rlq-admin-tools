@@ -2,6 +2,7 @@
 """Fichier de configuration COMMUN à tous les programmes (app-default.conf : LANGUAGE, VERBOSE, DEBUG_LEVEL) et sauvegarde des réglages d'app-log-live (touche C)."""
 import importlib.util
 import os
+import re
 import stat
 import subprocess
 import unittest
@@ -320,3 +321,103 @@ class AncienNomPersonnel(EnvTest):
         cfg, lus, err = self.lire_py()
         self.assertTrue(os.path.isfile(os.path.join(self.home, ".app-default.conf")))
         self.assertIn(os.path.join(self.home, ".app-default.conf"), lus)
+
+
+class FusionSansPerte(EnvTest):
+    """--config-merge (apps/_config.py 1.13) : rien n'est perdu. Cas signalé le 2026-11-12 : la configuration de nginx-link-page.sh perdait ses
+    LINK_n et PAGE_n au-delà des numéros montrés dans le modèle. Les clés hors modèle sont gardées à la fin avec leurs commentaires ; le résultat est
+    relu avant l'écriture ; un fichier qui serait plus petit (lignes ou octets) n'est pas écrit."""
+
+    def setUp(self):
+        super().setUp()
+        self.module = load("apps/_config.py", "cfg_fusion", self.env)
+        self.conf = os.path.join(self.d, "liens.conf")
+
+    def fusion(self, texte, langue="fr"):
+        with open(self.conf, "w", encoding="utf-8") as f:
+            f.write(texte)
+        return self.module.fusionner("nginx-link-page", self.conf, langue)
+
+    def test_liens_et_pages_au_dela_du_modele_gardes(self):
+        ancien = ("SITE_TITLE=Rencontres Linux\nLINK_1_LABEL=Calendrier\nLINK_1_URL=/event/\n"
+                  "# lien vers la racine du site\nLINK_11_LABEL=Accueil\nLINK_11_URL=/\nLINK_11_ICON=\"builtin:website\"\n"
+                  "PAGE_3_ENABLED=yes\nPAGE_3_PATH=/I/\nPAGE_1_ACCENT=#b3261e\n")
+        code, lignes = self.fusion(ancien)
+        self.assertEqual(code, 0, lignes)
+        texte = open(self.conf, encoding="utf-8").read()
+        valeurs = self.module.lire_texte(texte)
+        for cle, valeur in self.module.lire_texte(ancien).items():
+            self.assertEqual(valeurs.get(cle), valeur, cle)
+        self.assertIn("# lien vers la racine du site\nLINK_11_LABEL=Accueil\n", texte)     # comment kept with its key
+        self.assertIn('LINK_11_ICON="builtin:website"', texte)                             # line copied as it was
+        self.assertIn("LINK_11_URL", "\n".join(lignes))
+        self.assertGreaterEqual(len(texte), len(ancien))
+        self.assertTrue(any(f.startswith("liens.conf.bak-") for f in os.listdir(self.d)))
+
+    def test_plus_petit_que_l_ancien_refuse_sans_rien_ecrire(self):
+        ancien = "SITE_TITLE=X\n" + "# note de l'administrateur\n" * 5000
+        code, lignes = self.fusion(ancien, "en")
+        self.assertEqual(code, 1)
+        self.assertIn("Merge refused", lignes[0])
+        self.assertIn("smaller", lignes[0])
+        self.assertEqual(open(self.conf, encoding="utf-8").read(), ancien)                 # untouched
+        self.assertFalse(any(".bak-" in f for f in os.listdir(self.d)))
+
+    def test_valeur_perdue_refusee(self):
+        with mock.patch.object(self.module, "appliquer_valeurs", lambda lignes, valeurs: list(lignes)):
+            code, lignes = self.fusion("SITE_TITLE=Garder\n")
+        self.assertEqual(code, 1)
+        self.assertIn("SITE_TITLE", lignes[0])
+        self.assertEqual(open(self.conf, encoding="utf-8").read(), "SITE_TITLE=Garder\n")
+
+    def test_commentaires_de_fin_et_lignes_vides_gardes_deuxieme_fusion_identique(self):
+        """Le commentaire en fin de ligne du modèle reste ; la ligne vide avant un bloc hors modèle aussi ; deux fusions de suite : même fichier
+        (l'en-tête n'est pas répété) ; une clé écrite deux fois : seule la dernière ligne est gardée et signalée."""
+        ancien = "SITE_LANGUAGE=en\nLINK_3_LABEL=Ancien\nLINK_3_LABEL=Nouveau\n\n# lien 12\nLINK_12_LABEL=Douze\n"
+        code, lignes = self.fusion(ancien)
+        self.assertEqual(code, 0, lignes)
+        texte = open(self.conf, encoding="utf-8").read()
+        self.assertRegex(texte, r"(?m)^SITE_LANGUAGE=en +# fr or en$")
+        self.assertIn("\n\n# lien 12\nLINK_12_LABEL=Douze\n", texte)
+        self.assertEqual(self.module.lire_texte(texte)["LINK_3_LABEL"], "Nouveau")
+        self.assertNotIn("Ancien", texte)
+        self.assertIn("LINK_3_LABEL", lignes[-1])                                    # reported as written twice
+        code, _ = self.fusion(texte)
+        self.assertEqual(code, 0)
+        deuxieme = open(self.conf, encoding="utf-8").read()
+        self.assertEqual(deuxieme.count("# Clés de l'ancien fichier absentes du modèle"), 1)
+        self.assertEqual(re.sub(r"le \d{4}-\d\d-\d\d \d\d:\d\d", "", deuxieme), re.sub(r"le \d{4}-\d\d-\d\d \d\d:\d\d", "", texte))
+
+
+class CommentaireApresValeurVide(EnvTest):
+    """« CLÉ=      # commentaire » (modèle décommenté) : valeur VIDE dans les quatre lecteurs, jamais le texte du commentaire ; « CLÉ=#b3261e »
+    reste une valeur (pas d'espace avant #)."""
+    TEXTE = "LINK_1_LABEL_EN=          # optional English label\nPAGE_1_ACCENT=#b3261e\nSITE_LANGUAGE=en   # fr or en\nNOTE=\"a # b\"\n"
+    ATTENDU = {"LINK_1_LABEL_EN": "", "PAGE_1_ACCENT": "#b3261e", "SITE_LANGUAGE": "en", "NOTE": "a # b"}
+
+    def test_python_config(self):
+        self.assertEqual(load("apps/_config.py", "cfg_lecteur", self.env).lire_texte(self.TEXTE), self.ATTENDU)
+
+    def test_python_courriel(self):
+        module = load("apps/_courriel.py", "courriel_lecteur", self.env)
+        chemin = os.path.join(self.d, "c.conf")
+        with open(chemin, "w", encoding="utf-8") as f:
+            f.write("MAIL_HOST=   # serveur\nMAIL_PORT=587 # port\n")
+        lu = module.lire_config([chemin])
+        self.assertEqual(lu.get("MAIL_HOST"), "")
+        self.assertEqual(lu.get("MAIL_PORT"), "587")
+
+    def test_bash_i18n_et_nginx_link_page(self):
+        chemin = os.path.join(self.d, "x.conf")
+        with open(chemin, "w", encoding="utf-8") as f:
+            f.write(self.TEXTE)
+        lire = 'for k in LINK_1_LABEL_EN PAGE_1_ACCENT SITE_LANGUAGE NOTE; do printf "%s=[%s]\\n" "$k" "${CFG[$k]-}"; done'
+        attendu = "".join(f"{k}=[{v}]\n" for k, v in self.ATTENDU.items())
+        code = f'SCRIPT_DIR="{script_path(".")}"; . "$SCRIPT_DIR/apps/_i18n.sh"; config_lire x -c "{chemin}" >/dev/null 2>&1; {lire}'
+        r = subprocess.run(["bash", "-c", code], capture_output=True, text=True, env=dict(self.env), timeout=30)
+        self.assertEqual(r.stdout, attendu, r.stderr)
+        source = open(script_path("nginx-link-page.sh"), encoding="utf-8").read()
+        fonction = source[source.index("lire_fichier() {"):source.index("\n}\n", source.index("lire_fichier() {")) + 3]
+        code = f'declare -A CFG=(); CFG_FICHIERS=(); {fonction}\nlire_fichier "{chemin}"; {lire}'
+        r = subprocess.run(["bash", "-c", code], capture_output=True, text=True, timeout=30)
+        self.assertEqual(r.stdout, attendu, r.stderr)

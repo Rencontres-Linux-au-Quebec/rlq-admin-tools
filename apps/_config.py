@@ -19,7 +19,7 @@ import sys
 import tempfile
 import time
 
-__version__ = "1.12.20261112.081946"
+__version__ = "1.13.20261112.184937"
 OUI = ("1", "true", "yes", "oui", "on", "vrai")
 NON = ("0", "false", "no", "non", "off", "faux", "")
 # 1.9: values are written in English only; these old French values are still read (same meaning), with a warning (valeurs_francaises).
@@ -129,25 +129,32 @@ def chemins_regle(programme):
     return [(c, os.path.isfile(c)) for c in (systeme, perso)]
 
 
+def lire_texte(texte):
+    """{CLÉ: valeur} d'un texte KEY=VALUE (1.13 : séparé de lire_fichier pour vérifier le résultat de --config-merge avant de l'écrire)."""
+    res = {}
+    for ligne in texte.splitlines():
+        ligne = ligne.strip()
+        if not ligne or ligne.startswith("#") or "=" not in ligne:
+            continue
+        cle, _, valeur = ligne.partition("=")
+        if re.match(r"\s+#", valeur):            # 1.13: "KEY=    # comment" is an empty value, not the text of the comment
+            valeur = ""
+        valeur = valeur.strip()
+        if len(valeur) >= 2 and valeur[0] == valeur[-1] and valeur[0] in "\"'":
+            valeur = valeur[1:-1]
+        elif " #" in valeur:
+            valeur = valeur.split(" #", 1)[0].rstrip()
+        res[cle.strip().upper()] = valeur
+    return res
+
+
 def lire_fichier(chemin):
     """{CLÉ: valeur} d'un fichier KEY=VALUE ; illisible : {}."""
-    res = {}
     try:
         with open(chemin, encoding="utf-8") as f:
-            for ligne in f:
-                ligne = ligne.strip()
-                if not ligne or ligne.startswith("#") or "=" not in ligne:
-                    continue
-                cle, _, valeur = ligne.partition("=")
-                valeur = valeur.strip()
-                if len(valeur) >= 2 and valeur[0] == valeur[-1] and valeur[0] in "\"'":
-                    valeur = valeur[1:-1]
-                elif " #" in valeur:
-                    valeur = valeur.split(" #", 1)[0].rstrip()
-                res[cle.strip().upper()] = valeur
+            return lire_texte(f.read())
     except OSError:
-        pass
-    return res
+        return {}
 
 
 SANS_CREATION = ("-h", "--help", "--version", "--changelog")      # arguments that run nothing: no file is created
@@ -366,11 +373,19 @@ _MESSAGES_FUSION = {
     "fr": {"modele": "Configuration par défaut introuvable : {chemin}", "ecriture": "Écriture impossible de {chemin} : {erreur}",
            "fait": "Configuration fusionnée dans {chemin}", "lus": "  lu(s) : {fichiers}", "aucun": "aucun (nouveau fichier)",
            "nouveau": "  nouvelle configuration par défaut : {chemin}", "copie": "  copie de l'ancien fichier : {chemin}", "sans": "aucune",
-           "gardees": "  valeurs gardées : {n}", "inconnues": "  clés inconnues laissées de côté : {cles}"},
+           "gardees": "  valeurs gardées : {n}", "inconnues": "  clés absentes du modèle, gardées à la fin du fichier : {cles}",
+           "doublons": "  clés écrites deux fois dans l'ancien fichier, seule la dernière valeur (celle qui comptait) est gardée : {cles}",
+           "entete": "# Clés de l'ancien fichier absentes du modèle (gardées par --config-merge le {date})",
+           "refus": "Fusion refusée, {chemin} n'est pas modifié : {raison}", "perdues": "valeurs qui seraient perdues : {cles}",
+           "plus_court": "le nouveau fichier serait plus petit que l'ancien ({apres} lignes et {apres_o} octets, avant {avant} lignes et {avant_o} octets)"},
     "en": {"modele": "Default configuration not found: {chemin}", "ecriture": "Cannot write {chemin}: {erreur}",
            "fait": "Configuration merged into {chemin}", "lus": "  read: {fichiers}", "aucun": "none (new file)",
            "nouveau": "  new default configuration: {chemin}", "copie": "  backup of the previous file: {chemin}", "sans": "none",
-           "gardees": "  values kept: {n}", "inconnues": "  unknown keys left out: {cles}"},
+           "gardees": "  values kept: {n}", "inconnues": "  keys not in the template, kept at the end of the file: {cles}",
+           "doublons": "  keys written twice in the old file, only the last value (the one in effect) is kept: {cles}",
+           "entete": "# Keys of the old file not in the template (kept by --config-merge on {date})",
+           "refus": "Merge refused, {chemin} is not changed: {raison}", "perdues": "values that would be lost: {cles}",
+           "plus_court": "the new file would be smaller than the old one ({apres} lines and {apres_o} bytes, before {avant} lines and {avant_o} bytes)"},
 }
 
 
@@ -383,27 +398,79 @@ def modele_par_defaut(programme, langue="fr", dossier_doc=None):
     return next((c for c in candidats if os.path.isfile(c)), None)
 
 
+def commentaire_fin(ligne):
+    """1.13 : commentaire en fin de ligne d'une ligne CLÉ=valeur (avec ses espaces, ex. « # fr or en » précédé de ses espaces) ; "" s'il n'y en a pas."""
+    brut = ligne.split("=", 1)[1] if "=" in ligne else ""
+    if re.match(r"\s+#", brut):
+        return brut
+    nette = brut.lstrip()
+    if nette[:1] in ("'", '"'):
+        fin = nette.find(nette[0], 1)
+        reste = nette[fin + 1:] if fin > 0 else ""
+        return reste if re.match(r"\s+#", reste) else ""
+    trouve = re.search(r"\s+#.*$", brut)
+    return trouve.group(0) if trouve else ""
+
+
 def appliquer_valeurs(lignes, valeurs):
     """Lignes d'un fichier de configuration avec {CLÉ: valeur} appliqué : la ligne active CLÉ=… est remplacée, sinon la première ligne #CLÉ=… est activée,
-    sinon CLÉ=… est ajoutée à la fin. Les autres lignes (commentaires compris) restent telles quelles."""
+    sinon CLÉ=… est ajoutée à la fin. Les autres lignes (commentaires compris) restent telles quelles. 1.13 : le commentaire en fin de ligne du modèle
+    (« # fr or en ») est gardé."""
     lignes = list(lignes)
     for cle, valeur in valeurs.items():
         texte = f'"{valeur}"' if valeur != valeur.strip() or "#" in valeur else valeur
         actives = [i for i, ligne in enumerate(lignes) if re.match(rf"\s*{re.escape(cle)}\s*=", ligne)]
         commentees = [i for i, ligne in enumerate(lignes) if re.match(rf"\s*#\s*{re.escape(cle)}\s*=", ligne)]
         if actives:
-            lignes[actives[-1]] = f"{cle}={texte}"
+            lignes[actives[-1]] = f"{cle}={texte}{commentaire_fin(lignes[actives[-1]])}"
         elif commentees:
-            lignes[commentees[0]] = f"{cle}={texte}"
+            lignes[commentees[0]] = f"{cle}={texte}{commentaire_fin(lignes[commentees[0]])}"
         else:
             lignes.append(f"{cle}={texte}")
     return lignes
 
 
+ENTETES_HORS_MODELE = ("# Clés de l'ancien fichier absentes du modèle", "# Keys of the old file not in the template")
+
+
+def lignes_hors_modele(fichiers, connues):
+    """1.13 : {CLÉ: [lignes]} des clés actives absentes du modèle (LINK_11_URL, PAGE_3_PATH... d'un modèle qui ne montre que les premiers numéros), dans
+    l'ordre du fichier, avec les commentaires écrits juste au-dessus ; la ligne est recopiée telle quelle (guillemets et commentaire de fin compris).
+    Une clé présente dans plusieurs fichiers : celle du dernier lu (même règle que la lecture). Les lignes « #CLÉ= » du modèle ne sont pas reprises."""
+    res = {}
+    for chemin in fichiers:
+        try:
+            with open(chemin, encoding="utf-8") as f:
+                lignes = f.read().splitlines()
+        except OSError:
+            continue
+        commentaires, vide_avant, precedente_vide = [], False, True
+        for ligne in lignes:
+            nette = ligne.strip()
+            if nette.startswith("#"):
+                if re.match(r"#\s*[A-Za-z][A-Za-z0-9_]*\s*=", nette) or nette.startswith(ENTETES_HORS_MODELE):   # header of a previous merge: not kept twice
+                    commentaires = []
+                else:
+                    if not commentaires:
+                        vide_avant = precedente_vide
+                    commentaires.append(ligne)
+                precedente_vide = False
+                continue
+            cle = re.match(r"([A-Za-z][A-Za-z0-9_]*)\s*=", nette)
+            if cle and cle.group(1).upper() not in connues:
+                if not commentaires:
+                    vide_avant = precedente_vide
+                res.pop(cle.group(1).upper(), None)
+                res[cle.group(1).upper()] = ([""] if vide_avant else []) + commentaires + [ligne]     # blank line kept before the block
+            commentaires, precedente_vide = [], not nette
+    return res
+
+
 def fusionner(programme, explicite=None, langue="fr", cles=(), dossier_doc=None):
     """--config-merge : le fichier lu jusqu'ici (le dernier de la règle /etc/default puis ~/.PROGRAMME.conf, ou `explicite` avec -c) est réécrit à partir du
-    NOUVEAU modèle (doc/LANGUE/PROGRAMME.conf.example) en gardant les valeurs actives qu'il contient. Les clés inconnues du modèle (et de `cles`) sont laissées
-    de côté et listées. L'ancien fichier est d'abord copié en FICHIER.bak-AAAAMMJJ-HHMMSS (heure locale) ; droits et propriétaire gardés.
+    NOUVEAU modèle (doc/LANGUE/PROGRAMME.conf.example) en gardant les valeurs actives qu'il contient. 1.13 : les clés absentes du modèle (et de `cles`)
+    sont GARDÉES à la fin du fichier, avec leurs commentaires, et listées ; avant d'écrire, le résultat est relu : si une valeur manque ou si le
+    fichier serait plus petit (lignes ou octets) que l'ancien, rien n'est écrit (code 1). L'ancien fichier est d'abord copié en FICHIER.bak-AAAAMMJJ-HHMMSS (heure locale) ; droits et propriétaire gardés.
     Aucun fichier : /etc/default/PROGRAMME.conf si ce dossier est accessible en écriture (root), sinon ~/.PROGRAMME.conf.
     Retourne (code, lignes) : 0, ou 1 si le modèle manque ou si l'écriture échoue."""
     m = _MESSAGES_FUSION["en" if langue == "en" else "fr"]
@@ -427,7 +494,41 @@ def fusionner(programme, explicite=None, langue="fr", cles=(), dossier_doc=None)
         anciennes.update(lire_fichier(c))
     connues = {k.upper() for k in cles} | set(re.findall(r"^#?\s*([A-Z][A-Z0-9_]*)\s*=", "\n".join(lignes_modele), re.MULTILINE))
     gardees = {k: v for k, v in anciennes.items() if k in connues}
-    laissees = sorted(k for k in anciennes if k not in connues)
+    hors_modele = lignes_hors_modele(fichiers, connues)
+    laissees = list(hors_modele)
+    nouvelles = appliquer_valeurs(lignes_modele, gardees)
+    if hors_modele:                                                   # 1.13: kept at the end instead of being dropped
+        nouvelles += ["", m["entete"].format(date=time.strftime("%Y-%m-%d %H:%M"))]
+        for bloc in hors_modele.values():
+            nouvelles += bloc
+    texte = "\n".join(nouvelles) + "\n"
+    doublons = []
+    # 1.13: safeguards before writing: every old value is still there, and the file is not smaller than the old one
+    apres = lire_texte(texte)
+    perdues = sorted(k for k, v in anciennes.items() if apres.get(k) != v)
+    if perdues:
+        return 1, [m["refus"].format(chemin=cible, raison=m["perdues"].format(cles=", ".join(perdues)))]
+    if os.path.isfile(cible):
+        try:
+            with open(cible, encoding="utf-8") as f:
+                ancien = f.read()
+        except (OSError, UnicodeDecodeError) as erreur:
+            return 1, [m["ecriture"].format(chemin=cible, erreur=erreur)]
+        avant, avant_o = len(ancien.splitlines()), len(ancien.encode("utf-8"))
+        nb, nb_o = len(texte.splitlines()), len(texte.encode("utf-8"))
+        # the only lines allowed to go: a key written twice in the old file, whose first line was already replaced by the next one (dead line)
+        vues, mortes_n, mortes_o = {}, 0, 0
+        for ligne in ancien.splitlines():
+            cle = re.match(r"\s*([A-Za-z][A-Za-z0-9_]*)\s*=", ligne)
+            if cle:
+                cle = cle.group(1).upper()
+                if cle in vues:
+                    mortes_n += 1
+                    mortes_o += len(vues[cle].encode("utf-8")) + 1
+                    doublons.append(cle)
+                vues[cle] = ligne
+        if nb < avant - mortes_n or nb_o < avant_o - mortes_o:
+            return 1, [m["refus"].format(chemin=cible, raison=m["plus_court"].format(apres=nb, apres_o=nb_o, avant=avant, avant_o=avant_o))]
     copie, temporaire = None, None
     try:
         etat = os.stat(cible) if os.path.isfile(cible) else None
@@ -440,7 +541,7 @@ def fusionner(programme, explicite=None, langue="fr", cles=(), dossier_doc=None)
         os.makedirs(dossier, exist_ok=True)
         fd, temporaire = tempfile.mkstemp(prefix=f".{os.path.basename(cible)}.", dir=dossier)
         with os.fdopen(fd, "w", encoding="utf-8") as f:
-            f.write("\n".join(appliquer_valeurs(lignes_modele, gardees)) + "\n")
+            f.write(texte)
         os.chmod(temporaire, (etat.st_mode & 0o7777) if etat else 0o644)
         if etat is not None and est_root():
             os.chown(temporaire, etat.st_uid, etat.st_gid)
@@ -454,13 +555,22 @@ def fusionner(programme, explicite=None, langue="fr", cles=(), dossier_doc=None)
            m["gardees"].format(n=len(gardees)) + (f" ({', '.join(sorted(gardees))})" if gardees else "")]
     if laissees:
         res.append(m["inconnues"].format(cles=", ".join(laissees)))
+    if doublons:
+        res.append(m["doublons"].format(cles=", ".join(sorted(set(doublons)))))
     return 0, res
 
 
 def fusionner_cli(programme, explicite=None, langue="fr", cles=()):
     """--config-merge d'un programme Python : affiche le résultat de fusionner() (erreur sur la sortie d'erreur) et retourne le code de sortie."""
     code, lignes = fusionner(programme, explicite, langue, cles)
-    print("\n".join(lignes), file=sys.stderr if code else sys.stdout)
+    try:
+        print("\n".join(lignes), file=sys.stderr if code else sys.stdout)
+        (sys.stderr if code else sys.stdout).flush()
+    except BrokenPipeError:                                  # 1.13: output cut (| head): the merge is done, no traceback
+        try:
+            os.dup2(os.open(os.devnull, os.O_WRONLY), (sys.stderr if code else sys.stdout).fileno())
+        except OSError:
+            pass
     return code
 
 
