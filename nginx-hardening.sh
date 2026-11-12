@@ -93,7 +93,7 @@ run() {
     "$@"
 }
 
-readonly SCRIPT_VERSION="2.100.20261112.054310"
+readonly SCRIPT_VERSION="2.101.20261112.072450"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
 SCRIPT_NAME="$(basename "${BASH_SOURCE[0]}" .sh)"; readonly SCRIPT_NAME
 # Display language (en or fr): --lang, NGINX_HARDENING_LANG, LANGUAGE of the configuration file, LC_ALL / LANG - apps/_i18n.sh translates the output (nothing changes in French).
@@ -1675,7 +1675,8 @@ else
 fi
 echo
 
-echo "--- 12 ter) Page de liens (nginx-link-page.sh : LittleLink, configuration hors du dépôt) ---"
+# --- 0e bis) Link page (nginx-link-page.sh), BEFORE the generic nginx configuration (0f), which includes its fragment ---
+echo "--- 0e bis) Page de liens (nginx-link-page.sh : LittleLink, configuration hors du dépôt) ---"
 LIENS_SCRIPT="$SCRIPT_DIR/nginx-link-page.sh"
 LIENS_CONF_ETC="${NGINX_LINK_PAGE_ETC_DEFAULT:-/etc/default}/nginx-link-page.conf"
 LIENS_CONF_HOME="${HOME:-/root}/.nginx-link-page.conf"
@@ -3484,7 +3485,7 @@ uri_verifier() {
     return 1
 }
 
-# --- 12c) URI refusées (--disable-uri / --enable-uri) -> uri-desactivees.conf, inclus au début de securite-commune.conf ---
+# --- 12d) URI refusées (--disable-uri / --enable-uri) -> uri-desactivees.conf, inclus au début de securite-commune.conf ---
 # La liste vit DANS le fichier (lignes « # uri : CHEMIN ») : un --update sans option la conserve.
 # Une requête vers ce chemin (toutes langues : /shop, /es/shop, /en_CA/shop...) reçoit 404 avant le site.
 # Changement de liste = confirmation (o/N) ; sans terminal, rien n'est modifié sauf avec --yes.

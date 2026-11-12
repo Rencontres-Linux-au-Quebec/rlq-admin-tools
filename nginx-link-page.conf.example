@@ -31,6 +31,15 @@
 #SITE_LOGO_URL=https://example.org/logo.png       # optional; must be an https:// address (or a path with SITE_BASE_URL)
 #SITE_LOGO_ALT=My group logo
 #
+# Preview shown by LinkedIn, Facebook, Mastodon... when the page address is shared (Open Graph). All optional.
+# Image: PNG or JPEG, 1200 x 627 advised (not SVG); it needs SITE_BASE_URL. Without it, the logo is used.
+# Texts: without them, the page title and SITE_DESCRIPTION are used.
+#SITE_SHARE_IMAGE_URL=https://example.org/preview.png   # or a path with SITE_BASE_URL, for example /images/preview.png
+#SITE_SHARE_TITLE=My group - Our links
+#SITE_SHARE_DESCRIPTION=All our official links, social networks and events.
+#SITE_SHARE_TITLE_EN=
+#SITE_SHARE_DESCRIPTION_EN=
+#
 # Optional English texts (used for the English pages; the French texts above are used when these are missing)
 #SITE_TITLE_EN=
 #SITE_HEADING_EN=

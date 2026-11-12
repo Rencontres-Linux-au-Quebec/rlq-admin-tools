@@ -245,6 +245,11 @@ class Configuration(Base):
                                             "PAGE_1_ACCENT=#1a2B3c\nPAGE_1_SWITCH=yes\n")), "--check")
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
 
+    def test_image_d_apercu_invalide_refusee(self):
+        r = self.lancer("-c", str(self.conf(MINIMAL + "SITE_SHARE_IMAGE_URL=http://example.org/a.png\nSITE_BASE_URL=https://www.example.org/\n")), "--check")
+        self.assertNotEqual(r.returncode, 0)
+        self.assertIn("SITE_SHARE_IMAGE_URL", r.stdout + r.stderr)
+
     def test_icone_http_refusee(self):
         r = self.lancer("-c", str(self.conf(MINIMAL + "LINK_1_ICON=http://example.org/i.svg\n")), "--check")
         self.assertNotEqual(r.returncode, 0)
@@ -402,6 +407,49 @@ PAGE_2_TITLE=Deux
         self.assertIn('href="https://www.example.org/a/"', ici)
         self.assertNotIn('href="/a/"', ici)
 
+    def test_apercu_reseaux_sociaux_image_et_textes(self):
+        """1.10: Open Graph and Twitter card; absolute addresses built from SITE_BASE_URL and the page path."""
+        texte = self.config_deux_pages("no").replace(
+            "SITE_TITLE=Test & B\n", "SITE_TITLE=Test & B\nSITE_BASE_URL=https://www.example.org/\nSITE_DESCRIPTION=Desc\n"
+            "SITE_SHARE_IMAGE_URL=/images/apercu.png\nSITE_SHARE_TITLE=Nos \"liens\"\nSITE_SHARE_DESCRIPTION=Tous les liens\n"
+            "SITE_SHARE_TITLE_EN=Our links\nPAGE_1_LANGUAGES=fr,en\n")
+        r = self.lancer("-c", str(self.conf(texte)), "--update", "--yes", env=self.env)
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        ici = (self.www / "liens" / "index.html").read_text(encoding="utf-8")
+        en = (self.www / "liens" / "en" / "index.html").read_text(encoding="utf-8")
+        self.assertIn('<meta property="og:type" content="website">', ici)
+        self.assertIn('<meta property="og:url" content="https://www.example.org/liens/">', ici)
+        self.assertIn('<meta property="og:title" content="Nos &quot;liens&quot;">', ici)
+        self.assertIn('<meta property="og:description" content="Tous les liens">', ici)
+        self.assertIn('<meta property="og:image" content="https://www.example.org/liens/images/site/share.png">', ici)
+        self.assertIn('<meta name="twitter:card" content="summary_large_image">', ici)
+        self.assertIn('<meta name="twitter:image" content="https://www.example.org/liens/images/site/share.png">', ici)
+        self.assertTrue((self.www / "liens" / "images" / "site" / "share.png").exists())
+        self.assertIn("<title>Test &amp; B</title>", ici)          # the page title is unchanged
+        self.assertIn('<meta property="og:url" content="https://www.example.org/liens/en/">', en)
+        self.assertIn('<meta property="og:title" content="Our links">', en)
+        self.assertIn('<meta property="og:description" content="Tous les liens">', en)      # no English text: the French one
+        self.assertIn('content="https://www.example.org/liens/en/images/site/share.png"', en)
+
+    def test_apercu_sans_image_logo_puis_rien(self):
+        """1.10: without SITE_SHARE_IMAGE_URL the logo is used (small card); without a public base, no og:url nor og:image."""
+        avec_base = self.config_deux_pages("no").replace("SITE_TITLE=Test & B\n", "SITE_TITLE=Test & B\nSITE_BASE_URL=https://www.example.org/\n")
+        r = self.lancer("-c", str(self.conf(avec_base)), "--update", "--yes", env=self.env)
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        ici = (self.www / "liens" / "index.html").read_text(encoding="utf-8")
+        self.assertIn('<meta property="og:image" content="https://www.example.org/liens/images/site/logo.png">', ici)
+        self.assertIn('<meta name="twitter:card" content="summary">', ici)
+        self.assertIn('<meta property="og:title" content="Test &amp; B">', ici)
+        vide = self.tmp / "aucun-certificat"
+        vide.mkdir()                                              # no certificate: no base can be guessed on the test machine
+        r = self.lancer("-c", str(self.conf(self.config_deux_pages("no"))), "--update", "--yes",
+                        env={**self.env, "NGINX_LINK_PAGE_LETSENCRYPT_DIR": str(vide)})
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        ici = (self.www / "liens" / "index.html").read_text(encoding="utf-8")
+        self.assertIn('<meta property="og:title"', ici)
+        self.assertNotIn("og:image", ici)
+        self.assertNotIn("og:url", ici)
+
     def test_deux_langues_detection_et_textes(self):
         texte = self.config_deux_pages("no").replace(
             "PAGE_1_THEME=auto", "PAGE_1_THEME=auto\nPAGE_1_LANGUAGES=fr,en").replace(
@@ -465,12 +513,15 @@ class HardeningPropose(unittest.TestCase):
     def setUp(self):
         self.texte = (RACINE / "nginx-hardening.sh").read_text(encoding="utf-8")
 
-    def test_etape_12_ter_presente(self):
-        self.assertIn("--- 12 ter) Page de liens", self.texte)
+    def test_etape_0e_bis_presente(self):
+        # 2.101: the step sits between 0e and 0f, so it is numbered "0e bis" (it was "12 ter", out of sequence)
+        self.assertIn("--- 0e bis) Page de liens", self.texte)
+        self.assertNotIn("12 ter)", self.texte)
+        self.assertEqual(self.texte.count("# --- 12c)"), 1)
 
     def test_etape_avant_0f(self):
         # The link page is installed before the generic nginx configuration (step 0f), so that step 0f sees it.
-        self.assertLess(self.texte.index("--- 12 ter) Page de liens"), self.texte.index('echo "--- 0f)'))
+        self.assertLess(self.texte.index("--- 0e bis) Page de liens"), self.texte.index('echo "--- 0f)'))
 
     def test_verification_avant_installation(self):
         verification = self.texte.index('"$LIENS_SCRIPT" --check >/dev/null')
