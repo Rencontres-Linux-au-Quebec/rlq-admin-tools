@@ -3537,6 +3537,16 @@ Earlier history was archived outside this repository when this file was created.
 
 ## nginx-hardening.sh
 
+### 2.101.20261112.072450 - Step numbers: link page is "0e bis", refused URIs are "12d"
+
+- Title: two step labels corrected.
+- Reason: request of the administrator on 2026-11-12: the link page step was shown as "12 ter" although it runs between 0e and 0f.
+- Changes: label "12 ter) Page de liens" -> "0e bis) Page de liens" (0f keeps its number: many messages and CHANGELOG entries name it); second "12c" (refused URIs) -> "12d" (12c stays the CDN step); nginx-tools-tests/test_nginx_link_page.py adapted.
+- Bugs fixed: symptom: step "12 ter" displayed before step 0f, and two steps numbered 12c; diagnosis: the block was moved in 2.97 without renaming; fix: labels only, no change of behaviour.
+- Safeguards and edge cases: none.
+- Checks performed: bash -n; shellcheck; test_nginx_link_page (testeur agent).
+- Action required: none.
+
 ### 2.100.20261112.054310 - Step 10 names itself in the logs
 
 - Title: the HSTS request of step 10 asks for "/?probe=nginx-hardening" instead of "/".
@@ -4325,6 +4335,16 @@ Earlier history was archived outside this repository when this file was created.
 - Current version. Earlier history archived outside the repository.
 
 ## nginx-link-page.sh
+
+### 1.10.20261112.072450 - Preview on social networks (Open Graph), set in the configuration
+
+- Title: the generated pages carry the Open Graph and Twitter card tags, so LinkedIn, Facebook, Mastodon... show a chosen image, title and description.
+- Reason: request of the administrator on 2026-11-12: the address of the link page pasted in a LinkedIn comment showed no chosen image; the tags must come from the configuration file.
+- Changes: new optional keys SITE_SHARE_IMAGE_URL (https:// or a path with SITE_BASE_URL), SITE_SHARE_TITLE, SITE_SHARE_DESCRIPTION, SITE_SHARE_TITLE_EN, SITE_SHARE_DESCRIPTION_EN; genere_index(): og:type, og:site_name, og:title, og:description, og:locale, og:url, og:image, og:image:alt, twitter:card, twitter:image; the image is downloaded once with the logo and the icons (images/site/share.EXT) and served by the page itself; og:url and og:image are absolute: SITE_BASE_URL + PAGE_n_PATH (+ language folder); nginx-link-page.conf.example: the five keys; nginx-tools-tests/test_nginx_link_page.py: 3 tests.
+- Bugs fixed: none.
+- Safeguards and edge cases: without SITE_SHARE_IMAGE_URL the logo is used (twitter:card summary) when it is not an SVG; without the texts, the page title and SITE_DESCRIPTION; an SVG preview image is refused (not shown by LinkedIn and Facebook); SITE_SHARE_IMAGE_URL without a public base (SITE_BASE_URL or single certificate) is refused by --check; without a base, no og:url nor og:image is written and an [ATTN] line says so; every value is HTML-escaped; the Content-Security-Policy of the page is unchanged (the image is local).
+- Checks performed: bash -n; shellcheck; test_nginx_link_page (testeur agent).
+- Action required: add SITE_SHARE_IMAGE_URL (PNG or JPEG, 1200 x 627 advised) and, if wanted, the texts to /etc/default/nginx-link-page.conf, then sudo nginx-link-page.sh --update --yes; LinkedIn keeps the old preview about 7 days: refresh it with the LinkedIn Post Inspector.
 
 ### 1.9.20261111.165500 - English template, /links/ as default path, auto-creation checked
 

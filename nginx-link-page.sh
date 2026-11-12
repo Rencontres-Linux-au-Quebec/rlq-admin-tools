@@ -29,7 +29,7 @@
 set -u
 LANG_C="${LC_ALL:-${LC_MESSAGES:-${LANG:-C}}}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
-readonly SCRIPT_VERSION="1.9.20261111.165500"
+readonly SCRIPT_VERSION="1.10.20261112.072450"
 readonly SCRIPT_NAME="nginx-link-page"
 readonly CHANGELOG_FILE="$SCRIPT_DIR/CHANGELOG.md"
 
@@ -232,10 +232,18 @@ SITE_DESCRIPTION_EN_V=$(valeur_ou SITE_DESCRIPTION_EN "")
 SITE_FOOTER_EN_V=$(valeur_ou SITE_FOOTER_EN "")
 SITE_LOGO_URL_V=$(valeur_ou SITE_LOGO_URL "")
 SITE_LOGO_ALT_V=$(valeur_ou SITE_LOGO_ALT "$SITE_TITLE_V")
+# 1.10: preview shown by LinkedIn, Facebook, Mastodon... when the page address is shared (Open Graph). All optional:
+# without SITE_SHARE_IMAGE_URL the logo is used; without the texts, the title and the description of the page.
+SITE_SHARE_IMAGE_URL_V=$(valeur_ou SITE_SHARE_IMAGE_URL "")
+SITE_SHARE_TITLE_V=$(valeur_ou SITE_SHARE_TITLE "")
+SITE_SHARE_TITLE_EN_V=$(valeur_ou SITE_SHARE_TITLE_EN "")
+SITE_SHARE_DESCRIPTION_V=$(valeur_ou SITE_SHARE_DESCRIPTION "")
+SITE_SHARE_DESCRIPTION_EN_V=$(valeur_ou SITE_SHARE_DESCRIPTION_EN "")
 if [[ -n "$SITE_BASE_URL_V" ]] && ! [[ "$SITE_BASE_URL_V" =~ $URL_RE ]]; then
     PROBLEMES+=("SITE_BASE_URL doit etre une adresse https:// / must be an https:// address")
 fi
 if [[ -n "$SITE_LOGO_URL_V" ]] && abs="$(resoudre_url "$SITE_LOGO_URL_V")"; then SITE_LOGO_URL_V="$abs"; fi
+if [[ -n "$SITE_SHARE_IMAGE_URL_V" ]] && abs="$(resoudre_url "$SITE_SHARE_IMAGE_URL_V")"; then SITE_SHARE_IMAGE_URL_V="$abs"; fi
 SNIPPETS_DIR="${NGINX_LINK_PAGE_SNIPPETS_DIR:-/etc/nginx/snippets}"
 LIEN_FICHIER="$SNIPPETS_DIR/liens-publics.conf"
 
@@ -243,6 +251,13 @@ LIEN_FICHIER="$SNIPPETS_DIR/liens-publics.conf"
 [[ "$SITE_LANGUAGE_V" =~ ^(fr|en)$ ]] || PROBLEMES+=("SITE_LANGUAGE=$SITE_LANGUAGE_V (fr ou en / fr or en)")
 if [[ -n "$SITE_LOGO_URL_V" ]] && ! [[ "$SITE_LOGO_URL_V" =~ $URL_RE ]]; then
     PROBLEMES+=("SITE_LOGO_URL doit etre une adresse https:// ou un chemin avec SITE_BASE_URL / must be an https:// address or a path with SITE_BASE_URL")
+fi
+
+if [[ -n "$SITE_SHARE_IMAGE_URL_V" ]] && ! [[ "$SITE_SHARE_IMAGE_URL_V" =~ $URL_RE ]]; then
+    PROBLEMES+=("SITE_SHARE_IMAGE_URL doit etre une adresse https:// ou un chemin avec SITE_BASE_URL / must be an https:// address or a path with SITE_BASE_URL")
+fi
+if [[ -n "$SITE_SHARE_IMAGE_URL_V" && -z "$SITE_BASE_URL_V" ]]; then
+    PROBLEMES+=("SITE_SHARE_IMAGE_URL demande SITE_BASE_URL (l'apercu exige l'adresse publique complete de l'image) / needs SITE_BASE_URL (the preview requires the full public address of the image)")
 fi
 
 # shared links: LINK_1_..., LINK_2_... without gaps
@@ -447,6 +462,22 @@ if [[ -n "$SITE_LOGO_URL_V" ]]; then
     LOGO_LOCAL="images/site/${RES_FICHIER##*/}"
     ok "$(m "logo" "logo") -> $LOGO_LOCAL"
 fi
+# 1.10: image of the preview on social networks. PNG, JPEG or WebP only (LinkedIn and Facebook do not show an SVG).
+# Without SITE_SHARE_IMAGE_URL: the logo, when it is not an SVG (small square preview).
+PARTAGE_LOCAL=""; PARTAGE_CARTE="summary"
+if [[ -n "$SITE_SHARE_IMAGE_URL_V" ]]; then
+    telecharger "$SITE_SHARE_IMAGE_URL_V" "$TMP/assets/images/site/share" || { err "$(m "image d'apercu non telechargeable ou pas une image : $SITE_SHARE_IMAGE_URL_V" "preview image not downloadable or not an image: $SITE_SHARE_IMAGE_URL_V")"; exit 1; }
+    if [[ "$RES_FICHIER" == *.svg ]]; then
+        err "$(m "SITE_SHARE_IMAGE_URL : image SVG refusee par les reseaux sociaux ; fournir un PNG ou un JPEG (1200 x 627 conseille)" "SITE_SHARE_IMAGE_URL: SVG images are not shown by social networks; give a PNG or a JPEG (1200 x 627 advised)")"; exit 1
+    fi
+    PARTAGE_LOCAL="images/site/${RES_FICHIER##*/}"; PARTAGE_CARTE="summary_large_image"
+    ok "$(m "image d'apercu (reseaux sociaux)" "preview image (social networks)") -> $PARTAGE_LOCAL"
+elif [[ -n "$LOGO_LOCAL" && "$LOGO_LOCAL" != *.svg && -n "$SITE_BASE_URL_V" ]]; then
+    PARTAGE_LOCAL="$LOGO_LOCAL"
+    attn "$(m "apercu sur les reseaux sociaux : logo utilise (SITE_SHARE_IMAGE_URL absent ; image de 1200 x 627 conseillee)" "preview on social networks: logo used (SITE_SHARE_IMAGE_URL missing; a 1200 x 627 image is advised)")"
+else
+    attn "$(m "apercu sur les reseaux sociaux : aucune image (definir SITE_SHARE_IMAGE_URL et SITE_BASE_URL)" "preview on social networks: no image (set SITE_SHARE_IMAGE_URL and SITE_BASE_URL)")"
+fi
 declare -A ICONE_RESOLUE=()
 RES_ICONE=""
 icone_resoudre() {   # icone_resoudre VALEUR CLE : sets RES_ICONE (path relative to a page folder)
@@ -519,6 +550,21 @@ genere_index() {   # genere_index DOSSIER THEME TITRE [FICHIER] [CIBLE_BASCULE] 
         echo "    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">"
         echo "    <title>$(html_echap "$titre")</title>"
         if [[ -n "$L_DESCRIPTION" ]]; then echo "    <meta name=\"description\" content=\"$(html_echap "$L_DESCRIPTION")\">"; fi
+        # 1.10: Open Graph (LinkedIn, Facebook, Mastodon...) and Twitter card. Addresses must be absolute: only with a public base.
+        echo "    <meta property=\"og:type\" content=\"website\">"
+        echo "    <meta property=\"og:site_name\" content=\"$(html_echap "$SITE_TITLE_V")\">"
+        echo "    <meta property=\"og:title\" content=\"$(html_echap "${L_PARTAGE_TITRE:-$titre}")\">"
+        if [[ -n "${L_PARTAGE_DESCRIPTION:-$L_DESCRIPTION}" ]]; then echo "    <meta property=\"og:description\" content=\"$(html_echap "${L_PARTAGE_DESCRIPTION:-$L_DESCRIPTION}")\">"; fi
+        if [[ "$L_LANG" == en ]]; then echo "    <meta property=\"og:locale\" content=\"en\">"; else echo "    <meta property=\"og:locale\" content=\"fr\">"; fi
+        if [[ -n "$L_URL_PUBLIQUE" ]]; then
+            echo "    <meta property=\"og:url\" content=\"$(html_echap "$L_URL_PUBLIQUE")\">"
+            if [[ -n "$PARTAGE_LOCAL" ]]; then
+                echo "    <meta property=\"og:image\" content=\"$(html_echap "${L_URL_PUBLIQUE}${PARTAGE_LOCAL}")\">"
+                echo "    <meta property=\"og:image:alt\" content=\"$(html_echap "$SITE_LOGO_ALT_V")\">"
+                echo "    <meta name=\"twitter:card\" content=\"$PARTAGE_CARTE\">"
+                echo "    <meta name=\"twitter:image\" content=\"$(html_echap "${L_URL_PUBLIQUE}${PARTAGE_LOCAL}")\">"
+            fi
+        fi
         echo "    <meta name=\"theme-color\" content=\"#ffffff\" media=\"(prefers-color-scheme: light)\">"
         echo "    <meta name=\"theme-color\" content=\"#121212\" media=\"(prefers-color-scheme: dark)\">"
         echo "    <meta name=\"referrer\" content=\"strict-origin-when-cross-origin\">"
@@ -589,6 +635,17 @@ for i in ${ACTIVES[@]+"${ACTIVES[@]}"}; do
             L_FOOTER="${SITE_FOOTER_EN_V:-$SITE_FOOTER_V}"
         else
             L_TITRE="$P_TITRE"; L_HEADING="$SITE_HEADING_V"; L_DESCRIPTION="$SITE_DESCRIPTION_V"; L_FOOTER="$SITE_FOOTER_V"
+        fi
+        # 1.10: preview texts and public address of THIS page (og:url, og:image): base + page path (+ language folder)
+        if [[ "$L_LANG" == en ]]; then
+            L_PARTAGE_TITRE="${SITE_SHARE_TITLE_EN_V:-$SITE_SHARE_TITLE_V}"; L_PARTAGE_DESCRIPTION="${SITE_SHARE_DESCRIPTION_EN_V:-$SITE_SHARE_DESCRIPTION_V}"
+        else
+            L_PARTAGE_TITRE="$SITE_SHARE_TITLE_V"; L_PARTAGE_DESCRIPTION="$SITE_SHARE_DESCRIPTION_V"
+        fi
+        L_URL_PUBLIQUE=""
+        if [[ -n "$SITE_BASE_URL_V" ]]; then
+            L_URL_PUBLIQUE="${SITE_BASE_URL_V%/}/${P_CHEMIN#/}"
+            if (( k > 0 )); then L_URL_PUBLIQUE+="$L_LANG/"; fi
         fi
         # link to the other language (two languages only)
         L_AUTRE_HREF=""; L_AUTRE_LIBELLE=""
