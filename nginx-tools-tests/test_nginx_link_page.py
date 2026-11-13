@@ -1031,6 +1031,19 @@ printf '\\211PNG\\r\\n\\032\\nxxxx' > "$out"; printf '200 12'; exit 0
         r = self.lancer("-c", str(self.conf(self.config_deux_pages("no") + "LINK_3_LABEL=M\nLINK_3_STYLE=icon\nLINK_2_MENU=3\n")), "--check")
         self.assertIn("LINK_3_STYLE=icon : un menu ou un lien de menu", r.stderr)
 
+    def test_136_vignettes(self):
+        """1.36 : LINK_n_IMAGE : vignette téléchargée (images/site/thumb-N.*) à gauche du bouton à la place de l'icône ; chemin relatif
+        résolu ; adresse invalide refusée."""
+        texte = self.config_deux_pages("no") + "LINK_2_IMAGE=https://example.org/affiche.png\n"
+        r = self.lancer("-c", str(self.conf(texte)), "--update", "--yes", env=self.env)
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        html = (self.www / "liens" / "index.html").read_text(encoding="utf-8")
+        self.assertRegex(html, r'<a class="button button-default button-thumb" href="https://example.org/b"[^>]*>\n +<img class="thumb" src="images/site/thumb-2\.png" alt="" loading="lazy">Autre</a>')
+        self.assertTrue(list((self.www / "liens" / "images" / "site").glob("thumb-2.*")))
+        self.assertIn('<link rel="stylesheet" href="css/extras.css">', html)
+        r = self.lancer("-c", str(self.conf(MINIMAL + "LINK_1_IMAGE=ftp://x/y.png\n")), "--check")
+        self.assertIn("LINK_1_IMAGE : adresse https:// ou chemin relatif d'une image", r.stderr)
+
     def test_deux_langues_detection_et_textes(self):
         texte = self.config_deux_pages("no").replace(
             "PAGE_1_THEME=auto", "PAGE_1_THEME=auto\nPAGE_1_LANGUAGES=fr,en").replace(

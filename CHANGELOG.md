@@ -4536,6 +4536,16 @@ Earlier history was archived outside this repository when this file was created.
 
 ## nginx-link-page.sh
 
+### 1.36.20261112.224601 - LINK_n_IMAGE: thumbnail at the left of the button
+
+- Title: new key LINK_n_IMAGE: a thumbnail at the left of the button, instead of the icon (the poster of an event, for example).
+- Reason: request of the administrator on 2026-11-12 (suggestion 3 of the comparison with Linktree): a small picture per link.
+- Changes: new key LINK_n_IMAGE (in CLES_LIEN; https:// or a path resolved with SITE_BASE_URL, checked by --check); new constant MAX_THUMB_BYTES (2 MB); --update downloads it like the icons (telecharger: PNG, JPEG, WebP or SVG only) as images/site/thumb-N.EXT, new array VIGNETTE; bouton_lien(): class button-thumb, <img class="thumb" loading="lazy"> then the label; css/extras.css: square thumbnail of 2.6rem with rounded corners (object-fit cover), text aligned after it; page_a_extras: a page with a thumbnail (in a menu or not) loads it; nginx-link-page.conf.example: the key described; nginx-tools-tests/test_nginx_link_page.py: 1 test.
+- Bugs fixed: none.
+- Safeguards and edge cases: the picture is downloaded once and served by the page itself (Content-Security-Policy img-src 'self'); a file that is not an image, too big or not reachable stops --update with the reason, as for the icons; decorative (alt empty, the label is the text of the button); the thumbnail takes the place of the icon and of LINK_n_ICON_DARK.
+- Checks performed: bash -n; shellcheck; test_nginx_link_page (69 tests); rendered in Google Chrome.
+- Action required: none (example: LINK_1_IMAGE=/web/image/event.event/12/image_512, then sudo nginx-link-page.sh --update --yes).
+
 ### 1.35.20261112.224424 - LINK_n_STYLE=icon: row of social icons under the description
 
 - Title: new value LINK_n_STYLE=icon: the link becomes a round icon in a row under the description, for the social networks.

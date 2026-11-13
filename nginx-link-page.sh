@@ -29,7 +29,7 @@
 set -u
 LANG_C="${LC_ALL:-${LC_MESSAGES:-${LANG:-C}}}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
-readonly SCRIPT_VERSION="1.35.20261112.224424"
+readonly SCRIPT_VERSION="1.36.20261112.224601"
 readonly SCRIPT_NAME="nginx-link-page"
 # --config-merge: same rule as the other programs (apps/_config.py fusionner): the configuration file is rewritten from the new template,
 # keeping its active values; the old file is copied to FILE.bak-YYYYMMDD-HHMMSS. Then exit.
@@ -93,6 +93,7 @@ themes_offerts() {
 }
 # 1.14: the preview image of the social networks (1200 x 627 advised) is often a poster of more than 512 KiB: its own limit, the one of LinkedIn (5 MB)
 readonly MAX_SHARE_BYTES=5242880
+readonly MAX_THUMB_BYTES=2097152          # 1.36: thumbnails of the links (LINK_n_IMAGE): 2 MB at most
 readonly MOTEURS_PRIS_EN_CHARGE="littlelink"
 
 # ---- colours (only on a terminal; never when the output is redirected) ----
@@ -297,7 +298,7 @@ valeur_ou() { local v="${CFG[$1]:-}"; [[ -n "$v" ]] && printf '%s' "$v" || print
 # 1.24: every key of the files must be known (a mistyped key was ignored without a word: PAGE_3_THEMS=all, SITE_LANGAUGE=en)
 readonly CLES_SITE="BASE_URL DESCRIPTION DESCRIPTION_EN FOOTER FOOTER_EN HEADING HEADING_EN LANGUAGE LOGO_ALT LOGO_URL SHARE_DESCRIPTION SHARE_DESCRIPTION_EN SHARE_IMAGE_URL SHARE_TITLE SHARE_TITLE_EN TITLE TITLE_EN"
 readonly CLES_EVENTS="ODOO_DB ODOO_KEY_FILE ODOO_LOGIN ODOO_URL"      # 1.34: upcoming events read in Odoo
-readonly CLES_LIEN="FROM ICON ICON_DARK LABEL LABEL_EN MENU PAGES STYLE UNTIL URL"
+readonly CLES_LIEN="FROM ICON ICON_DARK IMAGE LABEL LABEL_EN MENU PAGES STYLE UNTIL URL"
 readonly CLES_PAGE="ACCENT AVATAR BUTTONS CLICKS DIR ENABLED ENGINE EVENTS LANGUAGES PATH QR SCRIPT SHARE SWITCH THEME THEMES TITLE TITLE_EN"
 cle_connue() {   # cle_connue KEY: 0 when KEY is read by the program
     local k="$1" s
@@ -456,6 +457,11 @@ for i in "${LIENS_N[@]}"; do
         if [[ "$ic" != builtin:* ]] && abs="$(resoudre_url "$ic")"; then ic="$abs"; CFG[$cle]="$abs"; fi
         [[ "$ic" =~ ^builtin:[a-z0-9-]+$ || "$ic" =~ $URL_RE ]] || PROBLEMES+=("$cle : builtin:NOM ou https:// / builtin:NAME or https://")
     done
+    im="${CFG[LINK_${i}_IMAGE]:-}"                             # 1.36: thumbnail of the link
+    if [[ -n "$im" ]]; then
+        if abs="$(resoudre_url "$im")"; then im="$abs"; CFG[LINK_${i}_IMAGE]="$abs"; fi
+        [[ "$im" =~ $URL_RE ]] || PROBLEMES+=("LINK_${i}_IMAGE : $(m "adresse https:// ou chemin relatif d'une image (PNG, JPEG, WebP, SVG)" "https:// address or relative path of an image (PNG, JPEG, WebP, SVG)")")
+    fi
 done
 (( ${#LIENS_N[@]} > 0 )) || PROBLEMES+=("aucun lien (LINK_1_LABEL et LINK_1_URL) / no link (LINK_1_LABEL and LINK_1_URL)")
 
@@ -915,7 +921,7 @@ icone_resoudre() {   # icone_resoudre VALEUR CLE : sets RES_ICONE (path relative
     ICONE_RESOLUE[$v]="images/site/${RES_FICHIER##*/}"
     RES_ICONE="${ICONE_RESOLUE[$v]}"
 }
-declare -A ICONE_CLAIR=() ICONE_SOMBRE=() BOUTON_MARQUE=()
+declare -A ICONE_CLAIR=() ICONE_SOMBRE=() BOUTON_MARQUE=() VIGNETTE=()
 for i in "${LIENS_N[@]}"; do
     ic="${CFG[LINK_${i}_ICON]:-builtin:generic-website}"
     icone_resoudre "$ic" "$i-clair" || exit 1; ICONE_CLAIR[$i]="$RES_ICONE"
@@ -929,6 +935,12 @@ for i in "${LIENS_N[@]}"; do
     ICONE_SOMBRE[$i]=""
     if [[ -n "${CFG[LINK_${i}_ICON_DARK]:-}" ]]; then
         icone_resoudre "${CFG[LINK_${i}_ICON_DARK]}" "$i-sombre" || exit 1; ICONE_SOMBRE[$i]="$RES_ICONE"
+    fi
+    VIGNETTE[$i]=""                                          # 1.36: thumbnail (LINK_n_IMAGE), downloaded like the icons
+    if [[ -n "${CFG[LINK_${i}_IMAGE]:-}" ]]; then
+        telecharger "${CFG[LINK_${i}_IMAGE]}" "$TMP/assets/images/site/thumb-$i" "$MAX_THUMB_BYTES" \
+            || { err "$(m "vignette non téléchargeable ou pas une image" "thumbnail not downloadable or not an image") : ${CFG[LINK_${i}_IMAGE]} ($RES_ERREUR)"; exit 1; }
+        VIGNETTE[$i]="images/site/${RES_FICHIER##*/}"
     fi
 done
 
@@ -1044,6 +1056,10 @@ page_a_extras() {
     [[ "${P_QR:-no}" == yes ]] && return 0
     (( ${P_EVENTS:-0} > 0 )) && return 0                      # 1.34
     for n in ${P_LIENS[@]+"${P_LIENS[@]}"}; do [[ "${CFG[LINK_${n}_STYLE]:-}" == icon ]] && return 0; done      # 1.35
+    for n in ${P_LIENS[@]+"${P_LIENS[@]}"}; do                  # 1.36: thumbnails, in a menu or not
+        [[ -n "${VIGNETTE[$n]:-}" ]] && return 0
+        for e in ${MENU_ENFANTS[$n]:-}; do [[ -n "${VIGNETTE[$e]:-}" ]] && return 0; done
+    done
     for n in ${P_LIENS[@]+"${P_LIENS[@]}"}; do
         [[ "${CFG[LINK_${n}_STYLE]:-normal}" == featured ]] && return 0
         for e in ${MENU_ENFANTS[$n]:-}; do [[ "${CFG[LINK_${e}_STYLE]:-normal}" == featured ]] && return 0; done
@@ -1085,6 +1101,11 @@ bouton_lien() {
     local classe_bouton="button-default"
     if [[ "$P_BOUTONS" == brand && -n "${BOUTON_MARQUE[$1]:-}" ]]; then classe_bouton="${BOUTON_MARQUE[$1]}"; fi
     [[ "${CFG[LINK_${1}_STYLE]:-normal}" == featured ]] && classe_bouton+=" button-featured"      # 1.31
+    if [[ -n "${VIGNETTE[$1]:-}" ]]; then                     # 1.36: thumbnail instead of the icon
+        echo "        <a class=\"button $classe_bouton button-thumb\" href=\"$(html_echap "$(cible_lien "$1")")\" target=\"_blank\" rel=\"noopener noreferrer\">"
+        echo "          <img class=\"thumb\" src=\"${VIGNETTE[$1]}\" alt=\"\" loading=\"lazy\">$(html_echap "$(libelle_lien "$1")")</a>"
+        return 0
+    fi
     echo "        <a class=\"button $classe_bouton\" href=\"$(html_echap "$(cible_lien "$1")")\" target=\"_blank\" rel=\"noopener noreferrer\">"
     echo "          $(icone_lien "$1")$(html_echap "$(libelle_lien "$1")")</a>"
 }

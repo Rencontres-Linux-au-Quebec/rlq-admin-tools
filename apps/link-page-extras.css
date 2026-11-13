@@ -1,6 +1,7 @@
 /*
  * link-page-extras.css - featured links (LINK_n_STYLE=featured), QR code link (PAGE_n_QR=yes), upcoming events of Odoo
- * (PAGE_n_EVENTS) and row of icons (LINK_n_STYLE=icon) of the link pages of nginx-link-page.sh.
+ * (PAGE_n_EVENTS) row of icons (LINK_n_STYLE=icon) and
+ * thumbnails (LINK_n_IMAGE) of the link pages of nginx-link-page.sh.
  * Copyright (C) 2026 Services-Conseils Linux Inc. - AGPL-3.0-or-later (see LICENSE).
  * Copied as css/extras.css into each page folder that uses one of them, loaded after the theme style sheets. No script.
  */
@@ -95,4 +96,19 @@
 	margin: 0;
 	width: 1.4rem;
 	height: 1.4rem;
+}
+
+/* ---- thumbnails (LINK_n_IMAGE): a small picture at the left of the button, text after it ---- */
+.button.button-thumb {
+	justify-content: flex-start;
+	gap: 0.75rem;
+	padding: 0.35rem 0.9rem 0.35rem 0.35rem;
+	text-align: left;
+}
+.button-thumb .thumb {
+	flex: none;
+	width: 2.6rem;
+	height: 2.6rem;
+	object-fit: cover;
+	border-radius: 0.45rem;
 }
