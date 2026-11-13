@@ -1,0 +1,18 @@
+# Comment lines of every shipped version of the template nginx-tools-ip-location.conf.example (sha1 of the stripped line, 16 hex).
+# Read by apps/_config.py --config-merge: such a comment of an old file is a line of an old template, not a note of the
+# administrator. Updated by: python3 apps/_config.py --history nginx-tools-ip-location
+0f8a22158b2bd6bb
+1bcc9e07d595c425
+30a111eba214300c
+52080f8fc239bb70
+5bdc7502d3a11b37
+70d8efaf476e2f8d
+7eb44cde5aa6f70d
+813095841d155908
+8404f8cb9605f21f
+a67bfd1c706912e9
+b5f4f2b90df07899
+d70aca6d1aea421c
+dcb43d1679a0a0d3
+dcd8cef8e7eba9c4
+f9124fd0e5a871d3

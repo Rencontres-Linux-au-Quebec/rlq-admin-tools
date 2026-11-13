@@ -1,0 +1,37 @@
+# Comment lines of every shipped version of the template nginx-tools-white-list.conf.example (sha1 of the stripped line, 16 hex).
+# Read by apps/_config.py --config-merge: such a comment of an old file is a line of an old template, not a note of the
+# administrator. Updated by: python3 apps/_config.py --history nginx-tools-white-list
+001a3e8d3aec68e7
+05ab0b89073603fc
+0cff38b80eaf0bcb
+155298ed0e96f829
+1a952564032cc86f
+2436d9fb8206fa48
+2632af4d2c713491
+29ec4be8b40c99d5
+2ff7e05c9001ef58
+34dc9ee12878f110
+37225d2d008b7d72
+394b19c7e843c51b
+5775b2dd7c33dfbd
+5d90094ab24278c2
+5dd631994a33196a
+7b89658f3512a8ee
+8663352fbb95a8a2
+980215480d32f09b
+980f0b28c0d39627
+981f52b2fd44ad44
+9d99e5aca4f03609
+aa6e83f91e2be309
+b23ac91d7919ef55
+b7c74e850316b502
+c29fd674bbe24948
+c566e21aeb3dd6bf
+c7054aa161a85f9e
+cc4df7aeca22b7cf
+d6ed0ba379b4f853
+e1b092096750c8ce
+e8d9e0997793b93e
+ebb46cf92127d499
+ecabc10934fc6bab
+eefd83ffd511fa00

@@ -6539,6 +6539,16 @@ Earlier history was archived outside this repository when this file was created.
 
 ## apps/_config.py
 
+### 1.16.20261113.085955 - --config-merge no longer keeps the text of an old template: the file no longer grows
+
+- Title: the comments of an old version of the template are replaced by the current template instead of being kept as notes of the administrator.
+- Reason: report of the administrator on 2026-11-13: running --config-merge again made the file about twice as big. Reproduced with his configuration: 279 lines became 444 (15.7 KB to 29 KB), then stable; the explanations of the previous template, absent from the new one, were all copied into the section "Repris de l'ancien fichier".
+- Changes: new folder doc/conf-history/ with one PROGRAM.history per program: the sha1 (16 hex) of every comment line of every version of its template ever shipped (built from the history of the repository, 27 programs); new functions empreinte, chemin_historique, historique_modele and mettre_a_jour_historique; repris_de_l_ancien() and lignes_hors_modele() leave out a comment found in that history; fusionner(): such lines, the blank lines and the header of a previous merge may go without the safeguard "file smaller" refusing the merge, and their number is shown ("lignes d'un ancien modèle remplacées par le modèle actuel : N"); new command python3 apps/_config.py --history PROGRAM (adds the comments of the current templates, to run after a change of a template; --merge is no longer required alone); nginx-tools-tests/test_config_commune.py: 3 tests.
+- Bugs fixed: symptom: the configuration file grew at each new version of the template (about twice its size after the template of nginx-link-page 1.46); diagnosis: repris_de_l_ancien (1.14) kept every comment absent from the new template, the old explanations included; fix: the comments of the old templates are known (doc/conf-history) and replaced.
+- Safeguards and edge cases: a comment written by the administrator is not in the history and is kept; the values are still read back before writing (none may change); a file already grown by 1.14 or 1.15 goes back to its normal size (checked with the configuration of the administrator: 444 lines to 371, 121 values the same, then stable); without a history file, the behaviour of 1.15; a test fails when a template is changed without --history.
+- Checks performed: python3 -m py_compile; test_config_commune, test_conventions.FusionDeConfiguration, test_cles_modeles, test_config_defaut, test_nginx_link_page; merges of the configuration of the administrator three times in a row: same size.
+- Action required: sudo nginx-link-page.sh --config-merge once: the file goes back to its normal size (the copy FILE.bak-... is made as usual). For the developers: after a change of a doc/*/PROGRAM.conf.example, run python3 apps/_config.py --history PROGRAM.
+
 ### 1.15.20261113.074229 - --config-merge refused on a key written twice or an invalid line
 
 - Title: before merging, --config-merge refuses when a file read has a key written twice or a line that is not KEY=VALUE, and lists them with their lines.

@@ -1,0 +1,31 @@
+# Comment lines of every shipped version of the template run-all.conf.example (sha1 of the stripped line, 16 hex).
+# Read by apps/_config.py --config-merge: such a comment of an old file is a line of an old template, not a note of the
+# administrator. Updated by: python3 apps/_config.py --history run-all
+0684197036c49215
+0ab195b71a6fa8a2
+112084f12c00fd92
+2197942a207befcf
+2274b60cc80c84e1
+24bf249e58898ff5
+34e34bdd5676232c
+42ede795aa66f0f8
+4e58bafab7394a0a
+5a505bfadf6bb856
+5c448dd18c1198af
+6eedcd36e9c70125
+724026452c9572e7
+882c7d380fb52c46
+8d73d8f711641562
+96f440f4135b1aff
+a7d6855d831b84f0
+bfe57b43163cdbf2
+c32b243e5202071d
+c50639ace55c3d1d
+d08f88df745fa795
+d5bcba557eb3d4ec
+d819fd5a60a47773
+d91963b1889f78ce
+e5e77cbc87c024fa
+ea2c597bd2c24814
+ebb7037d45cb1927
+ecef319e2f6a12c1
