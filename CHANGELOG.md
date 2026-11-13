@@ -3717,6 +3717,16 @@ Earlier history was archived outside this repository when this file was created.
 
 ## nginx-hardening.sh
 
+### 2.104.20261113.102013 - --update installs the dependencies of the other programs
+
+- Title: new step "0 bis": --update (root) installs the packages that the other programs of the repository need or use; the check names the missing ones.
+- Reason: request of the administrator on 2026-11-13: install with --update the dependencies of all the programs (several programs have no --update of their own: nginx-log-audit, app-health-check, app-log-live, web-monitor...).
+- Changes: step "0 bis) Dépendances des autres programmes du dépôt" after step 0, with the existing function paquet_installer: dig (bind9-dnsutils: nginx-log-audit, app-health-check, apps/_email_check.py), whois (nginx-log-audit, apps/_reseau.py), ipset (nginx-log-audit, web-monitor, sync-crowdsec-blocklist), git (nginx-link-page), python3 (the Python programs), dialog (admin-menu), less (pagers), rsync (odoo-backup), wget (apps/_vpn.py, apps/_reseau.py); geoip-bin, certbot and msmtp keep their own steps; lang/nginx-hardening.en.po: title of the step; nginx-tools-tests/test_nginx_hardening.py: 1 test.
+- Bugs fixed: none.
+- Safeguards and edge cases: without --update nothing is installed (a [ATTN] line for each missing package, as step 0); without apt-get: the package to install is named; each command of the list is checked by the test to be used by a program of the repository; qrencode is installed by nginx-link-page.sh --update only when a page asks for a QR code.
+- Checks performed: bash -n; test_nginx_hardening (new test); test_i18n.
+- Action required: sudo nginx-hardening.sh --update installs the missing packages (or nothing when all are there).
+
 ### 2.103.20261112.095816 - Step 12e: exemptions from the 403 by User-Agent
 
 - Title: /etc/default/nginx-tools-bot-exempt.conf becomes bot-exempt-geo.conf (nginx $is_bot_exempt).
@@ -4535,6 +4545,16 @@ Earlier history was archived outside this repository when this file was created.
 - Current version. Earlier history archived outside the repository.
 
 ## nginx-link-page.sh
+
+### 1.48.20261113.102013 - --update installs the missing packages
+
+- Title: --update (root) installs the packages the program needs: git, curl, python3, and qrencode when a page has PAGE_n_QR=yes.
+- Reason: request of the administrator on 2026-11-13: the programs with --update must install their dependencies when run as root.
+- Changes: new array A_INSTALLER and functions peut_installer, paquet_manque and installer_paquets; the check of PAGE_n_QR=yes no longer refuses a missing qrencode when --update runs as root with apt-get (it is added to the packages to install); --check names the missing packages ("[ATTN] paquets absents : ... (sudo nginx-link-page.sh --update les installe)"); --update shows "Paquets à installer : ..." before the confirmation, then installs them (apt-get install -y -qq; when that fails, apt-get update then a second try); nginx missing: "(sudo apt install nginx)"; new variable NGINX_LINK_PAGE_APT (replaces apt-get, for the tests); help of --update; nginx-tools-tests/test_nginx_link_page.py: 1 test, message of 1.32 updated.
+- Bugs fixed: none.
+- Safeguards and edge cases: nothing is installed by --check, nor before the confirmation (--yes or the question); not root: --update stops as before; without apt-get: the missing packages are named and nothing is done; a failed installation stops the program before any page is written; nginx is never installed by this program (server choice: nginx-hardening.sh).
+- Checks performed: bash -n; shellcheck (same as main); test_nginx_link_page; stub of apt-get: qrencode installed then the QR code written; installation in failure: exit code 1 and the apt-get command to run.
+- Action required: none.
 
 ### 1.47.20261113.081430 - One template per language, section 5 in one language
 

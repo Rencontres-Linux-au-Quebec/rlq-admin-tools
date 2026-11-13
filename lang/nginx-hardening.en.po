@@ -1209,6 +1209,9 @@ msgstr " » and read the error."
 msgid "--- 0) Programmes requis (ss, curl, logrotate, fail2ban) ---"
 msgstr "--- 0) Required programs (ss, curl, logrotate, fail2ban) ---"
 
+msgid "--- 0 bis) Dépendances des autres programmes du dépôt (dig, whois, ipset, git, python3, dialog, less, rsync, wget) ---"
+msgstr "--- 0 bis) Dependencies of the other programs of the repository (dig, whois, ipset, git, python3, dialog, less, rsync, wget) ---"
+
 msgid "iptables : règles enregistrées (netfilter-persistent) — elles survivent à un redémarrage."
 msgstr "iptables: rules saved (netfilter-persistent) — they survive a reboot."
 

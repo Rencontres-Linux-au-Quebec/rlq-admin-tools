@@ -29,7 +29,7 @@
 set -u
 LANG_C="${LC_ALL:-${LC_MESSAGES:-${LANG:-C}}}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
-readonly SCRIPT_VERSION="1.47.20261113.081430"
+readonly SCRIPT_VERSION="1.48.20261113.102013"
 readonly SCRIPT_NAME="nginx-link-page"
 # --config-merge: same rule as the other programs (apps/_config.py fusionner): the configuration file is rewritten from the new template,
 # keeping its active values; the old file is copied to FILE.bak-YYYYMMDD-HHMMSS. Then exit.
@@ -136,7 +136,7 @@ Options (ordre alphabetique / alphabetical order) :
   ${C_OPT}--lang LANG${C_RESET}                langue des messages : fr ou en / message language: fr or en
   ${C_OPT}--rollback${C_RESET}                 remet les pages et le fragment nginx d'avant le dernier --update / put back the pages and the nginx snippet of before the last --update
   ${C_OPT}--stats${C_RESET}                    visites (provenance, par jour) et clics de chaque lien, lus dans les journaux d'accès de nginx / visits (origin, per day) and clicks of each link, read in the nginx access logs
-  ${C_OPT}--update${C_RESET}                   installe ou met a jour les pages (root, confirmation) / install or update (root, asks first)
+  ${C_OPT}--update${C_RESET}                   installe ou met a jour les pages, et les paquets qui manquent : git, curl, python3, qrencode (root, confirmation) / install or update the pages, and the missing packages: git, curl, python3, qrencode (root, asks first)
   ${C_OPT}--version${C_RESET}                  affiche la version / show the version
   ${C_OPT}--yes${C_RESET}                      avec --update : sans question / with --update: no question
 
@@ -301,6 +301,28 @@ if (( ${#CFG_FICHIERS[@]} == 0 )) && [[ -z "$CONFIG_EXPLICIT" ]]; then
 fi
 
 # ---- validation ----
+# 1.48: the packages this program needs (git, curl, python3, and qrencode for PAGE_n_QR=yes) are installed by --update as root;
+# --check lists the missing ones. NGINX_LINK_PAGE_APT replaces apt-get (tests). nginx itself is not installed here.
+A_INSTALLER=()
+APT_BIN="${NGINX_LINK_PAGE_APT:-apt-get}"
+peut_installer() { [[ "$MODE" == update && "$(id -u)" -eq 0 ]] && command -v "$APT_BIN" >/dev/null 2>&1; }
+paquet_manque() {   # paquet_manque COMMAND PACKAGE: PACKAGE added to A_INSTALLER (once) when COMMAND is missing; 1 when it is missing
+    command -v "$1" >/dev/null 2>&1 && return 0
+    [[ " ${A_INSTALLER[*]} " == *" $2 "* ]] || A_INSTALLER+=("$2")
+    return 1
+}
+installer_paquets() {   # installer_paquets: apt-get install of A_INSTALLER (apt-get update first only when the first try fails)
+    (( ${#A_INSTALLER[@]} )) || return 0
+    echo "$(m "Installation des paquets" "Installing the packages") : ${A_INSTALLER[*]}"
+    if ! DEBIAN_FRONTEND=noninteractive "$APT_BIN" install -y -qq "${A_INSTALLER[@]}" >/dev/null 2>&1; then
+        DEBIAN_FRONTEND=noninteractive "$APT_BIN" update -qq >/dev/null 2>&1 || true
+        if ! DEBIAN_FRONTEND=noninteractive "$APT_BIN" install -y -qq "${A_INSTALLER[@]}" >/dev/null 2>&1; then
+            err "$(m "installation en échec : lancer « sudo apt-get install ${A_INSTALLER[*]} » et lire l'erreur" "installation failed: run \"sudo apt-get install ${A_INSTALLER[*]}\" and read the error")"
+            exit 1
+        fi
+    fi
+    ok "$(m "installé" "installed") : ${A_INSTALLER[*]}"
+}
 PROBLEMES=()
 valeur_ou() { local v="${CFG[$1]:-}"; [[ -n "$v" ]] && printf '%s' "$v" || printf '%s' "$2"; }
 
@@ -732,7 +754,10 @@ for i in "${PAGES_N[@]}"; do
     qr_v="$(valeur_ou "${pre}QR" no)"                                                   # 1.32: QR code of the page
     [[ "$qr_v" =~ ^(yes|no)$ ]] || PROBLEMES+=("${pre}QR=$qr_v (yes ou no)")
     if [[ "$qr_v" == yes ]]; then
-        command -v qrencode >/dev/null 2>&1 || PROBLEMES+=("${pre}QR=yes : $(m "qrencode absent (sudo apt install qrencode)" "qrencode not found (sudo apt install qrencode)")")
+        if ! command -v qrencode >/dev/null 2>&1 && ! peut_installer; then      # 1.48: --update (root) installs it
+            PROBLEMES+=("${pre}QR=yes : $(m "qrencode absent (sudo apt install qrencode, ou sudo nginx-link-page.sh --update l'installe)" "qrencode not found (sudo apt install qrencode, or sudo nginx-link-page.sh --update installs it)")")
+        fi
+        paquet_manque qrencode qrencode || true
         [[ -n "$SITE_BASE_URL_V" ]] || PROBLEMES+=("${pre}QR=yes : $(m "adresse publique inconnue : SITE_BASE_URL (ou un seul certificat sur le serveur)" "public address unknown: SITE_BASE_URL (or a single certificate on the server)")")
     fi
     if [[ "$(valeur_ou "${pre}SCRIPT" yes)" == yes && ! -r "$LINK_PAGE_JS" ]]; then
@@ -968,7 +993,11 @@ if [[ "$MODE" == "links" ]]; then
     ok "$(m "aucun lien mort" "no dead link")$( (( douteux )) && echo " ($douteux $(m "à vérifier à la main" "to check by hand"))")"
     exit 0
 fi
+paquet_manque git git || true; paquet_manque curl curl || true; paquet_manque python3 python3 || true      # 1.48
 if [[ "$MODE" == "check" ]]; then
+    if (( ${#A_INSTALLER[@]} )); then
+        attn "$(m "paquets absents" "missing packages") : ${A_INSTALLER[*]} ($(m "sudo nginx-link-page.sh --update les installe" "sudo nginx-link-page.sh --update installs them"))"
+    fi
     echo
     echo "$(m "Rien n'a ete modifie (--check). Lancer avec --update (root) pour installer." "Nothing was changed (--check). Run with --update (root) to install.")"
     exit 0
@@ -979,6 +1008,13 @@ if [[ "$(id -u)" -ne 0 ]]; then
     err "$(m "--update ecrit dans les dossiers des pages et dans $SNIPPETS_DIR : lancer avec sudo." "--update writes to the page folders and to $SNIPPETS_DIR: run with sudo.")"
     exit 1
 fi
+if (( ${#A_INSTALLER[@]} )); then
+    if command -v "$APT_BIN" >/dev/null 2>&1; then
+        echo "  $(m "Paquets à installer" "Packages to install") : ${A_INSTALLER[*]}"
+    else
+        err "$(m "paquets absents et $APT_BIN introuvable : installer" "missing packages and $APT_BIN not found: install") ${A_INSTALLER[*]}"; exit 1
+    fi
+fi
 if (( ! YES )); then
     if [[ -t 0 ]]; then
         read -r -p "$(m "Installer ces pages ? [o/N] " "Install these pages? [y/N] ")" rep || rep=""
@@ -987,8 +1023,9 @@ if (( ! YES )); then
         err "$(m "pas de terminal : ajouter --yes pour confirmer." "no terminal: add --yes to confirm.")"; exit 1
     fi
 fi
+installer_paquets                                   # 1.48: after the confirmation
 for c in git curl nginx; do
-    command -v "$c" >/dev/null 2>&1 || { err "$c $(m "absent" "not found")"; exit 1; }
+    command -v "$c" >/dev/null 2>&1 || { err "$c $(m "absent" "not found")$([[ "$c" == nginx ]] && echo " (sudo apt install nginx)")"; exit 1; }
 done
 
 TMP=$(mktemp -d) || { err "$(m "dossier temporaire" "temporary folder")"; exit 1; }

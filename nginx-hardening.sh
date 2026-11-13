@@ -93,7 +93,7 @@ run() {
     "$@"
 }
 
-readonly SCRIPT_VERSION="2.103.20261112.095816"
+readonly SCRIPT_VERSION="2.104.20261113.102013"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
 SCRIPT_NAME="$(basename "${BASH_SOURCE[0]}" .sh)"; readonly SCRIPT_NAME
 # Display language (en or fr): --lang, NGINX_HARDENING_LANG, LANGUAGE of the configuration file, LC_ALL / LANG - apps/_i18n.sh translates the output (nothing changes in French).
@@ -1247,6 +1247,21 @@ paquet_installer ss iproute2
 paquet_installer curl curl
 paquet_installer logrotate logrotate
 paquet_installer fail2ban-client fail2ban
+echo
+# 2.104: the packages the other programs of the repository need or use (asked on 2026-11-13: --update installs them, as root):
+# dig and host (nginx-log-audit, app-health-check, apps/_email_check.py), whois (nginx-log-audit, apps/_reseau.py), ipset (nginx-log-audit,
+# web-monitor, sync-crowdsec-blocklist), git (nginx-link-page), python3 (the Python programs), dialog (admin-menu), less (pagers),
+# rsync (odoo-backup), wget (apps/_vpn.py, apps/_reseau.py). geoip-bin and certbot: later steps.
+echo "--- 0 bis) Dépendances des autres programmes du dépôt (dig, whois, ipset, git, python3, dialog, less, rsync, wget) ---"
+paquet_installer dig bind9-dnsutils
+paquet_installer whois whois
+paquet_installer ipset ipset
+paquet_installer git git
+paquet_installer python3 python3
+paquet_installer dialog dialog
+paquet_installer less less
+paquet_installer rsync rsync
+paquet_installer wget wget
 echo
 
 # --- 0a) nginx BEFORE my changes: "nginx -t" and the service state, with help to fix ---
