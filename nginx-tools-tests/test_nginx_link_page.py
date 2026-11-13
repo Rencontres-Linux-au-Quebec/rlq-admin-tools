@@ -1089,12 +1089,12 @@ printf '\\211PNG\\r\\n\\032\\nxxxx' > "$out"; printf '200 12'; exit 0
         """1.39 : PAGE_n_VCARD=yes : contact.vcf (vCard 3.0, CRLF, valeurs échappées), lien « Ajouter à mes contacts », type
         text/vcard dans le fragment nginx ; retiré sans la clé ; courriel ou téléphone invalide refusé."""
         texte = self.config_deux_pages("no").replace("PAGE_1_THEME=auto", "PAGE_1_THEME=auto\nPAGE_1_VCARD=yes") + (
-            "SITE_BASE_URL=https://www.example.org/\nSITE_VCARD_NAME=Rencontres Linux, Québec\nSITE_VCARD_EMAIL=info@example.org\n"
+            "SITE_BASE_URL=https://www.example.org/\nSITE_VCARD_NAME=Groupe Linux, Exemple\nSITE_VCARD_EMAIL=info@example.org\n"
             "SITE_VCARD_PHONE=+1 514 555-0199\nSITE_DESCRIPTION=Groupe; libre\n")
         r = self.lancer("-c", str(self.conf(texte)), "--update", "--yes", env=self.env)
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
         carte = (self.www / "liens" / "contact.vcf").read_bytes().decode("utf-8")
-        self.assertTrue(carte.startswith("BEGIN:VCARD\r\nVERSION:3.0\r\nFN:Rencontres Linux\\, Québec\r\n"))
+        self.assertTrue(carte.startswith("BEGIN:VCARD\r\nVERSION:3.0\r\nFN:Groupe Linux\\, Exemple\r\n"))
         for ligne in ("EMAIL;TYPE=INTERNET:info@example.org", "TEL;TYPE=WORK,VOICE:+1 514 555-0199", "URL:https://www.example.org/",
                       "URL;TYPE=links:https://www.example.org/liens/", "NOTE:Groupe\\; libre", "END:VCARD"):
             self.assertIn(ligne + "\r\n", carte)

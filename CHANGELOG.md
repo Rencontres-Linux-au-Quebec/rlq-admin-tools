@@ -4536,6 +4536,16 @@ Earlier history was archived outside this repository when this file was created.
 
 ## nginx-link-page.sh
 
+### 1.42.20261113.062947 - Preview images with a fictitious group
+
+- Title: the preview images of the documentation show a fictitious group ("Groupe Linux exemple") and no picture of a real group.
+- Reason: request of the administrator on 2026-11-13: check the pull requests not merged yet for anything specific to the group. Their code and templates were clean (fr_CA only as an example in a comment); the preview images were not: they showed the name of the group and, for some, its pictures (Tux with the fleur-de-lys, its poster), and five of them were already on main.
+- Changes: doc/images/ regenerated with a fictitious page (title "Groupe Linux exemple", example.org addresses) and, for the theme photo, an abstract image drawn for the purpose (sky and hills): link-page-themes.png, link-page-themes-linkstack.png, link-page-themes-more.png (now quebec, boreal, sunset, winter, photo), link-page-theme-menu.png, link-page-share.png, link-page-link-menu.png and link-page-featured-qr.png (photo instead of tux-poster), link-page-odoo-events.png (generated again by the program with a fictitious configuration, themes maple and photo); nginx-tools-tests/test_nginx_link_page.py: the contact card of 1.39 uses a fictitious name.
+- Bugs fixed: none.
+- Safeguards and edge cases: the history of the repository still holds the old images (removing them from the history would need a rewrite of main, not done); the configuration of the group is not in the repository.
+- Checks performed: test_nginx_link_page (75 tests); the 8 images looked at; no "Rencontres Linux" nor rencontres-linux in the generated pages.
+- Action required: none.
+
 ### 1.41.20261113.061938 - Generic program: theme photo with PAGE_n_BACKGROUND instead of the images of one group
 
 - Title: the program stays generic: the themes made with the images of one group become the generic theme photo, whose image is given by the configuration (PAGE_n_BACKGROUND); the language and time zone of the Odoo events are no longer fixed in the code.
