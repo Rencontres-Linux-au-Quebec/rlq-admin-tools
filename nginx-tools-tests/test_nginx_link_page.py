@@ -1203,6 +1203,14 @@ printf '\\211PNG\\r\\n\\032\\nxxxx' > "$out"; printf '200 12'; exit 0
         self.assertTrue(cote.exists())
         self.assertTrue((self.www / "liens" / "images" / "site" / "background.png").exists())
 
+    def test_144_cle_ecrite_deux_fois(self):
+        """1.44 : une clé écrite deux fois dans le même fichier est signalée ([ATTN]) avec ses deux lignes ; seule la dernière compte."""
+        conf = self.conf(MINIMAL + "LINK_1_LABEL=Premier\nLINK_1_LABEL=Second\n")
+        r = self.lancer("-c", str(conf), "--check")
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertRegex(r.stdout, rf"LINK_1_LABEL écrite deux fois \({re.escape(str(conf))}:[0-9]+:[0-9]+\) : seule la dernière ligne compte")
+        self.assertIn("Second", r.stdout)
+
     def test_deux_langues_detection_et_textes(self):
         texte = self.config_deux_pages("no").replace(
             "PAGE_1_THEME=auto", "PAGE_1_THEME=auto\nPAGE_1_LANGUAGES=fr,en").replace(

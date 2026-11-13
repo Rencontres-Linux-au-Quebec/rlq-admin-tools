@@ -29,7 +29,7 @@
 set -u
 LANG_C="${LC_ALL:-${LC_MESSAGES:-${LANG:-C}}}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
-readonly SCRIPT_VERSION="1.43.20261113.065442"
+readonly SCRIPT_VERSION="1.44.20261113.073638"
 readonly SCRIPT_NAME="nginx-link-page"
 # --config-merge: same rule as the other programs (apps/_config.py fusionner): the configuration file is rewritten from the new template,
 # keeping its active values; the old file is copied to FILE.bak-YYYYMMDD-HHMMSS. Then exit.
@@ -168,6 +168,7 @@ declare -A CFG=()
 CFG_FICHIERS=()
 declare -A CFG_LIGNE=()       # 1.24: KEY -> FILE:LINE where its value was read (for the error messages)
 LIGNES_INVALIDES=()           # 1.24: FILE:LINE: text of the lines that are neither empty, nor a comment, nor KEY=VALUE
+DOUBLONS=()                   # 1.44: KEY FILE:FIRST_LINE:LAST_LINE of a key written twice in the same file
 lire_fichier() {
     local f="$1" ligne cle valeur n=0
     [[ -r "$f" ]] || return 0
@@ -188,6 +189,7 @@ lire_fichier() {
             valeur="${valeur%% #*}"; valeur="${valeur%"${valeur##*[![:space:]]}"}"   # commentaire en fin de ligne
         fi
         if [[ "$cle" =~ ^[A-Z][A-Z0-9_]*$ ]]; then
+            if [[ "${CFG_LIGNE[$cle]:-}" == "$f:"* ]]; then DOUBLONS+=("$cle ${CFG_LIGNE[$cle]}:$n"); fi      # 1.44
             CFG["$cle"]="$valeur"; CFG_LIGNE["$cle"]="$f:$n"
         else
             LIGNES_INVALIDES+=("$f:$n: $ligne")
@@ -298,6 +300,10 @@ fi
 PROBLEMES=()
 valeur_ou() { local v="${CFG[$1]:-}"; [[ -n "$v" ]] && printf '%s' "$v" || printf '%s' "$2"; }
 
+# 1.44: a key written twice in the same file: only its last line counts (a link renumbered by mistake, a block copied...)
+for d in ${DOUBLONS[@]+"${DOUBLONS[@]}"}; do
+    attn "${d%% *} $(m "écrite deux fois" "written twice") (${d#* }) : $(m "seule la dernière ligne compte ; renuméroter ou supprimer l'autre" "only the last line counts; renumber or remove the other one")"
+done
 # 1.41: tux-quebec, tux-flag and tux-poster were themes made with the images of one group; the program stays generic: these names are
 # read as the theme photo, whose image is given by PAGE_n_BACKGROUND (kept by the group outside the repository)
 for cle in "${!CFG[@]}"; do

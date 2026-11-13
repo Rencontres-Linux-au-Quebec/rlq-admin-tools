@@ -4536,6 +4536,16 @@ Earlier history was archived outside this repository when this file was created.
 
 ## nginx-link-page.sh
 
+### 1.44.20261113.073638 - A key written twice in the same file is reported
+
+- Title: a key written twice in the same configuration file is reported ([ATTN]) with its two lines.
+- Reason: report of the administrator on 2026-11-13 (--config-merge did not work well): the configuration had LINK_11 written twice (two different links) and PAGE_3_THEME written twice; only the last lines counted, without any message, so the "Site Web" link and the photo theme of page 3 were silently ignored.
+- Changes: lire_fichier(): new list DOUBLONS (KEY FILE:FIRST_LINE:LAST_LINE) when a key is read again from the same file; after the reading: "[ATTN] LINK_11_LABEL écrite deux fois (FILE:118:123) : seule la dernière ligne compte ; renuméroter ou supprimer l'autre"; nginx-tools-tests/test_nginx_link_page.py: 1 test.
+- Bugs fixed: symptom: a link or a setting written twice disappeared from the page without a word; diagnosis: the reader keeps the last value, as it should, but said nothing; fix: the warning above (--config-merge of apps/_config.py 1.14 keeps the inactive lines as comments).
+- Safeguards and edge cases: a key of /etc/default/nginx-link-page.conf set again in ~/.nginx-link-page.conf is the expected rule (the last file read wins) and is not reported; [ATTN], not [FAIL]: the configuration stays usable.
+- Checks performed: bash -n; shellcheck; test_nginx_link_page (77 tests); --check on the configuration of the administrator: the five keys written twice reported.
+- Action required: renumber the second LINK_11 (LINK_12) and remove the PAGE_3_THEME line that is not wanted; then nginx-link-page.sh --check.
+
 ### 1.43.20261113.065442 - Background image refused in what --update replaces
 
 - Title: --check refuses a background image (PAGE_n_BACKGROUND=file:/PATH) placed in what --update replaces in a page folder.
@@ -6498,6 +6508,16 @@ Earlier history was archived outside this repository when this file was created.
 ### 1.2.20261019.150215 - Current version. Earlier history archived outside the repository.
 
 ## apps/_config.py
+
+### 1.14.20261113.073324 - --config-merge: keys kept with their link or page, comments and inactive lines kept
+
+- Title: --config-merge places each key absent from the template next to its link or page, and no longer drops the comments of the administrator nor the inactive lines of a key written twice.
+- Reason: report of the administrator on 2026-11-13: after --config-merge of nginx-link-page.conf, LINK_2_LABEL_EN and the links 4 to 11 were at the end of the file far from their links, PAGE_3_BACKGROUND was in the middle of the PAGE_2 keys, the "Site Web" link (first of two LINK_11) and the notes of the administrator had disappeared.
+- Changes: new functions cle_de_ligne, placer_hors_modele (a key absent from the template goes after the last line, active or commented, of the same LINK_n or PAGE_n; a number the template does not show goes after the last line of the same kind, LINK_ or PAGE_, with a blank line before; otherwise at the end as before) and repris_de_l_ancien (comments of the old file absent from the template, and the inactive lines of a key written twice, as comments, in one section at the end with a dated header); new constant FAMILLE_RE; ENTETES_HORS_MODELE knows the new header; messages fr/en; nginx-tools-tests/test_config_commune.py: test of the inactive lines updated.
+- Bugs fixed: 1) symptom: keys of one link split between the template and the end of the file; diagnosis: every key absent from the template was appended at the end; fix: placed with its family. 2) symptom: the first of two blocks with the same number lost; diagnosis: the dead lines of a key written twice were removed; fix: kept as comments (#LINK_11_LABEL=Site Web) in the section at the end. 3) symptom: notes of the administrator lost; diagnosis: only the comments just above a key absent from the template were kept; fix: every comment of the old file absent from the template is kept in that section.
+- Safeguards and edge cases: no value changes (the result is read back as before, and refused when a value would change or the file would be smaller); a second merge gives the same file (one header, only its date changes); the descriptions of an old template (lines "# PAGE_n_...") and the separators are not kept; keys without a number (SITE_..., unknown) still go to the end; applies to every program that uses --config-merge.
+- Checks performed: python3 -m py_compile; test_config_commune and test_conventions.FusionDeConfiguration (same failure as main, none added); merge of the configuration of the administrator: same values, keys placed with their links and pages, five inactive lines and twelve comments kept; second merge identical.
+- Action required: run --config-merge again from the copy made before the bad merge (FILE.bak-...), or merge the current file again: the keys are put back in place; then read the section "Repris de l'ancien fichier" at the end.
 
 ### 1.13.20261112.184937 - --config-merge loses nothing: keys outside the template kept, file never smaller
 

@@ -380,12 +380,13 @@ class FusionSansPerte(EnvTest):
         self.assertRegex(texte, r"(?m)^SITE_LANGUAGE=en +# fr or en$")
         self.assertIn("\n\n# lien 12\nLINK_12_LABEL=Douze\n", texte)
         self.assertEqual(self.module.lire_texte(texte)["LINK_3_LABEL"], "Nouveau")
-        self.assertNotIn("Ancien", texte)
+        self.assertIn("\n#LINK_3_LABEL=Ancien\n", texte)                               # 1.14: inactive line kept as a comment
         self.assertIn("LINK_3_LABEL", lignes[-1])                                    # reported as written twice
         code, _ = self.fusion(texte)
         self.assertEqual(code, 0)
         deuxieme = open(self.conf, encoding="utf-8").read()
-        self.assertEqual(deuxieme.count("# Clés de l'ancien fichier absentes du modèle"), 1)
+        self.assertLessEqual(deuxieme.count("# Clés de l'ancien fichier absentes du modèle"), 1)
+        self.assertEqual(deuxieme.count("# Repris de l'ancien fichier"), 1)
         self.assertEqual(re.sub(r"le \d{4}-\d\d-\d\d \d\d:\d\d", "", deuxieme), re.sub(r"le \d{4}-\d\d-\d\d \d\d:\d\d", "", texte))
 
 
