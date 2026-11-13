@@ -530,7 +530,33 @@ printf '\\211PNG\\r\\n\\032\\nxxxx' > "$out"; printf '200 12'; exit 0
         self.assertNotRegex(css, r"url\(|@import|https?:")                              # nothing outside the page (CSP 'self')
         r = self.lancer("-c", str(self.conf(MINIMAL + "PAGE_1_THEME=rose\n")), "--check")
         self.assertNotEqual(r.returncode, 0)
-        self.assertIn("aurora, maple, river, terminal ou tux", r.stderr)
+        self.assertIn("aurora, maple, river, terminal, tux, ls-aurora", r.stderr)
+
+    def test_116_quatre_themes_linkstack(self):
+        """1.16 : ls-aurora, ls-dark, ls-dawn, ls-misty-rain : css/themes-linkstack.css (pas css/themes.css), images, polices et avis de licence
+        copiés ; pluie de Misty Rain en CSS (éléments décoratifs, aucun script) ; base sombre ; seconde page claire."""
+        for theme in ("ls-aurora", "ls-dark", "ls-dawn", "ls-misty-rain"):
+            with self.subTest(theme=theme):
+                texte = self.config_deux_pages("no").replace("PAGE_1_THEME=auto", f"PAGE_1_THEME={theme}\nPAGE_1_SWITCH=yes")
+                r = self.lancer("-c", str(self.conf(texte)), "--update", "--yes", env=self.env)
+                self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+                ici = (self.www / "liens" / "index.html").read_text(encoding="utf-8")
+                self.assertIn(f'class="theme-{theme}"', ici)
+                self.assertIn('<link rel="stylesheet" href="css/themes-linkstack.css">', ici)
+                self.assertNotIn('href="css/themes.css"', ici)
+                self.assertIn("images/site/icon-2-sombre.", ici)
+                self.assertNotIn("<script", ici)
+                self.assertEqual(ici.count('<div class="ls-rain" aria-hidden="true">'), 1 if theme == "ls-misty-rain" else 0)
+                self.assertIn('class="theme-light"', (self.www / "liens" / "autre.html").read_text(encoding="utf-8"))
+        page = self.www / "liens"
+        for f in ("images/themes/ls-aurora.jpg", "images/themes/ls-dark-wallpaper.png", "images/themes/ls-dawn-background.jpg",
+                  "fonts/themes/roboto-latin-400-normal.woff2", "fonts/themes/karla-latin-700-normal.woff2", "css/themes-linkstack-LICENSES.md"):
+            self.assertTrue((page / f).exists(), f)
+        css = (page / "css" / "themes-linkstack.css").read_text(encoding="utf-8")
+        for url in __import__("re").findall(r'url\("([^"]+)"\)', css):          # every url() points to a file of the page
+            self.assertTrue(url.startswith("../") and (page / "css" / url).resolve().exists(), url)
+        self.assertNotRegex(__import__("re").sub(r"/\*.*?\*/", "", css, flags=__import__("re").S), r"@import|https?:")    # comments aside
+        self.assertIn("MIT", (page / "css" / "themes-linkstack-LICENSES.md").read_text(encoding="utf-8"))
 
     def test_chemins_relatifs_resolus(self):
         texte = self.config_deux_pages("no").replace(
