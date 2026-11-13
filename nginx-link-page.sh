@@ -29,7 +29,7 @@
 set -u
 LANG_C="${LC_ALL:-${LC_MESSAGES:-${LANG:-C}}}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
-readonly SCRIPT_VERSION="1.23.20261112.210025"
+readonly SCRIPT_VERSION="1.25.20261112.213646"
 readonly SCRIPT_NAME="nginx-link-page"
 # --config-merge: same rule as the other programs (apps/_config.py fusionner): the configuration file is rewritten from the new template,
 # keeping its active values; the old file is copied to FILE.bak-YYYYMMDD-HHMMSS. Then exit.
@@ -132,8 +132,9 @@ Configuration lue : /etc/default/$SCRIPT_NAME.conf puis ~/.$SCRIPT_NAME.conf (le
 Configuration read: /etc/default/$SCRIPT_NAME.conf then ~/.$SCRIPT_NAME.conf (the last one wins), or only -c FILE.
 
 Cles / keys (voir nginx-link-page.conf.example) :
-  SITE_* (contenu partage / shared content), LINK_n_* (liens / links),
-  PAGE_n_* (ENABLED, ENGINE, PATH, DIR, THEME, TITLE : une page par bloc / one page per block)
+  SITE_* (contenu partage / shared content), LINK_n_* (liens / links : ICON, ICON_DARK, LABEL, LABEL_EN, PAGES, URL),
+  PAGE_n_* (ACCENT, AVATAR, BUTTONS, DIR, ENABLED, ENGINE, LANGUAGES, PATH, SCRIPT, SHARE, SWITCH, THEME, THEMES, TITLE,
+  TITLE_EN : une page par bloc / one page per block) ; une clé inconnue est refusée / an unknown key is refused
 AIDE
 }
 
@@ -154,13 +155,18 @@ done
 # ---- configuration: /etc/default then ~/.file (or the explicit file only); later files win ----
 declare -A CFG=()
 CFG_FICHIERS=()
+declare -A CFG_LIGNE=()       # 1.24: KEY -> FILE:LINE where its value was read (for the error messages)
+LIGNES_INVALIDES=()           # 1.24: FILE:LINE: text of the lines that are neither empty, nor a comment, nor KEY=VALUE
 lire_fichier() {
-    local f="$1" ligne cle valeur
+    local f="$1" ligne cle valeur n=0
     [[ -r "$f" ]] || return 0
+    declare -p CFG_LIGNE &>/dev/null || declare -gA CFG_LIGNE=()
     CFG_FICHIERS+=("$f")
     while IFS= read -r ligne || [[ -n "$ligne" ]]; do
+        n=$((n + 1))
         ligne="${ligne#"${ligne%%[![:space:]]*}"}"
-        [[ -z "$ligne" || "$ligne" == "#"* || "$ligne" != *=* ]] && continue
+        [[ -z "$ligne" || "$ligne" == "#"* ]] && continue
+        if [[ "$ligne" != *=* ]]; then LIGNES_INVALIDES+=("$f:$n: $ligne"); continue; fi
         cle="${ligne%%=*}"; valeur="${ligne#*=}"
         if [[ "$valeur" =~ ^[[:space:]]+# ]]; then valeur=""; fi          # "KEY=    # comment": empty value, not the text of the comment
         cle="${cle//[[:space:]]/}"; cle="${cle^^}"
@@ -170,7 +176,11 @@ lire_fichier() {
         elif [[ "$valeur" == *" #"* ]]; then
             valeur="${valeur%% #*}"; valeur="${valeur%"${valeur##*[![:space:]]}"}"   # commentaire en fin de ligne
         fi
-        [[ "$cle" =~ ^[A-Z][A-Z0-9_]*$ ]] && CFG["$cle"]="$valeur"
+        if [[ "$cle" =~ ^[A-Z][A-Z0-9_]*$ ]]; then
+            CFG["$cle"]="$valeur"; CFG_LIGNE["$cle"]="$f:$n"
+        else
+            LIGNES_INVALIDES+=("$f:$n: $ligne")
+        fi
     done < "$f"
 }
 if [[ -n "$CONFIG_EXPLICIT" ]]; then
@@ -239,6 +249,36 @@ fi
 # ---- validation ----
 PROBLEMES=()
 valeur_ou() { local v="${CFG[$1]:-}"; [[ -n "$v" ]] && printf '%s' "$v" || printf '%s' "$2"; }
+
+# 1.24: every key of the files must be known (a mistyped key was ignored without a word: PAGE_3_THEMS=all, SITE_LANGAUGE=en)
+readonly CLES_SITE="BASE_URL DESCRIPTION DESCRIPTION_EN FOOTER FOOTER_EN HEADING HEADING_EN LANGUAGE LOGO_ALT LOGO_URL SHARE_DESCRIPTION SHARE_DESCRIPTION_EN SHARE_IMAGE_URL SHARE_TITLE SHARE_TITLE_EN TITLE TITLE_EN"
+readonly CLES_LIEN="ICON ICON_DARK LABEL LABEL_EN PAGES URL"
+readonly CLES_PAGE="ACCENT AVATAR BUTTONS DIR ENABLED ENGINE LANGUAGES PATH SCRIPT SHARE SWITCH THEME THEMES TITLE TITLE_EN"
+cle_connue() {   # cle_connue KEY: 0 when KEY is read by the program
+    local k="$1" s
+    if [[ "$k" =~ ^SITE_(.+)$ ]]; then for s in $CLES_SITE; do [[ "${BASH_REMATCH[1]}" == "$s" ]] && return 0; done; return 1; fi
+    if [[ "$k" =~ ^LINK_[0-9]+_(.+)$ ]]; then for s in $CLES_LIEN; do [[ "${BASH_REMATCH[1]}" == "$s" ]] && return 0; done; return 1; fi
+    if [[ "$k" =~ ^PAGE_[0-9]+_(.+)$ ]]; then for s in $CLES_PAGE; do [[ "${BASH_REMATCH[1]}" == "$s" ]] && return 0; done; return 1; fi
+    return 1
+}
+cle_proche() {   # cle_proche KEY: the closest known key (same LINK_n or PAGE_n number), or nothing; needs python3
+    local k="$1" num=1 s candidats=()
+    [[ "$k" =~ ^[A-Z]+_([0-9]+)_ ]] && num="${BASH_REMATCH[1]}"
+    for s in $CLES_SITE; do candidats+=("SITE_$s"); done
+    for s in $CLES_LIEN; do candidats+=("LINK_${num}_$s"); done
+    for s in $CLES_PAGE; do candidats+=("PAGE_${num}_$s"); done
+    command -v python3 >/dev/null 2>&1 || return 0
+    python3 -I -c 'import difflib, sys; m = difflib.get_close_matches(sys.argv[1], sys.argv[2:], 1, 0.7); print(m[0] if m else "")' "$k" "${candidats[@]}" 2>/dev/null || true
+}
+for ligne_inv in ${LIGNES_INVALIDES[@]+"${LIGNES_INVALIDES[@]}"}; do
+    PROBLEMES+=("$ligne_inv : $(m "ligne ignorée, pas de forme CLE=VALEUR" "line ignored, not in the form KEY=VALUE")")
+done
+while IFS= read -r cle; do
+    [[ -z "$cle" ]] && continue
+    cle_connue "$cle" && continue
+    proche="$(cle_proche "$cle")"
+    PROBLEMES+=("$cle ($(m "clé inconnue" "unknown key"), ${CFG_LIGNE[$cle]:-?})${proche:+ : $(m "vouliez-vous dire" "did you mean") $proche ?}")
+done < <(printf '%s\n' "${!CFG[@]}" | sort)
 URL_RE='^https://[A-Za-z0-9._~:/?#@!$&()*+,;=%-]+$'
 CHEMIN_RE='^/[A-Za-z0-9_-]+/$'
 
@@ -348,6 +388,38 @@ for k in "${!CFG[@]}"; do
     fi
 done
 (( ${#PAGES_N[@]} > 0 )) || PROBLEMES+=("aucune page (PAGE_1_PATH, PAGE_1_DIR) / no page (PAGE_1_PATH, PAGE_1_DIR)")
+# 1.25: LINK_n_PAGES: the pages that show the link (N, N-M, comma list, or all; default: every page)
+pages_du_lien() {   # pages_du_lien N: page numbers of link N, one per line; return 1 when the value is invalid
+    local v="${CFG[LINK_${1}_PAGES]:-all}" morceau a b q morceaux=()
+    v="${v//[[:space:]]/}"
+    if [[ "${v,,}" == all ]]; then printf '%s\n' ${PAGES_N[@]+"${PAGES_N[@]}"}; return 0; fi
+    [[ "$v" =~ ^[0-9]+(-[0-9]+)?(,[0-9]+(-[0-9]+)?)*$ ]] || return 1
+    IFS=',' read -r -a morceaux <<< "$v"
+    for morceau in "${morceaux[@]}"; do
+        a=$((10#${morceau%-*})); b=$((10#${morceau#*-}))
+        (( a >= 1 && a <= b )) || return 1
+        for ((q = a; q <= b; q++)); do printf '%s\n' "$q"; done
+    done
+}
+declare -A LIEN_SUR_PAGE=()      # "LINK:PAGE" -> 1
+for i in ${LIENS_N[@]+"${LIENS_N[@]}"}; do
+    if ! liste_pages="$(pages_du_lien "$i")"; then
+        PROBLEMES+=("LINK_${i}_PAGES=${CFG[LINK_${i}_PAGES]} : $(m "numéros de page N, N-M, séparés par des virgules, ou all (ex. 2-4 ou 1,3)" "page numbers N, N-M, separated by commas, or all (e.g. 2-4 or 1,3)")")
+        continue
+    fi
+    for q in $liste_pages; do
+        if [[ " ${PAGES_N[*]:-} " != *" $q "* ]]; then
+            PROBLEMES+=("LINK_${i}_PAGES=${CFG[LINK_${i}_PAGES]} : $(m "la page $q n'existe pas (pages : ${PAGES_N[*]:-aucune})" "page $q does not exist (pages: ${PAGES_N[*]:-none})")")
+            continue
+        fi
+        LIEN_SUR_PAGE["$i:$q"]=1
+    done
+done
+liens_de_la_page() {   # liens_de_la_page P: link numbers shown on page P, in order
+    local n
+    for n in ${LIENS_N[@]+"${LIENS_N[@]}"}; do [[ -n "${LIEN_SUR_PAGE[$n:$1]:-}" ]] && printf '%s\n' "$n"; done
+    return 0
+}
 declare -A CHEMINS_VUS=() DOSSIERS_VUS=()
 DOSSIERS_LISTE=()
 for i in "${PAGES_N[@]}"; do
@@ -358,6 +430,9 @@ for i in "${PAGES_N[@]}"; do
     dossier="$(valeur_ou "${pre}DIR" "")"
     theme="$(valeur_ou "${pre}THEME" auto)"
     [[ "$enabled" =~ ^(yes|no|oui|non|1|0)$ ]] || PROBLEMES+=("${pre}ENABLED=$enabled (yes ou no)")
+    if [[ "$enabled" =~ ^(yes|oui|1)$ && ${#LIENS_N[@]} -gt 0 && -z "$(liens_de_la_page "$i")" ]]; then      # 1.25
+        PROBLEMES+=("PAGE_${i} : $(m "aucun lien ne va sur cette page (voir les LINK_n_PAGES)" "no link goes on this page (see the LINK_n_PAGES)")")
+    fi
     case "$engine" in
         littlelink) ;;
         linkstack) PROBLEMES+=("${pre}ENGINE=linkstack : moteur reserve, pas encore pris en charge (PHP/Laravel + base de donnees) / engine reserved, not yet supported") ;;
@@ -432,7 +507,7 @@ if [[ -n "$SITE_BASE_URL_V" ]]; then
     echo "  $(m "Base des chemins relatifs" "Base for relative paths") : $SITE_BASE_URL_V ($SITE_BASE_SOURCE)"
 fi
 for i in "${PAGES_N[@]}"; do
-    echo "    PAGE_${i} : $(valeur_ou "PAGE_${i}_PATH" "?") -> $(valeur_ou "PAGE_${i}_DIR" "?") · $(valeur_ou "PAGE_${i}_ENGINE" littlelink) · $(valeur_ou "PAGE_${i}_ENABLED" yes)"
+    echo "    PAGE_${i} : $(valeur_ou "PAGE_${i}_PATH" "?") -> $(valeur_ou "PAGE_${i}_DIR" "?") · $(valeur_ou "PAGE_${i}_ENGINE" littlelink) · $(valeur_ou "PAGE_${i}_ENABLED" yes) · $(liens_de_la_page "$i" | wc -l) $(m "liens" "links")"
 done
 
 if (( ${#PROBLEMES[@]} > 0 )); then
@@ -777,7 +852,7 @@ genere_index() {   # genere_index DOSSIER THEME TITRE [FICHIER] [CIBLE_BASCULE] 
         echo "      <h1>$(html_echap "$L_HEADING")</h1>"
         if [[ -n "$L_DESCRIPTION" ]]; then echo "      <p>$(html_echap "$L_DESCRIPTION")</p>"; fi
         echo "      <nav class=\"button-stack\" aria-label=\"$( [[ "$L_LANG" == en ]] && echo Links || echo Liens )\">"
-        for i in "${LIENS_N[@]}"; do
+        for i in ${P_LIENS[@]+"${P_LIENS[@]}"}; do          # 1.25: only the links of this page (LINK_n_PAGES)
             lab="$(libelle_lien "$i")"; url="${CFG[LINK_${i}_URL]}"
             classe_bouton="button-default"
             if [[ "$P_BOUTONS" == brand && -n "${BOUTON_MARQUE[$i]:-}" ]]; then classe_bouton="${BOUTON_MARQUE[$i]}"; fi
@@ -816,6 +891,7 @@ genere_index() {   # genere_index DOSSIER THEME TITRE [FICHIER] [CIBLE_BASCULE] 
 for i in ${ACTIVES[@]+"${ACTIVES[@]}"}; do
     site="$TMP/page-$i"
     mkdir -p "$site"
+    mapfile -t P_LIENS < <(liens_de_la_page "$i")          # 1.25: links of this page
     P_THEME="$(valeur_ou "PAGE_${i}_THEME" auto)"
     P_TITRE="$(valeur_ou "PAGE_${i}_TITLE" "$SITE_TITLE_V")"
     P_BOUTONS="$(valeur_ou "PAGE_${i}_BUTTONS" default)"
@@ -895,7 +971,7 @@ for i in ${ACTIVES[@]+"${ACTIVES[@]}"}; do
             genere_index "$dossier" "$P_THEME" "$L_TITRE"
         fi
     done
-    ok "$(m "page" "page") PAGE_${i} $(m "preparee" "prepared") (${#LIENS_N[@]} $(m "liens" "links"))"
+    ok "$(m "page" "page") PAGE_${i} $(m "preparee" "prepared") (${#P_LIENS[@]} $(m "liens" "links"))"
 done
 
 # 4) one nginx snippet, one location per enabled page (distinct paths: /liens/ does not catch /liens2/)
