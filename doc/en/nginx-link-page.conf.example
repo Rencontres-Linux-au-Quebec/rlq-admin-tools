@@ -1,0 +1,286 @@
+# ============================================================================================
+# nginx-link-page.conf: TEMPLATE. Everything is commented out: nothing is read until a line
+# is uncommented (remove the # at the start of the line). A "# " followed by a space is an
+# explanation; a # stuck to a key name (#SITE_TITLE=...) is a setting to uncomment.
+# ============================================================================================
+#
+# QUICK FILL
+#   1. sudo nginx-link-page.sh --check              creates this file if it does not exist (copy of this template)
+#   2. sudo nano /etc/default/nginx-link-page.conf  uncomment and replace the examples
+#   3. nginx-link-page.sh --check                   checks the configuration, writes nothing
+#   4. sudo nginx-link-page.sh --update --yes       installs the pages and reloads nginx
+#
+# RULES
+#   - KEY=VALUE, in UPPER CASE. Quotes are removed. " # text" at the end of a line is ignored.
+#   - Links: LINK_1_..., LINK_2_... without gaps. Pages: PAGE_1_..., PAGE_2_... without gaps.
+#   - Addresses: https://; or a relative path (for example /event/) when SITE_BASE_URL is set.
+#   - Page paths: /links/, /links2/ (unique, with the final /).
+#   - Page folder: absolute path, unique, and never inside another page folder.
+#   - Icon: builtin:NAME (LittleLink icons) or https:// to a PNG, JPEG, WebP or SVG image.
+#   - Common builtin icons: facebook, linkedin, youtube, generic-calendar, generic-blog, generic-website
+#   - LittleLink Extended icons, same builtin:NAME (for example builtin:codeberg, builtin:lemmy, builtin:peertube,
+#     builtin:matrix-alt, builtin:pixelfed, builtin:orcid-id, builtin:osm): list in images/icons-extended/ of
+#     https://github.com/sethcottle/littlelink-extended (tag v3.2.0)
+#
+# ---------------------------------------------------------------------------------------------
+# 1. SHARED CONTENT (SITE_TITLE is required)
+# ---------------------------------------------------------------------------------------------
+# --- Site ---
+#SITE_BASE_URL=https://www.example.org/   # optional: otherwise the domain of the server's single certificate
+#SITE_DESCRIPTION=Find us on our channels.
+#SITE_FOOTER=My group
+#SITE_HEADING=My group
+#SITE_LANGUAGE=en                                 # fr or en
+#SITE_LOGO_ALT=My group logo
+#SITE_LOGO_URL=https://example.org/logo.png       # optional; must be an https:// address (or a path with SITE_BASE_URL)
+#SITE_TITLE=My group
+#
+# Preview shown by LinkedIn, Facebook, Mastodon... when the page address is shared (Open Graph). All optional.
+# Image: PNG or JPEG, 1200 x 627 advised (not SVG); it needs SITE_BASE_URL. Without it, the logo is used.
+# Texts: without them, the page title and SITE_DESCRIPTION are used.
+# --- Shared preview ---
+#SITE_SHARE_DESCRIPTION=All our official links, social networks and events.
+#SITE_SHARE_DESCRIPTION_EN=
+#SITE_SHARE_IMAGE_URL=https://example.org/preview.png   # or a path with SITE_BASE_URL, for example /images/preview.png
+#SITE_SHARE_TITLE=My group - Our links
+#SITE_SHARE_TITLE_EN=
+#
+# Newsletter: a button to the subscription form (an Odoo page with the newsletter block, for example /newsletter);
+# shown on every page (PAGE_n_NEWSLETTER=no to leave it out)
+# --- Newsletter ---
+#SITE_NEWSLETTER_LABEL=Recevoir l'infolettre
+#SITE_NEWSLETTER_LABEL_EN=Get the newsletter
+#SITE_NEWSLETTER_URL=
+#
+# Contact card (contact.vcf, "Ajouter à mes contacts" link) of the pages with PAGE_n_VCARD=yes
+# --- Contact card ---
+#SITE_VCARD_EMAIL=
+#SITE_VCARD_NAME=                                  # default: SITE_TITLE
+#SITE_VCARD_PHONE=
+#SITE_VCARD_URL=                                   # default: SITE_BASE_URL
+#
+# Countdown ("Dans 9 jours") of the pages with PAGE_n_COUNTDOWN=yes: this date, or else the next event of Odoo (EVENTS_ODOO_*)
+# --- Countdown ---
+#SITE_COUNTDOWN_DATE=                              # YYYY-MM-DD or YYYY-MM-DD HH:MM
+#SITE_COUNTDOWN_LABEL=
+#SITE_COUNTDOWN_LABEL_EN=
+#SITE_COUNTDOWN_URL=
+#
+# Optional English texts (used for the English pages; the French texts above are used when these are missing)
+# --- English texts ---
+#SITE_DESCRIPTION_EN=
+#SITE_FOOTER_EN=
+#SITE_HEADING_EN=
+#SITE_TITLE_EN=
+#
+# ---------------------------------------------------------------------------------------------
+# 2. LINKS (at least LINK_1), numbered without gaps
+# ---------------------------------------------------------------------------------------------
+# LINK_n_PAGES : pages that show the link (PAGE_n numbers): 2, 2-4, 1,3 or all; without it the link is on every page.
+#                Example: LINK_1 to LINK_10 with LINK_n_PAGES=1 for /a, LINK_11 to LINK_20 with LINK_n_PAGES=2 for /b.
+# LINK_n_MENU  : number of a link that becomes a menu: a button that opens its links just below it (no script).
+#                The menu link has a LABEL (and an ICON if wanted) but no URL; its links follow its LINK_n_PAGES.
+#                One level only (no menu in a menu). Example: LINK_5_LABEL=Événements, LINK_12_MENU=5, LINK_13_MENU=5.
+# LINK_n_FROM / LINK_n_UNTIL : dates (YYYY-MM-DD, both included) between which the link is shown; a daily task
+#                (/etc/cron.d/nginx-link-page, 00:05) rebuilds the pages. Example: LINK_1_UNTIL=2026-11-21 for an event.
+# LINK_n_STYLE : normal (default), featured (a bigger button with a golden halo, for the important link of the moment)
+#                or icon (a round icon in a row under the description, for the social networks; not in a menu).
+# LINK_n_IMAGE : thumbnail at the left of the button instead of the icon (https:// or a path with SITE_BASE_URL;
+#                PNG, JPEG, WebP or SVG, 2 MB at most), for example the poster of an event.
+# --- Link 1 ---
+#LINK_1_ICON=builtin:facebook                     # optional (default: generic-website)
+#LINK_1_LABEL=Facebook page                       # 80 characters at most
+#LINK_1_LABEL_EN=                                 # optional English label
+# example of LINK_1_PAGES: 1 (page 1 only), 2-4 (pages 2 to 4), 1,3 (pages 1 and 3); empty or all: every page
+#LINK_1_PAGES=
+#LINK_1_URL=https://www.facebook.com/example
+#
+# --- Link 2 ---
+#LINK_2_ICON=builtin:youtube
+#LINK_2_LABEL=YouTube channel
+#LINK_2_URL=https://www.youtube.com/@example
+#
+# --- Link 3 ---
+#LINK_3_ICON=https://example.org/icon-light.svg   # icon for the light theme
+#LINK_3_ICON_DARK=https://example.org/icon-dark.svg   # optional: icon for the dark theme
+#LINK_3_LABEL=Discussion
+#LINK_3_URL=https://chat.example.org/team/
+#
+# ---------------------------------------------------------------------------------------------
+# 3. PAGES (at least PAGE_1), one block per page
+# ---------------------------------------------------------------------------------------------
+# PAGE_n_ENABLED   : yes or no
+# PAGE_n_ENGINE    : littlelink (linkstack is reserved and not supported yet)
+# PAGE_n_PATH      : page address, for example /links/ or /links2/ (each page has its own)
+# PAGE_n_DIR       : folder where the files are installed, for example /var/www/links (absolute, unique)
+# PAGE_n_THEME     : auto, light or dark (LittleLink), or one of the 10 themes of apps/link-page-themes.css:
+#                    aurora (northern lights, dark), maple (maple red on cream, light), river (St. Lawrence blues, light),
+#                    terminal (green on black, monospace, dark), tux (charcoal and penguin orange, dark),
+#                    quebec (flag of Quebec: blue, navy buttons with a white border, dark), boreal (boreal forest greens, dark),
+#                    sunset (orange to violet sky, dark), winter (snow white and ice blue, light),
+#                    photo (your own image under the page, see PAGE_n_BACKGROUND; dark slate buttons, light)
+#                    or one of the 4 LinkStack themes adapted in apps/link-page-themes/ (MIT, see LICENSES.md there):
+#                    ls-aurora (pride coloured aurora over a forest), ls-dark (night valley), ls-dawn (mountains at dawn,
+#                    outlined buttons), ls-misty-rain (blue grey night with falling rain); all dark
+# PAGE_n_TITLE     : page title (optional)
+# PAGE_n_BUTTONS   : default or brand (brand: Facebook, LinkedIn and YouTube colours for built-in icons)
+# PAGE_n_AVATAR    : none, soft or rounded (logo shape)
+# PAGE_n_ACCENT    : button colour #RRGGBB, for example #1A2B3C (empty: default colour)
+# PAGE_n_SWITCH    : yes or no; yes creates autre.html with the other theme and a button to reach it
+# PAGE_n_THEMES    : themes offered by a "Theme" button at the top right (comma list, or all); one complete page per
+#                    theme (theme-NAME.html, used without script); the theme of PAGE_n_THEME comes first; replaces PAGE_n_SWITCH
+# PAGE_n_SCRIPT    : yes (default) or no; yes copies js/link-page.js (Content-Security-Policy script-src 'self'): the theme
+#                    changes in place and is remembered by the browser, the chosen language too; no: no script at all
+# PAGE_n_SHARE     : yes (default) or no; "Share" button at the top left (share sheet of the phone, or copy of the
+#                    address); needs PAGE_n_SCRIPT=yes
+# PAGE_n_CLICKS    : yes or no (default); yes: each link goes through PATH/go/N, a redirection by nginx written in its
+#                    access log; nginx-link-page.sh --clicks counts the clicks of each link
+# PAGE_n_QR        : yes or no (default); yes: qr.svg and qr.png (QR code of the public address of the page, for posters
+#                    and slides) and a "QR code of this page" link; needs qrencode (sudo apt install qrencode)
+# PAGE_n_BACKGROUND: image of the theme photo: https://..., a path with SITE_BASE_URL (/web/image/...), or file:/PATH of
+#                    an image kept on this server (outside the repository: your own pictures stay yours); PNG, JPEG, WebP or
+#                    SVG, 5 MB at most; it fills the screen under the page
+# PAGE_n_BACKGROUND_STYLE: pale (default: blurred and light, the text stays readable) or plain (the image as it is)
+# PAGE_n_COUNTDOWN : yes or no (default): "Dans 9 jours" banner under the description (SITE_COUNTDOWN_*, or the next
+#                    event of Odoo); rebuilt every day, hidden once the date is past
+# PAGE_n_VCARD     : yes or no (default): contact.vcf of the group (SITE_VCARD_*) and an "Ajouter à mes contacts" link
+# PAGE_n_NEWSLETTER: yes (default) or no: the newsletter button (SITE_NEWSLETTER_URL) on this page
+# PAGE_n_EVENTS    : 0 (default) to 10: the next published events of Odoo (date, "in 9 days", link), read every day
+#                    with the EVENTS_ODOO_* keys below
+# PAGE_n_LANGUAGES : fr, en, fr,en or en,fr. The first language is at the page root (/links/), the other one
+#                    in /links/en/ (or /links/fr/). The browser is redirected to the language it prefers,
+#                    otherwise the first language is shown.
+# PAGE_n_TITLE_EN  : English page title (optional); LINK_n_LABEL_EN: English link label (optional)
+#
+# --- Page 1 ---
+#PAGE_1_ACCENT=
+#PAGE_1_AVATAR=none
+#PAGE_1_BACKGROUND=
+#PAGE_1_BACKGROUND_STYLE=pale
+#PAGE_1_BUTTONS=default
+#PAGE_1_CLICKS=no
+#PAGE_1_COUNTDOWN=no
+#PAGE_1_DIR=/var/www/links
+#PAGE_1_ENABLED=yes
+#PAGE_1_ENGINE=littlelink
+#PAGE_1_EVENTS=0
+#PAGE_1_LANGUAGES=en
+#PAGE_1_NEWSLETTER=yes
+#PAGE_1_PATH=/links/
+#PAGE_1_QR=no
+#PAGE_1_SCRIPT=yes
+#PAGE_1_SHARE=yes
+#PAGE_1_SWITCH=no
+#PAGE_1_THEME=auto
+# example of PAGE_1_THEMES: light,dark,aurora,ls-dawn (or all)
+#PAGE_1_THEMES=
+#PAGE_1_TITLE=
+#PAGE_1_VCARD=no
+#
+# Example of a second page, to compare two engines: disabled until you want it.
+# --- Page 2 ---
+#PAGE_2_DIR=/var/www/links2
+#PAGE_2_ENABLED=no
+#PAGE_2_ENGINE=littlelink
+#PAGE_2_PATH=/links2/
+#PAGE_2_THEME=dark
+#PAGE_2_TITLE=Example (dark theme)
+
+# --- Command-line options ONLY (actions or one-off settings: no key here) ---
+#   --config-merge  Check the configuration, rewrite it from the new default configuration, keeping the values set (copy FILE.bak-YYYYMMDD-HHMMSS), then exit
+#
+# ---------------------------------------------------------------------------------------------
+# 4. UPCOMING EVENTS OF ODOO (PAGE_n_EVENTS, PAGE_n_COUNTDOWN), read with a read-only account
+# ---------------------------------------------------------------------------------------------
+# Create an Odoo user with only the right to read the events (Events / User is enough, or a portal-like group with read
+# access to event.event), make an API key for it (Preferences > Account Security > New API key), and write ONLY the key
+# in the key file: sudo install -m 600 /dev/null /etc/default/nginx-link-page.odoo-key, then edit it.
+# --- Odoo events ---
+#EVENTS_ODOO_DB=
+#EVENTS_ODOO_KEY_FILE=/etc/default/nginx-link-page.odoo-key
+#EVENTS_ODOO_LANG_EN=en_US                         # same for the English pages
+#EVENTS_ODOO_LANG_FR=fr_FR                         # language of Odoo for the names on the French pages (fr_CA...)
+#EVENTS_ODOO_LOGIN=
+#EVENTS_ODOO_URL=                                  # default: SITE_BASE_URL
+#
+# ---------------------------------------------------------------------------------------------
+# 5. ALL THE KEYS (reference: nothing is read here)
+# ---------------------------------------------------------------------------------------------
+# Copied by --config-merge at every merge: it follows the version of the program.
+# A key missing from this list is refused by --check.
+#
+# SITE_ : content shared by every page
+#   SITE_TITLE                required; title of the pages
+#   SITE_TITLE_EN             title of the English pages
+#   SITE_HEADING              heading at the top (default: SITE_TITLE)
+#   SITE_HEADING_EN           same in English
+#   SITE_DESCRIPTION          text under the heading
+#   SITE_DESCRIPTION_EN       same in English
+#   SITE_FOOTER               footer
+#   SITE_FOOTER_EN            same in English
+#   SITE_LANGUAGE             fr (default) or en: language of the pages without PAGE_n_LANGUAGES
+#   SITE_BASE_URL             https:// base of the relative paths (default: single certificate of the server)
+#   SITE_LOGO_URL             logo: https:// or path with SITE_BASE_URL
+#   SITE_LOGO_ALT             text of the logo (default: SITE_TITLE)
+#   SITE_SHARE_IMAGE_URL      Open Graph preview: PNG or JPEG 1200 x 627 (needs SITE_BASE_URL)
+#   SITE_SHARE_TITLE          title of the preview (default: page title)
+#   SITE_SHARE_TITLE_EN       same in English
+#   SITE_SHARE_DESCRIPTION    text of the preview (default: SITE_DESCRIPTION)
+#   SITE_SHARE_DESCRIPTION_EN same in English
+#   SITE_NEWSLETTER_URL       newsletter subscription form (https:// or path)
+#   SITE_NEWSLETTER_LABEL     label of the newsletter button
+#   SITE_NEWSLETTER_LABEL_EN  same in English
+#   SITE_VCARD_NAME           name of the contact.vcf card (default: SITE_TITLE)
+#   SITE_VCARD_EMAIL          e-mail of the card
+#   SITE_VCARD_PHONE          phone of the card (digits, spaces, + ( ) . -)
+#   SITE_VCARD_URL            web site of the card, https:// (default: SITE_BASE_URL)
+#   SITE_COUNTDOWN_DATE       countdown date YYYY-MM-DD [HH:MM] (otherwise: next Odoo event)
+#   SITE_COUNTDOWN_LABEL      name of the event (required with SITE_COUNTDOWN_DATE)
+#   SITE_COUNTDOWN_LABEL_EN   same in English
+#   SITE_COUNTDOWN_URL        link of the countdown banner
+#
+# LINK_n_ : one link (n = 1, 2... without gaps)
+#   LINK_n_LABEL              required; label of the button (80 characters at most)
+#   LINK_n_LABEL_EN           English label
+#   LINK_n_URL                required except for a menu; https:// or relative path
+#   LINK_n_ICON               builtin:NAME, https:// or path of an image (default: generic-website)
+#   LINK_n_ICON_DARK          icon of the dark theme
+#   LINK_n_IMAGE              thumbnail instead of the icon (PNG, JPEG, WebP, SVG, 2 MB at most)
+#   LINK_n_PAGES              pages of the link: 2, 2-4, 1,3 or all (default: every page)
+#   LINK_n_MENU               number of the menu link that holds this link (one level)
+#   LINK_n_STYLE              normal (default), featured (highlighted) or icon (row of icons)
+#   LINK_n_FROM               shown from YYYY-MM-DD (included)
+#   LINK_n_UNTIL              shown until YYYY-MM-DD (included)
+#
+# PAGE_n_ : one page (n = 1, 2... without gaps)
+#   PAGE_n_ENABLED            yes (default) or no
+#   PAGE_n_ENGINE             littlelink (default)
+#   PAGE_n_PATH               required; address, for example /links/ (unique, final /)
+#   PAGE_n_DIR                required; absolute folder of the files, unique, never inside another
+#   PAGE_n_TITLE              page title (default: SITE_TITLE)
+#   PAGE_n_TITLE_EN           same in English
+#   PAGE_n_LANGUAGES          fr, en, fr,en or en,fr (default: SITE_LANGUAGE)
+#   PAGE_n_THEME              one theme: auto (default), light, dark or a theme of section 3
+#   PAGE_n_THEMES             themes of the "Theme" button: comma list or all
+#   PAGE_n_SWITCH             yes or no (default): autre.html with the other theme (replaced by THEMES)
+#   PAGE_n_BACKGROUND         image of the photo theme: https://, path or file:/PATH (5 MB at most)
+#   PAGE_n_BACKGROUND_STYLE   pale (default, blurred and light) or plain (as it is)
+#   PAGE_n_BUTTONS            default (default) or brand (brand colours)
+#   PAGE_n_AVATAR             none (default), soft or rounded: shape of the logo
+#   PAGE_n_ACCENT             button colour #RRGGBB (empty: colour of the theme)
+#   PAGE_n_SCRIPT             yes (default) or no: js/link-page.js (theme and language remembered)
+#   PAGE_n_SHARE              yes (default) or no: "Share" button (needs SCRIPT=yes)
+#   PAGE_n_CLICKS             yes or no (default): clicks counted by --clicks
+#   PAGE_n_QR                 yes or no (default): qr.svg and qr.png (needs qrencode)
+#   PAGE_n_VCARD              yes or no (default): contact.vcf (SITE_VCARD_*)
+#   PAGE_n_NEWSLETTER         yes (default) or no: newsletter button
+#   PAGE_n_COUNTDOWN          yes or no (default): "In 9 days" banner
+#   PAGE_n_EVENTS             0 (default) to 10: next events of Odoo
+#
+# EVENTS_ODOO_ : Odoo events, read-only account
+#   EVENTS_ODOO_URL           address of Odoo (default: SITE_BASE_URL)
+#   EVENTS_ODOO_DB            database
+#   EVENTS_ODOO_LOGIN         login of the account
+#   EVENTS_ODOO_KEY_FILE      chmod 600 file of the API key (never the key here)
+#   EVENTS_ODOO_LANG_FR       Odoo language of the French pages (default: fr_FR)
+#   EVENTS_ODOO_LANG_EN       Odoo language of the English pages (default: en_US)

@@ -4536,6 +4536,16 @@ Earlier history was archived outside this repository when this file was created.
 
 ## nginx-link-page.sh
 
+### 1.47.20261113.081430 - One template per language, section 5 in one language
+
+- Title: one template per language (doc/fr and doc/en): the merged configuration and its section 5 are in one language only, the default one or the one of --lang.
+- Reason: request of the administrator on 2026-11-13: section 5 was written in both languages; use only one language, the default one (or the one given by --lang).
+- Changes: nginx-link-page.conf.example (English, at the root of the repository) replaced by doc/fr/nginx-link-page.conf.example (French, new, the whole template translated) and doc/en/nginx-link-page.conf.example (English); section 5 in the language of its template only; --config-merge takes doc/LANG (apps/_config.py modele_par_defaut, unchanged); init_config(): doc/fr, or doc/en with --lang en (or an English LANG); the keys of each template are sorted in groups "# --- NAME ---" (rule of test_cles_modeles: alphabetical order inside each group); comments and help: path of the templates; nginx-tools-tests/test_nginx_link_page.py: test of 1.46 now checks both templates, one language each, --config-merge and --init with --lang; EXEMPLE is doc/fr; nginx-tools-tests/test_config_commune.py: comment of the French template.
+- Bugs fixed: none.
+- Safeguards and edge cases: same keys in both templates (checked); the keys of a merged file keep their values, only their order in the template changes (sorted inside each group); without --lang, the language of the messages (LANG) decides, French by default.
+- Checks performed: bash -n; shellcheck; test_nginx_link_page, test_conventions.FusionDeConfiguration, test_cles_modeles, test_config_defaut, test_config_commune (only the failures of main: app-health-check --traversal-only and LEVEL=5).
+- Action required: none; sudo nginx-link-page.sh --config-merge (French) or --config-merge --lang en.
+
 ### 1.46.20261113.075823 - Section 5 of the template documents every key
 
 - Title: the template, and so every merged configuration, ends with a section 5 that documents every key, in French and in English.

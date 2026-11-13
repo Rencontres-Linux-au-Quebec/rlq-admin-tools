@@ -377,7 +377,7 @@ class FusionSansPerte(EnvTest):
         code, lignes = self.fusion(ancien)
         self.assertEqual(code, 0, lignes)
         texte = open(self.conf, encoding="utf-8").read()
-        self.assertRegex(texte, r"(?m)^SITE_LANGUAGE=en +# fr or en$")
+        self.assertRegex(texte, r"(?m)^SITE_LANGUAGE=en +# fr ou en$")          # nginx-link-page 1.47: French template (doc/fr)
         self.assertIn("\n\n# lien 12\nLINK_12_LABEL=Douze\n", texte)
         self.assertEqual(self.module.lire_texte(texte)["LINK_3_LABEL"], "Nouveau")
         self.assertIn("\n# note de l'administrateur\n", texte)                            # 1.14: comment of the administrator kept

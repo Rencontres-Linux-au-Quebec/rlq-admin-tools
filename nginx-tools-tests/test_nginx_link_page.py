@@ -11,7 +11,7 @@ from pathlib import Path
 
 RACINE = Path(__file__).resolve().parent.parent
 PROG = RACINE / "nginx-link-page.sh"
-EXEMPLE = RACINE / "nginx-link-page.conf.example"
+EXEMPLE = RACINE / "doc" / "fr" / "nginx-link-page.conf.example"      # 1.47: one template per language; LANG=C: French
 CHANGELOG = RACINE / "CHANGELOG.md"
 SHA = "3c9162c9f8324d5e002259ed8b4b3cc377b08486"
 SHA_EXT = "d7034f83a6bf71c4a663d2d046a03b37ec74ae45"
@@ -1229,26 +1229,38 @@ printf '\\211PNG\\r\\n\\032\\nxxxx' > "$out"; printf '200 12'; exit 0
         self.assertIn("Configuration fusionnée", r.stdout)
 
     def test_146_reference_de_toutes_les_cles(self):
-        """1.46 : la section 5 du modèle documente toutes les clés lues par le programme (CLES_SITE, CLES_LIEN, CLES_PAGE, CLES_EVENTS), en français
-        et en anglais, et rien d'autre ; --config-merge la recopie sans la lire comme des réglages."""
+        """1.46 : la section 5 du modèle documente toutes les clés lues par le programme (CLES_SITE, CLES_LIEN, CLES_PAGE, CLES_EVENTS), et rien
+        d'autre ; 1.47 : un modèle par langue (doc/fr, doc/en), chacun dans sa seule langue ; --config-merge recopie celui de --lang sans lire la
+        section comme des réglages ; --init écrit celui de --lang."""
         src = (RACINE / "nginx-link-page.sh").read_text(encoding="utf-8")
         attendues = set()
         for nom, prefixe in (("CLES_SITE", "SITE_"), ("CLES_LIEN", "LINK_n_"), ("CLES_PAGE", "PAGE_n_"), ("CLES_EVENTS", "EVENTS_")):
             attendues |= {prefixe + k for k in re.search(rf'readonly {nom}="([^"]+)"', src).group(1).split()}
-        modele = (RACINE / "nginx-link-page.conf.example").read_text(encoding="utf-8")
-        section = modele[modele.index("# 5. TOUTES LES CLÉS / ALL THE KEYS"):]
-        documentees = set(re.findall(r"(?m)^#   ([A-Z][A-Za-z0-9_]+) ", section))
-        self.assertEqual(documentees, attendues)
-        self.assertNotRegex(section, r"(?m)^#\s*[A-Za-z_][A-Za-z0-9_]*\s*=")      # never read as a setting by --config-merge
-        conf = self.conf(MINIMAL)
-        r = self.lancer("-c", str(conf), "--config-merge")
-        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
-        texte = conf.read_text(encoding="utf-8")
-        self.assertEqual(texte.count("# 5. TOUTES LES CLÉS / ALL THE KEYS"), 1)
-        self.assertIn("#   PAGE_n_BACKGROUND_STYLE   pale (défaut, flou et pâle) ou plain (tel quel)", texte)
-        r = self.lancer("-c", str(conf), "--config-merge")
-        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
-        self.assertEqual(conf.read_text(encoding="utf-8").count("# 5. TOUTES LES CLÉS / ALL THE KEYS"), 1)
+        titres = {"fr": "# 5. TOUTES LES CLÉS", "en": "# 5. ALL THE KEYS"}
+        ligne = {"fr": "#   PAGE_n_BACKGROUND_STYLE   pale (défaut, flou et pâle) ou plain (tel quel)",
+                 "en": "#   PAGE_n_BACKGROUND_STYLE   pale (default, blurred and light) or plain (as it is)"}
+        self.assertFalse((RACINE / "nginx-link-page.conf.example").exists())
+        for langue, autre in (("fr", "en"), ("en", "fr")):
+            with self.subTest(langue=langue):
+                modele = (RACINE / "doc" / langue / "nginx-link-page.conf.example").read_text(encoding="utf-8")
+                section = modele[modele.index(titres[langue]):]
+                self.assertEqual(set(re.findall(r"(?m)^#   ([A-Z][A-Za-z0-9_]+) ", section)), attendues)
+                self.assertNotRegex(section, r"(?m)^#\s*[A-Za-z_][A-Za-z0-9_]*\s*=")      # never read as a setting by --config-merge
+                self.assertNotIn(titres[autre], modele)
+                self.assertNotIn(ligne[autre], modele)
+                self.assertNotIn(" / ", section)                                        # one language only
+                conf = self.conf(MINIMAL, f"fusion-{langue}.conf")
+                for _ in range(2):
+                    r = self.lancer("-c", str(conf), "--config-merge", "--lang", langue)
+                    self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+                texte = conf.read_text(encoding="utf-8")
+                self.assertEqual(texte.count(titres[langue]), 1)
+                self.assertIn(ligne[langue], texte)
+                self.assertNotIn(ligne[autre], texte)
+                cible = conf.parent / f"init-{langue}.conf"
+                r = self.lancer("--init", "-c", str(cible), "--lang", langue)
+                self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+                self.assertIn(ligne[langue], cible.read_text(encoding="utf-8"))
 
     def test_deux_langues_detection_et_textes(self):
         texte = self.config_deux_pages("no").replace(
