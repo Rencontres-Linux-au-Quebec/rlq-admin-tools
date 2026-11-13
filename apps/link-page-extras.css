@@ -29,7 +29,7 @@
 	}
 }
 
-/* ---- QR code of the page: a discreet link above the footer ---- */
+/* ---- QR code of the page and contact card (PAGE_n_VCARD): discreet links above the footer ---- */
 .qr-link {
 	margin: 1.5rem 0 0;
 	font-size: 0.9rem;

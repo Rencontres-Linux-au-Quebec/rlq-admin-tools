@@ -1086,6 +1086,29 @@ printf '\\211PNG\\r\\n\\032\\nxxxx' > "$out"; printf '200 12'; exit 0
         r = self.lancer("-c", str(self.conf(MINIMAL + "SITE_NEWSLETTER_URL=mailto:x@y\n")), "--check")
         self.assertIn("SITE_NEWSLETTER_URL : adresse https://", r.stderr)
 
+    def test_139_fiche_contact(self):
+        """1.39 : PAGE_n_VCARD=yes : contact.vcf (vCard 3.0, CRLF, valeurs échappées), lien « Ajouter à mes contacts », type
+        text/vcard dans le fragment nginx ; retiré sans la clé ; courriel ou téléphone invalide refusé."""
+        texte = self.config_deux_pages("no").replace("PAGE_1_THEME=auto", "PAGE_1_THEME=auto\nPAGE_1_VCARD=yes") + (
+            "SITE_BASE_URL=https://www.example.org/\nSITE_VCARD_NAME=Rencontres Linux, Québec\nSITE_VCARD_EMAIL=info@example.org\n"
+            "SITE_VCARD_PHONE=+1 514 555-0199\nSITE_DESCRIPTION=Groupe; libre\n")
+        r = self.lancer("-c", str(self.conf(texte)), "--update", "--yes", env=self.env)
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        carte = (self.www / "liens" / "contact.vcf").read_bytes().decode("utf-8")
+        self.assertTrue(carte.startswith("BEGIN:VCARD\r\nVERSION:3.0\r\nFN:Rencontres Linux\\, Québec\r\n"))
+        for ligne in ("EMAIL;TYPE=INTERNET:info@example.org", "TEL;TYPE=WORK,VOICE:+1 514 555-0199", "URL:https://www.example.org/",
+                      "URL;TYPE=links:https://www.example.org/liens/", "NOTE:Groupe\\; libre", "END:VCARD"):
+            self.assertIn(ligne + "\r\n", carte)
+        html = (self.www / "liens" / "index.html").read_text(encoding="utf-8")
+        self.assertIn('<p class="qr-link"><a href="contact.vcf" download>Ajouter à mes contacts</a></p>', html)
+        snippet = (self.snippets / "liens-publics.conf").read_text(encoding="utf-8")
+        self.assertIn('    location ~* \\.vcf$ {\n        types { }\n        default_type "text/vcard; charset=utf-8";', snippet)
+        r = self.lancer("-c", str(self.conf(self.config_deux_pages("no"))), "--update", "--yes", env=self.env)
+        self.assertFalse((self.www / "liens" / "contact.vcf").exists())
+        r = self.lancer("-c", str(self.conf(MINIMAL + "SITE_VCARD_EMAIL=pas-un-courriel\nSITE_VCARD_PHONE=abc\n")), "--check")
+        self.assertIn("SITE_VCARD_EMAIL=pas-un-courriel : adresse courriel invalide", r.stderr)
+        self.assertIn("SITE_VCARD_PHONE=abc : numéro invalide", r.stderr)
+
     def test_deux_langues_detection_et_textes(self):
         texte = self.config_deux_pages("no").replace(
             "PAGE_1_THEME=auto", "PAGE_1_THEME=auto\nPAGE_1_LANGUAGES=fr,en").replace(

@@ -29,7 +29,7 @@
 set -u
 LANG_C="${LC_ALL:-${LC_MESSAGES:-${LANG:-C}}}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
-readonly SCRIPT_VERSION="1.38.20261112.224918"
+readonly SCRIPT_VERSION="1.39.20261112.225117"
 readonly SCRIPT_NAME="nginx-link-page"
 # --config-merge: same rule as the other programs (apps/_config.py fusionner): the configuration file is rewritten from the new template,
 # keeping its active values; the old file is copied to FILE.bak-YYYYMMDD-HHMMSS. Then exit.
@@ -246,7 +246,7 @@ done
 
 # 1.33: previous version of the pages: copied by --update before it installs, put back by --rollback (whatever the configuration)
 ETAT_DIR="${NGINX_LINK_PAGE_STATE_DIR:-/var/lib/$SCRIPT_NAME}"
-readonly FICHIERS_GERES="css fonts images js index.html autre.html en fr qr.svg qr.png"      # what --update replaces in a page folder
+readonly FICHIERS_GERES="css fonts images js index.html autre.html en fr qr.svg qr.png contact.vcf"      # what --update replaces in a page folder
 if [[ "$MODE" == "rollback" ]]; then
     if [[ "$(id -u)" -ne 0 ]]; then err "$(m "--rollback écrit dans les dossiers des pages : lancer avec sudo." "--rollback writes to the page folders: run with sudo.")"; exit 1; fi
     prec="$ETAT_DIR/previous"
@@ -297,10 +297,10 @@ PROBLEMES=()
 valeur_ou() { local v="${CFG[$1]:-}"; [[ -n "$v" ]] && printf '%s' "$v" || printf '%s' "$2"; }
 
 # 1.24: every key of the files must be known (a mistyped key was ignored without a word: PAGE_3_THEMS=all, SITE_LANGAUGE=en)
-readonly CLES_SITE="BASE_URL DESCRIPTION DESCRIPTION_EN FOOTER FOOTER_EN HEADING HEADING_EN LANGUAGE LOGO_ALT LOGO_URL NEWSLETTER_LABEL NEWSLETTER_LABEL_EN NEWSLETTER_URL SHARE_DESCRIPTION SHARE_DESCRIPTION_EN SHARE_IMAGE_URL SHARE_TITLE SHARE_TITLE_EN TITLE TITLE_EN"
+readonly CLES_SITE="BASE_URL DESCRIPTION DESCRIPTION_EN FOOTER FOOTER_EN HEADING HEADING_EN LANGUAGE LOGO_ALT LOGO_URL NEWSLETTER_LABEL NEWSLETTER_LABEL_EN NEWSLETTER_URL VCARD_EMAIL VCARD_NAME VCARD_PHONE VCARD_URL SHARE_DESCRIPTION SHARE_DESCRIPTION_EN SHARE_IMAGE_URL SHARE_TITLE SHARE_TITLE_EN TITLE TITLE_EN"
 readonly CLES_EVENTS="ODOO_DB ODOO_KEY_FILE ODOO_LOGIN ODOO_URL"      # 1.34: upcoming events read in Odoo
 readonly CLES_LIEN="FROM ICON ICON_DARK IMAGE LABEL LABEL_EN MENU PAGES STYLE UNTIL URL"
-readonly CLES_PAGE="ACCENT AVATAR BUTTONS CLICKS DIR ENABLED ENGINE EVENTS LANGUAGES NEWSLETTER PATH QR SCRIPT SHARE SWITCH THEME THEMES TITLE TITLE_EN"
+readonly CLES_PAGE="ACCENT AVATAR BUTTONS CLICKS DIR ENABLED ENGINE EVENTS LANGUAGES NEWSLETTER PATH QR SCRIPT SHARE SWITCH THEME THEMES TITLE TITLE_EN VCARD"
 cle_connue() {   # cle_connue KEY: 0 when KEY is read by the program
     local k="$1" s
     if [[ "$k" =~ ^SITE_(.+)$ ]]; then for s in $CLES_SITE; do [[ "${BASH_REMATCH[1]}" == "$s" ]] && return 0; done; return 1; fi
@@ -387,6 +387,17 @@ if [[ -n "$SITE_BASE_URL_V" ]] && ! [[ "$SITE_BASE_URL_V" =~ $URL_RE ]]; then
 fi
 if [[ -n "$SITE_LOGO_URL_V" ]] && abs="$(resoudre_url "$SITE_LOGO_URL_V")"; then SITE_LOGO_URL_V="$abs"; fi
 if [[ -n "$SITE_SHARE_IMAGE_URL_V" ]] && abs="$(resoudre_url "$SITE_SHARE_IMAGE_URL_V")"; then SITE_SHARE_IMAGE_URL_V="$abs"; fi
+# 1.39: contact card (contact.vcf): e-mail, phone and address checked
+if [[ -n "${CFG[SITE_VCARD_EMAIL]:-}" && ! "${CFG[SITE_VCARD_EMAIL]}" =~ ^[^@[:space:]]+@[^@[:space:]]+\.[A-Za-z]{2,}$ ]]; then
+    PROBLEMES+=("SITE_VCARD_EMAIL=${CFG[SITE_VCARD_EMAIL]} : $(m "adresse courriel invalide" "invalid e-mail address")")
+fi
+if [[ -n "${CFG[SITE_VCARD_PHONE]:-}" && ! "${CFG[SITE_VCARD_PHONE]}" =~ ^\+?[0-9][0-9\ ().-]{5,}$ ]]; then
+    PROBLEMES+=("SITE_VCARD_PHONE=${CFG[SITE_VCARD_PHONE]} : $(m "numéro invalide (chiffres, espaces, + ( ) . -)" "invalid number (digits, spaces, + ( ) . -)")")
+fi
+if [[ -n "${CFG[SITE_VCARD_URL]:-}" ]]; then
+    if abs="$(resoudre_url "${CFG[SITE_VCARD_URL]}")"; then CFG[SITE_VCARD_URL]="$abs"; fi
+    [[ "${CFG[SITE_VCARD_URL]}" =~ $URL_RE ]] || PROBLEMES+=("SITE_VCARD_URL : $(m "adresse https:// attendue" "https:// address expected")")
+fi
 # 1.38: SITE_NEWSLETTER_URL: button "Recevoir l'infolettre" to the subscription form of Odoo (a link: the pages send no form)
 SITE_NEWSLETTER_URL_V=$(valeur_ou SITE_NEWSLETTER_URL "")
 if [[ -n "$SITE_NEWSLETTER_URL_V" ]]; then
@@ -649,6 +660,11 @@ for i in "${PAGES_N[@]}"; do
     # 1.18: PAGE_n_SCRIPT and PAGE_n_SHARE (yes or no, yes by default)
     [[ "$(valeur_ou "${pre}SCRIPT" yes)" =~ ^(yes|no)$ ]] || PROBLEMES+=("${pre}SCRIPT=$(valeur_ou "${pre}SCRIPT" yes) (yes ou no)")
     [[ "$(valeur_ou "${pre}SHARE" yes)" =~ ^(yes|no)$ ]] || PROBLEMES+=("${pre}SHARE=$(valeur_ou "${pre}SHARE" yes) (yes ou no)")
+    vc_v="$(valeur_ou "${pre}VCARD" no)"                                               # 1.39: contact card
+    [[ "$vc_v" =~ ^(yes|no)$ ]] || PROBLEMES+=("${pre}VCARD=$vc_v (yes ou no)")
+    if [[ "$vc_v" == yes && -z "${CFG[SITE_VCARD_EMAIL]:-}${CFG[SITE_VCARD_PHONE]:-}${CFG[SITE_VCARD_URL]:-}$SITE_BASE_URL_V" ]]; then
+        PROBLEMES+=("${pre}VCARD=yes : $(m "SITE_VCARD_EMAIL, SITE_VCARD_PHONE ou SITE_VCARD_URL à remplir" "fill in SITE_VCARD_EMAIL, SITE_VCARD_PHONE or SITE_VCARD_URL")")
+    fi
     [[ "$(valeur_ou "${pre}NEWSLETTER" yes)" =~ ^(yes|no)$ ]] || PROBLEMES+=("${pre}NEWSLETTER=$(valeur_ou "${pre}NEWSLETTER" yes) (yes ou no)")   # 1.38
     [[ "$(valeur_ou "${pre}CLICKS" no)" =~ ^(yes|no)$ ]] || PROBLEMES+=("${pre}CLICKS=$(valeur_ou "${pre}CLICKS" no) (yes ou no)")      # 1.30
     qr_v="$(valeur_ou "${pre}QR" no)"                                                   # 1.32: QR code of the page
@@ -1054,6 +1070,8 @@ csp_script() { if [[ "$P_JS" == yes ]]; then echo "'self'"; else echo "'none'"; 
 # menu_contient REGEX: a theme of the "Theme" button matches REGEX
 menu_contient() { local t; for t in ${P_MENU[@]+"${P_MENU[@]}"}; do [[ "$t" =~ $1 ]] && return 0; done; return 1; }
 
+# vcard_echap TEXT: TEXT for a vCard value (backslash, comma, semicolon and new lines escaped)
+vcard_echap() { local t="${1//\\/\\\\}"; t="${t//,/\\,}"; t="${t//;/\\;}"; printf '%s' "${t//$'\n'/\\n}"; }
 # page_a_extras: 0 when the page being generated (P_LIENS) has a featured link, in a menu or not, or shows its QR code
 # 1.34: date_evenement "YYYY-MM-DD HH:MM": date and time in the language of the page; delai_jours BEGIN_DAY END_DAY: "dans 9 jours"...
 date_evenement() {
@@ -1096,7 +1114,7 @@ section_evenements() {
 }
 page_a_extras() {
     local n e
-    [[ "${P_QR:-no}" == yes ]] && return 0
+    [[ "${P_QR:-no}" == yes || "${P_VCARD:-no}" == yes ]] && return 0      # 1.32, 1.39
     (( ${P_EVENTS:-0} > 0 )) && return 0                      # 1.34
     [[ -n "$SITE_NEWSLETTER_URL_V" && "${P_INFOLETTRE:-yes}" == yes ]] && return 0      # 1.38
     for n in ${P_LIENS[@]+"${P_LIENS[@]}"}; do [[ "${CFG[LINK_${n}_STYLE]:-}" == icon ]] && return 0; done      # 1.35
@@ -1282,6 +1300,9 @@ genere_index() {   # genere_index DOSSIER THEME TITRE [FICHIER] [CIBLE_BASCULE] 
                 echo "      <p><a class=\"button button-default\" href=\"$L_AUTRE_HREF\">$(html_echap "$L_AUTRE_LIBELLE")</a></p>"
             fi
         fi
+        if [[ -f "$dossier/contact.vcf" ]]; then             # 1.39: contact card, to save in the phone
+            echo "      <p class=\"qr-link\"><a href=\"contact.vcf\" download>$(tp "Ajouter à mes contacts" "Add to my contacts")</a></p>"
+        fi
         if [[ -f "$dossier/qr.svg" ]]; then                  # 1.32: QR code of the page (PNG to download for posters and slides)
             echo "      <p class=\"qr-link\"><a href=\"qr.png\" download><img src=\"qr.svg\" alt=\"\">$( [[ "$L_LANG" == en ]] && echo "QR code of this page" || echo "Code QR de cette page" )</a></p>"
         fi
@@ -1322,7 +1343,8 @@ for i in ${ACTIVES[@]+"${ACTIVES[@]}"}; do
     P_CLICS="$(valeur_ou "PAGE_${i}_CLICKS" no)"             # 1.30: the links go through PATH/go/N (counted in the nginx logs)
     P_QR="$(valeur_ou "PAGE_${i}_QR" no)"
     P_EVENTS=$((10#$(valeur_ou "PAGE_${i}_EVENTS" 0)))      # 1.34: upcoming events of Odoo
-    P_INFOLETTRE="$(valeur_ou "PAGE_${i}_NEWSLETTER" yes)"    # 1.38: newsletter button (with SITE_NEWSLETTER_URL)                     # 1.32: qr.svg and qr.png of the page, link above the footer
+    P_INFOLETTRE="$(valeur_ou "PAGE_${i}_NEWSLETTER" yes)"    # 1.38: newsletter button (with SITE_NEWSLETTER_URL)
+    P_VCARD="$(valeur_ou "PAGE_${i}_VCARD" no)"               # 1.39: contact.vcf and its link                     # 1.32: qr.svg and qr.png of the page, link above the footer
     P_JS=no
     if [[ "$(valeur_ou "PAGE_${i}_SCRIPT" yes)" == yes ]] && { (( ${#P_MENU[@]} )) || [[ "$P_PARTAGE" == yes ]] || (( ${#P_LISTE[@]} == 2 )); }; then
         P_JS=yes
@@ -1364,6 +1386,19 @@ for i in ${ACTIVES[@]+"${ACTIVES[@]}"}; do
             printf '.button.button-default { --button-background: %s; }\n' "$P_ACCENT" > "$dossier/css/accent.css"
         fi
         if [[ "$P_JS" == yes ]]; then mkdir -p "$dossier/js"; install -m 644 "$LINK_PAGE_JS" "$dossier/js/link-page.js"; fi
+        if [[ "$P_VCARD" == yes ]]; then                       # 1.39: contact card of the group (vCard 3.0, CRLF)
+            {
+                printf 'BEGIN:VCARD\r\nVERSION:3.0\r\n'
+                printf 'FN:%s\r\nORG:%s\r\n' "$(vcard_echap "$(valeur_ou SITE_VCARD_NAME "$SITE_TITLE_V")")" "$(vcard_echap "$(valeur_ou SITE_VCARD_NAME "$SITE_TITLE_V")")"
+                [[ -n "${CFG[SITE_VCARD_EMAIL]:-}" ]] && printf 'EMAIL;TYPE=INTERNET:%s\r\n' "$(vcard_echap "${CFG[SITE_VCARD_EMAIL]}")"
+                [[ -n "${CFG[SITE_VCARD_PHONE]:-}" ]] && printf 'TEL;TYPE=WORK,VOICE:%s\r\n' "$(vcard_echap "${CFG[SITE_VCARD_PHONE]}")"
+                vc_url="$(valeur_ou SITE_VCARD_URL "$SITE_BASE_URL_V")"
+                [[ -n "$vc_url" ]] && printf 'URL:%s\r\n' "$(vcard_echap "$vc_url")"
+                [[ -n "$L_URL_PUBLIQUE" ]] && printf 'URL;TYPE=links:%s\r\n' "$(vcard_echap "$L_URL_PUBLIQUE")"
+                [[ -n "$L_DESCRIPTION" ]] && printf 'NOTE:%s\r\n' "$(vcard_echap "$L_DESCRIPTION")"
+                printf 'END:VCARD\r\n'
+            } > "$dossier/contact.vcf"
+        fi
         if [[ "$P_QR" == yes ]]; then                          # 1.32: QR code of the public address of this language
             # 1.37: ?qr=1 tells --stats the visits that come from the QR code
             if qrencode -t SVG -l M -m 2 -s 6 -o "$dossier/qr.svg" "${L_URL_PUBLIQUE}?qr=1" && qrencode -t PNG -l M -m 4 -s 12 -o "$dossier/qr.png" "${L_URL_PUBLIQUE}?qr=1"; then
@@ -1465,6 +1500,14 @@ else
         LIEN_NOUVEAU+="$(entetes_page "$i" "    " "no-cache")"$'\n'
         # 1.29: style sheets and scripts kept 1 hour (an update changes them), images and fonts 7 days, by the browsers and by Cloudflare;
         # the pages themselves are checked each time (no-cache). A nested location does not inherit add_header: the headers are repeated.
+        if [[ "$(valeur_ou "PAGE_${i}_VCARD" no)" == yes ]]; then    # 1.39: contact card sent as text/vcard (phones open it in the contacts)
+            LIEN_NOUVEAU+="    location ~* \\.vcf\$ {"$'\n'
+            LIEN_NOUVEAU+="        types { }"$'\n'
+            LIEN_NOUVEAU+="        default_type \"text/vcard; charset=utf-8\";"$'\n'
+            LIEN_NOUVEAU+="        limit_except GET HEAD { deny all; }"$'\n'
+            LIEN_NOUVEAU+="$(entetes_page "$i" "        " "no-cache")"$'\n'
+            LIEN_NOUVEAU+="    }"$'\n'
+        fi
         for regle in "css|js:public, max-age=3600" "png|jpe?g|webp|gif|svg|ico|woff2?:public, max-age=604800"; do
             LIEN_NOUVEAU+="    location ~* \\.(${regle%%:*})\$ {"$'\n'
             LIEN_NOUVEAU+="        limit_except GET HEAD { deny all; }"$'\n'

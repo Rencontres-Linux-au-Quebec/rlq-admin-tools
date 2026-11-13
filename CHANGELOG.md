@@ -4536,6 +4536,16 @@ Earlier history was archived outside this repository when this file was created.
 
 ## nginx-link-page.sh
 
+### 1.39.20261112.225117 - PAGE_n_VCARD: contact card of the group to save in a phone
+
+- Title: new key PAGE_n_VCARD and keys SITE_VCARD_*: contact card of the group (contact.vcf) with an "Ajouter à mes contacts" link.
+- Reason: request of the administrator on 2026-11-12 (suggestion 6 of the comparison with Linktree): save the contact of the group in a phone with one touch.
+- Changes: new keys PAGE_n_VCARD (yes or no, no by default), SITE_VCARD_NAME (default SITE_TITLE), SITE_VCARD_EMAIL, SITE_VCARD_PHONE, SITE_VCARD_URL (default SITE_BASE_URL), checked by --check; --update writes contact.vcf in each language folder (vCard 3.0, CRLF lines: FN, ORG, EMAIL, TEL, URL of the site, URL of the link page, NOTE = description of the page); new function vcard_echap (backslash, comma, semicolon and new lines escaped); genere_index(): "Ajouter à mes contacts" / "Add to my contacts" link above the QR code link; nginx snippet: for these pages, a nested location ~* \.vcf$ that sends the card as text/vcard (phones open it in their contacts), no-cache, with the security headers; FICHIERS_GERES: contact.vcf (removed when the key is removed, kept by --rollback); nginx-link-page.conf.example: the keys described; nginx-tools-tests/test_nginx_link_page.py: 1 test.
+- Bugs fixed: none.
+- Safeguards and edge cases: refused by --check: an e-mail address or a phone number that does not look like one, a card without e-mail, phone nor address; only the contact of the group (no personal data of a member); the card is a static file of the page.
+- Checks performed: bash -n; shellcheck; test_nginx_link_page (72 tests).
+- Action required: none (example: SITE_VCARD_EMAIL=info@..., PAGE_1_VCARD=yes, then sudo nginx-link-page.sh --update --yes).
+
 ### 1.38.20261112.224918 - SITE_NEWSLETTER_URL: newsletter button to the form of Odoo
 
 - Title: new keys SITE_NEWSLETTER_URL, SITE_NEWSLETTER_LABEL(_EN) and PAGE_n_NEWSLETTER: a "Recevoir l'infolettre" button to the subscription form of Odoo.
