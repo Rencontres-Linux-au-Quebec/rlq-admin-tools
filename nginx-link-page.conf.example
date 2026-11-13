@@ -84,6 +84,12 @@
 # PAGE_n_AVATAR    : none, soft or rounded (logo shape)
 # PAGE_n_ACCENT    : button colour #RRGGBB, for example #1A2B3C (empty: default colour)
 # PAGE_n_SWITCH    : yes or no; yes creates autre.html with the other theme and a button to reach it
+# PAGE_n_THEMES    : themes offered by a "Theme" button at the top right (comma list, or all); one complete page per
+#                    theme (theme-NAME.html, used without script); the theme of PAGE_n_THEME comes first; replaces PAGE_n_SWITCH
+# PAGE_n_SCRIPT    : yes (default) or no; yes copies js/link-page.js (Content-Security-Policy script-src 'self'): the theme
+#                    changes in place and is remembered by the browser, the chosen language too; no: no script at all
+# PAGE_n_SHARE     : yes (default) or no; "Share" button at the top left (share sheet of the phone, or copy of the
+#                    address); needs PAGE_n_SCRIPT=yes
 # PAGE_n_LANGUAGES : fr, en, fr,en or en,fr. The first language is at the page root (/links/), the other one
 #                    in /links/en/ (or /links/fr/). The browser is redirected to the language it prefers,
 #                    otherwise the first language is shown.
@@ -99,6 +105,10 @@
 #PAGE_1_AVATAR=none
 #PAGE_1_ACCENT=
 #PAGE_1_SWITCH=no
+# example of PAGE_1_THEMES: light,dark,aurora,ls-dawn (or all)
+#PAGE_1_THEMES=
+#PAGE_1_SCRIPT=yes
+#PAGE_1_SHARE=yes
 #PAGE_1_LANGUAGES=en
 #
 # Example of a second page, to compare two engines: disabled until you want it.

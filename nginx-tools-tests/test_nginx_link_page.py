@@ -345,6 +345,10 @@ class Installation(Base):
         self.env = {"PATH": f"{self.bin}:{os.environ['PATH']}",
                     "NGINX_LINK_PAGE_SNIPPETS_DIR": str(self.snippets)}
 
+    def seul_script_local(self, html):
+        """1.18 : la seule balise script permise est js/link-page.js, servi par la page elle-même."""
+        self.assertEqual(re.findall(r"<script[^>]*>", html), ['<script src="js/link-page.js">'])
+
     def config_deux_pages(self, page2_active="yes"):
         return f"""SITE_TITLE=Test & B
 SITE_LANGUAGE=fr
@@ -376,7 +380,7 @@ PAGE_2_TITLE=Deux
         self.assertIn("<title>Test &amp; B</title>", ici)
         self.assertIn("Lien &lt;A&gt;", ici)
         self.assertIn("<picture>", ici)
-        self.assertNotIn("<script", ici)
+        self.seul_script_local(ici)
         self.assertIn("<title>Deux</title>", deux)
         self.assertIn('class="theme-dark"', deux)
         self.assertTrue((self.www / "liens" / "css" / "style.css").exists())
@@ -401,8 +405,8 @@ PAGE_2_TITLE=Deux
         self.assertIn("button-codeberg", ici)
         self.assertIn('src="images/icons/facebook.svg"', ici)                  # LittleLink first
         self.assertTrue((self.www / "liens" / "images" / "icons-extended" / "lemmy.svg").exists())
-        self.assertFalse(any((self.www / "liens").rglob("*.js")))
-        self.assertNotIn("<script", ici)
+        self.assertEqual([f.name for f in (self.www / "liens").rglob("*.js")], ["link-page.js"])   # 1.18: never sensitive-content.js
+        self.seul_script_local(ici)
 
     def test_littlelink_extended_absent_ou_autre_commit(self):
         """1.11: Extended not reachable or another commit: [ATTN] and pages built without it; an Extended icon then stops the build."""
@@ -437,7 +441,7 @@ PAGE_2_TITLE=Deux
         self.assertIn('class="theme-dark"', autre)
         self.assertIn('href="index.html"', autre)
         self.assertIn("Passer au thème clair", autre)
-        self.assertNotIn("<script", autre)
+        self.seul_script_local(autre)
         accent = (self.www / "liens" / "css" / "accent.css").read_text(encoding="utf-8")
         self.assertIn("--button-background: #FF0000;", accent)
 
@@ -523,7 +527,7 @@ printf '\\211PNG\\r\\n\\032\\nxxxx' > "$out"; printf '200 12'; exit 0
                 autre = (self.www / "liens" / "autre.html").read_text(encoding="utf-8")
                 self.assertIn('class="theme-light"' if base == "dark" else 'class="theme-dark"', autre)
                 self.assertNotIn("css/themes.css", autre)
-                self.assertNotIn("<script", ici)
+                self.seul_script_local(ici)
         css = (self.www / "liens" / "css" / "themes.css").read_text(encoding="utf-8")
         for theme in bases:
             self.assertIn(f":root.theme-{theme} body", css)
@@ -545,7 +549,7 @@ printf '\\211PNG\\r\\n\\032\\nxxxx' > "$out"; printf '200 12'; exit 0
                 self.assertIn('<link rel="stylesheet" href="css/themes-linkstack.css">', ici)
                 self.assertNotIn('href="css/themes.css"', ici)
                 self.assertIn("images/site/icon-2-sombre.", ici)
-                self.assertNotIn("<script", ici)
+                self.seul_script_local(ici)
                 self.assertEqual(ici.count('<div class="ls-rain" aria-hidden="true">'), 1 if theme == "ls-misty-rain" else 0)
                 self.assertIn('class="theme-light"', (self.www / "liens" / "autre.html").read_text(encoding="utf-8"))
         page = self.www / "liens"
@@ -557,6 +561,102 @@ printf '\\211PNG\\r\\n\\032\\nxxxx' > "$out"; printf '200 12'; exit 0
             self.assertTrue(url.startswith("../") and (page / "css" / url).resolve().exists(), url)
         self.assertNotRegex(__import__("re").sub(r"/\*.*?\*/", "", css, flags=__import__("re").S), r"@import|https?:")    # comments aside
         self.assertIn("MIT", (page / "css" / "themes-linkstack-LICENSES.md").read_text(encoding="utf-8"))
+
+    def test_117_bouton_theme(self):
+        """1.17 : PAGE_n_THEMES : une page complète par thème (index.html pour le thème de la page, theme-NOM.html pour les autres), menu
+        <details> sans script dans chacune, thème courant marqué ; « all » : les 12 thèmes ; PAGE_n_SWITCH ignoré ; thème inconnu refusé ;
+        les pages theme-*.html d'un passage précédent disparaissent."""
+        texte = self.config_deux_pages("no").replace("PAGE_1_THEME=auto", "PAGE_1_THEME=aurora\nPAGE_1_THEMES=light, ls-dawn,aurora,terminal\nPAGE_1_SWITCH=yes")
+        r = self.lancer("-c", str(self.conf(texte)), "--update", "--yes", env=self.env)
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertIn("PAGE_1_SWITCH=yes ignore", r.stdout + r.stderr)
+        page = self.www / "liens"
+        self.assertEqual(sorted(f.name for f in page.glob("*.html")), ["index.html", "theme-light.html", "theme-ls-dawn.html", "theme-terminal.html"])
+        self.assertTrue((page / "css" / "theme-menu.css").exists())
+        attendus = {"index.html": "aurora", "theme-light.html": "light", "theme-ls-dawn.html": "ls-dawn", "theme-terminal.html": "terminal"}
+        for f, theme in attendus.items():
+            with self.subTest(page=f):
+                html = (page / f).read_text(encoding="utf-8")
+                self.assertIn(f'class="theme-{theme}"', html)
+                self.assertIn('<link rel="stylesheet" href="css/theme-menu.css">', html)
+                self.assertIn('<details class="theme-menu">', html)
+                self.assertIn("<summary>Thème</summary>", html)
+                self.seul_script_local(html)
+                self.assertEqual(html.count('aria-current="page"'), 1)
+                self.assertIn(f'<li><a href="{f}" data-theme="{theme}" aria-current="page">', html)
+                menu = html[html.index("<ul>"):html.index("</ul>")]
+                self.assertEqual(__import__("re").findall(r'href="([^"]+)"', menu), ["index.html", "theme-light.html", "theme-ls-dawn.html", "theme-terminal.html"])
+                self.assertNotIn("autre.html", html)
+        self.assertIn(">aurore boréale</a>", (page / "index.html").read_text(encoding="utf-8"))
+        texte = self.config_deux_pages("no").replace("PAGE_1_THEME=auto", "PAGE_1_THEME=dark\nPAGE_1_THEMES=all")
+        r = self.lancer("-c", str(self.conf(texte)), "--update", "--yes", env=self.env)
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertEqual(len(list(page.glob("*.html"))), 12)
+        r = self.lancer("-c", str(self.conf(self.config_deux_pages("no"))), "--update", "--yes", env=self.env)
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertEqual([f.name for f in page.glob("*.html")], ["index.html"])           # old theme pages removed
+        self.assertNotIn('<details class="theme-menu">', (page / "index.html").read_text(encoding="utf-8"))
+        r = self.lancer("-c", str(self.conf(MINIMAL + "PAGE_1_THEMES=light,rose\n")), "--check")
+        self.assertNotEqual(r.returncode, 0)
+        self.assertIn("« rose »", r.stderr)
+
+    def test_118_script_theme_langue_partage(self):
+        """1.18 : js/link-page.js (CSP script-src 'self') : thème changé sur place et retenu, langue retenue, bouton Partager ;
+        PAGE_n_SCRIPT=no : aucun script (script-src 'none') ; sans rien à faire (une langue, pas de menu, SHARE=no) : aucun script."""
+        def bloc(snippet, chemin):
+            return snippet[snippet.index("location ^~ " + chemin + " {"):].split("\n}\n", 1)[0]
+        page = self.www / "liens"
+        texte = self.config_deux_pages("no").replace("PAGE_1_THEME=auto", "PAGE_1_THEME=aurora\nPAGE_1_THEMES=light,ls-misty-rain\nPAGE_1_LANGUAGES=fr,en")
+        r = self.lancer("-c", str(self.conf(texte)), "--update", "--yes", env=self.env)
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertTrue((page / "js" / "link-page.js").exists())
+        self.assertTrue((page / "en" / "js" / "link-page.js").exists())
+        fr = (page / "index.html").read_text(encoding="utf-8")
+        en = (page / "en" / "index.html").read_text(encoding="utf-8")
+        self.seul_script_local(fr)
+        self.assertLess(fr.index('<script src="js/link-page.js">'), fr.index("</head>"))
+        self.assertIn("script-src 'self'", fr)
+        self.assertIn('data-page="/liens/"', fr)
+        self.assertIn('data-themes="aurora|dark|#0b1026 light|light| ls-misty-rain|dark|#181b24"', fr)
+        self.assertIn('data-other-lang="en" data-other-href="/liens/en/"', fr)
+        self.assertIn('data-other-lang="fr" data-other-href="/liens/index.html"', en)
+        self.assertIn('href="/liens/en/" data-lang="en"', fr)
+        self.assertIn('href="/liens/index.html" data-lang="fr"', en)
+        self.assertIn('<a href="theme-light.html" data-theme="light">', fr)
+        self.assertIn('<link rel="stylesheet" href="css/themes.css">', fr)
+        self.assertIn('<link rel="stylesheet" href="css/themes-linkstack.css">', fr)   # every offered theme can be applied in place
+        self.assertIn('class="ls-rain"', fr)                                           # shown by CSS only with ls-misty-rain
+        self.assertIn('<source data-icon-dark media="all"', fr)                        # dark base of aurora
+        self.assertIn('<source data-icon-dark media="not all"', (page / "theme-light.html").read_text(encoding="utf-8"))
+        self.assertIn('class="share-button" type="button" hidden', fr)
+        self.assertIn('data-done="Lien copié">Partager</button>', fr)
+        self.assertIn('data-done="Link copied">Share</button>', en)
+        snippet = (self.snippets / "liens-publics.conf").read_text(encoding="utf-8")
+        self.assertIn("script-src 'self'", bloc(snippet, "/liens/"))
+        self.assertNotIn("script-src 'none'", snippet)
+        # PAGE_n_SCRIPT=no: no script at all, even with the menu and two languages
+        r = self.lancer("-c", str(self.conf(texte + "PAGE_1_SCRIPT=no\n")), "--update", "--yes", env=self.env)
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        fr = (page / "index.html").read_text(encoding="utf-8")
+        self.assertNotIn("<script", fr)
+        self.assertNotIn("data-themes", fr)
+        self.assertNotIn("share-button", fr)
+        self.assertIn("script-src 'none'", fr)
+        self.assertFalse((page / "js").exists())
+        self.assertIn('<details class="theme-menu">', fr)                          # fallback: one page per theme
+        self.assertIn("script-src 'none'", bloc((self.snippets / "liens-publics.conf").read_text(encoding="utf-8"), "/liens/"))
+        # nothing for the script to do: one language, no menu, PAGE_n_SHARE=no
+        r = self.lancer("-c", str(self.conf(self.config_deux_pages("no") + "PAGE_1_SHARE=no\n")), "--update", "--yes", env=self.env)
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        fr = (page / "index.html").read_text(encoding="utf-8")
+        self.assertNotIn("<script", fr)
+        self.assertNotIn("theme-menu.css", fr)
+        self.assertIn("script-src 'none'", fr)
+        for cle in ("PAGE_1_SCRIPT=maybe", "PAGE_1_SHARE=oui"):
+            with self.subTest(cle=cle):
+                r = self.lancer("-c", str(self.conf(MINIMAL + cle + "\n")), "--check")
+                self.assertNotEqual(r.returncode, 0)
+                self.assertIn(cle, r.stderr)
 
     def test_chemins_relatifs_resolus(self):
         texte = self.config_deux_pages("no").replace(
@@ -629,7 +729,7 @@ printf '\\211PNG\\r\\n\\032\\nxxxx' > "$out"; printf '200 12'; exit 0
         self.assertIn("<title>Test EN</title>", en)
         self.assertIn("<h1>Home EN</h1>", en)
         self.assertIn('href="/liens/en/"', fr)
-        self.assertIn('href="/liens/"', en)
+        self.assertIn('href="/liens/index.html"', en)      # 1.18: /liens/ alone sends an English browser back to /liens/en/
         self.assertTrue((self.www / "liens" / "en" / "css" / "style.css").exists())
         snippet = (self.snippets / "liens-publics.conf").read_text(encoding="utf-8")
         self.assertIn("location = /liens/ {", snippet)
