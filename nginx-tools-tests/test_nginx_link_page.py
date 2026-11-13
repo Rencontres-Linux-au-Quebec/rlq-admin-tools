@@ -745,6 +745,31 @@ printf '\\211PNG\\r\\n\\032\\nxxxx' > "$out"; printf '200 12'; exit 0
         r = self.lancer("-c", str(self.conf(MINIMAL + "PAGE_1_THEMES=all\nPAGE_1_TITLE_EN=Links\nLINK_1_LABEL_EN=Home\n")), "--check")
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
 
+    def test_125_liens_par_page(self):
+        """1.25 : LINK_n_PAGES : un lien va sur les pages données (N, N-M, liste, all) ; sans la clé, sur toutes ; page inexistante,
+        valeur invalide ou page sans lien : refusées."""
+        texte = self.config_deux_pages("yes") + "LINK_3_LABEL=Trois\nLINK_3_URL=https://example.org/c\nLINK_1_PAGES=1\nLINK_2_PAGES=2\n"
+        r = self.lancer("-c", str(self.conf(texte)), "--update", "--yes", env=self.env)
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        un = (self.www / "liens" / "index.html").read_text(encoding="utf-8")
+        deux = (self.www / "liens2" / "index.html").read_text(encoding="utf-8")
+        self.assertIn('href="https://example.org/a"', un)
+        self.assertNotIn('href="https://example.org/b"', un)
+        self.assertIn('href="https://example.org/b"', deux)
+        self.assertNotIn('href="https://example.org/a"', deux)
+        for page in (un, deux):
+            self.assertIn('href="https://example.org/c"', page)                         # no LINK_3_PAGES: every page
+        self.assertIn("PAGE_1 preparee (2 liens)", r.stdout + r.stderr)
+        r = self.lancer("-c", str(self.conf(self.config_deux_pages("yes") + "LINK_1_PAGES=1-2\nLINK_2_PAGES=all\n")), "--check")
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        cas = {"LINK_1_PAGES=3": "la page 3 n'existe pas", "LINK_1_PAGES=deux": "numéros de page N, N-M",
+               "LINK_1_PAGES=2-1": "numéros de page N, N-M", "LINK_1_PAGES=2\nLINK_2_PAGES=2": "PAGE_1 : aucun lien ne va sur cette page"}
+        for ajout, attendu in cas.items():
+            with self.subTest(ajout=ajout):
+                r = self.lancer("-c", str(self.conf(self.config_deux_pages("yes") + ajout + "\n")), "--check")
+                self.assertNotEqual(r.returncode, 0)
+                self.assertIn(attendu, r.stderr)
+
     def test_deux_langues_detection_et_textes(self):
         texte = self.config_deux_pages("no").replace(
             "PAGE_1_THEME=auto", "PAGE_1_THEME=auto\nPAGE_1_LANGUAGES=fr,en").replace(

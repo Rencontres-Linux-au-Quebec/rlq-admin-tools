@@ -4536,6 +4536,16 @@ Earlier history was archived outside this repository when this file was created.
 
 ## nginx-link-page.sh
 
+### 1.25.20261112.213646 - LINK_n_PAGES: choose the pages that show each link
+
+- Title: new key LINK_n_PAGES (2, 2-4, 1,3 or all): the link is shown only on these pages; without it, on every page as before.
+- Reason: request of the administrator on 2026-11-12: /a must show the first 10 links of the configuration and /b other links; of the two ways discussed (a range of links per page, or the pages of each link), the administrator chose LINK_n_PAGES, with ranges such as 2-4.
+- Changes: new key LINK_n_PAGES (in CLES_LIEN); new functions pages_du_lien (N, N-M, comma list, all; spaces ignored) and liens_de_la_page; new array LIEN_SUR_PAGE and, per page, P_LIENS; genere_index(): only the links of the page; summary and "[OK] page PAGE_n preparee" give the number of links of each page; --help: the LINK_n_* keys listed; nginx-link-page.conf.example: LINK_n_PAGES described with the /a and /b example; nginx-tools-tests/test_nginx_link_page.py: 1 test (4 subtests).
+- Bugs fixed: none.
+- Safeguards and edge cases: refused by --check: a value that is not N, N-M or a list (2-1, deux), a page that does not exist ("la page 3 n'existe pas (pages : 1 2)"), and an enabled page left without any link; a disabled page may have no link; leading zeros read in base 10 (08); the icons of every link are still prepared once.
+- Checks performed: bash -n; shellcheck; test_nginx_link_page (59 tests).
+- Action required: none (for /a and /b: LINK_1_PAGES=1 ... LINK_10_PAGES=1, LINK_11_PAGES=2 ... LINK_20_PAGES=2, where PAGE_1_PATH=/a/ and PAGE_2_PATH=/b/; then sudo nginx-link-page.sh --update --yes).
+
 ### 1.24.20261112.211526 - Unknown key or invalid line in the configuration: error with the file and the line
 
 - Title: a mistyped or unknown key, or a line that is not KEY=VALUE, is refused with the file, the line and the closest known key.
