@@ -29,7 +29,7 @@
 set -u
 LANG_C="${LC_ALL:-${LC_MESSAGES:-${LANG:-C}}}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
-readonly SCRIPT_VERSION="1.20.20261112.192431"
+readonly SCRIPT_VERSION="1.21.20261112.201948"
 readonly SCRIPT_NAME="nginx-link-page"
 # --config-merge: same rule as the other programs (apps/_config.py fusionner): the configuration file is rewritten from the new template,
 # keeping its active values; the old file is copied to FILE.bak-YYYYMMDD-HHMMSS. Then exit.
@@ -62,15 +62,17 @@ readonly LINKPAGE_EXT_SHA="d7034f83a6bf71c4a663d2d046a03b37ec74ae45"
 readonly MAX_ASSET_BYTES=524288
 # 1.15: themes of PAGE_n_THEME: the 3 of LittleLink, then the 5 of apps/link-page-themes.css (copied as css/themes.css into each page)
 # 1.16: and the 4 LinkStack themes adapted in apps/link-page-themes/ (linkstack.css, images, fonts; MIT and OFL, LICENSES.md)
-readonly THEMES_RE="auto|light|dark|aurora|maple|river|terminal|tux|ls-aurora|ls-dark|ls-dawn|ls-misty-rain"
-readonly THEMES_LISTE="auto, light, dark, aurora, maple, river, terminal, tux, ls-aurora, ls-dark, ls-dawn ou ls-misty-rain"
+readonly THEMES_RE="auto|light|dark|aurora|maple|river|terminal|tux|tux-quebec|quebec|boreal|sunset|winter|ls-aurora|ls-dark|ls-dawn|ls-misty-rain"
+readonly THEMES_LISTE="auto, light, dark, aurora, maple, river, terminal, tux, tux-quebec, quebec, boreal, sunset, winter, ls-aurora, ls-dark, ls-dawn ou ls-misty-rain"
 readonly THEMES_CSS="$SCRIPT_DIR/apps/link-page-themes.css"
+# themes of link-page-themes.css (1.15: 5 themes; 1.21: 5 more, tux-quebec with its image apps/link-page-themes/images/tux-quebec.jpg)
+readonly THEMES_MAISON="aurora|maple|river|terminal|tux|tux-quebec|quebec|boreal|sunset|winter"
 readonly THEMES_LINKSTACK="$SCRIPT_DIR/apps/link-page-themes"
 # 1.17: "Theme" button (PAGE_n_THEMES): style sheet copied as css/theme-menu.css; "all" = every theme of THEMES_RE
 readonly THEME_MENU_CSS="$SCRIPT_DIR/apps/link-page-theme-menu.css"
 # 1.18: script of the pages (PAGE_n_SCRIPT): theme in place and remembered, language remembered, "Share" button; copied as js/link-page.js
 readonly LINK_PAGE_JS="$SCRIPT_DIR/apps/link-page.js"
-readonly THEMES_TOUS="auto light dark aurora maple river terminal tux ls-aurora ls-dark ls-dawn ls-misty-rain"
+readonly THEMES_TOUS="auto light dark aurora maple river terminal tux tux-quebec quebec boreal sunset winter ls-aurora ls-dark ls-dawn ls-misty-rain"
 # themes_offerts VALUE: the themes of PAGE_n_THEMES, one per word, without duplicates, in the given order ("all": THEMES_TOUS)
 themes_offerts() {
     local v="${1// /}" t u vus=" "
@@ -388,8 +390,11 @@ for i in "${PAGES_N[@]}"; do
             PROBLEMES+=("${pre}THEME=$theme ($THEMES_LISTE)")
         fi
     fi
-    if [[ "$theme" =~ ^(aurora|maple|river|terminal|tux)$ && ! -r "$THEMES_CSS" ]]; then
+    if [[ "$theme" =~ ^($THEMES_MAISON)$ && ! -r "$THEMES_CSS" ]]; then
         PROBLEMES+=("${pre}THEME=$theme : $THEMES_CSS absent (livre avec le depot) / missing (shipped with the repository)")
+    fi
+    if [[ "$theme" == tux-quebec && ! -r "$THEMES_LINKSTACK/images/tux-quebec.jpg" ]]; then          # 1.21: background image of tux-quebec
+        PROBLEMES+=("${pre}THEME=$theme : $THEMES_LINKSTACK/images/tux-quebec.jpg absent (livre avec le depot) / missing (shipped with the repository)")
     fi
     if [[ "$theme" == ls-* && ! -r "$THEMES_LINKSTACK/linkstack.css" ]]; then
         PROBLEMES+=("${pre}THEME=$theme : $THEMES_LINKSTACK/linkstack.css absent (livre avec le depot) / missing (shipped with the repository)")
@@ -626,20 +631,23 @@ theme_nom() {
     if [[ "$L_LANG" == en ]]; then
         case "$1" in light) echo light ;; dark) echo dark ;; aurora) echo "northern lights" ;; maple) echo maple ;; river) echo river ;;
                      terminal) echo terminal ;; tux) echo Tux ;; ls-aurora) echo "Aurora (LinkStack)" ;; ls-dark) echo "Dark (LinkStack)" ;;
+                     tux-quebec) echo "Quebec Tux" ;; quebec) echo "Quebec flag" ;; boreal) echo "boreal forest" ;; sunset) echo sunset ;; winter) echo winter ;;
                      ls-dawn) echo "Dawn (LinkStack)" ;; ls-misty-rain) echo "Misty Rain (LinkStack)" ;; *) echo automatic ;; esac
     else
         case "$1" in light) echo clair ;; dark) echo sombre ;; aurora) echo "aurore boréale" ;; maple) echo érable ;; river) echo fleuve ;;
                      terminal) echo terminal ;; tux) echo Tux ;; ls-aurora) echo "Aurora (LinkStack)" ;; ls-dark) echo "Dark (LinkStack)" ;;
+                     tux-quebec) echo "Tux québécois" ;; quebec) echo fleurdelisé ;; boreal) echo "forêt boréale" ;; sunset) echo "coucher de soleil" ;; winter) echo hiver ;;
                      ls-dawn) echo "Dawn (LinkStack)" ;; ls-misty-rain) echo "Misty Rain (LinkStack)" ;; *) echo automatique ;; esac
     fi
 }
 # theme_base THEME: light or dark (choice of the icons of LINK_n_ICON_DARK, theme of the second page with PAGE_n_SWITCH), auto for auto
 theme_base() {
-    case "$1" in dark|aurora|terminal|tux|ls-*) echo dark ;; light|maple|river) echo light ;; *) echo auto ;; esac
+    case "$1" in dark|aurora|terminal|tux|quebec|boreal|sunset|ls-*) echo dark ;; light|maple|river|tux-quebec|winter) echo light ;; *) echo auto ;; esac
 }
 # theme_couleur THEME: colour of the browser bar (meta theme-color) of the 5 themes of link-page-themes.css
 theme_couleur() {
     case "$1" in aurora) echo "#0b1026" ;; maple) echo "#b3261e" ;; river) echo "#0e6b7f" ;; terminal) echo "#050805" ;; tux) echo "#1c1f24" ;;
+                 tux-quebec) echo "#0033a0" ;; quebec) echo "#003da5" ;; boreal) echo "#0f2318" ;; sunset) echo "#2b1a4a" ;; winter) echo "#dcebf7" ;;
                  ls-aurora) echo "#24123d" ;; ls-dark) echo "#1f232e" ;; ls-dawn) echo "#223344" ;; ls-misty-rain) echo "#181b24" ;; esac
 }
 bascule_libelle() {
@@ -726,7 +734,7 @@ genere_index() {   # genere_index DOSSIER THEME TITRE [FICHIER] [CIBLE_BASCULE] 
         echo "    <link rel=\"stylesheet\" href=\"css/brands.css\">"
         if [[ -f "$dossier/css/brands-extended.css" ]]; then echo "    <link rel=\"stylesheet\" href=\"css/brands-extended.css\">"; fi
         # 1.18: with the script, the menu changes the theme in place: the style sheets of every offered theme are loaded
-        if [[ -f "$dossier/css/themes.css" ]] && { [[ -n "$(theme_couleur "$theme")" && "$theme" != ls-* ]] || { [[ "$P_JS" == yes ]] && menu_contient '^(aurora|maple|river|terminal|tux)$'; }; }; then
+        if [[ -f "$dossier/css/themes.css" ]] && { [[ -n "$(theme_couleur "$theme")" && "$theme" != ls-* ]] || { [[ "$P_JS" == yes ]] && menu_contient "^($THEMES_MAISON)\$"; }; }; then
             echo "    <link rel=\"stylesheet\" href=\"css/themes.css\">"
         fi
         if [[ -f "$dossier/css/themes-linkstack.css" ]] && { [[ "$theme" == ls-* ]] || { [[ "$P_JS" == yes ]] && menu_contient '^ls-'; }; }; then

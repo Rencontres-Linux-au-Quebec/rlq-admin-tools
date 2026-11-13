@@ -4536,6 +4536,16 @@ Earlier history was archived outside this repository when this file was created.
 
 ## nginx-link-page.sh
 
+### 1.21.20261112.201948 - Five more themes: tux-quebec (blurred pale Tux as background), quebec, boreal, sunset, winter
+
+- Title: PAGE_n_THEME and PAGE_n_THEMES accept 5 new themes; tux-quebec uses the Tux with the fleur-de-lys of the Rencontres, blurred and pale, as background.
+- Reason: request of the administrator on 2026-11-12: create other themes for LittleLink, one of them with the provided penguin image, blurred and pale, as background.
+- Changes: apps/link-page-themes.css (now 10 themes): tux-quebec (image in the background, Quebec blue buttons, slightly transparent), quebec (flag blue, white cross, white buttons, fleur-de-lys before the title), boreal (dark greens, birch trunks, moss buttons), sunset (violet to orange sky, glass buttons), winter (snow white and ice blue, frosted buttons, snowflakes); new image apps/link-page-themes/images/tux-quebec.jpg (17 KB: the image provided, on white, Gaussian blur, 55 % lightened, copied as images/themes/tux-quebec.jpg); LICENSES.md: origin of the image (Tux by Larry Ewing, drawn with The GIMP); new constant THEMES_MAISON (the 10 themes of link-page-themes.css); THEMES_RE, THEMES_LISTE, THEMES_TOUS (17 themes); theme_nom (French and English names), theme_base, theme_couleur; --check: tux-quebec refused when its image is missing; nginx-link-page.conf.example: the themes described; nginx-tools-tests/test_nginx_link_page.py: 5 subtests, image checked; preview doc/images/link-page-themes-more.png.
+- Bugs fixed: none.
+- Safeguards and edge cases: nothing outside the page (the only url() of the style sheet is the local image, Content-Security-Policy 'self'); background colour of tux-quebec equal to the edges of the image (no visible square); the penguin fills the height of the screen (phone and computer); text shadows keep the description and the footer readable on the image and on the sunset; the brand buttons keep their colours; movements disabled with prefers-reduced-motion.
+- Checks performed: bash -n; shellcheck; test_nginx_link_page (57 tests); the 5 themes rendered in Google Chrome (phone width, and computer width for tux-quebec).
+- Action required: none (to use one: PAGE_n_THEME=tux-quebec, or add it to PAGE_n_THEMES; then sudo nginx-link-page.sh --update --yes).
+
 ### 1.20.20261112.192431 - PAGE_n_THEME=all: the error points to PAGE_n_THEMES
 
 - Title: a list or "all" given to PAGE_n_THEME (one theme) is refused with a hint: write PAGE_n_THEMES (with an S).

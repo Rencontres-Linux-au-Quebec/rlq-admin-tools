@@ -9,6 +9,7 @@ The images and the fonts come from the repositories of these themes. Adaptation:
 | `images/ls-dark-wallpaper.png`, `ls-dark` rules | https://github.com/LinkStackOrg/Dark (Julian Prieber & LinkStack team), based on https://github.com/ardacarofficial/links-website | MIT |
 | `images/ls-dawn-background.jpg`, `ls-dawn` rules | https://github.com/LinkStackOrg/Dawn (Julian Prieber & LinkStack team), based on https://github.com/johnggli/linktree | MIT |
 | `ls-misty-rain` rules (rain) | https://github.com/LinkStackOrg/Misty-Rain (LinkStack), rain based on https://codepen.io/amit_sheen/full/jOeGzBv | MIT |
+| `images/tux-quebec.jpg` (used by the `tux-quebec` theme of `../link-page-themes.css`) | Tux with the fleur-de-lys, image provided by the administrator of the Rencontres Linux du Québec (2026-11-12), blurred and lightened for this theme. Tux: Larry Ewing (lewing@isc.tamu.edu), drawn with The GIMP | Tux: use and modification allowed provided Larry Ewing and The GIMP are acknowledged; fleur-de-lys: emblem of Quebec |
 | `fonts/roboto-*.woff2` | Roboto (Google), copies of the LinkStack Dark theme | SIL Open Font License 1.1 |
 | `fonts/karla-*.woff2` | Karla (Jonathan Pinhorn), copies of the LinkStack Dawn theme | SIL Open Font License 1.1 |
 
