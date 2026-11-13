@@ -1,6 +1,6 @@
 /*
- * link-page-extras.css - featured links (LINK_n_STYLE=featured) and QR code link (PAGE_n_QR=yes) of the link pages of
- * nginx-link-page.sh.
+ * link-page-extras.css - featured links (LINK_n_STYLE=featured), QR code link (PAGE_n_QR=yes) and upcoming events of Odoo
+ * (PAGE_n_EVENTS) of the link pages of nginx-link-page.sh.
  * Copyright (C) 2026 Services-Conseils Linux Inc. - AGPL-3.0-or-later (see LICENSE).
  * Copied as css/extras.css into each page folder that uses one of them, loaded after the theme style sheets. No script.
  */
@@ -50,4 +50,27 @@
 	border-radius: 0.2rem;
 	background: #ffffff;
 	padding: 0.1rem;
+}
+
+/* ---- upcoming events of Odoo (PAGE_n_EVENTS): buttons of the theme, date above the name ---- */
+.events {
+	margin: 1.75rem 0 0.5rem;
+}
+.events h2 {
+	font-size: 1.1rem;
+	margin: 0 0 0.75rem;
+	opacity: 0.9;
+}
+.button.event-link {
+	flex-direction: column;
+	gap: 0.15rem;
+	line-height: 1.25;
+}
+.event-when {
+	font-size: 0.85rem;
+	font-weight: 600;
+	opacity: 0.85;
+}
+.event-name {
+	font-size: 1.05rem;
 }

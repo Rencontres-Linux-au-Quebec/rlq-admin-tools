@@ -974,6 +974,46 @@ printf '\\211PNG\\r\\n\\032\\nxxxx' > "$out"; printf '200 12'; exit 0
         self.assertIn("fragment nginx remis", r.stdout)
         self.assertIn("nginx -t réussi, nginx rechargé", r.stdout)
 
+    def test_134_evenements_odoo(self):
+        """1.34 : PAGE_n_EVENTS=N : les N prochains événements publiés d'Odoo (heure locale de l'événement, « dans N jours », lien),
+        lus par apps/link-page-events.py (ici un faux Odoo en JSON) ; tâche quotidienne ; Odoo injoignable : section omise ;
+        clés manquantes, fichier de clé absent ou lisible par d'autres, nombre invalide : refusés."""
+        import json
+        cle = self.tmp / "odoo-key"; cle.write_text("secret\n", encoding="utf-8"); cle.chmod(0o600)
+        evenements = self.tmp / "events.json"
+        evenements.write_text(json.dumps([
+            {"name": "Journée portes ouvertes", "date_begin": "2026-11-21 14:00:00", "date_end": "2026-11-21 22:00:00", "date_tz": "America/Toronto", "website_url": "/event/jpo-12"},
+            {"name": "Rencontre mensuelle", "date_begin": "2026-12-03 23:30:00", "date_end": "2026-12-04 02:00:00", "date_tz": "America/Toronto", "website_url": "/event/rm-13"},
+            {"name": "Troisième", "date_begin": "2027-01-07 23:30:00", "date_end": "2027-01-08 02:00:00", "date_tz": "America/Toronto", "website_url": "/event/t-14"}]), encoding="utf-8")
+        cles = (f"EVENTS_ODOO_URL=https://odoo.example.org\nEVENTS_ODOO_DB=rlq\nEVENTS_ODOO_LOGIN=lecture\nEVENTS_ODOO_KEY_FILE={cle}\n")
+        texte = self.config_deux_pages("no").replace("PAGE_1_THEME=auto", "PAGE_1_THEME=auto\nPAGE_1_EVENTS=2\nPAGE_1_LANGUAGES=fr,en") + cles
+        env = dict(self.env, NGINX_LINK_PAGE_EVENTS_JSON=str(evenements), NGINX_LINK_PAGE_TODAY="2026-11-12", NGINX_LINK_PAGE_CRON_DIR=str(self.tmp / "cron.d"))
+        r = self.lancer("-c", str(self.conf(texte)), "--update", "--yes", env=env)
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        fr = (self.www / "liens" / "index.html").read_text(encoding="utf-8")
+        en = (self.www / "liens" / "en" / "index.html").read_text(encoding="utf-8")
+        self.assertIn('<h2 id="events-title">Prochains événements</h2>', fr)
+        self.assertIn('href="https://odoo.example.org/event/jpo-12"', fr)
+        self.assertIn("samedi 21 novembre · 9 h · dans 9 jours</span><span class=\"event-name\">Journée portes ouvertes", fr)
+        self.assertIn("jeudi 3 décembre · 18 h 30 · dans 21 jours", fr)
+        self.assertNotIn("Troisième", fr)                                                   # PAGE_1_EVENTS=2
+        self.assertIn("Saturday, November 21 · 9:00 · in 9 days", en)
+        self.assertIn("Upcoming events", en)
+        self.assertIn('<link rel="stylesheet" href="css/extras.css">', fr)
+        self.assertTrue((self.tmp / "cron.d" / "nginx-link-page").exists())
+        r = self.lancer("-c", str(self.conf(texte)), "--update", "--yes", env=dict(env, NGINX_LINK_PAGE_EVENTS_JSON=str(self.tmp / "absent.json")))
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertIn("événements Odoo non lus, section omise", r.stdout)
+        self.assertNotIn("events-title", (self.www / "liens" / "index.html").read_text(encoding="utf-8"))
+        cle.chmod(0o644)
+        r = self.lancer("-c", str(self.conf(texte)), "--check", env=env)
+        self.assertIn("lisible par d'autres comptes : chmod 600", r.stderr)
+        r = self.lancer("-c", str(self.conf(MINIMAL + "PAGE_1_EVENTS=2\nSITE_BASE_URL=https://x.org/\n" + f"EVENTS_ODOO_KEY_FILE={self.tmp}/non\n")), "--check", env=env)
+        for attendu in ("EVENTS_ODOO_DB : base de données Odoo manquante", "EVENTS_ODOO_LOGIN : compte Odoo", "fichier absent (la clé d'API seule"):
+            self.assertIn(attendu, r.stderr)
+        r = self.lancer("-c", str(self.conf(MINIMAL + "PAGE_1_EVENTS=20\n")), "--check", env=env)
+        self.assertIn("PAGE_1_EVENTS=20 : nombre d'événements de 0 à 10", r.stderr)
+
     def test_deux_langues_detection_et_textes(self):
         texte = self.config_deux_pages("no").replace(
             "PAGE_1_THEME=auto", "PAGE_1_THEME=auto\nPAGE_1_LANGUAGES=fr,en").replace(

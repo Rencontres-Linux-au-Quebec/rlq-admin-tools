@@ -4536,6 +4536,16 @@ Earlier history was archived outside this repository when this file was created.
 
 ## nginx-link-page.sh
 
+### 1.34.20261112.224301 - PAGE_n_EVENTS: upcoming events read in Odoo every day
+
+- Title: new key PAGE_n_EVENTS=N: the page shows the N next published events of Odoo, with their date, "dans 9 jours" and a link; read every day.
+- Reason: request of the administrator on 2026-11-12 (suggestion 1 of the comparison with Linktree): the events are already in Odoo, so the page lists them by itself instead of links added and dated by hand.
+- Changes: new file apps/link-page-events.py (python3 -I, standard library only): XML-RPC with an API key read from a file (never on a command line), event.event search_read of the published events not over (date_end, website_published), name in the language of the page (fr_CA or en_US), date converted to the time zone of the event (date_tz), address made absolute; output one line per event (tab separated); NGINX_LINK_PAGE_EVENTS_JSON replaces Odoo for the tests; new keys PAGE_n_EVENTS (0 to 10) and EVENTS_ODOO_URL (default SITE_BASE_URL), EVENTS_ODOO_DB, EVENTS_ODOO_LOGIN, EVENTS_ODOO_KEY_FILE (default /etc/default/nginx-link-page.odoo-key), new group CLES_EVENTS for the check of unknown keys; --update reads the events once per language before building the pages; new functions tp (text in the language of the page), date_evenement ("samedi 21 novembre · 9 h" / "Saturday, November 21 · 9:00"), delai_jours (aujourd'hui, demain, dans N jours, en cours), section_evenements (section "Prochains événements" after the links, each event a button of the theme with its date above its name); css/extras.css: style of the section; the daily task (1.27) also runs when a page shows events; nginx-link-page.conf.example: the keys and how to make the read-only account and its key file; nginx-tools-tests/test_nginx_link_page.py: 1 test.
+- Bugs fixed: none.
+- Safeguards and edge cases: read only (search_read on event.event), with an account that has only the right to read the events; the key file must not be readable by other accounts (chmod 600, refused by --check otherwise) and is passed to the helper by its path; Odoo unreachable or account refused: [ATTN] with the reason, the page is built without the section (the links stay); only https:// addresses are shown; an event that started but is not over shows "en cours"; the times are those of the place of the event.
+- Checks performed: bash -n; python3 -m py_compile; shellcheck; test_nginx_link_page (67 tests) with a fake Odoo; the XML-RPC call itself could not be run against a real Odoo here.
+- Action required: create a read-only Odoo user and its API key, write the key alone in /etc/default/nginx-link-page.odoo-key (chmod 600), set EVENTS_ODOO_DB, EVENTS_ODOO_LOGIN and PAGE_1_EVENTS=3, then sudo nginx-link-page.sh --update --yes.
+
 ### 1.33.20261112.222624 - --rollback: put back the version of before the last --update
 
 - Title: new option --rollback: puts back the pages, the nginx snippet and the daily task of before the last --update.

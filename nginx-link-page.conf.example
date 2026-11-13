@@ -109,6 +109,8 @@
 #                    access log; nginx-link-page.sh --clicks counts the clicks of each link
 # PAGE_n_QR        : yes or no (default); yes: qr.svg and qr.png (QR code of the public address of the page, for posters
 #                    and slides) and a "QR code of this page" link; needs qrencode (sudo apt install qrencode)
+# PAGE_n_EVENTS    : 0 (default) to 10: the next published events of Odoo (date, "in 9 days", link), read every day
+#                    with the EVENTS_ODOO_* keys below
 # PAGE_n_LANGUAGES : fr, en, fr,en or en,fr. The first language is at the page root (/links/), the other one
 #                    in /links/en/ (or /links/fr/). The browser is redirected to the language it prefers,
 #                    otherwise the first language is shown.
@@ -130,6 +132,7 @@
 #PAGE_1_SHARE=yes
 #PAGE_1_CLICKS=no
 #PAGE_1_QR=no
+#PAGE_1_EVENTS=0
 #PAGE_1_LANGUAGES=en
 #
 # Example of a second page, to compare two engines: disabled until you want it.
@@ -142,3 +145,14 @@
 
 # --- Command-line options ONLY (actions or one-off settings: no key here) ---
 #   --config-merge  Rewrite the configuration file from the new default configuration, keeping the values set (copy FILE.bak-YYYYMMDD-HHMMSS), then exit
+#
+# ---------------------------------------------------------------------------------------------
+# 4. UPCOMING EVENTS OF ODOO (PAGE_n_EVENTS, PAGE_n_COUNTDOWN), read with a read-only account
+# ---------------------------------------------------------------------------------------------
+# Create an Odoo user with only the right to read the events (Events / User is enough, or a portal-like group with read
+# access to event.event), make an API key for it (Preferences > Account Security > New API key), and write ONLY the key
+# in the key file: sudo install -m 600 /dev/null /etc/default/nginx-link-page.odoo-key, then edit it.
+#EVENTS_ODOO_URL=                                  # default: SITE_BASE_URL
+#EVENTS_ODOO_DB=
+#EVENTS_ODOO_LOGIN=
+#EVENTS_ODOO_KEY_FILE=/etc/default/nginx-link-page.odoo-key

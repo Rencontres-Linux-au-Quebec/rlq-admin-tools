@@ -29,7 +29,7 @@
 set -u
 LANG_C="${LC_ALL:-${LC_MESSAGES:-${LANG:-C}}}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
-readonly SCRIPT_VERSION="1.33.20261112.222624"
+readonly SCRIPT_VERSION="1.34.20261112.224301"
 readonly SCRIPT_NAME="nginx-link-page"
 # --config-merge: same rule as the other programs (apps/_config.py fusionner): the configuration file is rewritten from the new template,
 # keeping its active values; the old file is copied to FILE.bak-YYYYMMDD-HHMMSS. Then exit.
@@ -296,19 +296,22 @@ valeur_ou() { local v="${CFG[$1]:-}"; [[ -n "$v" ]] && printf '%s' "$v" || print
 
 # 1.24: every key of the files must be known (a mistyped key was ignored without a word: PAGE_3_THEMS=all, SITE_LANGAUGE=en)
 readonly CLES_SITE="BASE_URL DESCRIPTION DESCRIPTION_EN FOOTER FOOTER_EN HEADING HEADING_EN LANGUAGE LOGO_ALT LOGO_URL SHARE_DESCRIPTION SHARE_DESCRIPTION_EN SHARE_IMAGE_URL SHARE_TITLE SHARE_TITLE_EN TITLE TITLE_EN"
+readonly CLES_EVENTS="ODOO_DB ODOO_KEY_FILE ODOO_LOGIN ODOO_URL"      # 1.34: upcoming events read in Odoo
 readonly CLES_LIEN="FROM ICON ICON_DARK LABEL LABEL_EN MENU PAGES STYLE UNTIL URL"
-readonly CLES_PAGE="ACCENT AVATAR BUTTONS CLICKS DIR ENABLED ENGINE LANGUAGES PATH QR SCRIPT SHARE SWITCH THEME THEMES TITLE TITLE_EN"
+readonly CLES_PAGE="ACCENT AVATAR BUTTONS CLICKS DIR ENABLED ENGINE EVENTS LANGUAGES PATH QR SCRIPT SHARE SWITCH THEME THEMES TITLE TITLE_EN"
 cle_connue() {   # cle_connue KEY: 0 when KEY is read by the program
     local k="$1" s
     if [[ "$k" =~ ^SITE_(.+)$ ]]; then for s in $CLES_SITE; do [[ "${BASH_REMATCH[1]}" == "$s" ]] && return 0; done; return 1; fi
     if [[ "$k" =~ ^LINK_[0-9]+_(.+)$ ]]; then for s in $CLES_LIEN; do [[ "${BASH_REMATCH[1]}" == "$s" ]] && return 0; done; return 1; fi
     if [[ "$k" =~ ^PAGE_[0-9]+_(.+)$ ]]; then for s in $CLES_PAGE; do [[ "${BASH_REMATCH[1]}" == "$s" ]] && return 0; done; return 1; fi
+    if [[ "$k" =~ ^EVENTS_(.+)$ ]]; then for s in $CLES_EVENTS; do [[ "${BASH_REMATCH[1]}" == "$s" ]] && return 0; done; return 1; fi
     return 1
 }
 cle_proche() {   # cle_proche KEY: the closest known key (same LINK_n or PAGE_n number), or nothing; needs python3
     local k="$1" num=1 s candidats=()
     [[ "$k" =~ ^[A-Z]+_([0-9]+)_ ]] && num="${BASH_REMATCH[1]}"
     for s in $CLES_SITE; do candidats+=("SITE_$s"); done
+    for s in $CLES_EVENTS; do candidats+=("EVENTS_$s"); done
     for s in $CLES_LIEN; do candidats+=("LINK_${num}_$s"); done
     for s in $CLES_PAGE; do candidats+=("PAGE_${num}_$s"); done
     command -v python3 >/dev/null 2>&1 || return 0
@@ -512,6 +515,27 @@ for i in ${LIENS_N[@]+"${LIENS_N[@]}"}; do
 done
 LIENS_DATES=0
 for i in ${LIENS_N[@]+"${LIENS_N[@]}"}; do [[ -n "${CFG[LINK_${i}_FROM]:-}${CFG[LINK_${i}_UNTIL]:-}" ]] && LIENS_DATES=1; done
+# 1.34: PAGE_n_EVENTS=N: the N next published events of Odoo (event.event), read with a read-only account and its API key
+EVENEMENTS_MAX=0
+EVENTS_URL_V="$(valeur_ou EVENTS_ODOO_URL "${SITE_BASE_URL_V%/}")"; EVENTS_URL_V="${EVENTS_URL_V%/}"
+EVENTS_CLE_V="$(valeur_ou EVENTS_ODOO_KEY_FILE "${NGINX_LINK_PAGE_ETC_DEFAULT:-/etc/default}/$SCRIPT_NAME.odoo-key")"
+for i in ${PAGES_N[@]+"${PAGES_N[@]}"}; do
+    ev="$(valeur_ou "PAGE_${i}_EVENTS" 0)"
+    if [[ ! "$ev" =~ ^[0-9]+$ ]] || (( 10#$ev > 10 )); then
+        PROBLEMES+=("PAGE_${i}_EVENTS=$ev : $(m "nombre d'événements de 0 à 10" "number of events from 0 to 10")"); continue
+    fi
+    (( 10#$ev > EVENEMENTS_MAX )) && EVENEMENTS_MAX=$((10#$ev))
+done
+if (( EVENEMENTS_MAX > 0 )); then
+    [[ "$EVENTS_URL_V" =~ ^https://[A-Za-z0-9.-]+(:[0-9]+)?$ ]] || PROBLEMES+=("EVENTS_ODOO_URL=${EVENTS_URL_V:-?} : $(m "adresse https:// du site Odoo (par défaut SITE_BASE_URL)" "https:// address of the Odoo site (SITE_BASE_URL by default)")")
+    [[ -n "${CFG[EVENTS_ODOO_DB]:-}" ]] || PROBLEMES+=("EVENTS_ODOO_DB : $(m "base de données Odoo manquante (PAGE_n_EVENTS)" "Odoo database missing (PAGE_n_EVENTS)")")
+    [[ -n "${CFG[EVENTS_ODOO_LOGIN]:-}" ]] || PROBLEMES+=("EVENTS_ODOO_LOGIN : $(m "compte Odoo en lecture seule manquant (PAGE_n_EVENTS)" "read-only Odoo account missing (PAGE_n_EVENTS)")")
+    if [[ ! -e "$EVENTS_CLE_V" ]]; then
+        PROBLEMES+=("EVENTS_ODOO_KEY_FILE=$EVENTS_CLE_V : $(m "fichier absent (la clé d'API seule, chmod 600)" "file missing (the API key only, chmod 600)")")
+    elif [[ -r "$EVENTS_CLE_V" && -n "$(find "$EVENTS_CLE_V" -perm /077 2>/dev/null)" ]]; then
+        PROBLEMES+=("EVENTS_ODOO_KEY_FILE=$EVENTS_CLE_V : $(m "lisible par d'autres comptes : chmod 600" "readable by other accounts: chmod 600")")
+    fi
+fi
 lien_visible() {   # lien_visible N: 0 when link N is shown today (no dates, or today between LINK_n_FROM and LINK_n_UNTIL)
     local du="${CFG[LINK_${1}_FROM]:-}" au="${CFG[LINK_${1}_UNTIL]:-}"
     [[ -n "$du" && "$AUJOURDHUI" < "$du" ]] && return 1
@@ -903,6 +927,18 @@ for i in "${LIENS_N[@]}"; do
     fi
 done
 
+# 1.34: upcoming events of Odoo, read once per language of the pages that show them (a failure leaves the section out)
+if (( EVENEMENTS_MAX > 0 )); then
+    for lg in $(for i in ${ACTIVES[@]+"${ACTIVES[@]}"}; do (( 10#$(valeur_ou "PAGE_${i}_EVENTS" 0) > 0 )) && valeur_ou "PAGE_${i}_LANGUAGES" "$SITE_LANGUAGE_V" | tr ',' '\n'; done | sort -u); do
+        if ODOO_URL="$EVENTS_URL_V" ODOO_DB="${CFG[EVENTS_ODOO_DB]:-}" ODOO_LOGIN="${CFG[EVENTS_ODOO_LOGIN]:-}" ODOO_KEY_FILE="$EVENTS_CLE_V" \
+           python3 -I "$SCRIPT_DIR/apps/link-page-events.py" "$EVENEMENTS_MAX" "$lg" > "$TMP/events-$lg.tsv" 2> "$TMP/events-$lg.err"; then
+            ok "$(m "événements Odoo" "Odoo events") ($lg) : $(wc -l < "$TMP/events-$lg.tsv") ($EVENTS_URL_V)"
+        else
+            : > "$TMP/events-$lg.tsv"
+            attn "$(m "événements Odoo non lus, section omise" "Odoo events not read, section left out") ($lg) : $(head -1 "$TMP/events-$lg.err")"
+        fi
+    done
+fi
 # 3) one folder per enabled page: assets + index.html generated with the page's theme and title
 # theme_nom THEME / bascule_libelle THEME: labels in the page language
 theme_nom() {
@@ -959,9 +995,49 @@ csp_script() { if [[ "$P_JS" == yes ]]; then echo "'self'"; else echo "'none'"; 
 menu_contient() { local t; for t in ${P_MENU[@]+"${P_MENU[@]}"}; do [[ "$t" =~ $1 ]] && return 0; done; return 1; }
 
 # page_a_extras: 0 when the page being generated (P_LIENS) has a featured link, in a menu or not, or shows its QR code
+# 1.34: date_evenement "YYYY-MM-DD HH:MM": date and time in the language of the page; delai_jours BEGIN_DAY END_DAY: "dans 9 jours"...
+date_evenement() {
+    local jour="${1% *}" heure="${1#* }" js ms h mi
+    js=$(LC_ALL=C date -d "$jour" +%u); ms=$(( 10#$(LC_ALL=C date -d "$jour" +%m) )); h=$((10#${heure%:*})); mi="${heure#*:}"
+    if [[ "$L_LANG" == en ]]; then
+        local jours=(x Monday Tuesday Wednesday Thursday Friday Saturday Sunday) mois=(x January February March April May June July August September October November December)
+        printf '%s, %s %s · %s:%s' "${jours[$js]}" "${mois[$ms]}" "$((10#${jour##*-}))" "$h" "$mi"
+    else
+        local jours=(x lundi mardi mercredi jeudi vendredi samedi dimanche) mois=(x janvier février mars avril mai juin juillet août septembre octobre novembre décembre)
+        printf '%s %s %s · %s h%s' "${jours[$js]}" "$((10#${jour##*-}))" "${mois[$ms]}" "$h" "$( [[ "$mi" != 00 ]] && echo " $mi")"
+    fi
+}
+# tp FR EN: text in the language of the page being generated (m follows the language of the messages of the program)
+tp() { if [[ "${L_LANG:-fr}" == en ]]; then printf '%s' "$2"; else printf '%s' "$1"; fi; }
+delai_jours() {
+    local d
+    d=$(( ( $(date -d "$1 12:00" +%s) - $(date -d "$AUJOURDHUI 12:00" +%s) ) / 86400 ))
+    if (( d < 0 )); then [[ "$AUJOURDHUI" > "$2" ]] && return 0; tp "en cours" "now on"; return 0; fi
+    case "$d" in
+        0) tp "aujourd'hui" "today" ;;
+        1) tp "demain" "tomorrow" ;;
+        *) tp "dans $d jours" "in $d days" ;;
+    esac
+}
+# section_evenements: the section of the upcoming events of the page being generated (P_EVENTS lines of $TMP/events-LANG.tsv)
+section_evenements() {
+    local f="$TMP/events-$L_LANG.tsv" debut fin nom adresse quand n=0
+    (( ${P_EVENTS:-0} > 0 )) && [[ -s "$f" ]] || return 0
+    echo "      <section class=\"events\" aria-labelledby=\"events-title\">"
+    echo "        <h2 id=\"events-title\">$(tp "Prochains événements" "Upcoming events")</h2>"
+    while IFS=$'\t' read -r debut fin nom adresse; do
+        (( n >= P_EVENTS )) && break
+        n=$((n + 1))
+        quand="$(date_evenement "$debut")"
+        [[ -n "$(delai_jours "${debut% *}" "$fin")" ]] && quand+=" · $(delai_jours "${debut% *}" "$fin")"
+        echo "        <a class=\"button button-default event-link\" href=\"$(html_echap "$adresse")\" target=\"_blank\" rel=\"noopener noreferrer\"><span class=\"event-when\">$(html_echap "$quand")</span><span class=\"event-name\">$(html_echap "$nom")</span></a>"
+    done < "$f"
+    echo "      </section>"
+}
 page_a_extras() {
     local n e
     [[ "${P_QR:-no}" == yes ]] && return 0
+    (( ${P_EVENTS:-0} > 0 )) && return 0                      # 1.34
     for n in ${P_LIENS[@]+"${P_LIENS[@]}"}; do
         [[ "${CFG[LINK_${n}_STYLE]:-normal}" == featured ]] && return 0
         for e in ${MENU_ENFANTS[$n]:-}; do [[ "${CFG[LINK_${e}_STYLE]:-normal}" == featured ]] && return 0; done
@@ -1105,6 +1181,7 @@ genere_index() {   # genere_index DOSSIER THEME TITRE [FICHIER] [CIBLE_BASCULE] 
             fi
         done
         echo "      </nav>"
+        section_evenements                                     # 1.34: upcoming events of Odoo (PAGE_n_EVENTS)
         if [[ -n "$cible" ]]; then
             echo "      <p><a class=\"button button-default\" href=\"$cible\">$(html_echap "$libelle")</a></p>"
         fi
@@ -1153,7 +1230,8 @@ for i in ${ACTIVES[@]+"${ACTIVES[@]}"}; do
     # 1.18: script of the page: only when it has something to do (theme button, "Share" button or two languages)
     P_PARTAGE="$(valeur_ou "PAGE_${i}_SHARE" yes)"
     P_CLICS="$(valeur_ou "PAGE_${i}_CLICKS" no)"             # 1.30: the links go through PATH/go/N (counted in the nginx logs)
-    P_QR="$(valeur_ou "PAGE_${i}_QR" no)"                     # 1.32: qr.svg and qr.png of the page, link above the footer
+    P_QR="$(valeur_ou "PAGE_${i}_QR" no)"
+    P_EVENTS=$((10#$(valeur_ou "PAGE_${i}_EVENTS" 0)))      # 1.34: upcoming events of Odoo                     # 1.32: qr.svg and qr.png of the page, link above the footer
     P_JS=no
     if [[ "$(valeur_ou "PAGE_${i}_SCRIPT" yes)" == yes ]] && { (( ${#P_MENU[@]} )) || [[ "$P_PARTAGE" == yes ]] || (( ${#P_LISTE[@]} == 2 )); }; then
         P_JS=yes
@@ -1350,18 +1428,18 @@ if nginx_erreur=$(nginx -t 2>&1); then
     fi
     # 1.27: dated links: a daily task (/etc/cron.d/nginx-link-page) rebuilds the pages at 00:05; removed when no link is dated
     CRON_FICHIER="${NGINX_LINK_PAGE_CRON_DIR:-/etc/cron.d}/$SCRIPT_NAME"
-    if (( LIENS_DATES )); then
+    if (( LIENS_DATES || EVENEMENTS_MAX > 0 )); then         # 1.34: the events of Odoo too
         mkdir -p "$(dirname "$CRON_FICHIER")"
         {
-            echo "# Genere par $SCRIPT_NAME.sh : liens dates (LINK_n_FROM, LINK_n_UNTIL), pages reconstruites chaque jour. Ne pas editer a la main."
+            echo "# Genere par $SCRIPT_NAME.sh : liens dates (LINK_n_FROM, LINK_n_UNTIL) ou evenements Odoo (PAGE_n_EVENTS), pages reconstruites chaque jour. Ne pas editer a la main."
             echo "SHELL=/bin/bash"
             echo "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
             echo "5 0 * * * root NGINX_LINK_PAGE_NO_BACKUP=1 $SCRIPT_DIR/$SCRIPT_NAME.sh --update --yes${CONFIG_EXPLICIT:+ -c $CONFIG_EXPLICIT} 2>&1 | logger -t $SCRIPT_NAME"
         } > "$CRON_FICHIER.tmp" && chmod 644 "$CRON_FICHIER.tmp" && mv -f "$CRON_FICHIER.tmp" "$CRON_FICHIER"
-        ok "$(m "liens datés : pages reconstruites chaque jour à 00:05" "dated links: pages rebuilt every day at 00:05") ($CRON_FICHIER)"
+        ok "$(m "liens datés ou événements : pages reconstruites chaque jour à 00:05" "dated links or events: pages rebuilt every day at 00:05") ($CRON_FICHIER)"
     elif [[ -f "$CRON_FICHIER" ]]; then
         rm -f "$CRON_FICHIER"
-        ok "$(m "plus de lien daté : tâche quotidienne retirée" "no dated link any more: daily task removed") ($CRON_FICHIER)"
+        ok "$(m "plus de lien daté ni d'événement : tâche quotidienne retirée" "no dated link nor event any more: daily task removed") ($CRON_FICHIER)"
     fi
 else
     if [[ -n "$LIEN_ANCIEN" ]]; then printf '%s\n' "$LIEN_ANCIEN" > "$LIEN_FICHIER"; else printf '%s\n' "# liens : inactif" > "$LIEN_FICHIER"; fi
