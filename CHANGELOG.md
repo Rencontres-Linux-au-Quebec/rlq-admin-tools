@@ -4536,6 +4536,16 @@ Earlier history was archived outside this repository when this file was created.
 
 ## nginx-link-page.sh
 
+### 1.37.20261112.224748 - --stats: visits, origin (QR code, sites), per day, and clicks
+
+- Title: new option --stats (--clicks becomes the same option): visits of each page, where they come from, per day, and the clicks.
+- Reason: request of the administrator on 2026-11-12 (suggestion 4 of the comparison with Linktree): richer statistics, including the visits that come from the QR code.
+- Changes: MODE clicks rewritten (one awk pass per page on the access logs, rotated and .gz files included): visits = GET or HEAD of the page (PATH, index.html, language folder, theme-NAME.html) answered 200 or 304, with the number of distinct addresses; robots set apart (user agent with bot, crawl, spider, preview, facebookexternalhit, curl, python, monitor, headless...); origin: "code QR" (?qr=1), the site of the Referer without www, or "direct"; table of the last 14 days (visits / clicks); clicks per link as in 1.30, robots set apart; a page with PAGE_n_CLICKS=no says "clics non comptés"; new option --stats, --clicks kept; QR code (1.32): it encodes the address of the page followed by ?qr=1; nginx-tools-tests/test_nginx_link_page.py: 1 test, the contents expected from the QR code updated.
+- Bugs fixed: none.
+- Safeguards and edge cases: style sheets, images and 404 are not counted as visits; the referer is reduced to its site name (no path, no query: nothing personal is shown); only what the logs keep is counted (logrotate, usually 14 days); an unreadable log stops with "run with sudo".
+- Checks performed: bash -n; shellcheck; test_nginx_link_page (71 tests); help order.
+- Action required: none (sudo nginx-link-page.sh --stats; for the QR origin, sudo nginx-link-page.sh --update --yes rewrites the QR codes, the posters printed before keep the old address and count as "direct").
+
 ### 1.36.20261112.224601 - LINK_n_IMAGE: thumbnail at the left of the button
 
 - Title: new key LINK_n_IMAGE: a thumbnail at the left of the button, instead of the icon (the poster of an event, for example).

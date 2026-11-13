@@ -29,7 +29,7 @@
 set -u
 LANG_C="${LC_ALL:-${LC_MESSAGES:-${LANG:-C}}}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
-readonly SCRIPT_VERSION="1.36.20261112.224601"
+readonly SCRIPT_VERSION="1.37.20261112.224748"
 readonly SCRIPT_NAME="nginx-link-page"
 # --config-merge: same rule as the other programs (apps/_config.py fusionner): the configuration file is rewritten from the new template,
 # keeping its active values; the old file is copied to FILE.bak-YYYYMMDD-HHMMSS. Then exit.
@@ -125,13 +125,14 @@ Options (ordre alphabetique / alphabetical order) :
   ${C_OPT}--changelog${C_RESET}                affiche le journal des modifications / show the change log
   ${C_OPT}--check${C_RESET}                    verifie la configuration, n'ecrit rien (defaut) / check only, writes nothing (default)
   ${C_OPT}--check-links${C_RESET}              demande chaque adresse des liens et signale les liens morts (404, sans réponse...) / request every link address and report the dead links (404, no answer...)
-  ${C_OPT}--clicks${C_RESET}                   clics de chaque lien (PAGE_n_CLICKS=yes), lus dans les journaux d'accès de nginx / clicks of each link (PAGE_n_CLICKS=yes), read in the nginx access logs
+  ${C_OPT}--clicks${C_RESET}                   comme --stats / same as --stats
   ${C_OPT}-c, --config FILE${C_RESET}          lit SEUL ce fichier / read ONLY this file
   ${C_OPT}--config-merge${C_RESET}             reecrit la configuration d'apres le nouveau modele en gardant ses valeurs (copie FICHIER.bak-...), puis quitte / rewrite the configuration from the new template, keeping its values (copy FILE.bak-...), then exit
   ${C_OPT}-h, --help${C_RESET}                 affiche cette aide / show this help
   ${C_OPT}--init${C_RESET}                     cree la configuration depuis le modele / create the configuration from the template
   ${C_OPT}--lang LANG${C_RESET}                langue des messages : fr ou en / message language: fr or en
   ${C_OPT}--rollback${C_RESET}                 remet les pages et le fragment nginx d'avant le dernier --update / put back the pages and the nginx snippet of before the last --update
+  ${C_OPT}--stats${C_RESET}                    visites (provenance, par jour) et clics de chaque lien, lus dans les journaux d'accès de nginx / visits (origin, per day) and clicks of each link, read in the nginx access logs
   ${C_OPT}--update${C_RESET}                   installe ou met a jour les pages (root, confirmation) / install or update (root, asks first)
   ${C_OPT}--version${C_RESET}                  affiche la version / show the version
   ${C_OPT}--yes${C_RESET}                      avec --update : sans question / with --update: no question
@@ -232,7 +233,7 @@ while [[ $# -gt 0 ]]; do
             exit 0 ;;
         --check) MODE="check"; shift ;;
         --check-links) MODE="links"; shift ;;
-        --clicks) MODE="clicks"; shift ;;
+        --clicks|--stats) MODE="clicks"; shift ;;
         --init) MODE="init"; shift ;;
         --update) MODE="update"; shift ;;
         --rollback) MODE="rollback"; shift ;;
@@ -752,7 +753,8 @@ for i in "${LIENS_N[@]}"; do
         echo "  - ${CFG[LINK_${i}_LABEL]} -> ${CFG[LINK_${i}_URL]:-}$(periode_lien "$i")"
     fi
 done
-# 1.30: --clicks: requests "GET PATH/go/N" answered 302 in the nginx access logs (rotated and .gz included), per page and link
+# 1.30: --clicks; 1.37: --stats (same option): visits of each page (robots set apart), where they come from (QR code, sites, direct),
+# per day, and clicks of each link (PAGE_n_CLICKS=yes), read in the nginx access logs (rotated and .gz files included)
 if [[ "$MODE" == "clicks" ]]; then
     shopt -s nullglob
     # shellcheck disable=SC2206   # the variable is a glob on purpose (access.log, access.log.1, access.log.2.gz...)
@@ -761,25 +763,59 @@ if [[ "$MODE" == "clicks" ]]; then
     echo
     if (( ${#journaux[@]} == 0 )); then err "$(m "aucun journal d'accès" "no access log") (${NGINX_LINK_PAGE_ACCESS_LOGS:-/var/log/nginx/access.log*})"; exit 1; fi
     for j in "${journaux[@]}"; do [[ -r "$j" ]] || { err "$(m "journal illisible (lancer avec sudo)" "log not readable (run with sudo)") : $j"; exit 1; }; done
-    echo "$(m "Clics" "Clicks") ($(m "journaux" "logs") : ${#journaux[@]} $(m "fichier(s)" "file(s)"), ${journaux[0]%/*}) :"
-    avec_clics=0
+    echo "$(m "Statistiques" "Statistics") ($(m "journaux" "logs") : ${#journaux[@]} $(m "fichier(s)" "file(s)"), ${journaux[0]%/*}) :"
     for i in "${PAGES_N[@]}"; do
-        [[ "$(valeur_ou "PAGE_${i}_CLICKS" no)" == yes ]] || continue
-        avec_clics=1
         chemin="$(valeur_ou "PAGE_${i}_PATH" "")"
+        clics="$(valeur_ou "PAGE_${i}_CLICKS" no)"
         echo "  PAGE_${i} ${chemin} :"
-        resultat="$(zcat -f -- "${journaux[@]}" 2>/dev/null | awk -v p="\"GET ${chemin}go/" '
-            { d = index($0, p); if (!d) next
-              reste = substr($0, d + length(p)); n = reste; sub(/[^0-9].*/, "", n); if (n == "") next
-              apres = substr(reste, index(reste, "\"") + 1); split(apres, f, " "); if (f[1] != "302") next
-              total[n]++; if (!((n, $1) in vu)) { vu[n, $1] = 1; ips[n]++ } }
-            END { for (n in total) printf "%d %d %s\n", total[n], ips[n], n }' | sort -k1,1nr -k3,3n)"
-        if [[ -z "$resultat" ]]; then echo "    $(m "aucun clic" "no click")"; continue; fi
-        while read -r total ips n; do
-            printf '    %6s %s, %s %s  LINK_%s %s\n' "$total" "$(m "clics" "clicks")" "$ips" "$(m "adresses" "addresses")" "$n" "${CFG[LINK_${n}_LABEL]:-?}"
-        done <<< "$resultat"
+        resultat="$(zcat -f -- "${journaux[@]}" 2>/dev/null | awk -v p="$chemin" '
+            BEGIN { mois = "JanFebMarAprMayJunJulAugSepOctNovDec" }
+            { nq = split($0, q, "\""); if (nq < 6) next
+              split(q[2], req, " "); if (req[1] != "GET" && req[1] != "HEAD") next
+              cible = req[2]; requete = ""; k = index(cible, "?"); if (k) { requete = substr(cible, k + 1); cible = substr(cible, 1, k - 1) }
+              if (substr(cible, 1, length(p)) != p) next
+              split(q[3], st, " "); code = st[1]
+              ua = tolower(q[6]); robot = (ua ~ /bot|crawl|spider|slurp|preview|facebookexternalhit|embedly|curl|wget|python|monitor|headless|nginx-link-page/)
+              j = substr($4, 2, 11); split(j, dt, "/"); jour = sprintf("%s-%02d-%s", dt[3], (index(mois, dt[2]) + 2) / 3, dt[1])
+              reste = substr(cible, length(p) + 1)
+              if (reste ~ /^go\/[0-9]+$/) {
+                  if (code != "302") next
+                  if (robot) next
+                  n = substr(reste, 4); clic[n]++; if (!((n, $1) in vuc)) { vuc[n, $1] = 1; ipc[n]++ }; parjour_c[jour]++; jours[jour] = 1; next }
+              if (reste !~ /^((en|fr)\/)?((index|theme-[a-z-]+)\.html)?$/) next
+              if (code != "200" && code != "304") next
+              if (robot) { robots++; next }
+              visites++; if (!($1 in vuv)) { vuv[$1] = 1; ipv++ }
+              parjour_v[jour]++; jours[jour] = 1
+              if (requete ~ /(^|&)qr=1(&|$)/) src = "QR"
+              else if (q[4] == "-" || q[4] == "") src = "-"
+              else { src = q[4]; sub(/^[a-z]+:\/\//, "", src); sub(/[\/:?].*$/, "", src); sub(/^www\./, "", src) }
+              source[src]++ }
+            END { printf "V %d %d %d\n", visites, ipv, robots
+                  for (s in source) printf "S %d %s\n", source[s], s
+                  for (d in jours) printf "D %s %d %d\n", d, parjour_v[d], parjour_c[d]
+                  for (n in clic) printf "C %d %d %s\n", clic[n], ipc[n], n }')"
+        read -r _ visites ips robots <<< "$(grep '^V ' <<< "$resultat")"
+        echo "    $(m "Visites" "Visits") : ${visites:-0} (${ips:-0} $(m "adresses" "addresses")) ; $(m "robots écartés" "robots set apart") : ${robots:-0}"
+        sources="$(grep '^S ' <<< "$resultat" | sort -k2,2nr | head -8 | while read -r _ nb src; do
+            case "$src" in QR) src="$(m "code QR" "QR code")" ;; -) src="$(m "direct" "direct")" ;; esac
+            printf '%s %s · ' "$src" "$nb"; done)"
+        [[ -n "$sources" ]] && echo "    $(m "Provenance" "Origin") : ${sources% · }"
+        if grep -q '^D ' <<< "$resultat"; then
+            echo "    $(m "Par jour (visites / clics), 14 derniers jours" "Per day (visits / clicks), last 14 days") :"
+            grep '^D ' <<< "$resultat" | sort -k2,2 | tail -14 | while read -r _ d v c; do printf '      %s  %5s / %s\n' "$d" "$v" "$c"; done
+        fi
+        if [[ "$clics" != yes ]]; then
+            echo "    $(m "Clics : non comptés (PAGE_${i}_CLICKS=no)" "Clicks: not counted (PAGE_${i}_CLICKS=no)")"
+        elif ! grep -q '^C ' <<< "$resultat"; then
+            echo "    $(m "aucun clic" "no click")"
+        else
+            echo "    $(m "Clics" "Clicks") :"
+            grep '^C ' <<< "$resultat" | sort -k2,2nr -k4,4n | while read -r _ total ipn n; do
+                printf '    %6s %s, %s %s  LINK_%s %s\n' "$total" "$(m "clics" "clicks")" "$ipn" "$(m "adresses" "addresses")" "$n" "${CFG[LINK_${n}_LABEL]:-?}"
+            done
+        fi
     done
-    (( avec_clics )) || attn "$(m "aucune page avec PAGE_n_CLICKS=yes : les liens vont directement à leur adresse" "no page with PAGE_n_CLICKS=yes: the links go straight to their address")"
     exit 0
 fi
 # 1.28: --check-links: every address is requested (HEAD, then GET when HEAD is refused); dead links make the exit code 1
@@ -1317,7 +1353,8 @@ for i in ${ACTIVES[@]+"${ACTIVES[@]}"}; do
         fi
         if [[ "$P_JS" == yes ]]; then mkdir -p "$dossier/js"; install -m 644 "$LINK_PAGE_JS" "$dossier/js/link-page.js"; fi
         if [[ "$P_QR" == yes ]]; then                          # 1.32: QR code of the public address of this language
-            if qrencode -t SVG -l M -m 2 -s 6 -o "$dossier/qr.svg" "$L_URL_PUBLIQUE" && qrencode -t PNG -l M -m 4 -s 12 -o "$dossier/qr.png" "$L_URL_PUBLIQUE"; then
+            # 1.37: ?qr=1 tells --stats the visits that come from the QR code
+            if qrencode -t SVG -l M -m 2 -s 6 -o "$dossier/qr.svg" "${L_URL_PUBLIQUE}?qr=1" && qrencode -t PNG -l M -m 4 -s 12 -o "$dossier/qr.png" "${L_URL_PUBLIQUE}?qr=1"; then
                 ok "$(m "code QR" "QR code") : ${L_URL_PUBLIQUE}qr.png"
             else
                 attn "$(m "code QR non créé (qrencode)" "QR code not created (qrencode)") : $L_URL_PUBLIQUE"; rm -f "$dossier/qr.svg" "$dossier/qr.png"

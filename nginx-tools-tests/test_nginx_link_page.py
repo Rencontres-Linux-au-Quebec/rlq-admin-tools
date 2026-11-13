@@ -932,8 +932,8 @@ printf '\\211PNG\\r\\n\\032\\nxxxx' > "$out"; printf '200 12'; exit 0
         r = self.lancer("-c", str(self.conf(texte)), "--update", "--yes", env=self.env)
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
         page = self.www / "liens"
-        self.assertEqual((page / "qr.png").read_text(encoding="utf-8"), "QR https://www.example.org/liens/\n")
-        self.assertEqual((page / "en" / "qr.svg").read_text(encoding="utf-8"), "QR https://www.example.org/liens/en/\n")
+        self.assertEqual((page / "qr.png").read_text(encoding="utf-8"), "QR https://www.example.org/liens/?qr=1\n")
+        self.assertEqual((page / "en" / "qr.svg").read_text(encoding="utf-8"), "QR https://www.example.org/liens/en/?qr=1\n")
         html = (page / "index.html").read_text(encoding="utf-8")
         self.assertIn('<p class="qr-link"><a href="qr.png" download><img src="qr.svg" alt="">Code QR de cette page</a></p>', html)
         self.assertIn("QR code of this page", (page / "en" / "index.html").read_text(encoding="utf-8"))
@@ -1043,6 +1043,32 @@ printf '\\211PNG\\r\\n\\032\\nxxxx' > "$out"; printf '200 12'; exit 0
         self.assertIn('<link rel="stylesheet" href="css/extras.css">', html)
         r = self.lancer("-c", str(self.conf(MINIMAL + "LINK_1_IMAGE=ftp://x/y.png\n")), "--check")
         self.assertIn("LINK_1_IMAGE : adresse https:// ou chemin relatif d'une image", r.stderr)
+
+    def test_137_statistiques(self):
+        """1.37 : --stats (et --clicks) : visites des pages (200 et 304, index, langue, thèmes) avec les adresses, robots écartés,
+        provenance (code QR par ?qr=1, sites sans www, direct), par jour, clics ; PAGE_n_CLICKS=no : clics non comptés."""
+        journaux = self.tmp / "logs"; journaux.mkdir()
+        def l(ip, chemin, code, ref="-", ua="Mozilla/5.0", jour="12/Nov/2026"):
+            return f'{ip} - - [{jour}:21:00:00 -0500] "GET {chemin} HTTP/2.0" {code} 10 "{ref}" "{ua}"\n'
+        (journaux / "access.log").write_text(
+            l("1.1.1.1", "/liens/", 200, "https://www.linkedin.com/feed/") + l("1.1.1.1", "/liens/en/", 304, "https://www.linkedin.com/") +
+            l("2.2.2.2", "/liens/?qr=1", 200) + l("3.3.3.3", "/liens/theme-dark.html", 200, jour="11/Nov/2026") +
+            l("4.4.4.4", "/liens/", 200, ua="LinkedInBot/1.0") + l("5.5.5.5", "/liens/css/style.css", 200) +
+            l("6.6.6.6", "/liens/", 404) + l("2.2.2.2", "/liens/go/1", 302) + l("7.7.7.7", "/liens2/", 200), encoding="utf-8")
+        texte = self.config_deux_pages("no").replace("PAGE_1_THEME=auto", "PAGE_1_THEME=auto\nPAGE_1_CLICKS=yes")
+        r = self.lancer("-c", str(self.conf(texte)), "--stats", env=dict(self.env, NGINX_LINK_PAGE_ACCESS_LOGS=str(journaux / "access.log*")))
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        p1 = r.stdout[r.stdout.index("PAGE_1 /liens/ :"):r.stdout.index("PAGE_2 /liens2/ :")]
+        self.assertIn("Visites : 4 (3 adresses) ; robots écartés : 1", p1)
+        self.assertIn("Provenance : linkedin.com 2 · ", p1)
+        self.assertIn("code QR 1", p1)
+        self.assertIn("direct 1", p1)
+        self.assertIn("2026-11-11      1 / 0", p1)
+        self.assertIn("2026-11-12      3 / 1", p1)
+        self.assertRegex(p1, r"(?m)^ +1 clics, 1 adresses  LINK_1 Lien <A>$")
+        p2 = r.stdout[r.stdout.index("PAGE_2 /liens2/ :"):]
+        self.assertIn("Visites : 1 (1 adresses)", p2)
+        self.assertIn("Clics : non comptés (PAGE_2_CLICKS=no)", p2)
 
     def test_deux_langues_detection_et_textes(self):
         texte = self.config_deux_pages("no").replace(
