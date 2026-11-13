@@ -29,7 +29,7 @@
 set -u
 LANG_C="${LC_ALL:-${LC_MESSAGES:-${LANG:-C}}}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
-readonly SCRIPT_VERSION="1.53.20261113.164817"
+readonly SCRIPT_VERSION="1.54.20261113.165847"
 readonly SCRIPT_NAME="nginx-link-page"
 # --config-merge: same rule as the other programs (apps/_config.py fusionner): the configuration file is rewritten from the new template,
 # keeping its active values; the old file is copied to FILE.bak-YYYYMMDD-HHMMSS. Then exit.
@@ -63,13 +63,13 @@ readonly LINKPAGE_EXT_SHA="d7034f83a6bf71c4a663d2d046a03b37ec74ae45"
 readonly MAX_ASSET_BYTES=524288
 # 1.15: themes of PAGE_n_THEME: the 3 of LittleLink, then the 5 of apps/link-page-themes.css (copied as css/themes.css into each page)
 # 1.16: and the 4 LinkStack themes adapted in apps/link-page-themes/ (linkstack.css, images, fonts; MIT and OFL, LICENSES.md)
-readonly THEMES_RE="auto|light|dark|aurora|maple|river|terminal|tux|quebec|boreal|sunset|winter|photo|tux-quebec|tux-flag|tux-poster|ls-aurora|ls-dark|ls-dawn|ls-misty-rain"
-readonly THEMES_LISTE="auto, light, dark, aurora, maple, river, terminal, tux, quebec, boreal, sunset, winter, photo, ls-aurora, ls-dark, ls-dawn ou ls-misty-rain"
+readonly THEMES_RE="auto|light|dark|aurora|maple|river|terminal|tux|quebec|boreal|sunset|winter|photo|amber|arctic|console|retro|solar|tux-quebec|tux-flag|tux-poster|ls-aurora|ls-dark|ls-dawn|ls-misty-rain"
+readonly THEMES_LISTE="auto, light, dark, aurora, maple, river, terminal, tux, quebec, boreal, sunset, winter, photo, amber, arctic, console, retro, solar, ls-aurora, ls-dark, ls-dawn ou ls-misty-rain ; all : tous, l'un après l'autre"
 readonly THEMES_CSS="$SCRIPT_DIR/apps/link-page-themes.css"
 # themes of link-page-themes.css (1.15: 5 themes; 1.21: 5 more; 1.41: photo, whose image is given by PAGE_n_BACKGROUND)
 # 1.41: old names of the themes with the images of one group (removed from the repository): read as photo
 readonly THEMES_ANCIENS="tux-quebec|tux-flag|tux-poster"
-readonly THEMES_MAISON="aurora|maple|river|terminal|tux|quebec|boreal|sunset|winter|photo"
+readonly THEMES_MAISON="aurora|maple|river|terminal|tux|quebec|boreal|sunset|winter|photo|amber|arctic|console|retro|solar"
 readonly THEMES_LINKSTACK="$SCRIPT_DIR/apps/link-page-themes"
 # 1.17: "Theme" button (PAGE_n_THEMES): style sheet copied as css/theme-menu.css; "all" = every theme of THEMES_RE
 readonly THEME_MENU_CSS="$SCRIPT_DIR/apps/link-page-theme-menu.css"
@@ -79,7 +79,7 @@ readonly LINK_MENU_CSS="$SCRIPT_DIR/apps/link-page-link-menu.css"
 readonly EXTRAS_CSS="$SCRIPT_DIR/apps/link-page-extras.css"
 # 1.18: script of the pages (PAGE_n_SCRIPT): theme in place and remembered, language remembered, "Share" button; copied as js/link-page.js
 readonly LINK_PAGE_JS="$SCRIPT_DIR/apps/link-page.js"
-readonly THEMES_TOUS="auto light dark aurora maple river terminal tux quebec boreal sunset winter photo ls-aurora ls-dark ls-dawn ls-misty-rain"
+readonly THEMES_TOUS="auto light dark aurora maple river terminal tux quebec boreal sunset winter photo amber arctic console retro solar ls-aurora ls-dark ls-dawn ls-misty-rain"
 # themes_offerts VALUE: the themes of PAGE_n_THEMES, one per word, without duplicates, in the given order ("all": THEMES_TOUS)
 themes_offerts() {
     local v="${1// /}" t u vus=" "
@@ -423,7 +423,7 @@ done
 readonly CLES_SITE="BASE_URL COUNTDOWN_DATE COUNTDOWN_LABEL COUNTDOWN_LABEL_EN COUNTDOWN_URL DESCRIPTION DESCRIPTION_EN FOOTER FOOTER_EN HEADING HEADING_EN LANGUAGE LOGO_ALT LOGO_URL NEWSLETTER_LABEL NEWSLETTER_LABEL_EN NEWSLETTER_URL VCARD_EMAIL VCARD_NAME VCARD_PHONE VCARD_URL ODOO_CHECK_URL ODOO_PROFILE_PATH SHARED_DIR SHARED_PATH SHARE_DESCRIPTION SHARE_DESCRIPTION_EN SHARE_IMAGE_URL SHARE_TITLE SHARE_TITLE_EN TITLE TITLE_EN"
 readonly CLES_EVENTS="ODOO_DB ODOO_KEY_FILE ODOO_LANG_EN ODOO_LANG_FR ODOO_LOGIN ODOO_URL"      # 1.34: upcoming events read in Odoo
 readonly CLES_LIEN="ACCESS FROM ICON ICON_DARK IMAGE LABEL LABEL_EN MENU PAGES STYLE UNTIL URL"
-readonly CLES_PAGE="ACCENT AVATAR BACKGROUND BACKGROUND_STYLE BUTTONS CLICKS COUNTDOWN DIR ENABLED ENGINE EVENTS GREETING LANGUAGES NEWSLETTER PATH QR SCRIPT SHARE SWITCH THEME THEMES TITLE TITLE_EN VCARD"
+readonly CLES_PAGE="ACCENT AVATAR BACKGROUND BACKGROUND_STYLE BUTTONS CLICKS COUNTDOWN DIR ENABLED ENGINE EVENTS GREETING LANGUAGES NEWSLETTER PATH QR SCRIPT SHARE SWITCH THEME THEMES THEME_SECONDS TITLE TITLE_EN VCARD"
 cle_connue() {   # cle_connue KEY: 0 when KEY is read by the program
     local k="$1" s
     if [[ "$k" =~ ^SITE_(.+)$ ]]; then for s in $CLES_SITE; do [[ "${BASH_REMATCH[1]}" == "$s" ]] && return 0; done; return 1; fi
@@ -772,8 +772,16 @@ for i in "${PAGES_N[@]}"; do
         DOSSIERS_VUS["$d2"]=1
         DOSSIERS_LISTE+=("$d2")
     fi
-    if [[ ! "$theme" =~ ^($THEMES_RE)$ ]]; then
-        if [[ "$theme" == *,* || "$theme" =~ ^[[:space:]]*all[[:space:]]*$ ]]; then      # 1.20: a list or "all" belongs to PAGE_n_THEMES
+    # 1.54: PAGE_n_THEME=all: the themes one after the other (PAGE_n_THEMES, or all of them), every PAGE_n_THEME_SECONDS (10 by default)
+    sec_v="$(valeur_ou "${pre}THEME_SECONDS" 10)"
+    if [[ ! "$sec_v" =~ ^[0-9]{1,4}$ ]] || (( 10#$sec_v < 3 || 10#$sec_v > 3600 )); then
+        PROBLEMES+=("${pre}THEME_SECONDS=$sec_v : $(m "nombre de secondes de 3 à 3600" "number of seconds from 3 to 3600")")
+    fi
+    if [[ "$theme" == all && "$(valeur_ou "${pre}SCRIPT" yes)" != yes ]]; then
+        PROBLEMES+=("${pre}THEME=all : $(m "demande ${pre}SCRIPT=yes (le script de la page change le thème)" "needs ${pre}SCRIPT=yes (the script of the page changes the theme)")")
+    fi
+    if [[ "$theme" != all && ! "$theme" =~ ^($THEMES_RE)$ ]]; then
+        if [[ "$theme" == *,* ]]; then      # 1.20: a list belongs to PAGE_n_THEMES (1.54: "all" is a theme: the themes one after the other)
             PROBLEMES+=("${pre}THEME=$theme : un seul thème ici ; pour le bouton Thème, écrire ${pre}THEMES=$theme (avec un S) / one theme only here; for the Theme button, write ${pre}THEMES=$theme (with an S)")
         else
             PROBLEMES+=("${pre}THEME=$theme ($THEMES_LISTE)")
@@ -792,7 +800,7 @@ for i in "${PAGES_N[@]}"; do
             if abs="$(resoudre_url "$fond")"; then fond="$abs"; CFG[${pre}BACKGROUND]="$abs"; fi
             [[ "$fond" =~ $URL_RE ]] || PROBLEMES+=("${pre}BACKGROUND : $(m "https://, chemin relatif ou file:/CHEMIN d'une image (PNG, JPEG, WebP, SVG)" "https://, relative path or file:/PATH of an image (PNG, JPEG, WebP, SVG)")")
         fi
-        [[ "$theme" == photo || ",$(valeur_ou "${pre}THEMES" ""), " =~ ,(photo|all), ]] \
+        [[ "$theme" == photo || "$theme" == all || ",$(valeur_ou "${pre}THEMES" ""), " =~ ,(photo|all), ]] \
             || attn "${pre}BACKGROUND : $(m "sert seulement au thème photo (PAGE_n_THEME ou PAGE_n_THEMES)" "used by the theme photo only (PAGE_n_THEME or PAGE_n_THEMES)")"
     elif [[ "$theme" == photo ]]; then
         attn "${pre}THEME=photo : $(m "sans ${pre}BACKGROUND, fond uni" "without ${pre}BACKGROUND, plain background")"
@@ -1376,22 +1384,25 @@ theme_nom() {
         case "$1" in light) echo light ;; dark) echo dark ;; aurora) echo "northern lights" ;; maple) echo maple ;; river) echo river ;;
                      terminal) echo terminal ;; tux) echo Tux ;; ls-aurora) echo "Aurora (LinkStack)" ;; ls-dark) echo "Dark (LinkStack)" ;;
                      quebec) echo "Quebec flag" ;; boreal) echo "boreal forest" ;; sunset) echo sunset ;; winter) echo winter ;; photo) echo photo ;;
+                     amber) echo "amber screen" ;; arctic) echo arctic ;; console) echo "Linux console" ;; retro) echo retro ;; solar) echo solar ;;
                      ls-dawn) echo "Dawn (LinkStack)" ;; ls-misty-rain) echo "Misty Rain (LinkStack)" ;; *) echo automatic ;; esac
     else
         case "$1" in light) echo clair ;; dark) echo sombre ;; aurora) echo "aurore boréale" ;; maple) echo érable ;; river) echo fleuve ;;
                      terminal) echo terminal ;; tux) echo Tux ;; ls-aurora) echo "Aurora (LinkStack)" ;; ls-dark) echo "Dark (LinkStack)" ;;
                      quebec) echo fleurdelisé ;; boreal) echo "forêt boréale" ;; sunset) echo "coucher de soleil" ;; winter) echo hiver ;; photo) echo photo ;;
+                     amber) echo "écran ambre" ;; arctic) echo arctique ;; console) echo "console Linux" ;; retro) echo rétro ;; solar) echo solaire ;;
                      ls-dawn) echo "Dawn (LinkStack)" ;; ls-misty-rain) echo "Misty Rain (LinkStack)" ;; *) echo automatique ;; esac
     fi
 }
 # theme_base THEME: light or dark (choice of the icons of LINK_n_ICON_DARK, theme of the second page with PAGE_n_SWITCH), auto for auto
 theme_base() {
-    case "$1" in dark|aurora|terminal|tux|quebec|boreal|sunset|ls-*) echo dark ;; light|maple|river|winter|photo) echo light ;; *) echo auto ;; esac
+    case "$1" in dark|aurora|terminal|tux|quebec|boreal|sunset|amber|arctic|console|retro|ls-*) echo dark ;; light|maple|river|winter|photo|solar) echo light ;; *) echo auto ;; esac
 }
 # theme_couleur THEME: colour of the browser bar (meta theme-color) of the 5 themes of link-page-themes.css
 theme_couleur() {
     case "$1" in aurora) echo "#0b1026" ;; maple) echo "#b3261e" ;; river) echo "#0e6b7f" ;; terminal) echo "#050805" ;; tux) echo "#1c1f24" ;;
                  quebec) echo "#003da5" ;; boreal) echo "#0f2318" ;; sunset) echo "#2b1a4a" ;; winter) echo "#dcebf7" ;; photo) echo "#1f3a5f" ;;
+                 amber) echo "#100a00" ;; arctic) echo "#2e3440" ;; console) echo "#000000" ;; retro) echo "#282828" ;; solar) echo "#fdf6e3" ;;
                  ls-aurora) echo "#24123d" ;; ls-dark) echo "#1f232e" ;; ls-dawn) echo "#223344" ;; ls-misty-rain) echo "#181b24" ;; esac
 }
 bascule_libelle() {
@@ -1617,6 +1628,7 @@ genere_index() {   # genere_index DOSSIER THEME TITRE [FICHIER] [CIBLE_BASCULE] 
                 donnees=""
                 for t in "${P_MENU[@]}"; do donnees+="$t|$(theme_base "$t")|$(theme_couleur "$t") "; done
                 attrs+=" data-themes=\"${donnees% }\""
+                if (( ${P_ROTATION:-0} )); then attrs+=" data-rotate=\"$P_ROTATION\""; fi      # 1.54: PAGE_n_THEME=all
             fi
             if [[ -n "${L_AUTRE_HREF:-}" ]]; then attrs+=" data-other-lang=\"$L_AUTRE_LANG\" data-other-href=\"$(html_echap "$L_AUTRE_HREF")\""; fi
             echo "<html class=\"$classe\" lang=\"$L_LANG\"$attrs>"
@@ -1761,9 +1773,19 @@ for i in ${ACTIVES[@]+"${ACTIVES[@]}"}; do
     P_AVATAR="$(valeur_ou "PAGE_${i}_AVATAR" none)"
     P_ACCENT="$(valeur_ou "PAGE_${i}_ACCENT" "")"
     P_BASCULE="$(valeur_ou "PAGE_${i}_SWITCH" no)"
+    # 1.54: PAGE_n_THEME=all: the themes of PAGE_n_THEMES (or all of them, without auto, and without photo when the page has no
+    # PAGE_n_BACKGROUND) one after the other; the page is written with the first one (seen without script) and the "Theme" button
+    P_ROTATION=0
+    if [[ "$P_THEME" == all ]]; then
+        P_ROTATION=$((10#$(valeur_ou "PAGE_${i}_THEME_SECONDS" 10)))
+        mapfile -t P_MENU < <(themes_offerts "$(valeur_ou "PAGE_${i}_THEMES" all)" | grep -vx auto | { if [[ -n "${CFG[PAGE_${i}_BACKGROUND]:-}" ]]; then cat; else grep -vx photo; fi; })
+        P_THEME="${P_MENU[0]:-auto}"
+        if (( ${#P_MENU[@]} < 2 )); then P_MENU=(); P_ROTATION=0; fi
+        P_BASCULE=no
+    fi
     # 1.17: themes of the "Theme" button; the theme of the page comes first; PAGE_n_SWITCH is ignored when the button exists
-    P_MENU=()
-    if [[ -n "$(valeur_ou "PAGE_${i}_THEMES" "")" ]]; then
+    (( P_ROTATION )) || P_MENU=()
+    if (( ! P_ROTATION )) && [[ -n "$(valeur_ou "PAGE_${i}_THEMES" "")" ]]; then
         mapfile -t P_MENU < <(themes_offerts "$P_THEME,$(valeur_ou "PAGE_${i}_THEMES" "")")
         if (( ${#P_MENU[@]} < 2 )); then P_MENU=(); fi
         if [[ "$P_BASCULE" == yes && ${#P_MENU[@]} -gt 0 ]]; then
