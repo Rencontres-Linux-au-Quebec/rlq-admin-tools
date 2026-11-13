@@ -4536,6 +4536,16 @@ Earlier history was archived outside this repository when this file was created.
 
 ## nginx-link-page.sh
 
+### 1.38.20261112.224918 - SITE_NEWSLETTER_URL: newsletter button to the form of Odoo
+
+- Title: new keys SITE_NEWSLETTER_URL, SITE_NEWSLETTER_LABEL(_EN) and PAGE_n_NEWSLETTER: a "Recevoir l'infolettre" button to the subscription form of Odoo.
+- Reason: request of the administrator on 2026-11-12 (suggestion 5 of the comparison with Linktree): newsletter subscription from the link page.
+- Changes: new keys SITE_NEWSLETTER_URL (https:// or a path resolved with SITE_BASE_URL, checked by --check), SITE_NEWSLETTER_LABEL (default "Recevoir l'infolettre"), SITE_NEWSLETTER_LABEL_EN (default "Get the newsletter"), PAGE_n_NEWSLETTER (yes by default, no to leave it out of a page); genere_index(): button with the e-mail icon of LittleLink after the links and the events, label in the language of the page; css/extras.css: set apart from the links by a margin and a dashed outline; nginx-link-page.conf.example: the keys described; nginx-tools-tests/test_nginx_link_page.py: 1 test.
+- Bugs fixed: none.
+- Safeguards and edge cases: a link to the form of Odoo, not a form in the page (the Content-Security-Policy of the pages forbids sending forms: form-action 'none', and nothing personal goes through the link page); no button while SITE_NEWSLETTER_URL is empty.
+- Checks performed: bash -n; shellcheck; test_nginx_link_page (71 tests).
+- Action required: none (example: SITE_NEWSLETTER_URL=/newsletter, the Odoo page that holds the newsletter block, then sudo nginx-link-page.sh --update --yes).
+
 ### 1.37.20261112.224748 - --stats: visits, origin (QR code, sites), per day, and clicks
 
 - Title: new option --stats (--clicks becomes the same option): visits of each page, where they come from, per day, and the clicks.

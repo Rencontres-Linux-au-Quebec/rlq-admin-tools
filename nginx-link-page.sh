@@ -29,7 +29,7 @@
 set -u
 LANG_C="${LC_ALL:-${LC_MESSAGES:-${LANG:-C}}}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
-readonly SCRIPT_VERSION="1.37.20261112.224748"
+readonly SCRIPT_VERSION="1.38.20261112.224918"
 readonly SCRIPT_NAME="nginx-link-page"
 # --config-merge: same rule as the other programs (apps/_config.py fusionner): the configuration file is rewritten from the new template,
 # keeping its active values; the old file is copied to FILE.bak-YYYYMMDD-HHMMSS. Then exit.
@@ -297,10 +297,10 @@ PROBLEMES=()
 valeur_ou() { local v="${CFG[$1]:-}"; [[ -n "$v" ]] && printf '%s' "$v" || printf '%s' "$2"; }
 
 # 1.24: every key of the files must be known (a mistyped key was ignored without a word: PAGE_3_THEMS=all, SITE_LANGAUGE=en)
-readonly CLES_SITE="BASE_URL DESCRIPTION DESCRIPTION_EN FOOTER FOOTER_EN HEADING HEADING_EN LANGUAGE LOGO_ALT LOGO_URL SHARE_DESCRIPTION SHARE_DESCRIPTION_EN SHARE_IMAGE_URL SHARE_TITLE SHARE_TITLE_EN TITLE TITLE_EN"
+readonly CLES_SITE="BASE_URL DESCRIPTION DESCRIPTION_EN FOOTER FOOTER_EN HEADING HEADING_EN LANGUAGE LOGO_ALT LOGO_URL NEWSLETTER_LABEL NEWSLETTER_LABEL_EN NEWSLETTER_URL SHARE_DESCRIPTION SHARE_DESCRIPTION_EN SHARE_IMAGE_URL SHARE_TITLE SHARE_TITLE_EN TITLE TITLE_EN"
 readonly CLES_EVENTS="ODOO_DB ODOO_KEY_FILE ODOO_LOGIN ODOO_URL"      # 1.34: upcoming events read in Odoo
 readonly CLES_LIEN="FROM ICON ICON_DARK IMAGE LABEL LABEL_EN MENU PAGES STYLE UNTIL URL"
-readonly CLES_PAGE="ACCENT AVATAR BUTTONS CLICKS DIR ENABLED ENGINE EVENTS LANGUAGES PATH QR SCRIPT SHARE SWITCH THEME THEMES TITLE TITLE_EN"
+readonly CLES_PAGE="ACCENT AVATAR BUTTONS CLICKS DIR ENABLED ENGINE EVENTS LANGUAGES NEWSLETTER PATH QR SCRIPT SHARE SWITCH THEME THEMES TITLE TITLE_EN"
 cle_connue() {   # cle_connue KEY: 0 when KEY is read by the program
     local k="$1" s
     if [[ "$k" =~ ^SITE_(.+)$ ]]; then for s in $CLES_SITE; do [[ "${BASH_REMATCH[1]}" == "$s" ]] && return 0; done; return 1; fi
@@ -387,6 +387,12 @@ if [[ -n "$SITE_BASE_URL_V" ]] && ! [[ "$SITE_BASE_URL_V" =~ $URL_RE ]]; then
 fi
 if [[ -n "$SITE_LOGO_URL_V" ]] && abs="$(resoudre_url "$SITE_LOGO_URL_V")"; then SITE_LOGO_URL_V="$abs"; fi
 if [[ -n "$SITE_SHARE_IMAGE_URL_V" ]] && abs="$(resoudre_url "$SITE_SHARE_IMAGE_URL_V")"; then SITE_SHARE_IMAGE_URL_V="$abs"; fi
+# 1.38: SITE_NEWSLETTER_URL: button "Recevoir l'infolettre" to the subscription form of Odoo (a link: the pages send no form)
+SITE_NEWSLETTER_URL_V=$(valeur_ou SITE_NEWSLETTER_URL "")
+if [[ -n "$SITE_NEWSLETTER_URL_V" ]]; then
+    if abs="$(resoudre_url "$SITE_NEWSLETTER_URL_V")"; then SITE_NEWSLETTER_URL_V="$abs"; fi
+    [[ "$SITE_NEWSLETTER_URL_V" =~ $URL_RE ]] || PROBLEMES+=("SITE_NEWSLETTER_URL : $(m "adresse https:// ou chemin relatif du formulaire d'inscription" "https:// address or relative path of the subscription form")")
+fi
 SNIPPETS_DIR="${NGINX_LINK_PAGE_SNIPPETS_DIR:-/etc/nginx/snippets}"
 LIEN_FICHIER="$SNIPPETS_DIR/liens-publics.conf"
 
@@ -643,6 +649,7 @@ for i in "${PAGES_N[@]}"; do
     # 1.18: PAGE_n_SCRIPT and PAGE_n_SHARE (yes or no, yes by default)
     [[ "$(valeur_ou "${pre}SCRIPT" yes)" =~ ^(yes|no)$ ]] || PROBLEMES+=("${pre}SCRIPT=$(valeur_ou "${pre}SCRIPT" yes) (yes ou no)")
     [[ "$(valeur_ou "${pre}SHARE" yes)" =~ ^(yes|no)$ ]] || PROBLEMES+=("${pre}SHARE=$(valeur_ou "${pre}SHARE" yes) (yes ou no)")
+    [[ "$(valeur_ou "${pre}NEWSLETTER" yes)" =~ ^(yes|no)$ ]] || PROBLEMES+=("${pre}NEWSLETTER=$(valeur_ou "${pre}NEWSLETTER" yes) (yes ou no)")   # 1.38
     [[ "$(valeur_ou "${pre}CLICKS" no)" =~ ^(yes|no)$ ]] || PROBLEMES+=("${pre}CLICKS=$(valeur_ou "${pre}CLICKS" no) (yes ou no)")      # 1.30
     qr_v="$(valeur_ou "${pre}QR" no)"                                                   # 1.32: QR code of the page
     [[ "$qr_v" =~ ^(yes|no)$ ]] || PROBLEMES+=("${pre}QR=$qr_v (yes ou no)")
@@ -1091,6 +1098,7 @@ page_a_extras() {
     local n e
     [[ "${P_QR:-no}" == yes ]] && return 0
     (( ${P_EVENTS:-0} > 0 )) && return 0                      # 1.34
+    [[ -n "$SITE_NEWSLETTER_URL_V" && "${P_INFOLETTRE:-yes}" == yes ]] && return 0      # 1.38
     for n in ${P_LIENS[@]+"${P_LIENS[@]}"}; do [[ "${CFG[LINK_${n}_STYLE]:-}" == icon ]] && return 0; done      # 1.35
     for n in ${P_LIENS[@]+"${P_LIENS[@]}"}; do                  # 1.36: thumbnails, in a menu or not
         [[ -n "${VIGNETTE[$n]:-}" ]] && return 0
@@ -1261,6 +1269,9 @@ genere_index() {   # genere_index DOSSIER THEME TITRE [FICHIER] [CIBLE_BASCULE] 
         done
         echo "      </nav>"
         section_evenements                                     # 1.34: upcoming events of Odoo (PAGE_n_EVENTS)
+        if [[ -n "$SITE_NEWSLETTER_URL_V" && "${P_INFOLETTRE:-yes}" == yes ]]; then      # 1.38: newsletter
+            echo "      <p class=\"newsletter\"><a class=\"button button-default button-newsletter\" href=\"$(html_echap "$SITE_NEWSLETTER_URL_V")\" target=\"_blank\" rel=\"noopener noreferrer\"><img class=\"icon\" aria-hidden=\"true\" src=\"images/icons/generic-email.svg\" alt=\"\">$(html_echap "$(tp "$(valeur_ou SITE_NEWSLETTER_LABEL "Recevoir l'infolettre")" "$(valeur_ou SITE_NEWSLETTER_LABEL_EN "Get the newsletter")")")</a></p>"
+        fi
         if [[ -n "$cible" ]]; then
             echo "      <p><a class=\"button button-default\" href=\"$cible\">$(html_echap "$libelle")</a></p>"
         fi
@@ -1310,7 +1321,8 @@ for i in ${ACTIVES[@]+"${ACTIVES[@]}"}; do
     P_PARTAGE="$(valeur_ou "PAGE_${i}_SHARE" yes)"
     P_CLICS="$(valeur_ou "PAGE_${i}_CLICKS" no)"             # 1.30: the links go through PATH/go/N (counted in the nginx logs)
     P_QR="$(valeur_ou "PAGE_${i}_QR" no)"
-    P_EVENTS=$((10#$(valeur_ou "PAGE_${i}_EVENTS" 0)))      # 1.34: upcoming events of Odoo                     # 1.32: qr.svg and qr.png of the page, link above the footer
+    P_EVENTS=$((10#$(valeur_ou "PAGE_${i}_EVENTS" 0)))      # 1.34: upcoming events of Odoo
+    P_INFOLETTRE="$(valeur_ou "PAGE_${i}_NEWSLETTER" yes)"    # 1.38: newsletter button (with SITE_NEWSLETTER_URL)                     # 1.32: qr.svg and qr.png of the page, link above the footer
     P_JS=no
     if [[ "$(valeur_ou "PAGE_${i}_SCRIPT" yes)" == yes ]] && { (( ${#P_MENU[@]} )) || [[ "$P_PARTAGE" == yes ]] || (( ${#P_LISTE[@]} == 2 )); }; then
         P_JS=yes

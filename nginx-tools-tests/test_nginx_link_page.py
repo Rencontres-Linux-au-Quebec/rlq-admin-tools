@@ -1070,6 +1070,22 @@ printf '\\211PNG\\r\\n\\032\\nxxxx' > "$out"; printf '200 12'; exit 0
         self.assertIn("Visites : 1 (1 adresses)", p2)
         self.assertIn("Clics : non comptés (PAGE_2_CLICKS=no)", p2)
 
+    def test_138_infolettre(self):
+        """1.38 : SITE_NEWSLETTER_URL : bouton « Recevoir l'infolettre » (libellé configurable, anglais) après les liens, chemin relatif
+        résolu ; PAGE_n_NEWSLETTER=no le retire ; adresse invalide refusée."""
+        texte = self.config_deux_pages("yes").replace("PAGE_1_THEME=auto", "PAGE_1_THEME=auto\nPAGE_1_LANGUAGES=fr,en") + (
+            "SITE_BASE_URL=https://www.example.org/\nSITE_NEWSLETTER_URL=/newsletter\nPAGE_2_NEWSLETTER=no\n")
+        r = self.lancer("-c", str(self.conf(texte)), "--update", "--yes", env=self.env)
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        fr = (self.www / "liens" / "index.html").read_text(encoding="utf-8")
+        self.assertIn('<p class="newsletter"><a class="button button-default button-newsletter" href="https://www.example.org/newsletter"', fr)
+        self.assertIn("Recevoir l&#39;infolettre</a>", fr.replace("&apos;", "&#39;").replace("'", "&#39;"))
+        self.assertIn("Get the newsletter</a>", (self.www / "liens" / "en" / "index.html").read_text(encoding="utf-8"))
+        self.assertLess(fr.index("button-stack"), fr.index('class="newsletter"'))
+        self.assertNotIn("newsletter", (self.www / "liens2" / "index.html").read_text(encoding="utf-8"))
+        r = self.lancer("-c", str(self.conf(MINIMAL + "SITE_NEWSLETTER_URL=mailto:x@y\n")), "--check")
+        self.assertIn("SITE_NEWSLETTER_URL : adresse https://", r.stderr)
+
     def test_deux_langues_detection_et_textes(self):
         texte = self.config_deux_pages("no").replace(
             "PAGE_1_THEME=auto", "PAGE_1_THEME=auto\nPAGE_1_LANGUAGES=fr,en").replace(

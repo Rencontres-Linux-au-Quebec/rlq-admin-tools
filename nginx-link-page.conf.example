@@ -43,6 +43,12 @@
 #SITE_SHARE_TITLE_EN=
 #SITE_SHARE_DESCRIPTION_EN=
 #
+# Newsletter: a button to the subscription form (an Odoo page with the newsletter block, for example /newsletter);
+# shown on every page (PAGE_n_NEWSLETTER=no to leave it out)
+#SITE_NEWSLETTER_URL=
+#SITE_NEWSLETTER_LABEL=Recevoir l'infolettre
+#SITE_NEWSLETTER_LABEL_EN=Get the newsletter
+#
 # Optional English texts (used for the English pages; the French texts above are used when these are missing)
 #SITE_TITLE_EN=
 #SITE_HEADING_EN=
@@ -112,6 +118,7 @@
 #                    access log; nginx-link-page.sh --clicks counts the clicks of each link
 # PAGE_n_QR        : yes or no (default); yes: qr.svg and qr.png (QR code of the public address of the page, for posters
 #                    and slides) and a "QR code of this page" link; needs qrencode (sudo apt install qrencode)
+# PAGE_n_NEWSLETTER: yes (default) or no: the newsletter button (SITE_NEWSLETTER_URL) on this page
 # PAGE_n_EVENTS    : 0 (default) to 10: the next published events of Odoo (date, "in 9 days", link), read every day
 #                    with the EVENTS_ODOO_* keys below
 # PAGE_n_LANGUAGES : fr, en, fr,en or en,fr. The first language is at the page root (/links/), the other one
@@ -136,6 +143,7 @@
 #PAGE_1_CLICKS=no
 #PAGE_1_QR=no
 #PAGE_1_EVENTS=0
+#PAGE_1_NEWSLETTER=yes
 #PAGE_1_LANGUAGES=en
 #
 # Example of a second page, to compare two engines: disabled until you want it.

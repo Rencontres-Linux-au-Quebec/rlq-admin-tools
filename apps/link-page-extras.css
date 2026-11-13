@@ -1,7 +1,7 @@
 /*
  * link-page-extras.css - featured links (LINK_n_STYLE=featured), QR code link (PAGE_n_QR=yes), upcoming events of Odoo
- * (PAGE_n_EVENTS) row of icons (LINK_n_STYLE=icon) and
- * thumbnails (LINK_n_IMAGE) of the link pages of nginx-link-page.sh.
+ * (PAGE_n_EVENTS) row of icons (LINK_n_STYLE=icon) ,
+ * thumbnails (LINK_n_IMAGE) and newsletter (SITE_NEWSLETTER_URL) of the link pages of nginx-link-page.sh.
  * Copyright (C) 2026 Services-Conseils Linux Inc. - AGPL-3.0-or-later (see LICENSE).
  * Copied as css/extras.css into each page folder that uses one of them, loaded after the theme style sheets. No script.
  */
@@ -111,4 +111,13 @@
 	height: 2.6rem;
 	object-fit: cover;
 	border-radius: 0.45rem;
+}
+
+/* ---- newsletter (SITE_NEWSLETTER_URL): a button set apart from the links, with a dashed outline ---- */
+.newsletter {
+	margin: 1.75rem 0 0;
+}
+.button.button-newsletter {
+	outline: 2px dashed currentColor;
+	outline-offset: 3px;
 }
