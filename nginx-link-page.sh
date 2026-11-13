@@ -22,14 +22,14 @@
 #
 # Configuration: /etc/default/nginx-link-page.conf, then ~/.nginx-link-page.conf (the last one read wins); -c/--config FILE
 # reads that file ONLY; the command line wins over the file. Keys are KEY=VALUE (uppercase), see
-# nginx-link-page.conf.example: SITE_* (shared content), LINK_n_* (shared links), PAGE_n_* (one block per page, n = 1, 2...).
+# doc/fr|en/nginx-link-page.conf.example: SITE_* (shared content), LINK_n_* (shared links), PAGE_n_* (one block per page, n = 1, 2...).
 #
 # Usage: sudo nginx-link-page.sh [--check | --update] [--yes] [-c FILE]        (also: --changelog, --help, --version)
 
 set -u
 LANG_C="${LC_ALL:-${LC_MESSAGES:-${LANG:-C}}}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
-readonly SCRIPT_VERSION="1.46.20261113.075823"
+readonly SCRIPT_VERSION="1.47.20261113.081430"
 readonly SCRIPT_NAME="nginx-link-page"
 # --config-merge: same rule as the other programs (apps/_config.py fusionner): the configuration file is rewritten from the new template,
 # keeping its active values; the old file is copied to FILE.bak-YYYYMMDD-HHMMSS. Then exit.
@@ -143,7 +143,7 @@ Options (ordre alphabetique / alphabetical order) :
 Configuration lue : /etc/default/$SCRIPT_NAME.conf puis ~/.$SCRIPT_NAME.conf (le dernier gagne), ou seulement -c FILE.
 Configuration read: /etc/default/$SCRIPT_NAME.conf then ~/.$SCRIPT_NAME.conf (the last one wins), or only -c FILE.
 
-Cles / keys (voir nginx-link-page.conf.example) :
+Cles / keys (voir doc/fr/nginx-link-page.conf.example, section 5 / see doc/en/nginx-link-page.conf.example, section 5) :
   SITE_* (contenu partage / shared content), LINK_n_* (liens / links : ICON, ICON_DARK, LABEL, LABEL_EN, MENU, PAGES, URL),
   PAGE_n_* (ACCENT, AVATAR, BUTTONS, DIR, ENABLED, ENGINE, LANGUAGES, PATH, SCRIPT, SHARE, SWITCH, THEME, THEMES, TITLE,
   TITLE_EN : une page par bloc / one page per block) ; une clé inconnue est refusée / an unknown key is refused
@@ -206,7 +206,8 @@ fi
 
 # init_config CIBLE : writes the commented template to CIBLE; never overwrites an existing file.
 init_config() {   # init_config CIBLE [auto] : "auto" means no configuration was found at all
-    local cible="$1" modele="$SCRIPT_DIR/nginx-link-page.conf.example"
+    local cible="$1" modele="$SCRIPT_DIR/doc/fr/nginx-link-page.conf.example"
+    (( MSG_EN )) && modele="$SCRIPT_DIR/doc/en/nginx-link-page.conf.example"      # 1.47: template in the language of the messages (--lang)
     if [[ ! -r "$modele" ]]; then err "$(m "modele introuvable : $modele" "template not found: $modele")"; exit 1; fi
     if [[ -e "$cible" ]]; then err "$(m "existe deja, rien n'a ete ecrit : $cible" "already exists, nothing written: $cible")"; exit 1; fi
     if ! mkdir -p "$(dirname "$cible")" 2>/dev/null || ! cp "$modele" "$cible" 2>/dev/null; then
