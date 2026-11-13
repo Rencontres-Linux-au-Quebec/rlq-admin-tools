@@ -29,7 +29,7 @@
 set -u
 LANG_C="${LC_ALL:-${LC_MESSAGES:-${LANG:-C}}}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
-readonly SCRIPT_VERSION="1.52.20261113.145748"
+readonly SCRIPT_VERSION="1.53.20261113.164817"
 readonly SCRIPT_NAME="nginx-link-page"
 # --config-merge: same rule as the other programs (apps/_config.py fusionner): the configuration file is rewritten from the new template,
 # keeping its active values; the old file is copied to FILE.bak-YYYYMMDD-HHMMSS. Then exit.
@@ -420,10 +420,10 @@ for cle in "${!CFG[@]}"; do
 done
 
 # 1.24: every key of the files must be known (a mistyped key was ignored without a word: PAGE_3_THEMS=all, SITE_LANGAUGE=en)
-readonly CLES_SITE="BASE_URL COUNTDOWN_DATE COUNTDOWN_LABEL COUNTDOWN_LABEL_EN COUNTDOWN_URL DESCRIPTION DESCRIPTION_EN FOOTER FOOTER_EN HEADING HEADING_EN LANGUAGE LOGO_ALT LOGO_URL NEWSLETTER_LABEL NEWSLETTER_LABEL_EN NEWSLETTER_URL VCARD_EMAIL VCARD_NAME VCARD_PHONE VCARD_URL ODOO_CHECK_URL SHARED_DIR SHARED_PATH SHARE_DESCRIPTION SHARE_DESCRIPTION_EN SHARE_IMAGE_URL SHARE_TITLE SHARE_TITLE_EN TITLE TITLE_EN"
+readonly CLES_SITE="BASE_URL COUNTDOWN_DATE COUNTDOWN_LABEL COUNTDOWN_LABEL_EN COUNTDOWN_URL DESCRIPTION DESCRIPTION_EN FOOTER FOOTER_EN HEADING HEADING_EN LANGUAGE LOGO_ALT LOGO_URL NEWSLETTER_LABEL NEWSLETTER_LABEL_EN NEWSLETTER_URL VCARD_EMAIL VCARD_NAME VCARD_PHONE VCARD_URL ODOO_CHECK_URL ODOO_PROFILE_PATH SHARED_DIR SHARED_PATH SHARE_DESCRIPTION SHARE_DESCRIPTION_EN SHARE_IMAGE_URL SHARE_TITLE SHARE_TITLE_EN TITLE TITLE_EN"
 readonly CLES_EVENTS="ODOO_DB ODOO_KEY_FILE ODOO_LANG_EN ODOO_LANG_FR ODOO_LOGIN ODOO_URL"      # 1.34: upcoming events read in Odoo
 readonly CLES_LIEN="ACCESS FROM ICON ICON_DARK IMAGE LABEL LABEL_EN MENU PAGES STYLE UNTIL URL"
-readonly CLES_PAGE="ACCENT AVATAR BACKGROUND BACKGROUND_STYLE BUTTONS CLICKS COUNTDOWN DIR ENABLED ENGINE EVENTS LANGUAGES NEWSLETTER PATH QR SCRIPT SHARE SWITCH THEME THEMES TITLE TITLE_EN VCARD"
+readonly CLES_PAGE="ACCENT AVATAR BACKGROUND BACKGROUND_STYLE BUTTONS CLICKS COUNTDOWN DIR ENABLED ENGINE EVENTS GREETING LANGUAGES NEWSLETTER PATH QR SCRIPT SHARE SWITCH THEME THEMES TITLE TITLE_EN VCARD"
 cle_connue() {   # cle_connue KEY: 0 when KEY is read by the program
     local k="$1" s
     if [[ "$k" =~ ^SITE_(.+)$ ]]; then for s in $CLES_SITE; do [[ "${BASH_REMATCH[1]}" == "$s" ]] && return 0; done; return 1; fi
@@ -815,6 +815,11 @@ for i in "${PAGES_N[@]}"; do
     # 1.18: PAGE_n_SCRIPT and PAGE_n_SHARE (yes or no, yes by default)
     [[ "$(valeur_ou "${pre}SCRIPT" yes)" =~ ^(yes|no)$ ]] || PROBLEMES+=("${pre}SCRIPT=$(valeur_ou "${pre}SCRIPT" yes) (yes ou no)")
     [[ "$(valeur_ou "${pre}SHARE" yes)" =~ ^(yes|no)$ ]] || PROBLEMES+=("${pre}SHARE=$(valeur_ou "${pre}SHARE" yes) (yes ou no)")
+    salut_v="$(valeur_ou "${pre}GREETING" no)"                                          # 1.53: "Bonjour Prénom" (Odoo)
+    [[ "$salut_v" =~ ^(yes|no)$ ]] || PROBLEMES+=("${pre}GREETING=$salut_v (yes ou no)")
+    if [[ "$salut_v" == yes && "$(valeur_ou "${pre}SCRIPT" yes)" != yes ]]; then
+        PROBLEMES+=("${pre}GREETING=yes : $(m "demande ${pre}SCRIPT=yes (le script de la page demande à Odoo qui est connecté)" "needs ${pre}SCRIPT=yes (the script of the page asks Odoo who is signed in)")")
+    fi
     vc_v="$(valeur_ou "${pre}VCARD" no)"                                               # 1.39: contact card
     [[ "$vc_v" =~ ^(yes|no)$ ]] || PROBLEMES+=("${pre}VCARD=$vc_v (yes ou no)")
     if [[ "$vc_v" == yes && -z "${CFG[SITE_VCARD_EMAIL]:-}${CFG[SITE_VCARD_PHONE]:-}${CFG[SITE_VCARD_URL]:-}$SITE_BASE_URL_V" ]]; then
@@ -934,6 +939,9 @@ for i in "${LIENS_N[@]}"; do
         PROBLEMES+=("LINK_${i}_ACCESS=$g : $(m "aucun compte dans ce groupe : sudo $SCRIPT_NAME.sh --password $g NOM" "no account in this group: sudo $SCRIPT_NAME.sh --password $g NAME") ($ACCES_DIR/$g.htpasswd)")
     fi
 done
+# 1.53: PAGE_n_GREETING=yes: the script asks this route of Odoo (module rlq_session_check), on the same site, who is signed in
+ODOO_PROFIL_V="$(valeur_ou SITE_ODOO_PROFILE_PATH /rlq/session/me)"
+[[ "$ODOO_PROFIL_V" =~ ^/[A-Za-z0-9/._-]+$ ]] || PROBLEMES+=("SITE_ODOO_PROFILE_PATH=$ODOO_PROFIL_V : $(m "chemin sur le même site, ex. /rlq/session/me" "path on the same site, e.g. /rlq/session/me")")
 if (( PROTEGES_ODOO )) && [[ -z "$ODOO_CHECK_URL_V" ]]; then
     # 1.52: SITE_ODOO_CHECK_URL not given: the first candidate where the route answers 401 (installed, no cookie), otherwise the first one
     premier=""; premier_source=""
@@ -1241,7 +1249,7 @@ trap 'rm -rf "$TMP"' EXIT
 mkdir -p "$TMP/assets/images/site"
 
 ACTIVES=()
-SCRIPT_PAGE=()            # 1.18: yes when the page loads js/link-page.js (script-src of its Content-Security-Policy)
+SCRIPT_PAGE=(); SALUT_PAGE=()            # 1.18: yes when the page loads js/link-page.js (script-src of its Content-Security-Policy)
 for i in "${PAGES_N[@]}"; do
     [[ "$(valeur_ou "PAGE_${i}_ENABLED" yes)" =~ ^(yes|oui|1)$ ]] && ACTIVES+=("$i")
 done
@@ -1512,6 +1520,7 @@ bandeau_decompte() {
 page_a_extras() {
     local n e
     [[ "${P_DECOMPTE:-no}" == yes ]] && return 0             # 1.40
+    [[ "${P_SALUT:-no}" == yes ]] && return 0                # 1.53: greeting and profile button
     [[ "${P_QR:-no}" == yes || "${P_VCARD:-no}" == yes ]] && return 0      # 1.32, 1.39
     (( ${P_EVENTS:-0} > 0 )) && return 0                      # 1.34
     [[ -n "$SITE_NEWSLETTER_URL_V" && "${P_INFOLETTRE:-yes}" == yes ]] && return 0      # 1.38
@@ -1641,7 +1650,7 @@ genere_index() {   # genere_index DOSSIER THEME TITRE [FICHIER] [CIBLE_BASCULE] 
             echo "    <meta name=\"theme-color\" content=\"#121212\" media=\"(prefers-color-scheme: dark)\">"
         fi
         echo "    <meta name=\"referrer\" content=\"strict-origin-when-cross-origin\">"
-        echo "    <meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; img-src 'self'; style-src 'self'; font-src 'self'; script-src $(csp_script); object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'\">"
+        echo "    <meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; img-src 'self'; style-src 'self'; font-src 'self'; script-src $(csp_script);$( [[ "${P_SALUT:-no}" == yes && "$P_JS" == yes ]] && echo " connect-src 'self';") object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'\">"
         echo "    <link rel=\"stylesheet\" href=\"${PARTAGE_URL}css/reset.css\">"      # 1.49: shared files (SITE_SHARED_PATH)
         echo "    <link rel=\"stylesheet\" href=\"${PARTAGE_URL}css/style.css\">"
         echo "    <link rel=\"stylesheet\" href=\"${PARTAGE_URL}css/brands.css\">"
@@ -1692,6 +1701,8 @@ genere_index() {   # genere_index DOSSIER THEME TITRE [FICHIER] [CIBLE_BASCULE] 
         fi
         echo "      <h1>$(html_echap "$L_HEADING")</h1>"
         if [[ -n "$L_DESCRIPTION" ]]; then echo "      <p>$(html_echap "$L_DESCRIPTION")</p>"; fi
+        # 1.53: filled by the script for a person signed in to Odoo ("Bonjour Marie"); nothing personal is ever written in the file
+        if [[ "${P_SALUT:-no}" == yes && "$P_JS" == yes ]]; then echo "      <p class=\"lp-greeting\" data-lp-me=\"$(html_echap "$ODOO_PROFIL_V")\" hidden></p>"; fi
         bandeau_decompte                                       # 1.40: countdown (PAGE_n_COUNTDOWN)
         rangee_icones                                          # 1.35: links LINK_n_STYLE=icon
         echo "      <nav class=\"button-stack\" aria-label=\"$( [[ "$L_LANG" == en ]] && echo Links || echo Liens )\">"
@@ -1777,8 +1788,10 @@ for i in ${ACTIVES[@]+"${ACTIVES[@]}"}; do
             || { err "PAGE_${i}_BACKGROUND : $(m "image non lisible" "image not readable") : ${CFG[PAGE_${i}_BACKGROUND]} ($RES_ERREUR)"; exit 1; }
         P_FOND="$RES_FICHIER"
     fi                     # 1.32: qr.svg and qr.png of the page, link above the footer
+    P_SALUT="$(valeur_ou "PAGE_${i}_GREETING" no)"             # 1.53: "Bonjour Prénom" and the profile button (Odoo)
+    SALUT_PAGE[i]="$P_SALUT"
     P_JS=no
-    if [[ "$(valeur_ou "PAGE_${i}_SCRIPT" yes)" == yes ]] && { (( ${#P_MENU[@]} )) || [[ "$P_PARTAGE" == yes ]] || (( ${#P_LISTE[@]} == 2 )); }; then
+    if [[ "$(valeur_ou "PAGE_${i}_SCRIPT" yes)" == yes ]] && { (( ${#P_MENU[@]} )) || [[ "$P_PARTAGE" == yes ]] || (( ${#P_LISTE[@]} == 2 )) || [[ "$P_SALUT" == yes ]]; }; then
         P_JS=yes
     fi
     SCRIPT_PAGE[i]="$P_JS"
@@ -1871,7 +1884,7 @@ for i in ${ACTIVES[@]+"${ACTIVES[@]}"}; do
                     mkdir -p "$cible_p"
                     cp -r "$dossier/css" "$dossier/images" "$cible_p/" 2>/dev/null
                     mapfile -t P_LIENS < <(enfants_visibles "$n")
-                    P_MENU=(); P_JS=no; P_PARTAGE=no; P_EVENTS=0; P_INFOLETTRE=no; P_DECOMPTE=no; P_QR=no; P_VCARD=no; P_CLICS=no
+                    P_MENU=(); P_PARTAGE=no; [[ "$P_SALUT" == yes ]] || P_JS=no; P_EVENTS=0; P_INFOLETTRE=no; P_DECOMPTE=no; P_QR=no; P_VCARD=no; P_CLICS=no
                     L_AUTRE_HREF=""; L_URL_PUBLIQUE=""; DANS_PROTEGE=1; P_A_MENU=no
                     P_A_EXTRAS=no; if [[ -r "$EXTRAS_CSS" ]] && page_a_extras; then P_A_EXTRAS=yes; fi
                     L_HEADING="$(libelle_lien "$n")"; L_DESCRIPTION=""
@@ -1888,9 +1901,10 @@ done
 
 # 1.29: entetes_page PAGE INDENT CACHE: the add_header lines of a page (Content-Security-Policy, nosniff, Referrer-Policy, Cache-Control)
 entetes_page() {
-    local scr="'none'"
+    local scr="'none'" con=""
     [[ "${SCRIPT_PAGE[$1]:-no}" == yes ]] && scr="'self'"
-    printf '%sadd_header Content-Security-Policy "%s" always;\n' "$2" "default-src 'none'; img-src 'self'; style-src 'self'; font-src 'self'; script-src $scr; frame-ancestors 'none'; base-uri 'none'; form-action 'none'"
+    [[ "${SALUT_PAGE[$1]:-no}" == yes && "${SCRIPT_PAGE[$1]:-no}" == yes ]] && con=" connect-src 'self';"      # 1.53: the script asks Odoo
+    printf '%sadd_header Content-Security-Policy "%s" always;\n' "$2" "default-src 'none'; img-src 'self'; style-src 'self'; font-src 'self'; script-src $scr;$con frame-ancestors 'none'; base-uri 'none'; form-action 'none'"
     printf '%sadd_header X-Content-Type-Options "nosniff" always;\n' "$2"
     printf '%sadd_header Referrer-Policy "strict-origin-when-cross-origin" always;\n' "$2"
     printf '%sadd_header Cache-Control "%s" always;' "$2" "$3"

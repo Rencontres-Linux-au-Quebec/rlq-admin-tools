@@ -1205,6 +1205,36 @@ LINK_4_MENU=3
         self.assertIn("-> http://127.0.0.1:8069/rlq/session/check, détectée : défaut", r.stdout)
         self.assertNotIn("SITE_ODOO_CHECK_URL", conf2.read_text(encoding="utf-8"))
 
+    def test_153_bonjour_prenom(self):
+        """1.53 : PAGE_n_GREETING=yes : un élément vide que le script remplit (« Bonjour Marie ») avec /rlq/session/me d'Odoo ;
+        connect-src 'self' seulement sur ces pages ; rien de personnel dans les fichiers ; demande PAGE_n_SCRIPT=yes."""
+        texte = self.config_deux_pages("yes") + "PAGE_1_GREETING=yes\nSITE_ODOO_PROFILE_PATH=/rlq/session/me\n"
+        r = self.lancer("-c", str(self.conf(texte)), "--update", "--yes", env=self.env)
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        page = (self.www / "liens" / "index.html").read_text(encoding="utf-8")
+        self.assertIn('<p class="lp-greeting" data-lp-me="/rlq/session/me" hidden></p>', page)
+        self.assertIn("connect-src 'self';", page)
+        self.assertIn('<script src="/link-page-shared/js/link-page.js">', page)
+        self.assertIn('href="/link-page-shared/css/extras.css"', page)
+        autre = (self.www / "liens2" / "index.html").read_text(encoding="utf-8")
+        self.assertNotIn("data-lp-me", autre)
+        self.assertNotIn("connect-src", autre)                                        # least privilege on the other pages
+        snippet = (self.snippets / "liens-publics.conf").read_text(encoding="utf-8")
+        bloc1 = snippet[snippet.index("location ^~ /liens/ {"):]
+        self.assertIn("connect-src 'self';", bloc1[:bloc1.index("\n}\n")])
+        bloc2 = snippet[snippet.index("location ^~ /liens2/ {"):]
+        self.assertNotIn("connect-src", bloc2[:bloc2.index("\n}\n")])
+        js = (self.commun / "js" / "link-page.js").read_text(encoding="utf-8")
+        self.assertIn('credentials: "same-origin"', js)
+        self.assertNotIn("innerHTML", js)                                             # the answer is put as text only
+        for ajout, attendu in (("PAGE_1_SCRIPT=no\n", "PAGE_1_GREETING=yes : demande PAGE_1_SCRIPT=yes"),
+                               ("PAGE_2_GREETING=oui\n", "PAGE_2_GREETING=oui (yes ou no)"),
+                               ("SITE_ODOO_PROFILE_PATH=https://autre.example.org/me\n", "SITE_ODOO_PROFILE_PATH=https://autre.example.org/me : chemin sur le même site")):
+            with self.subTest(ajout=ajout):
+                r = self.lancer("-c", str(self.conf(texte + ajout)), "--check")
+                self.assertNotEqual(r.returncode, 0)
+                self.assertIn(attendu, r.stderr)
+
     def test_133_rollback(self):
         """1.33 : --update garde la version précédente (pages, fragment, tâche quotidienne) ; --rollback la remet, même avec une
         configuration invalide, puis nginx -t et rechargement ; rien à remettre : erreur ; la tâche quotidienne ne remplace pas la copie."""

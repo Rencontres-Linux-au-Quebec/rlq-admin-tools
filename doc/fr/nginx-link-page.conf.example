@@ -34,6 +34,7 @@
 #SITE_LOGO_ALT=Logo de mon groupe
 #SITE_LOGO_URL=https://example.org/logo.png       # facultatif ; adresse https:// (ou chemin avec SITE_BASE_URL)
 #SITE_ODOO_CHECK_URL=http://127.0.0.1:8069/rlq/session/check   # avec LINK_n_ACCESS=odoo ; vide : détectée et écrite par --update
+#SITE_ODOO_PROFILE_PATH=/rlq/session/me               # avec PAGE_n_GREETING=yes : la route d'Odoo, sur le même site
 #SITE_SHARED_DIR=/var/www/link-page-shared       # fichiers communs à toutes les pages (styles, polices, icônes), une seule copie
 #SITE_SHARED_PATH=/link-page-shared/             # adresse de ces fichiers (unique, différente des pages)
 #SITE_TITLE=Mon groupe
@@ -158,6 +159,9 @@
 # PAGE_n_NEWSLETTER: yes (défaut) ou no : le bouton de l'infolettre (SITE_NEWSLETTER_URL) sur cette page
 # PAGE_n_EVENTS    : 0 (défaut) à 10 : les prochains événements publiés d'Odoo (date, « dans 9 jours », lien), lus chaque jour
 #                    avec les clés EVENTS_ODOO_* plus bas
+# PAGE_n_GREETING : yes ou no (défaut) : « Bonjour Prénom » pour une personne connectée à Odoo, et pour les membres du
+#                    groupe choisi dans Odoo (paramètre système rlq_session_check.profile_group), un bouton en bas à droite :
+#                    nom, adresse, courriel, téléphone, groupes ; demande PAGE_n_SCRIPT=yes et le module rlq_session_check
 # PAGE_n_LANGUAGES : fr, en, fr,en ou en,fr. La première langue est à la racine de la page (/liens/), l'autre
 #                    dans /liens/en/ (ou /liens/fr/). Le navigateur est redirigé vers la langue qu'il préfère,
 #                    sinon la première langue est montrée.
@@ -175,6 +179,7 @@
 #PAGE_1_ENABLED=yes
 #PAGE_1_ENGINE=littlelink
 #PAGE_1_EVENTS=0
+#PAGE_1_GREETING=no
 #PAGE_1_LANGUAGES=fr
 #PAGE_1_NEWSLETTER=yes
 #PAGE_1_PATH=/liens/
@@ -234,6 +239,7 @@
 #   SITE_LOGO_URL             logo : https:// ou chemin avec SITE_BASE_URL
 #   SITE_LOGO_ALT             texte du logo (défaut : SITE_TITLE)
 #   SITE_ODOO_CHECK_URL       avec LINK_n_ACCESS=odoo : adresse de /rlq/session/check vue du serveur (vide : port d'odoo.conf ou upstream odoo de nginx, écrit par --update ; sinon http://127.0.0.1:8069/rlq/session/check)
+#   SITE_ODOO_PROFILE_PATH    avec PAGE_n_GREETING=yes : route d'Odoo sur le même site (défaut : /rlq/session/me)
 #   SITE_SHARED_DIR           dossier des fichiers communs, une seule copie (défaut : /var/www/link-page-shared ; vide ou créé par le programme)
 #   SITE_SHARED_PATH          adresse des fichiers communs (défaut : /link-page-shared/ ; différente des pages)
 #   SITE_SHARE_IMAGE_URL      aperçu Open Graph : PNG ou JPEG 1200 x 627 (demande SITE_BASE_URL)
@@ -291,6 +297,7 @@
 #   PAGE_n_NEWSLETTER         yes (défaut) ou no : bouton de l'infolettre
 #   PAGE_n_COUNTDOWN          yes ou no (défaut) : bandeau « Dans 9 jours »
 #   PAGE_n_EVENTS             0 (défaut) à 10 : prochains événements d'Odoo
+#   PAGE_n_GREETING           yes ou no (défaut) : « Bonjour Prénom » et bouton du profil (Odoo, demande SCRIPT=yes)
 #
 # EVENTS_ODOO_ : événements d'Odoo, compte en lecture seule
 #   EVENTS_ODOO_URL           adresse d'Odoo (défaut : SITE_BASE_URL)
