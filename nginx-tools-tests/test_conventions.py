@@ -363,6 +363,8 @@ class FusionDeConfiguration(unittest.TestCase):
                 r = subprocess.run(launcher(name) + ["--help"], capture_output=True, text=True, env=self.environnement(d), timeout=60)
                 self.assertRegex(r.stdout, r"(?m)^ {2,4}--config-merge\b")
 
+    VERIFIE_AVANT_FUSION = ("nginx-link-page.sh",)     # programs that run their checks first and refuse the merge on a problem
+
     def test_fusion_garde_les_valeurs_et_les_cles_hors_modele(self):
         import subprocess, tempfile
         for name in self.AVEC_CONFIGURATION:
@@ -376,6 +378,12 @@ class FusionDeConfiguration(unittest.TestCase):
                     f.write(f"{cle}=valeur-gardee\nCLE_OBSOLETE_XYZ=1\n")
                 os.chmod(chemin, 0o600)
                 r = subprocess.run(launcher(name) + ["--config-merge"], capture_output=True, text=True, env=self.environnement(d), timeout=60)
+                if name in self.VERIFIE_AVANT_FUSION:      # nginx-link-page 1.45: an unknown key or a missing link stops the merge, nothing is written
+                    self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
+                    self.assertIn("Fusion refusée, rien n'est modifié", r.stderr)
+                    self.assertEqual(open(chemin, encoding="utf-8").read(), f"{cle}=valeur-gardee\nCLE_OBSOLETE_XYZ=1\n")
+                    self.assertFalse([f for f in os.listdir(d) if ".bak-" in f])
+                    continue
                 self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
                 texte = open(chemin, encoding="utf-8").read()
                 self.assertRegex(texte, rf"(?m)^{cle}=valeur-gardee( +#.*)?$")                 # _config 1.13: end-of-line comment of the template kept

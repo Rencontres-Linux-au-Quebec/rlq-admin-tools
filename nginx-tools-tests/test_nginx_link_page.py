@@ -1211,6 +1211,23 @@ printf '\\211PNG\\r\\n\\032\\nxxxx' > "$out"; printf '200 12'; exit 0
         self.assertRegex(r.stdout, rf"LINK_1_LABEL écrite deux fois \({re.escape(str(conf))}:[0-9]+:[0-9]+\) : seule la dernière ligne compte")
         self.assertIn("Second", r.stdout)
 
+    def test_145_fusion_refusee_si_probleme(self):
+        """1.45 : --config-merge vérifie d'abord la configuration (comme --check) : un problème ou une clé écrite deux fois, la fusion est refusée et
+        le fichier n'est pas touché ; une configuration correcte est fusionnée."""
+        for texte, attendu in ((MINIMAL + "LINK_1_LABEL=Premier\nLINK_1_LABEL=Second\n", "LINK_1_LABEL écrite deux fois"),
+                               (MINIMAL + "PAGE_1_THEMS=all\n", "PAGE_1_THEMS (clé inconnue")):
+            conf = self.conf(texte)
+            r = self.lancer("-c", str(conf), "--config-merge")
+            self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
+            self.assertIn(attendu, r.stderr)
+            self.assertIn("Fusion refusée, rien n'est modifié", r.stderr)
+            self.assertEqual(conf.read_text(encoding="utf-8"), texte)
+            self.assertFalse(list(conf.parent.glob(conf.name + ".bak-*")))
+        conf = self.conf(MINIMAL)
+        r = self.lancer("-c", str(conf), "--config-merge")
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertIn("Configuration fusionnée", r.stdout)
+
     def test_deux_langues_detection_et_textes(self):
         texte = self.config_deux_pages("no").replace(
             "PAGE_1_THEME=auto", "PAGE_1_THEME=auto\nPAGE_1_LANGUAGES=fr,en").replace(

@@ -4536,6 +4536,16 @@ Earlier history was archived outside this repository when this file was created.
 
 ## nginx-link-page.sh
 
+### 1.45.20261113.074229 - --config-merge refused while the configuration has a problem
+
+- Title: --config-merge checks the configuration first and refuses to merge while there is a problem.
+- Reason: request of the administrator on 2026-11-13: "avant de faire la fusion, refuser et indiquer d'arranger les problèmes avant, afin de ne pas causer de problème" (the merge of his configuration had kept a key written twice and an unknown theme without a word).
+- Changes: --config-merge is no longer run before the reading of the configuration: new function lancer_fusion(); the option sets MODE=merge; after the checks of --check, a [FAIL] problem or a key written twice (DOUBLONS) stops it with "Fusion refusée, rien n'est modifié : corriger d'abord ces problèmes, puis relancer --config-merge"; otherwise apps/_config.py (1.15, which also refuses) does the merge; help of --config-merge updated; nginx-tools-tests/test_nginx_link_page.py: 1 test; nginx-tools-tests/test_conventions.py: FusionDeConfiguration checks the refusal for nginx-link-page (new list VERIFIE_AVANT_FUSION).
+- Bugs fixed: none (new safeguard).
+- Safeguards and edge cases: nothing is written and no FILE.bak-... is made when the merge is refused; without any configuration file, the merge still writes the template (nothing to check); the [ATTN] warnings (old theme names read as photo) do not stop it; the checks that depend on the server (background file absent, SITE_BASE_URL) stop it too, as --update.
+- Checks performed: bash -n; shellcheck; test_nginx_link_page (78 tests); test_conventions.FusionDeConfiguration; --config-merge on the configuration of the administrator: refused, with the two LINK_11, PAGE_3_THEME and SITE_COUNTDOWN_LABEL.
+- Action required: fix the problems listed by --check (or by --config-merge), then run --config-merge again.
+
 ### 1.44.20261113.073638 - A key written twice in the same file is reported
 
 - Title: a key written twice in the same configuration file is reported ([ATTN]) with its two lines.
@@ -6508,6 +6518,16 @@ Earlier history was archived outside this repository when this file was created.
 ### 1.2.20261019.150215 - Current version. Earlier history archived outside the repository.
 
 ## apps/_config.py
+
+### 1.15.20261113.074229 - --config-merge refused on a key written twice or an invalid line
+
+- Title: before merging, --config-merge refuses when a file read has a key written twice or a line that is not KEY=VALUE, and lists them with their lines.
+- Reason: request of the administrator on 2026-11-13: refuse the merge and ask to fix the problems first, so that the merge never makes a choice in his place.
+- Changes: new function problemes_avant_fusion(fichiers, m); fusionner() calls it first and returns code 1 with "Fusion refusée, rien n'est modifié : corriger d'abord ces problèmes de la configuration, puis relancer --config-merge :" then one "[FAIL]" line per problem (FILE:LINE); messages fr/en "avant", "deux_fois", "invalide"; nginx-tools-tests/test_config_commune.py: 2 tests, the test of 1.14 with a key written twice now uses a note of the administrator.
+- Bugs fixed: none (new safeguard).
+- Safeguards and edge cases: nothing is written and no FILE.bak-... is made when refused; the same key in /etc/default/PROGRAM.conf and in ~/.PROGRAM.conf is the normal rule and is not a problem; comments and blank lines are never problems; applies to every program with --config-merge.
+- Checks performed: python3 -m py_compile; test_config_commune (same failure as main, none added); merge of the configuration of the administrator: refused, the five keys written twice listed.
+- Action required: none (with a problem, fix the lines listed, then run --config-merge again).
 
 ### 1.14.20261113.073324 - --config-merge: keys kept with their link or page, comments and inactive lines kept
 

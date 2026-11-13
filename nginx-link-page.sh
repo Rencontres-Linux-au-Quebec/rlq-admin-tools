@@ -29,25 +29,26 @@
 set -u
 LANG_C="${LC_ALL:-${LC_MESSAGES:-${LANG:-C}}}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
-readonly SCRIPT_VERSION="1.44.20261113.073638"
+readonly SCRIPT_VERSION="1.45.20261113.074229"
 readonly SCRIPT_NAME="nginx-link-page"
 # --config-merge: same rule as the other programs (apps/_config.py fusionner): the configuration file is rewritten from the new template,
 # keeping its active values; the old file is copied to FILE.bak-YYYYMMDD-HHMMSS. Then exit.
-_fusion=0; _fusion_cfg=""; _fusion_lang="${NGINX_TOOLS_I18N_LANGUE:-fr}"; _prec=""
+# 1.45: the configuration is read and checked first (same checks as --check): with a problem, the merge is refused and nothing is written.
+_fusion_cfg=""; _fusion_lang="${NGINX_TOOLS_I18N_LANGUE:-fr}"; _prec=""
 for _a in "$@"; do
-    case "$_a" in --config-merge) _fusion=1 ;; --config=*) _fusion_cfg="${_a#--config=}" ;; --lang=*) _fusion_lang="${_a#--lang=}" ;; esac
+    case "$_a" in --config=*) _fusion_cfg="${_a#--config=}" ;; --lang=*) _fusion_lang="${_a#--lang=}" ;; esac
     case "$_prec" in -c|--config) _fusion_cfg="$_a" ;; --lang) _fusion_lang="$_a" ;; esac
     _prec="$_a"
 done
-if (( _fusion )); then
+lancer_fusion() {   # lancer_fusion: --config-merge by apps/_config.py, then exit with its code
     if ! command -v python3 >/dev/null 2>&1 || [[ ! -r "$SCRIPT_DIR/apps/_config.py" ]]; then
         echo "--config-merge : python3 ou $SCRIPT_DIR/apps/_config.py introuvable / not found" >&2; exit 1
     fi
     NGINX_TOOLS_ETC_DEFAULT="${NGINX_LINK_PAGE_ETC_DEFAULT:-${NGINX_TOOLS_ETC_DEFAULT:-/etc/default}}" \
         python3 "$SCRIPT_DIR/apps/_config.py" --merge "$SCRIPT_NAME" --lang "${_fusion_lang%%[_.-]*}" ${_fusion_cfg:+--config "$_fusion_cfg"}
     exit $?
-fi
-unset _fusion _fusion_cfg _fusion_lang _prec _a
+}
+unset _prec _a
 readonly CHANGELOG_FILE="$SCRIPT_DIR/CHANGELOG.md"
 
 # LittleLink, pinned: tag and commit (verified after cloning).
@@ -129,7 +130,7 @@ Options (ordre alphabetique / alphabetical order) :
   ${C_OPT}--check-links${C_RESET}              demande chaque adresse des liens et signale les liens morts (404, sans réponse...) / request every link address and report the dead links (404, no answer...)
   ${C_OPT}--clicks${C_RESET}                   comme --stats / same as --stats
   ${C_OPT}-c, --config FILE${C_RESET}          lit SEUL ce fichier / read ONLY this file
-  ${C_OPT}--config-merge${C_RESET}             reecrit la configuration d'apres le nouveau modele en gardant ses valeurs (copie FICHIER.bak-...), puis quitte / rewrite the configuration from the new template, keeping its values (copy FILE.bak-...), then exit
+  ${C_OPT}--config-merge${C_RESET}             verifie la configuration (refus s'il y a un probleme), la reecrit d'apres le nouveau modele en gardant ses valeurs (copie FICHIER.bak-...), puis quitte / checks the configuration (refused when there is a problem), rewrites it from the new template, keeping its values (copy FILE.bak-...), then exit
   ${C_OPT}-h, --help${C_RESET}                 affiche cette aide / show this help
   ${C_OPT}--init${C_RESET}                     cree la configuration depuis le modele / create the configuration from the template
   ${C_OPT}--lang LANG${C_RESET}                langue des messages : fr ou en / message language: fr or en
@@ -237,6 +238,7 @@ while [[ $# -gt 0 ]]; do
             exit 0 ;;
         --check) MODE="check"; shift ;;
         --check-links) MODE="links"; shift ;;
+        --config-merge) MODE="merge"; shift ;;
         --clicks|--stats) MODE="clicks"; shift ;;
         --init) MODE="init"; shift ;;
         --update) MODE="update"; shift ;;
@@ -293,6 +295,7 @@ if (( ${#CFG_FICHIERS[@]} == 0 )) && [[ -z "$CONFIG_EXPLICIT" ]]; then
     if [[ ! -d "$(dirname "$cible")" || ! -w "$(dirname "$cible")" ]]; then
         cible="${HOME:-/root}/.$SCRIPT_NAME.conf"
     fi
+    [[ "$MODE" == merge ]] && lancer_fusion          # no configuration yet: the merge writes the template
     init_config "$cible" auto
 fi
 
@@ -769,13 +772,24 @@ for i in "${PAGES_N[@]}"; do
     echo "    PAGE_${i} : $(valeur_ou "PAGE_${i}_PATH" "?") -> $(valeur_ou "PAGE_${i}_DIR" "?") · $(valeur_ou "PAGE_${i}_ENGINE" littlelink) · $(valeur_ou "PAGE_${i}_ENABLED" yes) · $(nb_liens_page "$i") $(m "liens" "links")"
 done
 
+# 1.45: for --config-merge a key written twice is a problem: which line to keep is for the administrator to decide
+if [[ "$MODE" == merge ]]; then
+    for d in ${DOUBLONS[@]+"${DOUBLONS[@]}"}; do
+        PROBLEMES+=("${d%% *} $(m "écrite deux fois" "written twice") (${d#* }) : $(m "renuméroter ou supprimer l'autre ligne" "renumber or remove the other line")")
+    done
+fi
 if (( ${#PROBLEMES[@]} > 0 )); then
     if (( ${#CFG_FICHIERS[@]} == 0 )); then
         echo "  $(m "Astuce : sudo $SCRIPT_NAME.sh --init cree la configuration a partir du modele." "Tip: sudo $SCRIPT_NAME.sh --init creates the configuration from the template.")" >&2
     fi
     for pb in "${PROBLEMES[@]}"; do err "$pb"; done
+    if [[ "$MODE" == merge ]]; then
+        err "$(m "Fusion refusée, rien n'est modifié : corriger d'abord ces problèmes, puis relancer --config-merge (--check pour vérifier)." "Merge refused, nothing is changed: first fix these problems, then run --config-merge again (--check to verify).")"
+    fi
     exit 1
 fi
+# 1.45: --config-merge after the checks (the problems above have stopped it)
+[[ "$MODE" == merge ]] && lancer_fusion
 
 # ---- helpers: HTML escaping, asset download and type check ----
 html_echap() {

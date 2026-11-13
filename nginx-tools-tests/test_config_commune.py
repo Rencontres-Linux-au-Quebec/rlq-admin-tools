@@ -371,23 +371,40 @@ class FusionSansPerte(EnvTest):
         self.assertEqual(open(self.conf, encoding="utf-8").read(), "SITE_TITLE=Garder\n")
 
     def test_commentaires_de_fin_et_lignes_vides_gardes_deuxieme_fusion_identique(self):
-        """Le commentaire en fin de ligne du modèle reste ; la ligne vide avant un bloc hors modèle aussi ; deux fusions de suite : même fichier
-        (l'en-tête n'est pas répété) ; une clé écrite deux fois : seule la dernière ligne est gardée et signalée."""
-        ancien = "SITE_LANGUAGE=en\nLINK_3_LABEL=Ancien\nLINK_3_LABEL=Nouveau\n\n# lien 12\nLINK_12_LABEL=Douze\n"
+        """Le commentaire en fin de ligne du modèle reste ; la ligne vide avant un bloc hors modèle aussi ; les notes de l'administrateur sont gardées ;
+        deux fusions de suite : même fichier (l'en-tête n'est pas répété)."""
+        ancien = "SITE_LANGUAGE=en\nLINK_3_LABEL=Nouveau\n# note de l'administrateur\n\n# lien 12\nLINK_12_LABEL=Douze\n"
         code, lignes = self.fusion(ancien)
         self.assertEqual(code, 0, lignes)
         texte = open(self.conf, encoding="utf-8").read()
         self.assertRegex(texte, r"(?m)^SITE_LANGUAGE=en +# fr or en$")
         self.assertIn("\n\n# lien 12\nLINK_12_LABEL=Douze\n", texte)
         self.assertEqual(self.module.lire_texte(texte)["LINK_3_LABEL"], "Nouveau")
-        self.assertIn("\n#LINK_3_LABEL=Ancien\n", texte)                               # 1.14: inactive line kept as a comment
-        self.assertIn("LINK_3_LABEL", lignes[-1])                                    # reported as written twice
+        self.assertIn("\n# note de l'administrateur\n", texte)                            # 1.14: comment of the administrator kept
         code, _ = self.fusion(texte)
         self.assertEqual(code, 0)
         deuxieme = open(self.conf, encoding="utf-8").read()
         self.assertLessEqual(deuxieme.count("# Clés de l'ancien fichier absentes du modèle"), 1)
         self.assertEqual(deuxieme.count("# Repris de l'ancien fichier"), 1)
         self.assertEqual(re.sub(r"le \d{4}-\d\d-\d\d \d\d:\d\d", "", deuxieme), re.sub(r"le \d{4}-\d\d-\d\d \d\d:\d\d", "", texte))
+
+    def test_cle_ecrite_deux_fois_refusee_sans_rien_ecrire(self):
+        """1.15 : une clé écrite deux fois dans le même fichier : la fusion est refusée (laquelle garder ?), le fichier n'est pas touché."""
+        ancien = "SITE_LANGUAGE=en\nLINK_11_LABEL=Site Web\nLINK_11_LABEL=Discussion Odoo\n"
+        code, lignes = self.fusion(ancien)
+        self.assertEqual(code, 1)
+        self.assertIn("Fusion refusée", lignes[0])
+        self.assertRegex(lignes[1], rf"\[FAIL\] LINK_11_LABEL écrite deux fois \({re.escape(self.conf)}:2:3\)")
+        self.assertEqual(open(self.conf, encoding="utf-8").read(), ancien)
+        self.assertFalse(any(".bak-" in f for f in os.listdir(self.d)))
+
+    def test_ligne_invalide_refusee(self):
+        ancien = "SITE_LANGUAGE=en\nSITE_TITLE Rencontres\n"
+        code, lignes = self.fusion(ancien, "en")
+        self.assertEqual(code, 1)
+        self.assertIn("Merge refused", lignes[0])
+        self.assertIn(f"{self.conf}:2: line that is neither empty", lignes[1])
+        self.assertEqual(open(self.conf, encoding="utf-8").read(), ancien)
 
 
 class CommentaireApresValeurVide(EnvTest):

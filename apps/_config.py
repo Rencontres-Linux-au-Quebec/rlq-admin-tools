@@ -19,7 +19,7 @@ import sys
 import tempfile
 import time
 
-__version__ = "1.14.20261113.073324"
+__version__ = "1.15.20261113.074229"
 OUI = ("1", "true", "yes", "oui", "on", "vrai")
 NON = ("0", "false", "no", "non", "off", "faux", "")
 # 1.9: values are written in English only; these old French values are still read (same meaning), with a warning (valeurs_francaises).
@@ -378,7 +378,10 @@ _MESSAGES_FUSION = {
            "doublons": "  clés écrites deux fois dans l'ancien fichier : la dernière valeur (celle qui comptait) est gardée, les autres en commentaire à la fin : {cles}",
            "entete": "# Clés de l'ancien fichier absentes du modèle (gardées par --config-merge le {date})",
            "refus": "Fusion refusée, {chemin} n'est pas modifié : {raison}", "perdues": "valeurs qui seraient perdues : {cles}",
-           "plus_court": "le nouveau fichier serait plus petit que l'ancien ({apres} lignes et {apres_o} octets, avant {avant} lignes et {avant_o} octets)"},
+           "plus_court": "le nouveau fichier serait plus petit que l'ancien ({apres} lignes et {apres_o} octets, avant {avant} lignes et {avant_o} octets)",
+           "avant": "Fusion refusée, rien n'est modifié : corriger d'abord ces problèmes de la configuration, puis relancer --config-merge :",
+           "deux_fois": "{cle} écrite deux fois ({lieu}) : une seule ligne compte ; renuméroter ou supprimer l'autre",
+           "invalide": "{lieu} : ligne qui n'est ni vide, ni un commentaire, ni CLÉ=VALEUR : {ligne}"},
     "en": {"modele": "Default configuration not found: {chemin}", "ecriture": "Cannot write {chemin}: {erreur}",
            "fait": "Configuration merged into {chemin}", "lus": "  read: {fichiers}", "aucun": "none (new file)",
            "nouveau": "  new default configuration: {chemin}", "copie": "  backup of the previous file: {chemin}", "sans": "none",
@@ -387,7 +390,10 @@ _MESSAGES_FUSION = {
            "doublons": "  keys written twice in the old file: the last value (the one in effect) is kept, the others as comments at the end: {cles}",
            "entete": "# Keys of the old file not in the template (kept by --config-merge on {date})",
            "refus": "Merge refused, {chemin} is not changed: {raison}", "perdues": "values that would be lost: {cles}",
-           "plus_court": "the new file would be smaller than the old one ({apres} lines and {apres_o} bytes, before {avant} lines and {avant_o} bytes)"},
+           "plus_court": "the new file would be smaller than the old one ({apres} lines and {apres_o} bytes, before {avant} lines and {avant_o} bytes)",
+           "avant": "Merge refused, nothing is changed: first fix these problems of the configuration, then run --config-merge again:",
+           "deux_fois": "{cle} written twice ({lieu}): only one line counts; renumber or remove the other one",
+           "invalide": "{lieu}: line that is neither empty, nor a comment, nor KEY=VALUE: {ligne}"},
 }
 
 
@@ -530,6 +536,32 @@ def lignes_hors_modele(fichiers, connues):
     return res
 
 
+def problemes_avant_fusion(fichiers, m):
+    """1.15 : problèmes qu'une fusion ne doit pas trancher à la place de l'administrateur : une clé écrite deux fois dans le même fichier (laquelle
+    garder ?) et une ligne qui n'est ni vide, ni un commentaire, ni CLÉ=VALEUR (elle serait perdue). Liste de messages ; vide : la fusion peut se faire."""
+    res = []
+    for chemin in fichiers:
+        try:
+            with open(chemin, encoding="utf-8") as f:
+                lignes = f.read().splitlines()
+        except (OSError, UnicodeDecodeError):
+            continue
+        vues = {}
+        for n, ligne in enumerate(lignes, 1):
+            nette = ligne.strip()
+            if not nette or nette.startswith("#"):
+                continue
+            cle = re.match(r"([A-Za-z_][A-Za-z0-9_]*)\s*=", nette)
+            if not cle:
+                res.append(m["invalide"].format(lieu=f"{chemin}:{n}", ligne=nette))
+                continue
+            cle = cle.group(1).upper()
+            if cle in vues:
+                res.append(m["deux_fois"].format(cle=cle, lieu=f"{chemin}:{vues[cle]}:{n}"))
+            vues[cle] = n
+    return res
+
+
 def fusionner(programme, explicite=None, langue="fr", cles=(), dossier_doc=None):
     """--config-merge : le fichier lu jusqu'ici (le dernier de la règle /etc/default puis ~/.PROGRAMME.conf, ou `explicite` avec -c) est réécrit à partir du
     NOUVEAU modèle (doc/LANGUE/PROGRAMME.conf.example) en gardant les valeurs actives qu'il contient. 1.13 : les clés absentes du modèle (et de `cles`)
@@ -548,6 +580,10 @@ def fusionner(programme, explicite=None, langue="fr", cles=(), dossier_doc=None)
         else:
             systeme = regle[0][0]
             cible = systeme if os.access(os.path.dirname(systeme) or ".", os.W_OK) else regle[1][0]
+    # 1.15: a key written twice or an invalid line: the merge is refused until the administrator fixes the file (nothing is written)
+    problemes = problemes_avant_fusion(fichiers, m)
+    if problemes:
+        return 1, [m["avant"]] + [f"  [FAIL] {p}" for p in problemes]
     modele = modele_par_defaut(programme, langue, dossier_doc)
     if not modele:
         return 1, [m["modele"].format(chemin=os.path.join("doc", langue, f"{programme}.conf.example"))]
