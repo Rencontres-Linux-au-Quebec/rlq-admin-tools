@@ -1185,6 +1185,24 @@ printf '\\211PNG\\r\\n\\032\\nxxxx' > "$out"; printf '200 12'; exit 0
         source = (RACINE / "nginx-link-page.sh").read_text(encoding="utf-8")
         self.assertIn('ODOO_LANG="$lg_odoo"', source)
 
+    def test_143_fond_hors_du_dossier_de_la_page(self):
+        """1.43 : PAGE_n_BACKGROUND=file:/CHEMIN dans ce que --update remplace (DIR/images, DIR/css...) d'une page : refusé ; à côté du
+        dossier de la page (ex. /var/www/images avec PAGE_n_DIR=/var/www/liens) : accepté."""
+        import base64
+        png = base64.b64decode("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==")
+        dedans = self.www / "liens" / "images" / "fond.png"; dedans.parent.mkdir(parents=True, exist_ok=True); dedans.write_bytes(png)
+        cote = self.www / "images" / "fond.png"; cote.parent.mkdir(parents=True, exist_ok=True); cote.write_bytes(png)
+        base = self.config_deux_pages("no").replace("PAGE_1_THEME=auto", "PAGE_1_THEME=photo")
+        r = self.lancer("-c", str(self.conf(base + f"PAGE_1_BACKGROUND=file:{dedans}\n")), "--check")
+        self.assertNotEqual(r.returncode, 0)
+        self.assertIn(f"PAGE_1_BACKGROUND=file:{dedans} : dans {self.www}/liens/images, que --update remplace", r.stderr)
+        r = self.lancer("-c", str(self.conf(base + f"PAGE_1_BACKGROUND=file:{self.www}/liens2/css/x.png\n")), "--check")
+        self.assertIn("liens2/css, que --update remplace", r.stderr)                      # another page counts too
+        r = self.lancer("-c", str(self.conf(base + f"PAGE_1_BACKGROUND=file:{cote}\n")), "--update", "--yes", env=self.env)
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertTrue(cote.exists())
+        self.assertTrue((self.www / "liens" / "images" / "site" / "background.png").exists())
+
     def test_deux_langues_detection_et_textes(self):
         texte = self.config_deux_pages("no").replace(
             "PAGE_1_THEME=auto", "PAGE_1_THEME=auto\nPAGE_1_LANGUAGES=fr,en").replace(

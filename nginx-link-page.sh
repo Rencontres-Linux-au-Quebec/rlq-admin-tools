@@ -29,7 +29,7 @@
 set -u
 LANG_C="${LC_ALL:-${LC_MESSAGES:-${LANG:-C}}}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
-readonly SCRIPT_VERSION="1.42.20261113.062947"
+readonly SCRIPT_VERSION="1.43.20261113.065442"
 readonly SCRIPT_NAME="nginx-link-page"
 # --config-merge: same rule as the other programs (apps/_config.py fusionner): the configuration file is rewritten from the new template,
 # keeping its active values; the old file is copied to FILE.bak-YYYYMMDD-HHMMSS. Then exit.
@@ -731,6 +731,22 @@ for i in "${PAGES_N[@]}"; do
     if [[ -n "$(valeur_ou "${pre}THEMES" "")" && ! -r "$THEME_MENU_CSS" ]]; then
         PROBLEMES+=("${pre}THEMES : $THEME_MENU_CSS absent (livre avec le depot) / missing (shipped with the repository)")
     fi
+done
+# 1.43: an image given by file:/PATH must not be in what --update replaces in a page folder (css, images, js... see FICHIERS_GERES):
+# it would be removed before being read again. /var/www/images/fond.png is safe next to PAGE_n_DIR=/var/www/liens; it is refused with
+# PAGE_n_DIR=/var/www, whose images folder is rebuilt by each update.
+for i in ${PAGES_N[@]+"${PAGES_N[@]}"}; do
+    fond="${CFG[PAGE_${i}_BACKGROUND]:-}"
+    [[ "$fond" == file:* ]] || continue
+    fl="${fond#file:}"; fl="/${fl#"${fl%%[!/]*}"}"; fl="$(realpath -m -- "$fl")"
+    for d in ${DOSSIERS_LISTE[@]+"${DOSSIERS_LISTE[@]}"}; do
+        d="$(realpath -m -- "$d")"
+        for x in $FICHIERS_GERES; do
+            if [[ "$fl" == "$d/$x" || "$fl" == "$d/$x/"* ]]; then
+                PROBLEMES+=("PAGE_${i}_BACKGROUND=$fond : $(m "dans $d/$x, que --update remplace : mettre l'image ailleurs (ex. /var/www/images/)" "in $d/$x, which --update replaces: put the image elsewhere (e.g. /var/www/images/)")")
+            fi
+        done
+    done
 done
 
 # ---- summary of the files read and of the pages ----
