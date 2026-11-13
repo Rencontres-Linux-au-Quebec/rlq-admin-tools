@@ -85,7 +85,8 @@
 	gap: 0.6rem;
 	margin: 0 0 1.5rem;
 }
-.button.social-icon {
+/* more specific than the button rules of the themes (:root.theme-NAME .button.button-default), which set their own corners */
+nav.social-icons .button.button-default.social-icon {
 	width: 2.9rem;
 	min-height: 2.9rem;
 	height: 2.9rem;
@@ -93,7 +94,7 @@
 	margin: 0;
 	border-radius: 50%;
 }
-.button.social-icon .icon {
+nav.social-icons .button.social-icon .icon {
 	margin: 0;
 	width: 1.4rem;
 	height: 1.4rem;
@@ -127,9 +128,10 @@
 .countdown {
 	display: inline-block;
 	margin: 0 0 1.25rem;
+	max-width: 22rem;
 	padding: 0.45rem 1rem;
 	border: 1px solid currentColor;
-	border-radius: 999px;
+	border-radius: 1rem;
 	font-size: 0.95rem;
 	background: rgba(127, 127, 127, 0.14);
 }
