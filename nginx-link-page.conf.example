@@ -54,6 +54,9 @@
 # ---------------------------------------------------------------------------------------------
 # LINK_n_PAGES : pages that show the link (PAGE_n numbers): 2, 2-4, 1,3 or all; without it the link is on every page.
 #                Example: LINK_1 to LINK_10 with LINK_n_PAGES=1 for /a, LINK_11 to LINK_20 with LINK_n_PAGES=2 for /b.
+# LINK_n_MENU  : number of a link that becomes a menu: a button that opens its links just below it (no script).
+#                The menu link has a LABEL (and an ICON if wanted) but no URL; its links follow its LINK_n_PAGES.
+#                One level only (no menu in a menu). Example: LINK_5_LABEL=Événements, LINK_12_MENU=5, LINK_13_MENU=5.
 #LINK_1_LABEL=Facebook page                       # 80 characters at most
 #LINK_1_URL=https://www.facebook.com/example
 #LINK_1_ICON=builtin:facebook                     # optional (default: generic-website)

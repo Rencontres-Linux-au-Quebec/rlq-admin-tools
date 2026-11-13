@@ -770,6 +770,35 @@ printf '\\211PNG\\r\\n\\032\\nxxxx' > "$out"; printf '200 12'; exit 0
                 self.assertNotEqual(r.returncode, 0)
                 self.assertIn(attendu, r.stderr)
 
+    def test_126_menu_de_liens(self):
+        """1.26 : LINK_n_MENU : le lien n devient un menu (<details>, résumé en bouton) qui ouvre ses liens ; css/link-menu.css copié et lié ;
+        les liens du menu ne sont plus au premier niveau ; refusés : menu inexistant, menu avec adresse, menu dans un menu, lien dans son
+        propre menu, LINK_n_PAGES sur un lien de menu."""
+        menu = ("LINK_3_LABEL=Événements\nLINK_4_LABEL=Calendrier\nLINK_4_URL=https://example.org/cal\nLINK_4_MENU=3\n"
+                "LINK_5_LABEL=Archives\nLINK_5_URL=https://example.org/arch\nLINK_5_MENU=3\n")
+        r = self.lancer("-c", str(self.conf(self.config_deux_pages("no") + menu)), "--update", "--yes", env=self.env)
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        html = (self.www / "liens" / "index.html").read_text(encoding="utf-8")
+        self.assertTrue((self.www / "liens" / "css" / "link-menu.css").exists())
+        self.assertIn('<link rel="stylesheet" href="css/link-menu.css">', html)
+        bloc = html[html.index('<details class="link-menu">'):html.index("</details>", html.index('<details class="link-menu">'))]
+        self.assertIn('<summary class="button button-default">', bloc)
+        self.assertIn("Événements</summary>", bloc)
+        self.assertLess(bloc.index("example.org/cal"), bloc.index("example.org/arch"))
+        self.assertEqual(html.count("example.org/cal"), 1)                                 # only inside the menu
+        self.assertIn("PAGE_1 preparee (4 liens)", r.stdout + r.stderr)
+        r = self.lancer("-c", str(self.conf(self.config_deux_pages("no"))), "--update", "--yes", env=self.env)
+        self.assertFalse((self.www / "liens" / "css" / "link-menu.css").exists())          # no menu: no style sheet
+        cas = {"LINK_2_MENU=9": "le lien 9 n'existe pas", "LINK_2_MENU=2": "dans son propre menu",
+               "LINK_2_MENU=1": "le lien 1 est un menu (LINK_n_MENU=1) : il n'a pas d'adresse",
+               "LINK_3_LABEL=X\nLINK_2_MENU=3\nLINK_3_MENU=1": "un menu ne peut pas être dans un autre menu",
+               "LINK_3_LABEL=X\nLINK_2_MENU=3\nLINK_2_PAGES=1": "il va sur les pages de son menu"}
+        for ajout, attendu in cas.items():
+            with self.subTest(ajout=ajout):
+                r = self.lancer("-c", str(self.conf(self.config_deux_pages("no") + ajout + "\n")), "--check")
+                self.assertNotEqual(r.returncode, 0)
+                self.assertIn(attendu, r.stderr)
+
     def test_deux_langues_detection_et_textes(self):
         texte = self.config_deux_pages("no").replace(
             "PAGE_1_THEME=auto", "PAGE_1_THEME=auto\nPAGE_1_LANGUAGES=fr,en").replace(

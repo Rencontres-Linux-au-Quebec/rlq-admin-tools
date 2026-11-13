@@ -1,0 +1,49 @@
+/*
+ * link-page-link-menu.css - link menus of the link pages of nginx-link-page.sh (LINK_n_MENU).
+ * Copyright (C) 2026 Services-Conseils Linux Inc. - AGPL-3.0-or-later (see LICENSE).
+ * Copied as css/link-menu.css into each page folder that has a menu. A menu is a <details> element: its <summary> is drawn as a
+ * button of the page (classes button button-default, so it takes the colours of every theme) and opens the links of the menu just
+ * below it. No script needed.
+ */
+.link-menu {
+	margin: 0 0 1rem;
+}
+.link-menu > summary {
+	list-style: none;
+	margin-bottom: 0;
+	user-select: none;
+}
+.link-menu > summary::-webkit-details-marker {
+	display: none;
+}
+.link-menu > summary::after {
+	content: "\25BE";
+	display: inline-block;
+	margin-left: 0.5rem;
+	font-size: 0.85em;
+	transition: transform 0.2s ease;
+}
+.link-menu[open] > summary::after {
+	transform: rotate(180deg);
+}
+.link-menu-items {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	padding-top: 0.6rem;
+}
+/* the links of a menu: a little narrower and smaller than the page buttons, so the menu reads as one group */
+.link-menu-items .button {
+	width: 17rem;
+	min-height: 2.6rem;
+	font-size: 1rem;
+	margin-bottom: 0.6rem;
+}
+.link-menu-items .button:last-child {
+	margin-bottom: 0;
+}
+@media (prefers-reduced-motion: reduce) {
+	.link-menu > summary::after {
+		transition: none;
+	}
+}

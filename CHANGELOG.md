@@ -4536,6 +4536,16 @@ Earlier history was archived outside this repository when this file was created.
 
 ## nginx-link-page.sh
 
+### 1.26.20261112.215914 - LINK_n_MENU: a link that opens a menu of other links
+
+- Title: new key LINK_n_MENU: LINK_12_MENU=5 puts link 12 in the menu of link 5, a button that opens its links just below it.
+- Reason: request of the administrator on 2026-11-12: a link that would be a menu showing other links; of the two ways discussed (a link to another page, or a button that opens in place), the administrator chose the button that opens in place.
+- Changes: new key LINK_n_MENU (in CLES_LIEN); new style sheet apps/link-page-link-menu.css (copied as css/link-menu.css and linked only on a page that has a menu); new arrays MENU_ENFANTS and EST_ENFANT; new functions icone_lien and bouton_lien (the button of a link, shared by the page and the menus) and nb_liens_page; liens_de_la_page: the links of a menu are drawn inside it; genere_index(): a menu is a <details class="link-menu"> whose <summary> has the classes button button-default (colours of every theme, icon and English label as the other links); --check lists the links of a menu under it; the number of links of a page counts the links of its menus; --help and nginx-link-page.conf.example: LINK_n_MENU described; nginx-tools-tests/test_nginx_link_page.py: 1 test (5 subtests); preview doc/images/link-page-link-menu.png.
+- Bugs fixed: none.
+- Safeguards and edge cases: no script needed (HTML <details>); one level only; refused by --check: a menu that does not exist, a link in its own menu, a menu with an address (LINK_n_URL), a menu in another menu, LINK_n_PAGES on a link of a menu (it follows the pages of its menu); the links of a menu are a little narrower and smaller than the page buttons, so the menu reads as one group; no animation with prefers-reduced-motion.
+- Checks performed: bash -n; shellcheck; test_nginx_link_page (60 tests); menu rendered closed and open in Google Chrome with the themes maple, aurora and tux-poster.
+- Action required: none (example: LINK_5_LABEL=Événements without LINK_5_URL, then LINK_12_MENU=5 and LINK_13_MENU=5; then sudo nginx-link-page.sh --update --yes).
+
 ### 1.25.20261112.213646 - LINK_n_PAGES: choose the pages that show each link
 
 - Title: new key LINK_n_PAGES (2, 2-4, 1,3 or all): the link is shown only on these pages; without it, on every page as before.
