@@ -33,6 +33,8 @@
 #SITE_LANGUAGE=fr                                 # fr ou en
 #SITE_LOGO_ALT=Logo de mon groupe
 #SITE_LOGO_URL=https://example.org/logo.png       # facultatif ; adresse https:// (ou chemin avec SITE_BASE_URL)
+#SITE_SHARED_DIR=/var/www/link-page-shared       # fichiers communs à toutes les pages (styles, polices, icônes), une seule copie
+#SITE_SHARED_PATH=/link-page-shared/             # adresse de ces fichiers (unique, différente des pages)
 #SITE_TITLE=Mon groupe
 #
 # Aperçu montré par LinkedIn, Facebook, Mastodon... quand l'adresse de la page est partagée (Open Graph). Tout est facultatif.
@@ -222,6 +224,8 @@
 #   SITE_BASE_URL             https:// de base des chemins relatifs (défaut : certificat unique du serveur)
 #   SITE_LOGO_URL             logo : https:// ou chemin avec SITE_BASE_URL
 #   SITE_LOGO_ALT             texte du logo (défaut : SITE_TITLE)
+#   SITE_SHARED_DIR           dossier des fichiers communs, une seule copie (défaut : /var/www/link-page-shared ; vide ou créé par le programme)
+#   SITE_SHARED_PATH          adresse des fichiers communs (défaut : /link-page-shared/ ; différente des pages)
 #   SITE_SHARE_IMAGE_URL      aperçu Open Graph : PNG ou JPEG 1200 x 627 (demande SITE_BASE_URL)
 #   SITE_SHARE_TITLE          titre de l'aperçu (défaut : titre de la page)
 #   SITE_SHARE_TITLE_EN       même chose en anglais

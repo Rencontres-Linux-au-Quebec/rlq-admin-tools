@@ -29,7 +29,7 @@
 set -u
 LANG_C="${LC_ALL:-${LC_MESSAGES:-${LANG:-C}}}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
-readonly SCRIPT_VERSION="1.48.20261113.102013"
+readonly SCRIPT_VERSION="1.49.20261113.103519"
 readonly SCRIPT_NAME="nginx-link-page"
 # --config-merge: same rule as the other programs (apps/_config.py fusionner): the configuration file is rewritten from the new template,
 # keeping its active values; the old file is copied to FILE.bak-YYYYMMDD-HHMMSS. Then exit.
@@ -267,6 +267,9 @@ if [[ "$MODE" == "rollback" ]]; then
                 for x in $FICHIERS_GERES; do rm -rf "${chemin:?}/$x"; done
                 rm -f "${chemin:?}"/theme-*.html
                 if cp -a "$prec/$nom/." "$chemin/"; then ok "$(m "page remise" "page put back") : $chemin"; else err "$(m "copie impossible" "copy failed") : $chemin"; exit 1; fi ;;
+            shared)                                       # 1.49: the shared files
+                rm -rf "${chemin:?}"; mkdir -p "$(dirname "$chemin")"
+                if cp -a "$prec/$nom" "$chemin"; then ok "$(m "fichiers communs remis" "shared files put back") : $chemin"; else err "$(m "copie impossible" "copy failed") : $chemin"; exit 1; fi ;;
             snippet)
                 cp -a "$prec/$nom" "$chemin" && snippet_remis="$chemin" && ok "$(m "fragment nginx remis" "nginx snippet put back") : $chemin" ;;
             cron)
@@ -349,7 +352,7 @@ for cle in "${!CFG[@]}"; do
 done
 
 # 1.24: every key of the files must be known (a mistyped key was ignored without a word: PAGE_3_THEMS=all, SITE_LANGAUGE=en)
-readonly CLES_SITE="BASE_URL COUNTDOWN_DATE COUNTDOWN_LABEL COUNTDOWN_LABEL_EN COUNTDOWN_URL DESCRIPTION DESCRIPTION_EN FOOTER FOOTER_EN HEADING HEADING_EN LANGUAGE LOGO_ALT LOGO_URL NEWSLETTER_LABEL NEWSLETTER_LABEL_EN NEWSLETTER_URL VCARD_EMAIL VCARD_NAME VCARD_PHONE VCARD_URL SHARE_DESCRIPTION SHARE_DESCRIPTION_EN SHARE_IMAGE_URL SHARE_TITLE SHARE_TITLE_EN TITLE TITLE_EN"
+readonly CLES_SITE="BASE_URL COUNTDOWN_DATE COUNTDOWN_LABEL COUNTDOWN_LABEL_EN COUNTDOWN_URL DESCRIPTION DESCRIPTION_EN FOOTER FOOTER_EN HEADING HEADING_EN LANGUAGE LOGO_ALT LOGO_URL NEWSLETTER_LABEL NEWSLETTER_LABEL_EN NEWSLETTER_URL VCARD_EMAIL VCARD_NAME VCARD_PHONE VCARD_URL SHARED_DIR SHARED_PATH SHARE_DESCRIPTION SHARE_DESCRIPTION_EN SHARE_IMAGE_URL SHARE_TITLE SHARE_TITLE_EN TITLE TITLE_EN"
 readonly CLES_EVENTS="ODOO_DB ODOO_KEY_FILE ODOO_LANG_EN ODOO_LANG_FR ODOO_LOGIN ODOO_URL"      # 1.34: upcoming events read in Odoo
 readonly CLES_LIEN="FROM ICON ICON_DARK IMAGE LABEL LABEL_EN MENU PAGES STYLE UNTIL URL"
 readonly CLES_PAGE="ACCENT AVATAR BACKGROUND BACKGROUND_STYLE BUTTONS CLICKS COUNTDOWN DIR ENABLED ENGINE EVENTS LANGUAGES NEWSLETTER PATH QR SCRIPT SHARE SWITCH THEME THEMES TITLE TITLE_EN VCARD"
@@ -784,6 +787,26 @@ for i in ${PAGES_N[@]+"${PAGES_N[@]}"}; do
     done
 done
 
+# 1.49: files shared by every page (LittleLink style sheets, fonts and icons, themes, script): installed once in SITE_SHARED_DIR and
+# served at SITE_SHARED_PATH (one copy on the disk, one address cached by the browsers and Cloudflare for every page and language)
+PARTAGE_DIR="$(valeur_ou SITE_SHARED_DIR "${NGINX_LINK_PAGE_SHARED_DIR:-/var/www/link-page-shared}")"; PARTAGE_DIR="${PARTAGE_DIR%/}"
+PARTAGE_URL="$(valeur_ou SITE_SHARED_PATH /link-page-shared/)"
+readonly PARTAGE_MARQUE=".nginx-link-page-shared"      # marks a folder written by this program: never another folder is replaced
+[[ "$PARTAGE_URL" =~ $CHEMIN_RE ]] || PROBLEMES+=("SITE_SHARED_PATH=$PARTAGE_URL (ex. /link-page-shared/)")
+[[ -z "${CHEMINS_VUS[${PARTAGE_URL,,}]:-}" ]] || PROBLEMES+=("SITE_SHARED_PATH=$PARTAGE_URL : $(m "déjà le chemin d'une page" "already the path of a page")")
+if [[ "$PARTAGE_DIR" != /?* ]]; then
+    PROBLEMES+=("SITE_SHARED_DIR=$PARTAGE_DIR (chemin absolu, pas / / absolute path, not /)")
+else
+    for autre in ${DOSSIERS_LISTE[@]+"${DOSSIERS_LISTE[@]}"}; do
+        if [[ "$PARTAGE_DIR/" == "$autre/"* || "$autre/" == "$PARTAGE_DIR/"* ]]; then
+            PROBLEMES+=("SITE_SHARED_DIR=$PARTAGE_DIR : $(m "imbriqué avec le dossier d'une page" "nested with the folder of a page") ($autre)")
+        fi
+    done
+    if [[ -d "$PARTAGE_DIR" && ! -e "$PARTAGE_DIR/$PARTAGE_MARQUE" && -n "$(ls -A "$PARTAGE_DIR" 2>/dev/null)" ]]; then
+        PROBLEMES+=("SITE_SHARED_DIR=$PARTAGE_DIR : $(m "dossier non vide qui n'a pas été créé par ce programme (--update le remplace) : choisir un dossier vide ou nouveau" "folder not empty and not created by this program (--update replaces it): choose an empty or new folder")")
+    fi
+fi
+
 # ---- summary of the files read and of the pages ----
 if (( ${#CFG_FICHIERS[@]} > 0 )); then
     echo "Configuration lue / configuration read : ${CFG_FICHIERS[*]}"
@@ -794,6 +817,7 @@ echo "  $(m "Site" "Site") : ${SITE_TITLE_V:-?} · ${#LIENS_N[@]} $(m "liens" "l
 if [[ -n "$SITE_BASE_URL_V" ]]; then
     echo "  $(m "Base des chemins relatifs" "Base for relative paths") : $SITE_BASE_URL_V ($SITE_BASE_SOURCE)"
 fi
+echo "  $(m "Fichiers communs" "Shared files") : $PARTAGE_URL -> $PARTAGE_DIR"      # 1.49
 for i in "${PAGES_N[@]}"; do
     echo "    PAGE_${i} : $(valeur_ou "PAGE_${i}_PATH" "?") -> $(valeur_ou "PAGE_${i}_DIR" "?") · $(valeur_ou "PAGE_${i}_ENGINE" littlelink) · $(valeur_ou "PAGE_${i}_ENABLED" yes) · $(nb_liens_page "$i") $(m "liens" "links")"
 done
@@ -1104,8 +1128,8 @@ icone_resoudre() {   # icone_resoudre VALEUR CLE : sets RES_ICONE (path relative
     if [[ "$v" == builtin:* ]]; then
         nom="${v#builtin:}"
         # 1.11: LittleLink first, then LittleLink Extended (same builtin:NAME)
-        if [[ -f "$TMP/littlelink/images/icons/$nom.svg" ]]; then RES_ICONE="images/icons/$nom.svg"; return 0; fi
-        if [[ -f "$TMP/littlelink/images/icons-extended/$nom.svg" ]]; then RES_ICONE="images/icons-extended/$nom.svg"; return 0; fi
+        if [[ -f "$TMP/littlelink/images/icons/$nom.svg" ]]; then RES_ICONE="${PARTAGE_URL}images/icons/$nom.svg"; return 0; fi
+        if [[ -f "$TMP/littlelink/images/icons-extended/$nom.svg" ]]; then RES_ICONE="${PARTAGE_URL}images/icons-extended/$nom.svg"; return 0; fi
         err "$(m "icone integree inconnue : $nom" "unknown built-in icon: $nom")"; return 1
     fi
     if [[ -n "${ICONE_RESOLUE[$v]:-}" ]]; then RES_ICONE="${ICONE_RESOLUE[$v]}"; return 0; fi
@@ -1186,13 +1210,13 @@ bascule_libelle() {
 libelle_lien() {
     if [[ "$L_LANG" == en && -n "${CFG[LINK_${1}_LABEL_EN]:-}" ]]; then printf '%s' "${CFG[LINK_${1}_LABEL_EN]}"; else printf '%s' "${CFG[LINK_${1}_LABEL]}"; fi
 }
-# preparer_dossier DOSSIER: LittleLink assets and site images for one language folder
-preparer_dossier() {
+# 1.49: preparer_commun DOSSIER: the files shared by every page, written once (SITE_SHARED_DIR): LittleLink (css, fonts, images: icons,
+# icons-extended), the themes and their images and fonts, the style sheets of the menus and extras, the script of the pages
+preparer_commun() {
     local d="$1"
-    mkdir -p "$d/images/site"
-    cp -r "$TMP/littlelink/css" "$TMP/littlelink/fonts" "$d/"
-    cp -r "$TMP/littlelink/images" "$d/"
-    if [[ -r "$THEMES_CSS" ]]; then install -m 644 "$THEMES_CSS" "$d/css/themes.css"; fi        # 1.15: the 5 added themes
+    mkdir -p "$d/js"
+    cp -r "$TMP/littlelink/css" "$TMP/littlelink/fonts" "$TMP/littlelink/images" "$d/"
+    if [[ -r "$THEMES_CSS" ]]; then install -m 644 "$THEMES_CSS" "$d/css/themes.css"; fi        # 1.15: the added themes
     if [[ -r "$THEMES_LINKSTACK/linkstack.css" ]]; then                                        # 1.16: the 4 LinkStack themes, their images and fonts
         install -m 644 "$THEMES_LINKSTACK/linkstack.css" "$d/css/themes-linkstack.css"
         install -m 644 "$THEMES_LINKSTACK/LICENSES.md" "$d/css/themes-linkstack-LICENSES.md"
@@ -1200,8 +1224,19 @@ preparer_dossier() {
         install -m 644 "$THEMES_LINKSTACK"/images/* "$d/images/themes/"
         install -m 644 "$THEMES_LINKSTACK"/fonts/* "$d/fonts/themes/"
     fi
+    if [[ -r "$THEME_MENU_CSS" ]]; then install -m 644 "$THEME_MENU_CSS" "$d/css/theme-menu.css"; fi
+    if [[ -r "$LINK_MENU_CSS" ]]; then install -m 644 "$LINK_MENU_CSS" "$d/css/link-menu.css"; fi
+    if [[ -r "$EXTRAS_CSS" ]]; then install -m 644 "$EXTRAS_CSS" "$d/css/extras.css"; fi
+    if [[ -r "$LINK_PAGE_JS" ]]; then install -m 644 "$LINK_PAGE_JS" "$d/js/link-page.js"; fi
+    printf '%s\n' "Written by $SCRIPT_NAME.sh --update: replaced at each run, do not put other files here." > "$d/$PARTAGE_MARQUE"
+}
+# preparer_dossier DOSSIER: the files of one page and language folder: only the images of the site (logo, icons given by address, thumbnails)
+preparer_dossier() {
+    local d="$1"
+    mkdir -p "$d/images/site" "$d/css"
     cp -r "$TMP/assets/images/site/." "$d/images/site/"
 }
+if [[ -d "$TMP/littlelink/css" ]]; then preparer_commun "$TMP/shared"; fi      # 1.49: one copy for every page (SITE_SHARED_DIR)
 
 # 1.18: csp_script: script-src of the page being generated ('self' with js/link-page.js, 'none' otherwise)
 csp_script() { if [[ "$P_JS" == yes ]]; then echo "'self'"; else echo "'none'"; fi; }
@@ -1400,23 +1435,23 @@ genere_index() {   # genere_index DOSSIER THEME TITRE [FICHIER] [CIBLE_BASCULE] 
         fi
         echo "    <meta name=\"referrer\" content=\"strict-origin-when-cross-origin\">"
         echo "    <meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; img-src 'self'; style-src 'self'; font-src 'self'; script-src $(csp_script); object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'\">"
-        echo "    <link rel=\"stylesheet\" href=\"css/reset.css\">"
-        echo "    <link rel=\"stylesheet\" href=\"css/style.css\">"
-        echo "    <link rel=\"stylesheet\" href=\"css/brands.css\">"
-        if [[ -f "$dossier/css/brands-extended.css" ]]; then echo "    <link rel=\"stylesheet\" href=\"css/brands-extended.css\">"; fi
+        echo "    <link rel=\"stylesheet\" href=\"${PARTAGE_URL}css/reset.css\">"      # 1.49: shared files (SITE_SHARED_PATH)
+        echo "    <link rel=\"stylesheet\" href=\"${PARTAGE_URL}css/style.css\">"
+        echo "    <link rel=\"stylesheet\" href=\"${PARTAGE_URL}css/brands.css\">"
+        if [[ -f "$TMP/shared/css/brands-extended.css" ]]; then echo "    <link rel=\"stylesheet\" href=\"${PARTAGE_URL}css/brands-extended.css\">"; fi
         # 1.18: with the script, the menu changes the theme in place: the style sheets of every offered theme are loaded
-        if [[ -f "$dossier/css/themes.css" ]] && { [[ -n "$(theme_couleur "$theme")" && "$theme" != ls-* ]] || { [[ "$P_JS" == yes ]] && menu_contient "^($THEMES_MAISON)\$"; }; }; then
-            echo "    <link rel=\"stylesheet\" href=\"css/themes.css\">"
+        if [[ -f "$TMP/shared/css/themes.css" ]] && { [[ -n "$(theme_couleur "$theme")" && "$theme" != ls-* ]] || { [[ "$P_JS" == yes ]] && menu_contient "^($THEMES_MAISON)\$"; }; }; then
+            echo "    <link rel=\"stylesheet\" href=\"${PARTAGE_URL}css/themes.css\">"
         fi
-        if [[ -f "$dossier/css/themes-linkstack.css" ]] && { [[ "$theme" == ls-* ]] || { [[ "$P_JS" == yes ]] && menu_contient '^ls-'; }; }; then
-            echo "    <link rel=\"stylesheet\" href=\"css/themes-linkstack.css\">"
+        if [[ -f "$TMP/shared/css/themes-linkstack.css" ]] && { [[ "$theme" == ls-* ]] || { [[ "$P_JS" == yes ]] && menu_contient '^ls-'; }; }; then
+            echo "    <link rel=\"stylesheet\" href=\"${PARTAGE_URL}css/themes-linkstack.css\">"
         fi
         if [[ -f "$dossier/css/background.css" ]]; then echo "    <link rel=\"stylesheet\" href=\"css/background.css\">"; fi      # 1.41
-        if (( ${#P_MENU[@]} )) || [[ "$P_JS" == yes && "$P_PARTAGE" == yes ]]; then echo "    <link rel=\"stylesheet\" href=\"css/theme-menu.css\">"; fi
-        if [[ -f "$dossier/css/link-menu.css" ]]; then echo "    <link rel=\"stylesheet\" href=\"css/link-menu.css\">"; fi      # 1.26
-        if [[ -f "$dossier/css/extras.css" ]]; then echo "    <link rel=\"stylesheet\" href=\"css/extras.css\">"; fi            # 1.31
+        if (( ${#P_MENU[@]} )) || [[ "$P_JS" == yes && "$P_PARTAGE" == yes ]]; then echo "    <link rel=\"stylesheet\" href=\"${PARTAGE_URL}css/theme-menu.css\">"; fi
+        if [[ "$P_A_MENU" == yes ]]; then echo "    <link rel=\"stylesheet\" href=\"${PARTAGE_URL}css/link-menu.css\">"; fi      # 1.26
+        if [[ "$P_A_EXTRAS" == yes ]]; then echo "    <link rel=\"stylesheet\" href=\"${PARTAGE_URL}css/extras.css\">"; fi            # 1.31
         if [[ -f "$dossier/css/accent.css" ]]; then echo "    <link rel=\"stylesheet\" href=\"css/accent.css\">"; fi
-        if [[ "$P_JS" == yes ]]; then echo "    <script src=\"js/link-page.js\"></script>"; fi      # 1.18: in <head>: theme set before drawing
+        if [[ "$P_JS" == yes ]]; then echo "    <script src=\"${PARTAGE_URL}js/link-page.js\"></script>"; fi      # 1.18: in <head>: theme set before drawing
         echo "  </head>"
         echo "  <body>"
         if [[ "$P_JS" == yes && "$P_PARTAGE" == yes ]]; then   # 1.18: "Share" button, shown by the script when the browser can share or copy
@@ -1578,7 +1613,6 @@ for i in ${ACTIVES[@]+"${ACTIVES[@]}"}; do
         if [[ -n "$P_ACCENT" ]]; then
             printf '.button.button-default { --button-background: %s; }\n' "$P_ACCENT" > "$dossier/css/accent.css"
         fi
-        if [[ "$P_JS" == yes ]]; then mkdir -p "$dossier/js"; install -m 644 "$LINK_PAGE_JS" "$dossier/js/link-page.js"; fi
         if [[ "$P_VCARD" == yes ]]; then                       # 1.39: contact card of the group (vCard 3.0, CRLF)
             {
                 printf 'BEGIN:VCARD\r\nVERSION:3.0\r\n'
@@ -1600,16 +1634,11 @@ for i in ${ACTIVES[@]+"${ACTIVES[@]}"}; do
                 attn "$(m "code QR non créé (qrencode)" "QR code not created (qrencode)") : $L_URL_PUBLIQUE"; rm -f "$dossier/qr.svg" "$dossier/qr.png"
             fi
         fi
-        if (( ${#P_MENU[@]} )) || [[ "$P_JS" == yes && "$P_PARTAGE" == yes ]]; then
-            if [[ -r "$THEME_MENU_CSS" ]]; then install -m 644 "$THEME_MENU_CSS" "$dossier/css/theme-menu.css"; fi
-        fi
-        if [[ -r "$EXTRAS_CSS" ]] && page_a_extras; then      # 1.31: a featured link (or, 1.32, the QR code) on this page
-            install -m 644 "$EXTRAS_CSS" "$dossier/css/extras.css"
-        fi
-        if [[ -r "$LINK_MENU_CSS" ]]; then                    # 1.26: a menu on this page
-            for e in ${P_LIENS[@]+"${P_LIENS[@]}"}; do
-                if [[ -n "${MENU_ENFANTS[$e]:-}" ]]; then install -m 644 "$LINK_MENU_CSS" "$dossier/css/link-menu.css"; break; fi
-            done
+        # 1.49: the style sheets of the menus and extras are shared: only whether this page links them is decided here
+        P_A_EXTRAS=no; if [[ -r "$EXTRAS_CSS" ]] && page_a_extras; then P_A_EXTRAS=yes; fi     # 1.31: a featured link, a QR code...
+        P_A_MENU=no                                                                            # 1.26: a menu on this page
+        if [[ -r "$LINK_MENU_CSS" ]]; then
+            for e in ${P_LIENS[@]+"${P_LIENS[@]}"}; do [[ -n "${MENU_ENFANTS[$e]:-}" ]] && { P_A_MENU=yes; break; }; done
         fi
         if (( ${#P_MENU[@]} )); then
             for t in "${P_MENU[@]}"; do
@@ -1643,6 +1672,20 @@ if (( ${#ACTIVES[@]} == 0 )); then
     LIEN_NOUVEAU+="# liens : inactif"$'\n'
 else
     LIEN_NOUVEAU+="# liens : actif"$'\n'
+    # 1.49: the shared files (SITE_SHARED_DIR) at SITE_SHARED_PATH: style sheets and script 1 hour, images and fonts 7 days
+    LIEN_NOUVEAU+="location ^~ ${PARTAGE_URL} {"$'\n'
+    LIEN_NOUVEAU+="    alias ${PARTAGE_DIR}/;"$'\n'
+    LIEN_NOUVEAU+="    limit_except GET HEAD { deny all; }"$'\n'
+    LIEN_NOUVEAU+="    location ~ /\\. { return 404; }"$'\n'
+    for regle in "css|js:public, max-age=3600" "png|jpe?g|webp|gif|svg|ico|woff2?:public, max-age=604800" "md:no-cache"; do
+        LIEN_NOUVEAU+="    location ~* \\.(${regle%%:*})\$ {"$'\n'
+        LIEN_NOUVEAU+="        limit_except GET HEAD { deny all; }"$'\n'
+        LIEN_NOUVEAU+="        add_header X-Content-Type-Options \"nosniff\" always;"$'\n'
+        LIEN_NOUVEAU+="        add_header Cache-Control \"${regle#*:}\" always;"$'\n'
+        LIEN_NOUVEAU+="    }"$'\n'
+    done
+    LIEN_NOUVEAU+="    return 404;"$'\n'
+    LIEN_NOUVEAU+="}"$'\n'
     for i in "${ACTIVES[@]}"; do
         chemin_page="$(valeur_ou "PAGE_${i}_PATH" "")"
         dir_page="$(valeur_ou "PAGE_${i}_DIR" "")"
@@ -1725,6 +1768,7 @@ if [[ "${NGINX_LINK_PAGE_NO_BACKUP:-0}" != 1 ]]; then
         for x in "$dossier"/theme-*.html; do [[ -e "$x" ]] && cp -a "$x" "$nouv/page-$i/"; done
         printf 'page\tpage-%s\t%s\n' "$i" "$dossier" >> "$nouv/manifest"
     done
+    if [[ -e "$PARTAGE_DIR/$PARTAGE_MARQUE" ]]; then cp -a "$PARTAGE_DIR" "$nouv/shared"; printf 'shared\tshared\t%s\n' "$PARTAGE_DIR" >> "$nouv/manifest"; fi      # 1.49
     if [[ -f "$LIEN_FICHIER" ]]; then cp -a "$LIEN_FICHIER" "$nouv/snippet.conf"; printf 'snippet\tsnippet.conf\t%s\n' "$LIEN_FICHIER" >> "$nouv/manifest"; fi
     cron_f="${NGINX_LINK_PAGE_CRON_DIR:-/etc/cron.d}/$SCRIPT_NAME"
     if [[ -f "$cron_f" ]]; then cp -a "$cron_f" "$nouv/cron"; printf 'cron\tcron\t%s\n' "$cron_f" >> "$nouv/manifest"; else printf 'cron\t-\t%s\n' "$cron_f" >> "$nouv/manifest"; fi
@@ -1737,6 +1781,15 @@ if [[ "${NGINX_LINK_PAGE_NO_BACKUP:-0}" != 1 ]]; then
 fi
 mkdir -p "$SNIPPETS_DIR"
 LIEN_ANCIEN=""; [[ -f "$LIEN_FICHIER" ]] && LIEN_ANCIEN=$(cat "$LIEN_FICHIER")
+if (( ${#ACTIVES[@]} )) && [[ -d "$TMP/shared" ]]; then      # 1.49: the shared files, replaced as a whole (new folder, then renamed)
+    mkdir -p "$(dirname "$PARTAGE_DIR")"
+    rm -rf "${PARTAGE_DIR:?}.new" "${PARTAGE_DIR:?}.old"
+    if ! cp -r "$TMP/shared" "$PARTAGE_DIR.new"; then err "$(m "copie impossible dans" "copy failed in") $PARTAGE_DIR.new"; exit 1; fi
+    chmod -R a+rX "$PARTAGE_DIR.new"
+    if [[ -d "$PARTAGE_DIR" ]]; then mv "$PARTAGE_DIR" "$PARTAGE_DIR.old"; fi
+    mv "$PARTAGE_DIR.new" "$PARTAGE_DIR" && rm -rf "${PARTAGE_DIR:?}.old"
+    ok "$(m "fichiers communs installés dans" "shared files installed in") $PARTAGE_DIR ($PARTAGE_URL)"
+fi
 for i in ${ACTIVES[@]+"${ACTIVES[@]}"}; do
     dossier="$(valeur_ou "PAGE_${i}_DIR" "")"
     mkdir -p "$dossier"
