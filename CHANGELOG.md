@@ -4536,6 +4536,16 @@ Earlier history was archived outside this repository when this file was created.
 
 ## nginx-link-page.sh
 
+### 1.46.20261113.075823 - Section 5 of the template documents every key
+
+- Title: the template, and so every merged configuration, ends with a section 5 that documents every key, in French and in English.
+- Reason: request of the administrator on 2026-11-13: add a commented section in the merge to document all the possible variables.
+- Changes: nginx-link-page.conf.example: new section "5. TOUTES LES CLÉS / ALL THE KEYS": every SITE_, LINK_n_, PAGE_n_ and EVENTS_ODOO_ key with its values, its default and what it does, one French line and one English line; --config-merge copies it from the template at every merge (it follows the version of the program); nginx-tools-tests/test_nginx_link_page.py: 1 test.
+- Bugs fixed: none.
+- Safeguards and edge cases: the lines of the section are never "#KEY=": --config-merge does not take them for settings to uncomment and --check reads nothing there; the test checks that the section lists exactly the keys read by the program (CLES_SITE, CLES_LIEN, CLES_PAGE, CLES_EVENTS): a new key without its documentation fails; two merges in a row: the section once.
+- Checks performed: test_nginx_link_page (79 tests); test_conventions.FusionDeConfiguration; merge of a configuration: section present once, values unchanged.
+- Action required: none (it appears at the next --config-merge).
+
 ### 1.45.20261113.074229 - --config-merge refused while the configuration has a problem
 
 - Title: --config-merge checks the configuration first and refuses to merge while there is a problem.

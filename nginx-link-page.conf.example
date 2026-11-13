@@ -190,3 +190,154 @@
 #EVENTS_ODOO_KEY_FILE=/etc/default/nginx-link-page.odoo-key
 #EVENTS_ODOO_LANG_FR=fr_FR                         # language of Odoo for the names on the French pages (fr_CA...)
 #EVENTS_ODOO_LANG_EN=en_US                         # same for the English pages
+#
+# ---------------------------------------------------------------------------------------------
+# 5. TOUTES LES CLÉS / ALL THE KEYS (référence, rien n'est lu ici / reference, nothing is read here)
+# ---------------------------------------------------------------------------------------------
+# Recopiée par --config-merge à chaque fusion : elle suit la version du programme. Chaque clé : français, puis anglais.
+# Copied by --config-merge at every merge: it follows the version of the program. Each key: French, then English.
+# Une clé absente de cette liste est refusée par --check. / A key missing from this list is refused by --check.
+#
+# SITE_ : contenu commun à toutes les pages / content shared by every page
+#   SITE_TITLE                requis ; titre des pages
+#                             required; title of the pages
+#   SITE_TITLE_EN             titre des pages anglaises
+#                             title of the English pages
+#   SITE_HEADING              titre affiché en haut (défaut : SITE_TITLE)
+#                             heading at the top (default: SITE_TITLE)
+#   SITE_HEADING_EN           même chose en anglais
+#                             same in English
+#   SITE_DESCRIPTION          texte sous le titre
+#                             text under the heading
+#   SITE_DESCRIPTION_EN       même chose en anglais
+#                             same in English
+#   SITE_FOOTER               pied de page
+#                             footer
+#   SITE_FOOTER_EN            même chose en anglais
+#                             same in English
+#   SITE_LANGUAGE             fr (défaut) ou en : langue des pages sans PAGE_n_LANGUAGES
+#                             fr (default) or en: language of the pages without PAGE_n_LANGUAGES
+#   SITE_BASE_URL             https:// de base des chemins relatifs (défaut : certificat unique du serveur)
+#                             https:// base of the relative paths (default: single certificate of the server)
+#   SITE_LOGO_URL             logo : https:// ou chemin avec SITE_BASE_URL
+#                             logo: https:// or path with SITE_BASE_URL
+#   SITE_LOGO_ALT             texte du logo (défaut : SITE_TITLE)
+#                             text of the logo (default: SITE_TITLE)
+#   SITE_SHARE_IMAGE_URL      aperçu Open Graph : PNG ou JPEG 1200 x 627 (demande SITE_BASE_URL)
+#                             Open Graph preview: PNG or JPEG 1200 x 627 (needs SITE_BASE_URL)
+#   SITE_SHARE_TITLE          titre de l'aperçu (défaut : titre de la page)
+#                             title of the preview (default: page title)
+#   SITE_SHARE_TITLE_EN       même chose en anglais
+#                             same in English
+#   SITE_SHARE_DESCRIPTION    texte de l'aperçu (défaut : SITE_DESCRIPTION)
+#                             text of the preview (default: SITE_DESCRIPTION)
+#   SITE_SHARE_DESCRIPTION_EN même chose en anglais
+#                             same in English
+#   SITE_NEWSLETTER_URL       formulaire d'inscription à l'infolettre (https:// ou chemin)
+#                             newsletter subscription form (https:// or path)
+#   SITE_NEWSLETTER_LABEL     texte du bouton de l'infolettre
+#                             label of the newsletter button
+#   SITE_NEWSLETTER_LABEL_EN  même chose en anglais
+#                             same in English
+#   SITE_VCARD_NAME           nom de la fiche contact.vcf (défaut : SITE_TITLE)
+#                             name of the contact.vcf card (default: SITE_TITLE)
+#   SITE_VCARD_EMAIL          courriel de la fiche
+#                             e-mail of the card
+#   SITE_VCARD_PHONE          téléphone de la fiche (chiffres, espaces, + ( ) . -)
+#                             phone of the card (digits, spaces, + ( ) . -)
+#   SITE_VCARD_URL            site de la fiche, https:// (défaut : SITE_BASE_URL)
+#                             web site of the card, https:// (default: SITE_BASE_URL)
+#   SITE_COUNTDOWN_DATE       date du compte à rebours AAAA-MM-JJ [HH:MM] (sinon : prochain événement Odoo)
+#                             countdown date YYYY-MM-DD [HH:MM] (otherwise: next Odoo event)
+#   SITE_COUNTDOWN_LABEL      nom de l'événement (requis avec SITE_COUNTDOWN_DATE)
+#                             name of the event (required with SITE_COUNTDOWN_DATE)
+#   SITE_COUNTDOWN_LABEL_EN   même chose en anglais
+#                             same in English
+#   SITE_COUNTDOWN_URL        lien du bandeau du compte à rebours
+#                             link of the countdown banner
+#
+# LINK_n_ : un lien (n = 1, 2... sans trou) / one link (n = 1, 2... without gaps)
+#   LINK_n_LABEL              requis ; texte du bouton (80 caractères au plus)
+#                             required; label of the button (80 characters at most)
+#   LINK_n_LABEL_EN           texte anglais
+#                             English label
+#   LINK_n_URL                requis sauf pour un menu ; https:// ou chemin relatif
+#                             required except for a menu; https:// or relative path
+#   LINK_n_ICON               builtin:NOM, https:// ou chemin d'une image (défaut : generic-website)
+#                             builtin:NAME, https:// or path of an image (default: generic-website)
+#   LINK_n_ICON_DARK          icône du thème sombre
+#                             icon of the dark theme
+#   LINK_n_IMAGE              vignette à la place de l'icône (PNG, JPEG, WebP, SVG, 2 Mo au plus)
+#                             thumbnail instead of the icon (PNG, JPEG, WebP, SVG, 2 MB at most)
+#   LINK_n_PAGES              pages du lien : 2, 2-4, 1,3 ou all (défaut : toutes)
+#                             pages of the link: 2, 2-4, 1,3 or all (default: every page)
+#   LINK_n_MENU               numéro du lien-menu qui contient ce lien (un seul niveau)
+#                             number of the menu link that holds this link (one level)
+#   LINK_n_STYLE              normal (défaut), featured (mis en avant) ou icon (rangée d'icônes)
+#                             normal (default), featured (highlighted) or icon (row of icons)
+#   LINK_n_FROM               affiché à partir de AAAA-MM-JJ (inclus)
+#                             shown from YYYY-MM-DD (included)
+#   LINK_n_UNTIL              affiché jusqu'au AAAA-MM-JJ (inclus)
+#                             shown until YYYY-MM-DD (included)
+#
+# PAGE_n_ : une page (n = 1, 2... sans trou) / one page (n = 1, 2... without gaps)
+#   PAGE_n_ENABLED            yes (défaut) ou no
+#                             yes (default) or no
+#   PAGE_n_ENGINE             littlelink (défaut)
+#                             littlelink (default)
+#   PAGE_n_PATH               requis ; adresse, par exemple /links/ (unique, / final)
+#                             required; address, for example /links/ (unique, final /)
+#   PAGE_n_DIR                requis ; dossier absolu des fichiers, unique, jamais dans un autre
+#                             required; absolute folder of the files, unique, never inside another
+#   PAGE_n_TITLE              titre de la page (défaut : SITE_TITLE)
+#                             page title (default: SITE_TITLE)
+#   PAGE_n_TITLE_EN           même chose en anglais
+#                             same in English
+#   PAGE_n_LANGUAGES          fr, en, fr,en ou en,fr (défaut : SITE_LANGUAGE)
+#                             fr, en, fr,en or en,fr (default: SITE_LANGUAGE)
+#   PAGE_n_THEME              un thème : auto (défaut), light, dark ou un thème de la section 3
+#                             one theme: auto (default), light, dark or a theme of section 3
+#   PAGE_n_THEMES             thèmes du bouton « Thème » : liste séparée par des virgules ou all
+#                             themes of the "Theme" button: comma list or all
+#   PAGE_n_SWITCH             yes ou no (défaut) : autre.html avec l'autre thème (remplacé par THEMES)
+#                             yes or no (default): autre.html with the other theme (replaced by THEMES)
+#   PAGE_n_BACKGROUND         image du thème photo : https://, chemin ou file:/CHEMIN (5 Mo au plus)
+#                             image of the photo theme: https://, path or file:/PATH (5 MB at most)
+#   PAGE_n_BACKGROUND_STYLE   pale (défaut, flou et pâle) ou plain (tel quel)
+#                             pale (default, blurred and light) or plain (as it is)
+#   PAGE_n_BUTTONS            default (défaut) ou brand (couleurs des marques)
+#                             default (default) or brand (brand colours)
+#   PAGE_n_AVATAR             none (défaut), soft ou rounded : forme du logo
+#                             none (default), soft or rounded: shape of the logo
+#   PAGE_n_ACCENT             couleur des boutons #RRGGBB (vide : couleur du thème)
+#                             button colour #RRGGBB (empty: colour of the theme)
+#   PAGE_n_SCRIPT             yes (défaut) ou no : js/link-page.js (thème et langue mémorisés)
+#                             yes (default) or no: js/link-page.js (theme and language remembered)
+#   PAGE_n_SHARE              yes (défaut) ou no : bouton « Partager » (demande SCRIPT=yes)
+#                             yes (default) or no: "Share" button (needs SCRIPT=yes)
+#   PAGE_n_CLICKS             yes ou no (défaut) : clics comptés par --clicks
+#                             yes or no (default): clicks counted by --clicks
+#   PAGE_n_QR                 yes ou no (défaut) : qr.svg et qr.png (demande qrencode)
+#                             yes or no (default): qr.svg and qr.png (needs qrencode)
+#   PAGE_n_VCARD              yes ou no (défaut) : contact.vcf (SITE_VCARD_*)
+#                             yes or no (default): contact.vcf (SITE_VCARD_*)
+#   PAGE_n_NEWSLETTER         yes (défaut) ou no : bouton de l'infolettre
+#                             yes (default) or no: newsletter button
+#   PAGE_n_COUNTDOWN          yes ou no (défaut) : bandeau « Dans 9 jours »
+#                             yes or no (default): "In 9 days" banner
+#   PAGE_n_EVENTS             0 (défaut) à 10 : prochains événements d'Odoo
+#                             0 (default) to 10: next events of Odoo
+#
+# EVENTS_ODOO_ : événements d'Odoo, compte en lecture seule / Odoo events, read-only account
+#   EVENTS_ODOO_URL           adresse d'Odoo (défaut : SITE_BASE_URL)
+#                             address of Odoo (default: SITE_BASE_URL)
+#   EVENTS_ODOO_DB            base de données
+#                             database
+#   EVENTS_ODOO_LOGIN         identifiant du compte
+#                             login of the account
+#   EVENTS_ODOO_KEY_FILE      fichier chmod 600 de la clé d'API (jamais la clé ici)
+#                             chmod 600 file of the API key (never the key here)
+#   EVENTS_ODOO_LANG_FR       langue Odoo des pages françaises (défaut : fr_FR)
+#                             Odoo language of the French pages (default: fr_FR)
+#   EVENTS_ODOO_LANG_EN       langue Odoo des pages anglaises (défaut : en_US)
+#                             Odoo language of the English pages (default: en_US)

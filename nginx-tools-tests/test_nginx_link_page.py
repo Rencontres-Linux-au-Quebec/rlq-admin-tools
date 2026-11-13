@@ -1228,6 +1228,28 @@ printf '\\211PNG\\r\\n\\032\\nxxxx' > "$out"; printf '200 12'; exit 0
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
         self.assertIn("Configuration fusionnée", r.stdout)
 
+    def test_146_reference_de_toutes_les_cles(self):
+        """1.46 : la section 5 du modèle documente toutes les clés lues par le programme (CLES_SITE, CLES_LIEN, CLES_PAGE, CLES_EVENTS), en français
+        et en anglais, et rien d'autre ; --config-merge la recopie sans la lire comme des réglages."""
+        src = (RACINE / "nginx-link-page.sh").read_text(encoding="utf-8")
+        attendues = set()
+        for nom, prefixe in (("CLES_SITE", "SITE_"), ("CLES_LIEN", "LINK_n_"), ("CLES_PAGE", "PAGE_n_"), ("CLES_EVENTS", "EVENTS_")):
+            attendues |= {prefixe + k for k in re.search(rf'readonly {nom}="([^"]+)"', src).group(1).split()}
+        modele = (RACINE / "nginx-link-page.conf.example").read_text(encoding="utf-8")
+        section = modele[modele.index("# 5. TOUTES LES CLÉS / ALL THE KEYS"):]
+        documentees = set(re.findall(r"(?m)^#   ([A-Z][A-Za-z0-9_]+) ", section))
+        self.assertEqual(documentees, attendues)
+        self.assertNotRegex(section, r"(?m)^#\s*[A-Za-z_][A-Za-z0-9_]*\s*=")      # never read as a setting by --config-merge
+        conf = self.conf(MINIMAL)
+        r = self.lancer("-c", str(conf), "--config-merge")
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        texte = conf.read_text(encoding="utf-8")
+        self.assertEqual(texte.count("# 5. TOUTES LES CLÉS / ALL THE KEYS"), 1)
+        self.assertIn("#   PAGE_n_BACKGROUND_STYLE   pale (défaut, flou et pâle) ou plain (tel quel)", texte)
+        r = self.lancer("-c", str(conf), "--config-merge")
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertEqual(conf.read_text(encoding="utf-8").count("# 5. TOUTES LES CLÉS / ALL THE KEYS"), 1)
+
     def test_deux_langues_detection_et_textes(self):
         texte = self.config_deux_pages("no").replace(
             "PAGE_1_THEME=auto", "PAGE_1_THEME=auto\nPAGE_1_LANGUAGES=fr,en").replace(
