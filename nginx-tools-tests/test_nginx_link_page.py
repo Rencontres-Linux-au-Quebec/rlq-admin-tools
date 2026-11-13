@@ -853,6 +853,25 @@ printf '\\211PNG\\r\\n\\032\\nxxxx' > "$out"; printf '200 12'; exit 0
         self.assertIn("403 LINK_2 Autre -> https://example.org/b : le site refuse les robots", r.stdout)
         self.assertIn("2 lien(s) mort(s) ou en erreur, 1 à vérifier à la main", r.stderr)
 
+    def test_129_duree_de_cache(self):
+        """1.29 : pages en no-cache (vérifiées à chaque visite), styles et scripts 1 heure, images et polices 7 jours ; les en-têtes de
+        sécurité sont répétés dans chaque location imbriquée (add_header ne s'hérite pas) ; même chose à la racine bilingue."""
+        texte = self.config_deux_pages("no").replace("PAGE_1_THEME=auto", "PAGE_1_THEME=auto\nPAGE_1_LANGUAGES=fr,en")
+        r = self.lancer("-c", str(self.conf(texte)), "--update", "--yes", env=self.env)
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        snippet = (self.snippets / "liens-publics.conf").read_text(encoding="utf-8")
+        bloc = snippet[snippet.index("location ^~ /liens/ {"):].split("\n}\n", 1)[0]
+        self.assertIn('\n    add_header Cache-Control "no-cache" always;', bloc)
+        self.assertIn('    location ~* \\.(css|js)$ {\n        limit_except GET HEAD { deny all; }\n', bloc)
+        self.assertIn('        add_header Cache-Control "public, max-age=3600" always;', bloc)
+        self.assertIn('    location ~* \\.(png|jpe?g|webp|gif|svg|ico|woff2?)$ {', bloc)
+        self.assertIn('        add_header Cache-Control "public, max-age=604800" always;', bloc)
+        self.assertEqual(bloc.count("add_header Content-Security-Policy"), 3)
+        self.assertEqual(bloc.count("add_header X-Content-Type-Options"), 3)
+        racine = snippet[snippet.index("location = /liens/ {"):].split("\n}\n", 1)[0]
+        self.assertIn('add_header Cache-Control "no-cache" always;', racine)
+        self.assertIn('add_header Vary "Accept-Language" always;', racine)
+
     def test_deux_langues_detection_et_textes(self):
         texte = self.config_deux_pages("no").replace(
             "PAGE_1_THEME=auto", "PAGE_1_THEME=auto\nPAGE_1_LANGUAGES=fr,en").replace(

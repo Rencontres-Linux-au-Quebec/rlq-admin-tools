@@ -4536,6 +4536,16 @@ Earlier history was archived outside this repository when this file was created.
 
 ## nginx-link-page.sh
 
+### 1.29.20261112.222013 - Cache duration: pages checked at each visit, files kept 1 hour to 7 days
+
+- Title: the nginx snippet sets how long the pages and their files may be kept: pages checked at each visit, style sheets and scripts 1 hour, images and fonts 7 days.
+- Reason: request of the administrator on 2026-11-12 (improvement 4 of the list proposed): the snippet gave no cache duration, so browsers and Cloudflare guessed one; an update (the "Theme" button) could take time to appear.
+- Changes: new function entetes_page (the add_header lines of a page: Content-Security-Policy, nosniff, Referrer-Policy, and now Cache-Control) used by the location ^~ of each page and by the location = of the root of a two-language page; pages: Cache-Control "no-cache" (the browser asks again each time, an unchanged page costs a 304); two nested locations: ~* \.(css|js)$ "public, max-age=3600" and ~* \.(png|jpe?g|webp|gif|svg|ico|woff2?)$ "public, max-age=604800"; nginx-tools-tests/test_nginx_link_page.py: 1 test.
+- Bugs fixed: symptom: a page updated with --update could still show the previous version for a while; diagnosis: no Cache-Control header, so browsers and the CDN kept the pages and their files as long as their own rules said; fix: the durations above.
+- Safeguards and edge cases: a nested location does not inherit add_header nor limit_except: the security headers and "limit_except GET HEAD" are repeated in each nested location; the nested regular expressions apply only inside the page (the ^~ of the page still keeps the other regular expressions of the server away); the durations are short for what an update changes (pages, style sheets, scripts).
+- Checks performed: bash -n; shellcheck; test_nginx_link_page (63 tests); generated snippet read (syntax of the nested locations).
+- Action required: sudo nginx-link-page.sh --update --yes (rewrites the snippet; nginx -t is run before the reload, the previous snippet is restored if it fails).
+
 ### 1.28.20261112.221841 - --check-links: report the dead links
 
 - Title: new option --check-links: every link address is requested and the dead links are reported.

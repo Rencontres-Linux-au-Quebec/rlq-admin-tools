@@ -29,7 +29,7 @@
 set -u
 LANG_C="${LC_ALL:-${LC_MESSAGES:-${LANG:-C}}}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
-readonly SCRIPT_VERSION="1.28.20261112.221841"
+readonly SCRIPT_VERSION="1.29.20261112.222013"
 readonly SCRIPT_NAME="nginx-link-page"
 # --config-merge: same rule as the other programs (apps/_config.py fusionner): the configuration file is rewritten from the new template,
 # keeping its active values; the old file is copied to FILE.bak-YYYYMMDD-HHMMSS. Then exit.
@@ -1120,6 +1120,15 @@ for i in ${ACTIVES[@]+"${ACTIVES[@]}"}; do
     ok "$(m "page" "page") PAGE_${i} $(m "preparee" "prepared") ($(nb_liens_page "$i") $(m "liens" "links"))"
 done
 
+# 1.29: entetes_page PAGE INDENT CACHE: the add_header lines of a page (Content-Security-Policy, nosniff, Referrer-Policy, Cache-Control)
+entetes_page() {
+    local scr="'none'"
+    [[ "${SCRIPT_PAGE[$1]:-no}" == yes ]] && scr="'self'"
+    printf '%sadd_header Content-Security-Policy "%s" always;\n' "$2" "default-src 'none'; img-src 'self'; style-src 'self'; font-src 'self'; script-src $scr; frame-ancestors 'none'; base-uri 'none'; form-action 'none'"
+    printf '%sadd_header X-Content-Type-Options "nosniff" always;\n' "$2"
+    printf '%sadd_header Referrer-Policy "strict-origin-when-cross-origin" always;\n' "$2"
+    printf '%sadd_header Cache-Control "%s" always;' "$2" "$3"
+}
 # 4) one nginx snippet, one location per enabled page (distinct paths: /liens/ does not catch /liens2/)
 LIEN_NOUVEAU="# Genere par $SCRIPT_NAME.sh : ne pas editer a la main."$'\n'
 if (( ${#ACTIVES[@]} == 0 )); then
@@ -1154,18 +1163,22 @@ else
             LIEN_NOUVEAU+="    index index.html;"$'\n'
             LIEN_NOUVEAU+="    limit_except GET HEAD { deny all; }"$'\n'
             LIEN_NOUVEAU+="    add_header Vary \"Accept-Language\" always;"$'\n'
-            LIEN_NOUVEAU+="    add_header Content-Security-Policy \"default-src 'none'; img-src 'self'; style-src 'self'; font-src 'self'; script-src $( [[ "${SCRIPT_PAGE[i]:-no}" == yes ]] && echo "'self'" || echo "'none'" ); frame-ancestors 'none'; base-uri 'none'; form-action 'none'\" always;"$'\n'
-            LIEN_NOUVEAU+="    add_header X-Content-Type-Options \"nosniff\" always;"$'\n'
-            LIEN_NOUVEAU+="    add_header Referrer-Policy \"strict-origin-when-cross-origin\" always;"$'\n'
+            LIEN_NOUVEAU+="$(entetes_page "$i" "    " "no-cache")"$'\n'
             LIEN_NOUVEAU+="}"$'\n'
         fi
         LIEN_NOUVEAU+="location ^~ ${chemin_page} {"$'\n'
         LIEN_NOUVEAU+="    alias ${dir_page}/;"$'\n'
         LIEN_NOUVEAU+="    index index.html;"$'\n'
         LIEN_NOUVEAU+="    limit_except GET HEAD { deny all; }"$'\n'
-        LIEN_NOUVEAU+="    add_header Content-Security-Policy \"default-src 'none'; img-src 'self'; style-src 'self'; font-src 'self'; script-src $( [[ "${SCRIPT_PAGE[i]:-no}" == yes ]] && echo "'self'" || echo "'none'" ); frame-ancestors 'none'; base-uri 'none'; form-action 'none'\" always;"$'\n'
-        LIEN_NOUVEAU+="    add_header X-Content-Type-Options \"nosniff\" always;"$'\n'
-        LIEN_NOUVEAU+="    add_header Referrer-Policy \"strict-origin-when-cross-origin\" always;"$'\n'
+        LIEN_NOUVEAU+="$(entetes_page "$i" "    " "no-cache")"$'\n'
+        # 1.29: style sheets and scripts kept 1 hour (an update changes them), images and fonts 7 days, by the browsers and by Cloudflare;
+        # the pages themselves are checked each time (no-cache). A nested location does not inherit add_header: the headers are repeated.
+        for regle in "css|js:public, max-age=3600" "png|jpe?g|webp|gif|svg|ico|woff2?:public, max-age=604800"; do
+            LIEN_NOUVEAU+="    location ~* \\.(${regle%%:*})\$ {"$'\n'
+            LIEN_NOUVEAU+="        limit_except GET HEAD { deny all; }"$'\n'
+            LIEN_NOUVEAU+="$(entetes_page "$i" "        " "${regle#*:}")"$'\n'
+            LIEN_NOUVEAU+="    }"$'\n'
+        done
         LIEN_NOUVEAU+="}"$'\n'
     done
 fi
