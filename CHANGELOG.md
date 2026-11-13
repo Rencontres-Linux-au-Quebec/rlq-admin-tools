@@ -4536,6 +4536,16 @@ Earlier history was archived outside this repository when this file was created.
 
 ## nginx-link-page.sh
 
+### 1.22.20261112.205824 - Theme tux-flag (blurred pale Tux before the flag of Quebec); icons visible in quebec and winter
+
+- Title: new theme tux-flag, whose background is the image "Tux before the flag of Quebec" of the Rencontres, blurred and pale; the buttons of quebec and winter become dark so their icons show.
+- Reason: request of the administrator on 2026-11-12: one more theme with the provided image (Tux, flag of Quebec and the name of the Rencontres), blurred.
+- Changes: apps/link-page-themes.css (now 11 themes): tux-flag (image in cover, centred on the penguin, translucent Quebec blue buttons with a white border, glowing title); quebec: navy buttons with a white border (were white); winter: ice blue buttons with white text (were frosted white); new image apps/link-page-themes/images/tux-flag.jpg (36 KB: the image provided, 1200 px wide, Gaussian blur, 45 % lightened, copied as images/themes/tux-flag.jpg); LICENSES.md: origin of the image; THEMES_MAISON, THEMES_RE, THEMES_LISTE, THEMES_TOUS (18 themes); theme_nom ("Tux et drapeau du Québec" / "Tux and the Quebec flag"), theme_base (light), theme_couleur; --check: tux-flag refused when its image is missing; nginx-link-page.conf.example: the themes described; nginx-tools-tests/test_nginx_link_page.py: 1 subtest, the two images checked; preview doc/images/link-page-theme-tux-flag.png (tux-flag, quebec, winter).
+- Bugs fixed: symptom: in the themes quebec and winter (1.21), the calendar, LinkedIn, GitHub and blog icons did not show; diagnosis: the icons of LittleLink are white, and these two themes had white buttons; fix: dark buttons with white text (an icon filter is not used: it turns the YouTube logo into a plain block).
+- Safeguards and edge cases: nothing outside the page (the only url() of the style sheet are the two local images); the text of the image is blurred and never competes with the title; on a phone the image is centred on the penguin (background-position 30 %); text shadows keep the description and the footer readable.
+- Checks performed: bash -n; shellcheck; test_nginx_link_page (57 tests); tux-flag rendered in Google Chrome at phone and computer width, quebec and winter rendered again.
+- Action required: none (to use it: PAGE_n_THEME=tux-flag, or add it to PAGE_n_THEMES; then sudo nginx-link-page.sh --update --yes).
+
 ### 1.21.20261112.201948 - Five more themes: tux-quebec (blurred pale Tux as background), quebec, boreal, sunset, winter
 
 - Title: PAGE_n_THEME and PAGE_n_THEMES accept 5 new themes; tux-quebec uses the Tux with the fleur-de-lys of the Rencontres, blurred and pale, as background.
