@@ -104,14 +104,12 @@
 # PAGE_n_ENGINE    : littlelink (linkstack is reserved and not supported yet)
 # PAGE_n_PATH      : page address, for example /links/ or /links2/ (each page has its own)
 # PAGE_n_DIR       : folder where the files are installed, for example /var/www/links (absolute, unique)
-# PAGE_n_THEME     : auto, light or dark (LittleLink), or one of the 12 themes of apps/link-page-themes.css:
+# PAGE_n_THEME     : auto, light or dark (LittleLink), or one of the 10 themes of apps/link-page-themes.css:
 #                    aurora (northern lights, dark), maple (maple red on cream, light), river (St. Lawrence blues, light),
 #                    terminal (green on black, monospace, dark), tux (charcoal and penguin orange, dark),
-#                    tux-quebec (blurred pale Tux with the fleur-de-lys as background, blue buttons, light),
 #                    quebec (flag of Quebec: blue, navy buttons with a white border, dark), boreal (boreal forest greens, dark),
 #                    sunset (orange to violet sky, dark), winter (snow white and ice blue, light),
-#                    tux-flag (blurred pale Tux before the flag of Quebec as background, blue buttons, light),
-#                    tux-poster (blurred pale poster of the Rencontres, portrait, blue buttons, light)
+#                    photo (your own image under the page, see PAGE_n_BACKGROUND; dark slate buttons, light)
 #                    or one of the 4 LinkStack themes adapted in apps/link-page-themes/ (MIT, see LICENSES.md there):
 #                    ls-aurora (pride coloured aurora over a forest), ls-dark (night valley), ls-dawn (mountains at dawn,
 #                    outlined buttons), ls-misty-rain (blue grey night with falling rain); all dark
@@ -130,6 +128,10 @@
 #                    access log; nginx-link-page.sh --clicks counts the clicks of each link
 # PAGE_n_QR        : yes or no (default); yes: qr.svg and qr.png (QR code of the public address of the page, for posters
 #                    and slides) and a "QR code of this page" link; needs qrencode (sudo apt install qrencode)
+# PAGE_n_BACKGROUND: image of the theme photo: https://..., a path with SITE_BASE_URL (/web/image/...), or file:/PATH of
+#                    an image kept on this server (outside the repository: your own pictures stay yours); PNG, JPEG, WebP or
+#                    SVG, 5 MB at most; it fills the screen under the page
+# PAGE_n_BACKGROUND_STYLE: pale (default: blurred and light, the text stays readable) or plain (the image as it is)
 # PAGE_n_COUNTDOWN : yes or no (default): "Dans 9 jours" banner under the description (SITE_COUNTDOWN_*, or the next
 #                    event of Odoo); rebuilt every day, hidden once the date is past
 # PAGE_n_VCARD     : yes or no (default): contact.vcf of the group (SITE_VCARD_*) and an "Ajouter à mes contacts" link
@@ -161,6 +163,8 @@
 #PAGE_1_NEWSLETTER=yes
 #PAGE_1_VCARD=no
 #PAGE_1_COUNTDOWN=no
+#PAGE_1_BACKGROUND=
+#PAGE_1_BACKGROUND_STYLE=pale
 #PAGE_1_LANGUAGES=en
 #
 # Example of a second page, to compare two engines: disabled until you want it.
@@ -184,3 +188,5 @@
 #EVENTS_ODOO_DB=
 #EVENTS_ODOO_LOGIN=
 #EVENTS_ODOO_KEY_FILE=/etc/default/nginx-link-page.odoo-key
+#EVENTS_ODOO_LANG_FR=fr_FR                         # language of Odoo for the names on the French pages (fr_CA...)
+#EVENTS_ODOO_LANG_EN=en_US                         # same for the English pages
