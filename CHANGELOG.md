@@ -4536,6 +4536,16 @@ Earlier history was archived outside this repository when this file was created.
 
 ## nginx-link-page.sh
 
+### 1.30.20261112.222151 - PAGE_n_CLICKS and --clicks: clicks of each link counted from the nginx log
+
+- Title: new key PAGE_n_CLICKS and option --clicks: the clicks of each link are counted from the nginx access log, without any script.
+- Reason: request of the administrator on 2026-11-12 (improvement 5 of the list proposed): know which links are used.
+- Changes: new key PAGE_n_CLICKS (yes or no, no by default; in CLES_PAGE, checked by --check); bouton_lien(): with PAGE_n_CLICKS=yes the button points to PATH/go/N (P_CLICS); nginx snippet: one "location = PATH/go/N" per link of the page (menus included), a 302 to the address of the link, Cache-Control "no-store" (each click reaches the server); new option --clicks (MODE clicks, help in French and English): reads the access logs (/var/log/nginx/access.log*, rotated and .gz files included with zcat -f; NGINX_LINK_PAGE_ACCESS_LOGS for the tests), counts the requests "GET PATH/go/N" answered 302, per page and link, with the number of distinct addresses, most clicked first; nginx-link-page.conf.example: the key described; nginx-tools-tests/test_nginx_link_page.py: 1 test.
+- Bugs fixed: none.
+- Safeguards and edge cases: off by default (the links of the existing pages stay direct); the period counted is the one kept by the logs (logrotate, usually 14 days); only the 302 answers are counted (a 404 on an old link number is not); a "$" or '"' in an address is written %24 or %22 in the snippet; an unreadable log stops with "run with sudo"; no log found: [FAIL] with the pattern searched; the dated links (LINK_n_FROM/UNTIL) get their location only while they are shown.
+- Checks performed: bash -n; shellcheck; test_nginx_link_page (65 tests); help order.
+- Action required: none (to use it: PAGE_1_CLICKS=yes, sudo nginx-link-page.sh --update --yes, then later sudo nginx-link-page.sh --clicks).
+
 ### 1.29.20261112.222013 - Cache duration: pages checked at each visit, files kept 1 hour to 7 days
 
 - Title: the nginx snippet sets how long the pages and their files may be kept: pages checked at each visit, style sheets and scripts 1 hour, images and fonts 7 days.

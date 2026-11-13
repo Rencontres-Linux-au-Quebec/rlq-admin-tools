@@ -29,7 +29,7 @@
 set -u
 LANG_C="${LC_ALL:-${LC_MESSAGES:-${LANG:-C}}}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
-readonly SCRIPT_VERSION="1.29.20261112.222013"
+readonly SCRIPT_VERSION="1.30.20261112.222151"
 readonly SCRIPT_NAME="nginx-link-page"
 # --config-merge: same rule as the other programs (apps/_config.py fusionner): the configuration file is rewritten from the new template,
 # keeping its active values; the old file is copied to FILE.bak-YYYYMMDD-HHMMSS. Then exit.
@@ -122,6 +122,7 @@ Options (ordre alphabetique / alphabetical order) :
   ${C_OPT}--changelog${C_RESET}                affiche le journal des modifications / show the change log
   ${C_OPT}--check${C_RESET}                    verifie la configuration, n'ecrit rien (defaut) / check only, writes nothing (default)
   ${C_OPT}--check-links${C_RESET}              demande chaque adresse des liens et signale les liens morts (404, sans réponse...) / request every link address and report the dead links (404, no answer...)
+  ${C_OPT}--clicks${C_RESET}                   clics de chaque lien (PAGE_n_CLICKS=yes), lus dans les journaux d'accès de nginx / clicks of each link (PAGE_n_CLICKS=yes), read in the nginx access logs
   ${C_OPT}-c, --config FILE${C_RESET}          lit SEUL ce fichier / read ONLY this file
   ${C_OPT}--config-merge${C_RESET}             reecrit la configuration d'apres le nouveau modele en gardant ses valeurs (copie FICHIER.bak-...), puis quitte / rewrite the configuration from the new template, keeping its values (copy FILE.bak-...), then exit
   ${C_OPT}-h, --help${C_RESET}                 affiche cette aide / show this help
@@ -227,6 +228,7 @@ while [[ $# -gt 0 ]]; do
             exit 0 ;;
         --check) MODE="check"; shift ;;
         --check-links) MODE="links"; shift ;;
+        --clicks) MODE="clicks"; shift ;;
         --init) MODE="init"; shift ;;
         --update) MODE="update"; shift ;;
         --yes) YES=1; shift ;;
@@ -257,7 +259,7 @@ valeur_ou() { local v="${CFG[$1]:-}"; [[ -n "$v" ]] && printf '%s' "$v" || print
 # 1.24: every key of the files must be known (a mistyped key was ignored without a word: PAGE_3_THEMS=all, SITE_LANGAUGE=en)
 readonly CLES_SITE="BASE_URL DESCRIPTION DESCRIPTION_EN FOOTER FOOTER_EN HEADING HEADING_EN LANGUAGE LOGO_ALT LOGO_URL SHARE_DESCRIPTION SHARE_DESCRIPTION_EN SHARE_IMAGE_URL SHARE_TITLE SHARE_TITLE_EN TITLE TITLE_EN"
 readonly CLES_LIEN="FROM ICON ICON_DARK LABEL LABEL_EN MENU PAGES UNTIL URL"
-readonly CLES_PAGE="ACCENT AVATAR BUTTONS DIR ENABLED ENGINE LANGUAGES PATH SCRIPT SHARE SWITCH THEME THEMES TITLE TITLE_EN"
+readonly CLES_PAGE="ACCENT AVATAR BUTTONS CLICKS DIR ENABLED ENGINE LANGUAGES PATH SCRIPT SHARE SWITCH THEME THEMES TITLE TITLE_EN"
 cle_connue() {   # cle_connue KEY: 0 when KEY is read by the program
     local k="$1" s
     if [[ "$k" =~ ^SITE_(.+)$ ]]; then for s in $CLES_SITE; do [[ "${BASH_REMATCH[1]}" == "$s" ]] && return 0; done; return 1; fi
@@ -565,6 +567,7 @@ for i in "${PAGES_N[@]}"; do
     # 1.18: PAGE_n_SCRIPT and PAGE_n_SHARE (yes or no, yes by default)
     [[ "$(valeur_ou "${pre}SCRIPT" yes)" =~ ^(yes|no)$ ]] || PROBLEMES+=("${pre}SCRIPT=$(valeur_ou "${pre}SCRIPT" yes) (yes ou no)")
     [[ "$(valeur_ou "${pre}SHARE" yes)" =~ ^(yes|no)$ ]] || PROBLEMES+=("${pre}SHARE=$(valeur_ou "${pre}SHARE" yes) (yes ou no)")
+    [[ "$(valeur_ou "${pre}CLICKS" no)" =~ ^(yes|no)$ ]] || PROBLEMES+=("${pre}CLICKS=$(valeur_ou "${pre}CLICKS" no) (yes ou no)")      # 1.30
     if [[ "$(valeur_ou "${pre}SCRIPT" yes)" == yes && ! -r "$LINK_PAGE_JS" ]]; then
         PROBLEMES+=("${pre}SCRIPT=yes : $LINK_PAGE_JS absent (livre avec le depot) / missing (shipped with the repository)")
     fi
@@ -666,6 +669,36 @@ for i in "${LIENS_N[@]}"; do
         echo "  - ${CFG[LINK_${i}_LABEL]} -> ${CFG[LINK_${i}_URL]:-}$(periode_lien "$i")"
     fi
 done
+# 1.30: --clicks: requests "GET PATH/go/N" answered 302 in the nginx access logs (rotated and .gz included), per page and link
+if [[ "$MODE" == "clicks" ]]; then
+    shopt -s nullglob
+    # shellcheck disable=SC2206   # the variable is a glob on purpose (access.log, access.log.1, access.log.2.gz...)
+    journaux=(${NGINX_LINK_PAGE_ACCESS_LOGS:-/var/log/nginx/access.log*})
+    shopt -u nullglob
+    echo
+    if (( ${#journaux[@]} == 0 )); then err "$(m "aucun journal d'accès" "no access log") (${NGINX_LINK_PAGE_ACCESS_LOGS:-/var/log/nginx/access.log*})"; exit 1; fi
+    for j in "${journaux[@]}"; do [[ -r "$j" ]] || { err "$(m "journal illisible (lancer avec sudo)" "log not readable (run with sudo)") : $j"; exit 1; }; done
+    echo "$(m "Clics" "Clicks") ($(m "journaux" "logs") : ${#journaux[@]} $(m "fichier(s)" "file(s)"), ${journaux[0]%/*}) :"
+    avec_clics=0
+    for i in "${PAGES_N[@]}"; do
+        [[ "$(valeur_ou "PAGE_${i}_CLICKS" no)" == yes ]] || continue
+        avec_clics=1
+        chemin="$(valeur_ou "PAGE_${i}_PATH" "")"
+        echo "  PAGE_${i} ${chemin} :"
+        resultat="$(zcat -f -- "${journaux[@]}" 2>/dev/null | awk -v p="\"GET ${chemin}go/" '
+            { d = index($0, p); if (!d) next
+              reste = substr($0, d + length(p)); n = reste; sub(/[^0-9].*/, "", n); if (n == "") next
+              apres = substr(reste, index(reste, "\"") + 1); split(apres, f, " "); if (f[1] != "302") next
+              total[n]++; if (!((n, $1) in vu)) { vu[n, $1] = 1; ips[n]++ } }
+            END { for (n in total) printf "%d %d %s\n", total[n], ips[n], n }' | sort -k1,1nr -k3,3n)"
+        if [[ -z "$resultat" ]]; then echo "    $(m "aucun clic" "no click")"; continue; fi
+        while read -r total ips n; do
+            printf '    %6s %s, %s %s  LINK_%s %s\n' "$total" "$(m "clics" "clicks")" "$ips" "$(m "adresses" "addresses")" "$n" "${CFG[LINK_${n}_LABEL]:-?}"
+        done <<< "$resultat"
+    done
+    (( avec_clics )) || attn "$(m "aucune page avec PAGE_n_CLICKS=yes : les liens vont directement à leur adresse" "no page with PAGE_n_CLICKS=yes: the links go straight to their address")"
+    exit 0
+fi
 # 1.28: --check-links: every address is requested (HEAD, then GET when HEAD is refused); dead links make the exit code 1
 if [[ "$MODE" == "links" ]]; then
     command -v curl >/dev/null 2>&1 || { err "curl $(m "absent" "not found")"; exit 1; }
@@ -895,7 +928,9 @@ icone_lien() {
 bouton_lien() {
     local classe_bouton="button-default"
     if [[ "$P_BOUTONS" == brand && -n "${BOUTON_MARQUE[$1]:-}" ]]; then classe_bouton="${BOUTON_MARQUE[$1]}"; fi
-    echo "        <a class=\"button $classe_bouton\" href=\"$(html_echap "${CFG[LINK_${1}_URL]}")\" target=\"_blank\" rel=\"noopener noreferrer\">"
+    local cible="${CFG[LINK_${1}_URL]}"
+    [[ "${P_CLICS:-no}" == yes ]] && cible="${P_CHEMIN}go/$1"       # 1.30: redirection by nginx, written in its log
+    echo "        <a class=\"button $classe_bouton\" href=\"$(html_echap "$cible")\" target=\"_blank\" rel=\"noopener noreferrer\">"
     echo "          $(icone_lien "$1")$(html_echap "$(libelle_lien "$1")")</a>"
 }
 
@@ -1054,6 +1089,7 @@ for i in ${ACTIVES[@]+"${ACTIVES[@]}"}; do
     IFS=',' read -r -a P_LISTE <<< "$P_LANGUES"
     # 1.18: script of the page: only when it has something to do (theme button, "Share" button or two languages)
     P_PARTAGE="$(valeur_ou "PAGE_${i}_SHARE" yes)"
+    P_CLICS="$(valeur_ou "PAGE_${i}_CLICKS" no)"             # 1.30: the links go through PATH/go/N (counted in the nginx logs)
     P_JS=no
     if [[ "$(valeur_ou "PAGE_${i}_SCRIPT" yes)" == yes ]] && { (( ${#P_MENU[@]} )) || [[ "$P_PARTAGE" == yes ]] || (( ${#P_LISTE[@]} == 2 )); }; then
         P_JS=yes
@@ -1165,6 +1201,18 @@ else
             LIEN_NOUVEAU+="    add_header Vary \"Accept-Language\" always;"$'\n'
             LIEN_NOUVEAU+="$(entetes_page "$i" "    " "no-cache")"$'\n'
             LIEN_NOUVEAU+="}"$'\n'
+        fi
+        # 1.30: PAGE_n_CLICKS=yes: one exact location per link of the page, a 302 to its address (counted by --clicks in the access log)
+        if [[ "$(valeur_ou "PAGE_${i}_CLICKS" no)" == yes ]]; then
+            for n in $(liens_visibles_de_la_page "$i"); do
+                for e in $( [[ -n "${MENU_ENFANTS[$n]:-}" ]] && enfants_visibles "$n" || echo "$n" ); do
+                    cible="${CFG[LINK_${e}_URL]}"; cible="${cible//\$/%24}"; cible="${cible//\"/%22}"
+                    LIEN_NOUVEAU+="location = ${chemin_page}go/$e {"$'\n'
+                    LIEN_NOUVEAU+="    add_header Cache-Control \"no-store\" always;"$'\n'
+                    LIEN_NOUVEAU+="    return 302 \"$cible\";"$'\n'
+                    LIEN_NOUVEAU+="}"$'\n'
+                done
+            done
         fi
         LIEN_NOUVEAU+="location ^~ ${chemin_page} {"$'\n'
         LIEN_NOUVEAU+="    alias ${dir_page}/;"$'\n'
