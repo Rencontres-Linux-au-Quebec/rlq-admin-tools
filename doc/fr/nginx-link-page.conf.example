@@ -33,6 +33,7 @@
 #SITE_LANGUAGE=fr                                 # fr ou en
 #SITE_LOGO_ALT=Logo de mon groupe
 #SITE_LOGO_URL=https://example.org/logo.png       # facultatif ; adresse https:// (ou chemin avec SITE_BASE_URL)
+#SITE_ODOO_CHECK_URL=http://127.0.0.1:8069/rlq/session/check   # avec LINK_n_ACCESS=odoo : la route vue du serveur
 #SITE_SHARED_DIR=/var/www/link-page-shared       # fichiers communs à toutes les pages (styles, polices, icônes), une seule copie
 #SITE_SHARED_PATH=/link-page-shared/             # adresse de ces fichiers (unique, différente des pages)
 #SITE_TITLE=Mon groupe
@@ -93,6 +94,9 @@
 #                compte et un mot de passe du groupe ; son adresse n'est jamais dans la page publique. Comptes :
 #                sudo nginx-link-page.sh --password GROUPE NOM (saisie cachée), --password-delete, --password-list.
 #                Avec Cloudflare : mode SSL/TLS « Full (strict) ». Exemple : LINK_7_ACCESS=benevoles.
+#                Ou odoo (toute personne connectée à Odoo, portail compris) ou odoo:XMLID (membres d'un groupe Odoo,
+#                ex. odoo:base.group_user) : nginx le demande à Odoo (module rlq_session_check de rlq-odoo-addons) ;
+#                pas connecté : page de connexion d'Odoo, puis retour à la page.
 # --- Lien 1 ---
 #LINK_1_ACCESS=                                  # facultatif : groupe d'accès (mot de passe demandé par nginx)
 #LINK_1_ICON=builtin:facebook                     # facultatif (défaut : generic-website)
@@ -229,6 +233,7 @@
 #   SITE_BASE_URL             https:// de base des chemins relatifs (défaut : certificat unique du serveur)
 #   SITE_LOGO_URL             logo : https:// ou chemin avec SITE_BASE_URL
 #   SITE_LOGO_ALT             texte du logo (défaut : SITE_TITLE)
+#   SITE_ODOO_CHECK_URL       avec LINK_n_ACCESS=odoo : adresse de /rlq/session/check vue du serveur (défaut : http://127.0.0.1:8069/rlq/session/check)
 #   SITE_SHARED_DIR           dossier des fichiers communs, une seule copie (défaut : /var/www/link-page-shared ; vide ou créé par le programme)
 #   SITE_SHARED_PATH          adresse des fichiers communs (défaut : /link-page-shared/ ; différente des pages)
 #   SITE_SHARE_IMAGE_URL      aperçu Open Graph : PNG ou JPEG 1200 x 627 (demande SITE_BASE_URL)
@@ -258,7 +263,7 @@
 #   LINK_n_PAGES              pages du lien : 2, 2-4, 1,3 ou all (défaut : toutes)
 #   LINK_n_MENU               numéro du lien-menu qui contient ce lien (un seul niveau)
 #   LINK_n_STYLE              normal (défaut), featured (mis en avant) ou icon (rangée d'icônes)
-#   LINK_n_ACCESS             groupe d'accès : mot de passe demandé par nginx (comptes : --password GROUPE NOM)
+#   LINK_n_ACCESS             groupe d'accès (mot de passe, comptes : --password GROUPE NOM), odoo ou odoo:XMLID (connecté à Odoo)
 #   LINK_n_FROM               affiché à partir de AAAA-MM-JJ (inclus)
 #   LINK_n_UNTIL              affiché jusqu'au AAAA-MM-JJ (inclus)
 #

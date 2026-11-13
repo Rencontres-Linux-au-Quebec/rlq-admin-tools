@@ -4546,6 +4546,16 @@ Earlier history was archived outside this repository when this file was created.
 
 ## nginx-link-page.sh
 
+### 1.51.20261113.144755 - Links reserved to the people signed in to Odoo
+
+- Title: LINK_n_ACCESS=odoo or odoo:XMLID: a link or a menu reserved to the people signed in to Odoo (or to the members of an Odoo group); nginx asks Odoo with the cookie of the browser.
+- Reason: request of the administrator on 2026-11-13: check whether a user is signed in to Odoo and show him more links.
+- Changes: LINK_n_ACCESS also takes odoo (anyone signed in, portal included) and odoo:XMLID (member of that res.groups, e.g. odoo:base.group_user); new key SITE_ODOO_CHECK_URL (default http://127.0.0.1:8069/rlq/session/check, the route of the module rlq_session_check of rlq-odoo-addons, seen from the server) in CLES_SITE and the templates (doc/fr, doc/en, section 5; doc/conf-history updated); new function acces_odoo and constant ODOO_ACCES_RE; nginx snippet: the protected location uses auth_request /_nginx-link-page/odoo/KEY instead of auth_basic, error_page 401 to a named location that sends to /web/login?redirect=PATH/p/N/ (no-store); one internal location per check (any, or one per group: proxy_pass to SITE_ODOO_CHECK_URL[?group=XMLID], body not sent, Host and X-Forwarded-Host of the request, connect 3 s, read 5 s); --check: counts of the links protected by password and by Odoo, asks the route without a cookie (401 expected; 404: [FAIL] install rlq_session_check; other answer: [ATTN]); the reminder about Cloudflare "Full (strict)" only with password groups; the button says "Réservé aux membres connectés"; nginx-tools-tests/test_nginx_link_page.py: 1 test.
+- Bugs fixed: none.
+- Safeguards and edge cases: same protected pages as 1.50 (outside the page folders, static, no return in the protected location: auth_request is in the access phase, before the content); the reserved addresses are never in the public page, folder, snippet or redirections; the check is internal (not reachable from outside) and sends only the headers of the request (the cookie), never a body; anything else than 204 from Odoo (stopped, timeout, module missing, not in the group: 403) refuses the access, never opens it; a group not valid (odoo:Base.x, odoo:groupe, characters other than a-z, 0-9, _ and one dot) is refused by --check; SITE_ODOO_CHECK_URL must be http(s)://HOST[:PORT]/PATH without spaces or variables.
+- Checks performed: bash -n; shellcheck (same as main); test_nginx_link_page (new test: public page, snippet, internal checks, login redirection, menu page, 404 and no answer of the route, refused values); nginx and Odoo are not installed in the test environment.
+- Action required: install the module rlq_session_check in Odoo (PR of rlq-odoo-addons); curl -i http://127.0.0.1:8069/rlq/session/check must answer 401; then LINK_n_ACCESS=odoo (or odoo:base.group_user) and sudo nginx-link-page.sh --update --yes.
+
 ### 1.50.20261113.142018 - Password on a link or a menu (LINK_n_ACCESS)
 
 - Title: new key LINK_n_ACCESS=GROUP: a link, or a menu with all its links, is reached only with an account and a password of the group, asked by nginx; new options --password, --password-delete and --password-list.

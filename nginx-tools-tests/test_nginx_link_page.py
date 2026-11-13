@@ -1109,6 +1109,60 @@ PAGE_1_LANGUAGES=fr,en
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
         self.assertFalse(prive.exists())
 
+    def test_151_liens_reserves_aux_membres_odoo(self):
+        """1.51 : LINK_n_ACCESS=odoo ou odoo:XMLID : nginx demande à Odoo (auth_request vers /rlq/session/check du module
+        rlq_session_check) si le navigateur est connecté ; pas connecté : /web/login puis retour ; la vérification est interne ;
+        jamais d'adresse réservée dans la page publique ; route absente (404) refusée par --check."""
+        verif = "http://127.0.0.1:8069/rlq/session/check"
+        texte = self.config_deux_pages("no").replace("LINK_2_URL=https://example.org/b\n", "") + """LINK_2_ACCESS=odoo
+LINK_2_URL=https://secret.example.org/membres
+LINK_3_LABEL=Bénévoles
+LINK_3_ACCESS=odoo:base.group_user
+LINK_4_LABEL=Horaire
+LINK_4_URL=https://secret2.example.org/horaire
+LINK_4_MENU=3
+"""
+        env = dict(self.env, RLQ_CURL_CODES=f"{verif}=401")
+        r = self.lancer("-c", str(self.conf(texte)), "--update", "--yes", env=env)
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertIn(f"Odoo : 2 -> {verif}", r.stdout)
+        self.assertNotIn("Full (strict)", r.stdout)                                       # no password group here
+        public = (self.www / "liens" / "index.html").read_text(encoding="utf-8")
+        self.assertNotIn("secret", public)
+        self.assertIn('href="/liens/p/2/" title="Réservé aux membres connectés"', public)
+        snippet = (self.snippets / "liens-publics.conf").read_text(encoding="utf-8")
+        self.assertNotIn("secret", snippet)
+        bloc = snippet[snippet.index("location ^~ /liens/p/3/ {"):]
+        bloc = bloc[:bloc.index("\n}\n")]
+        self.assertIn("auth_request /_nginx-link-page/odoo/base.group_user;", bloc)
+        self.assertIn("error_page 401 = @nginx-link-page-login-1-3;", bloc)
+        self.assertNotIn("auth_basic", bloc)
+        self.assertNotIn("return", bloc)
+        self.assertIn("location @nginx-link-page-login-1-3 {\n    add_header Cache-Control \"no-store\" always;\n"
+                      "    return 302 /web/login?redirect=/liens/p/3/;", snippet)
+        for cle, cible in (("any", verif), ("base.group_user", verif + "?group=base.group_user")):
+            interne = snippet[snippet.index(f"location = /_nginx-link-page/odoo/{cle} {{"):]
+            interne = interne[:interne.index("\n}\n")]
+            self.assertIn("    internal;", interne)
+            self.assertIn(f"    proxy_pass {cible};", interne)
+            self.assertIn("    proxy_pass_request_body off;", interne)
+            self.assertIn("    proxy_read_timeout 5s;", interne)
+        self.assertEqual(snippet.count("location = /_nginx-link-page/odoo/any {"), 1)
+        self.assertIn("https://secret2.example.org/horaire", (self.tmp / "prive" / "1" / "3" / "index.html").read_text(encoding="utf-8"))
+        # the route is missing (module not installed): refused; Odoo not answering: only a warning
+        r = self.lancer("-c", str(self.conf(texte)), "--check", env=dict(self.env, RLQ_CURL_CODES=f"{verif}=404"))
+        self.assertNotEqual(r.returncode, 0)
+        self.assertIn("404 : installer le module rlq_session_check", r.stderr)
+        r = self.lancer("-c", str(self.conf(texte)), "--check", env=dict(self.env, RLQ_CURL_CODES=f"{verif}=000"))
+        self.assertIn("401 attendu", r.stdout)
+        for valeur in ("odoo:Base.group_user", "odoo:groupe", "odoo:base.group_user;x", "odoox"):
+            with self.subTest(valeur=valeur):
+                r = self.lancer("-c", str(self.conf(texte.replace("LINK_3_ACCESS=odoo:base.group_user", f"LINK_3_ACCESS={valeur}"))), "--check", env=env)
+                self.assertNotEqual(r.returncode, 0)
+                self.assertIn(f"LINK_3_ACCESS={valeur}", r.stderr)
+        r = self.lancer("-c", str(self.conf(texte + "SITE_ODOO_CHECK_URL=http://127.0.0.1:8069/x y\n")), "--check", env=env)
+        self.assertIn("SITE_ODOO_CHECK_URL=http://127.0.0.1:8069/x y", r.stderr)
+
     def test_133_rollback(self):
         """1.33 : --update garde la version précédente (pages, fragment, tâche quotidienne) ; --rollback la remet, même avec une
         configuration invalide, puis nginx -t et rechargement ; rien à remettre : erreur ; la tâche quotidienne ne remplace pas la copie."""
