@@ -4536,6 +4536,16 @@ Earlier history was archived outside this repository when this file was created.
 
 ## nginx-link-page.sh
 
+### 1.40.20261112.225314 - PAGE_n_COUNTDOWN: countdown to the next event
+
+- Title: new key PAGE_n_COUNTDOWN and keys SITE_COUNTDOWN_*: a "Dans 9 jours · NAME · date" banner under the description, rebuilt every day.
+- Reason: request of the administrator on 2026-11-12 (suggestion 7 of the comparison with Linktree): a countdown to the next event.
+- Changes: new keys PAGE_n_COUNTDOWN (yes or no, no by default), SITE_COUNTDOWN_DATE (YYYY-MM-DD or YYYY-MM-DD HH:MM), SITE_COUNTDOWN_LABEL, SITE_COUNTDOWN_LABEL_EN, SITE_COUNTDOWN_URL (optional link), checked by --check; without SITE_COUNTDOWN_DATE, the countdown is for the next event of Odoo (1.34; the events are read even when PAGE_n_EVENTS=0); new function bandeau_decompte ("Dans 9 jours", "Demain", "Aujourd'hui", "En cours", in the language of the page, then the name and the day); css/extras.css: pill under the description; the daily task (1.27) also runs for a countdown; nginx-link-page.conf.example: the keys described; nginx-tools-tests/test_nginx_link_page.py: 1 test.
+- Bugs fixed: none.
+- Safeguards and edge cases: hidden once the date (or the end of the event) is past; refused by --check: a date that is not YYYY-MM-DD or YYYY-MM-DD HH:MM, a date without its label; Odoo not reachable: no banner, the page is built; counted in days of the calendar (noon to noon, no error on the change of hour).
+- Checks performed: bash -n; shellcheck; test_nginx_link_page (73 tests) with a fake Odoo; rendered in Google Chrome.
+- Action required: none (example: PAGE_1_COUNTDOWN=yes with the events of Odoo, or SITE_COUNTDOWN_DATE=2026-11-21 and SITE_COUNTDOWN_LABEL=Journée portes ouvertes; then sudo nginx-link-page.sh --update --yes).
+
 ### 1.39.20261112.225117 - PAGE_n_VCARD: contact card of the group to save in a phone
 
 - Title: new key PAGE_n_VCARD and keys SITE_VCARD_*: contact card of the group (contact.vcf) with an "Ajouter à mes contacts" link.

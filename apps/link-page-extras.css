@@ -1,7 +1,8 @@
 /*
  * link-page-extras.css - featured links (LINK_n_STYLE=featured), QR code link (PAGE_n_QR=yes), upcoming events of Odoo
  * (PAGE_n_EVENTS) row of icons (LINK_n_STYLE=icon) ,
- * thumbnails (LINK_n_IMAGE) and newsletter (SITE_NEWSLETTER_URL) of the link pages of nginx-link-page.sh.
+ * thumbnails (LINK_n_IMAGE), newsletter (SITE_NEWSLETTER_URL)
+ * and countdown (PAGE_n_COUNTDOWN) of the link pages of nginx-link-page.sh.
  * Copyright (C) 2026 Services-Conseils Linux Inc. - AGPL-3.0-or-later (see LICENSE).
  * Copied as css/extras.css into each page folder that uses one of them, loaded after the theme style sheets. No script.
  */
@@ -120,4 +121,22 @@
 .button.button-newsletter {
 	outline: 2px dashed currentColor;
 	outline-offset: 3px;
+}
+
+/* ---- countdown (PAGE_n_COUNTDOWN): a pill under the description ---- */
+.countdown {
+	display: inline-block;
+	margin: 0 0 1.25rem;
+	padding: 0.45rem 1rem;
+	border: 1px solid currentColor;
+	border-radius: 999px;
+	font-size: 0.95rem;
+	background: rgba(127, 127, 127, 0.14);
+}
+.countdown a {
+	color: inherit;
+	text-decoration: none;
+}
+.countdown strong {
+	font-weight: 800;
 }

@@ -1109,6 +1109,41 @@ printf '\\211PNG\\r\\n\\032\\nxxxx' > "$out"; printf '200 12'; exit 0
         self.assertIn("SITE_VCARD_EMAIL=pas-un-courriel : adresse courriel invalide", r.stderr)
         self.assertIn("SITE_VCARD_PHONE=abc : numéro invalide", r.stderr)
 
+    def test_140_compte_a_rebours(self):
+        """1.40 : PAGE_n_COUNTDOWN=yes : bandeau « Dans N jours · NOM · date » sous la description, pour SITE_COUNTDOWN_DATE ou, sans
+        elle, pour le prochain événement d'Odoo ; caché une fois la date passée ; tâche quotidienne ; date invalide refusée."""
+        import json
+        env = dict(self.env, NGINX_LINK_PAGE_TODAY="2026-11-12", NGINX_LINK_PAGE_CRON_DIR=str(self.tmp / "cron.d"))
+        texte = self.config_deux_pages("no").replace("PAGE_1_THEME=auto", "PAGE_1_THEME=auto\nPAGE_1_COUNTDOWN=yes\nPAGE_1_LANGUAGES=fr,en") + (
+            "SITE_COUNTDOWN_DATE=2026-11-21 09:00\nSITE_COUNTDOWN_LABEL=Journée portes ouvertes\nSITE_COUNTDOWN_LABEL_EN=Open house\n"
+            "SITE_COUNTDOWN_URL=https://example.org/jpo\nSITE_DESCRIPTION=Bienvenue\n")
+        r = self.lancer("-c", str(self.conf(texte)), "--update", "--yes", env=env)
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        fr = (self.www / "liens" / "index.html").read_text(encoding="utf-8")
+        self.assertIn('<p class="countdown"><a href="https://example.org/jpo" target="_blank" rel="noopener noreferrer"><strong>Dans 9 jours</strong> · Journée portes ouvertes · samedi 21 novembre</a></p>', fr)
+        self.assertLess(fr.index("Bienvenue"), fr.index('class="countdown"'))
+        self.assertIn("<strong>In 9 days</strong> · Open house · Saturday, November 21", (self.www / "liens" / "en" / "index.html").read_text(encoding="utf-8"))
+        self.assertTrue((self.tmp / "cron.d" / "nginx-link-page").exists())
+        r = self.lancer("-c", str(self.conf(texte)), "--update", "--yes", env=dict(env, NGINX_LINK_PAGE_TODAY="2026-11-21"))
+        self.assertIn("<strong>Aujourd'hui</strong>", (self.www / "liens" / "index.html").read_text(encoding="utf-8"))
+        r = self.lancer("-c", str(self.conf(texte)), "--update", "--yes", env=dict(env, NGINX_LINK_PAGE_TODAY="2026-11-22"))
+        self.assertNotIn('class="countdown"', (self.www / "liens" / "index.html").read_text(encoding="utf-8"))
+        # without SITE_COUNTDOWN_DATE: the next event of Odoo
+        cle = self.tmp / "odoo-key"; cle.write_text("k\n", encoding="utf-8"); cle.chmod(0o600)
+        evenements = self.tmp / "events.json"
+        evenements.write_text(json.dumps([{"name": "Rencontre mensuelle", "date_begin": "2026-11-13 23:30:00", "date_end": "2026-11-14 02:00:00",
+                                           "date_tz": "America/Toronto", "website_url": "/event/rm-13"}]), encoding="utf-8")
+        odoo = self.config_deux_pages("no").replace("PAGE_1_THEME=auto", "PAGE_1_THEME=auto\nPAGE_1_COUNTDOWN=yes") + (
+            f"EVENTS_ODOO_URL=https://odoo.example.org\nEVENTS_ODOO_DB=rlq\nEVENTS_ODOO_LOGIN=lecture\nEVENTS_ODOO_KEY_FILE={cle}\n")
+        r = self.lancer("-c", str(self.conf(odoo)), "--update", "--yes", env=dict(env, NGINX_LINK_PAGE_EVENTS_JSON=str(evenements)))
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        html = (self.www / "liens" / "index.html").read_text(encoding="utf-8")
+        self.assertIn('<a href="https://odoo.example.org/event/rm-13" target="_blank" rel="noopener noreferrer"><strong>Demain</strong> · Rencontre mensuelle · vendredi 13 novembre</a>', html)
+        self.assertNotIn("events-title", html)                                              # PAGE_1_EVENTS=0: no list
+        r = self.lancer("-c", str(self.conf(MINIMAL + "PAGE_1_COUNTDOWN=yes\nSITE_COUNTDOWN_DATE=21/11/2026\n")), "--check")
+        self.assertIn("SITE_COUNTDOWN_DATE=21/11/2026 : date AAAA-MM-JJ", r.stderr)
+        self.assertIn("SITE_COUNTDOWN_LABEL : nom de l'événement", r.stderr)
+
     def test_deux_langues_detection_et_textes(self):
         texte = self.config_deux_pages("no").replace(
             "PAGE_1_THEME=auto", "PAGE_1_THEME=auto\nPAGE_1_LANGUAGES=fr,en").replace(

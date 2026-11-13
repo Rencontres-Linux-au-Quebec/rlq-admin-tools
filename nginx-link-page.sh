@@ -29,7 +29,7 @@
 set -u
 LANG_C="${LC_ALL:-${LC_MESSAGES:-${LANG:-C}}}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
-readonly SCRIPT_VERSION="1.39.20261112.225117"
+readonly SCRIPT_VERSION="1.40.20261112.225314"
 readonly SCRIPT_NAME="nginx-link-page"
 # --config-merge: same rule as the other programs (apps/_config.py fusionner): the configuration file is rewritten from the new template,
 # keeping its active values; the old file is copied to FILE.bak-YYYYMMDD-HHMMSS. Then exit.
@@ -297,10 +297,10 @@ PROBLEMES=()
 valeur_ou() { local v="${CFG[$1]:-}"; [[ -n "$v" ]] && printf '%s' "$v" || printf '%s' "$2"; }
 
 # 1.24: every key of the files must be known (a mistyped key was ignored without a word: PAGE_3_THEMS=all, SITE_LANGAUGE=en)
-readonly CLES_SITE="BASE_URL DESCRIPTION DESCRIPTION_EN FOOTER FOOTER_EN HEADING HEADING_EN LANGUAGE LOGO_ALT LOGO_URL NEWSLETTER_LABEL NEWSLETTER_LABEL_EN NEWSLETTER_URL VCARD_EMAIL VCARD_NAME VCARD_PHONE VCARD_URL SHARE_DESCRIPTION SHARE_DESCRIPTION_EN SHARE_IMAGE_URL SHARE_TITLE SHARE_TITLE_EN TITLE TITLE_EN"
+readonly CLES_SITE="BASE_URL COUNTDOWN_DATE COUNTDOWN_LABEL COUNTDOWN_LABEL_EN COUNTDOWN_URL DESCRIPTION DESCRIPTION_EN FOOTER FOOTER_EN HEADING HEADING_EN LANGUAGE LOGO_ALT LOGO_URL NEWSLETTER_LABEL NEWSLETTER_LABEL_EN NEWSLETTER_URL VCARD_EMAIL VCARD_NAME VCARD_PHONE VCARD_URL SHARE_DESCRIPTION SHARE_DESCRIPTION_EN SHARE_IMAGE_URL SHARE_TITLE SHARE_TITLE_EN TITLE TITLE_EN"
 readonly CLES_EVENTS="ODOO_DB ODOO_KEY_FILE ODOO_LOGIN ODOO_URL"      # 1.34: upcoming events read in Odoo
 readonly CLES_LIEN="FROM ICON ICON_DARK IMAGE LABEL LABEL_EN MENU PAGES STYLE UNTIL URL"
-readonly CLES_PAGE="ACCENT AVATAR BUTTONS CLICKS DIR ENABLED ENGINE EVENTS LANGUAGES NEWSLETTER PATH QR SCRIPT SHARE SWITCH THEME THEMES TITLE TITLE_EN VCARD"
+readonly CLES_PAGE="ACCENT AVATAR BUTTONS CLICKS COUNTDOWN DIR ENABLED ENGINE EVENTS LANGUAGES NEWSLETTER PATH QR SCRIPT SHARE SWITCH THEME THEMES TITLE TITLE_EN VCARD"
 cle_connue() {   # cle_connue KEY: 0 when KEY is read by the program
     local k="$1" s
     if [[ "$k" =~ ^SITE_(.+)$ ]]; then for s in $CLES_SITE; do [[ "${BASH_REMATCH[1]}" == "$s" ]] && return 0; done; return 1; fi
@@ -555,6 +555,25 @@ for i in ${PAGES_N[@]+"${PAGES_N[@]}"}; do
     fi
     (( 10#$ev > EVENEMENTS_MAX )) && EVENEMENTS_MAX=$((10#$ev))
 done
+# 1.40: PAGE_n_COUNTDOWN=yes: "Dans 9 jours" banner for SITE_COUNTDOWN_DATE (and its label), otherwise for the next event of Odoo
+COMPTE_A_REBOURS=0
+CD_DATE_V="${CFG[SITE_COUNTDOWN_DATE]:-}"
+for i in ${PAGES_N[@]+"${PAGES_N[@]}"}; do
+    cdv="$(valeur_ou "PAGE_${i}_COUNTDOWN" no)"
+    [[ "$cdv" =~ ^(yes|no)$ ]] || PROBLEMES+=("PAGE_${i}_COUNTDOWN=$cdv (yes ou no)")
+    [[ "$cdv" == yes ]] && COMPTE_A_REBOURS=1
+done
+if [[ -n "$CD_DATE_V" ]]; then
+    { [[ "$CD_DATE_V" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}( [0-9]{2}:[0-9]{2})?$ ]] && date_valide "${CD_DATE_V:0:10}"; } \
+        || PROBLEMES+=("SITE_COUNTDOWN_DATE=$CD_DATE_V : $(m "date AAAA-MM-JJ ou AAAA-MM-JJ HH:MM attendue" "date YYYY-MM-DD or YYYY-MM-DD HH:MM expected")")
+    [[ -n "${CFG[SITE_COUNTDOWN_LABEL]:-}" ]] || PROBLEMES+=("SITE_COUNTDOWN_LABEL : $(m "nom de l'événement du compte à rebours manquant" "name of the event of the countdown missing")")
+    if [[ -n "${CFG[SITE_COUNTDOWN_URL]:-}" ]]; then
+        if abs="$(resoudre_url "${CFG[SITE_COUNTDOWN_URL]}")"; then CFG[SITE_COUNTDOWN_URL]="$abs"; fi
+        [[ "${CFG[SITE_COUNTDOWN_URL]}" =~ $URL_RE ]] || PROBLEMES+=("SITE_COUNTDOWN_URL : $(m "adresse https:// attendue" "https:// address expected")")
+    fi
+elif (( COMPTE_A_REBOURS && EVENEMENTS_MAX == 0 )); then
+    EVENEMENTS_MAX=1                                    # the countdown of the next event of Odoo needs the events
+fi
 if (( EVENEMENTS_MAX > 0 )); then
     [[ "$EVENTS_URL_V" =~ ^https://[A-Za-z0-9.-]+(:[0-9]+)?$ ]] || PROBLEMES+=("EVENTS_ODOO_URL=${EVENTS_URL_V:-?} : $(m "adresse https:// du site Odoo (par défaut SITE_BASE_URL)" "https:// address of the Odoo site (SITE_BASE_URL by default)")")
     [[ -n "${CFG[EVENTS_ODOO_DB]:-}" ]] || PROBLEMES+=("EVENTS_ODOO_DB : $(m "base de données Odoo manquante (PAGE_n_EVENTS)" "Odoo database missing (PAGE_n_EVENTS)")")
@@ -1005,7 +1024,11 @@ done
 
 # 1.34: upcoming events of Odoo, read once per language of the pages that show them (a failure leaves the section out)
 if (( EVENEMENTS_MAX > 0 )); then
-    for lg in $(for i in ${ACTIVES[@]+"${ACTIVES[@]}"}; do (( 10#$(valeur_ou "PAGE_${i}_EVENTS" 0) > 0 )) && valeur_ou "PAGE_${i}_LANGUAGES" "$SITE_LANGUAGE_V" | tr ',' '\n'; done | sort -u); do
+    for lg in $(for i in ${ACTIVES[@]+"${ACTIVES[@]}"}; do
+                    if (( 10#$(valeur_ou "PAGE_${i}_EVENTS" 0) > 0 )) || [[ "$(valeur_ou "PAGE_${i}_COUNTDOWN" no)" == yes && -z "$CD_DATE_V" ]]; then
+                        valeur_ou "PAGE_${i}_LANGUAGES" "$SITE_LANGUAGE_V" | tr ',' '\n'
+                    fi
+                done | sort -u); do
         if ODOO_URL="$EVENTS_URL_V" ODOO_DB="${CFG[EVENTS_ODOO_DB]:-}" ODOO_LOGIN="${CFG[EVENTS_ODOO_LOGIN]:-}" ODOO_KEY_FILE="$EVENTS_CLE_V" \
            python3 -I "$SCRIPT_DIR/apps/link-page-events.py" "$EVENEMENTS_MAX" "$lg" > "$TMP/events-$lg.tsv" 2> "$TMP/events-$lg.err"; then
             ok "$(m "événements Odoo" "Odoo events") ($lg) : $(wc -l < "$TMP/events-$lg.tsv") ($EVENTS_URL_V)"
@@ -1112,8 +1135,32 @@ section_evenements() {
     done < "$f"
     echo "      </section>"
 }
+# bandeau_decompte: 1.40: "Dans 9 jours · NAME · samedi 21 novembre" for SITE_COUNTDOWN_DATE, otherwise for the next event of Odoo;
+# nothing once the date is past
+bandeau_decompte() {
+    [[ "${P_DECOMPTE:-no}" == yes ]] || return 0
+    local quand nom adresse fin delai f="$TMP/events-$L_LANG.tsv"
+    if [[ -n "$CD_DATE_V" ]]; then
+        quand="$CD_DATE_V"; [[ "$quand" == *" "* ]] || quand+=" 00:00"
+        nom="$(tp "${CFG[SITE_COUNTDOWN_LABEL]}" "$(valeur_ou SITE_COUNTDOWN_LABEL_EN "${CFG[SITE_COUNTDOWN_LABEL]}")")"
+        adresse="${CFG[SITE_COUNTDOWN_URL]:-}"; fin="${quand% *}"
+    elif [[ -s "$f" ]]; then
+        IFS=$'\t' read -r quand fin nom adresse < "$f"
+    else
+        return 0
+    fi
+    delai="$(delai_jours "${quand% *}" "$fin")"
+    [[ -n "$delai" ]] || return 0
+    local texte="<strong>${delai^}</strong> · $(html_echap "$nom") · $(html_echap "$(date_evenement "$quand" | sed 's/ · [0-9].*$//; s/ · 0 h$//')")"
+    if [[ -n "$adresse" ]]; then
+        echo "      <p class=\"countdown\"><a href=\"$(html_echap "$adresse")\" target=\"_blank\" rel=\"noopener noreferrer\">$texte</a></p>"
+    else
+        echo "      <p class=\"countdown\">$texte</p>"
+    fi
+}
 page_a_extras() {
     local n e
+    [[ "${P_DECOMPTE:-no}" == yes ]] && return 0             # 1.40
     [[ "${P_QR:-no}" == yes || "${P_VCARD:-no}" == yes ]] && return 0      # 1.32, 1.39
     (( ${P_EVENTS:-0} > 0 )) && return 0                      # 1.34
     [[ -n "$SITE_NEWSLETTER_URL_V" && "${P_INFOLETTRE:-yes}" == yes ]] && return 0      # 1.38
@@ -1270,6 +1317,7 @@ genere_index() {   # genere_index DOSSIER THEME TITRE [FICHIER] [CIBLE_BASCULE] 
         fi
         echo "      <h1>$(html_echap "$L_HEADING")</h1>"
         if [[ -n "$L_DESCRIPTION" ]]; then echo "      <p>$(html_echap "$L_DESCRIPTION")</p>"; fi
+        bandeau_decompte                                       # 1.40: countdown (PAGE_n_COUNTDOWN)
         rangee_icones                                          # 1.35: links LINK_n_STYLE=icon
         echo "      <nav class=\"button-stack\" aria-label=\"$( [[ "$L_LANG" == en ]] && echo Links || echo Liens )\">"
         for i in ${P_LIENS[@]+"${P_LIENS[@]}"}; do          # 1.25: only the links of this page (LINK_n_PAGES)
@@ -1344,7 +1392,8 @@ for i in ${ACTIVES[@]+"${ACTIVES[@]}"}; do
     P_QR="$(valeur_ou "PAGE_${i}_QR" no)"
     P_EVENTS=$((10#$(valeur_ou "PAGE_${i}_EVENTS" 0)))      # 1.34: upcoming events of Odoo
     P_INFOLETTRE="$(valeur_ou "PAGE_${i}_NEWSLETTER" yes)"    # 1.38: newsletter button (with SITE_NEWSLETTER_URL)
-    P_VCARD="$(valeur_ou "PAGE_${i}_VCARD" no)"               # 1.39: contact.vcf and its link                     # 1.32: qr.svg and qr.png of the page, link above the footer
+    P_VCARD="$(valeur_ou "PAGE_${i}_VCARD" no)"               # 1.39: contact.vcf and its link
+    P_DECOMPTE="$(valeur_ou "PAGE_${i}_COUNTDOWN" no)"        # 1.40: countdown banner                     # 1.32: qr.svg and qr.png of the page, link above the footer
     P_JS=no
     if [[ "$(valeur_ou "PAGE_${i}_SCRIPT" yes)" == yes ]] && { (( ${#P_MENU[@]} )) || [[ "$P_PARTAGE" == yes ]] || (( ${#P_LISTE[@]} == 2 )); }; then
         P_JS=yes
@@ -1563,7 +1612,7 @@ if nginx_erreur=$(nginx -t 2>&1); then
     fi
     # 1.27: dated links: a daily task (/etc/cron.d/nginx-link-page) rebuilds the pages at 00:05; removed when no link is dated
     CRON_FICHIER="${NGINX_LINK_PAGE_CRON_DIR:-/etc/cron.d}/$SCRIPT_NAME"
-    if (( LIENS_DATES || EVENEMENTS_MAX > 0 )); then         # 1.34: the events of Odoo too
+    if (( LIENS_DATES || EVENEMENTS_MAX > 0 || COMPTE_A_REBOURS )); then      # 1.34: the events of Odoo too; 1.40: the countdown
         mkdir -p "$(dirname "$CRON_FICHIER")"
         {
             echo "# Genere par $SCRIPT_NAME.sh : liens dates (LINK_n_FROM, LINK_n_UNTIL) ou evenements Odoo (PAGE_n_EVENTS), pages reconstruites chaque jour. Ne pas editer a la main."

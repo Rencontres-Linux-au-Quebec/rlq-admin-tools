@@ -55,6 +55,12 @@
 #SITE_VCARD_PHONE=
 #SITE_VCARD_URL=                                   # default: SITE_BASE_URL
 #
+# Countdown ("Dans 9 jours") of the pages with PAGE_n_COUNTDOWN=yes: this date, or else the next event of Odoo (EVENTS_ODOO_*)
+#SITE_COUNTDOWN_DATE=                              # YYYY-MM-DD or YYYY-MM-DD HH:MM
+#SITE_COUNTDOWN_LABEL=
+#SITE_COUNTDOWN_LABEL_EN=
+#SITE_COUNTDOWN_URL=
+#
 # Optional English texts (used for the English pages; the French texts above are used when these are missing)
 #SITE_TITLE_EN=
 #SITE_HEADING_EN=
@@ -124,6 +130,8 @@
 #                    access log; nginx-link-page.sh --clicks counts the clicks of each link
 # PAGE_n_QR        : yes or no (default); yes: qr.svg and qr.png (QR code of the public address of the page, for posters
 #                    and slides) and a "QR code of this page" link; needs qrencode (sudo apt install qrencode)
+# PAGE_n_COUNTDOWN : yes or no (default): "Dans 9 jours" banner under the description (SITE_COUNTDOWN_*, or the next
+#                    event of Odoo); rebuilt every day, hidden once the date is past
 # PAGE_n_VCARD     : yes or no (default): contact.vcf of the group (SITE_VCARD_*) and an "Ajouter à mes contacts" link
 # PAGE_n_NEWSLETTER: yes (default) or no: the newsletter button (SITE_NEWSLETTER_URL) on this page
 # PAGE_n_EVENTS    : 0 (default) to 10: the next published events of Odoo (date, "in 9 days", link), read every day
@@ -152,6 +160,7 @@
 #PAGE_1_EVENTS=0
 #PAGE_1_NEWSLETTER=yes
 #PAGE_1_VCARD=no
+#PAGE_1_COUNTDOWN=no
 #PAGE_1_LANGUAGES=en
 #
 # Example of a second page, to compare two engines: disabled until you want it.
