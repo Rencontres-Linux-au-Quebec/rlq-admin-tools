@@ -107,6 +107,8 @@
 #                    address); needs PAGE_n_SCRIPT=yes
 # PAGE_n_CLICKS    : yes or no (default); yes: each link goes through PATH/go/N, a redirection by nginx written in its
 #                    access log; nginx-link-page.sh --clicks counts the clicks of each link
+# PAGE_n_QR        : yes or no (default); yes: qr.svg and qr.png (QR code of the public address of the page, for posters
+#                    and slides) and a "QR code of this page" link; needs qrencode (sudo apt install qrencode)
 # PAGE_n_LANGUAGES : fr, en, fr,en or en,fr. The first language is at the page root (/links/), the other one
 #                    in /links/en/ (or /links/fr/). The browser is redirected to the language it prefers,
 #                    otherwise the first language is shown.
@@ -127,6 +129,7 @@
 #PAGE_1_SCRIPT=yes
 #PAGE_1_SHARE=yes
 #PAGE_1_CLICKS=no
+#PAGE_1_QR=no
 #PAGE_1_LANGUAGES=en
 #
 # Example of a second page, to compare two engines: disabled until you want it.

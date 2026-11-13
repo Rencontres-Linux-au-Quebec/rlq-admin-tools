@@ -29,7 +29,7 @@
 set -u
 LANG_C="${LC_ALL:-${LC_MESSAGES:-${LANG:-C}}}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
-readonly SCRIPT_VERSION="1.31.20261112.222312"
+readonly SCRIPT_VERSION="1.32.20261112.222441"
 readonly SCRIPT_NAME="nginx-link-page"
 # --config-merge: same rule as the other programs (apps/_config.py fusionner): the configuration file is rewritten from the new template,
 # keeping its active values; the old file is copied to FILE.bak-YYYYMMDD-HHMMSS. Then exit.
@@ -261,7 +261,7 @@ valeur_ou() { local v="${CFG[$1]:-}"; [[ -n "$v" ]] && printf '%s' "$v" || print
 # 1.24: every key of the files must be known (a mistyped key was ignored without a word: PAGE_3_THEMS=all, SITE_LANGAUGE=en)
 readonly CLES_SITE="BASE_URL DESCRIPTION DESCRIPTION_EN FOOTER FOOTER_EN HEADING HEADING_EN LANGUAGE LOGO_ALT LOGO_URL SHARE_DESCRIPTION SHARE_DESCRIPTION_EN SHARE_IMAGE_URL SHARE_TITLE SHARE_TITLE_EN TITLE TITLE_EN"
 readonly CLES_LIEN="FROM ICON ICON_DARK LABEL LABEL_EN MENU PAGES STYLE UNTIL URL"
-readonly CLES_PAGE="ACCENT AVATAR BUTTONS CLICKS DIR ENABLED ENGINE LANGUAGES PATH SCRIPT SHARE SWITCH THEME THEMES TITLE TITLE_EN"
+readonly CLES_PAGE="ACCENT AVATAR BUTTONS CLICKS DIR ENABLED ENGINE LANGUAGES PATH QR SCRIPT SHARE SWITCH THEME THEMES TITLE TITLE_EN"
 cle_connue() {   # cle_connue KEY: 0 when KEY is read by the program
     local k="$1" s
     if [[ "$k" =~ ^SITE_(.+)$ ]]; then for s in $CLES_SITE; do [[ "${BASH_REMATCH[1]}" == "$s" ]] && return 0; done; return 1; fi
@@ -572,6 +572,12 @@ for i in "${PAGES_N[@]}"; do
     [[ "$(valeur_ou "${pre}SCRIPT" yes)" =~ ^(yes|no)$ ]] || PROBLEMES+=("${pre}SCRIPT=$(valeur_ou "${pre}SCRIPT" yes) (yes ou no)")
     [[ "$(valeur_ou "${pre}SHARE" yes)" =~ ^(yes|no)$ ]] || PROBLEMES+=("${pre}SHARE=$(valeur_ou "${pre}SHARE" yes) (yes ou no)")
     [[ "$(valeur_ou "${pre}CLICKS" no)" =~ ^(yes|no)$ ]] || PROBLEMES+=("${pre}CLICKS=$(valeur_ou "${pre}CLICKS" no) (yes ou no)")      # 1.30
+    qr_v="$(valeur_ou "${pre}QR" no)"                                                   # 1.32: QR code of the page
+    [[ "$qr_v" =~ ^(yes|no)$ ]] || PROBLEMES+=("${pre}QR=$qr_v (yes ou no)")
+    if [[ "$qr_v" == yes ]]; then
+        command -v qrencode >/dev/null 2>&1 || PROBLEMES+=("${pre}QR=yes : $(m "qrencode absent (sudo apt install qrencode)" "qrencode not found (sudo apt install qrencode)")")
+        [[ -n "$SITE_BASE_URL_V" ]] || PROBLEMES+=("${pre}QR=yes : $(m "adresse publique inconnue : SITE_BASE_URL (ou un seul certificat sur le serveur)" "public address unknown: SITE_BASE_URL (or a single certificate on the server)")")
+    fi
     if [[ "$(valeur_ou "${pre}SCRIPT" yes)" == yes && ! -r "$LINK_PAGE_JS" ]]; then
         PROBLEMES+=("${pre}SCRIPT=yes : $LINK_PAGE_JS absent (livre avec le depot) / missing (shipped with the repository)")
     fi
@@ -1071,6 +1077,9 @@ genere_index() {   # genere_index DOSSIER THEME TITRE [FICHIER] [CIBLE_BASCULE] 
                 echo "      <p><a class=\"button button-default\" href=\"$L_AUTRE_HREF\">$(html_echap "$L_AUTRE_LIBELLE")</a></p>"
             fi
         fi
+        if [[ -f "$dossier/qr.svg" ]]; then                  # 1.32: QR code of the page (PNG to download for posters and slides)
+            echo "      <p class=\"qr-link\"><a href=\"qr.png\" download><img src=\"qr.svg\" alt=\"\">$( [[ "$L_LANG" == en ]] && echo "QR code of this page" || echo "Code QR de cette page" )</a></p>"
+        fi
         echo "    </main>"
         if [[ -n "$L_FOOTER" ]]; then echo "    <footer>$(html_echap "$L_FOOTER")</footer>"; fi
         echo "    </div></div>"
@@ -1106,6 +1115,7 @@ for i in ${ACTIVES[@]+"${ACTIVES[@]}"}; do
     # 1.18: script of the page: only when it has something to do (theme button, "Share" button or two languages)
     P_PARTAGE="$(valeur_ou "PAGE_${i}_SHARE" yes)"
     P_CLICS="$(valeur_ou "PAGE_${i}_CLICKS" no)"             # 1.30: the links go through PATH/go/N (counted in the nginx logs)
+    P_QR="$(valeur_ou "PAGE_${i}_QR" no)"                     # 1.32: qr.svg and qr.png of the page, link above the footer
     P_JS=no
     if [[ "$(valeur_ou "PAGE_${i}_SCRIPT" yes)" == yes ]] && { (( ${#P_MENU[@]} )) || [[ "$P_PARTAGE" == yes ]] || (( ${#P_LISTE[@]} == 2 )); }; then
         P_JS=yes
@@ -1147,6 +1157,13 @@ for i in ${ACTIVES[@]+"${ACTIVES[@]}"}; do
             printf '.button.button-default { --button-background: %s; }\n' "$P_ACCENT" > "$dossier/css/accent.css"
         fi
         if [[ "$P_JS" == yes ]]; then mkdir -p "$dossier/js"; install -m 644 "$LINK_PAGE_JS" "$dossier/js/link-page.js"; fi
+        if [[ "$P_QR" == yes ]]; then                          # 1.32: QR code of the public address of this language
+            if qrencode -t SVG -l M -m 2 -s 6 -o "$dossier/qr.svg" "$L_URL_PUBLIQUE" && qrencode -t PNG -l M -m 4 -s 12 -o "$dossier/qr.png" "$L_URL_PUBLIQUE"; then
+                ok "$(m "code QR" "QR code") : ${L_URL_PUBLIQUE}qr.png"
+            else
+                attn "$(m "code QR non créé (qrencode)" "QR code not created (qrencode)") : $L_URL_PUBLIQUE"; rm -f "$dossier/qr.svg" "$dossier/qr.png"
+            fi
+        fi
         if (( ${#P_MENU[@]} )) || [[ "$P_JS" == yes && "$P_PARTAGE" == yes ]]; then
             if [[ -r "$THEME_MENU_CSS" ]]; then install -m 644 "$THEME_MENU_CSS" "$dossier/css/theme-menu.css"; fi
         fi
@@ -1256,7 +1273,7 @@ LIEN_ANCIEN=""; [[ -f "$LIEN_FICHIER" ]] && LIEN_ANCIEN=$(cat "$LIEN_FICHIER")
 for i in ${ACTIVES[@]+"${ACTIVES[@]}"}; do
     dossier="$(valeur_ou "PAGE_${i}_DIR" "")"
     mkdir -p "$dossier"
-    for x in css fonts images js index.html autre.html en fr; do rm -rf "${dossier:?}/$x"; done      # 1.18: js
+    for x in css fonts images js index.html autre.html en fr qr.svg qr.png; do rm -rf "${dossier:?}/$x"; done      # 1.18: js; 1.32: qr
     rm -f "${dossier:?}"/theme-*.html                    # 1.17: pages of the "Theme" button of the previous run
     cp -r "$TMP/page-$i/." "$dossier/" || { err "$(m "copie impossible dans" "copy failed in") $dossier"; exit 1; }
     chmod -R a+rX "$dossier"

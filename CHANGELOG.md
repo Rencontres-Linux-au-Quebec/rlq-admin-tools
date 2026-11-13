@@ -4536,6 +4536,16 @@ Earlier history was archived outside this repository when this file was created.
 
 ## nginx-link-page.sh
 
+### 1.32.20261112.222441 - PAGE_n_QR: QR code of the page for posters and slides
+
+- Title: new key PAGE_n_QR=yes: QR code of the page (qr.svg, qr.png) and a "QR code of this page" link.
+- Reason: request of the administrator on 2026-11-12 (improvement 7 of the list proposed): a QR code of each page for the posters and slides of the events.
+- Changes: new key PAGE_n_QR (yes or no, no by default; in CLES_PAGE); --check refuses PAGE_n_QR=yes without qrencode ("sudo apt install qrencode") or without a public address (SITE_BASE_URL, or a single certificate); for each language folder, qrencode writes qr.svg (shown in the page) and qr.png (12 pixels per module, quiet zone of 4, error correction M, to download) of the public address of that language; genere_index(): link "Code QR de cette page" / "QR code of this page" (download of qr.png, with the small SVG code) above the footer; css/extras.css (1.31) styles it; step 5: qr.svg and qr.png of the previous run removed; --update gives the address of each qr.png; nginx-link-page.conf.example: the key described; nginx-tools-tests/test_nginx_link_page.py: qrencode stub, 1 test.
+- Bugs fixed: none.
+- Safeguards and edge cases: the QR code points to the public address of the page (og:url), never to a local path; qrencode failing: [ATTN], the page is built without the link; served by the page itself (Content-Security-Policy img-src 'self'); kept 7 days by the browsers (1.29), rebuilt by each --update.
+- Checks performed: bash -n; shellcheck; test_nginx_link_page (65 tests).
+- Action required: sudo apt install qrencode on the server, then PAGE_1_QR=yes and sudo nginx-link-page.sh --update --yes.
+
 ### 1.31.20261112.222312 - LINK_n_STYLE=featured: a bigger button with a golden halo
 
 - Title: new key LINK_n_STYLE=featured: a bigger button with a golden halo, for the important link of the moment.

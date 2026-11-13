@@ -922,6 +922,30 @@ printf '\\211PNG\\r\\n\\032\\nxxxx' > "$out"; printf '200 12'; exit 0
         r = self.lancer("-c", str(self.conf(MINIMAL + "LINK_1_STYLE=gros\n")), "--check")
         self.assertIn("LINK_1_STYLE=gros (normal ou featured)", r.stderr)
 
+    def test_132_code_qr(self):
+        """1.32 : PAGE_n_QR=yes : qr.svg et qr.png de l'adresse publique de chaque langue, lien « Code QR de cette page » ; retirés quand
+        la clé est enlevée ; refusé sans qrencode ou sans adresse publique."""
+        qr = self.bin / "qrencode"
+        qr.write_text('#!/bin/sh\nout=""; while [ $# -gt 1 ]; do [ "$1" = "-o" ] && out="$2"; shift; done\necho "QR $1" > "$out"\n', encoding="utf-8")
+        qr.chmod(0o755)
+        texte = self.config_deux_pages("no").replace("PAGE_1_THEME=auto", "PAGE_1_THEME=auto\nPAGE_1_QR=yes\nPAGE_1_LANGUAGES=fr,en") + "SITE_BASE_URL=https://www.example.org/\n"
+        r = self.lancer("-c", str(self.conf(texte)), "--update", "--yes", env=self.env)
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        page = self.www / "liens"
+        self.assertEqual((page / "qr.png").read_text(encoding="utf-8"), "QR https://www.example.org/liens/\n")
+        self.assertEqual((page / "en" / "qr.svg").read_text(encoding="utf-8"), "QR https://www.example.org/liens/en/\n")
+        html = (page / "index.html").read_text(encoding="utf-8")
+        self.assertIn('<p class="qr-link"><a href="qr.png" download><img src="qr.svg" alt="">Code QR de cette page</a></p>', html)
+        self.assertIn("QR code of this page", (page / "en" / "index.html").read_text(encoding="utf-8"))
+        self.assertIn('<link rel="stylesheet" href="css/extras.css">', html)
+        self.assertIn("code QR : https://www.example.org/liens/qr.png", r.stdout)
+        r = self.lancer("-c", str(self.conf(texte.replace("PAGE_1_QR=yes", "PAGE_1_QR=no"))), "--update", "--yes", env=self.env)
+        self.assertFalse((page / "qr.png").exists())
+        self.assertNotIn("qr-link", (page / "index.html").read_text(encoding="utf-8"))
+        r = self.lancer("-c", str(self.conf(MINIMAL + "PAGE_1_QR=yes\n")), "--check", env={"PATH": "/usr/bin:/bin", "NGINX_LINK_PAGE_LETSENCRYPT_DIR": str(self.tmp / "aucun")})
+        self.assertIn("qrencode absent (sudo apt install qrencode)", r.stderr)
+        self.assertIn("adresse publique inconnue", r.stderr)
+
     def test_deux_langues_detection_et_textes(self):
         texte = self.config_deux_pages("no").replace(
             "PAGE_1_THEME=auto", "PAGE_1_THEME=auto\nPAGE_1_LANGUAGES=fr,en").replace(
