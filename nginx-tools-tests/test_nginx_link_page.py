@@ -512,7 +512,7 @@ printf '\\211PNG\\r\\n\\032\\nxxxx' > "$out"; printf '200 12'; exit 0
         """1.15 : aurora, maple, river, terminal, tux : classe du thème, css/themes.css copié et lié, couleur de la barre du navigateur ;
         icône sombre pour les thèmes à base sombre ; seconde page (PAGE_n_SWITCH) dans le thème de base opposé ; thème inconnu refusé."""
         bases = {"aurora": "dark", "maple": "light", "river": "light", "terminal": "dark", "tux": "dark",
-                 "tux-quebec": "light", "quebec": "dark", "boreal": "dark", "sunset": "dark", "winter": "light", "tux-flag": "light"}      # 1.21: 5 more, 1.22: tux-flag
+                 "tux-quebec": "light", "quebec": "dark", "boreal": "dark", "sunset": "dark", "winter": "light", "tux-flag": "light", "tux-poster": "light"}      # 1.21: 5 more, 1.22: tux-flag, 1.23: tux-poster
         for theme, base in bases.items():
             with self.subTest(theme=theme):
                 texte = self.config_deux_pages("no").replace("PAGE_1_THEME=auto", f"PAGE_1_THEME={theme}\nPAGE_1_SWITCH=yes")
@@ -533,12 +533,16 @@ printf '\\211PNG\\r\\n\\032\\nxxxx' > "$out"; printf '200 12'; exit 0
         for theme in bases:
             self.assertIn(f":root.theme-{theme} body", css)
         self.assertNotRegex(css, r"@import|https?:")                                     # nothing outside the page (CSP 'self')
-        self.assertEqual(re.findall(r"url\(([^)]*)\)", css), ['"../images/themes/tux-quebec.jpg"', '"../images/themes/tux-flag.jpg"'])   # local images only
-        for image in ("tux-quebec.jpg", "tux-flag.jpg"):
+        self.assertEqual(re.findall(r"url\(([^)]*)\)", css), ['"../images/themes/tux-quebec.jpg"', '"../images/themes/tux-flag.jpg"', '"../images/themes/tux-poster.jpg"'])   # local images only
+        propres = css[css.index("/* ---- aurora: northern lights"):]                   # 1.23: after the common block, one theme per rule
+        for ligne in propres.splitlines():
+            if ligne.startswith(":root.theme-"):
+                self.assertEqual(len(set(re.findall(r":root\.theme-([a-z-]+)", ligne))), 1, ligne)
+        for image in ("tux-quebec.jpg", "tux-flag.jpg", "tux-poster.jpg"):
             self.assertTrue((self.www / "liens" / "images" / "themes" / image).exists())
         r = self.lancer("-c", str(self.conf(MINIMAL + "PAGE_1_THEME=rose\n")), "--check")
         self.assertNotEqual(r.returncode, 0)
-        self.assertIn("aurora, maple, river, terminal, tux, tux-quebec, quebec, boreal, sunset, winter, tux-flag, ls-aurora", r.stderr)
+        self.assertIn("aurora, maple, river, terminal, tux, tux-quebec, quebec, boreal, sunset, winter, tux-flag, tux-poster, ls-aurora", r.stderr)
 
     def test_116_quatre_themes_linkstack(self):
         """1.16 : ls-aurora, ls-dark, ls-dawn, ls-misty-rain : css/themes-linkstack.css (pas css/themes.css), images, polices et avis de licence
@@ -595,7 +599,7 @@ printf '\\211PNG\\r\\n\\032\\nxxxx' > "$out"; printf '200 12'; exit 0
         texte = self.config_deux_pages("no").replace("PAGE_1_THEME=auto", "PAGE_1_THEME=dark\nPAGE_1_THEMES=all")
         r = self.lancer("-c", str(self.conf(texte)), "--update", "--yes", env=self.env)
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
-        self.assertEqual(len(list(page.glob("*.html"))), 18)                             # 1.22: 18 themes
+        self.assertEqual(len(list(page.glob("*.html"))), 19)                             # 1.23: 19 themes
         r = self.lancer("-c", str(self.conf(self.config_deux_pages("no"))), "--update", "--yes", env=self.env)
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
         self.assertEqual([f.name for f in page.glob("*.html")], ["index.html"])           # old theme pages removed
