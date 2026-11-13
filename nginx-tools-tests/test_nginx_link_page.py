@@ -725,6 +725,26 @@ printf '\\211PNG\\r\\n\\032\\nxxxx' > "$out"; printf '200 12'; exit 0
         self.assertNotIn("og:image", ici)
         self.assertNotIn("og:url", ici)
 
+    def test_124_cle_inconnue_et_ligne_invalide_signalees(self):
+        """1.24 : une clé mal écrite ou inconnue, ou une ligne sans CLÉ=VALEUR, est refusée avec le fichier et la ligne ; la clé connue la plus
+        proche est proposée (PAGE_3_THEMS -> PAGE_3_THEMES) ; rien n'est installé ; le modèle décommenté reste valide."""
+        cas = {"PAGE_1_THEMS=all": "PAGE_1_THEMS (clé inconnue, ", "SITE_LANGAUGE=en": "vouliez-vous dire SITE_LANGUAGE ?",
+               "LINK_1_URL_EN=x": "vouliez-vous dire LINK_1_URL ?", "BLABLA": "BLABLA : ligne ignorée, pas de forme CLE=VALEUR",
+               "page-1-theme=dark": "page-1-theme=dark : ligne ignorée"}
+        for ligne, attendu in cas.items():
+            with self.subTest(ligne=ligne):
+                conf = self.conf(MINIMAL + ligne + "\n")
+                r = self.lancer("-c", str(conf), "--check")
+                self.assertNotEqual(r.returncode, 0)
+                self.assertIn(attendu, r.stderr)
+                self.assertIn(f"{conf}:7", r.stderr)                                       # file and line
+        self.assertIn("vouliez-vous dire PAGE_1_THEMES ?", self.lancer("-c", str(self.conf(MINIMAL + "PAGE_1_THEMS=all\n")), "--check").stderr)
+        r = self.lancer("-c", str(self.conf(MINIMAL + "PAGE_1_THEMS=all\n")), "--check", "--lang", "en")
+        self.assertIn("PAGE_1_THEMS (unknown key, ", r.stderr)
+        self.assertIn("did you mean PAGE_1_THEMES ?", r.stderr)
+        r = self.lancer("-c", str(self.conf(MINIMAL + "PAGE_1_THEMES=all\nPAGE_1_TITLE_EN=Links\nLINK_1_LABEL_EN=Home\n")), "--check")
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+
     def test_deux_langues_detection_et_textes(self):
         texte = self.config_deux_pages("no").replace(
             "PAGE_1_THEME=auto", "PAGE_1_THEME=auto\nPAGE_1_LANGUAGES=fr,en").replace(

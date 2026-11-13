@@ -29,7 +29,7 @@
 set -u
 LANG_C="${LC_ALL:-${LC_MESSAGES:-${LANG:-C}}}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
-readonly SCRIPT_VERSION="1.23.20261112.210025"
+readonly SCRIPT_VERSION="1.24.20261112.211526"
 readonly SCRIPT_NAME="nginx-link-page"
 # --config-merge: same rule as the other programs (apps/_config.py fusionner): the configuration file is rewritten from the new template,
 # keeping its active values; the old file is copied to FILE.bak-YYYYMMDD-HHMMSS. Then exit.
@@ -133,7 +133,8 @@ Configuration read: /etc/default/$SCRIPT_NAME.conf then ~/.$SCRIPT_NAME.conf (th
 
 Cles / keys (voir nginx-link-page.conf.example) :
   SITE_* (contenu partage / shared content), LINK_n_* (liens / links),
-  PAGE_n_* (ENABLED, ENGINE, PATH, DIR, THEME, TITLE : une page par bloc / one page per block)
+  PAGE_n_* (ACCENT, AVATAR, BUTTONS, DIR, ENABLED, ENGINE, LANGUAGES, PATH, SCRIPT, SHARE, SWITCH, THEME, THEMES, TITLE,
+  TITLE_EN : une page par bloc / one page per block) ; une clé inconnue est refusée / an unknown key is refused
 AIDE
 }
 
@@ -154,13 +155,18 @@ done
 # ---- configuration: /etc/default then ~/.file (or the explicit file only); later files win ----
 declare -A CFG=()
 CFG_FICHIERS=()
+declare -A CFG_LIGNE=()       # 1.24: KEY -> FILE:LINE where its value was read (for the error messages)
+LIGNES_INVALIDES=()           # 1.24: FILE:LINE: text of the lines that are neither empty, nor a comment, nor KEY=VALUE
 lire_fichier() {
-    local f="$1" ligne cle valeur
+    local f="$1" ligne cle valeur n=0
     [[ -r "$f" ]] || return 0
+    declare -p CFG_LIGNE &>/dev/null || declare -gA CFG_LIGNE=()
     CFG_FICHIERS+=("$f")
     while IFS= read -r ligne || [[ -n "$ligne" ]]; do
+        n=$((n + 1))
         ligne="${ligne#"${ligne%%[![:space:]]*}"}"
-        [[ -z "$ligne" || "$ligne" == "#"* || "$ligne" != *=* ]] && continue
+        [[ -z "$ligne" || "$ligne" == "#"* ]] && continue
+        if [[ "$ligne" != *=* ]]; then LIGNES_INVALIDES+=("$f:$n: $ligne"); continue; fi
         cle="${ligne%%=*}"; valeur="${ligne#*=}"
         if [[ "$valeur" =~ ^[[:space:]]+# ]]; then valeur=""; fi          # "KEY=    # comment": empty value, not the text of the comment
         cle="${cle//[[:space:]]/}"; cle="${cle^^}"
@@ -170,7 +176,11 @@ lire_fichier() {
         elif [[ "$valeur" == *" #"* ]]; then
             valeur="${valeur%% #*}"; valeur="${valeur%"${valeur##*[![:space:]]}"}"   # commentaire en fin de ligne
         fi
-        [[ "$cle" =~ ^[A-Z][A-Z0-9_]*$ ]] && CFG["$cle"]="$valeur"
+        if [[ "$cle" =~ ^[A-Z][A-Z0-9_]*$ ]]; then
+            CFG["$cle"]="$valeur"; CFG_LIGNE["$cle"]="$f:$n"
+        else
+            LIGNES_INVALIDES+=("$f:$n: $ligne")
+        fi
     done < "$f"
 }
 if [[ -n "$CONFIG_EXPLICIT" ]]; then
@@ -239,6 +249,36 @@ fi
 # ---- validation ----
 PROBLEMES=()
 valeur_ou() { local v="${CFG[$1]:-}"; [[ -n "$v" ]] && printf '%s' "$v" || printf '%s' "$2"; }
+
+# 1.24: every key of the files must be known (a mistyped key was ignored without a word: PAGE_3_THEMS=all, SITE_LANGAUGE=en)
+readonly CLES_SITE="BASE_URL DESCRIPTION DESCRIPTION_EN FOOTER FOOTER_EN HEADING HEADING_EN LANGUAGE LOGO_ALT LOGO_URL SHARE_DESCRIPTION SHARE_DESCRIPTION_EN SHARE_IMAGE_URL SHARE_TITLE SHARE_TITLE_EN TITLE TITLE_EN"
+readonly CLES_LIEN="ICON ICON_DARK LABEL LABEL_EN URL"
+readonly CLES_PAGE="ACCENT AVATAR BUTTONS DIR ENABLED ENGINE LANGUAGES PATH SCRIPT SHARE SWITCH THEME THEMES TITLE TITLE_EN"
+cle_connue() {   # cle_connue KEY: 0 when KEY is read by the program
+    local k="$1" s
+    if [[ "$k" =~ ^SITE_(.+)$ ]]; then for s in $CLES_SITE; do [[ "${BASH_REMATCH[1]}" == "$s" ]] && return 0; done; return 1; fi
+    if [[ "$k" =~ ^LINK_[0-9]+_(.+)$ ]]; then for s in $CLES_LIEN; do [[ "${BASH_REMATCH[1]}" == "$s" ]] && return 0; done; return 1; fi
+    if [[ "$k" =~ ^PAGE_[0-9]+_(.+)$ ]]; then for s in $CLES_PAGE; do [[ "${BASH_REMATCH[1]}" == "$s" ]] && return 0; done; return 1; fi
+    return 1
+}
+cle_proche() {   # cle_proche KEY: the closest known key (same LINK_n or PAGE_n number), or nothing; needs python3
+    local k="$1" num=1 s candidats=()
+    [[ "$k" =~ ^[A-Z]+_([0-9]+)_ ]] && num="${BASH_REMATCH[1]}"
+    for s in $CLES_SITE; do candidats+=("SITE_$s"); done
+    for s in $CLES_LIEN; do candidats+=("LINK_${num}_$s"); done
+    for s in $CLES_PAGE; do candidats+=("PAGE_${num}_$s"); done
+    command -v python3 >/dev/null 2>&1 || return 0
+    python3 -I -c 'import difflib, sys; m = difflib.get_close_matches(sys.argv[1], sys.argv[2:], 1, 0.7); print(m[0] if m else "")' "$k" "${candidats[@]}" 2>/dev/null || true
+}
+for ligne_inv in ${LIGNES_INVALIDES[@]+"${LIGNES_INVALIDES[@]}"}; do
+    PROBLEMES+=("$ligne_inv : $(m "ligne ignorée, pas de forme CLE=VALEUR" "line ignored, not in the form KEY=VALUE")")
+done
+while IFS= read -r cle; do
+    [[ -z "$cle" ]] && continue
+    cle_connue "$cle" && continue
+    proche="$(cle_proche "$cle")"
+    PROBLEMES+=("$cle ($(m "clé inconnue" "unknown key"), ${CFG_LIGNE[$cle]:-?})${proche:+ : $(m "vouliez-vous dire" "did you mean") $proche ?}")
+done < <(printf '%s\n' "${!CFG[@]}" | sort)
 URL_RE='^https://[A-Za-z0-9._~:/?#@!$&()*+,;=%-]+$'
 CHEMIN_RE='^/[A-Za-z0-9_-]+/$'
 

@@ -4536,6 +4536,16 @@ Earlier history was archived outside this repository when this file was created.
 
 ## nginx-link-page.sh
 
+### 1.24.20261112.211526 - Unknown key or invalid line in the configuration: error with the file and the line
+
+- Title: a mistyped or unknown key, or a line that is not KEY=VALUE, is refused with the file, the line and the closest known key.
+- Reason: report of the administrator on 2026-11-12: error messages are missing when there is a problem in the configuration.
+- Changes: lire_fichier(): new array CFG_LIGNE (KEY -> FILE:LINE) and list LIGNES_INVALIDES (lines neither empty, nor a comment, nor KEY=VALUE, or whose key is not made of capitals, digits and _); validation: new constants CLES_SITE, CLES_LIEN, CLES_PAGE (keys read by the program), functions cle_connue and cle_proche (difflib of python3, same LINK_n or PAGE_n number); each unknown key gives "[FAIL] PAGE_3_THEMS (clé inconnue, FILE:LINE) : vouliez-vous dire PAGE_3_THEMES ?" (English with --lang en); each invalid line gives "[FAIL] FILE:LINE: TEXT : ligne ignorée, pas de forme CLE=VALEUR"; help: the PAGE_n_* keys listed in full; nginx-tools-tests/test_nginx_link_page.py: 1 test (5 subtests).
+- Bugs fixed: symptom: a mistyped key (PAGE_3_THEMS=all, SITE_LANGAUGE=en, LINK_1_URL_EN=...) or a line without "=" was ignored without any message, and the page was built without the intended setting; diagnosis: the reader kept every KEY=VALUE and skipped the other lines, and the check looked only at the keys it knows; fix: every key read is compared with the keys of the program, and the skipped lines are reported.
+- Safeguards and edge cases: as for the other errors, nothing is installed while the configuration is invalid (nginx-hardening.sh step 0e bis shows the same [FAIL] lines); without python3 the error is given without a suggestion; the uncommented template stays valid (checked by the tests); PAGE_n_TITLE_EN and LINK_n_LABEL_EN are known keys.
+- Checks performed: bash -n; shellcheck; test_nginx_link_page (58 tests); test_nginx_hardening; manual --check with 7 kinds of mistakes, French and English.
+- Action required: run nginx-link-page.sh --check once after the update: a key that was silently ignored until now is reported and must be corrected (or removed).
+
 ### 1.23.20261112.210025 - Theme tux-poster (blurred pale poster of the Rencontres); rules of winter repaired
 
 - Title: new theme tux-poster, whose background is the portrait poster of the Rencontres (Tux before the flag of Quebec, name below), blurred and pale; three rules of winter, damaged in 1.22, repaired.
