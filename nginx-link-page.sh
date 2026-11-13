@@ -29,7 +29,7 @@
 set -u
 LANG_C="${LC_ALL:-${LC_MESSAGES:-${LANG:-C}}}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
-readonly SCRIPT_VERSION="1.14.20261112.170506"
+readonly SCRIPT_VERSION="1.15.20261112.175724"
 readonly SCRIPT_NAME="nginx-link-page"
 # --config-merge: same rule as the other programs (apps/_config.py fusionner): the configuration file is rewritten from the new template,
 # keeping its active values; the old file is copied to FILE.bak-YYYYMMDD-HHMMSS. Then exit.
@@ -60,6 +60,10 @@ readonly LINKPAGE_EXT_REPO="https://github.com/sethcottle/littlelink-extended"
 readonly LINKPAGE_EXT_TAG="v3.2.0"
 readonly LINKPAGE_EXT_SHA="d7034f83a6bf71c4a663d2d046a03b37ec74ae45"
 readonly MAX_ASSET_BYTES=524288
+# 1.15: themes of PAGE_n_THEME: the 3 of LittleLink, then the 5 of apps/link-page-themes.css (copied as css/themes.css into each page)
+readonly THEMES_RE="auto|light|dark|aurora|maple|river|terminal|tux"
+readonly THEMES_LISTE="auto, light, dark, aurora, maple, river, terminal ou tux"
+readonly THEMES_CSS="$SCRIPT_DIR/apps/link-page-themes.css"
 # 1.14: the preview image of the social networks (1200 x 627 advised) is often a poster of more than 512 KiB: its own limit, the one of LinkedIn (5 MB)
 readonly MAX_SHARE_BYTES=5242880
 readonly MOTEURS_PRIS_EN_CHARGE="littlelink"
@@ -355,7 +359,10 @@ for i in "${PAGES_N[@]}"; do
         DOSSIERS_VUS["$d2"]=1
         DOSSIERS_LISTE+=("$d2")
     fi
-    [[ "$theme" =~ ^(auto|light|dark)$ ]] || PROBLEMES+=("${pre}THEME=$theme (auto, light ou dark)")
+    [[ "$theme" =~ ^($THEMES_RE)$ ]] || PROBLEMES+=("${pre}THEME=$theme ($THEMES_LISTE)")
+    if [[ "$theme" =~ ^(aurora|maple|river|terminal|tux)$ && ! -r "$THEMES_CSS" ]]; then
+        PROBLEMES+=("${pre}THEME=$theme : $THEMES_CSS absent (livre avec le depot) / missing (shipped with the repository)")
+    fi
     langues_v="$(valeur_ou "${pre}LANGUAGES" "$SITE_LANGUAGE_V")"
     [[ "$langues_v" =~ ^(fr|en|fr,en|en,fr)$ ]] || PROBLEMES+=("${pre}LANGUAGES=$langues_v (fr, en, fr,en ou en,fr / fr, en, fr,en or en,fr)")
     [[ "$(valeur_ou "${pre}BUTTONS" default)" =~ ^(default|brand)$ ]] || PROBLEMES+=("${pre}BUTTONS=$(valeur_ou "${pre}BUTTONS" default) (default ou brand)")
@@ -572,10 +579,20 @@ done
 # theme_nom THEME / bascule_libelle THEME: labels in the page language
 theme_nom() {
     if [[ "$L_LANG" == en ]]; then
-        case "$1" in light) echo light ;; dark) echo dark ;; *) echo automatic ;; esac
+        case "$1" in light) echo light ;; dark) echo dark ;; aurora) echo "northern lights" ;; maple) echo maple ;; river) echo river ;;
+                     terminal) echo terminal ;; tux) echo Tux ;; *) echo automatic ;; esac
     else
-        case "$1" in light) echo clair ;; dark) echo sombre ;; *) echo automatique ;; esac
+        case "$1" in light) echo clair ;; dark) echo sombre ;; aurora) echo "aurore boréale" ;; maple) echo érable ;; river) echo fleuve ;;
+                     terminal) echo terminal ;; tux) echo Tux ;; *) echo automatique ;; esac
     fi
+}
+# theme_base THEME: light or dark (choice of the icons of LINK_n_ICON_DARK, theme of the second page with PAGE_n_SWITCH), auto for auto
+theme_base() {
+    case "$1" in dark|aurora|terminal|tux) echo dark ;; light|maple|river) echo light ;; *) echo auto ;; esac
+}
+# theme_couleur THEME: colour of the browser bar (meta theme-color) of the 5 themes of link-page-themes.css
+theme_couleur() {
+    case "$1" in aurora) echo "#0b1026" ;; maple) echo "#b3261e" ;; river) echo "#0e6b7f" ;; terminal) echo "#050805" ;; tux) echo "#1c1f24" ;; esac
 }
 bascule_libelle() {
     if [[ "$L_LANG" == en ]]; then echo "Switch to $(theme_nom "$1") theme"; else echo "Passer au thème $(theme_nom "$1")"; fi
@@ -591,13 +608,15 @@ preparer_dossier() {
     mkdir -p "$d/images/site"
     cp -r "$TMP/littlelink/css" "$TMP/littlelink/fonts" "$d/"
     cp -r "$TMP/littlelink/images" "$d/"
+    if [[ -r "$THEMES_CSS" ]]; then install -m 644 "$THEMES_CSS" "$d/css/themes.css"; fi        # 1.15: the 5 added themes
     cp -r "$TMP/assets/images/site/." "$d/images/site/"
 }
 
 genere_index() {   # genere_index DOSSIER THEME TITRE [FICHIER] [CIBLE_BASCULE] [LIBELLE_BASCULE]
     local dossier="$1" theme="$2" titre="$3" fichier="${4:-index.html}" cible="${5:-}" libelle="${6:-}"
-    local classe lab url clair sombre classe_bouton i
-    case "$theme" in auto) classe="theme-auto" ;; light) classe="theme-light" ;; dark) classe="theme-dark" ;; esac
+    local classe lab url clair sombre classe_bouton i base
+    classe="theme-$theme"                               # 1.15: theme-auto, theme-light, theme-dark or one of link-page-themes.css
+    base="$(theme_base "$theme")"
     {
         echo "<!DOCTYPE html>"
         echo "<!-- Genere par $SCRIPT_NAME.sh $SCRIPT_VERSION a partir de la configuration. Ne pas editer a la main. -->"
@@ -623,14 +642,19 @@ genere_index() {   # genere_index DOSSIER THEME TITRE [FICHIER] [CIBLE_BASCULE] 
                 echo "    <meta name=\"twitter:image\" content=\"$(html_echap "${L_URL_PUBLIQUE}${PARTAGE_LOCAL}")\">"
             fi
         fi
-        echo "    <meta name=\"theme-color\" content=\"#ffffff\" media=\"(prefers-color-scheme: light)\">"
-        echo "    <meta name=\"theme-color\" content=\"#121212\" media=\"(prefers-color-scheme: dark)\">"
+        if [[ -n "$(theme_couleur "$theme")" ]]; then
+            echo "    <meta name=\"theme-color\" content=\"$(theme_couleur "$theme")\">"
+        else
+            echo "    <meta name=\"theme-color\" content=\"#ffffff\" media=\"(prefers-color-scheme: light)\">"
+            echo "    <meta name=\"theme-color\" content=\"#121212\" media=\"(prefers-color-scheme: dark)\">"
+        fi
         echo "    <meta name=\"referrer\" content=\"strict-origin-when-cross-origin\">"
         echo "    <meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; img-src 'self'; style-src 'self'; font-src 'self'; script-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'\">"
         echo "    <link rel=\"stylesheet\" href=\"css/reset.css\">"
         echo "    <link rel=\"stylesheet\" href=\"css/style.css\">"
         echo "    <link rel=\"stylesheet\" href=\"css/brands.css\">"
         if [[ -f "$dossier/css/brands-extended.css" ]]; then echo "    <link rel=\"stylesheet\" href=\"css/brands-extended.css\">"; fi
+        if [[ -f "$dossier/css/themes.css" && -n "$(theme_couleur "$theme")" ]]; then echo "    <link rel=\"stylesheet\" href=\"css/themes.css\">"; fi
         if [[ -f "$dossier/css/accent.css" ]]; then echo "    <link rel=\"stylesheet\" href=\"css/accent.css\">"; fi
         echo "  </head>"
         echo "  <body>"
@@ -647,9 +671,9 @@ genere_index() {   # genere_index DOSSIER THEME TITRE [FICHIER] [CIBLE_BASCULE] 
             if [[ "$P_BOUTONS" == brand && -n "${BOUTON_MARQUE[$i]:-}" ]]; then classe_bouton="${BOUTON_MARQUE[$i]}"; fi
             clair="${ICONE_CLAIR[$i]}"; sombre="${ICONE_SOMBRE[$i]}"
             echo "        <a class=\"button $classe_bouton\" href=\"$(html_echap "$url")\" target=\"_blank\" rel=\"noopener noreferrer\">"
-            if [[ -n "$sombre" && "$theme" == "auto" ]]; then
+            if [[ -n "$sombre" && "$base" == "auto" ]]; then
                 echo "          <picture><source media=\"(prefers-color-scheme: dark)\" srcset=\"$sombre\"><img class=\"icon\" aria-hidden=\"true\" src=\"$clair\" alt=\"\"></picture>$(html_echap "$lab")</a>"
-            elif [[ -n "$sombre" && "$theme" == "dark" ]]; then
+            elif [[ -n "$sombre" && "$base" == "dark" ]]; then
                 echo "          <img class=\"icon\" aria-hidden=\"true\" src=\"$sombre\" alt=\"\">$(html_echap "$lab")</a>"
             else
                 echo "          <img class=\"icon\" aria-hidden=\"true\" src=\"$clair\" alt=\"\">$(html_echap "$lab")</a>"
@@ -717,7 +741,7 @@ for i in ${ACTIVES[@]+"${ACTIVES[@]}"}; do
         fi
         if [[ "$P_BASCULE" == yes ]]; then
             # second complete page with the other theme (no script: the CSP forbids it); dark for light/auto, light for dark
-            if [[ "$P_THEME" == dark ]]; then P_AUTRE=light; else P_AUTRE=dark; fi
+            if [[ "$(theme_base "$P_THEME")" == dark ]]; then P_AUTRE=light; else P_AUTRE=dark; fi      # 1.15: by the base of the theme
             genere_index "$dossier" "$P_THEME" "$L_TITRE" index.html autre.html "$(bascule_libelle "$P_AUTRE")"
             genere_index "$dossier" "$P_AUTRE" "$L_TITRE" autre.html index.html "$(bascule_libelle "$P_THEME")"
         else

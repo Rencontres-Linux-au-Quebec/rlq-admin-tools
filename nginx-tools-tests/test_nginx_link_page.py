@@ -504,6 +504,34 @@ printf '\\211PNG\\r\\n\\032\\nxxxx' > "$out"; printf '200 12'; exit 0
         r = self.lancer("-c", str(self.conf(base)), "--update", "--yes", env=self.env)
         self.assertIn("fichier trop gros (plus de 512 Kio)", r.stdout + r.stderr)
 
+    def test_115_cinq_themes_ajoutes(self):
+        """1.15 : aurora, maple, river, terminal, tux : classe du thème, css/themes.css copié et lié, couleur de la barre du navigateur ;
+        icône sombre pour les thèmes à base sombre ; seconde page (PAGE_n_SWITCH) dans le thème de base opposé ; thème inconnu refusé."""
+        bases = {"aurora": "dark", "maple": "light", "river": "light", "terminal": "dark", "tux": "dark"}
+        for theme, base in bases.items():
+            with self.subTest(theme=theme):
+                texte = self.config_deux_pages("no").replace("PAGE_1_THEME=auto", f"PAGE_1_THEME={theme}\nPAGE_1_SWITCH=yes")
+                r = self.lancer("-c", str(self.conf(texte)), "--update", "--yes", env=self.env)
+                self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+                ici = (self.www / "liens" / "index.html").read_text(encoding="utf-8")
+                self.assertIn(f'class="theme-{theme}"', ici)
+                self.assertIn('<link rel="stylesheet" href="css/themes.css">', ici)
+                self.assertLess(ici.index("css/brands.css"), ici.index("css/themes.css"))       # after LittleLink: it wins
+                self.assertRegex(ici, r'<meta name="theme-color" content="#[0-9a-f]{6}">')
+                self.assertTrue((self.www / "liens" / "css" / "themes.css").exists())
+                (self.assertIn if base == "dark" else self.assertNotIn)("images/site/icon-2-sombre.", ici)     # dark icon on a dark base
+                autre = (self.www / "liens" / "autre.html").read_text(encoding="utf-8")
+                self.assertIn('class="theme-light"' if base == "dark" else 'class="theme-dark"', autre)
+                self.assertNotIn("css/themes.css", autre)
+                self.assertNotIn("<script", ici)
+        css = (self.www / "liens" / "css" / "themes.css").read_text(encoding="utf-8")
+        for theme in bases:
+            self.assertIn(f":root.theme-{theme} body", css)
+        self.assertNotRegex(css, r"url\(|@import|https?:")                              # nothing outside the page (CSP 'self')
+        r = self.lancer("-c", str(self.conf(MINIMAL + "PAGE_1_THEME=rose\n")), "--check")
+        self.assertNotEqual(r.returncode, 0)
+        self.assertIn("aurora, maple, river, terminal ou tux", r.stderr)
+
     def test_chemins_relatifs_resolus(self):
         texte = self.config_deux_pages("no").replace(
             "LINK_1_URL=https://example.org/a", "LINK_1_URL=/a/").replace(

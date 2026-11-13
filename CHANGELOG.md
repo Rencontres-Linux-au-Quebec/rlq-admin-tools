@@ -4526,6 +4526,16 @@ Earlier history was archived outside this repository when this file was created.
 
 ## nginx-link-page.sh
 
+### 1.15.20261112.175724 - Five more themes: aurora, maple, river, terminal, tux
+
+- Title: PAGE_n_THEME accepts 5 new themes besides auto, light and dark.
+- Reason: request of the administrator on 2026-11-12: add 5 nice themes for LittleLink; one white and one black theme is too basic.
+- Changes: new file apps/link-page-themes.css and its preview doc/images/link-page-themes.png (the CSS is copied as css/themes.css into each page folder, linked after the LittleLink style sheets and before accent.css): aurora (northern lights: night blue, green and violet light, glass buttons), maple (maple red buttons on warm cream), river (St. Lawrence blues, rounded teal buttons), terminal (green on black, monospace, "$ " title and "> " buttons), tux (charcoal and penguin orange); constants THEMES_RE, THEMES_LISTE, THEMES_CSS; new functions theme_base (light or dark base of a theme) and theme_couleur (colour of the browser bar); theme_nom: names of the new themes (French and English); genere_index(): class theme-NAME, one meta theme-color for a named theme, dark icons (LINK_n_ICON_DARK) on a dark base; PAGE_n_SWITCH: the second page takes the opposite base (light for aurora, terminal, tux; dark for maple, river); nginx-link-page.conf.example: the themes described; nginx-tools-tests/test_nginx_link_page.py: 1 test (5 subtests).
+- Bugs fixed: none.
+- Safeguards and edge cases: no external font, image or script (the Content-Security-Policy of the pages allows only 'self'); the brand buttons (PAGE_n_BUTTONS=brand) keep the colours of their brand; PAGE_n_ACCENT still wins on the default buttons; movements disabled with prefers-reduced-motion; a named theme without apps/link-page-themes.css is refused by --check; an unknown theme is refused with the list of the themes.
+- Checks performed: bash -n; shellcheck; test_nginx_link_page (54 tests); the 5 themes rendered in Google Chrome (doc/images/link-page-themes.png); icon recolouring dropped after this check (it turned the YouTube logo into a plain block), no hyphenation in the terminal theme.
+- Action required: none (to use one: PAGE_n_THEME=aurora, for example, then sudo nginx-link-page.sh --update --yes).
+
 ### 1.14.20261112.170506 - Preview image up to 5 MB, and the reason of a failed download
 
 - Title: SITE_SHARE_IMAGE_URL accepts an image of up to 5 MB (limit of LinkedIn); a failed download says why.
