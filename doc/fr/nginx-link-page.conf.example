@@ -89,7 +89,12 @@
 #                ou icon (icône ronde dans une rangée sous la description, pour les réseaux sociaux ; pas dans un menu).
 # LINK_n_IMAGE : vignette à gauche du bouton à la place de l'icône (https:// ou chemin avec SITE_BASE_URL ;
 #                PNG, JPEG, WebP ou SVG, 2 Mo au plus), par exemple l'affiche d'un événement.
+# LINK_n_ACCESS : groupe d'accès : le lien (ou le menu et tous ses liens) est montré avec un cadenas et nginx demande un
+#                compte et un mot de passe du groupe ; son adresse n'est jamais dans la page publique. Comptes :
+#                sudo nginx-link-page.sh --password GROUPE NOM (saisie cachée), --password-delete, --password-list.
+#                Avec Cloudflare : mode SSL/TLS « Full (strict) ». Exemple : LINK_7_ACCESS=benevoles.
 # --- Lien 1 ---
+#LINK_1_ACCESS=                                  # facultatif : groupe d'accès (mot de passe demandé par nginx)
 #LINK_1_ICON=builtin:facebook                     # facultatif (défaut : generic-website)
 #LINK_1_LABEL=Page Facebook                       # 80 caractères au plus
 #LINK_1_LABEL_EN=                                 # texte anglais facultatif
@@ -253,6 +258,7 @@
 #   LINK_n_PAGES              pages du lien : 2, 2-4, 1,3 ou all (défaut : toutes)
 #   LINK_n_MENU               numéro du lien-menu qui contient ce lien (un seul niveau)
 #   LINK_n_STYLE              normal (défaut), featured (mis en avant) ou icon (rangée d'icônes)
+#   LINK_n_ACCESS             groupe d'accès : mot de passe demandé par nginx (comptes : --password GROUPE NOM)
 #   LINK_n_FROM               affiché à partir de AAAA-MM-JJ (inclus)
 #   LINK_n_UNTIL              affiché jusqu'au AAAA-MM-JJ (inclus)
 #

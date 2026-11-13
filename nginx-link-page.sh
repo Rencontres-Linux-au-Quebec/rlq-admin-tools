@@ -29,7 +29,7 @@
 set -u
 LANG_C="${LC_ALL:-${LC_MESSAGES:-${LANG:-C}}}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
-readonly SCRIPT_VERSION="1.49.20261113.103519"
+readonly SCRIPT_VERSION="1.50.20261113.142018"
 readonly SCRIPT_NAME="nginx-link-page"
 # --config-merge: same rule as the other programs (apps/_config.py fusionner): the configuration file is rewritten from the new template,
 # keeping its active values; the old file is copied to FILE.bak-YYYYMMDD-HHMMSS. Then exit.
@@ -134,6 +134,9 @@ Options (ordre alphabetique / alphabetical order) :
   ${C_OPT}-h, --help${C_RESET}                 affiche cette aide / show this help
   ${C_OPT}--init${C_RESET}                     cree la configuration depuis le modele / create the configuration from the template
   ${C_OPT}--lang LANG${C_RESET}                langue des messages : fr ou en / message language: fr or en
+  ${C_OPT}--password GROUP USER${C_RESET}      ajoute ou change le mot de passe de USER dans le groupe d'accès GROUP (LINK_n_ACCESS) ; saisie cachée, deux fois, 12 caractères au moins (root) / add or change the password of USER in the access group GROUP (LINK_n_ACCESS); hidden input, twice, 12 characters at least (root)
+  ${C_OPT}--password-delete GROUP USER${C_RESET} retire USER du groupe d'accès GROUP (root) / remove USER from the access group GROUP (root)
+  ${C_OPT}--password-list${C_RESET}            groupes d'accès et leurs comptes (jamais les mots de passe) / access groups and their accounts (never the passwords)
   ${C_OPT}--rollback${C_RESET}                 remet les pages et le fragment nginx d'avant le dernier --update / put back the pages and the nginx snippet of before the last --update
   ${C_OPT}--stats${C_RESET}                    visites (provenance, par jour) et clics de chaque lien, lus dans les journaux d'accès de nginx / visits (origin, per day) and clicks of each link, read in the nginx access logs
   ${C_OPT}--update${C_RESET}                   installe ou met a jour les pages, et les paquets qui manquent : git, curl, python3, qrencode (root, confirmation) / install or update the pages, and the missing packages: git, curl, python3, qrencode (root, asks first)
@@ -244,6 +247,13 @@ while [[ $# -gt 0 ]]; do
         --init) MODE="init"; shift ;;
         --update) MODE="update"; shift ;;
         --rollback) MODE="rollback"; shift ;;
+        --password|--password-delete)                       # 1.50: accounts of an access group (LINK_n_ACCESS)
+            MODE="${1#--}"; ACC_GROUPE="${2:-}"; ACC_COMPTE="${3:-}"
+            if [[ -z "$ACC_GROUPE" || -z "$ACC_COMPTE" || "$ACC_GROUPE" == -* || "$ACC_COMPTE" == -* ]]; then
+                echo "$1 GROUP USER : $(m "deux arguments" "two arguments")" >&2; exit 2
+            fi
+            shift 3 ;;
+        --password-list) MODE="password-list"; shift ;;
         --yes) YES=1; shift ;;
         -h|--help) usage; exit 0 ;;
         --version) echo "$SCRIPT_NAME.sh version $SCRIPT_VERSION"; exit 0 ;;
@@ -254,6 +264,64 @@ done
 # 1.33: previous version of the pages: copied by --update before it installs, put back by --rollback (whatever the configuration)
 ETAT_DIR="${NGINX_LINK_PAGE_STATE_DIR:-/var/lib/$SCRIPT_NAME}"
 readonly FICHIERS_GERES="css fonts images js index.html autre.html en fr qr.svg qr.png contact.vcf"      # what --update replaces in a page folder
+# 1.50: access groups (LINK_n_ACCESS): one password file per group, read by nginx (auth_basic), never in the configuration
+ACCES_DIR="${NGINX_LINK_PAGE_ACCESS_DIR:-/etc/nginx/$SCRIPT_NAME-access}"
+readonly GROUPE_RE='^[a-z0-9][a-z0-9-]{0,31}$' COMPTE_RE='^[A-Za-z0-9][A-Za-z0-9._@-]{0,63}$'
+groupe_nginx() {   # groupe_nginx: the group nginx runs with (www-data on Debian, nginx elsewhere), empty when none
+    local g; for g in www-data nginx; do getent group "$g" >/dev/null 2>&1 && { echo "$g"; return 0; }; done; return 0
+}
+comptes_du_groupe() {   # comptes_du_groupe GROUP: the accounts of the group, one per line
+    [[ -r "$ACCES_DIR/$1.htpasswd" ]] && cut -d: -f1 "$ACCES_DIR/$1.htpasswd" | grep -v '^$' | sort
+    return 0
+}
+if [[ "$MODE" == password || "$MODE" == password-delete || "$MODE" == password-list ]]; then
+    if [[ "$MODE" == password-list ]]; then
+        trouve=0
+        for f in "$ACCES_DIR"/*.htpasswd; do
+            [[ -e "$f" ]] || continue
+            trouve=1; g="$(basename "$f" .htpasswd)"
+            echo "$g : $(comptes_du_groupe "$g" | paste -sd ' ' -) ($(comptes_du_groupe "$g" | grep -c .) $(m "compte(s)" "account(s)"))"
+        done
+        (( trouve )) || echo "$(m "aucun groupe d'accès" "no access group") ($ACCES_DIR)"
+        exit 0
+    fi
+    if [[ "$(id -u)" -ne 0 ]]; then err "$(m "les mots de passe sont lus par nginx : lancer avec sudo." "the passwords are read by nginx: run with sudo.")"; exit 1; fi
+    [[ "$ACC_GROUPE" =~ $GROUPE_RE ]] || { err "GROUP=$ACC_GROUPE : $(m "lettres minuscules, chiffres et -, 32 au plus" "lower-case letters, digits and -, 32 at most")"; exit 2; }
+    [[ "$ACC_COMPTE" =~ $COMPTE_RE ]] || { err "USER=$ACC_COMPTE : $(m "lettres, chiffres et . _ @ -, 64 au plus" "letters, digits and . _ @ -, 64 at most")"; exit 2; }
+    fichier="$ACCES_DIR/$ACC_GROUPE.htpasswd"
+    gn="$(groupe_nginx)"
+    mkdir -p "$ACCES_DIR"; chmod 750 "$ACCES_DIR"; [[ -n "$gn" ]] && chgrp "$gn" "$ACCES_DIR"
+    nouveau="$(mktemp "$ACCES_DIR/.$ACC_GROUPE.XXXXXX")"
+    trap 'rm -f "$nouveau"' EXIT
+    [[ -f "$fichier" ]] && grep -v "^${ACC_COMPTE}:" "$fichier" > "$nouveau"
+    if [[ "$MODE" == password-delete ]]; then
+        if ! grep -q "^${ACC_COMPTE}:" "$fichier" 2>/dev/null; then err "$ACC_COMPTE : $(m "pas dans le groupe" "not in the group") $ACC_GROUPE"; exit 1; fi
+        quoi="$(m "retiré du groupe" "removed from the group")"
+    else
+        command -v openssl >/dev/null 2>&1 || { err "openssl $(m "absent (sudo apt install openssl)" "not found (sudo apt install openssl)")"; exit 1; }
+        if [[ -t 0 ]]; then
+            read -r -s -p "$(m "Mot de passe de" "Password of") $ACC_COMPTE ($ACC_GROUPE) : " mdp; echo >&2
+            read -r -s -p "$(m "Encore une fois" "Once more") : " mdp2; echo >&2
+            [[ "$mdp" == "$mdp2" ]] || { err "$(m "les deux saisies diffèrent : rien n'est changé" "the two entries differ: nothing is changed")"; exit 1; }
+        else
+            IFS= read -r mdp || true                       # from a pipe (scripts): one line, never on the command line
+        fi
+        if (( ${#mdp} < 12 )) || (( ${#mdp} > 128 )); then err "$(m "mot de passe de 12 à 128 caractères : rien n'est changé" "password of 12 to 128 characters: nothing is changed")"; exit 1; fi
+        # SHA-512 crypt ($6$, salted), read by nginx through crypt(3); the password goes through a pipe, never through the arguments
+        empreinte="$(printf '%s\n' "$mdp" | openssl passwd -6 -stdin)" || { err "openssl passwd $(m "en échec" "failed")"; exit 1; }
+        unset mdp mdp2
+        # shellcheck disable=SC2016   # the literal prefix of a SHA-512 crypt hash
+        [[ "$empreinte" == '$6$'* ]] || { err "openssl passwd $(m "en échec" "failed")"; exit 1; }
+        printf '%s:%s\n' "$ACC_COMPTE" "$empreinte" >> "$nouveau"
+        quoi="$(m "mot de passe enregistré dans le groupe" "password saved in the group")"
+    fi
+    chmod 640 "$nouveau"; [[ -n "$gn" ]] && chgrp "$gn" "$nouveau"
+    mv "$nouveau" "$fichier"; trap - EXIT
+    ok "$ACC_COMPTE : $quoi $ACC_GROUPE ($fichier, $(comptes_du_groupe "$ACC_GROUPE" | grep -c .) $(m "compte(s)" "account(s)"))"
+    m "Aucun rechargement de nginx n'est nécessaire : le fichier est lu à chaque demande." "No reload of nginx is needed: the file is read at each request."; echo
+    exit 0
+fi
+
 if [[ "$MODE" == "rollback" ]]; then
     if [[ "$(id -u)" -ne 0 ]]; then err "$(m "--rollback écrit dans les dossiers des pages : lancer avec sudo." "--rollback writes to the page folders: run with sudo.")"; exit 1; fi
     prec="$ETAT_DIR/previous"
@@ -354,7 +422,7 @@ done
 # 1.24: every key of the files must be known (a mistyped key was ignored without a word: PAGE_3_THEMS=all, SITE_LANGAUGE=en)
 readonly CLES_SITE="BASE_URL COUNTDOWN_DATE COUNTDOWN_LABEL COUNTDOWN_LABEL_EN COUNTDOWN_URL DESCRIPTION DESCRIPTION_EN FOOTER FOOTER_EN HEADING HEADING_EN LANGUAGE LOGO_ALT LOGO_URL NEWSLETTER_LABEL NEWSLETTER_LABEL_EN NEWSLETTER_URL VCARD_EMAIL VCARD_NAME VCARD_PHONE VCARD_URL SHARED_DIR SHARED_PATH SHARE_DESCRIPTION SHARE_DESCRIPTION_EN SHARE_IMAGE_URL SHARE_TITLE SHARE_TITLE_EN TITLE TITLE_EN"
 readonly CLES_EVENTS="ODOO_DB ODOO_KEY_FILE ODOO_LANG_EN ODOO_LANG_FR ODOO_LOGIN ODOO_URL"      # 1.34: upcoming events read in Odoo
-readonly CLES_LIEN="FROM ICON ICON_DARK IMAGE LABEL LABEL_EN MENU PAGES STYLE UNTIL URL"
+readonly CLES_LIEN="ACCESS FROM ICON ICON_DARK IMAGE LABEL LABEL_EN MENU PAGES STYLE UNTIL URL"
 readonly CLES_PAGE="ACCENT AVATAR BACKGROUND BACKGROUND_STYLE BUTTONS CLICKS COUNTDOWN DIR ENABLED ENGINE EVENTS LANGUAGES NEWSLETTER PATH QR SCRIPT SHARE SWITCH THEME THEMES TITLE TITLE_EN VCARD"
 cle_connue() {   # cle_connue KEY: 0 when KEY is read by the program
     local k="$1" s
@@ -807,6 +875,33 @@ else
     fi
 fi
 
+# 1.50: LINK_n_ACCESS=GROUP: the link (or the menu and all its links) is reached only after a password of the group, asked by nginx
+# (auth_basic over HTTPS); its address is never in the public page: PATH/p/N/, a page kept outside the page folders (PRIVE_DIR)
+PRIVE_DIR="${NGINX_LINK_PAGE_PRIVATE_DIR:-/var/lib/$SCRIPT_NAME-private}"; PRIVE_DIR="${PRIVE_DIR%/}"
+readonly PRIVE_MARQUE=".nginx-link-page-private"
+PROTEGES=0
+for i in "${LIENS_N[@]}"; do
+    g="${CFG[LINK_${i}_ACCESS]:-}"
+    [[ -n "$g" ]] || continue
+    PROTEGES=$((PROTEGES + 1))
+    if [[ ! "$g" =~ $GROUPE_RE ]]; then
+        PROBLEMES+=("LINK_${i}_ACCESS=$g : $(m "nom de groupe : lettres minuscules, chiffres et -, 32 au plus" "group name: lower-case letters, digits and -, 32 at most")"); continue
+    fi
+    if [[ -n "${EST_ENFANT[$i]:-}" ]]; then
+        PROBLEMES+=("LINK_${i}_ACCESS : $(m "le lien est dans le menu LINK_${CFG[LINK_${i}_MENU]}, mettre LINK_${CFG[LINK_${i}_MENU]}_ACCESS sur le menu (tous ses liens sont alors protégés)" "the link is in the menu LINK_${CFG[LINK_${i}_MENU]}, set LINK_${CFG[LINK_${i}_MENU]}_ACCESS on the menu (all its links are then protected)")")
+    fi
+    if [[ -z "$(comptes_du_groupe "$g")" ]]; then
+        PROBLEMES+=("LINK_${i}_ACCESS=$g : $(m "aucun compte dans ce groupe : sudo $SCRIPT_NAME.sh --password $g NOM" "no account in this group: sudo $SCRIPT_NAME.sh --password $g NAME") ($ACCES_DIR/$g.htpasswd)")
+    fi
+done
+if (( PROTEGES )); then
+    for autre in ${DOSSIERS_LISTE[@]+"${DOSSIERS_LISTE[@]}"} "$PARTAGE_DIR"; do
+        if [[ "$PRIVE_DIR/" == "$autre/"* || "$autre/" == "$PRIVE_DIR/"* ]]; then
+            PROBLEMES+=("NGINX_LINK_PAGE_PRIVATE_DIR=$PRIVE_DIR : $(m "imbriqué avec" "nested with") $autre")
+        fi
+    done
+fi
+
 # ---- summary of the files read and of the pages ----
 if (( ${#CFG_FICHIERS[@]} > 0 )); then
     echo "Configuration lue / configuration read : ${CFG_FICHIERS[*]}"
@@ -818,6 +913,10 @@ if [[ -n "$SITE_BASE_URL_V" ]]; then
     echo "  $(m "Base des chemins relatifs" "Base for relative paths") : $SITE_BASE_URL_V ($SITE_BASE_SOURCE)"
 fi
 echo "  $(m "Fichiers communs" "Shared files") : $PARTAGE_URL -> $PARTAGE_DIR"      # 1.49
+if (( PROTEGES )); then                                                                          # 1.50
+    echo "  $(m "Liens protégés par mot de passe" "Links protected by a password") : $PROTEGES ($(m "comptes" "accounts") : $ACCES_DIR, $(m "pages" "pages") : $PRIVE_DIR)"
+    attn "$(m "le mot de passe passe par HTTPS : avec Cloudflare, le mode SSL/TLS doit être « Full (strict) » (jamais « Flexible »)" "the password goes over HTTPS: with Cloudflare, the SSL/TLS mode must be \"Full (strict)\" (never \"Flexible\")")"
+fi
 for i in "${PAGES_N[@]}"; do
     echo "    PAGE_${i} : $(valeur_ou "PAGE_${i}_PATH" "?") -> $(valeur_ou "PAGE_${i}_DIR" "?") · $(valeur_ou "PAGE_${i}_ENGINE" littlelink) · $(valeur_ou "PAGE_${i}_ENABLED" yes) · $(nb_liens_page "$i") $(m "liens" "links")"
 done
@@ -915,10 +1014,10 @@ ok "$(m "configuration valide" "valid configuration")"
 for i in "${LIENS_N[@]}"; do
     [[ -n "${EST_ENFANT[$i]:-}" ]] && continue                 # 1.26: shown under its menu
     if [[ -n "${MENU_ENFANTS[$i]:-}" ]]; then
-        echo "  - ${CFG[LINK_${i}_LABEL]} -> $(m "menu" "menu")"
+        echo "  - ${CFG[LINK_${i}_LABEL]} -> $(m "menu" "menu")$( [[ -n "${CFG[LINK_${i}_ACCESS]:-}" ]] && echo " [$(m "mot de passe" "password") : ${CFG[LINK_${i}_ACCESS]}]")"
         for e in ${MENU_ENFANTS[$i]}; do echo "      - ${CFG[LINK_${e}_LABEL]} -> ${CFG[LINK_${e}_URL]:-}$(periode_lien "$e")"; done
     else
-        echo "  - ${CFG[LINK_${i}_LABEL]} -> ${CFG[LINK_${i}_URL]:-}$(periode_lien "$i")"
+        echo "  - ${CFG[LINK_${i}_LABEL]} -> ${CFG[LINK_${i}_URL]:-}$(periode_lien "$i")$( [[ -n "${CFG[LINK_${i}_ACCESS]:-}" ]] && echo " [$(m "mot de passe" "password") : ${CFG[LINK_${i}_ACCESS]}]")"
     fi
 done
 # 1.30: --clicks; 1.37: --stats (same option): visits of each page (robots set apart), where they come from (QR code, sites, direct),
@@ -1358,7 +1457,12 @@ icone_lien() {
 }
 # cible_lien N: address of the link N in the page (1.30: PATH/go/N with PAGE_n_CLICKS=yes, a redirection by nginx written in its log)
 cible_lien() {
-    if [[ "${P_CLICS:-no}" == yes ]]; then printf '%s' "${P_CHEMIN}go/$1"; else printf '%s' "${CFG[LINK_${1}_URL]}"; fi
+    if [[ -z "${DANS_PROTEGE:-}" && -n "${CFG[LINK_${1}_ACCESS]:-}" ]]; then      # 1.50: protected: the page behind the password
+        printf '%s' "${P_CHEMIN}p/$1/"
+        if [[ -n "${MENU_ENFANTS[$1]:-}" ]] && (( ${k:-0} > 0 )); then printf '%s/' "$L_LANG"; fi
+        return 0
+    fi
+    if [[ -z "${DANS_PROTEGE:-}" && "${P_CLICS:-no}" == yes ]]; then printf '%s' "${P_CHEMIN}go/$1"; else printf '%s' "${CFG[LINK_${1}_URL]}"; fi
 }
 # rangee_icones: 1.35: the links LINK_n_STYLE=icon of the page, as a row of round icons under the description
 rangee_icones() {
@@ -1382,8 +1486,26 @@ bouton_lien() {
         echo "          <img class=\"thumb\" src=\"${VIGNETTE[$1]}\" alt=\"\" loading=\"lazy\">$(html_echap "$(libelle_lien "$1")")</a>"
         return 0
     fi
+    if [[ -z "${DANS_PROTEGE:-}" && -n "${CFG[LINK_${1}_ACCESS]:-}" ]]; then      # 1.50: same tab: the browser asks for the password
+        echo "        <a class=\"button $classe_bouton button-locked\" href=\"$(html_echap "$(cible_lien "$1")")\" title=\"$(tp "Accès réservé : mot de passe" "Restricted: password")\">"
+        echo "          $(icone_lien "$1")$(html_echap "$(libelle_lien "$1")") <span aria-label=\"$(tp "mot de passe" "password")\">🔒</span></a>"
+        return 0
+    fi
     echo "        <a class=\"button $classe_bouton\" href=\"$(html_echap "$(cible_lien "$1")")\" target=\"_blank\" rel=\"noopener noreferrer\">"
     echo "          $(icone_lien "$1")$(html_echap "$(libelle_lien "$1")")</a>"
+}
+# 1.50: page_redirection FILE N: the page behind the password of a protected link: it sends to its address (a static file: nginx
+# serves it only after auth_basic; a "return 302" would be answered before the password is checked)
+page_redirection() {
+    local url titre
+    url="$(html_echap "${CFG[LINK_${2}_URL]}")"; titre="$(html_echap "$(libelle_lien "$2")")"
+    {
+        echo "<!DOCTYPE html>"
+        echo "<html lang=\"$L_LANG\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">"
+        echo "<meta name=\"robots\" content=\"noindex, nofollow\"><meta name=\"referrer\" content=\"no-referrer\">"
+        echo "<meta http-equiv=\"refresh\" content=\"0; url=$url\"><title>$titre</title></head>"
+        echo "<body><p><a href=\"$url\" rel=\"noopener noreferrer\">$titre</a></p></body></html>"
+    } > "$1"
 }
 
 genere_index() {   # genere_index DOSSIER THEME TITRE [FICHIER] [CIBLE_BASCULE] [LIBELLE_BASCULE]
@@ -1490,7 +1612,9 @@ genere_index() {   # genere_index DOSSIER THEME TITRE [FICHIER] [CIBLE_BASCULE] 
         echo "      <nav class=\"button-stack\" aria-label=\"$( [[ "$L_LANG" == en ]] && echo Links || echo Liens )\">"
         for i in ${P_LIENS[@]+"${P_LIENS[@]}"}; do          # 1.25: only the links of this page (LINK_n_PAGES)
             [[ "${CFG[LINK_${i}_STYLE]:-}" == icon ]] && continue     # 1.35: in the row of icons
-            if [[ -n "${MENU_ENFANTS[$i]:-}" ]]; then        # 1.26: menu: a button that opens its links below it (<details>, no script)
+            if [[ -n "${MENU_ENFANTS[$i]:-}" && -n "${CFG[LINK_${i}_ACCESS]:-}" ]]; then     # 1.50: protected menu: its links are behind the password
+                bouton_lien "$i"
+            elif [[ -n "${MENU_ENFANTS[$i]:-}" ]]; then        # 1.26: menu: a button that opens its links below it (<details>, no script)
                 echo "        <details class=\"link-menu\">"
                 echo "          <summary class=\"button button-default$( [[ "${CFG[LINK_${i}_STYLE]:-normal}" == featured ]] && echo " button-featured")\">$(icone_lien "$i")$(html_echap "$(libelle_lien "$i")")</summary>"
                 echo "          <div class=\"link-menu-items\">"
@@ -1653,6 +1777,26 @@ for i in ${ACTIVES[@]+"${ACTIVES[@]}"}; do
         else
             genere_index "$dossier" "$P_THEME" "$L_TITRE"
         fi
+        # 1.50: the protected links and menus of this page: one folder each, outside the page folder (PRIVE_DIR)
+        for n in $(liens_visibles_de_la_page "$i"); do
+            [[ -n "${CFG[LINK_${n}_ACCESS]:-}" ]] || continue
+            cible_p="$TMP/prive/$i/$n"; if (( k > 0 )); then cible_p+="/$L_LANG"; fi
+            if [[ -n "${MENU_ENFANTS[$n]:-}" ]]; then
+                (                                                  # subshell: the settings of the page are not changed
+                    mkdir -p "$cible_p"
+                    cp -r "$dossier/css" "$dossier/images" "$cible_p/" 2>/dev/null
+                    mapfile -t P_LIENS < <(enfants_visibles "$n")
+                    P_MENU=(); P_JS=no; P_PARTAGE=no; P_EVENTS=0; P_INFOLETTRE=no; P_DECOMPTE=no; P_QR=no; P_VCARD=no; P_CLICS=no
+                    L_AUTRE_HREF=""; L_URL_PUBLIQUE=""; DANS_PROTEGE=1; P_A_MENU=no
+                    P_A_EXTRAS=no; if [[ -r "$EXTRAS_CSS" ]] && page_a_extras; then P_A_EXTRAS=yes; fi
+                    L_HEADING="$(libelle_lien "$n")"; L_DESCRIPTION=""
+                    retour="$P_CHEMIN"; if (( k > 0 )); then retour+="$L_LANG/"; fi
+                    genere_index "$cible_p" "$P_THEME" "$L_HEADING" index.html "$retour" "$(tp "Retour" "Back")"
+                )
+            elif (( k == 0 )); then
+                mkdir -p "$cible_p"; page_redirection "$cible_p/index.html" "$n"
+            fi
+        done
     done
     ok "$(m "page" "page") PAGE_${i} $(m "preparee" "prepared") ($(nb_liens_page "$i") $(m "liens" "links"))"
 done
@@ -1720,6 +1864,7 @@ else
         # 1.30: PAGE_n_CLICKS=yes: one exact location per link of the page, a 302 to its address (counted by --clicks in the access log)
         if [[ "$(valeur_ou "PAGE_${i}_CLICKS" no)" == yes ]]; then
             for n in $(liens_visibles_de_la_page "$i"); do
+                [[ -n "${CFG[LINK_${n}_ACCESS]:-}" ]] && continue      # 1.50: a protected address is never in a public redirection
                 for e in $( [[ -n "${MENU_ENFANTS[$n]:-}" ]] && enfants_visibles "$n" || echo "$n" ); do
                     cible="${CFG[LINK_${e}_URL]}"; cible="${cible//\$/%24}"; cible="${cible//\"/%22}"
                     LIEN_NOUVEAU+="location = ${chemin_page}go/$e {"$'\n'
@@ -1729,6 +1874,23 @@ else
                 done
             done
         fi
+        # 1.50: protected links and menus (LINK_n_ACCESS): a longer prefix than the page, so it wins; the password is checked
+        # (access phase) before the static page is sent (content phase); never cached (private, no-store), never indexed
+        for n in $(liens_visibles_de_la_page "$i"); do
+            g="${CFG[LINK_${n}_ACCESS]:-}"; [[ -n "$g" ]] || continue
+            LIEN_NOUVEAU+="location ^~ ${chemin_page}p/$n/ {"$'\n'
+            LIEN_NOUVEAU+="    auth_basic \"Acces reserve - Restricted\";"$'\n'
+            LIEN_NOUVEAU+="    auth_basic_user_file ${ACCES_DIR}/${g}.htpasswd;"$'\n'
+            LIEN_NOUVEAU+="    alias ${PRIVE_DIR}/${i}/${n}/;"$'\n'
+            LIEN_NOUVEAU+="    index index.html;"$'\n'
+            LIEN_NOUVEAU+="    limit_except GET HEAD { deny all; }"$'\n'
+            LIEN_NOUVEAU+="$(entetes_page "$i" "    " "private, no-store")"$'\n'
+            LIEN_NOUVEAU+="    add_header X-Robots-Tag \"noindex, nofollow\" always;"$'\n'
+            LIEN_NOUVEAU+="}"$'\n'
+            LIEN_NOUVEAU+="location = ${chemin_page}p/$n {"$'\n'
+            LIEN_NOUVEAU+="    return 301 ${chemin_page}p/$n/;"$'\n'
+            LIEN_NOUVEAU+="}"$'\n'
+        done
         LIEN_NOUVEAU+="location ^~ ${chemin_page} {"$'\n'
         LIEN_NOUVEAU+="    alias ${dir_page}/;"$'\n'
         LIEN_NOUVEAU+="    index index.html;"$'\n'
@@ -1768,6 +1930,7 @@ if [[ "${NGINX_LINK_PAGE_NO_BACKUP:-0}" != 1 ]]; then
         for x in "$dossier"/theme-*.html; do [[ -e "$x" ]] && cp -a "$x" "$nouv/page-$i/"; done
         printf 'page\tpage-%s\t%s\n' "$i" "$dossier" >> "$nouv/manifest"
     done
+    if [[ -e "$PRIVE_DIR/$PRIVE_MARQUE" ]]; then cp -a "$PRIVE_DIR" "$nouv/private"; printf 'shared\tprivate\t%s\n' "$PRIVE_DIR" >> "$nouv/manifest"; fi      # 1.50
     if [[ -e "$PARTAGE_DIR/$PARTAGE_MARQUE" ]]; then cp -a "$PARTAGE_DIR" "$nouv/shared"; printf 'shared\tshared\t%s\n' "$PARTAGE_DIR" >> "$nouv/manifest"; fi      # 1.49
     if [[ -f "$LIEN_FICHIER" ]]; then cp -a "$LIEN_FICHIER" "$nouv/snippet.conf"; printf 'snippet\tsnippet.conf\t%s\n' "$LIEN_FICHIER" >> "$nouv/manifest"; fi
     cron_f="${NGINX_LINK_PAGE_CRON_DIR:-/etc/cron.d}/$SCRIPT_NAME"
@@ -1789,6 +1952,20 @@ if (( ${#ACTIVES[@]} )) && [[ -d "$TMP/shared" ]]; then      # 1.49: the shared 
     if [[ -d "$PARTAGE_DIR" ]]; then mv "$PARTAGE_DIR" "$PARTAGE_DIR.old"; fi
     mv "$PARTAGE_DIR.new" "$PARTAGE_DIR" && rm -rf "${PARTAGE_DIR:?}.old"
     ok "$(m "fichiers communs installés dans" "shared files installed in") $PARTAGE_DIR ($PARTAGE_URL)"
+fi
+# 1.50: the protected pages: root and the group of nginx only (750 and 640), replaced as a whole; removed when nothing is protected
+if [[ -d "$TMP/prive" ]]; then
+    gn="$(groupe_nginx)"
+    rm -rf "${PRIVE_DIR:?}.new" "${PRIVE_DIR:?}.old"; mkdir -p "$(dirname "$PRIVE_DIR")"
+    if ! cp -r "$TMP/prive" "$PRIVE_DIR.new"; then err "$(m "copie impossible dans" "copy failed in") $PRIVE_DIR.new"; exit 1; fi
+    printf '%s\n' "Written by $SCRIPT_NAME.sh --update: replaced at each run." > "$PRIVE_DIR.new/$PRIVE_MARQUE"
+    [[ -n "$gn" ]] && chgrp -R "$gn" "$PRIVE_DIR.new"
+    find "$PRIVE_DIR.new" -type d -exec chmod 750 {} + ; find "$PRIVE_DIR.new" -type f -exec chmod 640 {} +
+    if [[ -d "$PRIVE_DIR" ]]; then mv "$PRIVE_DIR" "$PRIVE_DIR.old"; fi
+    mv "$PRIVE_DIR.new" "$PRIVE_DIR" && rm -rf "${PRIVE_DIR:?}.old"
+    ok "$(m "pages protégées installées dans" "protected pages installed in") $PRIVE_DIR"
+elif [[ -e "$PRIVE_DIR/$PRIVE_MARQUE" ]]; then
+    rm -rf "${PRIVE_DIR:?}"; ok "$(m "plus aucun lien protégé : retiré" "no protected link any more: removed") $PRIVE_DIR"
 fi
 for i in ${ACTIVES[@]+"${ACTIVES[@]}"}; do
     dossier="$(valeur_ou "PAGE_${i}_DIR" "")"
