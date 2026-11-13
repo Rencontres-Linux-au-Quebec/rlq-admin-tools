@@ -100,7 +100,7 @@ class Base(unittest.TestCase):
 
     def lancer(self, *args, env=None):
         e = {"PATH": os.environ["PATH"], "HOME": str(self.home), "LANG": "C",
-             "NGINX_LINK_PAGE_ETC_DEFAULT": str(self.etc)}
+             "NGINX_LINK_PAGE_ETC_DEFAULT": str(self.etc), "NGINX_LINK_PAGE_SHARED_DIR": str(self.tmp / "www" / "commun")}
         e.update(env or {})
         return subprocess.run(["bash", str(PROG), *args], capture_output=True, text=True, env=e, timeout=120)
 
@@ -347,6 +347,7 @@ class Installation(Base):
             chemin.write_text(corps, encoding="utf-8")
             chemin.chmod(0o755)
         self.www = self.tmp / "www"
+        self.commun = self.www / "commun"          # 1.49: shared files (SITE_SHARED_DIR)
         self.snippets = self.tmp / "snippets"
         self.snippets.mkdir()
         self.env = {"PATH": f"{self.bin}:{os.environ['PATH']}",
@@ -354,7 +355,7 @@ class Installation(Base):
 
     def seul_script_local(self, html):
         """1.18 : la seule balise script permise est js/link-page.js, servi par la page elle-même."""
-        self.assertEqual(re.findall(r"<script[^>]*>", html), ['<script src="js/link-page.js">'])
+        self.assertEqual(re.findall(r"<script[^>]*>", html), ['<script src="/link-page-shared/js/link-page.js">'])
 
     def config_deux_pages(self, page2_active="yes"):
         return f"""SITE_TITLE=Test & B
@@ -390,7 +391,12 @@ PAGE_2_TITLE=Deux
         self.seul_script_local(ici)
         self.assertIn("<title>Deux</title>", deux)
         self.assertIn('class="theme-dark"', deux)
-        self.assertTrue((self.www / "liens" / "css" / "style.css").exists())
+        self.assertTrue((self.commun / "css" / "style.css").exists())                     # 1.49: one copy, in the shared folder
+        self.assertTrue((self.commun / ".nginx-link-page-shared").exists())
+        for page in ("liens", "liens2"):
+            self.assertFalse((self.www / page / "css" / "style.css").exists())
+            self.assertFalse((self.www / page / "fonts").exists())
+            self.assertFalse((self.www / page / "images" / "icons").exists())
         snippet = (self.snippets / "liens-publics.conf").read_text(encoding="utf-8")
         self.assertIn("location ^~ /liens/ {", snippet)
         self.assertIn("location ^~ /liens2/ {", snippet)
@@ -407,12 +413,12 @@ PAGE_2_TITLE=Deux
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
         self.assertIn("LittleLink Extended v3.2.0", r.stdout)
         ici = (self.www / "liens" / "index.html").read_text(encoding="utf-8")
-        self.assertIn('src="images/icons-extended/codeberg.svg"', ici)
-        self.assertIn('href="css/brands-extended.css"', ici)
+        self.assertIn('src="/link-page-shared/images/icons-extended/codeberg.svg"', ici)
+        self.assertIn('href="/link-page-shared/css/brands-extended.css"', ici)
         self.assertIn("button-codeberg", ici)
-        self.assertIn('src="images/icons/facebook.svg"', ici)                  # LittleLink first
-        self.assertTrue((self.www / "liens" / "images" / "icons-extended" / "lemmy.svg").exists())
-        self.assertEqual([f.name for f in (self.www / "liens").rglob("*.js")], ["link-page.js"])   # 1.18: never sensitive-content.js
+        self.assertIn('src="/link-page-shared/images/icons/facebook.svg"', ici)                  # LittleLink first
+        self.assertTrue((self.commun / "images" / "icons-extended" / "lemmy.svg").exists())
+        self.assertEqual([f.name for f in self.www.rglob("*.js")], ["link-page.js"])          # 1.18: never sensitive-content.js (1.49: shared)
         self.seul_script_local(ici)
 
     def test_littlelink_extended_absent_ou_autre_commit(self):
@@ -527,16 +533,16 @@ printf '\\211PNG\\r\\n\\032\\nxxxx' > "$out"; printf '200 12'; exit 0
                 self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
                 ici = (self.www / "liens" / "index.html").read_text(encoding="utf-8")
                 self.assertIn(f'class="theme-{theme}"', ici)
-                self.assertIn('<link rel="stylesheet" href="css/themes.css">', ici)
+                self.assertIn('<link rel="stylesheet" href="/link-page-shared/css/themes.css">', ici)
                 self.assertLess(ici.index("css/brands.css"), ici.index("css/themes.css"))       # after LittleLink: it wins
                 self.assertRegex(ici, r'<meta name="theme-color" content="#[0-9a-f]{6}">')
-                self.assertTrue((self.www / "liens" / "css" / "themes.css").exists())
+                self.assertTrue((self.commun / "css" / "themes.css").exists())
                 (self.assertIn if base == "dark" else self.assertNotIn)("images/site/icon-2-sombre.", ici)     # dark icon on a dark base
                 autre = (self.www / "liens" / "autre.html").read_text(encoding="utf-8")
                 self.assertIn('class="theme-light"' if base == "dark" else 'class="theme-dark"', autre)
                 self.assertNotIn("css/themes.css", autre)
                 self.seul_script_local(ici)
-        css = (self.www / "liens" / "css" / "themes.css").read_text(encoding="utf-8")
+        css = (self.commun / "css" / "themes.css").read_text(encoding="utf-8")
         for theme in bases:
             self.assertIn(f":root.theme-{theme} body", css)
         self.assertNotRegex(css, r"@import|https?:")                                     # nothing outside the page (CSP 'self')
@@ -560,13 +566,13 @@ printf '\\211PNG\\r\\n\\032\\nxxxx' > "$out"; printf '200 12'; exit 0
                 self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
                 ici = (self.www / "liens" / "index.html").read_text(encoding="utf-8")
                 self.assertIn(f'class="theme-{theme}"', ici)
-                self.assertIn('<link rel="stylesheet" href="css/themes-linkstack.css">', ici)
-                self.assertNotIn('href="css/themes.css"', ici)
+                self.assertIn('<link rel="stylesheet" href="/link-page-shared/css/themes-linkstack.css">', ici)
+                self.assertNotIn('href="/link-page-shared/css/themes.css"', ici)
                 self.assertIn("images/site/icon-2-sombre.", ici)
                 self.seul_script_local(ici)
                 self.assertEqual(ici.count('<div class="ls-rain" aria-hidden="true">'), 1 if theme == "ls-misty-rain" else 0)
                 self.assertIn('class="theme-light"', (self.www / "liens" / "autre.html").read_text(encoding="utf-8"))
-        page = self.www / "liens"
+        page = self.commun                                                    # 1.49: shared files
         for f in ("images/themes/ls-aurora.jpg", "images/themes/ls-dark-wallpaper.png", "images/themes/ls-dawn-background.jpg",
                   "fonts/themes/roboto-latin-400-normal.woff2", "fonts/themes/karla-latin-700-normal.woff2", "css/themes-linkstack-LICENSES.md"):
             self.assertTrue((page / f).exists(), f)
@@ -586,13 +592,13 @@ printf '\\211PNG\\r\\n\\032\\nxxxx' > "$out"; printf '200 12'; exit 0
         self.assertIn("PAGE_1_SWITCH=yes ignore", r.stdout + r.stderr)
         page = self.www / "liens"
         self.assertEqual(sorted(f.name for f in page.glob("*.html")), ["index.html", "theme-light.html", "theme-ls-dawn.html", "theme-terminal.html"])
-        self.assertTrue((page / "css" / "theme-menu.css").exists())
+        self.assertTrue((self.commun / "css" / "theme-menu.css").exists())
         attendus = {"index.html": "aurora", "theme-light.html": "light", "theme-ls-dawn.html": "ls-dawn", "theme-terminal.html": "terminal"}
         for f, theme in attendus.items():
             with self.subTest(page=f):
                 html = (page / f).read_text(encoding="utf-8")
                 self.assertIn(f'class="theme-{theme}"', html)
-                self.assertIn('<link rel="stylesheet" href="css/theme-menu.css">', html)
+                self.assertIn('<link rel="stylesheet" href="/link-page-shared/css/theme-menu.css">', html)
                 self.assertIn('<details class="theme-menu">', html)
                 self.assertIn("<summary>Thème</summary>", html)
                 self.seul_script_local(html)
@@ -627,12 +633,12 @@ printf '\\211PNG\\r\\n\\032\\nxxxx' > "$out"; printf '200 12'; exit 0
         texte = self.config_deux_pages("no").replace("PAGE_1_THEME=auto", "PAGE_1_THEME=aurora\nPAGE_1_THEMES=light,ls-misty-rain\nPAGE_1_LANGUAGES=fr,en")
         r = self.lancer("-c", str(self.conf(texte)), "--update", "--yes", env=self.env)
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
-        self.assertTrue((page / "js" / "link-page.js").exists())
-        self.assertTrue((page / "en" / "js" / "link-page.js").exists())
+        self.assertTrue((self.commun / "js" / "link-page.js").exists())
+        self.assertFalse((page / "en" / "js").exists())                                  # 1.49: one copy only
         fr = (page / "index.html").read_text(encoding="utf-8")
         en = (page / "en" / "index.html").read_text(encoding="utf-8")
         self.seul_script_local(fr)
-        self.assertLess(fr.index('<script src="js/link-page.js">'), fr.index("</head>"))
+        self.assertLess(fr.index('<script src="/link-page-shared/js/link-page.js">'), fr.index("</head>"))
         self.assertIn("script-src 'self'", fr)
         self.assertIn('data-page="/liens/"', fr)
         self.assertIn('data-themes="aurora|dark|#0b1026 light|light| ls-misty-rain|dark|#181b24"', fr)
@@ -641,8 +647,8 @@ printf '\\211PNG\\r\\n\\032\\nxxxx' > "$out"; printf '200 12'; exit 0
         self.assertIn('href="/liens/en/" data-lang="en"', fr)
         self.assertIn('href="/liens/index.html" data-lang="fr"', en)
         self.assertIn('<a href="theme-light.html" data-theme="light">', fr)
-        self.assertIn('<link rel="stylesheet" href="css/themes.css">', fr)
-        self.assertIn('<link rel="stylesheet" href="css/themes-linkstack.css">', fr)   # every offered theme can be applied in place
+        self.assertIn('<link rel="stylesheet" href="/link-page-shared/css/themes.css">', fr)
+        self.assertIn('<link rel="stylesheet" href="/link-page-shared/css/themes-linkstack.css">', fr)   # every offered theme can be applied in place
         self.assertIn('class="ls-rain"', fr)                                           # shown by CSS only with ls-misty-rain
         self.assertIn('<source data-icon-dark media="all"', fr)                        # dark base of aurora
         self.assertIn('<source data-icon-dark media="not all"', (page / "theme-light.html").read_text(encoding="utf-8"))
@@ -785,8 +791,8 @@ printf '\\211PNG\\r\\n\\032\\nxxxx' > "$out"; printf '200 12'; exit 0
         r = self.lancer("-c", str(self.conf(self.config_deux_pages("no") + menu)), "--update", "--yes", env=self.env)
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
         html = (self.www / "liens" / "index.html").read_text(encoding="utf-8")
-        self.assertTrue((self.www / "liens" / "css" / "link-menu.css").exists())
-        self.assertIn('<link rel="stylesheet" href="css/link-menu.css">', html)
+        self.assertTrue((self.commun / "css" / "link-menu.css").exists())
+        self.assertIn('<link rel="stylesheet" href="/link-page-shared/css/link-menu.css">', html)
         bloc = html[html.index('<details class="link-menu">'):html.index("</details>", html.index('<details class="link-menu">'))]
         self.assertIn('<summary class="button button-default">', bloc)
         self.assertIn("Événements</summary>", bloc)
@@ -794,7 +800,7 @@ printf '\\211PNG\\r\\n\\032\\nxxxx' > "$out"; printf '200 12'; exit 0
         self.assertEqual(html.count("example.org/cal"), 1)                                 # only inside the menu
         self.assertIn("PAGE_1 preparee (4 liens)", r.stdout + r.stderr)
         r = self.lancer("-c", str(self.conf(self.config_deux_pages("no"))), "--update", "--yes", env=self.env)
-        self.assertFalse((self.www / "liens" / "css" / "link-menu.css").exists())          # no menu: no style sheet
+        self.assertNotIn("css/link-menu.css", (self.www / "liens" / "index.html").read_text(encoding="utf-8"))          # no menu: no style sheet
         cas = {"LINK_2_MENU=9": "le lien 9 n'existe pas", "LINK_2_MENU=2": "dans son propre menu",
                "LINK_2_MENU=1": "le lien 1 est un menu (LINK_n_MENU=1) : il n'a pas d'adresse",
                "LINK_3_LABEL=X\nLINK_2_MENU=3\nLINK_3_MENU=1": "un menu ne peut pas être dans un autre menu",
@@ -914,10 +920,10 @@ printf '\\211PNG\\r\\n\\032\\nxxxx' > "$out"; printf '200 12'; exit 0
         self.assertIn('<a class="button button-default button-featured" href="https://example.org/d"', html)
         self.assertIn('<summary class="button button-default button-featured">', html)
         self.assertIn('<a class="button button-default" href="https://example.org/b"', html)
-        self.assertIn('<link rel="stylesheet" href="css/extras.css">', html)
-        self.assertIn("button-featured", (self.www / "liens" / "css" / "extras.css").read_text(encoding="utf-8"))
+        self.assertIn('<link rel="stylesheet" href="/link-page-shared/css/extras.css">', html)
+        self.assertIn("button-featured", (self.commun / "css" / "extras.css").read_text(encoding="utf-8"))
         r = self.lancer("-c", str(self.conf(self.config_deux_pages("no"))), "--update", "--yes", env=self.env)
-        self.assertFalse((self.www / "liens" / "css" / "extras.css").exists())
+        self.assertNotIn("css/extras.css", (self.www / "liens" / "index.html").read_text(encoding="utf-8"))
         r = self.lancer("-c", str(self.conf(MINIMAL + "LINK_1_STYLE=gros\n")), "--check")
         self.assertIn("LINK_1_STYLE=gros (normal, featured ou icon)", r.stderr)
 
@@ -936,7 +942,7 @@ printf '\\211PNG\\r\\n\\032\\nxxxx' > "$out"; printf '200 12'; exit 0
         html = (page / "index.html").read_text(encoding="utf-8")
         self.assertIn('<p class="qr-link"><a href="qr.png" download><img src="qr.svg" alt="">Code QR de cette page</a></p>', html)
         self.assertIn("QR code of this page", (page / "en" / "index.html").read_text(encoding="utf-8"))
-        self.assertIn('<link rel="stylesheet" href="css/extras.css">', html)
+        self.assertIn('<link rel="stylesheet" href="/link-page-shared/css/extras.css">', html)
         self.assertIn("code QR : https://www.example.org/liens/qr.png", r.stdout)
         r = self.lancer("-c", str(self.conf(texte.replace("PAGE_1_QR=yes", "PAGE_1_QR=no"))), "--update", "--yes", env=self.env)
         self.assertFalse((page / "qr.png").exists())
@@ -972,6 +978,46 @@ printf '\\211PNG\\r\\n\\032\\nxxxx' > "$out"; printf '200 12'; exit 0
         r = self.lancer("-c", str(self.conf(texte)), "--update", "--yes", env=env)
         self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
         self.assertIn("installation en échec : lancer « sudo apt-get install qrencode »", r.stderr)
+    def test_149_fichiers_communs_une_seule_copie(self):
+        """1.49 : les fichiers communs (styles, polices, icônes, thèmes, script) sont installés une seule fois dans SITE_SHARED_DIR et
+        servis à SITE_SHARED_PATH ; les anciennes copies des pages sont retirées ; un dossier non vide qui n'est pas du programme et un
+        chemin déjà pris par une page sont refusés ; --rollback remet aussi les fichiers communs."""
+        vieux = self.www / "liens" / "css"
+        vieux.mkdir(parents=True)
+        (vieux / "style.css").write_text("ancienne copie", encoding="utf-8")
+        env = dict(self.env, NGINX_LINK_PAGE_STATE_DIR=str(self.tmp / "etat"))
+        texte = self.config_deux_pages("yes") + "SITE_SHARED_DIR=" + str(self.www / "partage") + "\nSITE_SHARED_PATH=/commun/\n"
+        r = self.lancer("-c", str(self.conf(texte)), "--update", "--yes", env=env)
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        partage = self.www / "partage"
+        self.assertTrue((partage / "css" / "style.css").exists())
+        self.assertTrue((partage / "images" / "icons" / "facebook.svg").exists())
+        self.assertFalse(vieux.joinpath("style.css").exists())                                # old copy of the page removed
+        self.assertIn('href="/commun/css/style.css"', (self.www / "liens2" / "index.html").read_text(encoding="utf-8"))
+        snippet = (self.snippets / "liens-publics.conf").read_text(encoding="utf-8")
+        bloc = snippet[snippet.index("location ^~ /commun/ {"):]
+        self.assertIn(f"    alias {partage}/;", bloc)
+        self.assertIn('add_header Cache-Control "public, max-age=604800" always;', bloc)
+        self.assertIn("location ~ /\\. { return 404; }", bloc)                                # the marker file is not served
+        self.assertIn("fichiers communs installés dans", r.stdout)
+        # second run: the folder is the program's (marker): replaced; then --rollback puts back the previous one
+        (partage / "css" / "style.css").write_text("version 1", encoding="utf-8")
+        r = self.lancer("-c", str(self.conf(texte)), "--update", "--yes", env=env)
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertNotEqual((partage / "css" / "style.css").read_text(encoding="utf-8"), "version 1")
+        r = self.lancer("-c", str(self.conf(texte)), "--rollback", env=env)
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertEqual((partage / "css" / "style.css").read_text(encoding="utf-8"), "version 1")
+        # refusals
+        autre = self.www / "a-moi"; autre.mkdir(); (autre / "photo.jpg").write_text("x", encoding="utf-8")
+        for ajout, attendu in ((f"SITE_SHARED_DIR={autre}\n", "dossier non vide qui n'a pas été créé par ce programme"),
+                               ("SITE_SHARED_PATH=/liens/\n", "SITE_SHARED_PATH=/liens/ : déjà le chemin d'une page"),
+                               (f"SITE_SHARED_DIR={self.www / 'liens' / 'commun'}\n", "imbriqué avec le dossier d'une page")):
+            with self.subTest(ajout=ajout):
+                r = self.lancer("-c", str(self.conf(self.config_deux_pages("yes") + ajout)), "--check", env=env)
+                self.assertNotEqual(r.returncode, 0)
+                self.assertIn(attendu, r.stderr)
+        self.assertTrue((autre / "photo.jpg").exists())
 
     def test_133_rollback(self):
         """1.33 : --update garde la version précédente (pages, fragment, tâche quotidienne) ; --rollback la remet, même avec une
@@ -1026,7 +1072,7 @@ printf '\\211PNG\\r\\n\\032\\nxxxx' > "$out"; printf '200 12'; exit 0
         self.assertNotIn("Troisième", fr)                                                   # PAGE_1_EVENTS=2
         self.assertIn("Saturday, November 21 · 9:00 · in 9 days", en)
         self.assertIn("Upcoming events", en)
-        self.assertIn('<link rel="stylesheet" href="css/extras.css">', fr)
+        self.assertIn('<link rel="stylesheet" href="/link-page-shared/css/extras.css">', fr)
         self.assertTrue((self.tmp / "cron.d" / "nginx-link-page").exists())
         r = self.lancer("-c", str(self.conf(texte)), "--update", "--yes", env=dict(env, NGINX_LINK_PAGE_EVENTS_JSON=str(self.tmp / "absent.json")))
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
@@ -1054,7 +1100,7 @@ printf '\\211PNG\\r\\n\\032\\nxxxx' > "$out"; printf '200 12'; exit 0
         pile = html[html.index('<nav class="button-stack"'):]
         self.assertNotIn("example.org/a", pile[:pile.index("</nav>")])
         self.assertLess(html.index("social-icons"), html.index("button-stack"))
-        self.assertIn('<link rel="stylesheet" href="css/extras.css">', html)
+        self.assertIn('<link rel="stylesheet" href="/link-page-shared/css/extras.css">', html)
         r = self.lancer("-c", str(self.conf(self.config_deux_pages("no") + "LINK_3_LABEL=M\nLINK_3_STYLE=icon\nLINK_2_MENU=3\n")), "--check")
         self.assertIn("LINK_3_STYLE=icon : un menu ou un lien de menu", r.stderr)
 
@@ -1067,7 +1113,7 @@ printf '\\211PNG\\r\\n\\032\\nxxxx' > "$out"; printf '200 12'; exit 0
         html = (self.www / "liens" / "index.html").read_text(encoding="utf-8")
         self.assertRegex(html, r'<a class="button button-default button-thumb" href="https://example.org/b"[^>]*>\n +<img class="thumb" src="images/site/thumb-2\.png" alt="" loading="lazy">Autre</a>')
         self.assertTrue(list((self.www / "liens" / "images" / "site").glob("thumb-2.*")))
-        self.assertIn('<link rel="stylesheet" href="css/extras.css">', html)
+        self.assertIn('<link rel="stylesheet" href="/link-page-shared/css/extras.css">', html)
         r = self.lancer("-c", str(self.conf(MINIMAL + "LINK_1_IMAGE=ftp://x/y.png\n")), "--check")
         self.assertIn("LINK_1_IMAGE : adresse https:// ou chemin relatif d'une image", r.stderr)
 
@@ -1307,7 +1353,7 @@ printf '\\211PNG\\r\\n\\032\\nxxxx' > "$out"; printf '200 12'; exit 0
         self.assertIn("<h1>Home EN</h1>", en)
         self.assertIn('href="/liens/en/"', fr)
         self.assertIn('href="/liens/index.html"', en)      # 1.18: /liens/ alone sends an English browser back to /liens/en/
-        self.assertTrue((self.www / "liens" / "en" / "css" / "style.css").exists())
+        self.assertFalse((self.www / "liens" / "en" / "css" / "style.css").exists())      # 1.49: shared, not copied
         snippet = (self.snippets / "liens-publics.conf").read_text(encoding="utf-8")
         self.assertIn("location = /liens/ {", snippet)
         self.assertIn('if ($http_accept_language ~* "^en") {', snippet)

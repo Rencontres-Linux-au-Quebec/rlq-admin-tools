@@ -4546,6 +4546,16 @@ Earlier history was archived outside this repository when this file was created.
 
 ## nginx-link-page.sh
 
+### 1.49.20261113.103519 - Shared files installed once (SITE_SHARED_DIR)
+
+- Title: the files shared by every page (LittleLink style sheets, fonts and icons, LittleLink Extended icons, themes, style sheets of the menus, script) are installed once, in SITE_SHARED_DIR, and served at SITE_SHARED_PATH.
+- Reason: request of the administrator on 2026-11-13: the icons and the other shared files must be installed in one place, not copied into every folder (for example /var/www/commun/{icons, icons-extended, fonts}).
+- Changes: new keys SITE_SHARED_DIR (default /var/www/link-page-shared; NGINX_LINK_PAGE_SHARED_DIR for the tests) and SITE_SHARED_PATH (default /link-page-shared/), in CLES_SITE and in the templates (doc/fr, doc/en, section 5; doc/conf-history updated); new function preparer_commun (css, fonts, images of LittleLink and LittleLink Extended, themes.css, themes-linkstack.css and its images, fonts and licence, theme-menu.css, link-menu.css, extras.css, js/link-page.js, marker file .nginx-link-page-shared); preparer_dossier: only the images of the site and the folder css (background.css and accent.css stay with their page); the pages link the shared files with absolute addresses (SITE_SHARED_PATH/css/..., /images/icons/..., /js/link-page.js); new variables P_A_EXTRAS and P_A_MENU (the page links extras.css or link-menu.css); nginx snippet: location ^~ SITE_SHARED_PATH (alias, GET and HEAD only, style sheets and script 1 hour, images and fonts 7 days, licence no-cache, hidden files and other types 404); --update installs the shared folder as a whole (FOLDER.new, then renamed); --check shows "Fichiers communs : PATH -> FOLDER"; --rollback puts back the shared folder too (type shared in the manifest); nginx-tools-tests/test_nginx_link_page.py: 1 test, the tests of the style sheets, icons and script updated.
+- Bugs fixed: none.
+- Safeguards and edge cases: --check refuses SITE_SHARED_PATH already used by a page (case ignored) or not like /name/, SITE_SHARED_DIR not absolute, nested with the folder of a page, or a folder not empty that was not created by this program (it is replaced at each run: no file of the administrator is ever erased); the old copies in the page folders (css, fonts, images, js) are removed by the next --update; a browser and Cloudflare keep one copy of each icon and style sheet for every page, language and theme; the Content-Security-Policy is unchanged (same site).
+- Checks performed: bash -n; shellcheck (same as main); test_nginx_link_page; test_cles_modeles; test_config_commune.FusionAncienModele (history of the templates).
+- Action required: none for the default folder; to use /var/www/commun: SITE_SHARED_DIR=/var/www/commun and SITE_SHARED_PATH=/commun/ (empty or new folder), then sudo nginx-link-page.sh --update --yes.
+
 ### 1.48.20261113.102013 - --update installs the missing packages
 
 - Title: --update (root) installs the packages the program needs: git, curl, python3, and qrencode when a page has PAGE_n_QR=yes.
