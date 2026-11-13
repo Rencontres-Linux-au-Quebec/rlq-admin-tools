@@ -4546,6 +4546,16 @@ Earlier history was archived outside this repository when this file was created.
 
 ## nginx-link-page.sh
 
+### 1.52.20261113.145748 - Address of Odoo detected and written by --update
+
+- Title: without SITE_ODOO_CHECK_URL, the address of Odoo is detected on the server (port and interface of its configuration file, or the upstream odoo of nginx) and written in the configuration by --update.
+- Reason: request of the administrator on 2026-11-13: for the port, nginx-link-page.sh --update can detect it on the server and write it in the configuration.
+- Changes: new function detecter_odoo_check (candidates in order: the Odoo configuration file found by apps/_odoo_conf.sh, the same search as the other programs (http_port or xmlrpc_port, http_interface; all interfaces or IPv6: 127.0.0.1), then each "server HOST:PORT" of an upstream of nginx -T whose name contains odoo (not chat, poll, gevent nor socket), then http://127.0.0.1:8069/rlq/session/check); the first candidate where the route answers 401 is taken, otherwise the first one; --check and --update show where it comes from ("détectée : /etc/odoo/odoo.conf (http_port)"); --update, after the confirmation, writes SITE_ODOO_CHECK_URL in the configuration file read (-c FILE, or the last file read): the commented line of the template is replaced, otherwise the line is added at the end, with a copy FILE.bak-YYYYMMDD-HHMMSS first, mode and owner kept; templates fr/en (and doc/conf-history); nginx-tools-tests/test_nginx_link_page.py: 1 test.
+- Bugs fixed: none.
+- Safeguards and edge cases: only when SITE_ODOO_CHECK_URL is not given and a link uses LINK_n_ACCESS=odoo; a value given is never replaced; the default alone (nothing found) is not written; --check writes nothing; a file that cannot be written: [ATTN] with the line to add; the detected address is checked like a given one (http(s)://HOST[:PORT]/PATH).
+- Checks performed: bash -n; shellcheck (same as main); test_nginx_link_page (new test: odoo.conf with http_port 8070, upstream of nginx, default; --check without writing, --update writes once with a copy, then reads it back).
+- Action required: none; sudo nginx-link-page.sh --update --yes writes the line; check it in the configuration.
+
 ### 1.51.20261113.144755 - Links reserved to the people signed in to Odoo
 
 - Title: LINK_n_ACCESS=odoo or odoo:XMLID: a link or a menu reserved to the people signed in to Odoo (or to the members of an Odoo group); nginx asks Odoo with the cookie of the browser.

@@ -29,7 +29,7 @@
 set -u
 LANG_C="${LC_ALL:-${LC_MESSAGES:-${LANG:-C}}}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
-readonly SCRIPT_VERSION="1.51.20261113.144755"
+readonly SCRIPT_VERSION="1.52.20261113.145748"
 readonly SCRIPT_NAME="nginx-link-page"
 # --config-merge: same rule as the other programs (apps/_config.py fusionner): the configuration file is rewritten from the new template,
 # keeping its active values; the old file is copied to FILE.bak-YYYYMMDD-HHMMSS. Then exit.
@@ -884,7 +884,34 @@ PROTEGES=0; PROTEGES_MDP=0; PROTEGES_ODOO=0
 # (auth_request to SITE_ODOO_CHECK_URL, route /rlq/session/check of the module rlq_session_check of rlq-odoo-addons) with the cookie
 # of the browser; not signed in: /web/login, then back to the page; anything else than 204 (Odoo stopped, module missing): refused
 readonly ODOO_ACCES_RE='^odoo(:[a-z0-9_]{1,64}[.][a-z0-9_]{1,128})?$'
-ODOO_CHECK_URL_V="$(valeur_ou SITE_ODOO_CHECK_URL "http://127.0.0.1:8069/rlq/session/check")"
+ODOO_CHECK_URL_V="${CFG[SITE_ODOO_CHECK_URL]:-}"; ODOO_CHECK_SOURCE="$(m "configuration" "configuration")"; ODOO_CHECK_A_ECRIRE=0
+# 1.52: detecter_odoo_check: candidate addresses of the route, best first, "URL<TAB>SOURCE": the port and interface of the Odoo
+# configuration file (apps/_odoo_conf.sh: same search as the other programs), then the upstream of nginx named odoo, then the default
+detecter_odoo_check() {
+    local f hote port ligne amont=""
+    local re_amont='^[[:space:]]*upstream[[:space:]]+([A-Za-z0-9_.-]+)[[:space:]]*[{]' re_serveur='^[[:space:]]*server[[:space:]]+([A-Za-z0-9.-]+):([0-9]{1,5})[[:space:];]' re_fin='^[[:space:]]*[}]'
+    if [[ -r "$SCRIPT_DIR/apps/_odoo_conf.sh" ]]; then
+        # shellcheck source=/dev/null  # library apps/_odoo_conf.sh, shipped beside the program
+        source "$SCRIPT_DIR/apps/_odoo_conf.sh"
+        if f="$(odoo_conf_trouver)"; then
+            odoo_conf_charger "$f"
+            hote="${ODOO_CONF_INTERFACE:-127.0.0.1}"; port="${ODOO_CONF_HTTP_PORT:-8069}"
+            [[ "$hote" =~ ^[A-Za-z0-9.-]+$ && "$hote" != 0.0.0.0 ]] || hote=127.0.0.1      # all interfaces (or IPv6): the local one
+            [[ "$port" =~ ^[0-9]{1,5}$ ]] && printf 'http://%s:%s/rlq/session/check\t%s\n' "$hote" "$port" "$f (http_port)"
+        fi
+    fi
+    if command -v nginx >/dev/null 2>&1; then          # upstream odoo { server 127.0.0.1:8069; } (not the chat / longpolling one)
+        while IFS= read -r ligne; do
+            if [[ "$ligne" =~ $re_amont ]]; then amont="${BASH_REMATCH[1],,}"; continue; fi
+            if [[ "$amont" == *odoo* && "$amont" != *chat* && "$amont" != *poll* && "$amont" != *gevent* && "$amont" != *socket* \
+                  && "$ligne" =~ $re_serveur ]]; then
+                printf 'http://%s:%s/rlq/session/check\t%s\n' "${BASH_REMATCH[1]}" "${BASH_REMATCH[2]}" "nginx (upstream $amont)"; amont=""
+            fi
+            if [[ "$ligne" =~ $re_fin ]]; then amont=""; fi
+        done < <(nginx -T 2>/dev/null)
+    fi
+    printf 'http://127.0.0.1:8069/rlq/session/check\t%s\n' "$(m "défaut" "default")"
+}
 acces_odoo() { [[ "${CFG[LINK_${1}_ACCESS]:-}" == odoo || "${CFG[LINK_${1}_ACCESS]:-}" == odoo:* ]]; }
 for i in "${LIENS_N[@]}"; do
     g="${CFG[LINK_${i}_ACCESS]:-}"
@@ -907,6 +934,19 @@ for i in "${LIENS_N[@]}"; do
         PROBLEMES+=("LINK_${i}_ACCESS=$g : $(m "aucun compte dans ce groupe : sudo $SCRIPT_NAME.sh --password $g NOM" "no account in this group: sudo $SCRIPT_NAME.sh --password $g NAME") ($ACCES_DIR/$g.htpasswd)")
     fi
 done
+if (( PROTEGES_ODOO )) && [[ -z "$ODOO_CHECK_URL_V" ]]; then
+    # 1.52: SITE_ODOO_CHECK_URL not given: the first candidate where the route answers 401 (installed, no cookie), otherwise the first one
+    premier=""; premier_source=""
+    while IFS=$'\t' read -r candidat source_c; do
+        [[ -n "$candidat" ]] || continue
+        [[ -n "$premier" ]] || { premier="$candidat"; premier_source="$source_c"; }
+        if command -v curl >/dev/null 2>&1 && [[ "$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 "$candidat" 2>/dev/null || true)" == 401 ]]; then
+            premier="$candidat"; premier_source="$source_c"; break
+        fi
+    done < <(detecter_odoo_check | awk -F'\t' '!vu[$1]++')
+    ODOO_CHECK_URL_V="$premier"; ODOO_CHECK_SOURCE="$(m "détectée" "detected") : $premier_source"
+    [[ "$premier_source" == "$(m "défaut" "default")" ]] || ODOO_CHECK_A_ECRIRE=1
+fi
 if (( PROTEGES_ODOO )); then
     if [[ ! "$ODOO_CHECK_URL_V" =~ ^https?://[A-Za-z0-9.-]+(:[0-9]{1,5})?/[A-Za-z0-9/._-]*$ ]]; then
         PROBLEMES+=("SITE_ODOO_CHECK_URL=$ODOO_CHECK_URL_V : $(m "adresse http(s)://HÔTE[:PORT]/CHEMIN d'Odoo vue du serveur (ex. http://127.0.0.1:8069/rlq/session/check)" "http(s)://HOST[:PORT]/PATH address of Odoo seen from the server (e.g. http://127.0.0.1:8069/rlq/session/check)")")
@@ -939,7 +979,7 @@ if [[ -n "$SITE_BASE_URL_V" ]]; then
 fi
 echo "  $(m "Fichiers communs" "Shared files") : $PARTAGE_URL -> $PARTAGE_DIR"      # 1.49
 if (( PROTEGES )); then                                                                          # 1.50
-    echo "  $(m "Liens protégés" "Protected links") : $PROTEGES ($(m "mot de passe" "password") : $PROTEGES_MDP, Odoo : $PROTEGES_ODOO$( (( PROTEGES_ODOO )) && echo " -> $ODOO_CHECK_URL_V")) ($(m "comptes" "accounts") : $ACCES_DIR, $(m "pages" "pages") : $PRIVE_DIR)"
+    echo "  $(m "Liens protégés" "Protected links") : $PROTEGES ($(m "mot de passe" "password") : $PROTEGES_MDP, Odoo : $PROTEGES_ODOO$( (( PROTEGES_ODOO )) && echo " -> $ODOO_CHECK_URL_V, $ODOO_CHECK_SOURCE")) ($(m "comptes" "accounts") : $ACCES_DIR, $(m "pages" "pages") : $PRIVE_DIR)"
     (( PROTEGES_MDP )) && attn "$(m "le mot de passe passe par HTTPS : avec Cloudflare, le mode SSL/TLS doit être « Full (strict) » (jamais « Flexible »)" "the password goes over HTTPS: with Cloudflare, the SSL/TLS mode must be \"Full (strict)\" (never \"Flexible\")")"
 fi
 for i in "${PAGES_N[@]}"; do
@@ -1172,6 +1212,26 @@ if (( ! YES )); then
     fi
 fi
 installer_paquets                                   # 1.48: after the confirmation
+# 1.52: SITE_ODOO_CHECK_URL detected: written in the configuration file (replaces the commented line of the template, or added at
+# the end), so the next runs use the same address; a copy FILE.bak-YYYYMMDD-HHMMSS is kept first
+if (( ODOO_CHECK_A_ECRIRE )); then
+    if [[ -n "$CONFIG_EXPLICIT" ]]; then conf_cible="$CONFIG_EXPLICIT"
+    elif (( ${#CFG_FICHIERS[@]} )); then conf_cible="${CFG_FICHIERS[-1]}"
+    else conf_cible="${NGINX_LINK_PAGE_ETC_DEFAULT:-/etc/default}/$SCRIPT_NAME.conf"; fi
+    if [[ -f "$conf_cible" && -w "$conf_cible" ]]; then
+        cp -a "$conf_cible" "$conf_cible.bak-$(date +%Y%m%d-%H%M%S)"
+        conf_tmp="$(mktemp "$(dirname "$conf_cible")/.$SCRIPT_NAME.XXXXXX")"
+        awk -v ligne="SITE_ODOO_CHECK_URL=$ODOO_CHECK_URL_V" '
+            !fait && /^#[[:space:]]*SITE_ODOO_CHECK_URL=/ { print ligne "   # " "detected by --update"; fait=1; next }
+            { print }
+            END { if (!fait) print ligne "   # " "detected by --update" }' "$conf_cible" > "$conf_tmp"
+        chmod --reference="$conf_cible" "$conf_tmp"; chown --reference="$conf_cible" "$conf_tmp" 2>/dev/null || true
+        mv "$conf_tmp" "$conf_cible"
+        ok "SITE_ODOO_CHECK_URL=$ODOO_CHECK_URL_V $(m "écrit dans" "written in") $conf_cible ($ODOO_CHECK_SOURCE)"
+    else
+        attn "SITE_ODOO_CHECK_URL=$ODOO_CHECK_URL_V : $(m "à ajouter dans la configuration (fichier non modifiable)" "to add in the configuration (file not writable)") : $conf_cible"
+    fi
+fi
 for c in git curl nginx; do
     command -v "$c" >/dev/null 2>&1 || { err "$c $(m "absent" "not found")$([[ "$c" == nginx ]] && echo " (sudo apt install nginx)")"; exit 1; }
 done
