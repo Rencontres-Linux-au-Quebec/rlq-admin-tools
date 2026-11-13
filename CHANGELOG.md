@@ -4536,6 +4536,16 @@ Earlier history was archived outside this repository when this file was created.
 
 ## nginx-link-page.sh
 
+### 1.43.20261113.065442 - Background image refused in what --update replaces
+
+- Title: --check refuses a background image (PAGE_n_BACKGROUND=file:/PATH) placed in what --update replaces in a page folder.
+- Reason: request of the administrator on 2026-11-13: the images of the group will be kept in /var/www/images; an image inside the images, css, js... folder of a page (for example with PAGE_n_DIR=/var/www) would be removed by the next update before being read again.
+- Changes: after the check of the pages: for each PAGE_n_BACKGROUND=file:/PATH, the path (realpath -m) is compared with each item of FICHIERS_GERES (css, fonts, images, js, index.html, autre.html, en, fr, qr.svg, qr.png, contact.vcf) of every page folder; a match gives "[FAIL] PAGE_n_BACKGROUND=file:... : dans DIR/images, que --update remplace : mettre l'image ailleurs (ex. /var/www/images/)"; nginx-tools-tests/test_nginx_link_page.py: 1 test.
+- Bugs fixed: symptom (possible): with PAGE_n_DIR=/var/www and the images in /var/www/images, an update would have emptied the folder of the images; diagnosis: step 5 removes the managed items of the page folder before installing the new ones; fix: such a path is refused by --check, so nothing is installed.
+- Safeguards and edge cases: every page folder is checked, not only the page of the image; any name next to the page folders stays accepted (/var/www/images/fond.png with PAGE_n_DIR=/var/www/liens); paths with .. or // are normalized before the comparison.
+- Checks performed: bash -n; shellcheck; test_nginx_link_page (76 tests).
+- Action required: none (keep the images in /var/www/images and never set PAGE_n_DIR=/var/www).
+
 ### 1.42.20261113.062947 - Preview images with a fictitious group
 
 - Title: the preview images of the documentation show a fictitious group ("Groupe Linux exemple") and no picture of a real group.
