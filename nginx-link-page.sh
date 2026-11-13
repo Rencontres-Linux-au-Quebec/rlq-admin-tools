@@ -29,7 +29,7 @@
 set -u
 LANG_C="${LC_ALL:-${LC_MESSAGES:-${LANG:-C}}}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
-readonly SCRIPT_VERSION="1.50.20261113.142018"
+readonly SCRIPT_VERSION="1.51.20261113.144755"
 readonly SCRIPT_NAME="nginx-link-page"
 # --config-merge: same rule as the other programs (apps/_config.py fusionner): the configuration file is rewritten from the new template,
 # keeping its active values; the old file is copied to FILE.bak-YYYYMMDD-HHMMSS. Then exit.
@@ -420,7 +420,7 @@ for cle in "${!CFG[@]}"; do
 done
 
 # 1.24: every key of the files must be known (a mistyped key was ignored without a word: PAGE_3_THEMS=all, SITE_LANGAUGE=en)
-readonly CLES_SITE="BASE_URL COUNTDOWN_DATE COUNTDOWN_LABEL COUNTDOWN_LABEL_EN COUNTDOWN_URL DESCRIPTION DESCRIPTION_EN FOOTER FOOTER_EN HEADING HEADING_EN LANGUAGE LOGO_ALT LOGO_URL NEWSLETTER_LABEL NEWSLETTER_LABEL_EN NEWSLETTER_URL VCARD_EMAIL VCARD_NAME VCARD_PHONE VCARD_URL SHARED_DIR SHARED_PATH SHARE_DESCRIPTION SHARE_DESCRIPTION_EN SHARE_IMAGE_URL SHARE_TITLE SHARE_TITLE_EN TITLE TITLE_EN"
+readonly CLES_SITE="BASE_URL COUNTDOWN_DATE COUNTDOWN_LABEL COUNTDOWN_LABEL_EN COUNTDOWN_URL DESCRIPTION DESCRIPTION_EN FOOTER FOOTER_EN HEADING HEADING_EN LANGUAGE LOGO_ALT LOGO_URL NEWSLETTER_LABEL NEWSLETTER_LABEL_EN NEWSLETTER_URL VCARD_EMAIL VCARD_NAME VCARD_PHONE VCARD_URL ODOO_CHECK_URL SHARED_DIR SHARED_PATH SHARE_DESCRIPTION SHARE_DESCRIPTION_EN SHARE_IMAGE_URL SHARE_TITLE SHARE_TITLE_EN TITLE TITLE_EN"
 readonly CLES_EVENTS="ODOO_DB ODOO_KEY_FILE ODOO_LANG_EN ODOO_LANG_FR ODOO_LOGIN ODOO_URL"      # 1.34: upcoming events read in Odoo
 readonly CLES_LIEN="ACCESS FROM ICON ICON_DARK IMAGE LABEL LABEL_EN MENU PAGES STYLE UNTIL URL"
 readonly CLES_PAGE="ACCENT AVATAR BACKGROUND BACKGROUND_STYLE BUTTONS CLICKS COUNTDOWN DIR ENABLED ENGINE EVENTS LANGUAGES NEWSLETTER PATH QR SCRIPT SHARE SWITCH THEME THEMES TITLE TITLE_EN VCARD"
@@ -879,21 +879,46 @@ fi
 # (auth_basic over HTTPS); its address is never in the public page: PATH/p/N/, a page kept outside the page folders (PRIVE_DIR)
 PRIVE_DIR="${NGINX_LINK_PAGE_PRIVATE_DIR:-/var/lib/$SCRIPT_NAME-private}"; PRIVE_DIR="${PRIVE_DIR%/}"
 readonly PRIVE_MARQUE=".nginx-link-page-private"
-PROTEGES=0
+PROTEGES=0; PROTEGES_MDP=0; PROTEGES_ODOO=0
+# 1.51: LINK_n_ACCESS=odoo (signed in to Odoo, portal included) or odoo:XMLID (member of that Odoo group): nginx asks Odoo
+# (auth_request to SITE_ODOO_CHECK_URL, route /rlq/session/check of the module rlq_session_check of rlq-odoo-addons) with the cookie
+# of the browser; not signed in: /web/login, then back to the page; anything else than 204 (Odoo stopped, module missing): refused
+readonly ODOO_ACCES_RE='^odoo(:[a-z0-9_]{1,64}[.][a-z0-9_]{1,128})?$'
+ODOO_CHECK_URL_V="$(valeur_ou SITE_ODOO_CHECK_URL "http://127.0.0.1:8069/rlq/session/check")"
+acces_odoo() { [[ "${CFG[LINK_${1}_ACCESS]:-}" == odoo || "${CFG[LINK_${1}_ACCESS]:-}" == odoo:* ]]; }
 for i in "${LIENS_N[@]}"; do
     g="${CFG[LINK_${i}_ACCESS]:-}"
     [[ -n "$g" ]] || continue
     PROTEGES=$((PROTEGES + 1))
-    if [[ ! "$g" =~ $GROUPE_RE ]]; then
+    if [[ "$g" == odoo || "$g" == odoo:* ]]; then
+        PROTEGES_ODOO=$((PROTEGES_ODOO + 1))
+        if [[ ! "$g" =~ $ODOO_ACCES_RE ]]; then
+            PROBLEMES+=("LINK_${i}_ACCESS=$g : $(m "odoo, ou odoo:XMLID d'un groupe Odoo (ex. odoo:base.group_user)" "odoo, or odoo:XMLID of an Odoo group (e.g. odoo:base.group_user)")"); continue
+        fi
+    elif [[ ! "$g" =~ $GROUPE_RE ]]; then
         PROBLEMES+=("LINK_${i}_ACCESS=$g : $(m "nom de groupe : lettres minuscules, chiffres et -, 32 au plus" "group name: lower-case letters, digits and -, 32 at most")"); continue
     fi
     if [[ -n "${EST_ENFANT[$i]:-}" ]]; then
         PROBLEMES+=("LINK_${i}_ACCESS : $(m "le lien est dans le menu LINK_${CFG[LINK_${i}_MENU]}, mettre LINK_${CFG[LINK_${i}_MENU]}_ACCESS sur le menu (tous ses liens sont alors protégés)" "the link is in the menu LINK_${CFG[LINK_${i}_MENU]}, set LINK_${CFG[LINK_${i}_MENU]}_ACCESS on the menu (all its links are then protected)")")
     fi
+    acces_odoo "$i" && continue
+    PROTEGES_MDP=$((PROTEGES_MDP + 1))
     if [[ -z "$(comptes_du_groupe "$g")" ]]; then
         PROBLEMES+=("LINK_${i}_ACCESS=$g : $(m "aucun compte dans ce groupe : sudo $SCRIPT_NAME.sh --password $g NOM" "no account in this group: sudo $SCRIPT_NAME.sh --password $g NAME") ($ACCES_DIR/$g.htpasswd)")
     fi
 done
+if (( PROTEGES_ODOO )); then
+    if [[ ! "$ODOO_CHECK_URL_V" =~ ^https?://[A-Za-z0-9.-]+(:[0-9]{1,5})?/[A-Za-z0-9/._-]*$ ]]; then
+        PROBLEMES+=("SITE_ODOO_CHECK_URL=$ODOO_CHECK_URL_V : $(m "adresse http(s)://HÔTE[:PORT]/CHEMIN d'Odoo vue du serveur (ex. http://127.0.0.1:8069/rlq/session/check)" "http(s)://HOST[:PORT]/PATH address of Odoo seen from the server (e.g. http://127.0.0.1:8069/rlq/session/check)")")
+    elif command -v curl >/dev/null 2>&1; then           # without a cookie, the route must answer 401
+        code_odoo="$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 "$ODOO_CHECK_URL_V" 2>/dev/null || true)"
+        case "$code_odoo" in
+            401) ;;
+            404) PROBLEMES+=("SITE_ODOO_CHECK_URL=$ODOO_CHECK_URL_V : $(m "404 : installer le module rlq_session_check (dépôt rlq-odoo-addons) dans Odoo" "404: install the module rlq_session_check (repository rlq-odoo-addons) in Odoo")") ;;
+            *) attn "SITE_ODOO_CHECK_URL=$ODOO_CHECK_URL_V : $(m "réponse" "answer") ${code_odoo:-000} ($(m "401 attendu ; tant qu'Odoo ne répond pas 204, les liens réservés aux membres sont refusés" "401 expected; as long as Odoo does not answer 204, the links reserved to the members are refused"))" ;;
+        esac
+    fi
+fi
 if (( PROTEGES )); then
     for autre in ${DOSSIERS_LISTE[@]+"${DOSSIERS_LISTE[@]}"} "$PARTAGE_DIR"; do
         if [[ "$PRIVE_DIR/" == "$autre/"* || "$autre/" == "$PRIVE_DIR/"* ]]; then
@@ -914,8 +939,8 @@ if [[ -n "$SITE_BASE_URL_V" ]]; then
 fi
 echo "  $(m "Fichiers communs" "Shared files") : $PARTAGE_URL -> $PARTAGE_DIR"      # 1.49
 if (( PROTEGES )); then                                                                          # 1.50
-    echo "  $(m "Liens protégés par mot de passe" "Links protected by a password") : $PROTEGES ($(m "comptes" "accounts") : $ACCES_DIR, $(m "pages" "pages") : $PRIVE_DIR)"
-    attn "$(m "le mot de passe passe par HTTPS : avec Cloudflare, le mode SSL/TLS doit être « Full (strict) » (jamais « Flexible »)" "the password goes over HTTPS: with Cloudflare, the SSL/TLS mode must be \"Full (strict)\" (never \"Flexible\")")"
+    echo "  $(m "Liens protégés" "Protected links") : $PROTEGES ($(m "mot de passe" "password") : $PROTEGES_MDP, Odoo : $PROTEGES_ODOO$( (( PROTEGES_ODOO )) && echo " -> $ODOO_CHECK_URL_V")) ($(m "comptes" "accounts") : $ACCES_DIR, $(m "pages" "pages") : $PRIVE_DIR)"
+    (( PROTEGES_MDP )) && attn "$(m "le mot de passe passe par HTTPS : avec Cloudflare, le mode SSL/TLS doit être « Full (strict) » (jamais « Flexible »)" "the password goes over HTTPS: with Cloudflare, the SSL/TLS mode must be \"Full (strict)\" (never \"Flexible\")")"
 fi
 for i in "${PAGES_N[@]}"; do
     echo "    PAGE_${i} : $(valeur_ou "PAGE_${i}_PATH" "?") -> $(valeur_ou "PAGE_${i}_DIR" "?") · $(valeur_ou "PAGE_${i}_ENGINE" littlelink) · $(valeur_ou "PAGE_${i}_ENABLED" yes) · $(nb_liens_page "$i") $(m "liens" "links")"
@@ -1487,8 +1512,8 @@ bouton_lien() {
         return 0
     fi
     if [[ -z "${DANS_PROTEGE:-}" && -n "${CFG[LINK_${1}_ACCESS]:-}" ]]; then      # 1.50: same tab: the browser asks for the password
-        echo "        <a class=\"button $classe_bouton button-locked\" href=\"$(html_echap "$(cible_lien "$1")")\" title=\"$(tp "Accès réservé : mot de passe" "Restricted: password")\">"
-        echo "          $(icone_lien "$1")$(html_echap "$(libelle_lien "$1")") <span aria-label=\"$(tp "mot de passe" "password")\">🔒</span></a>"
+        echo "        <a class=\"button $classe_bouton button-locked\" href=\"$(html_echap "$(cible_lien "$1")")\" title=\"$(if acces_odoo "$1"; then tp "Réservé aux membres connectés" "Reserved to the signed-in members"; else tp "Accès réservé : mot de passe" "Restricted: password"; fi)\">"
+        echo "          $(icone_lien "$1")$(html_echap "$(libelle_lien "$1")") <span aria-label=\"$(if acces_odoo "$1"; then tp "membres" "members"; else tp "mot de passe" "password"; fi)\">🔒</span></a>"
         return 0
     fi
     echo "        <a class=\"button $classe_bouton\" href=\"$(html_echap "$(cible_lien "$1")")\" target=\"_blank\" rel=\"noopener noreferrer\">"
@@ -1816,6 +1841,7 @@ if (( ${#ACTIVES[@]} == 0 )); then
     LIEN_NOUVEAU+="# liens : inactif"$'\n'
 else
     LIEN_NOUVEAU+="# liens : actif"$'\n'
+    declare -A ODOO_VERIFS=()                              # 1.51: the internal checks asked to Odoo (any, or one per group)
     # 1.49: the shared files (SITE_SHARED_DIR) at SITE_SHARED_PATH: style sheets and script 1 hour, images and fonts 7 days
     LIEN_NOUVEAU+="location ^~ ${PARTAGE_URL} {"$'\n'
     LIEN_NOUVEAU+="    alias ${PARTAGE_DIR}/;"$'\n'
@@ -1879,8 +1905,15 @@ else
         for n in $(liens_visibles_de_la_page "$i"); do
             g="${CFG[LINK_${n}_ACCESS]:-}"; [[ -n "$g" ]] || continue
             LIEN_NOUVEAU+="location ^~ ${chemin_page}p/$n/ {"$'\n'
-            LIEN_NOUVEAU+="    auth_basic \"Acces reserve - Restricted\";"$'\n'
-            LIEN_NOUVEAU+="    auth_basic_user_file ${ACCES_DIR}/${g}.htpasswd;"$'\n'
+            if acces_odoo "$n"; then                       # 1.51: Odoo says whether the browser is signed in (auth_request, access phase)
+                cle_odoo="${g#odoo}"; cle_odoo="${cle_odoo#:}"; cle_odoo="${cle_odoo:-any}"
+                LIEN_NOUVEAU+="    auth_request /_${SCRIPT_NAME}/odoo/${cle_odoo};"$'\n'
+                LIEN_NOUVEAU+="    error_page 401 = @${SCRIPT_NAME}-login-${i}-${n};"$'\n'
+                ODOO_VERIFS[$cle_odoo]=1
+            else
+                LIEN_NOUVEAU+="    auth_basic \"Acces reserve - Restricted\";"$'\n'
+                LIEN_NOUVEAU+="    auth_basic_user_file ${ACCES_DIR}/${g}.htpasswd;"$'\n'
+            fi
             LIEN_NOUVEAU+="    alias ${PRIVE_DIR}/${i}/${n}/;"$'\n'
             LIEN_NOUVEAU+="    index index.html;"$'\n'
             LIEN_NOUVEAU+="    limit_except GET HEAD { deny all; }"$'\n'
@@ -1890,6 +1923,12 @@ else
             LIEN_NOUVEAU+="location = ${chemin_page}p/$n {"$'\n'
             LIEN_NOUVEAU+="    return 301 ${chemin_page}p/$n/;"$'\n'
             LIEN_NOUVEAU+="}"$'\n'
+            if acces_odoo "$n"; then                       # 1.51: not signed in: the login page of Odoo, then back here
+                LIEN_NOUVEAU+="location @${SCRIPT_NAME}-login-${i}-${n} {"$'\n'
+                LIEN_NOUVEAU+="    add_header Cache-Control \"no-store\" always;"$'\n'
+                LIEN_NOUVEAU+="    return 302 /web/login?redirect=${chemin_page}p/$n/;"$'\n'
+                LIEN_NOUVEAU+="}"$'\n'
+            fi
         done
         LIEN_NOUVEAU+="location ^~ ${chemin_page} {"$'\n'
         LIEN_NOUVEAU+="    alias ${dir_page}/;"$'\n'
@@ -1912,6 +1951,23 @@ else
             LIEN_NOUVEAU+="$(entetes_page "$i" "        " "${regle#*:}")"$'\n'
             LIEN_NOUVEAU+="    }"$'\n'
         done
+        LIEN_NOUVEAU+="}"$'\n'
+    done
+    # 1.51: the internal checks of the session by Odoo (auth_request): the cookie of the browser is sent, never the body;
+    # internal: not reachable from outside; short timeouts: Odoo stopped means refused (500), never open
+    for cle_odoo in "${!ODOO_VERIFS[@]}"; do
+        url_odoo="$ODOO_CHECK_URL_V"; [[ "$cle_odoo" == any ]] || url_odoo+="?group=$cle_odoo"
+        LIEN_NOUVEAU+="location = /_${SCRIPT_NAME}/odoo/${cle_odoo} {"$'\n'
+        LIEN_NOUVEAU+="    internal;"$'\n'
+        LIEN_NOUVEAU+="    proxy_pass ${url_odoo};"$'\n'
+        LIEN_NOUVEAU+="    proxy_pass_request_body off;"$'\n'
+        LIEN_NOUVEAU+="    proxy_set_header Content-Length \"\";"$'\n'
+        LIEN_NOUVEAU+="    proxy_set_header Host \$host;"$'\n'
+        LIEN_NOUVEAU+="    proxy_set_header X-Forwarded-Host \$host;"$'\n'
+        LIEN_NOUVEAU+="    proxy_set_header X-Forwarded-Proto https;"$'\n'
+        LIEN_NOUVEAU+="    proxy_set_header X-Original-URI \$request_uri;"$'\n'
+        LIEN_NOUVEAU+="    proxy_connect_timeout 3s;"$'\n'
+        LIEN_NOUVEAU+="    proxy_read_timeout 5s;"$'\n'
         LIEN_NOUVEAU+="}"$'\n'
     done
 fi
