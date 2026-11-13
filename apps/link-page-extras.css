@@ -1,6 +1,8 @@
 /*
- * link-page-extras.css - featured links (LINK_n_STYLE=featured) and QR code link (PAGE_n_QR=yes) of the link pages of
- * nginx-link-page.sh.
+ * link-page-extras.css - featured links (LINK_n_STYLE=featured), QR code link (PAGE_n_QR=yes), upcoming events of Odoo
+ * (PAGE_n_EVENTS) row of icons (LINK_n_STYLE=icon) ,
+ * thumbnails (LINK_n_IMAGE), newsletter (SITE_NEWSLETTER_URL)
+ * and countdown (PAGE_n_COUNTDOWN) of the link pages of nginx-link-page.sh.
  * Copyright (C) 2026 Services-Conseils Linux Inc. - AGPL-3.0-or-later (see LICENSE).
  * Copied as css/extras.css into each page folder that uses one of them, loaded after the theme style sheets. No script.
  */
@@ -28,7 +30,7 @@
 	}
 }
 
-/* ---- QR code of the page: a discreet link above the footer ---- */
+/* ---- QR code of the page and contact card (PAGE_n_VCARD): discreet links above the footer ---- */
 .qr-link {
 	margin: 1.5rem 0 0;
 	font-size: 0.9rem;
@@ -50,4 +52,93 @@
 	border-radius: 0.2rem;
 	background: #ffffff;
 	padding: 0.1rem;
+}
+
+/* ---- upcoming events of Odoo (PAGE_n_EVENTS): buttons of the theme, date above the name ---- */
+.events {
+	margin: 1.75rem 0 0.5rem;
+}
+.events h2 {
+	font-size: 1.1rem;
+	margin: 0 0 0.75rem;
+	opacity: 0.9;
+}
+.button.event-link {
+	flex-direction: column;
+	gap: 0.15rem;
+	line-height: 1.25;
+}
+.event-when {
+	font-size: 0.85rem;
+	font-weight: 600;
+	opacity: 0.85;
+}
+.event-name {
+	font-size: 1.05rem;
+}
+
+/* ---- row of icons (LINK_n_STYLE=icon): round buttons of the theme, icon only, label for screen readers ---- */
+.social-icons {
+	display: flex;
+	flex-wrap: wrap;
+	justify-content: center;
+	gap: 0.6rem;
+	margin: 0 0 1.5rem;
+}
+/* more specific than the button rules of the themes (:root.theme-NAME .button.button-default), which set their own corners */
+nav.social-icons .button.button-default.social-icon {
+	width: 2.9rem;
+	min-height: 2.9rem;
+	height: 2.9rem;
+	padding: 0;
+	margin: 0;
+	border-radius: 50%;
+}
+nav.social-icons .button.social-icon .icon {
+	margin: 0;
+	width: 1.4rem;
+	height: 1.4rem;
+}
+
+/* ---- thumbnails (LINK_n_IMAGE): a small picture at the left of the button, text after it ---- */
+.button.button-thumb {
+	justify-content: flex-start;
+	gap: 0.75rem;
+	padding: 0.35rem 0.9rem 0.35rem 0.35rem;
+	text-align: left;
+}
+.button-thumb .thumb {
+	flex: none;
+	width: 2.6rem;
+	height: 2.6rem;
+	object-fit: cover;
+	border-radius: 0.45rem;
+}
+
+/* ---- newsletter (SITE_NEWSLETTER_URL): a button set apart from the links, with a dashed outline ---- */
+.newsletter {
+	margin: 1.75rem 0 0;
+}
+.button.button-newsletter {
+	outline: 2px dashed currentColor;
+	outline-offset: 3px;
+}
+
+/* ---- countdown (PAGE_n_COUNTDOWN): a pill under the description ---- */
+.countdown {
+	display: inline-block;
+	margin: 0 0 1.25rem;
+	max-width: 22rem;
+	padding: 0.45rem 1rem;
+	border: 1px solid currentColor;
+	border-radius: 1rem;
+	font-size: 0.95rem;
+	background: rgba(127, 127, 127, 0.14);
+}
+.countdown a {
+	color: inherit;
+	text-decoration: none;
+}
+.countdown strong {
+	font-weight: 800;
 }

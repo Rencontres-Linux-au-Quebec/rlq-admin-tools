@@ -29,7 +29,7 @@
 set -u
 LANG_C="${LC_ALL:-${LC_MESSAGES:-${LANG:-C}}}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
-readonly SCRIPT_VERSION="1.33.20261112.222624"
+readonly SCRIPT_VERSION="1.40.20261112.225314"
 readonly SCRIPT_NAME="nginx-link-page"
 # --config-merge: same rule as the other programs (apps/_config.py fusionner): the configuration file is rewritten from the new template,
 # keeping its active values; the old file is copied to FILE.bak-YYYYMMDD-HHMMSS. Then exit.
@@ -93,6 +93,7 @@ themes_offerts() {
 }
 # 1.14: the preview image of the social networks (1200 x 627 advised) is often a poster of more than 512 KiB: its own limit, the one of LinkedIn (5 MB)
 readonly MAX_SHARE_BYTES=5242880
+readonly MAX_THUMB_BYTES=2097152          # 1.36: thumbnails of the links (LINK_n_IMAGE): 2 MB at most
 readonly MOTEURS_PRIS_EN_CHARGE="littlelink"
 
 # ---- colours (only on a terminal; never when the output is redirected) ----
@@ -124,13 +125,14 @@ Options (ordre alphabetique / alphabetical order) :
   ${C_OPT}--changelog${C_RESET}                affiche le journal des modifications / show the change log
   ${C_OPT}--check${C_RESET}                    verifie la configuration, n'ecrit rien (defaut) / check only, writes nothing (default)
   ${C_OPT}--check-links${C_RESET}              demande chaque adresse des liens et signale les liens morts (404, sans réponse...) / request every link address and report the dead links (404, no answer...)
-  ${C_OPT}--clicks${C_RESET}                   clics de chaque lien (PAGE_n_CLICKS=yes), lus dans les journaux d'accès de nginx / clicks of each link (PAGE_n_CLICKS=yes), read in the nginx access logs
+  ${C_OPT}--clicks${C_RESET}                   comme --stats / same as --stats
   ${C_OPT}-c, --config FILE${C_RESET}          lit SEUL ce fichier / read ONLY this file
   ${C_OPT}--config-merge${C_RESET}             reecrit la configuration d'apres le nouveau modele en gardant ses valeurs (copie FICHIER.bak-...), puis quitte / rewrite the configuration from the new template, keeping its values (copy FILE.bak-...), then exit
   ${C_OPT}-h, --help${C_RESET}                 affiche cette aide / show this help
   ${C_OPT}--init${C_RESET}                     cree la configuration depuis le modele / create the configuration from the template
   ${C_OPT}--lang LANG${C_RESET}                langue des messages : fr ou en / message language: fr or en
   ${C_OPT}--rollback${C_RESET}                 remet les pages et le fragment nginx d'avant le dernier --update / put back the pages and the nginx snippet of before the last --update
+  ${C_OPT}--stats${C_RESET}                    visites (provenance, par jour) et clics de chaque lien, lus dans les journaux d'accès de nginx / visits (origin, per day) and clicks of each link, read in the nginx access logs
   ${C_OPT}--update${C_RESET}                   installe ou met a jour les pages (root, confirmation) / install or update (root, asks first)
   ${C_OPT}--version${C_RESET}                  affiche la version / show the version
   ${C_OPT}--yes${C_RESET}                      avec --update : sans question / with --update: no question
@@ -231,7 +233,7 @@ while [[ $# -gt 0 ]]; do
             exit 0 ;;
         --check) MODE="check"; shift ;;
         --check-links) MODE="links"; shift ;;
-        --clicks) MODE="clicks"; shift ;;
+        --clicks|--stats) MODE="clicks"; shift ;;
         --init) MODE="init"; shift ;;
         --update) MODE="update"; shift ;;
         --rollback) MODE="rollback"; shift ;;
@@ -244,7 +246,7 @@ done
 
 # 1.33: previous version of the pages: copied by --update before it installs, put back by --rollback (whatever the configuration)
 ETAT_DIR="${NGINX_LINK_PAGE_STATE_DIR:-/var/lib/$SCRIPT_NAME}"
-readonly FICHIERS_GERES="css fonts images js index.html autre.html en fr qr.svg qr.png"      # what --update replaces in a page folder
+readonly FICHIERS_GERES="css fonts images js index.html autre.html en fr qr.svg qr.png contact.vcf"      # what --update replaces in a page folder
 if [[ "$MODE" == "rollback" ]]; then
     if [[ "$(id -u)" -ne 0 ]]; then err "$(m "--rollback écrit dans les dossiers des pages : lancer avec sudo." "--rollback writes to the page folders: run with sudo.")"; exit 1; fi
     prec="$ETAT_DIR/previous"
@@ -295,20 +297,23 @@ PROBLEMES=()
 valeur_ou() { local v="${CFG[$1]:-}"; [[ -n "$v" ]] && printf '%s' "$v" || printf '%s' "$2"; }
 
 # 1.24: every key of the files must be known (a mistyped key was ignored without a word: PAGE_3_THEMS=all, SITE_LANGAUGE=en)
-readonly CLES_SITE="BASE_URL DESCRIPTION DESCRIPTION_EN FOOTER FOOTER_EN HEADING HEADING_EN LANGUAGE LOGO_ALT LOGO_URL SHARE_DESCRIPTION SHARE_DESCRIPTION_EN SHARE_IMAGE_URL SHARE_TITLE SHARE_TITLE_EN TITLE TITLE_EN"
-readonly CLES_LIEN="FROM ICON ICON_DARK LABEL LABEL_EN MENU PAGES STYLE UNTIL URL"
-readonly CLES_PAGE="ACCENT AVATAR BUTTONS CLICKS DIR ENABLED ENGINE LANGUAGES PATH QR SCRIPT SHARE SWITCH THEME THEMES TITLE TITLE_EN"
+readonly CLES_SITE="BASE_URL COUNTDOWN_DATE COUNTDOWN_LABEL COUNTDOWN_LABEL_EN COUNTDOWN_URL DESCRIPTION DESCRIPTION_EN FOOTER FOOTER_EN HEADING HEADING_EN LANGUAGE LOGO_ALT LOGO_URL NEWSLETTER_LABEL NEWSLETTER_LABEL_EN NEWSLETTER_URL VCARD_EMAIL VCARD_NAME VCARD_PHONE VCARD_URL SHARE_DESCRIPTION SHARE_DESCRIPTION_EN SHARE_IMAGE_URL SHARE_TITLE SHARE_TITLE_EN TITLE TITLE_EN"
+readonly CLES_EVENTS="ODOO_DB ODOO_KEY_FILE ODOO_LOGIN ODOO_URL"      # 1.34: upcoming events read in Odoo
+readonly CLES_LIEN="FROM ICON ICON_DARK IMAGE LABEL LABEL_EN MENU PAGES STYLE UNTIL URL"
+readonly CLES_PAGE="ACCENT AVATAR BUTTONS CLICKS COUNTDOWN DIR ENABLED ENGINE EVENTS LANGUAGES NEWSLETTER PATH QR SCRIPT SHARE SWITCH THEME THEMES TITLE TITLE_EN VCARD"
 cle_connue() {   # cle_connue KEY: 0 when KEY is read by the program
     local k="$1" s
     if [[ "$k" =~ ^SITE_(.+)$ ]]; then for s in $CLES_SITE; do [[ "${BASH_REMATCH[1]}" == "$s" ]] && return 0; done; return 1; fi
     if [[ "$k" =~ ^LINK_[0-9]+_(.+)$ ]]; then for s in $CLES_LIEN; do [[ "${BASH_REMATCH[1]}" == "$s" ]] && return 0; done; return 1; fi
     if [[ "$k" =~ ^PAGE_[0-9]+_(.+)$ ]]; then for s in $CLES_PAGE; do [[ "${BASH_REMATCH[1]}" == "$s" ]] && return 0; done; return 1; fi
+    if [[ "$k" =~ ^EVENTS_(.+)$ ]]; then for s in $CLES_EVENTS; do [[ "${BASH_REMATCH[1]}" == "$s" ]] && return 0; done; return 1; fi
     return 1
 }
 cle_proche() {   # cle_proche KEY: the closest known key (same LINK_n or PAGE_n number), or nothing; needs python3
     local k="$1" num=1 s candidats=()
     [[ "$k" =~ ^[A-Z]+_([0-9]+)_ ]] && num="${BASH_REMATCH[1]}"
     for s in $CLES_SITE; do candidats+=("SITE_$s"); done
+    for s in $CLES_EVENTS; do candidats+=("EVENTS_$s"); done
     for s in $CLES_LIEN; do candidats+=("LINK_${num}_$s"); done
     for s in $CLES_PAGE; do candidats+=("PAGE_${num}_$s"); done
     command -v python3 >/dev/null 2>&1 || return 0
@@ -382,6 +387,23 @@ if [[ -n "$SITE_BASE_URL_V" ]] && ! [[ "$SITE_BASE_URL_V" =~ $URL_RE ]]; then
 fi
 if [[ -n "$SITE_LOGO_URL_V" ]] && abs="$(resoudre_url "$SITE_LOGO_URL_V")"; then SITE_LOGO_URL_V="$abs"; fi
 if [[ -n "$SITE_SHARE_IMAGE_URL_V" ]] && abs="$(resoudre_url "$SITE_SHARE_IMAGE_URL_V")"; then SITE_SHARE_IMAGE_URL_V="$abs"; fi
+# 1.39: contact card (contact.vcf): e-mail, phone and address checked
+if [[ -n "${CFG[SITE_VCARD_EMAIL]:-}" && ! "${CFG[SITE_VCARD_EMAIL]}" =~ ^[^@[:space:]]+@[^@[:space:]]+\.[A-Za-z]{2,}$ ]]; then
+    PROBLEMES+=("SITE_VCARD_EMAIL=${CFG[SITE_VCARD_EMAIL]} : $(m "adresse courriel invalide" "invalid e-mail address")")
+fi
+if [[ -n "${CFG[SITE_VCARD_PHONE]:-}" && ! "${CFG[SITE_VCARD_PHONE]}" =~ ^\+?[0-9][0-9\ ().-]{5,}$ ]]; then
+    PROBLEMES+=("SITE_VCARD_PHONE=${CFG[SITE_VCARD_PHONE]} : $(m "numéro invalide (chiffres, espaces, + ( ) . -)" "invalid number (digits, spaces, + ( ) . -)")")
+fi
+if [[ -n "${CFG[SITE_VCARD_URL]:-}" ]]; then
+    if abs="$(resoudre_url "${CFG[SITE_VCARD_URL]}")"; then CFG[SITE_VCARD_URL]="$abs"; fi
+    [[ "${CFG[SITE_VCARD_URL]}" =~ $URL_RE ]] || PROBLEMES+=("SITE_VCARD_URL : $(m "adresse https:// attendue" "https:// address expected")")
+fi
+# 1.38: SITE_NEWSLETTER_URL: button "Recevoir l'infolettre" to the subscription form of Odoo (a link: the pages send no form)
+SITE_NEWSLETTER_URL_V=$(valeur_ou SITE_NEWSLETTER_URL "")
+if [[ -n "$SITE_NEWSLETTER_URL_V" ]]; then
+    if abs="$(resoudre_url "$SITE_NEWSLETTER_URL_V")"; then SITE_NEWSLETTER_URL_V="$abs"; fi
+    [[ "$SITE_NEWSLETTER_URL_V" =~ $URL_RE ]] || PROBLEMES+=("SITE_NEWSLETTER_URL : $(m "adresse https:// ou chemin relatif du formulaire d'inscription" "https:// address or relative path of the subscription form")")
+fi
 SNIPPETS_DIR="${NGINX_LINK_PAGE_SNIPPETS_DIR:-/etc/nginx/snippets}"
 LIEN_FICHIER="$SNIPPETS_DIR/liens-publics.conf"
 
@@ -431,6 +453,11 @@ for mv in "${!MENU_ENFANTS[@]}"; do
         PROBLEMES+=("LINK_${mv}_URL : $(m "le lien $mv est un menu (LINK_n_MENU=$mv) : il n'a pas d'adresse, retirer LINK_${mv}_URL" "link $mv is a menu (LINK_n_MENU=$mv): it has no address, remove LINK_${mv}_URL")")
     fi
 done
+for i in ${LIENS_N[@]+"${LIENS_N[@]}"}; do                  # 1.35: icon links are in the row of icons, not in a menu
+    if [[ "${CFG[LINK_${i}_STYLE]:-}" == icon && ( -n "${MENU_ENFANTS[$i]:-}" || -n "${EST_ENFANT[$i]:-}" ) ]]; then
+        PROBLEMES+=("LINK_${i}_STYLE=icon : $(m "un menu ou un lien de menu ne peut pas être une icône de la rangée" "a menu or a link of a menu cannot be an icon of the row")")
+    fi
+done
 for i in "${!EST_ENFANT[@]}"; do
     if [[ -n "${CFG[LINK_${i}_PAGES]:-}" ]]; then
         PROBLEMES+=("LINK_${i}_PAGES : $(m "le lien $i est dans un menu : il va sur les pages de son menu (LINK_${CFG[LINK_${i}_MENU]}_PAGES)" "link $i is in a menu: it goes on the pages of its menu (LINK_${CFG[LINK_${i}_MENU]}_PAGES)")")
@@ -448,6 +475,11 @@ for i in "${LIENS_N[@]}"; do
         if [[ "$ic" != builtin:* ]] && abs="$(resoudre_url "$ic")"; then ic="$abs"; CFG[$cle]="$abs"; fi
         [[ "$ic" =~ ^builtin:[a-z0-9-]+$ || "$ic" =~ $URL_RE ]] || PROBLEMES+=("$cle : builtin:NOM ou https:// / builtin:NAME or https://")
     done
+    im="${CFG[LINK_${i}_IMAGE]:-}"                             # 1.36: thumbnail of the link
+    if [[ -n "$im" ]]; then
+        if abs="$(resoudre_url "$im")"; then im="$abs"; CFG[LINK_${i}_IMAGE]="$abs"; fi
+        [[ "$im" =~ $URL_RE ]] || PROBLEMES+=("LINK_${i}_IMAGE : $(m "adresse https:// ou chemin relatif d'une image (PNG, JPEG, WebP, SVG)" "https:// address or relative path of an image (PNG, JPEG, WebP, SVG)")")
+    fi
 done
 (( ${#LIENS_N[@]} > 0 )) || PROBLEMES+=("aucun lien (LINK_1_LABEL et LINK_1_URL) / no link (LINK_1_LABEL and LINK_1_URL)")
 
@@ -500,7 +532,7 @@ AUJOURDHUI="${NGINX_LINK_PAGE_TODAY:-$(date +%F)}"
 date_valide() { [[ "$1" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]] && date -d "$1" +%F >/dev/null 2>&1 && [[ "$(date -d "$1" +%F)" == "$1" ]]; }
 for i in ${LIENS_N[@]+"${LIENS_N[@]}"}; do
     sv="${CFG[LINK_${i}_STYLE]:-normal}"                     # 1.31: featured link
-    [[ "$sv" =~ ^(normal|featured)$ ]] || PROBLEMES+=("LINK_${i}_STYLE=$sv (normal $(m "ou" "or") featured)")
+    [[ "$sv" =~ ^(normal|featured|icon)$ ]] || PROBLEMES+=("LINK_${i}_STYLE=$sv (normal, featured $(m "ou" "or") icon)")
     for cle in FROM UNTIL; do
         dv="${CFG[LINK_${i}_${cle}]:-}"
         [[ -z "$dv" ]] && continue
@@ -512,6 +544,46 @@ for i in ${LIENS_N[@]+"${LIENS_N[@]}"}; do
 done
 LIENS_DATES=0
 for i in ${LIENS_N[@]+"${LIENS_N[@]}"}; do [[ -n "${CFG[LINK_${i}_FROM]:-}${CFG[LINK_${i}_UNTIL]:-}" ]] && LIENS_DATES=1; done
+# 1.34: PAGE_n_EVENTS=N: the N next published events of Odoo (event.event), read with a read-only account and its API key
+EVENEMENTS_MAX=0
+EVENTS_URL_V="$(valeur_ou EVENTS_ODOO_URL "${SITE_BASE_URL_V%/}")"; EVENTS_URL_V="${EVENTS_URL_V%/}"
+EVENTS_CLE_V="$(valeur_ou EVENTS_ODOO_KEY_FILE "${NGINX_LINK_PAGE_ETC_DEFAULT:-/etc/default}/$SCRIPT_NAME.odoo-key")"
+for i in ${PAGES_N[@]+"${PAGES_N[@]}"}; do
+    ev="$(valeur_ou "PAGE_${i}_EVENTS" 0)"
+    if [[ ! "$ev" =~ ^[0-9]+$ ]] || (( 10#$ev > 10 )); then
+        PROBLEMES+=("PAGE_${i}_EVENTS=$ev : $(m "nombre d'événements de 0 à 10" "number of events from 0 to 10")"); continue
+    fi
+    (( 10#$ev > EVENEMENTS_MAX )) && EVENEMENTS_MAX=$((10#$ev))
+done
+# 1.40: PAGE_n_COUNTDOWN=yes: "Dans 9 jours" banner for SITE_COUNTDOWN_DATE (and its label), otherwise for the next event of Odoo
+COMPTE_A_REBOURS=0
+CD_DATE_V="${CFG[SITE_COUNTDOWN_DATE]:-}"
+for i in ${PAGES_N[@]+"${PAGES_N[@]}"}; do
+    cdv="$(valeur_ou "PAGE_${i}_COUNTDOWN" no)"
+    [[ "$cdv" =~ ^(yes|no)$ ]] || PROBLEMES+=("PAGE_${i}_COUNTDOWN=$cdv (yes ou no)")
+    [[ "$cdv" == yes ]] && COMPTE_A_REBOURS=1
+done
+if [[ -n "$CD_DATE_V" ]]; then
+    { [[ "$CD_DATE_V" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}( [0-9]{2}:[0-9]{2})?$ ]] && date_valide "${CD_DATE_V:0:10}"; } \
+        || PROBLEMES+=("SITE_COUNTDOWN_DATE=$CD_DATE_V : $(m "date AAAA-MM-JJ ou AAAA-MM-JJ HH:MM attendue" "date YYYY-MM-DD or YYYY-MM-DD HH:MM expected")")
+    [[ -n "${CFG[SITE_COUNTDOWN_LABEL]:-}" ]] || PROBLEMES+=("SITE_COUNTDOWN_LABEL : $(m "nom de l'événement du compte à rebours manquant" "name of the event of the countdown missing")")
+    if [[ -n "${CFG[SITE_COUNTDOWN_URL]:-}" ]]; then
+        if abs="$(resoudre_url "${CFG[SITE_COUNTDOWN_URL]}")"; then CFG[SITE_COUNTDOWN_URL]="$abs"; fi
+        [[ "${CFG[SITE_COUNTDOWN_URL]}" =~ $URL_RE ]] || PROBLEMES+=("SITE_COUNTDOWN_URL : $(m "adresse https:// attendue" "https:// address expected")")
+    fi
+elif (( COMPTE_A_REBOURS && EVENEMENTS_MAX == 0 )); then
+    EVENEMENTS_MAX=1                                    # the countdown of the next event of Odoo needs the events
+fi
+if (( EVENEMENTS_MAX > 0 )); then
+    [[ "$EVENTS_URL_V" =~ ^https://[A-Za-z0-9.-]+(:[0-9]+)?$ ]] || PROBLEMES+=("EVENTS_ODOO_URL=${EVENTS_URL_V:-?} : $(m "adresse https:// du site Odoo (par défaut SITE_BASE_URL)" "https:// address of the Odoo site (SITE_BASE_URL by default)")")
+    [[ -n "${CFG[EVENTS_ODOO_DB]:-}" ]] || PROBLEMES+=("EVENTS_ODOO_DB : $(m "base de données Odoo manquante (PAGE_n_EVENTS)" "Odoo database missing (PAGE_n_EVENTS)")")
+    [[ -n "${CFG[EVENTS_ODOO_LOGIN]:-}" ]] || PROBLEMES+=("EVENTS_ODOO_LOGIN : $(m "compte Odoo en lecture seule manquant (PAGE_n_EVENTS)" "read-only Odoo account missing (PAGE_n_EVENTS)")")
+    if [[ ! -e "$EVENTS_CLE_V" ]]; then
+        PROBLEMES+=("EVENTS_ODOO_KEY_FILE=$EVENTS_CLE_V : $(m "fichier absent (la clé d'API seule, chmod 600)" "file missing (the API key only, chmod 600)")")
+    elif [[ -r "$EVENTS_CLE_V" && -n "$(find "$EVENTS_CLE_V" -perm /077 2>/dev/null)" ]]; then
+        PROBLEMES+=("EVENTS_ODOO_KEY_FILE=$EVENTS_CLE_V : $(m "lisible par d'autres comptes : chmod 600" "readable by other accounts: chmod 600")")
+    fi
+fi
 lien_visible() {   # lien_visible N: 0 when link N is shown today (no dates, or today between LINK_n_FROM and LINK_n_UNTIL)
     local du="${CFG[LINK_${1}_FROM]:-}" au="${CFG[LINK_${1}_UNTIL]:-}"
     [[ -n "$du" && "$AUJOURDHUI" < "$du" ]] && return 1
@@ -607,6 +679,12 @@ for i in "${PAGES_N[@]}"; do
     # 1.18: PAGE_n_SCRIPT and PAGE_n_SHARE (yes or no, yes by default)
     [[ "$(valeur_ou "${pre}SCRIPT" yes)" =~ ^(yes|no)$ ]] || PROBLEMES+=("${pre}SCRIPT=$(valeur_ou "${pre}SCRIPT" yes) (yes ou no)")
     [[ "$(valeur_ou "${pre}SHARE" yes)" =~ ^(yes|no)$ ]] || PROBLEMES+=("${pre}SHARE=$(valeur_ou "${pre}SHARE" yes) (yes ou no)")
+    vc_v="$(valeur_ou "${pre}VCARD" no)"                                               # 1.39: contact card
+    [[ "$vc_v" =~ ^(yes|no)$ ]] || PROBLEMES+=("${pre}VCARD=$vc_v (yes ou no)")
+    if [[ "$vc_v" == yes && -z "${CFG[SITE_VCARD_EMAIL]:-}${CFG[SITE_VCARD_PHONE]:-}${CFG[SITE_VCARD_URL]:-}$SITE_BASE_URL_V" ]]; then
+        PROBLEMES+=("${pre}VCARD=yes : $(m "SITE_VCARD_EMAIL, SITE_VCARD_PHONE ou SITE_VCARD_URL à remplir" "fill in SITE_VCARD_EMAIL, SITE_VCARD_PHONE or SITE_VCARD_URL")")
+    fi
+    [[ "$(valeur_ou "${pre}NEWSLETTER" yes)" =~ ^(yes|no)$ ]] || PROBLEMES+=("${pre}NEWSLETTER=$(valeur_ou "${pre}NEWSLETTER" yes) (yes ou no)")   # 1.38
     [[ "$(valeur_ou "${pre}CLICKS" no)" =~ ^(yes|no)$ ]] || PROBLEMES+=("${pre}CLICKS=$(valeur_ou "${pre}CLICKS" no) (yes ou no)")      # 1.30
     qr_v="$(valeur_ou "${pre}QR" no)"                                                   # 1.32: QR code of the page
     [[ "$qr_v" =~ ^(yes|no)$ ]] || PROBLEMES+=("${pre}QR=$qr_v (yes ou no)")
@@ -717,7 +795,8 @@ for i in "${LIENS_N[@]}"; do
         echo "  - ${CFG[LINK_${i}_LABEL]} -> ${CFG[LINK_${i}_URL]:-}$(periode_lien "$i")"
     fi
 done
-# 1.30: --clicks: requests "GET PATH/go/N" answered 302 in the nginx access logs (rotated and .gz included), per page and link
+# 1.30: --clicks; 1.37: --stats (same option): visits of each page (robots set apart), where they come from (QR code, sites, direct),
+# per day, and clicks of each link (PAGE_n_CLICKS=yes), read in the nginx access logs (rotated and .gz files included)
 if [[ "$MODE" == "clicks" ]]; then
     shopt -s nullglob
     # shellcheck disable=SC2206   # the variable is a glob on purpose (access.log, access.log.1, access.log.2.gz...)
@@ -726,25 +805,59 @@ if [[ "$MODE" == "clicks" ]]; then
     echo
     if (( ${#journaux[@]} == 0 )); then err "$(m "aucun journal d'accès" "no access log") (${NGINX_LINK_PAGE_ACCESS_LOGS:-/var/log/nginx/access.log*})"; exit 1; fi
     for j in "${journaux[@]}"; do [[ -r "$j" ]] || { err "$(m "journal illisible (lancer avec sudo)" "log not readable (run with sudo)") : $j"; exit 1; }; done
-    echo "$(m "Clics" "Clicks") ($(m "journaux" "logs") : ${#journaux[@]} $(m "fichier(s)" "file(s)"), ${journaux[0]%/*}) :"
-    avec_clics=0
+    echo "$(m "Statistiques" "Statistics") ($(m "journaux" "logs") : ${#journaux[@]} $(m "fichier(s)" "file(s)"), ${journaux[0]%/*}) :"
     for i in "${PAGES_N[@]}"; do
-        [[ "$(valeur_ou "PAGE_${i}_CLICKS" no)" == yes ]] || continue
-        avec_clics=1
         chemin="$(valeur_ou "PAGE_${i}_PATH" "")"
+        clics="$(valeur_ou "PAGE_${i}_CLICKS" no)"
         echo "  PAGE_${i} ${chemin} :"
-        resultat="$(zcat -f -- "${journaux[@]}" 2>/dev/null | awk -v p="\"GET ${chemin}go/" '
-            { d = index($0, p); if (!d) next
-              reste = substr($0, d + length(p)); n = reste; sub(/[^0-9].*/, "", n); if (n == "") next
-              apres = substr(reste, index(reste, "\"") + 1); split(apres, f, " "); if (f[1] != "302") next
-              total[n]++; if (!((n, $1) in vu)) { vu[n, $1] = 1; ips[n]++ } }
-            END { for (n in total) printf "%d %d %s\n", total[n], ips[n], n }' | sort -k1,1nr -k3,3n)"
-        if [[ -z "$resultat" ]]; then echo "    $(m "aucun clic" "no click")"; continue; fi
-        while read -r total ips n; do
-            printf '    %6s %s, %s %s  LINK_%s %s\n' "$total" "$(m "clics" "clicks")" "$ips" "$(m "adresses" "addresses")" "$n" "${CFG[LINK_${n}_LABEL]:-?}"
-        done <<< "$resultat"
+        resultat="$(zcat -f -- "${journaux[@]}" 2>/dev/null | awk -v p="$chemin" '
+            BEGIN { mois = "JanFebMarAprMayJunJulAugSepOctNovDec" }
+            { nq = split($0, q, "\""); if (nq < 6) next
+              split(q[2], req, " "); if (req[1] != "GET" && req[1] != "HEAD") next
+              cible = req[2]; requete = ""; k = index(cible, "?"); if (k) { requete = substr(cible, k + 1); cible = substr(cible, 1, k - 1) }
+              if (substr(cible, 1, length(p)) != p) next
+              split(q[3], st, " "); code = st[1]
+              ua = tolower(q[6]); robot = (ua ~ /bot|crawl|spider|slurp|preview|facebookexternalhit|embedly|curl|wget|python|monitor|headless|nginx-link-page/)
+              j = substr($4, 2, 11); split(j, dt, "/"); jour = sprintf("%s-%02d-%s", dt[3], (index(mois, dt[2]) + 2) / 3, dt[1])
+              reste = substr(cible, length(p) + 1)
+              if (reste ~ /^go\/[0-9]+$/) {
+                  if (code != "302") next
+                  if (robot) next
+                  n = substr(reste, 4); clic[n]++; if (!((n, $1) in vuc)) { vuc[n, $1] = 1; ipc[n]++ }; parjour_c[jour]++; jours[jour] = 1; next }
+              if (reste !~ /^((en|fr)\/)?((index|theme-[a-z-]+)\.html)?$/) next
+              if (code != "200" && code != "304") next
+              if (robot) { robots++; next }
+              visites++; if (!($1 in vuv)) { vuv[$1] = 1; ipv++ }
+              parjour_v[jour]++; jours[jour] = 1
+              if (requete ~ /(^|&)qr=1(&|$)/) src = "QR"
+              else if (q[4] == "-" || q[4] == "") src = "-"
+              else { src = q[4]; sub(/^[a-z]+:\/\//, "", src); sub(/[\/:?].*$/, "", src); sub(/^www\./, "", src) }
+              source[src]++ }
+            END { printf "V %d %d %d\n", visites, ipv, robots
+                  for (s in source) printf "S %d %s\n", source[s], s
+                  for (d in jours) printf "D %s %d %d\n", d, parjour_v[d], parjour_c[d]
+                  for (n in clic) printf "C %d %d %s\n", clic[n], ipc[n], n }')"
+        read -r _ visites ips robots <<< "$(grep '^V ' <<< "$resultat")"
+        echo "    $(m "Visites" "Visits") : ${visites:-0} (${ips:-0} $(m "adresses" "addresses")) ; $(m "robots écartés" "robots set apart") : ${robots:-0}"
+        sources="$(grep '^S ' <<< "$resultat" | sort -k2,2nr | head -8 | while read -r _ nb src; do
+            case "$src" in QR) src="$(m "code QR" "QR code")" ;; -) src="$(m "direct" "direct")" ;; esac
+            printf '%s %s · ' "$src" "$nb"; done)"
+        [[ -n "$sources" ]] && echo "    $(m "Provenance" "Origin") : ${sources% · }"
+        if grep -q '^D ' <<< "$resultat"; then
+            echo "    $(m "Par jour (visites / clics), 14 derniers jours" "Per day (visits / clicks), last 14 days") :"
+            grep '^D ' <<< "$resultat" | sort -k2,2 | tail -14 | while read -r _ d v c; do printf '      %s  %5s / %s\n' "$d" "$v" "$c"; done
+        fi
+        if [[ "$clics" != yes ]]; then
+            echo "    $(m "Clics : non comptés (PAGE_${i}_CLICKS=no)" "Clicks: not counted (PAGE_${i}_CLICKS=no)")"
+        elif ! grep -q '^C ' <<< "$resultat"; then
+            echo "    $(m "aucun clic" "no click")"
+        else
+            echo "    $(m "Clics" "Clicks") :"
+            grep '^C ' <<< "$resultat" | sort -k2,2nr -k4,4n | while read -r _ total ipn n; do
+                printf '    %6s %s, %s %s  LINK_%s %s\n' "$total" "$(m "clics" "clicks")" "$ipn" "$(m "adresses" "addresses")" "$n" "${CFG[LINK_${n}_LABEL]:-?}"
+            done
+        fi
     done
-    (( avec_clics )) || attn "$(m "aucune page avec PAGE_n_CLICKS=yes : les liens vont directement à leur adresse" "no page with PAGE_n_CLICKS=yes: the links go straight to their address")"
     exit 0
 fi
 # 1.28: --check-links: every address is requested (HEAD, then GET when HEAD is refused); dead links make the exit code 1
@@ -886,7 +999,7 @@ icone_resoudre() {   # icone_resoudre VALEUR CLE : sets RES_ICONE (path relative
     ICONE_RESOLUE[$v]="images/site/${RES_FICHIER##*/}"
     RES_ICONE="${ICONE_RESOLUE[$v]}"
 }
-declare -A ICONE_CLAIR=() ICONE_SOMBRE=() BOUTON_MARQUE=()
+declare -A ICONE_CLAIR=() ICONE_SOMBRE=() BOUTON_MARQUE=() VIGNETTE=()
 for i in "${LIENS_N[@]}"; do
     ic="${CFG[LINK_${i}_ICON]:-builtin:generic-website}"
     icone_resoudre "$ic" "$i-clair" || exit 1; ICONE_CLAIR[$i]="$RES_ICONE"
@@ -901,8 +1014,30 @@ for i in "${LIENS_N[@]}"; do
     if [[ -n "${CFG[LINK_${i}_ICON_DARK]:-}" ]]; then
         icone_resoudre "${CFG[LINK_${i}_ICON_DARK]}" "$i-sombre" || exit 1; ICONE_SOMBRE[$i]="$RES_ICONE"
     fi
+    VIGNETTE[$i]=""                                          # 1.36: thumbnail (LINK_n_IMAGE), downloaded like the icons
+    if [[ -n "${CFG[LINK_${i}_IMAGE]:-}" ]]; then
+        telecharger "${CFG[LINK_${i}_IMAGE]}" "$TMP/assets/images/site/thumb-$i" "$MAX_THUMB_BYTES" \
+            || { err "$(m "vignette non téléchargeable ou pas une image" "thumbnail not downloadable or not an image") : ${CFG[LINK_${i}_IMAGE]} ($RES_ERREUR)"; exit 1; }
+        VIGNETTE[$i]="images/site/${RES_FICHIER##*/}"
+    fi
 done
 
+# 1.34: upcoming events of Odoo, read once per language of the pages that show them (a failure leaves the section out)
+if (( EVENEMENTS_MAX > 0 )); then
+    for lg in $(for i in ${ACTIVES[@]+"${ACTIVES[@]}"}; do
+                    if (( 10#$(valeur_ou "PAGE_${i}_EVENTS" 0) > 0 )) || [[ "$(valeur_ou "PAGE_${i}_COUNTDOWN" no)" == yes && -z "$CD_DATE_V" ]]; then
+                        valeur_ou "PAGE_${i}_LANGUAGES" "$SITE_LANGUAGE_V" | tr ',' '\n'
+                    fi
+                done | sort -u); do
+        if ODOO_URL="$EVENTS_URL_V" ODOO_DB="${CFG[EVENTS_ODOO_DB]:-}" ODOO_LOGIN="${CFG[EVENTS_ODOO_LOGIN]:-}" ODOO_KEY_FILE="$EVENTS_CLE_V" \
+           python3 -I "$SCRIPT_DIR/apps/link-page-events.py" "$EVENEMENTS_MAX" "$lg" > "$TMP/events-$lg.tsv" 2> "$TMP/events-$lg.err"; then
+            ok "$(m "événements Odoo" "Odoo events") ($lg) : $(wc -l < "$TMP/events-$lg.tsv") ($EVENTS_URL_V)"
+        else
+            : > "$TMP/events-$lg.tsv"
+            attn "$(m "événements Odoo non lus, section omise" "Odoo events not read, section left out") ($lg) : $(head -1 "$TMP/events-$lg.err")"
+        fi
+    done
+fi
 # 3) one folder per enabled page: assets + index.html generated with the page's theme and title
 # theme_nom THEME / bascule_libelle THEME: labels in the page language
 theme_nom() {
@@ -958,10 +1093,84 @@ csp_script() { if [[ "$P_JS" == yes ]]; then echo "'self'"; else echo "'none'"; 
 # menu_contient REGEX: a theme of the "Theme" button matches REGEX
 menu_contient() { local t; for t in ${P_MENU[@]+"${P_MENU[@]}"}; do [[ "$t" =~ $1 ]] && return 0; done; return 1; }
 
+# vcard_echap TEXT: TEXT for a vCard value (backslash, comma, semicolon and new lines escaped)
+vcard_echap() { local t="${1//\\/\\\\}"; t="${t//,/\\,}"; t="${t//;/\\;}"; printf '%s' "${t//$'\n'/\\n}"; }
 # page_a_extras: 0 when the page being generated (P_LIENS) has a featured link, in a menu or not, or shows its QR code
+# 1.34: date_evenement "YYYY-MM-DD HH:MM": date and time in the language of the page; delai_jours BEGIN_DAY END_DAY: "dans 9 jours"...
+date_evenement() {
+    local jour="${1% *}" heure="${1#* }" js ms h mi
+    js=$(LC_ALL=C date -d "$jour" +%u); ms=$(( 10#$(LC_ALL=C date -d "$jour" +%m) )); h=$((10#${heure%:*})); mi="${heure#*:}"
+    if [[ "$L_LANG" == en ]]; then
+        local jours=(x Monday Tuesday Wednesday Thursday Friday Saturday Sunday) mois=(x January February March April May June July August September October November December)
+        printf '%s, %s %s · %s:%s' "${jours[$js]}" "${mois[$ms]}" "$((10#${jour##*-}))" "$h" "$mi"
+    else
+        local jours=(x lundi mardi mercredi jeudi vendredi samedi dimanche) mois=(x janvier février mars avril mai juin juillet août septembre octobre novembre décembre)
+        printf '%s %s %s · %s h%s' "${jours[$js]}" "$((10#${jour##*-}))" "${mois[$ms]}" "$h" "$( [[ "$mi" != 00 ]] && echo " $mi")"
+    fi
+}
+# tp FR EN: text in the language of the page being generated (m follows the language of the messages of the program)
+tp() { if [[ "${L_LANG:-fr}" == en ]]; then printf '%s' "$2"; else printf '%s' "$1"; fi; }
+delai_jours() {
+    local d
+    d=$(( ( $(date -d "$1 12:00" +%s) - $(date -d "$AUJOURDHUI 12:00" +%s) ) / 86400 ))
+    if (( d < 0 )); then [[ "$AUJOURDHUI" > "$2" ]] && return 0; tp "en cours" "now on"; return 0; fi
+    case "$d" in
+        0) tp "aujourd'hui" "today" ;;
+        1) tp "demain" "tomorrow" ;;
+        *) tp "dans $d jours" "in $d days" ;;
+    esac
+}
+# section_evenements: the section of the upcoming events of the page being generated (P_EVENTS lines of $TMP/events-LANG.tsv)
+section_evenements() {
+    local f="$TMP/events-$L_LANG.tsv" debut fin nom adresse quand n=0
+    (( ${P_EVENTS:-0} > 0 )) && [[ -s "$f" ]] || return 0
+    echo "      <section class=\"events\" aria-labelledby=\"events-title\">"
+    echo "        <h2 id=\"events-title\">$(tp "Prochains événements" "Upcoming events")</h2>"
+    while IFS=$'\t' read -r debut fin nom adresse; do
+        (( n >= P_EVENTS )) && break
+        n=$((n + 1))
+        quand="$(date_evenement "$debut")"
+        [[ -n "$(delai_jours "${debut% *}" "$fin")" ]] && quand+=" · $(delai_jours "${debut% *}" "$fin")"
+        echo "        <a class=\"button button-default event-link\" href=\"$(html_echap "$adresse")\" target=\"_blank\" rel=\"noopener noreferrer\"><span class=\"event-when\">$(html_echap "$quand")</span><span class=\"event-name\">$(html_echap "$nom")</span></a>"
+    done < "$f"
+    echo "      </section>"
+}
+# bandeau_decompte: 1.40: "Dans 9 jours · NAME · samedi 21 novembre" for SITE_COUNTDOWN_DATE, otherwise for the next event of Odoo;
+# nothing once the date is past
+bandeau_decompte() {
+    [[ "${P_DECOMPTE:-no}" == yes ]] || return 0
+    local quand nom adresse fin delai f="$TMP/events-$L_LANG.tsv"
+    if [[ -n "$CD_DATE_V" ]]; then
+        quand="$CD_DATE_V"; [[ "$quand" == *" "* ]] || quand+=" 00:00"
+        nom="$(tp "${CFG[SITE_COUNTDOWN_LABEL]}" "$(valeur_ou SITE_COUNTDOWN_LABEL_EN "${CFG[SITE_COUNTDOWN_LABEL]}")")"
+        adresse="${CFG[SITE_COUNTDOWN_URL]:-}"; fin="${quand% *}"
+    elif [[ -s "$f" ]]; then
+        IFS=$'\t' read -r quand fin nom adresse < "$f"
+    else
+        return 0
+    fi
+    delai="$(delai_jours "${quand% *}" "$fin")"
+    [[ -n "$delai" ]] || return 0
+    local texte jour
+    jour="$(date_evenement "$quand")"; jour="${jour%% · *}"
+    texte="<strong>${delai^}</strong> · $(html_echap "$nom") · $(html_echap "$jour")"
+    if [[ -n "$adresse" ]]; then
+        echo "      <p class=\"countdown\"><a href=\"$(html_echap "$adresse")\" target=\"_blank\" rel=\"noopener noreferrer\">$texte</a></p>"
+    else
+        echo "      <p class=\"countdown\">$texte</p>"
+    fi
+}
 page_a_extras() {
     local n e
-    [[ "${P_QR:-no}" == yes ]] && return 0
+    [[ "${P_DECOMPTE:-no}" == yes ]] && return 0             # 1.40
+    [[ "${P_QR:-no}" == yes || "${P_VCARD:-no}" == yes ]] && return 0      # 1.32, 1.39
+    (( ${P_EVENTS:-0} > 0 )) && return 0                      # 1.34
+    [[ -n "$SITE_NEWSLETTER_URL_V" && "${P_INFOLETTRE:-yes}" == yes ]] && return 0      # 1.38
+    for n in ${P_LIENS[@]+"${P_LIENS[@]}"}; do [[ "${CFG[LINK_${n}_STYLE]:-}" == icon ]] && return 0; done      # 1.35
+    for n in ${P_LIENS[@]+"${P_LIENS[@]}"}; do                  # 1.36: thumbnails, in a menu or not
+        [[ -n "${VIGNETTE[$n]:-}" ]] && return 0
+        for e in ${MENU_ENFANTS[$n]:-}; do [[ -n "${VIGNETTE[$e]:-}" ]] && return 0; done
+    done
     for n in ${P_LIENS[@]+"${P_LIENS[@]}"}; do
         [[ "${CFG[LINK_${n}_STYLE]:-normal}" == featured ]] && return 0
         for e in ${MENU_ENFANTS[$n]:-}; do [[ "${CFG[LINK_${e}_STYLE]:-normal}" == featured ]] && return 0; done
@@ -982,14 +1191,33 @@ icone_lien() {
         printf '<img class="icon" aria-hidden="true" src="%s" alt="">' "$clair"
     fi
 }
+# cible_lien N: address of the link N in the page (1.30: PATH/go/N with PAGE_n_CLICKS=yes, a redirection by nginx written in its log)
+cible_lien() {
+    if [[ "${P_CLICS:-no}" == yes ]]; then printf '%s' "${P_CHEMIN}go/$1"; else printf '%s' "${CFG[LINK_${1}_URL]}"; fi
+}
+# rangee_icones: 1.35: the links LINK_n_STYLE=icon of the page, as a row of round icons under the description
+rangee_icones() {
+    local n trouve=0
+    for n in ${P_LIENS[@]+"${P_LIENS[@]}"}; do [[ "${CFG[LINK_${n}_STYLE]:-}" == icon ]] && trouve=1; done
+    (( trouve )) || return 0
+    echo "      <nav class=\"social-icons\" aria-label=\"$(tp "Réseaux sociaux" "Social networks")\">"
+    for n in ${P_LIENS[@]+"${P_LIENS[@]}"}; do
+        [[ "${CFG[LINK_${n}_STYLE]:-}" == icon ]] || continue
+        echo "        <a class=\"button button-default social-icon\" href=\"$(html_echap "$(cible_lien "$n")")\" target=\"_blank\" rel=\"noopener noreferrer\" aria-label=\"$(html_echap "$(libelle_lien "$n")")\" title=\"$(html_echap "$(libelle_lien "$n")")\">$(icone_lien "$n")</a>"
+    done
+    echo "      </nav>"
+}
 # bouton_lien N: the button of link N (1.26: shared by the page and the menus)
 bouton_lien() {
     local classe_bouton="button-default"
     if [[ "$P_BOUTONS" == brand && -n "${BOUTON_MARQUE[$1]:-}" ]]; then classe_bouton="${BOUTON_MARQUE[$1]}"; fi
     [[ "${CFG[LINK_${1}_STYLE]:-normal}" == featured ]] && classe_bouton+=" button-featured"      # 1.31
-    local cible="${CFG[LINK_${1}_URL]}"
-    [[ "${P_CLICS:-no}" == yes ]] && cible="${P_CHEMIN}go/$1"       # 1.30: redirection by nginx, written in its log
-    echo "        <a class=\"button $classe_bouton\" href=\"$(html_echap "$cible")\" target=\"_blank\" rel=\"noopener noreferrer\">"
+    if [[ -n "${VIGNETTE[$1]:-}" ]]; then                     # 1.36: thumbnail instead of the icon
+        echo "        <a class=\"button $classe_bouton button-thumb\" href=\"$(html_echap "$(cible_lien "$1")")\" target=\"_blank\" rel=\"noopener noreferrer\">"
+        echo "          <img class=\"thumb\" src=\"${VIGNETTE[$1]}\" alt=\"\" loading=\"lazy\">$(html_echap "$(libelle_lien "$1")")</a>"
+        return 0
+    fi
+    echo "        <a class=\"button $classe_bouton\" href=\"$(html_echap "$(cible_lien "$1")")\" target=\"_blank\" rel=\"noopener noreferrer\">"
     echo "          $(icone_lien "$1")$(html_echap "$(libelle_lien "$1")")</a>"
 }
 
@@ -1091,8 +1319,11 @@ genere_index() {   # genere_index DOSSIER THEME TITRE [FICHIER] [CIBLE_BASCULE] 
         fi
         echo "      <h1>$(html_echap "$L_HEADING")</h1>"
         if [[ -n "$L_DESCRIPTION" ]]; then echo "      <p>$(html_echap "$L_DESCRIPTION")</p>"; fi
+        bandeau_decompte                                       # 1.40: countdown (PAGE_n_COUNTDOWN)
+        rangee_icones                                          # 1.35: links LINK_n_STYLE=icon
         echo "      <nav class=\"button-stack\" aria-label=\"$( [[ "$L_LANG" == en ]] && echo Links || echo Liens )\">"
         for i in ${P_LIENS[@]+"${P_LIENS[@]}"}; do          # 1.25: only the links of this page (LINK_n_PAGES)
+            [[ "${CFG[LINK_${i}_STYLE]:-}" == icon ]] && continue     # 1.35: in the row of icons
             if [[ -n "${MENU_ENFANTS[$i]:-}" ]]; then        # 1.26: menu: a button that opens its links below it (<details>, no script)
                 echo "        <details class=\"link-menu\">"
                 echo "          <summary class=\"button button-default$( [[ "${CFG[LINK_${i}_STYLE]:-normal}" == featured ]] && echo " button-featured")\">$(icone_lien "$i")$(html_echap "$(libelle_lien "$i")")</summary>"
@@ -1105,6 +1336,10 @@ genere_index() {   # genere_index DOSSIER THEME TITRE [FICHIER] [CIBLE_BASCULE] 
             fi
         done
         echo "      </nav>"
+        section_evenements                                     # 1.34: upcoming events of Odoo (PAGE_n_EVENTS)
+        if [[ -n "$SITE_NEWSLETTER_URL_V" && "${P_INFOLETTRE:-yes}" == yes ]]; then      # 1.38: newsletter
+            echo "      <p class=\"newsletter\"><a class=\"button button-default button-newsletter\" href=\"$(html_echap "$SITE_NEWSLETTER_URL_V")\" target=\"_blank\" rel=\"noopener noreferrer\"><img class=\"icon\" aria-hidden=\"true\" src=\"images/icons/generic-email.svg\" alt=\"\">$(html_echap "$(tp "$(valeur_ou SITE_NEWSLETTER_LABEL "Recevoir l'infolettre")" "$(valeur_ou SITE_NEWSLETTER_LABEL_EN "Get the newsletter")")")</a></p>"
+        fi
         if [[ -n "$cible" ]]; then
             echo "      <p><a class=\"button button-default\" href=\"$cible\">$(html_echap "$libelle")</a></p>"
         fi
@@ -1114,6 +1349,9 @@ genere_index() {   # genere_index DOSSIER THEME TITRE [FICHIER] [CIBLE_BASCULE] 
             else
                 echo "      <p><a class=\"button button-default\" href=\"$L_AUTRE_HREF\">$(html_echap "$L_AUTRE_LIBELLE")</a></p>"
             fi
+        fi
+        if [[ -f "$dossier/contact.vcf" ]]; then             # 1.39: contact card, to save in the phone
+            echo "      <p class=\"qr-link\"><a href=\"contact.vcf\" download>$(tp "Ajouter à mes contacts" "Add to my contacts")</a></p>"
         fi
         if [[ -f "$dossier/qr.svg" ]]; then                  # 1.32: QR code of the page (PNG to download for posters and slides)
             echo "      <p class=\"qr-link\"><a href=\"qr.png\" download><img src=\"qr.svg\" alt=\"\">$( [[ "$L_LANG" == en ]] && echo "QR code of this page" || echo "Code QR de cette page" )</a></p>"
@@ -1153,7 +1391,11 @@ for i in ${ACTIVES[@]+"${ACTIVES[@]}"}; do
     # 1.18: script of the page: only when it has something to do (theme button, "Share" button or two languages)
     P_PARTAGE="$(valeur_ou "PAGE_${i}_SHARE" yes)"
     P_CLICS="$(valeur_ou "PAGE_${i}_CLICKS" no)"             # 1.30: the links go through PATH/go/N (counted in the nginx logs)
-    P_QR="$(valeur_ou "PAGE_${i}_QR" no)"                     # 1.32: qr.svg and qr.png of the page, link above the footer
+    P_QR="$(valeur_ou "PAGE_${i}_QR" no)"
+    P_EVENTS=$((10#$(valeur_ou "PAGE_${i}_EVENTS" 0)))      # 1.34: upcoming events of Odoo
+    P_INFOLETTRE="$(valeur_ou "PAGE_${i}_NEWSLETTER" yes)"    # 1.38: newsletter button (with SITE_NEWSLETTER_URL)
+    P_VCARD="$(valeur_ou "PAGE_${i}_VCARD" no)"               # 1.39: contact.vcf and its link
+    P_DECOMPTE="$(valeur_ou "PAGE_${i}_COUNTDOWN" no)"        # 1.40: countdown banner                     # 1.32: qr.svg and qr.png of the page, link above the footer
     P_JS=no
     if [[ "$(valeur_ou "PAGE_${i}_SCRIPT" yes)" == yes ]] && { (( ${#P_MENU[@]} )) || [[ "$P_PARTAGE" == yes ]] || (( ${#P_LISTE[@]} == 2 )); }; then
         P_JS=yes
@@ -1195,8 +1437,22 @@ for i in ${ACTIVES[@]+"${ACTIVES[@]}"}; do
             printf '.button.button-default { --button-background: %s; }\n' "$P_ACCENT" > "$dossier/css/accent.css"
         fi
         if [[ "$P_JS" == yes ]]; then mkdir -p "$dossier/js"; install -m 644 "$LINK_PAGE_JS" "$dossier/js/link-page.js"; fi
+        if [[ "$P_VCARD" == yes ]]; then                       # 1.39: contact card of the group (vCard 3.0, CRLF)
+            {
+                printf 'BEGIN:VCARD\r\nVERSION:3.0\r\n'
+                printf 'FN:%s\r\nORG:%s\r\n' "$(vcard_echap "$(valeur_ou SITE_VCARD_NAME "$SITE_TITLE_V")")" "$(vcard_echap "$(valeur_ou SITE_VCARD_NAME "$SITE_TITLE_V")")"
+                [[ -n "${CFG[SITE_VCARD_EMAIL]:-}" ]] && printf 'EMAIL;TYPE=INTERNET:%s\r\n' "$(vcard_echap "${CFG[SITE_VCARD_EMAIL]}")"
+                [[ -n "${CFG[SITE_VCARD_PHONE]:-}" ]] && printf 'TEL;TYPE=WORK,VOICE:%s\r\n' "$(vcard_echap "${CFG[SITE_VCARD_PHONE]}")"
+                vc_url="$(valeur_ou SITE_VCARD_URL "$SITE_BASE_URL_V")"
+                [[ -n "$vc_url" ]] && printf 'URL:%s\r\n' "$(vcard_echap "$vc_url")"
+                [[ -n "$L_URL_PUBLIQUE" ]] && printf 'URL;TYPE=links:%s\r\n' "$(vcard_echap "$L_URL_PUBLIQUE")"
+                [[ -n "$L_DESCRIPTION" ]] && printf 'NOTE:%s\r\n' "$(vcard_echap "$L_DESCRIPTION")"
+                printf 'END:VCARD\r\n'
+            } > "$dossier/contact.vcf"
+        fi
         if [[ "$P_QR" == yes ]]; then                          # 1.32: QR code of the public address of this language
-            if qrencode -t SVG -l M -m 2 -s 6 -o "$dossier/qr.svg" "$L_URL_PUBLIQUE" && qrencode -t PNG -l M -m 4 -s 12 -o "$dossier/qr.png" "$L_URL_PUBLIQUE"; then
+            # 1.37: ?qr=1 tells --stats the visits that come from the QR code
+            if qrencode -t SVG -l M -m 2 -s 6 -o "$dossier/qr.svg" "${L_URL_PUBLIQUE}?qr=1" && qrencode -t PNG -l M -m 4 -s 12 -o "$dossier/qr.png" "${L_URL_PUBLIQUE}?qr=1"; then
                 ok "$(m "code QR" "QR code") : ${L_URL_PUBLIQUE}qr.png"
             else
                 attn "$(m "code QR non créé (qrencode)" "QR code not created (qrencode)") : $L_URL_PUBLIQUE"; rm -f "$dossier/qr.svg" "$dossier/qr.png"
@@ -1295,6 +1551,14 @@ else
         LIEN_NOUVEAU+="$(entetes_page "$i" "    " "no-cache")"$'\n'
         # 1.29: style sheets and scripts kept 1 hour (an update changes them), images and fonts 7 days, by the browsers and by Cloudflare;
         # the pages themselves are checked each time (no-cache). A nested location does not inherit add_header: the headers are repeated.
+        if [[ "$(valeur_ou "PAGE_${i}_VCARD" no)" == yes ]]; then    # 1.39: contact card sent as text/vcard (phones open it in the contacts)
+            LIEN_NOUVEAU+="    location ~* \\.vcf\$ {"$'\n'
+            LIEN_NOUVEAU+="        types { }"$'\n'
+            LIEN_NOUVEAU+="        default_type \"text/vcard; charset=utf-8\";"$'\n'
+            LIEN_NOUVEAU+="        limit_except GET HEAD { deny all; }"$'\n'
+            LIEN_NOUVEAU+="$(entetes_page "$i" "        " "no-cache")"$'\n'
+            LIEN_NOUVEAU+="    }"$'\n'
+        fi
         for regle in "css|js:public, max-age=3600" "png|jpe?g|webp|gif|svg|ico|woff2?:public, max-age=604800"; do
             LIEN_NOUVEAU+="    location ~* \\.(${regle%%:*})\$ {"$'\n'
             LIEN_NOUVEAU+="        limit_except GET HEAD { deny all; }"$'\n'
@@ -1350,18 +1614,18 @@ if nginx_erreur=$(nginx -t 2>&1); then
     fi
     # 1.27: dated links: a daily task (/etc/cron.d/nginx-link-page) rebuilds the pages at 00:05; removed when no link is dated
     CRON_FICHIER="${NGINX_LINK_PAGE_CRON_DIR:-/etc/cron.d}/$SCRIPT_NAME"
-    if (( LIENS_DATES )); then
+    if (( LIENS_DATES || EVENEMENTS_MAX > 0 || COMPTE_A_REBOURS )); then      # 1.34: the events of Odoo too; 1.40: the countdown
         mkdir -p "$(dirname "$CRON_FICHIER")"
         {
-            echo "# Genere par $SCRIPT_NAME.sh : liens dates (LINK_n_FROM, LINK_n_UNTIL), pages reconstruites chaque jour. Ne pas editer a la main."
+            echo "# Genere par $SCRIPT_NAME.sh : liens dates (LINK_n_FROM, LINK_n_UNTIL) ou evenements Odoo (PAGE_n_EVENTS), pages reconstruites chaque jour. Ne pas editer a la main."
             echo "SHELL=/bin/bash"
             echo "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
             echo "5 0 * * * root NGINX_LINK_PAGE_NO_BACKUP=1 $SCRIPT_DIR/$SCRIPT_NAME.sh --update --yes${CONFIG_EXPLICIT:+ -c $CONFIG_EXPLICIT} 2>&1 | logger -t $SCRIPT_NAME"
         } > "$CRON_FICHIER.tmp" && chmod 644 "$CRON_FICHIER.tmp" && mv -f "$CRON_FICHIER.tmp" "$CRON_FICHIER"
-        ok "$(m "liens datés : pages reconstruites chaque jour à 00:05" "dated links: pages rebuilt every day at 00:05") ($CRON_FICHIER)"
+        ok "$(m "liens datés ou événements : pages reconstruites chaque jour à 00:05" "dated links or events: pages rebuilt every day at 00:05") ($CRON_FICHIER)"
     elif [[ -f "$CRON_FICHIER" ]]; then
         rm -f "$CRON_FICHIER"
-        ok "$(m "plus de lien daté : tâche quotidienne retirée" "no dated link any more: daily task removed") ($CRON_FICHIER)"
+        ok "$(m "plus de lien daté ni d'événement : tâche quotidienne retirée" "no dated link nor event any more: daily task removed") ($CRON_FICHIER)"
     fi
 else
     if [[ -n "$LIEN_ANCIEN" ]]; then printf '%s\n' "$LIEN_ANCIEN" > "$LIEN_FICHIER"; else printf '%s\n' "# liens : inactif" > "$LIEN_FICHIER"; fi

@@ -4536,6 +4536,76 @@ Earlier history was archived outside this repository when this file was created.
 
 ## nginx-link-page.sh
 
+### 1.40.20261112.225314 - PAGE_n_COUNTDOWN: countdown to the next event
+
+- Title: new key PAGE_n_COUNTDOWN and keys SITE_COUNTDOWN_*: a "Dans 9 jours · NAME · date" banner under the description, rebuilt every day.
+- Reason: request of the administrator on 2026-11-12 (suggestion 7 of the comparison with Linktree): a countdown to the next event.
+- Changes: new keys PAGE_n_COUNTDOWN (yes or no, no by default), SITE_COUNTDOWN_DATE (YYYY-MM-DD or YYYY-MM-DD HH:MM), SITE_COUNTDOWN_LABEL, SITE_COUNTDOWN_LABEL_EN, SITE_COUNTDOWN_URL (optional link), checked by --check; without SITE_COUNTDOWN_DATE, the countdown is for the next event of Odoo (1.34; the events are read even when PAGE_n_EVENTS=0); new function bandeau_decompte ("Dans 9 jours", "Demain", "Aujourd'hui", "En cours", in the language of the page, then the name and the day); css/extras.css: pill under the description; the daily task (1.27) also runs for a countdown; nginx-link-page.conf.example: the keys described; nginx-tools-tests/test_nginx_link_page.py: 1 test.
+- Bugs fixed: none.
+- Safeguards and edge cases: hidden once the date (or the end of the event) is past; refused by --check: a date that is not YYYY-MM-DD or YYYY-MM-DD HH:MM, a date without its label; Odoo not reachable: no banner, the page is built; counted in days of the calendar (noon to noon, no error on the change of hour).
+- Checks performed: bash -n; shellcheck; test_nginx_link_page (73 tests) with a fake Odoo; page with every addition of 1.34 to 1.40 rendered in Google Chrome (maple, tux-poster): the icons of the row (1.35) made more specific than the button rules of the themes, which gave them square corners in tux-poster; corners of the countdown pill reduced so that it stays regular on two or three lines.
+- Action required: none (example: PAGE_1_COUNTDOWN=yes with the events of Odoo, or SITE_COUNTDOWN_DATE=2026-11-21 and SITE_COUNTDOWN_LABEL=Journée portes ouvertes; then sudo nginx-link-page.sh --update --yes).
+
+### 1.39.20261112.225117 - PAGE_n_VCARD: contact card of the group to save in a phone
+
+- Title: new key PAGE_n_VCARD and keys SITE_VCARD_*: contact card of the group (contact.vcf) with an "Ajouter à mes contacts" link.
+- Reason: request of the administrator on 2026-11-12 (suggestion 6 of the comparison with Linktree): save the contact of the group in a phone with one touch.
+- Changes: new keys PAGE_n_VCARD (yes or no, no by default), SITE_VCARD_NAME (default SITE_TITLE), SITE_VCARD_EMAIL, SITE_VCARD_PHONE, SITE_VCARD_URL (default SITE_BASE_URL), checked by --check; --update writes contact.vcf in each language folder (vCard 3.0, CRLF lines: FN, ORG, EMAIL, TEL, URL of the site, URL of the link page, NOTE = description of the page); new function vcard_echap (backslash, comma, semicolon and new lines escaped); genere_index(): "Ajouter à mes contacts" / "Add to my contacts" link above the QR code link; nginx snippet: for these pages, a nested location ~* \.vcf$ that sends the card as text/vcard (phones open it in their contacts), no-cache, with the security headers; FICHIERS_GERES: contact.vcf (removed when the key is removed, kept by --rollback); nginx-link-page.conf.example: the keys described; nginx-tools-tests/test_nginx_link_page.py: 1 test.
+- Bugs fixed: none.
+- Safeguards and edge cases: refused by --check: an e-mail address or a phone number that does not look like one, a card without e-mail, phone nor address; only the contact of the group (no personal data of a member); the card is a static file of the page.
+- Checks performed: bash -n; shellcheck; test_nginx_link_page (72 tests).
+- Action required: none (example: SITE_VCARD_EMAIL=info@..., PAGE_1_VCARD=yes, then sudo nginx-link-page.sh --update --yes).
+
+### 1.38.20261112.224918 - SITE_NEWSLETTER_URL: newsletter button to the form of Odoo
+
+- Title: new keys SITE_NEWSLETTER_URL, SITE_NEWSLETTER_LABEL(_EN) and PAGE_n_NEWSLETTER: a "Recevoir l'infolettre" button to the subscription form of Odoo.
+- Reason: request of the administrator on 2026-11-12 (suggestion 5 of the comparison with Linktree): newsletter subscription from the link page.
+- Changes: new keys SITE_NEWSLETTER_URL (https:// or a path resolved with SITE_BASE_URL, checked by --check), SITE_NEWSLETTER_LABEL (default "Recevoir l'infolettre"), SITE_NEWSLETTER_LABEL_EN (default "Get the newsletter"), PAGE_n_NEWSLETTER (yes by default, no to leave it out of a page); genere_index(): button with the e-mail icon of LittleLink after the links and the events, label in the language of the page; css/extras.css: set apart from the links by a margin and a dashed outline; nginx-link-page.conf.example: the keys described; nginx-tools-tests/test_nginx_link_page.py: 1 test.
+- Bugs fixed: none.
+- Safeguards and edge cases: a link to the form of Odoo, not a form in the page (the Content-Security-Policy of the pages forbids sending forms: form-action 'none', and nothing personal goes through the link page); no button while SITE_NEWSLETTER_URL is empty.
+- Checks performed: bash -n; shellcheck; test_nginx_link_page (71 tests).
+- Action required: none (example: SITE_NEWSLETTER_URL=/newsletter, the Odoo page that holds the newsletter block, then sudo nginx-link-page.sh --update --yes).
+
+### 1.37.20261112.224748 - --stats: visits, origin (QR code, sites), per day, and clicks
+
+- Title: new option --stats (--clicks becomes the same option): visits of each page, where they come from, per day, and the clicks.
+- Reason: request of the administrator on 2026-11-12 (suggestion 4 of the comparison with Linktree): richer statistics, including the visits that come from the QR code.
+- Changes: MODE clicks rewritten (one awk pass per page on the access logs, rotated and .gz files included): visits = GET or HEAD of the page (PATH, index.html, language folder, theme-NAME.html) answered 200 or 304, with the number of distinct addresses; robots set apart (user agent with bot, crawl, spider, preview, facebookexternalhit, curl, python, monitor, headless...); origin: "code QR" (?qr=1), the site of the Referer without www, or "direct"; table of the last 14 days (visits / clicks); clicks per link as in 1.30, robots set apart; a page with PAGE_n_CLICKS=no says "clics non comptés"; new option --stats, --clicks kept; QR code (1.32): it encodes the address of the page followed by ?qr=1; nginx-tools-tests/test_nginx_link_page.py: 1 test, the contents expected from the QR code updated.
+- Bugs fixed: none.
+- Safeguards and edge cases: style sheets, images and 404 are not counted as visits; the referer is reduced to its site name (no path, no query: nothing personal is shown); only what the logs keep is counted (logrotate, usually 14 days); an unreadable log stops with "run with sudo".
+- Checks performed: bash -n; shellcheck; test_nginx_link_page (71 tests); help order.
+- Action required: none (sudo nginx-link-page.sh --stats; for the QR origin, sudo nginx-link-page.sh --update --yes rewrites the QR codes, the posters printed before keep the old address and count as "direct").
+
+### 1.36.20261112.224601 - LINK_n_IMAGE: thumbnail at the left of the button
+
+- Title: new key LINK_n_IMAGE: a thumbnail at the left of the button, instead of the icon (the poster of an event, for example).
+- Reason: request of the administrator on 2026-11-12 (suggestion 3 of the comparison with Linktree): a small picture per link.
+- Changes: new key LINK_n_IMAGE (in CLES_LIEN; https:// or a path resolved with SITE_BASE_URL, checked by --check); new constant MAX_THUMB_BYTES (2 MB); --update downloads it like the icons (telecharger: PNG, JPEG, WebP or SVG only) as images/site/thumb-N.EXT, new array VIGNETTE; bouton_lien(): class button-thumb, <img class="thumb" loading="lazy"> then the label; css/extras.css: square thumbnail of 2.6rem with rounded corners (object-fit cover), text aligned after it; page_a_extras: a page with a thumbnail (in a menu or not) loads it; nginx-link-page.conf.example: the key described; nginx-tools-tests/test_nginx_link_page.py: 1 test.
+- Bugs fixed: none.
+- Safeguards and edge cases: the picture is downloaded once and served by the page itself (Content-Security-Policy img-src 'self'); a file that is not an image, too big or not reachable stops --update with the reason, as for the icons; decorative (alt empty, the label is the text of the button); the thumbnail takes the place of the icon and of LINK_n_ICON_DARK.
+- Checks performed: bash -n; shellcheck; test_nginx_link_page (69 tests); rendered in Google Chrome.
+- Action required: none (example: LINK_1_IMAGE=/web/image/event.event/12/image_512, then sudo nginx-link-page.sh --update --yes).
+
+### 1.35.20261112.224424 - LINK_n_STYLE=icon: row of social icons under the description
+
+- Title: new value LINK_n_STYLE=icon: the link becomes a round icon in a row under the description, for the social networks.
+- Reason: request of the administrator on 2026-11-12 (suggestion 2 of the comparison with Linktree): small icons on one line for LinkedIn, YouTube, GitHub, Mastodon..., and the big buttons kept for the important links.
+- Changes: LINK_n_STYLE accepts icon; new functions cible_lien (address of a link in the page, PATH/go/N with PAGE_n_CLICKS=yes; used by bouton_lien too) and rangee_icones (nav "social-icons" under the description, before the buttons); the buttons of the page skip the icon links; css/extras.css: round buttons of the theme (2.9rem), icon only; page_a_extras: a page with an icon link loads it; nginx-link-page.conf.example: the value described; nginx-tools-tests/test_nginx_link_page.py: 1 test, message of 1.31 updated.
+- Bugs fixed: none.
+- Safeguards and edge cases: each icon has the label of its link as aria-label and title (screen readers, tooltip); the colours of the theme are used (button-default); LINK_n_PAGES, LINK_n_FROM/UNTIL and PAGE_n_CLICKS apply to icon links as to the others; refused by --check on a menu or a link of a menu; the row wraps on a narrow screen.
+- Checks performed: bash -n; shellcheck; test_nginx_link_page (68 tests); rendered in Google Chrome.
+- Action required: none (example: LINK_4_STYLE=icon for LinkedIn, then sudo nginx-link-page.sh --update --yes).
+
+### 1.34.20261112.224301 - PAGE_n_EVENTS: upcoming events read in Odoo every day
+
+- Title: new key PAGE_n_EVENTS=N: the page shows the N next published events of Odoo, with their date, "dans 9 jours" and a link; read every day.
+- Reason: request of the administrator on 2026-11-12 (suggestion 1 of the comparison with Linktree): the events are already in Odoo, so the page lists them by itself instead of links added and dated by hand.
+- Changes: new file apps/link-page-events.py (python3 -I, standard library only): XML-RPC with an API key read from a file (never on a command line), event.event search_read of the published events not over (date_end, website_published), name in the language of the page (fr_CA or en_US), date converted to the time zone of the event (date_tz), address made absolute; output one line per event (tab separated); NGINX_LINK_PAGE_EVENTS_JSON replaces Odoo for the tests; new keys PAGE_n_EVENTS (0 to 10) and EVENTS_ODOO_URL (default SITE_BASE_URL), EVENTS_ODOO_DB, EVENTS_ODOO_LOGIN, EVENTS_ODOO_KEY_FILE (default /etc/default/nginx-link-page.odoo-key), new group CLES_EVENTS for the check of unknown keys; --update reads the events once per language before building the pages; new functions tp (text in the language of the page), date_evenement ("samedi 21 novembre · 9 h" / "Saturday, November 21 · 9:00"), delai_jours (aujourd'hui, demain, dans N jours, en cours), section_evenements (section "Prochains événements" after the links, each event a button of the theme with its date above its name); css/extras.css: style of the section; the daily task (1.27) also runs when a page shows events; nginx-link-page.conf.example: the keys and how to make the read-only account and its key file; nginx-tools-tests/test_nginx_link_page.py: 1 test.
+- Bugs fixed: none.
+- Safeguards and edge cases: read only (search_read on event.event), with an account that has only the right to read the events; the key file must not be readable by other accounts (chmod 600, refused by --check otherwise) and is passed to the helper by its path; Odoo unreachable or account refused: [ATTN] with the reason, the page is built without the section (the links stay); only https:// addresses are shown; an event that started but is not over shows "en cours"; the times are those of the place of the event.
+- Checks performed: bash -n; python3 -m py_compile; shellcheck; test_nginx_link_page (67 tests) with a fake Odoo; the XML-RPC call itself could not be run against a real Odoo here.
+- Action required: create a read-only Odoo user and its API key, write the key alone in /etc/default/nginx-link-page.odoo-key (chmod 600), set EVENTS_ODOO_DB, EVENTS_ODOO_LOGIN and PAGE_1_EVENTS=3, then sudo nginx-link-page.sh --update --yes.
+
 ### 1.33.20261112.222624 - --rollback: put back the version of before the last --update
 
 - Title: new option --rollback: puts back the pages, the nginx snippet and the daily task of before the last --update.

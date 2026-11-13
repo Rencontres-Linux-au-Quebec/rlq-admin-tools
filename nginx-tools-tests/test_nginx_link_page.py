@@ -920,7 +920,7 @@ printf '\\211PNG\\r\\n\\032\\nxxxx' > "$out"; printf '200 12'; exit 0
         r = self.lancer("-c", str(self.conf(self.config_deux_pages("no"))), "--update", "--yes", env=self.env)
         self.assertFalse((self.www / "liens" / "css" / "extras.css").exists())
         r = self.lancer("-c", str(self.conf(MINIMAL + "LINK_1_STYLE=gros\n")), "--check")
-        self.assertIn("LINK_1_STYLE=gros (normal ou featured)", r.stderr)
+        self.assertIn("LINK_1_STYLE=gros (normal, featured ou icon)", r.stderr)
 
     def test_132_code_qr(self):
         """1.32 : PAGE_n_QR=yes : qr.svg et qr.png de l'adresse publique de chaque langue, lien « Code QR de cette page » ; retirés quand
@@ -932,8 +932,8 @@ printf '\\211PNG\\r\\n\\032\\nxxxx' > "$out"; printf '200 12'; exit 0
         r = self.lancer("-c", str(self.conf(texte)), "--update", "--yes", env=self.env)
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
         page = self.www / "liens"
-        self.assertEqual((page / "qr.png").read_text(encoding="utf-8"), "QR https://www.example.org/liens/\n")
-        self.assertEqual((page / "en" / "qr.svg").read_text(encoding="utf-8"), "QR https://www.example.org/liens/en/\n")
+        self.assertEqual((page / "qr.png").read_text(encoding="utf-8"), "QR https://www.example.org/liens/?qr=1\n")
+        self.assertEqual((page / "en" / "qr.svg").read_text(encoding="utf-8"), "QR https://www.example.org/liens/en/?qr=1\n")
         html = (page / "index.html").read_text(encoding="utf-8")
         self.assertIn('<p class="qr-link"><a href="qr.png" download><img src="qr.svg" alt="">Code QR de cette page</a></p>', html)
         self.assertIn("QR code of this page", (page / "en" / "index.html").read_text(encoding="utf-8"))
@@ -973,6 +973,176 @@ printf '\\211PNG\\r\\n\\032\\nxxxx' > "$out"; printf '200 12'; exit 0
         self.assertFalse((page / "theme-dark.html").exists())
         self.assertIn("fragment nginx remis", r.stdout)
         self.assertIn("nginx -t réussi, nginx rechargé", r.stdout)
+
+    def test_134_evenements_odoo(self):
+        """1.34 : PAGE_n_EVENTS=N : les N prochains événements publiés d'Odoo (heure locale de l'événement, « dans N jours », lien),
+        lus par apps/link-page-events.py (ici un faux Odoo en JSON) ; tâche quotidienne ; Odoo injoignable : section omise ;
+        clés manquantes, fichier de clé absent ou lisible par d'autres, nombre invalide : refusés."""
+        import json
+        cle = self.tmp / "odoo-key"; cle.write_text("secret\n", encoding="utf-8"); cle.chmod(0o600)
+        evenements = self.tmp / "events.json"
+        evenements.write_text(json.dumps([
+            {"name": "Journée portes ouvertes", "date_begin": "2026-11-21 14:00:00", "date_end": "2026-11-21 22:00:00", "date_tz": "America/Toronto", "website_url": "/event/jpo-12"},
+            {"name": "Rencontre mensuelle", "date_begin": "2026-12-03 23:30:00", "date_end": "2026-12-04 02:00:00", "date_tz": "America/Toronto", "website_url": "/event/rm-13"},
+            {"name": "Troisième", "date_begin": "2027-01-07 23:30:00", "date_end": "2027-01-08 02:00:00", "date_tz": "America/Toronto", "website_url": "/event/t-14"}]), encoding="utf-8")
+        cles = (f"EVENTS_ODOO_URL=https://odoo.example.org\nEVENTS_ODOO_DB=rlq\nEVENTS_ODOO_LOGIN=lecture\nEVENTS_ODOO_KEY_FILE={cle}\n")
+        texte = self.config_deux_pages("no").replace("PAGE_1_THEME=auto", "PAGE_1_THEME=auto\nPAGE_1_EVENTS=2\nPAGE_1_LANGUAGES=fr,en") + cles
+        env = dict(self.env, NGINX_LINK_PAGE_EVENTS_JSON=str(evenements), NGINX_LINK_PAGE_TODAY="2026-11-12", NGINX_LINK_PAGE_CRON_DIR=str(self.tmp / "cron.d"))
+        r = self.lancer("-c", str(self.conf(texte)), "--update", "--yes", env=env)
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        fr = (self.www / "liens" / "index.html").read_text(encoding="utf-8")
+        en = (self.www / "liens" / "en" / "index.html").read_text(encoding="utf-8")
+        self.assertIn('<h2 id="events-title">Prochains événements</h2>', fr)
+        self.assertIn('href="https://odoo.example.org/event/jpo-12"', fr)
+        self.assertIn("samedi 21 novembre · 9 h · dans 9 jours</span><span class=\"event-name\">Journée portes ouvertes", fr)
+        self.assertIn("jeudi 3 décembre · 18 h 30 · dans 21 jours", fr)
+        self.assertNotIn("Troisième", fr)                                                   # PAGE_1_EVENTS=2
+        self.assertIn("Saturday, November 21 · 9:00 · in 9 days", en)
+        self.assertIn("Upcoming events", en)
+        self.assertIn('<link rel="stylesheet" href="css/extras.css">', fr)
+        self.assertTrue((self.tmp / "cron.d" / "nginx-link-page").exists())
+        r = self.lancer("-c", str(self.conf(texte)), "--update", "--yes", env=dict(env, NGINX_LINK_PAGE_EVENTS_JSON=str(self.tmp / "absent.json")))
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertIn("événements Odoo non lus, section omise", r.stdout)
+        self.assertNotIn("events-title", (self.www / "liens" / "index.html").read_text(encoding="utf-8"))
+        cle.chmod(0o644)
+        r = self.lancer("-c", str(self.conf(texte)), "--check", env=env)
+        self.assertIn("lisible par d'autres comptes : chmod 600", r.stderr)
+        r = self.lancer("-c", str(self.conf(MINIMAL + "PAGE_1_EVENTS=2\nSITE_BASE_URL=https://x.org/\n" + f"EVENTS_ODOO_KEY_FILE={self.tmp}/non\n")), "--check", env=env)
+        for attendu in ("EVENTS_ODOO_DB : base de données Odoo manquante", "EVENTS_ODOO_LOGIN : compte Odoo", "fichier absent (la clé d'API seule"):
+            self.assertIn(attendu, r.stderr)
+        r = self.lancer("-c", str(self.conf(MINIMAL + "PAGE_1_EVENTS=20\n")), "--check", env=env)
+        self.assertIn("PAGE_1_EVENTS=20 : nombre d'événements de 0 à 10", r.stderr)
+
+    def test_135_rangee_d_icones(self):
+        """1.35 : LINK_n_STYLE=icon : le lien quitte la pile de boutons pour une rangée d'icônes rondes sous la description (nom pour
+        les lecteurs d'écran) ; refusé sur un menu ou un lien de menu."""
+        texte = self.config_deux_pages("no") + "LINK_1_STYLE=icon\n"
+        r = self.lancer("-c", str(self.conf(texte)), "--update", "--yes", env=self.env)
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        html = (self.www / "liens" / "index.html").read_text(encoding="utf-8")
+        rangee = html[html.index('<nav class="social-icons" aria-label="Réseaux sociaux">'):html.index("</nav>")]
+        self.assertIn('class="button button-default social-icon" href="https://example.org/a"', rangee)
+        self.assertIn('aria-label="Lien &lt;A&gt;" title="Lien &lt;A&gt;"', rangee)
+        pile = html[html.index('<nav class="button-stack"'):]
+        self.assertNotIn("example.org/a", pile[:pile.index("</nav>")])
+        self.assertLess(html.index("social-icons"), html.index("button-stack"))
+        self.assertIn('<link rel="stylesheet" href="css/extras.css">', html)
+        r = self.lancer("-c", str(self.conf(self.config_deux_pages("no") + "LINK_3_LABEL=M\nLINK_3_STYLE=icon\nLINK_2_MENU=3\n")), "--check")
+        self.assertIn("LINK_3_STYLE=icon : un menu ou un lien de menu", r.stderr)
+
+    def test_136_vignettes(self):
+        """1.36 : LINK_n_IMAGE : vignette téléchargée (images/site/thumb-N.*) à gauche du bouton à la place de l'icône ; chemin relatif
+        résolu ; adresse invalide refusée."""
+        texte = self.config_deux_pages("no") + "LINK_2_IMAGE=https://example.org/affiche.png\n"
+        r = self.lancer("-c", str(self.conf(texte)), "--update", "--yes", env=self.env)
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        html = (self.www / "liens" / "index.html").read_text(encoding="utf-8")
+        self.assertRegex(html, r'<a class="button button-default button-thumb" href="https://example.org/b"[^>]*>\n +<img class="thumb" src="images/site/thumb-2\.png" alt="" loading="lazy">Autre</a>')
+        self.assertTrue(list((self.www / "liens" / "images" / "site").glob("thumb-2.*")))
+        self.assertIn('<link rel="stylesheet" href="css/extras.css">', html)
+        r = self.lancer("-c", str(self.conf(MINIMAL + "LINK_1_IMAGE=ftp://x/y.png\n")), "--check")
+        self.assertIn("LINK_1_IMAGE : adresse https:// ou chemin relatif d'une image", r.stderr)
+
+    def test_137_statistiques(self):
+        """1.37 : --stats (et --clicks) : visites des pages (200 et 304, index, langue, thèmes) avec les adresses, robots écartés,
+        provenance (code QR par ?qr=1, sites sans www, direct), par jour, clics ; PAGE_n_CLICKS=no : clics non comptés."""
+        journaux = self.tmp / "logs"; journaux.mkdir()
+        def l(ip, chemin, code, ref="-", ua="Mozilla/5.0", jour="12/Nov/2026"):
+            return f'{ip} - - [{jour}:21:00:00 -0500] "GET {chemin} HTTP/2.0" {code} 10 "{ref}" "{ua}"\n'
+        (journaux / "access.log").write_text(
+            l("1.1.1.1", "/liens/", 200, "https://www.linkedin.com/feed/") + l("1.1.1.1", "/liens/en/", 304, "https://www.linkedin.com/") +
+            l("2.2.2.2", "/liens/?qr=1", 200) + l("3.3.3.3", "/liens/theme-dark.html", 200, jour="11/Nov/2026") +
+            l("4.4.4.4", "/liens/", 200, ua="LinkedInBot/1.0") + l("5.5.5.5", "/liens/css/style.css", 200) +
+            l("6.6.6.6", "/liens/", 404) + l("2.2.2.2", "/liens/go/1", 302) + l("7.7.7.7", "/liens2/", 200), encoding="utf-8")
+        texte = self.config_deux_pages("no").replace("PAGE_1_THEME=auto", "PAGE_1_THEME=auto\nPAGE_1_CLICKS=yes")
+        r = self.lancer("-c", str(self.conf(texte)), "--stats", env=dict(self.env, NGINX_LINK_PAGE_ACCESS_LOGS=str(journaux / "access.log*")))
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        p1 = r.stdout[r.stdout.index("PAGE_1 /liens/ :"):r.stdout.index("PAGE_2 /liens2/ :")]
+        self.assertIn("Visites : 4 (3 adresses) ; robots écartés : 1", p1)
+        self.assertIn("Provenance : linkedin.com 2 · ", p1)
+        self.assertIn("code QR 1", p1)
+        self.assertIn("direct 1", p1)
+        self.assertIn("2026-11-11      1 / 0", p1)
+        self.assertIn("2026-11-12      3 / 1", p1)
+        self.assertRegex(p1, r"(?m)^ +1 clics, 1 adresses  LINK_1 Lien <A>$")
+        p2 = r.stdout[r.stdout.index("PAGE_2 /liens2/ :"):]
+        self.assertIn("Visites : 1 (1 adresses)", p2)
+        self.assertIn("Clics : non comptés (PAGE_2_CLICKS=no)", p2)
+
+    def test_138_infolettre(self):
+        """1.38 : SITE_NEWSLETTER_URL : bouton « Recevoir l'infolettre » (libellé configurable, anglais) après les liens, chemin relatif
+        résolu ; PAGE_n_NEWSLETTER=no le retire ; adresse invalide refusée."""
+        texte = self.config_deux_pages("yes").replace("PAGE_1_THEME=auto", "PAGE_1_THEME=auto\nPAGE_1_LANGUAGES=fr,en") + (
+            "SITE_BASE_URL=https://www.example.org/\nSITE_NEWSLETTER_URL=/newsletter\nPAGE_2_NEWSLETTER=no\n")
+        r = self.lancer("-c", str(self.conf(texte)), "--update", "--yes", env=self.env)
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        fr = (self.www / "liens" / "index.html").read_text(encoding="utf-8")
+        self.assertIn('<p class="newsletter"><a class="button button-default button-newsletter" href="https://www.example.org/newsletter"', fr)
+        self.assertIn("Recevoir l&#39;infolettre</a>", fr.replace("&apos;", "&#39;").replace("'", "&#39;"))
+        self.assertIn("Get the newsletter</a>", (self.www / "liens" / "en" / "index.html").read_text(encoding="utf-8"))
+        self.assertLess(fr.index("button-stack"), fr.index('class="newsletter"'))
+        self.assertNotIn("newsletter", (self.www / "liens2" / "index.html").read_text(encoding="utf-8"))
+        r = self.lancer("-c", str(self.conf(MINIMAL + "SITE_NEWSLETTER_URL=mailto:x@y\n")), "--check")
+        self.assertIn("SITE_NEWSLETTER_URL : adresse https://", r.stderr)
+
+    def test_139_fiche_contact(self):
+        """1.39 : PAGE_n_VCARD=yes : contact.vcf (vCard 3.0, CRLF, valeurs échappées), lien « Ajouter à mes contacts », type
+        text/vcard dans le fragment nginx ; retiré sans la clé ; courriel ou téléphone invalide refusé."""
+        texte = self.config_deux_pages("no").replace("PAGE_1_THEME=auto", "PAGE_1_THEME=auto\nPAGE_1_VCARD=yes") + (
+            "SITE_BASE_URL=https://www.example.org/\nSITE_VCARD_NAME=Rencontres Linux, Québec\nSITE_VCARD_EMAIL=info@example.org\n"
+            "SITE_VCARD_PHONE=+1 514 555-0199\nSITE_DESCRIPTION=Groupe; libre\n")
+        r = self.lancer("-c", str(self.conf(texte)), "--update", "--yes", env=self.env)
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        carte = (self.www / "liens" / "contact.vcf").read_bytes().decode("utf-8")
+        self.assertTrue(carte.startswith("BEGIN:VCARD\r\nVERSION:3.0\r\nFN:Rencontres Linux\\, Québec\r\n"))
+        for ligne in ("EMAIL;TYPE=INTERNET:info@example.org", "TEL;TYPE=WORK,VOICE:+1 514 555-0199", "URL:https://www.example.org/",
+                      "URL;TYPE=links:https://www.example.org/liens/", "NOTE:Groupe\\; libre", "END:VCARD"):
+            self.assertIn(ligne + "\r\n", carte)
+        html = (self.www / "liens" / "index.html").read_text(encoding="utf-8")
+        self.assertIn('<p class="qr-link"><a href="contact.vcf" download>Ajouter à mes contacts</a></p>', html)
+        snippet = (self.snippets / "liens-publics.conf").read_text(encoding="utf-8")
+        self.assertIn('    location ~* \\.vcf$ {\n        types { }\n        default_type "text/vcard; charset=utf-8";', snippet)
+        r = self.lancer("-c", str(self.conf(self.config_deux_pages("no"))), "--update", "--yes", env=self.env)
+        self.assertFalse((self.www / "liens" / "contact.vcf").exists())
+        r = self.lancer("-c", str(self.conf(MINIMAL + "SITE_VCARD_EMAIL=pas-un-courriel\nSITE_VCARD_PHONE=abc\n")), "--check")
+        self.assertIn("SITE_VCARD_EMAIL=pas-un-courriel : adresse courriel invalide", r.stderr)
+        self.assertIn("SITE_VCARD_PHONE=abc : numéro invalide", r.stderr)
+
+    def test_140_compte_a_rebours(self):
+        """1.40 : PAGE_n_COUNTDOWN=yes : bandeau « Dans N jours · NOM · date » sous la description, pour SITE_COUNTDOWN_DATE ou, sans
+        elle, pour le prochain événement d'Odoo ; caché une fois la date passée ; tâche quotidienne ; date invalide refusée."""
+        import json
+        env = dict(self.env, NGINX_LINK_PAGE_TODAY="2026-11-12", NGINX_LINK_PAGE_CRON_DIR=str(self.tmp / "cron.d"))
+        texte = self.config_deux_pages("no").replace("PAGE_1_THEME=auto", "PAGE_1_THEME=auto\nPAGE_1_COUNTDOWN=yes\nPAGE_1_LANGUAGES=fr,en") + (
+            "SITE_COUNTDOWN_DATE=2026-11-21 09:00\nSITE_COUNTDOWN_LABEL=Journée portes ouvertes\nSITE_COUNTDOWN_LABEL_EN=Open house\n"
+            "SITE_COUNTDOWN_URL=https://example.org/jpo\nSITE_DESCRIPTION=Bienvenue\n")
+        r = self.lancer("-c", str(self.conf(texte)), "--update", "--yes", env=env)
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        fr = (self.www / "liens" / "index.html").read_text(encoding="utf-8")
+        self.assertIn('<p class="countdown"><a href="https://example.org/jpo" target="_blank" rel="noopener noreferrer"><strong>Dans 9 jours</strong> · Journée portes ouvertes · samedi 21 novembre</a></p>', fr)
+        self.assertLess(fr.index("Bienvenue"), fr.index('class="countdown"'))
+        self.assertIn("<strong>In 9 days</strong> · Open house · Saturday, November 21", (self.www / "liens" / "en" / "index.html").read_text(encoding="utf-8"))
+        self.assertTrue((self.tmp / "cron.d" / "nginx-link-page").exists())
+        r = self.lancer("-c", str(self.conf(texte)), "--update", "--yes", env=dict(env, NGINX_LINK_PAGE_TODAY="2026-11-21"))
+        self.assertIn("<strong>Aujourd'hui</strong>", (self.www / "liens" / "index.html").read_text(encoding="utf-8"))
+        r = self.lancer("-c", str(self.conf(texte)), "--update", "--yes", env=dict(env, NGINX_LINK_PAGE_TODAY="2026-11-22"))
+        self.assertNotIn('class="countdown"', (self.www / "liens" / "index.html").read_text(encoding="utf-8"))
+        # without SITE_COUNTDOWN_DATE: the next event of Odoo
+        cle = self.tmp / "odoo-key"; cle.write_text("k\n", encoding="utf-8"); cle.chmod(0o600)
+        evenements = self.tmp / "events.json"
+        evenements.write_text(json.dumps([{"name": "Rencontre mensuelle", "date_begin": "2026-11-13 23:30:00", "date_end": "2026-11-14 02:00:00",
+                                           "date_tz": "America/Toronto", "website_url": "/event/rm-13"}]), encoding="utf-8")
+        odoo = self.config_deux_pages("no").replace("PAGE_1_THEME=auto", "PAGE_1_THEME=auto\nPAGE_1_COUNTDOWN=yes") + (
+            f"EVENTS_ODOO_URL=https://odoo.example.org\nEVENTS_ODOO_DB=rlq\nEVENTS_ODOO_LOGIN=lecture\nEVENTS_ODOO_KEY_FILE={cle}\n")
+        r = self.lancer("-c", str(self.conf(odoo)), "--update", "--yes", env=dict(env, NGINX_LINK_PAGE_EVENTS_JSON=str(evenements)))
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        html = (self.www / "liens" / "index.html").read_text(encoding="utf-8")
+        self.assertIn('<a href="https://odoo.example.org/event/rm-13" target="_blank" rel="noopener noreferrer"><strong>Demain</strong> · Rencontre mensuelle · vendredi 13 novembre</a>', html)
+        self.assertNotIn("events-title", html)                                              # PAGE_1_EVENTS=0: no list
+        r = self.lancer("-c", str(self.conf(MINIMAL + "PAGE_1_COUNTDOWN=yes\nSITE_COUNTDOWN_DATE=21/11/2026\n")), "--check")
+        self.assertIn("SITE_COUNTDOWN_DATE=21/11/2026 : date AAAA-MM-JJ", r.stderr)
+        self.assertIn("SITE_COUNTDOWN_LABEL : nom de l'événement", r.stderr)
 
     def test_deux_langues_detection_et_textes(self):
         texte = self.config_deux_pages("no").replace(
