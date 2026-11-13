@@ -29,7 +29,7 @@
 set -u
 LANG_C="${LC_ALL:-${LC_MESSAGES:-${LANG:-C}}}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
-readonly SCRIPT_VERSION="1.27.20261112.221722"
+readonly SCRIPT_VERSION="1.28.20261112.221841"
 readonly SCRIPT_NAME="nginx-link-page"
 # --config-merge: same rule as the other programs (apps/_config.py fusionner): the configuration file is rewritten from the new template,
 # keeping its active values; the old file is copied to FILE.bak-YYYYMMDD-HHMMSS. Then exit.
@@ -121,6 +121,7 @@ Builds and installs one or more link pages on the Odoo site, from the configurat
 Options (ordre alphabetique / alphabetical order) :
   ${C_OPT}--changelog${C_RESET}                affiche le journal des modifications / show the change log
   ${C_OPT}--check${C_RESET}                    verifie la configuration, n'ecrit rien (defaut) / check only, writes nothing (default)
+  ${C_OPT}--check-links${C_RESET}              demande chaque adresse des liens et signale les liens morts (404, sans réponse...) / request every link address and report the dead links (404, no answer...)
   ${C_OPT}-c, --config FILE${C_RESET}          lit SEUL ce fichier / read ONLY this file
   ${C_OPT}--config-merge${C_RESET}             reecrit la configuration d'apres le nouveau modele en gardant ses valeurs (copie FICHIER.bak-...), puis quitte / rewrite the configuration from the new template, keeping its values (copy FILE.bak-...), then exit
   ${C_OPT}-h, --help${C_RESET}                 affiche cette aide / show this help
@@ -225,6 +226,7 @@ while [[ $# -gt 0 ]]; do
             fi
             exit 0 ;;
         --check) MODE="check"; shift ;;
+        --check-links) MODE="links"; shift ;;
         --init) MODE="init"; shift ;;
         --update) MODE="update"; shift ;;
         --yes) YES=1; shift ;;
@@ -664,6 +666,37 @@ for i in "${LIENS_N[@]}"; do
         echo "  - ${CFG[LINK_${i}_LABEL]} -> ${CFG[LINK_${i}_URL]:-}$(periode_lien "$i")"
     fi
 done
+# 1.28: --check-links: every address is requested (HEAD, then GET when HEAD is refused); dead links make the exit code 1
+if [[ "$MODE" == "links" ]]; then
+    command -v curl >/dev/null 2>&1 || { err "curl $(m "absent" "not found")"; exit 1; }
+    echo
+    echo "$(m "Vérification des liens" "Checking the links") :"
+    morts=0; douteux=0
+    for i in "${LIENS_N[@]}"; do
+        [[ -n "${MENU_ENFANTS[$i]:-}" ]] && continue                 # a menu has no address
+        url="${CFG[LINK_${i}_URL]:-}"
+        code="$(curl -sS -o /dev/null -w '%{http_code}' --max-time 15 -L -I -A "$SCRIPT_NAME/$SCRIPT_VERSION" "$url" 2>/dev/null || true)"
+        if [[ ! "$code" =~ ^[23] ]]; then
+            code2="$(curl -sS -o /dev/null -w '%{http_code}' --max-time 15 -L -r 0-0 -A "$SCRIPT_NAME/$SCRIPT_VERSION" "$url" 2>/dev/null || true)"
+            [[ "$code2" =~ ^[0-9]{3}$ && "$code2" != 000 ]] && code="$code2"
+        fi
+        code="${code:-000}"
+        quoi="LINK_${i} ${CFG[LINK_${i}_LABEL]} -> $url"
+        case "$code" in
+            2??|3??) ok "$code $quoi" ;;
+            401|403|429|999) attn "$code $quoi : $(m "le site refuse les robots ou demande une connexion : à vérifier dans un navigateur" "the site refuses robots or asks for a sign-in: check it in a browser")"; douteux=$((douteux + 1)) ;;
+            000) err "$(m "pas de réponse" "no answer") $quoi : $(m "adresse, nom de domaine ou certificat à vérifier" "check the address, the domain name or the certificate")"; morts=$((morts + 1)) ;;
+            *) err "$code $quoi : $(m "lien mort ou en erreur" "dead link or error")"; morts=$((morts + 1)) ;;
+        esac
+    done
+    echo
+    if (( morts )); then
+        err "$(m "$morts lien(s) mort(s) ou en erreur, $douteux à vérifier à la main" "$morts dead or failing link(s), $douteux to check by hand")"
+        exit 1
+    fi
+    ok "$(m "aucun lien mort" "no dead link")$( (( douteux )) && echo " ($douteux $(m "à vérifier à la main" "to check by hand"))")"
+    exit 0
+fi
 if [[ "$MODE" == "check" ]]; then
     echo
     echo "$(m "Rien n'a ete modifie (--check). Lancer avec --update (root) pour installer." "Nothing was changed (--check). Run with --update (root) to install.")"

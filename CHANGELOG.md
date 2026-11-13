@@ -4536,6 +4536,16 @@ Earlier history was archived outside this repository when this file was created.
 
 ## nginx-link-page.sh
 
+### 1.28.20261112.221841 - --check-links: report the dead links
+
+- Title: new option --check-links: every link address is requested and the dead links are reported.
+- Reason: request of the administrator on 2026-11-12 (improvement 2 of the list proposed): find the dead links before the visitors do.
+- Changes: option --check-links (MODE links, help line in French and English): after the check of the configuration, each LINK_n_URL (menus left out) is requested with curl (HEAD, then a GET of one byte when HEAD is refused; 15 s; redirections followed; user agent nginx-link-page/VERSION); 2xx and 3xx: [OK]; 401, 403, 429 and 999 (LinkedIn): [ATTN] "the site refuses robots or asks for a sign-in: check it in a browser"; no answer: [FAIL] with the hint address, domain name or certificate; other codes (404, 410, 5xx): [FAIL] "dead link or error"; summary line; exit code 1 when a link is dead, 0 otherwise; nginx-tools-tests/test_nginx_link_page.py: the curl stub answers a code per address (RLQ_CURL_CODES), 1 test.
+- Bugs fixed: none.
+- Safeguards and edge cases: nothing is written; no root needed; the links that only refuse robots do not make the exit code 1 (usable in a monitoring script); the addresses are the resolved ones (relative paths with SITE_BASE_URL).
+- Checks performed: bash -n; shellcheck; test_nginx_link_page (62 tests); help order (test_conventions.AideTriee).
+- Action required: none (to use it: nginx-link-page.sh --check-links).
+
 ### 1.27.20261112.221722 - LINK_n_FROM / LINK_n_UNTIL: dated links, pages rebuilt every day
 
 - Title: new keys LINK_n_FROM and LINK_n_UNTIL: a link is shown only between these dates; a daily task rebuilds the pages.

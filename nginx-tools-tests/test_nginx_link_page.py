@@ -55,11 +55,18 @@ exit 1
 """.replace("SHA_REEL", SHA).replace("SHA_DE_EXTENDED", SHA_EXT)
 
 CURL_STUB = r"""#!/bin/sh
-out=""
+out=""; fmt=""; url=""
 while [ $# -gt 0 ]; do
-    case "$1" in -o) out="$2"; shift ;; esac
+    case "$1" in -o) out="$2"; shift ;; -w) fmt="$2"; shift ;; -A|-r|--max-time) shift ;; -*) ;; *) url="$1" ;; esac
     shift
 done
+if [ "$fmt" = "%{http_code}" ]; then
+    # 1.28: --check-links; RLQ_CURL_CODES="URL=CODE URL=CODE" (200 by default)
+    code=200
+    for paire in $RLQ_CURL_CODES; do [ "${paire%=*}" = "$url" ] && code="${paire##*=}"; done
+    printf '%s' "$code"
+    exit 0
+fi
 printf '\211PNG\r\n\032\nxxxx' > "$out"
 exit 0
 """
@@ -827,6 +834,24 @@ printf '\\211PNG\\r\\n\\032\\nxxxx' > "$out"; printf '200 12'; exit 0
                 r = self.lancer("-c", str(self.conf(self.config_deux_pages("no") + ajout + "\n")), "--check")
                 self.assertNotEqual(r.returncode, 0)
                 self.assertIn(attendu, r.stderr)
+
+    def test_128_check_links(self):
+        """1.28 : --check-links : chaque adresse est demandée ; 404 et sans réponse = liens morts (code 1) ; 403 = à vérifier à la main
+        (code 0) ; un menu n'est pas demandé."""
+        texte = self.config_deux_pages("no") + "LINK_3_LABEL=Menu\nLINK_4_LABEL=Dans\nLINK_4_URL=https://example.org/d\nLINK_4_MENU=3\n"
+        r = self.lancer("-c", str(self.conf(texte)), "--check-links", env=self.env)
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertIn("[OK]   200 LINK_1 Lien <A> -> https://example.org/a", r.stdout)
+        self.assertIn("LINK_4 Dans -> https://example.org/d", r.stdout)
+        self.assertNotIn("LINK_3 Menu ->", r.stdout + r.stderr)
+        self.assertIn("aucun lien mort", r.stdout)
+        env = dict(self.env, RLQ_CURL_CODES="https://example.org/a=404 https://example.org/b=403 https://example.org/d=000")
+        r = self.lancer("-c", str(self.conf(texte)), "--check-links", env=env)
+        self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
+        self.assertIn("404 LINK_1 Lien <A> -> https://example.org/a : lien mort ou en erreur", r.stderr)
+        self.assertIn("pas de réponse LINK_4 Dans", r.stderr)
+        self.assertIn("403 LINK_2 Autre -> https://example.org/b : le site refuse les robots", r.stdout)
+        self.assertIn("2 lien(s) mort(s) ou en erreur, 1 à vérifier à la main", r.stderr)
 
     def test_deux_langues_detection_et_textes(self):
         texte = self.config_deux_pages("no").replace(
