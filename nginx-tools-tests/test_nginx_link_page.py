@@ -527,7 +527,8 @@ printf '\\211PNG\\r\\n\\032\\nxxxx' > "$out"; printf '200 12'; exit 0
         icône sombre pour les thèmes à base sombre ; seconde page (PAGE_n_SWITCH) dans le thème de base opposé ; thème inconnu refusé."""
         bases = {"aurora": "dark", "maple": "light", "river": "light", "terminal": "dark", "tux": "dark",
                  "quebec": "dark", "boreal": "dark", "sunset": "dark", "winter": "light", "photo": "light",      # 1.21: 5 more, 1.22: tux-flag, 1.23: tux-poster
-                 "amber": "dark", "arctic": "dark", "console": "dark", "retro": "dark", "solar": "light"}      # 1.54: Linux themes
+                 "amber": "dark", "arctic": "dark", "console": "dark", "retro": "dark", "solar": "light",      # 1.54: Linux themes
+                 "blossom": "light", "lavender": "light", "pastel": "light", "rosegold": "light", "berry": "dark"}      # 1.55: soft themes
         for theme, base in bases.items():
             with self.subTest(theme=theme):
                 texte = self.config_deux_pages("no").replace("PAGE_1_THEME=auto", f"PAGE_1_THEME={theme}\nPAGE_1_SWITCH=yes")
@@ -556,7 +557,7 @@ printf '\\211PNG\\r\\n\\032\\nxxxx' > "$out"; printf '200 12'; exit 0
         self.assertFalse(list((self.www / "liens" / "images" / "themes").glob("tux-*")))
         r = self.lancer("-c", str(self.conf(MINIMAL + "PAGE_1_THEME=rose\n")), "--check")
         self.assertNotEqual(r.returncode, 0)
-        self.assertIn("aurora, maple, river, terminal, tux, quebec, boreal, sunset, winter, photo, amber, arctic, console, retro, solar, ls-aurora", r.stderr)
+        self.assertIn("aurora, maple, river, terminal, tux, quebec, boreal, sunset, winter, photo, amber, arctic, console, retro, solar, blossom, lavender, pastel, rosegold, berry, ls-aurora", r.stderr)
 
     def test_116_quatre_themes_linkstack(self):
         """1.16 : ls-aurora, ls-dark, ls-dawn, ls-misty-rain : css/themes-linkstack.css (pas css/themes.css), images, polices et avis de licence
@@ -613,7 +614,7 @@ printf '\\211PNG\\r\\n\\032\\nxxxx' > "$out"; printf '200 12'; exit 0
         texte = self.config_deux_pages("no").replace("PAGE_1_THEME=auto", "PAGE_1_THEME=dark\nPAGE_1_THEMES=all")
         r = self.lancer("-c", str(self.conf(texte)), "--update", "--yes", env=self.env)
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
-        self.assertEqual(len(list(page.glob("*.html"))), 22)                             # 1.41: 17 themes (3 image themes -> photo); 1.54: + 5
+        self.assertEqual(len(list(page.glob("*.html"))), 27)                             # 1.41: 17 themes (3 image themes -> photo); 1.54, 1.55: + 5 + 5
         r = self.lancer("-c", str(self.conf(self.config_deux_pages("no"))), "--update", "--yes", env=self.env)
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
         self.assertEqual([f.name for f in page.glob("*.html")], ["index.html"])           # old theme pages removed
@@ -1249,7 +1250,7 @@ LINK_4_MENU=3
         themes = [e.split("|")[0] for e in re.search(r'data-themes="([^"]*)"', racine).group(1).split()]
         self.assertNotIn("auto", themes)
         self.assertNotIn("photo", themes)                                                # no PAGE_1_BACKGROUND
-        for t in ("amber", "arctic", "console", "retro", "solar", "ls-dawn"):
+        for t in ("amber", "arctic", "console", "retro", "solar", "blossom", "lavender", "pastel", "rosegold", "berry", "ls-dawn"):
             self.assertIn(t, themes)
             self.assertTrue((self.www / "liens" / f"theme-{t}.html").exists())
         self.assertIn('<details class="theme-menu">', ici)

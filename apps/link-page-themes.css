@@ -1,5 +1,5 @@
 /*
- * link-page-themes.css - 15 additional themes for the link pages of nginx-link-page.sh (PAGE_n_THEME).
+ * link-page-themes.css - 20 additional themes for the link pages of nginx-link-page.sh (PAGE_n_THEME).
  * Copyright (C) 2026 Services-Conseils Linux Inc. - AGPL-3.0-or-later (see LICENSE).
  * Copied as css/themes.css into each page folder, loaded after style.css and brands.css (LittleLink) and before accent.css
  * (PAGE_n_ACCENT keeps the last word on the default buttons). No external font, image or script: the Content-Security-Policy
@@ -22,24 +22,30 @@
  *   console   the Linux text console: black, grey, boot messages "[  OK  ]" before the buttons  (dark base)
  *   retro     warm retro groove (colours of the gruvbox palette, MIT, Pavel Pertsev)      (dark base)
  *   solar     light and precise (colours of the Solarized palette, MIT, Ethan Schoonover) (light base)
+ * 1.55, soft and floral themes:
+ *   blossom   cherry blossom: pale pink, flowers under the title, deep pink buttons      (light base)
+ *   lavender  lavender fields: lilac light, violet pill buttons                          (light base)
+ *   pastel    peach, mint and lilac pastels, white pill buttons with a coloured border  (light base)
+ *   rosegold  rose gold: warm cream, gradient buttons from rose to gold                  (light base)
+ *   berry     berries at night: deep plum, raspberry pink buttons                        (dark base)
  */
 
-/* ---- common to the 15 themes (one selector per theme, built from the list) --------------- */
-:root.theme-aurora body, :root.theme-maple body, :root.theme-river body, :root.theme-terminal body, :root.theme-tux body, :root.theme-quebec body, :root.theme-boreal body, :root.theme-sunset body, :root.theme-winter body, :root.theme-photo body, :root.theme-amber body, :root.theme-arctic body, :root.theme-console body, :root.theme-retro body, :root.theme-solar body {
+/* ---- common to the 20 themes (one selector per theme, built from the list) --------------- */
+:root.theme-aurora body, :root.theme-maple body, :root.theme-river body, :root.theme-terminal body, :root.theme-tux body, :root.theme-quebec body, :root.theme-boreal body, :root.theme-sunset body, :root.theme-winter body, :root.theme-photo body, :root.theme-amber body, :root.theme-arctic body, :root.theme-console body, :root.theme-retro body, :root.theme-solar body, :root.theme-blossom body, :root.theme-lavender body, :root.theme-pastel body, :root.theme-rosegold body, :root.theme-berry body {
 	min-height: 100vh;
 	background-attachment: fixed;
 }
-:root.theme-aurora .button, :root.theme-maple .button, :root.theme-river .button, :root.theme-terminal .button, :root.theme-tux .button, :root.theme-quebec .button, :root.theme-boreal .button, :root.theme-sunset .button, :root.theme-winter .button, :root.theme-photo .button, :root.theme-amber .button, :root.theme-arctic .button, :root.theme-console .button, :root.theme-retro .button, :root.theme-solar .button {
+:root.theme-aurora .button, :root.theme-maple .button, :root.theme-river .button, :root.theme-terminal .button, :root.theme-tux .button, :root.theme-quebec .button, :root.theme-boreal .button, :root.theme-sunset .button, :root.theme-winter .button, :root.theme-photo .button, :root.theme-amber .button, :root.theme-arctic .button, :root.theme-console .button, :root.theme-retro .button, :root.theme-solar .button, :root.theme-blossom .button, :root.theme-lavender .button, :root.theme-pastel .button, :root.theme-rosegold .button, :root.theme-berry .button {
 	transition: transform 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease;
 }
-:root.theme-aurora .button:hover, :root.theme-maple .button:hover, :root.theme-river .button:hover, :root.theme-terminal .button:hover, :root.theme-tux .button:hover, :root.theme-quebec .button:hover, :root.theme-boreal .button:hover, :root.theme-sunset .button:hover, :root.theme-winter .button:hover, :root.theme-photo .button:hover, :root.theme-amber .button:hover, :root.theme-arctic .button:hover, :root.theme-console .button:hover, :root.theme-retro .button:hover, :root.theme-solar .button:hover {
+:root.theme-aurora .button:hover, :root.theme-maple .button:hover, :root.theme-river .button:hover, :root.theme-terminal .button:hover, :root.theme-tux .button:hover, :root.theme-quebec .button:hover, :root.theme-boreal .button:hover, :root.theme-sunset .button:hover, :root.theme-winter .button:hover, :root.theme-photo .button:hover, :root.theme-amber .button:hover, :root.theme-arctic .button:hover, :root.theme-console .button:hover, :root.theme-retro .button:hover, :root.theme-solar .button:hover, :root.theme-blossom .button:hover, :root.theme-lavender .button:hover, :root.theme-pastel .button:hover, :root.theme-rosegold .button:hover, :root.theme-berry .button:hover {
 	transform: translateY(-2px);
 }
 @media (prefers-reduced-motion: reduce) {
-	:root.theme-aurora .button, :root.theme-maple .button, :root.theme-river .button, :root.theme-terminal .button, :root.theme-tux .button, :root.theme-quebec .button, :root.theme-boreal .button, :root.theme-sunset .button, :root.theme-winter .button, :root.theme-photo .button, :root.theme-amber .button, :root.theme-arctic .button, :root.theme-console .button, :root.theme-retro .button, :root.theme-solar .button {
+	:root.theme-aurora .button, :root.theme-maple .button, :root.theme-river .button, :root.theme-terminal .button, :root.theme-tux .button, :root.theme-quebec .button, :root.theme-boreal .button, :root.theme-sunset .button, :root.theme-winter .button, :root.theme-photo .button, :root.theme-amber .button, :root.theme-arctic .button, :root.theme-console .button, :root.theme-retro .button, :root.theme-solar .button, :root.theme-blossom .button, :root.theme-lavender .button, :root.theme-pastel .button, :root.theme-rosegold .button, :root.theme-berry .button {
 		transition: none;
 	}
-	:root.theme-aurora .button:hover, :root.theme-maple .button:hover, :root.theme-river .button:hover, :root.theme-terminal .button:hover, :root.theme-tux .button:hover, :root.theme-quebec .button:hover, :root.theme-boreal .button:hover, :root.theme-sunset .button:hover, :root.theme-winter .button:hover, :root.theme-photo .button:hover, :root.theme-amber .button:hover, :root.theme-arctic .button:hover, :root.theme-console .button:hover, :root.theme-retro .button:hover, :root.theme-solar .button:hover {
+	:root.theme-aurora .button:hover, :root.theme-maple .button:hover, :root.theme-river .button:hover, :root.theme-terminal .button:hover, :root.theme-tux .button:hover, :root.theme-quebec .button:hover, :root.theme-boreal .button:hover, :root.theme-sunset .button:hover, :root.theme-winter .button:hover, :root.theme-photo .button:hover, :root.theme-amber .button:hover, :root.theme-arctic .button:hover, :root.theme-console .button:hover, :root.theme-retro .button:hover, :root.theme-solar .button:hover, :root.theme-blossom .button:hover, :root.theme-lavender .button:hover, :root.theme-pastel .button:hover, :root.theme-rosegold .button:hover, :root.theme-berry .button:hover {
 		transform: none;
 	}
 }
@@ -524,3 +530,173 @@
 :root.theme-solar a:not(.button) { color: #1b6699; }
 :root.theme-solar a:not(.button):hover { color: #073642; }
 :root.theme-solar :focus-visible { outline: 2px solid #cb4b16; outline-offset: 2px; }
+
+/* ---- blossom: cherry blossom ---------------------------------------------------------------- */
+:root.theme-blossom {
+	color-scheme: light;
+}
+:root.theme-blossom body {
+	background-color: #fdeef3;
+	background-image: radial-gradient(circle at 15% 10%, #ffd6e4 0, transparent 35%), radial-gradient(circle at 85% 90%, #ffe3ec 0, transparent 40%);
+	color: #4a2333;
+}
+:root.theme-blossom h1 {
+	color: #b0305e;
+}
+:root.theme-blossom h1::after {
+	content: "\273F  \273F  \273F";
+	display: block;
+	margin-top: 0.4rem;
+	font-size: 1rem;
+	letter-spacing: 0.3rem;
+	color: #e88aab;
+	white-space: pre;
+}
+:root.theme-blossom .button.button-default {
+	--button-text: #ffffff;
+	--button-background: #b03462;
+	--button-border: 1px solid #b03462;
+	border-radius: 1.5rem;
+}
+:root.theme-blossom .button:hover {
+	box-shadow: 0 6px 16px rgba(176, 52, 98, 0.3);
+}
+:root.theme-blossom a:not(.button) { color: #a42d58; }
+:root.theme-blossom a:not(.button):hover { color: #4a2333; }
+:root.theme-blossom :focus-visible { outline: 2px solid #b03462; outline-offset: 2px; }
+
+/* ---- lavender: lavender fields -------------------------------------------------------------- */
+:root.theme-lavender {
+	color-scheme: light;
+}
+:root.theme-lavender body {
+	background-color: #efe9fb;
+	background-image: linear-gradient(180deg, #f6f2fd 0%, #e4dcf7 100%);
+	color: #3b2f5c;
+}
+:root.theme-lavender h1 {
+	color: #5b3fa0;
+}
+:root.theme-lavender h1::after {
+	content: "";
+	display: block;
+	width: 4rem;
+	height: 0.3rem;
+	margin: 0.75rem auto 0;
+	border-radius: 0.2rem;
+	background: linear-gradient(90deg, #b9a3ea, #6c4fb8);
+}
+:root.theme-lavender .button.button-default {
+	--button-text: #ffffff;
+	--button-background: #6c4fb8;
+	--button-border: 1px solid #6c4fb8;
+	border-radius: 999px;
+}
+:root.theme-lavender .button:hover {
+	box-shadow: 0 6px 16px rgba(108, 79, 184, 0.3);
+}
+:root.theme-lavender a:not(.button) { color: #5b3fa0; }
+:root.theme-lavender a:not(.button):hover { color: #3b2f5c; }
+:root.theme-lavender :focus-visible { outline: 2px solid #6c4fb8; outline-offset: 2px; }
+
+/* ---- pastel: peach, mint and lilac ---------------------------------------------------------- */
+:root.theme-pastel {
+	color-scheme: light;
+}
+:root.theme-pastel body {
+	background-color: #fdf3ec;
+	background-image: linear-gradient(135deg, #fde3d6 0%, #e3f6ef 50%, #ece6fb 100%);
+	color: #3a3a4a;
+}
+:root.theme-pastel h1 {
+	color: #3a3a4a;
+}
+:root.theme-pastel h1::after {
+	content: "";
+	display: block;
+	width: 6rem;
+	height: 0.35rem;
+	margin: 0.75rem auto 0;
+	border-radius: 0.2rem;
+	background: linear-gradient(90deg, #f4a7b9 0 33%, #a8e0cc 33% 66%, #c3b4f0 66% 100%);
+}
+:root.theme-pastel .button.button-default {
+	--button-text: #3a3a4a;
+	--button-background: #ffffff;
+	--button-border: 2px solid #f4a7b9;
+	border-radius: 999px;
+}
+:root.theme-pastel .button-stack .button.button-default:nth-child(3n+2) { --button-border: 2px solid #a8e0cc; }
+:root.theme-pastel .button-stack .button.button-default:nth-child(3n) { --button-border: 2px solid #c3b4f0; }
+:root.theme-pastel .button:hover {
+	box-shadow: 0 6px 16px rgba(58, 58, 74, 0.15);
+}
+:root.theme-pastel a:not(.button) { color: #7a3fc0; }
+:root.theme-pastel a:not(.button):hover { color: #3a3a4a; }
+:root.theme-pastel .button.button-default .icon {
+	filter: invert(1) hue-rotate(180deg);   /* the white icons of LittleLink on a light button: dark, the colours kept */
+}
+:root.theme-pastel :focus-visible { outline: 2px solid #7a3fc0; outline-offset: 2px; }
+
+/* ---- rosegold: rose gold -------------------------------------------------------------------- */
+:root.theme-rosegold {
+	color-scheme: light;
+}
+:root.theme-rosegold body {
+	background-color: #f8ece6;
+	background-image: radial-gradient(ellipse 90% 50% at 50% 0%, #fdf5f0 0%, #f8ece6 70%);
+	color: #4a3530;
+}
+:root.theme-rosegold h1 {
+	color: #8c4a3c;
+}
+:root.theme-rosegold h1::after {
+	content: "";
+	display: block;
+	width: 4rem;
+	height: 0.25rem;
+	margin: 0.75rem auto 0;
+	border-radius: 0.2rem;
+	background: linear-gradient(90deg, #b76e79, #d4a373);
+}
+:root.theme-rosegold .button.button-default {
+	--button-text: #ffffff;
+	--button-background: #9e4f5c;
+	--button-border: 1px solid #9e4f5c;
+	background-image: linear-gradient(135deg, #9e4f5c 0%, #8a5a2b 100%);
+	border-radius: 0.6rem;
+}
+:root.theme-rosegold .button:hover {
+	box-shadow: 0 6px 16px rgba(158, 79, 92, 0.3);
+}
+:root.theme-rosegold a:not(.button) { color: #8c4a3c; }
+:root.theme-rosegold a:not(.button):hover { color: #4a3530; }
+:root.theme-rosegold :focus-visible { outline: 2px solid #9e4f5c; outline-offset: 2px; }
+
+/* ---- berry: berries at night ---------------------------------------------------------------- */
+:root.theme-berry {
+	color-scheme: dark;
+}
+:root.theme-berry body {
+	background-color: #2a0f24;
+	background-image: radial-gradient(ellipse 90% 50% at 50% 0%, #4a1740 0%, #2a0f24 70%);
+	color: #f6e6f0;
+}
+:root.theme-berry h1 {
+	color: #ff8fc7;
+}
+:root.theme-berry .button.button-default {
+	--button-text: #2a0f24;
+	--button-background: #ff8fc7;
+	--button-border: 1px solid #ff8fc7;
+	border-radius: 1.5rem;
+}
+:root.theme-berry .button:hover {
+	box-shadow: 0 6px 16px rgba(255, 143, 199, 0.35);
+}
+:root.theme-berry a:not(.button) { color: #ffb3d9; }
+:root.theme-berry a:not(.button):hover { color: #ffffff; }
+:root.theme-berry .button.button-default .icon {
+	filter: invert(1) hue-rotate(180deg);   /* the white icons of LittleLink on a light button: dark, the colours kept */
+}
+:root.theme-berry :focus-visible { outline: 2px solid #ffb3d9; outline-offset: 2px; }

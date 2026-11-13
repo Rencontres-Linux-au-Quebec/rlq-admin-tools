@@ -29,7 +29,7 @@
 set -u
 LANG_C="${LC_ALL:-${LC_MESSAGES:-${LANG:-C}}}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
-readonly SCRIPT_VERSION="1.54.20261113.165847"
+readonly SCRIPT_VERSION="1.55.20261113.170312"
 readonly SCRIPT_NAME="nginx-link-page"
 # --config-merge: same rule as the other programs (apps/_config.py fusionner): the configuration file is rewritten from the new template,
 # keeping its active values; the old file is copied to FILE.bak-YYYYMMDD-HHMMSS. Then exit.
@@ -63,13 +63,13 @@ readonly LINKPAGE_EXT_SHA="d7034f83a6bf71c4a663d2d046a03b37ec74ae45"
 readonly MAX_ASSET_BYTES=524288
 # 1.15: themes of PAGE_n_THEME: the 3 of LittleLink, then the 5 of apps/link-page-themes.css (copied as css/themes.css into each page)
 # 1.16: and the 4 LinkStack themes adapted in apps/link-page-themes/ (linkstack.css, images, fonts; MIT and OFL, LICENSES.md)
-readonly THEMES_RE="auto|light|dark|aurora|maple|river|terminal|tux|quebec|boreal|sunset|winter|photo|amber|arctic|console|retro|solar|tux-quebec|tux-flag|tux-poster|ls-aurora|ls-dark|ls-dawn|ls-misty-rain"
-readonly THEMES_LISTE="auto, light, dark, aurora, maple, river, terminal, tux, quebec, boreal, sunset, winter, photo, amber, arctic, console, retro, solar, ls-aurora, ls-dark, ls-dawn ou ls-misty-rain ; all : tous, l'un après l'autre"
+readonly THEMES_RE="auto|light|dark|aurora|maple|river|terminal|tux|quebec|boreal|sunset|winter|photo|amber|arctic|console|retro|solar|blossom|lavender|pastel|rosegold|berry|tux-quebec|tux-flag|tux-poster|ls-aurora|ls-dark|ls-dawn|ls-misty-rain"
+readonly THEMES_LISTE="auto, light, dark, aurora, maple, river, terminal, tux, quebec, boreal, sunset, winter, photo, amber, arctic, console, retro, solar, blossom, lavender, pastel, rosegold, berry, ls-aurora, ls-dark, ls-dawn ou ls-misty-rain ; all : tous, l'un après l'autre"
 readonly THEMES_CSS="$SCRIPT_DIR/apps/link-page-themes.css"
 # themes of link-page-themes.css (1.15: 5 themes; 1.21: 5 more; 1.41: photo, whose image is given by PAGE_n_BACKGROUND)
 # 1.41: old names of the themes with the images of one group (removed from the repository): read as photo
 readonly THEMES_ANCIENS="tux-quebec|tux-flag|tux-poster"
-readonly THEMES_MAISON="aurora|maple|river|terminal|tux|quebec|boreal|sunset|winter|photo|amber|arctic|console|retro|solar"
+readonly THEMES_MAISON="aurora|maple|river|terminal|tux|quebec|boreal|sunset|winter|photo|amber|arctic|console|retro|solar|blossom|lavender|pastel|rosegold|berry"
 readonly THEMES_LINKSTACK="$SCRIPT_DIR/apps/link-page-themes"
 # 1.17: "Theme" button (PAGE_n_THEMES): style sheet copied as css/theme-menu.css; "all" = every theme of THEMES_RE
 readonly THEME_MENU_CSS="$SCRIPT_DIR/apps/link-page-theme-menu.css"
@@ -79,7 +79,7 @@ readonly LINK_MENU_CSS="$SCRIPT_DIR/apps/link-page-link-menu.css"
 readonly EXTRAS_CSS="$SCRIPT_DIR/apps/link-page-extras.css"
 # 1.18: script of the pages (PAGE_n_SCRIPT): theme in place and remembered, language remembered, "Share" button; copied as js/link-page.js
 readonly LINK_PAGE_JS="$SCRIPT_DIR/apps/link-page.js"
-readonly THEMES_TOUS="auto light dark aurora maple river terminal tux quebec boreal sunset winter photo amber arctic console retro solar ls-aurora ls-dark ls-dawn ls-misty-rain"
+readonly THEMES_TOUS="auto light dark aurora maple river terminal tux quebec boreal sunset winter photo amber arctic console retro solar blossom lavender pastel rosegold berry ls-aurora ls-dark ls-dawn ls-misty-rain"
 # themes_offerts VALUE: the themes of PAGE_n_THEMES, one per word, without duplicates, in the given order ("all": THEMES_TOUS)
 themes_offerts() {
     local v="${1// /}" t u vus=" "
@@ -1385,24 +1385,27 @@ theme_nom() {
                      terminal) echo terminal ;; tux) echo Tux ;; ls-aurora) echo "Aurora (LinkStack)" ;; ls-dark) echo "Dark (LinkStack)" ;;
                      quebec) echo "Quebec flag" ;; boreal) echo "boreal forest" ;; sunset) echo sunset ;; winter) echo winter ;; photo) echo photo ;;
                      amber) echo "amber screen" ;; arctic) echo arctic ;; console) echo "Linux console" ;; retro) echo retro ;; solar) echo solar ;;
+                     blossom) echo "cherry blossom" ;; lavender) echo lavender ;; pastel) echo pastel ;; rosegold) echo "rose gold" ;; berry) echo berries ;;
                      ls-dawn) echo "Dawn (LinkStack)" ;; ls-misty-rain) echo "Misty Rain (LinkStack)" ;; *) echo automatic ;; esac
     else
         case "$1" in light) echo clair ;; dark) echo sombre ;; aurora) echo "aurore boréale" ;; maple) echo érable ;; river) echo fleuve ;;
                      terminal) echo terminal ;; tux) echo Tux ;; ls-aurora) echo "Aurora (LinkStack)" ;; ls-dark) echo "Dark (LinkStack)" ;;
                      quebec) echo fleurdelisé ;; boreal) echo "forêt boréale" ;; sunset) echo "coucher de soleil" ;; winter) echo hiver ;; photo) echo photo ;;
                      amber) echo "écran ambre" ;; arctic) echo arctique ;; console) echo "console Linux" ;; retro) echo rétro ;; solar) echo solaire ;;
+                     blossom) echo "fleurs de cerisier" ;; lavender) echo lavande ;; pastel) echo pastel ;; rosegold) echo "or rose" ;; berry) echo "petits fruits" ;;
                      ls-dawn) echo "Dawn (LinkStack)" ;; ls-misty-rain) echo "Misty Rain (LinkStack)" ;; *) echo automatique ;; esac
     fi
 }
 # theme_base THEME: light or dark (choice of the icons of LINK_n_ICON_DARK, theme of the second page with PAGE_n_SWITCH), auto for auto
 theme_base() {
-    case "$1" in dark|aurora|terminal|tux|quebec|boreal|sunset|amber|arctic|console|retro|ls-*) echo dark ;; light|maple|river|winter|photo|solar) echo light ;; *) echo auto ;; esac
+    case "$1" in dark|aurora|terminal|tux|quebec|boreal|sunset|amber|arctic|console|retro|berry|ls-*) echo dark ;; light|maple|river|winter|photo|solar|blossom|lavender|pastel|rosegold) echo light ;; *) echo auto ;; esac
 }
 # theme_couleur THEME: colour of the browser bar (meta theme-color) of the 5 themes of link-page-themes.css
 theme_couleur() {
     case "$1" in aurora) echo "#0b1026" ;; maple) echo "#b3261e" ;; river) echo "#0e6b7f" ;; terminal) echo "#050805" ;; tux) echo "#1c1f24" ;;
                  quebec) echo "#003da5" ;; boreal) echo "#0f2318" ;; sunset) echo "#2b1a4a" ;; winter) echo "#dcebf7" ;; photo) echo "#1f3a5f" ;;
                  amber) echo "#100a00" ;; arctic) echo "#2e3440" ;; console) echo "#000000" ;; retro) echo "#282828" ;; solar) echo "#fdf6e3" ;;
+                 blossom) echo "#fdeef3" ;; lavender) echo "#efe9fb" ;; pastel) echo "#fdf3ec" ;; rosegold) echo "#f8ece6" ;; berry) echo "#2a0f24" ;;
                  ls-aurora) echo "#24123d" ;; ls-dark) echo "#1f232e" ;; ls-dawn) echo "#223344" ;; ls-misty-rain) echo "#181b24" ;; esac
 }
 bascule_libelle() {
