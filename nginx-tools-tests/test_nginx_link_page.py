@@ -100,7 +100,8 @@ class Base(unittest.TestCase):
 
     def lancer(self, *args, env=None):
         e = {"PATH": os.environ["PATH"], "HOME": str(self.home), "LANG": "C",
-             "NGINX_LINK_PAGE_ETC_DEFAULT": str(self.etc), "NGINX_LINK_PAGE_SHARED_DIR": str(self.tmp / "www" / "commun")}
+             "NGINX_LINK_PAGE_ETC_DEFAULT": str(self.etc), "NGINX_LINK_PAGE_SHARED_DIR": str(self.tmp / "www" / "commun"),
+             "NGINX_LINK_PAGE_ACCESS_DIR": str(self.tmp / "acces"), "NGINX_LINK_PAGE_PRIVATE_DIR": str(self.tmp / "prive")}
         e.update(env or {})
         return subprocess.run(["bash", str(PROG), *args], capture_output=True, text=True, env=e, timeout=120)
 
@@ -1018,6 +1019,95 @@ printf '\\211PNG\\r\\n\\032\\nxxxx' > "$out"; printf '200 12'; exit 0
                 self.assertNotEqual(r.returncode, 0)
                 self.assertIn(attendu, r.stderr)
         self.assertTrue((autre / "photo.jpg").exists())
+
+    def mot_de_passe(self, *args, entree="mot-de-passe-solide-42\n"):
+        e = {"PATH": os.environ["PATH"], "HOME": str(self.home), "LANG": "C", "NGINX_LINK_PAGE_ETC_DEFAULT": str(self.etc),
+             "NGINX_LINK_PAGE_ACCESS_DIR": str(self.tmp / "acces")}
+        return subprocess.run(["bash", str(PROG), *args], input=entree, capture_output=True, text=True, env=e, timeout=60)
+
+    def test_150_comptes_des_groupes_d_acces(self):
+        """1.50 : --password GROUPE COMPTE (mot de passe lu sur l'entrée, jamais en argument), --password-delete, --password-list ;
+        empreinte SHA-512 salée ($6$), fichier 640, jamais le mot de passe en clair."""
+        fichier = self.tmp / "acces" / "benevoles.htpasswd"
+        r = self.mot_de_passe("--password", "benevoles", "marie", entree="court\n")
+        self.assertEqual(r.returncode, 1)
+        self.assertIn("mot de passe de 12 à 128 caractères", r.stderr)
+        self.assertFalse(fichier.exists())
+        for compte in ("marie", "paul"):
+            r = self.mot_de_passe("--password", "benevoles", compte)
+            self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        texte = fichier.read_text(encoding="utf-8")
+        self.assertRegex(texte, r"(?m)^marie:\$6\$[^:\n]+$")
+        self.assertNotIn("mot-de-passe-solide-42", texte)
+        self.assertEqual(oct(fichier.stat().st_mode & 0o777), "0o640")
+        r = self.mot_de_passe("--password", "benevoles", "marie", entree="un-autre-mot-de-passe\n")      # change: one line kept
+        self.assertEqual(texte.count("marie:"), 1)
+        self.assertNotEqual(fichier.read_text(encoding="utf-8"), texte)
+        r = self.mot_de_passe("--password-list")
+        self.assertIn("benevoles : marie paul (2 compte(s))", r.stdout)
+        self.assertNotIn("$6$", r.stdout)
+        r = self.mot_de_passe("--password-delete", "benevoles", "paul")
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertNotIn("paul:", fichier.read_text(encoding="utf-8"))
+        for args in (("--password", "Bénévoles", "marie"), ("--password", "benevoles", "a b"), ("--password", "benevoles")):
+            with self.subTest(args=args):
+                self.assertNotEqual(self.mot_de_passe(*args).returncode, 0)
+
+    def test_150_lien_et_menu_proteges(self):
+        """1.50 : LINK_n_ACCESS : l'adresse d'un lien protégé (ou les liens d'un menu protégé) n'est jamais dans la page publique ni dans
+        une redirection publique (go/N) ; nginx demande le mot de passe (auth_basic) avant de servir la page protégée, gardée hors des
+        dossiers des pages ; un lien d'un menu ne peut pas avoir son propre accès ; un groupe sans compte est refusé."""
+        texte = self.config_deux_pages("no") + """LINK_2_ACCESS=benevoles
+LINK_2_URL=https://secret.example.org/reunion
+LINK_3_LABEL=Documents internes
+LINK_3_ACCESS=benevoles
+LINK_4_LABEL=Procès-verbaux
+LINK_4_URL=https://secret2.example.org/pv
+LINK_4_MENU=3
+PAGE_1_CLICKS=yes
+PAGE_1_LANGUAGES=fr,en
+"""
+        texte = texte.replace("LINK_2_URL=https://example.org/b\n", "")
+        r = self.lancer("-c", str(self.conf(texte)), "--check")
+        self.assertNotEqual(r.returncode, 0)
+        self.assertIn("LINK_2_ACCESS=benevoles : aucun compte dans ce groupe : sudo nginx-link-page.sh --password benevoles NOM", r.stderr)
+        self.assertEqual(self.mot_de_passe("--password", "benevoles", "marie").returncode, 0)
+        r = self.lancer("-c", str(self.conf(texte)), "--update", "--yes", env=self.env)
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertIn("Full (strict)", r.stdout)
+        for f in (self.www / "liens").rglob("*"):                         # nothing protected in the public folder
+            if f.is_file():
+                contenu = f.read_text(encoding="utf-8", errors="replace")
+                self.assertNotIn("secret", contenu, f)
+        public = (self.www / "liens" / "index.html").read_text(encoding="utf-8")
+        self.assertIn('href="/liens/p/2/"', public)
+        self.assertIn('href="/liens/p/3/"', public)
+        self.assertIn('href="/liens/p/3/en/"', (self.www / "liens" / "en" / "index.html").read_text(encoding="utf-8"))
+        self.assertNotIn("Procès-verbaux", public)
+        prive = self.tmp / "prive"
+        self.assertIn('content="0; url=https://secret.example.org/reunion"', (prive / "1" / "2" / "index.html").read_text(encoding="utf-8"))
+        menu = (prive / "1" / "3" / "index.html").read_text(encoding="utf-8")
+        self.assertIn("https://secret2.example.org/pv", menu)
+        self.assertIn('href="/liens/"', menu)                                                  # back to the page
+        self.assertTrue((prive / "1" / "3" / "en" / "index.html").exists())
+        self.assertEqual(oct((prive / "1").stat().st_mode & 0o777), "0o750")
+        self.assertEqual(oct((prive / "1" / "2" / "index.html").stat().st_mode & 0o777), "0o640")
+        snippet = (self.snippets / "liens-publics.conf").read_text(encoding="utf-8")
+        self.assertNotIn("secret", snippet)                                                     # no public redirection (go/N)
+        bloc = snippet[snippet.index("location ^~ /liens/p/2/ {"):]
+        bloc = bloc[:bloc.index("\n}\n")]
+        self.assertIn(f"auth_basic_user_file {self.tmp / 'acces'}/benevoles.htpasswd;", bloc)
+        self.assertIn(f"alias {prive}/1/2/;", bloc)
+        self.assertIn('add_header Cache-Control "private, no-store" always;', bloc)
+        self.assertNotIn("return", bloc)                                                        # a return would come before the password
+        self.assertLess(snippet.index("location ^~ /liens/p/3/ {"), snippet.index("location ^~ /liens/ {"))
+        self.assertIn("location = /liens/go/1 {", snippet)                                      # the public links are still counted
+        # a link of a menu cannot have its own access; nothing protected any more: the private folder is removed
+        r = self.lancer("-c", str(self.conf(texte + "LINK_4_ACCESS=benevoles\n")), "--check")
+        self.assertIn("LINK_4_ACCESS : le lien est dans le menu LINK_3, mettre LINK_3_ACCESS sur le menu", r.stderr)
+        r = self.lancer("-c", str(self.conf(self.config_deux_pages("no"))), "--update", "--yes", env=self.env)
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertFalse(prive.exists())
 
     def test_133_rollback(self):
         """1.33 : --update garde la version précédente (pages, fragment, tâche quotidienne) ; --rollback la remet, même avec une
