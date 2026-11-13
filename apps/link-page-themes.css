@@ -1,5 +1,5 @@
 /*
- * link-page-themes.css - 10 additional themes for the link pages of nginx-link-page.sh (PAGE_n_THEME).
+ * link-page-themes.css - 12 additional themes for the link pages of nginx-link-page.sh (PAGE_n_THEME).
  * Copyright (C) 2026 Services-Conseils Linux Inc. - AGPL-3.0-or-later (see LICENSE).
  * Copied as css/themes.css into each page folder, loaded after style.css and brands.css (LittleLink) and before accent.css
  * (PAGE_n_ACCENT keeps the last word on the default buttons). No external font, image or script: the Content-Security-Policy
@@ -12,28 +12,32 @@
  *   tux       charcoal and penguin orange, white text                                      (dark base)
  *   tux-quebec  the Tux of the Rencontres (fleur-de-lys), blurred and pale, as background    (light base)
  *               image: ../images/themes/tux-quebec.jpg (apps/link-page-themes/images/, see LICENSES.md)
- *   quebec    flag of Quebec: deep blue, white buttons, fleur-de-lys pattern               (dark base)
+ *   quebec    flag of Quebec: deep blue, navy buttons with a white border                  (dark base)
  *   boreal    boreal forest: dark green, birch white, moss buttons                         (dark base)
  *   sunset    sunset on the river: orange, pink and violet sky, white glass buttons        (dark base)
- *   winter    Quebec winter: snow white and ice blue, frosted buttons                      (light base)
+ *   winter    Quebec winter: snow white and ice blue buttons, snowflakes                   (light base)
+ *   tux-flag  the Tux of the Rencontres before the flag of Quebec, blurred and pale, as background (light base)
+ *             image: ../images/themes/tux-flag.jpg (apps/link-page-themes/images/, see LICENSES.md)
+ *   tux-poster  the poster of the Rencontres (Tux before the flag, name below), blurred and pale    (light base)
+ *               image: ../images/themes/tux-poster.jpg (apps/link-page-themes/images/, see LICENSES.md)
  */
 
-/* ---- common to the 10 themes --------------------------------------------------------------- */
-:root.theme-aurora body, :root.theme-maple body, :root.theme-river body, :root.theme-terminal body, :root.theme-tux body, :root.theme-tux-quebec body, :root.theme-quebec body, :root.theme-boreal body, :root.theme-sunset body, :root.theme-winter body {
+/* ---- common to the 12 themes (one selector per theme, built from the list) --------------- */
+:root.theme-aurora body, :root.theme-maple body, :root.theme-river body, :root.theme-terminal body, :root.theme-tux body, :root.theme-tux-quebec body, :root.theme-quebec body, :root.theme-boreal body, :root.theme-sunset body, :root.theme-winter body, :root.theme-tux-flag body, :root.theme-tux-poster body {
 	min-height: 100vh;
 	background-attachment: fixed;
 }
-:root.theme-aurora .button, :root.theme-maple .button, :root.theme-river .button, :root.theme-terminal .button, :root.theme-tux .button, :root.theme-tux-quebec .button, :root.theme-quebec .button, :root.theme-boreal .button, :root.theme-sunset .button, :root.theme-winter .button {
+:root.theme-aurora .button, :root.theme-maple .button, :root.theme-river .button, :root.theme-terminal .button, :root.theme-tux .button, :root.theme-tux-quebec .button, :root.theme-quebec .button, :root.theme-boreal .button, :root.theme-sunset .button, :root.theme-winter .button, :root.theme-tux-flag .button, :root.theme-tux-poster .button {
 	transition: transform 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease;
 }
-:root.theme-aurora .button:hover, :root.theme-maple .button:hover, :root.theme-river .button:hover, :root.theme-terminal .button:hover, :root.theme-tux .button:hover, :root.theme-tux-quebec .button:hover, :root.theme-quebec .button:hover, :root.theme-boreal .button:hover, :root.theme-sunset .button:hover, :root.theme-winter .button:hover {
+:root.theme-aurora .button:hover, :root.theme-maple .button:hover, :root.theme-river .button:hover, :root.theme-terminal .button:hover, :root.theme-tux .button:hover, :root.theme-tux-quebec .button:hover, :root.theme-quebec .button:hover, :root.theme-boreal .button:hover, :root.theme-sunset .button:hover, :root.theme-winter .button:hover, :root.theme-tux-flag .button:hover, :root.theme-tux-poster .button:hover {
 	transform: translateY(-2px);
 }
 @media (prefers-reduced-motion: reduce) {
-	:root.theme-aurora .button, :root.theme-maple .button, :root.theme-river .button, :root.theme-terminal .button, :root.theme-tux .button, :root.theme-tux-quebec .button, :root.theme-quebec .button, :root.theme-boreal .button, :root.theme-sunset .button, :root.theme-winter .button {
+	:root.theme-aurora .button, :root.theme-maple .button, :root.theme-river .button, :root.theme-terminal .button, :root.theme-tux .button, :root.theme-tux-quebec .button, :root.theme-quebec .button, :root.theme-boreal .button, :root.theme-sunset .button, :root.theme-winter .button, :root.theme-tux-flag .button, :root.theme-tux-poster .button {
 		transition: none;
 	}
-	:root.theme-aurora .button:hover, :root.theme-maple .button:hover, :root.theme-river .button:hover, :root.theme-terminal .button:hover, :root.theme-tux .button:hover, :root.theme-tux-quebec .button:hover, :root.theme-quebec .button:hover, :root.theme-boreal .button:hover, :root.theme-sunset .button:hover, :root.theme-winter .button:hover {
+	:root.theme-aurora .button:hover, :root.theme-maple .button:hover, :root.theme-river .button:hover, :root.theme-terminal .button:hover, :root.theme-tux .button:hover, :root.theme-tux-quebec .button:hover, :root.theme-quebec .button:hover, :root.theme-boreal .button:hover, :root.theme-sunset .button:hover, :root.theme-winter .button:hover, :root.theme-tux-flag .button:hover, :root.theme-tux-poster .button:hover {
 		transform: none;
 	}
 }
@@ -244,9 +248,9 @@
 	content: "\269C\FE0E  ";               /* fleur-de-lys, text style */
 }
 :root.theme-quebec .button.button-default {
-	--button-text: #003da5;
-	--button-background: #ffffff;
-	--button-border: 1px solid #ffffff;
+	--button-text: #ffffff;                       /* the LittleLink icons are white: dark buttons, white border */
+	--button-background: #00256b;
+	--button-border: 2px solid #ffffff;
 	box-shadow: 0 4px 0 rgba(0, 0, 0, 0.18);
 }
 :root.theme-quebec .button:hover {
@@ -334,9 +338,9 @@
 	color: #1f4f7a;
 }
 :root.theme-winter .button.button-default {
-	--button-text: #1f4f7a;
-	--button-background: rgba(255, 255, 255, 0.85);
-	--button-border: 1px solid #a9c8e2;
+	--button-text: #ffffff;                       /* the LittleLink icons are white: ice blue buttons */
+	--button-background: #2b6ca3;
+	--button-border: 1px solid #1f5585;
 	border-radius: 0.9rem;
 	box-shadow: 0 4px 14px rgba(31, 79, 122, 0.12);
 }
@@ -346,3 +350,71 @@
 :root.theme-winter a:not(.button) { color: #1f5f96; }
 :root.theme-winter a:not(.button):hover { color: #0d3557; }
 :root.theme-winter :focus-visible { outline: 2px solid #3d8bd1; outline-offset: 2px; }
+
+/* ---- tux-flag: the Tux of the Rencontres before the flag of Quebec, blurred and pale ------- */
+:root.theme-tux-flag {
+	color-scheme: light;
+}
+:root.theme-tux-flag body {
+	background-color: #eef3fb;
+	background-image: url("../images/themes/tux-flag.jpg");
+	background-repeat: no-repeat;
+	background-position: 30% center;       /* the penguin stays in view on a phone */
+	background-size: cover;
+	color: #0d1d45;
+}
+:root.theme-tux-flag h1 {
+	color: #002c86;
+	text-shadow: 0 0 6px #ffffff, 0 0 18px #ffffff, 0 0 30px rgba(255, 255, 255, 0.9);
+}
+:root.theme-tux-flag .container p,
+:root.theme-tux-flag footer {
+	text-shadow: 0 0 6px #ffffff, 0 0 2px #ffffff;
+}
+:root.theme-tux-flag .button.button-default {
+	--button-text: #ffffff;                       /* the LittleLink icons are white: dark buttons */
+	--button-background: rgba(0, 44, 134, 0.84);
+	--button-border: 1px solid rgba(255, 255, 255, 0.70);
+	border-radius: 999px;
+	box-shadow: 0 4px 14px rgba(0, 31, 96, 0.18);
+}
+:root.theme-tux-flag .button:hover {
+	box-shadow: 0 8px 22px rgba(0, 31, 96, 0.28);
+}
+:root.theme-tux-flag a:not(.button) { color: #0033a0; }
+:root.theme-tux-flag a:not(.button):hover { color: #c77700; }
+:root.theme-tux-flag :focus-visible { outline: 2px solid #f2a900; outline-offset: 2px; }
+
+/* ---- tux-poster: the poster of the Rencontres (portrait), blurred and pale ------------------- */
+:root.theme-tux-poster {
+	color-scheme: light;
+}
+:root.theme-tux-poster body {
+	background-color: #f8fafd;              /* colour of the bottom of the image */
+	background-image: url("../images/themes/tux-poster.jpg");
+	background-repeat: no-repeat;
+	background-position: center 30%;       /* penguin and flag in view on a wide screen */
+	background-size: cover;
+	color: #0d1d45;
+}
+:root.theme-tux-poster h1 {
+	color: #002c86;
+	text-shadow: 0 0 6px #ffffff, 0 0 18px #ffffff, 0 0 30px rgba(255, 255, 255, 0.9);
+}
+:root.theme-tux-poster .container p,
+:root.theme-tux-poster footer {
+	text-shadow: 0 0 6px #ffffff, 0 0 2px #ffffff;
+}
+:root.theme-tux-poster .button.button-default {
+	--button-text: #ffffff;                       /* the LittleLink icons are white: dark buttons */
+	--button-background: rgba(0, 44, 134, 0.84);
+	--button-border: 1px solid rgba(255, 255, 255, 0.70);
+	border-radius: 0.8rem;
+	box-shadow: 0 4px 14px rgba(0, 31, 96, 0.18);
+}
+:root.theme-tux-poster .button:hover {
+	box-shadow: 0 8px 22px rgba(0, 31, 96, 0.28);
+}
+:root.theme-tux-poster a:not(.button) { color: #0033a0; }
+:root.theme-tux-poster a:not(.button):hover { color: #c77700; }
+:root.theme-tux-poster :focus-visible { outline: 2px solid #f2a900; outline-offset: 2px; }

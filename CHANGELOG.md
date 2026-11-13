@@ -4536,6 +4536,26 @@ Earlier history was archived outside this repository when this file was created.
 
 ## nginx-link-page.sh
 
+### 1.23.20261112.210025 - Theme tux-poster (blurred pale poster of the Rencontres); rules of winter repaired
+
+- Title: new theme tux-poster, whose background is the portrait poster of the Rencontres (Tux before the flag of Quebec, name below), blurred and pale; three rules of winter, damaged in 1.22, repaired.
+- Reason: request of the administrator on 2026-11-12: one more theme with the second provided image, blurred.
+- Changes: apps/link-page-themes.css (now 12 themes): tux-poster (image in cover, translucent Quebec blue buttons with rounded corners, glowing title); the common block (shared transitions and hover movement) is now built from the list of the themes, one selector per theme; new image apps/link-page-themes/images/tux-poster.jpg (40 KB: the image provided, 900 px wide, Gaussian blur, 45 % lightened, copied as images/themes/tux-poster.jpg); LICENSES.md: origin of the image; THEMES_MAISON, THEMES_RE, THEMES_LISTE, THEMES_TOUS (19 themes); theme_nom ("affiche Tux" / "Tux poster"), theme_base (light), theme_couleur; --check: tux-poster refused when its image is missing; nginx-link-page.conf.example: the theme described; nginx-tools-tests/test_nginx_link_page.py: 1 subtest, the three images checked, new check that each rule after the common block names only one theme; preview doc/images/link-page-theme-tux-poster.png (phone and computer width).
+- Bugs fixed: symptom: none visible in the previews, but the style sheet of 1.22 was wrong; diagnosis: tux-flag had been added to the common lists by a text replacement on ":root.theme-winter .button", which also matched the rules ".button.button-default" and ".button:hover" of winter (and "body"): the rule of the default buttons of winter applied to every winter button (brand buttons too), the hover movement of winter applied without hover, and the background of winter was also given to tux-flag; fix: the three rules of winter given back their own selector, the common block rebuilt from the list, and a test that refuses a rule naming two themes.
+- Safeguards and edge cases: nothing outside the page (the only url() of the style sheet are the three local images); the blurred name of the image stays behind the footer on a phone and never competes with the title; text shadows keep the description and the footer readable.
+- Checks performed: bash -n; shellcheck; test_nginx_link_page (57 tests); tux-poster rendered in Google Chrome at phone and computer width; winter compared with main (identical rules).
+- Action required: none (to use it: PAGE_n_THEME=tux-poster, or add it to PAGE_n_THEMES; then sudo nginx-link-page.sh --update --yes).
+
+### 1.22.20261112.205824 - Theme tux-flag (blurred pale Tux before the flag of Quebec); icons visible in quebec and winter
+
+- Title: new theme tux-flag, whose background is the image "Tux before the flag of Quebec" of the Rencontres, blurred and pale; the buttons of quebec and winter become dark so their icons show.
+- Reason: request of the administrator on 2026-11-12: one more theme with the provided image (Tux, flag of Quebec and the name of the Rencontres), blurred.
+- Changes: apps/link-page-themes.css (now 11 themes): tux-flag (image in cover, centred on the penguin, translucent Quebec blue buttons with a white border, glowing title); quebec: navy buttons with a white border (were white); winter: ice blue buttons with white text (were frosted white); new image apps/link-page-themes/images/tux-flag.jpg (36 KB: the image provided, 1200 px wide, Gaussian blur, 45 % lightened, copied as images/themes/tux-flag.jpg); LICENSES.md: origin of the image; THEMES_MAISON, THEMES_RE, THEMES_LISTE, THEMES_TOUS (18 themes); theme_nom ("Tux et drapeau du Québec" / "Tux and the Quebec flag"), theme_base (light), theme_couleur; --check: tux-flag refused when its image is missing; nginx-link-page.conf.example: the themes described; nginx-tools-tests/test_nginx_link_page.py: 1 subtest, the two images checked; preview doc/images/link-page-theme-tux-flag.png (tux-flag, quebec, winter).
+- Bugs fixed: symptom: in the themes quebec and winter (1.21), the calendar, LinkedIn, GitHub and blog icons did not show; diagnosis: the icons of LittleLink are white, and these two themes had white buttons; fix: dark buttons with white text (an icon filter is not used: it turns the YouTube logo into a plain block).
+- Safeguards and edge cases: nothing outside the page (the only url() of the style sheet are the two local images); the text of the image is blurred and never competes with the title; on a phone the image is centred on the penguin (background-position 30 %); text shadows keep the description and the footer readable.
+- Checks performed: bash -n; shellcheck; test_nginx_link_page (57 tests); tux-flag rendered in Google Chrome at phone and computer width, quebec and winter rendered again.
+- Action required: none (to use it: PAGE_n_THEME=tux-flag, or add it to PAGE_n_THEMES; then sudo nginx-link-page.sh --update --yes).
+
 ### 1.21.20261112.201948 - Five more themes: tux-quebec (blurred pale Tux as background), quebec, boreal, sunset, winter
 
 - Title: PAGE_n_THEME and PAGE_n_THEMES accept 5 new themes; tux-quebec uses the Tux with the fleur-de-lys of the Rencontres, blurred and pale, as background.
