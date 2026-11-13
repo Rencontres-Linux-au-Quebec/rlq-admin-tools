@@ -1203,6 +1203,53 @@ printf '\\211PNG\\r\\n\\032\\nxxxx' > "$out"; printf '200 12'; exit 0
         self.assertTrue(cote.exists())
         self.assertTrue((self.www / "liens" / "images" / "site" / "background.png").exists())
 
+    def test_144_cle_ecrite_deux_fois(self):
+        """1.44 : une clé écrite deux fois dans le même fichier est signalée ([ATTN]) avec ses deux lignes ; seule la dernière compte."""
+        conf = self.conf(MINIMAL + "LINK_1_LABEL=Premier\nLINK_1_LABEL=Second\n")
+        r = self.lancer("-c", str(conf), "--check")
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertRegex(r.stdout, rf"LINK_1_LABEL écrite deux fois \({re.escape(str(conf))}:[0-9]+:[0-9]+\) : seule la dernière ligne compte")
+        self.assertIn("Second", r.stdout)
+
+    def test_145_fusion_refusee_si_probleme(self):
+        """1.45 : --config-merge vérifie d'abord la configuration (comme --check) : un problème ou une clé écrite deux fois, la fusion est refusée et
+        le fichier n'est pas touché ; une configuration correcte est fusionnée."""
+        for texte, attendu in ((MINIMAL + "LINK_1_LABEL=Premier\nLINK_1_LABEL=Second\n", "LINK_1_LABEL écrite deux fois"),
+                               (MINIMAL + "PAGE_1_THEMS=all\n", "PAGE_1_THEMS (clé inconnue")):
+            conf = self.conf(texte)
+            r = self.lancer("-c", str(conf), "--config-merge")
+            self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
+            self.assertIn(attendu, r.stderr)
+            self.assertIn("Fusion refusée, rien n'est modifié", r.stderr)
+            self.assertEqual(conf.read_text(encoding="utf-8"), texte)
+            self.assertFalse(list(conf.parent.glob(conf.name + ".bak-*")))
+        conf = self.conf(MINIMAL)
+        r = self.lancer("-c", str(conf), "--config-merge")
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertIn("Configuration fusionnée", r.stdout)
+
+    def test_146_reference_de_toutes_les_cles(self):
+        """1.46 : la section 5 du modèle documente toutes les clés lues par le programme (CLES_SITE, CLES_LIEN, CLES_PAGE, CLES_EVENTS), en français
+        et en anglais, et rien d'autre ; --config-merge la recopie sans la lire comme des réglages."""
+        src = (RACINE / "nginx-link-page.sh").read_text(encoding="utf-8")
+        attendues = set()
+        for nom, prefixe in (("CLES_SITE", "SITE_"), ("CLES_LIEN", "LINK_n_"), ("CLES_PAGE", "PAGE_n_"), ("CLES_EVENTS", "EVENTS_")):
+            attendues |= {prefixe + k for k in re.search(rf'readonly {nom}="([^"]+)"', src).group(1).split()}
+        modele = (RACINE / "nginx-link-page.conf.example").read_text(encoding="utf-8")
+        section = modele[modele.index("# 5. TOUTES LES CLÉS / ALL THE KEYS"):]
+        documentees = set(re.findall(r"(?m)^#   ([A-Z][A-Za-z0-9_]+) ", section))
+        self.assertEqual(documentees, attendues)
+        self.assertNotRegex(section, r"(?m)^#\s*[A-Za-z_][A-Za-z0-9_]*\s*=")      # never read as a setting by --config-merge
+        conf = self.conf(MINIMAL)
+        r = self.lancer("-c", str(conf), "--config-merge")
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        texte = conf.read_text(encoding="utf-8")
+        self.assertEqual(texte.count("# 5. TOUTES LES CLÉS / ALL THE KEYS"), 1)
+        self.assertIn("#   PAGE_n_BACKGROUND_STYLE   pale (défaut, flou et pâle) ou plain (tel quel)", texte)
+        r = self.lancer("-c", str(conf), "--config-merge")
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertEqual(conf.read_text(encoding="utf-8").count("# 5. TOUTES LES CLÉS / ALL THE KEYS"), 1)
+
     def test_deux_langues_detection_et_textes(self):
         texte = self.config_deux_pages("no").replace(
             "PAGE_1_THEME=auto", "PAGE_1_THEME=auto\nPAGE_1_LANGUAGES=fr,en").replace(
