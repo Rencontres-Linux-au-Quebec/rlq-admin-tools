@@ -903,6 +903,25 @@ printf '\\211PNG\\r\\n\\032\\nxxxx' > "$out"; printf '200 12'; exit 0
         r = self.lancer("-c", str(self.conf(MINIMAL + "PAGE_1_CLICKS=oui\n")), "--check")
         self.assertIn("PAGE_1_CLICKS=oui (yes ou no)", r.stderr)
 
+    def test_131_lien_en_vedette(self):
+        """1.31 : LINK_n_STYLE=featured : classe button-featured (lien, lien d'un menu, menu), css/extras.css copié et lié seulement
+        quand il sert ; valeur inconnue refusée."""
+        texte = self.config_deux_pages("no") + ("LINK_1_STYLE=featured\nLINK_3_LABEL=Menu\nLINK_3_STYLE=featured\n"
+                                                "LINK_4_LABEL=Dans\nLINK_4_URL=https://example.org/d\nLINK_4_MENU=3\nLINK_4_STYLE=featured\n")
+        r = self.lancer("-c", str(self.conf(texte)), "--update", "--yes", env=self.env)
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        html = (self.www / "liens" / "index.html").read_text(encoding="utf-8")
+        self.assertIn('<a class="button button-default button-featured" href="https://example.org/a"', html)
+        self.assertIn('<a class="button button-default button-featured" href="https://example.org/d"', html)
+        self.assertIn('<summary class="button button-default button-featured">', html)
+        self.assertIn('<a class="button button-default" href="https://example.org/b"', html)
+        self.assertIn('<link rel="stylesheet" href="css/extras.css">', html)
+        self.assertIn("button-featured", (self.www / "liens" / "css" / "extras.css").read_text(encoding="utf-8"))
+        r = self.lancer("-c", str(self.conf(self.config_deux_pages("no"))), "--update", "--yes", env=self.env)
+        self.assertFalse((self.www / "liens" / "css" / "extras.css").exists())
+        r = self.lancer("-c", str(self.conf(MINIMAL + "LINK_1_STYLE=gros\n")), "--check")
+        self.assertIn("LINK_1_STYLE=gros (normal ou featured)", r.stderr)
+
     def test_deux_langues_detection_et_textes(self):
         texte = self.config_deux_pages("no").replace(
             "PAGE_1_THEME=auto", "PAGE_1_THEME=auto\nPAGE_1_LANGUAGES=fr,en").replace(

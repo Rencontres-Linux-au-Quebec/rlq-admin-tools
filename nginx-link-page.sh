@@ -29,7 +29,7 @@
 set -u
 LANG_C="${LC_ALL:-${LC_MESSAGES:-${LANG:-C}}}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
-readonly SCRIPT_VERSION="1.30.20261112.222151"
+readonly SCRIPT_VERSION="1.31.20261112.222312"
 readonly SCRIPT_NAME="nginx-link-page"
 # --config-merge: same rule as the other programs (apps/_config.py fusionner): the configuration file is rewritten from the new template,
 # keeping its active values; the old file is copied to FILE.bak-YYYYMMDD-HHMMSS. Then exit.
@@ -72,6 +72,8 @@ readonly THEMES_LINKSTACK="$SCRIPT_DIR/apps/link-page-themes"
 readonly THEME_MENU_CSS="$SCRIPT_DIR/apps/link-page-theme-menu.css"
 # 1.26: link menus (LINK_n_MENU): style sheet copied as css/link-menu.css
 readonly LINK_MENU_CSS="$SCRIPT_DIR/apps/link-page-link-menu.css"
+# 1.31: featured links (LINK_n_STYLE) and QR code link (PAGE_n_QR): style sheet copied as css/extras.css
+readonly EXTRAS_CSS="$SCRIPT_DIR/apps/link-page-extras.css"
 # 1.18: script of the pages (PAGE_n_SCRIPT): theme in place and remembered, language remembered, "Share" button; copied as js/link-page.js
 readonly LINK_PAGE_JS="$SCRIPT_DIR/apps/link-page.js"
 readonly THEMES_TOUS="auto light dark aurora maple river terminal tux tux-quebec quebec boreal sunset winter tux-flag tux-poster ls-aurora ls-dark ls-dawn ls-misty-rain"
@@ -258,7 +260,7 @@ valeur_ou() { local v="${CFG[$1]:-}"; [[ -n "$v" ]] && printf '%s' "$v" || print
 
 # 1.24: every key of the files must be known (a mistyped key was ignored without a word: PAGE_3_THEMS=all, SITE_LANGAUGE=en)
 readonly CLES_SITE="BASE_URL DESCRIPTION DESCRIPTION_EN FOOTER FOOTER_EN HEADING HEADING_EN LANGUAGE LOGO_ALT LOGO_URL SHARE_DESCRIPTION SHARE_DESCRIPTION_EN SHARE_IMAGE_URL SHARE_TITLE SHARE_TITLE_EN TITLE TITLE_EN"
-readonly CLES_LIEN="FROM ICON ICON_DARK LABEL LABEL_EN MENU PAGES UNTIL URL"
+readonly CLES_LIEN="FROM ICON ICON_DARK LABEL LABEL_EN MENU PAGES STYLE UNTIL URL"
 readonly CLES_PAGE="ACCENT AVATAR BUTTONS CLICKS DIR ENABLED ENGINE LANGUAGES PATH SCRIPT SHARE SWITCH THEME THEMES TITLE TITLE_EN"
 cle_connue() {   # cle_connue KEY: 0 when KEY is read by the program
     local k="$1" s
@@ -461,6 +463,8 @@ liens_de_la_page() {   # liens_de_la_page P: link numbers shown on page P, in or
 AUJOURDHUI="${NGINX_LINK_PAGE_TODAY:-$(date +%F)}"
 date_valide() { [[ "$1" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]] && date -d "$1" +%F >/dev/null 2>&1 && [[ "$(date -d "$1" +%F)" == "$1" ]]; }
 for i in ${LIENS_N[@]+"${LIENS_N[@]}"}; do
+    sv="${CFG[LINK_${i}_STYLE]:-normal}"                     # 1.31: featured link
+    [[ "$sv" =~ ^(normal|featured)$ ]] || PROBLEMES+=("LINK_${i}_STYLE=$sv (normal $(m "ou" "or") featured)")
     for cle in FROM UNTIL; do
         dv="${CFG[LINK_${i}_${cle}]:-}"
         [[ -z "$dv" ]] && continue
@@ -910,6 +914,16 @@ csp_script() { if [[ "$P_JS" == yes ]]; then echo "'self'"; else echo "'none'"; 
 # menu_contient REGEX: a theme of the "Theme" button matches REGEX
 menu_contient() { local t; for t in ${P_MENU[@]+"${P_MENU[@]}"}; do [[ "$t" =~ $1 ]] && return 0; done; return 1; }
 
+# page_a_extras: 0 when the page being generated (P_LIENS) has a featured link, in a menu or not, or shows its QR code
+page_a_extras() {
+    local n e
+    [[ "${P_QR:-no}" == yes ]] && return 0
+    for n in ${P_LIENS[@]+"${P_LIENS[@]}"}; do
+        [[ "${CFG[LINK_${n}_STYLE]:-normal}" == featured ]] && return 0
+        for e in ${MENU_ENFANTS[$n]:-}; do [[ "${CFG[LINK_${e}_STYLE]:-normal}" == featured ]] && return 0; done
+    done
+    return 1
+}
 # icone_lien N: <img> (or <picture>) of the icon of link N for the page being generated (theme base in $base, set by genere_index)
 icone_lien() {
     local clair="${ICONE_CLAIR[$1]}" sombre="${ICONE_SOMBRE[$1]}" media
@@ -928,6 +942,7 @@ icone_lien() {
 bouton_lien() {
     local classe_bouton="button-default"
     if [[ "$P_BOUTONS" == brand && -n "${BOUTON_MARQUE[$1]:-}" ]]; then classe_bouton="${BOUTON_MARQUE[$1]}"; fi
+    [[ "${CFG[LINK_${1}_STYLE]:-normal}" == featured ]] && classe_bouton+=" button-featured"      # 1.31
     local cible="${CFG[LINK_${1}_URL]}"
     [[ "${P_CLICS:-no}" == yes ]] && cible="${P_CHEMIN}go/$1"       # 1.30: redirection by nginx, written in its log
     echo "        <a class=\"button $classe_bouton\" href=\"$(html_echap "$cible")\" target=\"_blank\" rel=\"noopener noreferrer\">"
@@ -996,6 +1011,7 @@ genere_index() {   # genere_index DOSSIER THEME TITRE [FICHIER] [CIBLE_BASCULE] 
         fi
         if (( ${#P_MENU[@]} )) || [[ "$P_JS" == yes && "$P_PARTAGE" == yes ]]; then echo "    <link rel=\"stylesheet\" href=\"css/theme-menu.css\">"; fi
         if [[ -f "$dossier/css/link-menu.css" ]]; then echo "    <link rel=\"stylesheet\" href=\"css/link-menu.css\">"; fi      # 1.26
+        if [[ -f "$dossier/css/extras.css" ]]; then echo "    <link rel=\"stylesheet\" href=\"css/extras.css\">"; fi            # 1.31
         if [[ -f "$dossier/css/accent.css" ]]; then echo "    <link rel=\"stylesheet\" href=\"css/accent.css\">"; fi
         if [[ "$P_JS" == yes ]]; then echo "    <script src=\"js/link-page.js\"></script>"; fi      # 1.18: in <head>: theme set before drawing
         echo "  </head>"
@@ -1035,7 +1051,7 @@ genere_index() {   # genere_index DOSSIER THEME TITRE [FICHIER] [CIBLE_BASCULE] 
         for i in ${P_LIENS[@]+"${P_LIENS[@]}"}; do          # 1.25: only the links of this page (LINK_n_PAGES)
             if [[ -n "${MENU_ENFANTS[$i]:-}" ]]; then        # 1.26: menu: a button that opens its links below it (<details>, no script)
                 echo "        <details class=\"link-menu\">"
-                echo "          <summary class=\"button button-default\">$(icone_lien "$i")$(html_echap "$(libelle_lien "$i")")</summary>"
+                echo "          <summary class=\"button button-default$( [[ "${CFG[LINK_${i}_STYLE]:-normal}" == featured ]] && echo " button-featured")\">$(icone_lien "$i")$(html_echap "$(libelle_lien "$i")")</summary>"
                 echo "          <div class=\"link-menu-items\">"
                 for e in $(enfants_visibles "$i"); do bouton_lien "$e"; done      # 1.27: links shown today
                 echo "          </div>"
@@ -1133,6 +1149,9 @@ for i in ${ACTIVES[@]+"${ACTIVES[@]}"}; do
         if [[ "$P_JS" == yes ]]; then mkdir -p "$dossier/js"; install -m 644 "$LINK_PAGE_JS" "$dossier/js/link-page.js"; fi
         if (( ${#P_MENU[@]} )) || [[ "$P_JS" == yes && "$P_PARTAGE" == yes ]]; then
             if [[ -r "$THEME_MENU_CSS" ]]; then install -m 644 "$THEME_MENU_CSS" "$dossier/css/theme-menu.css"; fi
+        fi
+        if [[ -r "$EXTRAS_CSS" ]] && page_a_extras; then      # 1.31: a featured link (or, 1.32, the QR code) on this page
+            install -m 644 "$EXTRAS_CSS" "$dossier/css/extras.css"
         fi
         if [[ -r "$LINK_MENU_CSS" ]]; then                    # 1.26: a menu on this page
             for e in ${P_LIENS[@]+"${P_LIENS[@]}"}; do

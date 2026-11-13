@@ -1,0 +1,53 @@
+/*
+ * link-page-extras.css - featured links (LINK_n_STYLE=featured) and QR code link (PAGE_n_QR=yes) of the link pages of
+ * nginx-link-page.sh.
+ * Copyright (C) 2026 Services-Conseils Linux Inc. - AGPL-3.0-or-later (see LICENSE).
+ * Copied as css/extras.css into each page folder that uses one of them, loaded after the theme style sheets. No script.
+ */
+
+/* ---- featured link: bigger, with a golden halo that breathes (the colours of the theme are kept) ---- */
+.button.button-featured {
+	width: 20rem;
+	max-width: 100%;
+	min-height: 3.75rem;
+	font-size: 1.25rem;
+	position: relative;
+	animation: link-featured-halo 2.4s ease-in-out infinite;
+}
+@keyframes link-featured-halo {
+	0%, 100% { box-shadow: 0 0 0 0 rgba(255, 196, 0, 0.60), 0 0 0 2px rgba(255, 196, 0, 0.85); }
+	50%      { box-shadow: 0 0 0 10px rgba(255, 196, 0, 0), 0 0 0 2px rgba(255, 196, 0, 0.85); }
+}
+.link-menu > summary.button-featured::after {
+	margin-left: 0.6rem;
+}
+@media (prefers-reduced-motion: reduce) {
+	.button.button-featured {
+		animation: none;
+		box-shadow: 0 0 0 3px rgba(255, 196, 0, 0.85);
+	}
+}
+
+/* ---- QR code of the page: a discreet link above the footer ---- */
+.qr-link {
+	margin: 1.5rem 0 0;
+	font-size: 0.9rem;
+}
+.qr-link a {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.4rem;
+	color: inherit;
+	opacity: 0.85;
+}
+.qr-link a:hover,
+.qr-link a:focus-visible {
+	opacity: 1;
+}
+.qr-link img {
+	width: 1.6rem;
+	height: 1.6rem;
+	border-radius: 0.2rem;
+	background: #ffffff;
+	padding: 0.1rem;
+}

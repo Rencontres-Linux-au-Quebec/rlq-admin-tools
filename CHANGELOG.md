@@ -4536,6 +4536,16 @@ Earlier history was archived outside this repository when this file was created.
 
 ## nginx-link-page.sh
 
+### 1.31.20261112.222312 - LINK_n_STYLE=featured: a bigger button with a golden halo
+
+- Title: new key LINK_n_STYLE=featured: a bigger button with a golden halo, for the important link of the moment.
+- Reason: request of the administrator on 2026-11-12 (improvement 6 of the list proposed): make a link such as the Journée portes ouvertes stand out.
+- Changes: new key LINK_n_STYLE (normal by default, or featured; in CLES_LIEN, checked by --check); new style sheet apps/link-page-extras.css (copied as css/extras.css and linked only on a page that uses it): .button-featured, 20rem wide, larger text, golden halo that breathes (2.4 s); new constant EXTRAS_CSS, function page_a_extras; bouton_lien(): class button-featured; a menu (LINK_n_MENU) can be featured too (its summary); nginx-link-page.conf.example: the key described; nginx-tools-tests/test_nginx_link_page.py: 1 test.
+- Bugs fixed: none.
+- Safeguards and edge cases: the colours of the theme and of the brand buttons are kept, only the size and the halo change; still image (a fixed golden ring) with prefers-reduced-motion; works in every theme (golden halo on light and dark backgrounds); the button never gets wider than the screen (max-width 100 %).
+- Checks performed: bash -n; shellcheck; test_nginx_link_page (64 tests); rendered in Google Chrome.
+- Action required: none (example: LINK_1_STYLE=featured, then sudo nginx-link-page.sh --update --yes).
+
 ### 1.30.20261112.222151 - PAGE_n_CLICKS and --clicks: clicks of each link counted from the nginx log
 
 - Title: new key PAGE_n_CLICKS and option --clicks: the clicks of each link are counted from the nginx access log, without any script.
