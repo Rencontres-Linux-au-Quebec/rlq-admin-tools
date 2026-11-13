@@ -1,0 +1,12 @@
+# Comment lines of every shipped version of the template odoo-warmup-pages.conf.example (sha1 of the stripped line, 16 hex).
+# Read by apps/_config.py --config-merge: such a comment of an old file is a line of an old template, not a note of the
+# administrator. Updated by: python3 apps/_config.py --history odoo-warmup-pages
+01a5506fdb8935bc
+5e445f51dbe43acb
+6437c8be37ba47e1
+724026452c9572e7
+7768dafb615f10e9
+9aa58d01c4c4b43f
+b160521d8020146d
+d08f88df745fa795
+f48efdf3aed3451e

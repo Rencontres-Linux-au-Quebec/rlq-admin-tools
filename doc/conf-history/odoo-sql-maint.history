@@ -1,0 +1,22 @@
+# Comment lines of every shipped version of the template odoo-sql-maint.conf.example (sha1 of the stripped line, 16 hex).
+# Read by apps/_config.py --config-merge: such a comment of an old file is a line of an old template, not a note of the
+# administrator. Updated by: python3 apps/_config.py --history odoo-sql-maint
+0ce929e08eee64a4
+244b527976e140dd
+311b9b3c918b0c67
+526d4209d7209204
+6611bf1fcf462845
+674f223676cd4cdb
+6a8cf20390c69163
+6db318ee0433c3fd
+7a41ed90fdadecca
+7f54309770a04455
+8ddf82aa381be498
+a4651cae95a07d91
+b57122830d69b1e1
+c9c7ded82587c450
+d04ca1da6cbd4001
+d08f88df745fa795
+d29119bd73d350d0
+ee158646249f1508
+f12febfa85822b6d

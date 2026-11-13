@@ -407,6 +407,63 @@ class FusionSansPerte(EnvTest):
         self.assertEqual(open(self.conf, encoding="utf-8").read(), ancien)
 
 
+class FusionAncienModele(EnvTest):
+    """apps/_config.py 1.16 : les commentaires d'un ancien modèle (doc/conf-history/PROGRAMME.history) ne sont pas gardés comme des notes de
+    l'administrateur : avant, chaque changement du texte du modèle faisait grossir le fichier (signalé le 2026-11-13 : 279 lignes devenues 444)."""
+    ANCIENNE = "# nginx-link-page.conf: TEMPLATE. Everything is commented out: nothing is read until a line"   # template before 1.47
+
+    def setUp(self):
+        super().setUp()
+        self.module = load("apps/_config.py", "cfg_ancien_modele", self.env)
+        self.conf = os.path.join(self.d, "liens.conf")
+
+    def fusion(self, texte):
+        with open(self.conf, "w", encoding="utf-8") as f:
+            f.write(texte)
+        return self.module.fusionner("nginx-link-page", self.conf, "fr")
+
+    def test_ancien_modele_remplace_note_gardee_taille_stable(self):
+        self.assertIn(self.module.empreinte(self.ANCIENNE), self.module.historique_modele("nginx-link-page"))
+        ancien = f"{self.ANCIENNE}\n# note de l'administrateur : demander à Paul\nSITE_TITLE=Groupe\n"
+        code, lignes = self.fusion(ancien)
+        self.assertEqual(code, 0, lignes)
+        texte = open(self.conf, encoding="utf-8").read()
+        self.assertNotIn(self.ANCIENNE, texte)
+        self.assertIn("# note de l'administrateur : demander à Paul", texte)
+        self.assertIn("lignes d'un ancien modèle remplacées par le modèle actuel : 1", "\n".join(lignes))
+        taille = len(texte)
+        for _ in range(2):
+            self.assertEqual(self.fusion(open(self.conf, encoding="utf-8").read())[0], 0)
+            self.assertEqual(len(open(self.conf, encoding="utf-8").read()), taille)
+
+    def test_fichier_deja_grossi_reduit_sans_refus(self):
+        """Un fichier grossi par 1.14 ou 1.15 (l'ancien modèle recopié dans « Repris de l'ancien fichier ») reprend sa taille ; valeurs gardées."""
+        code, _ = self.fusion("SITE_TITLE=Groupe\nLINK_1_LABEL=Un\n")
+        self.assertEqual(code, 0)
+        propre = open(self.conf, encoding="utf-8").read()
+        modele = open(script_path("doc/fr/nginx-link-page.conf.example"), encoding="utf-8").read()
+        grossi = propre + f"\n# Repris de l'ancien fichier par --config-merge le 2026-11-13 08:57 : ...\n{self.ANCIENNE}\n"
+        code, lignes = self.fusion(grossi)
+        self.assertEqual(code, 0, lignes)
+        texte = open(self.conf, encoding="utf-8").read()
+        self.assertEqual(texte.count("# Repris de l'ancien fichier"), 0)
+        self.assertEqual(re.sub(r"\d{4}-\d\d-\d\d \d\d:\d\d", "", texte), re.sub(r"\d{4}-\d\d-\d\d \d\d:\d\d", "", propre))
+        self.assertEqual(self.module.lire_texte(texte), {"SITE_TITLE": "Groupe", "LINK_1_LABEL": "Un"})
+        self.assertIn("#   PAGE_n_DIR", modele)
+
+    def test_historique_contient_les_modeles_actuels(self):
+        """Chaque commentaire de chaque modèle doc/*/PROGRAMME.conf.example est dans doc/conf-history/PROGRAMME.history ; sinon, après un
+        changement de modèle : python3 apps/_config.py --history PROGRAMME."""
+        import glob
+        for chemin in sorted(glob.glob(script_path("doc/*/*.conf.example"))):
+            programme = os.path.basename(chemin)[:-len(".conf.example")]
+            with self.subTest(modele=os.path.relpath(chemin, script_path("."))):
+                historique = self.module.historique_modele(programme)
+                with open(chemin, encoding="utf-8") as f:
+                    absentes = [l.strip() for l in f if l.strip().startswith("#") and self.module.empreinte(l) not in historique]
+                self.assertEqual(absentes, [], f"python3 apps/_config.py --history {programme}")
+
+
 class CommentaireApresValeurVide(EnvTest):
     """« CLÉ=      # commentaire » (modèle décommenté) : valeur VIDE dans les quatre lecteurs, jamais le texte du commentaire ; « CLÉ=#b3261e »
     reste une valeur (pas d'espace avant #)."""

@@ -1,0 +1,40 @@
+# Comment lines of every shipped version of the template zip-versions.conf.example (sha1 of the stripped line, 16 hex).
+# Read by apps/_config.py --config-merge: such a comment of an old file is a line of an old template, not a note of the
+# administrator. Updated by: python3 apps/_config.py --history zip-versions
+0ae67edf7987c01e
+0b5a25e51485c45e
+0cd8f844817a30db
+1975828ab44c0866
+19a1c0efc71df8cd
+1c77d2ae1bde7ef5
+2274b60cc80c84e1
+24bf249e58898ff5
+2e02bc99c2c2af6d
+34e34bdd5676232c
+3637a1f4b1812166
+415427f95f24ae80
+5916f8f7e482f6ee
+5dbc7fc3b894b452
+635670487432dc2c
+724026452c9572e7
+7768dafb615f10e9
+7bb4d085e61f7f2a
+860460cd8c73207a
+882c7d380fb52c46
+89d91415a4db638e
+8e3176bd223ffc7c
+8fda030315a6d562
+9756f45e15cd9240
+9924554229e2bce4
+a7d6855d831b84f0
+a9353df8e3cb450d
+c429ce0bf95129af
+cb7359894794f532
+cc5798c8b020e23e
+d08f88df745fa795
+d75cb94e3ae040c9
+ebb7037d45cb1927
+efc91f2a83b3f132
+f635220a5b21bb1e
+fa52b54fc9e4444d
+fcf5d011df36dd22

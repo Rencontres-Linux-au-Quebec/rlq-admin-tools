@@ -13,13 +13,14 @@
 """Fichiers KEY=VALUE (une clé par ligne, # = commentaire, guillemets facultatifs), les clés en MAJUSCULES. Le dernier fichier lu l'emporte. Chaque programme
 déclare un SCHÉMA {CLÉ: (option argparse, type)} : les valeurs du fichier deviennent les valeurs par défaut des options, que la ligne de commande remplace.
 Variable NGINX_TOOLS_ETC_DEFAULT : autre dossier à la place de /etc/default (tests)."""
+import hashlib
 import os
 import re
 import sys
 import tempfile
 import time
 
-__version__ = "1.15.20261113.074229"
+__version__ = "1.16.20261113.085955"
 OUI = ("1", "true", "yes", "oui", "on", "vrai")
 NON = ("0", "false", "no", "non", "off", "faux", "")
 # 1.9: values are written in English only; these old French values are still read (same meaning), with a warning (valeurs_francaises).
@@ -381,7 +382,8 @@ _MESSAGES_FUSION = {
            "plus_court": "le nouveau fichier serait plus petit que l'ancien ({apres} lignes et {apres_o} octets, avant {avant} lignes et {avant_o} octets)",
            "avant": "Fusion refusée, rien n'est modifié : corriger d'abord ces problèmes de la configuration, puis relancer --config-merge :",
            "deux_fois": "{cle} écrite deux fois ({lieu}) : une seule ligne compte ; renuméroter ou supprimer l'autre",
-           "invalide": "{lieu} : ligne qui n'est ni vide, ni un commentaire, ni CLÉ=VALEUR : {ligne}"},
+           "invalide": "{lieu} : ligne qui n'est ni vide, ni un commentaire, ni CLÉ=VALEUR : {ligne}",
+           "ancien_modele": "  lignes d'un ancien modèle remplacées par le modèle actuel : {n}"},
     "en": {"modele": "Default configuration not found: {chemin}", "ecriture": "Cannot write {chemin}: {erreur}",
            "fait": "Configuration merged into {chemin}", "lus": "  read: {fichiers}", "aucun": "none (new file)",
            "nouveau": "  new default configuration: {chemin}", "copie": "  backup of the previous file: {chemin}", "sans": "none",
@@ -393,7 +395,8 @@ _MESSAGES_FUSION = {
            "plus_court": "the new file would be smaller than the old one ({apres} lines and {apres_o} bytes, before {avant} lines and {avant_o} bytes)",
            "avant": "Merge refused, nothing is changed: first fix these problems of the configuration, then run --config-merge again:",
            "deux_fois": "{cle} written twice ({lieu}): only one line counts; renumber or remove the other one",
-           "invalide": "{lieu}: line that is neither empty, nor a comment, nor KEY=VALUE: {ligne}"},
+           "invalide": "{lieu}: line that is neither empty, nor a comment, nor KEY=VALUE: {ligne}",
+           "ancien_modele": "  lines of an old template replaced by the current template: {n}"},
 }
 
 
@@ -475,7 +478,52 @@ def placer_hors_modele(lignes, blocs):
     return lignes, fin
 
 
-def repris_de_l_ancien(chemin, lignes_modele, deja):
+def empreinte(ligne):
+    """1.16 : empreinte d'une ligne de commentaire d'un modèle (sha1 de la ligne sans les espaces autour, 16 caractères hexadécimaux)."""
+    return hashlib.sha1(ligne.strip().encode("utf-8")).hexdigest()[:16]
+
+
+def chemin_historique(programme, dossier_doc=None):
+    racine = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    return os.path.join(dossier_doc or os.path.join(racine, "doc"), "conf-history", f"{programme}.history")
+
+
+def historique_modele(programme, dossier_doc=None):
+    """1.16 : empreintes des commentaires de toutes les versions livrées du modèle (doc/conf-history/PROGRAMME.history) ; vide sans fichier.
+    Un commentaire de l'ancien fichier qui s'y trouve vient d'un ancien modèle : la fusion le remplace par le modèle actuel au lieu de le
+    garder comme une note de l'administrateur (avant 1.16, chaque changement du texte du modèle faisait grossir le fichier)."""
+    try:
+        with open(chemin_historique(programme, dossier_doc), encoding="utf-8") as f:
+            return {l.strip() for l in f if re.fullmatch(r"[0-9a-f]{16}", l.strip())}
+    except OSError:
+        return set()
+
+
+def mettre_a_jour_historique(programme, dossier_doc=None):
+    """1.16 : ajoute à doc/conf-history/PROGRAMME.history les commentaires des modèles actuels (doc/*/PROGRAMME.conf.example) ; à lancer
+    après chaque changement d'un modèle (un test le vérifie). Retourne le nombre d'empreintes ajoutées."""
+    racine = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    dossier = dossier_doc or os.path.join(racine, "doc")
+    deja = historique_modele(programme, dossier_doc)
+    nouvelles = set()
+    for langue in sorted(os.listdir(dossier)):
+        modele = os.path.join(dossier, langue, f"{programme}.conf.example")
+        if os.path.isfile(modele):
+            with open(modele, encoding="utf-8") as f:
+                nouvelles |= {empreinte(l) for l in f if l.strip().startswith("#")}
+    if not nouvelles - deja:
+        return 0
+    chemin = chemin_historique(programme, dossier_doc)
+    os.makedirs(os.path.dirname(chemin), exist_ok=True)
+    with open(chemin, "w", encoding="utf-8") as f:
+        f.write(f"# Comment lines of every shipped version of the template {programme}.conf.example (sha1 of the stripped line, 16 hex).\n"
+                "# Read by apps/_config.py --config-merge: such a comment of an old file is a line of an old template, not a note of the\n"
+                f"# administrator. Updated by: python3 apps/_config.py --history {programme}\n")
+        f.write("\n".join(sorted(deja | nouvelles)) + "\n")
+    return len(nouvelles - deja)
+
+
+def repris_de_l_ancien(chemin, lignes_modele, deja, historique=frozenset()):
     """1.14 : lignes de l'ancien fichier qui seraient perdues : (1) ses commentaires absents du modèle (notes de l'administrateur, réglages
     commentés) ; (2) les lignes inactives d'une clé écrite deux fois (la valeur plus bas comptait), mises en commentaire. Les lignes déjà
     gardées (`deja`), les en-têtes d'une fusion précédente, les séparateurs et les descriptions d'un ancien modèle (« # PAGE_n_... ») sont
@@ -490,7 +538,8 @@ def repris_de_l_ancien(chemin, lignes_modele, deja):
     for ligne in lignes:
         nette = ligne.strip()
         if (not nette.startswith("#") or nette in du_modele or ligne in deja or nette in vus or nette.startswith(ENTETES_HORS_MODELE)
-                or re.fullmatch(r"#[\s=#-]*", nette) or re.match(r"#\s+[A-Z][A-Z0-9]*_n_", nette)):
+                or re.fullmatch(r"#[\s=#-]*", nette) or re.match(r"#\s+[A-Z][A-Z0-9]*_n_", nette)
+                or empreinte(nette) in historique):              # 1.16: a line of an old template
             continue
         vus.add(nette)
         commentaires.append(ligne)
@@ -503,7 +552,7 @@ def repris_de_l_ancien(chemin, lignes_modele, deja):
     return commentaires, inactives
 
 
-def lignes_hors_modele(fichiers, connues):
+def lignes_hors_modele(fichiers, connues, historique=frozenset()):
     """1.13 : {CLÉ: [lignes]} des clés actives absentes du modèle (LINK_11_URL, PAGE_3_PATH... d'un modèle qui ne montre que les premiers numéros), dans
     l'ordre du fichier, avec les commentaires écrits juste au-dessus ; la ligne est recopiée telle quelle (guillemets et commentaire de fin compris).
     Une clé présente dans plusieurs fichiers : celle du dernier lu (même règle que la lecture). Les lignes « #CLÉ= » du modèle ne sont pas reprises."""
@@ -518,7 +567,8 @@ def lignes_hors_modele(fichiers, connues):
         for ligne in lignes:
             nette = ligne.strip()
             if nette.startswith("#"):
-                if re.match(r"#\s*[A-Za-z][A-Za-z0-9_]*\s*=", nette) or nette.startswith(ENTETES_HORS_MODELE):   # header of a previous merge: not kept twice
+                if (re.match(r"#\s*[A-Za-z][A-Za-z0-9_]*\s*=", nette) or nette.startswith(ENTETES_HORS_MODELE)   # header of a previous merge: not kept twice
+                        or empreinte(nette) in historique):      # 1.16: text of an old template, not a comment of this key
                     commentaires = []
                 else:
                     if not commentaires:
@@ -594,7 +644,8 @@ def fusionner(programme, explicite=None, langue="fr", cles=(), dossier_doc=None)
         anciennes.update(lire_fichier(c))
     connues = {k.upper() for k in cles} | set(re.findall(r"^#?\s*([A-Z][A-Z0-9_]*)\s*=", "\n".join(lignes_modele), re.MULTILINE))
     gardees = {k: v for k, v in anciennes.items() if k in connues}
-    hors_modele = lignes_hors_modele(fichiers, connues)
+    historique = historique_modele(programme, dossier_doc)          # 1.16: comments of the old templates
+    hors_modele = lignes_hors_modele(fichiers, connues, historique)
     laissees = list(hors_modele)
     nouvelles = appliquer_valeurs(lignes_modele, gardees)
     # 1.14: each key absent from the template goes next to its link or page (1.13 put them all at the end)
@@ -604,11 +655,11 @@ def fusionner(programme, explicite=None, langue="fr", cles=(), dossier_doc=None)
         for bloc in a_la_fin:
             nouvelles += bloc
     # 1.14: the comments of the administrator and the inactive lines of a key written twice are kept (1.13 removed them)
-    commentaires, inactives = repris_de_l_ancien(cible, lignes_modele, {l for b in hors_modele.values() for l in b}) if os.path.isfile(cible) else ([], [])
+    commentaires, inactives = repris_de_l_ancien(cible, lignes_modele, {l for b in hors_modele.values() for l in b}, historique) if os.path.isfile(cible) else ([], [])
     if commentaires or inactives:                         # one header: a second merge gives the same file
         nouvelles += ["", m["repris"].format(date=time.strftime("%Y-%m-%d %H:%M"))] + commentaires + inactives
     texte = "\n".join(nouvelles) + "\n"
-    doublons = []
+    doublons, anciennes_du_modele = [], 0
     # 1.13: safeguards before writing: every old value is still there, and the file is not smaller than the old one
     apres = lire_texte(texte)
     perdues = sorted(k for k, v in anciennes.items() if apres.get(k) != v)
@@ -624,7 +675,17 @@ def fusionner(programme, explicite=None, langue="fr", cles=(), dossier_doc=None)
         nb, nb_o = len(texte.splitlines()), len(texte.encode("utf-8"))
         # the only lines allowed to go: a key written twice in the old file, whose first line was already replaced by the next one (dead line)
         vues, mortes_n, mortes_o = {}, 0, 0
+        du_modele = {l.strip() for l in lignes_modele}
         for ligne in ancien.splitlines():
+            if not ligne.strip() or ligne.strip().startswith(ENTETES_HORS_MODELE):
+                mortes_n += 1                              # 1.16: a blank line or the header of a previous merge (written again when needed)
+                mortes_o += len(ligne.encode("utf-8")) + 1
+                continue
+            if ligne.strip().startswith("#") and ligne.strip() not in du_modele and empreinte(ligne) in historique:
+                mortes_n += 1                              # 1.16: a line of an old template, replaced by the current one
+                mortes_o += len(ligne.encode("utf-8")) + 1
+                anciennes_du_modele += 1
+                continue
             cle = re.match(r"\s*([A-Za-z][A-Za-z0-9_]*)\s*=", ligne)
             if cle:
                 cle = cle.group(1).upper()
@@ -663,6 +724,8 @@ def fusionner(programme, explicite=None, langue="fr", cles=(), dossier_doc=None)
         res.append(m["inconnues"].format(cles=", ".join(laissees)))
     if doublons:
         res.append(m["doublons"].format(cles=", ".join(sorted(set(doublons)))))
+    if anciennes_du_modele:
+        res.append(m["ancien_modele"].format(n=anciennes_du_modele))
     return 0, res
 
 
@@ -686,6 +749,13 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="--config-merge of the Bash programs (same rule as the Python programs)")
     parser.add_argument("--config", default=None, metavar="FILE", help="file given with -c / --config (only this one)")
     parser.add_argument("--lang", default="fr", metavar="LANG", help="language of the default configuration and of the messages (fr, en)")
-    parser.add_argument("--merge", required=True, metavar="PROGRAM", help="name of the program (without .sh)")
+    parser.add_argument("--history", default=None, metavar="PROGRAM", help="add the comments of the current templates of PROGRAM to doc/conf-history/PROGRAM.history (after a change of a template), then exit")
+    parser.add_argument("--merge", default=None, metavar="PROGRAM", help="name of the program (without .sh)")
     arguments = parser.parse_args()
+    if arguments.history:
+        n = mettre_a_jour_historique(arguments.history)
+        print(f"{chemin_historique(arguments.history)} : {n} empreinte(s) ajoutée(s) / fingerprint(s) added")
+        sys.exit(0)
+    if not arguments.merge:
+        parser.error("--merge PROGRAM or --history PROGRAM")
     sys.exit(fusionner_cli(arguments.merge, arguments.config or None, arguments.lang))

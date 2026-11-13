@@ -1,0 +1,12 @@
+# Comment lines of every shipped version of the template nginx-tools-cms.conf.example (sha1 of the stripped line, 16 hex).
+# Read by apps/_config.py --config-merge: such a comment of an old file is a line of an old template, not a note of the
+# administrator. Updated by: python3 apps/_config.py --history nginx-tools-cms
+0017356f50cfd250
+1932cf27de86a830
+1fdda257f43481c6
+444d0b550be64150
+49370c04ad0fbf19
+4b423fbc3a66a832
+671ed4954cf1d358
+79d5fe5479682864
+e27e229ea647db76

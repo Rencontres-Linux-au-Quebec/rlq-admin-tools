@@ -1,0 +1,21 @@
+# Comment lines of every shipped version of the template admin-menu.conf.example (sha1 of the stripped line, 16 hex).
+# Read by apps/_config.py --config-merge: such a comment of an old file is a line of an old template, not a note of the
+# administrator. Updated by: python3 apps/_config.py --history admin-menu
+0b0d7d538a240c82
+2064465251df5197
+2242aa45eaa02f89
+2fdd09240e68350f
+3146df7694300b57
+369621de62985a40
+4056ca02cef9bcb9
+4e94413f4109295f
+4f4463bbda11cc5d
+5d44a821ff3aa4ae
+639a5e6b8165e8f7
+6703791599a376ed
+8607d9c8a6321b01
+9a02103e3ceeec61
+d0ecc6038ec2e51d
+dbf1b7769a1fcb5b
+e036df415ef81539
+ebb7037d45cb1927

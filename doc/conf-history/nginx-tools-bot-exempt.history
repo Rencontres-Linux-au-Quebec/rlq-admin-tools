@@ -1,0 +1,25 @@
+# Comment lines of every shipped version of the template nginx-tools-bot-exempt.conf.example (sha1 of the stripped line, 16 hex).
+# Read by apps/_config.py --config-merge: such a comment of an old file is a line of an old template, not a note of the
+# administrator. Updated by: python3 apps/_config.py --history nginx-tools-bot-exempt
+02ed13d6363f7aea
+0429ddd5a9c8bbdd
+0a502f38e175edf3
+1246e66ade32add1
+1a376a73eaa8377d
+1f52d86b3ecd7fbf
+271e7f5077d8734d
+273dbc24c8a267ad
+399204ee7241a464
+3b31a98cfbf742c0
+405e4abc0f179a9e
+532db4847448c271
+5781ac7168d21547
+7cc9a3b6b46e0977
+830463faa325f915
+8a3bf62cb7ad0246
+ad5a75ab86a121d5
+b70c7b0212b1564e
+c912b1c3d1992541
+dabbaf2950620cdd
+dc2bb49438315e52
+f25369da4159fa0a
