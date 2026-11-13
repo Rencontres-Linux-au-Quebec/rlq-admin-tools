@@ -3,9 +3,10 @@
 # link-page-events.py - upcoming events of Odoo for the link pages of nginx-link-page.sh (PAGE_n_EVENTS, PAGE_n_COUNTDOWN).
 # Copyright (C) 2026 Services-Conseils Linux Inc. - AGPL-3.0-or-later (see LICENSE).
 #
-# Usage: link-page-events.py COUNT LANG   (LANG: fr or en; the names of the events are read in that language)
+# Usage: link-page-events.py COUNT LANG   (LANG: fr or en, the language of the page)
 # Environment: ODOO_URL, ODOO_DB, ODOO_LOGIN, ODOO_KEY_FILE (file holding only the API key, mode 600; the key never appears on a
-#   command line). For the tests: NGINX_LINK_PAGE_EVENTS_JSON=FILE (a list of events, same fields as Odoo) replaces the call to Odoo.
+#   command line), ODOO_LANG (code of the language of Odoo for the names, given by EVENTS_ODOO_LANG_FR / _EN; fr_FR or en_US by
+#   default). An event without time zone is shown in the time zone of the server. For the tests: NGINX_LINK_PAGE_EVENTS_JSON=FILE (a list of events, same fields as Odoo) replaces the call to Odoo.
 # Output: one line per event, fields separated by tabs: BEGIN (YYYY-MM-DD HH:MM, local time of the event) END (YYYY-MM-DD) NAME URL.
 # Only the published events that are not over are read (event.event, search_read, read only). Exit code 1 with a message on stderr
 # when Odoo cannot be reached or refuses the account.
@@ -20,7 +21,7 @@ try:
 except ImportError:                      # Python < 3.9: times stay in UTC
     ZoneInfo = None
 
-LANGUES_ODOO = {"fr": "fr_CA", "en": "en_US"}
+LANGUES_ODOO = {"fr": "fr_FR", "en": "en_US"}          # defaults when ODOO_LANG is not given
 
 
 def lire_odoo(nombre, langue):
@@ -37,18 +38,18 @@ def lire_odoo(nombre, langue):
     return objets.execute_kw(db, uid, cle, "event.event", "search_read",
                              [[("date_end", ">=", maintenant), ("website_published", "=", True)]],
                              {"fields": ["name", "date_begin", "date_end", "date_tz", "website_url"], "order": "date_begin asc",
-                              "limit": nombre, "context": {"lang": LANGUES_ODOO.get(langue, "en_US")}}), url
+                              "limit": nombre, "context": {"lang": os.environ.get("ODOO_LANG") or LANGUES_ODOO.get(langue, "en_US")}}), url
 
 
 def locale(valeur, fuseau):
-    """'YYYY-MM-DD HH:MM:SS' in UTC (Odoo) -> datetime in the time zone of the event."""
+    """'YYYY-MM-DD HH:MM:SS' in UTC (Odoo) -> datetime in the time zone of the event (or of the server when it has none)."""
     moment = datetime.datetime.strptime(str(valeur)[:19], "%Y-%m-%d %H:%M:%S").replace(tzinfo=datetime.timezone.utc)
     if ZoneInfo and fuseau:
         try:
             return moment.astimezone(ZoneInfo(fuseau))
-        except Exception:                # unknown zone name: UTC
+        except Exception:                # unknown zone name: time zone of the server
             pass
-    return moment
+    return moment.astimezone()
 
 
 def main():
@@ -63,7 +64,7 @@ def main():
         print(f"Odoo: {erreur}", file=sys.stderr)
         return 1
     for e in evenements:
-        fuseau = e.get("date_tz") or "America/Toronto"
+        fuseau = e.get("date_tz") or ""
         debut, fin = locale(e["date_begin"], fuseau), locale(e["date_end"], fuseau)
         nom = " ".join(str(e.get("name") or "").split())
         adresse = str(e.get("website_url") or "")

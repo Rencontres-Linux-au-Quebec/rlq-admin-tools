@@ -519,7 +519,7 @@ printf '\\211PNG\\r\\n\\032\\nxxxx' > "$out"; printf '200 12'; exit 0
         """1.15 : aurora, maple, river, terminal, tux : classe du thème, css/themes.css copié et lié, couleur de la barre du navigateur ;
         icône sombre pour les thèmes à base sombre ; seconde page (PAGE_n_SWITCH) dans le thème de base opposé ; thème inconnu refusé."""
         bases = {"aurora": "dark", "maple": "light", "river": "light", "terminal": "dark", "tux": "dark",
-                 "tux-quebec": "light", "quebec": "dark", "boreal": "dark", "sunset": "dark", "winter": "light", "tux-flag": "light", "tux-poster": "light"}      # 1.21: 5 more, 1.22: tux-flag, 1.23: tux-poster
+                 "quebec": "dark", "boreal": "dark", "sunset": "dark", "winter": "light", "photo": "light"}      # 1.21: 5 more, 1.22: tux-flag, 1.23: tux-poster
         for theme, base in bases.items():
             with self.subTest(theme=theme):
                 texte = self.config_deux_pages("no").replace("PAGE_1_THEME=auto", f"PAGE_1_THEME={theme}\nPAGE_1_SWITCH=yes")
@@ -540,16 +540,15 @@ printf '\\211PNG\\r\\n\\032\\nxxxx' > "$out"; printf '200 12'; exit 0
         for theme in bases:
             self.assertIn(f":root.theme-{theme} body", css)
         self.assertNotRegex(css, r"@import|https?:")                                     # nothing outside the page (CSP 'self')
-        self.assertEqual(re.findall(r"url\(([^)]*)\)", css), ['"../images/themes/tux-quebec.jpg"', '"../images/themes/tux-flag.jpg"', '"../images/themes/tux-poster.jpg"'])   # local images only
+        self.assertEqual(re.findall(r"url\(([^)]*)\)", css), [])                       # 1.41: no image of a group in the repository
         propres = css[css.index("/* ---- aurora: northern lights"):]                   # 1.23: after the common block, one theme per rule
         for ligne in propres.splitlines():
             if ligne.startswith(":root.theme-"):
                 self.assertEqual(len(set(re.findall(r":root\.theme-([a-z-]+)", ligne))), 1, ligne)
-        for image in ("tux-quebec.jpg", "tux-flag.jpg", "tux-poster.jpg"):
-            self.assertTrue((self.www / "liens" / "images" / "themes" / image).exists())
+        self.assertFalse(list((self.www / "liens" / "images" / "themes").glob("tux-*")))
         r = self.lancer("-c", str(self.conf(MINIMAL + "PAGE_1_THEME=rose\n")), "--check")
         self.assertNotEqual(r.returncode, 0)
-        self.assertIn("aurora, maple, river, terminal, tux, tux-quebec, quebec, boreal, sunset, winter, tux-flag, tux-poster, ls-aurora", r.stderr)
+        self.assertIn("aurora, maple, river, terminal, tux, quebec, boreal, sunset, winter, photo, ls-aurora", r.stderr)
 
     def test_116_quatre_themes_linkstack(self):
         """1.16 : ls-aurora, ls-dark, ls-dawn, ls-misty-rain : css/themes-linkstack.css (pas css/themes.css), images, polices et avis de licence
@@ -606,7 +605,7 @@ printf '\\211PNG\\r\\n\\032\\nxxxx' > "$out"; printf '200 12'; exit 0
         texte = self.config_deux_pages("no").replace("PAGE_1_THEME=auto", "PAGE_1_THEME=dark\nPAGE_1_THEMES=all")
         r = self.lancer("-c", str(self.conf(texte)), "--update", "--yes", env=self.env)
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
-        self.assertEqual(len(list(page.glob("*.html"))), 19)                             # 1.23: 19 themes
+        self.assertEqual(len(list(page.glob("*.html"))), 17)                             # 1.41: 17 themes (3 image themes -> photo)
         r = self.lancer("-c", str(self.conf(self.config_deux_pages("no"))), "--update", "--yes", env=self.env)
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
         self.assertEqual([f.name for f in page.glob("*.html")], ["index.html"])           # old theme pages removed
@@ -1143,6 +1142,48 @@ printf '\\211PNG\\r\\n\\032\\nxxxx' > "$out"; printf '200 12'; exit 0
         r = self.lancer("-c", str(self.conf(MINIMAL + "PAGE_1_COUNTDOWN=yes\nSITE_COUNTDOWN_DATE=21/11/2026\n")), "--check")
         self.assertIn("SITE_COUNTDOWN_DATE=21/11/2026 : date AAAA-MM-JJ", r.stderr)
         self.assertIn("SITE_COUNTDOWN_LABEL : nom de l'événement", r.stderr)
+
+    def test_141_theme_photo_generique(self):
+        """1.41 : thème photo + PAGE_n_BACKGROUND (https, chemin relatif ou file:/CHEMIN du serveur) : image copiée dans
+        images/site/, css/background.css (pale : flou et pâle ; plain : telle quelle) ; les anciens noms tux-quebec, tux-flag et
+        tux-poster sont lus comme photo avec un avertissement ; aucune image de groupe dans le dépôt ; langue d'Odoo configurable."""
+        import base64, json
+        image = self.tmp / "fond.png"
+        image.write_bytes(base64.b64decode("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=="))
+        texte = self.config_deux_pages("no").replace("PAGE_1_THEME=auto", f"PAGE_1_THEME=tux-flag\nPAGE_1_THEMES=light,tux-poster\nPAGE_1_BACKGROUND=file:{image}")
+        r = self.lancer("-c", str(self.conf(texte)), "--update", "--yes", env=self.env)
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertIn("PAGE_1_THEME=tux-flag : lu comme « photo » (thème générique)", r.stdout)
+        self.assertIn("PAGE_1_THEMES=light,tux-poster : lu comme « photo »", r.stdout)
+        page = self.www / "liens"
+        html = (page / "index.html").read_text(encoding="utf-8")
+        self.assertIn('<html class="theme-photo"', html)
+        self.assertIn('<link rel="stylesheet" href="css/background.css">', html)
+        self.assertTrue((page / "images" / "site" / "background.png").exists())
+        css = (page / "css" / "background.css").read_text(encoding="utf-8")
+        self.assertIn(":root.theme-photo body::before {", css)
+        self.assertIn('background: url("../images/site/background.png") center 30% / cover no-repeat;', css)
+        self.assertIn("filter: blur(14px);", css)
+        self.assertTrue((page / "theme-light.html").exists())
+        self.assertFalse(list(page.glob("theme-tux*.html")))
+        r = self.lancer("-c", str(self.conf(texte + "PAGE_1_BACKGROUND_STYLE=plain\n")), "--update", "--yes", env=self.env)
+        self.assertNotIn("blur", (page / "css" / "background.css").read_text(encoding="utf-8"))
+        for ajout, attendu in {"PAGE_1_BACKGROUND=file:/nexiste/pas.png": "fichier absent", "PAGE_1_BACKGROUND=ftp://x/y": "https://, chemin relatif ou file:/CHEMIN",
+                               "PAGE_1_BACKGROUND_STYLE=flou": "PAGE_1_BACKGROUND_STYLE=flou (pale ou plain)"}.items():
+            with self.subTest(ajout=ajout):
+                r = self.lancer("-c", str(self.conf(MINIMAL + "PAGE_1_THEME=photo\n" + ajout + "\n")), "--check")
+                self.assertNotEqual(r.returncode, 0)
+                self.assertIn(attendu, r.stderr)
+        r = self.lancer("-c", str(self.conf(MINIMAL + "PAGE_1_THEME=photo\n")), "--check")
+        self.assertIn("PAGE_1_THEME=photo : sans PAGE_1_BACKGROUND, fond uni", r.stdout)
+        for nom in ("tux-quebec.jpg", "tux-flag.jpg", "tux-poster.jpg"):
+            self.assertFalse((RACINE / "apps" / "link-page-themes" / "images" / nom).exists())
+        # language of Odoo for the names: EVENTS_ODOO_LANG_FR / _EN passed to the helper (ODOO_LANG)
+        aide = (RACINE / "apps" / "link-page-events.py").read_text(encoding="utf-8")
+        self.assertNotIn("America/Toronto", aide)
+        self.assertNotIn('"fr": "fr_CA"', aide)
+        source = (RACINE / "nginx-link-page.sh").read_text(encoding="utf-8")
+        self.assertIn('ODOO_LANG="$lg_odoo"', source)
 
     def test_deux_langues_detection_et_textes(self):
         texte = self.config_deux_pages("no").replace(

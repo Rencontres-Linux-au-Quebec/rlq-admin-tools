@@ -29,7 +29,7 @@
 set -u
 LANG_C="${LC_ALL:-${LC_MESSAGES:-${LANG:-C}}}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
-readonly SCRIPT_VERSION="1.40.20261112.225314"
+readonly SCRIPT_VERSION="1.41.20261113.061938"
 readonly SCRIPT_NAME="nginx-link-page"
 # --config-merge: same rule as the other programs (apps/_config.py fusionner): the configuration file is rewritten from the new template,
 # keeping its active values; the old file is copied to FILE.bak-YYYYMMDD-HHMMSS. Then exit.
@@ -62,11 +62,13 @@ readonly LINKPAGE_EXT_SHA="d7034f83a6bf71c4a663d2d046a03b37ec74ae45"
 readonly MAX_ASSET_BYTES=524288
 # 1.15: themes of PAGE_n_THEME: the 3 of LittleLink, then the 5 of apps/link-page-themes.css (copied as css/themes.css into each page)
 # 1.16: and the 4 LinkStack themes adapted in apps/link-page-themes/ (linkstack.css, images, fonts; MIT and OFL, LICENSES.md)
-readonly THEMES_RE="auto|light|dark|aurora|maple|river|terminal|tux|tux-quebec|quebec|boreal|sunset|winter|tux-flag|tux-poster|ls-aurora|ls-dark|ls-dawn|ls-misty-rain"
-readonly THEMES_LISTE="auto, light, dark, aurora, maple, river, terminal, tux, tux-quebec, quebec, boreal, sunset, winter, tux-flag, tux-poster, ls-aurora, ls-dark, ls-dawn ou ls-misty-rain"
+readonly THEMES_RE="auto|light|dark|aurora|maple|river|terminal|tux|quebec|boreal|sunset|winter|photo|tux-quebec|tux-flag|tux-poster|ls-aurora|ls-dark|ls-dawn|ls-misty-rain"
+readonly THEMES_LISTE="auto, light, dark, aurora, maple, river, terminal, tux, quebec, boreal, sunset, winter, photo, ls-aurora, ls-dark, ls-dawn ou ls-misty-rain"
 readonly THEMES_CSS="$SCRIPT_DIR/apps/link-page-themes.css"
-# themes of link-page-themes.css (1.15: 5 themes; 1.21: 5 more, tux-quebec with its image apps/link-page-themes/images/tux-quebec.jpg)
-readonly THEMES_MAISON="aurora|maple|river|terminal|tux|tux-quebec|quebec|boreal|sunset|winter|tux-flag|tux-poster"
+# themes of link-page-themes.css (1.15: 5 themes; 1.21: 5 more; 1.41: photo, whose image is given by PAGE_n_BACKGROUND)
+# 1.41: old names of the themes with the images of one group (removed from the repository): read as photo
+readonly THEMES_ANCIENS="tux-quebec|tux-flag|tux-poster"
+readonly THEMES_MAISON="aurora|maple|river|terminal|tux|quebec|boreal|sunset|winter|photo"
 readonly THEMES_LINKSTACK="$SCRIPT_DIR/apps/link-page-themes"
 # 1.17: "Theme" button (PAGE_n_THEMES): style sheet copied as css/theme-menu.css; "all" = every theme of THEMES_RE
 readonly THEME_MENU_CSS="$SCRIPT_DIR/apps/link-page-theme-menu.css"
@@ -76,7 +78,7 @@ readonly LINK_MENU_CSS="$SCRIPT_DIR/apps/link-page-link-menu.css"
 readonly EXTRAS_CSS="$SCRIPT_DIR/apps/link-page-extras.css"
 # 1.18: script of the pages (PAGE_n_SCRIPT): theme in place and remembered, language remembered, "Share" button; copied as js/link-page.js
 readonly LINK_PAGE_JS="$SCRIPT_DIR/apps/link-page.js"
-readonly THEMES_TOUS="auto light dark aurora maple river terminal tux tux-quebec quebec boreal sunset winter tux-flag tux-poster ls-aurora ls-dark ls-dawn ls-misty-rain"
+readonly THEMES_TOUS="auto light dark aurora maple river terminal tux quebec boreal sunset winter photo ls-aurora ls-dark ls-dawn ls-misty-rain"
 # themes_offerts VALUE: the themes of PAGE_n_THEMES, one per word, without duplicates, in the given order ("all": THEMES_TOUS)
 themes_offerts() {
     local v="${1// /}" t u vus=" "
@@ -296,11 +298,29 @@ fi
 PROBLEMES=()
 valeur_ou() { local v="${CFG[$1]:-}"; [[ -n "$v" ]] && printf '%s' "$v" || printf '%s' "$2"; }
 
+# 1.41: tux-quebec, tux-flag and tux-poster were themes made with the images of one group; the program stays generic: these names are
+# read as the theme photo, whose image is given by PAGE_n_BACKGROUND (kept by the group outside the repository)
+for cle in "${!CFG[@]}"; do
+    [[ "$cle" =~ ^PAGE_([0-9]+)_THEMES?$ ]] || continue
+    num_alias="${BASH_REMATCH[1]}"
+    ancien="${CFG[$cle]}"
+    IFS=',' read -r -a morceaux <<< "${ancien// /}"
+    nouveau=""; change=0
+    for t in ${morceaux[@]+"${morceaux[@]}"}; do
+        if [[ "$t" =~ ^($THEMES_ANCIENS)$ ]]; then t=photo; change=1; fi
+        [[ ",$nouveau," == *",$t,"* ]] || nouveau+="${nouveau:+,}$t"
+    done
+    if (( change )); then
+        CFG[$cle]="$nouveau"
+        attn "$cle=$ancien : $(m "lu comme « photo » (thème générique) ; image de fond : PAGE_${num_alias}_BACKGROUND=… (URL, chemin ou file:/CHEMIN)" "read as \"photo\" (generic theme); background image: PAGE_${num_alias}_BACKGROUND=... (URL, path or file:/PATH)")"
+    fi
+done
+
 # 1.24: every key of the files must be known (a mistyped key was ignored without a word: PAGE_3_THEMS=all, SITE_LANGAUGE=en)
 readonly CLES_SITE="BASE_URL COUNTDOWN_DATE COUNTDOWN_LABEL COUNTDOWN_LABEL_EN COUNTDOWN_URL DESCRIPTION DESCRIPTION_EN FOOTER FOOTER_EN HEADING HEADING_EN LANGUAGE LOGO_ALT LOGO_URL NEWSLETTER_LABEL NEWSLETTER_LABEL_EN NEWSLETTER_URL VCARD_EMAIL VCARD_NAME VCARD_PHONE VCARD_URL SHARE_DESCRIPTION SHARE_DESCRIPTION_EN SHARE_IMAGE_URL SHARE_TITLE SHARE_TITLE_EN TITLE TITLE_EN"
-readonly CLES_EVENTS="ODOO_DB ODOO_KEY_FILE ODOO_LOGIN ODOO_URL"      # 1.34: upcoming events read in Odoo
+readonly CLES_EVENTS="ODOO_DB ODOO_KEY_FILE ODOO_LANG_EN ODOO_LANG_FR ODOO_LOGIN ODOO_URL"      # 1.34: upcoming events read in Odoo
 readonly CLES_LIEN="FROM ICON ICON_DARK IMAGE LABEL LABEL_EN MENU PAGES STYLE UNTIL URL"
-readonly CLES_PAGE="ACCENT AVATAR BUTTONS CLICKS COUNTDOWN DIR ENABLED ENGINE EVENTS LANGUAGES NEWSLETTER PATH QR SCRIPT SHARE SWITCH THEME THEMES TITLE TITLE_EN VCARD"
+readonly CLES_PAGE="ACCENT AVATAR BACKGROUND BACKGROUND_STYLE BUTTONS CLICKS COUNTDOWN DIR ENABLED ENGINE EVENTS LANGUAGES NEWSLETTER PATH QR SCRIPT SHARE SWITCH THEME THEMES TITLE TITLE_EN VCARD"
 cle_connue() {   # cle_connue KEY: 0 when KEY is read by the program
     local k="$1" s
     if [[ "$k" =~ ^SITE_(.+)$ ]]; then for s in $CLES_SITE; do [[ "${BASH_REMATCH[1]}" == "$s" ]] && return 0; done; return 1; fi
@@ -659,9 +679,22 @@ for i in "${PAGES_N[@]}"; do
     if [[ "$theme" =~ ^($THEMES_MAISON)$ && ! -r "$THEMES_CSS" ]]; then
         PROBLEMES+=("${pre}THEME=$theme : $THEMES_CSS absent (livre avec le depot) / missing (shipped with the repository)")
     fi
-    if [[ "$theme" =~ ^(tux-quebec|tux-flag|tux-poster)$ && ! -r "$THEMES_LINKSTACK/images/$theme.jpg" ]]; then    # 1.21 to 1.23: background image of the theme
-        PROBLEMES+=("${pre}THEME=$theme : $THEMES_LINKSTACK/images/$theme.jpg absent (livre avec le depot) / missing (shipped with the repository)")
+    # 1.41: PAGE_n_BACKGROUND: image of the theme photo (https://, a path with SITE_BASE_URL, or file:/PATH on this server)
+    fond="${CFG[${pre}BACKGROUND]:-}"
+    if [[ -n "$fond" ]]; then
+        if [[ "$fond" == file:* ]]; then
+            fl="${fond#file:}"; fl="/${fl#"${fl%%[!/]*}"}"
+            [[ -f "$fl" ]] || PROBLEMES+=("${pre}BACKGROUND=$fond : $(m "fichier absent" "file not found") ($fl)")
+        else
+            if abs="$(resoudre_url "$fond")"; then fond="$abs"; CFG[${pre}BACKGROUND]="$abs"; fi
+            [[ "$fond" =~ $URL_RE ]] || PROBLEMES+=("${pre}BACKGROUND : $(m "https://, chemin relatif ou file:/CHEMIN d'une image (PNG, JPEG, WebP, SVG)" "https://, relative path or file:/PATH of an image (PNG, JPEG, WebP, SVG)")")
+        fi
+        [[ "$theme" == photo || ",$(valeur_ou "${pre}THEMES" ""), " =~ ,(photo|all), ]] \
+            || attn "${pre}BACKGROUND : $(m "sert seulement au thème photo (PAGE_n_THEME ou PAGE_n_THEMES)" "used by the theme photo only (PAGE_n_THEME or PAGE_n_THEMES)")"
+    elif [[ "$theme" == photo ]]; then
+        attn "${pre}THEME=photo : $(m "sans ${pre}BACKGROUND, fond uni" "without ${pre}BACKGROUND, plain background")"
     fi
+    [[ "$(valeur_ou "${pre}BACKGROUND_STYLE" pale)" =~ ^(pale|plain)$ ]] || PROBLEMES+=("${pre}BACKGROUND_STYLE=$(valeur_ou "${pre}BACKGROUND_STYLE" pale) (pale $(m "ou" "or") plain)")
     if [[ "$theme" == ls-* && ! -r "$THEMES_LINKSTACK/linkstack.css" ]]; then
         PROBLEMES+=("${pre}THEME=$theme : $THEMES_LINKSTACK/linkstack.css absent (livre avec le depot) / missing (shipped with the repository)")
     fi
@@ -751,8 +784,15 @@ telecharger() {
     local url="$1" base="$2" max="${3:-$MAX_ASSET_BYTES}" tmp type ext code rc http taille
     RES_FICHIER=""; RES_ERREUR=""
     tmp=$(mktemp) || return 1
-    code=$(curl -fsSL --proto '=https' --tlsv1.2 --max-time 30 --max-filesize "$max" -w '%{http_code} %{size_download}' -o "$tmp" "$url" 2>/dev/null)
-    rc=$?
+    if [[ "$url" == file:* ]]; then                            # 1.41: image kept on this server (PAGE_n_BACKGROUND=file:/PATH)
+        local fl="${url#file:}"; fl="/${fl#"${fl%%[!/]*}"}"
+        if [[ ! -f "$fl" || ! -r "$fl" ]]; then RES_ERREUR="$(m "fichier absent ou illisible" "file missing or not readable") : $fl"; rm -f "$tmp"; return 1; fi
+        taille=$(stat -c %s "$fl"); code="200 $taille"; rc=0
+        if (( taille > max )); then rc=63; else cp "$fl" "$tmp" || rc=1; fi
+    else
+        code=$(curl -fsSL --proto '=https' --tlsv1.2 --max-time 30 --max-filesize "$max" -w '%{http_code} %{size_download}' -o "$tmp" "$url" 2>/dev/null)
+        rc=$?
+    fi
     http="${code%% *}"; taille="${code##* }"
     if (( rc == 0 )) && [[ "$taille" =~ ^[0-9]+$ ]] && (( taille > max )); then rc=63; fi
     if (( rc != 0 )); then
@@ -1029,7 +1069,8 @@ if (( EVENEMENTS_MAX > 0 )); then
                         valeur_ou "PAGE_${i}_LANGUAGES" "$SITE_LANGUAGE_V" | tr ',' '\n'
                     fi
                 done | sort -u); do
-        if ODOO_URL="$EVENTS_URL_V" ODOO_DB="${CFG[EVENTS_ODOO_DB]:-}" ODOO_LOGIN="${CFG[EVENTS_ODOO_LOGIN]:-}" ODOO_KEY_FILE="$EVENTS_CLE_V" \
+        if [[ "$lg" == en ]]; then lg_odoo="$(valeur_ou EVENTS_ODOO_LANG_EN en_US)"; else lg_odoo="$(valeur_ou EVENTS_ODOO_LANG_FR fr_FR)"; fi    # 1.41
+        if ODOO_URL="$EVENTS_URL_V" ODOO_DB="${CFG[EVENTS_ODOO_DB]:-}" ODOO_LOGIN="${CFG[EVENTS_ODOO_LOGIN]:-}" ODOO_KEY_FILE="$EVENTS_CLE_V" ODOO_LANG="$lg_odoo" \
            python3 -I "$SCRIPT_DIR/apps/link-page-events.py" "$EVENEMENTS_MAX" "$lg" > "$TMP/events-$lg.tsv" 2> "$TMP/events-$lg.err"; then
             ok "$(m "événements Odoo" "Odoo events") ($lg) : $(wc -l < "$TMP/events-$lg.tsv") ($EVENTS_URL_V)"
         else
@@ -1044,23 +1085,23 @@ theme_nom() {
     if [[ "$L_LANG" == en ]]; then
         case "$1" in light) echo light ;; dark) echo dark ;; aurora) echo "northern lights" ;; maple) echo maple ;; river) echo river ;;
                      terminal) echo terminal ;; tux) echo Tux ;; ls-aurora) echo "Aurora (LinkStack)" ;; ls-dark) echo "Dark (LinkStack)" ;;
-                     tux-quebec) echo "Quebec Tux" ;; quebec) echo "Quebec flag" ;; boreal) echo "boreal forest" ;; sunset) echo sunset ;; winter) echo winter ;; tux-flag) echo "Tux and the Quebec flag" ;; tux-poster) echo "Tux poster" ;;
+                     quebec) echo "Quebec flag" ;; boreal) echo "boreal forest" ;; sunset) echo sunset ;; winter) echo winter ;; photo) echo photo ;;
                      ls-dawn) echo "Dawn (LinkStack)" ;; ls-misty-rain) echo "Misty Rain (LinkStack)" ;; *) echo automatic ;; esac
     else
         case "$1" in light) echo clair ;; dark) echo sombre ;; aurora) echo "aurore boréale" ;; maple) echo érable ;; river) echo fleuve ;;
                      terminal) echo terminal ;; tux) echo Tux ;; ls-aurora) echo "Aurora (LinkStack)" ;; ls-dark) echo "Dark (LinkStack)" ;;
-                     tux-quebec) echo "Tux québécois" ;; quebec) echo fleurdelisé ;; boreal) echo "forêt boréale" ;; sunset) echo "coucher de soleil" ;; winter) echo hiver ;; tux-flag) echo "Tux et drapeau du Québec" ;; tux-poster) echo "affiche Tux" ;;
+                     quebec) echo fleurdelisé ;; boreal) echo "forêt boréale" ;; sunset) echo "coucher de soleil" ;; winter) echo hiver ;; photo) echo photo ;;
                      ls-dawn) echo "Dawn (LinkStack)" ;; ls-misty-rain) echo "Misty Rain (LinkStack)" ;; *) echo automatique ;; esac
     fi
 }
 # theme_base THEME: light or dark (choice of the icons of LINK_n_ICON_DARK, theme of the second page with PAGE_n_SWITCH), auto for auto
 theme_base() {
-    case "$1" in dark|aurora|terminal|tux|quebec|boreal|sunset|ls-*) echo dark ;; light|maple|river|tux-quebec|winter|tux-flag|tux-poster) echo light ;; *) echo auto ;; esac
+    case "$1" in dark|aurora|terminal|tux|quebec|boreal|sunset|ls-*) echo dark ;; light|maple|river|winter|photo) echo light ;; *) echo auto ;; esac
 }
 # theme_couleur THEME: colour of the browser bar (meta theme-color) of the 5 themes of link-page-themes.css
 theme_couleur() {
     case "$1" in aurora) echo "#0b1026" ;; maple) echo "#b3261e" ;; river) echo "#0e6b7f" ;; terminal) echo "#050805" ;; tux) echo "#1c1f24" ;;
-                 tux-quebec) echo "#0033a0" ;; quebec) echo "#003da5" ;; boreal) echo "#0f2318" ;; sunset) echo "#2b1a4a" ;; winter) echo "#dcebf7" ;; tux-flag) echo "#0033a0" ;; tux-poster) echo "#0033a0" ;;
+                 quebec) echo "#003da5" ;; boreal) echo "#0f2318" ;; sunset) echo "#2b1a4a" ;; winter) echo "#dcebf7" ;; photo) echo "#1f3a5f" ;;
                  ls-aurora) echo "#24123d" ;; ls-dark) echo "#1f232e" ;; ls-dawn) echo "#223344" ;; ls-misty-rain) echo "#181b24" ;; esac
 }
 bascule_libelle() {
@@ -1093,6 +1134,21 @@ csp_script() { if [[ "$P_JS" == yes ]]; then echo "'self'"; else echo "'none'"; 
 # menu_contient REGEX: a theme of the "Theme" button matches REGEX
 menu_contient() { local t; for t in ${P_MENU[@]+"${P_MENU[@]}"}; do [[ "$t" =~ $1 ]] && return 0; done; return 1; }
 
+# ecrire_fond FILE IMAGE STYLE: 1.41: css/background.css of the theme photo: the image fills the screen under the page; pale: blurred
+# and light (the text stays readable), plain: as it is. A pseudo-element: the image never moves with the text and needs no script.
+ecrire_fond() {
+    {
+        echo "/* Generated by $SCRIPT_NAME.sh (PAGE_n_BACKGROUND): background image of the theme photo. Do not edit: rewritten by --update. */"
+        echo ":root.theme-photo body::before {"
+        echo "	content: \"\";"
+        echo "	position: fixed;"
+        if [[ "$3" == pale ]]; then echo "	inset: -40px;"; else echo "	inset: 0;"; fi
+        echo "	z-index: -1;"
+        echo "	background: url(\"../$2\") center 30% / cover no-repeat;"
+        if [[ "$3" == pale ]]; then echo "	filter: blur(14px);"; echo "	opacity: 0.5;"; fi
+        echo "}"
+    } > "$1"
+}
 # vcard_echap TEXT: TEXT for a vCard value (backslash, comma, semicolon and new lines escaped)
 vcard_echap() { local t="${1//\\/\\\\}"; t="${t//,/\\,}"; t="${t//;/\\;}"; printf '%s' "${t//$'\n'/\\n}"; }
 # page_a_extras: 0 when the page being generated (P_LIENS) has a featured link, in a menu or not, or shows its QR code
@@ -1281,6 +1337,7 @@ genere_index() {   # genere_index DOSSIER THEME TITRE [FICHIER] [CIBLE_BASCULE] 
         if [[ -f "$dossier/css/themes-linkstack.css" ]] && { [[ "$theme" == ls-* ]] || { [[ "$P_JS" == yes ]] && menu_contient '^ls-'; }; }; then
             echo "    <link rel=\"stylesheet\" href=\"css/themes-linkstack.css\">"
         fi
+        if [[ -f "$dossier/css/background.css" ]]; then echo "    <link rel=\"stylesheet\" href=\"css/background.css\">"; fi      # 1.41
         if (( ${#P_MENU[@]} )) || [[ "$P_JS" == yes && "$P_PARTAGE" == yes ]]; then echo "    <link rel=\"stylesheet\" href=\"css/theme-menu.css\">"; fi
         if [[ -f "$dossier/css/link-menu.css" ]]; then echo "    <link rel=\"stylesheet\" href=\"css/link-menu.css\">"; fi      # 1.26
         if [[ -f "$dossier/css/extras.css" ]]; then echo "    <link rel=\"stylesheet\" href=\"css/extras.css\">"; fi            # 1.31
@@ -1395,7 +1452,13 @@ for i in ${ACTIVES[@]+"${ACTIVES[@]}"}; do
     P_EVENTS=$((10#$(valeur_ou "PAGE_${i}_EVENTS" 0)))      # 1.34: upcoming events of Odoo
     P_INFOLETTRE="$(valeur_ou "PAGE_${i}_NEWSLETTER" yes)"    # 1.38: newsletter button (with SITE_NEWSLETTER_URL)
     P_VCARD="$(valeur_ou "PAGE_${i}_VCARD" no)"               # 1.39: contact.vcf and its link
-    P_DECOMPTE="$(valeur_ou "PAGE_${i}_COUNTDOWN" no)"        # 1.40: countdown banner                     # 1.32: qr.svg and qr.png of the page, link above the footer
+    P_DECOMPTE="$(valeur_ou "PAGE_${i}_COUNTDOWN" no)"        # 1.40: countdown banner
+    P_FOND=""                                                 # 1.41: background image of the theme photo
+    if [[ -n "${CFG[PAGE_${i}_BACKGROUND]:-}" ]]; then
+        telecharger "${CFG[PAGE_${i}_BACKGROUND]}" "$TMP/fond-$i" "$MAX_SHARE_BYTES" \
+            || { err "PAGE_${i}_BACKGROUND : $(m "image non lisible" "image not readable") : ${CFG[PAGE_${i}_BACKGROUND]} ($RES_ERREUR)"; exit 1; }
+        P_FOND="$RES_FICHIER"
+    fi                     # 1.32: qr.svg and qr.png of the page, link above the footer
     P_JS=no
     if [[ "$(valeur_ou "PAGE_${i}_SCRIPT" yes)" == yes ]] && { (( ${#P_MENU[@]} )) || [[ "$P_PARTAGE" == yes ]] || (( ${#P_LISTE[@]} == 2 )); }; then
         P_JS=yes
@@ -1406,6 +1469,11 @@ for i in ${ACTIVES[@]+"${ACTIVES[@]}"}; do
         # the first language is the root page (/liens/); any other language lives in a sub-folder (/liens/en/)
         if (( k == 0 )); then dossier="$site"; else dossier="$site/$L_LANG"; fi
         preparer_dossier "$dossier"
+        if [[ -n "$P_FOND" ]]; then                            # 1.41: css/background.css: the image under the theme photo
+            mkdir -p "$dossier/images/site" "$dossier/css"
+            install -m 644 "$P_FOND" "$dossier/images/site/background.${P_FOND##*.}"
+            ecrire_fond "$dossier/css/background.css" "images/site/background.${P_FOND##*.}" "$(valeur_ou "PAGE_${i}_BACKGROUND_STYLE" pale)"
+        fi
         if [[ "$L_LANG" == en ]]; then
             L_TITRE="$(valeur_ou "PAGE_${i}_TITLE_EN" "${SITE_TITLE_EN_V:-$P_TITRE}")"
             L_HEADING="${SITE_HEADING_EN_V:-$SITE_HEADING_V}"
