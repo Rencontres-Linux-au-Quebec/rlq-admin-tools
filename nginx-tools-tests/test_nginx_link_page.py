@@ -818,7 +818,7 @@ printf '\\211PNG\\r\\n\\032\\nxxxx' > "$out"; printf '200 12'; exit 0
         self.assertNotIn("example.org/a", html)                                            # ended yesterday
         self.assertIn("example.org/b", html)                                               # starts today
         tache = (cron / "nginx-link-page").read_text(encoding="utf-8")
-        self.assertRegex(tache, r"(?m)^5 0 \* \* \* root /.+/nginx-link-page\.sh --update --yes -c .+ 2>&1 \| logger -t nginx-link-page$")
+        self.assertRegex(tache, r"(?m)^5 0 \* \* \* root NGINX_LINK_PAGE_NO_BACKUP=1 /.+/nginx-link-page\.sh --update --yes -c .+ 2>&1 \| logger -t nginx-link-page$")
         r = self.lancer("-c", str(self.conf(texte)), "--update", "--yes", env=dict(env, NGINX_LINK_PAGE_TODAY="2026-11-21"))
         html = (self.www / "liens" / "index.html").read_text(encoding="utf-8")
         self.assertIn("example.org/a", html)
@@ -945,6 +945,34 @@ printf '\\211PNG\\r\\n\\032\\nxxxx' > "$out"; printf '200 12'; exit 0
         r = self.lancer("-c", str(self.conf(MINIMAL + "PAGE_1_QR=yes\n")), "--check", env={"PATH": "/usr/bin:/bin", "NGINX_LINK_PAGE_LETSENCRYPT_DIR": str(self.tmp / "aucun")})
         self.assertIn("qrencode absent (sudo apt install qrencode)", r.stderr)
         self.assertIn("adresse publique inconnue", r.stderr)
+
+    def test_133_rollback(self):
+        """1.33 : --update garde la version précédente (pages, fragment, tâche quotidienne) ; --rollback la remet, même avec une
+        configuration invalide, puis nginx -t et rechargement ; rien à remettre : erreur ; la tâche quotidienne ne remplace pas la copie."""
+        etat = self.tmp / "etat"
+        env = dict(self.env, NGINX_LINK_PAGE_STATE_DIR=str(etat), NGINX_LINK_PAGE_CRON_DIR=str(self.tmp / "cron.d"))
+        r = self.lancer("-c", str(self.conf(MINIMAL)), "--rollback", env=env)
+        self.assertNotEqual(r.returncode, 0)
+        self.assertIn("aucune version précédente", r.stderr)
+        un = self.config_deux_pages("no").replace("Lien <A>", "Premier")
+        r = self.lancer("-c", str(self.conf(un)), "--update", "--yes", env=env)
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertFalse((etat / "previous").exists())                                 # first install: nothing to put back
+        deux = self.config_deux_pages("no").replace("Lien <A>", "Second").replace("PAGE_1_THEME=auto", "PAGE_1_THEME=auto\nPAGE_1_THEMES=light,dark")
+        r = self.lancer("-c", str(self.conf(deux)), "--update", "--yes", env=env)
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertIn("version précédente gardée (--rollback)", r.stdout)
+        page = self.www / "liens"
+        self.assertIn("Second", (page / "index.html").read_text(encoding="utf-8"))
+        self.assertTrue((page / "theme-dark.html").exists())
+        r = self.lancer("-c", str(self.conf(deux)), "--update", "--yes", env=dict(env, NGINX_LINK_PAGE_NO_BACKUP="1"))
+        self.assertIn("Premier", (etat / "previous" / "page-1" / "index.html").read_text(encoding="utf-8"))   # daily task: copy unchanged
+        r = self.lancer("-c", str(self.conf(MINIMAL + "PAGE_1_THEMS=x\n")), "--rollback", env=env)       # invalid configuration
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertIn("Premier", (page / "index.html").read_text(encoding="utf-8"))
+        self.assertFalse((page / "theme-dark.html").exists())
+        self.assertIn("fragment nginx remis", r.stdout)
+        self.assertIn("nginx -t réussi, nginx rechargé", r.stdout)
 
     def test_deux_langues_detection_et_textes(self):
         texte = self.config_deux_pages("no").replace(

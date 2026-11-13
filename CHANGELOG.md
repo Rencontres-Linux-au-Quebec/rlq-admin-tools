@@ -4536,6 +4536,16 @@ Earlier history was archived outside this repository when this file was created.
 
 ## nginx-link-page.sh
 
+### 1.33.20261112.222624 - --rollback: put back the version of before the last --update
+
+- Title: new option --rollback: puts back the pages, the nginx snippet and the daily task of before the last --update.
+- Reason: request of the administrator on 2026-11-12 (improvement 8 of the list proposed): undo a failed update with one command.
+- Changes: new variable ETAT_DIR (/var/lib/nginx-link-page, NGINX_LINK_PAGE_STATE_DIR for the tests) and constant FICHIERS_GERES (what --update replaces in a page folder, also used by step 5); step 5 of --update: before installing, copies the managed files of each page folder (and its theme-*.html), the snippet and the daily task (or its absence) to ETAT_DIR/previous, with a manifest and the date; new option --rollback (help in French and English, root): handled right after the options, before the check of the configuration, it puts back each folder, the snippet and the daily task listed in the manifest, then runs nginx -t and reloads nginx; the daily task (1.27) runs with NGINX_LINK_PAGE_NO_BACKUP=1; nginx-tools-tests/test_nginx_link_page.py: 1 test, the expected line of the daily task updated.
+- Bugs fixed: none.
+- Safeguards and edge cases: --rollback works even when the configuration is invalid (often the reason of the rollback); first install: nothing is kept and --rollback says "no previous version"; the daily task never replaces the copy (it would put the same pages there every night, and the copy of before a manual update would be lost); only one previous version is kept (each manual --update replaces it); ETAT_DIR is readable by root only (700); nginx -t refused after the rollback: [FAIL] with the lines of nginx -t, exit code 1; a second --rollback puts back the same version.
+- Checks performed: bash -n; shellcheck; test_nginx_link_page (66 tests); help order.
+- Action required: none (after a failed update: sudo nginx-link-page.sh --rollback).
+
 ### 1.32.20261112.222441 - PAGE_n_QR: QR code of the page for posters and slides
 
 - Title: new key PAGE_n_QR=yes: QR code of the page (qr.svg, qr.png) and a "QR code of this page" link.

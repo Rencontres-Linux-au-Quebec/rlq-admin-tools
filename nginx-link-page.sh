@@ -29,7 +29,7 @@
 set -u
 LANG_C="${LC_ALL:-${LC_MESSAGES:-${LANG:-C}}}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
-readonly SCRIPT_VERSION="1.32.20261112.222441"
+readonly SCRIPT_VERSION="1.33.20261112.222624"
 readonly SCRIPT_NAME="nginx-link-page"
 # --config-merge: same rule as the other programs (apps/_config.py fusionner): the configuration file is rewritten from the new template,
 # keeping its active values; the old file is copied to FILE.bak-YYYYMMDD-HHMMSS. Then exit.
@@ -130,6 +130,7 @@ Options (ordre alphabetique / alphabetical order) :
   ${C_OPT}-h, --help${C_RESET}                 affiche cette aide / show this help
   ${C_OPT}--init${C_RESET}                     cree la configuration depuis le modele / create the configuration from the template
   ${C_OPT}--lang LANG${C_RESET}                langue des messages : fr ou en / message language: fr or en
+  ${C_OPT}--rollback${C_RESET}                 remet les pages et le fragment nginx d'avant le dernier --update / put back the pages and the nginx snippet of before the last --update
   ${C_OPT}--update${C_RESET}                   installe ou met a jour les pages (root, confirmation) / install or update (root, asks first)
   ${C_OPT}--version${C_RESET}                  affiche la version / show the version
   ${C_OPT}--yes${C_RESET}                      avec --update : sans question / with --update: no question
@@ -233,12 +234,47 @@ while [[ $# -gt 0 ]]; do
         --clicks) MODE="clicks"; shift ;;
         --init) MODE="init"; shift ;;
         --update) MODE="update"; shift ;;
+        --rollback) MODE="rollback"; shift ;;
         --yes) YES=1; shift ;;
         -h|--help) usage; exit 0 ;;
         --version) echo "$SCRIPT_NAME.sh version $SCRIPT_VERSION"; exit 0 ;;
         *) echo "Argument inconnu / unknown argument: $1" >&2; usage >&2; exit 2 ;;
     esac
 done
+
+# 1.33: previous version of the pages: copied by --update before it installs, put back by --rollback (whatever the configuration)
+ETAT_DIR="${NGINX_LINK_PAGE_STATE_DIR:-/var/lib/$SCRIPT_NAME}"
+readonly FICHIERS_GERES="css fonts images js index.html autre.html en fr qr.svg qr.png"      # what --update replaces in a page folder
+if [[ "$MODE" == "rollback" ]]; then
+    if [[ "$(id -u)" -ne 0 ]]; then err "$(m "--rollback écrit dans les dossiers des pages : lancer avec sudo." "--rollback writes to the page folders: run with sudo.")"; exit 1; fi
+    prec="$ETAT_DIR/previous"
+    if [[ ! -s "$prec/manifest" ]]; then err "$(m "aucune version précédente" "no previous version") ($prec)"; exit 1; fi
+    echo "$(m "Version précédente du" "Previous version of") $(cat "$prec/date" 2>/dev/null || echo "?") :"
+    snippet_remis=""
+    while IFS=$'\t' read -r type nom chemin; do
+        case "$type" in
+            page)
+                mkdir -p "$chemin"
+                for x in $FICHIERS_GERES; do rm -rf "${chemin:?}/$x"; done
+                rm -f "${chemin:?}"/theme-*.html
+                cp -a "$prec/$nom/." "$chemin/" && ok "$(m "page remise" "page put back") : $chemin" || { err "$(m "copie impossible" "copy failed") : $chemin"; exit 1; } ;;
+            snippet)
+                cp -a "$prec/$nom" "$chemin" && snippet_remis="$chemin" && ok "$(m "fragment nginx remis" "nginx snippet put back") : $chemin" ;;
+            cron)
+                if [[ "$nom" == "-" ]]; then rm -f "$chemin"; else mkdir -p "$(dirname "$chemin")"; cp -a "$prec/$nom" "$chemin"; fi ;;
+        esac
+    done < "$prec/manifest"
+    if [[ -n "$snippet_remis" ]]; then
+        if nginx_erreur=$(nginx -t 2>&1); then
+            { systemctl reload nginx >/dev/null 2>&1 || nginx -s reload >/dev/null 2>&1; } && ok "$(m "nginx -t réussi, nginx rechargé" "nginx -t passed, nginx reloaded")"
+        else
+            err "$(m "nginx -t refuse la configuration après le retour arrière" "nginx -t refuses the configuration after the rollback")"
+            printf '%s\n' "$nginx_erreur" | head -8 | sed 's/^/        nginx -t : /'
+            exit 1
+        fi
+    fi
+    exit 0
+fi
 
 # --init writes the template and stops: there is no configuration to validate yet
 if [[ "$MODE" == "init" ]]; then
@@ -1268,12 +1304,35 @@ else
 fi
 
 # 5) install the folders, then the snippet: nginx -t, reload; the previous snippet is restored on refusal
+# 1.33: copy of what is replaced (page folders, snippet, daily task), put back by --rollback; not by the daily task (it would replace
+# the copy of before a manual update by the same pages every night)
+if [[ "${NGINX_LINK_PAGE_NO_BACKUP:-0}" != 1 ]]; then
+    nouv="$ETAT_DIR/previous.new"; rm -rf "$nouv"; mkdir -p "$nouv"; : > "$nouv/manifest"
+    date '+%Y-%m-%d %H:%M:%S' > "$nouv/date"
+    for i in ${ACTIVES[@]+"${ACTIVES[@]}"}; do
+        dossier="$(valeur_ou "PAGE_${i}_DIR" "")"
+        [[ -f "$dossier/index.html" ]] || continue
+        mkdir -p "$nouv/page-$i"
+        for x in $FICHIERS_GERES; do [[ -e "$dossier/$x" ]] && cp -a "$dossier/$x" "$nouv/page-$i/"; done
+        for x in "$dossier"/theme-*.html; do [[ -e "$x" ]] && cp -a "$x" "$nouv/page-$i/"; done
+        printf 'page\tpage-%s\t%s\n' "$i" "$dossier" >> "$nouv/manifest"
+    done
+    if [[ -f "$LIEN_FICHIER" ]]; then cp -a "$LIEN_FICHIER" "$nouv/snippet.conf"; printf 'snippet\tsnippet.conf\t%s\n' "$LIEN_FICHIER" >> "$nouv/manifest"; fi
+    cron_f="${NGINX_LINK_PAGE_CRON_DIR:-/etc/cron.d}/$SCRIPT_NAME"
+    if [[ -f "$cron_f" ]]; then cp -a "$cron_f" "$nouv/cron"; printf 'cron\tcron\t%s\n' "$cron_f" >> "$nouv/manifest"; else printf 'cron\t-\t%s\n' "$cron_f" >> "$nouv/manifest"; fi
+    if grep -q '^page' "$nouv/manifest" || grep -q '^snippet' "$nouv/manifest"; then
+        rm -rf "$ETAT_DIR/previous"; mv "$nouv" "$ETAT_DIR/previous"; chmod 700 "$ETAT_DIR"
+        ok "$(m "version précédente gardée (--rollback)" "previous version kept (--rollback)") : $ETAT_DIR/previous"
+    else
+        rm -rf "$nouv"                                     # first install: nothing to put back
+    fi
+fi
 mkdir -p "$SNIPPETS_DIR"
 LIEN_ANCIEN=""; [[ -f "$LIEN_FICHIER" ]] && LIEN_ANCIEN=$(cat "$LIEN_FICHIER")
 for i in ${ACTIVES[@]+"${ACTIVES[@]}"}; do
     dossier="$(valeur_ou "PAGE_${i}_DIR" "")"
     mkdir -p "$dossier"
-    for x in css fonts images js index.html autre.html en fr qr.svg qr.png; do rm -rf "${dossier:?}/$x"; done      # 1.18: js; 1.32: qr
+    for x in $FICHIERS_GERES; do rm -rf "${dossier:?}/$x"; done      # 1.18: js; 1.32: qr; 1.33: FICHIERS_GERES
     rm -f "${dossier:?}"/theme-*.html                    # 1.17: pages of the "Theme" button of the previous run
     cp -r "$TMP/page-$i/." "$dossier/" || { err "$(m "copie impossible dans" "copy failed in") $dossier"; exit 1; }
     chmod -R a+rX "$dossier"
@@ -1295,7 +1354,7 @@ if nginx_erreur=$(nginx -t 2>&1); then
             echo "# Genere par $SCRIPT_NAME.sh : liens dates (LINK_n_FROM, LINK_n_UNTIL), pages reconstruites chaque jour. Ne pas editer a la main."
             echo "SHELL=/bin/bash"
             echo "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
-            echo "5 0 * * * root $SCRIPT_DIR/$SCRIPT_NAME.sh --update --yes${CONFIG_EXPLICIT:+ -c $CONFIG_EXPLICIT} 2>&1 | logger -t $SCRIPT_NAME"
+            echo "5 0 * * * root NGINX_LINK_PAGE_NO_BACKUP=1 $SCRIPT_DIR/$SCRIPT_NAME.sh --update --yes${CONFIG_EXPLICIT:+ -c $CONFIG_EXPLICIT} 2>&1 | logger -t $SCRIPT_NAME"
         } > "$CRON_FICHIER.tmp" && chmod 644 "$CRON_FICHIER.tmp" && mv -f "$CRON_FICHIER.tmp" "$CRON_FICHIER"
         ok "$(m "liens datés : pages reconstruites chaque jour à 00:05" "dated links: pages rebuilt every day at 00:05") ($CRON_FICHIER)"
     elif [[ -f "$CRON_FICHIER" ]]; then
