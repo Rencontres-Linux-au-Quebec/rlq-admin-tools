@@ -1151,7 +1151,9 @@ bandeau_decompte() {
     fi
     delai="$(delai_jours "${quand% *}" "$fin")"
     [[ -n "$delai" ]] || return 0
-    local texte="<strong>${delai^}</strong> · $(html_echap "$nom") · $(html_echap "$(date_evenement "$quand" | sed 's/ · [0-9].*$//; s/ · 0 h$//')")"
+    local texte jour
+    jour="$(date_evenement "$quand")"; jour="${jour%% · *}"
+    texte="<strong>${delai^}</strong> · $(html_echap "$nom") · $(html_echap "$jour")"
     if [[ -n "$adresse" ]]; then
         echo "      <p class=\"countdown\"><a href=\"$(html_echap "$adresse")\" target=\"_blank\" rel=\"noopener noreferrer\">$texte</a></p>"
     else
