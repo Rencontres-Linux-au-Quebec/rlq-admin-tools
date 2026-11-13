@@ -596,6 +596,10 @@ printf '\\211PNG\\r\\n\\032\\nxxxx' > "$out"; printf '200 12'; exit 0
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
         self.assertEqual([f.name for f in page.glob("*.html")], ["index.html"])           # old theme pages removed
         self.assertNotIn('<details class="theme-menu">', (page / "index.html").read_text(encoding="utf-8"))
+        for valeur in ("all", "light,dark"):                                              # 1.20: THEME given a list: hint towards THEMES
+            r = self.lancer("-c", str(self.conf(MINIMAL + f"PAGE_1_THEME={valeur}\n")), "--check")
+            self.assertNotEqual(r.returncode, 0)
+            self.assertIn(f"PAGE_1_THEMES={valeur} (avec un S)", r.stderr)
         r = self.lancer("-c", str(self.conf(MINIMAL + "PAGE_1_THEMES=light,rose\n")), "--check")
         self.assertNotEqual(r.returncode, 0)
         self.assertIn("« rose »", r.stderr)

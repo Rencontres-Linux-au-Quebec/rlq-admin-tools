@@ -29,7 +29,7 @@
 set -u
 LANG_C="${LC_ALL:-${LC_MESSAGES:-${LANG:-C}}}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
-readonly SCRIPT_VERSION="1.19.20261112.184937"
+readonly SCRIPT_VERSION="1.20.20261112.192431"
 readonly SCRIPT_NAME="nginx-link-page"
 # --config-merge: same rule as the other programs (apps/_config.py fusionner): the configuration file is rewritten from the new template,
 # keeping its active values; the old file is copied to FILE.bak-YYYYMMDD-HHMMSS. Then exit.
@@ -381,7 +381,13 @@ for i in "${PAGES_N[@]}"; do
         DOSSIERS_VUS["$d2"]=1
         DOSSIERS_LISTE+=("$d2")
     fi
-    [[ "$theme" =~ ^($THEMES_RE)$ ]] || PROBLEMES+=("${pre}THEME=$theme ($THEMES_LISTE)")
+    if [[ ! "$theme" =~ ^($THEMES_RE)$ ]]; then
+        if [[ "$theme" == *,* || "$theme" =~ ^[[:space:]]*all[[:space:]]*$ ]]; then      # 1.20: a list or "all" belongs to PAGE_n_THEMES
+            PROBLEMES+=("${pre}THEME=$theme : un seul thème ici ; pour le bouton Thème, écrire ${pre}THEMES=$theme (avec un S) / one theme only here; for the Theme button, write ${pre}THEMES=$theme (with an S)")
+        else
+            PROBLEMES+=("${pre}THEME=$theme ($THEMES_LISTE)")
+        fi
+    fi
     if [[ "$theme" =~ ^(aurora|maple|river|terminal|tux)$ && ! -r "$THEMES_CSS" ]]; then
         PROBLEMES+=("${pre}THEME=$theme : $THEMES_CSS absent (livre avec le depot) / missing (shipped with the repository)")
     fi

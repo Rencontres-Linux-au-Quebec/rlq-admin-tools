@@ -4536,6 +4536,16 @@ Earlier history was archived outside this repository when this file was created.
 
 ## nginx-link-page.sh
 
+### 1.20.20261112.192431 - PAGE_n_THEME=all: the error points to PAGE_n_THEMES
+
+- Title: a list or "all" given to PAGE_n_THEME (one theme) is refused with a hint: write PAGE_n_THEMES (with an S).
+- Reason: report of the administrator on 2026-11-12: "[FAIL] PAGE_3_THEME=all (auto, light, dark...)": the key of the Theme button is PAGE_n_THEMES, easy to mistype.
+- Changes: page check: PAGE_n_THEME with a comma or the value all gives "un seul thème ici ; pour le bouton Thème, écrire PAGE_n_THEMES=VALUE (avec un S)"; nginx-tools-tests/test_nginx_link_page.py: 2 cases added to test_117_bouton_theme.
+- Bugs fixed: none (the value was already refused; only the message changes).
+- Safeguards and edge cases: any other unknown theme keeps the list of the themes; nothing is installed while the configuration is invalid.
+- Checks performed: bash -n; shellcheck; test_nginx_link_page.
+- Action required: none (in the configuration: PAGE_3_THEMES=all and PAGE_3_THEME=one theme).
+
 ### 1.19.20261112.184937 - Comment after an empty value read as empty
 
 - Title: "LINK_1_LABEL_EN=          # optional English label" is now an empty value, not the text of the comment.
