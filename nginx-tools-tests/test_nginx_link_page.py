@@ -799,6 +799,35 @@ printf '\\211PNG\\r\\n\\032\\nxxxx' > "$out"; printf '200 12'; exit 0
                 self.assertNotEqual(r.returncode, 0)
                 self.assertIn(attendu, r.stderr)
 
+    def test_127_liens_dates(self):
+        """1.27 : LINK_n_FROM / LINK_n_UNTIL : le lien est affiché entre ces dates (comprises) ; tâche quotidienne cron installée tant
+        qu'un lien est daté, retirée ensuite ; dates invalides ou inversées refusées ; --check montre la période."""
+        cron = self.tmp / "cron.d"
+        env = dict(self.env, NGINX_LINK_PAGE_CRON_DIR=str(cron), NGINX_LINK_PAGE_TODAY="2026-11-22")
+        texte = self.config_deux_pages("no") + "LINK_1_UNTIL=2026-11-21\nLINK_2_FROM=2026-11-22\n"
+        r = self.lancer("-c", str(self.conf(texte)), "--update", "--yes", env=env)
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        html = (self.www / "liens" / "index.html").read_text(encoding="utf-8")
+        self.assertNotIn("example.org/a", html)                                            # ended yesterday
+        self.assertIn("example.org/b", html)                                               # starts today
+        tache = (cron / "nginx-link-page").read_text(encoding="utf-8")
+        self.assertRegex(tache, r"(?m)^5 0 \* \* \* root /.+/nginx-link-page\.sh --update --yes -c .+ 2>&1 \| logger -t nginx-link-page$")
+        r = self.lancer("-c", str(self.conf(texte)), "--update", "--yes", env=dict(env, NGINX_LINK_PAGE_TODAY="2026-11-21"))
+        html = (self.www / "liens" / "index.html").read_text(encoding="utf-8")
+        self.assertIn("example.org/a", html)
+        self.assertNotIn("example.org/b", html)
+        r = self.lancer("-c", str(self.conf(texte)), "--check", env=env)
+        self.assertIn("(au 2026-11-21 : caché aujourd'hui)", r.stdout)
+        self.assertIn("(du 2026-11-22 : affiché aujourd'hui)", r.stdout)
+        r = self.lancer("-c", str(self.conf(self.config_deux_pages("no"))), "--update", "--yes", env=env)
+        self.assertFalse((cron / "nginx-link-page").exists())                             # no dated link: task removed
+        for ajout, attendu in {"LINK_1_FROM=21-11-2026": "date AAAA-MM-JJ attendue", "LINK_1_UNTIL=2026-02-30": "date AAAA-MM-JJ attendue",
+                               "LINK_1_FROM=2026-12-01\nLINK_1_UNTIL=2026-11-01": "le lien ne serait jamais affiché"}.items():
+            with self.subTest(ajout=ajout):
+                r = self.lancer("-c", str(self.conf(self.config_deux_pages("no") + ajout + "\n")), "--check")
+                self.assertNotEqual(r.returncode, 0)
+                self.assertIn(attendu, r.stderr)
+
     def test_deux_langues_detection_et_textes(self):
         texte = self.config_deux_pages("no").replace(
             "PAGE_1_THEME=auto", "PAGE_1_THEME=auto\nPAGE_1_LANGUAGES=fr,en").replace(

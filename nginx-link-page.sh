@@ -29,7 +29,7 @@
 set -u
 LANG_C="${LC_ALL:-${LC_MESSAGES:-${LANG:-C}}}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
-readonly SCRIPT_VERSION="1.26.20261112.215914"
+readonly SCRIPT_VERSION="1.27.20261112.221722"
 readonly SCRIPT_NAME="nginx-link-page"
 # --config-merge: same rule as the other programs (apps/_config.py fusionner): the configuration file is rewritten from the new template,
 # keeping its active values; the old file is copied to FILE.bak-YYYYMMDD-HHMMSS. Then exit.
@@ -254,7 +254,7 @@ valeur_ou() { local v="${CFG[$1]:-}"; [[ -n "$v" ]] && printf '%s' "$v" || print
 
 # 1.24: every key of the files must be known (a mistyped key was ignored without a word: PAGE_3_THEMS=all, SITE_LANGAUGE=en)
 readonly CLES_SITE="BASE_URL DESCRIPTION DESCRIPTION_EN FOOTER FOOTER_EN HEADING HEADING_EN LANGUAGE LOGO_ALT LOGO_URL SHARE_DESCRIPTION SHARE_DESCRIPTION_EN SHARE_IMAGE_URL SHARE_TITLE SHARE_TITLE_EN TITLE TITLE_EN"
-readonly CLES_LIEN="ICON ICON_DARK LABEL LABEL_EN MENU PAGES URL"
+readonly CLES_LIEN="FROM ICON ICON_DARK LABEL LABEL_EN MENU PAGES UNTIL URL"
 readonly CLES_PAGE="ACCENT AVATAR BUTTONS DIR ENABLED ENGINE LANGUAGES PATH SCRIPT SHARE SWITCH THEME THEMES TITLE TITLE_EN"
 cle_connue() {   # cle_connue KEY: 0 when KEY is read by the program
     local k="$1" s
@@ -453,6 +453,41 @@ liens_de_la_page() {   # liens_de_la_page P: link numbers shown on page P, in or
     done
     return 0
 }
+# 1.27: dated links: LINK_n_FROM / LINK_n_UNTIL (YYYY-MM-DD, local date, both included); a daily task rebuilds the pages
+AUJOURDHUI="${NGINX_LINK_PAGE_TODAY:-$(date +%F)}"
+date_valide() { [[ "$1" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]] && date -d "$1" +%F >/dev/null 2>&1 && [[ "$(date -d "$1" +%F)" == "$1" ]]; }
+for i in ${LIENS_N[@]+"${LIENS_N[@]}"}; do
+    for cle in FROM UNTIL; do
+        dv="${CFG[LINK_${i}_${cle}]:-}"
+        [[ -z "$dv" ]] && continue
+        date_valide "$dv" || PROBLEMES+=("LINK_${i}_${cle}=$dv : $(m "date AAAA-MM-JJ attendue (ex. 2026-11-21)" "date YYYY-MM-DD expected (e.g. 2026-11-21)")")
+    done
+    if [[ -n "${CFG[LINK_${i}_FROM]:-}" && -n "${CFG[LINK_${i}_UNTIL]:-}" && "${CFG[LINK_${i}_FROM]}" > "${CFG[LINK_${i}_UNTIL]}" ]]; then
+        PROBLEMES+=("LINK_${i}_FROM=${CFG[LINK_${i}_FROM]} > LINK_${i}_UNTIL=${CFG[LINK_${i}_UNTIL]} : $(m "le lien ne serait jamais affiché" "the link would never be shown")")
+    fi
+done
+LIENS_DATES=0
+for i in ${LIENS_N[@]+"${LIENS_N[@]}"}; do [[ -n "${CFG[LINK_${i}_FROM]:-}${CFG[LINK_${i}_UNTIL]:-}" ]] && LIENS_DATES=1; done
+lien_visible() {   # lien_visible N: 0 when link N is shown today (no dates, or today between LINK_n_FROM and LINK_n_UNTIL)
+    local du="${CFG[LINK_${1}_FROM]:-}" au="${CFG[LINK_${1}_UNTIL]:-}"
+    [[ -n "$du" && "$AUJOURDHUI" < "$du" ]] && return 1
+    [[ -n "$au" && "$AUJOURDHUI" > "$au" ]] && return 1
+    return 0
+}
+enfants_visibles() {   # enfants_visibles N: links of menu N shown today
+    local e
+    for e in ${MENU_ENFANTS[$1]:-}; do lien_visible "$e" && printf '%s\n' "$e"; done
+    return 0
+}
+liens_visibles_de_la_page() {   # liens_visibles_de_la_page P: links of page P shown today (a menu without any link shown today is hidden)
+    local n
+    for n in $(liens_de_la_page "$1"); do
+        lien_visible "$n" || continue
+        [[ -n "${MENU_ENFANTS[$n]:-}" && -z "$(enfants_visibles "$n")" ]] && continue
+        printf '%s\n' "$n"
+    done
+    return 0
+}
 nb_liens_page() {   # nb_liens_page P: number of links shown on page P, the links of its menus included
     local n t=0 e
     for n in $(liens_de_la_page "$1"); do
@@ -608,6 +643,14 @@ telecharger() {
     [[ -n "$RES_FICHIER" ]]
 }
 
+# periode_lien N: " (du ... au ... : affiché / caché aujourd'hui)" for a dated link, nothing otherwise
+periode_lien() {
+    local du="${CFG[LINK_${1}_FROM]:-}" au="${CFG[LINK_${1}_UNTIL]:-}"
+    [[ -z "$du$au" ]] && return 0
+    local periode="${du:+$(m "du" "from") $du}"
+    [[ -n "$au" ]] && periode+="${periode:+ }$(m "au" "until") $au"
+    printf ' (%s : %s)' "$periode" "$(lien_visible "$1" && m "affiché aujourd'hui" "shown today" || m "caché aujourd'hui" "hidden today")"
+}
 # ---- --check: nothing is written, no network ----
 echo
 echo "$(m "Verification" "Check") :"
@@ -616,9 +659,9 @@ for i in "${LIENS_N[@]}"; do
     [[ -n "${EST_ENFANT[$i]:-}" ]] && continue                 # 1.26: shown under its menu
     if [[ -n "${MENU_ENFANTS[$i]:-}" ]]; then
         echo "  - ${CFG[LINK_${i}_LABEL]} -> $(m "menu" "menu")"
-        for e in ${MENU_ENFANTS[$i]}; do echo "      - ${CFG[LINK_${e}_LABEL]} -> ${CFG[LINK_${e}_URL]:-}"; done
+        for e in ${MENU_ENFANTS[$i]}; do echo "      - ${CFG[LINK_${e}_LABEL]} -> ${CFG[LINK_${e}_URL]:-}$(periode_lien "$e")"; done
     else
-        echo "  - ${CFG[LINK_${i}_LABEL]} -> ${CFG[LINK_${i}_URL]:-}"
+        echo "  - ${CFG[LINK_${i}_LABEL]} -> ${CFG[LINK_${i}_URL]:-}$(periode_lien "$i")"
     fi
 done
 if [[ "$MODE" == "check" ]]; then
@@ -926,7 +969,7 @@ genere_index() {   # genere_index DOSSIER THEME TITRE [FICHIER] [CIBLE_BASCULE] 
                 echo "        <details class=\"link-menu\">"
                 echo "          <summary class=\"button button-default\">$(icone_lien "$i")$(html_echap "$(libelle_lien "$i")")</summary>"
                 echo "          <div class=\"link-menu-items\">"
-                for e in ${MENU_ENFANTS[$i]}; do bouton_lien "$e"; done
+                for e in $(enfants_visibles "$i"); do bouton_lien "$e"; done      # 1.27: links shown today
                 echo "          </div>"
                 echo "        </details>"
             else
@@ -955,7 +998,8 @@ genere_index() {   # genere_index DOSSIER THEME TITRE [FICHIER] [CIBLE_BASCULE] 
 for i in ${ACTIVES[@]+"${ACTIVES[@]}"}; do
     site="$TMP/page-$i"
     mkdir -p "$site"
-    mapfile -t P_LIENS < <(liens_de_la_page "$i")          # 1.25: links of this page
+    mapfile -t P_LIENS < <(liens_visibles_de_la_page "$i")   # 1.25: links of this page; 1.27: shown today
+    if (( ${#P_LIENS[@]} == 0 )); then attn "PAGE_${i} : $(m "aucun lien affiché aujourd'hui ($AUJOURDHUI, voir LINK_n_FROM et LINK_n_UNTIL)" "no link shown today ($AUJOURDHUI, see LINK_n_FROM and LINK_n_UNTIL)")"; fi
     P_THEME="$(valeur_ou "PAGE_${i}_THEME" auto)"
     P_TITRE="$(valeur_ou "PAGE_${i}_TITLE" "$SITE_TITLE_V")"
     P_BOUTONS="$(valeur_ou "PAGE_${i}_BUTTONS" default)"
@@ -1112,6 +1156,21 @@ if nginx_erreur=$(nginx -t 2>&1); then
         ok "$(m "nginx -t reussi, nginx recharge" "nginx -t passed, nginx reloaded") ($LIEN_FICHIER)"
     else
         attn "$(m "nginx -t reussi mais rechargement impossible : systemctl status nginx --no-pager" "nginx -t passed but reload failed: systemctl status nginx --no-pager")"
+    fi
+    # 1.27: dated links: a daily task (/etc/cron.d/nginx-link-page) rebuilds the pages at 00:05; removed when no link is dated
+    CRON_FICHIER="${NGINX_LINK_PAGE_CRON_DIR:-/etc/cron.d}/$SCRIPT_NAME"
+    if (( LIENS_DATES )); then
+        mkdir -p "$(dirname "$CRON_FICHIER")"
+        {
+            echo "# Genere par $SCRIPT_NAME.sh : liens dates (LINK_n_FROM, LINK_n_UNTIL), pages reconstruites chaque jour. Ne pas editer a la main."
+            echo "SHELL=/bin/bash"
+            echo "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+            echo "5 0 * * * root $SCRIPT_DIR/$SCRIPT_NAME.sh --update --yes${CONFIG_EXPLICIT:+ -c $CONFIG_EXPLICIT} 2>&1 | logger -t $SCRIPT_NAME"
+        } > "$CRON_FICHIER.tmp" && chmod 644 "$CRON_FICHIER.tmp" && mv -f "$CRON_FICHIER.tmp" "$CRON_FICHIER"
+        ok "$(m "liens datés : pages reconstruites chaque jour à 00:05" "dated links: pages rebuilt every day at 00:05") ($CRON_FICHIER)"
+    elif [[ -f "$CRON_FICHIER" ]]; then
+        rm -f "$CRON_FICHIER"
+        ok "$(m "plus de lien daté : tâche quotidienne retirée" "no dated link any more: daily task removed") ($CRON_FICHIER)"
     fi
 else
     if [[ -n "$LIEN_ANCIEN" ]]; then printf '%s\n' "$LIEN_ANCIEN" > "$LIEN_FICHIER"; else printf '%s\n' "# liens : inactif" > "$LIEN_FICHIER"; fi

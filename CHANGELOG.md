@@ -4536,6 +4536,16 @@ Earlier history was archived outside this repository when this file was created.
 
 ## nginx-link-page.sh
 
+### 1.27.20261112.221722 - LINK_n_FROM / LINK_n_UNTIL: dated links, pages rebuilt every day
+
+- Title: new keys LINK_n_FROM and LINK_n_UNTIL: a link is shown only between these dates; a daily task rebuilds the pages.
+- Reason: request of the administrator on 2026-11-12 (improvement 1 of the list proposed): a link such as "Journée portes ouvertes 2026" must appear or disappear by itself at a date.
+- Changes: new keys LINK_n_FROM and LINK_n_UNTIL (YYYY-MM-DD, local date, both included; in CLES_LIEN); new variable AUJOURDHUI (NGINX_LINK_PAGE_TODAY for the tests), functions date_valide, lien_visible, enfants_visibles, liens_visibles_de_la_page, periode_lien; the pages and the menus show only the links of the day, a menu without any link of the day is hidden; --check shows the period of each dated link and whether it is shown today; after a successful install, /etc/cron.d/nginx-link-page (NGINX_LINK_PAGE_CRON_DIR for the tests) runs "nginx-link-page.sh --update --yes" every day at 00:05 (with the same -c FILE), its output sent to the system log (logger -t nginx-link-page); the task is removed when no link is dated any more; nginx-link-page.conf.example: the keys described; nginx-tools-tests/test_nginx_link_page.py: 1 test (3 subtests).
+- Bugs fixed: none.
+- Safeguards and edge cases: refused by --check: a date that is not YYYY-MM-DD or does not exist (2026-02-30), LINK_n_FROM after LINK_n_UNTIL; the check that each page has links ignores the dates (a page is not refused because its links ended); a page without any link of the day is still built, with an [ATTN] line; the daily task changes nothing when nginx -t refuses (previous snippet kept, as for a manual --update).
+- Checks performed: bash -n; shellcheck; test_nginx_link_page (61 tests).
+- Action required: none (example: LINK_1_UNTIL=2026-11-21, then sudo nginx-link-page.sh --update --yes once: the daily task is installed).
+
 ### 1.26.20261112.215914 - LINK_n_MENU: a link that opens a menu of other links
 
 - Title: new key LINK_n_MENU: LINK_12_MENU=5 puts link 12 in the menu of link 5, a button that opens its links just below it.

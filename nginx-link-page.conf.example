@@ -57,6 +57,8 @@
 # LINK_n_MENU  : number of a link that becomes a menu: a button that opens its links just below it (no script).
 #                The menu link has a LABEL (and an ICON if wanted) but no URL; its links follow its LINK_n_PAGES.
 #                One level only (no menu in a menu). Example: LINK_5_LABEL=Événements, LINK_12_MENU=5, LINK_13_MENU=5.
+# LINK_n_FROM / LINK_n_UNTIL : dates (YYYY-MM-DD, both included) between which the link is shown; a daily task
+#                (/etc/cron.d/nginx-link-page, 00:05) rebuilds the pages. Example: LINK_1_UNTIL=2026-11-21 for an event.
 #LINK_1_LABEL=Facebook page                       # 80 characters at most
 #LINK_1_URL=https://www.facebook.com/example
 #LINK_1_ICON=builtin:facebook                     # optional (default: generic-website)
