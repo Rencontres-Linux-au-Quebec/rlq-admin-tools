@@ -257,7 +257,7 @@ if [[ "$MODE" == "rollback" ]]; then
                 mkdir -p "$chemin"
                 for x in $FICHIERS_GERES; do rm -rf "${chemin:?}/$x"; done
                 rm -f "${chemin:?}"/theme-*.html
-                cp -a "$prec/$nom/." "$chemin/" && ok "$(m "page remise" "page put back") : $chemin" || { err "$(m "copie impossible" "copy failed") : $chemin"; exit 1; } ;;
+                if cp -a "$prec/$nom/." "$chemin/"; then ok "$(m "page remise" "page put back") : $chemin"; else err "$(m "copie impossible" "copy failed") : $chemin"; exit 1; fi ;;
             snippet)
                 cp -a "$prec/$nom" "$chemin" && snippet_remis="$chemin" && ok "$(m "fragment nginx remis" "nginx snippet put back") : $chemin" ;;
             cron)
@@ -700,7 +700,9 @@ periode_lien() {
     [[ -z "$du$au" ]] && return 0
     local periode="${du:+$(m "du" "from") $du}"
     [[ -n "$au" ]] && periode+="${periode:+ }$(m "au" "until") $au"
-    printf ' (%s : %s)' "$periode" "$(lien_visible "$1" && m "affiché aujourd'hui" "shown today" || m "caché aujourd'hui" "hidden today")"
+    local etat
+    if lien_visible "$1"; then etat="$(m "affiché aujourd'hui" "shown today")"; else etat="$(m "caché aujourd'hui" "hidden today")"; fi
+    printf ' (%s : %s)' "$periode" "$etat"
 }
 # ---- --check: nothing is written, no network ----
 echo
