@@ -29,7 +29,7 @@
 set -u
 LANG_C="${LC_ALL:-${LC_MESSAGES:-${LANG:-C}}}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
-readonly SCRIPT_VERSION="1.25.20261112.213646"
+readonly SCRIPT_VERSION="1.26.20261112.215914"
 readonly SCRIPT_NAME="nginx-link-page"
 # --config-merge: same rule as the other programs (apps/_config.py fusionner): the configuration file is rewritten from the new template,
 # keeping its active values; the old file is copied to FILE.bak-YYYYMMDD-HHMMSS. Then exit.
@@ -70,6 +70,8 @@ readonly THEMES_MAISON="aurora|maple|river|terminal|tux|tux-quebec|quebec|boreal
 readonly THEMES_LINKSTACK="$SCRIPT_DIR/apps/link-page-themes"
 # 1.17: "Theme" button (PAGE_n_THEMES): style sheet copied as css/theme-menu.css; "all" = every theme of THEMES_RE
 readonly THEME_MENU_CSS="$SCRIPT_DIR/apps/link-page-theme-menu.css"
+# 1.26: link menus (LINK_n_MENU): style sheet copied as css/link-menu.css
+readonly LINK_MENU_CSS="$SCRIPT_DIR/apps/link-page-link-menu.css"
 # 1.18: script of the pages (PAGE_n_SCRIPT): theme in place and remembered, language remembered, "Share" button; copied as js/link-page.js
 readonly LINK_PAGE_JS="$SCRIPT_DIR/apps/link-page.js"
 readonly THEMES_TOUS="auto light dark aurora maple river terminal tux tux-quebec quebec boreal sunset winter tux-flag tux-poster ls-aurora ls-dark ls-dawn ls-misty-rain"
@@ -132,7 +134,7 @@ Configuration lue : /etc/default/$SCRIPT_NAME.conf puis ~/.$SCRIPT_NAME.conf (le
 Configuration read: /etc/default/$SCRIPT_NAME.conf then ~/.$SCRIPT_NAME.conf (the last one wins), or only -c FILE.
 
 Cles / keys (voir nginx-link-page.conf.example) :
-  SITE_* (contenu partage / shared content), LINK_n_* (liens / links : ICON, ICON_DARK, LABEL, LABEL_EN, PAGES, URL),
+  SITE_* (contenu partage / shared content), LINK_n_* (liens / links : ICON, ICON_DARK, LABEL, LABEL_EN, MENU, PAGES, URL),
   PAGE_n_* (ACCENT, AVATAR, BUTTONS, DIR, ENABLED, ENGINE, LANGUAGES, PATH, SCRIPT, SHARE, SWITCH, THEME, THEMES, TITLE,
   TITLE_EN : une page par bloc / one page per block) ; une clé inconnue est refusée / an unknown key is refused
 AIDE
@@ -252,7 +254,7 @@ valeur_ou() { local v="${CFG[$1]:-}"; [[ -n "$v" ]] && printf '%s' "$v" || print
 
 # 1.24: every key of the files must be known (a mistyped key was ignored without a word: PAGE_3_THEMS=all, SITE_LANGAUGE=en)
 readonly CLES_SITE="BASE_URL DESCRIPTION DESCRIPTION_EN FOOTER FOOTER_EN HEADING HEADING_EN LANGUAGE LOGO_ALT LOGO_URL SHARE_DESCRIPTION SHARE_DESCRIPTION_EN SHARE_IMAGE_URL SHARE_TITLE SHARE_TITLE_EN TITLE TITLE_EN"
-readonly CLES_LIEN="ICON ICON_DARK LABEL LABEL_EN PAGES URL"
+readonly CLES_LIEN="ICON ICON_DARK LABEL LABEL_EN MENU PAGES URL"
 readonly CLES_PAGE="ACCENT AVATAR BUTTONS DIR ENABLED ENGINE LANGUAGES PATH SCRIPT SHARE SWITCH THEME THEMES TITLE TITLE_EN"
 cle_connue() {   # cle_connue KEY: 0 when KEY is read by the program
     local k="$1" s
@@ -363,12 +365,41 @@ for k in "${!CFG[@]}"; do
         PROBLEMES+=("$k sans lien precedent (pas de trou) / $k without a previous link (no gap)")
     fi
 done
+# 1.26: LINK_m_MENU=n puts link m in the menu of link n (a button that opens its links below it); one level only
+declare -A MENU_ENFANTS=() EST_ENFANT=()
+for i in ${LIENS_N[@]+"${LIENS_N[@]}"}; do
+    mv="${CFG[LINK_${i}_MENU]:-}"
+    [[ -z "$mv" ]] && continue
+    if [[ ! "$mv" =~ ^[0-9]+$ || " ${LIENS_N[*]} " != *" $((10#$mv)) "* ]]; then
+        PROBLEMES+=("LINK_${i}_MENU=$mv : $(m "le lien $mv n'existe pas (LINK_${mv}_LABEL)" "link $mv does not exist (LINK_${mv}_LABEL)")")
+        continue
+    fi
+    mv=$((10#$mv))
+    if (( mv == i )); then
+        PROBLEMES+=("LINK_${i}_MENU=$mv : $(m "un lien ne peut pas être dans son propre menu" "a link cannot be in its own menu")")
+        continue
+    fi
+    MENU_ENFANTS[$mv]+="$i "; EST_ENFANT[$i]=1
+done
+for mv in "${!MENU_ENFANTS[@]}"; do
+    if [[ -n "${CFG[LINK_${mv}_MENU]:-}" ]]; then
+        PROBLEMES+=("LINK_${mv}_MENU : $(m "le lien $mv est un menu : un menu ne peut pas être dans un autre menu (un seul niveau)" "link $mv is a menu: a menu cannot be in another menu (one level only)")")
+    fi
+    if [[ -n "${CFG[LINK_${mv}_URL]:-}" ]]; then
+        PROBLEMES+=("LINK_${mv}_URL : $(m "le lien $mv est un menu (LINK_n_MENU=$mv) : il n'a pas d'adresse, retirer LINK_${mv}_URL" "link $mv is a menu (LINK_n_MENU=$mv): it has no address, remove LINK_${mv}_URL")")
+    fi
+done
+for i in "${!EST_ENFANT[@]}"; do
+    if [[ -n "${CFG[LINK_${i}_PAGES]:-}" ]]; then
+        PROBLEMES+=("LINK_${i}_PAGES : $(m "le lien $i est dans un menu : il va sur les pages de son menu (LINK_${CFG[LINK_${i}_MENU]}_PAGES)" "link $i is in a menu: it goes on the pages of its menu (LINK_${CFG[LINK_${i}_MENU]}_PAGES)")")
+    fi
+done
 for i in "${LIENS_N[@]}"; do
     lab="${CFG[LINK_${i}_LABEL]:-}"; url="${CFG[LINK_${i}_URL]:-}"
     [[ -n "$lab" && ${#lab} -le 80 ]] || PROBLEMES+=("LINK_${i}_LABEL vide ou trop long (80 caracteres max) / empty or too long")
     [[ -z "${CFG[LINK_${i}_LABEL_EN]:-}" || ${#CFG[LINK_${i}_LABEL_EN]} -le 80 ]] || PROBLEMES+=("LINK_${i}_LABEL_EN trop long (80 caracteres max) / too long (80 characters max)")
     if [[ -n "$url" ]] && abs="$(resoudre_url "$url")"; then url="$abs"; CFG[LINK_${i}_URL]="$abs"; fi
-    [[ "$url" =~ $URL_RE ]] || PROBLEMES+=("LINK_${i}_URL doit etre une adresse https:// ou un chemin relatif (SITE_BASE_URL, ou un seul certificat sur le serveur) / must be an https:// address or a relative path (SITE_BASE_URL, or a single certificate on the server)")
+    [[ -n "${MENU_ENFANTS[$i]:-}" || "$url" =~ $URL_RE ]] || PROBLEMES+=("LINK_${i}_URL doit etre une adresse https:// ou un chemin relatif (SITE_BASE_URL, ou un seul certificat sur le serveur) / must be an https:// address or a relative path (SITE_BASE_URL, or a single certificate on the server)")
     for cle in LINK_${i}_ICON LINK_${i}_ICON_DARK; do
         ic="${CFG[$cle]:-}"
         [[ -z "$ic" ]] && continue
@@ -415,10 +446,19 @@ for i in ${LIENS_N[@]+"${LIENS_N[@]}"}; do
         LIEN_SUR_PAGE["$i:$q"]=1
     done
 done
-liens_de_la_page() {   # liens_de_la_page P: link numbers shown on page P, in order
+liens_de_la_page() {   # liens_de_la_page P: link numbers shown on page P, in order (1.26: without the links of a menu, drawn inside it)
     local n
-    for n in ${LIENS_N[@]+"${LIENS_N[@]}"}; do [[ -n "${LIEN_SUR_PAGE[$n:$1]:-}" ]] && printf '%s\n' "$n"; done
+    for n in ${LIENS_N[@]+"${LIENS_N[@]}"}; do
+        [[ -z "${EST_ENFANT[$n]:-}" && -n "${LIEN_SUR_PAGE[$n:$1]:-}" ]] && printf '%s\n' "$n"
+    done
     return 0
+}
+nb_liens_page() {   # nb_liens_page P: number of links shown on page P, the links of its menus included
+    local n t=0 e
+    for n in $(liens_de_la_page "$1"); do
+        if [[ -n "${MENU_ENFANTS[$n]:-}" ]]; then for e in ${MENU_ENFANTS[$n]}; do t=$((t + 1)); done; else t=$((t + 1)); fi
+    done
+    echo "$t"
 }
 declare -A CHEMINS_VUS=() DOSSIERS_VUS=()
 DOSSIERS_LISTE=()
@@ -507,7 +547,7 @@ if [[ -n "$SITE_BASE_URL_V" ]]; then
     echo "  $(m "Base des chemins relatifs" "Base for relative paths") : $SITE_BASE_URL_V ($SITE_BASE_SOURCE)"
 fi
 for i in "${PAGES_N[@]}"; do
-    echo "    PAGE_${i} : $(valeur_ou "PAGE_${i}_PATH" "?") -> $(valeur_ou "PAGE_${i}_DIR" "?") · $(valeur_ou "PAGE_${i}_ENGINE" littlelink) · $(valeur_ou "PAGE_${i}_ENABLED" yes) · $(liens_de_la_page "$i" | wc -l) $(m "liens" "links")"
+    echo "    PAGE_${i} : $(valeur_ou "PAGE_${i}_PATH" "?") -> $(valeur_ou "PAGE_${i}_DIR" "?") · $(valeur_ou "PAGE_${i}_ENGINE" littlelink) · $(valeur_ou "PAGE_${i}_ENABLED" yes) · $(nb_liens_page "$i") $(m "liens" "links")"
 done
 
 if (( ${#PROBLEMES[@]} > 0 )); then
@@ -573,7 +613,13 @@ echo
 echo "$(m "Verification" "Check") :"
 ok "$(m "configuration valide" "valid configuration")"
 for i in "${LIENS_N[@]}"; do
-    echo "  - ${CFG[LINK_${i}_LABEL]} -> ${CFG[LINK_${i}_URL]}"
+    [[ -n "${EST_ENFANT[$i]:-}" ]] && continue                 # 1.26: shown under its menu
+    if [[ -n "${MENU_ENFANTS[$i]:-}" ]]; then
+        echo "  - ${CFG[LINK_${i}_LABEL]} -> $(m "menu" "menu")"
+        for e in ${MENU_ENFANTS[$i]}; do echo "      - ${CFG[LINK_${e}_LABEL]} -> ${CFG[LINK_${e}_URL]:-}"; done
+    else
+        echo "  - ${CFG[LINK_${i}_LABEL]} -> ${CFG[LINK_${i}_URL]:-}"
+    fi
 done
 if [[ "$MODE" == "check" ]]; then
     echo
@@ -755,9 +801,31 @@ csp_script() { if [[ "$P_JS" == yes ]]; then echo "'self'"; else echo "'none'"; 
 # menu_contient REGEX: a theme of the "Theme" button matches REGEX
 menu_contient() { local t; for t in ${P_MENU[@]+"${P_MENU[@]}"}; do [[ "$t" =~ $1 ]] && return 0; done; return 1; }
 
+# icone_lien N: <img> (or <picture>) of the icon of link N for the page being generated (theme base in $base, set by genere_index)
+icone_lien() {
+    local clair="${ICONE_CLAIR[$1]}" sombre="${ICONE_SOMBRE[$1]}" media
+    if [[ -n "$sombre" && "$P_JS" == yes && ${#P_MENU[@]} -gt 0 ]]; then    # 1.18: the script sets the media of <source> per theme
+        case "$base" in dark) media="all" ;; light) media="not all" ;; *) media="(prefers-color-scheme: dark)" ;; esac
+        printf '<picture><source data-icon-dark media="%s" srcset="%s"><img class="icon" aria-hidden="true" src="%s" alt=""></picture>' "$media" "$sombre" "$clair"
+    elif [[ -n "$sombre" && "$base" == "auto" ]]; then
+        printf '<picture><source media="(prefers-color-scheme: dark)" srcset="%s"><img class="icon" aria-hidden="true" src="%s" alt=""></picture>' "$sombre" "$clair"
+    elif [[ -n "$sombre" && "$base" == "dark" ]]; then
+        printf '<img class="icon" aria-hidden="true" src="%s" alt="">' "$sombre"
+    else
+        printf '<img class="icon" aria-hidden="true" src="%s" alt="">' "$clair"
+    fi
+}
+# bouton_lien N: the button of link N (1.26: shared by the page and the menus)
+bouton_lien() {
+    local classe_bouton="button-default"
+    if [[ "$P_BOUTONS" == brand && -n "${BOUTON_MARQUE[$1]:-}" ]]; then classe_bouton="${BOUTON_MARQUE[$1]}"; fi
+    echo "        <a class=\"button $classe_bouton\" href=\"$(html_echap "${CFG[LINK_${1}_URL]}")\" target=\"_blank\" rel=\"noopener noreferrer\">"
+    echo "          $(icone_lien "$1")$(html_echap "$(libelle_lien "$1")")</a>"
+}
+
 genere_index() {   # genere_index DOSSIER THEME TITRE [FICHIER] [CIBLE_BASCULE] [LIBELLE_BASCULE]
     local dossier="$1" theme="$2" titre="$3" fichier="${4:-index.html}" cible="${5:-}" libelle="${6:-}" t f
-    local classe lab url clair sombre classe_bouton i base attrs donnees media
+    local classe lab url clair sombre classe_bouton i e base attrs donnees media
     classe="theme-$theme"                               # 1.15: theme-auto, theme-light, theme-dark or one of link-page-themes.css
     base="$(theme_base "$theme")"
     {
@@ -816,6 +884,7 @@ genere_index() {   # genere_index DOSSIER THEME TITRE [FICHIER] [CIBLE_BASCULE] 
             echo "    <link rel=\"stylesheet\" href=\"css/themes-linkstack.css\">"
         fi
         if (( ${#P_MENU[@]} )) || [[ "$P_JS" == yes && "$P_PARTAGE" == yes ]]; then echo "    <link rel=\"stylesheet\" href=\"css/theme-menu.css\">"; fi
+        if [[ -f "$dossier/css/link-menu.css" ]]; then echo "    <link rel=\"stylesheet\" href=\"css/link-menu.css\">"; fi      # 1.26
         if [[ -f "$dossier/css/accent.css" ]]; then echo "    <link rel=\"stylesheet\" href=\"css/accent.css\">"; fi
         if [[ "$P_JS" == yes ]]; then echo "    <script src=\"js/link-page.js\"></script>"; fi      # 1.18: in <head>: theme set before drawing
         echo "  </head>"
@@ -853,20 +922,15 @@ genere_index() {   # genere_index DOSSIER THEME TITRE [FICHIER] [CIBLE_BASCULE] 
         if [[ -n "$L_DESCRIPTION" ]]; then echo "      <p>$(html_echap "$L_DESCRIPTION")</p>"; fi
         echo "      <nav class=\"button-stack\" aria-label=\"$( [[ "$L_LANG" == en ]] && echo Links || echo Liens )\">"
         for i in ${P_LIENS[@]+"${P_LIENS[@]}"}; do          # 1.25: only the links of this page (LINK_n_PAGES)
-            lab="$(libelle_lien "$i")"; url="${CFG[LINK_${i}_URL]}"
-            classe_bouton="button-default"
-            if [[ "$P_BOUTONS" == brand && -n "${BOUTON_MARQUE[$i]:-}" ]]; then classe_bouton="${BOUTON_MARQUE[$i]}"; fi
-            clair="${ICONE_CLAIR[$i]}"; sombre="${ICONE_SOMBRE[$i]}"
-            echo "        <a class=\"button $classe_bouton\" href=\"$(html_echap "$url")\" target=\"_blank\" rel=\"noopener noreferrer\">"
-            if [[ -n "$sombre" && "$P_JS" == yes && ${#P_MENU[@]} -gt 0 ]]; then    # 1.18: the script sets the media of <source> per theme
-                case "$base" in dark) media="all" ;; light) media="not all" ;; *) media="(prefers-color-scheme: dark)" ;; esac
-                echo "          <picture><source data-icon-dark media=\"$media\" srcset=\"$sombre\"><img class=\"icon\" aria-hidden=\"true\" src=\"$clair\" alt=\"\"></picture>$(html_echap "$lab")</a>"
-            elif [[ -n "$sombre" && "$base" == "auto" ]]; then
-                echo "          <picture><source media=\"(prefers-color-scheme: dark)\" srcset=\"$sombre\"><img class=\"icon\" aria-hidden=\"true\" src=\"$clair\" alt=\"\"></picture>$(html_echap "$lab")</a>"
-            elif [[ -n "$sombre" && "$base" == "dark" ]]; then
-                echo "          <img class=\"icon\" aria-hidden=\"true\" src=\"$sombre\" alt=\"\">$(html_echap "$lab")</a>"
+            if [[ -n "${MENU_ENFANTS[$i]:-}" ]]; then        # 1.26: menu: a button that opens its links below it (<details>, no script)
+                echo "        <details class=\"link-menu\">"
+                echo "          <summary class=\"button button-default\">$(icone_lien "$i")$(html_echap "$(libelle_lien "$i")")</summary>"
+                echo "          <div class=\"link-menu-items\">"
+                for e in ${MENU_ENFANTS[$i]}; do bouton_lien "$e"; done
+                echo "          </div>"
+                echo "        </details>"
             else
-                echo "          <img class=\"icon\" aria-hidden=\"true\" src=\"$clair\" alt=\"\">$(html_echap "$lab")</a>"
+                bouton_lien "$i"
             fi
         done
         echo "      </nav>"
@@ -957,6 +1021,11 @@ for i in ${ACTIVES[@]+"${ACTIVES[@]}"}; do
         if (( ${#P_MENU[@]} )) || [[ "$P_JS" == yes && "$P_PARTAGE" == yes ]]; then
             if [[ -r "$THEME_MENU_CSS" ]]; then install -m 644 "$THEME_MENU_CSS" "$dossier/css/theme-menu.css"; fi
         fi
+        if [[ -r "$LINK_MENU_CSS" ]]; then                    # 1.26: a menu on this page
+            for e in ${P_LIENS[@]+"${P_LIENS[@]}"}; do
+                if [[ -n "${MENU_ENFANTS[$e]:-}" ]]; then install -m 644 "$LINK_MENU_CSS" "$dossier/css/link-menu.css"; break; fi
+            done
+        fi
         if (( ${#P_MENU[@]} )); then
             for t in "${P_MENU[@]}"; do
                 if [[ "$t" == "$P_THEME" ]]; then genere_index "$dossier" "$t" "$L_TITRE" index.html
@@ -971,7 +1040,7 @@ for i in ${ACTIVES[@]+"${ACTIVES[@]}"}; do
             genere_index "$dossier" "$P_THEME" "$L_TITRE"
         fi
     done
-    ok "$(m "page" "page") PAGE_${i} $(m "preparee" "prepared") (${#P_LIENS[@]} $(m "liens" "links"))"
+    ok "$(m "page" "page") PAGE_${i} $(m "preparee" "prepared") ($(nb_liens_page "$i") $(m "liens" "links"))"
 done
 
 # 4) one nginx snippet, one location per enabled page (distinct paths: /liens/ does not catch /liens2/)
