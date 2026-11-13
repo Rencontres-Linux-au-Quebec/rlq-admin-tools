@@ -349,7 +349,7 @@ class AideTriee(unittest.TestCase):
 
 class FusionDeConfiguration(unittest.TestCase):
     """--config-merge sur TOUS les programmes (apps/_config.py fusionner) : l'aide la montre ; le fichier est réécrit d'après le nouveau modèle,
-    ses valeurs gardées, les clés inconnues écartées, l'ancien fichier copié en .bak-AAAAMMJJ-HHMMSS ; -c : ce fichier seul."""
+    ses valeurs gardées, les clés absentes du modèle gardées à la fin (_config 1.13), l'ancien fichier copié en .bak-AAAAMMJJ-HHMMSS ; -c : ce fichier seul."""
     AVEC_CONFIGURATION = [n for n in PROGRAMMES if not n.endswith("run-all.sh")] + ["nginx-link-page.sh"]      # run-all.sh: test runner, no configuration file
 
     def environnement(self, dossier):
@@ -363,7 +363,7 @@ class FusionDeConfiguration(unittest.TestCase):
                 r = subprocess.run(launcher(name) + ["--help"], capture_output=True, text=True, env=self.environnement(d), timeout=60)
                 self.assertRegex(r.stdout, r"(?m)^ {2,4}--config-merge\b")
 
-    def test_fusion_garde_les_valeurs_et_ecarte_les_cles_inconnues(self):
+    def test_fusion_garde_les_valeurs_et_les_cles_hors_modele(self):
         import subprocess, tempfile
         for name in self.AVEC_CONFIGURATION:
             nom = os.path.basename(name).rsplit(".", 1)[0]
@@ -378,8 +378,8 @@ class FusionDeConfiguration(unittest.TestCase):
                 r = subprocess.run(launcher(name) + ["--config-merge"], capture_output=True, text=True, env=self.environnement(d), timeout=60)
                 self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
                 texte = open(chemin, encoding="utf-8").read()
-                self.assertIn(f"\n{cle}=valeur-gardee\n", "\n" + texte)
-                self.assertNotIn("CLE_OBSOLETE_XYZ", texte)
+                self.assertRegex(texte, rf"(?m)^{cle}=valeur-gardee( +#.*)?$")                 # _config 1.13: end-of-line comment of the template kept
+                self.assertTrue(texte.endswith("\nCLE_OBSOLETE_XYZ=1\n"), texte[-200:])          # kept at the end, never lost
                 self.assertIn("CLE_OBSOLETE_XYZ", r.stdout)
                 copies = [f for f in os.listdir(d) if re.fullmatch(re.escape(nom) + r"\.conf\.bak-\d{8}-\d{6}", f)]
                 self.assertEqual(len(copies), 1, os.listdir(d))

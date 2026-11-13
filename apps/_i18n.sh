@@ -356,6 +356,7 @@ config_lire() {
             ligne="${ligne#"${ligne%%[![:space:]]*}"}"
             [[ -z "$ligne" || "$ligne" == "#"* || "$ligne" != *=* ]] && continue
             cle="${ligne%%=*}"; valeur="${ligne#*=}"
+            if [[ "$valeur" =~ ^[[:space:]]+# ]]; then valeur=""; fi          # "KEY=    # comment": empty value, not the text of the comment
             cle="${cle//[[:space:]]/}"; cle="${cle^^}"
             if (( commun )); then case "$cle" in LANGUAGE|VERBOSE|DEBUG_LEVEL|LOG_KEEP_DAYS|ANONYMIZE|THEME) ;; *) continue ;; esac; fi
             valeur="${valeur#"${valeur%%[![:space:]]*}"}"; valeur="${valeur%"${valeur##*[![:space:]]}"}"

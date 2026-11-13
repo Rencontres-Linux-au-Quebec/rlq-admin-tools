@@ -122,7 +122,7 @@ from urllib.parse import unquote, urlsplit
 from collections import Counter, OrderedDict
 from concurrent.futures import Future
 
-__version__ = "1.192.20261112.082236"
+__version__ = "1.193.20261112.184937"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
@@ -917,46 +917,15 @@ def system_config_path(program_name=None):
 
 def config_merge(explicit=None):
     """1.125 --config-merge: the file read until now (or `explicit`) is rewritten from the NEW default configuration (doc/LANGUAGE/PROGRAM.conf.example),
-    keeping the values set (uncommented) in it. Keys unknown to the program are left out and listed. The old file is copied first to
-    FILE.bak-YYYYMMDD-HHMMSS (local time). Returns 0, or 1 when the example is missing or the file cannot be written."""
+    keeping the values set (uncommented) in it. 1.193: done by apps/_config.py fusionner (same rule as every program): the keys not in the template are
+    kept at the end of the file, and nothing is written if a value would be lost or if the file would be smaller. Returns 0, or 1."""
     cfg_lib = load_module("_config")
-    if explicit:
-        files = [explicit] if os.path.isfile(explicit) else []
-        target = explicit
-    else:
-        files = [c for c, existe in cfg_lib.chemins_regle(SCRIPT_NAME) if existe] if cfg_lib else []
-        target = files[-1] if files else cfg_lib.personnel(SCRIPT_NAME) if cfg_lib else os.path.expanduser(f"~/.{SCRIPT_NAME}.conf")
-    old = {}
-    for c in files:
-        old.update(cfg_lib.lire_fichier(c) if cfg_lib else {})
-    model = os.path.join(SCRIPT_DIR, "doc", "fr" if LANGUAGE == "fr" else "en", f"{SCRIPT_NAME}.conf.example")
-    try:
-        with open(model, encoding="utf-8") as f:
-            model_lines = f.read().splitlines()
-    except OSError:
-        eprint(TR("Example configuration not found: {path}").format(path=model))
+    if cfg_lib is None:
+        eprint(TR("Example configuration not found: {path}").format(path=os.path.join(SCRIPT_DIR, "apps", "_config.py")))
         return 1
-    known = set(SCHEMA_CONFIG) | set(re.findall(r"^#?\s*([A-Z][A-Z0-9_]*)\s*=", "\n".join(model_lines), re.M))
-    kept = {k: v for k, v in old.items() if k in known}
-    dropped = sorted(k for k in old if k not in known)
-    backup, mode = None, 0o644
-    try:
-        if os.path.isfile(target):
-            mode = os.stat(target).st_mode & 0o777
-            backup = f"{target}.bak-{datetime.datetime.now():%Y%m%d-%H%M%S}"
-            shutil.copy2(target, backup)
-        write_lines(target, apply_values(model_lines, kept), mode)
-    except OSError as e:
-        eprint(TR("Cannot write {path}: {error}").format(path=target, error=e))
-        return 1
-    print(TR("Configuration merged into {path}").format(path=target))
-    print(TR("  read: {files}").format(files=", ".join(files) if files else TR("none (new file)")))
-    print(TR("  new default configuration: {path}").format(path=model))
-    print(TR("  backup of the previous file: {path}").format(path=backup or TR("none")))
-    print(TR("  values kept: {n}").format(n=len(kept)) + (f" ({', '.join(sorted(kept))})" if kept else ""))
-    if dropped:
-        print(TR("  unknown keys left out: {keys}").format(keys=", ".join(dropped)))
-    return 0
+    code, lines = cfg_lib.fusionner(SCRIPT_NAME, explicit, "fr" if LANGUAGE == "fr" else "en", cles=tuple(SCHEMA_CONFIG))
+    print("\n".join(lines), file=sys.stderr if code else sys.stdout)
+    return code
 
 
 def write_config(path, values):

@@ -29,7 +29,7 @@
 set -u
 LANG_C="${LC_ALL:-${LC_MESSAGES:-${LANG:-C}}}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
-readonly SCRIPT_VERSION="1.18.20261112.183227"
+readonly SCRIPT_VERSION="1.19.20261112.184937"
 readonly SCRIPT_NAME="nginx-link-page"
 # --config-merge: same rule as the other programs (apps/_config.py fusionner): the configuration file is rewritten from the new template,
 # keeping its active values; the old file is copied to FILE.bak-YYYYMMDD-HHMMSS. Then exit.
@@ -160,6 +160,7 @@ lire_fichier() {
         ligne="${ligne#"${ligne%%[![:space:]]*}"}"
         [[ -z "$ligne" || "$ligne" == "#"* || "$ligne" != *=* ]] && continue
         cle="${ligne%%=*}"; valeur="${ligne#*=}"
+        if [[ "$valeur" =~ ^[[:space:]]+# ]]; then valeur=""; fi          # "KEY=    # comment": empty value, not the text of the comment
         cle="${cle//[[:space:]]/}"; cle="${cle^^}"
         valeur="${valeur#"${valeur%%[![:space:]]*}"}"; valeur="${valeur%"${valeur##*[![:space:]]}"}"
         if [[ "${valeur:0:1}" == '"' || "${valeur:0:1}" == "'" ]] && [[ "${valeur: -1}" == "${valeur:0:1}" && ${#valeur} -ge 2 ]]; then

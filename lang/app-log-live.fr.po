@@ -2853,30 +2853,6 @@ msgstr "Réécrit le fichier de configuration à partir de la NOUVELLE configura
 msgid "Example configuration not found: {path}"
 msgstr "Exemple de configuration introuvable : {path}"
 
-msgid "Cannot write {path}: {error}"
-msgstr "Écriture impossible de {path} : {error}"
-
-msgid "Configuration merged into {path}"
-msgstr "Configuration fusionnée dans {path}"
-
-msgid "  read: {files}"
-msgstr "  lu : {files}"
-
-msgid "none (new file)"
-msgstr "aucun (nouveau fichier)"
-
-msgid "  new default configuration: {path}"
-msgstr "  nouvelle configuration par défaut : {path}"
-
-msgid "  backup of the previous file: {path}"
-msgstr "  sauvegarde de l'ancien fichier : {path}"
-
-msgid "  values kept: {n}"
-msgstr "  valeurs conservées : {n}"
-
-msgid "  unknown keys left out: {keys}"
-msgstr "  clés inconnues écartées : {keys}"
-
 msgid "bots refused (403)"
 msgstr "robots refusés (403)"
 

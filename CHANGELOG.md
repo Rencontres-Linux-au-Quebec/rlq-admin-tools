@@ -454,6 +454,16 @@ Earlier history was archived outside this repository when this file was created.
 
 ## app-log-live.py
 
+### 1.193.20261112.184937 - --config-merge done by apps/_config.py (nothing lost)
+
+- Title: --config-merge of app-log-live uses the shared function of apps/_config.py 1.13.
+- Reason: request of the administrator on 2026-11-12: --config-merge did not merge the LittleLink configuration correctly, it removed configuration lines; the merged file must not be smaller than the original; app-log-live had its own copy of the merge, with the same fault.
+- Changes: config_merge(): calls _config.fusionner(SCRIPT_NAME, FILE, language, cles=SCHEMA_CONFIG) and prints its lines; lang/app-log-live.fr.po: 8 messages no longer used removed; nginx-tools-tests/test_app_log_live.py: a key outside the template is now kept.
+- Bugs fixed: symptom: keys unknown to the template removed by --config-merge; diagnosis: copy of the old rule of _config.py; fix: the shared function (keys kept, result checked before writing, file never smaller).
+- Safeguards and edge cases: see apps/_config.py 1.13; without apps/_config.py: message and code 1, nothing written; no file yet: /etc/default/app-log-live.conf when that folder is writable (root), otherwise ~/.app-log-live.conf, as for the other programs.
+- Checks performed: python3 -m py_compile; test_app_log_live (config_merge test); test_i18n (catalogue of app-log-live).
+- Action required: none.
+
 ### 1.192.20261112.082236 - Keys of 1.191 in alphabetical order in the templates
 
 - Title: HIDE_BOTS, ACCOUNTS_ONLY and VISITOR_REPORT moved to their alphabetical place in doc/en and doc/fr app-log-live.conf.example.
@@ -4526,6 +4536,16 @@ Earlier history was archived outside this repository when this file was created.
 
 ## nginx-link-page.sh
 
+### 1.19.20261112.184937 - Comment after an empty value read as empty
+
+- Title: "LINK_1_LABEL_EN=          # optional English label" is now an empty value, not the text of the comment.
+- Reason: request of the administrator on 2026-11-12: --config-merge did not merge the LittleLink configuration correctly, it removed configuration lines; the merged file must not be smaller than the original; checking the merge showed that the uncommented template lines with an empty value took their comment as value.
+- Changes: lire_fichier(): a value made only of spaces then "#" is empty (same rule as apps/_config.py 1.13 and apps/_i18n.sh); --config-merge (apps/_config.py 1.13) keeps the links and pages beyond the examples of the template; nginx-tools-tests/test_config_commune.py: test of this reader.
+- Bugs fixed: symptom: with the template uncommented, the English page showed "# optional English label" as label of link 1; diagnosis: the reader removed the comment only after a value ("x # comment"), not when the value was empty; fix: a "#" preceded by a space starts a comment, even right after "=".
+- Safeguards and edge cases: "PAGE_1_ACCENT=#b3261e" (no space before "#") stays a colour; quoted values unchanged.
+- Checks performed: bash -n; shellcheck (same warnings); test_nginx_link_page; test_config_commune.
+- Action required: none (sudo nginx-link-page.sh --update --yes if a label showed a comment).
+
 ### 1.18.20261112.183227 - Script of the pages: theme in place and remembered, language remembered, "Share" button
 
 - Title: the link pages load their own script (js/link-page.js, Content-Security-Policy script-src 'self'); new keys PAGE_n_SCRIPT and PAGE_n_SHARE.
@@ -6239,6 +6259,16 @@ Earlier history was archived outside this repository when this file was created.
 
 ## apps/_config.py
 
+### 1.13.20261112.184937 - --config-merge loses nothing: keys outside the template kept, file never smaller
+
+- Title: --config-merge keeps every value, every key outside the template and the end-of-line comments; it refuses to write a file smaller than the old one.
+- Reason: request of the administrator on 2026-11-12: --config-merge did not merge the LittleLink configuration correctly, it removed configuration lines; the merged file must not be smaller than the original.
+- Changes: fusionner(): the keys of the old file that the template does not show (LINK_4 to LINK_n, PAGE_3... of nginx-link-page.sh, whose template only shows the first numbers) are kept at the end of the file, under a dated header, with the comments written just above them and the blank line before them, the line copied as it was; before writing, the result is read back: a lost or changed value, or a file with fewer lines or bytes than the old one, and nothing is written (code 1, reason given, no backup made); a key written twice in the old file: only its last line (the one in effect) is kept and listed, and only these dead lines may make the file shorter; new functions lire_texte (lire_fichier now uses it), commentaire_fin, lignes_hors_modele, constant ENTETES_HORS_MODELE; appliquer_valeurs(): the end-of-line comment of the template line ("# fr or en") is kept; fusionner_cli(): output cut (| head) handled without a traceback; lire_texte (and apps/_i18n.sh config_lire): "KEY=    # comment" is an empty value; messages fr/en; nginx-tools-tests: test_config_commune.py (FusionSansPerte: 4 tests, CommentaireApresValeurVide: 3 tests), test_conventions.py (FusionDeConfiguration: keys outside the template now kept).
+- Bugs fixed: 1) symptom: after --config-merge, the link page had lost its links and pages beyond the examples; diagnosis: every key absent from the template was "left out" (written only in the output), and the template of nginx-link-page.sh shows LINK_1 to LINK_3 and PAGE_1, PAGE_2 only; fix: those keys are kept. 2) symptom: the comments at the end of the lines of the template ("# fr or en") disappeared, so the file became shorter; diagnosis: appliquer_valeurs replaced the whole line; fix: the comment is kept. 3) symptom: an uncommented template line "LINK_1_LABEL_EN=          # optional English label" gave the value "# optional English label" (and the merge wrote it between quotes); diagnosis: the readers took the text after the spaces as the value; fix: a "#" preceded by a space starts a comment, even right after "="; "PAGE_1_ACCENT=#b3261e" stays a value.
+- Safeguards and edge cases: the old file is untouched when the merge is refused; a second merge gives the same file (the header is not repeated, only its date changes); keys in several files (/etc/default then ~/): the value of the last one read, as when the program reads them; quoted values and their comments copied as they are.
+- Checks performed: python3 -m py_compile; test_config_commune, test_conventions (FusionDeConfiguration), test_nginx_link_page, test_i18n (same failures as main, none added); real merge of a template with LINK_4 to LINK_12, then a second merge: every value kept, same number of lines.
+- Action required: none (if a previous --config-merge removed lines, the copy FILE.bak-YYYYMMDD-HHMMSS made then holds them: restore it, then run --config-merge again).
+
 ### 1.12.20261112.081946 - fusionner(): --config-merge shared by every program
 
 - Title: the --config-merge rule of app-log-live.py, shared by all the programs.
@@ -6338,6 +6368,16 @@ Earlier history was archived outside this repository when this file was created.
 - Action required: none.
 
 ## apps/_courriel.py
+
+### 1.5.20261112.184937 - Comment after an empty value read as empty
+
+- Title: "MAIL_HOST=    # comment" is an empty value, not the text of the comment.
+- Reason: request of the administrator on 2026-11-12: --config-merge did not merge the LittleLink configuration correctly, it removed configuration lines; the merged file must not be smaller than the original; same reading fault found in the four configuration readers.
+- Changes: LIGNE_RE keeps the spaces after "=", lire_config(): a value made only of spaces then "#" is empty; nginx-tools-tests/test_config_commune.py: 1 test.
+- Bugs fixed: symptom: an uncommented template line with an empty value took its comment as value; diagnosis: the spaces after "=" were dropped before the comment was looked for; fix: they are kept for that check.
+- Safeguards and edge cases: quoted values and "value # comment" unchanged.
+- Checks performed: python3 -m py_compile; test_config_commune.
+- Action required: none.
 
 ### 1.4.20261022.231529 - Code comments translated to English
 
