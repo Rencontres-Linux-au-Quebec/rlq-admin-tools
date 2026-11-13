@@ -1345,6 +1345,24 @@ class JournalEtPostgres283(BaseNginxHardening):
         self.assertIn("Journal systemd : persistant (Storage=persistent", out)
 
 
+class DependancesDesAutresProgrammes2104(unittest.TestCase):
+    """2.104 : --update (root) installe aussi les paquets dont les autres programmes du dépôt ont besoin ; sans --update, ils sont signalés."""
+    ATTENDUS = {"dig": "bind9-dnsutils", "whois": "whois", "ipset": "ipset", "git": "git", "python3": "python3", "dialog": "dialog",
+                "less": "less", "rsync": "rsync", "wget": "wget"}
+
+    def test_2104_paquets_des_autres_programmes(self):
+        src = open(script_path("nginx-hardening.sh"), encoding="utf-8").read()
+        bloc = src[src.index('echo "--- 0 bis) Dépendances des autres programmes du dépôt'):]
+        bloc = bloc[:bloc.index("\necho\n")]
+        self.assertEqual(dict(re.findall(r"(?m)^paquet_installer (\S+) (\S+)$", bloc)), self.ATTENDUS)
+        self.assertLess(src.index("paquet_installer() {"), src.index('echo "--- 0 bis)'))
+        for commande in self.ATTENDUS:                                       # each one is used by a program of the repository
+            utilisateurs = [f for f in os.listdir(SCRIPTS_DIR) + ["apps/" + a for a in os.listdir(script_path("apps"))]
+                            if f.endswith((".sh", ".py")) and f != "nginx-hardening.sh" and os.path.isfile(script_path(f))
+                            and re.search(rf"\b{re.escape(commande)}\b", open(script_path(f), encoding="utf-8", errors="replace").read())]
+            self.assertTrue(utilisateurs, commande)
+
+
 class TemporairesEnMemoire290(unittest.TestCase):
     """2.90 : les fichiers temporaires des réponses d'Odoo vont dans /dev/shm (tmpfs), bornés à 256 Mo par réponse ; les envois restent sur le disque ;
     l'étape 0c dit la place libre de /dev/shm."""

@@ -942,8 +942,36 @@ printf '\\211PNG\\r\\n\\032\\nxxxx' > "$out"; printf '200 12'; exit 0
         self.assertFalse((page / "qr.png").exists())
         self.assertNotIn("qr-link", (page / "index.html").read_text(encoding="utf-8"))
         r = self.lancer("-c", str(self.conf(MINIMAL + "PAGE_1_QR=yes\n")), "--check", env={"PATH": "/usr/bin:/bin", "NGINX_LINK_PAGE_LETSENCRYPT_DIR": str(self.tmp / "aucun")})
-        self.assertIn("qrencode absent (sudo apt install qrencode)", r.stderr)
+        self.assertIn("qrencode absent (sudo apt install qrencode, ou sudo nginx-link-page.sh --update l'installe)", r.stderr)
         self.assertIn("adresse publique inconnue", r.stderr)
+
+    def test_148_update_installe_les_paquets(self):
+        """1.48 : --update (root) installe les paquets qui manquent (ici qrencode pour PAGE_n_QR=yes) après la confirmation, avec
+        NGINX_LINK_PAGE_APT à la place d'apt-get ; une installation en échec arrête tout ; --check ne fait que les nommer."""
+        journal = self.tmp / "apt.log"
+        apt = self.tmp / "apt-stub"
+        apt.write_text(f'#!/bin/sh\necho "$@" >> "{journal}"\n[ "$1" = install ] || exit 0\n'
+                       f'printf \'#!/bin/sh\\nout=""; while [ $# -gt 1 ]; do [ "$1" = "-o" ] && out="$2"; shift; done\\necho "QR $1" > "$out"\\n\' > "{self.bin}/qrencode"\n'
+                       f'chmod 755 "{self.bin}/qrencode"\n', encoding="utf-8")
+        apt.chmod(0o755)
+        self.assertFalse((self.bin / "qrencode").exists())
+        texte = self.config_deux_pages("no").replace("PAGE_1_THEME=auto", "PAGE_1_THEME=auto\nPAGE_1_QR=yes") + "SITE_BASE_URL=https://www.example.org/\n"
+        env = dict(self.env, NGINX_LINK_PAGE_APT=str(apt))
+        r = self.lancer("-c", str(self.conf(texte)), "--check", env=env)
+        self.assertNotEqual(r.returncode, 0)
+        self.assertIn("qrencode absent", r.stderr)
+        self.assertFalse(journal.exists())                                              # --check installs nothing
+        r = self.lancer("-c", str(self.conf(texte)), "--update", "--yes", env=env)
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertIn("Paquets à installer : qrencode", r.stdout)
+        self.assertIn("install -y -qq qrencode", journal.read_text(encoding="utf-8"))
+        self.assertTrue((self.www / "liens" / "qr.png").exists())
+        # failed installation: stopped, nothing installed
+        (self.bin / "qrencode").unlink()
+        apt.write_text("#!/bin/sh\nexit 100\n", encoding="utf-8")
+        r = self.lancer("-c", str(self.conf(texte)), "--update", "--yes", env=env)
+        self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
+        self.assertIn("installation en échec : lancer « sudo apt-get install qrencode »", r.stderr)
 
     def test_133_rollback(self):
         """1.33 : --update garde la version précédente (pages, fragment, tâche quotidienne) ; --rollback la remet, même avec une
