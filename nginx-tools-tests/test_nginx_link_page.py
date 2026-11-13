@@ -920,7 +920,7 @@ printf '\\211PNG\\r\\n\\032\\nxxxx' > "$out"; printf '200 12'; exit 0
         r = self.lancer("-c", str(self.conf(self.config_deux_pages("no"))), "--update", "--yes", env=self.env)
         self.assertFalse((self.www / "liens" / "css" / "extras.css").exists())
         r = self.lancer("-c", str(self.conf(MINIMAL + "LINK_1_STYLE=gros\n")), "--check")
-        self.assertIn("LINK_1_STYLE=gros (normal ou featured)", r.stderr)
+        self.assertIn("LINK_1_STYLE=gros (normal, featured ou icon)", r.stderr)
 
     def test_132_code_qr(self):
         """1.32 : PAGE_n_QR=yes : qr.svg et qr.png de l'adresse publique de chaque langue, lien « Code QR de cette page » ; retirés quand
@@ -1013,6 +1013,23 @@ printf '\\211PNG\\r\\n\\032\\nxxxx' > "$out"; printf '200 12'; exit 0
             self.assertIn(attendu, r.stderr)
         r = self.lancer("-c", str(self.conf(MINIMAL + "PAGE_1_EVENTS=20\n")), "--check", env=env)
         self.assertIn("PAGE_1_EVENTS=20 : nombre d'événements de 0 à 10", r.stderr)
+
+    def test_135_rangee_d_icones(self):
+        """1.35 : LINK_n_STYLE=icon : le lien quitte la pile de boutons pour une rangée d'icônes rondes sous la description (nom pour
+        les lecteurs d'écran) ; refusé sur un menu ou un lien de menu."""
+        texte = self.config_deux_pages("no") + "LINK_1_STYLE=icon\n"
+        r = self.lancer("-c", str(self.conf(texte)), "--update", "--yes", env=self.env)
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        html = (self.www / "liens" / "index.html").read_text(encoding="utf-8")
+        rangee = html[html.index('<nav class="social-icons" aria-label="Réseaux sociaux">'):html.index("</nav>")]
+        self.assertIn('class="button button-default social-icon" href="https://example.org/a"', rangee)
+        self.assertIn('aria-label="Lien &lt;A&gt;" title="Lien &lt;A&gt;"', rangee)
+        pile = html[html.index('<nav class="button-stack"'):]
+        self.assertNotIn("example.org/a", pile[:pile.index("</nav>")])
+        self.assertLess(html.index("social-icons"), html.index("button-stack"))
+        self.assertIn('<link rel="stylesheet" href="css/extras.css">', html)
+        r = self.lancer("-c", str(self.conf(self.config_deux_pages("no") + "LINK_3_LABEL=M\nLINK_3_STYLE=icon\nLINK_2_MENU=3\n")), "--check")
+        self.assertIn("LINK_3_STYLE=icon : un menu ou un lien de menu", r.stderr)
 
     def test_deux_langues_detection_et_textes(self):
         texte = self.config_deux_pages("no").replace(

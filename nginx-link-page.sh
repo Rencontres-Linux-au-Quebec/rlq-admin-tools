@@ -29,7 +29,7 @@
 set -u
 LANG_C="${LC_ALL:-${LC_MESSAGES:-${LANG:-C}}}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
-readonly SCRIPT_VERSION="1.34.20261112.224301"
+readonly SCRIPT_VERSION="1.35.20261112.224424"
 readonly SCRIPT_NAME="nginx-link-page"
 # --config-merge: same rule as the other programs (apps/_config.py fusionner): the configuration file is rewritten from the new template,
 # keeping its active values; the old file is copied to FILE.bak-YYYYMMDD-HHMMSS. Then exit.
@@ -434,6 +434,11 @@ for mv in "${!MENU_ENFANTS[@]}"; do
         PROBLEMES+=("LINK_${mv}_URL : $(m "le lien $mv est un menu (LINK_n_MENU=$mv) : il n'a pas d'adresse, retirer LINK_${mv}_URL" "link $mv is a menu (LINK_n_MENU=$mv): it has no address, remove LINK_${mv}_URL")")
     fi
 done
+for i in ${LIENS_N[@]+"${LIENS_N[@]}"}; do                  # 1.35: icon links are in the row of icons, not in a menu
+    if [[ "${CFG[LINK_${i}_STYLE]:-}" == icon && ( -n "${MENU_ENFANTS[$i]:-}" || -n "${EST_ENFANT[$i]:-}" ) ]]; then
+        PROBLEMES+=("LINK_${i}_STYLE=icon : $(m "un menu ou un lien de menu ne peut pas être une icône de la rangée" "a menu or a link of a menu cannot be an icon of the row")")
+    fi
+done
 for i in "${!EST_ENFANT[@]}"; do
     if [[ -n "${CFG[LINK_${i}_PAGES]:-}" ]]; then
         PROBLEMES+=("LINK_${i}_PAGES : $(m "le lien $i est dans un menu : il va sur les pages de son menu (LINK_${CFG[LINK_${i}_MENU]}_PAGES)" "link $i is in a menu: it goes on the pages of its menu (LINK_${CFG[LINK_${i}_MENU]}_PAGES)")")
@@ -503,7 +508,7 @@ AUJOURDHUI="${NGINX_LINK_PAGE_TODAY:-$(date +%F)}"
 date_valide() { [[ "$1" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]] && date -d "$1" +%F >/dev/null 2>&1 && [[ "$(date -d "$1" +%F)" == "$1" ]]; }
 for i in ${LIENS_N[@]+"${LIENS_N[@]}"}; do
     sv="${CFG[LINK_${i}_STYLE]:-normal}"                     # 1.31: featured link
-    [[ "$sv" =~ ^(normal|featured)$ ]] || PROBLEMES+=("LINK_${i}_STYLE=$sv (normal $(m "ou" "or") featured)")
+    [[ "$sv" =~ ^(normal|featured|icon)$ ]] || PROBLEMES+=("LINK_${i}_STYLE=$sv (normal, featured $(m "ou" "or") icon)")
     for cle in FROM UNTIL; do
         dv="${CFG[LINK_${i}_${cle}]:-}"
         [[ -z "$dv" ]] && continue
@@ -1038,6 +1043,7 @@ page_a_extras() {
     local n e
     [[ "${P_QR:-no}" == yes ]] && return 0
     (( ${P_EVENTS:-0} > 0 )) && return 0                      # 1.34
+    for n in ${P_LIENS[@]+"${P_LIENS[@]}"}; do [[ "${CFG[LINK_${n}_STYLE]:-}" == icon ]] && return 0; done      # 1.35
     for n in ${P_LIENS[@]+"${P_LIENS[@]}"}; do
         [[ "${CFG[LINK_${n}_STYLE]:-normal}" == featured ]] && return 0
         for e in ${MENU_ENFANTS[$n]:-}; do [[ "${CFG[LINK_${e}_STYLE]:-normal}" == featured ]] && return 0; done
@@ -1058,14 +1064,28 @@ icone_lien() {
         printf '<img class="icon" aria-hidden="true" src="%s" alt="">' "$clair"
     fi
 }
+# cible_lien N: address of the link N in the page (1.30: PATH/go/N with PAGE_n_CLICKS=yes, a redirection by nginx written in its log)
+cible_lien() {
+    if [[ "${P_CLICS:-no}" == yes ]]; then printf '%s' "${P_CHEMIN}go/$1"; else printf '%s' "${CFG[LINK_${1}_URL]}"; fi
+}
+# rangee_icones: 1.35: the links LINK_n_STYLE=icon of the page, as a row of round icons under the description
+rangee_icones() {
+    local n trouve=0
+    for n in ${P_LIENS[@]+"${P_LIENS[@]}"}; do [[ "${CFG[LINK_${n}_STYLE]:-}" == icon ]] && trouve=1; done
+    (( trouve )) || return 0
+    echo "      <nav class=\"social-icons\" aria-label=\"$(tp "Réseaux sociaux" "Social networks")\">"
+    for n in ${P_LIENS[@]+"${P_LIENS[@]}"}; do
+        [[ "${CFG[LINK_${n}_STYLE]:-}" == icon ]] || continue
+        echo "        <a class=\"button button-default social-icon\" href=\"$(html_echap "$(cible_lien "$n")")\" target=\"_blank\" rel=\"noopener noreferrer\" aria-label=\"$(html_echap "$(libelle_lien "$n")")\" title=\"$(html_echap "$(libelle_lien "$n")")\">$(icone_lien "$n")</a>"
+    done
+    echo "      </nav>"
+}
 # bouton_lien N: the button of link N (1.26: shared by the page and the menus)
 bouton_lien() {
     local classe_bouton="button-default"
     if [[ "$P_BOUTONS" == brand && -n "${BOUTON_MARQUE[$1]:-}" ]]; then classe_bouton="${BOUTON_MARQUE[$1]}"; fi
     [[ "${CFG[LINK_${1}_STYLE]:-normal}" == featured ]] && classe_bouton+=" button-featured"      # 1.31
-    local cible="${CFG[LINK_${1}_URL]}"
-    [[ "${P_CLICS:-no}" == yes ]] && cible="${P_CHEMIN}go/$1"       # 1.30: redirection by nginx, written in its log
-    echo "        <a class=\"button $classe_bouton\" href=\"$(html_echap "$cible")\" target=\"_blank\" rel=\"noopener noreferrer\">"
+    echo "        <a class=\"button $classe_bouton\" href=\"$(html_echap "$(cible_lien "$1")")\" target=\"_blank\" rel=\"noopener noreferrer\">"
     echo "          $(icone_lien "$1")$(html_echap "$(libelle_lien "$1")")</a>"
 }
 
@@ -1167,8 +1187,10 @@ genere_index() {   # genere_index DOSSIER THEME TITRE [FICHIER] [CIBLE_BASCULE] 
         fi
         echo "      <h1>$(html_echap "$L_HEADING")</h1>"
         if [[ -n "$L_DESCRIPTION" ]]; then echo "      <p>$(html_echap "$L_DESCRIPTION")</p>"; fi
+        rangee_icones                                          # 1.35: links LINK_n_STYLE=icon
         echo "      <nav class=\"button-stack\" aria-label=\"$( [[ "$L_LANG" == en ]] && echo Links || echo Liens )\">"
         for i in ${P_LIENS[@]+"${P_LIENS[@]}"}; do          # 1.25: only the links of this page (LINK_n_PAGES)
+            [[ "${CFG[LINK_${i}_STYLE]:-}" == icon ]] && continue     # 1.35: in the row of icons
             if [[ -n "${MENU_ENFANTS[$i]:-}" ]]; then        # 1.26: menu: a button that opens its links below it (<details>, no script)
                 echo "        <details class=\"link-menu\">"
                 echo "          <summary class=\"button button-default$( [[ "${CFG[LINK_${i}_STYLE]:-normal}" == featured ]] && echo " button-featured")\">$(icone_lien "$i")$(html_echap "$(libelle_lien "$i")")</summary>"

@@ -4536,6 +4536,16 @@ Earlier history was archived outside this repository when this file was created.
 
 ## nginx-link-page.sh
 
+### 1.35.20261112.224424 - LINK_n_STYLE=icon: row of social icons under the description
+
+- Title: new value LINK_n_STYLE=icon: the link becomes a round icon in a row under the description, for the social networks.
+- Reason: request of the administrator on 2026-11-12 (suggestion 2 of the comparison with Linktree): small icons on one line for LinkedIn, YouTube, GitHub, Mastodon..., and the big buttons kept for the important links.
+- Changes: LINK_n_STYLE accepts icon; new functions cible_lien (address of a link in the page, PATH/go/N with PAGE_n_CLICKS=yes; used by bouton_lien too) and rangee_icones (nav "social-icons" under the description, before the buttons); the buttons of the page skip the icon links; css/extras.css: round buttons of the theme (2.9rem), icon only; page_a_extras: a page with an icon link loads it; nginx-link-page.conf.example: the value described; nginx-tools-tests/test_nginx_link_page.py: 1 test, message of 1.31 updated.
+- Bugs fixed: none.
+- Safeguards and edge cases: each icon has the label of its link as aria-label and title (screen readers, tooltip); the colours of the theme are used (button-default); LINK_n_PAGES, LINK_n_FROM/UNTIL and PAGE_n_CLICKS apply to icon links as to the others; refused by --check on a menu or a link of a menu; the row wraps on a narrow screen.
+- Checks performed: bash -n; shellcheck; test_nginx_link_page (68 tests); rendered in Google Chrome.
+- Action required: none (example: LINK_4_STYLE=icon for LinkedIn, then sudo nginx-link-page.sh --update --yes).
+
 ### 1.34.20261112.224301 - PAGE_n_EVENTS: upcoming events read in Odoo every day
 
 - Title: new key PAGE_n_EVENTS=N: the page shows the N next published events of Odoo, with their date, "dans 9 jours" and a link; read every day.
