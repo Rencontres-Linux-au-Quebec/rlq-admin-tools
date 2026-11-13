@@ -73,9 +73,12 @@
 # PAGE_n_ENGINE    : littlelink (linkstack is reserved and not supported yet)
 # PAGE_n_PATH      : page address, for example /links/ or /links2/ (each page has its own)
 # PAGE_n_DIR       : folder where the files are installed, for example /var/www/links (absolute, unique)
-# PAGE_n_THEME     : auto, light or dark (LittleLink), or one of the 5 themes of apps/link-page-themes.css:
+# PAGE_n_THEME     : auto, light or dark (LittleLink), or one of the 10 themes of apps/link-page-themes.css:
 #                    aurora (northern lights, dark), maple (maple red on cream, light), river (St. Lawrence blues, light),
-#                    terminal (green on black, monospace, dark), tux (charcoal and penguin orange, dark)
+#                    terminal (green on black, monospace, dark), tux (charcoal and penguin orange, dark),
+#                    tux-quebec (blurred pale Tux with the fleur-de-lys as background, blue buttons, light),
+#                    quebec (flag of Quebec: blue, white buttons, dark), boreal (boreal forest greens, dark),
+#                    sunset (orange to violet sky, dark), winter (snow white and ice blue, light)
 #                    or one of the 4 LinkStack themes adapted in apps/link-page-themes/ (MIT, see LICENSES.md there):
 #                    ls-aurora (pride coloured aurora over a forest), ls-dark (night valley), ls-dawn (mountains at dawn,
 #                    outlined buttons), ls-misty-rain (blue grey night with falling rain); all dark

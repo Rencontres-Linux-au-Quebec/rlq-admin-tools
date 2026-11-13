@@ -1,5 +1,5 @@
 /*
- * link-page-themes.css - 5 additional themes for the link pages of nginx-link-page.sh (PAGE_n_THEME).
+ * link-page-themes.css - 10 additional themes for the link pages of nginx-link-page.sh (PAGE_n_THEME).
  * Copyright (C) 2026 Services-Conseils Linux Inc. - AGPL-3.0-or-later (see LICENSE).
  * Copied as css/themes.css into each page folder, loaded after style.css and brands.css (LittleLink) and before accent.css
  * (PAGE_n_ACCENT keeps the last word on the default buttons). No external font, image or script: the Content-Security-Policy
@@ -10,26 +10,30 @@
  *   river     St. Lawrence: sky to water blue, deep teal buttons                           (light base)
  *   terminal  green on black, monospace, buttons as command lines                          (dark base)
  *   tux       charcoal and penguin orange, white text                                      (dark base)
+ *   tux-quebec  the Tux of the Rencontres (fleur-de-lys), blurred and pale, as background    (light base)
+ *               image: ../images/themes/tux-quebec.jpg (apps/link-page-themes/images/, see LICENSES.md)
+ *   quebec    flag of Quebec: deep blue, white buttons, fleur-de-lys pattern               (dark base)
+ *   boreal    boreal forest: dark green, birch white, moss buttons                         (dark base)
+ *   sunset    sunset on the river: orange, pink and violet sky, white glass buttons        (dark base)
+ *   winter    Quebec winter: snow white and ice blue, frosted buttons                      (light base)
  */
 
-/* ---- common to the 5 themes ---------------------------------------------------------------- */
-:root.theme-aurora body, :root.theme-maple body, :root.theme-river body, :root.theme-terminal body, :root.theme-tux body {
+/* ---- common to the 10 themes --------------------------------------------------------------- */
+:root.theme-aurora body, :root.theme-maple body, :root.theme-river body, :root.theme-terminal body, :root.theme-tux body, :root.theme-tux-quebec body, :root.theme-quebec body, :root.theme-boreal body, :root.theme-sunset body, :root.theme-winter body {
 	min-height: 100vh;
 	background-attachment: fixed;
 }
-:root.theme-aurora .button, :root.theme-maple .button, :root.theme-river .button, :root.theme-terminal .button, :root.theme-tux .button {
+:root.theme-aurora .button, :root.theme-maple .button, :root.theme-river .button, :root.theme-terminal .button, :root.theme-tux .button, :root.theme-tux-quebec .button, :root.theme-quebec .button, :root.theme-boreal .button, :root.theme-sunset .button, :root.theme-winter .button {
 	transition: transform 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease;
 }
-:root.theme-aurora .button:hover, :root.theme-maple .button:hover, :root.theme-river .button:hover, :root.theme-terminal .button:hover,
-:root.theme-tux .button:hover {
+:root.theme-aurora .button:hover, :root.theme-maple .button:hover, :root.theme-river .button:hover, :root.theme-terminal .button:hover, :root.theme-tux .button:hover, :root.theme-tux-quebec .button:hover, :root.theme-quebec .button:hover, :root.theme-boreal .button:hover, :root.theme-sunset .button:hover, :root.theme-winter .button:hover {
 	transform: translateY(-2px);
 }
 @media (prefers-reduced-motion: reduce) {
-	:root.theme-aurora .button, :root.theme-maple .button, :root.theme-river .button, :root.theme-terminal .button, :root.theme-tux .button {
+	:root.theme-aurora .button, :root.theme-maple .button, :root.theme-river .button, :root.theme-terminal .button, :root.theme-tux .button, :root.theme-tux-quebec .button, :root.theme-quebec .button, :root.theme-boreal .button, :root.theme-sunset .button, :root.theme-winter .button {
 		transition: none;
 	}
-	:root.theme-aurora .button:hover, :root.theme-maple .button:hover, :root.theme-river .button:hover, :root.theme-terminal .button:hover,
-	:root.theme-tux .button:hover {
+	:root.theme-aurora .button:hover, :root.theme-maple .button:hover, :root.theme-river .button:hover, :root.theme-terminal .button:hover, :root.theme-tux .button:hover, :root.theme-tux-quebec .button:hover, :root.theme-quebec .button:hover, :root.theme-boreal .button:hover, :root.theme-sunset .button:hover, :root.theme-winter .button:hover {
 		transform: none;
 	}
 }
@@ -186,3 +190,159 @@
 :root.theme-tux a:not(.button) { color: #ffc24d; }
 :root.theme-tux a:not(.button):hover { color: #ffe0a3; }
 :root.theme-tux :focus-visible { outline: 2px solid #ffc24d; outline-offset: 2px; }
+
+/* ---- tux-quebec: the Tux of the Rencontres, blurred and pale ------------------------------- */
+:root.theme-tux-quebec {
+	color-scheme: light;
+}
+:root.theme-tux-quebec body {
+	background-color: #fafbff;           /* colour of the edges of the image: no visible square */
+	background-image: url("../images/themes/tux-quebec.jpg");
+	background-repeat: no-repeat;
+	background-position: center center;
+	background-size: auto min(100vh, 60rem);   /* the penguin fills the height of the screen, even on a phone */
+	color: #10204a;
+}
+:root.theme-tux-quebec h1 {
+	color: #0033a0;
+	text-shadow: 0 1px 0 rgba(255, 255, 255, 0.9), 0 0 18px rgba(255, 255, 255, 0.9);
+}
+:root.theme-tux-quebec .container p,
+:root.theme-tux-quebec footer {
+	text-shadow: 0 0 8px #ffffff, 0 0 2px #ffffff;
+}
+:root.theme-tux-quebec .button.button-default {
+	--button-text: #ffffff;
+	--button-background: rgba(0, 51, 160, 0.78);   /* the penguin shows through */
+	--button-border: 1px solid #002877;
+	border-radius: 999px;
+	box-shadow: 0 4px 14px rgba(0, 51, 160, 0.20);
+}
+:root.theme-tux-quebec .button:hover {
+	box-shadow: 0 8px 20px rgba(0, 51, 160, 0.30);
+}
+:root.theme-tux-quebec a:not(.button) { color: #0033a0; }
+:root.theme-tux-quebec a:not(.button):hover { color: #c77700; }
+:root.theme-tux-quebec :focus-visible { outline: 2px solid #f2a900; outline-offset: 2px; }
+
+/* ---- quebec: flag of Quebec ------------------------------------------------------------------ */
+:root.theme-quebec {
+	color-scheme: dark;
+}
+:root.theme-quebec body {
+	background-color: #003da5;
+	background-image:
+		linear-gradient(90deg, transparent calc(50% - 0.6rem), rgba(255, 255, 255, 0.10) calc(50% - 0.6rem), rgba(255, 255, 255, 0.10) calc(50% + 0.6rem), transparent calc(50% + 0.6rem)),
+		linear-gradient(180deg, transparent calc(50% - 0.6rem), rgba(255, 255, 255, 0.10) calc(50% - 0.6rem), rgba(255, 255, 255, 0.10) calc(50% + 0.6rem), transparent calc(50% + 0.6rem)),
+		linear-gradient(180deg, #0a4bb8 0%, #003da5 50%, #00317f 100%);
+	color: #ffffff;
+}
+:root.theme-quebec h1 {
+	color: #ffffff;
+}
+:root.theme-quebec h1::before {
+	content: "\269C\FE0E  ";               /* fleur-de-lys, text style */
+}
+:root.theme-quebec .button.button-default {
+	--button-text: #003da5;
+	--button-background: #ffffff;
+	--button-border: 1px solid #ffffff;
+	box-shadow: 0 4px 0 rgba(0, 0, 0, 0.18);
+}
+:root.theme-quebec .button:hover {
+	box-shadow: 0 6px 0 rgba(0, 0, 0, 0.22);
+}
+:root.theme-quebec a:not(.button) { color: #ffffff; text-decoration: underline; }
+:root.theme-quebec a:not(.button):hover { color: #cfe0ff; }
+:root.theme-quebec :focus-visible { outline: 2px solid #ffffff; outline-offset: 2px; }
+
+/* ---- boreal: boreal forest ------------------------------------------------------------------- */
+:root.theme-boreal {
+	color-scheme: dark;
+}
+:root.theme-boreal body {
+	background-color: #0f2318;
+	background-image:
+		repeating-linear-gradient(90deg, transparent 0 3.2rem, rgba(234, 238, 228, 0.045) 3.2rem 3.45rem, transparent 3.45rem 7.4rem),
+		radial-gradient(ellipse 90% 50% at 50% 0%, rgba(122, 170, 98, 0.25), transparent 70%),
+		linear-gradient(180deg, #173524 0%, #0f2318 60%, #0a1810 100%);
+	color: #e8eee2;
+}
+:root.theme-boreal h1 {
+	color: #f2f5ec;
+}
+:root.theme-boreal .button.button-default {
+	--button-text: #f2f5ec;
+	--button-background: #3f6b3a;
+	--button-border: 1px solid #6d9a5f;
+	border-radius: 0.75rem;
+}
+:root.theme-boreal .button:hover {
+	box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
+}
+:root.theme-boreal a:not(.button) { color: #b9d99a; }
+:root.theme-boreal a:not(.button):hover { color: #e6f2c9; }
+:root.theme-boreal :focus-visible { outline: 2px solid #b9d99a; outline-offset: 2px; }
+
+/* ---- sunset: sunset on the river ------------------------------------------------------------- */
+:root.theme-sunset {
+	color-scheme: dark;
+}
+:root.theme-sunset body {
+	background-color: #3a1d4f;
+	background-image:
+		radial-gradient(circle at 50% 78%, rgba(255, 214, 120, 0.55) 0, rgba(255, 150, 90, 0.25) 12rem, transparent 22rem),
+		linear-gradient(180deg, #2b1a4a 0%, #7a2e6b 38%, #e0576b 68%, #f59a5b 88%, #fcc76f 100%);
+	color: #fff6f0;
+}
+:root.theme-sunset h1 {
+	color: #ffffff;
+	text-shadow: 0 2px 14px rgba(43, 26, 74, 0.55);
+}
+:root.theme-sunset .container p,
+:root.theme-sunset footer {
+	text-shadow: 0 1px 8px rgba(43, 26, 74, 0.60);
+}
+:root.theme-sunset .button.button-default {
+	--button-text: #ffffff;
+	--button-background: rgba(43, 26, 74, 0.42);
+	--button-border: 1px solid rgba(255, 255, 255, 0.65);
+	border-radius: 999px;
+}
+:root.theme-sunset .button:hover {
+	box-shadow: 0 0 20px rgba(255, 214, 120, 0.45);
+}
+:root.theme-sunset a:not(.button) { color: #ffe3a6; }
+:root.theme-sunset a:not(.button):hover { color: #ffffff; }
+:root.theme-sunset :focus-visible { outline: 2px solid #ffe3a6; outline-offset: 2px; }
+
+/* ---- winter: Quebec winter ------------------------------------------------------------------- */
+:root.theme-winter {
+	color-scheme: light;
+}
+:root.theme-winter body {
+	background-color: #eef5fb;
+	background-image:
+		radial-gradient(circle at 20% 30%, #ffffff 0 2px, transparent 3px),
+		radial-gradient(circle at 70% 60%, #ffffff 0 1.5px, transparent 2.5px),
+		radial-gradient(circle at 45% 85%, #ffffff 0 2.5px, transparent 3.5px),
+		linear-gradient(180deg, #dcebf7 0%, #f4f9fd 60%, #ffffff 100%);
+	background-size: 7rem 7rem, 5rem 5rem, 9rem 9rem, 100% 100%;
+	color: #1c3550;
+}
+:root.theme-winter h1 {
+	color: #1f4f7a;
+}
+:root.theme-winter .button.button-default {
+	--button-text: #1f4f7a;
+	--button-background: rgba(255, 255, 255, 0.85);
+	--button-border: 1px solid #a9c8e2;
+	border-radius: 0.9rem;
+	box-shadow: 0 4px 14px rgba(31, 79, 122, 0.12);
+}
+:root.theme-winter .button:hover {
+	box-shadow: 0 8px 20px rgba(31, 79, 122, 0.20);
+}
+:root.theme-winter a:not(.button) { color: #1f5f96; }
+:root.theme-winter a:not(.button):hover { color: #0d3557; }
+:root.theme-winter :focus-visible { outline: 2px solid #3d8bd1; outline-offset: 2px; }
