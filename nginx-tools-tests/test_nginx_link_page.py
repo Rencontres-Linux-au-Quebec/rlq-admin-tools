@@ -55,11 +55,18 @@ exit 1
 """.replace("SHA_REEL", SHA).replace("SHA_DE_EXTENDED", SHA_EXT)
 
 CURL_STUB = r"""#!/bin/sh
-out=""
+out=""; fmt=""; url=""
 while [ $# -gt 0 ]; do
-    case "$1" in -o) out="$2"; shift ;; esac
+    case "$1" in -o) out="$2"; shift ;; -w) fmt="$2"; shift ;; -A|-r|--max-time) shift ;; -*) ;; *) url="$1" ;; esac
     shift
 done
+if [ "$fmt" = "%{http_code}" ]; then
+    # 1.28: --check-links; RLQ_CURL_CODES="URL=CODE URL=CODE" (200 by default)
+    code=200
+    for paire in $RLQ_CURL_CODES; do [ "${paire%=*}" = "$url" ] && code="${paire##*=}"; done
+    printf '%s' "$code"
+    exit 0
+fi
 printf '\211PNG\r\n\032\nxxxx' > "$out"
 exit 0
 """
@@ -798,6 +805,174 @@ printf '\\211PNG\\r\\n\\032\\nxxxx' > "$out"; printf '200 12'; exit 0
                 r = self.lancer("-c", str(self.conf(self.config_deux_pages("no") + ajout + "\n")), "--check")
                 self.assertNotEqual(r.returncode, 0)
                 self.assertIn(attendu, r.stderr)
+
+    def test_127_liens_dates(self):
+        """1.27 : LINK_n_FROM / LINK_n_UNTIL : le lien est affiché entre ces dates (comprises) ; tâche quotidienne cron installée tant
+        qu'un lien est daté, retirée ensuite ; dates invalides ou inversées refusées ; --check montre la période."""
+        cron = self.tmp / "cron.d"
+        env = dict(self.env, NGINX_LINK_PAGE_CRON_DIR=str(cron), NGINX_LINK_PAGE_TODAY="2026-11-22")
+        texte = self.config_deux_pages("no") + "LINK_1_UNTIL=2026-11-21\nLINK_2_FROM=2026-11-22\n"
+        r = self.lancer("-c", str(self.conf(texte)), "--update", "--yes", env=env)
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        html = (self.www / "liens" / "index.html").read_text(encoding="utf-8")
+        self.assertNotIn("example.org/a", html)                                            # ended yesterday
+        self.assertIn("example.org/b", html)                                               # starts today
+        tache = (cron / "nginx-link-page").read_text(encoding="utf-8")
+        self.assertRegex(tache, r"(?m)^5 0 \* \* \* root NGINX_LINK_PAGE_NO_BACKUP=1 /.+/nginx-link-page\.sh --update --yes -c .+ 2>&1 \| logger -t nginx-link-page$")
+        r = self.lancer("-c", str(self.conf(texte)), "--update", "--yes", env=dict(env, NGINX_LINK_PAGE_TODAY="2026-11-21"))
+        html = (self.www / "liens" / "index.html").read_text(encoding="utf-8")
+        self.assertIn("example.org/a", html)
+        self.assertNotIn("example.org/b", html)
+        r = self.lancer("-c", str(self.conf(texte)), "--check", env=env)
+        self.assertIn("(au 2026-11-21 : caché aujourd'hui)", r.stdout)
+        self.assertIn("(du 2026-11-22 : affiché aujourd'hui)", r.stdout)
+        r = self.lancer("-c", str(self.conf(self.config_deux_pages("no"))), "--update", "--yes", env=env)
+        self.assertFalse((cron / "nginx-link-page").exists())                             # no dated link: task removed
+        for ajout, attendu in {"LINK_1_FROM=21-11-2026": "date AAAA-MM-JJ attendue", "LINK_1_UNTIL=2026-02-30": "date AAAA-MM-JJ attendue",
+                               "LINK_1_FROM=2026-12-01\nLINK_1_UNTIL=2026-11-01": "le lien ne serait jamais affiché"}.items():
+            with self.subTest(ajout=ajout):
+                r = self.lancer("-c", str(self.conf(self.config_deux_pages("no") + ajout + "\n")), "--check")
+                self.assertNotEqual(r.returncode, 0)
+                self.assertIn(attendu, r.stderr)
+
+    def test_128_check_links(self):
+        """1.28 : --check-links : chaque adresse est demandée ; 404 et sans réponse = liens morts (code 1) ; 403 = à vérifier à la main
+        (code 0) ; un menu n'est pas demandé."""
+        texte = self.config_deux_pages("no") + "LINK_3_LABEL=Menu\nLINK_4_LABEL=Dans\nLINK_4_URL=https://example.org/d\nLINK_4_MENU=3\n"
+        r = self.lancer("-c", str(self.conf(texte)), "--check-links", env=self.env)
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertIn("[OK]   200 LINK_1 Lien <A> -> https://example.org/a", r.stdout)
+        self.assertIn("LINK_4 Dans -> https://example.org/d", r.stdout)
+        self.assertNotIn("LINK_3 Menu ->", r.stdout + r.stderr)
+        self.assertIn("aucun lien mort", r.stdout)
+        env = dict(self.env, RLQ_CURL_CODES="https://example.org/a=404 https://example.org/b=403 https://example.org/d=000")
+        r = self.lancer("-c", str(self.conf(texte)), "--check-links", env=env)
+        self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
+        self.assertIn("404 LINK_1 Lien <A> -> https://example.org/a : lien mort ou en erreur", r.stderr)
+        self.assertIn("pas de réponse LINK_4 Dans", r.stderr)
+        self.assertIn("403 LINK_2 Autre -> https://example.org/b : le site refuse les robots", r.stdout)
+        self.assertIn("2 lien(s) mort(s) ou en erreur, 1 à vérifier à la main", r.stderr)
+
+    def test_129_duree_de_cache(self):
+        """1.29 : pages en no-cache (vérifiées à chaque visite), styles et scripts 1 heure, images et polices 7 jours ; les en-têtes de
+        sécurité sont répétés dans chaque location imbriquée (add_header ne s'hérite pas) ; même chose à la racine bilingue."""
+        texte = self.config_deux_pages("no").replace("PAGE_1_THEME=auto", "PAGE_1_THEME=auto\nPAGE_1_LANGUAGES=fr,en")
+        r = self.lancer("-c", str(self.conf(texte)), "--update", "--yes", env=self.env)
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        snippet = (self.snippets / "liens-publics.conf").read_text(encoding="utf-8")
+        bloc = snippet[snippet.index("location ^~ /liens/ {"):].split("\n}\n", 1)[0]
+        self.assertIn('\n    add_header Cache-Control "no-cache" always;', bloc)
+        self.assertIn('    location ~* \\.(css|js)$ {\n        limit_except GET HEAD { deny all; }\n', bloc)
+        self.assertIn('        add_header Cache-Control "public, max-age=3600" always;', bloc)
+        self.assertIn('    location ~* \\.(png|jpe?g|webp|gif|svg|ico|woff2?)$ {', bloc)
+        self.assertIn('        add_header Cache-Control "public, max-age=604800" always;', bloc)
+        self.assertEqual(bloc.count("add_header Content-Security-Policy"), 3)
+        self.assertEqual(bloc.count("add_header X-Content-Type-Options"), 3)
+        racine = snippet[snippet.index("location = /liens/ {"):].split("\n}\n", 1)[0]
+        self.assertIn('add_header Cache-Control "no-cache" always;', racine)
+        self.assertIn('add_header Vary "Accept-Language" always;', racine)
+
+    def test_130_clics(self):
+        """1.30 : PAGE_n_CLICKS=yes : les liens passent par /liens/go/N, une location exacte par lien (302, no-store) ; --clicks compte
+        les 302 de chaque lien dans les journaux (fichiers tournés et .gz compris) avec le nombre d'adresses ; sans la clé : liens directs."""
+        import gzip
+        texte = self.config_deux_pages("no").replace("PAGE_1_THEME=auto", "PAGE_1_THEME=auto\nPAGE_1_CLICKS=yes")
+        r = self.lancer("-c", str(self.conf(texte)), "--update", "--yes", env=self.env)
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        html = (self.www / "liens" / "index.html").read_text(encoding="utf-8")
+        self.assertIn('href="/liens/go/1"', html)
+        self.assertNotIn('href="https://example.org/a"', html)
+        snippet = (self.snippets / "liens-publics.conf").read_text(encoding="utf-8")
+        self.assertIn('location = /liens/go/1 {\n    add_header Cache-Control "no-store" always;\n    return 302 "https://example.org/a";\n}', snippet)
+        self.assertIn("location = /liens/go/2 {", snippet)
+        journaux = self.tmp / "logs"; journaux.mkdir()
+        ligne = '{ip} - - [12/Nov/2026:21:00:00 -0500] "GET /liens/go/{n} HTTP/1.1" {code} 0 "-" "Mozilla"\n'
+        (journaux / "access.log").write_text(ligne.format(ip="1.1.1.1", n=2, code=302) * 3 + ligne.format(ip="2.2.2.2", n=2, code=302)
+                                              + ligne.format(ip="1.1.1.1", n=1, code=404) + '1.1.1.1 - - [x] "GET /liens/ HTTP/1.1" 200 0\n')
+        with gzip.open(journaux / "access.log.2.gz", "wt") as f:
+            f.write(ligne.format(ip="3.3.3.3", n=1, code=302))
+        r = self.lancer("-c", str(self.conf(texte)), "--clicks", env=dict(self.env, NGINX_LINK_PAGE_ACCESS_LOGS=str(journaux / "access.log*")))
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertIn("journaux : 2 fichier(s)", r.stdout)
+        self.assertRegex(r.stdout, r"(?m)^ +4 clics, 2 adresses  LINK_2 Autre$")
+        self.assertRegex(r.stdout, r"(?m)^ +1 clics, 1 adresses  LINK_1 Lien <A>$")      # the 404 is not counted
+        self.assertLess(r.stdout.index("LINK_2 Autre"), r.stdout.index("LINK_1 Lien"))
+        r = self.lancer("-c", str(self.conf(self.config_deux_pages("no"))), "--update", "--yes", env=self.env)
+        self.assertIn('href="https://example.org/a"', (self.www / "liens" / "index.html").read_text(encoding="utf-8"))
+        self.assertNotIn("/go/", (self.snippets / "liens-publics.conf").read_text(encoding="utf-8"))
+        r = self.lancer("-c", str(self.conf(MINIMAL + "PAGE_1_CLICKS=oui\n")), "--check")
+        self.assertIn("PAGE_1_CLICKS=oui (yes ou no)", r.stderr)
+
+    def test_131_lien_en_vedette(self):
+        """1.31 : LINK_n_STYLE=featured : classe button-featured (lien, lien d'un menu, menu), css/extras.css copié et lié seulement
+        quand il sert ; valeur inconnue refusée."""
+        texte = self.config_deux_pages("no") + ("LINK_1_STYLE=featured\nLINK_3_LABEL=Menu\nLINK_3_STYLE=featured\n"
+                                                "LINK_4_LABEL=Dans\nLINK_4_URL=https://example.org/d\nLINK_4_MENU=3\nLINK_4_STYLE=featured\n")
+        r = self.lancer("-c", str(self.conf(texte)), "--update", "--yes", env=self.env)
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        html = (self.www / "liens" / "index.html").read_text(encoding="utf-8")
+        self.assertIn('<a class="button button-default button-featured" href="https://example.org/a"', html)
+        self.assertIn('<a class="button button-default button-featured" href="https://example.org/d"', html)
+        self.assertIn('<summary class="button button-default button-featured">', html)
+        self.assertIn('<a class="button button-default" href="https://example.org/b"', html)
+        self.assertIn('<link rel="stylesheet" href="css/extras.css">', html)
+        self.assertIn("button-featured", (self.www / "liens" / "css" / "extras.css").read_text(encoding="utf-8"))
+        r = self.lancer("-c", str(self.conf(self.config_deux_pages("no"))), "--update", "--yes", env=self.env)
+        self.assertFalse((self.www / "liens" / "css" / "extras.css").exists())
+        r = self.lancer("-c", str(self.conf(MINIMAL + "LINK_1_STYLE=gros\n")), "--check")
+        self.assertIn("LINK_1_STYLE=gros (normal ou featured)", r.stderr)
+
+    def test_132_code_qr(self):
+        """1.32 : PAGE_n_QR=yes : qr.svg et qr.png de l'adresse publique de chaque langue, lien « Code QR de cette page » ; retirés quand
+        la clé est enlevée ; refusé sans qrencode ou sans adresse publique."""
+        qr = self.bin / "qrencode"
+        qr.write_text('#!/bin/sh\nout=""; while [ $# -gt 1 ]; do [ "$1" = "-o" ] && out="$2"; shift; done\necho "QR $1" > "$out"\n', encoding="utf-8")
+        qr.chmod(0o755)
+        texte = self.config_deux_pages("no").replace("PAGE_1_THEME=auto", "PAGE_1_THEME=auto\nPAGE_1_QR=yes\nPAGE_1_LANGUAGES=fr,en") + "SITE_BASE_URL=https://www.example.org/\n"
+        r = self.lancer("-c", str(self.conf(texte)), "--update", "--yes", env=self.env)
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        page = self.www / "liens"
+        self.assertEqual((page / "qr.png").read_text(encoding="utf-8"), "QR https://www.example.org/liens/\n")
+        self.assertEqual((page / "en" / "qr.svg").read_text(encoding="utf-8"), "QR https://www.example.org/liens/en/\n")
+        html = (page / "index.html").read_text(encoding="utf-8")
+        self.assertIn('<p class="qr-link"><a href="qr.png" download><img src="qr.svg" alt="">Code QR de cette page</a></p>', html)
+        self.assertIn("QR code of this page", (page / "en" / "index.html").read_text(encoding="utf-8"))
+        self.assertIn('<link rel="stylesheet" href="css/extras.css">', html)
+        self.assertIn("code QR : https://www.example.org/liens/qr.png", r.stdout)
+        r = self.lancer("-c", str(self.conf(texte.replace("PAGE_1_QR=yes", "PAGE_1_QR=no"))), "--update", "--yes", env=self.env)
+        self.assertFalse((page / "qr.png").exists())
+        self.assertNotIn("qr-link", (page / "index.html").read_text(encoding="utf-8"))
+        r = self.lancer("-c", str(self.conf(MINIMAL + "PAGE_1_QR=yes\n")), "--check", env={"PATH": "/usr/bin:/bin", "NGINX_LINK_PAGE_LETSENCRYPT_DIR": str(self.tmp / "aucun")})
+        self.assertIn("qrencode absent (sudo apt install qrencode)", r.stderr)
+        self.assertIn("adresse publique inconnue", r.stderr)
+
+    def test_133_rollback(self):
+        """1.33 : --update garde la version précédente (pages, fragment, tâche quotidienne) ; --rollback la remet, même avec une
+        configuration invalide, puis nginx -t et rechargement ; rien à remettre : erreur ; la tâche quotidienne ne remplace pas la copie."""
+        etat = self.tmp / "etat"
+        env = dict(self.env, NGINX_LINK_PAGE_STATE_DIR=str(etat), NGINX_LINK_PAGE_CRON_DIR=str(self.tmp / "cron.d"))
+        r = self.lancer("-c", str(self.conf(MINIMAL)), "--rollback", env=env)
+        self.assertNotEqual(r.returncode, 0)
+        self.assertIn("aucune version précédente", r.stderr)
+        un = self.config_deux_pages("no").replace("Lien <A>", "Premier")
+        r = self.lancer("-c", str(self.conf(un)), "--update", "--yes", env=env)
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertFalse((etat / "previous").exists())                                 # first install: nothing to put back
+        deux = self.config_deux_pages("no").replace("Lien <A>", "Second").replace("PAGE_1_THEME=auto", "PAGE_1_THEME=auto\nPAGE_1_THEMES=light,dark")
+        r = self.lancer("-c", str(self.conf(deux)), "--update", "--yes", env=env)
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertIn("version précédente gardée (--rollback)", r.stdout)
+        page = self.www / "liens"
+        self.assertIn("Second", (page / "index.html").read_text(encoding="utf-8"))
+        self.assertTrue((page / "theme-dark.html").exists())
+        r = self.lancer("-c", str(self.conf(deux)), "--update", "--yes", env=dict(env, NGINX_LINK_PAGE_NO_BACKUP="1"))
+        self.assertIn("Premier", (etat / "previous" / "page-1" / "index.html").read_text(encoding="utf-8"))   # daily task: copy unchanged
+        r = self.lancer("-c", str(self.conf(MINIMAL + "PAGE_1_THEMS=x\n")), "--rollback", env=env)       # invalid configuration
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertIn("Premier", (page / "index.html").read_text(encoding="utf-8"))
+        self.assertFalse((page / "theme-dark.html").exists())
+        self.assertIn("fragment nginx remis", r.stdout)
+        self.assertIn("nginx -t réussi, nginx rechargé", r.stdout)
 
     def test_deux_langues_detection_et_textes(self):
         texte = self.config_deux_pages("no").replace(

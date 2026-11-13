@@ -29,7 +29,7 @@
 set -u
 LANG_C="${LC_ALL:-${LC_MESSAGES:-${LANG:-C}}}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
-readonly SCRIPT_VERSION="1.26.20261112.215914"
+readonly SCRIPT_VERSION="1.33.20261112.222624"
 readonly SCRIPT_NAME="nginx-link-page"
 # --config-merge: same rule as the other programs (apps/_config.py fusionner): the configuration file is rewritten from the new template,
 # keeping its active values; the old file is copied to FILE.bak-YYYYMMDD-HHMMSS. Then exit.
@@ -72,6 +72,8 @@ readonly THEMES_LINKSTACK="$SCRIPT_DIR/apps/link-page-themes"
 readonly THEME_MENU_CSS="$SCRIPT_DIR/apps/link-page-theme-menu.css"
 # 1.26: link menus (LINK_n_MENU): style sheet copied as css/link-menu.css
 readonly LINK_MENU_CSS="$SCRIPT_DIR/apps/link-page-link-menu.css"
+# 1.31: featured links (LINK_n_STYLE) and QR code link (PAGE_n_QR): style sheet copied as css/extras.css
+readonly EXTRAS_CSS="$SCRIPT_DIR/apps/link-page-extras.css"
 # 1.18: script of the pages (PAGE_n_SCRIPT): theme in place and remembered, language remembered, "Share" button; copied as js/link-page.js
 readonly LINK_PAGE_JS="$SCRIPT_DIR/apps/link-page.js"
 readonly THEMES_TOUS="auto light dark aurora maple river terminal tux tux-quebec quebec boreal sunset winter tux-flag tux-poster ls-aurora ls-dark ls-dawn ls-misty-rain"
@@ -121,11 +123,14 @@ Builds and installs one or more link pages on the Odoo site, from the configurat
 Options (ordre alphabetique / alphabetical order) :
   ${C_OPT}--changelog${C_RESET}                affiche le journal des modifications / show the change log
   ${C_OPT}--check${C_RESET}                    verifie la configuration, n'ecrit rien (defaut) / check only, writes nothing (default)
+  ${C_OPT}--check-links${C_RESET}              demande chaque adresse des liens et signale les liens morts (404, sans réponse...) / request every link address and report the dead links (404, no answer...)
+  ${C_OPT}--clicks${C_RESET}                   clics de chaque lien (PAGE_n_CLICKS=yes), lus dans les journaux d'accès de nginx / clicks of each link (PAGE_n_CLICKS=yes), read in the nginx access logs
   ${C_OPT}-c, --config FILE${C_RESET}          lit SEUL ce fichier / read ONLY this file
   ${C_OPT}--config-merge${C_RESET}             reecrit la configuration d'apres le nouveau modele en gardant ses valeurs (copie FICHIER.bak-...), puis quitte / rewrite the configuration from the new template, keeping its values (copy FILE.bak-...), then exit
   ${C_OPT}-h, --help${C_RESET}                 affiche cette aide / show this help
   ${C_OPT}--init${C_RESET}                     cree la configuration depuis le modele / create the configuration from the template
   ${C_OPT}--lang LANG${C_RESET}                langue des messages : fr ou en / message language: fr or en
+  ${C_OPT}--rollback${C_RESET}                 remet les pages et le fragment nginx d'avant le dernier --update / put back the pages and the nginx snippet of before the last --update
   ${C_OPT}--update${C_RESET}                   installe ou met a jour les pages (root, confirmation) / install or update (root, asks first)
   ${C_OPT}--version${C_RESET}                  affiche la version / show the version
   ${C_OPT}--yes${C_RESET}                      avec --update : sans question / with --update: no question
@@ -225,14 +230,51 @@ while [[ $# -gt 0 ]]; do
             fi
             exit 0 ;;
         --check) MODE="check"; shift ;;
+        --check-links) MODE="links"; shift ;;
+        --clicks) MODE="clicks"; shift ;;
         --init) MODE="init"; shift ;;
         --update) MODE="update"; shift ;;
+        --rollback) MODE="rollback"; shift ;;
         --yes) YES=1; shift ;;
         -h|--help) usage; exit 0 ;;
         --version) echo "$SCRIPT_NAME.sh version $SCRIPT_VERSION"; exit 0 ;;
         *) echo "Argument inconnu / unknown argument: $1" >&2; usage >&2; exit 2 ;;
     esac
 done
+
+# 1.33: previous version of the pages: copied by --update before it installs, put back by --rollback (whatever the configuration)
+ETAT_DIR="${NGINX_LINK_PAGE_STATE_DIR:-/var/lib/$SCRIPT_NAME}"
+readonly FICHIERS_GERES="css fonts images js index.html autre.html en fr qr.svg qr.png"      # what --update replaces in a page folder
+if [[ "$MODE" == "rollback" ]]; then
+    if [[ "$(id -u)" -ne 0 ]]; then err "$(m "--rollback écrit dans les dossiers des pages : lancer avec sudo." "--rollback writes to the page folders: run with sudo.")"; exit 1; fi
+    prec="$ETAT_DIR/previous"
+    if [[ ! -s "$prec/manifest" ]]; then err "$(m "aucune version précédente" "no previous version") ($prec)"; exit 1; fi
+    echo "$(m "Version précédente du" "Previous version of") $(cat "$prec/date" 2>/dev/null || echo "?") :"
+    snippet_remis=""
+    while IFS=$'\t' read -r type nom chemin; do
+        case "$type" in
+            page)
+                mkdir -p "$chemin"
+                for x in $FICHIERS_GERES; do rm -rf "${chemin:?}/$x"; done
+                rm -f "${chemin:?}"/theme-*.html
+                if cp -a "$prec/$nom/." "$chemin/"; then ok "$(m "page remise" "page put back") : $chemin"; else err "$(m "copie impossible" "copy failed") : $chemin"; exit 1; fi ;;
+            snippet)
+                cp -a "$prec/$nom" "$chemin" && snippet_remis="$chemin" && ok "$(m "fragment nginx remis" "nginx snippet put back") : $chemin" ;;
+            cron)
+                if [[ "$nom" == "-" ]]; then rm -f "$chemin"; else mkdir -p "$(dirname "$chemin")"; cp -a "$prec/$nom" "$chemin"; fi ;;
+        esac
+    done < "$prec/manifest"
+    if [[ -n "$snippet_remis" ]]; then
+        if nginx_erreur=$(nginx -t 2>&1); then
+            { systemctl reload nginx >/dev/null 2>&1 || nginx -s reload >/dev/null 2>&1; } && ok "$(m "nginx -t réussi, nginx rechargé" "nginx -t passed, nginx reloaded")"
+        else
+            err "$(m "nginx -t refuse la configuration après le retour arrière" "nginx -t refuses the configuration after the rollback")"
+            printf '%s\n' "$nginx_erreur" | head -8 | sed 's/^/        nginx -t : /'
+            exit 1
+        fi
+    fi
+    exit 0
+fi
 
 # --init writes the template and stops: there is no configuration to validate yet
 if [[ "$MODE" == "init" ]]; then
@@ -254,8 +296,8 @@ valeur_ou() { local v="${CFG[$1]:-}"; [[ -n "$v" ]] && printf '%s' "$v" || print
 
 # 1.24: every key of the files must be known (a mistyped key was ignored without a word: PAGE_3_THEMS=all, SITE_LANGAUGE=en)
 readonly CLES_SITE="BASE_URL DESCRIPTION DESCRIPTION_EN FOOTER FOOTER_EN HEADING HEADING_EN LANGUAGE LOGO_ALT LOGO_URL SHARE_DESCRIPTION SHARE_DESCRIPTION_EN SHARE_IMAGE_URL SHARE_TITLE SHARE_TITLE_EN TITLE TITLE_EN"
-readonly CLES_LIEN="ICON ICON_DARK LABEL LABEL_EN MENU PAGES URL"
-readonly CLES_PAGE="ACCENT AVATAR BUTTONS DIR ENABLED ENGINE LANGUAGES PATH SCRIPT SHARE SWITCH THEME THEMES TITLE TITLE_EN"
+readonly CLES_LIEN="FROM ICON ICON_DARK LABEL LABEL_EN MENU PAGES STYLE UNTIL URL"
+readonly CLES_PAGE="ACCENT AVATAR BUTTONS CLICKS DIR ENABLED ENGINE LANGUAGES PATH QR SCRIPT SHARE SWITCH THEME THEMES TITLE TITLE_EN"
 cle_connue() {   # cle_connue KEY: 0 when KEY is read by the program
     local k="$1" s
     if [[ "$k" =~ ^SITE_(.+)$ ]]; then for s in $CLES_SITE; do [[ "${BASH_REMATCH[1]}" == "$s" ]] && return 0; done; return 1; fi
@@ -453,6 +495,43 @@ liens_de_la_page() {   # liens_de_la_page P: link numbers shown on page P, in or
     done
     return 0
 }
+# 1.27: dated links: LINK_n_FROM / LINK_n_UNTIL (YYYY-MM-DD, local date, both included); a daily task rebuilds the pages
+AUJOURDHUI="${NGINX_LINK_PAGE_TODAY:-$(date +%F)}"
+date_valide() { [[ "$1" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]] && date -d "$1" +%F >/dev/null 2>&1 && [[ "$(date -d "$1" +%F)" == "$1" ]]; }
+for i in ${LIENS_N[@]+"${LIENS_N[@]}"}; do
+    sv="${CFG[LINK_${i}_STYLE]:-normal}"                     # 1.31: featured link
+    [[ "$sv" =~ ^(normal|featured)$ ]] || PROBLEMES+=("LINK_${i}_STYLE=$sv (normal $(m "ou" "or") featured)")
+    for cle in FROM UNTIL; do
+        dv="${CFG[LINK_${i}_${cle}]:-}"
+        [[ -z "$dv" ]] && continue
+        date_valide "$dv" || PROBLEMES+=("LINK_${i}_${cle}=$dv : $(m "date AAAA-MM-JJ attendue (ex. 2026-11-21)" "date YYYY-MM-DD expected (e.g. 2026-11-21)")")
+    done
+    if [[ -n "${CFG[LINK_${i}_FROM]:-}" && -n "${CFG[LINK_${i}_UNTIL]:-}" && "${CFG[LINK_${i}_FROM]}" > "${CFG[LINK_${i}_UNTIL]}" ]]; then
+        PROBLEMES+=("LINK_${i}_FROM=${CFG[LINK_${i}_FROM]} > LINK_${i}_UNTIL=${CFG[LINK_${i}_UNTIL]} : $(m "le lien ne serait jamais affiché" "the link would never be shown")")
+    fi
+done
+LIENS_DATES=0
+for i in ${LIENS_N[@]+"${LIENS_N[@]}"}; do [[ -n "${CFG[LINK_${i}_FROM]:-}${CFG[LINK_${i}_UNTIL]:-}" ]] && LIENS_DATES=1; done
+lien_visible() {   # lien_visible N: 0 when link N is shown today (no dates, or today between LINK_n_FROM and LINK_n_UNTIL)
+    local du="${CFG[LINK_${1}_FROM]:-}" au="${CFG[LINK_${1}_UNTIL]:-}"
+    [[ -n "$du" && "$AUJOURDHUI" < "$du" ]] && return 1
+    [[ -n "$au" && "$AUJOURDHUI" > "$au" ]] && return 1
+    return 0
+}
+enfants_visibles() {   # enfants_visibles N: links of menu N shown today
+    local e
+    for e in ${MENU_ENFANTS[$1]:-}; do lien_visible "$e" && printf '%s\n' "$e"; done
+    return 0
+}
+liens_visibles_de_la_page() {   # liens_visibles_de_la_page P: links of page P shown today (a menu without any link shown today is hidden)
+    local n
+    for n in $(liens_de_la_page "$1"); do
+        lien_visible "$n" || continue
+        [[ -n "${MENU_ENFANTS[$n]:-}" && -z "$(enfants_visibles "$n")" ]] && continue
+        printf '%s\n' "$n"
+    done
+    return 0
+}
 nb_liens_page() {   # nb_liens_page P: number of links shown on page P, the links of its menus included
     local n t=0 e
     for n in $(liens_de_la_page "$1"); do
@@ -528,6 +607,13 @@ for i in "${PAGES_N[@]}"; do
     # 1.18: PAGE_n_SCRIPT and PAGE_n_SHARE (yes or no, yes by default)
     [[ "$(valeur_ou "${pre}SCRIPT" yes)" =~ ^(yes|no)$ ]] || PROBLEMES+=("${pre}SCRIPT=$(valeur_ou "${pre}SCRIPT" yes) (yes ou no)")
     [[ "$(valeur_ou "${pre}SHARE" yes)" =~ ^(yes|no)$ ]] || PROBLEMES+=("${pre}SHARE=$(valeur_ou "${pre}SHARE" yes) (yes ou no)")
+    [[ "$(valeur_ou "${pre}CLICKS" no)" =~ ^(yes|no)$ ]] || PROBLEMES+=("${pre}CLICKS=$(valeur_ou "${pre}CLICKS" no) (yes ou no)")      # 1.30
+    qr_v="$(valeur_ou "${pre}QR" no)"                                                   # 1.32: QR code of the page
+    [[ "$qr_v" =~ ^(yes|no)$ ]] || PROBLEMES+=("${pre}QR=$qr_v (yes ou no)")
+    if [[ "$qr_v" == yes ]]; then
+        command -v qrencode >/dev/null 2>&1 || PROBLEMES+=("${pre}QR=yes : $(m "qrencode absent (sudo apt install qrencode)" "qrencode not found (sudo apt install qrencode)")")
+        [[ -n "$SITE_BASE_URL_V" ]] || PROBLEMES+=("${pre}QR=yes : $(m "adresse publique inconnue : SITE_BASE_URL (ou un seul certificat sur le serveur)" "public address unknown: SITE_BASE_URL (or a single certificate on the server)")")
+    fi
     if [[ "$(valeur_ou "${pre}SCRIPT" yes)" == yes && ! -r "$LINK_PAGE_JS" ]]; then
         PROBLEMES+=("${pre}SCRIPT=yes : $LINK_PAGE_JS absent (livre avec le depot) / missing (shipped with the repository)")
     fi
@@ -608,6 +694,16 @@ telecharger() {
     [[ -n "$RES_FICHIER" ]]
 }
 
+# periode_lien N: " (du ... au ... : affiché / caché aujourd'hui)" for a dated link, nothing otherwise
+periode_lien() {
+    local du="${CFG[LINK_${1}_FROM]:-}" au="${CFG[LINK_${1}_UNTIL]:-}"
+    [[ -z "$du$au" ]] && return 0
+    local periode="${du:+$(m "du" "from") $du}"
+    [[ -n "$au" ]] && periode+="${periode:+ }$(m "au" "until") $au"
+    local etat
+    if lien_visible "$1"; then etat="$(m "affiché aujourd'hui" "shown today")"; else etat="$(m "caché aujourd'hui" "hidden today")"; fi
+    printf ' (%s : %s)' "$periode" "$etat"
+}
 # ---- --check: nothing is written, no network ----
 echo
 echo "$(m "Verification" "Check") :"
@@ -616,11 +712,72 @@ for i in "${LIENS_N[@]}"; do
     [[ -n "${EST_ENFANT[$i]:-}" ]] && continue                 # 1.26: shown under its menu
     if [[ -n "${MENU_ENFANTS[$i]:-}" ]]; then
         echo "  - ${CFG[LINK_${i}_LABEL]} -> $(m "menu" "menu")"
-        for e in ${MENU_ENFANTS[$i]}; do echo "      - ${CFG[LINK_${e}_LABEL]} -> ${CFG[LINK_${e}_URL]:-}"; done
+        for e in ${MENU_ENFANTS[$i]}; do echo "      - ${CFG[LINK_${e}_LABEL]} -> ${CFG[LINK_${e}_URL]:-}$(periode_lien "$e")"; done
     else
-        echo "  - ${CFG[LINK_${i}_LABEL]} -> ${CFG[LINK_${i}_URL]:-}"
+        echo "  - ${CFG[LINK_${i}_LABEL]} -> ${CFG[LINK_${i}_URL]:-}$(periode_lien "$i")"
     fi
 done
+# 1.30: --clicks: requests "GET PATH/go/N" answered 302 in the nginx access logs (rotated and .gz included), per page and link
+if [[ "$MODE" == "clicks" ]]; then
+    shopt -s nullglob
+    # shellcheck disable=SC2206   # the variable is a glob on purpose (access.log, access.log.1, access.log.2.gz...)
+    journaux=(${NGINX_LINK_PAGE_ACCESS_LOGS:-/var/log/nginx/access.log*})
+    shopt -u nullglob
+    echo
+    if (( ${#journaux[@]} == 0 )); then err "$(m "aucun journal d'accès" "no access log") (${NGINX_LINK_PAGE_ACCESS_LOGS:-/var/log/nginx/access.log*})"; exit 1; fi
+    for j in "${journaux[@]}"; do [[ -r "$j" ]] || { err "$(m "journal illisible (lancer avec sudo)" "log not readable (run with sudo)") : $j"; exit 1; }; done
+    echo "$(m "Clics" "Clicks") ($(m "journaux" "logs") : ${#journaux[@]} $(m "fichier(s)" "file(s)"), ${journaux[0]%/*}) :"
+    avec_clics=0
+    for i in "${PAGES_N[@]}"; do
+        [[ "$(valeur_ou "PAGE_${i}_CLICKS" no)" == yes ]] || continue
+        avec_clics=1
+        chemin="$(valeur_ou "PAGE_${i}_PATH" "")"
+        echo "  PAGE_${i} ${chemin} :"
+        resultat="$(zcat -f -- "${journaux[@]}" 2>/dev/null | awk -v p="\"GET ${chemin}go/" '
+            { d = index($0, p); if (!d) next
+              reste = substr($0, d + length(p)); n = reste; sub(/[^0-9].*/, "", n); if (n == "") next
+              apres = substr(reste, index(reste, "\"") + 1); split(apres, f, " "); if (f[1] != "302") next
+              total[n]++; if (!((n, $1) in vu)) { vu[n, $1] = 1; ips[n]++ } }
+            END { for (n in total) printf "%d %d %s\n", total[n], ips[n], n }' | sort -k1,1nr -k3,3n)"
+        if [[ -z "$resultat" ]]; then echo "    $(m "aucun clic" "no click")"; continue; fi
+        while read -r total ips n; do
+            printf '    %6s %s, %s %s  LINK_%s %s\n' "$total" "$(m "clics" "clicks")" "$ips" "$(m "adresses" "addresses")" "$n" "${CFG[LINK_${n}_LABEL]:-?}"
+        done <<< "$resultat"
+    done
+    (( avec_clics )) || attn "$(m "aucune page avec PAGE_n_CLICKS=yes : les liens vont directement à leur adresse" "no page with PAGE_n_CLICKS=yes: the links go straight to their address")"
+    exit 0
+fi
+# 1.28: --check-links: every address is requested (HEAD, then GET when HEAD is refused); dead links make the exit code 1
+if [[ "$MODE" == "links" ]]; then
+    command -v curl >/dev/null 2>&1 || { err "curl $(m "absent" "not found")"; exit 1; }
+    echo
+    echo "$(m "Vérification des liens" "Checking the links") :"
+    morts=0; douteux=0
+    for i in "${LIENS_N[@]}"; do
+        [[ -n "${MENU_ENFANTS[$i]:-}" ]] && continue                 # a menu has no address
+        url="${CFG[LINK_${i}_URL]:-}"
+        code="$(curl -sS -o /dev/null -w '%{http_code}' --max-time 15 -L -I -A "$SCRIPT_NAME/$SCRIPT_VERSION" "$url" 2>/dev/null || true)"
+        if [[ ! "$code" =~ ^[23] ]]; then
+            code2="$(curl -sS -o /dev/null -w '%{http_code}' --max-time 15 -L -r 0-0 -A "$SCRIPT_NAME/$SCRIPT_VERSION" "$url" 2>/dev/null || true)"
+            [[ "$code2" =~ ^[0-9]{3}$ && "$code2" != 000 ]] && code="$code2"
+        fi
+        code="${code:-000}"
+        quoi="LINK_${i} ${CFG[LINK_${i}_LABEL]} -> $url"
+        case "$code" in
+            2??|3??) ok "$code $quoi" ;;
+            401|403|429|999) attn "$code $quoi : $(m "le site refuse les robots ou demande une connexion : à vérifier dans un navigateur" "the site refuses robots or asks for a sign-in: check it in a browser")"; douteux=$((douteux + 1)) ;;
+            000) err "$(m "pas de réponse" "no answer") $quoi : $(m "adresse, nom de domaine ou certificat à vérifier" "check the address, the domain name or the certificate")"; morts=$((morts + 1)) ;;
+            *) err "$code $quoi : $(m "lien mort ou en erreur" "dead link or error")"; morts=$((morts + 1)) ;;
+        esac
+    done
+    echo
+    if (( morts )); then
+        err "$(m "$morts lien(s) mort(s) ou en erreur, $douteux à vérifier à la main" "$morts dead or failing link(s), $douteux to check by hand")"
+        exit 1
+    fi
+    ok "$(m "aucun lien mort" "no dead link")$( (( douteux )) && echo " ($douteux $(m "à vérifier à la main" "to check by hand"))")"
+    exit 0
+fi
 if [[ "$MODE" == "check" ]]; then
     echo
     echo "$(m "Rien n'a ete modifie (--check). Lancer avec --update (root) pour installer." "Nothing was changed (--check). Run with --update (root) to install.")"
@@ -801,6 +958,16 @@ csp_script() { if [[ "$P_JS" == yes ]]; then echo "'self'"; else echo "'none'"; 
 # menu_contient REGEX: a theme of the "Theme" button matches REGEX
 menu_contient() { local t; for t in ${P_MENU[@]+"${P_MENU[@]}"}; do [[ "$t" =~ $1 ]] && return 0; done; return 1; }
 
+# page_a_extras: 0 when the page being generated (P_LIENS) has a featured link, in a menu or not, or shows its QR code
+page_a_extras() {
+    local n e
+    [[ "${P_QR:-no}" == yes ]] && return 0
+    for n in ${P_LIENS[@]+"${P_LIENS[@]}"}; do
+        [[ "${CFG[LINK_${n}_STYLE]:-normal}" == featured ]] && return 0
+        for e in ${MENU_ENFANTS[$n]:-}; do [[ "${CFG[LINK_${e}_STYLE]:-normal}" == featured ]] && return 0; done
+    done
+    return 1
+}
 # icone_lien N: <img> (or <picture>) of the icon of link N for the page being generated (theme base in $base, set by genere_index)
 icone_lien() {
     local clair="${ICONE_CLAIR[$1]}" sombre="${ICONE_SOMBRE[$1]}" media
@@ -819,7 +986,10 @@ icone_lien() {
 bouton_lien() {
     local classe_bouton="button-default"
     if [[ "$P_BOUTONS" == brand && -n "${BOUTON_MARQUE[$1]:-}" ]]; then classe_bouton="${BOUTON_MARQUE[$1]}"; fi
-    echo "        <a class=\"button $classe_bouton\" href=\"$(html_echap "${CFG[LINK_${1}_URL]}")\" target=\"_blank\" rel=\"noopener noreferrer\">"
+    [[ "${CFG[LINK_${1}_STYLE]:-normal}" == featured ]] && classe_bouton+=" button-featured"      # 1.31
+    local cible="${CFG[LINK_${1}_URL]}"
+    [[ "${P_CLICS:-no}" == yes ]] && cible="${P_CHEMIN}go/$1"       # 1.30: redirection by nginx, written in its log
+    echo "        <a class=\"button $classe_bouton\" href=\"$(html_echap "$cible")\" target=\"_blank\" rel=\"noopener noreferrer\">"
     echo "          $(icone_lien "$1")$(html_echap "$(libelle_lien "$1")")</a>"
 }
 
@@ -885,6 +1055,7 @@ genere_index() {   # genere_index DOSSIER THEME TITRE [FICHIER] [CIBLE_BASCULE] 
         fi
         if (( ${#P_MENU[@]} )) || [[ "$P_JS" == yes && "$P_PARTAGE" == yes ]]; then echo "    <link rel=\"stylesheet\" href=\"css/theme-menu.css\">"; fi
         if [[ -f "$dossier/css/link-menu.css" ]]; then echo "    <link rel=\"stylesheet\" href=\"css/link-menu.css\">"; fi      # 1.26
+        if [[ -f "$dossier/css/extras.css" ]]; then echo "    <link rel=\"stylesheet\" href=\"css/extras.css\">"; fi            # 1.31
         if [[ -f "$dossier/css/accent.css" ]]; then echo "    <link rel=\"stylesheet\" href=\"css/accent.css\">"; fi
         if [[ "$P_JS" == yes ]]; then echo "    <script src=\"js/link-page.js\"></script>"; fi      # 1.18: in <head>: theme set before drawing
         echo "  </head>"
@@ -924,9 +1095,9 @@ genere_index() {   # genere_index DOSSIER THEME TITRE [FICHIER] [CIBLE_BASCULE] 
         for i in ${P_LIENS[@]+"${P_LIENS[@]}"}; do          # 1.25: only the links of this page (LINK_n_PAGES)
             if [[ -n "${MENU_ENFANTS[$i]:-}" ]]; then        # 1.26: menu: a button that opens its links below it (<details>, no script)
                 echo "        <details class=\"link-menu\">"
-                echo "          <summary class=\"button button-default\">$(icone_lien "$i")$(html_echap "$(libelle_lien "$i")")</summary>"
+                echo "          <summary class=\"button button-default$( [[ "${CFG[LINK_${i}_STYLE]:-normal}" == featured ]] && echo " button-featured")\">$(icone_lien "$i")$(html_echap "$(libelle_lien "$i")")</summary>"
                 echo "          <div class=\"link-menu-items\">"
-                for e in ${MENU_ENFANTS[$i]}; do bouton_lien "$e"; done
+                for e in $(enfants_visibles "$i"); do bouton_lien "$e"; done      # 1.27: links shown today
                 echo "          </div>"
                 echo "        </details>"
             else
@@ -944,6 +1115,9 @@ genere_index() {   # genere_index DOSSIER THEME TITRE [FICHIER] [CIBLE_BASCULE] 
                 echo "      <p><a class=\"button button-default\" href=\"$L_AUTRE_HREF\">$(html_echap "$L_AUTRE_LIBELLE")</a></p>"
             fi
         fi
+        if [[ -f "$dossier/qr.svg" ]]; then                  # 1.32: QR code of the page (PNG to download for posters and slides)
+            echo "      <p class=\"qr-link\"><a href=\"qr.png\" download><img src=\"qr.svg\" alt=\"\">$( [[ "$L_LANG" == en ]] && echo "QR code of this page" || echo "Code QR de cette page" )</a></p>"
+        fi
         echo "    </main>"
         if [[ -n "$L_FOOTER" ]]; then echo "    <footer>$(html_echap "$L_FOOTER")</footer>"; fi
         echo "    </div></div>"
@@ -955,7 +1129,8 @@ genere_index() {   # genere_index DOSSIER THEME TITRE [FICHIER] [CIBLE_BASCULE] 
 for i in ${ACTIVES[@]+"${ACTIVES[@]}"}; do
     site="$TMP/page-$i"
     mkdir -p "$site"
-    mapfile -t P_LIENS < <(liens_de_la_page "$i")          # 1.25: links of this page
+    mapfile -t P_LIENS < <(liens_visibles_de_la_page "$i")   # 1.25: links of this page; 1.27: shown today
+    if (( ${#P_LIENS[@]} == 0 )); then attn "PAGE_${i} : $(m "aucun lien affiché aujourd'hui ($AUJOURDHUI, voir LINK_n_FROM et LINK_n_UNTIL)" "no link shown today ($AUJOURDHUI, see LINK_n_FROM and LINK_n_UNTIL)")"; fi
     P_THEME="$(valeur_ou "PAGE_${i}_THEME" auto)"
     P_TITRE="$(valeur_ou "PAGE_${i}_TITLE" "$SITE_TITLE_V")"
     P_BOUTONS="$(valeur_ou "PAGE_${i}_BUTTONS" default)"
@@ -977,6 +1152,8 @@ for i in ${ACTIVES[@]+"${ACTIVES[@]}"}; do
     IFS=',' read -r -a P_LISTE <<< "$P_LANGUES"
     # 1.18: script of the page: only when it has something to do (theme button, "Share" button or two languages)
     P_PARTAGE="$(valeur_ou "PAGE_${i}_SHARE" yes)"
+    P_CLICS="$(valeur_ou "PAGE_${i}_CLICKS" no)"             # 1.30: the links go through PATH/go/N (counted in the nginx logs)
+    P_QR="$(valeur_ou "PAGE_${i}_QR" no)"                     # 1.32: qr.svg and qr.png of the page, link above the footer
     P_JS=no
     if [[ "$(valeur_ou "PAGE_${i}_SCRIPT" yes)" == yes ]] && { (( ${#P_MENU[@]} )) || [[ "$P_PARTAGE" == yes ]] || (( ${#P_LISTE[@]} == 2 )); }; then
         P_JS=yes
@@ -1018,8 +1195,18 @@ for i in ${ACTIVES[@]+"${ACTIVES[@]}"}; do
             printf '.button.button-default { --button-background: %s; }\n' "$P_ACCENT" > "$dossier/css/accent.css"
         fi
         if [[ "$P_JS" == yes ]]; then mkdir -p "$dossier/js"; install -m 644 "$LINK_PAGE_JS" "$dossier/js/link-page.js"; fi
+        if [[ "$P_QR" == yes ]]; then                          # 1.32: QR code of the public address of this language
+            if qrencode -t SVG -l M -m 2 -s 6 -o "$dossier/qr.svg" "$L_URL_PUBLIQUE" && qrencode -t PNG -l M -m 4 -s 12 -o "$dossier/qr.png" "$L_URL_PUBLIQUE"; then
+                ok "$(m "code QR" "QR code") : ${L_URL_PUBLIQUE}qr.png"
+            else
+                attn "$(m "code QR non créé (qrencode)" "QR code not created (qrencode)") : $L_URL_PUBLIQUE"; rm -f "$dossier/qr.svg" "$dossier/qr.png"
+            fi
+        fi
         if (( ${#P_MENU[@]} )) || [[ "$P_JS" == yes && "$P_PARTAGE" == yes ]]; then
             if [[ -r "$THEME_MENU_CSS" ]]; then install -m 644 "$THEME_MENU_CSS" "$dossier/css/theme-menu.css"; fi
+        fi
+        if [[ -r "$EXTRAS_CSS" ]] && page_a_extras; then      # 1.31: a featured link (or, 1.32, the QR code) on this page
+            install -m 644 "$EXTRAS_CSS" "$dossier/css/extras.css"
         fi
         if [[ -r "$LINK_MENU_CSS" ]]; then                    # 1.26: a menu on this page
             for e in ${P_LIENS[@]+"${P_LIENS[@]}"}; do
@@ -1043,6 +1230,15 @@ for i in ${ACTIVES[@]+"${ACTIVES[@]}"}; do
     ok "$(m "page" "page") PAGE_${i} $(m "preparee" "prepared") ($(nb_liens_page "$i") $(m "liens" "links"))"
 done
 
+# 1.29: entetes_page PAGE INDENT CACHE: the add_header lines of a page (Content-Security-Policy, nosniff, Referrer-Policy, Cache-Control)
+entetes_page() {
+    local scr="'none'"
+    [[ "${SCRIPT_PAGE[$1]:-no}" == yes ]] && scr="'self'"
+    printf '%sadd_header Content-Security-Policy "%s" always;\n' "$2" "default-src 'none'; img-src 'self'; style-src 'self'; font-src 'self'; script-src $scr; frame-ancestors 'none'; base-uri 'none'; form-action 'none'"
+    printf '%sadd_header X-Content-Type-Options "nosniff" always;\n' "$2"
+    printf '%sadd_header Referrer-Policy "strict-origin-when-cross-origin" always;\n' "$2"
+    printf '%sadd_header Cache-Control "%s" always;' "$2" "$3"
+}
 # 4) one nginx snippet, one location per enabled page (distinct paths: /liens/ does not catch /liens2/)
 LIEN_NOUVEAU="# Genere par $SCRIPT_NAME.sh : ne pas editer a la main."$'\n'
 if (( ${#ACTIVES[@]} == 0 )); then
@@ -1077,29 +1273,68 @@ else
             LIEN_NOUVEAU+="    index index.html;"$'\n'
             LIEN_NOUVEAU+="    limit_except GET HEAD { deny all; }"$'\n'
             LIEN_NOUVEAU+="    add_header Vary \"Accept-Language\" always;"$'\n'
-            LIEN_NOUVEAU+="    add_header Content-Security-Policy \"default-src 'none'; img-src 'self'; style-src 'self'; font-src 'self'; script-src $( [[ "${SCRIPT_PAGE[i]:-no}" == yes ]] && echo "'self'" || echo "'none'" ); frame-ancestors 'none'; base-uri 'none'; form-action 'none'\" always;"$'\n'
-            LIEN_NOUVEAU+="    add_header X-Content-Type-Options \"nosniff\" always;"$'\n'
-            LIEN_NOUVEAU+="    add_header Referrer-Policy \"strict-origin-when-cross-origin\" always;"$'\n'
+            LIEN_NOUVEAU+="$(entetes_page "$i" "    " "no-cache")"$'\n'
             LIEN_NOUVEAU+="}"$'\n'
+        fi
+        # 1.30: PAGE_n_CLICKS=yes: one exact location per link of the page, a 302 to its address (counted by --clicks in the access log)
+        if [[ "$(valeur_ou "PAGE_${i}_CLICKS" no)" == yes ]]; then
+            for n in $(liens_visibles_de_la_page "$i"); do
+                for e in $( [[ -n "${MENU_ENFANTS[$n]:-}" ]] && enfants_visibles "$n" || echo "$n" ); do
+                    cible="${CFG[LINK_${e}_URL]}"; cible="${cible//\$/%24}"; cible="${cible//\"/%22}"
+                    LIEN_NOUVEAU+="location = ${chemin_page}go/$e {"$'\n'
+                    LIEN_NOUVEAU+="    add_header Cache-Control \"no-store\" always;"$'\n'
+                    LIEN_NOUVEAU+="    return 302 \"$cible\";"$'\n'
+                    LIEN_NOUVEAU+="}"$'\n'
+                done
+            done
         fi
         LIEN_NOUVEAU+="location ^~ ${chemin_page} {"$'\n'
         LIEN_NOUVEAU+="    alias ${dir_page}/;"$'\n'
         LIEN_NOUVEAU+="    index index.html;"$'\n'
         LIEN_NOUVEAU+="    limit_except GET HEAD { deny all; }"$'\n'
-        LIEN_NOUVEAU+="    add_header Content-Security-Policy \"default-src 'none'; img-src 'self'; style-src 'self'; font-src 'self'; script-src $( [[ "${SCRIPT_PAGE[i]:-no}" == yes ]] && echo "'self'" || echo "'none'" ); frame-ancestors 'none'; base-uri 'none'; form-action 'none'\" always;"$'\n'
-        LIEN_NOUVEAU+="    add_header X-Content-Type-Options \"nosniff\" always;"$'\n'
-        LIEN_NOUVEAU+="    add_header Referrer-Policy \"strict-origin-when-cross-origin\" always;"$'\n'
+        LIEN_NOUVEAU+="$(entetes_page "$i" "    " "no-cache")"$'\n'
+        # 1.29: style sheets and scripts kept 1 hour (an update changes them), images and fonts 7 days, by the browsers and by Cloudflare;
+        # the pages themselves are checked each time (no-cache). A nested location does not inherit add_header: the headers are repeated.
+        for regle in "css|js:public, max-age=3600" "png|jpe?g|webp|gif|svg|ico|woff2?:public, max-age=604800"; do
+            LIEN_NOUVEAU+="    location ~* \\.(${regle%%:*})\$ {"$'\n'
+            LIEN_NOUVEAU+="        limit_except GET HEAD { deny all; }"$'\n'
+            LIEN_NOUVEAU+="$(entetes_page "$i" "        " "${regle#*:}")"$'\n'
+            LIEN_NOUVEAU+="    }"$'\n'
+        done
         LIEN_NOUVEAU+="}"$'\n'
     done
 fi
 
 # 5) install the folders, then the snippet: nginx -t, reload; the previous snippet is restored on refusal
+# 1.33: copy of what is replaced (page folders, snippet, daily task), put back by --rollback; not by the daily task (it would replace
+# the copy of before a manual update by the same pages every night)
+if [[ "${NGINX_LINK_PAGE_NO_BACKUP:-0}" != 1 ]]; then
+    nouv="$ETAT_DIR/previous.new"; rm -rf "$nouv"; mkdir -p "$nouv"; : > "$nouv/manifest"
+    date '+%Y-%m-%d %H:%M:%S' > "$nouv/date"
+    for i in ${ACTIVES[@]+"${ACTIVES[@]}"}; do
+        dossier="$(valeur_ou "PAGE_${i}_DIR" "")"
+        [[ -f "$dossier/index.html" ]] || continue
+        mkdir -p "$nouv/page-$i"
+        for x in $FICHIERS_GERES; do [[ -e "$dossier/$x" ]] && cp -a "$dossier/$x" "$nouv/page-$i/"; done
+        for x in "$dossier"/theme-*.html; do [[ -e "$x" ]] && cp -a "$x" "$nouv/page-$i/"; done
+        printf 'page\tpage-%s\t%s\n' "$i" "$dossier" >> "$nouv/manifest"
+    done
+    if [[ -f "$LIEN_FICHIER" ]]; then cp -a "$LIEN_FICHIER" "$nouv/snippet.conf"; printf 'snippet\tsnippet.conf\t%s\n' "$LIEN_FICHIER" >> "$nouv/manifest"; fi
+    cron_f="${NGINX_LINK_PAGE_CRON_DIR:-/etc/cron.d}/$SCRIPT_NAME"
+    if [[ -f "$cron_f" ]]; then cp -a "$cron_f" "$nouv/cron"; printf 'cron\tcron\t%s\n' "$cron_f" >> "$nouv/manifest"; else printf 'cron\t-\t%s\n' "$cron_f" >> "$nouv/manifest"; fi
+    if grep -q '^page' "$nouv/manifest" || grep -q '^snippet' "$nouv/manifest"; then
+        rm -rf "$ETAT_DIR/previous"; mv "$nouv" "$ETAT_DIR/previous"; chmod 700 "$ETAT_DIR"
+        ok "$(m "version précédente gardée (--rollback)" "previous version kept (--rollback)") : $ETAT_DIR/previous"
+    else
+        rm -rf "$nouv"                                     # first install: nothing to put back
+    fi
+fi
 mkdir -p "$SNIPPETS_DIR"
 LIEN_ANCIEN=""; [[ -f "$LIEN_FICHIER" ]] && LIEN_ANCIEN=$(cat "$LIEN_FICHIER")
 for i in ${ACTIVES[@]+"${ACTIVES[@]}"}; do
     dossier="$(valeur_ou "PAGE_${i}_DIR" "")"
     mkdir -p "$dossier"
-    for x in css fonts images js index.html autre.html en fr; do rm -rf "${dossier:?}/$x"; done      # 1.18: js
+    for x in $FICHIERS_GERES; do rm -rf "${dossier:?}/$x"; done      # 1.18: js; 1.32: qr; 1.33: FICHIERS_GERES
     rm -f "${dossier:?}"/theme-*.html                    # 1.17: pages of the "Theme" button of the previous run
     cp -r "$TMP/page-$i/." "$dossier/" || { err "$(m "copie impossible dans" "copy failed in") $dossier"; exit 1; }
     chmod -R a+rX "$dossier"
@@ -1112,6 +1347,21 @@ if nginx_erreur=$(nginx -t 2>&1); then
         ok "$(m "nginx -t reussi, nginx recharge" "nginx -t passed, nginx reloaded") ($LIEN_FICHIER)"
     else
         attn "$(m "nginx -t reussi mais rechargement impossible : systemctl status nginx --no-pager" "nginx -t passed but reload failed: systemctl status nginx --no-pager")"
+    fi
+    # 1.27: dated links: a daily task (/etc/cron.d/nginx-link-page) rebuilds the pages at 00:05; removed when no link is dated
+    CRON_FICHIER="${NGINX_LINK_PAGE_CRON_DIR:-/etc/cron.d}/$SCRIPT_NAME"
+    if (( LIENS_DATES )); then
+        mkdir -p "$(dirname "$CRON_FICHIER")"
+        {
+            echo "# Genere par $SCRIPT_NAME.sh : liens dates (LINK_n_FROM, LINK_n_UNTIL), pages reconstruites chaque jour. Ne pas editer a la main."
+            echo "SHELL=/bin/bash"
+            echo "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+            echo "5 0 * * * root NGINX_LINK_PAGE_NO_BACKUP=1 $SCRIPT_DIR/$SCRIPT_NAME.sh --update --yes${CONFIG_EXPLICIT:+ -c $CONFIG_EXPLICIT} 2>&1 | logger -t $SCRIPT_NAME"
+        } > "$CRON_FICHIER.tmp" && chmod 644 "$CRON_FICHIER.tmp" && mv -f "$CRON_FICHIER.tmp" "$CRON_FICHIER"
+        ok "$(m "liens datés : pages reconstruites chaque jour à 00:05" "dated links: pages rebuilt every day at 00:05") ($CRON_FICHIER)"
+    elif [[ -f "$CRON_FICHIER" ]]; then
+        rm -f "$CRON_FICHIER"
+        ok "$(m "plus de lien daté : tâche quotidienne retirée" "no dated link any more: daily task removed") ($CRON_FICHIER)"
     fi
 else
     if [[ -n "$LIEN_ANCIEN" ]]; then printf '%s\n' "$LIEN_ANCIEN" > "$LIEN_FICHIER"; else printf '%s\n' "# liens : inactif" > "$LIEN_FICHIER"; fi

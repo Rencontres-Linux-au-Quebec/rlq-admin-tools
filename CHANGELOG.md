@@ -4536,6 +4536,76 @@ Earlier history was archived outside this repository when this file was created.
 
 ## nginx-link-page.sh
 
+### 1.33.20261112.222624 - --rollback: put back the version of before the last --update
+
+- Title: new option --rollback: puts back the pages, the nginx snippet and the daily task of before the last --update.
+- Reason: request of the administrator on 2026-11-12 (improvement 8 of the list proposed): undo a failed update with one command.
+- Changes: new variable ETAT_DIR (/var/lib/nginx-link-page, NGINX_LINK_PAGE_STATE_DIR for the tests) and constant FICHIERS_GERES (what --update replaces in a page folder, also used by step 5); step 5 of --update: before installing, copies the managed files of each page folder (and its theme-*.html), the snippet and the daily task (or its absence) to ETAT_DIR/previous, with a manifest and the date; new option --rollback (help in French and English, root): handled right after the options, before the check of the configuration, it puts back each folder, the snippet and the daily task listed in the manifest, then runs nginx -t and reloads nginx; the daily task (1.27) runs with NGINX_LINK_PAGE_NO_BACKUP=1; nginx-tools-tests/test_nginx_link_page.py: 1 test, the expected line of the daily task updated.
+- Bugs fixed: none.
+- Safeguards and edge cases: --rollback works even when the configuration is invalid (often the reason of the rollback); first install: nothing is kept and --rollback says "no previous version"; the daily task never replaces the copy (it would put the same pages there every night, and the copy of before a manual update would be lost); only one previous version is kept (each manual --update replaces it); ETAT_DIR is readable by root only (700); nginx -t refused after the rollback: [FAIL] with the lines of nginx -t, exit code 1; a second --rollback puts back the same version.
+- Checks performed: bash -n; shellcheck; test_nginx_link_page (66 tests); help order.
+- Action required: none (after a failed update: sudo nginx-link-page.sh --rollback).
+
+### 1.32.20261112.222441 - PAGE_n_QR: QR code of the page for posters and slides
+
+- Title: new key PAGE_n_QR=yes: QR code of the page (qr.svg, qr.png) and a "QR code of this page" link.
+- Reason: request of the administrator on 2026-11-12 (improvement 7 of the list proposed): a QR code of each page for the posters and slides of the events.
+- Changes: new key PAGE_n_QR (yes or no, no by default; in CLES_PAGE); --check refuses PAGE_n_QR=yes without qrencode ("sudo apt install qrencode") or without a public address (SITE_BASE_URL, or a single certificate); for each language folder, qrencode writes qr.svg (shown in the page) and qr.png (12 pixels per module, quiet zone of 4, error correction M, to download) of the public address of that language; genere_index(): link "Code QR de cette page" / "QR code of this page" (download of qr.png, with the small SVG code) above the footer; css/extras.css (1.31) styles it; step 5: qr.svg and qr.png of the previous run removed; --update gives the address of each qr.png; nginx-link-page.conf.example: the key described; nginx-tools-tests/test_nginx_link_page.py: qrencode stub, 1 test.
+- Bugs fixed: none.
+- Safeguards and edge cases: the QR code points to the public address of the page (og:url), never to a local path; qrencode failing: [ATTN], the page is built without the link; served by the page itself (Content-Security-Policy img-src 'self'); kept 7 days by the browsers (1.29), rebuilt by each --update.
+- Checks performed: bash -n; shellcheck; test_nginx_link_page (65 tests).
+- Action required: sudo apt install qrencode on the server, then PAGE_1_QR=yes and sudo nginx-link-page.sh --update --yes.
+
+### 1.31.20261112.222312 - LINK_n_STYLE=featured: a bigger button with a golden halo
+
+- Title: new key LINK_n_STYLE=featured: a bigger button with a golden halo, for the important link of the moment.
+- Reason: request of the administrator on 2026-11-12 (improvement 6 of the list proposed): make a link such as the Journée portes ouvertes stand out.
+- Changes: new key LINK_n_STYLE (normal by default, or featured; in CLES_LIEN, checked by --check); new style sheet apps/link-page-extras.css (copied as css/extras.css and linked only on a page that uses it): .button-featured, 20rem wide, larger text, golden halo that breathes (2.4 s); new constant EXTRAS_CSS, function page_a_extras; bouton_lien(): class button-featured; a menu (LINK_n_MENU) can be featured too (its summary); nginx-link-page.conf.example: the key described; nginx-tools-tests/test_nginx_link_page.py: 1 test.
+- Bugs fixed: none.
+- Safeguards and edge cases: the colours of the theme and of the brand buttons are kept, only the size and the halo change; still image (a fixed golden ring) with prefers-reduced-motion; works in every theme (golden halo on light and dark backgrounds); the button never gets wider than the screen (max-width 100 %).
+- Checks performed: bash -n; shellcheck; test_nginx_link_page (64 tests); rendered in Google Chrome.
+- Action required: none (example: LINK_1_STYLE=featured, then sudo nginx-link-page.sh --update --yes).
+
+### 1.30.20261112.222151 - PAGE_n_CLICKS and --clicks: clicks of each link counted from the nginx log
+
+- Title: new key PAGE_n_CLICKS and option --clicks: the clicks of each link are counted from the nginx access log, without any script.
+- Reason: request of the administrator on 2026-11-12 (improvement 5 of the list proposed): know which links are used.
+- Changes: new key PAGE_n_CLICKS (yes or no, no by default; in CLES_PAGE, checked by --check); bouton_lien(): with PAGE_n_CLICKS=yes the button points to PATH/go/N (P_CLICS); nginx snippet: one "location = PATH/go/N" per link of the page (menus included), a 302 to the address of the link, Cache-Control "no-store" (each click reaches the server); new option --clicks (MODE clicks, help in French and English): reads the access logs (/var/log/nginx/access.log*, rotated and .gz files included with zcat -f; NGINX_LINK_PAGE_ACCESS_LOGS for the tests), counts the requests "GET PATH/go/N" answered 302, per page and link, with the number of distinct addresses, most clicked first; nginx-link-page.conf.example: the key described; nginx-tools-tests/test_nginx_link_page.py: 1 test.
+- Bugs fixed: none.
+- Safeguards and edge cases: off by default (the links of the existing pages stay direct); the period counted is the one kept by the logs (logrotate, usually 14 days); only the 302 answers are counted (a 404 on an old link number is not); a "$" or '"' in an address is written %24 or %22 in the snippet; an unreadable log stops with "run with sudo"; no log found: [FAIL] with the pattern searched; the dated links (LINK_n_FROM/UNTIL) get their location only while they are shown.
+- Checks performed: bash -n; shellcheck; test_nginx_link_page (65 tests); help order.
+- Action required: none (to use it: PAGE_1_CLICKS=yes, sudo nginx-link-page.sh --update --yes, then later sudo nginx-link-page.sh --clicks).
+
+### 1.29.20261112.222013 - Cache duration: pages checked at each visit, files kept 1 hour to 7 days
+
+- Title: the nginx snippet sets how long the pages and their files may be kept: pages checked at each visit, style sheets and scripts 1 hour, images and fonts 7 days.
+- Reason: request of the administrator on 2026-11-12 (improvement 4 of the list proposed): the snippet gave no cache duration, so browsers and Cloudflare guessed one; an update (the "Theme" button) could take time to appear.
+- Changes: new function entetes_page (the add_header lines of a page: Content-Security-Policy, nosniff, Referrer-Policy, and now Cache-Control) used by the location ^~ of each page and by the location = of the root of a two-language page; pages: Cache-Control "no-cache" (the browser asks again each time, an unchanged page costs a 304); two nested locations: ~* \.(css|js)$ "public, max-age=3600" and ~* \.(png|jpe?g|webp|gif|svg|ico|woff2?)$ "public, max-age=604800"; nginx-tools-tests/test_nginx_link_page.py: 1 test.
+- Bugs fixed: symptom: a page updated with --update could still show the previous version for a while; diagnosis: no Cache-Control header, so browsers and the CDN kept the pages and their files as long as their own rules said; fix: the durations above.
+- Safeguards and edge cases: a nested location does not inherit add_header nor limit_except: the security headers and "limit_except GET HEAD" are repeated in each nested location; the nested regular expressions apply only inside the page (the ^~ of the page still keeps the other regular expressions of the server away); the durations are short for what an update changes (pages, style sheets, scripts).
+- Checks performed: bash -n; shellcheck; test_nginx_link_page (63 tests); generated snippet read (syntax of the nested locations).
+- Action required: sudo nginx-link-page.sh --update --yes (rewrites the snippet; nginx -t is run before the reload, the previous snippet is restored if it fails).
+
+### 1.28.20261112.221841 - --check-links: report the dead links
+
+- Title: new option --check-links: every link address is requested and the dead links are reported.
+- Reason: request of the administrator on 2026-11-12 (improvement 2 of the list proposed): find the dead links before the visitors do.
+- Changes: option --check-links (MODE links, help line in French and English): after the check of the configuration, each LINK_n_URL (menus left out) is requested with curl (HEAD, then a GET of one byte when HEAD is refused; 15 s; redirections followed; user agent nginx-link-page/VERSION); 2xx and 3xx: [OK]; 401, 403, 429 and 999 (LinkedIn): [ATTN] "the site refuses robots or asks for a sign-in: check it in a browser"; no answer: [FAIL] with the hint address, domain name or certificate; other codes (404, 410, 5xx): [FAIL] "dead link or error"; summary line; exit code 1 when a link is dead, 0 otherwise; nginx-tools-tests/test_nginx_link_page.py: the curl stub answers a code per address (RLQ_CURL_CODES), 1 test.
+- Bugs fixed: none.
+- Safeguards and edge cases: nothing is written; no root needed; the links that only refuse robots do not make the exit code 1 (usable in a monitoring script); the addresses are the resolved ones (relative paths with SITE_BASE_URL).
+- Checks performed: bash -n; shellcheck; test_nginx_link_page (62 tests); help order (test_conventions.AideTriee).
+- Action required: none (to use it: nginx-link-page.sh --check-links).
+
+### 1.27.20261112.221722 - LINK_n_FROM / LINK_n_UNTIL: dated links, pages rebuilt every day
+
+- Title: new keys LINK_n_FROM and LINK_n_UNTIL: a link is shown only between these dates; a daily task rebuilds the pages.
+- Reason: request of the administrator on 2026-11-12 (improvement 1 of the list proposed): a link such as "Journée portes ouvertes 2026" must appear or disappear by itself at a date.
+- Changes: new keys LINK_n_FROM and LINK_n_UNTIL (YYYY-MM-DD, local date, both included; in CLES_LIEN); new variable AUJOURDHUI (NGINX_LINK_PAGE_TODAY for the tests), functions date_valide, lien_visible, enfants_visibles, liens_visibles_de_la_page, periode_lien; the pages and the menus show only the links of the day, a menu without any link of the day is hidden; --check shows the period of each dated link and whether it is shown today; after a successful install, /etc/cron.d/nginx-link-page (NGINX_LINK_PAGE_CRON_DIR for the tests) runs "nginx-link-page.sh --update --yes" every day at 00:05 (with the same -c FILE), its output sent to the system log (logger -t nginx-link-page); the task is removed when no link is dated any more; nginx-link-page.conf.example: the keys described; nginx-tools-tests/test_nginx_link_page.py: 1 test (3 subtests).
+- Bugs fixed: none.
+- Safeguards and edge cases: refused by --check: a date that is not YYYY-MM-DD or does not exist (2026-02-30), LINK_n_FROM after LINK_n_UNTIL; the check that each page has links ignores the dates (a page is not refused because its links ended); a page without any link of the day is still built, with an [ATTN] line; the daily task changes nothing when nginx -t refuses (previous snippet kept, as for a manual --update).
+- Checks performed: bash -n; shellcheck; test_nginx_link_page (61 tests).
+- Action required: none (example: LINK_1_UNTIL=2026-11-21, then sudo nginx-link-page.sh --update --yes once: the daily task is installed).
+
 ### 1.26.20261112.215914 - LINK_n_MENU: a link that opens a menu of other links
 
 - Title: new key LINK_n_MENU: LINK_12_MENU=5 puts link 12 in the menu of link 5, a button that opens its links just below it.
