@@ -4555,6 +4555,16 @@ Earlier history was archived outside this repository when this file was created.
 
 ## nginx-link-page.sh
 
+### 1.56.20261113.221654 - Addresses of Odoo refused for the pages (/r...)
+
+- Title: --check refuses a page (PAGE_n_PATH) or the shared files (SITE_SHARED_PATH) at an address that Odoo uses, /r first.
+- Reason: request of the administrator on 2026-11-13: /r cannot be used in Odoo, it serves the redirections (link tracker of the e-mails); make sure that no link page uses it.
+- Changes: new constant CHEMINS_ODOO (r, web, odoo, my, website, websocket, longpolling, mail, mailing, survey, event, shop, blog, slides, forum, jobs, appointment, calendar, im_livechat, livechat, report, sitemap.xml, robots.txt, rlq, unsubscribe) and function chemin_odoo (first part of the path, case ignored; also the language prefixes of the web site: fr, en, es, de, it, pt, nl, with or without _XX); called for every PAGE_n_PATH and for SITE_SHARED_PATH; templates fr/en (explanation of PAGE_n_PATH, section 5; doc/conf-history updated); nginx-tools-tests/test_nginx_link_page.py: 1 test.
+- Bugs fixed: none (new safeguard: the pages are served by nginx before Odoo, so a page at /r/ would hide every tracked link of the e-mails).
+- Safeguards and edge cases: /i, /d, /q, /liens, /rencontres, /qr are still allowed (only the whole first part counts, not its first letter); /R/ and /Fr_CA/ refused like /r/ and /fr_ca/; the addresses under a page (PATH/go/N, PATH/p/N) are not concerned.
+- Checks performed: bash -n; shellcheck (same as main); test_nginx_link_page (new test: 9 refused paths, the shared path, 6 allowed paths).
+- Action required: none; if --check now refuses one of your pages, give it another path (and change the links that point to it).
+
 ### 1.55.20261113.170312 - Five soft and floral themes
 
 - Title: 5 new soft and floral themes: blossom, lavender, pastel, rosegold and berry.
