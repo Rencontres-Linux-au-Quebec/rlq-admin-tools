@@ -454,6 +454,32 @@ Earlier history was archived outside this repository when this file was created.
 
 ## app-log-live.py
 
+### 1.194.20261114.163844 - Report fixes from the 3-day exports, more data in --export-ai
+
+- Title: Errors of another day carry their date, redirects are followed, --advise reads the User-Agents and asks nginx-log-audit.sh for its verdict, every disk is shown, and --export-ai holds the raw data.
+- Reason: request of the administrator on 2026-11-14 after the review of the exports of odoo18 and odoo-dev (3 days): implement the corrections noted, and save more information so that the recommendations need no second exchange.
+- Changes:
+  - New function clock_or_date; Stats.http_error_detail and Stats.odoo_error_times use it: the date is shown before the time when it is not today.
+  - local_request gets the response headers (headers=); new function follow_redirects: the answer of the site now follows the redirects of the site itself (4 at most); gather_details stores details["now_final"] (final code, final path). apps/_advisor.py 1.17 uses it.
+  - New function load_agents, called by gather_details for --advise (option key agents_wanted): the first User-Agent of each address is read at once from the access logs of the window, rotated and compressed ones included.
+  - gather_details: for --advise, the verdict of nginx-log-audit.sh --investigate (audit_verdict, read-only) of the 5 first addresses to ban goes to details["verdicts"].
+  - New function mounted_filesystems: every real file system mounted (read-only, remote and pseudo file systems left out), each once, with its type, the share free and the inodes; environment_lines shows them all and marks "ALMOST FULL" under 10 %; details["disks"] feeds the new rule of the analysis.
+  - New function extra_sections (--export-ai): every slow request of the window; the slow requests that ended together (3 or more within 5 s); the starts and stops of the service; the runs of odoo-backup.service; the limits and pressure of the machine or container (cpu.max, cpu.stat throttling, memory.max, memory.events, pressure, meminfo, vmstat); PostgreSQL (size, connections, share of blocks read from memory, temporary files, deadlocks, checkpoints, largest tables with dead rows and last autovacuum); the Odoo database (users, attachments, e-mails by state, registrations of 3 days, modules not published by Odoo S.A., scheduled actions with next and last call); nginx (cache, limits, workers from nginx -T); the processes that use the most memory; the 20 busiest addresses with their User-Agent; the User-Agents by number of addresses.
+  - export_ai: the timeline holds up to 400 events (60 before: a window of 3 days showed its last 10 hours only).
+  - Files: app-log-live.py, apps/_advisor.py, lang/app-log-live.fr.po, lang/_advisor.fr.po, nginx-tools-tests/test_app_log_live.py, nginx-tools-tests/test_advisor.py.
+- Bugs fixed:
+  - Symptom: "12:40:38  500  /" in a report of 3 days, the error being of 2026-11-12. Diagnosis: the time only was formatted. Fix: clock_or_date.
+  - Symptom: "User-Agent read for 0 % of visitors" and "93 % real visitors" with --advise. Diagnosis: the User-Agents are read by a thread that follows the logs, started only when the program follows them ("agents": not --no-follow); --advise never started it. Fix: load_agents.
+  - Symptom: the environment showed "/" and "/var/log" while the disk of Odoo had 4 % free. Diagnosis: four fixed folders were tested. Fix: mounted_filesystems.
+- Safeguards and edge cases:
+  - follow_redirects stops at a redirect to another site, at a loop and after 4 redirects.
+  - The verdict of nginx-log-audit.sh is asked only for --advise, for 5 addresses at most, never under the tests; nothing is banned by it. The ban itself still goes through key b or --apply, the white list and the score (threshold 3).
+  - extra_sections never prevents the export: on an error, one line says that the additional data was not read. Names and addresses go through the same pseudonyms as the screen (--anonymize). The database queries are read-only and left out under the tests.
+- Checks performed:
+  - test_app_log_live.py: class AppLogLive194 (4 tests) and test_194_export_ai_donnees_supplementaires.
+  - test_advisor.py: class Version117 (5 tests); the catalogue test (every text translated, no stale entry) passes.
+- Action required: none. For the next review: app-log-live.py --advise 3 --export-ai on each server.
+
 ### 1.193.20261112.184937 - --config-merge done by apps/_config.py (nothing lost)
 
 - Title: --config-merge of app-log-live uses the shared function of apps/_config.py 1.13.
@@ -2174,6 +2200,39 @@ Earlier history was archived outside this repository when this file was created.
 ### 1.94.20261021.095843 - Current version. Earlier history archived outside the repository.
 
 ## host-perf-audit.py
+
+### 1.10.20261114.163844 - Inherited settings on one line, space and backups reported, --export-ai
+
+- Title: The report no longer repeats an inherited setting, says where the space of a pool goes, reports the backups and the guest disks almost full, and can be exported.
+- Reason: request of the administrator on 2026-11-14 after the report of the Proxmox host: implement the corrections noted in the review, and save more information so that the recommendations need no second exchange. The report had 16 identical lines "sync=disabled", said "Guest that waited most: 430 (0.0 % of its time)" under a FAIL verdict, showed an ARC hit ratio "above 100 %", listed the same VM twice without naming the disk, and did not show that 2.9 TB of the pool were backups nor that one disk of the Odoo container had 2.3 GiB left.
+- Changes:
+  - zfs_facts: the source of each property (zfs get -o name,property,value,source), the space columns (available, refquota, usedbydataset, usedbysnapshots, usedbychildren, mountpoint) and the snapshots (zfs list -t snapshot).
+  - New function inherited_groups: one suggestion per dataset where compression, atime or sync is SET, with the number of datasets that inherit it; --apply acts on that dataset.
+  - New function zfs_space (section ZFS): free and used space of each pool, snapshots (number, total, oldest), the largest datasets, and what is stored directly in a parent dataset (directory_sizes: bounded walk, 60000 entries or 12 seconds at most). A container disk with less than 10 % free gives a HIGH or MEDIUM suggestion with the mount point and the "pct resize" command.
+  - New section BACKUPS (analyze_backups, scan_backups, pve_sections, retention_of, recent_tasks): for each storage of /etc/pve/storage.cfg that holds backups, their number, size, oldest and newest, per guest; the retention (storage, job, /etc/vzdump.conf); the jobs of /etc/pve/jobs.cfg; the backups of the last 3 days with their start and end (/var/log/pve/tasks/index). Suggestions: no retention, backups on the pool of the guests, folder left by an interrupted backup.
+  - New functions io_tasks and group_waits: the host tasks that read or write a lot seen during the measurement (vzdump, zfs send, rsync...) and the disk wait of each top-level cgroup (lxc, qemu.slice, system.slice, user.slice).
+  - ssd_answer: "Guest that waited most" is shown from 0.05 % only; otherwise the report says that the wait is in the tasks of the host itself.
+  - analyze_memory: the ARC hit ratio is capped at 100 % and shown with one decimal.
+  - guest_config_advice: one line per VM for the SCSI disks without iothread=1, the disks named.
+  - analyze_disks: md devices are typed "RAID" instead of "?"; the column title "disk" becomes "device" (the translator replaced "disk" inside dataset names such as subvol-105-disk-2).
+  - sync=disabled: the suggestion adds that on HDD without a "log" device, "standard" makes every commit wait for the disk (add the SLOG first).
+  - New option --export-ai [FILE] and key EXPORT_AI (export_ai, Tee): the report as shown, then the raw state of the host: zpool list / status / iostat / events, zfs space, snapshots and local properties, df, lsblk, free, pvesm, pct and qm lists, timers, kernel warnings of the last 3 days, busiest processes, SMART of each disk, mdstat, pressure, ARC counters, ZFS module parameters, storage.cfg, jobs.cfg, vzdump.conf, the Proxmox tasks of the last 7 days and the configuration of each guest.
+  - Files: host-perf-audit.py, lang/host-perf-audit.fr.po, doc/fr/host-perf-audit.conf.example, doc/en/host-perf-audit.conf.example, doc/conf-history/host-perf-audit.history, doc/fr/18-host-perf-audit.md, doc/en/18-host-perf-audit.md, nginx-tools-tests/test_host_perf_audit.py.
+- Bugs fixed:
+  - Symptom: 16 lines "sync=disabled" and 6 lines "compression off" for one setting. Diagnosis: each dataset was reported, inherited value or not. Fix: grouped by the dataset where the value is set.
+  - Symptom: "Guest that waited most for the disk: 430 bbb30.dev (0.0 % of its time)" under "disks are the LIMIT". Diagnosis: a wait of 0.01 % is not zero for the test but prints "0.0". Fix: threshold of 0.05 %, and the report names the host tasks instead.
+  - Symptom: "hit ratio 99.9 % (95 % of the samples above 100 %)". Diagnosis: 99.96 rounded without decimal. Fix: one decimal, capped at 100.
+  - Symptom: the iothread suggestion twice for VM 433. Diagnosis: one line per disk, the disk not named. Fix: one line, "scsi0, scsi1".
+- Safeguards and edge cases:
+  - Without the "source" column (old zfs, or the test doubles), each dataset stands for itself, as before.
+  - The files of /etc/pve and /var/log/pve are read from the real host even when /proc and /sys are replaced by the test root (read_plain).
+  - --export-ai: mode 600; lines whose key holds password, secret, token, key or fingerprint show "***" (cipassword of cloud-init); a command that is absent is left out; long outputs are cut.
+  - A dump folder with files that are not named vzdump-* is still counted ("other big files", from 100 MiB).
+  - Nothing is changed on the host by these additions: every command is read-only.
+- Checks performed:
+  - test_host_perf_audit.py: 3 new tests (inherited values, space and backups on a fake host built like the real one; --export-ai with a hidden password; no guest waiting), 11 tests pass.
+  - test_i18n: no stale entry in lang/host-perf-audit.fr.po; the French report was read line by line.
+- Action required: on the Proxmox host, after the update: host-perf-audit.py --duration 24h --export-ai, and send the file written in /var/lib/host-perf-audit.
 
 ### 1.9.20261112.082236 - New option --config-merge
 
@@ -6364,6 +6423,21 @@ Earlier history was archived outside this repository when this file was created.
   - Not changed: nginx-log-audit.sh keeps its own bash values (its --page-burst default is 8 against 15 here; this difference is still to be decided).
 
 ## apps/_advisor.py
+
+### 1.17.20261114.163844 - Redirects followed, verdict of nginx-log-audit.sh, disk almost full
+
+- Title: A page that works through a redirect is no longer a dead link, an address that nginx-log-audit.sh would refuse is no longer "to ban", and a disk almost full is a finding.
+- Reason: review of the exports of 2026-11-14 (app-log-live.py 1.194): /L and /D answered 301 then 200 and got the advice "correct the link"; the same address stayed "to ban" during 11 analyses; the disk of Odoo had 4 % free and nothing said it.
+- Changes:
+  - site_lines: with details["now_final"], the line reads "Answer of the site now: 301, then 200 at /L/"; the final code decides. New function now_ok_cause. A redirect to the sign-in page of Odoo (LOGIN_PATH_RE) gives the new findings dead-link-login and sitemap-404-login (information).
+  - rule_bans: with details["verdicts"], an address whose verdict is not BANNIR leaves "Addresses to ban" for the new finding ban-refused (information, confirmed); the verdict is shown beside the others.
+  - New rule rule_disk_space (finding disk-space): a file system with less than 10 % free, or less than 5 % of its inodes: to look at; under 5 % free: problem.
+  - Files: apps/_advisor.py, lang/_advisor.fr.po, nginx-tools-tests/test_advisor.py.
+- Bugs fixed:
+  - Symptom: "16 answers 404 on /L ... Answer of the site now: 301 ... correct the link". Diagnosis: only the code 200 meant that the page works. Fix: the redirect is followed by app-log-live.py and the final code is used.
+- Safeguards and edge cases: without now_final, verdicts or disks in the details (older app-log-live.py, tests), the rules behave as before. A redirect that ends on a 404 stays a dead link.
+- Checks performed: test_advisor.py, class Version117 (5 tests); 75 tests pass.
+- Action required: none.
 
 ### 1.16.20261109.234500 - Static files slow without SQL: waiting for the disk; one timeline line per interruption; most often: present findings only
 

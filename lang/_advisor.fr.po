@@ -1270,3 +1270,54 @@ msgstr "{k} requêtes lentes pendant la sauvegarde de {start} à {end} (odoo-bac
 
 msgid "{k} slow requests are static files or images with almost no SQL (Odoo had nothing to compute: it read a file): "
 msgstr "{k} requêtes lentes sont des fichiers statiques ou des images presque sans SQL (Odoo n'avait rien à calculer : il a lu un fichier) : "
+
+msgid "Answer of the site now: {code}, then {final} at {where}"
+msgstr "Réponse du site maintenant : {code}, puis {final} à {where}"
+
+msgid "{n} answers 404 on {url} (sitemap page): it asks to sign in now"
+msgstr "{n} réponses 404 sur {url} (page du sitemap) : elle demande de se connecter maintenant"
+
+msgid "the page exists and is reserved to signed-in users: a visitor is sent to the sign-in page"
+msgstr "la page existe et est réservée aux utilisateurs connectés : un visiteur est envoyé à la page de connexion"
+
+msgid "nothing to do if the page is meant to be private; otherwise make it public, and remove it from the sitemap if it stays private"
+msgstr "rien à faire si la page doit rester privée ; sinon la rendre publique, et la retirer du sitemap si elle reste privée"
+
+msgid "{n} answers 404 on {url}: it asks to sign in now"
+msgstr "{n} réponses 404 sur {url} : elle demande de se connecter maintenant"
+
+msgid "nothing to do if the page is meant to be private"
+msgstr "rien à faire si la page doit rester privée"
+
+msgid "the page works now, through a redirect of the site to {where}: the 404 came before it was put in place"
+msgstr "la page fonctionne maintenant, par une redirection du site vers {where} : les 404 datent d'avant sa mise en place"
+
+msgid "Addresses with suspicious requests that nginx-log-audit.sh does not recommend banning: {n}"
+msgstr "Adresses aux requêtes suspectes que nginx-log-audit.sh ne recommande pas de bannir : {n}"
+
+msgid "too few signs of an attack for a ban (score under the threshold of nginx-log-audit.sh, white list or shared relay)"
+msgstr "trop peu d'indices d'attaque pour un bannissement (score sous le seuil de nginx-log-audit.sh, liste blanche ou relais partagé)"
+
+msgid "nothing to do: the address is proposed again if it comes back with more"
+msgstr "rien à faire : l'adresse sera proposée de nouveau si elle revient avec plus d'indices"
+
+msgid "to see the evidence: nginx-log-audit.sh --investigate ADDRESS"
+msgstr "pour voir les preuves : nginx-log-audit.sh --investigate ADRESSE"
+
+msgid "Disk almost full: {n}"
+msgstr "Disque presque plein : {n}"
+
+msgid "{point}: {free} GB free of {total} GB ({pct} %)"
+msgstr "{point} : {free} Go libres sur {total} Go ({pct} %)"
+
+msgid "inodes: {n} % free"
+msgstr "inodes : {n} % libres"
+
+msgid "a file system of this server has almost no room left: PostgreSQL stops when its disk is full, and Odoo can no longer write files, sessions or logs"
+msgstr "un système de fichiers de ce serveur n'a presque plus de place : PostgreSQL s'arrête quand son disque est plein, et Odoo ne peut plus écrire ses fichiers, ses sessions ni ses journaux"
+
+msgid "find what takes the room: du -xh --max-depth=2 MOUNT_POINT | sort -h | tail -20 (old backups, logs, filestore)"
+msgstr "trouver ce qui prend la place : du -xh --max-depth=2 POINT_DE_MONTAGE | sort -h | tail -20 (vieilles sauvegardes, journaux, filestore)"
+
+msgid "in a Proxmox container, the disk can be enlarged from the host without stopping it: pct resize ID MOUNT +10G (host-perf-audit.py on the host names it)"
+msgstr "dans un conteneur Proxmox, le disque s'agrandit depuis l'hôte sans l'arrêter : pct resize ID MONTAGE +10G (host-perf-audit.py sur l'hôte le nomme)"

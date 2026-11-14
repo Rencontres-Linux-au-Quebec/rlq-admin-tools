@@ -14,6 +14,9 @@
 #CSV=
 # --duration : durée de la mesure : 90 (secondes), 10m, 4h, 1h30m... (des heures pour voir les pointes de la journée : sauvegardes, heures chargées)
 #DURATION=60
+# --export-ai : écrire aussi le rapport et l'état brut de l'hôte (pools, datasets, instantanés, disques, invités, sauvegardes, tâches) dans un fichier Markdown à envoyer pour vérification
+# (yes : export-ai-HÔTE-AAAAMMJJ-HHMMSS.md dans /var/lib/host-perf-audit, mode 600 ; ou un chemin de fichier ; mots de passe et clés masqués)
+#EXPORT_AI=no
 # --interval : secondes entre deux échantillons (vide : 5 jusqu'à 2 minutes de mesure, 15 jusqu'à 30 minutes, 60 au-delà)
 #INTERVAL=
 # en, fr ou auto (suivre LC_ALL / LC_MESSAGES / LANG).

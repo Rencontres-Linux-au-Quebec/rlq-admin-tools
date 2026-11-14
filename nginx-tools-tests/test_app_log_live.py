@@ -1371,6 +1371,23 @@ class AppLogLive(EnvTest):
         self.assertIn('"errors_5xx": 2', texte)
         self.assertRegex(texte, r"- [0-9-]+ [0-9:]+ · Odoo, première : ERROR odoo.http")
 
+    def test_194_export_ai_donnees_supplementaires(self):
+        """1.194 : --export-ai ajoute les données brutes (adresses avec User-Agent, limites et pression, tous les disques) et les 5xx portent leur date."""
+        self.journal([werkzeug(PERSONNE, "/event"), werkzeug(DNS, "/boum", 500, delta=2 * 86400)])
+        self.mock("journalctl", f'case "$*" in *" -g "*) cat {self.d}/history.txt;; *"-o cat"*|*short-unix*) exit 0;; *) cat {self.d}/stream.txt;; esac')
+        sortie = os.path.join(self.d, "export194.md")
+        rc, out, err = self.lancer("--advise", "7", "--export-ai", sortie, "--no-history", "--no-isp", "--no-presence", "--no-banned",
+                                   env_extra={"APP_LOG_LIVE_STATE_DIR": os.path.join(self.d, "etat"), "WEB_MONITOR_STATE_DIR": self.d})
+        self.assertEqual(rc, 0, err)
+        with open(sortie, encoding="utf-8") as f:
+            texte = f.read()
+        self.assertNotIn("données supplémentaires non lues", texte)
+        self.assertIn("## Adresses les plus actives avec leur User-Agent", texte)
+        self.assertRegex(texte, r"- Disque / : [0-9.]+ Go libres sur [0-9.]+ Go \(\d+ %")
+        self.assertRegex(texte, r"\d{4}-\d\d-\d\d \d\d:\d\d:\d\d  500  /boum")                    # an error of another day carries its date
+        self.assertIn("## Compteurs principaux (JSON)", texte)
+        self.assertLess(texte.index("## Adresses les plus actives"), texte.index("## Compteurs principaux (JSON)"))
+
     def test_165_option_advise_valeurs_refusees(self):
         rc, _out, err = self.run_cmd(["python3", self.prog, "--advise", "0"])
         self.assertEqual(rc, 2)
@@ -5300,6 +5317,73 @@ class AppLogLive178(unittest.TestCase):
         bloc = src.split("def advise(batch=False):", 1)[1].split("def key(key_value):", 1)[0]
         self.assertIn('options.get("export_ai") is not None', bloc)
         self.assertIn("0o600", bloc)
+
+
+class AppLogLive194(unittest.TestCase):
+    """1.194 : corrections tirées des exports de PROD du 2026-11-14 : date des erreurs d'un autre jour, redirections suivies, User-Agent lus pour --advise,
+    tous les systèmes de fichiers."""
+
+    @classmethod
+    def setUpClass(cls):
+        os.environ["APP_LOG_LIVE_LANG"] = "fr"
+        spec = importlib.util.spec_from_file_location("live_194", script_path("app-log-live.py"))
+        cls.live = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(cls.live)
+
+    def test_194_heure_seule_aujourd_hui_date_sinon(self):
+        live = self.live
+        self.assertRegex(live.clock_or_date(time.time()), r"^\d\d:\d\d:\d\d$")
+        self.assertRegex(live.clock_or_date(time.time() - 3 * 86400), r"^\d{4}-\d\d-\d\d \d\d:\d\d:\d\d$")
+        s = live.Stats(5.0)
+        s.http_errors.append((time.time() - 2 * 86400, 500, "/", "203.0.113.5"))
+        self.assertRegex(s.http_error_detail(5)[0], r"^\d{4}-\d\d-\d\d \d\d:\d\d:\d\d  500  /")
+
+    def test_194_redirections_suivies(self):
+        live = self.live
+        reponses = {"/L": (301, "https://www.exemple.org/L/"), "/L/": (200, ""), "/x": (303, "/en_CA/x"), "/en_CA/x": (404, ""),
+                    "/dehors": (302, "https://ailleurs.example/"), "/boucle": (301, "/boucle")}
+        demandes = []
+
+        def faux(port, host, tls=False, path="/", delay=8, headers=None):
+            demandes.append(path)
+            code, lieu = reponses[path]
+            if headers is not None and lieu:
+                headers["location"] = lieu
+            return code, ""
+        ancien, live.local_request = live.local_request, faux
+        try:
+            self.assertEqual(live.follow_redirects("www.exemple.org", "/L"), (301, 200, "/L/"))
+            self.assertEqual(live.follow_redirects("www.exemple.org", "/x"), (303, 404, "/en_CA/x"))
+            self.assertEqual(live.follow_redirects("www.exemple.org", "/dehors"), (302, 302, "/dehors"))        # another site: not followed
+            del demandes[:]
+            self.assertEqual(live.follow_redirects("www.exemple.org", "/boucle")[1], 301)
+            self.assertLessEqual(len(demandes), 2)                                                               # a loop stops
+        finally:
+            live.local_request = ancien
+
+    def test_194_user_agents_lus_d_un_coup(self):
+        import gzip
+        d = tempfile.mkdtemp(prefix="test-rlq-")
+        ligne = lambda ip, ua: f'{ip} - - [14/Nov/2026:10:00:00 -0500] "GET / HTTP/1.1" 200 12 "-" "{ua}"\n'
+        with open(os.path.join(d, "access.log"), "w") as f:
+            f.write(ligne("203.0.113.5", "Mozilla/5.0 Firefox") + ligne("203.0.113.5", "autre") + ligne("198.51.100.9", "SemrushBot/7"))
+        with gzip.open(os.path.join(d, "access.log.2.gz"), "wt") as f:
+            f.write(ligne("192.0.2.77", "curl/8.14.1"))
+        agents = {}
+        self.live.load_agents(agents, [os.path.join(d, "access.log"), os.path.join(d, "access.log.2.gz"), os.path.join(d, "absent.log")], 10 ** 6)
+        self.assertEqual(agents, {"203.0.113.5": "Mozilla/5.0 Firefox", "198.51.100.9": "SemrushBot/7", "192.0.2.77": "curl/8.14.1"})
+        with open(script_path("app-log-live.py"), encoding="utf-8") as f:
+            self.assertIn('options.get("agents_wanted")', f.read())                                             # --advise does not follow the logs: its own switch
+
+    def test_194_tous_les_systemes_de_fichiers(self):
+        disques = self.live.mounted_filesystems()
+        points = [d[0] for d in disques]
+        self.assertIn("/", points)
+        self.assertEqual(len(points), len(set(points)))
+        self.assertFalse(any(p.startswith(("/proc", "/sys", "/dev")) for p in points))
+        for _point, _kind, free, total, _if, _it in disques:
+            self.assertGreater(total, 0)
+            self.assertLessEqual(free, total)
 
 
 class AppLogLive179(unittest.TestCase):

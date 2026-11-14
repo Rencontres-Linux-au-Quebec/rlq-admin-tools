@@ -7,6 +7,7 @@ host-perf-audit.py                                  # one minute, one sample eve
 host-perf-audit.py --duration 4h                    # the busy hours: one sample every 60 s
 host-perf-audit.py --duration 24h --csv /root/perf.csv   # a whole day, every sample in a spreadsheet file
 host-perf-audit.py --apply                          # report, then the safe settings one by one
+host-perf-audit.py --export-ai                      # report, then the report and the raw state of the host in a Markdown file to send for verification
 ```
 
 ## What is measured
@@ -32,3 +33,10 @@ Each suggestion has a priority (HIGH / MEDIUM / LOW). With `--apply`, the **safe
 
 ## Options
 {{HELP}}
+
+## Space, backups and export (1.10)
+
+* **Space of the pools**: free space, snapshots, largest datasets, and what is stored directly in a parent dataset (for example `/var/lib/vz/dump`).
+* **Container disk almost full**: named with its mount point and the `pct resize` command.
+* **Backups (vzdump)**: number, size, retention, scheduled jobs and the hours of the backups of the last 3 days, to compare with the slow hours of the sites.
+* **`--export-ai`**: writes the report and the raw state of the host to `/var/lib/host-perf-audit/export-ai-HOST-DATE.md` (mode 600, passwords hidden). Key `EXPORT_AI` in the configuration.

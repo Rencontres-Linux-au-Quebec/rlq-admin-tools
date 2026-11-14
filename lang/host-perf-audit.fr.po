@@ -154,8 +154,8 @@ msgstr "Affiche le journal des modifications"
 msgid "FILE"
 msgstr "FICHIER"
 
-msgid "Configuration file to read ALONE (otherwise: /etc/default/host-perf-audit.conf, then the personal file .host-perf-audit.conf; UPPERCASE options: CSV, DURATION, INTERVAL, LANGUAGE, NO_GUESTS, TOP, VERBOSE)"
-msgstr "Fichier de configuration à lire SEUL (sinon : /etc/default/host-perf-audit.conf, puis le fichier personnel .host-perf-audit.conf ; options en MAJUSCULES : CSV, DURATION, INTERVAL, LANGUAGE, NO_GUESTS, TOP, VERBOSE)"
+msgid "Configuration file to read ALONE (otherwise: /etc/default/host-perf-audit.conf, then the personal file .host-perf-audit.conf; UPPERCASE options: CSV, DURATION, EXPORT_AI, INTERVAL, LANGUAGE, NO_GUESTS, TOP, VERBOSE)"
+msgstr "Fichier de configuration à lire SEUL (sinon : /etc/default/host-perf-audit.conf, puis le fichier personnel .host-perf-audit.conf ; options en MAJUSCULES : CSV, DURATION, EXPORT_AI, INTERVAL, LANGUAGE, NO_GUESTS, TOP, VERBOSE)"
 
 msgid "Also write every sample to this CSV file (one line per interval: CPU, waits, memory, ARC, each disk)"
 msgstr "Écrire aussi chaque échantillon dans ce fichier CSV (une ligne par intervalle : CPU, attentes, mémoire, ARC, chaque disque)"
@@ -274,7 +274,7 @@ msgstr " : sur un hôte ZFS, 10 (ou 1) garde les invités en RAM"
 msgid "vm.swappiness=10 now and in "
 msgstr "vm.swappiness=10 maintenant et dans "
 
-msgid "disk"
+msgid "device"
 msgstr "disque"
 
 msgid "util avg"
@@ -535,9 +535,6 @@ msgstr ") : disque sur le bus "
 msgid " bus (emulated, slow) — VirtIO SCSI single with iothread=1 (driver needed in the guest)"
 msgstr " (émulé, lent) — VirtIO SCSI single avec iothread=1 (pilote requis dans l'invité)"
 
-msgid "): SCSI disk without iothread=1 (with the « VirtIO SCSI single » controller, each disk gets its own I/O thread)"
-msgstr ") : disque SCSI sans iothread=1 (avec le contrôleur « VirtIO SCSI single », chaque disque a son propre fil d'E-S)"
-
 msgid "): disk cache « "
 msgstr ") : cache disque « "
 
@@ -654,3 +651,210 @@ msgstr "Appliquer les réglages sans risque"
 
 msgid "interactive menu of the common operations (dialog if installed; terminal required)"
 msgstr "menu interactif des opérations courantes (dialog si installé ; terminal requis)"
+
+msgid " (and "
+msgstr " (et "
+
+msgid " datasets that inherit it)"
+msgstr " datasets qui en héritent)"
+
+msgid "    space of pool "
+msgstr "    espace du pool "
+
+msgid " free, "
+msgstr " libres, "
+
+msgid " used · snapshots "
+msgstr " utilisés · instantanés "
+
+msgid " snapshots, the oldest of "
+msgstr " instantanés, le plus ancien du "
+
+msgid " of snapshots"
+msgstr " en instantanés"
+
+msgid " free of "
+msgstr " libres sur "
+
+msgid "      files stored directly in "
+msgstr "      fichiers placés directement dans "
+
+msgid "), outside the guests: "
+msgstr "), hors des invités : "
+
+msgid " (partial count: too many files)"
+msgstr " (compte partiel : trop de fichiers)"
+
+msgid "container "
+msgstr "conteneur "
+
+msgid "): disk "
+msgstr ") : le disque "
+
+msgid " mounted on "
+msgstr " monté sur "
+
+msgid " (the root disk)"
+msgstr " (le disque racine)"
+
+msgid " has only "
+msgstr " n'a plus que "
+
+msgid " — a full disk stops PostgreSQL and Odoo: free space inside the guest, or enlarge it"
+msgstr " — un disque plein arrête PostgreSQL et Odoo : libérer de l'espace dans l'invité, ou l'agrandir"
+
+msgid ": pct resize "
+msgstr " : pct resize "
+
+msgid "BACKUPS (vzdump)"
+msgstr "SAUVEGARDES (vzdump)"
+
+msgid "  storage "
+msgstr "  stockage "
+
+msgid " backups, "
+msgstr " sauvegardes, "
+
+msgid " — the oldest of "
+msgstr " — la plus ancienne du "
+
+msgid ", the newest of "
+msgstr ", la plus récente du "
+
+msgid " · retention: "
+msgstr " · rétention : "
+
+msgid "none (everything is kept)"
+msgstr "aucune (tout est gardé)"
+
+msgid " backups "
+msgstr " sauvegardes "
+
+msgid " · the last of "
+msgstr " · la dernière du "
+
+msgid "    other big files: "
+msgstr "    autres gros fichiers : "
+
+msgid " — the largest: "
+msgstr " — les plus gros : "
+
+msgid "storage "
+msgstr "stockage "
+
+msgid " backup files ("
+msgstr " fichiers de sauvegarde ("
+
+msgid ") and no retention"
+msgstr ") et aucune rétention"
+
+msgid " — they fill pool "
+msgstr " — ils remplissent le pool "
+
+msgid ": set a retention on the backup job (Datacenter > Backup > Retention, e.g. keep-last=2, keep-daily=7, keep-weekly=4), then remove the old ones (« Prune »)"
+msgstr " : régler une rétention sur la tâche de sauvegarde (Datacenter > Backup > Retention, p. ex. keep-last=2, keep-daily=7, keep-weekly=4), puis retirer les anciennes (« Prune »)"
+
+msgid " — the backups ("
+msgstr " — les sauvegardes ("
+
+msgid ") are the largest part of pool "
+msgstr ") sont la plus grande part du pool "
+
+msgid " (used "
+msgstr " (utilisé à "
+
+msgid " %) with retention "
+msgstr " %) avec la rétention "
+
+msgid ": keep fewer of them, or move them to another disk"
+msgstr " : en garder moins, ou les déplacer sur un autre disque"
+
+msgid " — the backups are on pool "
+msgstr " — les sauvegardes sont sur le pool "
+
+msgid ", the disks of the guests — a failure of the pool loses the guests AND their backups, and each backup competes with the guests for the same disks: another disk, a NAS or Proxmox Backup Server"
+msgstr ", les disques des invités — une panne du pool fait perdre les invités ET leurs sauvegardes, et chaque sauvegarde dispute les mêmes disques aux invités : un autre disque, un NAS ou Proxmox Backup Server"
+
+msgid ": folder left by an interrupted backup ("
+msgstr " : dossier laissé par une sauvegarde interrompue ("
+
+msgid ") — remove it when no backup is running"
+msgstr ") — le retirer quand aucune sauvegarde ne tourne"
+
+msgid "  job "
+msgstr "  tâche "
+
+msgid ": schedule "
+msgstr " : horaire "
+
+msgid ", storage "
+msgstr ", stockage "
+
+msgid ", guests "
+msgstr ", invités "
+
+msgid ", mode "
+msgstr ", mode "
+
+msgid ", compression "
+msgstr ", compression "
+
+msgid ", retention "
+msgstr ", rétention "
+
+msgid " (disabled)"
+msgstr " (désactivée)"
+
+msgid "  backups of the last 3 days (compare these hours with the slow hours of the sites):"
+msgstr "  sauvegardes des 3 derniers jours (comparer ces heures avec les heures lentes des sites) :"
+
+msgid ") guest "
+msgstr ") invité "
+
+msgid "\n--export-ai: written to "
+msgstr "\n--export-ai : écrit dans "
+
+msgid " lines, mode 600)"
+msgstr " lignes, mode 600)"
+
+msgid "--export-ai: file not written: "
+msgstr "--export-ai : fichier non écrit : "
+
+msgid " (on HDD without a « log » device, « standard » makes every commit wait for the disk: add the SLOG first)"
+msgstr " (sur des HDD sans périphérique « log », « standard » fait attendre le disque à chaque validation : ajouter le SLOG d'abord)"
+
+msgid "  disk wait by group over the last minute: "
+msgstr "  attente du disque par groupe pendant la dernière minute : "
+
+msgid " (lxc, qemu.slice: the guests; system.slice: the host's own services, backups included)"
+msgstr " (lxc, qemu.slice : les invités ; system.slice : les services de l'hôte lui-même, sauvegardes comprises)"
+
+msgid "HOST TASKS that read or write a lot, seen running during the measurement: "
+msgstr "TÂCHES DE L'HÔTE qui lisent ou écrivent beaucoup, vues en marche pendant la mesure : "
+
+msgid "): SCSI disk without iothread=1: "
+msgstr ") : disque SCSI sans iothread=1 : "
+
+msgid " (with the « VirtIO SCSI single » controller, each disk gets its own I/O thread)"
+msgstr " (avec le contrôleur « VirtIO SCSI single », chaque disque a son propre fil d'E/S)"
+
+msgid "  No guest waited for the disk during this measurement: the wait is in the tasks of the host itself (backup, copy, scrub, ZFS)"
+msgstr "  Aucun invité n'a attendu le disque pendant cette mesure : l'attente est dans les tâches de l'hôte lui-même (sauvegarde, copie, scrub, ZFS)"
+
+msgid " — seen running: "
+msgstr " — vues en marche : "
+
+msgid ". The guests feel it when they read what is not in memory: measure during their slow hours."
+msgstr ". Les invités la ressentent quand ils lisent ce qui n'est pas en mémoire : mesurer pendant leurs heures lentes."
+
+msgid "Also write the report and the raw state of the host (pools, datasets, snapshots, disks, guests, backups, tasks, kernel warnings) to a Markdown file without colors, to send for verification (default FILE: export-ai-HOST-YYYYMMDD-HHMMSS.md in /var/lib/host-perf-audit, mode 600; passwords and keys hidden)"
+msgstr "Écrire aussi le rapport et l'état brut de l'hôte (pools, datasets, instantanés, disques, invités, sauvegardes, tâches, avertissements du noyau) dans un fichier Markdown sans couleurs, à envoyer pour vérification (FICHIER par défaut : export-ai-HÔTE-AAAAMMJJ-HHMMSS.md dans /var/lib/host-perf-audit, mode 600 ; mots de passe et clés masqués)"
+
+msgid "TiB"
+msgstr "Tio"
+
+msgid "MiB"
+msgstr "Mio"
+
+msgid "all of them"
+msgstr "tous"

@@ -5,6 +5,8 @@ ENVIRONNEMENT = "commun"   # program for the Proxmox host: tested everywhere
 import importlib.util
 import io
 import os
+import re
+import time
 import contextlib
 import unittest
 
@@ -189,6 +191,107 @@ esac''')
         self.assertTrue(lignes[0].startswith("time,cpu_busy,iowait,steal,psi_cpu,psi_io_some"))
         self.assertIn("sda_util", lignes[0])
         self.assertGreaterEqual(len(lignes), 4)
+
+    def hote_plein(self):
+        """Host like the real one of 1.10: sync and compression inherited by every dataset, one almost full container disk, backups without retention on the pool."""
+        G = 2 ** 30
+        lignes = []
+        def ds(nom, **props):
+            for cle, (valeur, source) in props.items():
+                lignes.append(f"{nom}\t{cle}\t{valeur}\t{source}")
+        vz = os.path.join(self.d, "vz")
+        ds("rpool", compression=("off", "default"), sync=("standard", "default"), used=(3500 * G, "-"), available=(235 * G, "-"), usedbydataset=(0, "-"),
+           usedbysnapshots=(0, "-"), usedbychildren=(3500 * G, "-"), refquota=(0, "default"), mountpoint=("/rpool", "default"))
+        ds("rpool/data", compression=("off", "inherited from rpool"), sync=("disabled", "local"), used=(3500 * G, "-"), available=(235 * G, "-"),
+           usedbydataset=(2900 * G, "-"), usedbysnapshots=(0, "-"), usedbychildren=(400 * G, "-"), refquota=(0, "default"), mountpoint=(vz, "local"))
+        for nom, libre, quota in (("subvol-101-disk-0", 20 * G, 50 * G), ("subvol-101-disk-2", 2 * G, 55 * G)):
+            ds("rpool/data/" + nom, compression=("off", "inherited from rpool"), sync=("disabled", "inherited from rpool/data"), used=(57 * G, "-"), available=(libre, "-"),
+               usedbydataset=(quota - libre, "-"), usedbysnapshots=(4 * G, "-"), usedbychildren=(0, "-"), refquota=(quota, "local"), mountpoint=("/rpool/data/" + nom, "default"))
+        self.write("zfs-get.txt", "\n".join(lignes) + "\n")
+        self.write("zfs-snap.txt", "rpool/data/subvol-101-disk-2@Debian13\t81920\t1772335260\n")
+        self.mock("zfs", f'case "$1" in get) cat {self.d}/zfs-get.txt;; list) cat {self.d}/zfs-snap.txt;; esac')
+        self.write("pve/lxc/101.conf", "arch: amd64\nhostname: odoo18\nrootfs: local-zfs:subvol-101-disk-0,size=50G\nmp1: local-zfs:subvol-101-disk-2,mp=/opt/odoo,size=55G\n")
+        self.write("pve/qemu-server/120.conf", "name: bbb3\ncipassword: secret123\nscsi0: local-zfs:vm-120-disk-0,size=64G\nscsi1: local-zfs:vm-120-disk-1,size=8G\n")
+        self.write("pve/storage.cfg", f"dir: local\n\tpath {vz}\n\tcontent iso,vztmpl,backup\n\nzfspool: local-zfs\n\tpool rpool/data\n\tcontent images,rootdir\n")
+        self.write("pve/jobs.cfg", "vzdump: backup-1\n\tschedule 02:30\n\tstorage local\n\tall 1\n\tmode snapshot\n\tcompress zstd\n")
+        for jour in range(1, 7):
+            self.write(f"vz/dump/latest/vzdump-lxc-101-2026_11_{jour:02d}-02_30_00.tar.zst", "x" * 2048)
+            self.write(f"vz/dump/latest/vzdump-lxc-101-2026_11_{jour:02d}-02_30_00.log", "INFO\n")
+        os.makedirs(os.path.join(vz, "tmp"), exist_ok=True)
+        debut = int(time.time()) - 3600
+        self.write("tasks-index", f"UPID:pve1:0000ABCD:00112233:{debut:08X}:vzdump:101:root@pam: {debut + 1500:08X} OK\n")
+        self.write("vzdump.conf", "# none\n")
+        self.env.update(HOST_PERF_AUDIT_TASKS=os.path.join(self.d, "tasks-index"), HOST_PERF_AUDIT_VZDUMP_CONF=os.path.join(self.d, "vzdump.conf"),
+                        HOST_PERF_AUDIT_STATE_DIR=os.path.join(self.d, "etat"))
+
+    def test_valeurs_heritees_espace_et_sauvegardes(self):
+        """1.10: an inherited value gives ONE line; the report says where the space goes, which guest disk is almost full and what the backups weigh."""
+        self.hote_plein()
+        rc, out, err = self.run_cmd(["python3", self.prog, "--duration", "5", "--interval", "2", "--lang", "en"], timeout=60)
+        self.assertEqual(rc, 0, out + err)
+        self.assertNotIn("Traceback", err)
+        self.assertEqual(out.count("sync=disabled"), 1, out)                                          # was one line per dataset
+        self.assertIn("dataset rpool/data (and 2 datasets that inherit it): sync=disabled", out)
+        self.assertIn("add the SLOG first", out)
+        self.assertEqual(out.count("compression off"), 1, out)
+        self.assertIn("dataset rpool (and 3 datasets that inherit it): compression off", out)
+        self.assertIn("--apply: zfs set compression=lz4 rpool\n", out)
+        self.assertIn("space of pool rpool — 235.0 GiB free, 3.4 TiB used · snapshots 8.0 GiB (1 snapshots, the oldest of 2026-0", out)
+        self.assertIn("files stored directly in rpool/data (", out)
+        self.assertRegex(out, r"outside the guests: dump \d+ MiB")
+        self.assertIn("container 101 (odoo18): disk subvol-101-disk-2 mounted on /opt/odoo has only 2.0 GiB free of 55.0 GiB", out)
+        self.assertIn("pct resize 101 mp1 +14G", out)
+        self.assertNotIn("disk subvol-101-disk-0", out)                                               # 20 of 50 GiB free: not reported
+        self.assertIn("BACKUPS (vzdump)", out)
+        self.assertRegex(out, r"storage local \(.*/vz/dump\) — 6 backups, 0 MiB — the oldest of 2026-11-01, the newest of 2026-11-06 · retention: none")
+        self.assertRegex(out, r"101 odoo18\s+6 backups")
+        self.assertIn("job backup-1: schedule 02:30, storage local, guests all of them, mode snapshot, compression zstd, retention none (everything is kept)", out)
+        self.assertIn("storage local — 6 backup files (0 MiB) and no retention — they fill pool rpool (used 85 %)", out)
+        self.assertIn("the backups are on pool rpool, the disks of the guests", out)
+        self.assertRegex(out, r"backups of the last 3 days.*\n.* \(25 min 00 s\) guest 101 — OK")
+        self.assertEqual(out.count("without iothread=1"), 1, out)                                     # was one line per disk, the disk not named
+        self.assertIn("VM 120 (bbb3): SCSI disk without iothread=1: scsi0, scsi1", out)
+        self.assertNotRegex(out, r"above 1\d\d(\.\d)? %")                                             # a hit ratio is never above 100 %
+
+    def test_export_ai(self):
+        """1.10 --export-ai: the report and the raw state in a Markdown file, mode 600, passwords hidden."""
+        self.hote_plein()
+        rc, out, err = self.run_cmd(["python3", self.prog, "--duration", "5", "--interval", "2", "--lang", "en", "--export-ai"], timeout=60)
+        self.assertEqual(rc, 0, out + err)
+        m = re.search(r"--export-ai: written to (\S+) \(\d+ lines, mode 600\)", out)
+        self.assertIsNotNone(m, out)
+        self.assertRegex(os.path.basename(m.group(1)), r"^export-ai-.+-\d{8}-\d{6}\.md$")
+        self.assertEqual(os.stat(m.group(1)).st_mode & 0o777, 0o600)
+        texte = open(m.group(1), encoding="utf-8").read()
+        self.assertIn("# host-perf-audit.py v1.", texte)
+        self.assertIn("VERDICT", texte)
+        self.assertIn("SUGGESTED SETTINGS", texte)
+        self.assertIn("## Guest 101 (lxc, odoo18)", texte)
+        self.assertIn("## Proxmox jobs.cfg", texte)
+        self.assertIn("vzdump 101: OK", texte)
+        self.assertIn("cipassword: ***", texte)
+        self.assertNotIn("secret123", texte)
+        self.assertNotIn("\x1b[", texte)
+        fichier = os.path.join(self.d, "ailleurs.md")
+        rc, out, err = self.run_cmd(["python3", self.prog, "--duration", "5", "--interval", "2", "--lang", "fr", "--export-ai", fichier], timeout=60)
+        self.assertIn("conteneur 101 (odoo18) : le disque subvol-101-disk-2 monté sur /opt/odoo", out)        # names of datasets are never translated
+        self.assertIn("SAUVEGARDES (vzdump)", out)
+        self.assertTrue(os.path.isfile(fichier), out + err)
+
+    def test_aucun_invite_n_attend(self):
+        """1.10: « Guest that waited most ... (0.0 % of its time) » contradicted the verdict: the wait is then in the tasks of the host."""
+        m = charger("hpa_g", "host-perf-audit.py", {"HOST_PERF_AUDIT_LANG": "en", "NGINX_TOOLS_LANG": "en"})
+        faits = {"disks": {"sda": {"kind": "HDD"}}}
+        ligne = (0, "430", "vm", "bbb30.dev", 15, 79, 0, 0, 0.01, 0)
+        out = []
+        m.ssd_answer(m.Findings(), [], 16.0, 6.0, faits, [ligne], out, {"vzdump 101"})
+        texte = "\n".join(out)
+        self.assertNotIn("Guest that waited most", texte)
+        self.assertIn("No guest waited for the disk during this measurement: the wait is in the tasks of the host itself", texte)
+        self.assertIn("seen running: vzdump 101", texte)
+        out = []
+        m.ssd_answer(m.Findings(), [], 16.0, 6.0, faits, [ligne[:8] + (12.5, 40)], out)
+        self.assertIn("Guest that waited most for the disk: 430 bbb30.dev (12.5 % of its time)", "\n".join(out))
 
     def test_anglais_et_aide(self):
         rc, out, err = self.run_cmd(["python3", self.prog, "--duration", "5", "--interval", "2", "--lang", "en", "--no-guests"], timeout=60)

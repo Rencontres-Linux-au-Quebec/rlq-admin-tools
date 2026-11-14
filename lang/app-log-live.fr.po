@@ -3520,3 +3520,51 @@ msgstr "visiteurs depuis le dernier rapport, tout de suite : adresses, personnes
 
 msgid "since"
 msgstr "depuis"
+
+msgid "Slow requests of the window (all, oldest first)"
+msgstr "Requêtes lentes de la période (toutes, les plus anciennes d'abord)"
+
+msgid "Slow requests that ended together (3 or more within 5 s: a common wait, not a slow page)"
+msgstr "Requêtes lentes finies ensemble (3 ou plus en 5 s : une attente commune, pas une page lente)"
+
+msgid "Starts and stops of the service (whole window)"
+msgstr "Démarrages et arrêts du service (toute la période)"
+
+msgid "Runs of odoo-backup.service"
+msgstr "Exécutions d'odoo-backup.service"
+
+msgid "Limits and pressure of this machine or container (processor throttling, memory, disk waits)"
+msgstr "Limites et pression de cette machine ou de ce conteneur (bridage du processeur, mémoire, attentes du disque)"
+
+msgid "Busiest addresses with their User-Agent"
+msgstr "Adresses les plus actives avec leur User-Agent"
+
+msgid "User-Agents by number of addresses"
+msgstr "User-Agents par nombre d'adresses"
+
+msgid "Odoo database (users, attachments, e-mails, modules, scheduled actions)"
+msgstr "Base de données d'Odoo (utilisateurs, pièces jointes, courriels, modules, actions planifiées)"
+
+msgid "nginx access logs (User-Agent of each address)"
+msgstr "journaux d'accès de nginx (User-Agent de chaque adresse)"
+
+msgid "nginx: cache, limits and workers (nginx -T, each directive once)"
+msgstr "nginx : cache, limites et workers (nginx -T, chaque directive une fois)"
+
+msgid "Processes that use the most memory"
+msgstr "Processus qui utilisent le plus de mémoire"
+
+msgid "verdict of nginx-log-audit.sh for the addresses to ban"
+msgstr "verdict de nginx-log-audit.sh pour les adresses à bannir"
+
+msgid "ALMOST FULL"
+msgstr "PRESQUE PLEIN"
+
+msgid "addresses"
+msgstr "adresses"
+
+msgid "additional data not read: {problem}"
+msgstr "données supplémentaires non lues : {problem}"
+
+msgid "inodes: {n} % free"
+msgstr "inodes : {n} % libres"
