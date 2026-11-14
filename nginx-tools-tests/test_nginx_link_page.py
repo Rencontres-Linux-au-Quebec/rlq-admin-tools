@@ -1306,6 +1306,22 @@ LINK_4_MENU=3
                 donnees = [e.split("|")[0] for e in re.search(r'data-themes="([^"]*)"', page).group(1).split()]
                 self.assertEqual(donnees, attendu)
 
+    def test_160_prefixe_de_langue_d_odoo(self):
+        """1.60 : /en_CA/liens, /fr/liens/x... (préfixe de langue d'Odoo) redirigés vers la page (301, query string gardée)."""
+        r = self.lancer("-c", str(self.conf(self.config_deux_pages())), "--update", "--yes", env=self.env)
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        snippet = (self.snippets / "liens-publics.conf").read_text(encoding="utf-8")
+        self.assertIn("location ~ ^/[a-z][a-z](_[A-Z][A-Z])?(/liens)(/.*)?$ {\n    return 301 $2$3$is_args$args;\n}", snippet)
+        self.assertIn("location ~ ^/[a-z][a-z](_[A-Z][A-Z])?(/liens2)(/.*)?$ {", snippet)
+        import re as _re
+        motif = _re.compile(r"^/[a-z][a-z](_[A-Z][A-Z])?(/liens)(/.*)?$")
+        for demande, cible in (("/en_CA/liens", "/liens"), ("/fr/liens/", "/liens/"), ("/en_CA/liens/en/", "/liens/en/")):
+            m = motif.match(demande)
+            self.assertIsNotNone(m, demande)
+            self.assertEqual(m.group(2) + (m.group(3) or ""), cible)
+        for demande in ("/liens", "/liens/", "/event/liens", "/en_CA/liensX", "/en_CA/event"):
+            self.assertIsNone(motif.match(demande), demande)                       # the page itself and the pages of Odoo are left alone
+
     def test_158_empreinte_des_fichiers_communs(self):
         """1.58 : chaque lien vers un fichier commun porte ?v= et le début du sha256 de son contenu : un fichier changé (nouveau thème)
         a une nouvelle adresse, que le navigateur et Cloudflare ne peuvent pas servir depuis leur ancienne copie."""
