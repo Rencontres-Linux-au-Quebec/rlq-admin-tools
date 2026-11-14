@@ -40,6 +40,9 @@
 #ODOO_CONF=
 # dossier d'Odoo ; vide : WorkingDirectory= du service (défaut : WorkingDirectory= du service)
 #ODOO_DIR=
+# requêtes POST en lecture seule en plus de celles connues (connexion, vérifications de droits, sondes ; expression régulière des
+# adresses, sans le « / » du début, ex. : my_module/status|other/list) : ignorées, elles ne retardent ni n'annulent la mise à jour
+#READ_REQUESTS=
 # --no-rollback : ROLLBACK=no - jamais de retour arrière ; yes : après des erreurs (mise à jour, démarrage, journal d'Odoo), modules d'avant remis en place
 # (question sur un terminal, automatique sinon), nouvelle mise à jour, redémarrage
 #ROLLBACK=yes

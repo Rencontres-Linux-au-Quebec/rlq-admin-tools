@@ -136,6 +136,41 @@ class OdooUpdateModule(EnvTest):
         self.assertEqual(rc, 3, out + err)
         self.assertIn("écritures HTTP (POST", out)
 
+    def test_229_lectures_post_ignorees(self):
+        """1.29 : cas réel des 2026-11-13 et 2026-11-14 : /website_mail/is_follower (robots), /xmlrpc/2/db (sonde), /web/login et
+        call_kw/.../has_access annulaient la mise à jour. Ce sont des lectures : site calme ; une vraie écriture bloque toujours."""
+        lectures = ("/website_mail/is_follower", "/xmlrpc/2/db", "/xmlrpc/2/common", "/web/login", "/html_editor/get_ice_servers",
+                    "/web/dataset/call_kw/project.project/has_access", "/web/dataset/call_kw/res.partner/name_search")
+        maintenant = self._journal_post(*lectures)
+        rc, out, err = self.lancer("--check-activity", ODOO_UPDATE_MODULE_NOW=maintenant)
+        self.assertEqual(rc, 0, out + err)
+        self.assertIn("site calme", out)
+        maintenant = self._journal_post("/html_editor/bus_broadcast", *lectures)          # collaborative editor: a light write
+        rc, out, err = self.lancer("--check-activity", ODOO_UPDATE_MODULE_NOW=maintenant)
+        self.assertEqual(rc, 3, out + err)
+        self.assertIn("écritures légères", out)
+        self.assertNotIn("écritures HTTP (POST", out)
+        self.assertIn(f"{len(lectures)} requêtes POST en lecture seule ignorées", out)
+        for ecriture in ("/web/dataset/call_kw/res.partner/web_save", "/web/dataset/call_kw/res.partner/unlink", "/xmlrpc/2/object",
+                         "/web/dataset/call_kw/project.task/action_done"):
+            maintenant = self._journal_post(ecriture, *lectures)
+            rc, out, err = self.lancer("--wait-quiet", "0", ODOO_UPDATE_MODULE_NOW=maintenant)
+            self.assertEqual(rc, 3, ecriture + out + err)
+            self.assertIn("ANNULÉE", out, ecriture)
+
+    def test_229_read_requests(self):
+        """1.29 : READ_REQUESTS ajoute des lectures ; une expression invalide est ignorée (l'écriture bloque toujours)."""
+        maintenant = self._journal_post("/my_module/status")
+        rc, out, err = self.lancer("--check-activity", ODOO_UPDATE_MODULE_NOW=maintenant)
+        self.assertEqual(rc, 3, out + err)
+        self.write("etc/odoo-update-module.conf", "READ_REQUESTS=my_module/status\n")
+        rc, out, err = self.lancer("--check-activity", ODOO_UPDATE_MODULE_NOW=maintenant)
+        self.assertEqual(rc, 0, out + err)
+        self.write("etc/odoo-update-module.conf", "READ_REQUESTS=my_module/(\n")
+        rc, out, err = self.lancer("--check-activity", ODOO_UPDATE_MODULE_NOW=maintenant)
+        self.assertEqual(rc, 3, out + err)
+        self.assertIn("écritures HTTP (POST", out)
+
     def test_227_qui_on_attend(self):
         """1.27 : la mise à jour dit qui elle attend : adresse, pays, utilisateur d'Odoo (res_device_log) et nombre de requêtes ; puis les utilisateurs
         connectés à Odoo depuis une autre adresse."""
@@ -507,10 +542,49 @@ while IFS='|' read -r n e v a m c; do printf '%s\n' "$n$SEP$e$SEP$v$SEP$a$SEP$m$
         lignes += [f'66.249.66.{i} - - [{t}] "GET / HTTP/1.1" 200 512 "-" "Mozilla/5.0 (compatible; Googlebot/2.1)"' for i in range(robots)]
         self.write("nginx/site-access.log", "\n".join(lignes) + "\n")
 
+    def pg_connectes(self, adresses):
+        """1.29: a psql stand-in whose res_device_log lists these addresses as users logged in to Odoo (other queries: 0)."""
+        lignes = "".join(f"{ip}|user{i}|User {i}|Canada|1762714800\\n" for i, ip in enumerate(adresses))
+        return self.write("pg-connectes.sh", "#!/bin/bash\ncase \"$*\" in\n*res_device_log*) printf '" + lignes + "' ;;\n*) echo 0 ;;\nesac\n", 0o755)
+
+    def test_229_visiteurs_non_connectes_en_lecture_ne_comptent_pas(self):
+        """1.29 : cas réel du 2026-11-13 (42 visiteurs non connectés) : seuls les visiteurs connectés à Odoo, ou ceux qui écrivent, comptent."""
+        self.journal_nginx([f"198.51.100.{i}" for i in range(40)])
+        rc, out, err = self.lancer("--check-activity")
+        self.assertEqual(rc, 0, out + err)
+        self.assertIn("site calme", out)
+        rc, out, err = self.lancer("--check-activity", ODOO_UPDATE_MODULE_PG_AS=self.pg_connectes(["198.51.100.1", "198.51.100.2", "198.51.100.3"]))
+        self.assertEqual(rc, 3, out + err)
+        self.assertIn("3 visiteurs actifs (connectés à Odoo ou en écriture)", out)
+        self.assertIn("198.51.100.2 ", out)
+        self.assertNotIn("198.51.100.30 ", out)                 # not logged in, only reads: not waited for
+        mauvais = self.write("pg-ko.sh", "#!/bin/bash\nexit 1\n", 0o755)      # database unreadable: every address counts, never blind
+        rc, out, err = self.lancer("--check-activity", ODOO_UPDATE_MODULE_PG_AS=mauvais)
+        self.assertIn("40 visiteurs actifs", out, out + err)
+
+    def test_229_onglet_ouvert_sans_activite_ne_compte_pas(self):
+        """1.29 : cas réel du 2026-11-14 : un onglet d'Odoo laissé ouvert (GET /websocket, POST /bus/has_missed_notifications) n'est pas une activité."""
+        import datetime
+        t = datetime.datetime.now(datetime.timezone.utc).astimezone().strftime("%d/%b/%Y:%H:%M:%S %z")
+        ips = [f"198.51.100.{i}" for i in range(4)]
+        lignes = [f'{ip} - - [{t}] "{r} HTTP/1.1" 200 45 "-" "Mozilla/5.0"' for ip in ips for r in ("GET /websocket?version=18.0-7", "POST /bus/has_missed_notifications")]
+        self.write("nginx/site-access.log", "\n".join(lignes) + "\n")
+        pg = self.pg_connectes(ips)
+        rc, out, err = self.lancer("--check-activity", ODOO_UPDATE_MODULE_PG_AS=pg)
+        self.assertEqual(rc, 0, out + err)
+        self.assertIn("site calme", out)
+        lignes += [f'{ip} - - [{t}] "GET /odoo/project/6/tasks/131 HTTP/1.1" 200 45 "-" "Mozilla/5.0"' for ip in ips[:3]]
+        self.write("nginx/site-access.log", "\n".join(lignes) + "\n")
+        rc, out, err = self.lancer("--check-activity", ODOO_UPDATE_MODULE_PG_AS=pg)
+        self.assertEqual(rc, 3, out + err)
+        self.assertIn("3 visiteurs actifs", out)
+        self.assertRegex(out, r"198\.51\.100\.0 .* · 1 requêtes")       # the polls of the bus are not counted
+
     def test_site_occupe_attente_puis_mise_a_jour_quand_il_devient_calme(self):
         """1.11 : 5 visiteurs actifs (robots exclus) : attente ; quand ils sont partis, arrêt et mise à jour."""
         self.journal_nginx([f"198.51.100.{i}" for i in range(5)], robots=4)
         self.mock("sleep", 'echo "sleep $*" >> "$D/appels.log"; rm -f "$D/nginx/site-access.log"; touch "$D/nginx/vide-access.log"')
+        self.env["ODOO_UPDATE_MODULE_PG_AS"] = self.pg_connectes([f"198.51.100.{i}" for i in range(5)])      # 1.29: logged in to Odoo
         rc, out, err = self.lancer()
         self.assertEqual(rc, 0, out + err)
         self.assertIn("site occupé :", out)
@@ -527,6 +601,7 @@ while IFS='|' read -r n e v a m c; do printf '%s\n' "$n$SEP$e$SEP$v$SEP$a$SEP$m$
         self.assertEqual(rc, 0, out + err)
         self.assertIn("attente maximale : 0 min", out)   # a single check, no wait
         self.journal_nginx([f"198.51.100.{i}" for i in range(5)])
+        self.env["ODOO_UPDATE_MODULE_PG_AS"] = self.pg_connectes([f"198.51.100.{i}" for i in range(5)])      # 1.29: logged in to Odoo
         rc, out, err = self.lancer("--dry-run")
         self.assertIn("maintenant occupé : 5 visiteurs actifs", out)
 
