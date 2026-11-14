@@ -691,6 +691,9 @@ msgstr "  --visitor-window MIN         window for counting active visitors, in m
 msgid "  VISITOR_WINDOW=5              fenêtre de comptage des visiteurs actifs, en minutes"
 msgstr "  VISITOR_WINDOW=5              window for counting active visitors, in minutes"
 
+msgid " visiteurs actifs (connectés à Odoo ou en écriture) dans les "
+msgstr " active visitors (logged in to Odoo or writing) in the last "
+
 msgid " visiteurs actifs dans les "
 msgstr " active visitors in the last "
 
@@ -834,6 +837,12 @@ msgstr ""
 
 msgid " écritures légères (discussion, présence, suivi des visiteurs : rien de perdu si Odoo s'arrête une minute), la plus récente : "
 msgstr " light writes (chat, presence, visitor tracking: nothing lost if Odoo stops for a minute), the most recent: "
+
+msgid " requêtes POST en lecture seule ignorées (connexion, vérifications, sondes : aucune donnée modifiée), la plus récente : "
+msgstr " read-only POST requests ignored (sign-in, checks, probes: no data changed), the most recent: "
+
+msgid "  READ_REQUESTS=                requêtes POST en lecture seule en plus (expression régulière des adresses, sans le « / » du début) : ignorées, elles ne retardent ni n'annulent la mise à jour"
+msgstr "  READ_REQUESTS=                more read-only POST requests (regular expression of the addresses, without the first \"/\"): ignored, they neither delay nor cancel the update"
 
 msgid "  LIGHT_WRITES=                 écritures HTTP légères en plus (expression régulière des adresses, sans le « / » du début) : comme les visiteurs, elles n'annulent pas la mise à jour"
 msgstr "  LIGHT_WRITES=                 more light HTTP writes (regular expression of the addresses, without the first \"/\"): like visitors, they do not cancel the update"

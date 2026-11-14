@@ -84,6 +84,7 @@
 #   WAIT_ANONYMOUS=30             attente maximale, en minutes, si seuls des visiteurs non connectés sont actifs
 #   WAIT_ANONYMOUS_LOW=2          idem si l'activité est faible
 #   LIGHT_WRITES=                 écritures HTTP légères en plus (expression régulière des adresses, sans le « / » du début) : comme les visiteurs, elles n'annulent pas la mise à jour
+#   READ_REQUESTS=                requêtes POST en lecture seule en plus (expression régulière des adresses, sans le « / » du début) : ignorées, elles ne retardent ni n'annulent la mise à jour
 #   LOW_REQUESTS=10               activité faible : moins de N requêtes (hors robots) dans la fenêtre VISITOR_WINDOW
 #   CONNECTED_WINDOW=15           un utilisateur connecté compte s'il a été actif dans les N dernières minutes (session encore valide ignorée)
 #   FORCE_BUSY=non                mettre à jour quand même si le site reste occupé (défaut : non : la mise à jour est annulée)
@@ -94,7 +95,7 @@ set -euo pipefail
 for _d in /usr/local/sbin /usr/sbin /sbin; do [[ -n "${NGINX_TOOLS_TESTS:-}" ]] && break; case ":$PATH:" in *":$_d:"*) ;; *) PATH="$PATH:$_d" ;; esac; done
 export PATH
 
-readonly SCRIPT_VERSION="1.28.20261112.082236"
+readonly SCRIPT_VERSION="1.29.20261114.090010"
 SCRIPT_NAME="$(basename "${BASH_SOURCE[0]}" .sh)"; readonly SCRIPT_NAME
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
 SCRIPT_PATH="$SCRIPT_DIR/$(basename "${BASH_SOURCE[0]}")"; readonly SCRIPT_PATH
@@ -132,7 +133,7 @@ else C_RED=""; C_YELLOW=""; C_GREEN=""; C_RESET=""; C_CYAN=""; C_BOLD=""; C_DIM=
 # --- Options -----------------------------------------------------------------------------------------------------------
 SERVICE=""; SERVICE_DETECTE=0; MODULES_MOTIFS="rlq_*"; ONLY_DB=""; ODOO_CONF_OPT=""; ODOO_DIR=""; RUN_USER=""; COMMAND=""
 TIMEOUT=1800; WAIT=90; DO_BACKUP=0; DO_DRY_RUN=0; DO_FORCE=0; DO_WARMUP=1; VERBOSE=0; CLI_MODULES=0; ADDONS_DIR=""; ZIP_ARG=""
-LIGHT_WRITES=""; WAIT_QUIET=""; WAIT_CONNECTED=60; WAIT_CONNECTED_LOW=3; WAIT_ANONYMOUS=30; WAIT_ANONYMOUS_LOW=2; LOW_REQUESTS=10; CONNECTED_WINDOW=15; BUSY_VISITORS=3; VISITOR_WINDOW=5; CLI_BUSY=0; CLI_WINDOW=0; DO_ROLLBACK=1; FORCE_BUSY=0; CHECK_ACTIVITY=0                                          # 1.11: quiet site before stopping Odoo; rollback of the modules after errors
+LIGHT_WRITES=""; READ_REQUESTS=""; WAIT_QUIET=""; WAIT_CONNECTED=60; WAIT_CONNECTED_LOW=3; WAIT_ANONYMOUS=30; WAIT_ANONYMOUS_LOW=2; LOW_REQUESTS=10; CONNECTED_WINDOW=15; BUSY_VISITORS=3; VISITOR_WINDOW=5; CLI_BUSY=0; CLI_WINDOW=0; DO_ROLLBACK=1; FORCE_BUSY=0; CHECK_ACTIVITY=0                                          # 1.11: quiet site before stopping Odoo; rollback of the modules after errors
 NGINX_LOG_DIR="${ODOO_UPDATE_MODULE_NGINX_DIR:-/var/log/nginx}"
 MODULES_BACKUP_DIR="${ODOO_UPDATE_MODULE_BACKUP_DIR:-/var/backups/odoo-update-module}"
 LOG_DIR="${ODOO_UPDATE_MODULE_LOG_DIR:-/var/log/odoo-update-module}"
@@ -151,6 +152,7 @@ if declare -F config_lire >/dev/null; then
     config_defaut DO_BACKUP BACKUP --backup booleen
     config_defaut BUSY_VISITORS BUSY_VISITORS --busy-visitors nombre
     config_defaut LIGHT_WRITES LIGHT_WRITES LIGHT_WRITES texte
+    config_defaut READ_REQUESTS READ_REQUESTS READ_REQUESTS texte
     config_defaut VISITOR_WINDOW VISITOR_WINDOW --visitor-window nombre
     config_defaut MODULES_BACKUP_DIR MODULES_BACKUP_DIR MODULES_BACKUP_DIR texte
     config_defaut DO_ROLLBACK ROLLBACK --no-rollback booleen
@@ -682,15 +684,100 @@ prechauffer() {
 
 
 # --- 1.11: quiet site, copy of the modules, check after the start, rollback -----------------------------------------------
-# active_visitors SECONDS: number of addresses that made a request in the last SECONDS seconds (nginx access logs, end of each file only;
-# robots, tools and this server excluded); "?" if no log is readable.
+# ACTIVITY_PY (1.29): Python source shared by nginx_writes, active_visitors and who_waits (run with exec): request_kind(method, url) says what a
+# request of the nginx log is: "background" (polls of the bus and websocket of a tab left open: nobody is working), "read" (read-only POST),
+# "light" (chat, presence, visitor tracking...), "write" (a real write: always blocks the update) or "view" (GET, HEAD: a page or a file).
+# More addresses: LIGHT_WRITES and READ_REQUESTS (configuration, read here from ACTIVITY_LIGHT and ACTIVITY_READ): regular expressions without
+# the first "/"; an invalid expression is ignored (said on standard error): the requests stay writes, never a reason to update blind.
+# shellcheck disable=SC2016  # Python source, nothing to expand
+ACTIVITY_PY='
+import os, re, sys
+
+
+def extra_expression(name, value):
+    if value:
+        try:
+            re.compile(value)
+        except re.error as e:
+            print(f"{name}: invalid expression, ignored ({e})", file=sys.stderr)      # never shown: the callers drop standard error
+            return ""
+    return value
+
+
+_extra_read = extra_expression("READ_REQUESTS", os.environ.get("ACTIVITY_READ", ""))
+_extra_light = extra_expression("LIGHT_WRITES", os.environ.get("ACTIVITY_LIGHT", ""))
+# 1.29: a tab left open (discussion, any screen of Odoo) keeps asking the bus: that is not somebody working.
+BACKGROUND = re.compile(r"^/(websocket|bus/\w+|longpolling/\w+)(\?|$)")
+# Read-only requests sent with POST by Odoo (lists, views, reads, messages already in place): they are not writes.
+# 1.29: website_mail/is_follower (asked by every page of the website, robots included), web/login and xmlrpc db / common (sign-in and probes of
+# scanners: no data of the site is written), html_editor/get_ice_servers, and more read methods of call_kw. A method that is not in the list
+# stays a write.
+READ_POST = re.compile(r"^/(web/action/load|web/session/get_session_info|web/webclient/\w+|mail/data|mail/thread/data|mail/thread/messages|im_livechat/init|"
+                       r"mail/(inbox|starred|history)/messages|discuss/channel/(messages|info|members)|"
+                       r"website/snippet/filters|hr_attendance/attendance_user_data|"
+                       r"website_mail/is_follower|web/login|xmlrpc/(2/)?(db|common)|html_editor/get_ice_servers|"
+                       r"web/dataset/call_kw/[^ ?]*/(read|search|search_read|read_group|web_read|web_search_read|has_group|fields_get|name_get|display_name|onchange|get_views|check_access_rights|"
+                       r"has_access|check_access_rule|name_search|web_name_search|search_count|search_fetch|web_read_group|read_progress_bar|get_view|default_get|"
+                       r"search_panel_select_range|search_panel_select_multi_range|get_formview_id|get_formview_action)"
+                       + (r"|" + _extra_read if _extra_read else "") + r")(\?|$)")
+# 1.26: LIGHT writes: chat (live chat, discussion), presence, visitor tracking, user settings. Stopping Odoo for about a minute loses nothing
+# of them (a message sent during the stop gets an error in the browser and is sent again); they do not block the update.
+# 1.29: html_editor/bus_broadcast (somebody types in a collaborative editor: the text stays in the browser, the save itself is a real write).
+LIGHT_POST = re.compile(r"^/(im_livechat/\S*|discuss/\S*|mail/message/(post|reaction|update_content)|mail/link_preview\S*|mail/thread/(subscribe|unsubscribe)|"
+                        r"mail/(read|set|unstar)\S*|website/track\S*|website/update_visitor_timezone|html_editor/bus_broadcast|"
+                        r"web/dataset/call_kw/res\.users\.settings/\S*|web/dataset/call_kw/(discuss\.channel|mail\.message|mail\.notification|bus\.presence)/\S*"
+                        + (r"|" + _extra_light if _extra_light else "") + r")(\?|$)")
+
+
+def request_kind(method, url):
+    if method in ("PUT", "PATCH", "DELETE"):          # never a read
+        return "light" if LIGHT_POST.match(url) else "write"
+    if BACKGROUND.match(url):
+        return "background"
+    if method != "POST":
+        return "view"
+    if READ_POST.match(url):
+        return "read"
+    return "light" if LIGHT_POST.match(url) else "write"
+
+
+def counted_visitors(seen, connected):
+    """1.29: the addresses that count as active visitors. seen: ip -> set of kinds of its requests; connected: addresses of the users logged in to
+    Odoo, or None when the database could not be read (then every address with a request other than background counts: never cut short blind)."""
+    out = set()
+    for ip, kinds in seen.items():
+        if "write" in kinds or ((connected is None or ip in connected) and kinds - {"background"}):
+            out.add(ip)
+    return out
+
+
+def connected_addresses(rows):
+    """Addresses of the rows "ip|login|name|country|epoch" of connected_devices; None when the rows are "?" (database unreadable)."""
+    if rows.strip() == "?":
+        return None
+    return {r.split("|")[0] for r in rows.splitlines() if r.count("|") >= 4 and r.split("|")[1]}
+'
+
+# connected_devices (1.29, query of who_waits 1.27): rows "ip|login|name|country|epoch" of the Odoo users active in the last
+# max(CONNECTED_WINDOW, VISITOR_WINDOW) minutes (res_device_log, revoked sessions left out); "?" when the database cannot be read.
+connected_devices() {
+    local minutes=$(( CONNECTED_WINDOW > VISITOR_WINDOW ? CONNECTED_WINDOW : VISITOR_WINDOW ))
+    command -v psql >/dev/null 2>&1 || [[ -n "${ODOO_UPDATE_MODULE_PG_AS:-}" ]] || { echo "?"; return 0; }
+    pg_query "SELECT COALESCE(d.ip_address, ''), COALESCE(u.login, ''), COALESCE(p.name, ''), COALESCE(d.country, ''), floor(extract(epoch FROM max(d.last_activity))) FROM res_device_log d JOIN res_users u ON u.id = d.user_id LEFT JOIN res_partner p ON p.id = u.partner_id WHERE d.last_activity > (now() AT TIME ZONE 'UTC') - interval '${minutes} minutes' AND NOT COALESCE(d.revoked, false) GROUP BY 1, 2, 3, 4 ORDER BY 5 DESC LIMIT 50" || echo "?"
+}
+
+# active_visitors SECONDS [DEVICES]: number of active visitors of the last SECONDS seconds (nginx access logs, end of each file only; robots, tools
+# and this server excluded); "?" if no log is readable. 1.29: an address counts only when it belongs to a user logged in to Odoo (DEVICES: rows of
+# connected_devices) who made a request other than the polls of the bus, or when it made a real write. Visitors not logged in who only read
+# (robots without a robot name, waves of anonymous visits) no longer make the site busy. DEVICES "?" (database unreadable): every address counts.
 active_visitors() {
-    python3 - "$NGINX_LOG_DIR" "${1:-300}" <<'PYEOF'
+    ACTIVITY_PY="$ACTIVITY_PY" ACTIVITY_LIGHT="${LIGHT_WRITES:-}" ACTIVITY_READ="${READ_REQUESTS:-}" WHO_DEVICES="${2-?}" python3 - "$NGINX_LOG_DIR" "${1:-300}" <<'PYEOF'
 import datetime, glob, os, re, sys
-LINE = re.compile(r'^(\S+)\s+\S+\s+\S+\s+\[([^\]]+)\]\s+"[^"]*"\s+\d{3}\s+\S+\s+"[^"]*"\s+"([^"]*)"')
+exec(os.environ["ACTIVITY_PY"])
+LINE = re.compile(r'^(\S+)\s+\S+\s+\S+\s+\[([^\]]+)\]\s+"(\S+)\s+(\S+)[^"]*"\s+\d{3}\s+\S+\s+"[^"]*"\s+"([^"]*)"')
 ROBOT = re.compile(r"bot|crawl|spider|slurp|curl|wget|python|go-http|monitor|uptime|preview", re.I)
 now = datetime.datetime.fromtimestamp(float(os.environ["ODOO_UPDATE_MODULE_NOW"]), datetime.timezone.utc) if os.environ.get("ODOO_UPDATE_MODULE_NOW") else datetime.datetime.now(datetime.timezone.utc)
-seen, readable = set(), False
+seen, readable = {}, False
 for path in glob.glob(os.path.join(sys.argv[1], "*access*.log")):
     try:
         with open(path, "rb") as f:
@@ -702,15 +789,15 @@ for path in glob.glob(os.path.join(sys.argv[1], "*access*.log")):
         continue
     for line in data.splitlines():
         m = LINE.match(line)
-        if not m or ROBOT.search(m.group(3)) or m.group(1) in ("127.0.0.1", "::1"):
+        if not m or ROBOT.search(m.group(5)) or m.group(1) in ("127.0.0.1", "::1"):
             continue
         try:
             t = datetime.datetime.strptime(m.group(2), "%d/%b/%Y:%H:%M:%S %z")
         except ValueError:
             continue
         if (now - t).total_seconds() <= float(sys.argv[2]):
-            seen.add(m.group(1))
-print(len(seen) if readable else "?")
+            seen.setdefault(m.group(1), set()).add(request_kind(m.group(3), m.group(4)))
+print(len(counted_visitors(seen, connected_addresses(os.environ.get("WHO_DEVICES", "?")))) if readable else "?")
 PYEOF
 }
 
@@ -742,34 +829,14 @@ db_activity() {       # prints "sessions locks writes" (numbers), or "?" when th
     echo "${s:-?} ${l:-?} $(( ${b:-0} - ${a:-0} ))"
 }
 
-nginx_writes() {      # 1.26: first line "WRITES LIGHT" (numbers) of the last ACTIVITY_WINDOW seconds, then up to 3 "W time method address" and 3 "L ..."; "?" if unreadable
-    python3 - "$NGINX_LOG_DIR" "$ACTIVITY_WINDOW" "${LIGHT_WRITES:-}" <<'PYEOF'
+nginx_writes() {      # 1.29: first line "WRITES LIGHT READS" (numbers) of the last ACTIVITY_WINDOW seconds, then up to 3 "W time method address", 3 "L ..." and 3 "D ..." (read-only POST, ignored); "?" if unreadable
+    ACTIVITY_PY="$ACTIVITY_PY" ACTIVITY_LIGHT="${LIGHT_WRITES:-}" ACTIVITY_READ="${READ_REQUESTS:-}" python3 - "$NGINX_LOG_DIR" "$ACTIVITY_WINDOW" <<'PYEOF'
 import datetime, glob, os, re, sys
+exec(os.environ["ACTIVITY_PY"])
 LINE = re.compile(r'^(\S+)\s+\S+\s+\S+\s+\[([^\]]+)\]\s+"(\S+)\s+(\S+)[^"]*"\s+(\d{3})')
-# Read-only requests sent with POST by Odoo (lists, views, reads, bus, messages already in place): they are not writes.
-# 1.26: the polls of the bus (bus/has_missed_notifications, bus/im_status, longpolling, websocket) and the reading of the discussions added.
-READ_POST = re.compile(r"^/(web/action/load|web/session/get_session_info|web/webclient/\w+|mail/data|mail/thread/data|mail/thread/messages|im_livechat/init|"
-                       r"bus/\w+|longpolling/\w+|websocket|mail/(inbox|starred|history)/messages|discuss/channel/(messages|info|members)|"
-                       r"website/snippet/filters|hr_attendance/attendance_user_data|"
-                       r"web/dataset/call_kw/[^ ?]*/(read|search|search_read|read_group|web_read|web_search_read|has_group|fields_get|name_get|display_name|onchange|get_views|check_access_rights))(\?|$)")
-# 1.26: LIGHT writes: chat (live chat, discussion), presence, visitor tracking, user settings. Stopping Odoo for about a minute loses nothing
-# of them (a message sent during the stop gets an error in the browser and is sent again); they do not block the update, they count like
-# visitors (the update goes ahead at the end of the wait). LIGHT_WRITES (configuration): more addresses, a regular expression without the first "/";
-# an invalid expression is ignored (said on standard error), never a reason to update blind.
-extra = sys.argv[3]
-if extra:
-    try:
-        re.compile(extra)
-    except re.error as e:
-        print(f"LIGHT_WRITES ignoré (expression invalide : {e})", file=sys.stderr)
-        extra = ""
-LIGHT_POST = re.compile(r"^/(im_livechat/\S*|discuss/\S*|mail/message/(post|reaction|update_content)|mail/link_preview\S*|mail/thread/(subscribe|unsubscribe)|"
-                        r"mail/(read|set|unstar)\S*|website/track\S*|website/update_visitor_timezone|"
-                        r"web/dataset/call_kw/res\.users\.settings/\S*|web/dataset/call_kw/(discuss\.channel|mail\.message|mail\.notification|bus\.presence)/\S*"
-                        + (r"|" + extra if extra else "") + r")(\?|$)")
 now = datetime.datetime.fromtimestamp(float(os.environ["ODOO_UPDATE_MODULE_NOW"]), datetime.timezone.utc) if os.environ.get("ODOO_UPDATE_MODULE_NOW") else datetime.datetime.now(datetime.timezone.utc)
 limit = float(sys.argv[2])
-found, light, readable = [], [], False
+found, light, reads, readable = [], [], [], False
 for path in glob.glob(os.path.join(sys.argv[1], "*access*.log")):
     try:
         with open(path, "rb") as f:
@@ -781,21 +848,25 @@ for path in glob.glob(os.path.join(sys.argv[1], "*access*.log")):
         continue
     for line in data.splitlines():
         m = LINE.match(line)
-        if not m or m.group(3) not in ("POST", "PUT", "PATCH", "DELETE") or READ_POST.match(m.group(4)):
+        if not m or m.group(3) not in ("POST", "PUT", "PATCH", "DELETE"):
             continue
         try:
             t = datetime.datetime.strptime(m.group(2), "%d/%b/%Y:%H:%M:%S %z")
         except ValueError:
             continue
         if 0 <= (now - t).total_seconds() <= limit:
-            (light if LIGHT_POST.match(m.group(4)) else found).append((t, m.group(3), m.group(4), m.group(1)))
+            # 1.29: only POST can be a read; PUT, PATCH and DELETE are always writes; the polls of the bus are not counted at all
+            kind = request_kind(m.group(3), m.group(4))
+            if kind != "background":
+                {"read": reads, "light": light, "write": found}[kind].append((t, m.group(3), m.group(4), m.group(1)))
 if not readable:
     print("?")
     sys.exit(0)
 found.sort()
 light.sort()
-print(len(found), len(light))
-for tag, items in (("W", found), ("L", light)):
+reads.sort()
+print(len(found), len(light), len(reads))
+for tag, items in (("W", found), ("L", light), ("D", reads)):
     for t, method, url, ip in items[-3:]:
         print(tag + " " + t.astimezone().strftime("%H:%M:%S") + " " + method + " " + url[:80] + " (" + ip + ")")     # 1.27: with the address
 PYEOF
@@ -806,14 +877,13 @@ PYEOF
 # the Odoo user of that address (res_device_log: last activity in the window) and the number of requests; then the Odoo users active in the last
 # CONNECTED_WINDOW minutes from an address not seen in nginx. Reads only; nothing printed when nobody is found.
 who_waits() {
-    local devices="" minutes=$(( CONNECTED_WINDOW > VISITOR_WINDOW ? CONNECTED_WINDOW : VISITOR_WINDOW ))
-    if command -v psql >/dev/null 2>&1 || [[ -n "${ODOO_UPDATE_MODULE_PG_AS:-}" ]]; then
-        devices=$(pg_query "SELECT COALESCE(d.ip_address, ''), COALESCE(u.login, ''), COALESCE(p.name, ''), COALESCE(d.country, ''), floor(extract(epoch FROM max(d.last_activity))) FROM res_device_log d JOIN res_users u ON u.id = d.user_id LEFT JOIN res_partner p ON p.id = u.partner_id WHERE d.last_activity > (now() AT TIME ZONE 'UTC') - interval '${minutes} minutes' AND NOT COALESCE(d.revoked, false) GROUP BY 1, 2, 3, 4 ORDER BY 5 DESC LIMIT 50" 2>/dev/null) || devices=""
-    fi
+    local devices="${1-}"
+    [[ -n "$devices" ]] || devices=$(connected_devices)
     local liste type ip pays qui n derniere ecritures total=0
-    liste=$(WHO_DEVICES="$devices" python3 - "$NGINX_LOG_DIR" "$(( VISITOR_WINDOW * 60 ))" "$SCRIPT_DIR" "${NGINX_TOOLS_I18N_LANGUE:-fr}" <<'PYEOF' 2>/dev/null || true
+    liste=$(ACTIVITY_PY="$ACTIVITY_PY" ACTIVITY_LIGHT="${LIGHT_WRITES:-}" ACTIVITY_READ="${READ_REQUESTS:-}" WHO_DEVICES="$devices" python3 - "$NGINX_LOG_DIR" "$(( VISITOR_WINDOW * 60 ))" "$SCRIPT_DIR" "${NGINX_TOOLS_I18N_LANGUE:-fr}" <<'PYEOF' 2>/dev/null || true
 import datetime, glob, importlib.util, os, re, shutil, subprocess, sys
-LINE = re.compile(r'^(\S+)\s+\S+\s+\S+\s+\[([^\]]+)\]\s+"(\S+)\s+\S+[^"]*"\s+\d{3}\s+\S+\s+"[^"]*"\s+"([^"]*)"')
+exec(os.environ["ACTIVITY_PY"])
+LINE = re.compile(r'^(\S+)\s+\S+\s+\S+\s+\[([^\]]+)\]\s+"(\S+)\s+(\S+)[^"]*"\s+\d{3}\s+\S+\s+"[^"]*"\s+"([^"]*)"')
 ROBOT = re.compile(r"bot|crawl|spider|slurp|curl|wget|python|go-http|monitor|uptime|preview", re.I)
 now = datetime.datetime.fromtimestamp(float(os.environ["ODOO_UPDATE_MODULE_NOW"]), datetime.timezone.utc) if os.environ.get("ODOO_UPDATE_MODULE_NOW") else datetime.datetime.now(datetime.timezone.utc)
 window, apps, lang = float(sys.argv[2]), os.path.join(sys.argv[3], "apps"), sys.argv[4]
@@ -831,7 +901,7 @@ def module(name):
 
 countries, cache = module("_countries"), module("_cache_ip")
 cache = cache.ouvrir() if cache else None
-seen = {}                                          # ip -> [requests, last time, writes]
+seen, kinds = {}, {}                               # ip -> [requests, last time, writes]; ip -> kinds of its requests (1.29)
 for path in glob.glob(os.path.join(sys.argv[1], "*access*.log")):
     try:
         with open(path, "rb") as f:
@@ -842,17 +912,21 @@ for path in glob.glob(os.path.join(sys.argv[1], "*access*.log")):
         continue
     for line in data.splitlines():
         m = LINE.match(line)
-        if not m or ROBOT.search(m.group(4)) or m.group(1) in ("127.0.0.1", "::1"):
+        if not m or ROBOT.search(m.group(5)) or m.group(1) in ("127.0.0.1", "::1"):
             continue
         try:
             t = datetime.datetime.strptime(m.group(2), "%d/%b/%Y:%H:%M:%S %z")
         except ValueError:
             continue
         if 0 <= (now - t).total_seconds() <= window:
+            kind = request_kind(m.group(3), m.group(4))
+            kinds.setdefault(m.group(1), set()).add(kind)
+            if kind == "background":                   # 1.29: the polls of the bus are not requests of somebody working
+                continue
             e = seen.setdefault(m.group(1), [0, t, 0])
             e[0] += 1
             e[1] = max(e[1], t)
-            e[2] += m.group(3) in ("POST", "PUT", "PATCH", "DELETE")
+            e[2] += kind in ("write", "light")         # 1.29: the read-only POST are no longer counted as writes
 users = {}                                         # ip -> [(login, name, country name of Odoo, last epoch)]
 for row in (os.environ.get("WHO_DEVICES") or "").splitlines():
     parts = row.split("|")
@@ -883,7 +957,10 @@ def who(ip):
     return ", ".join(f"{login} ({name})" if name and name != login else login for login, name, _c, _t in (users.get(ip) or [])[:2])
 
 
+waited = counted_visitors(kinds, connected_addresses(os.environ.get("WHO_DEVICES") or ""))      # 1.29: only the visitors the update waits for
 for ip, (n, last, writes) in sorted(seen.items(), key=lambda kv: -kv[1][1].timestamp()):
+    if ip not in waited and not writes:
+        continue
     print("|".join(("V", ip, country(ip), who(ip), str(n), last.astimezone().strftime("%H:%M:%S"), str(writes))))
 for ip, found in users.items():
     if ip not in seen:
@@ -912,27 +989,31 @@ PYEOF
 }
 
 # Reasons why the site is busy, one per line: "W|text" = a write, or a value that cannot be read (always blocks the update);
-# "R|text" = active visitors only (reads: the update goes ahead once the wait is over). Nothing printed = calm. Reads only, changes nothing.
+# "R|text" = active visitors only (reads: the update goes ahead once the wait is over). No "W|" nor "R|" line = calm. Reads only, changes nothing.
+# 1.29: "N|text" = a note (read-only POST requests ignored): never a reason, shown by site_reasons_who only when the site is busy.
 site_reasons() {
     local visiteurs w_sortie w_nombre dbv s l d
-    visiteurs=$(active_visitors "$(( VISITOR_WINDOW * 60 ))" 2>/dev/null || echo "?")
+    visiteurs=$(active_visitors "$(( VISITOR_WINDOW * 60 ))" "${1-?}" 2>/dev/null || echo "?")
     if [[ "$visiteurs" == "?" ]]; then
         printf 'W|%s\n' "journaux d'accès de nginx illisibles dans $NGINX_LOG_DIR"
     elif (( visiteurs >= BUSY_VISITORS )); then
-        printf 'R|%s\n' "$visiteurs visiteurs actifs dans les $VISITOR_WINDOW dernières minutes (seuil : $BUSY_VISITORS)"
+        printf 'R|%s\n' "$visiteurs visiteurs actifs (connectés à Odoo ou en écriture) dans les $VISITOR_WINDOW dernières minutes (seuil : $BUSY_VISITORS)"
     fi
     w_sortie=$(nginx_writes 2>/dev/null || echo "?")
     w_nombre=$(head -n 1 <<< "$w_sortie")
     if [[ "$w_nombre" == "?" ]]; then
         printf 'W|%s\n' "journaux d'accès de nginx illisibles : écritures HTTP inconnues"
     else
-        local w_legeres=0
-        read -r w_nombre w_legeres <<< "$w_nombre"
+        local w_legeres=0 w_lues=0
+        read -r w_nombre w_legeres w_lues <<< "$w_nombre"
         if (( w_nombre > 0 )); then
             printf 'W|%s\n' "$w_nombre écritures HTTP (POST…) dans les $(( ACTIVITY_WINDOW / 60 )) dernières minutes, la plus récente : $(grep '^W ' <<< "$w_sortie" | tail -n 1 | cut -c3-)"
         fi
         if (( ${w_legeres:-0} > 0 )); then    # 1.26: chat, presence, visitor tracking: like visitors, they do not cancel the update
             printf 'R|%s\n' "$w_legeres écritures légères (discussion, présence, suivi des visiteurs : rien de perdu si Odoo s'arrête une minute), la plus récente : $(grep '^L ' <<< "$w_sortie" | tail -n 1 | cut -c3-)"
+        fi
+        if (( ${w_lues:-0} > 0 )); then       # 1.29: read-only POST (sign-in, access checks, probes): a note, never a reason
+            printf 'N|%s\n' "$w_lues requêtes POST en lecture seule ignorées (connexion, vérifications, sondes : aucune donnée modifiée), la plus récente : $(grep '^D ' <<< "$w_sortie" | tail -n 1 | cut -c3-)"
         fi
     fi
     dbv=$(db_activity)
@@ -949,11 +1030,15 @@ site_reasons() {
 
 # site_reasons_who (1.27): site_reasons, then who_waits when the site is busy ("I|" lines: who the update waits for).
 site_reasons_who() {
-    local raisons
-    raisons=$(site_reasons)
+    local raisons notes devices
+    devices=$(connected_devices)                           # 1.29: read once, for the count of the visitors and for who_waits
+    raisons=$(site_reasons "$devices")
+    notes=$(grep '^N|' <<< "$raisons" || true)             # 1.29: the notes do not make the site busy
+    raisons=$(grep -v '^N|' <<< "$raisons" || true)
     [[ -n "$raisons" ]] || return 0
     printf '%s\n' "$raisons"
-    who_waits
+    who_waits "$devices"
+    if [[ -n "$notes" ]]; then printf 'I|%s\n' "${notes#N|}"; fi
 }
 
 # requetes_recentes: number of requests of the last VISITOR_WINDOW minutes in the nginx logs (robots and this server excluded); "?" if unreadable.
