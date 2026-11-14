@@ -1163,6 +1163,48 @@ LINK_4_MENU=3
         r = self.lancer("-c", str(self.conf(texte + "SITE_ODOO_CHECK_URL=http://127.0.0.1:8069/x y\n")), "--check", env=env)
         self.assertIn("SITE_ODOO_CHECK_URL=http://127.0.0.1:8069/x y", r.stderr)
 
+    def test_152_detection_du_port_d_odoo(self):
+        """1.52 : sans SITE_ODOO_CHECK_URL, le port (et l'interface) d'Odoo sont lus dans sa configuration (apps/_odoo_conf.sh) ;
+        l'adresse où la route répond 401 est prise et --update l'écrit dans la configuration (copie .bak avant) ; une valeur
+        donnée n'est jamais remplacée ; le défaut seul n'est pas écrit."""
+        odoo = self.tmp / "odoo.conf"
+        odoo.write_text("[options]\nhttp_port = 8070\nhttp_interface = 0.0.0.0\n", encoding="utf-8")
+        verif = "http://127.0.0.1:8070/rlq/session/check"
+        env = dict(self.env, ODOO_CONF_PATHS=str(odoo), RLQ_CURL_CODES=f"{verif}=401 http://127.0.0.1:8069/rlq/session/check=000")
+        texte = self.config_deux_pages("no") + "LINK_2_ACCESS=odoo\n#SITE_ODOO_CHECK_URL=http://127.0.0.1:8069/rlq/session/check   # modèle\n"
+        conf = self.conf(texte)
+        r = self.lancer("-c", str(conf), "--check", env=env)
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertIn(f"Odoo : 1 -> {verif}, détectée : {odoo} (http_port)", r.stdout)
+        self.assertEqual(conf.read_text(encoding="utf-8"), texte)                                # --check writes nothing
+        r = self.lancer("-c", str(conf), "--update", "--yes", env=env)
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertIn(f"SITE_ODOO_CHECK_URL={verif} écrit dans {conf}", r.stdout)
+        ecrit = conf.read_text(encoding="utf-8")
+        self.assertIn(f"\nSITE_ODOO_CHECK_URL={verif}   # detected by --update\n", ecrit)
+        self.assertNotIn("#SITE_ODOO_CHECK_URL=", ecrit)                                          # the template line is replaced
+        self.assertEqual(len(list(conf.parent.glob(conf.name + ".bak-*"))), 1)
+        self.assertIn(f"proxy_pass {verif};", (self.snippets / "liens-publics.conf").read_text(encoding="utf-8"))
+        # given now: read from the configuration, never written again
+        r = self.lancer("-c", str(conf), "--update", "--yes", env=dict(env, ODOO_CONF_PATHS=str(self.tmp / "absent.conf")))
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertIn(f"-> {verif}, configuration", r.stdout)
+        self.assertNotIn("écrit dans", r.stdout)
+        # no Odoo configuration file: the upstream of nginx named odoo (not the one of the chat)
+        (self.bin / "nginx").write_text('#!/bin/sh\nif [ "$1" = "-T" ]; then printf \'upstream odoochat {\\n    server 127.0.0.1:8072;\\n}\\n'
+                                        'upstream odoo {\\n    server 10.0.0.5:8079 max_fails=3;\\n}\\n\'; fi\nexit 0\n', encoding="utf-8")
+        conf3 = self.conf(self.config_deux_pages("no") + "LINK_2_ACCESS=odoo\n", "amont.conf")
+        r = self.lancer("-c", str(conf3), "--check", env=dict(self.env, ODOO_CONF_PATHS=str(self.tmp / "absent.conf"),
+                                                               RLQ_CURL_CODES="http://10.0.0.5:8079/rlq/session/check=401"))
+        self.assertIn("-> http://10.0.0.5:8079/rlq/session/check, détectée : nginx (upstream odoo)", r.stdout)
+        (self.bin / "nginx").write_text(NGINX_STUB, encoding="utf-8")
+        # nothing found: the default is used, not written
+        conf2 = self.conf(self.config_deux_pages("no") + "LINK_2_ACCESS=odoo\n", "sans-odoo.conf")
+        r = self.lancer("-c", str(conf2), "--update", "--yes", env=dict(self.env, ODOO_CONF_PATHS=str(self.tmp / "absent.conf")))
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertIn("-> http://127.0.0.1:8069/rlq/session/check, détectée : défaut", r.stdout)
+        self.assertNotIn("SITE_ODOO_CHECK_URL", conf2.read_text(encoding="utf-8"))
+
     def test_133_rollback(self):
         """1.33 : --update garde la version précédente (pages, fragment, tâche quotidienne) ; --rollback la remet, même avec une
         configuration invalide, puis nginx -t et rechargement ; rien à remettre : erreur ; la tâche quotidienne ne remplace pas la copie."""

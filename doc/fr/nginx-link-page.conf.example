@@ -33,7 +33,7 @@
 #SITE_LANGUAGE=fr                                 # fr ou en
 #SITE_LOGO_ALT=Logo de mon groupe
 #SITE_LOGO_URL=https://example.org/logo.png       # facultatif ; adresse https:// (ou chemin avec SITE_BASE_URL)
-#SITE_ODOO_CHECK_URL=http://127.0.0.1:8069/rlq/session/check   # avec LINK_n_ACCESS=odoo : la route vue du serveur
+#SITE_ODOO_CHECK_URL=http://127.0.0.1:8069/rlq/session/check   # avec LINK_n_ACCESS=odoo ; vide : détectée et écrite par --update
 #SITE_SHARED_DIR=/var/www/link-page-shared       # fichiers communs à toutes les pages (styles, polices, icônes), une seule copie
 #SITE_SHARED_PATH=/link-page-shared/             # adresse de ces fichiers (unique, différente des pages)
 #SITE_TITLE=Mon groupe
@@ -233,7 +233,7 @@
 #   SITE_BASE_URL             https:// de base des chemins relatifs (défaut : certificat unique du serveur)
 #   SITE_LOGO_URL             logo : https:// ou chemin avec SITE_BASE_URL
 #   SITE_LOGO_ALT             texte du logo (défaut : SITE_TITLE)
-#   SITE_ODOO_CHECK_URL       avec LINK_n_ACCESS=odoo : adresse de /rlq/session/check vue du serveur (défaut : http://127.0.0.1:8069/rlq/session/check)
+#   SITE_ODOO_CHECK_URL       avec LINK_n_ACCESS=odoo : adresse de /rlq/session/check vue du serveur (vide : port d'odoo.conf ou upstream odoo de nginx, écrit par --update ; sinon http://127.0.0.1:8069/rlq/session/check)
 #   SITE_SHARED_DIR           dossier des fichiers communs, une seule copie (défaut : /var/www/link-page-shared ; vide ou créé par le programme)
 #   SITE_SHARED_PATH          adresse des fichiers communs (défaut : /link-page-shared/ ; différente des pages)
 #   SITE_SHARE_IMAGE_URL      aperçu Open Graph : PNG ou JPEG 1200 x 627 (demande SITE_BASE_URL)
