@@ -3697,6 +3697,15 @@ Earlier history was archived outside this repository when this file was created.
 
 ## nginx configuration (nginx/VERSION)
 
+### 1.31.20261113.221334 - Links of the Odoo e-mails no longer refused (".." in the query string)
+
+- Motif de la demande: report of the administrator on 2026-11-13: the links of the e-mails sent by Odoo answered 404, for example /i?utm_source=JPOL+2026%3A+Rencontre%2E%2E%2E+%28E-mail+Marketing+...%29&utm_medium=Email. Odoo adds utm_* parameters with the title of the campaign; "Rencontre..." becomes "Rencontre%2E%2E%2E", and the rule refused any "%2e%2e" in the whole request.
+- Detail des modifications: nginx/snippets/securite-commune.conf, rule 3: in the path (before "?"), unchanged (any "%2e%2e", and ".." followed by /, \, %2f or %5c); in the query string, ".." or "%2e%2e" is refused only when followed by /, \, %2f or %5c; comments updated (the old one said that Odoo never makes this kind of address); nginx-tools-tests/test_config_nginx.py: class RegleTraversee131 (2 tests, read from the generic copy nginx/snippets/securite-commune.conf).
+- Bugs corriges: symptom: 404 on every link of the marketing e-mails of Odoo whose campaign title has "..." (or "..")); diagnosis: $request_uri ~* "(%2e%2e|...)" matched the encoded dots of utm_source in the query string; fix: in the query string, only a ".." followed by a separator is refused.
+- Garde-fous et cas limites traites: the traversal stays refused in the path and in the parameters (?file=../conf, ?f=%2e%2e%2fetc, ..%5c, "Rencontre%2E%2E%2E%2Fetc"); a file name with dots that are not together (photo.16x9.webp) and "a..b" in a search are accepted; the other rules of the file are unchanged.
+- Verifications effectuees: test_config_nginx.RegleTraversee131 (the URL of the report and 3 other accepted, 11 traversals refused, expression unescaped as nginx does); nginx is not installed in the test environment (nginx -t not run here).
+- Action requise: sudo nginx-hardening.sh --update (installs the new securite-commune.conf and runs nginx -t before the reload); then the link of the e-mail must answer 200 (or 301 to /i/); check that no recipient was banned after clicking (sudo fail2ban-client status, the jails of nginx).
+
 ### 1.30.20261112.095816 - Verified people exempt from the 403 by User-Agent
 
 - Motif de la demande: request of the administrator on 2026-11-12: people whose User-Agent looks like a robot (script of a volunteer, monitoring tool) must not be excluded by the 403 of bot_blocker.conf once verified.
