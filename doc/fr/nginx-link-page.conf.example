@@ -125,7 +125,7 @@
 # PAGE_n_ENGINE    : littlelink (linkstack est réservé et pas encore pris en charge)
 # PAGE_n_PATH      : adresse de la page, par exemple /liens/ ou /liens2/ (chaque page a la sienne)
 # PAGE_n_DIR       : dossier où les fichiers sont installés, par exemple /var/www/liens (absolu, unique)
-# PAGE_n_THEME     : auto, light ou dark (LittleLink), ou un des 15 thèmes de apps/link-page-themes.css :
+# PAGE_n_THEME     : auto, light ou dark (LittleLink), ou un des 20 thèmes de apps/link-page-themes.css :
 #                    aurora (aurore boréale, sombre), maple (rouge érable sur crème, clair), river (bleus du Saint-Laurent, clair),
 #                    terminal (vert sur noir, chasse fixe, sombre), tux (anthracite et orange manchot, sombre),
 #                    quebec (drapeau du Québec : bleu, boutons marine à bordure blanche, sombre), boreal (verts de la forêt boréale, sombre),
@@ -133,7 +133,9 @@
 #                    photo (votre propre image sous la page, voir PAGE_n_BACKGROUND ; boutons ardoise foncée, clair),
 #                    thèmes Linux : amber (écran ambre des vieux terminaux, sombre), arctic (nuit polaire et givre, sombre),
 #                    console (console texte de Linux, « [ OK ] » devant les boutons, sombre), retro (rétro chaleureux, sombre),
-#                    solar (clair et précis, clair) ;
+#                    solar (clair et précis, clair),
+#                    thèmes doux : blossom (fleurs de cerisier, rose pâle, clair), lavender (lavande, boutons violets, clair),
+#                    pastel (pêche, menthe et lilas, clair), rosegold (or rose, clair), berry (petits fruits la nuit, sombre) ;
 #                    ou all : tous les thèmes l'un après l'autre (ceux de PAGE_n_THEMES s'il est donné), toutes les
 #                    PAGE_n_THEME_SECONDS secondes (10 par défaut, de 3 à 3600) ; un bouton en bas à gauche l'arrête ;
 #                    un thème choisi dans le menu l'arrête aussi ; demande PAGE_n_SCRIPT=yes

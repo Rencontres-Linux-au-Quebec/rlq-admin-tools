@@ -4546,6 +4546,16 @@ Earlier history was archived outside this repository when this file was created.
 
 ## nginx-link-page.sh
 
+### 1.55.20261113.170312 - Five soft and floral themes
+
+- Title: 5 new soft and floral themes: blossom, lavender, pastel, rosegold and berry.
+- Reason: request of the administrator on 2026-11-13: more themes with a look that many visitors will like (soft colours, flowers, pastels); named after their look, for everyone.
+- Changes: apps/link-page-themes.css: themes blossom (cherry blossom: pale pink, flowers under the title, deep pink buttons), lavender (lilac light, violet pill buttons), pastel (peach, mint and lilac gradient, white pill buttons with a border of one of the three colours in turn), rosegold (warm cream, gradient buttons from rose to gold), berry (deep plum, raspberry pink buttons, dark base), common block built again from the list of the 20 themes; THEMES_RE, THEMES_LISTE, THEMES_MAISON, THEMES_TOUS, theme_base, theme_couleur and theme_nom (fr: fleurs de cerisier, lavande, pastel, or rose, petits fruits); they are also in PAGE_n_THEME=all and PAGE_n_THEMES=all; templates fr/en (doc/conf-history updated); doc/images/link-page-themes-soft.png (new); nginx-tools-tests/test_nginx_link_page.py: tests of 1.15, 1.17 and 1.54 updated.
+- Bugs fixed: none.
+- Safeguards and edge cases: the white icons of LittleLink stay visible on the light buttons of pastel and berry (filter invert and hue-rotate: dark icons, the red of YouTube kept); text on the buttons above 4.5:1 (checked: white on #b03462 5.98, white on #6c4fb8 6.09, #3a3a4a on white 11.15, white on #9e4f5c 5.63 and #8a5a2b 5.87, #2a0f24 on #ff8fc7 8.39); no external font or image.
+- Checks performed: bash -n; shellcheck (same as main); test_nginx_link_page; pictures of the 5 themes in Chrome with LittleLink.
+- Action required: none.
+
 ### 1.54.20261113.165847 - Theme all (one after the other) and 5 Linux themes
 
 - Title: PAGE_n_THEME=all shows the themes one after the other every PAGE_n_THEME_SECONDS seconds; 5 new themes about Linux: amber, arctic, console, retro and solar.
