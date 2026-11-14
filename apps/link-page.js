@@ -6,7 +6,11 @@
  *   - theme: applied in place (class of <html>, icons, browser bar colour) and remembered in the browser (localStorage)
  *   - language: the language chosen with the language link is remembered and reopened on the next visit
  *   - "Share" button: share sheet of the phone (navigator.share) or copy of the address (navigator.clipboard)
- * No cookie, nothing sent to the server. Data come from attributes written by nginx-link-page.sh:
+ *   - greeting (PAGE_n_GREETING=yes, 1.53): asks Odoo on the same site (data-lp-me, route /rlq/session/me of the module
+ *     rlq_session_check) who is signed in: "Bonjour Marie"; for the members of the group chosen in Odoo, a button at the bottom
+ *     right shows the name, address, e-mail, phone and groups. Nothing personal is written in the page: everything comes from that
+ *     answer, put in the page as text only (never as HTML), and nothing is kept in the browser.
+ * No cookie of its own, nothing sent to the server but that question. Data come from attributes written by nginx-link-page.sh:
  *   <html data-page="/liens/" data-themes="NAME|BASE|COLOUR ..." data-other-lang="en" data-other-href="/liens/en/">
  */
 (function () {
@@ -132,5 +136,72 @@
 			a.addEventListener("click", function () { ecrire(cleLangue, a.getAttribute("data-lang")); });
 		});
 		partage();
+		salutation();
 	});
+
+	// 1.53: "Bonjour Prénom" and the profile button, for a person signed in to Odoo
+	function element(nom, classe, texte) {
+		var e = document.createElement(nom);
+		if (classe) { e.className = classe; }
+		if (texte) { e.textContent = texte; }           // text only: never HTML from the answer
+		return e;
+	}
+	function salutation() {
+		var salut = document.querySelector("[data-lp-me]");
+		if (!salut || typeof window.fetch !== "function") { return; }
+		var en = (racine.getAttribute("lang") || "").slice(0, 2) === "en";
+		window.fetch(salut.getAttribute("data-lp-me"), { credentials: "same-origin", cache: "no-store", headers: { "Accept": "application/json" } })
+			.then(function (r) { return r.ok ? r.json() : null; })
+			.then(function (d) {
+				if (!d || d.signed_in !== true || typeof d.first_name !== "string" || !d.first_name) { return; }
+				salut.textContent = (en ? "Hello " : "Bonjour ") + d.first_name;
+				salut.hidden = false;
+				if (d.details && typeof d.details === "object") { profil(d.details, en); }
+			})
+			.catch(function () { /* Odoo not reachable: the page stays as it is */ });
+	}
+	function profil(d, en) {
+		var bouton = element("button", "lp-me-button");
+		bouton.type = "button";
+		bouton.setAttribute("aria-expanded", "false");
+		bouton.setAttribute("aria-controls", "lp-me-panel");
+		bouton.setAttribute("aria-label", en ? "My profile" : "Mon profil");
+		bouton.title = en ? "My profile" : "Mon profil";
+		bouton.textContent = "\uD83D\uDC64";               // bust in silhouette
+		var panneau = element("section", "lp-me-panel");
+		panneau.id = "lp-me-panel";
+		panneau.hidden = true;
+		panneau.setAttribute("aria-label", en ? "My profile" : "Mon profil");
+		var fermer = element("button", "lp-me-close", "\u00D7");
+		fermer.type = "button";
+		fermer.setAttribute("aria-label", en ? "Close" : "Fermer");
+		panneau.appendChild(fermer);
+		if (typeof d.name === "string" && d.name) { panneau.appendChild(element("h2", "", d.name)); }
+		if (Array.isArray(d.address) && d.address.length) {
+			var adresse = element("p", "lp-me-address");
+			d.address.forEach(function (ligne, i) {
+				if (i) { adresse.appendChild(document.createElement("br")); }
+				adresse.appendChild(document.createTextNode(String(ligne)));
+			});
+			panneau.appendChild(adresse);
+		}
+		if (typeof d.email === "string" && d.email) { panneau.appendChild(element("p", "", d.email)); }
+		if (typeof d.phone === "string" && d.phone) { panneau.appendChild(element("p", "", d.phone)); }
+		if (Array.isArray(d.groups) && d.groups.length) {
+			panneau.appendChild(element("h3", "", en ? "Groups" : "Groupes"));
+			var liste = element("ul", "lp-me-groups");
+			d.groups.forEach(function (g) { liste.appendChild(element("li", "", String(g))); });
+			panneau.appendChild(liste);
+		}
+		function basculer(ouvrir) {
+			panneau.hidden = !ouvrir;
+			bouton.setAttribute("aria-expanded", ouvrir ? "true" : "false");
+			if (ouvrir) { fermer.focus(); } else { bouton.focus(); }
+		}
+		bouton.addEventListener("click", function () { basculer(panneau.hidden); });
+		fermer.addEventListener("click", function () { basculer(false); });
+		document.addEventListener("keydown", function (ev) { if (ev.key === "Escape" && !panneau.hidden) { basculer(false); } });
+		document.body.appendChild(panneau);
+		document.body.appendChild(bouton);
+	}
 }());
