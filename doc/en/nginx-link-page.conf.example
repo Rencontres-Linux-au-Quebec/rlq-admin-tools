@@ -123,7 +123,8 @@
 # ---------------------------------------------------------------------------------------------
 # PAGE_n_ENABLED   : yes or no
 # PAGE_n_ENGINE    : littlelink (linkstack is reserved and not supported yet)
-# PAGE_n_PATH      : page address, for example /links/ or /links2/ (each page has its own)
+# PAGE_n_PATH      : page address, for example /links/ or /links2/ (each page has its own); never an address of
+#                    Odoo: /r (tracked links of the e-mails), /web, /my, /event, /shop, /fr, /en... (refused by --check)
 # PAGE_n_DIR       : folder where the files are installed, for example /var/www/links (absolute, unique)
 # PAGE_n_THEME     : auto, light or dark (LittleLink), or one of the 20 themes of apps/link-page-themes.css:
 #                    aurora (northern lights, dark), maple (maple red on cream, light), river (St. Lawrence blues, light),
@@ -285,7 +286,7 @@
 # PAGE_n_ : one page (n = 1, 2... without gaps)
 #   PAGE_n_ENABLED            yes (default) or no
 #   PAGE_n_ENGINE             littlelink (default)
-#   PAGE_n_PATH               required; address, for example /links/ (unique, final /)
+#   PAGE_n_PATH               required; address, for example /links/ (unique, final /, never /r, /web, /my... of Odoo)
 #   PAGE_n_DIR                required; absolute folder of the files, unique, never inside another
 #   PAGE_n_TITLE              page title (default: SITE_TITLE)
 #   PAGE_n_TITLE_EN           same in English

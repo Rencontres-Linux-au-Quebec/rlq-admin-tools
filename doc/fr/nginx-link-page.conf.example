@@ -123,7 +123,8 @@
 # ---------------------------------------------------------------------------------------------
 # PAGE_n_ENABLED   : yes ou no
 # PAGE_n_ENGINE    : littlelink (linkstack est réservé et pas encore pris en charge)
-# PAGE_n_PATH      : adresse de la page, par exemple /liens/ ou /liens2/ (chaque page a la sienne)
+# PAGE_n_PATH      : adresse de la page, par exemple /liens/ ou /liens2/ (chaque page a la sienne) ; jamais une adresse
+#                    d'Odoo : /r (liens suivis des courriels), /web, /my, /event, /shop, /fr, /en... (refusé par --check)
 # PAGE_n_DIR       : dossier où les fichiers sont installés, par exemple /var/www/liens (absolu, unique)
 # PAGE_n_THEME     : auto, light ou dark (LittleLink), ou un des 20 thèmes de apps/link-page-themes.css :
 #                    aurora (aurore boréale, sombre), maple (rouge érable sur crème, clair), river (bleus du Saint-Laurent, clair),
@@ -285,7 +286,7 @@
 # PAGE_n_ : une page (n = 1, 2... sans trou)
 #   PAGE_n_ENABLED            yes (défaut) ou no
 #   PAGE_n_ENGINE             littlelink (défaut)
-#   PAGE_n_PATH               requis ; adresse, par exemple /liens/ (unique, finit par /)
+#   PAGE_n_PATH               requis ; adresse, par exemple /liens/ (unique, finit par /, jamais /r, /web, /my... d'Odoo)
 #   PAGE_n_DIR                requis ; dossier absolu des fichiers, unique, jamais dans un autre
 #   PAGE_n_TITLE              titre de la page (défaut : SITE_TITLE)
 #   PAGE_n_TITLE_EN           même chose en anglais

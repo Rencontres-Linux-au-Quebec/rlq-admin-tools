@@ -29,7 +29,7 @@
 set -u
 LANG_C="${LC_ALL:-${LC_MESSAGES:-${LANG:-C}}}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
-readonly SCRIPT_VERSION="1.55.20261113.170312"
+readonly SCRIPT_VERSION="1.56.20261113.221654"
 readonly SCRIPT_NAME="nginx-link-page"
 # --config-merge: same rule as the other programs (apps/_config.py fusionner): the configuration file is rewritten from the new template,
 # keeping its active values; the old file is copied to FILE.bak-YYYYMMDD-HHMMSS. Then exit.
@@ -372,6 +372,18 @@ if (( ${#CFG_FICHIERS[@]} == 0 )) && [[ -z "$CONFIG_EXPLICIT" ]]; then
 fi
 
 # ---- validation ----
+# 1.56: the first part of the addresses that Odoo uses itself: a page there would hide them (the pages are served by nginx before
+# Odoo). r: the link tracker of the e-mails (/r/CODE), web and odoo: the interface, my: the portal, the routes of the usual apps and
+# of the session check (rlq), and the language prefixes of the web site (fr, en, fr_CA...). Case ignored, as the paths of the pages.
+readonly CHEMINS_ODOO="r web odoo my website websocket longpolling mail mailing survey event shop blog slides forum jobs appointment calendar im_livechat livechat report sitemap.xml robots.txt rlq unsubscribe"
+chemin_odoo() {   # chemin_odoo KEY PATH: a problem when the first part of PATH is an address of Odoo
+    local premier="${2#/}"; premier="${premier%%/*}"; premier="${premier,,}"
+    [[ -n "$premier" ]] || return 0
+    if [[ " $CHEMINS_ODOO " == *" $premier "* || "$premier" =~ ^[a-z]{2}(_[a-z]{2})?$ && " fr en es de it pt nl " == *" ${premier%%_*} "* ]]; then
+        PROBLEMES+=("$1=$2 : $(m "/$premier est une adresse d'Odoo (ex. /r : liens suivis des courriels) ; choisir un autre chemin" "/$premier is an address of Odoo (e.g. /r: tracked links of the e-mails); choose another path")")
+    fi
+    return 0
+}
 # 1.48: the packages this program needs (git, curl, python3, and qrencode for PAGE_n_QR=yes) are installed by --update as root;
 # --check lists the missing ones. NGINX_LINK_PAGE_APT replaces apt-get (tests). nginx itself is not installed here.
 A_INSTALLER=()
@@ -753,6 +765,7 @@ for i in "${PAGES_N[@]}"; do
         *) PROBLEMES+=("${pre}ENGINE=$engine (moteurs pris en charge / supported: $MOTEURS_PRIS_EN_CHARGE)") ;;
     esac
     [[ "$chemin" =~ $CHEMIN_RE ]] || PROBLEMES+=("${pre}PATH=$chemin (ex. /links/ ou /links2/)")
+    chemin_odoo "${pre}PATH" "$chemin"                       # 1.56: never an address that Odoo uses (/r of the link tracker...)
     if [[ -n "$chemin" ]]; then
         # 1.13: the paths are reached whatever their case (/L/ = /l/): two paths that differ only by their case are the same page
         [[ -z "${CHEMINS_VUS[${chemin,,}]:-}" ]] || PROBLEMES+=("${pre}PATH=$chemin deja utilise (majuscules et minuscules confondues) / already used (case ignored)")
@@ -874,6 +887,7 @@ PARTAGE_DIR="$(valeur_ou SITE_SHARED_DIR "${NGINX_LINK_PAGE_SHARED_DIR:-/var/www
 PARTAGE_URL="$(valeur_ou SITE_SHARED_PATH /link-page-shared/)"
 readonly PARTAGE_MARQUE=".nginx-link-page-shared"      # marks a folder written by this program: never another folder is replaced
 [[ "$PARTAGE_URL" =~ $CHEMIN_RE ]] || PROBLEMES+=("SITE_SHARED_PATH=$PARTAGE_URL (ex. /link-page-shared/)")
+chemin_odoo SITE_SHARED_PATH "$PARTAGE_URL"                   # 1.56
 [[ -z "${CHEMINS_VUS[${PARTAGE_URL,,}]:-}" ]] || PROBLEMES+=("SITE_SHARED_PATH=$PARTAGE_URL : $(m "déjà le chemin d'une page" "already the path of a page")")
 if [[ "$PARTAGE_DIR" != /?* ]]; then
     PROBLEMES+=("SITE_SHARED_DIR=$PARTAGE_DIR (chemin absolu, pas / / absolute path, not /)")

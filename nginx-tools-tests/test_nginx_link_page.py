@@ -1276,6 +1276,21 @@ LINK_4_MENU=3
                 self.assertNotEqual(r.returncode, 0)
                 self.assertIn(attendu, r.stderr)
 
+    def test_156_chemins_d_odoo_refuses(self):
+        """1.56 : une page (ou les fichiers communs) ne prend jamais une adresse d'Odoo : /r (liens suivis des courriels), /web,
+        /my, /event... et les préfixes de langue (/fr, /en_CA) ; majuscules ignorées ; /i, /d, /liens restent permis."""
+        for chemin in ("/r/", "/R/", "/web/", "/my/", "/event/", "/mailing/", "/en/", "/fr_CA/", "/rlq/"):
+            with self.subTest(chemin=chemin):
+                r = self.lancer("-c", str(self.conf(MINIMAL.replace("PAGE_1_PATH=/liens/", f"PAGE_1_PATH={chemin}"))), "--check")
+                self.assertNotEqual(r.returncode, 0)
+                self.assertIn(f"PAGE_1_PATH={chemin} : /{chemin.strip('/').lower()} est une adresse d'Odoo", r.stderr)
+        r = self.lancer("-c", str(self.conf(MINIMAL + "SITE_SHARED_PATH=/r/\n")), "--check")
+        self.assertIn("SITE_SHARED_PATH=/r/ : /r est une adresse d'Odoo", r.stderr)
+        for chemin in ("/i/", "/d/", "/q/", "/liens/", "/rencontres/", "/qr/"):
+            with self.subTest(chemin=chemin):
+                r = self.lancer("-c", str(self.conf(MINIMAL.replace("PAGE_1_PATH=/liens/", f"PAGE_1_PATH={chemin}"))), "--check")
+                self.assertNotIn("est une adresse d'Odoo", r.stderr)
+
     def test_133_rollback(self):
         """1.33 : --update garde la version précédente (pages, fragment, tâche quotidienne) ; --rollback la remet, même avec une
         configuration invalide, puis nginx -t et rechargement ; rien à remettre : erreur ; la tâche quotidienne ne remplace pas la copie."""
