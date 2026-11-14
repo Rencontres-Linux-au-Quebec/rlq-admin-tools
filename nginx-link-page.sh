@@ -29,7 +29,7 @@
 set -u
 LANG_C="${LC_ALL:-${LC_MESSAGES:-${LANG:-C}}}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
-readonly SCRIPT_VERSION="1.57.20261113.224108"
+readonly SCRIPT_VERSION="1.58.20261113.224807"
 readonly SCRIPT_NAME="nginx-link-page"
 # --config-merge: same rule as the other programs (apps/_config.py fusionner): the configuration file is rewritten from the new template,
 # keeping its active values; the old file is copied to FILE.bak-YYYYMMDD-HHMMSS. Then exit.
@@ -1465,6 +1465,14 @@ preparer_commun() {
     if [[ -r "$LINK_PAGE_JS" ]]; then install -m 644 "$LINK_PAGE_JS" "$d/js/link-page.js"; fi
     printf '%s\n' "Written by $SCRIPT_NAME.sh --update: replaced at each run, do not put other files here." > "$d/$PARTAGE_MARQUE"
 }
+# 1.58: url_commune FILE: address of a shared file with ?v= and the start of the sha256 of its content: the address changes when
+# the file changes, so the browsers and Cloudflare, which keep the style sheets and the script (1 hour from nginx, often more at
+# Cloudflare), take the new one at once (a new theme was shown on a white background with the old themes.css)
+url_commune() {
+    local h=""
+    if [[ -f "$TMP/shared/$1" ]]; then h="$(sha256sum "$TMP/shared/$1" | cut -c1-10)"; fi
+    printf '%s' "${PARTAGE_URL}$1${h:+?v=$h}"
+}
 # preparer_dossier DOSSIER: the files of one page and language folder: only the images of the site (logo, icons given by address, thumbnails)
 preparer_dossier() {
     local d="$1"
@@ -1697,23 +1705,23 @@ genere_index() {   # genere_index DOSSIER THEME TITRE [FICHIER] [CIBLE_BASCULE] 
         fi
         echo "    <meta name=\"referrer\" content=\"strict-origin-when-cross-origin\">"
         echo "    <meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; img-src 'self'; style-src 'self'; font-src 'self'; script-src $(csp_script);$( [[ "${P_SALUT:-no}" == yes && "$P_JS" == yes ]] && echo " connect-src 'self';") object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'\">"
-        echo "    <link rel=\"stylesheet\" href=\"${PARTAGE_URL}css/reset.css\">"      # 1.49: shared files (SITE_SHARED_PATH)
-        echo "    <link rel=\"stylesheet\" href=\"${PARTAGE_URL}css/style.css\">"
-        echo "    <link rel=\"stylesheet\" href=\"${PARTAGE_URL}css/brands.css\">"
-        if [[ -f "$TMP/shared/css/brands-extended.css" ]]; then echo "    <link rel=\"stylesheet\" href=\"${PARTAGE_URL}css/brands-extended.css\">"; fi
+        echo "    <link rel=\"stylesheet\" href=\"$(url_commune css/reset.css)\">"      # 1.49: shared files (SITE_SHARED_PATH)
+        echo "    <link rel=\"stylesheet\" href=\"$(url_commune css/style.css)\">"
+        echo "    <link rel=\"stylesheet\" href=\"$(url_commune css/brands.css)\">"
+        if [[ -f "$TMP/shared/css/brands-extended.css" ]]; then echo "    <link rel=\"stylesheet\" href=\"$(url_commune css/brands-extended.css)\">"; fi
         # 1.18: with the script, the menu changes the theme in place: the style sheets of every offered theme are loaded
         if [[ -f "$TMP/shared/css/themes.css" ]] && { [[ -n "$(theme_couleur "$theme")" && "$theme" != ls-* ]] || { [[ "$P_JS" == yes ]] && menu_contient "^($THEMES_MAISON)\$"; }; }; then
-            echo "    <link rel=\"stylesheet\" href=\"${PARTAGE_URL}css/themes.css\">"
+            echo "    <link rel=\"stylesheet\" href=\"$(url_commune css/themes.css)\">"
         fi
         if [[ -f "$TMP/shared/css/themes-linkstack.css" ]] && { [[ "$theme" == ls-* ]] || { [[ "$P_JS" == yes ]] && menu_contient '^ls-'; }; }; then
-            echo "    <link rel=\"stylesheet\" href=\"${PARTAGE_URL}css/themes-linkstack.css\">"
+            echo "    <link rel=\"stylesheet\" href=\"$(url_commune css/themes-linkstack.css)\">"
         fi
         if [[ -f "$dossier/css/background.css" ]]; then echo "    <link rel=\"stylesheet\" href=\"css/background.css\">"; fi      # 1.41
-        if (( ${#P_MENU[@]} )) || [[ "$P_JS" == yes && "$P_PARTAGE" == yes ]]; then echo "    <link rel=\"stylesheet\" href=\"${PARTAGE_URL}css/theme-menu.css\">"; fi
-        if [[ "$P_A_MENU" == yes ]]; then echo "    <link rel=\"stylesheet\" href=\"${PARTAGE_URL}css/link-menu.css\">"; fi      # 1.26
-        if [[ "$P_A_EXTRAS" == yes ]]; then echo "    <link rel=\"stylesheet\" href=\"${PARTAGE_URL}css/extras.css\">"; fi            # 1.31
+        if (( ${#P_MENU[@]} )) || [[ "$P_JS" == yes && "$P_PARTAGE" == yes ]]; then echo "    <link rel=\"stylesheet\" href=\"$(url_commune css/theme-menu.css)\">"; fi
+        if [[ "$P_A_MENU" == yes ]]; then echo "    <link rel=\"stylesheet\" href=\"$(url_commune css/link-menu.css)\">"; fi      # 1.26
+        if [[ "$P_A_EXTRAS" == yes ]]; then echo "    <link rel=\"stylesheet\" href=\"$(url_commune css/extras.css)\">"; fi            # 1.31
         if [[ -f "$dossier/css/accent.css" ]]; then echo "    <link rel=\"stylesheet\" href=\"css/accent.css\">"; fi
-        if [[ "$P_JS" == yes ]]; then echo "    <script src=\"${PARTAGE_URL}js/link-page.js\"></script>"; fi      # 1.18: in <head>: theme set before drawing
+        if [[ "$P_JS" == yes ]]; then echo "    <script src=\"$(url_commune js/link-page.js)\"></script>"; fi      # 1.18: in <head>: theme set before drawing
         echo "  </head>"
         echo "  <body>"
         if [[ "$P_JS" == yes && "$P_PARTAGE" == yes ]]; then   # 1.18: "Share" button, shown by the script when the browser can share or copy
