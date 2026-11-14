@@ -402,6 +402,29 @@ def regles_de_refus(chemin_fichier):
     return regles
 
 
+class RegleTraversee131(unittest.TestCase):
+    """Configuration nginx 1.31 (nginx/VERSION) : les liens des courriels marketing d'Odoo (utm_source="Rencontre%2E%2E%2E ...") ne sont plus refusés ;
+    la traversée de répertoires reste refusée dans le chemin et dans les paramètres. Expression lue dans securite-commune.conf,
+    déséchappée comme nginx (chaque « \\\\ » devient « \\ ») puis évaluée par Python (même syntaxe PCRE)."""
+    def setUp(self):
+        import re
+        texte = open(script_path("nginx/snippets/securite-commune.conf"), encoding="utf-8").read()     # the generic copy of the repository
+        brute = re.search(r'^if \(\$request_uri ~\* "(\^\[\^\?\]\*\(%2e%2e[^"]*)"\) \{\n    return 404;', texte, re.M).group(1)
+        self.rx = re.compile(brute.replace("\\\\", "\\"), re.I)
+
+    def test_liens_des_courriels_d_odoo_acceptes(self):
+        for uri in ("/i?utm_source=JPOL+2026%3A+Rencontre%2E%2E%2E+%28E-mail+Marketing+cr%C3%A9%C3%A9%28es%29+le+2026-11-14%29&utm_medium=Email",
+                    "/i/?utm_campaign=Bient%C3%B4t...&utm_medium=Email", "/event?search=a..b", "/web/image/photo.16x9.webp"):
+            with self.subTest(uri=uri):
+                self.assertIsNone(self.rx.search(uri), uri)
+
+    def test_traversee_toujours_refusee(self):
+        for uri in ("/../etc/passwd", "/%2e%2e/etc/passwd", "/a/%2E%2E%2Fb", "/x/..%2fy", "/a\\..\\b", "/%2e%2e",
+                    "/web?file=../conf/odoo.conf", "/web?f=%2e%2e%2fetc", "/x?f=..%5cwin", "/x?a=1&f=Rencontre%2E%2E%2E%2Fetc", "/x?f=..\\b"):
+            with self.subTest(uri=uri):
+                self.assertIsNotNone(self.rx.search(uri), uri)
+
+
 @unittest.skipUnless(os.path.isdir(CONFIG_DIR), f"configuration absente : {CONFIG_DIR}")
 class RegleWordPress(unittest.TestCase):
     """2026-10-02 : /wp-admin/ (un répertoire, pas un .php) traversait nginx jusqu'à Odoo (303 puis page 404 de 32 Ko), alors que
