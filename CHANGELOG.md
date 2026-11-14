@@ -100,6 +100,20 @@ Earlier history was archived outside this repository when this file was created.
 
 ## odoo-sql-maint
 
+### 1.5.20261114.154941 - Version shown at startup
+
+- Title: The name and the version are the first line of every run.
+- Reason: The administrator asked that every program show its version when it starts. odoo-sql-maint was one of the two programs that did not.
+- Changes:
+  - main prints "odoo-sql-maint vVERSION" on the standard output before the options are read, for every option, --help and the menu included. --version keeps its own single line.
+  - Files: odoo-sql-maint, nginx-tools-tests/test_conventions.py.
+- Bugs fixed: none.
+- Safeguards and edge cases:
+  - The results of --run are written to their own files: the new line does not enter them.
+- Checks performed:
+  - New test VersionAuDemarrage (test_conventions.py): first line of --help, and --version printing the version only once.
+- Action required: none.
+
 ### 1.4.20261028.202537 - Menu no longer captures dialog output (fix for "cannot open tty-output")
 
 - Title: The menu asks dialog for its answer in a file instead of capturing its output.
@@ -4571,6 +4585,22 @@ Earlier history was archived outside this repository when this file was created.
 - Current version. Earlier history archived outside the repository.
 
 ## nginx-link-page.sh
+
+### 1.59.20261114.154941 - Version shown at startup
+
+- Title: The name and the version are the first line of every run.
+- Reason: The administrator asked that every program show its version when it starts. nginx-link-page.sh was one of the two programs that did not: a run of --update or --check gave no way to know which version had produced it.
+- Changes:
+  - A first line "nginx-link-page.sh vVERSION" is printed on the standard output for every option, --help included. --version keeps its own single line "nginx-link-page.sh version VERSION".
+  - Files: nginx-link-page.sh, nginx-tools-tests/test_conventions.py.
+- Bugs fixed: none.
+- Safeguards and edge cases:
+  - The daily task (/etc/cron.d/nginx-link-page) sends its output to the system journal (logger): the new line is logged there and no mail is sent by cron.
+  - The line is printed before the configuration is read, so it is shown even when the configuration is refused.
+- Checks performed:
+  - New test VersionAuDemarrage (test_conventions.py): for every program of the suite, nginx-link-page.sh and odoo-sql-maint included, the first line of --help is the name followed by "v" and the declared version, and --version prints the version only once.
+  - test_nginx_link_page: all tests pass.
+- Action required: none.
 
 ### 1.58.20261113.224807 - Shared files with the fingerprint of their content
 

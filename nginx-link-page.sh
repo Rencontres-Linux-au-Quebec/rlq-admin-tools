@@ -29,8 +29,10 @@
 set -u
 LANG_C="${LC_ALL:-${LC_MESSAGES:-${LANG:-C}}}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
-readonly SCRIPT_VERSION="1.58.20261113.224807"
+readonly SCRIPT_VERSION="1.59.20261114.154941"
 readonly SCRIPT_NAME="nginx-link-page"
+# 1.59: first line of EVERY run, even --help: name and version (--version prints it by itself), as the other programs do
+case " $* " in *" --version "*) ;; *) echo "$SCRIPT_NAME.sh v$SCRIPT_VERSION" ;; esac
 # --config-merge: same rule as the other programs (apps/_config.py fusionner): the configuration file is rewritten from the new template,
 # keeping its active values; the old file is copied to FILE.bak-YYYYMMDD-HHMMSS. Then exit.
 # 1.45: the configuration is read and checked first (same checks as --check): with a problem, the merge is refused and nothing is written.

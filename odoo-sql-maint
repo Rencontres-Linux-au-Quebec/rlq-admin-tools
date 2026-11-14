@@ -24,7 +24,7 @@
 #
 # Options (par ordre alphabetique) : see --help / voir --help
 
-__version__="1.4.20261028.202537"
+__version__="1.5.20261114.154941"
 
 set -u
 set -o pipefail
@@ -590,6 +590,8 @@ parse_args() {
 main() {
   trap cleanup_temp EXIT
   trap 'exit 0' PIPE    # quiet exit when the output pipe is closed (ex. | head)
+  # 1.5: first line of EVERY run, even --help: name and version (--version prints it by itself), as the other programs do
+  case " $* " in *" --version "*) ;; *) printf '%s v%s\n' "$PROGRAM" "$__version__" ;; esac
 
   parse_args "$@"
   init_colors
