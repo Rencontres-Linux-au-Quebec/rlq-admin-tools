@@ -4555,6 +4555,16 @@ Earlier history was archived outside this repository when this file was created.
 
 ## nginx-link-page.sh
 
+### 1.58.20261113.224807 - Shared files with the fingerprint of their content
+
+- Title: the links to the shared files (style sheets and script) carry ?v= and the start of the sha256 of their content, so a new version is taken at once by the browsers and Cloudflare.
+- Reason: report of the administrator on 2026-11-13: the themes created lately do not work, the background is white, the old themes work.
+- Changes: new function url_commune FILE (address SITE_SHARED_PATH/FILE?v=<10 hexadecimal characters of the sha256 of the file written in the shared folder>); genere_index uses it for every shared style sheet (reset, style, brands, brands-extended, themes, themes-linkstack, theme-menu, link-menu, extras) and for js/link-page.js; nginx-tools-tests/test_nginx_link_page.py: 1 test, the tests of the addresses of these files updated.
+- Bugs fixed: symptom: the new themes (amber, arctic, console, retro, solar, blossom, lavender, pastel, rosegold, berry) shown on a white background, the old ones fine; diagnosis: the address of themes.css did not change between versions; the browsers and Cloudflare kept the old file (1 hour from nginx, often more at Cloudflare), which has no rule for the new themes, so the page fell back on the white of LittleLink; fix: the address changes when the content changes (the program itself was right: the new themes, served locally, have their colours).
+- Safeguards and edge cases: the address only changes when the content changes (same file: same address, the caches stay useful); nginx serves the file the same way (the parameter is ignored, the rules of the shared location look at the path only); the icons and fonts keep their address (they do not change between versions).
+- Checks performed: bash -n; shellcheck (same as main); test_nginx_link_page (new test: the value of ?v= is the sha256 of each file; no address without ?v=); Chrome headless: pages with amber, blossom and berry served locally have their background colours.
+- Action required: sudo nginx-link-page.sh --update --yes (the pages get the new addresses). Until then, or right now: purge the cache of Cloudflare for SITE_SHARED_PATH/css/themes.css (Caching > Configuration > Custom Purge) and reload the page with Ctrl+F5.
+
 ### 1.57.20261113.224108 - Themes in alphabetical order
 
 - Title: the themes of the "Theme" menu, and of PAGE_n_THEME=all, in alphabetical order of their names in the language of the page.
