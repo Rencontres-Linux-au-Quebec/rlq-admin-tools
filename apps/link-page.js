@@ -6,6 +6,9 @@
  *   - theme: applied in place (class of <html>, icons, browser bar colour) and remembered in the browser (localStorage)
  *   - language: the language chosen with the language link is remembered and reopened on the next visit
  *   - "Share" button: share sheet of the phone (navigator.share) or copy of the address (navigator.clipboard)
+ *   - themes one after the other (PAGE_n_THEME=all, 1.54, data-rotate="SECONDS"): every theme of the "Theme" button in turn, so
+ *     the visitors see them all; a button at the bottom left stops and starts it; a theme chosen in the menu stops it (and is
+ *     remembered as usual); a hidden tab skips the turns; with "reduce motion", it starts stopped; a remembered theme wins
  *   - greeting (PAGE_n_GREETING=yes, 1.53): asks Odoo on the same site (data-lp-me, route /rlq/session/me of the module
  *     rlq_session_check) who is signed in: "Bonjour Marie"; for the members of the group chosen in Odoo, a button at the bottom
  *     right shows the name, address, e-mail, phone and groups. Nothing personal is written in the page: everything comes from that
@@ -137,7 +140,44 @@
 		});
 		partage();
 		salutation();
+		defilement();
 	});
+
+	// 1.54: PAGE_n_THEME=all: the themes of the "Theme" button one after the other, every data-rotate seconds
+	function defilement() {
+		var secondes = parseInt(racine.getAttribute("data-rotate") || "0", 10);
+		var noms = Object.keys(themes);
+		if (!(secondes >= 3) || noms.length < 2 || lire(cleTheme)) { return; }   // a theme chosen before: kept
+		var en = (racine.getAttribute("lang") || "").slice(0, 2) === "en";
+		var minuterie = null;
+		var bouton = element("button", "rotate-button");
+		bouton.type = "button";
+		function nomTheme(t) {
+			var a = document.querySelector('.theme-menu a[data-theme="' + t + '"]');
+			return a ? a.textContent.replace(/^\s+|\s+$/g, "") : t;
+		}
+		function etiquette() {
+			var arret = minuterie !== null;
+			bouton.textContent = (arret ? "\u23F8 " : "\u25B6 ") + nomTheme(themeActif);
+			bouton.setAttribute("aria-pressed", arret ? "true" : "false");
+			bouton.title = arret ? (en ? "Stop the themes" : "Arrêter le défilement des thèmes") : (en ? "Show the themes one after the other" : "Faire défiler les thèmes");
+		}
+		function suivant() {
+			if (document.hidden) { return; }
+			var i = noms.indexOf(themeActif);
+			appliquer(noms[(i + 1) % noms.length]);
+			etiquette();
+		}
+		function demarrer() { if (minuterie === null) { minuterie = window.setInterval(suivant, secondes * 1000); } etiquette(); }
+		function arreter() { if (minuterie !== null) { window.clearInterval(minuterie); minuterie = null; } etiquette(); }
+		bouton.addEventListener("click", function () { if (minuterie === null) { suivant(); demarrer(); } else { arreter(); } });
+		Array.prototype.forEach.call(document.querySelectorAll(".theme-menu a[data-theme]"), function (a) {
+			a.addEventListener("click", arreter);                     // the visitor chose: no more turns
+		});
+		document.body.appendChild(bouton);
+		var calme = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+		if (calme) { etiquette(); } else { demarrer(); }
+	}
 
 	// 1.53: "Bonjour Prénom" and the profile button, for a person signed in to Odoo
 	function element(nom, classe, texte) {

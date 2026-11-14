@@ -1,5 +1,5 @@
 /*
- * link-page-themes.css - 10 additional themes for the link pages of nginx-link-page.sh (PAGE_n_THEME).
+ * link-page-themes.css - 15 additional themes for the link pages of nginx-link-page.sh (PAGE_n_THEME).
  * Copyright (C) 2026 Services-Conseils Linux Inc. - AGPL-3.0-or-later (see LICENSE).
  * Copied as css/themes.css into each page folder, loaded after style.css and brands.css (LittleLink) and before accent.css
  * (PAGE_n_ACCENT keeps the last word on the default buttons). No external font, image or script: the Content-Security-Policy
@@ -16,24 +16,30 @@
  *   winter    Quebec winter: snow white and ice blue buttons, snowflakes                   (light base)
  *   photo     an image of the page (PAGE_n_BACKGROUND) under it, blurred and pale or as it is; dark slate
  *             buttons (PAGE_n_ACCENT changes them); the image is written in css/background.css by the program  (light base)
+ * 1.54, Linux themes:
+ *   amber     amber monochrome screen of the old terminals, monospace                     (dark base)
+ *   arctic    cold polar night and frost blue (colours of the Nord palette, MIT, Arctic Ice Studio)  (dark base)
+ *   console   the Linux text console: black, grey, boot messages "[  OK  ]" before the buttons  (dark base)
+ *   retro     warm retro groove (colours of the gruvbox palette, MIT, Pavel Pertsev)      (dark base)
+ *   solar     light and precise (colours of the Solarized palette, MIT, Ethan Schoonover) (light base)
  */
 
-/* ---- common to the 10 themes (one selector per theme, built from the list) --------------- */
-:root.theme-aurora body, :root.theme-maple body, :root.theme-river body, :root.theme-terminal body, :root.theme-tux body, :root.theme-quebec body, :root.theme-boreal body, :root.theme-sunset body, :root.theme-winter body, :root.theme-photo body {
+/* ---- common to the 15 themes (one selector per theme, built from the list) --------------- */
+:root.theme-aurora body, :root.theme-maple body, :root.theme-river body, :root.theme-terminal body, :root.theme-tux body, :root.theme-quebec body, :root.theme-boreal body, :root.theme-sunset body, :root.theme-winter body, :root.theme-photo body, :root.theme-amber body, :root.theme-arctic body, :root.theme-console body, :root.theme-retro body, :root.theme-solar body {
 	min-height: 100vh;
 	background-attachment: fixed;
 }
-:root.theme-aurora .button, :root.theme-maple .button, :root.theme-river .button, :root.theme-terminal .button, :root.theme-tux .button, :root.theme-quebec .button, :root.theme-boreal .button, :root.theme-sunset .button, :root.theme-winter .button, :root.theme-photo .button {
+:root.theme-aurora .button, :root.theme-maple .button, :root.theme-river .button, :root.theme-terminal .button, :root.theme-tux .button, :root.theme-quebec .button, :root.theme-boreal .button, :root.theme-sunset .button, :root.theme-winter .button, :root.theme-photo .button, :root.theme-amber .button, :root.theme-arctic .button, :root.theme-console .button, :root.theme-retro .button, :root.theme-solar .button {
 	transition: transform 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease;
 }
-:root.theme-aurora .button:hover, :root.theme-maple .button:hover, :root.theme-river .button:hover, :root.theme-terminal .button:hover, :root.theme-tux .button:hover, :root.theme-quebec .button:hover, :root.theme-boreal .button:hover, :root.theme-sunset .button:hover, :root.theme-winter .button:hover, :root.theme-photo .button:hover {
+:root.theme-aurora .button:hover, :root.theme-maple .button:hover, :root.theme-river .button:hover, :root.theme-terminal .button:hover, :root.theme-tux .button:hover, :root.theme-quebec .button:hover, :root.theme-boreal .button:hover, :root.theme-sunset .button:hover, :root.theme-winter .button:hover, :root.theme-photo .button:hover, :root.theme-amber .button:hover, :root.theme-arctic .button:hover, :root.theme-console .button:hover, :root.theme-retro .button:hover, :root.theme-solar .button:hover {
 	transform: translateY(-2px);
 }
 @media (prefers-reduced-motion: reduce) {
-	:root.theme-aurora .button, :root.theme-maple .button, :root.theme-river .button, :root.theme-terminal .button, :root.theme-tux .button, :root.theme-quebec .button, :root.theme-boreal .button, :root.theme-sunset .button, :root.theme-winter .button, :root.theme-photo .button {
+	:root.theme-aurora .button, :root.theme-maple .button, :root.theme-river .button, :root.theme-terminal .button, :root.theme-tux .button, :root.theme-quebec .button, :root.theme-boreal .button, :root.theme-sunset .button, :root.theme-winter .button, :root.theme-photo .button, :root.theme-amber .button, :root.theme-arctic .button, :root.theme-console .button, :root.theme-retro .button, :root.theme-solar .button {
 		transition: none;
 	}
-	:root.theme-aurora .button:hover, :root.theme-maple .button:hover, :root.theme-river .button:hover, :root.theme-terminal .button:hover, :root.theme-tux .button:hover, :root.theme-quebec .button:hover, :root.theme-boreal .button:hover, :root.theme-sunset .button:hover, :root.theme-winter .button:hover, :root.theme-photo .button:hover {
+	:root.theme-aurora .button:hover, :root.theme-maple .button:hover, :root.theme-river .button:hover, :root.theme-terminal .button:hover, :root.theme-tux .button:hover, :root.theme-quebec .button:hover, :root.theme-boreal .button:hover, :root.theme-sunset .button:hover, :root.theme-winter .button:hover, :root.theme-photo .button:hover, :root.theme-amber .button:hover, :root.theme-arctic .button:hover, :root.theme-console .button:hover, :root.theme-retro .button:hover, :root.theme-solar .button:hover {
 		transform: none;
 	}
 }
@@ -343,3 +349,178 @@
 :root.theme-photo a:not(.button) { color: #1f4e8c; }
 :root.theme-photo a:not(.button):hover { color: #0f2b52; }
 :root.theme-photo :focus-visible { outline: 2px solid #f2a900; outline-offset: 2px; }
+
+/* ---- amber: amber monochrome screen --------------------------------------------------------- */
+:root.theme-amber {
+	color-scheme: dark;
+}
+:root.theme-amber body {
+	background-color: #100a00;
+	background-image: repeating-linear-gradient(180deg, rgba(255, 176, 0, 0.04) 0, rgba(255, 176, 0, 0.04) 1px, transparent 1px, transparent 3px);
+	color: #ffcc66;
+	font-family: "DejaVu Sans Mono", "Liberation Mono", "Ubuntu Mono", Menlo, Consolas, monospace;
+}
+:root.theme-amber h1 {
+	color: #ffb000;
+	font-family: inherit;
+	letter-spacing: 0;
+	hyphens: manual;
+	text-shadow: 0 0 8px rgba(255, 176, 0, 0.45);
+}
+:root.theme-amber h1::after {
+	content: "_";
+	color: #ffb000;
+}
+:root.theme-amber .button {
+	font-family: inherit;
+	border-radius: 0;
+	hyphens: manual;
+}
+:root.theme-amber .button.button-default {
+	--button-text: #ffb000;
+	--button-background: #1c1200;
+	--button-border: 1px solid #ffb000;
+}
+:root.theme-amber .button:hover {
+	box-shadow: 0 0 12px rgba(255, 176, 0, 0.45);
+}
+:root.theme-amber a:not(.button) { color: #ffb000; }
+:root.theme-amber a:not(.button):hover { color: #ffe0a0; }
+:root.theme-amber :focus-visible { outline: 2px dashed #ffb000; outline-offset: 2px; }
+
+/* ---- arctic: polar night and frost (Nord palette) ------------------------------------------- */
+:root.theme-arctic {
+	color-scheme: dark;
+}
+:root.theme-arctic body {
+	background-color: #2e3440;
+	background-image: linear-gradient(180deg, #3b4252 0%, #2e3440 60%);
+	color: #eceff4;
+}
+:root.theme-arctic h1 {
+	color: #88c0d0;
+}
+:root.theme-arctic .button.button-default {
+	--button-text: #2e3440;
+	--button-background: #88c0d0;
+	--button-border: 1px solid #8fbcbb;
+	border-radius: 0.5rem;
+}
+:root.theme-arctic .button:hover {
+	box-shadow: 0 6px 16px rgba(136, 192, 208, 0.3);
+}
+:root.theme-arctic a:not(.button) { color: #8fbcbb; }
+:root.theme-arctic a:not(.button):hover { color: #e5e9f0; }
+:root.theme-arctic :focus-visible { outline: 2px solid #ebcb8b; outline-offset: 2px; }
+
+/* ---- console: the Linux text console ------------------------------------------------------- */
+:root.theme-console {
+	color-scheme: dark;
+}
+:root.theme-console body {
+	background-color: #000000;
+	color: #aaaaaa;
+	font-family: "DejaVu Sans Mono", "Liberation Mono", "Ubuntu Mono", Menlo, Consolas, monospace;
+}
+:root.theme-console h1 {
+	color: #ffffff;
+	font-family: inherit;
+	letter-spacing: 0;
+	hyphens: manual;
+}
+:root.theme-console h1::before {
+	content: "login: ";
+	color: #aaaaaa;
+	font-weight: 400;
+}
+:root.theme-console .button {
+	font-family: inherit;
+	border-radius: 0;
+	hyphens: manual;
+}
+:root.theme-console .button.button-default {
+	--button-text: #ffffff;
+	--button-background: #000000;
+	--button-border: 1px solid #555555;
+	justify-content: flex-start;
+	text-align: left;
+}
+:root.theme-console .button.button-default::before {
+	content: "[ OK ]";
+	flex: none;
+	margin-right: 0.6rem;
+	color: #55ff55;
+}
+:root.theme-console .button:hover {
+	--button-border: 1px solid #aaaaaa;
+	background-color: #1a1a1a;
+}
+:root.theme-console a:not(.button) { color: #5555ff; }
+:root.theme-console a:not(.button):hover { color: #8888ff; }
+:root.theme-console :focus-visible { outline: 2px solid #ffffff; outline-offset: 2px; }
+
+/* ---- retro: warm retro groove (gruvbox palette) --------------------------------------------- */
+:root.theme-retro {
+	color-scheme: dark;
+}
+:root.theme-retro body {
+	background-color: #282828;
+	background-image: radial-gradient(ellipse 90% 50% at 50% 0%, #3c3836 0%, #282828 70%);
+	color: #ebdbb2;
+}
+:root.theme-retro h1 {
+	color: #fabd2f;
+}
+:root.theme-retro h1::after {
+	content: "";
+	display: block;
+	width: 6rem;
+	height: 0.3rem;
+	margin: 0.75rem auto 0;
+	background: linear-gradient(90deg, #fb4934 0 25%, #fabd2f 25% 50%, #b8bb26 50% 75%, #83a598 75% 100%);
+}
+:root.theme-retro .button.button-default {
+	--button-text: #282828;
+	--button-background: #fe8019;
+	--button-border: 1px solid #d65d0e;
+	border-radius: 0.3rem;
+}
+:root.theme-retro .button:hover {
+	box-shadow: 0 6px 16px rgba(254, 128, 25, 0.3);
+}
+:root.theme-retro a:not(.button) { color: #83a598; }
+:root.theme-retro a:not(.button):hover { color: #ebdbb2; }
+:root.theme-retro :focus-visible { outline: 2px solid #fabd2f; outline-offset: 2px; }
+
+/* ---- solar: light and precise (Solarized palette) ------------------------------------------- */
+:root.theme-solar {
+	color-scheme: light;
+}
+:root.theme-solar body {
+	background-color: #fdf6e3;
+	color: #586e75;
+}
+:root.theme-solar h1 {
+	color: #073642;
+}
+:root.theme-solar h1::after {
+	content: "";
+	display: block;
+	width: 4rem;
+	height: 0.3rem;
+	margin: 0.75rem auto 0;
+	border-radius: 0.2rem;
+	background: #b58900;
+}
+:root.theme-solar .button.button-default {
+	--button-text: #ffffff;
+	--button-background: #2075b0;
+	--button-border: 1px solid #1b6699;
+	border-radius: 0.5rem;
+}
+:root.theme-solar .button:hover {
+	box-shadow: 0 6px 16px rgba(38, 139, 210, 0.3);
+}
+:root.theme-solar a:not(.button) { color: #1b6699; }
+:root.theme-solar a:not(.button):hover { color: #073642; }
+:root.theme-solar :focus-visible { outline: 2px solid #cb4b16; outline-offset: 2px; }

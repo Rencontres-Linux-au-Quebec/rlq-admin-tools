@@ -125,12 +125,18 @@
 # PAGE_n_ENGINE    : littlelink (linkstack est réservé et pas encore pris en charge)
 # PAGE_n_PATH      : adresse de la page, par exemple /liens/ ou /liens2/ (chaque page a la sienne)
 # PAGE_n_DIR       : dossier où les fichiers sont installés, par exemple /var/www/liens (absolu, unique)
-# PAGE_n_THEME     : auto, light ou dark (LittleLink), ou un des 10 thèmes de apps/link-page-themes.css :
+# PAGE_n_THEME     : auto, light ou dark (LittleLink), ou un des 15 thèmes de apps/link-page-themes.css :
 #                    aurora (aurore boréale, sombre), maple (rouge érable sur crème, clair), river (bleus du Saint-Laurent, clair),
 #                    terminal (vert sur noir, chasse fixe, sombre), tux (anthracite et orange manchot, sombre),
 #                    quebec (drapeau du Québec : bleu, boutons marine à bordure blanche, sombre), boreal (verts de la forêt boréale, sombre),
 #                    sunset (ciel orange à violet, sombre), winter (blanc neige et bleu glace, clair),
-#                    photo (votre propre image sous la page, voir PAGE_n_BACKGROUND ; boutons ardoise foncée, clair)
+#                    photo (votre propre image sous la page, voir PAGE_n_BACKGROUND ; boutons ardoise foncée, clair),
+#                    thèmes Linux : amber (écran ambre des vieux terminaux, sombre), arctic (nuit polaire et givre, sombre),
+#                    console (console texte de Linux, « [ OK ] » devant les boutons, sombre), retro (rétro chaleureux, sombre),
+#                    solar (clair et précis, clair) ;
+#                    ou all : tous les thèmes l'un après l'autre (ceux de PAGE_n_THEMES s'il est donné), toutes les
+#                    PAGE_n_THEME_SECONDS secondes (10 par défaut, de 3 à 3600) ; un bouton en bas à gauche l'arrête ;
+#                    un thème choisi dans le menu l'arrête aussi ; demande PAGE_n_SCRIPT=yes
 #                    ou un des 4 thèmes LinkStack adaptés dans apps/link-page-themes/ (MIT, voir LICENSES.md) :
 #                    ls-aurora (aurore aux couleurs de la fierté sur une forêt), ls-dark (vallée de nuit), ls-dawn (montagnes à l'aube,
 #                    boutons en contour), ls-misty-rain (nuit bleu gris avec pluie) ; tous sombres
@@ -190,6 +196,7 @@
 #PAGE_1_THEME=auto
 # exemple de PAGE_1_THEMES : light,dark,aurora,ls-dawn (ou all)
 #PAGE_1_THEMES=
+#PAGE_1_THEME_SECONDS=10
 #PAGE_1_TITLE=
 #PAGE_1_VCARD=no
 #
@@ -281,8 +288,9 @@
 #   PAGE_n_TITLE              titre de la page (défaut : SITE_TITLE)
 #   PAGE_n_TITLE_EN           même chose en anglais
 #   PAGE_n_LANGUAGES          fr, en, fr,en ou en,fr (défaut : SITE_LANGUAGE)
-#   PAGE_n_THEME              un thème : auto (défaut), light, dark ou un thème de la section 3
+#   PAGE_n_THEME              un thème : auto (défaut), light, dark, un thème de la section 3, ou all (l'un après l'autre)
 #   PAGE_n_THEMES             thèmes du bouton « Thème » : liste séparée par des virgules ou all
+#   PAGE_n_THEME_SECONDS      avec PAGE_n_THEME=all : secondes entre deux thèmes (défaut : 10 ; de 3 à 3600)
 #   PAGE_n_SWITCH             yes ou no (défaut) : autre.html avec l'autre thème (remplacé par THEMES)
 #   PAGE_n_BACKGROUND         image du thème photo : https://, chemin ou file:/CHEMIN (5 Mo au plus)
 #   PAGE_n_BACKGROUND_STYLE   pale (défaut, flou et pâle) ou plain (tel quel)

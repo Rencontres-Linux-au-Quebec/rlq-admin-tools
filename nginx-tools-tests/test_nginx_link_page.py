@@ -526,7 +526,8 @@ printf '\\211PNG\\r\\n\\032\\nxxxx' > "$out"; printf '200 12'; exit 0
         """1.15 : aurora, maple, river, terminal, tux : classe du thème, css/themes.css copié et lié, couleur de la barre du navigateur ;
         icône sombre pour les thèmes à base sombre ; seconde page (PAGE_n_SWITCH) dans le thème de base opposé ; thème inconnu refusé."""
         bases = {"aurora": "dark", "maple": "light", "river": "light", "terminal": "dark", "tux": "dark",
-                 "quebec": "dark", "boreal": "dark", "sunset": "dark", "winter": "light", "photo": "light"}      # 1.21: 5 more, 1.22: tux-flag, 1.23: tux-poster
+                 "quebec": "dark", "boreal": "dark", "sunset": "dark", "winter": "light", "photo": "light",      # 1.21: 5 more, 1.22: tux-flag, 1.23: tux-poster
+                 "amber": "dark", "arctic": "dark", "console": "dark", "retro": "dark", "solar": "light"}      # 1.54: Linux themes
         for theme, base in bases.items():
             with self.subTest(theme=theme):
                 texte = self.config_deux_pages("no").replace("PAGE_1_THEME=auto", f"PAGE_1_THEME={theme}\nPAGE_1_SWITCH=yes")
@@ -555,7 +556,7 @@ printf '\\211PNG\\r\\n\\032\\nxxxx' > "$out"; printf '200 12'; exit 0
         self.assertFalse(list((self.www / "liens" / "images" / "themes").glob("tux-*")))
         r = self.lancer("-c", str(self.conf(MINIMAL + "PAGE_1_THEME=rose\n")), "--check")
         self.assertNotEqual(r.returncode, 0)
-        self.assertIn("aurora, maple, river, terminal, tux, quebec, boreal, sunset, winter, photo, ls-aurora", r.stderr)
+        self.assertIn("aurora, maple, river, terminal, tux, quebec, boreal, sunset, winter, photo, amber, arctic, console, retro, solar, ls-aurora", r.stderr)
 
     def test_116_quatre_themes_linkstack(self):
         """1.16 : ls-aurora, ls-dark, ls-dawn, ls-misty-rain : css/themes-linkstack.css (pas css/themes.css), images, polices et avis de licence
@@ -612,12 +613,12 @@ printf '\\211PNG\\r\\n\\032\\nxxxx' > "$out"; printf '200 12'; exit 0
         texte = self.config_deux_pages("no").replace("PAGE_1_THEME=auto", "PAGE_1_THEME=dark\nPAGE_1_THEMES=all")
         r = self.lancer("-c", str(self.conf(texte)), "--update", "--yes", env=self.env)
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
-        self.assertEqual(len(list(page.glob("*.html"))), 17)                             # 1.41: 17 themes (3 image themes -> photo)
+        self.assertEqual(len(list(page.glob("*.html"))), 22)                             # 1.41: 17 themes (3 image themes -> photo); 1.54: + 5
         r = self.lancer("-c", str(self.conf(self.config_deux_pages("no"))), "--update", "--yes", env=self.env)
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
         self.assertEqual([f.name for f in page.glob("*.html")], ["index.html"])           # old theme pages removed
         self.assertNotIn('<details class="theme-menu">', (page / "index.html").read_text(encoding="utf-8"))
-        for valeur in ("all", "light,dark"):                                              # 1.20: THEME given a list: hint towards THEMES
+        for valeur in ("light,dark",):                                                    # 1.20: THEME given a list: hint towards THEMES (1.54: all is a theme)
             r = self.lancer("-c", str(self.conf(MINIMAL + f"PAGE_1_THEME={valeur}\n")), "--check")
             self.assertNotEqual(r.returncode, 0)
             self.assertIn(f"PAGE_1_THEMES={valeur} (avec un S)", r.stderr)
@@ -1230,6 +1231,45 @@ LINK_4_MENU=3
         for ajout, attendu in (("PAGE_1_SCRIPT=no\n", "PAGE_1_GREETING=yes : demande PAGE_1_SCRIPT=yes"),
                                ("PAGE_2_GREETING=oui\n", "PAGE_2_GREETING=oui (yes ou no)"),
                                ("SITE_ODOO_PROFILE_PATH=https://autre.example.org/me\n", "SITE_ODOO_PROFILE_PATH=https://autre.example.org/me : chemin sur le même site")):
+            with self.subTest(ajout=ajout):
+                r = self.lancer("-c", str(self.conf(texte + ajout)), "--check")
+                self.assertNotEqual(r.returncode, 0)
+                self.assertIn(attendu, r.stderr)
+
+    def test_154_theme_all_defilement(self):
+        """1.54 : PAGE_n_THEME=all : les thèmes (PAGE_n_THEMES, sinon tous sans auto, et sans photo s'il n'y a pas d'image) l'un après
+        l'autre toutes les PAGE_n_THEME_SECONDS secondes (data-rotate) ; la page est écrite dans le premier ; demande le script."""
+        texte = self.config_deux_pages("no").replace("PAGE_1_THEME=auto", "PAGE_1_THEME=all\nPAGE_1_THEME_SECONDS=7")
+        r = self.lancer("-c", str(self.conf(texte)), "--update", "--yes", env=self.env)
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        ici = (self.www / "liens" / "index.html").read_text(encoding="utf-8")
+        racine = re.search(r"<html [^>]*>", ici).group(0)
+        self.assertIn('class="theme-light"', racine)                                     # first of the list, seen without script
+        self.assertIn('data-rotate="7"', racine)
+        themes = [e.split("|")[0] for e in re.search(r'data-themes="([^"]*)"', racine).group(1).split()]
+        self.assertNotIn("auto", themes)
+        self.assertNotIn("photo", themes)                                                # no PAGE_1_BACKGROUND
+        for t in ("amber", "arctic", "console", "retro", "solar", "ls-dawn"):
+            self.assertIn(t, themes)
+            self.assertTrue((self.www / "liens" / f"theme-{t}.html").exists())
+        self.assertIn('<details class="theme-menu">', ici)
+        js = (self.commun / "js" / "link-page.js").read_text(encoding="utf-8")
+        self.assertIn('getAttribute("data-rotate")', js)
+        self.assertIn("prefers-reduced-motion", js)
+        self.assertIn(".rotate-button", (self.commun / "css" / "theme-menu.css").read_text(encoding="utf-8"))
+        # a chosen list only
+        texte2 = texte + "PAGE_1_THEMES=console,amber,retro\n"
+        r = self.lancer("-c", str(self.conf(texte2)), "--update", "--yes", env=self.env)
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        ici = (self.www / "liens" / "index.html").read_text(encoding="utf-8")
+        self.assertIn('<html class="theme-console"', ici)
+        self.assertIn('data-themes="console|dark|#000000 amber|dark|#100a00 retro|dark|#282828"', ici)
+        # page without it: no data-rotate
+        r = self.lancer("-c", str(self.conf(self.config_deux_pages("no"))), "--update", "--yes", env=self.env)
+        self.assertNotIn("data-rotate", (self.www / "liens" / "index.html").read_text(encoding="utf-8"))
+        for ajout, attendu in (("PAGE_1_THEME_SECONDS=2\n", "PAGE_1_THEME_SECONDS=2 : nombre de secondes de 3 à 3600"),
+                               ("PAGE_1_THEME_SECONDS=dix\n", "PAGE_1_THEME_SECONDS=dix"),
+                               ("PAGE_1_SCRIPT=no\n", "PAGE_1_THEME=all : demande PAGE_1_SCRIPT=yes")):
             with self.subTest(ajout=ajout):
                 r = self.lancer("-c", str(self.conf(texte + ajout)), "--check")
                 self.assertNotEqual(r.returncode, 0)
