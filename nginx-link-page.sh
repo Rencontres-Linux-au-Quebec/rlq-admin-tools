@@ -29,7 +29,7 @@
 set -u
 LANG_C="${LC_ALL:-${LC_MESSAGES:-${LANG:-C}}}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
-readonly SCRIPT_VERSION="1.56.20261113.221654"
+readonly SCRIPT_VERSION="1.57.20261113.224108"
 readonly SCRIPT_NAME="nginx-link-page"
 # --config-merge: same rule as the other programs (apps/_config.py fusionner): the configuration file is rewritten from the new template,
 # keeping its active values; the old file is copied to FILE.bak-YYYYMMDD-HHMMSS. Then exit.
@@ -64,7 +64,7 @@ readonly MAX_ASSET_BYTES=524288
 # 1.15: themes of PAGE_n_THEME: the 3 of LittleLink, then the 5 of apps/link-page-themes.css (copied as css/themes.css into each page)
 # 1.16: and the 4 LinkStack themes adapted in apps/link-page-themes/ (linkstack.css, images, fonts; MIT and OFL, LICENSES.md)
 readonly THEMES_RE="auto|light|dark|aurora|maple|river|terminal|tux|quebec|boreal|sunset|winter|photo|amber|arctic|console|retro|solar|blossom|lavender|pastel|rosegold|berry|tux-quebec|tux-flag|tux-poster|ls-aurora|ls-dark|ls-dawn|ls-misty-rain"
-readonly THEMES_LISTE="auto, light, dark, aurora, maple, river, terminal, tux, quebec, boreal, sunset, winter, photo, amber, arctic, console, retro, solar, blossom, lavender, pastel, rosegold, berry, ls-aurora, ls-dark, ls-dawn ou ls-misty-rain ; all : tous, l'un après l'autre"
+readonly THEMES_LISTE="amber, arctic, aurora, auto, berry, blossom, boreal, console, dark, lavender, light, ls-aurora, ls-dark, ls-dawn, ls-misty-rain, maple, pastel, photo, quebec, retro, river, rosegold, solar, sunset, terminal, tux ou winter ; all : tous, l'un après l'autre"      # 1.57: alphabetical order
 readonly THEMES_CSS="$SCRIPT_DIR/apps/link-page-themes.css"
 # themes of link-page-themes.css (1.15: 5 themes; 1.21: 5 more; 1.41: photo, whose image is given by PAGE_n_BACKGROUND)
 # 1.41: old names of the themes with the images of one group (removed from the repository): read as photo
@@ -1393,6 +1393,21 @@ if (( EVENEMENTS_MAX > 0 )); then
 fi
 # 3) one folder per enabled page: assets + index.html generated with the page's theme and title
 # theme_nom THEME / bascule_libelle THEME: labels in the page language
+# 1.57: trier_themes LANG THEME...: the themes in the alphabetical order of their names in LANG (as in the "Theme" menu; accents and
+# case ignored: "écran ambre" with the e); one per line
+trier_themes() {
+    local L_LANG="$1" t
+    shift
+    for t in "$@"; do printf '%s\t%s\n' "$t" "$(theme_nom "$t")"; done |
+        if command -v python3 >/dev/null 2>&1; then
+            python3 -c 'import sys, unicodedata
+cle = lambda n: "".join(c for c in unicodedata.normalize("NFD", n) if not unicodedata.combining(c)).casefold()
+lignes = [l.rstrip("\n").split("\t", 1) for l in sys.stdin if "\t" in l]
+print("\n".join(code for code, nom in sorted(lignes, key=lambda x: (cle(x[1]), x[0]))))'
+        else
+            LC_ALL=C sort -f -t $'\t' -k2,2 | cut -f1
+        fi
+}
 theme_nom() {
     if [[ "$L_LANG" == en ]]; then
         case "$1" in light) echo light ;; dark) echo dark ;; aurora) echo "northern lights" ;; maple) echo maple ;; river) echo river ;;
@@ -1633,6 +1648,8 @@ page_redirection() {
 genere_index() {   # genere_index DOSSIER THEME TITRE [FICHIER] [CIBLE_BASCULE] [LIBELLE_BASCULE]
     local dossier="$1" theme="$2" titre="$3" fichier="${4:-index.html}" cible="${5:-}" libelle="${6:-}" t f
     local classe lab url clair sombre classe_bouton i e base attrs donnees media
+    local -a menu_trie=()                               # 1.57: the themes of the menu in the alphabetical order of the page language
+    if (( ${#P_MENU[@]} )); then mapfile -t menu_trie < <(trier_themes "$L_LANG" "${P_MENU[@]}"); fi
     classe="theme-$theme"                               # 1.15: theme-auto, theme-light, theme-dark or one of link-page-themes.css
     base="$(theme_base "$theme")"
     {
@@ -1643,7 +1660,7 @@ genere_index() {   # genere_index DOSSIER THEME TITRE [FICHIER] [CIBLE_BASCULE] 
             attrs=" data-page=\"$(html_echap "$P_CHEMIN")\""
             if (( ${#P_MENU[@]} )); then
                 donnees=""
-                for t in "${P_MENU[@]}"; do donnees+="$t|$(theme_base "$t")|$(theme_couleur "$t") "; done
+                for t in "${menu_trie[@]}"; do donnees+="$t|$(theme_base "$t")|$(theme_couleur "$t") "; done      # 1.57: the turns follow the menu
                 attrs+=" data-themes=\"${donnees% }\""
                 if (( ${P_ROTATION:-0} )); then attrs+=" data-rotate=\"$P_ROTATION\""; fi      # 1.54: PAGE_n_THEME=all
             fi
@@ -1710,7 +1727,7 @@ genere_index() {   # genere_index DOSSIER THEME TITRE [FICHIER] [CIBLE_BASCULE] 
             echo "    <details class=\"theme-menu\">"
             echo "      <summary>$( [[ "$L_LANG" == en ]] && echo Theme || echo Thème )</summary>"
             echo "      <ul>"
-            for t in "${P_MENU[@]}"; do
+            for t in "${menu_trie[@]}"; do
                 if [[ "$t" == "$P_THEME" ]]; then f="index.html"; else f="theme-$t.html"; fi
                 if [[ "$t" == "$theme" ]]; then
                     echo "        <li><a href=\"$f\" data-theme=\"$t\" aria-current=\"page\">$(html_echap "$(theme_nom "$t")")</a></li>"
@@ -1796,6 +1813,8 @@ for i in ${ACTIVES[@]+"${ACTIVES[@]}"}; do
     if [[ "$P_THEME" == all ]]; then
         P_ROTATION=$((10#$(valeur_ou "PAGE_${i}_THEME_SECONDS" 10)))
         mapfile -t P_MENU < <(themes_offerts "$(valeur_ou "PAGE_${i}_THEMES" all)" | grep -vx auto | { if [[ -n "${CFG[PAGE_${i}_BACKGROUND]:-}" ]]; then cat; else grep -vx photo; fi; })
+        langue_1="$(valeur_ou "PAGE_${i}_LANGUAGES" "$SITE_LANGUAGE_V")"; langue_1="${langue_1%%,*}"
+        if (( ${#P_MENU[@]} )); then mapfile -t P_MENU < <(trier_themes "$langue_1" "${P_MENU[@]}"); fi      # 1.57: first in the alphabetical order
         P_THEME="${P_MENU[0]:-auto}"
         if (( ${#P_MENU[@]} < 2 )); then P_MENU=(); P_ROTATION=0; fi
         P_BASCULE=no

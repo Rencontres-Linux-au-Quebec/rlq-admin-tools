@@ -4555,6 +4555,16 @@ Earlier history was archived outside this repository when this file was created.
 
 ## nginx-link-page.sh
 
+### 1.57.20261113.224108 - Themes in alphabetical order
+
+- Title: the themes of the "Theme" menu, and of PAGE_n_THEME=all, in alphabetical order of their names in the language of the page.
+- Reason: request of the administrator on 2026-11-13: put the themes in alphabetical order.
+- Changes: new function trier_themes LANG THEME... (names given by theme_nom in that language; accents and case ignored, so "écran ambre" goes with the e; python3, otherwise sort -f); genere_index: local array menu_trie used for the menu and for data-themes (so the turns of PAGE_n_THEME=all follow the menu); PAGE_n_THEME=all: the page is written in the first theme of the alphabetical order of its first language; THEMES_LISTE (message of --check) in alphabetical order of the codes; nginx-tools-tests/test_nginx_link_page.py: 1 test, tests of 1.15 and 1.54 updated.
+- Bugs fixed: none.
+- Safeguards and edge cases: each language has its own order (fr: arctique, aurore boréale, automatique, clair...; en: amber screen, arctic, automatic, dark...); the theme of the page stays marked in the menu (aria-current); the theme-NAME.html pages do not change.
+- Checks performed: bash -n; shellcheck (same as main); test_nginx_link_page (new test: menu and data-themes in French and in English).
+- Action required: none (sudo nginx-link-page.sh --update --yes writes the pages in the new order).
+
 ### 1.56.20261113.221654 - Addresses of Odoo refused for the pages (/r...)
 
 - Title: --check refuses a page (PAGE_n_PATH) or the shared files (SITE_SHARED_PATH) at an address that Odoo uses, /r first.
