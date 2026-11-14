@@ -557,7 +557,7 @@ printf '\\211PNG\\r\\n\\032\\nxxxx' > "$out"; printf '200 12'; exit 0
         self.assertFalse(list((self.www / "liens" / "images" / "themes").glob("tux-*")))
         r = self.lancer("-c", str(self.conf(MINIMAL + "PAGE_1_THEME=rose\n")), "--check")
         self.assertNotEqual(r.returncode, 0)
-        self.assertIn("aurora, maple, river, terminal, tux, quebec, boreal, sunset, winter, photo, amber, arctic, console, retro, solar, blossom, lavender, pastel, rosegold, berry, ls-aurora", r.stderr)
+        self.assertIn("amber, arctic, aurora, auto, berry, blossom, boreal, console, dark, lavender, light, ls-aurora", r.stderr)      # 1.57: alphabetical
 
     def test_116_quatre_themes_linkstack(self):
         """1.16 : ls-aurora, ls-dark, ls-dawn, ls-misty-rain : css/themes-linkstack.css (pas css/themes.css), images, polices et avis de licence
@@ -1245,14 +1245,14 @@ LINK_4_MENU=3
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
         ici = (self.www / "liens" / "index.html").read_text(encoding="utf-8")
         racine = re.search(r"<html [^>]*>", ici).group(0)
-        self.assertIn('class="theme-light"', racine)                                     # first of the list, seen without script
+        self.assertIn('class="theme-arctic"', racine)                                    # 1.57: first in the alphabetical order (arctique)
         self.assertIn('data-rotate="7"', racine)
         themes = [e.split("|")[0] for e in re.search(r'data-themes="([^"]*)"', racine).group(1).split()]
         self.assertNotIn("auto", themes)
         self.assertNotIn("photo", themes)                                                # no PAGE_1_BACKGROUND
         for t in ("amber", "arctic", "console", "retro", "solar", "blossom", "lavender", "pastel", "rosegold", "berry", "ls-dawn"):
             self.assertIn(t, themes)
-            self.assertTrue((self.www / "liens" / f"theme-{t}.html").exists())
+            self.assertTrue(t == "arctic" or (self.www / "liens" / f"theme-{t}.html").exists())      # arctic: the page itself (1.57)
         self.assertIn('<details class="theme-menu">', ici)
         js = (self.commun / "js" / "link-page.js").read_text(encoding="utf-8")
         self.assertIn('getAttribute("data-rotate")', js)
@@ -1290,6 +1290,20 @@ LINK_4_MENU=3
             with self.subTest(chemin=chemin):
                 r = self.lancer("-c", str(self.conf(MINIMAL.replace("PAGE_1_PATH=/liens/", f"PAGE_1_PATH={chemin}"))), "--check")
                 self.assertNotIn("est une adresse d'Odoo", r.stderr)
+
+    def test_157_themes_par_ordre_alphabetique(self):
+        """1.57 : le menu « Thème » et le défilement suivent l'ordre alphabétique des noms dans la langue de la page."""
+        texte = self.config_deux_pages("no") + "PAGE_1_THEMES=tux,light,dark,aurora,amber,arctic\nPAGE_1_LANGUAGES=fr,en\n"
+        r = self.lancer("-c", str(self.conf(texte)), "--update", "--yes", env=self.env)
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        for chemin, attendu in ((self.www / "liens" / "index.html", ["arctic", "aurora", "auto", "light", "amber", "dark", "tux"]),
+                                (self.www / "liens" / "en" / "index.html", ["amber", "arctic", "auto", "dark", "light", "aurora", "tux"])):
+            with self.subTest(page=chemin.parent.name):
+                page = chemin.read_text(encoding="utf-8")
+                menu = re.findall(r'<li><a href="[^"]+" data-theme="([^"]+)"', page)
+                self.assertEqual(menu, attendu)
+                donnees = [e.split("|")[0] for e in re.search(r'data-themes="([^"]*)"', page).group(1).split()]
+                self.assertEqual(donnees, attendu)
 
     def test_133_rollback(self):
         """1.33 : --update garde la version précédente (pages, fragment, tâche quotidienne) ; --rollback la remet, même avec une
