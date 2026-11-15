@@ -1209,3 +1209,198 @@ msgstr " (était à "
 
 msgid "HEALTH OF "
 msgstr "SANTÉ DE "
+
+msgid "GUEST CONFIGURATIONS — "
+msgstr "CONFIGURATION DES INVITÉS — "
+
+msgid " containers and VMs checked: "
+msgstr " conteneurs et VM vérifiés : "
+
+msgid " major issues, "
+msgstr " enjeux majeurs, "
+
+msgid " to improve, "
+msgstr " à améliorer, "
+
+msgid " notes"
+msgstr " remarques"
+
+msgid " (details at the end of the report)"
+msgstr " (détails à la fin du rapport)"
+
+msgid " nothing to correct in the configurations"
+msgstr " rien à corriger dans les configurations"
+
+msgid "  To correct quickly: the commands are in the block « COMMANDS TO RUN » at the end."
+msgstr "  À corriger rapidement : les commandes sont dans le bloc « COMMANDES À LANCER » à la fin."
+
+msgid ": runs now but does not start with the host (onboot missing) — after a restart or a power cut of the host it stays stopped"
+msgstr " : en marche maintenant mais ne démarre pas avec l'hôte (onboot absent) — après un redémarrage ou une panne de courant de l'hôte, il reste arrêté"
+
+msgid ": in no scheduled backup job — nothing to restore if its disk is lost"
+msgstr " : dans aucune tâche de sauvegarde planifiée — rien à restaurer si son disque est perdu"
+
+msgid ": locked ("
+msgstr " : verrouillé ("
+
+msgid ") — a backup or a snapshot was interrupted; backups and changes are refused while it stays"
+msgstr ") — une sauvegarde ou un instantané a été interrompu ; les sauvegardes et les changements sont refusés tant qu'il reste"
+
+msgid " unused disks kept ("
+msgstr " disques inutilisés gardés ("
+
+msgid ") — they still take room in the pool"
+msgstr ") — ils occupent encore de la place dans le pool"
+
+msgid "host: the running guests are promised "
+msgstr "hôte : les invités en marche se voient promettre "
+
+msgid " GiB of memory for "
+msgstr " Gio de mémoire pour "
+
+msgid " GiB in the machine ("
+msgstr " Gio dans la machine ("
+
+msgid " %) — when they use it, the host kills processes (OOM) or swaps"
+msgstr " %) — quand ils l'utilisent, l'hôte tue des processus (OOM) ou utilise le swap"
+
+msgid "   # only when no backup or snapshot of it is running"
+msgstr "   # seulement quand aucune sauvegarde ni instantané de cet invité ne tourne"
+
+msgid ": privileged container (unprivileged: 1 missing) — root inside it is root on the host if it escapes; the conversion goes through a backup and a restore with --unprivileged"
+msgstr " : conteneur privilégié (unprivileged: 1 absent) — root à l'intérieur est root sur l'hôte s'il s'en échappe ; la conversion passe par une sauvegarde et une restauration avec --unprivileged"
+
+msgid ": no processor limit (cores) — it can use every core of the host"
+msgstr " : aucune limite de processeur (cores) — il peut utiliser tous les cœurs de l'hôte"
+
+msgid " MiB of memory and no swap — a peak kills its processes (OOM)"
+msgstr " Mio de mémoire et aucun swap — une pointe tue ses processus (OOM)"
+
+msgid ": QEMU guest agent not enabled — backups cannot freeze its file systems (less consistent), and --inside cannot look in it"
+msgstr " : agent invité QEMU non activé — les sauvegardes ne peuvent pas figer ses systèmes de fichiers (moins cohérentes), et --inside ne peut pas regarder dedans"
+
+msgid "apt install -y qemu-guest-agent   # INSIDE the VM, then stop and start the VM"
+msgstr "apt install -y qemu-guest-agent   # DANS la VM, puis arrêter et démarrer la VM"
+
+msgid " GiB of memory without ballooning — all of it is taken from the host as soon as the VM touched it"
+msgstr " Gio de mémoire sans ballooning — tout est pris à l'hôte dès que la VM y a touché"
+
+msgid " % of the memory ("
+msgstr " % de la mémoire ("
+
+msgid " GiB) — little is left for the ZFS cache (ARC), which is what makes HDD bearable"
+msgstr " Gio) — il reste peu pour le cache ZFS (ARC), qui rend les HDD supportables"
+
+msgid ") is a folder of the host ("
+msgstr ") est un dossier de l'hôte ("
+
+msgid ") — never in the backups of the container: back it up on the host"
+msgstr ") — jamais dans les sauvegardes du conteneur : le sauvegarder sur l'hôte"
+
+msgid ": AppArmor disabled ("
+msgstr " : AppArmor désactivé ("
+
+msgid ") — the container is no longer confined by the host"
+msgstr ") — le conteneur n'est plus confiné par l'hôte"
+
+msgid ": disk "
+msgstr " : le disque "
+
+msgid " with cache=unsafe — the writes that the VM believes done are lost at a crash or a power cut of the host"
+msgstr " avec cache=unsafe — les écritures que la VM croit faites sont perdues lors d'un plantage ou d'une panne de courant de l'hôte"
+
+msgid " is excluded from the backups (backup=0)"
+msgstr " est exclu des sauvegardes (backup=0)"
+
+msgid " without discard=on — the room freed in the VM is never given back to the pool"
+msgstr " sans discard=on — la place libérée dans la VM n'est jamais rendue au pool"
+
+msgid ": network card "
+msgstr " : carte réseau "
+
+msgid " emulated ("
+msgstr " émulée ("
+
+msgid ") — « virtio » is faster and lighter for the host"
+msgstr ") — « virtio » est plus rapide et plus léger pour l'hôte"
+
+msgid ": mount point "
+msgstr " : le point de montage "
+
+msgid ") is NOT in the backups (backup=1 missing) — only the root disk is saved: a restore brings back the system without the data of this mount point"
+msgstr ") n'est PAS dans les sauvegardes (backup=1 absent) — seul le disque racine est sauvegardé : une restauration ramène le système sans les données de ce point de montage"
+
+msgid ",discard=on   # then fstrim -av in the VM"
+msgstr ",discard=on   # puis fstrim -av dans la VM"
+
+msgid "host: no scheduled backup job and no backup in the last 7 days — nothing recent to restore for any guest"
+msgstr "hôte : aucune tâche de sauvegarde planifiée et aucune sauvegarde depuis 7 jours — rien de récent à restaurer pour aucun invité"
+
+msgid " snapshots older than "
+msgstr " instantanés de plus de "
+
+msgid " days: "
+msgstr " jours : "
+
+msgid " — deleting them frees "
+msgstr " — les supprimer libère "
+
+msgid "at least "
+msgstr "au moins "
+
+msgid " in pool "
+msgstr " dans le pool "
+
+msgid "; a rollback to one of them would erase everything done since"
+msgstr " ; revenir à l'un d'eux effacerait tout ce qui a été fait depuis"
+
+msgid "   # after: compare"
+msgstr "   # après : comparer"
+
+msgid " free before"
+msgstr " libres avant"
+
+msgid " with "
+msgstr " avec "
+
+msgid "old snapshots: "
+msgstr "vieux instantanés : "
+
+msgid " in all, "
+msgstr " en tout, "
+
+msgid " to free by deleting them"
+msgstr " à libérer en les supprimant"
+
+msgid "starts with the host"
+msgstr "démarre avec l'hôte"
+
+msgid "in a backup job"
+msgstr "dans une tâche de sauvegarde"
+
+msgid "disks in the backups: rootfs"
+msgstr "disques dans les sauvegardes : rootfs"
+
+msgid "unprivileged"
+msgstr "non privilégié"
+
+msgid "guest agent enabled"
+msgstr "agent invité activé"
+
+msgid "every disk in the backups, none with an unsafe cache"
+msgstr "tous les disques dans les sauvegardes, aucun avec un cache risqué"
+
+msgid "no old snapshot"
+msgstr "aucun vieil instantané"
+
+msgid " and "
+msgstr " et "
+
+msgid " more"
+msgstr " autres"
+
+msgid " no major issue: "
+msgstr " aucun enjeu majeur : "
+
+msgid " guests checked for their start with the host, their backups (every disk and mount point) and their disk cache"
+msgstr " invités vérifiés pour leur démarrage avec l'hôte, leurs sauvegardes (chaque disque et point de montage) et le cache de leurs disques"
