@@ -2215,6 +2215,16 @@ Earlier history was archived outside this repository when this file was created.
 
 ## host-perf-audit.py
 
+### 1.21.20261115.163001 - HOME given to the commands run in a VM
+
+- Title: the commands run in a VM through the QEMU guest agent receive HOME (/root when the agent gives none).
+- Reason: request of the administrator on 2026-11-15, after the report report-proxmox1-20261115-154635.md (--guest-sync --guest-run in 101, 104, 105, 430 and 433): in VMs 430 and 433, nginx-hardening.sh --update wrote "apps/_listes.sh: line 45: HOME: unbound variable" three times.
+- Changes: guest_exec exports HOME="${HOME:-/root}" with NO_COLOR and TERM, for the containers (pct exec, HOME unchanged when present) and the VMs (qm guest exec). File: host-perf-audit.py, nginx-tools-tests/test_host_perf_audit.py.
+- Bugs fixed: symptom, "HOME: unbound variable" in the output of the VMs and the lists of places not read; diagnosis, qm guest exec starts the command with an almost empty environment and the Bash programs run with "set -u"; fix, HOME is set before the command.
+- Safeguards and edge cases: a HOME already set is kept.
+- Checks performed: test_commande_dans_les_invites checks that the command sent to the VM sets HOME; test_host_perf_audit passes.
+- Action required: none.
+
 ### 1.20.20261115.154044 - Progress of the copy to a VM, .git copied or not
 
 - Title: The copy of the suite to a VM shows its progress in %, and a new option --sync-git chooses where the .git folder is copied (default: containers only).
@@ -4018,6 +4028,16 @@ Earlier history was archived outside this repository when this file was created.
 - Action requise: relancer nginx-hardening.sh --update sur chaque serveur pour installer la regle ; aucune autre action.
 
 ## nginx-hardening.sh
+
+### 2.107.20261115.163001 - No "HOME: unbound variable" without HOME (apps/_listes.sh)
+
+- Title: apps/_listes.sh reads ~/.nginx-tools-ip-location.conf with ${HOME:-/root}.
+- Reason: request of the administrator on 2026-11-15, after the report report-proxmox1-20261115-154635.md (--guest-sync --guest-run in 101, 104, 105, 430 and 433): "apps/_listes.sh: line 45: HOME: unbound variable" three times in the --update of VMs 430 and 433.
+- Changes: listes_fichiers_lieux uses ${HOME:-/root}. Files: apps/_listes.sh, nginx-hardening.sh (version), nginx-tools-tests/test_listes.py.
+- Bugs fixed: symptom, the error above and the personal places file not read; diagnosis, the QEMU guest agent runs the command without HOME, and the scripts run with "set -u"; fix, a default value (host-perf-audit 1.21 also gives HOME to the VMs).
+- Safeguards and edge cases: with HOME set, nothing changes. The "A && B || C" of the catch-up rotation (2.106, reset-failed of logrotate.service) is written as an "if" (repository convention).
+- Checks performed: test_listes (listes_resume under "set -u" without HOME).
+- Action required: none.
 
 ### 2.106.20261115.074443 - Missed log rotation done by --update
 
@@ -6977,6 +6997,18 @@ Earlier history was archived outside this repository when this file was created.
 ### 1.3.20261020.203430 - Current version. Earlier history archived outside the repository.
 
 ## apps/_bbb.py
+
+### 1.6.20261115.162951 - bbb-conf --check: no warning for 0 problems, too long said as such
+
+- Title: an empty list of potential problems is [OK], and a bbb-conf --check that takes too long is no longer called "indisponible".
+- Reason: request of the administrator on 2026-11-15, after the report report-proxmox1-20261115-154635.md (--guest-sync --guest-run in 101, 104, 105, 430 and 433): VM 433 showed "[ATTN] bbb-conf --check signale 0 potential problems:" and VM 430 "bbb-conf --check : indisponible" although the command exists.
+- Changes: verifier counts the lines under "# Potential problems" and warns only when there is at least one; lancer returns 124 on a timeout (127 stays for a missing command); BBB_CONF_TIMEOUT = 300 s instead of 180 s. Files: apps/_bbb.py, lang/_bbb.en.po, nginx-tools-tests/test_bbb.py.
+- Bugs fixed:
+  - symptom, warning "0 potential problems"; diagnosis, the section title is printed by bbb-conf even when it is empty, and its presence alone raised the warning; fix, the warning needs a problem line.
+  - symptom, "indisponible" in VM 430 (BBB 3.0, --update of 210 s); diagnosis, bbb-conf --check took more than 180 s and the timeout was reported like a missing command; fix, distinct message "arrêté après 300 s" with the command to run by hand.
+- Safeguards and edge cases: the output of bbb-conf is still read the same way when problems are listed.
+- Checks performed: test_bbb (empty section: [OK]; command too long: "arrêté après"); catalogue of _bbb.
+- Action required: none.
 
 ### 1.5.20261030.153422 - No plural marker "(s)" in the displayed texts
 

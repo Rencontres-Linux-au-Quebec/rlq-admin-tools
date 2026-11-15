@@ -46,7 +46,7 @@ import subprocess
 import sys
 import time
 
-__version__ = "1.20.20261115.154044"
+__version__ = "1.21.20261115.163001"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
@@ -2210,7 +2210,9 @@ GUEST_RUN_TIMEOUT = 1800        # seconds per guest: nginx-hardening.sh --update
 
 def guest_exec(vmid, kind, script, timeout):
     """(exit code, output) of a shell script run INSIDE a guest (pct exec / qm guest exec), stdin closed, without colours."""
-    script = f"export NO_COLOR=1 TERM=dumb; {script}"
+    # qm guest exec starts the command with an almost empty environment (no HOME): the Bash programs of the suite run with
+    # "set -u" and stopped on "HOME: unbound variable" in the VMs (1.21)
+    script = f'export NO_COLOR=1 TERM=dumb HOME="${{HOME:-/root}}"; {script}'
     if kind == "lxc":
         return run(["pct", "exec", vmid, "--", "sh", "-c", script], timeout=timeout + 60)
     code, out = run(["qm", "guest", "exec", vmid, "--timeout", str(timeout), "--", "sh", "-c", script], timeout=timeout + 60)

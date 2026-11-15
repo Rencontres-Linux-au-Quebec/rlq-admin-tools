@@ -608,7 +608,7 @@ case "$script" in
 esac''')
         self.mock("qm", f'''id="$3"; case "$*" in
   *"if [ -x"*) printf \'{{"exitcode":0,"exited":1,"out-data":"FOUND\\\\nnginx-hardening.sh version 2.106\\\\n"}}\';;
-  *--update*) echo "$id" >> {trace}; printf \'{{"exitcode":0,"exited":1,"out-data":"[OK] tout\\\\nR\\\\u00c3\\\\u0089SUM\\\\u00c3\\\\u0089 : tout est en ordre (40 v\\\\u00c3\\\\u00a9rifications).\\\\n"}}\';;
+  *--update*) echo "$id" >> {trace}; case "$*" in *'HOME="${{HOME:-/root}}"'*) echo "$id" >> {trace}.home;; esac; printf \'{{"exitcode":0,"exited":1,"out-data":"[OK] tout\\\\nR\\\\u00c3\\\\u0089SUM\\\\u00c3\\\\u0089 : tout est en ordre (40 v\\\\u00c3\\\\u00a9rifications).\\\\n"}}\';;
 esac''')
         rc, out, err = self.run_cmd(["python3", self.prog, "--guest-run", "--guests", "101,104,433,999,120", "--lang", "en"], timeout=60)
         self.assertEqual(rc, 2, out + err)                                                # no terminal, no --yes: nothing run
@@ -623,6 +623,7 @@ esac''')
         rc, out, err = self.run_cmd(["python3", self.prog, "--guest-run", "--guests", "101,104,433", "--yes", "--lang", "en"], timeout=60)
         self.assertEqual(rc, 1, out + err)                                                # a failure in the output of 101
         self.assertEqual(open(trace).read(), "101\n433\n")                               # 104 has no program: not run
+        self.assertEqual(open(trace + ".home").read(), "433\n")                          # 1.21: HOME given to the VM (qm guest exec has none)
         self.assertIn("[FAIL] 101 (odoo18): exit code 1", out)
         self.assertIn("1 failures, 1 warnings · RÉSUMÉ : 40 OK, 1 avertissements, 1 échecs.", out)
         self.assertIn("      [FAIL] fail2ban absent", out)

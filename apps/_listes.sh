@@ -42,7 +42,7 @@ listes_fichiers_lieux() {
     if [[ -n "${NGINX_TOOLS_IP_LOCATION:-}" ]]; then
         [[ -f "$NGINX_TOOLS_IP_LOCATION" ]] && printf '%s\n' "$NGINX_TOOLS_IP_LOCATION"
     else
-        for f in "$LISTES_LIEUX_DEFAUT" "$(_listes_personnel "$HOME/.nginx-tools-ip-location.conf")"; do [[ -f "$f" ]] && printf '%s\n' "$f"; done
+        for f in "$LISTES_LIEUX_DEFAUT" "$(_listes_personnel "${HOME:-/root}/.nginx-tools-ip-location.conf")"; do [[ -f "$f" ]] && printf '%s\n' "$f"; done
     fi
     return 0
 }
