@@ -58,3 +58,7 @@ host-perf-audit.py --install-timer              # la même chaque heure, avec un
 Au démarrage, le programme vérifie la configuration de chaque invité (`/etc/pve`, lecture seule) et annonce les **enjeux majeurs** : point de montage d'un conteneur absent des sauvegardes (`backup=1`), disque en `cache=unsafe`, invité sans `onboot`, invité hors de toute tâche de sauvegarde, mémoire promise au-delà de la machine. La liste complète (à améliorer, remarques) est à la fin du rapport, avec les commandes `pct set` / `qm set` à copier.
 
 Depuis la 1.14, chaque invité en ordre a sa ligne `[OK]` avec ce qui a été vérifié, et les instantanés de plus de 60 jours sont listés avec la place que leur suppression libère (calculée par `zfs destroy -n`, sans rien détruire) et les commandes `pct delsnapshot` / `qm delsnapshot`.
+
+## Commandes lancées par le programme (1.15)
+
+À la fin du rapport et de `--health`, chaque commande est marquée **`[lecture]`** (le programme la lance lui-même et montre sa sortie dans la section « COLLECTÉ ») ou **`[modif.]`** (elle modifie quelque chose : le programme la propose une à une et ne la lance qu'après « y », en root, dans un terminal). `--no-collect` liste seulement les commandes. Les sauvegardes placées dans un sous-dossier que Proxmox ne voit pas (sa rétention ne s'y applique jamais) sont signalées, avec la liste des fichiers à supprimer au-delà de `keep-last` et la place libérée.
