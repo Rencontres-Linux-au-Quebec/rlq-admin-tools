@@ -154,8 +154,8 @@ msgstr "Affiche le journal des modifications"
 msgid "FILE"
 msgstr "FICHIER"
 
-msgid "Configuration file to read ALONE (otherwise: /etc/default/host-perf-audit.conf, then the personal file .host-perf-audit.conf; UPPERCASE options: CSV, DURATION, EXPORT_AI, GUEST_COMMAND, GUESTS, INSIDE, INTERVAL, LANGUAGE, NO_GUESTS, TOP, VERBOSE)"
-msgstr "Fichier de configuration à lire SEUL (sinon : /etc/default/host-perf-audit.conf, puis le fichier personnel .host-perf-audit.conf ; options en MAJUSCULES : CSV, DURATION, EXPORT_AI, GUEST_COMMAND, GUESTS, INSIDE, INTERVAL, LANGUAGE, NO_GUESTS, TOP, VERBOSE)"
+msgid "Configuration file to read ALONE (otherwise: /etc/default/host-perf-audit.conf, then the personal file .host-perf-audit.conf; UPPERCASE options: CSV, DURATION, EXPORT_AI, GUEST_COMMAND, GUESTS, INSIDE, INTERVAL, LANGUAGE, NO_GUESTS, SYNC_SOURCE, TOP, VERBOSE)"
+msgstr "Fichier de configuration à lire SEUL (sinon : /etc/default/host-perf-audit.conf, puis le fichier personnel .host-perf-audit.conf ; options en MAJUSCULES : CSV, DURATION, EXPORT_AI, GUEST_COMMAND, GUESTS, INSIDE, INTERVAL, LANGUAGE, NO_GUESTS, SYNC_SOURCE, TOP, VERBOSE)"
 
 msgid "Also write every sample to this CSV file (one line per interval: CPU, waits, memory, ARC, each disk)"
 msgstr "Écrire aussi chaque échantillon dans ce fichier CSV (une ligne par intervalle : CPU, attentes, mémoire, ARC, chaque disque)"
@@ -1528,8 +1528,8 @@ msgstr ") : en cours (au plus "
 msgid "With --guest-run: the command to run in the guests (default: "
 msgstr "Avec --guest-run : la commande à lancer dans les invités (défaut : "
 
-msgid "ERROR: --guest-run needs root (pct exec, qm guest exec)."
-msgstr "ERREUR : --guest-run demande root (pct exec, qm guest exec)."
+msgid "ERROR: --guest-run and --guest-sync need root (pct exec, qm guest exec)."
+msgstr "ERREUR : --guest-run et --guest-sync demandent root (pct exec, qm guest exec)."
 
 msgid "no such container or VM"
 msgstr "aucun conteneur ni VM de ce numéro"
@@ -1584,3 +1584,78 @@ msgstr "COMMANDE DANS LES INVITÉS — "
 
 msgid " minutes)"
 msgstr " minutes)"
+
+msgid "ERROR: --guest-sync needs the guests: --guests 101,105,433 (or « all », or the key GUESTS of the configuration)."
+msgstr "ERREUR : --guest-sync demande les invités : --guests 101,105,433 (ou « all », ou la clé GUESTS de la configuration)."
+
+msgid "COPY OF THE SUITE TO THE GUESTS — "
+msgstr "COPIE DE LA SUITE DANS LES INVITÉS — "
+
+msgid ", commit "
+msgstr ", commit "
+
+msgid "  Nothing to copy."
+msgstr "  Rien à copier."
+
+msgid "  Not done: no terminal to confirm it (add --yes)."
+msgstr "  Non fait : aucun terminal pour le confirmer (ajouter --yes)."
+
+msgid "  Replace "
+msgstr "  Remplacer "
+
+msgid " by this copy (the old one kept as "
+msgstr " par cette copie (l'ancienne gardée en "
+
+msgid ")? [y/N]: "
+msgstr ") ? [y/N] : "
+
+msgid "  Not done."
+msgstr "  Non fait."
+
+msgid "  archive: "
+msgstr "  archive : "
+
+msgid "updated, "
+msgstr "mis à jour, "
+
+msgid "  To go back in a guest: rm -rf "
+msgstr "  Pour revenir en arrière dans un invité : rm -rf "
+
+msgid " && mv "
+msgstr " && mv "
+
+msgid "this guest holds the source folder itself"
+msgstr "cet invité porte le dossier source lui-même"
+
+msgid " is not a copy of rlq-admin-tools (no executable nginx-hardening.sh): --sync-source FOLDER"
+msgstr " n'est pas une copie de rlq-admin-tools (aucun nginx-hardening.sh exécutable) : --sync-source DOSSIER"
+
+msgid "ERROR: archive of "
+msgstr "ERREUR : archive de "
+
+msgid " not made: "
+msgstr " non faite : "
+
+msgid "cannot write "
+msgstr "impossible d'écrire "
+
+msgid " in the VM: "
+msgstr " dans la VM : "
+
+msgid "copy interrupted: "
+msgstr "copie interrompue : "
+
+msgid "the copy in the VM differs from the archive (sha256 "
+msgstr "la copie dans la VM diffère de l'archive (sha256 "
+
+msgid "... instead of "
+msgstr "... au lieu de "
+
+msgid "Copy the folder of the suite (the folder of this program, or --sync-source) to /opt/rlq-admin-tools in the guests of --guests, after confirmation (--yes: without the question); the old copy stays as /opt/rlq-admin-tools.previous. With --guest-run: the copy first"
+msgstr "Copier le dossier de la suite (le dossier de ce programme, ou --sync-source) dans /opt/rlq-admin-tools des invités de --guests, après confirmation (--yes : sans la question) ; l'ancienne copie reste en /opt/rlq-admin-tools.previous. Avec --guest-run : la copie d'abord"
+
+msgid "With --guest-sync: the copy of rlq-admin-tools to send (default: the folder of this program); key SYNC_SOURCE"
+msgstr "Avec --guest-sync : la copie de rlq-admin-tools à envoyer (défaut : le dossier de ce programme) ; clé SYNC_SOURCE"
+
+msgid " in "
+msgstr " dans "

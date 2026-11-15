@@ -2215,6 +2215,26 @@ Earlier history was archived outside this repository when this file was created.
 
 ## host-perf-audit.py
 
+### 1.18.20261115.144011 - The suite copied from the host to the guests, the host in the name of the report
+
+- Title: New option --guest-sync: the folder of the suite on the Proxmox host is copied to /opt/rlq-admin-tools in the chosen containers and VMs; the report of --guest-run carries the name of the host.
+- Reason: request of the administrator on 2026-11-15 after the first --guest-run: /opt/rlq-admin-tools was missing in 101 and 433, and the guests must be updated from the folder of the Proxmox host; the name of the server must be in the name of the report.
+- Changes:
+  - New option --guest-sync (functions guest_sync, sync_archive, install_script, push_to_guest): one tar.gz of the source folder (the folder of this program, or --sync-source; .git kept, __pycache__ and *.pyc left out), then in each guest of --guests: extracted into /opt/rlq-admin-tools.new without the owners of the host, checked (nginx-hardening.sh executable), the old copy kept as /opt/rlq-admin-tools.previous, then swapped. The version of nginx-hardening.sh before and after is shown.
+  - Containers: the archive goes on the standard input of pct exec. VMs: in chunks of 700 KiB through the QEMU guest agent (qm guest exec --pass-stdin, which takes at most 1 MiB), then its sha256 is compared before the installation.
+  - New option --sync-source FOLDER (key SYNC_SOURCE). --guest-sync with --guest-run: the copy first, then the command.
+  - --guest-run: the report is named report-HOST-YYYYMMDD-HHMMSS.md.
+  - Files: host-perf-audit.py, lang/host-perf-audit.fr.po, doc/fr/host-perf-audit.conf.example, doc/en/host-perf-audit.conf.example, doc/conf-history/host-perf-audit.history, doc/fr/18-host-perf-audit.md, doc/en/18-host-perf-audit.md, nginx-tools-tests/test_host_perf_audit.py.
+- Bugs fixed: none in a published version. Found by the new test before publication: the token that marks the source folder was removed right after the archive, so a guest whose /opt is the source itself (container 105, whose disk is read by the host at /var/lib/vz/subvol-105-disk-2) would have had its copy replaced by itself. The token now stays for the whole copy.
+- Safeguards and edge cases:
+  - A guest that holds the source folder itself (it sees the token file of this run in its destination) is never replaced.
+  - Confirmation before the copy (--yes: without the question); without a terminal and without --yes, nothing is done.
+  - A wrong archive (no executable nginx-hardening.sh after extraction) or a copy that differs in a VM (sha256) leaves the old copy in place.
+  - Going back: rm -rf /opt/rlq-admin-tools && mv /opt/rlq-admin-tools.previous /opt/rlq-admin-tools (shown after the copy).
+  - The archive is made in a private temporary folder (mode 700) and removed at the end.
+- Checks performed: new test test_copie_de_la_suite_dans_les_invites (two containers and one VM updated, a VM copy in three chunks put back together, the old copy kept, no __pycache__ nor token left, the guest that holds the source untouched, then --guest-run with the host in the name of the report); test_host_perf_audit: 24 tests pass; test_i18n catalogue of host-perf-audit, test_cles_modeles, test_conventions.AideTriee: pass. Not tested on the real Proxmox host.
+- Action required: host-perf-audit.py --guest-sync --guest-run --guests 101,104,105,433 on the Proxmox host.
+
 ### 1.17.20261115.080221 - A command run in the chosen guests, outputs kept for analysis
 
 - Title: New options --guest-run, --guests and --guest-command: from the Proxmox host, a command (default /opt/rlq-admin-tools/nginx-hardening.sh --update) is run in the chosen containers and VMs, and every output is kept.
