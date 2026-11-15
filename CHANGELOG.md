@@ -2215,6 +2215,23 @@ Earlier history was archived outside this repository when this file was created.
 
 ## host-perf-audit.py
 
+### 1.20.20261115.154044 - Progress of the copy to a VM, .git copied or not
+
+- Title: The copy of the suite to a VM shows its progress in %, and a new option --sync-git chooses where the .git folder is copied (default: containers only).
+- Reason: request of the administrator on 2026-11-15: --guest-sync took 10 min 08 s for VM 430 without any sign of progress (an archive of 139 MiB, sent in chunks through the QEMU guest agent); the .git folder must be optional so that the VMs are faster.
+- Changes:
+  - push_to_guest: while the chunks go to a VM, the progress is shown (percentage, size sent of the total, time left), on one line in a terminal, every 10 % otherwise; an interrupted copy says at what percentage.
+  - New option --sync-git MODE (key SYNC_GIT): all (the .git folder everywhere, as in 1.18), containers (default: the .git folder only for the containers, which receive the archive at once through pct exec) or none. sync_archive makes the archive with and/or without .git, each once.
+  - SYNC_CHUNK: 960 KiB per call instead of 700 KiB (the agent takes at most 1 MiB): about 30 % fewer calls.
+  - The archive line gives the size of each archive and the guests that receive it.
+  - Files: host-perf-audit.py, lang/host-perf-audit.fr.po, doc/fr/host-perf-audit.conf.example, doc/en/host-perf-audit.conf.example, doc/conf-history/host-perf-audit.history, nginx-tools-tests/test_host_perf_audit.py.
+- Bugs fixed: none.
+- Safeguards and edge cases:
+  - Without .git, the guest copy is no longer a git clone: it is said; the old copy, with its .git, stays in /opt/rlq-admin-tools.previous.
+  - An unknown value of SYNC_GIT in the configuration is refused before anything is done.
+- Checks performed: test_copie_de_la_suite_dans_les_invites extended (by default .git in the containers and not in the VM, the progress of the VM up to 100 %, --sync-git all and none); test_host_perf_audit, the catalogue of host-perf-audit, test_cles_modeles, test_conventions.AideTriee: pass. Not tested on the real Proxmox host.
+- Action required: none. The default (containers) already leaves .git out of the VMs.
+
 ### 1.19.20261115.145703 - --guest-run offers the copy of the suite where it is missing
 
 - Title: When the program of --guest-run is missing in a guest, the copy of the suite (--guest-sync) is suggested, and offered at once in a terminal.

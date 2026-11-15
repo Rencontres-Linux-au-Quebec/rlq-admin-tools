@@ -662,6 +662,7 @@ esac''')
         self.write("source/apps/x.py", "print(1)\n")
         self.write("source/apps/__pycache__/x.cpython-311.pyc", "binaire")
         self.write("source/gros.bin", "z" * (1500 * 1024))                          # several chunks for the VM
+        self.write("source/.git/HEAD", "ref: refs/heads/main\n")
         invites = os.path.join(self.d, "invites")
         for vmid in ("101", "104", "433"):
             os.makedirs(os.path.join(invites, vmid), exist_ok=True)
@@ -700,6 +701,17 @@ print(json.dumps({{"exitcode": p.returncode, "exited": 1, "out-data": p.stdout.d
             self.assertFalse(os.path.exists(os.path.join(copie, "apps/__pycache__")), vmid)
             self.assertFalse([f for f in os.listdir(copie) if f.startswith(".sync-token")], vmid)
         self.assertTrue(os.path.isfile(os.path.join(invites, "101/rlq-admin-tools.previous/nginx-hardening.sh")))   # the old copy kept
+        # 1.20: by default .git goes to the containers, not to the VMs (slow chunks through the agent); progress of the copy to the VM
+        self.assertTrue(os.path.isfile(os.path.join(invites, "101/rlq-admin-tools/.git/HEAD")))
+        self.assertFalse(os.path.exists(os.path.join(invites, "433/rlq-admin-tools/.git")))
+        self.assertRegex(out, r"archive: [0-9.]+ MiB with \.git \(101, 104\) · [0-9.]+ MiB without \.git \(433\) — --sync-git containers")
+        self.assertIn("… 433 (bbb3-26): 100 %", out)
+        rc, out, err = self.run_cmd(["python3", self.prog, "--guest-sync", "--guests", "433", "--sync-source", source, "--sync-git", "all", "--yes", "--lang", "en"], timeout=90)
+        self.assertEqual(rc, 0, out + err)
+        self.assertTrue(os.path.isfile(os.path.join(invites, "433/rlq-admin-tools/.git/HEAD")))
+        rc, out, err = self.run_cmd(["python3", self.prog, "--guest-sync", "--guests", "101", "--sync-source", source, "--sync-git", "none", "--yes", "--lang", "en"], timeout=90)
+        self.assertFalse(os.path.exists(os.path.join(invites, "101/rlq-admin-tools/.git")))
+        self.assertIn("is no longer a git clone", out)
         self.assertFalse([f for f in os.listdir(source) if f.startswith(".sync-token")])
         self.write("pve/lxc/105.conf", "hostname: odoo18b\nonboot: 1\nunprivileged: 1\ncores: 2\nmemory: 1024\n")
         os.makedirs(os.path.join(self.racine, "sys/fs/cgroup/lxc/105"), exist_ok=True)

@@ -154,8 +154,8 @@ msgstr "Affiche le journal des modifications"
 msgid "FILE"
 msgstr "FICHIER"
 
-msgid "Configuration file to read ALONE (otherwise: /etc/default/host-perf-audit.conf, then the personal file .host-perf-audit.conf; UPPERCASE options: CSV, DURATION, EXPORT_AI, GUEST_COMMAND, GUESTS, INSIDE, INTERVAL, LANGUAGE, NO_GUESTS, SYNC_SOURCE, TOP, VERBOSE)"
-msgstr "Fichier de configuration à lire SEUL (sinon : /etc/default/host-perf-audit.conf, puis le fichier personnel .host-perf-audit.conf ; options en MAJUSCULES : CSV, DURATION, EXPORT_AI, GUEST_COMMAND, GUESTS, INSIDE, INTERVAL, LANGUAGE, NO_GUESTS, SYNC_SOURCE, TOP, VERBOSE)"
+msgid "Configuration file to read ALONE (otherwise: /etc/default/host-perf-audit.conf, then the personal file .host-perf-audit.conf; UPPERCASE options: CSV, DURATION, EXPORT_AI, GUEST_COMMAND, GUESTS, INSIDE, INTERVAL, LANGUAGE, NO_GUESTS, SYNC_GIT, SYNC_SOURCE, TOP, VERBOSE)"
+msgstr "Fichier de configuration à lire SEUL (sinon : /etc/default/host-perf-audit.conf, puis le fichier personnel .host-perf-audit.conf ; options en MAJUSCULES : CSV, DURATION, EXPORT_AI, GUEST_COMMAND, GUESTS, INSIDE, INTERVAL, LANGUAGE, NO_GUESTS, SYNC_GIT, SYNC_SOURCE, TOP, VERBOSE)"
 
 msgid "Also write every sample to this CSV file (one line per interval: CPU, waits, memory, ARC, each disk)"
 msgstr "Écrire aussi chaque échantillon dans ce fichier CSV (une ligne par intervalle : CPU, attentes, mémoire, ARC, chaque disque)"
@@ -1671,3 +1671,42 @@ msgstr "  Copier la suite dans "
 
 msgid " now? [y/N]: "
 msgstr " maintenant ? [y/N] : "
+
+msgid " left)   "
+msgstr " restant)   "
+
+msgid " % ("
+msgstr " % ("
+
+msgid " of "
+msgstr " sur "
+
+msgid ", about "
+msgstr ", environ "
+
+msgid "copy interrupted at "
+msgstr "copie interrompue à "
+
+msgid " %: "
+msgstr " % : "
+
+msgid "  without .git: in these guests "
+msgstr "  sans .git : dans ces invités, "
+
+msgid " is no longer a git clone (the old one, with its .git, stays in "
+msgstr " n'est plus un clone git (l'ancien, avec son .git, reste dans "
+
+msgid "ERROR: SYNC_GIT="
+msgstr "ERREUR : SYNC_GIT="
+
+msgid ": expected one of "
+msgstr " : attendu l'un de "
+
+msgid "With --guest-sync: where the .git folder is copied: all, containers (default: a VM receives the copy in chunks through its agent, .git makes it several times longer) or none; key SYNC_GIT"
+msgstr "Avec --guest-sync : où le dossier .git est copié : all, containers (défaut : une VM reçoit la copie en morceaux par son agent, .git la rend plusieurs fois plus longue) ou none ; clé SYNC_GIT"
+
+msgid "with"
+msgstr "avec"
+
+msgid "without"
+msgstr "sans"

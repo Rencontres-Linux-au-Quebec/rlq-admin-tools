@@ -78,3 +78,5 @@ host-perf-audit.py --guest-sync --guest-run --guests 101,104,105,433
 ```
 
 Copies the folder of the suite on the host (the folder of this program, or `--sync-source`) to `/opt/rlq-admin-tools` in each guest, after confirmation. The old copy stays as `/opt/rlq-admin-tools.previous`. A guest that holds the source folder itself is never replaced. With `--guest-run`, the command runs next; the report is named `report-HOST-DATE.md`.
+
+Since 1.20, the copy to a VM shows its progress in %, and `--sync-git all|containers|none` (key `SYNC_GIT`) chooses where the `.git` folder is copied: by default to the containers only, since a VM receives the copy in chunks through its agent.

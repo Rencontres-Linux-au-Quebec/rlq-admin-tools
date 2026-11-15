@@ -19,7 +19,7 @@
 #   * --apply: the SAFE and reversible settings (ZFS atime and compression of a dataset, ARC maximum, vm.swappiness) are offered one by one with
 #     confirmation; the others (hardware, VM disk options) are explained, never changed.
 # Configuration (common rule): /etc/default/host-perf-audit.conf THEN ~/.host-perf-audit.conf (the last one wins; keys CSV, DURATION, EXPORT_AI, GUEST_COMMAND, GUESTS, INSIDE, INTERVAL, LANGUAGE,
-# NO_GUESTS, SYNC_SOURCE, TOP, VERBOSE); -c/--config: that file ALONE; the command line takes priority.
+# NO_GUESTS, SYNC_GIT, SYNC_SOURCE, TOP, VERBOSE); -c/--config: that file ALONE; the command line takes priority.
 #
 #
 # Usage:
@@ -46,7 +46,7 @@ import subprocess
 import sys
 import time
 
-__version__ = "1.19.20261115.145703"
+__version__ = "1.20.20261115.154044"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
@@ -100,7 +100,7 @@ def load_module(name):
 
 
 SYSPERF = load_module("_sysperf")
-SCHEMA_CONFIG = {"CSV": ("csv", str), "DURATION": ("duration", str), "EXPORT_AI": ("export_ai", str), "GUEST_COMMAND": ("guest_command", str), "GUESTS": ("guests", str), "SYNC_SOURCE": ("sync_source", str),
+SCHEMA_CONFIG = {"CSV": ("csv", str), "DURATION": ("duration", str), "EXPORT_AI": ("export_ai", str), "GUEST_COMMAND": ("guest_command", str), "GUESTS": ("guests", str), "SYNC_GIT": ("sync_git", str), "SYNC_SOURCE": ("sync_source", str),
                  "INSIDE": ("inside", bool), "INTERVAL": ("interval", float), "NO_GUESTS": ("no_guests", bool), "TOP": ("top", int),
                  "VERBOSE": ("verbose", bool)}
 COLOR = sys.stdout.isatty() and not os.environ.get("NO_COLOR") and os.environ.get("TERM") != "dumb"
@@ -2353,11 +2353,12 @@ def guest_run(args, names, running):
 
 
 SYNC_DEST_DEFAULT = os.environ.get("HOST_PERF_AUDIT_SYNC_DEST", "/opt/rlq-admin-tools")      # the variable for the tests only
-SYNC_CHUNK = 700 * 1024          # bytes per « qm guest exec --pass-stdin » (the agent takes at most 1 MiB of input)
+SYNC_CHUNK = 960 * 1024          # bytes per « qm guest exec --pass-stdin » (the agent takes at most 1 MiB of input); 1.20: 700 KiB before
+SYNC_GIT_MODES = ("all", "containers", "none")      # 1.20: where the .git folder is copied (default: containers; a VM gets it in chunks, slowly)
 SYNC_EXCLUDES = ("__pycache__", "*.pyc", ".sync-token-*")
 
 
-def sync_archive(source):
+def sync_archive(source, with_git=True):
     """(path of a tar.gz of the source folder in a private temporary folder, its sha256, its size); the .git folder is kept, so that the copy in
     each guest is the same clone at the same commit."""
     import hashlib
@@ -2365,7 +2366,7 @@ def sync_archive(source):
     folder = tempfile.mkdtemp(prefix="host-perf-audit-sync-")
     os.chmod(folder, 0o700)
     path = os.path.join(folder, "rlq-admin-tools.tar.gz")
-    cmd = ["tar", "-C", source] + [f"--exclude={x}" for x in SYNC_EXCLUDES] + ["-czf", path, "."]
+    cmd = ["tar", "-C", source] + [f"--exclude={x}" for x in SYNC_EXCLUDES + (() if with_git else ("./.git",))] + ["-czf", path, "."]
     code, out = run(cmd, timeout=600)
     if code != 0:
         raise OSError(f"tar: {out.strip()[:200]}")
@@ -2387,7 +2388,7 @@ def install_script(dest, archive, token):
             f'echo "BEFORE $OLD"; echo "AFTER $("$D/nginx-hardening.sh" --version 2>/dev/null | head -1)"')
 
 
-def push_to_guest(vmid, kind, archive, digest, dest, token):
+def push_to_guest(vmid, kind, archive, digest, dest, token, label=""):
     """(status « ok » | « same » | « error », text) after copying the archive into the guest and installing it there."""
     import subprocess as sp
     if kind == "lxc":
@@ -2403,8 +2404,20 @@ def push_to_guest(vmid, kind, archive, digest, dest, token):
         code, out = guest_exec(vmid, kind, f"rm -f {part}; : > {part}", 30)
         if code != 0:
             return "error", f"cannot write {part} in the VM: {out.strip()[:200]}"
+        total, sent, start, shown = os.path.getsize(archive), 0, time.monotonic(), -1
+        live = sys.stdout.isatty()
         with open(archive, "rb") as f:
             for block in iter(lambda: f.read(SYNC_CHUNK), b""):
+                sent += len(block)
+                pct = sent * 100 // max(total, 1)
+                elapsed = time.monotonic() - start
+                left = int(elapsed / sent * (total - sent)) if sent else 0
+                # 1.20: progress of the copy to a VM (chunks through the guest agent can take minutes): on the same line in a terminal, every 10 % otherwise
+                if live:
+                    print(f"\r  … {label}: {pct:3d} % ({size(sent)} of {size(total)}, about {human_duration(left)} left)   ", end="", flush=True)
+                elif pct // 10 != shown:
+                    shown = pct // 10
+                    print(f"  … {label}: {pct} % ({size(sent)} of {size(total)})", flush=True)
                 try:
                     done = sp.run(["qm", "guest", "exec", vmid, "--pass-stdin", "1", "--timeout", "60", "--", "sh", "-c", f"cat >> {part}"],
                                   input=block, stdout=sp.PIPE, stderr=sp.STDOUT, timeout=120)
@@ -2412,7 +2425,11 @@ def push_to_guest(vmid, kind, archive, digest, dest, token):
                     return "error", f"copy interrupted: {problem}"
                 answer = done.stdout.decode("utf-8", "replace")
                 if done.returncode != 0 or '"exitcode":0' not in answer.replace(" ", ""):
-                    return "error", f"copy interrupted: {answer.strip()[:200]}"
+                    if live:
+                        print()
+                    return "error", f"copy interrupted at {pct} %: {answer.strip()[:200]}"
+        if live:
+            print("\r" + " " * 100 + "\r", end="", flush=True)
         code, out = guest_exec(vmid, kind, f"sha256sum {part} | cut -c1-64", 60)
         if out.strip() != digest:
             return "error", f"the copy in the VM differs from the archive (sha256 {out.strip()[:16]}... instead of {digest[:16]}...)"
@@ -2464,9 +2481,16 @@ def guest_sync(args, names, running):
     # The token marks the source folder during the WHOLE copy: a guest that sees it in its destination holds the source itself (a mount point of
     # the host, as /var/lib/vz/subvol-105-disk-2 for /opt of container 105) and is never replaced. Excluded from the archive.
     token = f".sync-token-{os.getpid()}-{int(time.time())}"
+    mode = (getattr(args, "sync_git", None) or "containers").lower()
+    if mode not in SYNC_GIT_MODES:
+        eprint(f"ERROR: SYNC_GIT={mode}: expected one of {', '.join(SYNC_GIT_MODES)}.")
+        return 2
+    wants_git = {vmid: mode == "all" or (mode == "containers" and kind == "lxc") for vmid, kind, _n in ready}
+    archives = {}
     try:
         open(os.path.join(source, token), "w").close()
-        archive, digest, nbytes = sync_archive(source)
+        for with_git in sorted(set(wants_git.values()), reverse=True):        # 1.20: with and/or without .git, each made once
+            archives[with_git] = sync_archive(source, with_git)
     except OSError as problem:
         eprint(f"ERROR: archive of {source} not made: {problem}")
         try:
@@ -2474,18 +2498,23 @@ def guest_sync(args, names, running):
         except OSError:
             pass
         return 2
-    print(f"  archive: {size(nbytes)}")
+    print("  archive: " + " · ".join(f"{size(n)} {'with' if g else 'without'} .git (" + ", ".join(v for v in wants_git if wants_git[v] == g) + ")"
+                                       for g, (_p, _d, n) in archives.items()) + f" — --sync-git {mode}")
+    if any(not g for g in wants_git.values()) and os.path.isdir(os.path.join(source, ".git")):
+        print(f"  without .git: in these guests {dest} is no longer a git clone (the old one, with its .git, stays in {dest}.previous)")
     failed = 0
     try:
         for vmid, kind, name in ready:
             start = time.monotonic()
-            status, text = push_to_guest(vmid, kind, archive, digest, dest, token)
+            archive, digest, _n = archives[wants_git[vmid]]
+            status, text = push_to_guest(vmid, kind, archive, digest, dest, token, f"{vmid} ({name})")
             level = {"ok": "ok", "same": "info", "error": "bad"}[status]
             failed += status == "error"
             print(f"  {tag(level)} {vmid} ({name}): " + (f"updated, {text} ({human_duration(int(time.monotonic() - start))})" if status == "ok" else text))
     finally:
         import shutil as sh
-        sh.rmtree(os.path.dirname(archive), ignore_errors=True)
+        for archive, _d, _n in archives.values():
+            sh.rmtree(os.path.dirname(archive), ignore_errors=True)
         try:
             os.remove(os.path.join(source, token))
         except OSError:
@@ -2566,7 +2595,7 @@ def main():
     parser.add_argument("--apply", action="store_true", help="After the report, apply the SAFE settings one by one with confirmation (ZFS compression / atime of a dataset, ARC maximum, vm.swappiness); --yes: without questions")
     parser.add_argument("--changelog", action="store_true", help="Show the change log")
     parser.add_argument("-c", "--config", metavar="FILE",
-                        help="Configuration file to read ALONE (otherwise: /etc/default/host-perf-audit.conf, then the personal file .host-perf-audit.conf; UPPERCASE options: CSV, DURATION, EXPORT_AI, GUEST_COMMAND, GUESTS, INSIDE, INTERVAL, LANGUAGE, NO_GUESTS, SYNC_SOURCE, TOP, VERBOSE)")
+                        help="Configuration file to read ALONE (otherwise: /etc/default/host-perf-audit.conf, then the personal file .host-perf-audit.conf; UPPERCASE options: CSV, DURATION, EXPORT_AI, GUEST_COMMAND, GUESTS, INSIDE, INTERVAL, LANGUAGE, NO_GUESTS, SYNC_GIT, SYNC_SOURCE, TOP, VERBOSE)")
     parser.add_argument("--csv", default=None, metavar="FILE", help="Also write every sample to this CSV file (one line per interval: CPU, waits, memory, ARC, each disk)")
     parser.add_argument("--duration", default="60", metavar="TIME", help="Length of the measurement: 90 (seconds), 10m, 4h, 1h30m… (default: 60 seconds)")
     parser.add_argument("--export-ai", nargs="?", const="", default=None, metavar="FILE",
@@ -2599,6 +2628,9 @@ def main():
     parser.add_argument("--notify", action="store_true",
                         help="With --health: send the findings by e-mail and to the system journal when something is new (reminder after 24 hours; one message when all is back to normal)")
     parser.add_argument("--report-err", action="store_true", help="Print at the end an error report to copy and paste (program, version, server, failures, warnings)")
+    parser.add_argument("--sync-git", default=None, choices=SYNC_GIT_MODES, metavar="MODE",
+                        help="With --guest-sync: where the .git folder is copied: all, containers (default: a VM receives the copy in chunks through its agent, "
+                             ".git makes it several times longer) or none; key SYNC_GIT")
     parser.add_argument("--sync-source", default=None, metavar="FOLDER",
                         help="With --guest-sync: the copy of rlq-admin-tools to send (default: the folder of this program); key SYNC_SOURCE")
     parser.add_argument("--top", type=int, default=8, metavar="N", help="Number of guests shown, the busiest on the disks first (default: 8)")

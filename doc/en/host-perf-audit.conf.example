@@ -30,6 +30,8 @@
 #LANGUAGE=auto
 # --no-guests : ne pas mesurer chaque conteneur / VM (cgroups)
 #NO_GUESTS=no
+# --sync-git : with --guest-sync, where the .git folder is copied: all, containers (default: a VM receives the copy in chunks through its agent, .git makes it several times longer) or none
+#SYNC_GIT=containers
 # --sync-source : with --guest-sync, the copy of rlq-admin-tools sent to the guests (default: the folder of this program)
 #SYNC_SOURCE=
 # --top : nombre d'invités (conteneurs / VM) affichés, les plus actifs sur les disques d'abord
