@@ -44,12 +44,13 @@ import subprocess
 import sys
 import time
 
-__version__ = "1.15.20261114.231621"
+__version__ = "1.16.20261115.000448"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
 CHANGELOG_FILE = os.path.join(SCRIPT_DIR, "CHANGELOG.md")
 PVE_DIR = os.environ.get("HOST_PERF_AUDIT_PVE_DIR", "/etc/pve")
+TASKS_ACTIVE = os.environ.get("HOST_PERF_AUDIT_TASKS_ACTIVE", "/var/log/pve/tasks/active")      # 1.16: tasks of Proxmox running now
 ZVOL_DIR = os.environ.get("HOST_PERF_AUDIT_ZVOL_DIR", "/dev/zvol")      # 1.11: links zdN -> dataset of each ZFS volume
 SYSCTL_FILE = os.environ.get("HOST_PERF_AUDIT_SYSCTL_FILE", "/etc/sysctl.d/90-host-perf-audit.conf")
 MODPROBE_FILE = os.environ.get("HOST_PERF_AUDIT_MODPROBE_FILE", "/etc/modprobe.d/zfs-arc-host-perf-audit.conf")
@@ -341,7 +342,7 @@ def zfs_facts():
     for line in out.splitlines():
         c = line.split("\t")
         if len(c) >= 7:
-            pools[c[0]] = {"size": int(c[1]) if c[1].isdigit() else 0, "frag": c[4].rstrip("%"), "cap": c[5].rstrip("%"), "health": c[6],
+            pools[c[0]] = {"size": int(c[1]) if c[1].isdigit() else 0, "free": int(c[3]) if c[3].isdigit() else 0, "frag": c[4].rstrip("%"), "cap": c[5].rstrip("%"), "health": c[6],
                            "special": False, "log": False, "cache": False, "scrub": "", "ashift": "", "vdevs": [], "latency": {}}
     code, out = run(["zpool", "status", "-P"])
     current = None
@@ -670,7 +671,12 @@ def backup_findings(names):
             res.append(("bad", f"storage {name}: {g['found']} backups under {folder} but Proxmox sees {g['seen'] if g['seen'] is not None else '?'} — "
                         f"{len(g['hidden'])} are in a sub-folder ({', '.join(where[:3])}) where the retention ({keep}) never applies: they are kept for ever",
                         [f"pvesm list {name} --content backup | head -5", f"ls -l -a {folder}", f"ls -1t {os.path.join(folder, where[0])} | head -12",
-                         "grep -rn -e dumpdir -e " + where[0].split('/')[0] + " /etc/pve/jobs.cfg /etc/vzdump.conf /etc/cron.d /usr/local/bin /usr/local/sbin /root/*.sh 2>/dev/null"]))
+                         "grep -rn -e dumpdir -e " + where[0].split('/')[0] + " /etc/pve/jobs.cfg /etc/vzdump.conf /etc/cron.d /usr/local/bin /usr/local/sbin /root/*.sh 2>/dev/null",
+                         # 1.16: what moves the backups there: a hook script of vzdump, a cron job, a timer, a copy from another machine
+                         "grep -n -i -e script -e hook /etc/vzdump.conf /etc/pve/jobs.cfg 2>/dev/null",
+                         "crontab -l 2>/dev/null | grep -v '^#'",
+                         "systemctl list-timers --all --no-pager | grep -v -e apt -e man-db -e logrotate -e e2scrub -e fstrim | head -25",
+                         f"ls -l -a {os.path.join(folder, where[0])} | head -8"]))
         if g["extra"]:
             total = sum(b for _v, _p, b in g["extra"])
             listed = []
@@ -1256,6 +1262,24 @@ def old_snapshots(names, zfs):
     return res
 
 
+def running_tasks():
+    """1.16: {guest id: [task type]} of the Proxmox tasks running now (/var/log/pve/tasks/active: a line without end time, its process alive).
+    A guest « locked (backup) » while its backup runs is normal: the lock goes away at the end of the backup."""
+    res = {}
+    for line in read_plain(TASKS_ACTIVE).splitlines():
+        parts = line.split()
+        u = parts[0].split(":") if parts else []
+        if len(parts) != 1 or len(u) < 8 or u[0] != "UPID":
+            continue
+        try:
+            alive = os.path.exists(f"/proc/{int(u[2], 16)}") if TASKS_ACTIVE == "/var/log/pve/tasks/active" else True
+        except ValueError:
+            continue
+        if alive:
+            res.setdefault(u[6], []).append(u[5])
+    return res
+
+
 def guest_config_check(names, running, zfs):
     """1.13: is each container and VM well configured? [(level major | improve | note, guest id, text, [commands])] read from /etc/pve, nothing changed.
     « major »: data that is not backed up or can be lost, a guest that will not come back after a restart of the host, memory promised twice.
@@ -1274,6 +1298,7 @@ def guest_config_check(names, running, zfs):
         return False
     promised = 0
     snapshots = old_snapshots(names, zfs)
+    busy = running_tasks()
     for vmid, (kind, name, conf) in sorted(names.items(), key=lambda x: int(x[0]) if x[0].isdigit() else 0):
         on = vmid in running
         who = ("container " if kind == "lxc" else "VM ") + f"{vmid} ({name})"
@@ -1294,8 +1319,12 @@ def guest_config_check(names, running, zfs):
                         [f"{tool} set {vmid} --onboot 1"]))
         if jobs and on and not backed_up(vmid):
             res.append(("major", vmid, f"{who}: in no scheduled backup job — nothing to restore if its disk is lost", ["grep -A8 vzdump /etc/pve/jobs.cfg"]))
-        if get("lock"):
-            res.append(("improve", vmid, f"{who}: locked ({get('lock')}) — a backup or a snapshot was interrupted; backups and changes are refused while it stays",
+        in_progress = busy.get(vmid, [])
+        if get("lock") and in_progress:                   # 1.16: a backup running now is not an interrupted one: never offer unlock
+            res.append(("note", vmid, f"{who}: locked ({get('lock')}) by a task running now ({', '.join(sorted(set(in_progress)))}) — normal; "
+                        "snapshots and changes of this guest wait for its end", []))
+        elif get("lock"):
+            res.append(("improve", vmid, f"{who}: locked ({get('lock')}) and no task of it is running — a backup or a snapshot was interrupted; backups and changes are refused while it stays",
                         [f"{tool} unlock {vmid}   # only when no backup or snapshot of it is running"]))
         unused = re.findall(r"^(unused\d+):\s*(\S+)", conf, re.M)
         if unused:
@@ -1354,10 +1383,11 @@ def guest_config_check(names, running, zfs):
         old = snapshots.get(vmid)
         if old:                                           # 1.14: old snapshots, and the room they keep
             listed = ", ".join(f"{sn} ({datetime.date.fromtimestamp(c)})" for sn, c in old["names"][:6]) + (f" and {len(old['names']) - 6} more" if len(old["names"]) > 6 else "")
-            free = (zfs.get("datasets", {}).get(old["pool"], {}).get("available", "") if zfs else "")
+            free = str(zfs.get("pools", {}).get(old["pool"], {}).get("free", "")) if zfs else ""    # 1.16: the FREE of zpool list, the column compared after
             res.append(("improve", vmid, f"{who}: {len(old['names'])} snapshots older than {SNAPSHOT_OLD_DAYS} days: {listed} — deleting them frees "
-                        + ("" if old["exact"] else "at least ") + f"{size(old['reclaim'])} in pool {old['pool']}; a rollback to one of them would erase everything done since",
-                        [f"{tool} delsnapshot {vmid} {sn}" for sn, _c in old["names"]]
+                        + ("" if old["exact"] else "at least ") + f"{size(old['reclaim'])} in pool {old['pool']}; a rollback to one of them would erase everything done since"
+                        + (" (the guest is locked: run this program again once it is unlocked to get the commands)" if get("lock") else ""),
+                        ([] if get("lock") else [f"{tool} delsnapshot {vmid} {sn}" for sn, _c in old["names"]])
                         + [f"zpool list -o name,alloc,free,cap {old['pool']}   # after: compare" + (f" with {size(int(free))} free before" if free.isdigit() else "")]))
         elif zfs and zfs.get("snapshots") is not None:
             good.append("no old snapshot")
@@ -1615,7 +1645,7 @@ w() { for f in /proc/[0-9]*/io; do p=${f%/io}; b=$(sed -n 's/^write_bytes: //p' 
 echo "@@io1"; w
 echo "@@docker"; command -v docker >/dev/null 2>&1 && docker ps -a --format '{{.Names}}|{{.Status}}' 2>/dev/null
 echo "@@failed"; systemctl --failed --no-legend --plain 2>/dev/null | head -10
-echo "@@journal"; journalctl --since -10min -o short 2>/dev/null | awk '{print $5}' | sed 's/\[.*//;s/:$//' | sort | uniq -c | sort -rn | head -5
+echo "@@journal"; journalctl --since -10min -o short 2>/dev/null | grep -v ' werkzeug: ' | awk '{print $5}' | sed 's/\[.*//;s/:$//' | sort | uniq -c | sort -rn | head -5
 echo "@@jsize"; journalctl --disk-usage 2>/dev/null
 echo "@@df"; df -P -x tmpfs -x devtmpfs -x overlay -x squashfs 2>/dev/null | tail -n +2
 sleep 10
@@ -1995,7 +2025,7 @@ READ_ONLY_RE = re.compile(
     r"systemctl (?:status|is-active|is-enabled|is-failed|list-timers|list-units|show|cat)\b|journalctl\b(?!.*--(?:vacuum|rotate|flush|sync))|"
     r"docker (?:logs|inspect|ps|images|stats --no-stream)\b|du\b|df\b|ls\b|grep\b|cat\b|tail\b|head\b|sort\b|uniq\b|wc\b|cut\b|tr\b|awk\b|sed -n\b|"
     r"pvesm (?:list|status)\b|pct (?:list|config|status|df)\b|qm (?:list|config|status|pending)\b|pidstat\b|iotop -b|free\b|uptime\b|lsblk\b|"
-    r"find\b(?!.*-(?:delete|exec|ok|fprint))|stat\b|mdadm --detail\b|true\b|echo\b|xargs -d '\\n' -a \S+ du\b|ps\b|ss\b|ip (?:a|addr|r|route|link)\b)")
+    r"find\b(?!.*-(?:delete|exec|ok|fprint))|stat\b|mdadm --detail\b|true\b|echo\b|crontab -l\b|xargs -d '\\n' -a \S+ du\b|ps\b|ss\b|ip (?:a|addr|r|route|link)\b)")
 WRAPPER_RE = re.compile(r"^(?:pct exec \d+ --|qm guest exec \d+(?: --timeout \d+)? --)\s*")
 COLLECT_BUDGET = 240          # seconds for all the read-only commands of one run
 COLLECT_LINES = 40            # lines of output kept per command
@@ -2044,6 +2074,10 @@ def run_collected(cmd, timeout):
         try:
             answer = json.loads(out)
             out = (answer.get("out-data") or "") + (answer.get("err-data") or "")
+            try:                                          # 1.16: the agent hands back UTF-8 read as Latin-1 (« â\x97\x8f » for « ● »)
+                out = out.encode("latin-1").decode("utf-8")
+            except (UnicodeEncodeError, UnicodeDecodeError):
+                pass
             code = answer.get("exitcode", code)
         except ValueError:
             pass

@@ -512,7 +512,7 @@ esac''')
                                                     "NGINX_TOOLS_PROC_ROOT": self.racine, "PATH": self.env["PATH"]})
         self.write("pve/jobs.cfg", "vzdump: backup-1\n\tschedule 02:30\n\tstorage local\n\tall 1\n")
         G = 2 ** 30
-        zfs = {"pools": {"data": {}}, "datasets": {"data": {"available": str(235 * G)}, "data/zd0/vm-430-state-Avant": {"used": str(1 * G)}},
+        zfs = {"pools": {"data": {"free": 235 * G}}, "datasets": {"data": {"available": str(235 * G)}, "data/zd0/vm-430-state-Avant": {"used": str(1 * G)}},
                "snapshots": [("data/zd0/subvol-105-disk-0@Debian13", 300 * 2 ** 20, vieux), ("data/zd0/subvol-105-disk-2@Debian13", 80000, vieux),
                              ("data/zd0/subvol-105-disk-2@Hier", 5 * G, recent), ("data/zd0/vm-430-disk-0@Avant", 3 * G, vieux),
                              ("data/zd0/subvol-105-disk-0@__replicate_1", G, vieux), ("data/autre@vieux", G, vieux)]}
@@ -561,6 +561,36 @@ esac''')
         for c in changement:
             self.assertFalse(m.is_read_only(c), c)
         self.assertEqual(m.unique_commands([("a", ["x", "y"]), ("b", ["y   # pourquoi", "z"])]), [("a", ["x", "y"]), ("b", ["z"])])
+
+    def test_verrou_d_une_sauvegarde_en_cours(self):
+        """1.16 : un invité « locked (backup) » pendant que sa sauvegarde tourne n'est pas une sauvegarde interrompue : jamais « pct unlock » ;
+        ses instantanés attendent la fin ; la sortie de l'agent invité QEMU est remise en UTF-8."""
+        actives = self.write("taches-actives", "UPID:pve1:0000ABCD:00112233:6915F4A0:vzdump:105:root@pam:\n"
+                                               "UPID:pve1:0000ABCE:00112234:6915F4A0:vzdump:104:root@pam: 6915F8A0 OK\n")
+        m = charger("hpa_v", "host-perf-audit.py", {"HOST_PERF_AUDIT_LANG": "en", "NGINX_TOOLS_LANG": "en", "HOST_PERF_AUDIT_PVE_DIR": os.path.join(self.d, "pve"),
+                                                    "HOST_PERF_AUDIT_TASKS_ACTIVE": actives})
+        self.assertEqual(m.running_tasks(), {"105": ["vzdump"]})                     # 104 has ended
+        try:
+            noms = {"105": ("lxc", "odoo18", "hostname: odoo18\nonboot: 1\nunprivileged: 1\ncores: 2\nmemory: 1024\nlock: backup\n"),
+                    "104": ("lxc", "odoo-dev", "hostname: odoo-dev\nonboot: 1\nunprivileged: 1\ncores: 2\nmemory: 1024\nlock: backup\n")}
+            trouve = m.guest_config_check(noms, {"105": ("lxc", ""), "104": ("lxc", "")}, {})
+        finally:
+            pass
+        textes = {(l, v): (t, c) for l, v, t, c in trouve}
+        self.assertIn("container 105 (odoo18): locked (backup) by a task running now (vzdump) — normal", textes[("note", "105")][0])
+        self.assertNotIn(("improve", "105"), textes)
+        self.assertIn("and no task of it is running", textes[("improve", "104")][0])
+        self.assertIn("pct unlock 104", textes[("improve", "104")][1][0])
+        self.assertTrue(m.is_read_only("crontab -l 2>/dev/null | grep -v '^#'"))
+        self.assertFalse(m.is_read_only("crontab -r"))
+        self.mock("qm", "printf '%s' '{\"exitcode\":3,\"out-data\":\"\\u00e2\\u0097\\u008f logrotate.service\"}'")
+        ancien = os.environ.get("PATH", "")
+        os.environ["PATH"] = self.env["PATH"]
+        try:
+            code, sortie = m.run_collected("qm guest exec 433 -- systemctl status logrotate.service", 20)
+        finally:
+            os.environ["PATH"] = ancien
+        self.assertEqual((code, sortie), (3, "● logrotate.service"))
 
     def test_changements_confirmes_un_par_un(self):
         """1.15 : chaque changement est demandé ; seul celui qui reçoit « y » est lancé."""

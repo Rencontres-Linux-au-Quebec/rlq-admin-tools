@@ -2923,3 +2923,57 @@ msgstr "exemptions from the refusal by User-Agent: invalid entries -"
 
 msgid "nginx -t refuse la configuration avec les exemptions régénérées — ancienne version restaurée, nginx NON rechargé."
 msgstr "nginx -t refuses the configuration with the regenerated exemptions - previous version restored, nginx NOT reloaded."
+
+msgid " laissée dans "
+msgstr " left in "
+
+msgid " — logrotate la lit comme une configuration (« duplicate log entry ») et s'arrête : AUCUN journal de la machine ne tourne plus ; --update la déplacera dans "
+msgstr " — logrotate reads it as a configuration (\"duplicate log entry\") and stops: NO log of the machine rotates any more; --update will move it to "
+
+msgid " déplacée vers "
+msgstr " moved to "
+
+msgid " (logrotate la lisait dans "
+msgstr " (logrotate read it in "
+
+msgid " et s'arrêtait : aucun journal ne tournait plus)"
+msgstr " and stopped: no log rotated any more)"
+
+msgid " : impossible de déplacer "
+msgstr ": cannot move "
+
+msgid " hors de "
+msgstr " out of "
+
+msgid " — logrotate reste bloqué ; déplacez-la à la main."
+msgstr " — logrotate stays blocked; move it by hand."
+
+msgid "logrotate : la configuration complète ("
+msgstr "logrotate: the whole configuration ("
+
+msgid ") a des erreurs — les journaux concernés ne tournent pas : "
+msgstr ") has errors — the logs concerned do not rotate: "
+
+msgid ") est acceptée"
+msgstr ") is accepted"
+
+msgid " Mo libérés dans "
+msgstr " MB freed in "
+
+msgid "logrotate : rotation en retard rattrapée — "
+msgstr "logrotate: missed rotation done now — "
+
+msgid " journaux tournés"
+msgstr " logs rotated"
+
+msgid " (logrotate.service n'est plus en échec)"
+msgstr " (logrotate.service is no longer failed)"
+
+msgid "logrotate : la rotation de rattrapage a échoué ("
+msgstr "logrotate: the catch-up rotation failed ("
+
+msgid "code non nul"
+msgstr "non-zero exit code"
+
+msgid ") — voir : logrotate -v "
+msgstr ") — see: logrotate -v "
