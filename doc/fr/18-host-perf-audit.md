@@ -70,3 +70,11 @@ host-perf-audit.py --guest-run --guests 101,104,105,433
 ```
 
 Lance `/opt/rlq-admin-tools/nginx-hardening.sh --update` (ou `--guest-command`) dans chaque invité, l'un après l'autre, après avoir vérifié que le programme y existe et après une confirmation (`--yes` : sans question). Les sorties sont gardées dans `/var/lib/host-perf-audit/guest-runs/DATE/`, avec un `report.md` à envoyer pour analyse. Clés `GUESTS` et `GUEST_COMMAND` dans la configuration.
+
+## Copie de la suite dans les invités (1.18)
+
+```bash
+host-perf-audit.py --guest-sync --guest-run --guests 101,104,105,433
+```
+
+Copie le dossier de la suite de l'hôte (celui de ce programme, ou `--sync-source`) dans `/opt/rlq-admin-tools` de chaque invité, après confirmation. L'ancienne copie reste en `/opt/rlq-admin-tools.previous`. Un invité qui porte le dossier source lui-même n'est jamais remplacé. Avec `--guest-run`, la commande est lancée ensuite ; le rapport s'appelle `report-HÔTE-DATE.md`.

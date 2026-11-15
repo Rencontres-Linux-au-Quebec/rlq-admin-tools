@@ -19,7 +19,7 @@
 #   * --apply: the SAFE and reversible settings (ZFS atime and compression of a dataset, ARC maximum, vm.swappiness) are offered one by one with
 #     confirmation; the others (hardware, VM disk options) are explained, never changed.
 # Configuration (common rule): /etc/default/host-perf-audit.conf THEN ~/.host-perf-audit.conf (the last one wins; keys CSV, DURATION, EXPORT_AI, GUEST_COMMAND, GUESTS, INSIDE, INTERVAL, LANGUAGE,
-# NO_GUESTS, TOP, VERBOSE); -c/--config: that file ALONE; the command line takes priority.
+# NO_GUESTS, SYNC_SOURCE, TOP, VERBOSE); -c/--config: that file ALONE; the command line takes priority.
 #
 #
 # Usage:
@@ -31,6 +31,7 @@
 #   host-perf-audit.py --health --inside       quick check without measurement: disks (SMART counters), pools, backups, and the inside of each guest
 #   host-perf-audit.py --install-timer         that check every hour, with an alert by e-mail when something is new
 #   host-perf-audit.py --guest-run --guests 101,105,433   nginx-hardening.sh --update in these guests, outputs kept for analysis
+#   host-perf-audit.py --guest-sync --guest-run --guests all   the suite copied to every guest first, then the same
 import argparse
 import datetime
 import glob
@@ -45,7 +46,7 @@ import subprocess
 import sys
 import time
 
-__version__ = "1.17.20261115.080221"
+__version__ = "1.18.20261115.144011"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
@@ -99,7 +100,7 @@ def load_module(name):
 
 
 SYSPERF = load_module("_sysperf")
-SCHEMA_CONFIG = {"CSV": ("csv", str), "DURATION": ("duration", str), "EXPORT_AI": ("export_ai", str), "GUEST_COMMAND": ("guest_command", str), "GUESTS": ("guests", str),
+SCHEMA_CONFIG = {"CSV": ("csv", str), "DURATION": ("duration", str), "EXPORT_AI": ("export_ai", str), "GUEST_COMMAND": ("guest_command", str), "GUESTS": ("guests", str), "SYNC_SOURCE": ("sync_source", str),
                  "INSIDE": ("inside", bool), "INTERVAL": ("interval", float), "NO_GUESTS": ("no_guests", bool), "TOP": ("top", int),
                  "VERBOSE": ("verbose", bool)}
 COLOR = sys.stdout.isatty() and not os.environ.get("NO_COLOR") and os.environ.get("TERM") != "dumb"
@@ -2308,7 +2309,7 @@ def guest_run(args, names, running):
         for line in fails[:5]:
             print(f"      {line[:200]}")
         results.append((vmid, name, version, code, seconds, fails, warns, summary, out, path))
-    report = os.path.join(folder, "report.md")
+    report = os.path.join(folder, f"report-{os.uname().nodename}-{os.path.basename(folder)}.md")      # 1.18: the host in the name
     lines = [f"# host-perf-audit.py v{__version__} - command in the guests", "", f"- Host: {os.uname().nodename}", f"- Command: `{command}`",
              f"- Run on: {time.strftime('%Y-%m-%d %H:%M:%S')} (local time, {time.strftime('%Z')})", "",
              "| guest | version | exit code | duration | failures | warnings | summary |", "|---|---|---|---|---|---|---|"]
@@ -2331,6 +2332,149 @@ def guest_run(args, names, running):
     if any(r[3] != 0 or r[5] for r in results):
         return 1
     return 1 if any(r[6] for r in results) else 0
+
+
+SYNC_DEST_DEFAULT = os.environ.get("HOST_PERF_AUDIT_SYNC_DEST", "/opt/rlq-admin-tools")      # the variable for the tests only
+SYNC_CHUNK = 700 * 1024          # bytes per « qm guest exec --pass-stdin » (the agent takes at most 1 MiB of input)
+SYNC_EXCLUDES = ("__pycache__", "*.pyc", ".sync-token-*")
+
+
+def sync_archive(source):
+    """(path of a tar.gz of the source folder in a private temporary folder, its sha256, its size); the .git folder is kept, so that the copy in
+    each guest is the same clone at the same commit."""
+    import hashlib
+    import tempfile
+    folder = tempfile.mkdtemp(prefix="host-perf-audit-sync-")
+    os.chmod(folder, 0o700)
+    path = os.path.join(folder, "rlq-admin-tools.tar.gz")
+    cmd = ["tar", "-C", source] + [f"--exclude={x}" for x in SYNC_EXCLUDES] + ["-czf", path, "."]
+    code, out = run(cmd, timeout=600)
+    if code != 0:
+        raise OSError(f"tar: {out.strip()[:200]}")
+    digest = hashlib.sha256()
+    with open(path, "rb") as f:
+        for block in iter(lambda: f.read(1 << 20), b""):
+            digest.update(block)
+    return path, digest.hexdigest(), os.path.getsize(path)
+
+
+def install_script(dest, archive, token):
+    """Shell run in the guest: refuses when the destination IS the source (the token file is seen), extracts into DEST.new, checks it, keeps the
+    previous copy as DEST.previous, then swaps; prints the version of nginx-hardening.sh that is now there."""
+    return (f'set -e; D="{dest}"; if [ -e "$D/{token}" ]; then echo SAME; exit 0; fi; '
+            f'OLD=$( [ -x "$D/nginx-hardening.sh" ] && "$D/nginx-hardening.sh" --version 2>/dev/null | head -1 || echo none ); '
+            f'N="$D.new"; rm -rf "$N"; mkdir -p "$N"; tar -C "$N" --no-same-owner -xzf {archive}; '
+            f'[ -x "$N/nginx-hardening.sh" ] || {{ echo "BAD archive"; rm -rf "$N"; exit 3; }}; '
+            f'rm -rf "$D.previous"; if [ -e "$D" ]; then mv "$D" "$D.previous"; fi; mv "$N" "$D"; '
+            f'echo "BEFORE $OLD"; echo "AFTER $("$D/nginx-hardening.sh" --version 2>/dev/null | head -1)"')
+
+
+def push_to_guest(vmid, kind, archive, digest, dest, token):
+    """(status « ok » | « same » | « error », text) after copying the archive into the guest and installing it there."""
+    import subprocess as sp
+    if kind == "lxc":
+        script = install_script(dest, "-", token)
+        try:
+            with open(archive, "rb") as data:
+                done = sp.run(["pct", "exec", vmid, "--", "sh", "-c", script], stdin=data, stdout=sp.PIPE, stderr=sp.STDOUT, timeout=900)
+            out, code = done.stdout.decode("utf-8", "replace"), done.returncode
+        except (OSError, sp.SubprocessError) as problem:
+            return "error", str(problem)
+    else:
+        part = "/tmp/rlq-admin-tools-sync.tar.gz"
+        code, out = guest_exec(vmid, kind, f"rm -f {part}; : > {part}", 30)
+        if code != 0:
+            return "error", f"cannot write {part} in the VM: {out.strip()[:200]}"
+        with open(archive, "rb") as f:
+            for block in iter(lambda: f.read(SYNC_CHUNK), b""):
+                try:
+                    done = sp.run(["qm", "guest", "exec", vmid, "--pass-stdin", "1", "--timeout", "60", "--", "sh", "-c", f"cat >> {part}"],
+                                  input=block, stdout=sp.PIPE, stderr=sp.STDOUT, timeout=120)
+                except (OSError, sp.SubprocessError) as problem:
+                    return "error", f"copy interrupted: {problem}"
+                answer = done.stdout.decode("utf-8", "replace")
+                if done.returncode != 0 or '"exitcode":0' not in answer.replace(" ", ""):
+                    return "error", f"copy interrupted: {answer.strip()[:200]}"
+        code, out = guest_exec(vmid, kind, f"sha256sum {part} | cut -c1-64", 60)
+        if out.strip() != digest:
+            return "error", f"the copy in the VM differs from the archive (sha256 {out.strip()[:16]}... instead of {digest[:16]}...)"
+        code, out = guest_exec(vmid, kind, install_script(dest, part, token) + f"; rm -f {part}", 300)
+    if "SAME" in (out or "").split():
+        return "same", "this guest holds the source folder itself"
+    before = re.search(r"^BEFORE (.*)$", out or "", re.M)
+    after = re.search(r"^AFTER (.*)$", out or "", re.M)
+    if code != 0 or not after:
+        return "error", (out or "").strip()[-300:] or f"exit code {code}"
+    return "ok", f"{before.group(1) if before else '?'} -> {after.group(1)}"
+
+
+def guest_sync(args, names, running):
+    """--guest-sync: copies the folder of the suite (the folder of this program, or --sync-source) to /opt/rlq-admin-tools in the guests of --guests.
+    In each, the new copy is extracted beside the old one, checked, then swapped; the old one stays as /opt/rlq-admin-tools.previous.
+    Exit code: 0 all updated, 1 a guest failed, 2 nothing done."""
+    source = os.path.realpath(args.sync_source or SCRIPT_DIR)
+    dest = SYNC_DEST_DEFAULT
+    targets = resolve_guests(args.guests, names, running)
+    if not targets:
+        eprint("ERROR: --guest-sync needs the guests: --guests 101,105,433 (or « all », or the key GUESTS of the configuration).")
+        return 2
+    if not os.access(os.path.join(source, "nginx-hardening.sh"), os.X_OK):
+        eprint(f"ERROR: {source} is not a copy of rlq-admin-tools (no executable nginx-hardening.sh): --sync-source FOLDER")
+        return 2
+    code, version = run([os.path.join(source, "nginx-hardening.sh"), "--version"], timeout=30)
+    version = (version or "").strip().splitlines()[0] if (version or "").strip() else "?"
+    code, commit = run(["git", "-C", source, "log", "-1", "--format=%h %cd", "--date=format:%Y-%m-%d %H:%M"], timeout=30)
+    print(f"\nCOPY OF THE SUITE TO THE GUESTS — {source} ({version}" + (f", commit {commit.strip()}" if code == 0 and commit.strip() else "") + f") -> {dest}")
+    ready = [(v, names[v][0], names[v][1]) for v, problem in targets if not problem]
+    for vmid, problem in targets:
+        if problem:
+            print(f"  {tag('warn')} {vmid} ({names.get(vmid, ('', '?'))[1] or '?'}): left out — {problem}")
+    if not ready:
+        print("  Nothing to copy.")
+        return 2
+    if not args.yes:
+        if not (sys.stdin.isatty() and sys.stdout.isatty()):
+            print("  Not done: no terminal to confirm it (add --yes).")
+            return 2
+        try:
+            answer = input(f"  Replace {dest} in {len(ready)} guests ({', '.join(v for v, *_r in ready)}) by this copy (the old one kept as {dest}.previous)? [y/N]: ").strip().lower()
+        except (KeyboardInterrupt, EOFError):
+            answer = ""
+        if answer not in ("o", "oui", "y", "yes"):
+            print("  Not done.")
+            return 2
+    # The token marks the source folder during the WHOLE copy: a guest that sees it in its destination holds the source itself (a mount point of
+    # the host, as /var/lib/vz/subvol-105-disk-2 for /opt of container 105) and is never replaced. Excluded from the archive.
+    token = f".sync-token-{os.getpid()}-{int(time.time())}"
+    try:
+        open(os.path.join(source, token), "w").close()
+        archive, digest, nbytes = sync_archive(source)
+    except OSError as problem:
+        eprint(f"ERROR: archive of {source} not made: {problem}")
+        try:
+            os.remove(os.path.join(source, token))
+        except OSError:
+            pass
+        return 2
+    print(f"  archive: {size(nbytes)}")
+    failed = 0
+    try:
+        for vmid, kind, name in ready:
+            start = time.monotonic()
+            status, text = push_to_guest(vmid, kind, archive, digest, dest, token)
+            level = {"ok": "ok", "same": "info", "error": "bad"}[status]
+            failed += status == "error"
+            print(f"  {tag(level)} {vmid} ({name}): " + (f"updated, {text} ({human_duration(int(time.monotonic() - start))})" if status == "ok" else text))
+    finally:
+        import shutil as sh
+        sh.rmtree(os.path.dirname(archive), ignore_errors=True)
+        try:
+            os.remove(os.path.join(source, token))
+        except OSError:
+            pass
+    if failed < len(ready):
+        print(f"  To go back in a guest: rm -rf {dest} && mv {dest}.previous {dest}")
+    return 1 if failed else 0
 
 
 # ---------------------------------------------------------------------------------------------------------------- command line
@@ -2404,7 +2548,7 @@ def main():
     parser.add_argument("--apply", action="store_true", help="After the report, apply the SAFE settings one by one with confirmation (ZFS compression / atime of a dataset, ARC maximum, vm.swappiness); --yes: without questions")
     parser.add_argument("--changelog", action="store_true", help="Show the change log")
     parser.add_argument("-c", "--config", metavar="FILE",
-                        help="Configuration file to read ALONE (otherwise: /etc/default/host-perf-audit.conf, then the personal file .host-perf-audit.conf; UPPERCASE options: CSV, DURATION, EXPORT_AI, GUEST_COMMAND, GUESTS, INSIDE, INTERVAL, LANGUAGE, NO_GUESTS, TOP, VERBOSE)")
+                        help="Configuration file to read ALONE (otherwise: /etc/default/host-perf-audit.conf, then the personal file .host-perf-audit.conf; UPPERCASE options: CSV, DURATION, EXPORT_AI, GUEST_COMMAND, GUESTS, INSIDE, INTERVAL, LANGUAGE, NO_GUESTS, SYNC_SOURCE, TOP, VERBOSE)")
     parser.add_argument("--csv", default=None, metavar="FILE", help="Also write every sample to this CSV file (one line per interval: CPU, waits, memory, ARC, each disk)")
     parser.add_argument("--duration", default="60", metavar="TIME", help="Length of the measurement: 90 (seconds), 10m, 4h, 1h30m… (default: 60 seconds)")
     parser.add_argument("--export-ai", nargs="?", const="", default=None, metavar="FILE",
@@ -2415,6 +2559,9 @@ def main():
     parser.add_argument("--guest-run", action="store_true",
                         help="Run a command (--guest-command, default nginx-hardening.sh --update) in the guests of --guests, one after the other: its program is "
                              "checked in each first, the run is confirmed (--yes: without the question), every output is kept with a report.md to send")
+    parser.add_argument("--guest-sync", action="store_true",
+                        help="Copy the folder of the suite (the folder of this program, or --sync-source) to /opt/rlq-admin-tools in the guests of --guests, "
+                             "after confirmation (--yes: without the question); the old copy stays as /opt/rlq-admin-tools.previous. With --guest-run: the copy first")
     parser.add_argument("--guests", default=None, metavar="IDS",
                         help="With --guest-run: the containers and VMs, by number (101,105,433) or « all » (every running guest); key GUESTS of the configuration")
     parser.add_argument("--health", action="store_true",
@@ -2434,6 +2581,8 @@ def main():
     parser.add_argument("--notify", action="store_true",
                         help="With --health: send the findings by e-mail and to the system journal when something is new (reminder after 24 hours; one message when all is back to normal)")
     parser.add_argument("--report-err", action="store_true", help="Print at the end an error report to copy and paste (program, version, server, failures, warnings)")
+    parser.add_argument("--sync-source", default=None, metavar="FOLDER",
+                        help="With --guest-sync: the copy of rlq-admin-tools to send (default: the folder of this program); key SYNC_SOURCE")
     parser.add_argument("--top", type=int, default=8, metavar="N", help="Number of guests shown, the busiest on the disks first (default: 8)")
     parser.add_argument("--uninstall-timer", action="store_true", help="Remove the timer of --install-timer, then exit")
     parser.add_argument("-v", "--verbose", action="store_true", help="Show each command run")
@@ -2471,11 +2620,15 @@ def main():
         return install_health_timer()
     if args.uninstall_timer:
         return uninstall_health_timer()
-    if args.guest_run:                        # 1.17: a command in the guests
+    if args.guest_run or args.guest_sync:     # 1.17: a command in the guests; 1.18: the copy of the suite first
         if os.geteuid() != 0 and "HOST_PERF_AUDIT_PVE_DIR" not in os.environ:
-            eprint("ERROR: --guest-run needs root (pct exec, qm guest exec).")
+            eprint("ERROR: --guest-run and --guest-sync need root (pct exec, qm guest exec).")
             return 2
-        return guest_run(args, guest_names(), guest_cgroups())
+        names, running = guest_names(), guest_cgroups()
+        code = guest_sync(args, names, running) if args.guest_sync else 0
+        if args.guest_run and code != 2:
+            code = max(code, guest_run(args, names, running))
+        return code
     if args.health:                           # 1.12: quick check, no measurement
         if os.geteuid() != 0:
             eprint("Limited rights: without root, smartctl, the ZFS commands and the guests are unreadable (sudo for a complete check).")

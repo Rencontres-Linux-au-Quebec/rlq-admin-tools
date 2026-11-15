@@ -70,3 +70,11 @@ host-perf-audit.py --guest-run --guests 101,104,105,433
 ```
 
 Runs `/opt/rlq-admin-tools/nginx-hardening.sh --update` (or `--guest-command`) in each guest, one after the other, after checking that the program exists there and after a confirmation (`--yes`: without the question). The outputs are kept in `/var/lib/host-perf-audit/guest-runs/DATE/`, with a `report.md` to send for analysis. Keys `GUESTS` and `GUEST_COMMAND` in the configuration.
+
+## Copy of the suite to the guests (1.18)
+
+```bash
+host-perf-audit.py --guest-sync --guest-run --guests 101,104,105,433
+```
+
+Copies the folder of the suite on the host (the folder of this program, or `--sync-source`) to `/opt/rlq-admin-tools` in each guest, after confirmation. The old copy stays as `/opt/rlq-admin-tools.previous`. A guest that holds the source folder itself is never replaced. With `--guest-run`, the command runs next; the report is named `report-HOST-DATE.md`.

@@ -627,7 +627,7 @@ esac''')
         self.assertIn("      [FAIL] fail2ban absent", out)
         self.assertIn("[OK] 433 (bbb3-26): exit code 0", out)
         self.assertIn("RÉSUMÉ : tout est en ordre (40 vérifications).", out)          # UTF-8 of the agent decoded
-        m = re.search(r"to send for analysis: (\S+report\.md)", out)
+        m = re.search(r"to send for analysis: (\S+report-\S+\.md)", out)
         self.assertIsNotNone(m, out)
         rapport = open(m.group(1), encoding="utf-8").read()
         self.assertEqual(os.stat(m.group(1)).st_mode & 0o777, 0o600)
@@ -644,6 +644,73 @@ esac''')
         rc, out, err = self.run_cmd(["python3", self.prog, "--guest-run", "--yes", "--lang", "en"], timeout=60)
         self.assertEqual(rc, 0, out + err)
         self.assertEqual(open(trace).read(), "433\n")
+        self.assertNotIn("Traceback", err)
+
+    def test_copie_de_la_suite_dans_les_invites(self):
+        """1.18 --guest-sync : le dossier de la suite copié dans /opt/rlq-admin-tools de chaque invité (conteneur : pct exec avec l'archive en entrée ;
+        VM : morceaux de moins de 1 Mio par l'agent invité, empreinte vérifiée) ; l'ancienne copie gardée ; l'invité qui porte la source laissé tel quel ;
+        puis --guest-run, et le nom du serveur dans le nom du rapport."""
+        self.hote_sante()
+        self.write("pve/qemu-server/433.conf", "name: bbb3-26\nonboot: 1\nagent: 1\nmemory: 8192\n")
+        self.write("pve/lxc/104.conf", "hostname: odoo-dev\nonboot: 1\nunprivileged: 1\ncores: 2\nmemory: 1024\n")
+        for d in ("lxc/104", "qemu.slice/433.scope"):
+            os.makedirs(os.path.join(self.racine, "sys/fs/cgroup", d), exist_ok=True)
+        source = os.path.join(self.d, "source")
+        self.write("source/nginx-hardening.sh", "#!/bin/sh\necho 'nginx-hardening.sh v2.106.20261115.074443'\n")
+        os.chmod(os.path.join(source, "nginx-hardening.sh"), 0o755)
+        self.write("source/apps/x.py", "print(1)\n")
+        self.write("source/apps/__pycache__/x.cpython-311.pyc", "binaire")
+        self.write("source/gros.bin", "z" * (1500 * 1024))                          # several chunks for the VM
+        invites = os.path.join(self.d, "invites")
+        for vmid in ("101", "104", "433"):
+            os.makedirs(os.path.join(invites, vmid), exist_ok=True)
+        self.write("invites/101/rlq-admin-tools/nginx-hardening.sh", "#!/bin/sh\necho 'nginx-hardening.sh v2.104.20261113.102013'\n")
+        os.chmod(os.path.join(invites, "101/rlq-admin-tools/nginx-hardening.sh"), 0o755)
+        dest = "/opt/rlq-admin-tools"
+        # the guest « file systems »: the destination of each guest is a folder of the test (105: the source itself)
+        carte = f'case "$id" in 105) d="{source}";; *) d="{invites}/$id/rlq-admin-tools";; esac'
+        self.mock("pct", f'''id="$2"; shift 3; {carte}
+script=$(printf "%s" "$3" | sed "s#{dest}#$d#g"); exec sh -c "$script"''')
+        aide = self.write("qm-aide.py", f'''import json, subprocess, sys
+a = sys.argv[1:]
+vm = a[2]
+script = a[a.index("--") + 3]
+d = "{invites}/" + vm + "/rlq-admin-tools"
+script = script.replace("{dest}", d)
+data = sys.stdin.buffer.read() if "--pass-stdin" in a else b""
+p = subprocess.run(["sh", "-c", script], input=data, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+print(json.dumps({{"exitcode": p.returncode, "exited": 1, "out-data": p.stdout.decode()}}))
+''')
+        self.mock("qm", f'case "$*" in *"guest exec"*) exec python3 {aide} "$@";; esac')
+        self.env["HOST_PERF_AUDIT_SYNC_DEST"] = dest
+        rc, out, err = self.run_cmd(["python3", self.prog, "--guest-sync", "--guests", "101,104,105,433", "--sync-source", source, "--lang", "en"], timeout=90)
+        self.assertEqual(rc, 2, out + err)                                                # no terminal, no --yes
+        self.assertIn("Not done: no terminal to confirm it (add --yes).", out)
+        self.assertFalse(os.path.exists(os.path.join(invites, "104/rlq-admin-tools")))
+        rc, out, err = self.run_cmd(["python3", self.prog, "--guest-sync", "--guests", "101,104,105,433", "--sync-source", source, "--yes", "--lang", "en"], timeout=90)
+        self.assertEqual(rc, 0, out + err)
+        self.assertIn(f"COPY OF THE SUITE TO THE GUESTS — {source} (nginx-hardening.sh v2.106.20261115.074443) -> {dest}", out)
+        self.assertIn("[OK] 101 (odoo18): updated, nginx-hardening.sh v2.104.20261113.102013 -> nginx-hardening.sh v2.106.20261115.074443", out)
+        self.assertIn("[OK] 104 (odoo-dev): updated, none -> nginx-hardening.sh v2.106.20261115.074443", out)
+        self.assertIn("[OK] 433 (bbb3-26): updated, none -> nginx-hardening.sh v2.106.20261115.074443", out)
+        for vmid in ("101", "104", "433"):
+            copie = os.path.join(invites, vmid, "rlq-admin-tools")
+            self.assertEqual(open(os.path.join(copie, "gros.bin")).read(), "z" * (1500 * 1024), vmid)      # the chunks put back together
+            self.assertFalse(os.path.exists(os.path.join(copie, "apps/__pycache__")), vmid)
+            self.assertFalse([f for f in os.listdir(copie) if f.startswith(".sync-token")], vmid)
+        self.assertTrue(os.path.isfile(os.path.join(invites, "101/rlq-admin-tools.previous/nginx-hardening.sh")))   # the old copy kept
+        self.assertFalse([f for f in os.listdir(source) if f.startswith(".sync-token")])
+        self.write("pve/lxc/105.conf", "hostname: odoo18b\nonboot: 1\nunprivileged: 1\ncores: 2\nmemory: 1024\n")
+        os.makedirs(os.path.join(self.racine, "sys/fs/cgroup/lxc/105"), exist_ok=True)
+        rc, out, err = self.run_cmd(["python3", self.prog, "--guest-sync", "--guest-run", "--guests", "105,104", "--sync-source", source, "--yes", "--lang", "en"], timeout=90)
+        self.assertIn("105 (odoo18b): this guest holds the source folder itself", out)
+        self.assertTrue(os.path.isfile(os.path.join(source, "nginx-hardening.sh")))    # the source was not touched
+        self.assertFalse(os.path.exists(source + ".previous"))
+        self.assertTrue(os.path.isfile(os.path.join(source, "gros.bin")))
+        m = re.search(r"to send for analysis: (\S+)", out)
+        self.assertIsNotNone(m, out)
+        self.assertRegex(os.path.basename(m.group(1)), r"^report-[^-].*-\d{8}-\d{6}\.md$")
+        self.assertIn(os.uname().nodename, os.path.basename(m.group(1)))
         self.assertNotIn("Traceback", err)
 
     def test_changements_confirmes_un_par_un(self):
