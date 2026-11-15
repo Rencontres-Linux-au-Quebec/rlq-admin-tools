@@ -100,6 +100,10 @@ ODOO_DISCUSS_MODEL=discuss.channel
 # Maximum time in seconds given to nginx-hardening.sh --check (about 20 s on a normal server; 15 s before 2.36 could cut it off).
 #SETUP_CHECK_TIMEOUT=120
 
+# --- 2.38: e-mails refused for the limit of messages per SMTP session (452 4.4.5, then 503 5.5.1; --target local, read-only) ---
+# Failed e-mails of the last N days examined; 0: check turned off.
+#MAIL_SESSION_CHECK_DAYS=7
+
 # --- Command-line options ONLY (actions or one-off settings: no key here) ---
 #   --changelog     show the change log
 #   --config-merge  Rewrite the configuration file from the new default configuration, keeping the values set (copy FILE.bak-YYYYMMDD-HHMMSS), then exit
