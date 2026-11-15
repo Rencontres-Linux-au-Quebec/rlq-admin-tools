@@ -1,11 +1,14 @@
 # Comment lines of every shipped version of the template host-perf-audit.conf.example (sha1 of the stripped line, 16 hex).
 # Read by apps/_config.py --config-merge: such a comment of an old file is a line of an old template, not a note of the
 # administrator. Updated by: python3 apps/_config.py --history host-perf-audit
+01ea47d8d8e78654
 03f13594a8ac5b1d
 0ae67edf7987c01e
 0df2da9738251981
 0e8e3c0be302bef2
 112084f12c00fd92
+118e4021933d3a39
+1a7f8b4f22f2717d
 1bf5949ca1fcb439
 1c77d2ae1bde7ef5
 1d260e8c865dded1
@@ -36,10 +39,12 @@
 920b1ec05beafebf
 9447f7763298ef64
 9782a0e6a1ef9a45
+a483c117d8f8f567
 a7d6855d831b84f0
 a8e08abcd29bef41
 aab8328c63e59e18
 ab2f321ceec3b394
+b51fa03e662dd054
 c36678daea14cf9a
 c52b1432c80e8f32
 cc5798c8b020e23e
@@ -47,6 +52,7 @@ d08f88df745fa795
 d53c8b6e310447db
 d62f9aa79a4ea00a
 d6ee68382b8753f6
+dc7e12d8bfed7d12
 ddc782b21fdae21d
 e10e930ee2e8f9f2
 ea6ef7b2d1c9d10f

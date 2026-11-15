@@ -2215,6 +2215,27 @@ Earlier history was archived outside this repository when this file was created.
 
 ## host-perf-audit.py
 
+### 1.17.20261115.080221 - A command run in the chosen guests, outputs kept for analysis
+
+- Title: New options --guest-run, --guests and --guest-command: from the Proxmox host, a command (default /opt/rlq-admin-tools/nginx-hardening.sh --update) is run in the chosen containers and VMs, and every output is kept.
+- Reason: request of the administrator on 2026-11-15: run "/opt/rlq-admin-tools/nginx-hardening.sh --update" from the host in some containers and VMs to be defined, check first that the command exists in each, and keep the results to send them for analysis.
+- Changes:
+  - New option --guest-run (function guest_run): for each guest of --guests, its program is checked first (test -x, then PROGRAM --version), then the command is run in the guests where it exists, one after the other (pct exec for a container, qm guest exec for a VM; stdin closed, NO_COLOR and TERM=dumb; at most 30 minutes each). For each: exit code, duration, the [FAIL] and [ATTN] lines and the RÉSUMÉ / SUMMARY line of the output.
+  - New option --guests IDS (key GUESTS): numbers separated by commas or spaces, or "all" (every running guest). New option --guest-command CMD (key GUEST_COMMAND).
+  - New functions guest_exec (the JSON of qm guest exec decoded, UTF-8 restored), resolve_guests (unknown number, guest stopped, VM without guest agent: left out with the reason).
+  - Outputs kept in /var/lib/host-perf-audit/guest-runs/YYYYMMDD-HHMMSS/: one file ID-NAME.log per guest (whole output, colours removed) and report.md (a table, then the failures, warnings and output of each guest), mode 600, folder mode 700.
+  - --yes now also applies to --guest-run.
+  - Files: host-perf-audit.py, lang/host-perf-audit.fr.po, doc/fr/host-perf-audit.conf.example, doc/en/host-perf-audit.conf.example, doc/conf-history/host-perf-audit.history, nginx-tools-tests/test_host_perf_audit.py.
+- Bugs fixed: none.
+- Safeguards and edge cases:
+  - A command that changes something (every command except the read-only ones of 1.15) is run only after one confirmation for all the guests listed, or with --yes; without a terminal and without --yes nothing is run (exit code 2).
+  - A guest where the program is missing is never given the command; a VM without the guest agent is never called.
+  - The guests are run one after the other, never together: nginx-hardening.sh --update may install packages.
+  - When the agent stops waiting before the end (more than 30 minutes), the output says so instead of an exit code.
+  - Exit code: 0 all succeeded, 1 a failure or a warning in an output, 2 nothing run.
+- Checks performed: new test test_commande_dans_les_invites (program found in two guests, missing in one, unknown and agent-less guests left out, refused without terminal or --yes, run with --yes, report.md and .log files, colours removed, UTF-8 of the agent, the guests read from the configuration); test_host_perf_audit: 24 tests pass; test_i18n catalogue of host-perf-audit, test_cles_modeles, test_conventions.AideTriee: pass. Not tested on the real Proxmox host.
+- Action required: none. To use it: host-perf-audit.py --guest-run --guests 101,104,105,433 (or GUESTS=101,104,105,433 in /etc/default/host-perf-audit.conf), then send the report.md it names.
+
 ### 1.16.20261115.000448 - Lock of a running backup, Odoo request log, UTF-8 of the guest agent, what moves the backups
 
 - Title: A guest locked by a backup that is running is no longer reported as an interrupted backup; four other corrections from the report of 2026-11-14.

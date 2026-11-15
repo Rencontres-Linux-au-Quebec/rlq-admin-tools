@@ -17,6 +17,10 @@
 # --export-ai : écrire aussi le rapport et l'état brut de l'hôte (pools, datasets, instantanés, disques, invités, sauvegardes, tâches) dans un fichier Markdown à envoyer pour vérification
 # (yes : export-ai-HÔTE-AAAAMMJJ-HHMMSS.md dans /var/lib/host-perf-audit, mode 600 ; ou un chemin de fichier ; mots de passe et clés masqués)
 #EXPORT_AI=no
+# --guests : with --guest-run, the containers and VMs, by number (101,105,433) or « all » (every running guest)
+#GUESTS=
+# --guest-command : with --guest-run, the command run in the guests (default: /opt/rlq-admin-tools/nginx-hardening.sh --update)
+#GUEST_COMMAND=/opt/rlq-admin-tools/nginx-hardening.sh --update
 # --inside : regarder aussi DANS chaque invité en marche, en lecture seule (pct exec pour un conteneur, l'agent invité QEMU pour une VM) : conteneurs en boucle de redémarrage,
 # services en échec, journal, disques pleins, processus qui écrivent le plus (10 secondes par invité)
 #INSIDE=no

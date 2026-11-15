@@ -592,6 +592,60 @@ esac''')
             os.environ["PATH"] = ancien
         self.assertEqual((code, sortie), (3, "● logrotate.service"))
 
+    def test_commande_dans_les_invites(self):
+        """1.17 --guest-run : nginx-hardening.sh --update lancé dans les invités choisis, après avoir vérifié qu'il existe dans chacun ; refusé sans
+        terminal ni --yes ; chaque sortie gardée, avec un report.md à envoyer."""
+        self.hote_sante()
+        self.write("pve/lxc/104.conf", "hostname: odoo-dev\nonboot: 1\nunprivileged: 1\ncores: 2\nmemory: 1024\n")
+        self.write("pve/qemu-server/433.conf", "name: bbb3-26\nonboot: 1\nagent: 1\nmemory: 8192\n")
+        for vmid, d in (("104", "lxc/104"), ("433", "qemu.slice/433.scope")):
+            os.makedirs(os.path.join(self.racine, "sys/fs/cgroup", d), exist_ok=True)
+        trace = os.path.join(self.d, "lance.txt")
+        self.mock("pct", f'''id="$2"; shift 3; script="$*"
+case "$script" in
+  *"if [ -x"*) [ "$id" = 104 ] && echo MISSING || printf "FOUND\\nnginx-hardening.sh version 2.106.20261115.074443\\n";;
+  *--update*) echo "$id" >> {trace}; printf "\\033[32m[OK]\\033[0m   étape 1\\n  [FAIL] fail2ban absent\\n  [ATTN] HSTS absent\\nRÉSUMÉ : 40 OK, 1 avertissements, 1 échecs.\\n"; exit 1;;
+esac''')
+        self.mock("qm", f'''id="$3"; case "$*" in
+  *"if [ -x"*) printf \'{{"exitcode":0,"exited":1,"out-data":"FOUND\\\\nnginx-hardening.sh version 2.106\\\\n"}}\';;
+  *--update*) echo "$id" >> {trace}; printf \'{{"exitcode":0,"exited":1,"out-data":"[OK] tout\\\\nR\\\\u00c3\\\\u0089SUM\\\\u00c3\\\\u0089 : tout est en ordre (40 v\\\\u00c3\\\\u00a9rifications).\\\\n"}}\';;
+esac''')
+        rc, out, err = self.run_cmd(["python3", self.prog, "--guest-run", "--guests", "101,104,433,999,120", "--lang", "en"], timeout=60)
+        self.assertEqual(rc, 2, out + err)                                                # no terminal, no --yes: nothing run
+        self.assertIn("COMMAND IN THE GUESTS — /opt/rlq-admin-tools/nginx-hardening.sh --update", out)
+        self.assertIn("[OK] 101 (odoo18): /opt/rlq-admin-tools/nginx-hardening.sh found · nginx-hardening.sh version 2.106.20261115.074443", out)
+        self.assertIn("[FAIL] 104 (odoo-dev): /opt/rlq-admin-tools/nginx-hardening.sh is not there", out)
+        self.assertIn("999 (?): left out — no such container or VM", out)
+        self.assertIn("120 (bbb3): left out — QEMU guest agent not enabled", out)
+        self.assertIn("Not run: this command changes the guests and there is no terminal to confirm it", out)
+        self.assertFalse(os.path.exists(trace))
+        rc, out, err = self.run_cmd(["python3", self.prog, "--guest-run", "--guests", "101,104,433", "--yes", "--lang", "en"], timeout=60)
+        self.assertEqual(rc, 1, out + err)                                                # a failure in the output of 101
+        self.assertEqual(open(trace).read(), "101\n433\n")                               # 104 has no program: not run
+        self.assertIn("[FAIL] 101 (odoo18): exit code 1", out)
+        self.assertIn("1 failures, 1 warnings · RÉSUMÉ : 40 OK, 1 avertissements, 1 échecs.", out)
+        self.assertIn("      [FAIL] fail2ban absent", out)
+        self.assertIn("[OK] 433 (bbb3-26): exit code 0", out)
+        self.assertIn("RÉSUMÉ : tout est en ordre (40 vérifications).", out)          # UTF-8 of the agent decoded
+        m = re.search(r"to send for analysis: (\S+report\.md)", out)
+        self.assertIsNotNone(m, out)
+        rapport = open(m.group(1), encoding="utf-8").read()
+        self.assertEqual(os.stat(m.group(1)).st_mode & 0o777, 0o600)
+        self.assertIn("| 101 odoo18 | nginx-hardening.sh version 2.106.20261115.074443 | 1 |", rapport)
+        self.assertIn("## 433 (bbb3-26)", rapport)
+        self.assertIn("[FAIL] fail2ban absent", rapport)
+        self.assertNotIn("\x1b[", rapport)                                                # colours removed
+        journaux = sorted(f for f in os.listdir(os.path.dirname(m.group(1))) if f.endswith(".log"))
+        self.assertEqual(journaux, ["101-odoo18.log", "433-bbb3-26.log"])
+        os.makedirs(self.env["NGINX_TOOLS_ETC_DEFAULT"], exist_ok=True)
+        with open(os.path.join(self.env["NGINX_TOOLS_ETC_DEFAULT"], "host-perf-audit.conf"), "w") as f:     # the guests from the configuration
+            f.write("GUESTS=433\n")
+        os.remove(trace)
+        rc, out, err = self.run_cmd(["python3", self.prog, "--guest-run", "--yes", "--lang", "en"], timeout=60)
+        self.assertEqual(rc, 0, out + err)
+        self.assertEqual(open(trace).read(), "433\n")
+        self.assertNotIn("Traceback", err)
+
     def test_changements_confirmes_un_par_un(self):
         """1.15 : chaque changement est demandé ; seul celui qui reçoit « y » est lancé."""
         import builtins
