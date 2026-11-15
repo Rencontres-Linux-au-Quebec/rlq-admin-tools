@@ -1659,3 +1659,15 @@ msgstr "Avec --guest-sync : la copie de rlq-admin-tools à envoyer (défaut : le
 
 msgid " in "
 msgstr " dans "
+
+msgid " guests without the suite ("
+msgstr " invités sans la suite ("
+
+msgid "): --guest-sync copies it there first (host-perf-audit.py --guest-sync --guest-run --guests "
+msgstr ") : --guest-sync l'y copie d'abord (host-perf-audit.py --guest-sync --guest-run --guests "
+
+msgid "  Copy the suite to "
+msgstr "  Copier la suite dans "
+
+msgid " now? [y/N]: "
+msgstr " maintenant ? [y/N] : "

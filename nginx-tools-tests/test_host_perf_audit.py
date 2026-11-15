@@ -618,6 +618,7 @@ esac''')
         self.assertIn("999 (?): left out — no such container or VM", out)
         self.assertIn("120 (bbb3): left out — QEMU guest agent not enabled", out)
         self.assertIn("Not run: this command changes the guests and there is no terminal to confirm it", out)
+        self.assertIn("1 guests without the suite (104): --guest-sync copies it there first (host-perf-audit.py --guest-sync --guest-run --guests 104)", out)   # 1.19
         self.assertFalse(os.path.exists(trace))
         rc, out, err = self.run_cmd(["python3", self.prog, "--guest-run", "--guests", "101,104,433", "--yes", "--lang", "en"], timeout=60)
         self.assertEqual(rc, 1, out + err)                                                # a failure in the output of 101
