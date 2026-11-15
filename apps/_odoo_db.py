@@ -28,7 +28,7 @@ import re
 import subprocess
 import sys
 
-__version__ = "1.23.20261031.180855"
+__version__ = "1.24.22.20261115.172939"
 # 1.20: PostgreSQL commands run as the postgres user: runuser under root, "sudo -n" otherwise (the account needs no root)
 POSTGRES_RUN = ["runuser", "-u", "postgres", "--"] if os.geteuid() == 0 else ["sudo", "-n", "-u", "postgres", "--"]
 
@@ -507,6 +507,20 @@ def remettre_en_attente(base, ids, delai=60):
     if r.returncode != 0:
         return None
     return [int(l) for l in r.stdout.splitlines() if l.strip().isdigit()]
+
+
+def etats_courriels(base, ids, delai=20):
+    """{id: état} (state de mail_mail : outgoing, sent, exception...) des courriels demandés ; None si impossible. Lecture seule."""
+    try:
+        ids = sorted({int(i) for i in ids})
+    except (TypeError, ValueError):
+        return None
+    if not ids:
+        return {}
+    lignes = _requete(base, f"SELECT id, state FROM mail_mail WHERE id IN ({', '.join(str(i) for i in ids)})", delai=delai)
+    if lignes is None:
+        return None
+    return {int(l[0]): l[1] for l in lignes if len(l) >= 2 and l[0].isdigit()}
 
 
 # ---------------------------------------------------------------------------------------------------------------------------------

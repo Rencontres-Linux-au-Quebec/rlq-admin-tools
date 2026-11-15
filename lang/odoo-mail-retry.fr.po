@@ -408,3 +408,27 @@ msgstr "menu interactif des opérations courantes (dialog si installé ; termina
 
 msgid "Without root: PostgreSQL reached with sudo -n -u postgres (allowed by sudoers); nothing else needs root here."
 msgstr "Sans root : PostgreSQL joint avec sudo -n -u postgres (permis par sudoers) ; rien d'autre n'a besoin de root ici."
+
+msgid "ERROR: unable to put e-mail #{mail_id} back in the queue (database {database} : PostgreSQL unreachable, or root required)."
+msgstr "ERREUR : impossible de remettre le courriel #{mail_id} en file d'attente (base {database} : PostgreSQL injoignable, ou root requis)."
+
+msgid "#{mail_id} ignored: no longer failed."
+msgstr "#{mail_id} ignoré : n'est plus en échec."
+
+msgid "#{mail_id} put back in the queue; waiting for Odoo to send it..."
+msgstr "#{mail_id} remis en file d'attente ; attente de l'envoi par Odoo..."
+
+msgid "sent after {waited} s."
+msgstr "envoyé après {waited} s."
+
+msgid "not sent after {waited} s (still in the queue): moving on."
+msgstr "non envoyé après {waited} s (toujours en file) : on passe au suivant."
+
+msgid "failed again (state: {state})."
+msgstr "en échec de nouveau (état : {state})."
+
+msgid "{sent} sent, {failed} not sent, {skipped} ignored (interval {interval} s between e-mails)."
+msgstr "{sent} envoyés, {failed} non envoyés, {skipped} ignorés (intervalle de {interval} s entre les courriels)."
+
+msgid "Resend ONE e-mail at a time, waiting for Odoo to send it and SECONDS between two e-mails (0: all at once, as before; key INTERVAL)"
+msgstr "Renvoie UN courriel à la fois, en attendant son envoi par Odoo et SECONDES entre deux courriels (0 : tous d'un coup, comme avant ; clé INTERVAL)"

@@ -12,6 +12,8 @@
 #ANONYMIZE=no
 # --batch : taille du lot (nombre positif) (défaut : 10)
 #BATCH=10
+# INTERVAL : secondes entre deux courriels renvoyés UN à la fois (--interval) : chacun attend l'envoi par Odoo, puis INTERVAL s. 0 : tous d'un coup.
+#INTERVAL=0
 # --days : jours examinés (défaut : 30)
 #DAYS=30
 # --db : base de données (défaut : toutes les bases qui ont des courriels)
