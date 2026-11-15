@@ -62,3 +62,11 @@ Depuis la 1.14, chaque invité en ordre a sa ligne `[OK]` avec ce qui a été v�
 ## Commandes lancées par le programme (1.15)
 
 À la fin du rapport et de `--health`, chaque commande est marquée **`[lecture]`** (le programme la lance lui-même et montre sa sortie dans la section « COLLECTÉ ») ou **`[modif.]`** (elle modifie quelque chose : le programme la propose une à une et ne la lance qu'après « y », en root, dans un terminal). `--no-collect` liste seulement les commandes. Les sauvegardes placées dans un sous-dossier que Proxmox ne voit pas (sa rétention ne s'y applique jamais) sont signalées, avec la liste des fichiers à supprimer au-delà de `keep-last` et la place libérée.
+
+## Commande dans les invités (1.17)
+
+```bash
+host-perf-audit.py --guest-run --guests 101,104,105,433
+```
+
+Lance `/opt/rlq-admin-tools/nginx-hardening.sh --update` (ou `--guest-command`) dans chaque invité, l'un après l'autre, après avoir vérifié que le programme y existe et après une confirmation (`--yes` : sans question). Les sorties sont gardées dans `/var/lib/host-perf-audit/guest-runs/DATE/`, avec un `report.md` à envoyer pour analyse. Clés `GUESTS` et `GUEST_COMMAND` dans la configuration.

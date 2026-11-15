@@ -154,8 +154,8 @@ msgstr "Affiche le journal des modifications"
 msgid "FILE"
 msgstr "FICHIER"
 
-msgid "Configuration file to read ALONE (otherwise: /etc/default/host-perf-audit.conf, then the personal file .host-perf-audit.conf; UPPERCASE options: CSV, DURATION, EXPORT_AI, INSIDE, INTERVAL, LANGUAGE, NO_GUESTS, TOP, VERBOSE)"
-msgstr "Fichier de configuration à lire SEUL (sinon : /etc/default/host-perf-audit.conf, puis le fichier personnel .host-perf-audit.conf ; options en MAJUSCULES : CSV, DURATION, EXPORT_AI, INSIDE, INTERVAL, LANGUAGE, NO_GUESTS, TOP, VERBOSE)"
+msgid "Configuration file to read ALONE (otherwise: /etc/default/host-perf-audit.conf, then the personal file .host-perf-audit.conf; UPPERCASE options: CSV, DURATION, EXPORT_AI, GUEST_COMMAND, GUESTS, INSIDE, INTERVAL, LANGUAGE, NO_GUESTS, TOP, VERBOSE)"
+msgstr "Fichier de configuration à lire SEUL (sinon : /etc/default/host-perf-audit.conf, puis le fichier personnel .host-perf-audit.conf ; options en MAJUSCULES : CSV, DURATION, EXPORT_AI, GUEST_COMMAND, GUESTS, INSIDE, INTERVAL, LANGUAGE, NO_GUESTS, TOP, VERBOSE)"
 
 msgid "Also write every sample to this CSV file (one line per interval: CPU, waits, memory, ARC, each disk)"
 msgstr "Écrire aussi chaque échantillon dans ce fichier CSV (une ligne par intervalle : CPU, attentes, mémoire, ARC, chaque disque)"
@@ -190,8 +190,8 @@ msgstr "Nombre d'invités affichés, les plus actifs sur les disques d'abord (d�
 msgid "Show each command run"
 msgstr "Affiche chaque commande lancée"
 
-msgid "With --apply: without questions"
-msgstr "Avec --apply : sans question"
+msgid "With --apply or --guest-run: without questions"
+msgstr "Avec --apply ou --guest-run : sans question"
 
 msgid "--duration expects between 5 seconds and 7 days"
 msgstr "--duration attend entre 5 secondes et 7 jours"
@@ -1503,3 +1503,84 @@ msgstr ") — normal ; les instantanés et les changements de cet invité attend
 
 msgid " (the guest is locked: run this program again once it is unlocked to get the commands)"
 msgstr " (l'invité est verrouillé : relancer ce programme une fois déverrouillé pour avoir les commandes)"
+
+msgid "ERROR: --guest-run needs the guests: --guests 101,105,433 (or « all », or the key GUESTS of the configuration)."
+msgstr "ERREUR : --guest-run demande les invités : --guests 101,105,433 (ou « all », ou la clé GUESTS de la configuration)."
+
+msgid "  Nothing to run."
+msgstr "  Rien à lancer."
+
+msgid " - command in the guests"
+msgstr " - commande dans les invités"
+
+msgid " · to send for analysis: "
+msgstr " · à envoyer pour analyse : "
+
+msgid "Run a command (--guest-command, default nginx-hardening.sh --update) in the guests of --guests, one after the other: its program is checked in each first, the run is confirmed (--yes: without the question), every output is kept with a report.md to send"
+msgstr "Lancer une commande (--guest-command, par défaut nginx-hardening.sh --update) dans les invités de --guests, l'un après l'autre : son programme est d'abord vérifié dans chacun, le lancement est confirmé (--yes : sans la question), chaque sortie est gardée avec un report.md à envoyer"
+
+msgid "With --guest-run: the containers and VMs, by number (101,105,433) or « all » (every running guest); key GUESTS of the configuration"
+msgstr "Avec --guest-run : les conteneurs et VM, par numéro (101,105,433) ou « all » (tous ceux en marche) ; clé GUESTS de la configuration"
+
+msgid "): running (at most "
+msgstr ") : en cours (au plus "
+
+msgid "With --guest-run: the command to run in the guests (default: "
+msgstr "Avec --guest-run : la commande à lancer dans les invités (défaut : "
+
+msgid "ERROR: --guest-run needs root (pct exec, qm guest exec)."
+msgstr "ERREUR : --guest-run demande root (pct exec, qm guest exec)."
+
+msgid "no such container or VM"
+msgstr "aucun conteneur ni VM de ce numéro"
+
+msgid ": left out — "
+msgstr " : laissé de côté — "
+
+msgid " found"
+msgstr " trouvé"
+
+msgid "  Not run: this command changes the guests and there is no terminal to confirm it (add --yes to run it without a question)."
+msgstr "  Non lancée : cette commande modifie les invités et il n'y a aucun terminal pour la confirmer (ajouter --yes pour la lancer sans question)."
+
+msgid "): exit code "
+msgstr ") : code de sortie "
+
+msgid " warnings"
+msgstr " avertissements"
+
+msgid " failures, "
+msgstr " échecs, "
+
+msgid "not running"
+msgstr "arrêté"
+
+msgid " is not there (or not executable)"
+msgstr " est absent (ou non exécutable)"
+
+msgid "QEMU guest agent not enabled (qm set ID --agent enabled=1, qemu-guest-agent in the VM, then stop and start it)"
+msgstr "agent invité QEMU non activé (qm set ID --agent enabled=1, qemu-guest-agent dans la VM, puis l'arrêter et la démarrer)"
+
+msgid " guests ("
+msgstr " invités ("
+
+msgid "), one after the other? [y/N]: "
+msgstr "), l'un après l'autre ? [y/N] : "
+
+msgid "  Run « "
+msgstr "  Lancer « "
+
+msgid " » in "
+msgstr " » dans "
+
+msgid "  Not run."
+msgstr "  Non lancée."
+
+msgid "\n  Outputs kept in "
+msgstr "\n  Sorties gardées dans "
+
+msgid "COMMAND IN THE GUESTS — "
+msgstr "COMMANDE DANS LES INVITÉS — "
+
+msgid " minutes)"
+msgstr " minutes)"

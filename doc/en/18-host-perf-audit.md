@@ -62,3 +62,11 @@ Since 1.14, each guest in order gets its `[OK]` line with what was verified, and
 ## Commands run by the program (1.15)
 
 At the end of the report and of `--health`, each command is marked **`[read]`** (the program runs it and shows its output in the section "COLLECTED") or **`[change]`** (it modifies something: the program offers it one by one and runs it only after "y", as root, in a terminal). `--no-collect` only lists the commands. Backups placed in a sub-folder that Proxmox does not see (its retention never applies there) are reported, with the list of the files to delete beyond `keep-last` and the room freed.
+
+## Command in the guests (1.17)
+
+```bash
+host-perf-audit.py --guest-run --guests 101,104,105,433
+```
+
+Runs `/opt/rlq-admin-tools/nginx-hardening.sh --update` (or `--guest-command`) in each guest, one after the other, after checking that the program exists there and after a confirmation (`--yes`: without the question). The outputs are kept in `/var/lib/host-perf-audit/guest-runs/DATE/`, with a `report.md` to send for analysis. Keys `GUESTS` and `GUEST_COMMAND` in the configuration.

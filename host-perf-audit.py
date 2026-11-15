@@ -18,7 +18,7 @@
 #   * Ctrl-C during the measurement: the report is still produced with the samples already taken.
 #   * --apply: the SAFE and reversible settings (ZFS atime and compression of a dataset, ARC maximum, vm.swappiness) are offered one by one with
 #     confirmation; the others (hardware, VM disk options) are explained, never changed.
-# Configuration (common rule): /etc/default/host-perf-audit.conf THEN ~/.host-perf-audit.conf (the last one wins; keys CSV, DURATION, EXPORT_AI, INSIDE, INTERVAL, LANGUAGE,
+# Configuration (common rule): /etc/default/host-perf-audit.conf THEN ~/.host-perf-audit.conf (the last one wins; keys CSV, DURATION, EXPORT_AI, GUEST_COMMAND, GUESTS, INSIDE, INTERVAL, LANGUAGE,
 # NO_GUESTS, TOP, VERBOSE); -c/--config: that file ALONE; the command line takes priority.
 #
 #
@@ -30,6 +30,7 @@
 #   host-perf-audit.py --export-ai             report, then the report and the raw state of the host in a Markdown file to send for verification
 #   host-perf-audit.py --health --inside       quick check without measurement: disks (SMART counters), pools, backups, and the inside of each guest
 #   host-perf-audit.py --install-timer         that check every hour, with an alert by e-mail when something is new
+#   host-perf-audit.py --guest-run --guests 101,105,433   nginx-hardening.sh --update in these guests, outputs kept for analysis
 import argparse
 import datetime
 import glob
@@ -44,7 +45,7 @@ import subprocess
 import sys
 import time
 
-__version__ = "1.16.20261115.000448"
+__version__ = "1.17.20261115.080221"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
@@ -98,7 +99,8 @@ def load_module(name):
 
 
 SYSPERF = load_module("_sysperf")
-SCHEMA_CONFIG = {"CSV": ("csv", str), "DURATION": ("duration", str), "EXPORT_AI": ("export_ai", str), "INSIDE": ("inside", bool), "INTERVAL": ("interval", float), "NO_GUESTS": ("no_guests", bool), "TOP": ("top", int),
+SCHEMA_CONFIG = {"CSV": ("csv", str), "DURATION": ("duration", str), "EXPORT_AI": ("export_ai", str), "GUEST_COMMAND": ("guest_command", str), "GUESTS": ("guests", str),
+                 "INSIDE": ("inside", bool), "INTERVAL": ("interval", float), "NO_GUESTS": ("no_guests", bool), "TOP": ("top", int),
                  "VERBOSE": ("verbose", bool)}
 COLOR = sys.stdout.isatty() and not os.environ.get("NO_COLOR") and os.environ.get("TERM") != "dumb"
 
@@ -2200,6 +2202,137 @@ def uninstall_health_timer():
     return 0
 
 
+# ---------------------------------------------------------------------------------------------------------------- a command in the guests (1.17)
+GUEST_COMMAND_DEFAULT = "/opt/rlq-admin-tools/nginx-hardening.sh --update"
+GUEST_RUN_TIMEOUT = 1800        # seconds per guest: nginx-hardening.sh --update may install packages
+
+
+def guest_exec(vmid, kind, script, timeout):
+    """(exit code, output) of a shell script run INSIDE a guest (pct exec / qm guest exec), stdin closed, without colours."""
+    script = f"export NO_COLOR=1 TERM=dumb; {script}"
+    if kind == "lxc":
+        return run(["pct", "exec", vmid, "--", "sh", "-c", script], timeout=timeout + 60)
+    code, out = run(["qm", "guest", "exec", vmid, "--timeout", str(timeout), "--", "sh", "-c", script], timeout=timeout + 60)
+    try:
+        answer = json.loads(out)
+    except ValueError:
+        return code, out
+    text = (answer.get("out-data") or "") + (answer.get("err-data") or "")
+    try:
+        text = text.encode("latin-1").decode("utf-8")
+    except (UnicodeEncodeError, UnicodeDecodeError):
+        pass
+    if answer.get("exited") in (0, False):
+        return None, text + "\n(the command was still running when the agent stopped waiting: see the journal of the guest)"
+    return answer.get("exitcode", code), text
+
+
+def resolve_guests(spec, names, running):
+    """[(vmid, problem or « »)] from « 101,105 433 » or « all » (every running guest)."""
+    if not spec:
+        return []
+    if spec.strip().lower() in ("all", "tous"):
+        return [(v, "") for v in sorted(running, key=lambda x: int(x) if x.isdigit() else 0)]
+    res = []
+    for vmid in re.split(r"[\s,;]+", spec.strip()):
+        if not vmid:
+            continue
+        if vmid not in names:
+            res.append((vmid, "no such container or VM"))
+        elif vmid not in running:
+            res.append((vmid, "not running"))
+        elif names[vmid][0] == "vm" and not guest_agent(names[vmid][2]):
+            res.append((vmid, "QEMU guest agent not enabled (qm set ID --agent enabled=1, qemu-guest-agent in the VM, then stop and start it)"))
+        else:
+            res.append((vmid, ""))
+    return res
+
+
+def guest_run(args, names, running):
+    """--guest-run: runs a command (default: nginx-hardening.sh --update) in the chosen guests, after checking that its program exists in each and
+    after confirmation; every output is kept in /var/lib/host-perf-audit/guest-runs/DATE/ with a report.md to send for analysis.
+    Exit code: 0 all succeeded, 1 a failure or a warning in an output, 2 nothing run."""
+    command = (args.guest_command or GUEST_COMMAND_DEFAULT).strip()
+    program = command.split()[0]
+    targets = resolve_guests(args.guests, names, running)
+    if not targets:
+        eprint("ERROR: --guest-run needs the guests: --guests 101,105,433 (or « all », or the key GUESTS of the configuration).")
+        return 2
+    print(f"\nCOMMAND IN THE GUESTS — {command}")
+    ready = []
+    for vmid, problem in targets:
+        kind, name = names.get(vmid, ("?", ""))[:2]
+        who = f"{vmid} ({name or '?'})"
+        if problem:
+            print(f"  {tag('warn')} {who}: left out — {problem}")
+            continue
+        code, out = guest_exec(vmid, kind, f"if [ -x {program} ]; then echo FOUND; {program} --version 2>/dev/null | head -1; else echo MISSING; fi", 60)
+        lines = (out or "").strip().splitlines()
+        if not lines or lines[0].strip() != "FOUND":
+            print(f"  {tag('bad')} {who}: {program} is not there (or not executable)" + (f" — {lines[0][:120]}" if lines and lines[0].strip() != "MISSING" else ""))
+            continue
+        version = lines[1].strip() if len(lines) > 1 else ""
+        print(f"  {tag('ok')} {who}: {program} found" + (f" · {version}" if version else ""))
+        ready.append((vmid, kind, name, version))
+    if not ready:
+        print("  Nothing to run.")
+        return 2
+    if not is_read_only(command) and not args.yes:
+        if not (sys.stdin.isatty() and sys.stdout.isatty()):
+            print(f"  Not run: this command changes the guests and there is no terminal to confirm it (add --yes to run it without a question).")
+            return 2
+        try:
+            answer = input(f"  Run « {command} » in {len(ready)} guests ({', '.join(v for v, *_r in ready)}), one after the other? [y/N]: ").strip().lower()
+        except (KeyboardInterrupt, EOFError):
+            answer = ""
+        if answer not in ("o", "oui", "y", "yes"):
+            print("  Not run.")
+            return 2
+    folder = os.path.join(STATE_DIR, "guest-runs", time.strftime("%Y%m%d-%H%M%S"))
+    os.makedirs(folder, mode=0o700, exist_ok=True)
+    results = []
+    for vmid, kind, name, version in ready:
+        print(f"  … {vmid} ({name}): running (at most {GUEST_RUN_TIMEOUT // 60} minutes)", flush=True)
+        start = time.monotonic()
+        code, out = guest_exec(vmid, kind, f"{command} </dev/null 2>&1", GUEST_RUN_TIMEOUT)
+        seconds = time.monotonic() - start
+        out = re.sub(r"\x1b\[[0-9;]*[A-Za-z]", "", out or "")
+        fails = [l.strip() for l in out.splitlines() if re.search(r"\[(?:FAIL|ÉCHEC)\]", l)]
+        warns = [l.strip() for l in out.splitlines() if re.search(r"\[(?:ATTN|WARN|ATTENTION)\]", l)]
+        summary = next((l.strip() for l in reversed(out.splitlines()) if re.match(r"\s*(RÉSUMÉ|SUMMARY)\b", l)), "")
+        path = os.path.join(folder, f"{vmid}-{re.sub(r'[^A-Za-z0-9._-]', '_', name or 'guest')}.log")
+        with os.fdopen(os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600), "w", encoding="utf-8") as f:
+            f.write(f"# {command}\n# guest {vmid} ({name}), {version}\n# exit code {code}, {seconds:.0f} s\n\n{out}")
+        level = "bad" if code not in (0,) or fails else "warn" if warns else "ok"
+        print(f"  {tag(level)} {vmid} ({name}): exit code {code}, {human_duration(int(seconds))} · {len(fails)} failures, {len(warns)} warnings" + (f" · {summary}" if summary else ""))
+        for line in fails[:5]:
+            print(f"      {line[:200]}")
+        results.append((vmid, name, version, code, seconds, fails, warns, summary, out, path))
+    report = os.path.join(folder, "report.md")
+    lines = [f"# host-perf-audit.py v{__version__} - command in the guests", "", f"- Host: {os.uname().nodename}", f"- Command: `{command}`",
+             f"- Run on: {time.strftime('%Y-%m-%d %H:%M:%S')} (local time, {time.strftime('%Z')})", "",
+             "| guest | version | exit code | duration | failures | warnings | summary |", "|---|---|---|---|---|---|---|"]
+    for vmid, name, version, code, seconds, fails, warns, summary, _out, _p in results:
+        lines.append(f"| {vmid} {name} | {version or '-'} | {code} | {human_duration(int(seconds))} | {len(fails)} | {len(warns)} | {summary or '-'} |")
+    for vmid, name, version, code, seconds, fails, warns, summary, out, _p in results:
+        lines += ["", f"## {vmid} ({name})", ""]
+        if fails or warns:
+            lines += ["Failures and warnings:", "", "```"] + fails + warns + ["```", ""]
+        kept = out.rstrip("\n").splitlines()
+        if len(kept) > 1500:
+            kept = kept[:300] + [f"[... {len(kept) - 1500} lines left out, the whole output is in the .log file ...]"] + kept[-1200:]
+        lines += ["Output:", "", "```"] + kept + ["```"]
+    left = [(v, p) for v, p in targets if p]
+    if left:
+        lines += ["", "## Left out", ""] + [f"- {v}: {p}" for v, p in left]
+    with os.fdopen(os.open(report, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600), "w", encoding="utf-8") as f:
+        f.write("\n".join(lines) + "\n")
+    print(f"\n  Outputs kept in {folder} · to send for analysis: {report}")
+    if any(r[3] != 0 or r[5] for r in results):
+        return 1
+    return 1 if any(r[6] for r in results) else 0
+
+
 # ---------------------------------------------------------------------------------------------------------------- command line
 def changelog_section(path, key):
     """This program's section of CHANGELOG.md: from its '## <key>' heading up to the next '## ' heading."""
@@ -2271,12 +2404,19 @@ def main():
     parser.add_argument("--apply", action="store_true", help="After the report, apply the SAFE settings one by one with confirmation (ZFS compression / atime of a dataset, ARC maximum, vm.swappiness); --yes: without questions")
     parser.add_argument("--changelog", action="store_true", help="Show the change log")
     parser.add_argument("-c", "--config", metavar="FILE",
-                        help="Configuration file to read ALONE (otherwise: /etc/default/host-perf-audit.conf, then the personal file .host-perf-audit.conf; UPPERCASE options: CSV, DURATION, EXPORT_AI, INSIDE, INTERVAL, LANGUAGE, NO_GUESTS, TOP, VERBOSE)")
+                        help="Configuration file to read ALONE (otherwise: /etc/default/host-perf-audit.conf, then the personal file .host-perf-audit.conf; UPPERCASE options: CSV, DURATION, EXPORT_AI, GUEST_COMMAND, GUESTS, INSIDE, INTERVAL, LANGUAGE, NO_GUESTS, TOP, VERBOSE)")
     parser.add_argument("--csv", default=None, metavar="FILE", help="Also write every sample to this CSV file (one line per interval: CPU, waits, memory, ARC, each disk)")
     parser.add_argument("--duration", default="60", metavar="TIME", help="Length of the measurement: 90 (seconds), 10m, 4h, 1h30m… (default: 60 seconds)")
     parser.add_argument("--export-ai", nargs="?", const="", default=None, metavar="FILE",
                         help="Also write the report and the raw state of the host (pools, datasets, snapshots, disks, guests, backups, tasks, kernel warnings) to a Markdown "
                              "file without colors, to send for verification (default FILE: export-ai-HOST-YYYYMMDD-HHMMSS.md in /var/lib/host-perf-audit, mode 600; passwords and keys hidden)")
+    parser.add_argument("--guest-command", default=None, metavar="CMD",
+                        help=f"With --guest-run: the command to run in the guests (default: {GUEST_COMMAND_DEFAULT})")
+    parser.add_argument("--guest-run", action="store_true",
+                        help="Run a command (--guest-command, default nginx-hardening.sh --update) in the guests of --guests, one after the other: its program is "
+                             "checked in each first, the run is confirmed (--yes: without the question), every output is kept with a report.md to send")
+    parser.add_argument("--guests", default=None, metavar="IDS",
+                        help="With --guest-run: the containers and VMs, by number (101,105,433) or « all » (every running guest); key GUESTS of the configuration")
     parser.add_argument("--health", action="store_true",
                         help="Quick check without measurement: SMART counters of each disk (compared with the previous run), ZFS pools, RAID, kernel messages, space, backups, "
                              "alert services; with --inside, the inside of each guest. Exit code 0 (nothing), 1 (to watch), 2 (problem)")
@@ -2298,7 +2438,7 @@ def main():
     parser.add_argument("--uninstall-timer", action="store_true", help="Remove the timer of --install-timer, then exit")
     parser.add_argument("-v", "--verbose", action="store_true", help="Show each command run")
     parser.add_argument("--version", action="version", version=f"host-perf-audit.py version {__version__}")
-    parser.add_argument("--yes", action="store_true", help="With --apply: without questions")
+    parser.add_argument("--yes", action="store_true", help="With --apply or --guest-run: without questions")
     if "--version" not in sys.argv[1:]:
         print(f"host-perf-audit.py v{__version__}")
     defaults, problems = I18N.defauts(parser, SCHEMA_CONFIG) if I18N else ({}, [])
@@ -2331,6 +2471,11 @@ def main():
         return install_health_timer()
     if args.uninstall_timer:
         return uninstall_health_timer()
+    if args.guest_run:                        # 1.17: a command in the guests
+        if os.geteuid() != 0 and "HOST_PERF_AUDIT_PVE_DIR" not in os.environ:
+            eprint("ERROR: --guest-run needs root (pct exec, qm guest exec).")
+            return 2
+        return guest_run(args, guest_names(), guest_cgroups())
     if args.health:                           # 1.12: quick check, no measurement
         if os.geteuid() != 0:
             eprint("Limited rights: without root, smartctl, the ZFS commands and the guests are unreadable (sudo for a complete check).")
