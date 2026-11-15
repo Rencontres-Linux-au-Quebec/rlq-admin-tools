@@ -121,6 +121,26 @@ class Conventions(EnvTest):
                     self.assertNotIn("BrokenPipe", r.stderr)
 
 
+class VersionAuDemarrage(EnvTest):
+    """Every program prints its name and its version as the FIRST line of a run (--help included); --version prints the version once."""
+    AUTRES = ("nginx-link-page.sh", "odoo-sql-maint")          # programs outside PROGRAMMES that follow the same rule
+
+    def test_premiere_ligne_nom_et_version(self):
+        for name in list(PROGRAMMES) + list(self.AUTRES):
+            if not os.path.isfile(script_path(name)):
+                continue
+            with self.subTest(programme=name):
+                with open(script_path(name), encoding="utf-8") as f:
+                    version = re.search(r'(?:SCRIPT_VERSION|__version__)\s*=\s*"(' + VERSION_RE + r')"', f.read()).group(1)
+                cmd = launcher(name) if name.endswith((".sh", ".py")) else ["bash", script_path(name)]
+                rc, out, err = self.run_cmd(cmd + ["--help"], env_extra={"HOME": self.d})
+                lignes = [x for x in (out + "\n" + err).splitlines() if x.strip()]
+                premieres = [(x.splitlines() or [""])[0] for x in (out, err)]      # app-log-live.py writes it on the error output (its output may be piped)
+                self.assertIn(f"{os.path.basename(name)} v{version}", premieres, lignes[:3])
+                rc, out, err = self.run_cmd(cmd + ["--version"], env_extra={"HOME": self.d})
+                self.assertEqual((out + err).count(version), 1, out + err)
+
+
 class SansApplication(EnvTest):
     """2.3 : --version et --changelog fonctionnent sur une machine SANS application détectable (poste de travail) —
     web-monitor.py 2.0 à 2.2 chargeait le profil avant --changelog et échouait (« aucune application reconnue »)."""

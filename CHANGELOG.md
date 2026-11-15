@@ -100,6 +100,20 @@ Earlier history was archived outside this repository when this file was created.
 
 ## odoo-sql-maint
 
+### 1.5.20261114.154941 - Version shown at startup
+
+- Title: The name and the version are the first line of every run.
+- Reason: The administrator asked that every program show its version when it starts. odoo-sql-maint was one of the two programs that did not.
+- Changes:
+  - main prints "odoo-sql-maint vVERSION" on the standard output before the options are read, for every option, --help and the menu included. --version keeps its own single line.
+  - Files: odoo-sql-maint, nginx-tools-tests/test_conventions.py.
+- Bugs fixed: none.
+- Safeguards and edge cases:
+  - The results of --run are written to their own files: the new line does not enter them.
+- Checks performed:
+  - New test VersionAuDemarrage (test_conventions.py): first line of --help, and --version printing the version only once.
+- Action required: none.
+
 ### 1.4.20261028.202537 - Menu no longer captures dialog output (fix for "cannot open tty-output")
 
 - Title: The menu asks dialog for its answer in a file instead of capturing its output.
@@ -4571,6 +4585,38 @@ Earlier history was archived outside this repository when this file was created.
 - Current version. Earlier history archived outside the repository.
 
 ## nginx-link-page.sh
+
+### 1.60.20261114.164142 - Language prefix of Odoo redirected to the page
+
+- Title: A page asked behind a language prefix of Odoo is redirected to the page.
+- Reason: review of the 3-day report of 2026-11-14: /en_CA/D answered 404 seven times, from a link shared on another site. Before the page /D existed, Odoo redirected the visitors of another language to /en_CA/D, and that address was copied.
+- Changes:
+  - For each page whose path is not the root of the site, the nginx snippet gets a location "~ ^/[a-z][a-z](_[A-Z][A-Z])?(PATH)(/.*)?$" that answers 301 to PATH and what follows, query string kept.
+  - Files: nginx-link-page.sh, nginx-tools-tests/test_nginx_link_page.py.
+- Bugs fixed:
+  - Symptom: 404 of Odoo on /en_CA/D while /D works. Diagnosis: the locations of the page match its exact path only; with a language prefix the request went to Odoo, which has no such page. Fix: the redirect above.
+- Safeguards and edge cases:
+  - A page at the root of the site (path "/") gets no such location: every address would match it.
+  - The pattern is anchored at both ends: /event/liens, /en_CA/liensX and the pages of Odoo are not touched.
+  - It is a regular expression location: the exact and "^~" locations of the page itself are chosen first by nginx, so the page never goes through it.
+- Checks performed: new test test_160_prefixe_de_langue_d_odoo (snippet and the pattern on 8 addresses); ShellCheck: 2 warnings, as before.
+- Action required: sudo nginx-link-page.sh --update --yes on the server.
+
+### 1.59.20261114.154941 - Version shown at startup
+
+- Title: The name and the version are the first line of every run.
+- Reason: The administrator asked that every program show its version when it starts. nginx-link-page.sh was one of the two programs that did not: a run of --update or --check gave no way to know which version had produced it.
+- Changes:
+  - A first line "nginx-link-page.sh vVERSION" is printed on the standard output for every option, --help included. --version keeps its own single line "nginx-link-page.sh version VERSION".
+  - Files: nginx-link-page.sh, nginx-tools-tests/test_conventions.py.
+- Bugs fixed: none.
+- Safeguards and edge cases:
+  - The daily task (/etc/cron.d/nginx-link-page) sends its output to the system journal (logger): the new line is logged there and no mail is sent by cron.
+  - The line is printed before the configuration is read, so it is shown even when the configuration is refused.
+- Checks performed:
+  - New test VersionAuDemarrage (test_conventions.py): for every program of the suite, nginx-link-page.sh and odoo-sql-maint included, the first line of --help is the name followed by "v" and the declared version, and --version prints the version only once.
+  - test_nginx_link_page: all tests pass.
+- Action required: none.
 
 ### 1.58.20261113.224807 - Shared files with the fingerprint of their content
 

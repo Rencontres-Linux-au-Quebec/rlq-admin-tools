@@ -29,8 +29,10 @@
 set -u
 LANG_C="${LC_ALL:-${LC_MESSAGES:-${LANG:-C}}}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
-readonly SCRIPT_VERSION="1.58.20261113.224807"
+readonly SCRIPT_VERSION="1.60.20261114.164142"
 readonly SCRIPT_NAME="nginx-link-page"
+# 1.59: first line of EVERY run, even --help: name and version (--version prints it by itself), as the other programs do
+case " $* " in *" --version "*) ;; *) echo "$SCRIPT_NAME.sh v$SCRIPT_VERSION" ;; esac
 # --config-merge: same rule as the other programs (apps/_config.py fusionner): the configuration file is rewritten from the new template,
 # keeping its active values; the old file is copied to FILE.bak-YYYYMMDD-HHMMSS. Then exit.
 # 1.45: the configuration is read and checked first (same checks as --check): with a problem, the merge is refused and nothing is written.
@@ -2008,6 +2010,14 @@ else
         if [[ "$chemin_page" =~ [A-Za-z] ]]; then
             LIEN_NOUVEAU+="location ~* ^${chemin_page%/}(/.*)?\$ {"$'\n'
             LIEN_NOUVEAU+="    return 301 ${chemin_page%/}\$1\$is_args\$args;"$'\n'
+            LIEN_NOUVEAU+="}"$'\n'
+        fi
+        # 1.60: the same path behind a language prefix of Odoo (/en_CA/D, /fr/liens/...) is redirected to the configured one (301, query string kept).
+        # Before the page existed, Odoo sent the visitors of another language to /en_CA/D, and that address was shared: it answered 404 for ever.
+        # Never for the page at the root of the site (every address would match).
+        if [[ "${chemin_page%/}" != "" ]]; then
+            LIEN_NOUVEAU+="location ~ ^/[a-z][a-z](_[A-Z][A-Z])?(${chemin_page%/})(/.*)?\$ {"$'\n'
+            LIEN_NOUVEAU+="    return 301 \$2\$3\$is_args\$args;"$'\n'
             LIEN_NOUVEAU+="}"$'\n'
         fi
         # /liens (without the final slash) is redirected to /liens/ : the page is reached with or without the slash.
