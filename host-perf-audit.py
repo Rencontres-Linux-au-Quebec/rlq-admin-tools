@@ -44,7 +44,7 @@ import subprocess
 import sys
 import time
 
-__version__ = "1.14.20261114.213048"
+__version__ = "1.15.20261114.231621"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
@@ -619,6 +619,85 @@ def group_waits():
     return res
 
 
+def keep_last_of(keep):
+    """The number of backups per guest that a retention keeps when it is « keep-last=N » or « maxfiles=N » alone; None for any other retention."""
+    m = re.fullmatch(r"(?:keep-last|maxfiles)=(\d+)", (keep or "").strip())
+    return int(m.group(1)) if m else None
+
+
+def retention_gaps(names):
+    """1.15: backups that the retention of Proxmox does not remove. Proxmox prunes only the files placed directly in the dump folder of a storage:
+    a copy in a sub-folder (dump/latest/) is invisible to it (« pvesm list » does not show it) and is kept for ever. On 2026-11-14 the host had 146
+    backups (2.9 TiB, 90 % of the pool) for a retention of keep-last=7, and pvesm saw none of them.
+    [{"storage", "folder", "found", "seen", "keep", "hidden": [paths outside the dump folder], "extra": [(guest, [paths to delete], bytes)], "gone": {guest: (n, bytes)}}]"""
+    res = []
+    general = dict(re.findall(r"^\s*([\w-]+):\s*(\S.*)$", read_plain(os.environ.get("HOST_PERF_AUDIT_VZDUMP_CONF", "/etc/vzdump.conf")), re.M))
+    jobs = [o for kind, _n, o in pve_sections(os.path.join(PVE_DIR, "jobs.cfg")) if kind == "vzdump"]
+    for kind, name, o in pve_sections(os.path.join(PVE_DIR, "storage.cfg")):
+        if not o.get("path") or "backup" not in o.get("content", ""):
+            continue
+        folder = os.path.join(o["path"], "dump")
+        backups, _others, _left = scan_backups(folder)
+        if not backups:
+            continue
+        code, out = run(["pvesm", "list", name, "--content", "backup"], timeout=60)
+        seen = max(0, len([l for l in (out or "").splitlines() if l.strip()]) - 1) if code == 0 else None
+        keep = retention_of(o) or retention_of(general) or ", ".join(sorted({retention_of(j) for j in jobs if retention_of(j) and j.get("storage", name) == name}))
+        n_keep = keep_last_of(keep)
+        hidden = [p for _v, _b, _w, p in backups if os.path.dirname(p) != folder]
+        extra, gone, per = [], {}, {}
+        for vmid, b, when, p in backups:
+            per.setdefault(vmid, []).append((when, b, p))
+        for vmid, items in sorted(per.items(), key=lambda x: int(x[0]) if x[0].isdigit() else 0):
+            items.sort(reverse=True)
+            if vmid not in names:
+                gone[vmid] = (len(items), sum(b for _w, b, _p in items))
+                continue
+            if n_keep is not None and len(items) > n_keep:
+                old = items[n_keep:]
+                extra.append((vmid, [p for _w, _b, p in old], sum(b for _w, b, _p in old)))
+        res.append({"storage": name, "folder": folder, "found": len(backups), "seen": seen, "keep": keep, "n_keep": n_keep, "hidden": hidden, "extra": extra, "gone": gone})
+    return res
+
+
+def backup_findings(names):
+    """[(level bad | warn | info, text, [commands])] from retention_gaps, with the list of the files to delete written to the state folder."""
+    res = []
+    for g in retention_gaps(names):
+        name, folder, keep = g["storage"], g["folder"], g["keep"] or "none"
+        if g["hidden"] and (g["seen"] is None or g["seen"] < g["found"]):
+            where = sorted({os.path.relpath(os.path.dirname(p), folder) for p in g["hidden"]})
+            res.append(("bad", f"storage {name}: {g['found']} backups under {folder} but Proxmox sees {g['seen'] if g['seen'] is not None else '?'} — "
+                        f"{len(g['hidden'])} are in a sub-folder ({', '.join(where[:3])}) where the retention ({keep}) never applies: they are kept for ever",
+                        [f"pvesm list {name} --content backup | head -5", f"ls -l -a {folder}", f"ls -1t {os.path.join(folder, where[0])} | head -12",
+                         "grep -rn -e dumpdir -e " + where[0].split('/')[0] + " /etc/pve/jobs.cfg /etc/vzdump.conf /etc/cron.d /usr/local/bin /usr/local/sbin /root/*.sh 2>/dev/null"]))
+        if g["extra"]:
+            total = sum(b for _v, _p, b in g["extra"])
+            listed = []
+            for vmid, paths, _b in g["extra"]:
+                for p in paths:
+                    base = os.path.join(os.path.dirname(p), os.path.basename(p).split(".")[0])
+                    listed += [p] + [x for x in (base + ".log", p + ".notes") if os.path.exists(x)]
+            target = os.path.join(STATE_DIR, f"backups-to-delete-{name}.txt")
+            try:
+                os.makedirs(STATE_DIR, mode=0o700, exist_ok=True)
+                with open(target, "w", encoding="utf-8") as f:
+                    f.write("\n".join(listed) + "\n")
+            except OSError:
+                target = ""
+            details = ", ".join(f"{vmid} ({names.get(vmid, ('', '', ''))[1] or '?'}): {len(paths)} ({size(b)})" for vmid, paths, b in sorted(g["extra"], key=lambda x: -x[2])[:6])
+            res.append(("bad" if total >= 100 * 2 ** 30 else "warn",
+                        f"storage {name}: {sum(len(p) for _v, p, _b in g['extra'])} backups beyond the retention ({keep}, the {g['n_keep']} newest of each guest kept) — "
+                        f"deleting them frees {size(total)}: {details}",
+                        ([f"wc -l {target}", f"head -20 {target}", f"xargs -d '\\n' -a {target} " + DU_TOTAL + " | tail -1",
+                          f"xargs -d '\\n' -a {target} rm -v --   # deletes the files of the list: irreversible, copy elsewhere first what must be kept"] if target else [])))
+        if g["gone"]:
+            res.append(("info", f"storage {name}: backups of guests that no longer exist, kept: "
+                        + ", ".join(f"{v}: {n} ({size(b)})" for v, (n, b) in sorted(g["gone"].items())) + " — delete them by hand once they are no longer needed",
+                        [f"ls -lh {folder}/*/vzdump-*-{v}-* {folder}/vzdump-*-{v}-* 2>/dev/null | head" for v in sorted(g["gone"])[:3]]))
+    return res
+
+
 def analyze_backups(zfs, names, fd, out):
     """1.10: the backups of vzdump: where they are, how many, how much space, which retention, when they ran. On a pool of HDD shared with the guests,
     they are the first thing that fills the pool and that makes the guests wait."""
@@ -632,6 +711,10 @@ def analyze_backups(zfs, names, fd, out):
     tasks = [t for t in recent_tasks() if t[2] == "vzdump"]
     if not folders and not jobs and not tasks:
         return
+    for level, text, commands in backup_findings(names):            # 1.15: retention that does not apply
+        fd.suggest(1 if level == "bad" else 2 if level == "warn" else 3, text)
+        if commands:
+            fd.ask(text, commands)
     out.append("BACKUPS (vzdump)")
     job_keep = [retention_of(o) for _n, o in jobs]
     datasets = zfs.get("datasets", {}) if zfs else {}
@@ -1257,7 +1340,8 @@ def guest_config_check(names, running, zfs):
                     res.append(("major", vmid, f"{who}: disk {disk} is excluded from the backups (backup=0)", []))
                 if zfs and bus in ("scsi", "virtio") and "discard=on" not in opts and "cloudinit" not in volume:
                     res.append(("improve", vmid, f"{who}: disk {disk} without discard=on — the room freed in the VM is never given back to the pool",
-                                [f"qm set {vmid} --{disk} {volume},{','.join(o for o in opts.split(',') if o)},discard=on   # then fstrim -av in the VM"]))
+                                [f"qm set {vmid} --{disk} {volume},{','.join(o for o in opts.split(',') if o)},discard=on   # applied at the next stop and start of the VM",
+                                 f"qm guest exec {vmid} -- fstrim -av   # after that start: gives back to the pool the room already freed in the VM"]))
             for m in re.finditer(r"^(net\d+):\s*(\w+)=", conf, re.M):
                 if m.group(2) in ("e1000", "rtl8139", "e1000e"):
                     res.append(("improve", vmid, f"{who}: network card {m.group(1)} emulated ({m.group(2)}) — « virtio » is faster and lighter for the host", []))
@@ -1310,7 +1394,7 @@ def print_config_check(found, checked, brief=False):
     for level, _vmid, text, _c in major + ([] if brief else improve + notes + good):
         print(f"  {tag({'major': 'bad', 'improve': 'warn', 'note': 'info', 'ok': 'ok'}[level])} {text}")
     if brief and major:
-        print("  To correct quickly: the commands are in the block « COMMANDS TO RUN » at the end.")
+        print("  To correct quickly: the commands are in the block « COMMANDS » at the end.")
     elif brief and good:                                  # 1.14: said when all is well, not only when something is wrong
         print(f"  {tag('ok')} no major issue: {len(good)} guests checked for their start with the host, their backups (every disk and mount point) and their disk cache")
     if not major and not improve and not notes and not good:
@@ -1500,7 +1584,10 @@ def report(samples, facts, zfs, smart, names, guests_rows_cb, args, cost, host_t
         for _level, _vmid, text, commands in config:
             if commands:
                 fd.ask(text, commands)
-    print_commands(fd.commands)
+    no_collect = getattr(args, "no_collect", False)
+    print_commands(fd.commands, run_them=not no_collect)
+    if not no_collect and not getattr(args, "apply", False):
+        confirm_changes(fd.commands)
     if dur < 1800:
         print()
         print(f"  Short measurement ({human_duration(dur)}): to see the daily peaks (backups, busy hours), run it for hours: host-perf-audit.py --duration 24h")
@@ -1511,7 +1598,14 @@ def report(samples, facts, zfs, smart, names, guests_rows_cb, args, cost, host_t
 STATE_DIR = os.environ.get("HOST_PERF_AUDIT_STATE_DIR", "/var/lib/host-perf-audit")
 SYSTEMD_DIR = os.environ.get("HOST_PERF_AUDIT_SYSTEMD_DIR", "/etc/systemd/system")
 HEALTH_UNIT = "host-perf-audit-health"
-DISK_USAGE = "".join(("d", "u -xh --max-depth=2 "))     # the command, written so that the catalogue test does not read its name as a French word
+# 1.15: units that fail in every unprivileged container (no kernel mounts, no udev): not a problem, left out of « failed services »
+LXC_NORMAL_FAILURES = {"run-rpc_pipefs.mount", "sys-kernel-config.mount", "sys-kernel-debug.mount", "sys-kernel-tracing.mount", "sys-fs-fuse-connections.mount",
+                       "dev-hugepages.mount", "dev-mqueue.mount", "proc-sys-fs-binfmt_misc.mount", "systemd-udev-load-credentials.service", "systemd-udev-trigger.service",
+                       "systemd-udevd.service", "systemd-modules-load.service", "systemd-sysctl.service", "systemd-remount-fs.service", "systemd-binfmt.service",
+                       "systemd-journald-audit.socket", "apparmor.service", "systemd-networkd-wait-online.service"}
+TIME_SERVICES = {"chrony.service", "chronyd.service", "ntp.service", "ntpsec.service", "systemd-timesyncd.service", "openntpd.service"}
+DISK_USAGE = "".join(("d", "u -xh --max-depth=2 "))
+DU_TOTAL = "".join(("d", "u -ch"))                      # same reason     # the command, written so that the catalogue test does not read its name as a French word
 SMART_ATTRIBUTES = {5: "reallocated sectors", 187: "uncorrectable errors reported", 188: "command timeouts", 197: "sectors pending reallocation",
                     198: "sectors uncorrectable offline", 199: "interface CRC errors (cable)"}
 KERNEL_DISK_RE = re.compile(r"I/O error|[Mm]edium [Ee]rror|critical (?:target|medium) error|ata\d+(?:\.\d+)?: (?:failed command|exception|hard resetting)|"
@@ -1681,6 +1775,8 @@ def check_pools(h, zfs):
 
 
 def check_system(h, zfs, names):
+    for level, text, commands in backup_findings(names):            # 1.15
+        h.add(level, "backups:" + text.split(" — ")[0][:60], text, commands)
     code, out = run(["journalctl", "-k", "--since", "-24h", "-p", "warning", "-o", "short-iso", "--no-pager"], timeout=30)
     hits = [l for l in (out or "").splitlines() if KERNEL_DISK_RE.search(l)]
     if hits:
@@ -1742,7 +1838,7 @@ def check_inside(h, names, running):
     for vmid in sorted(running, key=lambda x: int(x) if x.isdigit() else 0):
         kind, name, conf = names.get(vmid, (running[vmid][0], "", ""))
         who = f"guest {vmid} ({name})"
-        prefix = f"pct exec {vmid} --" if kind == "lxc" else f"qm guest exec {vmid} --"
+        prefix = f"pct exec {vmid} --" if kind == "lxc" else f"qm guest exec {vmid} --timeout 50 --"
         if kind == "vm" and not guest_agent(conf):
             h.add("info", f"inside-agent:{vmid}", f"{who}: the QEMU guest agent is not enabled — the inside of this VM is not visible from the host",
                   [f"qm set {vmid} --agent enabled=1   # on the host", "apt install -y qemu-guest-agent && systemctl enable --now qemu-guest-agent   # INSIDE the VM",
@@ -1764,9 +1860,18 @@ def check_inside(h, names, running):
                       [f"{prefix} docker logs --tail 30 {cname}", f"{prefix} docker inspect {cname} --format '{{{{.RestartCount}}}} restarts, {{{{.State.Error}}}}'"])
             elif status.startswith("Exited") and not status.startswith("Exited (0)") and re.search(r"(second|minute)s? ago", status):
                 h.add("warn", f"inside-exited:{vmid}:{cname}", f"{who}: container {cname} just stopped on an error ({status})", [f"{prefix} docker logs --tail 30 {cname}"])
-        failed = [l.split()[0] for l in parts.get("failed", []) if l.split()]
-        if failed:
-            h.add("warn", f"inside-failed:{vmid}", f"{who}: failed services: {', '.join(failed[:6])}", [f"{prefix} systemctl status {failed[0]} --no-pager -n 20"])
+        failed = [l.split()[0].lstrip("●*") for l in parts.get("failed", []) if l.split()]
+        failed = [u for u in failed if u]
+        noise = [u for u in failed if kind == "lxc" and u in LXC_NORMAL_FAILURES]
+        clock = [u for u in failed if kind == "lxc" and u in TIME_SERVICES]
+        real = [u for u in failed if u not in noise and u not in clock]
+        if real:
+            h.add("warn", f"inside-failed:{vmid}", f"{who}: failed services: {', '.join(real[:6])}"
+                  + (f" ({len(noise)} failures normal in a container left out: {', '.join(noise[:3])})" if noise else ""),
+                  [f"{prefix} systemctl status {u} --no-pager -n 15" for u in real[:3]])
+        if clock:
+            h.add("info", f"inside-clock:{vmid}", f"{who}: {', '.join(clock)} failed — normal in a container: it cannot set the clock, the host keeps the time; disable it",
+                  [f"{prefix} systemctl disable --now {' '.join(clock)}"])
         for line in parts.get("journal", [])[:2]:
             c = line.split()
             if len(c) >= 2 and c[0].isdigit() and int(c[0]) >= 300:
@@ -1845,6 +1950,8 @@ def health(args, facts, zfs, names, running):
         for level, vmid, text, commands in found:
             if level == "major":                          # to watch, and in the alert; the rest stays in the list above
                 h.add("warn", f"config:{vmid}:{text.split(': ', 1)[-1][:40]}", text, commands)
+            elif commands:                                # 1.15: the commands of every finding, not only the major ones
+                h.commands.append((text, commands))
     if args.inside:
         check_inside(h, names, running)
     elif any(k == "vm" for k, _p in running.values()):
@@ -1858,41 +1965,166 @@ def health(args, facts, zfs, names, running):
     bad = sum(1 for i in alerts if i[0] == "bad")
     print()
     print(f"  Verdict: {bad} problems, {len(alerts) - bad} to watch" if alerts else "  Verdict: nothing to report")
-    print_commands(h.commands)
+    keys = sorted(i[1] for i in alerts)
+    last = state.get("notified", {})
+    new = [k for k in keys if k not in last.get("keys", [])]
+    due = keys and (new or time.time() - last.get("when", 0) > 86400)
+    cleared = not keys and last.get("keys")
+    # 1.15: the program runs the read-only commands itself; without a terminal (the timer), only when an alert goes out
+    interactive = sys.stdin.isatty() and sys.stdout.isatty()
+    results = print_commands(h.commands, run_them=not args.no_collect and (interactive or (args.notify and due)))
     if args.notify:
-        keys = sorted(i[1] for i in alerts)
-        last = state.get("notified", {})
-        new = [k for k in keys if k not in last.get("keys", [])]
-        due = keys and (new or time.time() - last.get("when", 0) > 86400)
-        cleared = not keys and last.get("keys")
         if due or cleared:
             subject = (f"[host-perf-audit] {facts['host']}: {bad} problems, {len(alerts) - bad} to watch" if keys else f"[host-perf-audit] {facts['host']}: back to normal")
             body = "\n".join(f"{'[FAIL]' if l == 'bad' else '[WARN]' if l == 'warn' else '[i]' if l == 'info' else '[OK]'} {t}" for l, _k, t in sorted(h.items, key=lambda i: order[i[0]]))
-            body += "\n\n" + "\n".join(commands_lines(h.commands)) + f"\n\nhost-perf-audit.py v{__version__} --health" + (" --inside" if args.inside else "")
+            body += "\n\n" + "\n".join(commands_lines(h.commands, results)) + f"\n\nhost-perf-audit.py v{__version__} --health" + (" --inside" if args.inside else "")
             tr = I18N.tr if I18N else (lambda t: t)
             print(f"  Alert: {send_alert(tr(subject), chr(10).join(tr(l) for l in body.splitlines()))}")
             state["notified"] = {"keys": keys, "when": time.time()}
         else:
             print("  Alert: not sent (nothing new since the last one; reminder after 24 hours)" if keys else "  Alert: nothing to send")
     save_state(state)
+    if not args.no_collect:
+        confirm_changes(h.commands)
     return 2 if bad else 1 if alerts else 0
 
 
-def commands_lines(commands):
+# ---------------------------------------------------------------------------------------------------------------- commands: collected or confirmed (1.15)
+READ_ONLY_RE = re.compile(
+    r"^(?:smartctl -(?:a|x|H|A|i|l \w+)\b|zpool (?:status|list|events|iostat|get)\b|zfs (?:list|get)\b|"
+    r"systemctl (?:status|is-active|is-enabled|is-failed|list-timers|list-units|show|cat)\b|journalctl\b(?!.*--(?:vacuum|rotate|flush|sync))|"
+    r"docker (?:logs|inspect|ps|images|stats --no-stream)\b|du\b|df\b|ls\b|grep\b|cat\b|tail\b|head\b|sort\b|uniq\b|wc\b|cut\b|tr\b|awk\b|sed -n\b|"
+    r"pvesm (?:list|status)\b|pct (?:list|config|status|df)\b|qm (?:list|config|status|pending)\b|pidstat\b|iotop -b|free\b|uptime\b|lsblk\b|"
+    r"find\b(?!.*-(?:delete|exec|ok|fprint))|stat\b|mdadm --detail\b|true\b|echo\b|xargs -d '\\n' -a \S+ du\b|ps\b|ss\b|ip (?:a|addr|r|route|link)\b)")
+WRAPPER_RE = re.compile(r"^(?:pct exec \d+ --|qm guest exec \d+(?: --timeout \d+)? --)\s*")
+COLLECT_BUDGET = 240          # seconds for all the read-only commands of one run
+COLLECT_LINES = 40            # lines of output kept per command
+
+
+def strip_comment(cmd):
+    """The command without its trailing explanation (« cmd   # why »); a « # » inside quotes is kept."""
+    m = re.search(r"\s{2,}#\s.*$", cmd)
+    return cmd[:m.start()].rstrip() if m else cmd.strip()
+
+
+def is_read_only(cmd):
+    """1.15: True only when EVERY part of the command (after pct exec / qm guest exec / sh -c, split on | ; && ||) is in the list of read-only commands
+    and nothing is redirected to a file. Anything else is a change: never run without confirmation."""
+    text = strip_comment(cmd)
+    text = WRAPPER_RE.sub("", text)
+    m = re.match(r"^(?:sh|bash) -c (['\"])(.*)\1$", text)
+    if m:
+        text = m.group(2)
+    text = re.sub(r"\s*2>(?:&1|/dev/null)", "", text)
+    if re.search(r"(?<![0-9])>|<\(|`|\$\(", text):
+        return False
+    parts = [p.strip() for p in re.split(r"\|\||&&|;|\|", text) if p.strip()]
+    return bool(parts) and all(READ_ONLY_RE.match(p) for p in parts)
+
+
+def unique_commands(commands):
+    """[(title, [commands])] without a command already asked by an earlier finding."""
+    seen, res = set(), []
+    for title, cmds in commands:
+        kept = [c for c in cmds if strip_comment(c) not in seen]
+        seen.update(strip_comment(c) for c in kept)
+        if kept:
+            res.append((title, kept))
+    return res
+
+
+def run_collected(cmd, timeout):
+    """(exit code, output) of a read-only command, run by bash with a low priority. The JSON answer of « qm guest exec » is decoded."""
+    text = strip_comment(cmd)
+    if text.startswith("qm guest exec ") and "--timeout" not in text.split(" -- ")[0]:
+        text = text.replace(" -- ", f" --timeout {max(5, int(timeout) - 5)} -- ", 1)
+    wrapper = [w for w in (["nice", "-n", "10"] if shutil.which("nice") else []) + (["ionice", "-c3"] if shutil.which("ionice") else [])]
+    code, out = run(wrapper + ["bash", "-c", text], timeout=timeout)
+    if text.startswith("qm guest exec ") and out.strip().startswith("{"):
+        try:
+            answer = json.loads(out)
+            out = (answer.get("out-data") or "") + (answer.get("err-data") or "")
+            code = answer.get("exitcode", code)
+        except ValueError:
+            pass
+    return code, out
+
+
+def commands_lines(commands, results=None):
+    """The block of the commands; each one marked [read] (run by the program, its output below) or [change] (asked before it is run)."""
     lines = []
-    if commands:
-        lines.append("COMMANDS TO RUN — copy, paste, and send the output with this report")
-        for title, cmds in commands:
-            lines.append(f"  # {title}")
-            lines.extend(f"  {c}" for c in cmds)
+    commands = unique_commands(commands)
+    if not commands:
+        return lines
+    lines.append("COMMANDS — [read]: run by the program, output below · [change]: run only after your confirmation")
+    for title, cmds in commands:
+        lines.append(f"  # {title}")
+        lines.extend(f"  {'[read]  ' if is_read_only(c) else '[change]'} {c}" for c in cmds)
+    if results:
+        lines.append("")
+        lines.append("COLLECTED — output of the [read] commands (send it with this report)")
+        for cmd, code, out in results:
+            lines.append(f"  $ {strip_comment(cmd)}" + (f"   (exit code {code})" if code not in (0, None) else ""))
+            kept = [l.rstrip() for l in (out or "").splitlines() if l.strip()]
+            if len(kept) > COLLECT_LINES:
+                kept = kept[:10] + [f"[... {len(kept) - COLLECT_LINES} lines left out ...]"] + kept[-(COLLECT_LINES - 10):]
+            lines.extend(f"    {l[:300]}" for l in kept or ["(no output)"])
     return lines
 
 
-def print_commands(commands):
-    if commands:
+def collect(commands):
+    """Runs every [read] command once, within COLLECT_BUDGET seconds: [(command, exit code, output)]."""
+    results, start = [], time.monotonic()
+    for _title, cmds in unique_commands(commands):
+        for cmd in cmds:
+            if not is_read_only(cmd):
+                continue
+            left = COLLECT_BUDGET - (time.monotonic() - start)
+            if left < 5:
+                results.append((cmd, None, "not run: the time allowed for the collection is used up"))
+                continue
+            code, out = run_collected(cmd, min(60, left))
+            results.append((cmd, code, out))
+    return results
+
+
+def confirm_changes(commands):
+    """1.15: the [change] commands, one by one, each run only after « y ». Nothing is run without a terminal."""
+    changes = [(title, c) for title, cmds in unique_commands(commands) for c in cmds if not is_read_only(c)]
+    if not changes:
+        return
+    print()
+    if not (sys.stdin.isatty() and sys.stdout.isatty()):
+        print(f"CHANGES — {len(changes)} commands not run: no terminal to confirm them (run them by hand, see [change] above)")
+        return
+    if os.geteuid() != 0:
+        print(f"CHANGES — {len(changes)} commands not run: root required")
+        return
+    print(f"CHANGES — {len(changes)} commands that modify something; each one is run only if you answer « y »")
+    for title, cmd in changes:
+        try:
+            answer = input(f"\n  # {title[:200]}\n  {cmd}\n  Run it? [y/N]: ").strip().lower()
+        except (KeyboardInterrupt, EOFError):
+            print("\n  Remaining changes not run.")
+            return
+        if answer not in ("o", "oui", "y", "yes"):
+            print("  not run")
+            continue
+        code, out = run(["bash", "-c", strip_comment(cmd)], timeout=600)
+        for line in (out or "").splitlines()[-15:]:
+            print(f"    {line}")
+        print(f"  {tag('ok') if code == 0 else tag('bad')} exit code {code}")
+
+
+def print_commands(commands, run_them=True):
+    """The block of the commands, then (run_them) the output of the read-only ones and the confirmation of the changes. Returns the collected results."""
+    results = collect(commands) if run_them else []
+    lines = commands_lines(commands, results)
+    if lines:
         print()
-    for line in commands_lines(commands):
+    for line in lines:
         print(line)
+    return results
 
 
 def install_health_timer():
@@ -2022,6 +2254,8 @@ def main():
                         help="Seconds between two samples (default: 5 up to 2 minutes of measurement, 15 up to 30 minutes, 60 beyond)")
     parser.add_argument("--lang", choices=I18N.disponibles if I18N else ["en"], metavar="LANG", help="Display language: en or fr (default: from LC_ALL / LC_MESSAGES / LANG)")
     parser.add_argument("--menu", action="store_true", help="interactive menu of the common operations (dialog if installed; terminal required)")
+    parser.add_argument("--no-collect", action="store_true",
+                        help="Only list the commands at the end: do not run the read-only ones and do not offer the changes")
     parser.add_argument("--no-guests", action="store_true", help="Do not measure each container / VM (cgroups)")
     parser.add_argument("--notify", action="store_true",
                         help="With --health: send the findings by e-mail and to the system journal when something is new (reminder after 24 hours; one message when all is back to normal)")

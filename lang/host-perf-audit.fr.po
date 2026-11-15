@@ -934,9 +934,6 @@ msgstr "sauvegardes : une tâche de sauvegarde est planifiée mais aucune sauveg
 msgid "  Verdict: nothing to report"
 msgstr "  Verdict : rien à signaler"
 
-msgid "COMMANDS TO RUN — copy, paste, and send the output with this report"
-msgstr "COMMANDES À LANCER — copier, coller, et envoyer la sortie avec ce rapport"
-
 msgid "ERROR: --install-timer needs root."
 msgstr "ERREUR : --install-timer demande root."
 
@@ -1231,8 +1228,8 @@ msgstr " (détails à la fin du rapport)"
 msgid " nothing to correct in the configurations"
 msgstr " rien à corriger dans les configurations"
 
-msgid "  To correct quickly: the commands are in the block « COMMANDS TO RUN » at the end."
-msgstr "  À corriger rapidement : les commandes sont dans le bloc « COMMANDES À LANCER » à la fin."
+msgid "  To correct quickly: the commands are in the block « COMMANDS » at the end."
+msgstr "  À corriger rapidement : les commandes sont dans le bloc « COMMANDES » à la fin."
 
 msgid ": runs now but does not start with the host (onboot missing) — after a restart or a power cut of the host it stays stopped"
 msgstr " : en marche maintenant mais ne démarre pas avec l'hôte (onboot absent) — après un redémarrage ou une panne de courant de l'hôte, il reste arrêté"
@@ -1330,9 +1327,6 @@ msgstr " : le point de montage "
 msgid ") is NOT in the backups (backup=1 missing) — only the root disk is saved: a restore brings back the system without the data of this mount point"
 msgstr ") n'est PAS dans les sauvegardes (backup=1 absent) — seul le disque racine est sauvegardé : une restauration ramène le système sans les données de ce point de montage"
 
-msgid ",discard=on   # then fstrim -av in the VM"
-msgstr ",discard=on   # puis fstrim -av dans la VM"
-
 msgid "host: no scheduled backup job and no backup in the last 7 days — nothing recent to restore for any guest"
 msgstr "hôte : aucune tâche de sauvegarde planifiée et aucune sauvegarde depuis 7 jours — rien de récent à restaurer pour aucun invité"
 
@@ -1404,3 +1398,99 @@ msgstr " aucun enjeu majeur : "
 
 msgid " guests checked for their start with the host, their backups (every disk and mount point) and their disk cache"
 msgstr " invités vérifiés pour leur démarrage avec l'hôte, leurs sauvegardes (chaque disque et point de montage) et le cache de leurs disques"
+
+msgid "COMMANDS — [read]: run by the program, output below · [change]: run only after your confirmation"
+msgstr "COMMANDES — [lecture] : lancées par le programme, sortie plus bas · [modif.] : lancées seulement après votre confirmation"
+
+msgid "COLLECTED — output of the [read] commands (send it with this report)"
+msgstr "COLLECTÉ — sortie des commandes [lecture] (à envoyer avec ce rapport)"
+
+msgid "CHANGES — "
+msgstr "CHANGEMENTS — "
+
+msgid " commands that modify something; each one is run only if you answer « y »"
+msgstr " commandes qui modifient quelque chose ; chacune n'est lancée que si vous répondez « y »"
+
+msgid "Only list the commands at the end: do not run the read-only ones and do not offer the changes"
+msgstr "Seulement lister les commandes à la fin : ne pas lancer celles en lecture seule et ne pas proposer les changements"
+
+msgid " commands not run: no terminal to confirm them (run them by hand, see [change] above)"
+msgstr " commandes non lancées : aucun terminal pour les confirmer (à lancer à la main, voir [modif.] plus haut)"
+
+msgid " commands not run: root required"
+msgstr " commandes non lancées : root requis"
+
+msgid "  not run"
+msgstr "  non lancée"
+
+msgid " exit code "
+msgstr " code de sortie "
+
+msgid "   (exit code "
+msgstr "   (code de sortie "
+
+msgid "  Run it? [y/N]: "
+msgstr "  La lancer ? [y/N] : "
+
+msgid "\n  Remaining changes not run."
+msgstr "\n  Changements restants non lancés."
+
+msgid "(no output)"
+msgstr "(aucune sortie)"
+
+msgid " failed — normal in a container: it cannot set the clock, the host keeps the time; disable it"
+msgstr " en échec — normal dans un conteneur : il ne peut pas régler l'horloge, l'hôte garde l'heure ; le désactiver"
+
+msgid " backups under "
+msgstr " sauvegardes sous "
+
+msgid " but Proxmox sees "
+msgstr " mais Proxmox en voit "
+
+msgid " are in a sub-folder ("
+msgstr " sont dans un sous-dossier ("
+
+msgid ") where the retention ("
+msgstr ") où la rétention ("
+
+msgid ") never applies: they are kept for ever"
+msgstr ") ne s'applique jamais : elles sont gardées pour toujours"
+
+msgid " backups beyond the retention ("
+msgstr " sauvegardes au-delà de la rétention ("
+
+msgid ", the "
+msgstr ", les "
+
+msgid " newest of each guest kept) — deleting them frees "
+msgstr " plus récentes de chaque invité gardées) — les supprimer libère "
+
+msgid " — delete them by hand once they are no longer needed"
+msgstr " — les supprimer à la main quand elles ne servent plus"
+
+msgid ": backups of guests that no longer exist, kept: "
+msgstr " : sauvegardes d'invités qui n'existent plus, gardées : "
+
+msgid " failures normal in a container left out: "
+msgstr " échecs normaux dans un conteneur laissés de côté : "
+
+msgid " lines left out ...]"
+msgstr " lignes laissées de côté ...]"
+
+msgid "not run: the time allowed for the collection is used up"
+msgstr "non lancée : le temps prévu pour la collecte est écoulé"
+
+msgid " rm -v --   # deletes the files of the list: irreversible, copy elsewhere first what must be kept"
+msgstr " rm -v --   # supprime les fichiers de la liste : irréversible, copier d'abord ailleurs ce qui doit être gardé"
+
+msgid ",discard=on   # applied at the next stop and start of the VM"
+msgstr ",discard=on   # appliqué au prochain arrêt et démarrage de la VM"
+
+msgid " -- fstrim -av   # after that start: gives back to the pool the room already freed in the VM"
+msgstr " -- fstrim -av   # après ce démarrage : rend au pool la place déjà libérée dans la VM"
+
+msgid "[read]  "
+msgstr "[lecture]"
+
+msgid "[change]"
+msgstr "[modif.] "

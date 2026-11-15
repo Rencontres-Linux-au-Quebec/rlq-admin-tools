@@ -58,3 +58,7 @@ host-perf-audit.py --install-timer              # the same every hour, with an e
 At startup, the program checks the configuration of each guest (`/etc/pve`, read-only) and announces the **major issues**: a container mount point missing from the backups (`backup=1`), a disk with `cache=unsafe`, a guest without `onboot`, a guest in no backup job, more memory promised than the machine has. The whole list (to improve, notes) is at the end of the report, with the `pct set` / `qm set` commands to copy.
 
 Since 1.14, each guest in order gets its `[OK]` line with what was verified, and the snapshots older than 60 days are listed with the room that deleting them frees (computed by `zfs destroy -n`, nothing destroyed) and the `pct delsnapshot` / `qm delsnapshot` commands.
+
+## Commands run by the program (1.15)
+
+At the end of the report and of `--health`, each command is marked **`[read]`** (the program runs it and shows its output in the section "COLLECTED") or **`[change]`** (it modifies something: the program offers it one by one and runs it only after "y", as root, in a terminal). `--no-collect` only lists the commands. Backups placed in a sub-folder that Proxmox does not see (its retention never applies there) are reported, with the list of the files to delete beyond `keep-last` and the room freed.

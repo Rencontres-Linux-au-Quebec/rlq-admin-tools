@@ -6,6 +6,7 @@ import importlib.util
 import io
 import os
 import re
+import sys
 import time
 import contextlib
 import unittest
@@ -356,6 +357,7 @@ esac'''.replace("%%", "%"))
         dedans = ("@@io1\\n100 1000 ntopng\\n200 5000 postgres\\n@@docker\\ngrafana|Up 2 weeks\\nprometheus|Restarting (1) 22 seconds ago\\n@@failed\\n"
                   "@@journal\\n   3492 dockerd\\n     40 systemd\\n@@jsize\\nArchived and active journals take up 4.0G in the file system.\\n"
                   "@@df\\n/dev/sda1 100000 96000 4000 96%% /var\\n/dev/sda2 100000 10000 90000 10%% /\\n@@io2\\n100 901000 ntopng\\n200 6000 postgres\\n")
+        self.dedans = dedans
         self.mock("pct", f'printf "{dedans}"')
         self.mock("qm", "echo ne-doit-pas-etre-appele; exit 1")
         os.makedirs(os.path.join(self.racine, "sys/fs/cgroup/qemu.slice/120.scope"), exist_ok=True)
@@ -372,16 +374,17 @@ esac'''.replace("%%", "%"))
         self.assertIn("pool rpool: ONLINE, no error, used 60 %", out)
         self.assertIn("Verdict: nothing to report", out)
         self.assertIn("[OK] container 101 (odoo18): starts with the host · in a backup job · disks in the backups: rootfs · unprivileged", out)   # 1.14: said when all is well
-        self.assertNotIn("COMMANDS TO RUN", out)
+        self.assertNotIn("smartctl -a /dev/sda", out)                                     # a healthy disk asks for nothing
         self.hote_sante(realloues=8, attente=2, cksum=14)
         rc, out, err = self.run_cmd(["python3", self.prog, "--health", "--lang", "en"], timeout=60)
         self.assertEqual(rc, 2, out + err)
         self.assertIn("sda: signs of failure — reallocated sectors: 8 (was 0); sectors pending reallocation: 2 (was 0) — plan its replacement", out)
         self.assertIn("pool rpool: errors on sda2 (read 0, write 0, checksum 14)", out)
         self.assertIn("Verdict: 2 problems, 0 to watch", out)
-        self.assertIn("COMMANDS TO RUN — copy, paste, and send the output with this report", out)
-        self.assertIn("  smartctl -a /dev/sda\n", out)
-        self.assertIn("  zpool status -v rpool\n", out)
+        self.assertIn("COMMANDS — [read]: run by the program, output below · [change]: run only after your confirmation", out)
+        self.assertIn("  [read]   smartctl -a /dev/sda\n", out)
+        self.assertIn("  [change] smartctl -t long /dev/sda", out)
+        self.assertIn("  [read]   zpool status -v rpool\n", out)
         self.hote_sante(realloues=8)                                              # stable since the last run, nothing pending: to watch only
         rc, out, err = self.run_cmd(["python3", self.prog, "--health", "--lang", "en"], timeout=60)
         self.assertEqual(rc, 1, out + err)
@@ -398,20 +401,31 @@ esac'''.replace("%%", "%"))
         self.assertIn("guest 101 (odoo18): the journal takes 4.0 GiB", out)
         self.assertIn("guest 101 (odoo18): /var is 96% full (3 MiB free)", out)
         self.assertIn("guest 101 (odoo18): processes that write the most: ntopng 88 kB/s", out)
-        self.assertNotIn("grafana", out)
+        self.assertNotIn("grafana", out.split("COMMANDS —")[0])
         self.assertIn("guest 120 (bbb3): the QEMU guest agent is not enabled", out)
-        self.assertIn("  qm set 120 --agent enabled=1", out)
-        self.assertIn("  pct exec 101 -- docker logs --tail 30 prometheus\n", out)
+        self.assertIn("  [change] qm set 120 --agent enabled=1", out)
+        self.assertIn("  [read]   pct exec 101 -- docker logs --tail 30 prometheus\n", out)
         self.assertNotIn("ne-doit-pas-etre-appele", out + err)                    # no agent: qm guest exec is not tried
         self.assertIn("Alert: written to", out)
+        self.assertIn("COLLECTED — output of the [read] commands (send it with this report)", out)      # 1.15: run by the program
+        self.assertIn("  $ pct exec 101 -- docker logs --tail 30 prometheus\n", out)
+        self.assertIn("CHANGES — ", out)
+        self.assertIn("commands not run: no terminal to confirm them", out)
         courriel = open(os.path.join(self.d, "courriel.txt"), encoding="utf-8").read()
         self.assertIn("Subject: [host-perf-audit] ", courriel)
         self.assertIn(": 1 problems, 3 to watch", courriel)
         self.assertIn("[FAIL] guest 101 (odoo18): container prometheus restarts in a loop", courriel)
         self.assertIn("pct exec 101 -- docker logs --tail 30 prometheus", courriel)
+        self.assertIn("COLLECTED — output of the [read] commands", courriel)                            # the outputs go with the alert
         rc, out, err = self.run_cmd(["python3", self.prog, "--health", "--inside", "--notify", "--lang", "en"], timeout=60)
         self.assertIn("Alert: not sent (nothing new since the last one", out)
         self.assertEqual(open(os.path.join(self.d, "courriel.txt"), encoding="utf-8").read().count("Subject:"), 1)
+        self.mock("pct", 'printf "@@io1\\n@@docker\\ngrafana|Up 2 weeks\\n@@failed\\n@@journal\\n@@jsize\\n@@df\\n@@io2\\n"')
+        self.mock("pct", f'printf "{self.dedans}"')
+        rc, out, err = self.run_cmd(["python3", self.prog, "--health", "--inside", "--no-collect", "--lang", "fr"], timeout=60)
+        self.assertIn("[lecture] pct exec 101 -- docker logs --tail 30 prometheus", out)                 # 1.15, in French
+        self.assertIn("[modif.]  qm set 120 --agent enabled=1", out)
+        self.assertNotIn("COLLECTÉ", out)                                                                # --no-collect
         self.mock("pct", 'printf "@@io1\\n@@docker\\ngrafana|Up 2 weeks\\n@@failed\\n@@journal\\n@@jsize\\n@@df\\n@@io2\\n"')
         rc, out, err = self.run_cmd(["python3", self.prog, "--health", "--inside", "--notify", "--lang", "fr"], timeout=60)
         self.assertEqual(rc, 0, out + err)
@@ -480,7 +494,7 @@ esac'''.replace("%%", "%"))
         fin = out.split("SUGGESTED SETTINGS")[1]
         self.assertIn("GUEST CONFIGURATIONS — 2 containers and VMs checked", fin)                   # in full at the end
         self.assertIn("QEMU guest agent not enabled", fin)
-        self.assertIn("  pct set 101 --mp1 rpool/data:subvol-101-disk-2,mp=/opt/odoo,size=55G,backup=1\n", fin)
+        self.assertIn("  [change] pct set 101 --mp1 rpool/data:subvol-101-disk-2,mp=/opt/odoo,size=55G,backup=1\n", fin)
         rc, out, err = self.run_cmd(["python3", self.prog, "--health", "--lang", "fr"], timeout=60)
         self.assertEqual(rc, 1, out + err)                                                          # a major configuration issue: to watch
         self.assertIn("n'est PAS dans les sauvegardes", out)
@@ -528,6 +542,81 @@ esac''')
         journal = open(os.path.join(self.d, "zfs-destroy.log"), encoding="utf-8").read()
         self.assertIn("destroy -nvp data/zd0/subvol-105-disk-0@Debian13", journal)
         self.assertNotIn("INTERDIT", journal)                                       # every destroy was a dry run
+
+    def test_commandes_de_lecture_et_de_changement(self):
+        """1.15 : seules les commandes en lecture seule sont lancées par le programme ; toute autre est un changement, jamais lancé sans confirmation."""
+        m = charger("hpa_r", "host-perf-audit.py", {"HOST_PERF_AUDIT_LANG": "en", "NGINX_TOOLS_LANG": "en"})
+        lecture = ["smartctl -a /dev/sda", "zpool status -v data", "zfs list -o space -r data", "zfs list -t snapshot -o name,used,creation -s used -r data | tail -15",
+                   "pct exec 105 -- systemctl status logrotate.service --no-pager -n 15", "qm guest exec 430 --timeout 50 -- docker logs --tail 30 keycloak",
+                   "qm guest exec 430 -- docker inspect keycloak --format '{{.RestartCount}} restarts, {{.State.Error}}'",
+                   "pct exec 105 -- sh -c 'du -xh --max-depth=2 /opt 2>/dev/null | sort -h | tail -15'", "pct exec 105 -- journalctl --since -2min -t odoo --no-pager -o cat | tail -15",
+                   "xargs -d '\\n' -a /var/lib/host-perf-audit/backups-to-delete-local.txt du -ch | tail -1", "zpool list -o name,alloc,free,cap data   # after: compare"]
+        changement = ["pct resize 105 mp1 +14G", "qm set 430 --onboot 1", "pct delsnapshot 105 Debian13", "smartctl -t long /dev/sda   # long self-test",
+                      "qm guest exec 430 -- journalctl --vacuum-size=500M", "qm guest exec 430 -- fstrim -av", "pct exec 105 -- systemctl disable --now chrony.service",
+                      "xargs -d '\\n' -a /var/lib/host-perf-audit/backups-to-delete-local.txt rm -v --", "zpool scrub data", "zfs set compression=lz4 data",
+                      "ls /tmp > /tmp/liste", "cat $(rm -rf /x)", "pct exec 105 -- sh -c 'df -h; rm -f /tmp/x'", "apt install -y qemu-guest-agent",
+                      "find / -name x -delete", "sed -i s/a/b/ /etc/x", "qm shutdown 430 && qm start 430", "systemctl enable --now smartmontools"]
+        for c in lecture:
+            self.assertTrue(m.is_read_only(c), c)
+        for c in changement:
+            self.assertFalse(m.is_read_only(c), c)
+        self.assertEqual(m.unique_commands([("a", ["x", "y"]), ("b", ["y   # pourquoi", "z"])]), [("a", ["x", "y"]), ("b", ["z"])])
+
+    def test_changements_confirmes_un_par_un(self):
+        """1.15 : chaque changement est demandé ; seul celui qui reçoit « y » est lancé."""
+        import builtins
+        import io
+        m = charger("hpa_k", "host-perf-audit.py", {"HOST_PERF_AUDIT_LANG": "en", "NGINX_TOOLS_LANG": "en"})
+        trace = os.path.join(self.d, "trace")
+        commandes = [("disque", [f"echo un >> {trace}", f"touch {trace}.deux"]), ("lecture", ["true"])]
+        reponses = iter(["n", "y"])
+        class Terminal(io.StringIO):
+            def isatty(self):
+                return True
+        anciens = (sys.stdin, sys.stdout, builtins.input, os.geteuid)
+        sortie = Terminal()
+        sys.stdin, sys.stdout, builtins.input, os.geteuid = Terminal(), sortie, lambda _q="": next(reponses), lambda: 0
+        m.input = builtins.input                                                    # the module may hold its own (translated) input
+        try:
+            m.confirm_changes(commandes)
+        finally:
+            sys.stdin, sys.stdout, builtins.input, os.geteuid = anciens
+        self.assertFalse(os.path.exists(trace))                                     # answered « n »
+        self.assertTrue(os.path.exists(trace + ".deux"))                            # answered « y »
+        self.assertIn("CHANGES — 2 commands that modify something", sortie.getvalue())
+        self.assertIn("not run", sortie.getvalue())
+
+    def test_retention_qui_ne_s_applique_pas(self):
+        """1.15 : des sauvegardes dans un sous-dossier que Proxmox ne voit pas (sa rétention ne s'y applique jamais) ; au-delà de keep-last, la liste
+        des fichiers à supprimer est écrite et la place libérée annoncée ; les sauvegardes d'un invité disparu sont gardées."""
+        vz = os.path.join(self.d, "vz")
+        self.write("pve/storage.cfg", f"dir: local\n\tpath {vz}\n\tcontent iso,vztmpl,backup\n\tprune-backups keep-last=2\n")
+        self.write("pve/lxc/105.conf", "hostname: odoo18\nonboot: 1\nunprivileged: 1\ncores: 2\nmemory: 1024\n")
+        for jour in range(1, 6):
+            self.write(f"vz/dump/latest/vzdump-lxc-105-2026_11_{jour:02d}-23_40_00.tar.zst", "x" * 4096)
+            self.write(f"vz/dump/latest/vzdump-lxc-105-2026_11_{jour:02d}-23_40_00.log", "INFO\n")
+        self.write("vz/dump/latest/vzdump-qemu-435-2025_12_02-02_00_00.vma.zst", "y" * 4096)
+        self.mock("pvesm", "echo 'Volid Format  Type  Size VMID'")
+        etat = os.path.join(self.d, "etat")
+        m = charger("hpa_b", "host-perf-audit.py", {"HOST_PERF_AUDIT_LANG": "en", "NGINX_TOOLS_LANG": "en", "HOST_PERF_AUDIT_PVE_DIR": os.path.join(self.d, "pve"),
+                                                    "HOST_PERF_AUDIT_STATE_DIR": etat, "HOST_PERF_AUDIT_VZDUMP_CONF": os.path.join(self.d, "rien.conf")})
+        ancien = os.environ.get("PATH", "")
+        os.environ["PATH"] = self.env["PATH"]
+        try:
+            trouve = m.backup_findings(m.guest_names())
+        finally:
+            os.environ["PATH"] = ancien
+        textes = "\n".join(t for _l, t, _c in trouve)
+        self.assertIn(f"storage local: 6 backups under {vz}/dump but Proxmox sees 0 — 6 are in a sub-folder (latest) where the retention (keep-last=2) never applies", textes)
+        self.assertIn("storage local: 3 backups beyond the retention (keep-last=2, the 2 newest of each guest kept) — deleting them frees", textes)
+        self.assertIn("105 (odoo18): 3 (", textes)
+        self.assertIn("backups of guests that no longer exist, kept: 435: 1 (", textes)
+        liste = open(os.path.join(etat, "backups-to-delete-local.txt"), encoding="utf-8").read().split()
+        self.assertEqual(sorted(os.path.basename(x) for x in liste),
+                         [f"vzdump-lxc-105-2026_11_0{j}-23_40_00.{e}" for j in (1, 2, 3) for e in ("log", "tar.zst")])     # the 3 oldest, their logs; never 435
+        commandes = [c for _l, _t, cs in trouve for c in cs]
+        self.assertTrue(any(c.startswith("xargs -d '\\n' -a ") and " rm -v --" in c for c in commandes), commandes)
+        self.assertFalse(any(m.is_read_only(c) for c in commandes if " rm " in c))
 
     def test_aucun_invite_n_attend(self):
         """1.10: « Guest that waited most ... (0.0 % of its time) » contradicted the verdict: the wait is then in the tasks of the host."""

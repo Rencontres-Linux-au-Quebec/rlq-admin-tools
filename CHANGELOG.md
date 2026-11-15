@@ -2215,6 +2215,33 @@ Earlier history was archived outside this repository when this file was created.
 
 ## host-perf-audit.py
 
+### 1.15.20261114.231621 - Read-only commands run by the program, changes confirmed, retention that does not apply
+
+- Title: The program runs the read-only commands itself and shows their output; every change is asked one by one; backups outside the reach of the retention are found.
+- Reason: request of the administrator on 2026-11-14 after host-perf-audit.py --health --inside: the commands to collect information should be run by the program itself, not copied by hand, while the commands that change something must be confirmed first; and a finding such as "disk scsi0 without discard=on" must come with its command. The day before, 146 backups (2.9 TiB, 90 % of the pool) were found in /var/lib/vz/dump/latest, a folder that Proxmox does not see: its retention keep-last=7 never applied, and the program had not said it.
+- Changes:
+  - New functions is_read_only, strip_comment, unique_commands (READ_ONLY_RE, WRAPPER_RE): a command is "read" only when every part of it (after pct exec / qm guest exec / sh -c, split on |, ;, &&, ||) is in a list of read-only commands and nothing is redirected to a file; anything else is a "change".
+  - New functions collect, run_collected: the read-only commands are run once each (nice 10, idle I/O class, 60 s each, 240 s in all, 40 lines kept); the JSON answer of qm guest exec is decoded. New section "COLLECTED" with their output.
+  - commands_lines: each command is marked [read] or [change]; a command asked by two findings appears once.
+  - New function confirm_changes: the [change] commands, one by one, each run only after "y" (root and a terminal needed); without a terminal they are listed, never run.
+  - --health: in a terminal, the collection and the confirmations follow the findings; from the timer (no terminal) the collection runs only when an alert is sent, and its output goes in the e-mail. The commands of every configuration finding are given, not only those of the major ones.
+  - Report of the measurement: the same collection and confirmations after the suggested settings (not with --apply, which keeps its own questions).
+  - New option --no-collect: only list the commands.
+  - New functions retention_gaps, backup_findings, keep_last_of: for each storage with backups, the files found under its dump folder are compared with what "pvesm list" sees; backups in a sub-folder are a problem ("the retention never applies: they are kept for ever"). Beyond keep-last, the backups to delete (the oldest of each guest, with their .log and .notes) are written to /var/lib/host-perf-audit/backups-to-delete-STORAGE.txt and the room freed is announced; the delete command is a [change]. The backups of guests that no longer exist are kept and listed.
+  - check_inside: failures that are normal in an unprivileged container (run-rpc_pipefs.mount, sys-kernel-config.mount, systemd-udev-load-credentials.service...) are left out of "failed services"; a time service that fails in a container (chrony, ntp, timesyncd) is a note with its disable command; one status command per failed unit (up to 3); qm guest exec carries --timeout 50.
+  - discard=on: the command says that it applies at the next stop and start of the VM, followed by fstrim through the guest agent.
+  - Files: host-perf-audit.py, lang/host-perf-audit.fr.po, doc/fr/18-host-perf-audit.md, doc/en/18-host-perf-audit.md, nginx-tools-tests/test_host_perf_audit.py.
+- Bugs fixed:
+  - Symptom: "failed services: run-rpc_pipefs.mount, sys-kernel-config.mount..." in four containers. Diagnosis: these units always fail in an unprivileged container (no kernel mounts). Fix: left out, counted in the line.
+  - Symptom: "retention: keep-last=7" next to 107 backups of one guest, without a word. Diagnosis: the backups were in a sub-folder that Proxmox does not prune. Fix: retention_gaps.
+  - Symptom: the commands of "to improve" configuration findings were missing from --health. Fix: every finding with a command brings it.
+- Safeguards and edge cases:
+  - Nothing is changed without "y" typed in a terminal, as root. A command whose kind is not certain is treated as a change.
+  - The files of the deletion list are never deleted by the program itself without that confirmation; the backups of a guest that no longer exists are never in the list.
+  - The collection does not run every hour from the timer: only when an alert goes out.
+- Checks performed: 4 new tests (classification of 30 commands; changes confirmed one by one; retention in a sub-folder with the deletion list; collection and its output in the alert, --no-collect and the French labels); test_host_perf_audit: 22 tests pass; test_i18n catalogue of host-perf-audit, test_cles_modeles, test_conventions.AideTriee: pass. Not tested on the real Proxmox host.
+- Action required: run host-perf-audit.py --health --inside in a terminal: the read-only commands run by themselves, each change is asked.
+
 ### 1.14.20261114.213048 - Old snapshots with the room they free, and what is in order is said
 
 - Title: Snapshots older than 60 days are listed with the room that deleting them frees, and each guest in order gets its [OK] line.
