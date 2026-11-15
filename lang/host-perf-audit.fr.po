@@ -1240,9 +1240,6 @@ msgstr " : dans aucune tâche de sauvegarde planifiée — rien à restaurer si 
 msgid ": locked ("
 msgstr " : verrouillé ("
 
-msgid ") — a backup or a snapshot was interrupted; backups and changes are refused while it stays"
-msgstr ") — une sauvegarde ou un instantané a été interrompu ; les sauvegardes et les changements sont refusés tant qu'il reste"
-
 msgid " unused disks kept ("
 msgstr " disques inutilisés gardés ("
 
@@ -1494,3 +1491,15 @@ msgstr "[lecture]"
 
 msgid "[change]"
 msgstr "[modif.] "
+
+msgid ") and no task of it is running — a backup or a snapshot was interrupted; backups and changes are refused while it stays"
+msgstr ") et aucune tâche de cet invité ne tourne — une sauvegarde ou un instantané a été interrompu ; les sauvegardes et les changements sont refusés tant qu'il reste"
+
+msgid ") by a task running now ("
+msgstr ") par une tâche en cours ("
+
+msgid ") — normal; snapshots and changes of this guest wait for its end"
+msgstr ") — normal ; les instantanés et les changements de cet invité attendent sa fin"
+
+msgid " (the guest is locked: run this program again once it is unlocked to get the commands)"
+msgstr " (l'invité est verrouillé : relancer ce programme une fois déverrouillé pour avoir les commandes)"

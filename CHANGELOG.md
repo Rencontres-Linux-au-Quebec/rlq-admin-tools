@@ -2215,6 +2215,25 @@ Earlier history was archived outside this repository when this file was created.
 
 ## host-perf-audit.py
 
+### 1.16.20261115.000448 - Lock of a running backup, Odoo request log, UTF-8 of the guest agent, what moves the backups
+
+- Title: A guest locked by a backup that is running is no longer reported as an interrupted backup; four other corrections from the report of 2026-11-14.
+- Reason: report of host-perf-audit.py 1.15 on proxmox1 (2026-11-14 23:58): container 105 was "locked (backup) - a backup or a snapshot was interrupted" with the command "pct unlock 105", while its nightly backup was being written (vzdump-lxc-105-2026_11_14-23_40_02.tar.dat). Unlocking a guest during its backup can damage that backup.
+- Changes:
+  - New function running_tasks (/var/log/pve/tasks/active, constant TASKS_ACTIVE): the tasks of Proxmox running now. guest_config_check: a guest locked by a running task gets a note ("normal; snapshots and changes of this guest wait for its end"), without unlock command; a lock without a running task keeps its finding and its command. The delsnapshot commands of a locked guest are not offered (they would be refused).
+  - INSIDE_SCRIPT: the request log lines of Odoo (" werkzeug: ") are not counted in "wrote N lines to the journal": they are the normal access log of Odoo, read by app-log-live.py for the times of each request.
+  - run_collected: the output of qm guest exec, handed back as UTF-8 read as Latin-1, is decoded again ("â" for the bullet).
+  - Backups in a sub-folder: five more read-only commands to find what moves them there (hook script of vzdump, crontab, timers, content of the sub-folder); crontab -l is a read-only command.
+  - Old snapshots: "compare with ... free before" uses the FREE of zpool list, the column of the command shown (it used the "available" of zfs, smaller).
+  - Files: host-perf-audit.py, lang/host-perf-audit.fr.po, nginx-tools-tests/test_host_perf_audit.py.
+- Bugs fixed:
+  - Symptom: "pct unlock 105" offered during the backup of 105. Diagnosis: a lock was always taken as left by an interrupted task. Fix: running_tasks.
+  - Symptom: "odoo wrote 1143 lines to the journal in 10 minutes - usually the same error repeated" for the normal request log. Fix: werkzeug lines left out.
+  - Symptom: "â�� logrotate.service" in the output of a VM. Fix: decoding.
+- Safeguards and edge cases: a task whose process no longer exists is not counted as running; under the tests the file of the active tasks is given and the processes are not checked.
+- Checks performed: new test test_verrou_d_une_sauvegarde_en_cours (running and ended tasks, the note without unlock, the lock without task, crontab -l, the decoding); test_host_perf_audit: 23 tests pass; test_i18n catalogue of host-perf-audit: pass. Not tested on the real Proxmox host.
+- Action required: none.
+
 ### 1.15.20261114.231621 - Read-only commands run by the program, changes confirmed, retention that does not apply
 
 - Title: The program runs the read-only commands itself and shows their output; every change is asked one by one; backups outside the reach of the retention are found.
@@ -3928,6 +3947,23 @@ Earlier history was archived outside this repository when this file was created.
 - Action requise: relancer nginx-hardening.sh --update sur chaque serveur pour installer la regle ; aucune autre action.
 
 ## nginx-hardening.sh
+
+### 2.105.20261115.000319 - Copies of the logrotate files kept outside /etc/logrotate.d
+
+- Title: The copies made before changing /etc/logrotate.d/nginx and /etc/logrotate.d/fail2ban are kept in /var/backups/nginx-hardening/logrotate; the whole logrotate configuration is checked.
+- Reason: host-perf-audit.py --health --inside of 2026-11-14 showed logrotate.service failed in every container and VM (101, 104, 105, 433) with "error: fail2ban.before-nginx-hardening:1 duplicate log entry for /var/log/fail2ban.log" and the same for nginx: no log of these machines rotated any more.
+- Changes:
+  - Step 11 (log retention): the copy is written to LR_COPIES_DIR (NGINX_HARDENING_BACKUP_DIR/logrotate, default /var/backups/nginx-hardening/logrotate), no longer next to the file in /etc/logrotate.d; it is used the same way to restore the file when logrotate refuses the change.
+  - The copies left by earlier versions (FILE.before-nginx-hardening and FILE.avant-nginx-hardening in /etc/logrotate.d) are reported as a failure by the check and moved by --update to the new folder (a copy already there is never overwritten: a dated name is used).
+  - New check of the whole configuration as logrotate reads it every night (logrotate -d /etc/logrotate.conf; NGINX_HARDENING_LOGROTATE_CONF for the tests): its first errors are shown.
+  - Files: nginx-hardening.sh, lang/nginx-hardening.en.po, nginx-tools-tests/test_multi_app.py.
+- Bugs fixed:
+  - Symptom: logrotate.service failed every night on every server where nginx-hardening.sh --update had changed the retention; the logs of nginx, fail2ban and every other package grew without rotation. Diagnosis: logrotate reads every file of /etc/logrotate.d except a few suffixes (.dpkg-old, .rpmsave...); the copy "nginx.before-nginx-hardening" declared the same logs a second time ("duplicate log entry") and logrotate stopped. The check of one file alone (logrotate -d FILE) did not show it. Fix: copies outside the folder, existing ones moved, whole configuration checked.
+- Safeguards and edge cases:
+  - The check (without --update) moves nothing: it says what --update will do.
+  - A copy is moved, never deleted; if the destination exists, the moved one gets a dated name.
+- Checks performed: new test test_nginx_hardening_copies_hors_de_logrotate_d (a logrotate double that fails while a copy is in the folder: the check reports it, --update moves it, the whole configuration is then accepted); test_nginx_hardening_etapes_odoo_sans_objet_et_retention updated (the copy is in the new folder); no new message without its English translation.
+- Action required: on each server (odoo18, odoo-dev, the old Odoo 101, the BBB VMs): sudo nginx-hardening.sh --update, then sudo logrotate -v /etc/logrotate.conf (or wait for the next night) to rotate the logs that have grown.
 
 ### 2.104.20261113.102013 - --update installs the dependencies of the other programs
 

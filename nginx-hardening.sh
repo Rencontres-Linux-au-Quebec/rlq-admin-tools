@@ -93,7 +93,7 @@ run() {
     "$@"
 }
 
-readonly SCRIPT_VERSION="2.104.20261113.102013"
+readonly SCRIPT_VERSION="2.105.20261115.000319"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
 SCRIPT_NAME="$(basename "${BASH_SOURCE[0]}" .sh)"; readonly SCRIPT_NAME
 # Display language (en or fr): --lang, NGINX_HARDENING_LANG, LANGUAGE of the configuration file, LC_ALL / LANG - apps/_i18n.sh translates the output (nothing changes in French).
@@ -3134,8 +3134,28 @@ echo "--- 11) Rétention des journaux (cible : $LOG_RETENTION_MONTHS mois) ---"
 # restaure la copie en cas d'erreur. Journal systemd : MaxRetentionSec=Nmonth (garde au plus N mois).
 RETENTION_CIBLE=$(( (LOG_RETENTION_MONTHS * 61 + 1) / 2 ))   # months of 30.5 days: 3 -> 92, 6 -> 183, 12 -> 366
 LOGROTATE_DIR="${NGINX_HARDENING_LOGROTATE_DIR:-/etc/logrotate.d}"
+# 2.105: the copies are kept OUTSIDE /etc/logrotate.d. logrotate reads every file of that folder (only a few suffixes such as
+# .dpkg-old are skipped): a copy "nginx.before-nginx-hardening" there declares the same logs twice ("duplicate log entry"),
+# and logrotate then stops with an error - no log of the machine rotated any more (seen on 2026-11-14 in every container).
+LR_COPIES_DIR="${NGINX_HARDENING_BACKUP_DIR:-/var/backups/nginx-hardening}/logrotate"
 for lr_nom in nginx fail2ban; do
     lr_f="$LOGROTATE_DIR/$lr_nom"
+    lr_copie="$LR_COPIES_DIR/$lr_nom.before-nginx-hardening"
+    for lr_ancienne in "$lr_f.avant-nginx-hardening" "$lr_f.before-nginx-hardening"; do
+        [[ -e "$lr_ancienne" ]] || continue
+        if [[ "$CHECK_ONLY" == "1" ]]; then
+            fail "$lr_nom : copie $lr_ancienne laissée dans $LOGROTATE_DIR — logrotate la lit comme une configuration (« duplicate log entry ») et s'arrête : AUCUN journal de la machine ne tourne plus ; --update la déplacera dans $LR_COPIES_DIR."
+            continue
+        fi
+        mkdir -p "$LR_COPIES_DIR"
+        lr_dest="$lr_copie"
+        [[ -e "$lr_dest" ]] && lr_dest="$lr_copie.$(date +%Y%m%d-%H%M%S)"
+        if mv -- "$lr_ancienne" "$lr_dest"; then
+            pass "$lr_nom : copie $lr_ancienne déplacée vers $lr_dest (logrotate la lisait dans $LOGROTATE_DIR et s'arrêtait : aucun journal ne tournait plus)"
+        else
+            fail "$lr_nom : impossible de déplacer $lr_ancienne hors de $LOGROTATE_DIR — logrotate reste bloqué ; déplacez-la à la main."
+        fi
+    done
     if [[ ! -r "$lr_f" ]]; then
         warn "$lr_f absent ou illisible — rotation de $lr_nom non vérifiable."
         continue
@@ -3166,8 +3186,8 @@ for lr_nom in nginx fail2ban; do
         (( lr_jours < RETENTION_CIBLE )) && warn "$lr_nom : ≈ $lr_jours jours seulement (rotation $lr_fr, rotate $lr_n) — --update passera à « rotate $lr_cible » (≈ $LOG_RETENTION_MONTHS mois)."
         continue
     fi
-    migrer_chemin "$lr_f.avant-nginx-hardening" "$lr_f.before-nginx-hardening"      # nom anglais (2.1)
-    [[ -e "$lr_f.before-nginx-hardening" ]] || cp -p "$lr_f" "$lr_f.before-nginx-hardening"
+    mkdir -p "$LR_COPIES_DIR"
+    [[ -e "$lr_copie" ]] || cp -p "$lr_f" "$lr_copie"
     lr_fait=()
     if (( lr_cible != lr_n )); then
         sed -i -E "0,/^([[:space:]]*)rotate[[:space:]]+[0-9]+/s//\1rotate $lr_cible/" "$lr_f"
@@ -3185,13 +3205,24 @@ for lr_nom in nginx fail2ban; do
     if (( lr_cible != lr_n )) && ! grep_q -E "^[[:space:]]*rotate[[:space:]]+$lr_cible\b" "$lr_f"; then
         warn "$lr_nom : aucune ligne « rotate » modifiable dans $lr_f — ajoutez « rotate $lr_cible » à la main."
     elif command -v logrotate >/dev/null 2>&1 && lr_err2=$(run logrotate -d "$lr_f" 2>&1 | grep -m1 -iE '^error:') && [[ -n "$lr_err2" ]]; then
-        cp -p "$lr_f.before-nginx-hardening" "$lr_f"
+        cp -p "$lr_copie" "$lr_f"
         fail "$lr_nom : $lr_f refusé par logrotate après modification ($lr_err2) — copie d'origine restaurée."
     else
         lr_msg=$(IFS=';'; echo "${lr_fait[*]}")
-        pass "$lr_nom : ${lr_msg//;/ ; } dans $lr_f (copie : $lr_f.before-nginx-hardening)"
+        pass "$lr_nom : ${lr_msg//;/ ; } dans $lr_f (copie : $lr_copie)"
     fi
 done
+# 2.105: the whole configuration, as logrotate reads it every night: a single error (a duplicate, a bad file of another
+# package) stops the rotation of every log, and the check of one file alone does not show it.
+if [[ "$LOGROTATE_DIR" == "/etc/logrotate.d" ]]; then LR_CONF="${NGINX_HARDENING_LOGROTATE_CONF:-/etc/logrotate.conf}"; else LR_CONF="${NGINX_HARDENING_LOGROTATE_CONF:-$(dirname "$LOGROTATE_DIR")/logrotate.conf}"; fi
+if command -v logrotate >/dev/null 2>&1 && [[ -r "$LR_CONF" ]]; then
+    lr_tout=$(run logrotate -d "$LR_CONF" 2>&1 | grep -iE '^error:' | head -3 | tr '\n' ';' || true)
+    if [[ -n "$lr_tout" ]]; then
+        warn "logrotate : la configuration complète ($LR_CONF) a des erreurs — les journaux concernés ne tournent pas : ${lr_tout%;}"
+    else
+        pass "logrotate : la configuration complète ($LR_CONF) est acceptée"
+    fi
+fi
 # Journal systemd : celui de l'application si elle journalise dans un namespace isole (LogNamespace), sinon le general.
 jr_ns=""
 if [[ "$APP_NAME" == "odoo" ]]; then

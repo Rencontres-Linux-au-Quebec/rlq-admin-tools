@@ -282,13 +282,49 @@ class BigBlueButton(EnvTest):
         rc, out, err = self.run_cmd(["python3", prog])
         self.assertIn("RÉSUMÉ : 1 erreurs à examiner", out)                         # seulement la nouvelle ligne
 
+    def test_nginx_hardening_copies_hors_de_logrotate_d(self):
+        """2.105 : une copie « .before-nginx-hardening » laissée dans /etc/logrotate.d bloquait logrotate (« duplicate log entry ») : AUCUN journal
+        ne tournait plus. La vérification le dit, --update la déplace dans /var/backups/nginx-hardening/logrotate, et la configuration complète
+        est vérifiée comme logrotate la lit chaque nuit."""
+        prog = self.prepare("nginx-hardening.sh", {"/etc/default/": os.path.dirname(self.path("etc-default", "x")) + "/",
+                                                   "/etc/nginx": os.path.dirname(self.path("etc-nginx", "x")),
+                                                   "/var/log/nginx": os.path.dirname(self.path("nl", "x")), "/var/www": os.path.dirname(self.path("www", "x"))})
+        lr = self.write("logrotate.d/nginx", "/var/log/nginx/*.log {\n\tdaily\n\tmissingok\n\trotate 92\n\tcompress\n}\n")
+        self.write("logrotate.d/fail2ban", "/var/log/fail2ban.log {\n    daily\n    rotate 92\n}\n")
+        ancienne = self.write("logrotate.d/nginx.before-nginx-hardening", "/var/log/nginx/*.log {\n\tdaily\n\trotate 14\n}\n")
+        conf = self.write("logrotate.conf", f"include {os.path.dirname(lr)}\n")
+        sauv = os.path.dirname(self.path("sauvegardes", "x"))
+        self.env.update(NGINX_HARDENING_LOGROTATE_DIR=os.path.dirname(lr), NGINX_HARDENING_JOURNALD_DIR=os.path.dirname(self.path("systemd", "x")),
+                        NGINX_HARDENING_BACKUP_DIR=sauv)
+        self.mock("nginx", '[[ "$1" == -T ]] && echo "server_name bbb30.exemple.org;"; exit 0')
+        self.mock("curl", 'printf "HTTP/1.1 200 OK\\r\\n\\r\\n"')
+        for t in ("systemctl", "ss", "ufw", "fail2ban-client"):
+            self.mock_exit(t)
+        # logrotate as it really behaves: the whole configuration fails while a copy declares the same logs again
+        self.mock("logrotate", f'[ "${{@: -1}}" = "{conf}" ] && ls "{os.path.dirname(lr)}" | grep -q before-nginx-hardening && '
+                               f'echo "error: nginx.before-nginx-hardening:1 duplicate log entry for /var/log/nginx/access.log" >&2 && exit 1; exit 0')
+        self.liste_blanche(LISTE_EXEMPLE)
+        rc, out, err = self.run_cmd(["bash", prog])
+        self.assertIn(f"nginx : copie {ancienne} laissée dans {os.path.dirname(lr)} — logrotate la lit comme une configuration", out)
+        self.assertIn(f"logrotate : la configuration complète ({conf}) a des erreurs — les journaux concernés ne tournent pas : error: nginx.before-nginx-hardening:1 duplicate log entry", out)
+        self.assertTrue(os.path.isfile(ancienne))                                     # the check changes nothing
+        rc, out, err = self.run_cmd(["bash", prog, "--update"])
+        self.assertFalse(os.path.exists(ancienne))
+        self.assertEqual(open(os.path.join(sauv, "logrotate", "nginx.before-nginx-hardening")).read(), "/var/log/nginx/*.log {\n\tdaily\n\trotate 14\n}\n")
+        self.assertIn("déplacée vers", out)
+        self.assertIn(f"logrotate : la configuration complète ({conf}) est acceptée", out)
+        rc, out, err = self.run_cmd(["bash", prog])
+        self.assertNotIn("laissée dans", out)
+        self.assertNotIn("unbound variable", err)
+
     def test_nginx_hardening_etapes_odoo_sans_objet_et_retention(self):
         prog = self.prepare("nginx-hardening.sh", {"/etc/default/": os.path.dirname(self.path("etc-default", "x")) + "/",
                                                    "/etc/nginx": os.path.dirname(self.path("etc-nginx", "x")),       # racine sauvegardée (sans elle, --update refuse : pas de nginx sur ce poste)
                                                    "/var/log/nginx": os.path.dirname(self.path("nl", "x")), "/var/www": os.path.dirname(self.path("www", "x"))})
         lr = self.write("logrotate.d/nginx", "/var/log/nginx/*.log {\n\tdaily\n\tmissingok\n\trotate 14\n\tcompress\n}\n")
         self.write("logrotate.d/fail2ban", "/var/log/fail2ban.log {\n    weekly\n    rotate 4\n}\n")
-        self.env.update(NGINX_HARDENING_LOGROTATE_DIR=os.path.dirname(lr), NGINX_HARDENING_JOURNALD_DIR=os.path.dirname(self.path("systemd", "x")))
+        self.env.update(NGINX_HARDENING_LOGROTATE_DIR=os.path.dirname(lr), NGINX_HARDENING_JOURNALD_DIR=os.path.dirname(self.path("systemd", "x")),
+                        NGINX_HARDENING_BACKUP_DIR=os.path.dirname(self.path("sauvegardes", "x")))
         self.mock("nginx", '[[ "$1" == -T ]] && echo "server_name bbb30.exemple.org;"; exit 0')
         self.mock("curl", 'printf "HTTP/1.1 200 OK\\r\\n\\r\\n"')                                 # HSTS absent (HAProxy)
         for t in ("systemctl", "ss", "ufw", "fail2ban-client", "logrotate"):
@@ -311,7 +347,8 @@ class BigBlueButton(EnvTest):
         rc, out, err = self.run_cmd(["bash", prog, "--update"])
         self.assertRegex(open(lr).read(), r"\trotate 92\n")
         self.assertIn("rotate 14", open(os.path.join(os.path.dirname(lr), "fail2ban")).read())
-        self.assertTrue(os.path.isfile(lr + ".before-nginx-hardening"))
+        self.assertFalse(os.path.exists(lr + ".before-nginx-hardening"))               # 2.105: never inside logrotate.d
+        self.assertTrue(os.path.isfile(os.path.join(self.env["NGINX_HARDENING_BACKUP_DIR"], "logrotate", "nginx.before-nginx-hardening")))
         self.assertIn("MaxRetentionSec=3month", open(self.path("systemd", "journald.conf.d/90-nginx-hardening-retention.conf")).read())
         rc, out, err = self.run_cmd(["bash", prog])
         self.assertRegex(out, r"nginx : rotation quotidienne, 92 conservés ≈ 92 jours")
