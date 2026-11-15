@@ -40,3 +40,15 @@ Each suggestion has a priority (HIGH / MEDIUM / LOW). With `--apply`, the **safe
 * **Container disk almost full**: named with its mount point and the `pct resize` command.
 * **Backups (vzdump)**: number, size, retention, scheduled jobs and the hours of the backups of the last 3 days, to compare with the slow hours of the sites.
 * **`--export-ai`**: writes the report and the raw state of the host to `/var/lib/host-perf-audit/export-ai-HOST-DATE.md` (mode 600, passwords hidden). Key `EXPORT_AI` in the configuration.
+
+## Health, inside of the guests and alerts (1.12)
+
+```bash
+host-perf-audit.py --health --inside            # a check of a few seconds, without measurement
+host-perf-audit.py --install-timer              # the same every hour, with an e-mail alert when something is new
+```
+
+* **`--health`**: SMART counters of each disk compared with the previous run (reallocated, pending, uncorrectable sectors), state and errors of the ZFS pools, RAID, kernel messages, space, backups. Exit code 0, 1 (to watch) or 2 (problem).
+* **`--inside`**: looks inside each guest, read-only: `pct exec` for a container, the QEMU guest agent for a VM (`qm set ID --agent enabled=1`, `qemu-guest-agent` in the VM, then stop and start the VM). Docker containers that restart in a loop, failed services, a journal that overflows, full disks, the processes that write the most. No shared folder is needed.
+* **`--notify`**: system journal and e-mail (SMTP settings of `app-health-check.py`, otherwise local mail to root), only when something is new, reminder after 24 hours.
+* **Commands to run**: every report ends with the commands to copy, paste, and whose output is to be sent.

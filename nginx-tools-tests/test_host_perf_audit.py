@@ -278,6 +278,151 @@ esac''')
         self.assertIn("SAUVEGARDES (vzdump)", out)
         self.assertTrue(os.path.isfile(fichier), out + err)
 
+    def test_compteurs_zfs_par_invite(self):
+        """1.11 : les écritures de chaque invité lues dans les compteurs ZFS de ses datasets (le cgroup ne compte rien sur ZFS), les volumes zdN nommés,
+        et l'invité qui fait la plupart des écritures désigné."""
+        import shutil
+        import tempfile
+        d = tempfile.mkdtemp(prefix="test-rlq-hpa-z-")
+        self.addCleanup(shutil.rmtree, d)
+        faux_proc(d)
+
+        def objset(nom, fichier, lectures, ecritures):
+            chemin = os.path.join(d, "proc/spl/kstat/zfs/data", fichier)
+            os.makedirs(os.path.dirname(chemin), exist_ok=True)
+            with open(chemin, "w") as f:
+                f.write(f"49 1 0x01 7 2160 1 2\nname type data\ndataset_name 7 {nom}\nwrites 4 {ecritures}\nnwritten 4 {ecritures * 4096}\n"
+                        f"reads 4 {lectures}\nnread 4 {lectures * 8192}\nnunlinks 4 0\n")
+        objset("data/zd0/vm-433-disk-0", "objset-0x10", 100, 1000)
+        objset("data/zd0/vm-433-disk-1", "objset-0x11", 0, 500)
+        objset("data/zd0/subvol-105-disk-2", "objset-0x12", 40, 30)
+        objset("data/zd0", "objset-0x2", 5, 5)                                    # not a guest
+        zv = os.path.join(d, "zvol/data/zd0")
+        os.makedirs(zv)
+        os.symlink("../../../zd16", os.path.join(zv, "vm-433-disk-0"))
+        os.symlink("../../../zd16p1", os.path.join(zv, "vm-433-disk-0-part1"))
+        m = charger("hpa_z", "host-perf-audit.py", {"NGINX_TOOLS_PROC_ROOT": d, "HOST_PERF_AUDIT_ZVOL_DIR": os.path.join(d, "zvol"),
+                                                    "HOST_PERF_AUDIT_LANG": "en", "NGINX_TOOLS_LANG": "en"})
+        self.assertEqual(m.zfs_objset_counters(), {"433": [100, 819200, 1500, 6144000], "105": [40, 327680, 30, 122880]})
+        self.assertEqual(m.zvol_names(), {"zd16": "data/zd0/vm-433-disk-0"})
+        # two guests: the VM writes 30 times a second, the container 2 — the cgroup of both counts nothing
+        g = lambda w, r: {"cpu": 5.0, "mem": 2 ** 30, "mem_max": None, "io_r": 0.0, "io_w": 0.0, "io_some": 0.2, "cpu_some": 0.0, "z_w_ops": w, "z_r_ops": r, "z_w": w * 4096.0, "z_r": r * 8192.0}
+        echantillons = [{"guests": {"433": g(30, 1), "105": g(2, 4)}, "psi": {"io": {"some": 6.0}}} for _ in range(3)]
+        noms = {"433": ("vm", "bbb3-26", ""), "105": ("lxc", "odoo18", "")}
+        out = []
+        lignes = m.analyze_guests(echantillons, noms, 8, out)
+        texte = "\n".join(out)
+        self.assertIn("ZFS counters of its datasets", texte)
+        self.assertIn("writes/s", texte)
+        self.assertLess(texte.index("bbb3-26"), texte.index("odoo18"))          # sorted by operations
+        self.assertRegex(texte, r"433 vm\s+bbb3-26 .* 0\.12\s+30\.0\s+1\.0")
+        fd = m.Findings()
+        m.guest_writers(lignes, echantillons, {"disks": {"sda": {"kind": "HDD"}}}, noms, fd)
+        conseils = [t for _p, t, _a, _l in fd.suggestions]
+        self.assertEqual(len(conseils), 1, conseils)
+        self.assertIn("guest 433 (bbb3-26) makes 94 % of the writes of the guests (30 per second)", conseils[0])
+        self.assertIn("pidstat -d 10 6", conseils[0])
+        fd = m.Findings()
+        m.guest_writers(lignes, [{"psi": {"io": {"some": 0.5}}}], {"disks": {"sda": {"kind": "HDD"}}}, noms, fd)
+        self.assertEqual(fd.suggestions, [])                                        # the disks do not make anyone wait: nothing to say
+        fd = m.Findings()
+        m.guest_writers(lignes, echantillons, {"disks": {"nvme0n1": {"kind": "NVMe"}}}, noms, fd)
+        self.assertEqual(fd.suggestions, [])
+
+    def hote_sante(self, realloues=0, attente=0, cksum=0):
+        """Faux hôte pour --health : smartctl, zpool status, journal du noyau, pct et qm (agent absent sur la VM 120)."""
+        self.mock("smartctl", f"""cat <<'X'
+SMART overall-health self-assessment test result: PASSED
+ID# ATTRIBUTE_NAME          FLAG     VALUE WORST THRESH TYPE      UPDATED  WHEN_FAILED RAW_VALUE
+  5 Reallocated_Sector_Ct   0x0033   100   100   005    Pre-fail  Always       -       {realloues}
+  9 Power_On_Hours          0x0012   091   091   000    Old_age   Always       -       65402
+194 Temperature_Celsius     0x0002   171   171   000    Old_age   Always       -       35
+197 Current_Pending_Sector  0x0022   100   100   000    Old_age   Always       -       {attente}
+199 UDMA_CRC_Error_Count    0x000a   200   200   000    Old_age   Always       -       0
+X""")
+        self.mock("zpool", f'''case "$*" in
+ "list -H -p -o name,size,alloc,free,frag,cap,health") printf "rpool\\t4000000000000\\t2400000000000\\t1600000000000\\t20\\t60\\tONLINE\\n";;
+ "status") printf "  pool: rpool\\n state: ONLINE\\n  scan: scrub repaired 0B in 05:10:11 with 0 errors on $(LC_ALL=C date -d "-3 days" "+%%a %%b %%e %%H:%%M:%%S %%Y")\\nconfig:\\n\\n\\tNAME        STATE     READ WRITE CKSUM\\n\\trpool       ONLINE       0     0     0\\n\\t  mirror-0  ONLINE       0     0     0\\n\\t    sda2    ONLINE       0     0     {cksum}\\n\\nerrors: No known data errors\\n";;
+ "get -H -p -o name,value ashift") printf "rpool\\t12\\n";;
+esac'''.replace("%%", "%"))
+        self.mock("zfs", "exit 0")
+        self.mock("journalctl", "exit 0")
+        self.mock("systemctl", "echo active")
+        dedans = ("@@io1\\n100 1000 ntopng\\n200 5000 postgres\\n@@docker\\ngrafana|Up 2 weeks\\nprometheus|Restarting (1) 22 seconds ago\\n@@failed\\n"
+                  "@@journal\\n   3492 dockerd\\n     40 systemd\\n@@jsize\\nArchived and active journals take up 4.0G in the file system.\\n"
+                  "@@df\\n/dev/sda1 100000 96000 4000 96%% /var\\n/dev/sda2 100000 10000 90000 10%% /\\n@@io2\\n100 901000 ntopng\\n200 6000 postgres\\n")
+        self.mock("pct", f'printf "{dedans}"')
+        self.mock("qm", "echo ne-doit-pas-etre-appele; exit 1")
+        os.makedirs(os.path.join(self.racine, "sys/fs/cgroup/qemu.slice/120.scope"), exist_ok=True)
+        self.env.update(HOST_PERF_AUDIT_STATE_DIR=os.path.join(self.d, "etat"), HOST_PERF_AUDIT_MAIL_FILE=os.path.join(self.d, "courriel.txt"),
+                        HOST_PERF_AUDIT_TASKS=os.path.join(self.d, "aucune-tache"), HOST_PERF_AUDIT_SYSTEMD_DIR=os.path.join(self.d, "systemd"))
+
+    def test_health_disque_qui_faiblit(self):
+        """1.12 --health : un disque sain donne 0 ; un compteur SMART qui monte ou un secteur en attente donne 2, avec les commandes à lancer."""
+        self.hote_sante()
+        rc, out, err = self.run_cmd(["python3", self.prog, "--health", "--lang", "en"], timeout=60)
+        self.assertEqual(rc, 0, out + err)
+        self.assertIn("HEALTH OF", out)
+        self.assertIn("sda: SMART passed, no reallocated, pending or uncorrectable sector · 65402 h (7.5 years) — past 5 years", out)
+        self.assertIn("pool rpool: ONLINE, no error, used 60 %", out)
+        self.assertIn("Verdict: nothing to report", out)
+        self.assertNotIn("COMMANDS TO RUN", out)
+        self.hote_sante(realloues=8, attente=2, cksum=14)
+        rc, out, err = self.run_cmd(["python3", self.prog, "--health", "--lang", "en"], timeout=60)
+        self.assertEqual(rc, 2, out + err)
+        self.assertIn("sda: signs of failure — reallocated sectors: 8 (was 0); sectors pending reallocation: 2 (was 0) — plan its replacement", out)
+        self.assertIn("pool rpool: errors on sda2 (read 0, write 0, checksum 14)", out)
+        self.assertIn("Verdict: 2 problems, 0 to watch", out)
+        self.assertIn("COMMANDS TO RUN — copy, paste, and send the output with this report", out)
+        self.assertIn("  smartctl -a /dev/sda\n", out)
+        self.assertIn("  zpool status -v rpool\n", out)
+        self.hote_sante(realloues=8)                                              # stable since the last run, nothing pending: to watch only
+        rc, out, err = self.run_cmd(["python3", self.prog, "--health", "--lang", "en"], timeout=60)
+        self.assertEqual(rc, 1, out + err)
+        self.assertIn("reallocated sectors: 8 — to watch", out)
+
+    def test_health_interieur_des_invites_et_alerte(self):
+        """1.12 --inside --notify : conteneur qui redémarre en boucle, journal qui déborde, disque plein vus DANS l'invité ; VM sans agent : la marche à
+        suivre ; une alerte par courriel, pas répétée tant que rien ne change, puis le retour à la normale."""
+        self.hote_sante()
+        rc, out, err = self.run_cmd(["python3", self.prog, "--health", "--inside", "--notify", "--lang", "en"], timeout=60)
+        self.assertEqual(rc, 2, out + err)
+        self.assertIn("guest 101 (odoo18): container prometheus restarts in a loop (Restarting (1) 22 seconds ago)", out)
+        self.assertIn("guest 101 (odoo18): dockerd wrote 3492 lines to the journal in 10 minutes (5.8 per second)", out)
+        self.assertIn("guest 101 (odoo18): the journal takes 4.0 GiB", out)
+        self.assertIn("guest 101 (odoo18): /var is 96% full (3 MiB free)", out)
+        self.assertIn("guest 101 (odoo18): processes that write the most: ntopng 88 kB/s", out)
+        self.assertNotIn("grafana", out)
+        self.assertIn("guest 120 (bbb3): the QEMU guest agent is not enabled", out)
+        self.assertIn("  qm set 120 --agent enabled=1", out)
+        self.assertIn("  pct exec 101 -- docker logs --tail 30 prometheus\n", out)
+        self.assertNotIn("ne-doit-pas-etre-appele", out + err)                    # no agent: qm guest exec is not tried
+        self.assertIn("Alert: written to", out)
+        courriel = open(os.path.join(self.d, "courriel.txt"), encoding="utf-8").read()
+        self.assertIn("Subject: [host-perf-audit] ", courriel)
+        self.assertIn(": 1 problems, 3 to watch", courriel)
+        self.assertIn("[FAIL] guest 101 (odoo18): container prometheus restarts in a loop", courriel)
+        self.assertIn("pct exec 101 -- docker logs --tail 30 prometheus", courriel)
+        rc, out, err = self.run_cmd(["python3", self.prog, "--health", "--inside", "--notify", "--lang", "en"], timeout=60)
+        self.assertIn("Alert: not sent (nothing new since the last one", out)
+        self.assertEqual(open(os.path.join(self.d, "courriel.txt"), encoding="utf-8").read().count("Subject:"), 1)
+        self.mock("pct", 'printf "@@io1\\n@@docker\\ngrafana|Up 2 weeks\\n@@failed\\n@@journal\\n@@jsize\\n@@df\\n@@io2\\n"')
+        rc, out, err = self.run_cmd(["python3", self.prog, "--health", "--inside", "--notify", "--lang", "fr"], timeout=60)
+        self.assertEqual(rc, 0, out + err)
+        self.assertEqual(open(os.path.join(self.d, "courriel.txt"), encoding="utf-8").read().count("Subject:"), 2)   # back to normal, once
+        self.assertNotIn("Traceback", err)
+
+    def test_minuteur_de_sante(self):
+        """1.12 --install-timer / --uninstall-timer : unités systemd qui lancent --health --inside --notify chaque heure."""
+        self.hote_sante()
+        rc, out, err = self.run_cmd(["python3", self.prog, "--install-timer", "--lang", "en"], timeout=30)
+        self.assertEqual(rc, 0, out + err)
+        service = open(os.path.join(self.d, "systemd", "host-perf-audit-health.service"), encoding="utf-8").read()
+        self.assertRegex(service, r"ExecStart=\S+ \S+host-perf-audit\.py --health --inside --notify\n")
+        self.assertIn("OnCalendar=*-*-* *:17:00", open(os.path.join(self.d, "systemd", "host-perf-audit-health.timer"), encoding="utf-8").read())
+        rc, out, err = self.run_cmd(["python3", self.prog, "--uninstall-timer"], timeout=30)
+        self.assertEqual(os.listdir(os.path.join(self.d, "systemd")), [])
+
     def test_aucun_invite_n_attend(self):
         """1.10: « Guest that waited most ... (0.0 % of its time) » contradicted the verdict: the wait is then in the tasks of the host."""
         m = charger("hpa_g", "host-perf-audit.py", {"HOST_PERF_AUDIT_LANG": "en", "NGINX_TOOLS_LANG": "en"})

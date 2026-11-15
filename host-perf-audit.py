@@ -18,7 +18,7 @@
 #   * Ctrl-C during the measurement: the report is still produced with the samples already taken.
 #   * --apply: the SAFE and reversible settings (ZFS atime and compression of a dataset, ARC maximum, vm.swappiness) are offered one by one with
 #     confirmation; the others (hardware, VM disk options) are explained, never changed.
-# Configuration (common rule): /etc/default/host-perf-audit.conf THEN ~/.host-perf-audit.conf (the last one wins; keys CSV, DURATION, EXPORT_AI, INTERVAL, LANGUAGE,
+# Configuration (common rule): /etc/default/host-perf-audit.conf THEN ~/.host-perf-audit.conf (the last one wins; keys CSV, DURATION, EXPORT_AI, INSIDE, INTERVAL, LANGUAGE,
 # NO_GUESTS, TOP, VERBOSE); -c/--config: that file ALONE; the command line takes priority.
 #
 #
@@ -28,10 +28,13 @@
 #   host-perf-audit.py --duration 30m --csv /root/perf.csv   samples also written to a CSV file (spreadsheet)
 #   host-perf-audit.py --apply                 report, then the safe settings offered one by one
 #   host-perf-audit.py --export-ai             report, then the report and the raw state of the host in a Markdown file to send for verification
+#   host-perf-audit.py --health --inside       quick check without measurement: disks (SMART counters), pools, backups, and the inside of each guest
+#   host-perf-audit.py --install-timer         that check every hour, with an alert by e-mail when something is new
 import argparse
 import datetime
 import glob
 import importlib.util
+import json
 import os
 import re
 import shutil
@@ -41,12 +44,13 @@ import subprocess
 import sys
 import time
 
-__version__ = "1.10.20261114.163844"
+__version__ = "1.12.20261114.202240"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
 CHANGELOG_FILE = os.path.join(SCRIPT_DIR, "CHANGELOG.md")
 PVE_DIR = os.environ.get("HOST_PERF_AUDIT_PVE_DIR", "/etc/pve")
+ZVOL_DIR = os.environ.get("HOST_PERF_AUDIT_ZVOL_DIR", "/dev/zvol")      # 1.11: links zdN -> dataset of each ZFS volume
 SYSCTL_FILE = os.environ.get("HOST_PERF_AUDIT_SYSCTL_FILE", "/etc/sysctl.d/90-host-perf-audit.conf")
 MODPROBE_FILE = os.environ.get("HOST_PERF_AUDIT_MODPROBE_FILE", "/etc/modprobe.d/zfs-arc-host-perf-audit.conf")
 CMD_TIMEOUT = 20
@@ -93,7 +97,7 @@ def load_module(name):
 
 
 SYSPERF = load_module("_sysperf")
-SCHEMA_CONFIG = {"CSV": ("csv", str), "DURATION": ("duration", str), "EXPORT_AI": ("export_ai", str), "INTERVAL": ("interval", float), "NO_GUESTS": ("no_guests", bool), "TOP": ("top", int),
+SCHEMA_CONFIG = {"CSV": ("csv", str), "DURATION": ("duration", str), "EXPORT_AI": ("export_ai", str), "INSIDE": ("inside", bool), "INTERVAL": ("interval", float), "NO_GUESTS": ("no_guests", bool), "TOP": ("top", int),
                  "VERBOSE": ("verbose", bool)}
 COLOR = sys.stdout.isatty() and not os.environ.get("NO_COLOR") and os.environ.get("TERM") != "dumb"
 
@@ -208,6 +212,46 @@ def guest_cgroups():
         vmid = os.path.basename(path)[:-6]
         if vmid.isdigit():
             res[vmid] = ("vm", path)
+    return res
+
+
+GUEST_DATASET_RE = re.compile(r"(?:^|/)(?:vm|subvol|base)-(\d+)-(?:disk|state|cloudinit)")
+
+
+def zfs_objset_counters():
+    """1.11: {guest id: [read operations, bytes read, write operations, bytes written]} summed over the ZFS datasets and volumes of each guest, from
+    /proc/spl/kstat/zfs/POOL/objset-0x* (one small file per dataset). ZFS does not go through the block layer: the io.stat of a cgroup counts nothing
+    for a container on ZFS (the column « disk MB/s » showed 0.00 for every guest), and a VM writes to its zvol, not to a disk of its cgroup."""
+    res = {}
+    root = SYSPERF._p("/proc/spl/kstat/zfs") if SYSPERF else "/proc/spl/kstat/zfs"
+    for path in glob.glob(os.path.join(root, "*", "objset-0x*")):
+        try:
+            with open(path, encoding="ascii", errors="replace") as f:
+                text = f.read()
+        except OSError:
+            continue
+        name = re.search(r"^dataset_name\s+\d+\s+(\S+)", text, re.M)
+        m = GUEST_DATASET_RE.search(name.group(1)) if name else None
+        if not m:
+            continue
+        c = res.setdefault(m.group(1), [0, 0, 0, 0])
+        for i, key in enumerate(("reads", "nread", "writes", "nwritten")):
+            v = re.search(rf"^{key}\s+\d+\s+(\d+)", text, re.M)
+            if v:
+                c[i] += int(v.group(1))
+    return res
+
+
+def zvol_names():
+    """1.11: {zdN: dataset} from the links of /dev/zvol (zd16 -> data/zd0/vm-433-disk-0): the table of the disks names the volume and its guest."""
+    res = {}
+    root = ZVOL_DIR
+    for link in glob.glob(os.path.join(root, "**", "*"), recursive=True):
+        if re.search(r"-part\d+$", link) or not os.path.islink(link):
+            continue
+        target = os.path.basename(os.readlink(link))
+        if re.match(r"zd\d+$", target):
+            res[target] = os.path.relpath(link, root)
     return res
 
 
@@ -621,6 +665,7 @@ def analyze_backups(zfs, names, fd, out):
             fd.suggest(1 if full else 2, f"storage {name} — {len(backups) + len(others)} backup files ({size(total)}) and no retention"
                        + (f" — they fill pool {pool} (used {cap} %)" if full else "")
                        + ": set a retention on the backup job (Datacenter > Backup > Retention, e.g. keep-last=2, keep-daily=7, keep-weekly=4), then remove the old ones (« Prune »)")
+            fd.ask(f"storage {name}: the backups and their retention", [f"ls -lhS {folder} {os.path.join(folder, '*')} 2>/dev/null | head -40", "grep -A8 vzdump /etc/pve/jobs.cfg"])
         elif total and full and total >= zfs["pools"][pool]["size"] * 0.3:
             fd.suggest(1, f"storage {name} — the backups ({size(total)}) are the largest part of pool {pool} (used {cap} %) with retention {keep}: keep fewer of them, or move them to another disk")
         if total and shared:
@@ -748,6 +793,7 @@ def sample_loop(duration, interval, guests, csv_path):
     samples, t_end = [], time.monotonic() + duration
     prev = SYSPERF.snapshot()
     prev_g = {vmid: cgroup_counters(path) for vmid, (_k, path) in guests.items()}
+    prev_z = zfs_objset_counters() if guests else {}
     csv = None
     if csv_path:
         try:
@@ -766,6 +812,7 @@ def sample_loop(duration, interval, guests, csv_path):
             r = SYSPERF.rates(prev, cur)
             dt = r["dt"]
             gs = {}
+            cur_z = zfs_objset_counters() if guests else {}
             for vmid, (_k, path) in guests.items():
                 c = cgroup_counters(path)
                 p = prev_g.get(vmid) or {}
@@ -777,7 +824,12 @@ def sample_loop(duration, interval, guests, csv_path):
                             "io_r": (d("io_rbytes") or 0) / dt, "io_w": (d("io_wbytes") or 0) / dt,
                             "io_some": d("io_some_us") / 1e6 / dt * 100.0 if d("io_some_us") is not None else None,
                             "cpu_some": d("cpu_some_us") / 1e6 / dt * 100.0 if d("cpu_some_us") is not None else None}
+                z, pz = cur_z.get(vmid), prev_z.get(vmid)
+                if z and pz:                                     # 1.11: the ZFS counters of its datasets (operations and bytes per second)
+                    zr_ops, zr_b, zw_ops, zw_b = (max(0, a - b) / dt for a, b in zip(z, pz))
+                    gs[vmid].update(z_r_ops=zr_ops, z_w_ops=zw_ops, z_r=zr_b, z_w=zw_b)
                 prev_g[vmid] = c
+            prev_z = cur_z
             r["guests"] = gs
             r["psi_source"] = cur.get("psi_source", "/proc/pressure")
             prev = cur
@@ -821,6 +873,10 @@ class Findings:
     def __init__(self):
         self.verdicts = {}        # resource -> (level ok|warn|bad, text)
         self.suggestions = []     # (priority 1-3, text, apply callable or None, apply label)
+        self.commands = []        # 1.12: (title, [commands to copy, paste and send the output of])
+
+    def ask(self, title, commands):
+        self.commands.append((title, list(commands)))
 
     def verdict(self, resource, level, text):
         self.verdicts[resource] = (level, text)
@@ -900,6 +956,7 @@ def analyze_disks(samples, facts, smart, fd, out):
     io_some = [s["psi"].get("io", {}).get("some") for s in samples]
     io_full = [s["psi"].get("io", {}).get("full") for s in samples]
     devices = sorted({d for s in samples for d in s["disks"]})
+    zvols, names_of = (zvol_names(), guest_names()) if any(d.startswith("zd") for d in devices) else ({}, {})
     out.append("DISKS — % of the time busy (utilization), operations and throughput per second, wait per operation (ms)")
     h = [T(x) for x in ("device", "type", "util avg", "p95", "max", "read/s", "write/s", "MB/s r", "MB/s w", "wait r", "wait w", "model")]
     out.append(f"  {h[0]:<10} {h[1]:<5} {h[2]:>8} {h[3]:>5} {h[4]:>5}  {h[5]:>7} {h[6]:>7}  {h[7]:>6} {h[8]:>6}  {h[9]:>7} {h[10]:>7}  {h[11]}")
@@ -910,6 +967,9 @@ def analyze_disks(samples, facts, smart, fd, out):
         rw = [v["r_await"] for v in vals if v["r_await"] is not None and v["r_s"] >= 0.5]
         ww = [v["w_await"] for v in vals if v["w_await"] is not None and v["w_s"] >= 0.5]
         info = facts["disks"].get(dev, {"kind": "zvol" if dev.startswith("zd") else "RAID" if dev.startswith("md") else "?", "model": "", "scheduler": ""})
+        if dev in zvols and not info.get("model"):           # 1.11: zd16 -> data/zd0/vm-433-disk-0 (bbb3-26)
+            m = GUEST_DATASET_RE.search(zvols[dev])
+            info = dict(info, model=zvols[dev] + (f" ({names_of[m.group(1)][1]})" if m and m.group(1) in names_of and names_of[m.group(1)][1] else ""))
         if dev.startswith("zd") and (max(util or [0]) < 1):
             continue                         # idle ZFS volumes: noise
         r95, w95 = pct(rw, 95), pct(ww, 95)
@@ -1021,22 +1081,60 @@ def analyze_guests(samples, names, top, out):
     for vmid in ids:
         vals = [s["guests"][vmid] for s in samples if vmid in s.get("guests", {})]
         cpu = [v["cpu"] for v in vals]
-        io = [(v["io_r"] or 0) + (v["io_w"] or 0) for v in vals]
+        # 1.11: the ZFS counters of the guest's datasets when they exist (the cgroup counts nothing on ZFS), the cgroup otherwise
+        zfs_seen = any("z_w_ops" in v for v in vals)
+        io = [((v.get("z_r") or 0) + (v.get("z_w") or 0)) if zfs_seen else ((v["io_r"] or 0) + (v["io_w"] or 0)) for v in vals]
+        w_ops = avg([v.get("z_w_ops") for v in vals if "z_w_ops" in v]) if zfs_seen else None
+        r_ops = avg([v.get("z_r_ops") for v in vals if "z_r_ops" in v]) if zfs_seen else None
         some = [v["io_some"] for v in vals]
         mem = vals[-1]["mem"] or 0
         kind, name, _conf = names.get(vmid, ("?", "", ""))
-        rows.append((avg(io) or 0, vmid, kind, name, avg(cpu) or 0, max([x for x in cpu if x is not None] or [0]), mem, vals[-1]["mem_max"], avg(some), max([x for x in some if x is not None] or [0])))
-    out.append(f"GUESTS — the {min(top, len(rows))} busiest on the disks (cgroup of each running container / VM)")
-    h = [T(x) for x in ("id", "type", "name", "CPU avg", "peak", "memory", "disk MB/s", "disk wait")]
-    out.append(f"  {h[0]:>5} {h[1]:<4} {h[2]:<22} {h[3]:>8} {h[4]:>6}  {h[5]:>10}  {h[6]:>9}  {h[7]:>9} {h[4]:>6}")
-    for io, vmid, kind, name, cpu, cpu_max, mem, mem_max, some, some_max in sorted(rows, reverse=True)[:top]:
-        out.append(f"  {vmid:>5} {kind:<4} {name[:22]:<22} {cpu:>7.0f}% {cpu_max:>5.0f}%  {mem / 2 ** 30:>6.1f} GiB  {io / 1048576:>9.2f}  "
+        rows.append((avg(io) or 0, vmid, kind, name, avg(cpu) or 0, max([x for x in cpu if x is not None] or [0]), mem, vals[-1]["mem_max"], avg(some),
+                     max([x for x in some if x is not None] or [0]), w_ops, r_ops))
+    with_ops = any(r[10] is not None for r in rows)
+    out.append(f"GUESTS — the {min(top, len(rows))} busiest on the disks (cgroup of each running container / VM)"
+               + (" · ZFS counters of its datasets" if with_ops else ""))
+    h = [T(x) for x in ("id", "type", "name", "CPU avg", "peak", "memory", "disk MB/s", "disk wait", "writes/s", "reads/s")]
+    out.append(f"  {h[0]:>5} {h[1]:<4} {h[2]:<22} {h[3]:>8} {h[4]:>6}  {h[5]:>10}  {h[6]:>9}" + (f"  {h[8]:>8} {h[9]:>7}" if with_ops else "") + f"  {h[7]:>9} {h[4]:>6}")
+    key = (lambda r: (r[10] or 0) + (r[11] or 0)) if with_ops else (lambda r: r[0])
+    for io, vmid, kind, name, cpu, cpu_max, mem, mem_max, some, some_max, w_ops, r_ops in sorted(rows, key=key, reverse=True)[:top]:
+        out.append(f"  {vmid:>5} {kind:<4} {name[:22]:<22} {cpu:>7.0f}% {cpu_max:>5.0f}%  {mem / 2 ** 30:>6.1f} GiB  {io / 1048576:>9.2f}"
+                   + (f"  {w_ops or 0:>8.1f} {r_ops or 0:>7.1f}" if with_ops else "") + "  "
                    + (f"{some:>8.1f}% {some_max:>5.0f}%" if some is not None else f"{'-':>9} {'-':>6}"))
     out.append("  (CPU: 100 % = one full core; disk wait: % of the time the guest's tasks waited for the disk — the latency felt INSIDE it)")
+    if with_ops:
+        out.append("  (writes/s, reads/s: operations on the ZFS datasets of the guest, before the cache — what it asks of the pool)")
     waits = group_waits()
     if waits:
         out.append("  disk wait by group over the last minute: " + " · ".join(f"{g} {v:.1f} %" for g, v in waits) + " (lxc, qemu.slice: the guests; system.slice: the host's own services, backups included)")
     return rows
+
+
+def guest_writers(rows, samples, facts, names, fd):
+    """1.11: a guest that makes most of the writes of a pool of HDD, while the tasks wait for the disk: named, with how to find the writer inside it.
+    On the host of 2026-11-14, two BigBlueButton VMs without a meeting made 60 % of the writes (ntopng, journald), and the reads of Odoo waited behind."""
+    if not any(i.get("kind") == "HDD" for i in facts["disks"].values()):
+        return
+    io_some = avg([s["psi"].get("io", {}).get("some") for s in samples]) or 0
+    total = sum(r[10] or 0 for r in rows)
+    if io_some < IO_PSI_WARN or total < 5:
+        return
+    for _io, vmid, kind, name, *_rest in sorted(rows, key=lambda r: -(r[10] or 0)):
+        w_ops = _rest[6] or 0
+        share = w_ops / total
+        if share < 0.25 or w_ops < 5:
+            break
+        inside = "pidstat -d 10 6 (sysstat) or iotop -oPa" if kind == "vm" else f"pct exec {vmid} -- pidstat -d 10 6"
+        fd.suggest(2, f"guest {vmid} ({name}) makes {share * 100:.0f} % of the writes of the guests ({w_ops:.0f} per second) while the tasks wait for the disk "
+                      f"{io_some:.1f} % of the time — the reads of the other guests wait behind these writes on the HDD. Find the writer inside it: {inside}"
+                      "; monitoring and logs are the usual cause (ntopng, atop, journald: journalctl --disk-usage, SystemMaxUse=) — or stop it when it is not used")
+        look = "pidstat -d 10 3 2>/dev/null || iotop -boPa -n 3 -d 10; journalctl --disk-usage; docker ps -a --format \"{{.Names}} {{.Status}}\" 2>/dev/null"
+        if kind == "lxc":
+            fd.ask(f"guest {vmid} ({name}): what writes inside it", [f"pct exec {vmid} -- sh -c '{look}'"])
+        elif guest_agent(names.get(vmid, ("", "", ""))[2]):
+            fd.ask(f"guest {vmid} ({name}): what writes inside it", [f"qm guest exec {vmid} --timeout 60 -- sh -c '{look}'"])
+        else:
+            fd.ask(f"guest {vmid} ({name}): what writes inside it - run INSIDE the VM (or enable the guest agent and use --inside)", [look])
 
 
 def guest_config_advice(names, fd):
@@ -1155,7 +1253,7 @@ def offer_apply(fd, yes):
 
 
 # ---------------------------------------------------------------------------------------------------------------- report
-def report(samples, facts, zfs, smart, names, guests_rows_cb, args, cost, host_tasks=()):
+def report(samples, facts, zfs, smart, names, guests_rows_cb, args, cost, host_tasks=(), inside=None):
     fd, out = Findings(), []
     if not samples:
         print("No sample taken: nothing to analyze (interrupted too early).")
@@ -1181,9 +1279,19 @@ def report(samples, facts, zfs, smart, names, guests_rows_cb, args, cost, host_t
     rows = guests_rows_cb(samples, out) if not args.no_guests else []
     if rows:
         out.append("")
+        guest_writers(rows, samples, facts, names, fd)
     if host_tasks:
         out.append(f"HOST TASKS that read or write a lot, seen running during the measurement: {', '.join(sorted(host_tasks))}")
         out.append("")
+    if inside is not None and inside.items:               # 1.12 --inside: what was seen inside the guests
+        out.append("INSIDE THE GUESTS (pct exec, QEMU guest agent)")
+        for level, _key, text in inside.items:
+            out.append(f"  {tag(level)} {text}")
+        out.append("")
+        fd.commands.extend(inside.commands)
+    for pool, facts_pool in (zfs.get("pools", {}) if zfs else {}).items():
+        if facts_pool.get("cap", "").isdigit() and int(facts_pool["cap"]) >= 80:
+            fd.ask(f"pool {pool}: where the space goes", [f"zfs list -o space -r {pool}", f"zfs list -t snapshot -o name,used,creation -s used -r {pool} | tail -15"])
     guest_config_advice(names, fd)
     for line in out:
         print(line)
@@ -1206,10 +1314,432 @@ def report(samples, facts, zfs, smart, names, guests_rows_cb, args, cost, host_t
         print(f"  {i}. [{names_p[p]}] {text}")
         if action:
             print(f"     --apply: {label}")
+    print_commands(fd.commands)
     if dur < 1800:
         print()
         print(f"  Short measurement ({human_duration(dur)}): to see the daily peaks (backups, busy hours), run it for hours: host-perf-audit.py --duration 24h")
     return fd
+
+
+# ---------------------------------------------------------------------------------------------------------------- health, inside the guests, alerts (1.12)
+STATE_DIR = os.environ.get("HOST_PERF_AUDIT_STATE_DIR", "/var/lib/host-perf-audit")
+SYSTEMD_DIR = os.environ.get("HOST_PERF_AUDIT_SYSTEMD_DIR", "/etc/systemd/system")
+HEALTH_UNIT = "host-perf-audit-health"
+DISK_USAGE = "".join(("d", "u -xh --max-depth=2 "))     # the command, written so that the catalogue test does not read its name as a French word
+SMART_ATTRIBUTES = {5: "reallocated sectors", 187: "uncorrectable errors reported", 188: "command timeouts", 197: "sectors pending reallocation",
+                    198: "sectors uncorrectable offline", 199: "interface CRC errors (cable)"}
+KERNEL_DISK_RE = re.compile(r"I/O error|[Mm]edium [Ee]rror|critical (?:target|medium) error|ata\d+(?:\.\d+)?: (?:failed command|exception|hard resetting)|"
+                            r"blocked for more than \d+ seconds|nvme\d+: .*timeout|zio pool=.* error=|EXT4-fs error|XFS .*corrupt")
+INSIDE_SCRIPT = r'''
+w() { for f in /proc/[0-9]*/io; do p=${f%/io}; b=$(sed -n 's/^write_bytes: //p' "$f" 2>/dev/null); [ -n "$b" ] && echo "${p#/proc/} $b $(cat "$p/comm" 2>/dev/null)"; done; }
+echo "@@io1"; w
+echo "@@docker"; command -v docker >/dev/null 2>&1 && docker ps -a --format '{{.Names}}|{{.Status}}' 2>/dev/null
+echo "@@failed"; systemctl --failed --no-legend --plain 2>/dev/null | head -10
+echo "@@journal"; journalctl --since -10min -o short 2>/dev/null | awk '{print $5}' | sed 's/\[.*//;s/:$//' | sort | uniq -c | sort -rn | head -5
+echo "@@jsize"; journalctl --disk-usage 2>/dev/null
+echo "@@df"; df -P -x tmpfs -x devtmpfs -x overlay -x squashfs 2>/dev/null | tail -n +2
+sleep 10
+echo "@@io2"; w
+'''
+
+
+def smart_details(disks):
+    """1.12: {disk: {"health", "attrs": {id: raw value}, "hours", "temp", "nvme": {...}}} from smartctl -H -A: the counters that announce a failure
+    (reallocated, pending, uncorrectable sectors, cable errors), not only PASSED / FAILED: a disk says PASSED until late."""
+    res = {}
+    if not shutil.which("smartctl"):
+        return res
+    for name in sorted(disks):
+        code, out = run(["smartctl", "-H", "-A", f"/dev/{name}"], timeout=20)
+        if not out:
+            continue
+        m = re.search(r"(?:overall-health self-assessment test result|SMART Health Status):\s*(\S+)", out)
+        d = {"health": m.group(1).upper() if m else "", "attrs": {}, "hours": None, "temp": None, "nvme": {}}
+        for line in out.splitlines():
+            c = line.split()
+            if len(c) >= 10 and c[0].isdigit() and c[9].isdigit():
+                ident, raw = int(c[0]), int(c[9])
+                if ident in SMART_ATTRIBUTES:
+                    d["attrs"][ident] = raw
+                elif ident == 9:
+                    d["hours"] = raw
+                elif ident == 194:
+                    d["temp"] = raw
+        for key, label in (("Critical Warning", "critical"), ("Media and Data Integrity Errors", "media"), ("Percentage Used", "used"), ("Available Spare", "spare"),
+                           ("Power On Hours", "hours"), ("Temperature", "temp")):
+            m = re.search(rf"^{key}:\s+(0x[0-9a-fA-F]+|[\d,]+)", out, re.M)
+            if m:
+                value = int(m.group(1), 16) if m.group(1).startswith("0x") else int(m.group(1).replace(",", ""))
+                if label in ("hours", "temp"):
+                    d[label] = d[label] if d[label] is not None else value
+                else:
+                    d["nvme"][label] = value
+        res[name] = d
+    return res
+
+
+def load_state():
+    try:
+        with open(os.path.join(STATE_DIR, "health.json"), encoding="utf-8") as f:
+            return json.load(f)
+    except (OSError, ValueError):
+        return {}
+
+
+def save_state(state):
+    try:
+        os.makedirs(STATE_DIR, mode=0o700, exist_ok=True)
+        with open(os.path.join(STATE_DIR, "health.json"), "w", encoding="utf-8") as f:
+            json.dump(state, f, indent=1, sort_keys=True)
+    except OSError:
+        pass
+
+
+class Health:
+    """Findings of --health: (level bad | warn | info | ok, key, text) and the commands to run for each (title, [commands])."""
+
+    def __init__(self):
+        self.items, self.commands = [], []
+
+    def add(self, level, key, text, commands=()):
+        self.items.append((level, key, text))
+        if commands:
+            self.commands.append((text, list(commands)))
+
+    def alerts(self):
+        return [i for i in self.items if i[0] in ("bad", "warn")]
+
+
+def check_disks(h, facts, state):
+    details = smart_details(facts["disks"])
+    if facts["disks"] and not shutil.which("smartctl"):
+        h.add("warn", "smart-missing", "smartctl is not installed: the health of the disks is not watched — apt install smartmontools")
+        return
+    previous, current = state.get("smart", {}), {}
+    for disk, d in details.items():
+        current[disk] = {str(k): v for k, v in d["attrs"].items()}
+        ask = [f"smartctl -a /dev/{disk}", f"smartctl -t long /dev/{disk}   # long self-test in the background; result later: smartctl -l selftest /dev/{disk}"]
+        age = f"{d['hours']} h ({d['hours'] / 8766:.1f} years)" if d["hours"] else ""
+        if d["health"] and d["health"] not in ("PASSED", "OK"):
+            h.add("bad", f"smart-failed:{disk}", f"{disk}: SMART health {d['health']} — the disk announces its own failure: replace it now", ask)
+            continue
+        signs = []
+        for ident, label in SMART_ATTRIBUTES.items():
+            raw = d["attrs"].get(ident, 0)
+            before = previous.get(disk, {}).get(str(ident))
+            grew = before is not None and raw > before
+            if raw and (ident in (5, 187, 197, 198) or grew):
+                signs.append((ident, f"{label}: {raw}" + (f" (was {before})" if grew else "")))
+        nv = d["nvme"]
+        if nv.get("critical"):
+            signs.append((197, f"NVMe critical warning 0x{nv['critical']:02x}"))
+        if nv.get("media"):
+            signs.append((197, f"NVMe media errors: {nv['media']}"))
+        if nv.get("used", 0) >= 90:
+            signs.append((0, f"NVMe wear: {nv['used']} % of its life used"))
+        if nv.get("spare") is not None and nv["spare"] <= 10:
+            signs.append((0, f"NVMe spare blocks: {nv['spare']} % left"))
+        if signs:
+            grave = any(i in (197, 198) for i, _t in signs) or any("(was" in t and i in (5, 187) for i, t in signs)
+            h.add("bad" if grave else "warn", f"smart-signs:{disk}", f"{disk}: signs of failure — " + "; ".join(t for _i, t in signs)
+                  + (" — plan its replacement" if grave else " — to watch: a count that grows means a replacement"), ask)
+        elif d["temp"] and d["temp"] >= 55:
+            h.add("warn", f"smart-temp:{disk}", f"{disk}: {d['temp']} °C — too hot for a disk (cooling, dust)", ask[:1])
+        else:
+            h.add("ok", f"smart:{disk}", f"{disk}: SMART passed, no reallocated, pending or uncorrectable sector" + (f" · {age}" if age else "")
+                  + (" — past 5 years: the age when HDD start to fail, keep a spare" if d["hours"] and d["hours"] >= 43830 else ""))
+    state["smart"] = current
+    array = ""
+    for line in (read("/proc/mdstat") or "").splitlines():
+        m = re.match(r"(md\d+) : (\S+)", line)
+        if m:
+            array = m.group(1)
+        elif array and re.search(r"\[[U_]*_[U_]*\]", line):
+            h.add("bad", f"md:{array}", f"{array}: software RAID degraded ({line.strip()[-12:]}) — one disk left the array", ["cat /proc/mdstat", f"mdadm --detail /dev/{array}"])
+
+
+def check_pools(h, zfs):
+    if not zfs:
+        return
+    code, out = run(["zpool", "status"])
+    blocks = re.split(r"^\s*pool: ", out or "", flags=re.M)[1:]
+    for block in blocks:
+        pool = block.split()[0]
+        ask = [f"zpool status -v {pool}"]
+        m = re.search(r"^\s*state: (\S+)", block, re.M)
+        if m and m.group(1) != "ONLINE":
+            h.add("bad", f"pool-state:{pool}", f"pool {pool}: state {m.group(1)} — a disk is missing or faulted: the pool has no redundancy left", ask)
+        errors = [f"{c[0]} (read {c[2]}, write {c[3]}, checksum {c[4]})" for c in (l.split() for l in block.splitlines())
+                  if len(c) >= 5 and c[1] in ("ONLINE", "DEGRADED", "FAULTED", "UNAVAIL", "REMOVED") and any(x not in ("0", "-") for x in c[2:5])]
+        if errors:
+            h.add("bad", f"pool-errors:{pool}", f"pool {pool}: errors on " + ", ".join(errors[:4]) + " — the disk or its cable is failing", ask + ["zpool events | tail -30"])
+        m = re.search(r"^errors: (.+)$", block, re.M)
+        if m and "No known data errors" not in m.group(1):
+            h.add("bad", f"pool-data:{pool}", f"pool {pool}: {m.group(1).strip()} — files are damaged", ask)
+        scan = re.search(r"scan: scrub repaired .* on (\w{3} \w{3} +\d+ [\d:]+ \d{4})", block)
+        if scan:
+            try:
+                days = (time.time() - time.mktime(time.strptime(re.sub(r" +", " ", scan.group(1)), "%a %b %d %H:%M:%S %Y"))) / 86400
+                if days > 40:
+                    h.add("warn", f"pool-scrub:{pool}", f"pool {pool}: last scrub {days:.0f} days ago — the monthly check did not run: hidden errors are not found", [f"zpool scrub {pool}"])
+            except ValueError:
+                pass
+        elif "scrub in progress" not in block and "resilver" not in block:
+            h.add("warn", f"pool-scrub:{pool}", f"pool {pool}: never scrubbed — hidden errors are not found", [f"zpool scrub {pool}"])
+        cap = zfs["pools"].get(pool, {}).get("cap", "")
+        if cap.isdigit() and int(cap) >= 80:
+            h.add("bad" if int(cap) >= 90 else "warn", f"pool-full:{pool}", f"pool {pool}: used {cap} % — ZFS slows down strongly beyond 80 %, and a full pool stops every guest",
+                  [f"zfs list -o space -r {pool}", f"zfs list -t snapshot -o name,used,creation -s used -r {pool} | tail -15"])
+        if not errors and m and "No known data errors" in m.group(1) and not (cap.isdigit() and int(cap) >= 80):
+            h.add("ok", f"pool:{pool}", f"pool {pool}: ONLINE, no error" + (f", used {cap} %" if cap else ""))
+
+
+def check_system(h, zfs, names):
+    code, out = run(["journalctl", "-k", "--since", "-24h", "-p", "warning", "-o", "short-iso", "--no-pager"], timeout=30)
+    hits = [l for l in (out or "").splitlines() if KERNEL_DISK_RE.search(l)]
+    if hits:
+        grave = any(re.search(r"I/O error|[Mm]edium [Ee]rror|critical", l) for l in hits)
+        h.add("bad" if grave else "warn", "kernel-disk", f"kernel: {len(hits)} disk or blocked-task messages in 24 hours — the last one: {hits[-1][:160]}",
+              ["journalctl -k --since -24h -p warning --no-pager | tail -40"])
+    try:
+        st = os.statvfs("/")
+        if st.f_blocks and st.f_bavail * 10 < st.f_blocks:
+            h.add("bad" if st.f_bavail * 20 < st.f_blocks else "warn", "root-full", f"/ of the host: {size(st.f_bavail * st.f_frsize)} free of {size(st.f_blocks * st.f_frsize)} — "
+                  "a full root stops Proxmox", [DISK_USAGE + "/ 2>/dev/null | sort -h | tail -20"])
+    except OSError:
+        pass
+    if zfs:
+        probe = Findings()
+        zfs_space(zfs, names, probe, [])
+        for priority, text, _a, _l in probe.suggestions:
+            m = re.search(r"pct resize \S+ \S+ \S+", text)
+            h.add("bad" if priority == 1 else "warn", "guest-disk:" + text.split(" has only")[0], text, [m.group(0)] if m else [])
+    tasks = [t for t in recent_tasks(days=3) if t[2] == "vzdump"]
+    failed = [t for t in tasks if not t[4].startswith("OK")]
+    if failed:
+        h.add("warn", "backup-failed", f"backups: {len(failed)} failed in 3 days — the last one: guest {failed[-1][3] or 'all of them'} on "
+              f"{datetime.datetime.fromtimestamp(failed[-1][0]):%Y-%m-%d %H:%M}, {failed[-1][4]}", ["tail -n 20 /var/log/pve/tasks/index"])
+    jobs = [o for kind, _n, o in pve_sections(os.path.join(PVE_DIR, "jobs.cfg")) if kind == "vzdump" and o.get("enabled") != "0"]
+    if jobs and not [t for t in tasks if t[4].startswith("OK") and time.time() - t[1] < 2 * 86400]:
+        h.add("warn", "backup-old", "backups: a backup job is scheduled but no backup succeeded in the last 2 days", ["tail -n 20 /var/log/pve/tasks/index", "systemctl status pvescheduler --no-pager | head -15"])
+    if shutil.which("systemctl"):
+        for unit, why in (("smartmontools", "the disks are not watched between two runs of this program"), ("zfs-zed", "ZFS errors are not mailed when they happen")):
+            if unit == "zfs-zed" and not zfs:
+                continue
+            code, out = run(["systemctl", "is-active", unit], timeout=10)
+            status = (out.strip().splitlines() or [""])[-1].strip()
+            if code is not None and status in ("inactive", "failed", "dead", "unknown"):
+                h.add("warn", f"service:{unit}", f"service {unit}: {status} — {why}", [f"systemctl enable --now {unit}"])
+
+
+def guest_agent(conf):
+    return bool(re.search(r"^agent:\s*(?:1|enabled=1)", conf, re.M))
+
+
+def inside_guest(vmid, kind):
+    """1.12: output of INSIDE_SCRIPT run INSIDE a guest, read-only: pct exec for a container, the QEMU guest agent (qm guest exec) for a VM. « » when it
+    cannot be run. No shared folder is needed: the host asks, the guest answers."""
+    if kind == "lxc":
+        code, out = run(["pct", "exec", vmid, "--", "sh", "-c", INSIDE_SCRIPT], timeout=60)
+        return out if code == 0 else ""
+    code, out = run(["qm", "guest", "exec", vmid, "--timeout", "50", "--", "sh", "-c", INSIDE_SCRIPT], timeout=70)
+    try:
+        return json.loads(out).get("out-data", "") if code == 0 else ""
+    except ValueError:
+        return ""
+
+
+def check_inside(h, names, running):
+    """1.12: what the host cannot see from outside: a container that restarts in a loop, a journal that fills, a full disk, the processes that write.
+    On 2026-11-14 a Prometheus container restarted in a loop for days in a BigBlueButton VM (a damaged file), dockerd wrote one error per second,
+    and nothing said it until the writes of that VM were looked at by hand."""
+    for vmid in sorted(running, key=lambda x: int(x) if x.isdigit() else 0):
+        kind, name, conf = names.get(vmid, (running[vmid][0], "", ""))
+        who = f"guest {vmid} ({name})"
+        prefix = f"pct exec {vmid} --" if kind == "lxc" else f"qm guest exec {vmid} --"
+        if kind == "vm" and not guest_agent(conf):
+            h.add("info", f"inside-agent:{vmid}", f"{who}: the QEMU guest agent is not enabled — the inside of this VM is not visible from the host",
+                  [f"qm set {vmid} --agent enabled=1   # on the host", "apt install -y qemu-guest-agent && systemctl enable --now qemu-guest-agent   # INSIDE the VM",
+                   f"qm shutdown {vmid} && qm start {vmid}   # the agent device appears at the next start of the VM (not a reboot from inside)"])
+            continue
+        out = inside_guest(vmid, kind)
+        if not out:
+            h.add("info", f"inside-none:{vmid}", f"{who}: no answer from inside" + (" (is qemu-guest-agent installed and running in the VM?)" if kind == "vm" else ""),
+                  [f"{prefix} true; echo $?"])
+            continue
+        parts = {}
+        for block in out.split("@@")[1:]:
+            title, _nl, body = block.partition("\n")
+            parts[title.strip()] = [l for l in body.splitlines() if l.strip()]
+        for line in parts.get("docker", []):
+            cname, _sep, status = line.partition("|")
+            if status.startswith("Restarting"):
+                h.add("bad", f"inside-restart:{vmid}:{cname}", f"{who}: container {cname} restarts in a loop ({status}) — it fails at each start, and each start reads and writes its data again",
+                      [f"{prefix} docker logs --tail 30 {cname}", f"{prefix} docker inspect {cname} --format '{{{{.RestartCount}}}} restarts, {{{{.State.Error}}}}'"])
+            elif status.startswith("Exited") and not status.startswith("Exited (0)") and re.search(r"(second|minute)s? ago", status):
+                h.add("warn", f"inside-exited:{vmid}:{cname}", f"{who}: container {cname} just stopped on an error ({status})", [f"{prefix} docker logs --tail 30 {cname}"])
+        failed = [l.split()[0] for l in parts.get("failed", []) if l.split()]
+        if failed:
+            h.add("warn", f"inside-failed:{vmid}", f"{who}: failed services: {', '.join(failed[:6])}", [f"{prefix} systemctl status {failed[0]} --no-pager -n 20"])
+        for line in parts.get("journal", [])[:2]:
+            c = line.split()
+            if len(c) >= 2 and c[0].isdigit() and int(c[0]) >= 300:
+                h.add("warn", f"inside-journal:{vmid}:{c[1]}", f"{who}: {c[1]} wrote {c[0]} lines to the journal in 10 minutes ({int(c[0]) / 600:.1f} per second) — "
+                      "usually the same error repeated; each line is a write on the disks of the host",
+                      [f"{prefix} journalctl --since -2min -t {c[1]} --no-pager -o cat | tail -15"])
+        m = re.search(r"take up ([\d.]+)([MGT])", " ".join(parts.get("jsize", [])))
+        if m and float(m.group(1)) * {"M": 1 / 1024, "G": 1, "T": 1024}[m.group(2)] >= 2:
+            h.add("warn", f"inside-jsize:{vmid}", f"{who}: the journal takes {m.group(1)} {m.group(2)}iB — cap it: SystemMaxUse=500M in /etc/systemd/journald.conf",
+                  [f"{prefix} journalctl --vacuum-size=500M"])
+        for line in parts.get("df", []):
+            c = line.split()
+            if len(c) >= 6 and c[4].rstrip("%").isdigit() and int(c[4].rstrip("%")) >= 90:
+                h.add("bad" if int(c[4].rstrip("%")) >= 97 else "warn", f"inside-df:{vmid}:{c[5]}", f"{who}: {c[5]} is {c[4]} full ({int(c[3]) // 1024} MiB free)",
+                      [f"{prefix} sh -c '" + DISK_USAGE + f"{c[5]} 2>/dev/null | sort -h | tail -15'"])
+        before = {l.split()[0]: int(l.split()[1]) for l in parts.get("io1", []) if len(l.split()) >= 2 and l.split()[1].isdigit()}
+        writers = {}
+        for l in parts.get("io2", []):
+            c = l.split(None, 2)
+            if len(c) >= 2 and c[1].isdigit() and c[0] in before:
+                rate = (int(c[1]) - before[c[0]]) / 10 / 1024
+                if rate >= 20:
+                    label = c[2] if len(c) > 2 else c[0]
+                    writers[label] = writers.get(label, 0) + rate
+        if writers:
+            top = sorted(writers.items(), key=lambda x: -x[1])[:4]
+            h.add("info", f"inside-writers:{vmid}", f"{who}: processes that write the most: " + ", ".join(f"{n} {r:.0f} kB/s" for n, r in top))
+
+
+def send_alert(subject, body):
+    """Alert by e-mail and in the system journal. E-mail: the SMTP settings of app-health-check.py when they are configured on this machine, otherwise
+    the local sendmail to root (Proxmox forwards the mail of root to the address given at installation). Returns what was done, in a sentence."""
+    if shutil.which("logger"):
+        try:
+            subprocess.run(["logger", "-t", SCRIPT_NAME, "-p", "user.warning"], input=subject + "\n" + body[:6000], universal_newlines=True, timeout=10)
+        except (OSError, subprocess.SubprocessError):
+            pass
+    target = os.environ.get("HOST_PERF_AUDIT_MAIL_FILE")
+    if target:                                            # tests: the mail goes to a file
+        with open(target, "a", encoding="utf-8") as f:
+            f.write(f"Subject: {subject}\n\n{body}\n")
+        return f"written to {target}"
+    path = os.path.join(SCRIPT_DIR, "app-health-check.py")
+    if os.path.isfile(path):
+        try:
+            import importlib.util as ilu
+            spec = ilu.spec_from_file_location("app_health_check_mail", path)
+            mod = ilu.module_from_spec(spec)
+            spec.loader.exec_module(mod)
+            cfg = mod.load_config(mod.resolve_config_paths(None))
+            if cfg.get("SMTP_HOST") and cfg.get("NOTIFY_EMAIL_TO"):
+                mod.send_email(cfg, subject, body)
+                return f"sent to {cfg['NOTIFY_EMAIL_TO']}"
+        except Exception as problem:                      # noqa: BLE001 - the local mail below is tried next
+            eprint(f"e-mail through app-health-check.py not sent ({str(problem)[:120]}): trying the local mail")
+    sendmail = shutil.which("sendmail") or ("/usr/sbin/sendmail" if os.path.exists("/usr/sbin/sendmail") else "")
+    if not sendmail:
+        return "not sent: neither SMTP_HOST / NOTIFY_EMAIL_TO (configuration of app-health-check.py) nor a local sendmail — system journal only (journalctl -t host-perf-audit)"
+    try:
+        subprocess.run([sendmail, "-t"], input=f"To: root\nSubject: {subject}\nContent-Type: text/plain; charset=UTF-8\n\n{body}\n", universal_newlines=True, timeout=30, check=True)
+        return "sent to root by the local mail (Proxmox forwards it to the address of root@pam)"
+    except (OSError, subprocess.SubprocessError) as problem:
+        return f"not sent ({problem}) — system journal only"
+
+
+def health(args, facts, zfs, names, running):
+    """--health: the state of the host in a few seconds, without measurement: disks (SMART counters compared with the previous run), pools, RAID, kernel
+    messages, space, backups, alert services, and with --inside the inside of each guest. Exit code: 0 nothing, 1 to watch, 2 problem."""
+    h, state = Health(), load_state()
+    check_disks(h, facts, state)
+    check_pools(h, zfs)
+    check_system(h, zfs, names)
+    if args.inside:
+        check_inside(h, names, running)
+    elif any(k == "vm" for k, _p in running.values()):
+        h.add("info", "inside-off", "the inside of the guests was not looked at (containers that restart in a loop, journals, full disks): add --inside")
+    print()
+    print(f"HEALTH OF {facts['host']} — {time.strftime('%Y-%m-%d %H:%M')}")
+    order = {"bad": 0, "warn": 1, "info": 2, "ok": 3}
+    for level, _key, text in sorted(h.items, key=lambda i: order[i[0]]):
+        print(f"  {tag(level)} {text}")
+    alerts = h.alerts()
+    bad = sum(1 for i in alerts if i[0] == "bad")
+    print()
+    print(f"  Verdict: {bad} problems, {len(alerts) - bad} to watch" if alerts else "  Verdict: nothing to report")
+    print_commands(h.commands)
+    if args.notify:
+        keys = sorted(i[1] for i in alerts)
+        last = state.get("notified", {})
+        new = [k for k in keys if k not in last.get("keys", [])]
+        due = keys and (new or time.time() - last.get("when", 0) > 86400)
+        cleared = not keys and last.get("keys")
+        if due or cleared:
+            subject = (f"[host-perf-audit] {facts['host']}: {bad} problems, {len(alerts) - bad} to watch" if keys else f"[host-perf-audit] {facts['host']}: back to normal")
+            body = "\n".join(f"{'[FAIL]' if l == 'bad' else '[WARN]' if l == 'warn' else '[i]' if l == 'info' else '[OK]'} {t}" for l, _k, t in sorted(h.items, key=lambda i: order[i[0]]))
+            body += "\n\n" + "\n".join(commands_lines(h.commands)) + f"\n\nhost-perf-audit.py v{__version__} --health" + (" --inside" if args.inside else "")
+            tr = I18N.tr if I18N else (lambda t: t)
+            print(f"  Alert: {send_alert(tr(subject), chr(10).join(tr(l) for l in body.splitlines()))}")
+            state["notified"] = {"keys": keys, "when": time.time()}
+        else:
+            print("  Alert: not sent (nothing new since the last one; reminder after 24 hours)" if keys else "  Alert: nothing to send")
+    save_state(state)
+    return 2 if bad else 1 if alerts else 0
+
+
+def commands_lines(commands):
+    lines = []
+    if commands:
+        lines.append("COMMANDS TO RUN — copy, paste, and send the output with this report")
+        for title, cmds in commands:
+            lines.append(f"  # {title}")
+            lines.extend(f"  {c}" for c in cmds)
+    return lines
+
+
+def print_commands(commands):
+    if commands:
+        print()
+    for line in commands_lines(commands):
+        print(line)
+
+
+def install_health_timer():
+    """--install-timer: systemd timer that runs --health --inside --notify every hour (alert only when something is new, reminder after 24 hours)."""
+    if os.geteuid() != 0 and "HOST_PERF_AUDIT_SYSTEMD_DIR" not in os.environ:
+        eprint("ERROR: --install-timer needs root.")
+        return 2
+    service = (f"# Generated by host-perf-audit.py --install-timer - do not edit by hand.\n[Unit]\nDescription=Health of the host: disks, pools, guests (alert only when something is new)\n\n"
+               f"[Service]\nType=oneshot\nExecStart={sys.executable} {os.path.realpath(__file__)} --health --inside --notify\nNice=10\nIOSchedulingClass=idle\n")
+    timer = (f"# Generated by host-perf-audit.py --install-timer - do not edit by hand.\n[Unit]\nDescription=Runs {HEALTH_UNIT} every hour\n\n[Timer]\nOnCalendar=*-*-* *:17:00\n"
+             "Persistent=true\nRandomizedDelaySec=120\n\n[Install]\nWantedBy=timers.target\n")
+    os.makedirs(SYSTEMD_DIR, exist_ok=True)
+    for ext, text in (("service", service), ("timer", timer)):
+        with open(os.path.join(SYSTEMD_DIR, f"{HEALTH_UNIT}.{ext}"), "w", encoding="utf-8") as f:
+            f.write(text)
+    if "HOST_PERF_AUDIT_SYSTEMD_DIR" not in os.environ:
+        for cmd in (["systemctl", "daemon-reload"], ["systemctl", "enable", "--now", f"{HEALTH_UNIT}.timer"]):
+            code, out = run(cmd, timeout=60)
+            if code != 0:
+                eprint(f"ERROR: {' '.join(cmd)} failed: {out.strip()}")
+                return 1
+    print(f"Timer installed and active: {SYSTEMD_DIR}/{HEALTH_UNIT}.timer (every hour, at minute 17): host-perf-audit.py --health --inside --notify")
+    print(f"Next run: systemctl list-timers {HEALTH_UNIT}.timer; journal: journalctl -u {HEALTH_UNIT}.service; alerts also in: journalctl -t host-perf-audit")
+    print("E-mail: SMTP_HOST and NOTIFY_EMAIL_TO of the app-health-check.py configuration when present, otherwise the local mail to root. Try it now: host-perf-audit.py --health --inside --notify")
+    return 0
+
+
+def uninstall_health_timer():
+    if "HOST_PERF_AUDIT_SYSTEMD_DIR" not in os.environ:
+        run(["systemctl", "disable", "--now", f"{HEALTH_UNIT}.timer"], timeout=60)
+    for ext in ("timer", "service"):
+        try:
+            os.remove(os.path.join(SYSTEMD_DIR, f"{HEALTH_UNIT}.{ext}"))
+        except FileNotFoundError:
+            pass
+    if "HOST_PERF_AUDIT_SYSTEMD_DIR" not in os.environ:
+        run(["systemctl", "daemon-reload"], timeout=60)
+    print(f"Timer removed: {HEALTH_UNIT}.timer")
+    return 0
 
 
 # ---------------------------------------------------------------------------------------------------------------- command line
@@ -1271,6 +1801,7 @@ class LocalizedArgumentParser(argparse.ArgumentParser):
 MENU_ENTREES = [
     ([], 'Measure performance (60 s)', 'Measure performance (60 s)', False),
     (['--apply'], 'Apply the safe settings', 'Apply the safe settings', True),
+    (['--health', '--inside'], 'Quick health check (disks, pools, guests)', 'Quick health check (disks, pools, guests)', False),
 ]
 
 
@@ -1282,19 +1813,29 @@ def main():
     parser.add_argument("--apply", action="store_true", help="After the report, apply the SAFE settings one by one with confirmation (ZFS compression / atime of a dataset, ARC maximum, vm.swappiness); --yes: without questions")
     parser.add_argument("--changelog", action="store_true", help="Show the change log")
     parser.add_argument("-c", "--config", metavar="FILE",
-                        help="Configuration file to read ALONE (otherwise: /etc/default/host-perf-audit.conf, then the personal file .host-perf-audit.conf; UPPERCASE options: CSV, DURATION, EXPORT_AI, INTERVAL, LANGUAGE, NO_GUESTS, TOP, VERBOSE)")
+                        help="Configuration file to read ALONE (otherwise: /etc/default/host-perf-audit.conf, then the personal file .host-perf-audit.conf; UPPERCASE options: CSV, DURATION, EXPORT_AI, INSIDE, INTERVAL, LANGUAGE, NO_GUESTS, TOP, VERBOSE)")
     parser.add_argument("--csv", default=None, metavar="FILE", help="Also write every sample to this CSV file (one line per interval: CPU, waits, memory, ARC, each disk)")
     parser.add_argument("--duration", default="60", metavar="TIME", help="Length of the measurement: 90 (seconds), 10m, 4h, 1h30m… (default: 60 seconds)")
     parser.add_argument("--export-ai", nargs="?", const="", default=None, metavar="FILE",
                         help="Also write the report and the raw state of the host (pools, datasets, snapshots, disks, guests, backups, tasks, kernel warnings) to a Markdown "
                              "file without colors, to send for verification (default FILE: export-ai-HOST-YYYYMMDD-HHMMSS.md in /var/lib/host-perf-audit, mode 600; passwords and keys hidden)")
+    parser.add_argument("--health", action="store_true",
+                        help="Quick check without measurement: SMART counters of each disk (compared with the previous run), ZFS pools, RAID, kernel messages, space, backups, "
+                             "alert services; with --inside, the inside of each guest. Exit code 0 (nothing), 1 (to watch), 2 (problem)")
+    parser.add_argument("--inside", action="store_true",
+                        help="Also look INSIDE each running guest, read-only (pct exec for a container, the QEMU guest agent for a VM): containers that restart in a loop, "
+                             "failed services, journal, full disks, processes that write the most (takes 10 seconds per guest)")
+    parser.add_argument("--install-timer", action="store_true", help="Install a systemd timer that runs --health --inside --notify every hour (root), then exit")
     parser.add_argument("--interval", type=float, default=None, metavar="SECONDS",
                         help="Seconds between two samples (default: 5 up to 2 minutes of measurement, 15 up to 30 minutes, 60 beyond)")
     parser.add_argument("--lang", choices=I18N.disponibles if I18N else ["en"], metavar="LANG", help="Display language: en or fr (default: from LC_ALL / LC_MESSAGES / LANG)")
     parser.add_argument("--menu", action="store_true", help="interactive menu of the common operations (dialog if installed; terminal required)")
     parser.add_argument("--no-guests", action="store_true", help="Do not measure each container / VM (cgroups)")
+    parser.add_argument("--notify", action="store_true",
+                        help="With --health: send the findings by e-mail and to the system journal when something is new (reminder after 24 hours; one message when all is back to normal)")
     parser.add_argument("--report-err", action="store_true", help="Print at the end an error report to copy and paste (program, version, server, failures, warnings)")
     parser.add_argument("--top", type=int, default=8, metavar="N", help="Number of guests shown, the busiest on the disks first (default: 8)")
+    parser.add_argument("--uninstall-timer", action="store_true", help="Remove the timer of --install-timer, then exit")
     parser.add_argument("-v", "--verbose", action="store_true", help="Show each command run")
     parser.add_argument("--version", action="version", version=f"host-perf-audit.py version {__version__}")
     parser.add_argument("--yes", action="store_true", help="With --apply: without questions")
@@ -1326,6 +1867,14 @@ def main():
     if args.changelog:
         return show_changelog()
     VERBOSE = args.verbose
+    if args.install_timer:
+        return install_health_timer()
+    if args.uninstall_timer:
+        return uninstall_health_timer()
+    if args.health:                           # 1.12: quick check, no measurement
+        if os.geteuid() != 0:
+            eprint("Limited rights: without root, smartctl, the ZFS commands and the guests are unreadable (sudo for a complete check).")
+        return health(args, host_facts(), zfs_facts(), guest_names(), {} if args.no_guests else guest_cgroups())
     try:
         duration = parse_duration(args.duration)
     except ValueError:
@@ -1359,9 +1908,13 @@ def main():
     host_tasks = io_tasks()
     samples = sample_loop(duration, interval, guests, args.csv)
     host_tasks |= io_tasks()
+    inside = None
+    if args.inside and guests:
+        inside = Health()
+        check_inside(inside, names, guests)
     t1 = os.times()
     cost = (t1.user + t1.system + t1.children_user + t1.children_system) - (t0.user + t0.system + t0.children_user + t0.children_system)
-    fd = report(samples, facts, zfs, smart, names, lambda s, out: analyze_guests(s, names, args.top, out), args, cost, host_tasks)
+    fd = report(samples, facts, zfs, smart, names, lambda s, out: analyze_guests(s, names, args.top, out), args, cost, host_tasks, inside)
     if args.csv and samples:
         print(f"\nSamples written to {args.csv}.")
     if tee is not None:

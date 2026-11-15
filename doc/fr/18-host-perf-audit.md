@@ -40,3 +40,15 @@ Chaque suggestion a une priorité (HAUTE / MOYENNE / FAIBLE). Avec `--apply`, ce
 * **Disque d'un conteneur presque plein** : nommé avec son point de montage et la commande `pct resize`.
 * **Sauvegardes (vzdump)** : nombre, taille, rétention, tâches planifiées et heures des sauvegardes des 3 derniers jours, à comparer avec les heures lentes des sites.
 * **`--export-ai`** : écrit le rapport et l'état brut de l'hôte dans `/var/lib/host-perf-audit/export-ai-HÔTE-DATE.md` (mode 600, mots de passe masqués). Clé `EXPORT_AI` dans la configuration.
+
+## Santé, intérieur des invités et alertes (1.12)
+
+```bash
+host-perf-audit.py --health --inside            # vérification en quelques secondes, sans mesure
+host-perf-audit.py --install-timer              # la même chaque heure, avec une alerte par courriel quand il y a du nouveau
+```
+
+* **`--health`** : compteurs SMART de chaque disque comparés à l'exécution précédente (secteurs réalloués, en attente, non corrigibles), état et erreurs des pools ZFS, RAID, messages du noyau, espace, sauvegardes. Code de sortie 0, 1 (à surveiller) ou 2 (problème).
+* **`--inside`** : regarde dans chaque invité, en lecture seule : `pct exec` pour un conteneur, l'agent invité QEMU pour une VM (`qm set ID --agent enabled=1`, `qemu-guest-agent` dans la VM, puis arrêt et démarrage de la VM). Conteneurs Docker qui redémarrent en boucle, services en échec, journal qui déborde, disques pleins, processus qui écrivent le plus. Aucun répertoire partagé n'est nécessaire.
+* **`--notify`** : journal système et courriel (réglages SMTP d'`app-health-check.py`, sinon courrier local à root), seulement quand il y a du nouveau, rappel après 24 heures.
+* **Commandes à lancer** : chaque rapport finit par les commandes à copier, coller, et dont la sortie est à envoyer.
