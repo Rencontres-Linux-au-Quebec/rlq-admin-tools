@@ -1335,3 +1335,72 @@ msgstr ",discard=on   # puis fstrim -av dans la VM"
 
 msgid "host: no scheduled backup job and no backup in the last 7 days — nothing recent to restore for any guest"
 msgstr "hôte : aucune tâche de sauvegarde planifiée et aucune sauvegarde depuis 7 jours — rien de récent à restaurer pour aucun invité"
+
+msgid " snapshots older than "
+msgstr " instantanés de plus de "
+
+msgid " days: "
+msgstr " jours : "
+
+msgid " — deleting them frees "
+msgstr " — les supprimer libère "
+
+msgid "at least "
+msgstr "au moins "
+
+msgid " in pool "
+msgstr " dans le pool "
+
+msgid "; a rollback to one of them would erase everything done since"
+msgstr " ; revenir à l'un d'eux effacerait tout ce qui a été fait depuis"
+
+msgid "   # after: compare"
+msgstr "   # après : comparer"
+
+msgid " free before"
+msgstr " libres avant"
+
+msgid " with "
+msgstr " avec "
+
+msgid "old snapshots: "
+msgstr "vieux instantanés : "
+
+msgid " in all, "
+msgstr " en tout, "
+
+msgid " to free by deleting them"
+msgstr " à libérer en les supprimant"
+
+msgid "starts with the host"
+msgstr "démarre avec l'hôte"
+
+msgid "in a backup job"
+msgstr "dans une tâche de sauvegarde"
+
+msgid "disks in the backups: rootfs"
+msgstr "disques dans les sauvegardes : rootfs"
+
+msgid "unprivileged"
+msgstr "non privilégié"
+
+msgid "guest agent enabled"
+msgstr "agent invité activé"
+
+msgid "every disk in the backups, none with an unsafe cache"
+msgstr "tous les disques dans les sauvegardes, aucun avec un cache risqué"
+
+msgid "no old snapshot"
+msgstr "aucun vieil instantané"
+
+msgid " and "
+msgstr " et "
+
+msgid " more"
+msgstr " autres"
+
+msgid " no major issue: "
+msgstr " aucun enjeu majeur : "
+
+msgid " guests checked for their start with the host, their backups (every disk and mount point) and their disk cache"
+msgstr " invités vérifiés pour leur démarrage avec l'hôte, leurs sauvegardes (chaque disque et point de montage) et le cache de leurs disques"

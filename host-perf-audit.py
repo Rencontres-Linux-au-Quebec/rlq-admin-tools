@@ -44,7 +44,7 @@ import subprocess
 import sys
 import time
 
-__version__ = "1.13.20261114.205415"
+__version__ = "1.14.20261114.213048"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
@@ -1137,6 +1137,42 @@ def guest_writers(rows, samples, facts, names, fd):
             fd.ask(f"guest {vmid} ({name}): what writes inside it - run INSIDE the VM (or enable the guest agent and use --inside)", [look])
 
 
+SNAPSHOT_OLD_DAYS = 60          # 1.14: a snapshot older than this is no longer a way back, only room that is kept
+
+
+def old_snapshots(names, zfs):
+    """1.14: snapshots of the guests older than SNAPSHOT_OLD_DAYS: {guest id: {"names": [(snapshot, creation)], "reclaim": bytes, "exact": bool, "pool": name}}.
+    The room that deleting them gives back is asked to ZFS itself (zfs destroy -n: a dry run, nothing is destroyed): the « used » of each snapshot
+    counts only what it holds alone, so their sum is less than what removing several at once frees. The memory image kept by a snapshot of a
+    running VM (vm-ID-state-NAME) is counted too."""
+    limit = time.time() - SNAPSHOT_OLD_DAYS * 86400
+    per_dataset = {}
+    for name, _used, created in (zfs or {}).get("snapshots", []):
+        dataset, _at, snap = name.partition("@")
+        m = GUEST_DATASET_RE.search(dataset)
+        if m and created < limit and not snap.startswith("__") and snap != "vzdump" and m.group(1) in names:
+            per_dataset.setdefault((m.group(1), dataset), []).append((snap, created))
+    res = {}
+    for (vmid, dataset), snaps in sorted(per_dataset.items()):
+        g = res.setdefault(vmid, {"names": {}, "reclaim": 0, "exact": True, "pool": dataset.split("/")[0]})
+        for snap, created in snaps:
+            g["names"][snap] = min(created, g["names"].get(snap, created))
+        code, out = run(["zfs", "destroy", "-nvp", f"{dataset}@" + ",".join(sn for sn, _c in snaps)], timeout=60)
+        m = re.search(r"^reclaim\s+(\d+)", out or "", re.M)
+        if code == 0 and m:
+            g["reclaim"] += int(m.group(1))
+        else:
+            g["exact"] = False
+            g["reclaim"] += sum(u for n, u, _c in zfs["snapshots"] if n.partition("@")[0] == dataset and n.partition("@")[2] in {sn for sn, _c in snaps})
+    for vmid, g in res.items():
+        for dataset, props in (zfs or {}).get("datasets", {}).items():
+            m = re.search(rf"/vm-{vmid}-state-(.+)$", dataset)
+            if m and m.group(1) in g["names"] and props.get("used", "").isdigit():
+                g["reclaim"] += int(props["used"])
+        g["names"] = sorted(g["names"].items(), key=lambda x: x[1])
+    return res
+
+
 def guest_config_check(names, running, zfs):
     """1.13: is each container and VM well configured? [(level major | improve | note, guest id, text, [commands])] read from /etc/pve, nothing changed.
     « major »: data that is not backed up or can be lost, a guest that will not come back after a restart of the host, memory promised twice.
@@ -1154,6 +1190,7 @@ def guest_config_check(names, running, zfs):
                 return True
         return False
     promised = 0
+    snapshots = old_snapshots(names, zfs)
     for vmid, (kind, name, conf) in sorted(names.items(), key=lambda x: int(x[0]) if x[0].isdigit() else 0):
         on = vmid in running
         who = ("container " if kind == "lxc" else "VM ") + f"{vmid} ({name})"
@@ -1161,9 +1198,14 @@ def guest_config_check(names, running, zfs):
         get = lambda key, default="": (re.search(rf"^{key}:\s*(.+)$", conf, re.M) or [None, default])[1].strip()
         if re.search(r"^template:\s*1", conf, re.M):
             continue
+        before, good = len(res), []
         memory = int(get("memory", "512")) if get("memory", "512").isdigit() else 512
         if on:
             promised += memory
+        if on and get("onboot", "0") == "1":
+            good.append("starts with the host")
+        if jobs and on and backed_up(vmid):
+            good.append("in a backup job")
         if on and get("onboot", "0") != "1":
             res.append(("major", vmid, f"{who}: runs now but does not start with the host (onboot missing) — after a restart or a power cut of the host it stays stopped",
                         [f"{tool} set {vmid} --onboot 1"]))
@@ -1188,6 +1230,11 @@ def guest_config_check(names, running, zfs):
                     res.append(("major", vmid, f"{who}: mount point {key} ({where}) is NOT in the backups (backup=1 missing) — only the root disk is saved: "
                                 "a restore brings back the system without the data of this mount point",
                                 [f"pct set {vmid} --{key} {volume},{','.join(o for o in opts.split(',') if o)},backup=1"]))
+            volumes = [m.group(1) for m in re.finditer(r"^(mp\d+):\s*([^/,\s][^,\s]*)(?:,(.*))?$", conf, re.M)]
+            if not any(r[1] == vmid and "NOT in the backups" in r[2] for r in res[before:]):
+                good.append("disks in the backups: rootfs" + "".join(f", {v}" for v in volumes))
+            if get("unprivileged", "0") == "1":
+                good.append("unprivileged")
             for raw in re.findall(r"^(lxc\.[\w.]+):\s*(.+)$", conf, re.M):
                 if "apparmor" in raw[0] and "unconfined" in raw[1]:
                     res.append(("improve", vmid, f"{who}: AppArmor disabled ({raw[0]}: {raw[1]}) — the container is no longer confined by the host", []))
@@ -1214,11 +1261,29 @@ def guest_config_check(names, running, zfs):
             for m in re.finditer(r"^(net\d+):\s*(\w+)=", conf, re.M):
                 if m.group(2) in ("e1000", "rtl8139", "e1000e"):
                     res.append(("improve", vmid, f"{who}: network card {m.group(1)} emulated ({m.group(2)}) — « virtio » is faster and lighter for the host", []))
+            if guest_agent(conf):
+                good.append("guest agent enabled")
+            if not any(r[1] == vmid and ("cache=unsafe" in r[2] or "backup=0" in r[2]) for r in res[before:]):
+                good.append("every disk in the backups, none with an unsafe cache")
             if get("balloon") == "0" and memory >= 16384:
                 res.append(("note", vmid, f"{who}: {memory // 1024} GiB of memory without ballooning — all of it is taken from the host as soon as the VM touched it", []))
+        old = snapshots.get(vmid)
+        if old:                                           # 1.14: old snapshots, and the room they keep
+            listed = ", ".join(f"{sn} ({datetime.date.fromtimestamp(c)})" for sn, c in old["names"][:6]) + (f" and {len(old['names']) - 6} more" if len(old["names"]) > 6 else "")
+            free = (zfs.get("datasets", {}).get(old["pool"], {}).get("available", "") if zfs else "")
+            res.append(("improve", vmid, f"{who}: {len(old['names'])} snapshots older than {SNAPSHOT_OLD_DAYS} days: {listed} — deleting them frees "
+                        + ("" if old["exact"] else "at least ") + f"{size(old['reclaim'])} in pool {old['pool']}; a rollback to one of them would erase everything done since",
+                        [f"{tool} delsnapshot {vmid} {sn}" for sn, _c in old["names"]]
+                        + [f"zpool list -o name,alloc,free,cap {old['pool']}   # after: compare" + (f" with {size(int(free))} free before" if free.isdigit() else "")]))
+        elif zfs and zfs.get("snapshots") is not None:
+            good.append("no old snapshot")
+        if good and not any(r[0] == "major" and r[1] == vmid for r in res[before:]):
+            res.append(("ok", vmid, f"{who}: " + " · ".join(good), []))
     if running and not jobs and not [t for t in recent_tasks(days=7) if t[2] == "vzdump"]:
         res.append(("major", "", "host: no scheduled backup job and no backup in the last 7 days — nothing recent to restore for any guest",
                     ["cat /etc/pve/jobs.cfg", "tail -n 20 /var/log/pve/tasks/index"]))
+    if sum(len(g["names"]) for g in snapshots.values()):
+        res.append(("note", "", f"old snapshots: {sum(len(g['names']) for g in snapshots.values())} in all, {size(sum(g['reclaim'] for g in snapshots.values()))} to free by deleting them", []))
     total = 0
     m = re.search(r"^MemTotal:\s+(\d+) kB", read("/proc/meminfo") or "", re.M)
     if m:
@@ -1241,11 +1306,14 @@ def print_config_check(found, checked, brief=False):
     notes = [f for f in found if f[0] == "note"]
     print(f"GUEST CONFIGURATIONS — {checked} containers and VMs checked: {len(major)} major issues, {len(improve)} to improve, {len(notes)} notes"
           + (" (details at the end of the report)" if brief and (improve or notes) else ""))
-    for level, _vmid, text, _c in major + ([] if brief else improve + notes):
-        print(f"  {tag({'major': 'bad', 'improve': 'warn', 'note': 'info'}[level])} {text}")
+    good = [f for f in found if f[0] == "ok"]
+    for level, _vmid, text, _c in major + ([] if brief else improve + notes + good):
+        print(f"  {tag({'major': 'bad', 'improve': 'warn', 'note': 'info', 'ok': 'ok'}[level])} {text}")
     if brief and major:
         print("  To correct quickly: the commands are in the block « COMMANDS TO RUN » at the end.")
-    if not found:
+    elif brief and good:                                  # 1.14: said when all is well, not only when something is wrong
+        print(f"  {tag('ok')} no major issue: {len(good)} guests checked for their start with the host, their backups (every disk and mount point) and their disk cache")
+    if not major and not improve and not notes and not good:
         print(f"  {tag('ok')} nothing to correct in the configurations")
 
 

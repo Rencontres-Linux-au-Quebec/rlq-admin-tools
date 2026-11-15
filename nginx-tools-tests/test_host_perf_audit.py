@@ -371,6 +371,7 @@ esac'''.replace("%%", "%"))
         self.assertIn("sda: SMART passed, no reallocated, pending or uncorrectable sector · 65402 h (7.5 years) — past 5 years", out)
         self.assertIn("pool rpool: ONLINE, no error, used 60 %", out)
         self.assertIn("Verdict: nothing to report", out)
+        self.assertIn("[OK] container 101 (odoo18): starts with the host · in a backup job · disks in the backups: rootfs · unprivileged", out)   # 1.14: said when all is well
         self.assertNotIn("COMMANDS TO RUN", out)
         self.hote_sante(realloues=8, attente=2, cksum=14)
         rc, out, err = self.run_cmd(["python3", self.prog, "--health", "--lang", "en"], timeout=60)
@@ -484,6 +485,49 @@ esac'''.replace("%%", "%"))
         self.assertEqual(rc, 1, out + err)                                                          # a major configuration issue: to watch
         self.assertIn("n'est PAS dans les sauvegardes", out)
         self.assertNotIn("Traceback", err)
+
+    def test_vieux_instantanes_et_tout_est_correct(self):
+        """1.14 : les instantanés de plus de 60 jours sont nommés avec la place que leur suppression rend (zfs destroy -n, rien n'est détruit) ;
+        un invité sans rien à corriger a sa ligne [OK] avec ce qui a été vérifié."""
+        vieux, recent = int(time.time()) - 250 * 86400, int(time.time()) - 5 * 86400
+        self.write("zfs-destroy.log", "")
+        self.mock("zfs", f'''case "$1" in
+ destroy) echo "$*" >> {self.d}/zfs-destroy.log; case "$*" in *-n*) printf "destroy\\tx\\nreclaim\\t4294967296\\n";; *) echo INTERDIT >> {self.d}/zfs-destroy.log;; esac;;
+esac''')
+        m = charger("hpa_s", "host-perf-audit.py", {"HOST_PERF_AUDIT_LANG": "en", "NGINX_TOOLS_LANG": "en", "HOST_PERF_AUDIT_PVE_DIR": os.path.join(self.d, "pve"),
+                                                    "NGINX_TOOLS_PROC_ROOT": self.racine, "PATH": self.env["PATH"]})
+        self.write("pve/jobs.cfg", "vzdump: backup-1\n\tschedule 02:30\n\tstorage local\n\tall 1\n")
+        G = 2 ** 30
+        zfs = {"pools": {"data": {}}, "datasets": {"data": {"available": str(235 * G)}, "data/zd0/vm-430-state-Avant": {"used": str(1 * G)}},
+               "snapshots": [("data/zd0/subvol-105-disk-0@Debian13", 300 * 2 ** 20, vieux), ("data/zd0/subvol-105-disk-2@Debian13", 80000, vieux),
+                             ("data/zd0/subvol-105-disk-2@Hier", 5 * G, recent), ("data/zd0/vm-430-disk-0@Avant", 3 * G, vieux),
+                             ("data/zd0/subvol-105-disk-0@__replicate_1", G, vieux), ("data/autre@vieux", G, vieux)]}
+        noms = {"105": ("lxc", "odoo18", "hostname: odoo18\nmemory: 2048\nonboot: 1\nunprivileged: 1\ncores: 4\nrootfs: data:subvol-105-disk-0,size=10G\n"
+                                         "mp1: data:subvol-105-disk-2,mp=/opt/odoo,size=55G,backup=1\n"),
+                "430": ("vm", "bbb30.dev", "name: bbb30.dev\nmemory: 2048\nonboot: 1\nagent: 1\nscsi0: data:vm-430-disk-0,discard=on,size=60G\n"),
+                "101": ("lxc", "ancien", "hostname: ancien\nmemory: 1024\nonboot: 1\nunprivileged: 1\ncores: 1\nrootfs: data:subvol-101-disk-0,size=8G\n")}
+        ancien_path = os.environ.get("PATH", "")
+        os.environ["PATH"] = self.env["PATH"]
+        try:
+            trouve = m.guest_config_check(noms, {"105": ("lxc", ""), "430": ("vm", ""), "101": ("lxc", "")}, zfs)
+        finally:
+            os.environ["PATH"] = ancien_path
+        textes = {(l, v): t for l, v, t, _c in trouve}
+        t105 = textes[("improve", "105")]
+        self.assertRegex(t105, r"container 105 \(odoo18\): 1 snapshots older than 60 days: Debian13 \(\d{4}-\d\d-\d\d\) — deleting them frees 8\.0 GiB in pool data")
+        self.assertNotIn("Hier", t105)                                              # 5 days old: kept
+        self.assertNotIn("__replicate", t105)                                       # replication snapshots are not the administrator's
+        self.assertIn("deleting them frees 5.0 GiB", textes[("improve", "430")])     # 4 GiB of the disk + 1 GiB of the saved memory image
+        commandes = [c for _l, v, _t, cs in trouve for c in cs]
+        self.assertIn("pct delsnapshot 105 Debian13", commandes)
+        self.assertIn("qm delsnapshot 430 Avant", commandes)
+        self.assertTrue(any(c.startswith("zpool list -o name,alloc,free,cap data   # after: compare with 235.0 GiB free before") for c in commandes), commandes)
+        self.assertIn("old snapshots: 2 in all, 13.0 GiB to free by deleting them", textes[("note", "")])
+        self.assertEqual(textes[("ok", "101")], "container 101 (ancien): starts with the host · in a backup job · disks in the backups: rootfs · unprivileged · no old snapshot")
+        self.assertIn("disks in the backups: rootfs, mp1", textes[("ok", "105")])
+        journal = open(os.path.join(self.d, "zfs-destroy.log"), encoding="utf-8").read()
+        self.assertIn("destroy -nvp data/zd0/subvol-105-disk-0@Debian13", journal)
+        self.assertNotIn("INTERDIT", journal)                                       # every destroy was a dry run
 
     def test_aucun_invite_n_attend(self):
         """1.10: « Guest that waited most ... (0.0 % of its time) » contradicted the verdict: the wait is then in the tasks of the host."""

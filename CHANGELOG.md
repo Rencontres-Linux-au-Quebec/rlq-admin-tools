@@ -2215,6 +2215,24 @@ Earlier history was archived outside this repository when this file was created.
 
 ## host-perf-audit.py
 
+### 1.14.20261114.213048 - Old snapshots with the room they free, and what is in order is said
+
+- Title: Snapshots older than 60 days are listed with the room that deleting them frees, and each guest in order gets its [OK] line.
+- Reason: request of the administrator on 2026-11-14: the program should say when everything is in order, not only what is wrong; and snapshots several months old should be recommended for deletion, with the room freed.
+- Changes:
+  - New function old_snapshots (constant SNAPSHOT_OLD_DAYS = 60): the snapshots of each guest older than 60 days, by name and date. The room freed is asked to ZFS with "zfs destroy -nvp" (a dry run: nothing is destroyed), per dataset and for all the old snapshots at once; the memory image kept by a VM snapshot (vm-ID-state-NAME) is added.
+  - guest_config_check: a finding "to improve" per guest with old snapshots (names, dates, room freed, pool), the commands "pct delsnapshot" / "qm delsnapshot" for each, and a "zpool list" to run afterwards with the free space of now to compare; a note with the total.
+  - guest_config_check: new level "ok": one line per guest without a major issue, listing what was verified (starts with the host, in a backup job, disks and mount points in the backups, unprivileged, guest agent, no old snapshot).
+  - print_config_check: the [OK] lines close the full list; at startup, without a major issue, one line says how many guests were checked and for what.
+  - Files: host-perf-audit.py, lang/host-perf-audit.fr.po, doc/fr/18-host-perf-audit.md, doc/en/18-host-perf-audit.md, nginx-tools-tests/test_host_perf_audit.py.
+- Bugs fixed: none.
+- Safeguards and edge cases:
+  - The program never deletes a snapshot: it shows the commands. The deletion goes through pct / qm, not "zfs destroy", so that the configuration of the guest stays right.
+  - Snapshots of replication (names starting with "__") and of a running backup ("vzdump") are left out, as are datasets that belong to no guest.
+  - When the dry run fails, the room is the sum of the "used" of the snapshots, announced as "at least".
+- Checks performed: new test test_vieux_instantanes_et_tout_est_correct (the room of two guests, the commands, the [OK] line, and that every "zfs destroy" carried -n); test_host_perf_audit: 19 tests pass; test_i18n catalogue of host-perf-audit: pass. Not tested on the real Proxmox host.
+- Action required: none. To free the room: the delsnapshot commands of the report.
+
 ### 1.13.20261114.205415 - Configuration of the containers and VMs checked at startup
 
 - Title: The configurations of the guests are checked and the verdict is shown when the program starts, the major issues first.
