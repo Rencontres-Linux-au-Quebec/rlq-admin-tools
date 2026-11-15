@@ -46,7 +46,7 @@ import subprocess
 import sys
 import time
 
-__version__ = "1.18.20261115.144011"
+__version__ = "1.19.20261115.145703"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
@@ -2260,7 +2260,7 @@ def guest_run(args, names, running):
         eprint("ERROR: --guest-run needs the guests: --guests 101,105,433 (or « all », or the key GUESTS of the configuration).")
         return 2
     print(f"\nCOMMAND IN THE GUESTS — {command}")
-    ready = []
+    ready, missing = [], []
     for vmid, problem in targets:
         kind, name = names.get(vmid, ("?", ""))[:2]
         who = f"{vmid} ({name or '?'})"
@@ -2271,10 +2271,28 @@ def guest_run(args, names, running):
         lines = (out or "").strip().splitlines()
         if not lines or lines[0].strip() != "FOUND":
             print(f"  {tag('bad')} {who}: {program} is not there (or not executable)" + (f" — {lines[0][:120]}" if lines and lines[0].strip() != "MISSING" else ""))
+            missing.append(vmid)
             continue
         version = lines[1].strip() if len(lines) > 1 else ""
         print(f"  {tag('ok')} {who}: {program} found" + (f" · {version}" if version else ""))
         ready.append((vmid, kind, name, version))
+    # 1.19: --guest-run alone copies nothing: where the program is missing, the copy of the suite (--guest-sync) is offered for these guests
+    if missing and program.startswith(SYNC_DEST_DEFAULT + "/") and not getattr(args, "guest_sync", False):
+        print(f"  {len(missing)} guests without the suite ({', '.join(missing)}): --guest-sync copies it there first "
+              f"(host-perf-audit.py --guest-sync --guest-run --guests {','.join(missing)})")
+        if sys.stdin.isatty() and sys.stdout.isatty():
+            try:
+                answer = input(f"  Copy the suite to {', '.join(missing)} now? [y/N]: ").strip().lower()
+            except (KeyboardInterrupt, EOFError):
+                answer = ""
+            if answer in ("o", "oui", "y", "yes"):
+                sub = argparse.Namespace(**dict(vars(args), guests=",".join(missing), yes=True))
+                guest_sync(sub, names, running)
+                for vmid in missing:
+                    kind, name = names[vmid][:2]
+                    code, out = guest_exec(vmid, kind, f"[ -x {program} ] && {program} --version 2>/dev/null | head -1", 60)
+                    if code == 0 and (out or "").strip():
+                        ready.append((vmid, kind, name, out.strip().splitlines()[0]))
     if not ready:
         print("  Nothing to run.")
         return 2

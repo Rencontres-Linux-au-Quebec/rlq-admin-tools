@@ -2215,6 +2215,19 @@ Earlier history was archived outside this repository when this file was created.
 
 ## host-perf-audit.py
 
+### 1.19.20261115.145703 - --guest-run offers the copy of the suite where it is missing
+
+- Title: When the program of --guest-run is missing in a guest, the copy of the suite (--guest-sync) is suggested, and offered at once in a terminal.
+- Reason: on 2026-11-15 the administrator ran --guest-run alone and expected the suite to be copied to the VMs: 101, 430 and 433 were reported "not there" with no hint that --guest-sync does the copy.
+- Changes:
+  - guest_run: the guests where the program is missing are listed with the command that copies the suite first (--guest-sync --guest-run --guests IDS). In a terminal, the question "Copy the suite to IDS now?" runs guest_sync for these guests only (the copy itself is then not asked again), checks the program again and adds the guests where it is now present to the run.
+  - Only when the command lives under /opt/rlq-admin-tools (the destination of --guest-sync), and never when --guest-sync was given.
+  - Files: host-perf-audit.py, lang/host-perf-audit.fr.po, nginx-tools-tests/test_host_perf_audit.py.
+- Bugs fixed: none.
+- Safeguards and edge cases: without a terminal only the hint is shown (the copy changes the guests: it needs the question or --guest-sync with --yes); the run of the command keeps its own confirmation.
+- Checks performed: test_commande_dans_les_invites checks the hint; test_host_perf_audit and the catalogue of host-perf-audit pass. Not tested on the real Proxmox host.
+- Action required: none.
+
 ### 1.18.20261115.144011 - The suite copied from the host to the guests, the host in the name of the report
 
 - Title: New option --guest-sync: the folder of the suite on the Proxmox host is copied to /opt/rlq-admin-tools in the chosen containers and VMs; the report of --guest-run carries the name of the host.
