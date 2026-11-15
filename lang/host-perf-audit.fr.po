@@ -154,8 +154,8 @@ msgstr "Affiche le journal des modifications"
 msgid "FILE"
 msgstr "FICHIER"
 
-msgid "Configuration file to read ALONE (otherwise: /etc/default/host-perf-audit.conf, then the personal file .host-perf-audit.conf; UPPERCASE options: CSV, DURATION, EXPORT_AI, INTERVAL, LANGUAGE, NO_GUESTS, TOP, VERBOSE)"
-msgstr "Fichier de configuration à lire SEUL (sinon : /etc/default/host-perf-audit.conf, puis le fichier personnel .host-perf-audit.conf ; options en MAJUSCULES : CSV, DURATION, EXPORT_AI, INTERVAL, LANGUAGE, NO_GUESTS, TOP, VERBOSE)"
+msgid "Configuration file to read ALONE (otherwise: /etc/default/host-perf-audit.conf, then the personal file .host-perf-audit.conf; UPPERCASE options: CSV, DURATION, EXPORT_AI, INSIDE, INTERVAL, LANGUAGE, NO_GUESTS, TOP, VERBOSE)"
+msgstr "Fichier de configuration à lire SEUL (sinon : /etc/default/host-perf-audit.conf, puis le fichier personnel .host-perf-audit.conf ; options en MAJUSCULES : CSV, DURATION, EXPORT_AI, INSIDE, INTERVAL, LANGUAGE, NO_GUESTS, TOP, VERBOSE)"
 
 msgid "Also write every sample to this CSV file (one line per interval: CPU, waits, memory, ARC, each disk)"
 msgstr "Écrire aussi chaque échantillon dans ce fichier CSV (une ligne par intervalle : CPU, attentes, mémoire, ARC, chaque disque)"
@@ -891,3 +891,321 @@ msgstr "pidstat -d 10 6 (sysstat) ou iotop -oPa"
 
 msgid "; monitoring and logs are the usual cause (ntopng, atop, journald: journalctl --disk-usage, SystemMaxUse=) — or stop it when it is not used"
 msgstr " ; la surveillance et les journaux en sont la cause habituelle (ntopng, atop, journald : journalctl --disk-usage, SystemMaxUse=) — ou l'arrêter quand il ne sert pas"
+
+msgid "reallocated sectors"
+msgstr "secteurs réalloués"
+
+msgid "uncorrectable errors reported"
+msgstr "erreurs non corrigibles signalées"
+
+msgid "command timeouts"
+msgstr "commandes expirées"
+
+msgid "sectors pending reallocation"
+msgstr "secteurs en attente de réallocation"
+
+msgid "sectors uncorrectable offline"
+msgstr "secteurs non corrigibles hors ligne"
+
+msgid "interface CRC errors (cable)"
+msgstr "erreurs CRC de l'interface (câble)"
+
+msgid "not sent: neither SMTP_HOST / NOTIFY_EMAIL_TO (configuration of app-health-check.py) nor a local sendmail — system journal only (journalctl -t host-perf-audit)"
+msgstr "non envoyée : ni SMTP_HOST / NOTIFY_EMAIL_TO (configuration d'app-health-check.py) ni sendmail local — journal système seulement (journalctl -t host-perf-audit)"
+
+msgid "sent to root by the local mail (Proxmox forwards it to the address of root@pam)"
+msgstr "envoyée à root par le courrier local (Proxmox la fait suivre à l'adresse de root@pam)"
+
+msgid "E-mail: SMTP_HOST and NOTIFY_EMAIL_TO of the app-health-check.py configuration when present, otherwise the local mail to root. Try it now: host-perf-audit.py --health --inside --notify"
+msgstr "Courriel : SMTP_HOST et NOTIFY_EMAIL_TO de la configuration d'app-health-check.py s'ils existent, sinon le courrier local à root. À essayer maintenant : host-perf-audit.py --health --inside --notify"
+
+msgid "Quick health check (disks, pools, guests)"
+msgstr "Vérification rapide de la santé (disques, pools, invités)"
+
+msgid "INSIDE THE GUESTS (pct exec, QEMU guest agent)"
+msgstr "DANS LES INVITÉS (pct exec, agent invité QEMU)"
+
+msgid "smartctl is not installed: the health of the disks is not watched — apt install smartmontools"
+msgstr "smartctl n'est pas installé : la santé des disques n'est pas surveillée — apt install smartmontools"
+
+msgid "backups: a backup job is scheduled but no backup succeeded in the last 2 days"
+msgstr "sauvegardes : une tâche de sauvegarde est planifiée mais aucune sauvegarde n'a réussi depuis 2 jours"
+
+msgid "  Verdict: nothing to report"
+msgstr "  Verdict : rien à signaler"
+
+msgid "COMMANDS TO RUN — copy, paste, and send the output with this report"
+msgstr "COMMANDES À LANCER — copier, coller, et envoyer la sortie avec ce rapport"
+
+msgid "ERROR: --install-timer needs root."
+msgstr "ERREUR : --install-timer demande root."
+
+msgid "Timer installed and active: "
+msgstr "Minuteur installé et actif : "
+
+msgid ".timer (every hour, at minute 17): host-perf-audit.py --health --inside --notify"
+msgstr ".timer (chaque heure, à la minute 17) : host-perf-audit.py --health --inside --notify"
+
+msgid "Next run: systemctl list-timers "
+msgstr "Prochaine exécution : systemctl list-timers "
+
+msgid ".timer; journal: journalctl -u "
+msgstr ".timer ; journal : journalctl -u "
+
+msgid ".service; alerts also in: journalctl -t host-perf-audit"
+msgstr ".service ; alertes aussi dans : journalctl -t host-perf-audit"
+
+msgid "Timer removed: "
+msgstr "Minuteur retiré : "
+
+msgid "Quick check without measurement: SMART counters of each disk (compared with the previous run), ZFS pools, RAID, kernel messages, space, backups, alert services; with --inside, the inside of each guest. Exit code 0 (nothing), 1 (to watch), 2 (problem)"
+msgstr "Vérification rapide sans mesure : compteurs SMART de chaque disque (comparés à l'exécution précédente), pools ZFS, RAID, messages du noyau, espace, sauvegardes, services d'alerte ; avec --inside, l'intérieur de chaque invité. Code de sortie 0 (rien), 1 (à surveiller), 2 (problème)"
+
+msgid "Also look INSIDE each running guest, read-only (pct exec for a container, the QEMU guest agent for a VM): containers that restart in a loop, failed services, journal, full disks, processes that write the most (takes 10 seconds per guest)"
+msgstr "Regarder aussi DANS chaque invité en marche, en lecture seule (pct exec pour un conteneur, l'agent invité QEMU pour une VM) : conteneurs qui redémarrent en boucle, services en échec, journal, disques pleins, processus qui écrivent le plus (10 secondes par invité)"
+
+msgid "Install a systemd timer that runs --health --inside --notify every hour (root), then exit"
+msgstr "Installer un minuteur systemd qui lance --health --inside --notify chaque heure (root), puis quitter"
+
+msgid "With --health: send the findings by e-mail and to the system journal when something is new (reminder after 24 hours; one message when all is back to normal)"
+msgstr "Avec --health : envoyer les constats par courriel et au journal système quand il y a du nouveau (rappel après 24 heures ; un message au retour à la normale)"
+
+msgid "Remove the timer of --install-timer, then exit"
+msgstr "Retirer le minuteur de --install-timer, puis quitter"
+
+msgid "   # long self-test in the background; result later: smartctl -l selftest /dev/"
+msgstr "   # auto-test long en arrière-plan ; résultat plus tard : smartctl -l selftest /dev/"
+
+msgid " years)"
+msgstr " ans)"
+
+msgid " (read "
+msgstr " (lecture "
+
+msgid ", write "
+msgstr ", écriture "
+
+msgid ", checksum "
+msgstr ", somme de contrôle "
+
+msgid "kernel: "
+msgstr "noyau : "
+
+msgid " disk or blocked-task messages in 24 hours — the last one: "
+msgstr " messages de disque ou de tâche bloquée en 24 heures — le dernier : "
+
+msgid "backups: "
+msgstr "sauvegardes : "
+
+msgid " failed in 3 days — the last one: guest "
+msgstr " en échec en 3 jours — la dernière : invité "
+
+msgid "the disks are not watched between two runs of this program"
+msgstr "les disques ne sont pas surveillés entre deux exécutions de ce programme"
+
+msgid "ZFS errors are not mailed when they happen"
+msgstr "les erreurs ZFS ne sont pas envoyées par courriel quand elles arrivent"
+
+msgid "not sent ("
+msgstr "non envoyée ("
+
+msgid ") — system journal only"
+msgstr ") — journal système seulement"
+
+msgid "the inside of the guests was not looked at (containers that restart in a loop, journals, full disks): add --inside"
+msgstr "l'intérieur des invités n'a pas été regardé (conteneurs qui redémarrent en boucle, journaux, disques pleins) : ajouter --inside"
+
+msgid "  Verdict: "
+msgstr "  Verdict : "
+
+msgid " problems, "
+msgstr " problèmes, "
+
+msgid " to watch"
+msgstr " à surveiller"
+
+msgid "Limited rights: without root, smartctl, the ZFS commands and the guests are unreadable (sudo for a complete check)."
+msgstr "Droits limités : sans root, smartctl, les commandes ZFS et les invités sont illisibles (sudo pour une vérification complète)."
+
+msgid "): what writes inside it"
+msgstr ") : ce qui écrit à l'intérieur"
+
+msgid ": where the space goes"
+msgstr " : où va l'espace"
+
+msgid "): what writes inside it - run INSIDE the VM (or enable the guest agent and use --inside)"
+msgstr ") : ce qui écrit à l'intérieur - à lancer DANS la VM (ou activer l'agent invité et utiliser --inside)"
+
+msgid ": SMART health "
+msgstr " : santé SMART "
+
+msgid " — the disk announces its own failure: replace it now"
+msgstr " — le disque annonce sa propre panne : le remplacer maintenant"
+
+msgid ": state "
+msgstr " : état "
+
+msgid " — a disk is missing or faulted: the pool has no redundancy left"
+msgstr " — un disque manque ou est en faute : le pool n'a plus de redondance"
+
+msgid " — the disk or its cable is failing"
+msgstr " — le disque ou son câble est en train de lâcher"
+
+msgid " — files are damaged"
+msgstr " — des fichiers sont abîmés"
+
+msgid " % — ZFS slows down strongly beyond 80 %, and a full pool stops every guest"
+msgstr " % — ZFS ralentit fortement au-delà de 80 %, et un pool plein arrête tous les invités"
+
+msgid "/ of the host: "
+msgstr "/ de l'hôte : "
+
+msgid " — a full root stops Proxmox"
+msgstr " — une racine pleine arrête Proxmox"
+
+msgid ": the QEMU guest agent is not enabled — the inside of this VM is not visible from the host"
+msgstr " : l'agent invité QEMU n'est pas activé — l'intérieur de cette VM n'est pas visible depuis l'hôte"
+
+msgid "apt install -y qemu-guest-agent && systemctl enable --now qemu-guest-agent   # INSIDE the VM"
+msgstr "apt install -y qemu-guest-agent && systemctl enable --now qemu-guest-agent   # DANS la VM"
+
+msgid ": failed services: "
+msgstr " : services en échec : "
+
+msgid ": the journal takes "
+msgstr " : le journal occupe "
+
+msgid "iB — cap it: SystemMaxUse=500M in /etc/systemd/journald.conf"
+msgstr "iB — le plafonner : SystemMaxUse=500M dans /etc/systemd/journald.conf"
+
+msgid ": back to normal"
+msgstr " : retour à la normale"
+
+msgid "  Alert: "
+msgstr "  Alerte : "
+
+msgid "  Alert: not sent (nothing new since the last one; reminder after 24 hours)"
+msgstr "  Alerte : non envoyée (rien de nouveau depuis la dernière ; rappel après 24 heures)"
+
+msgid "  Alert: nothing to send"
+msgstr "  Alerte : rien à envoyer"
+
+msgid "written to "
+msgstr "écrite dans "
+
+msgid "sent to "
+msgstr "envoyée à "
+
+msgid "NVMe critical warning 0x"
+msgstr "avertissement critique NVMe 0x"
+
+msgid "NVMe media errors: "
+msgstr "erreurs de support NVMe : "
+
+msgid "NVMe wear: "
+msgstr "usure NVMe : "
+
+msgid " % of its life used"
+msgstr " % de sa vie utilisée"
+
+msgid "NVMe spare blocks: "
+msgstr "blocs de réserve NVMe : "
+
+msgid " % left"
+msgstr " % restants"
+
+msgid " — plan its replacement"
+msgstr " — prévoir son remplacement"
+
+msgid " — to watch: a count that grows means a replacement"
+msgstr " — à surveiller : un compteur qui monte veut dire un remplacement"
+
+msgid " °C — too hot for a disk (cooling, dust)"
+msgstr " °C — trop chaud pour un disque (ventilation, poussière)"
+
+msgid ": software RAID degraded ("
+msgstr " : RAID logiciel dégradé ("
+
+msgid ") — one disk left the array"
+msgstr ") — un disque a quitté la grappe"
+
+msgid ": never scrubbed — hidden errors are not found"
+msgstr " : jamais vérifié (scrub) — les erreurs cachées ne sont pas trouvées"
+
+msgid ": ONLINE, no error"
+msgstr " : ONLINE, aucune erreur"
+
+msgid " --agent enabled=1   # on the host"
+msgstr " --agent enabled=1   # sur l'hôte"
+
+msgid "   # the agent device appears at the next start of the VM (not a reboot from inside)"
+msgstr "   # le périphérique de l'agent apparaît au prochain démarrage de la VM (pas un redémarrage de l'intérieur)"
+
+msgid ": no answer from inside"
+msgstr " : aucune réponse de l'intérieur"
+
+msgid " (is qemu-guest-agent installed and running in the VM?)"
+msgstr " (qemu-guest-agent est-il installé et en marche dans la VM ?)"
+
+msgid ": container "
+msgstr " : le conteneur "
+
+msgid " restarts in a loop ("
+msgstr " redémarre en boucle ("
+
+msgid ") — it fails at each start, and each start reads and writes its data again"
+msgstr ") — il plante à chaque démarrage, et chaque démarrage relit et réécrit ses données"
+
+msgid " wrote "
+msgstr " a écrit "
+
+msgid " lines to the journal in 10 minutes ("
+msgstr " lignes au journal en 10 minutes ("
+
+msgid " per second) — usually the same error repeated; each line is a write on the disks of the host"
+msgstr " par seconde) — en général la même erreur répétée ; chaque ligne est une écriture sur les disques de l'hôte"
+
+msgid " full ("
+msgstr " plein ("
+
+msgid " MiB free)"
+msgstr " Mio libres)"
+
+msgid ": processes that write the most: "
+msgstr " : processus qui écrivent le plus : "
+
+msgid "e-mail through app-health-check.py not sent ("
+msgstr "courriel par app-health-check.py non envoyé ("
+
+msgid "): trying the local mail"
+msgstr ") : essai du courrier local"
+
+msgid ": signs of failure — "
+msgstr " : signes de défaillance — "
+
+msgid " — past 5 years: the age when HDD start to fail, keep a spare"
+msgstr " — plus de 5 ans : l'âge où les HDD commencent à lâcher, garder un disque de rechange"
+
+msgid ": errors on "
+msgstr " : erreurs sur "
+
+msgid ": last scrub "
+msgstr " : dernière vérification (scrub) il y a "
+
+msgid " days ago — the monthly check did not run: hidden errors are not found"
+msgstr " jours — la vérification mensuelle n'a pas tourné : les erreurs cachées ne sont pas trouvées"
+
+msgid ", used "
+msgstr ", utilisé à "
+
+msgid " just stopped on an error ("
+msgstr " vient de s'arrêter sur une erreur ("
+
+msgid ": SMART passed, no reallocated, pending or uncorrectable sector"
+msgstr " : SMART réussi, aucun secteur réalloué, en attente ou non corrigible"
+
+msgid " (was "
+msgstr " (était à "
+
+msgid "HEALTH OF "
+msgstr "SANTÉ DE "

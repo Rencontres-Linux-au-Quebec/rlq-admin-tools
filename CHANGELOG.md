@@ -2215,6 +2215,31 @@ Earlier history was archived outside this repository when this file was created.
 
 ## host-perf-audit.py
 
+### 1.12.20261114.202240 - Health check, inside of the guests, alerts, commands to send
+
+- Title: New options --health, --inside, --notify, --install-timer and --uninstall-timer; every report ends with the commands to copy, paste and send.
+- Reason: request of the administrator on 2026-11-14. A Prometheus container restarted in a loop for days inside a BigBlueButton VM (a damaged file), dockerd wrote one error per second, and it was found only by looking by hand at what wrote in that VM. The administrator asked: to know sooner next time; that the program suggests the commands whose output must be sent; whether a VM can share its results with the host; and to be told quickly when a disk shows signs of failure.
+- Changes:
+  - New option --health (functions health, check_disks, check_pools, check_system, class Health): a check of a few seconds, without measurement. Disks: SMART health and the counters that announce a failure (smart_details: reallocated, pending and uncorrectable sectors, reported errors, command timeouts, cable errors, temperature, age; NVMe: critical warning, media errors, wear, spare), compared with the previous run (state in /var/lib/host-perf-audit/health.json). Pools: state, read / write / checksum errors per device, damaged files, age of the last scrub, used space. Software RAID degraded. Kernel messages of 24 hours about disks and blocked tasks. Root of the host and guest disks almost full. Backups failed or missing for 2 days. Services smartmontools and zfs-zed not active. Exit code 0 (nothing), 1 (to watch), 2 (problem).
+  - New option --inside (check_inside, inside_guest, INSIDE_SCRIPT; key INSIDE): looks inside each running guest, read-only, with pct exec for a container and the QEMU guest agent (qm guest exec) for a VM: Docker containers that restart in a loop or just stopped on an error, failed services, units that write more than 300 lines to the journal in 10 minutes, a journal of 2 GiB or more, file systems 90 % full, and the processes that write the most (two readings of /proc/PID/io, 10 seconds apart). A VM without the agent gets the three commands that enable it. Works with --health and with the measurement report (section INSIDE THE GUESTS).
+  - New option --notify (send_alert): with --health, the findings go to the system journal and by e-mail: the SMTP settings of app-health-check.py when configured on the machine, otherwise the local sendmail to root. Sent when a finding is new, again after 24 hours, and once when all is back to normal.
+  - New options --install-timer and --uninstall-timer: systemd timer host-perf-audit-health (every hour at minute 17) that runs --health --inside --notify.
+  - Commands to send: Findings.ask and Health.add carry commands; the report and --health end with the block "COMMANDS TO RUN - copy, paste, and send the output" (smartctl -a, zpool status -v, what writes inside a guest, where the space of a pool goes, the backups and their retention...). The same block is in the e-mail.
+  - Menu: new entry "Quick health check".
+  - Files: host-perf-audit.py, lang/host-perf-audit.fr.po, doc/fr/host-perf-audit.conf.example, doc/en/host-perf-audit.conf.example, doc/conf-history/host-perf-audit.history, doc/fr/18-host-perf-audit.md, doc/en/18-host-perf-audit.md, nginx-tools-tests/test_host_perf_audit.py.
+- Bugs fixed: none.
+- Safeguards and edge cases:
+  - Everything run inside a guest is read-only; nothing is installed, stopped or changed there. A VM whose agent is not enabled is never called (no hanging qm command).
+  - A SMART count that is stable since the previous run is "to watch"; a count that grows, or any pending or uncorrectable sector, is a problem.
+  - No e-mail every hour for the same findings: the keys of the findings already sent are kept in the state file.
+  - Without smartctl, zpool, journalctl, pct or qm, the matching check is left out (smartctl missing is itself reported).
+  - The timer needs root; its service runs with nice 10 and the idle I/O class.
+- Checks performed:
+  - test_host_perf_audit.py: 3 new tests on a fake host (a disk that weakens between two runs and a pool with checksum errors; the inside of a guest with a container in a restart loop, the alert sent once then the return to normal; the timer). 16 tests pass.
+  - test_i18n (catalogue of host-perf-audit), test_cles_modeles, test_conventions.AideTriee: pass. The French output and e-mail were read.
+  - Not tested on a real Proxmox host: pct exec and qm guest exec are replaced by test doubles.
+- Action required: on the Proxmox host: host-perf-audit.py --health --inside (once, to see it), then host-perf-audit.py --install-timer. To see inside the VMs: qm set ID --agent enabled=1, install qemu-guest-agent in the VM, then stop and start the VM (the report gives these commands).
+
 ### 1.11.20261114.192640 - Writes of each guest read from the ZFS counters
 
 - Title: The table of the guests shows the reads and writes of each guest on ZFS, the ZFS volumes are named, and a guest that makes most of the writes is pointed out.

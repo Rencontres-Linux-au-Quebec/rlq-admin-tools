@@ -17,6 +17,9 @@
 # --export-ai : écrire aussi le rapport et l'état brut de l'hôte (pools, datasets, instantanés, disques, invités, sauvegardes, tâches) dans un fichier Markdown à envoyer pour vérification
 # (yes : export-ai-HÔTE-AAAAMMJJ-HHMMSS.md dans /var/lib/host-perf-audit, mode 600 ; ou un chemin de fichier ; mots de passe et clés masqués)
 #EXPORT_AI=no
+# --inside : regarder aussi DANS chaque invité en marche, en lecture seule (pct exec pour un conteneur, l'agent invité QEMU pour une VM) : conteneurs en boucle de redémarrage,
+# services en échec, journal, disques pleins, processus qui écrivent le plus (10 secondes par invité)
+#INSIDE=no
 # --interval : secondes entre deux échantillons (vide : 5 jusqu'à 2 minutes de mesure, 15 jusqu'à 30 minutes, 60 au-delà)
 #INTERVAL=
 # en, fr ou auto (suivre LC_ALL / LC_MESSAGES / LANG).
