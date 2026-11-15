@@ -2215,6 +2215,28 @@ Earlier history was archived outside this repository when this file was created.
 
 ## host-perf-audit.py
 
+### 1.13.20261114.205415 - Configuration of the containers and VMs checked at startup
+
+- Title: The configurations of the guests are checked and the verdict is shown when the program starts, the major issues first.
+- Reason: request of the administrator on 2026-11-14: the program must check whether the LXC containers and the VMs are well configured, say it at startup, and point out the major issues to correct quickly.
+- Changes:
+  - New function guest_config_check (read-only, from /etc/pve): three levels.
+    - Major: a mount point of a container (mpN) that is not in the backups (backup=1 missing: only the root disk is saved); a VM disk with cache=unsafe or backup=0; a running guest without onboot (it stays stopped after a restart of the host); a running guest in no scheduled backup job; no backup job and no backup in 7 days; more memory promised to the running guests than the machine has.
+    - To improve: privileged container; AppArmor disabled; guest locked; QEMU guest agent not enabled; VM disk without discard=on on ZFS; emulated network card (e1000, rtl8139); more than 80 % of the memory promised on a ZFS host.
+    - Notes: mount point that is a folder of the host (never in the backups); unused disks kept; container without a processor limit; small container without swap; large VM without ballooning.
+  - New function print_config_check: one summary line and the major issues at startup, before the measurement; the whole list after the suggested settings; each finding that has one brings its command (pct set, qm set) to the block "COMMANDS TO RUN".
+  - --health: the whole list is shown; each major issue is a finding "to watch" (exit code 1) and goes in the alert of --notify.
+  - Templates are not checked; --no-guests leaves the check out.
+  - Files: host-perf-audit.py, lang/host-perf-audit.fr.po, doc/fr/18-host-perf-audit.md, doc/en/18-host-perf-audit.md, nginx-tools-tests/test_host_perf_audit.py.
+- Bugs fixed: none.
+- Safeguards and edge cases:
+  - Nothing is changed: the commands are shown, never run (a change of a disk option needs a stop and start of the VM).
+  - The command of a mount point or a disk repeats its current options and adds or removes one, so that pasting it does not lose the size or the mount path.
+  - A backup job on a resource pool counts as covering every guest (its members are not read).
+  - The memory promised counts the running guests only.
+- Checks performed: 2 new tests (the levels and commands on four invented guests; the announcement before the measurement, the full list at the end, and --health); test_host_perf_audit: 18 tests pass; test_i18n catalogue of host-perf-audit: pass. Not tested on the real Proxmox host.
+- Action required: run host-perf-audit.py --health on the Proxmox host and correct the major issues it lists.
+
 ### 1.12.20261114.202240 - Health check, inside of the guests, alerts, commands to send
 
 - Title: New options --health, --inside, --notify, --install-timer and --uninstall-timer; every report ends with the commands to copy, paste and send.

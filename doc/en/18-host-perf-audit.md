@@ -52,3 +52,7 @@ host-perf-audit.py --install-timer              # the same every hour, with an e
 * **`--inside`**: looks inside each guest, read-only: `pct exec` for a container, the QEMU guest agent for a VM (`qm set ID --agent enabled=1`, `qemu-guest-agent` in the VM, then stop and start the VM). Docker containers that restart in a loop, failed services, a journal that overflows, full disks, the processes that write the most. No shared folder is needed.
 * **`--notify`**: system journal and e-mail (SMTP settings of `app-health-check.py`, otherwise local mail to root), only when something is new, reminder after 24 hours.
 * **Commands to run**: every report ends with the commands to copy, paste, and whose output is to be sent.
+
+## Configuration of the containers and VMs (1.13)
+
+At startup, the program checks the configuration of each guest (`/etc/pve`, read-only) and announces the **major issues**: a container mount point missing from the backups (`backup=1`), a disk with `cache=unsafe`, a guest without `onboot`, a guest in no backup job, more memory promised than the machine has. The whole list (to improve, notes) is at the end of the report, with the `pct set` / `qm set` commands to copy.

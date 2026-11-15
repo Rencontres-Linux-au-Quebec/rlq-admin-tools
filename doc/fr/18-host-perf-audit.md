@@ -52,3 +52,7 @@ host-perf-audit.py --install-timer              # la même chaque heure, avec un
 * **`--inside`** : regarde dans chaque invité, en lecture seule : `pct exec` pour un conteneur, l'agent invité QEMU pour une VM (`qm set ID --agent enabled=1`, `qemu-guest-agent` dans la VM, puis arrêt et démarrage de la VM). Conteneurs Docker qui redémarrent en boucle, services en échec, journal qui déborde, disques pleins, processus qui écrivent le plus. Aucun répertoire partagé n'est nécessaire.
 * **`--notify`** : journal système et courriel (réglages SMTP d'`app-health-check.py`, sinon courrier local à root), seulement quand il y a du nouveau, rappel après 24 heures.
 * **Commandes à lancer** : chaque rapport finit par les commandes à copier, coller, et dont la sortie est à envoyer.
+
+## Configuration des conteneurs et des VM (1.13)
+
+Au démarrage, le programme vérifie la configuration de chaque invité (`/etc/pve`, lecture seule) et annonce les **enjeux majeurs** : point de montage d'un conteneur absent des sauvegardes (`backup=1`), disque en `cache=unsafe`, invité sans `onboot`, invité hors de toute tâche de sauvegarde, mémoire promise au-delà de la machine. La liste complète (à améliorer, remarques) est à la fin du rapport, avec les commandes `pct set` / `qm set` à copier.

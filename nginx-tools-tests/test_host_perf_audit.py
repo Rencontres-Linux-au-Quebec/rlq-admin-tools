@@ -345,6 +345,11 @@ X""")
  "status") printf "  pool: rpool\\n state: ONLINE\\n  scan: scrub repaired 0B in 05:10:11 with 0 errors on $(LC_ALL=C date -d "-3 days" "+%%a %%b %%e %%H:%%M:%%S %%Y")\\nconfig:\\n\\n\\tNAME        STATE     READ WRITE CKSUM\\n\\trpool       ONLINE       0     0     0\\n\\t  mirror-0  ONLINE       0     0     0\\n\\t    sda2    ONLINE       0     0     {cksum}\\n\\nerrors: No known data errors\\n";;
  "get -H -p -o name,value ashift") printf "rpool\\t12\\n";;
 esac'''.replace("%%", "%"))
+        self.write("pve/lxc/101.conf", "arch: amd64\nhostname: odoo18\nmemory: 4096\nonboot: 1\nunprivileged: 1\ncores: 4\n")
+        self.write("pve/qemu-server/120.conf", "name: bbb3\nonboot: 1\nmemory: 8192\nscsi0: local-zfs:vm-120-disk-0,discard=on,iothread=1,size=64G\n")
+        self.write("pve/jobs.cfg", "vzdump: backup-1\n\tschedule 02:30\n\tstorage local\n\tall 1\n")
+        recent = int(time.time()) - 7200
+        self.write("taches-sante", f"UPID:pve1:0000ABCD:00112233:{recent:08X}:vzdump:101:root@pam: {recent + 600:08X} OK\n")
         self.mock("zfs", "exit 0")
         self.mock("journalctl", "exit 0")
         self.mock("systemctl", "echo active")
@@ -355,7 +360,7 @@ esac'''.replace("%%", "%"))
         self.mock("qm", "echo ne-doit-pas-etre-appele; exit 1")
         os.makedirs(os.path.join(self.racine, "sys/fs/cgroup/qemu.slice/120.scope"), exist_ok=True)
         self.env.update(HOST_PERF_AUDIT_STATE_DIR=os.path.join(self.d, "etat"), HOST_PERF_AUDIT_MAIL_FILE=os.path.join(self.d, "courriel.txt"),
-                        HOST_PERF_AUDIT_TASKS=os.path.join(self.d, "aucune-tache"), HOST_PERF_AUDIT_SYSTEMD_DIR=os.path.join(self.d, "systemd"))
+                        HOST_PERF_AUDIT_TASKS=os.path.join(self.d, "taches-sante"), HOST_PERF_AUDIT_SYSTEMD_DIR=os.path.join(self.d, "systemd"))
 
     def test_health_disque_qui_faiblit(self):
         """1.12 --health : un disque sain donne 0 ; un compteur SMART qui monte ou un secteur en attente donne 2, avec les commandes à lancer."""
@@ -422,6 +427,63 @@ esac'''.replace("%%", "%"))
         self.assertIn("OnCalendar=*-*-* *:17:00", open(os.path.join(self.d, "systemd", "host-perf-audit-health.timer"), encoding="utf-8").read())
         rc, out, err = self.run_cmd(["python3", self.prog, "--uninstall-timer"], timeout=30)
         self.assertEqual(os.listdir(os.path.join(self.d, "systemd")), [])
+
+    def test_configuration_des_invites(self):
+        """1.13 : les configurations des conteneurs et des VM sont vérifiées et annoncées au démarrage ; les enjeux majeurs d'abord, avec la commande."""
+        m = charger("hpa_c", "host-perf-audit.py", {"HOST_PERF_AUDIT_LANG": "en", "NGINX_TOOLS_LANG": "en", "HOST_PERF_AUDIT_PVE_DIR": os.path.join(self.d, "pve"),
+                                                    "NGINX_TOOLS_PROC_ROOT": self.racine})
+        self.write("pve/jobs.cfg", "vzdump: backup-1\n\tschedule 02:30\n\tstorage local\n\tvmid 105,433\n")
+        noms = {
+            "105": ("lxc", "odoo18", "hostname: odoo18\nmemory: 16384\nonboot: 1\nunprivileged: 1\ncores: 6\nrootfs: local-zfs:subvol-105-disk-0,size=10G\n"
+                                     "mp0: local-zfs:subvol-105-disk-1,mp=/var/log,size=32G,backup=1\nmp1: local-zfs:subvol-105-disk-2,mp=/opt/odoo,size=55G\nmp2: /srv/partage,mp=/mnt/partage\n"),
+            "433": ("vm", "bbb3-26", "name: bbb3-26\nmemory: 8192\nonboot: 1\nagent: 1\nscsi0: local-zfs:vm-433-disk-0,discard=on,size=50G\n"
+                                     "scsi1: local-zfs:vm-433-disk-1,cache=unsafe,size=200G\nnet0: e1000=AA:BB:CC:DD:EE:FF,bridge=vmbr0\nide2: none,media=cdrom\n"),
+            "430": ("vm", "bbb30.dev", "name: bbb30.dev\nmemory: 16384\nscsi0: local-zfs:vm-430-disk-0,size=60G\nunused0: local-zfs:vm-430-disk-9\n"),
+            "900": ("vm", "modele", "name: modele\ntemplate: 1\nmemory: 2048\n"),
+        }
+        en_marche = {"105": ("lxc", ""), "433": ("vm", ""), "430": ("vm", "")}
+        trouve = m.guest_config_check(noms, en_marche, {"pools": {}})
+        par_niveau = lambda n: [t for l, _v, t, _c in trouve if l == n]
+        majeurs = "\n".join(par_niveau("major"))
+        self.assertIn("container 105 (odoo18): mount point mp1 (/opt/odoo) is NOT in the backups (backup=1 missing)", majeurs)
+        self.assertNotIn("mp0", majeurs)                                                    # backup=1 is there
+        self.assertIn("VM 433 (bbb3-26): disk scsi1 with cache=unsafe", majeurs)
+        self.assertIn("VM 430 (bbb30.dev): runs now but does not start with the host (onboot missing)", majeurs)
+        self.assertIn("VM 430 (bbb30.dev): in no scheduled backup job", majeurs)
+        self.assertEqual(len(par_niveau("major")), 5, majeurs)                                   # the four above and the memory promised twice
+        commandes = [c for _l, _v, _t, cs in trouve for c in cs]
+        self.assertIn("pct set 105 --mp1 local-zfs:subvol-105-disk-2,mp=/opt/odoo,size=55G,backup=1", commandes)
+        self.assertIn("qm set 433 --scsi1 local-zfs:vm-433-disk-1,size=200G", commandes)
+        self.assertIn("qm set 430 --onboot 1", commandes)
+        ameliorer = "\n".join(par_niveau("improve"))
+        self.assertIn("VM 430 (bbb30.dev): QEMU guest agent not enabled", ameliorer)
+        self.assertIn("VM 430 (bbb30.dev): disk scsi0 without discard=on", ameliorer)
+        self.assertIn("VM 433 (bbb3-26): network card net0 emulated (e1000)", ameliorer)
+        self.assertNotIn("433 (bbb3-26): QEMU guest agent", ameliorer)
+        notes = "\n".join(par_niveau("note"))
+        self.assertIn("container 105 (odoo18): mp2 (/mnt/partage) is a folder of the host (/srv/partage)", notes)
+        self.assertIn("VM 430 (bbb30.dev): 1 unused disks kept", notes)
+        self.assertNotIn("modele", majeurs + ameliorer + notes)                               # a template is not a guest
+        # memory promised: 40 GiB for the 31 GiB of the fake host
+        self.assertIn("host: the running guests are promised 40 GiB of memory for 31 GiB in the machine (128 %)", "\n".join(par_niveau("major") + par_niveau("improve")))
+
+    def test_configuration_annoncee_au_demarrage(self):
+        self.write("pve/lxc/101.conf", "hostname: odoo18\nmemory: 4096\nunprivileged: 1\ncores: 2\nonboot: 1\nrootfs: rpool/data:subvol-101-disk-0,size=8G\n"
+                                       "mp1: rpool/data:subvol-101-disk-2,mp=/opt/odoo,size=55G\n")
+        self.write("pve/jobs.cfg", "vzdump: backup-1\n\tschedule 02:30\n\tstorage local\n\tall 1\n")
+        rc, out, err = self.run_cmd(["python3", self.prog, "--duration", "5", "--interval", "2", "--lang", "en"], timeout=60)
+        self.assertEqual(rc, 0, out + err)
+        self.assertLess(out.index("GUEST CONFIGURATIONS — 2 containers and VMs checked: 1 major issues"), out.index("Measuring for"))     # said at the start
+        self.assertIn("[FAIL] container 101 (odoo18): mount point mp1 (/opt/odoo) is NOT in the backups", out.split("Measuring for")[0])
+        self.assertIn("To correct quickly: the commands are in the block", out.split("Measuring for")[0])
+        fin = out.split("SUGGESTED SETTINGS")[1]
+        self.assertIn("GUEST CONFIGURATIONS — 2 containers and VMs checked", fin)                   # in full at the end
+        self.assertIn("QEMU guest agent not enabled", fin)
+        self.assertIn("  pct set 101 --mp1 rpool/data:subvol-101-disk-2,mp=/opt/odoo,size=55G,backup=1\n", fin)
+        rc, out, err = self.run_cmd(["python3", self.prog, "--health", "--lang", "fr"], timeout=60)
+        self.assertEqual(rc, 1, out + err)                                                          # a major configuration issue: to watch
+        self.assertIn("n'est PAS dans les sauvegardes", out)
+        self.assertNotIn("Traceback", err)
 
     def test_aucun_invite_n_attend(self):
         """1.10: « Guest that waited most ... (0.0 % of its time) » contradicted the verdict: the wait is then in the tasks of the host."""
