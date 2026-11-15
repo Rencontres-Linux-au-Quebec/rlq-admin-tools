@@ -66,7 +66,7 @@ import sys
 import time
 from urllib.parse import urlparse, parse_qs, unquote
 
-__version__ = "2.37.20261112.082236"
+__version__ = "2.38.20261115.170450"
 # Marker added at the END of the "browser" User-Agent (2.2): our test requests are recognizable in all the
 # logs (nginx, Odoo) and excluded from the statistics by web-monitor.py. Matches no pattern of the bot filter.
 UA_MARKER = " app-health-check/" + ".".join(__version__.split(".")[:2])
@@ -999,6 +999,56 @@ def check_local_setup(verbose=False, cfg=None):
     return results
 
 
+# 2.38: e-mails refused because the SMTP server limits the number of MESSAGES per session ("452 4.4.5 Maximum number of messages per session
+# exceeded", then "503 5.5.1 Multiple MAIL commands not allowed" for every following e-mail of the same session).
+SMTP_SESSION_LIMIT_RE = re.compile(r"messages per session|Multiple MAIL commands", re.I)
+MAIL_SESSION_LABEL = "Outgoing e-mail: limit of messages per SMTP session"
+
+
+def load_odoo_db():
+    """Component apps/_odoo_db.py (read-only PostgreSQL access), or None."""
+    path = os.path.join(SCRIPT_DIR, "apps", "_odoo_db.py")
+    if not os.path.isfile(path):
+        return None
+    try:
+        spec = importlib.util.spec_from_file_location("_odoo_db", path)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        return module
+    except Exception:
+        return None
+
+
+def check_mail_session(cfg, target, db=None):
+    """2.38: e-mails of Odoo left in failure because the SMTP server refused more messages in the same session. Odoo sends ONE message per
+    recipient of an e-mail (a notification of @everyone groups up to 50 recipients in one e-mail): mail.session.batch.size counts e-mails, not
+    recipients, and cannot split one e-mail. Read-only (PostgreSQL, apps/_odoo_db.py); --target local only; MAIL_SESSION_CHECK_DAYS=0: off."""
+    try:
+        days = int(str(cfg.get("MAIL_SESSION_CHECK_DAYS", "") or 7))
+    except ValueError:
+        days = 7
+    base = cfg.get("ODOO_DB", "")
+    if days <= 0 or target != "local" or not base:
+        return []
+    db = db or load_odoo_db()
+    failures = db.courriels_en_echec(base, days) if db else None
+    if failures is None:
+        return [(MAIL_SESSION_LABEL, None, TR("failed e-mails unreadable (PostgreSQL: root or sudo needed, database {base}) — ignored").format(base=base))]
+    params = db.parametres(base, "mail.") or {}
+    batch = params.get("mail.session.batch.size") or TR("not set, Odoo default")
+    refused = [m for m in failures if SMTP_SESSION_LIMIT_RE.search(m.get("raison") or "")]
+    if not refused:
+        return [(MAIL_SESSION_LABEL, True, TR("no e-mail refused for this reason in the last {days} days (mail.session.batch.size: {batch})").format(days=days, batch=batch))]
+    largest = max(len([a for a in (m.get("destinataires") or "").split(",") if a.strip()]) for m in refused)
+    return [(MAIL_SESSION_LABEL, False,
+             TR("{n} e-mails refused by the SMTP server in the last {days} days (452 4.4.5 Maximum number of messages per session, then 503 5.5.1). "
+                "Odoo sends one message PER RECIPIENT: the largest of these e-mails has at least {largest} recipients, so that many messages in one "
+                "session. mail.session.batch.size ({batch}) counts e-mails, not recipients: it cannot split one e-mail. Fix: have the limit of "
+                "messages per session raised on the SMTP server (above the largest group, 50 for a notification of Odoo), then resend with "
+                "odoo-mail-retry.py; resent before that, they fail again and the first recipients may receive the message twice."
+                ).format(n=len(refused), days=days, largest=largest, batch=batch))]
+
+
 def check_odoo_functional(cfg, target, verbose=False):
     results = []
     if not cfg.get("ODOO_TEST_USER") or not cfg.get("ODOO_TEST_PASSWORD"):
@@ -1718,6 +1768,7 @@ def main():
         all_results += check_hsts_multi_host(cfg, args.target, verbose=args.verbose)
         all_results += check_tls_certificate(cfg, args.target, verbose=args.verbose)
         all_results += check_local_setup(verbose=args.verbose, cfg=cfg)
+        all_results += check_mail_session(cfg, args.target)
         odoo_check = check_odoo_functional(cfg, args.target, verbose=args.verbose)
         if isinstance(odoo_check, tuple):
             odoo_results, client_for_discuss, _uid = odoo_check

@@ -100,6 +100,10 @@ ODOO_DISCUSS_MODEL=discuss.channel
 # Temps maximal en secondes accordé à nginx-hardening.sh --check (environ 20 s sur un serveur normal ; 15 s avant 2.36 pouvait le couper).
 #SETUP_CHECK_TIMEOUT=120
 
+# --- 2.38 : courriels refusés pour la limite de messages par session SMTP (452 4.4.5, puis 503 5.5.1 ; --target local, lecture seule) ---
+# Courriels en échec des N derniers jours examinés ; 0 : vérification désactivée.
+#MAIL_SESSION_CHECK_DAYS=7
+
 # --- Options de la ligne de commande SEULEMENT (actions ou réglages ponctuels : aucune clé ici) ---
 #   --changelog     affiche le journal des modifications
 #   --config-merge  Réécrit le fichier de configuration à partir de la nouvelle configuration par défaut, en gardant les valeurs réglées (copie FICHIER.bak-AAAAMMJJ-HHMMSS), puis quitte

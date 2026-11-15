@@ -600,3 +600,50 @@ class MemoireDesPassages(EnvTest):
             self.assertFalse(envoi.called, "sain et inchangé : silence")
             ahc.send_alerts({"NOTIFY_WEBHOOK_URL": "ftp://example.invalid/hook"}, "titre", "corps", 1, [])
             self.assertFalse(envoi.called, "adresse refusée : rien n'est envoyé")
+
+
+class LimiteSessionSmtp(EnvTest):
+    """2.38 : courriels refusés pour la limite de messages par session SMTP (452 4.4.5, puis 503 5.5.1)."""
+
+    def module(self):
+        spec = importlib.util.spec_from_file_location("ahc238", script_path("app-health-check.py"))
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        return module
+
+    class Base:
+        def __init__(self, echecs, parametres=None):
+            self.echecs, self.params = echecs, parametres
+
+        def courriels_en_echec(self, base, jours):
+            return self.echecs
+
+        def parametres(self, base, prefixe):
+            return self.params
+
+    CFG = {"ODOO_DB": "base_test"}
+    E452 = {"id": 1, "destinataires": ", ".join(f"p{i}@example.org" for i in range(12)),
+            "raison": "Mail Delivery Failed SMTPDataError: (452, b'4.4.5 Maximum number of messages per session exceeded.')"}
+    E503 = {"id": 2, "destinataires": "a@example.org", "raison": "SMTPSenderRefused: (503, b'5.5.1 Multiple MAIL commands not allowed.', 'x@example.org')"}
+    AUTRE = {"id": 3, "destinataires": "b@example.org", "raison": "SMTPRecipientsRefused: 550 unknown user"}
+
+    def test_238_limite_atteinte(self):
+        ahc = self.module()
+        (nom, ok, detail), = ahc.check_mail_session(self.CFG, "local", self.Base([self.E452, self.E503, self.AUTRE], {"mail.session.batch.size": "4"}))
+        self.assertIs(ok, False)
+        self.assertIn("SMTP", nom)
+        self.assertRegex(detail, r"^2 ")
+        self.assertIn("12", detail, "taille du plus gros groupe de destinataires")
+        self.assertIn("(4)", detail, "valeur de mail.session.batch.size")
+        self.assertNotIn("example.org", detail, "jamais d'adresse affichée")
+
+    def test_238_sain_illisible_desactive(self):
+        ahc = self.module()
+        (_, ok, detail), = ahc.check_mail_session(self.CFG, "local", self.Base([self.AUTRE], {}))
+        self.assertIs(ok, True, "un autre motif d'échec n'est pas la limite de session")
+        (_, ok, _), = ahc.check_mail_session(self.CFG, "local", self.Base(None))
+        self.assertIsNone(ok, "PostgreSQL illisible : ignoré, jamais un échec")
+        base = self.Base([self.E452])
+        self.assertEqual(ahc.check_mail_session(dict(self.CFG, MAIL_SESSION_CHECK_DAYS="0"), "local", base), [])
+        self.assertEqual(ahc.check_mail_session(self.CFG, "external", base), [])
+        self.assertEqual(ahc.check_mail_session({}, "local", base), [], "pas de base Odoo configurée")

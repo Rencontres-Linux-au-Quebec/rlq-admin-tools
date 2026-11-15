@@ -219,6 +219,16 @@ Earlier history was archived outside this repository when this file was created.
 
 ## app-health-check.py
 
+### 2.38.20261115.170450 - Check of the limit of messages per SMTP session
+
+- Title: the health check reports the e-mails of Odoo refused because the SMTP server limits the number of messages per session.
+- Reason: request of the administrator on 2026-11-15: a message to @everyone in a channel of Odoo 18 failed with "452 4.4.5 Maximum number of messages per session exceeded", then "503 5.5.1 Multiple MAIL commands not allowed", even with mail.session.batch.size=4, while the e-mails of the events went through.
+- Changes: new function check_mail_session (called after check_local_setup, Odoo profile, --target local): reads the failed e-mails of the last days (apps/_odoo_db.py courriels_en_echec, read-only) and the system parameter mail.session.batch.size (parametres); [FAIL] when a failure reason names the limit, with the number of e-mails, the size of the largest group of recipients and the fix; [OK] otherwise; [SKIP] when PostgreSQL is not readable. New function load_odoo_db. New key MAIL_SESSION_CHECK_DAYS (default 7; 0: off) in doc/en and doc/fr app-health-check.conf.example. Translations in lang/app-health-check.fr.po.
+- Bugs fixed: none in the program. Diagnosis of the reported failure: Odoo sends one SMTP message per recipient of an e-mail; a notification groups up to 50 recipients in one e-mail, so one e-mail alone can exceed the limit of the server; mail.session.batch.size counts e-mails and cannot split one. The e-mails of the events have one recipient each, so a small batch stays under the limit.
+- Safeguards and edge cases: nothing is written in the database; never an address displayed; no ODOO_DB, --target external or BigBlueButton profile: no check; component apps/_odoo_db.py missing or psql refused: [SKIP], never a failure; the list of recipients read is cut at 300 characters: the size is given as "at least".
+- Checks performed: python3 -m py_compile; nginx-tools-tests/test_app_health_check.py (new class LimiteSessionSmtp: failure, healthy, unreadable, turned off, external target).
+- Action required: have the limit of messages per session raised on the SMTP server, then resend the failed e-mails with odoo-mail-retry.py.
+
 ### 2.37.20261112.082236 - New option --config-merge
 
 - Title: --config-merge rewrites the configuration file from the new default configuration, keeping its values.

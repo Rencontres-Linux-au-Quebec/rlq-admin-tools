@@ -870,3 +870,18 @@ msgstr "ERREUR : aucune configuration n'a pu être détectée sans root (sudo ap
 
 msgid "nginx-hardening.sh --check stopped after {n} s (SETUP_CHECK_TIMEOUT): result incomplete, increase the key or run it by hand"
 msgstr "nginx-hardening.sh --check arrêté après {n} s (SETUP_CHECK_TIMEOUT) : résultat incomplet, augmentez la clé ou lancez-le à la main"
+
+msgid "Outgoing e-mail: limit of messages per SMTP session"
+msgstr "Courriels sortants : limite de messages par session SMTP"
+
+msgid "failed e-mails unreadable (PostgreSQL: root or sudo needed, database {base}) — ignored"
+msgstr "courriels en échec illisibles (PostgreSQL : root ou sudo requis, base {base}) — ignoré"
+
+msgid "not set, Odoo default"
+msgstr "non défini, valeur par défaut d'Odoo"
+
+msgid "no e-mail refused for this reason in the last {days} days (mail.session.batch.size: {batch})"
+msgstr "aucun courriel refusé pour cette raison dans les {days} derniers jours (mail.session.batch.size : {batch})"
+
+msgid "{n} e-mails refused by the SMTP server in the last {days} days (452 4.4.5 Maximum number of messages per session, then 503 5.5.1). Odoo sends one message PER RECIPIENT: the largest of these e-mails has at least {largest} recipients, so that many messages in one session. mail.session.batch.size ({batch}) counts e-mails, not recipients: it cannot split one e-mail. Fix: have the limit of messages per session raised on the SMTP server (above the largest group, 50 for a notification of Odoo), then resend with odoo-mail-retry.py; resent before that, they fail again and the first recipients may receive the message twice."
+msgstr "{n} courriels refusés par le serveur SMTP dans les {days} derniers jours (452 4.4.5 Maximum number of messages per session, puis 503 5.5.1). Odoo envoie un message PAR DESTINATAIRE : le plus gros de ces courriels a au moins {largest} destinataires, donc autant de messages dans une seule session. mail.session.batch.size ({batch}) compte les courriels, pas les destinataires : il ne peut pas diviser un courriel. Correction : faire augmenter la limite de messages par session sur le serveur SMTP (au-dessus du plus gros groupe, 50 pour une notification d'Odoo), puis renvoyer avec odoo-mail-retry.py ; renvoyés avant, ils échouent de nouveau et les premiers destinataires peuvent recevoir le message en double."
