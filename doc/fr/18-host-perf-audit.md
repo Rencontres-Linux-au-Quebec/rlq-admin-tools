@@ -78,3 +78,5 @@ host-perf-audit.py --guest-sync --guest-run --guests 101,104,105,433
 ```
 
 Copie le dossier de la suite de l'hôte (celui de ce programme, ou `--sync-source`) dans `/opt/rlq-admin-tools` de chaque invité, après confirmation. L'ancienne copie reste en `/opt/rlq-admin-tools.previous`. Un invité qui porte le dossier source lui-même n'est jamais remplacé. Avec `--guest-run`, la commande est lancée ensuite ; le rapport s'appelle `report-HÔTE-DATE.md`.
+
+Depuis la 1.20, la copie vers une VM affiche sa progression en %, et `--sync-git all|containers|none` (clé `SYNC_GIT`) choisit où le dossier `.git` est copié : par défaut dans les conteneurs seulement, car une VM reçoit la copie en morceaux par son agent.

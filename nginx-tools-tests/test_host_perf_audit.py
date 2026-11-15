@@ -608,7 +608,7 @@ case "$script" in
 esac''')
         self.mock("qm", f'''id="$3"; case "$*" in
   *"if [ -x"*) printf \'{{"exitcode":0,"exited":1,"out-data":"FOUND\\\\nnginx-hardening.sh version 2.106\\\\n"}}\';;
-  *--update*) echo "$id" >> {trace}; printf \'{{"exitcode":0,"exited":1,"out-data":"[OK] tout\\\\nR\\\\u00c3\\\\u0089SUM\\\\u00c3\\\\u0089 : tout est en ordre (40 v\\\\u00c3\\\\u00a9rifications).\\\\n"}}\';;
+  *--update*) echo "$id" >> {trace}; case "$*" in *'HOME="${{HOME:-/root}}"'*) echo "$id" >> {trace}.home;; esac; printf \'{{"exitcode":0,"exited":1,"out-data":"[OK] tout\\\\nR\\\\u00c3\\\\u0089SUM\\\\u00c3\\\\u0089 : tout est en ordre (40 v\\\\u00c3\\\\u00a9rifications).\\\\n"}}\';;
 esac''')
         rc, out, err = self.run_cmd(["python3", self.prog, "--guest-run", "--guests", "101,104,433,999,120", "--lang", "en"], timeout=60)
         self.assertEqual(rc, 2, out + err)                                                # no terminal, no --yes: nothing run
@@ -623,6 +623,7 @@ esac''')
         rc, out, err = self.run_cmd(["python3", self.prog, "--guest-run", "--guests", "101,104,433", "--yes", "--lang", "en"], timeout=60)
         self.assertEqual(rc, 1, out + err)                                                # a failure in the output of 101
         self.assertEqual(open(trace).read(), "101\n433\n")                               # 104 has no program: not run
+        self.assertEqual(open(trace + ".home").read(), "433\n")                          # 1.21: HOME given to the VM (qm guest exec has none)
         self.assertIn("[FAIL] 101 (odoo18): exit code 1", out)
         self.assertIn("1 failures, 1 warnings · RÉSUMÉ : 40 OK, 1 avertissements, 1 échecs.", out)
         self.assertIn("      [FAIL] fail2ban absent", out)
@@ -662,6 +663,7 @@ esac''')
         self.write("source/apps/x.py", "print(1)\n")
         self.write("source/apps/__pycache__/x.cpython-311.pyc", "binaire")
         self.write("source/gros.bin", "z" * (1500 * 1024))                          # several chunks for the VM
+        self.write("source/.git/HEAD", "ref: refs/heads/main\n")
         invites = os.path.join(self.d, "invites")
         for vmid in ("101", "104", "433"):
             os.makedirs(os.path.join(invites, vmid), exist_ok=True)
@@ -700,6 +702,17 @@ print(json.dumps({{"exitcode": p.returncode, "exited": 1, "out-data": p.stdout.d
             self.assertFalse(os.path.exists(os.path.join(copie, "apps/__pycache__")), vmid)
             self.assertFalse([f for f in os.listdir(copie) if f.startswith(".sync-token")], vmid)
         self.assertTrue(os.path.isfile(os.path.join(invites, "101/rlq-admin-tools.previous/nginx-hardening.sh")))   # the old copy kept
+        # 1.20: by default .git goes to the containers, not to the VMs (slow chunks through the agent); progress of the copy to the VM
+        self.assertTrue(os.path.isfile(os.path.join(invites, "101/rlq-admin-tools/.git/HEAD")))
+        self.assertFalse(os.path.exists(os.path.join(invites, "433/rlq-admin-tools/.git")))
+        self.assertRegex(out, r"archive: [0-9.]+ MiB with \.git \(101, 104\) · [0-9.]+ MiB without \.git \(433\) — --sync-git containers")
+        self.assertIn("… 433 (bbb3-26): 100 %", out)
+        rc, out, err = self.run_cmd(["python3", self.prog, "--guest-sync", "--guests", "433", "--sync-source", source, "--sync-git", "all", "--yes", "--lang", "en"], timeout=90)
+        self.assertEqual(rc, 0, out + err)
+        self.assertTrue(os.path.isfile(os.path.join(invites, "433/rlq-admin-tools/.git/HEAD")))
+        rc, out, err = self.run_cmd(["python3", self.prog, "--guest-sync", "--guests", "101", "--sync-source", source, "--sync-git", "none", "--yes", "--lang", "en"], timeout=90)
+        self.assertFalse(os.path.exists(os.path.join(invites, "101/rlq-admin-tools/.git")))
+        self.assertIn("is no longer a git clone", out)
         self.assertFalse([f for f in os.listdir(source) if f.startswith(".sync-token")])
         self.write("pve/lxc/105.conf", "hostname: odoo18b\nonboot: 1\nunprivileged: 1\ncores: 2\nmemory: 1024\n")
         os.makedirs(os.path.join(self.racine, "sys/fs/cgroup/lxc/105"), exist_ok=True)

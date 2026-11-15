@@ -93,7 +93,7 @@ run() {
     "$@"
 }
 
-readonly SCRIPT_VERSION="2.106.20261115.074443"
+readonly SCRIPT_VERSION="2.107.20261115.163001"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
 SCRIPT_NAME="$(basename "${BASH_SOURCE[0]}" .sh)"; readonly SCRIPT_NAME
 # Display language (en or fr): --lang, NGINX_HARDENING_LANG, LANGUAGE of the configuration file, LC_ALL / LANG - apps/_i18n.sh translates the output (nothing changes in French).
@@ -3239,7 +3239,7 @@ if command -v logrotate >/dev/null 2>&1 && [[ -r "$LR_CONF" ]]; then
             if [[ "$lr_avant" =~ ^[0-9]+$ && "$lr_apres" =~ ^[0-9]+$ ]] && (( lr_avant > lr_apres )); then
                 lr_gain=" ; $(( (lr_avant - lr_apres) / 1024 )) Mo libérés dans $LR_VARLOG"
             fi
-            (( lr_unite_echec )) && systemctl reset-failed logrotate.service 2>/dev/null || true
+            if (( lr_unite_echec )); then systemctl reset-failed logrotate.service 2>/dev/null || true; fi
             pass "logrotate : rotation en retard rattrapée — ${lr_tournes:-0} journaux tournés$lr_gain (logrotate.service n'est plus en échec)"
         else
             lr_err3=$(grep -m1 -iE '^error:' <<< "$lr_sortie" || true)

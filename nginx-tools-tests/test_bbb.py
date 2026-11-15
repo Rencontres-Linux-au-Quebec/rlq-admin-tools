@@ -86,6 +86,15 @@ X""")
         texte = "\n".join(lignes)
         self.assertIn("[FAIL] nos règles ne sont pas chargées par nginx", texte)
         self.assertIn("[ATTN] bbb-conf --check signale 1 problèmes potentiels : # Warning: mismatch IP", texte)
+        # 1.6: the section of the problems is present but empty (BBB 2.7 on proxmox1): no warning "0 problems"
+        self.mock("bbb-conf", 'echo "# Potential problems described below"; echo ""; exit 0')
+        lignes, _ = m.verifier(m.releve())
+        self.assertIn("[OK] bbb-conf --check : aucun problème potentiel signalé", "\n".join(lignes))
+        # 1.6: too long: said as such, not "indisponible"
+        m.BBB_CONF_TIMEOUT = 1
+        self.mock("bbb-conf", 'sleep 5')
+        lignes, _ = m.verifier(m.releve())
+        self.assertIn("bbb-conf --check : arrêté après 1 s", "\n".join(lignes))
 
     def test_mise_a_jour_de_bbb_entre_deux_passages(self):
         """--update écrit l'instantané ; une mise à jour de BBB qui régénère haproxy.cfg (sans HSTS) et change les versions

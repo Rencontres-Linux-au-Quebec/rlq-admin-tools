@@ -32,7 +32,7 @@ import ssl
 import subprocess
 import sys
 
-__version__ = "1.5.20261030.153422"
+__version__ = "1.6.20261115.162951"
 
 ETC_BBB = os.environ.get("NGINX_TOOLS_BBB_ETC", "/etc/bigbluebutton")
 NGINX_BBB = os.environ.get("NGINX_HARDENING_BBB_NGINX_DIR", os.path.join(ETC_BBB, "nginx"))
@@ -53,15 +53,20 @@ HSTS_RE = re.compile(r"(?m)^\s*http-after-response\s+set-header\s+Strict-Transpo
 VERBOSE = False     # --verbose : chaque commande externe est affichee avant son execution
 
 
+BBB_CONF_TIMEOUT = 300         # seconds: bbb-conf --check of BBB 3.0 took more than 180 s on a busy VM (1.6)
+
+
 def lancer(cmd, timeout=60):
-    """(code, sortie) ; commande absente ou trop longue : (127, "")."""
+    """(code, sortie) ; commande absente : (127, "") ; trop longue : (124, "") (1.6)."""
     if VERBOSE:
         print("+ " + " ".join(cmd), file=sys.stderr)
     try:
         r = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL,
                            timeout=timeout, universal_newlines=True, errors="replace")
         return r.returncode, r.stdout
-    except (OSError, subprocess.TimeoutExpired):
+    except subprocess.TimeoutExpired:
+        return 124, ""
+    except OSError:
         return 127, ""
 
 
@@ -255,13 +260,15 @@ def verifier(etat, avec_bbb_conf=True):
         else:
             ok(f"{libelle} : https://{nom}{chemin} → {statut}")
     if avec_bbb_conf:
-        code, out = lancer(["bbb-conf", "--check"], timeout=180)
-        if code == 127 and not out:
-            lignes.append("       bbb-conf --check : indisponible")
+        code, out = lancer(["bbb-conf", "--check"], timeout=BBB_CONF_TIMEOUT)
+        if code == 124 and not out:
+            lignes.append(f"       bbb-conf --check : arrêté après {BBB_CONF_TIMEOUT} s (trop long ; le lancer à la main : bbb-conf --check)")
+        elif code == 127 and not out:
+            lignes.append("       bbb-conf --check : indisponible (commande absente)")
         else:
             bloc = out.split("# Potential problems", 1)
-            if len(bloc) == 2:
-                pbs = [l.strip() for l in bloc[1].splitlines()[1:] if l.strip() and not set(l.strip()) <= {"#", "-", "="}]
+            pbs = [l.strip() for l in bloc[1].splitlines()[1:] if l.strip() and not set(l.strip()) <= {"#", "-", "="}] if len(bloc) == 2 else []
+            if pbs:
                 attn(f"bbb-conf --check signale {len(pbs)} problèmes potentiels : " + " | ".join(pbs[:4])
                      + (" …" if len(pbs) > 4 else ""), "voir bbb-conf --check")
             else:

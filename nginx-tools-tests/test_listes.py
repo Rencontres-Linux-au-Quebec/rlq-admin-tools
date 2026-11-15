@@ -214,6 +214,12 @@ class ListesBash(EnvTest):
                            env={k: v for k, v in dict(os.environ, NGINX_TOOLS_WHITE_LIST=os.path.join(self.d, "absent"), HOME=home, SCRIPT_DIR=SCRIPTS_DIR).items()
                                 if k != "NGINX_TOOLS_IP_LOCATION"})
         self.assertIn(f"lieux {home}/.nginx-tools-ip-location.conf (1 plages)", r.stdout)
+        # 2.107: no HOME at all (qm guest exec in a VM) under "set -u": no "HOME: unbound variable"
+        r = subprocess.run(["bash", "-c", f'set -u; . "{listes_sh(self.d)}"; listes_resume'], capture_output=True, text=True,
+                           env={k: v for k, v in dict(os.environ, NGINX_TOOLS_WHITE_LIST=os.path.join(self.d, "absent"), SCRIPT_DIR=SCRIPTS_DIR).items()
+                                if k not in ("NGINX_TOOLS_IP_LOCATION", "HOME")})
+        self.assertNotIn("unbound", r.stderr)
+        self.assertIn("Listes : liste blanche : aucun fichier", r.stdout)
 
     def test_ancien_emplacement_en_bash(self):
         dossier = os.path.dirname(self.write("scripts/apps/team-ips.list", "203.0.113.10  # ancienne\n"))

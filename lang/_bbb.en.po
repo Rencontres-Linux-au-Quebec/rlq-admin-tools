@@ -200,3 +200,12 @@ msgstr "(unknown version: bigbluebutton-release missing)"
 
 msgid " ; nos fichiers : "
 msgstr "; our files: "
+
+msgid "bbb-conf --check : arrêté après "
+msgstr "bbb-conf --check: stopped after "
+
+msgid " s (trop long ; le lancer à la main : bbb-conf --check)"
+msgstr " s (too long; run it by hand: bbb-conf --check)"
+
+msgid "bbb-conf --check : indisponible (commande absente)"
+msgstr "bbb-conf --check: unavailable (command missing)"
