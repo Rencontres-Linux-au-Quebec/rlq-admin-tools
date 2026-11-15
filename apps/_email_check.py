@@ -32,7 +32,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
-__version__ = "1.3.20261022.231529"
+__version__ = "1.4.20261115.184859"
 
 TIMEOUT_S = 8
 USER_AGENT = "nginx-tools-email-check/1.0 (+https://www.rencontres-linux.quebec)"
@@ -43,6 +43,9 @@ POPULAR_DOMAINS = ("gmail.com", "hotmail.com", "hotmail.ca", "outlook.com", "out
                    "yahoo.fr", "icloud.com", "me.com", "mac.com", "videotron.ca", "sympatico.ca", "bell.net", "cogeco.ca", "cgocable.ca", "globetrotter.net",
                    "telus.net", "shaw.ca", "rogers.com", "protonmail.com", "proton.me", "pm.me", "gmx.com", "gmx.fr", "aol.com", "laposte.net",
                    "orange.fr", "free.fr", "videotron.qc.ca", "umontreal.ca", "ulaval.ca", "etsmtl.ca", "usherbrooke.ca", "uqam.ca", "mcgill.ca", "polymtl.ca")
+# Forwarding aliases (Firefox Relay, DuckDuckGo, SimpleLogin, AnonAddy): a real, valid address that forwards to the person's mailbox. They look
+# like typos of popular domains ("mozmail.com" is 2 edits from "hotmail.com") but must never be corrected or reported as invalid.
+RELAY_DOMAINS = ("mozmail.com", "relay.firefox.com", "duck.com", "simplelogin.com", "simplelogin.io", "anonaddy.com", "anonaddy.me")
 # Frequent mistakes that a distance cannot guess safely (wrong top-level domain of a known name).
 KNOWN_TYPOS = {"gmail.co": "gmail.com", "gmail.con": "gmail.com", "gmail.cm": "gmail.com", "gmail.om": "gmail.com", "gmail.ca": "gmail.com",
                "gmail.fr": "gmail.com", "gmail.comm": "gmail.com", "gmail.cmo": "gmail.com", "gmail.c": "gmail.com", "gmailcom": "gmail.com",
@@ -152,6 +155,8 @@ def suggest(address):
     domain = re.sub(r"[,;'`´’:]+", ".", domain)
     domain = re.sub(r"\.{2,}", ".", domain).strip(".")
     domain = KNOWN_TYPOS.get(domain, domain)
+    if domain in RELAY_DOMAINS:
+        return None
     if domain not in POPULAR_DOMAINS and not is_disposable(domain):
         best, best_d = None, 3
         for p in POPULAR_DOMAINS:

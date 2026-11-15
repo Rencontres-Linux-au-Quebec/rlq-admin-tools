@@ -155,3 +155,27 @@ class Courriel(EnvTest):
         self.assertEqual(r.returncode, 1)
         self.assertIn("non configuré", r.stderr)
         self.assertNotIn("Traceback", r.stderr)
+
+
+class AliasRelais(EnvTest):
+    """1.4 : les alias de transfert (Firefox Relay...) sont valides, sans correction (mozmail.com n'est pas une faute de hotmail.com)."""
+
+    def module(self):
+        import importlib.util
+        from helpers import script_path
+        spec = importlib.util.spec_from_file_location("ec14", os.path.join(os.path.dirname(script_path("odoo-mail-retry.py")), "apps", "_email_check.py"))
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        return module
+
+    def test_14_mozmail_valide_sans_correction(self):
+        ec = self.module()
+        r = ec.check("2rzh4fpfk@mozmail.com")
+        self.assertTrue(r["valid"])
+        self.assertIsNone(r["reason"])
+        self.assertIsNone(r["suggestion"])
+
+    def test_14_faute_reelle_corrigee_encore(self):
+        ec = self.module()
+        r = ec.check("j@videtron.ca")
+        self.assertEqual(r["suggestion"], "j@videotron.ca")
