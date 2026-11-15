@@ -32,8 +32,9 @@ import re
 import time
 from collections import Counter
 
-__version__ = "1.16.20261109.234500"
+__version__ = "1.17.20261114.163844"
 
+LOGIN_PATH_RE = re.compile(r"^/(?:[a-z]{2}(?:_[A-Z]{2})?/)?web/login\b")      # 1.17: the sign-in page of Odoo (with or without a language prefix)
 PROBLEM, LOOK, INFO = 2, 1, 0                         # severities: problem, to look at, information
 
 HISTORY_FILE = "advisor-history.json"
@@ -483,7 +484,7 @@ class Analyzer:
         self.findings = []
         for rule in (self.rule_5xx, self.rule_nginx_upstream, self.rule_sitemap_404, self.rule_repeated_4xx, self.rule_odoo_errors, self.rule_conflicts,
                      self.rule_push_duplicates, self.rule_mails, self.rule_slow, self.rule_memory, self.rule_odoo_conf_check, self.rule_odoo_runtime, self.rule_hot_pairs, self.rule_bans,
-                     self.rule_account_forms,
+                     self.rule_account_forms, self.rule_disk_space,
                      self.rule_latency_sample):
             try:
                 rule(facts, details)
@@ -569,7 +570,19 @@ class Analyzer:
         now = (details.get("now") or {}).get(path)
         if now is not None:
             state["now"] = now
-            lines.append(tr("Answer of the site now: {code}").format(code=now))
+            final = (details.get("now_final") or {}).get(path)
+            if final:
+                # 1.17: a redirect is FOLLOWED: « 301 » alone hid a page that works (/L answers 301 to /L/, then 200) and got the advice « correct the link »
+                code, where = final
+                lines.append(tr("Answer of the site now: {code}, then {final} at {where}").format(code=now, final=code, where=raw(_cut(where, 80))))
+                if code == 200 and LOGIN_PATH_RE.search(where):
+                    state["login"] = where
+                elif code == 200:
+                    state["now"], state["via"] = 200, where
+                elif code:
+                    state["now"] = code
+            else:
+                lines.append(tr("Answer of the site now: {code}").format(code=now))
         rec = (details.get("records") or {}).get(path)
         if rec:
             state["record"] = rec
@@ -760,7 +773,12 @@ class Analyzer:
             longer = sorted(p for p in (paths or ()) if p.startswith(path) and p != path)[:3] if paths else []
             if state.get("now") == 200:
                 self.add("sitemap-404-now-ok:" + path, INFO, tr("{n} answers 404 on {url} (sitemap page), but it answers 200 now").format(n=n, url=raw(url)), n, site + refs,
-                         tr("the 404 were temporary: the page was published or restored since, or Odoo was restarting"), [tr("nothing to do")])
+                         self.now_ok_cause(state), [tr("nothing to do")])
+                continue
+            if state.get("login"):
+                self.add("sitemap-404-login:" + path, INFO, tr("{n} answers 404 on {url} (sitemap page): it asks to sign in now").format(n=n, url=raw(url)), n, site + refs,
+                         tr("the page exists and is reserved to signed-in users: a visitor is sent to the sign-in page"),
+                         [tr("nothing to do if the page is meant to be private; otherwise make it public, and remove it from the sitemap if it stays private")])
                 continue
             if longer:
                 self.add("sitemap-404-truncated:" + path, LOOK, tr("404 on {url}: beginning of a real page, a truncated link").format(url=raw(url)), n,
@@ -773,6 +791,13 @@ class Analyzer:
                      cause or tr("the page was deleted, unpublished or renamed while the sitemap or a link still lists it"),
                      advice or [tr("publish the page again, or add a 301 redirect to its replacement (Website > Configuration > Redirects)"),
                                 tr("then correct the menus and links that point to it (see the referers)")])
+
+    def now_ok_cause(self, state):
+        """Cause of 404 answers on a page that works now (1.17: directly, or after a redirect of the site that was followed)."""
+        tr, raw = self.tr, self.raw
+        if state.get("via"):
+            return tr("the page works now, through a redirect of the site to {where}: the 404 came before it was put in place").format(where=raw(_cut(state["via"], 80)))
+        return tr("the 404 were temporary: the page was published or restored since, or Odoo was restarting")
 
     def record_cause(self, state):
         """(cause, advice) from the record found in Odoo for a page answering 404; ("", []) when nothing is known."""
@@ -839,7 +864,11 @@ class Analyzer:
             site, state = self.site_lines(path, details)
             if state.get("now") == 200:
                 self.add("dead-link-now-ok:" + path, INFO, tr("{n} answers 404 on {url}, but it answers 200 now").format(n=count, url=raw(path)), count, evidence + site,
-                         tr("the 404 were temporary: the page was published or restored since, or Odoo was restarting"), [tr("nothing to do")])
+                         self.now_ok_cause(state), [tr("nothing to do")])
+                continue
+            if state.get("login"):
+                self.add("dead-link-login:" + path, INFO, tr("{n} answers 404 on {url}: it asks to sign in now").format(n=count, url=raw(path)), count, evidence + site,
+                         tr("the page exists and is reserved to signed-in users: a visitor is sent to the sign-in page"), [tr("nothing to do if the page is meant to be private")])
                 continue
             inside = internal_referers(detail, facts.get("site_hosts") or ())
             cause, advice = self.record_cause(state)
@@ -1443,9 +1472,22 @@ class Analyzer:
                       for ip, who, reason in signed[:5]],
                      tr("suspicious requests from an address shared with a user of the site (same network, VPN, mobile carrier)"),
                      [tr("look at the requests of that address before anything: a ban would also block the user")], confirmed=True)
+        # 1.17: the verdict of nginx-log-audit.sh --investigate, read by --advise (read-only): an address that its --ban gate would refuse is not « to ban »
+        verdicts = details.get("verdicts") or {}
+        refused = [(ip, who, reason) for ip, who, reason in to_ban if ip in verdicts and verdicts[ip][0] != "BANNIR"]
+        if refused:
+            to_ban = [x for x in to_ban if x not in refused]
+            self.add("ban-refused", INFO, tr("Addresses with suspicious requests that nginx-log-audit.sh does not recommend banning: {n}").format(n=len(refused)), len(refused),
+                     [f"{raw(who)} : {reason} · nginx-log-audit.sh : {raw(verdicts[ip][0])}" + (f" ({raw(_cut(verdicts[ip][1], 120))})" if verdicts[ip][1] else "")
+                      for ip, who, reason in refused[:5]],
+                     tr("too few signs of an attack for a ban (score under the threshold of nginx-log-audit.sh, white list or shared relay)"),
+                     [tr("nothing to do: the address is proposed again if it comes back with more"),
+                      tr("to see the evidence: nginx-log-audit.sh --investigate ADDRESS")], confirmed=True)
         if to_ban:
+            judged = [f"{raw(who)} : {reason}" + (f" · nginx-log-audit.sh : {raw(verdicts[ip][0])}" + (f" ({raw(_cut(verdicts[ip][1], 120))})" if verdicts[ip][1] else "") if ip in verdicts else "")
+                      for ip, who, reason in to_ban[:5]]
             self.add("ban-pending", LOOK, tr("Addresses to ban: {n}").format(n=len(to_ban)), len(to_ban),
-                     [f"{raw(who)} : {reason}" for _ip, who, reason in to_ban[:5]] + ([tr("… and {n} more").format(n=len(to_ban) - 5)] if len(to_ban) > 5 else [])
+                     judged + ([tr("… and {n} more").format(n=len(to_ban) - 5)] if len(to_ban) > 5 else [])
                      + [tr("The score of nginx-log-audit.sh (0 to 7, ban from 3) is computed when key b investigates each address; the white list and the CDN names are checked first")],
                      tr("suspicious requests (.env, wp-includes, probes) from addresses that are neither banned nor protected"),
                      [tr("key b: nginx-log-audit.sh --ban checks the white list and its score (threshold 3) before banning; CDN relays are never proposed")],
@@ -1522,6 +1564,26 @@ class Analyzer:
                      tr("normal use and search engines following the links"), [tr("nothing to do")])
 
     # --- latency sample ----------------------------------------------------------------------------------------------------------
+    def rule_disk_space(self, facts, details):
+        """1.17: a file system almost full (under 10 % free, or no inode left): PostgreSQL stops when its disk is full, Odoo cannot write its filestore or its sessions."""
+        tr, raw = self.tr, self.raw
+        low = []
+        for point, _kind, free, total, inodes_free, inodes in details.get("disks") or ():
+            if total and (free * 10 < total or (inodes and inodes_free * 20 < inodes)):
+                low.append((free / max(total, 1), point, free, total, inodes_free, inodes))
+        if not low:
+            return
+        low.sort()
+        worst = low[0][0]
+        self.add("disk-space", PROBLEM if worst < 0.05 else LOOK, tr("Disk almost full: {n}").format(n=len(low)), len(low),
+                 [tr("{point}: {free} GB free of {total} GB ({pct} %)").format(point=raw(point), free=f"{free / 1e9:.1f}", total=f"{total / 1e9:.1f}", pct=int(100 * share))
+                  + (" · " + tr("inodes: {n} % free").format(n=100 * inodes_free // inodes) if inodes and inodes_free * 20 < inodes else "")
+                  for share, point, free, total, inodes_free, inodes in low[:5]],
+                 tr("a file system of this server has almost no room left: PostgreSQL stops when its disk is full, and Odoo can no longer write files, sessions or logs"),
+                 [tr("find what takes the room: du -xh --max-depth=2 MOUNT_POINT | sort -h | tail -20 (old backups, logs, filestore)"),
+                  tr("in a Proxmox container, the disk can be enlarged from the host without stopping it: pct resize ID MOUNT +10G (host-perf-audit.py on the host names it)")],
+                 confirmed=True)
+
     def rule_latency_sample(self, facts, details):
         tr = self.tr
         n, requests = facts.get("latency_n"), facts.get("requests") or 0

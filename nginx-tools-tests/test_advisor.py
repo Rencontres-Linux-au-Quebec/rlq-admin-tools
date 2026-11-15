@@ -933,6 +933,55 @@ class Version19(unittest.TestCase):
         self.assertEqual(ADV.split_acknowledged(findings, ADV.Acknowledgements(os.path.join(d, ADV.ACK_FILE)).active(time.time() + 31 * 86400))[1], [])
 
 
+class Version117(unittest.TestCase):
+    """apps/_advisor.py 1.17 (app-log-live.py 1.194): redirects followed, verdict of nginx-log-audit.sh for the addresses to ban, disk almost full. Invented data only."""
+
+    def test_redirection_suivie_la_page_fonctionne(self):
+        f = par_id(ADV.analyze(faits(plain_4xx={"/L": 16}), {"now": {"/L": 301}, "now_final": {"/L": (200, "/L/")}}))
+        self.assertNotIn("dead-link:/L", f)
+        ok = f["dead-link-now-ok:/L"]
+        self.assertEqual(ok["severity"], ADV.INFO)
+        self.assertTrue(any("301, then 200 at /L/" in e for e in ok["evidence"]))
+        self.assertIn("through a redirect of the site to /L/", ok["cause"])
+        self.assertEqual(ok["advice"], ["nothing to do"])
+
+    def test_redirection_vers_une_page_absente_reste_un_lien_mort(self):
+        f = par_id(ADV.analyze(faits(plain_4xx={"/vieux": 12}), {"now": {"/vieux": 303}, "now_final": {"/vieux": (404, "/en_CA/vieux")}}))
+        self.assertIn("dead-link:/vieux", f)
+        self.assertTrue(any("303, then 404 at /en_CA/vieux" in e for e in f["dead-link:/vieux"]["evidence"]))
+
+    def test_redirection_vers_la_connexion(self):
+        f = par_id(ADV.analyze(faits(plain_4xx={"/rlq/prive": 8}), {"now": {"/rlq/prive": 303}, "now_final": {"/rlq/prive": (200, "/fr_CA/web/login?redirect=%2Frlq%2Fprive")}}))
+        self.assertNotIn("dead-link:/rlq/prive", f)
+        self.assertNotIn("dead-link-now-ok:/rlq/prive", f)
+        self.assertIn("asks to sign in now", f["dead-link-login:/rlq/prive"]["title"])
+
+    def test_verdict_de_nginx_log_audit(self):
+        cible = [("198.51.100.7", "scan [198.51.100.7]", "1 suspicious requests"), ("192.0.2.9", "y [192.0.2.9]", "5 suspicious requests")]
+        f = par_id(ADV.analyze(faits(to_ban=cible), {"verdicts": {"198.51.100.7": ("AUCUNE ACTION", "Score 1/7", 0), "192.0.2.9": ("BANNIR", "Score 4/7", 2)}}))
+        self.assertEqual([ip for ip, _w, _r in f["ban-pending"]["fix"][1]], ["192.0.2.9"])                 # the refused address is no longer « to ban »
+        self.assertTrue(any("BANNIR (Score 4/7)" in e for e in f["ban-pending"]["evidence"]))
+        self.assertEqual(f["ban-refused"]["severity"], ADV.INFO)
+        self.assertTrue(any("198.51.100.7" in e and "AUCUNE ACTION (Score 1/7)" in e for e in f["ban-refused"]["evidence"]))
+        seul = par_id(ADV.analyze(faits(to_ban=cible[:1]), {"verdicts": {"198.51.100.7": ("AUCUNE ACTION", "Score 1/7", 0)}}))
+        self.assertNotIn("ban-pending", seul)
+        sans = par_id(ADV.analyze(faits(to_ban=cible), {}))                                                 # no verdict read: as before
+        self.assertEqual(len(sans["ban-pending"]["fix"][1]), 2)
+        self.assertNotIn("ban-refused", sans)
+
+    def test_disque_presque_plein(self):
+        G = 10 ** 9
+        disques = [("/", "zfs", 4.1 * G, 10.7 * G, 500000, 600000), ("/opt/odoo", "zfs", 2.4 * G, 59 * G, 500000, 600000), ("/var/log", "zfs", 17 * G, 32 * G, 10, 600000)]
+        f = par_id(ADV.analyze(faits(), {"disks": disques}))["disk-space"]
+        self.assertEqual(f["severity"], ADV.PROBLEM)                                                       # 4 % free: a problem
+        self.assertEqual(f["count"], 2)
+        self.assertTrue(f["evidence"][0].startswith("/opt/odoo: 2.4 GB free of 59.0 GB (4 %)"))
+        self.assertTrue(any(e.startswith("/var/log") and "inodes: 0 % free" in e for e in f["evidence"]))
+        self.assertFalse(any(e.startswith("/:") for e in f["evidence"]))
+        self.assertNotIn("disk-space", par_id(ADV.analyze(faits(), {"disks": disques[:1]})))
+        self.assertEqual(par_id(ADV.analyze(faits(), {"disks": [("/srv", "ext4", 3 * G, 40 * G, 0, 0)]}))["disk-space"]["severity"], ADV.LOOK)
+
+
 class OdooRuntime110(unittest.TestCase):
     """1.10 : constats odoo-conf-not-applied, odoo-conf-command-line et odoo-processes (règle rule_odoo_runtime)."""
 

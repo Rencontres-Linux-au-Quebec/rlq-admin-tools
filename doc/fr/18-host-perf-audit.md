@@ -7,6 +7,7 @@ host-perf-audit.py                                  # une minute, un échantillo
 host-perf-audit.py --duration 4h                    # les heures chargées : un échantillon toutes les 60 s
 host-perf-audit.py --duration 24h --csv /root/perf.csv   # une journée entière, chaque échantillon dans un fichier pour tableur
 host-perf-audit.py --apply                          # rapport, puis les réglages sans risque un par un
+host-perf-audit.py --export-ai                      # rapport, puis rapport et état brut de l'hôte dans un fichier Markdown à envoyer pour vérification
 ```
 
 ## Ce qui est mesuré
@@ -32,3 +33,10 @@ Chaque suggestion a une priorité (HAUTE / MOYENNE / FAIBLE). Avec `--apply`, ce
 
 ## Options
 {{HELP}}
+
+## Espace, sauvegardes et export (1.10)
+
+* **Espace des pools** : espace libre, instantanés, plus gros datasets, et ce qui est placé directement dans un dataset parent (par exemple `/var/lib/vz/dump`).
+* **Disque d'un conteneur presque plein** : nommé avec son point de montage et la commande `pct resize`.
+* **Sauvegardes (vzdump)** : nombre, taille, rétention, tâches planifiées et heures des sauvegardes des 3 derniers jours, à comparer avec les heures lentes des sites.
+* **`--export-ai`** : écrit le rapport et l'état brut de l'hôte dans `/var/lib/host-perf-audit/export-ai-HÔTE-DATE.md` (mode 600, mots de passe masqués). Clé `EXPORT_AI` dans la configuration.

@@ -18,7 +18,7 @@
 #   * Ctrl-C during the measurement: the report is still produced with the samples already taken.
 #   * --apply: the SAFE and reversible settings (ZFS atime and compression of a dataset, ARC maximum, vm.swappiness) are offered one by one with
 #     confirmation; the others (hardware, VM disk options) are explained, never changed.
-# Configuration (common rule): /etc/default/host-perf-audit.conf THEN ~/.host-perf-audit.conf (the last one wins; keys CSV, DURATION, INTERVAL, LANGUAGE,
+# Configuration (common rule): /etc/default/host-perf-audit.conf THEN ~/.host-perf-audit.conf (the last one wins; keys CSV, DURATION, EXPORT_AI, INTERVAL, LANGUAGE,
 # NO_GUESTS, TOP, VERBOSE); -c/--config: that file ALONE; the command line takes priority.
 #
 #
@@ -27,6 +27,7 @@
 #   host-perf-audit.py --duration 4h           four hours (sample every 60 s): the daily peaks are included
 #   host-perf-audit.py --duration 30m --csv /root/perf.csv   samples also written to a CSV file (spreadsheet)
 #   host-perf-audit.py --apply                 report, then the safe settings offered one by one
+#   host-perf-audit.py --export-ai             report, then the report and the raw state of the host in a Markdown file to send for verification
 import argparse
 import datetime
 import glob
@@ -40,7 +41,7 @@ import subprocess
 import sys
 import time
 
-__version__ = "1.9.20261112.082236"
+__version__ = "1.10.20261114.163844"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
@@ -92,7 +93,7 @@ def load_module(name):
 
 
 SYSPERF = load_module("_sysperf")
-SCHEMA_CONFIG = {"CSV": ("csv", str), "DURATION": ("duration", str), "INTERVAL": ("interval", float), "NO_GUESTS": ("no_guests", bool), "TOP": ("top", int),
+SCHEMA_CONFIG = {"CSV": ("csv", str), "DURATION": ("duration", str), "EXPORT_AI": ("export_ai", str), "INTERVAL": ("interval", float), "NO_GUESTS": ("no_guests", bool), "TOP": ("top", int),
                  "VERBOSE": ("verbose", bool)}
 COLOR = sys.stdout.isatty() and not os.environ.get("NO_COLOR") and os.environ.get("TERM") != "dumb"
 
@@ -125,6 +126,15 @@ def read(path):
             return f.read()
     except OSError:
         return None
+
+
+def read_plain(path):
+    """Text of a real file of the host (/etc/pve, /var/log/pve: never under the test root of /proc and /sys); « » if unreadable."""
+    try:
+        with open(path, encoding="utf-8", errors="replace") as f:
+            return f.read()
+    except OSError:
+        return ""
 
 
 def parse_duration(text):
@@ -319,14 +329,416 @@ def zfs_facts():
             def ms(x):
                 return int(x) / 1e6 if x.isdigit() else None
             pools[c[0]]["latency"] = {"total_r": ms(c[7]), "total_w": ms(c[8]), "disk_r": ms(c[9]), "disk_w": ms(c[10]), "syncq_w": ms(c[12]), "asyncq_w": ms(c[14])}
-    datasets = {}
-    code, out = run(["zfs", "get", "-H", "-p", "-o", "name,property,value", "-t", "filesystem,volume",
-                     "compression,atime,relatime,recordsize,volblocksize,sync,primarycache,logbias,compressratio,used"])
+    datasets, sources = {}, {}
+    # 1.10: « source » tells an inherited value from a value set on the dataset; space columns and mount point for the space report
+    code, out = run(["zfs", "get", "-H", "-p", "-o", "name,property,value,source", "-t", "filesystem,volume",
+                     "compression,atime,relatime,recordsize,volblocksize,sync,primarycache,logbias,compressratio,used,available,refquota,"
+                     "usedbydataset,usedbysnapshots,usedbychildren,mountpoint"])
     for line in out.splitlines():
         c = line.split("\t")
-        if len(c) == 3:
+        if len(c) >= 3:
             datasets.setdefault(c[0], {})[c[1]] = c[2]
-    return {"pools": pools, "datasets": datasets}
+        if len(c) >= 4:
+            sources.setdefault(c[0], {})[c[1]] = c[3]
+    snapshots = []
+    code, out = run(["zfs", "list", "-H", "-p", "-t", "snapshot", "-o", "name,used,creation"])
+    for line in out.splitlines():
+        c = line.split("\t")
+        if len(c) == 3 and "@" in c[0] and c[1].isdigit() and c[2].isdigit():
+            snapshots.append((c[0], int(c[1]), int(c[2])))
+    return {"pools": pools, "datasets": datasets, "sources": sources, "snapshots": snapshots}
+
+
+# ---------------------------------------------------------------------------------------------------------------- space, backups, host tasks (1.10)
+def size(n):
+    """Bytes in the largest binary unit: 2.9 TiB, 391.0 GiB, 876 MiB."""
+    n = float(n or 0)
+    for unit, value in (("TiB", 2 ** 40), ("GiB", 2 ** 30)):
+        if n >= value:
+            return f"{n / value:.1f} {unit}"
+    return f"{n / 2 ** 20:.0f} MiB"
+
+
+def inherited_groups(zfs, prop, is_bad):
+    """[(dataset where the value is set, number of datasets that inherit it from there)] for the datasets whose properties satisfy is_bad.
+    1.10: sixteen datasets inheriting sync=disabled from their parent gave sixteen identical lines. Without the « source » column (old zfs), every dataset
+    stands for itself, as before."""
+    datasets, sources = zfs.get("datasets", {}), zfs.get("sources", {})
+    hit = [n for n, p in sorted(datasets.items()) if is_bad(p)]
+    roots = {}
+    for n in hit:
+        m = re.match(r"inherited from (\S+)", sources.get(n, {}).get(prop, ""))
+        if m and m.group(1) in hit:
+            roots[m.group(1)] = roots.get(m.group(1), 0) + 1
+        else:
+            roots.setdefault(n, 0)
+    return sorted(roots.items())
+
+
+def and_heirs(count):
+    return f" (and {count} datasets that inherit it)" if count else ""
+
+
+def directory_sizes(path, limit=60000, seconds=12.0):
+    """({first-level name: bytes on the disk}, complete?) of a folder: bounded walk (same filesystem, no symbolic link followed, at most « limit » entries
+    and « seconds » seconds) so that a huge tree never keeps the disks busy."""
+    sizes, seen, deadline, complete = {}, 0, time.monotonic() + seconds, True
+    try:
+        device = os.stat(path).st_dev
+        first = sorted(os.scandir(path), key=lambda e: e.name)
+    except OSError:
+        return {}, True
+    for entry in first:
+        stack, total = [entry], 0
+        while stack:
+            e = stack.pop()
+            try:
+                st = e.stat(follow_symlinks=False)
+            except OSError:
+                continue
+            if st.st_dev != device:
+                continue
+            total += st.st_blocks * 512
+            seen += 1
+            if seen > limit or time.monotonic() > deadline:
+                complete = False
+                break
+            if e.is_dir(follow_symlinks=False):
+                try:
+                    stack.extend(os.scandir(e.path))
+                except OSError:
+                    pass
+        sizes[entry.name] = total
+        if not complete:
+            break
+    return sizes, complete
+
+
+def zfs_space(zfs, names, fd, out):
+    """1.10: where the space of each pool goes (datasets, snapshots, files stored directly in a parent dataset) and the guest disks that are almost full."""
+    datasets = zfs.get("datasets", {})
+
+    def num(name, key):
+        value = datasets.get(name, {}).get(key, "")
+        return int(value) if value.isdigit() else 0
+
+    for pool in zfs.get("pools", {}):
+        members = [n for n in datasets if n == pool or n.startswith(pool + "/")]
+        if not members or not num(pool, "used"):
+            continue
+        snaps = [s for s in zfs.get("snapshots", []) if s[0].split("@")[0] in members]
+        snap_total = sum(num(n, "usedbysnapshots") for n in members)
+        line = f"    space of pool {pool} — {size(num(pool, 'available'))} free, {size(num(pool, 'used'))} used · snapshots {size(snap_total)}"
+        if snaps:
+            oldest = min(snaps, key=lambda s: s[2])
+            line += f" ({len(snaps)} snapshots, the oldest of {datetime.date.fromtimestamp(oldest[2])}, {oldest[0]})"
+        out.append(line)
+        for n in sorted(members, key=lambda n: -num(n, "usedbydataset"))[:6]:
+            own = num(n, "usedbydataset")
+            if own < 2 ** 30:
+                continue
+            snap, quota = num(n, "usedbysnapshots"), num(n, "refquota")
+            out.append(f"      {n:<38} {size(own):>10}" + (f" + {size(snap)} of snapshots" if snap >= 2 ** 20 else "")
+                       + (f" · {size(num(n, 'available'))} free of {size(quota)}" if quota else ""))
+        for n in members:
+            own, mount = num(n, "usedbydataset"), datasets[n].get("mountpoint", "")
+            if not num(n, "usedbychildren") or own < max(10 * 2 ** 30, num(pool, "used") // 10) or not mount.startswith("/") or not os.path.isdir(mount):
+                continue
+            sizes, complete = directory_sizes(mount)
+            top = sorted(sizes.items(), key=lambda x: -x[1])[:4]
+            if top:
+                out.append(f"      files stored directly in {n} ({mount}), outside the guests: "
+                           + ", ".join(f"{name} {size(b)}" for name, b in top) + ("" if complete else " (partial count: too many files)"))
+    for n in sorted(datasets):
+        quota, free = num(n, "refquota"), num(n, "available")
+        if not quota or not (free < quota * 0.10 or (free < 2 * 2 ** 30 and free < quota * 0.30)):
+            continue
+        base = n.rsplit("/", 1)[-1]
+        m = re.match(r"subvol-(\d+)-disk-\d+$", base)
+        vmid = m.group(1) if m else ""
+        _kind, name, conf = names.get(vmid, ("", "", ""))
+        where = re.search(rf"^(rootfs|mp\d+):\s*\S*{re.escape(base)}(?:,(.*))?$", conf, re.M) if vmid else None
+        mount = re.search(r"mp=([^,\s]+)", where.group(2) or "") if where else None
+        key = where.group(1) if where else ""
+        more = max(5, round(quota / 2 ** 30 * 0.25))
+        fd.suggest(1 if free < quota * 0.05 else 2,
+                   (f"container {vmid} ({name}): disk {base}" if vmid else f"dataset {n}") + (f" mounted on {mount.group(1)}" if mount else " (the root disk)" if key == "rootfs" else "")
+                   + f" has only {size(free)} free of {size(quota)} — a full disk stops PostgreSQL and Odoo: free space inside the guest, or enlarge it"
+                   + (f": pct resize {vmid} {key} +{more}G" if key else ""))
+
+
+BACKUP_RE = re.compile(r"^vzdump-(lxc|qemu)-(\d+)-(\d{4})_(\d\d)_(\d\d)-(\d\d)_(\d\d)_(\d\d)\.(?:tar|vma|tgz)(?:\.\w+)?$")
+
+
+def pve_sections(path):
+    """[(type, name, {key: value})] of a section file of Proxmox (storage.cfg, jobs.cfg): « type: name » then indented « key value » lines."""
+    sections = []
+    for line in read_plain(path).splitlines():
+        m = re.match(r"^(\w[\w-]*):\s*(\S+)\s*$", line)
+        if m:
+            sections.append((m.group(1), m.group(2), {}))
+        elif sections and line[:1] in (" ", "\t") and line.strip():
+            parts = line.split(None, 1)
+            sections[-1][2][parts[0]] = parts[1].strip() if len(parts) > 1 else ""
+    return sections
+
+
+def retention_of(options):
+    """Retention read in the options of a storage, a job or vzdump.conf: « keep-last=3,keep-daily=7 », « maxfiles=2 », or « » (none: everything is kept)."""
+    prune = options.get("prune-backups", "")
+    keeps = [k for k in prune.split(",") if k and not re.match(r"keep-all=1$", k.strip()) and not re.match(r"keep-\w+=0$", k.strip())]
+    if keeps:
+        return ",".join(k.strip() for k in keeps)
+    return f"maxfiles={options['maxfiles']}" if options.get("maxfiles", "0") not in ("0", "") else ""
+
+
+def scan_backups(folder, depth=3):
+    """Backup files under a dump folder (sub-folders included, « depth » levels): ([(guest id, bytes, time, path)], other big files [(bytes, path)],
+    interrupted-backup folders [(time, path)])."""
+    backups, others, leftovers = [], [], []
+    stack = [(folder, 0)]
+    while stack:
+        current, level = stack.pop()
+        try:
+            entries = list(os.scandir(current))
+        except OSError:
+            continue
+        for e in entries:
+            try:
+                st = e.stat(follow_symlinks=False)
+            except OSError:
+                continue
+            if e.is_dir(follow_symlinks=False):
+                if e.name.startswith("vzdumptmp") or e.name.endswith(".tmp"):
+                    leftovers.append((st.st_mtime, e.path))
+                elif level < depth:
+                    stack.append((e.path, level + 1))
+                continue
+            m = BACKUP_RE.match(e.name)
+            if m:
+                when = datetime.datetime(*(int(x) for x in m.groups()[2:8])).timestamp()
+                backups.append((m.group(2), st.st_size, when, e.path))
+            elif st.st_size >= 100 * 2 ** 20 and not e.name.endswith((".log", ".notes")):
+                others.append((st.st_size, e.path))
+    return backups, others, leftovers
+
+
+def recent_tasks(days=3, kinds=("vzdump", "vzsnapshot", "qmsnapshot", "vzrestore", "qmrestore", "zfs", "scrub")):
+    """Tasks of Proxmox finished during the last days, from /var/log/pve/tasks/index*: [(start, end, type, id, status)], most recent last.
+    A backup or a snapshot is what makes the HDD busy for the guests: its hours are compared with the slow hours of the sites."""
+    tasks, since = [], time.time() - days * 86400
+    for path in sorted(glob.glob(os.environ.get("HOST_PERF_AUDIT_TASKS", "/var/log/pve/tasks/index") + "*"), reverse=True):
+        for line in read_plain(path).splitlines():
+            parts = line.split()
+            u = parts[0].split(":") if parts else []
+            if len(u) < 8 or u[0] != "UPID" or len(parts) < 3:
+                continue
+            try:
+                start, end = int(u[4], 16), int(parts[1], 16)
+            except ValueError:
+                continue
+            if start >= since and u[5] in kinds:
+                tasks.append((start, end, u[5], u[6], " ".join(parts[2:])[:60]))
+    return sorted(tasks)
+
+
+def io_tasks():
+    """Processes of the host that read or write a lot when they run (backup, copy, compression, zfs send / receive): {short description}."""
+    known = {"vzdump", "rsync", "zstd", "lzop", "pigz", "gzip", "tar", "dd", "fstrim", "proxmox-backup-client", "vma", "borg", "restic", "rclone", "cp", "zfs", "zpool"}
+    found = set()
+    for path in glob.glob(SYSPERF._p("/proc/[0-9]*") if SYSPERF else "/proc/[0-9]*"):
+        try:
+            comm = open(path + "/comm", encoding="utf-8", errors="replace").read().strip()
+            cmd = open(path + "/cmdline", encoding="utf-8", errors="replace").read().replace("\0", " ").strip()
+        except OSError:
+            continue
+        if ":vzdump:" in cmd or comm == "vzdump":
+            m = re.search(r":vzdump:(\d*):", cmd)
+            found.add("vzdump" + (f" {m.group(1)}" if m and m.group(1) else ""))
+        elif comm in ("zfs", "zpool"):
+            if re.search(r"\b(send|receive|recv|scrub|destroy)\b", cmd):
+                found.add(cmd[:50])
+        elif comm in known and comm != "cp":
+            found.add(comm)
+    return found
+
+
+def group_waits():
+    """% of the last minute during which the tasks of each top-level cgroup waited for the disk (io.pressure, « some avg60 »): tells whether the wait
+    is felt in the guests (lxc, qemu.slice) or in the tasks of the host itself (system.slice: backups, pvedaemon; user.slice: a shell)."""
+    root = SYSPERF._p("/sys/fs/cgroup") if SYSPERF else "/sys/fs/cgroup"
+    res = []
+    for group in ("lxc", "qemu.slice", "system.slice", "user.slice"):
+        m = re.search(r"^some .*?avg60=([\d.]+)", read(os.path.join(root, group, "io.pressure")) or "", re.M)
+        if m:
+            res.append((group, float(m.group(1))))
+    return res
+
+
+def analyze_backups(zfs, names, fd, out):
+    """1.10: the backups of vzdump: where they are, how many, how much space, which retention, when they ran. On a pool of HDD shared with the guests,
+    they are the first thing that fills the pool and that makes the guests wait."""
+    storages = [(name, o) for kind, name, o in pve_sections(os.path.join(PVE_DIR, "storage.cfg")) if o.get("path") and "backup" in o.get("content", "")]
+    jobs = [(name, o) for kind, name, o in pve_sections(os.path.join(PVE_DIR, "jobs.cfg")) if kind == "vzdump"]
+    general = dict(re.findall(r"^\s*([\w-]+):\s*(\S.*)$", read_plain(os.environ.get("HOST_PERF_AUDIT_VZDUMP_CONF", "/etc/vzdump.conf")), re.M))
+    folders = [(name, os.path.join(o["path"], "dump"), o) for name, o in storages]
+    for extra in {o.get("dumpdir") for _n, o in jobs} | {general.get("dumpdir")}:
+        if extra and extra not in [f for _n, f, _o in folders]:
+            folders.append(("dumpdir", extra, {}))
+    tasks = [t for t in recent_tasks() if t[2] == "vzdump"]
+    if not folders and not jobs and not tasks:
+        return
+    out.append("BACKUPS (vzdump)")
+    job_keep = [retention_of(o) for _n, o in jobs]
+    datasets = zfs.get("datasets", {}) if zfs else {}
+    for name, folder, options in folders:
+        backups, others, leftovers = scan_backups(folder)
+        keep = retention_of(options) or retention_of(general) or ", ".join(sorted({k for k in job_keep if k}))
+        total = sum(b[1] for b in backups) + sum(o[0] for o in others)
+        line = f"  storage {name} ({folder}) — {len(backups)} backups, {size(total)}"
+        if backups:
+            line += f" — the oldest of {datetime.date.fromtimestamp(min(b[2] for b in backups))}, the newest of {datetime.date.fromtimestamp(max(b[2] for b in backups))}"
+        out.append(line + f" · retention: {keep or 'none (everything is kept)'}")
+        per = {}
+        for vmid, b, when, _p in backups:
+            c = per.setdefault(vmid, [0, 0, 0])
+            c[0], c[1], c[2] = c[0] + 1, c[1] + b, max(c[2], when)
+        for vmid, (count, b, last) in sorted(per.items(), key=lambda x: -x[1][1])[:8]:
+            out.append(f"    {vmid:>5} {names.get(vmid, ('', '', ''))[1][:22]:<22} {count:>3} backups {size(b):>10} · the last of {datetime.date.fromtimestamp(last)}")
+        if others:
+            out.append(f"    other big files: {len(others)}, {size(sum(o[0] for o in others))} — the largest: "
+                       + ", ".join(f"{os.path.relpath(p, folder)} ({size(b)})" for b, p in sorted(others, reverse=True)[:3]))
+        most = max([c[0] for c in per.values()] or [0])
+        pool = ""
+        best = max((n for n, p in datasets.items() if p.get("mountpoint", "").startswith("/") and (folder + "/").startswith(p["mountpoint"].rstrip("/") + "/")),
+                   key=lambda n: len(datasets[n]["mountpoint"]), default="")
+        if best:
+            pool = best.split("/")[0]
+        shared = bool(pool) and any(re.search(r"/(subvol|vm)-\d+-", n) for n in datasets if n.startswith(pool + "/"))
+        cap = zfs["pools"].get(pool, {}).get("cap", "") if pool else ""
+        full = cap.isdigit() and int(cap) >= 80
+        if total and not keep and (most >= 4 or full):
+            fd.suggest(1 if full else 2, f"storage {name} — {len(backups) + len(others)} backup files ({size(total)}) and no retention"
+                       + (f" — they fill pool {pool} (used {cap} %)" if full else "")
+                       + ": set a retention on the backup job (Datacenter > Backup > Retention, e.g. keep-last=2, keep-daily=7, keep-weekly=4), then remove the old ones (« Prune »)")
+        elif total and full and total >= zfs["pools"][pool]["size"] * 0.3:
+            fd.suggest(1, f"storage {name} — the backups ({size(total)}) are the largest part of pool {pool} (used {cap} %) with retention {keep}: keep fewer of them, or move them to another disk")
+        if total and shared:
+            fd.suggest(2, f"storage {name} — the backups are on pool {pool}, the disks of the guests — a failure of the pool loses the guests AND their backups, and each backup "
+                          "competes with the guests for the same disks: another disk, a NAS or Proxmox Backup Server")
+        for when, path in leftovers:
+            if time.time() - when > 86400:
+                fd.suggest(3, f"{path}: folder left by an interrupted backup ({datetime.date.fromtimestamp(when)}) — remove it when no backup is running")
+    for name, o in jobs:
+        out.append(f"  job {name}: schedule {o.get('schedule', '?')}, storage {o.get('storage') or o.get('dumpdir') or '?'}, guests {'all of them' if o.get('all') == '1' else o.get('vmid', '?')}, "
+                   f"mode {o.get('mode', 'snapshot')}, compression {o.get('compress', 'none')}, retention {retention_of(o) or 'none (everything is kept)'}" + (" (disabled)" if o.get("enabled") == "0" else ""))
+    if tasks:
+        out.append("  backups of the last 3 days (compare these hours with the slow hours of the sites):")
+        for start, end, _kind, vmid, status in tasks[-12:]:
+            out.append(f"    {datetime.datetime.fromtimestamp(start):%Y-%m-%d %H:%M} → {datetime.datetime.fromtimestamp(end):%H:%M} ({human_duration(max(0, end - start))}) guest {vmid or 'all of them'} — {status}")
+    out.append("")
+
+
+EXPORT_SECRET_RE = re.compile(r"^(\s*)(\S*(?:password|passwd|secret|token|sshkeys|cipassword|key|fingerprint)\S*)(\s*[:=]?\s*)\S.*$", re.I | re.M)
+
+
+class Tee:
+    """Standard output copied to a list (without colors) for --export-ai, the screen unchanged."""
+
+    def __init__(self, stream):
+        self.stream, self.parts = stream, []
+
+    def write(self, text):
+        self.parts.append(re.sub(r"\x1b\[[0-9;]*m", "", text))
+        return self.stream.write(text)
+
+    def flush(self):
+        self.stream.flush()
+
+    def isatty(self):
+        return self.stream.isatty()
+
+    def __getattr__(self, name):
+        return getattr(self.stream, name)
+
+
+def export_ai_path(value):
+    """None: no export; « »: default file; otherwise the file asked (no / false / 0 / off: none; yes / true / 1 / auto: default file)."""
+    if value is None:
+        return None
+    text = str(value).strip()
+    if text.lower() in ("no", "false", "0", "off", "non"):
+        return None
+    return "" if text.lower() in ("", "yes", "true", "1", "auto", "oui") else os.path.expanduser(text)
+
+
+def export_ai(path, screen, facts, names, command):
+    """--export-ai: the report as shown, then the raw state of the host (pools, datasets, snapshots, disks, guests, backups, kernel warnings) in one
+    Markdown file, mode 600, to send for verification. Passwords and keys of the configurations are replaced by « *** »."""
+    if not path:
+        folder = os.environ.get("HOST_PERF_AUDIT_STATE_DIR", "/var/lib/host-perf-audit")
+        try:
+            os.makedirs(folder, mode=0o700, exist_ok=True)
+        except OSError:
+            folder = os.getcwd()
+        path = os.path.join(folder, f"export-ai-{facts['host']}-" + time.strftime("%Y%m%d-%H%M%S.md"))
+    redact = lambda text: EXPORT_SECRET_RE.sub(r"\1\2\3***", text)
+    lines = [f"# host-perf-audit.py v{__version__} - export for verification", "",
+             f"- Host: {facts['host']} · {facts['pve'] or 'Linux ' + facts['kernel']}",
+             f"- Written on: {time.strftime('%Y-%m-%d %H:%M:%S')} (local time, {time.strftime('%Z')})",
+             f"- Command: {command}", "", "## Report", "", "```", screen.strip("\n"), "```", ""]
+    commands = [("ZFS pools", ["zpool", "list", "-v"]), ("ZFS pool status", ["zpool", "status", "-v"]), ("ZFS latency per device since import", ["zpool", "iostat", "-l", "-v"]),
+                ("ZFS space per dataset", ["zfs", "list", "-o", "space,refquota,mountpoint", "-t", "filesystem,volume"]),
+                ("ZFS snapshots", ["zfs", "list", "-t", "snapshot", "-o", "name,used,refer,creation", "-s", "creation"]),
+                ("ZFS properties set locally", ["zfs", "get", "-H", "-s", "local,received", "-o", "name,property,value", "all"]),
+                ("ZFS events", ["zpool", "events"]),
+                ("Filesystems", ["df", "-hT", "-x", "tmpfs", "-x", "devtmpfs", "-x", "overlay"]), ("Block devices", ["lsblk", "-o", "NAME,SIZE,TYPE,ROTA,SCHED,MODEL,MOUNTPOINT"]),
+                ("Memory", ["free", "-m"]), ("Uptime and load", ["uptime"]), ("Proxmox storages", ["pvesm", "status"]), ("Containers", ["pct", "list"]), ("Virtual machines", ["qm", "list"]),
+                ("Timers", ["systemctl", "list-timers", "--all", "--no-pager"]),
+                ("Kernel warnings of the last 3 days (disk errors, blocked tasks)", ["journalctl", "-k", "-p", "warning", "--since", "-3d", "--no-pager", "-o", "short-iso"]),
+                ("Busiest processes", ["ps", "-eo", "pid,pcpu,pmem,rss,etime,args", "--sort=-pcpu"])]
+    for disk in sorted(facts.get("disks", {})):
+        commands.append((f"SMART of {disk}", ["smartctl", "-H", "-A", f"/dev/{disk}"]))
+    for title, cmd in commands:
+        code, text = run(cmd)
+        if code is None or not text.strip():
+            continue
+        kept = text.rstrip("\n").splitlines()
+        if len(kept) > 120:
+            kept = kept[:20] + [f"[... {len(kept) - 120} lines removed ...]"] + kept[-100:] if cmd[0] in ("journalctl", "zpool") else kept[:120] + [f"[... {len(kept) - 120} more lines ...]"]
+        lines += [f"## {title}", "", "`" + " ".join(cmd) + "`", "", "```"] + [l[:400] for l in kept] + ["```", ""]
+    files = [("/proc/mdstat", "Software RAID"), ("/proc/pressure/io", "Disk pressure"), ("/proc/pressure/cpu", "Processor pressure"), ("/proc/pressure/memory", "Memory pressure"),
+             ("/proc/spl/kstat/zfs/arcstats", "ZFS ARC counters"), (os.path.join(PVE_DIR, "storage.cfg"), "Proxmox storage.cfg"), (os.path.join(PVE_DIR, "jobs.cfg"), "Proxmox jobs.cfg"),
+             (os.environ.get("HOST_PERF_AUDIT_VZDUMP_CONF", "/etc/vzdump.conf"), "vzdump.conf"), ("/etc/cron.d/zfsutils-linux", "ZFS scrub and trim schedule")]
+    for file_path, title in files:
+        text = read_plain(file_path) if file_path.startswith(PVE_DIR) or "vzdump" in file_path or "cron" in file_path else read(file_path)
+        if text and text.strip():
+            body = [l for l in text.splitlines() if l.strip() and not l.lstrip().startswith("#")]
+            if "arcstats" in file_path:
+                body = [l for l in body if re.match(r"(size|c|c_max|c_min|hits|misses|memory_throttle_count|arc_meta_used|mfu_size|mru_size|l2_hits|l2_misses|demand_data_misses|prefetch_data_misses)\s", l)]
+            lines += [f"## {title}", "", f"`{file_path}`", "", "```"] + [redact(l)[:400] for l in body[:150]] + ["```", ""]
+    params = []
+    for name in ("zfs_arc_max", "zfs_arc_min", "zfs_txg_timeout", "zfs_dirty_data_max", "zfs_vdev_async_write_max_active", "zfs_vdev_sync_write_max_active", "zfs_vdev_scrub_max_active", "zfs_prefetch_disable"):
+        value = (read(f"/sys/module/zfs/parameters/{name}") or "").strip()
+        if value:
+            params.append(f"{name} = {value}")
+    if params:
+        lines += ["## ZFS module parameters", "", "```"] + params + ["```", ""]
+    tasks = recent_tasks(days=7, kinds=("vzdump", "vzsnapshot", "qmsnapshot", "vzrestore", "qmrestore", "vzstart", "vzstop", "qmstart", "qmstop", "vzreboot", "qmreboot", "aptupdate", "imgcopy", "move_volume", "resize"))
+    if tasks:
+        lines += ["## Proxmox tasks of the last 7 days", "", "```"] + [f"{datetime.datetime.fromtimestamp(s):%Y-%m-%d %H:%M:%S} to {datetime.datetime.fromtimestamp(e):%H:%M:%S} {k} {i}: {st}" for s, e, k, i, st in tasks[-150:]] + ["```", ""]
+    for vmid, (kind, name, conf) in sorted(names.items(), key=lambda x: int(x[0]) if x[0].isdigit() else 0):
+        lines += [f"## Guest {vmid} ({kind}, {name})", "", "```"] + [redact(l)[:300] for l in conf.splitlines() if l.strip() and not l.startswith("#")] + ["```", ""]
+    try:
+        handle = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+        with os.fdopen(handle, "w", encoding="utf-8") as f:
+            f.write("\n".join(lines) + "\n")
+        os.chmod(path, 0o600)
+    except OSError as problem:
+        eprint(f"--export-ai: file not written: {problem}")
+        return 1
+    print(f"\n--export-ai: written to {path} ({len(lines)} lines, mode 600)")
+    return 0
 
 
 # ---------------------------------------------------------------------------------------------------------------- sampling
@@ -457,7 +869,7 @@ def analyze_memory(samples, facts, zfs, fd, out):
     if arcs:
         hits = [x["hit"] for x in arcs if x.get("hit") is not None]
         size, cmax = arcs[-1]["size"], arcs[-1]["c_max"]
-        arc_line = f"  ZFS ARC: {size / 2 ** 30:.1f} GiB used, maximum {cmax / 2 ** 30:.1f} GiB ({100 * cmax / max(total * 1024, 1):.0f} % of the RAM) · hit ratio {avg(hits) or 0:.1f} % (95 % of the samples above {pct(hits, 5) or 0:.0f} %)"
+        arc_line = f"  ZFS ARC: {size / 2 ** 30:.1f} GiB used, maximum {cmax / 2 ** 30:.1f} GiB ({100 * cmax / max(total * 1024, 1):.0f} % of the RAM) · hit ratio {min(100.0, avg(hits) or 0):.1f} % (95 % of the samples above {min(100.0, pct(hits, 5) or 0):.1f} %)"
         out.append(arc_line)
         throttle = sum(x.get("throttle", 0) for x in arcs)
         if throttle:
@@ -489,7 +901,7 @@ def analyze_disks(samples, facts, smart, fd, out):
     io_full = [s["psi"].get("io", {}).get("full") for s in samples]
     devices = sorted({d for s in samples for d in s["disks"]})
     out.append("DISKS — % of the time busy (utilization), operations and throughput per second, wait per operation (ms)")
-    h = [T(x) for x in ("disk", "type", "util avg", "p95", "max", "read/s", "write/s", "MB/s r", "MB/s w", "wait r", "wait w", "model")]
+    h = [T(x) for x in ("device", "type", "util avg", "p95", "max", "read/s", "write/s", "MB/s r", "MB/s w", "wait r", "wait w", "model")]
     out.append(f"  {h[0]:<10} {h[1]:<5} {h[2]:>8} {h[3]:>5} {h[4]:>5}  {h[5]:>7} {h[6]:>7}  {h[7]:>6} {h[8]:>6}  {h[9]:>7} {h[10]:>7}  {h[11]}")
     worst = []
     for dev in devices:
@@ -497,7 +909,7 @@ def analyze_disks(samples, facts, smart, fd, out):
         util = [v["util"] for v in vals]
         rw = [v["r_await"] for v in vals if v["r_await"] is not None and v["r_s"] >= 0.5]
         ww = [v["w_await"] for v in vals if v["w_await"] is not None and v["w_s"] >= 0.5]
-        info = facts["disks"].get(dev, {"kind": "zvol" if dev.startswith("zd") else "?", "model": "", "scheduler": ""})
+        info = facts["disks"].get(dev, {"kind": "zvol" if dev.startswith("zd") else "RAID" if dev.startswith("md") else "?", "model": "", "scheduler": ""})
         if dev.startswith("zd") and (max(util or [0]) < 1):
             continue                         # idle ZFS volumes: noise
         r95, w95 = pct(rw, 95), pct(ww, 95)
@@ -534,7 +946,7 @@ def analyze_disks(samples, facts, smart, fd, out):
     return worst, a, af
 
 
-def analyze_zfs(zfs, facts, worst, io_avg, fd, out):
+def analyze_zfs(zfs, facts, worst, io_avg, fd, out, names=None):
     if not zfs:
         return
     out.append("ZFS")
@@ -563,22 +975,26 @@ def analyze_zfs(zfs, facts, worst, io_avg, fd, out):
         if sync_w >= 20 and not p["log"]:
             fd.suggest(2, f"pool {name}: synchronous writes wait {sync_w:.0f} ms on average (PostgreSQL commits, NFS…): a small mirrored SSD « log » device (SLOG) "
                           "makes them fast without replacing the HDD")
+    # 1.10: one line per dataset where the value is SET; the datasets that inherit it are counted, not repeated
     tuned = 0
-    for name, props in sorted(zfs["datasets"].items()):
-        if props.get("compression") in ("off",) and tuned < 6:
+    for name, heirs in inherited_groups(zfs, "compression", lambda p: p.get("compression") == "off"):
+        if tuned < 6:
             tuned += 1
-            fd.suggest(2, f"dataset {name}: compression off — lz4 (or zstd) is almost free in processor and reduces the disk reads and writes (new data only)",
+            fd.suggest(2, f"dataset {name}{and_heirs(heirs)}: compression off — lz4 (or zstd) is almost free in processor and reduces the disk reads and writes (new data only)",
                        lambda n=name: run_set(["zfs", "set", "compression=lz4", n]), f"zfs set compression=lz4 {name}")
-        if props.get("atime") == "on" and props.get("relatime") != "on" and tuned < 6:
+    for name, heirs in inherited_groups(zfs, "atime", lambda p: p.get("atime") == "on" and p.get("relatime") != "on"):
+        if tuned < 6:
             tuned += 1
-            fd.suggest(2, f"dataset {name}: atime=on without relatime — every read writes the access time; atime=off removes these writes",
+            fd.suggest(2, f"dataset {name}{and_heirs(heirs)}: atime=on without relatime — every read writes the access time; atime=off removes these writes",
                        lambda n=name: run_set(["zfs", "set", "atime=off", n]), f"zfs set atime=off {name}")
-        if props.get("sync") == "disabled":
-            fd.suggest(1, f"dataset {name}: sync=disabled — fast but an outage can lose the last seconds of committed transactions (PostgreSQL!): « standard » unless deliberate")
+    for name, heirs in inherited_groups(zfs, "sync", lambda p: p.get("sync") == "disabled"):
+        fd.suggest(1, f"dataset {name}{and_heirs(heirs)}: sync=disabled — fast but an outage can lose the last seconds of committed transactions (PostgreSQL!): « standard » unless deliberate"
+                      + (" (on HDD without a « log » device, « standard » makes every commit wait for the disk: add the SLOG first)" if not any(p["log"] for p in zfs["pools"].values()) else ""))
     hdd_pool = any(facts["disks"][d]["kind"] == "HDD" for d in facts["disks"])
     if hdd_pool and not any(p["special"] for p in zfs["pools"].values()) and (io_avg or 0) >= IO_PSI_WARN:
         fd.suggest(2, "HDD pool without « special » device: two small mirrored SSD as special vdev hold the metadata and the small blocks (zfs set special_small_blocks=16K): "
                       "most of the random reads of PostgreSQL then hit SSD — an intermediate step before replacing all the disks")
+    zfs_space(zfs, names or {}, fd, out)
     out.append("  (PostgreSQL / Odoo container: recordsize=16K on its dataset suits the 8 KiB pages of PostgreSQL; only for new files: set it before a restore)")
 
 
@@ -617,6 +1033,9 @@ def analyze_guests(samples, names, top, out):
         out.append(f"  {vmid:>5} {kind:<4} {name[:22]:<22} {cpu:>7.0f}% {cpu_max:>5.0f}%  {mem / 2 ** 30:>6.1f} GiB  {io / 1048576:>9.2f}  "
                    + (f"{some:>8.1f}% {some_max:>5.0f}%" if some is not None else f"{'-':>9} {'-':>6}"))
     out.append("  (CPU: 100 % = one full core; disk wait: % of the time the guest's tasks waited for the disk — the latency felt INSIDE it)")
+    waits = group_waits()
+    if waits:
+        out.append("  disk wait by group over the last minute: " + " · ".join(f"{g} {v:.1f} %" for g, v in waits) + " (lxc, qemu.slice: the guests; system.slice: the host's own services, backups included)")
     return rows
 
 
@@ -625,22 +1044,25 @@ def guest_config_advice(names, fd):
     for vmid, (kind, name, conf) in sorted(names.items(), key=lambda x: int(x[0]) if x[0].isdigit() else 0):
         if kind != "vm":
             continue
-        for m in re.finditer(r"^(scsi|virtio|sata|ide)\d+:\s*(.+)$", conf, re.M):
-            bus, opts = m.group(1), m.group(2)
+        no_thread = []
+        for m in re.finditer(r"^((scsi|virtio|sata|ide)\d+):\s*(.+)$", conf, re.M):
+            disk, bus, opts = m.group(1), m.group(2), m.group(3)
             if "media=cdrom" in opts:
                 continue
             if bus in ("sata", "ide"):
                 fd.suggest(2, f"VM {vmid} ({name}): disk on the {bus.upper()} bus (emulated, slow) — VirtIO SCSI single with iothread=1 (driver needed in the guest)")
             if bus == "scsi" and "iothread=1" not in opts:
-                fd.suggest(3, f"VM {vmid} ({name}): SCSI disk without iothread=1 (with the « VirtIO SCSI single » controller, each disk gets its own I/O thread)")
+                no_thread.append(disk)                  # 1.10: one line per VM, the disks named
             cache = re.search(r"cache=(\w+)", opts)
             if cache and cache.group(1) in ("writeback", "unsafe"):
                 fd.suggest(3, f"VM {vmid} ({name}): disk cache « {cache.group(1)} » on ZFS — double cache with the ARC; « none » is the usual choice")
+        if no_thread:
+            fd.suggest(3, f"VM {vmid} ({name}): SCSI disk without iothread=1: {', '.join(no_thread)} (with the « VirtIO SCSI single » controller, each disk gets its own I/O thread)")
         if re.search(r"^cpu:\s*kvm64", conf, re.M):
             fd.suggest(3, f"VM {vmid} ({name}): CPU type kvm64 hides the instructions of the real processor — « host » (or x86-64-v2-AES) is faster when migration is not needed")
 
 
-def ssd_answer(fd, worst, io_avg, io_full, facts, guests_rows, out):
+def ssd_answer(fd, worst, io_avg, io_full, facts, guests_rows, out, host_tasks=()):
     """The answer to « are SSD disks justified? » from the measurements."""
     hdd = [d for d, v in facts["disks"].items() if v["kind"] == "HDD"]
     out.append("ARE SSD DISKS JUSTIFIED?")
@@ -660,8 +1082,11 @@ def ssd_answer(fd, worst, io_avg, io_full, facts, guests_rows, out):
     else:
         out.append(color("1;32", "  NO: the HDD are not a limit for this load") + f" (disk wait {io_avg:.1f} % on average, no disk saturated). The slowness of the first page loads"
                    " after a restart is the cold cache (empty ARC and page cache), not the disk type: SATA HDD with ZFS are enough here.")
-    if busiest and busiest[0][8]:
+    if busiest and (busiest[0][8] or 0) >= 0.05:
         out.append(f"  Guest that waited most for the disk: {busiest[0][1]} {busiest[0][3]} ({busiest[0][8]:.1f} % of its time).")
+    elif guests_rows and io_avg >= IO_PSI_WARN:          # 1.10: « 0.0 % of its time » contradicted the verdict
+        out.append("  No guest waited for the disk during this measurement: the wait is in the tasks of the host itself (backup, copy, scrub, ZFS)"
+                   + (f" — seen running: {', '.join(sorted(host_tasks))}" if host_tasks else "") + ". The guests feel it when they read what is not in memory: measure during their slow hours.")
 
 
 # ---------------------------------------------------------------------------------------------------------------- --apply actions
@@ -730,7 +1155,7 @@ def offer_apply(fd, yes):
 
 
 # ---------------------------------------------------------------------------------------------------------------- report
-def report(samples, facts, zfs, smart, names, guests_rows_cb, args, cost):
+def report(samples, facts, zfs, smart, names, guests_rows_cb, args, cost, host_tasks=()):
     fd, out = Findings(), []
     if not samples:
         print("No sample taken: nothing to analyze (interrupted too early).")
@@ -747,13 +1172,17 @@ def report(samples, facts, zfs, smart, names, guests_rows_cb, args, cost):
     out.append("")
     worst, io_avg, io_full = analyze_disks(samples, facts, smart, fd, out)
     out.append("")
-    analyze_zfs(zfs, facts, worst, io_avg, fd, out)
+    analyze_zfs(zfs, facts, worst, io_avg, fd, out, names)
     if zfs:
         out.append("")
+    analyze_backups(zfs, names, fd, out)
     analyze_network(samples, out)
     out.append("")
     rows = guests_rows_cb(samples, out) if not args.no_guests else []
     if rows:
+        out.append("")
+    if host_tasks:
+        out.append(f"HOST TASKS that read or write a lot, seen running during the measurement: {', '.join(sorted(host_tasks))}")
         out.append("")
     guest_config_advice(names, fd)
     for line in out:
@@ -765,7 +1194,7 @@ def report(samples, facts, zfs, smart, names, guests_rows_cb, args, cost):
             print(f"  {tag(level)} {T(label):<11} {text}")
     print()
     tail = []
-    ssd_answer(fd, worst, io_avg, io_full, facts, rows, tail)
+    ssd_answer(fd, worst, io_avg, io_full, facts, rows, tail, host_tasks)
     for line in tail:
         print(line)
     print()
@@ -853,9 +1282,12 @@ def main():
     parser.add_argument("--apply", action="store_true", help="After the report, apply the SAFE settings one by one with confirmation (ZFS compression / atime of a dataset, ARC maximum, vm.swappiness); --yes: without questions")
     parser.add_argument("--changelog", action="store_true", help="Show the change log")
     parser.add_argument("-c", "--config", metavar="FILE",
-                        help="Configuration file to read ALONE (otherwise: /etc/default/host-perf-audit.conf, then the personal file .host-perf-audit.conf; UPPERCASE options: CSV, DURATION, INTERVAL, LANGUAGE, NO_GUESTS, TOP, VERBOSE)")
+                        help="Configuration file to read ALONE (otherwise: /etc/default/host-perf-audit.conf, then the personal file .host-perf-audit.conf; UPPERCASE options: CSV, DURATION, EXPORT_AI, INTERVAL, LANGUAGE, NO_GUESTS, TOP, VERBOSE)")
     parser.add_argument("--csv", default=None, metavar="FILE", help="Also write every sample to this CSV file (one line per interval: CPU, waits, memory, ARC, each disk)")
     parser.add_argument("--duration", default="60", metavar="TIME", help="Length of the measurement: 90 (seconds), 10m, 4h, 1h30m… (default: 60 seconds)")
+    parser.add_argument("--export-ai", nargs="?", const="", default=None, metavar="FILE",
+                        help="Also write the report and the raw state of the host (pools, datasets, snapshots, disks, guests, backups, tasks, kernel warnings) to a Markdown "
+                             "file without colors, to send for verification (default FILE: export-ai-HOST-YYYYMMDD-HHMMSS.md in /var/lib/host-perf-audit, mode 600; passwords and keys hidden)")
     parser.add_argument("--interval", type=float, default=None, metavar="SECONDS",
                         help="Seconds between two samples (default: 5 up to 2 minutes of measurement, 15 up to 30 minutes, 60 beyond)")
     parser.add_argument("--lang", choices=I18N.disponibles if I18N else ["en"], metavar="LANG", help="Display language: en or fr (default: from LC_ALL / LC_MESSAGES / LANG)")
@@ -908,6 +1340,10 @@ def main():
     if os.geteuid() != 0:
         eprint("Limited rights: without root, smartctl, the ZFS commands and some counters are unreadable (sudo for a complete report).")
     lower_own_priority()
+    export_path = export_ai_path(args.export_ai)
+    tee = None
+    if export_path is not None:                 # --export-ai: everything printed from here is also kept for the file
+        tee = sys.stdout = Tee(sys.stdout)
     t0 = os.times()
     facts = host_facts()
     zfs = zfs_facts()
@@ -920,12 +1356,17 @@ def main():
         eprint("WARNING: this program runs inside a container: the disks shown are not the real ones — run it on the Proxmox host.")
     print(f"Measuring for {human_duration(duration)}, one sample every {interval:g} s ({len(facts['disks'])} disks, {len(guests)} running guests"
           + (f", ZFS pools: {', '.join(zfs['pools'])}" if zfs else "") + ") — Ctrl-C stops early and still gives the report.")
+    host_tasks = io_tasks()
     samples = sample_loop(duration, interval, guests, args.csv)
+    host_tasks |= io_tasks()
     t1 = os.times()
     cost = (t1.user + t1.system + t1.children_user + t1.children_system) - (t0.user + t0.system + t0.children_user + t0.children_system)
-    fd = report(samples, facts, zfs, smart, names, lambda s, out: analyze_guests(s, names, args.top, out), args, cost)
+    fd = report(samples, facts, zfs, smart, names, lambda s, out: analyze_guests(s, names, args.top, out), args, cost, host_tasks)
     if args.csv and samples:
         print(f"\nSamples written to {args.csv}.")
+    if tee is not None:
+        sys.stdout = tee.stream
+        export_ai(export_path, "".join(tee.parts), facts, names, "host-perf-audit.py " + " ".join(sys.argv[1:]))
     if args.apply:
         return offer_apply(fd, args.yes)
     return 0

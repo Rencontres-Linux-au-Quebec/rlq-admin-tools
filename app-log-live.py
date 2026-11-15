@@ -122,7 +122,7 @@ from urllib.parse import unquote, urlsplit
 from collections import Counter, OrderedDict
 from concurrent.futures import Future
 
-__version__ = "1.193.20261112.184937"
+__version__ = "1.194.20261114.163844"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
@@ -1292,6 +1292,12 @@ def clock_of(instant):
     return time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(instant))
 
 
+def clock_or_date(instant):
+    """1.194: HH:MM:SS for a time of today, the date before it otherwise: in a report over several days, « 12:40:38 » alone did not say which day."""
+    local = time.localtime(instant)
+    return time.strftime("%H:%M:%S" if local[:3] == time.localtime()[:3] else "%Y-%m-%d %H:%M:%S", local)
+
+
 def short_url(url, width=60):
     """URL shortened in the MIDDLE ("/event/journee…/registration"): the end (the requested action) stays readable."""
     if len(url) <= width:
@@ -1322,6 +1328,59 @@ def read_agents(agents, patterns, folder, lines=200000):
                 agents[m.group(1)] = m.group(2)[:200]
     threading.Thread(target=reader, daemon=True).start()
     return proc
+
+
+def load_agents(agents, files, max_bytes):
+    """1.194: first User-Agent of each address, read at once from the access logs (rotated and compressed ones included; the last `max_bytes` of a
+    larger file), for the analyses that end before the background reader (read_agents) has caught up."""
+    import gzip
+    for path in files:
+        try:
+            if path.endswith(".gz"):
+                handle = gzip.open(path, "rt", encoding="utf-8", errors="replace")
+            else:
+                handle = open(path, encoding="utf-8", errors="replace")
+                size = os.path.getsize(path)
+                if size > max_bytes:
+                    handle.seek(size - max_bytes)
+                    handle.readline()
+            with handle:
+                for raw_line in handle:
+                    m = ACCESS_AGENT_RE.match(raw_line)
+                    if m and m.group(1) not in agents:
+                        if len(agents) >= AGENTS_MAX:
+                            return
+                        agents[m.group(1)] = m.group(2)[:200]
+        except (OSError, EOFError, ValueError):
+            continue
+
+
+def mounted_filesystems():
+    """1.194: [(mount point, file system type, free bytes, total bytes, free inodes, total inodes)] of the real file systems mounted here, each once:
+    the export showed « / » and « /var/log » while a third disk, the one of Odoo, was almost full."""
+    pseudo = {"proc", "sysfs", "devtmpfs", "devpts", "tmpfs", "cgroup", "cgroup2", "securityfs", "pstore", "bpf", "debugfs", "tracefs", "mqueue", "hugetlbfs",
+              "fusectl", "configfs", "autofs", "binfmt_misc", "rpc_pipefs", "overlay", "squashfs", "nsfs", "ramfs", "efivarfs", "fuse.lxcfs", "fuse.portal", "fuse.gvfsd-fuse"}
+    res, devices = [], set()
+    try:
+        with open("/proc/mounts", encoding="utf-8", errors="replace") as f:
+            mounts = [line.split()[:4] for line in f if len(line.split()) >= 4]
+    except OSError:
+        mounts = [["", folder, "", "rw"] for folder in ("/", "/var/log", "/var/lib/postgresql", "/var/backups")]
+    for _source, point, kind, flags in sorted(mounts, key=lambda m: (len(m[1]), m[1])):
+        point = point.replace("\\040", " ")
+        if kind in pseudo or kind.startswith("fuse") or "ro" in flags.split(",") or point.startswith(("/proc", "/sys", "/dev", "/run", "/snap")):      # read-only and remote mounts never fill up
+            continue
+        try:
+            dev = os.stat(point).st_dev
+            if dev in devices:
+                continue
+            devices.add(dev)
+            st = os.statvfs(point)
+        except OSError:
+            continue
+        if st.f_blocks:
+            res.append((point, kind, st.f_bavail * st.f_frsize, st.f_blocks * st.f_frsize, st.f_favail, st.f_files))
+    return res
 
 
 def thread_stacks(names=None):
@@ -2602,8 +2661,9 @@ def nginx_upstreams(text):
     return upstreams, names
 
 
-def local_request(port, host_name, tls=False, path="/", delay=8):
-    """(HTTP code, start of the body) of a request to 127.0.0.1:port with the Host header (and SNI in TLS); (None, error text) if the connection fails."""
+def local_request(port, host_name, tls=False, path="/", delay=8, headers=None):
+    """(HTTP code, start of the body) of a request to 127.0.0.1:port with the Host header (and SNI in TLS); (None, error text) if the connection fails.
+    1.194: `headers` (a dictionary) receives the response headers, names in lower case (Location of a redirect)."""
     import socket
     import ssl
     try:
@@ -2629,7 +2689,36 @@ def local_request(port, host_name, tls=False, path="/", delay=8):
         return None, str(e)[:80]
     text = payload.decode("utf-8", "replace")
     m = re.match(r"HTTP/\d(?:\.\d)? (\d{3})", text)
+    if headers is not None:
+        for line in text.partition("\r\n\r\n")[0].split("\r\n")[1:]:
+            name, _sep, value = line.partition(":")
+            headers[name.strip().lower()] = value.strip()
     return (int(m.group(1)) if m else None), text.partition("\r\n\r\n")[2]
+
+
+def follow_redirects(host_name, path, hosts=(), delay=6, hops=4):
+    """1.194: the answer of the site now, redirects FOLLOWED on the site itself: (first code, final code, final path). A page that answers 301 to its
+    address with a final slash, then 200, works: « 301 » alone said nothing. Stops at a redirect to another site, at a loop or after `hops` redirects."""
+    first = code = None
+    seen = set()
+    for _hop in range(hops + 1):
+        got = {}
+        code, _body = local_request(443, host_name, True, path, delay=delay, headers=got)
+        if first is None:
+            first = code
+        target = got.get("location", "")
+        if not code or not 300 <= code < 400 or not target or path in seen:
+            break
+        seen.add(path)
+        m = re.match(r"https?://([^/]+)(/.*)?$", target)
+        if m:
+            if m.group(1).split(":")[0].lower() not in {host_name.lower(), *(h.lower() for h in hosts)}:
+                break
+            target = m.group(2) or "/"
+        elif not target.startswith("/"):
+            target = path.rsplit("/", 1)[0] + "/" + target
+        path = target
+    return first, code, path
 
 
 def certificate_advice(message, name):
@@ -5214,7 +5303,7 @@ class Stats:
         res = []
         for instant, code, url, ip in reversed(recent):
             known = " — known user" if (ip in self.protected_ones or ip in self.people) and self.names.get(ip, ip) != ip else ""
-            res.append(f"{time.strftime('%H:%M:%S', time.localtime(instant))}  {code}  {short_url(url, 70)}  ← {self.who(ip)}{known}")
+            res.append(f"{clock_or_date(instant)}  {code}  {short_url(url, 70)}  ← {self.who(ip)}{known}")
         return res
 
     def odoo_error_times(self, key_value):
@@ -5222,7 +5311,7 @@ class Stats:
         seen = self.odoo_errors_time.get(key_value)
         if not seen:
             return ""
-        h = [time.strftime("%H:%M:%S", time.localtime(t)) for t in seen]
+        h = [clock_or_date(t) for t in seen]              # 1.194: with the date when it is not today
         return f" (at {h[0]})" if h[0] == h[1] else f" (first at {h[0]}, last at {h[1]})"
 
     def who(self, ip):
@@ -7984,7 +8073,7 @@ def follow(cmd, people, resolver, options, output):
         """1.167: everything the analysis needs to explain the problems raised, read here once, read-only: Odoo tracebacks (of each error, of each
         5xx page, the exceptions of every occurrence), nginx referers and methods, the starts and stops of the service, the workers and limits of
         odoo.conf, the e-mails of the database, the records of the pages answering 404, the redirects already defined, the answer of the site now."""
-        details = {"tracebacks": {}, "nginx": {}, "exceptions": {}, "traces_5xx": {}, "records": {}, "rewrites": {}, "now": {}}
+        details = {"tracebacks": {}, "nginx": {}, "exceptions": {}, "traces_5xx": {}, "records": {}, "rewrites": {}, "now": {}, "now_final": {}, "verdicts": {}}
         service, ns = options.get("service"), options.get("ns") or ""
         journal = lambda since, until, extra=(): lancer(["journalctl", "-u", service, "-q", "--no-pager", "-o", "cat", "--since", f"@{math.floor(since)}",
                                                          "--until", f"@{math.ceil(until)}"] + list(extra) + (["--namespace", ns] if ns else []), 120)[1].splitlines()
@@ -8034,6 +8123,25 @@ def follow(cmd, people, resolver, options, output):
         if access and urls:
             # 1.179: --advise reads the whole window (up to 200 MB per file): with the last 30 MB only, PROD found 14 of the 24 account-form requests
             details["nginx"] = module.nginx_details(access, urls, since=facts["start"], max_bytes=ADVISE_NGINX_BYTES if batch else module.TAIL_BYTES)
+        if batch and access and options.get("agents_wanted"):
+            # 1.194: --advise ends before the background reader of the User-Agents has read the access logs: « User-Agent read for 0 % of visitors »
+            # and robots counted as visitors. Read here, once, before the summary and the analysis.
+            if advise_progress["p"] is not None:
+                advise_progress["p"].step(TR("nginx access logs (User-Agent of each address)"))
+            load_agents(stats.agents, access, ADVISE_NGINX_BYTES)
+        candidates = [ip for ip, _who, _reason in facts.get("to_ban") or ()][:5]
+        if os.environ.get("APP_LOG_LIVE_TEST_VERDICTS"):                  # tests: the verdicts of nginx-log-audit.sh, given by the test
+            details["verdicts"] = {ip: tuple(v) for ip, v in json.loads(os.environ["APP_LOG_LIVE_TEST_VERDICTS"]).items()}
+        elif batch and candidates and not os.environ.get("NGINX_TOOLS_TESTS"):
+            # 1.194: the same address stayed « to ban » analysis after analysis while nobody pressed key b. --advise now asks nginx-log-audit.sh
+            # --investigate (read-only: nothing is banned) for its verdict: an address it would refuse is no longer listed as to ban.
+            if advise_progress["p"] is not None:
+                advise_progress["p"].step(TR("verdict of nginx-log-audit.sh for the addresses to ban"))
+            app = ["--app", options["app"]] if options.get("app") else []
+            for ip in candidates:
+                verdict, reason, bans = audit_verdict(ip, app)
+                if verdict is not None:
+                    details["verdicts"][ip] = (verdict, reason, bans)
         if advise_progress["p"] is not None:
             advise_progress["p"].step(TR("service journal, odoo.conf"))
         odoo_lines = []
@@ -8042,6 +8150,7 @@ def follow(cmd, people, resolver, options, output):
         details["backup_events"] = [(t, text) for t, text in unit_events("odoo-backup.service", "", facts["start"]) if not re.search(r"Stopp", text)][-40:]
         details["odoo_conf"] = odoo_perf_settings(options["profile"]) if options.get("app") in (None, "odoo") else None      # 1.178: always (memory risk)
         details["memory"] = memory_facts(facts["start"], service)
+        details["disks"] = mounted_filesystems()                 # 1.194: for the analysis (a disk almost full) and the export
         if details["odoo_conf"] and details["odoo_conf"].get("path"):
             # 1.184: the file read the way Odoo reads it (apps/_odoo_conf_check.py, without starting Odoo): comment after a value, key twice, wrong type
             checker = load_module("_odoo_conf_check")
@@ -8149,11 +8258,17 @@ def follow(cmd, people, resolver, options, output):
             for path in pages_404[:10]:
                 if NO_PROBE_RE.search(path):                              # 1.171: these pages need parameters: asked without them, Odoo raises a TypeError (500) of our own making
                     continue
-                code, _body = local_request(443, host, True, sent_url.get(path, path), delay=6)
+                code, final, where = follow_redirects(host, sent_url.get(path, path), facts["site_hosts"])
                 if code:
                     details["now"][path] = code
-        elif host and os.environ.get("APP_LOG_LIVE_TEST_NOW"):            # tests: the answer of the site now, given by the test
-            details["now"] = json.loads(os.environ["APP_LOG_LIVE_TEST_NOW"])
+                    if final and final != code:                           # 1.194: a redirect followed: what the visitor gets at the end
+                        details["now_final"][path] = (final, where)
+        elif host and os.environ.get("APP_LOG_LIVE_TEST_NOW"):            # tests: the answer of the site now, given by the test ([code, final code, final path] for a redirect)
+            for path, value in json.loads(os.environ["APP_LOG_LIVE_TEST_NOW"]).items():
+                if isinstance(value, list):
+                    details["now"][path], details["now_final"][path] = value[0], (value[1], value[2])
+                else:
+                    details["now"][path] = value
         return details
 
     def apply_corrections(findings, facts):
@@ -8343,18 +8458,11 @@ def follow(cmd, people, resolver, options, output):
                 n=len(values), p50=f"{pick(0.5):.3f}", p95=f"{pick(0.95):.3f}", max=f"{values[-1]:.2f}"))
         else:
             lines.append(TR("nginx: no rt= in the access logs read (format older than nginx-hardening.sh 2.83: the times of the static files are not known)"))
-        devices = set()
-        for folder in ("/", "/var/log", "/var/lib/postgresql", "/var/backups"):
-            try:
-                dev = os.stat(folder).st_dev
-                if dev in devices:
-                    continue                                     # 1.181: the same file system is shown once
-                devices.add(dev)
-                st = os.statvfs(folder)
-                lines.append(TR("Disk {folder}: {free} GB free of {total} GB").format(folder=folder, free=f"{st.f_bavail * st.f_frsize / 1e9:.1f}",
-                                                                                     total=f"{st.f_blocks * st.f_frsize / 1e9:.1f}"))
-            except OSError:
-                continue
+        for point, kind, free, total, inodes_free, inodes in details.get("disks") or mounted_filesystems():      # 1.194: every real file system, not four fixed folders
+            lines.append(TR("Disk {folder}: {free} GB free of {total} GB").format(folder=point, free=f"{free / 1e9:.1f}", total=f"{total / 1e9:.1f}")
+                         + f" ({100 * free // max(total, 1)} %" + (f", {kind}" if kind else "") + ")"
+                         + (" · " + TR("inodes: {n} % free").format(n=100 * inodes_free // inodes) if inodes and inodes_free * 10 < inodes else "")
+                         + (" · " + TR("ALMOST FULL") if free * 10 < total else ""))
         try:
             load = os.getloadavg()
             with open("/proc/uptime", encoding="utf-8") as f:
@@ -8364,6 +8472,118 @@ def follow(cmd, people, resolver, options, output):
         except (OSError, ValueError, AttributeError):
             pass
         return lines or [TR("nothing could be read")]
+
+    def extra_sections(facts, details, plain, stamp):
+        """1.194 --export-ai: the raw data a reader asks for after reading the analysis, so that the recommendations need no second exchange: every slow
+        request and those that ended together, the starts and stops of the service, the limits and pressure of the container, PostgreSQL, the scheduled
+        actions and the modules of Odoo, the busiest addresses with their User-Agent, the cache and limits of nginx, the processes. Read-only."""
+        out = []
+        testing = bool(os.environ.get("NGINX_TOOLS_TESTS"))
+
+        def section(title, lines, code=False):
+            lines = [l for l in lines if l]
+            if lines:
+                out.extend(["", "## " + title, ""] + (["```"] + lines + ["```"] if code else [f"- {l}" for l in lines]))
+
+        slow = sorted((x for x in facts.get("slow") or () if x.get("t")), key=lambda x: x["t"])
+        static = lambda url: bool(STATIC_RE.search(url.split("?", 1)[0]) or re.search(r"/static/", url))
+        section(TR("Slow requests of the window (all, oldest first)"),
+                [plain(f"{stamp(x['t'])} · {x['total']:.1f} s · SQL {x.get('t_sql') or 0:.1f} s ({x.get('sql_n') or 0}) · Python {x.get('t_py') or 0:.1f} s · "
+                       f"{'static' if static(x['url']) else 'page'} · {x['url'][:110]} · {stats.who(x['ip'])}") for x in slow[-300:]])
+        groups, current = [], []
+        for x in slow:                                    # requests that ENDED within 5 s of each other: they waited for the same thing
+            if current and x["t"] - current[-1]["t"] > 5:
+                groups.append(current)
+                current = []
+            current.append(x)
+        if current:
+            groups.append(current)
+        section(TR("Slow requests that ended together (3 or more within 5 s: a common wait, not a slow page)"),
+                [plain(f"{stamp(g[0]['t'])} → {time.strftime('%H:%M:%S', time.localtime(g[-1]['t']))} · {len(g)} " + TR("requests") + f" · {sum(1 for x in g if static(x['url']))} static · "
+                       f"{len({x['ip'] for x in g})} " + TR("addresses") + f" · {min(x['total'] for x in g):.1f} to {max(x['total'] for x in g):.1f} s · SQL {sum(x.get('t_sql') or 0 for x in g):.1f} s")
+                 for g in groups if len(g) >= 3][-60:])
+        events = (details.get("service") or {}).get("events") or []
+        section(TR("Starts and stops of the service (whole window)"), [plain(f"{stamp(t)} · {text}") for t, text in events[-80:]])
+        backups = details.get("backup_events") or []
+        section(TR("Runs of odoo-backup.service"), [plain(f"{stamp(t)} · {text}") for t, text in backups[-40:]])
+
+        def first_lines(path, keep=None, limit=12):
+            try:
+                with open(path, encoding="utf-8", errors="replace") as f:
+                    rows = [l.rstrip("\n") for l in f if l.strip()]
+            except OSError:
+                return []
+            if keep:
+                rows = [l for l in rows if re.match(keep, l)]
+            return [f"{path}: {l}" for l in rows[:limit]]
+
+        limits = []
+        for name in ("cpu", "io", "memory"):
+            limits += first_lines(f"/proc/pressure/{name}")
+        service = options.get("service") or ""
+        for folder in ["/sys/fs/cgroup"] + ([f"/sys/fs/cgroup/system.slice/{service}"] if service else []):
+            for name, keep in (("cpu.max", None), ("cpu.stat", r"nr_periods|nr_throttled|throttled_usec"), ("memory.max", None), ("memory.high", None), ("memory.current", None),
+                               ("memory.swap.current", None), ("memory.events", r"high|max|oom"), ("pids.current", None)):
+                limits += first_lines(os.path.join(folder, name), keep)
+        limits += first_lines("/proc/meminfo", r"MemTotal|MemAvailable|Cached|Dirty|Writeback:|SwapTotal|SwapFree")
+        limits += first_lines("/proc/vmstat", r"pgmajfault|pswpin|pswpout|oom_kill")
+        limits += first_lines("/proc/loadavg")
+        section(TR("Limits and pressure of this machine or container (processor throttling, memory, disk waits)"), limits, code=True)
+
+        if not testing:
+            pg = []
+            for label, sql in (
+                    ("database size | connections | active | idle in transaction | transactions open for more than 5 min",
+                     "SELECT pg_size_pretty(pg_database_size(current_database())), (SELECT count(*) FROM pg_stat_activity), (SELECT count(*) FROM pg_stat_activity WHERE state = 'active'), "
+                     "(SELECT count(*) FROM pg_stat_activity WHERE state = 'idle in transaction'), (SELECT count(*) FROM pg_stat_activity WHERE xact_start < now() - interval '5 minutes')"),
+                    ("blocks read from memory | from disk | % from memory | temporary files | their size | deadlocks | commits | rollbacks | counters since",
+                     "SELECT blks_hit, blks_read, round(100.0 * blks_hit / GREATEST(blks_hit + blks_read, 1), 2), temp_files, pg_size_pretty(temp_bytes), deadlocks, xact_commit, xact_rollback, "
+                     "COALESCE(to_char(stats_reset, 'YYYY-MM-DD'), '-') FROM pg_stat_database WHERE datname = current_database()"),
+                    ("checkpoints on time | requested (too many requested: max_wal_size too small)",
+                     "SELECT num_timed, num_requested FROM pg_stat_checkpointer"),
+                    ("table | total size | live rows | dead rows | last autovacuum",
+                     "SELECT relname, pg_size_pretty(pg_total_relation_size(relid)), n_live_tup, n_dead_tup, COALESCE(to_char(last_autovacuum, 'YYYY-MM-DD HH24:MI'), '-') "
+                     "FROM pg_stat_user_tables ORDER BY pg_total_relation_size(relid) DESC LIMIT 12")):
+                rows = db_rows(sql)
+                if rows:
+                    pg += [label] + ["  " + " | ".join(r) for r in rows[:14]]
+            section("PostgreSQL", pg, code=True)
+            odoo = []
+            for label, sql in (
+                    ("users: internal | portal", "SELECT count(*) FILTER (WHERE NOT share), count(*) FILTER (WHERE share) FROM res_users WHERE active"),
+                    ("attachments: number | size", "SELECT count(*), pg_size_pretty(COALESCE(sum(file_size), 0)) FROM ir_attachment"),
+                    ("e-mails by state", "SELECT state, count(*) FROM mail_mail GROUP BY state ORDER BY 2 DESC"),
+                    ("event registrations created in the last 3 days", "SELECT count(*) FROM event_registration WHERE create_date > now() - interval '3 days'"),
+                    ("installed modules: number", "SELECT count(*) FROM ir_module_module WHERE state = 'installed'"),
+                    ("installed modules not published by Odoo S.A.: name | version | author",
+                     "SELECT name, COALESCE(latest_version, ''), left(replace(COALESCE(author, ''), E'\\n', ' '), 40) FROM ir_module_module WHERE state = 'installed' "
+                     "AND COALESCE(author, '') NOT ILIKE '%Odoo S.A.%' AND COALESCE(author, '') NOT ILIKE 'Odoo SA%' ORDER BY name LIMIT 120"),
+                    ("scheduled actions (ir_cron), times in UTC: name | every | next call | last call",
+                     "SELECT left(COALESCE(cron_name::text, ''), 60), interval_number || ' ' || interval_type, COALESCE(to_char(nextcall, 'YYYY-MM-DD HH24:MI'), '-'), "
+                     "COALESCE(to_char(lastcall, 'YYYY-MM-DD HH24:MI'), '-') FROM ir_cron WHERE active ORDER BY nextcall LIMIT 60")):
+                rows = db_rows(sql)
+                if rows:
+                    odoo += [label] + [plain("  " + " | ".join(r)) for r in rows[:120]]
+            section(TR("Odoo database (users, attachments, e-mails, modules, scheduled actions)"), odoo, code=True)
+            code, text = lancer(["nginx", "-T"], 20)
+            if text:
+                wanted = re.findall(r"^\s*((?:proxy_cache_path|proxy_cache|proxy_cache_valid|proxy_cache_use_stale|limit_req_zone|limit_req|limit_conn_zone|limit_conn|worker_processes|"
+                                    r"worker_connections|keepalive_timeout|proxy_read_timeout|proxy_buffering|gzip|open_file_cache)\s[^;]*);", text, re.M)
+                section(TR("nginx: cache, limits and workers (nginx -T, each directive once)"), [plain(l[:200]) for l in list(OrderedDict.fromkeys(" ".join(w.split()) for w in wanted))[:40]], code=True)
+            code, text = lancer(["ps", "-eo", "pid,pcpu,pmem,rss,etime,args", "--sort=-rss"], 10)
+            if text:
+                section(TR("Processes that use the most memory"), [plain(l[:180]) for l in text.splitlines()[:14]], code=True)
+        per_ip = Counter(stats.par_ip) if isinstance(getattr(stats, "par_ip", None), Counter) else Counter()
+        if not per_ip:
+            for (ip, _url), n in stats.ip_url.items():
+                per_ip[ip] += n
+        section(TR("Busiest addresses with their User-Agent"),
+                [plain(f"{stats.who_country(ip)} ×{n} · {(stats.agents.get(ip) or '-')[:110]}") for ip, n in per_ip.most_common(20)])
+        agents = Counter()
+        for ip, agent in stats.agents.items():
+            agents[agent[:110]] += 1
+        section(TR("User-Agents by number of addresses"), [plain(f"×{n} · {agent or '-'}") for agent, n in agents.most_common(20)])
+        return out
 
     def export_ai(module, facts, details, analysis_lines, batch):
         """1.178 --export-ai: the summary of the dashboard, the analysis, the timeline of the window, the consistency checks and the main counters in one
@@ -8376,7 +8596,7 @@ def follow(cmd, people, resolver, options, output):
         stamp = lambda t: time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(t)) if t else "?"
         now_dt = stats.snapshot()
         summary = now_dt.summary((), (), "Dashboard since start (history shown included)", LEVEL_MAX, people=())
-        events = module.timeline(facts, details, TR, raw) if hasattr(module, "timeline") else []
+        events = module.timeline(facts, details, TR, raw, limit=400) if hasattr(module, "timeline") else []      # 1.194: the whole window, not the last 60 events
         checks = consistency_checks(stats, facts, details)
         host = os.uname().nodename if hasattr(os, "uname") else "?"
         anonymized = output.anonymize is not None
@@ -8402,6 +8622,10 @@ def follow(cmd, people, resolver, options, output):
                     "slow_requests": len(stats.slow_requests), "suspicious": sum(stats.suspect_urls.values()), "account_forms": sum(stats.account_ips.values()),
                     "banned_seen": len(stats.banned), "banned_during": len(facts.get("banned_during") or ()), "to_ban": len(facts.get("to_ban") or ()),
                     "hot_pairs": [{"url": h["url"], "n": h["n"]} for h in facts.get("hot_pairs") or ()]}
+        try:
+            out += extra_sections(facts, details, plain, stamp)
+        except Exception as problem:                              # noqa: BLE001 - the additional data never prevents the export
+            out += ["", "- " + TR("additional data not read: {problem}").format(problem=str(problem)[:200])]
         out += ["", "## " + TR("Main counters (JSON)"), "", "```json", json.dumps(counters, ensure_ascii=False, indent=1), "```", ""]
         try:
             fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
@@ -9464,7 +9688,7 @@ def main():
             parser.error(f"--sitemap: {problem}")
     options = {"keep_ip": not args.hide_ip, "minimal": args.min, "hide_addons": args.hide_addons, "lines": args.lines, "recap": args.recap,
                "slow": max(0.0, args.slow), "only": [t.lower() for t in (args.only or []) if t], "highlight_words": read_highlight(args.highlight), "highlight_pattern": highlight_pattern(read_highlight(args.highlight)), "suspect": args.suspect, "errors_only": args.errors_only, "disk_min": max(0.0, args.disk_min), "connections": max(0.0, min(100.0, args.connections)), "external_ip": not args.no_isp, "odoo_journal": profile.get("ODOO_LOGFILE"), "profile": profile, "service": service, "ns": ns, "advise": args.advise is not None, "export_ai": export_ai_path(args.export_ai), "apply": args.apply, "diag_hosts": args.diagnose_host, "not_found": args.not_found, "steps_line": args.steps_line, "summary": args.summary, "banned_ips": banned_ips,
-               "presence": Presence(args.idle) if is_odoo and not args.no_presence else None, "health": args.health, "keys": not args.no_keys and not args.no_follow, "app": profile.get("APP_NAME"), "app_label": profile.get("APP_LABEL", "application"), "hide_user_agent": args.hide_user_agent, "request_length": args.request_length, "log_nginx": bool(args.log_nginx), "log_merge": bool(args.log_merge), "status_header": bool(args.status_header), "nginx_merged": LOGS_MERGE in cmd, "propose_ban": not args.no_ban_prompt, "watch": [t.strip().lower() for t in (args.watch or "").split(",") if t.strip()], "agents": not args.no_user_agent and not args.no_follow, "acces_logs": profile.get("ACCESS_LOGS"),
+               "presence": Presence(args.idle) if is_odoo and not args.no_presence else None, "health": args.health, "keys": not args.no_keys and not args.no_follow, "app": profile.get("APP_NAME"), "app_label": profile.get("APP_LABEL", "application"), "hide_user_agent": args.hide_user_agent, "request_length": args.request_length, "log_nginx": bool(args.log_nginx), "log_merge": bool(args.log_merge), "status_header": bool(args.status_header), "nginx_merged": LOGS_MERGE in cmd, "propose_ban": not args.no_ban_prompt, "watch": [t.strip().lower() for t in (args.watch or "").split(",") if t.strip()], "agents": not args.no_user_agent and not args.no_follow, "agents_wanted": not args.no_user_agent, "acces_logs": profile.get("ACCESS_LOGS"),
                "exclude": exclusions, "chime": args.chime, "group": args.accentuate_group if group_members else None, "membres": group_members,
                "report_min": args.time_report or 0.0, "level": args.level, "modules_sort": modules_sort_state,
                "hide_bots": args.hide_bots, "accounts_only": args.accounts_only, "visitor_min": args.visitor_report}          # 1.191
