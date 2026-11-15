@@ -858,3 +858,36 @@ msgstr "Mio"
 
 msgid "all of them"
 msgstr "tous"
+
+msgid " · ZFS counters of its datasets"
+msgstr " · compteurs ZFS de ses datasets"
+
+msgid "writes/s"
+msgstr "écrit./s"
+
+msgid "reads/s"
+msgstr "lect./s"
+
+msgid "  (writes/s, reads/s: operations on the ZFS datasets of the guest, before the cache — what it asks of the pool)"
+msgstr "  (écrit./s, lect./s : opérations sur les datasets ZFS de l'invité, avant le cache — ce qu'il demande au pool)"
+
+msgid "guest "
+msgstr "invité "
+
+msgid " makes "
+msgstr " fait "
+
+msgid " % of the writes of the guests ("
+msgstr " % des écritures des invités ("
+
+msgid " per second) while the tasks wait for the disk "
+msgstr " par seconde) pendant que les tâches attendent le disque "
+
+msgid " % of the time — the reads of the other guests wait behind these writes on the HDD. Find the writer inside it: "
+msgstr " % du temps — les lectures des autres invités attendent derrière ces écritures sur les HDD. Trouver ce qui écrit à l'intérieur : "
+
+msgid "pidstat -d 10 6 (sysstat) or iotop -oPa"
+msgstr "pidstat -d 10 6 (sysstat) ou iotop -oPa"
+
+msgid "; monitoring and logs are the usual cause (ntopng, atop, journald: journalctl --disk-usage, SystemMaxUse=) — or stop it when it is not used"
+msgstr " ; la surveillance et les journaux en sont la cause habituelle (ntopng, atop, journald : journalctl --disk-usage, SystemMaxUse=) — ou l'arrêter quand il ne sert pas"

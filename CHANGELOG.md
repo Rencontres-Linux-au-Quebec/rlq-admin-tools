@@ -2215,6 +2215,27 @@ Earlier history was archived outside this repository when this file was created.
 
 ## host-perf-audit.py
 
+### 1.11.20261114.192640 - Writes of each guest read from the ZFS counters
+
+- Title: The table of the guests shows the reads and writes of each guest on ZFS, the ZFS volumes are named, and a guest that makes most of the writes is pointed out.
+- Reason: request of the administrator on 2026-11-14, after a measurement of 3 hours: the column "disk MB/s" showed 0.00 for every guest, and two manual commands (ls -l /dev/zvol, pidstat inside the VM) were needed to learn that the two BigBlueButton VMs made about 60 % of the writes of the pool while the reads of Odoo waited behind them.
+- Changes:
+  - New function zfs_objset_counters: read and write operations and bytes of each guest, summed over its datasets and volumes (/proc/spl/kstat/zfs/POOL/objset-0x*; names vm-ID-disk, subvol-ID-disk, base-ID-disk, vm-ID-state, vm-ID-cloudinit).
+  - sample_loop: the ZFS counters are read with each sample; each guest gets z_r_ops, z_w_ops, z_r, z_w per second.
+  - analyze_guests: with ZFS counters, the throughput comes from them, two columns "writes/s" and "reads/s" are added, and the guests are sorted by operations.
+  - New function zvol_names (links of /dev/zvol, constant ZVOL_DIR, variable HOST_PERF_AUDIT_ZVOL_DIR for the tests): the column "model" of the table of the disks shows the dataset and the guest of each zdN volume (zd16 -> data/zd0/vm-433-disk-0 (bbb3-26)).
+  - New function guest_writers: on a pool of HDD, when the tasks wait for the disk at least 5 % of the time, a guest that makes at least 25 % of the writes of the guests (and at least 5 per second) gets a MEDIUM suggestion with how to find the writer inside it.
+  - Files: host-perf-audit.py, lang/host-perf-audit.fr.po, nginx-tools-tests/test_host_perf_audit.py.
+- Bugs fixed:
+  - Symptom: "disk MB/s 0.00" for every guest while the zvols of two VMs made 37 writes per second. Diagnosis: ZFS does not go through the block layer, so io.stat of the cgroup of a guest counts nothing. Fix: the ZFS counters of its datasets.
+- Safeguards and edge cases:
+  - Without /proc/spl (no ZFS), the table is unchanged: cgroup counters, no new column.
+  - Partitions of a volume (-partN) and datasets without a guest id are ignored; a counter that goes back (dataset recreated) counts 0.
+  - No suggestion on SSD or NVMe, nor when the disks make nobody wait.
+  - Only small files of /proc are read, once per sample.
+- Checks performed: new test test_compteurs_zfs_par_invite (counters, names of the volumes, table, suggestion and its two safeguards); test_host_perf_audit: 13 tests pass; test_i18n: catalogue of host-perf-audit complete.
+- Action required: none. The next measurement (host-perf-audit.py --duration 24h --export-ai) shows the new columns.
+
 ### 1.10.20261114.163844 - Inherited settings on one line, space and backups reported, --export-ai
 
 - Title: The report no longer repeats an inherited setting, says where the space of a pool goes, reports the backups and the guest disks almost full, and can be exported.

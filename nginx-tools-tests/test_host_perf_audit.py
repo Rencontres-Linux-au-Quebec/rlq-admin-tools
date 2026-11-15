@@ -278,6 +278,57 @@ esac''')
         self.assertIn("SAUVEGARDES (vzdump)", out)
         self.assertTrue(os.path.isfile(fichier), out + err)
 
+    def test_compteurs_zfs_par_invite(self):
+        """1.11 : les écritures de chaque invité lues dans les compteurs ZFS de ses datasets (le cgroup ne compte rien sur ZFS), les volumes zdN nommés,
+        et l'invité qui fait la plupart des écritures désigné."""
+        import shutil
+        import tempfile
+        d = tempfile.mkdtemp(prefix="test-rlq-hpa-z-")
+        self.addCleanup(shutil.rmtree, d)
+        faux_proc(d)
+
+        def objset(nom, fichier, lectures, ecritures):
+            chemin = os.path.join(d, "proc/spl/kstat/zfs/data", fichier)
+            os.makedirs(os.path.dirname(chemin), exist_ok=True)
+            with open(chemin, "w") as f:
+                f.write(f"49 1 0x01 7 2160 1 2\nname type data\ndataset_name 7 {nom}\nwrites 4 {ecritures}\nnwritten 4 {ecritures * 4096}\n"
+                        f"reads 4 {lectures}\nnread 4 {lectures * 8192}\nnunlinks 4 0\n")
+        objset("data/zd0/vm-433-disk-0", "objset-0x10", 100, 1000)
+        objset("data/zd0/vm-433-disk-1", "objset-0x11", 0, 500)
+        objset("data/zd0/subvol-105-disk-2", "objset-0x12", 40, 30)
+        objset("data/zd0", "objset-0x2", 5, 5)                                    # not a guest
+        zv = os.path.join(d, "zvol/data/zd0")
+        os.makedirs(zv)
+        os.symlink("../../../zd16", os.path.join(zv, "vm-433-disk-0"))
+        os.symlink("../../../zd16p1", os.path.join(zv, "vm-433-disk-0-part1"))
+        m = charger("hpa_z", "host-perf-audit.py", {"NGINX_TOOLS_PROC_ROOT": d, "HOST_PERF_AUDIT_ZVOL_DIR": os.path.join(d, "zvol"),
+                                                    "HOST_PERF_AUDIT_LANG": "en", "NGINX_TOOLS_LANG": "en"})
+        self.assertEqual(m.zfs_objset_counters(), {"433": [100, 819200, 1500, 6144000], "105": [40, 327680, 30, 122880]})
+        self.assertEqual(m.zvol_names(), {"zd16": "data/zd0/vm-433-disk-0"})
+        # two guests: the VM writes 30 times a second, the container 2 — the cgroup of both counts nothing
+        g = lambda w, r: {"cpu": 5.0, "mem": 2 ** 30, "mem_max": None, "io_r": 0.0, "io_w": 0.0, "io_some": 0.2, "cpu_some": 0.0, "z_w_ops": w, "z_r_ops": r, "z_w": w * 4096.0, "z_r": r * 8192.0}
+        echantillons = [{"guests": {"433": g(30, 1), "105": g(2, 4)}, "psi": {"io": {"some": 6.0}}} for _ in range(3)]
+        noms = {"433": ("vm", "bbb3-26", ""), "105": ("lxc", "odoo18", "")}
+        out = []
+        lignes = m.analyze_guests(echantillons, noms, 8, out)
+        texte = "\n".join(out)
+        self.assertIn("ZFS counters of its datasets", texte)
+        self.assertIn("writes/s", texte)
+        self.assertLess(texte.index("bbb3-26"), texte.index("odoo18"))          # sorted by operations
+        self.assertRegex(texte, r"433 vm\s+bbb3-26 .* 0\.12\s+30\.0\s+1\.0")
+        fd = m.Findings()
+        m.guest_writers(lignes, echantillons, {"disks": {"sda": {"kind": "HDD"}}}, noms, fd)
+        conseils = [t for _p, t, _a, _l in fd.suggestions]
+        self.assertEqual(len(conseils), 1, conseils)
+        self.assertIn("guest 433 (bbb3-26) makes 94 % of the writes of the guests (30 per second)", conseils[0])
+        self.assertIn("pidstat -d 10 6", conseils[0])
+        fd = m.Findings()
+        m.guest_writers(lignes, [{"psi": {"io": {"some": 0.5}}}], {"disks": {"sda": {"kind": "HDD"}}}, noms, fd)
+        self.assertEqual(fd.suggestions, [])                                        # the disks do not make anyone wait: nothing to say
+        fd = m.Findings()
+        m.guest_writers(lignes, echantillons, {"disks": {"nvme0n1": {"kind": "NVMe"}}}, noms, fd)
+        self.assertEqual(fd.suggestions, [])
+
     def test_aucun_invite_n_attend(self):
         """1.10: « Guest that waited most ... (0.0 % of its time) » contradicted the verdict: the wait is then in the tasks of the host."""
         m = charger("hpa_g", "host-perf-audit.py", {"HOST_PERF_AUDIT_LANG": "en", "NGINX_TOOLS_LANG": "en"})

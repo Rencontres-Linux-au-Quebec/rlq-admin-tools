@@ -41,12 +41,13 @@ import subprocess
 import sys
 import time
 
-__version__ = "1.10.20261114.163844"
+__version__ = "1.11.20261114.192640"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
 CHANGELOG_FILE = os.path.join(SCRIPT_DIR, "CHANGELOG.md")
 PVE_DIR = os.environ.get("HOST_PERF_AUDIT_PVE_DIR", "/etc/pve")
+ZVOL_DIR = os.environ.get("HOST_PERF_AUDIT_ZVOL_DIR", "/dev/zvol")      # 1.11: links zdN -> dataset of each ZFS volume
 SYSCTL_FILE = os.environ.get("HOST_PERF_AUDIT_SYSCTL_FILE", "/etc/sysctl.d/90-host-perf-audit.conf")
 MODPROBE_FILE = os.environ.get("HOST_PERF_AUDIT_MODPROBE_FILE", "/etc/modprobe.d/zfs-arc-host-perf-audit.conf")
 CMD_TIMEOUT = 20
@@ -208,6 +209,46 @@ def guest_cgroups():
         vmid = os.path.basename(path)[:-6]
         if vmid.isdigit():
             res[vmid] = ("vm", path)
+    return res
+
+
+GUEST_DATASET_RE = re.compile(r"(?:^|/)(?:vm|subvol|base)-(\d+)-(?:disk|state|cloudinit)")
+
+
+def zfs_objset_counters():
+    """1.11: {guest id: [read operations, bytes read, write operations, bytes written]} summed over the ZFS datasets and volumes of each guest, from
+    /proc/spl/kstat/zfs/POOL/objset-0x* (one small file per dataset). ZFS does not go through the block layer: the io.stat of a cgroup counts nothing
+    for a container on ZFS (the column « disk MB/s » showed 0.00 for every guest), and a VM writes to its zvol, not to a disk of its cgroup."""
+    res = {}
+    root = SYSPERF._p("/proc/spl/kstat/zfs") if SYSPERF else "/proc/spl/kstat/zfs"
+    for path in glob.glob(os.path.join(root, "*", "objset-0x*")):
+        try:
+            with open(path, encoding="ascii", errors="replace") as f:
+                text = f.read()
+        except OSError:
+            continue
+        name = re.search(r"^dataset_name\s+\d+\s+(\S+)", text, re.M)
+        m = GUEST_DATASET_RE.search(name.group(1)) if name else None
+        if not m:
+            continue
+        c = res.setdefault(m.group(1), [0, 0, 0, 0])
+        for i, key in enumerate(("reads", "nread", "writes", "nwritten")):
+            v = re.search(rf"^{key}\s+\d+\s+(\d+)", text, re.M)
+            if v:
+                c[i] += int(v.group(1))
+    return res
+
+
+def zvol_names():
+    """1.11: {zdN: dataset} from the links of /dev/zvol (zd16 -> data/zd0/vm-433-disk-0): the table of the disks names the volume and its guest."""
+    res = {}
+    root = ZVOL_DIR
+    for link in glob.glob(os.path.join(root, "**", "*"), recursive=True):
+        if re.search(r"-part\d+$", link) or not os.path.islink(link):
+            continue
+        target = os.path.basename(os.readlink(link))
+        if re.match(r"zd\d+$", target):
+            res[target] = os.path.relpath(link, root)
     return res
 
 
@@ -748,6 +789,7 @@ def sample_loop(duration, interval, guests, csv_path):
     samples, t_end = [], time.monotonic() + duration
     prev = SYSPERF.snapshot()
     prev_g = {vmid: cgroup_counters(path) for vmid, (_k, path) in guests.items()}
+    prev_z = zfs_objset_counters() if guests else {}
     csv = None
     if csv_path:
         try:
@@ -766,6 +808,7 @@ def sample_loop(duration, interval, guests, csv_path):
             r = SYSPERF.rates(prev, cur)
             dt = r["dt"]
             gs = {}
+            cur_z = zfs_objset_counters() if guests else {}
             for vmid, (_k, path) in guests.items():
                 c = cgroup_counters(path)
                 p = prev_g.get(vmid) or {}
@@ -777,7 +820,12 @@ def sample_loop(duration, interval, guests, csv_path):
                             "io_r": (d("io_rbytes") or 0) / dt, "io_w": (d("io_wbytes") or 0) / dt,
                             "io_some": d("io_some_us") / 1e6 / dt * 100.0 if d("io_some_us") is not None else None,
                             "cpu_some": d("cpu_some_us") / 1e6 / dt * 100.0 if d("cpu_some_us") is not None else None}
+                z, pz = cur_z.get(vmid), prev_z.get(vmid)
+                if z and pz:                                     # 1.11: the ZFS counters of its datasets (operations and bytes per second)
+                    zr_ops, zr_b, zw_ops, zw_b = (max(0, a - b) / dt for a, b in zip(z, pz))
+                    gs[vmid].update(z_r_ops=zr_ops, z_w_ops=zw_ops, z_r=zr_b, z_w=zw_b)
                 prev_g[vmid] = c
+            prev_z = cur_z
             r["guests"] = gs
             r["psi_source"] = cur.get("psi_source", "/proc/pressure")
             prev = cur
@@ -900,6 +948,7 @@ def analyze_disks(samples, facts, smart, fd, out):
     io_some = [s["psi"].get("io", {}).get("some") for s in samples]
     io_full = [s["psi"].get("io", {}).get("full") for s in samples]
     devices = sorted({d for s in samples for d in s["disks"]})
+    zvols, names_of = (zvol_names(), guest_names()) if any(d.startswith("zd") for d in devices) else ({}, {})
     out.append("DISKS — % of the time busy (utilization), operations and throughput per second, wait per operation (ms)")
     h = [T(x) for x in ("device", "type", "util avg", "p95", "max", "read/s", "write/s", "MB/s r", "MB/s w", "wait r", "wait w", "model")]
     out.append(f"  {h[0]:<10} {h[1]:<5} {h[2]:>8} {h[3]:>5} {h[4]:>5}  {h[5]:>7} {h[6]:>7}  {h[7]:>6} {h[8]:>6}  {h[9]:>7} {h[10]:>7}  {h[11]}")
@@ -910,6 +959,9 @@ def analyze_disks(samples, facts, smart, fd, out):
         rw = [v["r_await"] for v in vals if v["r_await"] is not None and v["r_s"] >= 0.5]
         ww = [v["w_await"] for v in vals if v["w_await"] is not None and v["w_s"] >= 0.5]
         info = facts["disks"].get(dev, {"kind": "zvol" if dev.startswith("zd") else "RAID" if dev.startswith("md") else "?", "model": "", "scheduler": ""})
+        if dev in zvols and not info.get("model"):           # 1.11: zd16 -> data/zd0/vm-433-disk-0 (bbb3-26)
+            m = GUEST_DATASET_RE.search(zvols[dev])
+            info = dict(info, model=zvols[dev] + (f" ({names_of[m.group(1)][1]})" if m and m.group(1) in names_of and names_of[m.group(1)][1] else ""))
         if dev.startswith("zd") and (max(util or [0]) < 1):
             continue                         # idle ZFS volumes: noise
         r95, w95 = pct(rw, 95), pct(ww, 95)
@@ -1021,22 +1073,53 @@ def analyze_guests(samples, names, top, out):
     for vmid in ids:
         vals = [s["guests"][vmid] for s in samples if vmid in s.get("guests", {})]
         cpu = [v["cpu"] for v in vals]
-        io = [(v["io_r"] or 0) + (v["io_w"] or 0) for v in vals]
+        # 1.11: the ZFS counters of the guest's datasets when they exist (the cgroup counts nothing on ZFS), the cgroup otherwise
+        zfs_seen = any("z_w_ops" in v for v in vals)
+        io = [((v.get("z_r") or 0) + (v.get("z_w") or 0)) if zfs_seen else ((v["io_r"] or 0) + (v["io_w"] or 0)) for v in vals]
+        w_ops = avg([v.get("z_w_ops") for v in vals if "z_w_ops" in v]) if zfs_seen else None
+        r_ops = avg([v.get("z_r_ops") for v in vals if "z_r_ops" in v]) if zfs_seen else None
         some = [v["io_some"] for v in vals]
         mem = vals[-1]["mem"] or 0
         kind, name, _conf = names.get(vmid, ("?", "", ""))
-        rows.append((avg(io) or 0, vmid, kind, name, avg(cpu) or 0, max([x for x in cpu if x is not None] or [0]), mem, vals[-1]["mem_max"], avg(some), max([x for x in some if x is not None] or [0])))
-    out.append(f"GUESTS — the {min(top, len(rows))} busiest on the disks (cgroup of each running container / VM)")
-    h = [T(x) for x in ("id", "type", "name", "CPU avg", "peak", "memory", "disk MB/s", "disk wait")]
-    out.append(f"  {h[0]:>5} {h[1]:<4} {h[2]:<22} {h[3]:>8} {h[4]:>6}  {h[5]:>10}  {h[6]:>9}  {h[7]:>9} {h[4]:>6}")
-    for io, vmid, kind, name, cpu, cpu_max, mem, mem_max, some, some_max in sorted(rows, reverse=True)[:top]:
-        out.append(f"  {vmid:>5} {kind:<4} {name[:22]:<22} {cpu:>7.0f}% {cpu_max:>5.0f}%  {mem / 2 ** 30:>6.1f} GiB  {io / 1048576:>9.2f}  "
+        rows.append((avg(io) or 0, vmid, kind, name, avg(cpu) or 0, max([x for x in cpu if x is not None] or [0]), mem, vals[-1]["mem_max"], avg(some),
+                     max([x for x in some if x is not None] or [0]), w_ops, r_ops))
+    with_ops = any(r[10] is not None for r in rows)
+    out.append(f"GUESTS — the {min(top, len(rows))} busiest on the disks (cgroup of each running container / VM)"
+               + (" · ZFS counters of its datasets" if with_ops else ""))
+    h = [T(x) for x in ("id", "type", "name", "CPU avg", "peak", "memory", "disk MB/s", "disk wait", "writes/s", "reads/s")]
+    out.append(f"  {h[0]:>5} {h[1]:<4} {h[2]:<22} {h[3]:>8} {h[4]:>6}  {h[5]:>10}  {h[6]:>9}" + (f"  {h[8]:>8} {h[9]:>7}" if with_ops else "") + f"  {h[7]:>9} {h[4]:>6}")
+    key = (lambda r: (r[10] or 0) + (r[11] or 0)) if with_ops else (lambda r: r[0])
+    for io, vmid, kind, name, cpu, cpu_max, mem, mem_max, some, some_max, w_ops, r_ops in sorted(rows, key=key, reverse=True)[:top]:
+        out.append(f"  {vmid:>5} {kind:<4} {name[:22]:<22} {cpu:>7.0f}% {cpu_max:>5.0f}%  {mem / 2 ** 30:>6.1f} GiB  {io / 1048576:>9.2f}"
+                   + (f"  {w_ops or 0:>8.1f} {r_ops or 0:>7.1f}" if with_ops else "") + "  "
                    + (f"{some:>8.1f}% {some_max:>5.0f}%" if some is not None else f"{'-':>9} {'-':>6}"))
     out.append("  (CPU: 100 % = one full core; disk wait: % of the time the guest's tasks waited for the disk — the latency felt INSIDE it)")
+    if with_ops:
+        out.append("  (writes/s, reads/s: operations on the ZFS datasets of the guest, before the cache — what it asks of the pool)")
     waits = group_waits()
     if waits:
         out.append("  disk wait by group over the last minute: " + " · ".join(f"{g} {v:.1f} %" for g, v in waits) + " (lxc, qemu.slice: the guests; system.slice: the host's own services, backups included)")
     return rows
+
+
+def guest_writers(rows, samples, facts, names, fd):
+    """1.11: a guest that makes most of the writes of a pool of HDD, while the tasks wait for the disk: named, with how to find the writer inside it.
+    On the host of 2026-11-14, two BigBlueButton VMs without a meeting made 60 % of the writes (ntopng, journald), and the reads of Odoo waited behind."""
+    if not any(i.get("kind") == "HDD" for i in facts["disks"].values()):
+        return
+    io_some = avg([s["psi"].get("io", {}).get("some") for s in samples]) or 0
+    total = sum(r[10] or 0 for r in rows)
+    if io_some < IO_PSI_WARN or total < 5:
+        return
+    for _io, vmid, kind, name, *_rest in sorted(rows, key=lambda r: -(r[10] or 0)):
+        w_ops = _rest[6] or 0
+        share = w_ops / total
+        if share < 0.25 or w_ops < 5:
+            break
+        inside = "pidstat -d 10 6 (sysstat) or iotop -oPa" if kind == "vm" else f"pct exec {vmid} -- pidstat -d 10 6"
+        fd.suggest(2, f"guest {vmid} ({name}) makes {share * 100:.0f} % of the writes of the guests ({w_ops:.0f} per second) while the tasks wait for the disk "
+                      f"{io_some:.1f} % of the time — the reads of the other guests wait behind these writes on the HDD. Find the writer inside it: {inside}"
+                      "; monitoring and logs are the usual cause (ntopng, atop, journald: journalctl --disk-usage, SystemMaxUse=) — or stop it when it is not used")
 
 
 def guest_config_advice(names, fd):
@@ -1181,6 +1264,7 @@ def report(samples, facts, zfs, smart, names, guests_rows_cb, args, cost, host_t
     rows = guests_rows_cb(samples, out) if not args.no_guests else []
     if rows:
         out.append("")
+        guest_writers(rows, samples, facts, names, fd)
     if host_tasks:
         out.append(f"HOST TASKS that read or write a lot, seen running during the measurement: {', '.join(sorted(host_tasks))}")
         out.append("")
