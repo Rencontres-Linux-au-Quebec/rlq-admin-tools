@@ -384,3 +384,56 @@ class AdressesInvalides(_Base):
         self.assertEqual(len(maj), 2, texte)
         self.assertIn("SET email = 'marieb.essai@gmail.com'", maj[0])
         self.assertIn("SET email = 'Jean.X@Videotron.ca'", maj[1])
+
+
+class EnvoiUnParUn(EnvTest):
+    """1.22 --interval : un courriel à la fois, attente de l'envoi par Odoo, puis INTERVAL secondes avant le suivant."""
+
+    def module(self):
+        import importlib.util
+        from helpers import script_path
+        spec = importlib.util.spec_from_file_location("omr122", script_path("odoo-mail-retry.py"))
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        return module
+
+    class Faux:
+        """Faux composant de base : remettre_en_attente accepte tout ; etats_courriels rend l'état suivant de la liste de l'appelant."""
+        def __init__(self, suites, inaccessible=False):
+            self.suites, self.remis, self.inaccessible = list(suites), [], inaccessible
+
+        def remettre_en_attente(self, base, ids):
+            self.remis.append(list(ids))
+            return None if self.inaccessible else list(ids)
+
+        def etats_courriels(self, base, ids):
+            return {ids[0]: self.suites.pop(0)} if self.suites else {ids[0]: "sent"}
+
+    def test_122_un_a_la_fois_avec_attente_et_intervalle(self):
+        omr = self.module()
+        db = self.Faux(["outgoing", "sent", "sent"])
+        pauses = []
+        with unittest_patch(omr.time, "sleep", lambda s: pauses.append(s)):
+            code = omr.resend_spaced(db, "base", [1, 2], 2)
+        self.assertEqual(code, 0)
+        self.assertEqual(db.remis, [[1], [2]], "un courriel remis en attente à la fois")
+        self.assertEqual(pauses, [2, 2, 2, 2], "attente d'Odoo (2 s, deux fois pour le 1er), intervalle (2 s), attente du 2e")
+
+    def test_122_courriel_non_envoye_on_passe_au_suivant(self):
+        omr = self.module()
+        db = self.Faux(["outgoing"] * 5 + ["sent"])
+        with unittest_patch(omr.time, "sleep", lambda s: None):
+            code = omr.resend_spaced(db, "base", [7, 8], 0, wait_limit=6)
+        self.assertEqual(code, 0)
+        self.assertEqual(db.remis, [[7], [8]], "le second courriel est tout de même traité")
+
+    def test_122_base_inaccessible(self):
+        omr = self.module()
+        db = self.Faux([], inaccessible=True)
+        with unittest_patch(omr.time, "sleep", lambda s: None):
+            self.assertEqual(omr.resend_spaced(db, "base", [3], 0), 2)
+
+
+def unittest_patch(obj, name, valeur):
+    import unittest.mock
+    return unittest.mock.patch.object(obj, name, valeur)

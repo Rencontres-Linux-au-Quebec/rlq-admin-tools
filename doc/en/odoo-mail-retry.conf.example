@@ -12,6 +12,8 @@
 #ANONYMIZE=no
 # --batch : taille du lot (nombre positif) (défaut : 10)
 #BATCH=10
+# INTERVAL: seconds between two e-mails when they are resent ONE at a time (--interval): each one waits until Odoo has sent it, then INTERVAL s. 0: all at once.
+#INTERVAL=0
 # --days : jours examinés (défaut : 30)
 #DAYS=30
 # --db : base de données (défaut : toutes les bases qui ont des courriels)

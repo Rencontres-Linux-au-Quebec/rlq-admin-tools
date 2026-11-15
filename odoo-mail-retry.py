@@ -49,7 +49,7 @@ try:                    # line editing in prompts (backspace ^H or ^?, arrows)
 except ImportError:
     pass
 
-__version__ = "1.21.20261112.082236"
+__version__ = "1.22.20261115.172939"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
@@ -156,7 +156,7 @@ def read_config(explicite=None):
             line = line.split("#", 1)[0].strip()
             if not line:
                 continue
-            m = re.fullmatch(r"(BATCH|DAYS)\s*=\s*[\"']?(\d+)[\"']?", line)
+            m = re.fullmatch(r"(BATCH|DAYS|INTERVAL)\s*=\s*[\"']?(\d+)[\"']?", line)
             b = re.fullmatch(r"(DETAILS|NO_PROMPT)\s*=\s*[\"']?(\w+)[\"']?", line)
             v = re.fullmatch(r"(VERBOSE|DEBUG_LEVEL)\s*=\s*[\"']?(\w*)[\"']?", line)
             c = re.fullmatch(r"(LOG_KEEP_DAYS)\s*=\s*[\"']?(\d+)[\"']?", line)
@@ -186,7 +186,7 @@ def read_config(explicite=None):
                 if t.group(2):
                     values[t.group(1)] = t.group(2)
             else:
-                problems.append(f"{path}:{n} : line ignored « {line} » (keys: BATCH=batch, DAYS=days: positive numbers; DB=database; DETAILS and NO_PROMPT: yes/no; LANGUAGE: en, fr, auto)")
+                problems.append(f"{path}:{n} : line ignored « {line} » (keys: BATCH=batch, DAYS=days, INTERVAL=seconds: positive numbers; DB=database; DETAILS and NO_PROMPT: yes/no; LANGUAGE: en, fr, auto)")
     level = values.get("DEBUG_LEVEL", 0)
     if level >= 1 and "VERBOSE" not in values:               # DEBUG_LEVEL >= 1 means VERBOSE=yes
         values["VERBOSE"] = True
@@ -349,6 +349,44 @@ def resend_mails(db, database, ids):
     if resent:
         record_resend(database, resent)
         print(wrap("Odoo will send them at the next run of the scheduled action « Mail: Email Queue Manager »; to do it right now: Settings ▸ Technical ▸ Scheduled Actions ▸ « Mail: Email Queue Manager » ▸ Run Manually. Then run odoo-mail-retry.py again: those that left are no longer in the list; those that fail again come back with their cause.", width=110))
+    return 0
+
+
+def resend_spaced(db, database, ids, interval, wait_limit=600):
+    """1.22 --interval: one e-mail at a time. Each e-mail is put back in the « Outgoing » state, then the program waits until Odoo has sent it
+    (state no longer « outgoing »; Odoo sends at its scheduled run, so this can take up to a minute), then waits INTERVAL seconds before the next.
+    The gap between two SMTP messages is therefore AT LEAST INTERVAL seconds, not exactly. An e-mail not sent after WAIT_LIMIT seconds is reported
+    and the program moves on. Returns 0, or 2 if the database is unreachable."""
+    sent = failed = skipped = 0
+    for n, mail_id in enumerate(ids, 1):
+        resent = db.remettre_en_attente(database, [mail_id])
+        if resent is None:
+            eprint(f"ERROR: unable to put e-mail #{mail_id} back in the queue (database {database} : PostgreSQL unreachable, or root required).")
+            return 2
+        if not resent:
+            skipped += 1
+            print(f"  [{n}/{len(ids)}] #{mail_id} ignored: no longer failed.")
+            continue
+        print(f"  [{n}/{len(ids)}] #{mail_id} put back in the queue; waiting for Odoo to send it...", flush=True)
+        state, waited = "outgoing", 0
+        while state == "outgoing" and waited < wait_limit:
+            time.sleep(2)
+            waited += 2
+            states = db.etats_courriels(database, [mail_id])
+            state = (states or {}).get(mail_id, "outgoing") if states is not None else "outgoing"
+        if state == "sent":
+            sent += 1
+            print(f"           sent after {waited} s.")
+        elif state == "outgoing":
+            failed += 1
+            print(f"           not sent after {waited} s (still in the queue): moving on.")
+        else:
+            failed += 1
+            print(f"           failed again (state: {state}).")
+        if n < len(ids) and interval > 0:
+            time.sleep(interval)
+    print()
+    print(f"{sent} sent, {failed} not sent, {skipped} ignored (interval {interval} s between e-mails).")
     return 0
 
 
@@ -558,6 +596,8 @@ def main():
     parser.add_argument("--fix", action="store_true", help="With --yes: fix the invalid addresses of the registrations with the SUGGESTED correction and resend their e-mails, without questions")
     parser.add_argument("--invalid-emails", action="store_true",
                         help="Only the event registrations whose e-mail address is invalid (marieb.essai@gmail'com, gmial.com…) with the suggested correction, then the offer to fix the registration and its contact and to resend the e-mail")
+    parser.add_argument("--interval", type=int, default=None, metavar="SECONDS",
+                        help="Resend ONE e-mail at a time, waiting for Odoo to send it and SECONDS between two e-mails (0: all at once, as before; key INTERVAL)")
     parser.add_argument("--lang", choices=I18N.disponibles if I18N else ["fr"], metavar="LANG",
                         help="Display language: en or fr (default: from LC_ALL / LC_MESSAGES / LANG)")
     parser.add_argument("--menu", action="store_true", help="interactive menu of the common operations (dialog if installed; terminal required)")
@@ -608,6 +648,7 @@ def main():
     VERBOSE = VERBOSE or bool(config.get("VERBOSE"))               # VERBOSE / DEBUG_LEVEL of the configuration file (common or own)
     days_list = args.days if args.days is not None else config.get("DAYS", DEFAULT_DAYS)
     batch_size = args.batch if args.batch is not None else config.get("BATCH", DEFAULT_BATCH)
+    interval = args.interval if args.interval is not None else config.get("INTERVAL", 0)
     args.db = args.db or config.get("DB")
     args.details = args.details or config.get("DETAILS", False)
     args.no_prompt = args.no_prompt or config.get("NO_PROMPT", False)
@@ -687,7 +728,10 @@ def main():
         if not ids:
             print("No e-mail resent.")
             continue
-        code = max(code, resend_mails(db, database, ids))
+        if interval > 0:
+            code = max(code, resend_spaced(db, database, ids, interval))
+        else:
+            code = max(code, resend_mails(db, database, ids))
     return code
 
 

@@ -2708,6 +2708,16 @@ Earlier history was archived outside this repository when this file was created.
 
 ## odoo-mail-retry.py
 
+### 1.22.20261115.172939 - Resend one e-mail at a time (--interval)
+
+- Title: --interval SECONDS resends the failed e-mails one by one, with a pause between them.
+- Reason: request of the administrator on 2026-11-15: a resend of more than 10 e-mails at once (a notification of @everyone) makes Odoo open its messages in one SMTP session and hits the limit of the server (452 4.4.5, then 503 5.5.1). The pause must be at least 2 seconds.
+- Changes: new option --interval SECONDS and key INTERVAL (default 0: unchanged behaviour); new function resend_spaced(): for each e-mail, put back in the queue (remettre_en_attente with ONE identifier), wait until Odoo has sent it (state no longer outgoing, checked every 2 s, at most 600 s), then wait INTERVAL seconds before the next one. New function etats_courriels() in apps/_odoo_db.py (read-only SELECT of the state of the e-mails). Translations in lang/odoo-mail-retry.fr.po; doc/en and doc/fr odoo-mail-retry.conf.example.
+- Bugs fixed: none. Diagnosis: the script only puts e-mails back in the queue; Odoo's scheduled action sends them in one run, with no pause, so the program alone cannot space the messages without waiting for Odoo.
+- Safeguards and edge cases: the gap between two messages is AT LEAST INTERVAL seconds, not exactly (Odoo sends at its scheduled run, which can take up to a minute); an e-mail still in the queue after 600 s is reported and the program moves on; an e-mail that is no longer failed is ignored; PostgreSQL unreachable: stops with code 2 and nothing else is resent.
+- Checks performed: python3 -m py_compile; nginx-tools-tests/test_odoo_mail_retry.py, new class EnvoiUnParUn (one at a time, waits, interval, unreachable base, one e-mail not sent does not stop the others).
+- Action required: to space the messages, run with --resend --yes --interval 2 (or set INTERVAL=2 in /etc/default/odoo-mail-retry.conf). With many e-mails the wait is long: about one minute per e-mail when the scheduled action runs once a minute; the first run of the scheduled action may send several at once if other e-mails are waiting in the queue.
+
 ### 1.21.20261112.082236 - New option --config-merge
 
 - Title: --config-merge rewrites the configuration file from the new default configuration, keeping its values.
