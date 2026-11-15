@@ -3948,6 +3948,23 @@ Earlier history was archived outside this repository when this file was created.
 
 ## nginx-hardening.sh
 
+### 2.106.20261115.074443 - Missed log rotation done by --update
+
+- Title: --update repairs what the copies of the earlier versions caused: the rotation missed while logrotate was blocked is done at once.
+- Reason: request of the administrator on 2026-11-15: the script must repair the problems it caused itself. With 2.105, --update moved the copies out of /etc/logrotate.d, but the logs that had grown while logrotate was blocked rotated only at its next night, and logrotate.service stayed "failed" until then; the fix still needed "logrotate -v /etc/logrotate.conf" by hand.
+- Changes:
+  - Step 11: after the check of the whole configuration, when it is accepted and --update moved at least one copy (LR_DEPLACEES) or logrotate.service is failed, logrotate is run once on the whole configuration (a normal run, not --force: only the logs that are due rotate). The result gives the number of logs rotated and the room freed in /var/log (du before and after; NGINX_HARDENING_VARLOG for the tests); the failed state of logrotate.service is then cleared (systemctl reset-failed).
+  - Files: nginx-hardening.sh, lang/nginx-hardening.en.po, nginx-tools-tests/test_multi_app.py.
+- Bugs fixed:
+  - Symptom: after the move of the copies, the logs stayed large and logrotate.service failed until the next night. Fix: the missed rotation is done by --update.
+- Safeguards and edge cases:
+  - Never in check mode, never while the whole configuration has an error (the rotation would fail the same way).
+  - Run again only when needed: a second --update with nothing moved and the unit not failed does not rotate.
+  - Copies already moved by hand: the failed unit is enough to trigger the rotation.
+  - A failure of the rotation is reported with its first error and the command to see the details.
+- Checks performed: test_nginx_hardening_copies_hors_de_logrotate_d extended (rotation done once with the room freed, not repeated, done again when the unit is failed with the copies moved by hand, reset-failed called; nothing run by the check); ShellCheck: no warning.
+- Action required: on each server: sudo nginx-hardening.sh --update (the manual commands of 2026-11-14 are no longer needed).
+
 ### 2.105.20261115.000319 - Copies of the logrotate files kept outside /etc/logrotate.d
 
 - Title: The copies made before changing /etc/logrotate.d/nginx and /etc/logrotate.d/fail2ban are kept in /var/backups/nginx-hardening/logrotate; the whole logrotate configuration is checked.

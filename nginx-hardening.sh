@@ -93,7 +93,7 @@ run() {
     "$@"
 }
 
-readonly SCRIPT_VERSION="2.105.20261115.000319"
+readonly SCRIPT_VERSION="2.106.20261115.074443"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; readonly SCRIPT_DIR
 SCRIPT_NAME="$(basename "${BASH_SOURCE[0]}" .sh)"; readonly SCRIPT_NAME
 # Display language (en or fr): --lang, NGINX_HARDENING_LANG, LANGUAGE of the configuration file, LC_ALL / LANG - apps/_i18n.sh translates the output (nothing changes in French).
@@ -3138,6 +3138,7 @@ LOGROTATE_DIR="${NGINX_HARDENING_LOGROTATE_DIR:-/etc/logrotate.d}"
 # .dpkg-old are skipped): a copy "nginx.before-nginx-hardening" there declares the same logs twice ("duplicate log entry"),
 # and logrotate then stops with an error - no log of the machine rotated any more (seen on 2026-11-14 in every container).
 LR_COPIES_DIR="${NGINX_HARDENING_BACKUP_DIR:-/var/backups/nginx-hardening}/logrotate"
+LR_DEPLACEES=0
 for lr_nom in nginx fail2ban; do
     lr_f="$LOGROTATE_DIR/$lr_nom"
     lr_copie="$LR_COPIES_DIR/$lr_nom.before-nginx-hardening"
@@ -3151,6 +3152,7 @@ for lr_nom in nginx fail2ban; do
         lr_dest="$lr_copie"
         [[ -e "$lr_dest" ]] && lr_dest="$lr_copie.$(date +%Y%m%d-%H%M%S)"
         if mv -- "$lr_ancienne" "$lr_dest"; then
+            LR_DEPLACEES=$((LR_DEPLACEES + 1))
             pass "$lr_nom : copie $lr_ancienne déplacée vers $lr_dest (logrotate la lisait dans $LOGROTATE_DIR et s'arrêtait : aucun journal ne tournait plus)"
         else
             fail "$lr_nom : impossible de déplacer $lr_ancienne hors de $LOGROTATE_DIR — logrotate reste bloqué ; déplacez-la à la main."
@@ -3221,6 +3223,28 @@ if command -v logrotate >/dev/null 2>&1 && [[ -r "$LR_CONF" ]]; then
         warn "logrotate : la configuration complète ($LR_CONF) a des erreurs — les journaux concernés ne tournent pas : ${lr_tout%;}"
     else
         pass "logrotate : la configuration complète ($LR_CONF) est acceptée"
+    fi
+    # 2.106: repair what the copies of the earlier versions caused. While they were in logrotate.d, no log rotated: the
+    # logs grew, and logrotate.service stays "failed" until its next night. Once the configuration is accepted, the rotation
+    # that was missed is done now (a normal run, not --force: only the logs that are due), then the failed state is cleared.
+    lr_unite_echec=0
+    if command -v systemctl >/dev/null 2>&1 && systemctl is-failed --quiet logrotate.service 2>/dev/null; then lr_unite_echec=1; fi
+    if [[ -z "$lr_tout" && "$CHECK_ONLY" != "1" ]] && (( LR_DEPLACEES > 0 || lr_unite_echec )); then
+        LR_VARLOG="${NGINX_HARDENING_VARLOG:-/var/log}"
+        lr_avant=$(du -sxk "$LR_VARLOG" 2>/dev/null | awk '{print $1}') || lr_avant=""
+        if lr_sortie=$(run logrotate -v "$LR_CONF" 2>&1); then
+            lr_tournes=$(grep -c 'log needs rotating' <<< "$lr_sortie" || true)
+            lr_apres=$(du -sxk "$LR_VARLOG" 2>/dev/null | awk '{print $1}') || lr_apres=""
+            lr_gain=""
+            if [[ "$lr_avant" =~ ^[0-9]+$ && "$lr_apres" =~ ^[0-9]+$ ]] && (( lr_avant > lr_apres )); then
+                lr_gain=" ; $(( (lr_avant - lr_apres) / 1024 )) Mo libérés dans $LR_VARLOG"
+            fi
+            (( lr_unite_echec )) && systemctl reset-failed logrotate.service 2>/dev/null || true
+            pass "logrotate : rotation en retard rattrapée — ${lr_tournes:-0} journaux tournés$lr_gain (logrotate.service n'est plus en échec)"
+        else
+            lr_err3=$(grep -m1 -iE '^error:' <<< "$lr_sortie" || true)
+            fail "logrotate : la rotation de rattrapage a échoué (${lr_err3:-code non nul}) — voir : logrotate -v $LR_CONF"
+        fi
     fi
 fi
 # Journal systemd : celui de l'application si elle journalise dans un namespace isole (LogNamespace), sinon le general.

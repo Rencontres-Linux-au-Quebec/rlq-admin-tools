@@ -2956,3 +2956,24 @@ msgstr ") has errors — the logs concerned do not rotate: "
 
 msgid ") est acceptée"
 msgstr ") is accepted"
+
+msgid " Mo libérés dans "
+msgstr " MB freed in "
+
+msgid "logrotate : rotation en retard rattrapée — "
+msgstr "logrotate: missed rotation done now — "
+
+msgid " journaux tournés"
+msgstr " logs rotated"
+
+msgid " (logrotate.service n'est plus en échec)"
+msgstr " (logrotate.service is no longer failed)"
+
+msgid "logrotate : la rotation de rattrapage a échoué ("
+msgstr "logrotate: the catch-up rotation failed ("
+
+msgid "code non nul"
+msgstr "non-zero exit code"
+
+msgid ") — voir : logrotate -v "
+msgstr ") — see: logrotate -v "

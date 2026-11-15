@@ -298,21 +298,39 @@ class BigBlueButton(EnvTest):
                         NGINX_HARDENING_BACKUP_DIR=sauv)
         self.mock("nginx", '[[ "$1" == -T ]] && echo "server_name bbb30.exemple.org;"; exit 0')
         self.mock("curl", 'printf "HTTP/1.1 200 OK\\r\\n\\r\\n"')
-        for t in ("systemctl", "ss", "ufw", "fail2ban-client"):
+        for t in ("ss", "ufw", "fail2ban-client"):
             self.mock_exit(t)
+        self.mock("systemctl", 'case "$1" in is-failed) exit 1;; esac; exit 0')     # logrotate.service not failed
         # logrotate as it really behaves: the whole configuration fails while a copy declares the same logs again
-        self.mock("logrotate", f'[ "${{@: -1}}" = "{conf}" ] && ls "{os.path.dirname(lr)}" | grep -q before-nginx-hardening && '
-                               f'echo "error: nginx.before-nginx-hardening:1 duplicate log entry for /var/log/nginx/access.log" >&2 && exit 1; exit 0')
+        rattrapage = self.path("rattrapage", "fait")
+        varlog = os.path.dirname(self.path("varlog", "x"))
+        self.write("varlog/nginx/access.log", "x" * 3 * 1024 * 1024)
+        self.mock("logrotate", f'''if [ "$1" = -v ]; then echo run >> {rattrapage}; rm -f {varlog}/nginx/access.log
+  printf "considering log /var/log/nginx/access.log\\n  log needs rotating\\nconsidering log /var/log/fail2ban.log\\n  log does not need rotating\\n"; exit 0; fi
+[ "${{@: -1}}" = "{conf}" ] && ls "{os.path.dirname(lr)}" | grep -q before-nginx-hardening && echo "error: nginx.before-nginx-hardening:1 duplicate log entry for /var/log/nginx/access.log" >&2 && exit 1
+exit 0''')
+        self.env["NGINX_HARDENING_VARLOG"] = varlog
         self.liste_blanche(LISTE_EXEMPLE)
         rc, out, err = self.run_cmd(["bash", prog])
         self.assertIn(f"nginx : copie {ancienne} laissée dans {os.path.dirname(lr)} — logrotate la lit comme une configuration", out)
         self.assertIn(f"logrotate : la configuration complète ({conf}) a des erreurs — les journaux concernés ne tournent pas : error: nginx.before-nginx-hardening:1 duplicate log entry", out)
         self.assertTrue(os.path.isfile(ancienne))                                     # the check changes nothing
+        self.assertFalse(os.path.exists(rattrapage))
         rc, out, err = self.run_cmd(["bash", prog, "--update"])
         self.assertFalse(os.path.exists(ancienne))
         self.assertEqual(open(os.path.join(sauv, "logrotate", "nginx.before-nginx-hardening")).read(), "/var/log/nginx/*.log {\n\tdaily\n\trotate 14\n}\n")
         self.assertIn("déplacée vers", out)
         self.assertIn(f"logrotate : la configuration complète ({conf}) est acceptée", out)
+        self.assertIn("logrotate : rotation en retard rattrapée — 1 journaux tournés ; 3 Mo libérés dans", out)       # 2.106: the missed rotation
+        self.assertEqual(open(rattrapage).read(), "run\n")
+        rc, out, err = self.run_cmd(["bash", prog, "--update"])
+        self.assertNotIn("rattrapée", out)                                           # nothing moved, unit not failed: no second run
+        self.assertEqual(open(rattrapage).read(), "run\n")
+        # copies already moved by hand, but logrotate.service still failed since the last night: the rotation is done too
+        self.mock("systemctl", f'case "$1" in is-failed) exit 0;; reset-failed) echo "$*" >> {rattrapage};; esac; exit 0')
+        rc, out, err = self.run_cmd(["bash", prog, "--update"])
+        self.assertIn("rotation en retard rattrapée", out)
+        self.assertEqual(open(rattrapage).read(), "run\nrun\nreset-failed logrotate.service\n")
         rc, out, err = self.run_cmd(["bash", prog])
         self.assertNotIn("laissée dans", out)
         self.assertNotIn("unbound variable", err)
