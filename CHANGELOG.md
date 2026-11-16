@@ -478,6 +478,16 @@ Earlier history was archived outside this repository when this file was created.
 
 ## app-log-live.py
 
+### 1.195.20261115.191052 - Generic block owner shown as the network name
+
+- Title: the owner of an address block named "Admin" (or another generic word) is replaced by the network name.
+- Reason: report of the administrator on 2026-11-15: several different IP addresses showed the same label "Admin (org)" in the PA BLOC-IP column, although their blocks belong to different hosts.
+- Changes: function Resolver.block_name(): when the RDAP organisation is generic, the name is taken from apps/_vpn.py owner_label() (network name, then the organisation as a last resort); the kind becomes "reseau" when the network name is shown. Tests in nginx-tools-tests/test_app_log_live.py.
+- Bugs fixed: symptom: one label for IPs of different owners; diagnosis: GENERIC_ORG_RE existed in _vpn.py but was used only for the VPN classification, not for the label; fix: same rule for the label.
+- Safeguards and edge cases: a real organisation is unchanged; without the component apps/_vpn.py the previous behaviour is kept; an empty network name keeps the generic organisation.
+- Checks performed: python3 -m py_compile; test_app_log_live.py (block_name cases added).
+- Action required: none. A block shared by many IPs is still labelled identically when its owner is a real organisation: that is the registered owner, not a fault.
+
 ### 1.194.20261114.163844 - Report fixes from the 3-day exports, more data in --export-ai
 
 - Title: Errors of another day carry their date, redirects are followed, --advise reads the User-Agents and asks nginx-log-audit.sh for its verdict, every disk is shown, and --export-ai holds the raw data.
