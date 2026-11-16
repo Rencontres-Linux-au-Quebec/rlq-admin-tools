@@ -122,7 +122,7 @@ from urllib.parse import unquote, urlsplit
 from collections import Counter, OrderedDict
 from concurrent.futures import Future
 
-__version__ = "1.194.20261114.163844"
+__version__ = "1.195.20261115.191052"
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 SCRIPT_NAME = os.path.splitext(os.path.basename(__file__))[0]
@@ -1880,7 +1880,13 @@ class Resolver:
         if not r:
             return ("unknown", ip, None)
         if r["organisation"]:
-            return ("org", r["organisation"], None)
+            # 1.195: a generic organisation ("Admin", "abuse"...) is shown as the network name, as apps/_vpn.py does (owner_label): several providers
+            # register their blocks as "Admin", and the label was then the same for IPs of different owners.
+            vpn = load_module("_vpn")
+            name = vpn.owner_label(r["organisation"], r["reseau"]) if vpn is not None else r["organisation"]
+            if name == r["organisation"]:
+                return ("org", name, None)
+            return ("reseau", name, None)
         return ("reseau", r["reseau"], None)
 
     def _isp(self, file):

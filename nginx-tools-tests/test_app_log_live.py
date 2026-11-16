@@ -949,6 +949,9 @@ class AppLogLive(EnvTest):
         self.assertEqual(live.Resolver.block_name({"organisation": "Meta Platforms", "reseau": "X"}, "1.2.3.4"), ("org", "Meta Platforms", None))
         self.assertEqual(live.Resolver.block_name({"organisation": "", "reseau": "meta-mnt"}, "1.2.3.4"), ("reseau", "meta-mnt", None))
         self.assertEqual(live.Resolver.block_name(None, "1.2.3.4"), ("unknown", "1.2.3.4", None))
+        self.assertEqual(live.Resolver.block_name({"organisation": "Admin", "reseau": "TC-DATACENTER-LIMITED"}, "1.2.3.4"),
+                         ("reseau", "TC-DATACENTER-LIMITED", None), "1.195: organisation générique : nom du réseau")
+        self.assertEqual(live.Resolver.block_name({"organisation": "Admin", "reseau": ""}, "1.2.3.4"), ("org", "Admin", None))
         rc, out, err = self.run_cmd(["python3", self.prog, "--help"])
         self.assertIn("propriétaire du bloc d'adresses", " ".join(out.split()))
 
