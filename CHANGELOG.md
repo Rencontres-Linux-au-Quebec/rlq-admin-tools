@@ -7276,6 +7276,16 @@ Earlier history was archived outside this repository when this file was created.
 
 ## apps/_email_check.py
 
+### 1.4.20261115.184859 - Forwarding aliases are not typos
+
+- Title: no correction and no "invalid" for the forwarding aliases (Firefox Relay, DuckDuckGo, SimpleLogin, AnonAddy).
+- Reason: report of the administrator on 2026-11-15: odoo-mail-retry.py proposed to change the address 2rzh4fpfk@mozmail.com (Firefox Relay alias of a registrant, forwarding to a real mailbox) to a hotmail.com address. The domain mozmail.com was taken for a typo of hotmail.com (2 edits away).
+- Changes: new constant RELAY_DOMAINS; suggest() returns None for these domains, so check() reports them valid with no suggestion.
+- Bugs fixed: symptom: false "probable typo" and suggested correction for a valid alias; diagnosis: the distance rule applied to every domain; fix: exception list checked before the distance rule.
+- Safeguards and edge cases: only the listed domains are exempt; the address stays unchanged; a real typo of a popular domain (videtron.ca) is still corrected. An alias can be disabled by its owner: the program does not check that (no network).
+- Checks performed: python3 -m py_compile; nginx-tools-tests/test_courriel.py, class AliasRelais.
+- Action required: none (the registration of the person was not changed: the correction had been refused).
+
 ### 1.3.20261022.231529 - Code comments translated to English
 
 - Title: Code comments translated to English (repository convention).
